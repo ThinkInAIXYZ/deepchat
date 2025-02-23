@@ -8,7 +8,7 @@
 <p align="center">海豚是鲸鱼的好朋友，DeepChat是你的好助手</p>
 
 <div align="center">
-  中文 / <a href="./README.md">English</a>
+  中文  / <a href="./README.md">English</a>
 </div>
 
 <p align='center'>
