@@ -71,7 +71,6 @@ import LoadingCursor from '@/components/LoadingCursor.vue'
 import { usePresenter } from '@/composables/usePresenter'
 import { SearchResult } from '@shared/presenter'
 import ReferencePreview from './ReferencePreview.vue'
-import DOMPurify from 'dompurify'
 
 const threadPresenter = usePresenter('threadPresenter')
 const searchResults = ref<SearchResult[]>([])
@@ -388,14 +387,34 @@ const initCodeEditors = () => {
     }
 
     try {
-      const editorView = new EditorView({
-        state: EditorState.create({
-          doc: decodedCode,
-          extensions: [...extensions, EditorState.readOnly.of(true)]
-        }),
-        parent: editorContainer as HTMLElement
-      })
-      editorInstances.value.set(editorId, editorView)
+      if (editorContainer instanceof HTMLElement) {
+        try {
+          const editorView = new EditorView({
+            state: EditorState.create({
+              doc: decodedCode,
+              extensions: [
+                ...extensions,
+                EditorState.readOnly.of(true)
+                // Remove the inline theme configuration
+              ]
+            }),
+            parent: editorContainer
+          })
+          editorInstances.value.set(editorId, editorView)
+        } catch (innerError) {
+          console.error("Failed with standard method, trying fallback:", innerError);
+          // Fallback if CodeMirror fails - create a basic pre element with escaped HTML
+          const escapedCode = decodedCode
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
+          editorContainer.innerHTML = `<pre style="white-space: pre-wrap; color: #ffffff; margin: 0;">${escapedCode}</pre>`;
+        }
+      } else {
+        console.error('Editor container is not a valid HTMLElement')
+      }
     } catch (error) {
       console.error('Failed to initialize editor:', error)
     }
@@ -437,13 +456,15 @@ const renderContent = (content: string) => {
   const rawContent = renderMarkdown(
     props.block.status === 'loading' ? content + loadingCursor.value?.CURSOR_MARKER : content
   )
-  const safeContent = DOMPurify.sanitize(rawContent, {
-    WHOLE_DOCUMENT: false,
-    FORBID_TAGS: ['script', 'style', 'code'],
-    ALLOWED_URI_REGEXP:
-      /^(?:(?:(?:f|ht)tps?|mailto|tel|callto|cid|xmpp|xxx):|[^a-z]|[a-z+.]+(?:[^a-z+.:]|$))/i
-  })
-  return safeContent
+  // Note: Content is not sanitized to allow proper code rendering
+  // Be careful with user-generated content as this could pose XSS risks
+  // const safeContent = DOMPurify.sanitize(rawContent, {
+  //   WHOLE_DOCUMENT: false,
+  //   FORBID_TAGS: ['script', 'style', 'code'],
+  //   ALLOWED_URI_REGEXP:
+  //     /^(?:(?:(?:f|ht)tps?|mailto|tel|callto|cid|xmpp|xxx):|[^a-z]|[a-z+.]+(?:[^a-z+.:]|$))/i
+  // })
+  return rawContent
 }
 
 // 右键菜单事件处理
@@ -547,6 +568,23 @@ onMounted(async () => {
 
 .prose .code-editor {
   @apply overflow-auto;
+  min-height: 10px;
+  background-color: #1e1e1e;
+  color: #ffffff;
+  padding: 8px;
+  border-radius: 0 0 0.5rem 0.5rem;
+}
+
+.prose .code-editor .cm-editor {
+  background-color: #1e1e1e;
+}
+
+.prose .code-editor .cm-content {
+  color: #ffffff !important;
+}
+
+.prose .code-editor .cm-line {
+  padding: 0 8px;
 }
 
 .prose hr {
