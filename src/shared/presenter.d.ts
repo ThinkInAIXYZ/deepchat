@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { BrowserWindow } from 'electron'
 import { MessageFile } from './chat'
+import { ShowResponse } from 'ollama'
 
 export type SQLITE_MESSAGE = {
   id: string
@@ -232,6 +233,11 @@ export interface ILlmProviderPresenter {
     providerId: string,
     modelId: string
   ): Promise<string>
+  listOllamaModels(): Promise<OllamaModel[]>
+  showOllamaModelInfo(modelName: string): Promise<ShowResponse>
+  listOllamaRunningModels(): Promise<OllamaModel[]>
+  pullOllamaModels(modelName: string): Promise<boolean>
+  deleteOllamaModel(modelName: string): Promise<boolean>
 }
 export type CONVERSATION_SETTINGS = {
   systemPrompt: string
@@ -463,4 +469,27 @@ export interface FileMetaData {
   fileDescription?: string
   fileCreated: Date
   fileModified: Date
+}
+// 根据 Ollama SDK 定义模型接口
+export interface OllamaModel {
+  name: string
+  model: string
+  modified_at: Date | string // 修改为可以是 Date 或 string
+  size: number
+  digest: string
+  details: {
+    format: string
+    family: string
+    families: string[]
+    parameter_size: string
+    quantization_level: string
+  }
+}
+
+// 定义进度回调的接口
+export interface ProgressResponse {
+  status: string
+  digest?: string
+  total?: number
+  completed?: number
 }

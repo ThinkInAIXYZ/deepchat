@@ -159,6 +159,9 @@
       "syncModelsFailed": "モデルの同期に失敗しました...",
       "addCustomProvider": "カスタムプロバイダーを追加",
       "delete": "削除",
+      "stopModel": "モデルを停止",
+      "pulling": "取得中...",
+      "runModel": "モデルを実行",
       "dialog": {
         "disableModel": {
           "title": "モデルを無効にする確認",
@@ -195,8 +198,26 @@
           "title": "プロバイダーの削除確認",
           "content": "プロバイダー \"{name}\" を削除してもよろしいですか？この操作は元に戻せません。",
           "confirm": "削除"
+        },
+        "deleteModel": {
+          "title": "モデルの削除確認",
+          "content": "モデル \"{name}\" を削除してもよろしいですか？この操作は元に戻せません。",
+          "confirm": "削除"
+        },
+        "pullModel": {
+          "title": "モデルを取得",
+          "pull": "取得"
         }
-      }
+      },
+      "pullModels": "モデルを取得",
+      "refreshModels": "モデルを更新",
+      "modelsRunning": "実行中のモデル",
+      "runningModels": "実行中のモデル",
+      "noRunningModels": "実行中のモデルはありません",
+      "deleteModel": "モデルを削除",
+      "deleteModelConfirm": "モデル \"{name}\" を削除してもよろしいですか？この操作は元に戻せません。",
+      "noLocalModels": "ローカルモデルはありません",
+      "localModels": "ローカルモデル"
     }
   },
   "welcome": {

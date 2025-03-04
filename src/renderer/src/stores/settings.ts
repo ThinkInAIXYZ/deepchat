@@ -253,6 +253,10 @@ export const useSettingsStore = defineStore('settings', () => {
           providerId: provider.id,
           models: allModels.filter((model) => model.enabled !== false)
         }
+        if (provider.id === 'ollama') {
+          // ollama 管理由 ollama 接管
+          enabledModelsData.models = allModels
+        }
         if (existingEnabledIndex !== -1) {
           enabledModels.value[existingEnabledIndex].models = enabledModelsData.models
         } else {

@@ -1,4 +1,10 @@
-import { ILlmProviderPresenter, LLM_PROVIDER, LLMResponse, MODEL_META } from '@shared/presenter'
+import {
+  ILlmProviderPresenter,
+  LLM_PROVIDER,
+  LLMResponse,
+  MODEL_META,
+  OllamaModel
+} from '@shared/presenter'
 import { BaseLLMProvider } from './baseProvider'
 import { OpenAIProvider } from './providers/openAIProvider'
 import { DeepseekProvider } from './providers/deepseekProvider'
@@ -7,11 +13,13 @@ import { eventBus } from '@/eventbus'
 import { OpenAICompatibleProvider } from './providers/openAICompatibleProvider'
 import { PPIOProvider } from './providers/ppioProvider'
 import { getModelConfig } from './modelConfigs'
-import { STREAM_EVENTS } from '@/events'
+import { OLLAMA_EVENTS, STREAM_EVENTS } from '@/events'
 import { ConfigPresenter } from '../configPresenter'
 import { GeminiProvider } from './providers/geminiProvider'
 import { DEFAULT_PROVIDERS } from '../configPresenter/providers'
 import { GithubProvider } from './providers/githubProvider'
+import { OllamaProvider } from './providers/ollamaProvider'
+import { ShowResponse } from 'ollama'
 // 导入其他provider...
 
 // 流的状态
@@ -130,6 +138,9 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
           instance = new GithubProvider(provider, this.configPresenter)
           break
         // 添加其他provider的实例化逻辑
+        case 'ollama':
+          instance = new OllamaProvider(provider, this.configPresenter)
+          break
         default:
           instance = new OpenAICompatibleProvider(provider, this.configPresenter)
           break
@@ -437,5 +448,68 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
   ): Promise<string> {
     const provider = this.getProviderInstance(providerId)
     return provider.summaryTitles(messages, modelId)
+  }
+
+  // 获取 OllamaProvider 实例
+  getOllamaProviderInstance(): OllamaProvider | null {
+    // 从所有 provider 中找到已经启用的 ollama provider
+    for (const provider of this.providers.values()) {
+      if (provider.id === 'ollama' && provider.enable) {
+        const providerInstance = this.providerInstances.get(provider.id)
+        if (providerInstance instanceof OllamaProvider) {
+          return providerInstance
+        }
+      }
+    }
+    return null
+  }
+  // ollama api
+  listOllamaModels(): Promise<OllamaModel[]> {
+    const provider = this.getOllamaProviderInstance()
+    if (!provider) {
+      console.error('Ollama provider not found')
+      return Promise.resolve([])
+    }
+    return provider.listModels()
+  }
+  showOllamaModelInfo(modelName: string): Promise<ShowResponse> {
+    const provider = this.getOllamaProviderInstance()
+    if (!provider) {
+      throw new Error('Ollama provider not found')
+    }
+    return provider.showModelInfo(modelName)
+  }
+  listOllamaRunningModels(): Promise<OllamaModel[]> {
+    const provider = this.getOllamaProviderInstance()
+    if (!provider) {
+      console.error('Ollama provider not found')
+      return Promise.resolve([])
+    }
+    return provider.listRunningModels()
+  }
+  pullOllamaModels(modelName: string): Promise<boolean> {
+    const provider = this.getOllamaProviderInstance()
+    if (!provider) {
+      throw new Error('Ollama provider not found')
+    }
+    return provider.pullModel(modelName, (progress) => {
+      console.log('pullOllamaModels', {
+        eventId: 'pullOllamaModels',
+        modelName: modelName,
+        ...progress
+      })
+      eventBus.emit(OLLAMA_EVENTS.PULL_MODEL_PROGRESS, {
+        eventId: 'pullOllamaModels',
+        modelName: modelName,
+        ...progress
+      })
+    })
+  }
+  deleteOllamaModel(modelName: string): Promise<boolean> {
+    const provider = this.getOllamaProviderInstance()
+    if (!provider) {
+      throw new Error('Ollama provider not found')
+    }
+    return provider.deleteModel(modelName)
   }
 }

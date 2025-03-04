@@ -25,12 +25,20 @@
         <span class="text-sm font-medium">{{ t('settings.provider.addCustomProvider') }}</span>
       </div>
     </div>
-    <ModelProviderSettingsDetail
-      v-if="activeProvider"
-      :key="activeProvider.id"
-      :provider="activeProvider"
-      class="flex-1"
-    />
+    <template v-if="activeProvider">
+      <OllamaProviderSettingsDetail
+        v-if="activeProvider.apiType === 'ollama'"
+        :key="`ollama-${activeProvider.id}`"
+        :provider="activeProvider"
+        class="flex-1"
+      />
+      <ModelProviderSettingsDetail
+        v-else
+        :key="`standard-${activeProvider.id}`"
+        :provider="activeProvider"
+        class="flex-1"
+      />
+    </template>
     <AddCustomProviderDialog
       v-model:open="isAddProviderDialogOpen"
       @provider-added="handleProviderAdded"
@@ -42,6 +50,7 @@ import { computed, ref } from 'vue'
 import { useSettingsStore } from '@/stores/settings'
 import { useRoute, useRouter } from 'vue-router'
 import ModelProviderSettingsDetail from './ModelProviderSettingsDetail.vue'
+import OllamaProviderSettingsDetail from './OllamaProviderSettingsDetail.vue'
 import ModelIcon from '@/components/icons/ModelIcon.vue'
 import { Icon } from '@iconify/vue'
 import AddCustomProviderDialog from './AddCustomProviderDialog.vue'

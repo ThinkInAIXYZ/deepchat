@@ -17,7 +17,8 @@ import {
   CONVERSATION_EVENTS,
   STREAM_EVENTS,
   WINDOW_EVENTS,
-  UPDATE_EVENTS
+  UPDATE_EVENTS,
+  OLLAMA_EVENTS
 } from '@/events'
 
 export class Presenter implements IPresenter {
@@ -113,6 +114,10 @@ export class Presenter implements IPresenter {
     // 消息编辑事件
     eventBus.on(CONVERSATION_EVENTS.MESSAGE_EDITED, (msgId: string) => {
       this.windowPresenter.mainWindow?.webContents.send(CONVERSATION_EVENTS.MESSAGE_EDITED, msgId)
+    })
+
+    eventBus.on(OLLAMA_EVENTS.PULL_MODEL_PROGRESS, (msg) => {
+      this.windowPresenter.mainWindow?.webContents.send(OLLAMA_EVENTS.PULL_MODEL_PROGRESS, msg)
     })
   }
 

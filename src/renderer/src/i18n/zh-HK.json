@@ -165,6 +165,9 @@
       "addCustomProvider": "添加自定義服務商",
       "disableAllModels": "禁用全部模型",
       "delete": "刪除",
+      "stopModel": "停止模型",
+      "pulling": "拉取中...",
+      "runModel": "運行模型",
       "dialog": {
         "disableModel": {
           "title": "確認禁用模型",
@@ -201,8 +204,26 @@
           "title": "確認刪除服務商",
           "content": "是否確認刪除服務商 \"{name}\"？此操作不可恢復。",
           "confirm": "刪除"
+        },
+        "deleteModel": {
+          "title": "確認刪除模型",
+          "content": "是否確認刪除模型 \"{name}\"？此操作不可恢復。",
+          "confirm": "刪除"
+        },
+        "pullModel": {
+          "title": "拉取模型",
+          "pull": "拉取"
         }
-      }
+      },
+      "pullModels": "拉取模型",
+      "refreshModels": "刷新模型",
+      "modelsRunning": "模型正在運行",
+      "runningModels": "運行中的模型",
+      "noRunningModels": "沒有運行中的模型",
+      "deleteModel": "刪除模型",
+      "deleteModelConfirm": "是否確認刪除模型 \"{name}\"？此操作不可恢復。",
+      "noLocalModels": "沒有本地模型",
+      "localModels": "本地模型"
     }
   },
   "welcome": {

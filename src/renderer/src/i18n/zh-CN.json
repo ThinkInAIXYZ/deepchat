@@ -166,6 +166,9 @@
       "syncModelsFailed": "同步模型失败...",
       "addCustomProvider": "添加自定义服务商",
       "delete": "删除",
+      "stopModel": "停止模型",
+      "pulling": "拉取中...",
+      "runModel": "运行模型",
       "dialog": {
         "disableModel": {
           "title": "确认禁用模型",
@@ -202,8 +205,26 @@
           "title": "确认删除服务商",
           "content": "是否确认删除服务商 \"{name}\"？此操作不可恢复。",
           "confirm": "删除"
+        },
+        "deleteModel": {
+          "title": "确认删除模型",
+          "content": "是否确认删除模型 \"{name}\"？此操作不可恢复。",
+          "confirm": "删除"
+        },
+        "pullModel": {
+          "title": "拉取模型",
+          "pull": "拉取"
         }
-      }
+      },
+      "pullModels": "拉取模型",
+      "refreshModels": "刷新模型",
+      "modelsRunning": "模型正在运行",
+      "runningModels": "运行中的模型",
+      "noRunningModels": "没有运行中的模型",
+      "deleteModel": "删除模型",
+      "deleteModelConfirm": "是否确认删除模型 \"{name}\"？此操作不可恢复。",
+      "noLocalModels": "没有本地模型",
+      "localModels": "本地模型"
     }
   },
   "welcome": {

@@ -165,6 +165,9 @@
       "syncModelsFailed": "Failed to sync models...",
       "addCustomProvider": "Add Custom Provider",
       "delete": "Delete",
+      "stopModel": "Stop Model",
+      "pulling": "Pulling...",
+      "runModel": "Run Model",
       "dialog": {
         "disableModel": {
           "title": "Confirm Disable Model",
@@ -201,8 +204,26 @@
           "title": "Delete Provider",
           "content": "Are you sure you want to delete provider \"{name}\"? This action cannot be undone.",
           "confirm": "Delete"
+        },
+        "deleteModel": {
+          "title": "Confirm Delete Model",
+          "content": "Are you sure you want to delete model \"{name}\"? This action cannot be undone.",
+          "confirm": "Delete"
+        },
+        "pullModel": {
+          "title": "Pull Model",
+          "pull": "Pull"
         }
-      }
+      },
+      "pullModels": "Pull Models",
+      "refreshModels": "Refresh Models",
+      "modelsRunning": "Models Running",
+      "runningModels": "Running Models",
+      "noRunningModels": "No Running Models",
+      "deleteModel": "Delete Model",
+      "deleteModelConfirm": "Are you sure you want to delete model \"{name}\"? This action cannot be undone.",
+      "noLocalModels": "No Local Models",
+      "localModels": "Local Models"
     }
   },
   "welcome": {

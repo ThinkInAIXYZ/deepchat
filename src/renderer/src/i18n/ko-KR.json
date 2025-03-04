@@ -165,6 +165,9 @@
       "syncModelsFailed": "모델 동기화 실패...",
       "addCustomProvider": "커스텀 제공자 추가",
       "delete": "삭제",
+      "stopModel": "모델 중지",
+      "pulling": "가져오는 중...",
+      "runModel": "모델 실행",
       "dialog": {
         "disableModel": {
           "title": "모델 비활성화 확인",
@@ -201,8 +204,26 @@
           "title": "제공자 삭제",
           "content": "제공자 \"{name}\"을(를) 삭제하시겠습니까? 이 작업은 취소할 수 없습니다.",
           "confirm": "삭제"
+        },
+        "deleteModel": {
+          "title": "모델 삭제 확인",
+          "content": "모델 \"{name}\"을(를) 삭제하시겠습니까? 이 작업은 취소할 수 없습니다.",
+          "confirm": "삭제"
+        },
+        "pullModel": {
+          "title": "모델 가져오기",
+          "pull": "가져오기"
         }
-      }
+      },
+      "pullModels": "모델 가져오기",
+      "refreshModels": "모델 새로고침",
+      "modelsRunning": "실행 중인 모델",
+      "runningModels": "실행 중인 모델",
+      "noRunningModels": "실행 중인 모델 없음",
+      "deleteModel": "모델 삭제",
+      "deleteModelConfirm": "모델 \"{name}\"을(를) 삭제하시겠습니까? 이 작업은 취소할 수 없습니다.",
+      "noLocalModels": "로컬 모델 없음",
+      "localModels": "로컬 모델"
     }
   },
   "welcome": {
