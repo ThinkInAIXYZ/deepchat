@@ -44,6 +44,7 @@ md.inline.ruler.before('escape', 'math', mathInline)
 // Add rendering rules
 md.renderer.rules.math_inline = (tokens, idx) => tokens[idx].content
 md.renderer.rules.math_block = (tokens, idx) => tokens[idx].content
+md.renderer.rules.code_block = (tokens, idx) => tokens[idx].content
 
 // Configure MathJax
 md.use(mathjax3, {
