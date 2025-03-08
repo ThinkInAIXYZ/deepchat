@@ -181,7 +181,7 @@ const processedContent = computed<ProcessedPart[]>(() => {
   const parts: ProcessedPart[] = []
   let content = props.block.content
   let lastIndex = 0
-  console.log(content)
+  
   // 处理 antThinking 标签
   const thinkingRegex = /<antThinking>(.*?)<\/antThinking>/gs
   let match
