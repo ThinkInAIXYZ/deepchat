@@ -144,6 +144,10 @@ const handleScroll = async (event: Event) => {
 const handleThreadSelect = async (thread: CONVERSATION) => {
   try {
     await chatStore.setActiveThread(thread.id)
+    // 确保在选择会话时关闭预览窗口
+    if (window.closeArtifactsPreview) {
+      window.closeArtifactsPreview()
+    }
   } catch (error) {
     console.error(t('common.error.selectChatFailed'), error)
   }

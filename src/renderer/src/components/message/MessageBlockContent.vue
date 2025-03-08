@@ -18,7 +18,7 @@
         }"
       />
       <ArtifactBlock
-        class="max-h-[500px] overflow-auto"
+        class="max-h-[500px] overflow-auto cursor-pointer hover:border-primary transition-colors"
         v-else-if="part.type === 'artifact' && part.artifact"
         :block="{
           content: part.content,
@@ -181,7 +181,7 @@ const processedContent = computed<ProcessedPart[]>(() => {
   const parts: ProcessedPart[] = []
   let content = props.block.content
   let lastIndex = 0
-
+  console.log(content)
   // 处理 antThinking 标签
   const thinkingRegex = /<antThinking>(.*?)<\/antThinking>/gs
   let match

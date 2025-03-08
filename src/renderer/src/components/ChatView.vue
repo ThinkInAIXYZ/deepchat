@@ -42,12 +42,32 @@ const isGenerating = computed(() => {
   if (!chatStore.activeThreadId) return false
   return chatStore.generatingThreadIds.has(chatStore.activeThreadId)
 })
-const handleSend = async (msg: UserMessageContent) => {
-  await chatStore.sendMessage(msg)
-  scrollToBottom()
+
+// 确保在聊天相关交互时关闭预览窗口
+const closeArtifactsPreviewIfExists = () => {
+  if (window.closeArtifactsPreview) {
+    window.closeArtifactsPreview()
+  }
+}
+
+const handleSend = async (content: UserMessageContent) => {
+  // 先关闭预览窗口
+  closeArtifactsPreviewIfExists()
+  
+  // 原有发送消息逻辑
+  try {
+    await chatStore.sendMessage(content)
+    scrollToBottom()
+  } catch (error) {
+    console.error('发送消息失败', error)
+  }
 }
 
 const handleFileUpload = () => {
+  // 先关闭预览窗口
+  closeArtifactsPreviewIfExists()
+  
+  // 原有上传文件逻辑
   scrollToBottom()
 }
 

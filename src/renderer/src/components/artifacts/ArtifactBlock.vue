@@ -1,85 +1,80 @@
 <template>
-  <div class="w-full rounded-lg border bg-card text-card-foreground shadow-sm">
-    <div class="flex flex-col space-y-1.5 p-4">
-      <div class="flex items-center justify-between">
+  <div 
+    class="w-full rounded-lg border bg-card text-card-foreground shadow-sm hover:border-primary transition-colors cursor-pointer" 
+    @click="handleExpand"
+  >
+    <div class="flex items-center p-4">
+      <div class="mr-4 flex-shrink-0">
+        <div class="w-12 h-12 flex items-center justify-center bg-muted rounded-md">
+          <Icon :icon="artifactIcon" class="h-6 w-6 text-muted-foreground" />
+        </div>
+      </div>
+      <div class="flex-grow">
         <h3 class="text-lg font-semibold leading-none tracking-tight">
           {{ block.artifact?.title }}
         </h3>
-        <div class="flex items-center gap-2">
-          <Button variant="ghost" size="icon" @click="handleCopy">
-            <Icon icon="lucide:copy" class="h-4 w-4" />
-          </Button>
-        </div>
+        <p class="text-sm text-muted-foreground mt-1">
+          Click to open document
+        </p>
       </div>
-      <component
-        :is="artifactComponent"
-        v-if="artifactComponent"
-        :block="block"
-        :class="['mt-4', artifactClass]"
-      />
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { Button } from '@/components/ui/button'
 import { Icon } from '@iconify/vue'
-import CodeArtifact from './CodeArtifact.vue'
-import MarkdownArtifact from './MarkdownArtifact.vue'
-import HTMLArtifact from './HTMLArtifact.vue'
-import SvgArtifact from './SvgArtifact.vue'
-import MermaidArtifact from './MermaidArtifact.vue'
+import { ArtifactPreviewData } from '@/composables/useArtifactsPreview'
 
 const props = defineProps<{
   block: {
     artifact: {
       type: string
       title: string
+      language?: string
     }
     content: string
   }
 }>()
 
-const artifactComponent = computed(() => {
-  if (!props.block.artifact) return null
+// 生成内容图标
+const artifactIcon = computed(() => {
+  if (!props.block.artifact) return 'lucide:file'
+  
   switch (props.block.artifact.type) {
     case 'application/vnd.ant.code':
-      return CodeArtifact
+      return 'lucide:code'
     case 'text/markdown':
-      return MarkdownArtifact
+      return 'lucide:file-text'
     case 'text/html':
-      return HTMLArtifact
+      return 'lucide:globe'
     case 'image/svg+xml':
-      return SvgArtifact
+      return 'lucide:image'
     case 'application/vnd.ant.mermaid':
-      return MermaidArtifact
+      return 'lucide:bar-chart'
     default:
-      return null
+      return 'lucide:file'
   }
 })
 
-const artifactClass = computed(() => {
-  if (!props.block.artifact) return ''
-  switch (props.block.artifact.type) {
-    case 'application/vnd.ant.code':
-      return 'prose dark:prose-invert max-w-none'
-    case 'text/markdown':
-      return 'prose dark:prose-invert max-w-none'
-    case 'text/html':
-      return ''
-    case 'image/svg+xml':
-      return ''
-    case 'application/vnd.ant.mermaid':
-      return ''
-    default:
-      return ''
-  }
-})
-
-const handleCopy = () => {
-  if (props.block.content) {
-    window.api.copyText(props.block.content)
+const handleExpand = () => {
+  if (window.openArtifactsPreview && props.block.artifact) {
+    // 生成一个唯一标识符，用于判断是否是同一个artifact
+    const artifactId = `${props.block.artifact.type}:${props.block.artifact.title}`
+    
+    // 调用全局方法，传入标识符，由App.vue决定是打开还是关闭
+    const previewData: ArtifactPreviewData = {
+      content: props.block.content,
+      type: props.block.artifact.type,
+      title: props.block.artifact.title,
+      language: props.block.artifact.language,
+      id: artifactId
+    }
+    
+    window.openArtifactsPreview(previewData)
   }
 }
 </script>
+
+<style scoped>
+</style>
