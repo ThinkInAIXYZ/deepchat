@@ -33,6 +33,9 @@ jobs:
           node-version: '22'
       - name: Install dependencies
         run: npm install
+        env:
+          npm_config_platform: win32
+          npm_config_arch: ${{ matrix.arch }}
       - name: Install Sharp
         run: npm install sharp  --build-from-source
       - name: Build Windows
@@ -62,6 +65,9 @@ jobs:
           node-version: '22'
       - name: Install dependencies
         run: npm install
+        env:
+          npm_config_platform: linux
+          npm_config_arch: ${{ matrix.arch }}
       - name: Install Sharp
         run: npm install --cpu=wasm32 sharp
       - name: Build Linux

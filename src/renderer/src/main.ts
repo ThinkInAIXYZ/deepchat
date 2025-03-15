@@ -24,7 +24,9 @@ const i18n = createI18n({
     'zh-HK': zhHK,
     'ja-JP': jaJP,
     'ko-KR': koKR,
-    'ru-RU': ruRU
+    'ru-RU': ruRU,
+    'zh': zhCN,
+    'en': enUS
   }
 })
 // 添加整个图标集合到本地

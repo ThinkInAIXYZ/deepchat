@@ -108,6 +108,7 @@ export interface IPresenter {
   devicePresenter: IDevicePresenter
   upgradePresenter: IUpgradePresenter
   filePresenter: IFilePresenter
+  mcpPresenter: IMCPPresenter
   syncPresenter: ISyncPresenter
   // llamaCppPresenter: ILlamaCppPresenter
 }
@@ -163,6 +164,13 @@ export interface IConfigPresenter {
   setSyncFolderPath(folderPath: string): void
   getLastSyncTime(): number
   setLastSyncTime(time: number): void
+  // MCP配置相关方法
+  getMcpConfig(): Promise<MCPConfig>
+  setMcpConfig(config: MCPConfig): Promise<void>
+  addMcpServer(name: string, config: MCPServerConfig): Promise<void>
+  removeMcpServer(name: string): Promise<void>
+  updateMcpServer(name: string, config: Partial<MCPServerConfig>): Promise<void>
+  setDefaultServer(name: string): Promise<void>
 }
 export type RENDERER_MODEL_META = {
   id: string
@@ -438,10 +446,12 @@ export type DiskInfo = {
 export type LLMResponse = {
   content: string
   reasoning_content?: string
+  tool_calling_content?: string
 }
 export type LLMResponseStream = {
   content?: string
   reasoning_content?: string
+  tool_calling_content?: string
 }
 export interface IUpgradePresenter {
   checkUpdate(): Promise<void>
@@ -532,6 +542,74 @@ export interface ProgressResponse {
   digest?: string
   total?: number
   completed?: number
+}
+
+// MCP相关类型定义
+export interface MCPServerConfig {
+  command: string
+  args: string[]
+  env: Record<string, string>
+  descriptions: string
+  icons: string
+  autoApprove: string[]
+  disable?: boolean
+  baseUrl?: string
+  type: 'sse' | 'stdio'
+}
+
+export interface MCPConfig {
+  mcpServers: Record<string, MCPServerConfig>
+  defaultServer: string
+  mcpEnabled: boolean
+}
+
+export interface MCPToolDefinition {
+  type: string
+  function: {
+    name: string
+    description: string
+    parameters: {
+      type: string
+      properties: Record<string, any>
+      required?: string[]
+    }
+  }
+}
+
+export interface MCPToolCall {
+  id: string
+  type: string
+  function: {
+    name: string
+    arguments: string
+  }
+}
+
+export interface MCPToolResponse {
+  toolCallId: string
+  content: string
+}
+
+export interface IMCPPresenter {
+  getMcpConfig(): Promise<MCPConfig>
+  addMcpServer(serverName: string, config: MCPServerConfig): Promise<void>
+  updateMcpServer(serverName: string, config: Partial<MCPServerConfig>): Promise<void>
+  removeMcpServer(serverName: string): Promise<void>
+  setDefaultServer(serverName: string): Promise<void>
+  isServerRunning(serverName: string): Promise<boolean>
+  startServer(serverName: string): Promise<void>
+  stopServer(serverName: string): Promise<void>
+  getAllToolDefinitions(): Promise<MCPToolDefinition[]>
+  callTool(request: {
+    id: string
+    type: string
+    function: {
+      name: string
+      arguments: string
+    }
+  }): Promise<{ content: string }>
+  setMcpEnabled(enabled: boolean): Promise<void>
+  getMcpEnabled(): Promise<boolean>
 }
 
 export interface ISyncPresenter {

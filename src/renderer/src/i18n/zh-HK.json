@@ -285,6 +285,119 @@
       "deleteModelConfirm": "是否確認刪除模型 \"{name}\"？此操作不可恢復。",
       "noLocalModels": "沒有本地模型",
       "localModels": "本地模型"
+    },
+    "mcp": {
+      "title": "MCP設置",
+      "description": "管理和配置MCP（Model Control Protocol）服務器和工具",
+      "enabledTitle": "啟用MCP",
+      "enabledDescription": "啟用或禁用MCP功能和工具",
+      "enableToAccess": "請先啟用MCP以訪問配置選項",
+      "tabs": {
+        "servers": "服務器",
+        "tools": "工具"
+      },
+      "serverList": "服務器列表",
+      "addServer": "添加服務器",
+      "running": "運行中",
+      "stopped": "已停止",
+      "stopServer": "停止服務器",
+      "startServer": "啟動服務器",
+      "noServersFound": "未找到服務器",
+      "addServerDialog": {
+        "title": "添加服務器",
+        "description": "配置新的MCP服務器"
+      },
+      "editServerDialog": {
+        "title": "編輯服務器",
+        "description": "編輯MCP服務器配置"
+      },
+      "serverForm": {
+        "name": "伺服器名稱",
+        "namePlaceholder": "輸入伺服器名稱",
+        "nameRequired": "伺服器名稱不能為空",
+        "type": "伺服器類型",
+        "typePlaceholder": "選擇伺服器類型",
+        "typeStdio": "標準輸入輸出",
+        "typeSse": "伺服器發送事件",
+        "baseUrl": "基礎URL",
+        "baseUrlPlaceholder": "輸入伺服器基礎URL（如：http://localhost:3000）",
+        "command": "命令",
+        "commandPlaceholder": "輸入命令",
+        "commandRequired": "命令不能為空",
+        "args": "參數",
+        "argsPlaceholder": "輸入參數，用空格分隔",
+        "argsRequired": "參數不能為空",
+        "env": "環境變量",
+        "envPlaceholder": "輸入JSON格式的環境變量",
+        "envInvalid": "環境變量必須是有效的JSON格式",
+        "description": "描述",
+        "descriptionPlaceholder": "輸入伺服器描述",
+        "descriptions": "描述",
+        "descriptionsPlaceholder": "輸入伺服器描述",
+        "icon": "圖標",
+        "iconPlaceholder": "輸入圖標",
+        "icons": "圖標",
+        "iconsPlaceholder": "輸入圖標",
+        "autoApprove": "自動授權",
+        "autoApproveAll": "全部",
+        "autoApproveRead": "讀取",
+        "autoApproveWrite": "寫入",
+        "autoApproveHelp": "選擇需要自動授權的操作類型，無需用戶確認即可執行",
+        "submit": "提交",
+        "add": "添加",
+        "update": "更新",
+        "cancel": "取消"
+      },
+      "deleteServer": "刪除伺服器",
+      "editServer": "編輯伺服器",
+      "setDefault": "設為默認",
+      "isDefault": "默認伺服器",
+      "default": "默認",
+      "setAsDefault": "設為默認",
+      "removeServer": "刪除伺服器",
+      "confirmRemoveServer": "確定要刪除伺服器 {name} 嗎？此操作無法撤銷。",
+      "confirmDelete": {
+        "title": "確認刪除",
+        "description": "確定要刪除伺服器 {name} 嗎？此操作無法撤銷。",
+        "confirm": "刪除",
+        "cancel": "取消"
+      }
+    },
+    "about": {
+      "title": "關於我們",
+      "version": "版本",
+      "checkUpdate": "檢查更新",
+      "checking": "檢查中...",
+      "latestVersion": "已是最新版本"
+    }
+  },
+  "mcp": {
+    "tools": {
+      "searchPlaceholder": "搜索工具...",
+      "noToolsAvailable": "暫無可用工具",
+      "selectTool": "請從左側選擇要調試的工具",
+      "path": "路徑",
+      "pathPlaceholder": "輸入文件路徑",
+      "searchPattern": "搜索模式",
+      "searchPatternPlaceholder": "輸入正則表達式",
+      "filePattern": "文件模式",
+      "filePatternPlaceholder": "輸入文件模式，例如: *.md",
+      "executeButton": "執行工具",
+      "resultTitle": "執行結果",
+      "runningTool": "正在執行工具",
+      "loading": "加載中...",
+      "error": "加載失敗",
+      "available": "{count}個工具可用",
+      "none": "沒有可用工具",
+      "title": "MCP工具",
+      "description": "MCP服務器提供的工具",
+      "loadError": "加載工具失敗",
+      "parameters": "參數",
+      "refresh": "刷新",
+      "disabled": "MCP已禁用",
+      "enableToUse": "請先啟用MCP以使用工具",
+      "enabled": "啟用MCP",
+      "enabledDescription": "啟用MCP功能以使用工具調用"
     }
   },
   "welcome": {
@@ -387,12 +500,12 @@
   },
   "sync": {
     "success": {
-      "importComplete": "數據導入成功，點擊確定後將重啟應用"
+      "importComplete": "數據導入成功，點擊確定後將重新啟動應用"
     },
     "error": {
       "notEnabled": "同步功能未啟用",
-      "folderNotExists": "同步文件夾不存在",
-      "noValidBackup": "同步文件夾中沒有有效的備份文件",
+      "folderNotExists": "同步資料夾不存在",
+      "noValidBackup": "同步資料夾中沒有有效的備份文件",
       "dbNotExists": "數據庫文件不存在",
       "configNotExists": "配置文件不存在",
       "tempDbFailed": "臨時數據庫備份文件創建失敗",
@@ -401,5 +514,15 @@
       "importProcess": "導入過程出錯",
       "unknown": "未知錯誤"
     }
+  },
+  "toolCall": {
+    "calling": "工具調用中",
+    "response": "工具響應中",
+    "end": "工具調用完成",
+    "error": "工具調用錯誤",
+    "title": "工具調用",
+    "clickToView": "點擊查看詳情",
+    "functionName": "函數名稱",
+    "permission": "請求權限中"
   }
 }

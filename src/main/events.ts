@@ -53,6 +53,15 @@ export const OLLAMA_EVENTS = {
   PULL_MODEL_PROGRESS: 'ollama:pull-model-progress'
 }
 
+// MCP 相关事件
+export const MCP_EVENTS = {
+  SERVER_STARTED: 'mcp:server-started',
+  SERVER_STOPPED: 'mcp:server-stopped',
+  CONFIG_CHANGED: 'mcp:config-changed',
+  TOOL_CALL_RESULT: 'mcp:tool-call-result',
+  SERVER_STATUS_CHANGED: 'mcp:server-status-changed'
+}
+
 // 同步相关事件
 export const SYNC_EVENTS = {
   BACKUP_STARTED: 'sync:backup-started',

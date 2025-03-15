@@ -287,6 +287,119 @@
       "deleteModelConfirm": "Вы уверены, что хотите удалить модель \"{name}\"? Это действие нельзя отменить.",
       "noLocalModels": "Нет локальных моделей",
       "localModels": "Локальные модели"
+    },
+    "mcp": {
+      "title": "Настройки MCP",
+      "description": "Управление и настройка серверов и инструментов MCP (Model Control Protocol)",
+      "enabledTitle": "Включить MCP",
+      "enabledDescription": "Включение или отключение функций и инструментов MCP",
+      "enableToAccess": "Пожалуйста, включите MCP для доступа к настройкам",
+      "tabs": {
+        "servers": "Серверы",
+        "tools": "Инструменты"
+      },
+      "serverList": "Список серверов",
+      "addServer": "Добавить сервер",
+      "running": "Запущен",
+      "stopped": "Остановлен",
+      "stopServer": "Остановить сервер",
+      "startServer": "Запустить сервер",
+      "noServersFound": "Серверы не найдены",
+      "addServerDialog": {
+        "title": "Добавить сервер",
+        "description": "Настройка нового сервера MCP"
+      },
+      "editServerDialog": {
+        "title": "Редактировать сервер",
+        "description": "Редактирование конфигурации сервера MCP"
+      },
+      "serverForm": {
+        "name": "Имя сервера",
+        "namePlaceholder": "Введите имя сервера",
+        "nameRequired": "Имя сервера обязательно",
+        "type": "Тип сервера",
+        "typePlaceholder": "Выберите тип сервера",
+        "typeStdio": "Стандартный ввод-вывод",
+        "typeSse": "Server-Sent Events",
+        "baseUrl": "Базовый URL",
+        "baseUrlPlaceholder": "Введите базовый URL сервера (например, http://localhost:3000)",
+        "command": "Команда",
+        "commandPlaceholder": "Введите команду",
+        "commandRequired": "Команда не может быть пустой",
+        "args": "Параметры",
+        "argsPlaceholder": "Введите параметры, разделенные пробелами",
+        "argsRequired": "Параметры не могут быть пустыми",
+        "env": "Переменные окружения",
+        "envPlaceholder": "Введите переменные окружения в формате JSON",
+        "envInvalid": "Переменные окружения должны быть в формате JSON",
+        "description": "Описание",
+        "descriptionPlaceholder": "Введите описание сервера",
+        "descriptions": "Описание",
+        "descriptionsPlaceholder": "Введите описание сервера",
+        "icon": "Иконка",
+        "iconPlaceholder": "Введите иконку",
+        "icons": "Иконки",
+        "iconsPlaceholder": "Введите иконки",
+        "autoApprove": "Автоматический допуск",
+        "autoApproveAll": "Все",
+        "autoApproveRead": "Чтение",
+        "autoApproveWrite": "Запись",
+        "autoApproveHelp": "Выберите тип операции, которая будет автоматически разрешена без подтверждения пользователя",
+        "submit": "Отправить",
+        "add": "Добавить",
+        "update": "Обновить",
+        "cancel": "Отменить"
+      },
+      "deleteServer": "Удалить сервер",
+      "editServer": "Редактировать сервер",
+      "setDefault": "Установить по умолчанию",
+      "isDefault": "Сервер по умолчанию",
+      "default": "По умолчанию",
+      "setAsDefault": "Установить по умолчанию",
+      "removeServer": "Удалить сервер",
+      "confirmRemoveServer": "Вы уверены, что хотите удалить сервер \"{name}\"? Это действие нельзя отменить.",
+      "confirmDelete": {
+        "title": "Подтверждение удаления",
+        "description": "Вы уверены, что хотите удалить сервер \"{name}\"? Это действие нельзя отменить.",
+        "confirm": "Удалить",
+        "cancel": "Отменить"
+      }
+    },
+    "about": {
+      "title": "О нас",
+      "version": "Версия",
+      "checkUpdate": "Проверить обновления",
+      "checking": "Проверка...",
+      "latestVersion": "Последняя версия"
+    }
+  },
+  "mcp": {
+    "tools": {
+      "searchPlaceholder": "Поиск инструментов...",
+      "noToolsAvailable": "Нет доступных инструментов",
+      "selectTool": "Выберите инструмент для отладки слева",
+      "path": "Путь",
+      "pathPlaceholder": "Введите путь к файлу",
+      "searchPattern": "Шаблон поиска",
+      "searchPatternPlaceholder": "Введите регулярное выражение",
+      "filePattern": "Шаблон файла",
+      "filePatternPlaceholder": "Введите шаблон файла, например: *.md",
+      "executeButton": "Выполнить",
+      "resultTitle": "Результат выполнения",
+      "runningTool": "Выполнение...",
+      "loading": "Загрузка...",
+      "error": "Ошибка загрузки",
+      "available": "Доступно инструментов: {count}",
+      "none": "Нет доступных инструментов",
+      "title": "Инструменты MCP",
+      "description": "Инструменты, предоставляемые сервером MCP",
+      "loadError": "Не удалось загрузить инструменты",
+      "parameters": "Параметры",
+      "refresh": "Обновить",
+      "disabled": "MCP отключен",
+      "enableToUse": "Включите MCP для использования инструментов",
+      "enabled": "Включить MCP",
+      "enabledDescription": "Включить функциональность MCP для использования вызовов инструментов"
     }
   },
   "welcome": {
@@ -394,5 +507,15 @@
       "importProcess": "Ошибка в процессе импорта",
       "unknown": "Неизвестная ошибка"
     }
+  },
+  "toolCall": {
+    "calling": "Вызов инструмента",
+    "response": "Ответ инструмента",
+    "end": "Вызов инструмента завершен",
+    "error": "Ошибка вызова инструмента",
+    "title": "Вызов инструмента",
+    "clickToView": "Нажмите, чтобы просмотреть детали",
+    "functionName": "Имя функции",
+    "permission": "Запрос разрешения"
   }
 }

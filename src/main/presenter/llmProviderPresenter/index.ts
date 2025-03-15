@@ -316,7 +316,8 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
     messages: ChatMessage[],
     modelId: string,
     eventId: string,
-    temperature?: number
+    temperature?: number,
+    maxTokens?: number
   ): Promise<void> {
     if (!this.canStartNewStream()) {
       throw new Error('已达到最大并发流数量限制')
@@ -341,7 +342,7 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
       //   temperature,
       //   JSON.stringify(messages)
       // )
-      const stream = provider.streamCompletions(messages, modelId, temperature)
+      const stream = provider.streamCompletions(messages, modelId, temperature, maxTokens)
 
       let contentBuffer = ''
       let reasoningBuffer = ''

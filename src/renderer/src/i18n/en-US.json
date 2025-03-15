@@ -48,8 +48,9 @@
     "welcome": "Welcome",
     "settings": "Settings",
     "settings-common": "Common Settings",
+    "settings-provider": "Provider Settings",
+    "settings-mcp": "MCP Settings",
     "settings-database": "Data Settings",
-    "settings-provider": "LLM Settings",
     "settings-about": "About"
   },
   "chat": {
@@ -243,12 +244,12 @@
       "dialog": {
         "disableModel": {
           "title": "Confirm Disable Model",
-          "content": "Are you sure you want to disable the model \"{name}\"?",
+          "content": "Are you sure you want to disable model \"{name}\"?",
           "confirm": "Disable"
         },
         "disableAllModels": {
           "title": "Confirm Disable All Models",
-          "content": "Are you sure you want to disable all models for \"{name}\"?",
+          "content": "Are you sure you want to disable all models?",
           "confirm": "Disable All"
         },
         "configModels": {
@@ -267,13 +268,13 @@
           "apiType": "API Type",
           "apiTypePlaceholder": "Please select the API type",
           "apiKey": "API Key",
-          "apiKeyPlaceholder": "Please enter the API Key",
-          "baseUrl": "Base URL",
-          "baseUrlPlaceholder": "Please enter the base URL",
+          "apiKeyPlaceholder": "Please enter the API key",
+          "baseUrl": "API Base URL",
+          "baseUrlPlaceholder": "Please enter the API base URL",
           "enable": "Enable Provider"
         },
         "deleteProvider": {
-          "title": "Delete Provider",
+          "title": "Confirm Delete Provider",
           "content": "Are you sure you want to delete provider \"{name}\"? This action cannot be undone.",
           "confirm": "Delete"
         },
@@ -289,12 +290,126 @@
       },
       "pullModels": "Pull Models",
       "refreshModels": "Refresh Models",
-      "modelsRunning": "Models Running",
+      "modelsRunning": "Running Models",
       "runningModels": "Running Models",
       "noRunningModels": "No Running Models",
       "deleteModel": "Delete Model",
-      "localModels": "Local Models",
-      "noLocalModels": "No Local Models"
+      "deleteModelConfirm": "Are you sure you want to delete model \"{name}\"? This action cannot be undone.",
+      "noLocalModels": "No Local Models",
+      "localModels": "Local Models"
+    },
+    "mcp": {
+      "title": "MCP Settings",
+      "description": "Manage and configure MCP (Model Control Protocol) servers and tools",
+      "enabledTitle": "Enable MCP",
+      "enabledDescription": "Enable or disable MCP functionality and tools",
+      "enableToAccess": "Please enable MCP to access configuration options",
+      "tabs": {
+        "servers": "Servers",
+        "tools": "Tools"
+      },
+      "serverList": "Server List",
+      "addServer": "Add Server",
+      "running": "Running",
+      "stopped": "Stopped",
+      "stopServer": "Stop Server",
+      "startServer": "Start Server",
+      "noServersFound": "No Servers Found",
+      "addServerDialog": {
+        "title": "Add Server",
+        "description": "Configure a new MCP server"
+      },
+      "editServerDialog": {
+        "title": "Edit Server",
+        "description": "Edit MCP server configuration"
+      },
+      "serverForm": {
+        "name": "Server Name",
+        "namePlaceholder": "Enter server name",
+        "nameRequired": "Server name is required",
+        "type": "Server Type",
+        "typePlaceholder": "Select server type",
+        "typeStdio": "Standard I/O",
+        "typeSse": "Server-Sent Events",
+        "baseUrl": "Base URL",
+        "baseUrlPlaceholder": "Enter server base URL (e.g. http://localhost:3000)",
+        "command": "Command",
+        "commandPlaceholder": "Enter command",
+        "commandRequired": "Command is required",
+        "args": "Arguments",
+        "argsPlaceholder": "Enter arguments separated by spaces",
+        "argsRequired": "Arguments are required",
+        "env": "Environment Variables",
+        "envPlaceholder": "Enter environment variables in JSON format",
+        "envInvalid": "Environment variables must be valid JSON",
+        "description": "Description",
+        "descriptionPlaceholder": "Enter server description",
+        "descriptions": "Description",
+        "descriptionsPlaceholder": "Enter server description",
+        "icon": "Icon",
+        "iconPlaceholder": "Enter icon",
+        "icons": "Icon",
+        "iconsPlaceholder": "Enter icon",
+        "autoApprove": "Auto Approve",
+        "autoApproveAll": "All",
+        "autoApproveRead": "Read",
+        "autoApproveWrite": "Write",
+        "autoApproveHelp": "Select operation types to auto-approve without user confirmation",
+        "submit": "Submit",
+        "add": "Add",
+        "update": "Update",
+        "cancel": "Cancel"
+      },
+      "deleteServer": "Delete Server",
+      "editServer": "Edit Server",
+      "setDefault": "Set as Default",
+      "isDefault": "Default Server",
+      "default": "Default",
+      "setAsDefault": "Set as Default",
+      "removeServer": "Remove Server",
+      "confirmRemoveServer": "Are you sure you want to delete server {name}? This action cannot be undone.",
+      "confirmDelete": {
+        "title": "Confirm Delete",
+        "description": "Are you sure you want to delete server {name}? This action cannot be undone.",
+        "confirm": "Delete",
+        "cancel": "Cancel"
+      }
+    },
+    "about": {
+      "title": "About Us",
+      "version": "Version",
+      "checkUpdate": "Check Update",
+      "checking": "Checking...",
+      "latestVersion": "Latest Version"
+    }
+  },
+  "mcp": {
+    "tools": {
+      "searchPlaceholder": "Search for tools...",
+      "noToolsAvailable": "No tools available",
+      "selectTool": "Please select a tool to debug from the left",
+      "path": "Path",
+      "pathPlaceholder": "Enter file path",
+      "searchPattern": "Search pattern",
+      "searchPatternPlaceholder": "Enter regular expression",
+      "filePattern": "File pattern",
+      "filePatternPlaceholder": "Enter file pattern, e.g.: *.md",
+      "executeButton": "Execute",
+      "resultTitle": "Execution result",
+      "runningTool": "Running...",
+      "loading": "Loading...",
+      "error": "Loading failed",
+      "available": "{count} tools available",
+      "none": "No available tools",
+      "title": "MCP Tools",
+      "description": "Tools provided by the MCP server",
+      "loadError": "Failed to load tools",
+      "parameters": "Parameters",
+      "refresh": "Refresh",
+      "disabled": "MCP is disabled",
+      "enableToUse": "Please enable MCP to use tools",
+      "enabled": "Enable MCP",
+      "enabledDescription": "Enable MCP functionality to use tool calls"
     }
   },
   "welcome": {
@@ -309,29 +424,19 @@
       },
       "configuration": {
         "title": "Model Configuration",
-        "description": "Configure the models you want to use"
+        "description": "Configure your model settings"
       },
-      "complete": {
-        "title": "Complete",
-        "description": "All set and ready to go!"
+      "finish": {
+        "title": "All Set",
+        "description": "You're ready to start using DeepChat"
       }
     },
-    "title": "Welcome to DeepChat",
-    "description": "Let's complete the setup process",
-    "provider": {
-      "select": "Select Provider",
-      "apiUrl": "API URL",
-      "apiKey": "API Key",
-      "verifyLink": "Verify Link"
-    },
-    "complete": {
-      "title": "All Done!",
-      "description": "You've completed the setup process, let's get started!"
-    },
-    "buttons": {
-      "getStarted": "Get Started",
+    "common": {
       "next": "Next",
-      "back": "Back"
+      "previous": "Previous",
+      "start": "Start",
+      "skip": "Skip",
+      "finish": "Finish"
     }
   },
   "newThread": {
@@ -388,20 +493,30 @@
   },
   "sync": {
     "success": {
-      "importComplete": "Data import successful. Click OK to restart the application."
+      "importComplete": "Data imported successfully. Click OK to restart the application."
     },
     "error": {
       "notEnabled": "Sync feature is not enabled",
       "folderNotExists": "Sync folder does not exist",
-      "noValidBackup": "No valid backup files found in sync folder",
+      "noValidBackup": "No valid backup files in the sync folder",
       "dbNotExists": "Database file does not exist",
       "configNotExists": "Configuration file does not exist",
       "tempDbFailed": "Failed to create temporary database backup file",
       "tempConfigFailed": "Failed to create temporary configuration backup file",
       "importFailed": "Import failed, original data has been restored",
-      "importProcess": "Error during import process",
+      "importProcess": "Error in import process",
       "unknown": "Unknown error"
     }
+  },
+  "toolCall": {
+    "calling": "Tool Calling",
+    "response": "Tool Responding",
+    "end": "Tool Call Completed",
+    "error": "Tool Call Error",
+    "title": "Tool Call",
+    "clickToView": "Click to view details",
+    "functionName": "Function Name",
+    "permission": "Requesting Permission"
   },
   "deleteCustomSearchEngine": "Delete Custom Search Engine",
   "deleteCustomSearchEngineDesc": "Are you sure you want to delete the custom search engine \"{name}\"? This action cannot be undone."

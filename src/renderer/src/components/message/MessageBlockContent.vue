@@ -24,6 +24,9 @@
           :loading="part.loading"
         />
       </div>
+      <div v-if="part.type === 'tool_call' && part.tool_call" class="my-1">
+        <ToolCallPreview :block="part" :block-status="props.block.status" />
+      </div>
     </template>
     <LoadingCursor v-show="block.status === 'loading'" ref="loadingCursor" />
     <ReferencePreview :show="showPreview" :content="previewContent" :rect="previewRect" />
@@ -46,6 +49,7 @@ const searchResults = ref<SearchResult[]>([])
 
 import ArtifactThinking from '../artifacts/ArtifactThinking.vue'
 import ArtifactPreview from '../artifacts/ArtifactPreview.vue'
+import ToolCallPreview from '../artifacts/ToolCallPreview.vue'
 import { useCodeEditor } from '@/composables/useCodeEditor'
 import { useBlockContent } from '@/composables/useArtifacts'
 import { useArtifactStore } from '@/stores/artifact'

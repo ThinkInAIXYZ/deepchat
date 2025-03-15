@@ -21,7 +21,8 @@
       "cleanMessagesFailed": "清空会话消息失败",
       "userCanceledGeneration": "用户取消了生成",
       "sessionInterrupted": "会话意外中断，生成未完成",
-      "noModelResponse": "模型未返回任何内容，可能是超时了"
+      "noModelResponse": "模型未返回任何内容，可能是超时了",
+      "invalidJson": "无效的JSON格式"
     },
     "resetDataConfirmTitle": "确定要重置所有数据吗？",
     "resetDataConfirmDescription": "这将会把所有数据恢复到默认设置。此操作无法撤销。",
@@ -58,8 +59,9 @@
     "welcome": "欢迎",
     "settings": "设置",
     "settings-common": "通用设置",
+    "settings-provider": "服务商设置",
+    "settings-mcp": "MCP设置",
     "settings-database": "数据设置",
-    "settings-provider": "大模型设置",
     "settings-about": "关于"
   },
   "chat": {
@@ -310,8 +312,124 @@
       "runningModels": "运行中的模型",
       "noRunningModels": "没有运行中的模型",
       "deleteModel": "删除模型",
-      "localModels": "本地模型",
-      "noLocalModels": "没有本地模型"
+      "deleteModelConfirm": "是否确认删除模型 \"{name}\"？此操作不可恢复。",
+      "noLocalModels": "没有本地模型",
+      "localModels": "本地模型"
+    },
+    "mcp": {
+      "title": "MCP设置",
+      "description": "管理和配置MCP（Model Control Protocol）服务器和工具",
+      "enabledTitle": "启用MCP",
+      "enabledDescription": "启用或禁用MCP功能和工具",
+      "enableToAccess": "请先启用MCP以访问配置选项",
+      "tabs": {
+        "servers": "服务器",
+        "tools": "工具"
+      },
+      "serverList": "服务器列表",
+      "addServer": "添加服务器",
+      "running": "运行中",
+      "stopped": "已停止",
+      "stopServer": "停止服务器",
+      "startServer": "启动服务器",
+      "noServersFound": "未找到服务器",
+      "addServerDialog": {
+        "title": "添加服务器",
+        "description": "配置新的MCP服务器"
+      },
+      "editServerDialog": {
+        "title": "编辑服务器",
+        "description": "编辑MCP服务器配置"
+      },
+      "serverForm": {
+        "name": "服务器名称",
+        "namePlaceholder": "输入服务器名称",
+        "nameRequired": "服务器名称不能为空",
+        "type": "服务器类型",
+        "typePlaceholder": "选择服务器类型",
+        "typeStdio": "标准输入输出",
+        "typeSse": "服务器发送事件",
+        "baseUrl": "基础URL",
+        "baseUrlPlaceholder": "输入服务器基础URL（如：http://localhost:3000）",
+        "command": "命令",
+        "commandPlaceholder": "输入命令",
+        "commandRequired": "命令不能为空",
+        "args": "参数",
+        "argsPlaceholder": "输入参数，用空格分隔",
+        "argsRequired": "参数不能为空",
+        "env": "环境变量",
+        "envPlaceholder": "输入JSON格式的环境变量",
+        "envInvalid": "环境变量必须是有效的JSON格式",
+        "description": "描述",
+        "descriptionPlaceholder": "输入服务器描述",
+        "descriptions": "描述",
+        "descriptionsPlaceholder": "输入服务器描述",
+        "icon": "图标",
+        "iconPlaceholder": "输入图标",
+        "icons": "图标",
+        "iconsPlaceholder": "输入图标",
+        "autoApprove": "自动授权",
+        "autoApproveAll": "全部",
+        "autoApproveRead": "读取",
+        "autoApproveWrite": "写入",
+        "autoApproveHelp": "选择需要自动授权的操作类型，无需用户确认即可执行",
+        "submit": "提交",
+        "add": "添加",
+        "update": "更新",
+        "cancel": "取消"
+      },
+      "deleteServer": "删除服务器",
+      "editServer": "编辑服务器",
+      "setDefault": "设为默认",
+      "isDefault": "默认服务器",
+      "default": "默认",
+      "setAsDefault": "设为默认服务器",
+      "removeServer": "删除服务器",
+      "confirmRemoveServer": "确定要删除服务器 {name} 吗？此操作无法撤销。",
+      "confirmDelete": {
+        "title": "确认删除",
+        "description": "确定要删除服务器 {name} 吗？此操作无法撤销。",
+        "confirm": "删除",
+        "cancel": "取消"
+      }
+    },
+    "about": {
+      "title": "关于我们",
+      "version": "版本",
+      "checkUpdate": "检查更新",
+      "checking": "检查中...",
+      "latestVersion": "已是最新版本"
+    }
+  },
+  "mcp": {
+    "tools": {
+      "searchPlaceholder": "搜索工具...",
+      "noToolsAvailable": "暂无可用工具",
+      "selectTool": "请从左侧选择要调试的工具",
+      "path": "路径",
+      "pathPlaceholder": "输入文件路径",
+      "searchPattern": "搜索模式",
+      "searchPatternPlaceholder": "输入正则表达式",
+      "filePattern": "文件模式",
+      "filePatternPlaceholder": "输入文件模式，例如: *.md",
+      "executeButton": "执行工具",
+      "resultTitle": "执行结果",
+      "runningTool": "正在执行工具",
+      "loading": "加载中...",
+      "error": "加载失败",
+      "available": "{count}个工具可用",
+      "none": "没有可用工具",
+      "title": "MCP工具",
+      "description": "MCP服务器提供的工具",
+      "loadError": "加载工具失败",
+      "parameters": "参数",
+      "refresh": "刷新",
+      "disabled": "MCP已禁用",
+      "enableToUse": "请先启用MCP以使用工具",
+      "enabled": "启用MCP",
+      "enabledDescription": "启用MCP功能以使用工具调用",
+      "jsonInputPlaceholder": "输入JSON格式的参数",
+      "invalidJsonFormat": "无效的JSON格式"
     }
   },
   "welcome": {
@@ -418,6 +536,16 @@
       "importProcess": "导入过程出错",
       "unknown": "未知错误"
     }
+  },
+  "toolCall": {
+    "calling": "工具调用中",
+    "response": "工具响应中",
+    "end": "工具调用完成",
+    "error": "工具调用错误",
+    "title": "工具调用",
+    "clickToView": "点击查看详情",
+    "functionName": "函数名称",
+    "permission": "请求权限中"
   },
   "Silicon": "硅基流动",
   "QwenLM": "千问模型",

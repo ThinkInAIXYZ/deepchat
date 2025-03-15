@@ -14,3 +14,4 @@ build/macarm.json
 build/macx64.json
 build/winarm.json
 build/winx64.json
+resources/mcp/runtime/**/*

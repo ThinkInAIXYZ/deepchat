@@ -4,7 +4,8 @@ import {
   LLM_PROVIDER,
   MODEL_META,
   ModelConfig,
-  RENDERER_MODEL_META
+  RENDERER_MODEL_META,
+  MCPServerConfig
 } from '@shared/presenter'
 import { SearchEngineTemplate } from '@shared/chat'
 import ElectronStore from 'electron-store'
@@ -14,7 +15,7 @@ import path from 'path'
 import { app } from 'electron'
 import fs from 'fs'
 import { CONFIG_EVENTS } from '@/events'
-import { compare } from 'compare-versions'
+import { McpConfHelper } from './mcpConfHelper'
 
 // 定义应用设置的接口
 interface IAppSettings {
@@ -62,18 +63,42 @@ export class ConfigPresenter implements IConfigPresenter {
   private providersModelStores: Map<string, ElectronStore<IModelStore>> = new Map()
   private userDataPath: string
   private currentAppVersion: string
+  private mcpConfHelper: McpConfHelper // 使用MCP配置助手
 
   constructor() {
-    // 获取当前应用版本号
+    this.userDataPath = app.getPath('userData')
     this.currentAppVersion = app.getVersion()
-
+    // 初始化应用设置存储
     this.store = new ElectronStore<IAppSettings>({
       name: 'app-settings',
-      watch: true
+      defaults: {
+        language: 'en-US',
+        providers: defaultProviders,
+        closeToQuit: false,
+        proxyMode: 'system',
+        customProxyUrl: '',
+        artifactsEffectEnabled: true,
+        searchPreviewEnabled: true,
+        contentProtectionEnabled: false,
+        syncEnabled: false,
+        syncFolderPath: path.join(this.userDataPath, 'sync'),
+        lastSyncTime: 0,
+        appVersion: this.currentAppVersion
+      }
     })
 
-    this.userDataPath = app.getPath('userData')
+    // 初始化MCP配置助手
+    this.mcpConfHelper = new McpConfHelper()
+
+    // 迁移数据
+    this.migrateModelData()
+    // 初始化provider models目录
     this.initProviderModelsDir()
+
+    // 如果应用版本更新了，更新appVersion
+    if (this.store.get('appVersion') !== this.currentAppVersion) {
+      this.store.set('appVersion', this.currentAppVersion)
+    }
 
     const existingProviders = this.getSetting<LLM_PROVIDER[]>(PROVIDERS_STORE_KEY) || []
     const newProviders = defaultProviders.filter(
@@ -83,18 +108,6 @@ export class ConfigPresenter implements IConfigPresenter {
 
     if (newProviders.length > 0) {
       this.setProviders([...existingProviders, ...newProviders])
-    }
-
-    // 获取存储的应用版本号
-    const storedAppVersion = this.getSetting<string>('appVersion')
-
-    // 如果版本号不存在或低于当前版本，执行数据迁移
-    if (!storedAppVersion || compare(storedAppVersion, this.currentAppVersion, '<')) {
-      // 迁移旧的模型数据
-      this.migrateModelData()
-
-      // 更新存储的应用版本号
-      this.setSetting('appVersion', this.currentAppVersion)
     }
   }
 
@@ -555,12 +568,42 @@ export class ConfigPresenter implements IConfigPresenter {
 
   // 设置投屏保护状态
   setContentProtectionEnabled(enabled: boolean): void {
-    console.log('ConfigPresenter.setContentProtectionEnabled:', enabled, typeof enabled)
+    this.setSetting('contentProtectionEnabled', enabled)
+    eventBus.emit(CONFIG_EVENTS.CONTENT_PROTECTION_CHANGED, enabled)
+  }
 
-    // 确保传入的是布尔值
-    const boolValue = Boolean(enabled)
+  // ===================== MCP配置相关方法 =====================
 
-    this.setSetting('contentProtectionEnabled', boolValue)
-    eventBus.emit(CONFIG_EVENTS.CONTENT_PROTECTION_CHANGED, boolValue)
+  // 获取MCP配置
+  getMcpConfig(): Promise<{ mcpServers: Record<string, MCPServerConfig>; defaultServer: string }> {
+    return this.mcpConfHelper.getMcpConfig()
+  }
+
+  // 设置MCP配置
+  async setMcpConfig(config: {
+    mcpServers: Record<string, MCPServerConfig>
+    defaultServer: string
+  }): Promise<void> {
+    return this.mcpConfHelper.setMcpConfig(config)
+  }
+
+  // 添加MCP服务器
+  async addMcpServer(name: string, config: MCPServerConfig): Promise<void> {
+    return this.mcpConfHelper.addMcpServer(name, config)
+  }
+
+  // 移除MCP服务器
+  async removeMcpServer(name: string): Promise<void> {
+    return this.mcpConfHelper.removeMcpServer(name)
+  }
+
+  // 更新MCP服务器配置
+  async updateMcpServer(name: string, config: Partial<MCPServerConfig>): Promise<void> {
+    return this.mcpConfHelper.updateMcpServer(name, config)
+  }
+
+  // 设置默认MCP服务器
+  async setDefaultServer(name: string): Promise<void> {
+    return this.mcpConfHelper.setDefaultServer(name)
   }
 }

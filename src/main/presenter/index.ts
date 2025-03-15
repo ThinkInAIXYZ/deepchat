@@ -12,6 +12,7 @@ import { ThreadPresenter } from './threadPresenter'
 import { DevicePresenter } from './devicePresenter'
 import { UpgradePresenter } from './upgradePresenter'
 import { FilePresenter } from './filePresenter/FilePresenter'
+import { McpPresenter } from './mcpPresenter'
 import { SyncPresenter } from './syncPresenter'
 import {
   CONFIG_EVENTS,
@@ -20,6 +21,7 @@ import {
   WINDOW_EVENTS,
   UPDATE_EVENTS,
   OLLAMA_EVENTS,
+  MCP_EVENTS,
   SYNC_EVENTS
 } from '@/events'
 
@@ -33,6 +35,7 @@ export class Presenter implements IPresenter {
   upgradePresenter: UpgradePresenter
   shortcutPresenter: ShortcutPresenter
   filePresenter: FilePresenter
+  mcpPresenter: McpPresenter
   syncPresenter: SyncPresenter
   // llamaCppPresenter: LlamaCppPresenter
 
@@ -45,10 +48,15 @@ export class Presenter implements IPresenter {
     const dbDir = path.join(app.getPath('userData'), 'app_db')
     const dbPath = path.join(dbDir, 'chat.db')
     this.sqlitePresenter = new SQLitePresenter(dbPath)
-    this.threadPresenter = new ThreadPresenter(this.sqlitePresenter, this.llmproviderPresenter, this.configPresenter)
+    this.threadPresenter = new ThreadPresenter(
+      this.sqlitePresenter,
+      this.llmproviderPresenter,
+      this.configPresenter
+    )
     this.upgradePresenter = new UpgradePresenter()
     this.shortcutPresenter = new ShortcutPresenter(this.windowPresenter, this.configPresenter)
     this.filePresenter = new FilePresenter()
+    this.mcpPresenter = new McpPresenter(this.configPresenter)
     this.syncPresenter = new SyncPresenter(this.configPresenter, this.sqlitePresenter)
     // this.llamaCppPresenter = new LlamaCppPresenter()
     this.setupEventBus()
@@ -121,8 +129,26 @@ export class Presenter implements IPresenter {
       this.windowPresenter.mainWindow?.webContents.send(CONVERSATION_EVENTS.MESSAGE_EDITED, msgId)
     })
 
-    eventBus.on(OLLAMA_EVENTS.PULL_MODEL_PROGRESS, (msg) => {
-      this.windowPresenter.mainWindow?.webContents.send(OLLAMA_EVENTS.PULL_MODEL_PROGRESS, msg)
+    // MCP 相关事件
+    eventBus.on(MCP_EVENTS.SERVER_STARTED, (serverName) => {
+      this.windowPresenter.mainWindow?.webContents.send(MCP_EVENTS.SERVER_STARTED, serverName)
+    })
+
+    eventBus.on(MCP_EVENTS.SERVER_STOPPED, (serverName) => {
+      this.windowPresenter.mainWindow?.webContents.send(MCP_EVENTS.SERVER_STOPPED, serverName)
+    })
+
+    eventBus.on(MCP_EVENTS.CONFIG_CHANGED, (config) => {
+      this.windowPresenter.mainWindow?.webContents.send(MCP_EVENTS.CONFIG_CHANGED, config)
+    })
+
+    eventBus.on(MCP_EVENTS.TOOL_CALL_RESULT, (result) => {
+      this.windowPresenter.mainWindow?.webContents.send(MCP_EVENTS.TOOL_CALL_RESULT, result)
+    })
+
+    // Ollama 相关事件
+    eventBus.on(OLLAMA_EVENTS.PULL_MODEL_PROGRESS, (progress) => {
+      this.windowPresenter.mainWindow?.webContents.send(OLLAMA_EVENTS.PULL_MODEL_PROGRESS, progress)
     })
 
     // 同步相关事件

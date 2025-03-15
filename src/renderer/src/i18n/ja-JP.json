@@ -290,6 +290,119 @@
       "deleteModelConfirm": "モデル \"{name}\" を削除してもよろしいですか？この操作は元に戻せません。",
       "noLocalModels": "ローカルモデルはありません",
       "localModels": "ローカルモデル"
+    },
+    "mcp": {
+      "title": "MCP設定",
+      "description": "MCP（Model Control Protocol）サーバーとツールを管理および構成します",
+      "enabledTitle": "MCPを有効化",
+      "enabledDescription": "MCP機能とツールを有効または無効にします",
+      "enableToAccess": "設定オプションにアクセスするにはMCPを有効にしてください",
+      "tabs": {
+        "servers": "サーバー",
+        "tools": "ツール"
+      },
+      "serverList": "サーバーリスト",
+      "addServer": "サーバーを追加",
+      "running": "実行中",
+      "stopped": "停止中",
+      "stopServer": "停止サーバー",
+      "startServer": "起動サーバー",
+      "noServersFound": "サーバーは見つかりません",
+      "addServerDialog": {
+        "title": "サーバーを追加",
+        "description": "新しいMCPサーバーを構成します"
+      },
+      "editServerDialog": {
+        "title": "サーバーを編集",
+        "description": "MCPサーバーの設定を編集します"
+      },
+      "serverForm": {
+        "name": "サーバー名",
+        "namePlaceholder": "サーバー名を入力",
+        "nameRequired": "サーバー名は必須です",
+        "type": "サーバータイプ",
+        "typePlaceholder": "サーバータイプを選択",
+        "typeStdio": "標準入出力",
+        "typeSse": "サーバー送信イベント",
+        "baseUrl": "ベースURL",
+        "baseUrlPlaceholder": "サーバーのベースURLを入力（例：http://localhost:3000）",
+        "command": "コマンド",
+        "commandPlaceholder": "コマンドを入力",
+        "commandRequired": "命令は空にできません",
+        "args": "パラメータ",
+        "argsPlaceholder": "パラメータを入力してください",
+        "argsRequired": "パラメータは空にできません",
+        "env": "環境変数",
+        "envPlaceholder": "JSON形式の環境変数を入力してください",
+        "envInvalid": "環境変数は有効なJSON形式である必要があります",
+        "description": "説明",
+        "descriptionPlaceholder": "サーバーの説明を入力してください",
+        "descriptions": "説明",
+        "descriptionsPlaceholder": "サーバーの説明を入力してください",
+        "icon": "アイコン",
+        "iconPlaceholder": "アイコンを入力してください",
+        "icons": "アイコン",
+        "iconsPlaceholder": "アイコンを入力してください",
+        "autoApprove": "自動承認",
+        "autoApproveAll": "全部",
+        "autoApproveRead": "読み取り",
+        "autoApproveWrite": "書き込み",
+        "autoApproveHelp": "自動承認する操作のタイプを選択してください。ユーザーの確認なしで実行できます",
+        "submit": "提出",
+        "add": "追加",
+        "update": "更新",
+        "cancel": "キャンセル"
+      },
+      "deleteServer": "サーバーを削除",
+      "editServer": "サーバーを編集",
+      "setDefault": "デフォルトに設定",
+      "isDefault": "デフォルトのサーバー",
+      "default": "デフォルト",
+      "setAsDefault": "デフォルトに設定",
+      "removeServer": "サーバーを削除",
+      "confirmRemoveServer": "サーバー \"{name}\" を削除してもよろしいですか？この操作は元に戻せません。",
+      "confirmDelete": {
+        "title": "削除確認",
+        "description": "サーバー \"{name}\" を削除してもよろしいですか？この操作は元に戻せません。",
+        "confirm": "削除",
+        "cancel": "キャンセル"
+      }
+    },
+    "about": {
+      "title": "私たちについて",
+      "version": "バージョン",
+      "checkUpdate": "更新を確認",
+      "checking": "確認中...",
+      "latestVersion": "最新バージョン"
+    }
+  },
+  "mcp": {
+    "tools": {
+      "searchPlaceholder": "ツールを検索...",
+      "noToolsAvailable": "利用可能なツールがありません",
+      "selectTool": "左側からデバッグするツールを選択してください",
+      "path": "パス",
+      "pathPlaceholder": "ファイルパスを入力",
+      "searchPattern": "検索パターン",
+      "searchPatternPlaceholder": "正規表現を入力",
+      "filePattern": "ファイルパターン",
+      "filePatternPlaceholder": "ファイルパターンを入力（例：*.md）",
+      "executeButton": "実行",
+      "resultTitle": "実行結果",
+      "runningTool": "実行中...",
+      "loading": "読み込み中...",
+      "error": "読み込み失敗",
+      "available": "{count}個のツールが利用可能",
+      "none": "利用可能なツールがありません",
+      "title": "MCPツール",
+      "description": "MCPサーバーが提供するツール",
+      "loadError": "ツールの読み込みに失敗しました",
+      "parameters": "パラメータ",
+      "refresh": "更新",
+      "disabled": "MCPは無効です",
+      "enableToUse": "ツールを使用するにはMCPを有効にしてください",
+      "enabled": "MCPを有効化",
+      "enabledDescription": "ツール呼び出しを使用するためにMCP機能を有効にします"
     }
   },
   "welcome": {
@@ -382,7 +495,7 @@
   },
   "sync": {
     "success": {
-      "importComplete": "データのインポートに成功しました。OKをクリックしてアプリを再起動します。"
+      "importComplete": "データのインポートが完了しました。OKをクリックして、アプリケーションを再起動します。"
     },
     "error": {
       "notEnabled": "同期機能が有効になっていません",
@@ -393,8 +506,18 @@
       "tempDbFailed": "一時データベースバックアップファイルの作成に失敗しました",
       "tempConfigFailed": "一時設定バックアップファイルの作成に失敗しました",
       "importFailed": "インポートに失敗しました。元のデータが復元されました",
-      "importProcess": "インポート処理中にエラーが発生しました",
+      "importProcess": "インポートプロセスでエラーが発生しました",
       "unknown": "不明なエラー"
     }
+  },
+  "toolCall": {
+    "calling": "ツール呼び出し中",
+    "response": "ツール応答中",
+    "end": "ツール呼び出し完了",
+    "error": "ツール呼び出しエラー",
+    "title": "ツール呼び出し",
+    "clickToView": "詳細を表示するにはクリック",
+    "functionName": "関数名",
+    "permission": "権限リクエスト中"
   }
 }

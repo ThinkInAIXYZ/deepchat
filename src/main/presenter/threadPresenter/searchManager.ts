@@ -246,7 +246,7 @@ export class SearchManager {
   async setActiveEngine(engineId: string): Promise<boolean> {
     // 确保引擎列表是最新的
     await this.ensureEnginesUpdated()
-    console.log('setActiveEngine', engineId, this.engines)
+    console.log('setActiveEngine', engineId)
     const engine = this.engines.find((e) => e.id === engineId)
     if (engine) {
       this.activeEngine = engine

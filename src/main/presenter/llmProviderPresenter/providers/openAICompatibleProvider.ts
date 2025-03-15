@@ -5,6 +5,7 @@ import { ChatCompletionMessage, ChatCompletionMessageParam } from 'openai/resour
 import { ConfigPresenter } from '../../configPresenter'
 import { proxyConfig } from '../../proxyConfig'
 import { HttpsProxyAgent } from 'https-proxy-agent'
+import { presenter } from '@/presenter'
 
 export class OpenAICompatibleProvider extends BaseLLMProvider {
   protected openai: OpenAI
@@ -134,12 +135,27 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
       throw new Error('Model ID is required')
     }
 
-    const stream = await this.openai.chat.completions.create({
+    // 获取MCP工具定义
+    const mcpTools = await presenter.mcpPresenter.getAllToolDefinitions()
+    const tools = await presenter.mcpPresenter.mcpToolsToOpenAITools(mcpTools, this.provider.id)
+
+    // 记录已处理的工具响应ID
+    const processedToolCallIds = new Set<string>()
+
+    // 维护消息上下文
+    const conversationMessages = [...messages] as ChatCompletionMessageParam[]
+
+    // 记录是否需要继续对话
+    let needContinueConversation = false
+
+    // 启动初始流
+    let stream = await this.openai.chat.completions.create({
       messages: messages as ChatCompletionMessageParam[],
       model: modelId,
       stream: true,
       temperature: temperature,
-      max_tokens: maxTokens
+      max_tokens: maxTokens,
+      tools: tools
     })
 
     let hasCheckedFirstChunk = false
@@ -162,119 +178,306 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
       return { cleanedPosition: endPosition, found: true }
     }
 
-    for await (const chunk of stream) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const delta = chunk.choices[0]?.delta as any
-      // 处理原生 reasoning_content 格式
-      if (delta?.reasoning_content) {
-        yield {
-          reasoning_content: delta.reasoning_content
-        }
-        continue
-      }
+    // 收集完整的助手响应
+    let fullAssistantResponse = ''
+    let pendingToolCalls: Array<{
+      id: string
+      function: { name: string; arguments: string }
+      type: 'function'
+      index: number
+    }> = []
 
-      const content = delta?.content || ''
-      if (!content) continue
+    while (true) {
+      for await (const chunk of stream) {
+        const choice = chunk.choices[0]
 
-      // 检查是否包含 <think> 标签
-      if (!hasCheckedFirstChunk) {
-        initialBuffer += content
-        // 如果积累的内容包含了完整的 <think> 或者已经可以确定不是以 <think> 开头
-        if (
-          initialBuffer.includes('<think>') ||
-          (initialBuffer.length >= 6 && !'<think>'.startsWith(initialBuffer.trimStart()))
-        ) {
-          hasCheckedFirstChunk = true
-          const trimmedContent = initialBuffer.trimStart()
-          hasReasoningContent = trimmedContent.includes('<think>')
+        // console.log('openai chunk', JSON.stringify(choice))
+        // 检查是否有函数调用
+        if (choice?.delta?.tool_calls && choice.delta.tool_calls.length > 0) {
+          // 初始化tool_calls数组（如果尚未初始化）
+          if (!pendingToolCalls) {
+            pendingToolCalls = []
+          }
 
-          // 如果不包含 <think>，直接输出累积的内容
-          if (!hasReasoningContent) {
-            yield {
-              content: initialBuffer
-            }
-            initialBuffer = ''
-          } else {
-            // 如果包含 <think>，将内容转移到主 buffer 继续处理
-            buffer = initialBuffer
-            initialBuffer = ''
-            // 立即处理 buffer 中的 think 标签
-            if (buffer.includes('<think>')) {
-              isInThinkTag = true
-              const thinkStart = buffer.indexOf('<think>')
-              if (thinkStart > 0) {
-                yield {
-                  content: buffer.substring(0, thinkStart)
+          // 更新工具调用
+          for (const toolCallDelta of choice.delta.tool_calls) {
+            // 使用索引作为主要标识符
+            const indexKey = toolCallDelta.index !== undefined ? toolCallDelta.index : 0
+            const existingToolCall = pendingToolCalls.find(
+              (tc) => tc.index === indexKey || (tc.id && tc.id === toolCallDelta.id)
+            )
+
+            if (existingToolCall) {
+              // 更新现有工具调用
+              if (toolCallDelta.id && !existingToolCall.id) {
+                existingToolCall.id = toolCallDelta.id
+              }
+
+              if (toolCallDelta.type && !existingToolCall.type) {
+                existingToolCall.type = 'function'
+              }
+
+              if (toolCallDelta.function) {
+                if (toolCallDelta.function.name && !existingToolCall.function.name) {
+                  existingToolCall.function.name = toolCallDelta.function.name
+                }
+
+                if (toolCallDelta.function.arguments) {
+                  existingToolCall.function.arguments += toolCallDelta.function.arguments
+                  console.log(
+                    'existingToolCall.function.arguments',
+                    existingToolCall.function.arguments
+                  )
                 }
               }
-              const { cleanedPosition } = cleanTag(buffer, '<think>')
-              buffer = buffer.substring(cleanedPosition)
+            } else {
+              // 添加新的工具调用
+              pendingToolCalls.push({
+                id: toolCallDelta.id || '',
+                type: 'function',
+                index: indexKey,
+                function: {
+                  name: toolCallDelta.function?.name || '',
+                  arguments: toolCallDelta.function?.arguments || ''
+                }
+              })
             }
           }
-          continue
-        } else {
-          // 继续累积内容
-          continue
-        }
-      }
 
-      // 如果没有 reasoning_content，直接返回普通内容
-      if (!hasReasoningContent) {
-        yield {
-          content: content
-        }
-        continue
-      }
-
-      // 已经在处理 reasoning_content 模式
-      if (!isInThinkTag && buffer.includes('<think>')) {
-        isInThinkTag = true
-        const thinkStart = buffer.indexOf('<think>')
-        if (thinkStart > 0) {
+          // 通知工具调用更新 - 扩展LLMResponseStream类型
           yield {
-            content: buffer.substring(0, thinkStart)
+            content: '' // 提供一个空内容以符合LLMResponseStream类型
+            // 注意：tool_calls_update属性可能需要添加到LLMResponseStream接口
+          }
+
+          continue
+        }
+
+        // 处理finish_reason为tool_calls的情况
+        if (choice?.finish_reason === 'tool_calls') {
+          needContinueConversation = true
+
+          // 添加助手消息到上下文
+          conversationMessages.push({
+            role: 'assistant',
+            content: fullAssistantResponse,
+            tool_calls: pendingToolCalls.map((tool) => ({
+              id: tool.id,
+              type: tool.type,
+              function: {
+                name: tool.function.name,
+                arguments: tool.function.arguments
+              }
+            }))
+          })
+
+          // 处理工具调用并获取工具响应
+          for (const toolCall of pendingToolCalls) {
+            if (processedToolCallIds.has(toolCall.id)) {
+              continue
+            }
+
+            processedToolCallIds.add(toolCall.id)
+
+            try {
+              // 转换为MCP工具
+              const mcpTool = await presenter.mcpPresenter.openAIToolsToMcpTool(
+                mcpTools,
+                {
+                  function: {
+                    name: toolCall.function.name,
+                    arguments: toolCall.function.arguments
+                  }
+                },
+                this.provider.id
+              )
+
+              if (!mcpTool) {
+                console.warn(`Tool not found: ${toolCall.function.name}`)
+                continue
+              }
+
+              // 通知调用工具 - 扩展LLMResponseStream类型
+              yield {
+                content: `\n<tool_call_end name="${toolCall.function.name}">\n` // 提供一个空内容以符合LLMResponseStream类型
+                // 注意：tool_call属性可能需要添加到LLMResponseStream接口
+              }
+
+              // 调用工具
+              const toolCallResponse = await presenter.mcpPresenter.callTool(mcpTool)
+
+              // 将工具响应添加到消息中
+              conversationMessages.push({
+                role: 'tool',
+                content:
+                  typeof toolCallResponse.content === 'string'
+                    ? toolCallResponse.content
+                    : JSON.stringify(toolCallResponse.content),
+                tool_call_id: toolCall.id
+              })
+
+              // 通知工具调用完成 - 扩展LLMResponseStream类型
+              yield {
+                content: '' // 提供一个空内容以符合LLMResponseStream类型
+                // 注意：tool_call_response属性可能需要添加到LLMResponseStream接口
+              }
+            } catch (error: unknown) {
+              const errorMessage = error instanceof Error ? error.message : '未知错误'
+              console.error(`Error calling tool ${toolCall.function.name}:`, error)
+
+              // 通知工具调用失败 - 扩展LLMResponseStream类型
+              yield {
+                content: `\n<tool_call_error name="${toolCall.function.name}" error="${errorMessage}">\n` // 提供一个空内容以符合LLMResponseStream类型
+                // 注意：tool_call_status属性可能需要添加到LLMResponseStream接口
+              }
+
+              // 添加错误响应到消息中
+              conversationMessages.push({
+                role: 'tool',
+                content: `Error: ${errorMessage}`,
+                tool_call_id: toolCall.id
+              })
+            }
+          }
+
+          // 重置变量，准备继续对话
+          pendingToolCalls = []
+          fullAssistantResponse = ''
+          break
+        }
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const delta = chunk.choices[0]?.delta as any
+        // 处理原生 reasoning_content 格式
+        if (delta?.reasoning_content) {
+          yield {
+            reasoning_content: delta.reasoning_content
+          }
+          continue
+        }
+
+        const content = delta?.content || ''
+        if (!content) continue
+
+        // 累积完整响应
+        fullAssistantResponse += content
+
+        // 检查是否包含 <think> 标签
+        if (!hasCheckedFirstChunk) {
+          initialBuffer += content
+          // 如果积累的内容包含了完整的 <think> 或者已经可以确定不是以 <think> 开头
+          if (
+            initialBuffer.includes('<think>') ||
+            (initialBuffer.length >= 6 && !'<think>'.startsWith(initialBuffer.trimStart()))
+          ) {
+            hasCheckedFirstChunk = true
+            const trimmedContent = initialBuffer.trimStart()
+            hasReasoningContent = trimmedContent.includes('<think>')
+
+            // 如果不包含 <think>，直接输出累积的内容
+            if (!hasReasoningContent) {
+              yield {
+                content: initialBuffer
+              }
+              initialBuffer = ''
+            } else {
+              // 如果包含 <think>，将内容转移到主 buffer 继续处理
+              buffer = initialBuffer
+              initialBuffer = ''
+              // 立即处理 buffer 中的 think 标签
+              if (buffer.includes('<think>')) {
+                isInThinkTag = true
+                const thinkStart = buffer.indexOf('<think>')
+                if (thinkStart > 0) {
+                  yield {
+                    content: buffer.substring(0, thinkStart)
+                  }
+                }
+                const { cleanedPosition } = cleanTag(buffer, '<think>')
+                buffer = buffer.substring(cleanedPosition)
+              }
+            }
+            continue
+          } else {
+            // 继续累积内容
+            continue
           }
         }
-        const { cleanedPosition } = cleanTag(buffer, '<think>')
-        buffer = buffer.substring(cleanedPosition)
-      } else if (isInThinkTag) {
-        buffer += content
-        const { found: hasEndTag, cleanedPosition } = cleanTag(buffer, '</think>')
-        if (hasEndTag) {
-          const thinkEnd = buffer.indexOf('</think>')
-          if (thinkEnd > 0) {
+
+        // 如果没有 reasoning_content，直接返回普通内容
+        if (!hasReasoningContent) {
+          yield {
+            content: content
+          }
+          continue
+        }
+
+        // 已经在处理 reasoning_content 模式
+        if (!isInThinkTag && buffer.includes('<think>')) {
+          isInThinkTag = true
+          const thinkStart = buffer.indexOf('<think>')
+          if (thinkStart > 0) {
             yield {
-              reasoning_content: buffer.substring(0, thinkEnd)
+              content: buffer.substring(0, thinkStart)
             }
           }
+          const { cleanedPosition } = cleanTag(buffer, '<think>')
           buffer = buffer.substring(cleanedPosition)
-          isInThinkTag = false
-          hasReasoningContent = false
-
-          // 输出剩余的普通内容
-          if (buffer) {
-            yield {
-              content: buffer
+        } else if (isInThinkTag) {
+          buffer += content
+          const { found: hasEndTag, cleanedPosition } = cleanTag(buffer, '</think>')
+          if (hasEndTag) {
+            const thinkEnd = buffer.indexOf('</think>')
+            if (thinkEnd > 0) {
+              yield {
+                reasoning_content: buffer.substring(0, thinkEnd)
+              }
             }
-            buffer = ''
+            buffer = buffer.substring(cleanedPosition)
+            isInThinkTag = false
+            hasReasoningContent = false
+
+            // 输出剩余的普通内容
+            if (buffer) {
+              yield {
+                content: buffer
+              }
+              buffer = ''
+            }
+          } else {
+            // 保持滑动窗口大小的 buffer 来检测结束标签
+            if (buffer.length > WINDOW_SIZE) {
+              const contentToYield = buffer.slice(0, -WINDOW_SIZE)
+              yield {
+                reasoning_content: contentToYield
+              }
+              buffer = buffer.slice(-WINDOW_SIZE)
+            }
           }
         } else {
-          // 保持滑动窗口大小的 buffer 来检测结束标签
-          if (buffer.length > WINDOW_SIZE) {
-            const contentToYield = buffer.slice(0, -WINDOW_SIZE)
-            yield {
-              reasoning_content: contentToYield
-            }
-            buffer = buffer.slice(-WINDOW_SIZE)
+          // 不在任何标签中，累积内容
+          buffer += content
+          yield {
+            content: buffer
           }
+          buffer = ''
         }
+      }
+
+      // 如果需要继续对话，创建新的流
+      if (needContinueConversation) {
+        needContinueConversation = false
+        stream = await this.openai.chat.completions.create({
+          messages: conversationMessages as ChatCompletionMessageParam[],
+          model: modelId,
+          stream: true,
+          temperature: temperature,
+          max_tokens: maxTokens,
+          tools: tools
+        })
       } else {
-        // 不在任何标签中，累积内容
-        buffer += content
-        yield {
-          content: buffer
-        }
-        buffer = ''
+        // 对话结束
+        break
       }
     }
 
