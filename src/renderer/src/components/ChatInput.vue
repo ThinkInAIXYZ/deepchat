@@ -290,6 +290,24 @@ const emitSend = () => {
 
     emit('send', messageContent)
     inputText.value = ''
+    
+    // 清理已上传的文件
+    if (selectedFiles.value.length > 0) {
+      // 清理每个文件资源
+      selectedFiles.value.forEach(file => {
+        if (file.path) {
+          filePresenter.onFileRemoved(file.path).catch((err) => {
+            console.error('清理文件资源失败:', err)
+          })
+        }
+      })
+      // 清空文件列表
+      selectedFiles.value = []
+      // 重置文件输入控件
+      if (fileInput.value) {
+        fileInput.value.value = ''
+      }
+    }
   }
 }
 
