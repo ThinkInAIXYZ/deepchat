@@ -4,13 +4,13 @@
     @click="openSearchResults"
   >
     <template v-if="block.status === 'success'">
-      <div v-if="block.extra.pages" class="flex flex-row ml-1.5">
-        <template v-for="(page, index) in block.extra.pages" :key="index">
+      <div v-if="pages.length > 0" class="flex flex-row ml-1.5">
+        <template v-for="(page, index) in pages" :key="index">
           <img
             v-if="page.icon"
             :src="page.icon"
             :style="{
-              zIndex: block.extra.pages.length - index
+              zIndex: pages.length - index
             }"
             class="w-6 h-6 -ml-1.5 border-card rounded-full bg-card border-2 box-border"
           />
@@ -53,7 +53,7 @@ import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
 import { usePresenter } from '@/composables/usePresenter'
 import { SearchResult } from '@shared/presenter'
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import SearchResultsDrawer from '../SearchResultsDrawer.vue'
 
 const { t } = useI18n()
@@ -74,6 +74,10 @@ const props = defineProps<{
     }
   }
 }>()
+
+const pages = computed(() => {
+  return props.block.extra.pages?.slice(0, 10) || []
+})
 
 const openSearchResults = async () => {
   if (props.block.status === 'success') {

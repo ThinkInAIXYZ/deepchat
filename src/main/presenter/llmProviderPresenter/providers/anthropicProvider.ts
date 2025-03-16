@@ -126,7 +126,6 @@ export class AnthropicProvider extends BaseLLMProvider {
       } else {
         // 处理消息内容
         let formattedContent: Anthropic.ContentBlockParam[] = []
-
         if (typeof msg.content === 'string') {
           formattedContent = [{ type: 'text', text: msg.content }]
         } else {
@@ -134,7 +133,17 @@ export class AnthropicProvider extends BaseLLMProvider {
             if (content.type === 'image_url') {
               return {
                 type: 'image',
-                source: { type: 'url', url: content.image_url!.url }
+                source: content.image_url!.url.startsWith('data:image')
+                  ? {
+                      type: 'base64',
+                      data: content.image_url!.url,
+                      media_type: content.image_url!.url.split(';')[0].split(':')[1] as
+                        | 'image/jpeg'
+                        | 'image/png'
+                        | 'image/gif'
+                        | 'image/webp'
+                    }
+                  : { type: 'url', url: content.image_url!.url }
               }
             } else {
               return { type: 'text', text: content.text || '' }
