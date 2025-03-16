@@ -1,8 +1,4 @@
 <template>
-<<<<<<< HEAD
-=======
-
->>>>>>> 8c03e695320ac7131bc7164853af47da1dc167e2
   <div class="flex items-center justify-between w-full p-2">
     <div class="flex flex-row gap-2 items-center">
       <Button
