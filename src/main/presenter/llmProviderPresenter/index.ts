@@ -42,8 +42,6 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
   private currentProviderId: string | null = null
   // 通过 eventId 管理所有的 stream
   private activeStreams: Map<string, StreamState> = new Map()
-  // 打字机效果的间隔时间（毫秒）
-  private readonly TYPING_INTERVAL = 30
   // 配置
   private config: ProviderConfig = {
     maxConcurrentStreams: 10
@@ -268,49 +266,6 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
     }
   }
 
-  /**
-   * 处理文本流的打字机效果
-   * @param eventId 事件ID
-   * @param content 主要内容
-   * @param reasoningContent 推理内容（可选）
-   * @param signal 中止信号
-   */
-  private async processStreamWithTypingEffect(
-    eventId: string,
-    content: string = '',
-    reasoningContent: string = '',
-    signal: AbortSignal
-  ): Promise<void> {
-    let contentBuffer = content
-    let reasoningBuffer = reasoningContent
-
-    // 处理内容，逐字输出
-    while ((contentBuffer.length > 0 || reasoningBuffer.length > 0) && !signal.aborted) {
-      const responseObj: { eventId: string; content?: string; reasoning_content?: string } = {
-        eventId
-      }
-
-      if (contentBuffer.length > 0) {
-        const char = contentBuffer.charAt(0)
-        contentBuffer = contentBuffer.substring(1)
-        responseObj.content = char
-      }
-
-      if (reasoningBuffer.length > 0) {
-        const reasoningChar = reasoningBuffer.charAt(0)
-        reasoningBuffer = reasoningBuffer.substring(1)
-        responseObj.reasoning_content = reasoningChar
-      }
-
-      eventBus.emit(STREAM_EVENTS.RESPONSE, responseObj)
-
-      // 如果还有内容要处理，等待一段时间再继续
-      if ((contentBuffer.length > 0 || reasoningBuffer.length > 0) && !signal.aborted) {
-        await new Promise((resolve) => setTimeout(resolve, this.TYPING_INTERVAL))
-      }
-    }
-  }
-
   async startStreamCompletion(
     providerId: string,
     messages: ChatMessage[],
@@ -343,29 +298,15 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
       // )
       const stream = provider.streamCompletions(messages, modelId, temperature)
 
-      let contentBuffer = ''
-      let reasoningBuffer = ''
-
       for await (const chunk of stream) {
         if (abortController.signal.aborted) {
           break
         }
 
-        // 累积内容到缓冲区
-        if (chunk.content) contentBuffer += chunk.content
-        if (chunk.reasoning_content) reasoningBuffer += chunk.reasoning_content
-
-        // 处理当前缓冲区的内容
-        await this.processStreamWithTypingEffect(
+        eventBus.emit(STREAM_EVENTS.RESPONSE, {
           eventId,
-          contentBuffer,
-          reasoningBuffer,
-          abortController.signal
-        )
-
-        // 重置缓冲区
-        contentBuffer = ''
-        reasoningBuffer = ''
+          ...chunk
+        })
       }
 
       if (!abortController.signal.aborted) {
@@ -397,29 +338,15 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
 
         const summaryStream = stream.provider.streamSummaries(text, modelId, temperature, maxTokens)
 
-        let contentBuffer = ''
-        let reasoningBuffer = ''
-
         for await (const response of summaryStream) {
           if (stream.abortController.signal.aborted) {
             break
           }
-
-          // 累积内容到缓冲区
-          if (response.content) contentBuffer += response.content
-          if (response.reasoning_content) reasoningBuffer += response.reasoning_content
-
-          // 处理当前缓冲区的内容
-          await this.processStreamWithTypingEffect(
-            eventId,
-            contentBuffer,
-            reasoningBuffer,
-            stream.abortController.signal
-          )
-
-          // 重置缓冲区
-          contentBuffer = ''
-          reasoningBuffer = ''
+          eventBus.emit(STREAM_EVENTS.RESPONSE, {
+            content: response.content,
+            reasoning_content: response.reasoning_content,
+            eventId
+          })
         }
       },
       eventId,
@@ -448,29 +375,15 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
           maxTokens
         )
 
-        let contentBuffer = ''
-        let reasoningBuffer = ''
-
         for await (const response of textStream) {
           if (stream.abortController.signal.aborted) {
             break
           }
-
-          // 累积内容到缓冲区
-          if (response.content) contentBuffer += response.content
-          if (response.reasoning_content) reasoningBuffer += response.reasoning_content
-
-          // 处理当前缓冲区的内容
-          await this.processStreamWithTypingEffect(
-            eventId,
-            contentBuffer,
-            reasoningBuffer,
-            stream.abortController.signal
-          )
-
-          // 重置缓冲区
-          contentBuffer = ''
-          reasoningBuffer = ''
+          eventBus.emit(STREAM_EVENTS.RESPONSE, {
+            content: response.content,
+            reasoning_content: response.reasoning_content,
+            eventId
+          })
         }
       },
       eventId,
