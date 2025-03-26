@@ -10,7 +10,7 @@ import {
   ISQLitePresenter,
   IConfigPresenter,
   ILlmProviderPresenter
-} from '../../../shared/presenter'
+} from '@shared/presenter'
 import { MessageManager } from './messageManager'
 import { eventBus } from '@/eventbus'
 import {
@@ -29,6 +29,7 @@ import { ContentEnricher } from './contentEnricher'
 import { CONVERSATION_EVENTS, STREAM_EVENTS } from '@/events'
 import { ChatMessage, ChatMessageContent } from '../llmProviderPresenter/baseProvider'
 import { ARTIFACTS_PROMPT } from '@/lib/artifactsPrompt'
+import { logger } from '@/lib/logger'
 
 const DEFAULT_SETTINGS: CONVERSATION_SETTINGS = {
   systemPrompt: '',
@@ -374,7 +375,7 @@ export class ThreadPresenter implements IThreadPresenter {
     try {
       return await this.searchManager.setActiveEngine(engineId)
     } catch (error) {
-      console.error('设置搜索引擎失败:', error)
+      logger.error('设置搜索引擎失败:', error)
       return false
     }
   }
@@ -443,7 +444,7 @@ export class ThreadPresenter implements IThreadPresenter {
         }
       }
     } catch (error) {
-      console.error('初始化未完成消息失败:', error)
+      logger.error('初始化未完成消息失败:', error)
     }
   }
 
@@ -455,7 +456,7 @@ export class ThreadPresenter implements IThreadPresenter {
     title: string,
     settings: Partial<CONVERSATION_SETTINGS> = {}
   ): Promise<string> {
-    console.log('createConversation', title, settings)
+    logger.info('createConversation', title, settings)
     const latestConversation = await this.getLatestConversation()
 
     if (latestConversation) {
@@ -528,7 +529,7 @@ export class ThreadPresenter implements IThreadPresenter {
     if (settings.modelId && settings.modelId !== conversation.settings.modelId) {
       // 获取模型配置
       const modelConfig = getModelConfig(mergedSettings.modelId)
-      console.log('check model default config', modelConfig)
+      logger.info('check model default config', modelConfig)
       if (modelConfig) {
         // 如果当前设置小于推荐值，则使用推荐值
         mergedSettings.maxTokens = modelConfig.maxTokens
@@ -603,7 +604,7 @@ export class ThreadPresenter implements IThreadPresenter {
   ): Promise<AssistantMessage | null> {
     const conversation = await this.getConversation(conversationId)
     const { providerId, modelId } = conversation.settings
-    console.log('sendMessage', conversation)
+    logger.info('sendMessage', conversation)
     const message = await this.messageManager.sendMessage(
       conversationId,
       content,
@@ -697,7 +698,7 @@ export class ThreadPresenter implements IThreadPresenter {
       return assistantMessage
     } catch (error) {
       await this.messageManager.updateMessageStatus(userMessageId, 'error')
-      console.error('生成 AI 响应失败:', error)
+      logger.error('生成 AI 响应失败:', error)
       throw error
     }
   }
@@ -769,7 +770,7 @@ export class ThreadPresenter implements IThreadPresenter {
     if (!conversation) {
       return query
     }
-    // console.log('rewriteUserSearchQuery', query, contextMessages, conversation.id)
+    // logger.info('rewriteUserSearchQuery', query, contextMessages, conversation.id)
     const { providerId, modelId } = conversation.settings
     try {
       const rewrittenQuery = await this.llmProviderPresenter.generateCompletion(
@@ -782,10 +783,10 @@ export class ThreadPresenter implements IThreadPresenter {
         ],
         this.searchAssistantModel?.id || modelId
       )
-      console.log('rewriteUserSearchQuery', rewrittenQuery)
+      logger.info('rewriteUserSearchQuery', rewrittenQuery)
       return rewrittenQuery.trim() || query
     } catch (error) {
-      console.error('重写搜索查询失败:', error)
+      logger.error('重写搜索查询失败:', error)
       return query
     }
   }
@@ -995,7 +996,7 @@ export class ThreadPresenter implements IThreadPresenter {
             return
           }
           // 其他错误继续处理（搜索失败不应影响生成）
-          console.error('搜索过程中出错:', error)
+          logger.error('搜索过程中出错:', error)
         }
       }
 
@@ -1035,11 +1036,11 @@ export class ThreadPresenter implements IThreadPresenter {
     } catch (error) {
       // 检查是否是取消错误
       if (String(error).includes('userCanceledGeneration')) {
-        console.log('消息生成已被用户取消')
+        logger.info('消息生成已被用户取消')
         return
       }
 
-      console.error('流式生成过程中出错:', error)
+      logger.error('流式生成过程中出错:', error)
       await this.handleMessageError(state.message.id, String(error))
       throw error
     }
@@ -1248,7 +1249,7 @@ export class ThreadPresenter implements IThreadPresenter {
         role: 'system',
         content: systemPrompt
       })
-      // console.log('-------------> system prompt \n', systemPrompt, artifacts, formattedMessages)
+      // logger.info('-------------> system prompt \n', systemPrompt, artifacts, formattedMessages)
     }
 
     // 添加上下文消息
@@ -1599,10 +1600,10 @@ export class ThreadPresenter implements IThreadPresenter {
       summaryProviderId || conversation.settings.providerId,
       modelId || conversation.settings.modelId
     )
-    console.log('-------------> title \n', title)
+    logger.info('-------------> title \n', title)
     let cleanedTitle = title.replace(/<think>.*?<\/think>/g, '').trim()
     cleanedTitle = cleanedTitle.replace(/^<think>/, '').trim()
-    console.log('-------------> cleanedTitle \n', cleanedTitle)
+    logger.info('-------------> cleanedTitle \n', cleanedTitle)
     return cleanedTitle
   }
   async clearActiveThread(): Promise<void> {
