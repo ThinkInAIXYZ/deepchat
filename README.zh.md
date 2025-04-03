@@ -108,11 +108,7 @@
       <img src="./src/renderer/src/assets/llm-icons/azure-color.svg" width="50" height="50"><br/>
       <a href="https://azure.microsoft.com/en-us/products/ai-services/openai-service">Azure OpenAI</a>
     </td>
-    <td>
-      <img src="./src/renderer/src/assets/llm-icons/qiniu.svg" width="50" height="50"><br/>
-      <a href="https://www.qiniu.com/products/ai-token-api">七牛云</a>
-    </td>
-    <td colspan="1">
+    <td colspan="2">
       兼容任意 openai/gemini 格式API的供应商
     </td>
   </tr>

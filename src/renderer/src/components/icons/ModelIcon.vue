@@ -47,11 +47,8 @@ import githubColorIcon from '@/assets/llm-icons/github.svg?url'
 import azureOpenaiColorIcon from '@/assets/llm-icons/azure-color.svg?url'
 import anthropicColorIcon from '@/assets/llm-icons/anthropic.svg?url'
 import googleColorIcon from '@/assets/llm-icons/google-color.svg?url'
-import qiniuIcon from '@/assets/llm-icons/qiniu.svg?url'
-
 // 导入所有图标
 const icons = {
-  qiniu: qiniuIcon,
   gemma: googleColorIcon,
   claude: anthropicColorIcon,
   azure: azureOpenaiColorIcon,

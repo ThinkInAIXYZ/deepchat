@@ -109,11 +109,7 @@
       <img src="./src/renderer/src/assets/llm-icons/azure-color.svg" width="50" height="50"><br/>
       <a href="https://azure.microsoft.com/en-us/products/ai-services/openai-service">Azure OpenAI</a>
     </td>
-    <td>
-      <img src="./src/renderer/src/assets/llm-icons/qiniu.svg" width="50" height="50"><br/>
-      <a href="https://www.qiniu.com/products/ai-token-api">Qiniu</a>
-    </td>
-    <td colspan="1">
+    <td colspan="2">
           Compatible with any model provider in openai/gemini API format
     </td>
   </tr>

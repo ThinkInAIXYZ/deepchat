@@ -32,21 +32,6 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
     }
   },
   {
-    id: 'qiniu',
-    name: 'Qiniu',
-    apiType: 'openai',
-    apiKey: '',
-    baseUrl: 'https://api.qnaigc.com/v1',
-    enable: false,
-    websites: {
-      official: 'https://www.qiniu.com',
-      apiKey: 'https://developer.qiniu.com/aitokenapi/12884/how-to-get-api-key',
-      docs: 'https://developer.qiniu.com/aitokenapi',
-      models: 'https://developer.qiniu.com/aitokenapi/12883/model-list',
-      defaultBaseUrl: 'https://api.qnaigc.com/v1'
-    }
-  },
-  {
     id: 'silicon',
     name: 'Silicon',
     apiType: 'silicon',

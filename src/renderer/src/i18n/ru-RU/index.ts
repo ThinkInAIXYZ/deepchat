@@ -18,7 +18,6 @@ import about from './about.json'
 // 单独的顶层键
 const others = {
   Silicon: 'Силиконовый Поток',
-  Qiniu: 'Qiniu',
   QwenLM: 'Модель Qwen',
   Doubao: 'Doubao',
   PPIO: 'PPIO Cloud',
