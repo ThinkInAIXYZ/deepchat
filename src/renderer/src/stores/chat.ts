@@ -852,7 +852,7 @@ export const useChatStore = defineStore('chat', () => {
     }
     // 检查是否存在 activeThreadId，如果存在则创建新会话
     if (activeThreadId.value) {
-      clearActiveThread()
+      await clearActiveThread();
     }
     // 存储 deeplink 数据到缓存
     if (data) {

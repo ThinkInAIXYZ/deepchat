@@ -209,6 +209,21 @@ const onSidebarButtonClick = () => {
   chatStore.isSidebarOpen = !chatStore.isSidebarOpen
 }
 
+const handleModelUpdate = (model: MODEL_META, providerId: string) => {
+  activeModel.value = {
+    name: model.name,
+    id: model.id,
+    providerId: providerId,
+    tags: []
+  }
+  
+  chatStore.updateChatConfig({
+    modelId: model.id,
+    providerId: providerId
+  })
+  modelSelectOpen.value = false
+}
+
 // 监听 deeplinkCache 变化
 watch(
   () => chatStore.deeplinkCache,
@@ -264,20 +279,6 @@ watch(
   },
   { immediate: true }
 )
-
-const handleModelUpdate = (model: MODEL_META, providerId: string) => {
-  activeModel.value = {
-    name: model.name,
-    id: model.id,
-    providerId: providerId,
-    tags: []
-  }
-  chatStore.updateChatConfig({
-    modelId: model.id,
-    providerId: providerId
-  })
-  modelSelectOpen.value = false
-}
 
 const handleSend = async (content: UserMessageContent) => {
   const threadId = await chatStore.createThread(content.text, {
