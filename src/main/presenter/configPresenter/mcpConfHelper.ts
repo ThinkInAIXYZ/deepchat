@@ -13,7 +13,7 @@ interface IMcpSettings {
   mcpEnabled: boolean // 添加MCP启用状态字段
   [key: string]: unknown // 允许任意键
 }
-export type MCPServerType = 'stdio' | 'sse' | 'inmemory'
+export type MCPServerType = 'stdio' | 'sse' | 'inmemory' | 'http'
 // const filesystemPath = path.join(app.getAppPath(), 'resources', 'mcp', 'filesystem.mjs')
 
 // 抽取inmemory类型的服务为常量

@@ -192,8 +192,8 @@
       "nameRequired": "Имя сервера обязательно",
       "type": "Тип сервера",
       "typePlaceholder": "Выберите тип сервера",
-      "typeStdio": "Стандартный ввод-вывод",
-      "typeSse": "Server-Sent Events",
+      "typeStdio": "Стандартный вход и выход (Stdio)",
+      "typeSse": "Сервер отправлять события (SSE)",
       "typeInMemory": "In-Memory",
       "baseUrl": "Базовый URL",
       "baseUrlPlaceholder": "Введите базовый URL сервера (например, http://localhost:3000)",
@@ -231,7 +231,10 @@
       "configImported": "Конфигурация успешно импортирована",
       "parseError": "Ошибка обработки",
       "skipToManual": "Перейти к ручной настройке",
-      "parseAndContinue": "Обработать и продолжить"
+      "parseAndContinue": "Обработать и продолжить",
+      "jsonParseError": "JSON SAINING не удалось",
+      "typeHttp": "Потоковые http -запросы (http)",
+      "useSSE": "Включить передачу SSE"
     },
     "deleteServer": "Удалить сервер",
     "editServer": "Редактировать сервер",

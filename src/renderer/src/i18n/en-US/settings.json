@@ -195,8 +195,8 @@
       "nameRequired": "Server name is required",
       "type": "Server Type",
       "typePlaceholder": "Select server type",
-      "typeStdio": "Standard I/O",
-      "typeSse": "Server-Sent Events",
+      "typeStdio": "Standard input and output (Stdio)",
+      "typeSse": "Server Send Events (SSE)",
       "typeInMemory": "In-Memory",
       "baseUrl": "Base URL",
       "baseUrlPlaceholder": "Enter server base URL (e.g. http://localhost:3000)",
@@ -234,7 +234,10 @@
       "configImported": "Configuration imported successfully",
       "parseError": "Parse Error",
       "skipToManual": "Skip to Manual Configuration",
-      "parseAndContinue": "Parse & Continue"
+      "parseAndContinue": "Parse & Continue",
+      "jsonParseError": "JSON parsing failed",
+      "typeHttp": "Streaming HTTP Requests (HTTP)",
+      "useSSE": "Enable SSE transfer"
     },
     "deleteServer": "Delete Server",
     "editServer": "Edit Server",

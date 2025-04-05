@@ -11,6 +11,7 @@ import { app } from 'electron'
 import fs from 'fs'
 import { proxyConfig } from '@/presenter/proxyConfig'
 import { getInMemoryServer } from './inMemoryServers/builder'
+import { StreamableHttpClientTransport } from './streamableHttp'
 
 // 确保 TypeScript 能够识别 SERVER_STATUS_CHANGED 属性
 type MCPEventsType = typeof MCP_EVENTS & {
@@ -267,8 +268,13 @@ export class McpClient {
           env,
           stderr: 'pipe'
         })
-      } else if (this.serverConfig.baseUrl) {
+      } else if (this.serverConfig.baseUrl && this.serverConfig.type === 'sse') {
         this.transport = new SSEClientTransport(new URL(this.serverConfig.baseUrl as string))
+      } else if (this.serverConfig.baseUrl && this.serverConfig.type === 'http') {
+        this.transport = new StreamableHttpClientTransport(
+          new URL(this.serverConfig.baseUrl as string),
+          { useSSE: !!this.serverConfig.useSSE }
+        )
       } else {
         throw new Error(`不支持的传输类型: ${this.serverConfig.type}`)
       }

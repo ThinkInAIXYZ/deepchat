@@ -39,8 +39,9 @@ const args = ref(props.initialConfig?.args?.join(' ') || '')
 const env = ref(JSON.stringify(props.initialConfig?.env || {}, null, 2))
 const descriptions = ref(props.initialConfig?.descriptions || '')
 const icons = ref(props.initialConfig?.icons || '📁')
-const type = ref<'sse' | 'stdio' | 'inmemory'>(props.initialConfig?.type || 'stdio')
+const type = ref<'sse' | 'stdio' | 'inmemory' | 'http'>(props.initialConfig?.type || 'stdio')
 const baseUrl = ref(props.initialConfig?.baseUrl || '')
+const useSSE = ref(props.initialConfig?.useSSE || false)
 
 // 判断是否是inmemory类型
 const isInMemoryType = computed(() => type.value === 'inmemory')
@@ -65,7 +66,7 @@ const currentStep = ref(props.editMode ? 'detailed' : 'simple')
 const jsonConfig = ref('')
 
 // 当type变更时处理baseUrl的显示逻辑
-const showBaseUrl = computed(() => type.value === 'sse')
+const showBaseUrl = computed(() => type.value === 'sse' || type.value === 'http')
 // 添加计算属性来控制命令相关字段的显示
 const showCommandFields = computed(() => type.value === 'stdio')
 
@@ -103,7 +104,8 @@ const parseJsonConfig = () => {
     icons.value = serverConfig.icons || '📁'
     type.value = serverConfig.type || 'stdio'
     baseUrl.value = serverConfig.url || ''
-    if (type.value !== 'stdio' && type.value !== 'sse') {
+    useSSE.value = serverConfig.useSSE || false
+    if (type.value !== 'stdio' && type.value !== 'sse' && type.value !== 'http') {
       if (baseUrl.value) {
         type.value = 'sse'
       } else {
@@ -148,7 +150,7 @@ const goToDetailedForm = () => {
 const isNameValid = computed(() => name.value.trim().length > 0)
 const isCommandValid = computed(() => {
   // 对于SSE类型，命令不是必需的
-  if (type.value === 'sse') return true
+  if (type.value === 'sse' || type.value === 'http') return true
   // 对于STDIO类型，命令是必需的
   return command.value.trim().length > 0
 })
@@ -161,7 +163,7 @@ const isEnvValid = computed(() => {
   }
 })
 const isBaseUrlValid = computed(() => {
-  if (type.value !== 'sse') return true
+  if (type.value !== 'sse' && type.value !== 'http') return true
   return baseUrl.value.trim().length > 0
 })
 
@@ -170,7 +172,7 @@ const isFormValid = computed(() => {
   if (!isNameValid.value) return false
 
   // 对于SSE类型，只需要名称和baseUrl有效
-  if (type.value === 'sse') {
+  if (type.value === 'sse' || type.value === 'http') {
     return isNameValid.value && isBaseUrlValid.value
   }
 
@@ -210,6 +212,16 @@ const handleSubmit = () => {
       args: [], // 提供空数组作为默认值
       env: {}, // 提供空对象作为默认值
       baseUrl: baseUrl.value.trim()
+    }
+  } else if (type.value === 'http') {
+    // HTTP类型的服务器
+    serverConfig = {
+      ...baseConfig,
+      command: '', // 提供空字符串作为默认值
+      args: [], // 提供空数组作为默认值
+      env: {}, // 提供空对象作为默认值
+      baseUrl: baseUrl.value.trim(),
+      useSSE: useSSE.value
     }
   } else {
     // STDIO类型的服务器
@@ -337,6 +349,7 @@ watch(
             <SelectContent>
               <SelectItem value="stdio">{{ t('settings.mcp.serverForm.typeStdio') }}</SelectItem>
               <SelectItem value="sse">{{ t('settings.mcp.serverForm.typeSse') }}</SelectItem>
+              <SelectItem value="http">{{ t('settings.mcp.serverForm.typeHttp') }}</SelectItem>
               <SelectItem
                 value="inmemory"
                 v-if="props.editMode && props.initialConfig?.type === 'inmemory'"
@@ -358,6 +371,19 @@ watch(
             :disabled="isFieldReadOnly"
             required
           />
+        </div>
+
+        <!-- HTTP类型的SSE选项 -->
+        <div class="space-y-2" v-if="type === 'http'">
+          <div class="flex items-center space-x-2">
+            <Checkbox id="use-sse" v-model:checked="useSSE" :disabled="isFieldReadOnly" />
+            <label
+              for="use-sse"
+              class="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+            >
+              {{ t('settings.mcp.serverForm.useSSE') }}
+            </label>
+          </div>
         </div>
 
         <!-- 命令 -->

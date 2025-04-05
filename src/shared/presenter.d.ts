@@ -611,7 +611,8 @@ export interface MCPServerConfig {
   autoApprove: string[]
   disable?: boolean
   baseUrl?: string
-  type: 'sse' | 'stdio' | 'inmemory'
+  type: 'sse' | 'stdio' | 'inmemory' | 'http'
+  useSSE?: boolean
 }
 
 export interface MCPConfig {

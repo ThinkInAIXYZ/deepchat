@@ -17,7 +17,7 @@ interface MCPInstallConfig {
       autoApprove?: string[]
       disable?: boolean
       url?: string
-      type?: 'sse' | 'stdio'
+      type?: 'sse' | 'stdio' | 'http'
     }
   >
 }

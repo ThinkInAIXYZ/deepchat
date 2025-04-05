@@ -195,8 +195,8 @@
       "nameRequired": "サーバー名は必須です",
       "type": "サーバータイプ",
       "typePlaceholder": "サーバータイプを選択",
-      "typeStdio": "標準入出力",
-      "typeSse": "サーバー送信イベント",
+      "typeStdio": "標準入力と出力（STDIO）",
+      "typeSse": "サーバー送信イベント（SSE）",
       "baseUrl": "ベースURL",
       "baseUrlPlaceholder": "サーバーのベースURLを入力（例：http://localhost:3000）",
       "command": "コマンド",
@@ -233,7 +233,10 @@
       "configImported": "設定が正常にインポートされました",
       "parseError": "解析エラー",
       "skipToManual": "手動設定へスキップ",
-      "parseAndContinue": "解析して続行"
+      "parseAndContinue": "解析して続行",
+      "jsonParseError": "JSONの解析は失敗しました",
+      "typeHttp": "ストリーミングHTTPリクエスト（HTTP）",
+      "useSSE": "SSE転送を有効にします"
     },
     "deleteServer": "サーバーを削除",
     "editServer": "サーバーを編集",

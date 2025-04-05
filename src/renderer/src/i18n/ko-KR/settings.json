@@ -194,8 +194,8 @@
       "nameRequired": "서버 이름이 필요합니다",
       "type": "서버 유형",
       "typePlaceholder": "서버 유형 선택",
-      "typeStdio": "표준 입출력",
-      "typeSse": "서버 전송 이벤트",
+      "typeStdio": "표준 입력 및 출력 (STDIO)",
+      "typeSse": "서버 보내기 이벤트 (SSE)",
       "typeInMemory": "인메모리",
       "baseUrl": "기본 URL",
       "baseUrlPlaceholder": "서버 기본 URL 입력(예: http://localhost:3000)",
@@ -233,7 +233,10 @@
       "configImported": "구성을 성공적으로 가져왔습니다",
       "parseError": "파싱 오류",
       "skipToManual": "수동 구성으로 건너뛰기",
-      "parseAndContinue": "파싱 및 계속"
+      "parseAndContinue": "파싱 및 계속",
+      "jsonParseError": "JSON 파싱이 실패했습니다",
+      "typeHttp": "스트리밍 HTTP 요청 (HTTP)",
+      "useSSE": "SSE 전송을 활성화합니다"
     },
     "deleteServer": "서버 삭제",
     "editServer": "서버 편집",

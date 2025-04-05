@@ -193,8 +193,8 @@
       "nameRequired": "伺服器名稱不能為空",
       "type": "伺服器類型",
       "typePlaceholder": "選擇伺服器類型",
-      "typeStdio": "標準輸入輸出",
-      "typeSse": "伺服器發送事件",
+      "typeStdio": "標準輸入輸出(Stdio)",
+      "typeSse": "服務器發送事件(SSE)",
       "typeInMemory": "記憶體",
       "baseUrl": "基礎URL",
       "baseUrlPlaceholder": "輸入伺服器基礎URL（如：http://localhost:3000）",
@@ -232,7 +232,10 @@
       "configImported": "配置導入成功",
       "parseError": "解析錯誤",
       "skipToManual": "跳過至手動配置",
-      "parseAndContinue": "解析並繼續"
+      "parseAndContinue": "解析並繼續",
+      "jsonParseError": "JSON解析失敗",
+      "typeHttp": "可流式傳輸的HTTP請求(HTTP)",
+      "useSSE": "啟用SSE傳輸"
     },
     "deleteServer": "刪除伺服器",
     "editServer": "編輯伺服器",
