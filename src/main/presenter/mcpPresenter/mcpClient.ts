@@ -12,6 +12,7 @@ import fs from 'fs'
 import { proxyConfig } from '@/presenter/proxyConfig'
 import { getInMemoryServer } from './inMemoryServers/builder'
 import { StreamableHTTPClientTransport} from './streamableHttp'
+import { dialog } from 'electron'
 
 // 确保 TypeScript 能够识别 SERVER_STATUS_CHANGED 属性
 type MCPEventsType = typeof MCP_EVENTS & {
@@ -337,6 +338,13 @@ export class McpClient {
       this.cleanupResources()
 
       console.error(`连接到MCP服务器 ${this.serverName} 失败:`, error)
+      // 使用 Electron 的 dialog 模块显示错误弹窗
+      dialog.showErrorBox(
+        'MCP 服务器连接失败',
+        `无法连接到 MCP 服务器 ${this.serverName}。\n错误信息: ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      )
 
       // 触发服务器状态变更事件
       eventBus.emit((MCP_EVENTS as MCPEventsType).SERVER_STATUS_CHANGED, {
