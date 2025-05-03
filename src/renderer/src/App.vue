@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref, watch, onBeforeUnmount } from 'vue'
+import { onMounted, ref, watch, onBeforeUnmount, computed } from 'vue'
 import { RouterView, useRoute, useRouter } from 'vue-router'
 import AppBar from './components/AppBar.vue'
 import SideBar from './components/SideBar.vue'
@@ -8,294 +8,317 @@ import { usePresenter } from './composables/usePresenter'
 import ArtifactDialog from './components/artifacts/ArtifactDialog.vue'
 import { useArtifactStore } from './stores/artifact'
 import { useChatStore } from '@/stores/chat'
-import { NOTIFICATION_EVENTS, SHORTCUT_EVENTS } from './events'
-import { useToast } from './components/ui/toast/use-toast'
-import Toaster from './components/ui/toast/Toaster.vue'
+import { NOTIFICATION_EVENTS, SHORTCUT_EVENTS } from './events' // Assuming events are defined here
+import { useToast } from './components/ui/toast/use-toast' // Assuming shadcn-vue toast
+import Toaster from './components/ui/toast/Toaster.vue' // Assuming shadcn-vue toaster
 import { useSettingsStore } from '@/stores/settings'
 
+// 获取 Vue Router 实例
 const route = useRoute()
-const configPresenter = usePresenter('configPresenter')
+const router = useRouter()
+
+// 获取 Pinia Store 和 Composables
+const configPresenter = usePresenter('configPresenter') // 假设这是一个用于与后端通信的 composable
 const artifactStore = useArtifactStore()
 const chatStore = useChatStore()
-const { toast } = useToast()
+const { toast } = useToast() // shadcn-vue toast hook
 const settingsStore = useSettingsStore()
 
-// 错误通知队列及当前正在显示的错误
-const errorQueue = ref<Array<{ id: string; title: string; message: string; type: string }>>([])
-const currentErrorId = ref<string | null>(null)
-const errorDisplayTimer = ref<number | null>(null)
+// 错误通知队列及当前正在显示的错误状态
+interface ErrorNotification {
+  id: string;
+  title: string;
+  message: string;
+  type: string; // 可以是 'error', 'warning', 'info' 等
+}
 
-// 监听主题和字体大小变化，直接更新 body class
+const errorQueue = ref<ErrorNotification[]>([]);
+const isDisplayingError = ref(false); // 标记当前是否正在显示错误
+
+// 根据当前路由路径计算激活的侧边栏 Tab
+const activeTab = computed({
+  get: () => {
+    const pathSegments = route.path.split('/').filter(Boolean);
+    // 如果是根路径，根据路由名称判断，否则取第一个路径段
+    return route.path === '/' ? (route.name as string || 'chat') : pathSegments[0] || 'chat';
+  },
+  set: (newTab) => {
+    // 当侧边栏 Tab 改变时，导航到对应的路由
+    if (newTab !== activeTab.value) {
+      router.push({ name: newTab }).catch(err => {
+        console.error('导航到新 Tab 失败:', err);
+        // 可选：显示错误通知
+        // showErrorToast({ id: 'navigation-error', title: '导航失败', message: `无法导航到 ${newTab}`, type: 'error' });
+      });
+    }
+  }
+});
+
+
+// 监听主题和字体大小变化，直接更新 documentElement class
+// 使用 immediate: true 确保在组件挂载后立即应用初始设置
 watch(
   [() => settingsStore.theme, () => settingsStore.fontSizeClass],
   ([newTheme, newFontSizeClass], [oldTheme, oldFontSizeClass]) => {
+    const htmlEl = document.documentElement;
     if (oldTheme) {
-      document.documentElement.classList.remove(oldTheme)
+      htmlEl.classList.remove(oldTheme);
     }
     if (oldFontSizeClass) {
-      document.documentElement.classList.remove(oldFontSizeClass)
+      htmlEl.classList.remove(oldFontSizeClass);
     }
-    document.documentElement.classList.add(newTheme)
-    document.documentElement.classList.add(newFontSizeClass)
+    htmlEl.classList.add(newTheme);
+    htmlEl.classList.add(newFontSizeClass);
   },
-  { immediate: false } // 初始化在 onMounted 中处理
-)
+  { immediate: true } // 在组件挂载后立即执行一次
+);
 
-// 处理错误通知
-const showErrorToast = (error: { id: string; title: string; message: string; type: string }) => {
-  // 查找队列中是否已存在相同ID的错误，防止重复
-  const existingErrorIndex = errorQueue.value.findIndex((e) => e.id === error.id)
+// 处理错误通知，将错误添加到队列并尝试显示
+const showErrorToast = (error: ErrorNotification) => {
+  // 查找队列中是否已存在相同ID的错误，防止重复添加
+  const existingErrorIndex = errorQueue.value.findIndex((e) => e.id === error.id);
 
   if (existingErrorIndex === -1) {
-    // 如果当前有错误正在展示，将新错误放入队列
-    if (currentErrorId.value) {
-      if (errorQueue.value.length > 5) {
-        errorQueue.value.shift()
-      }
-      errorQueue.value.push(error)
-    } else {
-      // 否则直接展示这个错误
-      displayError(error)
-    }
-  }
-}
+    // 将新错误添加到队列头部，确保最新错误优先显示（或者尾部，取决于需求）
+    // 这里选择添加到尾部，按顺序显示
+    errorQueue.value.push(error);
+    console.log(`[App] 错误添加到队列: ${error.id}. 当前队列长度: ${errorQueue.value.length}`);
 
-// 显示指定的错误
-const displayError = (error: { id: string; title: string; message: string; type: string }) => {
-  // 更新当前显示的错误ID
-  currentErrorId.value = error.id
-
-  // 显示错误通知
-  const { dismiss } = toast({
-    title: error.title,
-    description: error.message,
-    variant: 'destructive',
-    onOpenChange: (open) => {
-      if (!open) {
-        // 用户手动关闭时也显示下一个错误
-        handleErrorClosed()
-      }
-    }
-  })
-
-  // 设置定时器，3秒后自动关闭当前错误
-  if (errorDisplayTimer.value) {
-    clearTimeout(errorDisplayTimer.value)
-  }
-
-  errorDisplayTimer.value = window.setTimeout(() => {
-    console.log('errorDisplayTimer.value', errorDisplayTimer.value)
-    // 处理错误关闭后的逻辑
-    dismiss()
-    handleErrorClosed()
-  }, 3000)
-}
-
-// 处理错误关闭后的逻辑
-const handleErrorClosed = () => {
-  // 清除当前错误ID
-  currentErrorId.value = null
-
-  // 显示队列中的下一个错误（如果有）
-  if (errorQueue.value.length > 0) {
-    const nextError = errorQueue.value.shift()
-    if (nextError) {
-      displayError(nextError)
+    // 如果当前没有错误正在展示，则立即显示队列中的第一个错误
+    if (!isDisplayingError.value) {
+      displayNextError();
     }
   } else {
-    // 队列为空，清除定时器
-    if (errorDisplayTimer.value) {
-      clearTimeout(errorDisplayTimer.value)
-      errorDisplayTimer.value = null
+      console.log(`[App] 错误已存在于队列中，忽略: ${error.id}`);
+  }
+};
+
+// 显示队列中的下一个错误
+const displayNextError = () => {
+  if (errorQueue.value.length > 0 && !isDisplayingError.value) {
+    isDisplayingError.value = true;
+    const nextError = errorQueue.value.shift(); // 从队列头部取出下一个错误
+
+    if (nextError) {
+      console.log(`[App] 开始显示错误: ${nextError.id}`);
+      // 显示错误通知
+      toast({
+        title: nextError.title,
+        description: nextError.message,
+        variant: 'destructive', // 使用 destructive 变体表示错误
+        duration: 5000, // 设置默认显示时长，单位毫秒
+        onOpenChange: (open) => {
+          if (!open) {
+            // 当 toast 关闭时（无论自动还是手动），处理下一个错误
+            console.log(`[App] 错误 toast 关闭: ${nextError.id}`);
+            isDisplayingError.value = false; // 标记为不再显示错误
+            // 延迟一小段时间再检查队列，避免快速连续弹窗
+            setTimeout(displayNextError, 300);
+          }
+        },
+      });
+    } else {
+       isDisplayingError.value = false; // 队列为空，确保状态正确
     }
+  } else {
+     console.log(`[App] 错误队列为空或正在显示错误，不执行显示`);
+     isDisplayingError.value = false; // 队列为空，确保状态正确
   }
-}
+};
 
-const router = useRouter()
-const activeTab = ref('chat')
 
-const getInitComplete = async () => {
-  const initComplete = await configPresenter.getSetting('init_complete')
-  if (!initComplete) {
-    router.push({ name: 'welcome' })
+// 检查初始化是否完成，未完成则跳转到欢迎页
+const checkInitComplete = async () => {
+  try {
+    const initComplete = await configPresenter.getSetting('init_complete');
+    if (!initComplete) {
+      console.log('[App] 初始化未完成，跳转到欢迎页');
+      router.replace({ name: 'welcome' }); // 使用 replace 避免用户返回
+    }
+  } catch (error) {
+    console.error('[App] 检查初始化状态失败:', error);
+    // 可选：显示错误通知
+    // showErrorToast({ id: 'init-check-error', title: '初始化检查失败', message: '无法加载应用配置。', type: 'error' });
   }
-}
+};
 
-// 处理字体缩放
+// 处理字体缩放快捷键
 const handleZoomIn = () => {
-  // 字体大小增加逻辑
-  const currentLevel = settingsStore.fontSizeLevel
-  settingsStore.updateFontSizeLevel(currentLevel + 1)
-}
+  console.log('[App] 处理快捷键: 放大字体');
+  settingsStore.updateFontSizeLevel(settingsStore.fontSizeLevel + 1);
+};
 
 const handleZoomOut = () => {
-  // 字体大小减小逻辑
-  const currentLevel = settingsStore.fontSizeLevel
-  settingsStore.updateFontSizeLevel(currentLevel - 1)
-}
+  console.log('[App] 处理快捷键: 缩小字体');
+  settingsStore.updateFontSizeLevel(settingsStore.fontSizeLevel - 1);
+};
 
 const handleZoomResume = () => {
-  // 重置字体大小
-  settingsStore.updateFontSizeLevel(1) // 1 对应 'text-base'，默认字体大小
-}
+  console.log('[App] 处理快捷键: 重置字体');
+  settingsStore.updateFontSizeLevel(1); // 1 对应 'text-base'，默认字体大小
+};
 
-// 处理创建新会话
+// 处理创建新会话快捷键
 const handleCreateNewConversation = () => {
+  console.log('[App] 处理快捷键: 创建新会话');
   try {
-    chatStore.createNewEmptyThread()
-    // 简化处理，只记录日志，实际功能待实现
+    chatStore.createNewEmptyThread();
+    // 导航到新的会话页面（如果需要）
+    // router.push({ name: 'chat', params: { threadId: chatStore.activeThreadId } }); // 假设 chat 路由接受 threadId 参数
   } catch (error) {
-    console.error('创建新会话失败:', error)
+    console.error('[App] 创建新会话失败:', error);
+    showErrorToast({ id: 'create-chat-error', title: '创建会话失败', message: '无法创建新的对话。', type: 'error' });
   }
-}
+};
 
-// 处理进入设置页面
+// 处理进入设置页面快捷键
 const handleGoSettings = () => {
-  const currentRoute = router.currentRoute.value
-  // 检查当前路由或其父路由是否已经是settings
+  console.log('[App] 处理快捷键: 进入设置');
+  const currentRoute = router.currentRoute.value;
+  // 检查当前路由或其父路由是否已经是settings，避免重复导航
   if (!currentRoute.path.startsWith('/settings')) {
-    router.push({ name: 'settings' })
+    router.push({ name: 'settings' }).catch(err => {
+       console.error('[App] 导航到设置失败:', err);
+       // 可选：显示错误通知
+       // showErrorToast({ id: 'go-settings-error', title: '导航失败', message: '无法导航到设置页面。', type: 'error' });
+    });
+  } else {
+      console.log('[App] 已在设置页面，跳过导航');
   }
-}
+};
 
-getInitComplete()
+// 处理系统通知点击事件
+const handleSystemNotificationClick = (_event: Electron.IpcRendererEvent, msg: any) => {
+  console.log('[App] 接收到系统通知点击事件:', msg);
+  let threadId: string | null = null;
 
+  // 检查 msg 的格式，兼容不同的通知数据结构
+  if (typeof msg === 'string' && msg.startsWith('chat/')) {
+    // 格式如 'chat/threadId/messageId'
+    const parts = msg.split('/');
+    if (parts.length >= 2) { // 至少需要 'chat/threadId'
+      threadId = parts[1];
+    }
+  } else if (msg && typeof msg === 'object' && msg.threadId) {
+    // 兼容原有对象格式 { threadId: '...' }
+    threadId = msg.threadId;
+  }
+
+  if (threadId) {
+    console.log(`[App] 激活对话线程: ${threadId}`);
+    chatStore.setActiveThread(threadId);
+    // 导航到聊天页面（如果不在聊天页面）
+    if (route.name !== 'chat') {
+        router.push({ name: 'chat' }).catch(err => {
+            console.error('[App] 导航到聊天页面失败:', err);
+            // 可选：显示错误通知
+            // showErrorToast({ id: 'nav-to-chat-error', title: '导航失败', message: '无法导航到聊天页面。', type: 'error' });
+        });
+    }
+  } else {
+      console.warn('[App] 系统通知点击事件未包含有效的 threadId');
+  }
+};
+
+
+// 在组件挂载后执行
 onMounted(() => {
-  // 设置初始 body class
-  document.body.classList.add(settingsStore.theme)
-  document.body.classList.add(settingsStore.fontSizeClass)
+  console.log('[App] 组件已挂载');
 
-  // 监听全局错误通知事件
-  window.electron.ipcRenderer.on(NOTIFICATION_EVENTS.SHOW_ERROR, (_event, error) => {
-    showErrorToast(error)
-  })
+  // 检查初始化状态并决定是否跳转
+  checkInitComplete();
+
+  // 监听全局错误通知事件 (来自 Electron 主进程或其他地方)
+  // 使用具体的监听函数引用，方便在 onBeforeUnmount 中移除
+  window.electron.ipcRenderer.on(NOTIFICATION_EVENTS.SHOW_ERROR, showErrorToast);
 
   // 监听快捷键事件
-  window.electron.ipcRenderer.on(SHORTCUT_EVENTS.ZOOM_IN, () => {
-    handleZoomIn()
-  })
+  window.electron.ipcRenderer.on(SHORTCUT_EVENTS.ZOOM_IN, handleZoomIn);
+  window.electron.ipcRenderer.on(SHORTCUT_EVENTS.ZOOM_OUT, handleZoomOut);
+  window.electron.ipcRenderer.on(SHORTCUT_EVENTS.ZOOM_RESUME, handleZoomResume);
+  window.electron.ipcRenderer.on(SHORTCUT_EVENTS.CREATE_NEW_CONVERSATION, handleCreateNewConversation);
+  window.electron.ipcRenderer.on(SHORTCUT_EVENTS.GO_SETTINGS, handleGoSettings);
+  window.electron.ipcRenderer.on(NOTIFICATION_EVENTS.SYS_NOTIFY_CLICKED, handleSystemNotificationClick);
 
-  window.electron.ipcRenderer.on(SHORTCUT_EVENTS.ZOOM_OUT, () => {
-    handleZoomOut()
-  })
 
-  window.electron.ipcRenderer.on(SHORTCUT_EVENTS.ZOOM_RESUME, () => {
-    handleZoomResume()
-  })
-
-  window.electron.ipcRenderer.on(SHORTCUT_EVENTS.CREATE_NEW_CONVERSATION, () => {
-    handleCreateNewConversation()
-  })
-
-  window.electron.ipcRenderer.on(SHORTCUT_EVENTS.GO_SETTINGS, () => {
-    handleGoSettings()
-  })
-
-  window.electron.ipcRenderer.on(NOTIFICATION_EVENTS.SYS_NOTIFY_CLICKED, (_, msg) => {
-    let threadId: string | null = null
-
-    // 检查msg是否为字符串且是否以chat/开头
-    if (typeof msg === 'string' && msg.startsWith('chat/')) {
-      // 按/分割，检查是否有三段数据
-      const parts = msg.split('/')
-      if (parts.length === 3) {
-        // 提取中间部分作为threadId
-        threadId = parts[1]
-      }
-    } else if (msg && msg.threadId) {
-      // 兼容原有格式，如果msg是对象且包含threadId属性
-      threadId = msg.threadId
-    }
-
-    if (threadId) {
-      chatStore.setActiveThread(threadId)
-    }
-  })
-
-  watch(
-    () => activeTab.value,
-    (newVal) => {
-      router.push({ name: newVal })
-    }
-  )
-
-  watch(
-    () => route.fullPath,
-    (newVal) => {
-      const pathWithoutQuery = newVal.split('?')[0]
-      const newTab =
-        pathWithoutQuery === '/'
-          ? (route.name as string)
-          : pathWithoutQuery.split('/').filter(Boolean)[0] || ''
-      if (newTab !== activeTab.value) {
-        activeTab.value = newTab
-      }
-      // 路由变化时关闭 artifacts 页面
-      artifactStore.hideArtifact()
-    }
-  )
-
-  // 监听当前对话的变化
+  // 监听当前对话变化，关闭 artifacts 页面
   watch(
     () => chatStore.activeThreadId,
-    () => {
-      // 当切换对话时关闭 artifacts 页面
-      artifactStore.hideArtifact()
+    (newThreadId, oldThreadId) => {
+      if (newThreadId !== oldThreadId) {
+         console.log(`[App] 切换对话线程: ${oldThreadId} -> ${newThreadId}. 关闭 Artifacts.`);
+        artifactStore.hideArtifact();
+      }
     }
-  )
+  );
 
+  // 监听 Artifacts 页面打开状态，关闭侧边栏
   watch(
     () => artifactStore.isOpen,
-    () => {
-      chatStore.isSidebarOpen = false
+    (isOpen) => {
+      if (isOpen) {
+        console.log('[App] Artifacts 页面打开，关闭侧边栏');
+        chatStore.isSidebarOpen = false;
+      }
     }
-  )
-})
+  );
+
+   // 初始应用主题和字体大小 class (确保在 watch immediate: true 之前或同时执行)
+   // 由于 watch 已经设置了 immediate: true，这里的 document.documentElement 上的添加可以移除或作为备用
+   // document.documentElement.classList.add(settingsStore.theme);
+   // document.documentElement.classList.add(settingsStore.fontSizeClass);
+
+});
 
 // 在组件卸载前清除定时器和事件监听
 onBeforeUnmount(() => {
-  if (errorDisplayTimer.value) {
-    clearTimeout(errorDisplayTimer.value)
-    errorDisplayTimer.value = null
-  }
+  console.log('[App] 组件即将卸载，清理监听器和定时器');
 
-  // 移除快捷键事件监听
-  window.electron.ipcRenderer.removeAllListeners(SHORTCUT_EVENTS.ZOOM_IN)
-  window.electron.ipcRenderer.removeAllListeners(SHORTCUT_EVENTS.ZOOM_OUT)
-  window.electron.ipcRenderer.removeAllListeners(SHORTCUT_EVENTS.ZOOM_RESUME)
-  window.electron.ipcRenderer.removeAllListeners(SHORTCUT_EVENTS.CREATE_NEW_CONVERSATION)
-  window.electron.ipcRenderer.removeAllListeners(SHORTCUT_EVENTS.GO_SETTINGS)
-  window.electron.ipcRenderer.removeAllListeners(NOTIFICATION_EVENTS.SYS_NOTIFY_CLICKED)
-})
+  // 移除 Electron IPC 监听器，使用具体的监听函数引用
+  window.electron.ipcRenderer.removeListener(NOTIFICATION_EVENTS.SHOW_ERROR, showErrorToast);
+  window.electron.ipcRenderer.removeListener(SHORTCUT_EVENTS.ZOOM_IN, handleZoomIn);
+  window.electron.ipcRenderer.removeListener(SHORTCUT_EVENTS.ZOOM_OUT, handleZoomOut);
+  window.electron.ipcRenderer.removeListener(SHORTCUT_EVENTS.ZOOM_RESUME, handleZoomResume);
+  window.electron.ipcRenderer.removeListener(SHORTCUT_EVENTS.CREATE_NEW_CONVERSATION, handleCreateNewConversation);
+  window.electron.ipcRenderer.removeListener(SHORTCUT_EVENTS.GO_SETTINGS, handleGoSettings);
+  window.electron.ipcRenderer.removeListener(NOTIFICATION_EVENTS.SYS_NOTIFY_CLICKED, handleSystemNotificationClick);
+
+  // 清理错误显示定时器 (如果存在)
+  // 注意：这里的定时器逻辑已经被 displayNextError 的 onOpenChange 取代，理论上不需要手动清除
+  // 但为了安全起见，保留清除逻辑
+  // if (errorDisplayTimer.value) {
+  //   clearTimeout(errorDisplayTimer.value);
+  //   errorDisplayTimer.value = null;
+  // }
+});
 </script>
 
 <template>
   <div class="flex flex-col h-screen">
     <AppBar />
+
     <div class="flex flex-row h-0 flex-grow relative overflow-hidden">
-      <!-- 侧边导航栏 -->
+
       <SideBar
         v-show="route.name !== 'welcome'"
         v-model:model-value="activeTab"
         class="h-full z-10"
       />
 
-      <!-- 主内容区域 -->
       <div
         :class="{
           'flex-1 w-0 h-full transition-all duration-200': true,
-          'mr-[calc(60%_-_104px)]': artifactStore.isOpen && route.name === 'chat'
+          'mr-[calc(60%_-_104px)]': artifactStore.isOpen && route.name === 'chat' // 当 artifacts 打开且在聊天页时，为主内容区域留出空间
         }"
       >
         <RouterView />
       </div>
 
-      <!-- Artifacts 预览区域 -->
       <ArtifactDialog />
     </div>
-    <!-- 全局更新弹窗 -->
+
     <UpdateDialog />
-    <!-- 全局Toast提示 -->
+
     <Toaster />
   </div>
 </template>
