@@ -37,6 +37,8 @@ interface IAppSettings {
   lastSyncTime?: number // 上次同步时间
   customSearchEngines?: string // 自定义搜索引擎JSON字符串
   loggingEnabled?: boolean // 日志记录是否启用
+  windowSize?: { width: number; height: number } // 窗口大小
+  windowPosition?: { x: number; y: number } // 窗口位置
   [key: string]: unknown // 允许任意键，使用unknown类型替代any
 }
 

@@ -64,9 +64,16 @@ export class WindowPresenter implements IWindowPresenter {
 
   createMainWindow(): BrowserWindow {
     const iconFile = nativeImage.createFromPath(process.platform === 'win32' ? iconWin : icon)
+
+    // Get saved window size and position from config
+    const savedWindowSize = this.configPresenter.getSetting<{ width: number; height: number }>('windowSize')
+    const savedWindowPosition = this.configPresenter.getSetting<{ x: number; y: number }>('windowPosition')
+
     const mainWindow = new BrowserWindow({
-      width: 1024,
-      height: 620,
+      width: savedWindowSize?.width || 1024,
+      height: savedWindowSize?.height || 620,
+      x: savedWindowPosition?.x,
+      y: savedWindowPosition?.y,
       show: false,
       autoHideMenuBar: true,
       icon: iconFile,
@@ -97,12 +104,36 @@ export class WindowPresenter implements IWindowPresenter {
     mainWindow.on('close', (e) => {
       eventBus.emit('main-window-close', mainWindow)
       console.log('main-window-close', this.isQuitting, e)
+
+      // Save window size and position before closing
+      if (!mainWindow.isMaximized() && !mainWindow.isFullScreen()) {
+        const [width, height] = mainWindow.getSize()
+        const [x, y] = mainWindow.getPosition()
+        this.configPresenter.setSetting('windowSize', { width, height })
+        this.configPresenter.setSetting('windowPosition', { x, y })
+      }
+
       if (!this.isQuitting) {
         e.preventDefault()
         if (mainWindow.isFullScreen()) {
           mainWindow.setFullScreen(false)
         }
         mainWindow.hide()
+      }
+    })
+
+    // Save window size and position when resized or moved
+    mainWindow.on('resize', () => {
+      if (!mainWindow.isMaximized()) {
+        const [width, height] = mainWindow.getSize()
+        this.configPresenter.setSetting('windowSize', { width, height })
+      }
+    })
+
+    mainWindow.on('move', () => {
+      if (!mainWindow.isMaximized()) {
+        const [x, y] = mainWindow.getPosition()
+        this.configPresenter.setSetting('windowPosition', { x, y })
       }
     })
 
