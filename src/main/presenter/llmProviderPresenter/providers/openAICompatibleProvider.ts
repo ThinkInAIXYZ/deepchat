@@ -481,6 +481,11 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
       temperature,
       max_tokens: maxTokens
     }
+
+    // 添加stream_options，适用于/v1/chat/completions
+    // 诸如qwen等模型需要，如不添加则无法获取token usages
+    requestParams.stream_options = { include_usage: true }  
+
     OPENAI_REASONING_MODELS.forEach((noTempId) => {
       if (modelId.startsWith(noTempId)) delete requestParams.temperature
     })

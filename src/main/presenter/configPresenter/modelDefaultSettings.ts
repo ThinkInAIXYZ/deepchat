@@ -1061,6 +1061,36 @@ export const defaultModelsSettings = [
     reasoning: false
   },
   {
+    id: 'qwen-plus-16k',
+    name: 'Qwen Plus 16K',
+    temperature: 0.7,
+    maxTokens: 16384,
+    contextLength: 131072,
+    match: ['qwen-plus-latest', 'qwen-plus-2025-04-28'],
+    vision: false,
+    functionCall: true,
+    reasoning: true
+  },
+  {
+    id: 'qwen-plus-8k',
+    name: 'Qwen Plus 8K',
+    temperature: 0.7,
+    maxTokens: 8192,
+    contextLength: 131072,
+    match: [
+      'qwen-plus',
+      'qwen-plus-0919',
+      'qwen-plus-2025-01-25',
+      'qwen-plus-0112',
+      'qwen-plus-1220',
+      'qwen-plus-1127',
+      'qwen-plus-1125'
+    ],
+    vision: false,
+    functionCall: false,
+    reasoning: false
+  },
+  {
     id: 'qwen',
     name: 'Qwen',
     temperature: 0.7,
