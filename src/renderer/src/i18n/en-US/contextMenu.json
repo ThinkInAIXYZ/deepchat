@@ -1,0 +1,17 @@
+{
+  "translate": {
+    "title": "Translate",
+    "original": "Original",
+    "translated": "Translation",
+    "error": "Translation failed"
+  },
+  "askAI": {
+    "title": "Ask AI",
+    "question": "Question",
+    "answer": "Answer",
+    "error": "AI answer failed"
+  },
+  "copy": "Copy",
+  "paste": "Paste",
+  "cut": "Cut"
+} 

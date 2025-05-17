@@ -14,6 +14,7 @@ import newThread from './newThread.json'
 import routes from './routes.json'
 import artifacts from './artifacts.json'
 import chat from './chat.json'
+import contextMenu from './contextMenu.json'
 
 export default {
   common,

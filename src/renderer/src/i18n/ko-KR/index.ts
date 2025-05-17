@@ -14,6 +14,7 @@ import toolCall from './toolCall.json'
 import components from './components.json'
 import newThread from './newThread.json'
 import about from './about.json'
+import contextMenu from './contextMenu.json'
 
 // 单独的顶层键
 const others = {

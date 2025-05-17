@@ -1,0 +1,17 @@
+{
+  "translate": {
+    "title": "翻譯",
+    "original": "原文",
+    "translated": "翻譯結果",
+    "error": "翻譯失敗"
+  },
+  "askAI": {
+    "title": "AI 詢問",
+    "question": "問題",
+    "answer": "回答",
+    "error": "AI 回答失敗"
+  },
+  "copy": "複製",
+  "paste": "貼上",
+  "cut": "剪下"
+} 

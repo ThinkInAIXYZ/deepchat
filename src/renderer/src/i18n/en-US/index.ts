@@ -14,6 +14,7 @@ import toolCall from './toolCall.json'
 import components from './components.json'
 import newThread from './newThread.json'
 import about from './about.json'
+import contextMenu from './contextMenu.json'
 
 // Individual top-level keys
 const others = {
@@ -46,5 +47,6 @@ export default {
   components,
   newThread,
   about,
+  contextMenu,
   ...others
 }

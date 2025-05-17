@@ -14,6 +14,7 @@ import about from './about.json'
 import artifacts from './artifacts.json'
 import chat from './chat.json'
 import toolCall from './toolCall.json'
+import contextMenu from './contextMenu.json'
 // 单独的顶层键
 const others = {
   Silicon: '矽基流動',
@@ -45,5 +46,6 @@ export default {
   mcp,
   components,
   toolCall,
+  contextMenu,
   ...others
 }

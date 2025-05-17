@@ -18,7 +18,9 @@ export const contextMenuTranslations: Record<string, TranslationMap> = {
     saveImage: '图片另存为...',
     copyImage: '复制图片',
     open: '打开',
-    quit: '退出'
+    quit: '退出',
+    translate: '翻译',
+    askAI: '询问AI'
   },
   'zh-TW': {
     copy: '複製',
@@ -30,7 +32,9 @@ export const contextMenuTranslations: Record<string, TranslationMap> = {
     saveImage: '圖片另存為...',
     copyImage: '複製圖片',
     open: '打開',
-    quit: '退出'
+    quit: '退出',
+    translate: '翻譯',
+    askAI: '詢問AI'
   },
   'en-US': {
     copy: 'Copy',
@@ -42,7 +46,9 @@ export const contextMenuTranslations: Record<string, TranslationMap> = {
     saveImage: 'Save Image...',
     copyImage: 'Copy Image',
     open: 'Open',
-    quit: 'Quit'
+    quit: 'Quit',
+    translate: 'Translate',
+    askAI: 'Ask AI'
   },
   ja: {
     copy: 'コピー',
@@ -54,7 +60,9 @@ export const contextMenuTranslations: Record<string, TranslationMap> = {
     saveImage: '画像を保存...',
     copyImage: '画像をコピー',
     open: '開く',
-    quit: '終了'
+    quit: '終了',
+    translate: '翻訳',
+    askAI: 'AIに質問'
   },
   ko: {
     copy: '복사',
@@ -66,7 +74,9 @@ export const contextMenuTranslations: Record<string, TranslationMap> = {
     saveImage: '이미지 저장...',
     copyImage: '이미지 복사',
     open: '열기',
-    quit: '종료'
+    quit: '종료',
+    translate: '번역',
+    askAI: 'AI에게 질문'
   },
   fr: {
     copy: 'Copier',
@@ -78,7 +88,9 @@ export const contextMenuTranslations: Record<string, TranslationMap> = {
     saveImage: "Enregistrer l'image...",
     copyImage: "Copier l'image",
     open: 'Ouvrir',
-    quit: 'Quitter'
+    quit: 'Quitter',
+    translate: 'Traduire',
+    askAI: 'Demander à l\'AI'
   },
   de: {
     copy: 'Kopieren',
@@ -90,7 +102,9 @@ export const contextMenuTranslations: Record<string, TranslationMap> = {
     saveImage: 'Bild speichern...',
     copyImage: 'Bild kopieren',
     open: 'Öffnen',
-    quit: 'Beenden'
+    quit: 'Beenden',
+    translate: 'Übersetzen',
+    askAI: 'KI fragen'
   },
   es: {
     copy: 'Copiar',
@@ -102,7 +116,9 @@ export const contextMenuTranslations: Record<string, TranslationMap> = {
     saveImage: 'Guardar imagen...',
     copyImage: 'Copiar imagen',
     open: 'Abrir',
-    quit: 'Salir'
+    quit: 'Salir',
+    translate: 'Traducir',
+    askAI: 'Preguntar a la AI'
   }
 }
 

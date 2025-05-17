@@ -2092,4 +2092,118 @@ export class ThreadPresenter implements IThreadPresenter {
       throw error
     }
   }
+
+  // 翻译文本
+  async translateText(text: string): Promise<string> {
+    try {
+      let conversation = await this.getActiveConversation()
+      if (!conversation) {
+        // 创建一个临时对话用于翻译
+        const defaultProvider = this.configPresenter.getDefaultProviders()[0]
+        const models = await this.llmProviderPresenter.getModelList(defaultProvider.id)
+        const defaultModel = models[0]
+        const conversationId = await this.createConversation('临时翻译对话', {
+          modelId: defaultModel.id,
+          providerId: defaultProvider.id
+        })
+        conversation = await this.getConversation(conversationId)
+      }
+
+      const { providerId, modelId } = conversation.settings
+      const messages: ChatMessage[] = [
+        {
+          role: 'system',
+          content: '你是一个翻译助手。请将用户输入的文本翻译成中文。只返回翻译结果，不要添加任何其他内容。'
+        },
+        {
+          role: 'user',
+          content: text
+        }
+      ]
+
+      let translatedText = ''
+      const stream = this.llmProviderPresenter.startStreamCompletion(
+        providerId,
+        messages,
+        modelId,
+        'translate-' + Date.now(),
+        0.3,
+        1000
+      )
+
+      for await (const event of stream) {
+        if (event.type === 'response') {
+          const msg = event.data as LLMAgentEventData
+          if (msg.content) {
+            translatedText += msg.content
+          }
+        } else if (event.type === 'error') {
+          const msg = event.data as { eventId: string; error: string }
+          throw new Error(msg.error || '翻译失败')
+        }
+      }
+
+      return translatedText.trim()
+    } catch (error) {
+      console.error('翻译失败:', error)
+      throw error
+    }
+  }
+
+  // AI询问
+  async askAI(text: string): Promise<string> {
+    try {
+      let conversation = await this.getActiveConversation()
+      if (!conversation) {
+        // 创建一个临时对话用于AI询问
+        const defaultProvider = this.configPresenter.getDefaultProviders()[0]
+        const models = await this.llmProviderPresenter.getModelList(defaultProvider.id)
+        const defaultModel = models[0]
+        const conversationId = await this.createConversation('临时AI对话', {
+          modelId: defaultModel.id,
+          providerId: defaultProvider.id
+        })
+        conversation = await this.getConversation(conversationId)
+      }
+
+      const { providerId, modelId } = conversation.settings
+      const messages: ChatMessage[] = [
+        {
+          role: 'system',
+          content: '你是一个AI助手。请简洁地回答用户的问题。'
+        },
+        {
+          role: 'user',
+          content: text
+        }
+      ]
+
+      let aiAnswer = ''
+      const stream = this.llmProviderPresenter.startStreamCompletion(
+        providerId,
+        messages,
+        modelId,
+        'ask-ai-' + Date.now(),
+        0.7,
+        1000
+      )
+
+      for await (const event of stream) {
+        if (event.type === 'response') {
+          const msg = event.data as LLMAgentEventData
+          if (msg.content) {
+            aiAnswer += msg.content
+          }
+        } else if (event.type === 'error') {
+          const msg = event.data as { eventId: string; error: string }
+          throw new Error(msg.error || 'AI回答失败')
+        }
+      }
+
+      return aiAnswer.trim()
+    } catch (error) {
+      console.error('AI询问失败:', error)
+      throw error
+    }
+  }
 }

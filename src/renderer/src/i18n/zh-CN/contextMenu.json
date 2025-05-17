@@ -1,0 +1,17 @@
+{
+  "translate": {
+    "title": "翻译",
+    "original": "原文",
+    "translated": "翻译结果",
+    "error": "翻译失败"
+  },
+  "askAI": {
+    "title": "AI 询问",
+    "question": "问题",
+    "answer": "回答",
+    "error": "AI 回答失败"
+  },
+  "copy": "复制",
+  "paste": "粘贴",
+  "cut": "剪切"
+} 

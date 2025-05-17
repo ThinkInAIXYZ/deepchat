@@ -1,0 +1,17 @@
+{
+  "translate": {
+    "title": "번역",
+    "original": "원문",
+    "translated": "번역 결과",
+    "error": "번역 실패"
+  },
+  "askAI": {
+    "title": "AI 질문",
+    "question": "질문",
+    "answer": "답변",
+    "error": "AI 답변 실패"
+  },
+  "copy": "복사",
+  "paste": "붙여넣기",
+  "cut": "잘라내기"
+} 

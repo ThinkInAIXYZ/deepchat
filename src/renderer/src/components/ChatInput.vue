@@ -647,6 +647,13 @@ onMounted(() => {
     useEventListener(searchElement, 'mouseenter', handleSearchMouseEnter)
     useEventListener(searchElement, 'mouseleave', handleSearchMouseLeave)
   }
+
+  // 监听 Ask AI 事件
+  window.addEventListener('context-menu-ask-ai', (e: any) => {
+    inputText.value = e.detail
+    editor.commands.setContent(e.detail)
+    editor.commands.focus()
+  })
 })
 
 watch(

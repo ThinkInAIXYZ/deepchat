@@ -6,6 +6,7 @@ import SideBar from './components/SideBar.vue'
 import UpdateDialog from './components/ui/UpdateDialog.vue'
 import { usePresenter } from './composables/usePresenter'
 import ArtifactDialog from './components/artifacts/ArtifactDialog.vue'
+import MessageContextMenu from './components/message/MessageContextMenu.vue'
 import { useArtifactStore } from './stores/artifact'
 import { useChatStore } from '@/stores/chat'
 import { NOTIFICATION_EVENTS, SHORTCUT_EVENTS } from './events'
@@ -297,5 +298,6 @@ onBeforeUnmount(() => {
     <UpdateDialog />
     <!-- 全局Toast提示 -->
     <Toaster />
+    <MessageContextMenu />
   </div>
 </template>
