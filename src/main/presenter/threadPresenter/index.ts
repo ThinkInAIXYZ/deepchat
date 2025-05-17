@@ -1619,11 +1619,20 @@ export class ThreadPresenter implements IThreadPresenter {
         // 处理助手消息
         const assistantBlocks = msg.content as AssistantMessageBlock[]
 
-        // 提取文本内容块
+        // 提取文本内容块，同时将工具调用的响应内容提取出来
         const textContent = assistantBlocks
           .filter((block) => block.type === 'content' || block.type === 'tool_call')
-          .map((block) => block.content)
+          .map((block) => {
+            if (block.type === 'content') {
+              return block.content
+            } else if (block.type === 'tool_call' && block.tool_call?.response) {
+              return block.tool_call.response
+            } else {
+              return '[Missing response]' // 若 tool_call 或 response 是 undefined，返回空字符串
+            }
+          })
           .join('\n')
+
         // 查找图像块
         const imageBlocks = assistantBlocks.filter(
           (block) => block.type === 'image' && block.image_data
