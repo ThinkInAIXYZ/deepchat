@@ -24,6 +24,8 @@ When answering, please pay attention to the following points:
 - Write more than 100 words (2 paragraphs).
 - Avoid directly quoting citations in the answer.
 - If the meaning is unclear, return the user's original query.
+- Do not invent or hallucinate references. Every footnote citations used in the answer must correspond to a real search results. 
+- If no search results are provided currently, clearly state that no sources were given and do not use any [X] citation format.
 
 # The user's message is:
 {{USER_QUERY}}
@@ -53,6 +55,8 @@ When answering, please pay attention to the following points:
 - Write more than 100 words (2 paragraphs).
 - Avoid directly quoting citations in the answer.
 - If the meaning is unclear, return the user's original query.
+- Do not invent or hallucinate references. Every footnote citations used in the answer must correspond to a real search results. 
+- If no search results are provided currently, clearly state that no sources were given and do not use any [X] citation format.
 
 # Artifacts Support - MANDATORY FOR CERTAIN CONTENT TYPES
 You MUST use artifacts for specific types of content. This is not optional. Creating artifacts is required for the following content types:

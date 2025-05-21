@@ -959,7 +959,7 @@ export class ThreadPresenter implements IThreadPresenter {
                 finalContent += `search-result: ${JSON.stringify(block.extra)}`
               }
               if (block.type === 'tool_call') {
-                finalContent += `tool_call: ${JSON.stringify(block.tool_call)}`
+                finalContent += `tool_call: ${JSON.stringify(block.tool_call).replace(/\[\d+\]/g, '')}`
               }
               if (block.type === 'image') {
                 finalContent += `image: ${block.image_data?.data}`
