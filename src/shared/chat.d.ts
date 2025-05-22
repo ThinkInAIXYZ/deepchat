@@ -120,6 +120,10 @@ export type AssistantMessageBlock = {
     data: string
     mimeType: string
   }
+  reasoning_time?: {
+    start: number
+    end: number
+  }
 }
 // 搜索相关的消息块类型
 export type SearchBlock = {

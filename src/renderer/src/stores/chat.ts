@@ -898,13 +898,23 @@ export const useChatStore = defineStore('chat', () => {
         }
       }
     } else if (getActiveThreadId()) {
-      // 如果不在缓存中但是当前会话的消息，直接更新显示
-      const msgIndex = getMessages().findIndex((m) => m.id === msgId)
-      if (msgIndex !== -1) {
-        const updatedMessage = await threadP.getMessage(msgId)
-        // 处理 extra 信息
-        const enrichedMessage = await enrichMessageWithExtra(updatedMessage)
-        getMessages()[msgIndex] = enrichedMessage as AssistantMessage | UserMessage
+      // 如果不在缓存中，先尝试获取主消息
+      const mainMessage = await threadP.getMainMessageByParentId(getActiveThreadId()!, msgId)
+      if (mainMessage) {
+        // 如果找到主消息，说明当前消息是变体消息
+        const enrichedMainMessage = await enrichMessageWithExtra(mainMessage)
+        const mainMsgIndex = getMessages().findIndex((m) => m.id === mainMessage.id)
+        if (mainMsgIndex !== -1) {
+          getMessages()[mainMsgIndex] = enrichedMainMessage as AssistantMessage | UserMessage
+        }
+      } else {
+        // 如果不是变体消息，直接更新当前消息
+        const msgIndex = getMessages().findIndex((m) => m.id === msgId)
+        if (msgIndex !== -1) {
+          const updatedMessage = await threadP.getMessage(msgId)
+          const enrichedMessage = await enrichMessageWithExtra(updatedMessage)
+          getMessages()[msgIndex] = enrichedMessage as AssistantMessage | UserMessage
+        }
       }
     }
   }
