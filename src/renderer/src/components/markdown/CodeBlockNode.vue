@@ -39,7 +39,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, computed, watch } from 'vue'
+import { ref, onMounted, onUnmounted, computed, watch, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useThrottleFn } from '@vueuse/core'
 import { Icon } from '@iconify/vue'
@@ -265,6 +265,13 @@ watch(
 
       editorInstance.value.dispatch({
         changes: { from: 0, to: state.doc.length, insert: newCode }
+      })
+      // update editor scroll to bottom
+      nextTick(() => {
+        if (editorInstance.value) {
+          const view = editorInstance.value.scrollDOM.parentElement.parentElement;
+          view.scrollTop = view.scrollHeight;
+        }
       })
     } else {
       // If editor not yet initialized, create it
