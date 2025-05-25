@@ -28,6 +28,16 @@ const DEFAULT_INMEMORY_SERVERS: Record<string, MCPServerConfig> = {
     env: {},
     disable: true
   },
+  TemplatePromptServer: {
+    args: [],
+    descriptions: 'DeepChat内置 template prompt mcp服务',
+    icons: '💡',
+    autoApprove: ['all'],
+    type: 'inmemory' as MCPServerType,
+    command: 'TemplatePromptServer',
+    env: {},
+    disable: false
+  },
   Artifacts: {
     args: [],
     descriptions: 'DeepChat内置 artifacts mcp服务',

@@ -9,6 +9,7 @@ import { RagflowKnowledgeServer } from './ragflowKnowledgeServer'
 import { FastGptKnowledgeServer } from './fastGptKnowledgeServer'
 import { CustomPromptsServer } from './customPromptsServer'
 import { DeepResearchServer } from './deepResearchServer'
+import { TemplatePromptServer } from './templatePromptServer'
 
 export function getInMemoryServer(
   serverName: string,
@@ -16,6 +17,8 @@ export function getInMemoryServer(
   env?: Record<string, unknown>
 ) {
   switch (serverName) {
+    case 'TemplatePromptServer':
+      return new TemplatePromptServer()
     case 'buildInFileSystem':
       return new FileSystemServer(args)
     case 'Artifacts':
