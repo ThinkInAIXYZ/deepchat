@@ -1,5 +1,5 @@
 <template>
-  <div class="svg-artifact" v-html="sanitizedContent"></div>
+  <div class="svg-artifact artifact-dialog-content" v-html="sanitizedContent"></div>
 </template>
 
 <script setup lang="ts">

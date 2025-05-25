@@ -1,5 +1,5 @@
 <template>
-  <div class="mermaid-artifact">
+  <div class="mermaid-artifact artifact-dialog-content">
     <div v-if="props.isPreview" ref="mermaidRef" class="mermaid h-full flex items-center justify-center"></div>
     <div v-else class="h-full p-4">
       <pre class="rounded-lg bg-muted p-4 h-full"><code>{{ props.block.content }}</code></pre>

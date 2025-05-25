@@ -1,5 +1,5 @@
 <template>
-  <div ref="messageBlock" class="markdown-content-wrapper relative w-full px-4 pb-8">
+  <div ref="messageBlock" class="markdown-content-wrapper relative w-full px-4 pb-8 artifact-dialog-content">
     <MarkdownRenderer
       :content="props.block.content || ''"
       :message-id="generateMessageId()"

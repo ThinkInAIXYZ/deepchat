@@ -75,6 +75,16 @@
               <Icon icon="lucide:copy" class="w-4 h-4" />
             </Button>
             <Button
+              v-if="isPreview"
+              variant="outline"
+              size="sm"
+              class="text-xs h-7"
+              :title="t('artifacts.copyAsImage')"
+              @click="handleCopyAsImage"
+            >
+              <Icon icon="lucide:image" class="w-4 h-4" />
+            </Button>
+            <Button
               variant="outline"
               size="sm"
               class="text-xs h-7"
@@ -102,10 +112,11 @@
               }
             }"
             :is-preview="isPreview"
+            class="artifact-dialog-content"
           />
         </template>
         <template v-else>
-          <div class="flex-1 p-4 h-0">
+          <div class="flex-1 p-4 h-0 artifact-dialog-content">
             <pre
               class="rounded-lg bg-muted p-4 w-full h-hull overflow-auto"
             ><code class="text-xs">{{ artifactStore.currentArtifact?.content }}</code></pre>
@@ -130,12 +141,21 @@ import mermaid from 'mermaid'
 import { useI18n } from 'vue-i18n'
 import ReactArtifact from './ReactArtifact.vue'
 import { useToast } from '@/components/ui/toast/use-toast'
+import { usePageCapture } from '@/composables/usePageCapture'
+import { useThemeStore } from '@/stores/theme'
+import { usePresenter } from '@/composables/usePresenter'
 
 const artifactStore = useArtifactStore()
 const componentKey = ref(0)
 const isPreview = ref(false)
 const t = useI18n().t
 const { toast } = useToast()
+const themeStore = useThemeStore()
+const devicePresenter = usePresenter('devicePresenter')
+const appVersion = ref('')
+
+// 截图相关功能
+const { captureAndCopy } = usePageCapture()
 
 const setPreview = (value: boolean) => {
   isPreview.value = value
@@ -178,7 +198,10 @@ watch(
   }
 )
 
-onMounted(() => {})
+onMounted(async () => {
+  // 获取应用版本
+  appVersion.value = await devicePresenter.getAppVersion()
+})
 
 const artifactComponent = computed(() => {
   if (!artifactStore.currentArtifact) return null
@@ -281,6 +304,46 @@ const copyContent = async () => {
         variant: 'destructive'
       })
     }
+  }
+}
+
+const handleCopyAsImage = async () => {
+  if (!artifactStore.currentArtifact) return
+
+  const success = await captureAndCopy({
+    container: '.artifact-dialog-content',
+    getTargetRect: () => {
+      const element = document.querySelector('.artifact-dialog-content')
+      if (!element) return null
+      const rect = element.getBoundingClientRect()
+      return {
+        x: Math.round(rect.x),
+        y: Math.round(rect.y),
+        width: Math.round(rect.width),
+        height: Math.round(rect.height)
+      }
+    },
+    watermark: {
+      isDark: themeStore.isDark,
+      version: appVersion.value,
+      texts: {
+        brand: 'DeepChat',
+        tip: t('common.watermarkTip')
+      }
+    }
+  })
+
+  if (success) {
+    toast({
+      title: t('artifacts.copySuccess'),
+      description: t('artifacts.copyImageSuccessDesc')
+    })
+  } else {
+    toast({
+      title: t('artifacts.copyFailed'),
+      description: t('artifacts.copyImageFailedDesc'),
+      variant: 'destructive'
+    })
   }
 }
 </script>
