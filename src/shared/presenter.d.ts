@@ -244,6 +244,20 @@ export interface ISQLitePresenter {
   deleteAllMessagesInConversation(conversationId: string): Promise<void>
 }
 
+export interface IOAuthPresenter {
+  startOAuthLogin(providerId: string, config: OAuthConfig): Promise<boolean>
+  startGitHubCopilotLogin(providerId: string): Promise<boolean>
+}
+
+export interface OAuthConfig {
+  authUrl: string
+  redirectUri: string
+  clientId: string
+  clientSecret?: string
+  scope: string
+  responseType: string
+}
+
 export interface IPresenter {
   windowPresenter: IWindowPresenter
   sqlitePresenter: ISQLitePresenter
@@ -259,6 +273,7 @@ export interface IPresenter {
   deeplinkPresenter: IDeeplinkPresenter
   notificationPresenter: INotificationPresenter
   tabPresenter: ITabPresenter
+  oauthPresenter: IOAuthPresenter
   init(): void
   destroy(): void
 }

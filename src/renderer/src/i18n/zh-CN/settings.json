@@ -183,7 +183,20 @@
     "serverList": "服务器列表",
     "totalServers": "服务器总数",
     "addServer": "添加服务器",
-    "autoStart": "自启动"
+    "autoStart": "自启动",
+    "githubCopilotAuth": "GitHub Copilot 认证",
+    "githubCopilotConnected": "GitHub Copilot 已连接",
+    "githubCopilotNotConnected": "GitHub Copilot 未连接",
+    "loginWithGitHub": "使用 GitHub 登录",
+    "loggingIn": "登录中...",
+    "githubCopilotLoginTip": "点击授权 DeepChat 访问您的 GitHub Copilot 订阅",
+    "loginSuccess": "登录成功",
+    "loginFailed": "登录失败",
+    "tokenValid": "令牌有效",
+    "tokenInvalid": "令牌无效",
+    "disconnect": "断开连接",
+    "disconnected": "已成功断开连接",
+    "disconnectFailed": "断开连接失败"
   },
   "knowledgeBase": {
     "title": "知识库设置",

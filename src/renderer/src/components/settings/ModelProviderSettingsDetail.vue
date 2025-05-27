@@ -10,6 +10,8 @@
           @api-key-change="handleApiKeyChange"
           @validate-key="handleApiKeyEnter"
           @delete-provider="showDeleteProviderDialog = true"
+          @oauth-success="handleOAuthSuccess"
+          @oauth-error="handleOAuthError"
         />
 
         <!-- Azure特殊配置 -->
@@ -325,5 +327,20 @@ const handleSafetySettingChange = async (key: SafetyCategoryKey, level: number) 
     await settingsStore.setGeminiSafety(key, value)
     console.log(`Gemini safety setting for ${key} updated to level ${level} (${value})`)
   }
+}
+
+// Handler for OAuth success
+const handleOAuthSuccess = async () => {
+  console.log('OAuth authentication successful')
+  // OAuth成功后刷新provider数据
+  await initData()
+  // 可以自动验证一次
+  await validateApiKey()
+}
+
+// Handler for OAuth error
+const handleOAuthError = (error: string) => {
+  console.error('OAuth authentication failed:', error)
+  // 可以在这里显示错误提示
 }
 </script>

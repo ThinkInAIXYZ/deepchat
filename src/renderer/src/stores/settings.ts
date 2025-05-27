@@ -337,10 +337,13 @@ export const useSettingsStore = defineStore('settings', () => {
     try {
       // 获取自定义模型列表
       const customModelsList = await llmP.getCustomModels(providerId)
+      
+      // 如果customModelsList为null或undefined，使用空数组
+      const safeCustomModelsList = customModelsList || []
 
       // 获取自定义模型状态并合并
       const customModelsWithStatus = await Promise.all(
-        customModelsList.map(async (model) => {
+        safeCustomModelsList.map(async (model) => {
           // 获取模型状态
           const enabled = await configP.getModelStatus(providerId, model.id)
           return {
