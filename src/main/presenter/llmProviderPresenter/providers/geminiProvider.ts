@@ -18,7 +18,8 @@ import {
   HarmCategory,
   HarmBlockThreshold,
   SafetySetting,
-  FunctionCallingConfigMode
+  FunctionCallingConfigMode,
+  Modality
 } from '@google/genai'
 import { ConfigPresenter } from '../../configPresenter'
 import { presenter } from '@/presenter'
@@ -294,7 +295,7 @@ export class GeminiProvider extends BaseLLMProvider {
       maxOutputTokens: maxTokens
     } as GenerationConfig & { responseModalities?: string[] }
     if (modelId === 'gemini-2.0-flash-exp-image-generation') {
-      generationConfig.responseModalities = ['Text', 'Image']
+      generationConfig.responseModalities = [Modality.TEXT, Modality.IMAGE]
     }
     return generationConfig
   }
@@ -681,6 +682,7 @@ export class GeminiProvider extends BaseLLMProvider {
           return suggestions.map((item) => item.toString())
         }
       } catch (parseError) {
+        console.error('Gemini suggestions parseError:', parseError)
         // 如果解析失败，尝试分行处理
         const lines = responseText
           .split('\n')
