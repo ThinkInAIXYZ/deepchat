@@ -110,7 +110,7 @@ export class GitHubCopilotOAuth {
   ): void {
     try {
       const urlObj = new URL(url)
-      
+
       // 检查是否是我们的回调URL
       if (url.startsWith(this.config.redirectUri)) {
         const code = urlObj.searchParams.get('code')
@@ -152,7 +152,7 @@ export class GitHubCopilotOAuth {
       const response = await fetch('https://github.com/login/oauth/access_token', {
         method: 'POST',
         headers: {
-          'Accept': 'application/json',
+          Accept: 'application/json',
           'Content-Type': 'application/json',
           'User-Agent': 'DeepChat/1.0.0'
         },
@@ -168,7 +168,7 @@ export class GitHubCopilotOAuth {
         throw new Error(`Token exchange failed: ${response.status} ${response.statusText}`)
       }
 
-      const data = await response.json() as {
+      const data = (await response.json()) as {
         access_token?: string
         error?: string
         error_description?: string
@@ -196,7 +196,7 @@ export class GitHubCopilotOAuth {
     try {
       const response = await fetch('https://api.github.com/user', {
         headers: {
-          'Authorization': `Bearer ${token}`,
+          Authorization: `Bearer ${token}`,
           'User-Agent': 'DeepChat/1.0.0'
         }
       })
@@ -224,7 +224,8 @@ export function createGitHubCopilotOAuth(): GitHubCopilotOAuth {
   // 从环境变量读取 GitHub OAuth 配置
   const clientId = process.env.GITHUB_CLIENT_ID
   const clientSecret = process.env.GITHUB_CLIENT_SECRET
-  const redirectUri = process.env.GITHUB_REDIRECT_URI || 'https://deepchatai.cn/auth/github/callback'
+  const redirectUri =
+    process.env.GITHUB_REDIRECT_URI || 'https://deepchatai.cn/auth/github/callback'
 
   console.log('GitHub OAuth Configuration:')
   console.log('- Client ID configured:', clientId ? '✅' : '❌')
@@ -232,11 +233,15 @@ export function createGitHubCopilotOAuth(): GitHubCopilotOAuth {
   console.log('- Redirect URI:', redirectUri)
 
   if (!clientId) {
-    throw new Error('GITHUB_CLIENT_ID environment variable is required. Please create a .env file with your GitHub OAuth Client ID.')
+    throw new Error(
+      'GITHUB_CLIENT_ID environment variable is required. Please create a .env file with your GitHub OAuth Client ID.'
+    )
   }
 
   if (!clientSecret) {
-    throw new Error('GITHUB_CLIENT_SECRET environment variable is required. Please create a .env file with your GitHub OAuth Client Secret.')
+    throw new Error(
+      'GITHUB_CLIENT_SECRET environment variable is required. Please create a .env file with your GitHub OAuth Client Secret.'
+    )
   }
 
   const config: GitHubOAuthConfig = {
@@ -254,4 +259,4 @@ export function createGitHubCopilotOAuth(): GitHubCopilotOAuth {
   })
 
   return new GitHubCopilotOAuth(config)
-} 
+}
