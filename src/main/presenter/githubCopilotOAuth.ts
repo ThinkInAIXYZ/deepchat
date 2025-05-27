@@ -222,10 +222,10 @@ export class GitHubCopilotOAuth {
 // GitHub Copilot OAuth配置
 export function createGitHubCopilotOAuth(): GitHubCopilotOAuth {
   // 从环境变量读取 GitHub OAuth 配置
-  const clientId = process.env.GITHUB_CLIENT_ID
-  const clientSecret = process.env.GITHUB_CLIENT_SECRET
+  const clientId = import.meta.env.VITE_GITHUB_CLIENT_ID
+  const clientSecret = import.meta.env.VITE_GITHUB_CLIENT_SECRET
   const redirectUri =
-    process.env.GITHUB_REDIRECT_URI || 'https://deepchatai.cn/auth/github/callback'
+    import.meta.env.VITE_GITHUB_REDIRECT_URI || 'https://deepchatai.cn/auth/github/callback'
 
   console.log('GitHub OAuth Configuration:')
   console.log('- Client ID configured:', clientId ? '✅' : '❌')
