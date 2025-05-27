@@ -16,3 +16,9 @@ build/winarm.json
 build/winx64.json
 runtime/**/*
 .eslintcache
+
+# Environment variables
+.env
+.env.local
+.env.production
+.env.development

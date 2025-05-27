@@ -591,6 +591,67 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
     models: []
   },
 
+  // GitHub Copilot提供商特定模型配置
+  'github-copilot': {
+    models: [
+      {
+        id: 'gpt-4o',
+        name: 'GPT-4o',
+        temperature: 0.7,
+        maxTokens: 4096,
+        contextLength: 128000,
+        match: ['gpt-4o'],
+        vision: true,
+        functionCall: true,
+        reasoning: false
+      },
+      {
+        id: 'gpt-4o-mini',
+        name: 'GPT-4o Mini',
+        temperature: 0.7,
+        maxTokens: 16384,
+        contextLength: 128000,
+        match: ['gpt-4o-mini'],
+        vision: true,
+        functionCall: true,
+        reasoning: false
+      },
+      {
+        id: 'o1-preview',
+        name: 'o1 Preview',
+        temperature: 1.0,
+        maxTokens: 32768,
+        contextLength: 128000,
+        match: ['o1-preview'],
+        vision: false,
+        functionCall: false,
+        reasoning: true
+      },
+      {
+        id: 'o1-mini',
+        name: 'o1 Mini',
+        temperature: 1.0,
+        maxTokens: 65536,
+        contextLength: 128000,
+        match: ['o1-mini'],
+        vision: false,
+        functionCall: false,
+        reasoning: true
+      },
+      {
+        id: 'claude-3-5-sonnet',
+        name: 'Claude 3.5 Sonnet',
+        temperature: 0.7,
+        maxTokens: 8192,
+        contextLength: 200000,
+        match: ['claude-3-5-sonnet'],
+        vision: true,
+        functionCall: true,
+        reasoning: false
+      }
+    ]
+  },
+
   // 阿里云提供商特定模型配置, 注意匹配排序，only max/plus/turbo
   dashscope: {
     models: [

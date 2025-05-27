@@ -8,6 +8,10 @@ import { eventBus } from './eventbus'
 import { WINDOW_EVENTS, TRAY_EVENTS } from './events'
 import { setLoggingEnabled } from '@shared/logger'
 import { TrayPresenter } from './presenter/trayPresenter'
+import { config } from 'dotenv'
+
+// 初始化环境变量
+config()
 
 app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required')
 app.commandLine.appendSwitch('webrtc-max-cpu-consumption-percentage', '100')

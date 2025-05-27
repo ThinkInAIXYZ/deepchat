@@ -17,6 +17,7 @@ import { SyncPresenter } from './syncPresenter'
 import { DeeplinkPresenter } from './deeplinkPresenter'
 import { NotificationPresenter } from './notifactionPresenter'
 import { TabPresenter } from './tabPresenter'
+import { OAuthPresenter } from './oauthPresenter'
 import {
   CONFIG_EVENTS,
   CONVERSATION_EVENTS,
@@ -66,7 +67,10 @@ const eventsToForward: string[] = [
   SHORTCUT_EVENTS.ZOOM_IN,
   SHORTCUT_EVENTS.ZOOM_OUT,
   SHORTCUT_EVENTS.ZOOM_RESUME,
-  CONFIG_EVENTS.LANGUAGE_CHANGED
+  CONFIG_EVENTS.LANGUAGE_CHANGED,
+  CONFIG_EVENTS.OAUTH_LOGIN_START,
+  CONFIG_EVENTS.OAUTH_LOGIN_SUCCESS,
+  CONFIG_EVENTS.OAUTH_LOGIN_ERROR
 ]
 export class Presenter implements IPresenter {
   windowPresenter: WindowPresenter
@@ -83,6 +87,7 @@ export class Presenter implements IPresenter {
   deeplinkPresenter: DeeplinkPresenter
   notificationPresenter: NotificationPresenter
   tabPresenter: TabPresenter
+  oauthPresenter: OAuthPresenter
   // llamaCppPresenter: LlamaCppPresenter
 
   constructor() {
@@ -107,6 +112,7 @@ export class Presenter implements IPresenter {
     this.syncPresenter = new SyncPresenter(this.configPresenter, this.sqlitePresenter)
     this.deeplinkPresenter = new DeeplinkPresenter()
     this.notificationPresenter = new NotificationPresenter()
+    this.oauthPresenter = new OAuthPresenter()
 
     // this.llamaCppPresenter = new LlamaCppPresenter()
     this.setupEventBus()
