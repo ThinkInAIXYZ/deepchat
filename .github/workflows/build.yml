@@ -44,9 +44,9 @@ jobs:
       - name: Build Windows
         run: npm run build:win:${{ matrix.arch }}
         env:
-          GITHUB_CLIENT_ID: ${{ secrets.DC_GITHUB_CLIENT_ID }}
-          GITHUB_CLIENT_SECRET: ${{ secrets.DC_GITHUB_CLIENT_SECRET }}
-          GITHUB_REDIRECT_URI: ${{ secrets.DC_GITHUB_REDIRECT_URI }}
+          VITE_GITHUB_CLIENT_ID: ${{ secrets.DC_GITHUB_CLIENT_ID }}
+          VITE_GITHUB_CLIENT_SECRET: ${{ secrets.DC_GITHUB_CLIENT_SECRET }}
+          VITE_GITHUB_REDIRECT_URI: ${{ secrets.DC_GITHUB_REDIRECT_URI }}
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -83,9 +83,9 @@ jobs:
       - name: Build Linux
         run: npm run build:linux:${{ matrix.arch }}
         env:
-          GITHUB_CLIENT_ID: ${{ secrets.DC_GITHUB_CLIENT_ID }}
-          GITHUB_CLIENT_SECRET: ${{ secrets.DC_GITHUB_CLIENT_SECRET }}
-          GITHUB_REDIRECT_URI: ${{ secrets.DC_GITHUB_REDIRECT_URI }}
+          VITE_GITHUB_CLIENT_ID: ${{ secrets.DC_GITHUB_CLIENT_ID }}
+          VITE_GITHUB_CLIENT_SECRET: ${{ secrets.DC_GITHUB_CLIENT_SECRET }}
+          VITE_GITHUB_REDIRECT_URI: ${{ secrets.DC_GITHUB_REDIRECT_URI }}
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -129,9 +129,9 @@ jobs:
           DEEPCHAT_APPLE_NOTARY_TEAM_ID: ${{ secrets.DEEPCHAT_APPLE_NOTARY_TEAM_ID }}
           DEEPCHAT_APPLE_NOTARY_PASSWORD: ${{ secrets.DEEPCHAT_APPLE_NOTARY_PASSWORD }}
           build_for_release: '2'
-          GITHUB_CLIENT_ID: ${{ secrets.DC_GITHUB_CLIENT_ID }}
-          GITHUB_CLIENT_SECRET: ${{ secrets.DC_GITHUB_CLIENT_SECRET }}
-          GITHUB_REDIRECT_URI: ${{ secrets.DC_GITHUB_REDIRECT_URI }}
+          VITE_GITHUB_CLIENT_ID: ${{ secrets.DC_GITHUB_CLIENT_ID }}
+          VITE_GITHUB_CLIENT_SECRET: ${{ secrets.DC_GITHUB_CLIENT_SECRET }}
+          VITE_GITHUB_REDIRECT_URI: ${{ secrets.DC_GITHUB_REDIRECT_URI }}
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
