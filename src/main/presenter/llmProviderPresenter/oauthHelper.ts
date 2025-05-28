@@ -133,6 +133,6 @@ export const GITHUB_COPILOT_OAUTH_CONFIG: OAuthConfig = {
   authUrl: 'https://github.com/login/oauth/authorize',
   redirectUri: process.env.GITHUB_REDIRECT_URI || 'https://deepchatai.cn/auth/github/callback',
   clientId: process.env.GITHUB_CLIENT_ID || '',
-  scope: 'read:user',
+  scope: 'read:user read:org',
   responseType: 'code'
 } 

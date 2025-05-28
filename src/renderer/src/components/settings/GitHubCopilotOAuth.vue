@@ -50,6 +50,20 @@
         variant="default"
         size="sm"
         class="w-full"
+        @click="startDeviceFlowLogin"
+        :disabled="isLoggingIn"
+      >
+        <Icon 
+          :icon="isLoggingIn ? 'lucide:loader-2' : 'lucide:smartphone'" 
+          :class="['w-4 h-4 mr-2', { 'animate-spin': isLoggingIn }]" 
+        />
+        {{ isLoggingIn ? t('settings.provider.loggingIn') : 'Device Flow 登录 (推荐)' }}
+      </Button>
+      
+      <Button
+        variant="outline"
+        size="sm"
+        class="w-full"
         @click="startOAuthLogin"
         :disabled="isLoggingIn"
       >
@@ -57,7 +71,7 @@
           :icon="isLoggingIn ? 'lucide:loader-2' : 'lucide:github'" 
           :class="['w-4 h-4 mr-2', { 'animate-spin': isLoggingIn }]" 
         />
-        {{ isLoggingIn ? t('settings.provider.loggingIn') : t('settings.provider.loginWithGitHub') }}
+        {{ isLoggingIn ? t('settings.provider.loggingIn') : '传统 OAuth 登录' }}
       </Button>
       <div class="text-xs text-muted-foreground">
         {{ t('settings.provider.githubCopilotLoginTip') }}
@@ -134,7 +148,42 @@ const hasToken = computed(() => {
 // 注意：GitHub Copilot OAuth配置现在从环境变量读取
 
 /**
- * 开始OAuth登录流程
+ * 开始Device Flow登录流程（推荐）
+ */
+const startDeviceFlowLogin = async () => {
+  isLoggingIn.value = true
+  validationResult.value = null
+  
+  try {
+    const success = await oauthPresenter.startGitHubCopilotDeviceFlowLogin(props.provider.id)
+    
+    if (success) {
+      emit('auth-success')
+      validationResult.value = {
+        success: true,
+        message: t('settings.provider.loginSuccess')
+      }
+    } else {
+      emit('auth-error', t('settings.provider.loginFailed'))
+      validationResult.value = {
+        success: false,
+        message: t('settings.provider.loginFailed')
+      }
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : t('settings.provider.loginFailed')
+    emit('auth-error', message)
+    validationResult.value = {
+      success: false,
+      message
+    }
+  } finally {
+    isLoggingIn.value = false
+  }
+}
+
+/**
+ * 开始OAuth登录流程（传统方式）
  */
 const startOAuthLogin = async () => {
   isLoggingIn.value = true

@@ -189,7 +189,7 @@
     "githubCopilotNotConnected": "GitHub Copilot Not Connected",
     "loginWithGitHub": "Login with GitHub",
     "loggingIn": "Logging in...",
-    "githubCopilotLoginTip": "Click to authorize DeepChat to access your GitHub Copilot subscription",
+    "githubCopilotLoginTip": "Click to authorize DeepChat to access your GitHub Copilot subscription. Requires 'read:user' and 'read:org' permissions to access Copilot API.",
     "loginSuccess": "Login successful",
     "loginFailed": "Login failed",
     "tokenValid": "Token is valid",

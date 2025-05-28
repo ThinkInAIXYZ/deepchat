@@ -222,25 +222,30 @@ export class GitHubCopilotOAuth {
 // GitHub Copilot OAuth配置
 export function createGitHubCopilotOAuth(): GitHubCopilotOAuth {
   // 从环境变量读取 GitHub OAuth 配置
-  const clientId = import.meta.env.VITE_GITHUB_CLIENT_ID
-  const clientSecret = import.meta.env.VITE_GITHUB_CLIENT_SECRET
+  const clientId = process.env.GITHUB_CLIENT_ID || process.env.VITE_GITHUB_CLIENT_ID
+  const clientSecret = process.env.GITHUB_CLIENT_SECRET || process.env.VITE_GITHUB_CLIENT_SECRET
   const redirectUri =
-    import.meta.env.VITE_GITHUB_REDIRECT_URI || 'https://deepchatai.cn/auth/github/callback'
+    process.env.GITHUB_REDIRECT_URI || process.env.VITE_GITHUB_REDIRECT_URI || 'https://deepchatai.cn/auth/github/callback'
 
   console.log('GitHub OAuth Configuration:')
   console.log('- Client ID configured:', clientId ? '✅' : '❌')
   console.log('- Client Secret configured:', clientSecret ? '✅' : '❌')
   console.log('- Redirect URI:', redirectUri)
+  console.log('- Environment variables check:')
+  console.log('  - process.env.GITHUB_CLIENT_ID:', process.env.GITHUB_CLIENT_ID ? 'EXISTS' : 'NOT SET')
+  console.log('  - process.env.VITE_GITHUB_CLIENT_ID:', process.env.VITE_GITHUB_CLIENT_ID ? 'EXISTS' : 'NOT SET')
+  console.log('  - process.env.GITHUB_CLIENT_SECRET:', process.env.GITHUB_CLIENT_SECRET ? 'EXISTS' : 'NOT SET')
+  console.log('  - process.env.VITE_GITHUB_CLIENT_SECRET:', process.env.VITE_GITHUB_CLIENT_SECRET ? 'EXISTS' : 'NOT SET')
 
   if (!clientId) {
     throw new Error(
-      'GITHUB_CLIENT_ID environment variable is required. Please create a .env file with your GitHub OAuth Client ID.'
+      'GITHUB_CLIENT_ID environment variable is required. Please create a .env file with your GitHub OAuth Client ID. You can use either GITHUB_CLIENT_ID or VITE_GITHUB_CLIENT_ID.'
     )
   }
 
   if (!clientSecret) {
     throw new Error(
-      'GITHUB_CLIENT_SECRET environment variable is required. Please create a .env file with your GitHub OAuth Client Secret.'
+      'GITHUB_CLIENT_SECRET environment variable is required. Please create a .env file with your GitHub OAuth Client Secret. You can use either GITHUB_CLIENT_SECRET or VITE_GITHUB_CLIENT_SECRET.'
     )
   }
 
@@ -248,7 +253,7 @@ export function createGitHubCopilotOAuth(): GitHubCopilotOAuth {
     clientId,
     clientSecret,
     redirectUri,
-    scope: 'read:user'
+    scope: 'read:user read:org'
   }
 
   console.log('Final OAuth config:', {

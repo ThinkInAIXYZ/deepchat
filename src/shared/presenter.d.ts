@@ -247,6 +247,7 @@ export interface ISQLitePresenter {
 export interface IOAuthPresenter {
   startOAuthLogin(providerId: string, config: OAuthConfig): Promise<boolean>
   startGitHubCopilotLogin(providerId: string): Promise<boolean>
+  startGitHubCopilotDeviceFlowLogin(providerId: string): Promise<boolean>
 }
 
 export interface OAuthConfig {
