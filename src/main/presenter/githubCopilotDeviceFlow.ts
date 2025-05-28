@@ -33,11 +33,27 @@ export class GitHubCopilotDeviceFlow {
    * 启动 Device Flow 认证流程
    */
   async startDeviceFlow(): Promise<string> {
-    console.log('🔐 [GitHub Copilot Device Flow] Starting device flow authentication...')
-    
+    console.log('🚀 [GitHub Copilot Device Flow] Starting Device Flow authentication...')
+    console.log(`   Client ID: ${this.config.clientId || 'NOT SET'}`)
+    console.log(`   Scope: ${this.config.scope}`)
+
+    // 检查 Client ID 是否配置
+    if (!this.config.clientId || this.config.clientId.trim() === '') {
+      throw new Error(
+        'GitHub Client ID is not configured. To use GitHub Copilot, please:\n' +
+        '1. Create a GitHub OAuth App at https://github.com/settings/applications/new\n' +
+        '2. Set the Client ID in environment variables:\n' +
+        '   - GITHUB_CLIENT_ID=your_client_id_here\n' +
+        '   OR\n' +
+        '   - VITE_GITHUB_CLIENT_ID=your_client_id_here\n' +
+        '3. Restart the application\n\n' +
+        'Note: GitHub Copilot requires OAuth authentication to access the API.'
+      )
+    }
+
     try {
       // Step 1: 获取设备验证码
-      console.log('📱 [GitHub Copilot Device Flow] Step 1: Requesting device code...')
+      console.log('📋 [GitHub Copilot Device Flow] Step 1: Requesting device code...')
       const deviceCodeResponse = await this.requestDeviceCode()
       
       console.log('✅ [GitHub Copilot Device Flow] Device code received:')
@@ -47,6 +63,7 @@ export class GitHubCopilotDeviceFlow {
       console.log(`   Polling interval: ${deviceCodeResponse.interval} seconds`)
       
       // Step 2: 显示用户验证码并打开浏览器
+      console.log('🌐 [GitHub Copilot Device Flow] Step 2: Showing user code and opening browser...')
       await this.showUserCodeAndOpenBrowser(deviceCodeResponse)
       
       // Step 3: 轮询获取访问令牌
@@ -59,6 +76,9 @@ export class GitHubCopilotDeviceFlow {
     } catch (error) {
       console.error('❌ [GitHub Copilot Device Flow] Device flow failed:', error)
       throw error
+    } finally {
+      // 确保清理轮询
+      this.stopPolling()
     }
   }
 
@@ -275,15 +295,15 @@ export class GitHubCopilotDeviceFlow {
         `)
       })
 
-      // 处理消息
-      instructionWindow.webContents.on('ipc-message', (event, channel, ...args) => {
+      // 监听来自渲染进程的消息
+      instructionWindow.webContents.on('ipc-message', (_event, channel, ...args) => {
         if (channel === 'open-external') {
           shell.openExternal(args[0])
         }
       })
 
       // 监听页面消息
-      instructionWindow.webContents.on('console-message', (event, level, message) => {
+      instructionWindow.webContents.on('console-message', (_event, _level, message) => {
         if (message.includes('open-external')) {
           shell.openExternal(deviceCodeResponse.verification_uri)
         }
@@ -459,19 +479,14 @@ export function createGitHubCopilotDeviceFlow(): GitHubCopilotDeviceFlow {
   console.log('  - process.env.GITHUB_CLIENT_ID:', process.env.GITHUB_CLIENT_ID ? 'EXISTS' : 'NOT SET')
   console.log('  - process.env.VITE_GITHUB_CLIENT_ID:', process.env.VITE_GITHUB_CLIENT_ID ? 'EXISTS' : 'NOT SET')
 
-  if (!clientId) {
-    throw new Error(
-      'GITHUB_CLIENT_ID environment variable is required. Please create a .env file with your GitHub OAuth Client ID. You can use either GITHUB_CLIENT_ID or VITE_GITHUB_CLIENT_ID.'
-    )
-  }
-
+  // 如果没有配置 Client ID，使用空配置，错误将在实际使用时抛出
   const config: DeviceFlowConfig = {
-    clientId,
+    clientId: clientId || '', // 使用空字符串作为默认值
     scope: 'read:user read:org'
   }
 
   console.log('Final Device Flow config:', {
-    clientId: config.clientId,
+    clientId: config.clientId || 'NOT SET',
     scope: config.scope
   })
 

@@ -393,8 +393,6 @@ export class OAuthPresenter {
     return `${config.authUrl}?${params.toString()}`
   }
 
-
-
   /**
    * 用授权码交换访问令牌
    */
@@ -443,11 +441,16 @@ export class OAuthPresenter {
 }
 
 // GitHub Copilot的OAuth配置
-export const GITHUB_COPILOT_OAUTH_CONFIG: OAuthConfig = {
-  authUrl: 'https://github.com/login/oauth/authorize',
-  redirectUri: process.env.GITHUB_REDIRECT_URI || 'https://deepchatai.cn/auth/github/callback',
-  clientId: process.env.GITHUB_CLIENT_ID || '',
-  clientSecret: process.env.GITHUB_CLIENT_SECRET,
-  scope: 'read:user read:org',
-  responseType: 'code'
-} 
+export function createGitHubCopilotOAuthConfig(): OAuthConfig {
+  return {
+    authUrl: 'https://github.com/login/oauth/authorize',
+    redirectUri: process.env.GITHUB_REDIRECT_URI || process.env.VITE_GITHUB_REDIRECT_URI || 'https://deepchatai.cn/auth/github/callback',
+    clientId: process.env.GITHUB_CLIENT_ID || process.env.VITE_GITHUB_CLIENT_ID || '',
+    clientSecret: process.env.GITHUB_CLIENT_SECRET || process.env.VITE_GITHUB_CLIENT_SECRET,
+    scope: 'read:user read:org',
+    responseType: 'code'
+  }
+}
+
+// 保持向后兼容性的常量（延迟初始化）
+export const GITHUB_COPILOT_OAUTH_CONFIG: OAuthConfig = createGitHubCopilotOAuthConfig() 

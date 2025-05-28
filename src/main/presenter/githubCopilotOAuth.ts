@@ -15,9 +15,36 @@ export class GitHubCopilotOAuth {
   constructor(private config: GitHubOAuthConfig) {}
 
   /**
-   * 启动GitHub OAuth登录流程
+   * 开始OAuth登录流程
    */
   async startLogin(): Promise<string> {
+    // 检查必需的配置是否存在
+    if (!this.config.clientId || this.config.clientId.trim() === '') {
+      throw new Error(
+        'GitHub Client ID is not configured. To use GitHub Copilot OAuth, please:\n' +
+        '1. Create a GitHub OAuth App at https://github.com/settings/applications/new\n' +
+        '2. Set the Client ID in environment variables:\n' +
+        '   - GITHUB_CLIENT_ID=your_client_id_here\n' +
+        '   OR\n' +
+        '   - VITE_GITHUB_CLIENT_ID=your_client_id_here\n' +
+        '3. Restart the application\n\n' +
+        'Note: GitHub Copilot requires OAuth authentication to access the API.'
+      )
+    }
+
+    if (!this.config.clientSecret || this.config.clientSecret.trim() === '') {
+      throw new Error(
+        'GitHub Client Secret is not configured. To use GitHub Copilot OAuth, please:\n' +
+        '1. Get the Client Secret from your GitHub OAuth App settings\n' +
+        '2. Set the Client Secret in environment variables:\n' +
+        '   - GITHUB_CLIENT_SECRET=your_client_secret_here\n' +
+        '   OR\n' +
+        '   - VITE_GITHUB_CLIENT_SECRET=your_client_secret_here\n' +
+        '3. Restart the application\n\n' +
+        'Note: GitHub Copilot requires OAuth authentication to access the API.'
+      )
+    }
+
     return new Promise((resolve, reject) => {
       // 生成随机state用于安全验证
       this.state = randomBytes(16).toString('hex')
@@ -148,6 +175,13 @@ export class GitHubCopilotOAuth {
    * 用授权码交换访问令牌
    */
   async exchangeCodeForToken(code: string): Promise<string> {
+    // 检查 Client Secret 是否配置
+    if (!this.config.clientSecret || this.config.clientSecret.trim() === '') {
+      throw new Error(
+        'GitHub Client Secret is not configured. Please set GITHUB_CLIENT_SECRET or VITE_GITHUB_CLIENT_SECRET environment variable.'
+      )
+    }
+
     try {
       const response = await fetch('https://github.com/login/oauth/access_token', {
         method: 'POST',
@@ -237,30 +271,19 @@ export function createGitHubCopilotOAuth(): GitHubCopilotOAuth {
   console.log('  - process.env.GITHUB_CLIENT_SECRET:', process.env.GITHUB_CLIENT_SECRET ? 'EXISTS' : 'NOT SET')
   console.log('  - process.env.VITE_GITHUB_CLIENT_SECRET:', process.env.VITE_GITHUB_CLIENT_SECRET ? 'EXISTS' : 'NOT SET')
 
-  if (!clientId) {
-    throw new Error(
-      'GITHUB_CLIENT_ID environment variable is required. Please create a .env file with your GitHub OAuth Client ID. You can use either GITHUB_CLIENT_ID or VITE_GITHUB_CLIENT_ID.'
-    )
-  }
-
-  if (!clientSecret) {
-    throw new Error(
-      'GITHUB_CLIENT_SECRET environment variable is required. Please create a .env file with your GitHub OAuth Client Secret. You can use either GITHUB_CLIENT_SECRET or VITE_GITHUB_CLIENT_SECRET.'
-    )
-  }
-
+  // 使用空配置，错误检查延迟到实际使用时
   const config: GitHubOAuthConfig = {
-    clientId,
-    clientSecret,
+    clientId: clientId || '',
+    clientSecret: clientSecret || '',
     redirectUri,
     scope: 'read:user read:org'
   }
 
   console.log('Final OAuth config:', {
-    clientId: config.clientId,
+    clientId: config.clientId || 'NOT SET',
     redirectUri: config.redirectUri,
     scope: config.scope,
-    clientSecretLength: config.clientSecret.length
+    clientSecretLength: config.clientSecret?.length || 0
   })
 
   return new GitHubCopilotOAuth(config)

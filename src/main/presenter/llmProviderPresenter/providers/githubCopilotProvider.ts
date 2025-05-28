@@ -8,7 +8,7 @@ interface RequestInitWithAgent extends RequestInit {
   agent?: HttpsProxyAgent<string>
 }
 import { proxyConfig } from '../../proxyConfig'
-import { OAuthHelper, GITHUB_COPILOT_OAUTH_CONFIG } from '../oauthHelper'
+import { OAuthHelper, createGitHubCopilotOAuthConfig } from '../oauthHelper'
 import { GitHubCopilotDeviceFlow, createGitHubCopilotDeviceFlow } from '../../githubCopilotDeviceFlow'
 import { eventBus } from '@/eventbus'
 import { CONFIG_EVENTS } from '@/events'
@@ -24,13 +24,11 @@ export class GithubCopilotProvider extends BaseLLMProvider {
   private tokenExpiresAt: number = 0
   private baseApiUrl = 'https://api.githubcopilot.com'
   private tokenUrl = 'https://api.github.com/copilot_internal/v2/token'
-  private oauthHelper: OAuthHelper
-  private deviceFlow: GitHubCopilotDeviceFlow
+  private oauthHelper: OAuthHelper | null = null
+  private deviceFlow: GitHubCopilotDeviceFlow | null = null
 
   constructor(provider: LLM_PROVIDER, configPresenter: ConfigPresenter) {
     super(provider, configPresenter)
-    this.oauthHelper = new OAuthHelper(GITHUB_COPILOT_OAUTH_CONFIG)
-    this.deviceFlow = createGitHubCopilotDeviceFlow()
     
     console.log('🎯 [GitHub Copilot] Constructor called')
     console.log(`   Base API URL: ${this.baseApiUrl}`)
@@ -44,6 +42,26 @@ export class GithubCopilotProvider extends BaseLLMProvider {
     })
     
     this.init()
+  }
+
+  /**
+   * 延迟初始化 OAuth Helper
+   */
+  private getOAuthHelper(): OAuthHelper {
+    if (!this.oauthHelper) {
+      this.oauthHelper = new OAuthHelper(createGitHubCopilotOAuthConfig())
+    }
+    return this.oauthHelper
+  }
+
+  /**
+   * 延迟初始化 Device Flow
+   */
+  private getDeviceFlow(): GitHubCopilotDeviceFlow {
+    if (!this.deviceFlow) {
+      this.deviceFlow = createGitHubCopilotDeviceFlow()
+    }
+    return this.deviceFlow
   }
 
   protected async init() {
@@ -99,7 +117,7 @@ export class GithubCopilotProvider extends BaseLLMProvider {
       
       console.log('🌐 [GitHub Copilot] Starting Device Flow authentication...')
       // 使用Device Flow进行认证
-      const accessToken = await this.deviceFlow.startDeviceFlow()
+      const accessToken = await this.getDeviceFlow().startDeviceFlow()
       console.log(`✅ [GitHub Copilot] Received access token via Device Flow: ${accessToken ? accessToken.substring(0, 20) + '...' : 'NONE'}`)
       
       console.log('💾 [GitHub Copilot] Saving access token to provider config...')
@@ -138,7 +156,7 @@ export class GithubCopilotProvider extends BaseLLMProvider {
       
       console.log('🌐 [GitHub Copilot] Starting OAuth helper login process...')
       // 开始OAuth登录
-      const authCode = await this.oauthHelper.startLogin()
+      const authCode = await this.getOAuthHelper().startLogin()
       console.log(`✅ [GitHub Copilot] Received auth code: ${authCode ? authCode.substring(0, 10) + '...' : 'NONE'}`)
       
       console.log('🔄 [GitHub Copilot] Exchanging auth code for access token...')
@@ -181,10 +199,10 @@ export class GithubCopilotProvider extends BaseLLMProvider {
     console.log(`   Exchange URL: ${exchangeUrl}`)
     
     const requestBody = {
-      client_id: GITHUB_COPILOT_OAUTH_CONFIG.clientId,
+      client_id: createGitHubCopilotOAuthConfig().clientId,
       client_secret: process.env.GITHUB_CLIENT_SECRET,
       code: code,
-      redirect_uri: GITHUB_COPILOT_OAUTH_CONFIG.redirectUri
+      redirect_uri: createGitHubCopilotOAuthConfig().redirectUri
     }
     
     console.log('📋 [GitHub Copilot] Token exchange request:')
