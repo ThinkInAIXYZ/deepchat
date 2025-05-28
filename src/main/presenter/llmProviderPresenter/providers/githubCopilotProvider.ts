@@ -22,7 +22,7 @@ interface CopilotTokenResponse {
 export class GithubCopilotProvider extends BaseLLMProvider {
   private copilotToken: string | null = null
   private tokenExpiresAt: number = 0
-  private baseApiUrl = 'https://api.githubcopilot.com'
+  private baseApiUrl = 'https://copilot-proxy.githubusercontent.com'
   private tokenUrl = 'https://api.github.com/copilot_internal/v2/token'
   private oauthHelper: OAuthHelper
   private deviceFlow: GitHubCopilotDeviceFlow
@@ -484,7 +484,7 @@ export class GithubCopilotProvider extends BaseLLMProvider {
         requestOptions.agent = agent
       }
 
-      const response = await fetch(`${this.baseApiUrl}/v1/chat/completions`, requestOptions)
+      const response = await fetch(`${this.baseApiUrl}/chat/completions`, requestOptions)
 
       if (!response.ok) {
         throw new Error(`GitHub Copilot API error: ${response.status} ${response.statusText}`)
@@ -609,7 +609,7 @@ export class GithubCopilotProvider extends BaseLLMProvider {
         requestOptions.agent = agent
       }
 
-      const response = await fetch(`${this.baseApiUrl}/v1/chat/completions`, requestOptions)
+      const response = await fetch(`${this.baseApiUrl}/chat/completions`, requestOptions)
 
       if (!response.ok) {
         throw new Error(`GitHub Copilot API error: ${response.status} ${response.statusText}`)
