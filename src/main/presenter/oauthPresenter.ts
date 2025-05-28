@@ -5,6 +5,7 @@ import { presenter } from '.'
 import * as http from 'http'
 import { URL } from 'url'
 import { createGitHubCopilotOAuth } from './githubCopilotOAuth'
+import { createGitHubCopilotDeviceFlow } from './githubCopilotDeviceFlow'
 
 export interface OAuthConfig {
   authUrl: string
@@ -21,7 +22,76 @@ export class OAuthPresenter {
   private callbackPort = 3000
 
   /**
-   * 开始GitHub Copilot OAuth登录流程
+   * 验证GitHub访问令牌
+   */
+  private async validateGitHubAccessToken(token: string): Promise<boolean> {
+    try {
+      const response = await fetch('https://api.github.com/user', {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'User-Agent': 'DeepChat/1.0.0'
+        }
+      })
+
+      return response.ok
+    } catch (error) {
+      console.error('Token validation failed:', error)
+      return false
+    }
+  }
+
+  /**
+   * 开始GitHub Copilot Device Flow登录流程（推荐）
+   */
+  async startGitHubCopilotDeviceFlowLogin(providerId: string): Promise<boolean> {
+    try {
+      console.log('Starting GitHub Copilot Device Flow login for provider:', providerId)
+      eventBus.emit(CONFIG_EVENTS.OAUTH_LOGIN_START, { providerId })
+      
+      // 使用专门的GitHub Copilot Device Flow实现
+      console.log('Creating GitHub Device Flow instance...')
+      const githubDeviceFlow = createGitHubCopilotDeviceFlow()
+      
+      // 开始Device Flow登录
+      console.log('Starting Device Flow login...')
+      const accessToken = await githubDeviceFlow.startDeviceFlow()
+      console.log('Received access token:', accessToken ? 'SUCCESS' : 'FAILED')
+      
+      // 验证令牌
+      console.log('Validating access token...')
+      const isValid = await this.validateGitHubAccessToken(accessToken)
+      console.log('Token validation result:', isValid)
+      
+      if (!isValid) {
+        throw new Error('获取的访问令牌无效')
+      }
+      
+      // 保存访问令牌到provider配置
+      console.log('Saving access token to provider configuration...')
+      const provider = presenter.configPresenter.getProviderById(providerId)
+      if (provider) {
+        provider.apiKey = accessToken
+        presenter.configPresenter.setProviderById(providerId, provider)
+        console.log('Access token saved successfully')
+      } else {
+        console.warn('Provider not found:', providerId)
+      }
+      
+      eventBus.emit(CONFIG_EVENTS.OAUTH_LOGIN_SUCCESS, { providerId, accessToken })
+      return true
+      
+    } catch (error) {
+      console.error('GitHub Copilot Device Flow login failed:', error)
+      eventBus.emit(CONFIG_EVENTS.OAUTH_LOGIN_ERROR, { 
+        providerId, 
+        error: error instanceof Error ? error.message : 'Unknown error' 
+      })
+      return false
+    }
+  }
+
+  /**
+   * 开始GitHub Copilot OAuth登录流程（传统方式）
    */
   async startGitHubCopilotLogin(providerId: string): Promise<boolean> {
     try {
@@ -378,6 +448,6 @@ export const GITHUB_COPILOT_OAUTH_CONFIG: OAuthConfig = {
   redirectUri: process.env.GITHUB_REDIRECT_URI || 'https://deepchatai.cn/auth/github/callback',
   clientId: process.env.GITHUB_CLIENT_ID || '',
   clientSecret: process.env.GITHUB_CLIENT_SECRET,
-  scope: 'read:user',
+  scope: 'read:user read:org',
   responseType: 'code'
 } 
