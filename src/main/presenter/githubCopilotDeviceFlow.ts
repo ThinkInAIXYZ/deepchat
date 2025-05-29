@@ -276,14 +276,14 @@ export class GitHubCopilotDeviceFlow {
       })
 
       // 处理消息
-      instructionWindow.webContents.on('ipc-message', (event, channel, ...args) => {
+      instructionWindow.webContents.on('ipc-message', (_event, channel, ...args) => {
         if (channel === 'open-external') {
           shell.openExternal(args[0])
         }
       })
 
       // 监听页面消息
-      instructionWindow.webContents.on('console-message', (event, level, message) => {
+      instructionWindow.webContents.on('console-message', (_event, _level, message) => {
         if (message.includes('open-external')) {
           shell.openExternal(deviceCodeResponse.verification_uri)
         }
