@@ -31,8 +31,16 @@
       </div>
     </div>
 
-    <!-- API Key 配置 -->
-    <div class="flex flex-col items-start gap-2">
+    <!-- GitHub Copilot OAuth 登录 -->
+    <GitHubCopilotOAuth
+      v-if="provider.id === 'github-copilot'"
+      :provider="provider"
+      @auth-success="handleOAuthSuccess"
+      @auth-error="handleOAuthError"
+    />
+
+    <!-- API Key 配置 (GitHub Copilot 时隐藏手动输入) -->
+    <div v-if="provider.id !== 'github-copilot'" class="flex flex-col items-start gap-2">
       <Label :for="`${provider.id}-apikey`" class="flex-1 cursor-pointer">API Key</Label>
       <Input
         :id="`${provider.id}-apikey`"
@@ -84,6 +92,7 @@ import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Icon } from '@iconify/vue'
+import GitHubCopilotOAuth from './GitHubCopilotOAuth.vue'
 import type { LLM_PROVIDER } from '@shared/presenter'
 
 interface ProviderWebsites {
@@ -106,6 +115,8 @@ const emit = defineEmits<{
   'api-key-change': [value: string]
   'validate-key': [value: string]
   'delete-provider': []
+  'oauth-success': []
+  'oauth-error': [error: string]
 }>()
 
 const apiKey = ref(props.provider.apiKey || '')
@@ -133,5 +144,13 @@ const openProviderWebsite = () => {
   if (url) {
     window.open(url, '_blank')
   }
+}
+
+const handleOAuthSuccess = () => {
+  emit('oauth-success')
+}
+
+const handleOAuthError = (error: string) => {
+  emit('oauth-error', error)
 }
 </script>

@@ -227,6 +227,21 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
       defaultBaseUrl: 'https://models.inference.ai.azure.com'
     }
   },
+  {
+    id: 'github-copilot',
+    name: 'GitHub Copilot',
+    apiType: 'github-copilot',
+    apiKey: '',
+    baseUrl: 'https://api.githubcopilot.com',
+    enable: false,
+    websites: {
+      official: 'https://github.com/features/copilot',
+      apiKey: 'https://github.com/settings/tokens',
+      docs: 'https://docs.github.com/en/copilot',
+      models: 'https://docs.github.com/en/copilot/using-github-copilot/using-github-copilot-chat-in-your-ide',
+      defaultBaseUrl: 'https://api.githubcopilot.com'
+    }
+  },
   // {
   //   id: 'yi',
   //   name: 'Yi',

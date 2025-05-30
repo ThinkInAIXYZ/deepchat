@@ -24,7 +24,11 @@ export const CONFIG_EVENTS = {
   PROXY_RESOLVED: 'config:proxy-resolved',
   LANGUAGE_CHANGED: 'config:language-changed', // 新增：语言变更事件
   CUSTOM_PROMPTS_CHANGED: 'config:custom-prompts-changed', // 新增：自定义提示词变更事件
-  CUSTOM_PROMPTS_SERVER_CHECK_REQUIRED: 'config:custom-prompts-server-check-required' // 新增：需要检查自定义提示词服务器事件
+  CUSTOM_PROMPTS_SERVER_CHECK_REQUIRED: 'config:custom-prompts-server-check-required', // 新增：需要检查自定义提示词服务器事件
+  // OAuth相关事件
+  OAUTH_LOGIN_START: 'config:oauth-login-start', // OAuth登录开始
+  OAUTH_LOGIN_SUCCESS: 'config:oauth-login-success', // OAuth登录成功
+  OAUTH_LOGIN_ERROR: 'config:oauth-login-error' // OAuth登录失败
 }
 
 // 会话相关事件
