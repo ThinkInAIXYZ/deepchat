@@ -1,4 +1,5 @@
 import { BrowserWindow, shell } from 'electron'
+import { presenter } from '@/presenter'
 
 export interface DeviceFlowConfig {
   clientId: string
@@ -114,8 +115,8 @@ export class GitHubCopilotDeviceFlow {
     return new Promise((resolve) => {
       // 创建一个窗口显示用户验证码
       const instructionWindow = new BrowserWindow({
-        width: 500,
-        height: 400,
+        width: 340,
+        height: 320,
         show: false,
         webPreferences: {
           nodeIntegration: false,
@@ -139,7 +140,7 @@ export class GitHubCopilotDeviceFlow {
             body {
               font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
               margin: 0;
-              padding: 40px;
+              padding: 16px;
               background: #f6f8fa;
               display: flex;
               flex-direction: column;
@@ -150,76 +151,72 @@ export class GitHubCopilotDeviceFlow {
             }
             .container {
               background: white;
-              border-radius: 12px;
-              padding: 32px;
-              box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+              border-radius: 10px;
+              padding: 16px 12px;
+              box-shadow: 0 4px 12px rgba(0,0,0,0.10);
               text-align: center;
-              max-width: 400px;
+              max-width: 320px;
               width: 100%;
             }
             .logo {
-              width: 48px;
-              height: 48px;
-              margin: 0 auto 24px;
+              width: 36px;
+              height: 36px;
+              margin: 0 auto 12px;
               background: #24292f;
-              border-radius: 12px;
+              border-radius: 8px;
               display: flex;
               align-items: center;
               justify-content: center;
               color: white;
-              font-size: 24px;
+              font-size: 18px;
               font-weight: bold;
             }
             h1 {
               color: #24292f;
-              margin: 0 0 16px;
-              font-size: 24px;
+              margin: 0 0 8px;
+              font-size: 18px;
               font-weight: 600;
             }
             .user-code {
-              font-size: 32px;
+              font-size: 24px;
               font-weight: bold;
               color: #0969da;
               background: #f6f8fa;
-              padding: 16px;
-              border-radius: 8px;
-              margin: 24px 0;
-              letter-spacing: 4px;
+              padding: 8px;
+              border-radius: 6px;
+              margin: 12px 0;
+              letter-spacing: 2px;
               font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
+              word-break: break-all;
             }
             .instructions {
               color: #656d76;
-              margin: 16px 0;
-              line-height: 1.5;
+              margin: 8px 0;
+              line-height: 1.4;
+              font-size: 14px;
             }
             .button {
               background: #0969da;
               color: white;
               border: none;
-              padding: 12px 24px;
-              border-radius: 6px;
-              font-size: 14px;
+              padding: 8px 16px;
+              border-radius: 5px;
+              font-size: 13px;
               font-weight: 500;
               cursor: pointer;
               text-decoration: none;
               display: inline-block;
-              margin: 16px 8px 8px;
+              margin: 8px 4px 4px;
               transition: background-color 0.2s;
-            }
-            .button:hover {
-              background: #0860ca;
             }
             .button.secondary {
               background: #f6f8fa;
               color: #24292f;
               border: 1px solid #d0d7de;
             }
-            .button.secondary:hover {
-              background: #f3f4f6;
-            }
             .footer {
-              margin-top: 24px;
-              font-size: 12px;
+              margin-top: 10px;
+              font-size: 11px;
               color: #656d76;
             }
           </style>
@@ -245,16 +242,15 @@ export class GitHubCopilotDeviceFlow {
             }
             
             function copyCode() {
-              navigator.clipboard.writeText('${deviceCodeResponse.user_code}').then(() => {
-                const button = event.target;
-                const originalText = button.textContent;
-                button.textContent = '已复制!';
-                button.style.background = '#28a745';
-                setTimeout(() => {
-                  button.textContent = originalText;
-                  button.style.background = '';
-                }, 2000);
-              });
+              window.electronAPI.copyToClipboard('${deviceCodeResponse.user_code}');
+              const button = event.target;
+              const originalText = button.textContent;
+              button.textContent = '已复制!';
+              button.style.background = '#28a745';
+              setTimeout(() => {
+                button.textContent = originalText;
+                button.style.background = '';
+              }, 2000);
             }
           </script>
         </body>
@@ -270,6 +266,11 @@ export class GitHubCopilotDeviceFlow {
           window.electronAPI = {
             openExternal: (url) => {
               window.postMessage({ type: 'open-external', url }, '*');
+              console.log(JSON.stringify({ type: 'open-external', url }));
+            },
+            copyToClipboard: (text) => {
+              window.postMessage({ type: 'copy-to-clipboard', text }, '*');
+              console.log(JSON.stringify({ type: 'copy-to-clipboard', text }));
             }
           };
         `)
@@ -284,8 +285,19 @@ export class GitHubCopilotDeviceFlow {
 
       // 监听页面消息
       instructionWindow.webContents.on('console-message', (_event, _level, message) => {
-        if (message.includes('open-external')) {
-          shell.openExternal(deviceCodeResponse.verification_uri)
+        try {
+          const msg = typeof message === 'string' ? JSON.parse(message) : message
+          if (msg.type === 'open-external') {
+            shell.openExternal(msg.url)
+          } else if (msg.type === 'copy-to-clipboard') {
+            console.log('🔄 [GitHub Copilot Device Flow] Copying to clipboard:', msg.text)  
+            const mainWindow = presenter.windowPresenter.mainWindow
+            if (mainWindow) {
+              mainWindow.webContents.executeJavaScript(`window.api.copyText('${msg.text}')`)
+            }
+          }
+        } catch (e) {
+          console.error('💥 [GitHub Copilot Device Flow] Error:', e)
         }
       })
 
