@@ -34,31 +34,19 @@ export class GitHubCopilotDeviceFlow {
    * 启动 Device Flow 认证流程
    */
   async startDeviceFlow(): Promise<string> {
-    console.log('🔐 [GitHub Copilot Device Flow] Starting device flow authentication...')
-    
     try {
       // Step 1: 获取设备验证码
-      console.log('📱 [GitHub Copilot Device Flow] Step 1: Requesting device code...')
       const deviceCodeResponse = await this.requestDeviceCode()
-      
-      console.log('✅ [GitHub Copilot Device Flow] Device code received:')
-      console.log(`   User Code: ${deviceCodeResponse.user_code}`)
-      console.log(`   Verification URI: ${deviceCodeResponse.verification_uri}`)
-      console.log(`   Expires in: ${deviceCodeResponse.expires_in} seconds`)
-      console.log(`   Polling interval: ${deviceCodeResponse.interval} seconds`)
       
       // Step 2: 显示用户验证码并打开浏览器
       await this.showUserCodeAndOpenBrowser(deviceCodeResponse)
       
       // Step 3: 轮询获取访问令牌
-      console.log('🔄 [GitHub Copilot Device Flow] Step 3: Polling for access token...')
       const accessToken = await this.pollForAccessToken(deviceCodeResponse)
       
-      console.log('✅ [GitHub Copilot Device Flow] Device flow completed successfully!')
       return accessToken
       
     } catch (error) {
-      console.error('❌ [GitHub Copilot Device Flow] Device flow failed:', error)
       throw error
     }
   }
@@ -73,11 +61,6 @@ export class GitHubCopilotDeviceFlow {
       scope: this.config.scope
     }
 
-    console.log('📤 [GitHub Copilot Device Flow] Requesting device code from GitHub...')
-    console.log(`   URL: ${url}`)
-    console.log(`   Client ID: ${this.config.clientId}`)
-    console.log(`   Scope: ${this.config.scope}`)
-
     const response = await fetch(url, {
       method: 'POST',
       headers: {
@@ -88,22 +71,12 @@ export class GitHubCopilotDeviceFlow {
       body: JSON.stringify(body)
     })
 
-    console.log('📥 [GitHub Copilot Device Flow] Device code response:')
-    console.log(`   Status: ${response.status} ${response.statusText}`)
-
     if (!response.ok) {
       const errorText = await response.text()
-      console.log(`   Error body: ${errorText}`)
       throw new Error(`Failed to request device code: ${response.status} ${response.statusText}`)
     }
 
     const data = await response.json() as DeviceCodeResponse
-    console.log('📊 [GitHub Copilot Device Flow] Device code data:')
-    console.log(`   Device code: ${data.device_code ? data.device_code.substring(0, 20) + '...' : 'NOT PRESENT'}`)
-    console.log(`   User code: ${data.user_code}`)
-    console.log(`   Verification URI: ${data.verification_uri}`)
-    console.log(`   Expires in: ${data.expires_in}`)
-    console.log(`   Interval: ${data.interval}`)
 
     return data
   }
@@ -266,11 +239,9 @@ export class GitHubCopilotDeviceFlow {
           window.electronAPI = {
             openExternal: (url) => {
               window.postMessage({ type: 'open-external', url }, '*');
-              console.log(JSON.stringify({ type: 'open-external', url }));
             },
             copyToClipboard: (text) => {
               window.postMessage({ type: 'copy-to-clipboard', text }, '*');
-              console.log(JSON.stringify({ type: 'copy-to-clipboard', text }));
             }
           };
         `)
@@ -290,14 +261,12 @@ export class GitHubCopilotDeviceFlow {
           if (msg.type === 'open-external') {
             shell.openExternal(msg.url)
           } else if (msg.type === 'copy-to-clipboard') {
-            console.log('🔄 [GitHub Copilot Device Flow] Copying to clipboard:', msg.text)  
             const mainWindow = presenter.windowPresenter.mainWindow
             if (mainWindow) {
               mainWindow.webContents.executeJavaScript(`window.api.copyText('${msg.text}')`)
             }
           }
         } catch (e) {
-          console.error('💥 [GitHub Copilot Device Flow] Error:', e)
         }
       })
 
@@ -334,11 +303,9 @@ export class GitHubCopilotDeviceFlow {
 
       const poll = async () => {
         pollCount++
-        console.log(`🔄 [GitHub Copilot Device Flow] Polling attempt ${pollCount}...`)
 
         // 检查是否超时
         if (Date.now() >= expiresAt) {
-          console.log('⏰ [GitHub Copilot Device Flow] Device code expired')
           if (this.pollingInterval) {
             clearInterval(this.pollingInterval)
             this.pollingInterval = null
@@ -362,25 +329,19 @@ export class GitHubCopilotDeviceFlow {
             })
           })
 
-          console.log(`📥 [GitHub Copilot Device Flow] Poll response: ${response.status}`)
-
           if (!response.ok) {
-            console.log(`❌ [GitHub Copilot Device Flow] Poll failed: ${response.status} ${response.statusText}`)
             return // 继续轮询
           }
 
           const data = await response.json() as AccessTokenResponse
 
           if (data.error) {
-            console.log(`📊 [GitHub Copilot Device Flow] Poll error: ${data.error}`)
             
             switch (data.error) {
               case 'authorization_pending':
-                console.log('⏳ [GitHub Copilot Device Flow] Authorization pending, continuing to poll...')
                 return // 继续轮询
               
               case 'slow_down':
-                console.log('🐌 [GitHub Copilot Device Flow] Rate limited, slowing down polling...')
                 // 增加轮询间隔
                 if (this.pollingInterval) {
                   clearInterval(this.pollingInterval)
@@ -389,7 +350,6 @@ export class GitHubCopilotDeviceFlow {
                 return
               
               case 'expired_token':
-                console.log('⏰ [GitHub Copilot Device Flow] Device code expired')
                 if (this.pollingInterval) {
                   clearInterval(this.pollingInterval)
                   this.pollingInterval = null
@@ -398,7 +358,6 @@ export class GitHubCopilotDeviceFlow {
                 return
               
               case 'access_denied':
-                console.log('🚫 [GitHub Copilot Device Flow] User denied access')
                 if (this.pollingInterval) {
                   clearInterval(this.pollingInterval)
                   this.pollingInterval = null
@@ -407,22 +366,12 @@ export class GitHubCopilotDeviceFlow {
                 return
               
               default:
-                console.log(`❌ [GitHub Copilot Device Flow] Unknown error: ${data.error}`)
-                if (this.pollingInterval) {
-                  clearInterval(this.pollingInterval)
-                  this.pollingInterval = null
-                }
                 reject(new Error(`OAuth error: ${data.error_description || data.error}`))
                 return
             }
           }
 
           if (data.access_token) {
-            console.log('✅ [GitHub Copilot Device Flow] Access token received!')
-            console.log(`   Token type: ${data.token_type}`)
-            console.log(`   Scope: ${data.scope}`)
-            console.log(`   Access token: ${data.access_token.substring(0, 20)}...`)
-            
             if (this.pollingInterval) {
               clearInterval(this.pollingInterval)
               this.pollingInterval = null
@@ -431,16 +380,11 @@ export class GitHubCopilotDeviceFlow {
             return
           }
 
-          console.log('⚠️ [GitHub Copilot Device Flow] No access token in response, continuing to poll...')
-
         } catch (error) {
-          console.error('💥 [GitHub Copilot Device Flow] Poll request failed:', error)
-          // 继续轮询，不要因为网络错误而停止
         }
       }
 
       // 开始轮询
-      console.log(`🔄 [GitHub Copilot Device Flow] Starting polling every ${deviceCodeResponse.interval} seconds...`)
       this.pollingInterval = setInterval(poll, deviceCodeResponse.interval * 1000)
       
       // 立即执行第一次轮询
@@ -455,7 +399,6 @@ export class GitHubCopilotDeviceFlow {
     if (this.pollingInterval) {
       clearInterval(this.pollingInterval)
       this.pollingInterval = null
-      console.log('🛑 [GitHub Copilot Device Flow] Polling stopped')
     }
   }
 }
@@ -464,12 +407,6 @@ export class GitHubCopilotDeviceFlow {
 export function createGitHubCopilotDeviceFlow(): GitHubCopilotDeviceFlow {
   // 从环境变量读取 GitHub OAuth 配置
   const clientId = process.env.GITHUB_CLIENT_ID || process.env.VITE_GITHUB_CLIENT_ID
-
-  console.log('GitHub Copilot Device Flow Configuration:')
-  console.log('- Client ID configured:', clientId ? '✅' : '❌')
-  console.log('- Environment variables check:')
-  console.log('  - process.env.GITHUB_CLIENT_ID:', process.env.GITHUB_CLIENT_ID ? 'EXISTS' : 'NOT SET')
-  console.log('  - process.env.VITE_GITHUB_CLIENT_ID:', process.env.VITE_GITHUB_CLIENT_ID ? 'EXISTS' : 'NOT SET')
 
   if (!clientId) {
     throw new Error(
@@ -481,11 +418,6 @@ export function createGitHubCopilotDeviceFlow(): GitHubCopilotDeviceFlow {
     clientId,
     scope: 'read:user read:org'
   }
-
-  console.log('Final Device Flow config:', {
-    clientId: config.clientId,
-    scope: config.scope
-  })
 
   return new GitHubCopilotDeviceFlow(config)
 } 
