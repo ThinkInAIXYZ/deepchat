@@ -1,5 +1,8 @@
 <template>
-  <div class="inline-block">
+  <div
+    class="inline-block"
+    @contextmenu.prevent="handleContextMenu"
+  >
     <TooltipProvider>
       <Tooltip>
         <TooltipTrigger as-child>
@@ -58,10 +61,18 @@ const props = withDefaults(
   }
 )
 
-defineEmits<{
+const emit = defineEmits<{
   click: [fileName: string]
   delete: [fileName: string]
+  'file-context-menu': [{ fileName: string; mimeType: string }]
 }>()
+
+const handleContextMenu = (event: MouseEvent) => {
+  emit('file-context-menu', {
+    fileName: props.fileName,
+    mimeType: props.mimeType
+  })
+}
 
 const getFileIcon = () => {
   // 根据 MIME 类型返回对应的图标

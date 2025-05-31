@@ -1,5 +1,6 @@
-import { BrowserWindow, Menu, MenuItemConstructorOptions, WebContents, dialog, net } from 'electron'
-import path from 'path'
+import { BrowserWindow, Menu, MenuItemConstructorOptions, WebContents, dialog, net, ipcMain, clipboard } from 'electron'
+import fs from 'fs/promises'
+import path from 'path' // path is already here, fs and clipboard are new
 import sharp from 'sharp'
 
 interface ContextMenuOptions {
@@ -22,6 +23,13 @@ interface ContextMenuOptions {
     webContents: WebContents
   ) => MenuItemConstructorOptions[] | Menu
 }
+
+let activeFileContextMenuData: { fileName: string; mimeType: string; filePath?: string; isArtifact: boolean; content?: string; } | null = null;
+
+ipcMain.on('show-file-context-menu', (event, fileDetails: { fileName: string; mimeType: string; filePath?: string; content?: string; isArtifact: boolean }) => {
+  // event.sender can be used to associate this with a specific WebContents if needed
+  activeFileContextMenuData = fileDetails;
+});
 
 /**
  * 简化版的上下文菜单实现
@@ -162,6 +170,116 @@ export default function contextMenu(options: ContextMenuOptions): () => void {
       menuItems.push({ type: 'separator' })
     }
 
+    const currentFileDetails = activeFileContextMenuData; // Capture current value
+    if (currentFileDetails) {
+      // It's a file context menu triggered via IPC
+      menuItems.push({
+        id: 'copyFile',
+        label: options.labels?.copyFile || 'Copy File', // Add 'copyFile' to labels later
+        click: async () => {
+          if (!currentFileDetails) {
+            console.warn('CopyFile: No currentFileDetails available.');
+            return;
+          }
+
+          try {
+            if (currentFileDetails.isArtifact && currentFileDetails.content) {
+              // Handle artifacts with direct content (e.g., markdown text from ArtifactPreview)
+              clipboard.writeText(currentFileDetails.content);
+              console.log('Copied artifact content to clipboard:', currentFileDetails.fileName);
+              // Optionally, show a success notification
+              // dialog.showMessageBox({ type: 'info', message: 'Artifact content copied to clipboard.' });
+            } else if (currentFileDetails.filePath) {
+              const filePath = currentFileDetails.filePath;
+              const mimeType = currentFileDetails.mimeType || ''; // Ensure mimeType is a string
+
+              if (mimeType.startsWith('text/')) {
+                const textContent = await fs.readFile(filePath, 'utf-8');
+                clipboard.writeText(textContent);
+                console.log('Copied text file content to clipboard:', filePath);
+              } else {
+                // For non-text files (PDF, images if not handled by 'Copy Image', etc.)
+                // Use clipboard.writeFiles to copy the file reference(s).
+                // This allows pasting the file into the OS file explorer.
+                clipboard.writeFiles([filePath]);
+                console.log('Copied file reference to clipboard:', filePath);
+                // Optionally, notify user that the file path/reference was copied.
+                // dialog.showMessageBox({ type: 'info', message: `File '${path.basename(filePath)}' reference copied to clipboard.` });
+              }
+            } else {
+              console.warn('CopyFile: No content or file path available for:', currentFileDetails.fileName);
+              dialog.showErrorBox('Copy Error', `No content or file path found for ${currentFileDetails.fileName}.`);
+            }
+          } catch (error: any) {
+            console.error('Failed to copy file:', error);
+            dialog.showErrorBox('Copy Error', `Failed to copy the file to the clipboard: ${error.message}`);
+          }
+        }
+      });
+
+      menuItems.push({
+        id: 'saveFileAs',
+        label: options.labels?.saveFileAs || 'Save File As...', // Add 'saveFileAs' to labels later
+        click: async () => {
+          if (!currentFileDetails) {
+            console.warn('SaveFileAs: No currentFileDetails available.');
+            return;
+          }
+
+          try {
+            const suggestedFileName = currentFileDetails.fileName;
+            // TODO: We could try to create more specific filters based on currentFileDetails.mimeType
+            // For example: { name: 'PDF Document', extensions: ['pdf'] }
+            // For now, a generic approach.
+            const filters = [{ name: 'All Files', extensions: ['*'] }];
+            if (currentFileDetails.mimeType) {
+                // Add a filter based on the known MIME type if available
+                // This is a simple example; a more robust solution would map MIME to extensions
+                const ext = currentFileDetails.fileName.includes('.') ? currentFileDetails.fileName.split('.').pop() : undefined;
+                if (ext) {
+                    filters.unshift({ name: currentFileDetails.mimeType, extensions: [ext] });
+                }
+            }
+
+
+            const { canceled, filePath: chosenPath } = await dialog.showSaveDialog({
+              defaultPath: suggestedFileName,
+              filters: filters
+            });
+
+            if (canceled || !chosenPath) {
+              console.log('SaveFileAs: Dialog was canceled or no path chosen.');
+              return;
+            }
+
+            if (currentFileDetails.isArtifact && currentFileDetails.content) {
+              // Handle artifacts with direct content (e.g., markdown text)
+              await fs.writeFile(chosenPath, currentFileDetails.content, 'utf-8');
+              console.log('Saved artifact content to:', chosenPath);
+            } else if (currentFileDetails.filePath) {
+              // Handle files with an existing filePath by copying the file
+              await fs.copyFile(currentFileDetails.filePath, chosenPath);
+              console.log('Copied file from', currentFileDetails.filePath, 'to:', chosenPath);
+            } else {
+              console.warn('SaveFileAs: No content or file path available for saving:', currentFileDetails.fileName);
+              dialog.showErrorBox('Save Error', `No content or file path found for ${currentFileDetails.fileName} to save.`);
+              return; // Important to return here
+            }
+
+            // Optionally, notify user of success
+            // dialog.showMessageBox({ type: 'info', message: `File saved successfully to ${chosenPath}` });
+
+          } catch (error: any) {
+            console.error('Failed to save file:', error);
+            dialog.showErrorBox('Save Error', `Failed to save the file: ${error.message}`);
+          }
+        }
+      });
+
+      menuItems.push({ type: 'separator' });
+      activeFileContextMenuData = null; // Reset after use
+    }
+
     // 根据 labels 设置添加基础菜单项
     if (params.isEditable) {
       const editFlags = params.editFlags
@@ -277,6 +395,10 @@ export default function contextMenu(options: ContextMenuOptions): () => void {
       }
     } else {
       console.warn('contextMenu: The menu will not be displayed')
+      // If no menu is shown, but we had file data, reset it.
+      if (activeFileContextMenuData) {
+        activeFileContextMenuData = null;
+      }
     }
   }
 

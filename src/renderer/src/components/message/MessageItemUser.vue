@@ -29,6 +29,7 @@
             :mime-type="file.mimeType"
             :thumbnail="file.thumbnail"
             @click="previewFile(file.path)"
+            @file-context-menu="handleFileContextMenu(file, $event)"
           />
         </div>
         <div v-if="isEditMode" class="text-sm w-full whitespace-pre-wrap break-all">
@@ -83,7 +84,7 @@
 </template>
 
 <script setup lang="ts">
-import { UserMessage, UserMessageMentionBlock } from '@shared/chat'
+import { UserMessage, UserMessageMentionBlock, MessageFile } from '@shared/chat'
 import { Icon } from '@iconify/vue'
 import MessageInfo from './MessageInfo.vue'
 import FileItem from '../FileItem.vue'
@@ -181,5 +182,17 @@ const handleAction = (action: 'delete' | 'copy') => {
 const handleMentionClick = (block: UserMessageMentionBlock) => {
   // 处理 mention 点击事件，可以根据需要实现具体逻辑
   console.log('Mention clicked:', block)
+}
+
+const handleFileContextMenu = (file: MessageFile, eventDetail: { fileName: string; mimeType: string }) => {
+  // Use file.name, file.mimeType, and file.path for accuracy,
+  // though eventDetail also contains fileName and mimeType.
+  window.api.send('show-file-context-menu', {
+    fileName: file.name,
+    mimeType: file.mimeType,
+    filePath: file.path,
+    // Add a flag to distinguish from artifact context menus later if needed
+    isArtifact: false
+  })
 }
 </script>
