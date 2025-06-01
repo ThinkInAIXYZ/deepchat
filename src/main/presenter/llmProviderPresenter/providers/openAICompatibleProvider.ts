@@ -250,9 +250,10 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
    * @param modelConfig 模型配置。
    * @returns AsyncGenerator<LLMCoreStreamEvent> 流式事件。
    */
-  private async *handleImageGeneration(
+  private async *handleImgGeneration(
     messages: ChatMessage[],
     modelId: string,
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     modelConfig: ModelConfig
   ): AsyncGenerator<LLMCoreStreamEvent> {
     // 获取最后几条消息，检查是否有图片
@@ -292,7 +293,7 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
     }
 
     if (!prompt) {
-      console.error('[handleImageGeneration] Could not extract prompt for image generation.')
+      console.error('[handleImgGeneration] Could not extract prompt for image generation.')
       yield { type: 'error', error_message: 'Could not extract prompt for image generation.' }
       yield { type: 'stop', stop_reason: 'error' }
       return
@@ -361,7 +362,7 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
             params.quality = 'high'
           } catch (error) {
             console.warn(
-              '[handleImageGeneration] Failed to detect image dimensions, using default size:',
+              '[handleImgGeneration] Failed to detect image dimensions, using default size:',
               error
             )
             // 检测失败时使用默认参数
@@ -376,12 +377,12 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
         try {
           fs.unlinkSync(imagePath)
         } catch (e) {
-          console.error('[handleImageGeneration] Failed to delete temporary file:', e)
+          console.error('[handleImgGeneration] Failed to delete temporary file:', e)
         }
       } else {
         // 使用原来的 images.generate 接口处理没有图片的请求
         console.log(
-          `[handleImageGeneration] Generating image with model ${modelId} and prompt: "${prompt}"`
+          `[handleImgGeneration] Generating image with model ${modelId} and prompt: "${prompt}"`
         )
         const params: OpenAI.Images.ImageGenerateParams = {
           model: modelId,
@@ -438,7 +439,7 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
         } catch (cacheError) {
           // 缓存失败时降级为使用原始URL
           console.warn(
-            '[handleImageGeneration] Failed to cache image, using original data/URL:',
+            '[handleImgGeneration] Failed to cache image, using original data/URL:',
             cacheError
           )
           yield {
@@ -451,13 +452,13 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
           yield { type: 'stop', stop_reason: 'complete' }
         }
       } else {
-        console.error('[handleImageGeneration] No image data received from API.', result)
+        console.error('[handleImgGeneration] No image data received from API.', result)
         yield { type: 'error', error_message: 'No image data received from API.' }
         yield { type: 'stop', stop_reason: 'error' }
       }
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : String(error)
-      console.error('[handleImageGeneration] Error during image generation:', errorMessage)
+      console.error('[handleImgGeneration] Error during image generation:', errorMessage)
       yield { type: 'error', error_message: `Image generation failed: ${errorMessage}` }
       yield { type: 'stop', stop_reason: 'error' }
     }
@@ -932,7 +933,7 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
     if (!modelId) throw new Error('Model ID is required')
 
     if (OPENAI_IMAGE_GENERATION_MODELS.includes(modelId)) {
-      yield* this.handleImageGeneration(messages, modelId, modelConfig)
+      yield* this.handleImgGeneration(messages, modelId, modelConfig)
     } else {
       yield* this.handleChatCompletion(
         messages,
