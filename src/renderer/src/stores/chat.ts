@@ -434,6 +434,8 @@ export const useChatStore = defineStore('chat', () => {
               lastBlock.status = 'success'
             }
 
+            playToolcallSound()
+
             curMsg.content.push({
               type: 'tool_call',
               content: '',
@@ -552,6 +554,8 @@ export const useChatStore = defineStore('chat', () => {
           const lastContentBlock = curMsg.content[curMsg.content.length - 1]
           if (lastContentBlock && lastContentBlock.type === 'content') {
             lastContentBlock.content += msg.content
+            // 在这里播放打字机音效，与实际数据流同步
+            playTypewriterSound()
           } else {
             if (lastContentBlock) {
               lastContentBlock.status = 'success'
@@ -992,6 +996,25 @@ export const useChatStore = defineStore('chat', () => {
         }
       }
     }
+  }
+
+  let lastSoundTime = 0
+  const soundInterval = 120 // 间隔
+
+  const playTypewriterSound = () => {
+    const now = Date.now()
+    if (now - lastSoundTime > soundInterval) {
+      const audio = new Audio('/sounds/sfx-typing.mp3')
+      audio.volume = 0.6
+      audio.play().catch(console.error)
+      lastSoundTime = now
+    }
+  }
+
+  const playToolcallSound = () => {
+    const audio = new Audio('/sounds/sfx-fc.mp3')
+    audio.volume = 1
+    audio.play().catch(console.error)
   }
 
   // 注册消息编辑事件处理
