@@ -242,8 +242,239 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
     return resultResp
   }
 
-  // [NEW] Core stream method implementation based on character processing
-  async *coreStream(
+  ///////////////////////////////////////////////////////////////////////////////////////////////////////
+  /**
+   * 处理图片生成模型请求的内部方法。
+   * @param messages 聊天消息数组。
+   * @param modelId 模型ID。
+   * @param modelConfig 模型配置。
+   * @returns AsyncGenerator<LLMCoreStreamEvent> 流式事件。
+   */
+  private async *handleImageGeneration(
+    messages: ChatMessage[],
+    modelId: string,
+    modelConfig: ModelConfig
+  ): AsyncGenerator<LLMCoreStreamEvent> {
+    // 获取最后几条消息，检查是否有图片
+    let prompt = ''
+    const imageUrls: string[] = []
+    // 获取最后的用户消息内容作为提示词
+    const lastUserMessage = messages.findLast((m) => m.role === 'user')
+
+    if (lastUserMessage?.content) {
+      if (typeof lastUserMessage.content === 'string') {
+        prompt = lastUserMessage.content
+      } else if (Array.isArray(lastUserMessage.content)) {
+        // 处理多模态内容，提取文本
+        const textParts: string[] = []
+        for (const part of lastUserMessage.content) {
+          if (part.type === 'text' && part.text) {
+            textParts.push(part.text)
+          }
+        }
+        prompt = textParts.join('\n')
+      }
+    }
+
+    // 检查最后几条消息中是否有图片
+    // 通常我们只需要检查最后两条消息：最近的用户消息和最近的助手消息
+    const lastMessages = messages.slice(-2)
+    for (const message of lastMessages) {
+      if (message.content) {
+        if (Array.isArray(message.content)) {
+          for (const part of message.content) {
+            if (part.type === 'image_url' && part.image_url?.url) {
+              imageUrls.push(part.image_url.url)
+            }
+          }
+        }
+      }
+    }
+
+    if (!prompt) {
+      console.error('[handleImageGeneration] Could not extract prompt for image generation.')
+      yield { type: 'error', error_message: 'Could not extract prompt for image generation.' }
+      yield { type: 'stop', stop_reason: 'error' }
+      return
+    }
+
+    try {
+      let result: OpenAI.Images.ImagesResponse
+
+      if (imageUrls.length > 0) {
+        // 使用 images.edit 接口处理带有图片的请求
+        let imageBuffer: Buffer
+
+        if (imageUrls[0].startsWith('imgcache://')) {
+          const filePath = imageUrls[0].slice('imgcache://'.length)
+          const fullPath = path.join(app.getPath('userData'), 'images', filePath)
+          imageBuffer = fs.readFileSync(fullPath)
+        } else {
+          const imageResponse = await fetch(imageUrls[0])
+          const imageBlob = await imageResponse.blob()
+          imageBuffer = Buffer.from(await imageBlob.arrayBuffer())
+        }
+
+        // 创建临时文件
+        const imagePath = `/tmp/openai_image_${Date.now()}.png`
+        await new Promise<void>((resolve, reject) => {
+          fs.writeFile(imagePath, imageBuffer, (err: Error | null) => {
+            if (err) {
+              reject(err)
+            } else {
+              resolve()
+            }
+          })
+        })
+
+        // 使用文件路径创建 Readable 流
+        const imageFile = fs.createReadStream(imagePath)
+        const params: OpenAI.Images.ImageEditParams = {
+          model: modelId,
+          image: imageFile,
+          prompt: prompt,
+          n: 1
+        }
+
+        // 如果是支持尺寸配置的模型，检测图片尺寸并设置合适的参数
+        if (SIZE_CONFIGURABLE_MODELS.includes(modelId)) {
+          try {
+            const metadata = await sharp(imageBuffer).metadata()
+            if (metadata.width && metadata.height) {
+              const aspectRatio = metadata.width / metadata.height
+
+              // 根据宽高比选择最接近的尺寸
+              if (Math.abs(aspectRatio - 1) < 0.1) {
+                // 接近正方形
+                params.size = SUPPORTED_IMAGE_SIZES.SQUARE
+              } else if (aspectRatio > 1) {
+                // 横向图片
+                params.size = SUPPORTED_IMAGE_SIZES.LANDSCAPE
+              } else {
+                // 纵向图片
+                params.size = SUPPORTED_IMAGE_SIZES.PORTRAIT
+              }
+            } else {
+              // 如果无法获取宽高，使用默认参数
+              params.size = '1024x1536'
+            }
+            params.quality = 'high'
+          } catch (error) {
+            console.warn(
+              '[handleImageGeneration] Failed to detect image dimensions, using default size:',
+              error
+            )
+            // 检测失败时使用默认参数
+            params.size = '1024x1536'
+            params.quality = 'high'
+          }
+        }
+
+        result = await this.openai.images.edit(params)
+
+        // 清理临时文件
+        try {
+          fs.unlinkSync(imagePath)
+        } catch (e) {
+          console.error('[handleImageGeneration] Failed to delete temporary file:', e)
+        }
+      } else {
+        // 使用原来的 images.generate 接口处理没有图片的请求
+        console.log(
+          `[handleImageGeneration] Generating image with model ${modelId} and prompt: "${prompt}"`
+        )
+        const params: OpenAI.Images.ImageGenerateParams = {
+          model: modelId,
+          prompt: prompt,
+          n: 1,
+          response_format: 'b64_json' // 请求 base64 格式
+        }
+        if (modelId === 'gpt-image-1' || modelId === 'gpt-4o-image' || modelId === 'gpt-4o-all') {
+          params.size = '1024x1536'
+          params.quality = 'high'
+        }
+        result = await this.openai.images.generate(params, {
+          timeout: 300_000
+        })
+      }
+
+      if (result.data && (result.data[0]?.url || result.data[0]?.b64_json)) {
+        // 使用devicePresenter缓存图片URL
+        try {
+          let imageUrl: string = ''
+          if (result.data[0]?.b64_json) {
+            // 处理 base64 数据
+            const base64Data = result.data[0].b64_json
+            // 直接使用 devicePresenter 缓存 base64 数据
+            imageUrl = await presenter.devicePresenter.cacheImage(base64Data)
+          } else {
+            // 原有的 URL 处理逻辑
+            imageUrl = result.data[0]?.url || ''
+            imageUrl = await presenter.devicePresenter.cacheImage(imageUrl)
+          }
+
+          // 返回缓存后的URL
+          yield {
+            type: 'image_data',
+            image_data: {
+              data: imageUrl,
+              mimeType: 'deepchat/image-url'
+            }
+          }
+
+          // 处理 usage 信息
+          if (result.usage) {
+            yield {
+              type: 'usage',
+              usage: {
+                prompt_tokens: result.usage.input_tokens || 0,
+                completion_tokens: result.usage.output_tokens || 0,
+                total_tokens: result.usage.total_tokens || 0
+              }
+            }
+          }
+
+          yield { type: 'stop', stop_reason: 'complete' }
+        } catch (cacheError) {
+          // 缓存失败时降级为使用原始URL
+          console.warn(
+            '[handleImageGeneration] Failed to cache image, using original data/URL:',
+            cacheError
+          )
+          yield {
+            type: 'image_data',
+            image_data: {
+              data: result.data[0]?.url || result.data[0]?.b64_json || '',
+              mimeType: result.data[0]?.url ? 'deepchat/image-url' : 'deepchat/image-base64'
+            }
+          }
+          yield { type: 'stop', stop_reason: 'complete' }
+        }
+      } else {
+        console.error('[handleImageGeneration] No image data received from API.', result)
+        yield { type: 'error', error_message: 'No image data received from API.' }
+        yield { type: 'stop', stop_reason: 'error' }
+      }
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : String(error)
+      console.error('[handleImageGeneration] Error during image generation:', errorMessage)
+      yield { type: 'error', error_message: `Image generation failed: ${errorMessage}` }
+      yield { type: 'stop', stop_reason: 'error' }
+    }
+  }
+
+  ///////////////////////////////////////////////////////////////////////////////////////////////////////
+  /**
+   * 处理 OpenAI 聊天补全模型请求的内部方法。
+   * @param messages 聊天消息数组。
+   * @param modelId 模型ID。
+   * @param modelConfig 模型配置。
+   * @param temperature 温度参数。
+   * @param maxTokens 最大 token 数。
+   * @param mcpTools MCP 工具定义数组。
+   * @returns AsyncGenerator<LLMCoreStreamEvent> 流式事件。
+   */
+  private async *handleChatCompletion(
     messages: ChatMessage[],
     modelId: string,
     modelConfig: ModelConfig,
@@ -251,222 +482,24 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
     maxTokens: number,
     mcpTools: MCPToolDefinition[]
   ): AsyncGenerator<LLMCoreStreamEvent> {
-    if (!this.isInitialized) throw new Error('Provider not initialized')
-    if (!modelId) throw new Error('Model ID is required')
-    // console.log('messages', JSON.stringify(messages))
-    // --- [NEW] Handle Image Generation Models ---
-    if (OPENAI_IMAGE_GENERATION_MODELS.includes(modelId)) {
-      // 获取最后几条消息，检查是否有图片
-      let prompt = ''
-      const imageUrls: string[] = []
-      // 获取最后的用户消息内容作为提示词
-      const lastUserMessage = messages.findLast((m) => m.role === 'user')
-      if (lastUserMessage?.content) {
-        if (typeof lastUserMessage.content === 'string') {
-          prompt = lastUserMessage.content
-        } else if (Array.isArray(lastUserMessage.content)) {
-          // 处理多模态内容，提取文本
-          const textParts: string[] = []
-          for (const part of lastUserMessage.content) {
-            if (part.type === 'text' && part.text) {
-              textParts.push(part.text)
-            }
-          }
-          prompt = textParts.join('\n')
-        }
-      }
-
-      // 检查最后几条消息中是否有图片
-      // 通常我们只需要检查最后两条消息：最近的用户消息和最近的助手消息
-      const lastMessages = messages.slice(-2)
-      for (const message of lastMessages) {
-        if (message.content) {
-          if (Array.isArray(message.content)) {
-            for (const part of message.content) {
-              if (part.type === 'image_url' && part.image_url?.url) {
-                imageUrls.push(part.image_url.url)
-              }
-            }
-          }
-        }
-      }
-
-      if (!prompt) {
-        console.error('[coreStream] Could not extract prompt for image generation.')
-        yield { type: 'error', error_message: 'Could not extract prompt for image generation.' }
-        yield { type: 'stop', stop_reason: 'error' }
-        return
-      }
-
-      try {
-        let result
-
-        if (imageUrls.length > 0) {
-          // 使用 images.edit 接口处理带有图片的请求
-          let imageBuffer: Buffer
-
-          if (imageUrls[0].startsWith('imgcache://')) {
-            const filePath = imageUrls[0].slice('imgcache://'.length)
-            const fullPath = path.join(app.getPath('userData'), 'images', filePath)
-            imageBuffer = fs.readFileSync(fullPath)
-          } else {
-            const imageResponse = await fetch(imageUrls[0])
-            const imageBlob = await imageResponse.blob()
-            imageBuffer = Buffer.from(await imageBlob.arrayBuffer())
-          }
-
-          // 创建临时文件
-          const imagePath = `/tmp/openai_image_${Date.now()}.png`
-          await new Promise<void>((resolve, reject) => {
-            fs.writeFile(imagePath, imageBuffer, (err: Error | null) => {
-              if (err) {
-                reject(err)
-              } else {
-                resolve()
-              }
-            })
-          })
-
-          // 使用文件路径创建 Readable 流
-          const imageFile = fs.createReadStream(imagePath)
-          const params: OpenAI.Images.ImageEditParams = {
-            model: modelId,
-            image: imageFile,
-            prompt: prompt,
-            n: 1
-          }
-
-          // 如果是支持尺寸配置的模型，检测图片尺寸并设置合适的参数
-          if (SIZE_CONFIGURABLE_MODELS.includes(modelId)) {
-            try {
-              const metadata = await sharp(imageBuffer).metadata()
-              if (metadata.width && metadata.height) {
-                const aspectRatio = metadata.width / metadata.height
-
-                // 根据宽高比选择最接近的尺寸
-                if (Math.abs(aspectRatio - 1) < 0.1) {
-                  // 接近正方形
-                  params.size = SUPPORTED_IMAGE_SIZES.SQUARE
-                } else if (aspectRatio > 1) {
-                  // 横向图片
-                  params.size = SUPPORTED_IMAGE_SIZES.LANDSCAPE
-                } else {
-                  // 纵向图片
-                  params.size = SUPPORTED_IMAGE_SIZES.PORTRAIT
-                }
-              } else {
-                // 如果无法获取宽高，使用默认参数
-                params.size = '1024x1536'
-              }
-              params.quality = 'high'
-            } catch (error) {
-              console.warn('Failed to detect image dimensions, using default size:', error)
-              // 检测失败时使用默认参数
-              params.size = '1024x1536'
-              params.quality = 'high'
-            }
-          }
-
-          result = await this.openai.images.edit(params)
-
-          // 清理临时文件
-          try {
-            fs.unlinkSync(imagePath)
-          } catch (e) {
-            console.error('Failed to delete temporary file:', e)
-          }
-        } else {
-          // 使用原来的 images.generate 接口处理没有图片的请求
-          console.log(`[coreStream] Generating image with model ${modelId} and prompt: "${prompt}"`)
-          const params: OpenAI.Images.ImageGenerateParams = {
-            model: modelId,
-            prompt: prompt,
-            n: 1,
-            output_format: 'png'
-          }
-          if (modelId === 'gpt-image-1' || modelId === 'gpt-4o-image' || modelId === 'gpt-4o-all') {
-            params.size = '1024x1536'
-            params.quality = 'high'
-          }
-          result = await this.openai.images.generate(params, {
-            timeout: 300_000
-          })
-        }
-        if (result.data && (result.data[0]?.url || result.data[0]?.b64_json)) {
-          // 使用devicePresenter缓存图片URL
-          try {
-            let imageUrl: string
-            if (result.data[0]?.b64_json) {
-              // 处理 base64 数据
-              const base64Data = result.data[0].b64_json
-              // 直接使用 devicePresenter 缓存 base64 数据
-              imageUrl = await presenter.devicePresenter.cacheImage(base64Data)
-            } else {
-              // 原有的 URL 处理逻辑
-              imageUrl = result.data[0]?.url
-            }
-
-            const cachedUrl = await presenter.devicePresenter.cacheImage(imageUrl)
-
-            // 返回缓存后的URL
-            yield {
-              type: 'image_data',
-              image_data: {
-                data: cachedUrl,
-                mimeType: 'deepchat/image-url'
-              }
-            }
-
-            // 处理 usage 信息
-            if (result.usage) {
-              yield {
-                type: 'usage',
-                usage: {
-                  prompt_tokens: result.usage.input_tokens || 0,
-                  completion_tokens: result.usage.output_tokens || 0,
-                  total_tokens: result.usage.total_tokens || 0
-                }
-              }
-            }
-
-            yield { type: 'stop', stop_reason: 'complete' }
-          } catch (cacheError) {
-            // 缓存失败时降级为使用原始URL
-            console.warn('[coreStream] Failed to cache image, using original URL:', cacheError)
-            yield {
-              type: 'image_data',
-              image_data: {
-                data: result.data[0]?.url || result.data[0]?.b64_json,
-                mimeType: 'deepchat/image-url'
-              }
-            }
-            yield { type: 'stop', stop_reason: 'complete' }
-          }
-        } else {
-          console.error('[coreStream] No image data received from API.', result)
-          yield { type: 'error', error_message: 'No image data received from API.' }
-          yield { type: 'stop', stop_reason: 'error' }
-        }
-      } catch (error: unknown) {
-        const errorMessage = error instanceof Error ? error.message : String(error)
-        console.error('[coreStream] Error during image generation:', errorMessage)
-        yield { type: 'error', error_message: `Image generation failed: ${errorMessage}` }
-        yield { type: 'stop', stop_reason: 'error' }
-      }
-      return // Stop execution here for image models
-    }
-    // --- End Image Generation Handling ---
-
+    //-----------------------------------------------------------------------------------------------------
+    // 为 OpenAI 聊天补全准备消息和工具
     const tools = mcpTools || []
-    const supportsFunctionCall = modelConfig?.functionCall || false
+    const supportsFunctionCall = modelConfig?.functionCall || false // 判断是否支持原生函数调用
     let processedMessages = [...this.formatMessages(messages)] as ChatCompletionMessageParam[]
+
+    // 如果不支持原生函数调用但存在工具，则准备非原生函数调用提示
     if (tools.length > 0 && !supportsFunctionCall) {
       processedMessages = this.prepareFunctionCallPrompt(processedMessages, tools)
     }
+
+    // 如果支持原生函数调用，则转换工具定义为 OpenAI 格式
     const apiTools =
       tools.length > 0 && supportsFunctionCall
         ? await presenter.mcpPresenter.mcpToolsToOpenAITools(tools, this.provider.id)
         : undefined
+
+    // 构建请求参数
     const requestParams: OpenAI.Chat.ChatCompletionCreateParams = {
       messages: processedMessages,
       model: modelId,
@@ -477,36 +510,60 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
         : { max_tokens: maxTokens })
     }
 
-    // 添加stream_options，适用于/v1/chat/completions
-    // 诸如qwen等模型需要，如不添加则无法获取token usages
+    // 添加 stream_options 以获取 token usages（适用于如 Qwen 等模型）
     requestParams.stream_options = { include_usage: true }
 
-    // 防止qwen等某些模型以json形式输出结果正文
-    // grok系列模型和供应商不需要设置response_format
+    // 防止某些模型（如 Qwen）以 JSON 形式输出结果正文，Grok 系列模型和供应商无需设置
     if (this.provider.id.toLowerCase().includes('dashscope')) {
       requestParams.response_format = { type: 'text' }
     }
 
+    // openrouter deepseek-v3-0324:free 特定模型处理
+    if (
+      this.provider.id.toLowerCase().includes('openrouter') &&
+      modelId.startsWith('deepseek/deepseek-chat-v3-0324:free')
+    ) {
+      // 限定服务供应商为chutes，sorry for hack...
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      ;(requestParams as any).provider = {
+        only: ['chutes']
+      }
+    }
+
+    // 移除推理模型的温度参数
     OPENAI_REASONING_MODELS.forEach((noTempId) => {
       if (modelId.startsWith(noTempId)) delete requestParams.temperature
     })
+
+    // 如果存在 API 工具且支持函数调用，则添加到请求参数中
     if (apiTools && apiTools.length > 0 && supportsFunctionCall) requestParams.tools = apiTools
 
+    // 发起 OpenAI 聊天补全请求
     const stream = await this.openai.chat.completions.create(requestParams)
 
-    // --- State Variables ---
-    type TagState = 'none' | 'start' | 'inside' | 'end'
-    let thinkState: TagState = 'none'
-    let funcState: TagState = 'none' // Only relevant if !supportsFunctionCall
-
-    let pendingBuffer = '' // Buffer for tag matching and potential text output
-    let thinkBuffer = '' // Buffer for reasoning content
-    let funcCallBuffer = '' // Buffer for non-native function call content
+    //-----------------------------------------------------------------------------------------------------
+    // 流处理状态定义 (已将相关变量声明提升到顶部，确保可见性)
+    let pendingBuffer = '' // 累积来自 delta.content 的字符，用于匹配标签和内容
+    let currentTextOutputBuffer = '' // 用于累积在所有标签之外的纯文本，准备输出
 
     const thinkStartMarker = '<think>'
     const thinkEndMarker = '</think>'
     const funcStartMarker = '<function_call>'
     const funcEndMarker = '</function_call>'
+
+    // 标记当前解析状态
+    let inThinkBlock = false // 是否在 <think> 块内部
+    let inFunctionCallBlock = false // 是否在 <function_call> 块内部（非原生）
+
+    // 定义一个辅助函数，检查 buffer 是否可能是任何已知标签的有效前缀
+    const hasPotentialMarkerPrefix = (buffer: string) => {
+      return (
+        thinkStartMarker.startsWith(buffer) ||
+        thinkEndMarker.startsWith(buffer) ||
+        funcStartMarker.startsWith(buffer) ||
+        funcEndMarker.startsWith(buffer)
+      )
+    }
 
     const nativeToolCalls: Record<
       string,
@@ -514,7 +571,7 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
     > = {}
     const indexToIdMap: Record<number, string> = {}
     let stopReason: LLMCoreStreamEvent['stop_reason'] = 'complete'
-    let toolUseDetected = false
+    let toolUseDetected = false // 标记是否检测到工具使用（原生或非原生）
     let usage:
       | {
           prompt_tokens: number
@@ -522,26 +579,31 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
           total_tokens: number
         }
       | undefined = undefined
-    // --- Stream Processing Loop ---
+
+    //-----------------------------------------------------------------------------------------------------
+    // 流处理循环
     for await (const chunk of stream) {
-      // console.log('chunk', JSON.stringify(chunk))
+      // console.log('[handleChatCompletion] chunk', JSON.stringify(chunk))
       const choice = chunk.choices[0]
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const delta = choice?.delta as any
       const currentContent = delta?.content || ''
 
-      // 1. Handle Non-Content Events First
+      // 1. 处理非内容事件 (如 usage, reasoning, tool_calls)
       if (chunk.usage) {
         usage = chunk.usage
       }
+
+      // 原生 reasoning 内容处理（直接产出）
       if (delta?.reasoning_content || delta?.reasoning) {
-        // Yield native reasoning content directly
         yield { type: 'reasoning', reasoning_content: delta.reasoning_content || delta.reasoning }
         continue
       }
+
+      // 原生 tool_calls 处理
       if (supportsFunctionCall && delta?.tool_calls?.length > 0) {
         toolUseDetected = true
-        // console.log('Handling native tool_calls', JSON.stringify(delta.tool_calls))
+        // console.log('[handleChatCompletion] Handling native tool_calls', JSON.stringify(delta.tool_calls))
         for (const toolCallDelta of delta.tool_calls) {
           const id = toolCallDelta.id ? toolCallDelta.id : toolCallDelta.function?.name
           const index = toolCallDelta.index
@@ -557,7 +619,7 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
             currentToolCallId = indexToIdMap[index]
           } else {
             console.warn(
-              '[coreStream] Received tool call delta chunk without id/mapping:',
+              '[handleChatCompletion] Received tool call delta chunk without id/mapping:',
               toolCallDelta
             )
             continue
@@ -566,13 +628,13 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
           if (currentToolCallId) {
             if (!nativeToolCalls[currentToolCallId]) {
               nativeToolCalls[currentToolCallId] = { name: '', arguments: '', completed: false }
-              // console.log(`[coreStream] Initialized nativeToolCalls entry for id ${currentToolCallId}`)
+              // console.log(`[handleChatCompletion] Initialized nativeToolCalls entry for id ${currentToolCallId}`)
             }
 
             const currentCallState = nativeToolCalls[currentToolCallId]
 
-            // Handle incremental updates
-            // console.log(`[coreStream] Handling incremental update for ${currentToolCallId}.`)
+            // 处理增量更新
+            // console.log(`[handleChatCompletion] Handling incremental update for ${currentToolCallId}.`)
             if (functionName && !currentCallState.name) {
               currentCallState.name = functionName
               yield {
@@ -591,15 +653,18 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
             }
           }
         }
-        continue // Continue to next chunk after processing tool calls
+        continue // 处理完原生工具调用后继续下一个 chunk
       }
+
+      // 处理停止原因
       if (choice?.finish_reason) {
         const reasonFromAPI = choice.finish_reason
-        // console.log('Finish Reason from API:', reasonFromAPI)
+        // console.log('[handleChatCompletion] Finish Reason from API:', reasonFromAPI)
         if (reasonFromAPI === 'tool_calls') {
           stopReason = 'tool_use'
           toolUseDetected = true
         } else if (toolUseDetected) {
+          // 如果之前已经有工具调用，那么 finish_reason 'stop' 意味着工具调用完成
           stopReason =
             reasonFromAPI === 'stop'
               ? 'complete'
@@ -611,7 +676,7 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
         } else if (reasonFromAPI === 'length') {
           stopReason = 'max_tokens'
         } else {
-          console.warn(`Unhandled finish reason: ${reasonFromAPI}`)
+          console.warn(`[handleChatCompletion] Unhandled finish reason: ${reasonFromAPI}`)
           stopReason = 'error'
         }
         /*
@@ -624,138 +689,53 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
         */
         // continue
       }
+
+      // 如果没有内容，则继续下一个 chunk
       if (!currentContent) continue
 
-      // 2. Process content character by character
+      // 2. 字符级流式处理内容
       for (const char of currentContent) {
         pendingBuffer += char
-        let processedChar = false // Flag if character was handled by state logic
-        // console.log('currentStatus', pendingBuffer, thinkState, funcState, char)
-        // --- State Machine Logic ---
 
-        // --- Thinking Tag Processing (Inside or End states) ---
-        if (thinkState === 'inside') {
-          if (pendingBuffer.endsWith(thinkEndMarker)) {
-            thinkState = 'none'
-            if (thinkBuffer) {
-              yield { type: 'reasoning', reasoning_content: thinkBuffer }
-              thinkBuffer = ''
-            }
-            pendingBuffer = ''
-            processedChar = true
-          } else if (thinkEndMarker.startsWith(pendingBuffer)) {
-            thinkState = 'end'
-            processedChar = true
-          } else if (pendingBuffer.length >= thinkEndMarker.length) {
-            const charsToYield = pendingBuffer.slice(0, -thinkEndMarker.length + 1)
-            if (charsToYield) {
-              thinkBuffer += charsToYield
-              yield { type: 'reasoning', reasoning_content: charsToYield }
-            }
-            pendingBuffer = pendingBuffer.slice(-thinkEndMarker.length + 1)
-            if (thinkEndMarker.startsWith(pendingBuffer)) {
-              thinkState = 'end'
-            } else {
-              thinkBuffer += pendingBuffer
-              yield { type: 'reasoning', reasoning_content: pendingBuffer }
-              pendingBuffer = ''
-              thinkState = 'inside'
-            }
-            processedChar = true
-          } else {
-            thinkBuffer += char
-            yield { type: 'reasoning', reasoning_content: char }
-            pendingBuffer = ''
-            processedChar = true
-          }
-        } else if (thinkState === 'end') {
-          if (pendingBuffer.endsWith(thinkEndMarker)) {
-            thinkState = 'none'
-            if (thinkBuffer) {
-              yield { type: 'reasoning', reasoning_content: thinkBuffer }
-              thinkBuffer = ''
-            }
-            pendingBuffer = ''
-            processedChar = true
-          } else if (!thinkEndMarker.startsWith(pendingBuffer)) {
-            const failedTagChars = pendingBuffer
-            thinkBuffer += failedTagChars
-            yield { type: 'reasoning', reasoning_content: failedTagChars }
-            pendingBuffer = ''
-            thinkState = 'inside'
-            processedChar = true
-          } else {
-            processedChar = true
-          }
-        }
-        // --- Function Call Tag Processing (Inside or End states, if applicable) ---
-        else if (
-          !supportsFunctionCall &&
-          tools.length > 0 &&
-          (funcState === 'inside' || funcState === 'end')
-        ) {
-          processedChar = true // Assume processed unless logic below changes state back
-          if (funcState === 'inside') {
-            if (pendingBuffer.endsWith(funcEndMarker)) {
-              funcState = 'none'
-              funcCallBuffer += pendingBuffer.slice(0, -funcEndMarker.length)
-              pendingBuffer = ''
-              toolUseDetected = true
-              console.log(
-                `[coreStream] Non-native <function_call> end tag detected. Buffer to parse:`,
-                funcCallBuffer
-              )
-              const parsedCalls = this.parseFunctionCalls(
-                `${funcStartMarker}${funcCallBuffer}${funcEndMarker}`,
-                `non-native-${this.provider.id}`
-              )
-              for (const parsedCall of parsedCalls) {
-                yield {
-                  type: 'tool_call_start',
-                  tool_call_id: parsedCall.id,
-                  tool_call_name: parsedCall.function.name
-                }
-                yield {
-                  type: 'tool_call_chunk',
-                  tool_call_id: parsedCall.id,
-                  tool_call_arguments_chunk: parsedCall.function.arguments
-                }
-                yield {
-                  type: 'tool_call_end',
-                  tool_call_id: parsedCall.id,
-                  tool_call_arguments_complete: parsedCall.function.arguments
-                }
+        // 循环处理 pendingBuffer 直到它为空，或者不足以继续匹配
+        while (pendingBuffer.length > 0) {
+          if (inThinkBlock) {
+            // 在 <think> 内部，所有内容都视为 reasoning
+            if (
+              pendingBuffer.length >= thinkEndMarker.length &&
+              pendingBuffer.endsWith(thinkEndMarker)
+            ) {
+              const content = pendingBuffer.slice(0, -thinkEndMarker.length)
+              if (content) {
+                yield { type: 'reasoning', reasoning_content: content }
               }
-              funcCallBuffer = ''
-            } else if (funcEndMarker.startsWith(pendingBuffer)) {
-              funcState = 'end'
-            } else if (pendingBuffer.length >= funcEndMarker.length) {
-              const charsToAdd = pendingBuffer.slice(0, -funcEndMarker.length + 1)
-              funcCallBuffer += charsToAdd
-              pendingBuffer = pendingBuffer.slice(-funcEndMarker.length + 1)
-              if (funcEndMarker.startsWith(pendingBuffer)) {
-                funcState = 'end'
+              inThinkBlock = false
+              pendingBuffer = '' // 清空 buffer，退出当前 while 循环
+            } else {
+              // 如果 pendingBuffer 长度不足以匹配 </think>，或者已经超过 </think> 长度但不是其有效前缀
+              // 意味着 pendingBuffer 的首字符是推理内容的一部分，可以产出。
+              // 否则，pendingBuffer 是 </think> 的有效前缀，继续累积等待完整标签。
+              if (
+                pendingBuffer.length > thinkEndMarker.length ||
+                !thinkEndMarker.startsWith(pendingBuffer)
+              ) {
+                const charToYield = pendingBuffer[0]
+                pendingBuffer = pendingBuffer.slice(1)
+                yield { type: 'reasoning', reasoning_content: charToYield }
               } else {
-                funcCallBuffer += pendingBuffer
-                pendingBuffer = ''
-                funcState = 'inside'
+                break // 跳出 while 循环，等待更多字符以形成完整的结束标签
               }
-            } else {
-              funcCallBuffer += char
-              pendingBuffer = ''
             }
-          } else {
-            // funcState === 'end'
-            if (pendingBuffer.endsWith(funcEndMarker)) {
-              funcState = 'none'
-              pendingBuffer = ''
-              toolUseDetected = true
-              console.log(
-                `[coreStream] Non-native <function_call> end tag detected (from end state). Buffer to parse:`,
-                funcCallBuffer
-              )
+          } else if (inFunctionCallBlock) {
+            // 在非原生 <function_call> 内部
+            if (
+              pendingBuffer.length >= funcEndMarker.length &&
+              pendingBuffer.endsWith(funcEndMarker)
+            ) {
+              const content = pendingBuffer.slice(0, -funcEndMarker.length)
+              // 解析非原生函数调用
               const parsedCalls = this.parseFunctionCalls(
-                `${funcStartMarker}${funcCallBuffer}${funcEndMarker}`,
+                `${funcStartMarker}${content}${funcEndMarker}`, // 确保完整标签以进行解析
                 `non-native-${this.provider.id}`
               )
               for (const parsedCall of parsedCalls) {
@@ -767,7 +747,7 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
                 yield {
                   type: 'tool_call_chunk',
                   tool_call_id: parsedCall.id,
-                  tool_call_arguments_chunk: parsedCall.function.arguments
+                  tool_call_arguments_chunk: parsedCall.function.arguments // 这里一次性给出参数，因为是解析完成的
                 }
                 yield {
                   type: 'tool_call_end',
@@ -775,208 +755,197 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
                   tool_call_arguments_complete: parsedCall.function.arguments
                 }
               }
-              funcCallBuffer = ''
-            } else if (!funcEndMarker.startsWith(pendingBuffer)) {
-              funcCallBuffer += pendingBuffer
-              pendingBuffer = ''
-              funcState = 'inside'
+              toolUseDetected = true // 标记检测到工具使用
+              inFunctionCallBlock = false
+              pendingBuffer = '' // 清空 buffer，退出当前 while 循环
+            } else {
+              // 在 <function_call> 内部，直到结束标签出现前，所有内容都应无条件累积。
+              // 不进行字符产出，因为函数调用参数需要完整性。
+              // 仅等待完整标签的出现。
+              break // 跳出 while 循环，等待更多字符以形成完整的结束标签
+            }
+          } else {
+            // 不在任何特殊块内部，检查开始标签或输出纯文本
+            // 优先尝试匹配完整的开始标签
+            if (
+              pendingBuffer.length >= thinkStartMarker.length &&
+              pendingBuffer.endsWith(thinkStartMarker)
+            ) {
+              const textBeforeTag = pendingBuffer.slice(0, -thinkStartMarker.length)
+              if (textBeforeTag) {
+                currentTextOutputBuffer += textBeforeTag
+                yield { type: 'text', content: currentTextOutputBuffer }
+                currentTextOutputBuffer = ''
+              }
+              inThinkBlock = true
+              pendingBuffer = '' // 清空 buffer，继续内层 while 循环
+            } else if (
+              pendingBuffer.length >= funcStartMarker.length &&
+              pendingBuffer.endsWith(funcStartMarker)
+            ) {
+              const textBeforeTag = pendingBuffer.slice(0, -funcStartMarker.length)
+              if (textBeforeTag) {
+                currentTextOutputBuffer += textBeforeTag
+                yield { type: 'text', content: currentTextOutputBuffer }
+                currentTextOutputBuffer = ''
+              }
+              inFunctionCallBlock = true
+              pendingBuffer = '' // 清空 buffer，继续内层 while 循环
+            } else {
+              // 如果没有匹配到完整的开始标签，并且 pendingBuffer 不再是任何已知标签的有效前缀，
+              // 那么 pendingBuffer 的首字符就是纯文本，可以安全产出。
+              // 否则，pendingBuffer 仍可能是某个标签的有效前缀，继续累积。
+              if (!hasPotentialMarkerPrefix(pendingBuffer)) {
+                const charToYield = pendingBuffer[0]
+                pendingBuffer = pendingBuffer.slice(1)
+                currentTextOutputBuffer += charToYield
+                yield { type: 'text', content: currentTextOutputBuffer }
+                currentTextOutputBuffer = ''
+              } else {
+                break // 跳出 while 循环，等待更多字符以形成完整的标签
+              }
             }
           }
-        }
+        } // 字符循环内部的 while 循环结束
+      } // 字符循环结束
+    } // chunk 循环结束
 
-        // --- General Text / Start Tag Detection (When not inside any tag) ---
-        // This block handles thinkState/funcState being 'none' or 'start'
-        if (!processedChar) {
-          let potentialThink = thinkStartMarker.startsWith(pendingBuffer)
-          let potentialFunc =
-            !supportsFunctionCall && tools.length > 0 && funcStartMarker.startsWith(pendingBuffer)
-          const matchedThink = pendingBuffer.endsWith(thinkStartMarker)
-          const matchedFunc =
-            !supportsFunctionCall && tools.length > 0 && pendingBuffer.endsWith(funcStartMarker)
-
-          // --- Handle Full Matches First ---
-          if (matchedThink) {
-            const textBefore = pendingBuffer.slice(0, -thinkStartMarker.length)
-            if (textBefore) {
-              yield { type: 'text', content: textBefore }
-            }
-            console.log('[coreStream] <think> start tag matched. Entering inside state.')
-            thinkState = 'inside'
-            funcState = 'none' // Reset other state
-            pendingBuffer = ''
-            // Don't set processedChar = true, let loop continue naturally
-          } else if (matchedFunc) {
-            const textBefore = pendingBuffer.slice(0, -funcStartMarker.length)
-            if (textBefore) {
-              yield { type: 'text', content: textBefore }
-            }
-            console.log(
-              '[coreStream] Non-native <function_call> start tag detected. Entering inside state.'
-            )
-            funcState = 'inside'
-            thinkState = 'none' // Reset other state
-            pendingBuffer = ''
-            // Don't set processedChar = true, let loop continue naturally
-          }
-          // --- Handle Partial Matches (Keep Accumulating) ---
-          else if (potentialThink || potentialFunc) {
-            // If potentially matching either, just keep the buffer and wait for more chars
-            // Update state but don't yield anything
-            thinkState = potentialThink ? 'start' : 'none'
-            funcState = potentialFunc ? 'start' : 'none'
-            // Character processed by accumulating into buffer for potential tag match
-            // processedChar = true; // No need to set this, we want loop to naturally continue adding chars
-          }
-          // --- Handle No Match / Failure ---
-          else if (pendingBuffer.length > 0) {
-            // Buffer doesn't start with '<', or starts with '<' but doesn't match start of either tag anymore
-            const charToYield = pendingBuffer[0]
-            yield { type: 'text', content: charToYield }
-            pendingBuffer = pendingBuffer.slice(1)
-            // Re-evaluate potential matches with the shortened buffer immediately
-            potentialThink = pendingBuffer.length > 0 && thinkStartMarker.startsWith(pendingBuffer)
-            potentialFunc =
-              pendingBuffer.length > 0 &&
-              !supportsFunctionCall &&
-              tools.length > 0 &&
-              funcStartMarker.startsWith(pendingBuffer)
-            thinkState = potentialThink ? 'start' : 'none'
-            funcState = potentialFunc ? 'start' : 'none'
-            // Yielded a char, buffer changed, loop continues
-          }
-          // If pendingBuffer became empty after slice, states will be none, next char starts fresh.
-        }
-
-        // Note: Removed the separate logic blocks for thinkState === 'start' and funcState === 'start'
-        // as their logic is now integrated into the block above.
-
-        // --- Yield and Clear Pending Buffer (This was part of old logic, likely not needed now) ---
-        // if (yieldBufferAs && pendingBuffer) { ... }
-        // if (clearPendingBuffer) { pendingBuffer = ''; }
-      } // End character loop
-    } // End chunk loop
-
-    // --- Finalization ---
-
-    // Yield any remaining text in the buffer
-    if (pendingBuffer) {
-      console.warn('[coreStream] Finalizing with non-empty pendingBuffer:', pendingBuffer)
-      // Decide how to yield based on final state
-      if (thinkState === 'inside' || thinkState === 'end') {
+    //-----------------------------------------------------------------------------------------------------
+    // 最终处理：流结束时处理任何剩余的缓冲内容
+    // 1. 处理 pendingBuffer 中剩余的任何内容
+    if (pendingBuffer.length > 0) {
+      if (inThinkBlock) {
+        // 如果流结束时 <think> 未闭合，将其内容作为 reasoning 产出
+        console.warn(
+          `[handleChatCompletion] Stream ended while inside unclosed <think> tag. Remaining content: "${pendingBuffer}"`
+        )
         yield { type: 'reasoning', reasoning_content: pendingBuffer }
-        thinkBuffer += pendingBuffer
-      } else if (funcState === 'inside' || funcState === 'end') {
-        // Add remaining to func buffer - it will be handled below
-        funcCallBuffer += pendingBuffer
-      } else {
-        yield { type: 'text', content: pendingBuffer }
-      }
-      pendingBuffer = ''
-    }
-
-    // Yield remaining reasoning content
-    if (thinkBuffer) {
-      // console.log('[coreStream] Yielding remaining reasoning buffer:', thinkBuffer)
-      // No yield here, reasoning is yielded char by char or on tag close
-      console.warn(
-        '[coreStream] Finalizing with non-empty thinkBuffer (should have been yielded):',
-        thinkBuffer
-      )
-    }
-
-    // Handle incomplete non-native function call
-    if (funcCallBuffer) {
-      console.warn(
-        '[coreStream] Finalizing with non-empty function call buffer (likely incomplete tag):',
-        funcCallBuffer // Log incomplete buffer
-      )
-      // Attempt to parse what we have, might fail
-      const potentialContent = `${funcStartMarker}${funcCallBuffer}` // Assume tag started
-      try {
+      } else if (inFunctionCallBlock) {
+        // 如果流结束时非原生函数调用未闭合，尝试解析并作为工具调用事件（不发出 end 事件）
+        console.warn(
+          `[handleChatCompletion] Stream ended while inside unclosed <function_call> tag. Content: "${pendingBuffer}"`
+        )
         const parsedCalls = this.parseFunctionCalls(
-          potentialContent, // Parse potentially incomplete content
+          `${funcStartMarker}${pendingBuffer}`, // 只尝试解析已有的部分，即使不完整，并以incomplete标记，以便下游发现
           `non-native-incomplete-${this.provider.id}`
         )
         if (parsedCalls.length > 0) {
-          toolUseDetected = true // Mark tool use even if incomplete parse
           for (const parsedCall of parsedCalls) {
             yield {
               type: 'tool_call_start',
-              tool_call_id: parsedCall.id + '-incomplete', // Mark ID
+              tool_call_id: parsedCall.id + '-incomplete', // 使用 '-incomplete' 后缀标记未完成的调用
               tool_call_name: parsedCall.function.name
             }
             yield {
               type: 'tool_call_chunk',
-              tool_call_id: parsedCall.id + '-incomplete',
-              tool_call_arguments_chunk: parsedCall.function.arguments
+              tool_call_id: parsedCall.id + '-incomplete', // 使用 '-incomplete' 后缀标记未完成的调用
+              tool_call_arguments_chunk: parsedCall.function.arguments || ''
             }
-            yield {
-              type: 'tool_call_end',
-              tool_call_id: parsedCall.id + '-incomplete',
-              tool_call_arguments_complete: parsedCall.function.arguments // Send potentially partial args
-            }
+            // 不会发出 tool_call_end，因为标签未闭合
+            // 不发出 tool_call_end 的理由在于，提醒下游发现未完成的function调用
           }
+          toolUseDetected = true
         } else {
-          console.log(
-            '[coreStream] Incomplete function call buffer parsing yielded no calls. Emitting as text.'
-          )
-          // If parsing failed or yielded nothing, output buffer as text
-          yield { type: 'text', content: potentialContent }
+          // 如果解析失败，则作为纯文本输出，并附带开始标签
+          yield { type: 'text', content: `${funcStartMarker}${pendingBuffer}` }
         }
-      } catch (e) {
-        console.error('Error parsing incomplete function call buffer:', e)
-        yield { type: 'text', content: potentialContent } // Yield as text on error
+      } else {
+        // 否则，作为普通纯文本输出
+        currentTextOutputBuffer += pendingBuffer
       }
-      funcCallBuffer = ''
+      pendingBuffer = ''
     }
 
-    // Final check and emission for native tool calls
+    // 2. 处理 currentTextOutputBuffer 中剩余的任何纯文本
+    if (currentTextOutputBuffer) {
+      yield { type: 'text', content: currentTextOutputBuffer }
+      currentTextOutputBuffer = ''
+    }
+
+    // 3. 最终检查和产出原生工具调用
+    // 这里假设原生工具调用在流结束时其 arguments 都已完整。
     if (supportsFunctionCall && toolUseDetected) {
-      // console.log('[coreStream] Stream finished. Finalizing native tool calls:', JSON.stringify(nativeToolCalls))
       for (const toolId in nativeToolCalls) {
         const tool = nativeToolCalls[toolId]
-        // console.log(`[coreStream] Finalizing tool ${toolId}: Name='${tool.name}', Args='${tool.arguments}', Completed=${tool.completed}`)
+        // 只有当工具名称和参数都存在且未标记为已完成时才尝试结束事件
         if (tool.name && tool.arguments && !tool.completed) {
-          // console.log(`[coreStream] Sending tool_call_end for ${toolId} during finalization.`)
           try {
-            JSON.parse(tool.arguments) // Check validity
+            JSON.parse(tool.arguments) // 检查参数是否是有效的 JSON
             yield {
               type: 'tool_call_end',
               tool_call_id: toolId,
               tool_call_arguments_complete: tool.arguments
             }
+            tool.completed = true // 标记为已完成
           } catch (e) {
             console.error(
-              `[coreStream] Error parsing arguments for tool ${toolId} during finalization: ${tool.arguments}`,
+              `[handleChatCompletion] Error parsing arguments for native tool ${toolId} during finalization: ${tool.arguments}`,
               e
             )
+            // 即使解析失败，也尝试发送，以提供尽可能多的信息
             yield {
               type: 'tool_call_end',
               tool_call_id: toolId,
-              tool_call_arguments_complete: tool.arguments // Send as received
+              tool_call_arguments_complete: tool.arguments
             }
+            tool.completed = true // 标记为已完成
           }
         } else if (!tool.completed) {
+          // 记录警告，如果工具调用不完整且未被处理
           console.warn(
-            `[coreStream] Tool call ${toolId} is incomplete and will not have an end event during finalization. Name: ${tool.name}, Args: ${tool.arguments}`
+            `[handleChatCompletion] Native tool call ${toolId} is incomplete and will not have an end event during finalization. Name: ${tool.name}, Args: ${tool.arguments}`
           )
         }
       }
     }
 
-    // Log state warnings
-    if (thinkState !== 'none') console.warn(`Stream ended while in thinkState: ${thinkState}`)
-    if (funcState !== 'none') console.warn(`Stream ended while in funcState: ${funcState}`)
+    // 4. 产出 usage 信息
     if (usage) {
       yield { type: 'usage', usage: usage }
     }
-    // Override stop reason if tool use was detected
-    const finalStopReason = toolUseDetected ? 'tool_use' : stopReason
-    // console.log(`[coreStream] Final Stop Reason Calculation: toolUseDetected=${toolUseDetected}, apiStopReason=${stopReason}, finalStopReason=${finalStopReason}`)
 
+    // 5. 产出最终停止原因
+    const finalStopReason = toolUseDetected ? 'tool_use' : stopReason
     yield { type: 'stop', stop_reason: finalStopReason }
   }
 
+  ///////////////////////////////////////////////////////////////////////////////////////////////////////
+  /**
+   * 核心流处理方法，根据模型类型分发请求。
+   * @param messages 聊天消息数组。
+   * @param modelId 模型ID。
+   * @param modelConfig 模型配置。
+   * @param temperature 温度参数。
+   * @param maxTokens 最大 token 数。
+   * @param mcpTools MCP 工具定义数组。
+   * @returns AsyncGenerator<LLMCoreStreamEvent> 流式事件。
+   */
+  async *coreStream(
+    messages: ChatMessage[],
+    modelId: string,
+    modelConfig: ModelConfig,
+    temperature: number,
+    maxTokens: number,
+    mcpTools: MCPToolDefinition[]
+  ): AsyncGenerator<LLMCoreStreamEvent> {
+    if (!this.isInitialized) throw new Error('Provider not initialized')
+    if (!modelId) throw new Error('Model ID is required')
+
+    if (OPENAI_IMAGE_GENERATION_MODELS.includes(modelId)) {
+      yield* this.handleImageGeneration(messages, modelId, modelConfig)
+    } else {
+      yield* this.handleChatCompletion(
+        messages,
+        modelId,
+        modelConfig,
+        temperature,
+        maxTokens,
+        mcpTools
+      )
+    }
+  }
+
+  ///////////////////////////////////////////////////////////////////////////////////////////////////////
   // ... [prepareFunctionCallPrompt remains unchanged] ...
   private prepareFunctionCallPrompt(
     messages: ChatCompletionMessageParam[],
