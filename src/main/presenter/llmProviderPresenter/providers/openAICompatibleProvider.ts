@@ -252,9 +252,7 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
    */
   private async *handleImgGeneration(
     messages: ChatMessage[],
-    modelId: string,
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    modelConfig: ModelConfig
+    modelId: string
   ): AsyncGenerator<LLMCoreStreamEvent> {
     // 获取最后几条消息，检查是否有图片
     let prompt = ''
@@ -933,7 +931,7 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
     if (!modelId) throw new Error('Model ID is required')
 
     if (OPENAI_IMAGE_GENERATION_MODELS.includes(modelId)) {
-      yield* this.handleImgGeneration(messages, modelId, modelConfig)
+      yield* this.handleImgGeneration(messages, modelId)
     } else {
       yield* this.handleChatCompletion(
         messages,
