@@ -10,5 +10,8 @@
   "settings-shortcut": "Shortcuts",
   "settings-display": "Display settings",
   "settings-knowledge-base": "Knowledge Base",
-  "settings-prompt": "Prompt Management"
+  "settings-prompt": "Prompt Management",
+  "settings-knowledge-base": "Knowledge Base",
+  "login": "Login",
+  "profile": "Profile"
 }

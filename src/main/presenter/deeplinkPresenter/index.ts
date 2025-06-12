@@ -157,6 +157,14 @@ export class DeeplinkPresenter implements IDeeplinkPresenter {
         } else {
           console.warn('Unknown MCP subcommand:', subCommand)
         }
+      } else if (command === 'login') {
+        // 处理 login/success 命令
+        const subCommand = urlObj.pathname.slice(1) // 移除开头的斜杠
+        if (subCommand === 'success') {
+          await this.handleLoginSuccess(urlObj.searchParams)
+        } else {
+          console.warn('未知的 login 子命令:', subCommand)
+        }
       } else {
         console.warn('Unknown DeepLink command:', command)
       }
@@ -329,6 +337,73 @@ export class DeeplinkPresenter implements IDeeplinkPresenter {
       console.log('All MCP servers processing completed')
     } catch (error) {
       console.error('Error parsing or processing MCP configuration:', error)
+    }
+  }
+
+  async handleLoginSuccess(params: URLSearchParams): Promise<void> {
+    console.log('处理 login/success 命令，参数:', Object.fromEntries(params.entries()))
+
+    // 获取 token 参数
+    const token = params.get('token')
+    if (!token) {
+      console.error("缺少 'token' 参数")
+      return
+    }
+
+    try {
+      // 解码 token (如果需要)
+      const decodedToken = decodeURIComponent(token)
+
+      // 保存token到配置中
+      presenter.configPresenter.setAuthToken(decodedToken)
+
+      // 获取用户信息
+      await this.fetchUserInfo(decodedToken)
+
+      // 发送事件通知渲染进程
+      eventBus.emit(DEEPLINK_EVENTS.LOGIN_SUCCESS, { token: decodedToken })
+
+      // 确保主窗口显示
+      if (presenter.windowPresenter.mainWindow) {
+        if (presenter.windowPresenter.mainWindow.isMinimized()) {
+          presenter.windowPresenter.mainWindow.restore()
+        }
+        presenter.windowPresenter.mainWindow.show()
+        presenter.windowPresenter.mainWindow.focus()
+      }
+    } catch (error) {
+      console.error('处理登录成功时出错:', error)
+    }
+  }
+
+  // 获取用户信息
+  private async fetchUserInfo(token: string): Promise<void> {
+    try {
+      const apiBaseUrl = presenter.configPresenter.getApiBaseUrl()
+      const response = await fetch(`${apiBaseUrl}/api/user/current`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      })
+
+      if (!response.ok) {
+        throw new Error(`获取用户信息失败: ${response.status} ${response.statusText}`)
+      }
+
+      const data = await response.json()
+      if (data) {
+        // 保存用户信息，直接使用返回的数据
+        await presenter.configPresenter.setUserInfo(data)
+        console.log('Deeplink fetchUserInfo 成功获取并保存用户信息')
+        // 发送事件通知渲染进程
+        eventBus.emit(DEEPLINK_EVENTS.LOGIN_SUCCESS, { token: token })
+      } else {
+        console.error('获取用户信息响应格式错误:', data)
+      }
+    } catch (error) {
+      console.error('获取用户信息出错:', error)
     }
   }
 }

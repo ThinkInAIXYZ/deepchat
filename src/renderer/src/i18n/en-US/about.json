@@ -12,5 +12,9 @@
   },
   "disclaimerButton": "Disclaimer",
   "disclaimerTitle": "Terms of Use Statement",
-  "checkUpdateButton": "Check for Updates"
+  "checkUpdateButton": "Check for Updates",
+  "logoutButton": "Log Out",
+  "logoutConfirm": "Are you sure you want to log out?",
+  "logoutSuccess": "You have been successfully logged out",
+  "logoutError": "An error occurred during logout"
 }

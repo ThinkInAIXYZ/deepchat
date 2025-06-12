@@ -35,6 +35,7 @@ export const useTabStore = defineStore('tab', () => {
       closable: true,
       url: `local://${tab.viewType}`
     }
+    console.log('newTab', newTab)
     tabs.value.push(newTab)
     setCurrentTabId(newTab.id)
     return newTab

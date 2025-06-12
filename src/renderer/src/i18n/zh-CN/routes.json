@@ -10,5 +10,8 @@
   "settings-shortcut": "快捷键",
   "settings-display": "显示设置",
   "settings-knowledge-base": "知识库",
-  "settings-prompt": "Prompt管理"
+  "settings-prompt": "Prompt管理",
+  "settings-knowledge-base": "知识库",
+  "login": "登录",
+  "profile": "个人资料"
 }

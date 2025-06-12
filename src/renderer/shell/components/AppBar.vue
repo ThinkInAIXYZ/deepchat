@@ -70,6 +70,20 @@
       >
         <Icon icon="lucide:settings" class="w-4 h-4" />
       </Button>
+      <Button
+        variant="ghost"
+        class="text-xs font-medium px-2 h-7 bg-transparent rounded-md flex items-center justify-center hover:bg-zinc-500/20"
+        @click="userStore.isLoggedIn ? openUserProfile() : openLogin()"
+      >
+        <img
+          v-if="userStore.isLoggedIn"
+          :src="userStore.avatarUrl"
+          :alt="userStore.nickname || '用户头像'"
+          class="w-4 h-4 rounded-full object-cover"
+        />
+
+        <Icon v-else icon="lucide:user" class="w-4 h-4" />
+      </Button>
       <!-- <Button
         class="text-xs font-medium px-2 h-7 bg-transparent rounded-md flex items-center justify-center"
         @click="openNewWindow"
@@ -116,6 +130,12 @@ import { useTabStore } from '@shell/stores/tab'
 import { useThemeStore } from '@/stores/theme'
 import { useElementSize } from '@vueuse/core'
 import { useLanguageStore } from '@/stores/language'
+import { useUserStore } from '@/stores/user'
+
+const userStore = useUserStore()
+const userInfo = userStore.getUserInfo()
+console.log('AppBar - userInfo', userInfo)
+
 const tabStore = useTabStore()
 const langStore = useLanguageStore()
 const windowPresenter = usePresenter('windowPresenter')
@@ -326,6 +346,40 @@ const openSettings = () => {
       name: 'Settings',
       icon: 'lucide:settings',
       viewType: 'settings'
+    })
+  }
+}
+
+const openUserProfile = () => {
+  // 检查是否已经存在用户资料标签页
+  const existingProfileTab = tabStore.tabs.find((tab) => tab.url.includes('#/profile'))
+
+  if (existingProfileTab) {
+    // 如果已经存在用户资料标签页，切换到该标签页
+    tabStore.setCurrentTabId(existingProfileTab.id)
+  } else {
+    // 如果不存在用户资料标签页，创建新的
+    tabStore.addTab({
+      name: 'Profile',
+      icon: 'lucide:user',
+      viewType: 'profile'
+    })
+  }
+}
+
+const openLogin = () => {
+  // 检查是否已经存在用户资料标签页
+  const existingProfileTab = tabStore.tabs.find((tab) => tab.url.includes('#/login'))
+  console.log('existingProfileTab', existingProfileTab)
+  if (existingProfileTab) {
+    // 如果已经存在用户资料标签页，切换到该标签页
+    tabStore.setCurrentTabId(existingProfileTab.id)
+  } else {
+    // 如果不存在用户资料标签页，创建新的
+    tabStore.addTab({
+      name: 'Login',
+      icon: 'lucide:log-in',
+      viewType: 'login'
     })
   }
 }

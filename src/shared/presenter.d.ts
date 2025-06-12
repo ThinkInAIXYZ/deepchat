@@ -333,6 +333,15 @@ export interface IConfigPresenter {
   // COT拷贝设置
   getCopyWithCotEnabled(): boolean
   setCopyWithCotEnabled(enabled: boolean): void
+  // 认证令牌相关方法
+  getAuthToken(): string | null
+  setAuthToken(token: string | null): void
+  // 用户信息相关方法
+  getUserInfo(): UserInfo | null
+  setUserInfo(userInfo: UserInfo | null): void
+  // API基础URL相关方法
+  getApiBaseUrl(): string
+  setApiBaseUrl(url: string): void
   // 日志设置
   getLoggingEnabled(): boolean
   setLoggingEnabled(enabled: boolean): void
@@ -993,6 +1002,12 @@ export interface IDeeplinkPresenter {
    * @param params URL 参数
    */
   handleMcpInstall(params: URLSearchParams): Promise<void>
+
+  /**
+   * 处理 login/success 命令
+   * @param params URL 参数
+   */
+  handleLoginSuccess(params: URLSearchParams): Promise<void>
 }
 
 export interface ISyncPresenter {
@@ -1097,6 +1112,28 @@ export type LLMAgentEvent =
   | { type: 'response'; data: LLMAgentEventData }
   | { type: 'error'; data: { eventId: string; error: string } }
   | { type: 'end'; data: { eventId: string; userStop: boolean } }
+
+// 用户验证提供者信息
+export interface AuthProvider {
+  providerName: string;
+  providerDisplay: string;
+  providerUserId: string;
+}
+
+// 用户信息接口
+export interface UserInfo {
+  authProviders: AuthProvider[];
+  avatarUrl: string;
+  createdAt: string;
+  email: string;
+  id: number;
+  language: string;
+  lastLoginAt: string;
+  nickname: string;
+  phone: string;
+  status: number;
+  username: string;
+}
 
 export { ShortcutKey, ShortcutKeySetting } from '@/presenter/configPresenter/shortcutKeySettings'
 

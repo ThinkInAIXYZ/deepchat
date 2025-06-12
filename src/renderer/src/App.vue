@@ -13,11 +13,14 @@ import { useSettingsStore } from '@/stores/settings'
 import { useThemeStore } from '@/stores/theme'
 import { useLanguageStore } from '@/stores/language'
 import TranslatePopup from '@/components/popup/TranslatePopup.vue'
+import { useUserStore } from '@/stores/user'
+import { useAuthStore } from '@/stores/auth'
 
 const route = useRoute()
 const configPresenter = usePresenter('configPresenter')
 const artifactStore = useArtifactStore()
 const chatStore = useChatStore()
+const authStore = useAuthStore()
 const { toast } = useToast()
 const settingsStore = useSettingsStore()
 const themeStore = useThemeStore()
@@ -172,6 +175,13 @@ onMounted(() => {
   // 设置初始 body class
   document.body.classList.add(themeStore.themeMode)
   document.body.classList.add(settingsStore.fontSizeClass)
+
+  // 确保userStore初始化
+  const userStore = useUserStore()
+  console.log('App.vue确保用户Store初始化，当前登录状态:', userStore.isLoggedIn)
+  // 检查登录状态
+  // const authStore = useAuthStore()
+  // authStore.checkIsLogin()
 
   // 监听全局错误通知事件
   window.electron.ipcRenderer.on(NOTIFICATION_EVENTS.SHOW_ERROR, (_event, error) => {

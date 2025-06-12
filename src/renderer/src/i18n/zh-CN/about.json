@@ -5,6 +5,10 @@
   "disclaimerButton": "免责声明",
   "disclaimerTitle": "使用条款声明",
   "checkUpdateButton": "检查更新",
+  "logoutButton": "退出登录",
+  "logoutConfirm": "确定要退出登录吗？",
+  "logoutSuccess": "已成功退出登录",
+  "logoutError": "退出登录时发生错误",
   "deviceInfo": {
     "title": "设备信息",
     "platform": "平台",

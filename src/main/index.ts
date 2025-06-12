@@ -1,4 +1,4 @@
-import { app, protocol } from 'electron'
+import { app, BrowserWindow, protocol, ipcMain } from 'electron'
 import { electronApp, optimizer } from '@electron-toolkit/utils'
 import { presenter } from './presenter'
 import { ProxyMode, proxyConfig } from './presenter/proxyConfig'
@@ -8,6 +8,7 @@ import { eventBus } from './eventbus'
 import { WINDOW_EVENTS, TRAY_EVENTS } from './events'
 import { setLoggingEnabled } from '@shared/logger'
 import { is } from '@electron-toolkit/utils' // 确保导入 is
+import { shell } from 'electron'
 
 // 设置应用命令行参数
 app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required') // 允许视频自动播放
@@ -28,7 +29,38 @@ if (process.platform === 'darwin') {
 
 // 初始化 DeepLink 处理
 presenter.deeplinkPresenter.init()
+// 检查authToken并获取用户信息
+const checkAuthTokenAndFetchUserInfo = async (): Promise<void> => {
+  try {
+    const token = await presenter.configPresenter.getAuthToken()
+    if (token) {
+      console.log('检测到已保存的认证令牌，开始获取用户信息')
+      const apiBaseUrl = presenter.configPresenter.getApiBaseUrl()
+      const response = await fetch(`${apiBaseUrl}/api/user/current`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      })
 
+      if (!response.ok) {
+        throw new Error(`获取用户信息失败: ${response.status} ${response.statusText}`)
+      }
+
+      const data = await response.json()
+      if (data) {
+        // 保存用户信息，直接使用返回的数据
+        presenter.configPresenter.setUserInfo(data)
+        console.log('checkAuthTokenAndFetchUserInfo 成功获取并保存用户信息')
+      } else {
+        console.error('获取用户信息响应格式错误:', data)
+      }
+    }
+  } catch (error) {
+    console.error('启动时获取用户信息出错:', error)
+  }
+}
 // 等待 Electron 初始化完成
 app.whenReady().then(() => {
   // Set app user model id for windows
@@ -40,6 +72,9 @@ app.whenReady().then(() => {
 
   // 初始化托盘图标和菜单，并存储 presenter 实例
   presenter.setupTray()
+
+  // 检查认证令牌并获取用户信息
+  checkAuthTokenAndFetchUserInfo()
 
   // 从配置中读取代理设置并初始化
   const proxyMode = presenter.configPresenter.getProxyMode() as ProxyMode
@@ -267,6 +302,17 @@ app.whenReady().then(() => {
   })
 }) // app.whenReady().then 结束
 
+// 监听打开外部URL的请求
+ipcMain.on('open-external-url', (_event, url) => {
+  if (url && (url.startsWith('http://') || url.startsWith('https://'))) {
+    console.log('打开外部URL:', url)
+    shell.openExternal(url).catch(err => {
+      console.error('打开外部URL失败:', err)
+    })
+  } else {
+    console.error('无效的URL:', url)
+  }
+})
 // 当所有窗口都关闭时，不退出应用。macOS 平台会保留在 Dock 中，Windows 会保留在托盘。
 // 用户需要通过托盘菜单或 Cmd+Q 来真正退出应用。
 // 因此移除 'window-all-closed' 事件监听

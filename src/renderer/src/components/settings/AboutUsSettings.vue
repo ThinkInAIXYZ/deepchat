@@ -77,42 +77,6 @@
             </span>
           </Button>
         </div>
-
-        <!-- <div class="text-sm text-muted-foreground p-6 rounded-lg shadow-md bg-card border">
-          <h2 class="text-lg font-semibold mb-4 flex items-center">
-            <Icon icon="lucide:cpu" class="mr-2 h-5 w-5" />
-            {{ t('about.deviceInfo.title') }}
-          </h2>
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div class="flex items-center space-x-2">
-              <Icon icon="lucide:monitor" class="h-4 w-4 text-muted-foreground" />
-              <span class="font-medium">{{ t('about.deviceInfo.platform') }}:</span>
-              <span>{{ deviceInfo.platform }}</span>
-            </div>
-            <div class="flex items-center space-x-2">
-              <Icon icon="lucide:layers" class="h-4 w-4 text-muted-foreground" />
-              <span class="font-medium">{{ t('about.deviceInfo.arch') }}:</span>
-              <span>{{ deviceInfo.arch }}</span>
-            </div>
-            <div class="flex items-center space-x-2">
-              <Icon icon="lucide:cpu" class="h-4 w-4 text-muted-foreground" />
-              <span class="font-medium">{{ t('about.deviceInfo.cpuModel') }}:</span>
-              <span class="truncate">{{ deviceInfo.cpuModel }}</span>
-            </div>
-            <div class="flex items-center space-x-2">
-              <Icon icon="lucide:database" class="h-4 w-4 text-muted-foreground" />
-              <span class="font-medium">{{ t('about.deviceInfo.totalMemory') }}:</span>
-              <span>{{ (deviceInfo.totalMemory / (1024 * 1024 * 1024)).toFixed(0) }} GB</span>
-            </div>
-            <div class="flex items-center space-x-2 col-span-full">
-              <Icon icon="lucide:info" class="h-4 w-4 text-muted-foreground" />
-              <span class="font-medium"
-                >{{ t('about.deviceInfo.osVersion') || 'OS Version' }}:</span
-              >
-              <span>{{ deviceInfo.osVersion }}</span>
-            </div>
-          </div>
-        </div> -->
       </div>
     </div>
   </div>
@@ -173,11 +137,6 @@ const upgrade = useUpgradeStore()
 // 免责声明对话框状态
 const isDisclaimerOpen = ref(false)
 
-// 打开免责声明对话框
-const openDisclaimerDialog = () => {
-  isDisclaimerOpen.value = true
-}
-
 // 检查更新
 const handleCheckUpdate = async () => {
   // 如果已下载完成，直接打开更新对话框
@@ -195,9 +154,16 @@ const handleCheckUpdate = async () => {
 const md = getCommonMarkdown()
 const disclaimerContent = computed(() => renderMarkdown(md, t('searchDisclaimer')))
 
+// 添加打开免责声明对话框的函数
+const openDisclaimerDialog = () => {
+  isDisclaimerOpen.value = true
+}
+
 onMounted(async () => {
   deviceInfo.value = await devicePresenter.getDeviceInfo()
   appVersion.value = await devicePresenter.getAppVersion()
+  
+  console.log('组件挂载完成')
   console.log(deviceInfo.value)
 })
 </script>

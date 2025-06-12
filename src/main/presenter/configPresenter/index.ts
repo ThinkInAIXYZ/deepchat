@@ -6,7 +6,9 @@ import {
   ModelConfig,
   RENDERER_MODEL_META,
   MCPServerConfig,
-  Prompt
+  Prompt,
+  MCPServerConfig,
+  UserInfo
 } from '@shared/presenter'
 import { SearchEngineTemplate } from '@shared/chat'
 import { ModelType } from '@shared/model'
@@ -950,6 +952,60 @@ export class ConfigPresenter implements IConfigPresenter {
   // 重置快捷键
   resetShortcutKeys() {
     this.setSetting('shortcutKey', { ...defaultShortcutKey })
+  }
+
+  // 获取认证令牌
+  getAuthToken(): string | null {
+    return this.getSetting<string | null>('authToken') ?? null
+  }
+
+  // 设置认证令牌
+  setAuthToken(token: string | null): void {
+    this.setSetting('authToken', token)
+  }
+
+  // 获取用户信息
+  getUserInfo(): UserInfo | null {
+    const userInfoJson = this.getSetting<string | null>('userInfo')
+    if (!userInfoJson) return null
+
+    try {
+      return JSON.parse(userInfoJson) as UserInfo
+    } catch (error) {
+      console.error('解析用户信息失败:', error)
+      return null
+    }
+  }
+
+  // 设置用户信息
+  setUserInfo(userInfo: UserInfo | null): void {
+    if (userInfo === null) {
+      this.setSetting('userInfo', null)
+      // 触发用户信息清除事件
+      eventBus.emit(CONFIG_EVENTS.USER_INFO_CHANGED, null)
+      return
+    }
+
+    try {
+      const userInfoJson = JSON.stringify(userInfo)
+      // 直接设置存储，不通过setSetting触发通用事件
+      this.store.set('userInfo', userInfoJson)
+      console.info('序列化用户信息成功:', userInfoJson)
+      // 触发专门的用户信息更新事件
+      eventBus.emit(CONFIG_EVENTS.USER_INFO_CHANGED, userInfo)
+    } catch (error) {
+      console.error('序列化用户信息失败:', error)
+    }
+  }
+
+  // 获取API基础URL
+  getApiBaseUrl(): string {
+    return this.getSetting<string>('apiBaseUrl') ?? 'https://deepchat.blanplan.com'
+  }
+
+  // 设置API基础URL
+  setApiBaseUrl(url: string): void {
+    this.setSetting('apiBaseUrl', url)
   }
 }
 

@@ -117,6 +117,24 @@ const router = createRouter({
           }
         }
       ]
+    },
+    {
+      path: '/login',
+      name: 'login',
+      component: () => import('@/views/LoginView.vue'),
+      meta: {
+        titleKey: 'routes.login',
+        icon: 'lucide:log-in'
+      }
+    },
+    {
+      path: '/profile',
+      name: 'profile',
+      component: () => import('@/views/ProfileView.vue'),
+      meta: {
+        titleKey: 'routes.profile',
+        icon: 'lucide:user'
+      }
     }
   ]
 })

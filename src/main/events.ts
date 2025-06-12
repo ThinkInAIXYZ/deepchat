@@ -27,7 +27,9 @@ export const CONFIG_EVENTS = {
   // OAuth相关事件
   OAUTH_LOGIN_START: 'config:oauth-login-start', // OAuth登录开始
   OAUTH_LOGIN_SUCCESS: 'config:oauth-login-success', // OAuth登录成功
-  OAUTH_LOGIN_ERROR: 'config:oauth-login-error' // OAuth登录失败
+  OAUTH_LOGIN_ERROR: 'config:oauth-login-error', // OAuth登录失败
+  PROXY_RESOLVED: 'config:proxy-resolved',
+  USER_INFO_CHANGED: 'config:user-info-changed' // 用户信息更新事件
 }
 
 // 会话相关事件
@@ -111,7 +113,8 @@ export const SYNC_EVENTS = {
 export const DEEPLINK_EVENTS = {
   PROTOCOL_RECEIVED: 'deeplink:protocol-received',
   START: 'deeplink:start',
-  MCP_INSTALL: 'deeplink:mcp-install'
+  MCP_INSTALL: 'deeplink:mcp-install',
+  LOGIN_SUCCESS: 'deeplink:login-success'
 }
 
 // 全局通知相关事件
