@@ -172,14 +172,6 @@ export const useSettingsStore = defineStore('settings', () => {
     }
   }
 
-  // MCP 安装缓存
-  const mcpInstallCache = ref<string | null>(null)
-
-  // 清理 MCP 安装缓存
-  const clearMcpInstallCache = () => {
-    mcpInstallCache.value = null
-  }
-
   // 监听 deeplink 事件
   window.electron.ipcRenderer.on(DEEPLINK_EVENTS.MCP_INSTALL, async (_, data) => {
     const { mcpConfig } = data
@@ -214,7 +206,7 @@ export const useSettingsStore = defineStore('settings', () => {
 
     // 存储 MCP 配置数据到缓存
     if (data) {
-      mcpInstallCache.value = mcpConfig
+      mcpStore.setMcpInstallCache(mcpConfig)
     }
   })
 
@@ -1472,8 +1464,6 @@ export const useSettingsStore = defineStore('settings', () => {
     testSearchEngine,
     refreshSearchEngines,
     findModelByIdOrName,
-    mcpInstallCache,
-    clearMcpInstallCache,
     isUpdating: upgradeStore.isUpdating,
     loadSavedOrder,
     updateProvidersOrder,
