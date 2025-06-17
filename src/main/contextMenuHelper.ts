@@ -1,6 +1,8 @@
-import { BrowserWindow, Menu, MenuItemConstructorOptions, WebContents, dialog, net } from 'electron'
+import { BrowserWindow, Menu, MenuItemConstructorOptions, WebContents, dialog } from 'electron'
 import path from 'path'
 import sharp from 'sharp'
+
+import httpFetch from './api'
 
 interface ContextMenuOptions {
   webContents: WebContents
@@ -121,11 +123,11 @@ export default function contextMenu(options: ContextMenuOptions): () => void {
               imageBuffer = Buffer.from(base64Data, 'base64')
             } else {
               // 处理普通URL
-              const response = await net.fetch(url)
+              const response = await httpFetch.request<ArrayBuffer>(url, { skipAuth: true })
               if (!response.ok) {
                 throw new Error(`下载图片失败: ${response.status}`)
               }
-              imageBuffer = Buffer.from(await response.arrayBuffer())
+              imageBuffer = Buffer.from(response.data)
             }
 
             if (!imageBuffer) {

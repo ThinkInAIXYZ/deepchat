@@ -1,4 +1,4 @@
-import { app, BrowserWindow, protocol, ipcMain } from 'electron'
+import { app, protocol, ipcMain } from 'electron'
 import { electronApp, optimizer } from '@electron-toolkit/utils'
 import { presenter } from './presenter'
 import { ProxyMode, proxyConfig } from './presenter/proxyConfig'
@@ -9,6 +9,7 @@ import { WINDOW_EVENTS, TRAY_EVENTS } from './events'
 import { setLoggingEnabled } from '@shared/logger'
 import { is } from '@electron-toolkit/utils' // 确保导入 is
 import { shell } from 'electron'
+import httpFetch from './api'
 
 // 设置应用命令行参数
 app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required') // 允许视频自动播放
@@ -35,20 +36,16 @@ const checkAuthTokenAndFetchUserInfo = async (): Promise<void> => {
     const token = await presenter.configPresenter.getAuthToken()
     if (token) {
       console.log('检测到已保存的认证令牌，开始获取用户信息')
-      const apiBaseUrl = presenter.configPresenter.getApiBaseUrl()
-      const response = await fetch(`${apiBaseUrl}/api/user/current`, {
-        method: 'GET',
+      const { ok, data, status, statusText } = await httpFetch.get('/api/user/current', {
         headers: {
           'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
         }
       })
 
-      if (!response.ok) {
-        throw new Error(`获取用户信息失败: ${response.status} ${response.statusText}`)
+      if (!ok) {
+        throw new Error(`获取用户信息失败: ${status} ${statusText}`)
       }
 
-      const data = await response.json()
       if (data) {
         // 保存用户信息，直接使用返回的数据
         presenter.configPresenter.setUserInfo(data)

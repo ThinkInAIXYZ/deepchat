@@ -339,9 +339,6 @@ export interface IConfigPresenter {
   // 用户信息相关方法
   getUserInfo(): UserInfo | null
   setUserInfo(userInfo: UserInfo | null): void
-  // API基础URL相关方法
-  getApiBaseUrl(): string
-  setApiBaseUrl(url: string): void
   // 日志设置
   getLoggingEnabled(): boolean
   setLoggingEnabled(enabled: boolean): void

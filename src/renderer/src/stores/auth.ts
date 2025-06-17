@@ -80,13 +80,12 @@ export const useAuthStore = defineStore('auth', () => {
     try {
       // 获取API基础URL
       const userStore = useUserStore()
-      const apiBaseUrl = await userStore.getApiBaseUrl()
 
       console.log('开始退出登录流程...')
 
       // 调用退出登录接口
       if (token.value) {
-        const response = await fetch(`${apiBaseUrl}/api/user/logout`, {
+        const response = await fetch(`${import.meta.env.BASE_URL}/api/user/logout`, {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${token.value}`,
