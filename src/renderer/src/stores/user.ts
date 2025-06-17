@@ -42,10 +42,10 @@ export const useUserStore = defineStore('user', () => {
       console.log('已从配置中恢复用户信息:', userInfo.value)
     }
 
-    const savedApiBaseUrl = import.meta.env
+    const savedApiBaseUrl = import.meta.env.VITE_BASE_API_URL
     if (savedApiBaseUrl) {
       apiBaseUrl.value = savedApiBaseUrl
-      console.log('已从配置中恢复API基础URL')
+      console.log('已从配置中恢复API基础URL:', savedApiBaseUrl)
     }
 
     // 设置事件监听
