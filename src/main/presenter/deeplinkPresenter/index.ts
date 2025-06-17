@@ -379,7 +379,7 @@ export class DeeplinkPresenter implements IDeeplinkPresenter {
   // 获取用户信息
   private async fetchUserInfo(token: string): Promise<void> {
     try {
-      const apiBaseUrl = presenter.configPresenter.getApiBaseUrl()
+      const apiBaseUrl = import.meta.env.VITE_BASE_API_URL
       const response = await fetch(`${apiBaseUrl}/api/user/current`, {
         method: 'GET',
         headers: {

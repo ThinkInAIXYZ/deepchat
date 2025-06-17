@@ -5,7 +5,6 @@ import {
   MODEL_META,
   ModelConfig,
   RENDERER_MODEL_META,
-  MCPServerConfig,
   Prompt,
   MCPServerConfig,
   UserInfo
@@ -996,16 +995,6 @@ export class ConfigPresenter implements IConfigPresenter {
     } catch (error) {
       console.error('序列化用户信息失败:', error)
     }
-  }
-
-  // 获取API基础URL
-  getApiBaseUrl(): string {
-    return this.getSetting<string>('apiBaseUrl') ?? 'https://deepchat.blanplan.com'
-  }
-
-  // 设置API基础URL
-  setApiBaseUrl(url: string): void {
-    this.setSetting('apiBaseUrl', url)
   }
 }
 
