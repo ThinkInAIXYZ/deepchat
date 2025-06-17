@@ -190,6 +190,7 @@
     "githubCopilotConnected": "GitHub Copilot 연결됨",
     "githubCopilotNotConnected": "GitHub Copilot 연결되지 않음",
     "loginWithGitHub": "GitHub로 로그인",
+    "oauthLogin": "승인 된 로그인",
     "loggingIn": "로그인 중...",
     "githubCopilotLoginTip": "DeepChat이 GitHub Copilot 구독에 액세스하도록 허용하세요. Copilot API에 액세스하려면 'read:user' 및 'read:org' 권한이 필요합니다.",
     "loginSuccess": "로그인 성공",

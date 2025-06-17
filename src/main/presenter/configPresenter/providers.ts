@@ -562,5 +562,20 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
       defaultBaseUrl:
         'https://your-resource-name.openai.azure.com/openai/deployments/your-deployment-name'
     }
+  },
+  {
+    id: 'easychat',
+    name: 'Easychat',
+    apiType: 'openai',
+    apiKey: '',
+    baseUrl: '',
+    enable: false,
+    websites: {
+      official: 'https://easychat.com',
+      apiKey: 'https://easychat.com/api-keys',
+      docs: 'https://easychat.com/docs',
+      models: 'https://easychat.com/models',
+      defaultBaseUrl: 'https://easychat.com/v1'
+    }
   }
 ]

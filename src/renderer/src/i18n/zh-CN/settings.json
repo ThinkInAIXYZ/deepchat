@@ -190,6 +190,7 @@
     "githubCopilotConnected": "GitHub Copilot 已连接",
     "githubCopilotNotConnected": "GitHub Copilot 未连接",
     "loginWithGitHub": "使用 GitHub 登录",
+    "oauthLogin": "授权登录",
     "loggingIn": "登录中...",
     "githubCopilotLoginTip": "点击授权 DeepChat 访问您的 GitHub Copilot 订阅",
     "loginSuccess": "登录成功",

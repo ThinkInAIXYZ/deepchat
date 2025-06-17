@@ -190,6 +190,7 @@
     "githubCopilotConnected": "GitHub Copilot подключен",
     "githubCopilotNotConnected": "GitHub Copilot не подключен",
     "loginWithGitHub": "Войти через GitHub",
+    "oauthLogin": "Войти через OAuth",
     "loggingIn": "Вход...",
     "githubCopilotLoginTip": "Разрешите DeepChat доступ к вашей подписке GitHub Copilot. Для доступа к API Copilot требуются разрешения 'read:user' и 'read:org'.",
     "loginSuccess": "Вход выполнен успешно",

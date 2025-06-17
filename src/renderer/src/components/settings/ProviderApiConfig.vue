@@ -44,6 +44,12 @@
             t('settings.provider.howToGet')
           }}
         </Button>
+        <Button v-if="!provider.custom && provider.id === 'easychat'" variant="outline" size="xs"
+          class="text-xs text-normal rounded-lg" @click="openProviderWebsite">
+          <Icon icon="lucide:hand-helping" class="w-4 h-4 text-muted-foreground" />{{
+            t('settings.provider.oauthLogin')
+          }}
+        </Button>
         <!-- Key Status Display -->
         <div v-if="keyStatus && (keyStatus.usage !== undefined || keyStatus.limit_remaining !== undefined)"
           class="flex items-center gap-2 text-xs text-muted-foreground">

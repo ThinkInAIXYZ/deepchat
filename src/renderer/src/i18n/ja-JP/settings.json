@@ -190,6 +190,7 @@
     "githubCopilotConnected": "GitHub Copilot接続済み",
     "githubCopilotNotConnected": "GitHub Copilot未接続",
     "loginWithGitHub": "GitHubでログイン",
+    "oauthLogin": "OAuthログイン",
     "loggingIn": "ログイン中...",
     "githubCopilotLoginTip": "DeepChatがGitHub Copilotサブスクリプションにアクセスすることを許可します。Copilot APIにアクセスするには'read:user'と'read:org'の権限が必要です。",
     "loginSuccess": "ログイン成功",
