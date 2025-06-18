@@ -28,6 +28,7 @@ import fs from 'fs'
 import sharp from 'sharp'
 import { proxyConfig } from '../../proxyConfig'
 import { ProxyAgent } from 'undici'
+import httpFetch from '@/api'
 
 const OPENAI_REASONING_MODELS = ['o3-mini', 'o3-preview', 'o1-mini', 'o1-pro', 'o1-preview', 'o1']
 const OPENAI_IMAGE_GENERATION_MODELS = [
@@ -316,8 +317,7 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
           const fullPath = path.join(app.getPath('userData'), 'images', filePath)
           imageBuffer = fs.readFileSync(fullPath)
         } else {
-          const imageResponse = await fetch(imageUrls[0])
-          const imageBlob = await imageResponse.blob()
+          const imageBlob = await httpFetch.getBlob(imageUrls[0])
           imageBuffer = Buffer.from(await imageBlob.arrayBuffer())
         }
 
