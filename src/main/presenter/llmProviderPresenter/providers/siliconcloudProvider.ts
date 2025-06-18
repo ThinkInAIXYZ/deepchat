@@ -1,6 +1,7 @@
 import { LLM_PROVIDER, LLMResponse, MODEL_META, ChatMessage, KeyStatus } from '@shared/presenter'
 import { OpenAICompatibleProvider } from './openAICompatibleProvider'
 import { ConfigPresenter } from '../../configPresenter'
+import httpFetch from '@/api'
 
 // Define interface for SiliconCloud API key response
 interface SiliconCloudKeyResponse {
@@ -99,8 +100,7 @@ export class SiliconcloudProvider extends OpenAICompatibleProvider {
       throw new Error('API key is required')
     }
 
-    const response = await fetch('https://api.siliconflow.cn/v1/user/info', {
-      method: 'GET',
+    const response = await httpFetch.get('https://api.siliconflow.cn/v1/user/info', {
       headers: {
         'Authorization': `Bearer ${this.provider.apiKey}`,
         'Content-Type': 'application/json'
@@ -108,11 +108,11 @@ export class SiliconcloudProvider extends OpenAICompatibleProvider {
     })
 
     if (!response.ok) {
-      const errorText = await response.text()
-      throw new Error(`SiliconCloud API key check failed: ${response.status} ${response.statusText} - ${errorText}`)
+      const errorText = response.statusText || 'Unknown error'
+      throw new Error(`SiliconCloud API key check failed: ${response.status} ${errorText}`)
     }
 
-    const keyResponse: SiliconCloudKeyResponse = await response.json()
+    const keyResponse: SiliconCloudKeyResponse = response.data
 
     if (keyResponse.code !== 20000 || !keyResponse.status) {
       throw new Error(`SiliconCloud API error: ${keyResponse.message}`)

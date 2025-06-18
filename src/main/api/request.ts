@@ -1,14 +1,17 @@
 import { net } from 'electron'
 import { presenter } from '../presenter'
+import { HttpsProxyAgent } from 'https-proxy-agent'
 
-export interface RequestConfig {
+export interface RequestConfig extends RequestInit {
   method?: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH'
-  headers?: Record<string, string>
+  headers?: HeadersInit
   body?: string | FormData | Buffer
   timeout?: number
   baseUrl?: string
   useElectronNet?: boolean // 是否使用 electron.net.fetch
   skipAuth?: boolean // 跳过自动认证
+  agent?: HttpsProxyAgent<string> // 自定义 User-Agent
+  [key: string]: any // 允许其他自定义配置
 }
 
 export interface RequestResponse<T = any> {
@@ -52,6 +55,27 @@ class Request {
     }
 
     return {}
+  }
+
+  /**
+   * 规范化 headers 为 Record<string, string> 格式
+   */
+  private normalizeHeaders(headers?: HeadersInit): Record<string, string> {
+    if (!headers) return {}
+    
+    if (Array.isArray(headers)) {
+      return Object.fromEntries(headers)
+    }
+    
+    if (headers instanceof Headers) {
+      const result: Record<string, string> = {}
+      headers.forEach((value, key) => {
+        result[key] = value
+      })
+      return result
+    }
+    
+    return headers as Record<string, string>
   }
 
   /**
@@ -100,7 +124,7 @@ class Request {
     }
 
     // 最后合并用户提供的自定义头（优先级最高）
-    finalHeaders = { ...finalHeaders, ...headers }
+    finalHeaders = { ...finalHeaders, ...this.normalizeHeaders(headers) }
 
     // 构建请求选项
     const requestOptions: RequestInit = {
@@ -228,6 +252,106 @@ class Request {
     }
 
     return Buffer.from(response.data)
+  }
+
+  /**
+   * 获取原始 Response 对象，不解析 body
+   */
+  public async getRaw(url: string, config: RequestConfig = {}): Promise<Response> {
+    const {
+      method,
+      headers = {},
+      timeout = 30000,
+      baseUrl,
+      useElectronNet = true,
+      skipAuth = false
+    } = config
+
+    // 构建完整 URL
+    const fullUrl = this.buildUrl(url, baseUrl)
+
+    // 合并请求头：默认头 + 认证头 + 自定义头
+    let finalHeaders = { ...this.defaultHeaders }
+
+    // 如果没有跳过认证，自动添加认证头
+    if (!skipAuth) {
+      const authHeaders = this.getAuthHeaders()
+      finalHeaders = { ...finalHeaders, ...authHeaders }
+    }
+
+    // 最后合并用户提供的自定义头（优先级最高）
+    finalHeaders = { ...finalHeaders, ...this.normalizeHeaders(headers) }
+
+    // 构建请求选项
+    const requestOptions: RequestInit = {
+      method,
+      headers: finalHeaders
+    }
+
+    // 选择使用 electron.net.fetch 还是普通 fetch
+    const fetchFn = useElectronNet ? net.fetch : fetch
+
+    try {
+      // 设置超时
+      if (timeout > 0) {
+        const controller = new AbortController()
+        const timeoutId = setTimeout(() => controller.abort(), timeout)
+        requestOptions.signal = controller.signal
+
+        const response = await fetchFn(fullUrl, requestOptions)
+        clearTimeout(timeoutId)
+        return response
+      } else {
+        return await fetchFn(fullUrl, requestOptions)
+      }
+    } catch (error) {
+      if (error instanceof Error) {
+        if (error.name === 'AbortError') {
+          throw new Error(`Request timeout: ${timeout}ms`)
+        }
+        throw new Error(`Request failed: ${error.message}`)
+      }
+      throw new Error('Unknown request error')
+    }
+  }
+
+  /**
+   * 获取 Blob 数据
+   */
+  public async getBlob(url: string, config: Omit<RequestConfig, 'method' | 'body'> = {}): Promise<Blob> {
+    const response = await this.getRaw(url, config)
+    
+    if (!response.ok) {
+      throw new Error(`Request failed: ${response.status} ${response.statusText}`)
+    }
+    
+    return await response.blob()
+  }
+
+  /**
+   * 获取 ArrayBuffer 数据
+   */
+  public async getArrayBuffer(url: string, config: Omit<RequestConfig, 'method' | 'body'> = {}): Promise<ArrayBuffer> {
+    const response = await this.getRaw(url, config)
+    
+    if (!response.ok) {
+      throw new Error(`Request failed: ${response.status} ${response.statusText}`)
+    }
+    
+    return await response.arrayBuffer()
+  }
+
+  /**
+   * 获取文本数据
+   */
+  public async getText(url: string, config: Omit<RequestConfig, 'method' | 'body'> = {}): Promise<string> {
+    const response = await this.getRaw(url, config)
+    
+    if (!response.ok) {
+      throw new Error(`Request failed: ${response.status} ${response.statusText}`)
+    }
+    
+    return await response.text()
   }
 }
 

@@ -1,6 +1,7 @@
 import { BrowserWindow } from 'electron'
 import { randomBytes } from 'crypto'
 import { is } from '@electron-toolkit/utils'
+import httpFetch from '@/api'
 
 export interface GitHubOAuthConfig {
   clientId: string
@@ -150,26 +151,26 @@ export class GitHubCopilotOAuth {
    */
   async exchangeCodeForToken(code: string): Promise<string> {
     try {
-      const response = await fetch('https://github.com/login/oauth/access_token', {
-        method: 'POST',
-        headers: {
-          Accept: 'application/json',
-          'Content-Type': 'application/json',
-          'User-Agent': 'DeepChat/1.0.0'
-        },
-        body: JSON.stringify({
+      const response = await httpFetch.post('https://github.com/login/oauth/access_token', {
           client_id: this.config.clientId,
           client_secret: this.config.clientSecret,
           code: code,
           redirect_uri: this.config.redirectUri
-        })
+        }, {
+        headers: {
+          Accept: 'application/json',
+          'Content-Type': 'application/json',
+          'User-Agent': 'DeepChat/1.0.0'
+        }
       })
+      console.log('response', response);
 
       if (!response.ok) {
         throw new Error(`Token exchange failed: ${response.status} ${response.statusText}`)
       }
 
-      const data = (await response.json()) as {
+      
+      const data = response.data as {
         access_token?: string
         error?: string
         error_description?: string
@@ -195,7 +196,7 @@ export class GitHubCopilotOAuth {
    */
   async validateToken(token: string): Promise<boolean> {
     try {
-      const response = await fetch('https://api.github.com/user', {
+      const response = await httpFetch.get('https://api.github.com/user', {
         headers: {
           Authorization: `Bearer ${token}`,
           'User-Agent': 'DeepChat/1.0.0'
