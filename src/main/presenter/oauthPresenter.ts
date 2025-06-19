@@ -2,6 +2,8 @@ import { BrowserWindow } from 'electron'
 import { presenter } from '.'
 import * as http from 'http'
 import { URL } from 'url'
+
+import httpFetch from '@/api'
 import { createGitHubCopilotOAuth } from './githubCopilotOAuth'
 import { createGitHubCopilotDeviceFlow } from './githubCopilotDeviceFlow'
 
@@ -24,7 +26,7 @@ export class OAuthPresenter {
    */
   private async validateGitHubAccessToken(token: string): Promise<boolean> {
     try {
-      const response = await fetch('https://api.github.com/user', {
+      const response = await httpFetch.get('https://api.github.com/user', {
         headers: {
           Authorization: `Bearer ${token}`,
           'User-Agent': 'DeepChat/1.0.0'
@@ -375,26 +377,24 @@ export class OAuthPresenter {
    * 用授权码交换访问令牌
    */
   private async exchangeCodeForToken(code: string, config: OAuthConfig): Promise<string> {
-    const response = await fetch('https://github.com/login/oauth/access_token', {
-      method: 'POST',
+    const response = await httpFetch.post('https://github.com/login/oauth/access_token', {
+        client_id: config.clientId,
+        client_secret: config.clientSecret || process.env.GITHUB_CLIENT_SECRET,
+        code: code,
+        redirect_uri: config.redirectUri
+      }, {
       headers: {
         Accept: 'application/json',
         'Content-Type': 'application/json',
         'User-Agent': 'DeepChat/1.0.0'
       },
-      body: JSON.stringify({
-        client_id: config.clientId,
-        client_secret: config.clientSecret || process.env.GITHUB_CLIENT_SECRET,
-        code: code,
-        redirect_uri: config.redirectUri
-      })
     })
 
     if (!response.ok) {
       throw new Error(`Token exchange failed: ${response.status} ${response.statusText}`)
     }
 
-    const data = (await response.json()) as {
+    const data = response.data as {
       access_token: string
       error?: string
       error_description?: string

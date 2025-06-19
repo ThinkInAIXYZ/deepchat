@@ -42,10 +42,10 @@ export const useUserStore = defineStore('user', () => {
       console.log('已从配置中恢复用户信息:', userInfo.value)
     }
 
-    const savedApiBaseUrl = configPresenter.getApiBaseUrl()
+    const savedApiBaseUrl = import.meta.env.VITE_BASE_API_URL
     if (savedApiBaseUrl) {
       apiBaseUrl.value = savedApiBaseUrl
-      console.log('已从配置中恢复API基础URL')
+      console.log('已从配置中恢复API基础URL:', savedApiBaseUrl)
     }
 
     // 设置事件监听
@@ -64,18 +64,6 @@ export const useUserStore = defineStore('user', () => {
     userInfo.value = null
     configPresenter.setUserInfo(null)
     console.log('已清除用户信息')
-  }
-
-  // 设置API基础URL
-  const setApiBaseUrl = (url: string) => {
-    apiBaseUrl.value = url
-    configPresenter.setApiBaseUrl(url)
-    console.log('已设置API基础URL:', url)
-  }
-
-  // 获取API基础URL
-  const getApiBaseUrl = (): string => {
-    return apiBaseUrl.value
   }
 
   // 获取用户信息
@@ -109,8 +97,6 @@ export const useUserStore = defineStore('user', () => {
     username,
     updateUserInfo,
     clearUserInfo,
-    setApiBaseUrl,
-    getApiBaseUrl,
     getUserInfo
   }
 })

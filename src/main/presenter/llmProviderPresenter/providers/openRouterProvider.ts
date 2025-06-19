@@ -1,6 +1,7 @@
 import { LLM_PROVIDER, LLMResponse, ChatMessage, KeyStatus } from '@shared/presenter'
 import { OpenAICompatibleProvider } from './openAICompatibleProvider'
 import { ConfigPresenter } from '../../configPresenter'
+import httpFetch from '@/api'
 
 // Define interface for OpenRouter API key response
 interface OpenRouterKeyResponse {
@@ -79,8 +80,7 @@ export class OpenRouterProvider extends OpenAICompatibleProvider {
       throw new Error('API key is required')
     }
 
-    const response = await fetch('https://openrouter.ai/api/v1/key', {
-      method: 'GET',
+    const response = await httpFetch.get('https://openrouter.ai/api/v1/key', {
       headers: {
         'Authorization': `Bearer ${this.provider.apiKey}`,
         'Content-Type': 'application/json'
@@ -88,11 +88,11 @@ export class OpenRouterProvider extends OpenAICompatibleProvider {
     })
 
     if (response.status !== 200) {
-      const errorText = await response.text()
+      const errorText = response.statusText || 'Unknown error'
       throw new Error(`OpenRouter API key check failed: ${response.status} ${response.statusText} - ${errorText}`)
     }
 
-    const responseText = await response.text()
+    const responseText = response.data
     if (!responseText || responseText.trim().length === 0) {
       throw new Error('OpenRouter API returned empty response')
     }

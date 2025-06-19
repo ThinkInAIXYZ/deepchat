@@ -1,6 +1,7 @@
 import { LLM_PROVIDER, LLMResponse, ChatMessage, KeyStatus } from '@shared/presenter'
 import { OpenAICompatibleProvider } from './openAICompatibleProvider'
 import { ConfigPresenter } from '../../configPresenter'
+import httpFetch from '@/api'
 
 // Define interface for DeepSeek API key response
 interface DeepSeekBalanceResponse {
@@ -74,8 +75,7 @@ export class DeepseekProvider extends OpenAICompatibleProvider {
       throw new Error('API key is required')
     }
 
-    const response = await fetch('https://api.deepseek.com/user/balance', {
-      method: 'GET',
+    const response = await httpFetch.get('https://api.deepseek.com/user/balance', {
       headers: {
         'Accept': 'application/json',
         'Authorization': `Bearer ${this.provider.apiKey}`
@@ -83,11 +83,11 @@ export class DeepseekProvider extends OpenAICompatibleProvider {
     })
 
     if (!response.ok) {
-      const errorText = await response.text()
+      const errorText = response.statusText
       throw new Error(`DeepSeek API key check failed: ${response.status} ${response.statusText} - ${errorText}`)
     }
 
-    const balanceResponse: DeepSeekBalanceResponse = await response.json()
+    const balanceResponse: DeepSeekBalanceResponse = response.data
 
     if (!balanceResponse.is_available) {
       throw new Error('DeepSeek API key is not available')

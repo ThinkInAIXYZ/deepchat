@@ -11,11 +11,8 @@ import { BaseLLMProvider } from '../baseProvider'
 import { ConfigPresenter } from '../../configPresenter'
 import { HttpsProxyAgent } from 'https-proxy-agent'
 
-// 扩展RequestInit类型以支持agent属性
-interface RequestInitWithAgent extends RequestInit {
-  agent?: HttpsProxyAgent<string>
-}
 import { proxyConfig } from '../../proxyConfig'
+import httpFetch, { RequestConfig } from '@/api'
 
 interface CopilotTokenResponse {
   token: string
@@ -127,7 +124,7 @@ export class GithubCopilotProvider extends BaseLLMProvider {
     console.log('   User-Agent:', headers['User-Agent'])
     console.log('   X-GitHub-Api-Version:', headers['X-GitHub-Api-Version'])
 
-    const requestOptions: RequestInitWithAgent = {
+    const requestOptions: RequestConfig = {
       method: 'GET',
       headers
     }
@@ -147,7 +144,7 @@ export class GithubCopilotProvider extends BaseLLMProvider {
     console.log(`   URL: ${this.tokenUrl}`)
 
     try {
-      const response = await fetch(this.tokenUrl, requestOptions)
+      const response = await httpFetch.get(this.tokenUrl, requestOptions)
 
       console.log('📥 [GitHub Copilot] Received response:')
       console.log(`   Status: ${response.status} ${response.statusText}`)
@@ -166,7 +163,7 @@ export class GithubCopilotProvider extends BaseLLMProvider {
 
         // 尝试读取响应体以获得更多错误信息
         try {
-          const errorBody = await response.text()
+          const errorBody = response.statusText
           console.log(`   Error body: ${errorBody}`)
         } catch (bodyError) {
           console.log(`   Could not read error body: ${bodyError}`)
@@ -195,7 +192,7 @@ export class GithubCopilotProvider extends BaseLLMProvider {
       }
 
       console.log('✅ [GitHub Copilot] Successfully received response, parsing JSON...')
-      const data: CopilotTokenResponse = await response.json()
+      const data: CopilotTokenResponse = response.data
 
       console.log('📊 [GitHub Copilot] Token response data:')
       console.log(`   Token: ${data.token ? data.token.substring(0, 20) + '...' : 'NOT PRESENT'}`)
@@ -327,7 +324,7 @@ export class GithubCopilotProvider extends BaseLLMProvider {
         'X-GitHub-Api-Version': '2022-11-28'
       }
 
-      const requestOptions: RequestInitWithAgent = {
+      const requestOptions: RequestConfig = {
         method: 'POST',
         headers,
         body: JSON.stringify(requestBody)
@@ -340,7 +337,7 @@ export class GithubCopilotProvider extends BaseLLMProvider {
         requestOptions.agent = agent
       }
 
-      const response = await fetch(`${this.baseApiUrl}/chat/completions`, requestOptions)
+      const response = await httpFetch.getRaw(`${this.baseApiUrl}/chat/completions`, requestOptions)
 
       if (!response.ok) {
         throw new Error(`GitHub Copilot API error: ${response.status} ${response.statusText}`)
@@ -450,7 +447,7 @@ export class GithubCopilotProvider extends BaseLLMProvider {
         'X-GitHub-Api-Version': '2022-11-28'
       }
 
-      const requestOptions: RequestInitWithAgent = {
+      const requestOptions: RequestConfig = {
         method: 'POST',
         headers,
         body: JSON.stringify(requestBody)
@@ -463,13 +460,13 @@ export class GithubCopilotProvider extends BaseLLMProvider {
         requestOptions.agent = agent
       }
 
-      const response = await fetch(`${this.baseApiUrl}/chat/completions`, requestOptions)
+      const response = await httpFetch.get(`${this.baseApiUrl}/chat/completions`, requestOptions)
 
       if (!response.ok) {
         throw new Error(`GitHub Copilot API error: ${response.status} ${response.statusText}`)
       }
 
-      const data = await response.json()
+      const data = response.data
       const choice = data.choices?.[0]
 
       if (!choice) {

@@ -1,6 +1,8 @@
 import { BrowserWindow, shell } from 'electron'
 import { presenter } from '@/presenter'
 
+import httpFetch from '@/api'
+
 export interface DeviceFlowConfig {
   clientId: string
   scope: string
@@ -61,23 +63,18 @@ export class GitHubCopilotDeviceFlow {
       scope: this.config.scope
     }
 
-    const response = await fetch(url, {
-      method: 'POST',
+    const response = await httpFetch.post<DeviceCodeResponse>(url, body, {
       headers: {
         Accept: 'application/json',
-        'Content-Type': 'application/json',
         'User-Agent': 'DeepChat/1.0.0'
-      },
-      body: JSON.stringify(body)
+      }
     })
 
     if (!response.ok) {
       throw new Error(`Failed to request device code: ${response.status} ${response.statusText}`)
     }
 
-    const data = (await response.json()) as DeviceCodeResponse
-
-    return data
+    return response.data
   }
 
   /**
@@ -321,25 +318,21 @@ export class GitHubCopilotDeviceFlow {
         }
 
         try {
-          const response = await fetch('https://github.com/login/oauth/access_token', {
-            method: 'POST',
+          const response = await httpFetch.post('https://github.com/login/oauth/access_token', {
+            client_id: this.config.clientId,
+            device_code: deviceCodeResponse.device_code,
+            grant_type: 'urn:ietf:params:oauth:grant-type:device_code'
+          }, {
             headers: {
-              Accept: 'application/json',
-              'Content-Type': 'application/json',
               'User-Agent': 'DeepChat/1.0.0'
             },
-            body: JSON.stringify({
-              client_id: this.config.clientId,
-              device_code: deviceCodeResponse.device_code,
-              grant_type: 'urn:ietf:params:oauth:grant-type:device_code'
-            })
           })
 
           if (!response.ok) {
             return // 继续轮询
           }
 
-          const data = (await response.json()) as AccessTokenResponse
+          const data = response.data as AccessTokenResponse
 
           if (data.error) {
             switch (data.error) {

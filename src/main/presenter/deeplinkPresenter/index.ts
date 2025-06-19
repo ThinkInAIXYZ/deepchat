@@ -4,6 +4,7 @@ import { IDeeplinkPresenter, MCPServerConfig } from '@shared/presenter'
 import path from 'path'
 import { DEEPLINK_EVENTS, MCP_EVENTS, WINDOW_EVENTS } from '@/events'
 import { eventBus, SendTarget } from '@/eventbus'
+import httpFetch from '@/api'
 
 interface MCPInstallConfig {
   mcpServers: Record<
@@ -379,9 +380,7 @@ export class DeeplinkPresenter implements IDeeplinkPresenter {
   // 获取用户信息
   private async fetchUserInfo(token: string): Promise<void> {
     try {
-      const apiBaseUrl = presenter.configPresenter.getApiBaseUrl()
-      const response = await fetch(`${apiBaseUrl}/api/user/current`, {
-        method: 'GET',
+      const response = await httpFetch.get(`/api/user/current`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -392,7 +391,7 @@ export class DeeplinkPresenter implements IDeeplinkPresenter {
         throw new Error(`获取用户信息失败: ${response.status} ${response.statusText}`)
       }
 
-      const data = await response.json()
+      const data = response.data
       if (data) {
         // 保存用户信息，直接使用返回的数据
         await presenter.configPresenter.setUserInfo(data)

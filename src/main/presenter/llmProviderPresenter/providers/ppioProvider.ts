@@ -1,6 +1,7 @@
 import { LLM_PROVIDER, LLMResponse, ChatMessage, KeyStatus } from '@shared/presenter'
 import { OpenAICompatibleProvider } from './openAICompatibleProvider'
 import { ConfigPresenter } from '../../configPresenter'
+import httpFetch from '@/api'
 
 // Define interface for PPIO API key response
 interface PPIOKeyResponse {
@@ -68,8 +69,7 @@ export class PPIOProvider extends OpenAICompatibleProvider {
       throw new Error('API key is required')
     }
 
-    const response = await fetch('https://api.ppinfra.com/v3/user', {
-      method: 'GET',
+    const response = await httpFetch.get('https://api.ppinfra.com/v3/user', {
       headers: {
         'Authorization': this.provider.apiKey,
         'Content-Type': 'application/json'
@@ -77,11 +77,11 @@ export class PPIOProvider extends OpenAICompatibleProvider {
     })
 
     if (!response.ok) {
-      const errorText = await response.text()
-      throw new Error(`PPIO API key check failed: ${response.status} ${response.statusText} - ${errorText}`)
+      const errorText = response.statusText || 'Unknown error'
+      throw new Error(`PPIO API key check failed: ${response.status} ${errorText}`)
     }
 
-    const keyResponse: PPIOKeyResponse = await response.json()
+    const keyResponse: PPIOKeyResponse = response.data
     const remaining = '¥'+keyResponse.credit_balance/10000
     return {
       limit_remaining: remaining,
