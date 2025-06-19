@@ -7,7 +7,14 @@
     />
     <div class="flex flex-col max-h-64 overflow-y-auto">
       <div v-for="provider in filteredProviders" :key="provider.id">
-        <div class="text-xs text-muted-foreground px-2">{{ provider.name }}</div>
+        <div class=" flex flex-row items-center gap-1 text-xs text-muted-foreground px-2">
+          <ModelIcon
+             class="w-4 h-4"
+             :model-id="provider.id"
+             :is-dark="themeStore.isDark"
+            ></ModelIcon>
+          {{ provider.name }}
+        </div>
         <div class="p-1">
           <div
             v-for="model in provider.models"
@@ -18,7 +25,7 @@
           >
             <ModelIcon
               class="w-4 h-4"
-              :model-id="provider.id"
+              :model-id="model.id"
               :is-dark="themeStore.isDark"
             ></ModelIcon>
             <span class="text-xs font-bold truncate flex-1">{{ model.name }}</span>
