@@ -252,6 +252,9 @@ const { t } = useI18n()
 const router = useRouter()
 const authStore = useAuthStore()
 const userStore = useUserStore()
+const apiBaseUrl = import.meta.env.VITE_BASE_API_URL
+
+console.log('import.meta.env', import.meta.env);
 
 // 国家代码选项
 const countries = [
@@ -317,7 +320,6 @@ const selectCountry = (country: typeof countries[0]) => {
 
 // 社交账号登录
 const handleSocialLogin = async (provider: 'google' | 'github' | 'wechat') => {
-  const apiBaseUrl = await userStore.getApiBaseUrl()
   let authUrl = ''
   switch (provider) {
     case 'google':
@@ -341,8 +343,7 @@ const handleSendCode = async () => {
   
   try {
     isCodeSending.value = true
-    const apiBaseUrl = userStore.getApiBaseUrl()
-    
+
     // 模拟API请求
     console.log('发送验证码：', {
       phone: selectedCountry.value.code + phoneForm.value.phone,
@@ -374,15 +375,6 @@ const handlePhoneLogin = async () => {
   
   try {
     isLoading.value = true
-    const apiBaseUrl = userStore.getApiBaseUrl()
-    
-    console.log('手机号登录：', {
-      phone: selectedCountry.value.code + phoneForm.value.phone,
-      code: phoneForm.value.code,
-      inviteCode: phoneForm.value.inviteCode,
-      keepLogin: keepLogin.value,
-      apiBaseUrl
-    })
 
     // TODO: 实现实际的登录API调用
     await new Promise(resolve => setTimeout(resolve, 1000))
