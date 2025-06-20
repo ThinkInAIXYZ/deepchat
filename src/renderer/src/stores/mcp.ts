@@ -97,7 +97,21 @@ export const useMcpStore = defineStore('mcp', () => {
   const toolCount = computed(() => tools.value.length)
   const hasTools = computed(() => toolCount.value > 0)
 
+  // MCP 安装缓存
+  const mcpInstallCache = ref<string | null>(null)
+
   // ==================== 方法 ====================
+
+  // 清理 MCP 安装缓存
+  const clearMcpInstallCache = () => {
+    mcpInstallCache.value = null
+  }
+
+  // 赋值 MCP 安装缓存
+  const setMcpInstallCache = (cache: string) => {
+    mcpInstallCache.value = cache
+  }
+
   // 加载MCP配置
   const loadConfig = async () => {
     try {
@@ -491,12 +505,11 @@ export const useMcpStore = defineStore('mcp', () => {
   }
 
   // 立即初始化
-  onMounted(async () => {
-    await init()
-  })
+  onMounted(init)
 
   return {
     // 状态
+    mcpInstallCache,
     config,
     serverStatuses,
     serverLoadingStates,
@@ -536,6 +549,8 @@ export const useMcpStore = defineStore('mcp', () => {
     callTool,
     setMcpEnabled,
     getPrompt,
-    readResource
+    readResource,
+    clearMcpInstallCache,
+    setMcpInstallCache
   }
 })
