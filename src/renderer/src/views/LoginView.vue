@@ -246,12 +246,10 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useAuthStore } from '@/stores/auth'
-import { useUserStore } from '@/stores/user'
 
 const { t } = useI18n()
 const router = useRouter()
 const authStore = useAuthStore()
-const userStore = useUserStore()
 const apiBaseUrl = import.meta.env.VITE_BASE_API_URL
 
 console.log('import.meta.env', import.meta.env);
@@ -395,7 +393,6 @@ const handleEmailLogin = async () => {
   
   try {
     isLoading.value = true
-    const apiBaseUrl = userStore.getApiBaseUrl()
     
     console.log('邮箱登录：', {
       account: emailForm.value.account,
