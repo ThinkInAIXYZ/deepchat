@@ -187,7 +187,7 @@ const handleCheckUpdate = async () => {
   }
 
   // 正常检查更新流程
-  await upgrade.checkUpdate()
+  await upgrade.checkUpdate(false)
 
   // 不再自动打开对话框，而是由下载完成后自动弹出
 }

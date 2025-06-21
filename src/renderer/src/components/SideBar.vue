@@ -97,7 +97,7 @@ const upgrade = useUpgradeStore()
 
 const handleProfileClick = async () => {
   if (!upgrade.hasUpdate) {
-    await upgrade.checkUpdate()
+    await upgrade.checkUpdate(false)
   } else {
     if (upgrade.isReadyToInstall) {
       upgrade.openUpdateDialog()
@@ -118,6 +118,6 @@ watch(
 )
 
 onMounted(() => {
-  upgrade.checkUpdate()
+  upgrade.checkUpdate(true)
 })
 </script>

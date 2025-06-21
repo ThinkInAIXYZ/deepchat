@@ -25,7 +25,7 @@
                 </p>
               </div>
             </template>
-            <p class="mt-4" v-else>{{ t('update.alreadyUpToDateDesc') }} 🎉🎉🎉</p>
+            <p class="mt-4" v-else-if="!upgrade.isSilent">{{ t('update.alreadyUpToDateDesc') }} 🎉🎉🎉</p>
           </div>
         </DialogDescription>
       </DialogHeader>

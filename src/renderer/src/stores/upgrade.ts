@@ -27,8 +27,10 @@ export const useUpgradeStore = defineStore('upgrade', () => {
   const isReadyToInstall = ref(false)
   const isRestarting = ref(false)
   const updateError = ref<string | null>(null)
+  const isSilent = ref(false)
   // 检查更新
-  const checkUpdate = async () => {
+  const checkUpdate = async (silent = false) => {
+    isSilent.value = silent
     if (isChecking.value) return
     isChecking.value = true
     try {
@@ -241,6 +243,7 @@ export const useUpgradeStore = defineStore('upgrade', () => {
     isDownloading,
     isReadyToInstall,
     isRestarting,
-    updateError
+    updateError,
+    isSilent
   }
 })
