@@ -6,7 +6,7 @@ import { zodToJsonSchema } from 'zod-to-json-schema'
 import { Transport } from '@modelcontextprotocol/sdk/shared/transport'
 import { presenter } from '@/presenter' // 导入全局的 presenter 对象
 import { eventBus } from '@/eventbus' // 引入 eventBus
-import { TAB_EVENTS, MEETING_EVENTS } from '@/events' // 引入 TAB_EVENTS
+import { TAB_EVENTS, MEETING_EVENTS, CONVERSATION_EVENTS } from '@/events'
 
 // Schema definitions
 const SearchConversationsArgsSchema = z.object({
@@ -772,7 +772,7 @@ export class ConversationSearchServer {
   private waitForResponse(conversationId: string, timeout = 180000): Promise<any> {
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
-        eventBus.removeListener(MEETING_EVENTS.MESSAGE_GENERATED, listener)
+        eventBus.removeListener(CONVERSATION_EVENTS.MESSAGE_GENERATED, listener)
         reject(
           new Error(
             `超时: 等待会话 ${conversationId} 的回复超过 ${timeout / 1000} 秒，未收到响应。`
@@ -783,12 +783,12 @@ export class ConversationSearchServer {
       const listener = (data: { conversationId: string; message: any }) => {
         if (data.conversationId === conversationId) {
           clearTimeout(timer)
-          eventBus.removeListener(MEETING_EVENTS.MESSAGE_GENERATED, listener)
+          eventBus.removeListener(CONVERSATION_EVENTS.MESSAGE_GENERATED, listener)
           resolve(data.message)
         }
       }
 
-      eventBus.on(MEETING_EVENTS.MESSAGE_GENERATED, listener)
+      eventBus.on(CONVERSATION_EVENTS.MESSAGE_GENERATED, listener)
     })
   }
 

@@ -34,7 +34,7 @@ import { approximateTokenSize } from 'tokenx'
 import { generateSearchPrompt, SearchManager } from './searchManager'
 import { getFileContext } from './fileContext'
 import { ContentEnricher } from './contentEnricher'
-import { CONVERSATION_EVENTS, STREAM_EVENTS, TAB_EVENTS, MEETING_EVENTS } from '@/events'
+import { CONVERSATION_EVENTS, STREAM_EVENTS, TAB_EVENTS } from '@/events'
 import { DEFAULT_SETTINGS } from './const'
 
 interface GeneratingMessageState {
@@ -229,8 +229,8 @@ export class ThreadPresenter implements IThreadPresenter {
       // 在所有数据库和状态更新完成后，获取最终的消息对象
       const finalMessage = await this.messageManager.getMessage(eventId)
       if (finalMessage) {
-        // 这个事件只在主进程内部流通，用于通知其他监听者（如会议主持人）
-        eventBus.sendToMain(MEETING_EVENTS.MESSAGE_GENERATED, {
+        // 该事件仅在主进程内部流通，用于通知其他监听者（如MCP会议主持人）
+        eventBus.sendToMain(CONVERSATION_EVENTS.MESSAGE_GENERATED, {
           conversationId: finalMessage.conversationId,
           message: finalMessage
         })
