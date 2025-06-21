@@ -554,7 +554,7 @@ export const defaultModelsSettings: DefaultModelSetting[] = [
     id: 'deepseek-chat',
     name: 'DeepSeek chat',
     temperature: 1,
-    maxTokens: 16000,
+    maxTokens: 8192,
     contextLength: 65536,
     match: ['deepseek-chat'],
     vision: false,

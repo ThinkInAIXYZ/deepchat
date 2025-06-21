@@ -275,7 +275,7 @@ export class MeetingServer {
             `${meetingName}`,
             {},
             tabData.id,
-            { forceNewAndActivate: true }  //强制创建并激活空会话，避免冗余的空会话单例检测
+            { forceNewAndActivate: true } //强制创建并激活空会话，避免冗余的空会话单例检测
           )
           if (!conversationId) {
             console.warn(`为Tab ${tabData.id} 创建会话失败，将跳过此参会者。`)
@@ -330,6 +330,11 @@ export class MeetingServer {
       )
     }
 
+    // 在循环开始前，切换到第一个参与者的Tab
+    if (meetingParticipants.length > 0) {
+      await presenter.tabPresenter.switchTab(meetingParticipants[0].tabId)
+    }
+
     // 2. 初始化会议(使用会议代号): 向所有参与者发送会议主题、规则和角色画像
     const participantNames = meetingParticipants.map((p) => p.meetingName).join('、')
     for (const p of meetingParticipants) {
@@ -347,7 +352,7 @@ export class MeetingServer {
 3. 发言时，请清晰地陈述你的论点。
 4. 你的发言将被转发给其他所有参会者。
 5. 在他人发言时，你会收到其发言内容，但请勿回复，轮到你再发言。
-6. 作为会议参与者，你不得调用与会议相关的工具函数。
+6. 参会期间禁止调用会议相关的工具函数，如start_meeting等。
 ---
 会议现在开始。请等待你的发言回合。
 `
