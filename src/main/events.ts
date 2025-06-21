@@ -100,6 +100,12 @@ export const MCP_EVENTS = {
   INITIALIZED: 'mcp:initialized' // 新增：MCP初始化完成事件
 }
 
+// 新增会议相关事件
+export const MEETING_EVENTS = {
+  INSTRUCTION: 'mcp:meeting-instruction', // 主进程向渲染进程发送指令
+  MESSAGE_GENERATED: 'thread:message-generated' // 主进程内部事件，通知消息已生成
+}
+
 // 同步相关事件
 export const SYNC_EVENTS = {
   BACKUP_STARTED: 'sync:backup-started',

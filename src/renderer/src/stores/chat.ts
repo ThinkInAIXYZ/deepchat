@@ -9,7 +9,7 @@ import type {
 } from '@shared/chat'
 import type { CONVERSATION, CONVERSATION_SETTINGS } from '@shared/presenter'
 import { usePresenter } from '@/composables/usePresenter'
-import { CONVERSATION_EVENTS, DEEPLINK_EVENTS } from '@/events'
+import { CONVERSATION_EVENTS, DEEPLINK_EVENTS, MEETING_EVENTS } from '@/events'
 import router from '@/router'
 import { useI18n } from 'vue-i18n'
 import { useSoundStore } from './sound'
@@ -1008,7 +1008,38 @@ export const useChatStore = defineStore('chat', () => {
     return getThreadsWorkingStatus().get(threadId) || null
   }
 
+  /**
+   * 新增: 处理来自主进程的会议指令
+   * @param data 包含指令文本的对象
+   */
+  const handleMeetingInstruction = async (data: { prompt: string }) => {
+    // 确保当前有活动的会话，否则指令无法执行
+    if (!getActiveThreadId()) {
+      console.warn('收到会议指令，但没有活动的会话。指令被忽略。')
+      return
+    }
+    try {
+      // 将收到的指令作为用户输入，调用已有的sendMessage方法
+      // 这样可以完全复用UI的加载状态、消息显示等所有逻辑
+      await sendMessage({
+        text: data.prompt,
+        files: [],
+        links: [],
+        think: false,
+        search: false,
+        content: [{ type: 'text', content: data.prompt }]
+      })
+    } catch (error) {
+      console.error('处理会议指令时发生错误:', error)
+    }
+  }
+
   const setupEventListeners = () => {
+    // 新增：监听来自主进程的会议指令
+    window.electron.ipcRenderer.on(MEETING_EVENTS.INSTRUCTION, (_, data) => {
+      handleMeetingInstruction(data)
+    })
+
     // 监听：主进程推送的完整会话列表
     window.electron.ipcRenderer.on(
       CONVERSATION_EVENTS.LIST_UPDATED,

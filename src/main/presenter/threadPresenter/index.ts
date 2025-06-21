@@ -34,7 +34,7 @@ import { approximateTokenSize } from 'tokenx'
 import { generateSearchPrompt, SearchManager } from './searchManager'
 import { getFileContext } from './fileContext'
 import { ContentEnricher } from './contentEnricher'
-import { CONVERSATION_EVENTS, STREAM_EVENTS, TAB_EVENTS } from '@/events'
+import { CONVERSATION_EVENTS, STREAM_EVENTS, TAB_EVENTS, MEETING_EVENTS } from '@/events'
 import { DEFAULT_SETTINGS } from './const'
 
 interface GeneratingMessageState {
@@ -223,6 +223,17 @@ export class ThreadPresenter implements IThreadPresenter {
           })
         // 手动触发一次广播，因为这次更新没有经过其他会触发广播的方法
         await this.broadcastThreadListUpdate()
+      }
+
+      // --- 新增逻辑：广播消息生成完成事件 ---
+      // 在所有数据库和状态更新完成后，获取最终的消息对象
+      const finalMessage = await this.messageManager.getMessage(eventId)
+      if (finalMessage) {
+        // 这个事件只在主进程内部流通，用于通知其他监听者（如会议主持人）
+        eventBus.sendToMain(MEETING_EVENTS.MESSAGE_GENERATED, {
+          conversationId: finalMessage.conversationId,
+          message: finalMessage
+        })
       }
     }
 
@@ -611,18 +622,24 @@ export class ThreadPresenter implements IThreadPresenter {
   async createConversation(
     title: string,
     settings: Partial<CONVERSATION_SETTINGS> = {},
-    tabId: number
+    tabId: number,
+    options: { forceNewAndActivate?: boolean } = {} // 新增参数，允许强制创建新会话
   ): Promise<string> {
     console.log('createConversation', title, settings)
+
     const latestConversation = await this.getLatestConversation()
 
-    if (latestConversation) {
-      const { list: messages } = await this.getMessages(latestConversation.id, 1, 1)
-      if (messages.length === 0) {
-        await this.setActiveConversation(latestConversation.id, tabId)
-        return latestConversation.id
+    // 只有在非强制模式下，才执行空会话的单例检查
+    if (!options.forceNewAndActivate) {
+      if (latestConversation) {
+        const { list: messages } = await this.getMessages(latestConversation.id, 1, 1)
+        if (messages.length === 0) {
+          await this.setActiveConversation(latestConversation.id, tabId)
+          return latestConversation.id
+        }
       }
     }
+
     let defaultSettings = DEFAULT_SETTINGS
     if (latestConversation?.settings) {
       defaultSettings = { ...latestConversation.settings }
@@ -656,7 +673,20 @@ export class ThreadPresenter implements IThreadPresenter {
       mergedSettings.systemPrompt = settings.systemPrompt
     }
     const conversationId = await this.sqlitePresenter.createConversation(title, mergedSettings)
-    await this.setActiveConversation(conversationId, tabId)
+
+    // 根据 forceNewAndActivate 标志决定激活行为
+    if (options.forceNewAndActivate) {
+      // 强制模式：直接为当前 tabId 激活新会话，不进行任何检查
+      this.activeConversationIds.set(tabId, conversationId)
+      eventBus.sendToRenderer(CONVERSATION_EVENTS.ACTIVATED, SendTarget.ALL_WINDOWS, {
+        conversationId,
+        tabId
+      })
+    } else {
+      // 默认模式：保持原有的、防止重复打开的激活逻辑
+      await this.setActiveConversation(conversationId, tabId)
+    }
+
     await this.broadcastThreadListUpdate() // 必须广播
     return conversationId
   }

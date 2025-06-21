@@ -548,7 +548,8 @@ export interface IThreadPresenter {
   createConversation(
     title: string,
     settings?: Partial<CONVERSATION_SETTINGS>,
-    tabId: number
+    tabId: number,
+    options?: { forceNewAndActivate?: boolean } // 新增 options 参数, 支持强制新建会话，避免空会话的单例检测
   ): Promise<string>
   deleteConversation(conversationId: string): Promise<void>
   getConversation(conversationId: string): Promise<CONVERSATION>

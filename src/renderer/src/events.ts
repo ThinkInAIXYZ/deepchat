@@ -67,6 +67,12 @@ export const MCP_EVENTS = {
   TOOL_CALL_RESULT: 'mcp:tool-call-result',
   SERVER_STATUS_CHANGED: 'mcp:server-status-changed'
 }
+
+// 新增会议相关事件
+export const MEETING_EVENTS = {
+  INSTRUCTION: 'mcp:meeting-instruction' // 监听来自主进程的指令
+}
+
 // 同步相关事件
 export const SYNC_EVENTS = {
   BACKUP_STARTED: 'sync:backup-started',
