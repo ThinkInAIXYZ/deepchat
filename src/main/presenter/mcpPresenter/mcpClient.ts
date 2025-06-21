@@ -151,7 +151,7 @@ export class McpClient {
       // 优先使用 Bun，如果不可用则使用 Node.js
       if (this.bunRuntimePath) {
         // 对于 node/npm/npx，统一替换为 bun
-        const targetCommand = ['node', 'npm', 'npx'].includes(basename) ? 'bun' : 'bun'
+        const targetCommand = 'bun'
 
         if (process.platform === 'win32') {
           return path.join(this.bunRuntimePath, `${targetCommand}.exe`)

@@ -210,7 +210,7 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
       apiKey: 'https://api.together.ai/settings/api-keys',
       docs: 'https://docs.together.ai/docs/introduction',
       models: 'https://docs.together.ai/docs/chat-models',
-      defaultBaseUrl: 'https://api.tohgether.xyz/v1'
+      defaultBaseUrl: 'https://api.together.xyz/v1'
     }
   },
   {
