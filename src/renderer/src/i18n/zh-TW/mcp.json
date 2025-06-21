@@ -211,6 +211,10 @@
     "deepchat-inmemory/conversation-search-server": {
       "name": "對話歷史搜索",
       "desc": "DeepChat內建對話歷史搜索服務，可搜索歷史對話記錄和訊息內容"
+    },
+    "deepchat-inmemory/meeting-server": {
+      "name": "多智能體會議",
+      "desc": "DeepChat 內建的會議服務可用於發起與主持多智能體討論。"
     }
   },
   "prompts": {

@@ -191,6 +191,10 @@
     "deepchat-inmemory/conversation-search-server": {
       "name": "대화 기록 검색",
       "desc": "DeepChat 내장 대화 기록 검색 서비스, 과거 대화 기록과 메시지 내용을 검색할 수 있습니다"
+    },
+    "deepchat-inmemory/meeting-server": {
+      "name": "멀티 에이전트 회의",
+      "desc": "DeepChat의 내장 회의 서비스는 다중 에이전트 토론의 주최와 진행을 지원합니다."
     }
   },
   "prompts": {

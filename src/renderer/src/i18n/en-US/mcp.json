@@ -191,6 +191,10 @@
     "deepchat-inmemory/conversation-search-server": {
       "name": "Conversation History Search",
       "desc": "DeepChat built-in conversation history search service, can search historical conversation records and message contents"
+    },
+    "deepchat-inmemory/meeting-server": {
+      "name": "Multi-Agent Meeting",
+      "desc": "DeepChat's built-in meeting service enables hosting and facilitating multi-agent discussions."
     }
   },
   "prompts": {

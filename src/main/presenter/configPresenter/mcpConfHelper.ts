@@ -171,6 +171,16 @@ const DEFAULT_INMEMORY_SERVERS: Record<string, MCPServerConfig> = {
     command: 'deepchat-inmemory/conversation-search-server',
     env: {},
     disable: false
+  },
+  'deepchat-inmemory/meeting-server': {
+    args: [],
+    descriptions: 'DeepChat内置会议服务，用于组织多Agent讨论',
+    icons: '👥',
+    autoApprove: ['all'],
+    type: 'inmemory' as MCPServerType,
+    command: 'deepchat-inmemory/meeting-server',
+    env: {},
+    disable: false
   }
 }
 
