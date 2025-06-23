@@ -19,6 +19,7 @@ import { NotificationPresenter } from './notifactionPresenter'
 import { TabPresenter } from './tabPresenter'
 import { TrayPresenter } from './trayPresenter'
 import { OAuthPresenter } from './oauthPresenter'
+import { FloatingButtonPresenter } from './floatingButtonPresenter'
 import { CONFIG_EVENTS, WINDOW_EVENTS } from '@/events'
 
 // IPC调用上下文接口
@@ -52,6 +53,7 @@ export class Presenter implements IPresenter {
   tabPresenter: TabPresenter
   trayPresenter: TrayPresenter
   oauthPresenter: OAuthPresenter
+  floatingButtonPresenter: FloatingButtonPresenter
   // llamaCppPresenter: LlamaCppPresenter // 保留原始注释
 
   constructor() {
@@ -79,6 +81,7 @@ export class Presenter implements IPresenter {
     this.notificationPresenter = new NotificationPresenter()
     this.oauthPresenter = new OAuthPresenter()
     this.trayPresenter = new TrayPresenter()
+    this.floatingButtonPresenter = new FloatingButtonPresenter()
 
     // this.llamaCppPresenter = new LlamaCppPresenter() // 保留原始注释
     this.setupEventBus() // 设置事件总线监听

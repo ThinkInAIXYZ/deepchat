@@ -1,4 +1,4 @@
-import { app, protocol } from 'electron'
+import { app, protocol, ipcMain } from 'electron'
 import { electronApp, optimizer } from '@electron-toolkit/utils'
 import { presenter } from './presenter'
 import { ProxyMode, proxyConfig } from './presenter/proxyConfig'
@@ -8,6 +8,7 @@ import { eventBus } from './eventbus'
 import { WINDOW_EVENTS, TRAY_EVENTS } from './events'
 import { setLoggingEnabled } from '@shared/logger'
 import { is } from '@electron-toolkit/utils' // 确保导入 is
+import { floatingButtonPresenter } from './presenter/floatingButtonPresenter' // 导入悬浮按钮 presenter
 
 // 设置应用命令行参数
 app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required') // 允许视频自动播放
@@ -30,7 +31,7 @@ if (process.platform === 'darwin') {
 presenter.deeplinkPresenter.init()
 
 // 等待 Electron 初始化完成
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   // Set app user model id for windows
   electronApp.setAppUserModelId('com.wefonk.deepchat')
 
@@ -40,6 +41,9 @@ app.whenReady().then(() => {
 
   // 初始化托盘图标和菜单，并存储 presenter 实例
   presenter.setupTray()
+
+  // 立即进行基本初始化，不等待窗口ready-to-show事件
+  presenter.init()
 
   // 从配置中读取代理设置并初始化
   const proxyMode = presenter.configPresenter.getProxyMode() as ProxyMode
@@ -80,15 +84,81 @@ app.whenReady().then(() => {
 
   // 如果没有窗口，创建主窗口 (应用首次启动时)
   if (presenter.windowPresenter.getAllWindows().length === 0) {
-    presenter.windowPresenter.createShellWindow({
-      initialTab: {
-        url: 'local://chat'
+    console.log('Main: Creating initial shell window on app startup')
+    try {
+      const windowId = await presenter.windowPresenter.createShellWindow({
+        initialTab: {
+          url: 'local://chat'
+        }
+      })
+      if (windowId) {
+        console.log(`Main: Initial shell window created successfully with ID: ${windowId}`)
+      } else {
+        console.error('Main: Failed to create initial shell window - returned null')
       }
-    })
+    } catch (error) {
+      console.error('Main: Error creating initial shell window:', error)
+    }
+  } else {
+    console.log('Main: Shell windows already exist, skipping initial window creation')
   }
 
   // 注册全局快捷键
   presenter.shortcutPresenter.registerShortcuts()
+
+  // 初始化悬浮按钮功能
+  try {
+    await floatingButtonPresenter.initialize()
+    console.log('Main: Floating button initialized successfully')
+  } catch (error) {
+    console.error('Failed to initialize floating button:', error)
+  }
+
+  // 设置悬浮按钮点击事件的 IPC 处理器
+  ipcMain.on('floating-button-click', () => {
+    console.log('Main: Floating button clicked via IPC')
+    // 触发内置事件处理器
+    app.emit('floating-button-clicked' as any)
+  })
+
+  // 监听悬浮按钮点击事件
+  app.on('floating-button-clicked' as any, () => {
+    const allWindows = presenter.windowPresenter.getAllWindows()
+    if (allWindows.length === 0) {
+      // 如果没有窗口，创建新窗口
+      presenter.windowPresenter.createShellWindow({
+        initialTab: {
+          url: 'local://chat'
+        }
+      })
+    } else {
+      // 显示并聚焦第一个窗口
+      const targetWindow = presenter.windowPresenter.getFocusedWindow() || allWindows[0]
+      if (!targetWindow.isDestroyed()) {
+        presenter.windowPresenter.show(targetWindow.id)
+        targetWindow.focus()
+      } else {
+        // 如果窗口已销毁，创建新窗口
+        presenter.windowPresenter.createShellWindow({
+          initialTab: { url: 'local://chat' }
+        })
+      }
+    }
+  })
+
+  // 监听窗口显示/隐藏状态变化
+  const handleWindowVisibilityChange = () => {
+    const allWindows = presenter.windowPresenter.getAllWindows()
+    const hasVisibleWindow = allWindows.some(win => !win.isDestroyed() && win.isVisible())
+    floatingButtonPresenter.onMainWindowVisibilityChanged(hasVisibleWindow)
+  }
+
+  // 监听窗口显示事件
+  app.on('browser-window-created', (_, window) => {
+    window.on('show', handleWindowVisibilityChange)
+    window.on('hide', handleWindowVisibilityChange)
+    window.on('closed', handleWindowVisibilityChange)
+  })
 
   // 托盘 检测更新
   eventBus.on(TRAY_EVENTS.CHECK_FOR_UPDATES, () => {
@@ -267,15 +337,23 @@ app.whenReady().then(() => {
   })
 }) // app.whenReady().then 结束
 
-// 当所有窗口都关闭时，不退出应用。macOS 平台会保留在 Dock 中，Windows 会保留在托盘。
-// 用户需要通过托盘菜单或 Cmd+Q 来真正退出应用。
-// 因此移除 'window-all-closed' 事件监听
-/*
+// 当所有主窗口都关闭时的处理逻辑
+// macOS 平台会保留在 Dock 中，Windows 会保留在托盘。
+// 悬浮按钮窗口不计入主窗口数量
 app.on('window-all-closed', () => {
-  presenter.destroy()
-  // trayPresenter.destroy() // <-- 已移动到 will-quit
+  // 检查是否还有非悬浮按钮的窗口
+  const mainWindows = presenter.windowPresenter.getAllWindows()
+  
+  if (mainWindows.length === 0) {
+    // 只有悬浮按钮窗口时，在非 macOS 平台退出应用
+    if (process.platform !== 'darwin') {
+      console.log('main: All main windows closed on non-macOS platform, quitting app')
+      app.quit()
+    } else {
+      console.log('main: All main windows closed on macOS, keeping app running in dock')
+    }
+  }
 })
-*/
 
 // 在应用即将退出时触发，适合进行最终的资源清理 (如销毁托盘)
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -298,9 +376,15 @@ app.on('will-quit', (_event) => {
 })
 
 // 在应用退出之前触发，早于 will-quit。通常不如 will-quit 适合资源清理。
-// 移除在此处销毁托盘的逻辑。
+// 在这里销毁悬浮按钮，确保应用能正常退出
 app.on('before-quit', () => {
   console.log('main: app before-quit event triggered.') // 保留关键日志
-  // presenter.destroy() // 如果需要在 will-quit 之前清理 presenter，可以保留
-  // trayPresenter.destroy() // <-- 从此处移除托盘销毁
+  
+  // 销毁悬浮按钮窗口，确保应用能正常退出
+  try {
+    floatingButtonPresenter.destroy()
+    console.log('main: Floating button destroyed during before-quit')
+  } catch (error) {
+    console.error('main: Error destroying floating button during before-quit:', error)
+  }
 })

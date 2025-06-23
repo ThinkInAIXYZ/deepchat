@@ -9,6 +9,7 @@ declare global {
       getPathForFile(file: File): string
       getWindowId(): number | null
       getWebContentsId(): number
-    }
+    },
+    floatingButtonAPI: typeof floatingButtonAPI;
   }
 }
