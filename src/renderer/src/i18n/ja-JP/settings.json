@@ -292,7 +292,7 @@
   },
   "mcp": {
     "title": "MCP設定",
-    "description": "MCP（Model Control Protocol）サーバーとツールを管理および構成します",
+    "description": "MCP（Model Context Protocol）サーバーとツールを管理および構成します",
     "enabledTitle": "MCPを有効化",
     "enabledDescription": "MCP機能とツールを有効または無効にします",
     "enableToAccess": "設定オプションにアクセスするにはMCPを有効にしてください",

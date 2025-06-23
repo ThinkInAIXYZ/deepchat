@@ -292,7 +292,7 @@
   },
   "mcp": {
     "title": "MCP 설정",
-    "description": "MCP(Model Control Protocol) 서버 및 도구 관리 및 구성",
+    "description": "MCP(Model Context Protocol) 서버 및 도구 관리 및 구성",
     "enabledTitle": "MCP 활성화",
     "enabledDescription": "MCP 기능 및 도구 활성화 또는 비활성화",
     "enableToAccess": "구성 옵션에 액세스하려면 MCP를 활성화하세요",

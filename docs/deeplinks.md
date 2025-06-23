@@ -61,7 +61,7 @@ deepchat://start?msg=帮我分析这段代码&model=deepseek-coder&system=你是
 
 通过此深度链接可以安装MCP（模型控制协议）服务配置。
 
-Use this deeplink to install Model Control Protocol (MCP) service configuration.
+Use this deeplink to install Model Context Protocol (MCP) service configuration.
 
 ### URL格式 / URL Format
 

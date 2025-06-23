@@ -55,7 +55,7 @@
   "confirmRemoveServer": "確定要刪除服務器 {name} 嗎？\n此操作無法撤銷。",
   "default": "預設",
   "deleteServer": "刪除服務器",
-  "description": "管理和配置MCP（Model Control Protocol）伺服器和工具",
+  "description": "管理和配置MCP（Model Context Protocol）伺服器和工具",
   "editServer": "編輯服務器",
   "editServerDialog": {
     "description": "編輯MCP服務器配置",

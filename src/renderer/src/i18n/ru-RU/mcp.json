@@ -55,7 +55,7 @@
   "confirmRemoveServer": "Вы уверены, что хотите удалить сервер {name}? Эта операция не может быть отменена.",
   "default": "по умолчанию",
   "deleteServer": "Удалить сервер",
-  "description": "Управление и настройка серверов и инструментов MCP (Model Control Protocol)",
+  "description": "Управление и настройка серверов и инструментов MCP (Model Context Protocol)",
   "editServer": "Отредактируйте сервер",
   "editServerDialog": {
     "description": "Редактировать конфигурацию сервера MCP",

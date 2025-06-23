@@ -292,7 +292,7 @@
   },
   "mcp": {
     "title": "Настройки MCP",
-    "description": "Управление и настройка серверов и инструментов MCP (Model Control Protocol)",
+    "description": "Управление и настройка серверов и инструментов MCP (Model Context Protocol)",
     "enabledTitle": "Включить MCP",
     "enabledDescription": "Включение или отключение функций и инструментов MCP",
     "enableToAccess": "Пожалуйста, включите MCP для доступа к настройкам",

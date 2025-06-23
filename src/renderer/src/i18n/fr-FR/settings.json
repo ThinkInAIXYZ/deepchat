@@ -292,7 +292,7 @@
   },
   "mcp": {
     "title": "Paramètres MCP",
-    "description": "Gérer et configurer les serveurs et outils MCP (Model Control Protocol)",
+    "description": "Gérer et configurer les serveurs et outils MCP (Model Context Protocol)",
     "enabledTitle": "Activer MCP",
     "enabledDescription": "Activer ou désactiver les fonctionnalités et outils MCP",
     "enableToAccess": "Veuillez activer MCP pour accéder aux options de configuration",

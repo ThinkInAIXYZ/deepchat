@@ -10,7 +10,7 @@ This guide provides information for developers looking to understand, build, and
   - [Technology Stack](#technology-stack)
   - [Architectural Documents](#architectural-documents)
 - [API Documentation](#api-documentation)
-- [Model Context Protocol (MCP)](#model-controller-platform-mcp)
+- [Model Context Protocol(MCP)](#model-context-protocol-mcp)
 - [Development Setup](#development-setup)
 - [Building the Application](#building-the-application)
 - [Contribution Guidelines](#contribution-guidelines)

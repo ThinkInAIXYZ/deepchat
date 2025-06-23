@@ -1,6 +1,6 @@
 {
   "title": "MCP设置",
-  "description": "管理和配置MCP（Model Control Protocol）服务器和工具",
+  "description": "管理和配置MCP（Model Context Protocol）服务器和工具",
   "enabledTitle": "启用MCP",
   "enabledDescription": "启用或禁用MCP功能和工具",
   "enableToAccess": "请先启用MCP以访问配置选项",

@@ -55,7 +55,7 @@
   "confirmRemoveServer": "Are you sure you want to delete the server {name}? \nThis operation cannot be cancelled.",
   "default": "default",
   "deleteServer": "Delete the server",
-  "description": "Manage and configure MCP (Model Control Protocol) servers and tools",
+  "description": "Manage and configure MCP (Model Context Protocol) servers and tools",
   "editServer": "Edit the server",
   "editServerDialog": {
     "description": "Edit MCP server configuration",

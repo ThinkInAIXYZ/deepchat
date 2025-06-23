@@ -55,7 +55,7 @@
   "confirmRemoveServer": "サーバー{name}を削除したいですか？この操作はキャンセルできません。",
   "default": "デフォルト",
   "deleteServer": "サーバーを削除します",
-  "description": "MCP（Model Control Protocol）サーバーとツールの管理と設定",
+  "description": "MCP（Model Context Protocol）サーバーとツールの管理と設定",
   "editServer": "サーバーを編集します",
   "editServerDialog": {
     "description": "MCPサーバーの構成を編集します",
