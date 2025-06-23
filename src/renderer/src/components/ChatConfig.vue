@@ -71,7 +71,7 @@ const formatSize = (size: number): string => {
         <div class="flex items-center space-x-2 py-1.5">
           <Icon icon="lucide:terminal" class="w-4 h-4 text-muted-foreground" />
           <Label class="text-xs font-medium">{{ t('settings.model.systemPrompt.label') }}</Label>
-          <TooltipProvider>
+          <TooltipProvider :ignoreNonKeyboardFocus="true">
             <Tooltip>
               <TooltipTrigger>
                 <Icon icon="lucide:help-circle" class="w-4 h-4 text-muted-foreground" />
