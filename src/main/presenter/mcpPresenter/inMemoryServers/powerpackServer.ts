@@ -197,7 +197,12 @@ export class PowerpackServer {
 
   // 执行JavaScript代码
   private async executeJavaScriptCode(code: string, timeout: number): Promise<string> {
-    if (!this.bunRuntimePath && !this.nodeRuntimePath) {
+    // Windows平台只检查Node.js，其他平台检查Bun和Node.js
+    const hasRuntime = process.platform === 'win32'
+      ? this.nodeRuntimePath
+      : (this.bunRuntimePath || this.nodeRuntimePath)
+
+    if (!hasRuntime) {
       throw new Error('运行时未找到，无法执行代码')
     }
 
@@ -217,21 +222,20 @@ export class PowerpackServer {
       let executable: string
       let args: string[]
 
-      // 优先使用 Bun，如果不可用则使用 Node.js
-      if (this.bunRuntimePath) {
-        executable =
-          process.platform === 'win32'
-            ? path.join(this.bunRuntimePath, 'bun.exe')
-            : path.join(this.bunRuntimePath, 'bun')
-        args = [tempFile]
-      } else if (this.nodeRuntimePath) {
-        executable =
-          process.platform === 'win32'
-            ? path.join(this.nodeRuntimePath, 'node.exe')
-            : path.join(this.nodeRuntimePath, 'bin', 'node')
+      // Windows平台使用Node.js，其他平台优先使用Bun
+      if (process.platform === 'win32') {
+        // Windows只使用Node.js
+        executable = path.join(this.nodeRuntimePath!, 'node.exe')
         args = [tempFile]
       } else {
-        throw new Error('未找到可用的JavaScript运行时')
+        // 其他平台优先使用Bun
+        if (this.bunRuntimePath) {
+          executable = path.join(this.bunRuntimePath, 'bun')
+          args = [tempFile]
+        } else {
+          executable = path.join(this.nodeRuntimePath!, 'bin', 'node')
+          args = [tempFile]
+        }
       }
 
       // 执行代码并添加超时控制
@@ -379,12 +383,21 @@ export class PowerpackServer {
           inputSchema: zodToJsonSchema(E2BRunCodeArgsSchema)
         })
       } else {
-        // 使用本地运行时执行代码
-        if (this.bunRuntimePath || this.nodeRuntimePath) {
+                // 使用本地运行时执行代码
+        const hasLocalRuntime = process.platform === 'win32'
+          ? this.nodeRuntimePath
+          : (this.bunRuntimePath || this.nodeRuntimePath)
+
+        if (hasLocalRuntime) {
+          const runtimeDescription = process.platform === 'win32'
+            ? 'Execute simple JavaScript/TypeScript code in a secure sandbox environment using Node.js runtime on Windows platform. '
+            : 'Execute simple JavaScript/TypeScript code in a secure sandbox environment (Bun or Node.js). Non-Windows platforms prioritize Bun runtime. '
+
           tools.push({
             name: 'run_node_code',
             description:
-              'Execute simple JavaScript/TypeScript code in a secure sandbox environment (Bun or Node.js). Suitable for calculations, data transformations, encryption/decryption, and network operations. ' +
+              runtimeDescription +
+              'Suitable for calculations, data transformations, encryption/decryption, and network operations. ' +
               'The code needs to be output to the console, and the output content needs to be formatted as a string. ' +
               'For security reasons, the code cannot perform file operations, modify system settings, spawn child processes, or execute external code from network. ' +
               'Code execution has a timeout limit, default is 5 seconds, you can adjust it based on the estimated time of the code, generally not recommended to exceed 2 minutes. ' +
