@@ -1,5 +1,6 @@
 import { BrowserWindow, screen } from 'electron';
 import path from 'path';
+import fs from 'fs';
 import { FloatingButtonConfig, FloatingButtonState } from './types';
 import logger from '../../../shared/logger';
 
@@ -32,6 +33,12 @@ export class FloatingButtonWindow {
     try {
       const position = this.calculatePosition();
       
+      // 根据环境选择正确的预加载脚本路径
+      const isDev = process.env.NODE_ENV === 'development';
+      const preloadPath = isDev 
+        ? path.join(process.cwd(), 'out/preload/floating.mjs')
+        : path.join(__dirname, '../../preload/floating.mjs');
+      
       this.window = new BrowserWindow({
         width: this.config.size.width,
         height: this.config.size.height,
@@ -50,8 +57,10 @@ export class FloatingButtonWindow {
         webPreferences: {
           nodeIntegration: false,
           contextIsolation: true,
-          preload: path.join(__dirname, '../../preload/floating.mjs'),
-          webSecurity: true
+          preload: preloadPath,
+          webSecurity: false, // 开发模式下允许跨域
+          devTools: true, // 开发模式下启用开发者工具
+          sandbox: false // 禁用沙盒模式，确保预加载脚本能正常工作
         }
       });
 
@@ -59,9 +68,10 @@ export class FloatingButtonWindow {
       this.window.setOpacity(this.config.opacity);
 
       // 加载悬浮按钮页面
-      const isDev = process.env.NODE_ENV === 'development';
       if (isDev) {
-        await this.window.loadURL('http://localhost:5173/floating/index.html');
+        await this.window.loadURL('http://localhost:5173/floating/');
+        // 开发模式下可选择性打开开发者工具（暂时禁用，避免影响拖拽）
+        this.window.webContents.openDevTools({ mode: 'detach' });
       } else {
         await this.window.loadFile(path.join(__dirname, '../../../renderer/floating/index.html'));
       }

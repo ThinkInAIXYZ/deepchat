@@ -5,7 +5,7 @@ import { ProxyMode, proxyConfig } from './presenter/proxyConfig'
 import path from 'path'
 import fs from 'fs'
 import { eventBus } from './eventbus'
-import { WINDOW_EVENTS, TRAY_EVENTS } from './events'
+import { WINDOW_EVENTS, TRAY_EVENTS, FLOATING_BUTTON_EVENTS } from './events'
 import { setLoggingEnabled } from '@shared/logger'
 import { is } from '@electron-toolkit/utils' // 确保导入 is
 import { floatingButtonPresenter } from './presenter/floatingButtonPresenter' // 导入悬浮按钮 presenter
@@ -115,36 +115,47 @@ app.whenReady().then(async () => {
   }
 
   // 设置悬浮按钮点击事件的 IPC 处理器
-  ipcMain.on('floating-button-click', () => {
-    console.log('Main: Floating button clicked via IPC')
-    // 触发内置事件处理器
-    app.emit('floating-button-clicked' as any)
+  // 先移除可能存在的旧监听器
+  ipcMain.removeAllListeners(FLOATING_BUTTON_EVENTS.CLICKED)
+  ipcMain.on(FLOATING_BUTTON_EVENTS.CLICKED, () => {
+    try {
+      // 触发内置事件处理器
+      handleShowHiddenWindow(true)
+    } catch (error) {
+    }
   })
 
-  // 监听悬浮按钮点击事件
-  app.on('floating-button-clicked' as any, () => {
+ function handleShowHiddenWindow(mustShow: boolean)  {
     const allWindows = presenter.windowPresenter.getAllWindows()
     if (allWindows.length === 0) {
-      // 如果没有窗口，创建新窗口
       presenter.windowPresenter.createShellWindow({
         initialTab: {
           url: 'local://chat'
         }
       })
     } else {
-      // 显示并聚焦第一个窗口
+      // 查找目标窗口 (焦点窗口或第一个窗口)
       const targetWindow = presenter.windowPresenter.getFocusedWindow() || allWindows[0]
+
       if (!targetWindow.isDestroyed()) {
-        presenter.windowPresenter.show(targetWindow.id)
-        targetWindow.focus()
+        // 逻辑: 如果窗口可见且不是从托盘点击触发，则隐藏；否则显示并置顶
+        if (targetWindow.isVisible() && !mustShow) {
+          presenter.windowPresenter.hide(targetWindow.id)
+        } else {
+          presenter.windowPresenter.show(targetWindow.id)
+          targetWindow.focus() // 确保窗口置顶
+        }
       } else {
-        // 如果窗口已销毁，创建新窗口
+        console.warn('Target window for SHOW_HIDDEN_WINDOW event is destroyed.') // 保持 warn
+        // 如果目标窗口已销毁，创建新窗口
         presenter.windowPresenter.createShellWindow({
-          initialTab: { url: 'local://chat' }
+          initialTab: {
+            url: 'local://chat'
+          }
         })
       }
     }
-  })
+  }
 
   // 监听窗口显示/隐藏状态变化
   const handleWindowVisibilityChange = () => {
@@ -173,38 +184,8 @@ app.whenReady().then(async () => {
     presenter.upgradePresenter.checkUpdate()
   })
 
-  // 监听显示/隐藏窗口事件 (从托盘或快捷键触发)
-  eventBus.on(TRAY_EVENTS.SHOW_HIDDEN_WINDOW, (trayClick: boolean) => {
-    const allWindows = presenter.windowPresenter.getAllWindows()
-    if (allWindows.length === 0) {
-      presenter.windowPresenter.createShellWindow({
-        initialTab: {
-          url: 'local://chat'
-        }
-      })
-    } else {
-      // 查找目标窗口 (焦点窗口或第一个窗口)
-      const targetWindow = presenter.windowPresenter.getFocusedWindow() || allWindows[0]
-
-      if (!targetWindow.isDestroyed()) {
-        // 逻辑: 如果窗口可见且不是从托盘点击触发，则隐藏；否则显示并置顶
-        if (targetWindow.isVisible() && !trayClick) {
-          presenter.windowPresenter.hide(targetWindow.id)
-        } else {
-          presenter.windowPresenter.show(targetWindow.id)
-          targetWindow.focus() // 确保窗口置顶
-        }
-      } else {
-        console.warn('Target window for SHOW_HIDDEN_WINDOW event is destroyed.') // 保持 warn
-        // 如果目标窗口已销毁，创建新窗口
-        presenter.windowPresenter.createShellWindow({
-          initialTab: {
-            url: 'local://chat'
-          }
-        })
-      }
-    }
-  })
+  // 监听显示/隐藏窗口事件 (从托盘或快捷键或悬浮窗口触发)
+  eventBus.on(TRAY_EVENTS.SHOW_HIDDEN_WINDOW, handleShowHiddenWindow)
 
   // 监听浏览器窗口获得焦点事件
   app.on('browser-window-focus', () => {

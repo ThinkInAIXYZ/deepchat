@@ -1,4 +1,4 @@
-import '@/assets/main.css'
+import '../src/assets/main.css'
 import { createApp } from 'vue'
 import FloatingButton from './FloatingButton.vue'
 

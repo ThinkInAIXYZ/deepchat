@@ -1,17 +1,19 @@
 <template>
-  <div class="floating-button-container">
+  <div class="w-screen h-screen bg-transparent overflow-hidden select-none flex items-center justify-center">
     <div 
-      ref="floatingButton"
-      class="floating-button" 
-      :class="{ pulse: isPulsing }"
-      @mouseenter="handleMouseEnter"
+      ref="floatingButton" 
+      class="w-15 h-15 rounded-full border-2 border-white/30 flex items-center justify-center cursor-pointer transition-all duration-300 relative overflow-hidden select-none floating-button"
+      :class="{ 'floating-button-pulse': isPulsing }"
+      @click="handleClick"
+      @mouseenter="handleMouseEnter" 
       @mouseleave="handleMouseLeave"
-      @mousedown="handleMouseDown"
     >
-      <svg class="icon" viewBox="0 0 24 24">
-        <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
+      <svg class="w-6 h-6 fill-white z-1 relative" viewBox="0 0 24 24">
+        <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
       </svg>
-      <div class="tooltip">打开 DeepChat</div>
+      <div class="absolute bottom-full left-1/2 transform -translate-x-1/2 bg-black/80 text-white px-3 py-2 rounded-md text-xs whitespace-nowrap opacity-0 invisible transition-all duration-300 pointer-events-none mb-2 tooltip">
+        点击打开 DeepChat
+      </div>
     </div>
   </div>
 </template>
@@ -22,46 +24,8 @@ import { ref, onMounted, onUnmounted } from 'vue'
 // 响应式状态
 const isPulsing = ref(true)
 const floatingButton = ref<HTMLElement>()
-let dragStartPos = { x: 0, y: 0 }
-let isDragging = false
 
-// 鼠标按下处理 - 记录起始位置
-const handleMouseDown = (event: MouseEvent) => {
-  dragStartPos.x = event.clientX
-  dragStartPos.y = event.clientY
-  isDragging = false
-  
-  // 添加鼠标释放监听器
-  document.addEventListener('mouseup', handleMouseUp)
-  document.addEventListener('mousemove', handleMouseMove)
-}
-
-// 鼠标移动处理 - 检测是否为拖拽
-const handleMouseMove = (event: MouseEvent) => {
-  const deltaX = Math.abs(event.clientX - dragStartPos.x)
-  const deltaY = Math.abs(event.clientY - dragStartPos.y)
-  
-  // 如果移动超过5像素，认为是拖拽
-  if (deltaX > 5 || deltaY > 5) {
-    isDragging = true
-  }
-}
-
-// 鼠标释放处理 - 判断是点击还是拖拽
-const handleMouseUp = () => {
-  // 移除监听器
-  document.removeEventListener('mouseup', handleMouseUp)
-  document.removeEventListener('mousemove', handleMouseMove)
-  
-  // 如果不是拖拽，则处理点击
-  if (!isDragging) {
-    handleClick()
-  }
-  
-  isDragging = false
-}
-
-// 点击处理
+// 点击处理 - 专注于唤起主窗口
 const handleClick = () => {
   // 点击反馈动画
   if (floatingButton.value) {
@@ -73,9 +37,14 @@ const handleClick = () => {
     }, 150)
   }
 
-  // 通知主进程
   if (window.floatingButtonAPI) {
-    window.floatingButtonAPI.onClick()
+    try {
+      window.floatingButtonAPI.onClick()
+    } catch (error) {
+      console.error('=== FloatingButton: Error calling onClick API ===:', error)
+    }
+  } else {
+    console.error('=== FloatingButton: floatingButtonAPI not available ===')
   }
 }
 
@@ -93,7 +62,6 @@ const handleMouseLeave = () => {
 
 // 配置更新处理
 const handleConfigUpdate = (config: any) => {
-  console.log('Config updated:', config)
   // 根据配置更新按钮样式
   if (config.opacity !== undefined && document.body) {
     document.body.style.opacity = config.opacity.toString()
@@ -101,22 +69,12 @@ const handleConfigUpdate = (config: any) => {
 }
 
 onMounted(() => {
-  // 监听配置更新
   if (window.floatingButtonAPI) {
-    window.floatingButtonAPI.onConfigUpdate(handleConfigUpdate)
+    window.floatingButtonAPI.onConfigUpdate(handleConfigUpdate);
   }
-
-  // 添加初始动画延迟
-  setTimeout(() => {
-    isPulsing.value = true
-  }, 1000)
 })
 
 onUnmounted(() => {
-  // 清理拖拽事件监听器
-  document.removeEventListener('mouseup', handleMouseUp)
-  document.removeEventListener('mousemove', handleMouseMove)
-  
   // 清理配置更新监听器
   if (window.floatingButtonAPI) {
     window.floatingButtonAPI.removeAllListeners()
@@ -125,44 +83,24 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-.floating-button-container {
-  width: 100vw;
-  height: 100vh;
-  background: transparent;
-  overflow: hidden;
-  user-select: none;
-  -webkit-user-select: none;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
+/* 悬浮按钮基础样式 */
 .floating-button {
-  width: 60px;
-  height: 60px;
-  border-radius: 50%;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  border: 2px solid rgba(255, 255, 255, 0.3);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  position: relative;
-  overflow: hidden;
-  -webkit-app-region: drag; /* 让按钮可拖拽 */
 }
 
+/* 悬浮按钮悬停效果 */
 .floating-button:hover {
   transform: scale(1.1);
-  box-shadow: 0 8px 25px rgba(102, 126, 234, 0.4);
   border-color: rgba(255, 255, 255, 0.6);
+  box-shadow: 0 8px 25px rgba(102, 126, 234, 0.4);
 }
 
+/* 悬浮按钮激活效果 */
 .floating-button:active {
   transform: scale(0.95);
 }
 
+/* 悬浮按钮光泽效果 */
 .floating-button::before {
   content: '';
   position: absolute;
@@ -170,10 +108,10 @@ onUnmounted(() => {
   left: -50%;
   width: 200%;
   height: 200%;
+  opacity: 0;
+  transition: all 0.6s ease;
   background: linear-gradient(45deg, transparent, rgba(255, 255, 255, 0.1), transparent);
   transform: rotate(45deg);
-  transition: all 0.6s ease;
-  opacity: 0;
 }
 
 .floating-button:hover::before {
@@ -181,6 +119,7 @@ onUnmounted(() => {
   animation: shine 1.5s ease-in-out infinite;
 }
 
+/* 光泽动画 */
 @keyframes shine {
   0% {
     transform: rotate(45deg) translate(-100%, -100%);
@@ -193,16 +132,8 @@ onUnmounted(() => {
   }
 }
 
-.icon {
-  width: 24px;
-  height: 24px;
-  fill: white;
-  z-index: 1;
-  position: relative;
-}
-
 /* 脉冲动画 */
-.floating-button.pulse {
+.floating-button-pulse {
   animation: pulse 2s infinite;
 }
 
@@ -218,26 +149,7 @@ onUnmounted(() => {
   }
 }
 
-/* 工具提示 */
-.tooltip {
-  position: absolute;
-  bottom: 100%;
-  left: 50%;
-  transform: translateX(-50%);
-  background: rgba(0, 0, 0, 0.8);
-  color: white;
-  padding: 8px 12px;
-  border-radius: 6px;
-  font-size: 12px;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  white-space: nowrap;
-  opacity: 0;
-  visibility: hidden;
-  transition: all 0.3s ease;
-  pointer-events: none;
-  margin-bottom: 8px;
-}
-
+/* 工具提示箭头 */
 .tooltip::after {
   content: '';
   position: absolute;
@@ -248,6 +160,7 @@ onUnmounted(() => {
   border-top-color: rgba(0, 0, 0, 0.8);
 }
 
+/* 工具提示显示 */
 .floating-button:hover .tooltip {
   opacity: 1;
   visibility: visible;
