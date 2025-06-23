@@ -1,5 +1,9 @@
-import { FLOATING_BUTTON_EVENTS } from '@/events';
 import { contextBridge, ipcRenderer } from 'electron';
+
+// 直接定义事件常量，避免路径解析问题
+const FLOATING_BUTTON_EVENTS = {
+  CLICKED: 'floating-button:clicked'
+} as const;
 
 // 定义悬浮按钮的 API
 const floatingButtonAPI = {
