@@ -75,10 +75,10 @@ export default defineConfig({
       }),
       vue(),
       svgLoader(),
-      vueDevTools({
-        // use export LAUNCH_EDITOR=cursor instead
-        // launchEditor: 'cursor'
-      })
+      // vueDevTools({
+      //   // use export LAUNCH_EDITOR=cursor instead
+      //   // launchEditor: 'cursor'
+      // })
     ],
     build: {
       minify: 'esbuild',

@@ -1,19 +1,14 @@
 <template>
-  <div class="w-screen h-screen bg-transparent overflow-hidden select-none flex items-center justify-center">
+  <div class="w-screen h-screen bg-transparent overflow-hidden select-none flex items-center justify-center drag-region">
     <div 
       ref="floatingButton" 
-      class="w-15 h-15 rounded-full border-2 border-white/30 flex items-center justify-center cursor-pointer transition-all duration-300 relative overflow-hidden select-none floating-button"
+      class="w-15 h-15 rounded-full border-2 border-white/30 flex items-center justify-center cursor-pointer transition-all duration-300 relative overflow-hidden select-none floating-button no-drag"
       :class="{ 'floating-button-pulse': isPulsing }"
       @click="handleClick"
       @mouseenter="handleMouseEnter" 
       @mouseleave="handleMouseLeave"
     >
-      <svg class="w-6 h-6 fill-white z-1 relative" viewBox="0 0 24 24">
-        <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
-      </svg>
-      <div class="absolute bottom-full left-1/2 transform -translate-x-1/2 bg-black/80 text-white px-3 py-2 rounded-md text-xs whitespace-nowrap opacity-0 invisible transition-all duration-300 pointer-events-none mb-2 tooltip">
-        点击打开 DeepChat
-      </div>
+      <img src="@/assets/logo.png" alt="Floating Button Icon" class="w-10 h-10 pointer-events-none" />
     </div>
   </div>
 </template>
@@ -83,9 +78,28 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
+/* 拖拽区域 */
+.drag-region {
+  -webkit-app-region: drag;
+}
+
+/* 禁用拖拽的元素 */
+.no-drag {
+  -webkit-app-region: no-drag;
+}
+
+/* 确保图片不会阻止点击事件 */
+.pointer-events-none {
+  pointer-events: none;
+}
+
 /* 悬浮按钮基础样式 */
 .floating-button {
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  /* 按钮本身不可拖拽，只响应点击 */
+  -webkit-app-region: no-drag;
+  /* 确保按钮可以接收鼠标事件 */
+  pointer-events: auto;
 }
 
 /* 悬浮按钮悬停效果 */
