@@ -58,7 +58,7 @@
     "@electron-toolkit/preload": "^3.0.1",
     "@electron-toolkit/utils": "^4.0.0",
     "@google/genai": "^1.5.1",
-    "@modelcontextprotocol/sdk": "^1.12.3",
+    "@modelcontextprotocol/sdk": "^1.13.1",
     "axios": "^1.7.9",
     "better-sqlite3-multiple-ciphers": "11.10.0",
     "cheerio": "^1.0.0",

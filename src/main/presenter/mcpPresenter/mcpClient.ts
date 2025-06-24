@@ -230,18 +230,6 @@ export class McpClient {
       }
     }
 
-    // 如果是 uv 或 uvx 命令，且存在 uvRegistry，添加 --index 参数
-    if (['uv', 'uvx'].includes(basename) && this.uvRegistry) {
-      return {
-        command: this.replaceWithRuntimeCommand(command),
-        args: [
-          '--index',
-          this.uvRegistry,
-          ...args.map((arg) => this.replaceWithRuntimeCommand(arg))
-        ]
-      }
-    }
-
     return {
       command: this.replaceWithRuntimeCommand(command),
       args: args.map((arg) => this.replaceWithRuntimeCommand(arg))
@@ -535,12 +523,21 @@ export class McpClient {
           env.npm_config_registry = this.npmRegistry
         }
 
-        console.log('mcp env', command)
+        if (this.uvRegistry) {
+          env.UV_DEFAULT_INDEX = this.uvRegistry
+          env.PIP_INDEX_URL = this.uvRegistry
+        }
+
+        // console.log('mcp env', command, env, args)
         this.transport = new StdioClientTransport({
           command,
           args,
           env,
           stderr: 'pipe'
+        })
+
+        ;(this.transport as StdioClientTransport).stderr?.on('data', (data) => {
+          console.info('mcp StdioClientTransport error', this.serverName, data.toString())
         })
       } else if (this.serverConfig.baseUrl && this.serverConfig.type === 'sse') {
         this.transport = new SSEClientTransport(new URL(this.serverConfig.baseUrl as string), {

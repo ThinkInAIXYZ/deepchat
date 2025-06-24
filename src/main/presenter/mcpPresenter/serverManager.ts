@@ -84,7 +84,7 @@ export class ServerManager {
 
     // 如果最快的npm源是npmmirror，设置uvRegistry
     if (this.npmRegistry === 'https://registry.npmmirror.com/') {
-      this.uvRegistry = 'https://mirrors.tuna.tsinghua.edu.cn/pypi/web/simple'
+      this.uvRegistry = 'http://mirrors.aliyun.com/pypi/simple'
     } else {
       this.uvRegistry = null
     }
