@@ -438,7 +438,9 @@
     "text-base": "défaut",
     "text-lg": "grand",
     "text-sm": "Petit",
-    "text-xl": "Extrêmement grand"
+    "text-xl": "Extrêmement grand",
+    "floatingButton": "Bouton flottant",
+    "floatingButtonDesc": "Afficher un bouton flottant sur le bureau pour activer rapidement la fenêtre de l'application"
   },
   "shortcuts": {
     "title": "Paramètres des raccourcis clavier",

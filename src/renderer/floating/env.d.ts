@@ -7,7 +7,6 @@ declare module '*.vue' {
   export default component
 }
 
-// 悬浮按钮 API 类型声明
 declare global {
   interface Window {
     floatingButtonAPI: {

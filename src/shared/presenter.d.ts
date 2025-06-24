@@ -338,6 +338,9 @@ export interface IConfigPresenter {
   // COT拷贝设置
   getCopyWithCotEnabled(): boolean
   setCopyWithCotEnabled(enabled: boolean): void
+  // 悬浮按钮设置
+  getFloatingButtonEnabled(): boolean
+  setFloatingButtonEnabled(enabled: boolean): void
   // 日志设置
   getLoggingEnabled(): boolean
   setLoggingEnabled(enabled: boolean): void

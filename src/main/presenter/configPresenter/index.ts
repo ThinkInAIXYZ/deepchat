@@ -16,7 +16,7 @@ import { DEFAULT_PROVIDERS } from './providers'
 import path from 'path'
 import { app, nativeTheme, shell } from 'electron'
 import fs from 'fs'
-import { CONFIG_EVENTS, SYSTEM_EVENTS } from '@/events'
+import { CONFIG_EVENTS, SYSTEM_EVENTS, FLOATING_BUTTON_EVENTS } from '@/events'
 import { McpConfHelper, SYSTEM_INMEM_MCP_SERVERS } from './mcpConfHelper'
 import { presenter } from '@/presenter'
 import { compare } from 'compare-versions'
@@ -43,6 +43,7 @@ interface IAppSettings {
   soundEnabled?: boolean // 音效是否启用
   copyWithCotEnabled?: boolean
   loggingEnabled?: boolean // 日志记录是否启用
+  floatingButtonEnabled?: boolean // 悬浮按钮是否启用
   default_system_prompt?: string // 默认系统提示词
   [key: string]: unknown // 允许任意键，使用unknown类型替代any
 }
@@ -101,6 +102,7 @@ export class ConfigPresenter implements IConfigPresenter {
         soundEnabled: false,
         copyWithCotEnabled: true,
         loggingEnabled: false,
+        floatingButtonEnabled: true,
         default_system_prompt: '',
         appVersion: this.currentAppVersion
       }
@@ -739,6 +741,24 @@ export class ConfigPresenter implements IConfigPresenter {
   setCopyWithCotEnabled(enabled: boolean): void {
     this.setSetting('copyWithCotEnabled', enabled)
     eventBus.sendToRenderer(CONFIG_EVENTS.COPY_WITH_COT_CHANGED, SendTarget.ALL_WINDOWS, enabled)
+  }
+
+  // 获取悬浮按钮开关状态
+  getFloatingButtonEnabled(): boolean {
+    const value = this.getSetting<boolean>('floatingButtonEnabled') ?? false
+    return value === undefined || value === null ? false : value
+  }
+
+  // 设置悬浮按钮开关状态
+  setFloatingButtonEnabled(enabled: boolean): void {
+    this.setSetting('floatingButtonEnabled', enabled)
+    eventBus.sendToMain(FLOATING_BUTTON_EVENTS.ENABLED_CHANGED, enabled)
+    
+    try {
+      presenter.floatingButtonPresenter.setEnabled(enabled)
+    } catch (error) {
+      console.error('Failed to directly call floatingButtonPresenter:', error)
+    }
   }
 
   // ===================== MCP配置相关方法 =====================

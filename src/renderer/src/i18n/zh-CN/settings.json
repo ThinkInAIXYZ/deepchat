@@ -438,7 +438,9 @@
     "text-base": "默认",
     "text-lg": "大",
     "text-xl": "特大",
-    "text-2xl": "超大"
+    "text-2xl": "超大",
+    "floatingButton": "悬浮按钮",
+    "floatingButtonDesc": "在桌面显示一个悬浮按钮，可以快速唤起应用窗口"
   },
   "shortcuts": {
     "title": "快捷键设置",

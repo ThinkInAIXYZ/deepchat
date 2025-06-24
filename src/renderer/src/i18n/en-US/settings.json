@@ -438,7 +438,9 @@
     "text-base": "Default",
     "text-lg": "Big",
     "text-sm": "Small",
-    "text-xl": "Large"
+    "text-xl": "Large",
+    "floatingButton": "Floating Button",
+    "floatingButtonDesc": "Display a floating button on the desktop to quickly activate the application window"
   },
   "shortcuts": {
     "title": "Shortcut Key Settings",

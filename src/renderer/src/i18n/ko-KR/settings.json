@@ -438,7 +438,9 @@
     "text-base": "기본",
     "text-lg": "큰",
     "text-sm": "작은",
-    "text-xl": "매우 큽니다"
+    "text-xl": "매우 큽니다",
+    "floatingButton": "플로팅 버튼",
+    "floatingButtonDesc": "데스크톱에 플로팅 버튼을 표시하여 애플리케이션 창을 빠르게 활성화할 수 있습니다"
   },
   "shortcuts": {
     "title": "단축키 설정",

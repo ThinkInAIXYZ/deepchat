@@ -169,5 +169,6 @@ export const MEETING_EVENTS = {
 export const FLOATING_BUTTON_EVENTS = {
   CLICKED: 'floating-button:clicked', // 悬浮按钮被点击
   VISIBILITY_CHANGED: 'floating-button:visibility-changed', // 悬浮按钮显示状态改变
-  POSITION_CHANGED: 'floating-button:position-changed' // 悬浮按钮位置改变
+  POSITION_CHANGED: 'floating-button:position-changed', // 悬浮按钮位置改变
+  ENABLED_CHANGED: 'floating-button:enabled-changed' // 悬浮按钮启用状态改变
 }

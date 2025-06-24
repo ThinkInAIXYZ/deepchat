@@ -1,4 +1,4 @@
-import { app, protocol, ipcMain } from 'electron'
+import { app, protocol } from 'electron'
 import { electronApp, optimizer } from '@electron-toolkit/utils'
 import { presenter } from './presenter'
 import { ProxyMode, proxyConfig } from './presenter/proxyConfig'
@@ -8,7 +8,7 @@ import { eventBus } from './eventbus'
 import { WINDOW_EVENTS, TRAY_EVENTS, FLOATING_BUTTON_EVENTS } from './events'
 import { setLoggingEnabled } from '@shared/logger'
 import { is } from '@electron-toolkit/utils' // 确保导入 is
-import { floatingButtonPresenter } from './presenter/floatingButtonPresenter' // 导入悬浮按钮 presenter
+import { handleShowHiddenWindow } from './utils'
 
 // 设置应用命令行参数
 app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required') // 允许视频自动播放
@@ -106,69 +106,13 @@ app.whenReady().then(async () => {
   // 注册全局快捷键
   presenter.shortcutPresenter.registerShortcuts()
 
-  // 初始化悬浮按钮功能
-  try {
-    await floatingButtonPresenter.initialize()
-    console.log('Main: Floating button initialized successfully')
-  } catch (error) {
-    console.error('Failed to initialize floating button:', error)
-  }
-
-  // 设置悬浮按钮点击事件的 IPC 处理器
-  // 先移除可能存在的旧监听器
-  ipcMain.removeAllListeners(FLOATING_BUTTON_EVENTS.CLICKED)
-  ipcMain.on(FLOATING_BUTTON_EVENTS.CLICKED, () => {
+  // 监听悬浮按钮配置变化事件
+  eventBus.on(FLOATING_BUTTON_EVENTS.ENABLED_CHANGED, async (enabled: boolean) => {
     try {
-      // 触发内置事件处理器
-      handleShowHiddenWindow(true)
+      await presenter.floatingButtonPresenter.setEnabled(enabled)
     } catch (error) {
+      console.error('Failed to set floating button enabled state:', error)
     }
-  })
-
- function handleShowHiddenWindow(mustShow: boolean)  {
-    const allWindows = presenter.windowPresenter.getAllWindows()
-    if (allWindows.length === 0) {
-      presenter.windowPresenter.createShellWindow({
-        initialTab: {
-          url: 'local://chat'
-        }
-      })
-    } else {
-      // 查找目标窗口 (焦点窗口或第一个窗口)
-      const targetWindow = presenter.windowPresenter.getFocusedWindow() || allWindows[0]
-
-      if (!targetWindow.isDestroyed()) {
-        // 逻辑: 如果窗口可见且不是从托盘点击触发，则隐藏；否则显示并置顶
-        if (targetWindow.isVisible() && !mustShow) {
-          presenter.windowPresenter.hide(targetWindow.id)
-        } else {
-          presenter.windowPresenter.show(targetWindow.id)
-          targetWindow.focus() // 确保窗口置顶
-        }
-      } else {
-        console.warn('Target window for SHOW_HIDDEN_WINDOW event is destroyed.') // 保持 warn
-        // 如果目标窗口已销毁，创建新窗口
-        presenter.windowPresenter.createShellWindow({
-          initialTab: {
-            url: 'local://chat'
-          }
-        })
-      }
-    }
-  }
-
-  // 监听窗口显示/隐藏状态变化
-  const handleWindowVisibilityChange = () => {
-    const allWindows = presenter.windowPresenter.getAllWindows()
-    const hasVisibleWindow = allWindows.some(win => !win.isDestroyed() && win.isVisible())
-    floatingButtonPresenter.onMainWindowVisibilityChanged(hasVisibleWindow)
-  }
-
-  // 监听窗口显示事件
-  app.on('browser-window-created', (_, window) => {
-    window.on('show', handleWindowVisibilityChange)
-    window.on('hide', handleWindowVisibilityChange)
-    window.on('closed', handleWindowVisibilityChange)
   })
 
   // 托盘 检测更新
@@ -359,12 +303,8 @@ app.on('will-quit', (_event) => {
 // 在应用退出之前触发，早于 will-quit。通常不如 will-quit 适合资源清理。
 // 在这里销毁悬浮按钮，确保应用能正常退出
 app.on('before-quit', () => {
-  console.log('main: app before-quit event triggered.') // 保留关键日志
-  
-  // 销毁悬浮按钮窗口，确保应用能正常退出
   try {
-    floatingButtonPresenter.destroy()
-    console.log('main: Floating button destroyed during before-quit')
+    presenter.floatingButtonPresenter.destroy()
   } catch (error) {
     console.error('main: Error destroying floating button during before-quit:', error)
   }

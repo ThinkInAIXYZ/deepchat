@@ -89,6 +89,28 @@
           />
         </div>
       </div>
+
+      <!-- 悬浮按钮开关 -->
+      <div class="flex flex-col p-2 gap-2 px-2">
+        <div class="flex flex-row items-center gap-2">
+          <span class="flex flex-row items-center gap-2 flex-grow w-full" :dir="languageStore.dir">
+            <Icon icon="lucide:mouse-pointer-click" class="w-4 h-4 text-muted-foreground" />
+            <span class="text-sm font-medium">{{
+              t('settings.display.floatingButton')
+            }}</span>
+          </span>
+          <div class="flex-shrink-0">
+            <Switch
+              id="floating-button-switch"
+              :checked="floatingButtonStore.enabled"
+              @update:checked="handleFloatingButtonChange"
+            />
+          </div>
+        </div>
+        <div class="pl-6 text-xs text-muted-foreground">
+          {{ t('settings.display.floatingButtonDesc') }}
+        </div>
+      </div>
     </div>
   </ScrollArea>
 
@@ -141,6 +163,7 @@ import { ref, onMounted, watch, computed } from 'vue'
 
 import { useSettingsStore } from '@/stores/settings'
 import { useLanguageStore } from '@/stores/language'
+import { useFloatingButtonStore } from '@/stores/floatingButton'
 import {
   Dialog,
   DialogContent,
@@ -155,6 +178,7 @@ import { Slider } from '@/components/ui/slider'
 
 const languageStore = useLanguageStore()
 const settingsStore = useSettingsStore()
+const floatingButtonStore = useFloatingButtonStore()
 const { t } = useI18n()
 
 // --- Language Settings ---
@@ -219,6 +243,10 @@ const notificationsEnabled = computed({
 
 const handleNotificationsChange = (value: boolean) => {
   settingsStore.setNotificationsEnabled(value)
+}
+
+const handleFloatingButtonChange = (value: boolean) => {
+  floatingButtonStore.setFloatingButtonEnabled(value)
 }
 
 // --- Lifecycle ---
