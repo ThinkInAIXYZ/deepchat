@@ -97,7 +97,7 @@ const upgrade = useUpgradeStore()
 
 const handleProfileClick = async () => {
   if (!upgrade.hasUpdate) {
-    await upgrade.checkUpdate(false)
+    await upgrade.checkUpdate(true)
   } else {
     if (upgrade.isReadyToInstall) {
       upgrade.openUpdateDialog()
