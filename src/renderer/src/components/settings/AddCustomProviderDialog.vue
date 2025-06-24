@@ -153,6 +153,16 @@ const formData = ref<LLM_PROVIDER>({
 watch(
   () => props.open,
   (newVal) => {
+    if (newVal && !isOpen.value) {
+      formData.value = {
+        id: '',
+        name: '',
+        apiType: 'openai',
+        apiKey: '',
+        baseUrl: '',
+        enable: true
+      }
+    }
     isOpen.value = newVal
   }
 )

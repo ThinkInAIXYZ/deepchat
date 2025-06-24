@@ -363,7 +363,7 @@ export class MeetingServer {
     }
 
     // 3. 会议循环: 按轮次进行发言和广播
-    let history = `会议记录\n主题: ${topic}\n`
+    let _history = `会议记录\n主题: ${topic}\n`
     for (let round = 1; round <= rounds; round++) {
       for (const speaker of meetingParticipants) {
         const speakPrompt = `第 ${round}/${rounds} 轮。现在轮到您（${speaker.meetingName}）发言。请陈述您的观点。`
@@ -374,7 +374,8 @@ export class MeetingServer {
         const speechText = Array.isArray(speechMessage.content)
           ? speechMessage.content.find((c: any) => c.type === 'content')?.content || '[无内容]'
           : speechMessage.content || '[无内容]'
-        history += `\n[第${round}轮] ${speaker.meetingName}: ${speechText}`
+
+        _history += `\n[第${round}轮] ${speaker.meetingName}: ${speechText}`
 
         // 广播发言给其他参会者，并等待他们的确认性回复
         for (const listener of meetingParticipants) {

@@ -162,5 +162,5 @@ export const TRAY_EVENTS = {
 
 // MCP会议专用事件
 export const MEETING_EVENTS = {
-  INSTRUCTION: 'mcp:meeting-instruction', // 主进程向渲染进程发送指令
+  INSTRUCTION: 'mcp:meeting-instruction' // 主进程向渲染进程发送指令
 }

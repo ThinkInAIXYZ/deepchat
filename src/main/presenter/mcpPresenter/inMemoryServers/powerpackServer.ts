@@ -198,9 +198,10 @@ export class PowerpackServer {
   // 执行JavaScript代码
   private async executeJavaScriptCode(code: string, timeout: number): Promise<string> {
     // Windows平台只检查Node.js，其他平台检查Bun和Node.js
-    const hasRuntime = process.platform === 'win32'
-      ? this.nodeRuntimePath
-      : (this.bunRuntimePath || this.nodeRuntimePath)
+    const hasRuntime =
+      process.platform === 'win32'
+        ? this.nodeRuntimePath
+        : this.bunRuntimePath || this.nodeRuntimePath
 
     if (!hasRuntime) {
       throw new Error('运行时未找到，无法执行代码')
@@ -383,15 +384,17 @@ export class PowerpackServer {
           inputSchema: zodToJsonSchema(E2BRunCodeArgsSchema)
         })
       } else {
-                // 使用本地运行时执行代码
-        const hasLocalRuntime = process.platform === 'win32'
-          ? this.nodeRuntimePath
-          : (this.bunRuntimePath || this.nodeRuntimePath)
+        // 使用本地运行时执行代码
+        const hasLocalRuntime =
+          process.platform === 'win32'
+            ? this.nodeRuntimePath
+            : this.bunRuntimePath || this.nodeRuntimePath
 
         if (hasLocalRuntime) {
-          const runtimeDescription = process.platform === 'win32'
-            ? 'Execute simple JavaScript/TypeScript code in a secure sandbox environment using Node.js runtime on Windows platform. '
-            : 'Execute simple JavaScript/TypeScript code in a secure sandbox environment (Bun or Node.js). Non-Windows platforms prioritize Bun runtime. '
+          const runtimeDescription =
+            process.platform === 'win32'
+              ? 'Execute simple JavaScript/TypeScript code in a secure sandbox environment using Node.js runtime on Windows platform. '
+              : 'Execute simple JavaScript/TypeScript code in a secure sandbox environment (Bun or Node.js). Non-Windows platforms prioritize Bun runtime. '
 
           tools.push({
             name: 'run_node_code',
