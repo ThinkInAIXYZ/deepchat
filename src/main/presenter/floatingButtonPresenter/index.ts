@@ -1,6 +1,5 @@
 import { FloatingButtonWindow } from './FloatingButtonWindow';
 import { FloatingButtonConfig, FloatingButtonState, DEFAULT_FLOATING_BUTTON_CONFIG } from './types';
-import logger from '../../../shared/logger';
 import { ConfigPresenter } from '../configPresenter';
 import { ipcMain } from 'electron';
 import { FLOATING_BUTTON_EVENTS } from '@/events';
@@ -82,19 +81,6 @@ export class FloatingButtonPresenter {
     } else {
       this.destroy();
     }
-  }
-
-  /**
-   * 当主窗口显示状态改变时调用
-   */
-  public onMainWindowVisibilityChanged(visible: boolean): void {
-    if (!this.config.enabled || !this.floatingWindow) {
-      return;
-    }
-
-    // 悬浮按钮始终显示，不受主窗口状态影响
-    // 这样用户可以随时看到悬浮按钮
-    this.floatingWindow.show();
   }
 
   /**
