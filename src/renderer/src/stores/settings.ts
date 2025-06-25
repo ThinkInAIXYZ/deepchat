@@ -9,6 +9,7 @@ import type { OllamaModel } from '@shared/presenter'
 import { useRouter } from 'vue-router'
 import { useMcpStore } from '@/stores/mcp'
 import { useUpgradeStore } from '@/stores/upgrade'
+import { useThrottleFn } from '@vueuse/core'
 
 // 定义字体大小级别对应的 Tailwind 类
 const FONT_SIZE_CLASSES = ['text-sm', 'text-base', 'text-lg', 'text-xl', 'text-2xl']
@@ -32,7 +33,6 @@ export const useSettingsStore = defineStore('settings', () => {
   const contentProtectionEnabled = ref<boolean>(true) // 投屏保护是否启用，默认启用
   const copyWithCotEnabled = ref<boolean>(true)
   const notificationsEnabled = ref<boolean>(true) // 系统通知是否启用，默认启用
-  const isRefreshingModels = ref<boolean>(false) // 是否正在刷新模型列表
   const fontSizeLevel = ref<number>(DEFAULT_FONT_SIZE_LEVEL) // 字体大小级别，默认为 1
   // Ollama 相关状态
   const ollamaRunningModels = ref<OllamaModel[]>([])
@@ -543,16 +543,8 @@ export const useSettingsStore = defineStore('settings', () => {
     }
   }
 
-  // 刷新所有模型列表
-  const refreshAllModels = async () => {
-    // 如果已经在刷新模型列表，直接返回
-    if (isRefreshingModels.value) {
-      return
-    }
-
-    // 设置正在刷新标志
-    isRefreshingModels.value = true
-
+  // 内部刷新所有模型列表的实现函数
+  const _refreshAllModelsInternal = async () => {
     try {
       const activeProviders = providers.value.filter((p) => p.enable)
       allProviderModels.value = []
@@ -567,11 +559,13 @@ export const useSettingsStore = defineStore('settings', () => {
       await checkAndUpdateSearchAssistantModel()
     } catch (error) {
       console.error('刷新所有模型列表失败:', error)
-    } finally {
-      // 重置正在刷新标志
-      isRefreshingModels.value = false
     }
   }
+
+  // 使用 throttle 包装的刷新函数，确保在频繁调用时最后一次调用能够成功执行
+  // trailing: true 确保在节流周期结束后执行最后一次调用
+  // leading: false 避免立即执行第一次调用
+  const refreshAllModels = useThrottleFn(_refreshAllModelsInternal, 1000, true, false)
 
   // 搜索模型
   const searchModels = (query: string) => {
@@ -613,6 +607,7 @@ export const useSettingsStore = defineStore('settings', () => {
   const setupProviderListener = () => {
     // 监听配置变更事件
     window.electron.ipcRenderer.on(CONFIG_EVENTS.PROVIDER_CHANGED, async () => {
+      console.log('changed')
       providers.value = await configP.getProviders()
       await refreshAllModels()
     })
