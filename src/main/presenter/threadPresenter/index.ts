@@ -200,12 +200,14 @@ export class ThreadPresenter implements IThreadPresenter {
       if (conversation.is_new === 1) {
         try {
           // 注意：第二个参数直接传入 conversationId
-          const title = await this.summaryTitles(undefined, state.conversationId)
-          if (title) {
-            // renameConversation 会更新标题和updatedAt，并广播
-            await this.renameConversation(state.conversationId, title)
-            titleUpdated = true
-          }
+          this.summaryTitles(undefined, state.conversationId).then((title) => {
+            if (title) {
+              // renameConversation 会更新标题和updatedAt，并广播
+              this.renameConversation(state.conversationId, title).then(() => {
+                titleUpdated = true
+              })
+            }
+          })
         } catch (e) {
           console.error('Failed to summarize title in main process:', e)
         }
