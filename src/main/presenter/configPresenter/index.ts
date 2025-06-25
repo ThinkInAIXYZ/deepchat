@@ -102,7 +102,7 @@ export class ConfigPresenter implements IConfigPresenter {
         soundEnabled: false,
         copyWithCotEnabled: true,
         loggingEnabled: false,
-        floatingButtonEnabled: true,
+        floatingButtonEnabled: false,
         default_system_prompt: '',
         appVersion: this.currentAppVersion
       }
@@ -753,7 +753,7 @@ export class ConfigPresenter implements IConfigPresenter {
   setFloatingButtonEnabled(enabled: boolean): void {
     this.setSetting('floatingButtonEnabled', enabled)
     eventBus.sendToMain(FLOATING_BUTTON_EVENTS.ENABLED_CHANGED, enabled)
-    
+
     try {
       presenter.floatingButtonPresenter.setEnabled(enabled)
     } catch (error) {
