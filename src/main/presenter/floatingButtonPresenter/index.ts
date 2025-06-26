@@ -25,7 +25,7 @@ export class FloatingButtonPresenter {
     try {
       this.config = {
         ...this.config,
-        ...config || {},
+        ...config,
         enabled: floatingButtonEnabled
       };
 
@@ -107,7 +107,7 @@ export class FloatingButtonPresenter {
       try {
         // 触发内置事件处理器
         handleShowHiddenWindow(true)
-      } catch (error) {
+      } catch {
       }
     })
 
