@@ -3,6 +3,7 @@ import { defineStore } from 'pinia'
 import { usePresenter } from '@/composables/usePresenter'
 import { MCP_EVENTS } from '@/events'
 import { useI18n } from 'vue-i18n'
+import { useThrottleFn } from '@vueuse/core'
 import type {
   McpClient,
   MCPConfig,
@@ -133,7 +134,6 @@ export const useMcpStore = defineStore('mcp', () => {
       if (enabled) {
         await loadTools()
         await loadClients()
-        await Promise.all([loadPrompts(), loadResources()])
       } else {
         // 如果禁用MCP，清空工具列表
         tools.value = []
@@ -151,15 +151,17 @@ export const useMcpStore = defineStore('mcp', () => {
   // 更新所有服务器状态
   const updateAllServerStatuses = async () => {
     for (const serverName of Object.keys(config.value.mcpServers)) {
-      await updateServerStatus(serverName)
+      await updateServerStatus(serverName, true)
     }
+    loadTools()
+    loadClients()
   }
 
   // 更新单个服务器状态
-  const updateServerStatus = async (serverName: string) => {
+  const updateServerStatus = async (serverName: string, noRefresh: boolean = false) => {
     try {
       serverStatuses.value[serverName] = await mcpPresenter.isServerRunning(serverName)
-      if (config.value.mcpEnabled) {
+      if (config.value.mcpEnabled && !noRefresh) {
         loadTools()
         loadClients()
       }
@@ -259,14 +261,18 @@ export const useMcpStore = defineStore('mcp', () => {
     }
   }
 
-  const loadClients = async () => {
+  // 实际加载客户端的函数
+  const _loadClients = async () => {
     clients.value = (await mcpPresenter.getMcpClients()) ?? []
     // 加载客户端后，同时加载提示模板和资源
     await Promise.all([loadPrompts(), loadResources()])
   }
 
-  // 加载工具列表
-  const loadTools = async () => {
+  // 使用节流的loadClients函数，保证第一次和最后一次一定执行
+  const loadClients = useThrottleFn(_loadClients, 500, true, false)
+
+  // 实际加载工具列表的函数
+  const _loadTools = async () => {
     // 如果MCP未启用，则不加载工具
     if (!config.value.mcpEnabled) {
       tools.value = []
@@ -314,6 +320,9 @@ export const useMcpStore = defineStore('mcp', () => {
       toolsLoading.value = false
     }
   }
+
+  // 使用节流的loadTools函数，保证第一次和最后一次一定执行
+  const loadTools = useThrottleFn(_loadTools, 500, true, false)
 
   // 加载提示模板
   const loadPrompts = async () => {

@@ -13,8 +13,8 @@ import { CONVERSATION_EVENTS, DEEPLINK_EVENTS, MEETING_EVENTS } from '@/events'
 import router from '@/router'
 import { useI18n } from 'vue-i18n'
 import { useSoundStore } from './sound'
-import sfxfcMp3 from '../../public/sounds/sfx-fc.mp3?url'
-import sfxtyMp3 from '../../public/sounds/sfx-typing.mp3?url'
+import sfxfcMp3 from '/sounds/sfx-fc.mp3?url'
+import sfxtyMp3 from '/sounds/sfx-typing.mp3?url'
 
 // 定义会话工作状态类型
 export type WorkingStatus = 'working' | 'error' | 'completed' | 'none'

@@ -12,7 +12,7 @@
       </Button>
     </div>
     <div class="h-0 w-full flex-grow flex flex-col items-center justify-center">
-      <img src="@/assets/logo-dark.png" class="w-24 h-24" />
+      <img src="@/assets/logo-dark.png" class="w-24 h-24" loading="lazy"/>
       <h1 class="text-2xl font-bold px-8 pt-4">{{ t('newThread.greeting') }}</h1>
       <h3 class="text-lg px-8 pb-2">{{ t('newThread.prompt') }}</h3>
       <div class="h-12"></div>
