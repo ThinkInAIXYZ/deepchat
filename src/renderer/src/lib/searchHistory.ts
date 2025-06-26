@@ -10,7 +10,6 @@ export class SearchHistory {
   }
 
   addSearch(query: string) {
-    // 如果 history 已经满了，移除最旧的记录
     if (query && query !== this.history[this.history.length - 1]) {
       if (this.history.length >= this.maxHistorySize) {
         this.history.shift() // Remove the oldest search
@@ -18,7 +17,6 @@ export class SearchHistory {
       this.history.push(query)
       this.currentIndex = this.history.length // Reset index to the end
     }
-    console.log('Search history updated:', this.history)
   }
 
   getPrevious() {

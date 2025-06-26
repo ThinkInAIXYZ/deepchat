@@ -687,7 +687,8 @@ const handleEditorEnter = (e: KeyboardEvent) => {
   }
 
   // Only handle enter if there's no active suggestion popup
-  if (editor.isActive('mention') || document.querySelector('.tippy-box')) {
+  const hasMentionSuggestion = editor.isActive('mention') || document.querySelector('.tippy-box')
+  if (hasMentionSuggestion) {
     // Don't prevent default - let the mention suggestion handle it
     return
   }
