@@ -925,9 +925,17 @@ function onKeydown(e: KeyboardEvent) {
     handleEditorEnter(e)
     e.preventDefault()
   }
+  
   if (e.code === 'ArrowUp') {
     const contentEditableDiv = e.target as HTMLDivElement
     if (isCursorInFirstLine(contentEditableDiv)) {
+      const currentContent = editor.getText().trim()
+      
+      // 如果当前有内容，先将其插入到搜索历史的当前位置
+      if (currentContent) {
+        searchHistory.insertAtCurrent(currentContent)
+      }
+      
       const previousSearch = searchHistory.getPrevious()
       if (previousSearch !== null) {
         editor.commands.setContent(previousSearch)
@@ -937,6 +945,13 @@ function onKeydown(e: KeyboardEvent) {
   } else if (e.code === 'ArrowDown') {
     const contentEditableDiv = e.target as HTMLDivElement
     if (isCursorInLastLine(contentEditableDiv)) {
+      const currentContent = editor.getText().trim()
+      
+      // 如果当前有内容，先将其插入到搜索历史的当前位置
+      if (currentContent) {
+        searchHistory.insertAtCurrent(currentContent)
+      }
+      
       const nextSearch = searchHistory.getNext()
       if (nextSearch !== null) {
         editor.commands.setContent(nextSearch)
