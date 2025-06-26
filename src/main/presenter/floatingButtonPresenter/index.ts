@@ -25,7 +25,7 @@ export class FloatingButtonPresenter {
     try {
       this.config = {
         ...this.config,
-        ...config,
+        ...config || {},
         enabled: floatingButtonEnabled
       };
 
