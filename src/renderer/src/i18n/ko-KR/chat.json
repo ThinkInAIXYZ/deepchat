@@ -10,7 +10,8 @@
     "promptFilesAdded": "프롬프트 파일이 추가됨",
     "promptFilesAddedDesc": "{count}개 파일이 성공적으로 추가되었습니다",
     "promptFilesError": "파일 처리 오류",
-    "promptFilesErrorDesc": "{count}개 파일 처리에 실패했습니다"
+    "promptFilesErrorDesc": "{count}개 파일 처리에 실패했습니다",
+    "historyPlaceholder": "(채우려면 탭을 누릅니다)"
   },
   "features": {
     "deepThinking": "심층 사고",

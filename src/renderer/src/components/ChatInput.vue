@@ -171,7 +171,7 @@
 
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import {
@@ -219,6 +219,20 @@ const mcpStore = useMcpStore()
 const { toast } = useToast()
 const { t } = useI18n()
 searchHistory.resetIndex()
+
+// 历史记录placeholder相关变量需要在editor初始化之前定义
+const currentHistoryPlaceholder = ref('')
+const showHistoryPlaceholder = ref(false)
+
+// 计算动态placeholder
+const dynamicPlaceholder = computed(() => {
+  if (currentHistoryPlaceholder.value) {
+    // 当有历史记录时，只显示历史记录内容和提示
+    return `${currentHistoryPlaceholder.value} ${t('chat.input.historyPlaceholder')}`
+  }
+  return t('chat.input.placeholder')
+})
+
 const editor = new Editor({
   editorProps: {
     attributes: {
@@ -241,8 +255,7 @@ const editor = new Editor({
     }),
     Placeholder.configure({
       placeholder: () => {
-        const placeholder = t('chat.input.placeholder')
-        return `${placeholder}`
+        return dynamicPlaceholder.value
       }
     }),
     HardBreak.extend({
@@ -295,6 +308,11 @@ const editor = new Editor({
   ],
   onUpdate: ({ editor }) => {
     inputText.value = editor.getText()
+    
+    // 如果用户开始输入且有历史记录placeholder，清除它
+    if (inputText.value.trim() && currentHistoryPlaceholder.value) {
+      clearHistoryPlaceholder()
+    }
   }
 })
 
@@ -567,6 +585,9 @@ const emitSend = async () => {
     emit('send', messageContent)
     inputText.value = ''
     editor.chain().clearContent().blur().run()
+    
+    // 清除历史记录placeholder
+    clearHistoryPlaceholder()
 
     // 清理已上传的文件
     if (selectedFiles.value.length > 0) {
@@ -920,6 +941,45 @@ watch(
   }
 )
 
+// 监听 dynamicPlaceholder 变化并更新编辑器
+watch(
+  dynamicPlaceholder,
+  () => {
+    // 强制更新 TipTap 的 placeholder 显示
+    updatePlaceholder()
+  }
+)
+
+// 处理历史记录placeholder
+const setHistoryPlaceholder = (text: string) => {
+  currentHistoryPlaceholder.value = text
+  showHistoryPlaceholder.value = true
+  
+  // 强制更新 TipTap 的 placeholder
+  updatePlaceholder()
+}
+
+const clearHistoryPlaceholder = () => {
+  currentHistoryPlaceholder.value = ''
+  showHistoryPlaceholder.value = false
+  
+  // 强制更新 TipTap 的 placeholder
+  updatePlaceholder()
+  
+  // 重置搜索历史索引
+  searchHistory.resetIndex()
+}
+
+// 强制更新 TipTap 编辑器的 placeholder
+const updatePlaceholder = () => {
+  // 使用 nextTick 确保 Vue 的响应式更新完成后再更新编辑器
+  nextTick(() => {
+    // 强制重新渲染编辑器视图
+    const { state } = editor
+    editor.view.updateState(state)
+  })
+}
+
 function onKeydown(e: KeyboardEvent) {
   if (e.code === 'Enter' && !e.shiftKey) {
     // 阻止默认行为，避免换行
@@ -927,73 +987,34 @@ function onKeydown(e: KeyboardEvent) {
     e.preventDefault()
   }
   
-  if (e.code === 'ArrowUp') {
-    const contentEditableDiv = e.target as HTMLDivElement
-    if (isCursorInFirstLine(contentEditableDiv)) {
-      const currentContent = editor.getText().trim()
-      
-      // 如果当前有内容，先将其插入到搜索历史的当前位置
-      if (currentContent) {
-        searchHistory.insertAtCurrent(currentContent)
-      }
-      
-      const previousSearch = searchHistory.getPrevious()
-      if (previousSearch !== null) {
-        editor.commands.setContent(previousSearch)
-      }
-      e.preventDefault()
+  // 历史记录功能：只在输入框为空时生效
+  const currentContent = editor.getText().trim()
+  
+  if (e.code === 'ArrowUp' && !currentContent) {
+    const previousSearch = searchHistory.getPrevious()
+    if (previousSearch !== null) {
+      setHistoryPlaceholder(previousSearch)
     }
-  } else if (e.code === 'ArrowDown') {
-    const contentEditableDiv = e.target as HTMLDivElement
-    if (isCursorInLastLine(contentEditableDiv)) {
-      const currentContent = editor.getText().trim()
-      
-      // 如果当前有内容，先将其插入到搜索历史的当前位置
-      if (currentContent) {
-        searchHistory.insertAtCurrent(currentContent)
-      }
-      
-      const nextSearch = searchHistory.getNext()
-      if (nextSearch !== null) {
-        editor.commands.setContent(nextSearch)
-      }
-      e.preventDefault()
+    e.preventDefault()
+  } else if (e.code === 'ArrowDown' && !currentContent) {
+    const nextSearch = searchHistory.getNext()
+    if (nextSearch !== null) {
+      setHistoryPlaceholder(nextSearch)
     }
+    e.preventDefault()
+  } else if (e.code === 'Tab' && currentHistoryPlaceholder.value) {
+    // Tab 键确认填充历史记录
+    e.preventDefault()
+    editor.commands.setContent(currentHistoryPlaceholder.value)
+    clearHistoryPlaceholder()
+  } else if (e.code === 'Escape' && currentHistoryPlaceholder.value) {
+    // Escape 键取消历史记录placeholder
+    e.preventDefault()
+    clearHistoryPlaceholder()
+  } else if (currentHistoryPlaceholder.value && e.key.length === 1) {
+    // 如果有历史记录placeholder且用户开始输入，清除placeholder
+    clearHistoryPlaceholder()
   }
-}
-
-function isCursorInFirstLine(contentEditableDiv: HTMLDivElement): boolean {
-  const selection = window.getSelection()
-  if (!selection || !selection.rangeCount) return false
-
-  const range = selection.getRangeAt(0)
-  const startContainer = range.startContainer
-  const parentElement =
-    startContainer.nodeType === Node.TEXT_NODE
-      ? startContainer.parentElement
-      : (startContainer as HTMLElement)
-
-  if (!parentElement) return false
-
-  const firstLineElement = contentEditableDiv.firstChild
-  return parentElement === firstLineElement || contentEditableDiv.contains(firstLineElement)
-}
-
-function isCursorInLastLine(contentEditableDiv: HTMLDivElement): boolean {
-  const selection = window.getSelection()
-  if (!selection || !selection.rangeCount) return false
-
-  const range = selection.getRangeAt(0)
-  const endContainer = range.endContainer
-  const parentElement =
-    endContainer.nodeType === Node.TEXT_NODE
-      ? endContainer.parentElement
-      : (endContainer as HTMLElement)
-
-  if (!parentElement) return false
-
-  const lastLineElement = contentEditableDiv.lastChild
-  return parentElement === lastLineElement || contentEditableDiv.contains(lastLineElement)
 }
 
 defineExpose({

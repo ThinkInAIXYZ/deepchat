@@ -10,7 +10,8 @@
     "promptFilesAdded": "Prompt 文件已添加",
     "promptFilesAddedDesc": "已成功添加 {count} 個文件",
     "promptFilesError": "文件處理錯誤",
-    "promptFilesErrorDesc": "{count} 個文件處理失敗"
+    "promptFilesErrorDesc": "{count} 個文件處理失敗",
+    "historyPlaceholder": "(按 Tab 填充)"
   },
   "features": {
     "deepThinking": "深度思考",

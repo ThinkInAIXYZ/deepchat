@@ -10,7 +10,8 @@
     "promptFilesAdded": "Fichiers de prompt ajoutés",
     "promptFilesAddedDesc": "{count} fichiers ajoutés avec succès",
     "promptFilesError": "Erreur de traitement des fichiers",
-    "promptFilesErrorDesc": "Échec du traitement de {count} fichiers"
+    "promptFilesErrorDesc": "Échec du traitement de {count} fichiers",
+    "historyPlaceholder": "(Appuyez sur l'onglet pour remplir)"
   },
   "features": {
     "deepThinking": "Réflexion approfondie",

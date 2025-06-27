@@ -10,7 +10,8 @@
     "promptFilesAdded": "Файлы промпта добавлены",
     "promptFilesAddedDesc": "Успешно добавлено {count} файлов",
     "promptFilesError": "Ошибка обработки файлов",
-    "promptFilesErrorDesc": "Не удалось обработать {count} файлов"
+    "promptFilesErrorDesc": "Не удалось обработать {count} файлов",
+    "historyPlaceholder": "(Нажмите вкладку, чтобы заполнить)"
   },
   "features": {
     "deepThinking": "Глубокое мышление",

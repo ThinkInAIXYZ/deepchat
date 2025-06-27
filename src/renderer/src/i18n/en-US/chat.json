@@ -10,7 +10,8 @@
     "promptFilesAdded": "Prompt Files Added",
     "promptFilesAddedDesc": "Successfully added {count} files",
     "promptFilesError": "File Processing Error",
-    "promptFilesErrorDesc": "{count} files failed to process"
+    "promptFilesErrorDesc": "{count} files failed to process",
+    "historyPlaceholder": "(Press Tab to fill)"
   },
   "features": {
     "deepThinking": "Deep Thinking",

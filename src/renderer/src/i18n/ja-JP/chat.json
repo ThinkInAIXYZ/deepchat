@@ -10,7 +10,8 @@
     "promptFilesAdded": "プロンプトファイルが追加されました",
     "promptFilesAddedDesc": "{count}個のファイルが正常に追加されました",
     "promptFilesError": "ファイル処理エラー",
-    "promptFilesErrorDesc": "{count}個のファイルの処理に失敗しました"
+    "promptFilesErrorDesc": "{count}個のファイルの処理に失敗しました",
+    "historyPlaceholder": "（タブを押して入力）"
   },
   "features": {
     "deepThinking": "深い思考",

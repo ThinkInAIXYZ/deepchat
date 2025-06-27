@@ -10,7 +10,8 @@
     "promptFilesAdded": "پرونده‌ها افزوده شد",
     "promptFilesAddedDesc": "{count} پرونده با موفقیت افزوده شد",
     "promptFilesError": "خطا در پردازش پرونده",
-    "promptFilesErrorDesc": "پردازش {count} پرونده ناموفق بود"
+    "promptFilesErrorDesc": "پردازش {count} پرونده ناموفق بود",
+    "historyPlaceholder": "(برای پر کردن برگه را فشار دهید)"
   },
   "features": {
     "deepThinking": "تفکر عمیق",
