@@ -181,6 +181,10 @@ export const useUpgradeStore = defineStore('upgrade', () => {
 
   // 打开更新弹窗
   const openUpdateDialog = () => {
+    // 静默状态下没有更新就别弹了
+    if (isSilent.value && !hasUpdate.value) {
+      return
+    }
     showUpdateDialog.value = true
   }
 
