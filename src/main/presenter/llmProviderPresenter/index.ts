@@ -34,6 +34,7 @@ import { LMStudioProvider } from './providers/lmstudioProvider'
 import { OpenAIResponsesProvider } from './providers/openAIResponsesProvider'
 import { OpenRouterProvider } from './providers/openRouterProvider'
 import { MinimaxProvider } from './providers/minimaxProvider'
+import { AihubmixProvider } from './providers/aihubmixProvider'
 // 流的状态
 interface StreamState {
   isGenerating: boolean
@@ -110,6 +111,9 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
       }
       if (provider.id === 'deepseek') {
         return new DeepseekProvider(provider, this.configPresenter)
+      }
+      if (provider.id === 'aihubmix') {
+        return new AihubmixProvider(provider, this.configPresenter)
       }
       switch (provider.apiType) {
         case 'minimax':

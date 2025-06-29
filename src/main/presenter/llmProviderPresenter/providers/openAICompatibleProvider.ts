@@ -63,7 +63,7 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
     this.init()
   }
 
-  private createOpenAIClient(): void {
+  protected createOpenAIClient(): void {
     // Get proxy configuration
     const proxyUrl = proxyConfig.getProxyUrl()
     const fetchOptions: { dispatcher?: ProxyAgent } = {}
