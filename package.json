@@ -70,6 +70,7 @@
     "electron-window-state": "^5.0.3",
     "fflate": "^0.8.2",
     "file-type": "^20.5.0",
+    "glob": "^11.0.3",
     "https-proxy-agent": "^7.0.6",
     "jsonrepair": "^3.12.0",
     "mammoth": "^1.9.0",
