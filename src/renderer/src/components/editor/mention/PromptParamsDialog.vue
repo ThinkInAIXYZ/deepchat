@@ -6,6 +6,7 @@
         <DialogDescription> 请填写以下参数，带 * 的为必填项 </DialogDescription>
       </DialogHeader>
 
+      <ScrollArea class="h-96 w-full pr-3">
       <div class="grid gap-4 py-4">
         <div v-for="(param, index) in params" :key="param.name" class="space-y-2">
           <div class="flex items-center gap-2">
@@ -27,7 +28,7 @@
           </p>
         </div>
       </div>
-
+    </ScrollArea>
       <DialogFooter>
         <Button variant="outline" @click="$emit('close')"> 取消 </Button>
         <Button :disabled="hasErrors" @click="handleSubmit"> 确认 </Button>
@@ -49,6 +50,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { ScrollArea } from '@/components/ui/scroll-area'
 
 interface PromptParam {
   name: string
