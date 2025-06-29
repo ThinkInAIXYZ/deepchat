@@ -50,7 +50,7 @@ if (process.contextIsolated) {
 window.addEventListener('DOMContentLoaded', () => {
   cachedWebContentsId = ipcRenderer.sendSync('get-web-contents-id')
   cachedWindowId = ipcRenderer.sendSync('get-window-id')
-  console.log('cachedWebContentsId', cachedWebContentsId,cachedWindowId)
+  console.log('cachedWebContentsId', cachedWebContentsId, cachedWindowId)
   webFrame.setVisualZoomLevelLimits(1, 1) // 禁用 trackpad 缩放
   webFrame.setZoomFactor(1)
 })

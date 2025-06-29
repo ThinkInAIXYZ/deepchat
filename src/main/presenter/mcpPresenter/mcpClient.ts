@@ -535,7 +535,6 @@ export class McpClient {
           env,
           stderr: 'pipe'
         })
-
         ;(this.transport as StdioClientTransport).stderr?.on('data', (data) => {
           console.info('mcp StdioClientTransport error', this.serverName, data.toString())
         })

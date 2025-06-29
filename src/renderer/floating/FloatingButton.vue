@@ -1,14 +1,20 @@
 <template>
-  <div class="w-screen h-screen bg-transparent overflow-hidden select-none flex items-center justify-center drag-region">
-    <div 
-      ref="floatingButton" 
+  <div
+    class="w-screen h-screen bg-transparent overflow-hidden select-none flex items-center justify-center drag-region"
+  >
+    <div
+      ref="floatingButton"
       class="w-15 h-15 rounded-full border-2 border-white/30 flex items-center justify-center cursor-pointer transition-all duration-300 relative overflow-hidden select-none floating-button no-drag"
       :class="{ 'floating-button-pulse': isPulsing }"
       @click="handleClick"
-      @mouseenter="handleMouseEnter" 
+      @mouseenter="handleMouseEnter"
       @mouseleave="handleMouseLeave"
     >
-      <img src="@/assets/logo.png" alt="Floating Button Icon" class="w-10 h-10 pointer-events-none" />
+      <img
+        src="@/assets/logo.png"
+        alt="Floating Button Icon"
+        class="w-10 h-10 pointer-events-none"
+      />
     </div>
   </div>
 </template>
@@ -65,7 +71,7 @@ const handleConfigUpdate = (config: any) => {
 
 onMounted(() => {
   if (window.floatingButtonAPI) {
-    window.floatingButtonAPI.onConfigUpdate(handleConfigUpdate);
+    window.floatingButtonAPI.onConfigUpdate(handleConfigUpdate)
   }
 })
 

@@ -308,7 +308,7 @@ const editor = new Editor({
   ],
   onUpdate: ({ editor }) => {
     inputText.value = editor.getText()
-    
+
     // 如果用户开始输入且有历史记录placeholder，清除它
     if (inputText.value.trim() && currentHistoryPlaceholder.value) {
       clearHistoryPlaceholder()
@@ -585,7 +585,7 @@ const emitSend = async () => {
     emit('send', messageContent)
     inputText.value = ''
     editor.chain().clearContent().blur().run()
-    
+
     // 清除历史记录placeholder
     clearHistoryPlaceholder()
 
@@ -942,19 +942,16 @@ watch(
 )
 
 // 监听 dynamicPlaceholder 变化并更新编辑器
-watch(
-  dynamicPlaceholder,
-  () => {
-    // 强制更新 TipTap 的 placeholder 显示
-    updatePlaceholder()
-  }
-)
+watch(dynamicPlaceholder, () => {
+  // 强制更新 TipTap 的 placeholder 显示
+  updatePlaceholder()
+})
 
 // 处理历史记录placeholder
 const setHistoryPlaceholder = (text: string) => {
   currentHistoryPlaceholder.value = text
   showHistoryPlaceholder.value = true
-  
+
   // 强制更新 TipTap 的 placeholder
   updatePlaceholder()
 }
@@ -962,10 +959,10 @@ const setHistoryPlaceholder = (text: string) => {
 const clearHistoryPlaceholder = () => {
   currentHistoryPlaceholder.value = ''
   showHistoryPlaceholder.value = false
-  
+
   // 强制更新 TipTap 的 placeholder
   updatePlaceholder()
-  
+
   // 重置搜索历史索引
   searchHistory.resetIndex()
 }
@@ -986,10 +983,10 @@ function onKeydown(e: KeyboardEvent) {
     handleEditorEnter(e)
     e.preventDefault()
   }
-  
+
   // 历史记录功能：只在输入框为空时生效
   const currentContent = editor.getText().trim()
-  
+
   if (e.code === 'ArrowUp' && !currentContent) {
     const previousSearch = searchHistory.getPrevious()
     if (previousSearch !== null) {

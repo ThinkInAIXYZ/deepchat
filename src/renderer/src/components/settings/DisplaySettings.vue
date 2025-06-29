@@ -95,9 +95,7 @@
         <div class="flex flex-row items-center gap-2">
           <span class="flex flex-row items-center gap-2 flex-grow w-full" :dir="languageStore.dir">
             <Icon icon="lucide:mouse-pointer-click" class="w-4 h-4 text-muted-foreground" />
-            <span class="text-sm font-medium">{{
-              t('settings.display.floatingButton')
-            }}</span>
+            <span class="text-sm font-medium">{{ t('settings.display.floatingButton') }}</span>
           </span>
           <div class="flex-shrink-0">
             <Switch

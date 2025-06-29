@@ -268,7 +268,7 @@ app.whenReady().then(async () => {
 app.on('window-all-closed', () => {
   // 检查是否还有非悬浮按钮的窗口
   const mainWindows = presenter.windowPresenter.getAllWindows()
-  
+
   if (mainWindows.length === 0) {
     // 只有悬浮按钮窗口时，在非 macOS 平台退出应用
     if (process.platform !== 'darwin') {

@@ -4,10 +4,10 @@ import { usePresenter } from '@/composables/usePresenter'
 
 export const useFloatingButtonStore = defineStore('floatingButton', () => {
   const configP = usePresenter('configPresenter')
-  
+
   // 悬浮按钮是否启用的状态
   const enabled = ref<boolean>(false)
-  
+
   // 获取悬浮按钮启用状态
   const getFloatingButtonEnabled = async (): Promise<boolean> => {
     try {
@@ -17,7 +17,7 @@ export const useFloatingButtonStore = defineStore('floatingButton', () => {
       return false
     }
   }
-  
+
   // 设置悬浮按钮启用状态
   const setFloatingButtonEnabled = async (value: boolean) => {
     try {
@@ -29,7 +29,7 @@ export const useFloatingButtonStore = defineStore('floatingButton', () => {
       enabled.value = !value
     }
   }
-  
+
   // 初始化状态
   const initializeState = async () => {
     try {
@@ -40,19 +40,19 @@ export const useFloatingButtonStore = defineStore('floatingButton', () => {
       enabled.value = false
     }
   }
-  
+
   // 在组件挂载时初始化
   onMounted(async () => {
     await initializeState()
   })
-  
+
   return {
     // 状态
     enabled,
-    
+
     // 方法
     getFloatingButtonEnabled,
     setFloatingButtonEnabled,
-    initializeState,
+    initializeState
   }
 })

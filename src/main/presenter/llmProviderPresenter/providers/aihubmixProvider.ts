@@ -21,15 +21,15 @@ export class AihubmixProvider extends OpenAICompatibleProvider {
       fetchOptions.dispatcher = proxyAgent
     }
 
-      this.openai = new OpenAI({
-        apiKey: this.provider.apiKey,
-        baseURL: this.provider.baseUrl,
-        defaultHeaders: {
-          ...this.defaultHeaders,
-          "APP-Code": "SMUE7630",
-        },
-        fetchOptions
-      })
+    this.openai = new OpenAI({
+      apiKey: this.provider.apiKey,
+      baseURL: this.provider.baseUrl,
+      defaultHeaders: {
+        ...this.defaultHeaders,
+        'APP-Code': 'SMUE7630'
+      },
+      fetchOptions
+    })
   }
 
   async completions(

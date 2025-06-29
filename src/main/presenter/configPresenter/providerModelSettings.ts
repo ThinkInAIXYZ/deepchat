@@ -982,7 +982,33 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
       }
     ]
   },
+  aihubmix: {
+    models: [
+      {
+        id: 'deepseek-ai/DeepSeek-R1-0528',
+        name: 'DeepSeek R1-0528',
+        temperature: 0.6,
+        maxTokens: 65536,
+        contextLength: 131072,
+        match: ['deepseek-ai/DeepSeek-R1-0528'],
+        vision: false,
+        functionCall: true,
+        reasoning: true
+      },
 
+      {
+        id: 'deepseek-ai/DeepSeek-V3-0324',
+        name: 'DeepSeek v3-0324',
+        temperature: 0.6,
+        maxTokens: 65536,
+        contextLength: 131072,
+        match: ['deepseek-ai/DeepSeek-V3-0324'],
+        vision: false,
+        functionCall: true,
+        reasoning: false
+      }
+    ]
+  },
   // OpenRouter提供商特定模型配置
   openrouter: {
     models: [
