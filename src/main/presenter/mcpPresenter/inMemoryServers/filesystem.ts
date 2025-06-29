@@ -23,6 +23,28 @@ const WriteFileArgsSchema = z.object({
   content: z.string()
 })
 
+// Enhanced text search schema for grep functionality
+const GrepSearchArgsSchema = z.object({
+  path: z.string().describe('Directory path to search in'),
+  pattern: z.string().describe('Regular expression pattern to search for'),
+  filePattern: z.string().optional().describe('File name pattern to filter files (glob pattern)'),
+  recursive: z.boolean().default(true).describe('Whether to search recursively in subdirectories'),
+  caseSensitive: z.boolean().default(false).describe('Whether the search should be case sensitive'),
+  includeLineNumbers: z.boolean().default(true).describe('Whether to include line numbers in results'),
+  contextLines: z.number().default(0).describe('Number of context lines to show before and after matches'),
+  maxResults: z.number().default(100).describe('Maximum number of results to return')
+})
+
+// Enhanced text replacement schema
+const TextReplaceArgsSchema = z.object({
+  path: z.string().describe('Path to the file to edit'),
+  pattern: z.string().describe('Regular expression pattern to find'),
+  replacement: z.string().describe('Text to replace matches with'),
+  global: z.boolean().default(true).describe('Whether to replace all occurrences or just the first'),
+  caseSensitive: z.boolean().default(false).describe('Whether the search should be case sensitive'),
+  dryRun: z.boolean().default(false).describe('Preview changes using git-style diff format')
+})
+
 const EditOperation = z.object({
   oldText: z.string().describe('Text to search for - must match exactly'),
   newText: z.string().describe('Text to replace with')
@@ -82,6 +104,28 @@ interface TreeEntry {
   children?: TreeEntry[]
 }
 
+// New interfaces for enhanced text functionality
+interface GrepMatch {
+  file: string
+  line: number
+  content: string
+  beforeContext?: string[]
+  afterContext?: string[]
+}
+
+interface GrepResult {
+  totalMatches: number
+  files: string[]
+  matches: GrepMatch[]
+}
+
+interface TextReplaceResult {
+  success: boolean
+  replacements: number
+  diff?: string
+  error?: string
+}
+
 export class FileSystemServer {
   private server: Server
   private allowedDirectories: string[]
@@ -100,7 +144,7 @@ export class FileSystemServer {
     this.server = new Server(
       {
         name: 'secure-filesystem-server',
-        version: '0.2.0'
+        version: '0.3.0'
       },
       {
         capabilities: {
@@ -282,6 +326,215 @@ export class FileSystemServer {
       console.error(`[searchFiles] Error during search execution starting from ${rootPath}:`, error)
     }
     return results
+  }
+
+  // Enhanced text content search functionality (grep-like)
+  private async grepSearch(
+    rootPath: string,
+    pattern: string,
+    options: {
+      filePattern?: string
+      recursive?: boolean
+      caseSensitive?: boolean
+      includeLineNumbers?: boolean
+      contextLines?: number
+      maxResults?: number
+    } = {}
+  ): Promise<GrepResult> {
+    const {
+      filePattern = '*',
+      recursive = true,
+      caseSensitive = false,
+      includeLineNumbers = true,
+      contextLines = 0,
+      maxResults = 100
+    } = options
+
+    const result: GrepResult = {
+      totalMatches: 0,
+      files: [],
+      matches: []
+    }
+
+    // Create regex pattern with appropriate flags
+    const regexFlags = caseSensitive ? 'g' : 'gi'
+    let regex: RegExp
+    try {
+      regex = new RegExp(pattern, regexFlags)
+    } catch (error) {
+      throw new Error(`Invalid regular expression pattern: ${pattern}. Error: ${error}`)
+    }
+
+    // Helper function to search within a single file
+    const searchInFile = async (filePath: string): Promise<void> => {
+      try {
+        const content = await fs.readFile(filePath, 'utf-8')
+        const lines = content.split('\n')
+        const fileMatches: GrepMatch[] = []
+
+        for (let i = 0; i < lines.length; i++) {
+          const line = lines[i]
+          const matches = Array.from(line.matchAll(regex))
+
+          if (matches.length > 0) {
+            const match: GrepMatch = {
+              file: filePath,
+              line: includeLineNumbers ? i + 1 : 0,
+              content: line
+            }
+
+            // Add context lines if requested
+            if (contextLines > 0) {
+              const startContext = Math.max(0, i - contextLines)
+              const endContext = Math.min(lines.length - 1, i + contextLines)
+
+              if (startContext < i) {
+                match.beforeContext = lines.slice(startContext, i)
+              }
+              if (endContext > i) {
+                match.afterContext = lines.slice(i + 1, endContext + 1)
+              }
+            }
+
+            fileMatches.push(match)
+            result.totalMatches += matches.length
+
+            // Stop if we've reached the maximum results
+            if (result.totalMatches >= maxResults) {
+              break
+            }
+          }
+        }
+
+        if (fileMatches.length > 0) {
+          result.files.push(filePath)
+          result.matches.push(...fileMatches)
+        }
+      } catch (error) {
+        // Skip files that can't be read (binary files, permission issues, etc.)
+        console.error(`[grepSearch] Error reading file ${filePath}:`, error)
+      }
+    }
+
+    // Recursive directory traversal
+    const searchDirectory = async (currentPath: string): Promise<void> => {
+      if (result.totalMatches >= maxResults) {
+        return
+      }
+
+      try {
+        const entries = await fs.readdir(currentPath, { withFileTypes: true })
+
+        for (const entry of entries) {
+          if (result.totalMatches >= maxResults) {
+            break
+          }
+
+          const fullPath = path.join(currentPath, entry.name)
+
+          try {
+            // Validate path is within allowed directories
+            await this.validatePath(fullPath)
+
+            if (entry.isFile()) {
+              // Check if file matches the file pattern
+              if (minimatch(entry.name, filePattern, { nocase: true })) {
+                await searchInFile(fullPath)
+              }
+            } else if (entry.isDirectory() && recursive) {
+              await searchDirectory(fullPath)
+            }
+          } catch (error) {
+            // Skip invalid paths
+            console.error(`[grepSearch] Error processing path ${fullPath}:`, error)
+            continue
+          }
+        }
+      } catch (error) {
+        console.error(`[grepSearch] Error reading directory ${currentPath}:`, error)
+      }
+    }
+
+    // Start the search
+    const validatedPath = await this.validatePath(rootPath)
+    const stats = await fs.stat(validatedPath)
+
+    if (stats.isFile()) {
+      // Search in a single file
+      if (minimatch(path.basename(validatedPath), filePattern, { nocase: true })) {
+        await searchInFile(validatedPath)
+      }
+    } else if (stats.isDirectory()) {
+      // Search in directory
+      await searchDirectory(validatedPath)
+    }
+
+    return result
+  }
+
+  // Enhanced text replacement functionality
+  private async replaceTextInFile(
+    filePath: string,
+    pattern: string,
+    replacement: string,
+    options: {
+      global?: boolean
+      caseSensitive?: boolean
+      dryRun?: boolean
+    } = {}
+  ): Promise<TextReplaceResult> {
+    const { global = true, caseSensitive = false, dryRun = false } = options
+
+    try {
+      const originalContent = await fs.readFile(filePath, 'utf-8')
+      const normalizedOriginal = this.normalizeLineEndings(originalContent)
+
+      // Create regex pattern with appropriate flags
+      const regexFlags = global ? (caseSensitive ? 'g' : 'gi') : caseSensitive ? '' : 'i'
+      let regex: RegExp
+      try {
+        regex = new RegExp(pattern, regexFlags)
+      } catch (error) {
+        return {
+          success: false,
+          replacements: 0,
+          error: `Invalid regular expression pattern: ${pattern}. Error: ${error}`
+        }
+      }
+
+      // Perform the replacement
+      const modifiedContent = normalizedOriginal.replace(regex, replacement)
+      const matches = Array.from(normalizedOriginal.matchAll(new RegExp(pattern, regexFlags + 'g')))
+      const replacements = matches.length
+
+      if (replacements === 0) {
+        return {
+          success: true,
+          replacements: 0,
+          diff: 'No matches found for the given pattern.'
+        }
+      }
+
+      // Create diff
+      const diff = this.createUnifiedDiff(normalizedOriginal, modifiedContent, filePath)
+
+      // Write file if not dry run
+      if (!dryRun) {
+        await fs.writeFile(filePath, modifiedContent, 'utf-8')
+      }
+
+      return {
+        success: true,
+        replacements,
+        diff
+      }
+    } catch (error) {
+      return {
+        success: false,
+        replacements: 0,
+        error: error instanceof Error ? error.message : String(error)
+      }
+    }
   }
 
   // 文件编辑和差异显示功能
@@ -501,6 +754,27 @@ export class FileSystemServer {
               properties: {},
               required: []
             }
+          },
+          {
+            name: 'grep_search',
+            description:
+              'Search for text patterns within file contents using regular expressions. ' +
+              'Similar to the Unix grep command, this tool searches through files recursively ' +
+              'and returns matching lines with optional context. Supports file filtering, ' +
+              'case sensitivity options, and result limiting. Perfect for finding specific ' +
+              'code patterns, function definitions, or text content across multiple files. ' +
+              'Only searches within allowed directories.',
+            inputSchema: zodToJsonSchema(GrepSearchArgsSchema)
+          },
+          {
+            name: 'text_replace',
+            description:
+              'Replace text patterns in files using regular expressions. This tool provides ' +
+              'powerful find-and-replace functionality with regex support, case sensitivity ' +
+              'options, and dry-run mode for previewing changes. Shows a git-style diff ' +
+              'of the changes made. Use this for bulk text replacements, code refactoring, ' +
+              'or updating configuration files. Only works within allowed directories.',
+            inputSchema: zodToJsonSchema(TextReplaceArgsSchema)
           }
         ]
       }
@@ -735,6 +1009,83 @@ export class FileSystemServer {
                   text: `Allowed directories:\n${this.allowedDirectories.join('\n')}`
                 }
               ]
+            }
+          }
+
+          case 'grep_search': {
+            const parsed = GrepSearchArgsSchema.safeParse(args)
+            if (!parsed.success) {
+              throw new Error(`Invalid arguments for grep_search: ${parsed.error}`)
+            }
+            const validPath = await this.validatePath(parsed.data.path)
+            const result = await this.grepSearch(
+              validPath,
+              parsed.data.pattern,
+              {
+                filePattern: parsed.data.filePattern,
+                recursive: parsed.data.recursive,
+                caseSensitive: parsed.data.caseSensitive,
+                includeLineNumbers: parsed.data.includeLineNumbers,
+                contextLines: parsed.data.contextLines,
+                maxResults: parsed.data.maxResults
+              }
+            )
+
+            if (result.totalMatches === 0) {
+              return {
+                content: [{ type: 'text', text: 'No matches found' }]
+              }
+            }
+
+            // Format the results
+            const formattedResults = result.matches.map(match => {
+              let output = `${match.file}:${match.line}: ${match.content}`
+
+              if (match.beforeContext && match.beforeContext.length > 0) {
+                const beforeLines = match.beforeContext.map((line, i) =>
+                  `${match.file}:${match.line - match.beforeContext!.length + i}: ${line}`
+                ).join('\n')
+                output = beforeLines + '\n' + output
+              }
+
+              if (match.afterContext && match.afterContext.length > 0) {
+                const afterLines = match.afterContext.map((line, i) =>
+                  `${match.file}:${match.line + i + 1}: ${line}`
+                ).join('\n')
+                output = output + '\n' + afterLines
+              }
+
+              return output
+            }).join('\n--\n')
+
+            const summary = `Found ${result.totalMatches} matches in ${result.files.length} files:\n\n${formattedResults}`
+
+            return {
+              content: [{ type: 'text', text: summary }]
+            }
+          }
+
+          case 'text_replace': {
+            const parsed = TextReplaceArgsSchema.safeParse(args)
+            if (!parsed.success) {
+              throw new Error(`Invalid arguments for text_replace: ${parsed.error}`)
+            }
+            const validPath = await this.validatePath(parsed.data.path)
+            const result = await this.replaceTextInFile(
+              validPath,
+              parsed.data.pattern,
+              parsed.data.replacement,
+              {
+                global: parsed.data.global,
+                caseSensitive: parsed.data.caseSensitive,
+                dryRun: parsed.data.dryRun
+              }
+            )
+            return {
+              content: [
+                { type: 'text', text: result.success ? result.diff : result.error }
+              ],
+              isError: !result.success
             }
           }
 
