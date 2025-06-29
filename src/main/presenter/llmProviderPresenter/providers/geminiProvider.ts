@@ -1,29 +1,29 @@
+import { presenter } from '@/presenter'
 import {
-  LLM_PROVIDER,
-  MODEL_META,
-  LLMResponse,
-  LLMCoreStreamEvent,
-  ModelConfig,
-  MCPToolDefinition,
-  ChatMessage
-} from '@shared/presenter'
-import { BaseLLMProvider } from '../baseProvider'
-import {
-  GoogleGenAI,
-  Part,
   Content,
-  GenerationConfig,
+  FunctionCallingConfigMode,
   GenerateContentParameters,
   GenerateContentResponseUsageMetadata,
-  HarmCategory,
+  GenerationConfig,
+  GoogleGenAI,
   HarmBlockThreshold,
-  SafetySetting,
-  FunctionCallingConfigMode,
-  Modality
+  HarmCategory,
+  Modality,
+  Part,
+  SafetySetting
 } from '@google/genai'
-import { ConfigPresenter } from '../../configPresenter'
-import { presenter } from '@/presenter'
 import { ModelType } from '@shared/model'
+import {
+  ChatMessage,
+  LLM_PROVIDER,
+  LLMCoreStreamEvent,
+  LLMResponse,
+  MCPToolDefinition,
+  MODEL_META,
+  ModelConfig
+} from '@shared/presenter'
+import { ConfigPresenter } from '../../configPresenter'
+import { BaseLLMProvider, SUMMARY_TITLES_PROMPT } from '../baseProvider'
 
 // Mapping from simple keys to API HarmCategory constants
 const keyToHarmCategoryMap: Record<string, HarmCategory> = {
@@ -248,7 +248,7 @@ export class GeminiProvider extends BaseLLMProvider {
     // 使用Gemini API生成对话标题
     try {
       const conversationText = messages.map((m) => `${m.role}: ${m.content}`).join('\n')
-      const prompt = `请为以下对话生成一个简洁的标题，不超过10个字，不使用标点符号或其他特殊符号，标题语言应该匹配对话的语言：\n\n${conversationText}`
+      const prompt = `${SUMMARY_TITLES_PROMPT}\n\n${conversationText}`
 
       const result = await this.genAI.models.generateContent({
         model: modelId,

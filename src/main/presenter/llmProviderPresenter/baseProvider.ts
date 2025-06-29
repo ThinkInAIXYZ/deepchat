@@ -265,7 +265,7 @@ ${this.convertToolsToXml(tools)}
   "function_call_record": {
     "name": "工具名称",
     "arguments": { ...JSON 参数... },
-    "response": ...工具返回结果... 
+    "response": ...工具返回结果...
   }
 }
 </function_call>
@@ -599,3 +599,6 @@ ${this.convertToolsToXml(tools)}
     return xmlTools
   }
 }
+export const SUMMARY_TITLES_PROMPT = `
+You need to summarize the user's conversation into a title of no more than 10 words, with the title language matching the user's primary language, without using punctuation or other special symbols,only output the title,here is the conversation:
+`

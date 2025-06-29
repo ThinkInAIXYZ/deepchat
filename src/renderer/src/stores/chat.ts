@@ -606,28 +606,6 @@ export const useChatStore = defineStore('chat', () => {
           }
         }
       }
-
-      // // 检查是否需要更新标题（仅在对话刚开始时）
-      // if (getActiveThreadId() === getActiveThreadId()) {
-      //   const thread = await threadP.getConversation(getActiveThreadId()!)
-      //   const { list: messages } = await threadP.getMessages(getActiveThreadId()!, 1, 10)
-      //   // 只有当对话刚开始（只有一问一答两条消息）时才生成标题
-      //   if (messages.length === 2 && thread && thread.is_new === 1) {
-      //     try {
-      //       console.info('自动生成标题 start', messages.length, thread)
-      //       await threadP.summaryTitles(getTabId()).then(async (title) => {
-      //         if (title) {
-      //           console.info('自动生成标题', title)
-      //           await threadP.renameConversation(getActiveThreadId()!, title)
-      //           // 重新加载会话列表以更新标题
-      //           await loadThreads(1)
-      //         }
-      //       })
-      //     } catch (error) {
-      //       console.error('自动生成标题失败:', error)
-      //     }
-      //   }
-      // }
     }
   }
 

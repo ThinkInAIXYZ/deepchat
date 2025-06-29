@@ -992,7 +992,7 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         contextLength: 131072,
         match: ['deepseek-ai/DeepSeek-R1-0528'],
         vision: false,
-        functionCall: true,
+        functionCall: false,
         reasoning: true
       },
 
@@ -1004,7 +1004,7 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         contextLength: 131072,
         match: ['deepseek-ai/DeepSeek-V3-0324'],
         vision: false,
-        functionCall: true,
+        functionCall: false,
         reasoning: false
       }
     ]

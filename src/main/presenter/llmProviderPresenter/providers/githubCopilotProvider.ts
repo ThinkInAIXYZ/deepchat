@@ -7,7 +7,7 @@ import {
   ModelConfig,
   MCPToolDefinition
 } from '@shared/presenter'
-import { BaseLLMProvider } from '../baseProvider'
+import { BaseLLMProvider, SUMMARY_TITLES_PROMPT } from '../baseProvider'
 import { ConfigPresenter } from '../../configPresenter'
 import { HttpsProxyAgent } from 'https-proxy-agent'
 
@@ -582,11 +582,9 @@ export class GithubCopilotProvider extends BaseLLMProvider {
     try {
       const response = await this.completions(
         [
-          ...messages,
           {
             role: 'user',
-            content:
-              '请为这次对话生成一个简洁的标题，不超过10个字，直接返回标题内容，不要包含引号或其他格式。'
+            content: `${SUMMARY_TITLES_PROMPT}\n\n${messages.map((m) => `${m.role}: ${m.content}`).join('\n')}`
           }
         ],
         modelId,

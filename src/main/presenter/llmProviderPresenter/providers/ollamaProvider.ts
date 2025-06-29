@@ -9,7 +9,7 @@ import {
   LLMCoreStreamEvent,
   ChatMessage
 } from '@shared/presenter'
-import { BaseLLMProvider } from '../baseProvider'
+import { BaseLLMProvider, SUMMARY_TITLES_PROMPT } from '../baseProvider'
 import { ConfigPresenter } from '../../configPresenter'
 import { Ollama, Message, ShowResponse } from 'ollama'
 import { presenter } from '@/presenter'
@@ -126,9 +126,7 @@ export class OllamaProvider extends BaseLLMProvider {
 
   public async summaryTitles(messages: ChatMessage[], modelId: string): Promise<string> {
     try {
-      const prompt = `You need to summarize the user's conversation into a title of no more than 10 words, with the title language matching the user's primary language, without using punctuation or other special symbols：\n\n${messages
-        .map((m) => `${m.role}: ${m.content}`)
-        .join('\n')}`
+      const prompt = `${SUMMARY_TITLES_PROMPT}\n\n${messages.map((m) => `${m.role}: ${m.content}`).join('\n')}`
 
       const response = await this.ollama.generate({
         model: modelId,
