@@ -149,8 +149,26 @@ export class McpClient {
     // 根据命令类型选择对应的 runtime 路径
     if (process.platform === 'win32') {
       // Windows平台只替换Node.js相关命令，bun命令让系统自动处理
-      if (['node', 'npm', 'npx'].includes(basename) && this.nodeRuntimePath) {
-        return path.join(this.nodeRuntimePath, `${basename}.exe`)
+      if (this.nodeRuntimePath) {
+        if (basename === 'node') {
+          return path.join(this.nodeRuntimePath, 'node.exe')
+        } else if (basename === 'npm') {
+          // Windows 下 npm 通常是 .cmd 文件
+          const npmCmd = path.join(this.nodeRuntimePath, 'npm.cmd')
+          if (fs.existsSync(npmCmd)) {
+            return npmCmd
+          }
+          // 如果不存在，返回默认路径
+          return path.join(this.nodeRuntimePath, 'npm')
+        } else if (basename === 'npx') {
+          // Windows 下 npx 通常是 .cmd 文件
+          const npxCmd = path.join(this.nodeRuntimePath, 'npx.cmd')
+          if (fs.existsSync(npxCmd)) {
+            return npxCmd
+          }
+          // 如果不存在，返回默认路径
+          return path.join(this.nodeRuntimePath, 'npx')
+        }
       }
     } else {
       // 非Windows平台处理所有命令
