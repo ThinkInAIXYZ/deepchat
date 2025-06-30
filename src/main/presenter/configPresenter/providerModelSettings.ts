@@ -344,7 +344,7 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
     models: []
   },
 
-  // Silicon Flow提供商特定模型配置
+  // SiliconFlow提供商特定模型配置
   silicon: {
     models: [
       {

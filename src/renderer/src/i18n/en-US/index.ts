@@ -19,7 +19,7 @@ import promptSetting from './promptSetting.json'
 
 // Individual top-level keys
 const others = {
-  Silicon: 'Silicon Flow',
+  Silicon: 'SiliconFlow',
   Qiniu: 'Qiniu',
   QwenLM: 'Qwen Model',
   Doubao: 'Doubao',

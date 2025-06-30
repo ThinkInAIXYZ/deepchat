@@ -49,7 +49,7 @@ DeepChat supports a wide range of LLM providers, both cloud-based and local.
 DeepChat supports various cloud LLMs, including:
 - DeepSeek
 - OpenAI (including Azure OpenAI)
-- Silicon Flow
+- SiliconFlow
 - Grok
 - Gemini
 - Anthropic

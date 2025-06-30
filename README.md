@@ -73,7 +73,7 @@ Compared to other AI tools, DeepChat offers the following unique advantages:
 
 ## 🔥 Main Features
 
-- 🌐 **Multiple Cloud LLM Provider Support**: DeepSeek, OpenAI, Silicon Flow, Grok, Gemini, Anthropic, and more
+- 🌐 **Multiple Cloud LLM Provider Support**: DeepSeek, OpenAI, SiliconFlow, Grok, Gemini, Anthropic, and more
 - 🏠 **Local Model Deployment Support**:
   - Integrated Ollama with comprehensive management capabilities
   - Control and manage Ollama model downloads, deployments, and runs without command-line operations
@@ -124,8 +124,8 @@ For more details on how to use these features, see the [User Guide](./docs/user-
       <a href="https://deepseek.com/">Deepseek</a>
     </td>
     <td>
-      <img src="./src/renderer/src/assets/llm-icons/siliconcloud.svg" width="50" height="50" alt="Silicon Icon"><br/>
-      <a href="https://www.siliconflow.cn/">Silicon</a>
+      <img src="./src/renderer/src/assets/llm-icons/siliconcloud.svg" width="50" height="50" alt="SiliconFlow Icon"><br/>
+      <a href="https://www.siliconflow.cn/">SiliconFlow</a>
     </td>
     <td>
       <img src="./src/renderer/src/assets/llm-icons/alibabacloud-color.svg" width="50" height="50" alt="DashScope Icon"><br/>

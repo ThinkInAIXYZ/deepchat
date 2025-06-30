@@ -19,7 +19,7 @@ import promptSetting from './promptSetting.json'
 
 // 单独的顶层键
 const others = {
-  Silicon: 'Silicon Flow',
+  Silicon: ' SiliconFlow',
   Qiniu: 'Qiniu',
   QwenLM: 'Qwen Model',
   Doubao: 'Doubao',

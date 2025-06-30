@@ -73,7 +73,7 @@ DeepChatは、様々な大規模言語モデルと対話するための統一さ
 
 ## 🔥 主な機能
 
-- 🌐 **複数のクラウドLLMプロバイダーサポート**: DeepSeek、OpenAI、Silicon Flow、Grok、Gemini、Anthropicなど
+- 🌐 **複数のクラウドLLMプロバイダーサポート**: DeepSeek、OpenAI、SiliconFlow、Grok、Gemini、Anthropicなど
 - 🏠 **ローカルモデルデプロイメントサポート**:
   - 包括的な管理機能を備えた統合Ollama
   - コマンドライン操作なしでOllamaモデルのダウンロード、デプロイメント、実行を制御・管理
@@ -122,8 +122,8 @@ DeepChatは、様々な大規模言語モデルと対話するための統一さ
       <a href="https://deepseek.com/">Deepseek</a>
     </td>
     <td>
-      <img src="./src/renderer/src/assets/llm-icons/siliconcloud.svg" width="50" height="50" alt="Silicon Icon"><br/>
-      <a href="https://www.siliconflow.cn/">Silicon</a>
+      <img src="./src/renderer/src/assets/llm-icons/siliconcloud.svg" width="50" height="50" alt="SiliconFlow Icon"><br/>
+      <a href="https://www.siliconflow.cn/">SiliconFlow</a>
     </td>
     <td>
       <img src="./src/renderer/src/assets/llm-icons/alibabacloud-color.svg" width="50" height="50" alt="DashScope Icon"><br/>

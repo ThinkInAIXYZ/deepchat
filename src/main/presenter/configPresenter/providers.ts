@@ -48,7 +48,7 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
   },
   {
     id: 'silicon',
-    name: 'Silicon',
+    name: 'SiliconFlow',
     apiType: 'silicon',
     apiKey: '',
     baseUrl: 'https://api.siliconflow.cn/v1',

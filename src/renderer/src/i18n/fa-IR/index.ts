@@ -18,7 +18,7 @@ import contextMenu from './contextMenu.json'
 import promptSetting from './promptSetting.json'
 
 const others = {
-  Silicon: 'Silicon Flow',
+  Silicon: 'SiliconFlow',
   Qiniu: 'Qiniu',
   QwenLM: 'Qwen Model',
   Doubao: 'Doubao',

@@ -73,7 +73,7 @@ DeepChat是一个功能强大的开源AI聊天平台，为用户提供与多种�
 
 ## 🔥 主要功能
 
-- 🌐 **多种云端LLM提供商支持**：DeepSeek、OpenAI、Silicon Flow、Grok、Gemini、Anthropic等
+- 🌐 **多种云端LLM提供商支持**：DeepSeek、OpenAI、SiliconFlow、Grok、Gemini、Anthropic等
 - 🏠 **本地模型部署支持**：
   - 集成Ollama，提供全面的管理功能
   - 无需命令行操作即可控制和管理Ollama模型的下载、部署和运行
@@ -123,7 +123,7 @@ DeepChat是一个功能强大的开源AI聊天平台，为用户提供与多种�
     </td>
     <td>
       <img src="./src/renderer/src/assets/llm-icons/siliconcloud.svg" width="50" height="50" alt="Silicon图标"><br/>
-      <a href="https://www.siliconflow.cn/">Silicon</a>
+      <a href="https://www.siliconflow.cn/">SiliconFlow</a>
     </td>
     <td>
       <img src="./src/renderer/src/assets/llm-icons/alibabacloud-color.svg" width="50" height="50" alt="DashScope图标"><br/>
