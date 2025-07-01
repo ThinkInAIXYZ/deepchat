@@ -92,7 +92,7 @@ export const contextMenuTranslations: Record<string, TranslationMap> = {
     redo: 'Rétablir',
     saveImage: "Enregistrer l'image...",
     copyImage: "Copier l'image",
-    open: 'Ouvrir/Cache',
+    open: 'Ouvrir/Masquer',
     checkForUpdates: 'Vérifier les mises à jour',
     quit: 'Quitter',
     translate: 'Traduire',
