@@ -11,7 +11,7 @@
       @mouseleave="handleMouseLeave"
     >
       <img
-        src="@/assets/logo.png"
+        src="../src/assets/logo.png"
         alt="Floating Button Icon"
         class="w-10 h-10 pointer-events-none"
       />
@@ -21,7 +21,6 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
-
 // 响应式状态
 const isPulsing = ref(true)
 const floatingButton = ref<HTMLElement>()

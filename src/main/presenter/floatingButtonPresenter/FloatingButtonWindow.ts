@@ -52,13 +52,14 @@ export class FloatingButtonWindow {
         maximizable: false,
         closable: false,
         show: false,
-        movable: true, // 允许拖拽
+        movable: true, // 允许拖拽,
+        autoHideMenuBar: true,
         webPreferences: {
           nodeIntegration: false,
           contextIsolation: true,
           preload: preloadPath,
           webSecurity: false, // 开发模式下允许跨域
-          devTools: true, // 开发模式下启用开发者工具
+          devTools: isDev, // 开发模式下启用开发者工具
           sandbox: false // 禁用沙盒模式，确保预加载脚本能正常工作
         }
       })
