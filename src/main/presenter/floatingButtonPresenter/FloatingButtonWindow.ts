@@ -51,6 +51,8 @@ export class FloatingButtonWindow {
         show: false,
         movable: true, // 允许拖拽,
         autoHideMenuBar: true,
+        vibrancy: 'under-window',
+        visualEffectState: 'followWindow',
         webPreferences: {
           nodeIntegration: false,
           contextIsolation: true,
@@ -60,7 +62,8 @@ export class FloatingButtonWindow {
           sandbox: false // 禁用沙盒模式，确保预加载脚本能正常工作
         }
       })
-
+      this.window.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
+      this.window.setAlwaysOnTop(true, 'floating')
       // 设置窗口透明度
       this.window.setOpacity(this.config.opacity)
 
@@ -147,7 +150,7 @@ export class FloatingButtonWindow {
       }
 
       if (config.alwaysOnTop !== undefined) {
-        this.window.setAlwaysOnTop(this.config.alwaysOnTop)
+        this.window.setAlwaysOnTop(this.config.alwaysOnTop, 'floating')
       }
     }
   }
