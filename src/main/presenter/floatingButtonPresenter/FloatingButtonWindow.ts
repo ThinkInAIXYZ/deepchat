@@ -2,6 +2,7 @@ import { BrowserWindow, screen } from 'electron'
 import path from 'path'
 import { FloatingButtonConfig, FloatingButtonState } from './types'
 import logger from '../../../shared/logger'
+import { platform } from '@electron-toolkit/utils'
 
 export class FloatingButtonWindow {
   private window: BrowserWindow | null = null
@@ -41,7 +42,7 @@ export class FloatingButtonWindow {
         x: position.x,
         y: position.y,
         frame: false,
-        transparent: true,
+        transparent: platform.isMacOS,
         alwaysOnTop: this.config.alwaysOnTop,
         skipTaskbar: true,
         resizable: false,
