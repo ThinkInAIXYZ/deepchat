@@ -294,14 +294,18 @@ const saveDifyConfig = async () => {
     }
     toast({
       title: t('settings.knowledgeBase.configUpdated'),
-      description: t('settings.knowledgeBase.configUpdatedDesc')
+      description: t('settings.knowledgeBase.configUpdatedDesc', {
+        name: t('settings.knowledgeBase.dify')
+      })
     })
   } else {
     // 添加配置
     difyConfigs.value.push({ ...editingDifyConfig.value })
     toast({
       title: t('settings.knowledgeBase.configAdded'),
-      description: t('settings.knowledgeBase.configAddedDesc')
+      description: t('settings.knowledgeBase.configAddedDesc', {
+        name: t('settings.knowledgeBase.dify')
+      })
     })
   }
 

@@ -293,14 +293,18 @@ const saveFastGptConfig = async () => {
     }
     toast({
       title: t('settings.knowledgeBase.configUpdated'),
-      description: t('settings.knowledgeBase.configUpdatedDesc')
+      description: t('settings.knowledgeBase.configUpdatedDesc', {
+        name: t('settings.knowledgeBase.fastgptTitle')
+      })
     })
   } else {
     // 添加配置
     fastGptConfigs.value.push({ ...editingFastGptConfig.value })
     toast({
       title: t('settings.knowledgeBase.configAdded'),
-      description: t('settings.knowledgeBase.configAddedDesc')
+      description: t('settings.knowledgeBase.configAddedDesc', {
+        name: t('settings.knowledgeBase.fastgptTitle')
+      })
     })
   }
 

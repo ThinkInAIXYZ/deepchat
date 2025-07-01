@@ -312,14 +312,18 @@ const saveRagflowConfig = async () => {
     }
     toast({
       title: t('settings.knowledgeBase.configUpdated'),
-      description: t('settings.knowledgeBase.configUpdatedDesc')
+      description: t('settings.knowledgeBase.configUpdatedDesc', {
+        name: t('settings.knowledgeBase.ragflowTitle')
+      })
     })
   } else {
     // 添加配置
     ragflowConfigs.value.push(config)
     toast({
       title: t('settings.knowledgeBase.configAdded'),
-      description: t('settings.knowledgeBase.configAddedDesc')
+      description: t('settings.knowledgeBase.configAddedDesc', {
+        name: t('settings.knowledgeBase.ragflowTitle')
+      })
     })
   }
 
