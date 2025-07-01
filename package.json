@@ -91,7 +91,7 @@
   },
   "devDependencies": {
     "@electron-toolkit/tsconfig": "^1.0.1",
-    "@electron/notarize": "^2.5.0",
+    "@electron/notarize": "^3.0.1",
     "@iconify-json/lucide": "^1.2.39",
     "@iconify-json/vscode-icons": "^1.2.20",
     "@iconify/vue": "^5.0.0",
