@@ -4,7 +4,6 @@ import { ConfigPresenter } from '../../configPresenter'
 import { proxyConfig } from '@/presenter/proxyConfig'
 import { ProxyAgent } from 'undici'
 import OpenAI from 'openai'
-import { SUMMARY_TITLES_PROMPT } from '../baseProvider'
 
 export class AihubmixProvider extends OpenAICompatibleProvider {
   constructor(provider: LLM_PROVIDER, configPresenter: ConfigPresenter) {
