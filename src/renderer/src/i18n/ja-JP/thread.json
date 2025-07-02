@@ -13,13 +13,13 @@
     "nextVariant": "次のバージョンに切り替えます",
     "copy": "答えをマークダウンにコピーします",
     "copyImage": "画像としてコピーします",
-    "retry": "再生",
-    "fork": "新しいセッションへのフォーク",
+    "retry": "再生成",
+    "fork": "新会話に分岐",
     "edit": "メッセージを編集します",
     "delete": "メッセージを削除します",
     "capturing": "スクリーンショット...",
     "copyFromTopSuccess": "完全なセッション画像がコピーされました",
-    "copyImageWithLongPress": "画像としてコピーします（上から傍受するために長いプレス）"
+    "copyImageWithLongPress": "画像としてコピー（長押しで上部から取得）"
   },
   "message": {
     "toolbar": {

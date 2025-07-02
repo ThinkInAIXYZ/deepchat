@@ -18,7 +18,7 @@
     "customProxyUrl": "カスタムプロキシURL",
     "customProxyUrlPlaceholder": "例: http://127.0.0.1:7890",
     "invalidProxyUrl": "無効なプロキシURL、有効なhttp/https URLを入力してください",
-    "contentProtection": "画面保護",
+    "contentProtection": "画面キャプチャ保護",
     "contentProtectionDialogTitle": "画面保護の切り替え確認",
     "contentProtectionEnableDesc": "画面保護を有効にすると、画面共有ソフトウェアがDeepChatウィンドウをキャプチャするのを防ぎ、コンテンツのプライバシーを保護します。この機能はすべてのインターフェイスを完全に隠すわけではありません。責任を持って規制に準拠して使用してください。また、画面共有ソフトウェアがこの機能をサポートしない場合があります。また、一部の環境では黒いウィンドウが残る可能性があります。",
     "contentProtectionDisableDesc": "画面保護を無効にすると、画面共有ソフトウェアがDeepChatウィンドウをキャプチャできるようになります。",
@@ -44,10 +44,10 @@
     "testSearchEngineNote": "検索ページにログインやその他の操作が必要な場合は、テストウィンドウで実行できます。テスト完了後はテストウィンドウを閉じてください。",
     "theme": "テーマ",
     "themeSelect": "テーマを選択",
-    "closeToQuit": "閉じるボタンをクリックするとアプリケーションを終了します",
+    "closeToQuit": "閉じるボタンでアプリを終了",
     "openLogFolder": "ログフォルダを開く",
     "shortcut": {
-      "newChat": "新しいチャットを作成します",
+      "newChat": "新しいチャットを作成",
       "title": "ショートカットキー設定"
     },
     "notifications": "システム通知",

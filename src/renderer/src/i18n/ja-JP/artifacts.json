@@ -34,7 +34,7 @@
   "copySuccessDesc": "クリップボードにコピーしました",
   "copyFailed": "コピー失敗",
   "copyFailedDesc": "クリップボードへのコピーに失敗しました",
-  "copyAsImage": "画像としてコピーします",
-  "copyImageSuccessDesc": "クリップボードにコピーされた画像",
-  "copyImageFailedDesc": "写真をクリップボードにコピーできません"
+  "copyAsImage": "画像としてコピー",
+  "copyImageSuccessDesc": "画像をクリップボードにコピーしました",
+  "copyImageFailedDesc": "画像のコピーに失敗しました"
 }

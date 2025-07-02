@@ -23,12 +23,12 @@
     "parameters": "パラメータ",
     "refresh": "更新",
     "disabled": "MCPは無効です",
-    "enableToUse": "ツールを使用するにはMCPを有効にしてください",
+    "enableToUse": "MCPを有効にしてツールを使用",
     "enabled": "MCPを有効化",
     "enabledDescription": "ツール呼び出しを使用するためにMCP機能を有効にします",
     "empty": "空",
     "invalidJsonFormat": "無効なJSON形式",
-    "jsonInputPlaceholder": "JSON形式でパラメーターを入力します",
+    "jsonInputPlaceholder": "JSON形式でパラメータを入力",
     "input": "パラメータ入力",
     "type": "タイプ",
     "annotations": "注釈",
@@ -136,7 +136,7 @@
   "stopped": "停止",
   "tabs": {
     "servers": "サーバ",
-    "tools": "道具"
+    "tools": "ツール"
   },
   "title": "MCP設定",
   "inmemory": {
