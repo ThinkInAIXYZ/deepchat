@@ -13,7 +13,7 @@
   "basicInfo": "Basic Information",
   "contentTip": "Supports variable placeholders like {openBrace}{openBrace}variable{closeBrace}{closeBrace}, you can define corresponding parameters in the parameters section",
   "noPrompt": "No Prompts Yet",
-  "noPromptDesc": "Click the "+" button in the top right corner to create your first prompt.",
+  "noPromptDesc": "Click the \"+\" button in the top right corner to create your first prompt.",
   "active": "Active",
   "noDescription": "No description",
   "customDate": "Custom",

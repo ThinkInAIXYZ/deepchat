@@ -126,7 +126,7 @@
     "typePlaceholder": "Select a server type",
     "typeSse": "Server-Sent Events (SSE)",
     "typeStdio": "Standard input and output",
-    "update": "Update",
+    "update": "Update"
   },
   "serverList": "Server list",
   "setAsDefault": "Set as the default server",
@@ -150,7 +150,7 @@
     },
     "buildInFileSystem": {
       "desc": "Allows DeepChat to interact with the local file system.",
-      "name": "File System",
+      "name": "File System"
     },
     "imageServer": {
       "desc": "Enables any model in DeepChat to understand and generate images.",
@@ -162,7 +162,7 @@
     },
     "powerpack": {
       "desc": "Provides any large model with enhanced capabilities like time queries, web scraping, and secure code execution.",
-      "name": "Power Pack",
+      "name": "Power Pack"
     },
     "difyKnowledge": {
       "desc": "Dify Knowledge Base Search Service, which can retrieve content in Dify Knowledge Base",
@@ -178,7 +178,7 @@
     },
     "deepchat-inmemory/custom-prompts-server": {
       "desc": "DeepChat built-in custom prompt word service",
-      "name": "Custom Prompts",
+      "name": "Custom Prompts"
     },
     "deepchat-inmemory/deep-research-server": {
       "desc": "DeepChat built-in in-depth research service based on Bocha Search (note that long context models are required to be used, and models with insufficient context may fail)",
