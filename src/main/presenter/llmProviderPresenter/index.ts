@@ -35,6 +35,7 @@ import { OpenAIResponsesProvider } from './providers/openAIResponsesProvider'
 import { OpenRouterProvider } from './providers/openRouterProvider'
 import { MinimaxProvider } from './providers/minimaxProvider'
 import { AihubmixProvider } from './providers/aihubmixProvider'
+import { _302AIProvider } from './providers/_302AIProvider'
 // 流的状态
 interface StreamState {
   isGenerating: boolean
@@ -93,6 +94,9 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
 
   private createProviderInstance(provider: LLM_PROVIDER): BaseLLMProvider | undefined {
     try {
+      if (provider.id === '302ai') {
+        return new _302AIProvider(provider, this.configPresenter)
+      }
       if (provider.id === 'minimax') {
         return new MinimaxProvider(provider, this.configPresenter)
       }

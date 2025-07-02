@@ -7,7 +7,7 @@ import {
   MCPToolDefinition,
   ChatMessage
 } from '@shared/presenter'
-import { BaseLLMProvider } from '../baseProvider'
+import { BaseLLMProvider, SUMMARY_TITLES_PROMPT } from '../baseProvider'
 import { ConfigPresenter } from '../../configPresenter'
 import Anthropic from '@anthropic-ai/sdk'
 import { presenter } from '@/presenter'
@@ -497,13 +497,7 @@ export class AnthropicProvider extends BaseLLMProvider {
   }
 
   public async summaryTitles(messages: ChatMessage[], modelId: string): Promise<string> {
-    const prompt = `
-请为以下对话生成一个简短的标题，不超过6个字：
-
-${messages.map((m) => `${m.role}: ${m.content}`).join('\n')}
-
-只输出标题，不要有任何额外文字。
-`
+    const prompt = `${SUMMARY_TITLES_PROMPT}\n\n${messages.map((m) => `${m.role}: ${m.content}`).join('\n')}`
     const response = await this.generateText(prompt, modelId, 0.3, 50)
 
     return response.content.trim()

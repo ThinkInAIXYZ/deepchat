@@ -4,6 +4,7 @@ import { ConfigPresenter } from '../../configPresenter'
 import { proxyConfig } from '@/presenter/proxyConfig'
 import { ProxyAgent } from 'undici'
 import OpenAI from 'openai'
+import { SUMMARY_TITLES_PROMPT } from '../baseProvider'
 
 export class AihubmixProvider extends OpenAICompatibleProvider {
   constructor(provider: LLM_PROVIDER, configPresenter: ConfigPresenter) {
@@ -39,25 +40,6 @@ export class AihubmixProvider extends OpenAICompatibleProvider {
     maxTokens?: number
   ): Promise<LLMResponse> {
     return this.openAICompletion(messages, modelId, temperature, maxTokens)
-  }
-
-  async summaries(
-    text: string,
-    modelId: string,
-    temperature?: number,
-    maxTokens?: number
-  ): Promise<LLMResponse> {
-    return this.openAICompletion(
-      [
-        {
-          role: 'user',
-          content: `You need to summarize the user's conversation into a title of no more than 10 words, with the title language matching the user's primary language, without using punctuation or other special symbols：\n${text}`
-        }
-      ],
-      modelId,
-      temperature,
-      maxTokens
-    )
   }
 
   async generateText(

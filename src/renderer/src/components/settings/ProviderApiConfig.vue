@@ -178,7 +178,9 @@ const handleOAuthError = (error: string) => {
 
 const getKeyStatus = async () => {
   if (
-    ['ppio', 'openrouter', 'siliconcloud', 'silicon', 'deepseek'].includes(props.provider.id) &&
+    ['ppio', 'openrouter', 'siliconcloud', 'silicon', 'deepseek', '302ai'].includes(
+      props.provider.id
+    ) &&
     props.provider.apiKey
   ) {
     try {

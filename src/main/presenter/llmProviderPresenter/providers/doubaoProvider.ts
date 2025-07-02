@@ -67,25 +67,6 @@ export class DoubaoProvider extends OpenAICompatibleProvider {
     return this.openAICompletion(messages, modelId, temperature, maxTokens)
   }
 
-  async summaries(
-    text: string,
-    modelId: string,
-    temperature?: number,
-    maxTokens?: number
-  ): Promise<LLMResponse> {
-    return this.openAICompletion(
-      [
-        {
-          role: 'user',
-          content: `请总结以下内容，使用简洁的语言，突出重点：\n${text}`
-        }
-      ],
-      modelId,
-      temperature,
-      maxTokens
-    )
-  }
-
   async generateText(
     prompt: string,
     modelId: string,
