@@ -5,11 +5,11 @@
       "description": "Let's start setting up DeepChat"
     },
     "provider": {
-      "title": "Model Provider",
+      "title": "Provider",
       "description": "Choose your preferred model provider"
     },
     "configuration": {
-      "title": "Model Configuration",
+      "title": "Configuration",
       "description": "Configure the models you want to use"
     },
     "complete": {
@@ -18,16 +18,16 @@
     }
   },
   "title": "Welcome to DeepChat",
-  "description": "Let's complete the setup process",
+  "description": "Let's walk you through the setup.",
   "provider": {
-    "select": "Select Provider",
+    "select": "Select a Provider",
     "apiUrl": "API URL",
     "apiKey": "API Key",
     "verifyLink": "Verify Link"
   },
   "complete": {
     "title": "All Done!",
-    "description": "You've completed the setup process, let's get started!"
+    "description": "You're all set. Let's get started!",
   },
   "buttons": {
     "getStarted": "Get Started",

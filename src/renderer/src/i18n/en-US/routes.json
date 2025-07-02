@@ -3,12 +3,12 @@
   "welcome": "Welcome",
   "settings": "Settings",
   "settings-common": "Common Settings",
-  "settings-provider": "Provider Settings",
+  "settings-provider": "Providers",
   "settings-mcp": "MCP Settings",
-  "settings-database": "Data Settings",
+  "settings-database": "Data",
   "settings-about": "About",
   "settings-shortcut": "Shortcuts",
-  "settings-display": "Display settings",
+  "settings-display": "Display",
   "settings-knowledge-base": "Knowledge Base",
-  "settings-prompt": "Prompt Management"
+  "settings-prompt": "Prompts"
 }

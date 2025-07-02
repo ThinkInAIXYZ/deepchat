@@ -1,17 +1,17 @@
 {
   "success": {
-    "importComplete": "Data imported successfully. Click OK to restart the application."
+    "importComplete": "Import complete. The application will now restart."
   },
   "error": {
-    "notEnabled": "Sync feature is not enabled",
+    "notEnabled": "Sync is not enabled",
     "folderNotExists": "Sync folder does not exist",
-    "noValidBackup": "No valid backup files in the sync folder",
+    "noValidBackup": "No valid backup files found in the sync folder.",
     "dbNotExists": "Database file does not exist",
     "configNotExists": "Configuration file does not exist",
     "tempDbFailed": "Failed to create temporary database backup file",
     "tempConfigFailed": "Failed to create temporary configuration backup file",
     "importFailed": "Import failed, original data has been restored",
-    "importProcess": "Error in import process",
+    "importProcess": "An error occurred during the import process",
     "unknown": "Unknown error"
   }
 }

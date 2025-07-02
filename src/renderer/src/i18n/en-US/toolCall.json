@@ -1,12 +1,12 @@
 {
-  "calling": "Calling",
-  "response": "Running",
-  "end": "Completed",
+  "calling": "Calling...",
+  "response": "Running...",
+  "end": "Done",
   "error": "Error",
   "title": "Tool Call",
   "clickToView": "Click to view details",
   "functionName": "Function Name",
-  "permission": "Requesting Permission",
+  "permission": "Requesting permission...",
   "params": "Function Parameters",
-  "responseData": "Response Data"
+  "responseData": "Response"
 }

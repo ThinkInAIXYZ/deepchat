@@ -3,7 +3,7 @@
     "placeholder": "Search models..."
   },
   "error": {
-    "loadFailed": "Failed to load model"
+    "loadFailed": "Failed to load models"
   },
   "type": {
     "custom": "Custom Model",
