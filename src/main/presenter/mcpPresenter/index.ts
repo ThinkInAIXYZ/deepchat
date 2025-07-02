@@ -615,8 +615,46 @@ export class McpPresenter implements IMCPPresenter {
       const filtered = Object.fromEntries(Object.entries(obj).filter(([key]) => keys.includes(key)))
       const cleaned: Record<string, unknown> = {}
       for (const [key, value] of Object.entries(filtered)) {
-        cleaned[key] = cleanValue(value)
+        if (key === 'type') {
+          // Handle type property specifically to ensure it has a valid value
+          const typeValue = cleanValue(value)
+          if (
+            !typeValue ||
+            typeof typeValue !== 'string' ||
+            typeValue.trim() === '' ||
+            typeValue.toLowerCase() === 'any' ||
+            typeValue.toLowerCase() === 'unknown'
+          ) {
+            // Set to 'string' if type is missing, empty, 'any', or 'unknown'
+            cleaned[key] = 'string'
+          } else {
+            // Validate that it's a supported JSON Schema type
+            const supportedTypes = [
+              'string',
+              'number',
+              'integer',
+              'boolean',
+              'array',
+              'object',
+              'null'
+            ]
+            if (supportedTypes.includes(typeValue.toLowerCase())) {
+              cleaned[key] = typeValue.toLowerCase()
+            } else {
+              // If it's not a supported type, default to 'string'
+              cleaned[key] = 'string'
+            }
+          }
+        } else {
+          cleaned[key] = cleanValue(value)
+        }
       }
+
+      // Ensure type property exists if it was supposed to be included
+      if (keys.includes('type') && !cleaned.hasOwnProperty('type')) {
+        cleaned.type = 'string'
+      }
+
       return cleaned
     }
 
