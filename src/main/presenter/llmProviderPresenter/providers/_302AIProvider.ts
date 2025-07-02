@@ -51,7 +51,7 @@ export class _302AIProvider extends OpenAICompatibleProvider {
       throw new Error('API key is required')
     }
 
-    const response = await fetch('http://api.302.ai/dashboard/balance', {
+    const response = await fetch('https://api.302.ai/dashboard/balance', {
       method: 'GET',
       headers: {
         Authorization: `Bearer ${this.provider.apiKey}`,
