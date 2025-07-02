@@ -6,7 +6,7 @@
     "loadFailed": "모델 로드 실패"
   },
   "type": {
-    "custom": "커스텀 모델",
+    "custom": "사용자 정의 모델",
     "official": "공식 모델"
   },
   "add": {

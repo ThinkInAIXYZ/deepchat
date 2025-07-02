@@ -92,15 +92,15 @@
       "description": "AI 응답의 최대 길이 설정"
     },
     "artifacts": {
-      "description": "인공물 기능을 활성화하면 AI가 더 풍부한 콘텐츠를 생성할 수 있습니다",
-      "title": "유물 효과"
+      "description": "Artifacts 기능을 활성화하면 AI가 더 풍부한 콘텐츠를 생성할 수 있습니다",
+      "title": "Artifacts 효과"
     },
-    "addModel": "모델을 추가하십시오",
-    "configureModel": "구성 모델",
+    "addModel": "모델 추가",
+          "configureModel": "모델 구성",
     "modelList": "모델 목록",
     "provider": "서비스 제공 업체",
     "providerSetting": "서비스 제공 업체 설정",
-    "selectModel": "모델을 선택하십시오",
+          "selectModel": "모델 선택",
     "modelConfig": {
       "cancel": "취소",
       "contextLength": {

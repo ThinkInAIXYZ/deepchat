@@ -141,7 +141,7 @@
   },
   "inmemory": {
     "Artifacts": {
-      "desc": "Deepchat 출력 다양한 유물을 컨텐츠로 만드십시오",
+      "desc": "DeepChat에서 다양한 Artifacts 콘텐츠를 출력할 수 있게 해줍니다",
       "name": "Artifacts"
     },
     "bochaSearch": {
@@ -149,20 +149,20 @@
       "name": "Bocha Search"
     },
     "buildInFileSystem": {
-      "desc": "DeepChat가 로컬 파일을 조작 할 수 있도록합니다",
+      "desc": "DeepChat이 로컬 파일을 조작할 수 있도록 해줍니다",
       "name": "파일 시스템"
     },
     "imageServer": {
-      "desc": "열린 후 DeepChat의 모든 모델은 그림을 이해하고 그림을 생성 할 수 있습니다.",
+      "desc": "활성화 후 DeepChat의 모든 모델이 이미지를 이해하고 생성할 수 있습니다",
       "name": "이미지 서비스"
     },
     "braveSearch": {
-      "desc": "용감한 검색 API https://brave.com/search/api/",
-      "name": "용감한 검색"
+      "desc": "Brave 검색 API https://brave.com/search/api/",
+      "name": "Brave 검색"
     },
     "powerpack": {
-      "desc": "대규모 모델에 대한 시간 쿼리, 웹 정보 수집 및 보안 코드 실행과 같은 향상된 기능을 제공하여 모델에보다 강력하고 정확한 정보 수집 기능이 있습니다.",
-      "name": "향상 툴킷"
+      "desc": "모든 대형 모델에 시간 조회, 웹 정보 수집, 안전한 코드 실행 등의 향상된 기능을 제공하여 더 강력하고 정확한 정보 수집 능력을 제공합니다",
+      "name": "파워팩 도구"
     },
     "difyKnowledge": {
       "name": "Dify 지식 기반 검색",

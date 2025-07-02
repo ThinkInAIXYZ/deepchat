@@ -7,23 +7,23 @@
     "unpin": "고정 해제"
   },
   "toolbar": {
-    "save": "구하다",
+    "save": "저장",
     "cancel": "취소",
-    "previousVariant": "이전 버전으로 전환하십시오",
-    "nextVariant": "다음 버전으로 전환하십시오",
-    "copy": "Markdown에 답을 복사하십시오",
-    "copyImage": "이미지로 복사하십시오",
-    "retry": "재생",
-    "fork": "새로운 세션에 포크",
+    "previousVariant": "이전 버전으로 전환",
+    "nextVariant": "다음 버전으로 전환",
+    "copy": "Markdown으로 복사",
+    "copyImage": "이미지로 복사",
+    "retry": "다시 시도",
+    "fork": "새 채팅으로 분기",
     "edit": "메시지 편집",
     "delete": "메시지 삭제",
-    "capturing": "스크린 샷 ...",
-    "copyFromTopSuccess": "전체 세션 이미지가 복사되었습니다",
-    "copyImageWithLongPress": "이미지로 복사합니다 (상단에서 가로 쳐기 시작하려면 긴 누르기)"
+    "capturing": "스크린샷 캡처 중...",
+    "copyFromTopSuccess": "전체 채팅 이미지가 복사되었습니다",
+    "copyImageWithLongPress": "이미지로 복사 (상단부터 캡처하려면 길게 누르세요)"
   },
   "message": {
     "toolbar": {
-      "save": "구하다"
+      "save": "저장"
     }
   }
 }

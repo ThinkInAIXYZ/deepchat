@@ -9,7 +9,7 @@
   "checkUpdate": "업데이트 확인",
   "autoUpdate": "자동 업데이트",
   "downloading": "다운로드",
-  "installNow": "지금 설치하십시오",
+  "installNow": "지금 설치",
   "restarting": "다시 시작",
   "alreadyUpToDate": "이미 최신 버전입니다",
   "alreadyUpToDateDesc": "현재 DeepChat은 최신 버전으로 업데이트되어 있으며, 업데이트가 필요하지 않습니다."

@@ -34,7 +34,7 @@
   "copySuccessDesc": "클립보드에 복사되었습니다",
   "copyFailed": "복사 실패",
   "copyFailedDesc": "클립보드에 복사할 수 없습니다",
-  "copyAsImage": "이미지로 복사하십시오",
-  "copyImageSuccessDesc": "클립 보드에 이미지가 복사되었습니다",
-  "copyImageFailedDesc": "사진을 클립 보드에 복사 할 수 없습니다"
+  "copyAsImage": "이미지로 복사",
+  "copyImageSuccessDesc": "이미지가 클립보드에 복사되었습니다",
+  "copyImageFailedDesc": "이미지를 클립보드에 복사할 수 없습니다"
 }

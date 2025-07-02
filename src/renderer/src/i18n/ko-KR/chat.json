@@ -4,21 +4,21 @@
     "fileArea": "파일 영역",
     "inputArea": "입력 영역",
     "functionSwitch": "기능 전환",
-    "fileSelect": "파일 선택 버튼",
+    "fileSelect": "파일 선택",
     "pasteFiles": "파일 복사 붙여넣기 지원",
     "dropFiles": "파일을 여기로 드래그하세요",
     "promptFilesAdded": "프롬프트 파일이 추가됨",
     "promptFilesAddedDesc": "{count}개 파일이 성공적으로 추가되었습니다",
     "promptFilesError": "파일 처리 오류",
     "promptFilesErrorDesc": "{count}개 파일 처리에 실패했습니다",
-    "historyPlaceholder": "(채우려면 탭을 누릅니다)"
+    "historyPlaceholder": "(Tab 키로 입력)"
   },
   "features": {
     "deepThinking": "심층 사고",
     "webSearch": "웹 검색",
     "deepThinkingProgress": "심층 사고 진행 중...",
     "thinkingDuration": "({0}초 소요)",
-    "artifactThinking": "인공물 사고"
+    "artifactThinking": "아티팩트 추론"
   },
   "search": {
     "results": "{0}개의 웹 페이지를 찾았습니다",
@@ -33,7 +33,7 @@
     "thinking": "생각..."
   },
   "notify": {
-    "generationComplete": "세대가 완료되었습니다",
-    "generationError": "세대가 실패했습니다"
+    "generationComplete": "생성이 완료되었습니다",
+    "generationError": "생성에 실패했습니다"
   }
 }
