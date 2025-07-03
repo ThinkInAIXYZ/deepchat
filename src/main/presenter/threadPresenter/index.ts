@@ -10,11 +10,13 @@ import {
   ISQLitePresenter,
   IConfigPresenter,
   ILlmProviderPresenter,
+  IRagProviderPresenter,
   MCPToolResponse,
   ChatMessage,
   ChatMessageContent,
   LLMAgentEventData
 } from '../../../shared/presenter'
+import { ConversationType } from '../../../shared/model'
 import { presenter } from '@/presenter'
 import { MessageManager } from './messageManager'
 import { eventBus, SendTarget } from '@/eventbus'
@@ -60,6 +62,7 @@ export class ThreadPresenter implements IThreadPresenter {
   private sqlitePresenter: ISQLitePresenter
   private messageManager: MessageManager
   private llmProviderPresenter: ILlmProviderPresenter
+  private ragProviderPresenter: IRagProviderPresenter
   private configPresenter: IConfigPresenter
   private searchManager: SearchManager
   private generatingMessages: Map<string, GeneratingMessageState> = new Map()
@@ -72,11 +75,13 @@ export class ThreadPresenter implements IThreadPresenter {
   constructor(
     sqlitePresenter: ISQLitePresenter,
     llmProviderPresenter: ILlmProviderPresenter,
+    ragProviderPresenter: IRagProviderPresenter,
     configPresenter: IConfigPresenter
   ) {
     this.sqlitePresenter = sqlitePresenter
     this.messageManager = new MessageManager(sqlitePresenter)
     this.llmProviderPresenter = llmProviderPresenter
+    this.ragProviderPresenter = ragProviderPresenter
     this.searchManager = new SearchManager()
     this.configPresenter = configPresenter
 
@@ -847,7 +852,7 @@ export class ThreadPresenter implements IThreadPresenter {
         const newMsg = { ...msg }
         const msgContent = newMsg.content as UserMessageContent
         if (msgContent.content) {
-          ;(newMsg.content as UserMessageContent).text = this.formatUserMessageContent(
+          ; (newMsg.content as UserMessageContent).text = this.formatUserMessageContent(
             msgContent.content
           )
         }
@@ -1384,22 +1389,104 @@ export class ThreadPresenter implements IThreadPresenter {
         maxTokens: currentMaxTokens
       } = currentConversation.settings
 
-      const stream = this.llmProviderPresenter.startStreamCompletion(
-        currentProviderId, // 使用最新的设置
-        finalContent,
-        currentModelId, // 使用最新的设置
-        state.message.id,
-        currentTemperature, // 使用最新的设置
-        currentMaxTokens // 使用最新的设置
-      )
-      for await (const event of stream) {
-        const msg = event.data
-        if (event.type === 'response') {
-          await this.handleLLMAgentResponse(msg)
-        } else if (event.type === 'error') {
-          await this.handleLLMAgentError(msg)
-        } else if (event.type === 'end') {
-          await this.handleLLMAgentEnd(msg)
+      // 获取模型配置以确定会话类型
+      const currentModelConfig = this.configPresenter.getModelConfig(currentModelId, currentProviderId)
+      const conversationType = currentModelConfig?.type === 'rag' ? ConversationType.RAG : ConversationType.LLM
+
+      console.log(`Starting ${conversationType} stream completion for conversation ${conversationId}`)
+
+      // 根据会话类型选择不同的处理流程
+      if (conversationType === ConversationType.RAG) {
+        // RAG类型会话：使用专门的RagProviderPresenter处理
+        const stream = this.ragProviderPresenter.startRagCompletion(
+          currentProviderId,
+          finalContent,
+          currentModelId,
+          currentModelConfig,
+          currentTemperature,
+          currentMaxTokens
+        )
+
+        // 直接处理RAG流事件并转换为LLMAgentEvent格式
+        for await (const coreEvent of stream) {
+          // 检查是否已被取消
+          this.throwIfCancelled(state.message.id)
+
+          // 将LLMCoreStreamEvent转换为LLMAgentEventData
+          let agentEventData: LLMAgentEventData = { eventId: state.message.id }
+
+          switch (coreEvent.type) {
+            case 'text':
+              if (coreEvent.content) {
+                agentEventData.content = coreEvent.content
+              }
+              break
+            case 'reasoning':
+              if (coreEvent.reasoning_content) {
+                agentEventData.reasoning_content = coreEvent.reasoning_content
+                agentEventData.step = coreEvent.step
+                agentEventData.step_title = coreEvent.step_title
+                agentEventData.step_content = coreEvent.step_content
+                agentEventData.step_is_error = coreEvent.step_is_error
+                agentEventData.step_error_message = coreEvent.step_error_message
+                agentEventData.step_replace_content = coreEvent.step_replace_content
+                agentEventData.step_replace_title = coreEvent.step_replace_title
+              }
+              break
+            case 'rag_files':
+              if (coreEvent.rag_files) {
+                agentEventData.rag_files = coreEvent.rag_files
+              }
+              break
+            case 'rag_references':
+              if (coreEvent.rag_references) {
+                agentEventData.rag_references = coreEvent.rag_references
+              }
+              break
+            case 'error':
+              await this.handleLLMAgentError({
+                eventId: state.message.id,
+                error: coreEvent.error_message || 'RAG processing error'
+              })
+              return
+            case 'stop':
+              await this.handleLLMAgentEnd({
+                eventId: state.message.id,
+                userStop: false
+              })
+              return
+            default:
+              continue
+          }
+
+          // 发送转换后的事件
+          await this.handleLLMAgentResponse(agentEventData)
+        }
+
+        // RAG完成后发送结束事件
+        await this.handleLLMAgentEnd({
+          eventId: state.message.id,
+          userStop: false
+        })
+      } else {
+        // LLM类型会话：使用现有的llmProviderPresenter处理
+        const stream = this.llmProviderPresenter.startStreamCompletion(
+          currentProviderId, // 使用最新的设置
+          finalContent,
+          currentModelId, // 使用最新的设置
+          state.message.id,
+          currentTemperature, // 使用最新的设置
+          currentMaxTokens // 使用最新的设置
+        )
+        for await (const event of stream) {
+          const msg = event.data
+          if (event.type === 'response') {
+            await this.handleLLMAgentResponse(msg)
+          } else if (event.type === 'error') {
+            await this.handleLLMAgentError(msg)
+          } else if (event.type === 'end') {
+            await this.handleLLMAgentEnd(msg)
+          }
         }
       }
     } catch (error) {
@@ -1635,8 +1722,8 @@ export class ThreadPresenter implements IThreadPresenter {
     // 任何情况都使用最新配置
     const webSearchEnabled = this.configPresenter.getSetting('input_webSearch') as boolean
     const thinkEnabled = this.configPresenter.getSetting('input_deepThinking') as boolean
-    ;(userMessage.content as UserMessageContent).search = webSearchEnabled
-    ;(userMessage.content as UserMessageContent).think = thinkEnabled
+      ; (userMessage.content as UserMessageContent).search = webSearchEnabled
+      ; (userMessage.content as UserMessageContent).think = thinkEnabled
     return { conversation, userMessage, contextMessages }
   }
 
@@ -1648,10 +1735,9 @@ export class ThreadPresenter implements IThreadPresenter {
   }> {
     // 处理文本内容
     const userContent = `
-      ${
-        userMessage.content.content
-          ? this.formatUserMessageContent(userMessage.content.content)
-          : userMessage.content.text
+      ${userMessage.content.content
+        ? this.formatUserMessageContent(userMessage.content.content)
+        : userMessage.content.text
       }
       ${getFileContext(userMessage.content.files)}
     `
@@ -1771,7 +1857,7 @@ export class ThreadPresenter implements IThreadPresenter {
       const msgContent = msg.role === 'user' ? (msg.content as UserMessageContent) : null
       const msgText = msgContent
         ? msgContent.text ||
-          (msgContent.content ? this.formatUserMessageContent(msgContent.content) : '')
+        (msgContent.content ? this.formatUserMessageContent(msgContent.content) : '')
         : ''
 
       const msgTokens = approximateTokenSize(

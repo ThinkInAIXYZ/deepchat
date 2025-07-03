@@ -119,6 +119,7 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
       if (provider.id === 'aihubmix') {
         return new AihubmixProvider(provider, this.configPresenter)
       }
+
       switch (provider.apiType) {
         case 'minimax':
           return new OpenAIProvider(provider, this.configPresenter)
@@ -222,7 +223,7 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
     }
   }
 
-  private getProviderInstance(providerId: string): BaseLLMProvider {
+  getProviderInstance(providerId: string): BaseLLMProvider {
     let instance = this.providerInstances.get(providerId)
     if (!instance) {
       const provider = this.getProviderById(providerId)
@@ -410,7 +411,36 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
                     type: 'response',
                     data: {
                       eventId,
-                      reasoning_content: chunk.reasoning_content
+                      reasoning_content: chunk.reasoning_content,
+                      step: chunk.step,
+                      step_title: chunk.step_title,
+                      step_content: chunk.step_content,
+                      step_is_error: chunk.step_is_error,
+                      step_error_message: chunk.step_error_message,
+                      step_replace_content: chunk.step_replace_content,
+                      step_replace_title: chunk.step_replace_title
+                    }
+                  }
+                }
+                break
+              case 'rag_files':
+                if (chunk.rag_files) {
+                  yield {
+                    type: 'response',
+                    data: {
+                      eventId,
+                      rag_files: chunk.rag_files
+                    }
+                  }
+                }
+                break
+              case 'rag_references':
+                if (chunk.rag_references) {
+                  yield {
+                    type: 'response',
+                    data: {
+                      eventId,
+                      rag_references: chunk.rag_references
                     }
                   }
                 }

@@ -21,6 +21,7 @@ import { TrayPresenter } from './trayPresenter'
 import { OAuthPresenter } from './oauthPresenter'
 import { FloatingButtonPresenter } from './floatingButtonPresenter'
 import { CONFIG_EVENTS, WINDOW_EVENTS } from '@/events'
+import { RagProviderPresenter } from './ragProviderPresenter'
 
 // IPC调用上下文接口
 interface IPCCallContext {
@@ -55,6 +56,7 @@ export class Presenter implements IPresenter {
   oauthPresenter: OAuthPresenter
   floatingButtonPresenter: FloatingButtonPresenter
   // llamaCppPresenter: LlamaCppPresenter // 保留原始注释
+  ragProviderPresenter: RagProviderPresenter
 
   constructor() {
     // 初始化各个 Presenter 实例及其依赖
@@ -62,6 +64,7 @@ export class Presenter implements IPresenter {
     this.windowPresenter = new WindowPresenter(this.configPresenter)
     this.tabPresenter = new TabPresenter(this.windowPresenter)
     this.llmproviderPresenter = new LLMProviderPresenter(this.configPresenter)
+    this.ragProviderPresenter = new RagProviderPresenter(this.configPresenter)
     this.devicePresenter = new DevicePresenter()
     // 初始化 SQLite 数据库路径
     const dbDir = path.join(app.getPath('userData'), 'app_db')
@@ -70,6 +73,7 @@ export class Presenter implements IPresenter {
     this.threadPresenter = new ThreadPresenter(
       this.sqlitePresenter,
       this.llmproviderPresenter,
+      this.ragProviderPresenter,
       this.configPresenter
     )
     this.mcpPresenter = new McpPresenter(this.configPresenter)
@@ -108,6 +112,7 @@ export class Presenter implements IPresenter {
     eventBus.on(CONFIG_EVENTS.PROVIDER_CHANGED, () => {
       const providers = this.configPresenter.getProviders()
       this.llmproviderPresenter.setProviders(providers)
+      this.ragProviderPresenter.setProviders(providers)
     })
   }
   setupTray() {
@@ -123,6 +128,7 @@ export class Presenter implements IPresenter {
     // 持久化 LLMProviderPresenter 的 Providers 数据
     const providers = this.configPresenter.getProviders()
     this.llmproviderPresenter.setProviders(providers)
+    this.ragProviderPresenter.setProviders(providers)
 
     // 同步所有 provider 的自定义模型
     this.syncCustomModels()
@@ -228,8 +234,8 @@ ipcMain.handle(
         return { error: `Method "${method}" not found or not a function on "${name}"` }
       }
     } catch (
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      e: any
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    e: any
     ) {
       // 尝试获取调用上下文以改进错误日志
       const webContentsId = event.sender.id
