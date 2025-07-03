@@ -5,6 +5,7 @@
   "settings-common": "通用设置",
   "settings-provider": "服务商设置",
   "settings-mcp": "MCP设置",
+  "settings-agent": "智能体设置",
   "settings-database": "数据设置",
   "settings-about": "关于",
   "settings-shortcut": "快捷键",

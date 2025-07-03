@@ -310,11 +310,37 @@ export interface IRagProviderPresenter {
   ): AsyncGenerator<LLMCoreStreamEvent>
 }
 
+// Agent配置类型
+export interface AGENT_CONFIG {
+  id: string
+  name: string
+  type: string  // 'datlas' 等
+  enabled: boolean
+  config: Record<string, any>
+  custom?: boolean
+}
+
+export interface IAgentFlowPresenter {
+  setAgents(agents: AGENT_CONFIG[]): void
+  getAgents(): AGENT_CONFIG[]
+  getAgentById(id: string): AGENT_CONFIG
+  getModelList(agentId: string): Promise<MODEL_META[]>
+  check(agentId: string): Promise<{ isOk: boolean; errorMsg: string | null }>
+  startAgentCompletion(
+    agentId: string,
+    messages: ChatMessage[],
+    modelId: string,
+    modelConfig: ModelConfig,
+    temperature?: number,
+    maxTokens?: number
+  ): AsyncGenerator<LLMCoreStreamEvent>
+}
+
 export interface IPresenter {
   windowPresenter: IWindowPresenter
   sqlitePresenter: ISQLitePresenter
   llmproviderPresenter: ILlmProviderPresenter
-  ragProviderPresenter: IRagProviderPresenter
+  agentFlowPresenter: IAgentFlowPresenter
   configPresenter: IConfigPresenter
   threadPresenter: IThreadPresenter
   devicePresenter: IDevicePresenter

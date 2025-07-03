@@ -10,13 +10,12 @@ import {
   ISQLitePresenter,
   IConfigPresenter,
   ILlmProviderPresenter,
-  IRagProviderPresenter,
   MCPToolResponse,
   ChatMessage,
   ChatMessageContent,
-  LLMAgentEventData
+  LLMAgentEventData,
+  IAgentFlowPresenter
 } from '../../../shared/presenter'
-import { ConversationType } from '../../../shared/model'
 import { presenter } from '@/presenter'
 import { MessageManager } from './messageManager'
 import { eventBus, SendTarget } from '@/eventbus'
@@ -39,6 +38,11 @@ import { ContentEnricher } from './contentEnricher'
 import { CONVERSATION_EVENTS, STREAM_EVENTS, TAB_EVENTS } from '@/events'
 import { DEFAULT_SETTINGS } from './const'
 
+// 会话类型枚举
+export enum ConversationType {
+  LLM = 'llm',           // 传统的LLM对话
+  AGENT_FLOW = 'agent'   // Agent流程对话
+}
 interface GeneratingMessageState {
   message: AssistantMessage
   conversationId: string
@@ -62,7 +66,7 @@ export class ThreadPresenter implements IThreadPresenter {
   private sqlitePresenter: ISQLitePresenter
   private messageManager: MessageManager
   private llmProviderPresenter: ILlmProviderPresenter
-  private ragProviderPresenter: IRagProviderPresenter
+  private agentFlowPresenter: IAgentFlowPresenter
   private configPresenter: IConfigPresenter
   private searchManager: SearchManager
   private generatingMessages: Map<string, GeneratingMessageState> = new Map()
@@ -75,13 +79,13 @@ export class ThreadPresenter implements IThreadPresenter {
   constructor(
     sqlitePresenter: ISQLitePresenter,
     llmProviderPresenter: ILlmProviderPresenter,
-    ragProviderPresenter: IRagProviderPresenter,
+    agentFlowPresenter: IAgentFlowPresenter,
     configPresenter: IConfigPresenter
   ) {
     this.sqlitePresenter = sqlitePresenter
     this.messageManager = new MessageManager(sqlitePresenter)
     this.llmProviderPresenter = llmProviderPresenter
-    this.ragProviderPresenter = ragProviderPresenter
+    this.agentFlowPresenter = agentFlowPresenter
     this.searchManager = new SearchManager()
     this.configPresenter = configPresenter
 
@@ -1391,14 +1395,14 @@ export class ThreadPresenter implements IThreadPresenter {
 
       // 获取模型配置以确定会话类型
       const currentModelConfig = this.configPresenter.getModelConfig(currentModelId, currentProviderId)
-      const conversationType = currentModelConfig?.type === 'rag' ? ConversationType.RAG : ConversationType.LLM
+      const conversationType = currentModelConfig?.type === 'rag' ? ConversationType.AGENT_FLOW : ConversationType.LLM
 
       console.log(`Starting ${conversationType} stream completion for conversation ${conversationId}`)
 
       // 根据会话类型选择不同的处理流程
-      if (conversationType === ConversationType.RAG) {
+      if (conversationType === ConversationType.AGENT_FLOW) {
         // RAG类型会话：使用专门的RagProviderPresenter处理
-        const stream = this.ragProviderPresenter.startRagCompletion(
+        const stream = this.agentFlowPresenter.startAgentCompletion(
           currentProviderId,
           finalContent,
           currentModelId,

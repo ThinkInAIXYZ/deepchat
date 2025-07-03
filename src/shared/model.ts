@@ -9,8 +9,4 @@ export enum ModelType {
   RAG = 'rag'
 }
 
-// 会话类型枚举
-export enum ConversationType {
-  LLM = 'llm',     // 传统的LLM对话
-  RAG = 'rag'      // RAG检索增强生成对话
-}
+// 注意：ConversationType 已移动到 chat.d.ts 中

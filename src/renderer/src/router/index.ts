@@ -72,6 +72,15 @@ const router = createRouter({
           }
         },
         {
+          path: 'agent',
+          name: 'settings-agent',
+          component: () => import('@/components/settings/AgentSettings.vue'),
+          meta: {
+            titleKey: 'routes.settings-agent',
+            icon: 'lucide:bot'
+          }
+        },
+        {
           path: 'prompt',
           name: 'settings-prompt',
           component: () => import('@/components/settings/PromptSetting.vue'),
