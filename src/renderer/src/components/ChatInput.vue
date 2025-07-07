@@ -206,7 +206,7 @@ import suggestion, { mentionData, setPromptFilesHandler } from './editor/mention
 import { mentionSelected } from './editor/mention/suggestion'
 import Placeholder from '@tiptap/extension-placeholder'
 import HardBreak from '@tiptap/extension-hard-break'
-import CodeBlock from '@tiptap/extension-code-block'
+// import CodeBlock from '@tiptap/extension-code-block'
 import History from '@tiptap/extension-history'
 import { useMcpStore } from '@/stores/mcp'
 import { ResourceListEntry } from '@shared/presenter'
@@ -271,40 +271,40 @@ const editor = new Editor({
         class: 'line-break'
       }
     }),
-    CodeBlock.extend({
-      addStorage() {
-        return {
-          lastShiftEnterTime: 0
-        }
-      },
-      addKeyboardShortcuts() {
-        return {
-          'Shift-Enter': () => {
-            if (this.editor.isActive('codeBlock')) {
-              const now = Date.now()
-              const timeDiff = now - this.storage.lastShiftEnterTime
+    // CodeBlock.extend({
+    //   addStorage() {
+    //     return {
+    //       lastShiftEnterTime: 0
+    //     }
+    //   },
+    //   addKeyboardShortcuts() {
+    //     return {
+    //       'Shift-Enter': () => {
+    //         if (this.editor.isActive('codeBlock')) {
+    //           const now = Date.now()
+    //           const timeDiff = now - this.storage.lastShiftEnterTime
 
-              // If Shift+Enter was pressed within 800ms, exit the code block
-              if (timeDiff < 800) {
-                this.editor.commands.exitCode()
-                this.storage.lastShiftEnterTime = 0
-                return true
-              }
+    //           // If Shift+Enter was pressed within 800ms, exit the code block
+    //           if (timeDiff < 800) {
+    //             this.editor.commands.exitCode()
+    //             this.storage.lastShiftEnterTime = 0
+    //             return true
+    //           }
 
-              // Otherwise, insert a newline and record the time
-              this.editor.commands.insertContent('\n')
-              this.storage.lastShiftEnterTime = now
-              return true
-            }
-            return false
-          }
-        }
-      }
-    }).configure({
-      HTMLAttributes: {
-        class: 'rounded-md bg-secondary dark:bg-zinc-800 p-2'
-      }
-    })
+    //           // Otherwise, insert a newline and record the time
+    //           this.editor.commands.insertContent('\n')
+    //           this.storage.lastShiftEnterTime = now
+    //           return true
+    //         }
+    //         return false
+    //       }
+    //     }
+    //   }
+    // }).configure({
+    //   HTMLAttributes: {
+    //     class: 'rounded-md bg-secondary dark:bg-zinc-800 p-2'
+    //   }
+    // })
   ],
   onUpdate: ({ editor }) => {
     inputText.value = editor.getText()
