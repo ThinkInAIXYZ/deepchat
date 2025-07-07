@@ -224,6 +224,17 @@
       "pullModel": {
         "title": "Récupérer le modèle",
         "pull": "Récupérer"
+      },
+      "modelCheck": {
+        "checking": "Essai...",
+        "description": "Sélectionnez un modèle pour les tests de connectivité et d'utilisation",
+        "failed": "Échec du test du modèle",
+        "model": "Sélectionnez un modèle",
+        "modelPlaceholder": "Veuillez sélectionner le modèle à tester",
+        "noModels": "Il n'y a aucun modèle disponible pour ce fournisseur de services",
+        "success": "Le test du modèle a réussi",
+        "test": "Commencer le test",
+        "title": "Chèque de modèle"
       }
     },
     "pullModels": "Récupérer les modèles",

@@ -13,6 +13,8 @@ import { useSettingsStore } from '@/stores/settings'
 import { useThemeStore } from '@/stores/theme'
 import { useLanguageStore } from '@/stores/language'
 import TranslatePopup from '@/components/popup/TranslatePopup.vue'
+import ModelCheckDialog from '@/components/settings/ModelCheckDialog.vue'
+import { useModelCheckStore } from '@/stores/modelCheck'
 
 const route = useRoute()
 const configPresenter = usePresenter('configPresenter')
@@ -22,6 +24,7 @@ const { toast } = useToast()
 const settingsStore = useSettingsStore()
 const themeStore = useThemeStore()
 const langStore = useLanguageStore()
+const modelCheckStore = useModelCheckStore()
 // 错误通知队列及当前正在显示的错误
 const errorQueue = ref<Array<{ id: string; title: string; message: string; type: string }>>([])
 const currentErrorId = ref<string | null>(null)
@@ -298,5 +301,15 @@ onBeforeUnmount(() => {
     <Toaster />
     <SelectedTextContextMenu />
     <TranslatePopup />
+    <!-- 全局模型检查弹窗 -->
+    <ModelCheckDialog
+      :open="modelCheckStore.isDialogOpen"
+      :provider-id="modelCheckStore.currentProviderId"
+      @update:open="
+        (open) => {
+          if (!open) modelCheckStore.closeDialog()
+        }
+      "
+    />
   </div>
 </template>

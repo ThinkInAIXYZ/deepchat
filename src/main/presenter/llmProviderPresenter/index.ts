@@ -1001,9 +1001,41 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
     return this.config.maxConcurrentStreams
   }
 
-  async check(providerId: string): Promise<{ isOk: boolean; errorMsg: string | null }> {
-    const provider = this.getProviderInstance(providerId)
-    return provider.check()
+  async check(
+    providerId: string,
+    modelId?: string
+  ): Promise<{ isOk: boolean; errorMsg: string | null }> {
+    try {
+      const provider = this.getProviderInstance(providerId)
+
+      // 如果提供了modelId，使用completions方法进行测试
+      if (modelId) {
+        try {
+          const testMessage = [{ role: 'user' as const, content: 'hi' }]
+          const response = await provider.completions(testMessage, modelId, 0.1, 10)
+
+          // 检查响应是否有效
+          if (
+            response &&
+            (response.content || response.content === '' || response.reasoning_content)
+          ) {
+            return { isOk: true, errorMsg: null }
+          } else {
+            return { isOk: false, errorMsg: 'Model response is invalid' }
+          }
+        } catch (error) {
+          console.error(`Model ${modelId} check failed:`, error)
+          const errorMessage = error instanceof Error ? error.message : String(error)
+          return { isOk: false, errorMsg: `Model test failed: ${errorMessage}` }
+        }
+      } else {
+        return { isOk: false, errorMsg: 'Model ID is required' }
+      }
+    } catch (error) {
+      console.error(`Provider ${providerId} check failed:`, error)
+      const errorMessage = error instanceof Error ? error.message : String(error)
+      return { isOk: false, errorMsg: `Provider check failed: ${errorMessage}` }
+    }
   }
 
   async getKeyStatus(providerId: string): Promise<KeyStatus | null> {

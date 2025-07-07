@@ -8,7 +8,7 @@
           :provider-websites="providerWebsites"
           @api-host-change="handleApiHostChange"
           @api-key-change="handleApiKeyChange"
-          @validate-key="handleApiKeyEnter"
+          @validate-key="openModelCheckDialog"
           @delete-provider="showDeleteProviderDialog = true"
           @oauth-success="handleOAuthSuccess"
           @oauth-error="handleOAuthError"
@@ -73,6 +73,7 @@ import AzureProviderConfig from './AzureProviderConfig.vue'
 import GeminiSafetyConfig from './GeminiSafetyConfig.vue'
 import ProviderModelManager from './ProviderModelManager.vue'
 import ProviderDialogContainer from './ProviderDialogContainer.vue'
+import { useModelCheckStore } from '@/stores/modelCheck'
 import { levelToValueMap, safetyCategories } from '@/lib/gemini'
 
 interface ProviderWebsites {
@@ -105,6 +106,7 @@ const props = defineProps<{
 }>()
 
 const settingsStore = useSettingsStore()
+const modelCheckStore = useModelCheckStore()
 const apiKey = ref(props.provider.apiKey || '')
 const apiHost = ref(props.provider.baseUrl || '')
 const azureApiVersion = ref('')
@@ -349,5 +351,9 @@ const handleOAuthError = (error: string) => {
 const handleConfigChanged = async () => {
   // 模型配置变更后重新初始化数据
   await initData()
+}
+
+const openModelCheckDialog = () => {
+  modelCheckStore.openDialog(props.provider.id)
 }
 </script>

@@ -223,6 +223,17 @@
       "pullModel": {
         "title": "모델 가져오기",
         "pull": "가져오기"
+      },
+      "modelCheck": {
+        "checking": "테스트 ...",
+        "description": "연결 및 유용성 테스트 모델을 선택하십시오",
+        "failed": "모델 테스트가 실패했습니다",
+        "model": "모델을 선택하십시오",
+        "modelPlaceholder": "테스트 할 모델을 선택하십시오",
+        "noModels": "이 서비스 제공 업체에는 사용할 수있는 모델이 없습니다",
+        "success": "모델 테스트가 성공했습니다",
+        "test": "테스트를 시작하십시오",
+        "title": "모델 점검"
       }
     },
     "pullModels": "모델 가져오기",

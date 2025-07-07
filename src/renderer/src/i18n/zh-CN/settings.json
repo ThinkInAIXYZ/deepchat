@@ -224,6 +224,17 @@
       "pullModel": {
         "title": "拉取模型",
         "pull": "拉取"
+      },
+      "modelCheck": {
+        "title": "模型检查",
+        "description": "选择一个模型进行连接性和可用性测试",
+        "model": "选择模型",
+        "modelPlaceholder": "请选择要测试的模型",
+        "test": "开始测试",
+        "checking": "测试中...",
+        "success": "模型测试成功",
+        "failed": "模型测试失败",
+        "noModels": "该服务商没有可用的模型"
       }
     },
     "pullModels": "拉取模型",

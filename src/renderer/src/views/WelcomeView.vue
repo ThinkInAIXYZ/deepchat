@@ -65,6 +65,9 @@ const DialogDescription = defineAsyncComponent(() =>
 const DialogFooter = defineAsyncComponent(() =>
   import('@/components/ui/dialog').then((mod) => mod.DialogFooter)
 )
+const ModelCheckDialog = defineAsyncComponent(
+  () => import('@/components/settings/ModelCheckDialog.vue')
+)
 
 const settingsStore = useSettingsStore()
 const languageStore = useLanguageStore()
@@ -122,6 +125,9 @@ const providerModelLoading = ref(false)
 const showErrorDialog = ref(false)
 const showSuccessDialog = ref(false)
 const dialogMessage = ref('')
+
+// 模型检查弹窗状态
+const showModelCheckDialog = ref(false)
 
 const nextStep = async () => {
   if (currentStep.value < steps.length - 1) {
@@ -212,6 +218,10 @@ const handleModelEnabledChange = async (model: MODEL_META, enabled: boolean) => 
   console.log('handleModelEnabledChange', model, enabled)
 }
 
+const openModelCheckDialog = () => {
+  showModelCheckDialog.value = true
+}
+
 const validateApiKey = async () => {
   if ((!apiKey.value || !baseUrl.value) && selectedProvider.value !== 'ollama') {
     showErrorDialog.value = true
@@ -229,7 +239,7 @@ const validateApiKey = async () => {
   const result = await settingsStore.checkProvider(selectedProvider.value)
   if (!result.isOk) {
     showErrorDialog.value = true
-    dialogMessage.value = t('settings.provider.dialog.verify.failed')
+    dialogMessage.value = result.errorMsg || t('settings.provider.dialog.verify.failed')
   } else {
     showSuccessDialog.value = true
     dialogMessage.value = t('settings.provider.dialog.verify.success')
@@ -327,24 +337,6 @@ const isFirstStep = computed(() => currentStep.value === 0)
                     {{ t('settings.provider.getKeyTipEnd') }}
                   </div>
                 </div>
-                <div class="flex flex-row gap-2">
-                  <Button
-                    variant="outline"
-                    size="xs"
-                    class="text-xs text-normal rounded-lg"
-                    @click="validateApiKey"
-                  >
-                    <Icon icon="lucide:check-check" class="w-4 h-4 text-muted-foreground" />{{
-                      t('welcome.provider.verifyLink')
-                    }}
-                  </Button>
-                  <!-- <Button variant="outline" size="xs" class="text-xs text-normal rounded-lg">
-                    <Icon
-                      icon="lucide:hand-helping"
-                      class="w-4 h-4 text-muted-foreground"
-                    />如何获取
-                  </Button> -->
-                </div>
               </div>
             </div>
           </template>
@@ -352,6 +344,22 @@ const isFirstStep = computed(() => currentStep.value === 0)
           <template v-else-if="currentStep === 2">
             <!-- Add Preferences Setup -->
             <div class="space-y-4">
+              <!-- 模型检查按钮 -->
+              <div
+                v-show="!providerModelLoading && providerModels.length > 0"
+                class="flex justify-center"
+              >
+                <Button
+                  variant="outline"
+                  size="sm"
+                  class="rounded-lg"
+                  @click="openModelCheckDialog"
+                >
+                  <Icon icon="lucide:check-check" class="w-4 h-4 mr-2 text-muted-foreground" />
+                  {{ t('settings.provider.verifyKey') }}
+                </Button>
+              </div>
+
               <div
                 v-show="!providerModelLoading"
                 class="flex flex-col w-full border overflow-hidden rounded-lg max-h-80 overflow-y-auto"
@@ -437,4 +445,11 @@ const isFirstStep = computed(() => currentStep.value === 0)
       </DialogFooter>
     </DialogContent>
   </Dialog>
+
+  <!-- 模型检查弹窗 -->
+  <ModelCheckDialog
+    :open="showModelCheckDialog"
+    :provider-id="selectedProvider"
+    @update:open="showModelCheckDialog = $event"
+  />
 </template>
