@@ -23,7 +23,9 @@
             <Icon icon="lucide:x-circle" class="w-5 h-5 text-red-600 mr-2 mt-0.5 flex-shrink-0" />
             <div class="text-red-800 min-w-0 flex-1">
               <div class="font-medium">{{ t('settings.provider.dialog.modelCheck.failed') }}</div>
-              <div class="text-sm mt-1 break-words">{{ result.errorMsg }}</div>
+              <div class="text-sm mt-1 break-words whitespace-pre-wrap overflow-y-auto max-h-40">
+                {{ result.errorMsg }}
+              </div>
             </div>
           </div>
         </div>
