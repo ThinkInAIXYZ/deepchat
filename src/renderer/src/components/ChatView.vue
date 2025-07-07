@@ -36,7 +36,7 @@ interface Props {
   agentConfig?: AgentConfig | null
 }
 
-const props = withDefaults(defineProps<Props>(), {
+withDefaults(defineProps<Props>(), {
   isAgentMode: false,
   agentId: '',
   agentConfig: null

@@ -3,7 +3,6 @@ import { ref } from 'vue'
 import { usePresenter } from '@/composables/usePresenter'
 import { TabData } from '@shared/presenter'
 import { TAB_EVENTS } from '@/events'
-import { AgentType } from '@shared/agent'
 
 export const useTabStore = defineStore('tab', () => {
   const tabPresenter = usePresenter('tabPresenter')

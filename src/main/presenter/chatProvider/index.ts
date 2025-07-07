@@ -96,7 +96,7 @@ export class ChatProvider implements IChatProvider {
   /**
    * 获取消息列表
    */
-  async getMessages(conversationId: string, page: number, pageSize: number): Promise<any> {
+  async getMessages(conversationId: string, page: number, _pageSize: number): Promise<any> {
     console.log(`ChatProvider: Getting messages for conversation ${conversationId}, page ${page}`)
 
     // TODO: 实际的数据库查询将在重构时添加
@@ -112,7 +112,7 @@ export class ChatProvider implements IChatProvider {
   /**
    * 开始流式完成
    */
-  async startStreamCompletion(conversationId: string, queryMsgId?: string): Promise<void> {
+  async startStreamCompletion(conversationId: string, _queryMsgId?: string): Promise<void> {
     console.log(`ChatProvider: Starting stream completion for conversation ${conversationId}`)
 
     if (!this.llmProviderPresenter) {

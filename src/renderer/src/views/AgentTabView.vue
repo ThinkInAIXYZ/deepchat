@@ -54,7 +54,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted} from 'vue'
 import { useRoute } from 'vue-router'
 import { Icon } from '@iconify/vue'
 import { Badge } from '@/components/ui/badge'
@@ -70,7 +70,7 @@ const agentManager = usePresenter('agentManager')
 const agentType = ref<AgentType>('chat')
 const agentId = ref<string>('')
 const agentConfig = ref<AgentConfig | null>(null)
-const agentStatus = ref({ isOk: false, errorMsg: null })
+const agentStatus = ref({ isOk: false, errorMsg: null as string | null })
 
 // 从路由参数获取 Agent 信息
 const parseAgentFromRoute = () => {
@@ -102,10 +102,10 @@ const loadAgentConfig = async () => {
   }
 }
 
-// 计算属性：是否显示 Agent 界面
-const showAgentInterface = computed(() => {
-  return agentType.value !== 'chat' && agentConfig.value
-})
+// // 计算属性：是否显示 Agent 界面
+// const showAgentInterface = computed(() => {
+//   return agentType.value !== 'chat' && agentConfig.value
+// })
 
 onMounted(async () => {
   parseAgentFromRoute()

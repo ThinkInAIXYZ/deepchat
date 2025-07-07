@@ -24,7 +24,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { computed } from 'vue'
 import { Icon } from '@iconify/vue'
 import { Badge } from '@/components/ui/badge'
 import ChatView from '@/components/ChatView.vue'

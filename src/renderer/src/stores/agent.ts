@@ -149,10 +149,12 @@ export const useAgentStore = defineStore('agent', () => {
       console.log('Current window ID:', windowId)
 
       // 创建Agent Tab
-      const tabId = await createAgentTab(windowId, datlasAgent.id)
-      console.log('Created agent tab:', tabId)
-
-      return tabId !== null
+      if (windowId) {
+        const tabId = await createAgentTab(windowId, datlasAgent.id)
+        console.log('Created agent tab:', tabId)
+        return tabId !== null
+      }
+      return false
     } catch (error) {
       console.error('Test failed:', error)
       return false
