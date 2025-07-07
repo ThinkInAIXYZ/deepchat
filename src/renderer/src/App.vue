@@ -318,19 +318,6 @@ onBeforeUnmount(() => {
   window.electron.ipcRenderer.removeAllListeners(NOTIFICATION_EVENTS.SYS_NOTIFY_CLICKED)
 })
 
-// 处理 agent 选择
-const handleAgentSelected = async (agentConfig: any) => {
-  console.log('Agent selected in main app:', agentConfig)
-  isAgentSelectorOpen.value = false
-
-  // 清理路由参数
-  if (route.query.action === 'select-agent') {
-    await router.replace({
-      name: route.name as string,
-      query: {}
-    })
-  }
-}
 </script>
 
 <template>
@@ -349,10 +336,6 @@ const handleAgentSelected = async (agentConfig: any) => {
     <Toaster />
     <SelectedTextContextMenu />
     <TranslatePopup />
-<<<<<<< HEAD
-=======
-
->>>>>>> 3029758c (wip: add agent select dialog)
     <!-- Agent 选择器弹窗 -->
     <AgentSelectorDialog
       :is-open="isAgentSelectorOpen"
