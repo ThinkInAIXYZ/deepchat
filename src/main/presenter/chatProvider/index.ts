@@ -23,7 +23,11 @@ export class ChatProvider implements IChatProvider {
    * 创建会话
    * 这里暂时只返回基本的会话配置，具体实现将在后续重构中完成
    */
-  async createConversation(title: string, _settings?: Partial<CONVERSATION_SETTINGS>, tabId?: number): Promise<string> {
+  async createConversation(
+    title: string,
+    _settings?: Partial<CONVERSATION_SETTINGS>,
+    tabId?: number
+  ): Promise<string> {
     console.log(`ChatProvider: Creating conversation "${title}" for tab ${tabId}`)
 
     // 这里暂时返回一个模拟的会话ID
@@ -73,7 +77,7 @@ export class ChatProvider implements IChatProvider {
     // await this.sqlitePresenter.deleteConversation(conversationId)
   }
 
-      /**
+  /**
    * 发送消息
    */
   async sendMessage(conversationId: string, content: string, role: string): Promise<any> {
@@ -149,7 +153,7 @@ export class ChatProvider implements IChatProvider {
 
     // 检查是否有可用的 LLM 提供者
     const providers = this.llmProviderPresenter.getProviders()
-    const enabledProviders = providers.filter(p => p.enable)
+    const enabledProviders = providers.filter((p) => p.enable)
 
     if (enabledProviders.length === 0) {
       return { isOk: false, errorMsg: 'No enabled LLM providers found' }

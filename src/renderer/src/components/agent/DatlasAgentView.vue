@@ -2,12 +2,7 @@
   <div class="datlas-agent-view h-full flex flex-col">
     <!-- Chat Interface -->
     <div class="chat-container flex-1 overflow-hidden">
-      <ChatView
-        :is-agent-mode="true"
-        :agent-id="agentId"
-        :agent-config="config"
-        class="h-full"
-      />
+      <ChatView :is-agent-mode="true" :agent-id="agentId" :agent-config="config" class="h-full" />
     </div>
 
     <!-- Agent-specific features -->
@@ -15,9 +10,7 @@
       <div class="flex items-center gap-2 text-sm text-muted-foreground">
         <Icon icon="lucide:database" class="w-4 h-4" />
         <span>Knowledge Base Retrieval Active</span>
-        <Badge variant="secondary" class="ml-auto">
-          Datlas RAG
-        </Badge>
+        <Badge variant="secondary" class="ml-auto"> Datlas RAG </Badge>
       </div>
     </div>
   </div>

@@ -40,8 +40,8 @@ import { DEFAULT_SETTINGS } from './const'
 
 // 会话类型枚举
 export enum ConversationType {
-  LLM = 'llm',           // 传统的LLM对话
-  AGENT_FLOW = 'agent'   // Agent流程对话
+  LLM = 'llm', // 传统的LLM对话
+  AGENT_FLOW = 'agent' // Agent流程对话
 }
 interface GeneratingMessageState {
   message: AssistantMessage
@@ -856,7 +856,7 @@ export class ThreadPresenter implements IThreadPresenter {
         const newMsg = { ...msg }
         const msgContent = newMsg.content as UserMessageContent
         if (msgContent.content) {
-          ; (newMsg.content as UserMessageContent).text = this.formatUserMessageContent(
+          ;(newMsg.content as UserMessageContent).text = this.formatUserMessageContent(
             msgContent.content
           )
         }
@@ -1394,10 +1394,16 @@ export class ThreadPresenter implements IThreadPresenter {
       } = currentConversation.settings
 
       // 获取模型配置以确定会话类型
-      const currentModelConfig = this.configPresenter.getModelConfig(currentModelId, currentProviderId)
-      const conversationType = currentModelConfig?.type === 'rag' ? ConversationType.AGENT_FLOW : ConversationType.LLM
+      const currentModelConfig = this.configPresenter.getModelConfig(
+        currentModelId,
+        currentProviderId
+      )
+      const conversationType =
+        currentModelConfig?.type === 'rag' ? ConversationType.AGENT_FLOW : ConversationType.LLM
 
-      console.log(`Starting ${conversationType} stream completion for conversation ${conversationId}`)
+      console.log(
+        `Starting ${conversationType} stream completion for conversation ${conversationId}`
+      )
 
       // 根据会话类型选择不同的处理流程
       if (conversationType === ConversationType.AGENT_FLOW) {
@@ -1726,8 +1732,8 @@ export class ThreadPresenter implements IThreadPresenter {
     // 任何情况都使用最新配置
     const webSearchEnabled = this.configPresenter.getSetting('input_webSearch') as boolean
     const thinkEnabled = this.configPresenter.getSetting('input_deepThinking') as boolean
-      ; (userMessage.content as UserMessageContent).search = webSearchEnabled
-      ; (userMessage.content as UserMessageContent).think = thinkEnabled
+    ;(userMessage.content as UserMessageContent).search = webSearchEnabled
+    ;(userMessage.content as UserMessageContent).think = thinkEnabled
     return { conversation, userMessage, contextMessages }
   }
 
@@ -1739,9 +1745,10 @@ export class ThreadPresenter implements IThreadPresenter {
   }> {
     // 处理文本内容
     const userContent = `
-      ${userMessage.content.content
-        ? this.formatUserMessageContent(userMessage.content.content)
-        : userMessage.content.text
+      ${
+        userMessage.content.content
+          ? this.formatUserMessageContent(userMessage.content.content)
+          : userMessage.content.text
       }
       ${getFileContext(userMessage.content.files)}
     `
@@ -1861,7 +1868,7 @@ export class ThreadPresenter implements IThreadPresenter {
       const msgContent = msg.role === 'user' ? (msg.content as UserMessageContent) : null
       const msgText = msgContent
         ? msgContent.text ||
-        (msgContent.content ? this.formatUserMessageContent(msgContent.content) : '')
+          (msgContent.content ? this.formatUserMessageContent(msgContent.content) : '')
         : ''
 
       const msgTokens = approximateTokenSize(

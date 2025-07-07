@@ -22,10 +22,22 @@ describe('Enhanced FileSystem Server', () => {
     testFile2 = path.join(tempDir, 'test2.js')
     subDir = path.join(tempDir, 'subdir')
 
-    await fs.writeFile(testFile1, 'Hello World\nThis is a test file\nWith multiple lines\nHello again', 'utf-8')
-    await fs.writeFile(testFile2, 'function test() {\n  console.log("Hello");\n  return true;\n}', 'utf-8')
+    await fs.writeFile(
+      testFile1,
+      'Hello World\nThis is a test file\nWith multiple lines\nHello again',
+      'utf-8'
+    )
+    await fs.writeFile(
+      testFile2,
+      'function test() {\n  console.log("Hello");\n  return true;\n}',
+      'utf-8'
+    )
     await fs.mkdir(subDir)
-    await fs.writeFile(path.join(subDir, 'nested.txt'), 'Nested file content\nAnother line', 'utf-8')
+    await fs.writeFile(
+      path.join(subDir, 'nested.txt'),
+      'Nested file content\nAnother line',
+      'utf-8'
+    )
   })
 
   afterEach(async () => {
@@ -92,9 +104,7 @@ describe('Enhanced FileSystem Server', () => {
       expect(originalContent).toContain('Hello World')
 
       // Test basic edit operation structure
-      const edits = [
-        { oldText: 'Hello World', newText: 'Hi Universe' }
-      ]
+      const edits = [{ oldText: 'Hello World', newText: 'Hi Universe' }]
 
       expect(edits).toHaveLength(1)
       expect(edits[0].oldText).toBe('Hello World')
@@ -154,13 +164,13 @@ describe('Enhanced FileSystem Server', () => {
     it('should list files and directories', async () => {
       const entries = await fs.readdir(tempDir, { withFileTypes: true })
 
-      const fileNames = entries.map(entry => entry.name)
+      const fileNames = entries.map((entry) => entry.name)
       expect(fileNames).toContain('test1.txt')
       expect(fileNames).toContain('test2.js')
       expect(fileNames).toContain('subdir')
 
-      const dirs = entries.filter(entry => entry.isDirectory())
-      const files = entries.filter(entry => entry.isFile())
+      const dirs = entries.filter((entry) => entry.isDirectory())
+      const files = entries.filter((entry) => entry.isFile())
 
       expect(dirs).toHaveLength(1)
       expect(files).toHaveLength(2)
@@ -200,13 +210,13 @@ describe('Enhanced FileSystem Server', () => {
     it('should distinguish between files and directories', async () => {
       const entries = await fs.readdir(tempDir, { withFileTypes: true })
 
-      const treeEntries = entries.map(entry => ({
+      const treeEntries = entries.map((entry) => ({
         name: entry.name,
-        type: entry.isDirectory() ? 'directory' : 'file' as 'directory' | 'file'
+        type: entry.isDirectory() ? 'directory' : ('file' as 'directory' | 'file')
       }))
 
-      const dirEntry = treeEntries.find(e => e.name === 'subdir')
-      const fileEntry = treeEntries.find(e => e.name === 'test1.txt')
+      const dirEntry = treeEntries.find((e) => e.name === 'subdir')
+      const fileEntry = treeEntries.find((e) => e.name === 'test1.txt')
 
       expect(dirEntry?.type).toBe('directory')
       expect(fileEntry?.type).toBe('file')
@@ -349,10 +359,10 @@ describe('Enhanced FileSystem Server', () => {
       const content = await fs.readFile(testFile1, 'utf-8')
       const lines = content.split('\n')
 
-      const helloLineIndex = lines.findIndex(line => line.includes('Hello World'))
+      const helloLineIndex = lines.findIndex((line) => line.includes('Hello World'))
       expect(helloLineIndex).toBe(0)
 
-      const testLineIndex = lines.findIndex(line => line.includes('test file'))
+      const testLineIndex = lines.findIndex((line) => line.includes('test file'))
       expect(testLineIndex).toBe(1)
     })
   })
@@ -361,8 +371,8 @@ describe('Enhanced FileSystem Server', () => {
     it('should find files by name pattern', async () => {
       const entries = await fs.readdir(tempDir, { withFileTypes: true })
 
-      const txtFiles = entries.filter(entry => entry.name.endsWith('.txt'))
-      const jsFiles = entries.filter(entry => entry.name.endsWith('.js'))
+      const txtFiles = entries.filter((entry) => entry.name.endsWith('.txt'))
+      const jsFiles = entries.filter((entry) => entry.name.endsWith('.js'))
 
       expect(txtFiles).toHaveLength(1)
       expect(jsFiles).toHaveLength(1)
@@ -374,10 +384,10 @@ describe('Enhanced FileSystem Server', () => {
       // Test glob-like pattern matching
       const entries = await fs.readdir(tempDir, { withFileTypes: true })
 
-      const testFiles = entries.filter(entry => entry.name.startsWith('test'))
+      const testFiles = entries.filter((entry) => entry.name.startsWith('test'))
       expect(testFiles).toHaveLength(2)
 
-      const txtFiles = entries.filter(entry => entry.name.includes('.txt'))
+      const txtFiles = entries.filter((entry) => entry.name.includes('.txt'))
       expect(txtFiles).toHaveLength(1)
     })
 
@@ -401,7 +411,7 @@ describe('Enhanced FileSystem Server', () => {
       expect(allEntries).toContain('include.txt')
 
       // Filter out .tmp files
-      const filteredEntries = allEntries.filter(name => !name.endsWith('.tmp'))
+      const filteredEntries = allEntries.filter((name) => !name.endsWith('.tmp'))
       expect(filteredEntries).toContain('include.txt')
       expect(filteredEntries).not.toContain('exclude.tmp')
     })
@@ -410,10 +420,10 @@ describe('Enhanced FileSystem Server', () => {
       const entries = await fs.readdir(tempDir)
 
       // Test case sensitivity
-      const testFiles = entries.filter(name => name.toLowerCase().includes('test'))
+      const testFiles = entries.filter((name) => name.toLowerCase().includes('test'))
       expect(testFiles).toHaveLength(2)
 
-      const upperTestFiles = entries.filter(name => name.includes('TEST'))
+      const upperTestFiles = entries.filter((name) => name.includes('TEST'))
       expect(upperTestFiles).toHaveLength(0)
     })
 
@@ -425,7 +435,7 @@ describe('Enhanced FileSystem Server', () => {
       await fs.writeFile(file1, 'old content', 'utf-8')
 
       // Wait a bit to ensure different timestamps
-      await new Promise<void>(resolve => setTimeout(resolve, 10))
+      await new Promise<void>((resolve) => setTimeout(resolve, 10))
 
       await fs.writeFile(file2, 'new content', 'utf-8')
 
@@ -444,7 +454,7 @@ describe('Enhanced FileSystem Server', () => {
       await Promise.all(filePromises)
 
       const entries = await fs.readdir(tempDir)
-      const txtFiles = entries.filter(name => name.endsWith('.txt'))
+      const txtFiles = entries.filter((name) => name.endsWith('.txt'))
 
       // Should have original test1.txt plus 5 new files
       expect(txtFiles.length).toBeGreaterThanOrEqual(5)
@@ -498,4 +508,3 @@ describe('Enhanced FileSystem Server', () => {
     })
   })
 })
-

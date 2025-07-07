@@ -1,0 +1,13 @@
+{
+  "createAgent": "ایجاد Agent",
+  "selectAgentType": "نوع Agent مورد نظر برای ایجاد را انتخاب کنید",
+  "chatAssistant": "دستیار گفتگو",
+  "chatAssistantDescription": "دستیار گفتگوی پیش‌فرض با استفاده از ارائه‌دهندگان LLM",
+  "datlasAgent": "Agent Datlas",
+  "datlasAgentDescription": "سرویس جستجو و تولید پایگاه دانش",
+  "selectAgent": "انتخاب Agent",
+  "agentSelected": "Agent انتخاب شد",
+  "createAgentTab": "ایجاد برگه Agent",
+  "agentCreated": "Agent ایجاد شد",
+  "agentCreationFailed": "ایجاد Agent ناموفق بود"
+}

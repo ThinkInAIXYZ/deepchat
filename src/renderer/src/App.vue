@@ -170,6 +170,36 @@ const handleGoSettings = () => {
   }
 }
 
+// 处理 agent 选择
+const handleAgentSelected = async (agentConfig: any) => {
+  console.log('Agent selected in main app:', agentConfig)
+  try {
+    // 关闭弹窗
+    isAgentSelectorOpen.value = false
+
+    // 获取当前窗口ID
+    const windowId = window.api.getWindowId()
+    if (windowId != null) {
+      // 创建 agent tab
+      await agentManager.createAgentTab(windowId, agentConfig.id, { active: true })
+
+      // 显示成功提示
+      toast({
+        title: 'Agent Created',
+        description: `${agentConfig.name} agent tab has been created successfully.`
+      })
+    }
+  } catch (error) {
+    console.error('Error creating agent tab:', error)
+    // 显示错误提示
+    toast({
+      title: 'Agent Creation Failed',
+      description: 'Failed to create agent tab. Please try again.',
+      variant: 'destructive'
+    })
+  }
+}
+
 getInitComplete()
 
 onMounted(() => {
@@ -253,8 +283,10 @@ onMounted(() => {
       // 路由变化时关闭 artifacts 页面
       artifactStore.hideArtifact()
 
-      // 检查是否需要显示 Agent 选择器
-      if (route.query.action === 'select-agent') {
+      // 检查是否需要显示 agent 选择器
+      const params = new URLSearchParams(newVal.split('?')[1] || '')
+      const action = params.get('action')
+      if (action === 'select-agent') {
         isAgentSelectorOpen.value = true
       }
     }
@@ -324,6 +356,10 @@ const handleAgentSelected = async (agentConfig: any) => {
     <Toaster />
     <SelectedTextContextMenu />
     <TranslatePopup />
+<<<<<<< HEAD
+=======
+
+>>>>>>> 3029758c (wip: add agent select dialog)
     <!-- Agent 选择器弹窗 -->
     <AgentSelectorDialog
       :is-open="isAgentSelectorOpen"

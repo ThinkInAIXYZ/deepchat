@@ -15,9 +15,9 @@ import { CONFIG_EVENTS } from '@/events'
 export interface AGENT_CONFIG {
   id: string
   name: string
-  type: string  // 'datlas' 等
+  type: string // 'datlas' 等
   enabled: boolean
-  config: { baseUrl: string; agentId: string; token: string; }
+  config: { baseUrl: string; agentId: string; token: string }
   custom?: boolean
 }
 
@@ -85,9 +85,7 @@ export class AgentFlowPresenter implements IAgentFlowPresenter {
     })
 
     this.agentInstances.clear()
-    const enabledAgents = Array.from(this.agents.values()).filter(
-      (agent) => agent.enabled
-    )
+    const enabledAgents = Array.from(this.agents.values()).filter((agent) => agent.enabled)
 
     // Initialize agent instances sequentially to avoid race conditions
     for (const agent of enabledAgents) {
@@ -135,8 +133,10 @@ export class AgentFlowPresenter implements IAgentFlowPresenter {
         model.maxTokens = config.maxTokens
         model.contextLength = config.contextLength
         model.vision = model.vision !== undefined ? model.vision : config.vision || false
-        model.functionCall = model.functionCall !== undefined ? model.functionCall : config.functionCall || false
-        model.reasoning = model.reasoning !== undefined ? model.reasoning : config.reasoning || false
+        model.functionCall =
+          model.functionCall !== undefined ? model.functionCall : config.functionCall || false
+        model.reasoning =
+          model.reasoning !== undefined ? model.reasoning : config.reasoning || false
       } else {
         // 确保模型具有这些属性，如果没有配置，默认为false
         model.vision = model.vision || false

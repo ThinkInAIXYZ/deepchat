@@ -42,8 +42,12 @@
               <Button variant="ghost" size="sm" @click="editAgent(agent)">
                 <Icon icon="lucide:settings" class="w-4 h-4" />
               </Button>
-              <Button variant="ghost" size="sm" @click="deleteAgent(agent.id)"
-                class="text-destructive hover:text-destructive">
+              <Button
+                variant="ghost"
+                size="sm"
+                @click="deleteAgent(agent.id)"
+                class="text-destructive hover:text-destructive"
+              >
                 <Icon icon="lucide:trash-2" class="w-4 h-4" />
               </Button>
             </div>
@@ -61,11 +65,22 @@
             </div>
             <div class="flex justify-between">
               <span class="text-muted-foreground">{{ t('settings.agent.status') }}:</span>
-              <span :class="checkingStatus[agent.id] ? 'text-yellow-600' :
-                agentStatus[agent.id]?.isOk ? 'text-green-600' : 'text-red-600'">
-                {{ checkingStatus[agent.id] ? t('settings.agent.checking') :
-                  agentStatus[agent.id]?.isOk ? t('settings.agent.connected') :
-                    agentStatus[agent.id]?.errorMsg || t('settings.agent.notTested') }}
+              <span
+                :class="
+                  checkingStatus[agent.id]
+                    ? 'text-yellow-600'
+                    : agentStatus[agent.id]?.isOk
+                      ? 'text-green-600'
+                      : 'text-red-600'
+                "
+              >
+                {{
+                  checkingStatus[agent.id]
+                    ? t('settings.agent.checking')
+                    : agentStatus[agent.id]?.isOk
+                      ? t('settings.agent.connected')
+                      : agentStatus[agent.id]?.errorMsg || t('settings.agent.notTested')
+                }}
               </span>
             </div>
           </div>
@@ -73,12 +88,20 @@
           <!-- 操作按钮 -->
           <div class="flex justify-between items-center mt-4 pt-4 border-t">
             <div class="flex gap-2">
-              <Button size="sm" variant="outline" @click="testAgent(agent.id)" :disabled="checkingStatus[agent.id]">
+              <Button
+                size="sm"
+                variant="outline"
+                @click="testAgent(agent.id)"
+                :disabled="checkingStatus[agent.id]"
+              >
                 <Icon icon="lucide:wifi" class="w-4 h-4 mr-1" />
                 {{ t('settings.agent.testConnection') }}
               </Button>
             </div>
-            <Switch :checked="agent.enabled" @update:checked="(checked) => toggleAgent(agent.id, checked)" />
+            <Switch
+              :checked="agent.enabled"
+              @update:checked="(checked) => toggleAgent(agent.id, checked)"
+            />
           </div>
         </Card>
       </div>
@@ -88,7 +111,12 @@
     <Dialog v-model:open="showAddAgentDialog">
       <DialogContent class="max-w-md">
         <DialogHeader>
-          <DialogTitle>{{ editingAgent ? t('settings.agent.dialog.edit.title') : t('settings.agent.dialog.add.title') }}
+          <DialogTitle
+            >{{
+              editingAgent
+                ? t('settings.agent.dialog.edit.title')
+                : t('settings.agent.dialog.add.title')
+            }}
           </DialogTitle>
         </DialogHeader>
 
@@ -96,7 +124,10 @@
           <!-- 代理名称 -->
           <div class="space-y-2">
             <Label>{{ t('settings.agent.dialog.form.name') }}</Label>
-            <Input v-model="agentForm.name" :placeholder="t('settings.agent.dialog.form.namePlaceholder')" />
+            <Input
+              v-model="agentForm.name"
+              :placeholder="t('settings.agent.dialog.form.namePlaceholder')"
+            />
           </div>
 
           <!-- 代理类型 -->
@@ -116,28 +147,35 @@
           <div v-if="agentForm.type === 'datlas'" class="space-y-4">
             <div class="space-y-2">
               <Label>{{ t('settings.agent.dialog.form.apiUrl') }}</Label>
-              <Input v-model="agentForm.config.baseUrl"
-                :placeholder="t('settings.agent.dialog.form.apiUrlPlaceholder')" />
+              <Input
+                v-model="agentForm.config.baseUrl"
+                :placeholder="t('settings.agent.dialog.form.apiUrlPlaceholder')"
+              />
             </div>
 
             <div class="space-y-2">
               <Label>{{ t('settings.agent.dialog.form.agentId') }}</Label>
-              <Input v-model="agentForm.config.agentId"
-                :placeholder="t('settings.agent.dialog.form.agentIdPlaceholder')" />
+              <Input
+                v-model="agentForm.config.agentId"
+                :placeholder="t('settings.agent.dialog.form.agentIdPlaceholder')"
+              />
             </div>
 
             <div class="space-y-2">
               <Label>{{ t('settings.agent.dialog.form.token') }}</Label>
-              <Input v-model="agentForm.config.token" type="password"
-                :placeholder="t('settings.agent.dialog.form.tokenPlaceholder')" />
+              <Input
+                v-model="agentForm.config.token"
+                type="password"
+                :placeholder="t('settings.agent.dialog.form.tokenPlaceholder')"
+              />
             </div>
-
-
           </div>
         </div>
 
         <DialogFooter>
-          <Button variant="outline" @click="cancelEdit">{{ t('settings.agent.dialog.cancel') }}</Button>
+          <Button variant="outline" @click="cancelEdit">{{
+            t('settings.agent.dialog.cancel')
+          }}</Button>
           <Button @click="saveAgent" :disabled="!canSave">
             {{ editingAgent ? t('settings.agent.dialog.save') : t('settings.agent.dialog.add') }}
           </Button>
@@ -155,10 +193,22 @@ import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Switch } from '@/components/ui/switch'
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter
+} from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from '@/components/ui/select'
 import { nanoid } from 'nanoid'
 
 const { t } = useI18n()
@@ -169,7 +219,7 @@ interface AgentConfig {
   name: string
   type: string
   enabled: boolean
-  config: { baseUrl: string; agentId: string; token: string; }
+  config: { baseUrl: string; agentId: string; token: string }
   custom?: boolean
 }
 
@@ -187,7 +237,7 @@ const agentForm = ref({
   config: {
     baseUrl: 'https://ai.maicedata.com/api/knowbase/rag',
     agentId: '',
-    token: '',
+    token: ''
   }
 })
 
@@ -229,7 +279,7 @@ const saveAgent = async () => {
 
     if (editingAgent.value) {
       // 更新现有代理
-      const index = agents.value.findIndex(a => a.id === editingAgent.value!.id)
+      const index = agents.value.findIndex((a) => a.id === editingAgent.value!.id)
       if (index !== -1) {
         agents.value[index] = agentData
       }
@@ -259,7 +309,7 @@ const editAgent = (agent: AgentConfig) => {
 
 const deleteAgent = async (agentId: string) => {
   try {
-    agents.value = agents.value.filter(a => a.id !== agentId)
+    agents.value = agents.value.filter((a) => a.id !== agentId)
 
     // TODO: 保存到configPresenter
     // await configPresenter.setAgents(agents.value)
@@ -270,7 +320,7 @@ const deleteAgent = async (agentId: string) => {
 
 const toggleAgent = async (agentId: string, enabled: boolean) => {
   try {
-    const agent = agents.value.find(a => a.id === agentId)
+    const agent = agents.value.find((a) => a.id === agentId)
     if (agent) {
       agent.enabled = enabled
 
@@ -291,9 +341,8 @@ const testAgent = async (agentId: string) => {
     // agentStatus.value[agentId] = result
 
     // 临时模拟
-    await new Promise(resolve => setTimeout(resolve, 1000))
+    await new Promise((resolve) => setTimeout(resolve, 1000))
     agentStatus.value[agentId] = { isOk: true }
-
   } catch (error) {
     agentStatus.value[agentId] = {
       isOk: false,

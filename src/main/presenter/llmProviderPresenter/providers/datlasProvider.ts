@@ -126,7 +126,7 @@ export class DatlasProvider extends BaseRagProvider {
       method,
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': this.token,
+        Authorization: this.token,
         ...this.defaultHeaders
       }
     }
@@ -187,9 +187,7 @@ export class DatlasProvider extends BaseRagProvider {
   // 将ChatMessage转换为问题字符串
   private extractQuestionFromMessages(messages: ChatMessage[]): string {
     // 取最后一个用户消息作为问题
-    const lastUserMessage = messages
-      .filter(msg => msg.role === 'user')
-      .pop()
+    const lastUserMessage = messages.filter((msg) => msg.role === 'user').pop()
 
     if (!lastUserMessage?.content) {
       return ''
@@ -202,8 +200,8 @@ export class DatlasProvider extends BaseRagProvider {
     // 如果是数组，提取文本部分
     if (Array.isArray(lastUserMessage.content)) {
       return lastUserMessage.content
-        .filter(item => item.type === 'text')
-        .map(item => item.text)
+        .filter((item) => item.type === 'text')
+        .map((item) => item.text)
         .join(' ')
     }
 
@@ -238,9 +236,7 @@ export class DatlasProvider extends BaseRagProvider {
     }
 
     const url = `${this.baseUrl}/${this.agentId}/retrieve`
-    const requestBody = this.isMockMode
-      ? { question, interval: 0.05 }
-      : { question }
+    const requestBody = this.isMockMode ? { question, interval: 0.05 } : { question }
 
     try {
       const response = await this.makeRequest('POST', url, requestBody)

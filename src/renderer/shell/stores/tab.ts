@@ -46,7 +46,10 @@ export const useTabStore = defineStore('tab', () => {
     tabs.value = tabs.value.filter((tab) => tab.id !== id)
   }
 
-  const addAgentTab = async (agentId: string, options?: { active?: boolean; position?: number }) => {
+  const addAgentTab = async (
+    agentId: string,
+    options?: { active?: boolean; position?: number }
+  ) => {
     const windowId = window.api.getWindowId()
     if (!windowId) return null
 

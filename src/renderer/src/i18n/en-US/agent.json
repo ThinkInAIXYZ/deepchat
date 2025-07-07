@@ -1,0 +1,13 @@
+{
+  "createAgent": "Create Agent",
+  "selectAgentType": "Select the type of Agent to create",
+  "chatAssistant": "Chat Assistant",
+  "chatAssistantDescription": "Default chat assistant using LLM providers",
+  "datlasAgent": "Datlas Agent",
+  "datlasAgentDescription": "Knowledge base retrieval and generation service",
+  "selectAgent": "Select Agent",
+  "agentSelected": "Agent Selected",
+  "createAgentTab": "Create Agent Tab",
+  "agentCreated": "Agent Created",
+  "agentCreationFailed": "Agent Creation Failed"
+}

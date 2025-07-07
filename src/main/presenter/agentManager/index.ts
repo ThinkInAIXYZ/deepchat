@@ -88,7 +88,7 @@ export class AgentManager implements IAgentManager {
    * 根据类型获取 Agent 列表
    */
   getAgentsByType(type: AgentType): AgentConfig[] {
-    return Array.from(this.agents.values()).filter(agent => agent.type === type)
+    return Array.from(this.agents.values()).filter((agent) => agent.type === type)
   }
 
   /**
@@ -161,9 +161,8 @@ export class AgentManager implements IAgentManager {
     }
 
     // 构建 Agent Tab URL
-    const url = agent.type === 'chat'
-      ? 'local://chat'
-      : `local://agent?type=${agent.type}&id=${agentId}`
+    const url =
+      agent.type === 'chat' ? 'local://chat' : `local://agent?type=${agent.type}&id=${agentId}`
 
     // 创建 Tab
     const tabId = await this.tabPresenter.createTab(windowId, url, {

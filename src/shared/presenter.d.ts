@@ -315,7 +315,7 @@ export interface IRagProviderPresenter {
 export interface AGENT_CONFIG {
   id: string
   name: string
-  type: string  // 'datlas' 等
+  type: string // 'datlas' 等
   enabled: boolean
   config: Record<string, any>
   custom?: boolean
@@ -1079,17 +1079,17 @@ export interface ISyncPresenter {
 // 从 LLM Provider 的 coreStream 返回的标准化事件
 export interface LLMCoreStreamEvent {
   type:
-  | 'text'
-  | 'reasoning'
-  | 'tool_call_start'
-  | 'tool_call_chunk'
-  | 'tool_call_end'
-  | 'error'
-  | 'usage'
-  | 'stop'
-  | 'image_data'
-  | 'rag_files'
-  | 'rag_references'
+    | 'text'
+    | 'reasoning'
+    | 'tool_call_start'
+    | 'tool_call_chunk'
+    | 'tool_call_end'
+    | 'error'
+    | 'usage'
+    | 'stop'
+    | 'image_data'
+    | 'rag_files'
+    | 'rag_references'
   content?: string // 用于 type 'text'
   reasoning_content?: string // 用于 type 'reasoning'
   // RAG推理步骤相关字段

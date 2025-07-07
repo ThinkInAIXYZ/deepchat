@@ -11,12 +11,12 @@
       </div>
       <div class="agent-info flex-1">
         <h2 class="text-lg font-semibold">{{ agentConfig?.name || 'Agent' }}</h2>
-        <p class="text-sm text-muted-foreground">{{ agentConfig?.description || 'Agent Assistant' }}</p>
+        <p class="text-sm text-muted-foreground">
+          {{ agentConfig?.description || 'Agent Assistant' }}
+        </p>
       </div>
       <div class="agent-status">
-        <Badge
-          :variant="agentStatus.isOk ? 'default' : 'destructive'"
-        >
+        <Badge :variant="agentStatus.isOk ? 'default' : 'destructive'">
           {{ agentStatus.isOk ? 'Connected' : 'Disconnected' }}
         </Badge>
       </div>
@@ -33,16 +33,10 @@
       />
 
       <!-- Default Chat Agent Interface -->
-      <ChatTabView
-        v-else-if="agentType === 'chat'"
-        class="h-full"
-      />
+      <ChatTabView v-else-if="agentType === 'chat'" class="h-full" />
 
       <!-- Custom Agent Interface -->
-      <div
-        v-else
-        class="h-full flex items-center justify-center text-muted-foreground"
-      >
+      <div v-else class="h-full flex items-center justify-center text-muted-foreground">
         <div class="text-center">
           <Icon icon="lucide:bot" class="w-16 h-16 mx-auto mb-4 opacity-50" />
           <h3 class="text-lg font-medium mb-2">{{ agentConfig?.name || 'Custom Agent' }}</h3>
@@ -54,7 +48,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted} from 'vue'
+import { ref, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { Icon } from '@iconify/vue'
 import { Badge } from '@/components/ui/badge'

@@ -52,6 +52,13 @@
       >
         <Icon icon="lucide:plus" class="w-4 h-4" />
       </Button>
+      <Button
+        variant="ghost"
+        class="flex-shrink-0 text-xs ml-1 font-medium px-2 h-6 bg-transparent rounded-md flex items-center justify-center hover:bg-zinc-500/20"
+        @click="showAgentSelector"
+      >
+        <Icon icon="lucide:bot" class="w-4 h-4" />
+      </Button>
       <div class="flex-1"></div>
 
       <Button
@@ -328,6 +335,16 @@ const openSettings = () => {
       viewType: 'settings'
     })
   }
+}
+
+const showAgentSelector = () => {
+  console.log('Show agent selector')
+  // 创建一个新的 tab 并跳转到 agent 选择页面
+  tabStore.addTab({
+    name: 'Select Agent',
+    icon: 'lucide:bot',
+    viewType: 'chat?action=select-agent'
+  })
 }
 </script>
 

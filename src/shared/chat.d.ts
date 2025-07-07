@@ -1,6 +1,5 @@
 import { FileMetaData } from './presenter'
 
-
 export type Message = {
   id: string
 
@@ -84,14 +83,14 @@ export type MessageFile = {
 
 export type AssistantMessageBlock = {
   type:
-  | 'content'
-  | 'search'
-  | 'reasoning_content'
-  | 'error'
-  | 'tool_call'
-  | 'action'
-  | 'image'
-  | 'artifact-thinking'
+    | 'content'
+    | 'search'
+    | 'reasoning_content'
+    | 'error'
+    | 'tool_call'
+    | 'action'
+    | 'image'
+    | 'artifact-thinking'
   content?: string
   extra?: Record<string, string | number | object[] | boolean>
   status: 'success' | 'loading' | 'cancel' | 'error' | 'reading' | 'optimizing' | 'pending'
@@ -100,12 +99,12 @@ export type AssistantMessageBlock = {
     identifier: string
     title: string
     type:
-    | 'application/vnd.ant.code'
-    | 'text/markdown'
-    | 'text/html'
-    | 'image/svg+xml'
-    | 'application/vnd.ant.mermaid'
-    | 'application/vnd.ant.react'
+      | 'application/vnd.ant.code'
+      | 'text/markdown'
+      | 'text/html'
+      | 'image/svg+xml'
+      | 'application/vnd.ant.mermaid'
+      | 'application/vnd.ant.react'
     language?: string
   }
   tool_call?: {
