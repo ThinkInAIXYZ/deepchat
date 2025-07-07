@@ -270,7 +270,7 @@ const editor = new Editor({
       HTMLAttributes: {
         class: 'line-break'
       }
-    }),
+    })
     // CodeBlock.extend({
     //   addStorage() {
     //     return {

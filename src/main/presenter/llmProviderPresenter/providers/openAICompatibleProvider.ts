@@ -1198,10 +1198,8 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
     }
   }
   public async summaryTitles(messages: ChatMessage[], modelId: string): Promise<string> {
-    const summaryText= `${SUMMARY_TITLES_PROMPT}\n\n${messages.map((m) => `${m.role}: ${m.content}`).join('\n')}`
-    const fullMessage: ChatMessage[] = [
-      { role: 'user', content: summaryText }
-    ]
+    const summaryText = `${SUMMARY_TITLES_PROMPT}\n\n${messages.map((m) => `${m.role}: ${m.content}`).join('\n')}`
+    const fullMessage: ChatMessage[] = [{ role: 'user', content: summaryText }]
     const response = await this.openAICompletion(fullMessage, modelId, 0.5)
     return response.content.replace(/["']/g, '').trim()
   }

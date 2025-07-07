@@ -96,11 +96,11 @@
       "title": "Artifacts 효과"
     },
     "addModel": "모델 추가",
-          "configureModel": "모델 구성",
+    "configureModel": "모델 구성",
     "modelList": "모델 목록",
     "provider": "서비스 제공 업체",
     "providerSetting": "서비스 제공 업체 설정",
-          "selectModel": "모델 선택",
+    "selectModel": "모델 선택",
     "modelConfig": {
       "cancel": "취소",
       "contextLength": {
