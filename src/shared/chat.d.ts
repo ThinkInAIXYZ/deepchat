@@ -91,6 +91,9 @@ export type AssistantMessageBlock = {
     | 'action'
     | 'image'
     | 'artifact-thinking'
+    | 'rag_files'
+    | 'rag_references'
+    | 'reasoning_step'
   content?: string
   extra?: Record<string, string | number | object[] | boolean>
   status: 'success' | 'loading' | 'cancel' | 'error' | 'reading' | 'optimizing' | 'pending'
@@ -125,6 +128,21 @@ export type AssistantMessageBlock = {
     start: number
     end: number
   }
+  // RAG相关字段
+  rag_files?: Array<{ id: string; name: string }>
+  rag_references?: Array<{
+    id: number
+    short_id: number
+    file_id: string
+  }>
+  // 推理步骤相关字段
+  step?: string
+  step_title?: string
+  step_content?: string
+  step_is_error?: boolean
+  step_error_message?: string
+  step_replace_content?: boolean
+  step_replace_title?: boolean
 }
 // 搜索相关的消息块类型
 export type SearchBlock = {

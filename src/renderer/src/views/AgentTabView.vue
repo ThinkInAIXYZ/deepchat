@@ -1,5 +1,5 @@
 <template>
-  <div class="agent-tab-view h-full flex flex-col">
+  <div class="agent-tab-view w-full h-full flex flex-col">
     <!-- Agent Header -->
     <div class="agent-header border-b border-border p-4 flex items-center gap-3">
       <div class="agent-icon">
@@ -85,14 +85,32 @@ const loadAgentConfig = async () => {
     const config = await agentManager.getAgent(agentId.value)
     if (config) {
       agentConfig.value = config
+
+      // 如果是非 chat 类型的 agent，先创建 provider
+      if (config.type !== 'chat') {
+        try {
+          const created = await agentManager.createProvider(agentId.value)
+          if (created) {
+            console.log(`Created provider for agent: ${agentId.value}`)
+          } else {
+            console.error(`Failed to create provider for agent ${agentId.value}`)
+          }
+        } catch (error) {
+          console.error(`Failed to create provider for agent ${agentId.value}:`, error)
+        }
+      }
+
       // 检查 Agent 状态
       const status = await agentManager.checkAgent(agentId.value)
       agentStatus.value = status
+      console.log(`Agent ${agentId.value} status:`, status)
     } else {
       console.error(`Agent not found: ${agentId.value}`)
+      agentStatus.value = { isOk: false, errorMsg: 'Agent not found' }
     }
   } catch (error) {
     console.error('Failed to load agent config:', error)
+    agentStatus.value = { isOk: false, errorMsg: 'Failed to load agent config' }
   }
 }
 

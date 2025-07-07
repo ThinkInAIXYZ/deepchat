@@ -7,7 +7,8 @@ import {
   RENDERER_MODEL_META,
   MCPServerConfig,
   Prompt,
-  IModelConfig
+  IModelConfig,
+  AGENT_CONFIG
 } from '@shared/presenter'
 import { SearchEngineTemplate } from '@shared/chat'
 import { ModelType } from '@shared/model'
@@ -66,6 +67,7 @@ const defaultProviders = DEFAULT_PROVIDERS.map((provider) => ({
 
 // 定义 storeKey 常量
 const PROVIDERS_STORE_KEY = 'providers'
+const AGENTS_STORE_KEY = 'agents'
 
 const PROVIDER_MODELS_DIR = 'provider_models'
 // 模型状态键前缀
@@ -1045,6 +1047,60 @@ export class ConfigPresenter implements IConfigPresenter {
   // 重置快捷键
   resetShortcutKeys() {
     this.setSetting('shortcutKey', { ...defaultShortcutKey })
+  }
+
+  /**
+   * Get all agents configurations
+   */
+  getAgents(): AGENT_CONFIG[] {
+    const agents = this.getSetting<AGENT_CONFIG[]>(AGENTS_STORE_KEY)
+    if (Array.isArray(agents) && agents.length > 0) {
+      return agents
+    } else {
+      // 返回空数组，由 AgentManager 负责初始化默认 agents
+      return []
+    }
+  }
+
+  /**
+   * Set agents configurations
+   */
+  setAgents(agents: AGENT_CONFIG[]): void {
+    this.setSetting<AGENT_CONFIG[]>(AGENTS_STORE_KEY, agents)
+    // 触发 agent 配置变更事件
+    eventBus.send(CONFIG_EVENTS.PROVIDER_CHANGED, SendTarget.ALL_WINDOWS)
+  }
+
+  /**
+   * Add or update agent configuration
+   */
+  setAgentById(id: string, agent: AGENT_CONFIG): void {
+    const agents = this.getAgents()
+    const index = agents.findIndex((a) => a.id === id)
+    if (index !== -1) {
+      agents[index] = agent
+      this.setAgents(agents)
+    } else {
+      agents.push(agent)
+      this.setAgents(agents)
+    }
+  }
+
+  /**
+   * Remove agent configuration
+   */
+  removeAgentById(id: string): void {
+    const agents = this.getAgents()
+    const filteredAgents = agents.filter((a) => a.id !== id)
+    this.setAgents(filteredAgents)
+  }
+
+  /**
+   * Get agent configuration by ID
+   */
+  getAgentById(id: string): AGENT_CONFIG | null {
+    const agents = this.getAgents()
+    return agents.find((a) => a.id === id) || null
   }
 }
 

@@ -448,10 +448,9 @@ export interface IConfigPresenter {
   getProviderModelConfigs(providerId: string): Array<{ modelId: string; config: ModelConfig }>
   hasUserModelConfig(modelId: string, providerId: string): boolean
   exportModelConfigs(): Record<string, IModelConfig>
-  importModelConfigs(configs: Record<string, IModelConfig>, overwrite: boolean): void
-  setNotificationsEnabled(enabled: boolean): void
+  importModelConfigs(configs: Record<string, IModelConfig>, overwrite?: boolean): void
   getNotificationsEnabled(): boolean
-  // 主题设置
+  setNotificationsEnabled(enabled: boolean): void
   initTheme(): void
   toggleTheme(theme: 'dark' | 'light' | 'system'): Promise<boolean>
   getTheme(): Promise<string>
@@ -461,14 +460,18 @@ export interface IConfigPresenter {
   addCustomPrompt(prompt: Prompt): Promise<void>
   updateCustomPrompt(promptId: string, updates: Partial<Prompt>): Promise<void>
   deleteCustomPrompt(promptId: string): Promise<void>
-  // 默认系统提示词设置
   getDefaultSystemPrompt(): Promise<string>
   setDefaultSystemPrompt(prompt: string): Promise<void>
-  // 快捷键设置
   getDefaultShortcutKey(): ShortcutKeySetting
   getShortcutKey(): ShortcutKeySetting
   setShortcutKey(customShortcutKey: ShortcutKeySetting): void
   resetShortcutKeys(): void
+  // Agent 配置相关方法
+  getAgents(): AGENT_CONFIG[]
+  setAgents(agents: AGENT_CONFIG[]): void
+  setAgentById(id: string, agent: AGENT_CONFIG): void
+  removeAgentById(id: string): void
+  getAgentById(id: string): AGENT_CONFIG | null
 }
 export type RENDERER_MODEL_META = {
   id: string

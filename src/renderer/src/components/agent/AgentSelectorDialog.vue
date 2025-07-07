@@ -13,7 +13,7 @@
             @click="selectAgent(agentType)"
           >
             <Icon
-              :icon="agentType.icon"
+              :icon="agentType.icon || 'lucide:bot'"
               class="w-8 h-8 flex-shrink-0"
               :style="{ color: agentType.color }"
             />

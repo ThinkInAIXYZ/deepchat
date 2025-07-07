@@ -322,6 +322,21 @@ export const useChatStore = defineStore('chat', () => {
       data: string
       mimeType: string
     }
+    // RAG相关字段
+    rag_files?: Array<{ id: string; name: string }>
+    rag_references?: Array<{
+      id: number
+      short_id: number
+      file_id: string
+    }>
+    // 推理步骤相关字段
+    step?: string
+    step_title?: string
+    step_content?: string
+    step_is_error?: boolean
+    step_error_message?: string
+    step_replace_content?: boolean
+    step_replace_title?: boolean
   }) => {
     // 从缓存中查找消息
     const cached = getGeneratingMessagesCache().get(msg.eventId)
@@ -513,6 +528,48 @@ export const useChatStore = defineStore('chat', () => {
               timestamp: Date.now()
             })
           }
+        }
+
+        // 处理推理步骤（Agent RAG特定）
+        if (msg.step || msg.step_title || msg.step_content) {
+          finalizeLastBlock()
+          curMsg.content.push({
+            type: 'reasoning_step',
+            content: msg.step_content || '',
+            status: msg.step_is_error ? 'error' : 'success',
+            timestamp: Date.now(),
+            step: msg.step,
+            step_title: msg.step_title,
+            step_content: msg.step_content,
+            step_is_error: msg.step_is_error,
+            step_error_message: msg.step_error_message,
+            step_replace_content: msg.step_replace_content,
+            step_replace_title: msg.step_replace_title
+          })
+        }
+
+        // 处理RAG文件列表
+        if (msg.rag_files && msg.rag_files.length > 0) {
+          finalizeLastBlock()
+          curMsg.content.push({
+            type: 'rag_files',
+            content: `Found ${msg.rag_files.length} relevant document(s)`,
+            status: 'success',
+            timestamp: Date.now(),
+            rag_files: msg.rag_files
+          })
+        }
+
+        // 处理RAG引用
+        if (msg.rag_references && msg.rag_references.length > 0) {
+          finalizeLastBlock()
+          curMsg.content.push({
+            type: 'rag_references',
+            content: `Referenced ${msg.rag_references.length} document chunk(s)`,
+            status: 'success',
+            timestamp: Date.now(),
+            rag_references: msg.rag_references
+          })
         }
       }
 

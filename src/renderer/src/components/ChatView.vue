@@ -12,6 +12,9 @@
     <div class="flex-none px-2 pb-2">
       <ChatInput
         :disabled="!chatStore.getActiveThreadId() || isGenerating"
+        :is-agent-mode="isAgentMode"
+        :agent-id="agentId"
+        :agent-config="agentConfig"
         @send="handleSend"
         @file-upload="handleFileUpload"
       />
@@ -36,7 +39,7 @@ interface Props {
   agentConfig?: AgentConfig | null
 }
 
-withDefaults(defineProps<Props>(), {
+const props = withDefaults(defineProps<Props>(), {
   isAgentMode: false,
   agentId: '',
   agentConfig: null
@@ -64,10 +67,43 @@ const handleSend = async (msg: UserMessageContent) => {
     messageList.value.aboveThreshold = false
   }
   scrollToBottom()
-  await chatStore.sendMessage(msg)
+
+  // 检查是否是 Agent 模式
+  if (props.isAgentMode && props.agentId) {
+    // Agent 模式：使用 agentManager 发送消息
+    await sendAgentMessage(msg)
+  } else {
+    // 普通聊天模式：使用 chatStore 发送消息
+    await chatStore.sendMessage(msg)
+  }
+
   // 只有当用户在底部时才自动滚动
   if (!messageList.value?.aboveThreshold) {
     scrollToBottom()
+  }
+}
+
+// Agent 模式的消息发送逻辑
+const sendAgentMessage = async (msg: UserMessageContent) => {
+  try {
+    // 确保有活跃的 thread
+    if (!chatStore.getActiveThreadId()) {
+      // 创建新的 thread
+      const threadId = await chatStore.createThread(`Agent Chat - ${props.agentConfig?.name || 'Agent'}`, {
+        providerId: props.agentId,
+        modelId: 'datlas-agent', // 使用默认的 agent 模型
+        artifacts: 0
+      })
+      chatStore.setActiveThread(threadId)
+    }
+
+    // 发送消息
+    await chatStore.sendMessage(msg)
+
+    console.log('Agent message sent successfully')
+  } catch (error) {
+    console.error('Failed to send agent message:', error)
+    throw error
   }
 }
 

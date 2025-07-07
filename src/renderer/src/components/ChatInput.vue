@@ -43,7 +43,8 @@
         <div class="flex items-center justify-between">
           <!-- {{ t('chat.input.functionSwitch') }} -->
           <div class="flex gap-1.5">
-            <Tooltip>
+            <!-- File Upload - Hidden in Agent Mode -->
+            <Tooltip v-if="!props.isAgentMode">
               <TooltipTrigger>
                 <Button
                   variant="outline"
@@ -64,7 +65,9 @@
               </TooltipTrigger>
               <TooltipContent>{{ t('chat.input.fileSelect') }}</TooltipContent>
             </Tooltip>
-            <Tooltip>
+
+            <!-- Web Search - Hidden in Agent Mode -->
+            <Tooltip v-if="!props.isAgentMode">
               <TooltipTrigger>
                 <span
                   class="search-engine-select overflow-hidden flex items-center h-7 rounded-lg shadow-sm border border-input transition-all duration-300"
@@ -120,7 +123,8 @@
               <TooltipContent>{{ t('chat.features.webSearch') }}</TooltipContent>
             </Tooltip>
 
-            <McpToolsList />
+            <!-- MCP Tools - Hidden in Agent Mode -->
+            <McpToolsList v-if="!props.isAgentMode" />
             <!-- {{ t('chat.input.fileSelect') }} -->
             <slot name="addon-buttons"></slot>
           </div>
@@ -349,10 +353,16 @@ const props = withDefaults(
     contextLength?: number
     maxRows?: number
     rows?: number
+    isAgentMode?: boolean
+    agentId?: string
+    agentConfig?: any
   }>(),
   {
     maxRows: 10,
-    rows: 1
+    rows: 1,
+    isAgentMode: false,
+    agentId: '',
+    agentConfig: null
   }
 )
 
@@ -574,10 +584,10 @@ const emitSend = async () => {
 
     const messageContent: UserMessageContent = {
       text: inputText.value.trim(),
-      files: selectedFiles.value,
+      files: props.isAgentMode ? [] : selectedFiles.value, // Agent mode doesn't support files
       links: [],
-      search: settings.value.webSearch,
-      think: settings.value.deepThinking,
+      search: props.isAgentMode ? false : settings.value.webSearch, // Agent mode doesn't support web search
+      think: props.isAgentMode ? false : settings.value.deepThinking, // Agent mode doesn't support thinking
       content: blocks
     }
     console.log(JSON.stringify(blocks), JSON.stringify(messageContent.content))
@@ -589,8 +599,8 @@ const emitSend = async () => {
     // 清除历史记录placeholder
     clearHistoryPlaceholder()
 
-    // 清理已上传的文件
-    if (selectedFiles.value.length > 0) {
+    // 清理已上传的文件（仅在非Agent模式下）
+    if (!props.isAgentMode && selectedFiles.value.length > 0) {
       // 清空文件列表
       selectedFiles.value = []
       // 重置文件输入控件

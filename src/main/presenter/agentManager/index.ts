@@ -17,6 +17,7 @@ export class AgentManager implements IAgentManager {
     this.configPresenter = configPresenter
     this.tabPresenter = tabPresenter
     this.initializeDefaultAgents()
+    this.loadUserAgents()
   }
 
   /**
@@ -35,13 +36,13 @@ export class AgentManager implements IAgentManager {
       color: '#3b82f6'
     }
 
-    // Datlas Agent
+    // Datlas Agent (只注册默认配置，不启用)
     const datlasAgent: AgentConfig = {
       id: 'datlas-agent',
       type: 'datlas',
       name: 'Datlas Agent',
       description: 'Knowledge base retrieval and generation service',
-      enabled: true,
+      enabled: false,
       config: {
         baseUrl: 'https://ai.maicedata.com/api/knowbase/rag',
         agentId: '',
@@ -53,6 +54,46 @@ export class AgentManager implements IAgentManager {
 
     this.registerAgent(chatAgent)
     this.registerAgent(datlasAgent)
+  }
+
+  /**
+   * 加载用户自定义的 Agent 配置
+   */
+  private loadUserAgents(): void {
+    try {
+      // 从 configPresenter 获取用户配置的 agents
+      const userAgents = (this.configPresenter as any).getAgents ? (this.configPresenter as any).getAgents() : []
+
+      userAgents.forEach((userAgent: any) => {
+        // 将用户配置的 agent 转换为 AgentConfig 格式
+        const agentConfig: AgentConfig = {
+          id: userAgent.id,
+          type: userAgent.type,
+          name: userAgent.name,
+          description: userAgent.description || `${userAgent.name} Agent`,
+          enabled: userAgent.enabled,
+          config: userAgent.config,
+          custom: userAgent.custom,
+          icon: userAgent.type === 'datlas' ? 'lucide:database' : 'lucide:bot',
+          color: userAgent.type === 'datlas' ? '#10b981' : '#3b82f6'
+        }
+
+        // 如果是自定义 agent，直接注册
+        if (userAgent.custom) {
+          console.log(`Loading custom agent: ${userAgent.id}`)
+          this.registerAgent(agentConfig)
+        } else {
+          // 如果是系统 agent，更新现有配置
+          const existingAgent = this.agents.get(userAgent.id)
+          if (existingAgent) {
+            console.log(`Updating system agent: ${userAgent.id}`)
+            this.updateAgent(userAgent.id, agentConfig)
+          }
+        }
+      })
+    } catch (error) {
+      console.error('Failed to load user agents:', error)
+    }
   }
 
   /**
@@ -101,15 +142,15 @@ export class AgentManager implements IAgentManager {
   /**
    * 创建 Agent Provider
    */
-  createProvider(agentId: string): any {
+  createProvider(agentId: string): boolean {
     const agent = this.agents.get(agentId)
     if (!agent) {
       throw new Error(`Agent not found: ${agentId}`)
     }
 
-    // 如果已经存在 provider，直接返回
+    // 如果已经存在 provider，直接返回成功
     if (this.providers.has(agentId)) {
-      return this.providers.get(agentId)
+      return true
     }
 
     let provider: any
@@ -140,7 +181,7 @@ export class AgentManager implements IAgentManager {
     }
 
     this.providers.set(agentId, provider)
-    return provider
+    return true
   }
 
   /**
@@ -221,16 +262,31 @@ export class AgentManager implements IAgentManager {
    * 检查 Agent 是否可用
    */
   async checkAgent(agentId: string): Promise<{ isOk: boolean; errorMsg: string | null }> {
-    const provider = this.getProvider(agentId)
-    if (!provider) {
-      return { isOk: false, errorMsg: 'Provider not found' }
-    }
+    try {
+      // 如果 provider 不存在，尝试创建
+      if (!this.providers.has(agentId)) {
+        const created = this.createProvider(agentId)
+        if (!created) {
+          return { isOk: false, errorMsg: 'Failed to create provider' }
+        }
+      }
 
-    if (typeof provider.check === 'function') {
-      return await provider.check()
-    }
+      const provider = this.getProvider(agentId)
+      if (!provider) {
+        return { isOk: false, errorMsg: 'Provider not found' }
+      }
 
-    return { isOk: true, errorMsg: null }
+      if (typeof provider.check === 'function') {
+        return await provider.check()
+      }
+
+      return { isOk: true, errorMsg: null }
+    } catch (error) {
+      return {
+        isOk: false,
+        errorMsg: error instanceof Error ? error.message : 'Unknown error'
+      }
+    }
   }
 
   /**

@@ -210,6 +210,7 @@ import {
   SelectValue
 } from '@/components/ui/select'
 import { nanoid } from 'nanoid'
+import { usePresenter } from '@/composables/usePresenter'
 
 const { t } = useI18n()
 
@@ -256,11 +257,19 @@ const canSave = computed(() => {
 // 方法
 const loadAgents = async () => {
   try {
-    // TODO: 从configPresenter加载代理配置
-    // agents.value = await configPresenter.getAgents()
+    // 从configPresenter加载代理配置
+    const configPresenter = usePresenter('configPresenter')
+    const agentConfigs = await configPresenter.getAgents()
 
-    // 临时模拟数据
-    agents.value = []
+    // 将 AGENT_CONFIG 转换为 AgentConfig 格式
+    agents.value = agentConfigs.map(config => ({
+      id: config.id,
+      name: config.name,
+      type: config.type,
+      enabled: config.enabled,
+      config: config.config,
+      custom: config.custom
+    }))
   } catch (error) {
     console.error('Failed to load agents:', error)
   }
@@ -268,6 +277,7 @@ const loadAgents = async () => {
 
 const saveAgent = async () => {
   try {
+    const configPresenter = usePresenter('configPresenter')
     const agentData: AgentConfig = {
       id: editingAgent.value?.id || nanoid(),
       name: agentForm.value.name.trim(),
@@ -288,8 +298,8 @@ const saveAgent = async () => {
       agents.value.push(agentData)
     }
 
-    // TODO: 保存到configPresenter
-    // await configPresenter.setAgents(agents.value)
+    // 保存到configPresenter
+    await configPresenter.setAgents(agents.value)
 
     cancelEdit()
   } catch (error) {
@@ -309,10 +319,11 @@ const editAgent = (agent: AgentConfig) => {
 
 const deleteAgent = async (agentId: string) => {
   try {
+    const configPresenter = usePresenter('configPresenter')
     agents.value = agents.value.filter((a) => a.id !== agentId)
 
-    // TODO: 保存到configPresenter
-    // await configPresenter.setAgents(agents.value)
+    // 保存到configPresenter
+    await configPresenter.setAgents(agents.value)
   } catch (error) {
     console.error('Failed to delete agent:', error)
   }
@@ -320,12 +331,13 @@ const deleteAgent = async (agentId: string) => {
 
 const toggleAgent = async (agentId: string, enabled: boolean) => {
   try {
+    const configPresenter = usePresenter('configPresenter')
     const agent = agents.value.find((a) => a.id === agentId)
     if (agent) {
       agent.enabled = enabled
 
-      // TODO: 保存到configPresenter
-      // await configPresenter.setAgents(agents.value)
+      // 保存到configPresenter
+      await configPresenter.setAgents(agents.value)
     }
   } catch (error) {
     console.error('Failed to toggle agent:', error)

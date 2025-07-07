@@ -63,7 +63,7 @@ export interface IAgentManager {
   getAllAgents(): AgentConfig[]
 
   // Provider 管理
-  createProvider(agentId: string): any
+  createProvider(agentId: string): boolean
   getProvider(agentId: string): any
 
   // Tab 相关
