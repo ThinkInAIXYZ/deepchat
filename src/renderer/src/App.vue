@@ -177,23 +177,16 @@ const handleAgentSelected = async (agentConfig: any) => {
     // 关闭弹窗
     isAgentSelectorOpen.value = false
 
-    // 获取当前窗口ID
-    const windowId = window.api.getWindowId()
-    if (windowId != null) {
-      // 创建 agent tab
-      await agentManager.createAgentTab(windowId, agentConfig.id, { active: true })
-
-      // 显示成功提示
-      toast({
-        title: 'Agent Created',
-        description: `${agentConfig.name} agent tab has been created successfully.`
-      })
-    }
+    // 显示成功提示 - agent tab 已在 AgentSelectorDialog 中创建
+    toast({
+      title: t('agent.agentSelected'),
+      description: t('agent.agentCreated')
+    })
   } catch (error) {
-    console.error('Error creating agent tab:', error)
+    console.error('Error handling agent selection:', error)
     // 显示错误提示
     toast({
-      title: 'Agent Creation Failed',
+      title: t('agent.agentCreationFailed'),
       description: 'Failed to create agent tab. Please try again.',
       variant: 'destructive'
     })
