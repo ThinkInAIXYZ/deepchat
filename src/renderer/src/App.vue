@@ -317,7 +317,6 @@ onBeforeUnmount(() => {
   window.electron.ipcRenderer.removeAllListeners(SHORTCUT_EVENTS.GO_SETTINGS)
   window.electron.ipcRenderer.removeAllListeners(NOTIFICATION_EVENTS.SYS_NOTIFY_CLICKED)
 })
-
 </script>
 
 <template>

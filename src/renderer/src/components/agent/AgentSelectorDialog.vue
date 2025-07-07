@@ -131,9 +131,13 @@ const updateOpen = (value: boolean) => {
 }
 
 // 当弹窗打开时加载 agents
-watch(() => props.isOpen, async (newValue) => {
-  if (newValue) {
-    await loadAgents()
-  }
-}, { immediate: true })
+watch(
+  () => props.isOpen,
+  async (newValue) => {
+    if (newValue) {
+      await loadAgents()
+    }
+  },
+  { immediate: true }
+)
 </script>
