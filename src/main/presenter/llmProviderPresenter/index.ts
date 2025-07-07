@@ -1012,8 +1012,10 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
       if (modelId) {
         try {
           const testMessage = [{ role: 'user' as const, content: 'hi' }]
-          const response = await provider.completions(testMessage, modelId, 0.1, 10)
-
+          const response: LLMResponse | null = await Promise.race([
+            provider.completions(testMessage, modelId, 0.1, 10),
+            new Promise<null>((resolve) => setTimeout(() => resolve(null), 60000))
+          ])
           // 检查响应是否有效
           if (
             response &&
