@@ -105,19 +105,40 @@ export class DatlasProvider extends BaseAgentProvider {
 
   // 验证provider是否可用
   public async check(): Promise<{ isOk: boolean; errorMsg: string | null }> {
+    console.log('=== DatlasProvider Check Debug ===')
+    console.log('Base URL:', this.baseUrl)
+    console.log('Agent ID:', this.agentId)
+    console.log('Token:', this.token ? '***configured***' : 'NOT SET')
+    console.log('Is Mock Mode:', this.isMockMode)
+
     if (!this.agentId || !this.token) {
-      return { isOk: false, errorMsg: 'Missing agentId or token configuration' }
+      const errorMsg = 'Missing agentId or token configuration'
+      console.log('Check failed:', errorMsg)
+      return { isOk: false, errorMsg }
     }
 
     try {
-      const response = await this.makeRequest('POST', `${this.baseUrl}/${this.agentId}/retrieve`, {
+      const testUrl = `${this.baseUrl}/${this.agentId}/retrieve`
+      console.log('Testing URL:', testUrl)
+
+      const response = await this.makeRequest('POST', testUrl, {
         question: 'test',
         interval: 0
       })
 
-      return { isOk: response.ok, errorMsg: response.ok ? null : 'Agent service unavailable' }
+      console.log('Response status:', response.status)
+      console.log('Response ok:', response.ok)
+
+      const result = { isOk: response.ok, errorMsg: response.ok ? null : 'Agent service unavailable' }
+      console.log('Check result:', result)
+      console.log('===================================')
+
+      return result
     } catch (error) {
-      return { isOk: false, errorMsg: error instanceof Error ? error.message : 'Unknown error' }
+      const errorMsg = error instanceof Error ? error.message : 'Unknown error'
+      console.log('Check error:', errorMsg)
+      console.log('===================================')
+      return { isOk: false, errorMsg }
     }
   }
 
@@ -283,7 +304,21 @@ export class DatlasProvider extends BaseAgentProvider {
             if (!trimmedLine) continue
 
             try {
-              const chunk: Chunk = JSON.parse(trimmedLine)
+              // 检查是否是SSE格式的data行
+              let jsonContent = trimmedLine
+              if (trimmedLine.startsWith('data: ')) {
+                jsonContent = trimmedLine.slice(6) // 去掉"data: "前缀
+              } else if (trimmedLine.startsWith('event:') || trimmedLine.startsWith('id:') || trimmedLine.startsWith('retry:')) {
+                // 跳过SSE的控制行
+                continue
+              }
+
+              // 跳过空的JSON内容
+              if (!jsonContent || jsonContent.trim() === '') {
+                continue
+              }
+
+              const chunk: Chunk = JSON.parse(jsonContent)
               yield* this.processChunk(chunk)
             } catch (parseError) {
               console.warn('Failed to parse chunk:', trimmedLine, parseError)
@@ -295,7 +330,21 @@ export class DatlasProvider extends BaseAgentProvider {
         // 处理最后的buffer
         if (buffer.trim()) {
           try {
-            const chunk: Chunk = JSON.parse(buffer)
+            // 检查是否是SSE格式的data行
+            let jsonContent = buffer.trim()
+            if (jsonContent.startsWith('data: ')) {
+              jsonContent = jsonContent.slice(6) // 去掉"data: "前缀
+            } else if (jsonContent.startsWith('event:') || jsonContent.startsWith('id:') || jsonContent.startsWith('retry:')) {
+              // 跳过SSE的控制行
+              return
+            }
+
+            // 跳过空的JSON内容
+            if (!jsonContent || jsonContent.trim() === '') {
+              return
+            }
+
+            const chunk: Chunk = JSON.parse(jsonContent)
             yield* this.processChunk(chunk)
           } catch (parseError) {
             console.warn('Failed to parse final chunk:', buffer, parseError)

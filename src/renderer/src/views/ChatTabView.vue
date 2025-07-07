@@ -1,6 +1,24 @@
 <template>
   <div class="w-full h-full flex-row flex">
+    <!-- Agent 选择界面 -->
+    <div v-if="showAgentSelector" class="w-full h-full flex items-center justify-center">
+      <div class="max-w-md w-full p-6">
+        <div class="text-center mb-6">
+          <Icon icon="lucide:bot" class="w-16 h-16 mx-auto mb-4 text-primary" />
+          <h2 class="text-2xl font-bold mb-2">{{ $t('agent.selectAgent') }}</h2>
+          <p class="text-muted-foreground">{{ $t('agent.selectAgentType') }}</p>
+        </div>
+        <AgentSelectorDialog
+          :is-open="true"
+          @update:open="handleAgentSelectorClose"
+          @agent-selected="handleAgentSelected"
+        />
+      </div>
+    </div>
+
+    <!-- 正常聊天界面 -->
     <div
+      v-else
       :class="[
         'flex-1 w-0 h-full transition-all duration-200 max-lg:!mr-0',
         artifactStore.isOpen && route.name === 'chat' ? 'mr-[calc(60%_-_104px)]' : ''
@@ -50,16 +68,18 @@
 </template>
 
 <script setup lang="ts">
-import { defineAsyncComponent } from 'vue'
+import { defineAsyncComponent, computed, watch } from 'vue'
 import { useChatStore } from '@/stores/chat'
-import { computed, watch } from 'vue'
 import { useSettingsStore } from '@/stores/settings'
 import { RENDERER_MODEL_META } from '@shared/presenter'
 import { useArtifactStore } from '@/stores/artifact'
 import ArtifactDialog from '@/components/artifacts/ArtifactDialog.vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useTitle } from '@vueuse/core'
 import { useLanguageStore } from '@/stores/language'
+import { Icon } from '@iconify/vue'
+import AgentSelectorDialog from '@/components/agent/AgentSelectorDialog.vue'
+import type { AgentConfig } from '@shared/agent'
 const ThreadsView = defineAsyncComponent(() => import('@/components/ThreadsView.vue'))
 const TitleView = defineAsyncComponent(() => import('@/components/TitleView.vue'))
 const ChatView = defineAsyncComponent(() => import('@/components/ChatView.vue'))
@@ -67,9 +87,29 @@ const NewThread = defineAsyncComponent(() => import('@/components/NewThread.vue'
 const artifactStore = useArtifactStore()
 const settingsStore = useSettingsStore()
 const route = useRoute()
+const router = useRouter()
 const chatStore = useChatStore()
 const title = useTitle()
 const langStore = useLanguageStore()
+
+// 检查是否显示 agent 选择器
+const showAgentSelector = computed(() => {
+  return route.query.action === 'select-agent'
+})
+
+// 处理 agent 选择器关闭
+const handleAgentSelectorClose = (open: boolean) => {
+  if (!open) {
+    // 如果关闭了选择器，跳转回普通聊天页面
+    router.push({ name: 'chat' })
+  }
+}
+
+// 处理 agent 选择
+const handleAgentSelected = (agent: AgentConfig) => {
+  console.log('Agent selected in ChatTabView via dialog:', agent)
+  // Agent 选择器会自动处理路由跳转，这里不需要额外操作
+}
 // 添加标题更新逻辑
 const updateTitle = () => {
   const activeThread = chatStore.activeThread

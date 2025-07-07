@@ -86,18 +86,33 @@ const handleSend = async (msg: UserMessageContent) => {
 // Agent 模式的消息发送逻辑
 const sendAgentMessage = async (msg: UserMessageContent) => {
   try {
+    console.log('=== Agent Message Send Debug ===')
+    console.log('Agent ID:', props.agentId)
+    console.log('Agent Config:', props.agentConfig)
+    console.log('Is Agent Mode:', props.isAgentMode)
+
     // 确保有活跃的 thread
     if (!chatStore.getActiveThreadId()) {
-      // 创建新的 thread
-      const threadId = await chatStore.createThread(`Agent Chat - ${props.agentConfig?.name || 'Agent'}`, {
-        providerId: props.agentId,
-        modelId: 'datlas-agent', // 使用默认的 agent 模型
-        artifacts: 0
-      })
+      console.log('Creating new Agent thread...')
+      const providerId = `agent:${props.agentId}`
+      const threadSettings = {
+        providerId: providerId,
+        modelId: 'datlas-agent',
+        artifacts: 0 as 0 | 1
+      }
+
+      console.log('Thread settings:', threadSettings)
+
+      // 为 Agent 创建新的 thread，使用特殊的 provider ID 来标识这是 Agent 会话
+      const threadId = await chatStore.createThread(`Agent Chat - ${props.agentConfig?.name || 'Agent'}`, threadSettings)
+      console.log('Created thread with ID:', threadId)
       chatStore.setActiveThread(threadId)
+    } else {
+      console.log('Using existing thread:', chatStore.getActiveThreadId())
     }
 
     // 发送消息
+    console.log('Sending message content:', msg)
     await chatStore.sendMessage(msg)
 
     console.log('Agent message sent successfully')

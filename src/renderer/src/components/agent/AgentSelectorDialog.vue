@@ -29,7 +29,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, onMounted, watch } from 'vue'
+import { ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { Icon } from '@iconify/vue'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -62,11 +62,46 @@ const availableAgentTypes = ref<AgentConfig[]>([])
 const loadAgents = async () => {
   try {
     const allAgents = await agentManager.getAllAgents()
-    console.log('Loaded agents:', allAgents)
-    availableAgentTypes.value = allAgents.filter((agent) => agent.enabled)
+    console.log('Loaded user-configured agents:', allAgents)
+
+    const enabledAgents = allAgents.filter((agent) => agent.enabled)
+    console.log('Enabled agents:', enabledAgents)
+
+    // 如果没有配置的 agents，提供默认的 agent 类型选项
+    if (enabledAgents.length === 0) {
+      console.log('No user agents found, providing default agent types')
+      availableAgentTypes.value = [
+        {
+          id: 'default-chat',
+          name: 'Chat Assistant',
+          type: 'chat',
+          enabled: true,
+          config: {},
+          icon: 'lucide:message-circle',
+          color: '#3b82f6',
+          description: 'Default chat assistant'
+        }
+      ]
+    } else {
+      availableAgentTypes.value = enabledAgents
+    }
+
+    console.log('Final available agent types:', availableAgentTypes.value)
   } catch (error) {
     console.error('Failed to load agents:', error)
-    availableAgentTypes.value = []
+    // 提供默认的 chat agent
+    availableAgentTypes.value = [
+      {
+        id: 'default-chat',
+        name: 'Chat Assistant',
+        type: 'chat',
+        enabled: true,
+        config: {},
+        icon: 'lucide:message-circle',
+        color: '#3b82f6',
+        description: 'Default chat assistant'
+      }
+    ]
   }
 }
 
@@ -88,23 +123,29 @@ const getAgentDescription = (agentType: AgentConfig) => {
 
 // 选择 agent 并跳转路由
 const selectAgent = async (agentType: AgentConfig) => {
-  console.log('Selected agent type:', agentType.type, 'ID:', agentType.id)
+  console.log('Selected agent:', {
+    type: agentType.type,
+    id: agentType.id,
+    name: agentType.name,
+    enabled: agentType.enabled
+  })
 
   try {
-    // 根据 agent 类型跳转到不同的路由
-    if (agentType.type === 'chat') {
-      // 对于 chat 类型，跳转到 /chat 路由
-      await router.push({ name: 'chat' })
-    } else {
-      // 对于其他类型（如 datlas），跳转到 /agent 路由并传递参数
-      await router.push({
-        name: 'agent',
-        query: {
-          type: agentType.type,
-          id: agentType.id
-        }
-      })
+    // 所有 agent 类型都跳转到 /agent 路由并传递参数
+    const routeParams = {
+      name: 'agent',
+      query: {
+        type: agentType.type,
+        id: agentType.id
+      }
     }
+    console.log('Navigating to agent route with params:', routeParams)
+    console.log('Current route before navigation:', router.currentRoute.value.path, router.currentRoute.value.query)
+
+    const result = await router.push(routeParams)
+    console.log('Navigation result:', result)
+    console.log('Route after navigation:', router.currentRoute.value.path, router.currentRoute.value.query)
+    console.log('Navigation completed')
 
     // 显示成功提示
     toast({

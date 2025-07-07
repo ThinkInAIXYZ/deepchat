@@ -1,5 +1,5 @@
 import { IAgentManager, AgentConfig, AgentType, AgentTabData } from '@shared/agent'
-import { IConfigPresenter, ITabPresenter } from '@shared/presenter'
+import { IConfigPresenter, ITabPresenter, IAgentFlowPresenter } from '@shared/presenter'
 import { ChatProvider } from '../chatProvider'
 import { DatlasProvider } from '../agentFlowPresenter/providers/datlasProvider'
 import { eventBus } from '@/eventbus'
@@ -12,87 +12,123 @@ export class AgentManager implements IAgentManager {
 
   private configPresenter: IConfigPresenter
   private tabPresenter: ITabPresenter
+  private agentFlowPresenter?: IAgentFlowPresenter
 
   constructor(configPresenter: IConfigPresenter, tabPresenter: ITabPresenter) {
     this.configPresenter = configPresenter
     this.tabPresenter = tabPresenter
-    this.initializeDefaultAgents()
-    this.loadUserAgents()
   }
 
   /**
-   * 初始化默认的 Agent 配置
+   * 初始化 AgentManager（从外部调用）
    */
-  private initializeDefaultAgents(): void {
-    // 默认的 Chat Agent
-    const chatAgent: AgentConfig = {
-      id: 'default-chat',
-      type: 'chat',
-      name: 'Chat Assistant',
-      description: 'Default chat assistant using LLM providers',
-      enabled: true,
-      config: {},
-      icon: 'lucide:message-circle',
-      color: '#3b82f6'
-    }
-
-    // Datlas Agent (只注册默认配置，不启用)
-    const datlasAgent: AgentConfig = {
-      id: 'datlas-agent',
-      type: 'datlas',
-      name: 'Datlas Agent',
-      description: 'Knowledge base retrieval and generation service',
-      enabled: false,
-      config: {
-        baseUrl: 'https://ai.maicedata.com/api/knowbase/rag',
-        agentId: '',
-        token: ''
-      },
-      icon: 'lucide:database',
-      color: '#10b981'
-    }
-
-    this.registerAgent(chatAgent)
-    this.registerAgent(datlasAgent)
+  async initialize(): Promise<void> {
+    console.log('Initializing AgentManager...')
+    await this.loadUserAgents()
+    console.log('AgentManager initialized successfully')
   }
 
   /**
-   * 加载用户自定义的 Agent 配置
+   * 设置 AgentFlowPresenter 的引用
    */
-  private loadUserAgents(): void {
+  setAgentFlowPresenter(agentFlowPresenter: IAgentFlowPresenter): void {
+    this.agentFlowPresenter = agentFlowPresenter
+    this.syncAgentFlowPresenter()
+  }
+
+  /**
+   * 同步 Agent 配置到 AgentFlowPresenter
+   */
+  private syncAgentFlowPresenter(): void {
+    if (!this.agentFlowPresenter) return
+
     try {
-      // 从 configPresenter 获取用户配置的 agents
-      const userAgents = (this.configPresenter as any).getAgents ? (this.configPresenter as any).getAgents() : []
+      // 获取所有 Agent 配置
+      const agents = this.getAllAgents()
 
-      userAgents.forEach((userAgent: any) => {
-        // 将用户配置的 agent 转换为 AgentConfig 格式
-        const agentConfig: AgentConfig = {
-          id: userAgent.id,
-          type: userAgent.type,
-          name: userAgent.name,
-          description: userAgent.description || `${userAgent.name} Agent`,
-          enabled: userAgent.enabled,
-          config: userAgent.config,
-          custom: userAgent.custom,
-          icon: userAgent.type === 'datlas' ? 'lucide:database' : 'lucide:bot',
-          color: userAgent.type === 'datlas' ? '#10b981' : '#3b82f6'
+      // 转换为 AgentFlowPresenter 需要的格式
+      const agentFlowConfigs = agents.map(agent => ({
+        id: agent.id,
+        name: agent.name,
+        type: agent.type,
+        enabled: agent.enabled,
+        config: {
+          baseUrl: agent.config.baseUrl || 'https://ai.maicedata.com/api/knowbase/rag',
+          agentId: agent.config.agentId || '',
+          token: agent.config.token || '',
+          ...agent.config
+        },
+        custom: agent.custom
+      }))
+
+      // 设置到 AgentFlowPresenter
+      this.agentFlowPresenter.setAgents(agentFlowConfigs)
+      console.log(`Synced ${agentFlowConfigs.length} agents to AgentFlowPresenter`)
+    } catch (error) {
+      console.error('Failed to sync agents to AgentFlowPresenter:', error)
+    }
+  }
+
+  /**
+   * 从 configPresenter 加载用户配置的 Agent
+   */
+  private async loadUserAgents(): Promise<void> {
+    try {
+      console.log('Loading user agents from config...')
+      const userAgents = await this.configPresenter.getAgents()
+      console.log('Found user agents:', userAgents.length)
+
+      userAgents.forEach((agentConfig, index) => {
+        console.log(`Agent ${index + 1}:`, {
+          id: agentConfig.id,
+          name: agentConfig.name,
+          type: agentConfig.type,
+          enabled: agentConfig.enabled,
+          hasConfig: !!agentConfig.config
+        })
+
+        const config: AgentConfig = {
+          id: agentConfig.id,
+          name: agentConfig.name,
+          type: agentConfig.type as AgentType,
+          enabled: agentConfig.enabled,
+          config: agentConfig.config,
+          icon: 'lucide:database', // 默认图标，可以根据类型设置
+          color: '#10b981', // 默认颜色
+          description: `${agentConfig.name} Agent`
         }
 
-        // 如果是自定义 agent，直接注册
-        if (userAgent.custom) {
-          console.log(`Loading custom agent: ${userAgent.id}`)
-          this.registerAgent(agentConfig)
-        } else {
-          // 如果是系统 agent，更新现有配置
-          const existingAgent = this.agents.get(userAgent.id)
-          if (existingAgent) {
-            console.log(`Updating system agent: ${userAgent.id}`)
-            this.updateAgent(userAgent.id, agentConfig)
-          }
-        }
+        this.agents.set(agentConfig.id, config)
+        console.log(`Registered agent: ${config.id}`)
       })
+
+      console.log(`Total agents loaded: ${this.agents.size}`)
+
+      // 同步到 AgentFlowPresenter
+      this.syncAgentFlowPresenter()
     } catch (error) {
       console.error('Failed to load user agents:', error)
+      throw error
+    }
+  }
+
+  /**
+   * 重新加载用户配置的 Agent
+   */
+  async reloadUserAgents(): Promise<void> {
+    try {
+      console.log('Reloading user agents...')
+
+      // 清除现有的 Agent（但保留 providers）
+      this.agents.clear()
+
+      // 重新加载用户配置的 Agent
+      await this.loadUserAgents()
+
+      console.log('User agents reloaded successfully')
+    } catch (error) {
+      console.error('Failed to reload user agents:', error)
+      throw error
     }
   }
 
@@ -102,6 +138,10 @@ export class AgentManager implements IAgentManager {
   registerAgent(config: AgentConfig): void {
     console.log(`Registering agent: ${config.id} (${config.type})`)
     this.agents.set(config.id, config)
+
+    // 同步到 AgentFlowPresenter
+    this.syncAgentFlowPresenter()
+
     eventBus.sendToMain(AGENT_EVENTS.AGENT_REGISTERED, config)
   }
 
@@ -115,6 +155,10 @@ export class AgentManager implements IAgentManager {
     if (this.providers.has(agentId)) {
       this.providers.delete(agentId)
     }
+
+    // 同步到 AgentFlowPresenter
+    this.syncAgentFlowPresenter()
+
     eventBus.sendToMain(AGENT_EVENTS.AGENT_UNREGISTERED, agentId)
   }
 
@@ -122,6 +166,20 @@ export class AgentManager implements IAgentManager {
    * 获取 Agent 配置
    */
   getAgent(agentId: string): AgentConfig | null {
+    // 对于默认的 chat agent，返回默认配置
+    if (agentId === 'default-chat') {
+      return {
+        id: 'default-chat',
+        name: 'Chat Assistant',
+        type: 'chat',
+        enabled: true,
+        config: {},
+        icon: 'lucide:message-circle',
+        color: '#3b82f6',
+        description: 'Default chat assistant'
+      }
+    }
+
     return this.agents.get(agentId) || null
   }
 
@@ -143,6 +201,11 @@ export class AgentManager implements IAgentManager {
    * 创建 Agent Provider
    */
   createProvider(agentId: string): boolean {
+    // 对于默认的 chat agent，直接返回成功，不需要创建 provider
+    if (agentId === 'default-chat') {
+      return true
+    }
+
     const agent = this.agents.get(agentId)
     if (!agent) {
       throw new Error(`Agent not found: ${agentId}`)
@@ -195,7 +258,7 @@ export class AgentManager implements IAgentManager {
    * 创建 Agent Tab
    */
   async createAgentTab(windowId: number, agentId: string, options?: any): Promise<number | null> {
-    const agent = this.agents.get(agentId)
+    const agent = this.getAgent(agentId)
     if (!agent) {
       console.error(`Agent not found: ${agentId}`)
       return null
@@ -242,6 +305,12 @@ export class AgentManager implements IAgentManager {
    * 更新 Agent 配置
    */
   updateAgent(agentId: string, updates: Partial<AgentConfig>): void {
+    // 对于默认的 chat agent，不允许更新
+    if (agentId === 'default-chat') {
+      console.warn('Cannot update default chat agent')
+      return
+    }
+
     const agent = this.agents.get(agentId)
     if (!agent) {
       throw new Error(`Agent not found: ${agentId}`)
@@ -255,6 +324,9 @@ export class AgentManager implements IAgentManager {
       this.providers.delete(agentId)
     }
 
+    // 同步到 AgentFlowPresenter
+    this.syncAgentFlowPresenter()
+
     eventBus.sendToMain(AGENT_EVENTS.AGENT_UPDATED, updatedAgent)
   }
 
@@ -263,6 +335,11 @@ export class AgentManager implements IAgentManager {
    */
   async checkAgent(agentId: string): Promise<{ isOk: boolean; errorMsg: string | null }> {
     try {
+      // 对于默认的 chat agent，直接返回可用状态
+      if (agentId === 'default-chat') {
+        return { isOk: true, errorMsg: null }
+      }
+
       // 如果 provider 不存在，尝试创建
       if (!this.providers.has(agentId)) {
         const created = this.createProvider(agentId)

@@ -55,12 +55,16 @@ export interface AgentConversationSettings {
 
 // Agent 管理器接口
 export interface IAgentManager {
+  // 初始化
+  initialize(): Promise<void>
+
   // Agent 注册和管理
   registerAgent(config: AgentConfig): void
   unregisterAgent(agentId: string): void
   getAgent(agentId: string): AgentConfig | null
   getAgentsByType(type: AgentType): AgentConfig[]
   getAllAgents(): AgentConfig[]
+  reloadUserAgents(): Promise<void>
 
   // Provider 管理
   createProvider(agentId: string): boolean

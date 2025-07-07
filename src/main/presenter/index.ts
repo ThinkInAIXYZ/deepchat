@@ -127,11 +127,16 @@ export class Presenter implements IPresenter {
   }
 
   // 应用初始化逻辑 (主窗口准备就绪后调用)
-  init() {
+  async init() {
     // 持久化 LLMProviderPresenter 的 Providers 数据
     const providers = this.configPresenter.getProviders()
     this.llmproviderPresenter.setProviders(providers)
-    this.agentFlowPresenter.setAgents([])
+
+    // 初始化 AgentManager 并等待完成
+    await this.agentManager.initialize()
+
+    // 建立 AgentManager 和 AgentFlowPresenter 的链接
+    this.agentManager.setAgentFlowPresenter(this.agentFlowPresenter)
 
     // 同步所有 provider 的自定义模型
     this.syncCustomModels()

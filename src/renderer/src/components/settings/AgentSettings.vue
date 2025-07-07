@@ -211,18 +211,9 @@ import {
 } from '@/components/ui/select'
 import { nanoid } from 'nanoid'
 import { usePresenter } from '@/composables/usePresenter'
+import type { AgentConfig, AgentType } from '@shared/agent'
 
 const { t } = useI18n()
-
-// 代理配置类型
-interface AgentConfig {
-  id: string
-  name: string
-  type: string
-  enabled: boolean
-  config: { baseUrl: string; agentId: string; token: string }
-  custom?: boolean
-}
 
 // 状态管理
 const agents = ref<AgentConfig[]>([])
@@ -234,7 +225,7 @@ const agentStatus = ref<Record<string, { isOk: boolean; errorMsg?: string }>>({}
 // 表单数据
 const agentForm = ref({
   name: '',
-  type: 'datlas',
+  type: 'datlas' as AgentType,
   config: {
     baseUrl: 'https://ai.maicedata.com/api/knowbase/rag',
     agentId: '',
@@ -265,11 +256,11 @@ const loadAgents = async () => {
     agents.value = agentConfigs.map(config => ({
       id: config.id,
       name: config.name,
-      type: config.type,
+      type: config.type as AgentType,
       enabled: config.enabled,
       config: config.config,
       custom: config.custom
-    }))
+    } as AgentConfig))
   } catch (error) {
     console.error('Failed to load agents:', error)
   }
@@ -278,6 +269,7 @@ const loadAgents = async () => {
 const saveAgent = async () => {
   try {
     const configPresenter = usePresenter('configPresenter')
+    const agentManager = usePresenter('agentManager')
     const agentData: AgentConfig = {
       id: editingAgent.value?.id || nanoid(),
       name: agentForm.value.name.trim(),
@@ -301,6 +293,14 @@ const saveAgent = async () => {
     // 保存到configPresenter
     await configPresenter.setAgents(agents.value)
 
+    // 通知 AgentManager 重新加载配置
+    try {
+      await agentManager.reloadUserAgents()
+      console.log('AgentManager reloaded successfully')
+    } catch (error) {
+      console.error('Failed to reload AgentManager:', error)
+    }
+
     cancelEdit()
   } catch (error) {
     console.error('Failed to save agent:', error)
@@ -312,7 +312,7 @@ const editAgent = (agent: AgentConfig) => {
   agentForm.value = {
     name: agent.name,
     type: agent.type,
-    config: { ...agent.config }
+    config: agent.config as { baseUrl: string; agentId: string; token: string }
   }
   showAddAgentDialog.value = true
 }
@@ -370,7 +370,7 @@ const cancelEdit = () => {
   editingAgent.value = null
   agentForm.value = {
     name: '',
-    type: 'datlas',
+    type: 'datlas' as AgentType,
     config: {
       baseUrl: 'https://ai.maicedata.com/api/knowbase/rag',
       agentId: '',

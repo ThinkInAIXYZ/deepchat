@@ -12,9 +12,7 @@ import { useToast } from './components/ui/toast/use-toast'
 import { useSettingsStore } from '@/stores/settings'
 import { useThemeStore } from '@/stores/theme'
 import { useLanguageStore } from '@/stores/language'
-import { useI18n } from 'vue-i18n'
 import TranslatePopup from '@/components/popup/TranslatePopup.vue'
-import AgentSelectorDialog from '@/components/agent/AgentSelectorDialog.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -22,14 +20,9 @@ const configPresenter = usePresenter('configPresenter')
 const artifactStore = useArtifactStore()
 const chatStore = useChatStore()
 const { toast } = useToast()
-const { t } = useI18n()
 const settingsStore = useSettingsStore()
 const themeStore = useThemeStore()
 const langStore = useLanguageStore()
-
-// Agent 选择器状态
-const isAgentSelectorOpen = ref(false)
-const agentManager = usePresenter('agentManager')
 // 错误通知队列及当前正在显示的错误
 const errorQueue = ref<Array<{ id: string; title: string; message: string; type: string }>>([])
 const currentErrorId = ref<string | null>(null)
@@ -171,27 +164,7 @@ const handleGoSettings = () => {
 }
 
 // 处理 agent 选择
-const handleAgentSelected = async (agentConfig: any) => {
-  console.log('Agent selected in main app:', agentConfig)
-  try {
-    // 关闭弹窗
-    isAgentSelectorOpen.value = false
 
-    // 显示成功提示 - agent tab 已在 AgentSelectorDialog 中创建
-    toast({
-      title: t('agent.agentSelected'),
-      description: t('agent.agentCreated')
-    })
-  } catch (error) {
-    console.error('Error handling agent selection:', error)
-    // 显示错误提示
-    toast({
-      title: t('agent.agentCreationFailed'),
-      description: 'Failed to create agent tab. Please try again.',
-      variant: 'destructive'
-    })
-  }
-}
 
 getInitComplete()
 
@@ -258,6 +231,11 @@ onMounted(() => {
   watch(
     () => activeTab.value,
     (newVal) => {
+      // 避免不必要的路由导航循环
+      if (route.name === newVal) {
+        return
+      }
+      // 只有在切换到不同路由时才导航，不保留查询参数避免跨路由污染
       router.push({ name: newVal })
     }
   )
@@ -275,13 +253,6 @@ onMounted(() => {
       }
       // 路由变化时关闭 artifacts 页面
       artifactStore.hideArtifact()
-
-      // 检查是否需要显示 agent 选择器
-      const params = new URLSearchParams(newVal.split('?')[1] || '')
-      const action = params.get('action')
-      if (action === 'select-agent') {
-        isAgentSelectorOpen.value = true
-      }
     }
   )
 
@@ -335,11 +306,5 @@ onBeforeUnmount(() => {
     <Toaster />
     <SelectedTextContextMenu />
     <TranslatePopup />
-    <!-- Agent 选择器弹窗 -->
-    <AgentSelectorDialog
-      :is-open="isAgentSelectorOpen"
-      @update:open="isAgentSelectorOpen = $event"
-      @agent-selected="handleAgentSelected"
-    />
   </div>
 </template>

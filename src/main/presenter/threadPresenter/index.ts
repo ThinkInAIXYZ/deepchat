@@ -1393,109 +1393,216 @@ export class ThreadPresenter implements IThreadPresenter {
         maxTokens: currentMaxTokens
       } = currentConversation.settings
 
-      // 获取模型配置以确定会话类型
-      const currentModelConfig = this.configPresenter.getModelConfig(
-        currentModelId,
-        currentProviderId
-      )
-      const conversationType =
-        currentModelConfig?.type === 'rag' ? ConversationType.AGENT_FLOW : ConversationType.LLM
+      // 检查是否是 Agent 会话（通过 providerId 前缀识别）
+      const isAgentMode = currentProviderId.startsWith('agent:')
+      const actualAgentId = isAgentMode ? currentProviderId.replace('agent:', '') : null
+
+      console.log('=== Stream Completion Debug ===')
+      console.log('Conversation ID:', conversationId)
+      console.log('Provider ID:', currentProviderId)
+      console.log('Model ID:', currentModelId)
+      console.log('Is Agent Mode:', isAgentMode)
+      console.log('Actual Agent ID:', actualAgentId)
+      console.log('=====================================')
 
       console.log(
-        `Starting ${conversationType} stream completion for conversation ${conversationId}`
+        `Starting ${isAgentMode ? 'Agent' : 'LLM'} stream completion for conversation ${conversationId}`
       )
 
       // 根据会话类型选择不同的处理流程
-      if (conversationType === ConversationType.AGENT_FLOW) {
-        // RAG类型会话：使用专门的RagProviderPresenter处理
-        const stream = this.agentFlowPresenter.startAgentCompletion(
-          currentProviderId,
-          finalContent,
-          currentModelId,
-          currentModelConfig,
-          currentTemperature,
-          currentMaxTokens
-        )
+      if (isAgentMode && actualAgentId) {
+        // Agent模式：使用AgentFlowPresenter处理
+        try {
+          const stream = this.agentFlowPresenter.startAgentCompletion(
+            actualAgentId,
+            finalContent,
+            currentModelId,
+            { // 创建基本的 ModelConfig
+              maxTokens: currentMaxTokens,
+              contextLength: 32768,
+              temperature: currentTemperature,
+              vision: false,
+              functionCall: false,
+              reasoning: true,
+              type: 'rag' as any
+            },
+            currentTemperature,
+            currentMaxTokens
+          )
 
-        // 直接处理RAG流事件并转换为LLMAgentEvent格式
-        for await (const coreEvent of stream) {
-          // 检查是否已被取消
-          this.throwIfCancelled(state.message.id)
+          // 直接处理Agent流事件并转换为LLMAgentEvent格式
+          for await (const coreEvent of stream) {
+            // 检查是否已被取消
+            this.throwIfCancelled(state.message.id)
 
-          // 将LLMCoreStreamEvent转换为LLMAgentEventData
-          let agentEventData: LLMAgentEventData = { eventId: state.message.id }
+            // 将LLMCoreStreamEvent转换为LLMAgentEventData
+            let agentEventData: LLMAgentEventData = { eventId: state.message.id }
 
-          switch (coreEvent.type) {
-            case 'text':
-              if (coreEvent.content) {
-                agentEventData.content = coreEvent.content
-              }
-              break
-            case 'reasoning':
-              if (coreEvent.reasoning_content) {
-                agentEventData.reasoning_content = coreEvent.reasoning_content
-                agentEventData.step = coreEvent.step
-                agentEventData.step_title = coreEvent.step_title
-                agentEventData.step_content = coreEvent.step_content
-                agentEventData.step_is_error = coreEvent.step_is_error
-                agentEventData.step_error_message = coreEvent.step_error_message
-                agentEventData.step_replace_content = coreEvent.step_replace_content
-                agentEventData.step_replace_title = coreEvent.step_replace_title
-              }
-              break
-            case 'rag_files':
-              if (coreEvent.rag_files) {
-                agentEventData.rag_files = coreEvent.rag_files
-              }
-              break
-            case 'rag_references':
-              if (coreEvent.rag_references) {
-                agentEventData.rag_references = coreEvent.rag_references
-              }
-              break
-            case 'error':
-              await this.handleLLMAgentError({
-                eventId: state.message.id,
-                error: coreEvent.error_message || 'RAG processing error'
-              })
-              return
-            case 'stop':
-              await this.handleLLMAgentEnd({
-                eventId: state.message.id,
-                userStop: false
-              })
-              return
-            default:
-              continue
+            switch (coreEvent.type) {
+              case 'text':
+                if (coreEvent.content) {
+                  agentEventData.content = coreEvent.content
+                }
+                break
+              case 'reasoning':
+                if (coreEvent.reasoning_content) {
+                  agentEventData.reasoning_content = coreEvent.reasoning_content
+                  agentEventData.step = coreEvent.step
+                  agentEventData.step_title = coreEvent.step_title
+                  agentEventData.step_content = coreEvent.step_content
+                  agentEventData.step_is_error = coreEvent.step_is_error
+                  agentEventData.step_error_message = coreEvent.step_error_message
+                  agentEventData.step_replace_content = coreEvent.step_replace_content
+                  agentEventData.step_replace_title = coreEvent.step_replace_title
+                }
+                break
+              case 'rag_files':
+                if (coreEvent.rag_files) {
+                  agentEventData.rag_files = coreEvent.rag_files
+                }
+                break
+              case 'rag_references':
+                if (coreEvent.rag_references) {
+                  agentEventData.rag_references = coreEvent.rag_references
+                }
+                break
+              case 'error':
+                await this.handleLLMAgentError({
+                  eventId: state.message.id,
+                  error: coreEvent.error_message || 'Agent processing error'
+                })
+                return
+              case 'stop':
+                await this.handleLLMAgentEnd({
+                  eventId: state.message.id,
+                  userStop: false
+                })
+                return
+              default:
+                continue
+            }
+
+            // 发送转换后的事件
+            await this.handleLLMAgentResponse(agentEventData)
           }
 
-          // 发送转换后的事件
-          await this.handleLLMAgentResponse(agentEventData)
+          // Agent完成后发送结束事件
+          await this.handleLLMAgentEnd({
+            eventId: state.message.id,
+            userStop: false
+          })
+        } catch (error) {
+          console.error('Agent stream error:', error)
+          await this.handleLLMAgentError({
+            eventId: state.message.id,
+            error: error instanceof Error ? error.message : 'Agent processing error'
+          })
         }
-
-        // RAG完成后发送结束事件
-        await this.handleLLMAgentEnd({
-          eventId: state.message.id,
-          userStop: false
-        })
       } else {
         // LLM类型会话：使用现有的llmProviderPresenter处理
-        const stream = this.llmProviderPresenter.startStreamCompletion(
-          currentProviderId, // 使用最新的设置
-          finalContent,
-          currentModelId, // 使用最新的设置
-          state.message.id,
-          currentTemperature, // 使用最新的设置
-          currentMaxTokens // 使用最新的设置
+        // 获取模型配置以确定会话类型
+        const currentModelConfig = this.configPresenter.getModelConfig(
+          currentModelId,
+          currentProviderId
         )
-        for await (const event of stream) {
-          const msg = event.data
-          if (event.type === 'response') {
-            await this.handleLLMAgentResponse(msg)
-          } else if (event.type === 'error') {
-            await this.handleLLMAgentError(msg)
-          } else if (event.type === 'end') {
-            await this.handleLLMAgentEnd(msg)
+        const conversationType =
+          currentModelConfig?.type === 'rag' ? ConversationType.AGENT_FLOW : ConversationType.LLM
+
+        console.log(
+          `Starting ${conversationType} LLM stream completion for conversation ${conversationId}`
+        )
+
+        if (conversationType === ConversationType.AGENT_FLOW) {
+          // RAG类型会话：使用专门的AgentFlowPresenter处理
+          const stream = this.agentFlowPresenter.startAgentCompletion(
+            currentProviderId,
+            finalContent,
+            currentModelId,
+            currentModelConfig,
+            currentTemperature,
+            currentMaxTokens
+          )
+
+          // 直接处理RAG流事件并转换为LLMAgentEvent格式
+          for await (const coreEvent of stream) {
+            // 检查是否已被取消
+            this.throwIfCancelled(state.message.id)
+
+            // 将LLMCoreStreamEvent转换为LLMAgentEventData
+            let agentEventData: LLMAgentEventData = { eventId: state.message.id }
+
+            switch (coreEvent.type) {
+              case 'text':
+                if (coreEvent.content) {
+                  agentEventData.content = coreEvent.content
+                }
+                break
+              case 'reasoning':
+                if (coreEvent.reasoning_content) {
+                  agentEventData.reasoning_content = coreEvent.reasoning_content
+                  agentEventData.step = coreEvent.step
+                  agentEventData.step_title = coreEvent.step_title
+                  agentEventData.step_content = coreEvent.step_content
+                  agentEventData.step_is_error = coreEvent.step_is_error
+                  agentEventData.step_error_message = coreEvent.step_error_message
+                  agentEventData.step_replace_content = coreEvent.step_replace_content
+                  agentEventData.step_replace_title = coreEvent.step_replace_title
+                }
+                break
+              case 'rag_files':
+                if (coreEvent.rag_files) {
+                  agentEventData.rag_files = coreEvent.rag_files
+                }
+                break
+              case 'rag_references':
+                if (coreEvent.rag_references) {
+                  agentEventData.rag_references = coreEvent.rag_references
+                }
+                break
+              case 'error':
+                await this.handleLLMAgentError({
+                  eventId: state.message.id,
+                  error: coreEvent.error_message || 'RAG processing error'
+                })
+                return
+              case 'stop':
+                await this.handleLLMAgentEnd({
+                  eventId: state.message.id,
+                  userStop: false
+                })
+                return
+              default:
+                continue
+            }
+
+            // 发送转换后的事件
+            await this.handleLLMAgentResponse(agentEventData)
+          }
+
+          // RAG完成后发送结束事件
+          await this.handleLLMAgentEnd({
+            eventId: state.message.id,
+            userStop: false
+          })
+        } else {
+          // 标准LLM类型会话：使用现有的llmProviderPresenter处理
+          const stream = this.llmProviderPresenter.startStreamCompletion(
+            currentProviderId, // 使用最新的设置
+            finalContent,
+            currentModelId, // 使用最新的设置
+            state.message.id,
+            currentTemperature, // 使用最新的设置
+            currentMaxTokens // 使用最新的设置
+          )
+          for await (const event of stream) {
+            const msg = event.data
+            if (event.type === 'response') {
+              await this.handleLLMAgentResponse(msg)
+            } else if (event.type === 'error') {
+              await this.handleLLMAgentError(msg)
+            } else if (event.type === 'end') {
+              await this.handleLLMAgentEnd(msg)
+            }
           }
         }
       }
