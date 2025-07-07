@@ -229,14 +229,6 @@ watch(
   { immediate: true } // Removed deep: true as provider object itself changes
 )
 
-const handleApiKeyEnter = async (value: string) => {
-  const inputElement = document.getElementById(`${props.provider.id}-apikey`)
-  if (inputElement) {
-    inputElement.blur()
-  }
-  await settingsStore.updateProviderApi(props.provider.id, value, undefined)
-  await validateApiKey()
-}
 const handleApiKeyChange = async (value: string) => {
   await settingsStore.updateProviderApi(props.provider.id, value, undefined)
 }

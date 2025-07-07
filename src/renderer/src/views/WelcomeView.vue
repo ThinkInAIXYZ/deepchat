@@ -222,29 +222,6 @@ const openModelCheckDialog = () => {
   showModelCheckDialog.value = true
 }
 
-const validateApiKey = async () => {
-  if ((!apiKey.value || !baseUrl.value) && selectedProvider.value !== 'ollama') {
-    showErrorDialog.value = true
-    dialogMessage.value = t('settings.provider.dialog.verify.missingFields')
-    return
-  }
-  await settingsStore.updateProvider(selectedProvider.value, {
-    apiKey: apiKey.value,
-    baseUrl: baseUrl.value,
-    id: settingsStore.providers.find((p) => p.id === selectedProvider.value)!.id,
-    name: settingsStore.providers.find((p) => p.id === selectedProvider.value)!.name,
-    apiType: settingsStore.providers.find((p) => p.id === selectedProvider.value)!.apiType,
-    enable: false
-  })
-  const result = await settingsStore.checkProvider(selectedProvider.value)
-  if (!result.isOk) {
-    showErrorDialog.value = true
-    dialogMessage.value = result.errorMsg || t('settings.provider.dialog.verify.failed')
-  } else {
-    showSuccessDialog.value = true
-    dialogMessage.value = t('settings.provider.dialog.verify.success')
-  }
-}
 const isLastStep = computed(() => currentStep.value === steps.length - 1)
 const isFirstStep = computed(() => currentStep.value === 0)
 </script>

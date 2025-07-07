@@ -97,17 +97,15 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, computed } from 'vue'
-import { useI18n } from 'vue-i18n'
+import { Button } from '@/components/ui/button'
 import {
   Dialog,
   DialogContent,
-  DialogHeader,
-  DialogTitle,
+  DialogDescription,
   DialogFooter,
-  DialogDescription
+  DialogHeader,
+  DialogTitle
 } from '@/components/ui/dialog'
-import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import {
   Select,
@@ -116,9 +114,10 @@ import {
   SelectTrigger,
   SelectValue
 } from '@/components/ui/select'
-import { Icon } from '@iconify/vue'
-import type { RENDERER_MODEL_META } from '@shared/presenter'
 import { useSettingsStore } from '@/stores/settings'
+import { Icon } from '@iconify/vue'
+import { computed, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 
 const { t } = useI18n()
 const settingsStore = useSettingsStore()
