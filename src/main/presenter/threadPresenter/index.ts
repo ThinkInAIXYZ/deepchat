@@ -1744,7 +1744,7 @@ export class ThreadPresenter implements IThreadPresenter {
           imageFiles.reduce((acc, file) => acc + file.token, 0)
       }
     }
-    console.log('preparePromptContent', mergedMessages, promptTokens)
+    // console.log('preparePromptContent', mergedMessages, promptTokens)
 
     return { finalContent: mergedMessages, promptTokens }
   }
