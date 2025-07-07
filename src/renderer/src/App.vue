@@ -12,16 +12,24 @@ import { useToast } from './components/ui/toast/use-toast'
 import { useSettingsStore } from '@/stores/settings'
 import { useThemeStore } from '@/stores/theme'
 import { useLanguageStore } from '@/stores/language'
+import { useI18n } from 'vue-i18n'
 import TranslatePopup from '@/components/popup/TranslatePopup.vue'
+import AgentSelectorDialog from '@/components/agent/AgentSelectorDialog.vue'
 
 const route = useRoute()
+const router = useRouter()
 const configPresenter = usePresenter('configPresenter')
 const artifactStore = useArtifactStore()
 const chatStore = useChatStore()
 const { toast } = useToast()
+const { t } = useI18n()
 const settingsStore = useSettingsStore()
 const themeStore = useThemeStore()
 const langStore = useLanguageStore()
+
+// Agent 选择器状态
+const isAgentSelectorOpen = ref(false)
+const agentManager = usePresenter('agentManager')
 // 错误通知队列及当前正在显示的错误
 const errorQueue = ref<Array<{ id: string; title: string; message: string; type: string }>>([])
 const currentErrorId = ref<string | null>(null)
@@ -116,7 +124,6 @@ const handleErrorClosed = () => {
   }
 }
 
-const router = useRouter()
 const activeTab = ref('chat')
 
 const getInitComplete = async () => {
@@ -245,6 +252,11 @@ onMounted(() => {
       }
       // 路由变化时关闭 artifacts 页面
       artifactStore.hideArtifact()
+
+      // 检查是否需要显示 Agent 选择器
+      if (route.query.action === 'select-agent') {
+        isAgentSelectorOpen.value = true
+      }
     }
   )
 
@@ -280,6 +292,20 @@ onBeforeUnmount(() => {
   window.electron.ipcRenderer.removeAllListeners(SHORTCUT_EVENTS.GO_SETTINGS)
   window.electron.ipcRenderer.removeAllListeners(NOTIFICATION_EVENTS.SYS_NOTIFY_CLICKED)
 })
+
+// 处理 agent 选择
+const handleAgentSelected = async (agentConfig: any) => {
+  console.log('Agent selected in main app:', agentConfig)
+  isAgentSelectorOpen.value = false
+
+  // 清理路由参数
+  if (route.query.action === 'select-agent') {
+    await router.replace({
+      name: route.name as string,
+      query: {}
+    })
+  }
+}
 </script>
 
 <template>
@@ -298,5 +324,11 @@ onBeforeUnmount(() => {
     <Toaster />
     <SelectedTextContextMenu />
     <TranslatePopup />
+    <!-- Agent 选择器弹窗 -->
+    <AgentSelectorDialog
+      :is-open="isAgentSelectorOpen"
+      @update:open="isAgentSelectorOpen = $event"
+      @agent-selected="handleAgentSelected"
+    />
   </div>
 </template>

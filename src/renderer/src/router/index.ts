@@ -26,6 +26,15 @@ const router = createRouter({
       }
     },
     {
+      path: '/agent',
+      name: 'agent',
+      component: () => import('@/views/AgentTabView.vue'),
+      meta: {
+        titleKey: 'routes.agent',
+        icon: 'lucide:bot'
+      }
+    },
+    {
       path: '/settings',
       name: 'settings',
       component: () => import('@/views/SettingsTabView.vue'),

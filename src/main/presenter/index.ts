@@ -22,6 +22,7 @@ import { OAuthPresenter } from './oauthPresenter'
 import { FloatingButtonPresenter } from './floatingButtonPresenter'
 import { CONFIG_EVENTS, WINDOW_EVENTS } from '@/events'
 import { AgentFlowPresenter } from './agentFlowPresenter'
+import { AgentManager } from './agentManager'
 
 // IPC调用上下文接口
 interface IPCCallContext {
@@ -57,6 +58,7 @@ export class Presenter implements IPresenter {
   floatingButtonPresenter: FloatingButtonPresenter
   // llamaCppPresenter: LlamaCppPresenter // 保留原始注释
   agentFlowPresenter: AgentFlowPresenter
+  agentManager: AgentManager
 
   constructor() {
     // 初始化各个 Presenter 实例及其依赖
@@ -65,6 +67,7 @@ export class Presenter implements IPresenter {
     this.tabPresenter = new TabPresenter(this.windowPresenter)
     this.llmproviderPresenter = new LLMProviderPresenter(this.configPresenter)
     this.agentFlowPresenter = new AgentFlowPresenter(this.configPresenter)
+    this.agentManager = new AgentManager(this.configPresenter, this.tabPresenter)
     this.devicePresenter = new DevicePresenter()
     // 初始化 SQLite 数据库路径
     const dbDir = path.join(app.getPath('userData'), 'app_db')

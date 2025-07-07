@@ -4,6 +4,7 @@ import { MessageFile } from './chat'
 import { ShowResponse } from 'ollama'
 import { ShortcutKeySetting } from '@/presenter/configPresenter/shortcutKeySettings'
 import { ModelType } from '@shared/model'
+import { IAgentManager } from '@shared/agent'
 
 export type SQLITE_MESSAGE = {
   id: string
@@ -341,6 +342,7 @@ export interface IPresenter {
   sqlitePresenter: ISQLitePresenter
   llmproviderPresenter: ILlmProviderPresenter
   agentFlowPresenter: IAgentFlowPresenter
+  agentManager: IAgentManager
   configPresenter: IConfigPresenter
   threadPresenter: IThreadPresenter
   devicePresenter: IDevicePresenter

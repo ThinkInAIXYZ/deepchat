@@ -27,6 +27,20 @@ import { useRoute } from 'vue-router'
 import { UserMessageContent } from '@shared/chat'
 import { STREAM_EVENTS } from '@/events'
 import { useSettingsStore } from '@/stores/settings'
+import type { AgentConfig } from '@shared/agent'
+
+// Props for Agent mode support
+interface Props {
+  isAgentMode?: boolean
+  agentId?: string
+  agentConfig?: AgentConfig | null
+}
+
+const props = withDefaults(defineProps<Props>(), {
+  isAgentMode: false,
+  agentId: '',
+  agentConfig: null
+})
 
 const route = useRoute()
 const settingsStore = useSettingsStore()

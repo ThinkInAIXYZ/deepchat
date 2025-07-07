@@ -154,6 +154,15 @@ export const TAB_EVENTS = {
   CLOSED: 'tab:closed' // 标签页被关闭事件
 }
 
+// Agent 相关事件
+export const AGENT_EVENTS = {
+  AGENT_REGISTERED: 'agent:registered', // Agent 注册
+  AGENT_UNREGISTERED: 'agent:unregistered', // Agent 取消注册
+  AGENT_UPDATED: 'agent:updated', // Agent 更新
+  AGENT_TAB_CREATED: 'agent:tab-created', // Agent Tab 创建
+  AGENT_TAB_CLOSED: 'agent:tab-closed' // Agent Tab 关闭
+}
+
 // 托盘相关事件
 export const TRAY_EVENTS = {
   SHOW_HIDDEN_WINDOW: 'tray:show-hidden-window', // 从托盘显示/隐藏窗口

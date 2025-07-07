@@ -3,9 +3,11 @@ import { ref } from 'vue'
 import { usePresenter } from '@/composables/usePresenter'
 import { TabData } from '@shared/presenter'
 import { TAB_EVENTS } from '@/events'
+import { AgentType } from '@shared/agent'
 
 export const useTabStore = defineStore('tab', () => {
   const tabPresenter = usePresenter('tabPresenter')
+  const agentManager = usePresenter('agentManager')
   const tabs = ref<TabData[]>([])
 
   const currentTabId = ref<number | null>(null)
@@ -43,6 +45,19 @@ export const useTabStore = defineStore('tab', () => {
   const removeTab = async (id: number) => {
     await tabPresenter.closeTab(tabs.value.find((tab) => tab.id === id)?.id ?? 0)
     tabs.value = tabs.value.filter((tab) => tab.id !== id)
+  }
+
+  const addAgentTab = async (agentId: string, options?: { active?: boolean; position?: number }) => {
+    const windowId = window.api.getWindowId()
+    if (!windowId) return null
+
+    const tabId = await agentManager.createAgentTab(windowId, agentId, options)
+    if (tabId) {
+      // Agent Tab 的信息会通过 update-window-tabs 事件自动更新
+      console.log(`Agent tab created: ${tabId} for agent: ${agentId}`)
+      return tabId
+    }
+    return null
   }
 
   const setCurrentTabId = async (id: number) => {
@@ -111,6 +126,7 @@ export const useTabStore = defineStore('tab', () => {
     currentTabId,
     addTab,
     removeTab,
+    addAgentTab,
     setCurrentTabId
   }
 })
