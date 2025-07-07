@@ -54,6 +54,8 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.53.0",
+    "@aws-sdk/client-bedrock": "^3.840.0",
+    "@aws-sdk/client-bedrock-runtime": "^3.842.0",
     "@e2b/code-interpreter": "^1.5.1",
     "@electron-toolkit/preload": "^3.0.1",
     "@electron-toolkit/utils": "^4.0.0",

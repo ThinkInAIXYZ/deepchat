@@ -23,6 +23,7 @@ import { GithubProvider } from './providers/githubProvider'
 import { GithubCopilotProvider } from './providers/githubCopilotProvider'
 import { OllamaProvider } from './providers/ollamaProvider'
 import { AnthropicProvider } from './providers/anthropicProvider'
+import { AwsBedrockProvider } from './providers/awsBedrockProvider'
 import { DoubaoProvider } from './providers/doubaoProvider'
 import { ShowResponse } from 'ollama'
 import { CONFIG_EVENTS } from '@/events'
@@ -118,6 +119,9 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
       }
       if (provider.id === 'aihubmix') {
         return new AihubmixProvider(provider, this.configPresenter)
+      }
+      if (provider.id === 'aws-bedrock-anthropic') {
+        return new AwsBedrockProvider(provider, this.configPresenter)
       }
       switch (provider.apiType) {
         case 'minimax':

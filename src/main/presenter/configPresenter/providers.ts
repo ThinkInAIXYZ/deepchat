@@ -154,6 +154,21 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
     }
   },
   {
+    id: 'aws-bedrock-anthropic',
+    name: 'AWS Bedrock Anthropic',
+    apiType: 'anthropic',
+    apiKey: '',
+    baseUrl: '',
+    enable: false,
+    websites: {
+      official: '',
+      apiKey: '',
+      docs: '',
+      models: '',
+      defaultBaseUrl: ''
+    }
+  },
+  {
     id: 'openrouter',
     name: 'OpenRouter',
     apiType: 'openai',
