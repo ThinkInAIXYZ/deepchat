@@ -24,6 +24,8 @@ import {
 } from '@shared/presenter'
 import { ConfigPresenter } from '../../configPresenter'
 import { BaseLLMProvider, SUMMARY_TITLES_PROMPT } from '../baseProvider'
+import { eventBus, SendTarget } from '@/eventbus'
+import { CONFIG_EVENTS } from '@/events'
 
 // Mapping from simple keys to API HarmCategory constants
 const keyToHarmCategoryMap: Record<string, HarmCategory> = {
@@ -295,6 +297,8 @@ export class GeminiProvider extends BaseLLMProvider {
         // 使用API获取模型列表，如果失败则回退到静态列表
         this.models = await this.fetchProviderModels()
         await this.autoEnableModelsIfNeeded()
+        // gemini 比较慢，特殊补偿一下
+        eventBus.sendToRenderer(CONFIG_EVENTS.MODEL_LIST_CHANGED, SendTarget.ALL_WINDOWS, this.provider.id)
         console.info('Provider initialized successfully:', this.provider.name)
       } catch (error) {
         console.warn('Provider initialization failed:', this.provider.name, error)
