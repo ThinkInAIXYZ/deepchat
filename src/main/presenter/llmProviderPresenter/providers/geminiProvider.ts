@@ -298,7 +298,11 @@ export class GeminiProvider extends BaseLLMProvider {
         this.models = await this.fetchProviderModels()
         await this.autoEnableModelsIfNeeded()
         // gemini 比较慢，特殊补偿一下
-        eventBus.sendToRenderer(CONFIG_EVENTS.MODEL_LIST_CHANGED, SendTarget.ALL_WINDOWS, this.provider.id)
+        eventBus.sendToRenderer(
+          CONFIG_EVENTS.MODEL_LIST_CHANGED,
+          SendTarget.ALL_WINDOWS,
+          this.provider.id
+        )
         console.info('Provider initialized successfully:', this.provider.name)
       } catch (error) {
         console.warn('Provider initialization failed:', this.provider.name, error)

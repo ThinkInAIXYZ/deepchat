@@ -92,7 +92,7 @@ watch(
     // console.log('Safety levels update:', JSON.stringify(safetyLevels), JSON.stringify(newLevels))
 
     // 清空现有数据
-    Object.keys(safetyLevels).forEach(key => {
+    Object.keys(safetyLevels).forEach((key) => {
       delete safetyLevels[key]
     })
 
