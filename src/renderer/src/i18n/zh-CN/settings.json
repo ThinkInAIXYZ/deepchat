@@ -248,7 +248,11 @@
     "localModels": "本地模型",
     "azureApiVersion": "API 版本",
     "safety": {
-      "title": "安全设置"
+      "title": "安全设置",
+      "blockNone": "不屏蔽",
+      "blockSome": "屏蔽低风险",
+      "blockMost": "屏蔽中风险",
+      "blockHighest": "屏蔽高风险"
     },
     "serverList": "服务器列表",
     "totalServers": "服务器总数",

@@ -13,12 +13,12 @@
                   t(setting.label, key.charAt(0).toUpperCase() + key.slice(1))
                 }}</Label>
                 <span class="text-sm text-muted-foreground">{{
-                  t(levelLabels[safetyLevels[key]], `${levelToValueMap[safetyLevels[key]]}`)
+                  t(getLevelLabel(safetyLevels[key]), getLevelValue(safetyLevels[key]))
                 }}</span>
               </div>
               <Slider
                 :id="`${provider.id}-safety-${key}`"
-                :model-value="[safetyLevels[key]]"
+                :model-value="[getSafetyLevel(key)]"
                 :min="0"
                 :max="3"
                 :step="1"
@@ -39,7 +39,7 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, watch } from 'vue'
+import { reactive, watch, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Label } from '@/components/ui/label'
 import { Slider } from '@/components/ui/slider'
@@ -57,7 +57,6 @@ import {
   levelToValueMap,
   levelLabels
 } from '@/lib/gemini'
-
 const { t } = useI18n()
 
 const props = defineProps<{
@@ -71,11 +70,34 @@ const emit = defineEmits<{
 
 const safetyLevels = reactive<Record<string, number>>({})
 
-// 初始化安全级别
+// 安全访问函数
+const getSafetyLevel = (key: string): number => {
+  return safetyLevels[key] ?? safetyCategories[key as SafetyCategoryKey]?.defaultLevel ?? 0
+}
+
+const getLevelLabel = (level: number | undefined): string => {
+  const safeLevel = level ?? 0
+  return levelLabels[safeLevel] ?? levelLabels[0]
+}
+
+const getLevelValue = (level: number | undefined): string => {
+  const safeLevel = level ?? 0
+  return levelToValueMap[safeLevel] ?? levelToValueMap[0]
+}
+
+// 初始化安全级别 - 改进 watch 逻辑
 watch(
   () => props.initialSafetyLevels,
   (newLevels) => {
-    if (newLevels) {
+    // console.log('Safety levels update:', JSON.stringify(safetyLevels), JSON.stringify(newLevels))
+
+    // 清空现有数据
+    Object.keys(safetyLevels).forEach(key => {
+      delete safetyLevels[key]
+    })
+
+    if (newLevels && Object.keys(newLevels).length > 0) {
+      // 使用新的安全级别
       Object.assign(safetyLevels, newLevels)
     } else {
       // 使用默认值
@@ -83,8 +105,10 @@ watch(
         safetyLevels[key] = safetyCategories[key as SafetyCategoryKey].defaultLevel
       }
     }
+
+    // console.log('Final safety levels:', JSON.stringify(safetyLevels))
   },
-  { immediate: true }
+  { immediate: true, deep: true }
 )
 
 const handleSafetySettingChange = (key: SafetyCategoryKey, level: number) => {

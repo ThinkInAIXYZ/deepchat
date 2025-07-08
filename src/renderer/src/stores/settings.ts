@@ -532,14 +532,14 @@ export const useSettingsStore = defineStore('settings', () => {
 
     try {
       // 自定义模型直接从配置存储获取，不需要等待provider实例
-      await refreshCustomModels(providerId)
+      refreshCustomModels(providerId)
 
       // 标准模型需要provider实例，可能需要等待实例初始化
-      await refreshStandardModels(providerId)
+      refreshStandardModels(providerId)
     } catch (error) {
       console.error(`刷新模型失败: ${providerId}`, error)
       // 如果标准模型刷新失败，至少确保自定义模型可用
-      await refreshCustomModels(providerId)
+      refreshCustomModels(providerId)
     }
   }
 
@@ -734,7 +734,7 @@ export const useSettingsStore = defineStore('settings', () => {
       const success = await llmP.removeCustomModel(providerId, modelId)
       console.log('removeCustomModel', providerId, modelId, success)
       if (success) {
-        await refreshCustomModels(providerId) // 只刷新自定义模型
+        refreshCustomModels(providerId) // 只刷新自定义模型
       }
       return success
     } catch (error) {
@@ -753,7 +753,7 @@ export const useSettingsStore = defineStore('settings', () => {
       // 不包含启用状态的常规更新
       const success = await llmP.updateCustomModel(providerId, modelId, updates)
       if (success) {
-        await refreshCustomModels(providerId) // 只刷新自定义模型
+        refreshCustomModels(providerId) // 只刷新自定义模型
       }
       return success
     } catch (error) {
@@ -770,7 +770,7 @@ export const useSettingsStore = defineStore('settings', () => {
     try {
       const newModel = await llmP.addCustomModel(providerId, model)
       await configP.addCustomModel(providerId, newModel)
-      await refreshCustomModels(providerId) // 只刷新自定义模型
+      refreshCustomModels(providerId) // 只刷新自定义模型
       return newModel
     } catch (error) {
       console.error('Failed to add custom model:', error)

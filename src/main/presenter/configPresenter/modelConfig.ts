@@ -8,11 +8,27 @@ const SPECIAL_CONCAT_CHAR = '-_-'
 
 export class ModelConfigHelper {
   private modelConfigStore: ElectronStore<Record<string, IModelConfig>>
+  private memoryCache: Map<string, IModelConfig> = new Map()
+  private cacheInitialized: boolean = false
 
   constructor() {
     this.modelConfigStore = new ElectronStore<Record<string, IModelConfig>>({
       name: 'model-config'
     })
+  }
+
+  /**
+   * Initialize memory cache by loading all data from store
+   * This is called lazily on first access
+   */
+  private initializeCache(): void {
+    if (this.cacheInitialized) return
+
+    const allConfigs = this.modelConfigStore.store
+    Object.entries(allConfigs).forEach(([key, value]) => {
+      this.memoryCache.set(key, value)
+    })
+    this.cacheInitialized = true
   }
 
   /**
@@ -22,9 +38,22 @@ export class ModelConfigHelper {
    * @returns ModelConfig
    */
   getModelConfig(modelId: string, providerId?: string): ModelConfig {
+    // Initialize cache if not already done
+    this.initializeCache()
+
     // 1. First try to get user-defined config for this specific provider + model
     if (providerId) {
-      const userConfig = this.modelConfigStore.get(providerId + SPECIAL_CONCAT_CHAR + modelId)
+      const cacheKey = providerId + SPECIAL_CONCAT_CHAR + modelId
+      let userConfig = this.memoryCache.get(cacheKey)
+
+      // If not in cache, try to load from store and cache it
+      if (!userConfig) {
+        userConfig = this.modelConfigStore.get(cacheKey)
+        if (userConfig) {
+          this.memoryCache.set(cacheKey, userConfig)
+        }
+      }
+
       if (userConfig?.config) {
         return userConfig.config
       }
@@ -73,11 +102,16 @@ export class ModelConfigHelper {
    * @param config - The model configuration
    */
   setModelConfig(modelId: string, providerId: string, config: ModelConfig): void {
-    this.modelConfigStore.set(providerId + SPECIAL_CONCAT_CHAR + modelId, {
+    const cacheKey = providerId + SPECIAL_CONCAT_CHAR + modelId
+    const configData: IModelConfig = {
       id: modelId,
       providerId: providerId,
       config: config
-    })
+    }
+
+    // Update both store and cache
+    this.modelConfigStore.set(cacheKey, configData)
+    this.memoryCache.set(cacheKey, configData)
   }
 
   /**
@@ -86,7 +120,11 @@ export class ModelConfigHelper {
    * @param providerId - The provider ID
    */
   resetModelConfig(modelId: string, providerId: string): void {
-    this.modelConfigStore.delete(providerId + SPECIAL_CONCAT_CHAR + modelId)
+    const cacheKey = providerId + SPECIAL_CONCAT_CHAR + modelId
+
+    // Remove from both store and cache
+    this.modelConfigStore.delete(cacheKey)
+    this.memoryCache.delete(cacheKey)
   }
 
   /**
@@ -94,7 +132,15 @@ export class ModelConfigHelper {
    * @returns Record of all configurations
    */
   getAllModelConfigs(): Record<string, IModelConfig> {
-    return this.modelConfigStore.store
+    // Initialize cache if not already done
+    this.initializeCache()
+
+    // Return data from cache for better performance
+    const result: Record<string, IModelConfig> = {}
+    this.memoryCache.forEach((value, key) => {
+      result[key] = value
+    })
+    return result
   }
 
   /**
@@ -126,8 +172,24 @@ export class ModelConfigHelper {
    * @returns boolean
    */
   hasUserConfig(modelId: string, providerId: string): boolean {
-    const userConfig = this.modelConfigStore.get(providerId + SPECIAL_CONCAT_CHAR + modelId)
-    return !!userConfig
+    // Initialize cache if not already done
+    this.initializeCache()
+
+    const cacheKey = providerId + SPECIAL_CONCAT_CHAR + modelId
+
+    // Check cache first
+    if (this.memoryCache.has(cacheKey)) {
+      return true
+    }
+
+    // If not in cache, check store and update cache if found
+    const userConfig = this.modelConfigStore.get(cacheKey)
+    if (userConfig) {
+      this.memoryCache.set(cacheKey, userConfig)
+      return true
+    }
+
+    return false
   }
 
   /**
@@ -137,16 +199,20 @@ export class ModelConfigHelper {
    */
   importConfigs(configs: Record<string, IModelConfig>, overwrite: boolean = false): void {
     if (overwrite) {
-      // Clear existing configs
+      // Clear existing configs from both store and cache
       this.modelConfigStore.clear()
+      this.memoryCache.clear()
     }
 
-    // Import configs
+    // Import configs to both store and cache
     Object.entries(configs).forEach(([key, value]) => {
       if (overwrite || !this.modelConfigStore.has(key)) {
         this.modelConfigStore.set(key, value)
+        this.memoryCache.set(key, value)
       }
     })
+
+    this.cacheInitialized = true
   }
 
   /**
@@ -162,6 +228,7 @@ export class ModelConfigHelper {
    */
   clearAllConfigs(): void {
     this.modelConfigStore.clear()
+    this.memoryCache.clear()
   }
 
   /**
@@ -170,5 +237,13 @@ export class ModelConfigHelper {
    */
   getStorePath(): string {
     return this.modelConfigStore.path
+  }
+
+  /**
+   * Clear memory cache (useful for testing or memory management)
+   */
+  clearMemoryCache(): void {
+    this.memoryCache.clear()
+    this.cacheInitialized = false
   }
 }
