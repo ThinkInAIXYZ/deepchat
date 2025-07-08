@@ -1,5 +1,9 @@
 import { BrowserWindow, shell } from 'electron'
+import { exec } from 'child_process';
 import { presenter } from '@/presenter'
+
+
+const GITHUB_DEVICE_URL = 'https://github.com/login/device';
 
 export interface DeviceFlowConfig {
   clientId: string
@@ -212,7 +216,7 @@ export class GitHubCopilotDeviceFlow {
           <script>
             async function openBrowser() {
               try {
-                const githubUrl = 'https://github.com/login/device';
+                const githubUrl = GITHUB_DEVICE_URL;
                 // 尝试复制链接到剪贴板
                 await window.electronAPI.copyToClipboard(githubUrl);
                 
@@ -230,7 +234,7 @@ export class GitHubCopilotDeviceFlow {
                 }, 2000);
               } catch (error) {
                 console.error('Failed to handle browser open:', error);
-                alert('请手动访问: https://github.com/login/device');
+                alert('请手动访问: ${GITHUB_DEVICE_URL}');
               }
             }
 
@@ -299,11 +303,10 @@ export class GitHubCopilotDeviceFlow {
       setTimeout(async () => {
         try {
           // 使用固定的GitHub设备激活页面
-          const url = 'https://github.com/login/device';
+          const url = GITHUB_DEVICE_URL;
           console.log('Attempting to open URL:', url);
           
           if (process.platform === 'win32') {
-            const { exec } = require('child_process');
             // 先尝试使用explorer命令
             exec(`explorer "${url}"`, (error) => {
               if (error) {
@@ -312,11 +315,12 @@ export class GitHubCopilotDeviceFlow {
                 exec(`start "" "${url}"`, (startError) => {
                   if (startError) {
                     console.error('Start command failed:', startError);
-                    // 如果都失败了，提供手动复制选项
+                    // 使用更安全的方式处理剪贴板操作
                     instructionWindow.webContents.executeJavaScript(`
                       const shouldCopy = confirm('无法自动打开浏览器。是否复制链接到剪贴板？');
                       if (shouldCopy) {
-                        navigator.clipboard.writeText('${url}');
+                        // use the exposed Electron API for clipboard access
+                        window.electronAPI.copyToClipboard('${url}');
                         alert('链接已复制到剪贴板，请手动粘贴到浏览器地址栏访问。');
                       } else {
                         alert('请手动访问: ${url}');
@@ -333,7 +337,7 @@ export class GitHubCopilotDeviceFlow {
         } catch (error) {
           console.error('Failed to open browser:', error);
           instructionWindow.webContents.executeJavaScript(`
-            alert('无法自动打开浏览器，请手动访问: https://github.com/login/device');
+            alert('无法自动打开浏览器，请手动访问: ${GITHUB_DEVICE_URL}');
           `);
         }
       }, 1000)
