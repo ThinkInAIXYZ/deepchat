@@ -248,7 +248,11 @@
     "localModels": "مدل‌های محلی",
     "azureApiVersion": "نگارش API",
     "safety": {
-      "title": "تنظیمات ایمنی"
+      "title": "تنظیمات ایمنی",
+      "blockHighest": "ریسک بالا",
+      "blockMost": "خطرات متوسط ​​را مسدود کنید",
+      "blockNone": "مسدود نشده",
+      "blockSome": "بلوک ریسک کم"
     },
     "serverList": "فهرست کارسازها",
     "totalServers": "مجموع کارسازها",

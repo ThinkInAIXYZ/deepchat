@@ -248,7 +248,11 @@
     "localModels": "Modèles locaux",
     "azureApiVersion": "Version API",
     "safety": {
-      "title": "Paramètres de sécurité"
+      "title": "Paramètres de sécurité",
+      "blockHighest": "Bloquer un risque élevé",
+      "blockMost": "Bloquer les risques moyens",
+      "blockNone": "Non bloqué",
+      "blockSome": "Bloquer un faible risque"
     },
     "serverList": "Liste des serveurs",
     "totalServers": "Total des serveurs",

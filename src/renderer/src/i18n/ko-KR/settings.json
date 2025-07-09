@@ -248,7 +248,11 @@
     "urlFormat": "API 샘플 : {defaultUrl}",
     "azureApiVersion": "API 버전",
     "safety": {
-      "title": "보안 설정"
+      "title": "보안 설정",
+      "blockHighest": "높은 위험을 차단하십시오",
+      "blockMost": "중간 위험을 차단합니다",
+      "blockNone": "차단되지 않았습니다",
+      "blockSome": "낮은 위험을 차단하십시오"
     },
     "serverList": "서버 목록",
     "totalServers": "총 서버 수",

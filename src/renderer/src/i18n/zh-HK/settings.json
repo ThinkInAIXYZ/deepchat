@@ -248,7 +248,11 @@
     "modelsEnabled": "模型已經啟用",
     "azureApiVersion": "API 版本",
     "safety": {
-      "title": "安全設置"
+      "title": "安全設置",
+      "blockHighest": "屏蔽高風險",
+      "blockMost": "屏蔽中風險",
+      "blockNone": "不屏蔽",
+      "blockSome": "屏蔽低風險"
     },
     "serverList": "服務器列表",
     "totalServers": "服務器總數",

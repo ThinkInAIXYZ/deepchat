@@ -248,7 +248,11 @@
     "urlFormat": "Образец API: {defaultUrl}",
     "azureApiVersion": "Версия API",
     "safety": {
-      "title": "Настройки безопасности"
+      "title": "Настройки безопасности",
+      "blockHighest": "Блок высокий риск",
+      "blockMost": "Блок средних рисков",
+      "blockNone": "Не заблокирован",
+      "blockSome": "Блок низкий риск"
     },
     "serverList": "Список серверов",
     "totalServers": "Всего серверов",
