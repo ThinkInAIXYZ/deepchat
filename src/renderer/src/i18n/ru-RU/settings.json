@@ -274,7 +274,8 @@
     "keyStatus": {
       "remaining": "Оставшаяся сумма",
       "usage": "Использовал"
-    }
+    },
+    "refreshingModels": "Освежает ..."
   },
   "knowledgeBase": {
     "title": "Настройки базы знаний",

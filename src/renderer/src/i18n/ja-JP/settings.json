@@ -274,7 +274,8 @@
     "keyStatus": {
       "remaining": "残りの金額",
       "usage": "使用済み"
-    }
+    },
+    "refreshingModels": "さわやか..."
   },
   "knowledgeBase": {
     "title": "ナレッジベース設定",

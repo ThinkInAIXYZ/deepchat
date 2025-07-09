@@ -274,7 +274,8 @@
     "keyStatus": {
       "remaining": "剩餘額度",
       "usage": "已使用"
-    }
+    },
+    "refreshingModels": "刷新中..."
   },
   "knowledgeBase": {
     "fastgptTitle": "FastGPT知識庫",

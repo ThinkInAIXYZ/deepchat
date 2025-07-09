@@ -274,7 +274,8 @@
     "keyStatus": {
       "remaining": "Remaining amount",
       "usage": "Used"
-    }
+    },
+    "refreshingModels": "Refreshing..."
   },
   "knowledgeBase": {
     "title": "Knowledge Base Settings",

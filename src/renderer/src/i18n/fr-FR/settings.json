@@ -274,7 +274,8 @@
     "keyStatus": {
       "remaining": "Montant restant",
       "usage": "Utilisé"
-    }
+    },
+    "refreshingModels": "Rafraîchissant..."
   },
   "knowledgeBase": {
     "title": "Paramètres de la base de connaissances",

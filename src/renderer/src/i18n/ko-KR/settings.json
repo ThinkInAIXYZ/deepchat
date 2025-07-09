@@ -274,7 +274,8 @@
     "keyStatus": {
       "remaining": "나머지 금액",
       "usage": "사용된"
-    }
+    },
+    "refreshingModels": "상쾌한 ..."
   },
   "knowledgeBase": {
     "title": "지식 베이스 설정",

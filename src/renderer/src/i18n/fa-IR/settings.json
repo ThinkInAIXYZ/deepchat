@@ -274,7 +274,8 @@
     "keyStatus": {
       "remaining": "مقدار باقی مانده",
       "usage": "مورد استفاده"
-    }
+    },
+    "refreshingModels": "طراوت ..."
   },
   "knowledgeBase": {
     "title": "تنظیمات پایگاه دانش",
