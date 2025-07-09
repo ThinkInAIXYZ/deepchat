@@ -224,6 +224,17 @@
       "pullModel": {
         "title": "モデルを取得",
         "pull": "取得"
+      },
+      "modelCheck": {
+        "checking": "テスト...",
+        "description": "接続性とユーザビリティテストのモデルを選択します",
+        "failed": "モデルテストに失敗しました",
+        "model": "モデルを選択します",
+        "modelPlaceholder": "テストするモデルを選択してください",
+        "noModels": "このサービスプロバイダーが利用できるモデルはありません",
+        "success": "モデルテストが成功しました",
+        "test": "テストを開始します",
+        "title": "モデルチェック"
       }
     },
     "pullModels": "モデルを取得",

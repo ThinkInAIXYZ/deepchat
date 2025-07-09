@@ -224,6 +224,17 @@
       "pullModel": {
         "title": "下載模型",
         "pull": "下載"
+      },
+      "modelCheck": {
+        "checking": "測試中...",
+        "description": "選擇一個模型進行連接性和可用性測試",
+        "failed": "模型測試失敗",
+        "model": "選擇模型",
+        "modelPlaceholder": "請選擇要測試的模型",
+        "noModels": "該服務商沒有可用的模型",
+        "success": "模型測試成功",
+        "test": "開始測試",
+        "title": "模型檢查"
       }
     },
     "pullModels": "下載模型",

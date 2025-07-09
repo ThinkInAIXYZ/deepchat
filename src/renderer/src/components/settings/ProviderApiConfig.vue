@@ -56,7 +56,7 @@
           variant="outline"
           size="xs"
           class="text-xs text-normal rounded-lg"
-          @click="$emit('validate-key', apiKey)"
+          @click="openModelCheckDialog"
         >
           <Icon icon="lucide:check-check" class="w-4 h-4 text-muted-foreground" />{{
             t('settings.provider.verifyKey')
@@ -113,6 +113,7 @@ import { Button } from '@/components/ui/button'
 import { Icon } from '@iconify/vue'
 import GitHubCopilotOAuth from './GitHubCopilotOAuth.vue'
 import { usePresenter } from '@/composables/usePresenter'
+import { useModelCheckStore } from '@/stores/modelCheck'
 import type { LLM_PROVIDER, KeyStatus } from '@shared/presenter'
 
 interface ProviderWebsites {
@@ -125,6 +126,7 @@ interface ProviderWebsites {
 
 const { t } = useI18n()
 const llmProviderPresenter = usePresenter('llmproviderPresenter')
+const modelCheckStore = useModelCheckStore()
 
 const props = defineProps<{
   provider: LLM_PROVIDER
@@ -174,6 +176,10 @@ const handleOAuthSuccess = () => {
 
 const handleOAuthError = (error: string) => {
   emit('oauth-error', error)
+}
+
+const openModelCheckDialog = () => {
+  modelCheckStore.openDialog(props.provider.id)
 }
 
 const getKeyStatus = async () => {

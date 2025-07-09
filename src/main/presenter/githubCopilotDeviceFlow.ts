@@ -1,5 +1,9 @@
 import { BrowserWindow, shell } from 'electron'
+import { exec } from 'child_process';
 import { presenter } from '@/presenter'
+
+
+const GITHUB_DEVICE_URL = 'https://github.com/login/device';
 
 export interface DeviceFlowConfig {
   clientId: string
@@ -199,6 +203,7 @@ export class GitHubCopilotDeviceFlow {
             <h1>GitHub Copilot 认证</h1>
             <p class="instructions">
               请在浏览器中访问以下地址，并输入验证码：
+              若未自动打开浏览器 请手动访问: https://github.com/login/device
             </p>
             <div class="user-code">${deviceCodeResponse.user_code}</div>
             <a href="#" class="button" onclick="openBrowser()">打开 GitHub 认证页面</a>
@@ -209,8 +214,28 @@ export class GitHubCopilotDeviceFlow {
           </div>
 
           <script>
-            function openBrowser() {
-              window.electronAPI.openExternal('${deviceCodeResponse.verification_uri}');
+            async function openBrowser() {
+              try {
+                const githubUrl = GITHUB_DEVICE_URL;
+                // 尝试复制链接到剪贴板
+                await window.electronAPI.copyToClipboard(githubUrl);
+                
+                // 尝试打开浏览器
+                window.electronAPI.openExternal(githubUrl);
+                
+                // 显示备用提示
+                setTimeout(() => {
+                  const msg = document.createElement('div');
+                  msg.style.fontSize = '12px';
+                  msg.style.color = '#0969da';
+                  msg.style.marginTop = '8px';
+                  msg.innerHTML = '如果浏览器没有自动打开，链接已复制到剪贴板，请手动粘贴到浏览器地址栏访问。';
+                  document.querySelector('.footer').appendChild(msg);
+                }, 2000);
+              } catch (error) {
+                console.error('Failed to handle browser open:', error);
+                alert('请手动访问: ${GITHUB_DEVICE_URL}');
+              }
             }
 
             function copyCode() {
@@ -275,8 +300,46 @@ export class GitHubCopilotDeviceFlow {
       instructionWindow.show()
 
       // 自动打开浏览器
-      setTimeout(() => {
-        shell.openExternal(deviceCodeResponse.verification_uri)
+      setTimeout(async () => {
+        try {
+          // 使用固定的GitHub设备激活页面
+          const url = GITHUB_DEVICE_URL;
+          console.log('Attempting to open URL:', url);
+          
+          if (process.platform === 'win32') {
+            // 先尝试使用explorer命令
+            exec(`explorer "${url}"`, (error) => {
+              if (error) {
+                console.error('Explorer command failed:', error);
+                // 如果explorer失败，尝试使用start命令
+                exec(`start "" "${url}"`, (startError) => {
+                  if (startError) {
+                    console.error('Start command failed:', startError);
+                    // 使用更安全的方式处理剪贴板操作
+                    instructionWindow.webContents.executeJavaScript(`
+                      const shouldCopy = confirm('无法自动打开浏览器。是否复制链接到剪贴板？');
+                      if (shouldCopy) {
+                        // use the exposed Electron API for clipboard access
+                        window.electronAPI.copyToClipboard('${url}');
+                        alert('链接已复制到剪贴板，请手动粘贴到浏览器地址栏访问。');
+                      } else {
+                        alert('请手动访问: ${url}');
+                      }
+                    `);
+                  }
+                });
+              }
+            });
+          } else {
+            // 非Windows系统使用默认的shell.openExternal
+            await shell.openExternal(url);
+          }
+        } catch (error) {
+          console.error('Failed to open browser:', error);
+          instructionWindow.webContents.executeJavaScript(`
+            alert('无法自动打开浏览器，请手动访问: ${GITHUB_DEVICE_URL}');
+          `);
+        }
       }, 1000)
 
       // 设置超时关闭窗口

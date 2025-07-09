@@ -723,8 +723,8 @@ export const useSettingsStore = defineStore('settings', () => {
     }
   }
 
-  const checkProvider = async (providerId: string) => {
-    return await llmP.check(providerId)
+  const checkProvider = async (providerId: string, modelId?: string) => {
+    return await llmP.check(providerId, modelId)
   }
 
   // 删除自定义模型

@@ -224,6 +224,17 @@
       "pullModel": {
         "title": "Pull Model",
         "pull": "Pull"
+      },
+      "modelCheck": {
+        "title": "Model Check",
+        "description": "Select a model to test connectivity and availability",
+        "model": "Select Model",
+        "modelPlaceholder": "Please select a model to test",
+        "test": "Start Test",
+        "checking": "Testing...",
+        "success": "Model test successful",
+        "failed": "Model test failed",
+        "noModels": "No available models for this provider"
       }
     },
     "pullModels": "Pull Models",

@@ -2019,20 +2019,20 @@ export class ThreadPresenter implements IThreadPresenter {
   ): ChatMessage[] {
     const formattedMessages: ChatMessage[] = []
 
+    // 添加上下文消息
+    formattedMessages.push(
+      ...this.addContextMessages(contextMessages, vision, supportsFunctionCall)
+    )
+
     // 添加系统提示
     if (systemPrompt) {
       // formattedMessages.push(...this.addSystemPrompt(formattedMessages, systemPrompt, artifacts))
-      formattedMessages.push({
+      formattedMessages.unshift({
         role: 'system',
         content: systemPrompt
       })
       // console.log('-------------> system prompt \n', systemPrompt, artifacts, formattedMessages)
     }
-
-    // 添加上下文消息
-    formattedMessages.push(
-      ...this.addContextMessages(formattedMessages, contextMessages, vision, supportsFunctionCall)
-    )
 
     // 添加当前用户消息
     let finalContent = searchPrompt || userContent
@@ -2076,12 +2076,11 @@ export class ThreadPresenter implements IThreadPresenter {
 
   // 添加上下文消息
   private addContextMessages(
-    formattedMessages: ChatMessage[],
     contextMessages: Message[],
     vision: boolean,
     supportsFunctionCall: boolean
   ): ChatMessage[] {
-    const resultMessages = [...formattedMessages]
+    const resultMessages = [] as ChatMessage[]
 
     // 对于原生fc模型，支持正确的tool_call response history插入
     if (supportsFunctionCall) {

@@ -562,7 +562,7 @@ export interface ILlmProviderPresenter {
     maxTokens?: number
   ): Promise<string>
   stopStream(eventId: string): Promise<void>
-  check(providerId: string): Promise<{ isOk: boolean; errorMsg: string | null }>
+  check(providerId: string, modelId?: string): Promise<{ isOk: boolean; errorMsg: string | null }>
   getKeyStatus(providerId: string): Promise<KeyStatus | null>
   summaryTitles(
     messages: { role: 'system' | 'user' | 'assistant'; content: string }[],
