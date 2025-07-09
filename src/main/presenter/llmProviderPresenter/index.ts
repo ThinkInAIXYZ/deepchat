@@ -1046,8 +1046,14 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
   }
 
   async refreshModels(providerId: string): Promise<void> {
-    const provider = this.getProviderInstance(providerId)
-    await provider.refreshModels()
+    try {
+      const provider = this.getProviderInstance(providerId)
+      await provider.refreshModels()
+    } catch (error) {
+      console.error(`Failed to refresh models for provider ${providerId}:`, error)
+      const errorMessage = error instanceof Error ? error.message : String(error)
+      throw new Error(`Model refresh failed: ${errorMessage}`)
+    }
   }
 
   async addCustomModel(

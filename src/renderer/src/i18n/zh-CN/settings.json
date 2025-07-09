@@ -165,7 +165,6 @@
     "keyPlaceholder": "请输入API Key",
     "verifyKey": "验证密钥",
     "howToGet": "如何获取",
-    "refreshModels": "刷新模型",
     "refreshingModels": "刷新中...",
     "getKeyTip": "请前往",
     "getKeyTipEnd": "获取API Key",
