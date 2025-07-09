@@ -39,24 +39,24 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, watch, computed } from 'vue'
-import { useI18n } from 'vue-i18n'
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger
+} from '@/components/ui/accordion'
 import { Label } from '@/components/ui/label'
 import { Slider } from '@/components/ui/slider'
 import {
-  Accordion,
-  AccordionItem,
-  AccordionContent,
-  AccordionTrigger
-} from '@/components/ui/accordion'
-import type { LLM_PROVIDER } from '@shared/presenter'
-import {
+  levelLabels,
+  levelToValueMap,
   safetyCategories,
   SafetyCategoryKey,
-  SafetySettingValue,
-  levelToValueMap,
-  levelLabels
+  SafetySettingValue
 } from '@/lib/gemini'
+import type { LLM_PROVIDER } from '@shared/presenter'
+import { reactive, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 const { t } = useI18n()
 
 const props = defineProps<{
