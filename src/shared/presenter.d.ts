@@ -514,6 +514,7 @@ export interface ILlmProviderPresenter {
   stopStream(eventId: string): Promise<void>
   check(providerId: string, modelId?: string): Promise<{ isOk: boolean; errorMsg: string | null }>
   getKeyStatus(providerId: string): Promise<KeyStatus | null>
+  refreshModels(providerId: string): Promise<void>
   summaryTitles(
     messages: { role: 'system' | 'user' | 'assistant'; content: string }[],
     providerId: string,

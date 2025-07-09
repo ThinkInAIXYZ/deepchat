@@ -11,6 +11,8 @@ import {
 import { ConfigPresenter } from '../configPresenter'
 import { DevicePresenter } from '../devicePresenter'
 import { jsonrepair } from 'jsonrepair'
+import { eventBus, SendTarget } from '@/eventbus'
+import { CONFIG_EVENTS } from '@/events'
 
 /**
  * 基础LLM提供商抽象类
@@ -66,14 +68,18 @@ export abstract class BaseLLMProvider {
       const cachedModels = this.configPresenter.getProviderModels(this.provider.id)
       if (cachedModels && cachedModels.length > 0) {
         this.models = cachedModels
-        console.info(`Loaded ${cachedModels.length} cached models for provider: ${this.provider.name}`)
+        console.info(
+          `Loaded ${cachedModels.length} cached models for provider: ${this.provider.name}`
+        )
       }
 
       // Load cached custom models from config
       const cachedCustomModels = this.configPresenter.getCustomModels(this.provider.id)
       if (cachedCustomModels && cachedCustomModels.length > 0) {
         this.customModels = cachedCustomModels
-        console.info(`Loaded ${cachedCustomModels.length} cached custom models for provider: ${this.provider.name}`)
+        console.info(
+          `Loaded ${cachedCustomModels.length} cached custom models for provider: ${this.provider.name}`
+        )
       }
     } catch (error) {
       console.warn(`Failed to load cached models for provider: ${this.provider.name}`, error)
@@ -158,9 +164,15 @@ export abstract class BaseLLMProvider {
    * 忽略缓存，重新从网络获取最新的模型列表
    * @returns 模型列表
    */
-  public async refreshModels(): Promise<MODEL_META[]> {
+  public async refreshModels(): Promise<void> {
     console.info(`Force refreshing models for provider: ${this.provider.name}`)
-    return await this.fetchModels()
+    await this.fetchModels()
+    await this.autoEnableModelsIfNeeded()
+    eventBus.sendToRenderer(
+      CONFIG_EVENTS.MODEL_LIST_CHANGED,
+      SendTarget.ALL_WINDOWS,
+      this.provider.id
+    )
   }
 
   /**

@@ -1045,6 +1045,11 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
     return provider.getKeyStatus()
   }
 
+  async refreshModels(providerId: string): Promise<void> {
+    const provider = this.getProviderInstance(providerId)
+    await provider.refreshModels()
+  }
+
   async addCustomModel(
     providerId: string,
     model: Omit<MODEL_META, 'providerId' | 'isCustom' | 'group'>

@@ -67,10 +67,17 @@
           variant="outline"
           size="xs"
           class="text-xs text-normal rounded-lg"
-          @click="openProviderWebsite"
+          :disabled="isRefreshing"
+          @click="refreshModels"
         >
-          <Icon icon="lucide:hand-helping" class="w-4 h-4 text-muted-foreground" />{{
-            t('settings.provider.howToGet')
+          <Icon
+            :icon="isRefreshing ? 'lucide:loader-2' : 'lucide:refresh-cw'"
+            :class="['w-4 h-4 text-muted-foreground', { 'animate-spin': isRefreshing }]"
+          />
+          {{
+            isRefreshing
+              ? t('settings.provider.refreshingModels')
+              : t('settings.provider.refreshModels')
           }}
         </Button>
         <!-- Key Status Display -->
@@ -94,7 +101,7 @@
         </div>
       </div>
       <div v-if="!provider.custom" class="text-xs text-muted-foreground">
-        {{ t('settings.provider.getKeyTip') }}
+        {{ t('settings.provider.howToGet') }}: {{ t('settings.provider.getKeyTip') }}
         <a :href="providerWebsites?.apiKey" target="_blank" class="text-primary">{{
           provider.name
         }}</a>
@@ -145,6 +152,7 @@ const emit = defineEmits<{
 const apiKey = ref(props.provider.apiKey || '')
 const apiHost = ref(props.provider.baseUrl || '')
 const keyStatus = ref<KeyStatus | null>(null)
+const isRefreshing = ref(false)
 
 watch(
   () => props.provider,
@@ -161,13 +169,6 @@ const handleApiKeyChange = (value: string) => {
 
 const handleApiHostChange = (value: string) => {
   emit('api-host-change', value)
-}
-
-const openProviderWebsite = () => {
-  const url = props.providerWebsites?.apiKey
-  if (url) {
-    window.open(url, '_blank')
-  }
 }
 
 const handleOAuthSuccess = () => {
@@ -195,6 +196,19 @@ const getKeyStatus = async () => {
       console.error('Failed to get key status:', error)
       keyStatus.value = null
     }
+  }
+}
+
+const refreshModels = async () => {
+  if (isRefreshing.value) return
+
+  isRefreshing.value = true
+  try {
+    await llmProviderPresenter.refreshModels(props.provider.id)
+  } catch (error) {
+    console.error('Failed to refresh models:', error)
+  } finally {
+    isRefreshing.value = false
   }
 }
 
