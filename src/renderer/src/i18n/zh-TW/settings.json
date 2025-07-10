@@ -464,6 +464,7 @@
     "pressEnterToSave": "按Enter保存，Esc取消",
     "noModifierOnly": "不能僅使用修飾鍵作為快捷鍵",
     "keyConflict": "快捷鍵衝突，請選擇其他組合",
+    "clearShortcut": "清除快捷鍵",
     "cleanHistory": "清除聊天歷史",
     "deleteConversation": "刪除會話",
     "goSettings": "打開設置",

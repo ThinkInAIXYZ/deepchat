@@ -464,6 +464,7 @@
     "pressEnterToSave": "Enter 키를 누르면 저장되고 Esc 키를 누르면 취소됩니다",
     "noModifierOnly": "수정 키만 단축키로 사용할 수 없습니다",
     "keyConflict": "단축키 충돌이 발생했습니다. 다른 조합을 선택해주세요",
+    "clearShortcut": "단축키 지우기",
     "cleanHistory": "명확한 채팅 기록",
     "deleteConversation": "대화 삭제",
     "goSettings": "열기 설정",

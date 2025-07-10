@@ -464,6 +464,7 @@
     "pressEnterToSave": "按Enter保存，Esc取消",
     "noModifierOnly": "不能仅使用修饰键作为快捷键",
     "keyConflict": "快捷键冲突，请选择其他组合",
+    "clearShortcut": "清除快捷键",
     "zoomIn": "放大字体",
     "zoomOut": "缩小字体",
     "zoomReset": "重置字体",

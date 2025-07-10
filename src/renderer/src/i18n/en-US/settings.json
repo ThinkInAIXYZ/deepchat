@@ -464,6 +464,7 @@
     "pressEnterToSave": "Press Enter to save, Esc to cancel",
     "noModifierOnly": "Cannot use modifier key alone as shortcut",
     "keyConflict": "Shortcut key conflict, please choose another combination",
+    "clearShortcut": "Clear shortcut",
     "cleanHistory": "Clear chat history",
     "deleteConversation": "Delete Conversation",
     "goSettings": "Open Settings",

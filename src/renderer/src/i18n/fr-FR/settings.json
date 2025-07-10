@@ -464,6 +464,7 @@
     "pressEnterToSave": "Appuyez sur Entrée pour enregistrer, Échap pour annuler",
     "noModifierOnly": "Impossible d'utiliser uniquement une touche de modification comme raccourci",
     "keyConflict": "Conflit de raccourci clavier, veuillez choisir une autre combinaison",
+    "clearShortcut": "Effacer le raccourci",
     "cleanHistory": "Historique de chat clair",
     "deleteConversation": "Supprimer la conversation",
     "goSettings": "Paramètres ouvrir",

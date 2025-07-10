@@ -464,6 +464,7 @@
     "pressEnterToSave": "Enterキーで保存、Escでキャンセル",
     "noModifierOnly": "修飾キーのみをショートカットキーとして使用することはできません",
     "keyConflict": "ショートカットキーが競合しています。別の組み合わせを選択してください",
+    "clearShortcut": "ショートカットをクリア",
     "cleanHistory": "明確なチャット履歴",
     "deleteConversation": "会話を削除",
     "goSettings": "設定を開く",
