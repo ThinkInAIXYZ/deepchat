@@ -13,7 +13,6 @@ import {
   DialogDescription
 } from '@/components/ui/dialog'
 import { useMcpStore } from '@/stores/mcp'
-import { useSettingsStore } from '@/stores/settings'
 import { useI18n } from 'vue-i18n'
 import { useToast } from '@/components/ui/toast'
 import { useRouter } from 'vue-router'
@@ -25,7 +24,6 @@ import McpResourceViewer from './McpResourceViewer.vue'
 import type { MCPServerConfig } from '@shared/presenter'
 
 const mcpStore = useMcpStore()
-const settingsStore = useSettingsStore()
 const { t } = useI18n()
 const { toast } = useToast()
 const router = useRouter()
@@ -44,7 +42,7 @@ const selectedServerForPrompts = ref<string>('')
 const selectedServerForResources = ref<string>('')
 // 监听 MCP 安装缓存
 watch(
-  () => settingsStore.mcpInstallCache,
+  () => mcpStore.mcpInstallCache,
   (newCache) => {
     if (newCache) {
       // 打开添加服务器对话框
@@ -58,7 +56,7 @@ watch(isAddServerDialogOpen, (newIsAddServerDialogOpen) => {
   // 当添加服务器对话框关闭时，清理缓存
   if (!newIsAddServerDialogOpen) {
     // 清理缓存
-    settingsStore.clearMcpInstallCache()
+    mcpStore.clearMcpInstallCache()
   }
 })
 // 计算属性：区分内置服务和普通服务
@@ -381,7 +379,7 @@ const handleViewResources = async (serverName: string) => {
                 </DialogDescription>
               </DialogHeader>
               <McpServerForm
-                :default-json-config="settingsStore.mcpInstallCache || undefined"
+                :default-json-config="mcpStore.mcpInstallCache || undefined"
                 @submit="handleAddServer"
               />
             </DialogContent>
