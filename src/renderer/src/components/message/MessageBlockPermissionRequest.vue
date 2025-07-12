@@ -11,12 +11,11 @@
     <!-- Tool and server information -->
     <div class="flex items-start gap-3 mb-4 p-3 bg-white dark:bg-gray-800 rounded-lg border border-amber-100 dark:border-amber-800">
       <div class="flex-shrink-0">
-        <img
+        <span
           v-if="block.tool_call?.server_icons"
-          :src="block.tool_call.server_icons"
-          class="w-8 h-8 rounded"
-          :alt="block.tool_call.server_name"
-        />
+          class="text-2xl"
+          :title="block.tool_call.server_name"
+        >{{ block.tool_call.server_icons }}</span>
         <Icon v-else icon="lucide:tool" class="w-8 h-8 text-gray-400" />
       </div>
       <div class="flex-1 min-w-0">

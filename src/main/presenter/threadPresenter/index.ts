@@ -475,7 +475,7 @@ export class ThreadPresenter implements IThreadPresenter {
           }
         } else if (tool_call === 'permission-required') {
           // 处理权限请求：创建权限请求块
-          finalizeLastBlock() // 使用保护逻辑
+          // 注意：不调用finalizeLastBlock，因为工具调用还没有完成，在等待权限
           
           // 从 msg 中获取权限请求信息
           const { permission_request } = msg
