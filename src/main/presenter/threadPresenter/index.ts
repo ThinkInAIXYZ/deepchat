@@ -2762,15 +2762,23 @@ export class ThreadPresenter implements IThreadPresenter {
       await this.messageManager.editMessage(messageId, JSON.stringify(content))
       
       if (granted) {
-        // 4. 授予权限
+        // 4. 【关键修复】先完成权限授予，等待MCP服务稳定，再重启agent loop
         const serverName = permissionBlock?.extra?.serverName as string
         if (serverName) {
           console.log(`[ThreadPresenter] Granting permission: ${permissionType} for server: ${serverName}`)
+          console.log(`[ThreadPresenter] Waiting for permission configuration to complete before restarting agent loop...`)
+          
+          // 等待权限配置完成
           await presenter.mcpPresenter.grantPermission(serverName, permissionType, remember)
+          
+          // 等待MCP服务重启完成
+          console.log(`[ThreadPresenter] Permission configuration completed, waiting for MCP service restart...`)
+          await this.waitForMcpServiceReady(serverName)
+          
+          console.log(`[ThreadPresenter] MCP service ready, now restarting agent loop for message: ${messageId}`)
         }
         
-        // 5. 继续执行 - 重新启动完整的agent loop
-        console.log(`[ThreadPresenter] Permission granted, restarting agent loop for message: ${messageId}`)
+        // 5. 现在重启agent loop
         await this.restartAgentLoopAfterPermission(messageId)
       } else {
         console.log(`[ThreadPresenter] Permission denied, ending generation for message: ${messageId}`)
@@ -2795,6 +2803,20 @@ export class ThreadPresenter implements IThreadPresenter {
       }
       
       const conversationId = message.conversationId
+      
+      // 验证权限是否生效 - 获取最新的服务器配置
+      const content = message.content as AssistantMessageBlock[]
+      const permissionBlock = content.find(block => 
+        block.type === 'tool_call_permission' && 
+        block.status === 'granted'
+      )
+      
+      if (permissionBlock?.extra?.serverName) {
+        console.log(`[ThreadPresenter] Verifying permission is active for server: ${permissionBlock.extra.serverName}`)
+        const servers = await this.configPresenter.getMcpServers()
+        const serverConfig = servers[permissionBlock.extra.serverName as string]
+        console.log(`[ThreadPresenter] Current server permissions:`, serverConfig?.autoApprove || [])
+      }
       
       // 如果消息还在generating状态，直接继续
       const state = this.generatingMessages.get(messageId)
@@ -2932,5 +2954,47 @@ export class ThreadPresenter implements IThreadPresenter {
       console.error('[ThreadPresenter] Failed to resume stream completion:', error)
       await this.messageManager.handleMessageError(messageId, String(error))
     }
+  }
+
+  // 等待MCP服务重启完成并准备就绪
+  private async waitForMcpServiceReady(serverName: string, maxWaitTime: number = 3000): Promise<void> {
+    console.log(`[ThreadPresenter] Waiting for MCP service ${serverName} to be ready...`)
+    
+    const startTime = Date.now()
+    const checkInterval = 100 // 100ms
+    
+    return new Promise((resolve, reject) => {
+      const checkReady = async () => {
+        try {
+          // 检查服务是否正在运行
+          const isRunning = await presenter.mcpPresenter.isServerRunning(serverName)
+          
+          if (isRunning) {
+            // 服务正在运行，再等待一下确保完全初始化
+            setTimeout(() => {
+              console.log(`[ThreadPresenter] MCP service ${serverName} is ready`)
+              resolve()
+            }, 200)
+            return
+          }
+          
+          // 检查是否超时
+          if (Date.now() - startTime > maxWaitTime) {
+            console.warn(`[ThreadPresenter] Timeout waiting for MCP service ${serverName} to be ready`)
+            resolve() // 超时也继续，避免阻塞
+            return
+          }
+          
+          // 继续等待
+          setTimeout(checkReady, checkInterval)
+          
+        } catch (error) {
+          console.error(`[ThreadPresenter] Error checking MCP service status:`, error)
+          resolve() // 出错也继续，避免阻塞
+        }
+      }
+      
+      checkReady()
+    })
   }
 }
