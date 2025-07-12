@@ -265,3 +265,6 @@ The LLM system follows a two-layer architecture:
 ### Linux
 - AppImage and deb package support
 - Sandbox considerations for development
+
+## Git Commit
+- Do not include author information other than human authors in the Commit, such as Co-Authored-By related information
