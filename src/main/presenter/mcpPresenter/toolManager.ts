@@ -206,7 +206,7 @@ export class ToolManager {
   // 确定权限类型的新方法
   private determinePermissionType(toolName: string): 'read' | 'write' | 'all' {
     const lowerToolName = toolName.toLowerCase()
-    
+
     // Read operations
     if (
       lowerToolName.includes('read') ||
@@ -221,7 +221,7 @@ export class ToolManager {
     ) {
       return 'read'
     }
-    
+
     // Write operations
     if (
       lowerToolName.includes('write') ||
@@ -244,7 +244,7 @@ export class ToolManager {
     ) {
       return 'write'
     }
-    
+
     // Default to write for safety (unknown operations require higher permissions)
     return 'write'
   }
@@ -255,24 +255,31 @@ export class ToolManager {
     serverName: string,
     autoApprove: string[]
   ): boolean {
-    console.log(`[ToolManager] Checking permissions for tool '${originalToolName}' on server '${serverName}' with autoApprove:`, autoApprove)
-    
+    console.log(
+      `[ToolManager] Checking permissions for tool '${originalToolName}' on server '${serverName}' with autoApprove:`,
+      autoApprove
+    )
+
     // 如果有 'all' 权限，则允许所有操作
     if (autoApprove.includes('all')) {
       console.log(`[ToolManager] Permission granted: server '${serverName}' has 'all' permissions`)
       return true
     }
-    
+
     const permissionType = this.determinePermissionType(originalToolName)
     console.log(`[ToolManager] Tool '${originalToolName}' requires '${permissionType}' permission`)
-    
+
     // Check if the specific permission type is approved
     if (autoApprove.includes(permissionType)) {
-      console.log(`[ToolManager] Permission granted: server '${serverName}' has '${permissionType}' permission`)
+      console.log(
+        `[ToolManager] Permission granted: server '${serverName}' has '${permissionType}' permission`
+      )
       return true
     }
-    
-    console.log(`[ToolManager] Permission required for tool '${originalToolName}' on server '${serverName}'.`)
+
+    console.log(
+      `[ToolManager] Permission required for tool '${originalToolName}' on server '${serverName}'.`
+    )
     return false
   }
 
@@ -361,10 +368,12 @@ export class ToolManager {
       const hasPermission = this.checkToolPermission(originalName, toolServerName, autoApprove)
 
       if (!hasPermission) {
-        console.warn(`Permission required for tool '${originalName}' on server '${toolServerName}'.`)
-        
+        console.warn(
+          `Permission required for tool '${originalName}' on server '${toolServerName}'.`
+        )
+
         const permissionType = this.determinePermissionType(originalName)
-        
+
         // Return permission request instead of error
         return {
           toolCallId: toolCall.id,
@@ -476,31 +485,40 @@ export class ToolManager {
   }
 
   // 权限管理方法
-  async grantPermission(serverName: string, permissionType: 'read' | 'write' | 'all', remember: boolean = true): Promise<void> {
-    console.log(`[ToolManager] Granting permission: ${permissionType} for server: ${serverName}, remember: ${remember}`)
-    
+  async grantPermission(
+    serverName: string,
+    permissionType: 'read' | 'write' | 'all',
+    remember: boolean = true
+  ): Promise<void> {
+    console.log(
+      `[ToolManager] Granting permission: ${permissionType} for server: ${serverName}, remember: ${remember}`
+    )
+
     // 默认总是记录权限到配置中
     await this.updateServerPermissions(serverName, permissionType)
   }
 
-  private async updateServerPermissions(serverName: string, permissionType: 'read' | 'write' | 'all'): Promise<void> {
+  private async updateServerPermissions(
+    serverName: string,
+    permissionType: 'read' | 'write' | 'all'
+  ): Promise<void> {
     try {
       console.log(`[ToolManager] Updating server ${serverName} permissions: ${permissionType}`)
       const servers = await this.configPresenter.getMcpServers()
       const serverConfig = servers[serverName]
-      
+
       if (serverConfig) {
         let autoApprove = [...(serverConfig.autoApprove || [])]
-        
+
         // If 'all' permission already exists, no need to add specific permissions
         if (autoApprove.includes('all')) {
           console.log(`Server ${serverName} already has 'all' permissions`)
           return
         }
-        
+
         // If requesting 'all' permission, remove specific permissions and add 'all'
         if (permissionType === 'all') {
-          autoApprove = autoApprove.filter(p => p !== 'read' && p !== 'write')
+          autoApprove = autoApprove.filter((p) => p !== 'read' && p !== 'write')
           autoApprove.push('all')
         } else {
           // Add the specific permission if not already present
@@ -508,22 +526,31 @@ export class ToolManager {
             autoApprove.push(permissionType)
           }
         }
-        
-        console.log(`[ToolManager] Before update - Server ${serverName} permissions:`, serverConfig.autoApprove || [])
+
+        console.log(
+          `[ToolManager] Before update - Server ${serverName} permissions:`,
+          serverConfig.autoApprove || []
+        )
         console.log(`[ToolManager] After update - Server ${serverName} permissions:`, autoApprove)
-        
+
         // Update server configuration
         await this.configPresenter.updateMcpServer(serverName, {
           ...serverConfig,
           autoApprove
         })
-        
-        console.log(`[ToolManager] Successfully updated server ${serverName} permissions to:`, autoApprove)
-        
+
+        console.log(
+          `[ToolManager] Successfully updated server ${serverName} permissions to:`,
+          autoApprove
+        )
+
         // Verify the update by reading back
         const updatedServers = await this.configPresenter.getMcpServers()
         const updatedConfig = updatedServers[serverName]
-        console.log(`[ToolManager] Verification - Server ${serverName} current permissions:`, updatedConfig?.autoApprove || [])
+        console.log(
+          `[ToolManager] Verification - Server ${serverName} current permissions:`,
+          updatedConfig?.autoApprove || []
+        )
       } else {
         console.error(`[ToolManager] Server configuration not found for: ${serverName}`)
       }

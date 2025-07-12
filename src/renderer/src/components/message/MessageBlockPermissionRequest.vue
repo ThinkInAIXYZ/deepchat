@@ -1,5 +1,5 @@
 <template>
-  <div 
+  <div
     class="permission-request-block border rounded-lg my-2 transition-all duration-300"
     :class="[
       block.extra?.needsUserAction && block.status === 'pending'
@@ -16,19 +16,24 @@
           {{ t('components.messageBlockPermissionRequest.title') }}
         </h3>
       </div>
-      
+
       <!-- Tool and server information -->
-      <div class="flex items-start gap-3 mb-3 p-3 bg-white dark:bg-gray-800 rounded-lg border border-amber-100 dark:border-amber-800">
+      <div
+        class="flex items-start gap-3 mb-3 p-3 bg-white dark:bg-gray-800 rounded-lg border border-amber-100 dark:border-amber-800"
+      >
         <div class="flex-shrink-0">
           <span
             v-if="block.tool_call?.server_icons"
             class="text-xl"
             :title="block.tool_call.server_name"
-          >{{ block.tool_call.server_icons }}</span>
+            >{{ block.tool_call.server_icons }}</span
+          >
           <Icon v-else icon="lucide:tool" class="w-6 h-6 text-gray-400" />
         </div>
         <div class="flex-1 min-w-0">
-          <h4 class="font-medium text-gray-900 dark:text-white text-sm">{{ block.tool_call?.name }}</h4>
+          <h4 class="font-medium text-gray-900 dark:text-white text-sm">
+            {{ block.tool_call?.name }}
+          </h4>
           <p class="text-xs text-gray-600 dark:text-gray-400">{{ block.tool_call?.server_name }}</p>
           <div class="flex items-center gap-2 mt-1">
             <Icon :icon="getPermissionIcon()" :class="['w-3 h-3', getPermissionIconClass()]" />
@@ -38,10 +43,10 @@
           </div>
         </div>
       </div>
-      
+
       <!-- Permission description -->
       <p class="text-xs text-gray-700 dark:text-gray-300 mb-3">{{ block.content }}</p>
-      
+
       <!-- Action area -->
       <div class="space-y-2">
         <!-- Remember choice option -->
@@ -52,14 +57,11 @@
             type="checkbox"
             class="h-3 w-3 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
           />
-          <label
-            for="remember"
-            class="text-xs text-gray-700 dark:text-gray-300 cursor-pointer"
-          >
+          <label for="remember" class="text-xs text-gray-700 dark:text-gray-300 cursor-pointer">
             {{ t('components.messageBlockPermissionRequest.rememberChoice') }}
           </label>
         </div>
-        
+
         <!-- Action buttons -->
         <div class="flex gap-2">
           <Button
@@ -85,7 +87,7 @@
         </div>
       </div>
     </div>
-    
+
     <!-- Collapsed view for completed requests -->
     <div v-else class="flex items-center justify-between">
       <div class="flex items-center gap-2">
@@ -93,25 +95,19 @@
           v-if="block.tool_call?.server_icons"
           class="text-sm"
           :title="block.tool_call.server_name"
-        >{{ block.tool_call.server_icons }}</span>
+          >{{ block.tool_call.server_icons }}</span
+        >
         <Icon v-else icon="lucide:tool" class="w-4 h-4 text-gray-400" />
         <span class="text-xs text-gray-600 dark:text-gray-400">
           {{ block.tool_call?.name }}
         </span>
         <Icon :icon="getPermissionIcon()" :class="['w-3 h-3', getPermissionIconClass()]" />
       </div>
-      
+
       <div class="flex items-center gap-1 text-xs">
-        <Icon 
-          :icon="block.status === 'granted' ? 'lucide:check-circle' : 'lucide:x-circle'" 
-          :class="['w-3 h-3', block.status === 'granted' ? 'text-green-500' : 'text-red-500']"
-        />
-        <span :class="block.status === 'granted' ? 'text-green-700 dark:text-green-400' : 'text-red-700 dark:text-red-400'">
-          {{ 
-            block.status === 'granted' 
-              ? t('components.messageBlockPermissionRequest.granted') 
-              : t('components.messageBlockPermissionRequest.denied') 
-          }}
+        <Icon :icon="getStatusIcon()" :class="['w-3 h-3', getStatusIconClass()]" />
+        <span :class="getStatusTextClass()">
+          {{ getStatusText() }}
         </span>
       </div>
     </div>
@@ -185,9 +181,61 @@ const getPermissionTypeText = () => {
   return t(`components.messageBlockPermissionRequest.type.${permissionType}`)
 }
 
+const getStatusIcon = () => {
+  switch (props.block.status) {
+    case 'granted':
+      return 'lucide:check-circle'
+    case 'denied':
+      return 'lucide:x-circle'
+    case 'error':
+      return 'lucide:alert-circle'
+    default:
+      return 'lucide:clock'
+  }
+}
+
+const getStatusIconClass = () => {
+  switch (props.block.status) {
+    case 'granted':
+      return 'text-green-500'
+    case 'denied':
+      return 'text-red-500'
+    case 'error':
+      return 'text-red-500'
+    default:
+      return 'text-gray-500'
+  }
+}
+
+const getStatusTextClass = () => {
+  switch (props.block.status) {
+    case 'granted':
+      return 'text-green-700 dark:text-green-400'
+    case 'denied':
+      return 'text-red-700 dark:text-red-400'
+    case 'error':
+      return 'text-red-700 dark:text-red-400'
+    default:
+      return 'text-gray-700 dark:text-gray-400'
+  }
+}
+
+const getStatusText = () => {
+  switch (props.block.status) {
+    case 'granted':
+      return t('components.messageBlockPermissionRequest.granted')
+    case 'denied':
+      return t('components.messageBlockPermissionRequest.denied')
+    case 'error':
+      return 'Error'
+    default:
+      return 'Pending'
+  }
+}
+
 const grantPermission = async () => {
   if (!props.block.tool_call?.id) return
-  
+
   isProcessing.value = true
   try {
     await threadPresenter.handlePermissionResponse(
@@ -206,7 +254,7 @@ const grantPermission = async () => {
 
 const denyPermission = async () => {
   if (!props.block.tool_call?.id) return
-  
+
   isProcessing.value = true
   try {
     await threadPresenter.handlePermissionResponse(

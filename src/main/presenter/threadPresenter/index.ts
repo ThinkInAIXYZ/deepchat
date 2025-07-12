@@ -127,15 +127,19 @@ export class ThreadPresenter implements IThreadPresenter {
     const { eventId, userStop } = msg
     const state = this.generatingMessages.get(eventId)
     if (state) {
-      console.log(`[ThreadPresenter] Handling LLM agent end for message: ${eventId}, userStop: ${userStop}`)
-      
+      console.log(
+        `[ThreadPresenter] Handling LLM agent end for message: ${eventId}, userStop: ${userStop}`
+      )
+
       // 检查是否有未处理的权限请求
       const hasPendingPermissions = state.message.content.some(
         (block) => block.type === 'tool_call_permission' && block.status === 'pending'
       )
-      
+
       if (hasPendingPermissions) {
-        console.log(`[ThreadPresenter] Message ${eventId} has pending permissions, keeping in generating state`)
+        console.log(
+          `[ThreadPresenter] Message ${eventId} has pending permissions, keeping in generating state`
+        )
         // 保持消息在generating状态，等待权限响应
         // 但是要更新非权限块为success状态
         state.message.content.forEach((block) => {
@@ -146,9 +150,9 @@ export class ThreadPresenter implements IThreadPresenter {
         await this.messageManager.editMessage(eventId, JSON.stringify(state.message.content))
         return
       }
-      
+
       console.log(`[ThreadPresenter] Finalizing message ${eventId} - no pending permissions`)
-      
+
       // 正常完成流程
       await this.finalizeMessage(state, eventId, userStop || false)
     }
@@ -157,12 +161,20 @@ export class ThreadPresenter implements IThreadPresenter {
   }
 
   // 完成消息的通用方法
-  private async finalizeMessage(state: GeneratingMessageState, eventId: string, userStop: boolean): Promise<void> {
-    // 将所有块设为success状态
+  private async finalizeMessage(
+    state: GeneratingMessageState,
+    eventId: string,
+    userStop: boolean
+  ): Promise<void> {
+    // 将所有块设为success状态，但保留权限块的状态
     state.message.content.forEach((block) => {
+      if (block.type === 'tool_call_permission') {
+        // 权限块保持其当前状态（granted/denied/error）
+        return
+      }
       block.status = 'success'
     })
-    
+
     // 计算completion tokens
     let completionTokens = 0
     if (state.totalUsage) {
@@ -244,7 +256,7 @@ export class ThreadPresenter implements IThreadPresenter {
   private async handleConversationUpdates(state: GeneratingMessageState): Promise<void> {
     const conversation = await this.sqlitePresenter.getConversation(state.conversationId)
     let titleUpdated = false
-    
+
     if (conversation.is_new === 1) {
       try {
         this.summaryTitles(undefined, state.conversationId).then((title) => {
@@ -299,6 +311,10 @@ export class ThreadPresenter implements IThreadPresenter {
             ? state.message.content[state.message.content.length - 1]
             : undefined
         if (lastBlock) {
+          if (lastBlock.type === 'tool_call_permission'&& lastBlock.status === 'pending') {
+            lastBlock.status = 'granted'
+            return
+          }
           // 只有当上一个块不是一个正在等待结果的工具调用时，才将其标记为成功
           if (!(lastBlock.type === 'tool_call' && lastBlock.status === 'loading')) {
             lastBlock.status = 'success'
@@ -361,7 +377,8 @@ export class ThreadPresenter implements IThreadPresenter {
         try {
           // 检查返回的内容中是否有deepchat-webpage类型的资源
           // 确保content是数组才调用some方法
-          const hasSearchResults = Array.isArray(tool_call_response_raw.content) && 
+          const hasSearchResults =
+            Array.isArray(tool_call_response_raw.content) &&
             tool_call_response_raw.content.some(
               (item: { type: string; resource?: { mimeType: string } }) =>
                 item?.type === 'resource' &&
@@ -504,13 +521,16 @@ export class ThreadPresenter implements IThreadPresenter {
         } else if (tool_call === 'permission-required') {
           // 处理权限请求：创建权限请求块
           // 注意：不调用finalizeLastBlock，因为工具调用还没有完成，在等待权限
-          
+
           // 从 msg 中获取权限请求信息
           const { permission_request } = msg
-          
+
           state.message.content.push({
             type: 'tool_call_permission',
-            content: typeof tool_call_response === 'string' ? tool_call_response : 'Permission required for this operation',
+            content:
+              typeof tool_call_response === 'string'
+                ? tool_call_response
+                : 'Permission required for this operation',
             status: 'pending',
             timestamp: currentTime,
             tool_call: {
@@ -1659,16 +1679,31 @@ export class ThreadPresenter implements IThreadPresenter {
     const conversation = await this.getConversation(conversationId)
     let contextMessages: Message[] = []
     let userMessage: Message | null = null
+
     if (queryMsgId) {
       // 处理指定消息ID的情况
       const queryMessage = await this.getMessage(queryMsgId)
-      if (!queryMessage || !queryMessage.parentId) {
+      if (!queryMessage) {
         throw new Error('找不到指定的消息')
       }
-      userMessage = await this.getMessage(queryMessage.parentId)
-      if (!userMessage) {
-        throw new Error('找不到触发消息')
+
+      // 修复：根据消息类型确定如何获取用户消息
+      if (queryMessage.role === 'user') {
+        // 如果 queryMessage 就是用户消息，直接使用
+        userMessage = queryMessage
+      } else if (queryMessage.role === 'assistant') {
+        // 如果 queryMessage 是助手消息，获取它的 parentId（用户消息）
+        if (!queryMessage.parentId) {
+          throw new Error('助手消息缺少 parentId')
+        }
+        userMessage = await this.getMessage(queryMessage.parentId)
+        if (!userMessage) {
+          throw new Error('找不到触发消息')
+        }
+      } else {
+        throw new Error('不支持的消息类型')
       }
+
       contextMessages = await this.getMessageHistory(
         userMessage.id,
         conversation.settings.contextLength
@@ -2729,26 +2764,38 @@ export class ThreadPresenter implements IThreadPresenter {
       permissionType,
       remember
     })
-    
+
     try {
       // 1. 获取消息并更新权限块状态
       const message = await this.messageManager.getMessage(messageId)
       if (!message || message.role !== 'assistant') {
-        throw new Error('Message not found or not an assistant message')
+        const errorMsg = `Message not found or not an assistant message (messageId: ${messageId})`
+        console.error(`[ThreadPresenter] ${errorMsg}`)
+        throw new Error(errorMsg)
       }
-      
+
       const content = message.content as AssistantMessageBlock[]
       const permissionBlock = content.find(
-        block => block.type === 'tool_call_permission' && 
-                 block.tool_call?.id === toolCallId
+        (block) => block.type === 'tool_call_permission' && block.tool_call?.id === toolCallId
       )
-      
+
       if (!permissionBlock) {
-        throw new Error('Permission block not found')
+        const errorMsg = `Permission block not found (messageId: ${messageId}, toolCallId: ${toolCallId})`
+        console.error(`[ThreadPresenter] ${errorMsg}`)
+        console.error(
+          `[ThreadPresenter] Available blocks:`,
+          content.map((block) => ({
+            type: block.type,
+            toolCallId: block.tool_call?.id
+          }))
+        )
+        throw new Error(errorMsg)
       }
-      
-      console.log(`[ThreadPresenter] Found permission block for tool: ${permissionBlock.tool_call?.name}`)
-      
+
+      console.log(
+        `[ThreadPresenter] Found permission block for tool: ${permissionBlock.tool_call?.name}`
+      )
+
       // 2. 更新权限块状态
       permissionBlock.status = granted ? 'granted' : 'denied'
       if (permissionBlock.extra) {
@@ -2757,67 +2804,129 @@ export class ThreadPresenter implements IThreadPresenter {
           permissionBlock.extra.grantedPermissions = permissionType
         }
       }
-      
+
       // 3. 保存消息更新
       await this.messageManager.editMessage(messageId, JSON.stringify(content))
-      
+      console.log(`[ThreadPresenter] Updated permission block status to: ${permissionBlock.status}`)
+
       if (granted) {
-        // 4. 【关键修复】先完成权限授予，等待MCP服务稳定，再重启agent loop
+        // 4. 权限授予流程
         const serverName = permissionBlock?.extra?.serverName as string
-        if (serverName) {
-          console.log(`[ThreadPresenter] Granting permission: ${permissionType} for server: ${serverName}`)
-          console.log(`[ThreadPresenter] Waiting for permission configuration to complete before restarting agent loop...`)
-          
+        if (!serverName) {
+          const errorMsg = `Server name not found in permission block (messageId: ${messageId})`
+          console.error(`[ThreadPresenter] ${errorMsg}`)
+          throw new Error(errorMsg)
+        }
+
+        console.log(
+          `[ThreadPresenter] Granting permission: ${permissionType} for server: ${serverName}`
+        )
+        console.log(
+          `[ThreadPresenter] Waiting for permission configuration to complete before restarting agent loop...`
+        )
+
+        try {
           // 等待权限配置完成
           await presenter.mcpPresenter.grantPermission(serverName, permissionType, remember)
-          
+          console.log(`[ThreadPresenter] Permission granted successfully`)
+
           // 等待MCP服务重启完成
-          console.log(`[ThreadPresenter] Permission configuration completed, waiting for MCP service restart...`)
+          console.log(
+            `[ThreadPresenter] Permission configuration completed, waiting for MCP service restart...`
+          )
           await this.waitForMcpServiceReady(serverName)
-          
-          console.log(`[ThreadPresenter] MCP service ready, now restarting agent loop for message: ${messageId}`)
+
+          console.log(
+            `[ThreadPresenter] MCP service ready, now restarting agent loop for message: ${messageId}`
+          )
+        } catch (permissionError) {
+          console.error(`[ThreadPresenter] Failed to grant permission:`, permissionError)
+          // 权限授予失败，将状态更新为错误
+          permissionBlock.status = 'error'
+          await this.messageManager.editMessage(messageId, JSON.stringify(content))
+          throw permissionError
         }
-        
+
         // 5. 现在重启agent loop
         await this.restartAgentLoopAfterPermission(messageId)
       } else {
-        console.log(`[ThreadPresenter] Permission denied, ending generation for message: ${messageId}`)
+        console.log(
+          `[ThreadPresenter] Permission denied, ending generation for message: ${messageId}`
+        )
         // 6. 权限被拒绝 - 正常结束消息
         await this.finalizeMessageAfterPermissionDenied(messageId)
       }
     } catch (error) {
       console.error(`[ThreadPresenter] Failed to handle permission response:`, error)
+
+      // 确保消息状态正确更新
+      try {
+        const message = await this.messageManager.getMessage(messageId)
+        if (message) {
+          await this.messageManager.handleMessageError(messageId, String(error))
+        }
+      } catch (updateError) {
+        console.error(`[ThreadPresenter] Failed to update message error status:`, updateError)
+      }
+
       throw error
     }
   }
 
   // 重新启动agent loop (权限授予后)
   private async restartAgentLoopAfterPermission(messageId: string): Promise<void> {
-    console.log(`[ThreadPresenter] Restarting agent loop after permission for message: ${messageId}`)
-    
+    console.log(
+      `[ThreadPresenter] Restarting agent loop after permission for message: ${messageId}`
+    )
+
     try {
       // 获取消息和会话信息
       const message = await this.messageManager.getMessage(messageId)
       if (!message) {
-        throw new Error('Message not found')
+        const errorMsg = `Message not found (messageId: ${messageId})`
+        console.error(`[ThreadPresenter] ${errorMsg}`)
+        throw new Error(errorMsg)
       }
-      
+
       const conversationId = message.conversationId
-      
+      console.log(`[ThreadPresenter] Found message in conversation: ${conversationId}`)
+
       // 验证权限是否生效 - 获取最新的服务器配置
       const content = message.content as AssistantMessageBlock[]
-      const permissionBlock = content.find(block => 
-        block.type === 'tool_call_permission' && 
-        block.status === 'granted'
+      const permissionBlock = content.find(
+        (block) => block.type === 'tool_call_permission' && block.status === 'granted'
       )
-      
-      if (permissionBlock?.extra?.serverName) {
-        console.log(`[ThreadPresenter] Verifying permission is active for server: ${permissionBlock.extra.serverName}`)
-        const servers = await this.configPresenter.getMcpServers()
-        const serverConfig = servers[permissionBlock.extra.serverName as string]
-        console.log(`[ThreadPresenter] Current server permissions:`, serverConfig?.autoApprove || [])
+
+      if (!permissionBlock) {
+        const errorMsg = `No granted permission block found (messageId: ${messageId})`
+        console.error(`[ThreadPresenter] ${errorMsg}`)
+        console.error(
+          `[ThreadPresenter] Available blocks:`,
+          content.map((block) => ({
+            type: block.type,
+            status: block.status,
+            toolCallId: block.tool_call?.id
+          }))
+        )
+        throw new Error(errorMsg)
       }
-      
+
+      if (permissionBlock?.extra?.serverName) {
+        console.log(
+          `[ThreadPresenter] Verifying permission is active for server: ${permissionBlock.extra.serverName}`
+        )
+        try {
+          const servers = await this.configPresenter.getMcpServers()
+          const serverConfig = servers[permissionBlock.extra.serverName as string]
+          console.log(
+            `[ThreadPresenter] Current server permissions:`,
+            serverConfig?.autoApprove || []
+          )
+        } catch (configError) {
+          console.warn(`[ThreadPresenter] Failed to verify server permissions:`, configError)
+        }
+      }
+
       // 如果消息还在generating状态，直接继续
       const state = this.generatingMessages.get(messageId)
       if (state) {
@@ -2825,13 +2934,13 @@ export class ThreadPresenter implements IThreadPresenter {
         await this.resumeStreamCompletion(conversationId, messageId)
         return
       }
-      
+
       // 否则重新启动完整的agent loop
       console.log(`[ThreadPresenter] Message not in generating state, starting fresh agent loop`)
-      
+
       // 重新创建生成状态
       const assistantMessage = message as AssistantMessage
-      
+
       this.generatingMessages.set(messageId, {
         message: assistantMessage,
         conversationId,
@@ -2842,33 +2951,48 @@ export class ThreadPresenter implements IThreadPresenter {
         reasoningEndTime: null,
         lastReasoningTime: null
       })
-      
+
+      console.log(`[ThreadPresenter] Created new generating state for message: ${messageId}`)
+
       // 启动新的流式完成
-      await this.startStreamCompletion(conversationId, message.parentId)
-      
+      await this.startStreamCompletion(conversationId, messageId)
     } catch (error) {
       console.error(`[ThreadPresenter] Failed to restart agent loop:`, error)
-      await this.messageManager.handleMessageError(messageId, String(error))
+
+      // 确保清理生成状态
+      this.generatingMessages.delete(messageId)
+
+      try {
+        await this.messageManager.handleMessageError(messageId, String(error))
+      } catch (updateError) {
+        console.error(`[ThreadPresenter] Failed to update message error status:`, updateError)
+      }
+
+      throw error
     }
   }
 
   // 权限被拒绝后完成消息
   private async finalizeMessageAfterPermissionDenied(messageId: string): Promise<void> {
     console.log(`[ThreadPresenter] Finalizing message after permission denied: ${messageId}`)
-    
+
     try {
       const message = await this.messageManager.getMessage(messageId)
       if (!message) return
-      
+
       const content = message.content as AssistantMessageBlock[]
-      
-      // 将所有loading状态的块设为success
+
+      // 将所有loading状态的块设为success，但保留权限块的状态
       content.forEach((block) => {
+        if (block.type === 'tool_call_permission') {
+          // 权限块保持其当前状态（granted/denied/error）
+          return
+        }
         if (block.status === 'loading') {
           block.status = 'success'
         }
       })
-      
+
       // 添加权限被拒绝的提示
       content.push({
         type: 'error',
@@ -2876,21 +3000,20 @@ export class ThreadPresenter implements IThreadPresenter {
         status: 'error',
         timestamp: Date.now()
       })
-      
+
       await this.messageManager.editMessage(messageId, JSON.stringify(content))
       await this.messageManager.updateMessageStatus(messageId, 'sent')
-      
+
       // 清理生成状态
       this.generatingMessages.delete(messageId)
-      
+
       // 发送结束事件
       eventBus.sendToRenderer(STREAM_EVENTS.END, SendTarget.ALL_WINDOWS, {
         eventId: messageId,
         userStop: false
       })
-      
+
       console.log(`[ThreadPresenter] Message finalized after permission denial: ${messageId}`)
-      
     } catch (error) {
       console.error(`[ThreadPresenter] Failed to finalize message after permission denial:`, error)
     }
@@ -2900,37 +3023,59 @@ export class ThreadPresenter implements IThreadPresenter {
   private async resumeStreamCompletion(conversationId: string, messageId: string): Promise<void> {
     const state = this.generatingMessages.get(messageId)
     if (!state) {
-      console.log(`[ThreadPresenter] No generating state found for ${messageId}, starting fresh agent loop`)
+      console.log(
+        `[ThreadPresenter] No generating state found for ${messageId}, starting fresh agent loop`
+      )
       await this.startStreamCompletion(conversationId)
       return
     }
 
     try {
       console.log(`[ThreadPresenter] Resuming stream completion for message: ${messageId}`)
-      
+
       // 关键修复：重新构建上下文，确保包含被中断的工具调用信息
       const conversation = await this.getConversation(conversationId)
+      if (!conversation) {
+        const errorMsg = `Conversation not found (conversationId: ${conversationId})`
+        console.error(`[ThreadPresenter] ${errorMsg}`)
+        throw new Error(errorMsg)
+      }
+
       const { providerId, modelId, temperature, maxTokens } = conversation.settings
       const modelConfig = this.configPresenter.getModelConfig(modelId, providerId)
-      
+
+      if (!modelConfig) {
+        console.warn(
+          `[ThreadPresenter] Model config not found for ${modelId} (${providerId}), using default`
+        )
+      }
+
       // 查找被权限中断的工具调用
       const pendingToolCall = this.findPendingToolCallAfterPermission(state.message.content)
-      
+
       if (!pendingToolCall) {
-        console.warn(`[ThreadPresenter] No pending tool call found after permission grant, using normal context`)
+        console.warn(
+          `[ThreadPresenter] No pending tool call found after permission grant, using normal context`
+        )
         // 如果没有找到待执行的工具调用，使用正常流程
-        await this.startStreamCompletion(conversationId, state.message.parentId)
+        await this.startStreamCompletion(conversationId, messageId)
         return
       }
-      
-      console.log(`[ThreadPresenter] Found pending tool call: ${pendingToolCall.name} with ID: ${pendingToolCall.id}`)
-      
-      // 获取对话上下文（基于原始用户消息）
+
+      console.log(
+        `[ThreadPresenter] Found pending tool call: ${pendingToolCall.name} with ID: ${pendingToolCall.id}`
+      )
+
+      // 获取对话上下文（基于助手消息，它会自动找到相应的用户消息）
       const { contextMessages, userMessage } = await this.prepareConversationContext(
         conversationId,
-        state.message.parentId // 使用原始用户消息而不是助手消息
+        messageId // 使用助手消息ID，让prepareConversationContext自动解析
       )
-      
+
+      console.log(
+        `[ThreadPresenter] Prepared conversation context with ${contextMessages.length} messages`
+      )
+
       // 构建专门的继续执行上下文
       const finalContent = await this.buildContinueToolCallContext(
         conversation,
@@ -2939,7 +3084,7 @@ export class ThreadPresenter implements IThreadPresenter {
         pendingToolCall,
         modelConfig
       )
-      
+
       console.log(`[ThreadPresenter] Built continue context for tool: ${pendingToolCall.name}`)
 
       // Continue the agent loop with the correct context
@@ -2964,23 +3109,36 @@ export class ThreadPresenter implements IThreadPresenter {
       }
     } catch (error) {
       console.error('[ThreadPresenter] Failed to resume stream completion:', error)
-      await this.messageManager.handleMessageError(messageId, String(error))
+
+      // 确保清理生成状态
+      this.generatingMessages.delete(messageId)
+
+      try {
+        await this.messageManager.handleMessageError(messageId, String(error))
+      } catch (updateError) {
+        console.error(`[ThreadPresenter] Failed to update message error status:`, updateError)
+      }
+
+      throw error
     }
   }
 
   // 等待MCP服务重启完成并准备就绪
-  private async waitForMcpServiceReady(serverName: string, maxWaitTime: number = 3000): Promise<void> {
+  private async waitForMcpServiceReady(
+    serverName: string,
+    maxWaitTime: number = 3000
+  ): Promise<void> {
     console.log(`[ThreadPresenter] Waiting for MCP service ${serverName} to be ready...`)
-    
+
     const startTime = Date.now()
     const checkInterval = 100 // 100ms
-    
+
     return new Promise((resolve) => {
       const checkReady = async () => {
         try {
           // 检查服务是否正在运行
           const isRunning = await presenter.mcpPresenter.isServerRunning(serverName)
-          
+
           if (isRunning) {
             // 服务正在运行，再等待一下确保完全初始化
             setTimeout(() => {
@@ -2989,47 +3147,53 @@ export class ThreadPresenter implements IThreadPresenter {
             }, 200)
             return
           }
-          
+
           // 检查是否超时
           if (Date.now() - startTime > maxWaitTime) {
-            console.warn(`[ThreadPresenter] Timeout waiting for MCP service ${serverName} to be ready`)
+            console.warn(
+              `[ThreadPresenter] Timeout waiting for MCP service ${serverName} to be ready`
+            )
             resolve() // 超时也继续，避免阻塞
             return
           }
-          
+
           // 继续等待
           setTimeout(checkReady, checkInterval)
-          
         } catch (error) {
           console.error(`[ThreadPresenter] Error checking MCP service status:`, error)
           resolve() // 出错也继续，避免阻塞
         }
       }
-      
+
       checkReady()
     })
   }
 
   // 查找权限授予后待执行的工具调用
-  private findPendingToolCallAfterPermission(content: AssistantMessageBlock[]): { id: string; name: string; params: string } | null {
+  private findPendingToolCallAfterPermission(
+    content: AssistantMessageBlock[]
+  ): { id: string; name: string; params: string } | null {
     // 查找已授权的权限块
     const grantedPermissionBlock = content.find(
-      block => block.type === 'tool_call_permission' && block.status === 'granted'
+      (block) => block.type === 'tool_call_permission' && block.status === 'granted'
     )
-    
+
     if (!grantedPermissionBlock?.tool_call) {
       return null
     }
-    
+
     const { id, name, params } = grantedPermissionBlock.tool_call
     if (!id || !name || !params) {
-      console.warn(`[ThreadPresenter] Incomplete tool call info in permission block:`, grantedPermissionBlock.tool_call)
+      console.warn(
+        `[ThreadPresenter] Incomplete tool call info in permission block:`,
+        grantedPermissionBlock.tool_call
+      )
       return null
     }
-    
+
     return { id, name, params }
   }
-  
+
   // 构建继续工具调用执行的上下文
   private async buildContinueToolCallContext(
     conversation: any,
@@ -3040,7 +3204,7 @@ export class ThreadPresenter implements IThreadPresenter {
   ): Promise<ChatMessage[]> {
     const { systemPrompt } = conversation.settings
     const formattedMessages: ChatMessage[] = []
-    
+
     // 1. 添加系统提示
     if (systemPrompt) {
       formattedMessages.push({
@@ -3048,38 +3212,44 @@ export class ThreadPresenter implements IThreadPresenter {
         content: systemPrompt
       })
     }
-    
+
     // 2. 添加上下文消息
-    const contextChatMessages = this.addContextMessages(contextMessages, false, modelConfig.functionCall)
+    const contextChatMessages = this.addContextMessages(
+      contextMessages,
+      false,
+      modelConfig.functionCall
+    )
     formattedMessages.push(...contextChatMessages)
-    
+
     // 3. 添加当前用户消息
     const userContent = userMessage.content
     const msgText = userContent.content
       ? this.formatUserMessageContent(userContent.content)
       : userContent.text
     const finalUserContent = `${msgText}${getFileContext(userContent.files || [])}`
-    
+
     formattedMessages.push({
       role: 'user',
       content: finalUserContent
     })
-    
+
     // 4. 添加助手消息，说明需要执行工具调用
     if (modelConfig.functionCall) {
       // 对于原生支持函数调用的模型，添加tool_calls
       formattedMessages.push({
         role: 'assistant',
-        tool_calls: [{
-          id: pendingToolCall.id,
-          type: 'function',
-          function: {
-            name: pendingToolCall.name,
-            arguments: pendingToolCall.params
+        tool_calls: [
+          {
+            id: pendingToolCall.id,
+            type: 'function',
+            function: {
+              name: pendingToolCall.name,
+              arguments: pendingToolCall.params
+            }
           }
-        }]
+        ]
       })
-      
+
       // 添加一个虚拟的工具响应，说明权限已经授予
       formattedMessages.push({
         role: 'tool',
@@ -3092,13 +3262,13 @@ export class ThreadPresenter implements IThreadPresenter {
         role: 'assistant',
         content: `I need to call the ${pendingToolCall.name} function with the following parameters: ${pendingToolCall.params}`
       })
-      
+
       formattedMessages.push({
         role: 'user',
         content: `Permission has been granted for the ${pendingToolCall.name} function. Please proceed with the execution.`
       })
     }
-    
+
     return formattedMessages
   }
 }

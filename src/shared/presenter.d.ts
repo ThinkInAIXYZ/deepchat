@@ -626,7 +626,7 @@ export interface IThreadPresenter {
   continueStreamCompletion(conversationId: string, queryMsgId: string): Promise<AssistantMessage>
   toggleConversationPinned(conversationId: string, isPinned: boolean): Promise<void>
   findTabForConversation(conversationId: string): Promise<number | null>
-  
+
   // Permission handling
   handlePermissionResponse(
     messageId: string,
@@ -1007,7 +1007,7 @@ export interface IMCPPresenter {
   setMcpEnabled(enabled: boolean): Promise<void>
   getMcpEnabled(): Promise<boolean>
   resetToDefaultServers(): Promise<void>
-  
+
   // Permission management
   grantPermission(
     serverName: string,
@@ -1129,7 +1129,7 @@ export interface LLMAgentEventData {
 
   tool_call_response_raw?: any
   tool_call?: 'start' | 'running' | 'end' | 'error' | 'update' | 'permission-required'
-  
+
   // Permission request related fields
   permission_request?: {
     toolName: string
@@ -1137,7 +1137,7 @@ export interface LLMAgentEventData {
     permissionType: 'read' | 'write' | 'all'
     description: string
   }
-  
+
   totalUsage?: {
     prompt_tokens: number
     completion_tokens: number

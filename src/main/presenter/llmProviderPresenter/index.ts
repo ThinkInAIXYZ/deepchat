@@ -651,8 +651,10 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
 
                 // Check if permission is required
                 if (toolResponse.rawData.requiresPermission) {
-                  console.log(`[Agent Loop] Permission required for tool ${toolCall.name}, creating permission request`)
-                  
+                  console.log(
+                    `[Agent Loop] Permission required for tool ${toolCall.name}, creating permission request`
+                  )
+
                   // Yield permission request event
                   yield {
                     type: 'response',
@@ -669,9 +671,11 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
                       permission_request: toolResponse.rawData.permissionRequest
                     }
                   }
-                  
+
                   // End the agent loop here - permission handling will trigger a new agent loop
-                  console.log(`[Agent Loop] Ending agent loop for permission request, event: ${eventId}`)
+                  console.log(
+                    `[Agent Loop] Ending agent loop for permission request, event: ${eventId}`
+                  )
                   needContinueConversation = false
                   break
                 }
@@ -927,8 +931,10 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
           needContinueConversation = false // Stop loop on inner error
         }
       } // --- End of Agent Loop (while) ---
-      
-      console.log(`[Agent Loop] Agent loop completed for event: ${eventId}, iterations: ${toolCallCount}`)
+
+      console.log(
+        `[Agent Loop] Agent loop completed for event: ${eventId}, iterations: ${toolCallCount}`
+      )
     } catch (error) {
       // Catch errors from the generator setup phase (before the loop)
       if (abortController.signal.aborted) {
