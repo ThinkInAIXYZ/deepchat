@@ -150,7 +150,7 @@ export class ThreadPresenter implements IThreadPresenter {
       console.log(`[ThreadPresenter] Finalizing message ${eventId} - no pending permissions`)
       
       // 正常完成流程
-      await this.finalizeMessage(state, eventId, userStop)
+      await this.finalizeMessage(state, eventId, userStop || false)
     }
 
     eventBus.sendToRenderer(STREAM_EVENTS.END, SendTarget.ALL_WINDOWS, msg)
@@ -2830,7 +2830,6 @@ export class ThreadPresenter implements IThreadPresenter {
       console.log(`[ThreadPresenter] Message not in generating state, starting fresh agent loop`)
       
       // 重新创建生成状态
-      const conversation = await this.getConversation(conversationId)
       const assistantMessage = message as AssistantMessage
       
       this.generatingMessages.set(messageId, {
@@ -2976,7 +2975,7 @@ export class ThreadPresenter implements IThreadPresenter {
     const startTime = Date.now()
     const checkInterval = 100 // 100ms
     
-    return new Promise((resolve, reject) => {
+    return new Promise((resolve) => {
       const checkReady = async () => {
         try {
           // 检查服务是否正在运行
