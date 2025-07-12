@@ -311,7 +311,7 @@ export class ThreadPresenter implements IThreadPresenter {
             ? state.message.content[state.message.content.length - 1]
             : undefined
         if (lastBlock) {
-          if (lastBlock.type === 'tool_call_permission'&& lastBlock.status === 'pending') {
+          if (lastBlock.type === 'tool_call_permission' && lastBlock.status === 'pending') {
             lastBlock.status = 'granted'
             return
           }

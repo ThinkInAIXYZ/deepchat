@@ -7,7 +7,9 @@
     >
       <div class="flex flex-row items-center gap-2 w-full">
         <div class="flex-grow w-0 pl-2">
-          <h4 class="text-xs font-medium leading-none text-accent-foreground flex flex-row gap-2 items-center">
+          <h4
+            class="text-xs font-medium leading-none text-accent-foreground flex flex-row gap-2 items-center"
+          >
             <span v-if="block.tool_call?.server_icons" class="text-base leading-none">
               {{ block.tool_call.server_icons }}
             </span>
@@ -34,7 +36,11 @@
         <span v-if="block.tool_call?.server_icons" class="text-base">
           {{ block.tool_call.server_icons }}
         </span>
-        <Icon v-else icon="lucide:shield-alert" class="w-4 h-4 text-amber-600 dark:text-amber-400" />
+        <Icon
+          v-else
+          icon="lucide:shield-alert"
+          class="w-4 h-4 text-amber-600 dark:text-amber-400"
+        />
         <h4 class="text-xs font-medium text-accent-foreground">
           {{ block.tool_call?.name }}
         </h4>
@@ -143,11 +149,11 @@ const getPermissionTypeText = () => {
 const getStatusIcon = () => {
   switch (props.block.status) {
     case 'granted':
-      return 'lucide:check-circle'
+      return 'lucide:check'
     case 'denied':
-      return 'lucide:x-circle'
+      return 'lucide:x'
     case 'error':
-      return 'lucide:alert-circle'
+      return 'lucide:alert'
     default:
       return 'lucide:clock'
   }
@@ -166,18 +172,6 @@ const getStatusIconClass = () => {
   }
 }
 
-const getStatusTextClass = () => {
-  switch (props.block.status) {
-    case 'granted':
-      return 'text-green-700 dark:text-green-400'
-    case 'denied':
-      return 'text-red-700 dark:text-red-400'
-    case 'error':
-      return 'text-red-700 dark:text-red-400'
-    default:
-      return 'text-gray-700 dark:text-gray-400'
-  }
-}
 
 const getStatusText = () => {
   switch (props.block.status) {
@@ -231,5 +225,4 @@ const denyPermission = async () => {
 }
 </script>
 
-<style scoped>
-</style>
+<style scoped></style>
