@@ -1,5 +1,3 @@
-[![MseeP.ai Security Assessment Badge](https://mseep.net/pr/thinkinaixyz-deepchat-badge.png)](https://mseep.ai/app/thinkinaixyz-deepchat)
-
 <p align='center'>
 <img src='./build/icon.png' width="150" height="150" alt="DeepChat AI Assistant Icon" />
 </p>
