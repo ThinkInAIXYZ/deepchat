@@ -25,10 +25,17 @@ export class ToolManager {
     this.configPresenter = configPresenter
     this.serverManager = serverManager
     eventBus.on(MCP_EVENTS.CLIENT_LIST_UPDATED, this.handleServerListUpdate)
+    eventBus.on(MCP_EVENTS.CONFIG_CHANGED, this.handleConfigChange)
   }
 
   private handleServerListUpdate = (): void => {
     console.info('MCP client list updated, clearing tool definitions cache and target map.')
+    this.cachedToolDefinitions = null
+    this.toolNameToTargetMap = null
+  }
+
+  private handleConfigChange = (): void => {
+    console.info('MCP configuration changed, clearing cached data.')
     this.cachedToolDefinitions = null
     this.toolNameToTargetMap = null
   }
@@ -478,6 +485,7 @@ export class ToolManager {
 
   private async updateServerPermissions(serverName: string, permissionType: 'read' | 'write' | 'all'): Promise<void> {
     try {
+      console.log(`[ToolManager] Updating server ${serverName} permissions: ${permissionType}`)
       const servers = await this.configPresenter.getMcpServers()
       const serverConfig = servers[serverName]
       
@@ -501,20 +509,31 @@ export class ToolManager {
           }
         }
         
+        console.log(`[ToolManager] Before update - Server ${serverName} permissions:`, serverConfig.autoApprove || [])
+        console.log(`[ToolManager] After update - Server ${serverName} permissions:`, autoApprove)
+        
         // Update server configuration
         await this.configPresenter.updateMcpServer(serverName, {
           ...serverConfig,
           autoApprove
         })
         
-        console.log(`Updated server ${serverName} permissions to:`, autoApprove)
+        console.log(`[ToolManager] Successfully updated server ${serverName} permissions to:`, autoApprove)
+        
+        // Verify the update by reading back
+        const updatedServers = await this.configPresenter.getMcpServers()
+        const updatedConfig = updatedServers[serverName]
+        console.log(`[ToolManager] Verification - Server ${serverName} current permissions:`, updatedConfig?.autoApprove || [])
+      } else {
+        console.error(`[ToolManager] Server configuration not found for: ${serverName}`)
       }
     } catch (error) {
-      console.error('Failed to update server permissions:', error)
+      console.error('[ToolManager] Failed to update server permissions:', error)
     }
   }
 
   public destroy(): void {
     eventBus.off(MCP_EVENTS.CLIENT_LIST_UPDATED, this.handleServerListUpdate)
+    eventBus.off(MCP_EVENTS.CONFIG_CHANGED, this.handleConfigChange)
   }
 }
