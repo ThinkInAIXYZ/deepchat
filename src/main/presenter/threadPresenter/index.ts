@@ -2682,4 +2682,187 @@ export class ThreadPresenter implements IThreadPresenter {
       finalGroupedList
     )
   }
+
+  // 权限响应处理方法
+  async handlePermissionResponse(
+    messageId: string,
+    toolCallId: string,
+    granted: boolean,
+    permissionType: 'read' | 'write' | 'all',
+    remember: boolean = false
+  ): Promise<void> {
+    const state = this.generatingMessages.get(messageId)
+    if (!state) {
+      throw new Error('Message not found or not in generating state')
+    }
+
+    // Update the permission block
+    const permissionBlock = state.message.content.find(
+      block => block.type === 'tool_call_permission' && 
+               block.tool_call?.id === toolCallId
+    )
+
+    if (permissionBlock) {
+      permissionBlock.status = granted ? 'granted' : 'denied'
+      if (permissionBlock.extra) {
+        permissionBlock.extra.needsUserAction = false
+        if (granted) {
+          permissionBlock.extra.grantedPermissions = [permissionType]
+        }
+      }
+      
+      await this.messageManager.editMessage(messageId, JSON.stringify(state.message.content))
+    }
+
+    if (granted) {
+      // Grant permission in ToolManager
+      const serverName = permissionBlock?.extra?.serverName as string
+      if (serverName) {
+        await presenter.mcpPresenter.grantPermission(serverName, permissionType, remember)
+      }
+      
+      // Continue the agent loop
+      await this.continueWithPermission(messageId, toolCallId)
+    } else {
+      // Permission denied - end the generation for this message
+      this.generatingMessages.delete(messageId)
+      
+      // Send final usage info and end event
+      if (state.totalUsage) {
+        eventBus.sendToRenderer(STREAM_EVENTS.RESPONSE, SendTarget.ALL_WINDOWS, {
+          eventId: messageId,
+          totalUsage: state.totalUsage
+        })
+      }
+      
+      eventBus.sendToRenderer(STREAM_EVENTS.END, SendTarget.ALL_WINDOWS, {
+        eventId: messageId,
+        userStop: false
+      })
+    }
+  }
+
+  private async continueWithPermission(messageId: string, toolCallId: string): Promise<void> {
+    const state = this.generatingMessages.get(messageId)
+    if (!state) return
+
+    // Find the tool call that needs to be re-executed
+    const permissionBlock = state.message.content.find(
+      block => block.type === 'tool_call_permission' && 
+               block.tool_call?.id === toolCallId
+    )
+
+    if (!permissionBlock?.tool_call) return
+
+    // Re-execute the tool call
+    try {
+      const mcpToolInput: MCPToolCall = {
+        id: permissionBlock.tool_call.id!,
+        type: 'function',
+        function: {
+          name: permissionBlock.tool_call.name!,
+          arguments: permissionBlock.tool_call.params!
+        },
+        server: {
+          name: permissionBlock.tool_call.server_name!,
+          icons: permissionBlock.tool_call.server_icons!,
+          description: permissionBlock.tool_call.server_description!
+        }
+      }
+
+      const toolResponse = await presenter.mcpPresenter.callTool(mcpToolInput)
+
+      // Send tool execution start event
+      eventBus.sendToRenderer(STREAM_EVENTS.RESPONSE, SendTarget.ALL_WINDOWS, {
+        eventId: messageId,
+        tool_call: 'running',
+        tool_call_id: toolCallId,
+        tool_call_name: permissionBlock.tool_call.name,
+        tool_call_params: permissionBlock.tool_call.params,
+        tool_call_server_name: permissionBlock.tool_call.server_name,
+        tool_call_server_icons: permissionBlock.tool_call.server_icons,
+        tool_call_server_description: permissionBlock.tool_call.server_description
+      })
+
+      // Send tool result
+      eventBus.sendToRenderer(STREAM_EVENTS.RESPONSE, SendTarget.ALL_WINDOWS, {
+        eventId: messageId,
+        tool_call: 'end',
+        tool_call_id: toolCallId,
+        tool_call_name: permissionBlock.tool_call.name,
+        tool_call_response: typeof toolResponse.content === 'string' 
+          ? toolResponse.content 
+          : JSON.stringify(toolResponse.content),
+        tool_call_response_raw: toolResponse
+      })
+
+      // Resume agent loop by restarting stream completion
+      await this.resumeStreamCompletion(state.conversationId, messageId)
+      
+    } catch (error) {
+      console.error('Failed to continue with permission:', error)
+      
+      // Send error event
+      eventBus.sendToRenderer(STREAM_EVENTS.RESPONSE, SendTarget.ALL_WINDOWS, {
+        eventId: messageId,
+        tool_call: 'error',
+        tool_call_id: toolCallId,
+        tool_call_name: permissionBlock.tool_call?.name || 'unknown',
+        tool_call_response: `Failed to execute tool: ${error instanceof Error ? error.message : String(error)}`
+      })
+    }
+  }
+
+  private async resumeStreamCompletion(conversationId: string, messageId: string): Promise<void> {
+    const state = this.generatingMessages.get(messageId)
+    if (!state) return
+
+    try {
+      // Get conversation and context for resuming
+      const { conversation, contextMessages, userMessage } = await this.prepareConversationContext(
+        conversationId,
+        messageId
+      )
+
+      const { providerId, modelId, temperature, maxTokens } = conversation.settings
+      const modelConfig = this.configPresenter.getModelConfig(modelId, providerId)
+
+      // Prepare the prompt content with all the context including the tool result
+      const { finalContent } = await this.preparePromptContent(
+        conversation,
+        'continue',
+        contextMessages,
+        null,
+        [],
+        userMessage,
+        false,
+        [],
+        modelConfig.functionCall
+      )
+
+      // Continue the agent loop
+      const stream = this.llmProviderPresenter.startStreamCompletion(
+        providerId,
+        finalContent,
+        modelId,
+        messageId,
+        temperature,
+        maxTokens
+      )
+
+      for await (const event of stream) {
+        const msg = event.data
+        if (event.type === 'response') {
+          await this.handleLLMAgentResponse(msg)
+        } else if (event.type === 'error') {
+          await this.handleLLMAgentError(msg)
+        } else if (event.type === 'end') {
+          await this.handleLLMAgentEnd(msg)
+        }
+      }
+    } catch (error) {
+      console.error('Failed to resume stream completion:', error)
+      await this.messageManager.handleMessageError(messageId, String(error))
+    }
+  }
 }

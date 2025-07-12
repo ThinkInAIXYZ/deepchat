@@ -626,6 +626,15 @@ export interface IThreadPresenter {
   continueStreamCompletion(conversationId: string, queryMsgId: string): Promise<AssistantMessage>
   toggleConversationPinned(conversationId: string, isPinned: boolean): Promise<void>
   findTabForConversation(conversationId: string): Promise<number | null>
+  
+  // Permission handling
+  handlePermissionResponse(
+    messageId: string,
+    toolCallId: string,
+    granted: boolean,
+    permissionType: 'read' | 'write' | 'all',
+    remember?: boolean
+  ): Promise<void>
 }
 
 export type MESSAGE_STATUS = 'sent' | 'pending' | 'error'
@@ -998,6 +1007,13 @@ export interface IMCPPresenter {
   setMcpEnabled(enabled: boolean): Promise<void>
   getMcpEnabled(): Promise<boolean>
   resetToDefaultServers(): Promise<void>
+  
+  // Permission management
+  grantPermission(
+    serverName: string,
+    permissionType: 'read' | 'write' | 'all',
+    remember?: boolean
+  ): Promise<void>
 }
 
 export interface IDeeplinkPresenter {
