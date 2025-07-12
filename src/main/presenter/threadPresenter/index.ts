@@ -128,6 +128,42 @@ export class ThreadPresenter implements IThreadPresenter {
     const { eventId, userStop } = msg
     const state = this.generatingMessages.get(eventId)
     if (state) {
+      // Check if there are any pending permission requests
+      const hasPendingPermissions = state.message.content.some(
+        (block) => block.type === 'tool_call_permission' && block.status === 'pending'
+      )
+      
+      // If there are pending permissions, don't finalize the message yet
+      if (hasPendingPermissions) {
+        // Update only non-permission blocks to success
+        // Keep tool_call blocks loading if they have associated permission requests
+        state.message.content.forEach((block) => {
+          if (block.type === 'tool_call_permission' && block.status === 'pending') {
+            // Keep permission blocks pending
+            return
+          }
+          if (block.type === 'tool_call') {
+            // Check if this tool call has an associated permission request
+            const hasAssociatedPermission = state.message.content.some(
+              (permBlock) =>
+                permBlock.type === 'tool_call_permission' &&
+                permBlock.status === 'pending' &&
+                permBlock.tool_call?.id === block.tool_call?.id
+            )
+            if (hasAssociatedPermission) {
+              // Keep this tool call loading
+              return
+            }
+          }
+          // Set other blocks to success
+          block.status = 'success'
+        })
+        // Don't delete from generatingMessages yet - keep it for permission handling
+        await this.messageManager.editMessage(eventId, JSON.stringify(state.message.content))
+        return
+      }
+      
+      // Normal completion flow when no pending permissions
       state.message.content.forEach((block) => {
         block.status = 'success'
       })
