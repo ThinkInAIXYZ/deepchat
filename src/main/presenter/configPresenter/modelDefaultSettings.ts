@@ -1590,6 +1590,17 @@ export const defaultModelsSettings: DefaultModelSetting[] = [
     functionCall: true,
     reasoning: false
   },
+  {
+    id: 'kimi-k2-0711-preview',
+    name: 'Kimi K2 Preview',
+    temperature: 0.7,
+    maxTokens: 12800,
+    contextLength: 131072,
+    match: ['kimi-k2-0711-preview', 'kimi-k2-preview', 'kimi-k2', 'kimi/k2'],
+    vision: false,
+    functionCall: true,
+    reasoning: false
+  },
 
   // Azure OpenAI配置
   {
