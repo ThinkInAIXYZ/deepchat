@@ -2908,29 +2908,42 @@ export class ThreadPresenter implements IThreadPresenter {
 
     try {
       console.log(`[ThreadPresenter] Resuming stream completion for message: ${messageId}`)
-      // Get conversation and context for resuming
-      const { conversation, contextMessages, userMessage } = await this.prepareConversationContext(
-        conversationId,
-        messageId
-      )
-
+      
+      // 关键修复：重新构建上下文，确保包含被中断的工具调用信息
+      const conversation = await this.getConversation(conversationId)
       const { providerId, modelId, temperature, maxTokens } = conversation.settings
       const modelConfig = this.configPresenter.getModelConfig(modelId, providerId)
-
-      // Prepare the prompt content with all the context including the tool result
-      const { finalContent } = await this.preparePromptContent(
-        conversation,
-        'continue',
-        contextMessages,
-        null,
-        [],
-        userMessage,
-        false,
-        [],
-        modelConfig.functionCall
+      
+      // 查找被权限中断的工具调用
+      const pendingToolCall = this.findPendingToolCallAfterPermission(state.message.content)
+      
+      if (!pendingToolCall) {
+        console.warn(`[ThreadPresenter] No pending tool call found after permission grant, using normal context`)
+        // 如果没有找到待执行的工具调用，使用正常流程
+        await this.startStreamCompletion(conversationId, state.message.parentId)
+        return
+      }
+      
+      console.log(`[ThreadPresenter] Found pending tool call: ${pendingToolCall.name} with ID: ${pendingToolCall.id}`)
+      
+      // 获取对话上下文（基于原始用户消息）
+      const { contextMessages, userMessage } = await this.prepareConversationContext(
+        conversationId,
+        state.message.parentId // 使用原始用户消息而不是助手消息
       )
+      
+      // 构建专门的继续执行上下文
+      const finalContent = await this.buildContinueToolCallContext(
+        conversation,
+        contextMessages,
+        userMessage,
+        pendingToolCall,
+        modelConfig
+      )
+      
+      console.log(`[ThreadPresenter] Built continue context for tool: ${pendingToolCall.name}`)
 
-      // Continue the agent loop
+      // Continue the agent loop with the correct context
       const stream = this.llmProviderPresenter.startStreamCompletion(
         providerId,
         finalContent,
@@ -2996,5 +3009,97 @@ export class ThreadPresenter implements IThreadPresenter {
       
       checkReady()
     })
+  }
+
+  // 查找权限授予后待执行的工具调用
+  private findPendingToolCallAfterPermission(content: AssistantMessageBlock[]): { id: string; name: string; params: string } | null {
+    // 查找已授权的权限块
+    const grantedPermissionBlock = content.find(
+      block => block.type === 'tool_call_permission' && block.status === 'granted'
+    )
+    
+    if (!grantedPermissionBlock?.tool_call) {
+      return null
+    }
+    
+    const { id, name, params } = grantedPermissionBlock.tool_call
+    if (!id || !name || !params) {
+      console.warn(`[ThreadPresenter] Incomplete tool call info in permission block:`, grantedPermissionBlock.tool_call)
+      return null
+    }
+    
+    return { id, name, params }
+  }
+  
+  // 构建继续工具调用执行的上下文
+  private async buildContinueToolCallContext(
+    conversation: any,
+    contextMessages: any[],
+    userMessage: any,
+    pendingToolCall: { id: string; name: string; params: string },
+    modelConfig: any
+  ): Promise<ChatMessage[]> {
+    const { systemPrompt } = conversation.settings
+    const formattedMessages: ChatMessage[] = []
+    
+    // 1. 添加系统提示
+    if (systemPrompt) {
+      formattedMessages.push({
+        role: 'system',
+        content: systemPrompt
+      })
+    }
+    
+    // 2. 添加上下文消息
+    const contextChatMessages = this.addContextMessages(contextMessages, false, modelConfig.functionCall)
+    formattedMessages.push(...contextChatMessages)
+    
+    // 3. 添加当前用户消息
+    const userContent = userMessage.content
+    const msgText = userContent.content
+      ? this.formatUserMessageContent(userContent.content)
+      : userContent.text
+    const finalUserContent = `${msgText}${getFileContext(userContent.files || [])}`
+    
+    formattedMessages.push({
+      role: 'user',
+      content: finalUserContent
+    })
+    
+    // 4. 添加助手消息，说明需要执行工具调用
+    if (modelConfig.functionCall) {
+      // 对于原生支持函数调用的模型，添加tool_calls
+      formattedMessages.push({
+        role: 'assistant',
+        tool_calls: [{
+          id: pendingToolCall.id,
+          type: 'function',
+          function: {
+            name: pendingToolCall.name,
+            arguments: pendingToolCall.params
+          }
+        }]
+      })
+      
+      // 添加一个虚拟的工具响应，说明权限已经授予
+      formattedMessages.push({
+        role: 'tool',
+        tool_call_id: pendingToolCall.id,
+        content: `Permission granted. Please proceed with executing the ${pendingToolCall.name} function.`
+      })
+    } else {
+      // 对于非原生支持的模型，使用文本提示
+      formattedMessages.push({
+        role: 'assistant',
+        content: `I need to call the ${pendingToolCall.name} function with the following parameters: ${pendingToolCall.params}`
+      })
+      
+      formattedMessages.push({
+        role: 'user',
+        content: `Permission has been granted for the ${pendingToolCall.name} function. Please proceed with the execution.`
+      })
+    }
+    
+    return formattedMessages
   }
 }
