@@ -19,7 +19,7 @@
             <ModelIcon
               class="w-4 h-4"
               :model-id="provider.id"
-              :is-dark="themeStore.isDark"
+              :is-dark="!!themeStore.isDark"
             ></ModelIcon>
             <span class="text-xs font-bold truncate flex-1">{{ model.name }}</span>
             <!-- <Badge

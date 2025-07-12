@@ -2,7 +2,7 @@
 import { cn } from '@/lib/utils'
 import { useEventListener, useMediaQuery, useVModel } from '@vueuse/core'
 import { TooltipProvider } from 'radix-vue'
-import { computed, type HTMLAttributes, type Ref, ref } from 'vue'
+import { computed, type HTMLAttributes, ref } from 'vue'
 import { provideSidebarContext, SIDEBAR_COOKIE_MAX_AGE, SIDEBAR_COOKIE_NAME, SIDEBAR_KEYBOARD_SHORTCUT, SIDEBAR_WIDTH, SIDEBAR_WIDTH_ICON } from './utils'
 
 const props = withDefaults(defineProps<{
@@ -24,7 +24,7 @@ const openMobile = ref(false)
 const open = useVModel(props, 'open', emits, {
   defaultValue: props.defaultOpen ?? false,
   passive: (props.open === undefined) as false,
-}) as Ref<boolean>
+}) as any
 
 function setOpen(value: boolean) {
   open.value = value // emits('update:open', value)
@@ -57,7 +57,7 @@ provideSidebarContext({
   state,
   open,
   setOpen,
-  isMobile,
+  isMobile: isMobile as any,
   openMobile,
   setOpenMobile,
   toggleSidebar,

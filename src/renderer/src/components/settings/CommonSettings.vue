@@ -67,7 +67,7 @@
                   <ModelIcon
                     :model-id="selectedSearchModel?.id || ''"
                     class="h-4 w-4"
-                    :is-dark="themeStore.isDark"
+                    :is-dark="!!themeStore.isDark"
                   />
                   <span class="truncate">{{
                     selectedSearchModel?.name || t('settings.common.selectModel')

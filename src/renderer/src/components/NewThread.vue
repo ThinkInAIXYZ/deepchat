@@ -41,7 +41,7 @@
                   <ModelIcon
                     class="w-4 h-4"
                     :model-id="activeModel.providerId"
-                    :is-dark="themeStore.isDark"
+                    :is-dark="!!themeStore.isDark"
                   ></ModelIcon>
                   <!-- <Icon icon="lucide:message-circle" class="w-5 h-5 text-muted-foreground" /> -->
                   <h2 class="text-xs font-bold max-w-[150px] truncate">{{ name }}</h2>

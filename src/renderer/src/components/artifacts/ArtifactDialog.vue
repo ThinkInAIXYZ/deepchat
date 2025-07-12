@@ -404,7 +404,7 @@ const handleCopyAsImage = async () => {
     },
     isHTMLIframe: isIframeArtifact,
     watermark: {
-      isDark: themeStore.isDark,
+      isDark: !!themeStore.isDark,
       version: appVersion.value,
       texts: {
         brand: 'DeepChat',

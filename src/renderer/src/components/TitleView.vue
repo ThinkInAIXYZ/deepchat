@@ -13,7 +13,7 @@
       <Popover v-model:open="modelSelectOpen">
         <PopoverTrigger as-child>
           <Button variant="outline" class="flex items-center gap-1.5 px-2 h-7" size="sm">
-            <ModelIcon :model-id="model.providerId" :is-dark="themeStore.isDark"></ModelIcon>
+            <ModelIcon :model-id="model.providerId" :is-dark="!!themeStore.isDark"></ModelIcon>
             <h2 class="text-xs font-bold">{{ model.name }}</h2>
             <Badge
               v-for="tag in model.tags"

@@ -19,6 +19,11 @@ const modelValue = useVModel(props, 'modelValue', emits, {
   defaultValue: props.defaultValue
 })
 
+const handleInput = (e: Event) => {
+  const target = e.target as HTMLTextAreaElement
+  modelValue.value = target.value
+}
+
 const textareaRef = ref<HTMLTextAreaElement>()
 
 onMounted(() => {
@@ -33,7 +38,8 @@ onMounted(() => {
 <template>
   <textarea
     ref="textareaRef"
-    v-model="modelValue"
+    :value="(modelValue as any) || ''"
+    @input="handleInput"
     :class="
       cn(
         'flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50',

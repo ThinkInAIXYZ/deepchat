@@ -819,7 +819,7 @@ HTTP-Referer=deepchatai.cn`
                   <ModelIcon
                     :model-id="selectedImageModel?.id || ''"
                     class="h-4 w-4"
-                    :is-dark="themeStore.isDark"
+                    :is-dark="!!themeStore.isDark"
                   />
                   <span class="truncate">{{
                     selectedImageModel?.name || t('settings.common.selectModel')

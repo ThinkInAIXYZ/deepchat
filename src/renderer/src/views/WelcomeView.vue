@@ -272,7 +272,7 @@ const isFirstStep = computed(() => currentStep.value === 0)
                         <ModelIcon
                           :model-id="provider.id"
                           :custom-class="'w-4 h-4 text-muted-foreground'"
-                          :is-dark="themeStore.isDark"
+                          :is-dark="!!themeStore.isDark"
                         />
                         <span>{{ provider.name }}</span>
                       </div>

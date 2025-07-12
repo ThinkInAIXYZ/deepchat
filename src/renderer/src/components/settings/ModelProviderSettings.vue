@@ -26,7 +26,7 @@
               <ModelIcon
                 :model-id="provider.id"
                 :custom-class="'w-4 h-4 text-muted-foreground'"
-                :is-dark="themeStore.isDark"
+                :is-dark="!!themeStore.isDark"
               />
               <span class="text-sm font-medium flex-1" :dir="languageStore.dir">{{
                 t(provider.name)

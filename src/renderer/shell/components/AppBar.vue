@@ -135,8 +135,8 @@ const tabContainer = ref<HTMLElement | null>(null)
 
 let draggedTabId: number | null = null
 
-const tabContainerWrapperSize = useElementSize(tabContainerWrapper)
-const tabContainerSize = useElementSize(tabContainer)
+const tabContainerWrapperSize = useElementSize(tabContainerWrapper as any)
+const tabContainerSize = useElementSize(tabContainer as any)
 const tabContainerWrapperScrollLeft = ref(0)
 
 const onTabContainerWrapperScroll = () => {

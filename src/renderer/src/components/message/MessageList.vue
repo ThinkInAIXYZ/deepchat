@@ -249,7 +249,7 @@ const handleCopyImage = async (
     container: '.message-list-container',
     getTargetRect,
     watermark: {
-      isDark: themeStore.isDark,
+      isDark: !!themeStore.isDark,
       version: appVersion.value,
       texts: {
         brand: 'DeepChat',
