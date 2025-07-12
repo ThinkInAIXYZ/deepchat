@@ -1109,4 +1109,13 @@ export class McpPresenter implements IMCPPresenter {
     })
     return openaiTools
   }
+
+  async grantPermission(
+    serverName: string,
+    permissionType: 'read' | 'write' | 'all',
+    remember: boolean = false
+  ): Promise<void> {
+    // Grant permission through ToolManager
+    this.toolManager.grantPermission(serverName, permissionType, remember)
+  }
 }

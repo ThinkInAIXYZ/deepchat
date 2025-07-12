@@ -11,6 +11,7 @@ import {
   IConfigPresenter,
   ILlmProviderPresenter,
   MCPToolResponse,
+  MCPToolCall,
   ChatMessage,
   ChatMessageContent,
   LLMAgentEventData
@@ -331,13 +332,15 @@ export class ThreadPresenter implements IThreadPresenter {
       if (tool_call_response_raw && tool_call === 'end') {
         try {
           // 检查返回的内容中是否有deepchat-webpage类型的资源
-          const hasSearchResults = tool_call_response_raw.content?.some(
-            (item: { type: string; resource?: { mimeType: string } }) =>
-              item?.type === 'resource' &&
-              item?.resource?.mimeType === 'application/deepchat-webpage'
-          )
+          // 确保content是数组才调用some方法
+          const hasSearchResults = Array.isArray(tool_call_response_raw.content) && 
+            tool_call_response_raw.content.some(
+              (item: { type: string; resource?: { mimeType: string } }) =>
+                item?.type === 'resource' &&
+                item?.resource?.mimeType === 'application/deepchat-webpage'
+            )
 
-          if (hasSearchResults) {
+          if (hasSearchResults && Array.isArray(tool_call_response_raw.content)) {
             // 解析搜索结果
             const searchResults = tool_call_response_raw.content
               .filter(
@@ -492,8 +495,8 @@ export class ThreadPresenter implements IThreadPresenter {
             },
             extra: {
               permissionType: permission_request?.permissionType || 'write',
-              serverName: permission_request?.serverName || tool_call_server_name,
-              toolName: permission_request?.toolName || tool_call_name,
+              serverName: permission_request?.serverName || tool_call_server_name || '',
+              toolName: permission_request?.toolName || tool_call_name || '',
               needsUserAction: true
             }
           })
@@ -2707,7 +2710,7 @@ export class ThreadPresenter implements IThreadPresenter {
       if (permissionBlock.extra) {
         permissionBlock.extra.needsUserAction = false
         if (granted) {
-          permissionBlock.extra.grantedPermissions = [permissionType]
+          permissionBlock.extra.grantedPermissions = permissionType
         }
       }
       

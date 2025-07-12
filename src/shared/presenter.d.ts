@@ -1148,7 +1148,6 @@ export interface LLMAgentEventData {
   error?: string // For error event
   userStop?: boolean // For end event
 }
-}
 export type LLMAgentEvent =
   | { type: 'response'; data: LLMAgentEventData }
   | { type: 'error'; data: { eventId: string; error: string } }

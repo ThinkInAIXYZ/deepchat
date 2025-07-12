@@ -650,7 +650,7 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
                 if (abortController.signal.aborted) break // Check after tool call returns
 
                 // Check if permission is required
-                if (toolResponse.requiresPermission) {
+                if (toolResponse.rawData.requiresPermission) {
                   // Yield permission request event
                   yield {
                     type: 'response',
@@ -660,11 +660,11 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
                       tool_call_id: toolCall.id,
                       tool_call_name: toolCall.name,
                       tool_call_params: toolCall.arguments,
-                      tool_call_server_name: toolResponse.permissionRequest?.serverName,
+                      tool_call_server_name: toolResponse.rawData.permissionRequest?.serverName,
                       tool_call_server_icons: toolDef.server.icons,
                       tool_call_server_description: toolDef.server.description,
                       tool_call_response: toolResponse.content,
-                      permission_request: toolResponse.permissionRequest
+                      permission_request: toolResponse.rawData.permissionRequest
                     }
                   }
                   
