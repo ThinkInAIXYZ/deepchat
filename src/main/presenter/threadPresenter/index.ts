@@ -470,6 +470,33 @@ export class ThreadPresenter implements IThreadPresenter {
               toolCallBlock.tool_call.server_description = tool_call_server_description
             }
           }
+        } else if (tool_call === 'permission-required') {
+          // 处理权限请求：创建权限请求块
+          finalizeLastBlock() // 使用保护逻辑
+          
+          // 从 msg 中获取权限请求信息
+          const { permission_request } = msg
+          
+          state.message.content.push({
+            type: 'tool_call_permission',
+            content: typeof tool_call_response === 'string' ? tool_call_response : 'Permission required for this operation',
+            status: 'pending',
+            timestamp: currentTime,
+            tool_call: {
+              id: tool_call_id,
+              name: tool_call_name,
+              params: tool_call_params || '',
+              server_name: tool_call_server_name,
+              server_icons: tool_call_server_icons,
+              server_description: tool_call_server_description
+            },
+            extra: {
+              permissionType: permission_request?.permissionType || 'write',
+              serverName: permission_request?.serverName || tool_call_server_name,
+              toolName: permission_request?.toolName || tool_call_name,
+              needsUserAction: true
+            }
+          })
         } else if (tool_call === 'end' || tool_call === 'error') {
           // 查找对应的工具调用块
           const toolCallBlock = state.message.content.find(

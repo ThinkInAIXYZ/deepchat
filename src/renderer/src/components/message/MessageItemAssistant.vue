@@ -55,6 +55,12 @@
             :conversation-id="currentThreadId"
             :block="block"
           />
+          <MessageBlockPermissionRequest
+            v-else-if="block.type === 'tool_call_permission'"
+            :block="block"
+            :message-id="message.id"
+            :conversation-id="currentThreadId"
+          />
           <MessageBlockImage
             v-else-if="block.type === 'image'"
             :block="block"
@@ -113,6 +119,7 @@ import MessageBlockThink from './MessageBlockThink.vue'
 import MessageBlockSearch from './MessageBlockSearch.vue'
 import MessageBlockToolCall from './MessageBlockToolCall.vue'
 import MessageBlockError from './MessageBlockError.vue'
+import MessageBlockPermissionRequest from './MessageBlockPermissionRequest.vue'
 import MessageToolbar from './MessageToolbar.vue'
 import MessageInfo from './MessageInfo.vue'
 import { useChatStore } from '@/stores/chat'

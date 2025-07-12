@@ -927,6 +927,17 @@ export interface MCPToolResponse {
 
   /** 当使用兼容模式时，可能直接返回工具结果 */
   toolResult?: unknown
+
+  /** 是否需要权限 */
+  requiresPermission?: boolean
+
+  /** 权限请求信息 */
+  permissionRequest?: {
+    toolName: string
+    serverName: string
+    permissionType: 'read' | 'write' | 'all'
+    description: string
+  }
 }
 
 /** 内容项类型 */
@@ -1101,7 +1112,16 @@ export interface LLMAgentEventData {
   tool_call_server_description?: string
 
   tool_call_response_raw?: any
-  tool_call?: 'start' | 'running' | 'end' | 'error' | 'update'
+  tool_call?: 'start' | 'running' | 'end' | 'error' | 'update' | 'permission-required'
+  
+  // Permission request related fields
+  permission_request?: {
+    toolName: string
+    serverName: string
+    permissionType: 'read' | 'write' | 'all'
+    description: string
+  }
+  
   totalUsage?: {
     prompt_tokens: number
     completion_tokens: number
@@ -1111,6 +1131,7 @@ export interface LLMAgentEventData {
   image_data?: { data: string; mimeType: string }
   error?: string // For error event
   userStop?: boolean // For end event
+}
 }
 export type LLMAgentEvent =
   | { type: 'response'; data: LLMAgentEventData }

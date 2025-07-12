@@ -1,0 +1,210 @@
+<template>
+  <div class="permission-request-block border border-amber-200 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-800 rounded-lg p-4 my-3">
+    <!-- Permission request header -->
+    <div class="flex items-center gap-2 mb-3">
+      <Icon icon="lucide:shield-alert" class="w-5 h-5 text-amber-600 dark:text-amber-400" />
+      <h3 class="font-semibold text-amber-800 dark:text-amber-200">
+        {{ t('components.messageBlockPermissionRequest.title') }}
+      </h3>
+    </div>
+    
+    <!-- Tool and server information -->
+    <div class="flex items-start gap-3 mb-4 p-3 bg-white dark:bg-gray-800 rounded-lg border border-amber-100 dark:border-amber-800">
+      <div class="flex-shrink-0">
+        <img
+          v-if="block.tool_call?.server_icons"
+          :src="block.tool_call.server_icons"
+          class="w-8 h-8 rounded"
+          :alt="block.tool_call.server_name"
+        />
+        <Icon v-else icon="lucide:tool" class="w-8 h-8 text-gray-400" />
+      </div>
+      <div class="flex-1 min-w-0">
+        <h4 class="font-medium text-gray-900 dark:text-white">{{ block.tool_call?.name }}</h4>
+        <p class="text-sm text-gray-600 dark:text-gray-400">{{ block.tool_call?.server_name }}</p>
+        <p v-if="block.tool_call?.server_description" class="text-xs text-gray-500 dark:text-gray-500 mt-1">
+          {{ block.tool_call.server_description }}
+        </p>
+        <div class="flex items-center gap-2 mt-2">
+          <Icon :icon="getPermissionIcon()" :class="['w-4 h-4', getPermissionIconClass()]" />
+          <span class="text-sm font-medium" :class="getPermissionTextClass()">
+            {{ getPermissionTypeText() }}
+          </span>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Permission description -->
+    <p class="text-sm text-gray-700 dark:text-gray-300 mb-4">{{ block.content }}</p>
+    
+    <!-- Action area -->
+    <div v-if="block.extra?.needsUserAction && block.status === 'pending'" class="space-y-3">
+      <!-- Remember choice option -->
+      <div class="flex items-center space-x-2">
+        <input
+          id="remember"
+          v-model="rememberChoice"
+          type="checkbox"
+          class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+        />
+        <label
+          for="remember"
+          class="text-sm text-gray-700 dark:text-gray-300 cursor-pointer"
+        >
+          {{ t('components.messageBlockPermissionRequest.rememberChoice') }}
+        </label>
+      </div>
+      
+      <!-- Action buttons -->
+      <div class="flex gap-2">
+        <Button
+          variant="outline"
+          size="sm"
+          class="flex-1"
+          :disabled="isProcessing"
+          @click="denyPermission"
+        >
+          <Icon icon="lucide:x" class="w-4 h-4 mr-2" />
+          {{ t('components.messageBlockPermissionRequest.deny') }}
+        </Button>
+        <Button
+          size="sm"
+          class="flex-1 bg-blue-600 hover:bg-blue-700"
+          :disabled="isProcessing"
+          @click="grantPermission"
+        >
+          <Icon v-if="isProcessing" icon="lucide:loader-2" class="w-4 h-4 mr-2 animate-spin" />
+          <Icon v-else icon="lucide:check" class="w-4 h-4 mr-2" />
+          {{ t('components.messageBlockPermissionRequest.allow') }}
+        </Button>
+      </div>
+    </div>
+    
+    <!-- Result indicator for completed requests -->
+    <div v-else-if="!block.extra?.needsUserAction" class="flex items-center gap-2 text-sm">
+      <Icon 
+        :icon="block.status === 'granted' ? 'lucide:check-circle' : 'lucide:x-circle'" 
+        :class="['w-4 h-4', block.status === 'granted' ? 'text-green-500' : 'text-red-500']"
+      />
+      <span :class="block.status === 'granted' ? 'text-green-700 dark:text-green-400' : 'text-red-700 dark:text-red-400'">
+        {{ 
+          block.status === 'granted' 
+            ? t('components.messageBlockPermissionRequest.granted') 
+            : t('components.messageBlockPermissionRequest.denied') 
+        }}
+      </span>
+    </div>
+  </div>
+</template>
+
+<script setup lang="ts">
+import { ref } from 'vue'
+import { useI18n } from 'vue-i18n'
+import { Icon } from '@iconify/vue'
+import { Button } from '@/components/ui/button'
+import { usePresenter } from '@/composables/usePresenter'
+import { AssistantMessageBlock } from '@shared/chat'
+
+const { t } = useI18n()
+const threadPresenter = usePresenter('threadPresenter')
+
+const props = defineProps<{
+  block: AssistantMessageBlock
+  messageId: string
+  conversationId: string
+}>()
+
+const rememberChoice = ref(false)
+const isProcessing = ref(false)
+
+const getPermissionIcon = () => {
+  const permissionType = props.block.extra?.permissionType as string
+  switch (permissionType) {
+    case 'read':
+      return 'lucide:eye'
+    case 'write':
+      return 'lucide:edit'
+    case 'all':
+      return 'lucide:unlock'
+    default:
+      return 'lucide:lock'
+  }
+}
+
+const getPermissionIconClass = () => {
+  const permissionType = props.block.extra?.permissionType as string
+  switch (permissionType) {
+    case 'read':
+      return 'text-blue-500'
+    case 'write':
+      return 'text-orange-500'
+    case 'all':
+      return 'text-red-500'
+    default:
+      return 'text-gray-500'
+  }
+}
+
+const getPermissionTextClass = () => {
+  const permissionType = props.block.extra?.permissionType as string
+  switch (permissionType) {
+    case 'read':
+      return 'text-blue-700 dark:text-blue-400'
+    case 'write':
+      return 'text-orange-700 dark:text-orange-400'
+    case 'all':
+      return 'text-red-700 dark:text-red-400'
+    default:
+      return 'text-gray-700 dark:text-gray-400'
+  }
+}
+
+const getPermissionTypeText = () => {
+  const permissionType = props.block.extra?.permissionType as string
+  return t(`components.messageBlockPermissionRequest.type.${permissionType}`)
+}
+
+const grantPermission = async () => {
+  if (!props.block.tool_call?.id) return
+  
+  isProcessing.value = true
+  try {
+    await threadPresenter.handlePermissionResponse(
+      props.messageId,
+      props.block.tool_call.id,
+      true,
+      (props.block.extra?.permissionType as 'read' | 'write' | 'all') || 'write',
+      rememberChoice.value
+    )
+  } catch (error) {
+    console.error('Failed to grant permission:', error)
+  } finally {
+    isProcessing.value = false
+  }
+}
+
+const denyPermission = async () => {
+  if (!props.block.tool_call?.id) return
+  
+  isProcessing.value = true
+  try {
+    await threadPresenter.handlePermissionResponse(
+      props.messageId,
+      props.block.tool_call.id,
+      false,
+      (props.block.extra?.permissionType as 'read' | 'write' | 'all') || 'write',
+      false
+    )
+  } catch (error) {
+    console.error('Failed to deny permission:', error)
+  } finally {
+    isProcessing.value = false
+  }
+}
+</script>
+
+<style scoped>
+.permission-request-block {
+  border-left: 4px solid #f59e0b;
+}
+</style>

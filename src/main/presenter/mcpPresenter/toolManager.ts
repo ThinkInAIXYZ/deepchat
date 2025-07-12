@@ -196,6 +196,52 @@ export class ToolManager {
     return this.cachedToolDefinitions
   }
 
+  // 确定权限类型的新方法
+  private determinePermissionType(toolName: string): 'read' | 'write' | 'all' {
+    const lowerToolName = toolName.toLowerCase()
+    
+    // Read operations
+    if (
+      lowerToolName.includes('read') ||
+      lowerToolName.includes('list') ||
+      lowerToolName.includes('get') ||
+      lowerToolName.includes('show') ||
+      lowerToolName.includes('view') ||
+      lowerToolName.includes('fetch') ||
+      lowerToolName.includes('search') ||
+      lowerToolName.includes('find') ||
+      lowerToolName.includes('query')
+    ) {
+      return 'read'
+    }
+    
+    // Write operations
+    if (
+      lowerToolName.includes('write') ||
+      lowerToolName.includes('create') ||
+      lowerToolName.includes('update') ||
+      lowerToolName.includes('delete') ||
+      lowerToolName.includes('modify') ||
+      lowerToolName.includes('edit') ||
+      lowerToolName.includes('remove') ||
+      lowerToolName.includes('add') ||
+      lowerToolName.includes('insert') ||
+      lowerToolName.includes('save') ||
+      lowerToolName.includes('execute') ||
+      lowerToolName.includes('run') ||
+      lowerToolName.includes('call') ||
+      lowerToolName.includes('move') ||
+      lowerToolName.includes('copy') ||
+      lowerToolName.includes('mkdir') ||
+      lowerToolName.includes('rmdir')
+    ) {
+      return 'write'
+    }
+    
+    // Default to write for safety (unknown operations require higher permissions)
+    return 'write'
+  }
+
   // 检查工具调用权限
   private checkToolPermission(
     originalToolName: string,
@@ -203,26 +249,20 @@ export class ToolManager {
     autoApprove: string[]
   ): boolean {
     console.log('checkToolPermission', originalToolName, serverName, autoApprove)
+    
     // 如果有 'all' 权限，则允许所有操作
     if (autoApprove.includes('all')) {
       return true
     }
-    if (
-      originalToolName.includes('read') ||
-      originalToolName.includes('list') ||
-      originalToolName.includes('get')
-    ) {
-      return autoApprove.includes('read')
+    
+    const permissionType = this.determinePermissionType(originalToolName)
+    
+    // Check if the specific permission type is approved
+    if (autoApprove.includes(permissionType)) {
+      return true
     }
-    if (
-      originalToolName.includes('write') ||
-      originalToolName.includes('create') ||
-      originalToolName.includes('update') ||
-      originalToolName.includes('delete')
-    ) {
-      return autoApprove.includes('write')
-    }
-    return true
+    
+    return false
   }
 
   async callTool(toolCall: MCPToolCall): Promise<MCPToolResponse> {
@@ -303,11 +343,22 @@ export class ToolManager {
       const hasPermission = this.checkToolPermission(originalName, toolServerName, autoApprove)
 
       if (!hasPermission) {
-        console.warn(`Permission denied for tool '${originalName}' on server '${toolServerName}'.`)
+        console.warn(`Permission required for tool '${originalName}' on server '${toolServerName}'.`)
+        
+        const permissionType = this.determinePermissionType(originalName)
+        
+        // Return permission request instead of error
         return {
           toolCallId: toolCall.id,
-          content: `Error: Operation not permitted. The '${originalName}' operation on server '${toolServerName}' requires appropriate permissions.`,
-          isError: true // Indicate error
+          content: `Permission required: The '${originalName}' operation requires ${permissionType} permissions on server '${toolServerName}'.`,
+          isError: false,
+          requiresPermission: true,
+          permissionRequest: {
+            toolName: originalName,
+            serverName: toolServerName,
+            permissionType,
+            description: `Allow ${originalName} to perform ${permissionType} operations on ${toolServerName}?`
+          }
         }
       }
 
@@ -403,6 +454,51 @@ export class ToolManager {
       const errorMessage = error instanceof Error ? error.message : String(error)
       console.error('Failed to read resource:', errorMessage)
       throw new Error(`读取资源失败: ${errorMessage}`)
+    }
+  }
+
+  // 权限管理方法
+  async grantPermission(serverName: string, permissionType: 'read' | 'write' | 'all', remember: boolean = false): Promise<void> {
+    if (remember) {
+      await this.updateServerPermissions(serverName, permissionType)
+    }
+  }
+
+  private async updateServerPermissions(serverName: string, permissionType: 'read' | 'write' | 'all'): Promise<void> {
+    try {
+      const servers = await this.configPresenter.getMcpServers()
+      const serverConfig = servers[serverName]
+      
+      if (serverConfig) {
+        let autoApprove = [...(serverConfig.autoApprove || [])]
+        
+        // If 'all' permission already exists, no need to add specific permissions
+        if (autoApprove.includes('all')) {
+          console.log(`Server ${serverName} already has 'all' permissions`)
+          return
+        }
+        
+        // If requesting 'all' permission, remove specific permissions and add 'all'
+        if (permissionType === 'all') {
+          autoApprove = autoApprove.filter(p => p !== 'read' && p !== 'write')
+          autoApprove.push('all')
+        } else {
+          // Add the specific permission if not already present
+          if (!autoApprove.includes(permissionType)) {
+            autoApprove.push(permissionType)
+          }
+        }
+        
+        // Update server configuration
+        await this.configPresenter.updateMcpServer(serverName, {
+          ...serverConfig,
+          autoApprove
+        })
+        
+        console.log(`Updated server ${serverName} permissions to:`, autoApprove)
+      }
+    } catch (error) {
+      console.error('Failed to update server permissions:', error)
     }
   }
 

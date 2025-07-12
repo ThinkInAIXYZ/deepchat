@@ -649,6 +649,30 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
 
                 if (abortController.signal.aborted) break // Check after tool call returns
 
+                // Check if permission is required
+                if (toolResponse.requiresPermission) {
+                  // Yield permission request event
+                  yield {
+                    type: 'response',
+                    data: {
+                      eventId,
+                      tool_call: 'permission-required',
+                      tool_call_id: toolCall.id,
+                      tool_call_name: toolCall.name,
+                      tool_call_params: toolCall.arguments,
+                      tool_call_server_name: toolResponse.permissionRequest?.serverName,
+                      tool_call_server_icons: toolDef.server.icons,
+                      tool_call_server_description: toolDef.server.description,
+                      tool_call_response: toolResponse.content,
+                      permission_request: toolResponse.permissionRequest
+                    }
+                  }
+                  
+                  // Pause the agent loop to wait for user permission
+                  needContinueConversation = false
+                  break
+                }
+
                 // Add tool call and response to conversation history for the next LLM iteration
                 const supportsFunctionCall = modelConfig?.functionCall || false
 
