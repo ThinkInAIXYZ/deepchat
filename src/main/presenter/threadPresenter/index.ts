@@ -2749,6 +2749,47 @@ export class ThreadPresenter implements IThreadPresenter {
     
     const state = this.generatingMessages.get(messageId)
     if (!state) {
+      // 尝试从已完成的消息中查找
+      console.log(`[ThreadPresenter] Message ${messageId} not in generating state, checking if it's a completed message`)
+      
+      // 尝试直接更新消息内容
+      try {
+        const message = await this.messageManager.getMessage(messageId)
+        if (message && message.role === 'assistant') {
+          const content = message.content as AssistantMessageBlock[]
+          const permissionBlock = content.find(
+            block => block.type === 'tool_call_permission' && 
+                     block.tool_call?.id === toolCallId
+          )
+          
+          if (permissionBlock) {
+            console.log(`[ThreadPresenter] Found permission block in completed message, updating status`)
+            permissionBlock.status = granted ? 'granted' : 'denied'
+            if (permissionBlock.extra) {
+              permissionBlock.extra.needsUserAction = false
+              if (granted) {
+                permissionBlock.extra.grantedPermissions = permissionType
+              }
+            }
+            
+            await this.messageManager.editMessage(messageId, JSON.stringify(content))
+            
+            if (granted) {
+              const serverName = permissionBlock?.extra?.serverName as string
+              if (serverName) {
+                console.log(`[ThreadPresenter] Granting permission for completed message: ${permissionType} for server: ${serverName}`)
+                await presenter.mcpPresenter.grantPermission(serverName, permissionType, remember)
+              }
+            }
+            
+            console.log(`[ThreadPresenter] Permission response handled for completed message: ${messageId}`)
+            return
+          }
+        }
+      } catch (error) {
+        console.error(`[ThreadPresenter] Failed to handle permission for completed message:`, error)
+      }
+      
       console.error(`[ThreadPresenter] Message not found in generating state: ${messageId}`)
       throw new Error('Message not found or not in generating state')
     }
