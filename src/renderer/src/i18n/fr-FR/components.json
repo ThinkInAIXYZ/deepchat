@@ -14,5 +14,18 @@
   "messageBlockAction": {
     "continue": "Continuer",
     "continued": "Suite"
+  },
+  "messageBlockPermissionRequest": {
+    "title": "Autorisation requise",
+    "allow": "Autoriser",
+    "deny": "Refuser",
+    "rememberChoice": "Se souvenir de ce choix",
+    "granted": "Autorisation accordée",
+    "denied": "Autorisation refusée",
+    "type": {
+      "read": "Autorisations de lecture",
+      "write": "Autorisations d'écriture",
+      "all": "Toutes les autorisations"
+    }
   }
 }

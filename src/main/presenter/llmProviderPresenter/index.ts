@@ -299,7 +299,7 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
     temperature: number = 0.6,
     maxTokens: number = 4096
   ): AsyncGenerator<LLMAgentEvent, void, unknown> {
-    console.log('Starting agent loop for event:', eventId, 'with model:', modelId)
+    console.log(`[Agent Loop] Starting agent loop for event: ${eventId} with model: ${modelId}`)
     if (!this.canStartNewStream()) {
       // Instead of throwing, yield an error event
       yield { type: 'error', data: { eventId, error: '已达到最大并发流数量限制' } }
@@ -370,7 +370,7 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
         const currentToolChunks: Record<string, { name: string; arguments_chunk: string }> = {}
 
         try {
-          console.log(`Loop iteration ${toolCallCount + 1} for event ${eventId}`)
+          console.log(`[Agent Loop] Iteration ${toolCallCount + 1} for event: ${eventId}`)
           const mcpTools = await presenter.mcpPresenter.getAllToolDefinitions()
           // Call the provider's core stream method, expecting LLMCoreStreamEvent
           const stream = provider.coreStream(
@@ -649,6 +649,37 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
 
                 if (abortController.signal.aborted) break // Check after tool call returns
 
+                // Check if permission is required
+                if (toolResponse.rawData.requiresPermission) {
+                  console.log(
+                    `[Agent Loop] Permission required for tool ${toolCall.name}, creating permission request`
+                  )
+
+                  // Yield permission request event
+                  yield {
+                    type: 'response',
+                    data: {
+                      eventId,
+                      tool_call: 'permission-required',
+                      tool_call_id: toolCall.id,
+                      tool_call_name: toolCall.name,
+                      tool_call_params: toolCall.arguments,
+                      tool_call_server_name: toolResponse.rawData.permissionRequest?.serverName,
+                      tool_call_server_icons: toolDef.server.icons,
+                      tool_call_server_description: toolDef.server.description,
+                      tool_call_response: toolResponse.content,
+                      permission_request: toolResponse.rawData.permissionRequest
+                    }
+                  }
+
+                  // End the agent loop here - permission handling will trigger a new agent loop
+                  console.log(
+                    `[Agent Loop] Ending agent loop for permission request, event: ${eventId}`
+                  )
+                  needContinueConversation = false
+                  break
+                }
+
                 // Add tool call and response to conversation history for the next LLM iteration
                 const supportsFunctionCall = modelConfig?.functionCall || false
 
@@ -900,6 +931,10 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
           needContinueConversation = false // Stop loop on inner error
         }
       } // --- End of Agent Loop (while) ---
+
+      console.log(
+        `[Agent Loop] Agent loop completed for event: ${eventId}, iterations: ${toolCallCount}`
+      )
     } catch (error) {
       // Catch errors from the generator setup phase (before the loop)
       if (abortController.signal.aborted) {

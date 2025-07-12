@@ -14,5 +14,18 @@
   "messageBlockAction": {
     "continue": "続く",
     "continued": "続く"
+  },
+  "messageBlockPermissionRequest": {
+    "title": "権限が必要",
+    "allow": "許可",
+    "deny": "拒否",
+    "rememberChoice": "この選択を記憶する",
+    "granted": "権限が許可されました",
+    "denied": "権限が拒否されました",
+    "type": {
+      "read": "読み取り権限",
+      "write": "書き込み権限",
+      "all": "全ての権限"
+    }
   }
 }
