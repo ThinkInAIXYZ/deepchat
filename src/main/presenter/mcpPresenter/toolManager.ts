@@ -248,20 +248,24 @@ export class ToolManager {
     serverName: string,
     autoApprove: string[]
   ): boolean {
-    console.log('checkToolPermission', originalToolName, serverName, autoApprove)
+    console.log(`[ToolManager] Checking permissions for tool '${originalToolName}' on server '${serverName}' with autoApprove:`, autoApprove)
     
     // 如果有 'all' 权限，则允许所有操作
     if (autoApprove.includes('all')) {
+      console.log(`[ToolManager] Permission granted: server '${serverName}' has 'all' permissions`)
       return true
     }
     
     const permissionType = this.determinePermissionType(originalToolName)
+    console.log(`[ToolManager] Tool '${originalToolName}' requires '${permissionType}' permission`)
     
     // Check if the specific permission type is approved
     if (autoApprove.includes(permissionType)) {
+      console.log(`[ToolManager] Permission granted: server '${serverName}' has '${permissionType}' permission`)
       return true
     }
     
+    console.log(`[ToolManager] Permission required for tool '${originalToolName}' on server '${serverName}'.`)
     return false
   }
 
@@ -269,6 +273,13 @@ export class ToolManager {
     try {
       const finalName = toolCall.function.name
       const argsString = toolCall.function.arguments
+
+      console.log(`[ToolManager] Calling tool:`, {
+        requestedName: finalName,
+        originalName: finalName,
+        serverName: toolCall.server?.name || 'unknown',
+        rawArguments: argsString
+      })
 
       // Ensure definitions and map are loaded/cached
       await this.getAllToolDefinitions()
@@ -458,10 +469,11 @@ export class ToolManager {
   }
 
   // 权限管理方法
-  async grantPermission(serverName: string, permissionType: 'read' | 'write' | 'all', remember: boolean = false): Promise<void> {
-    if (remember) {
-      await this.updateServerPermissions(serverName, permissionType)
-    }
+  async grantPermission(serverName: string, permissionType: 'read' | 'write' | 'all', remember: boolean = true): Promise<void> {
+    console.log(`[ToolManager] Granting permission: ${permissionType} for server: ${serverName}, remember: ${remember}`)
+    
+    // 默认总是记录权限到配置中
+    await this.updateServerPermissions(serverName, permissionType)
   }
 
   private async updateServerPermissions(serverName: string, permissionType: 'read' | 'write' | 'all'): Promise<void> {

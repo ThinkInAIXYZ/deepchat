@@ -11,7 +11,6 @@ import {
   IConfigPresenter,
   ILlmProviderPresenter,
   MCPToolResponse,
-  MCPToolCall,
   ChatMessage,
   ChatMessageContent,
   LLMAgentEventData
@@ -128,18 +127,25 @@ export class ThreadPresenter implements IThreadPresenter {
     const { eventId, userStop } = msg
     const state = this.generatingMessages.get(eventId)
     if (state) {
-      // Check if there are any pending permission requests
+      console.log(`[ThreadPresenter] Handling LLM agent end for message: ${eventId}, userStop: ${userStop}`)
+      
+      // Check if there are any pending permission requests in THIS specific message
       const hasPendingPermissions = state.message.content.some(
         (block) => block.type === 'tool_call_permission' && block.status === 'pending'
       )
       
+      console.log(`[ThreadPresenter] Message ${eventId} has pending permissions: ${hasPendingPermissions}`)
+      
       // If there are pending permissions, don't finalize the message yet
       if (hasPendingPermissions) {
+        console.log(`[ThreadPresenter] Keeping message ${eventId} in generating state due to pending permissions`)
+        
         // Update only non-permission blocks to success
         // Keep tool_call blocks loading if they have associated permission requests
         state.message.content.forEach((block) => {
           if (block.type === 'tool_call_permission' && block.status === 'pending') {
             // Keep permission blocks pending
+            console.log(`[ThreadPresenter] Keeping permission block pending for tool: ${block.tool_call?.name}`)
             return
           }
           if (block.type === 'tool_call') {
@@ -152,6 +158,7 @@ export class ThreadPresenter implements IThreadPresenter {
             )
             if (hasAssociatedPermission) {
               // Keep this tool call loading
+              console.log(`[ThreadPresenter] Keeping tool call loading for: ${block.tool_call?.name}`)
               return
             }
           }
@@ -162,6 +169,8 @@ export class ThreadPresenter implements IThreadPresenter {
         await this.messageManager.editMessage(eventId, JSON.stringify(state.message.content))
         return
       }
+      
+      console.log(`[ThreadPresenter] Finalizing message ${eventId} - no pending permissions`)
       
       // Normal completion flow when no pending permissions
       state.message.content.forEach((block) => {
@@ -2728,12 +2737,23 @@ export class ThreadPresenter implements IThreadPresenter {
     toolCallId: string,
     granted: boolean,
     permissionType: 'read' | 'write' | 'all',
-    remember: boolean = false
+    remember: boolean = true
   ): Promise<void> {
+    console.log(`[ThreadPresenter] Handling permission response:`, {
+      messageId,
+      toolCallId,
+      granted,
+      permissionType,
+      remember
+    })
+    
     const state = this.generatingMessages.get(messageId)
     if (!state) {
+      console.error(`[ThreadPresenter] Message not found in generating state: ${messageId}`)
       throw new Error('Message not found or not in generating state')
     }
+
+    console.log(`[ThreadPresenter] Found generating state for message: ${messageId}`)
 
     // Update the permission block
     const permissionBlock = state.message.content.find(
@@ -2742,6 +2762,7 @@ export class ThreadPresenter implements IThreadPresenter {
     )
 
     if (permissionBlock) {
+      console.log(`[ThreadPresenter] Updating permission block status to: ${granted ? 'granted' : 'denied'}`)
       permissionBlock.status = granted ? 'granted' : 'denied'
       if (permissionBlock.extra) {
         permissionBlock.extra.needsUserAction = false
@@ -2757,12 +2778,15 @@ export class ThreadPresenter implements IThreadPresenter {
       // Grant permission in ToolManager
       const serverName = permissionBlock?.extra?.serverName as string
       if (serverName) {
+        console.log(`[ThreadPresenter] Granting permission in ToolManager: ${permissionType} for server: ${serverName}`)
         await presenter.mcpPresenter.grantPermission(serverName, permissionType, remember)
       }
       
       // Continue the agent loop
+      console.log(`[ThreadPresenter] Continuing with permission for tool: ${toolCallId}`)
       await this.continueWithPermission(messageId, toolCallId)
     } else {
+      console.log(`[ThreadPresenter] Permission denied, ending generation for message: ${messageId}`)
       // Permission denied - end the generation for this message
       this.generatingMessages.delete(messageId)
       
@@ -2782,73 +2806,34 @@ export class ThreadPresenter implements IThreadPresenter {
   }
 
   private async continueWithPermission(messageId: string, toolCallId: string): Promise<void> {
+    console.log(`[ThreadPresenter] Starting continueWithPermission for message: ${messageId}, tool: ${toolCallId}`)
+    
     const state = this.generatingMessages.get(messageId)
-    if (!state) return
+    if (!state) {
+      console.error(`[ThreadPresenter] No generating state found for message: ${messageId}`)
+      return
+    }
 
-    // Find the tool call that needs to be re-executed
+    // Find the permission block for logging
     const permissionBlock = state.message.content.find(
       block => block.type === 'tool_call_permission' && 
                block.tool_call?.id === toolCallId
     )
 
-    if (!permissionBlock?.tool_call) return
+    if (!permissionBlock?.tool_call) {
+      console.error(`[ThreadPresenter] No permission block found for tool: ${toolCallId}`)
+      return
+    }
 
-    // Re-execute the tool call
+    console.log(`[ThreadPresenter] Permission granted, resuming agent loop for tool: ${permissionBlock.tool_call.name}`)
+
+    // Since permission is now granted, simply resume the agent loop
+    // The agent loop will re-execute the tool call with the new permissions
     try {
-      const mcpToolInput: MCPToolCall = {
-        id: permissionBlock.tool_call.id!,
-        type: 'function',
-        function: {
-          name: permissionBlock.tool_call.name!,
-          arguments: permissionBlock.tool_call.params!
-        },
-        server: {
-          name: permissionBlock.tool_call.server_name!,
-          icons: permissionBlock.tool_call.server_icons!,
-          description: permissionBlock.tool_call.server_description!
-        }
-      }
-
-      const toolResponse = await presenter.mcpPresenter.callTool(mcpToolInput)
-
-      // Send tool execution start event
-      eventBus.sendToRenderer(STREAM_EVENTS.RESPONSE, SendTarget.ALL_WINDOWS, {
-        eventId: messageId,
-        tool_call: 'running',
-        tool_call_id: toolCallId,
-        tool_call_name: permissionBlock.tool_call.name,
-        tool_call_params: permissionBlock.tool_call.params,
-        tool_call_server_name: permissionBlock.tool_call.server_name,
-        tool_call_server_icons: permissionBlock.tool_call.server_icons,
-        tool_call_server_description: permissionBlock.tool_call.server_description
-      })
-
-      // Send tool result
-      eventBus.sendToRenderer(STREAM_EVENTS.RESPONSE, SendTarget.ALL_WINDOWS, {
-        eventId: messageId,
-        tool_call: 'end',
-        tool_call_id: toolCallId,
-        tool_call_name: permissionBlock.tool_call.name,
-        tool_call_response: typeof toolResponse.content === 'string' 
-          ? toolResponse.content 
-          : JSON.stringify(toolResponse.content),
-        tool_call_response_raw: toolResponse
-      })
-
-      // Resume agent loop by restarting stream completion
       await this.resumeStreamCompletion(state.conversationId, messageId)
-      
     } catch (error) {
-      console.error('Failed to continue with permission:', error)
-      
-      // Send error event
-      eventBus.sendToRenderer(STREAM_EVENTS.RESPONSE, SendTarget.ALL_WINDOWS, {
-        eventId: messageId,
-        tool_call: 'error',
-        tool_call_id: toolCallId,
-        tool_call_name: permissionBlock.tool_call?.name || 'unknown',
-        tool_call_response: `Failed to execute tool: ${error instanceof Error ? error.message : String(error)}`
-      })
+      console.error(`[ThreadPresenter] Failed to resume stream completion:`, error)
+      await this.messageManager.handleMessageError(messageId, String(error))
     }
   }
 
