@@ -195,6 +195,10 @@
     "deepchat-inmemory/meeting-server": {
       "name": "Multi-Agent Meetings",
       "desc": "DeepChat's built-in meeting service enables hosting and facilitating multi-agent discussions."
+    },
+    "deepchat/apple-server": {
+      "desc": "Let the model operate macOS's system functions such as calendar, contacts, emails, maps, memos, reminders and other systems",
+      "name": "macOS system assistant"
     }
   },
   "prompts": {

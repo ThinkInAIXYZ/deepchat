@@ -195,6 +195,10 @@
     "deepchat-inmemory/meeting-server": {
       "name": "マルチエージェント会議",
       "desc": "DeepChatの内蔵会議サービスは、マルチエージェントによる討論の開催と進行を可能にします。"
+    },
+    "deepchat/apple-server": {
+      "desc": "モデルがカレンダー、連絡先、電子メール、マップ、メモ、リマインダー、その他のシステムなどのMacOSのシステム機能を動作させます",
+      "name": "MACOSシステムアシスタント"
     }
   },
   "prompts": {
