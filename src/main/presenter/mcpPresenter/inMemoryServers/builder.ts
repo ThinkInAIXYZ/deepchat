@@ -12,6 +12,7 @@ import { DeepResearchServer } from './deepResearchServer'
 import { AutoPromptingServer } from './autoPromptingServer'
 import { ConversationSearchServer } from './conversationSearchServer'
 import { MeetingServer } from './meetingServer'
+import { AppleServer } from './appleServer'
 
 export function getInMemoryServer(
   serverName: string,
@@ -79,6 +80,12 @@ export function getInMemoryServer(
       return new ConversationSearchServer()
     case 'deepchat-inmemory/meeting-server':
       return new MeetingServer()
+    case 'deepchat-inmemory/apple-server':
+      // 只在 macOS 上创建 AppleServer
+      if (process.platform !== 'darwin') {
+        throw new Error('Apple Server is only supported on macOS')
+      }
+      return new AppleServer()
     default:
       throw new Error(`Unknown in-memory server: ${serverName}`)
   }
