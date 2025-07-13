@@ -104,7 +104,6 @@ const props = defineProps<{
 
 const isEditMode = ref(false)
 const editedText = ref('')
-const originalText = ref('')
 const originalContent = ref(null)
 const originalContentHeight = ref(0)
 const originalContentWidth = ref(0)
@@ -138,8 +137,14 @@ const previewFile = (filePath: string) => {
 
 const startEdit = () => {
   isEditMode.value = true
+  // fixed the edit mode is not working when message content is structured
+  const row = props.message.content?.content?.find(block => block.type === 'text')
+  if (row) {
+    // If the content is structured, use the text from the first text block
+    editedText.value = row.content
+    return
+  }
   editedText.value = props.message.content.text
-  originalText.value = props.message.content.text
 }
 
 const saveEdit = async () => {
@@ -147,11 +152,16 @@ const saveEdit = async () => {
 
   try {
     // Create a new content object with the edited text
-    const newContent = {
+    let newContent = {
       ...props.message.content,
-      text: editedText.value
     }
-
+    // fixed the edit mode is not working when message content is structured
+    const row = newContent?.content?.find(block => block.type === 'text')
+    if (row) {
+      row.content = editedText.value
+    } else {
+      newContent.text = editedText.value
+    }
     // Update the message in the database using editMessage method
     await threadPresenter.editMessage(props.message.id, JSON.stringify(newContent))
 
@@ -166,7 +176,6 @@ const saveEdit = async () => {
 }
 
 const cancelEdit = () => {
-  editedText.value = originalText.value
   isEditMode.value = false
 }
 
