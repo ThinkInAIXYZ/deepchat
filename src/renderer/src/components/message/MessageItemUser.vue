@@ -39,6 +39,8 @@
               height: originalContentHeight + 18 + 'px',
               width: originalContentWidth + 20 + 'px'
             }"
+            @keydown.enter.prevent="saveEdit"
+            @keydown.esc="cancelEdit"
           ></textarea>
         </div>
         <div v-else ref="originalContent">
