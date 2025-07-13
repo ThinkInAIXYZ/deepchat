@@ -215,6 +215,10 @@
     "deepchat-inmemory/meeting-server": {
       "name": "多智能体会议",
       "desc": "DeepChat 内置会议服务，支持发起和主持多智能体讨论"
+    },
+    "deepchat/apple-server": {
+      "name": "macOS系统助手",
+      "desc": "让模型能操作macOS的日历、联系人、邮件、地图、备忘录、提醒事项等系统功能"
     }
   },
   "prompts": {

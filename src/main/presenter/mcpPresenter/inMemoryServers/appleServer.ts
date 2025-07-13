@@ -1,3 +1,4 @@
+// https://github.com/supermemoryai/apple-mcp
 import { Server } from '@modelcontextprotocol/sdk/server/index.js'
 import {
   ListToolsRequestSchema,
@@ -1077,7 +1078,7 @@ export class AppleServer {
     // 创建服务器实例
     this.server = new Server(
       {
-        name: 'deepchat-inmemory/apple-server',
+        name: 'deepchat/apple-server',
         version: '1.0.0'
       },
       {

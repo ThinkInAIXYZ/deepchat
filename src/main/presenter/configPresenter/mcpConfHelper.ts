@@ -14,7 +14,64 @@ interface IMcpSettings {
   [key: string]: unknown // 允许任意键
 }
 export type MCPServerType = 'stdio' | 'sse' | 'inmemory' | 'http'
-// const filesystemPath = path.join(app.getAppPath(), 'resources', 'mcp', 'filesystem.mjs')
+
+// 检查当前系统平台
+function isMacOS(): boolean {
+  return process.platform === 'darwin'
+}
+
+function isWindows(): boolean {
+  return process.platform === 'win32'
+}
+
+function isLinux(): boolean {
+  return process.platform === 'linux'
+}
+
+// 平台特有的 MCP 服务器配置
+const PLATFORM_SPECIFIC_SERVERS: Record<string, MCPServerConfig> = {
+  // macOS 特有服务
+  ...(isMacOS() ? {
+    'deepchat/apple-server': {
+      args: [],
+      descriptions: 'DeepChat内置Apple系统集成服务 (仅macOS)',
+      icons: '🍎',
+      autoApprove: ['all'],
+      type: 'inmemory' as MCPServerType,
+      command: 'deepchat/apple-server',
+      env: {},
+      disable: false
+    }
+  } : {}),
+  
+  // Windows 特有服务 (预留)
+  ...(isWindows() ? {
+    // 'deepchat-inmemory/windows-server': {
+    //   args: [],
+    //   descriptions: 'DeepChat内置Windows系统集成服务 (仅Windows)',
+    //   icons: '🪟',
+    //   autoApprove: ['all'],
+    //   type: 'inmemory' as MCPServerType,
+    //   command: 'deepchat-inmemory/windows-server',
+    //   env: {},
+    //   disable: false
+    // }
+  } : {}),
+  
+  // Linux 特有服务 (预留)
+  ...(isLinux() ? {
+    // 'deepchat-inmemory/linux-server': {
+    //   args: [],
+    //   descriptions: 'DeepChat内置Linux系统集成服务 (仅Linux)',
+    //   icons: '🐧',
+    //   autoApprove: ['all'],
+    //   type: 'inmemory' as MCPServerType,
+    //   command: 'deepchat-inmemory/linux-server',
+    //   env: {},
+    //   disable: false
+    // }
+  } : {})
+}
 
 // 抽取inmemory类型的服务为常量
 const DEFAULT_INMEMORY_SERVERS: Record<string, MCPServerConfig> = {
@@ -181,7 +238,9 @@ const DEFAULT_INMEMORY_SERVERS: Record<string, MCPServerConfig> = {
     command: 'deepchat-inmemory/meeting-server',
     env: {},
     disable: false
-  }
+  },
+  // 合并平台特有服务
+  ...PLATFORM_SPECIFIC_SERVERS
 }
 
 const DEFAULT_MCP_SERVERS = {
@@ -200,7 +259,11 @@ const DEFAULT_MCP_SERVERS = {
       type: 'stdio' as MCPServerType
     }
   },
-  defaultServers: ['Artifacts'], // 默认服务器列表
+  defaultServers: [
+    'Artifacts',
+    // 根据平台添加默认启用的平台特有服务
+    ...(isMacOS() ? ['deepchat/apple-server'] : [])
+  ],
   mcpEnabled: false // 默认关闭MCP功能
 }
 // 这部分mcp有系统逻辑判断是否启用，不受用户配置控制，受软件环境控制
@@ -247,8 +310,33 @@ export class McpConfHelper {
       }
     }
 
-    // 如果有新增的服务，更新存储
-    if (Object.keys(updatedServers).length > Object.keys(storedServers).length) {
+    // 移除不支持当前平台的服务
+    const serversToRemove: string[] = []
+    for (const [serverName, serverConfig] of Object.entries(updatedServers)) {
+      if (serverConfig.type === 'inmemory') {
+        // 检查是否为平台特有服务
+        if (serverName === 'deepchat/apple-server' && !isMacOS()) {
+          serversToRemove.push(serverName)
+        }
+        // 可以在这里添加其他平台特有服务的检查
+        // if (serverName === 'deepchat-inmemory/windows-server' && !isWindows()) {
+        //   serversToRemove.push(serverName)
+        // }
+        // if (serverName === 'deepchat-inmemory/linux-server' && !isLinux()) {
+        //   serversToRemove.push(serverName)
+        // }
+      }
+    }
+
+    // 移除不支持的平台特有服务
+    for (const serverName of serversToRemove) {
+      console.log(`移除不支持当前平台的服务: ${serverName}`)
+      delete updatedServers[serverName]
+    }
+
+    // 如果有变化，更新存储
+    if (Object.keys(updatedServers).length !== Object.keys(storedServers).length || 
+        serversToRemove.length > 0) {
       this.mcpStore.set('mcpServers', updatedServers)
     }
 
@@ -273,7 +361,7 @@ export class McpConfHelper {
   // 添加默认服务器
   async addMcpDefaultServer(serverName: string): Promise<void> {
     const defaultServers = this.mcpStore.get('defaultServers') || []
-    const mcpServers = this.mcpStore.get('mcpServers') || {}
+    const mcpServers = await this.getMcpServers() // 使用getMcpServers确保平台检查
 
     // 检测并清理失效的服务器
     const validDefaultServers = defaultServers.filter((server) => {
@@ -284,9 +372,15 @@ export class McpConfHelper {
       return exists
     })
 
-    // 添加新服务器（如果不在列表中）
-    if (!validDefaultServers.includes(serverName)) {
-      validDefaultServers.push(serverName)
+    // 检查要添加的服务器是否存在且支持当前平台
+    if (mcpServers[serverName]) {
+      // 添加新服务器（如果不在列表中）
+      if (!validDefaultServers.includes(serverName)) {
+        validDefaultServers.push(serverName)
+      }
+    } else {
+      console.log(`尝试添加不存在或不支持当前平台的MCP服务器: ${serverName}`)
+      return
     }
 
     // 如果有变化则更新存储并发送事件
@@ -394,11 +488,17 @@ export class McpConfHelper {
     // 更新服务器配置
     await this.setMcpServers(updatedServers)
 
-    // 恢复默认服务器设置
-    this.mcpStore.set('defaultServers', DEFAULT_MCP_SERVERS.defaultServers)
+    // 恢复默认服务器设置，确保平台特有服务的正确处理
+    const platformAwareDefaultServers = [
+      'Artifacts',
+      // 根据平台添加默认启用的平台特有服务
+      ...(isMacOS() ? ['deepchat/apple-server'] : [])
+    ]
+
+    this.mcpStore.set('defaultServers', platformAwareDefaultServers)
     eventBus.send(MCP_EVENTS.CONFIG_CHANGED, SendTarget.ALL_WINDOWS, {
       mcpServers: updatedServers,
-      defaultServers: DEFAULT_MCP_SERVERS.defaultServers,
+      defaultServers: platformAwareDefaultServers,
       mcpEnabled: this.mcpStore.get('mcpEnabled')
     })
   }
@@ -470,6 +570,55 @@ export class McpConfHelper {
       } catch (error) {
         console.error('迁移 filesystem 服务器时出错:', error)
       }
+    }
+
+    // 升级后检查并添加平台特有服务
+    try {
+      const mcpServers = this.mcpStore.get('mcpServers') || {}
+      const defaultServers = this.mcpStore.get('defaultServers') || []
+      let hasChanges = false
+
+      // 检查是否需要添加平台特有服务
+      if (isMacOS() && !mcpServers['deepchat/apple-server']) {
+        console.log('检测到 macOS 平台，添加 Apple 系统集成服务')
+        mcpServers['deepchat/apple-server'] = PLATFORM_SPECIFIC_SERVERS['deepchat/apple-server']
+        hasChanges = true
+
+        // 如果不在默认服务器列表中，添加到默认服务器列表
+        if (!defaultServers.includes('deepchat/apple-server')) {
+          defaultServers.push('deepchat/apple-server')
+          this.mcpStore.set('defaultServers', defaultServers)
+        }
+      }
+
+      // 移除不支持当前平台的服务
+      const serversToRemove: string[] = []
+      for (const [serverName] of Object.entries(mcpServers)) {
+        if (serverName === 'deepchat/apple-server' && !isMacOS()) {
+          serversToRemove.push(serverName)
+        }
+        // 可以在这里添加其他平台特有服务的检查
+      }
+
+      for (const serverName of serversToRemove) {
+        console.log(`移除不支持当前平台的服务: ${serverName}`)
+        delete mcpServers[serverName]
+        hasChanges = true
+
+        // 从默认服务器列表中移除
+        const index = defaultServers.indexOf(serverName)
+        if (index > -1) {
+          defaultServers.splice(index, 1)
+          this.mcpStore.set('defaultServers', defaultServers)
+        }
+      }
+
+      if (hasChanges) {
+        this.mcpStore.set('mcpServers', mcpServers)
+        console.log('平台特有服务升级完成')
+      }
+    } catch (error) {
+      console.error('升级平台特有服务时出错:', error)
     }
   }
 }
