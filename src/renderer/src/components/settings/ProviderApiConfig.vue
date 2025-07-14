@@ -25,8 +25,12 @@
     <GitHubCopilotOAuth v-if="provider.id === 'github-copilot'" :provider="provider" @auth-success="handleOAuthSuccess"
       @auth-error="handleOAuthError" />
 
-    <!-- API Key 配置 (GitHub Copilot 时隐藏手动输入) -->
-    <div v-if="provider.id !== 'github-copilot'" class="flex flex-col items-start gap-2">
+    <!-- EasyChat OAuth 登录 -->
+    <EasyChatOAuth v-if="provider.id === 'easychat'" :provider="provider" @auth-success="handleOAuthSuccess"
+      @auth-error="handleOAuthError" />
+
+    <!-- API Key 配置 (GitHub Copilot 和 EasyChat 时隐藏手动输入) -->
+    <div v-if="!['github-copilot', 'easychat'].includes(provider.id)" class="flex flex-col items-start gap-2">
       <Label :for="`${provider.id}-apikey`" class="flex-1 cursor-pointer">API Key</Label>
       <Input :id="`${provider.id}-apikey`" :model-value="apiKey" type="password"
         :placeholder="t('settings.provider.keyPlaceholder')" @blur="handleApiKeyChange($event.target.value)"
@@ -45,7 +49,7 @@
           }}
         </Button>
         <Button v-if="!provider.custom && provider.id === 'easychat'" variant="outline" size="xs"
-          class="text-xs text-normal rounded-lg" @click="openProviderWebsite">
+          class="text-xs text-normal rounded-lg" @click="openEasyChatOAuth">
           <Icon icon="lucide:hand-helping" class="w-4 h-4 text-muted-foreground" />{{
             t('settings.provider.oauthLogin')
           }}
@@ -82,6 +86,7 @@ import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Icon } from '@iconify/vue'
 import GitHubCopilotOAuth from './GitHubCopilotOAuth.vue'
+import EasyChatOAuth from './EasyChatOAuth.vue'
 import { usePresenter } from '@/composables/usePresenter'
 import type { LLM_PROVIDER, KeyStatus } from '@shared/presenter'
 
@@ -135,6 +140,15 @@ const openProviderWebsite = () => {
   const url = props.providerWebsites?.apiKey
   if (url) {
     window.open(url, '_blank')
+  }
+}
+
+const openEasyChatOAuth = async () => {
+  try {
+    const oauthPresenter = usePresenter('oauthPresenter')
+    await oauthPresenter.startEasyChatLogin(props.provider.id)
+  } catch (error) {
+    console.error('EasyChat OAuth 启动失败:', error)
   }
 }
 

@@ -416,6 +416,42 @@ export class OAuthPresenter {
       this.authWindow = null
     }
   }
+
+  /**
+   * 开始EasyChat OAuth登录流程
+   */
+  async startEasyChatLogin(providerId: string): Promise<boolean> {
+    try {
+      console.log('Starting EasyChat OAuth login for provider:', providerId)
+
+      // 1. 请求服务端获取授权地址
+      const authResponse = await httpFetch.get('/api/oauth/easychat/authorize')
+      
+      console.log('authResponse', authResponse);
+
+      if (!authResponse.ok) {
+        throw new Error(`获取授权地址失败: ${authResponse.status} ${authResponse.statusText}`)
+      }
+
+      const authData = authResponse.data as { authorizeUrl: string }
+      const authorizeUrl = authData.authorizeUrl
+
+      console.log('Received authorize URL:', authorizeUrl)
+
+      // 2. 跳转打开浏览器授权地址
+      const { shell } = require('electron')
+      await shell.openExternal(authorizeUrl)
+
+      console.log('EasyChat OAuth login completed successfully')
+      return true
+    } catch (error) {
+      console.error('EasyChat OAuth login failed:')
+      console.error('Error type:', error instanceof Error ? error.constructor.name : typeof error)
+      console.error('Error message:', error instanceof Error ? error.message : error)
+      console.error('Error stack:', error instanceof Error ? error.stack : 'No stack trace')
+      return false
+    }
+  }
 }
 
 // GitHub Copilot的OAuth配置
