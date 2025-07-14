@@ -116,10 +116,6 @@ export const useMcpStore = defineStore('mcp', () => {
         ready: true // config is loaded
       }
 
-      setTimeout(() => {
-        config.value.ready = false // 设置ready为true，表示配置加载完成
-      }, 1000)
-
       // 获取服务器运行状态
       await updateAllServerStatuses()
     } catch (error) {
