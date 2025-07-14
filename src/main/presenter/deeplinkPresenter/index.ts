@@ -166,6 +166,14 @@ export class DeeplinkPresenter implements IDeeplinkPresenter {
         } else {
           console.warn('未知的 login 子命令:', subCommand)
         }
+      } else if (command === 'provider') {
+        // 处理 provider/apikey 命令
+        const pathParts = urlObj.pathname.slice(1).split('/') // 移除开头的斜杠并分割路径
+        if (pathParts[0] === 'apikey' && pathParts[1]) {
+          await this.handleProviderApiKey(pathParts[1], urlObj.searchParams)
+        } else {
+          console.warn('未知的 provider 子命令:', pathParts[0])
+        }
       } else {
         console.warn('Unknown DeepLink command:', command)
       }
@@ -338,6 +346,41 @@ export class DeeplinkPresenter implements IDeeplinkPresenter {
       console.log('All MCP servers processing completed')
     } catch (error) {
       console.error('Error parsing or processing MCP configuration:', error)
+    }
+  }
+
+  async handleProviderApiKey(apiKey: string, params: URLSearchParams): Promise<void> {
+    console.log('处理 provider/apikey 命令，API Key:', apiKey)
+    
+    // 获取provider参数，默认为easychat
+    const providerId = params.get('provider') || 'easychat'
+    
+    try {
+      // 解码 API Key (如果需要)
+      const decodedApiKey = decodeURIComponent(apiKey)
+
+      // 获取provider配置
+      const provider = presenter.configPresenter.getProviderById(providerId)
+      if (provider) {
+        // 更新provider的API Key
+        provider.apiKey = decodedApiKey
+        presenter.configPresenter.setProviderById(providerId, provider)
+        
+        console.log(`成功设置 ${providerId} 的 API Key`)
+        
+        // 确保主窗口显示
+        if (presenter.windowPresenter.mainWindow) {
+          if (presenter.windowPresenter.mainWindow.isMinimized()) {
+            presenter.windowPresenter.mainWindow.restore()
+          }
+          presenter.windowPresenter.mainWindow.show()
+          presenter.windowPresenter.mainWindow.focus()
+        }
+      } else {
+        console.error(`Provider ${providerId} not found`)
+      }
+    } catch (error) {
+      console.error('处理 API Key 时出错:', error)
     }
   }
 
