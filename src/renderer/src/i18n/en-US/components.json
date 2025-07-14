@@ -26,6 +26,11 @@
       "read": "Read permissions",
       "write": "Write permissions",
       "all": "Full permissions"
+    },
+    "description": {
+      "read": "Allow '{toolName}' of '{serverName}' to perform read operations?",
+      "write": "Allow '{toolName}' of '{serverName}' to perform write operations?",
+      "all": "Allow '{toolName}' of '{serverName}' to perform read and write operations?"
     }
   }
 }

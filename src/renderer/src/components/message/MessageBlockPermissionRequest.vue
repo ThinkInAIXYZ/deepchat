@@ -51,7 +51,7 @@
       </div>
 
       <!-- Description -->
-      <p class="text-xs text-muted-foreground mb-3">{{ block.content }}</p>
+      <p class="text-xs text-muted-foreground mb-3">{{ getFormattedDescription() }}</p>
 
       <!-- Action buttons -->
       <div class="flex gap-2">
@@ -146,6 +146,39 @@ const getPermissionTypeText = () => {
   return t(`components.messageBlockPermissionRequest.type.${permissionType}`)
 }
 
+const getFormattedDescription = () => {
+  const content = props.block.content
+
+  // 处理 undefined content
+  if (!content) {
+    return ''
+  }
+
+  // 检查是否是 i18n key
+  if (content.startsWith('components.messageBlockPermissionRequest.description.')) {
+    const permissionRequestStr = props.block.extra?.permissionRequest
+    if (permissionRequestStr && typeof permissionRequestStr === 'string') {
+      try {
+        const req = JSON.parse(permissionRequestStr) as { toolName?: string; serverName?: string }
+        return t(content, {
+          toolName: req.toolName || '',
+          serverName: req.serverName || ''
+        })
+      } catch (error) {
+        console.error('Failed to parse permissionRequest:', error)
+        // 回退到使用 extra 字段中的信息
+        return t(content, {
+          toolName: (props.block.extra?.toolName as string) || '',
+          serverName: (props.block.extra?.serverName as string) || ''
+        })
+      }
+    }
+  }
+
+  // 向后兼容：直接返回原文本
+  return content
+}
+
 const getStatusIcon = () => {
   switch (props.block.status) {
     case 'granted':
@@ -171,7 +204,6 @@ const getStatusIconClass = () => {
       return 'text-muted-foreground'
   }
 }
-
 
 const getStatusText = () => {
   switch (props.block.status) {

@@ -26,6 +26,11 @@
       "read": "읽기 권한",
       "write": "쓰기 권한",
       "all": "모든 권한"
+    },
+    "description": {
+      "all": "읽기 및 쓰기 작업을 수행하려면 '{servername}'의 '{toolname}'을 허용합니까?",
+      "read": "읽기 작업을 수행하려면 '{servername}'의 '{toolname}'을 허용합니까?",
+      "write": "쓰기 작업을 수행하려면 '{servername}'의 '{toolname}'을 허용합니까?"
     }
   }
 }

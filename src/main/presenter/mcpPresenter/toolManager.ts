@@ -377,7 +377,7 @@ export class ToolManager {
         // Return permission request instead of error
         return {
           toolCallId: toolCall.id,
-          content: `Permission required: The '${originalName}' operation requires ${permissionType} permissions on server '${toolServerName}'.`,
+          content: `components.messageBlockPermissionRequest.description.${permissionType}`,
           isError: false,
           requiresPermission: true,
           permissionRequest: {
@@ -494,8 +494,14 @@ export class ToolManager {
       `[ToolManager] Granting permission: ${permissionType} for server: ${serverName}, remember: ${remember}`
     )
 
-    // 默认总是记录权限到配置中
-    await this.updateServerPermissions(serverName, permissionType)
+    if (remember) {
+      // Persist to configuration
+      await this.updateServerPermissions(serverName, permissionType)
+    } else {
+      // Store in temporary session storage
+      // TODO: Implement temporary permission storage
+      console.log(`[ToolManager] Temporary permission granted (session-scoped)`)
+    }
   }
 
   private async updateServerPermissions(

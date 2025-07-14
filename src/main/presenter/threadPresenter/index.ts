@@ -545,7 +545,15 @@ export class ThreadPresenter implements IThreadPresenter {
               permissionType: permission_request?.permissionType || 'write',
               serverName: permission_request?.serverName || tool_call_server_name || '',
               toolName: permission_request?.toolName || tool_call_name || '',
-              needsUserAction: true
+              needsUserAction: true,
+              permissionRequest: JSON.stringify(
+                permission_request || {
+                  toolName: tool_call_name || '',
+                  serverName: tool_call_server_name || '',
+                  permissionType: 'write' as const,
+                  description: 'Permission required for this operation'
+                }
+              )
             }
           })
         } else if (tool_call === 'end' || tool_call === 'error') {

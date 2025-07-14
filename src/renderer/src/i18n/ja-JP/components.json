@@ -26,6 +26,11 @@
       "read": "読み取り権限",
       "write": "書き込み権限",
       "all": "全ての権限"
+    },
+    "description": {
+      "all": "'{servername}'の '{toolname}'を読み取り操作を実行することを許可しますか？",
+      "read": "'{servername}'の '{toolname}'を読み取り操作を実行することを許可しますか？",
+      "write": "'{servername}'の '{toolname}'を許可しますか？"
     }
   }
 }

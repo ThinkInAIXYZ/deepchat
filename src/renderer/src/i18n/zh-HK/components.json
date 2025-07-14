@@ -26,6 +26,11 @@
       "read": "讀取權限",
       "write": "寫入權限",
       "all": "完整權限"
+    },
+    "description": {
+      "all": "允許 '{serverName}' 的 '{toolName}' 執行讀取和寫入操作？",
+      "read": "允許 '{serverName}' 的 '{toolName}' 執行讀取操作？",
+      "write": "允許 '{serverName}' 的 '{toolName}' 執行寫入操作？"
     }
   }
 }
