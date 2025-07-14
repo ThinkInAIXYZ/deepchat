@@ -81,7 +81,7 @@ export function getInMemoryServer(
     case 'deepchat-inmemory/meeting-server':
       return new MeetingServer()
     case 'deepchat/apple-server':
-      // Create AppleServer only on macOS
+      // 只在 macOS 上创建 AppleServer
       if (process.platform !== 'darwin') {
         throw new Error('Apple Server is only supported on macOS')
       }
