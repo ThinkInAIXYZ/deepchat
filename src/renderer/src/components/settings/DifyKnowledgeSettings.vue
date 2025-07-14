@@ -183,7 +183,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch, toRaw } from 'vue'
+import { ref, computed, onMounted, watch, toRaw, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
 import { Button } from '@/components/ui/button'
@@ -402,11 +402,6 @@ watch(
   }
 )
 
-// 组件挂载时加载配置
-onMounted(async () => {
-  await loadDifyConfigFromMcp()
-})
-
 // 监听URL查询参数，设置活动标签页
 watch(
   () => route.query.subtab,
@@ -417,4 +412,26 @@ watch(
   },
   { immediate: true }
 )
+
+// 组件挂载时加载配置
+let unwatch: () => void // only use here, so declare it here
+onMounted(async () => {
+  unwatch = watch(
+    () => mcpStore.config.ready,
+    async (ready) => {
+      if (ready) {
+        unwatch() // only run once to avoid multiple calls
+        await loadDifyConfigFromMcp()
+      }
+    },
+    { immediate: true }
+  )
+})
+
+// cancel the watch to avoid memory leaks
+onUnmounted(() => {
+  if (unwatch) {
+    unwatch()
+  }
+})
 </script>

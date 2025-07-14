@@ -183,7 +183,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch, toRaw } from 'vue'
+import { ref, computed, onMounted, watch, toRaw, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
 import { Button } from '@/components/ui/button'
@@ -355,6 +355,7 @@ const updateFastGptConfigToMcp = async () => {
 const loadFastGptConfigFromMcp = async () => {
   try {
     // 获取fastGptKnowledge服务器配置
+    console.log(mcpStore.config)
     const serverConfig = mcpStore.config.mcpServers['fastGptKnowledge']
     if (serverConfig && serverConfig.env) {
       // 解析配置 - env可能是JSON字符串
@@ -412,7 +413,24 @@ watch(
 )
 
 // 组件挂载时加载配置
+let unwatch: () => void // only use here, so declare it here
 onMounted(async () => {
-  await loadFastGptConfigFromMcp()
+  unwatch = watch(
+    () => mcpStore.config.ready,
+    async (ready) => {
+      if (ready) {
+        unwatch() // only run once to avoid multiple calls
+        await loadFastGptConfigFromMcp()
+      }
+    },
+    { immediate: true }
+  )
+})
+
+// cancel the watch to avoid memory leaks
+onUnmounted(() => {
+  if (unwatch) {
+    unwatch()
+  }
 })
 </script>

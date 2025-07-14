@@ -884,6 +884,7 @@ export interface MCPConfig {
   mcpServers: Record<string, MCPServerConfig>
   defaultServers: string[]
   mcpEnabled: boolean
+  ready: boolean
 }
 
 export interface MCPToolDefinition {
