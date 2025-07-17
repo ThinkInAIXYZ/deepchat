@@ -36,5 +36,10 @@
   "copyFailedDesc": "클립보드에 복사할 수 없습니다",
   "copyAsImage": "이미지로 복사",
   "copyImageSuccessDesc": "이미지가 클립보드에 복사되었습니다",
-  "copyImageFailedDesc": "이미지를 클립보드에 복사할 수 없습니다"
+  "copyImageFailedDesc": "이미지를 클립보드에 복사할 수 없습니다",
+  "desktop": "데스크톱",
+  "tablet": "태블릿",
+  "mobile": "모바일",
+  "width": "너비",
+  "height": "높이"
 }
