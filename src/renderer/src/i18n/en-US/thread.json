@@ -4,7 +4,8 @@
     "delete": "Delete",
     "cleanMessages": "Clear Messages",
     "pin": "Pin",
-    "unpin": "Unpin"
+    "unpin": "Unpin",
+    "addTag": "Add Tag"
   },
   "toolbar": {
     "save": "Save",

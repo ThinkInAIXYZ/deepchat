@@ -25,5 +25,9 @@
     "confirm": "Créer une branche",
     "description": "Copiez le message du premier message au message actuellement sélectionné dans une nouvelle session où vous pouvez continuer la conversation.",
     "title": "Créer une branche de session"
+  },
+  "addTag": {
+    "title": "Ajouter une étiquette",
+    "description": "Veuillez entrer le nom de l'étiquette."
   }
 }

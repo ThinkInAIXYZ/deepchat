@@ -4,7 +4,8 @@
     "delete": "删除",
     "cleanMessages": "清空消息",
     "pin": "置顶",
-    "unpin": "取消置顶"
+    "unpin": "取消置顶",
+    "addTag": "添加标签"
   },
   "message": {
     "toolbar": {

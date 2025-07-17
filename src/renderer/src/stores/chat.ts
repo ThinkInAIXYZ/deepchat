@@ -140,27 +140,27 @@ export const useChatStore = defineStore('chat', () => {
       (message as AssistantMessage).content.some((block) => block.extra)
     ) {
       const attachments = await threadP.getMessageExtraInfo(message.id, 'search_result')
-      // 更新消息中的 extra 信息
-      ;(message as AssistantMessage).content = (message as AssistantMessage).content.map(
-        (block) => {
-          if (block.type === 'search' && block.extra) {
-            return {
-              ...block,
-              extra: {
-                ...block.extra,
-                pages: attachments.map((attachment) => ({
-                  title: attachment.title,
-                  url: attachment.url,
-                  content: attachment.content,
-                  description: attachment.description,
-                  icon: attachment.icon
-                }))
+        // 更新消息中的 extra 信息
+        ; (message as AssistantMessage).content = (message as AssistantMessage).content.map(
+          (block) => {
+            if (block.type === 'search' && block.extra) {
+              return {
+                ...block,
+                extra: {
+                  ...block.extra,
+                  pages: attachments.map((attachment) => ({
+                    title: attachment.title,
+                    url: attachment.url,
+                    content: attachment.content,
+                    description: attachment.description,
+                    icon: attachment.icon
+                  }))
+                }
               }
             }
+            return block
           }
-          return block
-        }
-      )
+        )
       // 处理变体消息的 extra 信息
       const assistantMessage = message as AssistantMessage
       if (assistantMessage.variants && assistantMessage.variants.length > 0) {
@@ -214,8 +214,8 @@ export const useChatStore = defineStore('chat', () => {
       // 处理所有消息的 extra 信息
       setMessages(
         (await Promise.all(mergedMessages.map((msg) => enrichMessageWithExtra(msg)))) as
-          | AssistantMessage[]
-          | UserMessage[]
+        | AssistantMessage[]
+        | UserMessage[]
       )
     } catch (error) {
       console.error('加载消息失败:', error)
@@ -686,6 +686,10 @@ export const useChatStore = defineStore('chat', () => {
     await threadP.renameConversation(threadId, title)
   }
 
+  const addTagThread = async (threadId: string, tag: string) => {
+    // await threadP.addTagConversation(threadId, tag)
+  }
+
   const toggleThreadPinned = async (threadId: string, isPinned: boolean) => {
     await threadP.toggleConversationPinned(threadId, isPinned)
   }
@@ -1085,6 +1089,7 @@ export const useChatStore = defineStore('chat', () => {
 
   return {
     renameThread,
+    addTagThread,
     // 状态
     createNewEmptyThread,
     isSidebarOpen,

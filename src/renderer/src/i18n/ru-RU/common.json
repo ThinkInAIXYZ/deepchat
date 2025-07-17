@@ -18,6 +18,7 @@
     "createChatFailed": "Не удалось создать чат",
     "selectChatFailed": "Не удалось выбрать чат",
     "renameChatFailed": "Не удалось переименовать чат",
+    "addTagFailed": "Не удалось добавить тег",
     "deleteChatFailed": "Не удалось удалить чат",
     "userCanceledGeneration": "Пользователь отменил генерацию",
     "sessionInterrupted": "Сессия прервана, генерация не завершена",

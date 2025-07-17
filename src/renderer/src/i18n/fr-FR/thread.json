@@ -4,7 +4,8 @@
     "delete": "Supprimer",
     "cleanMessages": "Nettoyer les messages",
     "pin": "Épingler",
-    "unpin": "Détacher"
+    "unpin": "Détacher",
+    "addTag": "Ajouter une étiquette"
   },
   "toolbar": {
     "save": "sauvegarder",

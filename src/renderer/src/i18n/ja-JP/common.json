@@ -22,6 +22,7 @@
     "createChatFailed": "チャットの作成に失敗しました",
     "selectChatFailed": "チャットの選択に失敗しました",
     "renameChatFailed": "チャットの名前変更に失敗しました",
+    "addTagFailed": "タグの追加に失敗しました",
     "deleteChatFailed": "チャットの削除に失敗しました",
     "userCanceledGeneration": "ユーザーが生成をキャンセルしました",
     "sessionInterrupted": "セッションが中断され、生成が完了しませんでした",

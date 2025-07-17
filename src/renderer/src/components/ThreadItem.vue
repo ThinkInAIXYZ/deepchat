@@ -1,62 +1,47 @@
 <template>
-  <li
-    :dir="langStore.dir"
-    :class="[
-      ' select-none px-2 py-2 rounded-md text-accent-foreground text-xs cursor-pointer group flex items-center justify-between',
-      isActive ? 'bg-slate-200 dark:bg-accent' : 'hover:bg-accent'
-    ]"
-    @click="$emit('select', thread)"
-  >
+  <li :dir="langStore.dir" :class="[
+    ' select-none px-2 py-2 rounded-md text-accent-foreground text-xs cursor-pointer group flex items-center justify-between',
+    isActive ? 'bg-slate-200 dark:bg-accent' : 'hover:bg-accent'
+  ]" @click="$emit('select', thread)">
     <div class="flex items-center truncate">
-      <Icon
-        v-if="thread.is_pinned === 1"
-        icon="lucide:pin"
-        class="mr-1 h-3 w-3 flex-shrink-0 text-yellow-500"
-      />
-      <Icon
-        v-if="workingStatus && !isActive"
-        :icon="getStatusIcon(workingStatus)"
-        class="mr-1 h-3 w-3 flex-shrink-0"
+      <Icon v-if="thread.is_pinned === 1" icon="lucide:pin" class="mr-1 h-3 w-3 flex-shrink-0 text-yellow-500" />
+      <Icon v-if="workingStatus && !isActive" :icon="getStatusIcon(workingStatus)" class="mr-1 h-3 w-3 flex-shrink-0"
         :class="{
           'text-blue-500 animate-spin': workingStatus === 'working',
           'text-red-500': workingStatus === 'error',
           'text-green-500': workingStatus === 'completed'
-        }"
-      />
+        }" />
       <span class="truncate">{{ thread.title }}</span>
     </div>
     <DropdownMenu>
       <DropdownMenuTrigger as-child>
-        <Button
-          variant="ghost"
-          size="icon"
-          class="h-4 w-4 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
-          @click.stop.prevent
-        >
+        <Button variant="ghost" size="icon" class="h-4 w-4 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+          @click.stop.prevent>
           <Icon icon="lucide:more-horizontal" class="h-3 w-3 text-muted-foreground" />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent>
-        <DropdownMenuItem @select="handleTogglePin(thread)">
-          <Icon
-            :icon="thread.is_pinned === 1 ? 'lucide:pin-off' : 'lucide:pin'"
-            class="mr-2 h-4 w-4"
-          />
+        <DropdownMenuItem @select="handleTogglePin(thread)" class="cursor-pointer">
+          <Icon :icon="thread.is_pinned === 1 ? 'lucide:pin-off' : 'lucide:pin'" class="mr-2 h-4 w-4" />
           <span>{{
             thread.is_pinned === 1 ? t('thread.actions.unpin') : t('thread.actions.pin')
           }}</span>
         </DropdownMenuItem>
-        <DropdownMenuItem @select="$emit('rename', thread)">
+        <DropdownMenuItem @select="$emit('addTag', thread)" class="cursor-pointer">
+          <Icon icon="lucide:tag" class="mr-2 h-4 w-4" />
+          <span>{{ t('thread.actions.addTag') }}</span>
+        </DropdownMenuItem>
+        <DropdownMenuItem @select="$emit('rename', thread)" class="cursor-pointer">
           <Icon icon="lucide:pencil" class="mr-2 h-4 w-4" />
           <span>{{ t('thread.actions.rename') }}</span>
         </DropdownMenuItem>
 
-        <DropdownMenuItem @select="$emit('cleanmsgs', thread)">
+        <DropdownMenuItem @select="$emit('cleanmsgs', thread)" class="cursor-pointer">
           <Icon icon="lucide:eraser" class="mr-2 h-4 w-4" />
           <span>{{ t('thread.actions.cleanMessages') }}</span>
         </DropdownMenuItem>
 
-        <DropdownMenuItem class="text-destructive" @select="$emit('delete', thread)">
+        <DropdownMenuItem class="text-destructive cursor-pointer" @select="$emit('delete', thread)" >
           <Icon icon="lucide:trash-2" class="mr-2 h-4 w-4" />
           <span>{{ t('thread.actions.delete') }}</span>
         </DropdownMenuItem>
@@ -95,6 +80,7 @@ defineEmits<{
   rename: [thread: CONVERSATION]
   delete: [thread: CONVERSATION]
   cleanmsgs: [thread: CONVERSATION]
+  addTag: [thread: CONVERSATION]
 }>()
 
 const { t } = useI18n()

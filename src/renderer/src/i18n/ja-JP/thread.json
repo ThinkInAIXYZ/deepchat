@@ -4,7 +4,8 @@
     "delete": "削除",
     "cleanMessages": "メッセージをクリアします",
     "pin": "ピン留めする",
-    "unpin": "ピン留めを外す"
+    "unpin": "ピン留めを外す",
+    "addTag": "タグを追加"
   },
   "toolbar": {
     "save": "保存",

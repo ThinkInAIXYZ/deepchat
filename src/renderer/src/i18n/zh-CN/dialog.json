@@ -25,5 +25,9 @@
   },
   "error": {
     "title": "错误"
+  },
+  "addTag": {
+    "title": "添加标签",
+    "description": "请输入标签名称。"
   }
 }

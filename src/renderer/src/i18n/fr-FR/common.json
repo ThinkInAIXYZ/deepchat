@@ -22,6 +22,7 @@
     "createChatFailed": "Échec de la création de la conversation",
     "selectChatFailed": "Échec de la sélection de la conversation",
     "renameChatFailed": "Échec du renommage de la conversation",
+    "addTagFailed": "Échec de l'ajout de la balise",
     "deleteChatFailed": "Échec de la suppression de la conversation",
     "cleanMessagesFailed": "Échec du nettoyage des messages",
     "userCanceledGeneration": "L'utilisateur a annulé la génération",

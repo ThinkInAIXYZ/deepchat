@@ -24,6 +24,7 @@
     "createChatFailed": "创建会话失败",
     "selectChatFailed": "选择会话失败",
     "renameChatFailed": "重命名会话失败",
+    "addTagFailed": "添加标签失败",
     "deleteChatFailed": "删除会话失败",
     "cleanMessagesFailed": "清空会话消息失败",
     "userCanceledGeneration": "用户取消了生成",

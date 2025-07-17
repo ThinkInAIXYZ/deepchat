@@ -25,5 +25,9 @@
   },
   "error": {
     "title": "Error"
+  },
+  "addTag": {
+    "title": "Add Tag",
+    "description": "Please enter the tag name."
   }
 }

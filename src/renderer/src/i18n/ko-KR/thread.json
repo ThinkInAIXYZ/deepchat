@@ -4,7 +4,8 @@
     "delete": "삭제",
     "cleanMessages": "메시지 정리",
     "pin": "고정하기",
-    "unpin": "고정 해제"
+    "unpin": "고정 해제",
+    "addTag": "태그 추가"
   },
   "toolbar": {
     "save": "저장",
