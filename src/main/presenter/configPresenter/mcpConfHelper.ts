@@ -31,46 +31,52 @@ function isLinux(): boolean {
 // 平台特有的 MCP 服务器配置
 const PLATFORM_SPECIFIC_SERVERS: Record<string, MCPServerConfig> = {
   // macOS 特有服务
-  ...(isMacOS() ? {
-    'deepchat/apple-server': {
-      args: [],
-      descriptions: 'DeepChat内置Apple系统集成服务 (仅macOS)',
-      icons: '🍎',
-      autoApprove: ['all'],
-      type: 'inmemory' as MCPServerType,
-      command: 'deepchat/apple-server',
-      env: {},
-      disable: false
-    }
-  } : {}),
-  
+  ...(isMacOS()
+    ? {
+        'deepchat/apple-server': {
+          args: [],
+          descriptions: 'DeepChat内置Apple系统集成服务 (仅macOS)',
+          icons: '🍎',
+          autoApprove: ['all'],
+          type: 'inmemory' as MCPServerType,
+          command: 'deepchat/apple-server',
+          env: {},
+          disable: false
+        }
+      }
+    : {}),
+
   // Windows 特有服务 (预留)
-  ...(isWindows() ? {
-    // 'deepchat-inmemory/windows-server': {
-    //   args: [],
-    //   descriptions: 'DeepChat内置Windows系统集成服务 (仅Windows)',
-    //   icons: '🪟',
-    //   autoApprove: ['all'],
-    //   type: 'inmemory' as MCPServerType,
-    //   command: 'deepchat-inmemory/windows-server',
-    //   env: {},
-    //   disable: false
-    // }
-  } : {}),
-  
+  ...(isWindows()
+    ? {
+        // 'deepchat-inmemory/windows-server': {
+        //   args: [],
+        //   descriptions: 'DeepChat内置Windows系统集成服务 (仅Windows)',
+        //   icons: '🪟',
+        //   autoApprove: ['all'],
+        //   type: 'inmemory' as MCPServerType,
+        //   command: 'deepchat-inmemory/windows-server',
+        //   env: {},
+        //   disable: false
+        // }
+      }
+    : {}),
+
   // Linux 特有服务 (预留)
-  ...(isLinux() ? {
-    // 'deepchat-inmemory/linux-server': {
-    //   args: [],
-    //   descriptions: 'DeepChat内置Linux系统集成服务 (仅Linux)',
-    //   icons: '🐧',
-    //   autoApprove: ['all'],
-    //   type: 'inmemory' as MCPServerType,
-    //   command: 'deepchat-inmemory/linux-server',
-    //   env: {},
-    //   disable: false
-    // }
-  } : {})
+  ...(isLinux()
+    ? {
+        // 'deepchat-inmemory/linux-server': {
+        //   args: [],
+        //   descriptions: 'DeepChat内置Linux系统集成服务 (仅Linux)',
+        //   icons: '🐧',
+        //   autoApprove: ['all'],
+        //   type: 'inmemory' as MCPServerType,
+        //   command: 'deepchat-inmemory/linux-server',
+        //   env: {},
+        //   disable: false
+        // }
+      }
+    : {})
 }
 
 // 抽取inmemory类型的服务为常量
@@ -335,8 +341,10 @@ export class McpConfHelper {
     }
 
     // 如果有变化，更新存储
-    if (Object.keys(updatedServers).length !== Object.keys(storedServers).length || 
-        serversToRemove.length > 0) {
+    if (
+      Object.keys(updatedServers).length !== Object.keys(storedServers).length ||
+      serversToRemove.length > 0
+    ) {
       this.mcpStore.set('mcpServers', updatedServers)
     }
 
