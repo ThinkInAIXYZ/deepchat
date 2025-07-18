@@ -687,7 +687,7 @@ export const useChatStore = defineStore('chat', () => {
   }
 
   const addTagThread = async (threadId: string, tag: string) => {
-    // await threadP.addTagConversation(threadId, tag)
+    await threadP.addTagConversation(threadId, tag)
   }
 
   const toggleThreadPinned = async (threadId: string, isPinned: boolean) => {

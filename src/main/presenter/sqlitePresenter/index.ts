@@ -250,6 +250,11 @@ export class SQLitePresenter implements ISQLitePresenter {
     return this.conversationsTable.delete(conversationId)
   }
 
+  // 添加会话标签
+  public async addTagConversation(conversationId: string, tag: string): Promise<void> {
+    await this.conversationsTable.update(conversationId, { tag })
+  }
+
   // 插入消息
   public async insertMessage(
     conversationId: string,

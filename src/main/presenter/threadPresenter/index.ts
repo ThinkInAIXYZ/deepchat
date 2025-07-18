@@ -621,6 +621,11 @@ export class ThreadPresenter implements IThreadPresenter {
     return conversation
   }
 
+  async addTagConversation(conversationId: string, tag: string): Promise<void> {
+    await this.sqlitePresenter.addTagConversation(conversationId, tag)
+    await this.broadcastThreadListUpdate() // 必须广播
+  }
+
   async createConversation(
     title: string,
     settings: Partial<CONVERSATION_SETTINGS> = {},

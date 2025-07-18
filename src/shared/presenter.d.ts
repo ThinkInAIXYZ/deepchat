@@ -232,6 +232,7 @@ export interface ISQLitePresenter {
   renameConversation(conversationId: string, title: string): Promise<CONVERSATION>
   getConversation(conversationId: string): Promise<CONVERSATION>
   updateConversation(conversationId: string, data: Partial<CONVERSATION>): Promise<void>
+  addTagConversation(conversationId: string, tag: string): Promise<void>
   getConversationList(
     page: number,
     pageSize: number
@@ -559,6 +560,7 @@ export interface IThreadPresenter {
   deleteConversation(conversationId: string): Promise<void>
   getConversation(conversationId: string): Promise<CONVERSATION>
   renameConversation(conversationId: string, title: string): Promise<CONVERSATION>
+  addTagConversation(conversationId: string, tag: string): Promise<void>
   updateConversationTitle(conversationId: string, title: string): Promise<void>
   updateConversationSettings(
     conversationId: string,

@@ -17,6 +17,7 @@ type ConversationRow = {
   artifacts: number
   is_new: number
   is_pinned: number
+  tag: string
 }
 
 export class ConversationsTable extends BaseTable {
@@ -67,11 +68,17 @@ export class ConversationsTable extends BaseTable {
         UPDATE conversations SET artifacts = 0;
       `
     }
+    if (version === 3) {
+      return `
+        -- 添加 tag 字段用于会话标签
+        ALTER TABLE conversations ADD COLUMN tag TEXT DEFAULT '';
+      `
+    }
     return null
   }
 
   getLatestVersion(): number {
-    return 2
+    return 3
   }
 
   async create(title: string, settings: Partial<CONVERSATION_SETTINGS> = {}): Promise<string> {
@@ -89,9 +96,10 @@ export class ConversationsTable extends BaseTable {
         model_id,
         is_new,
         artifacts,
-        is_pinned
+        is_pinned,
+        tag
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `)
     const conv_id = nanoid()
     const now = Date.now()
@@ -108,7 +116,8 @@ export class ConversationsTable extends BaseTable {
       settings.modelId || 'gpt-4',
       1,
       settings.artifacts || 0,
-      0 // Default is_pinned to 0
+      0, // Default is_pinned to 0
+      '' // Default tag to empty string
     )
     return conv_id
   }
@@ -130,7 +139,8 @@ export class ConversationsTable extends BaseTable {
         model_id as modelId,
         is_new,
         artifacts,
-        is_pinned
+        is_pinned,
+        tag
       FROM conversations
       WHERE conv_id = ?
     `
@@ -148,6 +158,7 @@ export class ConversationsTable extends BaseTable {
       updatedAt: result.updatedAt,
       is_new: result.is_new,
       is_pinned: result.is_pinned,
+      tag: result.tag,
       settings: {
         systemPrompt: result.systemPrompt,
         temperature: result.temperature,
@@ -177,6 +188,11 @@ export class ConversationsTable extends BaseTable {
     if (data.is_pinned !== undefined) {
       updates.push('is_pinned = ?')
       params.push(data.is_pinned)
+    }
+
+    if (data.tag !== undefined) {
+      updates.push('tag = ?')
+      params.push(data.tag)
     }
 
     if (data.settings) {
@@ -252,7 +268,8 @@ export class ConversationsTable extends BaseTable {
         model_id as modelId,
         is_new,
         artifacts,
-        is_pinned
+        is_pinned,
+        tag
       FROM conversations
       ORDER BY updated_at DESC
       LIMIT ? OFFSET ?
@@ -269,6 +286,7 @@ export class ConversationsTable extends BaseTable {
         updatedAt: row.updatedAt,
         is_new: row.is_new,
         is_pinned: row.is_pinned,
+        tag: row.tag,
         settings: {
           systemPrompt: row.systemPrompt,
           temperature: row.temperature,
