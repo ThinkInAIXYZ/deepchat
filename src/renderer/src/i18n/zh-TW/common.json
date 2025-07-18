@@ -18,6 +18,7 @@
     "createChatFailed": "建立對話失敗",
     "selectChatFailed": "選擇對話失敗",
     "renameChatFailed": "重新命名對話失敗",
+    "addTagFailed": "添加標籤失敗",
     "deleteChatFailed": "刪除對話失敗",
     "cleanMessagesFailed": "清除對話訊息失敗",
     "userCanceledGeneration": "使用者取消了生成",
