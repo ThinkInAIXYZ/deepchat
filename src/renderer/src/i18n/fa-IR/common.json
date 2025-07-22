@@ -22,6 +22,7 @@
     "createChatFailed": "ساخت گفت‌وگو انجام نشد",
     "selectChatFailed": "انتخاب گفت‌وگو انجام نشد",
     "renameChatFailed": "ویرایش نام گفت‌وگو انجام نشد",
+    "addTagFailed": "افزودن برچسب انجام نشد",
     "deleteChatFailed": "پاک کردن گفت‌وگو انجام نشد",
     "cleanMessagesFailed": "تمیز کردن پیام‌ها انجام نشد",
     "userCanceledGeneration": "کاربر تولید را رد کرد",

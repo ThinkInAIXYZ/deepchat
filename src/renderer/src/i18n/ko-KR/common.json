@@ -23,6 +23,7 @@
     "createChatFailed": "채팅 생성 실패",
     "selectChatFailed": "채팅 선택 실패",
     "renameChatFailed": "채팅 이름 변경 실패",
+    "addTagFailed": "태그 추가 실패",
     "deleteChatFailed": "채팅 삭제 실패",
     "cleanMessagesFailed": "메시지 정리 실패",
     "userCanceledGeneration": "사용자가 생성을 취소했습니다",

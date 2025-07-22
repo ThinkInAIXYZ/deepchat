@@ -22,6 +22,7 @@
     "createChatFailed": "Failed to create chat",
     "selectChatFailed": "Failed to select chat",
     "renameChatFailed": "Failed to rename chat",
+    "addTagFailed": "Failed to add tag",
     "deleteChatFailed": "Failed to delete chat",
     "cleanMessagesFailed": "Failed to clean messages",
     "userCanceledGeneration": "User canceled generation",
