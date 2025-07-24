@@ -1,4 +1,4 @@
-import { MetricType } from "@shared/presenter"
+import { MetricType } from '@shared/presenter'
 
 export const EMBEDDING_TEST_KEY = 'sample'
 

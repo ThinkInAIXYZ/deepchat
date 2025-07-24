@@ -1,4 +1,4 @@
-import { DialogPresenter } from './dialogPresenter/index';
+import { DialogPresenter } from './dialogPresenter/index'
 import { ipcMain, IpcMainInvokeEvent, app } from 'electron'
 // import { LlamaCppPresenter } from './llamaCppPresenter' // 保留原始注释
 import { WindowPresenter } from './windowPresenter'

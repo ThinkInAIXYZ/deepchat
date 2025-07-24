@@ -95,11 +95,15 @@ export class FilePresenter implements IFilePresenter {
   /**
    * 准备文件，返回一个完整的 MessageFile 对象，支持不同的 contentType（兼容旧方法调用）
    * @param absPath
-   * @param typeInfo 
-   * @param contentType 
-   * @returns 
+   * @param typeInfo
+   * @param contentType
+   * @returns
    */
-  async prepareFileCompletely(absPath: string, typeInfo?: string, contentType?: null | 'origin' | 'llm-friendly'): Promise<MessageFile> {
+  async prepareFileCompletely(
+    absPath: string,
+    typeInfo?: string,
+    contentType?: null | 'origin' | 'llm-friendly'
+  ): Promise<MessageFile> {
     const fullPath = path.join(absPath)
     try {
       const adapter = await this.createFileAdapter(fullPath, typeInfo)

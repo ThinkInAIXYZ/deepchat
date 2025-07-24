@@ -319,8 +319,6 @@ export class GithubCopilotProvider extends BaseLLMProvider {
         functionCall: true,
         reasoning: true
       }
-      
-
     ]
 
     return models
@@ -394,14 +392,14 @@ export class GithubCopilotProvider extends BaseLLMProvider {
       console.log('📥 [GitHub Copilot] Stream API Response:')
       console.log(`   Status: ${response.status} ${response.statusText}`)
       console.log(`   OK: ${response.ok}`)
-      
+
       if (!response.ok) {
         console.log('❌ [GitHub Copilot] Stream request failed!')
         console.log(`   Request URL: ${this.baseApiUrl}/chat/completions`)
         console.log(`   Request Method: POST`)
         console.log(`   Request Headers:`, headers)
         console.log(`   Request Body:`, JSON.stringify(requestBody, null, 2))
-        
+
         // 尝试读取错误响应
         try {
           const errorText = await response.text()
@@ -409,7 +407,7 @@ export class GithubCopilotProvider extends BaseLLMProvider {
         } catch (e) {
           console.log(`   Could not read error response: ${e}`)
         }
-        
+
         throw new Error(`GitHub Copilot API error: ${response.status} ${response.statusText}`)
       }
 
@@ -545,14 +543,14 @@ export class GithubCopilotProvider extends BaseLLMProvider {
       console.log('📥 [GitHub Copilot] Completion API Response:')
       console.log(`   Status: ${response.status} ${response.statusText}`)
       console.log(`   OK: ${response.ok}`)
-      
+
       if (!response.ok) {
         console.log('❌ [GitHub Copilot] Completion request failed!')
         console.log(`   Request URL: ${this.baseApiUrl}/chat/completions`)
         console.log(`   Request Method: POST`)
         console.log(`   Request Headers:`, headers)
         console.log(`   Request Body:`, JSON.stringify(requestBody, null, 2))
-        
+
         // 尝试读取错误响应
         try {
           const errorText = await response.text()
@@ -560,7 +558,7 @@ export class GithubCopilotProvider extends BaseLLMProvider {
         } catch (e) {
           console.log(`   Could not read error response: ${e}`)
         }
-        
+
         throw new Error(`GitHub Copilot API error: ${response.status} ${response.statusText}`)
       }
 

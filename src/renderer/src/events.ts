@@ -126,8 +126,8 @@ export const FLOATING_BUTTON_EVENTS = {
 
 // Dialog相关事件
 export const DIALOG_EVENTS = {
-  REQUEST: 'dialog:request',   // 主进程 -> 渲染进程，请求显示dialog
-  RESPONSE: 'dialog:response', // 渲染进程 -> 主进程，dialog结果回传
+  REQUEST: 'dialog:request', // 主进程 -> 渲染进程，请求显示dialog
+  RESPONSE: 'dialog:response' // 渲染进程 -> 主进程，dialog结果回传
 }
 
 // 知识库事件

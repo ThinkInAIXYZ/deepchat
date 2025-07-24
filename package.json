@@ -18,6 +18,7 @@
     "test:coverage": "vitest --coverage",
     "test:watch": "vitest --watch",
     "test:ui": "vitest --ui",
+    "format:check": "prettier --check .",
     "format": "prettier --write .",
     "lint": "npx -y oxlint .",
     "typecheck:node": "tsc --noEmit -p tsconfig.node.json --composite false",

@@ -21,7 +21,7 @@
           class="text-xs text-normal rounded-lg"
           @click="openModelCheckDialog"
         >
-        <Icon icon="lucide:check-check" class="w-4 h-4 text-muted-foreground" />
+          <Icon icon="lucide:check-check" class="w-4 h-4 text-muted-foreground" />
           {{ t('settings.provider.verifyKey') }}
         </Button>
         <Button
@@ -141,8 +141,6 @@ const modelCheckStore = useModelCheckStore()
 const isLoggingIn = ref(false)
 const validationResult = ref<{ success: boolean; message: string } | null>(null)
 
-
-
 const hasToken = computed(() => {
   return !!(props.provider.apiKey && props.provider.apiKey.trim())
 })
@@ -220,7 +218,7 @@ const startOAuthLogin = async () => {
 }
 
 const openModelCheckDialog = () => {
-      modelCheckStore.openDialog(props.provider.id)
+  modelCheckStore.openDialog(props.provider.id)
 }
 
 /**
@@ -255,8 +253,7 @@ const clearValidationAfterDelay = () => {
 }
 
 // 监听验证结果变化，自动清除
-onMounted(() => {
-})
+onMounted(() => {})
 
 onUnmounted(() => {
   if (clearValidationTimer) {

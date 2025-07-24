@@ -115,7 +115,7 @@ export class KnowledgeTaskPresenter implements IKnowledgeTaskPresenter {
     this.removeTasks(() => true)
     // Clear queue and reset state
     this.queue = []
- 
+
     // Stop processing loop
     this.isProcessing = false
     // Clear all controllers

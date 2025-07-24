@@ -175,7 +175,7 @@ export const FLOATING_BUTTON_EVENTS = {
 
 // Dialog related events
 export const DIALOG_EVENTS = {
-  REQUEST: 'dialog:request',   // Main -> Renderer: Request to show dialog
+  REQUEST: 'dialog:request', // Main -> Renderer: Request to show dialog
   RESPONSE: 'dialog:response' // Renderer -> Main: Dialog result response
 }
 
