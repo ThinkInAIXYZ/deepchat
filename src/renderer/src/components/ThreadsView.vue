@@ -1,13 +1,24 @@
 <template>
-  <div class="w-full h-full overflow-hidden p-2 space-y-3 flex-shrink-0 border-r flex flex-col bg-background">
+  <div
+    class="w-full h-full overflow-hidden p-2 space-y-3 flex-shrink-0 border-r flex flex-col bg-background"
+  >
     <!-- 固定在顶部的"新会话"按钮 -->
     <div class="flex-none flex flex-row gap-2">
-      <Button v-if="windowSize.width.value < 1024" variant="outline" size="icon"
-        class="flex-shrink-0 text-xs justify-center h-7 w-7" @click="chatStore.isSidebarOpen = false">
+      <Button
+        v-if="windowSize.width.value < 1024"
+        variant="outline"
+        size="icon"
+        class="flex-shrink-0 text-xs justify-center h-7 w-7"
+        @click="chatStore.isSidebarOpen = false"
+      >
         <Icon icon="lucide:panel-left-close" class="h-4 w-4" />
       </Button>
-      <Button variant="outline" size="sm" class="w-0 flex-1 text-xs justify-start gap-2 h-7"
-        @click="createNewThread">
+      <Button
+        variant="outline"
+        size="sm"
+        class="w-0 flex-1 text-xs justify-start gap-2 h-7"
+        @click="createNewThread"
+      >
         <Icon icon="lucide:pen-line" class="h-4 w-4" />
         <span>{{ t('common.newChat') }}</span>
       </Button>
@@ -15,21 +26,40 @@
 
     <!-- 可滚动的会话列表 - 使用动态虚拟滚动 -->
     <div class="flex-1 overflow-hidden">
-      <DynamicScroller ref="dynamicScrollerRef" class="h-full" :items="flattenedThreads" :min-item-size="30"
-        key-field="id" @scroll-end="handleScrollEnd">
+      <DynamicScroller
+        ref="dynamicScrollerRef"
+        class="h-full"
+        :items="flattenedThreads"
+        :min-item-size="30"
+        key-field="id"
+        @scroll-end="handleScrollEnd"
+      >
         <template v-slot="{ item, index, active }">
-          <DynamicScrollerItem :item="item" :active="active" :size-dependencies="[item.data]" :data-index="index">
+          <DynamicScrollerItem
+            :item="item"
+            :active="active"
+            :size-dependencies="[item.data]"
+            :data-index="index"
+          >
             <!-- 日期标题 -->
-            <div v-if="item.type === 'date'" class="text-xs font-bold text-muted-foreground px-2 py-2">
+            <div
+              v-if="item.type === 'date'"
+              class="text-xs font-bold text-muted-foreground px-2 py-2"
+            >
               {{ item.data }}
             </div>
 
             <!-- 线程项 -->
             <div v-else-if="item.type === 'thread'" class="px-0 py-1">
-              <ThreadItem :thread="item.data" :is-active="item.data.id === chatStore.getActiveThreadId()"
-                :working-status="chatStore.getThreadWorkingStatus(item.data.id)" @select="handleThreadSelect"
-                @rename="showRenameDialog(item.data)" @delete="showDeleteDialog(item.data)"
-                @cleanmsgs="showCleanMessagesDialog(item.data)" />
+              <ThreadItem
+                :thread="item.data"
+                :is-active="item.data.id === chatStore.getActiveThreadId()"
+                :working-status="chatStore.getThreadWorkingStatus(item.data.id)"
+                @select="handleThreadSelect"
+                @rename="showRenameDialog(item.data)"
+                @delete="showDeleteDialog(item.data)"
+                @cleanmsgs="showCleanMessagesDialog(item.data)"
+              />
             </div>
 
             <!-- 分隔间距 -->
@@ -39,7 +69,10 @@
       </DynamicScroller>
 
       <!-- 加载状态提示 -->
-      <div v-if="chatStore.threads.length === 0" class="text-xs text-center text-muted-foreground py-2">
+      <div
+        v-if="chatStore.threads.length === 0"
+        class="text-xs text-center text-muted-foreground py-2"
+      >
         {{ t('common.loading') }}
       </div>
     </div>
