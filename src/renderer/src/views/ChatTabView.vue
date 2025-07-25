@@ -54,13 +54,12 @@
 import { defineAsyncComponent } from 'vue'
 import { useChatStore } from '@/stores/chat'
 import { computed, watch, ref } from 'vue'
-import { onClickOutside } from '@vueuse/core'
+import { onClickOutside, useTitle, useMediaQuery } from '@vueuse/core'
 import { useSettingsStore } from '@/stores/settings'
 import { RENDERER_MODEL_META } from '@shared/presenter'
 import { useArtifactStore } from '@/stores/artifact'
 import ArtifactDialog from '@/components/artifacts/ArtifactDialog.vue'
 import { useRoute } from 'vue-router'
-import { useTitle } from '@vueuse/core'
 import { useLanguageStore } from '@/stores/language'
 const ThreadsView = defineAsyncComponent(() => import('@/components/ThreadsView.vue'))
 const TitleView = defineAsyncComponent(() => import('@/components/TitleView.vue'))
@@ -104,9 +103,10 @@ watch(
 
 // 点击外部区域关闭侧边栏
 const sidebarRef = ref<HTMLElement>()
+const isLargeScreen = useMediaQuery('(min-width: 1024px)')
 
 onClickOutside(sidebarRef, () => {
-  if (chatStore.isSidebarOpen) {
+  if (chatStore.isSidebarOpen && !isLargeScreen.value) {
     chatStore.isSidebarOpen = false
   }
 })
