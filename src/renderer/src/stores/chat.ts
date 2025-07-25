@@ -56,7 +56,8 @@ export const useChatStore = defineStore('chat', () => {
     maxTokens: 8000,
     providerId: '',
     modelId: '',
-    artifacts: 0
+    artifacts: 0,
+    enabledMcpTools: []
   })
 
   // Deeplink 消息缓存

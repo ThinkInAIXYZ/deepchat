@@ -301,7 +301,8 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
     modelId: string,
     eventId: string,
     temperature: number = 0.6,
-    maxTokens: number = 4096
+    maxTokens: number = 4096,
+    enabledMcpTools?: string[]
   ): AsyncGenerator<LLMAgentEvent, void, unknown> {
     console.log(`[Agent Loop] Starting agent loop for event: ${eventId} with model: ${modelId}`)
     if (!this.canStartNewStream()) {
@@ -375,7 +376,7 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
 
         try {
           console.log(`[Agent Loop] Iteration ${toolCallCount + 1} for event: ${eventId}`)
-          const mcpTools = await presenter.mcpPresenter.getAllToolDefinitions()
+          const mcpTools = await presenter.mcpPresenter.getAllToolDefinitions(enabledMcpTools)
           // Call the provider's core stream method, expecting LLMCoreStreamEvent
           const stream = provider.coreStream(
             conversationMessages,
@@ -595,9 +596,9 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
               toolCallCount++
 
               // Find the tool definition to get server info
-              const toolDef = (await presenter.mcpPresenter.getAllToolDefinitions()).find(
-                (t) => t.function.name === toolCall.name
-              )
+              const toolDef = (
+                await presenter.mcpPresenter.getAllToolDefinitions(enabledMcpTools)
+              ).find((t) => t.function.name === toolCall.name)
 
               if (!toolDef) {
                 console.error(`Tool definition not found for ${toolCall.name}. Skipping execution.`)

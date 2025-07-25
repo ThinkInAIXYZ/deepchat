@@ -517,7 +517,8 @@ export interface ILlmProviderPresenter {
     modelId: string,
     eventId: string,
     temperature?: number,
-    maxTokens?: number
+    maxTokens?: number,
+    enabledMcpTools?: string[]
   ): AsyncGenerator<LLMAgentEvent, void, unknown>
   generateCompletion(
     providerId: string,
@@ -554,6 +555,7 @@ export type CONVERSATION_SETTINGS = {
   providerId: string
   modelId: string
   artifacts: 0 | 1
+  enabledMcpTools?: string[]
 }
 
 export type CONVERSATION = {

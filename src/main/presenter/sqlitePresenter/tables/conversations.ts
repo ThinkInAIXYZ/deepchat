@@ -17,6 +17,16 @@ type ConversationRow = {
   artifacts: number
   is_new: number
   is_pinned: number
+  enabled_mcp_tools: string | null
+}
+
+// 解析 JSON 字段
+function getJsonField<T>(val: string | null | undefined, fallback: T): T {
+  try {
+    return val ? JSON.parse(val) : fallback
+  } catch {
+    return fallback
+  }
 }
 
 export class ConversationsTable extends BaseTable {
@@ -46,7 +56,6 @@ export class ConversationsTable extends BaseTable {
       CREATE INDEX idx_conversations_pinned ON conversations(is_pinned);
     `
   }
-
   getMigrationSQL(version: number): string | null {
     if (version === 1) {
       return `
@@ -67,11 +76,17 @@ export class ConversationsTable extends BaseTable {
         UPDATE conversations SET artifacts = 0;
       `
     }
+    if (version === 3) {
+      return `
+        ALTER TABLE conversations ADD COLUMN enabled_mcp_tools TEXT DEFAULT '[]';
+      `
+    }
+
     return null
   }
 
   getLatestVersion(): number {
-    return 2
+    return 3
   }
 
   async create(title: string, settings: Partial<CONVERSATION_SETTINGS> = {}): Promise<string> {
@@ -89,9 +104,10 @@ export class ConversationsTable extends BaseTable {
         model_id,
         is_new,
         artifacts,
-        is_pinned
+        is_pinned,
+        enabled_mcp_tools
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ? ,?)
     `)
     const conv_id = nanoid()
     const now = Date.now()
@@ -108,7 +124,8 @@ export class ConversationsTable extends BaseTable {
       settings.modelId || 'gpt-4',
       1,
       settings.artifacts || 0,
-      0 // Default is_pinned to 0
+      0, // Default is_pinned to 0
+      settings.enabledMcpTools ? JSON.stringify(settings.enabledMcpTools) : '[]'
     )
     return conv_id
   }
@@ -130,7 +147,8 @@ export class ConversationsTable extends BaseTable {
         model_id as modelId,
         is_new,
         artifacts,
-        is_pinned
+        is_pinned,
+        enabled_mcp_tools
       FROM conversations
       WHERE conv_id = ?
     `
@@ -155,7 +173,8 @@ export class ConversationsTable extends BaseTable {
         maxTokens: result.maxTokens,
         providerId: result.providerId,
         modelId: result.modelId,
-        artifacts: result.artifacts as 0 | 1
+        artifacts: result.artifacts as 0 | 1,
+        enabledMcpTools: getJsonField(result.enabled_mcp_tools, [])
       }
     }
   }
@@ -208,8 +227,11 @@ export class ConversationsTable extends BaseTable {
         updates.push('artifacts = ?')
         params.push(data.settings.artifacts)
       }
+      if (data.settings.enabledMcpTools !== undefined) {
+        updates.push('enabled_mcp_tools = ?')
+        params.push(JSON.stringify(data.settings.enabledMcpTools))
+      }
     }
-
     if (updates.length > 0 || data.updatedAt) {
       updates.push('updated_at = ?')
       params.push(data.updatedAt || Date.now())
@@ -252,7 +274,8 @@ export class ConversationsTable extends BaseTable {
         model_id as modelId,
         is_new,
         artifacts,
-        is_pinned
+        is_pinned,
+        enabled_mcp_tools
       FROM conversations
       ORDER BY updated_at DESC
       LIMIT ? OFFSET ?
@@ -276,7 +299,8 @@ export class ConversationsTable extends BaseTable {
           maxTokens: row.maxTokens,
           providerId: row.providerId,
           modelId: row.modelId,
-          artifacts: row.artifacts as 0 | 1
+          artifacts: row.artifacts as 0 | 1,
+          enabledMcpTools: getJsonField(row.enabled_mcp_tools, [])
         }
       }))
     }

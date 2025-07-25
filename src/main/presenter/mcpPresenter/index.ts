@@ -410,11 +410,10 @@ export class McpPresenter implements IMCPPresenter {
     // 通知渲染进程服务器已停止
     eventBus.send(MCP_EVENTS.SERVER_STOPPED, SendTarget.ALL_WINDOWS, serverName)
   }
-
-  async getAllToolDefinitions(): Promise<MCPToolDefinition[]> {
+  async getAllToolDefinitions(enabledMcpTools?: string[]): Promise<MCPToolDefinition[]> {
     const enabled = await this.configPresenter.getMcpEnabled()
     if (enabled) {
-      return this.toolManager.getAllToolDefinitions()
+      return await this.toolManager.getAllToolDefinitions(enabledMcpTools)
     }
     return []
   }
