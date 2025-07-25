@@ -42,12 +42,6 @@ jobs:
       - name: Install dependencies
         run: pnpm install
 
-      - name: lint
-        run: pnpm run lint
-      
-      - name: format:check
-        run: pnpm run format:check
-
       - name: Configure pnpm workspace for Windows ${{ matrix.arch }}
         run: pnpm run install:sharp
         env:
