@@ -85,64 +85,89 @@ export class ModelConfigHelper {
    * Get model configuration with priority: user config > provider config > default config
    * @param modelId - The model ID
    * @param providerId - Optional provider ID
-   * @returns ModelConfig
+   * @returns ModelConfig with isUserDefined flag
    */
   getModelConfig(modelId: string, providerId?: string): ModelConfig {
     // Initialize cache if not already done
     this.initializeCache()
 
+    let hasUserConfig = false
+    let userConfig: ModelConfig | null = null
+
     // 1. First try to get user-defined config for this specific provider + model
     if (providerId) {
       const cacheKey = this.generateCacheKey(providerId, modelId)
-      let userConfig = this.memoryCache.get(cacheKey)
+      let userConfigData = this.memoryCache.get(cacheKey)
 
       // If not in cache, try to load from store and cache it
-      if (!userConfig) {
-        userConfig = this.modelConfigStore.get(cacheKey)
-        if (userConfig) {
-          this.memoryCache.set(cacheKey, userConfig)
+      if (!userConfigData) {
+        userConfigData = this.modelConfigStore.get(cacheKey)
+        if (userConfigData) {
+          this.memoryCache.set(cacheKey, userConfigData)
         }
       }
-      // console.log('userConfig', userConfig)
-      if (userConfig?.config) {
-        return userConfig.config
+
+      if (userConfigData?.config) {
+        hasUserConfig = true
+        userConfig = userConfigData.config
       }
     }
 
-    // 2. Try to get provider-specific default config
-    if (providerId) {
-      const providerConfig = getProviderSpecificModelConfig(providerId, modelId)
+    let finalConfig: ModelConfig
+
+    if (hasUserConfig && userConfig) {
+      // Use user config as base
+      finalConfig = { ...userConfig }
+    } else {
+      // 2. Try to get provider-specific default config
+      let providerConfig: ModelConfig | null = null
+      if (providerId) {
+        providerConfig = getProviderSpecificModelConfig(providerId, modelId) || null
+      }
+
       if (providerConfig) {
-        return providerConfig
-      }
-    }
+        finalConfig = { ...providerConfig }
+      } else {
+        // 3. Try to get default model config by pattern matching
+        const lowerModelId = modelId.toLowerCase()
+        let defaultConfig: ModelConfig | null = null
 
-    // 3. Try to get default model config by pattern matching
-    const lowerModelId = modelId.toLowerCase()
-    for (const config of defaultModelsSettings) {
-      if (config.match.some((matchStr) => lowerModelId.includes(matchStr.toLowerCase()))) {
-        return {
-          maxTokens: config.maxTokens,
-          contextLength: config.contextLength,
-          temperature: config.temperature,
-          vision: config.vision,
-          functionCall: config.functionCall || false,
-          reasoning: config.reasoning || false,
-          type: config.type || ModelType.Chat
+        for (const config of defaultModelsSettings) {
+          if (config.match.some((matchStr) => lowerModelId.includes(matchStr.toLowerCase()))) {
+            defaultConfig = {
+              maxTokens: config.maxTokens,
+              contextLength: config.contextLength,
+              temperature: config.temperature,
+              vision: config.vision,
+              functionCall: config.functionCall || false,
+              reasoning: config.reasoning || false,
+              type: config.type || ModelType.Chat
+            }
+            break
+          }
+        }
+
+        if (defaultConfig) {
+          finalConfig = defaultConfig
+        } else {
+          // 4. Return safe default config if nothing matches
+          finalConfig = {
+            maxTokens: 4096,
+            contextLength: 8192,
+            temperature: 0.6,
+            vision: false,
+            functionCall: false,
+            reasoning: false,
+            type: ModelType.Chat
+          }
         }
       }
     }
 
-    // 4. Return safe default config if nothing matches
-    return {
-      maxTokens: 4096,
-      contextLength: 8192,
-      temperature: 0.6,
-      vision: false,
-      functionCall: false,
-      reasoning: false,
-      type: ModelType.Chat
-    }
+    // Add source information to the config
+    finalConfig.isUserDefined = hasUserConfig
+
+    return finalConfig
   }
 
   /**
@@ -297,3 +322,4 @@ export class ModelConfigHelper {
     this.cacheInitialized = false
   }
 }
+

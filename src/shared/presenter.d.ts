@@ -125,7 +125,10 @@ export interface ModelConfig {
   functionCall: boolean
   reasoning: boolean
   type: ModelType
+  // Whether this config is user-defined (true) or default config (false)
+  isUserDefined?: boolean
 }
+
 export interface IModelConfig {
   id: string
   providerId: string

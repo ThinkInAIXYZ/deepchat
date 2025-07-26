@@ -244,21 +244,25 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
     let models = await provider.fetchModels()
     models = models.map((model) => {
       const config = this.configPresenter.getModelConfig(model.id, providerId)
-      if (config) {
-        model.maxTokens = config.maxTokens
-        model.contextLength = config.contextLength
-        // 如果模型中已经有这些属性则保留，否则使用配置中的值或默认为false
-        model.vision = model.vision !== undefined ? model.vision : config.vision || false
-        model.functionCall =
-          model.functionCall !== undefined ? model.functionCall : config.functionCall || false
-        model.reasoning =
-          model.reasoning !== undefined ? model.reasoning : config.reasoning || false
+
+      // Always use config values for maxTokens, contextLength, and temperature
+      model.maxTokens = config.maxTokens
+      model.contextLength = config.contextLength
+
+      if (config.isUserDefined) {
+        // User has explicitly configured this model, use all config values
+        model.vision = config.vision
+        model.functionCall = config.functionCall
+        model.reasoning = config.reasoning
+        model.type = config.type
       } else {
-        // 确保模型具有这些属性，如果没有配置，默认为false
-        model.vision = model.vision || false
-        model.functionCall = model.functionCall || false
-        model.reasoning = model.reasoning || false
+        // Default config, prioritize model's own capabilities if they exist
+        model.vision = model.vision !== undefined ? model.vision : config.vision
+        model.functionCall = model.functionCall !== undefined ? model.functionCall : config.functionCall
+        model.reasoning = model.reasoning !== undefined ? model.reasoning : config.reasoning
+        model.type = model.type || config.type
       }
+
       return model
     })
     return models
