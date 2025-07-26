@@ -255,7 +255,7 @@ export class GeminiProvider extends BaseLLMProvider {
       const result = await this.genAI.models.generateContent({
         model: modelId,
         contents: [{ role: 'user', parts: [{ text: prompt }] }],
-        config: this.getGenerationConfig(0.4, undefined, modelId)
+        config: this.getGenerationConfig(0.4, undefined, modelId, false)
       })
 
       return result.text?.trim() || '新对话'
@@ -441,12 +441,13 @@ export class GeminiProvider extends BaseLLMProvider {
   private getGenerationConfig(
     temperature?: number,
     maxTokens?: number,
-    modelId?: string
-  ): GenerationConfig & { responseModalities?: string[] } {
+    modelId?: string,
+    reasoning?: boolean
+  ): GenerationConfig & { responseModalities?: string[]; reasoning?: boolean } {
     const generationConfig = {
       temperature,
       maxOutputTokens: maxTokens
-    } as GenerationConfig & { responseModalities?: string[] }
+    } as GenerationConfig & { responseModalities?: string[]; reasoning?: boolean }
 
     // 从当前模型列表中查找指定的模型
     if (modelId && this.models) {
@@ -454,6 +455,11 @@ export class GeminiProvider extends BaseLLMProvider {
       if (model && model.type === ModelType.ImageGeneration) {
         generationConfig.responseModalities = [Modality.TEXT, Modality.IMAGE]
       }
+    }
+
+    // 添加reasoning参数支持
+    if (reasoning !== undefined) {
+      generationConfig.reasoning = reasoning
     }
 
     return generationConfig
@@ -768,7 +774,7 @@ export class GeminiProvider extends BaseLLMProvider {
       const result = await this.genAI.models.generateContent({
         model: modelId,
         contents: [{ role: 'user', parts: [{ text: prompt }] }],
-        config: this.getGenerationConfig(temperature, maxTokens, modelId)
+        config: this.getGenerationConfig(temperature, maxTokens, modelId, false)
       })
 
       const response = result.text || ''
@@ -797,7 +803,7 @@ export class GeminiProvider extends BaseLLMProvider {
       const result = await this.genAI.models.generateContent({
         model: modelId,
         contents: [{ role: 'user', parts: [{ text: prompt }] }],
-        config: this.getGenerationConfig(temperature, maxTokens, modelId)
+        config: this.getGenerationConfig(temperature, maxTokens, modelId, false)
       })
 
       const response = result.text || ''
@@ -828,7 +834,7 @@ export class GeminiProvider extends BaseLLMProvider {
       const result = await this.genAI.models.generateContent({
         model: modelId,
         contents: [{ role: 'user', parts: [{ text: prompt }] }],
-        config: this.getGenerationConfig(temperature, maxTokens, modelId)
+        config: this.getGenerationConfig(temperature, maxTokens, modelId, false)
       })
 
       const responseText = result.text || ''
@@ -902,7 +908,7 @@ export class GeminiProvider extends BaseLLMProvider {
     const requestParams: GenerateContentParameters = {
       model: modelId,
       contents: formattedParts.contents,
-      config: this.getGenerationConfig(temperature, maxTokens, modelId)
+      config: this.getGenerationConfig(temperature, maxTokens, modelId, modelConfig.reasoning)
     }
 
     if (formattedParts.systemInstruction) {
@@ -1132,7 +1138,7 @@ export class GeminiProvider extends BaseLLMProvider {
       const result = await this.genAI.models.generateContentStream({
         model: modelId,
         contents: [{ role: 'user', parts: [{ text: prompt }] }],
-        config: this.getGenerationConfig(temperature, maxTokens, modelId)
+        config: this.getGenerationConfig(temperature, maxTokens, modelId, false) // 图像生成不需要reasoning
       })
 
       // 处理流式响应
