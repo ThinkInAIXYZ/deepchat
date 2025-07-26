@@ -443,11 +443,11 @@ export class GeminiProvider extends BaseLLMProvider {
     maxTokens?: number,
     modelId?: string,
     reasoning?: boolean
-  ): GenerationConfig & { responseModalities?: string[]; reasoning?: boolean } {
-    const generationConfig = {
+  ): GenerationConfig {
+    const generationConfig: GenerationConfig = {
       temperature,
       maxOutputTokens: maxTokens
-    } as GenerationConfig & { responseModalities?: string[]; reasoning?: boolean }
+    }
 
     // 从当前模型列表中查找指定的模型
     if (modelId && this.models) {
@@ -457,9 +457,11 @@ export class GeminiProvider extends BaseLLMProvider {
       }
     }
 
-    // 添加reasoning参数支持
+    // 正确配置思考功能
     if (reasoning !== undefined) {
-      generationConfig.reasoning = reasoning
+      generationConfig.thinkingConfig = {
+        includeThoughts: true
+      }
     }
 
     return generationConfig
@@ -614,35 +616,49 @@ export class GeminiProvider extends BaseLLMProvider {
     return { systemInstruction: systemContent, contents: formattedContents }
   }
 
-  // 处理响应，提取思考内容
-  private processResponse(text: string): LLMResponse {
+  // 处理 Gemini API 响应，支持新旧格式的思考内容
+  private processGeminiResponse(result: any): LLMResponse {
     const resultResp: LLMResponse = {
       content: ''
     }
 
-    // 处理 <think> 标签
-    if (text) {
-      const content = text.trimStart()
-      if (content.includes('<think>')) {
-        const thinkStart = content.indexOf('<think>')
-        const thinkEnd = content.indexOf('</think>')
+    let textContent = ''
+    let thoughtContent = ''
 
-        if (thinkEnd > thinkStart) {
-          // 提取 reasoning_content
-          resultResp.reasoning_content = content.substring(thinkStart + 7, thinkEnd).trim()
-
-          // 合并 <think> 前后的普通内容
-          const beforeThink = content.substring(0, thinkStart).trim()
-          const afterThink = content.substring(thinkEnd + 8).trim()
-          resultResp.content = [beforeThink, afterThink].filter(Boolean).join('\n')
-        } else {
-          // 如果没有找到配对的结束标签，将所有内容作为普通内容
-          resultResp.content = text
+    // 检查是否有候选响应和 parts
+    if (result.candidates && result.candidates[0]?.content?.parts) {
+      for (const part of result.candidates[0].content.parts) {
+        // 检查是否是思考内容 (新格式)
+        if ((part as any).thought === true && part.text) {
+          thoughtContent += part.text
+        } else if (part.text) {
+          textContent += part.text
         }
-      } else {
-        // 没有 think 标签，所有内容作为普通内容
-        resultResp.content = text
       }
+    } else {
+      // 回退到使用 result.text
+      textContent = result.text || ''
+    }
+
+    // 如果没有检测到新格式的思考内容，检查旧格式的 <think> 标签
+    if (!thoughtContent && textContent.includes('<think>')) {
+      const thinkStart = textContent.indexOf('<think>')
+      const thinkEnd = textContent.indexOf('</think>')
+
+      if (thinkEnd > thinkStart) {
+        // 提取reasoning_content
+        thoughtContent = textContent.substring(thinkStart + 7, thinkEnd).trim()
+
+        // 合并<think>前后的普通内容
+        const beforeThink = textContent.substring(0, thinkStart).trim()
+        const afterThink = textContent.substring(thinkEnd + 8).trim()
+        textContent = [beforeThink, afterThink].filter(Boolean).join('\n')
+      }
+    }
+
+    resultResp.content = textContent
+    if (thoughtContent) {
+      resultResp.reasoning_content = thoughtContent
     }
 
     return resultResp
@@ -722,29 +738,44 @@ export class GeminiProvider extends BaseLLMProvider {
         console.warn('Failed to estimate token count for Gemini response', e)
       }
 
-      // 获取文本响应
-      const text = result.text || ''
+      // 处理响应内容，支持新格式的思考内容
+      let textContent = ''
+      let thoughtContent = ''
 
-      // 处理<think>标签
-      if (text.includes('<think>')) {
-        const thinkStart = text.indexOf('<think>')
-        const thinkEnd = text.indexOf('</think>')
+      // 检查是否有候选响应和 parts
+      if (result.candidates && result.candidates[0]?.content?.parts) {
+        for (const part of result.candidates[0].content.parts) {
+          // 检查是否是思考内容 (新格式)
+          if ((part as any).thought === true && part.text) {
+            thoughtContent += part.text
+          } else if (part.text) {
+            textContent += part.text
+          }
+        }
+      } else {
+        // 回退到使用 result.text
+        textContent = result.text || ''
+      }
+
+      // 如果没有检测到新格式的思考内容，检查旧格式的 <think> 标签
+      if (!thoughtContent && textContent.includes('<think>')) {
+        const thinkStart = textContent.indexOf('<think>')
+        const thinkEnd = textContent.indexOf('</think>')
 
         if (thinkEnd > thinkStart) {
           // 提取reasoning_content
-          resultResp.reasoning_content = text.substring(thinkStart + 7, thinkEnd).trim()
+          thoughtContent = textContent.substring(thinkStart + 7, thinkEnd).trim()
 
           // 合并<think>前后的普通内容
-          const beforeThink = text.substring(0, thinkStart).trim()
-          const afterThink = text.substring(thinkEnd + 8).trim()
-          resultResp.content = [beforeThink, afterThink].filter(Boolean).join('\n')
-        } else {
-          // 如果没有找到配对的结束标签，将所有内容作为普通内容
-          resultResp.content = text
+          const beforeThink = textContent.substring(0, thinkStart).trim()
+          const afterThink = textContent.substring(thinkEnd + 8).trim()
+          textContent = [beforeThink, afterThink].filter(Boolean).join('\n')
         }
-      } else {
-        // 没有think标签，所有内容作为普通内容
-        resultResp.content = text
+      }
+
+      resultResp.content = textContent
+      if (thoughtContent) {
+        resultResp.reasoning_content = thoughtContent
       }
 
       return resultResp
@@ -777,8 +808,7 @@ export class GeminiProvider extends BaseLLMProvider {
         config: this.getGenerationConfig(temperature, maxTokens, modelId, false)
       })
 
-      const response = result.text || ''
-      return this.processResponse(response)
+      return this.processGeminiResponse(result)
     } catch (error) {
       console.error('Gemini summaries error:', error)
       throw error
@@ -806,8 +836,7 @@ export class GeminiProvider extends BaseLLMProvider {
         config: this.getGenerationConfig(temperature, maxTokens, modelId, false)
       })
 
-      const response = result.text || ''
-      return this.processResponse(response)
+      return this.processGeminiResponse(result)
     } catch (error) {
       console.error('Gemini generateText error:', error)
       throw error
@@ -910,7 +939,7 @@ export class GeminiProvider extends BaseLLMProvider {
       contents: formattedParts.contents,
       config: this.getGenerationConfig(temperature, maxTokens, modelId, modelConfig.reasoning)
     }
-
+    console.log('requestParams', requestParams)
     if (formattedParts.systemInstruction) {
       requestParams.config = {
         ...requestParams.config,
@@ -955,6 +984,7 @@ export class GeminiProvider extends BaseLLMProvider {
         usageMetadata = chunk.usageMetadata
       }
 
+      console.log('chunk.candidates', JSON.stringify(chunk.candidates, null, 2))
       // 检查是否包含函数调用
       if (chunk.candidates && chunk.candidates[0]?.content?.parts?.[0]?.functionCall) {
         const functionCall = chunk.candidates[0].content.parts[0].functionCall
@@ -992,11 +1022,15 @@ export class GeminiProvider extends BaseLLMProvider {
 
       // 处理内容块
       let content = ''
+      let thoughtContent = ''
 
       // 处理文本和图像内容
       if (chunk.candidates && chunk.candidates[0]?.content?.parts) {
         for (const part of chunk.candidates[0].content.parts) {
-          if (part.text) {
+          // 检查是否是思考内容 (新格式)
+          if ((part as any).thought === true && part.text) {
+            thoughtContent += part.text
+          } else if (part.text) {
             content += part.text
           } else if (part.inlineData && part.inlineData.data && part.inlineData.mimeType) {
             // 处理图像数据
@@ -1012,6 +1046,15 @@ export class GeminiProvider extends BaseLLMProvider {
       } else {
         // 兼容处理
         content = chunk.text || ''
+      }
+
+      // 如果检测到思考内容，直接发送
+      if (thoughtContent) {
+        yield {
+          type: 'reasoning',
+          reasoning_content: thoughtContent
+        }
+        thoughtContent = '' // 清空已发送的思考内容
       }
 
       if (!content) continue

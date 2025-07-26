@@ -18,6 +18,56 @@ export class ModelConfigHelper {
   }
 
   /**
+   * Generate a safe cache key by escaping special characters that could cause JSON parsing issues
+   * @param providerId - The provider ID
+   * @param modelId - The model ID
+   * @returns Safe cache key string
+   */
+  private generateCacheKey(providerId: string, modelId: string): string {
+    // Replace dots and other problematic characters that could interfere with electron-store's key parsing
+    const sanitizeString = (str: string): string => {
+      return str
+        .replace(/\./g, '_DOT_')  // Replace dots with _DOT_
+        .replace(/\[/g, '_LBRACKET_')  // Replace [ with _LBRACKET_
+        .replace(/\]/g, '_RBRACKET_')  // Replace ] with _RBRACKET_
+        .replace(/"/g, '_QUOTE_')      // Replace " with _QUOTE_
+        .replace(/'/g, '_SQUOTE_')     // Replace ' with _SQUOTE_
+    }
+
+    const sanitizedProviderId = sanitizeString(providerId)
+    const sanitizedModelId = sanitizeString(modelId)
+
+    return sanitizedProviderId + SPECIAL_CONCAT_CHAR + sanitizedModelId
+  }
+
+  /**
+   * Reverse the sanitization process to get original IDs from cache key
+   * @param sanitizedString - The sanitized string
+   * @returns Original string with special characters restored
+   */
+  private desanitizeString(sanitizedString: string): string {
+    return sanitizedString
+      .replace(/_DOT_/g, '.')
+      .replace(/_LBRACKET_/g, '[')
+      .replace(/_RBRACKET_/g, ']')
+      .replace(/_QUOTE_/g, '"')
+      .replace(/_SQUOTE_/g, "'")
+  }
+
+  /**
+   * Parse cache key to extract original provider ID and model ID
+   * @param cacheKey - The cache key to parse
+   * @returns Object with providerId and modelId
+   */
+  private parseCacheKey(cacheKey: string): { providerId: string; modelId: string } {
+    const [sanitizedProviderId, sanitizedModelId] = cacheKey.split(SPECIAL_CONCAT_CHAR)
+    return {
+      providerId: this.desanitizeString(sanitizedProviderId),
+      modelId: this.desanitizeString(sanitizedModelId)
+    }
+  }
+
+  /**
    * Initialize memory cache by loading all data from store
    * This is called lazily on first access
    */
@@ -43,7 +93,7 @@ export class ModelConfigHelper {
 
     // 1. First try to get user-defined config for this specific provider + model
     if (providerId) {
-      const cacheKey = providerId + SPECIAL_CONCAT_CHAR + modelId
+      const cacheKey = this.generateCacheKey(providerId, modelId)
       let userConfig = this.memoryCache.get(cacheKey)
 
       // If not in cache, try to load from store and cache it
@@ -53,7 +103,7 @@ export class ModelConfigHelper {
           this.memoryCache.set(cacheKey, userConfig)
         }
       }
-
+      // console.log('userConfig', userConfig)
       if (userConfig?.config) {
         return userConfig.config
       }
@@ -102,7 +152,7 @@ export class ModelConfigHelper {
    * @param config - The model configuration
    */
   setModelConfig(modelId: string, providerId: string, config: ModelConfig): void {
-    const cacheKey = providerId + SPECIAL_CONCAT_CHAR + modelId
+    const cacheKey = this.generateCacheKey(providerId, modelId)
     const configData: IModelConfig = {
       id: modelId,
       providerId: providerId,
@@ -120,7 +170,7 @@ export class ModelConfigHelper {
    * @param providerId - The provider ID
    */
   resetModelConfig(modelId: string, providerId: string): void {
-    const cacheKey = providerId + SPECIAL_CONCAT_CHAR + modelId
+    const cacheKey = this.generateCacheKey(providerId, modelId)
 
     // Remove from both store and cache
     this.modelConfigStore.delete(cacheKey)
@@ -153,10 +203,10 @@ export class ModelConfigHelper {
     const result: Array<{ modelId: string; config: ModelConfig }> = []
 
     Object.entries(allConfigs).forEach(([key, value]) => {
-      const [keyProviderId] = key.split(SPECIAL_CONCAT_CHAR)
+      const { providerId: keyProviderId, modelId: keyModelId } = this.parseCacheKey(key)
       if (keyProviderId === providerId) {
         result.push({
-          modelId: value.id,
+          modelId: keyModelId,
           config: value.config
         })
       }
@@ -175,7 +225,7 @@ export class ModelConfigHelper {
     // Initialize cache if not already done
     this.initializeCache()
 
-    const cacheKey = providerId + SPECIAL_CONCAT_CHAR + modelId
+    const cacheKey = this.generateCacheKey(providerId, modelId)
 
     // Check cache first
     if (this.memoryCache.has(cacheKey)) {
