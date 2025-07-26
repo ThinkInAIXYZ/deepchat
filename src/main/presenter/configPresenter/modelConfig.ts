@@ -27,11 +27,11 @@ export class ModelConfigHelper {
     // Replace dots and other problematic characters that could interfere with electron-store's key parsing
     const sanitizeString = (str: string): string => {
       return str
-        .replace(/\./g, '_DOT_')  // Replace dots with _DOT_
-        .replace(/\[/g, '_LBRACKET_')  // Replace [ with _LBRACKET_
-        .replace(/\]/g, '_RBRACKET_')  // Replace ] with _RBRACKET_
-        .replace(/"/g, '_QUOTE_')      // Replace " with _QUOTE_
-        .replace(/'/g, '_SQUOTE_')     // Replace ' with _SQUOTE_
+        .replace(/\./g, '_DOT_') // Replace dots with _DOT_
+        .replace(/\[/g, '_LBRACKET_') // Replace [ with _LBRACKET_
+        .replace(/\]/g, '_RBRACKET_') // Replace ] with _RBRACKET_
+        .replace(/"/g, '_QUOTE_') // Replace " with _QUOTE_
+        .replace(/'/g, '_SQUOTE_') // Replace ' with _SQUOTE_
     }
 
     const sanitizedProviderId = sanitizeString(providerId)
@@ -322,4 +322,3 @@ export class ModelConfigHelper {
     this.cacheInitialized = false
   }
 }
-

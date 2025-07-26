@@ -137,6 +137,7 @@ Each functional domain has a dedicated Presenter class in `src/main/presenter/`:
 The LLM system follows a two-layer architecture:
 
 1. **Agent Loop Layer** (`llmProviderPresenter/index.ts`):
+
    - Manages conversation flow with multi-turn tool calling
    - Handles tool execution via McpPresenter
    - Standardizes events sent to frontend

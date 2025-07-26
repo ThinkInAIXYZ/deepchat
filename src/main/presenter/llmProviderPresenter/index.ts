@@ -258,7 +258,8 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
       } else {
         // Default config, prioritize model's own capabilities if they exist
         model.vision = model.vision !== undefined ? model.vision : config.vision
-        model.functionCall = model.functionCall !== undefined ? model.functionCall : config.functionCall
+        model.functionCall =
+          model.functionCall !== undefined ? model.functionCall : config.functionCall
         model.reasoning = model.reasoning !== undefined ? model.reasoning : config.reasoning
         model.type = model.type || config.type
       }
