@@ -71,7 +71,7 @@ const formatSize = (size: number): string => {
         <div class="flex items-center space-x-2 py-1.5">
           <Icon icon="lucide:terminal" class="w-4 h-4 text-muted-foreground" />
           <Label class="text-xs font-medium">{{ t('settings.model.systemPrompt.label') }}</Label>
-          <TooltipProvider :ignoreNonKeyboardFocus="true">
+          <TooltipProvider :ignoreNonKeyboardFocus="true" :delayDuration="200">
             <Tooltip>
               <TooltipTrigger>
                 <Icon icon="lucide:help-circle" class="w-4 h-4 text-muted-foreground" />
@@ -94,7 +94,7 @@ const formatSize = (size: number): string => {
           <div class="flex items-center space-x-2">
             <Icon icon="lucide:thermometer" class="w-4 h-4 text-muted-foreground" />
             <Label class="text-xs font-medium">{{ t('settings.model.temperature.label') }}</Label>
-            <TooltipProvider>
+            <TooltipProvider :delayDuration="200">
               <Tooltip>
                 <TooltipTrigger>
                   <Icon icon="lucide:help-circle" class="w-4 h-4 text-muted-foreground" />
@@ -116,7 +116,7 @@ const formatSize = (size: number): string => {
           <div class="flex items-center space-x-2">
             <Icon icon="lucide:pencil-ruler" class="w-4 h-4 text-muted-foreground" />
             <Label class="text-xs font-medium">{{ t('settings.model.contextLength.label') }}</Label>
-            <TooltipProvider>
+            <TooltipProvider :delayDuration="200">
               <Tooltip>
                 <TooltipTrigger>
                   <Icon icon="lucide:help-circle" class="w-4 h-4 text-muted-foreground" />
@@ -145,7 +145,7 @@ const formatSize = (size: number): string => {
             <Label class="text-xs font-medium">{{
               t('settings.model.responseLength.label')
             }}</Label>
-            <TooltipProvider>
+            <TooltipProvider :delayDuration="200">
               <Tooltip>
                 <TooltipTrigger>
                   <Icon icon="lucide:help-circle" class="w-4 h-4 text-muted-foreground" />
