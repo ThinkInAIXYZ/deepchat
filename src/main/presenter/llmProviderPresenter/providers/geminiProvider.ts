@@ -458,7 +458,7 @@ export class GeminiProvider extends BaseLLMProvider {
     }
 
     // 正确配置思考功能
-    if (reasoning !== undefined) {
+    if (reasoning) {
       generationConfig.thinkingConfig = {
         includeThoughts: true
       }
