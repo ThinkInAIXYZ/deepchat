@@ -152,7 +152,9 @@
             <div class="space-y-3 pl-4 border-l-2 border-muted">
               <div class="flex items-center justify-between">
                 <div class="space-y-0.5">
-                  <Label class="text-sm">{{ t('settings.model.modelConfig.thinkingBudget.dynamic') }}</Label>
+                  <Label class="text-sm">{{
+                    t('settings.model.modelConfig.thinkingBudget.dynamic')
+                  }}</Label>
                 </div>
                 <Switch
                   :checked="config.thinkingBudget === -1"
@@ -162,7 +164,9 @@
 
               <!-- 数值输入 -->
               <div class="space-y-2">
-                <Label class="text-sm">{{ t('settings.model.modelConfig.thinkingBudget.valueLabel') }}</Label>
+                <Label class="text-sm">{{
+                  t('settings.model.modelConfig.thinkingBudget.valueLabel')
+                }}</Label>
                 <Input
                   v-model.number="config.thinkingBudget"
                   type="number"
@@ -175,12 +179,17 @@
                 />
                 <p class="text-xs text-muted-foreground">
                   <span v-if="thinkingBudgetError" class="text-red-600 font-medium">
-                    {{ t('settings.model.modelConfig.thinkingBudget.notice') }}{{ thinkingBudgetError }}。
+                    {{ t('settings.model.modelConfig.thinkingBudget.notice')
+                    }}{{ thinkingBudgetError }}。
                   </span>
                   <span v-else-if="props.modelId.includes('pro')" class="text-red-600 font-medium">
-                    {{ t('settings.model.modelConfig.thinkingBudget.notice') }}{{ t('settings.model.modelConfig.thinkingBudget.warnings.proNoDisable') }}。
+                    {{ t('settings.model.modelConfig.thinkingBudget.notice')
+                    }}{{ t('settings.model.modelConfig.thinkingBudget.warnings.proNoDisable') }}。
                   </span>
-                  {{ t('settings.model.modelConfig.thinkingBudget.dynamicPrefix') }}{{ getDisableHint() }}，{{ t('settings.model.modelConfig.thinkingBudget.range', thinkingBudgetRange) }}
+                  {{ t('settings.model.modelConfig.thinkingBudget.dynamicPrefix')
+                  }}{{ getDisableHint() }}，{{
+                    t('settings.model.modelConfig.thinkingBudget.range', thinkingBudgetRange)
+                  }}
                 </p>
               </div>
             </div>
@@ -442,7 +451,6 @@ const thinkingBudgetRange = computed(() => {
   return modelConfig || { min: 128, max: 32768, defaultValue: -1, canDisable: false }
 })
 
-
 // 思考预算验证错误
 const thinkingBudgetError = computed(() => {
   if (!showThinkingBudget.value) return ''
@@ -478,14 +486,16 @@ const thinkingBudgetError = computed(() => {
     } else {
       hint = t('settings.model.modelConfig.thinkingBudget.hints.withDynamic')
     }
-    return t('settings.model.modelConfig.thinkingBudget.warnings.belowMin', { min: range.min, hint })
+    return t('settings.model.modelConfig.thinkingBudget.warnings.belowMin', {
+      min: range.min,
+      hint
+    })
   }
   if (value > range.max) {
     return t('settings.model.modelConfig.thinkingBudget.warnings.aboveMax', { max: range.max })
   }
   return ''
 })
-
 
 // 处理动态思维开关
 const handleDynamicThinkingToggle = (enabled: boolean) => {
@@ -508,7 +518,6 @@ const getDisableHint = () => {
     return '' // Pro 模型的限制已在红色警告中显示
   }
 }
-
 
 onMounted(() => {
   if (props.open) {

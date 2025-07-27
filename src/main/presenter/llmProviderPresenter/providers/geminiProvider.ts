@@ -952,7 +952,13 @@ export class GeminiProvider extends BaseLLMProvider {
     const requestParams: GenerateContentParameters = {
       model: modelId,
       contents: formattedParts.contents,
-      config: this.getGenerationConfig(temperature, maxTokens, modelId, modelConfig.reasoning, modelConfig.thinkingBudget)
+      config: this.getGenerationConfig(
+        temperature,
+        maxTokens,
+        modelId,
+        modelConfig.reasoning,
+        modelConfig.thinkingBudget
+      )
     }
     console.log('requestParams', requestParams)
     if (formattedParts.systemInstruction) {

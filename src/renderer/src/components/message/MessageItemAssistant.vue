@@ -229,7 +229,11 @@ const shouldShowThinking = ref(true)
 
 // 监听消息变化，更新思考状态显示逻辑
 watch(
-  () => [currentMessage.value.model_id, currentMessage.value.model_provider, currentMessage.value.status],
+  () => [
+    currentMessage.value.model_id,
+    currentMessage.value.model_provider,
+    currentMessage.value.status
+  ],
   async () => {
     if (currentMessage.value.status !== 'pending') {
       shouldShowThinking.value = false
