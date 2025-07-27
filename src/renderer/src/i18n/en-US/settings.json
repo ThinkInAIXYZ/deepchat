@@ -120,6 +120,33 @@
         "description": "Does the model support reasoning ability?",
         "label": "Reasoning ability"
       },
+      "thinkingBudget": {
+        "label": "Thinking Budget",
+        "description": "Limit the length of model thinking",
+        "dynamic": "Dynamic Thinking",
+        "range": "Range: {min} - {max}",
+        "onlySupported": "Only supported in Gemini 2.5 Flash, 2.5 Pro and 2.5 Flash-Lite",
+        "valueLabel": "Thinking Budget Value",
+        "placeholder": "Enter thinking budget value",
+        "forceEnabled": "Gemini 2.5 series models force enable thinking budget",
+        "dynamicPrefix": "-1 = Dynamic Thinking",
+        "notice": "Notice: ",
+        "warnings": {
+          "proNoDisable": "This model does not support disabling thinking, minimum value 128",
+          "proCannotDisable": "Gemini 2.5 Pro cannot disable thinking function",
+          "flashLiteCannotSetZero": "Gemini 2.5 Flash-Lite cannot be set to 0, minimum value is 512",
+          "modelCannotDisable": "This model cannot disable thinking function",
+          "flashLiteMinValue": "Thinking budget cannot be less than 512 when set to specific value (or use 0 to disable thinking, -1 to enable dynamic thinking)",
+          "belowMin": "Thinking budget cannot be less than {min}{hint}",
+          "aboveMax": "Thinking budget cannot be greater than {max}"
+        },
+        "hints": {
+          "flashLiteDisable": ", 0 = disable thinking, specific value minimum 512",
+          "normalDisable": ", 0 = disable thinking",
+          "withZeroAndDynamic": "(or use 0 to disable thinking, -1 to enable dynamic thinking)",
+          "withDynamic": "(or use -1 to enable dynamic thinking)"
+        }
+      },
       "resetConfirm": {
         "confirm": "Confirm reset",
         "message": "Are you sure you want to reset the configuration of this model to the default? \nThis operation is irrevocable.",

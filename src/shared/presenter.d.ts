@@ -127,6 +127,7 @@ export interface ModelConfig {
   type: ModelType
   // Whether this config is user-defined (true) or default config (false)
   isUserDefined?: boolean
+  thinkingBudget?: number
 }
 
 export interface IModelConfig {

@@ -437,12 +437,22 @@ export class GeminiProvider extends BaseLLMProvider {
     return safetySettings.length > 0 ? safetySettings : undefined
   }
 
+  // 判断模型是否支持 thinkingBudget
+  private supportsThinkingBudget(modelId: string): boolean {
+    return (
+      modelId.includes('gemini-2.5-pro') ||
+      modelId.includes('gemini-2.5-flash') ||
+      modelId.includes('gemini-2.5-flash-lite')
+    )
+  }
+
   // 获取生成配置，不再创建模型实例
   private getGenerationConfig(
     temperature?: number,
     maxTokens?: number,
     modelId?: string,
-    reasoning?: boolean
+    reasoning?: boolean,
+    thinkingBudget?: number
   ): GenerationConfig {
     const generationConfig: GenerationConfig = {
       temperature,
@@ -461,6 +471,11 @@ export class GeminiProvider extends BaseLLMProvider {
     if (reasoning) {
       generationConfig.thinkingConfig = {
         includeThoughts: true
+      }
+
+      // 仅对支持 thinkingBudget 的 Gemini 2.5 系列模型添加 thinkingBudget 参数
+      if (modelId && this.supportsThinkingBudget(modelId) && thinkingBudget !== undefined) {
+        generationConfig.thinkingConfig.thinkingBudget = thinkingBudget
       }
     }
 
@@ -937,7 +952,7 @@ export class GeminiProvider extends BaseLLMProvider {
     const requestParams: GenerateContentParameters = {
       model: modelId,
       contents: formattedParts.contents,
-      config: this.getGenerationConfig(temperature, maxTokens, modelId, modelConfig.reasoning)
+      config: this.getGenerationConfig(temperature, maxTokens, modelId, modelConfig.reasoning, modelConfig.thinkingBudget)
     }
     console.log('requestParams', requestParams)
     if (formattedParts.systemInstruction) {

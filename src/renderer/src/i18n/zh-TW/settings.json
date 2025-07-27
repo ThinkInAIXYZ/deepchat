@@ -120,6 +120,33 @@
         "description": "模型是否支持推理能力",
         "label": "推理能力"
       },
+      "thinkingBudget": {
+        "label": "思考預算",
+        "description": "限制模型思考長度",
+        "dynamic": "動態思維",
+        "range": "範圍: {min} - {max}",
+        "onlySupported": "僅在 Gemini 2.5 Flash、2.5 Pro 和 2.5 Flash-Lite 中受支援",
+        "valueLabel": "思考預算值",
+        "placeholder": "輸入思考預算值",
+        "forceEnabled": "Gemini 2.5 系列模型強制開啟思考預算",
+        "dynamicPrefix": "-1 = 動態思維",
+        "notice": "注意：",
+        "warnings": {
+          "proNoDisable": "此模型不支援停用思考，最小值 128",
+          "proCannotDisable": "Gemini 2.5 Pro 無法停用思考功能",
+          "flashLiteCannotSetZero": "Gemini 2.5 Flash-Lite 不能設定為 0，最小值為 512",
+          "modelCannotDisable": "此模型無法停用思考功能",
+          "flashLiteMinValue": "思考預算設定為具體數值時不能小於 512（或使用 0 停用思考，-1 啟用動態思維）",
+          "belowMin": "思考預算不能小於 {min}{hint}",
+          "aboveMax": "思考預算不能大於 {max}"
+        },
+        "hints": {
+          "flashLiteDisable": "，0 = 停用思考，具體數值最小 512",
+          "normalDisable": "，0 = 停用思考",
+          "withZeroAndDynamic": "（或使用 0 停用思考，-1 啟用動態思維）",
+          "withDynamic": "（或使用 -1 啟用動態思維）"
+        }
+      },
       "resetConfirm": {
         "confirm": "確定重置",
         "message": "確定要重置此模型的配置為默認值嗎？\n此操作不可撤銷。",
