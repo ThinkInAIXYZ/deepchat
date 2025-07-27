@@ -298,13 +298,6 @@ const loadConfig = async () => {
   try {
     const modelConfig = await settingsStore.getModelConfig(props.modelId, props.providerId)
     config.value = { ...modelConfig }
-
-    if (props.providerId === 'gemini') {
-      const modelConfig = getThinkingBudgetConfig(props.modelId)
-      if (modelConfig && config.value.thinkingBudget === undefined) {
-        config.value.thinkingBudget = modelConfig.defaultValue
-      }
-    }
   } catch (error) {
     console.error('Failed to load model config:', error)
 
@@ -318,14 +311,15 @@ const loadConfig = async () => {
       type: ModelType.Chat
     }
 
-    if (props.providerId === 'gemini') {
-      const modelConfig = getThinkingBudgetConfig(props.modelId)
-      if (modelConfig) {
-        defaultConfig.thinkingBudget = modelConfig.defaultValue
-      }
-    }
-
     config.value = defaultConfig
+  }
+
+  // Initialize thinking budget if not set
+  if (props.providerId === 'gemini' && config.value.thinkingBudget === undefined) {
+    const thinkingConfig = getThinkingBudgetConfig(props.modelId)
+    if (thinkingConfig) {
+      config.value.thinkingBudget = thinkingConfig.defaultValue
+    }
   }
 }
 

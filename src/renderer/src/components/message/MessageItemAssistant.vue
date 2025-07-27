@@ -18,7 +18,7 @@
     <div class="flex flex-col w-full space-y-1.5">
       <MessageInfo :name="currentMessage.model_name" :timestamp="currentMessage.timestamp" />
       <div
-        v-if="currentContent.length === 0 && shouldShowThinking"
+        v-if="currentContent.length === 0"
         class="flex flex-row items-center gap-2 text-xs text-muted-foreground"
       >
         <Icon icon="lucide:loader-circle" class="w-4 h-4 animate-spin" />
@@ -223,40 +223,6 @@ const isSearchResult = computed(() => {
     currentContent.value?.some((block) => block.type === 'search' && block.status === 'success')
   )
 })
-
-// 判断是否应该显示"正在思考..."
-const shouldShowThinking = ref(true)
-
-// 监听消息变化，更新思考状态显示逻辑
-watch(
-  () => [
-    currentMessage.value.model_id,
-    currentMessage.value.model_provider,
-    currentMessage.value.status
-  ],
-  async () => {
-    if (currentMessage.value.status !== 'pending') {
-      shouldShowThinking.value = false
-      return
-    }
-
-    try {
-      const modelConfig = await settingsStore.getModelConfig(
-        currentMessage.value.model_id,
-        currentMessage.value.model_provider
-      )
-
-      if (modelConfig.thinkingBudget !== undefined) {
-        shouldShowThinking.value = modelConfig.thinkingBudget !== 0
-      } else {
-        shouldShowThinking.value = modelConfig.reasoning
-      }
-    } catch (error) {
-      shouldShowThinking.value = true
-    }
-  },
-  { immediate: true }
-)
 
 onMounted(async () => {
   currentVariantIndex.value = allVariants.value.length
