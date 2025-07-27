@@ -458,6 +458,8 @@ const thinkingBudgetError = computed(() => {
   const value = config.value.thinkingBudget
   const range = thinkingBudgetRange.value
 
+  if (value === undefined || value === null) return ''
+
   // -1 是有效值（动态思维）
   if (value === -1) return ''
 
