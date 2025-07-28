@@ -49,10 +49,14 @@
             :context-length="contextLength"
             :max-tokens="maxTokens"
             :artifacts="artifacts"
+            :thinking-budget="thinkingBudget"
+            :model-id="chatStore.chatConfig.modelId"
+            :provider-id="chatStore.chatConfig.providerId"
             @update:temperature="updateTemperature"
             @update:context-length="updateContextLength"
             @update:max-tokens="updateMaxTokens"
             @update:artifacts="updateArtifacts"
+            @update:thinking-budget="updateThinkingBudget"
           />
         </PopoverContent>
       </Popover>
@@ -87,6 +91,7 @@ const contextLength = ref(chatStore.chatConfig.contextLength)
 const maxTokens = ref(chatStore.chatConfig.maxTokens)
 const systemPrompt = ref(chatStore.chatConfig.systemPrompt)
 const artifacts = ref(chatStore.chatConfig.artifacts)
+const thinkingBudget = ref(chatStore.chatConfig.thinkingBudget)
 const contextLengthLimit = ref(chatStore.chatConfig.contextLength)
 const maxTokensLimit = ref(chatStore.chatConfig.maxTokens)
 
@@ -107,27 +112,33 @@ const updateArtifacts = (value: 0 | 1) => {
   artifacts.value = value
 }
 
+const updateThinkingBudget = (value: number | undefined) => {
+  thinkingBudget.value = value
+}
+
 const onSidebarButtonClick = () => {
   chatStore.isSidebarOpen = !chatStore.isSidebarOpen
 }
 
 // Watch for changes and update store
 watch(
-  [temperature, contextLength, maxTokens, systemPrompt, artifacts],
-  ([newTemp, newContext, newMaxTokens, newSystemPrompt, newArtifacts]) => {
+  [temperature, contextLength, maxTokens, systemPrompt, artifacts, thinkingBudget],
+  ([newTemp, newContext, newMaxTokens, newSystemPrompt, newArtifacts, newThinkingBudget]) => {
     if (
       newTemp !== chatStore.chatConfig.temperature ||
       newContext !== chatStore.chatConfig.contextLength ||
       newMaxTokens !== chatStore.chatConfig.maxTokens ||
       newSystemPrompt !== chatStore.chatConfig.systemPrompt ||
-      newArtifacts !== chatStore.chatConfig.artifacts
+      newArtifacts !== chatStore.chatConfig.artifacts ||
+      newThinkingBudget !== chatStore.chatConfig.thinkingBudget
     ) {
       chatStore.updateChatConfig({
         temperature: newTemp,
         contextLength: newContext,
         maxTokens: newMaxTokens,
         systemPrompt: newSystemPrompt,
-        artifacts: newArtifacts
+        artifacts: newArtifacts,
+        thinkingBudget: newThinkingBudget
       })
     }
   }
@@ -142,6 +153,7 @@ watch(
     maxTokens.value = newConfig.maxTokens
     systemPrompt.value = newConfig.systemPrompt
     artifacts.value = newConfig.artifacts
+    thinkingBudget.value = newConfig.thinkingBudget
   },
   { deep: true }
 )

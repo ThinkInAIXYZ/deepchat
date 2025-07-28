@@ -18,6 +18,7 @@ type ConversationRow = {
   is_new: number
   is_pinned: number
   enabled_mcp_tools: string | null
+  thinking_budget: number | null
 }
 
 // 解析 JSON 字段
@@ -81,12 +82,18 @@ export class ConversationsTable extends BaseTable {
         ALTER TABLE conversations ADD COLUMN enabled_mcp_tools TEXT DEFAULT '[]';
       `
     }
+    if (version === 4) {
+      return `
+        -- 添加 thinking_budget 字段
+        ALTER TABLE conversations ADD COLUMN thinking_budget INTEGER DEFAULT NULL;
+      `
+    }
 
     return null
   }
 
   getLatestVersion(): number {
-    return 3
+    return 4
   }
 
   async create(title: string, settings: Partial<CONVERSATION_SETTINGS> = {}): Promise<string> {
@@ -105,9 +112,10 @@ export class ConversationsTable extends BaseTable {
         is_new,
         artifacts,
         is_pinned,
-        enabled_mcp_tools
+        enabled_mcp_tools,
+        thinking_budget
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ? ,?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `)
     const conv_id = nanoid()
     const now = Date.now()
@@ -125,7 +133,8 @@ export class ConversationsTable extends BaseTable {
       1,
       settings.artifacts || 0,
       0, // Default is_pinned to 0
-      settings.enabledMcpTools ? JSON.stringify(settings.enabledMcpTools) : '[]'
+      settings.enabledMcpTools ? JSON.stringify(settings.enabledMcpTools) : '[]',
+      settings.thinkingBudget !== undefined ? settings.thinkingBudget : null
     )
     return conv_id
   }
@@ -148,7 +157,8 @@ export class ConversationsTable extends BaseTable {
         is_new,
         artifacts,
         is_pinned,
-        enabled_mcp_tools
+        enabled_mcp_tools,
+        thinking_budget
       FROM conversations
       WHERE conv_id = ?
     `
@@ -174,7 +184,8 @@ export class ConversationsTable extends BaseTable {
         providerId: result.providerId,
         modelId: result.modelId,
         artifacts: result.artifacts as 0 | 1,
-        enabledMcpTools: getJsonField(result.enabled_mcp_tools, [])
+        enabledMcpTools: getJsonField(result.enabled_mcp_tools, []),
+        thinkingBudget: result.thinking_budget !== null ? result.thinking_budget : undefined
       }
     }
   }
@@ -231,6 +242,10 @@ export class ConversationsTable extends BaseTable {
         updates.push('enabled_mcp_tools = ?')
         params.push(JSON.stringify(data.settings.enabledMcpTools))
       }
+      if (data.settings.thinkingBudget !== undefined) {
+        updates.push('thinking_budget = ?')
+        params.push(data.settings.thinkingBudget)
+      }
     }
     if (updates.length > 0 || data.updatedAt) {
       updates.push('updated_at = ?')
@@ -275,7 +290,8 @@ export class ConversationsTable extends BaseTable {
         is_new,
         artifacts,
         is_pinned,
-        enabled_mcp_tools
+        enabled_mcp_tools,
+        thinking_budget
       FROM conversations
       ORDER BY updated_at DESC
       LIMIT ? OFFSET ?
@@ -300,7 +316,8 @@ export class ConversationsTable extends BaseTable {
           providerId: row.providerId,
           modelId: row.modelId,
           artifacts: row.artifacts as 0 | 1,
-          enabledMcpTools: getJsonField(row.enabled_mcp_tools, [])
+          enabledMcpTools: getJsonField(row.enabled_mcp_tools, []),
+          thinkingBudget: row.thinking_budget !== null ? row.thinking_budget : undefined
         }
       }))
     }

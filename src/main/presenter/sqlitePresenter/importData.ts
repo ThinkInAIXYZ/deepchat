@@ -120,8 +120,8 @@ export class DataImporter {
         `INSERT INTO conversations (
           conv_id, title, created_at, updated_at, system_prompt,
           temperature, context_length, max_tokens, provider_id,
-          model_id, is_pinned, is_new, artifacts
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+          model_id, is_pinned, is_new, artifacts, thinking_budget
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
         conv.conv_id,
@@ -136,7 +136,8 @@ export class DataImporter {
         conv.model_id,
         conv.is_pinned || 0,
         conv.is_new || 0,
-        conv.artifacts || 0
+        conv.artifacts || 0,
+        conv.thinking_budget !== undefined ? conv.thinking_budget : null
       )
 
     // 导入该会话的所有消息

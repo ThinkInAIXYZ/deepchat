@@ -168,6 +168,8 @@
       "resetToDefault": "重置为默认",
       "saveConfig": "保存配置",
       "cancel": "取消",
+      "useModelDefault": "使用模型默认配置",
+      "currentUsingModelDefault": "当前使用模型默认配置",
       "resetConfirm": {
         "title": "确认重置",
         "message": "确定要重置此模型的配置为默认值吗？此操作不可撤销。",

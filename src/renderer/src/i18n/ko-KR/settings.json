@@ -154,6 +154,8 @@
       },
       "resetToDefault": "기본값으로 재설정하십시오",
       "saveConfig": "구성 저장",
+      "useModelDefault": "모델 기본 설정 사용",
+      "currentUsingModelDefault": "현재 모델 기본 설정 사용 중",
       "temperature": {
         "description": "출력의 무작위성을 제어하십시오. 대부분의 모델은 0-1이며 일부는 0-2 사이의 지원입니다. 무작위성이 높아집니다.",
         "label": "온도"

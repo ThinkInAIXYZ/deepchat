@@ -345,7 +345,8 @@ export const defaultModelsSettings: DefaultModelSetting[] = [
     match: ['gemini-2.5-pro'],
     vision: true,
     functionCall: true,
-    reasoning: true
+    reasoning: true,
+    thinkingBudget: -1 // 动态思维
   },
   {
     id: 'models/gemini-2.5-flash',
@@ -356,7 +357,8 @@ export const defaultModelsSettings: DefaultModelSetting[] = [
     match: ['models/gemini-2.5-flash', 'gemini-2.5-flash'],
     vision: true,
     functionCall: true,
-    reasoning: true
+    reasoning: true,
+    thinkingBudget: -1 // 动态思维
   },
   {
     id: 'models/gemini-2.5-flash-lite-preview-06-17',
@@ -367,7 +369,8 @@ export const defaultModelsSettings: DefaultModelSetting[] = [
     match: ['models/gemini-2.5-flash-lite-preview-06-17', 'gemini-2.5-flash-lite-preview'],
     vision: true,
     functionCall: true,
-    reasoning: true
+    reasoning: true,
+    thinkingBudget: 0 // 默认不思考
   },
   {
     id: 'models/gemini-2.0-flash',

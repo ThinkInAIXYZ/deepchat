@@ -738,11 +738,16 @@ export class ThreadPresenter implements IThreadPresenter {
       }
     })
     const mergedSettings = { ...defaultSettings, ...settings }
-    const defaultModelsSettings = this.configPresenter.getModelConfig(mergedSettings.modelId)
+    const defaultModelsSettings = this.configPresenter.getModelConfig(
+      mergedSettings.modelId,
+      mergedSettings.providerId
+    )
     if (defaultModelsSettings) {
       mergedSettings.maxTokens = defaultModelsSettings.maxTokens
       mergedSettings.contextLength = defaultModelsSettings.contextLength
       mergedSettings.temperature = defaultModelsSettings.temperature
+      // 重置 thinkingBudget 为模型默认配置，如果模型配置中没有则设为 undefined
+      mergedSettings.thinkingBudget = defaultModelsSettings.thinkingBudget
     }
     if (settings.artifacts) {
       mergedSettings.artifacts = settings.artifacts
@@ -1467,7 +1472,8 @@ export class ThreadPresenter implements IThreadPresenter {
         modelId: currentModelId,
         temperature: currentTemperature,
         maxTokens: currentMaxTokens,
-        enabledMcpTools: crrentEnabledMcpTools
+        enabledMcpTools: crrentEnabledMcpTools,
+        thinkingBudget: currentThinkingBudget
       } = currentConversation.settings
       const stream = this.llmProviderPresenter.startStreamCompletion(
         currentProviderId, // 使用最新的设置
@@ -1476,7 +1482,8 @@ export class ThreadPresenter implements IThreadPresenter {
         state.message.id,
         currentTemperature, // 使用最新的设置
         currentMaxTokens, // 使用最新的设置
-        crrentEnabledMcpTools
+        crrentEnabledMcpTools,
+        currentThinkingBudget
       )
       for await (const event of stream) {
         const msg = event.data
@@ -1574,7 +1581,8 @@ export class ThreadPresenter implements IThreadPresenter {
       this.throwIfCancelled(state.message.id)
 
       // 7. 准备提示内容
-      const { providerId, modelId, temperature, maxTokens, enabledMcpTools } = conversation.settings
+      const { providerId, modelId, temperature, maxTokens, enabledMcpTools, thinkingBudget } =
+        conversation.settings
       const modelConfig = this.configPresenter.getModelConfig(modelId, providerId)
 
       const { finalContent, promptTokens } = await this.preparePromptContent(
@@ -1642,7 +1650,8 @@ export class ThreadPresenter implements IThreadPresenter {
         state.message.id,
         temperature,
         maxTokens,
-        enabledMcpTools
+        enabledMcpTools,
+        thinkingBudget
       )
       for await (const event of stream) {
         const msg = event.data
@@ -3650,7 +3659,8 @@ export class ThreadPresenter implements IThreadPresenter {
         throw new Error(errorMsg)
       }
 
-      const { providerId, modelId, temperature, maxTokens, enabledMcpTools } = conversation.settings
+      const { providerId, modelId, temperature, maxTokens, enabledMcpTools, thinkingBudget } =
+        conversation.settings
       const modelConfig = this.configPresenter.getModelConfig(modelId, providerId)
 
       if (!modelConfig) {
@@ -3704,7 +3714,8 @@ export class ThreadPresenter implements IThreadPresenter {
         messageId,
         temperature,
         maxTokens,
-        enabledMcpTools
+        enabledMcpTools,
+        thinkingBudget
       )
 
       for await (const event of stream) {

@@ -154,6 +154,8 @@
       },
       "resetToDefault": "重置為默認",
       "saveConfig": "保存配置",
+      "useModelDefault": "使用模型預設配置",
+      "currentUsingModelDefault": "目前使用模型預設配置",
       "temperature": {
         "description": "控制輸出的隨機性，大部分模型0-1，部分支持0-2之間，越高越隨機",
         "label": "溫度"

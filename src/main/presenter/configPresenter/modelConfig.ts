@@ -141,7 +141,8 @@ export class ModelConfigHelper {
               vision: config.vision,
               functionCall: config.functionCall || false,
               reasoning: config.reasoning || false,
-              type: config.type || ModelType.Chat
+              type: config.type || ModelType.Chat,
+              thinkingBudget: config.thinkingBudget
             }
             break
           }
@@ -158,7 +159,8 @@ export class ModelConfigHelper {
             vision: false,
             functionCall: false,
             reasoning: false,
-            type: ModelType.Chat
+            type: ModelType.Chat,
+            thinkingBudget: undefined
           }
         }
       }

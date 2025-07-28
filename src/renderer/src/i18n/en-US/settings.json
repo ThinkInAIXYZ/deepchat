@@ -154,6 +154,8 @@
       },
       "resetToDefault": "Reset to default",
       "saveConfig": "Save configuration",
+      "useModelDefault": "Use model default configuration",
+      "currentUsingModelDefault": "Currently using model default configuration",
       "temperature": {
         "description": "Control the randomness of the output. Most models are 0-1, and some support between 0-2. The higher the higher the randomness.",
         "label": "temperature"

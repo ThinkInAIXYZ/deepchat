@@ -154,6 +154,8 @@
       },
       "resetToDefault": "Réinitialiser à la valeur par défaut",
       "saveConfig": "Enregistrer la configuration",
+      "useModelDefault": "Utiliser la configuration par défaut du modèle",
+      "currentUsingModelDefault": "Utilise actuellement la configuration par défaut du modèle",
       "temperature": {
         "description": "Contrôlez le caractère aléatoire de la sortie. La plupart des modèles sont de 0-1 et certains soutiennent entre 0-2. Plus l'aléatoire est élevé.",
         "label": "température"

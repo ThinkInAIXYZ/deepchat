@@ -154,6 +154,8 @@
       },
       "resetToDefault": "デフォルトにリセットします",
       "saveConfig": "構成を保存します",
+      "useModelDefault": "モデルのデフォルト設定を使用",
+      "currentUsingModelDefault": "現在モデルのデフォルト設定を使用中",
       "temperature": {
         "description": "出力のランダム性を制御します。ほとんどのモデルは0-1で、0〜2の間のサポートがあります。ランダム性が高くなるほど。",
         "label": "温度"

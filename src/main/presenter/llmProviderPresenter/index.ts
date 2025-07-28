@@ -307,7 +307,8 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
     eventId: string,
     temperature: number = 0.6,
     maxTokens: number = 4096,
-    enabledMcpTools?: string[]
+    enabledMcpTools?: string[],
+    thinkingBudget?: number
   ): AsyncGenerator<LLMAgentEvent, void, unknown> {
     console.log(`[Agent Loop] Starting agent loop for event: ${eventId} with model: ${modelId}`)
     if (!this.canStartNewStream()) {
@@ -320,6 +321,10 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
     const provider = this.getProviderInstance(providerId)
     const abortController = new AbortController()
     const modelConfig = this.configPresenter.getModelConfig(modelId, providerId)
+
+    if (thinkingBudget !== undefined) {
+      modelConfig.thinkingBudget = thinkingBudget
+    }
 
     this.activeStreams.set(eventId, {
       isGenerating: true,
