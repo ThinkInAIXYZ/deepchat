@@ -54,14 +54,26 @@ export const useTabStore = defineStore('tab', () => {
     const windowId = window.api.getWindowId()
     if (!windowId) return false
 
-    const success = await tabPresenter.reorderTabs(windowId, newTabIds)
-    if (success) {
-      const reorderedTabs = newTabIds
-        .map((id) => tabs.value.find((tab) => tab.id === id))
-        .filter(Boolean) as TabData[]
-      tabs.value.splice(0, tabs.value.length, ...reorderedTabs)
+    try {
+      const success = await tabPresenter.reorderTabs(windowId, newTabIds)
+      if (success) {
+        const reorderedTabs = newTabIds
+          .map((id) => tabs.value.find((tab) => tab.id === id))
+          .filter(Boolean) as TabData[]
+
+        // Validate that all tabs were found
+        if (reorderedTabs.length !== newTabIds.length) {
+          console.warn('Some tab IDs were not found during reorder operation')
+          return false
+        }
+
+        tabs.value.splice(0, tabs.value.length, ...reorderedTabs)
+      }
+      return success
+    } catch (error) {
+      console.error('Failed to reorder tabs:', error)
+      return false
     }
-    return success
   }
 
   const updateWindowTabs = (windowId: number, tabsData: TabData[]) => {

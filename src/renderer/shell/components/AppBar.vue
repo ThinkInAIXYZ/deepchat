@@ -273,8 +273,14 @@ const onTabContainerDragOver = (event: DragEvent) => {
 const onTabContainerDrop = async (event: DragEvent) => {
   event.preventDefault()
 
-  if (dragInsertIndex.value === -1) {
+  // Helper to reset drag state
+  const resetDragState = () => {
     dragInsertIndex.value = -1
+    dragInsertPosition.value = 0
+  }
+
+  if (dragInsertIndex.value === -1) {
+    resetDragState()
     return
   }
 
@@ -284,74 +290,80 @@ const onTabContainerDrop = async (event: DragEvent) => {
     draggedTabId || (draggedTabIdFromEvent ? parseInt(draggedTabIdFromEvent) : null)
 
   if (!finalDraggedTabId) {
-    dragInsertIndex.value = -1
+    resetDragState()
     return
   }
 
   const currentWindowId = window.api.getWindowId()
   if (!currentWindowId) {
-    dragInsertIndex.value = -1
+    resetDragState()
     return
   }
 
-  // 检查是否是当前窗口的标签页
-  const isFromCurrentWindow = tabStore.tabs.some((tab) => tab.id === finalDraggedTabId)
+  try {
+    // 检查是否是当前窗口的标签页
+    const isFromCurrentWindow = tabStore.tabs.some((tab) => tab.id === finalDraggedTabId)
 
-  if (isFromCurrentWindow) {
-    // 窗口内重排序
-    const draggedTabIndex = tabStore.tabs.findIndex((tab) => tab.id === finalDraggedTabId)
-    if (draggedTabIndex === -1) {
-      dragInsertIndex.value = -1
-      return
-    }
+    if (isFromCurrentWindow) {
+      // 窗口内重排序
+      const draggedTabIndex = tabStore.tabs.findIndex((tab) => tab.id === finalDraggedTabId)
+      if (draggedTabIndex === -1) {
+        resetDragState()
+        return
+      }
 
-    let targetIndex = dragInsertIndex.value
+      let targetIndex = dragInsertIndex.value
 
-    // 如果拖拽到原位置，不需要重排序
-    if (targetIndex === draggedTabIndex || targetIndex === draggedTabIndex + 1) {
-      dragInsertIndex.value = -1
-      return
-    }
+      // 如果拖拽到原位置，不需要重排序
+      if (targetIndex === draggedTabIndex || targetIndex === draggedTabIndex + 1) {
+        resetDragState()
+        return
+      }
 
-    // 调整目标索引（如果拖拽到后面的位置，需要减1）
-    if (targetIndex > draggedTabIndex) {
-      targetIndex -= 1
-    }
+      // 调整目标索引（如果拖拽到后面的位置，需要减1）
+      if (targetIndex > draggedTabIndex) {
+        targetIndex -= 1
+      }
 
-    // 创建新的标签页顺序
-    const newTabs = [...tabStore.tabs]
-    const [draggedTab] = newTabs.splice(draggedTabIndex, 1)
-    newTabs.splice(targetIndex, 0, draggedTab)
+      // 创建新的标签页顺序
+      const newTabs = [...tabStore.tabs]
+      const [draggedTab] = newTabs.splice(draggedTabIndex, 1)
+      newTabs.splice(targetIndex, 0, draggedTab)
 
-    // 调用后端重排序方法，同步到主进程
-    const newTabIds = newTabs.map((tab) => tab.id)
-    await tabStore.reorderTabs(newTabIds)
-  } else {
-    // 跨窗口拖拽
-    console.log(
-      'Cross-window drag detected:',
-      finalDraggedTabId,
-      'to window:',
-      currentWindowId,
-      'at index:',
-      dragInsertIndex.value
-    )
-
-    // 调用主进程的 moveTab 方法
-    const success = await tabPresenter.moveTab(
-      finalDraggedTabId,
-      currentWindowId,
-      dragInsertIndex.value
-    )
-    if (success) {
-      console.log('Tab moved successfully')
+      // 调用后端重排序方法，同步到主进程
+      const newTabIds = newTabs.map((tab) => tab.id)
+      const success = await tabStore.reorderTabs(newTabIds)
+      if (!success) {
+        console.error('Failed to reorder tabs')
+      }
     } else {
-      console.error('Failed to move tab')
-    }
-  }
+      // 跨窗口拖拽
+      console.log(
+        'Cross-window drag detected:',
+        finalDraggedTabId,
+        'to window:',
+        currentWindowId,
+        'at index:',
+        dragInsertIndex.value
+      )
 
-  // 清理拖拽状态
-  dragInsertIndex.value = -1
+      // 调用主进程的 moveTab 方法
+      const success = await tabPresenter.moveTab(
+        finalDraggedTabId,
+        currentWindowId,
+        dragInsertIndex.value
+      )
+      if (success) {
+        console.log('Tab moved successfully')
+      } else {
+        console.error('Failed to move tab')
+      }
+    }
+  } catch (error) {
+    console.error('Error during tab drop operation:', error)
+  } finally {
+    resetDragState()
+  }
 }
 
 const handleDragOver = (event: DragEvent) => {
