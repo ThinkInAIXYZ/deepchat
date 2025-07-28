@@ -438,7 +438,11 @@ export class OpenAIResponsesProvider extends BaseLLMProvider {
             // 处理 base64 数据
             const base64Data = result.data[0].b64_json
             // 直接使用 devicePresenter 缓存 base64 数据
-            imageUrl = await presenter.devicePresenter.cacheImage(base64Data)
+            imageUrl = await presenter.devicePresenter.cacheImage(
+              base64Data.startsWith('data:image/png;base64,')
+                ? base64Data
+                : 'data:image/png;base64,' + base64Data
+            )
           } else {
             // 原有的 URL 处理逻辑
             imageUrl = result.data[0]?.url || ''
