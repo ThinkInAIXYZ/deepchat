@@ -402,27 +402,27 @@ declare module 'vue-i18n' {
         name: string
         desc: string
       }
-      "deepchat-inmemory/custom-prompts-server": {
+      'deepchat-inmemory/custom-prompts-server': {
         name: string
         desc: string
       }
-      "deepchat-inmemory/deep-research-server": {
+      'deepchat-inmemory/deep-research-server': {
         name: string
         desc: string
       }
-      "deepchat-inmemory/auto-prompting-server": {
+      'deepchat-inmemory/auto-prompting-server': {
         name: string
         desc: string
       }
-      "deepchat-inmemory/conversation-search-server": {
+      'deepchat-inmemory/conversation-search-server': {
         name: string
         desc: string
       }
-      "deepchat-inmemory/meeting-server": {
+      'deepchat-inmemory/meeting-server': {
         name: string
         desc: string
       }
-      "deepchat/apple-server": {
+      'deepchat/apple-server': {
         name: string
         desc: string
       }
@@ -538,15 +538,15 @@ declare module 'vue-i18n' {
     chat: string
     welcome: string
     settings: string
-    "settings-common": string
-    "settings-provider": string
-    "settings-mcp": string
-    "settings-database": string
-    "settings-about": string
-    "settings-shortcut": string
-    "settings-display": string
-    "settings-knowledge-base": string
-    "settings-prompt": string
+    'settings-common': string
+    'settings-provider': string
+    'settings-mcp': string
+    'settings-database': string
+    'settings-about': string
+    'settings-shortcut': string
+    'settings-display': string
+    'settings-knowledge-base': string
+    'settings-prompt': string
     common: {
       title: string
       resetData: string
@@ -1090,11 +1090,11 @@ declare module 'vue-i18n' {
     }
     display: {
       fontSize: string
-      "text-sm": string
-      "text-base": string
-      "text-lg": string
-      "text-xl": string
-      "text-2xl": string
+      'text-sm': string
+      'text-base': string
+      'text-lg': string
+      'text-xl': string
+      'text-2xl': string
       floatingButton: string
       floatingButtonDesc: string
     }
