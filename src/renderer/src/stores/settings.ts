@@ -232,19 +232,35 @@ export const useSettingsStore = defineStore('settings', () => {
 
   // 计算排序后的 providers
   const sortedProviders = computed(() => {
-    if (!providerOrder.value || providerOrder.value.length === 0) {
-      return providers.value
-    }
-    // 根据 providerOrder 对 providers 进行排序
-    const orderedProviders = [...providers.value].sort((a, b) => {
-      const aIndex = providerOrder.value.indexOf(a.id)
-      const bIndex = providerOrder.value.indexOf(b.id)
-      // 如果某个 provider 不在 order 中，将其放到最后
-      if (aIndex === -1) return 1
-      if (bIndex === -1) return -1
-      return aIndex - bIndex
+    const enabledProviders: LLM_PROVIDER[] = []
+    const disabledProviders: LLM_PROVIDER[] = []
+
+    providers.value.forEach((provider) => {
+      if (provider.enable) {
+        enabledProviders.push(provider)
+      } else {
+        disabledProviders.push(provider)
+      }
     })
-    return orderedProviders
+
+    const sortProviders = (providerList: LLM_PROVIDER[]) => {
+      if (!providerOrder.value || providerOrder.value.length === 0) {
+        return providerList
+      }
+      return [...providerList].sort((a, b) => {
+        const aIndex = providerOrder.value.indexOf(a.id)
+        const bIndex = providerOrder.value.indexOf(b.id)
+        // 如果某个 provider 不在 order 中，将其放到最后
+        if (aIndex === -1) return 1
+        if (bIndex === -1) return -1
+        return aIndex - bIndex
+      })
+    }
+
+    const sortedEnabled = sortProviders(enabledProviders)
+    const sortedDisabled = sortProviders(disabledProviders)
+
+    return [...sortedEnabled, ...sortedDisabled]
   })
 
   // 初始化设置
