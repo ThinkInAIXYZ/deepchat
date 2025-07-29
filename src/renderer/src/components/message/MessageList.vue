@@ -3,7 +3,6 @@
     <div
       ref="messagesContainer"
       class="message-list-container relative flex-1 overflow-y-auto scroll-smooth w-full h-full"
-      @scroll="handleScroll"
     >
       <div
         ref="messageList"
@@ -83,11 +82,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, nextTick, watch, computed, reactive } from 'vue'
+import { ref, onMounted, onUnmounted, nextTick, watch, computed, reactive } from 'vue'
 import MessageItemAssistant from './MessageItemAssistant.vue'
 import MessageItemUser from './MessageItemUser.vue'
 import { AssistantMessage, UserMessage } from '@shared/chat'
-import { useElementBounding, useDebounceFn } from '@vueuse/core'
+import { useElementBounding } from '@vueuse/core'
 import { Button } from '@/components/ui/button'
 import { Icon } from '@iconify/vue'
 import { useChatStore } from '@/stores/chat'
@@ -286,6 +285,7 @@ onMounted(() => {
     scrollToBottom()
     nextTick(() => {
       visible.value = true
+      setupScrollObserver()
     })
   }, 100)
 
@@ -301,16 +301,37 @@ onMounted(() => {
   )
 })
 
-const aboveThreshold = ref(false)
-const SCROLL_THRESHOLD = 20
-const handleScroll = useDebounceFn((event) => {
-  const rect = messageList.value?.getBoundingClientRect()
-  const container = event.target
-  if (rect?.height) {
-    const scrollBottom = container.scrollHeight - (container.scrollTop + container.clientHeight)
-    aboveThreshold.value = scrollBottom > SCROLL_THRESHOLD
+onUnmounted(() => {
+  if (intersectionObserver) {
+    intersectionObserver.disconnect()
+    intersectionObserver = null
   }
-}, 100)
+})
+
+const aboveThreshold = ref(false)
+let intersectionObserver: IntersectionObserver | null = null
+
+const setupScrollObserver = () => {
+  if (intersectionObserver) {
+    intersectionObserver.disconnect()
+  }
+
+  intersectionObserver = new IntersectionObserver(
+    (entries) => {
+      const entry = entries[0]
+      aboveThreshold.value = !entry.isIntersecting
+    },
+    {
+      root: messagesContainer.value,
+      rootMargin: '0px 0px 20px 0px', // 20px 的缓冲区
+      threshold: 0
+    }
+  )
+
+  if (scrollAnchor.value) {
+    intersectionObserver.observe(scrollAnchor.value)
+  }
+}
 
 const showCancelButton = computed(() => {
   return chatStore.generatingThreadIds.has(chatStore.getActiveThreadId() ?? '')

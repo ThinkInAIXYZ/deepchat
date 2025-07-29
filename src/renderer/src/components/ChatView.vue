@@ -45,16 +45,9 @@ const isGenerating = computed(() => {
   return chatStore.generatingThreadIds.has(chatStore.getActiveThreadId()!)
 })
 const handleSend = async (msg: UserMessageContent) => {
-  if (messageList.value) {
-    // 在发送消息前将aboveThreshold设置为false，确保消息发送过程中总是滚动到底部
-    messageList.value.aboveThreshold = false
-  }
   scrollToBottom()
   await chatStore.sendMessage(msg)
-  // 只有当用户在底部时才自动滚动
-  if (!messageList.value?.aboveThreshold) {
-    scrollToBottom()
-  }
+  scrollToBottom()
 }
 
 const handleFileUpload = () => {
