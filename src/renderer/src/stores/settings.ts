@@ -230,6 +230,28 @@ export const useSettingsStore = defineStore('settings', () => {
     () => FONT_SIZE_CLASSES[fontSizeLevel.value] || FONT_SIZE_CLASSES[DEFAULT_FONT_SIZE_LEVEL]
   )
 
+  // 维护 provider 状态变更时间戳的映射
+  const providerTimestamps = ref<Record<string, number>>({})
+
+  const loadProviderTimestamps = async () => {
+    try {
+      const savedTimestamps = await configP.getSetting<Record<string, number>>('providerTimestamps')
+      if (savedTimestamps) {
+        providerTimestamps.value = savedTimestamps
+      }
+    } catch (error) {
+      console.error('Failed to load provider timestamps:', error)
+    }
+  }
+
+  const saveProviderTimestamps = async () => {
+    try {
+      await configP.setSetting('providerTimestamps', providerTimestamps.value)
+    } catch (error) {
+      console.error('Failed to save provider timestamps:', error)
+    }
+  }
+
   // 计算排序后的 providers
   const sortedProviders = computed(() => {
     const enabledProviders: LLM_PROVIDER[] = []
@@ -243,22 +265,19 @@ export const useSettingsStore = defineStore('settings', () => {
       }
     })
 
-    const sortProviders = (providerList: LLM_PROVIDER[]) => {
-      if (!providerOrder.value || providerOrder.value.length === 0) {
-        return providerList
-      }
-      return [...providerList].sort((a, b) => {
-        const aIndex = providerOrder.value.indexOf(a.id)
-        const bIndex = providerOrder.value.indexOf(b.id)
-        // 如果某个 provider 不在 order 中，将其放到最后
-        if (aIndex === -1) return 1
-        if (bIndex === -1) return -1
-        return aIndex - bIndex
-      })
-    }
+    // Enabled：按时间戳升序排列
+    const sortedEnabled = enabledProviders.sort((a, b) => {
+      const aTime = providerTimestamps.value[a.id] || 0
+      const bTime = providerTimestamps.value[b.id] || 0
+      return aTime - bTime
+    })
 
-    const sortedEnabled = sortProviders(enabledProviders)
-    const sortedDisabled = sortProviders(disabledProviders)
+    // Disabled：按时间戳降序排列
+    const sortedDisabled = disabledProviders.sort((a, b) => {
+      const aTime = providerTimestamps.value[a.id] || 0
+      const bTime = providerTimestamps.value[b.id] || 0
+      return bTime - aTime
+    })
 
     return [...sortedEnabled, ...sortedDisabled]
   })
@@ -274,6 +293,7 @@ export const useSettingsStore = defineStore('settings', () => {
       defaultProviders.value = await configP.getDefaultProviders()
       // 加载保存的 provider 顺序
       await loadSavedOrder()
+      await loadProviderTimestamps()
 
       // 获取字体大小级别
       fontSizeLevel.value =
@@ -845,6 +865,10 @@ export const useSettingsStore = defineStore('settings', () => {
 
   // 更新provider的启用状态
   const updateProviderStatus = async (providerId: string, enable: boolean): Promise<void> => {
+    // 更新时间戳
+    providerTimestamps.value[providerId] = Date.now()
+    // 保存时间戳
+    await saveProviderTimestamps()
     await updateProviderConfig(providerId, { enable })
   }
 

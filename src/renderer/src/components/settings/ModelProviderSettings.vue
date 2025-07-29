@@ -114,9 +114,10 @@ const setActiveProvider = (providerId: string) => {
 const scrollToProvider = (providerId: string) => {
   const element = document.querySelector(`[data-provider-id="${providerId}"]`)
   if (element) {
+    // 滚动到该服务商的位置
     element.scrollIntoView({
       behavior: 'smooth',
-      block: 'center'
+      block: 'end'
     })
   }
 }
