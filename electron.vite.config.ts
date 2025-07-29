@@ -14,19 +14,6 @@ export default defineConfig({
       externalizeDepsPlugin({
         exclude: ['mermaid', 'dompurify']
       }),
-      {
-        name: 'generate-i18n-types',
-        enforce: 'pre',
-        apply(_config, env) {
-          if(env.mode === 'development') return true
-          return false
-        },
-        // 执行 generate-i18n-types.js
-        async buildStart() {
-          const { exec } = await import('child_process')
-          exec('node ./scripts/generate-i18n-types.js')
-        }
-      }
     ],
     resolve: {
       alias: {

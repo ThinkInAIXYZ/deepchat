@@ -9,7 +9,7 @@ const i18nDir = path.resolve(__dirname, '../src/renderer/src/i18n/zh-CN')
 const outputFile = path.resolve(__dirname, '../src/types/i18n.d.ts')
 
 function safeKey(key) {
-  return /^[a-zA-Z_\$][a-zA-Z0-9_\$]*$/.test(key) ? key : JSON.stringify(key)
+  return /^[a-zA-Z\$][a-zA-Z0-9_\$]*$/.test(key) ? key : `'${key}'`
 }
 
 function mergeKeys(target, source) {
@@ -50,7 +50,7 @@ async function main() {
     mergeKeys(allKeys, json)
   }
 
-  const typeDef = `import { DefineLocaleMessage } from 'vue-i18n'\n\ndeclare module 'vue-i18n' {\n  interface DefineLocaleMessage ${genType(allKeys, 4)}\n}\n`
+  const typeDef = `declare module 'vue-i18n' {\n  interface DefineLocaleMessage ${genType(allKeys, 4)}\n}\n`
 
   fs.writeFileSync(outputFile, typeDef, 'utf-8')
   console.log('i18n types file generated:', outputFile)
