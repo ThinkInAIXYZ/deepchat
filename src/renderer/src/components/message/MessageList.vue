@@ -18,12 +18,14 @@
             :message="msg as AssistantMessage"
             :is-capturing-image="isCapturingImage"
             @copy-image="handleCopyImage"
+            @scroll-to-bottom="scrollToBottom"
           />
           <MessageItemUser
             v-if="msg.role === 'user'"
             :key="index"
             :message="msg as UserMessage"
             @retry="handleRetry(index)"
+            @scroll-to-bottom="scrollToBottom"
           />
         </template>
       </div>
