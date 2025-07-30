@@ -1367,7 +1367,7 @@ export const defaultModelsSettings: DefaultModelSetting[] = [
     functionCall: true,
     reasoning: false
   },
-  
+
   // Zhipu
   {
     id: 'glm-4.5',
