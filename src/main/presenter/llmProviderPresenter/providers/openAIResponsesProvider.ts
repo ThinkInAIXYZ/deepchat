@@ -21,7 +21,17 @@ import sharp from 'sharp'
 import { proxyConfig } from '../../proxyConfig'
 import { ProxyAgent } from 'undici'
 
-const OPENAI_REASONING_MODELS = ['o3-mini', 'o3-preview', 'o1-mini', 'o1-pro', 'o1-preview', 'o1']
+const OPENAI_REASONING_MODELS = [
+  'o4-mini',
+  'o1-pro',
+  'o3',
+  'o3-mini',
+  'o3-preview',
+  'o1-mini',
+  'o1-pro',
+  'o1-preview',
+  'o1'
+]
 const OPENAI_IMAGE_GENERATION_MODELS = [
   'gpt-4o-all',
   'gpt-4o-image',
