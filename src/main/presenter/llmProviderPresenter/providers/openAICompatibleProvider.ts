@@ -35,6 +35,7 @@ const OPENAI_REASONING_MODELS = [
   'o4-mini',
   'o1-pro',
   'o3',
+  'o3-pro',
   'o3-mini',
   'o3-preview',
   'o1-mini',
