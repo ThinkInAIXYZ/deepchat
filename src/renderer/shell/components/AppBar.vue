@@ -26,7 +26,12 @@
         class="h-full flex flex-row items-center justify-start overflow-y-hidden overflow-x-auto scrollbar-hide"
         @scroll="onTabContainerWrapperScroll"
       >
-        <div ref="tabContainer" class="h-full flex flex-row items-center justify-start gap-1">
+        <div
+          ref="tabContainer"
+          class="h-full flex flex-row items-center justify-start gap-1 relative"
+          @dragover="onTabContainerDragOver"
+          @drop="onTabContainerDrop"
+        >
           <AppBarTabItem
             v-for="(tab, idx) in tabStore.tabs"
             :key="tab.id"
@@ -37,10 +42,17 @@
             @click="tabStore.setCurrentTabId(tab.id)"
             @close="tabStore.removeTab(tab.id)"
             @dragstart="onTabDragStart(tab.id, $event)"
+            @dragover="onTabItemDragOver(idx, $event)"
           >
             <img src="@/assets/logo.png" class="w-4 h-4 mr-2 rounded-sm" />
             <span class="truncate">{{ tab.title ?? 'DeepChat' }}</span>
           </AppBarTabItem>
+          <!-- 拖拽插入指示器 -->
+          <div
+            v-if="dragInsertIndex !== -1"
+            class="absolute top-0 bottom-0 w-0.5 bg-blue-500 z-10 pointer-events-none"
+            :style="{ left: dragInsertPosition + 'px' }"
+          ></div>
           <div ref="endOfTabs" class="w-0 flex-shrink-0 h-full"></div>
         </div>
       </div>
@@ -141,6 +153,8 @@ const tabContainerWrapper = ref<HTMLElement | null>(null)
 const tabContainer = ref<HTMLElement | null>(null)
 
 let draggedTabId: number | null = null
+const dragInsertIndex = ref(-1)
+const dragInsertPosition = ref(0)
 
 const tabContainerWrapperSize = useElementSize(tabContainerWrapper)
 const tabContainerSize = useElementSize(tabContainer)
@@ -176,7 +190,7 @@ const onTabDragStart = (tabId: number, event: DragEvent) => {
 
   if (event.dataTransfer) {
     event.dataTransfer.setData('text/plain', tabId.toString())
-    event.dataTransfer.effectAllowed = 'none'
+    event.dataTransfer.effectAllowed = 'all' // 允许所有拖拽效果，动态判断
     draggedTabId = tabId
     console.log('onTabDragStart - Tab ID:', tabId, 'Name:', tab.title)
 
@@ -210,19 +224,207 @@ const onTabDragStart = (tabId: number, event: DragEvent) => {
   }
 }
 
-const handleDragOver = (event: DragEvent) => {
+// 标签页项目拖拽悬停处理（窗口内重排序）
+const onTabItemDragOver = (index: number, event: DragEvent) => {
   event.preventDefault()
+  event.stopPropagation()
+
+  // 检查是否是当前窗口的标签页拖拽
+  const isCurrentWindowDrag = draggedTabId !== null
+  // 检查是否是外部拖拽（跨窗口）
+  const isExternalDrag = !isCurrentWindowDrag && event.dataTransfer?.types.includes('text/plain')
+
+  if (!isCurrentWindowDrag && !isExternalDrag) return
+
+  // 窗口内拖拽使用 move
+  if (event.dataTransfer) {
+    event.dataTransfer.dropEffect = 'move'
+  }
+
+  // 计算插入位置
+  const tabElement = event.currentTarget as HTMLElement
+  const rect = tabElement.getBoundingClientRect()
+  const containerRect = tabContainer.value?.getBoundingClientRect()
+
+  if (containerRect) {
+    const mouseX = event.clientX
+    const tabCenterX = rect.left + rect.width / 2
+
+    // 判断插入到左侧还是右侧
+    if (mouseX < tabCenterX) {
+      dragInsertIndex.value = index
+      dragInsertPosition.value = rect.left - containerRect.left
+    } else {
+      dragInsertIndex.value = index + 1
+      dragInsertPosition.value = rect.right - containerRect.left
+    }
+  }
+}
+
+// 标签页容器拖拽悬停处理
+const onTabContainerDragOver = (event: DragEvent) => {
+  // 检查是否是当前窗口的标签页拖拽或外部拖拽
+  const isCurrentWindowDrag = draggedTabId !== null
+  const isExternalDrag = !isCurrentWindowDrag && event.dataTransfer?.types.includes('text/plain')
+
+  if (!isCurrentWindowDrag && !isExternalDrag) return
+
+  event.preventDefault()
+  // 设置正确的 dropEffect 以支持窗口内拖拽
+  if (event.dataTransfer) {
+    event.dataTransfer.dropEffect = 'move'
+  }
+}
+
+// 标签页容器放置处理（窗口内重排序和跨窗口拖拽）
+const onTabContainerDrop = async (event: DragEvent) => {
+  event.preventDefault()
+
+  // Helper to reset drag state
+  const resetDragState = () => {
+    dragInsertIndex.value = -1
+    dragInsertPosition.value = 0
+  }
+
+  if (dragInsertIndex.value === -1) {
+    resetDragState()
+    return
+  }
+
+  // 获取拖拽的标签页ID
+  const draggedTabIdFromEvent = event.dataTransfer?.getData('text/plain')
+  const finalDraggedTabId =
+    draggedTabId || (draggedTabIdFromEvent ? parseInt(draggedTabIdFromEvent) : null)
+
+  if (!finalDraggedTabId) {
+    resetDragState()
+    return
+  }
+
+  const currentWindowId = window.api.getWindowId()
+  if (!currentWindowId) {
+    resetDragState()
+    return
+  }
+
+  try {
+    // 检查是否是当前窗口的标签页
+    const isFromCurrentWindow = tabStore.tabs.some((tab) => tab.id === finalDraggedTabId)
+
+    if (isFromCurrentWindow) {
+      // 窗口内重排序
+      const draggedTabIndex = tabStore.tabs.findIndex((tab) => tab.id === finalDraggedTabId)
+      if (draggedTabIndex === -1) {
+        resetDragState()
+        return
+      }
+
+      let targetIndex = dragInsertIndex.value
+
+      // 如果拖拽到原位置，不需要重排序
+      if (targetIndex === draggedTabIndex || targetIndex === draggedTabIndex + 1) {
+        resetDragState()
+        return
+      }
+
+      // 调整目标索引（如果拖拽到后面的位置，需要减1）
+      if (targetIndex > draggedTabIndex) {
+        targetIndex -= 1
+      }
+
+      // 创建新的标签页顺序
+      const newTabs = [...tabStore.tabs]
+      const [draggedTab] = newTabs.splice(draggedTabIndex, 1)
+      newTabs.splice(targetIndex, 0, draggedTab)
+
+      // 调用后端重排序方法，同步到主进程
+      const newTabIds = newTabs.map((tab) => tab.id)
+      const success = await tabStore.reorderTabs(newTabIds)
+      if (!success) {
+        console.error('Failed to reorder tabs')
+      }
+    } else {
+      // 跨窗口拖拽
+      console.log(
+        'Cross-window drag detected:',
+        finalDraggedTabId,
+        'to window:',
+        currentWindowId,
+        'at index:',
+        dragInsertIndex.value
+      )
+
+      // 调用主进程的 moveTab 方法
+      const success = await tabPresenter.moveTab(
+        finalDraggedTabId,
+        currentWindowId,
+        dragInsertIndex.value
+      )
+      if (success) {
+        console.log('Tab moved successfully')
+      } else {
+        console.error('Failed to move tab')
+      }
+    }
+  } catch (error) {
+    console.error('Error during tab drop operation:', error)
+  } finally {
+    resetDragState()
+  }
+}
+
+const handleDragOver = (event: DragEvent) => {
+  // 只处理当前窗口的标签页拖拽
+  if (!draggedTabId) return
+
+  // 检查鼠标是否在标签页容器区域内
+  const containerRect = tabContainer.value?.getBoundingClientRect()
+  if (containerRect) {
+    const isOverTabContainer =
+      event.clientX >= containerRect.left &&
+      event.clientX <= containerRect.right &&
+      event.clientY >= containerRect.top &&
+      event.clientY <= containerRect.bottom
+
+    if (isOverTabContainer) {
+      // 在标签页区域内，允许拖拽
+      event.preventDefault()
+      if (event.dataTransfer) {
+        event.dataTransfer.dropEffect = 'move'
+      }
+    } else {
+      // 在标签页区域外，设置为 none 以支持拖拽到窗口外
+      if (event.dataTransfer) {
+        event.dataTransfer.dropEffect = 'none'
+      }
+    }
+  }
 }
 
 const handleDragEnd = async (event: DragEvent) => {
-  console.log('handleDragEnd', event.clientX, event.clientY, window.innerWidth, window.innerHeight)
+  console.log(
+    'handleDragEnd',
+    event.clientX,
+    event.clientY,
+    window.innerWidth,
+    window.innerHeight,
+    'dropEffect:',
+    event.dataTransfer?.dropEffect
+  )
+
+  // 清理拖拽状态
+  dragInsertIndex.value = -1
+
   if (tabStore.tabs.length <= 1) {
     event.preventDefault()
+    draggedTabId = null
     return
   }
+
+  // 检查是否拖拽到窗口外创建新窗口
+  // 当 dropEffect 为 'none' 时，说明没有有效的放置目标
   if (draggedTabId && event.dataTransfer?.dropEffect === 'none') {
-    // Check if the mouse is outside the window bounds
-    // This is a simplified check; more robust checking might be needed
+    // Check if the mouse is outside the window bounds or in non-droppable area
     const isOutsideWindow =
       event.clientX <= 0 ||
       event.clientY <= 0 ||

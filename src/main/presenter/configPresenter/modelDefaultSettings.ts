@@ -340,34 +340,37 @@ export const defaultModelsSettings: DefaultModelSetting[] = [
     id: 'gemini-2.5-pro',
     name: 'Gemini 2.5 Pro',
     temperature: 0.7,
-    maxTokens: 65536,
+    maxTokens: 65535,
     contextLength: 1048576,
     match: ['gemini-2.5-pro'],
     vision: true,
     functionCall: true,
-    reasoning: true
+    reasoning: true,
+    thinkingBudget: -1 // 动态思维
   },
   {
     id: 'models/gemini-2.5-flash',
     name: 'Gemini 2.5 Flash',
     temperature: 0.7,
-    maxTokens: 65536,
+    maxTokens: 65535,
     contextLength: 1048576,
     match: ['models/gemini-2.5-flash', 'gemini-2.5-flash'],
     vision: true,
     functionCall: true,
-    reasoning: true
+    reasoning: true,
+    thinkingBudget: -1 // 动态思维
   },
   {
     id: 'models/gemini-2.5-flash-lite-preview-06-17',
     name: 'Gemini 2.5 Flash-Lite Preview',
     temperature: 0.7,
-    maxTokens: 64000,
-    contextLength: 1000000,
+    maxTokens: 65536,
+    contextLength: 1048576,
     match: ['models/gemini-2.5-flash-lite-preview-06-17', 'gemini-2.5-flash-lite-preview'],
     vision: true,
     functionCall: true,
-    reasoning: true
+    reasoning: true,
+    thinkingBudget: 0 // 默认不思考
   },
   {
     id: 'models/gemini-2.0-flash',
@@ -1364,6 +1367,63 @@ export const defaultModelsSettings: DefaultModelSetting[] = [
     functionCall: true,
     reasoning: false
   },
+
+  // Zhipu
+  {
+    id: 'glm-4.5',
+    name: 'GLM-4.5',
+    temperature: 0.7,
+    maxTokens: 8192,
+    contextLength: 128000,
+    match: ['glm-4.5'],
+    vision: false,
+    functionCall: true,
+    reasoning: true
+  },
+  {
+    id: 'glm-4.5-air',
+    name: 'GLM-4.5-Air',
+    temperature: 0.7,
+    maxTokens: 8192,
+    contextLength: 128000,
+    match: ['glm-4.5-air'],
+    vision: false,
+    functionCall: true,
+    reasoning: true
+  },
+  {
+    id: 'glm-4.5-x',
+    name: 'GLM-4.5-X',
+    temperature: 0.7,
+    maxTokens: 8192,
+    contextLength: 128000,
+    match: ['glm-4.5-x'],
+    vision: false,
+    functionCall: true,
+    reasoning: true
+  },
+  {
+    id: 'glm-4.5-airx',
+    name: 'GLM-4.5-AirX',
+    temperature: 0.7,
+    maxTokens: 8192,
+    contextLength: 128000,
+    match: ['glm-4.5-airx'],
+    vision: false,
+    functionCall: true,
+    reasoning: true
+  },
+  {
+    id: 'glm-4.5-flash',
+    name: 'GLM-4.5-Flash',
+    temperature: 0.7,
+    maxTokens: 8192,
+    contextLength: 128000,
+    match: ['glm-4.5-flash'],
+    vision: false,
+    functionCall: true,
+    reasoning: true
+  },
   {
     id: 'glm-4-plus',
     name: 'GLM-4-Plus',
@@ -1590,6 +1650,17 @@ export const defaultModelsSettings: DefaultModelSetting[] = [
     functionCall: true,
     reasoning: false
   },
+  {
+    id: 'kimi-k2-0711-preview',
+    name: 'Kimi K2 Preview',
+    temperature: 0.7,
+    maxTokens: 12800,
+    contextLength: 131072,
+    match: ['kimi-k2-0711-preview', 'kimi-k2-preview', 'kimi-k2', 'kimi/k2'],
+    vision: false,
+    functionCall: true,
+    reasoning: false
+  },
 
   // Azure OpenAI配置
   {
@@ -1662,9 +1733,21 @@ export const defaultModelsSettings: DefaultModelSetting[] = [
     id: 'text-embedding-nomic-embed-text',
     name: 'Nomic Embed Text',
     temperature: 0.0,
-    maxTokens: 8192,
-    contextLength: 8192,
+    maxTokens: 2048,
+    contextLength: 2048,
     match: ['text-embedding-nomic-embed-text', 'nomic/embed-text', 'nomic-embed-text'],
+    vision: false,
+    functionCall: false,
+    reasoning: false,
+    type: ModelType.Embedding
+  },
+  {
+    id: 'all-minilm',
+    name: 'all-minilm',
+    temperature: 0.0,
+    maxTokens: 512,
+    contextLength: 512,
+    match: ['all-minilm'],
     vision: false,
     functionCall: false,
     reasoning: false,
@@ -1674,8 +1757,8 @@ export const defaultModelsSettings: DefaultModelSetting[] = [
     id: 'embedding',
     name: 'embedding',
     temperature: 0.0,
-    maxTokens: 4096,
-    contextLength: 4096,
+    maxTokens: 1024,
+    contextLength: 1024,
     match: ['embedding', 'embed'],
     vision: false,
     functionCall: false,

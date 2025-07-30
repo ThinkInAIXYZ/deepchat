@@ -181,7 +181,8 @@ const openEditServerDialog = (serverName: string) => {
   const specialServers = {
     difyKnowledge: 'dify',
     ragflowKnowledge: 'ragflow',
-    fastGptKnowledge: 'fastgpt'
+    fastGptKnowledge: 'fastgpt',
+    builtinKnowledge: 'builtinKnowledge'
   }
 
   if (specialServers[serverName]) {

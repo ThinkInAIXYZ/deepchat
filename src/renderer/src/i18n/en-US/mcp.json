@@ -192,9 +192,17 @@
       "name": "Conversation History Search",
       "desc": "DeepChat built-in conversation history search service, can search historical conversation records and message contents"
     },
+    "builtinKnowledge": {
+      "desc": "DeepChat built-in knowledge base search service, which can search the content of DeepChat built-in knowledge base",
+      "name": "Built-in knowledge base search"
+    },
     "deepchat-inmemory/meeting-server": {
       "name": "Multi-Agent Meetings",
       "desc": "DeepChat's built-in meeting service enables hosting and facilitating multi-agent discussions."
+    },
+    "deepchat/apple-server": {
+      "desc": "Let the model operate macOS's system functions such as calendar, contacts, emails, maps, memos, reminders and other systems",
+      "name": "macOS system assistant"
     }
   },
   "prompts": {

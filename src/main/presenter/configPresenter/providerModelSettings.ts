@@ -237,7 +237,64 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
 
   // 智谱AI提供商特定模型配置
   zhipu: {
-    models: []
+    models: [
+      // GLM 4.5 系列模型
+      {
+        id: 'glm-4.5',
+        name: 'GLM-4.5',
+        temperature: 0.7,
+        maxTokens: 8192,
+        contextLength: 128000,
+        match: ['glm-4.5'],
+        vision: false,
+        functionCall: true,
+        reasoning: true
+      },
+      {
+        id: 'glm-4.5-air',
+        name: 'GLM-4.5-Air',
+        temperature: 0.7,
+        maxTokens: 8192,
+        contextLength: 128000,
+        match: ['glm-4.5-air'],
+        vision: false,
+        functionCall: true,
+        reasoning: true
+      },
+      {
+        id: 'glm-4.5-x',
+        name: 'GLM-4.5-X',
+        temperature: 0.7,
+        maxTokens: 8192,
+        contextLength: 128000,
+        match: ['glm-4.5-x'],
+        vision: false,
+        functionCall: true,
+        reasoning: true
+      },
+      {
+        id: 'glm-4.5-airx',
+        name: 'GLM-4.5-AirX',
+        temperature: 0.7,
+        maxTokens: 8192,
+        contextLength: 128000,
+        match: ['glm-4.5-airx'],
+        vision: false,
+        functionCall: true,
+        reasoning: true
+      },
+      {
+        id: 'glm-4.5-flash',
+        name: 'GLM-4.5-Flash',
+        temperature: 0.7,
+        maxTokens: 8192,
+        contextLength: 128000,
+        match: ['glm-4.5-flash'],
+        vision: false,
+        functionCall: true,
+        reasoning: true
+      }
+    ]
   },
 
   // Moonshot提供商特定模型配置

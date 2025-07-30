@@ -123,3 +123,14 @@ export const FLOATING_BUTTON_EVENTS = {
   POSITION_CHANGED: 'floating-button:position-changed', // 悬浮按钮位置改变
   ENABLED_CHANGED: 'floating-button:enabled-changed' // 悬浮按钮启用状态改变
 }
+
+// Dialog相关事件
+export const DIALOG_EVENTS = {
+  REQUEST: 'dialog:request', // 主进程 -> 渲染进程，请求显示dialog
+  RESPONSE: 'dialog:response' // 渲染进程 -> 主进程，dialog结果回传
+}
+
+// 知识库事件
+export const RAG_EVENTS = {
+  FILE_UPDATED: 'rag:file-updated' // 文件状态更新
+}

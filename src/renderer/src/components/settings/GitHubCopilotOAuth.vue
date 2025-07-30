@@ -19,13 +19,9 @@
           variant="outline"
           size="xs"
           class="text-xs text-normal rounded-lg"
-          :disabled="isValidating"
-          @click="validateToken"
+          @click="openModelCheckDialog"
         >
-          <Icon
-            :icon="isValidating ? 'lucide:loader-2' : 'lucide:check-check'"
-            :class="['w-4 h-4 text-muted-foreground', { 'animate-spin': isValidating }]"
-          />
+          <Icon icon="lucide:check-check" class="w-4 h-4 text-muted-foreground" />
           {{ t('settings.provider.verifyKey') }}
         </Button>
         <Button
@@ -125,6 +121,7 @@ import { Icon } from '@iconify/vue'
 import { usePresenter } from '@/composables/usePresenter'
 import { useSettingsStore } from '@/stores/settings'
 import type { LLM_PROVIDER } from '@shared/presenter'
+import { useModelCheckStore } from '@/stores/modelCheck'
 
 const { t } = useI18n()
 
@@ -138,11 +135,10 @@ const emit = defineEmits<{
 }>()
 
 const oauthPresenter = usePresenter('oauthPresenter')
-const llmProviderPresenter = usePresenter('llmproviderPresenter')
 const settingsStore = useSettingsStore()
+const modelCheckStore = useModelCheckStore()
 
 const isLoggingIn = ref(false)
-const isValidating = ref(false)
 const validationResult = ref<{ success: boolean; message: string } | null>(null)
 
 const hasToken = computed(() => {
@@ -221,31 +217,8 @@ const startOAuthLogin = async () => {
   }
 }
 
-/**
- * 验证Token
- */
-const validateToken = async () => {
-  if (!hasToken.value) return
-
-  isValidating.value = true
-  validationResult.value = null
-
-  try {
-    const result = await llmProviderPresenter.check(props.provider.id)
-    validationResult.value = {
-      success: result.isOk,
-      message: result.isOk
-        ? t('settings.provider.tokenValid')
-        : result.errorMsg || t('settings.provider.tokenInvalid')
-    }
-  } catch (error) {
-    validationResult.value = {
-      success: false,
-      message: error instanceof Error ? error.message : t('settings.provider.tokenInvalid')
-    }
-  } finally {
-    isValidating.value = false
-  }
+const openModelCheckDialog = () => {
+  modelCheckStore.openDialog(props.provider.id)
 }
 
 /**
@@ -280,12 +253,7 @@ const clearValidationAfterDelay = () => {
 }
 
 // 监听验证结果变化，自动清除
-onMounted(() => {
-  // 如果有Token，可以自动验证一次
-  if (hasToken.value) {
-    validateToken()
-  }
-})
+onMounted(() => {})
 
 onUnmounted(() => {
   if (clearValidationTimer) {

@@ -38,6 +38,7 @@
         >
           <div
             v-show="chatStore.isSidebarOpen"
+            ref="sidebarRef"
             :class="[
               'w-60 max-w-60 h-full fixed z-20 lg:relative',
               langStore.dir === 'rtl' ? 'right-0' : 'left-0'
@@ -70,6 +71,8 @@
 <script setup lang="ts">
 import { defineAsyncComponent, computed, watch } from 'vue'
 import { useChatStore } from '@/stores/chat'
+import { computed, watch, ref } from 'vue'
+import { onClickOutside, useTitle, useMediaQuery } from '@vueuse/core'
 import { useSettingsStore } from '@/stores/settings'
 import { RENDERER_MODEL_META } from '@shared/presenter'
 import { useArtifactStore } from '@/stores/artifact'
@@ -139,6 +142,16 @@ watch(
   },
   { deep: true }
 )
+
+// 点击外部区域关闭侧边栏
+const sidebarRef = ref<HTMLElement>()
+const isLargeScreen = useMediaQuery('(min-width: 1024px)')
+
+onClickOutside(sidebarRef, () => {
+  if (chatStore.isSidebarOpen && !isLargeScreen.value) {
+    chatStore.isSidebarOpen = false
+  }
+})
 
 const activeModel = computed(() => {
   let model: RENDERER_MODEL_META | undefined

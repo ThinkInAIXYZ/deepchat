@@ -26,7 +26,7 @@ interface CopilotTokenResponse {
 export class GithubCopilotProvider extends BaseLLMProvider {
   private copilotToken: string | null = null
   private tokenExpiresAt: number = 0
-  private baseApiUrl = 'https://copilot-proxy.githubusercontent.com'
+  private baseApiUrl = 'https://api.githubcopilot.com'
   private tokenUrl = 'https://api.github.com/copilot_internal/v2/token'
 
   constructor(provider: LLM_PROVIDER, configPresenter: ConfigPresenter) {
@@ -112,8 +112,7 @@ export class GithubCopilotProvider extends BaseLLMProvider {
     const headers: Record<string, string> = {
       Authorization: `Bearer ${this.provider.apiKey}`,
       Accept: 'application/json',
-      'User-Agent': 'DeepChat/1.0.0',
-      'X-GitHub-Api-Version': '2022-11-28'
+      'User-Agent': 'DeepChat/1.0.0'
     }
 
     console.log('📋 [GitHub Copilot] Request headers:')
@@ -249,32 +248,8 @@ export class GithubCopilotProvider extends BaseLLMProvider {
         reasoning: false
       },
       {
-        id: 'o1-preview',
-        name: 'o1 Preview',
-        group: 'GitHub Copilot',
-        providerId: this.provider.id,
-        isCustom: false,
-        contextLength: 128000,
-        maxTokens: 32768,
-        vision: false,
-        functionCall: false,
-        reasoning: true
-      },
-      {
-        id: 'o1-mini',
-        name: 'o1 Mini',
-        group: 'GitHub Copilot',
-        providerId: this.provider.id,
-        isCustom: false,
-        contextLength: 128000,
-        maxTokens: 65536,
-        vision: false,
-        functionCall: false,
-        reasoning: true
-      },
-      {
-        id: 'claude-3-5-sonnet',
-        name: 'Claude 3.5 Sonnet',
+        id: 'gpt-4.1',
+        name: 'GPT-4.1',
         group: 'GitHub Copilot',
         providerId: this.provider.id,
         isCustom: false,
@@ -283,6 +258,66 @@ export class GithubCopilotProvider extends BaseLLMProvider {
         vision: true,
         functionCall: true,
         reasoning: false
+      },
+      {
+        id: 'claude-3.7-sonnet',
+        name: 'Claude 3.7 sonnet',
+        group: 'GitHub Copilot',
+        providerId: this.provider.id,
+        isCustom: false,
+        contextLength: 200000,
+        maxTokens: 8192,
+        vision: true,
+        functionCall: true,
+        reasoning: false
+      },
+      {
+        id: 'claude-sonnet-4',
+        name: 'Claude Sonnet 4',
+        group: 'GitHub Copilot',
+        providerId: this.provider.id,
+        isCustom: false,
+        contextLength: 200000,
+        maxTokens: 8192,
+        vision: true,
+        functionCall: true,
+        reasoning: false
+      },
+      {
+        id: 'gemini-2.5-pro',
+        name: 'Gemini 2.5 Pro',
+        group: 'GitHub Copilot',
+        providerId: this.provider.id,
+        isCustom: false,
+        contextLength: 200000,
+        maxTokens: 8192,
+        vision: true,
+        functionCall: true,
+        reasoning: false
+      },
+      {
+        id: 'o3-mini',
+        name: 'O3 Mini',
+        group: 'GitHub Copilot',
+        providerId: this.provider.id,
+        isCustom: false,
+        contextLength: 128000,
+        maxTokens: 4096,
+        vision: true,
+        functionCall: true,
+        reasoning: true
+      },
+      {
+        id: 'o3',
+        name: 'O3',
+        group: 'GitHub Copilot',
+        providerId: this.provider.id,
+        isCustom: false,
+        contextLength: 128000,
+        maxTokens: 4096,
+        vision: true,
+        functionCall: true,
+        reasoning: true
       }
     ]
 
@@ -304,17 +339,23 @@ export class GithubCopilotProvider extends BaseLLMProvider {
     maxTokens: number,
     tools: MCPToolDefinition[]
   ): AsyncGenerator<LLMCoreStreamEvent, void, unknown> {
+    if (!modelId) throw new Error('Model ID is required')
     try {
       const token = await this.getCopilotToken()
       const formattedMessages = this.formatMessages(messages)
 
-      const requestBody = {
+      // Build request body with standard parameters
+      const requestBody: any = {
         model: modelId,
         messages: formattedMessages,
-        temperature: temperature || 0.7,
         max_tokens: maxTokens || 4096,
         stream: true,
-        ...(tools && tools.length > 0 && { tools })
+        temperature: temperature || 0.7
+      }
+
+      // Add tools when available
+      if (tools && tools.length > 0) {
+        requestBody.tools = tools
       }
 
       const headers: Record<string, string> = {
@@ -322,8 +363,16 @@ export class GithubCopilotProvider extends BaseLLMProvider {
         'Content-Type': 'application/json',
         Accept: 'text/event-stream',
         'User-Agent': 'DeepChat/1.0.0',
-        'X-GitHub-Api-Version': '2022-11-28'
+        'editor-version': 'vscode/1.97.2',
+        'editor-plugin-version': 'copilot.vim/1.16.0'
       }
+
+      // 添加详细的请求日志
+      console.log('📤 [GitHub Copilot] Sending stream request:')
+      console.log(`   URL: ${this.baseApiUrl}/chat/completions`)
+      console.log(`   Model: ${modelId}`)
+      console.log(`   Headers:`, headers)
+      console.log(`   Request Body:`, JSON.stringify(requestBody, null, 2))
 
       const requestOptions: RequestInitWithAgent = {
         method: 'POST',
@@ -340,7 +389,25 @@ export class GithubCopilotProvider extends BaseLLMProvider {
 
       const response = await fetch(`${this.baseApiUrl}/chat/completions`, requestOptions)
 
+      console.log('📥 [GitHub Copilot] Stream API Response:')
+      console.log(`   Status: ${response.status} ${response.statusText}`)
+      console.log(`   OK: ${response.ok}`)
+
       if (!response.ok) {
+        console.log('❌ [GitHub Copilot] Stream request failed!')
+        console.log(`   Request URL: ${this.baseApiUrl}/chat/completions`)
+        console.log(`   Request Method: POST`)
+        console.log(`   Request Headers:`, headers)
+        console.log(`   Request Body:`, JSON.stringify(requestBody, null, 2))
+
+        // 尝试读取错误响应
+        try {
+          const errorText = await response.text()
+          console.log(`   Error Response Body: ${errorText}`)
+        } catch (e) {
+          console.log(`   Could not read error response: ${e}`)
+        }
+
         throw new Error(`GitHub Copilot API error: ${response.status} ${response.statusText}`)
       }
 
@@ -428,16 +495,18 @@ export class GithubCopilotProvider extends BaseLLMProvider {
     temperature?: number,
     maxTokens?: number
   ): Promise<LLMResponse> {
+    if (!modelId) throw new Error('Model ID is required')
     try {
       const token = await this.getCopilotToken()
       const formattedMessages = this.formatMessages(messages)
 
-      const requestBody = {
+      // Build request body with standard parameters
+      const requestBody: any = {
         model: modelId,
         messages: formattedMessages,
-        temperature: temperature || 0.7,
         max_tokens: maxTokens || 4096,
-        stream: false
+        stream: false,
+        temperature: temperature || 0.7
       }
 
       const headers: Record<string, string> = {
@@ -445,8 +514,16 @@ export class GithubCopilotProvider extends BaseLLMProvider {
         'Content-Type': 'application/json',
         Accept: 'application/json',
         'User-Agent': 'DeepChat/1.0.0',
-        'X-GitHub-Api-Version': '2022-11-28'
+        'editor-version': 'vscode/1.97.2',
+        'editor-plugin-version': 'copilot.vim/1.16.0'
       }
+
+      // 添加详细的请求日志
+      console.log('📤 [GitHub Copilot] Sending completion request:')
+      console.log(`   URL: ${this.baseApiUrl}/chat/completions`)
+      console.log(`   Model: ${modelId}`)
+      console.log(`   Headers:`, headers)
+      console.log(`   Request Body:`, JSON.stringify(requestBody, null, 2))
 
       const requestOptions: RequestInitWithAgent = {
         method: 'POST',
@@ -463,7 +540,25 @@ export class GithubCopilotProvider extends BaseLLMProvider {
 
       const response = await fetch(`${this.baseApiUrl}/chat/completions`, requestOptions)
 
+      console.log('📥 [GitHub Copilot] Completion API Response:')
+      console.log(`   Status: ${response.status} ${response.statusText}`)
+      console.log(`   OK: ${response.ok}`)
+
       if (!response.ok) {
+        console.log('❌ [GitHub Copilot] Completion request failed!')
+        console.log(`   Request URL: ${this.baseApiUrl}/chat/completions`)
+        console.log(`   Request Method: POST`)
+        console.log(`   Request Headers:`, headers)
+        console.log(`   Request Body:`, JSON.stringify(requestBody, null, 2))
+
+        // 尝试读取错误响应
+        try {
+          const errorText = await response.text()
+          console.log(`   Error Response Body: ${errorText}`)
+        } catch (e) {
+          console.log(`   Could not read error response: ${e}`)
+        }
+
         throw new Error(`GitHub Copilot API error: ${response.status} ${response.statusText}`)
       }
 
@@ -496,6 +591,7 @@ export class GithubCopilotProvider extends BaseLLMProvider {
     temperature?: number,
     maxTokens?: number
   ): Promise<LLMResponse> {
+    if (!modelId) throw new Error('Model ID is required')
     return this.completions(
       [
         {

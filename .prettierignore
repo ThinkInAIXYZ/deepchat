@@ -21,3 +21,5 @@ src/renderer/src/components/ui/*
 .cursor
 .vscode
 electron.vite.config.ts
+*.md
+scripts/*

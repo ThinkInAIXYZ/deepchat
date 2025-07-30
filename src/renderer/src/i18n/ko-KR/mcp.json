@@ -195,6 +195,14 @@
     "deepchat-inmemory/meeting-server": {
       "name": "멀티 에이전트 회의",
       "desc": "DeepChat의 내장 회의 서비스는 다중 에이전트 토론의 주최와 진행을 지원합니다."
+    },
+    "builtinKnowledge": {
+      "desc": "Deepchat 내장 지식 기반 검색 서비스, Deepchat 내장 지식 기반의 내용을 검색 할 수있는 Deepchat 내장 지식 기반 검색 서비스",
+      "name": "내장 된 지식 기반 검색"
+    },
+    "deepchat/apple-server": {
+      "desc": "모델이 캘린더, 연락처, 이메일,지도, 메모, 알림 및 기타 시스템과 같은 MacOS의 시스템 기능을 작동하도록합니다.",
+      "name": "MACOS 시스템 어시스턴트"
     }
   },
   "prompts": {

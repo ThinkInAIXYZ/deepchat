@@ -4,7 +4,9 @@
     "delete": "削除",
     "cleanMessages": "メッセージをクリアします",
     "pin": "ピン留めする",
-    "unpin": "ピン留めを外す"
+    "unpin": "ピン留めを外す",
+    "export": "輸出",
+    "exportText": "プレーンテキスト"
   },
   "toolbar": {
     "save": "保存",
@@ -25,5 +27,9 @@
     "toolbar": {
       "save": "保存"
     }
+  },
+  "export": {
+    "failed": "エクスポートは失敗しました",
+    "failedDesc": "エクスポートプロセス中にエラーが発生しました。もう一度やり直してください"
   }
 }

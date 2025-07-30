@@ -1,6 +1,6 @@
 <template>
   <ScrollArea class="w-full h-full p-2">
-    <div class="w-full h-full flex flex-col gap-1.5">
+    <div v-show="!showBuiltinKnowledgeDetail" class="w-full h-full flex flex-col gap-1.5">
       <!-- 知识库配置标题 -->
       <div class="flex flex-row p-2 items-center gap-2 px-2">
         <span class="flex flex-row items-center gap-2 flex-grow w-full">
@@ -28,6 +28,8 @@
         <DifyKnowledgeSettings ref="difySettingsRef" />
         <!-- FastGPT知识库 -->
         <FastGptKnowledgeSettings ref="fastGptSettingsRef" />
+        <!-- 内置知识库 -->
+        <BuiltinKnowledgeSettings ref="builtinSettingsRef" @showDetail="showDetail" />
         <!-- 未来可以添加更多知识库类型 -->
         <div
           class="border rounded-lg p-4 border-dashed flex items-center justify-center text-muted-foreground"
@@ -52,7 +54,7 @@
             >
               <img src="@/assets/images/dify.png" class="h-5 mr-3" />
               <div class="flex-1">
-                <h3 class="text-sm font-medium">Dify知识库</h3>
+                <h3 class="text-sm font-medium">{{ t('settings.knowledgeBase.dify') }}</h3>
                 <p class="text-xs text-muted-foreground">
                   {{ t('settings.knowledgeBase.difyDescription') }}
                 </p>
@@ -64,7 +66,7 @@
             >
               <img src="@/assets/images/ragflow.png" class="h-5 mr-3" />
               <div class="flex-1">
-                <h3 class="text-sm font-medium">RAGFlow</h3>
+                <h3 class="text-sm font-medium">{{ t('settings.knowledgeBase.ragflowTitle') }}</h3>
                 <p class="text-xs text-muted-foreground">
                   {{ t('settings.knowledgeBase.ragflowDescription') }}
                 </p>
@@ -76,9 +78,23 @@
             >
               <img src="@/assets/images/fastgpt.png" class="h-5 mr-3" />
               <div class="flex-1">
-                <h3 class="text-sm font-medium">FastGPT</h3>
+                <h3 class="text-sm font-medium">{{ t('settings.knowledgeBase.fastgptTitle') }}</h3>
                 <p class="text-xs text-muted-foreground">
                   {{ t('settings.knowledgeBase.fastgptDescription') }}
+                </p>
+              </div>
+            </div>
+            <div
+              class="flex items-center p-3 border rounded-md cursor-pointer hover:bg-accent"
+              @click="selectKnowledgeBaseType('builtinKnowledge')"
+            >
+              <Icon icon="lucide:book-open" class="h-5 mr-3 text-primary" />
+              <div class="flex-1">
+                <h3 class="text-sm font-medium">
+                  {{ t('settings.knowledgeBase.builtInKnowledgeTitle') }}
+                </h3>
+                <p class="text-xs text-muted-foreground">
+                  {{ t('settings.knowledgeBase.builtInKnowledgeDescription') }}
                 </p>
               </div>
             </div>
@@ -90,6 +106,13 @@
           </DialogFooter>
         </DialogContent>
       </Dialog>
+    </div>
+    <div v-if="showBuiltinKnowledgeDetail">
+      <KnowledgeFile
+        v-if="builtinKnowledgeDetail"
+        :builtinKnowledgeDetail="builtinKnowledgeDetail"
+        @hideKnowledgeFile="showBuiltinKnowledgeDetail = false"
+      ></KnowledgeFile>
     </div>
   </ScrollArea>
 </template>
@@ -111,12 +134,23 @@ import {
 import RagflowKnowledgeSettings from './RagflowKnowledgeSettings.vue'
 import DifyKnowledgeSettings from './DifyKnowledgeSettings.vue'
 import FastGptKnowledgeSettings from './FastGptKnowledgeSettings.vue'
+import BuiltinKnowledgeSettings from './BuiltinKnowledgeSettings.vue'
+import KnowledgeFile from './KnowledgeFile.vue'
+import { BuiltinKnowledgeConfig } from '@shared/presenter'
 
 const difySettingsRef = ref<InstanceType<typeof DifyKnowledgeSettings> | null>(null)
 const ragflowSettingsRef = ref<InstanceType<typeof RagflowKnowledgeSettings> | null>(null)
 const fastGptSettingsRef = ref<InstanceType<typeof FastGptKnowledgeSettings> | null>(null)
+const builtinSettingsRef = ref<InstanceType<typeof BuiltinKnowledgeSettings> | null>(null)
 
 const { t } = useI18n()
+// 是否展示内置知识库文件详情
+const showBuiltinKnowledgeDetail = ref(false)
+const builtinKnowledgeDetail = ref<BuiltinKnowledgeConfig | null>(null)
+const showDetail = (detail: BuiltinKnowledgeConfig) => {
+  showBuiltinKnowledgeDetail.value = true
+  builtinKnowledgeDetail.value = detail
+}
 
 // 对话框状态
 const isAddKnowledgeBaseDialogOpen = ref(false)
@@ -134,6 +168,11 @@ const closeAddKnowledgeBaseDialog = () => {
 // 选择知识库类型
 const selectKnowledgeBaseType = (type: string) => {
   closeAddKnowledgeBaseDialog()
+  if (type === 'builtinKnowledge') {
+    if (builtinSettingsRef.value) {
+      builtinSettingsRef.value.openAddConfig()
+    }
+  }
   if (type === 'dify') {
     if (difySettingsRef.value) {
       difySettingsRef.value.openAddConfig()

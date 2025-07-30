@@ -56,7 +56,8 @@ export const useChatStore = defineStore('chat', () => {
     maxTokens: 8000,
     providerId: '',
     modelId: '',
-    artifacts: 0
+    artifacts: 0,
+    enabledMcpTools: []
   })
 
   // Deeplink 消息缓存
@@ -1140,6 +1141,62 @@ export const useChatStore = defineStore('chat', () => {
     tabP.onRendererTabReady(getTabId())
   })
 
+  /**
+   * 导出会话内容
+   * @param threadId 会话ID
+   * @param format 导出格式
+   */
+  const exportThread = async (
+    threadId: string,
+    format: 'markdown' | 'html' | 'txt' = 'markdown'
+  ) => {
+    try {
+      // 直接使用主线程导出
+      return await exportWithMainThread(threadId, format)
+    } catch (error) {
+      console.error('导出会话失败:', error)
+      throw error
+    }
+  }
+
+  /**
+   * 主线程导出
+   */
+  const exportWithMainThread = async (threadId: string, format: 'markdown' | 'html' | 'txt') => {
+    const result = await threadP.exportConversation(threadId, format)
+
+    // 触发下载
+    const blob = new Blob([result.content], {
+      type: getContentType(format)
+    })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = result.filename
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    URL.revokeObjectURL(url)
+
+    return result
+  }
+
+  /**
+   * 获取内容类型
+   */
+  const getContentType = (format: string): string => {
+    switch (format) {
+      case 'markdown':
+        return 'text/markdown;charset=utf-8'
+      case 'html':
+        return 'text/html;charset=utf-8'
+      case 'txt':
+        return 'text/plain;charset=utf-8'
+      default:
+        return 'text/plain;charset=utf-8'
+    }
+  }
+
   return {
     renameThread,
     // 状态
@@ -1178,6 +1235,7 @@ export const useChatStore = defineStore('chat', () => {
     toggleThreadPinned,
     getActiveThreadId,
     getGeneratingMessagesCache,
-    getMessages
+    getMessages,
+    exportThread
   }
 })

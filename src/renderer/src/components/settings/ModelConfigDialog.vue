@@ -132,6 +132,68 @@
             </div>
             <Switch v-model:checked="config.reasoning" />
           </div>
+
+          <!-- 思考预算 (仅对支持的 Gemini 模型显示) -->
+          <div v-if="showThinkingBudget" class="space-y-4">
+            <div class="flex items-center justify-between">
+              <div class="space-y-0.5">
+                <Label>{{ t('settings.model.modelConfig.thinkingBudget.label') }}</Label>
+                <p class="text-xs text-muted-foreground">
+                  {{ t('settings.model.modelConfig.thinkingBudget.description') }}
+                </p>
+                <p class="text-xs text-orange-600">
+                  {{ t('settings.model.modelConfig.thinkingBudget.forceEnabled') }}
+                </p>
+              </div>
+              <!-- Gemini 2.5 系列强制开启，不显示开关 -->
+            </div>
+
+            <!-- 思考预算详细配置 -->
+            <div class="space-y-3 pl-4 border-l-2 border-muted">
+              <div class="flex items-center justify-between">
+                <div class="space-y-0.5">
+                  <Label class="text-sm">{{
+                    t('settings.model.modelConfig.thinkingBudget.dynamic')
+                  }}</Label>
+                </div>
+                <Switch
+                  :checked="config.thinkingBudget === -1"
+                  @update:checked="handleDynamicThinkingToggle"
+                />
+              </div>
+
+              <!-- 数值输入 -->
+              <div class="space-y-2">
+                <Label class="text-sm">{{
+                  t('settings.model.modelConfig.thinkingBudget.valueLabel')
+                }}</Label>
+                <Input
+                  v-model.number="config.thinkingBudget"
+                  type="number"
+                  :min="-1"
+                  :max="thinkingBudgetRange.max"
+                  :step="128"
+                  :placeholder="t('settings.model.modelConfig.thinkingBudget.placeholder')"
+                  :class="{ 'border-destructive': thinkingBudgetError }"
+                  :disabled="config.thinkingBudget === -1"
+                />
+                <p class="text-xs text-muted-foreground">
+                  <span v-if="thinkingBudgetError" class="text-red-600 font-medium">
+                    {{ t('settings.model.modelConfig.thinkingBudget.notice')
+                    }}{{ thinkingBudgetError }}。
+                  </span>
+                  <span v-else-if="props.modelId.includes('pro')" class="text-red-600 font-medium">
+                    {{ t('settings.model.modelConfig.thinkingBudget.notice')
+                    }}{{ t('settings.model.modelConfig.thinkingBudget.warnings.proNoDisable') }}。
+                  </span>
+                  {{ t('settings.model.modelConfig.thinkingBudget.dynamicPrefix')
+                  }}{{ getDisableHint() }}，{{
+                    t('settings.model.modelConfig.thinkingBudget.range', thinkingBudgetRange)
+                  }}
+                </p>
+              </div>
+            </div>
+          </div>
         </form>
       </div>
 
@@ -238,8 +300,8 @@ const loadConfig = async () => {
     config.value = { ...modelConfig }
   } catch (error) {
     console.error('Failed to load model config:', error)
-    // 如果加载失败，则使用默认配置
-    config.value = {
+
+    const defaultConfig: ModelConfig = {
       maxTokens: 4096,
       contextLength: 8192,
       temperature: 0.7,
@@ -247,6 +309,16 @@ const loadConfig = async () => {
       functionCall: false,
       reasoning: false,
       type: ModelType.Chat
+    }
+
+    config.value = defaultConfig
+  }
+
+  // Initialize thinking budget if not set
+  if (props.providerId === 'gemini' && config.value.thinkingBudget === undefined) {
+    const thinkingConfig = getThinkingBudgetConfig(props.modelId)
+    if (thinkingConfig) {
+      config.value.thinkingBudget = thinkingConfig.defaultValue
     }
   }
 }
@@ -280,7 +352,7 @@ const validateForm = () => {
 // 表单是否有效
 const isValid = computed(() => {
   validateForm()
-  return Object.keys(errors.value).length === 0
+  return Object.keys(errors.value).length === 0 && !thinkingBudgetError.value
 })
 
 // 保存配置
@@ -323,6 +395,125 @@ watch(
   },
   { immediate: true }
 )
+
+// 根据模型 ID 获取思考预算配置
+const getThinkingBudgetConfig = (modelId: string) => {
+  if (modelId.includes('gemini-2.5-pro')) {
+    return {
+      min: 128,
+      max: 32768,
+      defaultValue: -1, // 默认动态思维
+      canDisable: false // 2.5 Pro 无法停用思考
+    }
+  }
+
+  if (modelId.includes('gemini-2.5-flash-lite')) {
+    return {
+      min: 0, // 支持设置为 0（停用思考）
+      max: 24576,
+      defaultValue: 0, // 默认不思考
+      canDisable: true // 可以设置为 0 停用思考
+    }
+  }
+
+  if (modelId.includes('gemini-2.5-flash')) {
+    return {
+      min: 0,
+      max: 24576,
+      defaultValue: -1, // 默认动态思维
+      canDisable: true // 可以设置为 0 停用
+    }
+  }
+
+  return null // 不支持的模型
+}
+
+// 是否显示思考预算配置
+const showThinkingBudget = computed(() => {
+  const isGemini = props.providerId === 'gemini'
+  const hasReasoning = config.value.reasoning
+  const modelConfig = getThinkingBudgetConfig(props.modelId)
+  const isSupported = modelConfig !== null
+  const result = isGemini && hasReasoning && isSupported
+
+  return result
+})
+
+// 思考预算范围
+const thinkingBudgetRange = computed(() => {
+  const modelConfig = getThinkingBudgetConfig(props.modelId)
+  return modelConfig || { min: 128, max: 32768, defaultValue: -1, canDisable: false }
+})
+
+// 思考预算验证错误
+const thinkingBudgetError = computed(() => {
+  if (!showThinkingBudget.value) return ''
+
+  const value = config.value.thinkingBudget
+  const range = thinkingBudgetRange.value
+
+  if (value === undefined || value === null) return ''
+
+  // -1 是有效值（动态思维）
+  if (value === -1) return ''
+
+  // 检查是否可以禁用（设置为 0）
+  if (value === 0 && !range.canDisable) {
+    if (props.modelId.includes('pro')) {
+      return t('settings.model.modelConfig.thinkingBudget.warnings.proCannotDisable')
+    } else if (props.modelId.includes('flash-lite')) {
+      return t('settings.model.modelConfig.thinkingBudget.warnings.flashLiteCannotSetZero')
+    } else {
+      return t('settings.model.modelConfig.thinkingBudget.warnings.modelCannotDisable')
+    }
+  }
+
+  if (value < range.min && value !== 0) {
+    // 对于 Flash-Lite，0 是有效值（停用思考），但其他值不能小于 512
+    if (props.modelId.includes('flash-lite') && value > 0 && value < 512) {
+      return t('settings.model.modelConfig.thinkingBudget.warnings.flashLiteMinValue')
+    }
+
+    let hint = ''
+    if (range.canDisable && range.min === 0) {
+      hint = t('settings.model.modelConfig.thinkingBudget.hints.withZeroAndDynamic')
+    } else if (range.canDisable) {
+      hint = t('settings.model.modelConfig.thinkingBudget.hints.withDynamic')
+    } else {
+      hint = t('settings.model.modelConfig.thinkingBudget.hints.withDynamic')
+    }
+    return t('settings.model.modelConfig.thinkingBudget.warnings.belowMin', {
+      min: range.min,
+      hint
+    })
+  }
+  if (value > range.max) {
+    return t('settings.model.modelConfig.thinkingBudget.warnings.aboveMax', { max: range.max })
+  }
+  return ''
+})
+
+// 处理动态思维开关
+const handleDynamicThinkingToggle = (enabled: boolean) => {
+  if (enabled) {
+    config.value.thinkingBudget = -1 // 动态思维
+  } else {
+    // 设置为 1024（Gemini Demo的默认值）
+    config.value.thinkingBudget = 1024
+  }
+}
+
+// 获取禁用提示文字
+const getDisableHint = () => {
+  const range = thinkingBudgetRange.value
+  if (props.modelId.includes('flash-lite')) {
+    return t('settings.model.modelConfig.thinkingBudget.hints.flashLiteDisable')
+  } else if (range.canDisable) {
+    return t('settings.model.modelConfig.thinkingBudget.hints.normalDisable')
+  } else {
+    return '' // Pro 模型的限制已在红色警告中显示
+  }
+}
 
 onMounted(() => {
   if (props.open) {

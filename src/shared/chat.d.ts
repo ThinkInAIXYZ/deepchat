@@ -89,6 +89,7 @@ export type AssistantMessageBlock = {
     | 'error'
     | 'tool_call'
     | 'action'
+    | 'tool_call_permission' // NEW: Dedicated permission request block type
     | 'image'
     | 'artifact-thinking'
     | 'rag_files'
@@ -96,7 +97,16 @@ export type AssistantMessageBlock = {
     | 'reasoning_step'
   content?: string
   extra?: Record<string, string | number | object[] | boolean>
-  status: 'success' | 'loading' | 'cancel' | 'error' | 'reading' | 'optimizing' | 'pending'
+  status:
+    | 'success'
+    | 'loading'
+    | 'cancel'
+    | 'error'
+    | 'reading'
+    | 'optimizing'
+    | 'pending'
+    | 'granted'
+    | 'denied'
   timestamp: number
   artifact?: {
     identifier: string

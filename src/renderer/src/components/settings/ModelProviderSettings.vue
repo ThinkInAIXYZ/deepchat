@@ -11,6 +11,7 @@
         >
           <template #item="{ element: provider }">
             <div
+              :data-provider-id="provider.id"
               :class="[
                 'flex flex-row hover:bg-accent  items-center gap-2 rounded-lg p-2 cursor-pointer group',
                 route.params?.providerId === provider.id
@@ -68,7 +69,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, nextTick } from 'vue'
 import { useSettingsStore } from '@/stores/settings'
 import { useRoute, useRouter } from 'vue-router'
 import ModelProviderSettingsDetail from './ModelProviderSettingsDetail.vue'
@@ -110,10 +111,28 @@ const setActiveProvider = (providerId: string) => {
   })
 }
 
+const scrollToProvider = (providerId: string) => {
+  const element = document.querySelector(`[data-provider-id="${providerId}"]`)
+  if (element) {
+    // 滚动到该服务商的位置
+    element.scrollIntoView({
+      behavior: 'smooth',
+      block: 'end'
+    })
+  }
+}
+
 const toggleProviderStatus = async (provider: LLM_PROVIDER) => {
-  await settingsStore.updateProviderStatus(provider.id, !provider.enable)
+  const willEnable = !provider.enable
+  await settingsStore.updateProviderStatus(provider.id, willEnable)
   // 切换状态后，同时打开该服务商的详情页面
   setActiveProvider(provider.id)
+
+  // 仅在开启服务商时滚动
+  if (willEnable) {
+    await nextTick()
+    scrollToProvider(provider.id)
+  }
 }
 
 const activeProvider = computed(() => {

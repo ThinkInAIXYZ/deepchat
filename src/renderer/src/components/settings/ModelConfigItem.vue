@@ -40,6 +40,7 @@
         <Icon icon="lucide:circle-check" class="w-4 h-4 text-green-500" />
       </Button>
       <Button
+        v-if="changeable"
         variant="link"
         size="icon"
         class="w-7 h-7 text-xs text-normal rounded-lg"
@@ -89,9 +90,11 @@ withDefaults(
     functionCall?: boolean
     reasoning?: boolean
     type?: ModelType
+    changeable?: boolean
   }>(),
   {
-    type: ModelType.Chat
+    type: ModelType.Chat,
+    changeable: true
   }
 )
 

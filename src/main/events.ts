@@ -181,3 +181,15 @@ export const FLOATING_BUTTON_EVENTS = {
   POSITION_CHANGED: 'floating-button:position-changed', // 悬浮按钮位置改变
   ENABLED_CHANGED: 'floating-button:enabled-changed' // 悬浮按钮启用状态改变
 }
+
+// Dialog related events
+export const DIALOG_EVENTS = {
+  REQUEST: 'dialog:request', // Main -> Renderer: Request to show dialog
+  RESPONSE: 'dialog:response' // Renderer -> Main: Dialog result response
+}
+
+// Knowledge base events
+export const RAG_EVENTS = {
+  FILE_UPDATED: 'rag:file-updated', // File status update
+  FILE_PROGRESS: 'rag:file-progress' // File processing progress update
+}

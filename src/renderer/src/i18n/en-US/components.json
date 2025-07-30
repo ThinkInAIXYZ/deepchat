@@ -14,5 +14,23 @@
   "messageBlockAction": {
     "continue": "Continue",
     "continued": "Continued"
+  },
+  "messageBlockPermissionRequest": {
+    "title": "Permission Required",
+    "allow": "Allow",
+    "deny": "Deny",
+    "rememberChoice": "Remember this choice",
+    "granted": "Permission granted",
+    "denied": "Permission denied",
+    "type": {
+      "read": "Read permissions",
+      "write": "Write permissions",
+      "all": "Full permissions"
+    },
+    "description": {
+      "read": "Allow '{toolName}' of '{serverName}' to perform read operations?",
+      "write": "Allow '{toolName}' of '{serverName}' to perform write operations?",
+      "all": "Allow '{toolName}' of '{serverName}' to perform read and write operations?"
+    }
   }
 }

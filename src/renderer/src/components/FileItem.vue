@@ -44,6 +44,7 @@
 <script setup lang="ts">
 import { Icon } from '@iconify/vue'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { getMimeTypeIcon } from '@/lib/utils'
 
 const props = withDefaults(
   defineProps<{
@@ -64,56 +65,6 @@ defineEmits<{
 }>()
 
 const getFileIcon = () => {
-  // 根据 MIME 类型返回对应的图标
-  if (
-    props.mimeType.startsWith('text/plain') ||
-    props.mimeType.startsWith('application/json') ||
-    props.mimeType.startsWith('application/javascript') ||
-    props.mimeType.startsWith('application/typescript')
-  ) {
-    return 'vscode-icons:file-type-text'
-  } else if (props.mimeType.startsWith('text/csv')) {
-    return 'vscode-icons:file-type-excel'
-  } else if (
-    props.mimeType.startsWith('application/vnd.ms-excel') ||
-    props.mimeType.includes('spreadsheet') ||
-    props.mimeType.includes('numbers')
-  ) {
-    return 'vscode-icons:file-type-excel'
-  } else if (props.mimeType.startsWith('text/markdown')) {
-    return 'vscode-icons:file-type-markdown'
-  } else if (props.mimeType.startsWith('application/x-yaml')) {
-    return 'vscode-icons:file-type-yaml'
-  } else if (
-    props.mimeType.startsWith('application/xml') ||
-    props.mimeType.startsWith('application/xhtml+xml')
-  ) {
-    return 'vscode-icons:file-type-xml'
-  } else if (props.mimeType.startsWith('application/pdf')) {
-    return 'vscode-icons:file-type-pdf2'
-  } else if (props.mimeType.startsWith('image/')) {
-    return 'vscode-icons:file-type-image'
-  } else if (
-    props.mimeType.startsWith('application/msword') ||
-    props.mimeType.includes('wordprocessingml')
-  ) {
-    return 'vscode-icons:file-type-word'
-  } else if (
-    props.mimeType.startsWith('application/vnd.ms-powerpoint') ||
-    props.mimeType.includes('presentationml')
-  ) {
-    return 'vscode-icons:file-type-powerpoint'
-  } else if (props.mimeType.startsWith('text/html')) {
-    return 'vscode-icons:file-type-html'
-  } else if (props.mimeType.startsWith('text/css')) {
-    return 'vscode-icons:file-type-css'
-  } else if (props.mimeType.startsWith('audio/')) {
-    return 'vscode-icons:file-type-audio'
-  } else if (props.mimeType.startsWith('directory')) {
-    return 'vscode-icons:default-folder-opened'
-  } else {
-    // 默认文件图标
-    return 'vscode-icons:default-file'
-  }
+  return getMimeTypeIcon(props.mimeType)
 }
 </script>

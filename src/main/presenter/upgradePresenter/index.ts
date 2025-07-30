@@ -225,11 +225,17 @@ export class UpgradePresenter implements IUpgradePresenter {
     const twelveHoursInMs = 12 * 60 * 60 * 1000 // 12小时的毫秒数
     // 如果距离上次检查更新超过12小时，则重新检查
     if (now - this._lastCheckTime > twelveHoursInMs) {
-      this.checkUpdate()
+      this.checkUpdate('autoCheck')
     }
   }
 
-  async checkUpdate(): Promise<void> {
+  /**
+   *
+   * @param type 检查更新的类型，'autoCheck'表示自动检查
+   *            如果不传则默认为手动检查
+   * @returns
+   */
+  async checkUpdate(type?: string): Promise<void> {
     if (this._lock) {
       return
     }
@@ -303,7 +309,8 @@ export class UpgradePresenter implements IUpgradePresenter {
         // 没有新版本
         this._status = 'not-available'
         eventBus.sendToRenderer(UPDATE_EVENTS.STATUS_CHANGED, SendTarget.ALL_WINDOWS, {
-          status: this._status
+          status: this._status,
+          type
         })
       }
     } catch (error: Error | unknown) {

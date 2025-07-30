@@ -120,6 +120,33 @@
         "description": "模型是否支持推理能力",
         "label": "推理能力"
       },
+      "thinkingBudget": {
+        "label": "思考預算",
+        "description": "限制模型思考長度",
+        "dynamic": "動態思維",
+        "range": "範圍: {min} - {max}",
+        "onlySupported": "僅在 Gemini 2.5 Flash、2.5 Pro 和 2.5 Flash-Lite 中受支援",
+        "valueLabel": "思考預算值",
+        "placeholder": "輸入思考預算值",
+        "forceEnabled": "Gemini 2.5 系列模型強制開啟思考預算",
+        "dynamicPrefix": "-1 = 動態思維",
+        "notice": "注意：",
+        "warnings": {
+          "proNoDisable": "此模型不支援停用思考，最小值 128",
+          "proCannotDisable": "Gemini 2.5 Pro 無法停用思考功能",
+          "flashLiteCannotSetZero": "Gemini 2.5 Flash-Lite 不能設定為 0，最小值為 512",
+          "modelCannotDisable": "此模型無法停用思考功能",
+          "flashLiteMinValue": "思考預算設定為具體數值時不能小於 512（或使用 0 停用思考，-1 啟用動態思維）",
+          "belowMin": "思考預算不能小於 {min}{hint}",
+          "aboveMax": "思考預算不能大於 {max}"
+        },
+        "hints": {
+          "flashLiteDisable": "，0 = 停用思考，具體數值最小 512",
+          "normalDisable": "，0 = 停用思考",
+          "withZeroAndDynamic": "（或使用 0 停用思考，-1 啟用動態思維）",
+          "withDynamic": "（或使用 -1 啟用動態思維）"
+        }
+      },
       "resetConfirm": {
         "confirm": "確定重置",
         "message": "確定要重置此模型的配置為默認值嗎？\n此操作不可撤銷。",
@@ -127,6 +154,8 @@
       },
       "resetToDefault": "重置為默認",
       "saveConfig": "保存配置",
+      "useModelDefault": "使用模型預設配置",
+      "currentUsingModelDefault": "目前使用模型預設配置",
       "temperature": {
         "description": "控制輸出的隨機性，大部分模型0-1，部分支持0-2之間，越高越隨機",
         "label": "溫度"
@@ -248,7 +277,11 @@
     "modelsEnabled": "模型已經啟用",
     "azureApiVersion": "API 版本",
     "safety": {
-      "title": "安全設置"
+      "title": "安全設置",
+      "blockHighest": "屏蔽高風險",
+      "blockMost": "屏蔽中風險",
+      "blockNone": "不屏蔽",
+      "blockSome": "屏蔽低風險"
     },
     "serverList": "服務器列表",
     "totalServers": "服務器總數",
@@ -270,6 +303,11 @@
     "keyStatus": {
       "remaining": "剩餘額度",
       "usage": "已使用"
+    },
+    "refreshingModels": "刷新中...",
+    "toast": {
+      "modelRunning": "模型正在運行",
+      "modelRunningDesc": "請先停止模型 {model}，然後再刪除。"
     }
   },
   "knowledgeBase": {
@@ -299,7 +337,64 @@
     "addRagflowConfig": "新增 RAGFlow 設定",
     "editRagflowConfig": "編輯 RAGFlow 設定",
     "dify": "Dify知識庫",
-    "editDifyConfig": "修改Dify配置"
+    "editDifyConfig": "修改Dify配置",
+    "builtInKnowledgeDescription": "內置知識庫提供了一些簡單實現，能夠在離線環境下實現部分基礎功能。",
+    "builtInKnowledgeTitle": "內置知識庫",
+    "addBuiltinKnowledgeConfig": "添加內置知識庫配置",
+    "editBuiltinKnowledgeConfig": "編輯內置知識庫配置",
+    "chunkSize": "分塊大小",
+    "chunkSizeHelper": "將文檔切割分段，每段的大小，不能超過模型上下文限制",
+    "chunkOverlap": "重疊大小",
+    "chunkOverlapHelper": "相鄰文本塊之間重複的內容量，確保分段後的文本塊之間仍然有上下文聯繫，提升模型處理長文本的整體效果",
+    "selectEmbeddingModel": "選擇嵌入模型",
+    "modelNotFound": "服務商 {provider} 或模型 {model} 未找到",
+    "modelNotFoundDesc": "請確保已正確配置模型，並且模型處於啟用狀態。\n您可以在服務商設置中檢查模型配置。",
+    "removeBuiltinKnowledgeConfirmDesc": "刪除內置知識庫配置將會刪除所有相關數據，且無法恢復，請謹慎操作。",
+    "removeBuiltinKnowledgeConfirmTitle": "確認刪除內置知識庫 {name} 嗎？",
+    "descriptionDesc": "知識庫的描述，以便 AI 決定是否檢索此知識庫",
+    "advanced": "高級選項",
+    "autoDetectDimensions": "自動檢測嵌入維度",
+    "autoDetectHelper": "自動檢測嵌入維度，會消耗少量 Tokens",
+    "chunkOverlapPlaceholder": "默認值，不建議修改",
+    "chunkSizePlaceholder": "默認值，不建議修改",
+    "dimensions": "嵌入維度",
+    "dimensionsPlaceholder": "嵌入維度大小，如 1024",
+    "selectEmbeddingModelHelper": "嵌入模型在知識庫創建後禁止修改",
+    "dimensionsHelper": "請確保模型支持所設置的嵌入維度大小",
+    "autoDetectDimensionsError": "自動檢測嵌入維度失敗",
+    "fragmentsNumber": "請求文檔片段數量",
+    "fragmentsNumberHelper": "請求文檔片段數量越多，附帶的信息越多，但需要消耗的token也越多",
+    "selectRerankModel": "選擇重排序模型",
+    "rerankModel": "重排序模型",
+    "embeddingModel": "嵌入模型",
+    "return": "返回",
+    "uploadHelper": "點擊上傳或拖拽文件到此處",
+    "onlySupport": "僅支持",
+    "searchKnowledge": "搜索知識庫",
+    "searchKnowledgePlaceholder": "請輸入查詢內容",
+    "noData": "暫無數據",
+    "file": "文件",
+    "uploadProcessing": "上傳中",
+    "uploadCompleted": "上傳完成",
+    "reAdd": "重新上傳",
+    "uploadError": "上傳失敗",
+    "delete": "刪除",
+    "reason": "原因",
+    "deleteSuccess": "刪除成功",
+    "copy": "複製",
+    "copySuccess": "複製成功",
+    "source": "來源",
+    "normalized": "L2 歸一化",
+    "normalizedHelper": "請確認模型支持對輸出向量進行 L2 歸一化",
+    "dialog": {
+      "beforequit": {
+        "cancel": "取消",
+        "confirm": "確認",
+        "title": "退出確認",
+        "description": "有正在運行的知識庫任務，是否確認退出軟件？\n被中止的任務可在重啟軟件後恢復。"
+      }
+    },
+    "searchError": "查詢失敗"
   },
   "mcp": {
     "title": "MCP設置",
@@ -459,6 +554,7 @@
     "pressEnterToSave": "按Enter保存，Esc取消",
     "noModifierOnly": "不能僅使用修飾鍵作為快捷鍵",
     "keyConflict": "快捷鍵衝突，請選擇其他組合",
+    "clearShortcut": "清除快捷鍵",
     "cleanHistory": "清除聊天歷史",
     "deleteConversation": "刪除對話",
     "goSettings": "打開設置",

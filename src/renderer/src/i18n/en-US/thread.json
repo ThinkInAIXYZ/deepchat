@@ -4,7 +4,9 @@
     "delete": "Delete",
     "cleanMessages": "Clear Messages",
     "pin": "Pin",
-    "unpin": "Unpin"
+    "unpin": "Unpin",
+    "export": "Export",
+    "exportText": "Plain Text"
   },
   "toolbar": {
     "save": "Save",
@@ -25,5 +27,9 @@
     "toolbar": {
       "save": "save"
     }
+  },
+  "export": {
+    "failed": "Export failed",
+    "failedDesc": "An error occurred during the export process, please try again"
   }
 }

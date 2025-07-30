@@ -230,21 +230,56 @@ export const useSettingsStore = defineStore('settings', () => {
     () => FONT_SIZE_CLASSES[fontSizeLevel.value] || FONT_SIZE_CLASSES[DEFAULT_FONT_SIZE_LEVEL]
   )
 
+  // 维护 provider 状态变更时间戳的映射
+  const providerTimestamps = ref<Record<string, number>>({})
+
+  const loadProviderTimestamps = async () => {
+    try {
+      const savedTimestamps = await configP.getSetting<Record<string, number>>('providerTimestamps')
+      if (savedTimestamps) {
+        providerTimestamps.value = savedTimestamps
+      }
+    } catch (error) {
+      console.error('Failed to load provider timestamps:', error)
+    }
+  }
+
+  const saveProviderTimestamps = async () => {
+    try {
+      await configP.setSetting('providerTimestamps', providerTimestamps.value)
+    } catch (error) {
+      console.error('Failed to save provider timestamps:', error)
+    }
+  }
+
   // 计算排序后的 providers
   const sortedProviders = computed(() => {
-    if (!providerOrder.value || providerOrder.value.length === 0) {
-      return providers.value
-    }
-    // 根据 providerOrder 对 providers 进行排序
-    const orderedProviders = [...providers.value].sort((a, b) => {
-      const aIndex = providerOrder.value.indexOf(a.id)
-      const bIndex = providerOrder.value.indexOf(b.id)
-      // 如果某个 provider 不在 order 中，将其放到最后
-      if (aIndex === -1) return 1
-      if (bIndex === -1) return -1
-      return aIndex - bIndex
+    const enabledProviders: LLM_PROVIDER[] = []
+    const disabledProviders: LLM_PROVIDER[] = []
+
+    providers.value.forEach((provider) => {
+      if (provider.enable) {
+        enabledProviders.push(provider)
+      } else {
+        disabledProviders.push(provider)
+      }
     })
-    return orderedProviders
+
+    // Enabled：按时间戳升序排列
+    const sortedEnabled = enabledProviders.sort((a, b) => {
+      const aTime = providerTimestamps.value[a.id] || 0
+      const bTime = providerTimestamps.value[b.id] || 0
+      return aTime - bTime
+    })
+
+    // Disabled：按时间戳降序排列
+    const sortedDisabled = disabledProviders.sort((a, b) => {
+      const aTime = providerTimestamps.value[a.id] || 0
+      const bTime = providerTimestamps.value[b.id] || 0
+      return bTime - aTime
+    })
+
+    return [...sortedEnabled, ...sortedDisabled]
   })
 
   // 初始化设置
@@ -258,6 +293,7 @@ export const useSettingsStore = defineStore('settings', () => {
       defaultProviders.value = await configP.getDefaultProviders()
       // 加载保存的 provider 顺序
       await loadSavedOrder()
+      await loadProviderTimestamps()
 
       // 获取字体大小级别
       fontSizeLevel.value =
@@ -532,14 +568,14 @@ export const useSettingsStore = defineStore('settings', () => {
 
     try {
       // 自定义模型直接从配置存储获取，不需要等待provider实例
-      await refreshCustomModels(providerId)
+      refreshCustomModels(providerId)
 
       // 标准模型需要provider实例，可能需要等待实例初始化
-      await refreshStandardModels(providerId)
+      refreshStandardModels(providerId)
     } catch (error) {
       console.error(`刷新模型失败: ${providerId}`, error)
       // 如果标准模型刷新失败，至少确保自定义模型可用
-      await refreshCustomModels(providerId)
+      refreshCustomModels(providerId)
     }
   }
 
@@ -734,7 +770,7 @@ export const useSettingsStore = defineStore('settings', () => {
       const success = await llmP.removeCustomModel(providerId, modelId)
       console.log('removeCustomModel', providerId, modelId, success)
       if (success) {
-        await refreshCustomModels(providerId) // 只刷新自定义模型
+        refreshCustomModels(providerId) // 只刷新自定义模型
       }
       return success
     } catch (error) {
@@ -753,7 +789,7 @@ export const useSettingsStore = defineStore('settings', () => {
       // 不包含启用状态的常规更新
       const success = await llmP.updateCustomModel(providerId, modelId, updates)
       if (success) {
-        await refreshCustomModels(providerId) // 只刷新自定义模型
+        refreshCustomModels(providerId) // 只刷新自定义模型
       }
       return success
     } catch (error) {
@@ -770,7 +806,7 @@ export const useSettingsStore = defineStore('settings', () => {
     try {
       const newModel = await llmP.addCustomModel(providerId, model)
       await configP.addCustomModel(providerId, newModel)
-      await refreshCustomModels(providerId) // 只刷新自定义模型
+      refreshCustomModels(providerId) // 只刷新自定义模型
       return newModel
     } catch (error) {
       console.error('Failed to add custom model:', error)
@@ -829,6 +865,10 @@ export const useSettingsStore = defineStore('settings', () => {
 
   // 更新provider的启用状态
   const updateProviderStatus = async (providerId: string, enable: boolean): Promise<void> => {
+    // 更新时间戳
+    providerTimestamps.value[providerId] = Date.now()
+    // 保存时间戳
+    await saveProviderTimestamps()
     await updateProviderConfig(providerId, { enable })
   }
 
@@ -1022,17 +1062,17 @@ export const useSettingsStore = defineStore('settings', () => {
       return {
         id: model.name,
         name: model.name,
-        contextLength: existingModel?.contextLength || 4096, // 使用现有值或默认值
+        contextLength: model.model_info.context_length || 4096, // 使用模型定义值或默认值
         maxTokens: existingModel?.maxTokens || 2048, // 使用现有值或默认值
         provider: 'ollama',
         group: existingModel?.group || 'local',
         enabled: true,
         isCustom: existingModel?.isCustom || false,
         providerId: 'ollama',
-        vision: existingModel?.vision || false,
-        functionCall: existingModel?.functionCall || false,
-        reasoning: existingModel?.reasoning || false,
-        type: existingModel?.type || ModelType.Chat,
+        vision: model.capabilities.indexOf('vision') > -1,
+        functionCall: model.capabilities.indexOf('tools') > -1,
+        reasoning: model.capabilities.indexOf('thinking') > -1,
+        type: model.capabilities.indexOf('embedding') > -1 ? ModelType.Embedding : ModelType.Chat,
         // 保留现有的其他配置，但确保更新 Ollama 特有数据
         ...(existingModel ? { ...existingModel } : {}),
         ollamaModel: model

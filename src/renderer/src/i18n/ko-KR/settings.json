@@ -120,6 +120,33 @@
         "description": "모델이 추론 능력을 지원합니까?",
         "label": "추론 능력"
       },
+      "thinkingBudget": {
+        "label": "사고 예산",
+        "description": "모델 사고 길이 제한",
+        "dynamic": "동적 사고",
+        "range": "범위: {min} - {max}",
+        "onlySupported": "Gemini 2.5 Flash, 2.5 Pro 및 2.5 Flash-Lite에서만 지원",
+        "valueLabel": "사고 예산 값",
+        "placeholder": "사고 예산 값 입력",
+        "forceEnabled": "Gemini 2.5 시리즈 모델은 사고 예산을 강제로 활성화합니다",
+        "dynamicPrefix": "-1 = 동적 사고",
+        "notice": "주의: ",
+        "warnings": {
+          "proNoDisable": "이 모델은 사고 비활성화를 지원하지 않습니다, 최소값 128",
+          "proCannotDisable": "Gemini 2.5 Pro는 사고 기능을 비활성화할 수 없습니다",
+          "flashLiteCannotSetZero": "Gemini 2.5 Flash-Lite는 0으로 설정할 수 없습니다, 최소값은 512",
+          "modelCannotDisable": "이 모델은 사고 기능을 비활성화할 수 없습니다",
+          "flashLiteMinValue": "사고 예산을 구체적인 값으로 설정할 때 512 미만일 수 없습니다 (또는 0으로 사고 비활성화, -1로 동적 사고 활성화)",
+          "belowMin": "사고 예산은 {min} 미만일 수 없습니다{hint}",
+          "aboveMax": "사고 예산은 {max}를 초과할 수 없습니다"
+        },
+        "hints": {
+          "flashLiteDisable": ", 0 = 사고 비활성화, 구체적인 값 최소 512",
+          "normalDisable": ", 0 = 사고 비활성화",
+          "withZeroAndDynamic": "(또는 0으로 사고 비활성화, -1로 동적 사고 활성화)",
+          "withDynamic": "(또는 -1로 동적 사고 활성화)"
+        }
+      },
       "resetConfirm": {
         "confirm": "재설정 확인",
         "message": "이 모델의 구성을 기본값으로 재설정 하시겠습니까? 이 작업은 돌이킬 수 없습니다.",
@@ -127,6 +154,8 @@
       },
       "resetToDefault": "기본값으로 재설정하십시오",
       "saveConfig": "구성 저장",
+      "useModelDefault": "모델 기본 설정 사용",
+      "currentUsingModelDefault": "현재 모델 기본 설정 사용 중",
       "temperature": {
         "description": "출력의 무작위성을 제어하십시오. 대부분의 모델은 0-1이며 일부는 0-2 사이의 지원입니다. 무작위성이 높아집니다.",
         "label": "온도"
@@ -248,7 +277,11 @@
     "urlFormat": "API 샘플 : {defaultUrl}",
     "azureApiVersion": "API 버전",
     "safety": {
-      "title": "보안 설정"
+      "title": "보안 설정",
+      "blockHighest": "높은 위험을 차단하십시오",
+      "blockMost": "중간 위험을 차단합니다",
+      "blockNone": "차단되지 않았습니다",
+      "blockSome": "낮은 위험을 차단하십시오"
     },
     "serverList": "서버 목록",
     "totalServers": "총 서버 수",
@@ -270,6 +303,11 @@
     "keyStatus": {
       "remaining": "나머지 금액",
       "usage": "사용된"
+    },
+    "refreshingModels": "상쾌한 ...",
+    "toast": {
+      "modelRunning": "모델이 실행 중입니다",
+      "modelRunningDesc": "먼저 모델 {model}을 중지 한 다음 삭제하십시오."
     }
   },
   "knowledgeBase": {
@@ -299,7 +337,64 @@
     "fastgptTitle": "FastGPT 지식 베이스",
     "fastgptDescription": "FastGPT는 여러 검색 방법과 문서 관리 기능을 지원하는 강력한 지식 베이스 관리 시스템입니다.",
     "addFastGptConfig": "FastGPT 설정 추가",
-    "editFastGptConfig": "FastGPT 설정 편집"
+    "editFastGptConfig": "FastGPT 설정 편집",
+    "builtInKnowledgeDescription": "내장 지식 기반은 오프라인 환경에서 몇 가지 기본 기능을 가능하게하는 간단한 구현을 제공합니다.",
+    "builtInKnowledgeTitle": "내장 지식 기반",
+    "addBuiltinKnowledgeConfig": "내장 된 지식 기반 구성을 추가하십시오",
+    "editBuiltinKnowledgeConfig": "내장 된 지식 기반 구성을 편집하십시오",
+    "chunkSize": "블록 크기",
+    "chunkSizeHelper": "문서를 세그먼트로 자르면 각 세그먼트의 크기는 모델 컨텍스트 한계를 초과 할 수 없습니다.",
+    "chunkOverlap": "겹치는 크기",
+    "chunkOverlapHelper": "인접한 텍스트 블록 사이에 반복되는 콘텐츠의 양은 세그먼트 된 텍스트 블록 사이에 여전히 상황에 맞는 연결이 있음을 보장하여 긴 텍스트의 모델 처리의 전반적인 효과를 향상시킵니다.",
+    "selectEmbeddingModel": "임베드 모델을 선택하십시오",
+    "modelNotFound": "서비스 제공자 {provider} 또는 model {model}을 찾을 수 없습니다",
+    "modelNotFoundDesc": "모델이 올바르게 구성되고 모델이 활성화되어 있는지 확인하십시오. 서비스 제공 업체 설정에서 모델 구성을 확인할 수 있습니다.",
+    "removeBuiltinKnowledgeConfirmDesc": "내장 지식 기반 구성을 삭제하면 모든 관련 데이터가 삭제되며 복원 할 수 없습니다. 조심하세요.",
+    "removeBuiltinKnowledgeConfirmTitle": "내장 지식 기반 {name}을 삭제하도록 확인 하시겠습니까?",
+    "descriptionDesc": "AI 가이 지식 기반을 검색할지 여부를 결정하도록 지식 기반에 대한 설명",
+    "advanced": "고급 옵션",
+    "autoDetectDimensions": "내장 치수를 자동으로 감지합니다",
+    "autoDetectHelper": "내장 치수를 자동으로 감지하고 소량의 토큰을 소비합니다.",
+    "chunkOverlapPlaceholder": "기본값, 수정은 권장되지 않습니다",
+    "chunkSizePlaceholder": "기본값, 수정은 권장되지 않습니다",
+    "dimensions": "치수를 포함시킵니다",
+    "dimensionsPlaceholder": "1024와 같은 치수 크기를 포함시킵니다",
+    "selectEmbeddingModelHelper": "임베딩 모델은 지식 기반을 창출 한 후 금지됩니다",
+    "dimensionsHelper": "모델이 세트 임베드 치수 크기를 지원하는지 확인하십시오.",
+    "autoDetectDimensionsError": "임베디드 치수 고장을 자동으로 감지합니다",
+    "fragmentsNumber": "요청 된 문서 조각의 수",
+    "fragmentsNumberHelper": "요청 된 문서의 조각이 많을수록 더 많은 정보가 제공되지만 더 많은 토큰을 소비해야합니다.",
+    "selectRerankModel": "재주문 모델을 선택하십시오",
+    "rerankModel": "모델을 재정렬하십시오",
+    "embeddingModel": "임베드 모델",
+    "return": "반품",
+    "uploadHelper": "여기에서 파일을 업로드하거나 드래그하려면 클릭하십시오",
+    "onlySupport": "지원됩니다",
+    "searchKnowledge": "지식 기반을 검색하십시오",
+    "searchKnowledgePlaceholder": "쿼리 내용을 입력하십시오",
+    "noData": "아직 데이터가 없습니다",
+    "file": "문서",
+    "uploadProcessing": "업로드",
+    "uploadCompleted": "업로드 완료",
+    "reAdd": "재 포장",
+    "uploadError": "업로드 실패",
+    "delete": "삭제",
+    "reason": "이유",
+    "deleteSuccess": "성공적으로 삭제하십시오",
+    "copy": "복사",
+    "copySuccess": "성공적으로 복사하십시오",
+    "source": "원천",
+    "normalized": "L2 정규화",
+    "normalizedHelper": "모델이 출력 벡터의 L2 정규화를 지원하는지 확인하십시오.",
+    "dialog": {
+      "beforequit": {
+        "cancel": "취소",
+        "confirm": "확인하다",
+        "title": "확인 확인",
+        "description": "실행중인 지식 기반 작업이 있습니다. 소프트웨어를 종료 하시겠습니까? 소프트웨어를 다시 시작한 후 낙태 된 작업을 복원 할 수 있습니다."
+      }
+    },
+    "searchError": "쿼리가 실패했습니다"
   },
   "mcp": {
     "title": "MCP 설정",
@@ -459,6 +554,7 @@
     "pressEnterToSave": "Enter 키를 누르면 저장되고 Esc 키를 누르면 취소됩니다",
     "noModifierOnly": "수정 키만 단축키로 사용할 수 없습니다",
     "keyConflict": "단축키 충돌이 발생했습니다. 다른 조합을 선택해주세요",
+    "clearShortcut": "단축키 지우기",
     "cleanHistory": "명확한 채팅 기록",
     "deleteConversation": "대화 삭제",
     "goSettings": "열기 설정",

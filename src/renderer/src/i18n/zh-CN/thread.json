@@ -4,7 +4,13 @@
     "delete": "删除",
     "cleanMessages": "清空消息",
     "pin": "置顶",
-    "unpin": "取消置顶"
+    "unpin": "取消置顶",
+    "export": "导出",
+    "exportText": "纯文本"
+  },
+  "export": {
+    "failed": "导出失败",
+    "failedDesc": "导出过程中发生错误，请重试"
   },
   "message": {
     "toolbar": {

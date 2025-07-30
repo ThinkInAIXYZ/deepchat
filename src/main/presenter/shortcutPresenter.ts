@@ -35,107 +35,133 @@ export class ShortcutPresenter {
     }
 
     // Command+N 或 Ctrl+N 创建新会话
-    globalShortcut.register(this.shortcutKeys.NewConversation, async () => {
-      const focusedWindow = presenter.windowPresenter.getFocusedWindow()
-      if (focusedWindow?.isFocused()) {
-        presenter.windowPresenter.sendToActiveTab(
-          focusedWindow.id,
-          SHORTCUT_EVENTS.CREATE_NEW_CONVERSATION
-        )
-      }
-    })
+    if (this.shortcutKeys.NewConversation) {
+      globalShortcut.register(this.shortcutKeys.NewConversation, async () => {
+        const focusedWindow = presenter.windowPresenter.getFocusedWindow()
+        if (focusedWindow?.isFocused()) {
+          presenter.windowPresenter.sendToActiveTab(
+            focusedWindow.id,
+            SHORTCUT_EVENTS.CREATE_NEW_CONVERSATION
+          )
+        }
+      })
+    }
 
     // Command+Shift+N 或 Ctrl+Shift+N 创建新窗口
-    globalShortcut.register(this.shortcutKeys.NewWindow, () => {
-      const focusedWindow = presenter.windowPresenter.getFocusedWindow()
-      if (focusedWindow?.isFocused()) {
-        eventBus.sendToMain(SHORTCUT_EVENTS.CREATE_NEW_WINDOW)
-      }
-    })
+    if (this.shortcutKeys.NewWindow) {
+      globalShortcut.register(this.shortcutKeys.NewWindow, () => {
+        const focusedWindow = presenter.windowPresenter.getFocusedWindow()
+        if (focusedWindow?.isFocused()) {
+          eventBus.sendToMain(SHORTCUT_EVENTS.CREATE_NEW_WINDOW)
+        }
+      })
+    }
 
     // Command+T 或 Ctrl+T 在当前窗口创建新标签页
-    globalShortcut.register(this.shortcutKeys.NewTab, () => {
-      const focusedWindow = presenter.windowPresenter.getFocusedWindow()
-      if (focusedWindow?.isFocused()) {
-        eventBus.sendToMain(SHORTCUT_EVENTS.CREATE_NEW_TAB, focusedWindow.id)
-      }
-    })
+    if (this.shortcutKeys.NewTab) {
+      globalShortcut.register(this.shortcutKeys.NewTab, () => {
+        const focusedWindow = presenter.windowPresenter.getFocusedWindow()
+        if (focusedWindow?.isFocused()) {
+          eventBus.sendToMain(SHORTCUT_EVENTS.CREATE_NEW_TAB, focusedWindow.id)
+        }
+      })
+    }
 
     // Command+W 或 Ctrl+W 关闭当前标签页
-    globalShortcut.register(this.shortcutKeys.CloseTab, () => {
-      const focusedWindow = presenter.windowPresenter.getFocusedWindow()
-      if (focusedWindow?.isFocused()) {
-        eventBus.sendToMain(SHORTCUT_EVENTS.CLOSE_CURRENT_TAB, focusedWindow.id)
-      }
-    })
+    if (this.shortcutKeys.CloseTab) {
+      globalShortcut.register(this.shortcutKeys.CloseTab, () => {
+        const focusedWindow = presenter.windowPresenter.getFocusedWindow()
+        if (focusedWindow?.isFocused()) {
+          eventBus.sendToMain(SHORTCUT_EVENTS.CLOSE_CURRENT_TAB, focusedWindow.id)
+        }
+      })
+    }
 
     // Command+Q 或 Ctrl+Q 退出程序
-    globalShortcut.register(this.shortcutKeys.Quit, () => {
-      app.quit()
-    })
+    if (this.shortcutKeys.Quit) {
+      globalShortcut.register(this.shortcutKeys.Quit, () => {
+        app.quit()
+      })
+    }
 
     // Command+= 或 Ctrl+= 放大字体
-    globalShortcut.register(this.shortcutKeys.ZoomIn, () => {
-      eventBus.send(SHORTCUT_EVENTS.ZOOM_IN, SendTarget.ALL_WINDOWS)
-    })
+    if (this.shortcutKeys.ZoomIn) {
+      globalShortcut.register(this.shortcutKeys.ZoomIn, () => {
+        eventBus.send(SHORTCUT_EVENTS.ZOOM_IN, SendTarget.ALL_WINDOWS)
+      })
+    }
 
     // Command+- 或 Ctrl+- 缩小字体
-    globalShortcut.register(this.shortcutKeys.ZoomOut, () => {
-      eventBus.send(SHORTCUT_EVENTS.ZOOM_OUT, SendTarget.ALL_WINDOWS)
-    })
+    if (this.shortcutKeys.ZoomOut) {
+      globalShortcut.register(this.shortcutKeys.ZoomOut, () => {
+        eventBus.send(SHORTCUT_EVENTS.ZOOM_OUT, SendTarget.ALL_WINDOWS)
+      })
+    }
 
     // Command+0 或 Ctrl+0 重置字体大小
-    globalShortcut.register(this.shortcutKeys.ZoomResume, () => {
-      eventBus.send(SHORTCUT_EVENTS.ZOOM_RESUME, SendTarget.ALL_WINDOWS)
-    })
+    if (this.shortcutKeys.ZoomResume) {
+      globalShortcut.register(this.shortcutKeys.ZoomResume, () => {
+        eventBus.send(SHORTCUT_EVENTS.ZOOM_RESUME, SendTarget.ALL_WINDOWS)
+      })
+    }
 
     // Command+, 或 Ctrl+, 打开设置
-    globalShortcut.register(this.shortcutKeys.GoSettings, () => {
-      const focusedWindow = presenter.windowPresenter.getFocusedWindow()
-      if (focusedWindow?.isFocused()) {
-        presenter.windowPresenter.sendToActiveTab(focusedWindow.id, SHORTCUT_EVENTS.GO_SETTINGS)
-      }
-    })
+    if (this.shortcutKeys.GoSettings) {
+      globalShortcut.register(this.shortcutKeys.GoSettings, () => {
+        const focusedWindow = presenter.windowPresenter.getFocusedWindow()
+        if (focusedWindow?.isFocused()) {
+          presenter.windowPresenter.sendToActiveTab(focusedWindow.id, SHORTCUT_EVENTS.GO_SETTINGS)
+        }
+      })
+    }
 
     // Command+L 或 Ctrl+L 清除聊天历史
-    globalShortcut.register(this.shortcutKeys.CleanChatHistory, () => {
-      const focusedWindow = presenter.windowPresenter.getFocusedWindow()
-      if (focusedWindow?.isFocused()) {
-        presenter.windowPresenter.sendToActiveTab(
-          focusedWindow.id,
-          SHORTCUT_EVENTS.CLEAN_CHAT_HISTORY
-        )
-      }
-    })
+    if (this.shortcutKeys.CleanChatHistory) {
+      globalShortcut.register(this.shortcutKeys.CleanChatHistory, () => {
+        const focusedWindow = presenter.windowPresenter.getFocusedWindow()
+        if (focusedWindow?.isFocused()) {
+          presenter.windowPresenter.sendToActiveTab(
+            focusedWindow.id,
+            SHORTCUT_EVENTS.CLEAN_CHAT_HISTORY
+          )
+        }
+      })
+    }
 
     // Command+D 或 Ctrl+D 清除聊天历史
-    globalShortcut.register(this.shortcutKeys.DeleteConversation, () => {
-      const focusedWindow = presenter.windowPresenter.getFocusedWindow()
-      if (focusedWindow?.isFocused()) {
-        presenter.windowPresenter.sendToActiveTab(
-          focusedWindow.id,
-          SHORTCUT_EVENTS.DELETE_CONVERSATION
-        )
-      }
-    })
+    if (this.shortcutKeys.DeleteConversation) {
+      globalShortcut.register(this.shortcutKeys.DeleteConversation, () => {
+        const focusedWindow = presenter.windowPresenter.getFocusedWindow()
+        if (focusedWindow?.isFocused()) {
+          presenter.windowPresenter.sendToActiveTab(
+            focusedWindow.id,
+            SHORTCUT_EVENTS.DELETE_CONVERSATION
+          )
+        }
+      })
+    }
 
     // 添加标签页切换相关快捷键
 
     // Command+Tab 或 Ctrl+Tab 切换到下一个标签页
-    globalShortcut.register(this.shortcutKeys.SwitchNextTab, () => {
-      const focusedWindow = presenter.windowPresenter.getFocusedWindow()
-      if (focusedWindow?.isFocused()) {
-        this.switchToNextTab(focusedWindow.id)
-      }
-    })
+    if (this.shortcutKeys.SwitchNextTab) {
+      globalShortcut.register(this.shortcutKeys.SwitchNextTab, () => {
+        const focusedWindow = presenter.windowPresenter.getFocusedWindow()
+        if (focusedWindow?.isFocused()) {
+          this.switchToNextTab(focusedWindow.id)
+        }
+      })
+    }
 
     // Ctrl+Shift+Tab 切换到上一个标签页
-    globalShortcut.register(this.shortcutKeys.SwitchPrevTab, () => {
-      const focusedWindow = presenter.windowPresenter.getFocusedWindow()
-      if (focusedWindow?.isFocused()) {
-        this.switchToPreviousTab(focusedWindow.id)
-      }
-    })
+    if (this.shortcutKeys.SwitchPrevTab) {
+      globalShortcut.register(this.shortcutKeys.SwitchPrevTab, () => {
+        const focusedWindow = presenter.windowPresenter.getFocusedWindow()
+        if (focusedWindow?.isFocused()) {
+          this.switchToPreviousTab(focusedWindow.id)
+        }
+      })
+    }
 
     // 注册标签页数字快捷键 (1-8)
     for (let i = 1; i <= 8; i++) {
@@ -148,12 +174,14 @@ export class ShortcutPresenter {
     }
 
     // Command+9 或 Ctrl+9 切换到最后一个标签页
-    globalShortcut.register(this.shortcutKeys.SwtichToLastTab, () => {
-      const focusedWindow = presenter.windowPresenter.getFocusedWindow()
-      if (focusedWindow?.isFocused()) {
-        this.switchToLastTab(focusedWindow.id)
-      }
-    })
+    if (this.shortcutKeys.SwtichToLastTab) {
+      globalShortcut.register(this.shortcutKeys.SwtichToLastTab, () => {
+        const focusedWindow = presenter.windowPresenter.getFocusedWindow()
+        if (focusedWindow?.isFocused()) {
+          this.switchToLastTab(focusedWindow.id)
+        }
+      })
+    }
 
     this.showHideWindow()
 
@@ -229,9 +257,11 @@ export class ShortcutPresenter {
   // Command+O 或 Ctrl+O 显示/隐藏窗口
   private async showHideWindow() {
     // Command+O 或 Ctrl+O 显示/隐藏窗口
-    globalShortcut.register(this.shortcutKeys.ShowHideWindow, () => {
-      eventBus.sendToMain(TRAY_EVENTS.SHOW_HIDDEN_WINDOW)
-    })
+    if (this.shortcutKeys.ShowHideWindow) {
+      globalShortcut.register(this.shortcutKeys.ShowHideWindow, () => {
+        eventBus.sendToMain(TRAY_EVENTS.SHOW_HIDDEN_WINDOW)
+      })
+    }
   }
 
   unregisterShortcuts(): void {

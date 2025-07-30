@@ -120,6 +120,33 @@
         "description": "Le modèle prend-il en charge la capacité de raisonnement?",
         "label": "Capacité de raisonnement"
       },
+      "thinkingBudget": {
+        "label": "Budget de Réflexion",
+        "description": "Limiter la longueur de réflexion du modèle",
+        "dynamic": "Réflexion Dynamique",
+        "range": "Plage: {min} - {max}",
+        "onlySupported": "Pris en charge uniquement dans Gemini 2.5 Flash, 2.5 Pro et 2.5 Flash-Lite",
+        "valueLabel": "Valeur du Budget de Réflexion",
+        "placeholder": "Entrez la valeur du budget de réflexion",
+        "forceEnabled": "Les modèles de la série Gemini 2.5 activent de force le budget de réflexion",
+        "dynamicPrefix": "-1 = Réflexion Dynamique",
+        "notice": "Attention : ",
+        "warnings": {
+          "proNoDisable": "Ce modèle ne prend pas en charge la désactivation de la réflexion, valeur minimale 128",
+          "proCannotDisable": "Gemini 2.5 Pro ne peut pas désactiver la fonction de réflexion",
+          "flashLiteCannotSetZero": "Gemini 2.5 Flash-Lite ne peut pas être défini à 0, la valeur minimale est 512",
+          "modelCannotDisable": "Ce modèle ne peut pas désactiver la fonction de réflexion",
+          "flashLiteMinValue": "Le budget de réflexion ne peut pas être inférieur à 512 lorsqu'il est défini sur une valeur spécifique (ou utilisez 0 pour désactiver la réflexion, -1 pour activer la réflexion dynamique)",
+          "belowMin": "Le budget de réflexion ne peut pas être inférieur à {min}{hint}",
+          "aboveMax": "Le budget de réflexion ne peut pas être supérieur à {max}"
+        },
+        "hints": {
+          "flashLiteDisable": ", 0 = désactiver la réflexion, valeur spécifique minimum 512",
+          "normalDisable": ", 0 = désactiver la réflexion",
+          "withZeroAndDynamic": "(ou utilisez 0 pour désactiver la réflexion, -1 pour activer la réflexion dynamique)",
+          "withDynamic": "(ou utilisez -1 pour activer la réflexion dynamique)"
+        }
+      },
       "resetConfirm": {
         "confirm": "Confirmer la réinitialisation",
         "message": "Êtes-vous sûr de souhaiter réinitialiser la configuration de ce modèle par défaut? Cette opération est irrévocable.",
@@ -127,6 +154,8 @@
       },
       "resetToDefault": "Réinitialiser à la valeur par défaut",
       "saveConfig": "Enregistrer la configuration",
+      "useModelDefault": "Utiliser la configuration par défaut du modèle",
+      "currentUsingModelDefault": "Utilise actuellement la configuration par défaut du modèle",
       "temperature": {
         "description": "Contrôlez le caractère aléatoire de la sortie. La plupart des modèles sont de 0-1 et certains soutiennent entre 0-2. Plus l'aléatoire est élevé.",
         "label": "température"
@@ -248,7 +277,11 @@
     "localModels": "Modèles locaux",
     "azureApiVersion": "Version API",
     "safety": {
-      "title": "Paramètres de sécurité"
+      "title": "Paramètres de sécurité",
+      "blockHighest": "Bloquer un risque élevé",
+      "blockMost": "Bloquer les risques moyens",
+      "blockNone": "Non bloqué",
+      "blockSome": "Bloquer un faible risque"
     },
     "serverList": "Liste des serveurs",
     "totalServers": "Total des serveurs",
@@ -270,6 +303,11 @@
     "keyStatus": {
       "remaining": "Montant restant",
       "usage": "Utilisé"
+    },
+    "refreshingModels": "Rafraîchissant...",
+    "toast": {
+      "modelRunning": "Le modèle est en cours d'exécution",
+      "modelRunningDesc": "Veuillez d'abord arrêter le modèle {model}, puis le supprimer."
     }
   },
   "knowledgeBase": {
@@ -299,7 +337,64 @@
     "fastgptTitle": "Base de connaissances FastGPT",
     "fastgptDescription": "FastGPT est un puissant système de gestion des connaissances prenant en charge plusieurs méthodes de recherche et des fonctionnalités de gestion de documents.",
     "addFastGptConfig": "Ajouter la configuration FastGPT",
-    "editFastGptConfig": "Éditer la configuration FastGPT"
+    "editFastGptConfig": "Éditer la configuration FastGPT",
+    "builtInKnowledgeDescription": "La base de connaissances intégrée fournit des implémentations simples qui permettent certaines fonctions de base dans un environnement hors ligne.",
+    "builtInKnowledgeTitle": "Base de connaissances intégrée",
+    "addBuiltinKnowledgeConfig": "Ajouter une configuration de base de connaissances intégrée",
+    "editBuiltinKnowledgeConfig": "Modifier la configuration de base de connaissances intégrée",
+    "chunkSize": "Taille de blocage",
+    "chunkSizeHelper": "Coupez le document en segments, la taille de chaque segment ne peut pas dépasser la limite de contexte du modèle",
+    "chunkOverlap": "Taille de chevauchement",
+    "chunkOverlapHelper": "La quantité de contenu répété entre les blocs de texte adjacents garantit qu'il existe toujours une connexion contextuelle entre les blocs de texte segmentés, améliorant l'effet global du traitement du modèle de textes longs",
+    "selectEmbeddingModel": "Sélectionnez un modèle intégré",
+    "modelNotFound": "Fournisseur de services {provider} ou modèle {model} introuvable",
+    "modelNotFoundDesc": "Assurez-vous que le modèle est configuré correctement et que le modèle est activé. Vous pouvez vérifier la configuration du modèle dans les paramètres du fournisseur de services.",
+    "removeBuiltinKnowledgeConfirmDesc": "La suppression de la configuration de base de connaissances intégrée supprimera toutes les données pertinentes et ne peut pas être restaurée. Soyez prudent.",
+    "removeBuiltinKnowledgeConfirmTitle": "Confirmer pour supprimer la base de connaissances intégrée {name}?",
+    "descriptionDesc": "Description de la base de connaissances afin que l'IA décide de récupérer cette base de connaissances",
+    "advanced": "Options avancées",
+    "autoDetectDimensions": "Détecter automatiquement les dimensions intégrées",
+    "autoDetectHelper": "Détecter automatiquement les dimensions intégrées, consomme une petite quantité de jetons",
+    "chunkOverlapPlaceholder": "Valeur par défaut, aucune modification n'est recommandée",
+    "chunkSizePlaceholder": "Valeur par défaut, aucune modification n'est recommandée",
+    "dimensions": "Dimensions de l'incorporation",
+    "dimensionsPlaceholder": "Taille de dimension intégrée, comme 1024",
+    "selectEmbeddingModelHelper": "Les modèles d'intégration sont interdits après la création d'une base de connaissances",
+    "dimensionsHelper": "Assurez-vous que le modèle prend en charge la taille de la dimension intégrée de l'ensemble",
+    "autoDetectDimensionsError": "Détecter automatiquement la panne de dimension intégrée",
+    "fragmentsNumber": "Nombre de fragments de documents demandés",
+    "fragmentsNumberHelper": "Plus il y a de fragments de document demandé, plus il comporte d'informations, mais plus il doit être consommé de jetons",
+    "selectRerankModel": "Sélectionnez le modèle de réorganisation",
+    "rerankModel": "Réorganiser le modèle",
+    "embeddingModel": "Modèle d'intégration",
+    "return": "retour",
+    "uploadHelper": "Cliquez pour télécharger ou faire glisser le fichier ici",
+    "onlySupport": "Soutenu uniquement",
+    "searchKnowledge": "Rechercher la base de connaissances",
+    "searchKnowledgePlaceholder": "Veuillez saisir le contenu de la requête",
+    "noData": "Pas encore de données",
+    "file": "document",
+    "uploadProcessing": "Téléchargement",
+    "uploadCompleted": "Téléchargement terminé",
+    "reAdd": "Télécharger à nouveau",
+    "uploadError": "Le téléchargement a échoué",
+    "delete": "supprimer",
+    "reason": "raison",
+    "deleteSuccess": "Supprimer avec succès",
+    "copy": "copie",
+    "copySuccess": "Copier avec succès",
+    "source": "source",
+    "normalized": "Normalisation L2",
+    "normalizedHelper": "Veuillez confirmer que le modèle prend en charge la normalisation L2 des vecteurs de sortie",
+    "dialog": {
+      "beforequit": {
+        "cancel": "Annuler",
+        "confirm": "confirmer",
+        "title": "Confirmation de sortie",
+        "description": "Il y a une tâche de base de connaissances en cours. Êtes-vous sûr de quitter le logiciel? Les tâches abandonnées peuvent être restaurées après le redémarrage du logiciel."
+      }
+    },
+    "searchError": "La requête a échoué"
   },
   "mcp": {
     "title": "Paramètres MCP",
@@ -459,6 +554,7 @@
     "pressEnterToSave": "Appuyez sur Entrée pour enregistrer, Échap pour annuler",
     "noModifierOnly": "Impossible d'utiliser uniquement une touche de modification comme raccourci",
     "keyConflict": "Conflit de raccourci clavier, veuillez choisir une autre combinaison",
+    "clearShortcut": "Effacer le raccourci",
     "cleanHistory": "Historique de chat clair",
     "deleteConversation": "Supprimer la conversation",
     "goSettings": "Paramètres ouvrir",

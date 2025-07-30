@@ -120,6 +120,33 @@
         "description": "Does the model support reasoning ability?",
         "label": "Reasoning ability"
       },
+      "thinkingBudget": {
+        "label": "Thinking Budget",
+        "description": "Limit the length of model thinking",
+        "dynamic": "Dynamic Thinking",
+        "range": "Range: {min} - {max}",
+        "onlySupported": "Only supported in Gemini 2.5 Flash, 2.5 Pro and 2.5 Flash-Lite",
+        "valueLabel": "Thinking Budget Value",
+        "placeholder": "Enter thinking budget value",
+        "forceEnabled": "Gemini 2.5 series models force enable thinking budget",
+        "dynamicPrefix": "-1 = Dynamic Thinking",
+        "notice": "Notice: ",
+        "warnings": {
+          "proNoDisable": "This model does not support disabling thinking, minimum value 128",
+          "proCannotDisable": "Gemini 2.5 Pro cannot disable thinking function",
+          "flashLiteCannotSetZero": "Gemini 2.5 Flash-Lite cannot be set to 0, minimum value is 512",
+          "modelCannotDisable": "This model cannot disable thinking function",
+          "flashLiteMinValue": "Thinking budget cannot be less than 512 when set to specific value (or use 0 to disable thinking, -1 to enable dynamic thinking)",
+          "belowMin": "Thinking budget cannot be less than {min}{hint}",
+          "aboveMax": "Thinking budget cannot be greater than {max}"
+        },
+        "hints": {
+          "flashLiteDisable": ", 0 = disable thinking, specific value minimum 512",
+          "normalDisable": ", 0 = disable thinking",
+          "withZeroAndDynamic": "(or use 0 to disable thinking, -1 to enable dynamic thinking)",
+          "withDynamic": "(or use -1 to enable dynamic thinking)"
+        }
+      },
       "resetConfirm": {
         "confirm": "Confirm reset",
         "message": "Are you sure you want to reset the configuration of this model to the default? \nThis operation is irrevocable.",
@@ -127,6 +154,8 @@
       },
       "resetToDefault": "Reset to default",
       "saveConfig": "Save configuration",
+      "useModelDefault": "Use model default configuration",
+      "currentUsingModelDefault": "Currently using model default configuration",
       "temperature": {
         "description": "Control the randomness of the output. Most models are 0-1, and some support between 0-2. The higher the higher the randomness.",
         "label": "temperature"
@@ -248,7 +277,11 @@
     "localModels": "Local Models",
     "azureApiVersion": "API Version",
     "safety": {
-      "title": "Safety settings"
+      "title": "Safety settings",
+      "blockHighest": "Block high risk",
+      "blockMost": "Block medium risks",
+      "blockNone": "Not blocked",
+      "blockSome": "Block low risk"
     },
     "serverList": "Server List",
     "totalServers": "Total Servers",
@@ -270,6 +303,11 @@
     "keyStatus": {
       "remaining": "Remaining amount",
       "usage": "Used"
+    },
+    "refreshingModels": "Refreshing...",
+    "toast": {
+      "modelRunning": "The model is running",
+      "modelRunningDesc": "Please stop the model {model} first and then delete it."
     }
   },
   "knowledgeBase": {
@@ -299,7 +337,64 @@
     "fastgptTitle": "FastGPT Knowledge Base",
     "fastgptDescription": "FastGPT is a powerful knowledge base management system that supports multiple retrieval methods and document management features.",
     "addFastGptConfig": "Add FastGPT Configuration",
-    "editFastGptConfig": "Edit FastGPT Configuration"
+    "editFastGptConfig": "Edit FastGPT Configuration",
+    "builtInKnowledgeDescription": "The built-in knowledge base provides some simple implementations that enable some basic functions in an offline environment.",
+    "builtInKnowledgeTitle": "Built-in knowledge base",
+    "addBuiltinKnowledgeConfig": "Add built-in knowledge base configuration",
+    "editBuiltinKnowledgeConfig": "Edit the built-in knowledge base configuration",
+    "chunkSize": "Block size",
+    "chunkSizeHelper": "Cut the document into segments, the size of each segment cannot exceed the model context limit",
+    "chunkOverlap": "Overlapping size",
+    "chunkOverlapHelper": "The amount of content repeated between adjacent text blocks ensures that there is still a contextual connection between segmented text blocks, improving the overall effect of the model processing of long texts",
+    "selectEmbeddingModel": "Select an embed model",
+    "modelNotFound": "Service Provider {provider} or model {model} not found",
+    "modelNotFoundDesc": "Make sure the model is configured correctly and that the model is enabled. \nYou can check the model configuration in the service provider settings.",
+    "removeBuiltinKnowledgeConfirmDesc": "Deleting the built-in knowledge base configuration will delete all relevant data and cannot be restored. Please be cautious.",
+    "removeBuiltinKnowledgeConfirmTitle": "Confirm to delete the built-in knowledge base {name}?",
+    "descriptionDesc": "Description of the knowledge base so that the AI ​​decides whether to retrieve this knowledge base",
+    "advanced": "Advanced Options",
+    "autoDetectDimensions": "Automatically detect embedded dimensions",
+    "autoDetectHelper": "Automatically detect embedded dimensions, consumes a small amount of Tokens",
+    "chunkOverlapPlaceholder": "Default value, no modification is recommended",
+    "chunkSizePlaceholder": "Default value, no modification is recommended",
+    "dimensions": "Embed dimensions",
+    "dimensionsPlaceholder": "Embed dimension size, such as 1024",
+    "selectEmbeddingModelHelper": "Embedding models are prohibited after creation of knowledge base",
+    "dimensionsHelper": "Make sure the model supports the set embed dimension size",
+    "autoDetectDimensionsError": "Automatically detect embedded dimension failure",
+    "fragmentsNumber": "Number of requested document fragments",
+    "fragmentsNumberHelper": "The more fragments of requested document, the more information it comes with, but the more tokens it needs to be consumed",
+    "selectRerankModel": "Select the rerank model",
+    "rerankModel": "Reorder the model",
+    "embeddingModel": "Embed Model",
+    "return": "return",
+    "uploadHelper": "Click to upload or drag the file here",
+    "onlySupport": "Supported only",
+    "searchKnowledge": "Search the Knowledge Base",
+    "searchKnowledgePlaceholder": "Please enter the query content",
+    "noData": "No data yet",
+    "file": "document",
+    "uploadProcessing": "Uploading",
+    "uploadCompleted": "Upload completed",
+    "reAdd": "Re-upload",
+    "uploadError": "Upload failed",
+    "delete": "delete",
+    "reason": "reason",
+    "deleteSuccess": "Delete successfully",
+    "copy": "copy",
+    "copySuccess": "Copy successfully",
+    "source": "source",
+    "normalized": "L2 Normalization",
+    "normalizedHelper": "Please confirm that the model supports L2 normalization of output vectors",
+    "dialog": {
+      "beforequit": {
+        "cancel": "Cancel",
+        "confirm": "confirm",
+        "title": "Exit confirmation",
+        "description": "There is a running knowledge base task. Are you sure to exit the software? \nAborted tasks can be restored after restarting the software."
+      }
+    },
+    "searchError": "Query failed"
   },
   "mcp": {
     "title": "MCP Settings",
@@ -459,6 +554,7 @@
     "pressEnterToSave": "Press Enter to save, Esc to cancel",
     "noModifierOnly": "Cannot use modifier key alone as shortcut",
     "keyConflict": "Shortcut key conflict, please choose another combination",
+    "clearShortcut": "Clear shortcut",
     "cleanHistory": "Clear chat history",
     "deleteConversation": "Delete Conversation",
     "goSettings": "Open Settings",

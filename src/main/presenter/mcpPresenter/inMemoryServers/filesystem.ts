@@ -7,7 +7,7 @@ import { z } from 'zod'
 import { zodToJsonSchema } from 'zod-to-json-schema'
 import { createTwoFilesPatch } from 'diff'
 import { minimatch } from 'minimatch'
-import { Transport } from '@modelcontextprotocol/sdk/shared/transport'
+import { Transport } from '@modelcontextprotocol/sdk/shared/transport.js'
 import { glob } from 'glob'
 
 // Schema definitions

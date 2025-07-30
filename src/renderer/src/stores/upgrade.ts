@@ -74,7 +74,7 @@ export const useUpgradeStore = defineStore('upgrade', () => {
     console.log('setupUpdateListener')
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     window.electron.ipcRenderer.on(UPDATE_EVENTS.STATUS_CHANGED, (_, event: any) => {
-      const { status, info, error } = event
+      const { status, type, info, error } = event
       console.log(UPDATE_EVENTS.STATUS_CHANGED, status, info, error)
       // 根据不同状态更新UI
       switch (status) {
@@ -96,7 +96,10 @@ export const useUpgradeStore = defineStore('upgrade', () => {
           updateInfo.value = null
           isDownloading.value = false
           isUpdating.value = false
-          openUpdateDialog()
+          // 当检查到没有更新时，如果是自动检测模式，则不弹出对话框
+          if (type !== 'autoCheck') {
+            openUpdateDialog()
+          }
           break
         case 'downloading':
           hasUpdate.value = true

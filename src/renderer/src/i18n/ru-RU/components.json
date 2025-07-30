@@ -14,5 +14,23 @@
   "messageBlockAction": {
     "continue": "продолжать",
     "continued": "Продолжать"
+  },
+  "messageBlockPermissionRequest": {
+    "title": "Требуется разрешение",
+    "allow": "Разрешить",
+    "deny": "Отклонить",
+    "rememberChoice": "Запомнить этот выбор",
+    "granted": "Разрешение предоставлено",
+    "denied": "Разрешение отклонено",
+    "type": {
+      "read": "Разрешения на чтение",
+      "write": "Разрешения на запись",
+      "all": "Полные разрешения"
+    },
+    "description": {
+      "all": "Разрешить '{ToolName}' of '{ServerName}' для выполнения операций чтения и записи?",
+      "read": "Разрешить '{ToolName}' of '{ServerName}' для выполнения операций чтения?",
+      "write": "Разрешить '{ToolName}' of '{ServerName}' для выполнения операций записи?"
+    }
   }
 }

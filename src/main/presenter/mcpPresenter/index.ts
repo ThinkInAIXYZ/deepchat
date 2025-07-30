@@ -410,11 +410,10 @@ export class McpPresenter implements IMCPPresenter {
     // 通知渲染进程服务器已停止
     eventBus.send(MCP_EVENTS.SERVER_STOPPED, SendTarget.ALL_WINDOWS, serverName)
   }
-
-  async getAllToolDefinitions(): Promise<MCPToolDefinition[]> {
+  async getAllToolDefinitions(enabledMcpTools?: string[]): Promise<MCPToolDefinition[]> {
     const enabled = await this.configPresenter.getMcpEnabled()
     if (enabled) {
-      return this.toolManager.getAllToolDefinitions()
+      return await this.toolManager.getAllToolDefinitions(enabledMcpTools)
     }
     return []
   }
@@ -1108,5 +1107,24 @@ export class McpPresenter implements IMCPPresenter {
       }
     })
     return openaiTools
+  }
+
+  async grantPermission(
+    serverName: string,
+    permissionType: 'read' | 'write' | 'all',
+    remember: boolean = false
+  ): Promise<void> {
+    try {
+      console.log(
+        `[MCP] Granting ${permissionType} permission for server: ${serverName}, remember: ${remember}`
+      )
+      await this.toolManager.grantPermission(serverName, permissionType, remember)
+      console.log(
+        `[MCP] Successfully granted ${permissionType} permission for server: ${serverName}`
+      )
+    } catch (error) {
+      console.error(`[MCP] Failed to grant permission for server ${serverName}:`, error)
+      throw error
+    }
   }
 }

@@ -14,5 +14,23 @@
   "messageBlockAction": {
     "continue": "Continuer",
     "continued": "Suite"
+  },
+  "messageBlockPermissionRequest": {
+    "title": "Autorisation requise",
+    "allow": "Autoriser",
+    "deny": "Refuser",
+    "rememberChoice": "Se souvenir de ce choix",
+    "granted": "Autorisation accordée",
+    "denied": "Autorisation refusée",
+    "type": {
+      "read": "Autorisations de lecture",
+      "write": "Autorisations d'écriture",
+      "all": "Toutes les autorisations"
+    },
+    "description": {
+      "all": "Autoriser '{ToolName}' de '{servername}' pour effectuer des opérations de lecture et d'écriture?",
+      "read": "Autoriser '{ToolName}' de '{servername}' pour effectuer des opérations de lecture?",
+      "write": "Autoriser '{ToolName}' de '{servername}' pour effectuer des opérations d'écriture?"
+    }
   }
 }

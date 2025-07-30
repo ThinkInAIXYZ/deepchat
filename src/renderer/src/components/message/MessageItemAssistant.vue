@@ -29,7 +29,7 @@
           <MessageBlockContent
             v-if="block.type === 'content'"
             :block="block"
-            :message-id="message.id"
+            :message-id="currentMessage.id"
             :thread-id="currentThreadId"
             :is-search-result="isSearchResult"
           />
@@ -40,25 +40,31 @@
           />
           <MessageBlockSearch
             v-else-if="block.type === 'search'"
-            :message-id="message.id"
+            :message-id="currentMessage.id"
             :block="block"
           />
           <MessageBlockToolCall
             v-else-if="block.type === 'tool_call'"
             :block="block"
-            :message-id="message.id"
+            :message-id="currentMessage.id"
             :thread-id="currentThreadId"
           />
           <MessageBlockAction
             v-else-if="block.type === 'action'"
-            :message-id="message.id"
+            :message-id="currentMessage.id"
             :conversation-id="currentThreadId"
             :block="block"
+          />
+          <MessageBlockPermissionRequest
+            v-else-if="block.type === 'tool_call_permission'"
+            :block="block"
+            :message-id="currentMessage.id"
+            :conversation-id="currentThreadId"
           />
           <MessageBlockImage
             v-else-if="block.type === 'image'"
             :block="block"
-            :message-id="message.id"
+            :message-id="currentMessage.id"
             :thread-id="currentThreadId"
           />
           <MessageBlockError v-else-if="block.type === 'error'" :block="block" />
@@ -113,6 +119,7 @@ import MessageBlockThink from './MessageBlockThink.vue'
 import MessageBlockSearch from './MessageBlockSearch.vue'
 import MessageBlockToolCall from './MessageBlockToolCall.vue'
 import MessageBlockError from './MessageBlockError.vue'
+import MessageBlockPermissionRequest from './MessageBlockPermissionRequest.vue'
 import MessageToolbar from './MessageToolbar.vue'
 import MessageInfo from './MessageInfo.vue'
 import { useChatStore } from '@/stores/chat'
@@ -152,6 +159,7 @@ const emit = defineEmits<{
     fromTop: boolean,
     modelInfo: { model_name: string; model_provider: string }
   ]
+  scrollToBottom: []
 }>()
 
 // 获取当前会话ID
@@ -238,20 +246,28 @@ const cancelFork = () => {
 const confirmFork = async () => {
   try {
     // 执行fork操作
-    await chatStore.forkThread(props.message.id, t('dialog.fork.tag'))
+    await chatStore.forkThread(currentMessage.value.id, t('dialog.fork.tag'))
     isForkDialogOpen.value = false
   } catch (error) {
     console.error('创建对话分支失败:', error)
   }
 }
 
-const handleAction = (
-  action: 'retry' | 'delete' | 'copy' | 'prev' | 'next' | 'copyImage' | 'copyImageFromTop' | 'fork'
-) => {
+type HandleActionType =
+  | 'retry'
+  | 'delete'
+  | 'copy'
+  | 'prev'
+  | 'next'
+  | 'copyImage'
+  | 'copyImageFromTop'
+  | 'fork'
+
+const handleAction = (action: HandleActionType) => {
   if (action === 'retry') {
-    chatStore.retryMessage(props.message.id)
+    chatStore.retryMessage(currentMessage.value.id)
   } else if (action === 'delete') {
-    chatStore.deleteMessage(props.message.id)
+    chatStore.deleteMessage(currentMessage.value.id)
   } else if (action === 'copy') {
     window.api.copyText(
       currentContent.value
@@ -277,21 +293,24 @@ const handleAction = (
         .join('\n')
         .trim()
     )
-  } else if (action === 'prev') {
-    if (currentVariantIndex.value > 0) {
-      currentVariantIndex.value--
+  } else if (action === 'prev' || action === 'next') {
+    switch (action) {
+      case 'prev':
+        currentVariantIndex.value > 0 && currentVariantIndex.value--
+        break
+      case 'next':
+        currentVariantIndex.value < totalVariants.value - 1 && currentVariantIndex.value++
+        break
     }
-  } else if (action === 'next') {
-    if (currentVariantIndex.value < totalVariants.value - 1) {
-      currentVariantIndex.value++
-    }
+
+    emit('scrollToBottom')
   } else if (action === 'copyImage') {
-    emit('copyImage', props.message.id, props.message.parentId, false, {
+    emit('copyImage', currentMessage.value.id, currentMessage.value.parentId, false, {
       model_name: currentMessage.value.model_name,
       model_provider: currentMessage.value.model_provider
     })
   } else if (action === 'copyImageFromTop') {
-    emit('copyImage', props.message.id, props.message.parentId, true, {
+    emit('copyImage', currentMessage.value.id, currentMessage.value.parentId, true, {
       model_name: currentMessage.value.model_name,
       model_provider: currentMessage.value.model_provider
     })

@@ -395,21 +395,21 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
   //   }
   // }
 
-  // {
-  //   id: 'groq',
-  //   name: 'Groq',
-  //   apiType: 'groq',
-  //   apiKey: '',
-  //   baseUrl: 'https://api.groq.com/openai',
-  //   enable: false,
-  //   websites: {
-  //     official: 'https://groq.com/',
-  //     apiKey: 'https://console.groq.com/keys',
-  //     docs: 'https://console.groq.com/docs/quickstart',
-  //     models: 'https://console.groq.com/docs/models',
-  //     defaultBaseUrl: 'https://api.groq.com/openai'
-  //   }
-  // },
+  {
+    id: 'groq',
+    name: 'Groq',
+    apiType: 'groq',
+    apiKey: '',
+    baseUrl: 'https://api.groq.com/openai/v1',
+    enable: false,
+    websites: {
+      official: 'https://groq.com/',
+      apiKey: 'https://console.groq.com/keys',
+      docs: 'https://console.groq.com/docs/quickstart',
+      models: 'https://console.groq.com/docs/models',
+      defaultBaseUrl: 'https://api.groq.com/openai/v1'
+    }
+  },
 
   {
     id: 'grok',

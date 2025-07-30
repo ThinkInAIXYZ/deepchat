@@ -1,3 +1,4 @@
+import { DialogPresenter } from './dialogPresenter/index'
 import { ipcMain, IpcMainInvokeEvent, app } from 'electron'
 // import { LlamaCppPresenter } from './llamaCppPresenter' // 保留原始注释
 import { WindowPresenter } from './windowPresenter'
@@ -23,6 +24,7 @@ import { FloatingButtonPresenter } from './floatingButtonPresenter'
 import { CONFIG_EVENTS, WINDOW_EVENTS } from '@/events'
 import { AgentFlowPresenter } from './agentFlowPresenter'
 import { AgentManager } from './agentManager'
+import { KnowledgePresenter } from './knowledgePresenter'
 
 // IPC调用上下文接口
 interface IPCCallContext {
@@ -56,9 +58,11 @@ export class Presenter implements IPresenter {
   trayPresenter: TrayPresenter
   oauthPresenter: OAuthPresenter
   floatingButtonPresenter: FloatingButtonPresenter
+  knowledgePresenter: KnowledgePresenter
   // llamaCppPresenter: LlamaCppPresenter // 保留原始注释
   agentFlowPresenter: AgentFlowPresenter
   agentManager: AgentManager
+  dialogPresenter: DialogPresenter
 
   constructor() {
     // 初始化各个 Presenter 实例及其依赖
@@ -89,6 +93,8 @@ export class Presenter implements IPresenter {
     this.oauthPresenter = new OAuthPresenter()
     this.trayPresenter = new TrayPresenter()
     this.floatingButtonPresenter = new FloatingButtonPresenter(this.configPresenter)
+    this.dialogPresenter = new DialogPresenter()
+    this.knowledgePresenter = new KnowledgePresenter(this.configPresenter, dbDir)
 
     // this.llamaCppPresenter = new LlamaCppPresenter() // 保留原始注释
     this.setupEventBus() // 设置事件总线监听
@@ -183,6 +189,7 @@ export class Presenter implements IPresenter {
     this.shortcutPresenter.destroy() // 销毁快捷键监听
     this.syncPresenter.destroy() // 销毁同步相关资源
     this.notificationPresenter.clearAllNotifications() // 清除所有通知
+    this.knowledgePresenter.destroy() // 释放所有数据库连接
     // 注意: trayPresenter.destroy() 在 main/index.ts 的 will-quit 事件中处理
     // 此处不销毁 trayPresenter，其生命周期由 main/index.ts 管理
   }

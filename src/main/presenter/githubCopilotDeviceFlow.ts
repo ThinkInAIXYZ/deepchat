@@ -1,9 +1,8 @@
 import { BrowserWindow, shell } from 'electron'
-import { exec } from 'child_process';
+import { exec } from 'child_process'
 import { presenter } from '@/presenter'
 
-
-const GITHUB_DEVICE_URL = 'https://github.com/login/device';
+const GITHUB_DEVICE_URL = 'https://github.com/login/device'
 
 export interface DeviceFlowConfig {
   clientId: string
@@ -303,18 +302,18 @@ export class GitHubCopilotDeviceFlow {
       setTimeout(async () => {
         try {
           // 使用固定的GitHub设备激活页面
-          const url = GITHUB_DEVICE_URL;
-          console.log('Attempting to open URL:', url);
-          
+          const url = GITHUB_DEVICE_URL
+          console.log('Attempting to open URL:', url)
+
           if (process.platform === 'win32') {
             // 先尝试使用explorer命令
             exec(`explorer "${url}"`, (error) => {
               if (error) {
-                console.error('Explorer command failed:', error);
+                console.error('Explorer command failed:', error)
                 // 如果explorer失败，尝试使用start命令
                 exec(`start "" "${url}"`, (startError) => {
                   if (startError) {
-                    console.error('Start command failed:', startError);
+                    console.error('Start command failed:', startError)
                     // 使用更安全的方式处理剪贴板操作
                     instructionWindow.webContents.executeJavaScript(`
                       const shouldCopy = confirm('无法自动打开浏览器。是否复制链接到剪贴板？');
@@ -325,20 +324,20 @@ export class GitHubCopilotDeviceFlow {
                       } else {
                         alert('请手动访问: ${url}');
                       }
-                    `);
+                    `)
                   }
-                });
+                })
               }
-            });
+            })
           } else {
             // 非Windows系统使用默认的shell.openExternal
-            await shell.openExternal(url);
+            await shell.openExternal(url)
           }
         } catch (error) {
-          console.error('Failed to open browser:', error);
+          console.error('Failed to open browser:', error)
           instructionWindow.webContents.executeJavaScript(`
             alert('无法自动打开浏览器，请手动访问: ${GITHUB_DEVICE_URL}');
-          `);
+          `)
         }
       }, 1000)
 

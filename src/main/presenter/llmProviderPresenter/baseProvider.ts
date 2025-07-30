@@ -6,11 +6,14 @@ import {
   LLMCoreStreamEvent,
   ModelConfig,
   ChatMessage,
-  KeyStatus
+  KeyStatus,
+  LLM_EMBEDDING_ATTRS
 } from '@shared/presenter'
 import { ConfigPresenter } from '../configPresenter'
 import { DevicePresenter } from '../devicePresenter'
 import { jsonrepair } from 'jsonrepair'
+import { eventBus, SendTarget } from '@/eventbus'
+import { CONFIG_EVENTS } from '@/events'
 
 /**
  * 基础LLM提供商抽象类
@@ -43,6 +46,9 @@ export abstract class BaseLLMProvider {
     this.provider = provider
     this.configPresenter = configPresenter
     this.defaultHeaders = DevicePresenter.getDefaultHeaders()
+
+    // Initialize models and customModels from cached config data
+    this.loadCachedModels()
   }
 
   /**
@@ -51,6 +57,37 @@ export abstract class BaseLLMProvider {
    */
   public static getMaxToolCalls(): number {
     return BaseLLMProvider.MAX_TOOL_CALLS
+  }
+
+  /**
+   * 从配置中加载缓存的模型数据
+   * 在构造函数中调用，避免每次都需要重新获取模型列表
+   */
+  private loadCachedModels(): void {
+    try {
+      // Load cached provider models from config
+      const cachedModels = this.configPresenter.getProviderModels(this.provider.id)
+      if (cachedModels && cachedModels.length > 0) {
+        this.models = cachedModels
+        console.info(
+          `Loaded ${cachedModels.length} cached models for provider: ${this.provider.name}`
+        )
+      }
+
+      // Load cached custom models from config
+      const cachedCustomModels = this.configPresenter.getCustomModels(this.provider.id)
+      if (cachedCustomModels && cachedCustomModels.length > 0) {
+        this.customModels = cachedCustomModels
+        console.info(
+          `Loaded ${cachedCustomModels.length} cached custom models for provider: ${this.provider.name}`
+        )
+      }
+    } catch (error) {
+      console.warn(`Failed to load cached models for provider: ${this.provider.name}`, error)
+      // Keep default empty arrays if loading fails
+      this.models = []
+      this.customModels = []
+    }
   }
 
   /**
@@ -79,9 +116,8 @@ export abstract class BaseLLMProvider {
     if (!this.models || this.models.length === 0) return
     const providerId = this.provider.id
 
-    // 检查是否有自定义模型
-    const customModels = this.configPresenter.getCustomModels(providerId)
-    if (customModels && customModels.length > 0) return
+    // 检查是否有自定义模型 (use cached customModels)
+    if (this.customModels && this.customModels.length > 0) return
 
     // 检查是否有任何模型的状态被手动修改过
     const hasManuallyModifiedModels = this.models.some((model) =>
@@ -125,6 +161,22 @@ export abstract class BaseLLMProvider {
   }
 
   /**
+   * 强制刷新模型数据
+   * 忽略缓存，重新从网络获取最新的模型列表
+   * @returns 模型列表
+   */
+  public async refreshModels(): Promise<void> {
+    console.info(`Force refreshing models for provider: ${this.provider.name}`)
+    await this.fetchModels()
+    await this.autoEnableModelsIfNeeded()
+    eventBus.sendToRenderer(
+      CONFIG_EVENTS.MODEL_LIST_CHANGED,
+      SendTarget.ALL_WINDOWS,
+      this.provider.id
+    )
+  }
+
+  /**
    * 获取特定提供商的模型
    * 此方法由具体的提供商子类实现
    * @returns 提供商支持的模型列表
@@ -160,6 +212,9 @@ export abstract class BaseLLMProvider {
       this.customModels.push(newModel)
     }
 
+    // Sync with config
+    this.configPresenter.addCustomModel(this.provider.id, newModel)
+
     return newModel
   }
 
@@ -172,6 +227,8 @@ export abstract class BaseLLMProvider {
     const index = this.customModels.findIndex((model) => model.id === modelId)
     if (index !== -1) {
       this.customModels.splice(index, 1)
+      // Sync with config
+      this.configPresenter.removeCustomModel(this.provider.id, modelId)
       return true
     }
     return false
@@ -188,6 +245,8 @@ export abstract class BaseLLMProvider {
     if (model) {
       // 应用更新
       Object.assign(model, updates)
+      // Sync with config
+      this.configPresenter.updateCustomModel(this.provider.id, modelId, updates)
       return true
     }
     return false
@@ -547,13 +606,22 @@ ${this.convertToolsToXml(tools)}
 
   /**
    * 获取文本的 embedding 表示
-   * @param texts 待编码的文本数组
-   * @param modelId 使用的模型ID
+   * @param _modelId 使用的模型ID
+   * @param _texts 待编码的文本数组
    * @returns embedding 数组，每个元素为 number[]
    */
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  public async getEmbeddings(_texts: string[], _modelId: string): Promise<number[][]> {
-    throw new Error('getEmbeddings is not supported by this provider')
+  public async getEmbeddings(_modelId: string, _texts: string[]): Promise<number[][]> {
+    throw new Error('embedding is not supported by this provider')
+  }
+
+  /**
+   * 获取嵌入向量的维度
+   * @param _modelId 模型ID
+   * @returns 嵌入向量的维度
+   */
+  public async getDimensions(_modelId: string): Promise<LLM_EMBEDDING_ATTRS> {
+    throw new Error('embedding is not supported by this provider')
   }
 
   /**

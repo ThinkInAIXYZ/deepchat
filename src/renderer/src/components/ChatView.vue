@@ -62,12 +62,7 @@ const isGenerating = computed(() => {
   return chatStore.generatingThreadIds.has(chatStore.getActiveThreadId()!)
 })
 const handleSend = async (msg: UserMessageContent) => {
-  if (messageList.value) {
-    // 在发送消息前将aboveThreshold设置为false，确保消息发送过程中总是滚动到底部
-    messageList.value.aboveThreshold = false
-  }
   scrollToBottom()
-
   // 检查是否是 Agent 模式
   if (props.isAgentMode && props.agentId) {
     // Agent 模式：使用 agentManager 发送消息
@@ -76,11 +71,7 @@ const handleSend = async (msg: UserMessageContent) => {
     // 普通聊天模式：使用 chatStore 发送消息
     await chatStore.sendMessage(msg)
   }
-
-  // 只有当用户在底部时才自动滚动
-  if (!messageList.value?.aboveThreshold) {
-    scrollToBottom()
-  }
+  scrollToBottom()
 }
 
 // Agent 模式的消息发送逻辑
