@@ -12,6 +12,9 @@
     <div class="flex-none px-2 pb-2">
       <ChatInput
         :disabled="!chatStore.getActiveThreadId() || isGenerating"
+        :is-agent-mode="isAgentMode"
+        :agent-id="agentId"
+        :agent-config="agentConfig"
         @send="handleSend"
         @file-upload="handleFileUpload"
       />
@@ -27,6 +30,20 @@ import { useRoute } from 'vue-router'
 import { UserMessageContent } from '@shared/chat'
 import { STREAM_EVENTS } from '@/events'
 import { useSettingsStore } from '@/stores/settings'
+import type { AgentConfig } from '@shared/agent'
+
+// Props for Agent mode support
+interface Props {
+  isAgentMode?: boolean
+  agentId?: string
+  agentConfig?: AgentConfig | null
+}
+
+const props = withDefaults(defineProps<Props>(), {
+  isAgentMode: false,
+  agentId: '',
+  agentConfig: null
+})
 
 const route = useRoute()
 const settingsStore = useSettingsStore()
@@ -46,8 +63,54 @@ const isGenerating = computed(() => {
 })
 const handleSend = async (msg: UserMessageContent) => {
   scrollToBottom()
-  await chatStore.sendMessage(msg)
+  // 检查是否是 Agent 模式
+  if (props.isAgentMode && props.agentId) {
+    // Agent 模式：使用 agentManager 发送消息
+    await sendAgentMessage(msg)
+  } else {
+    // 普通聊天模式：使用 chatStore 发送消息
+    await chatStore.sendMessage(msg)
+  }
   scrollToBottom()
+}
+
+// Agent 模式的消息发送逻辑
+const sendAgentMessage = async (msg: UserMessageContent) => {
+  try {
+    console.log('=== Agent Message Send Debug ===')
+    console.log('Agent ID:', props.agentId)
+    console.log('Agent Config:', props.agentConfig)
+    console.log('Is Agent Mode:', props.isAgentMode)
+
+    // 确保有活跃的 thread
+    if (!chatStore.getActiveThreadId()) {
+      console.log('Creating new Agent thread...')
+      const providerId = `agent:${props.agentId}`
+      const threadSettings = {
+        providerId: providerId,
+        modelId: 'datlas-agent',
+        artifacts: 0 as 0 | 1
+      }
+
+      console.log('Thread settings:', threadSettings)
+
+      // 为 Agent 创建新的 thread，使用特殊的 provider ID 来标识这是 Agent 会话
+      const threadId = await chatStore.createThread(`Agent Chat - ${props.agentConfig?.name || 'Agent'}`, threadSettings)
+      console.log('Created thread with ID:', threadId)
+      chatStore.setActiveThread(threadId)
+    } else {
+      console.log('Using existing thread:', chatStore.getActiveThreadId())
+    }
+
+    // 发送消息
+    console.log('Sending message content:', msg)
+    await chatStore.sendMessage(msg)
+
+    console.log('Agent message sent successfully')
+  } catch (error) {
+    console.error('Failed to send agent message:', error)
+    throw error
+  }
 }
 
 const handleFileUpload = () => {

@@ -1,0 +1,13 @@
+{
+  "createAgent": "エージェントを作成",
+  "selectAgentType": "作成するエージェントのタイプを選択",
+  "chatAssistant": "チャットアシスタント",
+  "chatAssistantDescription": "LLMプロバイダーを使用するデフォルトのチャットアシスタント",
+  "datlasAgent": "Datlasエージェント",
+  "datlasAgentDescription": "ナレッジベース検索と生成サービス",
+  "selectAgent": "エージェントを選択",
+  "agentSelected": "エージェントが選択されました",
+  "createAgentTab": "エージェントタブを作成",
+  "agentCreated": "エージェントが作成されました",
+  "agentCreationFailed": "エージェントの作成に失敗しました"
+}

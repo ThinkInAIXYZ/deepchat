@@ -572,5 +572,44 @@
     "nextTab": "Passez à l'onglet suivant",
     "previousTab": "Passez à l'onglet précédent",
     "specificTab": "Passez à la page d'onglet spécifiée (1-8)"
+  },
+  "agent": {
+    "addAgent": "Ajouter un agent",
+    "agentId": "Agent-agent",
+    "agentList": "Liste d'agents",
+    "apiUrl": "Adresse API",
+    "checking": "Détection...",
+    "connected": "La connexion est normale",
+    "description": "Configurer les services d'agent et prendre en charge plusieurs types d'agents tels que les données.",
+    "dialog": {
+      "add": "Ajouter à",
+      "cancel": "Annuler",
+      "edit": {
+        "title": "Agent de montage"
+      },
+      "form": {
+        "agentId": "Agent-agent",
+        "agentIdPlaceholder": "Veuillez saisir l'agentId",
+        "apiUrl": "Adresse API",
+        "apiUrlPlaceholder": "https://ai.maiedata.com/api/knowbase/rag",
+        "name": "Nom d'agent",
+        "namePlaceholder": "Veuillez saisir le nom proxy",
+        "token": "Jeton",
+        "tokenPlaceholder": "Veuillez entrer en jeton",
+        "type": "Type d'agent",
+        "typePlaceholder": "Sélectionnez un type de proxy"
+      },
+      "save": "sauvegarder"
+    },
+    "disabled": "Désactivé",
+    "enabled": "Activer",
+    "noAgents": "Il n'y a pas encore d'agent configuré. Cliquez sur \"Ajouter un agent\" pour démarrer la configuration.",
+    "notTested": "Non détecté",
+    "status": "État",
+    "testConnection": "Test de connexion",
+    "title": "Configuration d'agent",
+    "types": {
+      "datlas": "Datlas"
+    }
   }
 }

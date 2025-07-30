@@ -4,6 +4,7 @@ import { MessageFile } from './chat'
 import { ShowResponse } from 'ollama'
 import { ShortcutKeySetting } from '@/presenter/configPresenter/shortcutKeySettings'
 import { ModelType } from '@shared/model'
+import { IAgentManager } from '@shared/agent'
 
 export type SQLITE_MESSAGE = {
   id: string
@@ -299,10 +300,54 @@ export interface OAuthConfig {
   responseType: string
 }
 
+export interface IRagProviderPresenter {
+  setProviders(providers: LLM_PROVIDER[]): void
+  getProviders(): LLM_PROVIDER[]
+  getProviderById(id: string): LLM_PROVIDER
+  getModelList(providerId: string): Promise<MODEL_META[]>
+  check(providerId: string): Promise<{ isOk: boolean; errorMsg: string | null }>
+  startRagCompletion(
+    providerId: string,
+    messages: ChatMessage[],
+    modelId: string,
+    modelConfig: ModelConfig,
+    temperature?: number,
+    maxTokens?: number
+  ): AsyncGenerator<LLMCoreStreamEvent>
+}
+
+// Agent配置类型
+export interface AGENT_CONFIG {
+  id: string
+  name: string
+  type: string // 'datlas' 等
+  enabled: boolean
+  config: Record<string, any>
+  custom?: boolean
+}
+
+export interface IAgentFlowPresenter {
+  setAgents(agents: AGENT_CONFIG[]): void
+  getAgents(): AGENT_CONFIG[]
+  getAgentById(id: string): AGENT_CONFIG
+  getModelList(agentId: string): Promise<MODEL_META[]>
+  check(agentId: string): Promise<{ isOk: boolean; errorMsg: string | null }>
+  startAgentCompletion(
+    agentId: string,
+    messages: ChatMessage[],
+    modelId: string,
+    modelConfig: ModelConfig,
+    temperature?: number,
+    maxTokens?: number
+  ): AsyncGenerator<LLMCoreStreamEvent>
+}
+
 export interface IPresenter {
   windowPresenter: IWindowPresenter
   sqlitePresenter: ISQLitePresenter
   llmproviderPresenter: ILlmProviderPresenter
+  agentFlowPresenter: IAgentFlowPresenter
+  agentManager: IAgentManager
   configPresenter: IConfigPresenter
   threadPresenter: IThreadPresenter
   devicePresenter: IDevicePresenter
@@ -410,10 +455,9 @@ export interface IConfigPresenter {
   getProviderModelConfigs(providerId: string): Array<{ modelId: string; config: ModelConfig }>
   hasUserModelConfig(modelId: string, providerId: string): boolean
   exportModelConfigs(): Record<string, IModelConfig>
-  importModelConfigs(configs: Record<string, IModelConfig>, overwrite: boolean): void
-  setNotificationsEnabled(enabled: boolean): void
+  importModelConfigs(configs: Record<string, IModelConfig>, overwrite?: boolean): void
   getNotificationsEnabled(): boolean
-  // 主题设置
+  setNotificationsEnabled(enabled: boolean): void
   initTheme(): void
   toggleTheme(theme: 'dark' | 'light' | 'system'): Promise<boolean>
   getTheme(): Promise<string>
@@ -423,14 +467,18 @@ export interface IConfigPresenter {
   addCustomPrompt(prompt: Prompt): Promise<void>
   updateCustomPrompt(promptId: string, updates: Partial<Prompt>): Promise<void>
   deleteCustomPrompt(promptId: string): Promise<void>
-  // 默认系统提示词设置
   getDefaultSystemPrompt(): Promise<string>
   setDefaultSystemPrompt(prompt: string): Promise<void>
-  // 快捷键设置
   getDefaultShortcutKey(): ShortcutKeySetting
   getShortcutKey(): ShortcutKeySetting
   setShortcutKey(customShortcutKey: ShortcutKeySetting): void
   resetShortcutKeys(): void
+  // Agent 配置相关方法
+  getAgents(): AGENT_CONFIG[]
+  setAgents(agents: AGENT_CONFIG[]): void
+  setAgentById(id: string, agent: AGENT_CONFIG): void
+  removeAgentById(id: string): void
+  getAgentById(id: string): AGENT_CONFIG | null
   // 知识库设置
   getKnowledgeConfigs(): BuiltinKnowledgeConfig[]
   setKnowledgeConfigs(configs: BuiltinKnowledgeConfig[]): void
@@ -476,6 +524,7 @@ export type LLM_PROVIDER = {
   baseUrl: string
   enable: boolean
   custom?: boolean
+  config?: Record<string, any> // 用于存储provider特定的配置信息，如RAG的agentId、token等
   websites?: {
     official: string
     apiKey: string
@@ -503,6 +552,7 @@ export interface ILlmProviderPresenter {
   setProviders(provider: LLM_PROVIDER[]): void
   getProviders(): LLM_PROVIDER[]
   getProviderById(id: string): LLM_PROVIDER
+  getProviderInstance(providerId: string): any // 获取provider实例，用于RAG和LLM区分处理
   getModelList(providerId: string): Promise<MODEL_META[]>
   updateModelStatus(providerId: string, modelId: string, enabled: boolean): Promise<void>
   addCustomModel(
@@ -1117,8 +1167,18 @@ export interface LLMCoreStreamEvent {
     | 'usage'
     | 'stop'
     | 'image_data'
+    | 'rag_files'
+    | 'rag_references'
   content?: string // 用于 type 'text'
   reasoning_content?: string // 用于 type 'reasoning'
+  // RAG推理步骤相关字段
+  step?: string // 步骤标识
+  step_title?: string // 步骤标题
+  step_content?: string // 步骤内容
+  step_is_error?: boolean // 步骤是否错误
+  step_error_message?: string // 步骤错误消息
+  step_replace_content?: boolean // 是否替换内容
+  step_replace_title?: boolean // 是否替换标题
   tool_call_id?: string // 用于 tool_call_* 类型
   tool_call_name?: string // 用于 tool_call_start
   tool_call_arguments_chunk?: string // 用于 tool_call_chunk (流式参数)
@@ -1136,6 +1196,13 @@ export interface LLMCoreStreamEvent {
     data: string // Base64 编码的图像数据
     mimeType: string
   }
+  // RAG特定字段
+  rag_files?: Array<{ id: string; name: string }> // 用于 type 'rag_files'
+  rag_references?: Array<{
+    id: number // 引用ID
+    short_id: number // 向量块ID
+    file_id: string // 文件ID
+  }> // 用于 type 'rag_references'
 }
 
 // 定义ChatMessage接口用于统一消息格式
@@ -1166,6 +1233,14 @@ export interface LLMAgentEventData {
   eventId: string
   content?: string
   reasoning_content?: string
+  // RAG推理步骤相关字段
+  step?: string // 步骤标识
+  step_title?: string // 步骤标题
+  step_content?: string // 步骤内容
+  step_is_error?: boolean // 步骤是否错误
+  step_error_message?: string // 步骤错误消息
+  step_replace_content?: boolean // 是否替换内容
+  step_replace_title?: boolean // 是否替换标题
   tool_call_id?: string
   tool_call_name?: string
   tool_call_params?: string
@@ -1193,6 +1268,13 @@ export interface LLMAgentEventData {
     context_length: number
   }
   image_data?: { data: string; mimeType: string }
+  // RAG特定字段
+  rag_files?: Array<{ id: string; name: string }> // 文章列表
+  rag_references?: Array<{
+    id: number // 引用ID
+    short_id: number // 向量块ID
+    file_id: string // 文件ID
+  }> // 向量块引用
   error?: string // For error event
   userStop?: boolean // For end event
 }

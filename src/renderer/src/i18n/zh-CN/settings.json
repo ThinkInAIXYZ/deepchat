@@ -572,5 +572,47 @@
     "previousTab": "切换到上一个标签页",
     "specificTab": "切换到指定标签页 (1-8)",
     "lastTab": "切换到最后一个标签页"
+  },
+  "agent": {
+    "title": "Agent配置",
+    "description": "配置智能体服务，支持多种类型的Agent如Datlas等。",
+    "agentList": "Agent列表",
+    "addAgent": "添加Agent",
+    "noAgents": "暂无配置的Agent，点击\"添加Agent\"开始配置",
+    "enabled": "启用",
+    "disabled": "禁用",
+    "apiUrl": "API地址",
+    "agentId": "AgentID",
+    "status": "状态",
+    "checking": "检测中...",
+    "connected": "连接正常",
+    "notTested": "未检测",
+    "testConnection": "测试连接",
+    "dialog": {
+      "add": {
+        "title": "添加代理"
+      },
+      "edit": {
+        "title": "编辑代理"
+      },
+      "form": {
+        "name": "代理名称",
+        "namePlaceholder": "请输入代理名称",
+        "type": "代理类型",
+        "typePlaceholder": "选择代理类型",
+        "apiUrl": "API地址",
+        "apiUrlPlaceholder": "https://ai.maicedata.com/api/knowbase/rag",
+        "agentId": "AgentID",
+        "agentIdPlaceholder": "请输入AgentID",
+        "token": "Token",
+        "tokenPlaceholder": "请输入Token"
+      },
+      "cancel": "取消",
+      "save": "保存",
+      "add": "添加"
+    },
+    "types": {
+      "datlas": "Datlas"
+    }
   }
 }

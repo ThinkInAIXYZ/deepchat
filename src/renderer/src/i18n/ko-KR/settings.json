@@ -572,5 +572,44 @@
     "previousTab": "이전 탭으로 전환하십시오",
     "specificTab": "지정된 탭 페이지 (1-8)로 전환",
     "nextTab": "다음 탭으로 전환하십시오"
+  },
+  "agent": {
+    "addAgent": "에이전트를 추가하십시오",
+    "agentId": "에이전트",
+    "agentList": "에이전트 목록",
+    "apiUrl": "API 주소",
+    "checking": "발각...",
+    "connected": "연결은 정상입니다",
+    "description": "에이전트 서비스를 구성하고 DATLA와 같은 여러 유형의 에이전트를 지원합니다.",
+    "dialog": {
+      "add": "추가",
+      "cancel": "취소",
+      "edit": {
+        "title": "편집 에이전트"
+      },
+      "form": {
+        "agentId": "에이전트",
+        "agentIdPlaceholder": "에이전트를 입력하십시오",
+        "apiUrl": "API 주소",
+        "apiUrlPlaceholder": "https://ai.maicedata.com/api/knowbase/rag",
+        "name": "에이전트 이름",
+        "namePlaceholder": "프록시 이름을 입력하십시오",
+        "token": "토큰",
+        "tokenPlaceholder": "토큰을 입력하십시오",
+        "type": "에이전트 유형",
+        "typePlaceholder": "프록시 유형을 선택하십시오"
+      },
+      "save": "구하다"
+    },
+    "disabled": "장애가 있는",
+    "enabled": "할 수 있게 하다",
+    "noAgents": "아직 구성된 에이전트가 없습니다. \"에이전트 추가\"를 클릭하여 구성을 시작하십시오.",
+    "notTested": "감지되지 않았습니다",
+    "status": "상태",
+    "testConnection": "테스트 연결",
+    "title": "에이전트 구성",
+    "types": {
+      "datlas": "Datlas"
+    }
   }
 }

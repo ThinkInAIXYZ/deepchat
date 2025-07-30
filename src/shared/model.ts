@@ -5,5 +5,8 @@ export enum ModelType {
   Chat = 'chat',
   Embedding = 'embedding',
   Rerank = 'rerank',
-  ImageGeneration = 'imageGeneration'
+  ImageGeneration = 'imageGeneration',
+  RAG = 'rag'
 }
+
+// 注意：ConversationType 已移动到 chat.d.ts 中

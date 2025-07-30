@@ -22,6 +22,8 @@ import { TrayPresenter } from './trayPresenter'
 import { OAuthPresenter } from './oauthPresenter'
 import { FloatingButtonPresenter } from './floatingButtonPresenter'
 import { CONFIG_EVENTS, WINDOW_EVENTS } from '@/events'
+import { AgentFlowPresenter } from './agentFlowPresenter'
+import { AgentManager } from './agentManager'
 import { KnowledgePresenter } from './knowledgePresenter'
 
 // IPC调用上下文接口
@@ -58,6 +60,8 @@ export class Presenter implements IPresenter {
   floatingButtonPresenter: FloatingButtonPresenter
   knowledgePresenter: KnowledgePresenter
   // llamaCppPresenter: LlamaCppPresenter // 保留原始注释
+  agentFlowPresenter: AgentFlowPresenter
+  agentManager: AgentManager
   dialogPresenter: DialogPresenter
 
   constructor() {
@@ -66,6 +70,8 @@ export class Presenter implements IPresenter {
     this.windowPresenter = new WindowPresenter(this.configPresenter)
     this.tabPresenter = new TabPresenter(this.windowPresenter)
     this.llmproviderPresenter = new LLMProviderPresenter(this.configPresenter)
+    this.agentFlowPresenter = new AgentFlowPresenter(this.configPresenter)
+    this.agentManager = new AgentManager(this.configPresenter, this.tabPresenter)
     this.devicePresenter = new DevicePresenter()
     // 初始化 SQLite 数据库路径
     const dbDir = path.join(app.getPath('userData'), 'app_db')
@@ -74,6 +80,7 @@ export class Presenter implements IPresenter {
     this.threadPresenter = new ThreadPresenter(
       this.sqlitePresenter,
       this.llmproviderPresenter,
+      this.agentFlowPresenter,
       this.configPresenter
     )
     this.mcpPresenter = new McpPresenter(this.configPresenter)
@@ -114,6 +121,7 @@ export class Presenter implements IPresenter {
     eventBus.on(CONFIG_EVENTS.PROVIDER_CHANGED, () => {
       const providers = this.configPresenter.getProviders()
       this.llmproviderPresenter.setProviders(providers)
+      this.agentFlowPresenter.setAgents([])
     })
   }
   setupTray() {
@@ -125,10 +133,16 @@ export class Presenter implements IPresenter {
   }
 
   // 应用初始化逻辑 (主窗口准备就绪后调用)
-  init() {
+  async init() {
     // 持久化 LLMProviderPresenter 的 Providers 数据
     const providers = this.configPresenter.getProviders()
     this.llmproviderPresenter.setProviders(providers)
+
+    // 初始化 AgentManager 并等待完成
+    await this.agentManager.initialize()
+
+    // 建立 AgentManager 和 AgentFlowPresenter 的链接
+    this.agentManager.setAgentFlowPresenter(this.agentFlowPresenter)
 
     // 同步所有 provider 的自定义模型
     this.syncCustomModels()

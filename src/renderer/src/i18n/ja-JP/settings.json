@@ -572,5 +572,47 @@
     "nextTab": "次のタブに切り替えます",
     "previousTab": "前のタブに切り替えます",
     "specificTab": "指定されたタブページ（1-8）に切り替える"
+  },
+  "agent": {
+    "title": "エージェント設定",
+    "description": "Datlasなどの様々なタイプのエージェントをサポートするインテリジェントエージェントサービスを設定します。",
+    "agentList": "エージェントリスト",
+    "addAgent": "エージェントを追加",
+    "noAgents": "エージェントがまだ設定されていません。「エージェントを追加」をクリックして設定を開始してください。",
+    "enabled": "有効",
+    "disabled": "無効",
+    "apiUrl": "API URL",
+    "agentId": "エージェントID",
+    "status": "ステータス",
+    "checking": "チェック中...",
+    "connected": "接続済み",
+    "notTested": "未テスト",
+    "testConnection": "接続テスト",
+    "dialog": {
+      "add": {
+        "title": "エージェントを追加"
+      },
+      "edit": {
+        "title": "エージェントを編集"
+      },
+      "form": {
+        "name": "エージェント名",
+        "namePlaceholder": "エージェント名を入力",
+        "type": "エージェントタイプ",
+        "typePlaceholder": "エージェントタイプを選択",
+        "apiUrl": "API URL",
+        "apiUrlPlaceholder": "https://ai.maicedata.com/api/knowbase/rag",
+        "agentId": "エージェントID",
+        "agentIdPlaceholder": "エージェントIDを入力",
+        "token": "トークン",
+        "tokenPlaceholder": "トークンを入力"
+      },
+      "cancel": "キャンセル",
+      "save": "保存",
+      "add": "追加"
+    },
+    "types": {
+      "datlas": "Datlas"
+    }
   }
 }

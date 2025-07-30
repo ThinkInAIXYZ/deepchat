@@ -26,6 +26,15 @@ const router = createRouter({
       }
     },
     {
+      path: '/agent',
+      name: 'agent',
+      component: () => import('@/views/AgentTabView.vue'),
+      meta: {
+        titleKey: 'routes.agent',
+        icon: 'lucide:bot'
+      }
+    },
+    {
       path: '/settings',
       name: 'settings',
       component: () => import('@/views/SettingsTabView.vue'),
@@ -69,6 +78,15 @@ const router = createRouter({
           meta: {
             titleKey: 'routes.settings-mcp',
             icon: 'lucide:server'
+          }
+        },
+        {
+          path: 'agent',
+          name: 'settings-agent',
+          component: () => import('@/components/settings/AgentSettings.vue'),
+          meta: {
+            titleKey: 'routes.settings-agent',
+            icon: 'lucide:bot'
           }
         },
         {

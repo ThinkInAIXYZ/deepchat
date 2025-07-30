@@ -1,6 +1,7 @@
 {
   "chat": "Chat",
   "welcome": "Welcome",
+  "agent": "Agent",
   "settings": "Settings",
   "settings-common": "Common Settings",
   "settings-provider": "Providers",
@@ -10,5 +11,6 @@
   "settings-shortcut": "Shortcuts",
   "settings-display": "Display",
   "settings-knowledge-base": "Knowledge Base",
-  "settings-prompt": "Prompts"
+  "settings-prompt": "Prompts",
+  "settings-agent": "Agent Settings"
 }

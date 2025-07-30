@@ -572,5 +572,47 @@
     "previousTab": "Switch to previous tab",
     "specificTab": "Switch to specific tab (1-8)",
     "lastTab": "Switch to last tab"
+  },
+  "agent": {
+    "title": "Agent Configuration",
+    "description": "Configure intelligent agent services, supporting various types of agents such as Datlas.",
+    "agentList": "Agent List",
+    "addAgent": "Add Agent",
+    "noAgents": "No agents configured yet. Click \"Add Agent\" to start configuration.",
+    "enabled": "Enabled",
+    "disabled": "Disabled",
+    "apiUrl": "API URL",
+    "agentId": "Agent ID",
+    "status": "Status",
+    "checking": "Checking...",
+    "connected": "Connected",
+    "notTested": "Not tested",
+    "testConnection": "Test Connection",
+    "dialog": {
+      "add": {
+        "title": "Add Agent"
+      },
+      "edit": {
+        "title": "Edit Agent"
+      },
+      "form": {
+        "name": "Agent Name",
+        "namePlaceholder": "Enter agent name",
+        "type": "Agent Type",
+        "typePlaceholder": "Select agent type",
+        "apiUrl": "API URL",
+        "apiUrlPlaceholder": "https://ai.maicedata.com/api/knowbase/rag",
+        "agentId": "Agent ID",
+        "agentIdPlaceholder": "Enter Agent ID",
+        "token": "Token",
+        "tokenPlaceholder": "Enter Token"
+      },
+      "cancel": "Cancel",
+      "save": "Save",
+      "add": "Add"
+    },
+    "types": {
+      "datlas": "Datlas"
+    }
   }
 }

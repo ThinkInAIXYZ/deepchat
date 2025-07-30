@@ -1,0 +1,13 @@
+{
+  "createAgent": "Создать агента",
+  "selectAgentType": "Выберите тип агента для создания",
+  "chatAssistant": "Чат-ассистент",
+  "chatAssistantDescription": "Стандартный чат-ассистент, использующий LLM провайдеры",
+  "datlasAgent": "Datlas агент",
+  "datlasAgentDescription": "Сервис поиска и генерации базы знаний",
+  "selectAgent": "Выбрать агента",
+  "agentSelected": "Агент выбран",
+  "createAgentTab": "Создать вкладку агента",
+  "agentCreated": "Агент создан",
+  "agentCreationFailed": "Не удалось создать агента"
+}

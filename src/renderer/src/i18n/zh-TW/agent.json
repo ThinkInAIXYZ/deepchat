@@ -1,0 +1,13 @@
+{
+  "createAgent": "建立 Agent",
+  "selectAgentType": "選擇要建立的 Agent 類型",
+  "chatAssistant": "聊天助手",
+  "chatAssistantDescription": "預設聊天助手，使用 LLM 提供者",
+  "datlasAgent": "Datlas Agent",
+  "datlasAgentDescription": "知識庫檢索和生成服務",
+  "selectAgent": "選擇 Agent",
+  "agentSelected": "已選擇 Agent",
+  "createAgentTab": "建立 Agent 標籤頁",
+  "agentCreated": "Agent 已建立",
+  "agentCreationFailed": "Agent 建立失敗"
+}

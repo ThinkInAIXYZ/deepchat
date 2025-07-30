@@ -572,5 +572,44 @@
     "previousTab": "رفتن به برگه پیشین",
     "specificTab": "رفتن به برگه خاص (1-8)",
     "lastTab": "رفتن به آخرین برگه"
+  },
+  "agent": {
+    "addAgent": "یک عامل اضافه کنید",
+    "agentId": "نماینده",
+    "agentList": "لیست نماینده",
+    "apiUrl": "آدرس API",
+    "checking": "تشخیص ...",
+    "connected": "اتصال طبیعی است",
+    "description": "خدمات عامل را پیکربندی کرده و از انواع مختلفی از نمایندگان مانند DATLA پشتیبانی کنید.",
+    "dialog": {
+      "add": "اضافه کردن",
+      "cancel": "لغو کردن",
+      "edit": {
+        "title": "عامل ویرایش"
+      },
+      "form": {
+        "agentId": "نماینده",
+        "agentIdPlaceholder": "لطفاً AgentID را وارد کنید",
+        "apiUrl": "آدرس API",
+        "apiUrlPlaceholder": "https://ai.maicedata.com/api/nownbase/rag",
+        "name": "نام عامل",
+        "namePlaceholder": "لطفا نام پروکسی را وارد کنید",
+        "token": "نشانه",
+        "tokenPlaceholder": "لطفا توکن را وارد کنید",
+        "type": "نوع عامل",
+        "typePlaceholder": "یک نوع پروکسی را انتخاب کنید"
+      },
+      "save": "پس انداز کردن"
+    },
+    "disabled": "معلول",
+    "enabled": "فعال کردن",
+    "noAgents": "هنوز هیچ عامل پیکربندی شده وجود ندارد. برای شروع پیکربندی روی \"افزودن عامل\" کلیک کنید.",
+    "notTested": "تشخیص داده نشده است",
+    "status": "حالت",
+    "testConnection": "اتصال آزمایشی",
+    "title": "پیکربندی عامل",
+    "types": {
+      "datlas": "داتلاس"
+    }
   }
 }

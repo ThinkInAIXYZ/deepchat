@@ -572,5 +572,44 @@
     "previousTab": "切換到上一個標籤頁",
     "specificTab": "切換到指定標籤頁 (1-8)",
     "nextTab": "切換到下一個標籤頁"
+  },
+  "agent": {
+    "addAgent": "添加Agent",
+    "agentId": "AgentID",
+    "agentList": "Agent列表",
+    "apiUrl": "API地址",
+    "checking": "檢測中...",
+    "connected": "連接正常",
+    "description": "配置智能體服務，支持多種類型的Agent如Datlas等。",
+    "dialog": {
+      "add": "添加",
+      "cancel": "取消",
+      "edit": {
+        "title": "編輯代理"
+      },
+      "form": {
+        "agentId": "AgentID",
+        "agentIdPlaceholder": "請輸入AgentID",
+        "apiUrl": "API地址",
+        "apiUrlPlaceholder": "https://ai.maicedata.com/api/knowbase/rag",
+        "name": "代理名稱",
+        "namePlaceholder": "請輸入代理名稱",
+        "token": "Token",
+        "tokenPlaceholder": "請輸入Token",
+        "type": "代理類型",
+        "typePlaceholder": "選擇代理類型"
+      },
+      "save": "保存"
+    },
+    "disabled": "禁用",
+    "enabled": "啟用",
+    "noAgents": "暫無配置的Agent，點擊\"添加Agent\"開始配置",
+    "notTested": "未檢測",
+    "status": "狀態",
+    "testConnection": "測試連接",
+    "title": "Agent配置",
+    "types": {
+      "datlas": "Datlas"
+    }
   }
 }

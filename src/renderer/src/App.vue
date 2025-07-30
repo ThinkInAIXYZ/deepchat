@@ -18,6 +18,7 @@ import { useModelCheckStore } from '@/stores/modelCheck'
 import MessageDialog from './components/ui/MessageDialog.vue'
 
 const route = useRoute()
+const router = useRouter()
 const configPresenter = usePresenter('configPresenter')
 const artifactStore = useArtifactStore()
 const chatStore = useChatStore()
@@ -120,7 +121,6 @@ const handleErrorClosed = () => {
   }
 }
 
-const router = useRouter()
 const activeTab = ref('chat')
 
 const getInitComplete = async () => {
@@ -166,6 +166,9 @@ const handleGoSettings = () => {
     router.push({ name: 'settings' })
   }
 }
+
+// 处理 agent 选择
+
 
 getInitComplete()
 
@@ -232,6 +235,11 @@ onMounted(() => {
   watch(
     () => activeTab.value,
     (newVal) => {
+      // 避免不必要的路由导航循环
+      if (route.name === newVal) {
+        return
+      }
+      // 只有在切换到不同路由时才导航，不保留查询参数避免跨路由污染
       router.push({ name: newVal })
     }
   )
