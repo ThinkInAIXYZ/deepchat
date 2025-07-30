@@ -6,7 +6,7 @@
   "author": "ThinkInAIXYZ",
   "type": "module",
   "engines": {
-    "node": ">=20.12.2",
+    "node": ">=20.19.0",
     "pnpm": ">=10.11.0"
   },
   "packageManager": "pnpm@10.13.1+sha512.37ebf1a5c7a30d5fabe0c5df44ee8da4c965ca0c5af3dbab28c3a1681b70a256218d05c81c9c0dcf767ef6b8551eb5b960042b9ed4300c59242336377e01cfad",
@@ -29,7 +29,7 @@
     "dev:inspect": "electron-vite dev --watch --inspect=9229",
     "dev:linux": "electron-vite dev --watch --noSandbox",
     "build": "pnpm run typecheck && electron-vite build",
-    "postinstall": "node scripts/postinstall.js && electron-builder install-app-deps",
+    "postinstall": "electron-builder install-app-deps && simple-git-hooks",
     "build:unpack": "pnpm run build && electron-builder --dir",
     "build:win": "pnpm run build && electron-builder --win",
     "build:win:x64": "pnpm run build && electron-builder --win --x64",
@@ -104,7 +104,7 @@
     "@lingual/i18n-check": "^0.8.4",
     "@radix-icons/vue": "^1.0.0",
     "@tailwindcss/typography": "^0.5.16",
-    "@tailwindcss/vite": "^4.0.4",
+    "@tailwindcss/vite": "^4.1.11",
     "@tiptap/core": "^2.11.7",
     "@tiptap/extension-code-block": "^2.11.9",
     "@tiptap/extension-document": "^2.11.7",
@@ -120,7 +120,7 @@
     "@types/better-sqlite3": "^7.6.0",
     "@types/node": "^22.14.1",
     "@types/xlsx": "^0.0.35",
-    "@vitejs/plugin-vue": "^5.2.3",
+    "@vitejs/plugin-vue": "^6.0.1",
     "@vitest/ui": "^3.2.3",
     "@vue/test-utils": "^2.4.6",
     "@vueuse/core": "^12.7.0",
@@ -132,13 +132,16 @@
     "electron-builder": "26.0.12",
     "electron-vite": "^4.0.0",
     "jsdom": "^26.1.0",
+    "lint-staged": "^16.1.2",
     "lucide-vue-next": "^0.511.0",
     "mermaid": "^11.6.0",
     "minimatch": "^10.0.1",
     "monaco-editor": "^0.52.2",
+    "picocolors": "^1.1.1",
     "pinia": "^3.0.2",
     "prettier": "^3.5.3",
     "radix-vue": "^1.9.14",
+    "simple-git-hooks": "^2.13.0",
     "tailwind-merge": "^3.3.0",
     "tailwind-scrollbar-hide": "^2.0.0",
     "tailwindcss": "3.4.17",
@@ -147,7 +150,7 @@
     "typescript": "^5.8.3",
     "vite": "npm:rolldown-vite@latest",
     "vite-plugin-monaco-editor-esm": "^2.0.2",
-    "vite-plugin-vue-devtools": "^7.7.6",
+    "vite-plugin-vue-devtools": "^8.0.0",
     "vite-svg-loader": "^5.1.0",
     "vitest": "^3.2.3",
     "vue": "^3.5.14",
@@ -161,6 +164,18 @@
     "yaml": "^2.8.0",
     "zod-to-json-schema": "^3.24.5"
   },
+  "simple-git-hooks": {
+    "pre-commit": "pnpm lint-staged && pnpm typecheck",
+    "commit-msg": "node scripts/verify-commit.js"
+  },
+  "lint-staged": {
+    "*.js": [
+      "prettier --write"
+    ],
+    "*.ts": [
+      "prettier --parser=typescript --write"
+    ]
+  },
   "pnpm": {
     "overrides": {
       "vite": "npm:rolldown-vite@latest"
@@ -169,7 +184,8 @@
       "@tailwindcss/oxide",
       "electron",
       "electron-winstaller",
-      "lzo"
+      "lzo",
+      "simple-git-hooks"
     ],
     "ignoredBuiltDependencies": [
       "better-sqlite3-multiple-ciphers",

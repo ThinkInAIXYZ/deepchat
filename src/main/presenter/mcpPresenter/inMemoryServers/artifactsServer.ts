@@ -2,7 +2,7 @@ import { Server } from '@modelcontextprotocol/sdk/server/index.js'
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js'
 import { z } from 'zod'
 import { zodToJsonSchema } from 'zod-to-json-schema'
-import { Transport } from '@modelcontextprotocol/sdk/shared/transport'
+import { Transport } from '@modelcontextprotocol/sdk/shared/transport.js'
 
 // Artifacts 相关的常量定义
 const ARTIFACTS_INFO = `

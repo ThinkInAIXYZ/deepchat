@@ -60,6 +60,7 @@ export default defineConfig({
     },
     css: {
       postcss: {
+        // @ts-ignore
         plugins: [tailwind(), autoprefixer()]
       }
     },

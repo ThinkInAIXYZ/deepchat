@@ -1,7 +1,7 @@
 // https://github.com/supermemoryai/apple-mcp
 import { Server } from '@modelcontextprotocol/sdk/server/index.js'
 import { ListToolsRequestSchema, CallToolRequestSchema } from '@modelcontextprotocol/sdk/types.js'
-import { Transport } from '@modelcontextprotocol/sdk/shared/transport'
+import { Transport } from '@modelcontextprotocol/sdk/shared/transport.js'
 import { zodToJsonSchema } from 'zod-to-json-schema'
 import { z } from 'zod'
 import { runAppleScript } from 'run-applescript'
@@ -273,7 +273,7 @@ class NotesUtils {
             -- 如果文件夹不存在，创建它
             set targetFolder to make new folder with properties {name:"${folderName.replace(/"/g, '\\"')}"}
           end try
-          
+
           -- 在指定文件夹中创建笔记
           set newNote to make new note at targetFolder with properties {name:"${title.replace(/"/g, '\\"')}", body:"${body.replace(/"/g, '\\"')}"}
           return "success"
@@ -500,11 +500,11 @@ class RemindersUtils {
           on error
             set targetList to make new list with properties {name:"${listName.replace(/"/g, '\\"')}"}
           end try
-          
+
           set reminderProps to {name:"${name.replace(/"/g, '\\"')}"}
           ${notes ? `set reminderProps to reminderProps & {body:"${notes.replace(/"/g, '\\"')}"}` : ''}
           ${dueDate ? `set reminderProps to reminderProps & {due date:date "${dueDate}"}` : ''}
-          
+
           set newReminder to make new reminder at targetList with properties reminderProps
           return "success"
         end tell
