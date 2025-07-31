@@ -288,6 +288,10 @@ export interface IOAuthPresenter {
   startOAuthLogin(providerId: string, config: OAuthConfig): Promise<boolean>
   startGitHubCopilotLogin(providerId: string): Promise<boolean>
   startGitHubCopilotDeviceFlowLogin(providerId: string): Promise<boolean>
+  startAnthropicOAuthLogin(providerId: string): Promise<boolean>
+  hasAnthropicCredentials(): Promise<boolean>
+  getAnthropicAccessToken(): Promise<string | null>
+  clearAnthropicCredentials(): Promise<void>
 }
 
 export interface OAuthConfig {

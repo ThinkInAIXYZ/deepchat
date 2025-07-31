@@ -31,7 +31,28 @@ export class AnthropicProvider extends BaseLLMProvider {
   protected async init() {
     if (this.provider.enable) {
       try {
-        const apiKey = this.provider.apiKey || process.env.ANTHROPIC_API_KEY
+        let apiKey = this.provider.apiKey || process.env.ANTHROPIC_API_KEY
+
+        // Try to get OAuth token if no API key is provided
+        if (!apiKey) {
+          try {
+            const oauthToken = await presenter.oauthPresenter.getAnthropicAccessToken()
+            if (oauthToken) {
+              apiKey = oauthToken
+              console.log('[Anthropic Provider] Using OAuth token for authentication')
+            }
+          } catch (error) {
+            console.log(
+              '[Anthropic Provider] Failed to get OAuth token, will use API key authentication',
+              error
+            )
+          }
+        }
+
+        if (!apiKey) {
+          console.warn('[Anthropic Provider] No API key or OAuth token available')
+          return
+        }
 
         // Get proxy configuration
         const proxyUrl = proxyConfig.getProxyUrl()
@@ -43,12 +64,20 @@ export class AnthropicProvider extends BaseLLMProvider {
           fetchOptions.dispatcher = proxyAgent
         }
 
+        // Determine if using OAuth token
+        const isOAuthToken = apiKey.startsWith('sk-ant-oauth')
+        const headers = this.defaultHeaders
+
+        // Add OAuth-specific headers if using OAuth token
+        if (isOAuthToken) {
+          headers['anthropic-beta'] = 'oauth-2025-04-20'
+          // Note: Do not include x-api-key header when using OAuth
+        }
+
         this.anthropic = new Anthropic({
           apiKey: apiKey,
           baseURL: this.provider.baseUrl || 'https://api.anthropic.com',
-          defaultHeaders: {
-            ...this.defaultHeaders
-          },
+          defaultHeaders: headers,
           fetchOptions
         })
         await super.init()

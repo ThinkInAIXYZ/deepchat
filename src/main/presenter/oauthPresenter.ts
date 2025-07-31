@@ -4,6 +4,7 @@ import * as http from 'http'
 import { URL } from 'url'
 import { createGitHubCopilotOAuth } from './githubCopilotOAuth'
 import { createGitHubCopilotDeviceFlow } from './githubCopilotDeviceFlow'
+import { createAnthropicOAuth } from './anthropicOAuth'
 
 export interface OAuthConfig {
   authUrl: string
@@ -130,6 +131,87 @@ export class OAuthPresenter {
       console.error('Error message:', error instanceof Error ? error.message : error)
       console.error('Error stack:', error instanceof Error ? error.stack : 'No stack trace')
       return false
+    }
+  }
+
+  /**
+   * 开始Anthropic OAuth登录流程
+   */
+  async startAnthropicOAuthLogin(providerId: string): Promise<boolean> {
+    try {
+      console.log('Starting Anthropic OAuth login for provider:', providerId)
+
+      // 使用专门的Anthropic OAuth实现
+      console.log('Creating Anthropic OAuth instance...')
+      const anthropicOAuth = createAnthropicOAuth()
+
+      // 开始OAuth登录
+      console.log('Starting Anthropic OAuth login flow...')
+      const accessToken = await anthropicOAuth.completeOAuthFlow()
+      console.log('Received access token:', accessToken ? 'SUCCESS' : 'FAILED')
+
+      if (!accessToken) {
+        throw new Error('未能获取有效的访问令牌')
+      }
+
+      // 保存访问令牌到provider配置
+      console.log('Saving access token to provider configuration...')
+      const provider = presenter.configPresenter.getProviderById(providerId)
+      if (provider) {
+        provider.apiKey = accessToken
+        presenter.configPresenter.setProviderById(providerId, provider)
+        console.log('Access token saved successfully')
+      } else {
+        console.warn('Provider not found:', providerId)
+      }
+
+      console.log('Anthropic OAuth login completed successfully')
+      return true
+    } catch (error) {
+      console.error('Anthropic OAuth login failed:')
+      console.error('Error type:', error instanceof Error ? error.constructor.name : typeof error)
+      console.error('Error message:', error instanceof Error ? error.message : error)
+      console.error('Error stack:', error instanceof Error ? error.stack : 'No stack trace')
+      return false
+    }
+  }
+
+  /**
+   * 检查Anthropic OAuth凭据是否存在
+   */
+  async hasAnthropicCredentials(): Promise<boolean> {
+    try {
+      const anthropicOAuth = createAnthropicOAuth()
+      return await anthropicOAuth.hasCredentials()
+    } catch (error) {
+      console.error('Failed to check Anthropic credentials:', error)
+      return false
+    }
+  }
+
+  /**
+   * 获取有效的Anthropic访问令牌
+   */
+  async getAnthropicAccessToken(): Promise<string | null> {
+    try {
+      const anthropicOAuth = createAnthropicOAuth()
+      return await anthropicOAuth.getValidAccessToken()
+    } catch (error) {
+      console.error('Failed to get Anthropic access token:', error)
+      return null
+    }
+  }
+
+  /**
+   * 清除Anthropic OAuth凭据
+   */
+  async clearAnthropicCredentials(): Promise<void> {
+    try {
+      const anthropicOAuth = createAnthropicOAuth()
+      await anthropicOAuth.clearCredentials()
+    } catch (error) {
+      console.error('Failed to clear Anthropic credentials:', error)
+      throw error
     }
   }
 
