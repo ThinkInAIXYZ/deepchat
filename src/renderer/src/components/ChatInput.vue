@@ -261,8 +261,12 @@ const editor = new Editor({
     HardBreak.extend({
       addKeyboardShortcuts() {
         return {
-          'Shift-Enter': () => this.editor.commands.setHardBreak(),
-          'Alt-Enter': () => this.editor.commands.setHardBreak()
+          'Shift-Enter': () => {
+            return this.editor.chain().setHardBreak().scrollIntoView().run()
+          },
+          'Alt-Enter': () => {
+            return this.editor.chain().setHardBreak().scrollIntoView().run()
+          }
         }
       }
     }).configure({
