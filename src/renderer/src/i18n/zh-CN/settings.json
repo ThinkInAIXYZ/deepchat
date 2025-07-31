@@ -314,7 +314,8 @@
     "anthropicNotConnected": "Anthropic 未连接",
     "anthropicOAuthTip": "点击授权 DeepChat 访问您的 Anthropic 账户",
     "oauthLogin": "OAuth 登录",
-    "anthropicApiKeyTip": "请前往 Anthropic Console 获取您的 API Key"
+    "anthropicApiKeyTip": "请前往 Anthropic Console 获取您的 API Key",
+    "anthropicOAuthFlowTip": "系统将自动打开授权窗口，完成授权后窗口会自动关闭"
   },
   "knowledgeBase": {
     "title": "知识库设置",

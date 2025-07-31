@@ -130,6 +130,9 @@
           <div class="text-xs text-muted-foreground">
             {{ t('settings.provider.anthropicOAuthTip') }}
           </div>
+          <div class="text-xs text-muted-foreground mt-1 opacity-75">
+            {{ t('settings.provider.anthropicOAuthFlowTip') }}
+          </div>
         </div>
 
         <!-- 验证结果提示 -->
