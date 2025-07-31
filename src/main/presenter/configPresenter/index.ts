@@ -90,7 +90,7 @@ export class ConfigPresenter implements IConfigPresenter {
     this.store = new ElectronStore<IAppSettings>({
       name: 'app-settings',
       defaults: {
-        language: 'en-US',
+        language: 'system',
         providers: defaultProviders,
         closeToQuit: false,
         customShortKey: defaultShortcutKey,
