@@ -314,7 +314,17 @@
     "anthropicNotConnected": "인류가 연결되어 있지 않습니다",
     "anthropicOAuthTip": "인류 계정에 액세스하려면 DeepChat 인증을 클릭하십시오",
     "oauthLogin": "OAUTH 로그인",
-    "authMethod": "인증 방법"
+    "authMethod": "인증 방법",
+    "anthropicOAuthFlowTip": "시스템은 권한 부여 창을 자동으로 엽니 다. 다시 와서 승인 후 인증 코드를 입력하십시오.",
+    "anthropicBrowserOpened": "외부 브라우저가 열려 있습니다",
+    "anthropicCodeInstruction": "외부 브라우저에서 인증을 완료하고 얻은 인증 코드를 아래 입력 상자에 붙여 넣으십시오.",
+    "browserOpenedSuccess": "외부 브라우저가 열려 있습니다. 승인을 완료하십시오",
+    "codeRequired": "인증 코드를 입력하십시오",
+    "inputOAuthCode": "인증 코드를 입력하십시오",
+    "codeExchangeFailed": "승인 코드 교환에 실패했습니다",
+    "invalidCode": "잘못된 권한 부여 코드",
+    "oauthCodeHint": "외부 브라우저에서 승인을 완료 한 후 여기에 승인 코드를 붙여 넣으십시오.",
+    "oauthCodePlaceholder": "승인 코드를 입력하십시오 ..."
   },
   "knowledgeBase": {
     "title": "지식 베이스 설정",

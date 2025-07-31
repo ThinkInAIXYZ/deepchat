@@ -314,7 +314,17 @@
     "anthropicNotConnected": "人類は接続されていません",
     "anthropicOAuthTip": "[deepchatの承認]をクリックして、人類アカウントにアクセスします",
     "oauthLogin": "oauthログイン",
-    "authMethod": "認証方法"
+    "authMethod": "認証方法",
+    "anthropicOAuthFlowTip": "システムは自動的に承認ウィンドウを開きます。承認後、戻って承認コードを入力してください。",
+    "anthropicBrowserOpened": "外部ブラウザが開いています",
+    "anthropicCodeInstruction": "外部ブラウザで承認を完了し、取得した認証コードを下の入力ボックスに貼り付けてください",
+    "browserOpenedSuccess": "外部ブラウザが開いています。承認を完了してください",
+    "codeRequired": "承認コードを入力してください",
+    "inputOAuthCode": "承認コードを入力します",
+    "codeExchangeFailed": "認証コード交換は失敗しました",
+    "invalidCode": "無効な承認コード",
+    "oauthCodeHint": "外部ブラウザで承認を完了した後、ここに承認コードを貼り付けてください",
+    "oauthCodePlaceholder": "承認コードを入力してください..."
   },
   "knowledgeBase": {
     "title": "ナレッジベース設定",

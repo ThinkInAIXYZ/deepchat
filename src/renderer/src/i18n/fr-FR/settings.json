@@ -314,7 +314,17 @@
     "anthropicNotConnected": "Anthropique non connecté",
     "anthropicOAuthTip": "Cliquez sur Autoriser Deepchat pour accéder à votre compte anthropique",
     "oauthLogin": "Connexion OAuth",
-    "authMethod": "Méthode de certification"
+    "authMethod": "Méthode de certification",
+    "anthropicOAuthFlowTip": "Le système ouvrira automatiquement la fenêtre d'autorisation. Veuillez revenir et saisir le code d'autorisation après l'autorisation.",
+    "anthropicBrowserOpened": "Le navigateur externe est ouvert",
+    "anthropicCodeInstruction": "Veuillez compléter l'autorisation dans un navigateur externe et coller le code d'autorisation obtenu dans la zone d'entrée ci-dessous",
+    "browserOpenedSuccess": "Le navigateur externe est ouvert, veuillez compléter l'autorisation",
+    "codeRequired": "Veuillez saisir le code d'autorisation",
+    "inputOAuthCode": "Entrez le code d'autorisation",
+    "codeExchangeFailed": "Échange de code d'autorisation Échec",
+    "invalidCode": "Code d'autorisation non valide",
+    "oauthCodeHint": "Veuillez coller le code d'autorisation ici après avoir terminé l'autorisation dans un navigateur externe",
+    "oauthCodePlaceholder": "Veuillez saisir le code d'autorisation ..."
   },
   "knowledgeBase": {
     "title": "Paramètres de la base de connaissances",

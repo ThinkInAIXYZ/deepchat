@@ -315,7 +315,16 @@
     "anthropicOAuthTip": "点击授权 DeepChat 访问您的 Anthropic 账户",
     "oauthLogin": "OAuth 登录",
     "anthropicApiKeyTip": "请前往 Anthropic Console 获取您的 API Key",
-    "anthropicOAuthFlowTip": "系统将自动打开授权窗口，完成授权后窗口会自动关闭"
+    "anthropicOAuthFlowTip": "系统将自动打开授权窗口，授权后请回来输入授权码",
+    "browserOpenedSuccess": "外部浏览器已打开，请完成授权",
+    "anthropicBrowserOpened": "外部浏览器已打开",
+    "anthropicCodeInstruction": "请在外部浏览器中完成授权，然后将获得的授权码粘贴到下方输入框中",
+    "inputOAuthCode": "输入授权码",
+    "oauthCodeHint": "请在外部浏览器中完成授权后，将获得的授权码粘贴到此处",
+    "oauthCodePlaceholder": "请输入授权码...",
+    "codeRequired": "请输入授权码",
+    "invalidCode": "授权码无效",
+    "codeExchangeFailed": "授权码交换失败"
   },
   "knowledgeBase": {
     "title": "知识库设置",

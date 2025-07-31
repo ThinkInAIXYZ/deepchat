@@ -863,6 +863,18 @@ export const useSettingsStore = defineStore('settings', () => {
     await updateProviderConfig(providerId, updates)
   }
 
+  // 更新provider的认证配置
+  const updateProviderAuth = async (
+    providerId: string,
+    authMode?: 'apikey' | 'oauth',
+    oauthToken?: string
+  ): Promise<void> => {
+    const updates: Partial<LLM_PROVIDER> = {}
+    if (authMode !== undefined) updates.authMode = authMode
+    if (oauthToken !== undefined) updates.oauthToken = oauthToken
+    await updateProviderConfig(providerId, updates)
+  }
+
   // 更新provider的启用状态
   const updateProviderStatus = async (providerId: string, enable: boolean): Promise<void> => {
     // 更新时间戳
@@ -1487,6 +1499,7 @@ export const useSettingsStore = defineStore('settings', () => {
     updateCustomModel,
     updateProviderConfig,
     updateProviderApi,
+    updateProviderAuth,
     updateProviderStatus,
     refreshProviderModels,
     setSearchEngine,

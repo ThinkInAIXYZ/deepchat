@@ -288,7 +288,9 @@ export interface IOAuthPresenter {
   startOAuthLogin(providerId: string, config: OAuthConfig): Promise<boolean>
   startGitHubCopilotLogin(providerId: string): Promise<boolean>
   startGitHubCopilotDeviceFlowLogin(providerId: string): Promise<boolean>
-  startAnthropicOAuthLogin(providerId: string): Promise<boolean>
+  startAnthropicOAuthFlow(): Promise<string>
+  completeAnthropicOAuthWithCode(code: string): Promise<boolean>
+  cancelAnthropicOAuthFlow(): Promise<void>
   hasAnthropicCredentials(): Promise<boolean>
   getAnthropicAccessToken(): Promise<string | null>
   clearAnthropicCredentials(): Promise<void>
@@ -480,6 +482,8 @@ export type LLM_PROVIDER = {
   baseUrl: string
   enable: boolean
   custom?: boolean
+  authMode?: 'apikey' | 'oauth' // 认证模式
+  oauthToken?: string // OAuth token
   websites?: {
     official: string
     apiKey: string

@@ -4,7 +4,10 @@
       <!-- 认证方式选择 -->
       <div class="flex flex-col items-start p-2 gap-2">
         <Label class="flex-1 cursor-pointer">{{ t('settings.provider.authMethod') }}</Label>
-        <Select v-model="authMethod" @update:model-value="(value: string) => switchAuthMethod(value as 'apikey' | 'oauth')">
+        <Select
+          v-model="authMethod"
+          @update:model-value="(value: string) => switchAuthMethod(value as 'apikey' | 'oauth')"
+        >
           <SelectTrigger class="w-full">
             <SelectValue placeholder="选择认证方式" />
           </SelectTrigger>
@@ -106,32 +109,50 @@
 
         <!-- 如果没有OAuth Token -->
         <div v-else class="w-full space-y-2">
-          <div
-            class="flex items-center gap-2 p-2 bg-yellow-50 dark:bg-yellow-950 rounded-lg border border-yellow-200 dark:border-yellow-800"
-          >
-            <Icon icon="lucide:info" class="w-4 h-4 text-yellow-600 dark:text-yellow-400" />
-            <span class="text-sm text-yellow-700 dark:text-yellow-300">
-              {{ t('settings.provider.anthropicNotConnected') }}
-            </span>
+          <!-- 等待输入code状态 -->
+          <div v-if="waitingForCode" class="space-y-3">
+            <div
+              class="flex items-center gap-2 p-2 bg-blue-50 dark:bg-blue-950 rounded-lg border border-blue-200 dark:border-blue-800"
+            >
+              <Icon icon="lucide:external-link" class="w-4 h-4 text-blue-600 dark:text-blue-400" />
+              <span class="text-sm text-blue-700 dark:text-blue-300">
+                {{ t('settings.provider.anthropicBrowserOpened') }}
+              </span>
+            </div>
+            <div class="text-xs text-muted-foreground">
+              {{ t('settings.provider.anthropicCodeInstruction') }}
+            </div>
           </div>
-          <Button
-            variant="default"
-            size="sm"
-            class="w-full"
-            :disabled="isLoggingIn"
-            @click="startOAuthLogin"
-          >
-            <Icon
-              :icon="isLoggingIn ? 'lucide:loader-2' : 'lucide:lock'"
-              :class="['w-4 h-4 mr-2', { 'animate-spin': isLoggingIn }]"
-            />
-            {{ isLoggingIn ? t('settings.provider.loggingIn') : t('settings.provider.oauthLogin') }}
-          </Button>
-          <div class="text-xs text-muted-foreground">
-            {{ t('settings.provider.anthropicOAuthTip') }}
-          </div>
-          <div class="text-xs text-muted-foreground mt-1 opacity-75">
-            {{ t('settings.provider.anthropicOAuthFlowTip') }}
+
+          <!-- 未开始OAuth状态 -->
+          <div v-else>
+            <!-- 提示和按钮在同一行 -->
+            <div
+              class="flex items-center gap-3 p-2 bg-yellow-50 dark:bg-yellow-950 rounded-lg border border-yellow-200 dark:border-yellow-800"
+            >
+              <div class="flex items-center gap-2 flex-1">
+                <Icon icon="lucide:info" class="w-4 h-4 text-yellow-600 dark:text-yellow-400" />
+                <span class="text-sm text-yellow-700 dark:text-yellow-300">
+                  {{ t('settings.provider.anthropicNotConnected') }}
+                </span>
+              </div>
+              <Button variant="default" size="sm" :disabled="isLoggingIn" @click="startOAuthLogin">
+                <Icon
+                  :icon="isLoggingIn ? 'lucide:loader-2' : 'lucide:lock'"
+                  :class="['w-4 h-4 mr-2', { 'animate-spin': isLoggingIn }]"
+                />
+                {{
+                  isLoggingIn ? t('settings.provider.loggingIn') : t('settings.provider.oauthLogin')
+                }}
+              </Button>
+            </div>
+            <!-- 提示文字 -->
+            <div class="text-xs text-muted-foreground mt-2">
+              {{ t('settings.provider.anthropicOAuthTip') }}
+            </div>
+            <div class="text-xs text-muted-foreground mt-1 opacity-75">
+              {{ t('settings.provider.anthropicOAuthFlowTip') }}
+            </div>
           </div>
         </div>
 
@@ -189,6 +210,46 @@
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <!-- 代码输入对话框 -->
+      <Dialog v-model:open="showCodeDialog">
+        <DialogContent
+          class="sm:max-w-md"
+          @interact-outside="(e) => e.preventDefault()"
+          @escape-key-down="(e) => e.preventDefault()"
+        >
+          <DialogHeader>
+            <DialogTitle>{{ t('settings.provider.inputOAuthCode') }}</DialogTitle>
+          </DialogHeader>
+          <div class="space-y-4">
+            <div class="text-sm text-muted-foreground">
+              {{ t('settings.provider.oauthCodeHint') }}
+            </div>
+            <Input
+              v-model="oauthCode"
+              :placeholder="t('settings.provider.oauthCodePlaceholder')"
+              class="font-mono"
+              @keyup.enter="submitOAuthCode"
+            />
+            <div v-if="codeValidationError" class="text-sm text-destructive">
+              {{ codeValidationError }}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" @click="closeCodeDialog">
+              {{ t('dialog.cancel') }}
+            </Button>
+            <Button :disabled="!oauthCode.trim() || isSubmittingCode" @click="submitOAuthCode">
+              <Icon
+                v-if="isSubmittingCode"
+                icon="lucide:loader-2"
+                class="w-4 h-4 mr-2 animate-spin"
+              />
+              {{ t('dialog.confirm') }}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   </section>
 </template>
@@ -242,33 +303,57 @@ const showCheckModelDialog = ref(false)
 const checkResult = ref<boolean>(false)
 const isLoggingIn = ref(false)
 const validationResult = ref<{ success: boolean; message: string } | null>(null)
+const waitingForCode = ref(false)
+const showCodeDialog = ref(false)
+const oauthCode = ref('')
+const codeValidationError = ref('')
+const isSubmittingCode = ref(false)
 
 // Computed
 const hasOAuthToken = ref(false)
 
 // 初始化认证方法检测
 const detectAuthMethod = async () => {
-  // 检查是否有OAuth凭据
+  // 检查provider配置中的认证模式
   try {
-    const hasOAuth = await oauthPresenter.hasAnthropicCredentials()
-    const hasApiKey = !!(props.provider.apiKey && props.provider.apiKey.trim())
-
-    if (hasOAuth) {
-      authMethod.value = 'oauth'
-      hasOAuthToken.value = true
-    } else if (hasApiKey) {
-      authMethod.value = 'apikey'
+    // 优先使用provider中保存的认证模式
+    if (props.provider.authMode) {
+      authMethod.value = props.provider.authMode
+      if (authMethod.value === 'oauth') {
+        hasOAuthToken.value = await oauthPresenter.hasAnthropicCredentials()
+      }
     } else {
-      authMethod.value = 'apikey' // 默认为API Key方式
+      // 回退到基于凭据检测的旧逻辑
+      const hasOAuth = await oauthPresenter.hasAnthropicCredentials()
+      const hasApiKey = !!(props.provider.apiKey && props.provider.apiKey.trim())
+
+      if (hasOAuth) {
+        authMethod.value = 'oauth'
+        hasOAuthToken.value = true
+        // 保存检测到的认证模式
+        await settingsStore.updateProviderAuth(props.provider.id, 'oauth', undefined)
+      } else if (hasApiKey) {
+        authMethod.value = 'apikey'
+        await settingsStore.updateProviderAuth(props.provider.id, 'apikey', undefined)
+      } else {
+        authMethod.value = 'apikey' // 默认为API Key方式
+        await settingsStore.updateProviderAuth(props.provider.id, 'apikey', undefined)
+      }
     }
+
+    waitingForCode.value = false // 初始化时不应该处于等待状态
   } catch (error) {
     console.error('Failed to detect auth method:', error)
     authMethod.value = 'apikey'
+    waitingForCode.value = false
   }
 }
 
 // 切换认证方式
 const switchAuthMethod = async (method: 'apikey' | 'oauth') => {
+  // 保存选择的认证模式
+  await settingsStore.updateProviderAuth(props.provider.id, method, undefined)
+
   if (method === 'oauth') {
     // 检查OAuth凭据状态
     try {
@@ -277,6 +362,11 @@ const switchAuthMethod = async (method: 'apikey' | 'oauth') => {
       console.error('Failed to check OAuth credentials:', error)
       hasOAuthToken.value = false
     }
+  } else {
+    // 切换到API Key模式时重置OAuth相关状态
+    hasOAuthToken.value = false
+    waitingForCode.value = false
+    showCodeDialog.value = false
   }
 }
 
@@ -286,21 +376,19 @@ const startOAuthLogin = async () => {
   validationResult.value = null
 
   try {
-    const success = await oauthPresenter.startAnthropicOAuthLogin(props.provider.id)
+    // Start OAuth flow (opens external browser)
+    await oauthPresenter.startAnthropicOAuthFlow()
 
-    if (success) {
-      hasOAuthToken.value = true
-      emit('auth-success')
-      validationResult.value = {
-        success: true,
-        message: t('settings.provider.loginSuccess')
-      }
-    } else {
-      emit('auth-error', t('settings.provider.loginFailed'))
-      validationResult.value = {
-        success: false,
-        message: t('settings.provider.loginFailed')
-      }
+    // Switch to waiting for code state and directly show code input dialog
+    isLoggingIn.value = false
+    waitingForCode.value = true
+
+    // Directly show the code input dialog
+    showCodeInputDialog()
+
+    validationResult.value = {
+      success: true,
+      message: t('settings.provider.browserOpenedSuccess')
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : t('settings.provider.loginFailed')
@@ -309,18 +397,88 @@ const startOAuthLogin = async () => {
       success: false,
       message
     }
-  } finally {
     isLoggingIn.value = false
   }
+}
+
+// 显示代码输入对话框
+const showCodeInputDialog = () => {
+  oauthCode.value = ''
+  codeValidationError.value = ''
+  showCodeDialog.value = true
+}
+
+// 关闭代码输入对话框
+const closeCodeDialog = () => {
+  showCodeDialog.value = false
+  oauthCode.value = ''
+  codeValidationError.value = ''
+  // 关闭dialog时也要取消OAuth流程
+  cancelOAuthFlow()
+}
+
+// 提交OAuth代码
+const submitOAuthCode = async () => {
+  if (!oauthCode.value.trim()) {
+    codeValidationError.value = t('settings.provider.codeRequired')
+    return
+  }
+
+  isSubmittingCode.value = true
+  codeValidationError.value = ''
+
+  try {
+    const success = await oauthPresenter.completeAnthropicOAuthWithCode(oauthCode.value.trim())
+
+    if (success) {
+      // 更新认证模式为OAuth
+      await settingsStore.updateProviderAuth(props.provider.id, 'oauth', undefined)
+      hasOAuthToken.value = true
+      waitingForCode.value = false
+      showCodeDialog.value = false
+      emit('auth-success')
+      validationResult.value = {
+        success: true,
+        message: t('settings.provider.loginSuccess')
+      }
+    } else {
+      codeValidationError.value = t('settings.provider.invalidCode')
+    }
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : t('settings.provider.codeExchangeFailed')
+    codeValidationError.value = message
+  } finally {
+    isSubmittingCode.value = false
+  }
+}
+
+// 取消OAuth流程
+const cancelOAuthFlow = async () => {
+  try {
+    await oauthPresenter.cancelAnthropicOAuthFlow()
+  } catch (error) {
+    console.error('Failed to cancel OAuth flow:', error)
+  }
+
+  waitingForCode.value = false
+  showCodeDialog.value = false
+  oauthCode.value = ''
+  codeValidationError.value = ''
+  validationResult.value = null
 }
 
 // 断开OAuth连接
 const disconnectOAuth = async () => {
   try {
     await oauthPresenter.clearAnthropicCredentials()
-    // 清除provider中的apiKey
+    // 清除provider中的OAuth相关状态，切换回API Key模式
+    await settingsStore.updateProviderAuth(props.provider.id, 'apikey', '')
     await settingsStore.updateProviderApi(props.provider.id, '', undefined)
     hasOAuthToken.value = false
+    waitingForCode.value = false
+    showCodeDialog.value = false
+    authMethod.value = 'apikey'
     validationResult.value = {
       success: true,
       message: t('settings.provider.disconnected')

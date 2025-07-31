@@ -31,21 +31,49 @@ export class AnthropicProvider extends BaseLLMProvider {
   protected async init() {
     if (this.provider.enable) {
       try {
-        let apiKey = this.provider.apiKey || process.env.ANTHROPIC_API_KEY
+        let apiKey: string | null = null
 
-        // Try to get OAuth token if no API key is provided
-        if (!apiKey) {
+        // Determine authentication method based on provider configuration
+        if (this.provider.authMode === 'oauth') {
+          // OAuth mode: prioritize OAuth token
           try {
             const oauthToken = await presenter.oauthPresenter.getAnthropicAccessToken()
             if (oauthToken) {
               apiKey = oauthToken
               console.log('[Anthropic Provider] Using OAuth token for authentication')
+            } else {
+              console.warn('[Anthropic Provider] OAuth mode selected but no OAuth token available')
             }
           } catch (error) {
-            console.log(
-              '[Anthropic Provider] Failed to get OAuth token, will use API key authentication',
-              error
-            )
+            console.log('[Anthropic Provider] Failed to get OAuth token:', error)
+          }
+        } else {
+          // API Key mode (default): prioritize API key
+          apiKey = this.provider.apiKey || process.env.ANTHROPIC_API_KEY || null
+          if (apiKey) {
+            console.log('[Anthropic Provider] Using API key for authentication')
+          }
+        }
+
+        // Fallback mechanism
+        if (!apiKey) {
+          if (this.provider.authMode === 'oauth') {
+            // Fallback to API key if OAuth fails
+            apiKey = this.provider.apiKey || process.env.ANTHROPIC_API_KEY || null
+            if (apiKey) {
+              console.log('[Anthropic Provider] OAuth failed, falling back to API key')
+            }
+          } else {
+            // Fallback to OAuth if API key not available
+            try {
+              const oauthToken = await presenter.oauthPresenter.getAnthropicAccessToken()
+              if (oauthToken) {
+                apiKey = oauthToken
+                console.log('[Anthropic Provider] API key not available, using OAuth token')
+              }
+            } catch (error) {
+              console.log('[Anthropic Provider] Failed to get OAuth token as fallback:', error)
+            }
           }
         }
 

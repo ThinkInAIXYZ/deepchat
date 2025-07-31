@@ -2,7 +2,7 @@ import { promises as fs } from 'fs'
 import { homedir } from 'os'
 import { join, dirname } from 'path'
 import * as crypto from 'crypto'
-import { BrowserWindow } from 'electron'
+import { shell } from 'electron'
 
 // Constants
 const CLIENT_ID = '9d1c250a-e61b-44d9-88ed-5944d1962f5e'
@@ -21,9 +21,7 @@ interface PKCEPair {
 }
 
 export class AnthropicOAuth {
-  private authWindow: BrowserWindow | null = null
-  private callbackResolve: ((value: string) => void) | null = null
-  private callbackReject: ((reason?: any) => void) | null = null
+  private currentPKCE: PKCEPair | null = null
 
   // 1. Generate PKCE pair
   private generatePKCE(): PKCEPair {
@@ -51,7 +49,9 @@ export class AnthropicOAuth {
 
   // 3. Exchange authorization code for tokens
   private async exchangeCodeForTokens(code: string, verifier: string): Promise<Credentials> {
-    const [authCode, state] = code.split('#')
+    // Handle both legacy format (code#state) and new format (pure code)
+    const authCode = code.includes('#') ? code.split('#')[0] : code
+    const state = code.includes('#') ? code.split('#')[1] : verifier
 
     const response = await fetch('https://console.anthropic.com/v1/oauth/token', {
       method: 'POST',
@@ -142,232 +142,58 @@ export class AnthropicOAuth {
     }
   }
 
-  // 8. Complete OAuth flow with BrowserWindow
-  public async completeOAuthFlow(): Promise<string> {
+  // 8. Start OAuth flow with external browser
+  public async startOAuthFlow(): Promise<string> {
     // Try to get existing valid token
     const existingToken = await this.getValidAccessToken()
     if (existingToken) return existingToken
 
-    // Otherwise, go through auth flow
-    const pkce = this.generatePKCE()
+    // Generate PKCE pair and store it for later use
+    this.currentPKCE = this.generatePKCE()
+
+    // Build authorization URL
+    const authUrl = this.getAuthorizationURL(this.currentPKCE)
+    console.log('Opening OAuth URL in external browser:', authUrl)
+
+    // Open URL in external browser
+    await shell.openExternal(authUrl)
+
+    // Return the URL for UI to show (optional)
+    return authUrl
+  }
+
+  // 9. Complete OAuth flow with manual code input
+  public async completeOAuthWithCode(code: string): Promise<string> {
+    if (!this.currentPKCE) {
+      throw new Error('OAuth flow not started. Please call startOAuthFlow first.')
+    }
 
     try {
-      // Use BrowserWindow for better UX
-      const authCode = await this.startOAuthFlowWithWindow(pkce)
-      const credentials = await this.exchangeCodeForTokens(authCode, pkce.verifier)
+      // Exchange code for tokens using stored PKCE verifier
+      const credentials = await this.exchangeCodeForTokens(code, this.currentPKCE.verifier)
       await this.saveCredentials(credentials)
+
+      // Clear stored PKCE after successful exchange
+      this.currentPKCE = null
+
       return credentials.access_token
     } catch (error) {
-      console.error('OAuth flow failed:', error)
+      console.error('OAuth code exchange failed:', error)
+      // Clear PKCE on error
+      this.currentPKCE = null
       throw error
     }
   }
 
-  // 8a. Start OAuth flow with BrowserWindow
-  private async startOAuthFlowWithWindow(pkce: PKCEPair): Promise<string> {
-    return new Promise((resolve, reject) => {
-      // Store callback functions
-      this.callbackResolve = resolve
-      this.callbackReject = reject
-
-      // Build authorization URL
-      const authUrl = this.getAuthorizationURL(pkce)
-      console.log('Starting OAuth with URL:', authUrl)
-
-      // Create authorization window
-      this.authWindow = new BrowserWindow({
-        width: 600,
-        height: 800,
-        show: false,
-        webPreferences: {
-          nodeIntegration: false,
-          contextIsolation: true,
-          webSecurity: true
-        },
-        autoHideMenuBar: true,
-        title: 'Anthropic OAuth Authorization'
-      })
-
-      // Monitor URL changes to catch the callback
-      this.authWindow.webContents.on('will-redirect', (_event, url) => {
-        console.log('OAuth redirecting to:', url)
-        this.handleCallback(url)
-      })
-
-      this.authWindow.webContents.on('did-navigate', (_event, url) => {
-        console.log('OAuth navigated to:', url)
-        this.handleCallback(url)
-      })
-
-      // Handle new window requests (in case of popups)
-      this.authWindow.webContents.setWindowOpenHandler(({ url }) => {
-        console.log('OAuth new window requested for:', url)
-        this.handleCallback(url)
-        return { action: 'deny' }
-      })
-
-      // Handle window close
-      this.authWindow.on('closed', () => {
-        this.authWindow = null
-        if (this.callbackReject) {
-          this.callbackReject(new Error('User cancelled OAuth authorization'))
-          this.callbackReject = null
-          this.callbackResolve = null
-        }
-      })
-
-      // Handle load errors
-      this.authWindow.webContents.on('did-fail-load', (_event, errorCode, errorDescription) => {
-        console.error('OAuth page load failed:', errorCode, errorDescription)
-        this.closeAuthWindow()
-        if (this.callbackReject) {
-          this.callbackReject(new Error(`Failed to load authorization page: ${errorDescription}`))
-          this.callbackReject = null
-          this.callbackResolve = null
-        }
-      })
-
-      // Load authorization page
-      this.authWindow.loadURL(authUrl)
-      this.authWindow.show()
-
-      // Set timeout (5 minutes)
-      setTimeout(() => {
-        if (this.authWindow) {
-          this.closeAuthWindow()
-          if (this.callbackReject) {
-            this.callbackReject(new Error('OAuth flow timeout'))
-            this.callbackReject = null
-            this.callbackResolve = null
-          }
-        }
-      }, 300000)
-    })
-  }
-
-  // 8b. Handle OAuth callback URL
-  private handleCallback(url: string): void {
-    try {
-      console.log('Processing callback URL:', url)
-
-      // Check if this is the callback URL
-      if (url.includes('console.anthropic.com/oauth/code/callback')) {
-        // Extract code from URL parameters
-        const urlObj = new URL(url)
-        const code = urlObj.searchParams.get('code')
-        const state = urlObj.searchParams.get('state')
-        const error = urlObj.searchParams.get('error')
-
-        if (error) {
-          console.error('OAuth error:', error)
-          this.closeAuthWindow()
-          if (this.callbackReject) {
-            this.callbackReject(new Error(`OAuth error: ${error}`))
-            this.callbackReject = null
-            this.callbackResolve = null
-          }
-          return
-        }
-
-        if (code && state) {
-          console.log('OAuth code received:', code.substring(0, 10) + '...')
-          this.closeAuthWindow()
-
-          // Combine code and state as expected by exchangeCodeForTokens
-          const authCode = `${code}#${state}`
-
-          if (this.callbackResolve) {
-            this.callbackResolve(authCode)
-            this.callbackResolve = null
-            this.callbackReject = null
-          }
-          return
-        }
-      }
-
-      // Alternative: Check if we're on a page that might contain the code
-      // This handles cases where the callback page shows the code in the content
-      if (url.includes('console.anthropic.com') && this.authWindow) {
-        // Inject script to extract code from page content
-        this.authWindow.webContents
-          .executeJavaScript(
-            `
-          (() => {
-            try {
-              // Look for code in various possible locations
-              const codeElement = document.querySelector('[data-code], .code, #code, .authorization-code');
-              if (codeElement) {
-                return { code: codeElement.textContent || codeElement.value, source: 'element' };
-              }
-
-              // Look for code in text content
-              const bodyText = document.body.textContent || '';
-              const codeMatch = bodyText.match(/authorization.code[:\s]+([a-zA-Z0-9_-]+)/i) ||
-                              bodyText.match(/code[:\s]+([a-zA-Z0-9_-]{20,})/i);
-              if (codeMatch) {
-                return { code: codeMatch[1], source: 'text' };
-              }
-
-              // Look in URL fragments or hidden inputs
-              const hiddenInputs = document.querySelectorAll('input[type="hidden"]');
-              for (const input of hiddenInputs) {
-                if (input.name.toLowerCase().includes('code') && input.value) {
-                  return { code: input.value, source: 'hidden_input' };
-                }
-              }
-
-              return null;
-            } catch (e) {
-              return { error: e.message };
-            }
-          })()
-        `
-          )
-          .then((result: any) => {
-            if (result && result.code) {
-              console.log('Extracted code from page content via', result.source)
-              this.closeAuthWindow()
-
-              if (this.callbackResolve) {
-                // For extracted codes, we might not have the state, so we'll use the verifier as state
-                const authCode = `${result.code}#${result.code}`
-                this.callbackResolve(authCode)
-                this.callbackResolve = null
-                this.callbackReject = null
-              }
-            }
-          })
-          .catch((error: any) => {
-            console.error('Failed to extract code from page:', error)
-          })
-      }
-    } catch (error) {
-      console.error('Error handling callback:', error)
+  // 10. Cancel current OAuth flow
+  public cancelOAuthFlow(): void {
+    if (this.currentPKCE) {
+      console.log('Cancelling OAuth flow')
+      this.currentPKCE = null
     }
   }
 
-  // 8c. Close auth window
-  private closeAuthWindow(): void {
-    if (this.authWindow) {
-      this.authWindow.close()
-      this.authWindow = null
-    }
-  }
-
-  // 9. Manual credential input (for cases where OAuth isn't feasible)
-  public async setCredentialsFromCode(code: string, verifier: string): Promise<string> {
-    try {
-      const creds = await this.exchangeCodeForTokens(code, verifier)
-      await this.saveCredentials(creds)
-      console.log('Credentials saved!')
-      return creds.access_token
-    } catch (error) {
-      console.error('Failed to exchange code for tokens:', error)
-      throw error
-    }
-  }
-
-  // 10. Clear stored credentials
+  // 11. Clear stored credentials
   public async clearCredentials(): Promise<void> {
     try {
       await fs.unlink(CREDS_PATH)
@@ -380,7 +206,7 @@ export class AnthropicOAuth {
     }
   }
 
-  // 11. Check if credentials exist
+  // 12. Check if credentials exist
   public async hasCredentials(): Promise<boolean> {
     const creds = await this.loadCredentials()
     return creds !== null
