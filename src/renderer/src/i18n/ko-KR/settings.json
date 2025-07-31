@@ -308,7 +308,13 @@
     "toast": {
       "modelRunning": "모델이 실행 중입니다",
       "modelRunningDesc": "먼저 모델 {model}을 중지 한 다음 삭제하십시오."
-    }
+    },
+    "anthropicApiKeyTip": "API 키를 얻으려면 Anthropic Console으로 이동하십시오.",
+    "anthropicConnected": "인류 연결",
+    "anthropicNotConnected": "인류가 연결되어 있지 않습니다",
+    "anthropicOAuthTip": "인류 계정에 액세스하려면 DeepChat 인증을 클릭하십시오",
+    "oauthLogin": "OAUTH 로그인",
+    "authMethod": "인증 방법"
   },
   "knowledgeBase": {
     "title": "지식 베이스 설정",

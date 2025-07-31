@@ -308,7 +308,13 @@
     "toast": {
       "modelRunning": "The model is running",
       "modelRunningDesc": "Please stop the model {model} first and then delete it."
-    }
+    },
+    "anthropicApiKeyTip": "Please go to Anthropic Console to get your API Key",
+    "anthropicConnected": "Anthropic connected",
+    "anthropicNotConnected": "Anthropic Not connected",
+    "anthropicOAuthTip": "Click Authorize DeepChat to access your Anthropic account",
+    "oauthLogin": "OAuth Login",
+    "authMethod": "Certification method"
   },
   "knowledgeBase": {
     "title": "Knowledge Base Settings",

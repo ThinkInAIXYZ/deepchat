@@ -308,7 +308,13 @@
     "toast": {
       "modelRunning": "模型正在運行",
       "modelRunningDesc": "請先停止模型 {model}，然後再刪除。"
-    }
+    },
+    "anthropicApiKeyTip": "請前往 Anthropic Console 獲取您的 API Key",
+    "anthropicConnected": "Anthropic 已連接",
+    "anthropicNotConnected": "Anthropic 未連接",
+    "anthropicOAuthTip": "點擊授權 DeepChat 訪問您的 Anthropic 賬戶",
+    "oauthLogin": "OAuth 登錄",
+    "authMethod": "認證方式"
   },
   "knowledgeBase": {
     "title": "知識庫設置",

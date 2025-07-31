@@ -308,7 +308,13 @@
     "toast": {
       "modelRunning": "مدل در حال اجرا است",
       "modelRunningDesc": "لطفاً ابتدا مدل {مدل را متوقف کرده و سپس آن را حذف کنید."
-    }
+    },
+    "anthropicApiKeyTip": "لطفاً برای دریافت کلید API خود به کنسول انسان شناسی بروید",
+    "anthropicConnected": "انسان شناسی متصل",
+    "anthropicNotConnected": "انسان شناسی متصل نیست",
+    "anthropicOAuthTip": "برای دسترسی به حساب انسان شناسی خود ، روی مجوز DeepChat کلیک کنید",
+    "oauthLogin": "ورود به سیستم",
+    "authMethod": "روش صدور گواهینامه"
   },
   "knowledgeBase": {
     "title": "تنظیمات پایگاه دانش",

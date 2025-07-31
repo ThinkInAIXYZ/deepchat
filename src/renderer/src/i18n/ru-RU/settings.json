@@ -308,7 +308,13 @@
     "toast": {
       "modelRunning": "Модель работает",
       "modelRunningDesc": "Пожалуйста, остановите модель {model} сначала, а затем удалите ее."
-    }
+    },
+    "anthropicApiKeyTip": "Пожалуйста, перейдите на антропную консоль, чтобы получить ключ API",
+    "anthropicConnected": "Антропическая связь",
+    "anthropicNotConnected": "Антропический не связан",
+    "anthropicOAuthTip": "Нажмите «Авторизировать» DeepChat для доступа к вашей антропной учетной записи",
+    "oauthLogin": "Оаут логин",
+    "authMethod": "Метод сертификации"
   },
   "knowledgeBase": {
     "title": "Настройки базы знаний",

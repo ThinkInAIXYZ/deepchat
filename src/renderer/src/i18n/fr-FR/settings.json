@@ -308,7 +308,13 @@
     "toast": {
       "modelRunning": "Le modèle est en cours d'exécution",
       "modelRunningDesc": "Veuillez d'abord arrêter le modèle {model}, puis le supprimer."
-    }
+    },
+    "anthropicApiKeyTip": "Veuillez aller à la console anthropique pour obtenir votre clé API",
+    "anthropicConnected": "Connecté anthropique",
+    "anthropicNotConnected": "Anthropique non connecté",
+    "anthropicOAuthTip": "Cliquez sur Autoriser Deepchat pour accéder à votre compte anthropique",
+    "oauthLogin": "Connexion OAuth",
+    "authMethod": "Méthode de certification"
   },
   "knowledgeBase": {
     "title": "Paramètres de la base de connaissances",

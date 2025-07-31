@@ -308,7 +308,13 @@
     "keyStatus": {
       "usage": "已使用",
       "remaining": "剩余额度"
-    }
+    },
+    "authMethod": "认证方式",
+    "anthropicConnected": "Anthropic 已连接",
+    "anthropicNotConnected": "Anthropic 未连接",
+    "anthropicOAuthTip": "点击授权 DeepChat 访问您的 Anthropic 账户",
+    "oauthLogin": "OAuth 登录",
+    "anthropicApiKeyTip": "请前往 Anthropic Console 获取您的 API Key"
   },
   "knowledgeBase": {
     "title": "知识库设置",

@@ -4,26 +4,25 @@
       <!-- 认证方式选择 -->
       <div class="flex flex-col items-start p-2 gap-2">
         <Label class="flex-1 cursor-pointer">{{ t('settings.provider.authMethod') }}</Label>
-        <div class="flex flex-row gap-2 w-full">
-          <Button
-            variant="outline"
-            size="sm"
-            :class="['flex-1', authMethod === 'apikey' && 'bg-accent']"
-            @click="switchAuthMethod('apikey')"
-          >
-            <Icon icon="lucide:key" class="w-4 h-4 mr-2" />
-            API Key
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            :class="['flex-1', authMethod === 'oauth' && 'bg-accent']"
-            @click="switchAuthMethod('oauth')"
-          >
-            <Icon icon="lucide:shield-check" class="w-4 h-4 mr-2" />
-            OAuth
-          </Button>
-        </div>
+        <Select v-model="authMethod" @update:model-value="(value: string) => switchAuthMethod(value as 'apikey' | 'oauth')">
+          <SelectTrigger class="w-full">
+            <SelectValue placeholder="选择认证方式" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="apikey">
+              <div class="flex items-center gap-2">
+                <Icon icon="lucide:key" class="w-4 h-4" />
+                <span>API Key</span>
+              </div>
+            </SelectItem>
+            <SelectItem value="oauth">
+              <div class="flex items-center gap-2">
+                <Icon icon="lucide:shield-check" class="w-4 h-4" />
+                <span>OAuth</span>
+              </div>
+            </SelectItem>
+          </SelectContent>
+        </Select>
       </div>
 
       <!-- API Key 认证方式 -->
@@ -205,6 +204,13 @@ import {
   DialogHeader,
   DialogTitle
 } from '@/components/ui/dialog'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from '@/components/ui/select'
 import { useSettingsStore } from '@/stores/settings'
 import { useModelCheckStore } from '@/stores/modelCheck'
 import { usePresenter } from '@/composables/usePresenter'
@@ -243,7 +249,7 @@ const detectAuthMethod = async () => {
   try {
     const hasOAuth = await oauthPresenter.hasAnthropicCredentials()
     const hasApiKey = !!(props.provider.apiKey && props.provider.apiKey.trim())
-    
+
     if (hasOAuth) {
       authMethod.value = 'oauth'
       hasOAuthToken.value = true
@@ -260,8 +266,6 @@ const detectAuthMethod = async () => {
 
 // 切换认证方式
 const switchAuthMethod = async (method: 'apikey' | 'oauth') => {
-  authMethod.value = method
-  
   if (method === 'oauth') {
     // 检查OAuth凭据状态
     try {

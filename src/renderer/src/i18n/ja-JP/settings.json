@@ -308,7 +308,13 @@
     "toast": {
       "modelRunning": "モデルが実行されています",
       "modelRunningDesc": "最初にモデル{model}を停止してから削除してください。"
-    }
+    },
+    "anthropicApiKeyTip": "APIキーを取得するには、人類コンソールにアクセスしてください",
+    "anthropicConnected": "人類接続",
+    "anthropicNotConnected": "人類は接続されていません",
+    "anthropicOAuthTip": "[deepchatの承認]をクリックして、人類アカウントにアクセスします",
+    "oauthLogin": "oauthログイン",
+    "authMethod": "認証方法"
   },
   "knowledgeBase": {
     "title": "ナレッジベース設定",
