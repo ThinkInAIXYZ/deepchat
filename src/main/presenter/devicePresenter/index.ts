@@ -308,25 +308,48 @@ export class DevicePresenter implements IDevicePresenter {
       }
 
       switch (resetType) {
-        case 'chat':
+        case 'chat': {
           // 只删除聊天数据
           const dbPath = path.join(userDataPath, 'app_db')
+          console.log('Resetting chat data:', dbPath)
           removeDirectory(dbPath)
           break
+        }
 
-        case 'config':
+        case 'config': {
           // 删除配置文件
-          removeFile(path.join(userDataPath, 'app-settings.json'))
-          removeFile(path.join(userDataPath, 'mcp-settings.json'))
-          removeFile(path.join(userDataPath, 'model-config.json'))
-          removeFile(path.join(userDataPath, 'custom_prompts.json'))
-          removeDirectory(path.join(userDataPath, 'provider_models'))
-          break
+          console.log('Resetting configuration files')
+          const configFiles = [
+            path.join(userDataPath, 'app-settings.json'),
+            path.join(userDataPath, 'mcp-settings.json'),
+            path.join(userDataPath, 'model-config.json'),
+            path.join(userDataPath, 'custom_prompts.json')
+          ]
 
-        case 'all':
+          configFiles.forEach((filePath) => {
+            try {
+              removeFile(filePath)
+              console.log('Removed config file:', filePath)
+            } catch (error) {
+              console.warn('Failed to remove config file:', filePath, error)
+            }
+          })
+
+          try {
+            removeDirectory(path.join(userDataPath, 'provider_models'))
+            console.log('Removed provider_models directory')
+          } catch (error) {
+            console.warn('Failed to remove provider_models directory:', error)
+          }
+          break
+        }
+
+        case 'all': {
           // 删除整个用户数据目录
+          console.log('Performing complete reset of user data:', userDataPath)
           removeDirectory(userDataPath)
           break
+        }
 
         default:
           throw new Error(`Unknown reset type: ${resetType}`)
