@@ -70,7 +70,20 @@
     "importing": "Importation en cours...",
     "confirmImport": "Confirmer l'importation",
     "importSuccessTitle": "Importation réussie",
-    "importErrorTitle": "Échec de l'importation"
+    "importErrorTitle": "Échec de l'importation",
+    "resetData": "Réinitialiser les données",
+    "resetConfirmTitle": "Confirmer la réinitialisation des données",
+    "resetConfirmDescription": "Veuillez sélectionner le type de données à réinitialiser. Cette opération est irréversible et l'application redémarrera automatiquement après la réinitialisation.",
+    "resetChatData": "Réinitialiser les données de chat",
+    "resetChatDataDesc": "Supprimer tout l'historique des conversations et les enregistrements de dialogue",
+    "resetConfig": "Réinitialiser la configuration",
+    "resetConfigDesc": "Supprimer tous les paramètres de l'application, les configurations de modèles et les prompts personnalisés",
+    "resetAll": "Réinitialisation complète",
+    "resetAllDesc": "Supprimer toutes les données, y compris l'historique des conversations, les configurations et les fichiers de cache",
+    "resetting": "Réinitialisation en cours...",
+    "confirmReset": "Confirmer la réinitialisation",
+    "resetCompleteDevTitle": "Réinitialisation des données terminée",
+    "resetCompleteDevMessage": "En environnement de développement, veuillez redémarrer l'application manuellement. Arrêtez le processus actuel et exécutez à nouveau pnpm run dev"
   },
   "model": {
     "title": "Paramètres du modèle",

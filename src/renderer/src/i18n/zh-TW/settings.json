@@ -70,7 +70,20 @@
     "importing": "匯入中...",
     "confirmImport": "確認匯入",
     "importSuccessTitle": "匯入成功",
-    "importErrorTitle": "匯入失敗"
+    "importErrorTitle": "匯入失敗",
+    "resetData": "重設資料",
+    "resetConfirmTitle": "確認重設資料",
+    "resetConfirmDescription": "請選擇要重設的資料類型。此操作無法復原，重設後應用程式將自動重新啟動。",
+    "resetChatData": "重設聊天資料",
+    "resetChatDataDesc": "刪除所有聊天記錄和對話歷史",
+    "resetConfig": "重設設定",
+    "resetConfigDesc": "刪除所有應用程式設定、模型設定和自訂提示詞",
+    "resetAll": "完全重設",
+    "resetAllDesc": "刪除所有資料，包括聊天記錄、設定和快取檔案",
+    "resetting": "重設中...",
+    "confirmReset": "確認重設",
+    "resetCompleteDevTitle": "資料重設完成",
+    "resetCompleteDevMessage": "開發環境下請手動重新啟動應用程式。請停止目前程序並重新執行 pnpm run dev"
   },
   "model": {
     "title": "模型設定",
