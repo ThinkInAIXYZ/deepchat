@@ -203,6 +203,8 @@
   },
   "provider": {
     "enable": "開啟服務",
+    "enabled": "已啟用",
+    "disabled": "已禁用",
     "urlPlaceholder": "請輸入API URL",
     "keyPlaceholder": "請輸入API Key",
     "verifyKey": "驗證密鑰",

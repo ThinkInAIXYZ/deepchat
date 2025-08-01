@@ -203,6 +203,8 @@
   },
   "provider": {
     "enable": "서비스 활성화",
+    "enabled": "활성화됨",
+    "disabled": "비활성화됨",
     "urlPlaceholder": "API URL을 입력하세요",
     "keyPlaceholder": "API 키를 입력하세요",
     "verifyKey": "키 확인",

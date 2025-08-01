@@ -203,6 +203,8 @@
   },
   "provider": {
     "enable": "Включить сервис",
+    "enabled": "Включен",
+    "disabled": "Отключен",
     "urlPlaceholder": "Введите API URL",
     "keyPlaceholder": "Введите API Key",
     "verifyKey": "Проверить ключ",

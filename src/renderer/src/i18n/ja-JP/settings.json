@@ -203,6 +203,8 @@
   },
   "provider": {
     "enable": "サービスを有効にする",
+    "enabled": "有効",
+    "disabled": "無効",
     "urlPlaceholder": "API URLを入力してください",
     "keyPlaceholder": "API Keyを入力してください",
     "verifyKey": "キーを検証",

@@ -203,6 +203,8 @@
   },
   "provider": {
     "enable": "روشن کردن خدمات",
+    "enabled": "فعال",
+    "disabled": "غیرفعال",
     "urlPlaceholder": "لطفاً نشانی API را وارد کنید",
     "keyPlaceholder": "لطفاً کلید API را وارد کنید",
     "verifyKey": "پذیرش کلید",

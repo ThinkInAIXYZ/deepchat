@@ -203,6 +203,8 @@
   },
   "provider": {
     "enable": "Activer le service",
+    "enabled": "Activé",
+    "disabled": "Désactivé",
     "urlPlaceholder": "Veuillez entrer l'URL de l'API",
     "keyPlaceholder": "Veuillez entrer la clé API",
     "verifyKey": "Vérifier la clé",

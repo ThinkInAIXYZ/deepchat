@@ -203,6 +203,8 @@
   },
   "provider": {
     "enable": "Enable Service",
+    "enabled": "Enabled",
+    "disabled": "Disabled",
     "urlPlaceholder": "Please enter API URL",
     "keyPlaceholder": "Please enter API Key",
     "verifyKey": "Verify Key",

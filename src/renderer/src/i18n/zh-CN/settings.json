@@ -203,6 +203,8 @@
   },
   "provider": {
     "enable": "开启服务",
+    "enabled": "已启用",
+    "disabled": "已禁用",
     "urlPlaceholder": "请输入API URL",
     "keyPlaceholder": "请输入API Key",
     "verifyKey": "验证密钥",
