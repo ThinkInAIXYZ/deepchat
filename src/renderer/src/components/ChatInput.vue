@@ -1021,7 +1021,16 @@ function onKeydown(e: KeyboardEvent) {
 defineExpose({
   setText: (text: string) => {
     inputText.value = text
-    editor.chain().setContent(text).focus('end').run()
+    nextTick(() => {
+      editor.chain().clearContent().insertContent(text).run()
+      nextTick(() => {
+        editor.view.updateState(editor.state)
+        setTimeout(() => {
+          const docSize = editor.state.doc.content.size
+          editor.chain().focus().setTextSelection(docSize).run()
+        }, 10)
+      })
+    })
   }
 })
 </script>
