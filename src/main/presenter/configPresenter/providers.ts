@@ -154,9 +154,9 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
     }
   },
   {
-    id: 'aws-bedrock-anthropic',
-    name: 'AWS Bedrock Anthropic',
-    apiType: 'anthropic',
+    id: 'aws-bedrock',
+    name: 'AWS Bedrock',
+    apiType: 'bedrock',
     apiKey: '',
     baseUrl: '',
     enable: false,

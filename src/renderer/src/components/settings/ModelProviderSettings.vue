@@ -53,6 +53,12 @@
         :provider="activeProvider"
         class="flex-1"
       />
+      <BedrockProviderSettingsDetail
+        v-else-if="activeProvider.apiType === 'bedrock'"
+        :key="`bedrock-${activeProvider.id}`"
+        :provider="activeProvider as AWS_BEDROCK_PROVIDER"
+        class="flex-1"
+      />
       <ModelProviderSettingsDetail
         v-else
         :key="`standard-${activeProvider.id}`"
@@ -73,11 +79,12 @@ import { useSettingsStore } from '@/stores/settings'
 import { useRoute, useRouter } from 'vue-router'
 import ModelProviderSettingsDetail from './ModelProviderSettingsDetail.vue'
 import OllamaProviderSettingsDetail from './OllamaProviderSettingsDetail.vue'
+import BedrockProviderSettingsDetail from './BedrockProviderSettingsDetail.vue'
 import ModelIcon from '@/components/icons/ModelIcon.vue'
 import { Icon } from '@iconify/vue'
 import AddCustomProviderDialog from './AddCustomProviderDialog.vue'
 import { useI18n } from 'vue-i18n'
-import type { LLM_PROVIDER } from '@shared/presenter'
+import type { AWS_BEDROCK_PROVIDER, LLM_PROVIDER } from '@shared/presenter'
 import { Switch } from '@/components/ui/switch'
 import draggable from 'vuedraggable'
 import { ScrollArea } from '@/components/ui/scroll-area'

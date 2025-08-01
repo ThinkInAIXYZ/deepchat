@@ -479,6 +479,16 @@ export type LLM_PROVIDER_BASE = {
   }
 } & LLM_PROVIDER
 
+export type AWS_BEDROCK_PROVIDER = LLM_PROVIDER & {
+  credential?: AwsBedrockCredential
+}
+
+export interface AwsBedrockCredential {
+  accessKeyId: string
+  secretAccessKey: string
+  region?: string
+}
+
 export interface ILlmProviderPresenter {
   setProviders(provider: LLM_PROVIDER[]): void
   getProviders(): LLM_PROVIDER[]

@@ -5,7 +5,7 @@ import { ModelType } from '@shared/model'
 import { usePresenter } from '@/composables/usePresenter'
 import { SearchEngineTemplate } from '@shared/chat'
 import { CONFIG_EVENTS, OLLAMA_EVENTS, DEEPLINK_EVENTS } from '@/events'
-import type { OllamaModel } from '@shared/presenter'
+import type { AWS_BEDROCK_PROVIDER, AwsBedrockCredential, OllamaModel } from '@shared/presenter'
 import { useRouter } from 'vue-router'
 import { useMcpStore } from '@/stores/mcp'
 import { useUpgradeStore } from '@/stores/upgrade'
@@ -815,6 +815,23 @@ export const useSettingsStore = defineStore('settings', () => {
     }
   }
 
+  // 更新 AWS Bedrock Provider 的配置
+  const updateAwsBedrockProviderConfig = async (
+    providerId: string,
+    updates: Partial<AWS_BEDROCK_PROVIDER>
+  ): Promise<void> => {
+    await updateProviderConfig(providerId, updates)
+    const currentProvider = providers.value.find((p) => p.id === providerId)!
+
+    // 只在特定条件下刷新模型列表
+    const needRefreshModels = ['accessKeyId', 'secretAccessKey', 'region'].some(
+      (key) => key in updates
+    )
+    if (needRefreshModels && currentProvider.enable) {
+      await refreshAllModels()
+    }
+  }
+
   // 更新provider的API配置
   const updateProviderApi = async (
     providerId: string,
@@ -1390,6 +1407,15 @@ export const useSettingsStore = defineStore('settings', () => {
     )
   }
 
+  // AWS Bedrock
+  const setAwsBedrockCredential = async (credential: AwsBedrockCredential) => {
+    await configP.setSetting('awsBedrockCredential', JSON.stringify({ credential }))
+  }
+
+  const getAwsBedrockCredential = async (): Promise<AwsBedrockCredential | undefined> => {
+    return await configP.getSetting<AwsBedrockCredential | undefined>('awsBedrockCredential')
+  }
+
   // 默认系统提示词相关方法
   const getDefaultSystemPrompt = async (): Promise<string> => {
     return await configP.getDefaultSystemPrompt()
@@ -1448,6 +1474,7 @@ export const useSettingsStore = defineStore('settings', () => {
     updateProviderConfig,
     updateProviderApi,
     updateProviderStatus,
+    updateAwsBedrockProviderConfig,
     refreshProviderModels,
     setSearchEngine,
     addCustomProvider,
@@ -1494,6 +1521,8 @@ export const useSettingsStore = defineStore('settings', () => {
     getAzureApiVersion,
     setGeminiSafety,
     getGeminiSafety,
+    setAwsBedrockCredential,
+    getAwsBedrockCredential,
     getDefaultSystemPrompt,
     setDefaultSystemPrompt,
     setupProviderListener,

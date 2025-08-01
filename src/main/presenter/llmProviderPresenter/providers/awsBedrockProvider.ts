@@ -1,21 +1,18 @@
 import {
-  LLM_PROVIDER,
   LLMResponse,
   MODEL_META,
   LLMCoreStreamEvent,
   ModelConfig,
   MCPToolDefinition,
-  ChatMessage
+  ChatMessage,
+  AWS_BEDROCK_PROVIDER
 } from '@shared/presenter'
 import { BaseLLMProvider, SUMMARY_TITLES_PROMPT } from '../baseProvider'
 import { ConfigPresenter } from '../../configPresenter'
 import { presenter } from '@/presenter'
-import { proxyConfig } from '../../proxyConfig'
-import { ProxyAgent } from 'undici'
 import { BedrockClient, ListFoundationModelsCommand } from '@aws-sdk/client-bedrock'
 import {
   BedrockRuntimeClient,
-  ContentBlock,
   InvokeModelCommand,
   InvokeModelCommandOutput,
   InvokeModelWithResponseStreamCommand
@@ -28,7 +25,7 @@ export class AwsBedrockProvider extends BaseLLMProvider {
   private bedrockRuntime!: BedrockRuntimeClient
   private defaultModel = 'claude-3-7-sonnet-20250219'
 
-  constructor(provider: LLM_PROVIDER, configPresenter: ConfigPresenter) {
+  constructor(provider: AWS_BEDROCK_PROVIDER, configPresenter: ConfigPresenter) {
     super(provider, configPresenter)
     this.init()
   }
@@ -40,10 +37,11 @@ export class AwsBedrockProvider extends BaseLLMProvider {
   protected async init() {
     if (this.provider.enable) {
       try {
-        const accessKeyId =
-          this.provider.apiKey.split(':')?.[0] || process.env.BEDROCK_ACCESS_KEY_ID
+        const provider = this.provider as AWS_BEDROCK_PROVIDER
+        const accessKeyId = provider.credential?.accessKeyId || process.env.BEDROCK_ACCESS_KEY_ID
         const secretAccessKey =
-          this.provider.apiKey.split(':')?.[1] || process.env.BEDROCK_SECRET_ACCESS_KEY
+          provider.credential?.secretAccessKey || process.env.BEDROCK_SECRET_ACCESS_KEY
+        const region = provider.credential?.region || process.env.BEDROCK_REGION
 
         if (!accessKeyId || !secretAccessKey) {
           throw new Error(
@@ -53,12 +51,12 @@ export class AwsBedrockProvider extends BaseLLMProvider {
 
         this.bedrock = new BedrockClient({
           credentials: { accessKeyId, secretAccessKey },
-          region: 'us-east-1'
+          region
         })
 
         this.bedrockRuntime = new BedrockRuntimeClient({
           credentials: { accessKeyId, secretAccessKey },
-          region: 'us-east-1'
+          region
         })
 
         await super.init()
@@ -73,10 +71,6 @@ export class AwsBedrockProvider extends BaseLLMProvider {
       const command = new ListFoundationModelsCommand({})
       const response = await this.bedrock.send(command)
       const models = response.modelSummaries
-      console.log(
-        12112,
-        models?.filter((m) => m.modelId?.includes('anthropic.claude'))
-      )
 
       return (
         models
@@ -86,7 +80,8 @@ export class AwsBedrockProvider extends BaseLLMProvider {
             // id: m.modelId!,
             // id: m.modelArn!,
             id: `${m.inferenceTypesSupported?.includes('ON_DEMAND') ? m.modelId! : `us.${m.modelId}`}`,
-            name: `${m.modelName} (${m.modelId})`,
+            // name: `${m.modelName} (${m.modelId})`,
+            name: m.modelId?.replace('anthropic.', '') || '<Unknown>',
             providerId: this.provider.id,
             maxTokens: 64_000,
             group: `AWS Bedrock Claude - ${m.modelId?.includes('opus') ? 'opus' : m.modelId?.includes('sonnet') ? 'sonnet' : m.modelId?.includes('haiku') ? 'haiku' : 'other'}`,
@@ -243,7 +238,7 @@ ${text}
         anthropic_version: 'bedrock-2023-05-31',
         max_tokens: maxTokens,
         temperature,
-        // system: systemPrompt,
+        system: systemPrompt,
         messages: [
           {
             role: 'user',

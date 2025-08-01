@@ -120,7 +120,7 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
       if (provider.id === 'aihubmix') {
         return new AihubmixProvider(provider, this.configPresenter)
       }
-      if (provider.id === 'aws-bedrock-anthropic') {
+      if (provider.id === 'aws-bedrock') {
         return new AwsBedrockProvider(provider, this.configPresenter)
       }
       switch (provider.apiType) {
