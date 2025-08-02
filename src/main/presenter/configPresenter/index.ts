@@ -82,6 +82,8 @@ export class ConfigPresenter implements IConfigPresenter {
   private mcpConfHelper: McpConfHelper // 使用MCP配置助手
   private modelConfigHelper: ModelConfigHelper // 模型配置助手
   private knowledgeConfHelper: KnowledgeConfHelper // 知识配置助手
+  // Model status memory cache for high-frequency read/write operations
+  private modelStatusCache: Map<string, boolean> = new Map()
 
   constructor() {
     this.userDataPath = app.getPath('userData')
@@ -318,30 +320,63 @@ export class ConfigPresenter implements IConfigPresenter {
     return `${MODEL_STATUS_KEY_PREFIX}${providerId}_${formattedModelId}`
   }
 
-  // 获取模型启用状态
+  // 获取模型启用状态 (带内存缓存优化)
   getModelStatus(providerId: string, modelId: string): boolean {
     const statusKey = this.getModelStatusKey(providerId, modelId)
+
+    // First check memory cache
+    if (this.modelStatusCache.has(statusKey)) {
+      return this.modelStatusCache.get(statusKey)!
+    }
+
+    // Cache miss: read from settings and cache the result
     const status = this.getSetting<boolean>(statusKey)
-    // 如果状态不是布尔值，则返回 true
-    return typeof status === 'boolean' ? status : true
+    const finalStatus = typeof status === 'boolean' ? status : true
+    this.modelStatusCache.set(statusKey, finalStatus)
+
+    return finalStatus
   }
 
-  // 批量获取模型启用状态
+  // 批量获取模型启用状态 (带内存缓存优化)
   getBatchModelStatus(providerId: string, modelIds: string[]): Record<string, boolean> {
     const result: Record<string, boolean> = {}
+    const uncachedKeys: string[] = []
+    const uncachedModelIds: string[] = []
+
+    // First pass: check cache for all models
     for (const modelId of modelIds) {
       const statusKey = this.getModelStatusKey(providerId, modelId)
-      const status = this.getSetting<boolean>(statusKey)
-      // 如果状态不是布尔值，则返回 true
-      result[modelId] = typeof status === 'boolean' ? status : true
+      if (this.modelStatusCache.has(statusKey)) {
+        result[modelId] = this.modelStatusCache.get(statusKey)!
+      } else {
+        uncachedKeys.push(statusKey)
+        uncachedModelIds.push(modelId)
+      }
     }
+
+    // Second pass: fetch uncached values from settings and cache them
+    for (let i = 0; i < uncachedModelIds.length; i++) {
+      const modelId = uncachedModelIds[i]
+      const statusKey = uncachedKeys[i]
+      const status = this.getSetting<boolean>(statusKey)
+      const finalStatus = typeof status === 'boolean' ? status : true
+
+      // Cache the result and add to return object
+      this.modelStatusCache.set(statusKey, finalStatus)
+      result[modelId] = finalStatus
+    }
+
     return result
   }
 
-  // 设置模型启用状态
+  // 设置模型启用状态 (同步更新内存缓存)
   setModelStatus(providerId: string, modelId: string, enabled: boolean): void {
     const statusKey = this.getModelStatusKey(providerId, modelId)
+
+    // Update both settings and memory cache synchronously
     this.setSetting(statusKey, enabled)
+    this.modelStatusCache.set(statusKey, enabled)
+
     // 触发模型状态变更事件（需要通知所有标签页）
     eventBus.sendToRenderer(
       CONFIG_EVENTS.MODEL_STATUS_CHANGED,
@@ -360,6 +395,22 @@ export class ConfigPresenter implements IConfigPresenter {
   // 禁用模型
   disableModel(providerId: string, modelId: string): void {
     this.setModelStatus(providerId, modelId, false)
+  }
+
+  // 清理模型状态缓存 (用于配置重载或重置场景)
+  clearModelStatusCache(): void {
+    this.modelStatusCache.clear()
+  }
+
+  // 清理特定 provider 的模型状态缓存
+  clearProviderModelStatusCache(providerId: string): void {
+    const keysToDelete: string[] = []
+    for (const key of this.modelStatusCache.keys()) {
+      if (key.startsWith(`${MODEL_STATUS_KEY_PREFIX}${providerId}_`)) {
+        keysToDelete.push(key)
+      }
+    }
+    keysToDelete.forEach((key) => this.modelStatusCache.delete(key))
   }
 
   // 批量设置模型状态

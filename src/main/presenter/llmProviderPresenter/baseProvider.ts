@@ -146,11 +146,12 @@ export abstract class BaseLLMProvider {
    */
   public async fetchModels(): Promise<MODEL_META[]> {
     try {
-      const models = await this.fetchProviderModels()
-      console.log('Fetched models:', models?.length, this.provider.id)
-      this.models = models
-      this.configPresenter.setProviderModels(this.provider.id, models)
-      return models
+      return this.fetchProviderModels().then((models) => {
+        console.log('Fetched models:', models?.length, this.provider.id)
+        this.models = models
+        this.configPresenter.setProviderModels(this.provider.id, models)
+        return models
+      })
     } catch (e) {
       console.error('Failed to fetch models:', e)
       if (!this.models) {
