@@ -214,6 +214,11 @@ export class AnthropicOAuth {
 }
 
 // Create singleton instance
+let instance: AnthropicOAuth | null = null
+
 export const createAnthropicOAuth = (): AnthropicOAuth => {
-  return new AnthropicOAuth()
+  if (!instance) {
+    instance = new AnthropicOAuth()
+  }
+  return instance
 }
