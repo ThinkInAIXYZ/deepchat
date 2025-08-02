@@ -15,6 +15,7 @@ import { MeetingServer } from './meetingServer'
 import { BuiltinKnowledgeServer } from './builtinKnowledgeServer'
 import { BuiltinKnowledgeConfig } from '@shared/presenter'
 import { AppleServer } from './appleServer'
+import { WindowsServer } from './windowsServer'
 
 export function getInMemoryServer(
   serverName: string,
@@ -94,6 +95,12 @@ export function getInMemoryServer(
         throw new Error('Apple Server is only supported on macOS')
       }
       return new AppleServer()
+    case 'deepchat/windows-server':
+      // 只在 Windows 上创建 WindowsServer
+      if (process.platform !== 'win32') {
+        throw new Error('Windows Server is only supported on Windows')
+      }
+      return new WindowsServer()
     default:
       throw new Error(`Unknown in-memory server: ${serverName}`)
   }
