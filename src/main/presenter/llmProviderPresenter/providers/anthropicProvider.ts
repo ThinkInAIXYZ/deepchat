@@ -316,10 +316,11 @@ export class AnthropicProvider extends BaseLLMProvider {
           return { isOk: false, errorMsg: '未获取到 OAuth 令牌' }
         }
 
-        // OAuth mode: use direct HTTP request
+        // OAuth mode: use direct HTTP request with fixed system message
         await this.makeOAuthRequest('/v1/messages', 'POST', {
           model: this.defaultModel,
           max_tokens: 10,
+          system: "You are Claude Code, Anthropic's official CLI for Claude.",
           messages: [{ role: 'user', content: 'Hello' }]
         })
       } else {
@@ -617,6 +618,111 @@ export class AnthropicProvider extends BaseLLMProvider {
     }
   }
 
+  /**
+   * Format messages for OAuth mode
+   * Converts system messages to user messages and handles special formatting
+   */
+  private formatMessagesForOAuth(messages: ChatMessage[]): any[] {
+    const result: any[] = []
+    let originalSystemContent = ''
+
+    // Extract original system message content
+    for (const msg of messages) {
+      if (msg.role === 'system') {
+        originalSystemContent +=
+          (typeof msg.content === 'string'
+            ? msg.content
+            : msg.content && Array.isArray(msg.content)
+              ? msg.content
+                  .filter((c) => c.type === 'text')
+                  .map((c) => c.text || '')
+                  .join('\n')
+              : '') + '\n'
+      }
+    }
+
+    // Add original system message as first user message if exists
+    if (originalSystemContent.trim()) {
+      result.push({
+        role: 'user',
+        content: originalSystemContent.trim()
+      })
+    }
+
+    // Process non-system messages
+    for (const msg of messages) {
+      if (msg.role === 'system') {
+        continue // Skip system messages, already converted above
+      }
+
+      if (msg.role === 'user' || msg.role === 'assistant') {
+        const content: any[] = []
+
+        if (typeof msg.content === 'string') {
+          content.push({
+            type: 'text',
+            text: msg.content
+          })
+        } else if (Array.isArray(msg.content)) {
+          for (const item of msg.content) {
+            if (item.type === 'text') {
+              content.push({
+                type: 'text',
+                text: item.text || ''
+              })
+            } else if (item.type === 'image_url') {
+              content.push({
+                type: 'image',
+                source: item.image_url?.url.startsWith('data:image')
+                  ? {
+                      type: 'base64',
+                      data: item.image_url.url.split(',')[1],
+                      media_type: item.image_url.url.split(';')[0].split(':')[1] as any
+                    }
+                  : { type: 'url', url: item.image_url?.url }
+              })
+            }
+          }
+        }
+
+        // Handle tool calls for assistant messages
+        if (msg.role === 'assistant' && 'tool_calls' in msg && Array.isArray(msg.tool_calls)) {
+          for (const toolCall of msg.tool_calls as any[]) {
+            try {
+              content.push({
+                type: 'tool_use',
+                id: toolCall.id,
+                name: toolCall.function.name,
+                input: JSON.parse(toolCall.function.arguments || '{}')
+              })
+            } catch (e) {
+              console.error('Error processing tool_call in OAuth mode:', e)
+            }
+          }
+        }
+
+        result.push({
+          role: msg.role,
+          content: content.length === 1 && content[0].type === 'text' ? content[0].text : content
+        })
+      } else if (msg.role === 'tool') {
+        // Handle tool result messages
+        result.push({
+          role: 'user',
+          content: [
+            {
+              type: 'tool_result',
+              tool_use_id: (msg as any).tool_call_id || '',
+              content: typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content)
+            }
+          ]
+        })
+      }
+    }
+
+    return result
+  }
+
   public async summaryTitles(messages: ChatMessage[], modelId: string): Promise<string> {
     const prompt = `${SUMMARY_TITLES_PROMPT}\n\n${messages.map((m) => `${m.role}: ${m.content}`).join('\n')}`
     const response = await this.generateText(prompt, modelId, 0.3, 50)
@@ -631,34 +737,44 @@ export class AnthropicProvider extends BaseLLMProvider {
     maxTokens?: number
   ): Promise<LLMResponse> {
     try {
-      const formattedMessages = this.formatMessages(messages)
-
-      // 创建基本请求参数
-      const requestParams: any = {
-        model: modelId,
-        max_tokens: maxTokens || 1024,
-        temperature: temperature || 0.7,
-        messages: formattedMessages.messages
-      }
-
-      // 如果有系统消息，添加到请求参数中
-      if (formattedMessages.system) {
-        requestParams.system = formattedMessages.system
-      }
-
+      let requestParams: any
       let response: any
 
       if (this.isOAuthMode) {
         if (!this.oauthToken) {
           throw new Error('OAuth token is not available')
         }
-        // OAuth mode: use direct HTTP request
+
+        // OAuth mode: special message handling
+        const oauthMessages = this.formatMessagesForOAuth(messages)
+        requestParams = {
+          model: modelId,
+          max_tokens: maxTokens || 1024,
+          temperature: temperature || 0.7,
+          system: "You are Claude Code, Anthropic's official CLI for Claude.",
+          messages: oauthMessages
+        }
+
         response = await this.makeOAuthRequest('/v1/messages', 'POST', requestParams)
       } else {
+        // API Key mode: use standard formatting
+        const formattedMessages = this.formatMessages(messages)
+
+        requestParams = {
+          model: modelId,
+          max_tokens: maxTokens || 1024,
+          temperature: temperature || 0.7,
+          messages: formattedMessages.messages
+        }
+
+        // 如果有系统消息，添加到请求参数中
+        if (formattedMessages.system) {
+          requestParams.system = formattedMessages.system
+        }
+
         if (!this.anthropic) {
           throw new Error('Anthropic client is not initialized')
         }
-        // API Key mode: use SDK
         response = await this.anthropic.messages.create(requestParams)
       }
 
@@ -734,31 +850,46 @@ ${text}
     systemPrompt?: string
   ): Promise<LLMResponse> {
     try {
-      const requestParams: any = {
-        model: modelId,
-        max_tokens: maxTokens || 1024,
-        temperature: temperature || 0.7,
-        messages: [{ role: 'user' as const, content: [{ type: 'text' as const, text: prompt }] }]
-      }
-
-      // 如果提供了系统提示，添加到请求中
-      if (systemPrompt) {
-        requestParams.system = systemPrompt
-      }
-
+      let requestParams: any
       let response: any
 
       if (this.isOAuthMode) {
         if (!this.oauthToken) {
           throw new Error('OAuth token is not available')
         }
-        // OAuth mode: use direct HTTP request
+
+        // OAuth mode: use fixed system message and prepend original system prompt to user message
+        let finalPrompt = prompt
+        if (systemPrompt) {
+          finalPrompt = `${systemPrompt}\n\n${prompt}`
+        }
+
+        requestParams = {
+          model: modelId,
+          max_tokens: maxTokens || 1024,
+          temperature: temperature || 0.7,
+          system: "You are Claude Code, Anthropic's official CLI for Claude.",
+          messages: [{ role: 'user', content: finalPrompt }]
+        }
+
         response = await this.makeOAuthRequest('/v1/messages', 'POST', requestParams)
       } else {
+        // API Key mode: use standard approach
+        requestParams = {
+          model: modelId,
+          max_tokens: maxTokens || 1024,
+          temperature: temperature || 0.7,
+          messages: [{ role: 'user' as const, content: [{ type: 'text' as const, text: prompt }] }]
+        }
+
+        // 如果提供了系统提示，添加到请求中
+        if (systemPrompt) {
+          requestParams.system = systemPrompt
+        }
+
         if (!this.anthropic) {
           throw new Error('Anthropic client is not initialized')
         }
-        // API Key mode: use SDK
         response = await this.anthropic.messages.create(requestParams)
       }
 
@@ -788,31 +919,46 @@ ${text}
 ${context}
 `
     try {
-      const requestParams: any = {
-        model: modelId,
-        max_tokens: maxTokens || 1024,
-        temperature: temperature || 0.7,
-        messages: [{ role: 'user' as const, content: [{ type: 'text' as const, text: prompt }] }]
-      }
-
-      // 如果提供了系统提示，添加到请求中
-      if (systemPrompt) {
-        requestParams.system = systemPrompt
-      }
-
+      let requestParams: any
       let response: any
 
       if (this.isOAuthMode) {
         if (!this.oauthToken) {
           throw new Error('OAuth token is not available')
         }
-        // OAuth mode: use direct HTTP request
+
+        // OAuth mode: use fixed system message and prepend original system prompt to user message
+        let finalPrompt = prompt
+        if (systemPrompt) {
+          finalPrompt = `${systemPrompt}\n\n${prompt}`
+        }
+
+        requestParams = {
+          model: modelId,
+          max_tokens: maxTokens || 1024,
+          temperature: temperature || 0.7,
+          system: "You are Claude Code, Anthropic's official CLI for Claude.",
+          messages: [{ role: 'user', content: finalPrompt }]
+        }
+
         response = await this.makeOAuthRequest('/v1/messages', 'POST', requestParams)
       } else {
+        // API Key mode: use standard approach
+        requestParams = {
+          model: modelId,
+          max_tokens: maxTokens || 1024,
+          temperature: temperature || 0.7,
+          messages: [{ role: 'user' as const, content: [{ type: 'text' as const, text: prompt }] }]
+        }
+
+        // 如果提供了系统提示，添加到请求中
+        if (systemPrompt) {
+          requestParams.system = systemPrompt
+        }
+
         if (!this.anthropic) {
           throw new Error('Anthropic client is not initialized')
         }
-        // API Key mode: use SDK
         response = await this.anthropic.messages.create(requestParams)
       }
 
@@ -1125,8 +1271,8 @@ ${context}
     }
 
     try {
-      // 格式化消息
-      const formattedMessagesObject = this.formatMessages(messages)
+      // OAuth mode: use special message formatting
+      const oauthMessages = this.formatMessagesForOAuth(messages)
 
       // 将MCP工具转换为Anthropic工具格式
       const anthropicTools =
@@ -1139,18 +1285,14 @@ ${context}
         model: modelId,
         max_tokens: maxTokens || 1024,
         temperature: temperature || 0.7,
-        messages: formattedMessagesObject.messages,
+        system: "You are Claude Code, Anthropic's official CLI for Claude.",
+        messages: oauthMessages,
         stream: true
       }
 
       // 启用Claude 3.7模型的思考功能
       if (modelId.includes('claude-3-7')) {
         streamParams.thinking = { budget_tokens: 1024, type: 'enabled' }
-      }
-
-      // 如果有系统消息，添加到请求参数中
-      if (formattedMessagesObject.system) {
-        streamParams.system = formattedMessagesObject.system
       }
 
       // 添加工具参数
