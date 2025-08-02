@@ -313,7 +313,7 @@ export class AnthropicProvider extends BaseLLMProvider {
     try {
       if (this.isOAuthMode) {
         if (!this.oauthToken) {
-          return { isOk: false, errorMsg: '未获取到 OAuth 令牌' }
+          return { isOk: false, errorMsg: 'OAuth token not available' }
         }
 
         // OAuth mode: use direct HTTP request with fixed system message
@@ -325,7 +325,7 @@ export class AnthropicProvider extends BaseLLMProvider {
         })
       } else {
         if (!this.anthropic) {
-          return { isOk: false, errorMsg: '未初始化 Anthropic SDK' }
+          return { isOk: false, errorMsg: 'Anthropic SDK not initialized' }
         }
 
         // API Key mode: use SDK
@@ -340,7 +340,7 @@ export class AnthropicProvider extends BaseLLMProvider {
     } catch (error: unknown) {
       console.error('Anthropic API check failed:', error)
       const errorMessage = error instanceof Error ? error.message : String(error)
-      return { isOk: false, errorMsg: `API 检查失败: ${errorMessage}` }
+      return { isOk: false, errorMsg: `API check failed: ${errorMessage}` }
     }
   }
 
@@ -1463,7 +1463,7 @@ ${context}
       console.error('Anthropic OAuth coreStream error:', error)
       yield {
         type: 'error',
-        error_message: error instanceof Error ? error.message : '未知错误'
+        error_message: error instanceof Error ? error.message : 'Unknown error'
       }
       yield { type: 'stop', stop_reason: 'error' }
     }
