@@ -330,6 +330,9 @@
     "anthropicOAuthTip": "Cliquez sur Autoriser Deepchat pour accéder à votre compte anthropique",
     "oauthLogin": "Connexion OAuth",
     "authMethod": "Méthode de certification",
+    "authMethodPlaceholder": "Sélectionner la méthode d'authentification",
+    "apiKeyLabel": "Clé API",
+    "apiUrlLabel": "URL API",
     "anthropicOAuthFlowTip": "Le système ouvrira automatiquement la fenêtre d'autorisation. Veuillez revenir et saisir le code d'autorisation après l'autorisation.",
     "anthropicBrowserOpened": "Le navigateur externe est ouvert",
     "anthropicCodeInstruction": "Veuillez compléter l'autorisation dans un navigateur externe et coller le code d'autorisation obtenu dans la zone d'entrée ci-dessous",
@@ -339,7 +342,12 @@
     "codeExchangeFailed": "Échange de code d'autorisation Échec",
     "invalidCode": "Code d'autorisation non valide",
     "oauthCodeHint": "Veuillez coller le code d'autorisation ici après avoir terminé l'autorisation dans un navigateur externe",
-    "oauthCodePlaceholder": "Veuillez saisir le code d'autorisation ..."
+    "oauthCodePlaceholder": "Veuillez saisir le code d'autorisation ...",
+    "verifyConnection": "Vérifier la connexion",
+    "manageModels": "Gérer les modèles",
+    "anthropicOAuthActiveTip": "L'authentification OAuth est activée, vous pouvez utiliser les services Anthropic directement",
+    "oauthVerifySuccess": "Connexion OAuth vérifiée avec succès",
+    "oauthVerifyFailed": "Échec de la vérification de la connexion OAuth"
   },
   "knowledgeBase": {
     "title": "Paramètres de la base de connaissances",

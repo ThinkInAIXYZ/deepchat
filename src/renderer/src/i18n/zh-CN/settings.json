@@ -325,6 +325,9 @@
       "remaining": "剩余额度"
     },
     "authMethod": "认证方式",
+    "authMethodPlaceholder": "选择认证方式",
+    "apiKeyLabel": "API Key",
+    "apiUrlLabel": "API URL",
     "anthropicConnected": "Anthropic 已连接",
     "anthropicNotConnected": "Anthropic 未连接",
     "anthropicOAuthTip": "点击授权 DeepChat 访问您的 Anthropic 账户",
@@ -339,7 +342,12 @@
     "oauthCodePlaceholder": "请输入授权码...",
     "codeRequired": "请输入授权码",
     "invalidCode": "授权码无效",
-    "codeExchangeFailed": "授权码交换失败"
+    "codeExchangeFailed": "授权码交换失败",
+    "verifyConnection": "验证连接",
+    "manageModels": "管理模型",
+    "anthropicOAuthActiveTip": "OAuth 认证已启用，您可以直接使用 Anthropic 服务",
+    "oauthVerifySuccess": "OAuth 连接验证成功",
+    "oauthVerifyFailed": "OAuth 连接验证失败"
   },
   "knowledgeBase": {
     "title": "知识库设置",

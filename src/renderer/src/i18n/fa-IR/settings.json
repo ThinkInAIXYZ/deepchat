@@ -330,6 +330,9 @@
     "anthropicOAuthTip": "برای دسترسی به حساب انسان شناسی خود ، روی مجوز DeepChat کلیک کنید",
     "oauthLogin": "ورود به سیستم",
     "authMethod": "روش صدور گواهینامه",
+    "authMethodPlaceholder": "روش احراز هویت را انتخاب کنید",
+    "apiKeyLabel": "کلید API",
+    "apiUrlLabel": "آدرس API",
     "anthropicOAuthFlowTip": "سیستم به طور خودکار پنجره مجوز را باز می کند. لطفا برگردید و پس از مجوز کد مجوز را وارد کنید.",
     "anthropicBrowserOpened": "مرورگر خارجی باز است",
     "anthropicCodeInstruction": "لطفاً مجوز را در یک مرورگر خارجی تکمیل کرده و کد مجوز به دست آمده را در کادر ورودی زیر بچسبانید",
@@ -339,7 +342,12 @@
     "codeExchangeFailed": "مبادله کد مجوز انجام نشد",
     "invalidCode": "کد مجوز نامعتبر",
     "oauthCodeHint": "لطفاً پس از تکمیل مجوز در یک مرورگر خارجی ، کد مجوز را در اینجا بچسبانید",
-    "oauthCodePlaceholder": "لطفاً کد مجوز را وارد کنید ..."
+    "oauthCodePlaceholder": "لطفاً کد مجوز را وارد کنید ...",
+    "verifyConnection": "تأیید اتصال",
+    "manageModels": "مدیریت مدل‌ها",
+    "anthropicOAuthActiveTip": "احراز هویت OAuth فعال است، می‌توانید مستقیماً از سرویس‌های Anthropic استفاده کنید",
+    "oauthVerifySuccess": "اتصال OAuth با موفقیت تأیید شد",
+    "oauthVerifyFailed": "تأیید اتصال OAuth ناموفق بود"
   },
   "knowledgeBase": {
     "title": "تنظیمات پایگاه دانش",

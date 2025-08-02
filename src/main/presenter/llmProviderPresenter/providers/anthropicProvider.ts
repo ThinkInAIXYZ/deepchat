@@ -659,17 +659,24 @@ export class AnthropicProvider extends BaseLLMProvider {
         const content: any[] = []
 
         if (typeof msg.content === 'string') {
-          content.push({
-            type: 'text',
-            text: msg.content
-          })
+          // Only add non-empty text content
+          if (msg.content.trim()) {
+            content.push({
+              type: 'text',
+              text: msg.content
+            })
+          }
         } else if (Array.isArray(msg.content)) {
           for (const item of msg.content) {
             if (item.type === 'text') {
-              content.push({
-                type: 'text',
-                text: item.text || ''
-              })
+              // Only add non-empty text content
+              const textContent = item.text || ''
+              if (textContent.trim()) {
+                content.push({
+                  type: 'text',
+                  text: textContent
+                })
+              }
             } else if (item.type === 'image_url') {
               content.push({
                 type: 'image',
@@ -701,19 +708,30 @@ export class AnthropicProvider extends BaseLLMProvider {
           }
         }
 
+        // Only add message if it has content, otherwise add a placeholder
+        if (content.length === 0) {
+          // Add a placeholder for empty messages to prevent API errors
+          content.push({
+            type: 'text',
+            text: '[Empty message]'
+          })
+        }
+
         result.push({
           role: msg.role,
           content: content.length === 1 && content[0].type === 'text' ? content[0].text : content
         })
       } else if (msg.role === 'tool') {
         // Handle tool result messages
+        const toolContent =
+          typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content)
         result.push({
           role: 'user',
           content: [
             {
               type: 'tool_result',
               tool_use_id: (msg as any).tool_call_id || '',
-              content: typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content)
+              content: toolContent || '[Empty tool result]'
             }
           ]
         })

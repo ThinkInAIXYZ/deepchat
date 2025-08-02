@@ -330,6 +330,9 @@
     "anthropicOAuthTip": "인류 계정에 액세스하려면 DeepChat 인증을 클릭하십시오",
     "oauthLogin": "OAUTH 로그인",
     "authMethod": "인증 방법",
+    "authMethodPlaceholder": "인증 방법 선택",
+    "apiKeyLabel": "API Key",
+    "apiUrlLabel": "API URL",
     "anthropicOAuthFlowTip": "시스템은 권한 부여 창을 자동으로 엽니 다. 다시 와서 승인 후 인증 코드를 입력하십시오.",
     "anthropicBrowserOpened": "외부 브라우저가 열려 있습니다",
     "anthropicCodeInstruction": "외부 브라우저에서 인증을 완료하고 얻은 인증 코드를 아래 입력 상자에 붙여 넣으십시오.",
@@ -339,7 +342,12 @@
     "codeExchangeFailed": "승인 코드 교환에 실패했습니다",
     "invalidCode": "잘못된 권한 부여 코드",
     "oauthCodeHint": "외부 브라우저에서 승인을 완료 한 후 여기에 승인 코드를 붙여 넣으십시오.",
-    "oauthCodePlaceholder": "승인 코드를 입력하십시오 ..."
+    "oauthCodePlaceholder": "승인 코드를 입력하십시오 ...",
+    "verifyConnection": "연결 확인",
+    "manageModels": "모델 관리",
+    "anthropicOAuthActiveTip": "OAuth 인증이 활성화되어 있어 Anthropic 서비스를 직접 사용할 수 있습니다",
+    "oauthVerifySuccess": "OAuth 연결 확인 성공",
+    "oauthVerifyFailed": "OAuth 연결 확인 실패"
   },
   "knowledgeBase": {
     "title": "지식 베이스 설정",

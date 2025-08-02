@@ -330,6 +330,9 @@
     "anthropicOAuthTip": "Click Authorize DeepChat to access your Anthropic account",
     "oauthLogin": "OAuth Login",
     "authMethod": "Certification method",
+    "authMethodPlaceholder": "Select authentication method",
+    "apiKeyLabel": "API Key",
+    "apiUrlLabel": "API URL",
     "anthropicOAuthFlowTip": "The system will automatically open the authorization window. Please come back and enter the authorization code after authorization.",
     "anthropicBrowserOpened": "External browser is open",
     "anthropicCodeInstruction": "Please complete the authorization in an external browser and paste the obtained authorization code into the input box below",
@@ -339,7 +342,12 @@
     "codeExchangeFailed": "Authorization code exchange failed",
     "invalidCode": "Invalid authorization code",
     "oauthCodeHint": "Please paste the authorization code here after completing the authorization in an external browser",
-    "oauthCodePlaceholder": "Please enter the authorization code..."
+    "oauthCodePlaceholder": "Please enter the authorization code...",
+    "verifyConnection": "Verify Connection",
+    "manageModels": "Manage Models",
+    "anthropicOAuthActiveTip": "OAuth authentication is enabled, you can use Anthropic services directly",
+    "oauthVerifySuccess": "OAuth connection verified successfully",
+    "oauthVerifyFailed": "OAuth connection verification failed"
   },
   "knowledgeBase": {
     "title": "Knowledge Base Settings",

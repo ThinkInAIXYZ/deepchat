@@ -330,6 +330,9 @@
     "anthropicOAuthTip": "點擊授權 DeepChat 訪問您的 Anthropic 賬戶",
     "oauthLogin": "OAuth 登錄",
     "authMethod": "認證方式",
+    "authMethodPlaceholder": "選擇認證方式",
+    "apiKeyLabel": "API Key",
+    "apiUrlLabel": "API URL",
     "anthropicOAuthFlowTip": "系統將自動打開授權窗口，授權後請回來輸入授權碼",
     "anthropicBrowserOpened": "外部瀏覽器已打開",
     "anthropicCodeInstruction": "請在外部瀏覽器中完成授權，然後將獲得的授權碼粘貼到下方輸入框中",
@@ -339,7 +342,12 @@
     "codeExchangeFailed": "授權碼交換失敗",
     "invalidCode": "授權碼無效",
     "oauthCodeHint": "請在外部瀏覽器中完成授權後，將獲得的授權碼粘貼到此處",
-    "oauthCodePlaceholder": "請輸入授權碼..."
+    "oauthCodePlaceholder": "請輸入授權碼...",
+    "verifyConnection": "驗證連接",
+    "manageModels": "管理模型",
+    "anthropicOAuthActiveTip": "OAuth 認證已啟用，您可以直接使用 Anthropic 服務",
+    "oauthVerifySuccess": "OAuth 連接驗證成功",
+    "oauthVerifyFailed": "OAuth 連接驗證失敗"
   },
   "knowledgeBase": {
     "fastgptTitle": "FastGPT知識庫",

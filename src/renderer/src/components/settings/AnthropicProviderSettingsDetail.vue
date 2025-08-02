@@ -9,13 +9,13 @@
           @update:model-value="(value: string) => switchAuthMethod(value as 'apikey' | 'oauth')"
         >
           <SelectTrigger class="w-full">
-            <SelectValue placeholder="选择认证方式" />
+            <SelectValue :placeholder="t('settings.provider.authMethodPlaceholder')" />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="apikey">
               <div class="flex items-center gap-2">
                 <Icon icon="lucide:key" class="w-4 h-4" />
-                <span>API Key</span>
+                <span>{{ t('settings.provider.apiKeyLabel') }}</span>
               </div>
             </SelectItem>
             <SelectItem value="oauth">
@@ -31,7 +31,9 @@
       <!-- API Key 认证方式 -->
       <div v-if="authMethod === 'apikey'" class="flex flex-col items-start p-2 gap-2">
         <div class="flex justify-between items-center w-full">
-          <Label :for="`${provider.id}-url`" class="flex-1 cursor-pointer">API URL</Label>
+          <Label :for="`${provider.id}-url`" class="flex-1 cursor-pointer">{{
+            t('settings.provider.apiUrlLabel')
+          }}</Label>
         </div>
         <Input
           :id="`${provider.id}-url`"
@@ -48,7 +50,9 @@
           }}
         </div>
 
-        <Label :for="`${provider.id}-apikey`" class="flex-1 cursor-pointer">API Key</Label>
+        <Label :for="`${provider.id}-apikey`" class="flex-1 cursor-pointer">{{
+          t('settings.provider.apiKeyLabel')
+        }}</Label>
         <Input
           :id="`${provider.id}-apikey`"
           v-model="apiKey"
@@ -205,6 +209,23 @@
         </div>
       </div>
 
+      <!-- 模型管理 -->
+      <div
+        v-if="(authMethod === 'apikey' && apiKey) || (authMethod === 'oauth' && hasOAuthToken)"
+        class="flex flex-col items-start p-2 gap-2 w-full"
+      >
+        <ProviderModelManager
+          class="w-full"
+          :provider="provider"
+          :enabled-models="enabledModels"
+          :total-models-count="totalModelsCount"
+          @show-model-list-dialog="openModelCheckDialog"
+          @disable-all-models="handleDisableAllModels"
+          @model-enabled-change="handleModelEnabledChange"
+          @config-changed="handleConfigChanged"
+        />
+      </div>
+
       <!-- 检查模型对话框 -->
       <Dialog v-model:open="showCheckModelDialog">
         <DialogContent>
@@ -272,7 +293,7 @@
 
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
-import { onMounted, ref, watch, onUnmounted } from 'vue'
+import { onMounted, ref, watch, onUnmounted, computed } from 'vue'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
@@ -294,7 +315,8 @@ import {
 import { useSettingsStore } from '@/stores/settings'
 import { useModelCheckStore } from '@/stores/modelCheck'
 import { usePresenter } from '@/composables/usePresenter'
-import type { LLM_PROVIDER } from '@shared/presenter'
+import type { LLM_PROVIDER, RENDERER_MODEL_META } from '@shared/presenter'
+import ProviderModelManager from './ProviderModelManager.vue'
 
 const { t } = useI18n()
 
@@ -327,6 +349,19 @@ const isSubmittingCode = ref(false)
 
 // Computed
 const hasOAuthToken = ref(false)
+const enabledModels = computed(() => {
+  const providerModels = settingsStore.enabledModels.find(
+    (provider) => provider.providerId === props.provider.id
+  )
+  return providerModels?.models.filter((model) => model.enabled) || []
+})
+
+const totalModelsCount = computed(() => {
+  const providerModels = settingsStore.allProviderModels.find(
+    (provider) => provider.providerId === props.provider.id
+  )
+  return providerModels?.models.length || 0
+})
 
 // 初始化认证方法检测
 const detectAuthMethod = async () => {
@@ -581,6 +616,28 @@ const openModelCheckDialog = () => {
   // 直接打开模型检查对话框
   // 验证逻辑已经分离到专门的验证按钮中
   modelCheckStore.openDialog(props.provider.id)
+}
+
+// 模型管理事件处理
+const handleDisableAllModels = async () => {
+  try {
+    await settingsStore.disableAllModels(props.provider.id)
+  } catch (error) {
+    console.error('Failed to disable all models:', error)
+  }
+}
+
+const handleModelEnabledChange = async (model: RENDERER_MODEL_META, enabled: boolean) => {
+  try {
+    await settingsStore.updateModelStatus(props.provider.id, model.id, enabled)
+  } catch (error) {
+    console.error('Failed to update model enabled state:', error)
+  }
+}
+
+const handleConfigChanged = () => {
+  // 配置变更时可以做一些额外的处理，比如刷新UI等
+  console.log('Model configuration changed')
 }
 
 // 清除验证结果的定时器

@@ -330,6 +330,9 @@
     "anthropicOAuthTip": "Нажмите «Авторизировать» DeepChat для доступа к вашей антропной учетной записи",
     "oauthLogin": "Оаут логин",
     "authMethod": "Метод сертификации",
+    "authMethodPlaceholder": "Выберите метод аутентификации",
+    "apiKeyLabel": "API ключ",
+    "apiUrlLabel": "API URL",
     "anthropicOAuthFlowTip": "Система автоматически откроет окно авторизации. Пожалуйста, вернитесь и введите код авторизации после авторизации.",
     "anthropicBrowserOpened": "Внешний браузер открыт",
     "anthropicCodeInstruction": "Пожалуйста, заполните авторизацию во внешнем браузере и вставьте полученный код авторизации в поле ввода ниже",
@@ -339,7 +342,12 @@
     "codeExchangeFailed": "Обмен кодом авторизации не удалось",
     "invalidCode": "Неверный код авторизации",
     "oauthCodeHint": "Пожалуйста, вставьте здесь код авторизации после завершения авторизации во внешнем браузере",
-    "oauthCodePlaceholder": "Пожалуйста, введите код авторизации ..."
+    "oauthCodePlaceholder": "Пожалуйста, введите код авторизации ...",
+    "verifyConnection": "Проверить соединение",
+    "manageModels": "Управление моделями",
+    "anthropicOAuthActiveTip": "Аутентификация OAuth включена, вы можете использовать сервисы Anthropic напрямую",
+    "oauthVerifySuccess": "Соединение OAuth успешно проверено",
+    "oauthVerifyFailed": "Ошибка проверки соединения OAuth"
   },
   "knowledgeBase": {
     "title": "Настройки базы знаний",

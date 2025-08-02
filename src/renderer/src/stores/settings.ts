@@ -609,7 +609,7 @@ export const useSettingsStore = defineStore('settings', () => {
   // 使用 throttle 包装的刷新函数，确保在频繁调用时最后一次调用能够成功执行
   // trailing: true 确保在节流周期结束后执行最后一次调用
   // leading: false 避免立即执行第一次调用
-  const refreshAllModels = useThrottleFn(_refreshAllModelsInternal, 1000, true, false)
+  const refreshAllModels = useThrottleFn(_refreshAllModelsInternal, 1000, true, true)
 
   // 搜索模型
   const searchModels = (query: string) => {

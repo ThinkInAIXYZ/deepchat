@@ -116,6 +116,7 @@ const showModelListDialog = ref(false)
 const showDisableAllConfirmDialog = ref(false)
 const showDeleteProviderDialog = ref(false)
 const enabledModels = computed(() => {
+  console.log(providerModels)
   const enabledModelsList = [
     ...customModels.value.filter((m) => m.enabled),
     ...providerModels.value.filter((m) => m.enabled)

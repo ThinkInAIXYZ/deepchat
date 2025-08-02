@@ -330,6 +330,9 @@
     "anthropicOAuthTip": "[deepchatの承認]をクリックして、人類アカウントにアクセスします",
     "oauthLogin": "oauthログイン",
     "authMethod": "認証方法",
+    "authMethodPlaceholder": "認証方法を選択",
+    "apiKeyLabel": "API Key",
+    "apiUrlLabel": "API URL",
     "anthropicOAuthFlowTip": "システムは自動的に承認ウィンドウを開きます。承認後、戻って承認コードを入力してください。",
     "anthropicBrowserOpened": "外部ブラウザが開いています",
     "anthropicCodeInstruction": "外部ブラウザで承認を完了し、取得した認証コードを下の入力ボックスに貼り付けてください",
@@ -339,7 +342,12 @@
     "codeExchangeFailed": "認証コード交換は失敗しました",
     "invalidCode": "無効な承認コード",
     "oauthCodeHint": "外部ブラウザで承認を完了した後、ここに承認コードを貼り付けてください",
-    "oauthCodePlaceholder": "承認コードを入力してください..."
+    "oauthCodePlaceholder": "承認コードを入力してください...",
+    "verifyConnection": "接続を確認",
+    "manageModels": "モデル管理",
+    "anthropicOAuthActiveTip": "OAuth認証が有効になっており、Anthropicサービスを直接使用できます",
+    "oauthVerifySuccess": "OAuth接続の確認が成功しました",
+    "oauthVerifyFailed": "OAuth接続の確認に失敗しました"
   },
   "knowledgeBase": {
     "title": "ナレッジベース設定",
