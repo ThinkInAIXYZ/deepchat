@@ -85,15 +85,26 @@
               {{ t('settings.provider.anthropicConnected') }}
             </span>
           </div>
+
+          <!-- OAuth 模式下的操作按钮 -->
           <div class="flex flex-row gap-2">
+            <Button
+              variant="outline"
+              size="xs"
+              class="text-xs text-normal rounded-lg"
+              @click="validateOAuthConnection"
+            >
+              <Icon icon="lucide:check-check" class="w-4 h-4 text-muted-foreground" />
+              {{ t('settings.provider.verifyConnection') }}
+            </Button>
             <Button
               variant="outline"
               size="xs"
               class="text-xs text-normal rounded-lg"
               @click="openModelCheckDialog"
             >
-              <Icon icon="lucide:check-check" class="w-4 h-4 text-muted-foreground" />
-              {{ t('settings.provider.verifyKey') }}
+              <Icon icon="lucide:list" class="w-4 h-4 text-muted-foreground" />
+              {{ t('settings.provider.manageModels') }}
             </Button>
             <Button
               variant="outline"
@@ -104,6 +115,11 @@
               <Icon icon="lucide:unlink" class="w-4 h-4 text-destructive" />
               {{ t('settings.provider.disconnect') }}
             </Button>
+          </div>
+
+          <!-- OAuth 认证说明信息 -->
+          <div class="text-xs text-muted-foreground">
+            {{ t('settings.provider.anthropicOAuthActiveTip') }}
           </div>
         </div>
 
@@ -529,7 +545,41 @@ const validateApiKey = async () => {
   }
 }
 
+const validateOAuthConnection = async () => {
+  try {
+    // 验证 OAuth 连接状态
+    const resp = await settingsStore.checkProvider(props.provider.id)
+    if (resp.isOk) {
+      console.log('OAuth connection verified successfully')
+      checkResult.value = true
+      showCheckModelDialog.value = true
+      validationResult.value = {
+        success: true,
+        message: t('settings.provider.oauthVerifySuccess')
+      }
+    } else {
+      console.log('OAuth connection verification failed', resp.errorMsg)
+      checkResult.value = false
+      showCheckModelDialog.value = true
+      validationResult.value = {
+        success: false,
+        message: resp.errorMsg || t('settings.provider.oauthVerifyFailed')
+      }
+    }
+  } catch (error) {
+    console.error('Failed to validate OAuth connection:', error)
+    checkResult.value = false
+    showCheckModelDialog.value = true
+    validationResult.value = {
+      success: false,
+      message: error instanceof Error ? error.message : t('settings.provider.oauthVerifyFailed')
+    }
+  }
+}
+
 const openModelCheckDialog = () => {
+  // 直接打开模型检查对话框
+  // 验证逻辑已经分离到专门的验证按钮中
   modelCheckStore.openDialog(props.provider.id)
 }
 
