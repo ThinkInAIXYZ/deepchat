@@ -70,7 +70,20 @@
     "importing": "가져오는 중...",
     "confirmImport": "가져오기 확인",
     "importSuccessTitle": "가져오기 성공",
-    "importErrorTitle": "가져오기 실패"
+    "importErrorTitle": "가져오기 실패",
+    "resetData": "데이터 초기화",
+    "resetConfirmTitle": "데이터 초기화 확인",
+    "resetConfirmDescription": "초기화할 데이터 유형을 선택하세요. 이 작업은 되돌릴 수 없으며, 초기화 후 애플리케이션이 자동으로 재시작됩니다.",
+    "resetChatData": "채팅 데이터 초기화",
+    "resetChatDataDesc": "모든 채팅 기록과 대화 내역을 삭제",
+    "resetConfig": "설정 초기화",
+    "resetConfigDesc": "모든 앱 설정, 모델 설정, 사용자 정의 프롬프트를 삭제",
+    "resetAll": "완전 초기화",
+    "resetAllDesc": "채팅 기록, 설정, 캐시 파일을 포함한 모든 데이터를 삭제",
+    "resetting": "초기화 중...",
+    "confirmReset": "초기화 확인",
+    "resetCompleteDevTitle": "데이터 초기화 완료",
+    "resetCompleteDevMessage": "개발 환경에서는 수동으로 애플리케이션을 재시작하세요. 현재 프로세스를 중지하고 pnpm run dev를 다시 실행하세요"
   },
   "model": {
     "title": "모델 설정",
@@ -190,6 +203,8 @@
   },
   "provider": {
     "enable": "서비스 활성화",
+    "enabled": "활성화됨",
+    "disabled": "비활성화됨",
     "urlPlaceholder": "API URL을 입력하세요",
     "keyPlaceholder": "API 키를 입력하세요",
     "verifyKey": "키 확인",

@@ -7,6 +7,9 @@ import path from 'path'
 import { app, dialog } from 'electron'
 import { nanoid } from 'nanoid'
 import axios from 'axios'
+import { is } from '@electron-toolkit/utils'
+import { eventBus, SendTarget } from '../../eventbus'
+import { NOTIFICATION_EVENTS } from '../../events'
 const execAsync = promisify(exec)
 
 export class DevicePresenter implements IDevicePresenter {
@@ -274,6 +277,107 @@ export class DevicePresenter implements IDevicePresenter {
         }
       }
     })
+  }
+
+  /**
+   * 根据类型重置数据
+   * @param resetType 重置类型：'chat' | 'config' | 'all'
+   */
+  async resetDataByType(resetType: 'chat' | 'config' | 'all'): Promise<void> {
+    try {
+      const userDataPath = app.getPath('userData')
+
+      const removeDirectory = (dirPath: string): void => {
+        if (fs.existsSync(dirPath)) {
+          fs.readdirSync(dirPath).forEach((file) => {
+            const currentPath = path.join(dirPath, file)
+            if (fs.lstatSync(currentPath).isDirectory()) {
+              removeDirectory(currentPath)
+            } else {
+              fs.unlinkSync(currentPath)
+            }
+          })
+          fs.rmdirSync(dirPath)
+        }
+      }
+
+      const removeFile = (filePath: string): void => {
+        if (fs.existsSync(filePath)) {
+          fs.unlinkSync(filePath)
+        }
+      }
+
+      switch (resetType) {
+        case 'chat': {
+          // 只删除聊天数据
+          const dbPath = path.join(userDataPath, 'app_db')
+          console.log('Resetting chat data:', dbPath)
+          removeDirectory(dbPath)
+          break
+        }
+
+        case 'config': {
+          // 删除配置文件
+          console.log('Resetting configuration files')
+          const configFiles = [
+            path.join(userDataPath, 'app-settings.json'),
+            path.join(userDataPath, 'mcp-settings.json'),
+            path.join(userDataPath, 'model-config.json'),
+            path.join(userDataPath, 'custom_prompts.json')
+          ]
+
+          configFiles.forEach((filePath) => {
+            try {
+              removeFile(filePath)
+              console.log('Removed config file:', filePath)
+            } catch (error) {
+              console.warn('Failed to remove config file:', filePath, error)
+            }
+          })
+
+          try {
+            removeDirectory(path.join(userDataPath, 'provider_models'))
+            console.log('Removed provider_models directory')
+          } catch (error) {
+            console.warn('Failed to remove provider_models directory:', error)
+          }
+          break
+        }
+
+        case 'all': {
+          // 删除整个用户数据目录
+          console.log('Performing complete reset of user data:', userDataPath)
+          removeDirectory(userDataPath)
+          break
+        }
+
+        default:
+          throw new Error(`Unknown reset type: ${resetType}`)
+      }
+
+      this.restartAppWithDelay()
+    } catch (error) {
+      console.error('resetDataByType failed:', error)
+      throw error
+    }
+  }
+
+  private restartAppWithDelay(): void {
+    try {
+      if (is.dev) {
+        console.log('开发环境下数据重置完成，发送通知到渲染进程')
+        eventBus.sendToRenderer(NOTIFICATION_EVENTS.DATA_RESET_COMPLETE_DEV, SendTarget.ALL_WINDOWS)
+        return
+      }
+
+      setTimeout(() => {
+        app.relaunch()
+        app.exit()
+      }, 1000)
+    } catch (error) {
+      console.error('重启失败:', error)
+      throw error
+    }
   }
 
   /**

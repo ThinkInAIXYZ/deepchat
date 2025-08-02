@@ -609,6 +609,9 @@ export class TabPresenter implements ITabPresenter {
     // Re-adding ensures it's on top in most view hierarchies
     window.contentView.addChildView(view)
     this.updateViewBounds(window, view)
+    if (!view.webContents.isDestroyed()) {
+      view.webContents.focus()
+    }
   }
 
   /**

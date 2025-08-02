@@ -261,8 +261,12 @@ const editor = new Editor({
     HardBreak.extend({
       addKeyboardShortcuts() {
         return {
-          'Shift-Enter': () => this.editor.commands.setHardBreak(),
-          'Alt-Enter': () => this.editor.commands.setHardBreak()
+          'Shift-Enter': () => {
+            return this.editor.chain().setHardBreak().scrollIntoView().run()
+          },
+          'Alt-Enter': () => {
+            return this.editor.chain().setHardBreak().scrollIntoView().run()
+          }
         }
       }
     }).configure({
@@ -1017,6 +1021,14 @@ function onKeydown(e: KeyboardEvent) {
 defineExpose({
   setText: (text: string) => {
     inputText.value = text
+    nextTick(() => {
+      editor.chain().clearContent().insertContent(text).run()
+      editor.view.updateState(editor.state)
+      setTimeout(() => {
+        const docSize = editor.state.doc.content.size
+        editor.chain().focus().setTextSelection(docSize).run()
+      }, 10)
+    })
   }
 })
 </script>

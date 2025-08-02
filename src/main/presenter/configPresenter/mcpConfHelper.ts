@@ -4,6 +4,7 @@ import { MCP_EVENTS } from '@/events'
 import ElectronStore from 'electron-store'
 import { app } from 'electron'
 import { compare } from 'compare-versions'
+import { presenter } from '..'
 
 // MCP设置的接口
 interface IMcpSettings {
@@ -314,7 +315,7 @@ export class McpConfHelper {
   }
 
   // 获取MCP服务器配置
-  getMcpServers(): Promise<Record<string, MCPServerConfig>> {
+  async getMcpServers(): Promise<Record<string, MCPServerConfig>> {
     const storedServers = this.mcpStore.get('mcpServers') || DEFAULT_MCP_SERVERS.mcpServers
 
     // 检查并补充缺少的inmemory服务
@@ -350,6 +351,13 @@ export class McpConfHelper {
     for (const serverName of serversToRemove) {
       console.log(`移除不支持当前平台的服务: ${serverName}`)
       delete updatedServers[serverName]
+    }
+
+    // 移除不兼容的服务
+    const builtinKnowledgeSupported = await presenter.knowledgePresenter.isSupported()
+    if (!builtinKnowledgeSupported) {
+      console.warn('内置知识库服务不支持当前环境，移除相关服务')
+      delete updatedServers.builtinKnowledge
     }
 
     // 如果有变化，更新存储

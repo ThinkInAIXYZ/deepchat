@@ -70,7 +70,20 @@
     "importing": "Importing...",
     "confirmImport": "Confirm Import",
     "importSuccessTitle": "Import Successful",
-    "importErrorTitle": "Import Failed"
+    "importErrorTitle": "Import Failed",
+    "resetData": "Reset Data",
+    "resetConfirmTitle": "Confirm Data Reset",
+    "resetConfirmDescription": "Please select the type of data to reset. This operation cannot be undone and the application will restart automatically after reset.",
+    "resetChatData": "Reset Chat Data",
+    "resetChatDataDesc": "Delete all chat history and conversation records",
+    "resetConfig": "Reset Configuration",
+    "resetConfigDesc": "Delete all app settings, model configurations and custom prompts",
+    "resetAll": "Complete Reset",
+    "resetAllDesc": "Delete all data including chat history, configurations and cache files",
+    "resetting": "Resetting...",
+    "confirmReset": "Confirm Reset",
+    "resetCompleteDevTitle": "Data Reset Complete",
+    "resetCompleteDevMessage": "Please manually restart the application in development mode. Stop the current process and run pnpm run dev again"
   },
   "model": {
     "title": "Model Settings",
@@ -190,6 +203,8 @@
   },
   "provider": {
     "enable": "Enable Service",
+    "enabled": "Enabled",
+    "disabled": "Disabled",
     "urlPlaceholder": "Please enter API URL",
     "keyPlaceholder": "Please enter API Key",
     "verifyKey": "Verify Key",

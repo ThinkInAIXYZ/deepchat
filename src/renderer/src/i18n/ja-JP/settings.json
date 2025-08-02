@@ -70,7 +70,20 @@
     "importing": "インポート中...",
     "confirmImport": "インポートを確認",
     "importSuccessTitle": "インポート成功",
-    "importErrorTitle": "インポート失敗"
+    "importErrorTitle": "インポート失敗",
+    "resetData": "データをリセット",
+    "resetConfirmTitle": "データリセットの確認",
+    "resetConfirmDescription": "リセットするデータの種類を選択してください。この操作は元に戻せません。リセット後、アプリケーションは自動的に再起動されます。",
+    "resetChatData": "チャットデータをリセット",
+    "resetChatDataDesc": "すべてのチャット履歴と会話記録を削除",
+    "resetConfig": "設定をリセット",
+    "resetConfigDesc": "すべてのアプリ設定、モデル設定、カスタムプロンプトを削除",
+    "resetAll": "完全リセット",
+    "resetAllDesc": "チャット履歴、設定、キャッシュファイルを含むすべてのデータを削除",
+    "resetting": "リセット中...",
+    "confirmReset": "リセットを確認",
+    "resetCompleteDevTitle": "データリセット完了",
+    "resetCompleteDevMessage": "開発環境では手動でアプリケーションを再起動してください。現在のプロセスを停止して pnpm run dev を再実行してください"
   },
   "model": {
     "title": "モデル設定",
@@ -190,6 +203,8 @@
   },
   "provider": {
     "enable": "サービスを有効にする",
+    "enabled": "有効",
+    "disabled": "無効",
     "urlPlaceholder": "API URLを入力してください",
     "keyPlaceholder": "API Keyを入力してください",
     "verifyKey": "キーを検証",

@@ -70,7 +70,20 @@
     "importing": "導入中...",
     "confirmImport": "確認導入",
     "importSuccessTitle": "導入成功",
-    "importErrorTitle": "導入失敗"
+    "importErrorTitle": "導入失敗",
+    "resetData": "重置數據",
+    "resetConfirmTitle": "確認重置數據",
+    "resetConfirmDescription": "請選擇要重置的數據類型。此操作不可撤銷，重置後應用程式將自動重新啟動。",
+    "resetChatData": "重置聊天數據",
+    "resetChatDataDesc": "刪除所有聊天記錄和對話歷史",
+    "resetConfig": "重置配置",
+    "resetConfigDesc": "刪除所有應用程式設置、模型配置和自定義提示詞",
+    "resetAll": "完全重置",
+    "resetAllDesc": "刪除所有數據，包括聊天記錄、配置和快取檔案",
+    "resetting": "重置中...",
+    "confirmReset": "確認重置",
+    "resetCompleteDevTitle": "數據重置完成",
+    "resetCompleteDevMessage": "開發環境下請手動重新啟動應用程式。請停止當前進程並重新執行 pnpm run dev"
   },
   "model": {
     "title": "模型設置",
@@ -190,6 +203,8 @@
   },
   "provider": {
     "enable": "開啟服務",
+    "enabled": "已啟用",
+    "disabled": "已禁用",
     "urlPlaceholder": "請輸入API URL",
     "keyPlaceholder": "請輸入API Key",
     "verifyKey": "驗證密鑰",

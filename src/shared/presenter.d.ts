@@ -737,6 +737,7 @@ export interface IDevicePresenter {
   getMemoryUsage(): Promise<MemoryInfo>
   getDiskSpace(): Promise<DiskInfo>
   resetData(): Promise<void>
+  resetDataByType(resetType: 'chat' | 'config' | 'all'): Promise<void>
 
   // 目录选择和应用重启
   selectDirectory(): Promise<{ canceled: boolean; filePaths: string[] }>
@@ -1416,16 +1417,9 @@ export type KnowledgeFileResult = {
  */
 export interface IKnowledgePresenter {
   /**
-   * Create a knowledge base (initialize RAG application)
-   * @param config Knowledge base configuration
+   * Check if the knowledge presenter is supported in current environment
    */
-  create(config: BuiltinKnowledgeConfig): Promise<void>
-
-  /**
-   * Delete a knowledge base (remove local storage)
-   * @param id Knowledge base ID
-   */
-  delete(id: string): Promise<void>
+  isSupported(): Promise<boolean>
 
   /**
    * Add a file to the knowledge base

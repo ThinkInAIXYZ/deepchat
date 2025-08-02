@@ -70,7 +70,20 @@
     "importing": "导入中...",
     "confirmImport": "确认导入",
     "importSuccessTitle": "导入成功",
-    "importErrorTitle": "导入失败"
+    "importErrorTitle": "导入失败",
+    "resetData": "重置数据",
+    "resetConfirmTitle": "确认重置数据",
+    "resetConfirmDescription": "请选择要重置的数据类型。此操作不可撤销，重置后应用将自动重启。",
+    "resetChatData": "重置聊天数据",
+    "resetChatDataDesc": "删除所有聊天记录和对话历史",
+    "resetConfig": "重置配置",
+    "resetConfigDesc": "删除所有应用设置、模型配置和自定义提示词",
+    "resetAll": "完全重置",
+    "resetAllDesc": "删除所有数据，包括聊天记录、配置和缓存文件",
+    "resetting": "重置中...",
+    "confirmReset": "确认重置",
+    "resetCompleteDevTitle": "数据重置完成",
+    "resetCompleteDevMessage": "开发环境下请手动重启应用以查看效果。请停止当前进程并重新运行 pnpm run dev"
   },
   "model": {
     "title": "模型设置",
@@ -190,6 +203,8 @@
   },
   "provider": {
     "enable": "开启服务",
+    "enabled": "已启用",
+    "disabled": "已禁用",
     "urlPlaceholder": "请输入API URL",
     "keyPlaceholder": "请输入API Key",
     "verifyKey": "验证密钥",

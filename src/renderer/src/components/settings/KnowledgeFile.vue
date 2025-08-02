@@ -178,7 +178,7 @@
 </template>
 
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
 import { Button } from '@/components/ui/button'
@@ -200,7 +200,19 @@ const emit = defineEmits<{
   (e: 'hideKnowledgeFile'): void
 }>()
 
-const ctrlBtn = ref<'paused' | 'processing' | null>(null)
+const ctrlBtn = computed(() => {
+  if (fileList.value.length > 0) {
+    const hasProcessing = fileList.value.find((file) => file.status === 'processing')
+    if (hasProcessing) {
+      return 'processing'
+    }
+    const hasPaused = fileList.value.find((file) => file.status === 'paused')
+    if (hasPaused) {
+      return 'paused'
+    }
+  }
+  return null
+})
 
 const { t } = useI18n()
 // 文件列表
@@ -360,24 +372,6 @@ const reAddFile = async (file: KnowledgeFileMessage) => {
   }
 }
 
-watch(
-  () => fileList.value,
-  () => {
-    if (fileList.value.length > 0) {
-      const hasProcessing = fileList.value.find((file) => file.status === 'processing')
-      if (hasProcessing) {
-        ctrlBtn.value = 'processing'
-        return
-      }
-      const hasPaused = fileList.value.find((file) => file.status === 'paused')
-      if (hasPaused) {
-        ctrlBtn.value = 'paused'
-        return
-      }
-    }
-    ctrlBtn.value = null
-  }
-)
 // 初始化文件列表
 onMounted(() => {
   loadList()

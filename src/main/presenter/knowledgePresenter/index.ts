@@ -104,14 +104,32 @@ export class KnowledgePresenter implements IKnowledgePresenter {
   }
 
   /**
-   * 创建知识库（初始化 RAG 应用）
+   * Supported operating systems
+   */
+  private static readonly SUPPORTED_OS = [
+    'win32-x64',
+    'linux-x64',
+    'linux-arm64',
+    'darwin-arm64',
+    'darwin-x64'
+  ]
+
+  isSupported = async (): Promise<boolean> => {
+    const os = `${process.platform}-${process.arch}`
+    return KnowledgePresenter.SUPPORTED_OS.includes(os)
+  }
+
+  /**
+   * Create a knowledge base (initialize RAG application)
+   * @param config Knowledge base configuration
    */
   create = async (config: BuiltinKnowledgeConfig): Promise<void> => {
     await this.createStorePresenter(config)
   }
 
   /**
-   * 更新知识库配置
+   * Update a knowledge base configuration
+   * @param config Knowledge base configuration
    */
   update = async (config: BuiltinKnowledgeConfig): Promise<void> => {
     if (config.enabled) {
@@ -130,7 +148,8 @@ export class KnowledgePresenter implements IKnowledgePresenter {
   }
 
   /**
-   * 删除知识库（移除本地存储）
+   * Delete a knowledge base (remove local storage)
+   * @param id Knowledge base ID
    */
   delete = async (id: string): Promise<void> => {
     if (this.storePresenterCache.has(id)) {

@@ -265,19 +265,27 @@ export const useSettingsStore = defineStore('settings', () => {
       }
     })
 
-    // Enabled：按时间戳升序排列
-    const sortedEnabled = enabledProviders.sort((a, b) => {
-      const aTime = providerTimestamps.value[a.id] || 0
-      const bTime = providerTimestamps.value[b.id] || 0
-      return aTime - bTime
-    })
-
-    // Disabled：按时间戳降序排列
-    const sortedDisabled = disabledProviders.sort((a, b) => {
-      const aTime = providerTimestamps.value[a.id] || 0
-      const bTime = providerTimestamps.value[b.id] || 0
-      return bTime - aTime
-    })
+    // 排序函数：优先使用拖拽顺序，其次使用时间戳
+    const sortProviders = (providerList: LLM_PROVIDER[], useAscendingTime: boolean) => {
+      return providerList.sort((a, b) => {
+        const aOrderIndex = providerOrder.value.indexOf(a.id)
+        const bOrderIndex = providerOrder.value.indexOf(b.id)
+        if (aOrderIndex !== -1 && bOrderIndex !== -1) {
+          return aOrderIndex - bOrderIndex
+        }
+        if (aOrderIndex !== -1 && bOrderIndex === -1) {
+          return -1
+        }
+        if (aOrderIndex === -1 && bOrderIndex !== -1) {
+          return 1
+        }
+        const aTime = providerTimestamps.value[a.id] || 0
+        const bTime = providerTimestamps.value[b.id] || 0
+        return useAscendingTime ? aTime - bTime : bTime - aTime
+      })
+    }
+    const sortedEnabled = sortProviders(enabledProviders, true)
+    const sortedDisabled = sortProviders(disabledProviders, false)
 
     return [...sortedEnabled, ...sortedDisabled]
   })
@@ -882,6 +890,42 @@ export const useSettingsStore = defineStore('settings', () => {
     // 保存时间戳
     await saveProviderTimestamps()
     await updateProviderConfig(providerId, { enable })
+
+    await optimizeProviderOrder(providerId, enable)
+  }
+
+  const optimizeProviderOrder = async (providerId: string, enable: boolean): Promise<void> => {
+    try {
+      const currentOrder = [...providerOrder.value]
+      const providerIndex = currentOrder.indexOf(providerId)
+      if (providerIndex === -1) return
+      currentOrder.splice(providerIndex, 1)
+      const allProviders = providers.value
+      const enabledInOrder: string[] = []
+      const disabledInOrder: string[] = []
+      currentOrder.forEach((id) => {
+        const provider = allProviders.find((p) => p.id === id)
+        if (!provider || provider.id === providerId) return
+        if (provider.enable) {
+          enabledInOrder.push(id)
+        } else {
+          disabledInOrder.push(id)
+        }
+      })
+      let newOrder: string[]
+      if (enable) {
+        newOrder = [...enabledInOrder, providerId, ...disabledInOrder]
+      } else {
+        newOrder = [...enabledInOrder, providerId, ...disabledInOrder]
+      }
+      const existingIds = providers.value.map((p) => p.id)
+      const missingIds = existingIds.filter((id) => !newOrder.includes(id))
+      const finalOrder = [...newOrder, ...missingIds]
+      providerOrder.value = finalOrder
+      await configP.setSetting('providerOrder', finalOrder)
+    } catch (error) {
+      console.error('Failed to optimize provider order:', error)
+    }
   }
 
   const setSearchEngine = async (engineId: string) => {
@@ -1394,11 +1438,20 @@ export const useSettingsStore = defineStore('settings', () => {
     }
   }
 
-  // 更新 provider 顺序
+  // 更新 provider 顺序 - 支持分区域拖拽
   const updateProvidersOrder = async (newProviders: LLM_PROVIDER[]) => {
     try {
-      // 从新的 provider 数组创建顺序数组
-      const newOrder = newProviders.map((provider) => provider.id)
+      const enabledProviders: LLM_PROVIDER[] = []
+      const disabledProviders: LLM_PROVIDER[] = []
+      newProviders.forEach((provider) => {
+        if (provider.enable) {
+          enabledProviders.push(provider)
+        } else {
+          disabledProviders.push(provider)
+        }
+      })
+      const newOrder = [...enabledProviders.map((p) => p.id), ...disabledProviders.map((p) => p.id)]
+
       // 确保所有现有的 provider 都在顺序中
       const existingIds = providers.value.map((p) => p.id)
       const missingIds = existingIds.filter((id) => !newOrder.includes(id))
