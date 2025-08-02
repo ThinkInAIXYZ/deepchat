@@ -370,6 +370,9 @@ export const useSettingsStore = defineStore('settings', () => {
       await initOrUpdateSearchAssistantModel()
       // 设置事件监听
       setupProviderListener()
+
+      // 设置搜索引擎事件监听
+      setupSearchEnginesListener()
     } catch (error) {
       console.error('初始化设置失败:', error)
     }
@@ -918,10 +921,37 @@ export const useSettingsStore = defineStore('settings', () => {
 
   const setSearchEngine = async (engineId: string) => {
     try {
-      const success = await threadP.setSearchEngine(engineId)
+      let success = await threadP.setSearchEngine(engineId)
+
+      // 如果第一次设置失败，可能是后端搜索引擎列表还没更新，强制刷新后重试
+      if (!success) {
+        console.log('第一次设置搜索引擎失败，尝试刷新搜索引擎列表后重试')
+        await refreshSearchEngines()
+        success = await threadP.setSearchEngine(engineId)
+      }
+
       if (success) {
-        // 获取最新的引擎列表
-        activeSearchEngine.value = searchEngines.value.find((e) => e.id === engineId) || null
+        // 先尝试从当前列表中查找
+        let engine = searchEngines.value.find((e) => e.id === engineId)
+
+        // 如果找不到，可能是新添加的自定义引擎，从后端重新获取
+        if (!engine) {
+          try {
+            const customEngines = await configP.getCustomSearchEngines()
+            if (customEngines) {
+              engine = customEngines.find((e) => e.id === engineId)
+            }
+          } catch (error) {
+            console.warn('获取自定义搜索引擎失败:', error)
+          }
+        }
+
+        activeSearchEngine.value = engine || null
+
+        // 同时保存到配置中
+        await configP.setSetting('searchEngine', engineId)
+      } else {
+        console.error('设置搜索引擎失败，engineId:', engineId)
       }
     } catch (error) {
       console.error('设置搜索引擎失败', error)
@@ -1272,6 +1302,8 @@ export const useSettingsStore = defineStore('settings', () => {
   // 清理可能的事件监听器
   const cleanup = () => {
     removeOllamaEventListeners()
+    // 清理搜索引擎事件监听器
+    window.electron?.ipcRenderer?.removeAllListeners(CONFIG_EVENTS.SEARCH_ENGINES_UPDATED)
   }
 
   // 添加设置notificationsEnabled的方法
@@ -1308,11 +1340,21 @@ export const useSettingsStore = defineStore('settings', () => {
     window.electron.ipcRenderer.on(CONFIG_EVENTS.SEARCH_ENGINES_UPDATED, async () => {
       try {
         const customEngines = await configP.getCustomSearchEngines()
+        // 移除已有的自定义搜索引擎（避免重复）
+        searchEngines.value = searchEngines.value.filter((e) => !e.isCustom)
+        // 添加自定义搜索引擎（如果存在的话）
         if (customEngines && customEngines.length > 0) {
-          // 移除已有的自定义搜索引擎（避免重复）
-          searchEngines.value = searchEngines.value.filter((e) => !e.isCustom)
-          // 添加自定义搜索引擎
           searchEngines.value.push(...customEngines)
+        }
+
+        // 刷新活跃搜索引擎状态，确保后端和前端状态同步
+        const currentActiveEngineId = await configP.getSetting<string>('searchEngine')
+        if (currentActiveEngineId) {
+          const engine = searchEngines.value.find((e) => e.id === currentActiveEngineId)
+          if (engine) {
+            activeSearchEngine.value = engine
+            await threadP.setActiveSearchEngine(currentActiveEngineId)
+          }
         }
       } catch (error) {
         console.error('更新自定义搜索引擎失败:', error)
