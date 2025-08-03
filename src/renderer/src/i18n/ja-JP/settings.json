@@ -611,5 +611,21 @@
     "nextTab": "次のタブに切り替えます",
     "previousTab": "前のタブに切り替えます",
     "specificTab": "指定されたタブページ（1-8）に切り替える"
+  },
+  "rateLimit": {
+    "title": "レート制限",
+    "description": "リクエストの時間間隔を制御し、API制限の超過を防ぐ",
+    "intervalLimit": "リクエスト間隔",
+    "intervalUnit": "秒",
+    "intervalHelper": "2つのリクエスト間の最小間隔、0は制限なしを意味する",
+    "lastRequestTime": "最後のリクエスト",
+    "queueLength": "キューの長さ",
+    "nextAllowedTime": "次の許可されたリクエスト",
+    "never": "なし",
+    "justNow": "たった今",
+    "secondsAgo": "秒前",
+    "minutesAgo": "分前",
+    "immediately": "すぐに",
+    "secondsLater": "秒後"
   }
 }

@@ -611,5 +611,21 @@
     "previousTab": "이전 탭으로 전환하십시오",
     "specificTab": "지정된 탭 페이지 (1-8)로 전환",
     "nextTab": "다음 탭으로 전환하십시오"
+  },
+  "rateLimit": {
+    "title": "속도 제한",
+    "description": "요청 시간 간격을 제어하여 API 제한 초과 방지",
+    "intervalLimit": "요청 간격",
+    "intervalUnit": "초",
+    "intervalHelper": "두 요청 간의 최소 간격, 0은 제한 없음을 의미",
+    "lastRequestTime": "마지막 요청",
+    "queueLength": "대기열 길이",
+    "nextAllowedTime": "다음 허용된 요청",
+    "never": "없음",
+    "justNow": "방금 전",
+    "secondsAgo": "초 전",
+    "minutesAgo": "분 전",
+    "immediately": "즉시",
+    "secondsLater": "초 후"
   }
 }

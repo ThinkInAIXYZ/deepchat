@@ -611,5 +611,21 @@
     "nextTab": "Passez à l'onglet suivant",
     "previousTab": "Passez à l'onglet précédent",
     "specificTab": "Passez à la page d'onglet spécifiée (1-8)"
+  },
+  "rateLimit": {
+    "title": "Limitation de débit",
+    "description": "Contrôler l'intervalle de temps des requêtes, éviter de dépasser les limites API",
+    "intervalLimit": "Intervalle de requête",
+    "intervalUnit": "secondes",
+    "intervalHelper": "Intervalle minimum entre deux requêtes, 0 signifie aucune limite",
+    "lastRequestTime": "Dernière requête",
+    "queueLength": "Longueur de la file",
+    "nextAllowedTime": "Prochaine requête autorisée",
+    "never": "Jamais",
+    "justNow": "À l'instant",
+    "secondsAgo": "secondes passées",
+    "minutesAgo": "minutes passées",
+    "immediately": "Immédiatement",
+    "secondsLater": "secondes plus tard"
   }
 }

@@ -11,7 +11,12 @@
     "promptFilesAddedDesc": "{count}개 파일이 성공적으로 추가되었습니다",
     "promptFilesError": "파일 처리 오류",
     "promptFilesErrorDesc": "{count}개 파일 처리에 실패했습니다",
-    "historyPlaceholder": "(Tab 키로 입력)"
+    "historyPlaceholder": "(Tab 키로 입력)",
+    "rateLimitQueue": "대기열 {count}",
+    "rateLimitWait": "대기 {seconds}초",
+    "rateLimitQueueTooltip": "대기열에 {count}개 요청, 간격 {interval}초",
+    "rateLimitReadyTooltip": "전송 준비 완료, 간격 {interval}초",
+    "rateLimitWaitingTooltip": "{seconds}초 더 대기, 간격 {interval}초"
   },
   "features": {
     "deepThinking": "심층 사고",
@@ -30,7 +35,21 @@
     "error": "검색 실패"
   },
   "messages": {
-    "thinking": "생각..."
+    "thinking": "생각...",
+    "rateLimitWaiting": "속도 제한으로 대기열에서 대기 중...",
+    "rateLimitTitle": "요청 속도 제한",
+    "rateLimitQueue": "대기열 위치",
+    "rateLimitEstimated": "예상 대기 시간",
+    "rateLimitQuickSettings": "제한 조정",
+    "rateLimitSwitchProvider": "제공자 변경",
+    "rateLimitImmediately": "즉시",
+    "rateLimitSeconds": "초",
+    "rateLimitMinutes": "분"
+  },
+  "rateLimit": {
+    "queueTooltip": "대기열에 {count}개 요청, 간격 {interval}초",
+    "readyTooltip": "전송 준비 완료, 간격 {interval}초",
+    "waitingTooltip": "{seconds}초 더 대기, 간격 {interval}초"
   },
   "notify": {
     "generationComplete": "생성이 완료되었습니다",

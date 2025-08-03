@@ -30,6 +30,9 @@
           @safety-setting-change="handleSafetySettingChange"
         />
 
+        <!-- 速率限制配置 -->
+        <ProviderRateLimitConfig :provider="provider" @config-changed="handleConfigChanged" />
+
         <!-- 模型管理 -->
         <ProviderModelManager
           :provider="provider"
@@ -71,6 +74,7 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import ProviderApiConfig from './ProviderApiConfig.vue'
 import AzureProviderConfig from './AzureProviderConfig.vue'
 import GeminiSafetyConfig from './GeminiSafetyConfig.vue'
+import ProviderRateLimitConfig from './ProviderRateLimitConfig.vue'
 import ProviderModelManager from './ProviderModelManager.vue'
 import ProviderDialogContainer from './ProviderDialogContainer.vue'
 import { useModelCheckStore } from '@/stores/modelCheck'

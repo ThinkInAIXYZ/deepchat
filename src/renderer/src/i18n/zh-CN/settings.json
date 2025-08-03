@@ -611,5 +611,21 @@
     "previousTab": "切换到上一个标签页",
     "specificTab": "切换到指定标签页 (1-8)",
     "lastTab": "切换到最后一个标签页"
+  },
+  "rateLimit": {
+    "title": "速率限制",
+    "description": "控制请求间隔时间，防止超出API限制",
+    "intervalLimit": "请求间隔",
+    "intervalUnit": "秒",
+    "intervalHelper": "两次请求之间的最小间隔时间，0表示无限制",
+    "lastRequestTime": "上次请求",
+    "queueLength": "队列长度",
+    "nextAllowedTime": "下次可请求",
+    "never": "从未",
+    "justNow": "刚刚",
+    "secondsAgo": "秒前",
+    "minutesAgo": "分钟前",
+    "immediately": "立即",
+    "secondsLater": "秒后"
   }
 }

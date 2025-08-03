@@ -611,5 +611,21 @@
     "previousTab": "切換到上一個標籤頁",
     "specificTab": "切換到指定標籤頁 (1-8)",
     "nextTab": "切換到下一個標籤頁"
+  },
+  "rateLimit": {
+    "title": "速率限制",
+    "description": "控制請求時間間隔，避免超出 API 限制",
+    "intervalLimit": "請求間隔",
+    "intervalUnit": "秒",
+    "intervalHelper": "兩個請求之間的最小間隔，0 表示無限制",
+    "lastRequestTime": "最後請求",
+    "queueLength": "佇列長度",
+    "nextAllowedTime": "下次允許請求",
+    "never": "從未",
+    "justNow": "剛才",
+    "secondsAgo": "秒前",
+    "minutesAgo": "分鐘前",
+    "immediately": "立即",
+    "secondsLater": "秒後"
   }
 }

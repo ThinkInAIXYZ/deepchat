@@ -84,6 +84,14 @@ export const SYNC_EVENTS = {
   DATA_CHANGED: 'sync:data-changed'
 }
 
+// 速率限制相关事件
+export const RATE_LIMIT_EVENTS = {
+  CONFIG_UPDATED: 'rate-limit:config-updated',
+  REQUEST_QUEUED: 'rate-limit:request-queued',
+  REQUEST_EXECUTED: 'rate-limit:request-executed',
+  LIMIT_EXCEEDED: 'rate-limit:limit-exceeded'
+}
+
 // DeepLink 相关事件
 export const DEEPLINK_EVENTS = {
   PROTOCOL_RECEIVED: 'deeplink:protocol-received',

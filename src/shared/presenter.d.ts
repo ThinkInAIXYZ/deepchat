@@ -484,6 +484,10 @@ export type LLM_PROVIDER = {
   custom?: boolean
   authMode?: 'apikey' | 'oauth' // 认证模式
   oauthToken?: string // OAuth token
+  rateLimit?: {
+    enabled: boolean
+    qpsLimit: number
+  }
   websites?: {
     official: string
     apiKey: string
@@ -560,6 +564,22 @@ export interface ILlmProviderPresenter {
     providerId: string,
     modelId: string
   ): Promise<{ data: LLM_EMBEDDING_ATTRS; errorMsg?: string }>
+  updateProviderRateLimit(providerId: string, enabled: boolean, qpsLimit: number): void
+  getProviderRateLimitStatus(providerId: string): {
+    config: { enabled: boolean; qpsLimit: number }
+    currentQps: number
+    queueLength: number
+    lastRequestTime: number
+  }
+  getAllProviderRateLimitStatus(): Record<
+    string,
+    {
+      config: { enabled: boolean; qpsLimit: number }
+      currentQps: number
+      queueLength: number
+      lastRequestTime: number
+    }
+  >
 }
 export type CONVERSATION_SETTINGS = {
   systemPrompt: string
@@ -1126,6 +1146,7 @@ export interface LLMCoreStreamEvent {
     | 'usage'
     | 'stop'
     | 'image_data'
+    | 'rate_limit'
   content?: string // 用于 type 'text'
   reasoning_content?: string // 用于 type 'reasoning'
   tool_call_id?: string // 用于 tool_call_* 类型
@@ -1138,6 +1159,13 @@ export interface LLMCoreStreamEvent {
     prompt_tokens: number
     completion_tokens: number
     total_tokens: number
+  }
+  rate_limit?: {
+    providerId: string
+    qpsLimit: number
+    currentQps: number
+    queueLength: number
+    estimatedWaitTime?: number
   }
   stop_reason?: 'tool_use' | 'max_tokens' | 'stop_sequence' | 'error' | 'complete' // 用于 type 'stop'
   image_data?: {
@@ -1202,6 +1230,13 @@ export interface LLMAgentEventData {
     context_length: number
   }
   image_data?: { data: string; mimeType: string }
+  rate_limit?: {
+    providerId: string
+    qpsLimit: number
+    currentQps: number
+    queueLength: number
+    estimatedWaitTime?: number
+  }
   error?: string // For error event
   userStop?: boolean // For end event
 }

@@ -611,5 +611,21 @@
     "previousTab": "رفتن به برگه پیشین",
     "specificTab": "رفتن به برگه خاص (1-8)",
     "lastTab": "رفتن به آخرین برگه"
+  },
+  "rateLimit": {
+    "title": "محدودیت نرخ",
+    "description": "کنترل فاصله زمانی درخواست‌ها، جلوگیری از تجاوز محدودیت‌های API",
+    "intervalLimit": "فاصله درخواست",
+    "intervalUnit": "ثانیه",
+    "intervalHelper": "حداقل فاصله زمانی بین دو درخواست، 0 به معنای بدون محدودیت",
+    "lastRequestTime": "آخرین درخواست",
+    "queueLength": "طول صف",
+    "nextAllowedTime": "درخواست بعدی مجاز",
+    "never": "هرگز",
+    "justNow": "همین الان",
+    "secondsAgo": "ثانیه پیش",
+    "minutesAgo": "دقیقه پیش",
+    "immediately": "فوری",
+    "secondsLater": "ثانیه بعد"
   }
 }

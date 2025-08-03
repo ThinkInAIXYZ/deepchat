@@ -38,6 +38,7 @@ import { OpenRouterProvider } from './providers/openRouterProvider'
 import { MinimaxProvider } from './providers/minimaxProvider'
 import { AihubmixProvider } from './providers/aihubmixProvider'
 import { _302AIProvider } from './providers/_302AIProvider'
+import { RateLimitPresenter } from '../rateLimitPresenter'
 // 流的状态
 interface StreamState {
   isGenerating: boolean
@@ -63,9 +64,11 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
     maxConcurrentStreams: 10
   }
   private configPresenter: ConfigPresenter
+  private rateLimitPresenter: RateLimitPresenter
 
   constructor(configPresenter: ConfigPresenter) {
     this.configPresenter = configPresenter
+    this.rateLimitPresenter = new RateLimitPresenter(configPresenter)
     this.init()
     // 监听代理更新事件
     eventBus.on(CONFIG_EVENTS.PROXY_RESOLVED, () => {
@@ -209,6 +212,7 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
     const enabledProviders = Array.from(this.providers.values()).filter(
       (provider) => provider.enable
     )
+    this.rateLimitPresenter.onProvidersUpdated(providers)
 
     // Initialize provider instances sequentially to avoid race conditions
     for (const provider of enabledProviders) {
@@ -271,6 +275,53 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
 
   async updateModelStatus(providerId: string, modelId: string, enabled: boolean): Promise<void> {
     this.configPresenter.setModelStatus(providerId, modelId, enabled)
+  }
+
+  /**
+   * 更新 provider 的速率限制配置
+   */
+  updateProviderRateLimit(providerId: string, enabled: boolean, qpsLimit: number): void {
+    this.rateLimitPresenter.updateProviderConfig(providerId, {
+      enabled,
+      qpsLimit
+    })
+  }
+
+  /**
+   * 获取 provider 的速率限制状态
+   */
+  getProviderRateLimitStatus(providerId: string): {
+    config: { enabled: boolean; qpsLimit: number }
+    currentQps: number
+    queueLength: number
+    lastRequestTime: number
+  } {
+    const config = this.rateLimitPresenter.getProviderConfig(providerId)
+    const currentQps = this.rateLimitPresenter.getCurrentQps(providerId)
+    const queueLength = this.rateLimitPresenter.getQueueLength(providerId)
+    const lastRequestTime = this.rateLimitPresenter.getLastRequestTime(providerId)
+
+    return {
+      config,
+      currentQps,
+      queueLength,
+      lastRequestTime
+    }
+  }
+
+  /**
+   * 获取所有 provider 的速率限制状态
+   */
+  getAllProviderRateLimitStatus(): Record<
+    string,
+    {
+      config: { enabled: boolean; qpsLimit: number }
+      currentQps: number
+      queueLength: number
+      lastRequestTime: number
+    }
+  > {
+    return this.rateLimitPresenter.getAllProviderStatus()
   }
 
   isGenerating(eventId: string): boolean {
@@ -387,6 +438,31 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
         try {
           console.log(`[Agent Loop] Iteration ${toolCallCount + 1} for event: ${eventId}`)
           const mcpTools = await presenter.mcpPresenter.getAllToolDefinitions(enabledMcpTools)
+          const canExecute = this.rateLimitPresenter.canExecuteImmediately(providerId)
+          if (!canExecute) {
+            const config = this.rateLimitPresenter.getProviderConfig(providerId)
+            const currentQps = this.rateLimitPresenter.getCurrentQps(providerId)
+            const queueLength = this.rateLimitPresenter.getQueueLength(providerId)
+
+            yield {
+              type: 'response',
+              data: {
+                eventId,
+                rate_limit: {
+                  providerId,
+                  qpsLimit: config.qpsLimit,
+                  currentQps,
+                  queueLength,
+                  estimatedWaitTime: Math.max(0, 1000 - (Date.now() % 1000))
+                }
+              }
+            }
+
+            await this.rateLimitPresenter.executeWithRateLimit(providerId)
+          } else {
+            await this.rateLimitPresenter.executeWithRateLimit(providerId)
+          }
+
           // Call the provider's core stream method, expecting LLMCoreStreamEvent
           const stream = provider.coreStream(
             conversationMessages,

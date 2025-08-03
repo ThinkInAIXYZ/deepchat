@@ -611,5 +611,21 @@
     "previousTab": "Switch to previous tab",
     "specificTab": "Switch to specific tab (1-8)",
     "lastTab": "Switch to last tab"
+  },
+  "rateLimit": {
+    "title": "Rate Limit",
+    "description": "Control request interval to prevent exceeding API limits",
+    "intervalLimit": "Request Interval",
+    "intervalUnit": "seconds",
+    "intervalHelper": "Minimum interval between requests, 0 means no limit",
+    "lastRequestTime": "Last Request",
+    "queueLength": "Queue Length",
+    "nextAllowedTime": "Next Allowed",
+    "never": "Never",
+    "justNow": "Just now",
+    "secondsAgo": "s ago",
+    "minutesAgo": "m ago",
+    "immediately": "Now",
+    "secondsLater": "s later"
   }
 }
