@@ -324,7 +324,7 @@ deepchatへの貢献をご検討いただきありがとうございます！貢
 
 - [Vue](https://vuejs.org/)
 - [Electron](https://www.electronjs.org/)
-- [Electron-Vite](electron-vite.org)
+- [Electron-Vite](https://electron-vite.org/)
 - [Rolldown-Vite](https://github.com/vitejs/rolldown-vite)
 - [oxlint](https://github.com/oxc-project/oxc)
 
