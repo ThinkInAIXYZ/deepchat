@@ -417,13 +417,13 @@ watch(
 )
 
 // 组件挂载时加载配置
-let unwatch: () => void // only use here, so declare it here
+let unwatch: (() => void) | undefined
 onMounted(async () => {
   unwatch = watch(
     () => mcpStore.config.ready,
     async (ready) => {
       if (ready) {
-        unwatch() // only run once to avoid multiple calls
+        unwatch?.() // only run once to avoid multiple calls
         await loadFastGptConfigFromMcp()
       }
     },
@@ -433,8 +433,6 @@ onMounted(async () => {
 
 // cancel the watch to avoid memory leaks
 onUnmounted(() => {
-  if (unwatch) {
-    unwatch()
-  }
+  unwatch?.()
 })
 </script>
