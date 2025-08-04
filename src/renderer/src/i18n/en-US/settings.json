@@ -76,6 +76,8 @@
     "resetConfirmDescription": "Please select the type of data to reset. This operation cannot be undone and the application will restart automatically after reset.",
     "resetChatData": "Reset Chat Data",
     "resetChatDataDesc": "Delete all chat history and conversation records",
+    "resetKnowledgeData": "Reset Knowledge Base Data",
+    "resetKnowledgeDataDesc": "Delete all knowledge base files and vector data",
     "resetConfig": "Reset Configuration",
     "resetConfigDesc": "Delete all app settings, model configurations and custom prompts",
     "resetAll": "Complete Reset",

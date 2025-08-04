@@ -76,6 +76,8 @@
     "resetConfirmDescription": "請選擇要重置的數據類型。此操作不可撤銷，重置後應用程式將自動重新啟動。",
     "resetChatData": "重置聊天數據",
     "resetChatDataDesc": "刪除所有聊天記錄和對話歷史",
+    "resetKnowledgeData": "重置知識庫數據",
+    "resetKnowledgeDataDesc": "刪除所有知識庫檔案和向量數據",
     "resetConfig": "重置配置",
     "resetConfigDesc": "刪除所有應用程式設置、模型配置和自定義提示詞",
     "resetAll": "完全重置",

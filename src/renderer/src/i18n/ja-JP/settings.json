@@ -76,6 +76,8 @@
     "resetConfirmDescription": "リセットするデータの種類を選択してください。この操作は元に戻せません。リセット後、アプリケーションは自動的に再起動されます。",
     "resetChatData": "チャットデータをリセット",
     "resetChatDataDesc": "すべてのチャット履歴と会話記録を削除",
+    "resetKnowledgeData": "ナレッジベースデータをリセット",
+    "resetKnowledgeDataDesc": "すべてのナレッジベースファイルとベクターデータを削除",
     "resetConfig": "設定をリセット",
     "resetConfigDesc": "すべてのアプリ設定、モデル設定、カスタムプロンプトを削除",
     "resetAll": "完全リセット",

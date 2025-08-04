@@ -76,6 +76,8 @@
     "resetConfirmDescription": "Veuillez sélectionner le type de données à réinitialiser. Cette opération est irréversible et l'application redémarrera automatiquement après la réinitialisation.",
     "resetChatData": "Réinitialiser les données de chat",
     "resetChatDataDesc": "Supprimer tout l'historique des conversations et les enregistrements de dialogue",
+    "resetKnowledgeData": "Réinitialiser les données de base de connaissances",
+    "resetKnowledgeDataDesc": "Supprimer tous les fichiers de base de connaissances et les données vectorielles",
     "resetConfig": "Réinitialiser la configuration",
     "resetConfigDesc": "Supprimer tous les paramètres de l'application, les configurations de modèles et les prompts personnalisés",
     "resetAll": "Réinitialisation complète",

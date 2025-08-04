@@ -155,6 +155,20 @@
               </div>
               <div
                 class="flex items-start space-x-3 cursor-pointer hover:bg-accent rounded-lg p-2 -m-2"
+                @click="resetType = 'knowledge'"
+              >
+                <RadioGroupItem value="knowledge" id="reset-knowledge" class="mt-1" />
+                <div class="flex flex-col">
+                  <Label for="reset-knowledge" class="font-medium cursor-pointer">{{
+                    t('settings.data.resetKnowledgeData')
+                  }}</Label>
+                  <p class="text-xs text-muted-foreground">
+                    {{ t('settings.data.resetKnowledgeDataDesc') }}
+                  </p>
+                </div>
+              </div>
+              <div
+                class="flex items-start space-x-3 cursor-pointer hover:bg-accent rounded-lg p-2 -m-2"
                 @click="resetType = 'config'"
               >
                 <RadioGroupItem value="config" id="reset-config" class="mt-1" />
@@ -266,7 +280,7 @@ const isImportDialogOpen = ref(false)
 const importMode = ref('increment')
 
 const isResetDialogOpen = ref(false)
-const resetType = ref<'chat' | 'config' | 'all'>('chat')
+const resetType = ref<'chat' | 'knowledge' | 'config' | 'all'>('chat')
 const isResetting = ref(false)
 
 // 使用计算属性处理双向绑定

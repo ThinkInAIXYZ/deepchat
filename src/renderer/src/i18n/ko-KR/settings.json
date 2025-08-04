@@ -76,6 +76,8 @@
     "resetConfirmDescription": "초기화할 데이터 유형을 선택하세요. 이 작업은 되돌릴 수 없으며, 초기화 후 애플리케이션이 자동으로 재시작됩니다.",
     "resetChatData": "채팅 데이터 초기화",
     "resetChatDataDesc": "모든 채팅 기록과 대화 내역을 삭제",
+    "resetKnowledgeData": "지식베이스 데이터 초기화",
+    "resetKnowledgeDataDesc": "모든 지식베이스 파일과 벡터 데이터를 삭제",
     "resetConfig": "설정 초기화",
     "resetConfigDesc": "모든 앱 설정, 모델 설정, 사용자 정의 프롬프트를 삭제",
     "resetAll": "완전 초기화",
