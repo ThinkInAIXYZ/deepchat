@@ -617,7 +617,7 @@
     "description": "リクエストの時間間隔を制御し、API制限の超過を防ぐ",
     "intervalLimit": "リクエスト間隔",
     "intervalUnit": "秒",
-    "intervalHelper": "2つのリクエスト間の最小間隔、0は制限なしを意味する",
+    "intervalHelper": "2つのリクエスト間の最小間隔、不要な場合はレート制限を無効にしてください",
     "lastRequestTime": "最後のリクエスト",
     "queueLength": "キューの長さ",
     "nextAllowedTime": "次の許可されたリクエスト",
@@ -626,6 +626,11 @@
     "secondsAgo": "秒前",
     "minutesAgo": "分前",
     "immediately": "すぐに",
-    "secondsLater": "秒後"
+    "secondsLater": "秒後",
+    "confirmDisableTitle": "レート制限の無効化を確認",
+    "confirmDisableMessage": "値は0以下にできません。レート制限機能を無効にしますか？",
+    "confirmDisable": "制限を無効化",
+    "disabled": "レート制限が無効化されました",
+    "disabledDescription": "レート制限機能が無効化されました"
   }
 }

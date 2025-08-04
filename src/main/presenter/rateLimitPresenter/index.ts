@@ -26,14 +26,25 @@ export class RateLimitPresenter {
   }
 
   updateProviderConfig(providerId: string, config: Partial<RateLimitConfig>): void {
-    this.rateLimitManager.setProviderConfig(providerId, config)
+    let finalConfig = { ...config }
+    if (
+      finalConfig.qpsLimit !== undefined &&
+      finalConfig.qpsLimit <= 0 &&
+      finalConfig.enabled === true
+    ) {
+      console.warn(
+        `[RateLimitPresenter] Invalid qpsLimit (${finalConfig.qpsLimit}) for provider ${providerId}, disabling rate limit`
+      )
+      finalConfig.enabled = false
+    }
+    this.rateLimitManager.setProviderConfig(providerId, finalConfig)
     const provider = this.configPresenter.getProviderById(providerId)
     if (provider) {
       const updatedProvider: LLM_PROVIDER = {
         ...provider,
         rateLimit: {
-          enabled: config.enabled ?? provider.rateLimit?.enabled ?? false,
-          qpsLimit: config.qpsLimit ?? provider.rateLimit?.qpsLimit ?? 10
+          enabled: finalConfig.enabled ?? provider.rateLimit?.enabled ?? false,
+          qpsLimit: finalConfig.qpsLimit ?? provider.rateLimit?.qpsLimit ?? 10
         }
       }
 

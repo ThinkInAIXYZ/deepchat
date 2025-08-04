@@ -617,7 +617,7 @@
     "description": "控制请求间隔时间，防止超出API限制",
     "intervalLimit": "请求间隔",
     "intervalUnit": "秒",
-    "intervalHelper": "两次请求之间的最小间隔时间，0表示无限制",
+    "intervalHelper": "两次请求之间的最小间隔时间，不需要时请关闭速率限制",
     "lastRequestTime": "上次请求",
     "queueLength": "队列长度",
     "nextAllowedTime": "下次可请求",
@@ -626,6 +626,11 @@
     "secondsAgo": "秒前",
     "minutesAgo": "分钟前",
     "immediately": "立即",
-    "secondsLater": "秒后"
+    "secondsLater": "秒后",
+    "confirmDisableTitle": "确认关闭速率限制",
+    "confirmDisableMessage": "该值不能小于或等于0，是否关闭速率限制功能？",
+    "confirmDisable": "关闭限制",
+    "disabled": "速率限制已关闭",
+    "disabledDescription": "速率限制功能已关闭"
   }
 }

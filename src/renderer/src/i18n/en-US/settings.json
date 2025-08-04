@@ -617,7 +617,7 @@
     "description": "Control request interval to prevent exceeding API limits",
     "intervalLimit": "Request Interval",
     "intervalUnit": "seconds",
-    "intervalHelper": "Minimum interval between requests, 0 means no limit",
+    "intervalHelper": "Minimum interval between requests, disable rate limiting if not needed",
     "lastRequestTime": "Last Request",
     "queueLength": "Queue Length",
     "nextAllowedTime": "Next Allowed",
@@ -626,6 +626,11 @@
     "secondsAgo": "s ago",
     "minutesAgo": "m ago",
     "immediately": "Now",
-    "secondsLater": "s later"
+    "secondsLater": "s later",
+    "confirmDisableTitle": "Confirm Disable Rate Limit",
+    "confirmDisableMessage": "Value cannot be less than or equal to 0. Do you want to disable rate limiting?",
+    "confirmDisable": "Disable Limit",
+    "disabled": "Rate Limit Disabled",
+    "disabledDescription": "Rate limiting has been disabled"
   }
 }

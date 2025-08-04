@@ -617,7 +617,7 @@
     "description": "控制請求時間間隔，避免超出 API 限制",
     "intervalLimit": "請求間隔",
     "intervalUnit": "秒",
-    "intervalHelper": "兩個請求之間的最小間隔，0 表示無限制",
+    "intervalHelper": "兩個請求之間的最小間隔，不需要時請關閉速率限制",
     "lastRequestTime": "最後請求",
     "queueLength": "佇列長度",
     "nextAllowedTime": "下次允許請求",
@@ -626,6 +626,11 @@
     "secondsAgo": "秒前",
     "minutesAgo": "分鐘前",
     "immediately": "立即",
-    "secondsLater": "秒後"
+    "secondsLater": "秒後",
+    "confirmDisableTitle": "確認關閉速率限制",
+    "confirmDisableMessage": "該值不能小於或等於0，是否關閉速率限制功能？",
+    "confirmDisable": "關閉限制",
+    "disabled": "速率限制已關閉",
+    "disabledDescription": "速率限制功能已關閉"
   }
 }
