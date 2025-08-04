@@ -108,7 +108,7 @@ const llmPresenter = usePresenter('llmproviderPresenter')
 const { toast } = useToast()
 
 const rateLimitEnabled = ref(props.provider.rateLimit?.enabled ?? false)
-const intervalValue = ref(convertQpsToInterval(props.provider.rateLimit?.qpsLimit ?? 10))
+const intervalValue = ref(convertQpsToInterval(props.provider.rateLimit?.qpsLimit ?? 0.1))
 const previousValidValue = ref(intervalValue.value) // 保存上一个有效值
 const showConfirmDialog = ref(false)
 const status = ref<{
@@ -145,7 +145,6 @@ const handleIntervalChange = async () => {
 
 const confirmDisableRateLimit = async () => {
   rateLimitEnabled.value = false
-  intervalValue.value = 0
   showConfirmDialog.value = false
   await updateRateLimitConfig()
   toast({
@@ -259,7 +258,7 @@ watch(
   () => props.provider,
   (newProvider) => {
     rateLimitEnabled.value = newProvider.rateLimit?.enabled ?? false
-    intervalValue.value = convertQpsToInterval(newProvider.rateLimit?.qpsLimit ?? 10)
+    intervalValue.value = convertQpsToInterval(newProvider.rateLimit?.qpsLimit ?? 0.1)
     previousValidValue.value = intervalValue.value
     loadStatus()
   },
