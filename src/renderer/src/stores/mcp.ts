@@ -526,6 +526,46 @@ export const useMcpStore = defineStore('mcp', () => {
     await init()
   })
 
+  // 获取NPM Registry状态
+  const getNpmRegistryStatus = async () => {
+    if (!mcpPresenter.getNpmRegistryStatus) {
+      throw new Error('NPM Registry status method not available')
+    }
+    return await mcpPresenter.getNpmRegistryStatus()
+  }
+
+  // 手动刷新NPM Registry
+  const refreshNpmRegistry = async (): Promise<string> => {
+    if (!mcpPresenter.refreshNpmRegistry) {
+      throw new Error('NPM Registry refresh method not available')
+    }
+    return await mcpPresenter.refreshNpmRegistry()
+  }
+
+  // 设置自定义NPM Registry
+  const setCustomNpmRegistry = async (registry: string | undefined): Promise<void> => {
+    if (!mcpPresenter.setCustomNpmRegistry) {
+      throw new Error('Set custom NPM Registry method not available')
+    }
+    await mcpPresenter.setCustomNpmRegistry(registry)
+  }
+
+  // 设置自动检测NPM Registry
+  const setAutoDetectNpmRegistry = async (enabled: boolean): Promise<void> => {
+    if (!mcpPresenter.setAutoDetectNpmRegistry) {
+      throw new Error('Set auto detect NPM Registry method not available')
+    }
+    await mcpPresenter.setAutoDetectNpmRegistry(enabled)
+  }
+
+  // 清除NPM Registry缓存
+  const clearNpmRegistryCache = async (): Promise<void> => {
+    if (!mcpPresenter.clearNpmRegistryCache) {
+      throw new Error('Clear NPM Registry cache method not available')
+    }
+    await mcpPresenter.clearNpmRegistryCache()
+  }
+
   return {
     // 状态
     config,
@@ -549,7 +589,7 @@ export const useMcpStore = defineStore('mcp', () => {
     hasTools,
     clients,
 
-    // 方法
+    // 服务器管理方法
     loadConfig,
     updateAllServerStatuses,
     updateServerStatus,
@@ -559,14 +599,23 @@ export const useMcpStore = defineStore('mcp', () => {
     toggleDefaultServer,
     resetToDefaultServers,
     toggleServer,
+    setMcpEnabled,
+
+    // 工具和资源方法
     loadTools,
     loadClients,
     loadPrompts,
     loadResources,
     updateToolInput,
     callTool,
-    setMcpEnabled,
     getPrompt,
-    readResource
+    readResource,
+
+    // NPM Registry 管理方法
+    getNpmRegistryStatus,
+    refreshNpmRegistry,
+    setCustomNpmRegistry,
+    setAutoDetectNpmRegistry,
+    clearNpmRegistryCache
   }
 })

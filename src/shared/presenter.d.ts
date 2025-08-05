@@ -445,6 +445,16 @@ export interface IConfigPresenter {
     deleted: BuiltinKnowledgeConfig[]
     updated: BuiltinKnowledgeConfig[]
   }
+  // NPM Registry 相关方法
+  getNpmRegistryCache?(): any
+  setNpmRegistryCache?(cache: any): void
+  isNpmRegistryCacheValid?(): boolean
+  getEffectiveNpmRegistry?(): string | null
+  getCustomNpmRegistry?(): string | undefined
+  setCustomNpmRegistry?(registry: string | undefined): void
+  getAutoDetectNpmRegistry?(): boolean
+  setAutoDetectNpmRegistry?(enabled: boolean): void
+  clearNpmRegistryCache?(): void
 }
 export type RENDERER_MODEL_META = {
   id: string
@@ -1091,6 +1101,18 @@ export interface IMCPPresenter {
     permissionType: 'read' | 'write' | 'all',
     remember?: boolean
   ): Promise<void>
+  // NPM Registry 管理方法
+  getNpmRegistryStatus?(): Promise<{
+    currentRegistry: string | null
+    isFromCache: boolean
+    lastChecked?: number
+    autoDetectEnabled: boolean
+    customRegistry?: string
+  }>
+  refreshNpmRegistry?(): Promise<string>
+  setCustomNpmRegistry?(registry: string | undefined): Promise<void>
+  setAutoDetectNpmRegistry?(enabled: boolean): Promise<void>
+  clearNpmRegistryCache?(): Promise<void>
 }
 
 export interface IDeeplinkPresenter {

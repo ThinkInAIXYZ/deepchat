@@ -117,15 +117,13 @@ export class McpPresenter implements IMCPPresenter {
         this.configPresenter.getMcpDefaultServers()
       ])
 
-      // 先测试npm registry速度
-      console.log('[MCP] Testing npm registry speed...')
+      // 初始化npm registry（优先使用缓存）
+      console.log('[MCP] Initializing npm registry...')
       try {
-        await this.serverManager.testNpmRegistrySpeed()
-        console.log(
-          `[MCP] npm registry speed test completed, selected best registry: ${this.serverManager.getNpmRegistry()}`
-        )
+        await this.serverManager.testNpmRegistrySpeed(true)
+        console.log(`[MCP] npm registry initialized: ${this.serverManager.getNpmRegistry()}`)
       } catch (error) {
-        console.error('[MCP] npm registry speed test failed:', error)
+        console.error('[MCP] npm registry initialization failed:', error)
       }
 
       // 检查并启动 deepchat-inmemory/custom-prompts-server
@@ -173,12 +171,24 @@ export class McpPresenter implements IMCPPresenter {
 
       // 检查并管理自定义提示词服务器
       await this.checkAndManageCustomPromptsServer()
+
+      this.scheduleBackgroundRegistryUpdate()
     } catch (error) {
       console.error('[MCP] Initialization failed:', error)
       // 即使初始化失败也标记为已完成，避免系统卡在未初始化状态
       this.isInitialized = true
       eventBus.send(MCP_EVENTS.INITIALIZED, SendTarget.ALL_WINDOWS)
     }
+  }
+
+  private scheduleBackgroundRegistryUpdate(): void {
+    setTimeout(async () => {
+      try {
+        await this.serverManager.updateNpmRegistryInBackground()
+      } catch (error) {
+        console.error('[MCP] Background registry update failed:', error)
+      }
+    }, 5000)
   }
 
   // 添加获取初始化状态的方法
@@ -1126,5 +1136,59 @@ export class McpPresenter implements IMCPPresenter {
       console.error(`[MCP] Failed to grant permission for server ${serverName}:`, error)
       throw error
     }
+  }
+
+  async getNpmRegistryStatus(): Promise<{
+    currentRegistry: string | null
+    isFromCache: boolean
+    lastChecked?: number
+    autoDetectEnabled: boolean
+    customRegistry?: string
+  }> {
+    const cache = this.configPresenter.getNpmRegistryCache?.()
+    const autoDetectEnabled = this.configPresenter.getAutoDetectNpmRegistry?.() ?? true
+    const customRegistry = this.configPresenter.getCustomNpmRegistry?.()
+    const currentRegistry = this.serverManager.getNpmRegistry()
+
+    let isFromCache = false
+    if (customRegistry && currentRegistry === customRegistry) {
+      isFromCache = false
+    } else if (cache && this.configPresenter.isNpmRegistryCacheValid?.()) {
+      isFromCache = currentRegistry === cache.registry
+    }
+
+    return {
+      currentRegistry,
+      isFromCache,
+      lastChecked: cache?.lastChecked,
+      autoDetectEnabled,
+      customRegistry
+    }
+  }
+
+  async refreshNpmRegistry(): Promise<string> {
+    return await this.serverManager.refreshNpmRegistry()
+  }
+
+  async setCustomNpmRegistry(registry: string | undefined): Promise<void> {
+    this.configPresenter.setCustomNpmRegistry?.(registry)
+    if (registry) {
+      console.log(`[MCP] Setting custom NPM registry: ${registry}`)
+    } else {
+      console.log('[MCP] Clearing custom NPM registry')
+    }
+    this.serverManager.loadRegistryFromCache()
+  }
+
+  async setAutoDetectNpmRegistry(enabled: boolean): Promise<void> {
+    this.configPresenter.setAutoDetectNpmRegistry?.(enabled)
+    if (enabled) {
+      this.serverManager.loadRegistryFromCache()
+    }
+  }
+
+  async clearNpmRegistryCache(): Promise<void> {
+    this.configPresenter.clearNpmRegistryCache?.()
+    console.log('[MCP] NPM Registry cache cleared')
   }
 }
