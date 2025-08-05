@@ -122,11 +122,14 @@
               ? t('settings.knowledgeBase.editRagflowConfig')
               : t('settings.knowledgeBase.addRagflowConfig')
           }}</DialogTitle>
+          <DialogDescription>
+            {{ t('settings.knowledgeBase.ragflowDescription') }}
+          </DialogDescription>
         </DialogHeader>
         <div class="space-y-4 py-4">
           <div class="space-y-2">
             <Label class="text-xs text-muted-foreground" for="edit-ragflow-description">
-              {{ t('settings.knowledgeBase.ragflowDescription') }}
+              {{ t('settings.knowledgeBase.descriptionDesc') }}
             </Label>
             <Input
               id="edit-ragflow-description"
@@ -195,7 +198,8 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogFooter
+  DialogFooter,
+  DialogDescription
 } from '@/components/ui/dialog'
 import { Collapsible, CollapsibleContent } from '@/components/ui/collapsible'
 import { useMcpStore } from '@/stores/mcp'
@@ -431,13 +435,13 @@ watch(
 )
 
 // 组件挂载时加载配置
-let unwatch: () => void // only use here, so declare it here
+let unwatch: (() => void) | undefined
 onMounted(async () => {
   unwatch = watch(
     () => mcpStore.config.ready,
     async (ready) => {
       if (ready) {
-        unwatch() // only run once to avoid multiple calls
+        unwatch?.() // only run once to avoid multiple calls
         await loadRagflowConfigFromMcp()
       }
     },
@@ -447,8 +451,6 @@ onMounted(async () => {
 
 // cancel the watch to avoid memory leaks
 onUnmounted(() => {
-  if (unwatch) {
-    unwatch()
-  }
+  unwatch?.()
 })
 </script>

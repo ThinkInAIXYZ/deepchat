@@ -216,6 +216,10 @@
       "name": "多智能體會議",
       "desc": "DeepChat 內建的會議服務可用於發起與主持多智能體討論。"
     },
+    "builtinKnowledge": {
+      "desc": "DeepChat內置知識庫檢索服務，可以對DeepChat內置知識庫內容進行檢索",
+      "name": "內置知識庫檢索"
+    },
     "deepchat/apple-server": {
       "desc": "讓模型能操作macOS的日曆、聯繫人、郵件、地圖、備忘錄、提醒事項等系統功能",
       "name": "macOS系統助手"

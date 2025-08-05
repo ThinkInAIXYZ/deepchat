@@ -5,6 +5,15 @@
     <!-- 固定在顶部的"新会话"按钮 -->
     <div class="flex-none flex flex-row gap-2">
       <Button
+        v-if="windowSize.width.value < 1024"
+        variant="outline"
+        size="icon"
+        class="flex-shrink-0 text-xs justify-center h-7 w-7"
+        @click="chatStore.isSidebarOpen = false"
+      >
+        <Icon icon="lucide:panel-left-close" class="h-4 w-4" />
+      </Button>
+      <Button
         variant="outline"
         size="sm"
         class="w-0 flex-1 text-xs justify-start gap-2 h-7"
@@ -12,15 +21,6 @@
       >
         <Icon icon="lucide:pen-line" class="h-4 w-4" />
         <span>{{ t('common.newChat') }}</span>
-      </Button>
-      <Button
-        v-if="windowSize.width.value < 1024"
-        variant="outline"
-        size="icon"
-        class="flex-shrink-0 text-xs justify-center h-7 w-7"
-        @click="chatStore.isSidebarOpen = false"
-      >
-        <Icon icon="lucide:x" class="h-4 w-4" />
       </Button>
     </div>
 
@@ -214,6 +214,7 @@ const flattenedThreads = computed<VirtualScrollItem[]>(() => {
 const createNewThread = async () => {
   try {
     await chatStore.createNewEmptyThread()
+    chatStore.isSidebarOpen = false
   } catch (error) {
     console.error(t('common.error.createChatFailed'), error)
   }

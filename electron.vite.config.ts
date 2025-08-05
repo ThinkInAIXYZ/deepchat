@@ -12,8 +12,8 @@ export default defineConfig({
   main: {
     plugins: [
       externalizeDepsPlugin({
-        exclude: ['mermaid', 'dompurify', 'pyodide']
-      })
+        exclude: ['mermaid', 'dompurify']
+      }),
     ],
     resolve: {
       alias: {
@@ -23,7 +23,7 @@ export default defineConfig({
     },
     build: {
       rollupOptions: {
-        external: ['sharp', 'pyodide']
+        external: ['sharp']
       }
     }
   },
@@ -60,6 +60,7 @@ export default defineConfig({
     },
     css: {
       postcss: {
+        // @ts-ignore
         plugins: [tailwind(), autoprefixer()]
       }
     },

@@ -30,6 +30,9 @@
           @safety-setting-change="handleSafetySettingChange"
         />
 
+        <!-- 速率限制配置 -->
+        <ProviderRateLimitConfig :provider="provider" @config-changed="handleConfigChanged" />
+
         <!-- 模型管理 -->
         <ProviderModelManager
           :provider="provider"
@@ -71,11 +74,13 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import ProviderApiConfig from './ProviderApiConfig.vue'
 import AzureProviderConfig from './AzureProviderConfig.vue'
 import GeminiSafetyConfig from './GeminiSafetyConfig.vue'
+import ProviderRateLimitConfig from './ProviderRateLimitConfig.vue'
 import ProviderModelManager from './ProviderModelManager.vue'
 import ProviderDialogContainer from './ProviderDialogContainer.vue'
 import { useModelCheckStore } from '@/stores/modelCheck'
 import { levelToValueMap, safetyCategories } from '@/lib/gemini'
 import type { SafetyCategoryKey, SafetySettingValue } from '@/lib/gemini'
+import { useThrottleFn } from '@vueuse/core'
 
 interface ProviderWebsites {
   official: string
@@ -164,7 +169,8 @@ const validateApiKey = async () => {
   }
 }
 
-const initData = async () => {
+// Original initData implementation without debouncing
+const _initData = async () => {
   console.log('initData for provider:', props.provider.id)
   const providerData = settingsStore.allProviderModels.find(
     (p) => p.providerId === props.provider.id
@@ -223,12 +229,29 @@ const initData = async () => {
   }
 }
 
+// Debounced version of initData to reduce frequent calls within 1 second
+// Ensures the final call is always executed
+const initData = useThrottleFn(_initData, 1000, true, true)
+
+// Immediate version for scenarios that require instant initialization
+const initDataImmediate = _initData
+
+// Flag to track if this is the first initialization
+let isFirstInit = true
+
 watch(
   () => props.provider,
   async () => {
     apiKey.value = props.provider.apiKey || ''
     apiHost.value = props.provider.baseUrl || ''
-    await initData() // Ensure initData completes
+
+    // Use immediate version for first initialization, debounced version for subsequent changes
+    if (isFirstInit) {
+      await initDataImmediate()
+      isFirstInit = false
+    } else {
+      initData() // Use debounced version for frequent changes
+    }
   },
   { immediate: true } // Removed deep: true as provider object itself changes
 )
@@ -331,8 +354,8 @@ const handleSafetySettingChange = async (key: SafetyCategoryKey, level: number) 
 // Handler for OAuth success
 const handleOAuthSuccess = async () => {
   console.log('OAuth authentication successful')
-  // OAuth成功后刷新provider数据
-  await initData()
+  // OAuth成功后立即刷新provider数据 (使用立即版本以快速显示结果)
+  await initDataImmediate()
   // 可以自动验证一次
   await validateApiKey()
 }
@@ -344,9 +367,9 @@ const handleOAuthError = (error: string) => {
 }
 
 // Handler for config changes
-const handleConfigChanged = async () => {
-  // 模型配置变更后重新初始化数据
-  await initData()
+const handleConfigChanged = () => {
+  // 模型配置变更后重新初始化数据 (使用防抖版本)
+  initData()
 }
 
 const openModelCheckDialog = () => {

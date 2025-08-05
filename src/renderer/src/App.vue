@@ -12,9 +12,11 @@ import { useToast } from './components/ui/toast/use-toast'
 import { useSettingsStore } from '@/stores/settings'
 import { useThemeStore } from '@/stores/theme'
 import { useLanguageStore } from '@/stores/language'
+import { useI18n } from 'vue-i18n'
 import TranslatePopup from '@/components/popup/TranslatePopup.vue'
 import ModelCheckDialog from '@/components/settings/ModelCheckDialog.vue'
 import { useModelCheckStore } from '@/stores/modelCheck'
+import MessageDialog from './components/ui/MessageDialog.vue'
 
 const route = useRoute()
 const configPresenter = usePresenter('configPresenter')
@@ -25,6 +27,7 @@ const settingsStore = useSettingsStore()
 const themeStore = useThemeStore()
 const langStore = useLanguageStore()
 const modelCheckStore = useModelCheckStore()
+const { t } = useI18n()
 // 错误通知队列及当前正在显示的错误
 const errorQueue = ref<Array<{ id: string; title: string; message: string; type: string }>>([])
 const currentErrorId = ref<string | null>(null)
@@ -207,6 +210,15 @@ onMounted(() => {
     handleGoSettings()
   })
 
+  window.electron.ipcRenderer.on(NOTIFICATION_EVENTS.DATA_RESET_COMPLETE_DEV, () => {
+    toast({
+      title: t('settings.data.resetCompleteDevTitle'),
+      description: t('settings.data.resetCompleteDevMessage'),
+      variant: 'default',
+      duration: 15000
+    })
+  })
+
   window.electron.ipcRenderer.on(NOTIFICATION_EVENTS.SYS_NOTIFY_CLICKED, (_, msg) => {
     let threadId: string | null = null
 
@@ -282,6 +294,7 @@ onBeforeUnmount(() => {
   window.electron.ipcRenderer.removeAllListeners(SHORTCUT_EVENTS.CREATE_NEW_CONVERSATION)
   window.electron.ipcRenderer.removeAllListeners(SHORTCUT_EVENTS.GO_SETTINGS)
   window.electron.ipcRenderer.removeAllListeners(NOTIFICATION_EVENTS.SYS_NOTIFY_CLICKED)
+  window.electron.ipcRenderer.removeAllListeners(NOTIFICATION_EVENTS.DATA_RESET_COMPLETE_DEV)
 })
 </script>
 
@@ -297,6 +310,8 @@ onBeforeUnmount(() => {
     </div>
     <!-- 全局更新弹窗 -->
     <UpdateDialog />
+    <!-- 全局消息弹窗 -->
+    <MessageDialog />
     <!-- 全局Toast提示 -->
     <Toaster />
     <SelectedTextContextMenu />

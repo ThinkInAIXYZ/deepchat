@@ -105,9 +105,11 @@ export class GroqProvider extends OpenAICompatibleProvider {
         const maxOutputTokens = groqModel.max_output_tokens || groqModel.max_tokens || 2048
 
         // Check features for capabilities or infer from model name
-        const hasFunctionCalling = features.includes('function-calling') ||
+        const hasFunctionCalling =
+          features.includes('function-calling') ||
           (!modelId.toLowerCase().includes('distil') && !modelId.toLowerCase().includes('gemma'))
-        const hasVision = features.includes('vision') ||
+        const hasVision =
+          features.includes('vision') ||
           modelId.toLowerCase().includes('vision') ||
           modelId.toLowerCase().includes('llava')
 

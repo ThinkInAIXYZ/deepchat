@@ -4,6 +4,7 @@ import { usePresenter } from '@/composables/usePresenter'
 import { MCP_EVENTS } from '@/events'
 import { useI18n } from 'vue-i18n'
 import { useThrottleFn } from '@vueuse/core'
+import { useChatStore } from './chat'
 import type {
   McpClient,
   MCPConfig,
@@ -29,6 +30,7 @@ interface MCPToolCallResult {
 }
 
 export const useMcpStore = defineStore('mcp', () => {
+  const chatStore = useChatStore()
   const { t } = useI18n()
   // 获取MCP相关的presenter
   const mcpPresenter = usePresenter('mcpPresenter')
@@ -163,8 +165,22 @@ export const useMcpStore = defineStore('mcp', () => {
     try {
       serverStatuses.value[serverName] = await mcpPresenter.isServerRunning(serverName)
       if (config.value.mcpEnabled && !noRefresh) {
-        loadTools()
-        loadClients()
+        await _loadTools()
+        await _loadClients()
+      }
+      // 根据服务器的状态，关闭或者开启该服务器的所有工具
+      const isRunning = serverStatuses.value[serverName] || false
+      const currentTools = chatStore.chatConfig.enabledMcpTools || []
+      if (isRunning) {
+        const serverTools = tools.value
+          .filter((tool) => tool.server.name === serverName)
+          .map((tool) => tool.function.name)
+        const mergedTools = Array.from(new Set([...currentTools, ...serverTools]))
+        chatStore.updateChatConfig({ enabledMcpTools: mergedTools })
+      } else {
+        const allServerToolNames = tools.value.map((tool) => tool.function.name)
+        const filteredTools = currentTools.filter((name) => allServerToolNames.includes(name))
+        chatStore.updateChatConfig({ enabledMcpTools: filteredTools })
       }
     } catch (error) {
       console.error(t('mcp.errors.getServerStatusFailed', { serverName }), error)
@@ -497,6 +513,11 @@ export const useMcpStore = defineStore('mcp', () => {
     if (config.value.mcpEnabled) {
       await loadTools()
       await loadClients()
+    }
+
+    // 如果是新建会话页面，则缓存已激活工具名称
+    if (!chatStore.getActiveThreadId()) {
+      chatStore.chatConfig.enabledMcpTools = tools.value.map((item) => item.function.name)
     }
   }
 

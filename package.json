@@ -1,12 +1,12 @@
 {
   "name": "DeepChat",
-  "version": "0.2.6",
+  "version": "0.2.8",
   "description": "DeepChat，一个简单易用的AI客户端",
   "main": "./out/main/index.js",
   "author": "ThinkInAIXYZ",
   "type": "module",
   "engines": {
-    "node": ">=20.12.2",
+    "node": ">=20.19.0",
     "pnpm": ">=10.11.0"
   },
   "packageManager": "pnpm@10.13.1+sha512.37ebf1a5c7a30d5fabe0c5df44ee8da4c965ca0c5af3dbab28c3a1681b70a256218d05c81c9c0dcf767ef6b8551eb5b960042b9ed4300c59242336377e01cfad",
@@ -18,6 +18,7 @@
     "test:coverage": "vitest --coverage",
     "test:watch": "vitest --watch",
     "test:ui": "vitest --ui",
+    "format:check": "prettier --check .",
     "format": "prettier --write .",
     "lint": "npx -y oxlint .",
     "typecheck:node": "tsc --noEmit -p tsconfig.node.json --composite false",
@@ -28,7 +29,7 @@
     "dev:inspect": "electron-vite dev --watch --inspect=9229",
     "dev:linux": "electron-vite dev --watch --noSandbox",
     "build": "pnpm run typecheck && electron-vite build",
-    "postinstall": "node scripts/postinstall.js && electron-builder install-app-deps",
+    "postinstall": "electron-builder install-app-deps && simple-git-hooks",
     "build:unpack": "pnpm run build && electron-builder --dir",
     "build:win": "pnpm run build && electron-builder --win",
     "build:win:x64": "pnpm run build && electron-builder --win --x64",
@@ -48,12 +49,15 @@
     "installRuntime:mac:x64": "npx -y tiny-runtime-injector --type uv --dir ./runtime/uv -a x64 -p darwin && npx -y tiny-runtime-injector --type bun --dir ./runtime/bun -a x64 -p darwin",
     "installRuntime:linux:x64": "npx -y tiny-runtime-injector --type uv --dir ./runtime/uv -a x64 -p linux && npx -y tiny-runtime-injector --type bun --dir ./runtime/bun -a x64 -p linux",
     "installRuntime:linux:arm64": "npx -y tiny-runtime-injector --type uv --dir ./runtime/uv -a arm64 -p linux && npx -y tiny-runtime-injector --type bun --dir ./runtime/bun -a arm64 -p linux",
+    "installRuntime:duckdb:vss": "node scripts/installVss.js",
     "i18n": "i18n-check -s zh-CN -f i18next --locales src/renderer/src/i18n",
     "i18n:en": "i18n-check -s en-US -f i18next --locales src/renderer/src/i18n",
+    "i18n:types": "node scripts/generate-i18n-types.js",
     "cleanRuntime": "rm -rf runtime/uv runtime/bun runtime/node"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.53.0",
+    "@duckdb/node-api": "1.3.2-alpha.25",
     "@e2b/code-interpreter": "^1.5.1",
     "@electron-toolkit/preload": "^3.0.1",
     "@electron-toolkit/utils": "^4.0.0",
@@ -64,6 +68,7 @@
     "better-sqlite3-multiple-ciphers": "11.10.0",
     "cheerio": "^1.0.0",
     "compare-versions": "^6.1.1",
+    "dayjs": "^1.11.13",
     "diff": "^7.0.0",
     "electron-log": "^5.3.3",
     "electron-store": "^8.2.0",
@@ -80,7 +85,6 @@
     "ollama": "^0.5.16",
     "openai": "^5.3.0",
     "pdf-parse-new": "^1.3.9",
-    "pyodide": "^0.27.5",
     "run-applescript": "^7.0.0",
     "sharp": "^0.33.5",
     "together-ai": "^0.16.0",
@@ -100,7 +104,7 @@
     "@lingual/i18n-check": "^0.8.4",
     "@radix-icons/vue": "^1.0.0",
     "@tailwindcss/typography": "^0.5.16",
-    "@tailwindcss/vite": "^4.0.4",
+    "@tailwindcss/vite": "^4.1.11",
     "@tiptap/core": "^2.11.7",
     "@tiptap/extension-code-block": "^2.11.9",
     "@tiptap/extension-document": "^2.11.7",
@@ -116,7 +120,7 @@
     "@types/better-sqlite3": "^7.6.0",
     "@types/node": "^22.14.1",
     "@types/xlsx": "^0.0.35",
-    "@vitejs/plugin-vue": "^5.2.3",
+    "@vitejs/plugin-vue": "^6.0.1",
     "@vitest/ui": "^3.2.3",
     "@vue/test-utils": "^2.4.6",
     "@vueuse/core": "^12.7.0",
@@ -128,13 +132,16 @@
     "electron-builder": "26.0.12",
     "electron-vite": "^4.0.0",
     "jsdom": "^26.1.0",
+    "lint-staged": "^16.1.2",
     "lucide-vue-next": "^0.511.0",
     "mermaid": "^11.6.0",
     "minimatch": "^10.0.1",
     "monaco-editor": "^0.52.2",
+    "picocolors": "^1.1.1",
     "pinia": "^3.0.2",
     "prettier": "^3.5.3",
     "radix-vue": "^1.9.14",
+    "simple-git-hooks": "^2.13.0",
     "tailwind-merge": "^3.3.0",
     "tailwind-scrollbar-hide": "^2.0.0",
     "tailwindcss": "3.4.17",
@@ -143,12 +150,12 @@
     "typescript": "^5.8.3",
     "vite": "npm:rolldown-vite@latest",
     "vite-plugin-monaco-editor-esm": "^2.0.2",
-    "vite-plugin-vue-devtools": "^7.7.6",
+    "vite-plugin-vue-devtools": "^8.0.0",
     "vite-svg-loader": "^5.1.0",
     "vitest": "^3.2.3",
     "vue": "^3.5.14",
     "vue-i18n": "^11.1.3",
-    "vue-renderer-markdown": "^0.0.30",
+    "vue-renderer-markdown": "^0.0.32",
     "vue-router": "4",
     "vue-tsc": "^2.2.10",
     "vue-use-monaco": "^0.0.6",
@@ -156,6 +163,18 @@
     "vuedraggable": "^4.1.0",
     "yaml": "^2.8.0",
     "zod-to-json-schema": "^3.24.5"
+  },
+  "simple-git-hooks": {
+    "pre-commit": "pnpm lint-staged && pnpm typecheck",
+    "commit-msg": "node scripts/verify-commit.js"
+  },
+  "lint-staged": {
+    "*.js": [
+      "prettier --write"
+    ],
+    "*.ts": [
+      "prettier --parser=typescript --write"
+    ]
   },
   "pnpm": {
     "overrides": {
@@ -165,7 +184,8 @@
       "@tailwindcss/oxide",
       "electron",
       "electron-winstaller",
-      "lzo"
+      "lzo",
+      "simple-git-hooks"
     ],
     "ignoredBuiltDependencies": [
       "better-sqlite3-multiple-ciphers",

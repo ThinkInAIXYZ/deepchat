@@ -70,7 +70,22 @@
     "importing": "가져오는 중...",
     "confirmImport": "가져오기 확인",
     "importSuccessTitle": "가져오기 성공",
-    "importErrorTitle": "가져오기 실패"
+    "importErrorTitle": "가져오기 실패",
+    "resetData": "데이터 초기화",
+    "resetConfirmTitle": "데이터 초기화 확인",
+    "resetConfirmDescription": "초기화할 데이터 유형을 선택하세요. 이 작업은 되돌릴 수 없으며, 초기화 후 애플리케이션이 자동으로 재시작됩니다.",
+    "resetChatData": "채팅 데이터 초기화",
+    "resetChatDataDesc": "모든 채팅 기록과 대화 내역을 삭제",
+    "resetKnowledgeData": "지식베이스 데이터 초기화",
+    "resetKnowledgeDataDesc": "모든 지식베이스 파일과 벡터 데이터를 삭제",
+    "resetConfig": "설정 초기화",
+    "resetConfigDesc": "모든 앱 설정, 모델 설정, 사용자 정의 프롬프트를 삭제",
+    "resetAll": "완전 초기화",
+    "resetAllDesc": "채팅 기록, 설정, 캐시 파일을 포함한 모든 데이터를 삭제",
+    "resetting": "초기화 중...",
+    "confirmReset": "초기화 확인",
+    "resetCompleteDevTitle": "데이터 초기화 완료",
+    "resetCompleteDevMessage": "개발 환경에서는 수동으로 애플리케이션을 재시작하세요. 현재 프로세스를 중지하고 pnpm run dev를 다시 실행하세요"
   },
   "model": {
     "title": "모델 설정",
@@ -120,6 +135,33 @@
         "description": "모델이 추론 능력을 지원합니까?",
         "label": "추론 능력"
       },
+      "thinkingBudget": {
+        "label": "사고 예산",
+        "description": "모델 사고 길이 제한",
+        "dynamic": "동적 사고",
+        "range": "범위: {min} - {max}",
+        "onlySupported": "Gemini 2.5 Flash, 2.5 Pro 및 2.5 Flash-Lite에서만 지원",
+        "valueLabel": "사고 예산 값",
+        "placeholder": "사고 예산 값 입력",
+        "forceEnabled": "Gemini 2.5 시리즈 모델은 사고 예산을 강제로 활성화합니다",
+        "dynamicPrefix": "-1 = 동적 사고",
+        "notice": "주의: ",
+        "warnings": {
+          "proNoDisable": "이 모델은 사고 비활성화를 지원하지 않습니다, 최소값 128",
+          "proCannotDisable": "Gemini 2.5 Pro는 사고 기능을 비활성화할 수 없습니다",
+          "flashLiteCannotSetZero": "Gemini 2.5 Flash-Lite는 0으로 설정할 수 없습니다, 최소값은 512",
+          "modelCannotDisable": "이 모델은 사고 기능을 비활성화할 수 없습니다",
+          "flashLiteMinValue": "사고 예산을 구체적인 값으로 설정할 때 512 미만일 수 없습니다 (또는 0으로 사고 비활성화, -1로 동적 사고 활성화)",
+          "belowMin": "사고 예산은 {min} 미만일 수 없습니다{hint}",
+          "aboveMax": "사고 예산은 {max}를 초과할 수 없습니다"
+        },
+        "hints": {
+          "flashLiteDisable": ", 0 = 사고 비활성화, 구체적인 값 최소 512",
+          "normalDisable": ", 0 = 사고 비활성화",
+          "withZeroAndDynamic": "(또는 0으로 사고 비활성화, -1로 동적 사고 활성화)",
+          "withDynamic": "(또는 -1로 동적 사고 활성화)"
+        }
+      },
       "resetConfirm": {
         "confirm": "재설정 확인",
         "message": "이 모델의 구성을 기본값으로 재설정 하시겠습니까? 이 작업은 돌이킬 수 없습니다.",
@@ -127,6 +169,8 @@
       },
       "resetToDefault": "기본값으로 재설정하십시오",
       "saveConfig": "구성 저장",
+      "useModelDefault": "모델 기본 설정 사용",
+      "currentUsingModelDefault": "현재 모델 기본 설정 사용 중",
       "temperature": {
         "description": "출력의 무작위성을 제어하십시오. 대부분의 모델은 0-1이며 일부는 0-2 사이의 지원입니다. 무작위성이 높아집니다.",
         "label": "온도"
@@ -161,6 +205,8 @@
   },
   "provider": {
     "enable": "서비스 활성화",
+    "enabled": "활성화됨",
+    "disabled": "비활성화됨",
     "urlPlaceholder": "API URL을 입력하세요",
     "keyPlaceholder": "API 키를 입력하세요",
     "verifyKey": "키 확인",
@@ -275,7 +321,35 @@
       "remaining": "나머지 금액",
       "usage": "사용된"
     },
-    "refreshingModels": "상쾌한 ..."
+    "refreshingModels": "상쾌한 ...",
+    "toast": {
+      "modelRunning": "모델이 실행 중입니다",
+      "modelRunningDesc": "먼저 모델 {model}을 중지 한 다음 삭제하십시오."
+    },
+    "anthropicApiKeyTip": "API 키를 얻으려면 Anthropic Console으로 이동하십시오.",
+    "anthropicConnected": "인류 연결",
+    "anthropicNotConnected": "인류가 연결되어 있지 않습니다",
+    "anthropicOAuthTip": "인류 계정에 액세스하려면 DeepChat 인증을 클릭하십시오",
+    "oauthLogin": "OAUTH 로그인",
+    "authMethod": "인증 방법",
+    "authMethodPlaceholder": "인증 방법 선택",
+    "apiKeyLabel": "API Key",
+    "apiUrlLabel": "API URL",
+    "anthropicOAuthFlowTip": "시스템은 권한 부여 창을 자동으로 엽니 다. 다시 와서 승인 후 인증 코드를 입력하십시오.",
+    "anthropicBrowserOpened": "외부 브라우저가 열려 있습니다",
+    "anthropicCodeInstruction": "외부 브라우저에서 인증을 완료하고 얻은 인증 코드를 아래 입력 상자에 붙여 넣으십시오.",
+    "browserOpenedSuccess": "외부 브라우저가 열려 있습니다. 승인을 완료하십시오",
+    "codeRequired": "인증 코드를 입력하십시오",
+    "inputOAuthCode": "인증 코드를 입력하십시오",
+    "codeExchangeFailed": "승인 코드 교환에 실패했습니다",
+    "invalidCode": "잘못된 권한 부여 코드",
+    "oauthCodeHint": "외부 브라우저에서 승인을 완료 한 후 여기에 승인 코드를 붙여 넣으십시오.",
+    "oauthCodePlaceholder": "승인 코드를 입력하십시오 ...",
+    "verifyConnection": "연결 확인",
+    "manageModels": "모델 관리",
+    "anthropicOAuthActiveTip": "OAuth 인증이 활성화되어 있어 Anthropic 서비스를 직접 사용할 수 있습니다",
+    "oauthVerifySuccess": "OAuth 연결 확인 성공",
+    "oauthVerifyFailed": "OAuth 연결 확인 실패"
   },
   "knowledgeBase": {
     "title": "지식 베이스 설정",
@@ -304,7 +378,77 @@
     "fastgptTitle": "FastGPT 지식 베이스",
     "fastgptDescription": "FastGPT는 여러 검색 방법과 문서 관리 기능을 지원하는 강력한 지식 베이스 관리 시스템입니다.",
     "addFastGptConfig": "FastGPT 설정 추가",
-    "editFastGptConfig": "FastGPT 설정 편집"
+    "editFastGptConfig": "FastGPT 설정 편집",
+    "builtInKnowledgeDescription": "내장 지식 기반은 오프라인 환경에서 몇 가지 기본 기능을 가능하게하는 간단한 구현을 제공합니다.",
+    "builtInKnowledgeTitle": "내장 지식 기반",
+    "addBuiltinKnowledgeConfig": "내장 된 지식 기반 구성을 추가하십시오",
+    "editBuiltinKnowledgeConfig": "내장 된 지식 기반 구성을 편집하십시오",
+    "chunkSize": "블록 크기",
+    "chunkSizeHelper": "문서를 세그먼트로 자르면 각 세그먼트의 크기는 모델 컨텍스트 한계를 초과 할 수 없습니다.",
+    "chunkOverlap": "겹치는 크기",
+    "chunkOverlapHelper": "인접한 텍스트 블록 사이에 반복되는 콘텐츠의 양은 세그먼트 된 텍스트 블록 사이에 여전히 상황에 맞는 연결이 있음을 보장하여 긴 텍스트의 모델 처리의 전반적인 효과를 향상시킵니다.",
+    "selectEmbeddingModel": "임베드 모델을 선택하십시오",
+    "modelNotFound": "서비스 제공자 {provider} 또는 model {model}을 찾을 수 없습니다",
+    "modelNotFoundDesc": "모델이 올바르게 구성되고 모델이 활성화되어 있는지 확인하십시오. 서비스 제공 업체 설정에서 모델 구성을 확인할 수 있습니다.",
+    "removeBuiltinKnowledgeConfirmDesc": "내장 지식 기반 구성을 삭제하면 모든 관련 데이터가 삭제되며 복원 할 수 없습니다. 조심하세요.",
+    "removeBuiltinKnowledgeConfirmTitle": "내장 지식 기반 {name}을 삭제하도록 확인 하시겠습니까?",
+    "descriptionDesc": "AI 가이 지식 기반을 검색할지 여부를 결정하도록 지식 기반에 대한 설명",
+    "advanced": "고급 옵션",
+    "autoDetectDimensions": "내장 치수를 자동으로 감지합니다",
+    "autoDetectHelper": "내장 치수를 자동으로 감지하고 소량의 토큰을 소비합니다.",
+    "chunkOverlapPlaceholder": "기본값, 수정은 권장되지 않습니다",
+    "chunkSizePlaceholder": "기본값, 수정은 권장되지 않습니다",
+    "dimensions": "치수를 포함시킵니다",
+    "dimensionsPlaceholder": "1024와 같은 치수 크기를 포함시킵니다",
+    "selectEmbeddingModelHelper": "임베딩 모델은 지식 기반을 창출 한 후 금지됩니다",
+    "dimensionsHelper": "모델이 세트 임베드 치수 크기를 지원하는지 확인하십시오.",
+    "autoDetectDimensionsError": "임베디드 치수 고장을 자동으로 감지합니다",
+    "fragmentsNumber": "요청 된 문서 조각의 수",
+    "fragmentsNumberHelper": "요청 된 문서의 조각이 많을수록 더 많은 정보가 제공되지만 더 많은 토큰을 소비해야합니다.",
+    "selectRerankModel": "재주문 모델을 선택하십시오",
+    "rerankModel": "모델을 재정렬하십시오",
+    "embeddingModel": "임베드 모델",
+    "return": "반품",
+    "uploadHelper": "여기에서 파일을 업로드하거나 드래그하려면 클릭하십시오",
+    "onlySupport": "지원됩니다",
+    "searchKnowledge": "지식 기반을 검색하십시오",
+    "searchKnowledgePlaceholder": "쿼리 내용을 입력하십시오",
+    "noData": "아직 데이터가 없습니다",
+    "file": "문서",
+    "uploadProcessing": "업로드",
+    "uploadCompleted": "업로드 완료",
+    "reAdd": "재 포장",
+    "uploadError": "업로드 실패",
+    "delete": "삭제",
+    "reason": "이유",
+    "deleteSuccess": "성공적으로 삭제하십시오",
+    "copy": "복사",
+    "copySuccess": "성공적으로 복사하십시오",
+    "source": "원천",
+    "normalized": "L2 정규화",
+    "normalizedHelper": "모델이 출력 벡터의 L2 정규화를 지원하는지 확인하십시오.",
+    "dialog": {
+      "beforequit": {
+        "cancel": "취소",
+        "confirm": "확인하다",
+        "title": "확인 확인",
+        "description": "실행중인 지식 기반 작업이 있습니다. 소프트웨어를 종료 하시겠습니까? 소프트웨어를 다시 시작한 후 낙태 된 작업을 복원 할 수 있습니다."
+      }
+    },
+    "searchError": "쿼리가 실패했습니다",
+    "processing": "업로드",
+    "paused": "일시 정지를 업로드하십시오",
+    "unknown": "알 수없는 상태",
+    "reAddFile": {
+      "title": "확인 확인",
+      "content": "\"{filename}\"파일을 다시 업로드하시겠습니까?"
+    },
+    "deleteFile": {
+      "title": "파일 확인 삭제",
+      "content": "\"{filename}\"파일을 삭제해야합니까? 이 작업은 복원되지 않습니다."
+    },
+    "resumeAllPausedTasks": "원 클릭 복구",
+    "pauseAllRunningTasks": "한 번의 클릭 일시 중지"
   },
   "mcp": {
     "title": "MCP 설정",
@@ -482,5 +626,26 @@
     "previousTab": "이전 탭으로 전환하십시오",
     "specificTab": "지정된 탭 페이지 (1-8)로 전환",
     "nextTab": "다음 탭으로 전환하십시오"
+  },
+  "rateLimit": {
+    "title": "속도 제한",
+    "description": "요청 시간 간격을 제어하여 API 제한 초과 방지",
+    "intervalLimit": "요청 간격",
+    "intervalUnit": "초",
+    "intervalHelper": "두 요청 간의 최소 간격, 필요하지 않으면 속도 제한을 비활성화하세요",
+    "lastRequestTime": "마지막 요청",
+    "queueLength": "대기열 길이",
+    "nextAllowedTime": "다음 허용된 요청",
+    "never": "없음",
+    "justNow": "방금 전",
+    "secondsAgo": "초 전",
+    "minutesAgo": "분 전",
+    "immediately": "즉시",
+    "secondsLater": "초 후",
+    "confirmDisableTitle": "속도 제한 비활성화 확인",
+    "confirmDisableMessage": "값은 0 이하일 수 없습니다. 속도 제한 기능을 비활성화하시겠습니까?",
+    "confirmDisable": "제한 비활성화",
+    "disabled": "속도 제한이 비활성화됨",
+    "disabledDescription": "속도 제한 기능이 비활성화되었습니다"
   }
 }

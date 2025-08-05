@@ -191,6 +191,15 @@ export class DeeplinkPresenter implements IDeeplinkPresenter {
     console.log('modelId:', modelId)
     console.log('systemPrompt:', systemPrompt)
     console.log('autoSend:', autoSend)
+
+    const focusedWindow = presenter.windowPresenter.getFocusedWindow()
+    if (focusedWindow) {
+      focusedWindow.show()
+      focusedWindow.focus()
+    } else {
+      presenter.windowPresenter.show()
+    }
+
     eventBus.sendToRenderer(DEEPLINK_EVENTS.START, SendTarget.DEFAULT_TAB, {
       msg,
       modelId,

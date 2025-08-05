@@ -159,6 +159,7 @@ const emit = defineEmits<{
     fromTop: boolean,
     modelInfo: { model_name: string; model_provider: string }
   ]
+  scrollToBottom: []
 }>()
 
 // 获取当前会话ID
@@ -252,9 +253,17 @@ const confirmFork = async () => {
   }
 }
 
-const handleAction = (
-  action: 'retry' | 'delete' | 'copy' | 'prev' | 'next' | 'copyImage' | 'copyImageFromTop' | 'fork'
-) => {
+type HandleActionType =
+  | 'retry'
+  | 'delete'
+  | 'copy'
+  | 'prev'
+  | 'next'
+  | 'copyImage'
+  | 'copyImageFromTop'
+  | 'fork'
+
+const handleAction = (action: HandleActionType) => {
   if (action === 'retry') {
     chatStore.retryMessage(currentMessage.value.id)
   } else if (action === 'delete') {
@@ -284,14 +293,17 @@ const handleAction = (
         .join('\n')
         .trim()
     )
-  } else if (action === 'prev') {
-    if (currentVariantIndex.value > 0) {
-      currentVariantIndex.value--
+  } else if (action === 'prev' || action === 'next') {
+    switch (action) {
+      case 'prev':
+        currentVariantIndex.value > 0 && currentVariantIndex.value--
+        break
+      case 'next':
+        currentVariantIndex.value < totalVariants.value - 1 && currentVariantIndex.value++
+        break
     }
-  } else if (action === 'next') {
-    if (currentVariantIndex.value < totalVariants.value - 1) {
-      currentVariantIndex.value++
-    }
+
+    emit('scrollToBottom')
   } else if (action === 'copyImage') {
     emit('copyImage', currentMessage.value.id, currentMessage.value.parentId, false, {
       model_name: currentMessage.value.model_name,

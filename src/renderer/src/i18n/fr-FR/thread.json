@@ -4,7 +4,9 @@
     "delete": "Supprimer",
     "cleanMessages": "Nettoyer les messages",
     "pin": "Épingler",
-    "unpin": "Détacher"
+    "unpin": "Détacher",
+    "export": "Exporter",
+    "exportText": "Texte brut"
   },
   "toolbar": {
     "save": "sauvegarder",
@@ -25,5 +27,9 @@
     "toolbar": {
       "save": "sauvegarder"
     }
+  },
+  "export": {
+    "failed": "Échec de l'exportation",
+    "failedDesc": "Une erreur s'est produite pendant le processus d'exportation, veuillez réessayer"
   }
 }

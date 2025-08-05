@@ -2,7 +2,7 @@ import { Server } from '@modelcontextprotocol/sdk/server/index.js'
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js'
 import { z } from 'zod'
 import { zodToJsonSchema } from 'zod-to-json-schema'
-import { Transport } from '@modelcontextprotocol/sdk/shared/transport'
+import { Transport } from '@modelcontextprotocol/sdk/shared/transport.js'
 import { ContentEnricher } from '@/presenter/threadPresenter/contentEnricher'
 import { app } from 'electron'
 import path from 'path'
@@ -10,7 +10,6 @@ import fs from 'fs'
 import { execFile } from 'child_process'
 import { promisify } from 'util'
 import { nanoid } from 'nanoid'
-import { runCode, type CodeFile } from '../pythonRunner'
 import { Sandbox } from '@e2b/code-interpreter'
 
 // Schema 定义
@@ -31,19 +30,6 @@ const RunNodeCodeArgsSchema = z.object({
     .string()
     .describe(
       'Node.js code to execute, should not contain file operations, system settings modification, or external code execution'
-    ),
-  timeout: z
-    .number()
-    .optional()
-    .default(5000)
-    .describe('Code execution timeout in milliseconds, default 5 seconds')
-})
-
-const RunPythonCodeArgsSchema = z.object({
-  python_code: z
-    .string()
-    .describe(
-      'Python code to execute, should not contain file operations, system settings modification, or external code execution'
     ),
   timeout: z
     .number()
@@ -267,27 +253,6 @@ export class PowerpackServer {
     }
   }
 
-  // 执行Python代码
-  private async executePythonCode(code: string): Promise<string> {
-    const files: CodeFile[] = [
-      {
-        name: 'main.py',
-        content: code,
-        active: true
-      }
-    ]
-
-    const result = await runCode(files, (level, data) => {
-      console.log(`[${level}] ${data}`)
-    })
-
-    if (result.status === 'success') {
-      return result.output.join('\n')
-    } else {
-      throw new Error(result.error)
-    }
-  }
-
   // 使用 E2B 执行代码
   private async executeE2BCode(code: string): Promise<string> {
     if (!this.useE2B) {
@@ -296,7 +261,9 @@ export class PowerpackServer {
 
     let sandbox: Sandbox | null = null
     try {
-      sandbox = await Sandbox.create()
+      sandbox = await Sandbox.create({
+        apiKey: this.e2bApiKey
+      })
       const result = await sandbox.runCode(code)
 
       // 格式化结果
@@ -408,21 +375,6 @@ export class PowerpackServer {
             inputSchema: zodToJsonSchema(RunNodeCodeArgsSchema)
           })
         }
-
-        tools.push({
-          name: 'run_python_code',
-          description:
-            'Execute simple Python code in a secure sandbox environment. Suitable for calculations, data analysis, and scientific computing. ' +
-            'The code needs to be output to the print function, and the output content needs to be formatted as a string. ' +
-            'The code will be executed with Python 3.12. ' +
-            'Code execution has a timeout limit, default is 5 seconds, you can adjust it based on the estimated time of the code, generally not recommended to exceed 2 minutes. ' +
-            'Dependencies may be defined via PEP 723 script metadata, e.g. to install "pydantic", the script should startwith a comment of the form:' +
-            `# /// script\n` +
-            `# dependencies = ['pydantic']\n ` +
-            `# ///\n` +
-            `print('hello world').`,
-          inputSchema: zodToJsonSchema(RunPythonCodeArgsSchema)
-        })
       }
 
       return { tools }
@@ -534,30 +486,6 @@ export class PowerpackServer {
 
             const { code, timeout } = parsed.data
             const result = await this.executeJavaScriptCode(code, timeout)
-
-            return {
-              content: [
-                {
-                  type: 'text',
-                  text: `代码执行结果:\n\n${result}`
-                }
-              ]
-            }
-          }
-
-          case 'run_python_code': {
-            // 本地 Python 代码执行
-            if (this.useE2B) {
-              throw new Error('Local code execution is disabled when E2B is enabled')
-            }
-
-            const parsed = RunPythonCodeArgsSchema.safeParse(args)
-            if (!parsed.success) {
-              throw new Error(`无效的代码参数: ${parsed.error}`)
-            }
-
-            const { python_code } = parsed.data
-            const result = await this.executePythonCode(python_code)
 
             return {
               content: [

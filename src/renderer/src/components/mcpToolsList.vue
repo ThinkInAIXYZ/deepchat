@@ -9,16 +9,17 @@ import { Button } from './ui/button'
 import { Switch } from './ui/switch'
 import { Badge } from './ui/badge'
 import { useLanguageStore } from '@/stores/language'
+import { useChatStore } from '@/stores/chat'
 
 const { t } = useI18n()
 const mcpStore = useMcpStore()
 const langStore = useLanguageStore()
+const chatStore = useChatStore()
 
 // 计算属性
 const isLoading = computed(() => mcpStore.toolsLoading)
 const isError = computed(() => mcpStore.toolsError)
 const errorMessage = computed(() => mcpStore.toolsErrorMessage)
-const toolCount = computed(() => mcpStore.toolCount)
 const hasTools = computed(() => mcpStore.hasTools)
 const mcpEnabled = computed(() => mcpStore.mcpEnabled)
 
@@ -31,9 +32,39 @@ const getTools = (serverName: string) => {
   return mcpStore.tools.filter((tool) => tool.server.name === serverName)
 }
 
+// 获取每个mcp服务的可用工具数量
+const getEnabledToolCountByServer = (serverName: string) => {
+  const enabledTools = chatStore.chatConfig.enabledMcpTools ?? []
+  const serverTools = mcpStore.tools.filter((tool) => tool.server.name === serverName)
+  return serverTools.filter((tool) => enabledTools.includes(tool.function.name)).length
+}
+
+// 获取可用工具总数
+const getTotalEnabledToolCount = () => {
+  const enabledMcpTools = chatStore.chatConfig.enabledMcpTools || []
+  const filterList = mcpStore.tools.filter((item) => enabledMcpTools.includes(item.function.name))
+  return filterList.length
+}
+
+// 处理单个服务开关状态变化
 const onServerToggle = (serverName: string) => {
   mcpStore.toggleServer(serverName)
 }
+
+// 处理单个工具开关状态变化
+const handleToolEnabledChange = (isEnabled: boolean, functionName: string) => {
+  const currentTools = chatStore.chatConfig.enabledMcpTools || []
+  const updatedTools = isEnabled
+    ? Array.from(new Set([...currentTools, functionName]))
+    : currentTools.filter((name) => name !== functionName)
+  chatStore.updateChatConfig({ enabledMcpTools: updatedTools })
+}
+
+// 获取单个工具开关状态
+const isEnabled = (functionName: string): boolean => {
+  return chatStore.chatConfig.enabledMcpTools?.includes(functionName) ?? false
+}
+
 // 获取内置服务器的本地化名称和描述
 const getLocalizedServerName = (serverName: string) => {
   return t(`mcp.inmemory.${serverName}.name`, serverName)
@@ -76,7 +107,7 @@ onMounted(async () => {
                 v-if="hasTools && !isLoading && !isError"
                 :class="{ 'text-muted-foreground': !mcpEnabled, 'text-white': mcpEnabled }"
                 class="text-sm"
-                >{{ toolCount }}</span
+                >{{ getTotalEnabledToolCount() }}</span
               >
             </Button>
           </TooltipTrigger>
@@ -84,7 +115,9 @@ onMounted(async () => {
             <p v-if="!mcpEnabled">{{ t('mcp.tools.disabled') }}</p>
             <p v-else-if="isLoading">{{ t('mcp.tools.loading') }}</p>
             <p v-else-if="isError">{{ t('mcp.tools.error') }}</p>
-            <p v-else-if="hasTools">{{ t('mcp.tools.available', { count: toolCount }) }}</p>
+            <p v-else-if="hasTools">
+              {{ t('mcp.tools.available', { count: getTotalEnabledToolCount() }) }}
+            </p>
             <p v-else>{{ t('mcp.tools.none') }}</p>
           </TooltipContent>
         </Tooltip>
@@ -144,16 +177,28 @@ onMounted(async () => {
                       variant="outline"
                       class="flex items-center gap-1 mr-2 text-xs"
                     >
-                      {{ getTools(server.name).length }}
+                      {{ getEnabledToolCountByServer(server.name) }}
                     </Badge>
                   </PopoverTrigger>
                   <PopoverContent align="start" class="p-2 max-h-[300px] overflow-y-auto">
                     <div
                       v-for="tool in getTools(server.name)"
                       :key="tool.function.name"
-                      class="py-1"
+                      class="flex justify-between py-1"
                     >
                       <div class="font-medium text-sm">{{ tool.function.name }}</div>
+                      <Switch
+                        :checked="isEnabled(tool.function.name)"
+                        @update:checked="
+                          (isEnabled) => handleToolEnabledChange(isEnabled, tool.function.name)
+                        "
+                      />
+                    </div>
+                    <div
+                      v-if="getTools(server.name).length === 0"
+                      class="p-2 text-sm text-muted-foreground text-center"
+                    >
+                      {{ t('mcp.tools.empty') }}
                     </div>
                   </PopoverContent>
                 </Popover>

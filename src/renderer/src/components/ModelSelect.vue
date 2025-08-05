@@ -68,7 +68,7 @@ const props = defineProps({
 })
 
 const filteredProviders = computed(() => {
-  if (!keyword.value) return providers.value
+  if (!keyword.value) return providers.value.filter((provider) => provider.models.length > 0)
   return providers.value
     .map((provider) => ({
       ...provider,

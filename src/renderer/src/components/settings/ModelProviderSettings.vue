@@ -1,40 +1,92 @@
 <template>
   <div class="w-full h-full flex flex-row">
     <ScrollArea class="w-64 border-r h-full px-2">
-      <div class="py-2">
-        <draggable
-          v-model="sortedProviders"
-          item-key="id"
-          handle=".drag-handle"
-          class="space-y-2"
-          @end="handleDragEnd"
-        >
-          <template #item="{ element: provider }">
-            <div
-              :class="[
-                'flex flex-row hover:bg-accent  items-center gap-2 rounded-lg p-2 cursor-pointer group',
-                route.params?.providerId === provider.id
-                  ? 'bg-secondary text-secondary-foreground'
-                  : ''
-              ]"
-              @click="setActiveProvider(provider.id)"
-            >
-              <Icon
-                icon="lucide:grip-vertical"
-                class="w-4 h-4 text-muted-foreground opacity-0 group-hover:opacity-100 cursor-move drag-handle"
-              />
-              <ModelIcon
-                :model-id="provider.id"
-                :custom-class="'w-4 h-4 text-muted-foreground'"
-                :is-dark="themeStore.isDark"
-              />
-              <span class="text-sm font-medium flex-1" :dir="languageStore.dir">{{
-                t(provider.name)
-              }}</span>
-              <Switch :checked="provider.enable" @click.stop="toggleProviderStatus(provider)" />
-            </div>
-          </template>
-        </draggable>
+      <div class="py-2 space-y-4">
+        <!-- 启用的服务商区域 -->
+        <div v-if="enabledProviders.length > 0">
+          <div class="text-xs font-medium text-muted-foreground mb-2 px-2">
+            {{ t('settings.provider.enabled') }} ({{ enabledProviders.length }})
+          </div>
+          <draggable
+            v-model="enabledProviders"
+            item-key="id"
+            handle=".drag-handle"
+            class="space-y-2"
+            group="providers"
+            :move="onMoveEnabled"
+            @end="handleDragEnd"
+          >
+            <template #item="{ element: provider }">
+              <div
+                :data-provider-id="provider.id"
+                :class="[
+                  'flex flex-row hover:bg-accent items-center gap-2 rounded-lg p-2 cursor-pointer group',
+                  route.params?.providerId === provider.id
+                    ? 'bg-secondary text-secondary-foreground'
+                    : ''
+                ]"
+                @click="setActiveProvider(provider.id)"
+              >
+                <Icon
+                  icon="lucide:grip-vertical"
+                  class="w-4 h-4 text-muted-foreground opacity-0 group-hover:opacity-100 cursor-move drag-handle"
+                />
+                <ModelIcon
+                  :model-id="provider.id"
+                  :custom-class="'w-4 h-4 text-muted-foreground'"
+                  :is-dark="themeStore.isDark"
+                />
+                <span class="text-sm font-medium flex-1" :dir="languageStore.dir">{{
+                  t(provider.name)
+                }}</span>
+                <Switch :checked="provider.enable" @click.stop="toggleProviderStatus(provider)" />
+              </div>
+            </template>
+          </draggable>
+        </div>
+
+        <!-- 禁用的服务商区域 -->
+        <div v-if="disabledProviders.length > 0">
+          <div class="text-xs font-medium text-muted-foreground mb-2 px-2">
+            {{ t('settings.provider.disabled') }} ({{ disabledProviders.length }})
+          </div>
+          <draggable
+            v-model="disabledProviders"
+            item-key="id"
+            handle=".drag-handle"
+            class="space-y-2"
+            group="providers"
+            :move="onMoveDisabled"
+            @end="handleDragEnd"
+          >
+            <template #item="{ element: provider }">
+              <div
+                :data-provider-id="provider.id"
+                :class="[
+                  'flex flex-row hover:bg-accent items-center gap-2 rounded-lg p-2 cursor-pointer group opacity-60',
+                  route.params?.providerId === provider.id
+                    ? 'bg-secondary text-secondary-foreground'
+                    : ''
+                ]"
+                @click="setActiveProvider(provider.id)"
+              >
+                <Icon
+                  icon="lucide:grip-vertical"
+                  class="w-4 h-4 text-muted-foreground opacity-0 group-hover:opacity-100 cursor-move drag-handle"
+                />
+                <ModelIcon
+                  :model-id="provider.id"
+                  :custom-class="'w-4 h-4 text-muted-foreground'"
+                  :is-dark="themeStore.isDark"
+                />
+                <span class="text-sm font-medium flex-1" :dir="languageStore.dir">{{
+                  t(provider.name)
+                }}</span>
+                <Switch :checked="provider.enable" @click.stop="toggleProviderStatus(provider)" />
+              </div>
+            </template>
+          </draggable>
+        </div>
 
         <div
           class="flex flex-row items-center gap-2 rounded-lg p-2 cursor-pointer hover:bg-accent mt-2"
@@ -53,6 +105,14 @@
         :provider="activeProvider"
         class="flex-1"
       />
+      <AnthropicProviderSettingsDetail
+        v-else-if="activeProvider.id === 'anthropic' || activeProvider.apiType === 'anthropic'"
+        :key="`anthropic-${activeProvider.id}`"
+        :provider="activeProvider"
+        class="flex-1"
+        @auth-success="handleAnthropicAuthSuccess"
+        @auth-error="handleAnthropicAuthError"
+      />
       <ModelProviderSettingsDetail
         v-else
         :key="`standard-${activeProvider.id}`"
@@ -68,7 +128,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, nextTick } from 'vue'
 import { useSettingsStore } from '@/stores/settings'
 import { useRoute, useRouter } from 'vue-router'
 import ModelProviderSettingsDetail from './ModelProviderSettingsDetail.vue'
@@ -83,6 +143,7 @@ import draggable from 'vuedraggable'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { useThemeStore } from '@/stores/theme'
 import { useLanguageStore } from '@/stores/language'
+import AnthropicProviderSettingsDetail from './AnthropicProviderSettingsDetail.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -92,12 +153,20 @@ const settingsStore = useSettingsStore()
 const themeStore = useThemeStore()
 const isAddProviderDialogOpen = ref(false)
 
-// 创建一个计算属性来处理排序后的providers
-const sortedProviders = computed({
-  get: () => settingsStore.sortedProviders,
+// 分别处理启用和禁用的 providers
+const enabledProviders = computed({
+  get: () => settingsStore.sortedProviders.filter((p) => p.enable),
   set: (newProviders) => {
-    // 更新 store 中的 providers 顺序
-    settingsStore.updateProvidersOrder(newProviders)
+    const allProviders = [...newProviders, ...disabledProviders.value]
+    settingsStore.updateProvidersOrder(allProviders)
+  }
+})
+
+const disabledProviders = computed({
+  get: () => settingsStore.sortedProviders.filter((p) => !p.enable),
+  set: (newProviders) => {
+    const allProviders = [...enabledProviders.value, ...newProviders]
+    settingsStore.updateProvidersOrder(allProviders)
   }
 })
 
@@ -110,10 +179,28 @@ const setActiveProvider = (providerId: string) => {
   })
 }
 
+const scrollToProvider = (providerId: string) => {
+  const element = document.querySelector(`[data-provider-id="${providerId}"]`)
+  if (element) {
+    // 滚动到该服务商的位置
+    element.scrollIntoView({
+      behavior: 'smooth',
+      block: 'end'
+    })
+  }
+}
+
 const toggleProviderStatus = async (provider: LLM_PROVIDER) => {
-  await settingsStore.updateProviderStatus(provider.id, !provider.enable)
+  const willEnable = !provider.enable
+  await settingsStore.updateProviderStatus(provider.id, willEnable)
   // 切换状态后，同时打开该服务商的详情页面
   setActiveProvider(provider.id)
+
+  // 仅在开启服务商时滚动
+  if (willEnable) {
+    await nextTick()
+    scrollToProvider(provider.id)
+  }
 }
 
 const activeProvider = computed(() => {
@@ -129,9 +216,48 @@ const handleProviderAdded = (provider: LLM_PROVIDER) => {
   setActiveProvider(provider.id)
 }
 
+const handleAnthropicAuthSuccess = async () => {
+  // 处理 Anthropic 认证成功后的逻辑
+  console.log('Anthropic auth success')
+  // 刷新模型列表以获取最新的授权状态
+  await settingsStore.refreshAllModels()
+}
+
+const handleAnthropicAuthError = (error: string) => {
+  // 处理 Anthropic 认证失败后的逻辑
+  console.error('Anthropic auth error:', error)
+  // 可以在这里添加用户友好的错误提示
+}
+
 // 处理拖拽结束事件
 const handleDragEnd = () => {
   // 可以在这里添加额外的处理逻辑
+}
+
+// 处理启用区域的拖拽移动事件
+const onMoveEnabled = (evt: any) => {
+  const draggedProvider = evt.draggedContext.element
+  const relatedProvider = evt.relatedContext?.element
+  if (!draggedProvider || !draggedProvider.enable) {
+    return false
+  }
+  if (relatedProvider && !relatedProvider.enable) {
+    return false
+  }
+  return true
+}
+
+// 处理禁用区域的拖拽移动事件
+const onMoveDisabled = (evt: any) => {
+  const draggedProvider = evt.draggedContext.element
+  const relatedProvider = evt.relatedContext?.element
+  if (!draggedProvider || draggedProvider.enable) {
+    return false
+  }
+  if (relatedProvider && relatedProvider.enable) {
+    return false
+  }
+  return true
 }
 </script>
 

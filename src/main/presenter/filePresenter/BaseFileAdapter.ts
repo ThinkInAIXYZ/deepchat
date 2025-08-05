@@ -68,7 +68,7 @@ export abstract class BaseFileAdapter {
   }
 
   protected abstract getFileDescription(): string | undefined
-  protected abstract getContent(): Promise<string | undefined>
+  public abstract getContent(): Promise<string | undefined>
   public abstract getLLMContent(): Promise<string | undefined>
   public abstract getThumbnail(): Promise<string | undefined>
 }

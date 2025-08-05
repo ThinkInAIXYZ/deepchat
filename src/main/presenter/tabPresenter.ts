@@ -609,6 +609,9 @@ export class TabPresenter implements ITabPresenter {
     // Re-adding ensures it's on top in most view hierarchies
     window.contentView.addChildView(view)
     this.updateViewBounds(window, view)
+    if (!view.webContents.isDestroyed()) {
+      view.webContents.focus()
+    }
   }
 
   /**
@@ -686,6 +689,41 @@ export class TabPresenter implements ITabPresenter {
     this.tabState.clear()
     this.windowTabs.clear()
     this.webContentsToTabId.clear()
+  }
+
+  /**
+   * 重排序窗口内的标签页
+   */
+  async reorderTabs(windowId: number, tabIds: number[]): Promise<boolean> {
+    console.log('reorderTabs', windowId, tabIds)
+
+    const windowTabs = this.windowTabs.get(windowId)
+    if (!windowTabs) return false
+
+    for (const tabId of tabIds) {
+      if (!windowTabs.includes(tabId)) {
+        console.warn(`Tab ${tabId} does not belong to window ${windowId}`)
+        return false
+      }
+    }
+
+    if (tabIds.length !== windowTabs.length) {
+      console.warn('Tab count mismatch in reorder operation')
+      return false
+    }
+
+    this.windowTabs.set(windowId, [...tabIds])
+
+    tabIds.forEach((tabId, index) => {
+      const tabState = this.tabState.get(tabId)
+      if (tabState) {
+        tabState.position = index
+      }
+    })
+
+    await this.notifyWindowTabsUpdate(windowId)
+
+    return true
   }
 
   // 将标签页移动到新窗口

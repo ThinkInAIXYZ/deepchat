@@ -125,7 +125,11 @@ export interface ModelConfig {
   functionCall: boolean
   reasoning: boolean
   type: ModelType
+  // Whether this config is user-defined (true) or default config (false)
+  isUserDefined?: boolean
+  thinkingBudget?: number
 }
+
 export interface IModelConfig {
   id: string
   providerId: string
@@ -184,6 +188,7 @@ export interface ITabPresenter {
   getActiveTabId(windowId: number): Promise<number | undefined>
   getTabIdByWebContentsId(webContentsId: number): number | undefined
   getWindowIdByWebContentsId(webContentsId: number): number | undefined
+  reorderTabs(windowId: number, tabIds: number[]): Promise<boolean>
   moveTabToNewWindow(tabId: number, screenX?: number, screenY?: number): Promise<boolean>
   captureTabArea(
     tabId: number,
@@ -283,6 +288,12 @@ export interface IOAuthPresenter {
   startOAuthLogin(providerId: string, config: OAuthConfig): Promise<boolean>
   startGitHubCopilotLogin(providerId: string): Promise<boolean>
   startGitHubCopilotDeviceFlowLogin(providerId: string): Promise<boolean>
+  startAnthropicOAuthFlow(): Promise<string>
+  completeAnthropicOAuthWithCode(code: string): Promise<boolean>
+  cancelAnthropicOAuthFlow(): Promise<void>
+  hasAnthropicCredentials(): Promise<boolean>
+  getAnthropicAccessToken(): Promise<string | null>
+  clearAnthropicCredentials(): Promise<void>
 }
 
 export interface OAuthConfig {
@@ -310,6 +321,8 @@ export interface IPresenter {
   notificationPresenter: INotificationPresenter
   tabPresenter: ITabPresenter
   oauthPresenter: IOAuthPresenter
+  dialogPresenter: IDialogPresenter
+  knowledgePresenter: IKnowledgePresenter
   init(): void
   destroy(): void
 }
@@ -424,6 +437,14 @@ export interface IConfigPresenter {
   getShortcutKey(): ShortcutKeySetting
   setShortcutKey(customShortcutKey: ShortcutKeySetting): void
   resetShortcutKeys(): void
+  // 知识库设置
+  getKnowledgeConfigs(): BuiltinKnowledgeConfig[]
+  setKnowledgeConfigs(configs: BuiltinKnowledgeConfig[]): void
+  diffKnowledgeConfigs(configs: BuiltinKnowledgeConfig[]): {
+    added: BuiltinKnowledgeConfig[]
+    deleted: BuiltinKnowledgeConfig[]
+    updated: BuiltinKnowledgeConfig[]
+  }
 }
 export type RENDERER_MODEL_META = {
   id: string
@@ -461,6 +482,12 @@ export type LLM_PROVIDER = {
   baseUrl: string
   enable: boolean
   custom?: boolean
+  authMode?: 'apikey' | 'oauth' // 认证模式
+  oauthToken?: string // OAuth token
+  rateLimit?: {
+    enabled: boolean
+    qpsLimit: number
+  }
   websites?: {
     official: string
     apiKey: string
@@ -478,6 +505,11 @@ export type LLM_PROVIDER_BASE = {
     defaultBaseUrl: string
   }
 } & LLM_PROVIDER
+
+export type LLM_EMBEDDING_ATTRS = {
+  dimensions: number
+  normalized: boolean
+}
 
 export interface ILlmProviderPresenter {
   setProviders(provider: LLM_PROVIDER[]): void
@@ -502,7 +534,9 @@ export interface ILlmProviderPresenter {
     modelId: string,
     eventId: string,
     temperature?: number,
-    maxTokens?: number
+    maxTokens?: number,
+    enabledMcpTools?: string[],
+    thinkingBudget?: number
   ): AsyncGenerator<LLMAgentEvent, void, unknown>
   generateCompletion(
     providerId: string,
@@ -525,6 +559,27 @@ export interface ILlmProviderPresenter {
   listOllamaRunningModels(): Promise<OllamaModel[]>
   pullOllamaModels(modelName: string): Promise<boolean>
   deleteOllamaModel(modelName: string): Promise<boolean>
+  getEmbeddings(providerId: string, modelId: string, texts: string[]): Promise<number[][]>
+  getDimensions(
+    providerId: string,
+    modelId: string
+  ): Promise<{ data: LLM_EMBEDDING_ATTRS; errorMsg?: string }>
+  updateProviderRateLimit(providerId: string, enabled: boolean, qpsLimit: number): void
+  getProviderRateLimitStatus(providerId: string): {
+    config: { enabled: boolean; qpsLimit: number }
+    currentQps: number
+    queueLength: number
+    lastRequestTime: number
+  }
+  getAllProviderRateLimitStatus(): Record<
+    string,
+    {
+      config: { enabled: boolean; qpsLimit: number }
+      currentQps: number
+      queueLength: number
+      lastRequestTime: number
+    }
+  >
 }
 export type CONVERSATION_SETTINGS = {
   systemPrompt: string
@@ -534,6 +589,8 @@ export type CONVERSATION_SETTINGS = {
   providerId: string
   modelId: string
   artifacts: 0 | 1
+  enabledMcpTools?: string[]
+  thinkingBudget?: number
 }
 
 export type CONVERSATION = {
@@ -635,6 +692,10 @@ export interface IThreadPresenter {
     permissionType: 'read' | 'write' | 'all',
     remember?: boolean
   ): Promise<void>
+  exportConversation(
+    conversationId: string,
+    format: 'markdown' | 'html' | 'txt'
+  ): Promise<{ filename: string; content: string }>
 }
 
 export type MESSAGE_STATUS = 'sent' | 'pending' | 'error'
@@ -696,6 +757,7 @@ export interface IDevicePresenter {
   getMemoryUsage(): Promise<MemoryInfo>
   getDiskSpace(): Promise<DiskInfo>
   resetData(): Promise<void>
+  resetDataByType(resetType: 'chat' | 'knowledge' | 'config' | 'all'): Promise<void>
 
   // 目录选择和应用重启
   selectDirectory(): Promise<{ canceled: boolean; filePaths: string[] }>
@@ -826,6 +888,11 @@ export interface IFilePresenter {
   deleteFile(relativePath: string): Promise<void>
   createFileAdapter(filePath: string, typeInfo?: string): Promise<any> // Return type might need refinement
   prepareFile(absPath: string, typeInfo?: string): Promise<MessageFile>
+  prepareFileCompletely(
+    absPath: string,
+    typeInfo?: string,
+    contentType?: null | 'origin' | 'llm-friendly'
+  ): Promise<MessageFile>
   prepareDirectory(absPath: string): Promise<MessageFile>
   writeTemp(file: { name: string; content: string | Buffer | ArrayBuffer }): Promise<string>
   isDirectory(absPath: string): Promise<boolean>
@@ -855,6 +922,15 @@ export interface OllamaModel {
     parameter_size: string
     quantization_level: string
   }
+  // 合并show接口一些信息
+  model_info: {
+    context_length: number
+    embedding_length: number
+    vision?: {
+      embedding_length: number
+    }
+  }
+  capabilities: string[]
 }
 
 // 定义进度回调的接口
@@ -1070,6 +1146,7 @@ export interface LLMCoreStreamEvent {
     | 'usage'
     | 'stop'
     | 'image_data'
+    | 'rate_limit'
   content?: string // 用于 type 'text'
   reasoning_content?: string // 用于 type 'reasoning'
   tool_call_id?: string // 用于 tool_call_* 类型
@@ -1082,6 +1159,13 @@ export interface LLMCoreStreamEvent {
     prompt_tokens: number
     completion_tokens: number
     total_tokens: number
+  }
+  rate_limit?: {
+    providerId: string
+    qpsLimit: number
+    currentQps: number
+    queueLength: number
+    estimatedWaitTime?: number
   }
   stop_reason?: 'tool_use' | 'max_tokens' | 'stop_sequence' | 'error' | 'complete' // 用于 type 'stop'
   image_data?: {
@@ -1146,6 +1230,13 @@ export interface LLMAgentEventData {
     context_length: number
   }
   image_data?: { data: string; mimeType: string }
+  rate_limit?: {
+    providerId: string
+    qpsLimit: number
+    currentQps: number
+    queueLength: number
+    estimatedWaitTime?: number
+  }
   error?: string // For error event
   userStop?: boolean // For end event
 }
@@ -1167,6 +1258,7 @@ export interface DefaultModelSetting {
   functionCall: boolean
   reasoning?: boolean
   type?: ModelType
+  thinkingBudget?: number
 }
 
 export interface KeyStatus {
@@ -1175,4 +1267,422 @@ export interface KeyStatus {
   limit_remaining?: string
   /** 已使用额度 */
   usage?: string
+}
+
+export interface DialogButton {
+  key: string
+  label: string
+  default?: boolean
+}
+export interface DialogIcon {
+  icon: string
+  class: string
+}
+
+export interface DialogRequestParams {
+  title: string
+  description?: string
+  i18n?: boolean
+  icon?: DialogIcon
+  buttons?: DialogButton[]
+  timeout?: number
+}
+
+export interface DialogRequest {
+  id: string
+  title: string
+  description?: string
+  i18n: boolean
+  icon?: DialogIcon
+  buttons: DialogButton[]
+  timeout: number
+}
+
+export interface DialogResponse {
+  id: string
+  button: string
+}
+
+export interface IDialogPresenter {
+  /**
+   * Show dialog
+   * @param request DialogRequest object containing the dialog configuration
+   * @returns Returns a Promise that resolves to the text of the button selected by the user
+   * @throws Returns null if the dialog is cancelled
+   */
+  showDialog(request: DialogRequestParams): Promise<string>
+  /**
+   * Handle dialog response
+   * @param response DialogResponse object containing the dialog response information
+   */
+  handleDialogResponse(response: DialogResponse): Promise<void>
+  /**
+   * Handle dialog error
+   * @param response Dialog id
+   */
+  handleDialogError(response: string): Promise<void>
+}
+
+// built-in knowledgebase
+export type KnowledgeFileMetadata = {
+  size: number
+  totalChunks: number
+  errorReason?: string
+}
+
+export type KnowledgeTaskStatus = 'processing' | 'completed' | 'error' | 'paused'
+
+export type KnowledgeFileMessage = {
+  id: string
+  name: string
+  path: string
+  mimeType: string
+  status: KnowledgeTaskStatus
+  uploadedAt: number
+  metadata: KnowledgeFileMetadata
+}
+
+export type KnowledgeChunkMessage = {
+  id: string
+  fileId: string
+  chunkIndex: number
+  content: string
+  status: KnowledgeTaskStatus
+  error?: string
+}
+
+// task management
+export interface KnowledgeChunkTask {
+  id: string // chunkId
+  payload: {
+    knowledgeBaseId: string
+    fileId: string
+    [key: string]: any
+  }
+  run: (context: { signal: AbortSignal }) => Promise<void> // 任务执行体，支持终止信号
+  onSuccess?: () => void
+  onError?: (error: Error) => void
+  onTerminate?: () => void // task termination callback
+}
+
+// task status summary
+export interface TaskStatusSummary {
+  pending: number
+  processing: number
+  byKnowledgeBase: Map<string, { pending: number; processing: number }>
+}
+
+// task general status
+export interface TaskQueueStatus {
+  totalTasks: number
+  runningTasks: number
+  queuedTasks: number
+}
+
+export interface IKnowledgeTaskPresenter {
+  /**
+   * Add a task to the queue
+   * @param task Task object
+   */
+  addTask(task: KnowledgeChunkTask): void
+
+  /**
+   * Remove/terminate tasks based on a filter
+   * @param filter Filter function, operates on the entire Task object
+   */
+  removeTasks(filter: (task: KnowledgeChunkTask) => boolean): void
+
+  /**
+   * Get the current status of the task queue
+   * @returns Queue status information
+   */
+  getStatus(): TaskQueueStatus
+
+  /**
+   * Destroy the instance, clean up all tasks and resources
+   */
+  destroy(): void
+
+  // New convenience methods (implemented internally via removeTasks + filter)
+  /**
+   * Cancel tasks by knowledge base ID
+   * @param knowledgeBaseId Knowledge base ID
+   */
+  cancelTasksByKnowledgeBase(knowledgeBaseId: string): void
+
+  /**
+   * Cancel tasks by file ID
+   * @param fileId File ID
+   */
+  cancelTasksByFile(fileId: string): void
+
+  /**
+   * Get detailed task status statistics
+   * @returns Task status summary information
+   */
+  getTaskStatus(): TaskStatusSummary
+
+  /**
+   * Check if there are any active tasks
+   * @returns Whether there are active tasks
+   */
+  hasActiveTasks(): boolean
+
+  /**
+   * Check if the specified knowledge base has active tasks
+   * @param knowledgeBaseId Knowledge base ID
+   * @returns Whether there are active tasks
+   */
+  hasActiveTasksForKnowledgeBase(knowledgeBaseId: string): boolean
+
+  /**
+   * Check if the specified file has active tasks
+   * @param fileId File ID
+   * @returns Whether there are active tasks
+   */
+  hasActiveTasksForFile(fileId: string): boolean
+}
+export type KnowledgeFileResult = {
+  data?: KnowledgeFileMessage
+  error?: string
+}
+
+/**
+ * Knowledge base interface, provides functions for creating, deleting, file management, and similarity search.
+ */
+export interface IKnowledgePresenter {
+  /**
+   * Check if the knowledge presenter is supported in current environment
+   */
+  isSupported(): Promise<boolean>
+
+  /**
+   * Add a file to the knowledge base
+   * @param id Knowledge base ID
+   * @param path File path
+   * @returns File addition result
+   */
+  addFile(id: string, path: string): Promise<KnowledgeFileResult>
+
+  /**
+   * Delete a file from the knowledge base
+   * @param id Knowledge base ID
+   * @param fileId File ID
+   */
+  deleteFile(id: string, fileId: string): Promise<void>
+
+  /**
+   * Re-add (rebuild vector) a file in the knowledge base
+   * @param id Knowledge base ID
+   * @param fileId File ID
+   * @returns File addition result
+   */
+  reAddFile(id: string, fileId: string): Promise<KnowledgeFileResult>
+
+  /**
+   * List all files in the knowledge base
+   * @param id Knowledge base ID
+   * @returns Array of file metadata
+   */
+  listFiles(id: string): Promise<KnowledgeFileMessage[]>
+
+  /**
+   * Similarity search
+   * @param id Knowledge base ID
+   * @param key Query text
+   * @returns Array of similar fragment results
+   */
+  similarityQuery(id: string, key: string): Promise<QueryResult[]>
+
+  /**
+   * Get the status of the task queue
+   * @returns Task queue status information
+   */
+  getTaskQueueStatus(): Promise<TaskQueueStatus>
+  /**
+   * Pause all running tasks
+   */
+  pauseAllRunningTasks(id: string): Promise<void>
+  /**
+   * Resume all paused tasks
+   */
+  resumeAllPausedTasks(id: string): Promise<void>
+
+  /**
+   * Ask user before destroy
+   * @return return true to confirm destroy, false to cancel
+   */
+  beforeDestroy(): Promise<boolean>
+
+  /**
+   * Destroy the instance and release resources
+   */
+  destroy(): Promise<void>
+}
+
+type ModelProvider = {
+  modelId: string
+  providerId: string
+}
+
+export type BuiltinKnowledgeConfig = {
+  id: string
+  description: string
+  embedding: ModelProvider
+  rerank?: ModelProvider
+  dimensions: number
+  normalized: boolean
+  chunkSize?: number
+  chunkOverlap?: number
+  fragmentsNumber: number
+  enabled: boolean
+}
+export type MetricType = 'l2' | 'cosine' | 'ip'
+
+export interface IndexOptions {
+  /** Distance metric: 'l2' | 'cosine' | 'ip' */
+  metric?: MetricType
+  /** HNSW parameter M */
+  M?: number
+  /** HNSW ef parameter during construction */
+  efConstruction?: number
+}
+export interface VectorInsertOptions {
+  /** Numeric array, length equals dimension */
+  vector: number[]
+  /** File ID */
+  fileId: string
+  /** Chunk ID */
+  chunkId: string
+}
+export interface QueryOptions {
+  /** Number of nearest neighbors to query */
+  topK: number
+  /** ef parameter during search */
+  efSearch?: number
+  /** Minimum distance threshold. Due to different metrics, distance calculation results vary greatly. This option does not take effect in database queries and should be considered at the application layer. */
+  threshold?: number
+  /** Metric for the query vector's dimension */
+  metric: MetricType
+}
+export interface QueryResult {
+  id: string
+  metadata: {
+    from: string
+    filePath: string
+    content: string
+  }
+  distance: number
+}
+
+/**
+ * Vector database operation interface, supports automatic table creation, indexing, insertion, batch insertion, vector search, deletion, and closing.
+ */
+export interface IVectorDatabasePresenter {
+  /**
+   * Initialize the vector database for the first time
+   * @param dimensions Vector dimensions
+   * @param opts
+   */
+  initialize(dimensions: number, opts?: IndexOptions): Promise<void>
+  /**
+   * Open the database
+   */
+  open(): Promise<void>
+  /**
+   * Close the database
+   */
+  close(): Promise<void>
+  /**
+   * Destroy the database instance and release all resources.
+   */
+  destroy(): Promise<void>
+  /**
+   * Insert a single vector record. If id is not provided, it will be generated automatically.
+   * @param opts Insert parameters, including vector data and optional metadata
+   */
+  insertVector(opts: VectorInsertOptions): Promise<void>
+  /**
+   * Batch insert multiple vector records. If id is not provided for an item, it will be generated automatically.
+   * @param records Array of insert parameters
+   */
+  insertVectors(records: Array<VectorInsertOptions>): Promise<void>
+  /**
+   * Query the nearest neighbors of a vector (TopK search).
+   * @param vector Query vector
+   * @param options Query parameters
+   *   - topK: Number of nearest neighbors to return
+   *   - efSearch: HNSW ef parameter during search (optional)
+   *   - threshold: Minimum distance threshold (optional)
+   * @returns Promise<QueryResult[]> Array of search results, including id, metadata, and distance
+   */
+  similarityQuery(vector: number[], options: QueryOptions): Promise<QueryResult[]>
+  /**
+   * Delete vector records by file_id
+   * @param id File ID
+   */
+  deleteVectorsByFile(id: string): Promise<void>
+  /**
+   * Insert a file
+   * @param file File metadata object
+   */
+  insertFile(file: KnowledgeFileMessage): Promise<void>
+  /**
+   * Update a file
+   * @param file File metadata object
+   */
+  updateFile(file: KnowledgeFileMessage): Promise<void>
+  /**
+   * Query a file
+   * @param id File ID
+   * @returns File data object or null
+   */
+  queryFile(id: string): Promise<KnowledgeFileMessage | null>
+  /**
+   * Query files by condition
+   * @param where Query condition
+   * @returns Array of file data
+   */
+  queryFiles(where: Partial<KnowledgeFileMessage>): Promise<KnowledgeFileMessage[]>
+  /**
+   * List all files in the knowledge base
+   * @returns Array of file data
+   */
+  listFiles(): Promise<KnowledgeFileMessage[]>
+  /**
+   * Delete a file
+   * @param id File ID
+   */
+  deleteFile(id: string): Promise<void>
+  /**
+   * Batch insert chunks
+   * @param chunks Array of chunk data
+   */
+  insertChunks(chunks: KnowledgeChunkMessage[]): Promise<void>
+  /**
+   * Update chunk status. Completed chunks will be automatically deleted.
+   * @param chunkId Chunk ID
+   * @param status New status
+   * @param error Error message
+   */
+  updateChunkStatus(chunkId: string, status: KnowledgeTaskStatus, error?: string): Promise<void>
+  /**
+   * Query chunks by condition
+   * @param where Query condition
+   * @returns Array of chunk data
+   */
+  queryChunks(where: Partial<KnowledgeChunkMessage>): Promise<KnowledgeChunkMessage[]>
+  /**
+   * Delete all chunks associated with file id
+   * @param fileId File ID
+   */
+  deleteChunksByFile(fileId: string): Promise<void>
+  /**
+   * Pause all running tasks
+   */
+  pauseAllRunningTasks(): Promise<void>
+  /**
+   * Resume all paused tasks
+   */
+  resumeAllPausedTasks(): Promise<void>
 }

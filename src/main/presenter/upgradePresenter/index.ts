@@ -230,10 +230,10 @@ export class UpgradePresenter implements IUpgradePresenter {
   }
 
   /**
-   * 
+   *
    * @param type 检查更新的类型，'autoCheck'表示自动检查
    *            如果不传则默认为手动检查
-   * @returns 
+   * @returns
    */
   async checkUpdate(type?: string): Promise<void> {
     if (this._lock) {

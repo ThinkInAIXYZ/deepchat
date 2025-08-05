@@ -4,6 +4,7 @@ import { MCP_EVENTS } from '@/events'
 import ElectronStore from 'electron-store'
 import { app } from 'electron'
 import { compare } from 'compare-versions'
+import { presenter } from '..'
 
 // MCP设置的接口
 interface IMcpSettings {
@@ -31,46 +32,52 @@ function isLinux(): boolean {
 // 平台特有的 MCP 服务器配置
 const PLATFORM_SPECIFIC_SERVERS: Record<string, MCPServerConfig> = {
   // macOS 特有服务
-  ...(isMacOS() ? {
-    'deepchat/apple-server': {
-      args: [],
-      descriptions: 'DeepChat内置Apple系统集成服务 (仅macOS)',
-      icons: '🍎',
-      autoApprove: ['all'],
-      type: 'inmemory' as MCPServerType,
-      command: 'deepchat/apple-server',
-      env: {},
-      disable: false
-    }
-  } : {}),
-  
+  ...(isMacOS()
+    ? {
+        'deepchat/apple-server': {
+          args: [],
+          descriptions: 'DeepChat内置Apple系统集成服务 (仅macOS)',
+          icons: '🍎',
+          autoApprove: ['all'],
+          type: 'inmemory' as MCPServerType,
+          command: 'deepchat/apple-server',
+          env: {},
+          disable: false
+        }
+      }
+    : {}),
+
   // Windows 特有服务 (预留)
-  ...(isWindows() ? {
-    // 'deepchat-inmemory/windows-server': {
-    //   args: [],
-    //   descriptions: 'DeepChat内置Windows系统集成服务 (仅Windows)',
-    //   icons: '🪟',
-    //   autoApprove: ['all'],
-    //   type: 'inmemory' as MCPServerType,
-    //   command: 'deepchat-inmemory/windows-server',
-    //   env: {},
-    //   disable: false
-    // }
-  } : {}),
-  
+  ...(isWindows()
+    ? {
+        // 'deepchat-inmemory/windows-server': {
+        //   args: [],
+        //   descriptions: 'DeepChat内置Windows系统集成服务 (仅Windows)',
+        //   icons: '🪟',
+        //   autoApprove: ['all'],
+        //   type: 'inmemory' as MCPServerType,
+        //   command: 'deepchat-inmemory/windows-server',
+        //   env: {},
+        //   disable: false
+        // }
+      }
+    : {}),
+
   // Linux 特有服务 (预留)
-  ...(isLinux() ? {
-    // 'deepchat-inmemory/linux-server': {
-    //   args: [],
-    //   descriptions: 'DeepChat内置Linux系统集成服务 (仅Linux)',
-    //   icons: '🐧',
-    //   autoApprove: ['all'],
-    //   type: 'inmemory' as MCPServerType,
-    //   command: 'deepchat-inmemory/linux-server',
-    //   env: {},
-    //   disable: false
-    // }
-  } : {})
+  ...(isLinux()
+    ? {
+        // 'deepchat-inmemory/linux-server': {
+        //   args: [],
+        //   descriptions: 'DeepChat内置Linux系统集成服务 (仅Linux)',
+        //   icons: '🐧',
+        //   autoApprove: ['all'],
+        //   type: 'inmemory' as MCPServerType,
+        //   command: 'deepchat-inmemory/linux-server',
+        //   env: {},
+        //   disable: false
+        // }
+      }
+    : {})
 }
 
 // 抽取inmemory类型的服务为常量
@@ -196,6 +203,18 @@ const DEFAULT_INMEMORY_SERVERS: Record<string, MCPServerConfig> = {
     },
     disable: false
   },
+  builtinKnowledge: {
+    args: [],
+    descriptions: 'DeepChat内置知识库检索服务',
+    icons: '📚',
+    autoApprove: ['all'],
+    type: 'inmemory' as MCPServerType,
+    command: 'builtinKnowledge',
+    env: {
+      configs: []
+    },
+    disable: false
+  },
   'deepchat-inmemory/deep-research-server': {
     args: [],
     descriptions:
@@ -296,7 +315,7 @@ export class McpConfHelper {
   }
 
   // 获取MCP服务器配置
-  getMcpServers(): Promise<Record<string, MCPServerConfig>> {
+  async getMcpServers(): Promise<Record<string, MCPServerConfig>> {
     const storedServers = this.mcpStore.get('mcpServers') || DEFAULT_MCP_SERVERS.mcpServers
 
     // 检查并补充缺少的inmemory服务
@@ -334,9 +353,18 @@ export class McpConfHelper {
       delete updatedServers[serverName]
     }
 
+    // 移除不兼容的服务
+    const builtinKnowledgeSupported = await presenter.knowledgePresenter.isSupported()
+    if (!builtinKnowledgeSupported) {
+      console.warn('内置知识库服务不支持当前环境，移除相关服务')
+      delete updatedServers.builtinKnowledge
+    }
+
     // 如果有变化，更新存储
-    if (Object.keys(updatedServers).length !== Object.keys(storedServers).length || 
-        serversToRemove.length > 0) {
+    if (
+      Object.keys(updatedServers).length !== Object.keys(storedServers).length ||
+      serversToRemove.length > 0
+    ) {
       this.mcpStore.set('mcpServers', updatedServers)
     }
 

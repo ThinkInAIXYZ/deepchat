@@ -70,7 +70,22 @@
     "importing": "导入中...",
     "confirmImport": "确认导入",
     "importSuccessTitle": "导入成功",
-    "importErrorTitle": "导入失败"
+    "importErrorTitle": "导入失败",
+    "resetData": "重置数据",
+    "resetConfirmTitle": "确认重置数据",
+    "resetConfirmDescription": "请选择要重置的数据类型。此操作不可撤销，重置后应用将自动重启。",
+    "resetChatData": "重置聊天数据",
+    "resetChatDataDesc": "删除所有聊天记录和对话历史",
+    "resetKnowledgeData": "重置知识库数据",
+    "resetKnowledgeDataDesc": "删除所有知识库文件和向量数据",
+    "resetConfig": "重置配置",
+    "resetConfigDesc": "删除所有应用设置、模型配置和自定义提示词",
+    "resetAll": "完全重置",
+    "resetAllDesc": "删除所有数据，包括聊天记录、配置和缓存文件",
+    "resetting": "重置中...",
+    "confirmReset": "确认重置",
+    "resetCompleteDevTitle": "数据重置完成",
+    "resetCompleteDevMessage": "开发环境下请手动重启应用以查看效果。请停止当前进程并重新运行 pnpm run dev"
   },
   "model": {
     "title": "模型设置",
@@ -128,6 +143,33 @@
         "label": "推理能力",
         "description": "模型是否支持推理能力"
       },
+      "thinkingBudget": {
+        "label": "思考预算",
+        "description": "限制模型思考长度",
+        "dynamic": "动态思维",
+        "range": "范围: {min} - {max}",
+        "onlySupported": "仅在 Gemini 2.5 Flash、2.5 Pro 和 2.5 Flash-Lite 中受支持",
+        "valueLabel": "思考预算值",
+        "placeholder": "输入思考预算值",
+        "forceEnabled": "Gemini 2.5 系列模型强制开启思考预算",
+        "dynamicPrefix": "-1 = 动态思维",
+        "notice": "注意：",
+        "warnings": {
+          "proNoDisable": "此模型不支持停用思考，最小值 128",
+          "proCannotDisable": "Gemini 2.5 Pro 无法停用思考功能",
+          "flashLiteCannotSetZero": "Gemini 2.5 Flash-Lite 不能设置为 0，最小值为 512",
+          "modelCannotDisable": "此模型无法停用思考功能",
+          "flashLiteMinValue": "思考预算设置为具体数值时不能小于 512（或使用 0 停用思考，-1 启用动态思维）",
+          "belowMin": "思考预算不能小于 {min}{hint}",
+          "aboveMax": "思考预算不能大于 {max}"
+        },
+        "hints": {
+          "flashLiteDisable": "，0 = 停用思考，具体数值最小 512",
+          "normalDisable": "，0 = 停用思考",
+          "withZeroAndDynamic": "（或使用 0 停用思考，-1 启用动态思维）",
+          "withDynamic": "（或使用 -1 启用动态思维）"
+        }
+      },
       "type": {
         "label": "模型类型",
         "description": "选择模型的类型",
@@ -141,6 +183,8 @@
       "resetToDefault": "重置为默认",
       "saveConfig": "保存配置",
       "cancel": "取消",
+      "useModelDefault": "使用模型默认配置",
+      "currentUsingModelDefault": "当前使用模型默认配置",
       "resetConfirm": {
         "title": "确认重置",
         "message": "确定要重置此模型的配置为默认值吗？此操作不可撤销。",
@@ -161,6 +205,8 @@
   },
   "provider": {
     "enable": "开启服务",
+    "enabled": "已启用",
+    "disabled": "已禁用",
     "urlPlaceholder": "请输入API URL",
     "keyPlaceholder": "请输入API Key",
     "verifyKey": "验证密钥",
@@ -180,6 +226,10 @@
     "stopModel": "停止模型",
     "pulling": "拉取中...",
     "runModel": "运行模型",
+    "toast": {
+      "modelRunning": "模型正在运行",
+      "modelRunningDesc": "请先停止模型 {model}，然后再删除。"
+    },
     "dialog": {
       "disableModel": {
         "title": "确认禁用模型",
@@ -275,13 +325,37 @@
     "keyStatus": {
       "usage": "已使用",
       "remaining": "剩余额度"
-    }
+    },
+    "authMethod": "认证方式",
+    "authMethodPlaceholder": "选择认证方式",
+    "apiKeyLabel": "API Key",
+    "apiUrlLabel": "API URL",
+    "anthropicConnected": "Anthropic 已连接",
+    "anthropicNotConnected": "Anthropic 未连接",
+    "anthropicOAuthTip": "点击授权 DeepChat 访问您的 Anthropic 账户",
+    "oauthLogin": "OAuth 登录",
+    "anthropicApiKeyTip": "请前往 Anthropic Console 获取您的 API Key",
+    "anthropicOAuthFlowTip": "系统将自动打开授权窗口，授权后请回来输入授权码",
+    "browserOpenedSuccess": "外部浏览器已打开，请完成授权",
+    "anthropicBrowserOpened": "外部浏览器已打开",
+    "anthropicCodeInstruction": "请在外部浏览器中完成授权，然后将获得的授权码粘贴到下方输入框中",
+    "inputOAuthCode": "输入授权码",
+    "oauthCodeHint": "请在外部浏览器中完成授权后，将获得的授权码粘贴到此处",
+    "oauthCodePlaceholder": "请输入授权码...",
+    "codeRequired": "请输入授权码",
+    "invalidCode": "授权码无效",
+    "codeExchangeFailed": "授权码交换失败",
+    "verifyConnection": "验证连接",
+    "manageModels": "管理模型",
+    "anthropicOAuthActiveTip": "OAuth 认证已启用，您可以直接使用 Anthropic 服务",
+    "oauthVerifySuccess": "OAuth 连接验证成功",
+    "oauthVerifyFailed": "OAuth 连接验证失败"
   },
   "knowledgeBase": {
     "title": "知识库设置",
     "addKnowledgeBase": "添加知识库",
     "selectKnowledgeBaseType": "请选择要添加的知识库类型",
-    "difyDescription": "Dify知识库可以帮助您管理和使用文档数据",
+    "difyDescription": "Dify知识库可以帮助您管理和使用文档数据。",
     "comingSoon": "即将推出",
     "featureNotAvailable": "该功能暂未开放，敬请期待",
     "addDifyConfig": "添加Dify配置",
@@ -304,7 +378,77 @@
     "fastgptTitle": "FastGPT知识库",
     "fastgptDescription": "FastGPT是一个强大的知识库管理系统，支持多种检索方式和文档管理功能。",
     "addFastGptConfig": "添加FastGPT配置",
-    "editFastGptConfig": "编辑FastGPT配置"
+    "editFastGptConfig": "编辑FastGPT配置",
+    "builtInKnowledgeTitle": "内置知识库",
+    "builtInKnowledgeDescription": "内置知识库提供了一些简单实现，能够在离线环境下实现部分基础功能。",
+    "addBuiltinKnowledgeConfig": "添加内置知识库配置",
+    "editBuiltinKnowledgeConfig": "编辑内置知识库配置",
+    "descriptionDesc": "知识库的描述，以便 AI 决定是否检索此知识库",
+    "embeddingModel": "嵌入模型",
+    "selectEmbeddingModel": "选择嵌入模型",
+    "selectEmbeddingModelHelper": "嵌入模型在知识库创建后禁止修改",
+    "rerankModel": "重排序模型",
+    "selectRerankModel": "选择重排序模型",
+    "chunkSize": "分块大小",
+    "chunkOverlap": "重叠大小",
+    "fragmentsNumber": "请求文档片段数量",
+    "chunkSizeHelper": "将文档切割分段，每段的大小，不能超过模型上下文限制",
+    "chunkOverlapHelper": "相邻文本块之间重复的内容量，确保分段后的文本块之间仍然有上下文联系，提升模型处理长文本的整体效果",
+    "fragmentsNumberHelper": "请求文档片段数量越多，附带的信息越多，但需要消耗的token也越多",
+    "modelNotFound": "服务商 {provider} 或模型 {model} 未找到",
+    "modelNotFoundDesc": "请确保已正确配置模型，并且模型处于启用状态。您可以在服务商设置中检查模型配置。",
+    "removeBuiltinKnowledgeConfirmTitle": "确认删除内置知识库 {name} ？",
+    "removeBuiltinKnowledgeConfirmDesc": "删除内置知识库配置将会删除所有相关数据，且无法恢复，请谨慎操作。",
+    "advanced": "高级选项",
+    "dimensions": "嵌入维度",
+    "dimensionsPlaceholder": "嵌入维度大小，如 1024",
+    "autoDetectDimensions": "自动检测嵌入维度",
+    "autoDetectHelper": "自动检测嵌入维度，会消耗少量 Tokens",
+    "dimensionsHelper": "请确保模型支持所设置的嵌入维度大小",
+    "autoDetectDimensionsError": "自动检测嵌入维度失败",
+    "normalized": "L2 归一化",
+    "normalizedHelper": "请确认模型支持对输出向量进行 L2 归一化",
+    "chunkSizePlaceholder": "默认值，不建议修改",
+    "chunkOverlapPlaceholder": "默认值，不建议修改",
+    "return": "返回",
+    "uploadHelper": "点击上传或拖拽文件到此处",
+    "onlySupport": "仅支持",
+    "searchKnowledge": "搜索知识库",
+    "searchKnowledgePlaceholder": "请输入查询内容",
+    "noData": "暂无数据",
+    "file": "文件",
+    "uploadProcessing": "上传中",
+    "uploadCompleted": "上传完成",
+    "reAdd": "重新上传",
+    "uploadError": "上传失败",
+    "processing": "正在上传",
+    "paused": "已暂停",
+    "unknown": "未知状态",
+    "delete": "删除",
+    "reason": "原因",
+    "deleteSuccess": "删除成功",
+    "copy": "复制",
+    "copySuccess": "复制成功",
+    "source": "来源",
+    "resumeAllPausedTasks": "一键恢复",
+    "pauseAllRunningTasks": "一键暂停",
+    "reAddFile": {
+      "title": "重新上传确认",
+      "content": "是否确认重新上传文件 \"{fileName}\"？"
+    },
+    "deleteFile": {
+      "title": "删除文件确认",
+      "content": "是否确认删除文件 \"{fileName}\"？此操作不可恢复。"
+    },
+    "dialog": {
+      "beforequit": {
+        "title": "退出确认",
+        "description": "有正在运行的知识库任务，是否确认退出软件？\n被中止的任务可在重启软件后恢复。",
+        "cancel": "取消",
+        "confirm": "确认"
+      }
+    },
+    "searchError": "查询失败"
   },
   "mcp": {
     "title": "MCP设置",
@@ -482,5 +626,26 @@
     "previousTab": "切换到上一个标签页",
     "specificTab": "切换到指定标签页 (1-8)",
     "lastTab": "切换到最后一个标签页"
+  },
+  "rateLimit": {
+    "title": "速率限制",
+    "description": "控制请求间隔时间，防止超出API限制",
+    "intervalLimit": "请求间隔",
+    "intervalUnit": "秒",
+    "intervalHelper": "两次请求之间的最小间隔时间，不需要时请关闭速率限制",
+    "lastRequestTime": "上次请求",
+    "queueLength": "队列长度",
+    "nextAllowedTime": "下次可请求",
+    "never": "从未",
+    "justNow": "刚刚",
+    "secondsAgo": "秒前",
+    "minutesAgo": "分钟前",
+    "immediately": "立即",
+    "secondsLater": "秒后",
+    "confirmDisableTitle": "确认关闭速率限制",
+    "confirmDisableMessage": "该值不能小于或等于0，是否关闭速率限制功能？",
+    "confirmDisable": "关闭限制",
+    "disabled": "速率限制已关闭",
+    "disabledDescription": "速率限制功能已关闭"
   }
 }

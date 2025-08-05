@@ -56,7 +56,8 @@ export const useChatStore = defineStore('chat', () => {
     maxTokens: 8000,
     providerId: '',
     modelId: '',
-    artifacts: 0
+    artifacts: 0,
+    enabledMcpTools: []
   })
 
   // Deeplink 消息缓存
@@ -322,6 +323,13 @@ export const useChatStore = defineStore('chat', () => {
       data: string
       mimeType: string
     }
+    rate_limit?: {
+      providerId: string
+      qpsLimit: number
+      currentQps: number
+      queueLength: number
+      estimatedWaitTime?: number
+    }
   }) => {
     // 从缓存中查找消息
     const cached = getGeneratingMessagesCache().get(msg.eventId)
@@ -472,6 +480,24 @@ export const useChatStore = defineStore('chat', () => {
             image_data: {
               data: msg.image_data.data,
               mimeType: msg.image_data.mimeType
+            }
+          })
+        }
+        // 处理速率限制
+        else if (msg.rate_limit) {
+          finalizeLastBlock() // 使用保护逻辑
+          curMsg.content.push({
+            type: 'action',
+            content: 'chat.messages.rateLimitWaiting',
+            status: 'loading',
+            timestamp: Date.now(),
+            action_type: 'rate_limit',
+            extra: {
+              providerId: msg.rate_limit.providerId,
+              qpsLimit: msg.rate_limit.qpsLimit,
+              currentQps: msg.rate_limit.currentQps,
+              queueLength: msg.rate_limit.queueLength,
+              estimatedWaitTime: msg.rate_limit.estimatedWaitTime ?? 0
             }
           })
         }
@@ -1083,6 +1109,70 @@ export const useChatStore = defineStore('chat', () => {
     tabP.onRendererTabReady(getTabId())
   })
 
+  /**
+   * 导出会话内容
+   * @param threadId 会话ID
+   * @param format 导出格式
+   */
+  const exportThread = async (
+    threadId: string,
+    format: 'markdown' | 'html' | 'txt' = 'markdown'
+  ) => {
+    try {
+      // 直接使用主线程导出
+      return await exportWithMainThread(threadId, format)
+    } catch (error) {
+      console.error('导出会话失败:', error)
+      throw error
+    }
+  }
+
+  /**
+   * 主线程导出
+   */
+  const exportWithMainThread = async (threadId: string, format: 'markdown' | 'html' | 'txt') => {
+    const result = await threadP.exportConversation(threadId, format)
+
+    // 触发下载
+    const blob = new Blob([result.content], {
+      type: getContentType(format)
+    })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = result.filename
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    URL.revokeObjectURL(url)
+
+    return result
+  }
+
+  /**
+   * 获取内容类型
+   */
+  const getContentType = (format: string): string => {
+    switch (format) {
+      case 'markdown':
+        return 'text/markdown;charset=utf-8'
+      case 'html':
+        return 'text/html;charset=utf-8'
+      case 'txt':
+        return 'text/plain;charset=utf-8'
+      default:
+        return 'text/plain;charset=utf-8'
+    }
+  }
+
+  /**
+   * 显示 provider 选择器（触发事件让界面显示选择器）
+   */
+  const showProviderSelector = () => {
+    // 触发事件让 ChatInput 组件显示 provider 选择器
+    window.dispatchEvent(new CustomEvent('show-provider-selector'))
+  }
+
   return {
     renameThread,
     // 状态
@@ -1121,6 +1211,8 @@ export const useChatStore = defineStore('chat', () => {
     toggleThreadPinned,
     getActiveThreadId,
     getGeneratingMessagesCache,
-    getMessages
+    getMessages,
+    exportThread,
+    showProviderSelector
   }
 })

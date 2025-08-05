@@ -1,10 +1,7 @@
 // https://github.com/supermemoryai/apple-mcp
 import { Server } from '@modelcontextprotocol/sdk/server/index.js'
-import {
-  ListToolsRequestSchema,
-  CallToolRequestSchema
-} from '@modelcontextprotocol/sdk/types.js'
-import { Transport } from '@modelcontextprotocol/sdk/shared/transport'
+import { ListToolsRequestSchema, CallToolRequestSchema } from '@modelcontextprotocol/sdk/types.js'
+import { Transport } from '@modelcontextprotocol/sdk/shared/transport.js'
 import { zodToJsonSchema } from 'zod-to-json-schema'
 import { z } from 'zod'
 import { runAppleScript } from 'run-applescript'
@@ -45,14 +42,16 @@ class ContactsUtils {
       `)
       return true
     } catch {
-      console.error("Cannot access Contacts app. Please grant access in System Preferences > Security & Privacy > Privacy > Contacts.")
+      console.error(
+        'Cannot access Contacts app. Please grant access in System Preferences > Security & Privacy > Privacy > Contacts.'
+      )
       return false
     }
   }
 
   static async getAllNumbers(): Promise<{ [key: string]: string[] }> {
     try {
-      if (!await this.checkContactsAccess()) {
+      if (!(await this.checkContactsAccess())) {
         return {}
       }
 
@@ -77,7 +76,7 @@ class ContactsUtils {
 
       const result = await runAppleScript(script)
       const phoneNumbers: { [key: string]: string[] } = {}
-      
+
       // 简化的解析逻辑
       if (result && typeof result === 'string') {
         // 这里需要更复杂的解析逻辑来处理 AppleScript 返回的数据
@@ -88,14 +87,16 @@ class ContactsUtils {
 
       return phoneNumbers
     } catch (error) {
-      console.error(`Error accessing contacts: ${error instanceof Error ? error.message : String(error)}`)
+      console.error(
+        `Error accessing contacts: ${error instanceof Error ? error.message : String(error)}`
+      )
       return {}
     }
   }
 
   static async findNumber(name: string): Promise<string[]> {
     try {
-      if (!await this.checkContactsAccess()) {
+      if (!(await this.checkContactsAccess())) {
         return []
       }
 
@@ -115,7 +116,7 @@ class ContactsUtils {
       `
 
       const result = await runAppleScript(script)
-      
+
       // 简化的解析逻辑
       if (result && typeof result === 'string') {
         // 这里应该解析 AppleScript 返回的实际数据
@@ -125,37 +126,44 @@ class ContactsUtils {
 
       return []
     } catch (error) {
-      console.error(`Error finding contact: ${error instanceof Error ? error.message : String(error)}`)
+      console.error(
+        `Error finding contact: ${error instanceof Error ? error.message : String(error)}`
+      )
       return []
     }
   }
 
   static async findContactByPhone(phoneNumber: string): Promise<string | null> {
     try {
-      if (!await this.checkContactsAccess()) {
+      if (!(await this.checkContactsAccess())) {
         return null
       }
 
       const allContacts = await this.getAllNumbers()
-      
+
       // 标准化电话号码进行比较
       const searchNumber = phoneNumber.replace(/[^0-9+]/g, '')
-      
+
       for (const [name, numbers] of Object.entries(allContacts)) {
-        const normalizedNumbers = numbers.map(num => num.replace(/[^0-9+]/g, ''))
-        if (normalizedNumbers.some(num => 
-          num === searchNumber || 
-          num === `+${searchNumber}` || 
-          num === `+1${searchNumber}` ||
-          `+1${num}` === searchNumber
-        )) {
+        const normalizedNumbers = numbers.map((num) => num.replace(/[^0-9+]/g, ''))
+        if (
+          normalizedNumbers.some(
+            (num) =>
+              num === searchNumber ||
+              num === `+${searchNumber}` ||
+              num === `+1${searchNumber}` ||
+              `+1${num}` === searchNumber
+          )
+        ) {
           return name
         }
       }
 
       return null
     } catch (error) {
-      console.error(`Error finding contact by phone: ${error instanceof Error ? error.message : String(error)}`)
+      console.error(
+        `Error finding contact by phone: ${error instanceof Error ? error.message : String(error)}`
+      )
       return null
     }
   }
@@ -194,7 +202,7 @@ class NotesUtils {
 
       const result = await runAppleScript(script)
       const notes: Note[] = []
-      
+
       // 简化的解析逻辑
       if (result && typeof result === 'string') {
         // 返回一些示例笔记
@@ -206,7 +214,9 @@ class NotesUtils {
 
       return notes
     } catch (error) {
-      console.error(`Error getting notes: ${error instanceof Error ? error.message : String(error)}`)
+      console.error(
+        `Error getting notes: ${error instanceof Error ? error.message : String(error)}`
+      )
       return []
     }
   }
@@ -231,7 +241,7 @@ class NotesUtils {
 
       const result = await runAppleScript(script)
       const notes: Note[] = []
-      
+
       // 简化的解析逻辑
       if (result && typeof result === 'string') {
         // 如果找到匹配的笔记，返回示例数据
@@ -248,7 +258,11 @@ class NotesUtils {
     }
   }
 
-  static async createNote(title: string, body: string, folderName: string = 'Claude'): Promise<CreateNoteResult> {
+  static async createNote(
+    title: string,
+    body: string,
+    folderName: string = 'Claude'
+  ): Promise<CreateNoteResult> {
     try {
       const script = `
         tell application "Notes"
@@ -259,7 +273,7 @@ class NotesUtils {
             -- 如果文件夹不存在，创建它
             set targetFolder to make new folder with properties {name:"${folderName.replace(/"/g, '\\"')}"}
           end try
-          
+
           -- 在指定文件夹中创建笔记
           set newNote to make new note at targetFolder with properties {name:"${title.replace(/"/g, '\\"')}", body:"${body.replace(/"/g, '\\"')}"}
           return "success"
@@ -267,7 +281,7 @@ class NotesUtils {
       `
 
       const result = await runAppleScript(script)
-      
+
       if (result === 'success') {
         return {
           success: true,
@@ -332,7 +346,7 @@ class RemindersUtils {
 
       const result = await runAppleScript(script)
       const lists: ReminderList[] = []
-      
+
       // 简化的解析逻辑
       if (result && typeof result === 'string') {
         // 返回一些示例列表
@@ -344,14 +358,16 @@ class RemindersUtils {
 
       return lists
     } catch (error) {
-      console.error(`Error getting reminder lists: ${error instanceof Error ? error.message : String(error)}`)
+      console.error(
+        `Error getting reminder lists: ${error instanceof Error ? error.message : String(error)}`
+      )
       return []
     }
   }
 
   static async getAllReminders(listName?: string): Promise<Reminder[]> {
     try {
-      const script = listName 
+      const script = listName
         ? `
           tell application "Reminders"
             set targetList to first list whose name is "${listName.replace(/"/g, '\\"')}"
@@ -389,7 +405,7 @@ class RemindersUtils {
 
       const result = await runAppleScript(script)
       const reminders: Reminder[] = []
-      
+
       // 简化的解析逻辑
       if (result && typeof result === 'string') {
         // 返回一些示例提醒
@@ -415,7 +431,9 @@ class RemindersUtils {
 
       return reminders
     } catch (error) {
-      console.error(`Error getting reminders: ${error instanceof Error ? error.message : String(error)}`)
+      console.error(
+        `Error getting reminders: ${error instanceof Error ? error.message : String(error)}`
+      )
       return []
     }
   }
@@ -445,7 +463,7 @@ class RemindersUtils {
 
       const result = await runAppleScript(script)
       const reminders: Reminder[] = []
-      
+
       // 简化的解析逻辑
       if (result && typeof result === 'string') {
         // 如果找到匹配的提醒，返回示例数据
@@ -461,7 +479,9 @@ class RemindersUtils {
 
       return reminders
     } catch (error) {
-      console.error(`Error searching reminders: ${error instanceof Error ? error.message : String(error)}`)
+      console.error(
+        `Error searching reminders: ${error instanceof Error ? error.message : String(error)}`
+      )
       return []
     }
   }
@@ -480,18 +500,18 @@ class RemindersUtils {
           on error
             set targetList to make new list with properties {name:"${listName.replace(/"/g, '\\"')}"}
           end try
-          
+
           set reminderProps to {name:"${name.replace(/"/g, '\\"')}"}
           ${notes ? `set reminderProps to reminderProps & {body:"${notes.replace(/"/g, '\\"')}"}` : ''}
           ${dueDate ? `set reminderProps to reminderProps & {due date:date "${dueDate}"}` : ''}
-          
+
           set newReminder to make new reminder at targetList with properties reminderProps
           return "success"
         end tell
       `
 
       const result = await runAppleScript(script)
-      
+
       if (result === 'success') {
         return {
           name: name,
@@ -505,12 +525,16 @@ class RemindersUtils {
         throw new Error('Failed to create reminder')
       }
     } catch (error) {
-      console.error(`Error creating reminder: ${error instanceof Error ? error.message : String(error)}`)
+      console.error(
+        `Error creating reminder: ${error instanceof Error ? error.message : String(error)}`
+      )
       throw error
     }
   }
 
-  static async openReminder(searchText: string): Promise<{ success: boolean; message: string; reminder?: Reminder }> {
+  static async openReminder(
+    searchText: string
+  ): Promise<{ success: boolean; message: string; reminder?: Reminder }> {
     try {
       const script = `
         tell application "Reminders"
@@ -520,10 +544,10 @@ class RemindersUtils {
       `
 
       await runAppleScript(script)
-      
+
       // 搜索匹配的提醒
       const matchingReminders = await this.searchReminders(searchText)
-      
+
       if (matchingReminders.length === 0) {
         return { success: false, message: 'No matching reminders found' }
       }
@@ -559,7 +583,9 @@ class CalendarUtils {
       `)
       return true
     } catch (error) {
-      console.error(`Cannot access Calendar app: ${error instanceof Error ? error.message : String(error)}`)
+      console.error(
+        `Cannot access Calendar app: ${error instanceof Error ? error.message : String(error)}`
+      )
       return false
     }
   }
@@ -571,287 +597,350 @@ class CalendarUtils {
     toDate?: string
   ): Promise<CalendarEvent[]> {
     try {
-      if (!await this.checkCalendarAccess()) {
+      if (!(await this.checkCalendarAccess())) {
         return []
       }
 
       console.error(`searchEvents - Processing calendars for search: "${searchText}"`)
 
-      const events = await run((args: { 
-        searchText: string, 
-        limit: number, 
-        fromDate?: string, 
-        toDate?: string,
-        maxEventsPerCalendar: number
-      }) => {
-        try {
-          const Calendar = Application("Calendar")
-          
-          // Set default date range if not provided (today to 30 days from now)
-          const today = new Date()
-          const defaultStartDate = today
-          const defaultEndDate = new Date()
-          defaultEndDate.setDate(today.getDate() + 30)
-          
-          const startDate = args.fromDate ? new Date(args.fromDate) : defaultStartDate
-          const endDate = args.toDate ? new Date(args.toDate) : defaultEndDate
-          
-          // Array to store matching events
-          const matchingEvents: CalendarEvent[] = []
-          
-          // Get all calendars at once
-          const allCalendars = Calendar.calendars()
-          
-          // Search in each calendar
-          for (let i = 0; i < allCalendars.length && matchingEvents.length < args.limit; i++) {
-            try {
-              const calendar = allCalendars[i]
-              const calendarName = calendar.name()
-              
-              // Get all events from this calendar
-              const events = calendar.events.whose({
-                _and: [
-                  { startDate: { _greaterThan: startDate }},
-                  { endDate: { _lessThan: endDate}},
-                  { summary: { _contains: args.searchText}}
-                ]
-              })
+      const events = (await run(
+        (args: {
+          searchText: string
+          limit: number
+          fromDate?: string
+          toDate?: string
+          maxEventsPerCalendar: number
+        }) => {
+          try {
+            const Calendar = Application('Calendar')
 
-              const convertedEvents = events()
-              
-              // Limit the number of events to process
-              const eventCount = Math.min(convertedEvents.length, args.maxEventsPerCalendar)
-              
-              // Filter events by date range and search text
-              for (let j = 0; j < eventCount && matchingEvents.length < args.limit; j++) {
-                const event = convertedEvents[j]
-                
-                try {
-                  const eventStartDate = new Date(event.startDate())
-                  const eventEndDate = new Date(event.endDate())
-                  
-                  // Skip events outside our date range
-                  if (eventEndDate < startDate || eventStartDate > endDate) {
-                    continue
-                  }
-                  
-                  // Get event details
-                  let title = ""
-                  let location = ""
-                  let notes = ""
-                  
-                  try { title = event.summary() } catch { title = "Unknown Title" }
-                  try { location = event.location() || "" } catch { location = "" }
-                  try { notes = event.description() || "" } catch { notes = "" }
-                  
-                  // Check if event matches search text
-                  if (
-                    title.toLowerCase().includes(args.searchText.toLowerCase()) ||
-                    location.toLowerCase().includes(args.searchText.toLowerCase()) ||
-                    notes.toLowerCase().includes(args.searchText.toLowerCase())
-                  ) {
-                    // Create event object
-                    const eventData: CalendarEvent = {
-                      id: "",
-                      title: title,
-                      location: location,
-                      notes: notes,
-                      startDate: null,
-                      endDate: null,
-                      calendarName: calendarName,
-                      isAllDay: false,
-                      url: null
+            // Set default date range if not provided (today to 30 days from now)
+            const today = new Date()
+            const defaultStartDate = today
+            const defaultEndDate = new Date()
+            defaultEndDate.setDate(today.getDate() + 30)
+
+            const startDate = args.fromDate ? new Date(args.fromDate) : defaultStartDate
+            const endDate = args.toDate ? new Date(args.toDate) : defaultEndDate
+
+            // Array to store matching events
+            const matchingEvents: CalendarEvent[] = []
+
+            // Get all calendars at once
+            const allCalendars = Calendar.calendars()
+
+            // Search in each calendar
+            for (let i = 0; i < allCalendars.length && matchingEvents.length < args.limit; i++) {
+              try {
+                const calendar = allCalendars[i]
+                const calendarName = calendar.name()
+
+                // Get all events from this calendar
+                const events = calendar.events.whose({
+                  _and: [
+                    { startDate: { _greaterThan: startDate } },
+                    { endDate: { _lessThan: endDate } },
+                    { summary: { _contains: args.searchText } }
+                  ]
+                })
+
+                const convertedEvents = events()
+
+                // Limit the number of events to process
+                const eventCount = Math.min(convertedEvents.length, args.maxEventsPerCalendar)
+
+                // Filter events by date range and search text
+                for (let j = 0; j < eventCount && matchingEvents.length < args.limit; j++) {
+                  const event = convertedEvents[j]
+
+                  try {
+                    const eventStartDate = new Date(event.startDate())
+                    const eventEndDate = new Date(event.endDate())
+
+                    // Skip events outside our date range
+                    if (eventEndDate < startDate || eventStartDate > endDate) {
+                      continue
                     }
-                    
-                    try { eventData.id = event.uid() } 
-                    catch { eventData.id = `unknown-${Date.now()}-${Math.random()}` }
-                    
-                    try { eventData.startDate = eventStartDate.toISOString() } 
-                    catch { /* Keep as null */ }
-                    
-                    try { eventData.endDate = eventEndDate.toISOString() } 
-                    catch { /* Keep as null */ }
-                    
-                    try { eventData.isAllDay = event.alldayEvent() } 
-                    catch { /* Keep as false */ }
-                    
-                    try { eventData.url = event.url() } 
-                    catch { /* Keep as null */ }
-                    
-                    matchingEvents.push(eventData)
+
+                    // Get event details
+                    let title = ''
+                    let location = ''
+                    let notes = ''
+
+                    try {
+                      title = event.summary()
+                    } catch {
+                      title = 'Unknown Title'
+                    }
+                    try {
+                      location = event.location() || ''
+                    } catch {
+                      location = ''
+                    }
+                    try {
+                      notes = event.description() || ''
+                    } catch {
+                      notes = ''
+                    }
+
+                    // Check if event matches search text
+                    if (
+                      title.toLowerCase().includes(args.searchText.toLowerCase()) ||
+                      location.toLowerCase().includes(args.searchText.toLowerCase()) ||
+                      notes.toLowerCase().includes(args.searchText.toLowerCase())
+                    ) {
+                      // Create event object
+                      const eventData: CalendarEvent = {
+                        id: '',
+                        title: title,
+                        location: location,
+                        notes: notes,
+                        startDate: null,
+                        endDate: null,
+                        calendarName: calendarName,
+                        isAllDay: false,
+                        url: null
+                      }
+
+                      try {
+                        eventData.id = event.uid()
+                      } catch {
+                        eventData.id = `unknown-${Date.now()}-${Math.random()}`
+                      }
+
+                      try {
+                        eventData.startDate = eventStartDate.toISOString()
+                      } catch {
+                        /* Keep as null */
+                      }
+
+                      try {
+                        eventData.endDate = eventEndDate.toISOString()
+                      } catch {
+                        /* Keep as null */
+                      }
+
+                      try {
+                        eventData.isAllDay = event.alldayEvent()
+                      } catch {
+                        /* Keep as false */
+                      }
+
+                      try {
+                        eventData.url = event.url()
+                      } catch {
+                        /* Keep as null */
+                      }
+
+                      matchingEvents.push(eventData)
+                    }
+                  } catch (error) {
+                    // Skip events we can't process
+                    console.log(
+                      'searchEvents - Error processing events: ----0----',
+                      JSON.stringify(error)
+                    )
                   }
-                } catch (error) {
-                  // Skip events we can't process
-                  console.log("searchEvents - Error processing events: ----0----", JSON.stringify(error))
                 }
+              } catch (error) {
+                // Skip calendars we can't access
+                console.log(
+                  'searchEvents - Error processing calendars: ----1----',
+                  JSON.stringify(error)
+                )
               }
-            } catch (error) {
-              // Skip calendars we can't access
-              console.log("searchEvents - Error processing calendars: ----1----", JSON.stringify(error))
             }
+
+            return matchingEvents
+          } catch {
+            return [] // Return empty array on any error
           }
-          
-          return matchingEvents
-        } catch {
-          return [] // Return empty array on any error
+        },
+        {
+          searchText,
+          limit,
+          fromDate,
+          toDate,
+          maxEventsPerCalendar: this.CONFIG.MAX_EVENTS_PER_CALENDAR
         }
-      }, { 
-        searchText, 
-        limit, 
-        fromDate, 
-        toDate,
-        maxEventsPerCalendar: this.CONFIG.MAX_EVENTS_PER_CALENDAR
-      }) as CalendarEvent[]
-      
+      )) as CalendarEvent[]
+
       // If no events found, return empty array
       if (events.length === 0) {
-        console.error("searchEvents - No events found")
+        console.error('searchEvents - No events found')
         return []
       }
-      
+
       return events
     } catch (error) {
-      console.error(`Error searching events: ${error instanceof Error ? error.message : String(error)}`)
+      console.error(
+        `Error searching events: ${error instanceof Error ? error.message : String(error)}`
+      )
       return []
     }
   }
 
-  static async getEvents(
-    limit = 10,
-    fromDate?: string,
-    toDate?: string
-  ): Promise<CalendarEvent[]> {
+  static async getEvents(limit = 10, fromDate?: string, toDate?: string): Promise<CalendarEvent[]> {
     try {
-      console.error("getEvents - Starting to fetch calendar events")
-      
-      if (!await this.checkCalendarAccess()) {
-        console.error("getEvents - Failed to access Calendar app")
+      console.error('getEvents - Starting to fetch calendar events')
+
+      if (!(await this.checkCalendarAccess())) {
+        console.error('getEvents - Failed to access Calendar app')
         return []
       }
-      console.error("getEvents - Calendar access check passed")
+      console.error('getEvents - Calendar access check passed')
 
-      const events = await run((args: { 
-        limit: number, 
-        fromDate?: string, 
-        toDate?: string,
-        maxEventsPerCalendar: number
-      }) => {
-        try {
-          // Access the Calendar app directly
-          const Calendar = Application("Calendar")
-          
-          // Set default date range if not provided (today to 7 days from now)
-          const today = new Date()
-          const defaultStartDate = today
-          const defaultEndDate = new Date()
-          defaultEndDate.setDate(today.getDate() + 7)
-          
-          const startDate = args.fromDate ? new Date(args.fromDate) : defaultStartDate
-          const endDate = args.toDate ? new Date(args.toDate) : defaultEndDate
-          
-          const calendars = Calendar.calendars()
+      const events = (await run(
+        (args: {
+          limit: number
+          fromDate?: string
+          toDate?: string
+          maxEventsPerCalendar: number
+        }) => {
+          try {
+            // Access the Calendar app directly
+            const Calendar = Application('Calendar')
 
-          // Array to store events
-          const events: CalendarEvent[] = []
-          
-          // Get events from each calendar
-          for (const calendar of calendars) {
-            if (events.length >= args.limit) break
-            
-            try {
-              // Get all events from this calendar
-              const calendarEvents = calendar.events.whose({
-                _and: [
-                  { startDate: { _greaterThan: startDate }},
-                  { endDate: { _lessThan: endDate}}
-                ]
-              })
-              const convertedEvents = calendarEvents()
-              
-              // Limit the number of events to process
-              const eventCount = Math.min(convertedEvents.length, args.maxEventsPerCalendar)
-              
-              // Process events
-              for (let i = 0; i < eventCount && events.length < args.limit; i++) {
-                const event = convertedEvents[i]
-                
-                try {
-                  const eventStartDate = new Date(event.startDate())
-                  const eventEndDate = new Date(event.endDate())
-                  
-                  // Skip events outside our date range
-                  if (eventEndDate < startDate || eventStartDate > endDate) {
-                    continue
+            // Set default date range if not provided (today to 7 days from now)
+            const today = new Date()
+            const defaultStartDate = today
+            const defaultEndDate = new Date()
+            defaultEndDate.setDate(today.getDate() + 7)
+
+            const startDate = args.fromDate ? new Date(args.fromDate) : defaultStartDate
+            const endDate = args.toDate ? new Date(args.toDate) : defaultEndDate
+
+            const calendars = Calendar.calendars()
+
+            // Array to store events
+            const events: CalendarEvent[] = []
+
+            // Get events from each calendar
+            for (const calendar of calendars) {
+              if (events.length >= args.limit) break
+
+              try {
+                // Get all events from this calendar
+                const calendarEvents = calendar.events.whose({
+                  _and: [
+                    { startDate: { _greaterThan: startDate } },
+                    { endDate: { _lessThan: endDate } }
+                  ]
+                })
+                const convertedEvents = calendarEvents()
+
+                // Limit the number of events to process
+                const eventCount = Math.min(convertedEvents.length, args.maxEventsPerCalendar)
+
+                // Process events
+                for (let i = 0; i < eventCount && events.length < args.limit; i++) {
+                  const event = convertedEvents[i]
+
+                  try {
+                    const eventStartDate = new Date(event.startDate())
+                    const eventEndDate = new Date(event.endDate())
+
+                    // Skip events outside our date range
+                    if (eventEndDate < startDate || eventStartDate > endDate) {
+                      continue
+                    }
+
+                    // Create event object
+                    const eventData: CalendarEvent = {
+                      id: '',
+                      title: 'Unknown Title',
+                      location: null,
+                      notes: null,
+                      startDate: null,
+                      endDate: null,
+                      calendarName: calendar.name(),
+                      isAllDay: false,
+                      url: null
+                    }
+
+                    try {
+                      eventData.id = event.uid()
+                    } catch {
+                      eventData.id = `unknown-${Date.now()}-${Math.random()}`
+                    }
+
+                    try {
+                      eventData.title = event.summary()
+                    } catch {
+                      /* Keep default title */
+                    }
+
+                    try {
+                      eventData.location = event.location()
+                    } catch {
+                      /* Keep as null */
+                    }
+
+                    try {
+                      eventData.notes = event.description()
+                    } catch {
+                      /* Keep as null */
+                    }
+
+                    try {
+                      eventData.startDate = eventStartDate.toISOString()
+                    } catch {
+                      /* Keep as null */
+                    }
+
+                    try {
+                      eventData.endDate = eventEndDate.toISOString()
+                    } catch {
+                      /* Keep as null */
+                    }
+
+                    try {
+                      eventData.isAllDay = event.alldayEvent()
+                    } catch {
+                      /* Keep as false */
+                    }
+
+                    try {
+                      eventData.url = event.url()
+                    } catch {
+                      /* Keep as null */
+                    }
+
+                    events.push(eventData)
+                  } catch {
+                    // Skip events we can't process
                   }
-                  
-                  // Create event object
-                  const eventData: CalendarEvent = {
-                    id: "",
-                    title: "Unknown Title",
-                    location: null,
-                    notes: null,
-                    startDate: null,
-                    endDate: null,
-                    calendarName: calendar.name(),
-                    isAllDay: false,
-                    url: null
-                  }
-                  
-                  try { eventData.id = event.uid() } 
-                  catch { eventData.id = `unknown-${Date.now()}-${Math.random()}` }
-                  
-                  try { eventData.title = event.summary() } 
-                  catch { /* Keep default title */ }
-                  
-                  try { eventData.location = event.location() } 
-                  catch { /* Keep as null */ }
-                  
-                  try { eventData.notes = event.description() } 
-                  catch { /* Keep as null */ }
-                  
-                  try { eventData.startDate = eventStartDate.toISOString() } 
-                  catch { /* Keep as null */ }
-                  
-                  try { eventData.endDate = eventEndDate.toISOString() } 
-                  catch { /* Keep as null */ }
-                  
-                  try { eventData.isAllDay = event.alldayEvent() } 
-                  catch { /* Keep as false */ }
-                  
-                  try { eventData.url = event.url() } 
-                  catch { /* Keep as null */ }
-                  
-                  events.push(eventData)
-                } catch {
-                  // Skip events we can't process
                 }
+              } catch (error) {
+                // Skip calendars we can't access
+                console.log('getEvents - Error processing events: ----0----', JSON.stringify(error))
               }
-            } catch (error) {
-              // Skip calendars we can't access
-              console.log("getEvents - Error processing events: ----0----", JSON.stringify(error))
             }
+            return events
+          } catch (error) {
+            console.log('getEvents - Error processing events: ----1----', JSON.stringify(error))
+            return [] // Return empty array on any error
           }
-          return events
-        } catch (error) {
-          console.log("getEvents - Error processing events: ----1----", JSON.stringify(error))
-          return [] // Return empty array on any error
+        },
+        {
+          limit,
+          fromDate,
+          toDate,
+          maxEventsPerCalendar: this.CONFIG.MAX_EVENTS_PER_CALENDAR
         }
-      }, { 
-        limit, 
-        fromDate, 
-        toDate,
-        maxEventsPerCalendar: this.CONFIG.MAX_EVENTS_PER_CALENDAR
-      }) as CalendarEvent[]
-      
+      )) as CalendarEvent[]
+
       // If no events found, return empty array
       if (events.length === 0) {
-        console.error("getEvents - No events found")
+        console.error('getEvents - No events found')
         return []
       }
-      
+
       return events
     } catch (error) {
-      console.error(`Error getting events: ${error instanceof Error ? error.message : String(error)}`)
+      console.error(
+        `Error getting events: ${error instanceof Error ? error.message : String(error)}`
+      )
       return []
     }
   }
@@ -866,93 +955,97 @@ class CalendarUtils {
     calendarName?: string
   ): Promise<{ success: boolean; message: string; eventId?: string }> {
     try {
-      if (!await this.checkCalendarAccess()) {
+      if (!(await this.checkCalendarAccess())) {
         return {
           success: false,
-          message: "Cannot access Calendar app. Please grant access in System Settings > Privacy & Security > Automation."
+          message:
+            'Cannot access Calendar app. Please grant access in System Settings > Privacy & Security > Automation.'
         }
       }
 
       console.error(`createEvent - Attempting to create event: "${title}"`)
 
-      const result = await run((args: {
-        title: string,
-        startDate: string,
-        endDate: string,
-        location?: string,
-        notes?: string,
-        isAllDay: boolean,
-        calendarName?: string
-      }) => {
-        try {
-          const Calendar = Application("Calendar")
-          
-          // Parse dates
-          const startDateTime = new Date(args.startDate)
-          const endDateTime = new Date(args.endDate)
-          
-          // Find the target calendar
-          let targetCalendar: any
-          if (args.calendarName) {
-            // Find the specified calendar
-            const calendars = Calendar.calendars.whose({
-              name: { _equals: args.calendarName }
-            })
-            
-            if (calendars.length > 0) {
-              targetCalendar = calendars[0]
+      const result = (await run(
+        (args: {
+          title: string
+          startDate: string
+          endDate: string
+          location?: string
+          notes?: string
+          isAllDay: boolean
+          calendarName?: string
+        }) => {
+          try {
+            const Calendar = Application('Calendar')
+
+            // Parse dates
+            const startDateTime = new Date(args.startDate)
+            const endDateTime = new Date(args.endDate)
+
+            // Find the target calendar
+            let targetCalendar: any
+            if (args.calendarName) {
+              // Find the specified calendar
+              const calendars = Calendar.calendars.whose({
+                name: { _equals: args.calendarName }
+              })
+
+              if (calendars.length > 0) {
+                targetCalendar = calendars[0]
+              } else {
+                return {
+                  success: false,
+                  message: `Calendar "${args.calendarName}" not found.`
+                }
+              }
             } else {
-              return {
-                success: false,
-                message: `Calendar "${args.calendarName}" not found.`
+              // Use default calendar - get the first calendar instead
+              const allCalendars = Calendar.calendars()
+              if (allCalendars.length === 0) {
+                return {
+                  success: false,
+                  message: 'No calendars found in Calendar app.'
+                }
               }
+              targetCalendar = allCalendars[0]
             }
-          } else {
-            // Use default calendar - get the first calendar instead
-            const allCalendars = Calendar.calendars()
-            if (allCalendars.length === 0) {
-              return {
-                success: false,
-                message: "No calendars found in Calendar app."
-              }
+
+            // Create the new event
+            const newEvent = Calendar.Event({
+              summary: args.title,
+              startDate: startDateTime,
+              endDate: endDateTime,
+              location: args.location || '',
+              description: args.notes || '',
+              alldayEvent: args.isAllDay
+            })
+
+            // Add the event to the calendar
+            targetCalendar.events.push(newEvent)
+
+            return {
+              success: true,
+              message: `Event "${args.title}" created successfully.`,
+              eventId: newEvent.uid()
             }
-            targetCalendar = allCalendars[0]
+          } catch (error) {
+            return {
+              success: false,
+              message: `Error creating event: ${error instanceof Error ? error.message : String(error)}`
+            }
           }
-          
-          // Create the new event
-          const newEvent = Calendar.Event({
-            summary: args.title,
-            startDate: startDateTime,
-            endDate: endDateTime,
-            location: args.location || "",
-            description: args.notes || "",
-            alldayEvent: args.isAllDay
-          })
-          
-          // Add the event to the calendar
-          targetCalendar.events.push(newEvent)
-          
-          return {
-            success: true,
-            message: `Event "${args.title}" created successfully.`,
-            eventId: newEvent.uid()
-          }
-        } catch (error) {
-          return {
-            success: false,
-            message: `Error creating event: ${error instanceof Error ? error.message : String(error)}`
-          }
+        },
+        {
+          title,
+          startDate,
+          endDate,
+          location,
+          notes,
+          isAllDay,
+          calendarName
         }
-      }, {
-        title,
-        startDate,
-        endDate,
-        location,
-        notes,
-        isAllDay,
-        calendarName
-      }) as { success: boolean; message: string; eventId?: string }
-      
+      )) as { success: boolean; message: string; eventId?: string }
+
       return result
     } catch (error) {
       return {
@@ -964,10 +1057,11 @@ class CalendarUtils {
 
   static async openEvent(eventId: string): Promise<{ success: boolean; message: string }> {
     try {
-      if (!await this.checkCalendarAccess()) {
+      if (!(await this.checkCalendarAccess())) {
         return {
           success: false,
-          message: "Cannot access Calendar app. Please grant access in System Settings > Privacy & Security > Automation."
+          message:
+            'Cannot access Calendar app. Please grant access in System Settings > Privacy & Security > Automation.'
         }
       }
 
@@ -979,7 +1073,7 @@ class CalendarUtils {
       `
 
       await runAppleScript(script)
-      
+
       return {
         success: true,
         message: `Calendar app opened for event: ${eventId}`
@@ -1028,7 +1122,15 @@ const MailArgsSchema = z.object({
 })
 
 const MapsArgsSchema = z.object({
-  operation: z.enum(['search', 'save', 'directions', 'pin', 'listGuides', 'addToGuide', 'createGuide']),
+  operation: z.enum([
+    'search',
+    'save',
+    'directions',
+    'pin',
+    'listGuides',
+    'addToGuide',
+    'createGuide'
+  ]),
   query: z.string().optional(),
   limit: z.number().optional(),
   name: z.string().optional(),
@@ -1116,17 +1218,20 @@ export class AppleServer {
         },
         {
           name: 'mail',
-          description: 'Interact with Apple Mail app - read unread emails, search emails, and send emails',
+          description:
+            'Interact with Apple Mail app - read unread emails, search emails, and send emails',
           inputSchema: zodToJsonSchema(MailArgsSchema)
         },
         {
           name: 'maps',
-          description: 'Search locations, manage guides, save favorites, and get directions using Apple Maps',
+          description:
+            'Search locations, manage guides, save favorites, and get directions using Apple Maps',
           inputSchema: zodToJsonSchema(MapsArgsSchema)
         },
         {
           name: 'messages',
-          description: 'Interact with Apple Messages app - send, read, schedule messages and check unread messages',
+          description:
+            'Interact with Apple Messages app - send, read, schedule messages and check unread messages',
           inputSchema: zodToJsonSchema(MessagesArgsSchema)
         },
         {
@@ -1182,7 +1287,7 @@ export class AppleServer {
   // Calendar 工具处理
   private async handleCalendarTool(args: unknown) {
     const parsedArgs = CalendarArgsSchema.parse(args)
-    
+
     try {
       switch (parsedArgs.operation) {
         case 'search':
@@ -1199,9 +1304,12 @@ export class AppleServer {
             content: [
               {
                 type: 'text' as const,
-                text: `Found ${searchResults.length} events matching "${parsedArgs.searchText}":\n\n${searchResults.map(event => 
-                  `• ${event.title} (${event.startDate ? new Date(event.startDate).toLocaleDateString() : 'No date'})`
-                ).join('\n')}`
+                text: `Found ${searchResults.length} events matching "${parsedArgs.searchText}":\n\n${searchResults
+                  .map(
+                    (event) =>
+                      `• ${event.title} (${event.startDate ? new Date(event.startDate).toLocaleDateString() : 'No date'})`
+                  )
+                  .join('\n')}`
               }
             ]
           }
@@ -1216,9 +1324,12 @@ export class AppleServer {
             content: [
               {
                 type: 'text' as const,
-                text: `Found ${events.length} upcoming events:\n\n${events.map(event => 
-                  `• ${event.title} (${event.startDate ? new Date(event.startDate).toLocaleDateString() : 'No date'})`
-                ).join('\n')}`
+                text: `Found ${events.length} upcoming events:\n\n${events
+                  .map(
+                    (event) =>
+                      `• ${event.title} (${event.startDate ? new Date(event.startDate).toLocaleDateString() : 'No date'})`
+                  )
+                  .join('\n')}`
               }
             ]
           }
@@ -1277,10 +1388,10 @@ export class AppleServer {
 
   private async handleContactsTool(args: unknown) {
     const parsedArgs = ContactsArgsSchema.parse(args)
-    
+
     try {
       const contactsData = await ContactsUtils.getAllNumbers()
-      
+
       if (parsedArgs.name) {
         // 搜索特定联系人
         const numbers = await ContactsUtils.findNumber(parsedArgs.name)
@@ -1289,7 +1400,7 @@ export class AppleServer {
             content: [
               {
                 type: 'text' as const,
-                text: `Found contact "${parsedArgs.name}" with numbers:\n${numbers.map(num => `• ${num}`).join('\n')}`
+                text: `Found contact "${parsedArgs.name}" with numbers:\n${numbers.map((num) => `• ${num}`).join('\n')}`
               }
             ]
           }
@@ -1309,7 +1420,7 @@ export class AppleServer {
           .slice(0, 20) // 限制显示前20个联系人
           .map(([name, numbers]) => `• ${name}: ${(numbers as string[]).join(', ')}`)
           .join('\n')
-        
+
         return {
           content: [
             {
@@ -1334,7 +1445,7 @@ export class AppleServer {
 
   private async handleMailTool(args: unknown) {
     const parsedArgs = MailArgsSchema.parse(args)
-    
+
     try {
       switch (parsedArgs.operation) {
         case 'unread':
@@ -1421,7 +1532,7 @@ export class AppleServer {
 
   private async handleMapsTool(args: unknown) {
     const parsedArgs = MapsArgsSchema.parse(args)
-    
+
     try {
       switch (parsedArgs.operation) {
         case 'search':
@@ -1530,7 +1641,7 @@ export class AppleServer {
 
   private async handleMessagesTool(args: unknown) {
     const parsedArgs = MessagesArgsSchema.parse(args)
-    
+
     try {
       switch (parsedArgs.operation) {
         case 'send':
@@ -1561,7 +1672,9 @@ export class AppleServer {
 
         case 'schedule':
           if (!parsedArgs.phoneNumber || !parsedArgs.message || !parsedArgs.scheduledTime) {
-            throw new Error('Phone number, message, and scheduled time are required for schedule operation')
+            throw new Error(
+              'Phone number, message, and scheduled time are required for schedule operation'
+            )
           }
           return {
             content: [
@@ -1600,7 +1713,7 @@ export class AppleServer {
 
   private async handleNotesTool(args: unknown) {
     const parsedArgs = NotesArgsSchema.parse(args)
-    
+
     try {
       switch (parsedArgs.operation) {
         case 'list':
@@ -1609,9 +1722,12 @@ export class AppleServer {
             content: [
               {
                 type: 'text' as const,
-                text: `Found ${allNotes.length} notes:\n\n${allNotes.map(note => 
-                  `• ${note.name}\n  ${note.content.substring(0, 100)}${note.content.length > 100 ? '...' : ''}`
-                ).join('\n\n')}`
+                text: `Found ${allNotes.length} notes:\n\n${allNotes
+                  .map(
+                    (note) =>
+                      `• ${note.name}\n  ${note.content.substring(0, 100)}${note.content.length > 100 ? '...' : ''}`
+                  )
+                  .join('\n\n')}`
               }
             ]
           }
@@ -1625,9 +1741,12 @@ export class AppleServer {
             content: [
               {
                 type: 'text' as const,
-                text: `Found ${searchResults.length} notes matching "${parsedArgs.searchText}":\n\n${searchResults.map(note => 
-                  `• ${note.name}\n  ${note.content.substring(0, 200)}${note.content.length > 200 ? '...' : ''}`
-                ).join('\n\n')}`
+                text: `Found ${searchResults.length} notes matching "${parsedArgs.searchText}":\n\n${searchResults
+                  .map(
+                    (note) =>
+                      `• ${note.name}\n  ${note.content.substring(0, 200)}${note.content.length > 200 ? '...' : ''}`
+                  )
+                  .join('\n\n')}`
               }
             ]
           }
@@ -1645,7 +1764,7 @@ export class AppleServer {
             content: [
               {
                 type: 'text' as const,
-                text: createResult.success 
+                text: createResult.success
                   ? `Note "${parsedArgs.title}" created successfully in folder "${createResult.folderName}"`
                   : createResult.message || 'Failed to create note'
               }
@@ -1670,7 +1789,7 @@ export class AppleServer {
 
   private async handleRemindersTool(args: unknown) {
     const parsedArgs = RemindersArgsSchema.parse(args)
-    
+
     try {
       switch (parsedArgs.operation) {
         case 'list':
@@ -1679,9 +1798,12 @@ export class AppleServer {
             content: [
               {
                 type: 'text' as const,
-                text: `Found ${allReminders.length} reminders:\n\n${allReminders.map(reminder => 
-                  `• ${reminder.name} (${reminder.listName}) - ${reminder.completed ? 'Completed' : 'Pending'}${reminder.dueDate ? `\n  Due: ${new Date(reminder.dueDate).toLocaleDateString()}` : ''}`
-                ).join('\n\n')}`
+                text: `Found ${allReminders.length} reminders:\n\n${allReminders
+                  .map(
+                    (reminder) =>
+                      `• ${reminder.name} (${reminder.listName}) - ${reminder.completed ? 'Completed' : 'Pending'}${reminder.dueDate ? `\n  Due: ${new Date(reminder.dueDate).toLocaleDateString()}` : ''}`
+                  )
+                  .join('\n\n')}`
               }
             ]
           }
@@ -1695,9 +1817,12 @@ export class AppleServer {
             content: [
               {
                 type: 'text' as const,
-                text: `Found ${searchResults.length} reminders matching "${parsedArgs.searchText}":\n\n${searchResults.map(reminder => 
-                  `• ${reminder.name} (${reminder.listName}) - ${reminder.completed ? 'Completed' : 'Pending'}\n  ${reminder.body}`
-                ).join('\n\n')}`
+                text: `Found ${searchResults.length} reminders matching "${parsedArgs.searchText}":\n\n${searchResults
+                  .map(
+                    (reminder) =>
+                      `• ${reminder.name} (${reminder.listName}) - ${reminder.completed ? 'Completed' : 'Pending'}\n  ${reminder.body}`
+                  )
+                  .join('\n\n')}`
               }
             ]
           }
@@ -1745,9 +1870,12 @@ export class AppleServer {
             content: [
               {
                 type: 'text' as const,
-                text: `Found ${listReminders.length} reminders in list ${parsedArgs.listId}:\n\n${listReminders.map(reminder => 
-                  `• ${reminder.name} - ${reminder.completed ? 'Completed' : 'Pending'}`
-                ).join('\n')}`
+                text: `Found ${listReminders.length} reminders in list ${parsedArgs.listId}:\n\n${listReminders
+                  .map(
+                    (reminder) =>
+                      `• ${reminder.name} - ${reminder.completed ? 'Completed' : 'Pending'}`
+                  )
+                  .join('\n')}`
               }
             ]
           }
@@ -1767,4 +1895,4 @@ export class AppleServer {
       }
     }
   }
-} 
+}

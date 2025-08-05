@@ -97,7 +97,7 @@ export const useUpgradeStore = defineStore('upgrade', () => {
           isDownloading.value = false
           isUpdating.value = false
           // 当检查到没有更新时，如果是自动检测模式，则不弹出对话框
-          if(type !== 'autoCheck') {
+          if (type !== 'autoCheck') {
             openUpdateDialog()
           }
           break

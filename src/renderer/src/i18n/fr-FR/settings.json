@@ -70,7 +70,22 @@
     "importing": "Importation en cours...",
     "confirmImport": "Confirmer l'importation",
     "importSuccessTitle": "Importation réussie",
-    "importErrorTitle": "Échec de l'importation"
+    "importErrorTitle": "Échec de l'importation",
+    "resetData": "Réinitialiser les données",
+    "resetConfirmTitle": "Confirmer la réinitialisation des données",
+    "resetConfirmDescription": "Veuillez sélectionner le type de données à réinitialiser. Cette opération est irréversible et l'application redémarrera automatiquement après la réinitialisation.",
+    "resetChatData": "Réinitialiser les données de chat",
+    "resetChatDataDesc": "Supprimer tout l'historique des conversations et les enregistrements de dialogue",
+    "resetKnowledgeData": "Réinitialiser les données de base de connaissances",
+    "resetKnowledgeDataDesc": "Supprimer tous les fichiers de base de connaissances et les données vectorielles",
+    "resetConfig": "Réinitialiser la configuration",
+    "resetConfigDesc": "Supprimer tous les paramètres de l'application, les configurations de modèles et les prompts personnalisés",
+    "resetAll": "Réinitialisation complète",
+    "resetAllDesc": "Supprimer toutes les données, y compris l'historique des conversations, les configurations et les fichiers de cache",
+    "resetting": "Réinitialisation en cours...",
+    "confirmReset": "Confirmer la réinitialisation",
+    "resetCompleteDevTitle": "Réinitialisation des données terminée",
+    "resetCompleteDevMessage": "En environnement de développement, veuillez redémarrer l'application manuellement. Arrêtez le processus actuel et exécutez à nouveau pnpm run dev"
   },
   "model": {
     "title": "Paramètres du modèle",
@@ -120,6 +135,33 @@
         "description": "Le modèle prend-il en charge la capacité de raisonnement?",
         "label": "Capacité de raisonnement"
       },
+      "thinkingBudget": {
+        "label": "Budget de Réflexion",
+        "description": "Limiter la longueur de réflexion du modèle",
+        "dynamic": "Réflexion Dynamique",
+        "range": "Plage: {min} - {max}",
+        "onlySupported": "Pris en charge uniquement dans Gemini 2.5 Flash, 2.5 Pro et 2.5 Flash-Lite",
+        "valueLabel": "Valeur du Budget de Réflexion",
+        "placeholder": "Entrez la valeur du budget de réflexion",
+        "forceEnabled": "Les modèles de la série Gemini 2.5 activent de force le budget de réflexion",
+        "dynamicPrefix": "-1 = Réflexion Dynamique",
+        "notice": "Attention : ",
+        "warnings": {
+          "proNoDisable": "Ce modèle ne prend pas en charge la désactivation de la réflexion, valeur minimale 128",
+          "proCannotDisable": "Gemini 2.5 Pro ne peut pas désactiver la fonction de réflexion",
+          "flashLiteCannotSetZero": "Gemini 2.5 Flash-Lite ne peut pas être défini à 0, la valeur minimale est 512",
+          "modelCannotDisable": "Ce modèle ne peut pas désactiver la fonction de réflexion",
+          "flashLiteMinValue": "Le budget de réflexion ne peut pas être inférieur à 512 lorsqu'il est défini sur une valeur spécifique (ou utilisez 0 pour désactiver la réflexion, -1 pour activer la réflexion dynamique)",
+          "belowMin": "Le budget de réflexion ne peut pas être inférieur à {min}{hint}",
+          "aboveMax": "Le budget de réflexion ne peut pas être supérieur à {max}"
+        },
+        "hints": {
+          "flashLiteDisable": ", 0 = désactiver la réflexion, valeur spécifique minimum 512",
+          "normalDisable": ", 0 = désactiver la réflexion",
+          "withZeroAndDynamic": "(ou utilisez 0 pour désactiver la réflexion, -1 pour activer la réflexion dynamique)",
+          "withDynamic": "(ou utilisez -1 pour activer la réflexion dynamique)"
+        }
+      },
       "resetConfirm": {
         "confirm": "Confirmer la réinitialisation",
         "message": "Êtes-vous sûr de souhaiter réinitialiser la configuration de ce modèle par défaut? Cette opération est irrévocable.",
@@ -127,6 +169,8 @@
       },
       "resetToDefault": "Réinitialiser à la valeur par défaut",
       "saveConfig": "Enregistrer la configuration",
+      "useModelDefault": "Utiliser la configuration par défaut du modèle",
+      "currentUsingModelDefault": "Utilise actuellement la configuration par défaut du modèle",
       "temperature": {
         "description": "Contrôlez le caractère aléatoire de la sortie. La plupart des modèles sont de 0-1 et certains soutiennent entre 0-2. Plus l'aléatoire est élevé.",
         "label": "température"
@@ -161,6 +205,8 @@
   },
   "provider": {
     "enable": "Activer le service",
+    "enabled": "Activé",
+    "disabled": "Désactivé",
     "urlPlaceholder": "Veuillez entrer l'URL de l'API",
     "keyPlaceholder": "Veuillez entrer la clé API",
     "verifyKey": "Vérifier la clé",
@@ -275,7 +321,35 @@
       "remaining": "Montant restant",
       "usage": "Utilisé"
     },
-    "refreshingModels": "Rafraîchissant..."
+    "refreshingModels": "Rafraîchissant...",
+    "toast": {
+      "modelRunning": "Le modèle est en cours d'exécution",
+      "modelRunningDesc": "Veuillez d'abord arrêter le modèle {model}, puis le supprimer."
+    },
+    "anthropicApiKeyTip": "Veuillez aller à la console anthropique pour obtenir votre clé API",
+    "anthropicConnected": "Connecté anthropique",
+    "anthropicNotConnected": "Anthropique non connecté",
+    "anthropicOAuthTip": "Cliquez sur Autoriser Deepchat pour accéder à votre compte anthropique",
+    "oauthLogin": "Connexion OAuth",
+    "authMethod": "Méthode de certification",
+    "authMethodPlaceholder": "Sélectionner la méthode d'authentification",
+    "apiKeyLabel": "Clé API",
+    "apiUrlLabel": "URL API",
+    "anthropicOAuthFlowTip": "Le système ouvrira automatiquement la fenêtre d'autorisation. Veuillez revenir et saisir le code d'autorisation après l'autorisation.",
+    "anthropicBrowserOpened": "Le navigateur externe est ouvert",
+    "anthropicCodeInstruction": "Veuillez compléter l'autorisation dans un navigateur externe et coller le code d'autorisation obtenu dans la zone d'entrée ci-dessous",
+    "browserOpenedSuccess": "Le navigateur externe est ouvert, veuillez compléter l'autorisation",
+    "codeRequired": "Veuillez saisir le code d'autorisation",
+    "inputOAuthCode": "Entrez le code d'autorisation",
+    "codeExchangeFailed": "Échange de code d'autorisation Échec",
+    "invalidCode": "Code d'autorisation non valide",
+    "oauthCodeHint": "Veuillez coller le code d'autorisation ici après avoir terminé l'autorisation dans un navigateur externe",
+    "oauthCodePlaceholder": "Veuillez saisir le code d'autorisation ...",
+    "verifyConnection": "Vérifier la connexion",
+    "manageModels": "Gérer les modèles",
+    "anthropicOAuthActiveTip": "L'authentification OAuth est activée, vous pouvez utiliser les services Anthropic directement",
+    "oauthVerifySuccess": "Connexion OAuth vérifiée avec succès",
+    "oauthVerifyFailed": "Échec de la vérification de la connexion OAuth"
   },
   "knowledgeBase": {
     "title": "Paramètres de la base de connaissances",
@@ -304,7 +378,77 @@
     "fastgptTitle": "Base de connaissances FastGPT",
     "fastgptDescription": "FastGPT est un puissant système de gestion des connaissances prenant en charge plusieurs méthodes de recherche et des fonctionnalités de gestion de documents.",
     "addFastGptConfig": "Ajouter la configuration FastGPT",
-    "editFastGptConfig": "Éditer la configuration FastGPT"
+    "editFastGptConfig": "Éditer la configuration FastGPT",
+    "builtInKnowledgeDescription": "La base de connaissances intégrée fournit des implémentations simples qui permettent certaines fonctions de base dans un environnement hors ligne.",
+    "builtInKnowledgeTitle": "Base de connaissances intégrée",
+    "addBuiltinKnowledgeConfig": "Ajouter une configuration de base de connaissances intégrée",
+    "editBuiltinKnowledgeConfig": "Modifier la configuration de base de connaissances intégrée",
+    "chunkSize": "Taille de blocage",
+    "chunkSizeHelper": "Coupez le document en segments, la taille de chaque segment ne peut pas dépasser la limite de contexte du modèle",
+    "chunkOverlap": "Taille de chevauchement",
+    "chunkOverlapHelper": "La quantité de contenu répété entre les blocs de texte adjacents garantit qu'il existe toujours une connexion contextuelle entre les blocs de texte segmentés, améliorant l'effet global du traitement du modèle de textes longs",
+    "selectEmbeddingModel": "Sélectionnez un modèle intégré",
+    "modelNotFound": "Fournisseur de services {provider} ou modèle {model} introuvable",
+    "modelNotFoundDesc": "Assurez-vous que le modèle est configuré correctement et que le modèle est activé. Vous pouvez vérifier la configuration du modèle dans les paramètres du fournisseur de services.",
+    "removeBuiltinKnowledgeConfirmDesc": "La suppression de la configuration de base de connaissances intégrée supprimera toutes les données pertinentes et ne peut pas être restaurée. Soyez prudent.",
+    "removeBuiltinKnowledgeConfirmTitle": "Confirmer pour supprimer la base de connaissances intégrée {name}?",
+    "descriptionDesc": "Description de la base de connaissances afin que l'IA décide de récupérer cette base de connaissances",
+    "advanced": "Options avancées",
+    "autoDetectDimensions": "Détecter automatiquement les dimensions intégrées",
+    "autoDetectHelper": "Détecter automatiquement les dimensions intégrées, consomme une petite quantité de jetons",
+    "chunkOverlapPlaceholder": "Valeur par défaut, aucune modification n'est recommandée",
+    "chunkSizePlaceholder": "Valeur par défaut, aucune modification n'est recommandée",
+    "dimensions": "Dimensions de l'incorporation",
+    "dimensionsPlaceholder": "Taille de dimension intégrée, comme 1024",
+    "selectEmbeddingModelHelper": "Les modèles d'intégration sont interdits après la création d'une base de connaissances",
+    "dimensionsHelper": "Assurez-vous que le modèle prend en charge la taille de la dimension intégrée de l'ensemble",
+    "autoDetectDimensionsError": "Détecter automatiquement la panne de dimension intégrée",
+    "fragmentsNumber": "Nombre de fragments de documents demandés",
+    "fragmentsNumberHelper": "Plus il y a de fragments de document demandé, plus il comporte d'informations, mais plus il doit être consommé de jetons",
+    "selectRerankModel": "Sélectionnez le modèle de réorganisation",
+    "rerankModel": "Réorganiser le modèle",
+    "embeddingModel": "Modèle d'intégration",
+    "return": "retour",
+    "uploadHelper": "Cliquez pour télécharger ou faire glisser le fichier ici",
+    "onlySupport": "Soutenu uniquement",
+    "searchKnowledge": "Rechercher la base de connaissances",
+    "searchKnowledgePlaceholder": "Veuillez saisir le contenu de la requête",
+    "noData": "Pas encore de données",
+    "file": "document",
+    "uploadProcessing": "Téléchargement",
+    "uploadCompleted": "Téléchargement terminé",
+    "reAdd": "Télécharger à nouveau",
+    "uploadError": "Le téléchargement a échoué",
+    "delete": "supprimer",
+    "reason": "raison",
+    "deleteSuccess": "Supprimer avec succès",
+    "copy": "copie",
+    "copySuccess": "Copier avec succès",
+    "source": "source",
+    "normalized": "Normalisation L2",
+    "normalizedHelper": "Veuillez confirmer que le modèle prend en charge la normalisation L2 des vecteurs de sortie",
+    "dialog": {
+      "beforequit": {
+        "cancel": "Annuler",
+        "confirm": "confirmer",
+        "title": "Confirmation de sortie",
+        "description": "Il y a une tâche de base de connaissances en cours. Êtes-vous sûr de quitter le logiciel? Les tâches abandonnées peuvent être restaurées après le redémarrage du logiciel."
+      }
+    },
+    "searchError": "La requête a échoué",
+    "processing": "Téléchargement",
+    "paused": "Téléchargement en pause",
+    "unknown": "Statut inconnu",
+    "reAddFile": {
+      "title": "Re-télécharger la confirmation",
+      "content": "Êtes-vous sûr de vouloir re-téléverser le fichier \"{fileName}\" ?"
+    },
+    "deleteFile": {
+      "title": "Supprimer la confirmation du fichier",
+      "content": "Êtes-vous sûr de vouloir supprimer le fichier \"{fileName}\" ? Cette action est irréversible."
+    },
+    "resumeAllPausedTasks": "Récupération en un clic",
+    "pauseAllRunningTasks": "Pause en un clic"
   },
   "mcp": {
     "title": "Paramètres MCP",
@@ -482,5 +626,26 @@
     "nextTab": "Passez à l'onglet suivant",
     "previousTab": "Passez à l'onglet précédent",
     "specificTab": "Passez à la page d'onglet spécifiée (1-8)"
+  },
+  "rateLimit": {
+    "title": "Limitation de débit",
+    "description": "Contrôler l'intervalle de temps des requêtes, éviter de dépasser les limites API",
+    "intervalLimit": "Intervalle de requête",
+    "intervalUnit": "secondes",
+    "intervalHelper": "Intervalle minimum entre deux requêtes, désactivez la limitation si pas nécessaire",
+    "lastRequestTime": "Dernière requête",
+    "queueLength": "Longueur de la file",
+    "nextAllowedTime": "Prochaine requête autorisée",
+    "never": "Jamais",
+    "justNow": "À l'instant",
+    "secondsAgo": "secondes passées",
+    "minutesAgo": "minutes passées",
+    "immediately": "Immédiatement",
+    "secondsLater": "secondes plus tard",
+    "confirmDisableTitle": "Confirmer la désactivation de la limitation de débit",
+    "confirmDisableMessage": "La valeur ne peut pas être inférieure ou égale à 0. Désactiver la limitation de débit ?",
+    "confirmDisable": "Désactiver la limitation",
+    "disabled": "Limitation de débit désactivée",
+    "disabledDescription": "La limitation de débit a été désactivée"
   }
 }

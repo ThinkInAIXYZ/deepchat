@@ -141,6 +141,26 @@
             >
               {{ currentContextLengthText }}
             </div>
+
+            <div
+              v-if="rateLimitStatus?.config.enabled"
+              class="flex items-center gap-1 text-xs"
+              :class="getRateLimitStatusClass()"
+              :title="getRateLimitStatusTooltip()"
+            >
+              <Icon
+                :icon="getRateLimitStatusIcon()"
+                class="w-3 h-3"
+                :class="{ 'animate-pulse': rateLimitStatus.queueLength > 0 }"
+              />
+              <span v-if="rateLimitStatus.queueLength > 0">
+                {{ t('chat.input.rateLimitQueue', { count: rateLimitStatus.queueLength }) }}
+              </span>
+              <span v-else-if="!canSendImmediately">
+                {{ formatWaitTime() }}
+              </span>
+            </div>
+
             <Button
               variant="default"
               size="icon"
@@ -171,7 +191,7 @@
 
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
-import { computed, nextTick, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import {
@@ -261,8 +281,12 @@ const editor = new Editor({
     HardBreak.extend({
       addKeyboardShortcuts() {
         return {
-          'Shift-Enter': () => this.editor.commands.setHardBreak(),
-          'Alt-Enter': () => this.editor.commands.setHardBreak()
+          'Shift-Enter': () => {
+            return this.editor.chain().setHardBreak().scrollIntoView().run()
+          },
+          'Alt-Enter': () => {
+            return this.editor.chain().setHardBreak().scrollIntoView().run()
+          }
         }
       }
     }).configure({
@@ -324,6 +348,7 @@ const fetchingMcpEntry = ref(false)
 const fileInput = ref<HTMLInputElement>()
 const filePresenter = usePresenter('filePresenter')
 const windowPresenter = usePresenter('windowPresenter')
+const llmPresenter = usePresenter('llmproviderPresenter')
 const settings = ref({
   deepThinking: false,
   webSearch: false
@@ -344,6 +369,14 @@ const dragCounter = ref(0)
 let dragLeaveTimer: number | null = null
 
 const selectedFiles = ref<MessageFile[]>([])
+
+const rateLimitStatus = ref<{
+  config: { enabled: boolean; qpsLimit: number }
+  currentQps: number
+  queueLength: number
+  lastRequestTime: number
+} | null>(null)
+
 const props = withDefaults(
   defineProps<{
     contextLength?: number
@@ -359,6 +392,69 @@ const props = withDefaults(
 const currentContextLengthText = computed(() => {
   return `${Math.round((currentContextLength.value / (props.contextLength ?? 1000)) * 100)}%`
 })
+
+const canSendImmediately = computed(() => {
+  if (!rateLimitStatus.value?.config.enabled) return true
+
+  const now = Date.now()
+  const intervalMs = (1 / rateLimitStatus.value.config.qpsLimit) * 1000
+  const timeSinceLastRequest = now - rateLimitStatus.value.lastRequestTime
+
+  return timeSinceLastRequest >= intervalMs
+})
+
+const getRateLimitStatusIcon = () => {
+  if (!rateLimitStatus.value?.config.enabled) return ''
+
+  if (rateLimitStatus.value.queueLength > 0) {
+    return 'lucide:clock'
+  }
+
+  return canSendImmediately.value ? 'lucide:check-circle' : 'lucide:timer'
+}
+
+const getRateLimitStatusClass = () => {
+  if (!rateLimitStatus.value?.config.enabled) return ''
+
+  if (rateLimitStatus.value.queueLength > 0) {
+    return 'text-orange-500'
+  }
+
+  return canSendImmediately.value ? 'text-green-500' : 'text-yellow-500'
+}
+
+const getRateLimitStatusTooltip = () => {
+  if (!rateLimitStatus.value?.config.enabled) return ''
+
+  const intervalSeconds = 1 / rateLimitStatus.value.config.qpsLimit
+
+  if (rateLimitStatus.value.queueLength > 0) {
+    return t('chat.input.rateLimitQueueTooltip', {
+      count: rateLimitStatus.value.queueLength,
+      interval: intervalSeconds
+    })
+  }
+
+  if (canSendImmediately.value) {
+    return t('chat.input.rateLimitReadyTooltip', { interval: intervalSeconds })
+  }
+
+  const waitTime = Math.ceil(
+    (rateLimitStatus.value.lastRequestTime + intervalSeconds * 1000 - Date.now()) / 1000
+  )
+  return t('chat.input.rateLimitWaitingTooltip', { seconds: waitTime, interval: intervalSeconds })
+}
+
+const formatWaitTime = () => {
+  if (!rateLimitStatus.value?.config.enabled) return ''
+
+  const intervalSeconds = 1 / rateLimitStatus.value.config.qpsLimit
+  const waitTime = Math.ceil(
+    (rateLimitStatus.value.lastRequestTime + intervalSeconds * 1000 - Date.now()) / 1000
+  )
+
+  return t('chat.input.rateLimitWait', { seconds: Math.max(0, waitTime) })
+}
 
 const emit = defineEmits(['send', 'file-upload'])
 
@@ -840,32 +936,73 @@ const handleSearchMouseLeave = () => {
   isSearchHovering.value = false
 }
 
+const loadRateLimitStatus = async () => {
+  const currentProviderId = chatStore.chatConfig.providerId
+  if (currentProviderId) {
+    try {
+      const status = await llmPresenter.getProviderRateLimitStatus(currentProviderId)
+      rateLimitStatus.value = status
+    } catch (error) {
+      console.error('Failed to load rate limit status:', error)
+    }
+  }
+}
+
+const handleRateLimitEvent = (data: any) => {
+  if (data.providerId === chatStore.chatConfig.providerId) {
+    loadRateLimitStatus()
+  }
+}
+
+let statusInterval: number | null = null
+
 onMounted(() => {
   initSettings()
 
-  // 设置 prompt 文件处理回调
   setPromptFilesHandler(handlePromptFiles)
 
-  // Add event listeners for search engine selector hover with auto remove
+  loadRateLimitStatus()
+
   const searchElement = document.querySelector('.search-engine-select')
   if (searchElement) {
     useEventListener(searchElement, 'mouseenter', handleSearchMouseEnter)
     useEventListener(searchElement, 'mouseleave', handleSearchMouseLeave)
   }
 
-  // 监听 Ask AI 事件
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   window.addEventListener('context-menu-ask-ai', (e: any) => {
     inputText.value = e.detail
     editor.commands.setContent(e.detail)
     editor.commands.focus()
   })
+
+  window.electron.ipcRenderer.on('rate-limit:config-updated', handleRateLimitEvent)
+  window.electron.ipcRenderer.on('rate-limit:request-executed', handleRateLimitEvent)
+  window.electron.ipcRenderer.on('rate-limit:request-queued', handleRateLimitEvent)
+
+  statusInterval = window.setInterval(loadRateLimitStatus, 1000)
+})
+
+onUnmounted(() => {
+  if (statusInterval) {
+    clearInterval(statusInterval)
+  }
+  window.electron.ipcRenderer.removeListener('rate-limit:config-updated', handleRateLimitEvent)
+  window.electron.ipcRenderer.removeListener('rate-limit:request-executed', handleRateLimitEvent)
+  window.electron.ipcRenderer.removeListener('rate-limit:request-queued', handleRateLimitEvent)
 })
 
 watch(
   () => settingsStore.activeSearchEngine?.id,
   async () => {
     selectedSearchEngine.value = settingsStore.activeSearchEngine?.id ?? 'google'
+  }
+)
+
+watch(
+  () => chatStore.chatConfig.providerId,
+  () => {
+    loadRateLimitStatus()
   }
 )
 
@@ -1017,6 +1154,14 @@ function onKeydown(e: KeyboardEvent) {
 defineExpose({
   setText: (text: string) => {
     inputText.value = text
+    nextTick(() => {
+      editor.chain().clearContent().insertContent(text).run()
+      editor.view.updateState(editor.state)
+      setTimeout(() => {
+        const docSize = editor.state.doc.content.size
+        editor.chain().focus().setTextSelection(docSize).run()
+      }, 10)
+    })
   }
 })
 </script>

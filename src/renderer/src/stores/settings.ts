@@ -230,21 +230,64 @@ export const useSettingsStore = defineStore('settings', () => {
     () => FONT_SIZE_CLASSES[fontSizeLevel.value] || FONT_SIZE_CLASSES[DEFAULT_FONT_SIZE_LEVEL]
   )
 
+  // 维护 provider 状态变更时间戳的映射
+  const providerTimestamps = ref<Record<string, number>>({})
+
+  const loadProviderTimestamps = async () => {
+    try {
+      const savedTimestamps = await configP.getSetting<Record<string, number>>('providerTimestamps')
+      if (savedTimestamps) {
+        providerTimestamps.value = savedTimestamps
+      }
+    } catch (error) {
+      console.error('Failed to load provider timestamps:', error)
+    }
+  }
+
+  const saveProviderTimestamps = async () => {
+    try {
+      await configP.setSetting('providerTimestamps', providerTimestamps.value)
+    } catch (error) {
+      console.error('Failed to save provider timestamps:', error)
+    }
+  }
+
   // 计算排序后的 providers
   const sortedProviders = computed(() => {
-    if (!providerOrder.value || providerOrder.value.length === 0) {
-      return providers.value
-    }
-    // 根据 providerOrder 对 providers 进行排序
-    const orderedProviders = [...providers.value].sort((a, b) => {
-      const aIndex = providerOrder.value.indexOf(a.id)
-      const bIndex = providerOrder.value.indexOf(b.id)
-      // 如果某个 provider 不在 order 中，将其放到最后
-      if (aIndex === -1) return 1
-      if (bIndex === -1) return -1
-      return aIndex - bIndex
+    const enabledProviders: LLM_PROVIDER[] = []
+    const disabledProviders: LLM_PROVIDER[] = []
+
+    providers.value.forEach((provider) => {
+      if (provider.enable) {
+        enabledProviders.push(provider)
+      } else {
+        disabledProviders.push(provider)
+      }
     })
-    return orderedProviders
+
+    // 排序函数：优先使用拖拽顺序，其次使用时间戳
+    const sortProviders = (providerList: LLM_PROVIDER[], useAscendingTime: boolean) => {
+      return providerList.sort((a, b) => {
+        const aOrderIndex = providerOrder.value.indexOf(a.id)
+        const bOrderIndex = providerOrder.value.indexOf(b.id)
+        if (aOrderIndex !== -1 && bOrderIndex !== -1) {
+          return aOrderIndex - bOrderIndex
+        }
+        if (aOrderIndex !== -1 && bOrderIndex === -1) {
+          return -1
+        }
+        if (aOrderIndex === -1 && bOrderIndex !== -1) {
+          return 1
+        }
+        const aTime = providerTimestamps.value[a.id] || 0
+        const bTime = providerTimestamps.value[b.id] || 0
+        return useAscendingTime ? aTime - bTime : bTime - aTime
+      })
+    }
+    const sortedEnabled = sortProviders(enabledProviders, true)
+    const sortedDisabled = sortProviders(disabledProviders, false)
+
+    return [...sortedEnabled, ...sortedDisabled]
   })
 
   // 初始化设置
@@ -258,6 +301,7 @@ export const useSettingsStore = defineStore('settings', () => {
       defaultProviders.value = await configP.getDefaultProviders()
       // 加载保存的 provider 顺序
       await loadSavedOrder()
+      await loadProviderTimestamps()
 
       // 获取字体大小级别
       fontSizeLevel.value =
@@ -326,6 +370,9 @@ export const useSettingsStore = defineStore('settings', () => {
       await initOrUpdateSearchAssistantModel()
       // 设置事件监听
       setupProviderListener()
+
+      // 设置搜索引擎事件监听
+      setupSearchEnginesListener()
     } catch (error) {
       console.error('初始化设置失败:', error)
     }
@@ -565,7 +612,7 @@ export const useSettingsStore = defineStore('settings', () => {
   // 使用 throttle 包装的刷新函数，确保在频繁调用时最后一次调用能够成功执行
   // trailing: true 确保在节流周期结束后执行最后一次调用
   // leading: false 避免立即执行第一次调用
-  const refreshAllModels = useThrottleFn(_refreshAllModelsInternal, 1000, true, false)
+  const refreshAllModels = useThrottleFn(_refreshAllModelsInternal, 1000, true, true)
 
   // 搜索模型
   const searchModels = (query: string) => {
@@ -827,17 +874,96 @@ export const useSettingsStore = defineStore('settings', () => {
     await updateProviderConfig(providerId, updates)
   }
 
+  // 更新provider的认证配置
+  const updateProviderAuth = async (
+    providerId: string,
+    authMode?: 'apikey' | 'oauth',
+    oauthToken?: string
+  ): Promise<void> => {
+    const updates: Partial<LLM_PROVIDER> = {}
+    if (authMode !== undefined) updates.authMode = authMode
+    if (oauthToken !== undefined) updates.oauthToken = oauthToken
+    await updateProviderConfig(providerId, updates)
+  }
+
   // 更新provider的启用状态
   const updateProviderStatus = async (providerId: string, enable: boolean): Promise<void> => {
+    // 更新时间戳
+    providerTimestamps.value[providerId] = Date.now()
+    // 保存时间戳
+    await saveProviderTimestamps()
     await updateProviderConfig(providerId, { enable })
+
+    await optimizeProviderOrder(providerId, enable)
+  }
+
+  const optimizeProviderOrder = async (providerId: string, enable: boolean): Promise<void> => {
+    try {
+      const currentOrder = [...providerOrder.value]
+      const providerIndex = currentOrder.indexOf(providerId)
+      if (providerIndex === -1) return
+      currentOrder.splice(providerIndex, 1)
+      const allProviders = providers.value
+      const enabledInOrder: string[] = []
+      const disabledInOrder: string[] = []
+      currentOrder.forEach((id) => {
+        const provider = allProviders.find((p) => p.id === id)
+        if (!provider || provider.id === providerId) return
+        if (provider.enable) {
+          enabledInOrder.push(id)
+        } else {
+          disabledInOrder.push(id)
+        }
+      })
+      let newOrder: string[]
+      if (enable) {
+        newOrder = [...enabledInOrder, providerId, ...disabledInOrder]
+      } else {
+        newOrder = [...enabledInOrder, providerId, ...disabledInOrder]
+      }
+      const existingIds = providers.value.map((p) => p.id)
+      const missingIds = existingIds.filter((id) => !newOrder.includes(id))
+      const finalOrder = [...newOrder, ...missingIds]
+      providerOrder.value = finalOrder
+      await configP.setSetting('providerOrder', finalOrder)
+    } catch (error) {
+      console.error('Failed to optimize provider order:', error)
+    }
   }
 
   const setSearchEngine = async (engineId: string) => {
     try {
-      const success = await threadP.setSearchEngine(engineId)
+      let success = await threadP.setSearchEngine(engineId)
+
+      // 如果第一次设置失败，可能是后端搜索引擎列表还没更新，强制刷新后重试
+      if (!success) {
+        console.log('第一次设置搜索引擎失败，尝试刷新搜索引擎列表后重试')
+        await refreshSearchEngines()
+        success = await threadP.setSearchEngine(engineId)
+      }
+
       if (success) {
-        // 获取最新的引擎列表
-        activeSearchEngine.value = searchEngines.value.find((e) => e.id === engineId) || null
+        // 先尝试从当前列表中查找
+        let engine = searchEngines.value.find((e) => e.id === engineId)
+
+        // 如果找不到，可能是新添加的自定义引擎，从后端重新获取
+        if (!engine) {
+          try {
+            const customEngines = await configP.getCustomSearchEngines()
+            if (customEngines) {
+              engine = customEngines.find((e) => e.id === engineId)
+            }
+          } catch (error) {
+            console.warn('获取自定义搜索引擎失败:', error)
+          }
+        }
+
+        activeSearchEngine.value = engine || null
+
+        // 同时保存到配置中
+        await configP.setSetting('searchEngine', engineId)
+      } else {
+        console.error('设置搜索引擎失败，engineId:', engineId)
       }
     } catch (error) {
       console.error('设置搜索引擎失败', error)
@@ -1022,17 +1148,17 @@ export const useSettingsStore = defineStore('settings', () => {
       return {
         id: model.name,
         name: model.name,
-        contextLength: existingModel?.contextLength || 4096, // 使用现有值或默认值
+        contextLength: model.model_info.context_length || 4096, // 使用模型定义值或默认值
         maxTokens: existingModel?.maxTokens || 2048, // 使用现有值或默认值
         provider: 'ollama',
         group: existingModel?.group || 'local',
         enabled: true,
         isCustom: existingModel?.isCustom || false,
         providerId: 'ollama',
-        vision: existingModel?.vision || false,
-        functionCall: existingModel?.functionCall || false,
-        reasoning: existingModel?.reasoning || false,
-        type: existingModel?.type || ModelType.Chat,
+        vision: model.capabilities.indexOf('vision') > -1,
+        functionCall: model.capabilities.indexOf('tools') > -1,
+        reasoning: model.capabilities.indexOf('thinking') > -1,
+        type: model.capabilities.indexOf('embedding') > -1 ? ModelType.Embedding : ModelType.Chat,
         // 保留现有的其他配置，但确保更新 Ollama 特有数据
         ...(existingModel ? { ...existingModel } : {}),
         ollamaModel: model
@@ -1188,6 +1314,8 @@ export const useSettingsStore = defineStore('settings', () => {
   // 清理可能的事件监听器
   const cleanup = () => {
     removeOllamaEventListeners()
+    // 清理搜索引擎事件监听器
+    window.electron?.ipcRenderer?.removeAllListeners(CONFIG_EVENTS.SEARCH_ENGINES_UPDATED)
   }
 
   // 添加设置notificationsEnabled的方法
@@ -1224,11 +1352,21 @@ export const useSettingsStore = defineStore('settings', () => {
     window.electron.ipcRenderer.on(CONFIG_EVENTS.SEARCH_ENGINES_UPDATED, async () => {
       try {
         const customEngines = await configP.getCustomSearchEngines()
+        // 移除已有的自定义搜索引擎（避免重复）
+        searchEngines.value = searchEngines.value.filter((e) => !e.isCustom)
+        // 添加自定义搜索引擎（如果存在的话）
         if (customEngines && customEngines.length > 0) {
-          // 移除已有的自定义搜索引擎（避免重复）
-          searchEngines.value = searchEngines.value.filter((e) => !e.isCustom)
-          // 添加自定义搜索引擎
           searchEngines.value.push(...customEngines)
+        }
+
+        // 刷新活跃搜索引擎状态，确保后端和前端状态同步
+        const currentActiveEngineId = await configP.getSetting<string>('searchEngine')
+        if (currentActiveEngineId) {
+          const engine = searchEngines.value.find((e) => e.id === currentActiveEngineId)
+          if (engine) {
+            activeSearchEngine.value = engine
+            await threadP.setActiveSearchEngine(currentActiveEngineId)
+          }
         }
       } catch (error) {
         console.error('更新自定义搜索引擎失败:', error)
@@ -1342,11 +1480,20 @@ export const useSettingsStore = defineStore('settings', () => {
     }
   }
 
-  // 更新 provider 顺序
+  // 更新 provider 顺序 - 支持分区域拖拽
   const updateProvidersOrder = async (newProviders: LLM_PROVIDER[]) => {
     try {
-      // 从新的 provider 数组创建顺序数组
-      const newOrder = newProviders.map((provider) => provider.id)
+      const enabledProviders: LLM_PROVIDER[] = []
+      const disabledProviders: LLM_PROVIDER[] = []
+      newProviders.forEach((provider) => {
+        if (provider.enable) {
+          enabledProviders.push(provider)
+        } else {
+          disabledProviders.push(provider)
+        }
+      })
+      const newOrder = [...enabledProviders.map((p) => p.id), ...disabledProviders.map((p) => p.id)]
+
       // 确保所有现有的 provider 都在顺序中
       const existingIds = providers.value.map((p) => p.id)
       const missingIds = existingIds.filter((id) => !newOrder.includes(id))
@@ -1447,6 +1594,7 @@ export const useSettingsStore = defineStore('settings', () => {
     updateCustomModel,
     updateProviderConfig,
     updateProviderApi,
+    updateProviderAuth,
     updateProviderStatus,
     refreshProviderModels,
     setSearchEngine,

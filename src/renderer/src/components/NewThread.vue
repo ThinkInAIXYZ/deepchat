@@ -366,7 +366,8 @@ const handleSend = async (content: UserMessageContent) => {
     temperature: temperature.value,
     contextLength: contextLength.value,
     maxTokens: maxTokens.value,
-    artifacts: artifacts.value as 0 | 1
+    artifacts: artifacts.value as 0 | 1,
+    enabledMcpTools: chatStore.chatConfig.enabledMcpTools
   })
   console.log('threadId', threadId, activeModel.value)
   chatStore.sendMessage(content)

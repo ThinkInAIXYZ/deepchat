@@ -7,7 +7,8 @@ import {
   OllamaModel,
   ChatMessage,
   LLMAgentEvent,
-  KeyStatus
+  KeyStatus,
+  LLM_EMBEDDING_ATTRS
 } from '@shared/presenter'
 import { BaseLLMProvider } from './baseProvider'
 import { OpenAIProvider } from './providers/openAIProvider'
@@ -25,7 +26,7 @@ import { OllamaProvider } from './providers/ollamaProvider'
 import { AnthropicProvider } from './providers/anthropicProvider'
 import { DoubaoProvider } from './providers/doubaoProvider'
 import { ShowResponse } from 'ollama'
-import { CONFIG_EVENTS } from '@/events'
+import { CONFIG_EVENTS, RATE_LIMIT_EVENTS } from '@/events'
 import { TogetherProvider } from './providers/togetherProvider'
 import { GrokProvider } from './providers/grokProvider'
 import { GroqProvider } from './providers/groqProvider'
@@ -37,6 +38,29 @@ import { OpenRouterProvider } from './providers/openRouterProvider'
 import { MinimaxProvider } from './providers/minimaxProvider'
 import { AihubmixProvider } from './providers/aihubmixProvider'
 import { _302AIProvider } from './providers/_302AIProvider'
+
+// 速率限制配置接口
+interface RateLimitConfig {
+  qpsLimit: number
+  enabled: boolean
+}
+
+// 队列项接口
+interface QueueItem {
+  id: string
+  timestamp: number
+  resolve: () => void
+  reject: (error: Error) => void
+}
+
+// 提供商速率限制状态接口
+interface ProviderRateLimitState {
+  config: RateLimitConfig
+  queue: QueueItem[]
+  lastRequestTime: number
+  isProcessing: boolean
+}
+
 // 流的状态
 interface StreamState {
   isGenerating: boolean
@@ -63,8 +87,16 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
   }
   private configPresenter: ConfigPresenter
 
+  // 速率限制相关属性
+  private providerRateLimitStates: Map<string, ProviderRateLimitState> = new Map()
+  private readonly DEFAULT_RATE_LIMIT_CONFIG: RateLimitConfig = {
+    qpsLimit: 0.1,
+    enabled: false
+  }
+
   constructor(configPresenter: ConfigPresenter) {
     this.configPresenter = configPresenter
+    this.initializeProviderRateLimitConfigs()
     this.init()
     // 监听代理更新事件
     eventBus.on(CONFIG_EVENTS.PROXY_RESOLVED, () => {
@@ -73,6 +105,21 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
         provider.onProxyResolved()
       }
     })
+  }
+
+  private initializeProviderRateLimitConfigs(): void {
+    const providers = this.configPresenter.getProviders()
+    for (const provider of providers) {
+      if (provider.rateLimit) {
+        this.setProviderRateLimitConfig(provider.id, {
+          enabled: provider.rateLimit.enabled,
+          qpsLimit: provider.rateLimit.qpsLimit
+        })
+      }
+    }
+    console.log(
+      `[LLMProviderPresenter] Initialized rate limit configs for ${providers.length} providers`
+    )
   }
 
   private init() {
@@ -208,6 +255,7 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
     const enabledProviders = Array.from(this.providers.values()).filter(
       (provider) => provider.enable
     )
+    this.onProvidersUpdated(providers)
 
     // Initialize provider instances sequentially to avoid race conditions
     for (const provider of enabledProviders) {
@@ -243,21 +291,26 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
     let models = await provider.fetchModels()
     models = models.map((model) => {
       const config = this.configPresenter.getModelConfig(model.id, providerId)
-      if (config) {
-        model.maxTokens = config.maxTokens
-        model.contextLength = config.contextLength
-        // 如果模型中已经有这些属性则保留，否则使用配置中的值或默认为false
-        model.vision = model.vision !== undefined ? model.vision : config.vision || false
-        model.functionCall =
-          model.functionCall !== undefined ? model.functionCall : config.functionCall || false
-        model.reasoning =
-          model.reasoning !== undefined ? model.reasoning : config.reasoning || false
+
+      // Always use config values for maxTokens, contextLength, and temperature
+      model.maxTokens = config.maxTokens
+      model.contextLength = config.contextLength
+
+      if (config.isUserDefined) {
+        // User has explicitly configured this model, use all config values
+        model.vision = config.vision
+        model.functionCall = config.functionCall
+        model.reasoning = config.reasoning
+        model.type = config.type
       } else {
-        // 确保模型具有这些属性，如果没有配置，默认为false
-        model.vision = model.vision || false
-        model.functionCall = model.functionCall || false
-        model.reasoning = model.reasoning || false
+        // Default config, prioritize model's own capabilities if they exist
+        model.vision = model.vision !== undefined ? model.vision : config.vision
+        model.functionCall =
+          model.functionCall !== undefined ? model.functionCall : config.functionCall
+        model.reasoning = model.reasoning !== undefined ? model.reasoning : config.reasoning
+        model.type = model.type || config.type
       }
+
       return model
     })
     return models
@@ -265,6 +318,85 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
 
   async updateModelStatus(providerId: string, modelId: string, enabled: boolean): Promise<void> {
     this.configPresenter.setModelStatus(providerId, modelId, enabled)
+  }
+
+  /**
+   * 更新 provider 的速率限制配置
+   */
+  updateProviderRateLimit(providerId: string, enabled: boolean, qpsLimit: number): void {
+    let finalConfig = { enabled, qpsLimit }
+    if (
+      finalConfig.qpsLimit !== undefined &&
+      (finalConfig.qpsLimit <= 0 || !isFinite(finalConfig.qpsLimit))
+    ) {
+      if (finalConfig.enabled === true) {
+        console.warn(
+          `[LLMProviderPresenter] Invalid qpsLimit (${finalConfig.qpsLimit}) for provider ${providerId}, disabling rate limit`
+        )
+        finalConfig.enabled = false
+      }
+      const provider = this.configPresenter.getProviderById(providerId)
+      finalConfig.qpsLimit = provider?.rateLimit?.qpsLimit ?? 0.1
+    }
+    this.setProviderRateLimitConfig(providerId, finalConfig)
+    const provider = this.configPresenter.getProviderById(providerId)
+    if (provider) {
+      const updatedProvider: LLM_PROVIDER = {
+        ...provider,
+        rateLimit: {
+          enabled: finalConfig.enabled,
+          qpsLimit: finalConfig.qpsLimit
+        }
+      }
+      this.configPresenter.setProviderById(providerId, updatedProvider)
+      console.log(`[LLMProviderPresenter] Updated persistent config for ${providerId}`)
+    }
+  }
+
+  /**
+   * 获取 provider 的速率限制状态
+   */
+  getProviderRateLimitStatus(providerId: string): {
+    config: { enabled: boolean; qpsLimit: number }
+    currentQps: number
+    queueLength: number
+    lastRequestTime: number
+  } {
+    const config = this.getProviderRateLimitConfig(providerId)
+    const currentQps = this.getCurrentQps(providerId)
+    const queueLength = this.getQueueLength(providerId)
+    const lastRequestTime = this.getLastRequestTime(providerId)
+
+    return {
+      config,
+      currentQps,
+      queueLength,
+      lastRequestTime
+    }
+  }
+
+  /**
+   * 获取所有 provider 的速率限制状态
+   */
+  getAllProviderRateLimitStatus(): Record<
+    string,
+    {
+      config: { enabled: boolean; qpsLimit: number }
+      currentQps: number
+      queueLength: number
+      lastRequestTime: number
+    }
+  > {
+    const status: Record<string, any> = {}
+    for (const [providerId, state] of this.providerRateLimitStates) {
+      status[providerId] = {
+        config: state.config,
+        currentQps: this.getCurrentQps(providerId),
+        queueLength: state.queue.length,
+        lastRequestTime: state.lastRequestTime
+      }
+    }
+    return status
   }
 
   isGenerating(eventId: string): boolean {
@@ -300,7 +432,9 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
     modelId: string,
     eventId: string,
     temperature: number = 0.6,
-    maxTokens: number = 4096
+    maxTokens: number = 4096,
+    enabledMcpTools?: string[],
+    thinkingBudget?: number
   ): AsyncGenerator<LLMAgentEvent, void, unknown> {
     console.log(`[Agent Loop] Starting agent loop for event: ${eventId} with model: ${modelId}`)
     if (!this.canStartNewStream()) {
@@ -313,6 +447,10 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
     const provider = this.getProviderInstance(providerId)
     const abortController = new AbortController()
     const modelConfig = this.configPresenter.getModelConfig(modelId, providerId)
+
+    if (thinkingBudget !== undefined) {
+      modelConfig.thinkingBudget = thinkingBudget
+    }
 
     this.activeStreams.set(eventId, {
       isGenerating: true,
@@ -374,7 +512,32 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
 
         try {
           console.log(`[Agent Loop] Iteration ${toolCallCount + 1} for event: ${eventId}`)
-          const mcpTools = await presenter.mcpPresenter.getAllToolDefinitions()
+          const mcpTools = await presenter.mcpPresenter.getAllToolDefinitions(enabledMcpTools)
+          const canExecute = this.canExecuteImmediately(providerId)
+          if (!canExecute) {
+            const config = this.getProviderRateLimitConfig(providerId)
+            const currentQps = this.getCurrentQps(providerId)
+            const queueLength = this.getQueueLength(providerId)
+
+            yield {
+              type: 'response',
+              data: {
+                eventId,
+                rate_limit: {
+                  providerId,
+                  qpsLimit: config.qpsLimit,
+                  currentQps,
+                  queueLength,
+                  estimatedWaitTime: Math.max(0, 1000 - (Date.now() % 1000))
+                }
+              }
+            }
+
+            await this.executeWithRateLimit(providerId)
+          } else {
+            await this.executeWithRateLimit(providerId)
+          }
+
           // Call the provider's core stream method, expecting LLMCoreStreamEvent
           const stream = provider.coreStream(
             conversationMessages,
@@ -594,9 +757,9 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
               toolCallCount++
 
               // Find the tool definition to get server info
-              const toolDef = (await presenter.mcpPresenter.getAllToolDefinitions()).find(
-                (t) => t.function.name === toolCall.name
-              )
+              const toolDef = (
+                await presenter.mcpPresenter.getAllToolDefinitions(enabledMcpTools)
+              ).find((t) => t.function.name === toolCall.name)
 
               if (!toolDef) {
                 console.error(`Tool definition not found for ${toolCall.name}. Skipping execution.`)
@@ -1069,7 +1232,8 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
           return { isOk: false, errorMsg: `Model test failed: ${errorMessage}` }
         }
       } else {
-        return { isOk: false, errorMsg: 'Model ID is required' }
+        // 如果没有提供modelId，使用provider的check方法进行基础验证
+        return await provider.check()
       }
     } catch (error) {
       console.error(`Provider ${providerId} check failed:`, error)
@@ -1208,15 +1372,231 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
   /**
    * 获取文本的 embedding 表示
    * @param providerId 提供商ID
-   * @param texts 文本数组
    * @param modelId 模型ID
+   * @param texts 文本数组
    * @returns embedding 数组
    */
-  async getEmbeddings(providerId: string, texts: string[], modelId: string): Promise<number[][]> {
-    const provider = this.getProviderInstance(providerId)
-    if (!provider.getEmbeddings) {
+  async getEmbeddings(providerId: string, modelId: string, texts: string[]): Promise<number[][]> {
+    try {
+      const provider = this.getProviderInstance(providerId)
+      return await provider.getEmbeddings(modelId, texts)
+    } catch (error) {
+      console.error(`${modelId} embedding 失败:`, error)
       throw new Error('当前 LLM 提供商未实现 embedding 能力')
     }
-    return provider.getEmbeddings(texts, modelId)
+  }
+
+  /**
+   * 获取指定模型的 embedding 维度
+   * @param providerId 提供商ID
+   * @param modelId 模型ID
+   * @returns 模型的 embedding 维度
+   */
+  async getDimensions(
+    providerId: string,
+    modelId: string
+  ): Promise<{ data: LLM_EMBEDDING_ATTRS; errorMsg?: string }> {
+    try {
+      const provider = this.getProviderInstance(providerId)
+      return { data: await provider.getDimensions(modelId) }
+    } catch (error) {
+      console.error(`获取模型 ${modelId} 的 embedding 维度失败:`, error)
+      return {
+        data: {
+          dimensions: 0,
+          normalized: false
+        },
+        errorMsg: error instanceof Error ? error.message : String(error)
+      }
+    }
+  }
+
+  private setProviderRateLimitConfig(providerId: string, config: Partial<RateLimitConfig>): void {
+    const currentState = this.providerRateLimitStates.get(providerId)
+    const newConfig = {
+      ...this.DEFAULT_RATE_LIMIT_CONFIG,
+      ...currentState?.config,
+      ...config
+    }
+    if (!currentState) {
+      this.providerRateLimitStates.set(providerId, {
+        config: newConfig,
+        queue: [],
+        lastRequestTime: 0,
+        isProcessing: false
+      })
+    } else {
+      currentState.config = newConfig
+    }
+    console.log(`[LLMProviderPresenter] Updated rate limit config for ${providerId}:`, newConfig)
+    eventBus.send(RATE_LIMIT_EVENTS.CONFIG_UPDATED, SendTarget.ALL_WINDOWS, {
+      providerId,
+      config: newConfig
+    })
+  }
+
+  private getProviderRateLimitConfig(providerId: string): RateLimitConfig {
+    const state = this.providerRateLimitStates.get(providerId)
+    return state?.config || this.DEFAULT_RATE_LIMIT_CONFIG
+  }
+
+  private canExecuteImmediately(providerId: string): boolean {
+    const state = this.providerRateLimitStates.get(providerId)
+    if (!state || !state.config.enabled) {
+      return true
+    }
+    const now = Date.now()
+    const intervalMs = (1 / state.config.qpsLimit) * 1000
+    return now - state.lastRequestTime >= intervalMs
+  }
+
+  private async executeWithRateLimit(providerId: string): Promise<void> {
+    const state = this.getOrCreateRateLimitState(providerId)
+    if (!state.config.enabled) {
+      this.recordRequest(providerId)
+      return Promise.resolve()
+    }
+    if (this.canExecuteImmediately(providerId)) {
+      this.recordRequest(providerId)
+      return Promise.resolve()
+    }
+    return new Promise<void>((resolve, reject) => {
+      const queueItem: QueueItem = {
+        id: `${providerId}-${Date.now()}-${Math.random()}`,
+        timestamp: Date.now(),
+        resolve,
+        reject
+      }
+
+      state.queue.push(queueItem)
+      console.log(
+        `[LLMProviderPresenter] Request queued for ${providerId}, queue length: ${state.queue.length}`
+      )
+      eventBus.send(RATE_LIMIT_EVENTS.REQUEST_QUEUED, SendTarget.ALL_WINDOWS, {
+        providerId,
+        queueLength: state.queue.length,
+        requestId: queueItem.id
+      })
+      this.processRateLimitQueue(providerId)
+    })
+  }
+
+  private recordRequest(providerId: string): void {
+    const state = this.getOrCreateRateLimitState(providerId)
+    const now = Date.now()
+    state.lastRequestTime = now
+    eventBus.send(RATE_LIMIT_EVENTS.REQUEST_EXECUTED, SendTarget.ALL_WINDOWS, {
+      providerId,
+      timestamp: now,
+      currentQps: this.getCurrentQps(providerId)
+    })
+  }
+
+  private async processRateLimitQueue(providerId: string): Promise<void> {
+    const state = this.providerRateLimitStates.get(providerId)
+    if (!state || state.isProcessing || state.queue.length === 0) {
+      return
+    }
+    state.isProcessing = true
+    try {
+      while (state.queue.length > 0) {
+        if (this.canExecuteImmediately(providerId)) {
+          const queueItem = state.queue.shift()
+          if (queueItem) {
+            this.recordRequest(providerId)
+            queueItem.resolve()
+            console.log(
+              `[LLMProviderPresenter] Request executed for ${providerId}, remaining queue: ${state.queue.length}`
+            )
+          }
+        } else {
+          const now = Date.now()
+          const intervalMs = (1 / state.config.qpsLimit) * 1000
+          const nextAllowedTime = state.lastRequestTime + intervalMs
+          const waitTime = Math.max(0, nextAllowedTime - now)
+          if (waitTime > 0) {
+            await new Promise((resolve) => setTimeout(resolve, waitTime))
+          }
+        }
+      }
+    } catch (error) {
+      console.error(
+        `[LLMProviderPresenter] Error processing rate limit queue for ${providerId}:`,
+        error
+      )
+      while (state.queue.length > 0) {
+        const queueItem = state.queue.shift()
+        if (queueItem) {
+          queueItem.reject(new Error('Rate limit processing failed'))
+        }
+      }
+    } finally {
+      state.isProcessing = false
+    }
+  }
+
+  private getOrCreateRateLimitState(providerId: string): ProviderRateLimitState {
+    let state = this.providerRateLimitStates.get(providerId)
+    if (!state) {
+      state = {
+        config: { ...this.DEFAULT_RATE_LIMIT_CONFIG },
+        queue: [],
+        lastRequestTime: 0,
+        isProcessing: false
+      }
+      this.providerRateLimitStates.set(providerId, state)
+    }
+    return state
+  }
+
+  private getCurrentQps(providerId: string): number {
+    const state = this.providerRateLimitStates.get(providerId)
+    if (!state || !state.config.enabled || state.lastRequestTime === 0) return 0
+    const now = Date.now()
+    const timeSinceLastRequest = now - state.lastRequestTime
+    const intervalMs = (1 / state.config.qpsLimit) * 1000
+    return timeSinceLastRequest < intervalMs ? 1 : 0
+  }
+
+  private getQueueLength(providerId: string): number {
+    const state = this.providerRateLimitStates.get(providerId)
+    return state?.queue.length || 0
+  }
+
+  private getLastRequestTime(providerId: string): number {
+    const state = this.providerRateLimitStates.get(providerId)
+    return state?.lastRequestTime || 0
+  }
+
+  private cleanupProviderRateLimit(providerId: string): void {
+    const state = this.providerRateLimitStates.get(providerId)
+    if (state) {
+      while (state.queue.length > 0) {
+        const queueItem = state.queue.shift()
+        if (queueItem) {
+          queueItem.reject(new Error('Provider removed'))
+        }
+      }
+      this.providerRateLimitStates.delete(providerId)
+      console.log(`[LLMProviderPresenter] Cleaned up rate limit state for ${providerId}`)
+    }
+  }
+
+  private onProvidersUpdated(providers: LLM_PROVIDER[]): void {
+    for (const provider of providers) {
+      if (provider.rateLimit) {
+        this.setProviderRateLimitConfig(provider.id, {
+          enabled: provider.rateLimit.enabled,
+          qpsLimit: provider.rateLimit.qpsLimit
+        })
+      }
+    }
+    const currentProviderIds = new Set(providers.map((p) => p.id))
+    const allStatus = this.getAllProviderRateLimitStatus()
+    for (const providerId of Object.keys(allStatus)) {
+      if (!currentProviderIds.has(providerId)) {
+        this.cleanupProviderRateLimit(providerId)
+      }
+    }
   }
 }
