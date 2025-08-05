@@ -1195,113 +1195,114 @@ const restoreFocus = () => {
     }
   })
 
-// 通过名称查找mention数据
-const findMentionByName = (name: string): CategorizedData | null => {
-  // 在当前的mentionData中查找匹配的项目
-  const foundMention = mentionData.value.find(
-    (item) => item.type === 'item' && (item.label === name || item.id === name)
-  )
+  // 通过名称查找mention数据
+  const findMentionByName = (name: string): CategorizedData | null => {
+    // 在当前的mentionData中查找匹配的项目
+    const foundMention = mentionData.value.find(
+      (item) => item.type === 'item' && (item.label === name || item.id === name)
+    )
 
-  return foundMention || null
-}
-
-// 简化的插入mention到编辑器
-const insertMentionToEditor = (mentionData: CategorizedData, position: number): boolean => {
-  try {
-    // 构建mention节点属性
-    const mentionAttrs = {
-      id: mentionData.id,
-      label: mentionData.label,
-      category: mentionData.category,
-      content: mentionData.mcpEntry ? JSON.stringify(mentionData.mcpEntry) : ''
-    }
-
-    // 使用TipTap命令插入mention
-    const success = editor
-      .chain()
-      .focus()
-      .setTextSelection(position)
-      .insertContent({
-        type: 'mention',
-        attrs: mentionAttrs
-      })
-      .insertContent(' ') // 默认添加空格
-      .run()
-
-    // 更新内部状态
-    if (success) {
-      inputText.value = editor.getText()
-    }
-
-    return success
-  } catch (error) {
-    console.error('Failed to insert mention to editor:', error)
-    return false
+    return foundMention || null
   }
-}
-const handlePostInsertActions = async (mentionData: CategorizedData): Promise<void> => {
-  // 处理Prompt类型的特殊逻辑
-  if (mentionData.category === 'prompts' && mentionData.mcpEntry) {
-    const promptEntry = mentionData.mcpEntry as PromptListEntry
 
-    // 处理关联文件
-    if (promptEntry.files && Array.isArray(promptEntry.files) && promptEntry.files.length > 0) {
-      const handler = getPromptFilesHandler()
-      if (handler) {
-        await handler(promptEntry.files).catch((error) => {
-          console.error('Failed to handle prompt files:', error)
-        })
-      }
-    }
-  }
-}
-
-defineExpose({
-  clearContent: () => {
-    inputText.value = ''
-    editor.chain().clearContent().run()
-    editor.view.updateState(editor.state)
-  },
-  appendText: (text: string) => {
-    inputText.value += text
-    nextTick(() => {
-      editor.chain().insertContent(text).run()
-      editor.view.updateState(editor.state)
-      setTimeout(() => {
-        const docSize = editor.state.doc.content.size
-        editor.chain().focus().setTextSelection(docSize).run()
-      }, 10)
-    })
-  },
-  appendMention: async (name: string) => {
+  // 简化的插入mention到编辑器
+  const insertMentionToEditor = (mentionData: CategorizedData, position: number): boolean => {
     try {
-      // 通过name在各个数据源中查找匹配的mention
-      const mentionData = findMentionByName(name)
-
-      if (!mentionData) {
-        console.warn(`Mention not found: ${name}`)
-        return false
+      // 构建mention节点属性
+      const mentionAttrs = {
+        id: mentionData.id,
+        label: mentionData.label,
+        category: mentionData.category,
+        content: mentionData.mcpEntry ? JSON.stringify(mentionData.mcpEntry) : ''
       }
 
-      // 计算插入位置（默认为光标位置）
-      const insertPosition = editor.state.selection.anchor
+      // 使用TipTap命令插入mention
+      const success = editor
+        .chain()
+        .focus()
+        .setTextSelection(position)
+        .insertContent({
+          type: 'mention',
+          attrs: mentionAttrs
+        })
+        .insertContent(' ') // 默认添加空格
+        .run()
 
-      // 执行TipTap插入操作
-      const insertSuccess = insertMentionToEditor(mentionData, insertPosition)
-
-      // 处理后续操作（如文件关联、参数处理等）
-      if (insertSuccess) {
-        await handlePostInsertActions(mentionData)
+      // 更新内部状态
+      if (success) {
+        inputText.value = editor.getText()
       }
 
-      return insertSuccess
+      return success
     } catch (error) {
-      console.error('Failed to append mention:', error)
+      console.error('Failed to insert mention to editor:', error)
       return false
     }
-  },
-  restoreFocus
-})
+  }
+  const handlePostInsertActions = async (mentionData: CategorizedData): Promise<void> => {
+    // 处理Prompt类型的特殊逻辑
+    if (mentionData.category === 'prompts' && mentionData.mcpEntry) {
+      const promptEntry = mentionData.mcpEntry as PromptListEntry
+
+      // 处理关联文件
+      if (promptEntry.files && Array.isArray(promptEntry.files) && promptEntry.files.length > 0) {
+        const handler = getPromptFilesHandler()
+        if (handler) {
+          await handler(promptEntry.files).catch((error) => {
+            console.error('Failed to handle prompt files:', error)
+          })
+        }
+      }
+    }
+  }
+
+  defineExpose({
+    clearContent: () => {
+      inputText.value = ''
+      editor.chain().clearContent().run()
+      editor.view.updateState(editor.state)
+    },
+    appendText: (text: string) => {
+      inputText.value += text
+      nextTick(() => {
+        editor.chain().insertContent(text).run()
+        editor.view.updateState(editor.state)
+        setTimeout(() => {
+          const docSize = editor.state.doc.content.size
+          editor.chain().focus().setTextSelection(docSize).run()
+        }, 10)
+      })
+    },
+    appendMention: async (name: string) => {
+      try {
+        // 通过name在各个数据源中查找匹配的mention
+        const mentionData = findMentionByName(name)
+
+        if (!mentionData) {
+          console.warn(`Mention not found: ${name}`)
+          return false
+        }
+
+        // 计算插入位置（默认为光标位置）
+        const insertPosition = editor.state.selection.anchor
+
+        // 执行TipTap插入操作
+        const insertSuccess = insertMentionToEditor(mentionData, insertPosition)
+
+        // 处理后续操作（如文件关联、参数处理等）
+        if (insertSuccess) {
+          await handlePostInsertActions(mentionData)
+        }
+
+        return insertSuccess
+      } catch (error) {
+        console.error('Failed to append mention:', error)
+        return false
+      }
+    },
+    restoreFocus
+  })
+}
 </script>
 
 <style scoped>
