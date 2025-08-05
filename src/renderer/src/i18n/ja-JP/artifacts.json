@@ -36,5 +36,10 @@
   "copyFailedDesc": "クリップボードへのコピーに失敗しました",
   "copyAsImage": "画像としてコピー",
   "copyImageSuccessDesc": "画像をクリップボードにコピーしました",
-  "copyImageFailedDesc": "画像のコピーに失敗しました"
+  "copyImageFailedDesc": "画像のコピーに失敗しました",
+  "desktop": "デスクトップ",
+  "tablet": "タブレット",
+  "mobile": "モバイル",
+  "width": "幅",
+  "height": "高さ"
 }
