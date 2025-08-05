@@ -66,6 +66,7 @@ export const useChatStore = defineStore('chat', () => {
     modelId?: string
     systemPrompt?: string
     autoSend?: boolean
+    mentions?: string[]
   } | null>(null)
 
   // Getters
@@ -980,7 +981,8 @@ export const useChatStore = defineStore('chat', () => {
         msg: data.msg,
         modelId: data.modelId,
         systemPrompt: data.systemPrompt,
-        autoSend: data.autoSend
+        autoSend: data.autoSend,
+        mentions: data.mentions
       }
     }
   })

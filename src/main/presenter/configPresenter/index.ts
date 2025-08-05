@@ -1114,6 +1114,51 @@ export class ConfigPresenter implements IConfigPresenter {
     this.knowledgeConfHelper.setKnowledgeConfigs(configs)
   }
 
+  // 获取NPM Registry缓存
+  getNpmRegistryCache(): any {
+    return this.mcpConfHelper.getNpmRegistryCache()
+  }
+
+  // 设置NPM Registry缓存
+  setNpmRegistryCache(cache: any): void {
+    return this.mcpConfHelper.setNpmRegistryCache(cache)
+  }
+
+  // 检查NPM Registry缓存是否有效
+  isNpmRegistryCacheValid(): boolean {
+    return this.mcpConfHelper.isNpmRegistryCacheValid()
+  }
+
+  // 获取有效的NPM Registry
+  getEffectiveNpmRegistry(): string | null {
+    return this.mcpConfHelper.getEffectiveNpmRegistry()
+  }
+
+  // 获取自定义NPM Registry
+  getCustomNpmRegistry(): string | undefined {
+    return this.mcpConfHelper.getCustomNpmRegistry()
+  }
+
+  // 设置自定义NPM Registry
+  setCustomNpmRegistry(registry: string | undefined): void {
+    this.mcpConfHelper.setCustomNpmRegistry(registry)
+  }
+
+  // 获取自动检测NPM Registry设置
+  getAutoDetectNpmRegistry(): boolean {
+    return this.mcpConfHelper.getAutoDetectNpmRegistry()
+  }
+
+  // 设置自动检测NPM Registry
+  setAutoDetectNpmRegistry(enabled: boolean): void {
+    this.mcpConfHelper.setAutoDetectNpmRegistry(enabled)
+  }
+
+  // 清除NPM Registry缓存
+  clearNpmRegistryCache(): void {
+    this.mcpConfHelper.clearNpmRegistryCache()
+  }
+
   // 对比知识库配置差异
   diffKnowledgeConfigs(newConfigs: BuiltinKnowledgeConfig[]) {
     return KnowledgeConfHelper.diffKnowledgeConfigs(

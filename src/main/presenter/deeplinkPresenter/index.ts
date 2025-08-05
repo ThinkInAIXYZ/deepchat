@@ -184,6 +184,14 @@ export class DeeplinkPresenter implements IDeeplinkPresenter {
     } else {
       systemPrompt = ''
     }
+    let mentions: string[] = []
+    const mentionsParam = params.get('mentions')
+    if (mentionsParam && mentionsParam.trim() !== '') {
+      mentions = decodeURIComponent(mentionsParam)
+        .split(',')
+        .map((mention) => mention.trim())
+        .filter((mention) => mention.length > 0)
+    }
     // 如果用户增加了yolo=1或者yolo=true，则自动发送消息
     const yolo = params.get('yolo')
     const autoSend = yolo && yolo.trim() !== ''
@@ -204,6 +212,7 @@ export class DeeplinkPresenter implements IDeeplinkPresenter {
       msg,
       modelId,
       systemPrompt,
+      mentions,
       autoSend
     })
   }

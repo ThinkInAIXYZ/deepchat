@@ -302,8 +302,18 @@ watch(
           handleModelUpdate(matchedModel.model, matchedModel.providerId)
         }
       }
-      if (newCache.msg && chatInputRef.value) {
-        chatInputRef.value.setText(newCache.msg)
+      if (chatInputRef.value && (newCache.msg || newCache.mentions)) {
+        const chatInput = chatInputRef.value // 将引用存储在局部变量中
+        chatInput.clearContent()
+        if (newCache.mentions) {
+          // 优先处理 mentions
+          newCache.mentions.forEach((mention) => {
+            chatInput.appendMention(mention)
+          })
+        }
+        if (newCache.msg) {
+          chatInput.appendText(newCache.msg)
+        }
       }
       if (newCache.systemPrompt) {
         systemPrompt.value = newCache.systemPrompt

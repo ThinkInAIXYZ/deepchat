@@ -79,6 +79,7 @@ export class ConversationsTable extends BaseTable {
     }
     if (version === 3) {
       return `
+        --- 添加 enabled_mcp_tools 字段
         ALTER TABLE conversations ADD COLUMN enabled_mcp_tools TEXT DEFAULT '[]';
       `
     }
@@ -88,12 +89,18 @@ export class ConversationsTable extends BaseTable {
         ALTER TABLE conversations ADD COLUMN thinking_budget INTEGER DEFAULT NULL;
       `
     }
+    if (version === 5) {
+      return `
+        -- 回滚脏数据 enabled_mcp_tools
+        UPDATE conversations SET enabled_mcp_tools = NULL WHERE enabled_mcp_tools = '[]';
+      `
+    }
 
     return null
   }
 
   getLatestVersion(): number {
-    return 4
+    return 5
   }
 
   async create(title: string, settings: Partial<CONVERSATION_SETTINGS> = {}): Promise<string> {
@@ -133,7 +140,7 @@ export class ConversationsTable extends BaseTable {
       1,
       settings.artifacts || 0,
       0, // Default is_pinned to 0
-      settings.enabledMcpTools ? JSON.stringify(settings.enabledMcpTools) : '[]',
+      settings.enabledMcpTools ? JSON.stringify(settings.enabledMcpTools) : 'NULL',
       settings.thinkingBudget !== undefined ? settings.thinkingBudget : null
     )
     return conv_id
@@ -184,7 +191,7 @@ export class ConversationsTable extends BaseTable {
         providerId: result.providerId,
         modelId: result.modelId,
         artifacts: result.artifacts as 0 | 1,
-        enabledMcpTools: getJsonField(result.enabled_mcp_tools, []),
+        enabledMcpTools: getJsonField(result.enabled_mcp_tools, undefined),
         thinkingBudget: result.thinking_budget !== null ? result.thinking_budget : undefined
       }
     }
@@ -316,7 +323,7 @@ export class ConversationsTable extends BaseTable {
           providerId: row.providerId,
           modelId: row.modelId,
           artifacts: row.artifacts as 0 | 1,
-          enabledMcpTools: getJsonField(row.enabled_mcp_tools, []),
+          enabledMcpTools: getJsonField(row.enabled_mcp_tools, undefined),
           thinkingBudget: row.thinking_budget !== null ? row.thinking_budget : undefined
         }
       }))
