@@ -36,5 +36,10 @@
   "copySuccess": "复制成功",
   "copySuccessDesc": "内容已复制到剪贴板",
   "copyFailed": "复制失败",
-  "copyFailedDesc": "无法复制内容到剪贴板"
+  "copyFailedDesc": "无法复制内容到剪贴板",
+  "desktop": "桌面",
+  "tablet": "平板",
+  "mobile": "手机",
+  "width": "宽度",
+  "height": "高度"
 }

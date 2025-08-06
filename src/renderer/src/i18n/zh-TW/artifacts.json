@@ -36,5 +36,10 @@
   "copyFailedDesc": "無法複製內容到剪貼簿",
   "copyAsImage": "複製為圖片",
   "copyImageSuccessDesc": "圖片已復製到剪貼板",
-  "copyImageFailedDesc": "無法複製圖片到剪貼板"
+  "copyImageFailedDesc": "無法複製圖片到剪貼板",
+  "desktop": "桌面",
+  "tablet": "平板",
+  "mobile": "手機",
+  "width": "寬度",
+  "height": "高度"
 }
