@@ -658,6 +658,28 @@ export const defaultModelsSettings: DefaultModelSetting[] = [
 
   // OpenAI GPT系列模型配置
   {
+    id: 'gpt-oss-120b',
+    name: 'GPT OSS 120B',
+    temperature: 0.7,
+    maxTokens: 131000,
+    contextLength: 131000,
+    match: ['gpt-oss-120b'],
+    vision: false,
+    functionCall: true,
+    reasoning: false
+  },
+  {
+    id: 'gpt-oss-20b',
+    name: 'GPT OSS 20B',
+    temperature: 0.7,
+    maxTokens: 33000,
+    contextLength: 131000,
+    match: ['gpt-oss-20b'],
+    vision: false,
+    functionCall: true,
+    reasoning: false
+  },
+  {
     id: 'o4-mini-high',
     name: 'OpenAI o4 Mini High',
     temperature: 0.7,
