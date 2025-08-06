@@ -45,6 +45,7 @@
   "uploadSuccess": "上传成功",
   "uploadedCount": "已上传 {count} 个文件",
   "confirmDelete": "确定要删除提示词「{name}」吗？",
+  "confirmDeleteDescription": "此操作不可撤销，删除后将无法恢复该提示词。",
   "deleteSuccess": "删除成功",
   "deleteFailed": "删除失败",
   "inactive": "已禁用",

@@ -45,6 +45,7 @@
   "uploadSuccess": "アップロード成功",
   "uploadedCount": "{count}個のファイルがアップロードされました",
   "confirmDelete": "プロンプト「{name}」を削除してもよろしいですか？",
+  "confirmDeleteDescription": "この操作は元に戻すことができません。プロンプトは完全に削除されます。",
   "deleteSuccess": "削除に成功しました",
   "deleteFailed": "削除に失敗しました",
   "inactive": "無効",

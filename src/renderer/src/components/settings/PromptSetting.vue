@@ -135,6 +135,9 @@
                     <AlertDialogTitle>{{
                       t('promptSetting.confirmDelete', { name: prompt.name })
                     }}</AlertDialogTitle>
+                    <AlertDialogDescription>{{
+                      t('promptSetting.confirmDeleteDescription')
+                    }}</AlertDialogDescription>
                   </AlertDialogHeader>
                   <AlertDialogFooter>
                     <AlertDialogCancel>{{ t('common.cancel') }}</AlertDialogCancel>
@@ -514,6 +517,7 @@ import {
   AlertDialogContent,
   AlertDialogHeader,
   AlertDialogTitle,
+  AlertDialogDescription,
   AlertDialogFooter,
   AlertDialogCancel,
   AlertDialogAction
