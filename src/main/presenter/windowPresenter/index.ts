@@ -379,7 +379,7 @@ export class WindowPresenter implements IWindowPresenter {
    * 将焦点传递给指定窗口的活动标签页
    * @param windowId 窗口 ID
    */
-  private focusActiveTab(windowId: number): void {
+  public focusActiveTab(windowId: number): void {
     try {
       setTimeout(async () => {
         const tabPresenterInstance = presenter.tabPresenter as TabPresenter
@@ -558,7 +558,9 @@ export class WindowPresenter implements IWindowPresenter {
       if (!shellWindow.isDestroyed()) {
         shellWindow.webContents.send('window-focused', windowId)
       }
-      this.focusActiveTab(windowId)
+      if (!options?.initialTab) {
+        this.focusActiveTab(windowId)
+      }
     })
 
     // 窗口失去焦点
