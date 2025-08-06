@@ -110,7 +110,7 @@ import ModelSelect from './ModelSelect.vue'
 import { useChatStore } from '@/stores/chat'
 import { MODEL_META } from '@shared/presenter'
 import { useSettingsStore } from '@/stores/settings'
-import { computed, ref, watch, onMounted } from 'vue'
+import { computed, nextTick, ref, watch, onMounted } from 'vue'
 import { UserMessageContent } from '@shared/chat'
 import ChatConfig from './ChatConfig.vue'
 import { usePresenter } from '@/composables/usePresenter'
@@ -302,17 +302,37 @@ watch(
           handleModelUpdate(matchedModel.model, matchedModel.providerId)
         }
       }
-      if (chatInputRef.value && (newCache.msg || newCache.mentions)) {
-        const chatInput = chatInputRef.value // 将引用存储在局部变量中
-        chatInput.clearContent()
-        if (newCache.mentions) {
-          // 优先处理 mentions
-          newCache.mentions.forEach((mention) => {
-            chatInput.appendMention(mention)
-          })
+      if (newCache.msg || newCache.mentions) {
+        const setInputContent = () => {
+          if (chatInputRef.value) {
+            console.log('[NewThread] Setting input content, msg:', newCache.msg)
+            const chatInput = chatInputRef.value
+            chatInput.clearContent()
+            if (newCache.mentions) {
+              newCache.mentions.forEach((mention) => {
+                chatInput.appendMention(mention)
+              })
+            }
+            if (newCache.msg) {
+              console.log('[NewThread] Appending text:', newCache.msg)
+              chatInput.appendText(newCache.msg)
+            }
+            return true
+          }
+          return false
         }
-        if (newCache.msg) {
-          chatInput.appendText(newCache.msg)
+
+        if (!setInputContent()) {
+          console.log('[NewThread] ChatInput ref not ready, retrying...')
+          nextTick(() => {
+            if (!setInputContent()) {
+              setTimeout(() => {
+                if (!setInputContent()) {
+                  console.warn('[NewThread] Failed to set input content after retries')
+                }
+              }, 100)
+            }
+          })
         }
       }
       if (newCache.systemPrompt) {
