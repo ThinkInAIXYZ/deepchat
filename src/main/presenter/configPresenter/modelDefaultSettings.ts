@@ -590,6 +590,17 @@ export const defaultModelsSettings: DefaultModelSetting[] = [
 
   // Claude系列模型配置
   {
+    id: 'claude-opus-4-1',
+    name: 'Claude Opus 4.1',
+    temperature: 0.7,
+    maxTokens: 32000,
+    contextLength: 204800,
+    match: ['claude-opus-4', 'claude-opus-4-1-20250805'],
+    vision: true,
+    functionCall: true,
+    reasoning: true
+  },
+  {
     id: 'claude-opus-4',
     name: 'Claude Opus 4',
     temperature: 0.7,
