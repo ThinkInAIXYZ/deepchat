@@ -595,7 +595,7 @@ export const defaultModelsSettings: DefaultModelSetting[] = [
     temperature: 0.7,
     maxTokens: 32000,
     contextLength: 204800,
-    match: ['claude-opus-4', 'claude-opus-4-1-20250805'],
+    match: ['claude-opus-4-1', 'claude-opus-4-1-20250805'],
     vision: true,
     functionCall: true,
     reasoning: true
