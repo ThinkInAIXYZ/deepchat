@@ -26,6 +26,16 @@ export class WindowPresenter implements IWindowPresenter {
   private isQuitting: boolean = false
   // 当前获得焦点的窗口 ID (内部记录)
   private focusedWindowId: number | null = null
+  // 窗口聚焦状态管理
+  private windowFocusStates = new Map<
+    number,
+    {
+      lastFocusTime: number
+      shouldFocus: boolean
+      isNewWindow: boolean
+      hasInitialFocus: boolean
+    }
+  >()
 
   constructor(configPresenter: ConfigPresenter) {
     this.windows = new Map()
@@ -310,7 +320,6 @@ export class WindowPresenter implements IWindowPresenter {
     this.handleWindowRestore(targetWindow.id).catch((error) => {
       console.error(`Error handling restore logic after showing window ${targetWindow!.id}:`, error)
     })
-    this.focusActiveTab(targetWindow.id)
   }
 
   /**
@@ -376,18 +385,68 @@ export class WindowPresenter implements IWindowPresenter {
   }
 
   /**
+   * 检查是否应该聚焦标签页
+   * @param windowId 窗口 ID
+   * @param reason 聚焦原因
+   */
+  private shouldFocusTab(
+    windowId: number,
+    reason: 'focus' | 'restore' | 'show' | 'initial'
+  ): boolean {
+    const state = this.windowFocusStates.get(windowId)
+    if (!state) {
+      return true
+    }
+    const now = Date.now()
+    if (now - state.lastFocusTime < 100) {
+      console.log(`Skipping focus for window ${windowId}, too frequent (${reason})`)
+      return false
+    }
+    switch (reason) {
+      case 'initial':
+        return !state.hasInitialFocus
+      case 'focus':
+        return state.shouldFocus
+      case 'restore':
+      case 'show':
+        return state.isNewWindow || state.shouldFocus
+      default:
+        return false
+    }
+  }
+
+  /**
    * 将焦点传递给指定窗口的活动标签页
    * @param windowId 窗口 ID
+   * @param reason 聚焦原因
    */
-  public focusActiveTab(windowId: number): void {
+  public focusActiveTab(
+    windowId: number,
+    reason: 'focus' | 'restore' | 'show' | 'initial' = 'focus'
+  ): void {
+    if (!this.shouldFocusTab(windowId, reason)) {
+      return
+    }
     try {
       setTimeout(async () => {
         const tabPresenterInstance = presenter.tabPresenter as TabPresenter
         const tabsData = await tabPresenterInstance.getWindowTabsData(windowId)
         const activeTab = tabsData.find((tab) => tab.isActive)
         if (activeTab) {
-          console.log(`Focusing active tab ${activeTab.id} in window ${windowId}`)
+          console.log(
+            `Focusing active tab ${activeTab.id} in window ${windowId} (reason: ${reason})`
+          )
           await tabPresenterInstance.switchTab(activeTab.id)
+          const state = this.windowFocusStates.get(windowId)
+          if (state) {
+            state.lastFocusTime = Date.now()
+            if (reason === 'initial') {
+              state.hasInitialFocus = true
+            }
+            if (reason === 'focus' || reason === 'initial') {
+              state.isNewWindow = false
+            }
+          }
         }
       }, 50)
     } catch (error) {
@@ -531,6 +590,13 @@ export class WindowPresenter implements IWindowPresenter {
     const windowId = shellWindow.id
     this.windows.set(windowId, shellWindow) // 将窗口实例存入 Map
 
+    this.windowFocusStates.set(windowId, {
+      lastFocusTime: 0,
+      shouldFocus: true,
+      isNewWindow: true,
+      hasInitialFocus: false
+    })
+
     shellWindowState.manage(shellWindow) // 管理窗口状态
 
     // 应用内容保护设置
@@ -558,9 +624,7 @@ export class WindowPresenter implements IWindowPresenter {
       if (!shellWindow.isDestroyed()) {
         shellWindow.webContents.send('window-focused', windowId)
       }
-      if (!options?.initialTab) {
-        this.focusActiveTab(windowId)
-      }
+      this.focusActiveTab(windowId, 'focus')
     })
 
     // 窗口失去焦点
@@ -608,7 +672,7 @@ export class WindowPresenter implements IWindowPresenter {
       this.handleWindowRestore(windowId).catch((error) => {
         console.error(`Error handling restore logic for window ${windowId}:`, error)
       })
-      this.focusActiveTab(windowId)
+      this.focusActiveTab(windowId, 'restore')
       eventBus.sendToMain(WINDOW_EVENTS.WINDOW_RESTORED, windowId)
     }
     shellWindow.on('restore', handleRestore)
@@ -719,6 +783,7 @@ export class WindowPresenter implements IWindowPresenter {
       shellWindow.removeListener('restore', handleRestore)
 
       this.windows.delete(windowIdBeingClosed) // 从 Map 中移除
+      this.windowFocusStates.delete(windowIdBeingClosed)
       shellWindowState.unmanage() // 停止管理窗口状态
       eventBus.sendToMain(WINDOW_EVENTS.WINDOW_CLOSED, windowIdBeingClosed)
       console.log(

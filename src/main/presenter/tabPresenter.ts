@@ -537,7 +537,7 @@ export class TabPresenter implements ITabPresenter {
         setTimeout(() => {
           const windowPresenter = presenter.windowPresenter as any
           if (windowPresenter && typeof windowPresenter.focusActiveTab === 'function') {
-            windowPresenter.focusActiveTab(windowId)
+            windowPresenter.focusActiveTab(windowId, 'initial')
           }
         }, 300)
       })
