@@ -375,9 +375,7 @@ const totalModelsCount = computed(() => {
 })
 
 const providerModels = computed((): RENDERER_MODEL_META[] => {
-  const provider = settingsStore.allProviderModels.find(
-    (p) => p.providerId === props.provider.id
-  )
+  const provider = settingsStore.allProviderModels.find((p) => p.providerId === props.provider.id)
   return provider?.models || []
 })
 
