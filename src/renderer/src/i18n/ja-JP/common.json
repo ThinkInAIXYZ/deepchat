@@ -70,5 +70,7 @@
   "reset": "リセット",
   "format": "フォーマット",
   "edit": "編集",
-  "delete": "削除"
+  "delete": "削除",
+  "save": "保存",
+  "clear": "クリア"
 }

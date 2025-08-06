@@ -16,7 +16,13 @@
       </div>
       <!-- 操作按钮 -->
       <div class="flex flex-row gap-2 flex-shrink-0">
-        <Button v-if="ctrlBtn === 'paused'" variant="outline" size="sm" @click="toggleStatus(true)">
+        <Button
+          v-if="ctrlBtn === 'paused'"
+          variant="outline"
+          size="sm"
+          @click="toggleStatus(true)"
+          :title="t('settings.knowledgeBase.resumeAllPausedTasks')"
+        >
           <Icon icon="lucide:play" class="w-4 h-4 text-green-500" />
         </Button>
         <Button
@@ -24,6 +30,7 @@
           variant="outline"
           size="sm"
           @click="toggleStatus(false)"
+          :title="t('settings.knowledgeBase.pauseAllRunningTasks')"
         >
           <Icon icon="lucide:pause" class="w-4 h-4 text-yellow-500" />
         </Button>

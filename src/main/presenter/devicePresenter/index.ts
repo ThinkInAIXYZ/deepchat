@@ -281,11 +281,12 @@ export class DevicePresenter implements IDevicePresenter {
 
   /**
    * 根据类型重置数据
-   * @param resetType 重置类型：'chat' | 'config' | 'all'
+   * @param resetType 重置类型：'chat' | 'knowledge' | 'config' | 'all'
    */
-  async resetDataByType(resetType: 'chat' | 'config' | 'all'): Promise<void> {
+  async resetDataByType(resetType: 'chat' | 'knowledge' | 'config' | 'all'): Promise<void> {
     try {
       const userDataPath = app.getPath('userData')
+      const { presenter } = await import('../index')
 
       const removeDirectory = (dirPath: string): void => {
         if (fs.existsSync(dirPath)) {
@@ -309,10 +310,55 @@ export class DevicePresenter implements IDevicePresenter {
 
       switch (resetType) {
         case 'chat': {
-          // 只删除聊天数据
-          const dbPath = path.join(userDataPath, 'app_db')
-          console.log('Resetting chat data:', dbPath)
-          removeDirectory(dbPath)
+          // 删除聊天数据
+          console.log('Resetting chat data...')
+          try {
+            if (presenter.sqlitePresenter) {
+              presenter.sqlitePresenter.close()
+              console.log('SQLite database connection closed')
+            }
+            await new Promise((resolve) => setTimeout(resolve, 500))
+          } catch (closeError) {
+            console.warn('Error closing SQLite connection:', closeError)
+          }
+          const appDbPath = path.join(userDataPath, 'app_db')
+          const mainDbFile = path.join(appDbPath, 'chat.db')
+          try {
+            removeFile(mainDbFile)
+            console.log('Removed chat database file')
+          } catch (error) {
+            console.warn('Failed to remove chat database file:', error)
+          }
+          const auxiliaryFiles = ['chat.db-wal', 'chat.db-shm']
+          auxiliaryFiles.forEach((fileName) => {
+            const filePath = path.join(appDbPath, fileName)
+            if (fs.existsSync(filePath)) {
+              try {
+                removeFile(filePath)
+                console.log('Cleaned up auxiliary file:', fileName)
+              } catch (error) {
+                console.warn('Failed to clean auxiliary file:', fileName, error)
+              }
+            }
+          })
+          break
+        }
+
+        case 'knowledge': {
+          // 删除知识库数据
+          console.log('Resetting knowledge base data...')
+          try {
+            if (presenter.knowledgePresenter) {
+              await presenter.knowledgePresenter.destroy()
+              console.log('Knowledge database connections closed')
+            }
+            await new Promise((resolve) => setTimeout(resolve, 500))
+          } catch (closeError) {
+            console.warn('Error closing knowledge database connections:', closeError)
+          }
+          const knowledgeDbPath = path.join(userDataPath, 'app_db', 'KnowledgeBase')
+          console.log('Removing knowledge base directory:', knowledgeDbPath)
+          removeDirectory(knowledgeDbPath)
           break
         }
 
@@ -346,7 +392,21 @@ export class DevicePresenter implements IDevicePresenter {
 
         case 'all': {
           // 删除整个用户数据目录
-          console.log('Performing complete reset of user data:', userDataPath)
+          console.log('Performing complete reset of user data...')
+          try {
+            if (presenter.sqlitePresenter) {
+              presenter.sqlitePresenter.close()
+              console.log('SQLite database connection closed')
+            }
+            if (presenter.knowledgePresenter) {
+              await presenter.knowledgePresenter.destroy()
+              console.log('Knowledge database connections closed')
+            }
+            await new Promise((resolve) => setTimeout(resolve, 1000))
+          } catch (closeError) {
+            console.warn('Error closing database connections:', closeError)
+          }
+          console.log('Removing user data directory:', userDataPath)
           removeDirectory(userDataPath)
           break
         }

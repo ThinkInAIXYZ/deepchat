@@ -141,6 +141,26 @@
             >
               {{ currentContextLengthText }}
             </div>
+
+            <div
+              v-if="rateLimitStatus?.config.enabled"
+              class="flex items-center gap-1 text-xs"
+              :class="getRateLimitStatusClass()"
+              :title="getRateLimitStatusTooltip()"
+            >
+              <Icon
+                :icon="getRateLimitStatusIcon()"
+                class="w-3 h-3"
+                :class="{ 'animate-pulse': rateLimitStatus.queueLength > 0 }"
+              />
+              <span v-if="rateLimitStatus.queueLength > 0">
+                {{ t('chat.input.rateLimitQueue', { count: rateLimitStatus.queueLength }) }}
+              </span>
+              <span v-else-if="!canSendImmediately">
+                {{ formatWaitTime() }}
+              </span>
+            </div>
+
             <Button
               variant="default"
               size="icon"
@@ -171,7 +191,7 @@
 
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
-import { computed, nextTick, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import {
@@ -202,7 +222,11 @@ import Document from '@tiptap/extension-document'
 import Paragraph from '@tiptap/extension-paragraph'
 import Text from '@tiptap/extension-text'
 import { Mention } from './editor/mention/mention'
-import suggestion, { mentionData, setPromptFilesHandler } from './editor/mention/suggestion'
+import suggestion, {
+  mentionData,
+  setPromptFilesHandler,
+  getPromptFilesHandler
+} from './editor/mention/suggestion'
 import { mentionSelected } from './editor/mention/suggestion'
 import Placeholder from '@tiptap/extension-placeholder'
 import HardBreak from '@tiptap/extension-hard-break'
@@ -213,6 +237,8 @@ import { ResourceListEntry } from '@shared/presenter'
 import { searchHistory } from '@/lib/searchHistory'
 import { useLanguageStore } from '@/stores/language'
 import { useToast } from '@/components/ui/toast/use-toast'
+import type { CategorizedData } from './editor/mention/suggestion'
+import type { PromptListEntry } from '@shared/presenter'
 
 const langStore = useLanguageStore()
 const mcpStore = useMcpStore()
@@ -328,6 +354,7 @@ const fetchingMcpEntry = ref(false)
 const fileInput = ref<HTMLInputElement>()
 const filePresenter = usePresenter('filePresenter')
 const windowPresenter = usePresenter('windowPresenter')
+const llmPresenter = usePresenter('llmproviderPresenter')
 const settings = ref({
   deepThinking: false,
   webSearch: false
@@ -348,21 +375,94 @@ const dragCounter = ref(0)
 let dragLeaveTimer: number | null = null
 
 const selectedFiles = ref<MessageFile[]>([])
+
+const rateLimitStatus = ref<{
+  config: { enabled: boolean; qpsLimit: number }
+  currentQps: number
+  queueLength: number
+  lastRequestTime: number
+} | null>(null)
+
 const props = withDefaults(
   defineProps<{
     contextLength?: number
     maxRows?: number
     rows?: number
+    disabled?: boolean
   }>(),
   {
     maxRows: 10,
-    rows: 1
+    rows: 1,
+    disabled: false
   }
 )
 
 const currentContextLengthText = computed(() => {
   return `${Math.round((currentContextLength.value / (props.contextLength ?? 1000)) * 100)}%`
 })
+
+const canSendImmediately = computed(() => {
+  if (!rateLimitStatus.value?.config.enabled) return true
+
+  const now = Date.now()
+  const intervalMs = (1 / rateLimitStatus.value.config.qpsLimit) * 1000
+  const timeSinceLastRequest = now - rateLimitStatus.value.lastRequestTime
+
+  return timeSinceLastRequest >= intervalMs
+})
+
+const getRateLimitStatusIcon = () => {
+  if (!rateLimitStatus.value?.config.enabled) return ''
+
+  if (rateLimitStatus.value.queueLength > 0) {
+    return 'lucide:clock'
+  }
+
+  return canSendImmediately.value ? 'lucide:check-circle' : 'lucide:timer'
+}
+
+const getRateLimitStatusClass = () => {
+  if (!rateLimitStatus.value?.config.enabled) return ''
+
+  if (rateLimitStatus.value.queueLength > 0) {
+    return 'text-orange-500'
+  }
+
+  return canSendImmediately.value ? 'text-green-500' : 'text-yellow-500'
+}
+
+const getRateLimitStatusTooltip = () => {
+  if (!rateLimitStatus.value?.config.enabled) return ''
+
+  const intervalSeconds = 1 / rateLimitStatus.value.config.qpsLimit
+
+  if (rateLimitStatus.value.queueLength > 0) {
+    return t('chat.input.rateLimitQueueTooltip', {
+      count: rateLimitStatus.value.queueLength,
+      interval: intervalSeconds
+    })
+  }
+
+  if (canSendImmediately.value) {
+    return t('chat.input.rateLimitReadyTooltip', { interval: intervalSeconds })
+  }
+
+  const waitTime = Math.ceil(
+    (rateLimitStatus.value.lastRequestTime + intervalSeconds * 1000 - Date.now()) / 1000
+  )
+  return t('chat.input.rateLimitWaitingTooltip', { seconds: waitTime, interval: intervalSeconds })
+}
+
+const formatWaitTime = () => {
+  if (!rateLimitStatus.value?.config.enabled) return ''
+
+  const intervalSeconds = 1 / rateLimitStatus.value.config.qpsLimit
+  const waitTime = Math.ceil(
+    (rateLimitStatus.value.lastRequestTime + intervalSeconds * 1000 - Date.now()) / 1000
+  )
+
+  return t('chat.input.rateLimitWait', { seconds: Math.max(0, waitTime) })
+}
 
 const emit = defineEmits(['send', 'file-upload'])
 
@@ -588,7 +688,7 @@ const emitSend = async () => {
 
     emit('send', messageContent)
     inputText.value = ''
-    editor.chain().clearContent().blur().run()
+    editor.chain().clearContent().run()
 
     // 清除历史记录placeholder
     clearHistoryPlaceholder()
@@ -602,6 +702,9 @@ const emitSend = async () => {
         fileInput.value.value = ''
       }
     }
+    nextTick(() => {
+      editor.commands.focus()
+    })
   }
 }
 
@@ -844,32 +947,81 @@ const handleSearchMouseLeave = () => {
   isSearchHovering.value = false
 }
 
+const loadRateLimitStatus = async () => {
+  const currentProviderId = chatStore.chatConfig.providerId
+  if (currentProviderId) {
+    try {
+      const status = await llmPresenter.getProviderRateLimitStatus(currentProviderId)
+      rateLimitStatus.value = status
+    } catch (error) {
+      console.error('Failed to load rate limit status:', error)
+    }
+  }
+}
+
+const handleRateLimitEvent = (data: any) => {
+  if (data.providerId === chatStore.chatConfig.providerId) {
+    loadRateLimitStatus()
+  }
+}
+
+let statusInterval: number | null = null
+
 onMounted(() => {
   initSettings()
 
-  // 设置 prompt 文件处理回调
   setPromptFilesHandler(handlePromptFiles)
 
-  // Add event listeners for search engine selector hover with auto remove
+  loadRateLimitStatus()
+
   const searchElement = document.querySelector('.search-engine-select')
   if (searchElement) {
     useEventListener(searchElement, 'mouseenter', handleSearchMouseEnter)
     useEventListener(searchElement, 'mouseleave', handleSearchMouseLeave)
   }
 
-  // 监听 Ask AI 事件
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   window.addEventListener('context-menu-ask-ai', (e: any) => {
     inputText.value = e.detail
     editor.commands.setContent(e.detail)
     editor.commands.focus()
   })
+
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) {
+      setTimeout(() => {
+        restoreFocus()
+      }, 100)
+    }
+  })
+
+  window.electron.ipcRenderer.on('rate-limit:config-updated', handleRateLimitEvent)
+  window.electron.ipcRenderer.on('rate-limit:request-executed', handleRateLimitEvent)
+  window.electron.ipcRenderer.on('rate-limit:request-queued', handleRateLimitEvent)
+
+  statusInterval = window.setInterval(loadRateLimitStatus, 1000)
+})
+
+onUnmounted(() => {
+  if (statusInterval) {
+    clearInterval(statusInterval)
+  }
+  window.electron.ipcRenderer.removeListener('rate-limit:config-updated', handleRateLimitEvent)
+  window.electron.ipcRenderer.removeListener('rate-limit:request-executed', handleRateLimitEvent)
+  window.electron.ipcRenderer.removeListener('rate-limit:request-queued', handleRateLimitEvent)
 })
 
 watch(
   () => settingsStore.activeSearchEngine?.id,
   async () => {
     selectedSearchEngine.value = settingsStore.activeSearchEngine?.id ?? 'google'
+  }
+)
+
+watch(
+  () => chatStore.chatConfig.providerId,
+  () => {
+    loadRateLimitStatus()
   }
 )
 
@@ -951,6 +1103,17 @@ watch(dynamicPlaceholder, () => {
   updatePlaceholder()
 })
 
+watch(
+  () => props.disabled,
+  (newDisabled, oldDisabled) => {
+    if (oldDisabled && !newDisabled) {
+      setTimeout(() => {
+        restoreFocus()
+      }, 100)
+    }
+  }
+)
+
 // 处理历史记录placeholder
 const setHistoryPlaceholder = (text: string) => {
   currentHistoryPlaceholder.value = text
@@ -1018,18 +1181,127 @@ function onKeydown(e: KeyboardEvent) {
   }
 }
 
+const restoreFocus = () => {
+  nextTick(() => {
+    if (editor && !editor.isDestroyed && !props.disabled) {
+      try {
+        const editorElement = editor.view.dom
+        if (editorElement && editorElement.offsetParent !== null) {
+          editor.commands.focus()
+        }
+      } catch (error) {
+        console.warn('恢复焦点时出错:', error)
+      }
+    }
+  })
+}
+
+// 通过名称查找mention数据
+const findMentionByName = (name: string): CategorizedData | null => {
+  // 在当前的mentionData中查找匹配的项目
+  const foundMention = mentionData.value.find(
+    (item) => item.type === 'item' && (item.label === name || item.id === name)
+  )
+
+  return foundMention || null
+}
+
+// 简化的插入mention到编辑器
+const insertMentionToEditor = (mentionData: CategorizedData, position: number): boolean => {
+  try {
+    // 构建mention节点属性
+    const mentionAttrs = {
+      id: mentionData.id,
+      label: mentionData.label,
+      category: mentionData.category,
+      content: mentionData.mcpEntry ? JSON.stringify(mentionData.mcpEntry) : ''
+    }
+
+    // 使用TipTap命令插入mention
+    const success = editor
+      .chain()
+      .focus()
+      .setTextSelection(position)
+      .insertContent({
+        type: 'mention',
+        attrs: mentionAttrs
+      })
+      .insertContent(' ') // 默认添加空格
+      .run()
+
+    // 更新内部状态
+    if (success) {
+      inputText.value = editor.getText()
+    }
+
+    return success
+  } catch (error) {
+    console.error('Failed to insert mention to editor:', error)
+    return false
+  }
+}
+const handlePostInsertActions = async (mentionData: CategorizedData): Promise<void> => {
+  // 处理Prompt类型的特殊逻辑
+  if (mentionData.category === 'prompts' && mentionData.mcpEntry) {
+    const promptEntry = mentionData.mcpEntry as PromptListEntry
+
+    // 处理关联文件
+    if (promptEntry.files && Array.isArray(promptEntry.files) && promptEntry.files.length > 0) {
+      const handler = getPromptFilesHandler()
+      if (handler) {
+        await handler(promptEntry.files).catch((error) => {
+          console.error('Failed to handle prompt files:', error)
+        })
+      }
+    }
+  }
+}
+
 defineExpose({
-  setText: (text: string) => {
-    inputText.value = text
+  clearContent: () => {
+    inputText.value = ''
+    editor.chain().clearContent().run()
+    editor.view.updateState(editor.state)
+  },
+  appendText: (text: string) => {
+    inputText.value += text
     nextTick(() => {
-      editor.chain().clearContent().insertContent(text).run()
+      editor.chain().insertContent(text).run()
       editor.view.updateState(editor.state)
       setTimeout(() => {
         const docSize = editor.state.doc.content.size
         editor.chain().focus().setTextSelection(docSize).run()
       }, 10)
     })
-  }
+  },
+  appendMention: async (name: string) => {
+    try {
+      // 通过name在各个数据源中查找匹配的mention
+      const mentionData = findMentionByName(name)
+
+      if (!mentionData) {
+        console.warn(`Mention not found: ${name}`)
+        return false
+      }
+
+      // 计算插入位置（默认为光标位置）
+      const insertPosition = editor.state.selection.anchor
+
+      // 执行TipTap插入操作
+      const insertSuccess = insertMentionToEditor(mentionData, insertPosition)
+
+      // 处理后续操作（如文件关联、参数处理等）
+      if (insertSuccess) {
+        await handlePostInsertActions(mentionData)
+      }
+
+      return insertSuccess
+    } catch (error) {
+      console.error('Failed to append mention:', error)
+      return false
+    }
+  },
+  restoreFocus
 })
 </script>
 

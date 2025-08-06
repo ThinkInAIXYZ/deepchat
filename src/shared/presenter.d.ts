@@ -445,6 +445,16 @@ export interface IConfigPresenter {
     deleted: BuiltinKnowledgeConfig[]
     updated: BuiltinKnowledgeConfig[]
   }
+  // NPM Registry 相关方法
+  getNpmRegistryCache?(): any
+  setNpmRegistryCache?(cache: any): void
+  isNpmRegistryCacheValid?(): boolean
+  getEffectiveNpmRegistry?(): string | null
+  getCustomNpmRegistry?(): string | undefined
+  setCustomNpmRegistry?(registry: string | undefined): void
+  getAutoDetectNpmRegistry?(): boolean
+  setAutoDetectNpmRegistry?(enabled: boolean): void
+  clearNpmRegistryCache?(): void
 }
 export type RENDERER_MODEL_META = {
   id: string
@@ -484,6 +494,10 @@ export type LLM_PROVIDER = {
   custom?: boolean
   authMode?: 'apikey' | 'oauth' // 认证模式
   oauthToken?: string // OAuth token
+  rateLimit?: {
+    enabled: boolean
+    qpsLimit: number
+  }
   websites?: {
     official: string
     apiKey: string
@@ -560,6 +574,22 @@ export interface ILlmProviderPresenter {
     providerId: string,
     modelId: string
   ): Promise<{ data: LLM_EMBEDDING_ATTRS; errorMsg?: string }>
+  updateProviderRateLimit(providerId: string, enabled: boolean, qpsLimit: number): void
+  getProviderRateLimitStatus(providerId: string): {
+    config: { enabled: boolean; qpsLimit: number }
+    currentQps: number
+    queueLength: number
+    lastRequestTime: number
+  }
+  getAllProviderRateLimitStatus(): Record<
+    string,
+    {
+      config: { enabled: boolean; qpsLimit: number }
+      currentQps: number
+      queueLength: number
+      lastRequestTime: number
+    }
+  >
 }
 export type CONVERSATION_SETTINGS = {
   systemPrompt: string
@@ -737,7 +767,7 @@ export interface IDevicePresenter {
   getMemoryUsage(): Promise<MemoryInfo>
   getDiskSpace(): Promise<DiskInfo>
   resetData(): Promise<void>
-  resetDataByType(resetType: 'chat' | 'config' | 'all'): Promise<void>
+  resetDataByType(resetType: 'chat' | 'knowledge' | 'config' | 'all'): Promise<void>
 
   // 目录选择和应用重启
   selectDirectory(): Promise<{ canceled: boolean; filePaths: string[] }>
@@ -1071,6 +1101,18 @@ export interface IMCPPresenter {
     permissionType: 'read' | 'write' | 'all',
     remember?: boolean
   ): Promise<void>
+  // NPM Registry 管理方法
+  getNpmRegistryStatus?(): Promise<{
+    currentRegistry: string | null
+    isFromCache: boolean
+    lastChecked?: number
+    autoDetectEnabled: boolean
+    customRegistry?: string
+  }>
+  refreshNpmRegistry?(): Promise<string>
+  setCustomNpmRegistry?(registry: string | undefined): Promise<void>
+  setAutoDetectNpmRegistry?(enabled: boolean): Promise<void>
+  clearNpmRegistryCache?(): Promise<void>
 }
 
 export interface IDeeplinkPresenter {
@@ -1126,6 +1168,7 @@ export interface LLMCoreStreamEvent {
     | 'usage'
     | 'stop'
     | 'image_data'
+    | 'rate_limit'
   content?: string // 用于 type 'text'
   reasoning_content?: string // 用于 type 'reasoning'
   tool_call_id?: string // 用于 tool_call_* 类型
@@ -1138,6 +1181,13 @@ export interface LLMCoreStreamEvent {
     prompt_tokens: number
     completion_tokens: number
     total_tokens: number
+  }
+  rate_limit?: {
+    providerId: string
+    qpsLimit: number
+    currentQps: number
+    queueLength: number
+    estimatedWaitTime?: number
   }
   stop_reason?: 'tool_use' | 'max_tokens' | 'stop_sequence' | 'error' | 'complete' // 用于 type 'stop'
   image_data?: {
@@ -1202,6 +1252,13 @@ export interface LLMAgentEventData {
     context_length: number
   }
   image_data?: { data: string; mimeType: string }
+  rate_limit?: {
+    providerId: string
+    qpsLimit: number
+    currentQps: number
+    queueLength: number
+    estimatedWaitTime?: number
+  }
   error?: string // For error event
   userStop?: boolean // For end event
 }

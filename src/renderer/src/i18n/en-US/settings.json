@@ -76,6 +76,8 @@
     "resetConfirmDescription": "Please select the type of data to reset. This operation cannot be undone and the application will restart automatically after reset.",
     "resetChatData": "Reset Chat Data",
     "resetChatDataDesc": "Delete all chat history and conversation records",
+    "resetKnowledgeData": "Reset Knowledge Base Data",
+    "resetKnowledgeDataDesc": "Delete all knowledge base files and vector data",
     "resetConfig": "Reset Configuration",
     "resetConfigDesc": "Delete all app settings, model configurations and custom prompts",
     "resetAll": "Complete Reset",
@@ -433,7 +435,20 @@
         "description": "There is a running knowledge base task. Are you sure to exit the software? \nAborted tasks can be restored after restarting the software."
       }
     },
-    "searchError": "Query failed"
+    "searchError": "Query failed",
+    "processing": "Uploading",
+    "paused": "Upload pause",
+    "unknown": "Unknown status",
+    "reAddFile": {
+      "title": "Re-upload confirmation",
+      "content": "Are you sure to re-upload the file \"{fileName}\"?"
+    },
+    "deleteFile": {
+      "title": "Delete file confirmation",
+      "content": "Are you sure to delete the file \"{fileName}\"? \nThis operation is not restored."
+    },
+    "resumeAllPausedTasks": "One-click recovery",
+    "pauseAllRunningTasks": "One-click pause"
   },
   "mcp": {
     "title": "MCP Settings",
@@ -568,7 +583,48 @@
     "builtInServerCannotBeRemoved": "Built-in servers cannot be removed, only parameters and environment variables can be modified",
     "maxDefaultServersReached": "Only 3 default servers can be set at most",
     "removeDefaultFirst": "Please remove some default servers first",
-    "higressMarket": "Go to Higress MCP Installation"
+    "higressMarket": "Go to Higress MCP Installation",
+    "npmRegistry": {
+      "title": "NPM Registry Configuration",
+      "currentSource": "Current Source",
+      "cached": "Cached",
+      "lastChecked": "Last Checked",
+      "refresh": "Refresh",
+      "advanced": "Advanced",
+      "advancedSettings": "Advanced Settings",
+      "advancedSettingsDesc": "Configure advanced NPM registry options, including auto-detection and custom source settings",
+      "autoDetect": "Auto-detect optimal source",
+      "autoDetectDesc": "Automatically detect and use the fastest NPM registry on startup",
+      "customSource": "Custom Source",
+      "customSourcePlaceholder": "Enter custom NPM registry URL",
+      "currentCustom": "Current custom source",
+      "justNow": "Just now",
+      "minutesAgo": "{minutes} minutes ago",
+      "hoursAgo": "{hours} hours ago",
+      "daysAgo": "{days} days ago",
+      "refreshSuccess": "NPM registry refreshed successfully",
+      "refreshSuccessDesc": "Re-detected and updated optimal NPM registry",
+      "refreshFailed": "NPM registry refresh failed",
+      "autoDetectUpdated": "Auto-detect setting updated",
+      "autoDetectEnabled": "Auto-detect optimal NPM registry enabled",
+      "autoDetectDisabled": "Auto-detect disabled, will use default registry",
+      "updateFailed": "Setting update failed",
+      "customSourceSet": "Custom source set",
+      "customSourceSetDesc": "Custom NPM registry set: {registry}",
+      "customSourceCleared": "Custom source cleared",
+      "customSourceClearedDesc": "Custom NPM registry cleared, will use auto-detect",
+      "invalidUrl": "Invalid URL",
+      "invalidUrlDesc": "Please enter a valid HTTP or HTTPS address",
+      "testing": "Testing NPM registry",
+      "testingDesc": "Testing connectivity to {registry}...",
+      "testFailed": "NPM registry test failed",
+      "testFailedDesc": "Cannot connect to {registry}, error: {error}. Please check if the URL is correct or network connection.",
+      "redetectingOptimal": "Re-detecting optimal NPM registry...",
+      "redetectComplete": "Re-detection completed",
+      "redetectCompleteDesc": "Detected and set the current optimal NPM registry",
+      "redetectFailed": "Re-detection failed",
+      "redetectFailedDesc": "Unable to re-detect optimal registry, will use default configuration"
+    }
   },
   "about": {
     "title": "About Us",
@@ -611,5 +667,26 @@
     "previousTab": "Switch to previous tab",
     "specificTab": "Switch to specific tab (1-8)",
     "lastTab": "Switch to last tab"
+  },
+  "rateLimit": {
+    "title": "Rate Limit",
+    "description": "Control request interval to prevent exceeding API limits",
+    "intervalLimit": "Request Interval",
+    "intervalUnit": "seconds",
+    "intervalHelper": "Minimum interval between requests, disable rate limiting if not needed",
+    "lastRequestTime": "Last Request",
+    "queueLength": "Queue Length",
+    "nextAllowedTime": "Next Allowed",
+    "never": "Never",
+    "justNow": "Just now",
+    "secondsAgo": "s ago",
+    "minutesAgo": "m ago",
+    "immediately": "Now",
+    "secondsLater": "s later",
+    "confirmDisableTitle": "Confirm Disable Rate Limit",
+    "confirmDisableMessage": "Value cannot be less than or equal to 0. Do you want to disable rate limiting?",
+    "confirmDisable": "Disable Limit",
+    "disabled": "Rate Limit Disabled",
+    "disabledDescription": "Rate limiting has been disabled"
   }
 }

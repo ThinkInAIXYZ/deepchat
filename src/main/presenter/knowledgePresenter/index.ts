@@ -307,6 +307,9 @@ export class KnowledgePresenter implements IKnowledgePresenter {
     this.storePresenterCache.clear()
   }
 
+  /**
+   * @returns return true if user confirmed to destroy knowledge, otherwise false
+   */
   async beforeDestroy(): Promise<boolean> {
     const status = this.taskP.getStatus()
     if (status.totalTasks === 0) {
@@ -326,9 +329,6 @@ export class KnowledgePresenter implements IKnowledgePresenter {
     return choice === 'confirm'
   }
 
-  /**
-   * @returns return true if user confirmed to destroy knowledge, otherwise false
-   */
   async destroy(): Promise<void> {
     await this.closeAll()
   }

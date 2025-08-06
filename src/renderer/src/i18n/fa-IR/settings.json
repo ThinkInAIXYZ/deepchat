@@ -76,6 +76,8 @@
     "resetConfirmDescription": "لطفاً نوع داده‌هایی که می‌خواهید بازنشانی کنید را انتخاب کنید. این عملیات غیرقابل بازگشت است و پس از بازنشانی، برنامه به طور خودکار مجدداً راه‌اندازی خواهد شد.",
     "resetChatData": "بازنشانی داده‌های گفت‌وگو",
     "resetChatDataDesc": "حذف تمام تاریخچه گفت‌وگوها و سوابق مکالمات",
+    "resetKnowledgeData": "بازنشانی داده‌های پایگاه دانش",
+    "resetKnowledgeDataDesc": "حذف تمام فایل‌های پایگاه دانش و داده‌های برداری",
     "resetConfig": "بازنشانی پیکربندی",
     "resetConfigDesc": "حذف تمام تنظیمات برنامه، پیکربندی‌های مدل و دستورکارهای سفارشی",
     "resetAll": "بازنشانی کامل",
@@ -433,7 +435,20 @@
         "description": "یک کار پایه دانش در حال اجرا وجود دارد. آیا مطمئناً از نرم افزار خارج می شوید؟ کارهای سقط شده را می توان پس از شروع مجدد نرم افزار بازگرداند."
       }
     },
-    "searchError": "پرس و جو انجام نشد"
+    "searchError": "پرس و جو انجام نشد",
+    "processing": "بارگذاری",
+    "paused": "مکث",
+    "unknown": "وضعیت ناشناخته",
+    "reAddFile": {
+      "title": "تأیید مجدد",
+      "content": "آیا مطمئن هستید که می‌خواهید پرونده \"{fileName}\" را دوباره بارگذاری کنید؟"
+    },
+    "deleteFile": {
+      "title": "تأیید پرونده را حذف کنید",
+      "content": "آیا مطمئن هستید که می‌خواهید پرونده \"{fileName}\" را حذف کنید؟ این عملیات ترمیم نشده است."
+    },
+    "resumeAllPausedTasks": "بازیابی یک کلیک",
+    "pauseAllRunningTasks": "مکث یک کلیک"
   },
   "mcp": {
     "title": "تنظیمات MCP",
@@ -568,7 +583,48 @@
     "builtInServerCannotBeRemoved": "کارسازهای داخلی پاک شدنی نیستند، فقط داده‌ها و متغیرهای محیط می‌توانند ویرایش شوند",
     "maxDefaultServersReached": "بیشینه ۳ کارساز پیش‌فرض می‌توان تنظیم کرد",
     "removeDefaultFirst": "لطفاً ابتدا برخی کارسازهای پیش‌فرض را بردارید",
-    "higressMarket": "رفتن به نصب MCP هایگرس"
+    "higressMarket": "رفتن به نصب MCP هایگرس",
+    "npmRegistry": {
+      "title": "تنظیمات منابع NPM",
+      "currentSource": "منبع فعلی",
+      "cached": "ذخیره شده",
+      "lastChecked": "آخرین بررسی",
+      "refresh": "تازه‌سازی",
+      "advanced": "پیشرفته",
+      "advancedSettings": "تنظیمات پیشرفته",
+      "advancedSettingsDesc": "پیکربندی گزینه‌های پیشرفته منابع NPM، شامل تشخیص خودکار و تنظیمات منبع سفارشی",
+      "autoDetect": "تشخیص خودکار منبع بهینه",
+      "autoDetectDesc": "تشخیص و استفاده خودکار از سریع‌ترین منبع NPM هنگام راه‌اندازی",
+      "customSource": "منبع سفارشی",
+      "customSourcePlaceholder": "آدرس منبع NPM سفارشی را وارد کنید",
+      "currentCustom": "منبع سفارشی فعلی",
+      "justNow": "همین الان",
+      "minutesAgo": "{minutes} دقیقه پیش",
+      "hoursAgo": "{hours} ساعت پیش",
+      "daysAgo": "{days} روز پیش",
+      "refreshSuccess": "تازه‌سازی منبع NPM موفق بود",
+      "refreshSuccessDesc": "منبع بهینه NPM دوباره تشخیص داده شد و به‌روزرسانی شد",
+      "refreshFailed": "تازه‌سازی منبع NPM ناموفق بود",
+      "autoDetectUpdated": "تنظیمات تشخیص خودکار به‌روزرسانی شد",
+      "autoDetectEnabled": "تشخیص خودکار منبع بهینه NPM فعال شد",
+      "autoDetectDisabled": "تشخیص خودکار غیرفعال شد، از منبع پیش‌فرض استفاده خواهد شد",
+      "updateFailed": "به‌روزرسانی تنظیمات ناموفق بود",
+      "customSourceSet": "منبع سفارشی تنظیم شد",
+      "customSourceSetDesc": "منبع NPM سفارشی تنظیم شد: {registry}",
+      "customSourceCleared": "منبع سفارشی پاک شد",
+      "customSourceClearedDesc": "منبع NPM سفارشی پاک شد، از تشخیص خودکار استفاده خواهد شد",
+      "invalidUrl": "آدرس نامعتبر",
+      "invalidUrlDesc": "لطفاً آدرس HTTP یا HTTPS معتبری وارد کنید",
+      "testing": "آزمایش منبع NPM",
+      "testingDesc": "آزمایش اتصال به منبع {registry}...",
+      "testFailed": "آزمایش منبع NPM ناموفق بود",
+      "testFailedDesc": "نمی‌توان به {registry} متصل شد، خطا: {error}. لطفاً بررسی کنید که آدرس درست است یا اتصال شبکه.",
+      "redetectingOptimal": "تشخیص مجدد منبع بهینه NPM...",
+      "redetectComplete": "تشخیص مجدد کامل شد",
+      "redetectCompleteDesc": "منبع بهینه فعلی NPM تشخیص داده شد و پیکربندی شد",
+      "redetectFailed": "تشخیص مجدد ناموفق بود",
+      "redetectFailedDesc": "نمی‌توان منبع بهینه را مجدداً تشخیص داد، از پیکربندی پیش‌فرض استفاده خواهد شد"
+    }
   },
   "about": {
     "title": "درباره ما",
@@ -611,5 +667,26 @@
     "previousTab": "رفتن به برگه پیشین",
     "specificTab": "رفتن به برگه خاص (1-8)",
     "lastTab": "رفتن به آخرین برگه"
+  },
+  "rateLimit": {
+    "title": "محدودیت نرخ",
+    "description": "کنترل فاصله زمانی درخواست‌ها، جلوگیری از تجاوز محدودیت‌های API",
+    "intervalLimit": "فاصله درخواست",
+    "intervalUnit": "ثانیه",
+    "intervalHelper": "حداقل فاصله زمانی بین دو درخواست، در صورت عدم نیاز محدودیت نرخ را غیرفعال کنید",
+    "lastRequestTime": "آخرین درخواست",
+    "queueLength": "طول صف",
+    "nextAllowedTime": "درخواست بعدی مجاز",
+    "never": "هرگز",
+    "justNow": "همین الان",
+    "secondsAgo": "ثانیه پیش",
+    "minutesAgo": "دقیقه پیش",
+    "immediately": "فوری",
+    "secondsLater": "ثانیه بعد",
+    "confirmDisableTitle": "تأیید غیرفعال کردن محدودیت نرخ",
+    "confirmDisableMessage": "مقدار نمی‌تواند کمتر یا مساوی 0 باشد. آیا محدودیت نرخ غیرفعال شود؟",
+    "confirmDisable": "غیرفعال کردن محدودیت",
+    "disabled": "محدودیت نرخ غیرفعال شد",
+    "disabledDescription": "محدودیت نرخ غیرفعال شده است"
   }
 }

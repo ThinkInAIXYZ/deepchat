@@ -70,5 +70,7 @@
   "reset": "Réinitialiser",
   "format": "Format",
   "edit": "Modifier",
-  "delete": "Supprimer"
+  "delete": "Supprimer",
+  "save": "Enregistrer",
+  "clear": "Effacer"
 }

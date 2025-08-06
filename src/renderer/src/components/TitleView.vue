@@ -12,7 +12,7 @@
       </Button>
       <Popover v-model:open="modelSelectOpen">
         <PopoverTrigger as-child>
-          <Button variant="outline" class="flex items-center gap-1.5 px-2 h-7" size="sm">
+          <Button variant="outline" class="flex items-center gap-1.5 px-2 h-7 relative" size="sm">
             <ModelIcon :model-id="model.providerId" :is-dark="themeStore.isDark"></ModelIcon>
             <h2 class="text-xs font-bold">{{ model.name }}</h2>
             <Badge
@@ -23,6 +23,13 @@
               size="xs"
               >{{ t(`model.tags.${tag}`) }}</Badge
             >
+            <div
+              v-if="rateLimitStatus?.config.enabled"
+              class="flex items-center gap-1"
+              :title="getRateLimitTooltip()"
+            >
+              <Icon :icon="getRateLimitIcon()" :class="getRateLimitIconClass()" class="w-3 h-3" />
+            </div>
             <Icon icon="lucide:chevron-right" class="w-4 h-4" />
           </Button>
         </PopoverTrigger>
@@ -74,13 +81,15 @@ import ChatConfig from './ChatConfig.vue'
 import ModelSelect from './ModelSelect.vue'
 import ModelIcon from './icons/ModelIcon.vue'
 import { MODEL_META } from '@shared/presenter'
-import { onMounted, ref, watch } from 'vue'
+import { onMounted, onUnmounted, ref, watch, computed } from 'vue'
 import { useChatStore } from '@/stores/chat'
 import { usePresenter } from '@/composables/usePresenter'
 import { useThemeStore } from '@/stores/theme'
 import { ModelType } from '@shared/model'
+import { RATE_LIMIT_EVENTS } from '@/events'
 
 const configPresenter = usePresenter('configPresenter')
+const llmPresenter = usePresenter('llmproviderPresenter')
 
 const { t } = useI18n()
 const chatStore = useChatStore()
@@ -94,6 +103,65 @@ const artifacts = ref(chatStore.chatConfig.artifacts)
 const thinkingBudget = ref(chatStore.chatConfig.thinkingBudget)
 const contextLengthLimit = ref(chatStore.chatConfig.contextLength)
 const maxTokensLimit = ref(chatStore.chatConfig.maxTokens)
+
+const rateLimitStatus = ref<{
+  config: { enabled: boolean; qpsLimit: number }
+  currentQps: number
+  queueLength: number
+  lastRequestTime: number
+} | null>(null)
+
+const canExecuteImmediately = computed(() => {
+  if (!rateLimitStatus.value?.config.enabled) return true
+
+  const now = Date.now()
+  const intervalMs = (1 / rateLimitStatus.value.config.qpsLimit) * 1000
+  const timeSinceLastRequest = now - rateLimitStatus.value.lastRequestTime
+
+  return timeSinceLastRequest >= intervalMs
+})
+
+const getRateLimitIcon = () => {
+  if (!rateLimitStatus.value?.config.enabled) return ''
+
+  if (rateLimitStatus.value.queueLength > 0) {
+    return 'lucide:clock'
+  }
+
+  return canExecuteImmediately.value ? 'lucide:check-circle' : 'lucide:timer'
+}
+
+const getRateLimitIconClass = () => {
+  if (!rateLimitStatus.value?.config.enabled) return ''
+
+  if (rateLimitStatus.value.queueLength > 0) {
+    return 'text-orange-500 animate-pulse'
+  }
+
+  return canExecuteImmediately.value ? 'text-green-500' : 'text-yellow-500'
+}
+
+const getRateLimitTooltip = () => {
+  if (!rateLimitStatus.value?.config.enabled) return ''
+
+  const intervalSeconds = 1 / rateLimitStatus.value.config.qpsLimit
+
+  if (rateLimitStatus.value.queueLength > 0) {
+    return t('chat.rateLimit.queueTooltip', {
+      count: rateLimitStatus.value.queueLength,
+      interval: intervalSeconds
+    })
+  }
+
+  if (canExecuteImmediately.value) {
+    return t('chat.rateLimit.readyTooltip', { interval: intervalSeconds })
+  }
+
+  const waitTime = Math.ceil(
+    (rateLimitStatus.value.lastRequestTime + intervalSeconds * 1000 - Date.now()) / 1000
+  )
+  return t('chat.rateLimit.waitingTooltip', { seconds: waitTime, interval: intervalSeconds })
+}
 
 // Independent update functions
 const updateTemperature = (value: number) => {
@@ -195,13 +263,59 @@ const handleModelUpdate = (model: MODEL_META) => {
   modelSelectOpen.value = false
 }
 
+const loadRateLimitStatus = async () => {
+  if (props.model?.providerId) {
+    try {
+      const status = await llmPresenter.getProviderRateLimitStatus(props.model.providerId)
+      rateLimitStatus.value = status
+    } catch (error) {
+      console.error('Failed to load rate limit status:', error)
+    }
+  }
+}
+
+const handleRateLimitEvent = (data: any) => {
+  if (data.providerId === props.model?.providerId) {
+    loadRateLimitStatus()
+  }
+}
+
+let statusInterval: number | null = null
+
 onMounted(async () => {
   if (props.model) {
     const config = await configPresenter.getModelDefaultConfig(props.model.id)
     contextLengthLimit.value = config.contextLength
     maxTokensLimit.value = config.maxTokens
+
+    await loadRateLimitStatus()
   }
+
+  window.electron.ipcRenderer.on(RATE_LIMIT_EVENTS.CONFIG_UPDATED, handleRateLimitEvent)
+  window.electron.ipcRenderer.on(RATE_LIMIT_EVENTS.REQUEST_EXECUTED, handleRateLimitEvent)
+  window.electron.ipcRenderer.on(RATE_LIMIT_EVENTS.REQUEST_QUEUED, handleRateLimitEvent)
+
+  statusInterval = window.setInterval(loadRateLimitStatus, 1000)
 })
+
+onUnmounted(() => {
+  if (statusInterval) {
+    clearInterval(statusInterval)
+  }
+  window.electron.ipcRenderer.removeListener(RATE_LIMIT_EVENTS.CONFIG_UPDATED, handleRateLimitEvent)
+  window.electron.ipcRenderer.removeListener(
+    RATE_LIMIT_EVENTS.REQUEST_EXECUTED,
+    handleRateLimitEvent
+  )
+  window.electron.ipcRenderer.removeListener(RATE_LIMIT_EVENTS.REQUEST_QUEUED, handleRateLimitEvent)
+})
+
+watch(
+  () => props.model?.providerId,
+  () => {
+    loadRateLimitStatus()
+  }
+)
 </script>
 
 <style scoped></style>

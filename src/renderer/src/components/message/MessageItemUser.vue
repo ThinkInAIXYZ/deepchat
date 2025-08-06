@@ -139,14 +139,12 @@ const previewFile = (filePath: string) => {
 
 const startEdit = () => {
   isEditMode.value = true
-  // fixed the edit mode is not working when message content is structured
-  const row = props.message.content?.content?.find((block) => block.type === 'text')
-  if (row) {
-    // If the content is structured, use the text from the first text block
-    editedText.value = row.content
+  if (props.message.content?.content && props.message.content.content.length > 0) {
+    const textBlocks = props.message.content.content.filter((block) => block.type === 'text')
+    editedText.value = textBlocks.map((block) => block.content).join('')
     return
   }
-  editedText.value = props.message.content.text
+  editedText.value = props.message.content.text || ''
 }
 
 const saveEdit = async () => {
@@ -157,10 +155,9 @@ const saveEdit = async () => {
     let newContent = {
       ...props.message.content
     }
-    // fixed the edit mode is not working when message content is structured
-    const row = newContent?.content?.find((block) => block.type === 'text')
-    if (row) {
-      row.content = editedText.value
+    if (newContent?.content && newContent.content.length > 0) {
+      const nonTextBlocks = newContent.content.filter((block) => block.type !== 'text')
+      newContent.content = [{ type: 'text', content: editedText.value }, ...nonTextBlocks]
     } else {
       newContent.text = editedText.value
     }

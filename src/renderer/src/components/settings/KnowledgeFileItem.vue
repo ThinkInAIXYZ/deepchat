@@ -23,21 +23,9 @@
       </div>
     </div>
     <div class="ml-auto flex align-center">
-      <Button
-        variant="ghost"
-        size="icon"
-        class="h-7 w-7 flex items-center justify-center rounded-full hover:bg-blue-100 transition-colors"
-        :title="t(`settings.knowledgeBase.reAdd`)"
-        v-if="file.status !== 'processing'"
-        @click="reAddFile"
-      >
-        <Icon icon="lucide:refresh-ccw" class="text-base" />
-      </Button>
-      <Button
-        variant="ghost"
-        size="icon"
-        class="h-7 w-7 flex items-center justify-center rounded-full hover:bg-blue-100 transition-colors"
-        :title="file.metadata.errorReason"
+      <div
+        class="h-7 w-7 flex items-center justify-center rounded-full transition-colors"
+        :title="file.metadata.errorReason || getStatusTitle(file.status)"
       >
         <Icon
           v-if="file.status === 'completed'"
@@ -52,24 +40,64 @@
         <Icon
           v-else-if="file.status === 'error'"
           icon="lucide:circle-alert"
-          class="text-base text-red-500"
+          class="text-base text-red-400"
         />
         <Icon
           v-else-if="file.status === 'paused'"
           icon="lucide:circle-pause"
           class="text-base text-yellow-500"
         />
-      </Button>
+      </div>
+      <AlertDialog>
+        <AlertDialogTrigger asChild>
+          <Button
+            variant="ghost"
+            size="icon"
+            class="h-7 w-7 flex items-center justify-center rounded-full hover:bg-blue-100 transition-colors"
+            :title="t(`settings.knowledgeBase.reAdd`)"
+            v-if="file.status !== 'processing'"
+          >
+            <Icon icon="lucide:refresh-ccw" class="text-base text-gray-500" />
+          </Button>
+        </AlertDialogTrigger>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{{ t('settings.knowledgeBase.reAddFile.title') }} </AlertDialogTitle>
+          </AlertDialogHeader>
+          <AlertDialogDescription>{{
+            t('settings.knowledgeBase.reAddFile.content', { fileName: file.name })
+          }}</AlertDialogDescription>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{{ t('common.cancel') }}</AlertDialogCancel>
+            <AlertDialogAction @click="reAddFile">{{ t('common.confirm') }}</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
-      <Button
-        variant="ghost"
-        size="icon"
-        class="h-7 w-7 flex items-center justify-center rounded-full hover:bg-blue-100 transition-colors"
-        :title="t(`settings.knowledgeBase.delete`)"
-        @click="deleteFile"
-      >
-        <Icon icon="lucide:trash" class="text-base text-red-600" />
-      </Button>
+      <AlertDialog>
+        <AlertDialogTrigger asChild>
+          <Button
+            variant="ghost"
+            size="icon"
+            class="h-7 w-7 flex items-center justify-center rounded-full hover:bg-blue-100 transition-colors"
+            :title="t(`settings.knowledgeBase.delete`)"
+          >
+            <Icon icon="lucide:trash" class="text-base text-red-400" />
+          </Button>
+        </AlertDialogTrigger>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{{ t('settings.knowledgeBase.deleteFile.title') }} </AlertDialogTitle>
+          </AlertDialogHeader>
+          <AlertDialogDescription>{{
+            t('settings.knowledgeBase.deleteFile.content', { fileName: file.name })
+          }}</AlertDialogDescription>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{{ t('common.cancel') }}</AlertDialogCancel>
+            <AlertDialogAction @click="deleteFile">{{ t('common.confirm') }}</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   </div>
 </template>
@@ -82,6 +110,17 @@ import utc from 'dayjs/plugin/utc'
 import timezone from 'dayjs/plugin/timezone'
 import { computed } from 'vue'
 import { KnowledgeFileMessage } from '@shared/presenter'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger
+} from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
 import dayjs from 'dayjs'
 
@@ -123,5 +162,21 @@ const formatFileSize = (bytes: number): string => {
 
 const getFileIcon = () => {
   return getMimeTypeIcon(props.file.mimeType)
+}
+
+// 根据状态获取提示文字
+const getStatusTitle = (status: string): string => {
+  switch (status) {
+    case 'completed':
+      return t(`settings.knowledgeBase.uploadCompleted`)
+    case 'processing':
+      return t(`settings.knowledgeBase.processing`)
+    case 'error':
+      return t(`settings.knowledgeBase.uploadError`)
+    case 'paused':
+      return t(`settings.knowledgeBase.paused`)
+    default:
+      return t(`settings.knowledgeBase.unknown`)
+  }
 }
 </script>

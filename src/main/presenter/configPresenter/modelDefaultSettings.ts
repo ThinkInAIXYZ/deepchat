@@ -590,6 +590,17 @@ export const defaultModelsSettings: DefaultModelSetting[] = [
 
   // Claude系列模型配置
   {
+    id: 'claude-opus-4-1',
+    name: 'Claude Opus 4.1',
+    temperature: 0.7,
+    maxTokens: 32000,
+    contextLength: 204800,
+    match: ['claude-opus-4-1', 'claude-opus-4-1-20250805'],
+    vision: true,
+    functionCall: true,
+    reasoning: true
+  },
+  {
     id: 'claude-opus-4',
     name: 'Claude Opus 4',
     temperature: 0.7,
@@ -657,6 +668,28 @@ export const defaultModelsSettings: DefaultModelSetting[] = [
   },
 
   // OpenAI GPT系列模型配置
+  {
+    id: 'gpt-oss-120b',
+    name: 'GPT OSS 120B',
+    temperature: 0.7,
+    maxTokens: 131000,
+    contextLength: 131000,
+    match: ['gpt-oss-120b'],
+    vision: false,
+    functionCall: true,
+    reasoning: false
+  },
+  {
+    id: 'gpt-oss-20b',
+    name: 'GPT OSS 20B',
+    temperature: 0.7,
+    maxTokens: 33000,
+    contextLength: 131000,
+    match: ['gpt-oss-20b'],
+    vision: false,
+    functionCall: true,
+    reasoning: false
+  },
   {
     id: 'o4-mini-high',
     name: 'OpenAI o4 Mini High',

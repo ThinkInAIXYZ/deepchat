@@ -11,7 +11,12 @@
     "promptFilesAddedDesc": "已成功新增 {count} 個檔案",
     "promptFilesError": "檔案處理錯誤",
     "promptFilesErrorDesc": "{count} 個檔案處理失敗",
-    "historyPlaceholder": "(按 Tab 填充)"
+    "historyPlaceholder": "(按 Tab 填充)",
+    "rateLimitQueue": "佇列 {count}",
+    "rateLimitWait": "等待 {seconds}秒",
+    "rateLimitQueueTooltip": "佇列中有 {count} 個請求，間隔 {interval} 秒",
+    "rateLimitReadyTooltip": "可以發送請求，間隔 {interval} 秒",
+    "rateLimitWaitingTooltip": "還需等待 {seconds} 秒，間隔 {interval} 秒"
   },
   "features": {
     "deepThinking": "深度思考",
@@ -30,7 +35,21 @@
     "error": "搜尋失敗"
   },
   "messages": {
-    "thinking": "正在思考..."
+    "thinking": "正在思考...",
+    "rateLimitWaiting": "速率限制，正在佇列等待...",
+    "rateLimitTitle": "請求速率限制",
+    "rateLimitQueue": "佇列位置",
+    "rateLimitEstimated": "預估等待時間",
+    "rateLimitQuickSettings": "調整限制",
+    "rateLimitSwitchProvider": "切換服務商",
+    "rateLimitImmediately": "立即",
+    "rateLimitSeconds": "秒",
+    "rateLimitMinutes": "分鐘"
+  },
+  "rateLimit": {
+    "queueTooltip": "佇列中有 {count} 個請求，間隔 {interval} 秒",
+    "readyTooltip": "可以發送請求，間隔 {interval} 秒",
+    "waitingTooltip": "還需等待 {seconds} 秒，間隔 {interval} 秒"
   },
   "notify": {
     "generationComplete": "生成完畢",

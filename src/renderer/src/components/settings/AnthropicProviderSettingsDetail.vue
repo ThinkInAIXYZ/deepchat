@@ -219,7 +219,7 @@
           :provider="provider"
           :enabled-models="enabledModels"
           :total-models-count="totalModelsCount"
-          @show-model-list-dialog="openModelCheckDialog"
+          @show-model-list-dialog="showModelListDialog = true"
           @disable-all-models="handleDisableAllModels"
           @model-enabled-change="handleModelEnabledChange"
           @config-changed="handleConfigChanged"
@@ -288,6 +288,15 @@
         </DialogContent>
       </Dialog>
     </div>
+    <ProviderDialogContainer
+      v-model:show-model-list-dialog="showModelListDialog"
+      :provider="provider"
+      :provider-models="providerModels"
+      :custom-models="customModels"
+      :model-to-disable="null"
+      :check-result="false"
+      @model-enabled-change="handleModelEnabledChange"
+    />
   </section>
 </template>
 
@@ -317,6 +326,7 @@ import { useModelCheckStore } from '@/stores/modelCheck'
 import { usePresenter } from '@/composables/usePresenter'
 import type { LLM_PROVIDER, RENDERER_MODEL_META } from '@shared/presenter'
 import ProviderModelManager from './ProviderModelManager.vue'
+import ProviderDialogContainer from './ProviderDialogContainer.vue'
 
 const { t } = useI18n()
 
@@ -338,6 +348,7 @@ const authMethod = ref<'apikey' | 'oauth'>('apikey')
 const apiHost = ref(props.provider.baseUrl || '')
 const apiKey = ref(props.provider.apiKey || '')
 const showCheckModelDialog = ref(false)
+const showModelListDialog = ref(false)
 const checkResult = ref<boolean>(false)
 const isLoggingIn = ref(false)
 const validationResult = ref<{ success: boolean; message: string } | null>(null)
@@ -361,6 +372,18 @@ const totalModelsCount = computed(() => {
     (provider) => provider.providerId === props.provider.id
   )
   return providerModels?.models.length || 0
+})
+
+const providerModels = computed((): RENDERER_MODEL_META[] => {
+  const provider = settingsStore.allProviderModels.find((p) => p.providerId === props.provider.id)
+  return provider?.models || []
+})
+
+const customModels = computed((): RENDERER_MODEL_META[] => {
+  const providerCustomModels = settingsStore.customModels.find(
+    (p) => p.providerId === props.provider.id
+  )
+  return providerCustomModels?.models || []
 })
 
 // 初始化认证方法检测

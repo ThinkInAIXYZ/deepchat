@@ -11,7 +11,12 @@
     "promptFilesAddedDesc": "{count} پرونده با موفقیت افزوده شد",
     "promptFilesError": "خطا در پردازش پرونده",
     "promptFilesErrorDesc": "پردازش {count} پرونده ناموفق بود",
-    "historyPlaceholder": "(برای پر کردن برگه را فشار دهید)"
+    "historyPlaceholder": "(برای پر کردن برگه را فشار دهید)",
+    "rateLimitQueue": "صف {count}",
+    "rateLimitWait": "انتظار {seconds}ث",
+    "rateLimitQueueTooltip": "{count} درخواست در صف، فاصله {interval} ثانیه",
+    "rateLimitReadyTooltip": "آماده ارسال، فاصله {interval} ثانیه",
+    "rateLimitWaitingTooltip": "باید {seconds} ثانیه دیگر منتظر بمانید، فاصله {interval} ثانیه"
   },
   "features": {
     "deepThinking": "تفکر عمیق",
@@ -30,7 +35,21 @@
     "error": "جستجو ناموفق بود"
   },
   "messages": {
-    "thinking": "در حال تفکر..."
+    "thinking": "در حال تفکر...",
+    "rateLimitWaiting": "محدودیت نرخ درخواست، در صف انتظار...",
+    "rateLimitTitle": "محدودیت نرخ درخواست",
+    "rateLimitQueue": "موقعیت صف",
+    "rateLimitEstimated": "زمان تخمینی انتظار",
+    "rateLimitQuickSettings": "تنظیم محدودیت",
+    "rateLimitSwitchProvider": "تغییر ارائه‌دهنده",
+    "rateLimitImmediately": "فوری",
+    "rateLimitSeconds": "ثانیه",
+    "rateLimitMinutes": "دقیقه"
+  },
+  "rateLimit": {
+    "queueTooltip": "{count} درخواست در صف، فاصله {interval} ثانیه",
+    "readyTooltip": "آماده ارسال، فاصله {interval} ثانیه",
+    "waitingTooltip": "باید {seconds} ثانیه دیگر منتظر بمانید، فاصله {interval} ثانیه"
   },
   "notify": {
     "generationComplete": "ساخت تکمیل شد",
