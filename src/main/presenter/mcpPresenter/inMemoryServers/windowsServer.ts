@@ -4,6 +4,14 @@ import { ListToolsRequestSchema, CallToolRequestSchema } from '@modelcontextprot
 import { Transport } from '@modelcontextprotocol/sdk/shared/transport.js'
 import { zodToJsonSchema } from 'zod-to-json-schema'
 import { z } from 'zod'
+import { exec } from 'child_process'
+import { promisify } from 'util'
+import { clipboard, screen } from 'electron'
+import axios from 'axios'
+import { JSDOM } from 'jsdom'
+import TurndownService from 'turndown'
+
+const execAsync = promisify(exec)
 
 // Windows 系统检查
 function isWindows(): boolean {
@@ -277,39 +285,172 @@ export class WindowsServer {
   private async handleLaunchTool(args: unknown) {
     const parsedArgs = LaunchToolArgsSchema.parse(args)
 
-    return {
-      content: [
-        {
-          type: 'text' as const,
-          text: `Windows MCP Server: This tool would launch "${parsedArgs.name}". Implementation requires Windows-specific libraries and should be connected to external Windows MCP server process.`
-        }
-      ]
+    try {
+      // Execute PowerShell command to launch application
+      const command = `Start-Process "shell:AppsFolder\$(Get-StartApps | Where-Object {$_.Name -like '*${parsedArgs.name}*'} | Select-Object -First 1 -ExpandProperty AppID)"`
+
+      await execAsync(`powershell.exe -Command "${command}"`, { timeout: 10000 })
+
+      return {
+        content: [
+          {
+            type: 'text' as const,
+            text: `Launched ${parsedArgs.name}.`
+          }
+        ]
+      }
+    } catch (error) {
+      return {
+        content: [
+          {
+            type: 'text' as const,
+            text: `Failed to launch ${parsedArgs.name}: ${error instanceof Error ? error.message : String(error)}`
+          }
+        ],
+        isError: true
+      }
     }
   }
 
   private async handlePowershellTool(args: unknown) {
     const parsedArgs = PowershellToolArgsSchema.parse(args)
 
-    return {
-      content: [
+    try {
+      const { stdout, stderr } = await execAsync(
+        `powershell.exe -Command "${parsedArgs.command}"`,
         {
-          type: 'text' as const,
-          text: `Windows MCP Server: This tool would execute PowerShell command "${parsedArgs.command}". Implementation requires Windows-specific libraries and should be connected to external Windows MCP server process.`
+          timeout: 30000,
+          encoding: 'utf8'
         }
-      ]
+      )
+
+      const output = stdout || stderr || 'Command executed successfully'
+
+      return {
+        content: [
+          {
+            type: 'text' as const,
+            text: `Status Code: 0\nResponse: ${output}`
+          }
+        ]
+      }
+    } catch (error: any) {
+      return {
+        content: [
+          {
+            type: 'text' as const,
+            text: `Status Code: ${error.code || 1}\nResponse: ${error.message || 'Command failed'}`
+          }
+        ]
+      }
     }
   }
 
   private async handleStateTool(args: unknown) {
     const parsedArgs = StateToolArgsSchema.parse(args)
 
-    return {
-      content: [
+    try {
+      // Get list of windows
+      const windowsCommand = `Get-Process | Where-Object {$_.MainWindowTitle -ne ""} | Select-Object ProcessName, MainWindowTitle, Id | ConvertTo-Json`
+      const { stdout: windowsData } = await execAsync(
+        `powershell.exe -Command "${windowsCommand}"`,
+        { timeout: 10000 }
+      )
+
+      // Get default browser
+      const browserCommand = `(Get-ItemProperty HKCU:\\Software\\Microsoft\\Windows\\Shell\\Associations\\UrlAssociations\\http\\UserChoice).ProgId`
+      const { stdout: browserData } = await execAsync(
+        `powershell.exe -Command "${browserCommand}"`,
+        { timeout: 5000 }
+      )
+
+      // Get system language
+      const langCommand = `Get-Culture | Select-Object Name | ConvertTo-Json`
+      const { stdout: langData } = await execAsync(`powershell.exe -Command "${langCommand}"`, {
+        timeout: 5000
+      })
+
+      let windows
+      try {
+        windows = JSON.parse(windowsData || '[]')
+      } catch {
+        windows = []
+      }
+
+      const browserMapping: Record<string, string> = {
+        ChromeHTML: 'Google Chrome',
+        FirefoxURL: 'Mozilla Firefox',
+        MSEdgeHTM: 'Microsoft Edge',
+        'IE.HTTP': 'Internet Explorer',
+        OperaStable: 'Opera',
+        BraveHTML: 'Brave',
+        SafariHTML: 'Safari'
+      }
+
+      const defaultBrowser = browserMapping[browserData?.trim()] || 'Unknown'
+      let defaultLanguage = 'Unknown'
+
+      try {
+        const langObj = JSON.parse(langData || '{}')
+        defaultLanguage = langObj.Name || 'Unknown'
+      } catch {
+        // ignore
+      }
+
+      const activeApps = Array.isArray(windows)
+        ? windows
+            .map((w: any) => `Name: ${w.ProcessName} Title: ${w.MainWindowTitle} PID: ${w.Id}`)
+            .join('\n')
+        : 'No active windows found'
+
+      const response = [
+        `Default Browser: ${defaultBrowser}`,
+        `Default Language: ${defaultLanguage}`,
+        `Focused App: ${windows[0]?.ProcessName || 'None'}`,
+        `Opened Apps:\n${activeApps}`,
+        'List of Interactive Elements: Use UI automation tools to get detailed element information',
+        'List of Informative Elements: Use UI automation tools to get detailed element information',
+        'List of Scrollable Elements: Use UI automation tools to get detailed element information'
+      ].join('\n\n')
+
+      const content = [
         {
           type: 'text' as const,
-          text: `Windows MCP Server: This tool would capture desktop state${parsedArgs.use_vision ? ' with screenshot' : ''}. Implementation requires Windows-specific libraries and should be connected to external Windows MCP server process.`
+          text: response
         }
       ]
+
+      // Add screenshot if requested
+      if (parsedArgs.use_vision) {
+        try {
+          const primaryDisplay = screen.getPrimaryDisplay()
+          const { width, height } = primaryDisplay.bounds
+
+          // Create a screenshot using Electron's desktopCapturer would require renderer process
+          // For now, we'll provide a message about screenshot capability
+          content.push({
+            type: 'text' as const,
+            text: `Screenshot capture requires renderer process integration. Screen resolution: ${width}x${height}`
+          })
+        } catch (screenshotError) {
+          content.push({
+            type: 'text' as const,
+            text: `Screenshot capture failed: ${screenshotError}`
+          })
+        }
+      }
+
+      return { content }
+    } catch (error) {
+      return {
+        content: [
+          {
+            type: 'text' as const,
+            text: `Failed to capture desktop state: ${error instanceof Error ? error.message : String(error)}`
+          }
+        ],
+        isError: true
+      }
     }
   }
 
@@ -320,13 +461,38 @@ export class WindowsServer {
       throw new Error('Text is required for copy mode')
     }
 
-    return {
-      content: [
-        {
-          type: 'text' as const,
-          text: `Windows MCP Server: This tool would ${parsedArgs.mode} clipboard${parsedArgs.mode === 'copy' ? ` with text "${parsedArgs.text}"` : ''}. Implementation requires Windows-specific libraries and should be connected to external Windows MCP server process.`
+    try {
+      if (parsedArgs.mode === 'copy') {
+        clipboard.writeText(parsedArgs.text!)
+        return {
+          content: [
+            {
+              type: 'text' as const,
+              text: `Copied "${parsedArgs.text}" to clipboard`
+            }
+          ]
         }
-      ]
+      } else {
+        const clipboardContent = clipboard.readText()
+        return {
+          content: [
+            {
+              type: 'text' as const,
+              text: `Clipboard Content: "${clipboardContent}"`
+            }
+          ]
+        }
+      }
+    } catch (error) {
+      return {
+        content: [
+          {
+            type: 'text' as const,
+            text: `Clipboard operation failed: ${error instanceof Error ? error.message : String(error)}`
+          }
+        ],
+        isError: true
+      }
     }
   }
 
@@ -338,9 +504,10 @@ export class WindowsServer {
       content: [
         {
           type: 'text' as const,
-          text: `Windows MCP Server: This tool would perform ${parsedArgs.clicks === 1 ? 'single' : parsedArgs.clicks === 2 ? 'double' : 'triple'} ${parsedArgs.button} click at coordinates (${x}, ${y}). Implementation requires Windows-specific libraries and should be connected to external Windows MCP server process.`
+          text: `Click functionality requires desktop automation capabilities that need to be implemented through Windows APIs or PowerShell commands. Requested: ${parsedArgs.clicks === 1 ? 'Single' : parsedArgs.clicks === 2 ? 'Double' : 'Triple'} ${parsedArgs.button} click at coordinates (${x}, ${y}).`
         }
-      ]
+      ],
+      isError: true
     }
   }
 
@@ -352,22 +519,42 @@ export class WindowsServer {
       content: [
         {
           type: 'text' as const,
-          text: `Windows MCP Server: This tool would click at (${x}, ${y}) and type "${parsedArgs.text}"${parsedArgs.clear ? ' (clearing existing text first)' : ''}. Implementation requires Windows-specific libraries and should be connected to external Windows MCP server process.`
+          text: `Type functionality requires desktop automation capabilities that need to be implemented through Windows APIs or PowerShell commands. Requested: Type "${parsedArgs.text}" at coordinates (${x}, ${y})${parsedArgs.clear ? ' (with clear existing text)' : ''}.`
         }
-      ]
+      ],
+      isError: true
     }
   }
 
   private async handleSwitchTool(args: unknown) {
     const parsedArgs = SwitchToolArgsSchema.parse(args)
 
-    return {
-      content: [
-        {
-          type: 'text' as const,
-          text: `Windows MCP Server: This tool would switch to "${parsedArgs.name}" window. Implementation requires Windows-specific libraries and should be connected to external Windows MCP server process.`
-        }
-      ]
+    try {
+      // Use Alt+Tab to switch between applications or bring specific window to front
+      const command = `Add-Type -TypeDefinition 'using System; using System.Diagnostics; using System.Runtime.InteropServices; public class WindowHelper { [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr hWnd); [DllImport("user32.dll")] public static extern IntPtr FindWindow(string lpClassName, string lpWindowName); }'; $proc = Get-Process | Where-Object {$_.ProcessName -like "*${parsedArgs.name}*" -and $_.MainWindowTitle -ne ""} | Select-Object -First 1; if ($proc) { [WindowHelper]::SetForegroundWindow($proc.MainWindowHandle); Write-Host "Switched to $($proc.ProcessName)"; } else { Write-Host "Process not found"; }`
+
+      const { stdout } = await execAsync(`powershell.exe -Command "${command}"`, { timeout: 10000 })
+
+      return {
+        content: [
+          {
+            type: 'text' as const,
+            text: stdout.includes('Switched to')
+              ? `Switched to ${parsedArgs.name} window.`
+              : `Failed to switch to ${parsedArgs.name} window.`
+          }
+        ]
+      }
+    } catch (error) {
+      return {
+        content: [
+          {
+            type: 'text' as const,
+            text: `Switch operation failed: ${error instanceof Error ? error.message : String(error)}`
+          }
+        ],
+        isError: true
+      }
     }
   }
 
@@ -381,9 +568,10 @@ export class WindowsServer {
       content: [
         {
           type: 'text' as const,
-          text: `Windows MCP Server: This tool would scroll ${parsedArgs.type} ${parsedArgs.direction} ${parsedArgs.wheel_times} wheel times${locationText}. Implementation requires Windows-specific libraries and should be connected to external Windows MCP server process.`
+          text: `Scroll functionality requires desktop automation capabilities that need to be implemented through Windows APIs or PowerShell commands. Requested: Scroll ${parsedArgs.type} ${parsedArgs.direction} by ${parsedArgs.wheel_times} wheel times${locationText}.`
         }
-      ]
+      ],
+      isError: true
     }
   }
 
@@ -396,9 +584,10 @@ export class WindowsServer {
       content: [
         {
           type: 'text' as const,
-          text: `Windows MCP Server: This tool would drag from (${fromX}, ${fromY}) to (${toX}, ${toY}). Implementation requires Windows-specific libraries and should be connected to external Windows MCP server process.`
+          text: `Drag functionality requires desktop automation capabilities that need to be implemented through Windows APIs or PowerShell commands. Requested: Drag from (${fromX}, ${fromY}) to (${toX}, ${toY}).`
         }
-      ]
+      ],
+      isError: true
     }
   }
 
@@ -410,9 +599,10 @@ export class WindowsServer {
       content: [
         {
           type: 'text' as const,
-          text: `Windows MCP Server: This tool would move mouse cursor to (${x}, ${y}). Implementation requires Windows-specific libraries and should be connected to external Windows MCP server process.`
+          text: `Mouse move functionality requires desktop automation capabilities that need to be implemented through Windows APIs or PowerShell commands. Requested: Move mouse to (${x}, ${y}).`
         }
-      ]
+      ],
+      isError: true
     }
   }
 
@@ -423,9 +613,10 @@ export class WindowsServer {
       content: [
         {
           type: 'text' as const,
-          text: `Windows MCP Server: This tool would press keyboard shortcut ${parsedArgs.shortcut.join('+')}. Implementation requires Windows-specific libraries and should be connected to external Windows MCP server process.`
+          text: `Keyboard shortcut functionality requires desktop automation capabilities that need to be implemented through Windows APIs or PowerShell commands. Requested: Press ${parsedArgs.shortcut.join('+')} keyboard shortcut.`
         }
-      ]
+      ],
+      isError: true
     }
   }
 
@@ -436,35 +627,85 @@ export class WindowsServer {
       content: [
         {
           type: 'text' as const,
-          text: `Windows MCP Server: This tool would press key "${parsedArgs.key}". Implementation requires Windows-specific libraries and should be connected to external Windows MCP server process.`
+          text: `Key press functionality requires desktop automation capabilities that need to be implemented through Windows APIs or PowerShell commands. Requested: Press the key "${parsedArgs.key}".`
         }
-      ]
+      ],
+      isError: true
     }
   }
 
   private async handleWaitTool(args: unknown) {
     const parsedArgs = WaitToolArgsSchema.parse(args)
 
-    return {
-      content: [
-        {
-          type: 'text' as const,
-          text: `Windows MCP Server: This tool would wait for ${parsedArgs.duration} seconds. Implementation requires Windows-specific libraries and should be connected to external Windows MCP server process.`
-        }
-      ]
+    try {
+      await new Promise((resolve) => setTimeout(resolve, parsedArgs.duration * 1000))
+
+      return {
+        content: [
+          {
+            type: 'text' as const,
+            text: `Waited for ${parsedArgs.duration} seconds.`
+          }
+        ]
+      }
+    } catch (error) {
+      return {
+        content: [
+          {
+            type: 'text' as const,
+            text: `Wait operation failed: ${error instanceof Error ? error.message : String(error)}`
+          }
+        ],
+        isError: true
+      }
     }
   }
 
   private async handleScrapeTool(args: unknown) {
     const parsedArgs = ScrapeToolArgsSchema.parse(args)
 
-    return {
-      content: [
-        {
-          type: 'text' as const,
-          text: `Windows MCP Server: This tool would scrape content from "${parsedArgs.url}". Implementation requires Windows-specific libraries and should be connected to external Windows MCP server process.`
+    try {
+      const response = await axios.get(parsedArgs.url, {
+        timeout: 10000,
+        headers: {
+          'User-Agent':
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
         }
-      ]
+      })
+
+      const dom = new JSDOM(response.data)
+      const document = dom.window.document
+
+      // Remove script and style elements
+      const scripts = document.querySelectorAll('script, style')
+      scripts.forEach((script) => script.remove())
+
+      // Convert HTML to Markdown
+      const turndownService = new TurndownService({
+        headingStyle: 'atx',
+        bulletListMarker: '-'
+      })
+
+      const markdown = turndownService.turndown(document.body.innerHTML)
+
+      return {
+        content: [
+          {
+            type: 'text' as const,
+            text: `Scraped the contents of the entire webpage:\n${markdown}`
+          }
+        ]
+      }
+    } catch (error) {
+      return {
+        content: [
+          {
+            type: 'text' as const,
+            text: `Scrape operation failed: ${error instanceof Error ? error.message : String(error)}`
+          }
+        ],
+        isError: true
+      }
     }
   }
 }
