@@ -167,6 +167,27 @@
         "message": "確定要重置此模型的配置為默認值嗎？\n此操作不可撤銷。",
         "title": "確認重置"
       },
+      "reasoningEffort": {
+        "label": "推理努力程度",
+        "description": "控制模型的推理深度，更高的努力程度會產生更好的結果但響應更慢",
+        "placeholder": "選擇推理努力程度",
+        "options": {
+          "minimal": "Minimal - 最快響應",
+          "low": "Low - 低努力",
+          "medium": "Medium - 中等努力",
+          "high": "High - 高努力"
+        }
+      },
+      "verbosity": {
+        "label": "詳細程度",
+        "description": "控制模型回答的詳細程度和長度",
+        "placeholder": "選擇詳細程度",
+        "options": {
+          "low": "Low - 簡潔回答",
+          "medium": "Medium - 平衡詳細",
+          "high": "High - 詳細回答"
+        }
+      },
       "resetToDefault": "重置為默認",
       "saveConfig": "保存配置",
       "useModelDefault": "使用模型預設配置",

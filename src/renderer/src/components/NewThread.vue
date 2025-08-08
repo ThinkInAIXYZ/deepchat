@@ -87,6 +87,8 @@
                   v-model:artifacts="artifacts"
                   :context-length-limit="contextLengthLimit"
                   :max-tokens-limit="maxTokensLimit"
+                  :model-id="activeModel?.id"
+                  :provider-id="activeModel?.providerId"
                 />
               </PopoverContent>
             </Popover>
@@ -163,7 +165,7 @@ watch(
       activeModel.value.id,
       activeModel.value.providerId
     )
-    temperature.value = config.temperature
+    temperature.value = config.temperature ?? 0.7
     contextLength.value = config.contextLength
     maxTokens.value = config.maxTokens
     contextLengthLimit.value = config.contextLength

@@ -52,8 +52,8 @@
             </p>
           </div>
 
-          <!-- 温度 -->
-          <div class="space-y-2">
+          <!-- 温度 (GPT-5 系列模型不显示) -->
+          <div v-if="!isGPT5Model" class="space-y-2">
             <Label for="temperature">{{ t('settings.model.modelConfig.temperature.label') }}</Label>
             <Input
               id="temperature"
@@ -131,6 +131,61 @@
               </p>
             </div>
             <Switch v-model:checked="config.reasoning" />
+          </div>
+
+          <!-- GPT-5 系列模型的推理努力程度 -->
+          <div v-if="isGPT5Model" class="space-y-2">
+            <Label for="reasoningEffort">{{
+              t('settings.model.modelConfig.reasoningEffort.label')
+            }}</Label>
+            <Select v-model="config.reasoningEffort">
+              <SelectTrigger>
+                <SelectValue
+                  :placeholder="t('settings.model.modelConfig.reasoningEffort.placeholder')"
+                />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="minimal">{{
+                  t('settings.model.modelConfig.reasoningEffort.options.minimal')
+                }}</SelectItem>
+                <SelectItem value="low">{{
+                  t('settings.model.modelConfig.reasoningEffort.options.low')
+                }}</SelectItem>
+                <SelectItem value="medium">{{
+                  t('settings.model.modelConfig.reasoningEffort.options.medium')
+                }}</SelectItem>
+                <SelectItem value="high">{{
+                  t('settings.model.modelConfig.reasoningEffort.options.high')
+                }}</SelectItem>
+              </SelectContent>
+            </Select>
+            <p class="text-xs text-muted-foreground">
+              {{ t('settings.model.modelConfig.reasoningEffort.description') }}
+            </p>
+          </div>
+
+          <!-- GPT-5 系列模型的详细程度 -->
+          <div v-if="isGPT5Model" class="space-y-2">
+            <Label for="verbosity">{{ t('settings.model.modelConfig.verbosity.label') }}</Label>
+            <Select v-model="config.verbosity">
+              <SelectTrigger>
+                <SelectValue :placeholder="t('settings.model.modelConfig.verbosity.placeholder')" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="low">{{
+                  t('settings.model.modelConfig.verbosity.options.low')
+                }}</SelectItem>
+                <SelectItem value="medium">{{
+                  t('settings.model.modelConfig.verbosity.options.medium')
+                }}</SelectItem>
+                <SelectItem value="high">{{
+                  t('settings.model.modelConfig.verbosity.options.high')
+                }}</SelectItem>
+              </SelectContent>
+            </Select>
+            <p class="text-xs text-muted-foreground">
+              {{ t('settings.model.modelConfig.verbosity.description') }}
+            </p>
           </div>
 
           <!-- 思考预算 (仅对支持的 Gemini 模型显示) -->
@@ -282,7 +337,9 @@ const config = ref<ModelConfig>({
   vision: false,
   functionCall: false,
   reasoning: false,
-  type: ModelType.Chat
+  type: ModelType.Chat,
+  reasoningEffort: 'medium',
+  verbosity: 'medium'
 })
 
 // 重置确认对话框
@@ -308,7 +365,9 @@ const loadConfig = async () => {
       vision: false,
       functionCall: false,
       reasoning: false,
-      type: ModelType.Chat
+      type: ModelType.Chat,
+      reasoningEffort: 'medium',
+      verbosity: 'medium'
     }
 
     config.value = defaultConfig
@@ -341,11 +400,13 @@ const validateForm = () => {
     errors.value.contextLength = t('settings.model.modelConfig.validation.contextLengthMax')
   }
 
-  // 验证温度
-  if (config.value.temperature < 0) {
-    errors.value.temperature = t('settings.model.modelConfig.validation.temperatureMin')
-  } else if (config.value.temperature > 2) {
-    errors.value.temperature = t('settings.model.modelConfig.validation.temperatureMax')
+  // 验证温度 (仅对非 GPT-5 系列模型)
+  if (!isGPT5Model.value && config.value.temperature !== undefined) {
+    if (config.value.temperature < 0) {
+      errors.value.temperature = t('settings.model.modelConfig.validation.temperatureMin')
+    } else if (config.value.temperature > 2) {
+      errors.value.temperature = t('settings.model.modelConfig.validation.temperatureMax')
+    }
   }
 }
 
@@ -427,6 +488,11 @@ const getThinkingBudgetConfig = (modelId: string) => {
 
   return null // 不支持的模型
 }
+
+const isGPT5Model = computed(() => {
+  const modelId = props.modelId.toLowerCase()
+  return modelId.startsWith('gpt-5')
+})
 
 // 是否显示思考预算配置
 const showThinkingBudget = computed(() => {

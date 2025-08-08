@@ -167,6 +167,27 @@
         "message": "이 모델의 구성을 기본값으로 재설정 하시겠습니까? 이 작업은 돌이킬 수 없습니다.",
         "title": "재설정 확인"
       },
+      "reasoningEffort": {
+        "label": "추론 노력도",
+        "description": "모델 추론의 깊이를 제어합니다. 더 높은 노력도는 더 나은 결과를 생성하지만 응답이 느려집니다",
+        "placeholder": "추론 노력도 선택",
+        "options": {
+          "minimal": "Minimal - 가장 빠른 응답",
+          "low": "Low - 낮은 노력",
+          "medium": "Medium - 중간 노력",
+          "high": "High - 높은 노력"
+        }
+      },
+      "verbosity": {
+        "label": "상세도",
+        "description": "모델 응답의 상세 수준과 길이를 제어합니다",
+        "placeholder": "상세도 선택",
+        "options": {
+          "low": "Low - 간결한 답변",
+          "medium": "Medium - 균형잡힌 상세",
+          "high": "High - 상세한 답변"
+        }
+      },
       "resetToDefault": "기본값으로 재설정하십시오",
       "saveConfig": "구성 저장",
       "useModelDefault": "모델 기본 설정 사용",

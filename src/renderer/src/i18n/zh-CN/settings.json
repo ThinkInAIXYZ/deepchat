@@ -190,6 +190,27 @@
         "message": "确定要重置此模型的配置为默认值吗？此操作不可撤销。",
         "confirm": "确定重置"
       },
+      "reasoningEffort": {
+        "label": "推理努力程度",
+        "description": "控制模型的推理深度，更高的努力程度会产生更好的结果但响应更慢",
+        "placeholder": "选择推理努力程度",
+        "options": {
+          "minimal": "Minimal - 最快响应",
+          "low": "Low - 低努力",
+          "medium": "Medium - 中等努力",
+          "high": "High - 高努力"
+        }
+      },
+      "verbosity": {
+        "label": "详细程度",
+        "description": "控制模型回答的详细程度和长度",
+        "placeholder": "选择详细程度",
+        "options": {
+          "low": "Low - 简洁回答",
+          "medium": "Medium - 平衡详细",
+          "high": "High - 详细回答"
+        }
+      },
       "validation": {
         "maxTokensRequired": "最大输出长度不能为空",
         "maxTokensMin": "最大输出长度必须大于0",

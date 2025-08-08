@@ -167,6 +167,27 @@
         "message": "Êtes-vous sûr de souhaiter réinitialiser la configuration de ce modèle par défaut? Cette opération est irrévocable.",
         "title": "Confirmer la réinitialisation"
       },
+      "reasoningEffort": {
+        "label": "Effort de raisonnement",
+        "description": "Contrôle la profondeur du raisonnement du modèle ; un effort plus élevé produit de meilleurs résultats mais des réponses plus lentes",
+        "placeholder": "Sélectionner l'effort de raisonnement",
+        "options": {
+          "minimal": "Minimal - Réponse la plus rapide",
+          "low": "Low - Faible effort",
+          "medium": "Medium - Effort modéré",
+          "high": "High - Effort élevé"
+        }
+      },
+      "verbosity": {
+        "label": "Verbosité",
+        "description": "Contrôle le niveau de détail et la longueur des réponses du modèle",
+        "placeholder": "Sélectionner le niveau de verbosité",
+        "options": {
+          "low": "Low - Réponses concises",
+          "medium": "Medium - Détail équilibré",
+          "high": "High - Réponses détaillées"
+        }
+      },
       "resetToDefault": "Réinitialiser à la valeur par défaut",
       "saveConfig": "Enregistrer la configuration",
       "useModelDefault": "Utiliser la configuration par défaut du modèle",

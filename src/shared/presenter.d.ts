@@ -120,7 +120,7 @@ export interface ResourceListEntry {
 export interface ModelConfig {
   maxTokens: number
   contextLength: number
-  temperature: number
+  temperature?: number
   vision: boolean
   functionCall: boolean
   reasoning: boolean
@@ -128,6 +128,10 @@ export interface ModelConfig {
   // Whether this config is user-defined (true) or default config (false)
   isUserDefined?: boolean
   thinkingBudget?: number
+  // GPT-5 系列新参数
+  reasoningEffort?: 'minimal' | 'low' | 'medium' | 'high'
+  verbosity?: 'low' | 'medium' | 'high'
+  maxCompletionTokens?: number // GPT-5 系列使用此参数替代 maxTokens
 }
 
 export interface IModelConfig {
@@ -1272,7 +1276,7 @@ export { ShortcutKey, ShortcutKeySetting } from '@/presenter/configPresenter/sho
 export interface DefaultModelSetting {
   id: string
   name: string
-  temperature: number
+  temperature?: number
   contextLength: number
   maxTokens: number
   match: string[]
@@ -1281,6 +1285,10 @@ export interface DefaultModelSetting {
   reasoning?: boolean
   type?: ModelType
   thinkingBudget?: number
+  // GPT-5 系列新参数
+  reasoningEffort?: 'minimal' | 'low' | 'medium' | 'high'
+  verbosity?: 'low' | 'medium' | 'high'
+  maxCompletionTokens?: number // GPT-5 系列使用此参数替代 maxTokens
 }
 
 export interface KeyStatus {

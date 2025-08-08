@@ -31,7 +31,11 @@ const OPENAI_REASONING_MODELS = [
   'o1-mini',
   'o1-pro',
   'o1-preview',
-  'o1'
+  'o1',
+  'gpt-5',
+  'gpt-5-mini',
+  'gpt-5-nano',
+  'gpt-5-chat'
 ]
 const OPENAI_IMAGE_GENERATION_MODELS = [
   'gpt-4o-all',
@@ -222,6 +226,20 @@ export class OpenAIResponsesProvider extends BaseLLMProvider {
       temperature: temperature,
       max_output_tokens: maxTokens,
       stream: false
+    }
+
+    if (modelId.startsWith('gpt-5')) {
+      const modelConfig = this.configPresenter.getModelConfig(modelId, this.provider.id)
+      if (modelConfig.reasoningEffort) {
+        ;(requestParams as any).reasoning = {
+          effort: modelConfig.reasoningEffort
+        }
+      }
+      if (modelConfig.verbosity) {
+        ;(requestParams as any).text = {
+          verbosity: modelConfig.verbosity
+        }
+      }
     }
 
     OPENAI_REASONING_MODELS.forEach((noTempId) => {
@@ -552,6 +570,19 @@ export class OpenAIResponsesProvider extends BaseLLMProvider {
     // 如果模型支持函数调用且有工具,添加 tools 参数
     if (tools.length > 0 && supportsFunctionCall && apiTools) {
       requestParams.tools = apiTools
+    }
+
+    if (modelId.startsWith('gpt-5')) {
+      if (modelConfig.reasoningEffort) {
+        ;(requestParams as any).reasoning = {
+          effort: modelConfig.reasoningEffort
+        }
+      }
+      if (modelConfig.verbosity) {
+        ;(requestParams as any).text = {
+          verbosity: modelConfig.verbosity
+        }
+      }
     }
 
     OPENAI_REASONING_MODELS.forEach((noTempId) => {

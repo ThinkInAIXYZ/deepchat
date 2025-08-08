@@ -13,13 +13,70 @@ export interface ProviderModelSetting {
   functionCall?: boolean // 是否支持函数调用
   reasoning?: boolean // 是否支持推理能力
   type?: ModelType // 模型类型，默认为Chat
+  // GPT-5 系列新参数
+  reasoningEffort?: 'minimal' | 'low' | 'medium' | 'high'
+  verbosity?: 'low' | 'medium' | 'high'
+  maxCompletionTokens?: number // GPT-5 系列使用此参数替代 maxTokens
 }
 
 // 为每个提供商创建映射对象，使用models数组包装模型配置
 export const providerModelSettings: Record<string, { models: ProviderModelSetting[] }> = {
   // OpenAI提供商特定模型配置
   openai: {
-    models: []
+    models: [
+      {
+        id: 'gpt-5-chat',
+        name: 'GPT-5 Chat',
+        maxTokens: 16384,
+        contextLength: 272000,
+        match: ['gpt-5-chat', 'gpt-5-chat-latest'],
+        vision: true,
+        functionCall: false,
+        reasoning: true,
+        reasoningEffort: 'medium',
+        verbosity: 'medium',
+        maxCompletionTokens: 16384
+      },
+      {
+        id: 'gpt-5-mini',
+        name: 'GPT-5 Mini',
+        maxTokens: 128000,
+        contextLength: 272000,
+        match: ['gpt-5-mini', 'gpt-5-mini-2025-08-07'],
+        vision: true,
+        functionCall: true,
+        reasoning: true,
+        reasoningEffort: 'medium',
+        verbosity: 'medium',
+        maxCompletionTokens: 128000
+      },
+      {
+        id: 'gpt-5-nano',
+        name: 'GPT-5 Nano',
+        maxTokens: 128000,
+        contextLength: 272000,
+        match: ['gpt-5-nano', 'gpt-5-nano-2025-08-07'],
+        vision: true,
+        functionCall: true,
+        reasoning: true,
+        reasoningEffort: 'medium',
+        verbosity: 'medium',
+        maxCompletionTokens: 128000
+      },
+      {
+        id: 'gpt-5',
+        name: 'GPT-5',
+        maxTokens: 128000,
+        contextLength: 272000,
+        match: ['gpt-5', 'gpt-5-2025-08-07'],
+        vision: true,
+        functionCall: true,
+        reasoning: true,
+        reasoningEffort: 'medium',
+        verbosity: 'medium',
+        maxCompletionTokens: 128000
+      }
+    ]
   },
 
   // 火山引擎(Doubao)提供商特定模型配置
@@ -2390,11 +2447,14 @@ export function getProviderSpecificModelConfig(
       return {
         maxTokens: config.maxTokens,
         contextLength: config.contextLength,
-        temperature: config.temperature || 0.7,
+        temperature: config.temperature, // 保持可选，某些模型不支持
         vision: config.vision || false,
         functionCall: config.functionCall || false,
         reasoning: config.reasoning || false,
-        type: config.type || ModelType.Chat
+        type: config.type || ModelType.Chat,
+        reasoningEffort: config.reasoningEffort,
+        verbosity: config.verbosity,
+        maxCompletionTokens: config.maxCompletionTokens
       }
     }
   }

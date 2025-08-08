@@ -167,6 +167,27 @@
         "message": "このモデルの構成をデフォルトにリセットする必要がありますか？この操作は取消不能です。",
         "title": "リセットを確認します"
       },
+      "reasoningEffort": {
+        "label": "推論努力度",
+        "description": "モデルの推論の深さを制御します。より高い努力度はより良い結果を生成しますが、応答が遅くなります",
+        "placeholder": "推論努力度を選択",
+        "options": {
+          "minimal": "Minimal - 最速応答",
+          "low": "Low - 低努力",
+          "medium": "Medium - 中程度の努力",
+          "high": "High - 高努力"
+        }
+      },
+      "verbosity": {
+        "label": "詳細度",
+        "description": "モデル応答の詳細レベルと長さを制御します",
+        "placeholder": "詳細度を選択",
+        "options": {
+          "low": "Low - 簡潔な回答",
+          "medium": "Medium - バランスの取れた詳細",
+          "high": "High - 詳細な回答"
+        }
+      },
       "resetToDefault": "デフォルトにリセットします",
       "saveConfig": "構成を保存します",
       "useModelDefault": "モデルのデフォルト設定を使用",
