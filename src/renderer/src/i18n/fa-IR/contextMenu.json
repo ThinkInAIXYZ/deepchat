@@ -1,8 +1,8 @@
 {
   "translate": {
     "title": "ترجمه",
-    "original": "اصلی",
-    "translated": "ترجمه",
+    "original": "متن اصلی",
+    "translated": "ترجمه‌شده",
     "error": "ترجمه ناموفق بود"
   },
   "askAI": {
