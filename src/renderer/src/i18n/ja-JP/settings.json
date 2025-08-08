@@ -253,7 +253,8 @@
         "confirm": "無効にする"
       },
       "configModels": {
-        "title": "モデルリストを構成"
+        "title": "モデルリストを構成",
+        "description": "有効または無効にするモデルを選択"
       },
       "disableAllModels": {
         "title": "すべてのモデルを無効にする確認",
@@ -263,7 +264,9 @@
       "verify": {
         "missingFields": "API KeyとAPI URLを入力してください",
         "failed": "検証に失敗しました",
-        "success": "検証に成功しました"
+        "success": "検証に成功しました",
+        "failedDesc": "APIキーまたは設定の検証に失敗しました。設定を確認してください",
+        "successDesc": "APIキーと設定の検証に成功しました。使用可能です"
       },
       "addCustomProvider": {
         "title": "カスタムプロバイダーを追加",
@@ -290,6 +293,7 @@
       },
       "pullModel": {
         "title": "モデルを取得",
+        "description": "ローカルにダウンロードするモデルを選択",
         "pull": "取得"
       },
       "modelCheck": {

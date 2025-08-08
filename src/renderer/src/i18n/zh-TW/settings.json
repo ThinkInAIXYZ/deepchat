@@ -258,12 +258,15 @@
         "confirm": "全部停用"
       },
       "configModels": {
-        "title": "設定模型清單"
+        "title": "設定模型清單",
+        "description": "選擇要啟用或停用的模型"
       },
       "verify": {
         "missingFields": "請輸入 API 金鑰和 API URL",
         "failed": "驗證失敗",
-        "success": "驗證成功"
+        "success": "驗證成功",
+        "failedDesc": "API 金鑰或設定驗證失敗，請檢查設定資訊",
+        "successDesc": "API 金鑰和設定驗證成功，可以正常使用"
       },
       "addCustomProvider": {
         "title": "新增自訂服務提供者",
@@ -290,6 +293,7 @@
       },
       "pullModel": {
         "title": "下載模型",
+        "description": "選擇要下載的模型到本機",
         "pull": "下載"
       },
       "modelCheck": {

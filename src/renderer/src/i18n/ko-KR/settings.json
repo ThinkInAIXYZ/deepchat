@@ -257,12 +257,15 @@
         "confirm": "모두 비활성화"
       },
       "configModels": {
-        "title": "모델 목록 구성"
+        "title": "모델 목록 구성",
+        "description": "활성화하거나 비활성화할 모델 선택"
       },
       "verify": {
         "missingFields": "API 키와 API URL을 입력하세요",
         "failed": "확인 실패",
-        "success": "확인 성공"
+        "success": "확인 성공",
+        "failedDesc": "API 키 또는 설정 확인에 실패했습니다. 설정을 확인해주세요",
+        "successDesc": "API 키와 설정이 성공적으로 확인되었습니다. 사용 가능합니다"
       },
       "addCustomProvider": {
         "title": "커스텀 제공자 추가",
@@ -289,6 +292,7 @@
       },
       "pullModel": {
         "title": "모델 가져오기",
+        "description": "로컬로 다운로드할 모델 선택",
         "pull": "가져오기"
       },
       "modelCheck": {

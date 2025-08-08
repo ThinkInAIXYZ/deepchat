@@ -258,12 +258,15 @@
         "confirm": "Désactiver tout"
       },
       "configModels": {
-        "title": "Configurer la liste des modèles"
+        "title": "Configurer la liste des modèles",
+        "description": "Sélectionner les modèles à activer ou désactiver"
       },
       "verify": {
         "missingFields": "Veuillez entrer la clé API et l'URL de l'API",
         "failed": "Échec de la vérification",
-        "success": "Vérification réussie"
+        "success": "Vérification réussie",
+        "failedDesc": "La vérification de la clé API ou de la configuration a échoué, veuillez vérifier vos paramètres",
+        "successDesc": "La clé API et la configuration ont été vérifiées avec succès, prêt à utiliser"
       },
       "addCustomProvider": {
         "title": "Ajouter un fournisseur personnalisé",
@@ -290,6 +293,7 @@
       },
       "pullModel": {
         "title": "Récupérer le modèle",
+        "description": "Sélectionner les modèles à télécharger localement",
         "pull": "Récupérer"
       },
       "modelCheck": {

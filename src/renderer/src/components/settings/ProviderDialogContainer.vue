@@ -5,10 +5,10 @@
       <DialogContent>
         <DialogHeader>
           <DialogTitle>{{ t('settings.provider.dialog.disableModel.title') }}</DialogTitle>
+          <DialogDescription>
+            {{ t('settings.provider.dialog.disableModel.content', { name: modelToDisable?.name }) }}
+          </DialogDescription>
         </DialogHeader>
-        <div class="py-4">
-          {{ t('settings.provider.dialog.disableModel.content', { name: modelToDisable?.name }) }}
-        </div>
         <DialogFooter>
           <Button variant="outline" @click="showConfirmDialog = false">{{
             t('dialog.cancel')
@@ -27,6 +27,9 @@
           <DialogTitle class="p-4">{{
             t('settings.provider.dialog.configModels.title')
           }}</DialogTitle>
+          <DialogDescription class="px-4">
+            {{ t('settings.provider.dialog.configModels.description') }}
+          </DialogDescription>
         </DialogHeader>
         <div class="px-4 py-2 flex-1 h-0 max-h-80 overflow-y-auto">
           <ProviderModelList
@@ -50,6 +53,15 @@
                 : 'settings.provider.dialog.verify.failed'
             )
           }}</DialogTitle>
+          <DialogDescription>
+            {{
+              t(
+                checkResult
+                  ? 'settings.provider.dialog.verify.successDesc'
+                  : 'settings.provider.dialog.verify.failedDesc'
+              )
+            }}
+          </DialogDescription>
         </DialogHeader>
         <DialogFooter>
           <Button variant="outline" @click="showCheckModelDialog = false">{{
@@ -64,10 +76,10 @@
       <DialogContent>
         <DialogHeader>
           <DialogTitle>{{ t('settings.provider.dialog.disableAllModels.title') }}</DialogTitle>
+          <DialogDescription>
+            {{ t('settings.provider.dialog.disableAllModels.content', { name: provider.name }) }}
+          </DialogDescription>
         </DialogHeader>
-        <div class="py-4">
-          {{ t('settings.provider.dialog.disableAllModels.content', { name: provider.name }) }}
-        </div>
         <DialogFooter>
           <Button variant="outline" @click="showDisableAllConfirmDialog = false">{{
             t('dialog.cancel')
@@ -84,10 +96,10 @@
       <DialogContent>
         <DialogHeader>
           <DialogTitle>{{ t('settings.provider.dialog.deleteProvider.title') }}</DialogTitle>
+          <DialogDescription>
+            {{ t('settings.provider.dialog.deleteProvider.content', { name: provider.name }) }}
+          </DialogDescription>
         </DialogHeader>
-        <div class="py-4">
-          {{ t('settings.provider.dialog.deleteProvider.content', { name: provider.name }) }}
-        </div>
         <DialogFooter>
           <Button variant="outline" @click="showDeleteProviderDialog = false">{{
             t('dialog.cancel')
@@ -107,6 +119,7 @@ import { Button } from '@/components/ui/button'
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogFooter

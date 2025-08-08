@@ -252,7 +252,8 @@
         "confirm": "禁用"
       },
       "configModels": {
-        "title": "配置模型列表"
+        "title": "配置模型列表",
+        "description": "選擇要啟用或禁用的模型"
       },
       "disableAllModels": {
         "title": "確認禁用全部模型",
@@ -262,7 +263,9 @@
       "verify": {
         "missingFields": "請輸入 API Key 和 API URL",
         "failed": "驗證失敗",
-        "success": "驗證成功"
+        "success": "驗證成功",
+        "failedDesc": "API 密鑰或配置驗證失敗，請檢查配置信息",
+        "successDesc": "API 密鑰和配置驗證成功，可以正常使用"
       },
       "addCustomProvider": {
         "title": "添加自定義服務商",
@@ -289,6 +292,7 @@
       },
       "pullModel": {
         "title": "拉取模型",
+        "description": "選擇要下載到本地的模型",
         "pull": "拉取"
       },
       "modelCheck": {

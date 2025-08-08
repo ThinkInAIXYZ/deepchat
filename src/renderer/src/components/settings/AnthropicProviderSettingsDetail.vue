@@ -239,6 +239,15 @@
                 )
               }}
             </DialogTitle>
+            <DialogDescription>
+              {{
+                t(
+                  checkResult
+                    ? 'settings.provider.dialog.verify.successDesc'
+                    : 'settings.provider.dialog.verify.failedDesc'
+                )
+              }}
+            </DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button variant="outline" @click="showCheckModelDialog = false">
@@ -257,11 +266,11 @@
         >
           <DialogHeader>
             <DialogTitle>{{ t('settings.provider.inputOAuthCode') }}</DialogTitle>
+            <DialogDescription>
+              {{ t('settings.provider.oauthCodeHint') }}
+            </DialogDescription>
           </DialogHeader>
           <div class="space-y-4">
-            <div class="text-sm text-muted-foreground">
-              {{ t('settings.provider.oauthCodeHint') }}
-            </div>
             <Input
               v-model="oauthCode"
               :placeholder="t('settings.provider.oauthCodePlaceholder')"
@@ -310,6 +319,7 @@ import { Icon } from '@iconify/vue'
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle

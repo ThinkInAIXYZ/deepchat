@@ -158,6 +158,9 @@
       <DialogContent class="max-w-2xl">
         <DialogHeader>
           <DialogTitle>{{ t('settings.provider.dialog.pullModel.title') }}</DialogTitle>
+          <DialogDescription>
+            {{ t('settings.provider.dialog.pullModel.description') }}
+          </DialogDescription>
         </DialogHeader>
         <div class="py-4 max-h-80 overflow-y-auto">
           <div class="grid grid-cols-1 gap-2">
@@ -196,10 +199,10 @@
       <DialogContent>
         <DialogHeader>
           <DialogTitle>{{ t('settings.provider.dialog.deleteModel.title') }}</DialogTitle>
+          <DialogDescription>
+            {{ t('settings.provider.dialog.deleteModel.content', { name: modelToDelete }) }}
+          </DialogDescription>
         </DialogHeader>
-        <div class="py-4">
-          {{ t('settings.provider.dialog.deleteModel.content', { name: modelToDelete }) }}
-        </div>
         <DialogFooter>
           <Button variant="outline" @click="showDeleteModelDialog = false">
             {{ t('dialog.cancel') }}
@@ -224,6 +227,15 @@
               )
             }}</DialogTitle
           >
+          <DialogDescription>
+            {{
+              t(
+                checkResult
+                  ? 'settings.provider.dialog.verify.successDesc'
+                  : 'settings.provider.dialog.verify.failedDesc'
+              )
+            }}
+          </DialogDescription>
         </DialogHeader>
         <DialogFooter>
           <Button variant="outline" @click="showCheckModelDialog = false">
@@ -246,6 +258,7 @@ import { Icon } from '@iconify/vue'
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle

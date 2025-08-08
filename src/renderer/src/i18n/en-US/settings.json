@@ -258,12 +258,15 @@
         "confirm": "Disable All"
       },
       "configModels": {
-        "title": "Configure Model List"
+        "title": "Configure Model List",
+        "description": "Select models to enable or disable"
       },
       "verify": {
         "missingFields": "Please enter API Key and API URL",
         "failed": "Verification failed",
-        "success": "Verification successful"
+        "success": "Verification successful",
+        "failedDesc": "API key or configuration verification failed, please check your configuration",
+        "successDesc": "API key and configuration verified successfully, ready to use"
       },
       "addCustomProvider": {
         "title": "Add Custom Provider",
@@ -290,6 +293,7 @@
       },
       "pullModel": {
         "title": "Pull Model",
+        "description": "Select models to download locally",
         "pull": "Pull"
       },
       "modelCheck": {
