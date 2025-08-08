@@ -314,7 +314,7 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
     websites: {
       official: 'https://open.bigmodel.cn/',
       apiKey: 'https://open.bigmodel.cn/usercenter/apikeys',
-      docs: 'https://open.bigmodel.cn/dev/howuse/introduction',
+      docs: 'https://docs.bigmodel.cn',
       models: 'https://open.bigmodel.cn/modelcenter/square',
       defaultBaseUrl: 'https://open.bigmodel.cn/api/paas/v4/'
     }
