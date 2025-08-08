@@ -34,7 +34,7 @@
     "annotations": "Annotations",
     "selectToolToDebug": "Sélectionnez un outil à déboguer",
     "dialogDescription": "Déboguer et tester les outils fournis par les serveurs MCP",
-    "toolsCount": "outils",
+      "toolsCount": "{count} outils",
     "availableTools": "Outils disponibles",
     "invalidJson": "Format JSON invalide",
     "inputHint": "Veuillez entrer les paramètres au format JSON",
@@ -48,12 +48,12 @@
   },
   "confirmDelete": {
     "cancel": "Annuler",
-    "confirm": "supprimer",
+    "confirm": "Supprimer",
     "description": "Êtes-vous sûr de vouloir supprimer le serveur {name} ? \nCette opération ne peut pas être annulée.",
     "title": "Confirmer la suppression"
   },
   "confirmRemoveServer": "Êtes-vous sûr de vouloir supprimer le serveur {name} ? \nCette opération ne peut pas être annulée.",
-  "default": "par défaut",
+  "default": "Par défaut",
   "deleteServer": "Supprimer le serveur",
   "description": "Gérer et configurer les serveurs et outils MCP (Modèle de Contrôle de Protocole)",
   "editServer": "Modifier le serveur",
@@ -66,26 +66,26 @@
   "enabledTitle": "Activer MCP",
   "isDefault": "Serveur par défaut",
   "noServersFound": "Serveur non trouvé",
-  "removeDefault": "Supprimer par défaut",
+  "removeDefault": "Retirer le statut par défaut",
   "removeServer": "Supprimer le serveur",
   "removeServerDialog": {
     "title": "Supprimer le serveur"
   },
-  "resetConfirm": "récupérer",
+  "resetConfirm": "Restaurer",
   "resetConfirmDescription": "Cette action restaure tous les serveurs par défaut tout en conservant vos serveurs personnalisés. \nToute modification du serveur par défaut sera perdue.",
   "resetConfirmTitle": "Restaurer le service par défaut",
   "resetToDefault": "Restaurer le service par défaut",
   "running": "En cours d'exécution",
   "serverForm": {
-    "add": "Ajouter à",
-    "args": "paramètre",
+    "add": "Ajouter",
+    "args": "Arguments",
     "argsPlaceholder": "Entrez les paramètres, séparés par des espaces",
     "argsRequired": "Les paramètres ne peuvent pas être vides",
     "autoApprove": "Autorisation automatique",
-    "autoApproveAll": "tout",
+    "autoApproveAll": "Tout",
     "autoApproveHelp": "Sélectionnez le type d'opération nécessitant une autorisation automatique et exécutez sans confirmation de l'utilisateur",
-    "autoApproveRead": "Lire",
-    "autoApproveWrite": "Écrire",
+    "autoApproveRead": "Lecture",
+    "autoApproveWrite": "Écriture",
     "baseUrl": "URL de base",
     "baseUrlPlaceholder": "Entrez l'URL de base du serveur (par exemple : http://localhost:3000)",
     "cancel": "Annuler",
@@ -93,17 +93,17 @@
     "commandPlaceholder": "Entrez une commande",
     "commandRequired": "La commande ne peut pas être vide",
     "configImported": "Importation de la configuration réussie",
-    "description": "décrire",
+    "description": "Description",
     "descriptionPlaceholder": "Entrez la description du serveur",
-    "descriptions": "décrire",
+    "descriptions": "Description",
     "descriptionsPlaceholder": "Entrez la description du serveur",
     "env": "Variables d'environnement",
     "envInvalid": "Les variables d'environnement doivent être au format JSON valide",
     "envPlaceholder": "Entrez les variables d'environnement au format JSON",
-    "icon": "icône",
+    "icon": "Icône",
     "iconPlaceholder": "Entrez l'icône",
-    "icons": "icône",
-    "iconsPlaceholder": "Entrez l'icône",
+    "icons": "Icônes",
+    "iconsPlaceholder": "Entrez les icônes",
     "jsonConfig": "Configuration JSON",
     "jsonConfigExample": "Exemple de configuration JSON",
     "jsonConfigIntro": "Vous pouvez coller directement la configuration JSON ou choisir de configurer le serveur manuellement.",
@@ -113,17 +113,17 @@
     "nameRequired": "Le nom du serveur ne peut pas être vide",
     "parseAndContinue": "Analyser et continuer",
     "parseError": "Erreur d'analyse",
-    "parseSuccess": "Analyse de la configuration réussie",
+    "parseSuccess": "Configuration analysée avec succès",
     "skipToManual": "Passer à la configuration manuelle",
-    "submit": "soumettre",
+    "submit": "Soumettre",
     "type": "Type de serveur",
     "typeInMemory": "Mémoire",
     "typePlaceholder": "Sélectionnez un type de serveur",
-    "typeSse": "Le serveur envoie des événements",
+    "typeSse": "Server‑Sent Events (SSE)",
     "typeStdio": "Entrée et sortie standard",
-    "update": "renouveler",
+    "update": "Mettre à jour",
     "addFolder": "Ajouter un dossier",
-    "folders": "Liste de dossiers",
+    "folders": "Dossiers autorisés",
     "noFoldersSelected": "Aucun dossier n'a été sélectionné",
     "selectFolder": "Sélectionnez un dossier",
     "selectFolderError": "Échec de la sélection d'un dossier"
@@ -157,8 +157,8 @@
       "name": "Service d'images"
     },
     "braveSearch": {
-      "desc": "Brave Search API https://brave.com/search/API/",
-      "name": "Recherche courageuse"
+      "desc": "Brave Search API https://brave.com/search/api/",
+      "name": "Brave Search"
     },
     "powerpack": {
       "desc": "Fournissez des capacités améliorées telles que la requête temporelle, l'acquisition d'informations Web et l'exécution de code sécurisé pour tout grand modèle, afin que le modèle ait des capacités d'acquisition d'informations plus puissantes et précises.",
@@ -177,28 +177,28 @@
       "desc": "Service de recherche dans la base de connaissances FastGPT, peut rechercher le contenu de la base de connaissances FastGPT"
     },
     "deepchat-inmemory/custom-prompts-server": {
-      "desc": "Service de mot invite personnalisé intégré Deepchat intégré",
-      "name": "Mots rapides personnalisés"
+      "desc": "Service de prompts personnalisés intégré à DeepChat",
+      "name": "Prompts personnalisés"
     },
     "deepchat-inmemory/deep-research-server": {
-      "desc": "Un service de recherche approfondi de Deepchat basé sur la recherche de bocha (notez que des modèles de contexte longs doivent être utilisés, et les modèles avec un contexte insuffisant peuvent échouer)",
-      "name": "Recherche en profondeur"
+      "desc": "Fonction de recherche approfondie intégrée, basée sur Bocha Search. Modèles à long contexte recommandés.",
+      "name": "DeepResearch"
     },
     "deepchat-inmemory/auto-prompting-server": {
-      "name": "Génération Automatique de Prompt par Modèle",
-      "desc": "Sélectionne automatiquement le prompt personnalisé le plus adapté en fonction de l'entrée de l'utilisateur et remplit intelligemment le modèle de prompt."
+      "name": "Auto‑prompt par modèle",
+      "desc": "Sélection automatique du prompt le plus adapté selon l’entrée, et remplissage intelligent du gabarit."
     },
     "deepchat-inmemory/conversation-search-server": {
-      "name": "Recherche d'Historique de Conversation",
-      "desc": "Service de recherche d'historique de conversation intégré DeepChat, peut rechercher les enregistrements de conversation historiques et le contenu des messages"
+      "name": "Recherche d’historique",
+      "desc": "Rechercher les conversations et messages passés (intégré à DeepChat)"
     },
     "deepchat-inmemory/meeting-server": {
       "name": "Réunion Multi-Agent",
       "desc": "Le service de réunion intégré de DeepChat permet d’organiser et d’animer des discussions multi-agents."
     },
     "builtinKnowledge": {
-      "desc": "Service de recherche de base de connaissances intégré Deepchat, qui peut rechercher le contenu de la base de connaissances intégrée Deepchat",
-      "name": "Recherche de base de connaissances intégrée"
+      "desc": "Recherche dans la base de connaissances intégrée de DeepChat (docs, contenus intégrés).",
+      "name": "Base de connaissances intégrée"
     },
     "deepchat/apple-server": {
       "desc": "Laissez le modèle d'exploitation des fonctions du système de MacOS telles que le calendrier, les contacts, les e-mails, les cartes, les mémos, les rappels et autres systèmes",
@@ -221,10 +221,10 @@
   },
   "resources": {
     "noResourcesAvailable": "Aucune ressource",
-    "selectResource": "Afficher le contenu des ressources ici",
-    "loading": "chargement",
-    "loadContent": "Obtenez du contenu de ressources",
-    "pleaseSelect": "Cliquez pour obtenir des détails sur les ressources d'affichage",
+    "selectResource": "Sélectionnez une ressource pour afficher le contenu",
+    "loading": "Chargement...",
+    "loadContent": "Charger le contenu",
+    "pleaseSelect": "Cliquer pour afficher les détails de la ressource",
     "dialogDescription": "Parcourir et afficher les ressources fournies par les serveurs MCP"
   },
   "errors": {

@@ -50,8 +50,8 @@
       "newChat": "Créer une nouvelle conversation",
       "title": "Paramètres des raccourcis clavier"
     },
-    "notifications": "Notification système",
-    "notificationsDesc": "Lorsque Deepchat n'est pas au premier plan, si une session est générée, une notification système sera envoyée"
+    "notifications": "Notifications système",
+    "notificationsDesc": "Quand DeepChat est en arrière‑plan, envoyer une notification à la fin d’une réponse"
   },
   "data": {
     "title": "Paramètres des données",
@@ -107,11 +107,11 @@
       "description": "Définir la longueur maximale de la réponse de l'IA"
     },
     "artifacts": {
-      "description": "L'activation de la fonction Artifacts permet à l'IA de générer un contenu plus riche",
-      "title": "Effets des artefacts"
+      "description": "Activer Artifacts pour permettre à l’IA de générer un contenu plus riche",
+      "title": "Artifacts"
     },
     "addModel": "Ajouter un modèle",
-    "configureModel": "Configuration du modèle",
+    "configureModel": "Configurer le modèle",
     "modelList": "Liste des modèles",
     "provider": "Fournisseur de service",
     "providerSetting": "Paramètres du fournisseur",
@@ -120,7 +120,7 @@
       "cancel": "Annuler",
       "contextLength": {
         "description": "Définir la longueur de contexte que le modèle peut gérer",
-        "label": "Durée du contexte"
+        "label": "Longueur du contexte"
       },
       "description": "Veuillez noter que cette configuration n'est valable que pour le modèle actuel et n'affectera pas d'autres modèles. Veuillez le modifier avec prudence. Des paramètres incorrects peuvent faire en sorte que le modèle ne fonctionne pas correctement.",
       "functionCall": {
@@ -172,8 +172,8 @@
       "useModelDefault": "Utiliser la configuration par défaut du modèle",
       "currentUsingModelDefault": "Utilise actuellement la configuration par défaut du modèle",
       "temperature": {
-        "description": "Contrôlez le caractère aléatoire de la sortie. La plupart des modèles sont de 0-1 et certains soutiennent entre 0-2. Plus l'aléatoire est élevé.",
-        "label": "température"
+        "description": "Contrôle l’aléatoire de la sortie. Valeur plus élevée = plus aléatoire.",
+        "label": "Température"
       },
       "title": "Paramètres du modèle personnalisé",
       "type": {
@@ -183,7 +183,7 @@
           "chat": "Modèle de langue",
           "embedding": "Modèle d'intégration",
           "imageGeneration": "Modèle de génération d'images",
-          "rerank": "Réorganiser le modèle"
+            "rerank": "Modèle de rerank"
         }
       },
       "validation": {
