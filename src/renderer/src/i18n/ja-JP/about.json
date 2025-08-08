@@ -1,10 +1,10 @@
 {
   "title": "DeepChat",
   "description": "DeepChatはクロスプラットフォームのAIクライアントで、より多くの人々にAIを便利に使用できるよう努めています。",
-  "website": "ウェブサイトを訪問",
-  "disclaimerButton": "免責条項",
-  "disclaimerTitle": "利用規約声明",
-  "checkUpdateButton": "アップデートを確認する",
+  "website": "Webサイトを開く",
+  "disclaimerButton": "免責事項",
+  "disclaimerTitle": "利用規約",
+  "checkUpdateButton": "アップデートを確認",
   "deviceInfo": {
     "title": "デバイス情報",
     "platform": "プラットフォーム",
