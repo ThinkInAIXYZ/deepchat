@@ -34,7 +34,7 @@
     "annotations": "Annotations",
     "selectToolToDebug": "Sélectionnez un outil à déboguer",
     "dialogDescription": "Déboguer et tester les outils fournis par les serveurs MCP",
-      "toolsCount": "{count} outils",
+    "toolsCount": "{count} outils",
     "availableTools": "Outils disponibles",
     "invalidJson": "Format JSON invalide",
     "inputHint": "Veuillez entrer les paramètres au format JSON",

@@ -183,7 +183,7 @@
           "chat": "Modèle de langue",
           "embedding": "Modèle d'intégration",
           "imageGeneration": "Modèle de génération d'images",
-            "rerank": "Modèle de rerank"
+          "rerank": "Modèle de rerank"
         }
       },
       "validation": {
