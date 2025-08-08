@@ -4,8 +4,8 @@
   "close": "Fermer",
   "ok": "OK",
   "delete": {
-    "title": "Êtes-vous sûr de vouloir supprimer cette conversation ?",
-    "description": "Cette action ne peut pas être annulée, veuillez procéder avec prudence.",
+    "title": "Supprimer cette conversation ?",
+    "description": "Cette action est irréversible.",
     "confirm": "Supprimer"
   },
   "rename": {
@@ -16,14 +16,14 @@
     "title": "Erreur"
   },
   "cleanMessages": {
-    "title": "Nettoyer les messages de la conversation",
-    "description": "Le nettoyage supprimera tous les messages et fichiers de cette conversation. Êtes-vous sûr de vouloir continuer ?",
-    "confirm": "Nettoyer"
+    "title": "Effacer les messages",
+    "description": "Cela supprimera tous les messages et fichiers de cette conversation. Continuer ?",
+    "confirm": "Effacer"
   },
   "fork": {
-    "tag": "Branches",
+    "tag": "Branche",
     "confirm": "Créer une branche",
-    "description": "Copiez le message du premier message au message actuellement sélectionné dans une nouvelle session où vous pouvez continuer la conversation.",
-    "title": "Créer une branche de session"
+    "description": "Copier les messages du début jusqu’au message actuel dans une nouvelle conversation.",
+    "title": "Créer une branche"
   }
 }

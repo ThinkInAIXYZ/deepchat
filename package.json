@@ -148,7 +148,7 @@
     "tailwindcss-animate": "^1.0.7",
     "tippy.js": "^6.3.7",
     "typescript": "^5.8.3",
-    "vite": "npm:rolldown-vite@latest",
+    "vite": "npm:rolldown-vite@7.0.12",
     "vite-plugin-monaco-editor-esm": "^2.0.2",
     "vite-plugin-vue-devtools": "^8.0.0",
     "vite-svg-loader": "^5.1.0",
@@ -178,7 +178,7 @@
   },
   "pnpm": {
     "overrides": {
-      "vite": "npm:rolldown-vite@latest"
+      "vite": "npm:rolldown-vite@7.0.12"
     },
     "onlyBuiltDependencies": [
       "@tailwindcss/oxide",

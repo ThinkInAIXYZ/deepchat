@@ -6,10 +6,10 @@
     "error": "Échec de la traduction"
   },
   "askAI": {
-    "title": "Demander à l'IA",
+    "title": "Demander à l’IA",
     "question": "Question",
     "answer": "Réponse",
-    "error": "Échec de la réponse de l'IA"
+    "error": "Échec de la réponse de l’IA"
   },
   "copy": "Copier",
   "paste": "Coller",

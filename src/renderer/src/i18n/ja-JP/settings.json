@@ -20,8 +20,8 @@
     "invalidProxyUrl": "無効なプロキシURL、有効なhttp/https URLを入力してください",
     "contentProtection": "画面キャプチャ保護",
     "contentProtectionDialogTitle": "画面保護の切り替え確認",
-    "contentProtectionEnableDesc": "画面保護を有効にすると、画面共有ソフトウェアがDeepChatウィンドウをキャプチャするのを防ぎ、コンテンツのプライバシーを保護します。この機能はすべてのインターフェイスを完全に隠すわけではありません。責任を持って規制に準拠して使用してください。また、画面共有ソフトウェアがこの機能をサポートしない場合があります。また、一部の環境では黒いウィンドウが残る可能性があります。",
-    "contentProtectionDisableDesc": "画面保護を無効にすると、画面共有ソフトウェアがDeepChatウィンドウをキャプチャできるようになります。",
+    "contentProtectionEnableDesc": "DeepChatウィンドウの画面共有によるキャプチャを防止し、プライバシー保護に役立ちます。すべてのアプリがこの設定に対応するわけではなく、環境によっては黒いウィンドウが残る場合があります。",
+    "contentProtectionDisableDesc": "画面共有アプリによるDeepChatウィンドウのキャプチャを許可します。",
     "contentProtectionRestartNotice": "この設定を変更するとアプリケーションが再起動します。続行しますか？",
     "soundEnabled": "サウンドを有効にする",
     "copyWithCotEnabled": "COT情報をコピー",
@@ -51,7 +51,7 @@
       "title": "ショートカットキー設定"
     },
     "notifications": "システム通知",
-    "notificationsDesc": "Deepchatが前景にない場合、セッションが生成された場合、システム通知が送信されます"
+    "notificationsDesc": "DeepChatがバックグラウンドのとき、応答が完了すると通知を送信します"
   },
   "data": {
     "title": "データ設定",
@@ -108,10 +108,10 @@
     },
     "artifacts": {
       "description": "Artifacts機能を有効にすると、AIはより豊かなコンテンツを生成できます",
-      "title": "アーティファクト効果"
+      "title": "Artifacts"
     },
-    "addModel": "モデルを追加します",
-    "configureModel": "構成モデル",
+    "addModel": "モデルを追加",
+    "configureModel": "モデルを構成",
     "modelList": "モデルリスト",
     "provider": "サービスプロバイダー",
     "providerSetting": "サービスプロバイダーの設定",
@@ -120,7 +120,7 @@
       "cancel": "キャンセル",
       "contextLength": {
         "description": "モデルが処理できるコンテキスト長を設定します",
-        "label": "コンテキストの長さ"
+        "label": "コンテキスト長"
       },
       "description": "この構成は現在のモデルに対してのみ有効であり、他のモデルには影響しないことに注意してください。注意して変更してください。パラメーターが誤っていると、モデルが適切に機能しない場合があります。",
       "functionCall": {
@@ -193,7 +193,7 @@
       "useModelDefault": "モデルのデフォルト設定を使用",
       "currentUsingModelDefault": "現在モデルのデフォルト設定を使用中",
       "temperature": {
-        "description": "出力のランダム性を制御します。ほとんどのモデルは0-1で、0〜2の間のサポートがあります。ランダム性が高くなるほど。",
+        "description": "出力のランダム性を制御します。値が高いほどランダム性が増します。",
         "label": "温度"
       },
       "title": "カスタムモデルパラメーター",
@@ -204,7 +204,7 @@
           "chat": "言語モデル",
           "embedding": "埋め込みモデル",
           "imageGeneration": "画像生成モデル",
-          "rerank": "モデルを並べ替えます"
+          "rerank": "リランクモデル"
         }
       },
       "validation": {

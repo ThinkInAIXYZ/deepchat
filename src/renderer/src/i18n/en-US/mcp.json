@@ -4,7 +4,7 @@
     "noToolsAvailable": "No tools available",
     "selectToolToDebug": "Select a tool to debug",
     "dialogDescription": "Debug and test tools provided by MCP servers",
-    "toolsCount": "tools",
+    "toolsCount": "{count} tools",
     "availableTools": "Available Tools",
     "toolList": "Tool List",
     "functionDescription": "Function Description",
@@ -41,25 +41,25 @@
     "annotations": "Annotations",
     "invalidJsonFormat": "JSON format is incorrect"
   },
-  "addServer": "Add a server",
+  "addServer": "Add Server",
   "addServerDialog": {
     "description": "Configure a new MCP server",
-    "title": "Add a server"
+    "title": "Add Server"
   },
   "confirmDelete": {
     "cancel": "Cancel",
-    "confirm": "delete",
+    "confirm": "Delete",
     "description": "Are you sure you want to delete the server {name}? \nThis operation cannot be cancelled.",
     "title": "Confirm deletion"
   },
   "confirmRemoveServer": "Are you sure you want to delete the server {name}? \nThis operation cannot be cancelled.",
   "default": "default",
-  "deleteServer": "Delete the server",
+  "deleteServer": "Delete Server",
   "description": "Manage and configure MCP (Model Context Protocol) servers and tools",
-  "editServer": "Edit the server",
+  "editServer": "Edit Server",
   "editServerDialog": {
     "description": "Edit MCP server configuration",
-    "title": "Edit the server"
+    "title": "Edit Server"
   },
   "enableToAccess": "Please enable MCP to access configuration options.",
   "enabledDescription": "Enable or disable MCP functionality and tools.",
@@ -67,17 +67,17 @@
   "isDefault": "Default server",
   "noServersFound": "Server not found",
   "removeDefault": "Remove default",
-  "removeServer": "Delete the server",
+  "removeServer": "Remove Server",
   "removeServerDialog": {
-    "title": "Delete the server"
+    "title": "Delete Server"
   },
-  "resetConfirm": "recover",
+  "resetConfirm": "Restore",
   "resetConfirmDescription": "This action restores all default servers while retaining your customized servers. \nAny modifications to the default server will be lost.",
   "resetConfirmTitle": "Restore default service",
   "resetToDefault": "Restore default service",
   "running": "Running",
   "serverForm": {
-    "add": "Add to",
+    "add": "Add",
     "args": "Arguments",
     "argsPlaceholder": "Enter parameters, separated by spaces",
     "argsRequired": "Parameters cannot be empty",
@@ -102,8 +102,8 @@
     "envPlaceholder": "Enter environment variables in JSON format",
     "icon": "Icon",
     "iconPlaceholder": "Enter icon",
-    "icons": "Icon",
-    "iconsPlaceholder": "Enter icon",
+    "icons": "Icons",
+    "iconsPlaceholder": "Enter icons",
     "jsonConfig": "JSON configuration",
     "jsonConfigExample": "JSON configuration example",
     "jsonConfigIntro": "You can directly paste the JSON configuration or choose to configure the server manually.",
@@ -115,7 +115,7 @@
     "parseError": "Parsing error",
     "parseSuccess": "Configuration parsed successfully",
     "skipToManual": "Skip to manual configuration",
-    "submit": "submit",
+    "submit": "Submit",
     "folders": "Folder List",
     "addFolder": "Add Folder",
     "selectFolder": "Select Folder",
@@ -141,7 +141,7 @@
   "title": "MCP Settings",
   "inmemory": {
     "Artifacts": {
-      "desc": "Make your DeepChat output diversified Artifacts content",
+      "desc": "Produce richer Artifacts in DeepChat",
       "name": "Artifacts"
     },
     "bochaSearch": {
@@ -149,11 +149,11 @@
       "name": "Bocha Search"
     },
     "buildInFileSystem": {
-      "desc": "Allows DeepChat to interact with the local file system.",
+      "desc": "Allow DeepChat to interact with the local file system.",
       "name": "File System"
     },
     "imageServer": {
-      "desc": "Enables any model in DeepChat to understand and generate images.",
+      "desc": "Enable any model in DeepChat to understand and generate images.",
       "name": "Image Service"
     },
     "braveSearch": {
@@ -161,7 +161,7 @@
       "name": "Brave Search"
     },
     "powerpack": {
-      "desc": "Provides any large model with enhanced capabilities like time queries, web scraping, and secure code execution.",
+      "desc": "Provide models with time queries, web browsing, and secure code execution.",
       "name": "Power Pack"
     },
     "difyKnowledge": {
@@ -177,36 +177,36 @@
       "desc": "FastGPT knowledge base search service, can search FastGPT knowledge base content"
     },
     "deepchat-inmemory/custom-prompts-server": {
-      "desc": "DeepChat built-in custom prompt word service",
+      "desc": "DeepChat built-in custom prompts service",
       "name": "Custom Prompts"
     },
     "deepchat-inmemory/deep-research-server": {
-      "desc": "DeepChat built-in in-depth research service based on Bocha Search (note that long context models are required to be used, and models with insufficient context may fail)",
+      "desc": "DeepChat built-in deep research powered by Bocha Search. Long-context models are recommended.",
       "name": "DeepResearch"
     },
     "deepchat-inmemory/auto-prompting-server": {
       "name": "Auto Template Prompting",
-      "desc": "Automatically selects the most suitable custom prompt based on user input and intelligently fills the prompt template."
+      "desc": "Automatically select the best custom prompt based on input and fill the template intelligently."
     },
     "deepchat-inmemory/conversation-search-server": {
       "name": "Conversation History Search",
-      "desc": "DeepChat built-in conversation history search service, can search historical conversation records and message contents"
+      "desc": "DeepChat built-in conversation history search for past chats and messages."
     },
     "builtinKnowledge": {
-      "desc": "DeepChat built-in knowledge base search service, which can search the content of DeepChat built-in knowledge base",
+      "desc": "DeepChat built-in knowledge base search for DeepChat docs and guides.",
       "name": "Built-in knowledge base search"
     },
     "deepchat-inmemory/meeting-server": {
       "name": "Multi-Agent Meetings",
-      "desc": "DeepChat's built-in meeting service enables hosting and facilitating multi-agent discussions."
+      "desc": "DeepChat built-in meetings to host multi-agent discussions."
     },
     "deepchat/apple-server": {
-      "desc": "Let the model operate macOS's system functions such as calendar, contacts, emails, maps, memos, reminders and other systems",
-      "name": "macOS system assistant"
+      "desc": "Let models operate macOS apps like Calendar, Contacts, Mail, Maps, Notes, and Reminders.",
+      "name": "macOS System Assistant"
     }
   },
   "prompts": {
-    "noPromptsAvailable": "No Prompts available",
+    "noPromptsAvailable": "No Prompts Available",
     "noDescription": "No description yet",
     "selectPrompt": "Details for the selected prompt will be shown here.",
     "parameters": "Parameters",
@@ -223,7 +223,7 @@
     "noResourcesAvailable": "No Resources Available",
     "selectResource": "Select a resource to view its content.",
     "loading": "Loading...",
-    "loadContent": "View Content",
+    "loadContent": "Load Content",
     "pleaseSelect": "Click to view resource details.",
     "dialogDescription": "Browse and view resources provided by MCP servers"
   },

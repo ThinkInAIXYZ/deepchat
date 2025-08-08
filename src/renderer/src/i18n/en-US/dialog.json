@@ -18,10 +18,10 @@
     "confirm": "Clear"
   },
   "fork": {
-    "title": "Create Branch Conversation",
+    "title": "Create Branch",
     "description": "This will copy all messages from the first message to the current message into a new conversation where you can continue the dialogue.",
     "confirm": "Create Branch",
-    "tag": "Branches"
+    "tag": "Branch"
   },
   "error": {
     "title": "Error"

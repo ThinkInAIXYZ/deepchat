@@ -37,7 +37,7 @@
   "required": "Required",
   "characters": "Characters",
   "fileManagement": "File Management",
-  "uploadFromDevice": "Upload from Your Device",
+  "uploadFromDevice": "Upload from device",
   "uploadFromDeviceDesc": "Supports text, documents, CSV, and more.",
   "uploadedFiles": "Uploaded Files",
   "noFiles": "No files",
