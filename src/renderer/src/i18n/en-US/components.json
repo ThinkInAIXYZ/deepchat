@@ -23,14 +23,14 @@
     "granted": "Permission granted",
     "denied": "Permission denied",
     "type": {
-      "read": "Read permissions",
-      "write": "Write permissions",
-      "all": "Full permissions"
+      "read": "Read Access",
+      "write": "Write Access",
+      "all": "Full Access"
     },
     "description": {
-      "read": "Allow '{toolName}' of '{serverName}' to perform read operations?",
-      "write": "Allow '{toolName}' of '{serverName}' to perform write operations?",
-      "all": "Allow '{toolName}' of '{serverName}' to perform read and write operations?"
+      "read": "Allow '{toolName}' from '{serverName}' to perform read operations?",
+      "write": "Allow '{toolName}' from '{serverName}' to perform write operations?",
+      "all": "Allow '{toolName}' from '{serverName}' to perform read and write operations?"
     }
   }
 }
