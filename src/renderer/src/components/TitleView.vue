@@ -49,7 +49,7 @@
             <Icon icon="lucide:settings-2" class="w-4 h-4" />
           </Button>
         </PopoverTrigger>
-        <PopoverContent align="end" class="p-0 w-80">
+        <PopoverContent align="end" class="p-0 w-80" :enable-scrollable="true">
           <ChatConfig
             v-model:system-prompt="systemPrompt"
             :temperature="temperature"
