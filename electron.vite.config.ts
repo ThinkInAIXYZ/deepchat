@@ -23,7 +23,11 @@ export default defineConfig({
     },
     build: {
       rollupOptions: {
-        external: ['sharp']
+        external: ['sharp'],
+        output: {
+          inlineDynamicImports: true,
+          manualChunks: undefined,  // Disable automatic chunk splitting
+        }
       }
     }
   },
