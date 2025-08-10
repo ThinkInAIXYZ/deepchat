@@ -13,13 +13,70 @@ export interface ProviderModelSetting {
   functionCall?: boolean // 是否支持函数调用
   reasoning?: boolean // 是否支持推理能力
   type?: ModelType // 模型类型，默认为Chat
+  // GPT-5 系列新参数
+  reasoningEffort?: 'minimal' | 'low' | 'medium' | 'high'
+  verbosity?: 'low' | 'medium' | 'high'
+  maxCompletionTokens?: number // GPT-5 系列使用此参数替代 maxTokens
 }
 
 // 为每个提供商创建映射对象，使用models数组包装模型配置
 export const providerModelSettings: Record<string, { models: ProviderModelSetting[] }> = {
   // OpenAI提供商特定模型配置
   openai: {
-    models: []
+    models: [
+      {
+        id: 'gpt-5-chat',
+        name: 'GPT-5 Chat',
+        maxTokens: 16384,
+        contextLength: 272000,
+        match: ['gpt-5-chat', 'gpt-5-chat-latest'],
+        vision: true,
+        functionCall: false,
+        reasoning: true,
+        reasoningEffort: 'medium',
+        verbosity: 'medium',
+        maxCompletionTokens: 16384
+      },
+      {
+        id: 'gpt-5-mini',
+        name: 'GPT-5 Mini',
+        maxTokens: 128000,
+        contextLength: 272000,
+        match: ['gpt-5-mini', 'gpt-5-mini-2025-08-07'],
+        vision: true,
+        functionCall: true,
+        reasoning: true,
+        reasoningEffort: 'medium',
+        verbosity: 'medium',
+        maxCompletionTokens: 128000
+      },
+      {
+        id: 'gpt-5-nano',
+        name: 'GPT-5 Nano',
+        maxTokens: 128000,
+        contextLength: 272000,
+        match: ['gpt-5-nano', 'gpt-5-nano-2025-08-07'],
+        vision: true,
+        functionCall: true,
+        reasoning: true,
+        reasoningEffort: 'medium',
+        verbosity: 'medium',
+        maxCompletionTokens: 128000
+      },
+      {
+        id: 'gpt-5',
+        name: 'GPT-5',
+        maxTokens: 128000,
+        contextLength: 272000,
+        match: ['gpt-5', 'gpt-5-2025-08-07'],
+        vision: true,
+        functionCall: true,
+        reasoning: true,
+        reasoningEffort: 'medium',
+        verbosity: 'medium',
+        maxCompletionTokens: 128000
+      }
+    ]
   },
 
   // 火山引擎(Doubao)提供商特定模型配置
@@ -30,6 +87,17 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
   // Anthropic提供商特定模型配置
   anthropic: {
     models: [
+      {
+        id: 'claude-opus-4-1',
+        name: 'Claude Opus 4.1',
+        temperature: 0.7,
+        maxTokens: 32000,
+        contextLength: 204800,
+        match: ['claude-opus-4-1', 'claude-opus-4-1-20250805'],
+        vision: true,
+        functionCall: true,
+        reasoning: true
+      },
       {
         id: 'claude-opus-4',
         name: 'Claude Opus 4',
@@ -305,6 +373,233 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
   // Ollama提供商特定模型配置
   ollama: {
     models: [
+      // OpenAI开源模型
+      {
+        id: 'gpt-oss:20b',
+        name: 'GPT-OSS 20B',
+        temperature: 0.7,
+        maxTokens: 16384,
+        contextLength: 32768,
+        match: ['gpt-oss:20b'],
+        vision: false,
+        functionCall: true,
+        reasoning: true
+      },
+      {
+        id: 'gpt-oss:120b',
+        name: 'GPT-OSS 120B',
+        temperature: 0.7,
+        maxTokens: 32768,
+        contextLength: 65536,
+        match: ['gpt-oss:120b'],
+        vision: false,
+        functionCall: true,
+        reasoning: true
+      },
+      // DeepSeek推理模型系列
+      {
+        id: 'deepseek-r1:1.5b',
+        name: 'DeepSeek R1 1.5B',
+        temperature: 0.7,
+        maxTokens: 32768,
+        contextLength: 65536,
+        match: ['deepseek-r1:1.5b'],
+        vision: false,
+        functionCall: false,
+        reasoning: true
+      },
+      {
+        id: 'deepseek-r1:7b',
+        name: 'DeepSeek R1 7B',
+        temperature: 0.7,
+        maxTokens: 32768,
+        contextLength: 65536,
+        match: ['deepseek-r1:7b'],
+        vision: false,
+        functionCall: false,
+        reasoning: true
+      },
+      {
+        id: 'deepseek-r1:8b',
+        name: 'DeepSeek R1 8B',
+        temperature: 0.7,
+        maxTokens: 32768,
+        contextLength: 65536,
+        match: ['deepseek-r1:8b'],
+        vision: false,
+        functionCall: false,
+        reasoning: true
+      },
+      {
+        id: 'deepseek-r1:14b',
+        name: 'DeepSeek R1 14B',
+        temperature: 0.7,
+        maxTokens: 32768,
+        contextLength: 65536,
+        match: ['deepseek-r1:14b'],
+        vision: false,
+        functionCall: false,
+        reasoning: true
+      },
+      {
+        id: 'deepseek-r1:32b',
+        name: 'DeepSeek R1 32B',
+        temperature: 0.7,
+        maxTokens: 32768,
+        contextLength: 65536,
+        match: ['deepseek-r1:32b'],
+        vision: false,
+        functionCall: false,
+        reasoning: true
+      },
+      {
+        id: 'deepseek-r1:70b',
+        name: 'DeepSeek R1 70B',
+        temperature: 0.7,
+        maxTokens: 32768,
+        contextLength: 131072,
+        match: ['deepseek-r1:70b'],
+        vision: false,
+        functionCall: false,
+        reasoning: true
+      },
+      {
+        id: 'deepseek-r1:671b',
+        name: 'DeepSeek R1 671B',
+        temperature: 0.7,
+        maxTokens: 65536,
+        contextLength: 131072,
+        match: ['deepseek-r1:671b'],
+        vision: false,
+        functionCall: false,
+        reasoning: true
+      },
+      // DeepSeek V3/V2.5系列
+      {
+        id: 'deepseek-v3:671b',
+        name: 'DeepSeek V3 671B',
+        temperature: 0.7,
+        maxTokens: 32768,
+        contextLength: 131072,
+        match: ['deepseek-v3:671b'],
+        vision: false,
+        functionCall: true,
+        reasoning: false
+      },
+      {
+        id: 'deepseek-v2.5:236b',
+        name: 'DeepSeek V2.5 236B',
+        temperature: 0.7,
+        maxTokens: 32768,
+        contextLength: 131072,
+        match: ['deepseek-v2.5:236b'],
+        vision: false,
+        functionCall: true,
+        reasoning: false
+      },
+      // Gemma3系列
+      {
+        id: 'gemma3:1b',
+        name: 'Gemma3 1B',
+        temperature: 0.7,
+        maxTokens: 8192,
+        contextLength: 32768,
+        match: ['gemma3:1b'],
+        vision: false,
+        functionCall: true,
+        reasoning: false
+      },
+      {
+        id: 'gemma3:4b',
+        name: 'Gemma3 4B',
+        temperature: 0.7,
+        maxTokens: 8192,
+        contextLength: 32768,
+        match: ['gemma3:4b'],
+        vision: false,
+        functionCall: true,
+        reasoning: false
+      },
+      {
+        id: 'gemma3:12b',
+        name: 'Gemma3 12B',
+        temperature: 0.7,
+        maxTokens: 16384,
+        contextLength: 65536,
+        match: ['gemma3:12b'],
+        vision: false,
+        functionCall: true,
+        reasoning: false
+      },
+      {
+        id: 'gemma3:27b',
+        name: 'Gemma3 27B',
+        temperature: 0.7,
+        maxTokens: 16384,
+        contextLength: 65536,
+        match: ['gemma3:27b'],
+        vision: false,
+        functionCall: true,
+        reasoning: false
+      },
+      // Gemma2系列
+      {
+        id: 'gemma2:2b',
+        name: 'Gemma2 2B',
+        temperature: 0.7,
+        maxTokens: 8192,
+        contextLength: 32768,
+        match: ['gemma2:2b'],
+        vision: false,
+        functionCall: true,
+        reasoning: false
+      },
+      {
+        id: 'gemma2:9b',
+        name: 'Gemma2 9B',
+        temperature: 0.7,
+        maxTokens: 8192,
+        contextLength: 32768,
+        match: ['gemma2:9b'],
+        vision: false,
+        functionCall: true,
+        reasoning: false
+      },
+      {
+        id: 'gemma2:27b',
+        name: 'Gemma2 27B',
+        temperature: 0.7,
+        maxTokens: 16384,
+        contextLength: 65536,
+        match: ['gemma2:27b'],
+        vision: false,
+        functionCall: true,
+        reasoning: false
+      },
+      // Gemma系列
+      {
+        id: 'gemma:2b',
+        name: 'Gemma 2B',
+        temperature: 0.7,
+        maxTokens: 8192,
+        contextLength: 32768,
+        match: ['gemma:2b'],
+        vision: false,
+        functionCall: true,
+        reasoning: false
+      },
+      {
+        id: 'gemma:7b',
+        name: 'Gemma 7B',
+        temperature: 0.7,
+        maxTokens: 8192,
+        contextLength: 32768,
+        match: ['gemma:7b'],
+        vision: false,
+        functionCall: true,
+        reasoning: false
+      },
+      // Qwen3系列
       {
         id: 'qwen3:0.6b',
         name: 'Qwen3 0.6B',
@@ -361,10 +656,21 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         reasoning: true
       },
       {
+        id: 'qwen3:30b',
+        name: 'Qwen3 30B',
+        temperature: 0.6,
+        maxTokens: 16384,
+        contextLength: 40960,
+        match: ['qwen3:30b'],
+        vision: false,
+        functionCall: true,
+        reasoning: true
+      },
+      {
         id: 'qwen3:32b',
         name: 'Qwen3 32B',
         temperature: 0.6,
-        maxTokens: 8192,
+        maxTokens: 16384,
         contextLength: 40960,
         match: ['qwen3:32b'],
         vision: false,
@@ -372,26 +678,952 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         reasoning: true
       },
       {
-        id: 'qwen3:30b-a3b',
-        name: 'Qwen3 30B A3B',
+        id: 'qwen3:235b',
+        name: 'Qwen3 235B',
         temperature: 0.6,
-        maxTokens: 8192,
+        maxTokens: 32768,
         contextLength: 40960,
-        match: ['qwen3:30b-a3b'],
+        match: ['qwen3:235b'],
         vision: false,
         functionCall: true,
         reasoning: true
       },
+      // Qwen3编程模型
       {
-        id: 'qwen3:235b-a22b',
-        name: 'Qwen3 235B A22B',
+        id: 'qwen3-coder:30b',
+        name: 'Qwen3 Coder 30B',
         temperature: 0.6,
-        maxTokens: 8192,
+        maxTokens: 16384,
         contextLength: 40960,
-        match: ['qwen3:235b-a22b'],
+        match: ['qwen3-coder:30b'],
         vision: false,
         functionCall: true,
         reasoning: true
+      },
+      // Qwen2.5系列
+      {
+        id: 'qwen2.5:0.5b',
+        name: 'Qwen2.5 0.5B',
+        temperature: 0.6,
+        maxTokens: 8192,
+        contextLength: 131072,
+        match: ['qwen2.5:0.5b'],
+        vision: false,
+        functionCall: true,
+        reasoning: false
+      },
+      {
+        id: 'qwen2.5:1.5b',
+        name: 'Qwen2.5 1.5B',
+        temperature: 0.6,
+        maxTokens: 8192,
+        contextLength: 131072,
+        match: ['qwen2.5:1.5b'],
+        vision: false,
+        functionCall: true,
+        reasoning: false
+      },
+      {
+        id: 'qwen2.5:3b',
+        name: 'Qwen2.5 3B',
+        temperature: 0.6,
+        maxTokens: 8192,
+        contextLength: 131072,
+        match: ['qwen2.5:3b'],
+        vision: false,
+        functionCall: true,
+        reasoning: false
+      },
+      {
+        id: 'qwen2.5:7b',
+        name: 'Qwen2.5 7B',
+        temperature: 0.6,
+        maxTokens: 8192,
+        contextLength: 131072,
+        match: ['qwen2.5:7b'],
+        vision: false,
+        functionCall: true,
+        reasoning: false
+      },
+      {
+        id: 'qwen2.5:14b',
+        name: 'Qwen2.5 14B',
+        temperature: 0.6,
+        maxTokens: 8192,
+        contextLength: 131072,
+        match: ['qwen2.5:14b'],
+        vision: false,
+        functionCall: true,
+        reasoning: false
+      },
+      {
+        id: 'qwen2.5:32b',
+        name: 'Qwen2.5 32B',
+        temperature: 0.6,
+        maxTokens: 16384,
+        contextLength: 131072,
+        match: ['qwen2.5:32b'],
+        vision: false,
+        functionCall: true,
+        reasoning: false
+      },
+      {
+        id: 'qwen2.5:72b',
+        name: 'Qwen2.5 72B',
+        temperature: 0.6,
+        maxTokens: 32768,
+        contextLength: 131072,
+        match: ['qwen2.5:72b'],
+        vision: false,
+        functionCall: true,
+        reasoning: false
+      },
+      // Qwen2.5编程模型系列
+      {
+        id: 'qwen2.5-coder:0.5b',
+        name: 'Qwen2.5 Coder 0.5B',
+        temperature: 0.3,
+        maxTokens: 8192,
+        contextLength: 131072,
+        match: ['qwen2.5-coder:0.5b'],
+        vision: false,
+        functionCall: true,
+        reasoning: false
+      },
+      {
+        id: 'qwen2.5-coder:1.5b',
+        name: 'Qwen2.5 Coder 1.5B',
+        temperature: 0.3,
+        maxTokens: 8192,
+        contextLength: 131072,
+        match: ['qwen2.5-coder:1.5b'],
+        vision: false,
+        functionCall: true,
+        reasoning: false
+      },
+      {
+        id: 'qwen2.5-coder:3b',
+        name: 'Qwen2.5 Coder 3B',
+        temperature: 0.3,
+        maxTokens: 8192,
+        contextLength: 131072,
+        match: ['qwen2.5-coder:3b'],
+        vision: false,
+        functionCall: true,
+        reasoning: false
+      },
+      {
+        id: 'qwen2.5-coder:7b',
+        name: 'Qwen2.5 Coder 7B',
+        temperature: 0.3,
+        maxTokens: 8192,
+        contextLength: 131072,
+        match: ['qwen2.5-coder:7b'],
+        vision: false,
+        functionCall: true,
+        reasoning: false
+      },
+      {
+        id: 'qwen2.5-coder:14b',
+        name: 'Qwen2.5 Coder 14B',
+        temperature: 0.3,
+        maxTokens: 8192,
+        contextLength: 131072,
+        match: ['qwen2.5-coder:14b'],
+        vision: false,
+        functionCall: true,
+        reasoning: false
+      },
+      {
+        id: 'qwen2.5-coder:32b',
+        name: 'Qwen2.5 Coder 32B',
+        temperature: 0.3,
+        maxTokens: 16384,
+        contextLength: 131072,
+        match: ['qwen2.5-coder:32b'],
+        vision: false,
+        functionCall: true,
+        reasoning: false
+      },
+      // Qwen2系列
+      {
+        id: 'qwen2:0.5b',
+        name: 'Qwen2 0.5B',
+        temperature: 0.6,
+        maxTokens: 8192,
+        contextLength: 32768,
+        match: ['qwen2:0.5b'],
+        vision: false,
+        functionCall: true,
+        reasoning: false
+      },
+      {
+        id: 'qwen2:1.5b',
+        name: 'Qwen2 1.5B',
+        temperature: 0.6,
+        maxTokens: 8192,
+        contextLength: 32768,
+        match: ['qwen2:1.5b'],
+        vision: false,
+        functionCall: true,
+        reasoning: false
+      },
+      {
+        id: 'qwen2:7b',
+        name: 'Qwen2 7B',
+        temperature: 0.6,
+        maxTokens: 8192,
+        contextLength: 32768,
+        match: ['qwen2:7b'],
+        vision: false,
+        functionCall: true,
+        reasoning: false
+      },
+      {
+        id: 'qwen2:72b',
+        name: 'Qwen2 72B',
+        temperature: 0.6,
+        maxTokens: 32768,
+        contextLength: 32768,
+        match: ['qwen2:72b'],
+        vision: false,
+        functionCall: true,
+        reasoning: false
+      },
+      // Qwen第一代系列
+      {
+        id: 'qwen:0.5b',
+        name: 'Qwen 0.5B',
+        temperature: 0.6,
+        maxTokens: 8192,
+        contextLength: 8192,
+        match: ['qwen:0.5b'],
+        vision: false,
+        functionCall: false,
+        reasoning: false
+      },
+      {
+        id: 'qwen:1.8b',
+        name: 'Qwen 1.8B',
+        temperature: 0.6,
+        maxTokens: 8192,
+        contextLength: 8192,
+        match: ['qwen:1.8b'],
+        vision: false,
+        functionCall: false,
+        reasoning: false
+      },
+      {
+        id: 'qwen:4b',
+        name: 'Qwen 4B',
+        temperature: 0.6,
+        maxTokens: 8192,
+        contextLength: 8192,
+        match: ['qwen:4b'],
+        vision: false,
+        functionCall: false,
+        reasoning: false
+      },
+      {
+        id: 'qwen:7b',
+        name: 'Qwen 7B',
+        temperature: 0.6,
+        maxTokens: 8192,
+        contextLength: 8192,
+        match: ['qwen:7b'],
+        vision: false,
+        functionCall: false,
+        reasoning: false
+      },
+      {
+        id: 'qwen:14b',
+        name: 'Qwen 14B',
+        temperature: 0.6,
+        maxTokens: 8192,
+        contextLength: 8192,
+        match: ['qwen:14b'],
+        vision: false,
+        functionCall: false,
+        reasoning: false
+      },
+      {
+        id: 'qwen:32b',
+        name: 'Qwen 32B',
+        temperature: 0.6,
+        maxTokens: 8192,
+        contextLength: 8192,
+        match: ['qwen:32b'],
+        vision: false,
+        functionCall: false,
+        reasoning: false
+      },
+      {
+        id: 'qwen:72b',
+        name: 'Qwen 72B',
+        temperature: 0.6,
+        maxTokens: 16384,
+        contextLength: 32768,
+        match: ['qwen:72b'],
+        vision: false,
+        functionCall: false,
+        reasoning: false
+      },
+      {
+        id: 'qwen:110b',
+        name: 'Qwen 110B',
+        temperature: 0.6,
+        maxTokens: 16384,
+        contextLength: 32768,
+        match: ['qwen:110b'],
+        vision: false,
+        functionCall: false,
+        reasoning: false
+      },
+      // QwQ推理模型
+      {
+        id: 'qwq:32b',
+        name: 'QwQ 32B',
+        temperature: 0.7,
+        maxTokens: 32768,
+        contextLength: 32768,
+        match: ['qwq:32b'],
+        vision: false,
+        functionCall: false,
+        reasoning: true
+      },
+      // Llama3.3系列
+      {
+        id: 'llama3.3:70b',
+        name: 'Llama 3.3 70B',
+        temperature: 0.7,
+        maxTokens: 16384,
+        contextLength: 131072,
+        match: ['llama3.3:70b'],
+        vision: false,
+        functionCall: true,
+        reasoning: false
+      },
+      // Llama3.2系列
+      {
+        id: 'llama3.2:1b',
+        name: 'Llama 3.2 1B',
+        temperature: 0.7,
+        maxTokens: 8192,
+        contextLength: 131072,
+        match: ['llama3.2:1b'],
+        vision: false,
+        functionCall: true,
+        reasoning: false
+      },
+      {
+        id: 'llama3.2:3b',
+        name: 'Llama 3.2 3B',
+        temperature: 0.7,
+        maxTokens: 8192,
+        contextLength: 131072,
+        match: ['llama3.2:3b'],
+        vision: false,
+        functionCall: true,
+        reasoning: false
+      },
+      // Llama3.2视觉模型
+      {
+        id: 'llama3.2-vision:11b',
+        name: 'Llama 3.2 Vision 11B',
+        temperature: 0.7,
+        maxTokens: 8192,
+        contextLength: 131072,
+        match: ['llama3.2-vision:11b'],
+        vision: true,
+        functionCall: true,
+        reasoning: false
+      },
+      {
+        id: 'llama3.2-vision:90b',
+        name: 'Llama 3.2 Vision 90B',
+        temperature: 0.7,
+        maxTokens: 16384,
+        contextLength: 131072,
+        match: ['llama3.2-vision:90b'],
+        vision: true,
+        functionCall: true,
+        reasoning: false
+      },
+      // Llama3.1系列
+      {
+        id: 'llama3.1:8b',
+        name: 'Llama 3.1 8B',
+        temperature: 0.7,
+        maxTokens: 8192,
+        contextLength: 131072,
+        match: ['llama3.1:8b'],
+        vision: false,
+        functionCall: true,
+        reasoning: false
+      },
+      {
+        id: 'llama3.1:70b',
+        name: 'Llama 3.1 70B',
+        temperature: 0.7,
+        maxTokens: 16384,
+        contextLength: 131072,
+        match: ['llama3.1:70b'],
+        vision: false,
+        functionCall: true,
+        reasoning: false
+      },
+      {
+        id: 'llama3.1:405b',
+        name: 'Llama 3.1 405B',
+        temperature: 0.7,
+        maxTokens: 32768,
+        contextLength: 131072,
+        match: ['llama3.1:405b'],
+        vision: false,
+        functionCall: true,
+        reasoning: false
+      },
+      // Llama3系列
+      {
+        id: 'llama3:8b',
+        name: 'Llama 3 8B',
+        temperature: 0.7,
+        maxTokens: 8192,
+        contextLength: 8192,
+        match: ['llama3:8b'],
+        vision: false,
+        functionCall: false,
+        reasoning: false
+      },
+      {
+        id: 'llama3:70b',
+        name: 'Llama 3 70B',
+        temperature: 0.7,
+        maxTokens: 16384,
+        contextLength: 8192,
+        match: ['llama3:70b'],
+        vision: false,
+        functionCall: false,
+        reasoning: false
+      },
+      // Llama2系列
+      {
+        id: 'llama2:7b',
+        name: 'Llama 2 7B',
+        temperature: 0.7,
+        maxTokens: 4096,
+        contextLength: 4096,
+        match: ['llama2:7b'],
+        vision: false,
+        functionCall: false,
+        reasoning: false
+      },
+      {
+        id: 'llama2:13b',
+        name: 'Llama 2 13B',
+        temperature: 0.7,
+        maxTokens: 4096,
+        contextLength: 4096,
+        match: ['llama2:13b'],
+        vision: false,
+        functionCall: false,
+        reasoning: false
+      },
+      {
+        id: 'llama2:70b',
+        name: 'Llama 2 70B',
+        temperature: 0.7,
+        maxTokens: 8192,
+        contextLength: 4096,
+        match: ['llama2:70b'],
+        vision: false,
+        functionCall: false,
+        reasoning: false
+      },
+      // LLaVA视觉模型系列
+      {
+        id: 'llava:7b',
+        name: 'LLaVA 7B',
+        temperature: 0.7,
+        maxTokens: 4096,
+        contextLength: 4096,
+        match: ['llava:7b'],
+        vision: true,
+        functionCall: false,
+        reasoning: false
+      },
+      {
+        id: 'llava:13b',
+        name: 'LLaVA 13B',
+        temperature: 0.7,
+        maxTokens: 4096,
+        contextLength: 4096,
+        match: ['llava:13b'],
+        vision: true,
+        functionCall: false,
+        reasoning: false
+      },
+      {
+        id: 'llava:34b',
+        name: 'LLaVA 34B',
+        temperature: 0.7,
+        maxTokens: 8192,
+        contextLength: 4096,
+        match: ['llava:34b'],
+        vision: true,
+        functionCall: false,
+        reasoning: false
+      },
+      // LLaVA-Llama3模型
+      {
+        id: 'llava-llama3:8b',
+        name: 'LLaVA Llama3 8B',
+        temperature: 0.7,
+        maxTokens: 8192,
+        contextLength: 8192,
+        match: ['llava-llama3:8b'],
+        vision: true,
+        functionCall: false,
+        reasoning: false
+      },
+      // Mistral系列
+      {
+        id: 'mistral:7b',
+        name: 'Mistral 7B',
+        temperature: 0.7,
+        maxTokens: 32768,
+        contextLength: 32768,
+        match: ['mistral:7b'],
+        vision: false,
+        functionCall: true,
+        reasoning: false
+      },
+      {
+        id: 'mistral-nemo:12b',
+        name: 'Mistral Nemo 12B',
+        temperature: 0.7,
+        maxTokens: 32768,
+        contextLength: 131072,
+        match: ['mistral-nemo:12b'],
+        vision: false,
+        functionCall: true,
+        reasoning: false
+      },
+      {
+        id: 'mistral-small:22b',
+        name: 'Mistral Small 22B',
+        temperature: 0.7,
+        maxTokens: 32768,
+        contextLength: 32768,
+        match: ['mistral-small:22b'],
+        vision: false,
+        functionCall: true,
+        reasoning: false
+      },
+      {
+        id: 'mistral-small:24b',
+        name: 'Mistral Small 24B',
+        temperature: 0.7,
+        maxTokens: 32768,
+        contextLength: 32768,
+        match: ['mistral-small:24b'],
+        vision: false,
+        functionCall: true,
+        reasoning: false
+      },
+      // Phi系列
+      {
+        id: 'phi3:3.8b',
+        name: 'Phi-3 3.8B',
+        temperature: 0.7,
+        maxTokens: 8192,
+        contextLength: 131072,
+        match: ['phi3:3.8b'],
+        vision: false,
+        functionCall: false,
+        reasoning: false
+      },
+      {
+        id: 'phi3:14b',
+        name: 'Phi-3 14B',
+        temperature: 0.7,
+        maxTokens: 8192,
+        contextLength: 131072,
+        match: ['phi3:14b'],
+        vision: false,
+        functionCall: false,
+        reasoning: false
+      },
+      {
+        id: 'phi4:14b',
+        name: 'Phi-4 14B',
+        temperature: 0.7,
+        maxTokens: 8192,
+        contextLength: 16384,
+        match: ['phi4:14b'],
+        vision: false,
+        functionCall: false,
+        reasoning: true
+      },
+      {
+        id: 'phi4-mini-reasoning:3.8b',
+        name: 'Phi-4 Mini Reasoning 3.8B',
+        temperature: 0.7,
+        maxTokens: 8192,
+        contextLength: 16384,
+        match: ['phi4-mini-reasoning:3.8b'],
+        vision: false,
+        functionCall: false,
+        reasoning: true
+      },
+      // CodeLlama编程模型系列
+      {
+        id: 'codellama:7b',
+        name: 'Code Llama 7B',
+        temperature: 0.1,
+        maxTokens: 8192,
+        contextLength: 16384,
+        match: ['codellama:7b'],
+        vision: false,
+        functionCall: false,
+        reasoning: false
+      },
+      {
+        id: 'codellama:13b',
+        name: 'Code Llama 13B',
+        temperature: 0.1,
+        maxTokens: 8192,
+        contextLength: 16384,
+        match: ['codellama:13b'],
+        vision: false,
+        functionCall: false,
+        reasoning: false
+      },
+      {
+        id: 'codellama:34b',
+        name: 'Code Llama 34B',
+        temperature: 0.1,
+        maxTokens: 8192,
+        contextLength: 16384,
+        match: ['codellama:34b'],
+        vision: false,
+        functionCall: false,
+        reasoning: false
+      },
+      {
+        id: 'codellama:70b',
+        name: 'Code Llama 70B',
+        temperature: 0.1,
+        maxTokens: 16384,
+        contextLength: 16384,
+        match: ['codellama:70b'],
+        vision: false,
+        functionCall: false,
+        reasoning: false
+      },
+      // MiniCPM视觉模型
+      {
+        id: 'minicpm-v:8b',
+        name: 'MiniCPM-V 8B',
+        temperature: 0.7,
+        maxTokens: 8192,
+        contextLength: 8192,
+        match: ['minicpm-v:8b'],
+        vision: true,
+        functionCall: false,
+        reasoning: false
+      },
+      // TinyLlama轻量模型
+      {
+        id: 'tinyllama:1.1b',
+        name: 'TinyLlama 1.1B',
+        temperature: 0.7,
+        maxTokens: 2048,
+        contextLength: 2048,
+        match: ['tinyllama:1.1b'],
+        vision: false,
+        functionCall: false,
+        reasoning: false
+      },
+      // SmolLM2轻量模型系列
+      {
+        id: 'smollm2:135m',
+        name: 'SmolLM2 135M',
+        temperature: 0.7,
+        maxTokens: 2048,
+        contextLength: 8192,
+        match: ['smollm2:135m'],
+        vision: false,
+        functionCall: false,
+        reasoning: false
+      },
+      {
+        id: 'smollm2:360m',
+        name: 'SmolLM2 360M',
+        temperature: 0.7,
+        maxTokens: 2048,
+        contextLength: 8192,
+        match: ['smollm2:360m'],
+        vision: false,
+        functionCall: false,
+        reasoning: false
+      },
+      {
+        id: 'smollm2:1.7b',
+        name: 'SmolLM2 1.7B',
+        temperature: 0.7,
+        maxTokens: 4096,
+        contextLength: 8192,
+        match: ['smollm2:1.7b'],
+        vision: false,
+        functionCall: true,
+        reasoning: false
+      },
+      // Tulu3指令模型
+      {
+        id: 'tulu3:8b',
+        name: 'Tulu3 8B',
+        temperature: 0.7,
+        maxTokens: 8192,
+        contextLength: 8192,
+        match: ['tulu3:8b'],
+        vision: false,
+        functionCall: true,
+        reasoning: false
+      },
+      {
+        id: 'tulu3:70b',
+        name: 'Tulu3 70B',
+        temperature: 0.7,
+        maxTokens: 16384,
+        contextLength: 8192,
+        match: ['tulu3:70b'],
+        vision: false,
+        functionCall: true,
+        reasoning: false
+      },
+      // OLMo2开源模型
+      {
+        id: 'olmo2:7b',
+        name: 'OLMo2 7B',
+        temperature: 0.7,
+        maxTokens: 8192,
+        contextLength: 8192,
+        match: ['olmo2:7b'],
+        vision: false,
+        functionCall: false,
+        reasoning: false
+      },
+      {
+        id: 'olmo2:13b',
+        name: 'OLMo2 13B',
+        temperature: 0.7,
+        maxTokens: 8192,
+        contextLength: 8192,
+        match: ['olmo2:13b'],
+        vision: false,
+        functionCall: false,
+        reasoning: false
+      },
+      // Solar Pro模型
+      {
+        id: 'solar-pro:22b',
+        name: 'Solar Pro 22B',
+        temperature: 0.7,
+        maxTokens: 16384,
+        contextLength: 16384,
+        match: ['solar-pro:22b', 'solar-pro'],
+        vision: false,
+        functionCall: true,
+        reasoning: false
+      },
+      // Dolphin指令模型
+      {
+        id: 'dolphin3:8b',
+        name: 'Dolphin3 8B',
+        temperature: 0.7,
+        maxTokens: 8192,
+        contextLength: 8192,
+        match: ['dolphin3:8b'],
+        vision: false,
+        functionCall: true,
+        reasoning: false
+      },
+      // Command R模型系列
+      {
+        id: 'command-r7b:7b',
+        name: 'Command R7B 7B',
+        temperature: 0.7,
+        maxTokens: 8192,
+        contextLength: 131072,
+        match: ['command-r7b:7b'],
+        vision: false,
+        functionCall: true,
+        reasoning: false
+      },
+      {
+        id: 'command-r7b-arabic:7b',
+        name: 'Command R7B Arabic 7B',
+        temperature: 0.7,
+        maxTokens: 8192,
+        contextLength: 131072,
+        match: ['command-r7b-arabic:7b'],
+        vision: false,
+        functionCall: true,
+        reasoning: false
+      },
+      {
+        id: 'command-a:111b',
+        name: 'Command A 111B',
+        temperature: 0.7,
+        maxTokens: 32768,
+        contextLength: 131072,
+        match: ['command-a:111b'],
+        vision: false,
+        functionCall: true,
+        reasoning: false
+      },
+      // Magicoder编程模型
+      {
+        id: 'magicoder:7b',
+        name: 'Magicoder 7B',
+        temperature: 0.1,
+        maxTokens: 8192,
+        contextLength: 16384,
+        match: ['magicoder:7b'],
+        vision: false,
+        functionCall: false,
+        reasoning: false
+      },
+      // Mathstral数学模型
+      {
+        id: 'mathstral:7b',
+        name: 'Mathstral 7B',
+        temperature: 0.3,
+        maxTokens: 8192,
+        contextLength: 32768,
+        match: ['mathstral:7b'],
+        vision: false,
+        functionCall: false,
+        reasoning: true
+      },
+      // Falcon2模型
+      {
+        id: 'falcon2:11b',
+        name: 'Falcon2 11B',
+        temperature: 0.7,
+        maxTokens: 8192,
+        contextLength: 8192,
+        match: ['falcon2:11b'],
+        vision: false,
+        functionCall: false,
+        reasoning: false
+      },
+      // StableLM模型
+      {
+        id: 'stablelm-zephyr:3b',
+        name: 'StableLM Zephyr 3B',
+        temperature: 0.7,
+        maxTokens: 4096,
+        contextLength: 4096,
+        match: ['stablelm-zephyr:3b'],
+        vision: false,
+        functionCall: false,
+        reasoning: false
+      },
+      // Granite Guardian安全模型
+      {
+        id: 'granite3-guardian:2b',
+        name: 'Granite3 Guardian 2B',
+        temperature: 0.7,
+        maxTokens: 4096,
+        contextLength: 8192,
+        match: ['granite3-guardian:2b'],
+        vision: false,
+        functionCall: false,
+        reasoning: false
+      },
+      {
+        id: 'granite3-guardian:8b',
+        name: 'Granite3 Guardian 8B',
+        temperature: 0.7,
+        maxTokens: 8192,
+        contextLength: 8192,
+        match: ['granite3-guardian:8b'],
+        vision: false,
+        functionCall: false,
+        reasoning: false
+      },
+      // ShieldGemma安全模型
+      {
+        id: 'shieldgemma:2b',
+        name: 'ShieldGemma 2B',
+        temperature: 0.7,
+        maxTokens: 4096,
+        contextLength: 8192,
+        match: ['shieldgemma:2b'],
+        vision: false,
+        functionCall: false,
+        reasoning: false
+      },
+      {
+        id: 'shieldgemma:9b',
+        name: 'ShieldGemma 9B',
+        temperature: 0.7,
+        maxTokens: 8192,
+        contextLength: 8192,
+        match: ['shieldgemma:9b'],
+        vision: false,
+        functionCall: false,
+        reasoning: false
+      },
+      {
+        id: 'shieldgemma:27b',
+        name: 'ShieldGemma 27B',
+        temperature: 0.7,
+        maxTokens: 16384,
+        contextLength: 8192,
+        match: ['shieldgemma:27b'],
+        vision: false,
+        functionCall: false,
+        reasoning: false
+      },
+      // 嵌入模型
+      {
+        id: 'nomic-embed-text:335m',
+        name: 'Nomic Embed Text 335M',
+        temperature: 0.0,
+        maxTokens: 512,
+        contextLength: 8192,
+        match: ['nomic-embed-text:335m', 'nomic-embed-text'],
+        vision: false,
+        functionCall: false,
+        reasoning: false,
+        type: ModelType.Embedding
+      },
+      {
+        id: 'mxbai-embed-large:335m',
+        name: 'MxBai Embed Large 335M',
+        temperature: 0.0,
+        maxTokens: 512,
+        contextLength: 8192,
+        match: ['mxbai-embed-large:335m', 'mxbai-embed-large'],
+        vision: false,
+        functionCall: false,
+        reasoning: false,
+        type: ModelType.Embedding
+      },
+      {
+        id: 'bge-m3:567m',
+        name: 'BGE-M3 567M',
+        temperature: 0.0,
+        maxTokens: 512,
+        contextLength: 8192,
+        match: ['bge-m3:567m', 'bge-m3'],
+        vision: false,
+        functionCall: false,
+        reasoning: false,
+        type: ModelType.Embedding
       }
     ]
   },
@@ -1215,11 +2447,14 @@ export function getProviderSpecificModelConfig(
       return {
         maxTokens: config.maxTokens,
         contextLength: config.contextLength,
-        temperature: config.temperature || 0.7,
+        temperature: config.temperature, // 保持可选，某些模型不支持
         vision: config.vision || false,
         functionCall: config.functionCall || false,
         reasoning: config.reasoning || false,
-        type: config.type || ModelType.Chat
+        type: config.type || ModelType.Chat,
+        reasoningEffort: config.reasoningEffort,
+        verbosity: config.verbosity,
+        maxCompletionTokens: config.maxCompletionTokens
       }
     }
   }

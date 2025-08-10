@@ -73,6 +73,11 @@ const showThinkingBudget = computed(() => {
   return isGemini && isGemini25
 })
 
+const isGPT5Model = computed(() => {
+  const modelId = props.modelId?.toLowerCase() || ''
+  return modelId.startsWith('gpt-5')
+})
+
 // 当前显示的思考预算值
 const displayThinkingBudget = computed({
   get: () => {
@@ -126,8 +131,8 @@ const handleDynamicThinkingToggle = (enabled: boolean) => {
         />
       </div>
 
-      <!-- Temperature -->
-      <div class="space-y-4 px-2">
+      <!-- Temperature (GPT-5 系列模型不显示) -->
+      <div v-if="!isGPT5Model" class="space-y-4 px-2">
         <div class="flex items-center justify-between">
           <div class="flex items-center space-x-2">
             <Icon icon="lucide:thermometer" class="w-4 h-4 text-muted-foreground" />

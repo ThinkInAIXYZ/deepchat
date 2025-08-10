@@ -30,11 +30,11 @@
   "htmlPreviewTitle": "HTMLプレビュー",
   "svgPreviewTitle": "SVGプレビュー",
   "copy": "コピー",
-  "copySuccess": "コピー成功",
+  "copySuccess": "コピーしました",
   "copySuccessDesc": "クリップボードにコピーしました",
-  "copyFailed": "コピー失敗",
+  "copyFailed": "コピーできませんでした",
   "copyFailedDesc": "クリップボードへのコピーに失敗しました",
   "copyAsImage": "画像としてコピー",
   "copyImageSuccessDesc": "画像をクリップボードにコピーしました",
-  "copyImageFailedDesc": "画像のコピーに失敗しました"
+  "copyImageFailedDesc": "画像をコピーできませんでした"
 }

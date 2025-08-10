@@ -114,6 +114,104 @@
         </DialogContent>
       </Dialog>
 
+      <!-- 分割线 -->
+      <Separator class="my-4" />
+
+      <!-- 数据重置选项 -->
+      <AlertDialog v-model:open="isResetDialogOpen">
+        <AlertDialogTrigger as-child>
+          <div
+            class="p-2 flex flex-row items-center gap-2 hover:bg-accent rounded-lg cursor-pointer"
+            :dir="languageStore.dir"
+          >
+            <Icon icon="lucide:rotate-ccw" class="w-4 h-4 text-destructive" />
+            <span class="text-sm font-medium text-destructive">{{
+              t('settings.data.resetData')
+            }}</span>
+          </div>
+        </AlertDialogTrigger>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{{ t('settings.data.resetConfirmTitle') }}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {{ t('settings.data.resetConfirmDescription') }}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div class="p-4">
+            <RadioGroup v-model="resetType" class="flex flex-col gap-3">
+              <div
+                class="flex items-start space-x-3 cursor-pointer hover:bg-accent rounded-lg p-2 -m-2"
+                @click="resetType = 'chat'"
+              >
+                <RadioGroupItem value="chat" id="reset-chat" class="mt-1" />
+                <div class="flex flex-col">
+                  <Label for="reset-chat" class="font-medium cursor-pointer">{{
+                    t('settings.data.resetChatData')
+                  }}</Label>
+                  <p class="text-xs text-muted-foreground">
+                    {{ t('settings.data.resetChatDataDesc') }}
+                  </p>
+                </div>
+              </div>
+              <div
+                class="flex items-start space-x-3 cursor-pointer hover:bg-accent rounded-lg p-2 -m-2"
+                @click="resetType = 'knowledge'"
+              >
+                <RadioGroupItem value="knowledge" id="reset-knowledge" class="mt-1" />
+                <div class="flex flex-col">
+                  <Label for="reset-knowledge" class="font-medium cursor-pointer">{{
+                    t('settings.data.resetKnowledgeData')
+                  }}</Label>
+                  <p class="text-xs text-muted-foreground">
+                    {{ t('settings.data.resetKnowledgeDataDesc') }}
+                  </p>
+                </div>
+              </div>
+              <div
+                class="flex items-start space-x-3 cursor-pointer hover:bg-accent rounded-lg p-2 -m-2"
+                @click="resetType = 'config'"
+              >
+                <RadioGroupItem value="config" id="reset-config" class="mt-1" />
+                <div class="flex flex-col">
+                  <Label for="reset-config" class="font-medium cursor-pointer">{{
+                    t('settings.data.resetConfig')
+                  }}</Label>
+                  <p class="text-xs text-muted-foreground">
+                    {{ t('settings.data.resetConfigDesc') }}
+                  </p>
+                </div>
+              </div>
+              <div
+                class="flex items-start space-x-3 cursor-pointer hover:bg-accent rounded-lg p-2 -m-2"
+                @click="resetType = 'all'"
+              >
+                <RadioGroupItem value="all" id="reset-all" class="mt-1" />
+                <div class="flex flex-col">
+                  <Label for="reset-all" class="font-medium cursor-pointer">{{
+                    t('settings.data.resetAll')
+                  }}</Label>
+                  <p class="text-xs text-muted-foreground">{{ t('settings.data.resetAllDesc') }}</p>
+                </div>
+              </div>
+            </RadioGroup>
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel @click="closeResetDialog">
+              {{ t('dialog.cancel') }}
+            </AlertDialogCancel>
+            <AlertDialogAction
+              :class="
+                cn('bg-destructive text-destructive-foreground shadow-sm hover:bg-destructive/90')
+              "
+              :disabled="isResetting"
+              @click="handleReset"
+            >
+              {{ isResetting ? t('settings.data.resetting') : t('settings.data.confirmReset') }}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       <AlertDialog :open="!!syncStore.importResult">
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -154,25 +252,36 @@ import {
 import {
   AlertDialog,
   AlertDialogAction,
+  AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
   AlertDialogFooter,
   AlertDialogHeader,
-  AlertDialogTitle
+  AlertDialogTitle,
+  AlertDialogTrigger
 } from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Label } from '@/components/ui/label'
+import { Separator } from '@/components/ui/separator'
 import { useSyncStore } from '@/stores/sync'
 import { useLanguageStore } from '@/stores/language'
+import { usePresenter } from '@/composables/usePresenter'
+import { cn } from '@/lib/utils'
 
 const { t } = useI18n()
 const languageStore = useLanguageStore()
 const syncStore = useSyncStore()
+const devicePresenter = usePresenter('devicePresenter')
+
 const isImportDialogOpen = ref(false)
 const importMode = ref('increment')
+
+const isResetDialogOpen = ref(false)
+const resetType = ref<'chat' | 'knowledge' | 'config' | 'all'>('chat')
+const isResetting = ref(false)
 
 // 使用计算属性处理双向绑定
 const syncEnabled = computed({
@@ -210,5 +319,24 @@ const handleAlertAction = () => {
     syncStore.restartApp()
   }
   syncStore.clearImportResult()
+}
+
+const closeResetDialog = () => {
+  isResetDialogOpen.value = false
+  resetType.value = 'chat'
+}
+
+const handleReset = async () => {
+  if (isResetting.value) return
+
+  isResetting.value = true
+  try {
+    await devicePresenter.resetDataByType(resetType.value)
+    closeResetDialog()
+  } catch (error) {
+    console.error('重置数据失败:', error)
+  } finally {
+    isResetting.value = false
+  }
 }
 </script>

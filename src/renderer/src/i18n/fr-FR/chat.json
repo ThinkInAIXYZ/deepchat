@@ -4,14 +4,19 @@
     "fileArea": "Zone de fichiers",
     "inputArea": "Zone de saisie",
     "functionSwitch": "Commutateur de fonction",
-    "fileSelect": "Sélection de fichier",
-    "pasteFiles": "Support du copier-coller de fichiers",
+    "fileSelect": "Sélectionner un fichier",
+    "pasteFiles": "Coller des fichiers depuis le presse-papiers",
     "dropFiles": "Déposez les fichiers ici",
     "promptFilesAdded": "Fichiers de prompt ajoutés",
     "promptFilesAddedDesc": "{count} fichiers ajoutés avec succès",
     "promptFilesError": "Erreur de traitement des fichiers",
     "promptFilesErrorDesc": "Échec du traitement de {count} fichiers",
-    "historyPlaceholder": "(Appuyez sur l'onglet pour remplir)"
+    "historyPlaceholder": "(Appuyez sur Tab pour compléter)",
+    "rateLimitQueue": "File {count}",
+    "rateLimitWait": "Attendre {seconds}s",
+    "rateLimitQueueTooltip": "{count} requêtes en file, intervalle {interval} secondes",
+    "rateLimitReadyTooltip": "Prêt à envoyer, intervalle {interval} secondes",
+    "rateLimitWaitingTooltip": "Attendre encore {seconds} secondes, intervalle {interval} secondes"
   },
   "features": {
     "deepThinking": "Réflexion approfondie",
@@ -30,7 +35,21 @@
     "error": "La recherche a échoué"
   },
   "messages": {
-    "thinking": "Pensée..."
+    "thinking": "Pensée...",
+    "rateLimitWaiting": "Limitation de débit, en attente dans la file...",
+    "rateLimitTitle": "Limitation de débit des requêtes",
+    "rateLimitQueue": "Position dans la file",
+    "rateLimitEstimated": "Temps d'attente estimé",
+    "rateLimitQuickSettings": "Ajuster la limite",
+    "rateLimitSwitchProvider": "Changer de fournisseur",
+    "rateLimitImmediately": "Immédiatement",
+    "rateLimitSeconds": "secondes",
+    "rateLimitMinutes": "minutes"
+  },
+  "rateLimit": {
+    "queueTooltip": "{count} requêtes en file, intervalle {interval} secondes",
+    "readyTooltip": "Prêt à envoyer, intervalle {interval} secondes",
+    "waitingTooltip": "Attendre encore {seconds} secondes, intervalle {interval} secondes"
   },
   "notify": {
     "generationComplete": "La génération est complète",

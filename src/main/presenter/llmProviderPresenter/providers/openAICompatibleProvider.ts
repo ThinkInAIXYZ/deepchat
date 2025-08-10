@@ -41,7 +41,11 @@ const OPENAI_REASONING_MODELS = [
   'o1-mini',
   'o1-pro',
   'o1-preview',
-  'o1'
+  'o1',
+  'gpt-5',
+  'gpt-5-mini',
+  'gpt-5-nano',
+  'gpt-5-chat'
 ]
 const OPENAI_IMAGE_GENERATION_MODELS = [
   'gpt-4o-all',
@@ -210,7 +214,10 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
       model: modelId,
       stream: false,
       temperature: temperature,
-      ...(modelId.startsWith('o1') || modelId.startsWith('o3') || modelId.startsWith('o4')
+      ...(modelId.startsWith('o1') ||
+      modelId.startsWith('o3') ||
+      modelId.startsWith('o4') ||
+      modelId.startsWith('gpt-5')
         ? { max_completion_tokens: maxTokens }
         : { max_tokens: maxTokens })
     }
@@ -528,7 +535,10 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
       model: modelId,
       stream: true,
       temperature,
-      ...(modelId.startsWith('o1') || modelId.startsWith('o3') || modelId.startsWith('o4')
+      ...(modelId.startsWith('o1') ||
+      modelId.startsWith('o3') ||
+      modelId.startsWith('o4') ||
+      modelId.startsWith('gpt-5')
         ? { max_completion_tokens: maxTokens }
         : { max_tokens: maxTokens })
     }

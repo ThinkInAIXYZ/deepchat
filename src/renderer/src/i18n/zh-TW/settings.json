@@ -70,7 +70,22 @@
     "importing": "匯入中...",
     "confirmImport": "確認匯入",
     "importSuccessTitle": "匯入成功",
-    "importErrorTitle": "匯入失敗"
+    "importErrorTitle": "匯入失敗",
+    "resetData": "重設資料",
+    "resetConfirmTitle": "確認重設資料",
+    "resetConfirmDescription": "請選擇要重設的資料類型。此操作無法復原，重設後應用程式將自動重新啟動。",
+    "resetChatData": "重設聊天資料",
+    "resetChatDataDesc": "刪除所有聊天記錄和對話歷史",
+    "resetKnowledgeData": "重設知識庫資料",
+    "resetKnowledgeDataDesc": "刪除所有知識庫檔案和向量資料",
+    "resetConfig": "重設設定",
+    "resetConfigDesc": "刪除所有應用程式設定、模型設定和自訂提示詞",
+    "resetAll": "完全重設",
+    "resetAllDesc": "刪除所有資料，包括聊天記錄、設定和快取檔案",
+    "resetting": "重設中...",
+    "confirmReset": "確認重設",
+    "resetCompleteDevTitle": "資料重設完成",
+    "resetCompleteDevMessage": "開發環境下請手動重新啟動應用程式。請停止目前程序並重新執行 pnpm run dev"
   },
   "model": {
     "title": "模型設定",
@@ -152,6 +167,27 @@
         "message": "確定要重置此模型的配置為默認值嗎？\n此操作不可撤銷。",
         "title": "確認重置"
       },
+      "reasoningEffort": {
+        "label": "推理努力程度",
+        "description": "控制模型的推理深度，更高的努力程度會產生更好的結果但回應更慢",
+        "placeholder": "選擇推理努力程度",
+        "options": {
+          "minimal": "Minimal - 最快回應",
+          "low": "Low - 低努力",
+          "medium": "Medium - 中等努力",
+          "high": "High - 高努力"
+        }
+      },
+      "verbosity": {
+        "label": "詳細程度",
+        "description": "控制模型回答的詳細程度和長度",
+        "placeholder": "選擇詳細程度",
+        "options": {
+          "low": "Low - 簡潔回答",
+          "medium": "Medium - 平衡詳細",
+          "high": "High - 詳細回答"
+        }
+      },
       "resetToDefault": "重置為默認",
       "saveConfig": "保存配置",
       "useModelDefault": "使用模型預設配置",
@@ -190,6 +226,8 @@
   },
   "provider": {
     "enable": "啟用服務",
+    "enabled": "已啟用",
+    "disabled": "已停用",
     "urlPlaceholder": "請輸入 API URL",
     "keyPlaceholder": "請輸入 API 金鑰",
     "verifyKey": "驗證金鑰",
@@ -220,12 +258,15 @@
         "confirm": "全部停用"
       },
       "configModels": {
-        "title": "設定模型清單"
+        "title": "設定模型清單",
+        "description": "選擇要啟用或停用的模型"
       },
       "verify": {
         "missingFields": "請輸入 API 金鑰和 API URL",
         "failed": "驗證失敗",
-        "success": "驗證成功"
+        "success": "驗證成功",
+        "failedDesc": "API 金鑰或設定驗證失敗，請檢查設定資訊",
+        "successDesc": "API 金鑰和設定驗證成功，可以正常使用"
       },
       "addCustomProvider": {
         "title": "新增自訂服務提供者",
@@ -252,6 +293,7 @@
       },
       "pullModel": {
         "title": "下載模型",
+        "description": "選擇要下載的模型到本機",
         "pull": "下載"
       },
       "modelCheck": {
@@ -308,7 +350,31 @@
     "toast": {
       "modelRunning": "模型正在運行",
       "modelRunningDesc": "請先停止模型 {model}，然後再刪除。"
-    }
+    },
+    "anthropicApiKeyTip": "請前往 Anthropic Console 獲取您的 API Key",
+    "anthropicConnected": "Anthropic 已連接",
+    "anthropicNotConnected": "Anthropic 未連接",
+    "anthropicOAuthTip": "點擊授權 DeepChat 訪問您的 Anthropic 賬戶",
+    "oauthLogin": "OAuth 登錄",
+    "authMethod": "認證方式",
+    "authMethodPlaceholder": "選擇認證方式",
+    "apiKeyLabel": "API Key",
+    "apiUrlLabel": "API URL",
+    "anthropicOAuthFlowTip": "系統將自動打開授權窗口，授權後請回來輸入授權碼",
+    "anthropicBrowserOpened": "外部瀏覽器已打開",
+    "anthropicCodeInstruction": "請在外部瀏覽器中完成授權，然後將獲得的授權碼粘貼到下方輸入框中",
+    "browserOpenedSuccess": "外部瀏覽器已打開，請完成授權",
+    "codeRequired": "請輸入授權碼",
+    "inputOAuthCode": "輸入授權碼",
+    "codeExchangeFailed": "授權碼交換失敗",
+    "invalidCode": "授權碼無效",
+    "oauthCodeHint": "請在外部瀏覽器中完成授權後，將獲得的授權碼粘貼到此處",
+    "oauthCodePlaceholder": "請輸入授權碼...",
+    "verifyConnection": "驗證連接",
+    "manageModels": "管理模型",
+    "anthropicOAuthActiveTip": "OAuth 認證已啟用，您可以直接使用 Anthropic 服務",
+    "oauthVerifySuccess": "OAuth 連接驗證成功",
+    "oauthVerifyFailed": "OAuth 連接驗證失敗"
   },
   "knowledgeBase": {
     "title": "知識庫設置",
@@ -394,7 +460,20 @@
         "description": "有正在運行的知識庫任務，是否確認退出軟件？\n被中止的任務可在重啟軟件後恢復。"
       }
     },
-    "searchError": "查詢失敗"
+    "searchError": "查詢失敗",
+    "processing": "正在上傳",
+    "paused": "上傳暫停",
+    "unknown": "未知狀態",
+    "reAddFile": {
+      "title": "重新上傳確認",
+      "content": "是否確認重新上傳文件 \"{fileName}\"？"
+    },
+    "deleteFile": {
+      "title": "刪除文件確認",
+      "content": "是否確認刪除文件 \"{fileName}\"？\n此操作不可恢復。"
+    },
+    "resumeAllPausedTasks": "一鍵恢復",
+    "pauseAllRunningTasks": "一鍵暫停"
   },
   "mcp": {
     "title": "MCP設定",
@@ -523,6 +602,47 @@
     "maxDefaultServersReached": "最多只能設置3個默認服務器",
     "removeDefaultFirst": "請先移除一些默認服務器",
     "higressMarket": "前往 Higress MCP 安裝",
+    "npmRegistry": {
+      "title": "NPM源設定",
+      "currentSource": "目前來源",
+      "cached": "快取",
+      "lastChecked": "上次檢測",
+      "refresh": "重新整理",
+      "advanced": "進階",
+      "advancedSettings": "進階設定",
+      "advancedSettingsDesc": "設定NPM源的進階選項，包括自動檢測和自訂來源設定",
+      "autoDetect": "自動檢測最佳來源",
+      "autoDetectDesc": "啟動時自動檢測並使用最快的NPM源",
+      "customSource": "自訂來源",
+      "customSourcePlaceholder": "輸入自訂NPM源位址",
+      "currentCustom": "目前自訂來源",
+      "justNow": "剛剛",
+      "minutesAgo": "{minutes}分鐘前",
+      "hoursAgo": "{hours}小時前",
+      "daysAgo": "{days}天前",
+      "refreshSuccess": "NPM源重新整理成功",
+      "refreshSuccessDesc": "已重新檢測並更新最佳NPM源",
+      "refreshFailed": "NPM源重新整理失敗",
+      "autoDetectUpdated": "自動檢測設定已更新",
+      "autoDetectEnabled": "已啟用自動檢測最佳NPM源",
+      "autoDetectDisabled": "已停用自動檢測，將使用預設來源",
+      "updateFailed": "設定更新失敗",
+      "customSourceSet": "自訂來源已設定",
+      "customSourceSetDesc": "已設定自訂NPM源：{registry}",
+      "customSourceCleared": "自訂來源已清除",
+      "customSourceClearedDesc": "已清除自訂NPM源，將使用自動檢測",
+      "invalidUrl": "無效的URL",
+      "invalidUrlDesc": "請輸入有效的HTTP或HTTPS位址",
+      "testing": "正在測試NPM源",
+      "testingDesc": "正在測試來源 {registry} 的連線狀態...",
+      "testFailed": "NPM源測試失敗",
+      "testFailedDesc": "無法連線到 {registry}，錯誤：{error}。請檢查URL是否正確或網路連線。",
+      "redetectingOptimal": "正在重新檢測最佳NPM源...",
+      "redetectComplete": "重新檢測完成",
+      "redetectCompleteDesc": "已檢測並設定目前最佳的NPM源",
+      "redetectFailed": "重新檢測失敗",
+      "redetectFailedDesc": "無法重新檢測最佳來源，將使用預設設定"
+    },
     "technicalDetails": "技術詳情",
     "httpServer": "HTTP伺服器",
     "localProcess": "本機程序",
@@ -574,42 +694,66 @@
     "nextTab": "切換到下一個標籤頁"
   },
   "agent": {
-    "addAgent": "添加Agent",
-    "agentId": "AgentID",
+    "title": "Agent配置",
+    "description": "配置智能體服務，支持多種類型的Agent如Datlas等。",
     "agentList": "Agent列表",
+    "addAgent": "添加Agent",
+    "noAgents": "暫無配置的Agent，點擊\"添加Agent\"開始配置",
+    "enabled": "啟用",
+    "disabled": "禁用",
     "apiUrl": "API地址",
+    "agentId": "AgentID",
+    "status": "狀態",
     "checking": "檢測中...",
     "connected": "連接正常",
-    "description": "配置智能體服務，支持多種類型的Agent如Datlas等。",
+    "notTested": "未檢測",
+    "testConnection": "測試連接",
     "dialog": {
-      "add": "添加",
-      "cancel": "取消",
+      "add": {
+        "title": "編輯代理"
+      },
       "edit": {
         "title": "編輯代理"
       },
       "form": {
-        "agentId": "AgentID",
-        "agentIdPlaceholder": "請輸入AgentID",
-        "apiUrl": "API地址",
-        "apiUrlPlaceholder": "https://ai.maicedata.com/api/knowbase/rag",
         "name": "代理名稱",
         "namePlaceholder": "請輸入代理名稱",
+        "type": "代理類型",
+        "typePlaceholder": "選擇代理類型",
+        "apiUrl": "API地址",
+        "apiUrlPlaceholder": "https://ai.maicedata.com/api/knowbase/rag",
+        "agentId": "AgentID",
+        "agentIdPlaceholder": "請輸入AgentID",
         "token": "Token",
         "tokenPlaceholder": "請輸入Token",
-        "type": "代理類型",
-        "typePlaceholder": "選擇代理類型"
-      },
-      "save": "保存"
+        "cancel": "取消",
+        "save": "保存",
+        "add": "添加"
+      }
     },
-    "disabled": "禁用",
-    "enabled": "啟用",
-    "noAgents": "暫無配置的Agent，點擊\"添加Agent\"開始配置",
-    "notTested": "未檢測",
-    "status": "狀態",
-    "testConnection": "測試連接",
-    "title": "Agent配置",
     "types": {
       "datlas": "Datlas"
     }
+  },
+  "rateLimit": {
+    "title": "速率限制",
+    "description": "控制請求時間間隔，避免超出 API 限制",
+    "intervalLimit": "請求間隔",
+    "intervalUnit": "秒",
+    "intervalHelper": "兩個請求之間的最小間隔，不需要時請關閉速率限制",
+    "lastRequestTime": "最後請求",
+    "queueLength": "佇列長度",
+    "nextAllowedTime": "下次允許請求",
+    "never": "從未",
+    "justNow": "剛才",
+    "secondsAgo": "秒前",
+    "minutesAgo": "分鐘前",
+    "immediately": "立即",
+    "secondsLater": "秒後",
+    "confirmDisableTitle": "確認關閉速率限制",
+    "confirmDisableMessage": "該值不能小於或等於0，是否關閉速率限制功能？",
+    "confirmDisable": "關閉限制",
+    "disabled": "速率限制已關閉",
+    "disabledDescription": "速率限制功能已關閉"
   }
 }

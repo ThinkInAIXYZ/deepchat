@@ -129,7 +129,7 @@ export type AssistantMessageBlock = {
     server_icons?: string
     server_description?: string
   }
-  action_type?: 'tool_call_permission' | 'maximum_tool_calls_reached'
+  action_type?: 'tool_call_permission' | 'maximum_tool_calls_reached' | 'rate_limit'
   image_data?: {
     data: string
     mimeType: string

@@ -121,7 +121,7 @@ export interface ResourceListEntry {
 export interface ModelConfig {
   maxTokens: number
   contextLength: number
-  temperature: number
+  temperature?: number
   vision: boolean
   functionCall: boolean
   reasoning: boolean
@@ -129,6 +129,10 @@ export interface ModelConfig {
   // Whether this config is user-defined (true) or default config (false)
   isUserDefined?: boolean
   thinkingBudget?: number
+  // GPT-5 系列新参数
+  reasoningEffort?: 'minimal' | 'low' | 'medium' | 'high'
+  verbosity?: 'low' | 'medium' | 'high'
+  maxCompletionTokens?: number // GPT-5 系列使用此参数替代 maxTokens
 }
 
 export interface IModelConfig {
@@ -289,6 +293,12 @@ export interface IOAuthPresenter {
   startOAuthLogin(providerId: string, config: OAuthConfig): Promise<boolean>
   startGitHubCopilotLogin(providerId: string): Promise<boolean>
   startGitHubCopilotDeviceFlowLogin(providerId: string): Promise<boolean>
+  startAnthropicOAuthFlow(): Promise<string>
+  completeAnthropicOAuthWithCode(code: string): Promise<boolean>
+  cancelAnthropicOAuthFlow(): Promise<void>
+  hasAnthropicCredentials(): Promise<boolean>
+  getAnthropicAccessToken(): Promise<string | null>
+  clearAnthropicCredentials(): Promise<void>
 }
 
 export interface OAuthConfig {
@@ -487,6 +497,16 @@ export interface IConfigPresenter {
     deleted: BuiltinKnowledgeConfig[]
     updated: BuiltinKnowledgeConfig[]
   }
+  // NPM Registry 相关方法
+  getNpmRegistryCache?(): any
+  setNpmRegistryCache?(cache: any): void
+  isNpmRegistryCacheValid?(): boolean
+  getEffectiveNpmRegistry?(): string | null
+  getCustomNpmRegistry?(): string | undefined
+  setCustomNpmRegistry?(registry: string | undefined): void
+  getAutoDetectNpmRegistry?(): boolean
+  setAutoDetectNpmRegistry?(enabled: boolean): void
+  clearNpmRegistryCache?(): void
 }
 export type RENDERER_MODEL_META = {
   id: string
@@ -525,6 +545,12 @@ export type LLM_PROVIDER = {
   enable: boolean
   custom?: boolean
   config?: Record<string, any> // 用于存储provider特定的配置信息，如RAG的agentId、token等
+  authMode?: 'apikey' | 'oauth' // 认证模式
+  oauthToken?: string // OAuth token
+  rateLimit?: {
+    enabled: boolean
+    qpsLimit: number
+  }
   websites?: {
     official: string
     apiKey: string
@@ -602,6 +628,22 @@ export interface ILlmProviderPresenter {
     providerId: string,
     modelId: string
   ): Promise<{ data: LLM_EMBEDDING_ATTRS; errorMsg?: string }>
+  updateProviderRateLimit(providerId: string, enabled: boolean, qpsLimit: number): void
+  getProviderRateLimitStatus(providerId: string): {
+    config: { enabled: boolean; qpsLimit: number }
+    currentQps: number
+    queueLength: number
+    lastRequestTime: number
+  }
+  getAllProviderRateLimitStatus(): Record<
+    string,
+    {
+      config: { enabled: boolean; qpsLimit: number }
+      currentQps: number
+      queueLength: number
+      lastRequestTime: number
+    }
+  >
 }
 export type CONVERSATION_SETTINGS = {
   systemPrompt: string
@@ -779,6 +821,7 @@ export interface IDevicePresenter {
   getMemoryUsage(): Promise<MemoryInfo>
   getDiskSpace(): Promise<DiskInfo>
   resetData(): Promise<void>
+  resetDataByType(resetType: 'chat' | 'knowledge' | 'config' | 'all'): Promise<void>
 
   // 目录选择和应用重启
   selectDirectory(): Promise<{ canceled: boolean; filePaths: string[] }>
@@ -1112,6 +1155,18 @@ export interface IMCPPresenter {
     permissionType: 'read' | 'write' | 'all',
     remember?: boolean
   ): Promise<void>
+  // NPM Registry 管理方法
+  getNpmRegistryStatus?(): Promise<{
+    currentRegistry: string | null
+    isFromCache: boolean
+    lastChecked?: number
+    autoDetectEnabled: boolean
+    customRegistry?: string
+  }>
+  refreshNpmRegistry?(): Promise<string>
+  setCustomNpmRegistry?(registry: string | undefined): Promise<void>
+  setAutoDetectNpmRegistry?(enabled: boolean): Promise<void>
+  clearNpmRegistryCache?(): Promise<void>
 }
 
 export interface IDeeplinkPresenter {
@@ -1169,6 +1224,7 @@ export interface LLMCoreStreamEvent {
     | 'image_data'
     | 'rag_files'
     | 'rag_references'
+    | 'rate_limit'
   content?: string // 用于 type 'text'
   reasoning_content?: string // 用于 type 'reasoning'
   // RAG推理步骤相关字段
@@ -1189,6 +1245,13 @@ export interface LLMCoreStreamEvent {
     prompt_tokens: number
     completion_tokens: number
     total_tokens: number
+  }
+  rate_limit?: {
+    providerId: string
+    qpsLimit: number
+    currentQps: number
+    queueLength: number
+    estimatedWaitTime?: number
   }
   stop_reason?: 'tool_use' | 'max_tokens' | 'stop_sequence' | 'error' | 'complete' // 用于 type 'stop'
   image_data?: {
@@ -1275,6 +1338,13 @@ export interface LLMAgentEventData {
     short_id: number // 向量块ID
     file_id: string // 文件ID
   }> // 向量块引用
+  rate_limit?: {
+    providerId: string
+    qpsLimit: number
+    currentQps: number
+    queueLength: number
+    estimatedWaitTime?: number
+  }
   error?: string // For error event
   userStop?: boolean // For end event
 }
@@ -1288,7 +1358,7 @@ export { ShortcutKey, ShortcutKeySetting } from '@/presenter/configPresenter/sho
 export interface DefaultModelSetting {
   id: string
   name: string
-  temperature: number
+  temperature?: number
   contextLength: number
   maxTokens: number
   match: string[]
@@ -1297,6 +1367,10 @@ export interface DefaultModelSetting {
   reasoning?: boolean
   type?: ModelType
   thinkingBudget?: number
+  // GPT-5 系列新参数
+  reasoningEffort?: 'minimal' | 'low' | 'medium' | 'high'
+  verbosity?: 'low' | 'medium' | 'high'
+  maxCompletionTokens?: number // GPT-5 系列使用此参数替代 maxTokens
 }
 
 export interface KeyStatus {
@@ -1490,16 +1564,9 @@ export type KnowledgeFileResult = {
  */
 export interface IKnowledgePresenter {
   /**
-   * Create a knowledge base (initialize RAG application)
-   * @param config Knowledge base configuration
+   * Check if the knowledge presenter is supported in current environment
    */
-  create(config: BuiltinKnowledgeConfig): Promise<void>
-
-  /**
-   * Delete a knowledge base (remove local storage)
-   * @param id Knowledge base ID
-   */
-  delete(id: string): Promise<void>
+  isSupported(): Promise<boolean>
 
   /**
    * Add a file to the knowledge base

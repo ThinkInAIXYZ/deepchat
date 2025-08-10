@@ -33,13 +33,12 @@
     "theme": "Theme",
     "themeSelect": "Select theme",
     "closeToQuit": "Exit app when closing window",
-    "contentProtection": "Screen Protection",
     "contentProtectionDialogTitle": "Confirm Screen Protection Change",
-    "contentProtectionEnableDesc": "Enabling screen protection prevents screen sharing software from capturing the DeepChat window, protecting your content privacy. Note that this feature will not completely hide all interfaces. Please use this feature responsibly and in compliance with regulations. Additionally, not all screen sharing software supports this feature. Additionally, some environments may leave a black window.",
-    "contentProtectionDisableDesc": "Disabling screen protection will allow screen sharing software to capture the DeepChat window.",
+    "contentProtectionEnableDesc": "Prevent screen sharing apps from capturing the DeepChat window to help protect your privacy. Not all apps honor this setting; in some environments a black window may remain.",
+    "contentProtectionDisableDesc": "Allow screen sharing apps to capture the DeepChat window.",
     "contentProtectionRestartNotice": "Changing this setting will restart the application. Do you want to continue?",
-    "soundEnabled": "Enable Sound effects",
-    "copyWithCotEnabled": "Copy including COT details",
+    "soundEnabled": "Enable Sound Effects",
+    "copyWithCotEnabled": "Copy COT Details",
     "loggingEnabled": "Enable Logging",
     "loggingDialogTitle": "Confirm Logging Setting Change",
     "loggingEnableDesc": "Enabling logging will help us diagnose issues and improve the application. Log files may contain sensitive information.",
@@ -50,8 +49,9 @@
       "newChat": "Create a new chat",
       "title": "Shortcut key settings"
     },
-    "notifications": "System Notification",
-    "notificationsDesc": "When DeepChat is not in the foreground, if a session is generated, a system notification will be sent"
+    "notifications": "System Notifications",
+    "notificationsDesc": "When DeepChat is not in the foreground, if a session is generated, a system notification will be sent",
+    "contentProtection": "Screen capture protection"
   },
   "data": {
     "title": "Data Settings",
@@ -70,7 +70,22 @@
     "importing": "Importing...",
     "confirmImport": "Confirm Import",
     "importSuccessTitle": "Import Successful",
-    "importErrorTitle": "Import Failed"
+    "importErrorTitle": "Import Failed",
+    "resetData": "Reset Data",
+    "resetConfirmTitle": "Confirm Data Reset",
+    "resetConfirmDescription": "Please select the type of data to reset. This operation cannot be undone and the application will restart automatically after reset.",
+    "resetChatData": "Reset Chat Data",
+    "resetChatDataDesc": "Delete all chat history and conversation records",
+    "resetKnowledgeData": "Reset Knowledge Base Data",
+    "resetKnowledgeDataDesc": "Delete all knowledge base files and vector data",
+    "resetConfig": "Reset Configuration",
+    "resetConfigDesc": "Delete all app settings, model configurations and custom prompts",
+    "resetAll": "Complete Reset",
+    "resetAllDesc": "Delete all data including chat history, configurations and cache files",
+    "resetting": "Resetting...",
+    "confirmReset": "Confirm Reset",
+    "resetCompleteDevTitle": "Data Reset Complete",
+    "resetCompleteDevMessage": "Please manually restart the application in development mode. Stop the current process and run pnpm run dev again"
   },
   "model": {
     "title": "Model Settings",
@@ -93,10 +108,10 @@
     },
     "artifacts": {
       "description": "Enabling the Artifacts feature allows the AI to generate richer content",
-      "title": "Artifacts effects"
+      "title": "Artifacts"
     },
-    "addModel": "Add a model",
-    "configureModel": "Configuration model",
+    "addModel": "Add Model",
+    "configureModel": "Configure Model",
     "modelList": "Model List",
     "provider": "Service provider",
     "providerSetting": "Service provider settings",
@@ -105,7 +120,7 @@
       "cancel": "Cancel",
       "contextLength": {
         "description": "Set the context length that the model can handle",
-        "label": "Context length"
+        "label": "Context Length"
       },
       "description": "Please note that this configuration is only valid for the current model and will not affect other models. Please modify it with caution. Incorrect parameters may cause the model to not work properly.",
       "functionCall": {
@@ -152,13 +167,34 @@
         "message": "Are you sure you want to reset the configuration of this model to the default? \nThis operation is irrevocable.",
         "title": "Confirm reset"
       },
+      "reasoningEffort": {
+        "label": "Reasoning Effort",
+        "description": "Controls the depth of model reasoning; higher effort produces better results but slower responses",
+        "placeholder": "Select reasoning effort",
+        "options": {
+          "minimal": "Minimal - Fastest response",
+          "low": "Low - Low effort",
+          "medium": "Medium - Moderate effort",
+          "high": "High - High effort"
+        }
+      },
+      "verbosity": {
+        "label": "Verbosity",
+        "description": "Controls the detail level and length of model responses",
+        "placeholder": "Select verbosity level",
+        "options": {
+          "low": "Low - Concise answers",
+          "medium": "Medium - Balanced detail",
+          "high": "High - Detailed answers"
+        }
+      },
       "resetToDefault": "Reset to default",
       "saveConfig": "Save configuration",
       "useModelDefault": "Use model default configuration",
       "currentUsingModelDefault": "Currently using model default configuration",
       "temperature": {
-        "description": "Control the randomness of the output. Most models are 0-1, and some support between 0-2. The higher the higher the randomness.",
-        "label": "temperature"
+        "description": "Control the randomness of the output. Most models are 0-1, and some support between 0-2. Higher values increase randomness.",
+        "label": "Temperature"
       },
       "title": "Custom model parameters",
       "type": {
@@ -166,9 +202,9 @@
         "label": "Model Type",
         "options": {
           "chat": "Language Model",
-          "embedding": "Embed Model",
-          "imageGeneration": "Image generation model",
-          "rerank": "Reorder the model"
+          "embedding": "Embedding Model",
+          "imageGeneration": "Image Generation Model",
+          "rerank": "Rerank Model"
         }
       },
       "validation": {
@@ -190,6 +226,8 @@
   },
   "provider": {
     "enable": "Enable Service",
+    "enabled": "Enabled",
+    "disabled": "Disabled",
     "urlPlaceholder": "Please enter API URL",
     "keyPlaceholder": "Please enter API Key",
     "verifyKey": "Verify Key",
@@ -220,12 +258,15 @@
         "confirm": "Disable All"
       },
       "configModels": {
-        "title": "Configure Model List"
+        "title": "Configure Model List",
+        "description": "Select models to enable or disable"
       },
       "verify": {
         "missingFields": "Please enter API Key and API URL",
         "failed": "Verification failed",
-        "success": "Verification successful"
+        "success": "Verification successful",
+        "failedDesc": "API key or configuration verification failed, please check your configuration",
+        "successDesc": "API key and configuration verified successfully, ready to use"
       },
       "addCustomProvider": {
         "title": "Add Custom Provider",
@@ -252,6 +293,7 @@
       },
       "pullModel": {
         "title": "Pull Model",
+        "description": "Select models to download locally",
         "pull": "Pull"
       },
       "modelCheck": {
@@ -286,7 +328,7 @@
     "serverList": "Server List",
     "totalServers": "Total Servers",
     "addServer": "Add Server",
-    "autoStart": "Self-start",
+    "autoStart": "Auto Start",
     "githubCopilotAuth": "GitHub Copilot Auth",
     "githubCopilotConnected": "GitHub Copilot Connected",
     "githubCopilotNotConnected": "GitHub Copilot Not Connected",
@@ -301,14 +343,38 @@
     "disconnected": "Disconnected successfully",
     "disconnectFailed": "Disconnect failed",
     "keyStatus": {
-      "remaining": "Remaining amount",
+      "remaining": "Remaining Quota",
       "usage": "Used"
     },
     "refreshingModels": "Refreshing...",
     "toast": {
       "modelRunning": "The model is running",
       "modelRunningDesc": "Please stop the model {model} first and then delete it."
-    }
+    },
+    "anthropicApiKeyTip": "Please go to Anthropic Console to get your API Key",
+    "anthropicConnected": "Anthropic connected",
+    "anthropicNotConnected": "Anthropic not connected",
+    "anthropicOAuthTip": "Click to authorize DeepChat to access your Anthropic account",
+    "oauthLogin": "OAuth Login",
+    "authMethod": "Authentication Method",
+    "authMethodPlaceholder": "Select authentication method",
+    "apiKeyLabel": "API Key",
+    "apiUrlLabel": "API URL",
+    "anthropicOAuthFlowTip": "The system will automatically open the authorization window. Please come back and enter the authorization code after authorization.",
+    "anthropicBrowserOpened": "External browser is open",
+    "anthropicCodeInstruction": "Please complete the authorization in an external browser and paste the obtained authorization code into the input box below",
+    "browserOpenedSuccess": "The external browser is open, please complete the authorization",
+    "codeRequired": "Please enter the authorization code",
+    "inputOAuthCode": "Enter the authorization code",
+    "codeExchangeFailed": "Authorization code exchange failed",
+    "invalidCode": "Invalid authorization code",
+    "oauthCodeHint": "Please paste the authorization code here after completing the authorization in an external browser",
+    "oauthCodePlaceholder": "Please enter the authorization code...",
+    "verifyConnection": "Verify Connection",
+    "manageModels": "Manage Models",
+    "anthropicOAuthActiveTip": "OAuth authentication is enabled, you can use Anthropic services directly",
+    "oauthVerifySuccess": "OAuth connection verified successfully",
+    "oauthVerifyFailed": "OAuth connection verification failed"
   },
   "knowledgeBase": {
     "title": "Knowledge Base Settings",
@@ -394,7 +460,20 @@
         "description": "There is a running knowledge base task. Are you sure to exit the software? \nAborted tasks can be restored after restarting the software."
       }
     },
-    "searchError": "Query failed"
+    "searchError": "Query failed",
+    "processing": "Uploading",
+    "paused": "Upload pause",
+    "unknown": "Unknown status",
+    "reAddFile": {
+      "title": "Re-upload confirmation",
+      "content": "Are you sure to re-upload the file \"{fileName}\"?"
+    },
+    "deleteFile": {
+      "title": "Delete file confirmation",
+      "content": "Are you sure to delete the file \"{fileName}\"? \nThis operation is not restored."
+    },
+    "resumeAllPausedTasks": "One-click recovery",
+    "pauseAllRunningTasks": "One-click pause"
   },
   "mcp": {
     "title": "MCP Settings",
@@ -439,7 +518,7 @@
       "type": "Server Type",
       "typePlaceholder": "Select server type",
       "typeStdio": "Standard input and output (Stdio)",
-      "typeSse": "Server Send Events (SSE)",
+      "typeSse": "Server-Sent Events (SSE)",
       "typeInMemory": "In-Memory",
       "typeHttp": "Streaming HTTP Requests (HTTP)",
       "baseUrl": "Base URL",
@@ -483,14 +562,14 @@
       "browseMarketplace": "Browse MCP Marketplace",
       "imageModel": "Choose a vision model",
       "customHeadersParseError": "Custom Header parsing failed",
-      "customHeaders": "Custom request header",
+      "customHeaders": "Custom Request Headers",
       "invalidKeyValueFormat": "Incorrect request header format, please check whether the input is correct.",
       "npmRegistry": "Custom NPM Registry",
       "npmRegistryPlaceholder": "Set up a custom NPM Registry, leave the system to automatically select the fastest one",
       "browseHigress": "View Higress MCP Marketplace",
       "selectFolderError": "Folder selection error",
-      "folders": "Folders allowed to access",
-      "addFolder": "Add folder",
+      "folders": "Allowed Folders",
+      "addFolder": "Add Folder",
       "noFoldersSelected": "No folders were selected",
       "useE2B": "Enable E2B Sandbox",
       "e2bDescription": "Execute Python code using E2B sandbox",
@@ -529,7 +608,48 @@
     "builtInServerCannotBeRemoved": "Built-in servers cannot be removed, only parameters and environment variables can be modified",
     "maxDefaultServersReached": "Only 3 default servers can be set at most",
     "removeDefaultFirst": "Please remove some default servers first",
-    "higressMarket": "Go to Higress MCP Installation"
+    "higressMarket": "Go to Higress MCP Installation",
+    "npmRegistry": {
+      "title": "NPM Registry Configuration",
+      "currentSource": "Current Source",
+      "cached": "Cached",
+      "lastChecked": "Last Checked",
+      "refresh": "Refresh",
+      "advanced": "Advanced",
+      "advancedSettings": "Advanced Settings",
+      "advancedSettingsDesc": "Configure advanced NPM registry options, including auto-detection and custom source settings",
+      "autoDetect": "Auto-detect optimal source",
+      "autoDetectDesc": "Automatically detect and use the fastest NPM registry on startup",
+      "customSource": "Custom Source",
+      "customSourcePlaceholder": "Enter custom NPM registry URL",
+      "currentCustom": "Current custom source",
+      "justNow": "Just now",
+      "minutesAgo": "{minutes} minutes ago",
+      "hoursAgo": "{hours} hours ago",
+      "daysAgo": "{days} days ago",
+      "refreshSuccess": "NPM registry refreshed successfully",
+      "refreshSuccessDesc": "Re-detected and updated optimal NPM registry",
+      "refreshFailed": "NPM registry refresh failed",
+      "autoDetectUpdated": "Auto-detect setting updated",
+      "autoDetectEnabled": "Auto-detect optimal NPM registry enabled",
+      "autoDetectDisabled": "Auto-detect disabled, will use default registry",
+      "updateFailed": "Setting update failed",
+      "customSourceSet": "Custom source set",
+      "customSourceSetDesc": "Custom NPM registry set: {registry}",
+      "customSourceCleared": "Custom source cleared",
+      "customSourceClearedDesc": "Custom NPM registry cleared, will use auto-detect",
+      "invalidUrl": "Invalid URL",
+      "invalidUrlDesc": "Please enter a valid HTTP or HTTPS address",
+      "testing": "Testing NPM registry",
+      "testingDesc": "Testing connectivity to {registry}...",
+      "testFailed": "NPM registry test failed",
+      "testFailedDesc": "Cannot connect to {registry}, error: {error}. Please check if the URL is correct or network connection.",
+      "redetectingOptimal": "Re-detecting optimal NPM registry...",
+      "redetectComplete": "Re-detection completed",
+      "redetectCompleteDesc": "Detected and set the current optimal NPM registry",
+      "redetectFailed": "Re-detection failed",
+      "redetectFailedDesc": "Unable to re-detect optimal registry, will use default configuration"
+    }
   },
   "about": {
     "title": "About Us",
@@ -605,14 +725,35 @@
         "agentId": "Agent ID",
         "agentIdPlaceholder": "Enter Agent ID",
         "token": "Token",
-        "tokenPlaceholder": "Enter Token"
-      },
-      "cancel": "Cancel",
-      "save": "Save",
-      "add": "Add"
+        "tokenPlaceholder": "Enter Token",
+        "cancel": "Cancel",
+        "save": "Save",
+        "add": "Add"
+      }
     },
     "types": {
       "datlas": "Datlas"
     }
+  },
+  "rateLimit": {
+    "title": "Rate Limit",
+    "description": "Control request interval to prevent exceeding API limits",
+    "intervalLimit": "Request Interval",
+    "intervalUnit": "seconds",
+    "intervalHelper": "Minimum interval between requests, disable rate limiting if not needed",
+    "lastRequestTime": "Last Request",
+    "queueLength": "Queue Length",
+    "nextAllowedTime": "Next Allowed",
+    "never": "Never",
+    "justNow": "Just now",
+    "secondsAgo": "s ago",
+    "minutesAgo": "m ago",
+    "immediately": "Now",
+    "secondsLater": "s later",
+    "confirmDisableTitle": "Confirm Disable Rate Limit",
+    "confirmDisableMessage": "Value cannot be less than or equal to 0. Do you want to disable rate limiting?",
+    "confirmDisable": "Disable Limit",
+    "disabled": "Rate Limit Disabled",
+    "disabledDescription": "Rate limiting has been disabled"
   }
 }

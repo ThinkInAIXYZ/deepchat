@@ -10,6 +10,7 @@ import { getContextMenuLabels } from '@shared/i18n'
 import { app } from 'electron'
 import { addWatermarkToNativeImage } from '@/lib/watermark'
 import { stitchImagesVertically } from '@/lib/scrollCapture'
+import { presenter } from './'
 
 export class TabPresenter implements ITabPresenter {
   // 全局标签页实例存储
@@ -539,6 +540,12 @@ export class TabPresenter implements ITabPresenter {
       // Once did-finish-load happens, emit first content loaded
       webContents.once('did-finish-load', () => {
         eventBus.sendToMain(WINDOW_EVENTS.FIRST_CONTENT_LOADED, windowId)
+        setTimeout(() => {
+          const windowPresenter = presenter.windowPresenter as any
+          if (windowPresenter && typeof windowPresenter.focusActiveTab === 'function') {
+            windowPresenter.focusActiveTab(windowId, 'initial')
+          }
+        }, 300)
       })
     }
 
@@ -615,6 +622,9 @@ export class TabPresenter implements ITabPresenter {
     // Re-adding ensures it's on top in most view hierarchies
     window.contentView.addChildView(view)
     this.updateViewBounds(window, view)
+    if (!view.webContents.isDestroyed()) {
+      view.webContents.focus()
+    }
   }
 
   /**

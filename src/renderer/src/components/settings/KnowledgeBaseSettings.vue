@@ -29,7 +29,11 @@
         <!-- FastGPT知识库 -->
         <FastGptKnowledgeSettings ref="fastGptSettingsRef" />
         <!-- 内置知识库 -->
-        <BuiltinKnowledgeSettings ref="builtinSettingsRef" @showDetail="showDetail" />
+        <BuiltinKnowledgeSettings
+          v-if="enableBuiltinKnowledge"
+          ref="builtinSettingsRef"
+          @showDetail="showDetail"
+        />
         <!-- 未来可以添加更多知识库类型 -->
         <div
           class="border rounded-lg p-4 border-dashed flex items-center justify-center text-muted-foreground"
@@ -137,11 +141,19 @@ import FastGptKnowledgeSettings from './FastGptKnowledgeSettings.vue'
 import BuiltinKnowledgeSettings from './BuiltinKnowledgeSettings.vue'
 import KnowledgeFile from './KnowledgeFile.vue'
 import { BuiltinKnowledgeConfig } from '@shared/presenter'
+import { usePresenter } from '@/composables/usePresenter'
 
 const difySettingsRef = ref<InstanceType<typeof DifyKnowledgeSettings> | null>(null)
 const ragflowSettingsRef = ref<InstanceType<typeof RagflowKnowledgeSettings> | null>(null)
 const fastGptSettingsRef = ref<InstanceType<typeof FastGptKnowledgeSettings> | null>(null)
 const builtinSettingsRef = ref<InstanceType<typeof BuiltinKnowledgeSettings> | null>(null)
+
+// 根据系统版本控制是否展示内置知识库
+const knowledgePresenter = usePresenter('knowledgePresenter')
+const enableBuiltinKnowledge = ref(false)
+knowledgePresenter.isSupported().then((res) => {
+  enableBuiltinKnowledge.value = res
+})
 
 const { t } = useI18n()
 // 是否展示内置知识库文件详情

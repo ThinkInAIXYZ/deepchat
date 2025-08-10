@@ -10,6 +10,7 @@
   "settings-shortcut": "میان‌برها",
   "settings-display": "تنظیمات نمایش",
   "settings-knowledge-base": "پایگاه دانش",
-  "settings-prompt": "مدیریت پرامپت",
-  "settings-agent": "تنظیمات عامل"
+  "settings-prompt": "مدیریت پرامپت‌ها",
+  "settings-agent": "تنظیمات عامل",
+  "agent": "Agent"
 }

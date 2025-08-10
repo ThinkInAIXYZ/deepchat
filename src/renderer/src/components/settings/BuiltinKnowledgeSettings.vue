@@ -486,7 +486,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, toRaw, computed, watch } from 'vue'
+import { ref, onMounted, toRaw, computed, watch, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
 import { Button } from '@/components/ui/button'
@@ -862,10 +862,6 @@ const loadBuiltinConfigFromMcp = async () => {
   }
 }
 
-onMounted(async () => {
-  await loadBuiltinConfigFromMcp()
-})
-
 const route = useRoute()
 
 // 监听URL查询参数，设置活动标签页
@@ -878,4 +874,36 @@ watch(
   },
   { immediate: true }
 )
+
+// 监听MCP全局状态变化
+watch(
+  () => mcpStore.mcpEnabled,
+  async (enabled) => {
+    if (!enabled && isBuiltinMcpEnabled.value) {
+      await mcpStore.toggleServer('builtinKnowledge')
+    }
+  }
+)
+
+// 组件挂载时加载配置
+let unwatch: (() => void) | undefined
+onMounted(async () => {
+  unwatch = watch(
+    () => mcpStore.config.ready,
+    async (ready) => {
+      if (ready) {
+        unwatch?.() // only run once to avoid multiple calls
+        await loadBuiltinConfigFromMcp()
+      }
+    },
+    { immediate: true }
+  )
+})
+
+// cancel the watch to avoid memory leaks
+onUnmounted(() => {
+  if (unwatch) {
+    unwatch?.()
+  }
+})
 </script>

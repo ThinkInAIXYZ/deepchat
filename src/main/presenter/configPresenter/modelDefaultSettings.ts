@@ -590,6 +590,17 @@ export const defaultModelsSettings: DefaultModelSetting[] = [
 
   // Claude系列模型配置
   {
+    id: 'claude-opus-4-1',
+    name: 'Claude Opus 4.1',
+    temperature: 0.7,
+    maxTokens: 32000,
+    contextLength: 204800,
+    match: ['claude-opus-4-1', 'claude-opus-4-1-20250805'],
+    vision: true,
+    functionCall: true,
+    reasoning: true
+  },
+  {
     id: 'claude-opus-4',
     name: 'Claude Opus 4',
     temperature: 0.7,
@@ -657,6 +668,28 @@ export const defaultModelsSettings: DefaultModelSetting[] = [
   },
 
   // OpenAI GPT系列模型配置
+  {
+    id: 'gpt-oss-120b',
+    name: 'GPT OSS 120B',
+    temperature: 0.7,
+    maxTokens: 131000,
+    contextLength: 131000,
+    match: ['gpt-oss-120b'],
+    vision: false,
+    functionCall: true,
+    reasoning: false
+  },
+  {
+    id: 'gpt-oss-20b',
+    name: 'GPT OSS 20B',
+    temperature: 0.7,
+    maxTokens: 33000,
+    contextLength: 131000,
+    match: ['gpt-oss-20b'],
+    vision: false,
+    functionCall: true,
+    reasoning: false
+  },
   {
     id: 'o4-mini-high',
     name: 'OpenAI o4 Mini High',
@@ -831,6 +864,58 @@ export const defaultModelsSettings: DefaultModelSetting[] = [
     vision: true,
     functionCall: false,
     reasoning: true
+  },
+  {
+    id: 'gpt-5-chat',
+    name: 'GPT-5 Chat',
+    maxTokens: 16384,
+    contextLength: 272000,
+    match: ['gpt-5-chat', 'gpt-5-chat-latest'],
+    vision: true,
+    functionCall: false,
+    reasoning: true,
+    reasoningEffort: 'medium',
+    verbosity: 'medium',
+    maxCompletionTokens: 16384
+  },
+  {
+    id: 'gpt-5-mini',
+    name: 'GPT-5 Mini',
+    maxTokens: 128000,
+    contextLength: 272000,
+    match: ['gpt-5-mini', 'gpt-5-mini-2025-08-07'],
+    vision: true,
+    functionCall: true,
+    reasoning: true,
+    reasoningEffort: 'medium',
+    verbosity: 'medium',
+    maxCompletionTokens: 128000
+  },
+  {
+    id: 'gpt-5-nano',
+    name: 'GPT-5 Nano',
+    maxTokens: 128000,
+    contextLength: 272000,
+    match: ['gpt-5-nano', 'gpt-5-nano-2025-08-07'],
+    vision: true,
+    functionCall: true,
+    reasoning: true,
+    reasoningEffort: 'medium',
+    verbosity: 'medium',
+    maxCompletionTokens: 128000
+  },
+  {
+    id: 'gpt-5',
+    name: 'GPT-5',
+    maxTokens: 128000,
+    contextLength: 272000,
+    match: ['gpt-5', 'gpt-5-2025-08-07'],
+    vision: true,
+    functionCall: true,
+    reasoning: true,
+    reasoningEffort: 'medium',
+    verbosity: 'medium',
+    maxCompletionTokens: 128000
   },
   {
     id: 'gpt-4.5-preview',

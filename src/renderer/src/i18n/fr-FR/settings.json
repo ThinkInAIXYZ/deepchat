@@ -50,8 +50,8 @@
       "newChat": "Créer une nouvelle conversation",
       "title": "Paramètres des raccourcis clavier"
     },
-    "notifications": "Notification système",
-    "notificationsDesc": "Lorsque Deepchat n'est pas au premier plan, si une session est générée, une notification système sera envoyée"
+    "notifications": "Notifications système",
+    "notificationsDesc": "Quand DeepChat est en arrière‑plan, envoyer une notification à la fin d’une réponse"
   },
   "data": {
     "title": "Paramètres des données",
@@ -70,7 +70,22 @@
     "importing": "Importation en cours...",
     "confirmImport": "Confirmer l'importation",
     "importSuccessTitle": "Importation réussie",
-    "importErrorTitle": "Échec de l'importation"
+    "importErrorTitle": "Échec de l'importation",
+    "resetData": "Réinitialiser les données",
+    "resetConfirmTitle": "Confirmer la réinitialisation des données",
+    "resetConfirmDescription": "Veuillez sélectionner le type de données à réinitialiser. Cette opération est irréversible et l'application redémarrera automatiquement après la réinitialisation.",
+    "resetChatData": "Réinitialiser les données de chat",
+    "resetChatDataDesc": "Supprimer tout l'historique des conversations et les enregistrements de dialogue",
+    "resetKnowledgeData": "Réinitialiser les données de base de connaissances",
+    "resetKnowledgeDataDesc": "Supprimer tous les fichiers de base de connaissances et les données vectorielles",
+    "resetConfig": "Réinitialiser la configuration",
+    "resetConfigDesc": "Supprimer tous les paramètres de l'application, les configurations de modèles et les prompts personnalisés",
+    "resetAll": "Réinitialisation complète",
+    "resetAllDesc": "Supprimer toutes les données, y compris l'historique des conversations, les configurations et les fichiers de cache",
+    "resetting": "Réinitialisation en cours...",
+    "confirmReset": "Confirmer la réinitialisation",
+    "resetCompleteDevTitle": "Réinitialisation des données terminée",
+    "resetCompleteDevMessage": "En environnement de développement, veuillez redémarrer l'application manuellement. Arrêtez le processus actuel et exécutez à nouveau pnpm run dev"
   },
   "model": {
     "title": "Paramètres du modèle",
@@ -92,11 +107,11 @@
       "description": "Définir la longueur maximale de la réponse de l'IA"
     },
     "artifacts": {
-      "description": "L'activation de la fonction Artifacts permet à l'IA de générer un contenu plus riche",
-      "title": "Effets des artefacts"
+      "description": "Activer Artifacts pour permettre à l’IA de générer un contenu plus riche",
+      "title": "Artifacts"
     },
     "addModel": "Ajouter un modèle",
-    "configureModel": "Configuration du modèle",
+    "configureModel": "Configurer le modèle",
     "modelList": "Liste des modèles",
     "provider": "Fournisseur de service",
     "providerSetting": "Paramètres du fournisseur",
@@ -105,7 +120,7 @@
       "cancel": "Annuler",
       "contextLength": {
         "description": "Définir la longueur de contexte que le modèle peut gérer",
-        "label": "Durée du contexte"
+        "label": "Longueur du contexte"
       },
       "description": "Veuillez noter que cette configuration n'est valable que pour le modèle actuel et n'affectera pas d'autres modèles. Veuillez le modifier avec prudence. Des paramètres incorrects peuvent faire en sorte que le modèle ne fonctionne pas correctement.",
       "functionCall": {
@@ -152,13 +167,34 @@
         "message": "Êtes-vous sûr de souhaiter réinitialiser la configuration de ce modèle par défaut? Cette opération est irrévocable.",
         "title": "Confirmer la réinitialisation"
       },
+      "reasoningEffort": {
+        "label": "Effort de raisonnement",
+        "description": "Contrôle la profondeur du raisonnement du modèle ; un effort plus élevé produit de meilleurs résultats mais des réponses plus lentes",
+        "placeholder": "Sélectionner l'effort de raisonnement",
+        "options": {
+          "minimal": "Minimal - Réponse la plus rapide",
+          "low": "Low - Faible effort",
+          "medium": "Medium - Effort modéré",
+          "high": "High - Effort élevé"
+        }
+      },
+      "verbosity": {
+        "label": "Verbosité",
+        "description": "Contrôle le niveau de détail et la longueur des réponses du modèle",
+        "placeholder": "Sélectionner le niveau de verbosité",
+        "options": {
+          "low": "Low - Réponses concises",
+          "medium": "Medium - Détail équilibré",
+          "high": "High - Réponses détaillées"
+        }
+      },
       "resetToDefault": "Réinitialiser à la valeur par défaut",
       "saveConfig": "Enregistrer la configuration",
       "useModelDefault": "Utiliser la configuration par défaut du modèle",
       "currentUsingModelDefault": "Utilise actuellement la configuration par défaut du modèle",
       "temperature": {
-        "description": "Contrôlez le caractère aléatoire de la sortie. La plupart des modèles sont de 0-1 et certains soutiennent entre 0-2. Plus l'aléatoire est élevé.",
-        "label": "température"
+        "description": "Contrôle l’aléatoire de la sortie. Valeur plus élevée = plus aléatoire.",
+        "label": "Température"
       },
       "title": "Paramètres du modèle personnalisé",
       "type": {
@@ -168,7 +204,7 @@
           "chat": "Modèle de langue",
           "embedding": "Modèle d'intégration",
           "imageGeneration": "Modèle de génération d'images",
-          "rerank": "Réorganiser le modèle"
+          "rerank": "Modèle de rerank"
         }
       },
       "validation": {
@@ -190,6 +226,8 @@
   },
   "provider": {
     "enable": "Activer le service",
+    "enabled": "Activé",
+    "disabled": "Désactivé",
     "urlPlaceholder": "Veuillez entrer l'URL de l'API",
     "keyPlaceholder": "Veuillez entrer la clé API",
     "verifyKey": "Vérifier la clé",
@@ -220,12 +258,15 @@
         "confirm": "Désactiver tout"
       },
       "configModels": {
-        "title": "Configurer la liste des modèles"
+        "title": "Configurer la liste des modèles",
+        "description": "Sélectionner les modèles à activer ou désactiver"
       },
       "verify": {
         "missingFields": "Veuillez entrer la clé API et l'URL de l'API",
         "failed": "Échec de la vérification",
-        "success": "Vérification réussie"
+        "success": "Vérification réussie",
+        "failedDesc": "La vérification de la clé API ou de la configuration a échoué, veuillez vérifier vos paramètres",
+        "successDesc": "La clé API et la configuration ont été vérifiées avec succès, prêt à utiliser"
       },
       "addCustomProvider": {
         "title": "Ajouter un fournisseur personnalisé",
@@ -252,6 +293,7 @@
       },
       "pullModel": {
         "title": "Récupérer le modèle",
+        "description": "Sélectionner les modèles à télécharger localement",
         "pull": "Récupérer"
       },
       "modelCheck": {
@@ -308,7 +350,31 @@
     "toast": {
       "modelRunning": "Le modèle est en cours d'exécution",
       "modelRunningDesc": "Veuillez d'abord arrêter le modèle {model}, puis le supprimer."
-    }
+    },
+    "anthropicApiKeyTip": "Veuillez aller à la console anthropique pour obtenir votre clé API",
+    "anthropicConnected": "Connecté anthropique",
+    "anthropicNotConnected": "Anthropique non connecté",
+    "anthropicOAuthTip": "Cliquez sur Autoriser Deepchat pour accéder à votre compte anthropique",
+    "oauthLogin": "Connexion OAuth",
+    "authMethod": "Méthode de certification",
+    "authMethodPlaceholder": "Sélectionner la méthode d'authentification",
+    "apiKeyLabel": "Clé API",
+    "apiUrlLabel": "URL API",
+    "anthropicOAuthFlowTip": "Le système ouvrira automatiquement la fenêtre d'autorisation. Veuillez revenir et saisir le code d'autorisation après l'autorisation.",
+    "anthropicBrowserOpened": "Le navigateur externe est ouvert",
+    "anthropicCodeInstruction": "Veuillez compléter l'autorisation dans un navigateur externe et coller le code d'autorisation obtenu dans la zone d'entrée ci-dessous",
+    "browserOpenedSuccess": "Le navigateur externe est ouvert, veuillez compléter l'autorisation",
+    "codeRequired": "Veuillez saisir le code d'autorisation",
+    "inputOAuthCode": "Entrez le code d'autorisation",
+    "codeExchangeFailed": "Échange de code d'autorisation Échec",
+    "invalidCode": "Code d'autorisation non valide",
+    "oauthCodeHint": "Veuillez coller le code d'autorisation ici après avoir terminé l'autorisation dans un navigateur externe",
+    "oauthCodePlaceholder": "Veuillez saisir le code d'autorisation ...",
+    "verifyConnection": "Vérifier la connexion",
+    "manageModels": "Gérer les modèles",
+    "anthropicOAuthActiveTip": "L'authentification OAuth est activée, vous pouvez utiliser les services Anthropic directement",
+    "oauthVerifySuccess": "Connexion OAuth vérifiée avec succès",
+    "oauthVerifyFailed": "Échec de la vérification de la connexion OAuth"
   },
   "knowledgeBase": {
     "title": "Paramètres de la base de connaissances",
@@ -394,7 +460,20 @@
         "description": "Il y a une tâche de base de connaissances en cours. Êtes-vous sûr de quitter le logiciel? Les tâches abandonnées peuvent être restaurées après le redémarrage du logiciel."
       }
     },
-    "searchError": "La requête a échoué"
+    "searchError": "La requête a échoué",
+    "processing": "Téléchargement",
+    "paused": "Téléchargement en pause",
+    "unknown": "Statut inconnu",
+    "reAddFile": {
+      "title": "Re-télécharger la confirmation",
+      "content": "Êtes-vous sûr de vouloir re-téléverser le fichier \"{fileName}\" ?"
+    },
+    "deleteFile": {
+      "title": "Supprimer la confirmation du fichier",
+      "content": "Êtes-vous sûr de vouloir supprimer le fichier \"{fileName}\" ? Cette action est irréversible."
+    },
+    "resumeAllPausedTasks": "Récupération en un clic",
+    "pauseAllRunningTasks": "Pause en un clic"
   },
   "mcp": {
     "title": "Paramètres MCP",
@@ -523,6 +602,47 @@
     "maxDefaultServersReached": "Seuls 3 serveurs par défaut peuvent être définis au maximum",
     "removeDefaultFirst": "Veuillez supprimer d'abord certains serveurs par défaut",
     "higressMarket": "Aller à l'installation de Higress MCP",
+    "npmRegistry": {
+      "title": "Configuration des sources NPM",
+      "currentSource": "Source actuelle",
+      "cached": "En cache",
+      "lastChecked": "Dernière vérification",
+      "refresh": "Actualiser",
+      "advanced": "Avancé",
+      "advancedSettings": "Paramètres avancés",
+      "advancedSettingsDesc": "Configurer les options avancées des sources NPM, y compris la détection automatique et les paramètres de source personnalisée",
+      "autoDetect": "Détecter automatiquement la source optimale",
+      "autoDetectDesc": "Détecter et utiliser automatiquement la source NPM la plus rapide au démarrage",
+      "customSource": "Source personnalisée",
+      "customSourcePlaceholder": "Entrer l'adresse de la source NPM personnalisée",
+      "currentCustom": "Source personnalisée actuelle",
+      "justNow": "À l'instant",
+      "minutesAgo": "Il y a {minutes} minutes",
+      "hoursAgo": "Il y a {hours} heures",
+      "daysAgo": "Il y a {days} jours",
+      "refreshSuccess": "Actualisation de la source NPM réussie",
+      "refreshSuccessDesc": "Source NPM optimale redétectée et mise à jour",
+      "refreshFailed": "Échec de l'actualisation de la source NPM",
+      "autoDetectUpdated": "Paramètres de détection automatique mis à jour",
+      "autoDetectEnabled": "Détection automatique de la source NPM optimale activée",
+      "autoDetectDisabled": "Détection automatique désactivée, utilisation de la source par défaut",
+      "updateFailed": "Échec de la mise à jour des paramètres",
+      "customSourceSet": "Source personnalisée définie",
+      "customSourceSetDesc": "Source NPM personnalisée définie : {registry}",
+      "customSourceCleared": "Source personnalisée effacée",
+      "customSourceClearedDesc": "Source NPM personnalisée effacée, utilisation de la détection automatique",
+      "invalidUrl": "URL invalide",
+      "invalidUrlDesc": "Veuillez entrer une adresse HTTP ou HTTPS valide",
+      "testing": "Test de la source NPM en cours",
+      "testingDesc": "Test de la connectivité de la source {registry}...",
+      "testFailed": "Échec du test de la source NPM",
+      "testFailedDesc": "Impossible de se connecter à {registry}, erreur : {error}. Veuillez vérifier si l'URL est correcte ou la connexion réseau.",
+      "redetectingOptimal": "Redétection de la source NPM optimale en cours...",
+      "redetectComplete": "Redétection terminée",
+      "redetectCompleteDesc": "Source NPM optimale actuelle détectée et configurée",
+      "redetectFailed": "Échec de la redétection",
+      "redetectFailedDesc": "Impossible de redétecter la source optimale, utilisation de la configuration par défaut"
+    },
     "technicalDetails": "Détails techniques",
     "httpServer": "Serveur HTTP",
     "localProcess": "Processus local",
@@ -574,42 +694,66 @@
     "specificTab": "Passez à la page d'onglet spécifiée (1-8)"
   },
   "agent": {
-    "addAgent": "Ajouter un agent",
-    "agentId": "Agent-agent",
+    "title": "Configuration d'agent",
+    "description": "Configurer les services d'agent et prendre en charge plusieurs types d'agents tels que les données.",
     "agentList": "Liste d'agents",
+    "addAgent": "Ajouter un agent",
+    "noAgents": "Il n'y a pas encore d'agent configuré. Cliquez sur \"Ajouter un agent\" pour démarrer la configuration.",
+    "enabled": "Activer",
+    "disabled": "Désactivé",
     "apiUrl": "Adresse API",
+    "agentId": "Agent-agent",
+    "status": "État",
     "checking": "Détection...",
     "connected": "La connexion est normale",
-    "description": "Configurer les services d'agent et prendre en charge plusieurs types d'agents tels que les données.",
+    "notTested": "Non détecté",
+    "testConnection": "Test de connexion",
     "dialog": {
-      "add": "Ajouter à",
-      "cancel": "Annuler",
+      "add": {
+        "title": "Agent de montage"
+      },
       "edit": {
         "title": "Agent de montage"
       },
       "form": {
-        "agentId": "Agent-agent",
-        "agentIdPlaceholder": "Veuillez saisir l'agentId",
-        "apiUrl": "Adresse API",
-        "apiUrlPlaceholder": "https://ai.maiedata.com/api/knowbase/rag",
         "name": "Nom d'agent",
         "namePlaceholder": "Veuillez saisir le nom proxy",
+        "type": "Type d'agent",
+        "typePlaceholder": "Sélectionnez un type de proxy",
+        "apiUrl": "Adresse API",
+        "apiUrlPlaceholder": "https://ai.maiedata.com/api/knowbase/rag",
+        "agentId": "Agent-agent",
+        "agentIdPlaceholder": "Veuillez saisir l'agentId",
         "token": "Jeton",
         "tokenPlaceholder": "Veuillez entrer en jeton",
-        "type": "Type d'agent",
-        "typePlaceholder": "Sélectionnez un type de proxy"
-      },
-      "save": "sauvegarder"
+        "cancel": "Annuler",
+        "save": "sauvegarder",
+        "add": "Ajouter à"
+      }
     },
-    "disabled": "Désactivé",
-    "enabled": "Activer",
-    "noAgents": "Il n'y a pas encore d'agent configuré. Cliquez sur \"Ajouter un agent\" pour démarrer la configuration.",
-    "notTested": "Non détecté",
-    "status": "État",
-    "testConnection": "Test de connexion",
-    "title": "Configuration d'agent",
     "types": {
       "datlas": "Datlas"
     }
+  },
+  "rateLimit": {
+    "title": "Limitation de débit",
+    "description": "Contrôler l'intervalle de temps des requêtes, éviter de dépasser les limites API",
+    "intervalLimit": "Intervalle de requête",
+    "intervalUnit": "secondes",
+    "intervalHelper": "Intervalle minimum entre deux requêtes, désactivez la limitation si pas nécessaire",
+    "lastRequestTime": "Dernière requête",
+    "queueLength": "Longueur de la file",
+    "nextAllowedTime": "Prochaine requête autorisée",
+    "never": "Jamais",
+    "justNow": "À l'instant",
+    "secondsAgo": "secondes passées",
+    "minutesAgo": "minutes passées",
+    "immediately": "Immédiatement",
+    "secondsLater": "secondes plus tard",
+    "confirmDisableTitle": "Confirmer la désactivation de la limitation de débit",
+    "confirmDisableMessage": "La valeur ne peut pas être inférieure ou égale à 0. Désactiver la limitation de débit ?",
+    "confirmDisable": "Désactiver la limitation",
+    "disabled": "Limitation de débit désactivée",
+    "disabledDescription": "La limitation de débit a été désactivée"
   }
 }

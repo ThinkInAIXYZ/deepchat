@@ -26,6 +26,18 @@ export class WindowPresenter implements IWindowPresenter {
   private isQuitting: boolean = false
   // 当前获得焦点的窗口 ID (内部记录)
   private focusedWindowId: number | null = null
+  // 主窗口 id
+  private mainWindowId: number | null = null
+  // 窗口聚焦状态管理
+  private windowFocusStates = new Map<
+    number,
+    {
+      lastFocusTime: number
+      shouldFocus: boolean
+      isNewWindow: boolean
+      hasInitialFocus: boolean
+    }
+  >()
 
   constructor(configPresenter: ConfigPresenter) {
     this.windows = new Map()
@@ -375,6 +387,76 @@ export class WindowPresenter implements IWindowPresenter {
   }
 
   /**
+   * 检查是否应该聚焦标签页
+   * @param windowId 窗口 ID
+   * @param reason 聚焦原因
+   */
+  private shouldFocusTab(
+    windowId: number,
+    reason: 'focus' | 'restore' | 'show' | 'initial'
+  ): boolean {
+    const state = this.windowFocusStates.get(windowId)
+    if (!state) {
+      return true
+    }
+    const now = Date.now()
+    if (now - state.lastFocusTime < 100) {
+      console.log(`Skipping focus for window ${windowId}, too frequent (${reason})`)
+      return false
+    }
+    switch (reason) {
+      case 'initial':
+        return !state.hasInitialFocus
+      case 'focus':
+        return state.shouldFocus
+      case 'restore':
+      case 'show':
+        return state.isNewWindow || state.shouldFocus
+      default:
+        return false
+    }
+  }
+
+  /**
+   * 将焦点传递给指定窗口的活动标签页
+   * @param windowId 窗口 ID
+   * @param reason 聚焦原因
+   */
+  public focusActiveTab(
+    windowId: number,
+    reason: 'focus' | 'restore' | 'show' | 'initial' = 'focus'
+  ): void {
+    if (!this.shouldFocusTab(windowId, reason)) {
+      return
+    }
+    try {
+      setTimeout(async () => {
+        const tabPresenterInstance = presenter.tabPresenter as TabPresenter
+        const tabsData = await tabPresenterInstance.getWindowTabsData(windowId)
+        const activeTab = tabsData.find((tab) => tab.isActive)
+        if (activeTab) {
+          console.log(
+            `Focusing active tab ${activeTab.id} in window ${windowId} (reason: ${reason})`
+          )
+          await tabPresenterInstance.switchTab(activeTab.id)
+          const state = this.windowFocusStates.get(windowId)
+          if (state) {
+            state.lastFocusTime = Date.now()
+            if (reason === 'initial') {
+              state.hasInitialFocus = true
+            }
+            if (reason === 'focus' || reason === 'initial') {
+              state.isNewWindow = false
+            }
+          }
+        }
+      }, 50)
+    } catch (error) {
+      console.error(`Error focusing active tab in window ${windowId}:`, error)
+    }
+  }
+
+  /**
    * 向所有有效窗口的主 WebContents 和所有标签页的 WebContents 发送消息。
    * @param channel IPC 通道名。
    * @param args 消息参数。
@@ -510,6 +592,13 @@ export class WindowPresenter implements IWindowPresenter {
     const windowId = shellWindow.id
     this.windows.set(windowId, shellWindow) // 将窗口实例存入 Map
 
+    this.windowFocusStates.set(windowId, {
+      lastFocusTime: 0,
+      shouldFocus: true,
+      isNewWindow: true,
+      hasInitialFocus: false
+    })
+
     shellWindowState.manage(shellWindow) // 管理窗口状态
 
     // 应用内容保护设置
@@ -537,6 +626,7 @@ export class WindowPresenter implements IWindowPresenter {
       if (!shellWindow.isDestroyed()) {
         shellWindow.webContents.send('window-focused', windowId)
       }
+      this.focusActiveTab(windowId, 'focus')
     })
 
     // 窗口失去焦点
@@ -584,6 +674,7 @@ export class WindowPresenter implements IWindowPresenter {
       this.handleWindowRestore(windowId).catch((error) => {
         console.error(`Error handling restore logic for window ${windowId}:`, error)
       })
+      this.focusActiveTab(windowId, 'restore')
       eventBus.sendToMain(WINDOW_EVENTS.WINDOW_RESTORED, windowId)
     }
     shellWindow.on('restore', handleRestore)
@@ -633,18 +724,11 @@ export class WindowPresenter implements IWindowPresenter {
       // 如果应用不是正在退出过程中...
       if (!this.isQuitting) {
         // 实现隐藏到托盘逻辑：
-        // 在非 macOS 平台，或在 macOS 上且未配置关闭时退出 (或还有其他窗口)，阻止默认关闭行为，仅隐藏窗口。
-        const isLastWindow = this.windows.size === 1
-        // 检查 macOS 配置：关闭时是否退出应用
-        const shouldQuitOnClose =
-          process.platform === 'darwin' ? this.configPresenter.getCloseToQuit() : false
-
-        // 是否应该阻止默认关闭并隐藏：
-        // - 非 macOS 平台总是阻止 (实现隐藏到托盘)。
-        // - macOS 平台：如果不是最后一个窗口，或虽然是最后一个窗口但配置为不退出时，阻止。
-        const shouldPreventDefault =
-          process.platform !== 'darwin' ||
-          (process.platform === 'darwin' && (!isLastWindow || !shouldQuitOnClose))
+        // 1. 如果是其他窗口，直接关闭
+        // 2. 如果是主窗口，判断配置是否允许关闭
+        // shouldPreventDefault: true隐藏, false关闭
+        const shouldQuitOnClose = this.configPresenter.getCloseToQuit()
+        const shouldPreventDefault = windowId === this.mainWindowId && !shouldQuitOnClose
 
         if (shouldPreventDefault) {
           console.log(`Window ${windowId}: Preventing default close behavior, hiding instead.`)
@@ -671,7 +755,6 @@ export class WindowPresenter implements IWindowPresenter {
             shellWindow.hide()
           }
         } else {
-          // 如果是 macOS，且是最后一个窗口，且配置为关闭时退出，或者 isQuitting 为 true
           // 允许默认关闭行为。这将触发 'closed' 事件。
           console.log(
             `Window ${windowId}: Allowing default close behavior (app is quitting or macOS last window configured to quit).`
@@ -694,6 +777,7 @@ export class WindowPresenter implements IWindowPresenter {
       shellWindow.removeListener('restore', handleRestore)
 
       this.windows.delete(windowIdBeingClosed) // 从 Map 中移除
+      this.windowFocusStates.delete(windowIdBeingClosed)
       shellWindowState.unmanage() // 停止管理窗口状态
       eventBus.sendToMain(WINDOW_EVENTS.WINDOW_CLOSED, windowIdBeingClosed)
       console.log(
@@ -790,6 +874,10 @@ export class WindowPresenter implements IWindowPresenter {
     }
 
     console.log(`Shell window ${windowId} created successfully.`)
+
+    if (this.mainWindowId == null) {
+      this.mainWindowId = windowId // 如果这是第一个窗口，设置为主窗口 ID
+    }
     return windowId // 返回新创建窗口的 ID
   }
 
@@ -971,6 +1059,7 @@ export class WindowPresenter implements IWindowPresenter {
               console.log(`  - Switching to tab ${targetTabData.id}`)
               await tabPresenterInstance.switchTab(targetTabData.id)
             }
+            // switchTab 已经会调用 bringViewToFront 来设置焦点，无需额外调用
           } catch (error) {
             console.error('Error switching to target window/tab:', error)
             // 继续，因为消息发送成功

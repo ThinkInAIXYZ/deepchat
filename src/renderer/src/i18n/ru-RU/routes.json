@@ -10,6 +10,7 @@
   "settings-mcp": "Настройки MCP",
   "settings-display": "Настройки отображения",
   "settings-knowledge-base": "База знаний",
-  "settings-prompt": "Управление Prompt",
-  "settings-agent": "Настройки агента"
+  "settings-prompt": "Управление промптами",
+  "settings-agent": "Настройки агента",
+  "agent": "Agent"
 }

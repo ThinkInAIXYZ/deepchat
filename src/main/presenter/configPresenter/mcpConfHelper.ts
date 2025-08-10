@@ -4,6 +4,14 @@ import { MCP_EVENTS } from '@/events'
 import ElectronStore from 'electron-store'
 import { app } from 'electron'
 import { compare } from 'compare-versions'
+import { presenter } from '..'
+
+// NPM Registry缓存接口
+export interface INpmRegistryCache {
+  registry: string
+  lastChecked: number
+  isAutoDetect: boolean
+}
 
 // MCP设置的接口
 interface IMcpSettings {
@@ -11,6 +19,9 @@ interface IMcpSettings {
   defaultServer?: string // 保留旧字段以支持版本兼容
   defaultServers: string[] // 新增：多个默认服务器数组
   mcpEnabled: boolean // 添加MCP启用状态字段
+  npmRegistryCache?: INpmRegistryCache // NPM源缓存
+  customNpmRegistry?: string // 用户自定义NPM源
+  autoDetectNpmRegistry?: boolean // 是否启用自动检测
   [key: string]: unknown // 允许任意键
 }
 export type MCPServerType = 'stdio' | 'sse' | 'inmemory' | 'http'
@@ -308,13 +319,16 @@ export class McpConfHelper {
       defaults: {
         mcpServers: DEFAULT_MCP_SERVERS.mcpServers,
         defaultServers: DEFAULT_MCP_SERVERS.defaultServers,
-        mcpEnabled: DEFAULT_MCP_SERVERS.mcpEnabled
+        mcpEnabled: DEFAULT_MCP_SERVERS.mcpEnabled,
+        autoDetectNpmRegistry: true,
+        npmRegistryCache: undefined,
+        customNpmRegistry: undefined
       }
     })
   }
 
   // 获取MCP服务器配置
-  getMcpServers(): Promise<Record<string, MCPServerConfig>> {
+  async getMcpServers(): Promise<Record<string, MCPServerConfig>> {
     const storedServers = this.mcpStore.get('mcpServers') || DEFAULT_MCP_SERVERS.mcpServers
 
     // 检查并补充缺少的inmemory服务
@@ -350,6 +364,13 @@ export class McpConfHelper {
     for (const serverName of serversToRemove) {
       console.log(`移除不支持当前平台的服务: ${serverName}`)
       delete updatedServers[serverName]
+    }
+
+    // 移除不兼容的服务
+    const builtinKnowledgeSupported = await presenter.knowledgePresenter.isSupported()
+    if (!builtinKnowledgeSupported) {
+      console.warn('内置知识库服务不支持当前环境，移除相关服务')
+      delete updatedServers.builtinKnowledge
     }
 
     // 如果有变化，更新存储
@@ -460,6 +481,86 @@ export class McpConfHelper {
     mcpServers[name] = config
     await this.setMcpServers(mcpServers)
     return true
+  }
+
+  // 获取NPM Registry缓存
+  getNpmRegistryCache(): INpmRegistryCache | undefined {
+    return this.mcpStore.get('npmRegistryCache')
+  }
+
+  // 设置NPM Registry缓存
+  setNpmRegistryCache(cache: INpmRegistryCache): void {
+    this.mcpStore.set('npmRegistryCache', cache)
+  }
+
+  // 检查缓存是否有效（24小时内）
+  isNpmRegistryCacheValid(): boolean {
+    const cache = this.getNpmRegistryCache()
+    if (!cache) return false
+    const now = Date.now()
+    const cacheAge = now - cache.lastChecked
+    const CACHE_DURATION = 24 * 60 * 60 * 1000 // 24小时
+    return cacheAge < CACHE_DURATION
+  }
+
+  // 获取有效的NPM Registry（按优先级：自定义源 > 缓存 > 默认）
+  getEffectiveNpmRegistry(): string | null {
+    const customRegistry = this.getCustomNpmRegistry()
+    if (customRegistry) {
+      console.log(`[NPM Registry] Using custom registry: ${customRegistry}`)
+      return customRegistry
+    }
+
+    if (this.getAutoDetectNpmRegistry() && this.isNpmRegistryCacheValid()) {
+      const cache = this.getNpmRegistryCache()
+      if (cache?.registry) {
+        console.log(`[NPM Registry] Using cached registry: ${cache.registry}`)
+        return cache.registry
+      }
+    }
+
+    console.log('[NPM Registry] No effective registry found, will use default or detect')
+    return null
+  }
+
+  // 获取自定义NPM Registry
+  getCustomNpmRegistry(): string | undefined {
+    return this.mcpStore.get('customNpmRegistry')
+  }
+
+  // 标准化NPM Registry URL
+  private normalizeNpmRegistryUrl(registry: string): string {
+    let normalized = registry.trim()
+    if (!normalized.endsWith('/')) {
+      normalized += '/'
+    }
+    return normalized
+  }
+
+  // 设置自定义NPM Registry
+  setCustomNpmRegistry(registry: string | undefined): void {
+    if (registry === undefined) {
+      this.mcpStore.delete('customNpmRegistry')
+    } else {
+      const normalizedRegistry = this.normalizeNpmRegistryUrl(registry)
+      this.mcpStore.set('customNpmRegistry', normalizedRegistry)
+      console.log(`[NPM Registry] Normalized custom registry: ${registry} -> ${normalizedRegistry}`)
+    }
+  }
+
+  // 获取自动检测NPM Registry设置
+  getAutoDetectNpmRegistry(): boolean {
+    return this.mcpStore.get('autoDetectNpmRegistry') ?? true
+  }
+
+  // 设置自动检测NPM Registry
+  setAutoDetectNpmRegistry(enabled: boolean): void {
+    this.mcpStore.set('autoDetectNpmRegistry', enabled)
+  }
+
+  // 清除NPM Registry缓存
+  clearNpmRegistryCache(): void {
+    this.mcpStore.delete('npmRegistryCache')
   }
 
   // 移除MCP服务器

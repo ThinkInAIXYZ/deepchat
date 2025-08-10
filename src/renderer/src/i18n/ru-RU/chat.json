@@ -4,14 +4,19 @@
     "fileArea": "Область файлов",
     "inputArea": "Область ввода",
     "functionSwitch": "Переключатель функций",
-    "fileSelect": "Выбрать файл",
-    "pasteFiles": "Поддержка копирования и вставки файлов",
+    "fileSelect": "Выберите файл",
+    "pasteFiles": "Вставить файлы из буфера обмена",
     "dropFiles": "Перетащите файлы сюда",
     "promptFilesAdded": "Файлы промпта добавлены",
     "promptFilesAddedDesc": "Успешно добавлено {count} файлов",
     "promptFilesError": "Ошибка обработки файлов",
     "promptFilesErrorDesc": "Не удалось обработать {count} файлов",
-    "historyPlaceholder": "(Нажмите вкладку, чтобы заполнить)"
+    "historyPlaceholder": "(Нажмите Tab для автозаполнения)",
+    "rateLimitQueue": "Очередь {count}",
+    "rateLimitWait": "Ожидание {seconds}с",
+    "rateLimitQueueTooltip": "{count} запросов в очереди, интервал {interval} секунд",
+    "rateLimitReadyTooltip": "Готов к отправке, интервал {interval} секунд",
+    "rateLimitWaitingTooltip": "Ещё {seconds} секунд ожидания, интервал {interval} секунд"
   },
   "features": {
     "deepThinking": "Глубокое мышление",
@@ -30,7 +35,21 @@
     "error": "Ошибка поиска"
   },
   "messages": {
-    "thinking": "Думаю ..."
+    "thinking": "Думаю ...",
+    "rateLimitWaiting": "Ограничение скорости, ожидание в очереди...",
+    "rateLimitTitle": "Ограничение скорости запросов",
+    "rateLimitQueue": "Позиция в очереди",
+    "rateLimitEstimated": "Предполагаемое время ожидания",
+    "rateLimitQuickSettings": "Настроить ограничение",
+    "rateLimitSwitchProvider": "Сменить провайдера",
+    "rateLimitImmediately": "Немедленно",
+    "rateLimitSeconds": "секунд",
+    "rateLimitMinutes": "минут"
+  },
+  "rateLimit": {
+    "queueTooltip": "{count} запросов в очереди, интервал {interval} секунд",
+    "readyTooltip": "Готов к отправке, интервал {interval} секунд",
+    "waitingTooltip": "Ещё {seconds} секунд ожидания, интервал {interval} секунд"
   },
   "notify": {
     "generationComplete": "Поколение завершено",

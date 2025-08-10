@@ -11,5 +11,6 @@
   "settings-display": "디스플레이 설정",
   "settings-knowledge-base": "지식 기반",
   "settings-prompt": "프롬프트 관리",
-  "settings-agent": "에이전트 설정"
+  "settings-agent": "에이전트 설정",
+  "agent": "Agent"
 }

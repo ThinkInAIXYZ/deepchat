@@ -70,7 +70,22 @@
     "importing": "가져오는 중...",
     "confirmImport": "가져오기 확인",
     "importSuccessTitle": "가져오기 성공",
-    "importErrorTitle": "가져오기 실패"
+    "importErrorTitle": "가져오기 실패",
+    "resetData": "데이터 초기화",
+    "resetConfirmTitle": "데이터 초기화 확인",
+    "resetConfirmDescription": "초기화할 데이터 유형을 선택하세요. 이 작업은 되돌릴 수 없으며, 초기화 후 애플리케이션이 자동으로 재시작됩니다.",
+    "resetChatData": "채팅 데이터 초기화",
+    "resetChatDataDesc": "모든 채팅 기록과 대화 내역을 삭제",
+    "resetKnowledgeData": "지식베이스 데이터 초기화",
+    "resetKnowledgeDataDesc": "모든 지식베이스 파일과 벡터 데이터를 삭제",
+    "resetConfig": "설정 초기화",
+    "resetConfigDesc": "모든 앱 설정, 모델 설정, 사용자 정의 프롬프트를 삭제",
+    "resetAll": "완전 초기화",
+    "resetAllDesc": "채팅 기록, 설정, 캐시 파일을 포함한 모든 데이터를 삭제",
+    "resetting": "초기화 중...",
+    "confirmReset": "초기화 확인",
+    "resetCompleteDevTitle": "데이터 초기화 완료",
+    "resetCompleteDevMessage": "개발 환경에서는 수동으로 애플리케이션을 재시작하세요. 현재 프로세스를 중지하고 pnpm run dev를 다시 실행하세요"
   },
   "model": {
     "title": "모델 설정",
@@ -152,6 +167,27 @@
         "message": "이 모델의 구성을 기본값으로 재설정 하시겠습니까? 이 작업은 돌이킬 수 없습니다.",
         "title": "재설정 확인"
       },
+      "reasoningEffort": {
+        "label": "추론 노력도",
+        "description": "모델 추론의 깊이를 제어합니다. 더 높은 노력도는 더 나은 결과를 생성하지만 응답이 느려집니다",
+        "placeholder": "추론 노력도 선택",
+        "options": {
+          "minimal": "Minimal - 가장 빠른 응답",
+          "low": "Low - 낮은 노력",
+          "medium": "Medium - 중간 노력",
+          "high": "High - 높은 노력"
+        }
+      },
+      "verbosity": {
+        "label": "상세도",
+        "description": "모델 응답의 상세 수준과 길이를 제어합니다",
+        "placeholder": "상세도 선택",
+        "options": {
+          "low": "Low - 간결한 답변",
+          "medium": "Medium - 균형잡힌 상세",
+          "high": "High - 상세한 답변"
+        }
+      },
       "resetToDefault": "기본값으로 재설정하십시오",
       "saveConfig": "구성 저장",
       "useModelDefault": "모델 기본 설정 사용",
@@ -190,6 +226,8 @@
   },
   "provider": {
     "enable": "서비스 활성화",
+    "enabled": "활성화됨",
+    "disabled": "비활성화됨",
     "urlPlaceholder": "API URL을 입력하세요",
     "keyPlaceholder": "API 키를 입력하세요",
     "verifyKey": "키 확인",
@@ -219,12 +257,15 @@
         "confirm": "모두 비활성화"
       },
       "configModels": {
-        "title": "모델 목록 구성"
+        "title": "모델 목록 구성",
+        "description": "활성화하거나 비활성화할 모델 선택"
       },
       "verify": {
         "missingFields": "API 키와 API URL을 입력하세요",
         "failed": "확인 실패",
-        "success": "확인 성공"
+        "success": "확인 성공",
+        "failedDesc": "API 키 또는 설정 확인에 실패했습니다. 설정을 확인해주세요",
+        "successDesc": "API 키와 설정이 성공적으로 확인되었습니다. 사용 가능합니다"
       },
       "addCustomProvider": {
         "title": "커스텀 제공자 추가",
@@ -251,6 +292,7 @@
       },
       "pullModel": {
         "title": "모델 가져오기",
+        "description": "로컬로 다운로드할 모델 선택",
         "pull": "가져오기"
       },
       "modelCheck": {
@@ -308,7 +350,31 @@
     "toast": {
       "modelRunning": "모델이 실행 중입니다",
       "modelRunningDesc": "먼저 모델 {model}을 중지 한 다음 삭제하십시오."
-    }
+    },
+    "anthropicApiKeyTip": "API 키를 얻으려면 Anthropic Console으로 이동하십시오.",
+    "anthropicConnected": "인류 연결",
+    "anthropicNotConnected": "인류가 연결되어 있지 않습니다",
+    "anthropicOAuthTip": "인류 계정에 액세스하려면 DeepChat 인증을 클릭하십시오",
+    "oauthLogin": "OAUTH 로그인",
+    "authMethod": "인증 방법",
+    "authMethodPlaceholder": "인증 방법 선택",
+    "apiKeyLabel": "API Key",
+    "apiUrlLabel": "API URL",
+    "anthropicOAuthFlowTip": "시스템은 권한 부여 창을 자동으로 엽니 다. 다시 와서 승인 후 인증 코드를 입력하십시오.",
+    "anthropicBrowserOpened": "외부 브라우저가 열려 있습니다",
+    "anthropicCodeInstruction": "외부 브라우저에서 인증을 완료하고 얻은 인증 코드를 아래 입력 상자에 붙여 넣으십시오.",
+    "browserOpenedSuccess": "외부 브라우저가 열려 있습니다. 승인을 완료하십시오",
+    "codeRequired": "인증 코드를 입력하십시오",
+    "inputOAuthCode": "인증 코드를 입력하십시오",
+    "codeExchangeFailed": "승인 코드 교환에 실패했습니다",
+    "invalidCode": "잘못된 권한 부여 코드",
+    "oauthCodeHint": "외부 브라우저에서 승인을 완료 한 후 여기에 승인 코드를 붙여 넣으십시오.",
+    "oauthCodePlaceholder": "승인 코드를 입력하십시오 ...",
+    "verifyConnection": "연결 확인",
+    "manageModels": "모델 관리",
+    "anthropicOAuthActiveTip": "OAuth 인증이 활성화되어 있어 Anthropic 서비스를 직접 사용할 수 있습니다",
+    "oauthVerifySuccess": "OAuth 연결 확인 성공",
+    "oauthVerifyFailed": "OAuth 연결 확인 실패"
   },
   "knowledgeBase": {
     "title": "지식 베이스 설정",
@@ -394,7 +460,20 @@
         "description": "실행중인 지식 기반 작업이 있습니다. 소프트웨어를 종료 하시겠습니까? 소프트웨어를 다시 시작한 후 낙태 된 작업을 복원 할 수 있습니다."
       }
     },
-    "searchError": "쿼리가 실패했습니다"
+    "searchError": "쿼리가 실패했습니다",
+    "processing": "업로드",
+    "paused": "일시 정지를 업로드하십시오",
+    "unknown": "알 수없는 상태",
+    "reAddFile": {
+      "title": "확인 확인",
+      "content": "\"{filename}\"파일을 다시 업로드하시겠습니까?"
+    },
+    "deleteFile": {
+      "title": "파일 확인 삭제",
+      "content": "\"{filename}\"파일을 삭제해야합니까? 이 작업은 복원되지 않습니다."
+    },
+    "resumeAllPausedTasks": "원 클릭 복구",
+    "pauseAllRunningTasks": "한 번의 클릭 일시 중지"
   },
   "mcp": {
     "title": "MCP 설정",
@@ -523,6 +602,47 @@
     "maxDefaultServersReached": "최대 3 개의 기본 서버 만 설정할 수 있습니다",
     "removeDefaultFirst": "기본 서버를 먼저 제거하십시오",
     "higressMarket": "Higress MCP 설치로 이동하십시오",
+    "npmRegistry": {
+      "title": "NPM 소스 설정",
+      "currentSource": "현재 소스",
+      "cached": "캐시됨",
+      "lastChecked": "마지막 확인",
+      "refresh": "새로고침",
+      "advanced": "고급",
+      "advancedSettings": "고급 설정",
+      "advancedSettingsDesc": "자동 감지 및 사용자 정의 소스 설정을 포함한 NPM 소스의 고급 옵션 구성",
+      "autoDetect": "최적 소스 자동 감지",
+      "autoDetectDesc": "시작 시 자동으로 가장 빠른 NPM 소스를 감지하여 사용",
+      "customSource": "사용자 정의 소스",
+      "customSourcePlaceholder": "사용자 정의 NPM 소스 주소 입력",
+      "currentCustom": "현재 사용자 정의 소스",
+      "justNow": "방금 전",
+      "minutesAgo": "{minutes}분 전",
+      "hoursAgo": "{hours}시간 전",
+      "daysAgo": "{days}일 전",
+      "refreshSuccess": "NPM 소스 새로고침 성공",
+      "refreshSuccessDesc": "최적의 NPM 소스를 다시 감지하고 업데이트했습니다",
+      "refreshFailed": "NPM 소스 새로고침 실패",
+      "autoDetectUpdated": "자동 감지 설정이 업데이트되었습니다",
+      "autoDetectEnabled": "최적 NPM 소스 자동 감지가 활성화되었습니다",
+      "autoDetectDisabled": "자동 감지가 비활성화되어 기본 소스를 사용합니다",
+      "updateFailed": "설정 업데이트 실패",
+      "customSourceSet": "사용자 정의 소스가 설정되었습니다",
+      "customSourceSetDesc": "사용자 정의 NPM 소스가 설정되었습니다: {registry}",
+      "customSourceCleared": "사용자 정의 소스가 지워졌습니다",
+      "customSourceClearedDesc": "사용자 정의 NPM 소스를 지우고 자동 감지를 사용합니다",
+      "invalidUrl": "유효하지 않은 URL",
+      "invalidUrlDesc": "유효한 HTTP 또는 HTTPS 주소를 입력하세요",
+      "testing": "NPM 소스 테스트 중",
+      "testingDesc": "소스 {registry}의 연결성을 테스트 중...",
+      "testFailed": "NPM 소스 테스트 실패",
+      "testFailedDesc": "{registry}에 연결할 수 없습니다. 오류: {error}. URL이 올바른지 또는 네트워크 연결을 확인하세요.",
+      "redetectingOptimal": "최적 NPM 소스 재감지 중...",
+      "redetectComplete": "재감지 완료",
+      "redetectCompleteDesc": "현재 최적의 NPM 소스를 감지하고 설정했습니다",
+      "redetectFailed": "재감지 실패",
+      "redetectFailedDesc": "최적 소스를 재감지할 수 없어 기본 설정을 사용합니다"
+    },
     "technicalDetails": "기술 세부 사항",
     "httpServer": "HTTP 서버",
     "localProcess": "로컬 프로세스",
@@ -574,42 +694,66 @@
     "nextTab": "다음 탭으로 전환하십시오"
   },
   "agent": {
-    "addAgent": "에이전트를 추가하십시오",
-    "agentId": "에이전트",
+    "title": "에이전트 구성",
+    "description": "에이전트 서비스를 구성하고 DATLA와 같은 여러 유형의 에이전트를 지원합니다.",
     "agentList": "에이전트 목록",
+    "addAgent": "에이전트를 추가하십시오",
+    "noAgents": "아직 구성된 에이전트가 없습니다. \"에이전트 추가\"를 클릭하여 구성을 시작하십시오.",
+    "enabled": "할 수 있게 하다",
+    "disabled": "장애가 있는",
     "apiUrl": "API 주소",
+    "agentId": "에이전트",
+    "status": "상태",
     "checking": "발각...",
     "connected": "연결은 정상입니다",
-    "description": "에이전트 서비스를 구성하고 DATLA와 같은 여러 유형의 에이전트를 지원합니다.",
+    "notTested": "감지되지 않았습니다",
+    "testConnection": "테스트 연결",
     "dialog": {
-      "add": "추가",
-      "cancel": "취소",
+      "add": {
+        "title": "편집 에이전트"
+      },
       "edit": {
         "title": "편집 에이전트"
       },
       "form": {
-        "agentId": "에이전트",
-        "agentIdPlaceholder": "에이전트를 입력하십시오",
-        "apiUrl": "API 주소",
-        "apiUrlPlaceholder": "https://ai.maicedata.com/api/knowbase/rag",
         "name": "에이전트 이름",
         "namePlaceholder": "프록시 이름을 입력하십시오",
+        "type": "에이전트 유형",
+        "typePlaceholder": "프록시 유형을 선택하십시오",
+        "apiUrl": "API 주소",
+        "apiUrlPlaceholder": "https://ai.maicedata.com/api/knowbase/rag",
+        "agentId": "에이전트",
+        "agentIdPlaceholder": "에이전트를 입력하십시오",
         "token": "토큰",
         "tokenPlaceholder": "토큰을 입력하십시오",
-        "type": "에이전트 유형",
-        "typePlaceholder": "프록시 유형을 선택하십시오"
-      },
-      "save": "구하다"
+        "cancel": "취소",
+        "save": "구하다",
+        "add": "추가"
+      }
     },
-    "disabled": "장애가 있는",
-    "enabled": "할 수 있게 하다",
-    "noAgents": "아직 구성된 에이전트가 없습니다. \"에이전트 추가\"를 클릭하여 구성을 시작하십시오.",
-    "notTested": "감지되지 않았습니다",
-    "status": "상태",
-    "testConnection": "테스트 연결",
-    "title": "에이전트 구성",
     "types": {
       "datlas": "Datlas"
     }
+  },
+  "rateLimit": {
+    "title": "속도 제한",
+    "description": "요청 시간 간격을 제어하여 API 제한 초과 방지",
+    "intervalLimit": "요청 간격",
+    "intervalUnit": "초",
+    "intervalHelper": "두 요청 간의 최소 간격, 필요하지 않으면 속도 제한을 비활성화하세요",
+    "lastRequestTime": "마지막 요청",
+    "queueLength": "대기열 길이",
+    "nextAllowedTime": "다음 허용된 요청",
+    "never": "없음",
+    "justNow": "방금 전",
+    "secondsAgo": "초 전",
+    "minutesAgo": "분 전",
+    "immediately": "즉시",
+    "secondsLater": "초 후",
+    "confirmDisableTitle": "속도 제한 비활성화 확인",
+    "confirmDisableMessage": "값은 0 이하일 수 없습니다. 속도 제한 기능을 비활성화하시겠습니까?",
+    "confirmDisable": "제한 비활성화",
+    "disabled": "속도 제한이 비활성화됨",
+    "disabledDescription": "속도 제한 기능이 비활성화되었습니다"
   }
 }

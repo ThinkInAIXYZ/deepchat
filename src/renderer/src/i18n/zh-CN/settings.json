@@ -70,7 +70,22 @@
     "importing": "导入中...",
     "confirmImport": "确认导入",
     "importSuccessTitle": "导入成功",
-    "importErrorTitle": "导入失败"
+    "importErrorTitle": "导入失败",
+    "resetData": "重置数据",
+    "resetConfirmTitle": "确认重置数据",
+    "resetConfirmDescription": "请选择要重置的数据类型。此操作不可撤销，重置后应用将自动重启。",
+    "resetChatData": "重置聊天数据",
+    "resetChatDataDesc": "删除所有聊天记录和对话历史",
+    "resetKnowledgeData": "重置知识库数据",
+    "resetKnowledgeDataDesc": "删除所有知识库文件和向量数据",
+    "resetConfig": "重置配置",
+    "resetConfigDesc": "删除所有应用设置、模型配置和自定义提示词",
+    "resetAll": "完全重置",
+    "resetAllDesc": "删除所有数据，包括聊天记录、配置和缓存文件",
+    "resetting": "重置中...",
+    "confirmReset": "确认重置",
+    "resetCompleteDevTitle": "数据重置完成",
+    "resetCompleteDevMessage": "开发环境下请手动重启应用以查看效果。请停止当前进程并重新运行 pnpm run dev"
   },
   "model": {
     "title": "模型设置",
@@ -175,6 +190,27 @@
         "message": "确定要重置此模型的配置为默认值吗？此操作不可撤销。",
         "confirm": "确定重置"
       },
+      "reasoningEffort": {
+        "label": "推理努力程度",
+        "description": "控制模型的推理深度，更高的努力程度会产生更好的结果但响应更慢",
+        "placeholder": "选择推理努力程度",
+        "options": {
+          "minimal": "Minimal - 最快响应",
+          "low": "Low - 低努力",
+          "medium": "Medium - 中等努力",
+          "high": "High - 高努力"
+        }
+      },
+      "verbosity": {
+        "label": "详细程度",
+        "description": "控制模型回答的详细程度和长度",
+        "placeholder": "选择详细程度",
+        "options": {
+          "low": "Low - 简洁回答",
+          "medium": "Medium - 平衡详细",
+          "high": "High - 详细回答"
+        }
+      },
       "validation": {
         "maxTokensRequired": "最大输出长度不能为空",
         "maxTokensMin": "最大输出长度必须大于0",
@@ -190,6 +226,8 @@
   },
   "provider": {
     "enable": "开启服务",
+    "enabled": "已启用",
+    "disabled": "已禁用",
     "urlPlaceholder": "请输入API URL",
     "keyPlaceholder": "请输入API Key",
     "verifyKey": "验证密钥",
@@ -225,12 +263,15 @@
         "confirm": "全部禁用"
       },
       "configModels": {
-        "title": "配置模型列表"
+        "title": "配置模型列表",
+        "description": "选择要启用或禁用的模型"
       },
       "verify": {
         "missingFields": "请输入 API Key 和 API URL",
         "failed": "验证失败",
-        "success": "验证成功"
+        "success": "验证成功",
+        "failedDesc": "API 密钥或配置验证失败，请检查配置信息",
+        "successDesc": "API 密钥和配置验证成功，可以正常使用"
       },
       "addCustomProvider": {
         "title": "添加自定义服务商",
@@ -257,6 +298,7 @@
       },
       "pullModel": {
         "title": "拉取模型",
+        "description": "选择要下载的模型到本地",
         "pull": "拉取"
       },
       "modelCheck": {
@@ -308,7 +350,31 @@
     "keyStatus": {
       "usage": "已使用",
       "remaining": "剩余额度"
-    }
+    },
+    "authMethod": "认证方式",
+    "authMethodPlaceholder": "选择认证方式",
+    "apiKeyLabel": "API Key",
+    "apiUrlLabel": "API URL",
+    "anthropicConnected": "Anthropic 已连接",
+    "anthropicNotConnected": "Anthropic 未连接",
+    "anthropicOAuthTip": "点击授权 DeepChat 访问您的 Anthropic 账户",
+    "oauthLogin": "OAuth 登录",
+    "anthropicApiKeyTip": "请前往 Anthropic Console 获取您的 API Key",
+    "anthropicOAuthFlowTip": "系统将自动打开授权窗口，授权后请回来输入授权码",
+    "browserOpenedSuccess": "外部浏览器已打开，请完成授权",
+    "anthropicBrowserOpened": "外部浏览器已打开",
+    "anthropicCodeInstruction": "请在外部浏览器中完成授权，然后将获得的授权码粘贴到下方输入框中",
+    "inputOAuthCode": "输入授权码",
+    "oauthCodeHint": "请在外部浏览器中完成授权后，将获得的授权码粘贴到此处",
+    "oauthCodePlaceholder": "请输入授权码...",
+    "codeRequired": "请输入授权码",
+    "invalidCode": "授权码无效",
+    "codeExchangeFailed": "授权码交换失败",
+    "verifyConnection": "验证连接",
+    "manageModels": "管理模型",
+    "anthropicOAuthActiveTip": "OAuth 认证已启用，您可以直接使用 Anthropic 服务",
+    "oauthVerifySuccess": "OAuth 连接验证成功",
+    "oauthVerifyFailed": "OAuth 连接验证失败"
   },
   "knowledgeBase": {
     "title": "知识库设置",
@@ -380,12 +446,25 @@
     "uploadCompleted": "上传完成",
     "reAdd": "重新上传",
     "uploadError": "上传失败",
+    "processing": "正在上传",
+    "paused": "已暂停",
+    "unknown": "未知状态",
     "delete": "删除",
     "reason": "原因",
     "deleteSuccess": "删除成功",
     "copy": "复制",
     "copySuccess": "复制成功",
     "source": "来源",
+    "resumeAllPausedTasks": "一键恢复",
+    "pauseAllRunningTasks": "一键暂停",
+    "reAddFile": {
+      "title": "重新上传确认",
+      "content": "是否确认重新上传文件 \"{fileName}\"？"
+    },
+    "deleteFile": {
+      "title": "删除文件确认",
+      "content": "是否确认删除文件 \"{fileName}\"？此操作不可恢复。"
+    },
     "dialog": {
       "beforequit": {
         "title": "退出确认",
@@ -529,7 +608,48 @@
     "maxDefaultServersReached": "最多只能设置3个默认服务器",
     "removeDefaultFirst": "请先移除一些默认服务器",
     "higressMarket": "前往 Higress MCP 安装",
-    "totalServers": "服务器总数"
+    "totalServers": "服务器总数",
+    "npmRegistry": {
+      "title": "NPM源配置",
+      "currentSource": "当前源",
+      "cached": "缓存",
+      "lastChecked": "上次检测",
+      "refresh": "刷新",
+      "advanced": "高级",
+      "advancedSettings": "高级设置",
+      "advancedSettingsDesc": "配置NPM源的高级选项，包括自动检测和自定义源设置",
+      "autoDetect": "自动检测最优源",
+      "autoDetectDesc": "启动时自动检测并使用最快的NPM源",
+      "customSource": "自定义源",
+      "customSourcePlaceholder": "输入自定义NPM源地址",
+      "currentCustom": "当前自定义源",
+      "justNow": "刚刚",
+      "minutesAgo": "{minutes}分钟前",
+      "hoursAgo": "{hours}小时前",
+      "daysAgo": "{days}天前",
+      "refreshSuccess": "NPM源刷新成功",
+      "refreshSuccessDesc": "已重新检测并更新最优NPM源",
+      "refreshFailed": "NPM源刷新失败",
+      "autoDetectUpdated": "自动检测设置已更新",
+      "autoDetectEnabled": "已启用自动检测最优NPM源",
+      "autoDetectDisabled": "已禁用自动检测，将使用默认源",
+      "updateFailed": "设置更新失败",
+      "customSourceSet": "自定义源已设置",
+      "customSourceSetDesc": "已设置自定义NPM源：{registry}",
+      "customSourceCleared": "自定义源已清除",
+      "customSourceClearedDesc": "已清除自定义NPM源，将使用自动检测",
+      "invalidUrl": "无效的URL",
+      "invalidUrlDesc": "请输入有效的HTTP或HTTPS地址",
+      "testing": "正在测试NPM源",
+      "testingDesc": "正在测试源 {registry} 的连通性...",
+      "testFailed": "NPM源测试失败",
+      "testFailedDesc": "无法连接到 {registry}，错误：{error}。请检查URL是否正确或网络连接。",
+      "redetectingOptimal": "正在重新检测最优NPM源...",
+      "redetectComplete": "重新检测完成",
+      "redetectCompleteDesc": "已检测并设置当前最优的NPM源",
+      "redetectFailed": "重新检测失败",
+      "redetectFailedDesc": "无法重新检测最优源，将使用默认配置"
+    }
   },
   "about": {
     "title": "关于我们",
@@ -605,14 +725,35 @@
         "agentId": "AgentID",
         "agentIdPlaceholder": "请输入AgentID",
         "token": "Token",
-        "tokenPlaceholder": "请输入Token"
-      },
-      "cancel": "取消",
-      "save": "保存",
-      "add": "添加"
+        "tokenPlaceholder": "请输入Token",
+        "cancel": "取消",
+        "save": "保存",
+        "add": "添加"
+      }
     },
     "types": {
       "datlas": "Datlas"
     }
+  },
+  "rateLimit": {
+    "title": "速率限制",
+    "description": "控制请求间隔时间，防止超出API限制",
+    "intervalLimit": "请求间隔",
+    "intervalUnit": "秒",
+    "intervalHelper": "两次请求之间的最小间隔时间，不需要时请关闭速率限制",
+    "lastRequestTime": "上次请求",
+    "queueLength": "队列长度",
+    "nextAllowedTime": "下次可请求",
+    "never": "从未",
+    "justNow": "刚刚",
+    "secondsAgo": "秒前",
+    "minutesAgo": "分钟前",
+    "immediately": "立即",
+    "secondsLater": "秒后",
+    "confirmDisableTitle": "确认关闭速率限制",
+    "confirmDisableMessage": "该值不能小于或等于0，是否关闭速率限制功能？",
+    "confirmDisable": "关闭限制",
+    "disabled": "速率限制已关闭",
+    "disabledDescription": "速率限制功能已关闭"
   }
 }

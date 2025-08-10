@@ -11,5 +11,6 @@
   "settings-display": "顯示設置",
   "settings-knowledge-base": "知識庫",
   "settings-prompt": "Prompt管理",
-  "settings-agent": "智能體設置"
+  "settings-agent": "智能體設置",
+  "agent": "智能體"
 }

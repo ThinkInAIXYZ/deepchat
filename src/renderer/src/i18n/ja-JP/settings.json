@@ -20,8 +20,8 @@
     "invalidProxyUrl": "無効なプロキシURL、有効なhttp/https URLを入力してください",
     "contentProtection": "画面キャプチャ保護",
     "contentProtectionDialogTitle": "画面保護の切り替え確認",
-    "contentProtectionEnableDesc": "画面保護を有効にすると、画面共有ソフトウェアがDeepChatウィンドウをキャプチャするのを防ぎ、コンテンツのプライバシーを保護します。この機能はすべてのインターフェイスを完全に隠すわけではありません。責任を持って規制に準拠して使用してください。また、画面共有ソフトウェアがこの機能をサポートしない場合があります。また、一部の環境では黒いウィンドウが残る可能性があります。",
-    "contentProtectionDisableDesc": "画面保護を無効にすると、画面共有ソフトウェアがDeepChatウィンドウをキャプチャできるようになります。",
+    "contentProtectionEnableDesc": "DeepChatウィンドウの画面共有によるキャプチャを防止し、プライバシー保護に役立ちます。すべてのアプリがこの設定に対応するわけではなく、環境によっては黒いウィンドウが残る場合があります。",
+    "contentProtectionDisableDesc": "画面共有アプリによるDeepChatウィンドウのキャプチャを許可します。",
     "contentProtectionRestartNotice": "この設定を変更するとアプリケーションが再起動します。続行しますか？",
     "soundEnabled": "サウンドを有効にする",
     "copyWithCotEnabled": "COT情報をコピー",
@@ -51,7 +51,7 @@
       "title": "ショートカットキー設定"
     },
     "notifications": "システム通知",
-    "notificationsDesc": "Deepchatが前景にない場合、セッションが生成された場合、システム通知が送信されます"
+    "notificationsDesc": "DeepChatがバックグラウンドのとき、応答が完了すると通知を送信します"
   },
   "data": {
     "title": "データ設定",
@@ -70,7 +70,22 @@
     "importing": "インポート中...",
     "confirmImport": "インポートを確認",
     "importSuccessTitle": "インポート成功",
-    "importErrorTitle": "インポート失敗"
+    "importErrorTitle": "インポート失敗",
+    "resetData": "データをリセット",
+    "resetConfirmTitle": "データリセットの確認",
+    "resetConfirmDescription": "リセットするデータの種類を選択してください。この操作は元に戻せません。リセット後、アプリケーションは自動的に再起動されます。",
+    "resetChatData": "チャットデータをリセット",
+    "resetChatDataDesc": "すべてのチャット履歴と会話記録を削除",
+    "resetKnowledgeData": "ナレッジベースデータをリセット",
+    "resetKnowledgeDataDesc": "すべてのナレッジベースファイルとベクターデータを削除",
+    "resetConfig": "設定をリセット",
+    "resetConfigDesc": "すべてのアプリ設定、モデル設定、カスタムプロンプトを削除",
+    "resetAll": "完全リセット",
+    "resetAllDesc": "チャット履歴、設定、キャッシュファイルを含むすべてのデータを削除",
+    "resetting": "リセット中...",
+    "confirmReset": "リセットを確認",
+    "resetCompleteDevTitle": "データリセット完了",
+    "resetCompleteDevMessage": "開発環境では手動でアプリケーションを再起動してください。現在のプロセスを停止して pnpm run dev を再実行してください"
   },
   "model": {
     "title": "モデル設定",
@@ -93,10 +108,10 @@
     },
     "artifacts": {
       "description": "Artifacts機能を有効にすると、AIはより豊かなコンテンツを生成できます",
-      "title": "アーティファクト効果"
+      "title": "Artifacts"
     },
-    "addModel": "モデルを追加します",
-    "configureModel": "構成モデル",
+    "addModel": "モデルを追加",
+    "configureModel": "モデルを構成",
     "modelList": "モデルリスト",
     "provider": "サービスプロバイダー",
     "providerSetting": "サービスプロバイダーの設定",
@@ -105,7 +120,7 @@
       "cancel": "キャンセル",
       "contextLength": {
         "description": "モデルが処理できるコンテキスト長を設定します",
-        "label": "コンテキストの長さ"
+        "label": "コンテキスト長"
       },
       "description": "この構成は現在のモデルに対してのみ有効であり、他のモデルには影響しないことに注意してください。注意して変更してください。パラメーターが誤っていると、モデルが適切に機能しない場合があります。",
       "functionCall": {
@@ -152,12 +167,33 @@
         "message": "このモデルの構成をデフォルトにリセットする必要がありますか？この操作は取消不能です。",
         "title": "リセットを確認します"
       },
+      "reasoningEffort": {
+        "label": "推論努力度",
+        "description": "モデルの推論の深さを制御します。より高い努力度はより良い結果を生成しますが、応答が遅くなります",
+        "placeholder": "推論努力度を選択",
+        "options": {
+          "minimal": "Minimal - 最速応答",
+          "low": "Low - 低努力",
+          "medium": "Medium - 中程度の努力",
+          "high": "High - 高努力"
+        }
+      },
+      "verbosity": {
+        "label": "詳細度",
+        "description": "モデル応答の詳細レベルと長さを制御します",
+        "placeholder": "詳細度を選択",
+        "options": {
+          "low": "Low - 簡潔な回答",
+          "medium": "Medium - バランスの取れた詳細",
+          "high": "High - 詳細な回答"
+        }
+      },
       "resetToDefault": "デフォルトにリセットします",
       "saveConfig": "構成を保存します",
       "useModelDefault": "モデルのデフォルト設定を使用",
       "currentUsingModelDefault": "現在モデルのデフォルト設定を使用中",
       "temperature": {
-        "description": "出力のランダム性を制御します。ほとんどのモデルは0-1で、0〜2の間のサポートがあります。ランダム性が高くなるほど。",
+        "description": "出力のランダム性を制御します。値が高いほどランダム性が増します。",
         "label": "温度"
       },
       "title": "カスタムモデルパラメーター",
@@ -168,7 +204,7 @@
           "chat": "言語モデル",
           "embedding": "埋め込みモデル",
           "imageGeneration": "画像生成モデル",
-          "rerank": "モデルを並べ替えます"
+          "rerank": "リランクモデル"
         }
       },
       "validation": {
@@ -190,6 +226,8 @@
   },
   "provider": {
     "enable": "サービスを有効にする",
+    "enabled": "有効",
+    "disabled": "無効",
     "urlPlaceholder": "API URLを入力してください",
     "keyPlaceholder": "API Keyを入力してください",
     "verifyKey": "キーを検証",
@@ -215,7 +253,8 @@
         "confirm": "無効にする"
       },
       "configModels": {
-        "title": "モデルリストを構成"
+        "title": "モデルリストを構成",
+        "description": "有効または無効にするモデルを選択"
       },
       "disableAllModels": {
         "title": "すべてのモデルを無効にする確認",
@@ -225,7 +264,9 @@
       "verify": {
         "missingFields": "API KeyとAPI URLを入力してください",
         "failed": "検証に失敗しました",
-        "success": "検証に成功しました"
+        "success": "検証に成功しました",
+        "failedDesc": "APIキーまたは設定の検証に失敗しました。設定を確認してください",
+        "successDesc": "APIキーと設定の検証に成功しました。使用可能です"
       },
       "addCustomProvider": {
         "title": "カスタムプロバイダーを追加",
@@ -252,6 +293,7 @@
       },
       "pullModel": {
         "title": "モデルを取得",
+        "description": "ローカルにダウンロードするモデルを選択",
         "pull": "取得"
       },
       "modelCheck": {
@@ -308,7 +350,31 @@
     "toast": {
       "modelRunning": "モデルが実行されています",
       "modelRunningDesc": "最初にモデル{model}を停止してから削除してください。"
-    }
+    },
+    "anthropicApiKeyTip": "APIキーを取得するには、人類コンソールにアクセスしてください",
+    "anthropicConnected": "人類接続",
+    "anthropicNotConnected": "人類は接続されていません",
+    "anthropicOAuthTip": "[deepchatの承認]をクリックして、人類アカウントにアクセスします",
+    "oauthLogin": "oauthログイン",
+    "authMethod": "認証方法",
+    "authMethodPlaceholder": "認証方法を選択",
+    "apiKeyLabel": "API Key",
+    "apiUrlLabel": "API URL",
+    "anthropicOAuthFlowTip": "システムは自動的に承認ウィンドウを開きます。承認後、戻って承認コードを入力してください。",
+    "anthropicBrowserOpened": "外部ブラウザが開いています",
+    "anthropicCodeInstruction": "外部ブラウザで承認を完了し、取得した認証コードを下の入力ボックスに貼り付けてください",
+    "browserOpenedSuccess": "外部ブラウザが開いています。承認を完了してください",
+    "codeRequired": "承認コードを入力してください",
+    "inputOAuthCode": "承認コードを入力します",
+    "codeExchangeFailed": "認証コード交換は失敗しました",
+    "invalidCode": "無効な承認コード",
+    "oauthCodeHint": "外部ブラウザで承認を完了した後、ここに承認コードを貼り付けてください",
+    "oauthCodePlaceholder": "承認コードを入力してください...",
+    "verifyConnection": "接続を確認",
+    "manageModels": "モデル管理",
+    "anthropicOAuthActiveTip": "OAuth認証が有効になっており、Anthropicサービスを直接使用できます",
+    "oauthVerifySuccess": "OAuth接続の確認が成功しました",
+    "oauthVerifyFailed": "OAuth接続の確認に失敗しました"
   },
   "knowledgeBase": {
     "title": "ナレッジベース設定",
@@ -394,7 +460,20 @@
         "description": "実行中のナレッジベースタスクがあります。ソフトウェアを終了しますか？ソフトウェアを再起動した後、中止されたタスクを復元できます。"
       }
     },
-    "searchError": "クエリに失敗しました"
+    "searchError": "クエリに失敗しました",
+    "processing": "アップロード",
+    "paused": "一時停止をアップロードします",
+    "unknown": "不明なステータス",
+    "reAddFile": {
+      "title": "再アップロード確認",
+      "content": "ファイル「{fileName}」を再アップロードしてもよろしいですか？"
+    },
+    "deleteFile": {
+      "title": "ファイル削除の確認",
+      "content": "ファイル「{fileName}」を削除してもよろしいですか？この操作は元に戻せません。"
+    },
+    "resumeAllPausedTasks": "ワンクリックリカバリ",
+    "pauseAllRunningTasks": "ワンクリックの一時停止"
   },
   "mcp": {
     "title": "MCP設定",
@@ -523,6 +602,47 @@
     "maxDefaultServersReached": "せいぜい3つのデフォルトサーバーのみを設定できます",
     "removeDefaultFirst": "最初にいくつかのデフォルトサーバーを削除してください",
     "higressMarket": "Higress MCPのインストールに移動します",
+    "npmRegistry": {
+      "title": "NPMソース設定",
+      "currentSource": "現在のソース",
+      "cached": "キャッシュ",
+      "lastChecked": "最終チェック",
+      "refresh": "更新",
+      "advanced": "詳細設定",
+      "advancedSettings": "詳細設定",
+      "advancedSettingsDesc": "自動検出やカスタムソース設定を含むNPMソースの詳細オプションを設定",
+      "autoDetect": "最適なソースを自動検出",
+      "autoDetectDesc": "起動時に自動的に最速のNPMソースを検出して使用",
+      "customSource": "カスタムソース",
+      "customSourcePlaceholder": "カスタムNPMソースアドレスを入力",
+      "currentCustom": "現在のカスタムソース",
+      "justNow": "たった今",
+      "minutesAgo": "{minutes}分前",
+      "hoursAgo": "{hours}時間前",
+      "daysAgo": "{days}日前",
+      "refreshSuccess": "NPMソースの更新が成功しました",
+      "refreshSuccessDesc": "最適なNPMソースを再検出して更新しました",
+      "refreshFailed": "NPMソースの更新に失敗しました",
+      "autoDetectUpdated": "自動検出設定が更新されました",
+      "autoDetectEnabled": "最適なNPMソースの自動検出が有効になりました",
+      "autoDetectDisabled": "自動検出が無効になり、デフォルトソースを使用します",
+      "updateFailed": "設定の更新に失敗しました",
+      "customSourceSet": "カスタムソースが設定されました",
+      "customSourceSetDesc": "カスタムNPMソースが設定されました：{registry}",
+      "customSourceCleared": "カスタムソースがクリアされました",
+      "customSourceClearedDesc": "カスタムNPMソースをクリアし、自動検出を使用します",
+      "invalidUrl": "無効なURL",
+      "invalidUrlDesc": "有効なHTTPまたはHTTPSアドレスを入力してください",
+      "testing": "NPMソースをテスト中",
+      "testingDesc": "ソース {registry} の接続性をテスト中...",
+      "testFailed": "NPMソーステストに失敗しました",
+      "testFailedDesc": "{registry} に接続できません。エラー：{error}。URLが正しいかネットワーク接続を確認してください。",
+      "redetectingOptimal": "最適なNPMソースを再検出中...",
+      "redetectComplete": "再検出完了",
+      "redetectCompleteDesc": "現在最適なNPMソースを検出して設定しました",
+      "redetectFailed": "再検出に失敗しました",
+      "redetectFailedDesc": "最適なソースを再検出できません。デフォルト設定を使用します"
+    },
     "technicalDetails": "技術的詳細",
     "httpServer": "HTTPサーバー",
     "localProcess": "ローカルプロセス",
@@ -605,14 +725,35 @@
         "agentId": "エージェントID",
         "agentIdPlaceholder": "エージェントIDを入力",
         "token": "トークン",
-        "tokenPlaceholder": "トークンを入力"
-      },
-      "cancel": "キャンセル",
-      "save": "保存",
-      "add": "追加"
+        "tokenPlaceholder": "トークンを入力",
+        "cancel": "キャンセル",
+        "save": "保存",
+        "add": "追加"
+      }
     },
     "types": {
       "datlas": "Datlas"
     }
+  },
+  "rateLimit": {
+    "title": "レート制限",
+    "description": "リクエストの時間間隔を制御し、API制限の超過を防ぐ",
+    "intervalLimit": "リクエスト間隔",
+    "intervalUnit": "秒",
+    "intervalHelper": "2つのリクエスト間の最小間隔、不要な場合はレート制限を無効にしてください",
+    "lastRequestTime": "最後のリクエスト",
+    "queueLength": "キューの長さ",
+    "nextAllowedTime": "次の許可されたリクエスト",
+    "never": "なし",
+    "justNow": "たった今",
+    "secondsAgo": "秒前",
+    "minutesAgo": "分前",
+    "immediately": "すぐに",
+    "secondsLater": "秒後",
+    "confirmDisableTitle": "レート制限の無効化を確認",
+    "confirmDisableMessage": "値は0以下にできません。レート制限機能を無効にしますか？",
+    "confirmDisable": "制限を無効化",
+    "disabled": "レート制限が無効化されました",
+    "disabledDescription": "レート制限機能が無効化されました"
   }
 }

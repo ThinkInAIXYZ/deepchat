@@ -9,23 +9,23 @@
     "exportText": "Texte brut"
   },
   "toolbar": {
-    "save": "sauvegarder",
+    "save": "Enregistrer",
     "cancel": "Annuler",
-    "previousVariant": "Passez à la version précédente",
-    "nextVariant": "Passez à la version suivante",
-    "copy": "Copiez la réponse à Markdown",
+    "previousVariant": "Variante précédente",
+    "nextVariant": "Variante suivante",
+    "copy": "Copier en Markdown",
     "copyImage": "Copier en tant qu'image",
     "retry": "Régénérer",
-    "fork": "Fourche à une nouvelle session",
+    "fork": "Créer une branche",
     "edit": "Modifier le message",
     "delete": "Supprimer le message",
-    "capturing": "Capture d'écran ...",
+    "capturing": "Capture en cours...",
     "copyFromTopSuccess": "Image de session complète copiée",
-    "copyImageWithLongPress": "Copier en tant qu'image (appuyez sur longue pour commencer à intercepter du haut)"
+    "copyImageWithLongPress": "Copier en image (appui long pour capturer depuis le haut)"
   },
   "message": {
     "toolbar": {
-      "save": "sauvegarder"
+      "save": "Enregistrer"
     }
   },
   "export": {

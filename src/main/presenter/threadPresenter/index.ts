@@ -754,7 +754,7 @@ export class ThreadPresenter implements IThreadPresenter {
     if (defaultModelsSettings) {
       mergedSettings.maxTokens = defaultModelsSettings.maxTokens
       mergedSettings.contextLength = defaultModelsSettings.contextLength
-      mergedSettings.temperature = defaultModelsSettings.temperature
+      mergedSettings.temperature = defaultModelsSettings.temperature ?? 0.7
       // 重置 thinkingBudget 为模型默认配置，如果模型配置中没有则设为 undefined
       mergedSettings.thinkingBudget = defaultModelsSettings.thinkingBudget
     }
@@ -1509,7 +1509,8 @@ export class ThreadPresenter implements IThreadPresenter {
             actualAgentId,
             finalContent,
             currentModelId,
-            { // 创建基本的 ModelConfig
+            {
+              // 创建基本的 ModelConfig
               maxTokens: currentMaxTokens,
               contextLength: 32768,
               temperature: currentTemperature,

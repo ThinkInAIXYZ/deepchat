@@ -184,6 +184,14 @@ export class DeeplinkPresenter implements IDeeplinkPresenter {
     } else {
       systemPrompt = ''
     }
+    let mentions: string[] = []
+    const mentionsParam = params.get('mentions')
+    if (mentionsParam && mentionsParam.trim() !== '') {
+      mentions = decodeURIComponent(mentionsParam)
+        .split(',')
+        .map((mention) => mention.trim())
+        .filter((mention) => mention.length > 0)
+    }
     // 如果用户增加了yolo=1或者yolo=true，则自动发送消息
     const yolo = params.get('yolo')
     const autoSend = yolo && yolo.trim() !== ''
@@ -191,11 +199,82 @@ export class DeeplinkPresenter implements IDeeplinkPresenter {
     console.log('modelId:', modelId)
     console.log('systemPrompt:', systemPrompt)
     console.log('autoSend:', autoSend)
+
+    const focusedWindow = presenter.windowPresenter.getFocusedWindow()
+    if (focusedWindow) {
+      focusedWindow.show()
+      focusedWindow.focus()
+    } else {
+      presenter.windowPresenter.show()
+    }
+
+    const windowId = focusedWindow?.id || 1
+    await this.ensureChatTabActive(windowId)
     eventBus.sendToRenderer(DEEPLINK_EVENTS.START, SendTarget.DEFAULT_TAB, {
       msg,
       modelId,
       systemPrompt,
+      mentions,
       autoSend
+    })
+  }
+
+  /**
+   * 确保有一个活动的 chat 标签页
+   * @param windowId 窗口ID
+   */
+  private async ensureChatTabActive(windowId: number): Promise<void> {
+    try {
+      const tabPresenter = presenter.tabPresenter
+      const tabsData = await tabPresenter.getWindowTabsData(windowId)
+      const chatTab = tabsData.find(
+        (tab) =>
+          tab.url === 'local://chat' || tab.url.includes('#/chat') || tab.url.endsWith('/chat')
+      )
+      if (chatTab) {
+        if (!chatTab.isActive) {
+          await tabPresenter.switchTab(chatTab.id)
+          await new Promise((resolve) => setTimeout(resolve, 100))
+        }
+      } else {
+        const newTabId = await tabPresenter.createTab(windowId, 'local://chat', { active: true })
+        if (newTabId) {
+          console.log(`[Deeplink] Waiting for tab ${newTabId} renderer to be ready`)
+          await this.waitForTabReady(newTabId)
+        }
+      }
+    } catch (error) {
+      console.error('Error ensuring chat tab active:', error)
+    }
+  }
+
+  /**
+   * 等待标签页渲染进程准备就绪
+   * @param tabId 标签页ID
+   */
+  private async waitForTabReady(tabId: number): Promise<void> {
+    return new Promise((resolve) => {
+      let resolved = false
+      const onTabReady = (readyTabId: number) => {
+        if (readyTabId === tabId && !resolved) {
+          resolved = true
+          console.log(`[Deeplink] Tab ${tabId} renderer is ready`)
+          eventBus.off('tab:renderer-ready', onTabReady)
+          clearTimeout(timeoutId)
+          resolve()
+        }
+      }
+
+      eventBus.on('tab:renderer-ready', onTabReady)
+
+      const timeoutId = setTimeout(() => {
+        if (!resolved) {
+          resolved = true
+          eventBus.off('tab:renderer-ready', onTabReady)
+          console.log(`[Deeplink] Timeout waiting for tab ${tabId}, proceeding anyway`)
+          resolve()
+        }
+      }, 3000)
     })
   }
 

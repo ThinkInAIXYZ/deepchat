@@ -70,5 +70,7 @@
   "reset": "重置",
   "format": "格式化",
   "edit": "编辑",
-  "delete": "删除"
+  "delete": "删除",
+  "save": "保存",
+  "clear": "清除"
 }

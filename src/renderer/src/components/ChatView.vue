@@ -11,6 +11,7 @@
     <!-- 输入框区域 -->
     <div class="flex-none px-2 pb-2">
       <ChatInput
+        ref="chatInput"
         :disabled="!chatStore.getActiveThreadId() || isGenerating"
         :is-agent-mode="isAgentMode"
         :agent-id="agentId"
@@ -49,6 +50,7 @@ const route = useRoute()
 const settingsStore = useSettingsStore()
 
 const messageList = ref()
+const chatInput = ref()
 
 import { useChatStore } from '@/stores/chat'
 
@@ -72,6 +74,10 @@ const handleSend = async (msg: UserMessageContent) => {
     await chatStore.sendMessage(msg)
   }
   scrollToBottom()
+
+  setTimeout(() => {
+    chatInput.value?.restoreFocus()
+  }, 100)
 }
 
 // Agent 模式的消息发送逻辑
@@ -126,10 +132,16 @@ onMounted(async () => {
 
   window.electron.ipcRenderer.on(STREAM_EVENTS.END, (_, msg) => {
     chatStore.handleStreamEnd(msg)
+    setTimeout(() => {
+      chatInput.value?.restoreFocus()
+    }, 200)
   })
 
   window.electron.ipcRenderer.on(STREAM_EVENTS.ERROR, (_, msg) => {
     chatStore.handleStreamError(msg)
+    setTimeout(() => {
+      chatInput.value?.restoreFocus()
+    }, 200)
   })
 
   if (route.query.modelId && route.query.providerId) {

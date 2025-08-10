@@ -84,6 +84,14 @@ export const SYNC_EVENTS = {
   DATA_CHANGED: 'sync:data-changed'
 }
 
+// 速率限制相关事件
+export const RATE_LIMIT_EVENTS = {
+  CONFIG_UPDATED: 'rate-limit:config-updated',
+  REQUEST_QUEUED: 'rate-limit:request-queued',
+  REQUEST_EXECUTED: 'rate-limit:request-executed',
+  LIMIT_EXCEEDED: 'rate-limit:limit-exceeded'
+}
+
 // DeepLink 相关事件
 export const DEEPLINK_EVENTS = {
   PROTOCOL_RECEIVED: 'deeplink:protocol-received',
@@ -94,7 +102,8 @@ export const DEEPLINK_EVENTS = {
 // 全局通知相关事件
 export const NOTIFICATION_EVENTS = {
   SHOW_ERROR: 'notification:show-error', // 显示错误通知
-  SYS_NOTIFY_CLICKED: 'notification:sys-notify-clicked' // 系统通知点击事件
+  SYS_NOTIFY_CLICKED: 'notification:sys-notify-clicked', // 系统通知点击事件
+  DATA_RESET_COMPLETE_DEV: 'notification:data-reset-complete-dev' // 开发环境数据重置完成通知
 }
 export const SHORTCUT_EVENTS = {
   ZOOM_IN: 'shortcut:zoom-in',
