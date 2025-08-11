@@ -376,7 +376,8 @@
         "pageNumber": "page number",
         "pageNumberPlaceholder": "Please enter the page number",
         "serverAlreadyExists": "The server already exists, skip import",
-        "syncComplete": "Synchronous completion"
+        "syncComplete": "Synchronous completion",
+        "invalidServerData": "Invalid server data"
       },
       "apiKey": "API Key",
       "apiKeyHelper": "Get your API Key in the ModelScope console",

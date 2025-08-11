@@ -159,7 +159,8 @@ export class ModelscopeProvider extends OpenAICompatibleProvider {
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${this.provider.apiKey}`
-        }
+        },
+        signal: AbortSignal.timeout(30000) // 30 second timeout
       })
 
       // Handle authentication errors

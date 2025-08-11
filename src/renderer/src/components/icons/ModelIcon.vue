@@ -60,7 +60,7 @@ import _302aiIcon from '@/assets/llm-icons/302ai.svg?url'
 import modelscopeColorIcon from '@/assets/llm-icons/modelscope-color.svg?url'
 // 导入所有图标
 const icons = {
-  'modelscope': modelscopeColorIcon,
+  modelscope: modelscopeColorIcon,
   '302ai': _302aiIcon,
   aihubmix: aihubmixColorIcon,
   dashscope: dashscopeColorIcon,

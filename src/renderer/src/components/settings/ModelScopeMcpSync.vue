@@ -44,33 +44,21 @@
       <!-- 额外选项 -->
       <div class="flex flex-wrap gap-4">
         <label class="flex items-center gap-2 text-sm">
-          <input
-            v-model="syncOptions.filter.is_hosted"
-            type="checkbox"
-            class="rounded"
-          />
+          <input v-model="syncOptions.filter.is_hosted" type="checkbox" class="rounded" />
           {{ t('settings.provider.modelscope.mcpSync.onlyHosted') }}
         </label>
       </div>
 
       <!-- 同步按钮和状态 -->
       <div class="flex items-center gap-4">
-        <Button
-          @click="handleSync"
-          :disabled="isSyncing"
-          class="flex items-center gap-2"
-        >
-          <Icon
-            v-if="isSyncing"
-            icon="lucide:loader-2"
-            class="h-4 w-4 animate-spin"
-          />
-          <Icon
-            v-else
-            icon="lucide:download"
-            class="h-4 w-4"
-          />
-          {{ isSyncing ? t('settings.provider.modelscope.mcpSync.syncing') : t('settings.provider.modelscope.mcpSync.sync') }}
+        <Button @click="handleSync" :disabled="isSyncing" class="flex items-center gap-2">
+          <Icon v-if="isSyncing" icon="lucide:loader-2" class="h-4 w-4 animate-spin" />
+          <Icon v-else icon="lucide:download" class="h-4 w-4" />
+          {{
+            isSyncing
+              ? t('settings.provider.modelscope.mcpSync.syncing')
+              : t('settings.provider.modelscope.mcpSync.sync')
+          }}
         </Button>
 
         <div v-if="syncResult" class="text-sm">
@@ -81,13 +69,18 @@
             {{ t('settings.provider.modelscope.mcpSync.skipped', { count: syncResult.skipped }) }}
           </span>
           <span v-if="syncResult.errors.length > 0" class="text-red-600 ml-2">
-            {{ t('settings.provider.modelscope.mcpSync.errors', { count: syncResult.errors.length }) }}
+            {{
+              t('settings.provider.modelscope.mcpSync.errors', { count: syncResult.errors.length })
+            }}
           </span>
         </div>
       </div>
 
       <!-- 错误信息显示 -->
-      <div v-if="errorMessage" class="p-3 bg-destructive/10 border border-destructive/20 rounded-md">
+      <div
+        v-if="errorMessage"
+        class="p-3 bg-destructive/10 border border-destructive/20 rounded-md"
+      >
         <p class="text-sm text-destructive">{{ errorMessage }}</p>
       </div>
 
@@ -97,7 +90,11 @@
           {{ t('settings.provider.modelscope.mcpSync.errorDetails') }}
         </h4>
         <div class="max-h-32 overflow-y-auto p-2 bg-muted rounded-md">
-          <div v-for="(error, index) in syncResult.errors" :key="index" class="text-xs text-muted-foreground">
+          <div
+            v-for="(error, index) in syncResult.errors"
+            :key="index"
+            class="text-xs text-muted-foreground"
+          >
             {{ error }}
           </div>
         </div>
@@ -151,10 +148,7 @@ const handleSync = async () => {
 
   try {
     // 调用简化的同步API，所有的格式转换和导入都在服务端处理
-    const result = await llmP.syncModelScopeMcpServers(
-      props.provider.id,
-      syncOptions
-    )
+    const result = await llmP.syncModelScopeMcpServers(props.provider.id, syncOptions)
 
     syncResult.value = result
 

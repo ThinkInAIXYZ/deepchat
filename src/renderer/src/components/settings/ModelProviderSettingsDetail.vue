@@ -34,10 +34,7 @@
         <ProviderRateLimitConfig :provider="provider" @config-changed="handleConfigChanged" />
 
         <!-- ModelScope MCP 同步 -->
-        <ModelScopeMcpSync
-          v-if="provider.id === 'modelscope'"
-          :provider="provider"
-        />
+        <ModelScopeMcpSync v-if="provider.id === 'modelscope'" :provider="provider" />
 
         <!-- 模型管理 -->
         <ProviderModelManager

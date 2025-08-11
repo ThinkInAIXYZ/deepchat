@@ -755,7 +755,7 @@ export class McpConfHelper {
   ): string {
     // Clean up package name to create a suitable server name
     let baseName = packageName
-      .replace(/[@\/]/g, '-')
+      .replace(/[@/]/g, '-')
       .replace(/[^a-zA-Z0-9-_]/g, '')
       .toLowerCase()
 
