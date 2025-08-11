@@ -417,7 +417,6 @@
         "noApiKey": "Veuillez d'abord configurer la clé de l'API Modelcope",
         "noOperationalUrls": "Aucune adresse de fonctionnement disponible trouvée",
         "noServersFound": "Aucun service MCP disponible trouvé",
-        "onlyHosted": "Services d'hébergement uniquement",
         "pageNumber": "numéro de page",
         "pageNumberPlaceholder": "Veuillez saisir le numéro de page",
         "pageSize": "Quantité par page",

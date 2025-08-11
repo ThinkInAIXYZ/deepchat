@@ -417,7 +417,6 @@
         "noApiKey": "لطفاً ابتدا کلید API Modelcope را پیکربندی کنید",
         "noOperationalUrls": "هیچ آدرس عملیاتی موجود یافت نمی شود",
         "noServersFound": "هیچ سرویس MCP در دسترس یافت نشد",
-        "onlyHosted": "فقط خدمات میزبانی",
         "pageNumber": "شماره صفحه",
         "pageNumberPlaceholder": "لطفا شماره صفحه را وارد کنید",
         "pageSize": "مقدار در هر صفحه",

@@ -372,7 +372,6 @@
         "fetchingServers": "Getting the list of MCP servers...",
         "importingServers": "Importing server configuration...",
         "noOperationalUrls": "No available operating address found",
-        "onlyHosted": "Hosting services only",
         "pageNumber": "page number",
         "pageNumberPlaceholder": "Please enter the page number",
         "serverAlreadyExists": "The server already exists, skip import",

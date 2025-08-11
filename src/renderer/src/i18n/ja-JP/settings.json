@@ -417,7 +417,6 @@
         "noApiKey": "ModelScope APIキーを最初に構成してください",
         "noOperationalUrls": "利用可能な操作アドレスは見つかりません",
         "noServersFound": "利用可能なMCPサービスは見つかりません",
-        "onlyHosted": "ホスティングサービスのみ",
         "pageNumber": "ページ番号",
         "pageNumberPlaceholder": "ページ番号を入力してください",
         "pageSize": "ページごとの数量",

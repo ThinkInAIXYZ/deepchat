@@ -417,7 +417,6 @@
         "noApiKey": "먼저 ModelScope API 키를 구성하십시오",
         "noOperationalUrls": "사용 가능한 운영 주소가 없습니다",
         "noServersFound": "사용 가능한 MCP 서비스가 없습니다",
-        "onlyHosted": "호스팅 서비스 만",
         "pageNumber": "페이지 번호",
         "pageNumberPlaceholder": "페이지 번호를 입력하십시오",
         "pageSize": "페이지 당 수량",

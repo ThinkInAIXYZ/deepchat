@@ -8,13 +8,16 @@
     </h3>
 
     <div class="space-y-3">
-      <p class="text-[12px] md:text-[13px] text-muted-foreground leading-relaxed truncate" :title="t('settings.provider.modelscope.mcpSync.description')">
+      <p
+        class="text-[12px] md:text-[13px] text-muted-foreground leading-relaxed truncate"
+        :title="t('settings.provider.modelscope.mcpSync.description')"
+      >
         {{ t('settings.provider.modelscope.mcpSync.description') }}
       </p>
 
       <!-- 紧凑工具栏布局：控件与按钮同行（小屏自动换行） -->
       <div
-        class="grid items-end gap-2 md:gap-3 grid-cols-1 sm:grid-cols-2 lg:[grid-template-columns:theme(spacing.40)_theme(spacing.40)_auto_1fr_auto]"
+        class="grid items-end gap-2 md:gap-3 grid-cols-1 sm:grid-cols-2 lg:[grid-template-columns:theme(spacing.40)_theme(spacing.40)_1fr_auto]"
       >
         <!-- Page Size -->
         <div class="space-y-1">
@@ -46,18 +49,6 @@
             :placeholder="t('settings.provider.modelscope.mcpSync.pageNumberPlaceholder')"
             :aria-label="t('settings.provider.modelscope.mcpSync.pageNumber')"
           />
-        </div>
-
-        <!-- Only Hosted -->
-        <div class="flex items-center h-8">
-          <label class="inline-flex items-center gap-2 text-[13px] select-none">
-            <input
-              v-model="syncOptions.filter.is_hosted"
-              type="checkbox"
-              class="h-4 w-4 rounded border-border text-primary focus:ring-primary"
-            />
-            <span>{{ t('settings.provider.modelscope.mcpSync.onlyHosted') }}</span>
-          </label>
         </div>
 
         <!-- Spacer for alignment on large screens -->
@@ -100,7 +91,9 @@
           variant="outline"
           class="border-red-500/30 text-red-600 bg-red-500/10"
         >
-          {{ t('settings.provider.modelscope.mcpSync.errors', { count: syncResult.errors.length }) }}
+          {{
+            t('settings.provider.modelscope.mcpSync.errors', { count: syncResult.errors.length })
+          }}
         </Badge>
       </div>
 
@@ -158,9 +151,6 @@ const syncResult = ref<{
 
 // 同步选项
 const syncOptions = reactive({
-  filter: {
-    is_hosted: true
-  },
   page_number: 1,
   page_size: 50
 })

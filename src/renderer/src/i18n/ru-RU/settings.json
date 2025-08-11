@@ -417,7 +417,6 @@
         "noApiKey": "Сначала настройте ключ API моделей ModelsCope",
         "noOperationalUrls": "Не найдено доступного операционного адреса",
         "noServersFound": "Не найдена доступной услуги MCP",
-        "onlyHosted": "Только услуги хостинга",
         "pageNumber": "номер страницы",
         "pageNumberPlaceholder": "Пожалуйста, введите номер страницы",
         "pageSize": "Количество на страницу",

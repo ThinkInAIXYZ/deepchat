@@ -281,7 +281,6 @@
         "pageSize": "每页数量",
         "pageNumber": "页码",
         "pageNumberPlaceholder": "请输入页码",
-        "onlyHosted": "仅托管服务",
         "imported": "已导入 {count} 个服务",
         "skipped": "跳过 {count} 个服务",
         "errors": "错误 {count} 个",

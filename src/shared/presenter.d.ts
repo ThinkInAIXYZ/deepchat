@@ -530,9 +530,6 @@ export type LLM_EMBEDDING_ATTRS = {
 
 // Simplified ModelScope MCP sync options
 export interface ModelScopeMcpSyncOptions {
-  filter?: {
-    is_hosted?: boolean
-  }
   page_number?: number
   page_size?: number
 }

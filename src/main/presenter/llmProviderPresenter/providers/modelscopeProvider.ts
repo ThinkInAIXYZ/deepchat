@@ -142,9 +142,6 @@ export class ModelscopeProvider extends OpenAICompatibleProvider {
    * @returns Promise<ModelScopeMcpServerResponse> MCP servers response
    */
   public async syncMcpServers(_options?: {
-    filter?: {
-      is_hosted?: boolean
-    }
     page_number?: number
     page_size?: number
   }): Promise<ModelScopeMcpServerResponse> {
