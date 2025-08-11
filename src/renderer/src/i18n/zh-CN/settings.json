@@ -251,6 +251,32 @@
       "modelRunning": "模型正在运行",
       "modelRunningDesc": "请先停止模型 {model}，然后再删除。"
     },
+    "modelscope": {
+      "mcpSync": {
+        "title": "同步 MCP 服务",
+        "description": "从 ModelScope 同步 MCP 服务器到本地配置，可以快速添加常用的 MCP 工具。",
+        "sync": "开始同步",
+        "syncing": "同步中...",
+        "pageSize": "每页数量",
+        "category": "分类",
+        "search": "搜索",
+        "searchPlaceholder": "搜索 MCP 服务...",
+        "enableByDefault": "导入时默认启用",
+        "overwriteExisting": "覆盖已存在的服务",
+        "imported": "已导入 {count} 个服务",
+        "skipped": "跳过 {count} 个服务",
+        "errors": "错误 {count} 个",
+        "errorDetails": "错误详情",
+        "noApiKey": "请先配置 ModelScope API Key",
+        "noServersFound": "未找到可用的 MCP 服务",
+        "categories": {
+          "communication": "通讯",
+          "productivity": "生产力",
+          "development": "开发",
+          "data": "数据"
+        }
+      }
+    },
     "dialog": {
       "disableModel": {
         "title": "确认禁用模型",

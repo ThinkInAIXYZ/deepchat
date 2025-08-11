@@ -1166,6 +1166,34 @@ export class ConfigPresenter implements IConfigPresenter {
       newConfigs
     )
   }
+
+  // 批量导入MCP服务器
+  async batchImportMcpServers(
+    servers: Array<{
+      name: string
+      description: string
+      package: string
+      version?: string
+      type?: any
+      args?: string[]
+      env?: Record<string, string>
+      enabled?: boolean
+      source?: string
+      [key: string]: unknown
+    }>,
+    options: {
+      skipExisting?: boolean
+      enableByDefault?: boolean
+      overwriteExisting?: boolean
+    } = {}
+  ): Promise<{ imported: number; skipped: number; errors: string[] }> {
+    return this.mcpConfHelper.batchImportMcpServers(servers, options)
+  }
+
+  // 根据包名查找服务器
+  async findMcpServerByPackage(packageName: string): Promise<string | null> {
+    return this.mcpConfHelper.findServerByPackage(packageName)
+  }
 }
 
 export { defaultShortcutKey } from './shortcutKeySettings'

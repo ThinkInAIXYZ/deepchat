@@ -38,6 +38,7 @@ import { OpenRouterProvider } from './providers/openRouterProvider'
 import { MinimaxProvider } from './providers/minimaxProvider'
 import { AihubmixProvider } from './providers/aihubmixProvider'
 import { _302AIProvider } from './providers/_302AIProvider'
+import { ModelscopeProvider } from './providers/modelscopeProvider'
 
 // 速率限制配置接口
 interface RateLimitConfig {
@@ -166,6 +167,9 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
       }
       if (provider.id === 'aihubmix') {
         return new AihubmixProvider(provider, this.configPresenter)
+      }
+      if (provider.id === 'modelscope') {
+        return new ModelscopeProvider(provider, this.configPresenter)
       }
       switch (provider.apiType) {
         case 'minimax':
@@ -1598,5 +1602,40 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
         this.cleanupProviderRateLimit(providerId)
       }
     }
+  }
+
+  /**
+   * Sync MCP servers from ModelScope
+   * @param providerId - Provider ID (should be 'modelscope')
+   * @param syncOptions - Sync options including filters
+   * @returns Promise with MCP servers response
+   */
+  async syncModelScopeMcpServers(
+    providerId: string,
+    syncOptions?: {
+      filter?: {
+        category?: string
+        is_hosted?: boolean
+        tag?: string
+      }
+      page_number?: number
+      page_size?: number
+      search?: string
+    }
+  ) {
+    if (providerId !== 'modelscope') {
+      throw new Error('MCP sync is only supported for ModelScope provider')
+    }
+
+    const provider = this.getProviderInstance(providerId)
+
+    // 类型断言确保是 ModelscopeProvider
+    if (provider.constructor.name !== 'ModelscopeProvider') {
+      throw new Error('Provider is not a ModelScope provider instance')
+    }
+
+    // 调用 ModelscopeProvider 的 syncMcpServers 方法
+    const modelscopeProvider = provider as any // 使用 any 因为 ModelscopeProvider 类型在此处不可直接引用
+    return await modelscopeProvider.syncMcpServers(syncOptions)
   }
 }

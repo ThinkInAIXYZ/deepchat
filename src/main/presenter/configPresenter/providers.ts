@@ -562,5 +562,20 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
       defaultBaseUrl:
         'https://your-resource-name.openai.azure.com/openai/deployments/your-deployment-name'
     }
+  },
+  {
+    id: 'modelscope',
+    name: 'ModelScope',
+    apiType: 'openai',
+    apiKey: '',
+    baseUrl: 'https://api-inference.modelscope.cn/v1/',
+    enable: false,
+    websites: {
+      official: 'https://modelscope.cn/',
+      apiKey: 'https://modelscope.cn/my/myaccesstoken',
+      docs: 'https://modelscope.cn/docs/modelscope_agent/api_service',
+      models: 'https://modelscope.cn/models',
+      defaultBaseUrl: 'https://api-inference.modelscope.cn/v1/'
+    }
   }
 ]

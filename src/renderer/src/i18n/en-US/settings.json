@@ -351,6 +351,32 @@
       "modelRunning": "The model is running",
       "modelRunningDesc": "Please stop the model {model} first and then delete it."
     },
+    "modelscope": {
+      "mcpSync": {
+        "title": "Sync MCP Services",
+        "description": "Sync MCP servers from ModelScope to local configuration, allowing quick addition of common MCP tools.",
+        "sync": "Start Sync",
+        "syncing": "Syncing...",
+        "pageSize": "Page Size",
+        "category": "Category",
+        "search": "Search",
+        "searchPlaceholder": "Search MCP services...",
+        "enableByDefault": "Enable by default when importing",
+        "overwriteExisting": "Overwrite existing services",
+        "imported": "Imported {count} services",
+        "skipped": "Skipped {count} services",
+        "errors": "{count} errors",
+        "errorDetails": "Error Details",
+        "noApiKey": "Please configure ModelScope API Key first",
+        "noServersFound": "No available MCP services found",
+        "categories": {
+          "communication": "Communication",
+          "productivity": "Productivity",
+          "development": "Development",
+          "data": "Data"
+        }
+      }
+    },
     "anthropicApiKeyTip": "Please go to Anthropic Console to get your API Key",
     "anthropicConnected": "Anthropic connected",
     "anthropicNotConnected": "Anthropic not connected",
