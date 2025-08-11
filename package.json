@@ -128,7 +128,7 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "dompurify": "^3.2.4",
-    "electron": "^35.5.1",
+    "electron": "^36.7.4",
     "electron-builder": "26.0.12",
     "electron-vite": "^4.0.0",
     "jsdom": "^26.1.0",
