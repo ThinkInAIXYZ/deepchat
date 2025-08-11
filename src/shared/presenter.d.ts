@@ -178,6 +178,7 @@ export interface IWindowPresenter {
   sendToWindow(windowId: number, channel: string, ...args: unknown[]): boolean
   sendToDefaultTab(channel: string, switchToTarget?: boolean, ...args: unknown[]): Promise<boolean>
   closeWindow(windowId: number, forceClose?: boolean): Promise<void>
+  isApplicationQuitting(): boolean
 }
 
 export interface ITabPresenter {
@@ -214,6 +215,8 @@ export interface ITabPresenter {
   onRendererTabReady(tabId: number): Promise<void>
   onRendererTabActivated(threadId: string): Promise<void>
   isLastTabInWindow(tabId: number): Promise<boolean>
+  registerFloatingWindow(webContentsId: number, webContents: Electron.WebContents): void
+  unregisterFloatingWindow(webContentsId: number): void
   resetTabToBlank(tabId: number): Promise<void>
 }
 

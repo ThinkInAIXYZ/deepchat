@@ -170,6 +170,10 @@ export class FloatingButtonWindow {
     return this.window !== null && !this.window.isDestroyed()
   }
 
+  public getWindow(): BrowserWindow | null {
+    return this.window
+  }
+
   /**
    * 计算悬浮按钮位置
    */
