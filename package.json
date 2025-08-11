@@ -155,7 +155,7 @@
     "vitest": "^3.2.4",
     "vue": "^3.5.18",
     "vue-i18n": "^11.1.11",
-    "vue-renderer-markdown": "^0.0.32",
+    "vue-renderer-markdown": "^0.0.34",
     "vue-router": "4",
     "vue-tsc": "^2.2.10",
     "vue-use-monaco": "^0.0.6",
