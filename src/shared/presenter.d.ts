@@ -525,6 +525,22 @@ export type LLM_EMBEDDING_ATTRS = {
   normalized: boolean
 }
 
+// Simplified ModelScope MCP sync options
+export interface ModelScopeMcpSyncOptions {
+  filter?: {
+    is_hosted?: boolean
+  }
+  page_number?: number
+  page_size?: number
+}
+
+// ModelScope MCP sync result interface
+export interface ModelScopeMcpSyncResult {
+  imported: number
+  skipped: number
+  errors: string[]
+}
+
 export interface ILlmProviderPresenter {
   setProviders(provider: LLM_PROVIDER[]): void
   getProviders(): LLM_PROVIDER[]
@@ -594,6 +610,10 @@ export interface ILlmProviderPresenter {
       lastRequestTime: number
     }
   >
+  syncModelScopeMcpServers(
+    providerId: string,
+    syncOptions?: ModelScopeMcpSyncOptions
+  ): Promise<ModelScopeMcpSyncResult>
 }
 export type CONVERSATION_SETTINGS = {
   systemPrompt: string

@@ -14,15 +14,18 @@ interface ModelScopeMcpServerResponse {
   success: boolean
 }
 
-// Define interface for ModelScope MCP server
+// Define interface for ModelScope MCP server (updated for operational API)
 interface ModelScopeMcpServer {
   name: string
   description: string
   id: string
+  chinese_name?: string // Chinese name field
   logo_url: string
-  publisher: string
+  operational_urls: Array<{
+    id: string
+    url: string
+  }>
   tags: string[]
-  view_count: number
   locales: {
     zh: {
       name: string
@@ -134,43 +137,38 @@ export class ModelscopeProvider extends OpenAICompatibleProvider {
   }
 
   /**
-   * Sync MCP servers from ModelScope API
-   * @param options - Sync options including filters
+   * Sync operational MCP servers from ModelScope API
+   * @param _options - Sync options including filters (currently not used by operational API)
    * @returns Promise<ModelScopeMcpServerResponse> MCP servers response
    */
-  public async syncMcpServers(options?: {
+  public async syncMcpServers(_options?: {
     filter?: {
-      category?: string
       is_hosted?: boolean
-      tag?: string
     }
     page_number?: number
     page_size?: number
-    search?: string
   }): Promise<ModelScopeMcpServerResponse> {
     if (!this.provider.apiKey) {
       throw new Error('API key is required for MCP sync')
     }
 
-    const defaultOptions = {
-      filter: {},
-      page_number: 1,
-      page_size: 50,
-      search: '',
-      ...options
-    }
-
     try {
-      const response = await fetch('https://www.modelscope.cn/openapi/v1/mcp/servers', {
-        method: 'PUT',
+      // Use the operational API endpoint - GET request, no body needed
+      const response = await fetch('https://www.modelscope.cn/openapi/v1/mcp/servers/operational', {
+        method: 'GET',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${this.provider.apiKey}`
-        },
-        body: JSON.stringify(defaultOptions)
+        }
       })
 
-      if (!response.ok) {
+      // Handle authentication errors
+      if (response.status === 401 || response.status === 403) {
+        throw new Error('ModelScope MCP sync unauthorized: Invalid or expired API key')
+      }
+
+      // Handle server errors
+      if (response.status === 500 || !response.ok) {
         const errorText = await response.text()
         throw new Error(
           `ModelScope MCP sync failed: ${response.status} ${response.statusText} - ${errorText}`
@@ -184,7 +182,7 @@ export class ModelscopeProvider extends OpenAICompatibleProvider {
       }
 
       console.log(
-        `Successfully synced ${data.data.mcp_server_list.length} MCP servers from ModelScope`
+        `Successfully fetched ${data.data.mcp_server_list.length} operational MCP servers from ModelScope`
       )
       return data
     } catch (error) {
@@ -194,25 +192,149 @@ export class ModelscopeProvider extends OpenAICompatibleProvider {
   }
 
   /**
-   * Convert ModelScope MCP server to internal MCP server config format
+   * Convert ModelScope operational MCP server to internal MCP server config format
    * @param mcpServer - ModelScope MCP server data
    * @returns Internal MCP server config
    */
   public convertMcpServerToConfig(mcpServer: ModelScopeMcpServer) {
+    // Check if operational URLs are available
+    if (!mcpServer.operational_urls || mcpServer.operational_urls.length === 0) {
+      throw new Error(`No operational URLs found for server ${mcpServer.id}`)
+    }
+
+    // Use the first operational URL
+    const baseUrl = mcpServer.operational_urls[0].url
+
+    // Generate random emoji for icon
+    const emojis = [
+      '🔧',
+      '⚡',
+      '🚀',
+      '🔨',
+      '⚙️',
+      '🛠️',
+      '🔥',
+      '💡',
+      '⭐',
+      '🎯',
+      '🎨',
+      '🔮',
+      '💎',
+      '🎪',
+      '🎭',
+      '🎨',
+      '🔬',
+      '📱',
+      '💻',
+      '🖥️',
+      '⌨️',
+      '🖱️',
+      '📡',
+      '🔊',
+      '📢',
+      '📣',
+      '📯',
+      '🔔',
+      '🔕',
+      '📻',
+      '📺',
+      '📷',
+      '📹',
+      '🎥',
+      '📽️',
+      '🔍',
+      '🔎',
+      '💰',
+      '💳',
+      '💸',
+      '💵',
+      '🎲',
+      '🃏',
+      '🎮',
+      '🕹️',
+      '🎯',
+      '🎳',
+      '🎨',
+      '🖌️',
+      '🖍️',
+      '📝',
+      '✏️',
+      '📏',
+      '📐',
+      '📌',
+      '📍',
+      '🗂️',
+      '📂',
+      '📁',
+      '📰',
+      '📄',
+      '📃',
+      '📜',
+      '📋',
+      '📊',
+      '📈',
+      '📉',
+      '📦',
+      '📫',
+      '📪',
+      '📬',
+      '📭',
+      '📮',
+      '🗳️',
+      '✉️',
+      '📧',
+      '📨',
+      '📩',
+      '📤',
+      '📥',
+      '📬',
+      '📭',
+      '📮',
+      '🗂️',
+      '📂',
+      '📁',
+      '🗄️',
+      '🗃️',
+      '📋',
+      '📑',
+      '📄',
+      '📃',
+      '📰',
+      '🗞️',
+      '📜',
+      '🔖'
+    ]
+    const randomEmoji = emojis[Math.floor(Math.random() * emojis.length)]
+
+    // Get display name: chinese_name first, then id
+    const displayName = mcpServer.chinese_name || mcpServer.id
+
     return {
-      name: mcpServer.locales.zh.name || mcpServer.name,
-      description: mcpServer.locales.zh.description || mcpServer.description,
-      package: mcpServer.id,
-      version: 'latest',
-      type: 'npm' as const,
-      args: [],
+      name: `@modelscope/${mcpServer.id}`, // Use ModelScope ID format
+      description:
+        mcpServer.locales?.zh?.description ||
+        mcpServer.description ||
+        `ModelScope MCP Server: ${displayName}`,
+      command: '', // Not needed for SSE type
+      args: [], // Not needed for SSE type
       env: {},
-      enabled: false,
+      type: 'sse' as const, // SSE type for operational servers
+      baseUrl: baseUrl, // Use operational URL
+      enabled: false, // Default to disabled for safety
       source: 'modelscope' as const,
-      logo_url: mcpServer.logo_url,
-      publisher: mcpServer.publisher,
-      tags: mcpServer.tags,
-      view_count: mcpServer.view_count
+      // Additional metadata
+      descriptions:
+        mcpServer.locales?.zh?.description ||
+        mcpServer.description ||
+        `ModelScope MCP Server: ${displayName}`,
+      icons: randomEmoji, // Random emoji instead of URL
+      provider: 'ModelScope',
+      providerUrl: `https://www.modelscope.cn/mcp/servers/@${mcpServer.id}`,
+      logoUrl: '', // No longer using logo URL
+      tags: mcpServer.tags || [],
+      // Store original data for reference
+      originalId: mcpServer.id,
+      displayName: displayName
     }
   }
 }
