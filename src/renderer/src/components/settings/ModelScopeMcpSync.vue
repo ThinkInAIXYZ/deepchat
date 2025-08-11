@@ -1,24 +1,30 @@
 <template>
-  <div class="p-4 border rounded-lg bg-card">
-    <h3 class="text-lg font-semibold mb-4 flex items-center gap-2">
-      <Icon icon="lucide:cloud-download" class="h-5 w-5" />
-      {{ t('settings.provider.modelscope.mcpSync.title') }}
+  <div
+    class="p-3 md:p-4 border rounded-lg bg-card/70 backdrop-blur supports-[backdrop-filter]:bg-card/60 shadow-sm"
+  >
+    <h3 class="text-sm md:text-base font-semibold mb-2 flex items-center gap-2 tracking-tight">
+      <Icon icon="lucide:cloud-download" class="h-5 w-5 text-primary" />
+      <span>{{ t('settings.provider.modelscope.mcpSync.title') }}</span>
     </h3>
 
-    <div class="space-y-4">
-      <p class="text-sm text-muted-foreground">
+    <div class="space-y-3">
+      <p class="text-[12px] md:text-[13px] text-muted-foreground leading-relaxed truncate" :title="t('settings.provider.modelscope.mcpSync.description')">
         {{ t('settings.provider.modelscope.mcpSync.description') }}
       </p>
 
-      <!-- 同步选项 -->
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div>
-          <label class="text-sm font-medium">
+      <!-- 紧凑工具栏布局：控件与按钮同行（小屏自动换行） -->
+      <div
+        class="grid items-end gap-2 md:gap-3 grid-cols-1 sm:grid-cols-2 lg:[grid-template-columns:theme(spacing.40)_theme(spacing.40)_auto_1fr_auto]"
+      >
+        <!-- Page Size -->
+        <div class="space-y-1">
+          <label class="sr-only">
             {{ t('settings.provider.modelscope.mcpSync.pageSize') }}
           </label>
           <select
             v-model="syncOptions.page_size"
-            class="w-full mt-1 px-3 py-2 border rounded-md bg-background"
+            class="w-full h-8 text-xs px-2 border rounded-md bg-background/60 border-border focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-colors"
+            :aria-label="t('settings.provider.modelscope.mcpSync.pageSize')"
           >
             <option value="10">10</option>
             <option value="25">25</option>
@@ -27,73 +33,95 @@
           </select>
         </div>
 
-        <div>
-          <label class="text-sm font-medium">
+        <!-- Page Number -->
+        <div class="space-y-1">
+          <label class="sr-only">
             {{ t('settings.provider.modelscope.mcpSync.pageNumber') }}
           </label>
           <input
             v-model.number="syncOptions.page_number"
             type="number"
             min="1"
-            class="w-full mt-1 px-3 py-2 border rounded-md bg-background"
+            class="w-full h-8 text-xs px-2 border rounded-md bg-background/60 border-border focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-colors"
             :placeholder="t('settings.provider.modelscope.mcpSync.pageNumberPlaceholder')"
+            :aria-label="t('settings.provider.modelscope.mcpSync.pageNumber')"
           />
         </div>
-      </div>
 
-      <!-- 额外选项 -->
-      <div class="flex flex-wrap gap-4">
-        <label class="flex items-center gap-2 text-sm">
-          <input v-model="syncOptions.filter.is_hosted" type="checkbox" class="rounded" />
-          {{ t('settings.provider.modelscope.mcpSync.onlyHosted') }}
-        </label>
-      </div>
-
-      <!-- 同步按钮和状态 -->
-      <div class="flex items-center gap-4">
-        <Button @click="handleSync" :disabled="isSyncing" class="flex items-center gap-2">
-          <Icon v-if="isSyncing" icon="lucide:loader-2" class="h-4 w-4 animate-spin" />
-          <Icon v-else icon="lucide:download" class="h-4 w-4" />
-          {{
-            isSyncing
-              ? t('settings.provider.modelscope.mcpSync.syncing')
-              : t('settings.provider.modelscope.mcpSync.sync')
-          }}
-        </Button>
-
-        <div v-if="syncResult" class="text-sm">
-          <span class="text-green-600">
-            {{ t('settings.provider.modelscope.mcpSync.imported', { count: syncResult.imported }) }}
-          </span>
-          <span v-if="syncResult.skipped > 0" class="text-yellow-600 ml-2">
-            {{ t('settings.provider.modelscope.mcpSync.skipped', { count: syncResult.skipped }) }}
-          </span>
-          <span v-if="syncResult.errors.length > 0" class="text-red-600 ml-2">
-            {{
-              t('settings.provider.modelscope.mcpSync.errors', { count: syncResult.errors.length })
-            }}
-          </span>
+        <!-- Only Hosted -->
+        <div class="flex items-center h-8">
+          <label class="inline-flex items-center gap-2 text-[13px] select-none">
+            <input
+              v-model="syncOptions.filter.is_hosted"
+              type="checkbox"
+              class="h-4 w-4 rounded border-border text-primary focus:ring-primary"
+            />
+            <span>{{ t('settings.provider.modelscope.mcpSync.onlyHosted') }}</span>
+          </label>
         </div>
+
+        <!-- Spacer for alignment on large screens -->
+        <div class="hidden lg:block"></div>
+
+        <!-- Action Button -->
+        <div class="flex lg:justify-end">
+          <Button
+            @click="handleSync"
+            :disabled="isSyncing"
+            class="h-8 px-2.5 inline-flex items-center gap-2"
+          >
+            <Icon v-if="isSyncing" icon="lucide:loader-2" class="h-4 w-4 animate-spin" />
+            <Icon v-else icon="lucide:download" class="h-4 w-4" />
+            <span class="text-xs md:text-sm">
+              {{
+                isSyncing
+                  ? t('settings.provider.modelscope.mcpSync.syncing')
+                  : t('settings.provider.modelscope.mcpSync.sync')
+              }}
+            </span>
+          </Button>
+        </div>
+      </div>
+
+      <!-- 同步状态与结果（更紧凑） -->
+      <div v-if="syncResult" class="flex flex-wrap items-center gap-1.5 md:gap-2 text-xs">
+        <Badge variant="outline" class="border-green-500/30 text-green-600 bg-green-500/10">
+          {{ t('settings.provider.modelscope.mcpSync.imported', { count: syncResult.imported }) }}
+        </Badge>
+        <Badge
+          v-if="syncResult.skipped > 0"
+          variant="outline"
+          class="border-amber-500/30 text-amber-600 bg-amber-500/10"
+        >
+          {{ t('settings.provider.modelscope.mcpSync.skipped', { count: syncResult.skipped }) }}
+        </Badge>
+        <Badge
+          v-if="syncResult.errors.length > 0"
+          variant="outline"
+          class="border-red-500/30 text-red-600 bg-red-500/10"
+        >
+          {{ t('settings.provider.modelscope.mcpSync.errors', { count: syncResult.errors.length }) }}
+        </Badge>
       </div>
 
       <!-- 错误信息显示 -->
       <div
         v-if="errorMessage"
-        class="p-3 bg-destructive/10 border border-destructive/20 rounded-md"
+        class="p-2.5 md:p-3 bg-destructive/10 border border-destructive/20 rounded-md"
       >
-        <p class="text-sm text-destructive">{{ errorMessage }}</p>
+        <p class="text-[12px] md:text-[13px] text-destructive">{{ errorMessage }}</p>
       </div>
 
       <!-- 同步结果详情 -->
-      <div v-if="syncResult && syncResult.errors.length > 0" class="space-y-2">
-        <h4 class="text-sm font-medium text-destructive">
+      <div v-if="syncResult && syncResult.errors.length > 0" class="space-y-1.5">
+        <h4 class="text-xs md:text-sm font-medium text-destructive">
           {{ t('settings.provider.modelscope.mcpSync.errorDetails') }}
         </h4>
-        <div class="max-h-32 overflow-y-auto p-2 bg-muted rounded-md">
+        <div class="max-h-28 overflow-y-auto p-2 bg-muted/40 rounded-md border border-border/60">
           <div
             v-for="(error, index) in syncResult.errors"
             :key="index"
-            class="text-xs text-muted-foreground"
+            class="text-[12px] text-muted-foreground py-1 first:pt-0 last:pb-0 border-b border-border/40 last:border-0"
           >
             {{ error }}
           </div>
@@ -107,6 +135,7 @@
 import { ref, reactive } from 'vue'
 import { Icon } from '@iconify/vue'
 import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
 import type { LLM_PROVIDER } from '@shared/presenter'
 import { useI18n } from 'vue-i18n'
 import { usePresenter } from '@/composables/usePresenter'
