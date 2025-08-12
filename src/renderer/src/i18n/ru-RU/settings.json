@@ -629,7 +629,8 @@
       "e2bApiKey": "E2b apikey",
       "e2bApiKeyPlaceholder": "Введите здесь свои клавиши E2B API, такие как E2B_1111XX *******",
       "e2bApiKeyHelp": "Перейдите в E2B.DEV, чтобы получить свой Apikey",
-      "e2bApiKeyRequired": "Apikey должен быть введен, чтобы включить функцию E2B"
+      "e2bApiKeyRequired": "Apikey должен быть введен, чтобы включить функцию E2B",
+      "clickToEdit": "Нажмите «Редактировать», чтобы просмотреть полный контент"
     },
     "deleteServer": "Удалить сервер",
     "editServer": "Редактировать сервер",

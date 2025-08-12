@@ -637,7 +637,8 @@
       "e2bApiKey": "e2b apikey",
       "e2bApiKeyPlaceholder": "کلیدهای API E2B خود را در اینجا وارد کنید ، مانند E2B_11111XX *******",
       "e2bApiKeyHelp": "برای بدست آوردن apikey خود به e2b.dev بروید",
-      "e2bApiKeyRequired": "برای فعال کردن عملکرد E2B باید Apikey وارد شود"
+      "e2bApiKeyRequired": "برای فعال کردن عملکرد E2B باید Apikey وارد شود",
+      "clickToEdit": "برای مشاهده مطالب کامل ، روی ویرایش کلیک کنید"
     },
     "deleteServer": "پاک کردن کارساز",
     "editServer": "ویرایش کارساز",

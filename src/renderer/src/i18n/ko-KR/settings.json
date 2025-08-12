@@ -629,7 +629,8 @@
       "e2bApiKey": "E2B Apikey",
       "e2bApiKeyPlaceholder": "E2B_1111XX *******와 같은 E2B API 키를 여기에 입력하십시오.",
       "e2bApiKeyHelp": "apikey를 얻으려면 e2b.dev로 이동하십시오",
-      "e2bApiKeyRequired": "E2B 기능을 활성화하려면 Apikey를 입력해야합니다"
+      "e2bApiKeyRequired": "E2B 기능을 활성화하려면 Apikey를 입력해야합니다",
+      "clickToEdit": "전체 내용을 보려면 편집을 클릭하십시오"
     },
     "deleteServer": "서버 삭제",
     "editServer": "서버 편집",

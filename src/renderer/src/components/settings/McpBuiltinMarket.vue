@@ -57,7 +57,7 @@
             <span class="text-xs font-mono px-2 py-0.5 bg-muted rounded">{{
               item.server_key
             }}</span>
-                        <Button
+            <Button
               size="sm"
               :variant="installedServers.has(item.server_key) ? 'secondary' : 'default'"
               :disabled="installedServers.has(item.server_key)"
@@ -67,7 +67,11 @@
                 :icon="installedServers.has(item.server_key) ? 'lucide:check' : 'lucide:download'"
                 class="w-3.5 h-3.5 mr-1"
               />
-              {{ installedServers.has(item.server_key) ? t('mcp.market.installed') : t('mcp.market.install') }}
+              {{
+                installedServers.has(item.server_key)
+                  ? t('mcp.market.installed')
+                  : t('mcp.market.install')
+              }}
             </Button>
           </div>
         </div>
@@ -77,10 +81,7 @@
         <Icon icon="lucide:loader-2" class="inline w-4 h-4 animate-spin mr-1" />
         {{ t('common.loading') }}
       </div>
-      <div
-        v-if="showPullToLoad && !loading"
-        class="py-4 text-center text-xs text-muted-foreground"
-      >
+      <div v-if="showPullToLoad && !loading" class="py-4 text-center text-xs text-muted-foreground">
         {{ t('mcp.market.pullDownToLoad') }}
       </div>
       <div

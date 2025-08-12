@@ -629,7 +629,8 @@
       "e2bApiKey": "E2B APIKEY",
       "e2bApiKeyPlaceholder": "Entrez ici vos touches API E2B, comme E2B_1111XX *******",
       "e2bApiKeyHelp": "Allez sur e2b.dev pour obtenir votre apikey",
-      "e2bApiKeyRequired": "Apikey doit être entré pour activer la fonction E2B"
+      "e2bApiKeyRequired": "Apikey doit être entré pour activer la fonction E2B",
+      "clickToEdit": "Cliquez sur Modifier pour afficher le contenu complet"
     },
     "builtIn": "intégré",
     "builtInServerCannotBeRemoved": "Les services intégrés ne peuvent pas être supprimés, seuls les paramètres de modification et les variables d'environnement sont prises en charge.",

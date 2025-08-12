@@ -629,7 +629,8 @@
       "e2bApiKey": "E2B ApiKey",
       "e2bApiKeyPlaceholder": "這裡輸入你的E2B Api Keys，如 e2b_1111xx*****",
       "e2bApiKeyHelp": "前往 e2b.dev 獲取你的 ApiKey",
-      "e2bApiKeyRequired": "啟用E2B功能必須要輸入 ApiKey"
+      "e2bApiKeyRequired": "啟用E2B功能必須要輸入 ApiKey",
+      "clickToEdit": "點擊編輯以查看完整內容"
     },
     "deleteServer": "刪除伺服器",
     "editServer": "編輯伺服器",
