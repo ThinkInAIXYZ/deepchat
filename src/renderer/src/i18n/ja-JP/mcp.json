@@ -246,5 +246,23 @@
     "mcpDisabled": "MCPは無効になっています",
     "getPromptFailed": "プロンプトの取得に失敗しました",
     "readResourceFailed": "リソースの読み込みに失敗しました"
+  },
+  "market": {
+    "browseBuiltin": "内蔵MCPマーケットを閲覧",
+    "builtinTitle": "内蔵MCPマーケット",
+    "poweredBy": "Powered by MCPRouter",
+    "keyGuide": "APIキーを取得",
+    "keyHelpText": "まず",
+    "keyHelpEnd": "でAPIキーを申請し、上記の入力ボックスに入力してください",
+    "apiKeyPlaceholder": "MCPRouter APIキーを入力",
+    "apiKeyRequiredTitle": "APIキーが必要",
+    "apiKeyRequiredDesc": "インストール前にMCPRouter APIキーを入力してください",
+    "install": "インストール",
+    "installSuccess": "インストール成功",
+    "installFailed": "インストール失敗",
+    "noMore": "これ以上ありません",
+    "empty": "サービスがありません",
+    "loadMore": "さらに読み込み",
+    "pullDownToLoad": "下にスクロールしてさらに読み込み"
   }
 }

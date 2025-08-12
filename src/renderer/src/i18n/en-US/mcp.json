@@ -246,5 +246,23 @@
     "mcpDisabled": "MCP is disabled",
     "getPromptFailed": "Failed to get prompt",
     "readResourceFailed": "Failed to read resource"
+  },
+  "market": {
+    "browseBuiltin": "Browse Built-in MCP Market",
+    "builtinTitle": "Built-in MCP Market",
+    "poweredBy": "Powered by MCPRouter",
+    "keyGuide": "Get API Key",
+    "keyHelpText": "Please go to",
+    "keyHelpEnd": "to apply for an API Key and fill it in the input box above",
+    "apiKeyPlaceholder": "Enter MCPRouter API Key",
+    "apiKeyRequiredTitle": "API Key Required",
+    "apiKeyRequiredDesc": "Please fill in the MCPRouter API Key before installation",
+    "install": "Install",
+    "installSuccess": "Installation successful",
+    "installFailed": "Installation failed",
+    "noMore": "No more",
+    "empty": "No services",
+    "loadMore": "Load More",
+    "pullDownToLoad": "Continue pulling down to load more"
   }
 }

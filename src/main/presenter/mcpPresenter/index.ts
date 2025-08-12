@@ -12,6 +12,7 @@ import {
 } from '@shared/presenter'
 import { ServerManager } from './serverManager'
 import { ToolManager } from './toolManager'
+import { McpRouterManager } from './mcprouterManager'
 import { eventBus, SendTarget } from '@/eventbus'
 import { MCP_EVENTS, NOTIFICATION_EVENTS } from '@/events'
 import { IConfigPresenter } from '@shared/presenter'
@@ -83,6 +84,8 @@ export class McpPresenter implements IMCPPresenter {
   private toolManager: ToolManager
   private configPresenter: IConfigPresenter
   private isInitialized: boolean = false
+  // McpRouter
+  private mcprouter?: McpRouterManager
 
   constructor(configPresenter?: IConfigPresenter) {
     console.log('Initializing MCP Presenter')
@@ -90,6 +93,12 @@ export class McpPresenter implements IMCPPresenter {
     this.configPresenter = configPresenter || presenter.configPresenter
     this.serverManager = new ServerManager(this.configPresenter)
     this.toolManager = new ToolManager(this.configPresenter, this.serverManager)
+    // init mcprouter manager
+    try {
+      this.mcprouter = new McpRouterManager(this.configPresenter)
+    } catch (e) {
+      console.warn('[MCP] McpRouterManager init failed:', e)
+    }
 
     // 监听自定义提示词服务器检查事件
     eventBus.on(CONFIG_EVENTS.CUSTOM_PROMPTS_SERVER_CHECK_REQUIRED, async () => {
@@ -179,6 +188,43 @@ export class McpPresenter implements IMCPPresenter {
       this.isInitialized = true
       eventBus.send(MCP_EVENTS.INITIALIZED, SendTarget.ALL_WINDOWS)
     }
+  }
+
+  // =============== McpRouter marketplace APIs ===============
+  async listMcpRouterServers(
+    page: number,
+    limit: number
+  ): Promise<{
+    servers: Array<{
+      uuid: string
+      created_at: string
+      updated_at: string
+      name: string
+      author_name: string
+      title: string
+      description: string
+      content?: string
+      server_key: string
+      config_name?: string
+      server_url?: string
+    }>
+  }> {
+    if (!this.mcprouter) throw new Error('McpRouterManager not available')
+    const data = await this.mcprouter.listServers(page, limit)
+    return { servers: data && data.servers ? data.servers : [] }
+  }
+
+  async installMcpRouterServer(serverKey: string): Promise<boolean> {
+    if (!this.mcprouter) throw new Error('McpRouterManager not available')
+    return this.mcprouter.installServer(serverKey)
+  }
+
+  async getMcpRouterApiKey(): Promise<string> {
+    return this.configPresenter.getSetting<string>('mcprouterApiKey') || ''
+  }
+
+  async setMcpRouterApiKey(key: string): Promise<void> {
+    this.configPresenter.setSetting('mcprouterApiKey', key)
   }
 
   private scheduleBackgroundRegistryUpdate(): void {
