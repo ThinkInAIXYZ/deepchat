@@ -101,7 +101,10 @@ const sendAgentMessage = async (msg: UserMessageContent) => {
       console.log('Thread settings:', threadSettings)
 
       // 为 Agent 创建新的 thread，使用特殊的 provider ID 来标识这是 Agent 会话
-      const threadId = await chatStore.createThread(`Agent Chat - ${props.agentConfig?.name || 'Agent'}`, threadSettings)
+      const threadId = await chatStore.createThread(
+        `Agent Chat - ${props.agentConfig?.name || 'Agent'}`,
+        threadSettings
+      )
       console.log('Created thread with ID:', threadId)
       chatStore.setActiveThread(threadId)
     } else {

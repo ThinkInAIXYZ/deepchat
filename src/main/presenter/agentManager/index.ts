@@ -2,6 +2,7 @@ import { IAgentManager, AgentConfig, AgentType, AgentTabData } from '@shared/age
 import { IConfigPresenter, ITabPresenter, IAgentFlowPresenter } from '@shared/presenter'
 import { ChatProvider } from '../chatProvider'
 import { DatlasProvider } from '../agentFlowPresenter/providers/datlasProvider'
+import { ClaudeCliProvider } from '../agentFlowPresenter/providers/claudeCliProvider'
 import { eventBus } from '@/eventbus'
 import { AGENT_EVENTS } from '@/events'
 
@@ -47,7 +48,7 @@ export class AgentManager implements IAgentManager {
       const agents = this.getAllAgents()
 
       // 转换为 AgentFlowPresenter 需要的格式
-      const agentFlowConfigs = agents.map(agent => ({
+      const agentFlowConfigs = agents.map((agent) => ({
         id: agent.id,
         name: agent.name,
         type: agent.type,
@@ -233,6 +234,20 @@ export class AgentManager implements IAgentManager {
               baseUrl: agent.config.baseUrl || 'https://ai.maicedata.com/api/knowbase/rag',
               agentId: agent.config.agentId || '',
               token: agent.config.token || '',
+              ...agent.config
+            }
+          },
+          this.configPresenter as any
+        )
+        break
+      case 'claude-cli':
+        provider = new ClaudeCliProvider(
+          {
+            id: agentId,
+            name: agent.name,
+            type: agent.type,
+            enabled: agent.enabled,
+            config: {
               ...agent.config
             }
           },

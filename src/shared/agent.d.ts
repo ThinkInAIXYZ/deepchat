@@ -1,5 +1,5 @@
 // Agent 类型定义
-export type AgentType = 'chat' | 'datlas' | 'custom'
+export type AgentType = 'chat' | 'datlas' | 'claude-cli' | 'custom'
 
 // Agent 配置接口
 export interface AgentConfig {

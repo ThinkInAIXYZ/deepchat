@@ -80,6 +80,16 @@ const loadAgents = async () => {
           icon: 'lucide:message-circle',
           color: '#3b82f6',
           description: 'Default chat assistant'
+        },
+        {
+          id: 'default-claude-cli',
+          name: 'Claude CLI',
+          type: 'claude-cli' as any,
+          enabled: true,
+          config: { workingDir: '', extraArgs: '' },
+          icon: 'lucide:terminal',
+          color: '#0ea5e9',
+          description: 'Interactive Claude Code terminal'
         }
       ]
     } else {
@@ -140,11 +150,19 @@ const selectAgent = async (agentType: AgentConfig) => {
       }
     }
     console.log('Navigating to agent route with params:', routeParams)
-    console.log('Current route before navigation:', router.currentRoute.value.path, router.currentRoute.value.query)
+    console.log(
+      'Current route before navigation:',
+      router.currentRoute.value.path,
+      router.currentRoute.value.query
+    )
 
     const result = await router.push(routeParams)
     console.log('Navigation result:', result)
-    console.log('Route after navigation:', router.currentRoute.value.path, router.currentRoute.value.query)
+    console.log(
+      'Route after navigation:',
+      router.currentRoute.value.path,
+      router.currentRoute.value.query
+    )
     console.log('Navigation completed')
 
     // 显示成功提示

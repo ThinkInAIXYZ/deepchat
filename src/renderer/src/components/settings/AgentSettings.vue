@@ -139,6 +139,7 @@
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="datlas">{{ t('settings.agent.types.datlas') }}</SelectItem>
+                <SelectItem value="claude-cli">Claude CLI</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -148,7 +149,7 @@
             <div class="space-y-2">
               <Label>{{ t('settings.agent.dialog.form.apiUrl') }}</Label>
               <Input
-                v-model="agentForm.config.baseUrl"
+                v-model="(agentForm.config as any).baseUrl"
                 :placeholder="t('settings.agent.dialog.form.apiUrlPlaceholder')"
               />
             </div>
@@ -156,7 +157,7 @@
             <div class="space-y-2">
               <Label>{{ t('settings.agent.dialog.form.agentId') }}</Label>
               <Input
-                v-model="agentForm.config.agentId"
+                v-model="(agentForm.config as any).agentId"
                 :placeholder="t('settings.agent.dialog.form.agentIdPlaceholder')"
               />
             </div>
@@ -164,9 +165,37 @@
             <div class="space-y-2">
               <Label>{{ t('settings.agent.dialog.form.token') }}</Label>
               <Input
-                v-model="agentForm.config.token"
+                v-model="(agentForm.config as any).token"
                 type="password"
                 :placeholder="t('settings.agent.dialog.form.tokenPlaceholder')"
+              />
+            </div>
+          </div>
+
+          <!-- Claude CLI 特定配置 -->
+          <div v-if="agentForm.type === 'claude-cli'" class="space-y-4">
+            <div class="space-y-2">
+              <Label>{{ t('settings.agent.dialog.form.workingDir') || 'Working Directory' }}</Label>
+              <div class="flex gap-2">
+                <Input
+                  v-model="(agentForm.config as any).workingDir"
+                  :placeholder="
+                    t('settings.agent.dialog.form.workingDirPlaceholder') || '/path/to/project'
+                  "
+                />
+                <Button type="button" variant="outline" @click="selectWorkingDir">
+                  <Icon icon="lucide:folder-open" class="w-4 h-4 mr-2" />
+                  {{ t('settings.agent.dialog.form.selectFolder') || 'Select' }}
+                </Button>
+              </div>
+            </div>
+            <div class="space-y-2">
+              <Label>{{ t('settings.agent.dialog.form.extraArgs') || 'Extra Args' }}</Label>
+              <Input
+                v-model="(agentForm.config as any).extraArgs"
+                :placeholder="
+                  t('settings.agent.dialog.form.extraArgsPlaceholder') || 'e.g. -p \'analyze\''
+                "
               />
             </div>
           </div>
@@ -213,7 +242,16 @@ import { nanoid } from 'nanoid'
 import { usePresenter } from '@/composables/usePresenter'
 import type { AgentConfig, AgentType } from '@shared/agent'
 
+type DatlasConfig = { baseUrl: string; agentId: string; token: string }
+type ClaudeCliConfig = { workingDir: string; extraArgs?: string }
+type AgentForm = {
+  name: string
+  type: AgentType
+  config: DatlasConfig | ClaudeCliConfig
+}
+
 const { t } = useI18n()
+const devicePresenter = usePresenter('devicePresenter')
 
 // 状态管理
 const agents = ref<AgentConfig[]>([])
@@ -223,7 +261,7 @@ const checkingStatus = ref<Record<string, boolean>>({})
 const agentStatus = ref<Record<string, { isOk: boolean; errorMsg?: string }>>({})
 
 // 表单数据
-const agentForm = ref({
+const agentForm = ref<AgentForm>({
   name: '',
   type: 'datlas' as AgentType,
   config: {
@@ -239,7 +277,12 @@ const canSave = computed(() => {
   if (!agentForm.value.type) return false
 
   if (agentForm.value.type === 'datlas') {
-    return agentForm.value.config.agentId.trim() && agentForm.value.config.token.trim()
+    const cfg = agentForm.value.config as DatlasConfig
+    return !!cfg.agentId?.trim() && !!cfg.token?.trim()
+  }
+  if (agentForm.value.type === 'claude-cli') {
+    const cfg = agentForm.value.config as ClaudeCliConfig
+    return !!cfg.workingDir?.trim()
   }
 
   return true
@@ -253,14 +296,17 @@ const loadAgents = async () => {
     const agentConfigs = await configPresenter.getAgents()
 
     // 将 AGENT_CONFIG 转换为 AgentConfig 格式
-    agents.value = agentConfigs.map(config => ({
-      id: config.id,
-      name: config.name,
-      type: config.type as AgentType,
-      enabled: config.enabled,
-      config: config.config,
-      custom: config.custom
-    } as AgentConfig))
+    agents.value = agentConfigs.map(
+      (config) =>
+        ({
+          id: config.id,
+          name: config.name,
+          type: config.type as AgentType,
+          enabled: config.enabled,
+          config: config.config,
+          custom: config.custom
+        }) as AgentConfig
+    )
   } catch (error) {
     console.error('Failed to load agents:', error)
   }
@@ -307,12 +353,44 @@ const saveAgent = async () => {
   }
 }
 
+const selectWorkingDir = async () => {
+  try {
+    const result = await devicePresenter.selectDirectory()
+    if (!result.canceled && result.filePaths.length > 0) {
+      ;(agentForm.value.config as any).workingDir = result.filePaths[0]
+    }
+  } catch (e) {
+    console.error('Select working directory failed:', e)
+  }
+}
+
 const editAgent = (agent: AgentConfig) => {
   editingAgent.value = agent
-  agentForm.value = {
-    name: agent.name,
-    type: agent.type,
-    config: agent.config as { baseUrl: string; agentId: string; token: string }
+  if (agent.type === 'datlas') {
+    agentForm.value = {
+      name: agent.name,
+      type: agent.type,
+      config: (agent.config as DatlasConfig) || {
+        baseUrl: 'https://ai.maicedata.com/api/knowbase/rag',
+        agentId: '',
+        token: ''
+      }
+    }
+  } else if (agent.type === 'claude-cli') {
+    agentForm.value = {
+      name: agent.name,
+      type: agent.type,
+      config: (agent.config as ClaudeCliConfig) || {
+        workingDir: '',
+        extraArgs: ''
+      }
+    }
+  } else {
+    agentForm.value = {
+      name: agent.name,
+      type: agent.type,
+      config: agent.config as any
+    }
   }
   showAddAgentDialog.value = true
 }

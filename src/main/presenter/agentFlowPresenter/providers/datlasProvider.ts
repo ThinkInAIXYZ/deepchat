@@ -129,7 +129,10 @@ export class DatlasProvider extends BaseAgentProvider {
       console.log('Response status:', response.status)
       console.log('Response ok:', response.ok)
 
-      const result = { isOk: response.ok, errorMsg: response.ok ? null : 'Agent service unavailable' }
+      const result = {
+        isOk: response.ok,
+        errorMsg: response.ok ? null : 'Agent service unavailable'
+      }
       console.log('Check result:', result)
       console.log('===================================')
 
@@ -308,7 +311,11 @@ export class DatlasProvider extends BaseAgentProvider {
               let jsonContent = trimmedLine
               if (trimmedLine.startsWith('data: ')) {
                 jsonContent = trimmedLine.slice(6) // 去掉"data: "前缀
-              } else if (trimmedLine.startsWith('event:') || trimmedLine.startsWith('id:') || trimmedLine.startsWith('retry:')) {
+              } else if (
+                trimmedLine.startsWith('event:') ||
+                trimmedLine.startsWith('id:') ||
+                trimmedLine.startsWith('retry:')
+              ) {
                 // 跳过SSE的控制行
                 continue
               }
@@ -334,7 +341,11 @@ export class DatlasProvider extends BaseAgentProvider {
             let jsonContent = buffer.trim()
             if (jsonContent.startsWith('data: ')) {
               jsonContent = jsonContent.slice(6) // 去掉"data: "前缀
-            } else if (jsonContent.startsWith('event:') || jsonContent.startsWith('id:') || jsonContent.startsWith('retry:')) {
+            } else if (
+              jsonContent.startsWith('event:') ||
+              jsonContent.startsWith('id:') ||
+              jsonContent.startsWith('retry:')
+            ) {
               // 跳过SSE的控制行
               return
             }

@@ -25,6 +25,7 @@ import { CONFIG_EVENTS, WINDOW_EVENTS } from '@/events'
 import { AgentFlowPresenter } from './agentFlowPresenter'
 import { AgentManager } from './agentManager'
 import { KnowledgePresenter } from './knowledgePresenter'
+import { TerminalPresenter } from './terminalPresenter'
 
 // IPC调用上下文接口
 interface IPCCallContext {
@@ -59,6 +60,7 @@ export class Presenter implements IPresenter {
   oauthPresenter: OAuthPresenter
   floatingButtonPresenter: FloatingButtonPresenter
   knowledgePresenter: KnowledgePresenter
+  terminalPresenter: TerminalPresenter
   // llamaCppPresenter: LlamaCppPresenter // 保留原始注释
   agentFlowPresenter: AgentFlowPresenter
   agentManager: AgentManager
@@ -95,6 +97,7 @@ export class Presenter implements IPresenter {
     this.floatingButtonPresenter = new FloatingButtonPresenter(this.configPresenter)
     this.dialogPresenter = new DialogPresenter()
     this.knowledgePresenter = new KnowledgePresenter(this.configPresenter, dbDir)
+    this.terminalPresenter = new TerminalPresenter(this.threadPresenter)
 
     // this.llamaCppPresenter = new LlamaCppPresenter() // 保留原始注释
     this.setupEventBus() // 设置事件总线监听

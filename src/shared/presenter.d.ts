@@ -369,6 +369,7 @@ export interface IPresenter {
   filePresenter: IFilePresenter
   mcpPresenter: IMCPPresenter
   syncPresenter: ISyncPresenter
+  terminalPresenter: ITerminalPresenter
   deeplinkPresenter: IDeeplinkPresenter
   notificationPresenter: INotificationPresenter
   tabPresenter: ITabPresenter
@@ -1228,6 +1229,16 @@ export interface ISyncPresenter {
   // 初始化和销毁
   init(): void
   destroy(): void
+}
+
+export interface ITerminalPresenter {
+  startSession(
+    conversationId: string,
+    options: { workingDir: string; extraArgs?: string }
+  ): Promise<string>
+  write(sessionId: string, data: string): Promise<void>
+  resize(sessionId: string, cols: number, rows: number): Promise<void>
+  stop(sessionId: string): Promise<void>
 }
 
 // 从 LLM Provider 的 coreStream 返回的标准化事件

@@ -793,7 +793,8 @@
       }
     },
     "types": {
-      "datlas": "Datlas"
+      "datlas": "Datlas",
+      "claude-cli": "Claude CLI"
     }
   },
   "rateLimit": {

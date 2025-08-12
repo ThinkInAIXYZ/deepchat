@@ -8,6 +8,7 @@ import {
 import { BaseAgentProvider } from './baseAgentProvider'
 import { ConfigPresenter } from '../configPresenter'
 import { DatlasProvider } from './providers/datlasProvider'
+import { ClaudeCliProvider } from './providers/claudeCliProvider'
 import { eventBus } from '@/eventbus'
 import { CONFIG_EVENTS } from '@/events'
 
@@ -15,9 +16,9 @@ import { CONFIG_EVENTS } from '@/events'
 export interface AGENT_CONFIG {
   id: string
   name: string
-  type: string // 'datlas' 等
+  type: string // 'datlas', 'claude-cli' 等
   enabled: boolean
-  config: { baseUrl: string; agentId: string; token: string }
+  config: any // 支持不同类型的配置
   custom?: boolean
 }
 
@@ -67,6 +68,8 @@ export class AgentFlowPresenter implements IAgentFlowPresenter {
       switch (agent.type) {
         case 'datlas':
           return new DatlasProvider(agent, this.configPresenter)
+        case 'claude-cli':
+          return new ClaudeCliProvider(agent, this.configPresenter)
         default:
           console.warn(`Unknown Agent provider type: ${agent.type}`)
           return undefined

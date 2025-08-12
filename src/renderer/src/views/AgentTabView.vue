@@ -2,9 +2,15 @@
   <div class="agent-tab-view w-full h-full flex flex-col">
     <!-- Debug Info (remove in production) -->
     <div class="debug-info bg-muted/50 p-2 text-xs border-b">
-      <div>Route: {{ route.path }} | Query Type: {{ route.query.type }} | Query ID: {{ route.query.id }}</div>
+      <div>
+        Route: {{ route.path }} | Query Type: {{ route.query.type }} | Query ID:
+        {{ route.query.id }}
+      </div>
       <div>Agent Type: {{ agentType }} | Agent ID: {{ agentId }}</div>
-      <div>Config: {{ agentConfig ? agentConfig.name : 'None' }} | Status: {{ agentStatus.isOk ? 'OK' : 'Error' }}</div>
+      <div>
+        Config: {{ agentConfig ? agentConfig.name : 'None' }} | Status:
+        {{ agentStatus.isOk ? 'OK' : 'Error' }}
+      </div>
     </div>
 
     <!-- Agent Header -->
@@ -39,6 +45,14 @@
         class="h-full"
       />
 
+      <!-- Claude CLI Agent Interface -->
+      <TerminalAgentView
+        v-else-if="agentType === 'claude-cli'"
+        :agent-id="agentId"
+        :config="agentConfig as any"
+        class="h-full"
+      />
+
       <!-- Default Chat Agent Interface -->
       <ChatTabView v-else-if="agentType === 'chat'" class="h-full" />
 
@@ -62,6 +76,7 @@ import { Badge } from '@/components/ui/badge'
 import { usePresenter } from '@/composables/usePresenter'
 import ChatTabView from './ChatTabView.vue'
 import DatlasAgentView from '@/components/agent/DatlasAgentView.vue'
+import TerminalAgentView from '@/components/agent/TerminalAgentView.vue'
 import type { AgentConfig, AgentType } from '@shared/agent'
 
 const route = useRoute()
@@ -89,7 +104,9 @@ const parseAgentFromRoute = () => {
     const oldId = agentId.value
     agentType.value = query.type as AgentType
     agentId.value = query.id as string
-    console.log(`✅ Agent tab initialized with type: ${oldType} -> ${agentType.value}, id: ${oldId} -> ${agentId.value}`)
+    console.log(
+      `✅ Agent tab initialized with type: ${oldType} -> ${agentType.value}, id: ${oldId} -> ${agentId.value}`
+    )
   } else {
     // 默认为 chat agent
     agentType.value = 'chat'
@@ -166,20 +183,39 @@ const loadAgentConfig = async () => {
 }
 
 // 监听路由变化
-watch(() => route.query, (newQuery, oldQuery) => {
-  console.log('Route query changed from:', oldQuery, 'to:', newQuery)
-  parseAgentFromRoute()
-  loadAgentConfig()
-}, { immediate: true, deep: true })
+watch(
+  () => route.query,
+  (newQuery, oldQuery) => {
+    console.log('Route query changed from:', oldQuery, 'to:', newQuery)
+    parseAgentFromRoute()
+    loadAgentConfig()
+  },
+  { immediate: true, deep: true }
+)
 
 // 监听整个路由对象的变化
-watch(() => route, (newRoute, oldRoute) => {
-  console.log('Route changed from:', oldRoute?.path, oldRoute?.query, 'to:', newRoute.path, newRoute.query)
-}, { immediate: true, deep: true })
+watch(
+  () => route,
+  (newRoute, oldRoute) => {
+    console.log(
+      'Route changed from:',
+      oldRoute?.path,
+      oldRoute?.query,
+      'to:',
+      newRoute.path,
+      newRoute.query
+    )
+  },
+  { immediate: true, deep: true }
+)
 
 onMounted(async () => {
   console.log('AgentTabView mounted, current route:', route.path, route.query)
-  console.log('Router current route:', router.currentRoute.value.path, router.currentRoute.value.query)
+  console.log(
+    'Router current route:',
+    router.currentRoute.value.path,
+    router.currentRoute.value.query
+  )
 
   // 延迟一下再解析，确保路由完全加载
   await nextTick()
