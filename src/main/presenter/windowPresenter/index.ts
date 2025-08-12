@@ -55,6 +55,17 @@ export class WindowPresenter implements IWindowPresenter {
       event.returnValue = event.sender.id
     })
 
+    ipcMain.on('close-floating-window', (event) => {
+      // 检查发送者是否是悬浮聊天窗口
+      const webContentsId = event.sender.id
+      if (
+        this.floatingChatWindow &&
+        this.floatingChatWindow.getWindow()?.webContents.id === webContentsId
+      ) {
+        this.hideFloatingChatWindow()
+      }
+    })
+
     // 监听应用即将退出的事件，设置退出标志，避免窗口关闭时触发隐藏逻辑
     app.on('before-quit', () => {
       console.log('App is quitting, setting isQuitting flag.')
