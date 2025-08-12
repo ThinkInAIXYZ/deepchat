@@ -56,6 +56,8 @@ const icons = ref(props.initialConfig?.icons || '📁')
 const type = ref<'sse' | 'stdio' | 'inmemory' | 'http'>(props.initialConfig?.type || 'stdio')
 const baseUrl = ref(props.initialConfig?.baseUrl || '')
 const customHeaders = ref('')
+const customHeadersFocused = ref(false)
+const customHeadersDisplayValue = ref('')
 const npmRegistry = ref(props.initialConfig?.customNpmRegistry || '')
 
 // 模型选择相关
@@ -551,6 +553,15 @@ watch(
   { immediate: true }
 )
 
+// 监听 customHeaders 变化以更新显示值
+watch(
+  customHeaders,
+  () => {
+    updateCustomHeadersDisplay()
+  },
+  { immediate: true }
+)
+
 // 初始化时解析args中的provider和modelId（针对imageServer）
 watch(
   [() => name.value, () => args.value, () => type.value],
@@ -653,6 +664,54 @@ const parseKeyValueHeaders = (text: string): Record<string, string> => {
     }
   }
   return headers
+}
+
+// 遮蔽敏感内容的函数
+const maskSensitiveValue = (value: string): string => {
+  // 只遮蔽等号后面的值，保留键名
+  return value.replace(/=(.+)/g, (_, val) => {
+    if (val.trim().length <= 8) {
+      // 短值完全遮蔽
+      return '=' + '*'.repeat(val.trim().length)
+    } else {
+      // 长值显示前2个和后2个字符，中间用*代替
+      const trimmedVal = val.trim()
+      const start = trimmedVal.substring(0, 2)
+      const end = trimmedVal.substring(trimmedVal.length - 2)
+      const middle = '*'.repeat(Math.max(4, trimmedVal.length - 4))
+      return '=' + start + middle + end
+    }
+  })
+}
+
+// 生成用于显示的 customHeaders 值
+const updateCustomHeadersDisplay = (): void => {
+  if (customHeadersFocused.value || !customHeaders.value.trim()) {
+    customHeadersDisplayValue.value = customHeaders.value
+  } else {
+    // 遮蔽敏感内容
+    const lines = customHeaders.value.split('\n')
+    const maskedLines = lines.map(line => {
+      const trimmedLine = line.trim()
+      if (!trimmedLine || !trimmedLine.includes('=')) {
+        return line
+      }
+      return maskSensitiveValue(line)
+    })
+    customHeadersDisplayValue.value = maskedLines.join('\n')
+  }
+}
+
+// 处理 customHeaders 获得焦点
+const handleCustomHeadersFocus = (): void => {
+  customHeadersFocused.value = true
+  updateCustomHeadersDisplay()
+}
+
+// 处理 customHeaders 失去焦点
+const handleCustomHeadersBlur = (): void => {
+  customHeadersFocused.value = false
+  updateCustomHeadersDisplay()
 }
 
 // --- 结束新增辅助函数 ---
@@ -1083,16 +1142,39 @@ HTTP-Referer=deepchatai.cn`
           <Label class="text-xs text-muted-foreground" for="server-custom-headers">{{
             t('settings.mcp.serverForm.customHeaders')
           }}</Label>
-          <Textarea
-            id="server-custom-headers"
-            v-model="customHeaders"
-            rows="5"
-            :placeholder="customHeadersPlaceholder"
-            :class="{ 'border-red-500': !isCustomHeadersFormatValid }"
-            :disabled="isFieldReadOnly"
-          />
+          <div class="relative">
+            <Textarea
+              id="server-custom-headers"
+              v-model="customHeaders"
+              rows="5"
+              :placeholder="customHeadersPlaceholder"
+              :class="{
+                'border-red-500': !isCustomHeadersFormatValid,
+                'transition-opacity duration-200': true
+              }"
+              :disabled="isFieldReadOnly"
+              @focus="handleCustomHeadersFocus"
+              @blur="handleCustomHeadersBlur"
+            />
+            <!-- 遮罩层，仅在失去焦点且有内容时显示 -->
+            <div
+              v-if="!customHeadersFocused && customHeaders.trim()"
+              class="absolute inset-0 bg-background/95 rounded-md border pointer-events-none"
+              :class="{ 'border-red-500': !isCustomHeadersFormatValid }"
+            >
+              <div
+                class="p-3 text-sm font-mono whitespace-pre-wrap text-muted-foreground select-none"
+                style="line-height: 1.4;"
+              >
+                {{ customHeadersDisplayValue }}
+              </div>
+            </div>
+          </div>
           <p v-if="!isCustomHeadersFormatValid" class="text-xs text-red-500">
             {{ t('settings.mcp.serverForm.invalidKeyValueFormat') }}
+          </p>
+          <p v-if="!customHeadersFocused && customHeaders.trim()" class="text-xs text-muted-foreground">
+            {{ t('settings.mcp.serverForm.clickToEdit') || '点击编辑以查看完整内容' }}
           </p>
         </div>
       </div>

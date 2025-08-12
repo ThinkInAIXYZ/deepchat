@@ -1163,6 +1163,7 @@ export interface IMCPPresenter {
   getMcpRouterApiKey?(): Promise<string | ''>
   setMcpRouterApiKey?(key: string): Promise<void>
   isServerInstalled?(source: string, sourceId: string): Promise<boolean>
+  updateMcpRouterServersAuth?(apiKey: string): Promise<void>
 }
 
 export interface IDeeplinkPresenter {

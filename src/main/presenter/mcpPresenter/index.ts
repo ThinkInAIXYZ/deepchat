@@ -237,6 +237,31 @@ export class McpPresenter implements IMCPPresenter {
     return false
   }
 
+  async updateMcpRouterServersAuth(apiKey: string): Promise<void> {
+    const servers = await this.configPresenter.getMcpServers()
+    const updates: Array<{ name: string; config: Partial<MCPServerConfig> }> = []
+
+    for (const [serverName, config] of Object.entries(servers)) {
+      if (config.source === 'mcprouter' && config.customHeaders) {
+        const updatedHeaders = {
+          ...config.customHeaders,
+          Authorization: `Bearer ${apiKey}`
+        }
+        updates.push({
+          name: serverName,
+          config: { customHeaders: updatedHeaders }
+        })
+      }
+    }
+
+    // 批量更新所有服务器的 Authorization
+    for (const update of updates) {
+      await this.configPresenter.updateMcpServer(update.name, update.config)
+    }
+
+    console.log(`Updated Authorization for ${updates.length} mcprouter servers`)
+  }
+
   private scheduleBackgroundRegistryUpdate(): void {
     setTimeout(async () => {
       try {

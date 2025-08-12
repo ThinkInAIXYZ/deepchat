@@ -623,6 +623,7 @@
       "imageModel": "选择视觉模型",
       "customHeadersParseError": "自定义Header解析失败",
       "customHeaders": "自定义请求头",
+      "clickToEdit": "点击编辑以查看完整内容",
       "invalidKeyValueFormat": "错误的请求头格式，请检查输入是否正确",
       "npmRegistry": "自定义NPM Registry",
       "npmRegistryPlaceholder": "设置自定义NPM Registry,留空系统会自动选择最快的一个",

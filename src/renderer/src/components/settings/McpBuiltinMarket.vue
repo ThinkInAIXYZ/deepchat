@@ -57,17 +57,17 @@
             <span class="text-xs font-mono px-2 py-0.5 bg-muted rounded">{{
               item.server_key
             }}</span>
-            <Button
+                        <Button
               size="sm"
-              :variant="installedServers.has(item.uuid) ? 'secondary' : 'default'"
-              :disabled="installedServers.has(item.uuid)"
+              :variant="installedServers.has(item.server_key) ? 'secondary' : 'default'"
+              :disabled="installedServers.has(item.server_key)"
               @click="install(item)"
             >
               <Icon
-                :icon="installedServers.has(item.uuid) ? 'lucide:check' : 'lucide:download'"
+                :icon="installedServers.has(item.server_key) ? 'lucide:check' : 'lucide:download'"
                 class="w-3.5 h-3.5 mr-1"
               />
-              {{ installedServers.has(item.uuid) ? t('mcp.market.installed') : t('mcp.market.install') }}
+              {{ installedServers.has(item.server_key) ? t('mcp.market.installed') : t('mcp.market.install') }}
             </Button>
           </div>
         </div>
@@ -147,7 +147,14 @@ const loadApiKey = async () => {
 
 const saveApiKey = async () => {
   try {
-    await mcpP.setMcpRouterApiKey?.(apiKeyInput.value.trim())
+    const newKey = apiKeyInput.value.trim()
+    await mcpP.setMcpRouterApiKey?.(newKey)
+
+    // 更新现有 mcprouter 服务器的 Authorization header
+    if (newKey) {
+      await mcpP.updateMcpRouterServersAuth?.(newKey)
+    }
+
     toast({ title: t('common.saved') })
   } catch (e) {
     toast({ title: t('common.error'), description: String(e), variant: 'destructive' })
@@ -162,9 +169,10 @@ const checkInstalledServers = async () => {
   const installed = new Set<string>()
   for (const item of items.value) {
     try {
-      const isInstalled = await mcpP.isServerInstalled?.('mcprouter', item.uuid)
+      // 使用 server_key 作为 sourceId 检查安装状态，因为这是我们在安装时保存的标识符
+      const isInstalled = await mcpP.isServerInstalled?.('mcprouter', item.server_key)
       if (isInstalled) {
-        installed.add(item.uuid)
+        installed.add(item.server_key)
       }
     } catch (e) {
       console.error('Failed to check installation status:', e)
@@ -260,8 +268,8 @@ const install = async (item: MarketItem) => {
     const ok = await mcpP.installMcpRouterServer?.(item.server_key)
     if (ok) {
       toast({ title: t('mcp.market.installSuccess') })
-      // 更新安装状态
-      installedServers.value.add(item.uuid)
+      // 更新安装状态 - 使用 server_key 作为标识符
+      installedServers.value.add(item.server_key)
     } else {
       toast({ title: t('mcp.market.installFailed'), variant: 'destructive' })
     }
