@@ -988,6 +988,8 @@ export interface MCPServerConfig {
   customHeaders?: Record<string, string>
   customNpmRegistry?: string
   type: 'sse' | 'stdio' | 'inmemory' | 'http'
+  source?: string // 来源标识: "mcprouter" | "modelscope" | undefined(for manual)
+  sourceId?: string // 来源ID: mcprouter的uuid 或 modelscope的mcpServer.id
 }
 
 export interface MCPConfig {
@@ -1160,6 +1162,7 @@ export interface IMCPPresenter {
   installMcpRouterServer?(serverKey: string): Promise<boolean>
   getMcpRouterApiKey?(): Promise<string | ''>
   setMcpRouterApiKey?(key: string): Promise<void>
+  isServerInstalled?(source: string, sourceId: string): Promise<boolean>
 }
 
 export interface IDeeplinkPresenter {

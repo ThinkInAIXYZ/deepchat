@@ -246,5 +246,24 @@
     "mcpDisabled": "MCP est désactivé",
     "getPromptFailed": "Échec de l'obtention du prompt",
     "readResourceFailed": "Échec de la lecture de la ressource"
+  },
+  "market": {
+    "apiKeyPlaceholder": "Entrez la clé de l'API McProuter",
+    "apiKeyRequiredDesc": "Veuillez remplir la clé API McProuter avant d'installer",
+    "apiKeyRequiredTitle": "Nécessite la clé de l'API",
+    "browseBuiltin": "Parcourir le marché MCP intégré",
+    "builtinTitle": "Marché MCP",
+    "empty": "Pas encore de service",
+    "install": "Installer",
+    "installFailed": "L'installation a échoué",
+    "installSuccess": "Installation avec succès",
+    "installed": "Installé",
+    "keyGuide": "Obtenez la clé",
+    "keyHelpEnd": "Après avoir postulé pour la clé API, remplissez la zone d'entrée ci-dessus",
+    "keyHelpText": "Veuillez arriver en premier",
+    "loadMore": "Chargez plus",
+    "noMore": "Pas plus",
+    "poweredBy": "Propulsé par McProuter",
+    "pullDownToLoad": "Continuez à tomber pour charger plus"
   }
 }

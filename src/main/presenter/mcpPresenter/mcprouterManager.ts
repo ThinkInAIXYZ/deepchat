@@ -113,7 +113,9 @@ export class McpRouterManager {
         Authorization: `Bearer ${apiKey}`,
         'HTTP-Referer': 'deepchatai.cn',
         'X-Title': 'DeepChat'
-      }
+      },
+      source: 'mcprouter',
+      sourceId: serverKey
     }
 
     const serverName = detail.config_name || detail.server_key || detail.name

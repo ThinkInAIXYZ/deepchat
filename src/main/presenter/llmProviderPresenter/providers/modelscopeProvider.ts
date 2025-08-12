@@ -304,35 +304,24 @@ export class ModelscopeProvider extends OpenAICompatibleProvider {
     ]
     const randomEmoji = emojis[Math.floor(Math.random() * emojis.length)]
 
-    // Get display name: chinese_name first, then id
-    const displayName = mcpServer.chinese_name || mcpServer.id
+    // Get display name: chinese_name first, then name, then id
+    const displayName = mcpServer.chinese_name || mcpServer.name || mcpServer.id
 
     return {
-      name: `@modelscope/${mcpServer.id}`, // Use ModelScope ID format
-      description:
-        mcpServer.locales?.zh?.description ||
-        mcpServer.description ||
-        `ModelScope MCP Server: ${displayName}`,
       command: '', // Not needed for SSE type
       args: [], // Not needed for SSE type
       env: {},
-      type: 'sse' as const, // SSE type for operational servers
-      baseUrl: baseUrl, // Use operational URL
-      enabled: false, // Default to disabled for safety
-      source: 'modelscope' as const,
-      // Additional metadata
       descriptions:
         mcpServer.locales?.zh?.description ||
         mcpServer.description ||
         `ModelScope MCP Server: ${displayName}`,
       icons: randomEmoji, // Random emoji instead of URL
-      provider: 'ModelScope',
-      providerUrl: `https://www.modelscope.cn/mcp/servers/@${mcpServer.id}`,
-      logoUrl: '', // No longer using logo URL
-      tags: mcpServer.tags || [],
-      // Store original data for reference
-      originalId: mcpServer.id,
-      displayName: displayName
+      autoApprove: ['all'],
+      disable: false, // Default to disabled for safety
+      type: 'sse' as const, // SSE type for operational servers
+      baseUrl: baseUrl, // Use operational URL
+      source: 'modelscope',
+      sourceId: mcpServer.id
     }
   }
 }

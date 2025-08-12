@@ -249,7 +249,7 @@
   },
   "market": {
     "browseBuiltin": "Browse Built-in MCP Market",
-    "builtinTitle": "Built-in MCP Market",
+    "builtinTitle": "MCP Market",
     "poweredBy": "Powered by MCPRouter",
     "keyGuide": "Get API Key",
     "keyHelpText": "Please go to",
@@ -258,6 +258,7 @@
     "apiKeyRequiredTitle": "API Key Required",
     "apiKeyRequiredDesc": "Please fill in the MCPRouter API Key before installation",
     "install": "Install",
+    "installed": "Installed",
     "installSuccess": "Installation successful",
     "installFailed": "Installation failed",
     "noMore": "No more",

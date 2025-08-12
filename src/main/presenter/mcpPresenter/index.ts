@@ -227,6 +227,16 @@ export class McpPresenter implements IMCPPresenter {
     this.configPresenter.setSetting('mcprouterApiKey', key)
   }
 
+  async isServerInstalled(source: string, sourceId: string): Promise<boolean> {
+    const servers = await this.configPresenter.getMcpServers()
+    for (const config of Object.values(servers)) {
+      if (config.source === source && config.sourceId === sourceId) {
+        return true
+      }
+    }
+    return false
+  }
+
   private scheduleBackgroundRegistryUpdate(): void {
     setTimeout(async () => {
       try {

@@ -246,5 +246,24 @@
     "mcpDisabled": "MCP отключен",
     "getPromptFailed": "Не удалось получить промпт",
     "readResourceFailed": "Не удалось прочитать ресурс"
+  },
+  "market": {
+    "apiKeyPlaceholder": "Введите ключ McProuter API",
+    "apiKeyRequiredDesc": "Пожалуйста, заполните клавишу McProuter API сначала перед установкой",
+    "apiKeyRequiredTitle": "Требует ключа API",
+    "browseBuiltin": "Просмотрите встроенный рынок MCP",
+    "builtinTitle": "MCP Market",
+    "empty": "Пока нет услуг",
+    "install": "Установить",
+    "installFailed": "Установка не удалась",
+    "installSuccess": "Установка успешно",
+    "installed": "Установлен",
+    "keyGuide": "Получите ключ",
+    "keyHelpEnd": "После подачи заявки на ключ API заполните поле ввода выше",
+    "keyHelpText": "Пожалуйста, приезжайте первым",
+    "loadMore": "Загружать больше",
+    "noMore": "Больше не надо",
+    "poweredBy": "Оборудован от McProuter",
+    "pullDownToLoad": "Продолжайте падать, чтобы загружать больше"
   }
 }

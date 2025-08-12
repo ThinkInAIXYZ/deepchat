@@ -57,9 +57,17 @@
             <span class="text-xs font-mono px-2 py-0.5 bg-muted rounded">{{
               item.server_key
             }}</span>
-            <Button size="sm" @click="install(item)">
-              <Icon icon="lucide:download" class="w-3.5 h-3.5 mr-1" />
-              {{ t('mcp.market.install') }}
+            <Button
+              size="sm"
+              :variant="installedServers.has(item.uuid) ? 'secondary' : 'default'"
+              :disabled="installedServers.has(item.uuid)"
+              @click="install(item)"
+            >
+              <Icon
+                :icon="installedServers.has(item.uuid) ? 'lucide:check' : 'lucide:download'"
+                class="w-3.5 h-3.5 mr-1"
+              />
+              {{ installedServers.has(item.uuid) ? t('mcp.market.installed') : t('mcp.market.install') }}
             </Button>
           </div>
         </div>
@@ -126,6 +134,7 @@ const hasMore = ref(true)
 const scrollContainer = ref<HTMLDivElement | null>(null)
 const showPullToLoad = ref(false)
 const canPullMore = ref(false)
+const installedServers = ref<Set<string>>(new Set())
 
 const apiKeyInput = ref('')
 
@@ -149,6 +158,21 @@ const openHowToGetKey = () => {
   window.open('https://mcprouter.co/settings/keys', '_blank')
 }
 
+const checkInstalledServers = async () => {
+  const installed = new Set<string>()
+  for (const item of items.value) {
+    try {
+      const isInstalled = await mcpP.isServerInstalled?.('mcprouter', item.uuid)
+      if (isInstalled) {
+        installed.add(item.uuid)
+      }
+    } catch (e) {
+      console.error('Failed to check installation status:', e)
+    }
+  }
+  installedServers.value = installed
+}
+
 const fetchPage = async (forcePull = false) => {
   if (loading.value || (!hasMore.value && !forcePull)) return
   loading.value = true
@@ -164,6 +188,9 @@ const fetchPage = async (forcePull = false) => {
     }
     items.value.push(...list)
     page.value += 1
+
+    // 检查安装状态
+    await checkInstalledServers()
 
     // 如果是强制拉取且成功获取到数据，重新启用拉取功能
     if (forcePull) {
@@ -233,6 +260,8 @@ const install = async (item: MarketItem) => {
     const ok = await mcpP.installMcpRouterServer?.(item.server_key)
     if (ok) {
       toast({ title: t('mcp.market.installSuccess') })
+      // 更新安装状态
+      installedServers.value.add(item.uuid)
     } else {
       toast({ title: t('mcp.market.installFailed'), variant: 'destructive' })
     }
