@@ -179,6 +179,7 @@ export interface IWindowPresenter {
   sendToWindow(windowId: number, channel: string, ...args: unknown[]): boolean
   sendToDefaultTab(channel: string, switchToTarget?: boolean, ...args: unknown[]): Promise<boolean>
   closeWindow(windowId: number, forceClose?: boolean): Promise<void>
+  isApplicationQuitting(): boolean
 }
 
 export interface ITabPresenter {
@@ -215,6 +216,8 @@ export interface ITabPresenter {
   onRendererTabReady(tabId: number): Promise<void>
   onRendererTabActivated(threadId: string): Promise<void>
   isLastTabInWindow(tabId: number): Promise<boolean>
+  registerFloatingWindow(webContentsId: number, webContents: Electron.WebContents): void
+  unregisterFloatingWindow(webContentsId: number): void
   resetTabToBlank(tabId: number): Promise<void>
 }
 
@@ -574,6 +577,19 @@ export type LLM_EMBEDDING_ATTRS = {
   normalized: boolean
 }
 
+// Simplified ModelScope MCP sync options
+export interface ModelScopeMcpSyncOptions {
+  page_number?: number
+  page_size?: number
+}
+
+// ModelScope MCP sync result interface
+export interface ModelScopeMcpSyncResult {
+  imported: number
+  skipped: number
+  errors: string[]
+}
+
 export interface ILlmProviderPresenter {
   setProviders(provider: LLM_PROVIDER[]): void
   getProviders(): LLM_PROVIDER[]
@@ -644,6 +660,10 @@ export interface ILlmProviderPresenter {
       lastRequestTime: number
     }
   >
+  syncModelScopeMcpServers(
+    providerId: string,
+    syncOptions?: ModelScopeMcpSyncOptions
+  ): Promise<ModelScopeMcpSyncResult>
 }
 export type CONVERSATION_SETTINGS = {
   systemPrompt: string

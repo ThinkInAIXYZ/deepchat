@@ -1027,12 +1027,18 @@ export class FileSystemServer {
             if (!parsed.success) {
               throw new Error(`Invalid arguments for move_files: ${parsed.error}`)
             }
+            const destInfo = await this.getFileStats(parsed.data.destination)
             const results = await Promise.all(
               parsed.data.sources.map(async (source) => {
                 const validSourcePath = await this.validatePath(source)
-                const validDestPath = await this.validatePath(
-                  path.join(parsed.data.destination, path.basename(source))
-                )
+                let validDestPath = ''
+                if (destInfo.isFile) {
+                  validDestPath = await this.validatePath(parsed.data.destination)
+                } else {
+                  validDestPath = await this.validatePath(
+                    path.join(parsed.data.destination, path.basename(source))
+                  )
+                }
                 try {
                   await fs.rename(validSourcePath, validDestPath)
                   return `Successfully moved ${source} to ${parsed.data.destination}`

@@ -331,7 +331,6 @@ This project is built with the help of these awesome libraries:
 - [Vue](https://vuejs.org/)
 - [Electron](https://www.electronjs.org/)
 - [Electron-Vite](https://electron-vite.org/)
-- [Rolldown-Vite](https://github.com/vitejs/rolldown-vite)
 - [oxlint](https://github.com/oxc-project/oxc)
 
 ## 📃 License

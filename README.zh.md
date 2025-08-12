@@ -325,7 +325,6 @@ DeepChat是一个活跃的开源社区项目，我们欢迎各种形式的贡献
 - [Vue](https://vuejs.org/)
 - [Electron](https://www.electronjs.org/)
 - [Electron-Vite](https://electron-vite.org/)
-- [Rolldown-Vite](https://github.com/vitejs/rolldown-vite)
 - [oxlint](https://github.com/oxc-project/oxc)
 
 ## 📃 许可证

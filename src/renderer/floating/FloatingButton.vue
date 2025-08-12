@@ -7,6 +7,7 @@
       class="w-15 h-15 rounded-full border-2 border-white/30 flex items-center justify-center cursor-pointer transition-all duration-300 relative overflow-hidden select-none floating-button no-drag"
       :class="{ 'floating-button-pulse': isPulsing }"
       @click="handleClick"
+      @contextmenu="handleRightClick"
       @mouseenter="handleMouseEnter"
       @mouseleave="handleMouseLeave"
     >
@@ -42,6 +43,28 @@ const handleClick = () => {
       window.floatingButtonAPI.onClick()
     } catch (error) {
       console.error('=== FloatingButton: Error calling onClick API ===:', error)
+    }
+  } else {
+    console.error('=== FloatingButton: floatingButtonAPI not available ===')
+  }
+}
+
+const handleRightClick = (event: MouseEvent) => {
+  event.preventDefault()
+  if (floatingButton.value) {
+    floatingButton.value.style.transform = 'scale(0.9)'
+    setTimeout(() => {
+      if (floatingButton.value) {
+        floatingButton.value.style.transform = ''
+      }
+    }, 150)
+  }
+
+  if (window.floatingButtonAPI) {
+    try {
+      window.floatingButtonAPI.onRightClick()
+    } catch (error) {
+      console.error('=== FloatingButton: Error calling onRightClick API ===:', error)
     }
   } else {
     console.error('=== FloatingButton: floatingButtonAPI not available ===')

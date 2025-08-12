@@ -43,30 +43,28 @@
     </div>
 
     <div class="flex items-center gap-2">
-      <Popover>
-        <PopoverTrigger as-child>
+      <ScrollablePopover align="end" content-class="w-80" :enable-scrollable="true">
+        <template #trigger>
           <Button class="w-7 h-7 rounded-md" size="icon" variant="outline">
             <Icon icon="lucide:settings-2" class="w-4 h-4" />
           </Button>
-        </PopoverTrigger>
-        <PopoverContent align="end" class="p-0 w-80">
-          <ChatConfig
-            v-model:system-prompt="systemPrompt"
-            :temperature="temperature"
-            :context-length="contextLength"
-            :max-tokens="maxTokens"
-            :artifacts="artifacts"
-            :thinking-budget="thinkingBudget"
-            :model-id="chatStore.chatConfig.modelId"
-            :provider-id="chatStore.chatConfig.providerId"
-            @update:temperature="updateTemperature"
-            @update:context-length="updateContextLength"
-            @update:max-tokens="updateMaxTokens"
-            @update:artifacts="updateArtifacts"
-            @update:thinking-budget="updateThinkingBudget"
-          />
-        </PopoverContent>
-      </Popover>
+        </template>
+        <ChatConfig
+          v-model:system-prompt="systemPrompt"
+          :temperature="temperature"
+          :context-length="contextLength"
+          :max-tokens="maxTokens"
+          :artifacts="artifacts"
+          :thinking-budget="thinkingBudget"
+          :model-id="chatStore.chatConfig.modelId"
+          :provider-id="chatStore.chatConfig.providerId"
+          @update:temperature="updateTemperature"
+          @update:context-length="updateContextLength"
+          @update:max-tokens="updateMaxTokens"
+          @update:artifacts="updateArtifacts"
+          @update:thinking-budget="updateThinkingBudget"
+        />
+      </ScrollablePopover>
     </div>
   </div>
 </template>
@@ -77,6 +75,7 @@ import { Icon } from '@iconify/vue'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import ScrollablePopover from './ScrollablePopover.vue'
 import ChatConfig from './ChatConfig.vue'
 import ModelSelect from './ModelSelect.vue'
 import ModelIcon from './icons/ModelIcon.vue'
