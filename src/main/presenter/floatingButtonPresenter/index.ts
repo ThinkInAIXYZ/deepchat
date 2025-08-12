@@ -22,11 +22,16 @@ export class FloatingButtonPresenter {
    */
   public async initialize(config?: Partial<FloatingButtonConfig>): Promise<void> {
     const floatingButtonEnabled = this.configPresenter.getFloatingButtonEnabled()
+    const savedPosition = this.configPresenter.getFloatingButtonPosition()
     try {
       this.config = {
         ...this.config,
         ...config,
         enabled: floatingButtonEnabled
+      }
+      if (savedPosition) {
+        this.config.position = 'custom'
+        this.config.customPosition = savedPosition
       }
 
       if (!this.config.enabled) {
