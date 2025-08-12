@@ -3,12 +3,13 @@ import path from 'path'
 import { FloatingButtonConfig, FloatingButtonState } from './types'
 import logger from '../../../shared/logger'
 import { platform } from '@electron-toolkit/utils'
-import { presenter } from '../index'
+import windowStateManager from 'electron-window-state'
 
 export class FloatingButtonWindow {
   private window: BrowserWindow | null = null
   private config: FloatingButtonConfig
   private state: FloatingButtonState
+  private windowState: any
 
   constructor(config: FloatingButtonConfig) {
     this.config = config
@@ -21,6 +22,13 @@ export class FloatingButtonWindow {
         height: config.size.height
       }
     }
+
+    // 初始化窗口状态管理器
+    this.windowState = windowStateManager({
+      file: 'floating-button-window-state.json',
+      defaultWidth: config.size.width,
+      defaultHeight: config.size.height
+    })
   }
 
   /**
@@ -32,16 +40,14 @@ export class FloatingButtonWindow {
     }
 
     try {
-      const position = this.calculatePosition()
-
       // 根据环境选择正确的预加载脚本路径
       const isDev = process.env.NODE_ENV === 'development'
 
       this.window = new BrowserWindow({
-        width: this.config.size.width,
-        height: this.config.size.height,
-        x: position.x,
-        y: position.y,
+        x: this.windowState.x,
+        y: this.windowState.y,
+        width: this.windowState.width,
+        height: this.windowState.height,
         frame: false,
         transparent: platform.isMacOS,
         alwaysOnTop: this.config.alwaysOnTop,
@@ -64,6 +70,7 @@ export class FloatingButtonWindow {
           sandbox: false // 禁用沙盒模式，确保预加载脚本能正常工作
         }
       })
+      this.windowState.manage(this.window)
       this.window.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
       this.window.setAlwaysOnTop(true, 'floating')
       // 设置窗口透明度
@@ -141,7 +148,7 @@ export class FloatingButtonWindow {
       }
 
       if (config.position || config.offset) {
-        const position = this.calculatePosition()
+        const position = this.getDefaultPosition()
         this.window.setPosition(position.x, position.y)
         this.state.bounds.x = position.x
         this.state.bounds.y = position.y
@@ -176,78 +183,9 @@ export class FloatingButtonWindow {
   }
 
   /**
-   * 计算悬浮按钮位置
+   * 获取默认位置（右下角）
    */
-  private calculatePosition(): { x: number; y: number } {
-    if (this.config.position === 'custom' && this.config.customPosition) {
-      const validated = this.validatePosition(this.config.customPosition)
-      return validated
-    }
-
-    const primaryDisplay = screen.getPrimaryDisplay()
-    const { workAreaSize } = primaryDisplay
-
-    let x: number, y: number
-
-    switch (this.config.position) {
-      case 'top-left':
-        x = this.config.offset.x
-        y = this.config.offset.y
-        break
-      case 'top-right':
-        x = workAreaSize.width - this.config.size.width - this.config.offset.x
-        y = this.config.offset.y
-        break
-      case 'bottom-left':
-        x = this.config.offset.x
-        y = workAreaSize.height - this.config.size.height - this.config.offset.y
-        break
-      case 'bottom-right':
-      default:
-        x = workAreaSize.width - this.config.size.width - this.config.offset.x
-        y = workAreaSize.height - this.config.size.height - this.config.offset.y
-        break
-    }
-
-    return { x, y }
-  }
-
-  /**
-   * 验证并修正位置，确保窗口不会完全移出可见区域
-   */
-  private validatePosition(position: { x: number; y: number }): { x: number; y: number } {
-    const displays = screen.getAllDisplays()
-
-    // 检查位置是否在任何显示器的可见区域内
-    let isVisible = false
-    for (const display of displays) {
-      const {
-        x: displayX,
-        y: displayY,
-        width: displayWidth,
-        height: displayHeight
-      } = display.workArea
-      const windowRight = position.x + this.config.size.width
-      const windowBottom = position.y + this.config.size.height
-
-      // 检查窗口是否与显示器区域有交集（至少部分可见）
-      if (
-        position.x < displayX + displayWidth &&
-        windowRight > displayX &&
-        position.y < displayY + displayHeight &&
-        windowBottom > displayY
-      ) {
-        isVisible = true
-        break
-      }
-    }
-
-    if (isVisible) {
-      return position
-    }
-
-    // 如果窗口不可见，将其移动到主显示器的默认位置（右下角）
-    logger.warn('Floating button position is out of bounds, correcting to default position')
+  private getDefaultPosition(): { x: number; y: number } {
     const primaryDisplay = screen.getPrimaryDisplay()
     const { workArea } = primaryDisplay
 
@@ -277,28 +215,9 @@ export class FloatingButtonWindow {
         const bounds = this.window.getBounds()
         this.state.bounds.x = bounds.x
         this.state.bounds.y = bounds.y
-        this.savePosition({ x: bounds.x, y: bounds.y })
       }
     })
 
     // 注意：悬浮按钮点击事件的 IPC 处理器在主进程的 index.ts 中设置
   }
-
-  /**
-   * 保存当前位置到配置
-   */
-  private savePosition(position: { x: number; y: number }): void {
-    try {
-      if (this.savePositionTimer) {
-        clearTimeout(this.savePositionTimer)
-      }
-      this.savePositionTimer = setTimeout(() => {
-        presenter.configPresenter.setFloatingButtonPosition(position)
-        logger.debug(`Floating button position saved: ${position.x}, ${position.y}`)
-      }, 500)
-    } catch (error) {
-      logger.error('Failed to save floating button position:', error)
-    }
-  }
-  private savePositionTimer: NodeJS.Timeout | null = null
 }

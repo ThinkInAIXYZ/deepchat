@@ -2,14 +2,9 @@ export interface FloatingButtonConfig {
   /** 是否启用悬浮按钮 */
   enabled: boolean
   /** 悬浮按钮位置 */
-  position: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right' | 'custom'
+  position: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right'
   /** 距离边缘的偏移量 */
   offset: {
-    x: number
-    y: number
-  }
-  /** 自定义位置 (当 position 为 'custom' 时使用) */
-  customPosition?: {
     x: number
     y: number
   }

@@ -46,7 +46,6 @@ interface IAppSettings {
   copyWithCotEnabled?: boolean
   loggingEnabled?: boolean // 日志记录是否启用
   floatingButtonEnabled?: boolean // 悬浮按钮是否启用
-  floatingButtonPosition?: { x: number; y: number } // 悬浮按钮自定义位置
   default_system_prompt?: string // 默认系统提示词
   [key: string]: unknown // 允许任意键，使用unknown类型替代any
 }
@@ -109,7 +108,6 @@ export class ConfigPresenter implements IConfigPresenter {
         copyWithCotEnabled: true,
         loggingEnabled: false,
         floatingButtonEnabled: false,
-        floatingButtonPosition: undefined,
         default_system_prompt: '',
         appVersion: this.currentAppVersion
       }
@@ -818,16 +816,6 @@ export class ConfigPresenter implements IConfigPresenter {
     } catch (error) {
       console.error('Failed to directly call floatingButtonPresenter:', error)
     }
-  }
-
-  // 获取悬浮按钮位置
-  getFloatingButtonPosition(): { x: number; y: number } | null {
-    return this.getSetting<{ x: number; y: number }>('floatingButtonPosition') || null
-  }
-
-  // 设置悬浮按钮位置
-  setFloatingButtonPosition(position: { x: number; y: number }): void {
-    this.setSetting('floatingButtonPosition', position)
   }
 
   // ===================== MCP配置相关方法 =====================
