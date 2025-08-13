@@ -156,7 +156,7 @@ app.whenReady().then(async () => {
   // 注册 'deepcdn' 协议，用于加载应用内置资源 (模拟 CDN)
   protocol.handle('deepcdn', (request) => {
     try {
-      console.log('deepcdn', request.url)
+      // console.log('deepcdn', request.url)
       const filePath = request.url.slice('deepcdn://'.length)
       // 根据开发/生产环境确定资源路径（按候选目录探测，避免错误拼接导致重复 resources）
       const candidates = is.dev
