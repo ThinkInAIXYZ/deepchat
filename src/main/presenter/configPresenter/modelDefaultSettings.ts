@@ -671,24 +671,26 @@ export const defaultModelsSettings: DefaultModelSetting[] = [
   {
     id: 'gpt-oss-120b',
     name: 'GPT OSS 120B',
-    temperature: 0.7,
-    maxTokens: 131000,
-    contextLength: 131000,
+    temperature: 0.6,
+    maxTokens: 32000,
+    contextLength: 128000,
     match: ['gpt-oss-120b'],
     vision: false,
     functionCall: true,
-    reasoning: false
+    reasoning: true,
+    reasoningEffort: 'medium'
   },
   {
     id: 'gpt-oss-20b',
     name: 'GPT OSS 20B',
-    temperature: 0.7,
-    maxTokens: 33000,
-    contextLength: 131000,
+    temperature: 0.6,
+    maxTokens: 16000,
+    contextLength: 128000,
     match: ['gpt-oss-20b'],
     vision: false,
     functionCall: true,
-    reasoning: false
+    reasoning: true,
+    reasoningEffort: 'medium'
   },
   {
     id: 'o4-mini-high',

@@ -90,6 +90,8 @@
                 v-model:max-tokens="maxTokens"
                 v-model:system-prompt="systemPrompt"
                 v-model:artifacts="artifacts"
+                v-model:reasoning-effort="reasoningEffort"
+                v-model:verbosity="verbosity"
                 :context-length-limit="contextLengthLimit"
                 :max-tokens-limit="maxTokensLimit"
                 :model-id="activeModel?.id"
@@ -157,6 +159,8 @@ const maxTokens = ref(4096)
 const maxTokensLimit = ref(4096)
 const systemPrompt = ref('')
 const artifacts = ref(settingsStore.artifactsEffectEnabled ? 1 : 0)
+const reasoningEffort = ref<'minimal' | 'low' | 'medium' | 'high' | undefined>(undefined)
+const verbosity = ref<'low' | 'medium' | 'high' | undefined>(undefined)
 
 const name = computed(() => {
   return activeModel.value?.name ? activeModel.value.name.split('/').pop() : ''
@@ -175,6 +179,8 @@ watch(
     maxTokens.value = config.maxTokens
     contextLengthLimit.value = config.contextLength
     maxTokensLimit.value = config.maxTokens
+    reasoningEffort.value = config.reasoningEffort
+    verbosity.value = config.verbosity
     // console.log('temperature', temperature.value)
     // console.log('contextLength', contextLength.value)
     // console.log('maxTokens', maxTokens.value)
@@ -404,8 +410,10 @@ const handleSend = async (content: UserMessageContent) => {
     contextLength: contextLength.value,
     maxTokens: maxTokens.value,
     artifacts: artifacts.value as 0 | 1,
+    reasoningEffort: reasoningEffort.value,
+    verbosity: verbosity.value,
     enabledMcpTools: chatStore.chatConfig.enabledMcpTools
-  })
+  } as any)
   console.log('threadId', threadId, activeModel.value)
   chatStore.sendMessage(content)
 }

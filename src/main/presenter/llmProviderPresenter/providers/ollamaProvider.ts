@@ -492,7 +492,8 @@ export class OllamaProvider extends BaseLLMProvider {
         messages: processedMessages,
         options: {
           temperature: temperature || 0.7,
-          num_predict: maxTokens
+          num_predict: maxTokens,
+          ...(modelConfig?.reasoningEffort && { reasoning_effort: modelConfig.reasoningEffort })
         },
         stream: true as const,
         ...(supportsFunctionCall && ollamaTools && ollamaTools.length > 0

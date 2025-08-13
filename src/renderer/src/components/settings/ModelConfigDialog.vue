@@ -133,8 +133,8 @@
             <Switch v-model:checked="config.reasoning" />
           </div>
 
-          <!-- GPT-5 系列模型的推理努力程度 -->
-          <div v-if="isGPT5Model" class="space-y-2">
+          <!-- 推理努力程度 -->
+          <div v-if="supportsReasoningEffort" class="space-y-2">
             <Label for="reasoningEffort">{{
               t('settings.model.modelConfig.reasoningEffort.label')
             }}</Label>
@@ -492,6 +492,10 @@ const getThinkingBudgetConfig = (modelId: string) => {
 const isGPT5Model = computed(() => {
   const modelId = props.modelId.toLowerCase()
   return modelId.startsWith('gpt-5')
+})
+
+const supportsReasoningEffort = computed(() => {
+  return 'reasoningEffort' in config.value
 })
 
 // 是否显示思考预算配置

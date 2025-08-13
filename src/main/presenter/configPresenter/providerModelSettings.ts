@@ -377,24 +377,26 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
       {
         id: 'gpt-oss:20b',
         name: 'GPT-OSS 20B',
-        temperature: 0.7,
-        maxTokens: 16384,
-        contextLength: 32768,
+        temperature: 0.6,
+        maxTokens: 16000,
+        contextLength: 128000,
         match: ['gpt-oss:20b'],
         vision: false,
         functionCall: true,
-        reasoning: true
+        reasoning: true,
+        reasoningEffort: 'medium'
       },
       {
         id: 'gpt-oss:120b',
         name: 'GPT-OSS 120B',
-        temperature: 0.7,
-        maxTokens: 32768,
-        contextLength: 65536,
+        temperature: 0.6,
+        maxTokens: 32000,
+        contextLength: 128000,
         match: ['gpt-oss:120b'],
         vision: false,
         functionCall: true,
-        reasoning: true
+        reasoning: true,
+        reasoningEffort: 'medium'
       },
       // DeepSeek推理模型系列
       {
