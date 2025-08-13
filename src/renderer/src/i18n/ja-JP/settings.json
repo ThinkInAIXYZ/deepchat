@@ -239,6 +239,10 @@
     "enableModels": "モデルを有効にする",
     "disableAllModels": "すべてのモデルを無効にする",
     "modelsEnabled": "モデルが有効になりました",
+    "noModelsEnabled": {
+      "title": "有効なモデルがありません",
+      "description": "「モデルを有効にする」ボタンをクリックして使用したいモデルを手動で選択してください。"
+    },
     "verifyLink": "検証リンク",
     "syncModelsFailed": "モデルの同期に失敗しました...",
     "addCustomProvider": "カスタムプロバイダーを追加",

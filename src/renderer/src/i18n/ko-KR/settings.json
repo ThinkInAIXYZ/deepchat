@@ -238,6 +238,10 @@
     "enableModels": "모델 활성화",
     "disableAllModels": "모든 모델 비활성화",
     "modelsEnabled": "모델이 활성화되었습니다",
+    "noModelsEnabled": {
+      "title": "활성화된 모델이 없습니다",
+      "description": "「모델 활성화」 버튼을 클릭하여 사용할 모델을 수동으로 선택하십시오."
+    },
     "verifyLink": "링크 확인",
     "syncModelsFailed": "모델 동기화 실패...",
     "addCustomProvider": "커스텀 제공자 추가",

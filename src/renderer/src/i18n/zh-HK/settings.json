@@ -320,6 +320,10 @@
     "noLocalModels": "沒有本地模型",
     "localModels": "本地模型",
     "modelsEnabled": "模型已經啟用",
+    "noModelsEnabled": {
+      "title": "暫無已啟用的模型",
+      "description": "請點擊「啟用模型」按鈕手動選擇需要使用的模型。"
+    },
     "azureApiVersion": "API 版本",
     "safety": {
       "title": "安全設置",

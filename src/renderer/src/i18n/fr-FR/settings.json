@@ -239,6 +239,10 @@
     "enableModels": "Activer les modèles",
     "disableAllModels": "Désactiver tous les modèles",
     "modelsEnabled": "Les modèles ont été activés",
+    "noModelsEnabled": {
+      "title": "Aucun modèle activé",
+      "description": "Veuillez cliquer sur le bouton « Activer les modèles » pour sélectionner manuellement les modèles que vous souhaitez utiliser."
+    },
     "verifyLink": "Vérifier le lien",
     "syncModelsFailed": "Échec de la synchronisation des modèles...",
     "addCustomProvider": "Ajouter un fournisseur personnalisé",

@@ -240,6 +240,10 @@
     "enableModels": "启用模型",
     "disableAllModels": "禁用全部",
     "modelsEnabled": "模型已经启用",
+    "noModelsEnabled": {
+      "title": "暂无已启用的模型",
+      "description": "请点击「启用模型」按钮手动选择需要使用的模型。"
+    },
     "verifyLink": "验证链接",
     "syncModelsFailed": "同步模型失败...",
     "addCustomProvider": "添加自定义服务商",

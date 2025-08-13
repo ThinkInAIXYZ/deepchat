@@ -130,13 +130,11 @@ export abstract class BaseLLMProvider {
       this.configPresenter.getModelStatus(providerId, model.id)
     )
 
-    // 如果没有任何已启用的模型，则自动启用所有模型
-    // 这部分后续应该改为启用推荐模型
+    // 不再自动启用模型，让用户手动选择启用需要的模型
     if (!hasEnabledModels) {
-      console.info(`Auto enabling all models for provider: ${this.provider.name}`)
-      this.models.forEach((model) => {
-        this.configPresenter.enableModel(providerId, model.id)
-      })
+      console.info(
+        `Provider ${this.provider.name} models loaded, please manually enable the models you need`
+      )
     }
   }
 

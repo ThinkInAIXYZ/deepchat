@@ -239,6 +239,10 @@
     "enableModels": "Enable Models",
     "disableAllModels": "Disable All Models",
     "modelsEnabled": "Models have been enabled",
+    "noModelsEnabled": {
+      "title": "No models enabled",
+      "description": "Please click the \"Enable Models\" button to manually select the models you want to use."
+    },
     "verifyLink": "Verify Link",
     "syncModelsFailed": "Failed to sync models...",
     "addCustomProvider": "Add Custom Provider",

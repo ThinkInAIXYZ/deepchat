@@ -331,7 +331,7 @@ export class ConfigPresenter implements IConfigPresenter {
 
     // Cache miss: read from settings and cache the result
     const status = this.getSetting<boolean>(statusKey)
-    const finalStatus = typeof status === 'boolean' ? status : true
+    const finalStatus = typeof status === 'boolean' ? status : false
     this.modelStatusCache.set(statusKey, finalStatus)
 
     return finalStatus
@@ -359,7 +359,7 @@ export class ConfigPresenter implements IConfigPresenter {
       const modelId = uncachedModelIds[i]
       const statusKey = uncachedKeys[i]
       const status = this.getSetting<boolean>(statusKey)
-      const finalStatus = typeof status === 'boolean' ? status : true
+      const finalStatus = typeof status === 'boolean' ? status : false
 
       // Cache the result and add to return object
       this.modelStatusCache.set(statusKey, finalStatus)
