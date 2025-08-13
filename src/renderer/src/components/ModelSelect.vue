@@ -102,20 +102,37 @@ const handleModelSelect = async (providerId: string, model: RENDERER_MODEL_META)
 
 onMounted(async () => {
   try {
+    // 使用排序后的供应商列表
+    const sortedProviders = settingsStore.sortedProviders
     const enabledModels = settingsStore.enabledModels
-    providers.value = enabledModels.map(({ providerId, models }) => {
-      const provider = settingsStore.providers.find((p) => p.id === providerId)
-      return {
-        id: providerId,
-        name: provider?.name || providerId,
-        models:
-          !props.type || props.type.length === 0
-            ? models
-            : models.filter(
-                (model) => model.type !== undefined && props.type!.includes(model.type as ModelType)
-              )
-      }
-    })
+
+    // 根据 sortedProviders 的顺序重新组织 enabledModels
+    const orderedProviders = sortedProviders
+      .filter((provider) => provider.enable) // 只保留启用的供应商
+      .map((provider) => {
+        const enabledProvider = enabledModels.find((ep) => ep.providerId === provider.id)
+        if (!enabledProvider || enabledProvider.models.length === 0) {
+          return null
+        }
+
+        return {
+          id: provider.id,
+          name: provider.name,
+          models:
+            !props.type || props.type.length === 0
+              ? enabledProvider.models
+              : enabledProvider.models.filter(
+                  (model) =>
+                    model.type !== undefined && props.type!.includes(model.type as ModelType)
+                )
+        }
+      })
+      .filter(
+        (provider): provider is { id: string; name: string; models: RENDERER_MODEL_META[] } =>
+          provider !== null && provider.models.length > 0
+      ) // 使用类型谓词过滤掉空的供应商
+
+    providers.value = orderedProviders
   } catch (error) {
     console.error(t('model.error.loadFailed'), error)
   }
