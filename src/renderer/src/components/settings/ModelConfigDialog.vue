@@ -495,7 +495,7 @@ const isGPT5Model = computed(() => {
 })
 
 const supportsReasoningEffort = computed(() => {
-  return 'reasoningEffort' in config.value
+  return config.value.reasoningEffort !== undefined
 })
 
 // 是否显示思考预算配置

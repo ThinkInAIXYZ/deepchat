@@ -116,12 +116,16 @@ const loadModelConfig = async () => {
     try {
       const config = await configPresenter.getModelDefaultConfig(modelId, providerId)
       if (config.reasoningEffort !== undefined) {
-        reasoningEffort.value = config.reasoningEffort
+        if (reasoningEffort.value === undefined) {
+          reasoningEffort.value = config.reasoningEffort
+        }
       } else {
         reasoningEffort.value = undefined
       }
       if (config.verbosity !== undefined) {
-        verbosity.value = config.verbosity
+        if (verbosity.value === undefined) {
+          verbosity.value = config.verbosity
+        }
       } else {
         verbosity.value = undefined
       }
