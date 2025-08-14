@@ -70,10 +70,11 @@
                 <Button
                   variant="outline"
                   size="icon"
-                  class="w-7 h-7 text-xs rounded-lg"
+                  class="w-7 h-7"
+                  :class="{ 'bg-blue-500 text-white': aiChangeIsActive }"
                   @click="aiChange"
                 >
-                  <Icon icon="lucide:paperclip" class="w-4 h-4" />
+                  <Icon icon="lucide:cpu" class="w-4 h-4" />
                 </Button>
               </TooltipTrigger>
               <TooltipContent>{{ t('chat.input.aiChange') }}</TooltipContent>
@@ -485,16 +486,15 @@ const openFilePicker = () => {
 }
 //切换pinia中保存的aiChange状态
 const aiChange = () =>{
-// aiStore.toggleAiChange();
-//   console.log("aiChange",aiStore.aiChange)
-//   console.log("aiChange",aiStore.aiChange)
 
    // 1. 获取当前值（转换为布尔值）
   const currentValue = localStorage.getItem("aiChange");
+  console.log("currentValueORI",currentValue)
   const isAiChange = JSON.parse(currentValue) === true; // 字符串比较
   
   // 2. 切换值
   const newValue = !isAiChange;
+aiChangeIsActive.value = !(newValue ?? true);
     console.log("触发了AiChange",newValue)
   // 3. 保存新值
   // localStorage.setItem("aiChange", newValue);
@@ -504,6 +504,13 @@ const aiChange = () =>{
     aiChange:newValue
   })
 }
+
+const getInitialValue = () => {
+  const savedValue = localStorage.getItem('newValue');
+  // 如果 localStorage 没有值，可以设置默认行为（例如默认 false）
+  return savedValue !== null ? !JSON.parse(savedValue) : true;
+};
+const aiChangeIsActive = ref(getInitialValue());
 
 const previewFile = (filePath: string) => {
   windowPresenter.previewFile(filePath)
@@ -1035,6 +1042,12 @@ onMounted(() => {
   window.electron.ipcRenderer.on('rate-limit:request-queued', handleRateLimitEvent)
 
   statusInterval = window.setInterval(loadRateLimitStatus, 1000)
+
+   window.electron.ipcRenderer.send('aiChangeEvent',{
+    aiChange:false
+  })
+  localStorage.setItem("aiChange", 'false');
+  aiChangeIsActive.value = true
 })
 
 onUnmounted(() => {
