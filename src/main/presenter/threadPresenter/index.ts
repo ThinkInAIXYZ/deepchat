@@ -1603,30 +1603,30 @@ export class ThreadPresenter implements IThreadPresenter {
       // 9. 如果有工具调用结果，发送工具调用结果事件
       if (toolCallResponse && toolCall) {
         // console.log('toolCallResponse', toolCallResponse)
-        eventBus.sendToRenderer(STREAM_EVENTS.RESPONSE, SendTarget.ALL_WINDOWS, {
-          eventId: state.message.id,
-          content: '',
-          tool_call: 'start',
-          tool_call_id: toolCall.id,
-          tool_call_name: toolCall.name,
-          tool_call_params: toolCall.params,
-          tool_call_response: toolCallResponse.content,
-          tool_call_server_name: toolCall.server_name,
-          tool_call_server_icons: toolCall.server_icons,
-          tool_call_server_description: toolCall.server_description
-        })
-        eventBus.sendToRenderer(STREAM_EVENTS.RESPONSE, SendTarget.ALL_WINDOWS, {
-          eventId: state.message.id,
-          content: '',
-          tool_call: 'running',
-          tool_call_id: toolCall.id,
-          tool_call_name: toolCall.name,
-          tool_call_params: toolCall.params,
-          tool_call_response: toolCallResponse.content,
-          tool_call_server_name: toolCall.server_name,
-          tool_call_server_icons: toolCall.server_icons,
-          tool_call_server_description: toolCall.server_description
-        })
+        // eventBus.sendToRenderer(STREAM_EVENTS.RESPONSE, SendTarget.ALL_WINDOWS, {
+        //   eventId: state.message.id,
+        //   content: '',
+        //   tool_call: 'start',
+        //   tool_call_id: toolCall.id,
+        //   tool_call_name: toolCall.name,
+        //   tool_call_params: toolCall.params,
+        //   tool_call_response: toolCallResponse.content,
+        //   tool_call_server_name: toolCall.server_name,
+        //   tool_call_server_icons: toolCall.server_icons,
+        //   tool_call_server_description: toolCall.server_description
+        // })
+        // eventBus.sendToRenderer(STREAM_EVENTS.RESPONSE, SendTarget.ALL_WINDOWS, {
+        //   eventId: state.message.id,
+        //   content: '',
+        //   tool_call: 'running',
+        //   tool_call_id: toolCall.id,
+        //   tool_call_name: toolCall.name,
+        //   tool_call_params: toolCall.params,
+        //   tool_call_response: toolCallResponse.content,
+        //   tool_call_server_name: toolCall.server_name,
+        //   tool_call_server_icons: toolCall.server_icons,
+        //   tool_call_server_description: toolCall.server_description
+        // })
         eventBus.sendToRenderer(STREAM_EVENTS.RESPONSE, SendTarget.ALL_WINDOWS, {
           eventId: state.message.id,
           content: '',

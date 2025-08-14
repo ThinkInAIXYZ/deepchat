@@ -78,22 +78,23 @@
       leave-to-class="opacity-0 -translate-y-4 scale-95"
     >
       <div
-        v-if="isExpanded"
+        v-if="isExpanded || block.tool_call?.direct_return"
         class="rounded-lg border bg-card text-card-foreground px-2 py-3 mt-2 mb-4"
       >
         <div class="space-y-4">
           <!-- 参数 -->
-          <div v-if="block.tool_call?.params" class="space-y-2">
+          <!-- <div v-if="block.tool_call?.params && (isExpanded || !block.tool_call?.direct_return)" class="space-y-2">
             <h5 class="text-xs font-medium text-accent-foreground flex flex-row gap-2 items-center">
               <Icon icon="lucide:arrow-up-from-dot" class="w-4 h-4 text-muted-foreground" />
               {{ t('toolCall.params') }}
             </h5>
             <div class="text-sm rounded-md p-2">
-              <JsonObject :data="parseJson(block.tool_call.params)" />
+              <MarkdownRenderer v-if="isMarkdownResponse(block.tool_call.params)" :content="getMarkdownContent(block.tool_call.params)" />
+              <JsonObject v-else :data="parseJson(block.tool_call.params)" />
             </div>
-          </div>
+          </div> -->
 
-          <hr />
+          <hr v-if="isExpanded || !block.tool_call?.direct_return" />
 
           <!-- 响应 -->
           <div v-if="block.tool_call?.response" class="space-y-2">
@@ -102,7 +103,9 @@
               {{ t('toolCall.responseData') }}
             </h5>
             <div class="text-sm rounded-md p-3">
-              <JsonObject :data="parseJson(block.tool_call.response)" />
+              <!-- <MarkdownRenderer v-if="isMarkdownResponse(block.tool_call.response)" :content="getMarkdownContent(block.tool_call.response)" /> -->
+              <!-- <JsonObject v-else :data="parseJson(block.tool_call.response)" /> -->
+              <MarkdownRenderer  :content="getMarkdownContent(block.tool_call.response)" />
             </div>
           </div>
         </div>
@@ -115,8 +118,10 @@
 import { Icon } from '@iconify/vue'
 import { useI18n } from 'vue-i18n'
 import { AssistantMessageBlock } from '@shared/chat'
-import { ref } from 'vue'
+import { ref, onMounted, watch } from 'vue'
 import { JsonObject } from '@/components/json-viewer'
+import MarkdownRenderer from '@/components/markdown/MarkdownRenderer.vue'
+import TurndownService from 'turndown';
 
 // 创建一个安全的翻译函数
 const t = (() => {
@@ -147,6 +152,21 @@ const props = defineProps<{
 }>()
 
 const isExpanded = ref(false)
+
+// 在组件挂载时检查direct_return属性
+onMounted(() => {
+  console.log("pMessageBlockToolCall-block.tool_call",props.block.tool_call?.direct_return)
+  if (props.block.tool_call?.direct_return === true) {
+    isExpanded.value = true
+  }
+})
+
+// 监听direct_return属性变化
+watch(() => props.block.tool_call?.direct_return, (newVal) => {
+  if (newVal === true) {
+    isExpanded.value = true
+  }
+})
 
 const toggleExpanded = () => {
   isExpanded.value = !isExpanded.value
@@ -190,6 +210,49 @@ const parseJson = (jsonStr: string) => {
     return parsed
   } catch (e) {
     return { raw: jsonStr }
+  }
+}
+//JSON转换markdown方法 
+function csvToMarkdownTable(csvString: string): string {
+  // 按行分割，并去掉空行
+  const lines = csvString
+    .trim()
+    .split(/\r?\n/)
+    .filter(line => line.trim())
+
+  if (lines.length === 0) return ''
+
+  // 解析每行
+  const rows = lines.map(line =>
+    line
+      .split(',')
+      .map(cell => cell.trim()) // 去掉首尾空格
+  )
+
+  // 表头
+  const header = rows[0]
+  const separator = header.map(() => '---') // 分隔符
+
+  // 组合表格
+  const table = [
+    `| ${header.join(' | ')} |`,
+    `| ${separator.join(' | ')} |`,
+    ...rows.slice(1).map(row => `| ${row.join(' | ')} |`)
+  ]
+
+  return table.join('\n')
+}
+// 提取Markdown内容
+const getMarkdownContent = (content: string) => {
+  if (!content) return ''
+  
+  try {
+    console.log("getMarkdownContent-content",content)
+    const markdownContent = csvToMarkdownTable(content);
+    return markdownContent
+  } catch (e) {
+    // 不是JSON格式，直接返回原始内容
+    return content
   }
 }
 

@@ -1050,7 +1050,8 @@ export interface MCPToolResponse {
 
   /** 是否需要权限 */
   requiresPermission?: boolean
-
+  /** 是否直接返回不再继续喂回判断 */
+  directReturn?: boolean | { aiChange: boolean }
   /** 权限请求信息 */
   permissionRequest?: {
     toolName: string
@@ -1257,6 +1258,7 @@ export interface LLMAgentEventData {
   tool_call_server_name?: string
   tool_call_server_icons?: string
   tool_call_server_description?: string
+  directReturn?: boolean | { aiChange: boolean }
 
   tool_call_response_raw?: any
   tool_call?: 'start' | 'running' | 'end' | 'error' | 'update' | 'permission-required'

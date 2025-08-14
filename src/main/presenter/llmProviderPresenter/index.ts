@@ -821,6 +821,41 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
 
                 if (abortController.signal.aborted) break // Check after tool call returns
 
+                // 检查是否需要直接返回工具调用结果，不经过AI二次处理
+                const directReturnValue =
+                  typeof toolResponse.rawData.directReturn === 'boolean'
+                    ? toolResponse.rawData.directReturn
+                    : toolResponse.rawData.directReturn?.aiChange
+                console.log('index-toolResponse.rawData.directReturn', directReturnValue)
+                if (directReturnValue) {
+                  console.log(
+                    `[Agent Loop] Direct return tool result for ${toolCall.name}, skipping AI processing`
+                  )
+
+                  // 直接返回工具调用结果，不继续对话
+                  yield {
+                    type: 'response',
+                    data: {
+                      eventId,
+                      tool_call: 'end',
+                      tool_call_id: toolCall.id,
+                      tool_call_name: toolCall.name,
+                      tool_call_params: toolCall.arguments,
+                      tool_call_server_name: toolDef.server.name,
+                      tool_call_server_icons: toolDef.server.icons,
+                      tool_call_server_description: toolDef.server.description,
+                      tool_call_response: toolResponse.content,
+                      tool_call_response_raw: toolResponse.rawData,
+                      direct_return: true
+                    }
+                  }
+
+                  // 结束agent循环
+                  console.log(`[Agent Loop] Ending agent loop for direct return, event: ${eventId}`)
+                  needContinueConversation = false
+                  break
+                }
+
                 // Check if permission is required
                 if (toolResponse.rawData.requiresPermission) {
                   console.log(
@@ -919,6 +954,19 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
                       tool_call_response_raw: toolResponse.rawData // Full raw data
                     }
                   }
+
+                  // 如果工具响应中包含 directReturn 标志，则直接返回结果，不继续对话
+                  if (toolResponse.rawData && toolResponse.rawData.directReturn === true) {
+                    console.log(
+                      `[LLMProviderPresenter] Tool response has directReturn flag, ending agent loop`
+                    )
+                    // 发送结束事件
+                    yield {
+                      type: 'end',
+                      data: { eventId }
+                    }
+                    return // 结束代理循环
+                  }
                 } else {
                   // Non-native FC: Add tool execution record to conversation history for next LLM turn.
 
@@ -980,6 +1028,19 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
                       tool_call_server_description: toolDef.server.description,
                       tool_call_response_raw: toolResponse.rawData // Full raw data for ThreadPresenter to store
                     }
+                  }
+
+                  // 如果工具响应中包含 directReturn 标志，则直接返回结果，不继续对话
+                  if (toolResponse.rawData && toolResponse.rawData.directReturn === true) {
+                    console.log(
+                      `[LLMProviderPresenter] Tool response has directReturn flag, ending agent loop`
+                    )
+                    // 发送结束事件
+                    yield {
+                      type: 'end',
+                      data: { eventId }
+                    }
+                    return // 结束代理循环
                   }
                 }
               } catch (toolError) {

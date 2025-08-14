@@ -13,7 +13,16 @@ import { ServerManager } from './serverManager'
 import { McpClient } from './mcpClient'
 import { jsonrepair } from 'jsonrepair'
 import { getErrorMessageLabels } from '@shared/i18n'
-
+import { ipcMain } from 'electron'
+// import { useAiStore } from '@/render/src/stores/aiStore';
+// const aiStore = useAiStore();
+// console.log("MCPToolResponse123",response)
+let aiChange = false
+ipcMain.on('aiChangeEvent', (event, arg) => {
+  console.log('收到渲染进程消息aiChangeEvent:', arg)
+  // 处理逻辑...
+  aiChange = arg
+})
 export class ToolManager {
   private configPresenter: IConfigPresenter
   private serverManager: ServerManager
@@ -429,13 +438,17 @@ export class ToolManager {
       } else if (result.content) {
         formattedContent = JSON.stringify(result.content)
       }
-
       const response: MCPToolResponse = {
         toolCallId: toolCall.id,
         content: formattedContent,
-        isError: result.isError
+        isError: result.isError,
+        directReturn: aiChange
       }
-
+      console.log('MCPToolResponse123', response)
+      // ipcMain.on('aiChangeEvent', (event, arg) => {
+      //   console.log('收到渲染进程消息aiChangeEvent:', arg);
+      //   // 处理逻辑...
+      // });
       // Trigger event
       eventBus.send(MCP_EVENTS.TOOL_CALL_RESULT, SendTarget.ALL_WINDOWS, response)
 
@@ -446,7 +459,8 @@ export class ToolManager {
       return {
         toolCallId: toolCall.id,
         content: `Error: Failed to execute tool '${toolCall.function.name}': ${errorMessage}`,
-        isError: true
+        isError: true,
+        directReturn: aiChange
       }
     }
   }

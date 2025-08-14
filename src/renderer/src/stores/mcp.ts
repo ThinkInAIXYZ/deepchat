@@ -27,6 +27,7 @@ interface MCPToolCallRequest {
 interface MCPToolCallResult {
   function_name?: string
   content: string | { type: string; text: string }[]
+  directReturn?: boolean
 }
 
 export const useMcpStore = defineStore('mcp', () => {
@@ -497,9 +498,13 @@ export const useMcpStore = defineStore('mcp', () => {
     window.electron.ipcRenderer.on(
       MCP_EVENTS.TOOL_CALL_RESULT,
       (_event, result: MCPToolCallResult) => {
-        console.log(`MCP tool call result:`, result.function_name)
+        console.log(`MCP tool call result:`, result)
+
         if (result && result.function_name) {
           toolResults.value[result.function_name] = result.content
+          const currentValue = localStorage.getItem('aiChange') as string
+          result.directReturn = JSON.parse(currentValue)
+          console.log('MCP AIChange', result.directReturn)
         }
       }
     )

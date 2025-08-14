@@ -331,6 +331,7 @@ export const useChatStore = defineStore('chat', () => {
       queueLength: number
       estimatedWaitTime?: number
     }
+    direct_return?: boolean
   }) => {
     // 从缓存中查找消息
     const cached = getGeneratingMessagesCache().get(msg.eventId)
@@ -465,6 +466,11 @@ export const useChatStore = defineStore('chat', () => {
                 existingToolCallBlock.status = 'success'
                 if (msg.tool_call_response && existingToolCallBlock.tool_call) {
                   existingToolCallBlock.tool_call.response = msg.tool_call_response
+
+                  // 如果是直接返回的工具调用结果，添加标记
+                  if (msg.direct_return) {
+                    existingToolCallBlock.tool_call.direct_return = true
+                  }
                 }
               }
             }

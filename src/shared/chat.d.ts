@@ -125,6 +125,7 @@ export type AssistantMessageBlock = {
     server_name?: string
     server_icons?: string
     server_description?: string
+    direct_return?: boolean
   }
   action_type?: 'tool_call_permission' | 'maximum_tool_calls_reached' | 'rate_limit'
   image_data?: {

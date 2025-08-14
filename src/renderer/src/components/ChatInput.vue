@@ -64,6 +64,22 @@
               </TooltipTrigger>
               <TooltipContent>{{ t('chat.input.fileSelect') }}</TooltipContent>
             </Tooltip>
+            
+            <Tooltip>
+              <TooltipTrigger>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  class="w-7 h-7 text-xs rounded-lg"
+                  @click="aiChange"
+                >
+                  <Icon icon="lucide:paperclip" class="w-4 h-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>{{ t('chat.input.aiChange') }}</TooltipContent>
+            </Tooltip>
+            
+            
             <Tooltip>
               <TooltipTrigger>
                 <span
@@ -239,13 +255,11 @@ import { useLanguageStore } from '@/stores/language'
 import { useToast } from '@/components/ui/toast/use-toast'
 import type { CategorizedData } from './editor/mention/suggestion'
 import type { PromptListEntry } from '@shared/presenter'
-
 const langStore = useLanguageStore()
 const mcpStore = useMcpStore()
 const { toast } = useToast()
 const { t } = useI18n()
 searchHistory.resetIndex()
-
 // 历史记录placeholder相关变量需要在editor初始化之前定义
 const currentHistoryPlaceholder = ref('')
 const showHistoryPlaceholder = ref(false)
@@ -468,6 +482,27 @@ const emit = defineEmits(['send', 'file-upload'])
 
 const openFilePicker = () => {
   fileInput.value?.click()
+}
+//切换pinia中保存的aiChange状态
+const aiChange = () =>{
+// aiStore.toggleAiChange();
+//   console.log("aiChange",aiStore.aiChange)
+//   console.log("aiChange",aiStore.aiChange)
+
+   // 1. 获取当前值（转换为布尔值）
+  const currentValue = localStorage.getItem("aiChange");
+  const isAiChange = JSON.parse(currentValue) === true; // 字符串比较
+  
+  // 2. 切换值
+  const newValue = !isAiChange;
+    console.log("触发了AiChange",newValue)
+  // 3. 保存新值
+  // localStorage.setItem("aiChange", newValue);
+  localStorage.setItem("aiChange", JSON.stringify(newValue));
+  
+  window.electron.ipcRenderer.send('aiChangeEvent',{
+    aiChange:newValue
+  })
 }
 
 const previewFile = (filePath: string) => {
