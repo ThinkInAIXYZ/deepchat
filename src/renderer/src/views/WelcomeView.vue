@@ -211,9 +211,9 @@ onMounted(() => {
 
 const handleModelEnabledChange = async (model: MODEL_META, enabled: boolean) => {
   try {
-    await settingsStore.updateModelStatus(selectedProvider.value, model.id, !enabled)
+    await settingsStore.updateModelStatus(selectedProvider.value, model.id, enabled)
   } catch (error) {
-    console.error('Failed to disable model:', error)
+    console.error('Failed to update model status:', error)
   }
   console.log('handleModelEnabledChange', model, enabled)
 }
@@ -339,7 +339,7 @@ const isFirstStep = computed(() => currentStep.value === 0)
 
               <div
                 v-show="!providerModelLoading"
-                class="flex flex-col w-full border overflow-hidden rounded-lg max-h-80 overflow-y-auto"
+                class="flex flex-col w-full border rounded-lg max-h-80 overflow-y-auto"
               >
                 <ModelConfigItem
                   v-for="model in settingsStore.allProviderModels.find(
