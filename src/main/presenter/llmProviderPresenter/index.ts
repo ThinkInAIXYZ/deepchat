@@ -963,7 +963,7 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
                     // 发送结束事件
                     yield {
                       type: 'end',
-                      data: { eventId }
+                      data: { eventId, userStop: false }
                     }
                     return // 结束代理循环
                   }
@@ -1038,7 +1038,7 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
                     // 发送结束事件
                     yield {
                       type: 'end',
-                      data: { eventId }
+                      data: { eventId, userStop: false }
                     }
                     return // 结束代理循环
                   }

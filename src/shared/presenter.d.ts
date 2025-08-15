@@ -1259,6 +1259,7 @@ export interface LLMAgentEventData {
   tool_call_server_icons?: string
   tool_call_server_description?: string
   directReturn?: boolean | { aiChange: boolean }
+  direct_return?: boolean
 
   tool_call_response_raw?: any
   tool_call?: 'start' | 'running' | 'end' | 'error' | 'update' | 'permission-required'
@@ -1268,7 +1269,8 @@ export interface LLMAgentEventData {
     toolName: string
     serverName: string
     permissionType: 'read' | 'write' | 'all'
-    description: string
+    description: string,
+    direct_return?: boolean
   }
 
   totalUsage?: {

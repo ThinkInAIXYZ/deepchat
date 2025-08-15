@@ -18,7 +18,7 @@ import { ipcMain } from 'electron'
 // const aiStore = useAiStore();
 // console.log("MCPToolResponse123",response)
 let aiChange = false
-ipcMain.on('aiChangeEvent', (event, arg) => {
+ipcMain.on('aiChangeEvent', (_event, arg) => {
   console.log('收到渲染进程消息aiChangeEvent:', arg)
   // 处理逻辑...
   aiChange = arg

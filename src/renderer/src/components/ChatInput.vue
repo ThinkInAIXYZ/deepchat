@@ -64,7 +64,7 @@
               </TooltipTrigger>
               <TooltipContent>{{ t('chat.input.fileSelect') }}</TooltipContent>
             </Tooltip>
-
+            
             <Tooltip>
               <TooltipTrigger>
                 <Button
@@ -264,7 +264,7 @@ searchHistory.resetIndex()
 const currentHistoryPlaceholder = ref('')
 const showHistoryPlaceholder = ref(false)
 // 初始化AI变更状态
-const aiChangeState = ref('false')
+// const aiChangeState = ref('false')
 
 // 计算动态placeholder
 const dynamicPlaceholder = computed(() => {
@@ -485,10 +485,14 @@ const emit = defineEmits(['send', 'file-upload'])
 const openFilePicker = () => {
   fileInput.value?.click()
 }
+
+
+const aiChangeState = ref(localStorage.getItem('aiChangeState') || 'false')
+const aiChangeIsActive = ref(true) // 默认二次投喂开启
 //切换pinia中保存的aiChange状态
 const aiChange = () => {
   // 1. 获取当前值（转换为布尔值）
-  const isAiChange = JSON.parse(aiChangeState.value) === true // 字符串比较,将isAiChange转换为aiChangeState.value的布尔值
+  const isAiChange = JSON.parse(aiChangeState.value) // 字符串比较,将isAiChange转换为aiChangeState.value的布尔值
 
   // 2. 切换值
   //newValue 为 true 时，关闭二次投喂， newValue 为 false 时 ，开启二次投喂
@@ -496,7 +500,8 @@ const aiChange = () => {
   //当第一次点击触发了aiChange方法 aiChangeState.value 为false isAiChange为fasle, newValue 为true ,关闭二次投喂
 
   const newValue = !isAiChange
-  aiChangeIsActive.value = !(newValue ?? true)
+  aiChangeIsActive.value = !newValue
+  localStorage.setItem("aiChangeIsActiveState",aiChangeIsActive.value.toString())
   console.log('触发了AiChange', newValue)
   console.log('二次投喂', aiChangeIsActive.value)
 
@@ -508,12 +513,8 @@ const aiChange = () => {
   })
 }
 
-const getInitialValue = () => {
-  const savedValue = localStorage.getItem('newValue')
-  // 如果 localStorage 没有值，可以设置默认行为（例如默认 false）
-  return savedValue !== null ? !JSON.parse(savedValue) : true
-}
-const aiChangeIsActive = ref(getInitialValue())
+
+// const aiChangeIsActive = ref(true)
 
 const previewFile = (filePath: string) => {
   windowPresenter.previewFile(filePath)
@@ -1045,12 +1046,23 @@ onMounted(() => {
   window.electron.ipcRenderer.on('rate-limit:request-queued', handleRateLimitEvent)
 
   statusInterval = window.setInterval(loadRateLimitStatus, 1000)
-
-  window.electron.ipcRenderer.send('aiChangeEvent', {
+  
+  const aiChangeIsActiveState =  localStorage.getItem("aiChangeIsActiveState")
+  if(aiChangeIsActiveState=='true'){
+    aiChangeIsActive.value = true
+      window.electron.ipcRenderer.send('aiChangeEvent', {
     aiChange: false
   })
-  aiChangeState.value = 'false'
-  aiChangeIsActive.value = true
+   aiChangeState.value = JSON.stringify(false)
+  }else if(aiChangeIsActiveState=='false'){
+    aiChangeIsActive.value = false
+     window.electron.ipcRenderer.send('aiChangeEvent', {
+    aiChange: true
+  })
+  aiChangeState.value = JSON.stringify(true)
+  }else{
+    return
+  }
 })
 
 onUnmounted(() => {

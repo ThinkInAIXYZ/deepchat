@@ -119,9 +119,8 @@ import { Icon } from '@iconify/vue'
 import { useI18n } from 'vue-i18n'
 import { AssistantMessageBlock } from '@shared/chat'
 import { ref, onMounted, watch } from 'vue'
-import { JsonObject } from '@/components/json-viewer'
+// import { JsonObject } from '@/components/json-viewer'
 import MarkdownRenderer from '@/components/markdown/MarkdownRenderer.vue'
-import TurndownService from 'turndown';
 
 // 创建一个安全的翻译函数
 const t = (() => {
@@ -197,21 +196,21 @@ const showPermissionIcon = () => {
 }
 
 // 解析JSON为对象
-const parseJson = (jsonStr: string) => {
-  try {
-    const parsed = JSON.parse(jsonStr)
-    if (parsed) {
-      if (typeof parsed === 'object' || Array.isArray(parsed)) {
-        return parsed
-      } else {
-        return { raw: parsed }
-      }
-    }
-    return parsed
-  } catch (e) {
-    return { raw: jsonStr }
-  }
-}
+// const parseJson = (jsonStr: string) => {
+//   try {
+//     const parsed = JSON.parse(jsonStr)
+//     if (parsed) {
+//       if (typeof parsed === 'object' || Array.isArray(parsed)) {
+//         return parsed
+//       } else {
+//         return { raw: parsed }
+//       }
+//     }
+//     return parsed
+//   } catch (e) {
+//     return { raw: jsonStr }
+//   }
+// }
 //JSON转换markdown方法 
 function csvToMarkdownTable(csvString: string): string {
   // 按行分割，并去掉空行
