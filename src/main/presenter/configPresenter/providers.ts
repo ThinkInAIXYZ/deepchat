@@ -183,6 +183,21 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
       defaultBaseUrl: 'https://api.302.ai/v1'
     }
   },
+  {
+    id: 'vercel-ai-gateway',
+    name: 'Vercel AI Gateway',
+    apiType: 'vercel-ai-gateway',
+    apiKey: '',
+    baseUrl: 'https://ai-gateway.vercel.sh/v1',
+    enable: false,
+    websites: {
+      official: 'https://vercel.com/ai',
+      apiKey: 'https://vercel.com/dashboard',
+      docs: 'https://vercel.com/docs/ai-gateway',
+      models: 'https://vercel.com/docs/ai-gateway/models-and-providers',
+      defaultBaseUrl: 'https://ai-gateway.vercel.sh/v1'
+    }
+  },
   // {
   //   id: 'ocoolai',
   //   name: 'OCoolAI',

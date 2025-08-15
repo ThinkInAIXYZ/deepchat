@@ -41,6 +41,7 @@ import { MinimaxProvider } from './providers/minimaxProvider'
 import { AihubmixProvider } from './providers/aihubmixProvider'
 import { _302AIProvider } from './providers/_302AIProvider'
 import { ModelscopeProvider } from './providers/modelscopeProvider'
+import { VercelAIGatewayProvider } from './providers/vercelAIGatewayProvider'
 
 // 速率限制配置接口
 interface RateLimitConfig {
@@ -209,6 +210,8 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
           return new TogetherProvider(provider, this.configPresenter)
         case 'groq':
           return new GroqProvider(provider, this.configPresenter)
+        case 'vercel-ai-gateway':
+          return new VercelAIGatewayProvider(provider, this.configPresenter)
         default:
           console.warn(`Unknown provider type: ${provider.apiType}`)
           return undefined
