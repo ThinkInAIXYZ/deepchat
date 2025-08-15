@@ -9,6 +9,7 @@
               v-model="searchQueryBase"
               :placeholder="t('settings.provider.search')"
               class="h-8 pr-8"
+              @keydown.esc="clearSearch"
             />
             <!-- 搜索图标：在无内容时显示 -->
             <Icon
@@ -205,16 +206,40 @@ const allDisabledProviders = computed(() => settingsStore.sortedProviders.filter
 const enabledProviders = computed({
   get: () => filterProviders(allEnabledProviders.value),
   set: (newProviders) => {
-    const allProviders = [...newProviders, ...allDisabledProviders.value]
-    settingsStore.updateProvidersOrder(allProviders)
+    const isFiltered = searchQuery.value.trim().length > 0
+    if (isFiltered) {
+      const orderMap = new Map(newProviders.map((provider, index) => [provider.id, index]))
+      const reorderedEnabled = [...allEnabledProviders.value].sort((a, b) => {
+        const orderA = orderMap.get(a.id) ?? Infinity
+        const orderB = orderMap.get(b.id) ?? Infinity
+        return orderA - orderB
+      })
+      const allProviders = [...reorderedEnabled, ...allDisabledProviders.value]
+      settingsStore.updateProvidersOrder(allProviders)
+    } else {
+      const allProviders = [...newProviders, ...allDisabledProviders.value]
+      settingsStore.updateProvidersOrder(allProviders)
+    }
   }
 })
 
 const disabledProviders = computed({
   get: () => filterProviders(allDisabledProviders.value),
   set: (newProviders) => {
-    const allProviders = [...allEnabledProviders.value, ...newProviders]
-    settingsStore.updateProvidersOrder(allProviders)
+    const isFiltered = searchQuery.value.trim().length > 0
+    if (isFiltered) {
+      const orderMap = new Map(newProviders.map((provider, index) => [provider.id, index]))
+      const reorderedDisabled = [...allDisabledProviders.value].sort((a, b) => {
+        const orderA = orderMap.get(a.id) ?? Infinity
+        const orderB = orderMap.get(b.id) ?? Infinity
+        return orderA - orderB
+      })
+      const allProviders = [...allEnabledProviders.value, ...reorderedDisabled]
+      settingsStore.updateProvidersOrder(allProviders)
+    } else {
+      const allProviders = [...allEnabledProviders.value, ...newProviders]
+      settingsStore.updateProvidersOrder(allProviders)
+    }
   }
 })
 
