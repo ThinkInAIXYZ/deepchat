@@ -2,6 +2,20 @@
   <div class="w-full h-full flex flex-row">
     <ScrollArea class="w-64 border-r h-full px-2">
       <div class="py-2 space-y-4">
+        <!-- 搜索框 -->
+        <div class="px-2">
+          <div class="relative">
+            <Input
+              v-model="searchQuery"
+              :placeholder="t('settings.provider.search')"
+              class="h-8 pr-8"
+            />
+            <Icon
+              icon="lucide:search"
+              class="absolute right-2 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none"
+            />
+          </div>
+        </div>
         <!-- 启用的服务商区域 -->
         <div v-if="enabledProviders.length > 0">
           <div class="text-xs font-medium text-muted-foreground mb-2 px-2">
@@ -139,6 +153,7 @@ import AddCustomProviderDialog from './AddCustomProviderDialog.vue'
 import { useI18n } from 'vue-i18n'
 import type { LLM_PROVIDER } from '@shared/presenter'
 import { Switch } from '@/components/ui/switch'
+import { Input } from '@/components/ui/input'
 import draggable from 'vuedraggable'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { useThemeStore } from '@/stores/theme'
@@ -152,20 +167,33 @@ const languageStore = useLanguageStore()
 const settingsStore = useSettingsStore()
 const themeStore = useThemeStore()
 const isAddProviderDialogOpen = ref(false)
+const searchQuery = ref('')
+
+const filterProviders = (providers: LLM_PROVIDER[]) => {
+  if (!searchQuery.value.trim()) {
+    return providers
+  }
+  const query = searchQuery.value.toLowerCase().trim()
+  return providers.filter(provider => 
+    t(provider.name).toLowerCase().includes(query) ||
+    provider.id.toLowerCase().includes(query) ||
+    (provider.apiType && provider.apiType.toLowerCase().includes(query))
+  )
+}
 
 // 分别处理启用和禁用的 providers
 const enabledProviders = computed({
-  get: () => settingsStore.sortedProviders.filter((p) => p.enable),
+  get: () => filterProviders(settingsStore.sortedProviders.filter((p) => p.enable)),
   set: (newProviders) => {
-    const allProviders = [...newProviders, ...disabledProviders.value]
+    const allProviders = [...newProviders, ...settingsStore.sortedProviders.filter((p) => !p.enable)]
     settingsStore.updateProvidersOrder(allProviders)
   }
 })
 
 const disabledProviders = computed({
-  get: () => settingsStore.sortedProviders.filter((p) => !p.enable),
+  get: () => filterProviders(settingsStore.sortedProviders.filter((p) => !p.enable)),
   set: (newProviders) => {
-    const allProviders = [...enabledProviders.value, ...newProviders]
+    const allProviders = [...settingsStore.sortedProviders.filter((p) => p.enable), ...newProviders]
     settingsStore.updateProvidersOrder(allProviders)
   }
 })

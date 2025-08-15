@@ -225,6 +225,7 @@
     }
   },
   "provider": {
+    "search": "搜尋服務提供者平台…",
     "enable": "啟用服務",
     "enabled": "已啟用",
     "disabled": "已停用",

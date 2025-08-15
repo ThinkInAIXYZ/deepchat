@@ -225,6 +225,7 @@
     }
   },
   "provider": {
+    "search": "プロバイダープラットフォームを検索…",
     "enable": "サービスを有効にする",
     "enabled": "有効",
     "disabled": "無効",

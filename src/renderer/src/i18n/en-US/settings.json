@@ -225,6 +225,7 @@
     }
   },
   "provider": {
+    "search": "Search provider platforms…",
     "enable": "Enable Service",
     "enabled": "Enabled",
     "disabled": "Disabled",

@@ -225,6 +225,7 @@
     }
   },
   "provider": {
+    "search": "프로바이더 플랫폼 검색…",
     "enable": "서비스 활성화",
     "enabled": "활성화됨",
     "disabled": "비활성화됨",

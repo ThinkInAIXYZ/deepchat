@@ -225,6 +225,7 @@
     }
   },
   "provider": {
+    "search": "Rechercher des plateformes de fournisseurs…",
     "enable": "Activer le service",
     "enabled": "Activé",
     "disabled": "Désactivé",
