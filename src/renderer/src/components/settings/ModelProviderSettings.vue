@@ -6,13 +6,22 @@
         <div class="px-2">
           <div class="relative">
             <Input
-              v-model="searchQuery"
+              v-model="searchQueryBase"
               :placeholder="t('settings.provider.search')"
               class="h-8 pr-8"
             />
+            <!-- 搜索图标：在无内容时显示 -->
             <Icon
+              v-if="!showClearButton"
               icon="lucide:search"
               class="absolute right-2 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none"
+            />
+            <!-- 清除按钮：在有内容时显示 -->
+            <Icon
+              v-else
+              icon="lucide:x"
+              class="absolute right-2 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground cursor-pointer hover:text-foreground"
+              @click="clearSearch"
             />
           </div>
         </div>
@@ -145,6 +154,7 @@
 import { computed, ref, nextTick } from 'vue'
 import { useSettingsStore } from '@/stores/settings'
 import { useRoute, useRouter } from 'vue-router'
+import { refDebounced } from '@vueuse/core'
 import ModelProviderSettingsDetail from './ModelProviderSettingsDetail.vue'
 import OllamaProviderSettingsDetail from './OllamaProviderSettingsDetail.vue'
 import ModelIcon from '@/components/icons/ModelIcon.vue'
@@ -167,33 +177,43 @@ const languageStore = useLanguageStore()
 const settingsStore = useSettingsStore()
 const themeStore = useThemeStore()
 const isAddProviderDialogOpen = ref(false)
-const searchQuery = ref('')
+const searchQueryBase = ref('')
+const searchQuery = refDebounced(searchQueryBase, 150)
+const showClearButton = computed(() => searchQueryBase.value.trim().length > 0)
+
+const clearSearch = () => {
+  searchQueryBase.value = ''
+}
 
 const filterProviders = (providers: LLM_PROVIDER[]) => {
   if (!searchQuery.value.trim()) {
     return providers
   }
   const query = searchQuery.value.toLowerCase().trim()
-  return providers.filter(provider => 
-    t(provider.name).toLowerCase().includes(query) ||
-    provider.id.toLowerCase().includes(query) ||
-    (provider.apiType && provider.apiType.toLowerCase().includes(query))
+  return providers.filter(
+    (provider) =>
+      t(provider.name).toLowerCase().includes(query) ||
+      provider.id.toLowerCase().includes(query) ||
+      (provider.apiType && provider.apiType.toLowerCase().includes(query))
   )
 }
 
+const allEnabledProviders = computed(() => settingsStore.sortedProviders.filter((p) => p.enable))
+const allDisabledProviders = computed(() => settingsStore.sortedProviders.filter((p) => !p.enable))
+
 // 分别处理启用和禁用的 providers
 const enabledProviders = computed({
-  get: () => filterProviders(settingsStore.sortedProviders.filter((p) => p.enable)),
+  get: () => filterProviders(allEnabledProviders.value),
   set: (newProviders) => {
-    const allProviders = [...newProviders, ...settingsStore.sortedProviders.filter((p) => !p.enable)]
+    const allProviders = [...newProviders, ...allDisabledProviders.value]
     settingsStore.updateProvidersOrder(allProviders)
   }
 })
 
 const disabledProviders = computed({
-  get: () => filterProviders(settingsStore.sortedProviders.filter((p) => !p.enable)),
+  get: () => filterProviders(allDisabledProviders.value),
   set: (newProviders) => {
-    const allProviders = [...settingsStore.sortedProviders.filter((p) => p.enable), ...newProviders]
+    const allProviders = [...allEnabledProviders.value, ...newProviders]
     settingsStore.updateProvidersOrder(allProviders)
   }
 })
