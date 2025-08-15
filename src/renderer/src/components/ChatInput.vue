@@ -64,7 +64,7 @@
               </TooltipTrigger>
               <TooltipContent>{{ t('chat.input.fileSelect') }}</TooltipContent>
             </Tooltip>
-            
+
             <Tooltip>
               <TooltipTrigger>
                 <Button
@@ -79,8 +79,7 @@
               </TooltipTrigger>
               <TooltipContent>{{ t('chat.input.aiChange') }}</TooltipContent>
             </Tooltip>
-            
-            
+
             <Tooltip>
               <TooltipTrigger>
                 <span
@@ -264,6 +263,8 @@ searchHistory.resetIndex()
 // 历史记录placeholder相关变量需要在editor初始化之前定义
 const currentHistoryPlaceholder = ref('')
 const showHistoryPlaceholder = ref(false)
+// 初始化AI变更状态
+const aiChangeState = ref('false')
 
 // 计算动态placeholder
 const dynamicPlaceholder = computed(() => {
@@ -485,32 +486,34 @@ const openFilePicker = () => {
   fileInput.value?.click()
 }
 //切换pinia中保存的aiChange状态
-const aiChange = () =>{
+const aiChange = () => {
+  // 1. 获取当前值（转换为布尔值）
+  const isAiChange = JSON.parse(aiChangeState.value) === true // 字符串比较,将isAiChange转换为aiChangeState.value的布尔值
 
-   // 1. 获取当前值（转换为布尔值）
-  const currentValue = localStorage.getItem("aiChange");
-  console.log("currentValueORI",currentValue)
-  const isAiChange = JSON.parse(currentValue) === true; // 字符串比较
-  
   // 2. 切换值
-  const newValue = !isAiChange;
-aiChangeIsActive.value = !(newValue ?? true);
-    console.log("触发了AiChange",newValue)
+  //newValue 为 true 时，关闭二次投喂， newValue 为 false 时 ，开启二次投喂
+  //默认状态aiChangeState为false，IPC传输的aiChange值为false 此时存在AI的二次投喂
+  //当第一次点击触发了aiChange方法 aiChangeState.value 为false isAiChange为fasle, newValue 为true ,关闭二次投喂
+
+  const newValue = !isAiChange
+  aiChangeIsActive.value = !(newValue ?? true)
+  console.log('触发了AiChange', newValue)
+  console.log('二次投喂', aiChangeIsActive.value)
+
   // 3. 保存新值
-  // localStorage.setItem("aiChange", newValue);
-  localStorage.setItem("aiChange", JSON.stringify(newValue));
-  
-  window.electron.ipcRenderer.send('aiChangeEvent',{
-    aiChange:newValue
+  aiChangeState.value = JSON.stringify(newValue)
+
+  window.electron.ipcRenderer.send('aiChangeEvent', {
+    aiChange: newValue
   })
 }
 
 const getInitialValue = () => {
-  const savedValue = localStorage.getItem('newValue');
+  const savedValue = localStorage.getItem('newValue')
   // 如果 localStorage 没有值，可以设置默认行为（例如默认 false）
-  return savedValue !== null ? !JSON.parse(savedValue) : true;
-};
-const aiChangeIsActive = ref(getInitialValue());
+  return savedValue !== null ? !JSON.parse(savedValue) : true
+}
+const aiChangeIsActive = ref(getInitialValue())
 
 const previewFile = (filePath: string) => {
   windowPresenter.previewFile(filePath)
@@ -1043,10 +1046,10 @@ onMounted(() => {
 
   statusInterval = window.setInterval(loadRateLimitStatus, 1000)
 
-   window.electron.ipcRenderer.send('aiChangeEvent',{
-    aiChange:false
+  window.electron.ipcRenderer.send('aiChangeEvent', {
+    aiChange: false
   })
-  localStorage.setItem("aiChange", 'false');
+  aiChangeState.value = 'false'
   aiChangeIsActive.value = true
 })
 
