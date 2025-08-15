@@ -104,8 +104,8 @@ const maxTokens = ref(chatStore.chatConfig.maxTokens)
 const systemPrompt = ref(chatStore.chatConfig.systemPrompt)
 const artifacts = ref(chatStore.chatConfig.artifacts)
 const thinkingBudget = ref(chatStore.chatConfig.thinkingBudget)
-const reasoningEffort = ref((chatStore.chatConfig as any).reasoningEffort)
-const verbosity = ref((chatStore.chatConfig as any).verbosity)
+const reasoningEffort = ref(chatStore.chatConfig.reasoningEffort)
+const verbosity = ref(chatStore.chatConfig.verbosity)
 
 // 获取模型配置来初始化默认值
 const loadModelConfig = async () => {
@@ -258,8 +258,8 @@ watch(
       newSystemPrompt !== chatStore.chatConfig.systemPrompt ||
       newArtifacts !== chatStore.chatConfig.artifacts ||
       newThinkingBudget !== chatStore.chatConfig.thinkingBudget ||
-      newReasoningEffort !== (chatStore.chatConfig as any).reasoningEffort ||
-      newVerbosity !== (chatStore.chatConfig as any).verbosity
+      newReasoningEffort !== chatStore.chatConfig.reasoningEffort ||
+      newVerbosity !== chatStore.chatConfig.verbosity
     ) {
       chatStore.updateChatConfig({
         temperature: newTemp,
@@ -285,13 +285,8 @@ watch(
     systemPrompt.value = newConfig.systemPrompt
     artifacts.value = newConfig.artifacts
     thinkingBudget.value = newConfig.thinkingBudget
-
-    if ((newConfig as any).reasoningEffort !== undefined) {
-      reasoningEffort.value = (newConfig as any).reasoningEffort
-    }
-    if ((newConfig as any).verbosity !== undefined) {
-      verbosity.value = (newConfig as any).verbosity
-    }
+    reasoningEffort.value = newConfig.reasoningEffort
+    verbosity.value = newConfig.verbosity
     if (
       oldConfig &&
       (newConfig.modelId !== oldConfig.modelId || newConfig.providerId !== oldConfig.providerId)

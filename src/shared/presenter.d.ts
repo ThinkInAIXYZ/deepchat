@@ -625,6 +625,8 @@ export type CONVERSATION_SETTINGS = {
   artifacts: 0 | 1
   enabledMcpTools?: string[]
   thinkingBudget?: number
+  reasoningEffort?: 'minimal' | 'low' | 'medium' | 'high'
+  verbosity?: 'low' | 'medium' | 'high'
 }
 
 export type CONVERSATION = {

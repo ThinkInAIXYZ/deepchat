@@ -19,6 +19,8 @@ type ConversationRow = {
   is_pinned: number
   enabled_mcp_tools: string | null
   thinking_budget: number | null
+  reasoning_effort: string | null
+  verbosity: string | null
 }
 
 // 解析 JSON 字段
@@ -95,12 +97,21 @@ export class ConversationsTable extends BaseTable {
         UPDATE conversations SET enabled_mcp_tools = NULL WHERE enabled_mcp_tools = '[]';
       `
     }
+    if (version === 6) {
+      return `
+        -- 添加 reasoning_effort 字段
+        ALTER TABLE conversations ADD COLUMN reasoning_effort TEXT DEFAULT NULL;
+        
+        -- 添加 verbosity 字段
+        ALTER TABLE conversations ADD COLUMN verbosity TEXT DEFAULT NULL;
+      `
+    }
 
     return null
   }
 
   getLatestVersion(): number {
-    return 5
+    return 6
   }
 
   async create(title: string, settings: Partial<CONVERSATION_SETTINGS> = {}): Promise<string> {
@@ -120,9 +131,11 @@ export class ConversationsTable extends BaseTable {
         artifacts,
         is_pinned,
         enabled_mcp_tools,
-        thinking_budget
+        thinking_budget,
+        reasoning_effort,
+        verbosity
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `)
     const conv_id = nanoid()
     const now = Date.now()
@@ -141,7 +154,9 @@ export class ConversationsTable extends BaseTable {
       settings.artifacts || 0,
       0, // Default is_pinned to 0
       settings.enabledMcpTools ? JSON.stringify(settings.enabledMcpTools) : 'NULL',
-      settings.thinkingBudget !== undefined ? settings.thinkingBudget : null
+      settings.thinkingBudget !== undefined ? settings.thinkingBudget : null,
+      settings.reasoningEffort !== undefined ? settings.reasoningEffort : null,
+      settings.verbosity !== undefined ? settings.verbosity : null
     )
     return conv_id
   }
@@ -165,7 +180,9 @@ export class ConversationsTable extends BaseTable {
         artifacts,
         is_pinned,
         enabled_mcp_tools,
-        thinking_budget
+        thinking_budget,
+        reasoning_effort,
+        verbosity
       FROM conversations
       WHERE conv_id = ?
     `
@@ -192,7 +209,11 @@ export class ConversationsTable extends BaseTable {
         modelId: result.modelId,
         artifacts: result.artifacts as 0 | 1,
         enabledMcpTools: getJsonField(result.enabled_mcp_tools, undefined),
-        thinkingBudget: result.thinking_budget !== null ? result.thinking_budget : undefined
+        thinkingBudget: result.thinking_budget !== null ? result.thinking_budget : undefined,
+        reasoningEffort: result.reasoning_effort
+          ? (result.reasoning_effort as 'minimal' | 'low' | 'medium' | 'high')
+          : undefined,
+        verbosity: result.verbosity ? (result.verbosity as 'low' | 'medium' | 'high') : undefined
       }
     }
   }
@@ -253,6 +274,14 @@ export class ConversationsTable extends BaseTable {
         updates.push('thinking_budget = ?')
         params.push(data.settings.thinkingBudget)
       }
+      if (data.settings.reasoningEffort !== undefined) {
+        updates.push('reasoning_effort = ?')
+        params.push(data.settings.reasoningEffort)
+      }
+      if (data.settings.verbosity !== undefined) {
+        updates.push('verbosity = ?')
+        params.push(data.settings.verbosity)
+      }
     }
     if (updates.length > 0 || data.updatedAt) {
       updates.push('updated_at = ?')
@@ -298,7 +327,9 @@ export class ConversationsTable extends BaseTable {
         artifacts,
         is_pinned,
         enabled_mcp_tools,
-        thinking_budget
+        thinking_budget,
+        reasoning_effort,
+        verbosity
       FROM conversations
       ORDER BY updated_at DESC
       LIMIT ? OFFSET ?
@@ -324,7 +355,11 @@ export class ConversationsTable extends BaseTable {
           modelId: row.modelId,
           artifacts: row.artifacts as 0 | 1,
           enabledMcpTools: getJsonField(row.enabled_mcp_tools, undefined),
-          thinkingBudget: row.thinking_budget !== null ? row.thinking_budget : undefined
+          thinkingBudget: row.thinking_budget !== null ? row.thinking_budget : undefined,
+          reasoningEffort: row.reasoning_effort
+            ? (row.reasoning_effort as 'minimal' | 'low' | 'medium' | 'high')
+            : undefined,
+          verbosity: row.verbosity ? (row.verbosity as 'low' | 'medium' | 'high') : undefined
         }
       }))
     }
