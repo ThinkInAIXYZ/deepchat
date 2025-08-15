@@ -308,6 +308,17 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
     models: [
       // GLM 4.5 系列模型
       {
+        id: 'glm-4.5v',
+        name: 'GLM-4.5V',
+        temperature: 0.7,
+        maxTokens: 8192,
+        contextLength: 65536,
+        match: ['glm-4.5v'],
+        vision: true,
+        functionCall: true,
+        reasoning: true
+      },
+      {
         id: 'glm-4.5',
         name: 'GLM-4.5',
         temperature: 0.7,

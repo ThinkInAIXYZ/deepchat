@@ -1645,6 +1645,17 @@ export const defaultModelsSettings: DefaultModelSetting[] = [
     functionCall: false,
     reasoning: false
   },
+  {
+    id: 'glm-4.5v',
+    name: 'GLM-4.5V',
+    temperature: 0.7,
+    maxTokens: 8192,
+    contextLength: 65536,
+    match: ['glm-4.5v'],
+    vision: true,
+    functionCall: true,
+    reasoning: true
+  },
 
   // Fireworks AI模型配置
   {
