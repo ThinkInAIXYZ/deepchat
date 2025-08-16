@@ -1,3 +1,4 @@
+import { EMBEDDING_TEST_KEY, isNormalized } from '@/utils/vector'
 import {
   LLM_PROVIDER,
   LLMResponse,
@@ -5,7 +6,8 @@ import {
   MCPToolDefinition,
   LLMCoreStreamEvent,
   ModelConfig,
-  ChatMessage
+  ChatMessage,
+  LLM_EMBEDDING_ATTRS
 } from '@shared/presenter'
 import { BaseLLMProvider, SUMMARY_TITLES_PROMPT } from '../baseProvider'
 import OpenAI, { AzureOpenAI } from 'openai'
@@ -29,7 +31,22 @@ import sharp from 'sharp'
 import { proxyConfig } from '../../proxyConfig'
 import { ProxyAgent } from 'undici'
 
-const OPENAI_REASONING_MODELS = ['o3-mini', 'o3-preview', 'o1-mini', 'o1-pro', 'o1-preview', 'o1']
+const OPENAI_REASONING_MODELS = [
+  'o4-mini',
+  'o1-pro',
+  'o3',
+  'o3-pro',
+  'o3-mini',
+  'o3-preview',
+  'o1-mini',
+  'o1-pro',
+  'o1-preview',
+  'o1',
+  'gpt-5',
+  'gpt-5-mini',
+  'gpt-5-nano',
+  'gpt-5-chat'
+]
 const OPENAI_IMAGE_GENERATION_MODELS = [
   'gpt-4o-all',
   'gpt-4o-image',
@@ -197,7 +214,10 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
       model: modelId,
       stream: false,
       temperature: temperature,
-      ...(modelId.startsWith('o1') || modelId.startsWith('o3') || modelId.startsWith('o4')
+      ...(modelId.startsWith('o1') ||
+      modelId.startsWith('o3') ||
+      modelId.startsWith('o4') ||
+      modelId.startsWith('gpt-5')
         ? { max_completion_tokens: maxTokens }
         : { max_tokens: maxTokens })
     }
@@ -412,7 +432,11 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
             // 处理 base64 数据
             const base64Data = result.data[0].b64_json
             // 直接使用 devicePresenter 缓存 base64 数据
-            imageUrl = await presenter.devicePresenter.cacheImage(base64Data)
+            imageUrl = await presenter.devicePresenter.cacheImage(
+              base64Data.startsWith('data:image/png;base64,')
+                ? base64Data
+                : 'data:image/png;base64,' + base64Data
+            )
           } else {
             // 原有的 URL 处理逻辑
             imageUrl = result.data[0]?.url || ''
@@ -511,7 +535,10 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
       model: modelId,
       stream: true,
       temperature,
-      ...(modelId.startsWith('o1') || modelId.startsWith('o3') || modelId.startsWith('o4')
+      ...(modelId.startsWith('o1') ||
+      modelId.startsWith('o3') ||
+      modelId.startsWith('o4') ||
+      modelId.startsWith('gpt-5')
         ? { max_completion_tokens: maxTokens }
         : { max_tokens: maxTokens })
     }
@@ -1171,8 +1198,8 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
   public async check(): Promise<{ isOk: boolean; errorMsg: string | null }> {
     try {
       if (!this.isNoModelsApi) {
-        // Use a reasonable timeout
-        const models = await this.fetchOpenAIModels({ timeout: 5000 }) // Increased timeout slightly
+        // Use unified timeout configuration from base class
+        const models = await this.fetchOpenAIModels({ timeout: this.getModelFetchTimeout() })
         this.models = models // Store fetched models
       }
       // Potentially add a simple API call test here if needed, e.g., list models even for no-API list to check key/endpoint
@@ -1198,10 +1225,8 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
     }
   }
   public async summaryTitles(messages: ChatMessage[], modelId: string): Promise<string> {
-    const summaryText= `${SUMMARY_TITLES_PROMPT}\n\n${messages.map((m) => `${m.role}: ${m.content}`).join('\n')}`
-    const fullMessage: ChatMessage[] = [
-      { role: 'user', content: summaryText }
-    ]
+    const summaryText = `${SUMMARY_TITLES_PROMPT}\n\n${messages.map((m) => `${m.role}: ${m.content}`).join('\n')}`
+    const fullMessage: ChatMessage[] = [{ role: 'user', content: summaryText }]
     const response = await this.openAICompletion(fullMessage, modelId, 0.5)
     return response.content.replace(/["']/g, '').trim()
   }
@@ -1281,21 +1306,51 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
     }
   }
 
-  /**
-   * 获取文本的 embedding 表示
-   * @param texts 待编码的文本数组
-   * @param modelId 使用的模型ID
-   * @returns embedding 数组
-   */
-  async getEmbeddings(texts: string[], modelId: string): Promise<number[][]> {
+  async getEmbeddings(modelId: string, texts: string[]): Promise<number[][]> {
     if (!this.isInitialized) throw new Error('Provider not initialized')
     if (!modelId) throw new Error('Model ID is required')
     // OpenAI embeddings API
     const response = await this.openai.embeddings.create({
       model: modelId,
-      input: texts
+      input: texts,
+      encoding_format: 'float'
     })
     // 兼容 OpenAI 返回格式
     return response.data.map((item) => item.embedding)
+  }
+
+  async getDimensions(modelId: string): Promise<LLM_EMBEDDING_ATTRS> {
+    switch (modelId) {
+      case 'text-embedding-3-small':
+      case 'text-embedding-ada-002':
+        return {
+          dimensions: 1536,
+          normalized: true
+        }
+      case 'text-embedding-3-large':
+        return {
+          dimensions: 3072,
+          normalized: true
+        }
+      default:
+        try {
+          const embeddings = await this.getEmbeddings(modelId, [EMBEDDING_TEST_KEY])
+          return {
+            dimensions: embeddings[0].length,
+            normalized: isNormalized(embeddings[0])
+          }
+        } catch (error) {
+          console.error(
+            `[OpenAICompatibleProvider] Failed to get dimensions for model ${modelId}:`,
+            error
+          )
+          // Return sensible defaults or rethrow
+          throw new Error(
+            `Unable to determine embedding dimensions for model ${modelId}: ${
+              error instanceof Error ? error.message : String(error)
+            }`
+          )
+        }
+    }
   }
 }

@@ -4,7 +4,9 @@
     "delete": "刪除",
     "cleanMessages": "清除訊息",
     "pin": "置頂",
-    "unpin": "取消置頂"
+    "unpin": "取消置頂",
+    "export": "導出",
+    "exportText": "純文本"
   },
   "toolbar": {
     "save": "保存",
@@ -25,5 +27,9 @@
     "toolbar": {
       "save": "保存"
     }
+  },
+  "export": {
+    "failed": "導出失敗",
+    "failedDesc": "導出過程中發生錯誤，請重試"
   }
 }

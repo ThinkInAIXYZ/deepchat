@@ -21,7 +21,22 @@ import sharp from 'sharp'
 import { proxyConfig } from '../../proxyConfig'
 import { ProxyAgent } from 'undici'
 
-const OPENAI_REASONING_MODELS = ['o3-mini', 'o3-preview', 'o1-mini', 'o1-pro', 'o1-preview', 'o1']
+const OPENAI_REASONING_MODELS = [
+  'o4-mini',
+  'o1-pro',
+  'o3',
+  'o3-pro',
+  'o3-mini',
+  'o3-preview',
+  'o1-mini',
+  'o1-pro',
+  'o1-preview',
+  'o1',
+  'gpt-5',
+  'gpt-5-mini',
+  'gpt-5-nano',
+  'gpt-5-chat'
+]
 const OPENAI_IMAGE_GENERATION_MODELS = [
   'gpt-4o-all',
   'gpt-4o-image',
@@ -211,6 +226,20 @@ export class OpenAIResponsesProvider extends BaseLLMProvider {
       temperature: temperature,
       max_output_tokens: maxTokens,
       stream: false
+    }
+
+    if (modelId.startsWith('gpt-5')) {
+      const modelConfig = this.configPresenter.getModelConfig(modelId, this.provider.id)
+      if (modelConfig.reasoningEffort) {
+        ;(requestParams as any).reasoning = {
+          effort: modelConfig.reasoningEffort
+        }
+      }
+      if (modelConfig.verbosity) {
+        ;(requestParams as any).text = {
+          verbosity: modelConfig.verbosity
+        }
+      }
     }
 
     OPENAI_REASONING_MODELS.forEach((noTempId) => {
@@ -438,7 +467,11 @@ export class OpenAIResponsesProvider extends BaseLLMProvider {
             // 处理 base64 数据
             const base64Data = result.data[0].b64_json
             // 直接使用 devicePresenter 缓存 base64 数据
-            imageUrl = await presenter.devicePresenter.cacheImage(base64Data)
+            imageUrl = await presenter.devicePresenter.cacheImage(
+              base64Data.startsWith('data:image/png;base64,')
+                ? base64Data
+                : 'data:image/png;base64,' + base64Data
+            )
           } else {
             // 原有的 URL 处理逻辑
             imageUrl = result.data[0]?.url || ''
@@ -537,6 +570,19 @@ export class OpenAIResponsesProvider extends BaseLLMProvider {
     // 如果模型支持函数调用且有工具,添加 tools 参数
     if (tools.length > 0 && supportsFunctionCall && apiTools) {
       requestParams.tools = apiTools
+    }
+
+    if (modelId.startsWith('gpt-5')) {
+      if (modelConfig.reasoningEffort) {
+        ;(requestParams as any).reasoning = {
+          effort: modelConfig.reasoningEffort
+        }
+      }
+      if (modelConfig.verbosity) {
+        ;(requestParams as any).text = {
+          verbosity: modelConfig.verbosity
+        }
+      }
     }
 
     OPENAI_REASONING_MODELS.forEach((noTempId) => {
@@ -1024,8 +1070,8 @@ export class OpenAIResponsesProvider extends BaseLLMProvider {
   public async check(): Promise<{ isOk: boolean; errorMsg: string | null }> {
     try {
       if (!this.isNoModelsApi) {
-        // Use a reasonable timeout
-        const models = await this.fetchOpenAIModels({ timeout: 5000 }) // Increased timeout slightly
+        // Use unified timeout configuration from base class
+        const models = await this.fetchOpenAIModels({ timeout: this.getModelFetchTimeout() })
         this.models = models // Store fetched models
       }
       // Potentially add a simple API call test here if needed, e.g., list models even for no-API list to check key/endpoint
@@ -1053,9 +1099,7 @@ export class OpenAIResponsesProvider extends BaseLLMProvider {
 
   public async summaryTitles(messages: ChatMessage[], modelId: string): Promise<string> {
     const summaryText = `${SUMMARY_TITLES_PROMPT}\n\n${messages.map((m) => `${m.role}: ${m.content}`).join('\n')}`
-    const fullMessage: ChatMessage[] = [
-      { role: 'user', content: summaryText }
-    ]
+    const fullMessage: ChatMessage[] = [{ role: 'user', content: summaryText }]
     const response = await this.openAICompletion(fullMessage, modelId, 0.5)
     return response.content.replace(/["']/g, '').trim()
   }

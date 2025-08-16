@@ -56,6 +56,31 @@
           <span>{{ t('thread.actions.cleanMessages') }}</span>
         </DropdownMenuItem>
 
+        <DropdownMenuSeparator />
+
+        <DropdownMenuSub>
+          <DropdownMenuSubTrigger class="flex items-center justify-between">
+            <div class="flex items-center">
+              <Icon icon="lucide:download" class="mr-4 h-4 w-4" />
+              <span>{{ t('thread.actions.export') }}</span>
+            </div>
+          </DropdownMenuSubTrigger>
+          <DropdownMenuSubContent>
+            <DropdownMenuItem @select="handleExport(thread, 'markdown')">
+              <Icon icon="lucide:file-text" class="mr-2 h-4 w-4" />
+              <span>Markdown (.md)</span>
+            </DropdownMenuItem>
+            <DropdownMenuItem @select="handleExport(thread, 'html')">
+              <Icon icon="lucide:globe" class="mr-2 h-4 w-4" />
+              <span>HTML (.html)</span>
+            </DropdownMenuItem>
+            <DropdownMenuItem @select="handleExport(thread, 'txt')">
+              <Icon icon="lucide:file-type" class="mr-2 h-4 w-4" />
+              <span>{{ t('thread.actions.exportText') }} (.txt)</span>
+            </DropdownMenuItem>
+          </DropdownMenuSubContent>
+        </DropdownMenuSub>
+
         <DropdownMenuItem class="text-destructive" @select="$emit('delete', thread)">
           <Icon icon="lucide:trash-2" class="mr-2 h-4 w-4" />
           <span>{{ t('thread.actions.delete') }}</span>
@@ -76,13 +101,19 @@ import {
   DropdownMenu,
   DropdownMenuTrigger,
   DropdownMenuContent,
-  DropdownMenuItem
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubTrigger,
+  DropdownMenuSubContent
 } from '@/components/ui/dropdown-menu'
 import { useLanguageStore } from '@/stores/language'
+import { useToast } from '@/components/ui/toast/use-toast'
 
 const langStore = useLanguageStore()
 
 const chatStore = useChatStore()
+const { toast } = useToast()
 
 defineProps<{
   thread: CONVERSATION
@@ -101,6 +132,20 @@ const { t } = useI18n()
 
 const handleTogglePin = (thread: CONVERSATION) => {
   chatStore.toggleThreadPinned(thread.id, !(thread.is_pinned === 1))
+}
+
+const handleExport = async (thread: CONVERSATION, format: 'markdown' | 'html' | 'txt') => {
+  try {
+    await chatStore.exportThread(thread.id, format)
+  } catch (error) {
+    console.error('Export failed:', error)
+    // Show error toast
+    toast({
+      title: t('thread.export.failed'),
+      description: t('thread.export.failedDesc'),
+      variant: 'destructive'
+    })
+  }
 }
 
 // 根据工作状态返回对应的图标

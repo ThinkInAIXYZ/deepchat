@@ -31,14 +31,16 @@
             @click="previewFile(file.path)"
           />
         </div>
-        <div v-if="isEditMode" class="text-sm w-full whitespace-pre-wrap break-all">
+        <div v-if="isEditMode" class="text-sm w-full min-w-[40vw] whitespace-pre-wrap break-all">
           <textarea
             v-model="editedText"
-            class="text-sm bg-[#EFF6FF] dark:bg-muted rounded-lg p-2 border flex flex-col gap-1.5 resize"
+            class="text-sm bg-[#EFF6FF] dark:bg-muted rounded-lg p-2 border flex flex-col gap-1.5 resize min-w-[40vw] w-full"
             :style="{
               height: originalContentHeight + 18 + 'px',
               width: originalContentWidth + 20 + 'px'
             }"
+            @keydown.enter.prevent="saveEdit"
+            @keydown.esc="cancelEdit"
           ></textarea>
         </div>
         <div v-else ref="originalContent">
@@ -104,7 +106,6 @@ const props = defineProps<{
 
 const isEditMode = ref(false)
 const editedText = ref('')
-const originalText = ref('')
 const originalContent = ref(null)
 const originalContentHeight = ref(0)
 const originalContentWidth = ref(0)
@@ -138,8 +139,12 @@ const previewFile = (filePath: string) => {
 
 const startEdit = () => {
   isEditMode.value = true
-  editedText.value = props.message.content.text
-  originalText.value = props.message.content.text
+  if (props.message.content?.content && props.message.content.content.length > 0) {
+    const textBlocks = props.message.content.content.filter((block) => block.type === 'text')
+    editedText.value = textBlocks.map((block) => block.content).join('')
+    return
+  }
+  editedText.value = props.message.content.text || ''
 }
 
 const saveEdit = async () => {
@@ -147,11 +152,15 @@ const saveEdit = async () => {
 
   try {
     // Create a new content object with the edited text
-    const newContent = {
-      ...props.message.content,
-      text: editedText.value
+    let newContent = {
+      ...props.message.content
     }
-
+    if (newContent?.content && newContent.content.length > 0) {
+      const nonTextBlocks = newContent.content.filter((block) => block.type !== 'text')
+      newContent.content = [{ type: 'text', content: editedText.value }, ...nonTextBlocks]
+    } else {
+      newContent.text = editedText.value
+    }
     // Update the message in the database using editMessage method
     await threadPresenter.editMessage(props.message.id, JSON.stringify(newContent))
 
@@ -166,7 +175,6 @@ const saveEdit = async () => {
 }
 
 const cancelEdit = () => {
-  editedText.value = originalText.value
   isEditMode.value = false
 }
 

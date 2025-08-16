@@ -49,6 +49,7 @@ import claudeColorIcon from '@/assets/llm-icons/claude-color.svg?url'
 import googleColorIcon from '@/assets/llm-icons/google-color.svg?url'
 import qiniuIcon from '@/assets/llm-icons/qiniu.svg?url'
 import grokColorIcon from '@/assets/llm-icons/grok.svg?url'
+import groqColorIcon from '@/assets/llm-icons/groq.svg?url'
 import hunyuanColorIcon from '@/assets/llm-icons/hunyuan-color.svg?url'
 import dashscopeColorIcon from '@/assets/llm-icons/alibabacloud-color.svg?url'
 import aihubmixColorIcon from '@/assets/llm-icons/aihubmix.png?url'
@@ -56,14 +57,17 @@ import defaultIcon from '@/assets/logo.png?url'
 import metaColorIcon from '@/assets/llm-icons/meta.svg?url'
 import lmstudioColorIcon from '@/assets/llm-icons/lmstudio.svg?url'
 import _302aiIcon from '@/assets/llm-icons/302ai.svg?url'
+import modelscopeColorIcon from '@/assets/llm-icons/modelscope-color.svg?url'
 import awsBedrockIcon from '@/assets/llm-icons/aws-bedrock.svg?url'
 // 导入所有图标
 const icons = {
+  modelscope: modelscopeColorIcon,
   '302ai': _302aiIcon,
   aihubmix: aihubmixColorIcon,
   dashscope: dashscopeColorIcon,
   hunyuan: hunyuanColorIcon,
   grok: grokColorIcon,
+  groq: groqColorIcon,
   qiniu: qiniuIcon,
   gemma: googleColorIcon,
   claude: claudeColorIcon,
@@ -157,6 +161,7 @@ const invert = computed(() => {
     props.modelId.toLowerCase().includes('openrouter') ||
     props.modelId.toLowerCase().includes('ollama') ||
     props.modelId.toLowerCase().includes('grok') ||
+    props.modelId.toLowerCase().includes('groq') ||
     props.modelId.toLowerCase().includes('github') ||
     props.modelId.toLowerCase().includes('moonshot') ||
     props.modelId.toLowerCase().includes('lmstudio') ||

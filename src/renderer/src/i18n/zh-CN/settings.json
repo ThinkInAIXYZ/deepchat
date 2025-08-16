@@ -70,7 +70,22 @@
     "importing": "导入中...",
     "confirmImport": "确认导入",
     "importSuccessTitle": "导入成功",
-    "importErrorTitle": "导入失败"
+    "importErrorTitle": "导入失败",
+    "resetData": "重置数据",
+    "resetConfirmTitle": "确认重置数据",
+    "resetConfirmDescription": "请选择要重置的数据类型。此操作不可撤销，重置后应用将自动重启。",
+    "resetChatData": "重置聊天数据",
+    "resetChatDataDesc": "删除所有聊天记录和对话历史",
+    "resetKnowledgeData": "重置知识库数据",
+    "resetKnowledgeDataDesc": "删除所有知识库文件和向量数据",
+    "resetConfig": "重置配置",
+    "resetConfigDesc": "删除所有应用设置、模型配置和自定义提示词",
+    "resetAll": "完全重置",
+    "resetAllDesc": "删除所有数据，包括聊天记录、配置和缓存文件",
+    "resetting": "重置中...",
+    "confirmReset": "确认重置",
+    "resetCompleteDevTitle": "数据重置完成",
+    "resetCompleteDevMessage": "开发环境下请手动重启应用以查看效果。请停止当前进程并重新运行 pnpm run dev"
   },
   "model": {
     "title": "模型设置",
@@ -128,6 +143,33 @@
         "label": "推理能力",
         "description": "模型是否支持推理能力"
       },
+      "thinkingBudget": {
+        "label": "思考预算",
+        "description": "限制模型思考长度",
+        "dynamic": "动态思维",
+        "range": "范围: {min} - {max}",
+        "onlySupported": "仅在 Gemini 2.5 Flash、2.5 Pro 和 2.5 Flash-Lite 中受支持",
+        "valueLabel": "思考预算值",
+        "placeholder": "输入思考预算值",
+        "forceEnabled": "Gemini 2.5 系列模型强制开启思考预算",
+        "dynamicPrefix": "-1 = 动态思维",
+        "notice": "注意：",
+        "warnings": {
+          "proNoDisable": "此模型不支持停用思考，最小值 128",
+          "proCannotDisable": "Gemini 2.5 Pro 无法停用思考功能",
+          "flashLiteCannotSetZero": "Gemini 2.5 Flash-Lite 不能设置为 0，最小值为 512",
+          "modelCannotDisable": "此模型无法停用思考功能",
+          "flashLiteMinValue": "思考预算设置为具体数值时不能小于 512（或使用 0 停用思考，-1 启用动态思维）",
+          "belowMin": "思考预算不能小于 {min}{hint}",
+          "aboveMax": "思考预算不能大于 {max}"
+        },
+        "hints": {
+          "flashLiteDisable": "，0 = 停用思考，具体数值最小 512",
+          "normalDisable": "，0 = 停用思考",
+          "withZeroAndDynamic": "（或使用 0 停用思考，-1 启用动态思维）",
+          "withDynamic": "（或使用 -1 启用动态思维）"
+        }
+      },
       "type": {
         "label": "模型类型",
         "description": "选择模型的类型",
@@ -141,10 +183,33 @@
       "resetToDefault": "重置为默认",
       "saveConfig": "保存配置",
       "cancel": "取消",
+      "useModelDefault": "使用模型默认配置",
+      "currentUsingModelDefault": "当前使用模型默认配置",
       "resetConfirm": {
         "title": "确认重置",
         "message": "确定要重置此模型的配置为默认值吗？此操作不可撤销。",
         "confirm": "确定重置"
+      },
+      "reasoningEffort": {
+        "label": "推理努力程度",
+        "description": "控制模型的推理深度，更高的努力程度会产生更好的结果但响应更慢",
+        "placeholder": "选择推理努力程度",
+        "options": {
+          "minimal": "Minimal - 最快响应",
+          "low": "Low - 低努力",
+          "medium": "Medium - 中等努力",
+          "high": "High - 高努力"
+        }
+      },
+      "verbosity": {
+        "label": "详细程度",
+        "description": "控制模型回答的详细程度和长度",
+        "placeholder": "选择详细程度",
+        "options": {
+          "low": "Low - 简洁回答",
+          "medium": "Medium - 平衡详细",
+          "high": "High - 详细回答"
+        }
       },
       "validation": {
         "maxTokensRequired": "最大输出长度不能为空",
@@ -160,11 +225,15 @@
     }
   },
   "provider": {
+    "search": "搜索服务商平台…",
     "enable": "开启服务",
+    "enabled": "已启用",
+    "disabled": "已禁用",
     "urlPlaceholder": "请输入API URL",
     "keyPlaceholder": "请输入API Key",
     "verifyKey": "验证密钥",
     "howToGet": "如何获取",
+    "refreshingModels": "刷新中...",
     "getKeyTip": "请前往",
     "getKeyTipEnd": "获取API Key",
     "urlFormat": "API样例：{defaultUrl}",
@@ -172,6 +241,10 @@
     "enableModels": "启用模型",
     "disableAllModels": "禁用全部",
     "modelsEnabled": "模型已经启用",
+    "noModelsEnabled": {
+      "title": "暂无已启用的模型",
+      "description": "请点击「启用模型」按钮手动选择需要使用的模型。"
+    },
     "verifyLink": "验证链接",
     "syncModelsFailed": "同步模型失败...",
     "addCustomProvider": "添加自定义服务商",
@@ -179,6 +252,68 @@
     "stopModel": "停止模型",
     "pulling": "拉取中...",
     "runModel": "运行模型",
+    "configurationUpdated": "配置已更新",
+    "configurationSaved": "配置已保存",
+    "operationSuccess": "操作成功",
+    "operationFailed": "操作失败",
+    "dataRefreshed": "数据已刷新",
+    "settingsApplied": "设置已应用",
+    "toast": {
+      "modelRunning": "模型正在运行",
+      "modelRunningDesc": "请先停止模型 {model}，然后再删除。"
+    },
+    "modelscope": {
+      "name": "ModelScope",
+      "description": "ModelScope 是阿里巴巴达摩院推出的模型即服务共享平台",
+      "apiKey": "API 密钥",
+      "apiKeyPlaceholder": "请输入 ModelScope API Key",
+      "apiKeyHelper": "在 ModelScope 控制台获取您的 API Key",
+      "baseUrl": "API 地址",
+      "baseUrlHelper": "ModelScope API 服务地址",
+      "connected": "已连接",
+      "notConnected": "未连接",
+      "connecting": "连接中...",
+      "verifySuccess": "验证成功",
+      "verifyFailed": "验证失败",
+      "keyRequired": "请输入 API Key",
+      "invalidKey": "无效的 API Key",
+      "networkError": "网络连接错误",
+      "mcpSync": {
+        "title": "同步 MCP 服务",
+        "description": "从 ModelScope 同步 MCP 服务器到本地配置，可以快速添加常用的 MCP 工具。所有服务默认禁用，导入后可手动启用。",
+        "sync": "开始同步",
+        "syncing": "同步中...",
+        "pageSize": "每页数量",
+        "pageNumber": "页码",
+        "pageNumberPlaceholder": "请输入页码",
+        "imported": "已导入 {count} 个服务",
+        "skipped": "跳过 {count} 个服务",
+        "errors": "错误 {count} 个",
+        "errorDetails": "错误详情",
+        "noApiKey": "请先配置 ModelScope API Key",
+        "noServersFound": "未找到可用的 MCP 服务",
+        "fetchingServers": "正在获取 MCP 服务器列表...",
+        "convertingServers": "正在转换服务器配置...",
+        "importingServers": "正在导入服务器配置...",
+        "syncComplete": "同步完成",
+        "serverAlreadyExists": "服务器已存在，跳过导入",
+        "noOperationalUrls": "未找到可用的运营地址",
+        "invalidServerData": "无效的服务器数据",
+        "authenticationFailed": "认证失败，请检查 API Key"
+      },
+      "details": {
+        "title": "提供商设置详情",
+        "apiConfig": "API 配置",
+        "rateLimitConfig": "速率限制配置",
+        "modelManagement": "模型管理",
+        "safetySettings": "安全设置",
+        "specialConfig": "特殊配置",
+        "mcpSync": "MCP 同步",
+        "operationalServers": "运营服务器",
+        "syncFromModelScope": "从 ModelScope 同步",
+        "operationalDescription": "同步 ModelScope 平台上可直接使用的 MCP 服务器"
+      }
+    },
     "dialog": {
       "disableModel": {
         "title": "确认禁用模型",
@@ -191,12 +326,18 @@
         "confirm": "全部禁用"
       },
       "configModels": {
-        "title": "配置模型列表"
+        "title": "配置模型列表",
+        "description": "选择要启用或禁用的模型"
       },
       "verify": {
         "missingFields": "请输入 API Key 和 API URL",
         "failed": "验证失败",
-        "success": "验证成功"
+        "success": "验证成功",
+        "failedDesc": "API 密钥或配置验证失败，请检查配置信息",
+        "successDesc": "API 密钥和配置验证成功，可以正常使用",
+        "unauthorized": "认证失败，API Key 无效或已过期",
+        "serverError": "服务器错误，请稍后重试",
+        "connectionError": "连接错误，请检查网络连接和 API 地址"
       },
       "addCustomProvider": {
         "title": "添加自定义服务商",
@@ -223,7 +364,19 @@
       },
       "pullModel": {
         "title": "拉取模型",
+        "description": "选择要下载的模型到本地",
         "pull": "拉取"
+      },
+      "modelCheck": {
+        "title": "模型检查",
+        "description": "选择一个模型进行连接性和可用性测试",
+        "model": "选择模型",
+        "modelPlaceholder": "请选择要测试的模型",
+        "test": "开始测试",
+        "checking": "测试中...",
+        "success": "模型测试成功",
+        "failed": "模型测试失败",
+        "noModels": "该服务商没有可用的模型"
       }
     },
     "pullModels": "拉取模型",
@@ -237,7 +390,11 @@
     "localModels": "本地模型",
     "azureApiVersion": "API 版本",
     "safety": {
-      "title": "安全设置"
+      "title": "安全设置",
+      "blockNone": "不屏蔽",
+      "blockSome": "屏蔽低风险",
+      "blockMost": "屏蔽中风险",
+      "blockHighest": "屏蔽高风险"
     },
     "serverList": "服务器列表",
     "totalServers": "服务器总数",
@@ -259,13 +416,37 @@
     "keyStatus": {
       "usage": "已使用",
       "remaining": "剩余额度"
-    }
+    },
+    "authMethod": "认证方式",
+    "authMethodPlaceholder": "选择认证方式",
+    "apiKeyLabel": "API Key",
+    "apiUrlLabel": "API URL",
+    "anthropicConnected": "Anthropic 已连接",
+    "anthropicNotConnected": "Anthropic 未连接",
+    "anthropicOAuthTip": "点击授权 DeepChat 访问您的 Anthropic 账户",
+    "oauthLogin": "OAuth 登录",
+    "anthropicApiKeyTip": "请前往 Anthropic Console 获取您的 API Key",
+    "anthropicOAuthFlowTip": "系统将自动打开授权窗口，授权后请回来输入授权码",
+    "browserOpenedSuccess": "外部浏览器已打开，请完成授权",
+    "anthropicBrowserOpened": "外部浏览器已打开",
+    "anthropicCodeInstruction": "请在外部浏览器中完成授权，然后将获得的授权码粘贴到下方输入框中",
+    "inputOAuthCode": "输入授权码",
+    "oauthCodeHint": "请在外部浏览器中完成授权后，将获得的授权码粘贴到此处",
+    "oauthCodePlaceholder": "请输入授权码...",
+    "codeRequired": "请输入授权码",
+    "invalidCode": "授权码无效",
+    "codeExchangeFailed": "授权码交换失败",
+    "verifyConnection": "验证连接",
+    "manageModels": "管理模型",
+    "anthropicOAuthActiveTip": "OAuth 认证已启用，您可以直接使用 Anthropic 服务",
+    "oauthVerifySuccess": "OAuth 连接验证成功",
+    "oauthVerifyFailed": "OAuth 连接验证失败"
   },
   "knowledgeBase": {
     "title": "知识库设置",
     "addKnowledgeBase": "添加知识库",
     "selectKnowledgeBaseType": "请选择要添加的知识库类型",
-    "difyDescription": "Dify知识库可以帮助您管理和使用文档数据",
+    "difyDescription": "Dify知识库可以帮助您管理和使用文档数据。",
     "comingSoon": "即将推出",
     "featureNotAvailable": "该功能暂未开放，敬请期待",
     "addDifyConfig": "添加Dify配置",
@@ -288,7 +469,77 @@
     "fastgptTitle": "FastGPT知识库",
     "fastgptDescription": "FastGPT是一个强大的知识库管理系统，支持多种检索方式和文档管理功能。",
     "addFastGptConfig": "添加FastGPT配置",
-    "editFastGptConfig": "编辑FastGPT配置"
+    "editFastGptConfig": "编辑FastGPT配置",
+    "builtInKnowledgeTitle": "内置知识库",
+    "builtInKnowledgeDescription": "内置知识库提供了一些简单实现，能够在离线环境下实现部分基础功能。",
+    "addBuiltinKnowledgeConfig": "添加内置知识库配置",
+    "editBuiltinKnowledgeConfig": "编辑内置知识库配置",
+    "descriptionDesc": "知识库的描述，以便 AI 决定是否检索此知识库",
+    "embeddingModel": "嵌入模型",
+    "selectEmbeddingModel": "选择嵌入模型",
+    "selectEmbeddingModelHelper": "嵌入模型在知识库创建后禁止修改",
+    "rerankModel": "重排序模型",
+    "selectRerankModel": "选择重排序模型",
+    "chunkSize": "分块大小",
+    "chunkOverlap": "重叠大小",
+    "fragmentsNumber": "请求文档片段数量",
+    "chunkSizeHelper": "将文档切割分段，每段的大小，不能超过模型上下文限制",
+    "chunkOverlapHelper": "相邻文本块之间重复的内容量，确保分段后的文本块之间仍然有上下文联系，提升模型处理长文本的整体效果",
+    "fragmentsNumberHelper": "请求文档片段数量越多，附带的信息越多，但需要消耗的token也越多",
+    "modelNotFound": "服务商 {provider} 或模型 {model} 未找到",
+    "modelNotFoundDesc": "请确保已正确配置模型，并且模型处于启用状态。您可以在服务商设置中检查模型配置。",
+    "removeBuiltinKnowledgeConfirmTitle": "确认删除内置知识库 {name} ？",
+    "removeBuiltinKnowledgeConfirmDesc": "删除内置知识库配置将会删除所有相关数据，且无法恢复，请谨慎操作。",
+    "advanced": "高级选项",
+    "dimensions": "嵌入维度",
+    "dimensionsPlaceholder": "嵌入维度大小，如 1024",
+    "autoDetectDimensions": "自动检测嵌入维度",
+    "autoDetectHelper": "自动检测嵌入维度，会消耗少量 Tokens",
+    "dimensionsHelper": "请确保模型支持所设置的嵌入维度大小",
+    "autoDetectDimensionsError": "自动检测嵌入维度失败",
+    "normalized": "L2 归一化",
+    "normalizedHelper": "请确认模型支持对输出向量进行 L2 归一化",
+    "chunkSizePlaceholder": "默认值，不建议修改",
+    "chunkOverlapPlaceholder": "默认值，不建议修改",
+    "return": "返回",
+    "uploadHelper": "点击上传或拖拽文件到此处",
+    "onlySupport": "仅支持",
+    "searchKnowledge": "搜索知识库",
+    "searchKnowledgePlaceholder": "请输入查询内容",
+    "noData": "暂无数据",
+    "file": "文件",
+    "uploadProcessing": "上传中",
+    "uploadCompleted": "上传完成",
+    "reAdd": "重新上传",
+    "uploadError": "上传失败",
+    "processing": "正在上传",
+    "paused": "已暂停",
+    "unknown": "未知状态",
+    "delete": "删除",
+    "reason": "原因",
+    "deleteSuccess": "删除成功",
+    "copy": "复制",
+    "copySuccess": "复制成功",
+    "source": "来源",
+    "resumeAllPausedTasks": "一键恢复",
+    "pauseAllRunningTasks": "一键暂停",
+    "reAddFile": {
+      "title": "重新上传确认",
+      "content": "是否确认重新上传文件 \"{fileName}\"？"
+    },
+    "deleteFile": {
+      "title": "删除文件确认",
+      "content": "是否确认删除文件 \"{fileName}\"？此操作不可恢复。"
+    },
+    "dialog": {
+      "beforequit": {
+        "title": "退出确认",
+        "description": "有正在运行的知识库任务，是否确认退出软件？\n被中止的任务可在重启软件后恢复。",
+        "cancel": "取消",
+        "confirm": "确认"
+      }
+    },
+    "searchError": "查询失败"
   },
   "mcp": {
     "title": "MCP设置",
@@ -377,6 +628,7 @@
       "imageModel": "选择视觉模型",
       "customHeadersParseError": "自定义Header解析失败",
       "customHeaders": "自定义请求头",
+      "clickToEdit": "点击编辑以查看完整内容",
       "invalidKeyValueFormat": "错误的请求头格式，请检查输入是否正确",
       "npmRegistry": "自定义NPM Registry",
       "npmRegistryPlaceholder": "设置自定义NPM Registry,留空系统会自动选择最快的一个",
@@ -423,7 +675,48 @@
     "maxDefaultServersReached": "最多只能设置3个默认服务器",
     "removeDefaultFirst": "请先移除一些默认服务器",
     "higressMarket": "前往 Higress MCP 安装",
-    "totalServers": "服务器总数"
+    "totalServers": "服务器总数",
+    "npmRegistry": {
+      "title": "NPM源配置",
+      "currentSource": "当前源",
+      "cached": "缓存",
+      "lastChecked": "上次检测",
+      "refresh": "刷新",
+      "advanced": "高级",
+      "advancedSettings": "高级设置",
+      "advancedSettingsDesc": "配置NPM源的高级选项，包括自动检测和自定义源设置",
+      "autoDetect": "自动检测最优源",
+      "autoDetectDesc": "启动时自动检测并使用最快的NPM源",
+      "customSource": "自定义源",
+      "customSourcePlaceholder": "输入自定义NPM源地址",
+      "currentCustom": "当前自定义源",
+      "justNow": "刚刚",
+      "minutesAgo": "{minutes}分钟前",
+      "hoursAgo": "{hours}小时前",
+      "daysAgo": "{days}天前",
+      "refreshSuccess": "NPM源刷新成功",
+      "refreshSuccessDesc": "已重新检测并更新最优NPM源",
+      "refreshFailed": "NPM源刷新失败",
+      "autoDetectUpdated": "自动检测设置已更新",
+      "autoDetectEnabled": "已启用自动检测最优NPM源",
+      "autoDetectDisabled": "已禁用自动检测，将使用默认源",
+      "updateFailed": "设置更新失败",
+      "customSourceSet": "自定义源已设置",
+      "customSourceSetDesc": "已设置自定义NPM源：{registry}",
+      "customSourceCleared": "自定义源已清除",
+      "customSourceClearedDesc": "已清除自定义NPM源，将使用自动检测",
+      "invalidUrl": "无效的URL",
+      "invalidUrlDesc": "请输入有效的HTTP或HTTPS地址",
+      "testing": "正在测试NPM源",
+      "testingDesc": "正在测试源 {registry} 的连通性...",
+      "testFailed": "NPM源测试失败",
+      "testFailedDesc": "无法连接到 {registry}，错误：{error}。请检查URL是否正确或网络连接。",
+      "redetectingOptimal": "正在重新检测最优NPM源...",
+      "redetectComplete": "重新检测完成",
+      "redetectCompleteDesc": "已检测并设置当前最优的NPM源",
+      "redetectFailed": "重新检测失败",
+      "redetectFailedDesc": "无法重新检测最优源，将使用默认配置"
+    }
   },
   "about": {
     "title": "关于我们",
@@ -448,6 +741,7 @@
     "pressEnterToSave": "按Enter保存，Esc取消",
     "noModifierOnly": "不能仅使用修饰键作为快捷键",
     "keyConflict": "快捷键冲突，请选择其他组合",
+    "clearShortcut": "清除快捷键",
     "zoomIn": "放大字体",
     "zoomOut": "缩小字体",
     "zoomReset": "重置字体",
@@ -465,5 +759,26 @@
     "previousTab": "切换到上一个标签页",
     "specificTab": "切换到指定标签页 (1-8)",
     "lastTab": "切换到最后一个标签页"
+  },
+  "rateLimit": {
+    "title": "速率限制",
+    "description": "控制请求间隔时间，防止超出API限制",
+    "intervalLimit": "请求间隔",
+    "intervalUnit": "秒",
+    "intervalHelper": "两次请求之间的最小间隔时间，不需要时请关闭速率限制",
+    "lastRequestTime": "上次请求",
+    "queueLength": "队列长度",
+    "nextAllowedTime": "下次可请求",
+    "never": "从未",
+    "justNow": "刚刚",
+    "secondsAgo": "秒前",
+    "minutesAgo": "分钟前",
+    "immediately": "立即",
+    "secondsLater": "秒后",
+    "confirmDisableTitle": "确认关闭速率限制",
+    "confirmDisableMessage": "该值不能小于或等于0，是否关闭速率限制功能？",
+    "confirmDisable": "关闭限制",
+    "disabled": "速率限制已关闭",
+    "disabledDescription": "速率限制功能已关闭"
   }
 }

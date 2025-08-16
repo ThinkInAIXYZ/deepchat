@@ -4,14 +4,19 @@
     "fileArea": "File Area",
     "inputArea": "Input Area",
     "functionSwitch": "Function Switch",
-    "fileSelect": "File Select",
-    "pasteFiles": "Support copy and paste files",
+    "fileSelect": "Select File",
+    "pasteFiles": "Paste files from clipboard",
     "dropFiles": "Drop files here",
     "promptFilesAdded": "Prompt Files Added",
     "promptFilesAddedDesc": "Successfully added {count} files",
     "promptFilesError": "File Processing Error",
     "promptFilesErrorDesc": "{count} files failed to process",
-    "historyPlaceholder": "(Press Tab to fill)"
+    "historyPlaceholder": "(Press Tab to autocomplete)",
+    "rateLimitQueue": "Queue {count}",
+    "rateLimitWait": "Wait {seconds}s",
+    "rateLimitQueueTooltip": "{count} requests in queue, {interval}s interval",
+    "rateLimitReadyTooltip": "Ready to send, {interval}s interval",
+    "rateLimitWaitingTooltip": "Wait {seconds}s more, {interval}s interval"
   },
   "features": {
     "deepThinking": "Deep Thinking",
@@ -30,7 +35,21 @@
     "error": "Search failed"
   },
   "messages": {
-    "thinking": "Thinking..."
+    "thinking": "Thinking...",
+    "rateLimitWaiting": "Rate limit reached, waiting in queue...",
+    "rateLimitTitle": "Rate Limit Active",
+    "rateLimitQueue": "Queue Position",
+    "rateLimitEstimated": "Estimated Wait",
+    "rateLimitQuickSettings": "Adjust Limit",
+    "rateLimitSwitchProvider": "Switch Provider",
+    "rateLimitImmediately": "Now",
+    "rateLimitSeconds": "s",
+    "rateLimitMinutes": "m"
+  },
+  "rateLimit": {
+    "queueTooltip": "{count} requests in queue, {interval}s interval",
+    "readyTooltip": "Ready to send, {interval}s interval",
+    "waitingTooltip": "Wait {seconds}s more, {interval}s interval"
   },
   "notify": {
     "generationComplete": "Generation is complete",

@@ -4,7 +4,7 @@ import fs from 'fs/promises'
 import path from 'path'
 import { z } from 'zod'
 import { zodToJsonSchema } from 'zod-to-json-schema'
-import { Transport } from '@modelcontextprotocol/sdk/shared/transport'
+import { Transport } from '@modelcontextprotocol/sdk/shared/transport.js'
 import { presenter } from '@/presenter'
 import { ChatMessage, ChatMessageContent } from '@shared/presenter'
 // import { GenerateCompletionOptions } from '@/presenter/llmProviderPresenter' // Assuming this path and type exist - using any for now

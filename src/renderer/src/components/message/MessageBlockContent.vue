@@ -71,10 +71,13 @@ watch(
         if (part.type === 'artifact' && part.artifact) {
           if (props.block.status === 'loading') {
             if (artifactStore.currentArtifact?.id === part.artifact.identifier) {
-              artifactStore.currentArtifact.content = part.content
-              artifactStore.currentArtifact.title = part.artifact.title
-              artifactStore.currentArtifact.type = part.artifact.type
-              artifactStore.currentArtifact.status = part.loading ? 'loading' : 'loaded'
+              // Use updateArtifactContent to trigger reactivity
+              artifactStore.updateArtifactContent({
+                content: part.content,
+                title: part.artifact.title,
+                type: part.artifact.type,
+                status: part.loading ? 'loading' : 'loaded'
+              })
             } else {
               artifactStore.showArtifact(
                 {
@@ -91,10 +94,13 @@ watch(
             }
           } else {
             if (artifactStore.currentArtifact?.id === part.artifact.identifier) {
-              artifactStore.currentArtifact.content = part.content
-              artifactStore.currentArtifact.title = part.artifact.title
-              artifactStore.currentArtifact.type = part.artifact.type
-              artifactStore.currentArtifact.status = 'loaded'
+              // Use updateArtifactContent to trigger reactivity
+              artifactStore.updateArtifactContent({
+                content: part.content,
+                title: part.artifact.title,
+                type: part.artifact.type,
+                status: 'loaded'
+              })
             }
           }
         }

@@ -8,7 +8,7 @@
         <span v-show="!loading" class="flex flex-row gap-3">
           <!-- Edit mode buttons (save/cancel) -->
           <template v-if="isEditMode">
-            <Tooltip>
+            <Tooltip :delayDuration="200">
               <TooltipTrigger as-child>
                 <Button
                   variant="ghost"
@@ -21,7 +21,7 @@
               </TooltipTrigger>
               <TooltipContent>{{ t('thread.toolbar.save') }}</TooltipContent>
             </Tooltip>
-            <Tooltip>
+            <Tooltip :delayDuration="200">
               <TooltipTrigger as-child>
                 <Button
                   variant="ghost"
@@ -38,10 +38,11 @@
 
           <!-- Normal mode buttons -->
           <template v-else>
-            <Tooltip>
+            <Tooltip :delayDuration="200">
               <TooltipTrigger as-child>
                 <Button
                   v-show="isAssistant && hasVariants"
+                  :disabled="currentVariantIndex === 0"
                   variant="ghost"
                   size="icon"
                   class="w-4 h-4 text-muted-foreground hover:text-primary hover:bg-transparent"
@@ -56,10 +57,11 @@
               {{ currentVariantIndex !== undefined ? currentVariantIndex + 1 : 1 }} /
               {{ totalVariants }}
             </span>
-            <Tooltip>
+            <Tooltip :delayDuration="200">
               <TooltipTrigger as-child>
                 <Button
                   v-show="isAssistant && hasVariants"
+                  :disabled="hasVariants && totalVariants === (currentVariantIndex ?? 0) + 1"
                   variant="ghost"
                   size="icon"
                   class="w-4 h-4 text-muted-foreground hover:text-primary hover:bg-transparent"

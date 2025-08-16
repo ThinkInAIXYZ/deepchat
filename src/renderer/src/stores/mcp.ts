@@ -1,9 +1,10 @@
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { defineStore } from 'pinia'
 import { usePresenter } from '@/composables/usePresenter'
 import { MCP_EVENTS } from '@/events'
 import { useI18n } from 'vue-i18n'
 import { useThrottleFn } from '@vueuse/core'
+import { useChatStore } from './chat'
 import type {
   McpClient,
   MCPConfig,
@@ -29,6 +30,7 @@ interface MCPToolCallResult {
 }
 
 export const useMcpStore = defineStore('mcp', () => {
+  const chatStore = useChatStore()
   const { t } = useI18n()
   // 获取MCP相关的presenter
   const mcpPresenter = usePresenter('mcpPresenter')
@@ -38,7 +40,8 @@ export const useMcpStore = defineStore('mcp', () => {
   const config = ref<MCPConfig>({
     mcpServers: {},
     defaultServers: [],
-    mcpEnabled: false // 添加MCP启用状态
+    mcpEnabled: false, // 添加MCP启用状态
+    ready: false // if init finished, the ready will be true
   })
 
   // MCP全局启用状态
@@ -108,11 +111,11 @@ export const useMcpStore = defineStore('mcp', () => {
         mcpPresenter.getMcpDefaultServers(),
         mcpPresenter.getMcpEnabled()
       ])
-
       config.value = {
         mcpServers: servers,
         defaultServers: defaultServers,
-        mcpEnabled: enabled
+        mcpEnabled: enabled,
+        ready: true // config is loaded
       }
 
       // 获取服务器运行状态
@@ -162,8 +165,23 @@ export const useMcpStore = defineStore('mcp', () => {
     try {
       serverStatuses.value[serverName] = await mcpPresenter.isServerRunning(serverName)
       if (config.value.mcpEnabled && !noRefresh) {
-        loadTools()
-        loadClients()
+        await _loadTools()
+        await _loadClients()
+      }
+      // 根据服务器的状态，关闭或者开启该服务器的所有工具
+      const isRunning = serverStatuses.value[serverName] || false
+      const currentTools =
+        chatStore.chatConfig.enabledMcpTools || [...tools.value].map((tool) => tool.function.name)
+      if (isRunning) {
+        const serverTools = tools.value
+          .filter((tool) => tool.server.name === serverName)
+          .map((tool) => tool.function.name)
+        const mergedTools = Array.from(new Set([...currentTools, ...serverTools]))
+        chatStore.updateChatConfig({ enabledMcpTools: mergedTools })
+      } else {
+        const allServerToolNames = tools.value.map((tool) => tool.function.name)
+        const filteredTools = currentTools.filter((name) => allServerToolNames.includes(name))
+        chatStore.updateChatConfig({ enabledMcpTools: filteredTools })
       }
     } catch (error) {
       console.error(t('mcp.errors.getServerStatusFailed', { serverName }), error)
@@ -497,12 +515,71 @@ export const useMcpStore = defineStore('mcp', () => {
       await loadTools()
       await loadClients()
     }
+
+    // 如果是新建会话页面，则缓存已激活工具名称
+    if (!chatStore.getActiveThreadId()) {
+      chatStore.chatConfig.enabledMcpTools = tools.value.map((item) => item.function.name)
+    }
+  }
+
+  // 监听活动线程变化，处理新会话的默认工具状态
+  const handleActiveThreadChange = () => {
+    watch(
+      () => chatStore.getActiveThreadId(),
+      (newThreadId, oldThreadId) => {
+        // 从有活动线程切换到无活动线程（新会话页面）
+        if (oldThreadId && !newThreadId && config.value.mcpEnabled && tools.value.length > 0) {
+          chatStore.chatConfig.enabledMcpTools = tools.value.map((item) => item.function.name)
+        }
+      }
+    )
   }
 
   // 立即初始化
   onMounted(async () => {
     await init()
+    handleActiveThreadChange()
   })
+
+  // 获取NPM Registry状态
+  const getNpmRegistryStatus = async () => {
+    if (!mcpPresenter.getNpmRegistryStatus) {
+      throw new Error('NPM Registry status method not available')
+    }
+    return await mcpPresenter.getNpmRegistryStatus()
+  }
+
+  // 手动刷新NPM Registry
+  const refreshNpmRegistry = async (): Promise<string> => {
+    if (!mcpPresenter.refreshNpmRegistry) {
+      throw new Error('NPM Registry refresh method not available')
+    }
+    return await mcpPresenter.refreshNpmRegistry()
+  }
+
+  // 设置自定义NPM Registry
+  const setCustomNpmRegistry = async (registry: string | undefined): Promise<void> => {
+    if (!mcpPresenter.setCustomNpmRegistry) {
+      throw new Error('Set custom NPM Registry method not available')
+    }
+    await mcpPresenter.setCustomNpmRegistry(registry)
+  }
+
+  // 设置自动检测NPM Registry
+  const setAutoDetectNpmRegistry = async (enabled: boolean): Promise<void> => {
+    if (!mcpPresenter.setAutoDetectNpmRegistry) {
+      throw new Error('Set auto detect NPM Registry method not available')
+    }
+    await mcpPresenter.setAutoDetectNpmRegistry(enabled)
+  }
+
+  // 清除NPM Registry缓存
+  const clearNpmRegistryCache = async (): Promise<void> => {
+    if (!mcpPresenter.clearNpmRegistryCache) {
+      throw new Error('Clear NPM Registry cache method not available')
+    }
+    await mcpPresenter.clearNpmRegistryCache()
+  }
 
   return {
     // 状态
@@ -527,7 +604,7 @@ export const useMcpStore = defineStore('mcp', () => {
     hasTools,
     clients,
 
-    // 方法
+    // 服务器管理方法
     loadConfig,
     updateAllServerStatuses,
     updateServerStatus,
@@ -537,14 +614,23 @@ export const useMcpStore = defineStore('mcp', () => {
     toggleDefaultServer,
     resetToDefaultServers,
     toggleServer,
+    setMcpEnabled,
+
+    // 工具和资源方法
     loadTools,
     loadClients,
     loadPrompts,
     loadResources,
     updateToolInput,
     callTool,
-    setMcpEnabled,
     getPrompt,
-    readResource
+    readResource,
+
+    // NPM Registry 管理方法
+    getNpmRegistryStatus,
+    refreshNpmRegistry,
+    setCustomNpmRegistry,
+    setAutoDetectNpmRegistry,
+    clearNpmRegistryCache
   }
 })

@@ -21,11 +21,54 @@ export class ServerManager {
 
   constructor(configPresenter: IConfigPresenter) {
     this.configPresenter = configPresenter
+    this.loadRegistryFromCache()
+  }
+  loadRegistryFromCache(): void {
+    const effectiveRegistry = this.configPresenter.getEffectiveNpmRegistry?.()
+    if (effectiveRegistry) {
+      this.npmRegistry = effectiveRegistry
+      if (effectiveRegistry === 'https://registry.npmmirror.com/') {
+        this.uvRegistry = 'http://mirrors.aliyun.com/pypi/simple'
+      } else {
+        this.uvRegistry = null
+      }
+      console.log(`[NPM Registry] Loaded effective registry: ${effectiveRegistry}`)
+    } else {
+      this.npmRegistry = null
+      this.uvRegistry = null
+      console.log('[NPM Registry] No effective registry, will use default or detect')
+    }
   }
 
   // 测试npm registry速度并返回最佳选择
-  async testNpmRegistrySpeed(): Promise<string> {
-    const timeout = 5000
+  async testNpmRegistrySpeed(useCache: boolean = true): Promise<string> {
+    const customRegistry = this.configPresenter.getCustomNpmRegistry?.()
+    if (customRegistry) {
+      this.npmRegistry = customRegistry
+      if (customRegistry === 'https://registry.npmmirror.com/') {
+        this.uvRegistry = 'http://mirrors.aliyun.com/pypi/simple'
+      } else {
+        this.uvRegistry = null
+      }
+      console.log(`[NPM Registry] Using custom registry: ${customRegistry}`)
+      return customRegistry
+    }
+    if (useCache && this.configPresenter.isNpmRegistryCacheValid?.()) {
+      const cache = this.configPresenter.getNpmRegistryCache?.()
+      if (cache) {
+        this.npmRegistry = cache.registry
+        if (cache.registry === 'https://registry.npmmirror.com/') {
+          this.uvRegistry = 'http://mirrors.aliyun.com/pypi/simple'
+        } else {
+          this.uvRegistry = null
+        }
+        console.log(`[NPM Registry] Using cached registry: ${cache.registry}`)
+        return cache.registry
+      }
+    }
+
+    console.log('[NPM Registry] Testing registry speed...')
+    const timeout = 3000
     const testPackage = 'tiny-runtime-injector'
 
     // 获取代理配置
@@ -71,30 +114,55 @@ export class ServerManager {
     const successfulResults = results
       .filter((result) => result.success)
       .sort((a, b) => a.time - b.time)
-    console.log('npm registry check results', successfulResults)
-
-    // 如果所有请求都失败，返回默认的registry
+    console.log('[NPM Registry] Test results:', successfulResults)
+    let bestRegistry: string
     if (successfulResults.length === 0) {
-      console.log('All npm registry tests failed, using default registry')
-      return NPM_REGISTRY_LIST[0]
+      console.log('[NPM Registry] All tests failed, using default registry')
+      bestRegistry = NPM_REGISTRY_LIST[0]
+    } else {
+      bestRegistry = successfulResults[0].registry
+      console.log(`[NPM Registry] Best registry: ${bestRegistry} (${successfulResults[0].time}ms)`)
     }
-
-    // 返回响应最快的registry
-    this.npmRegistry = successfulResults[0].registry
-
-    // 如果最快的npm源是npmmirror，设置uvRegistry
-    if (this.npmRegistry === 'https://registry.npmmirror.com/') {
+    this.npmRegistry = bestRegistry
+    if (bestRegistry === 'https://registry.npmmirror.com/') {
       this.uvRegistry = 'http://mirrors.aliyun.com/pypi/simple'
     } else {
       this.uvRegistry = null
     }
 
-    return this.npmRegistry
+    if (this.configPresenter.setNpmRegistryCache) {
+      this.configPresenter.setNpmRegistryCache({
+        registry: bestRegistry,
+        lastChecked: Date.now(),
+        isAutoDetect: true
+      })
+    }
+    return bestRegistry
   }
 
   // 获取npm registry
   getNpmRegistry(): string | null {
     return this.npmRegistry
+  }
+
+  async refreshNpmRegistry(): Promise<string> {
+    console.log('[NPM Registry] Manual refresh triggered')
+    return await this.testNpmRegistrySpeed(false) // 不使用缓存
+  }
+
+  async updateNpmRegistryInBackground(): Promise<void> {
+    try {
+      // 检查是否需要更新
+      if (this.configPresenter.isNpmRegistryCacheValid?.()) {
+        console.log('[NPM Registry] Cache is still valid, skipping background update')
+        return
+      }
+      console.log('[NPM Registry] Starting background registry update')
+      await this.testNpmRegistrySpeed(false)
+      console.log('[NPM Registry] Background registry update completed')
+    } catch (error) {
+      console.error('[NPM Registry] Background update failed:', error)
+    }
   }
 
   // 获取uv registry

@@ -13,6 +13,24 @@
   },
   "messageBlockAction": {
     "continue": "Continuer",
-    "continued": "Suite"
+    "continued": "Poursuivi"
+  },
+  "messageBlockPermissionRequest": {
+    "title": "Autorisation requise",
+    "allow": "Autoriser",
+    "deny": "Refuser",
+    "rememberChoice": "Se souvenir de ce choix",
+    "granted": "Autorisation accordée",
+    "denied": "Autorisation refusée",
+    "type": {
+      "read": "Accès en lecture",
+      "write": "Accès en écriture",
+      "all": "Accès complet"
+    },
+    "description": {
+      "read": "Autoriser '{toolName}' de '{serverName}' à effectuer des opérations de lecture ?",
+      "write": "Autoriser '{toolName}' de '{serverName}' à effectuer des opérations d'écriture ?",
+      "all": "Autoriser '{toolName}' de '{serverName}' à lire et écrire ?"
+    }
   }
 }

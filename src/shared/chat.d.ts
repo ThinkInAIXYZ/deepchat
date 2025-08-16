@@ -89,11 +89,21 @@ export type AssistantMessageBlock = {
     | 'error'
     | 'tool_call'
     | 'action'
+    | 'tool_call_permission' // NEW: Dedicated permission request block type
     | 'image'
     | 'artifact-thinking'
   content?: string
   extra?: Record<string, string | number | object[] | boolean>
-  status: 'success' | 'loading' | 'cancel' | 'error' | 'reading' | 'optimizing' | 'pending'
+  status:
+    | 'success'
+    | 'loading'
+    | 'cancel'
+    | 'error'
+    | 'reading'
+    | 'optimizing'
+    | 'pending'
+    | 'granted'
+    | 'denied'
   timestamp: number
   artifact?: {
     identifier: string
@@ -116,7 +126,7 @@ export type AssistantMessageBlock = {
     server_icons?: string
     server_description?: string
   }
-  action_type?: 'tool_call_permission' | 'maximum_tool_calls_reached'
+  action_type?: 'tool_call_permission' | 'maximum_tool_calls_reached' | 'rate_limit'
   image_data?: {
     data: string
     mimeType: string

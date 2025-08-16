@@ -2,28 +2,34 @@
   "actions": {
     "rename": "名前を変更",
     "delete": "削除",
-    "cleanMessages": "メッセージをクリアします",
+    "cleanMessages": "メッセージをクリア",
     "pin": "ピン留めする",
-    "unpin": "ピン留めを外す"
+    "unpin": "ピン留めを外す",
+    "export": "エクスポート",
+    "exportText": "プレーンテキスト"
   },
   "toolbar": {
     "save": "保存",
     "cancel": "キャンセル",
-    "previousVariant": "前のバージョンに切り替えます",
-    "nextVariant": "次のバージョンに切り替えます",
-    "copy": "答えをマークダウンにコピーします",
-    "copyImage": "画像としてコピーします",
+    "previousVariant": "前のバリアント",
+    "nextVariant": "次のバリアント",
+    "copy": "Markdownとしてコピー",
+    "copyImage": "画像としてコピー",
     "retry": "再生成",
     "fork": "新会話に分岐",
-    "edit": "メッセージを編集します",
-    "delete": "メッセージを削除します",
-    "capturing": "スクリーンショット...",
+    "edit": "メッセージを編集",
+    "delete": "メッセージを削除",
+    "capturing": "キャプチャ中...",
     "copyFromTopSuccess": "完全なセッション画像がコピーされました",
-    "copyImageWithLongPress": "画像としてコピー（長押しで上部から取得）"
+    "copyImageWithLongPress": "画像としてコピー（長押しで上部からキャプチャ）"
   },
   "message": {
     "toolbar": {
       "save": "保存"
     }
+  },
+  "export": {
+    "failed": "エクスポートは失敗しました",
+    "failedDesc": "エクスポートプロセス中にエラーが発生しました。もう一度やり直してください"
   }
 }

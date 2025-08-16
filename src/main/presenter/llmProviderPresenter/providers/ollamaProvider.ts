@@ -7,12 +7,14 @@ import {
   MCPToolDefinition,
   ModelConfig,
   LLMCoreStreamEvent,
-  ChatMessage
+  ChatMessage,
+  LLM_EMBEDDING_ATTRS
 } from '@shared/presenter'
 import { BaseLLMProvider, SUMMARY_TITLES_PROMPT } from '../baseProvider'
 import { ConfigPresenter } from '../../configPresenter'
 import { Ollama, Message, ShowResponse } from 'ollama'
 import { presenter } from '@/presenter'
+import { EMBEDDING_TEST_KEY, isNormalized } from '@/utils/vector'
 
 // 定义 Ollama 工具类型
 interface OllamaTool {
@@ -173,9 +175,16 @@ export class OllamaProvider extends BaseLLMProvider {
         }
       }
 
-      // 处理<think>标签
+      // 处理 thinking 字段
       const content = response.message?.content || ''
-      if (content.includes('<think>')) {
+      const thinking = response.message?.thinking || ''
+
+      if (thinking) {
+        resultResp.reasoning_content = thinking
+        resultResp.content = content
+      }
+      // 处理<think>标签（其他模型）
+      else if (content.includes('<think>')) {
         const thinkStart = content.indexOf('<think>')
         const thinkEnd = content.indexOf('</think>')
 
@@ -192,7 +201,7 @@ export class OllamaProvider extends BaseLLMProvider {
           resultResp.content = content
         }
       } else {
-        // 没有think标签，所有内容作为普通内容
+        // 没有特殊格式，所有内容作为普通内容
         resultResp.content = content
       }
 
@@ -287,12 +296,32 @@ export class OllamaProvider extends BaseLLMProvider {
     }
   }
 
+  private async attachModelInfo(model: OllamaModel): Promise<OllamaModel> {
+    const showResponse = await this.showModelInfo(model.name)
+    const info = showResponse.model_info
+    const family = model.details.family
+    const context_length = info?.[family + '.context_length'] ?? 4096
+    const embedding_length = info?.[family + '.embedding_length'] ?? 512
+    const capabilities = showResponse.capabilities ?? ['chat']
+
+    // Merge customConfig properties to model
+    return {
+      ...model,
+      model_info: {
+        context_length,
+        embedding_length
+      },
+      capabilities
+    }
+  }
+
   // Ollama 特有的模型管理功能
   public async listModels(): Promise<OllamaModel[]> {
     try {
       const response = await this.ollama.list()
-      // 返回类型转换，适应我们的 OllamaModel 接口
-      return response.models as unknown as OllamaModel[]
+      const models = response.models as unknown as OllamaModel[]
+      // FIXME: Merge model properties, optimize after ollama list API is improved
+      return await Promise.all(models.map(async (model) => this.attachModelInfo(model)))
     } catch (error) {
       console.error('Failed to list Ollama models:', (error as Error).message)
       return []
@@ -302,7 +331,9 @@ export class OllamaProvider extends BaseLLMProvider {
   public async listRunningModels(): Promise<OllamaModel[]> {
     try {
       const response = await this.ollama.ps()
-      return response.models as unknown as OllamaModel[]
+      const runningModels = response.models as unknown as OllamaModel[]
+      // FIXME: Merge model properties, optimize after ollama list API is improved
+      return await Promise.all(runningModels.map(async (model) => this.attachModelInfo(model)))
     } catch (error) {
       console.error('Failed to list running Ollama models:', (error as Error).message)
       return []
@@ -471,6 +502,7 @@ export class OllamaProvider extends BaseLLMProvider {
           num_predict: maxTokens
         },
         stream: true as const,
+        ...(modelConfig?.reasoningEffort && { reasoning_effort: modelConfig.reasoningEffort }),
         ...(supportsFunctionCall && ollamaTools && ollamaTools.length > 0
           ? { tools: ollamaTools }
           : {})
@@ -573,6 +605,12 @@ export class OllamaProvider extends BaseLLMProvider {
 
           stopReason = 'tool_use'
           continue
+        }
+
+        // 处理 thinking 字段
+        const currentThinking = chunk.message?.thinking || ''
+        if (currentThinking) {
+          yield { type: 'reasoning', reasoning_content: currentThinking }
         }
 
         // 获取当前内容
@@ -1126,7 +1164,7 @@ export class OllamaProvider extends BaseLLMProvider {
     console.log('ollama onProxyResolved')
   }
 
-  async getEmbeddings(texts: string[], modelId: string): Promise<number[][]> {
+  async getEmbeddings(modelId: string, texts: string[]): Promise<number[][]> {
     // Ollama embedding API: 只支持单条文本
     const results: number[][] = []
     for (const text of texts) {
@@ -1141,5 +1179,13 @@ export class OllamaProvider extends BaseLLMProvider {
       }
     }
     return results
+  }
+
+  async getDimensions(modelId: string): Promise<LLM_EMBEDDING_ATTRS> {
+    const res = await this.getEmbeddings(modelId, [EMBEDDING_TEST_KEY])
+    return {
+      dimensions: res[0].length,
+      normalized: isNormalized(res[0])
+    }
   }
 }

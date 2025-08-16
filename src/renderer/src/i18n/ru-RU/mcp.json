@@ -195,6 +195,14 @@
     "deepchat-inmemory/meeting-server": {
       "name": "Мультиагентная встреча",
       "desc": "Встроенный сервис встреч DeepChat позволяет организовывать и проводить обсуждения между несколькими агентами."
+    },
+    "builtinKnowledge": {
+      "desc": "Встроенная служба поиска базы знаний DeepChat, которая может искать содержание встроенной базы знаний DeepChat",
+      "name": "Встроенный поиск базы знаний"
+    },
+    "deepchat/apple-server": {
+      "desc": "Пусть модель работает системные функции MacOS, такие как календарь, контакты, электронные письма, карты, записки, напоминания и другие системы",
+      "name": "MacOS System Assistant"
     }
   },
   "prompts": {
@@ -238,5 +246,24 @@
     "mcpDisabled": "MCP отключен",
     "getPromptFailed": "Не удалось получить промпт",
     "readResourceFailed": "Не удалось прочитать ресурс"
+  },
+  "market": {
+    "apiKeyPlaceholder": "Введите ключ McProuter API",
+    "apiKeyRequiredDesc": "Пожалуйста, заполните клавишу McProuter API сначала перед установкой",
+    "apiKeyRequiredTitle": "Требует ключа API",
+    "browseBuiltin": "Просмотрите встроенный рынок MCP",
+    "builtinTitle": "MCP Market",
+    "empty": "Пока нет услуг",
+    "install": "Установить",
+    "installFailed": "Установка не удалась",
+    "installSuccess": "Установка успешно",
+    "installed": "Установлен",
+    "keyGuide": "Получите ключ",
+    "keyHelpEnd": "После подачи заявки на ключ API заполните поле ввода выше",
+    "keyHelpText": "Пожалуйста, приезжайте первым",
+    "loadMore": "Загружать больше",
+    "noMore": "Больше не надо",
+    "poweredBy": "Оборудован от McProuter",
+    "pullDownToLoad": "Продолжайте падать, чтобы загружать больше"
   }
 }

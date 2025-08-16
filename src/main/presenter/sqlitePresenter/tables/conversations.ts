@@ -17,6 +17,19 @@ type ConversationRow = {
   artifacts: number
   is_new: number
   is_pinned: number
+  enabled_mcp_tools: string | null
+  thinking_budget: number | null
+  reasoning_effort: string | null
+  verbosity: string | null
+}
+
+// 解析 JSON 字段
+function getJsonField<T>(val: string | null | undefined, fallback: T): T {
+  try {
+    return val ? JSON.parse(val) : fallback
+  } catch {
+    return fallback
+  }
 }
 
 export class ConversationsTable extends BaseTable {
@@ -46,7 +59,6 @@ export class ConversationsTable extends BaseTable {
       CREATE INDEX idx_conversations_pinned ON conversations(is_pinned);
     `
   }
-
   getMigrationSQL(version: number): string | null {
     if (version === 1) {
       return `
@@ -67,11 +79,39 @@ export class ConversationsTable extends BaseTable {
         UPDATE conversations SET artifacts = 0;
       `
     }
+    if (version === 3) {
+      return `
+        --- 添加 enabled_mcp_tools 字段
+        ALTER TABLE conversations ADD COLUMN enabled_mcp_tools TEXT DEFAULT '[]';
+      `
+    }
+    if (version === 4) {
+      return `
+        -- 添加 thinking_budget 字段
+        ALTER TABLE conversations ADD COLUMN thinking_budget INTEGER DEFAULT NULL;
+      `
+    }
+    if (version === 5) {
+      return `
+        -- 回滚脏数据 enabled_mcp_tools
+        UPDATE conversations SET enabled_mcp_tools = NULL WHERE enabled_mcp_tools = '[]';
+      `
+    }
+    if (version === 6) {
+      return `
+        -- 添加 reasoning_effort 字段
+        ALTER TABLE conversations ADD COLUMN reasoning_effort TEXT DEFAULT NULL;
+        
+        -- 添加 verbosity 字段
+        ALTER TABLE conversations ADD COLUMN verbosity TEXT DEFAULT NULL;
+      `
+    }
+
     return null
   }
 
   getLatestVersion(): number {
-    return 2
+    return 6
   }
 
   async create(title: string, settings: Partial<CONVERSATION_SETTINGS> = {}): Promise<string> {
@@ -89,9 +129,13 @@ export class ConversationsTable extends BaseTable {
         model_id,
         is_new,
         artifacts,
-        is_pinned
+        is_pinned,
+        enabled_mcp_tools,
+        thinking_budget,
+        reasoning_effort,
+        verbosity
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `)
     const conv_id = nanoid()
     const now = Date.now()
@@ -108,7 +152,11 @@ export class ConversationsTable extends BaseTable {
       settings.modelId || 'gpt-4',
       1,
       settings.artifacts || 0,
-      0 // Default is_pinned to 0
+      0, // Default is_pinned to 0
+      settings.enabledMcpTools ? JSON.stringify(settings.enabledMcpTools) : 'NULL',
+      settings.thinkingBudget !== undefined ? settings.thinkingBudget : null,
+      settings.reasoningEffort !== undefined ? settings.reasoningEffort : null,
+      settings.verbosity !== undefined ? settings.verbosity : null
     )
     return conv_id
   }
@@ -130,7 +178,11 @@ export class ConversationsTable extends BaseTable {
         model_id as modelId,
         is_new,
         artifacts,
-        is_pinned
+        is_pinned,
+        enabled_mcp_tools,
+        thinking_budget,
+        reasoning_effort,
+        verbosity
       FROM conversations
       WHERE conv_id = ?
     `
@@ -155,7 +207,13 @@ export class ConversationsTable extends BaseTable {
         maxTokens: result.maxTokens,
         providerId: result.providerId,
         modelId: result.modelId,
-        artifacts: result.artifacts as 0 | 1
+        artifacts: result.artifacts as 0 | 1,
+        enabledMcpTools: getJsonField(result.enabled_mcp_tools, undefined),
+        thinkingBudget: result.thinking_budget !== null ? result.thinking_budget : undefined,
+        reasoningEffort: result.reasoning_effort
+          ? (result.reasoning_effort as 'minimal' | 'low' | 'medium' | 'high')
+          : undefined,
+        verbosity: result.verbosity ? (result.verbosity as 'low' | 'medium' | 'high') : undefined
       }
     }
   }
@@ -208,8 +266,23 @@ export class ConversationsTable extends BaseTable {
         updates.push('artifacts = ?')
         params.push(data.settings.artifacts)
       }
+      if (data.settings.enabledMcpTools !== undefined) {
+        updates.push('enabled_mcp_tools = ?')
+        params.push(JSON.stringify(data.settings.enabledMcpTools))
+      }
+      if (data.settings.thinkingBudget !== undefined) {
+        updates.push('thinking_budget = ?')
+        params.push(data.settings.thinkingBudget)
+      }
+      if (data.settings.reasoningEffort !== undefined) {
+        updates.push('reasoning_effort = ?')
+        params.push(data.settings.reasoningEffort)
+      }
+      if (data.settings.verbosity !== undefined) {
+        updates.push('verbosity = ?')
+        params.push(data.settings.verbosity)
+      }
     }
-
     if (updates.length > 0 || data.updatedAt) {
       updates.push('updated_at = ?')
       params.push(data.updatedAt || Date.now())
@@ -252,7 +325,11 @@ export class ConversationsTable extends BaseTable {
         model_id as modelId,
         is_new,
         artifacts,
-        is_pinned
+        is_pinned,
+        enabled_mcp_tools,
+        thinking_budget,
+        reasoning_effort,
+        verbosity
       FROM conversations
       ORDER BY updated_at DESC
       LIMIT ? OFFSET ?
@@ -276,7 +353,13 @@ export class ConversationsTable extends BaseTable {
           maxTokens: row.maxTokens,
           providerId: row.providerId,
           modelId: row.modelId,
-          artifacts: row.artifacts as 0 | 1
+          artifacts: row.artifacts as 0 | 1,
+          enabledMcpTools: getJsonField(row.enabled_mcp_tools, undefined),
+          thinkingBudget: row.thinking_budget !== null ? row.thinking_budget : undefined,
+          reasoningEffort: row.reasoning_effort
+            ? (row.reasoning_effort as 'minimal' | 'low' | 'medium' | 'high')
+            : undefined,
+          verbosity: row.verbosity ? (row.verbosity as 'low' | 'medium' | 'high') : undefined
         }
       }))
     }

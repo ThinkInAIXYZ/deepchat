@@ -128,16 +128,6 @@
   }
   body {
     @apply bg-transparent text-foreground font-text;
-    font-family:
-      'Geist',
-      Noto Sans,
-      ui-sans-serif,
-      system-ui,
-      sans-serif,
-      'Apple Color Emoji',
-      'Segoe UI Emoji',
-      'Segoe UI Symbol',
-      'Noto Color Emoji' !important;
   }
   html {
     font-family:
@@ -149,7 +139,7 @@
       'Apple Color Emoji',
       'Segoe UI Emoji',
       'Segoe UI Symbol',
-      'Noto Color Emoji' !important;
+      'Noto Color Emoji';
   }
 }
 

@@ -45,6 +45,7 @@
   "uploadSuccess": "Загрузка успешна",
   "uploadedCount": "Загружено {count} файлов",
   "confirmDelete": "Вы уверены, что хотите удалить промпт \"{name}\"?",
+  "confirmDeleteDescription": "Это действие нельзя отменить. Промпт будет удален навсегда.",
   "deleteSuccess": "Удаление успешно",
   "deleteFailed": "Ошибка удаления",
   "inactive": "Неактивен",

@@ -12,7 +12,25 @@
     "flags": "Флаги"
   },
   "messageBlockAction": {
-    "continue": "продолжать",
-    "continued": "Продолжать"
+    "continue": "Продолжить",
+    "continued": "Продолжено"
+  },
+  "messageBlockPermissionRequest": {
+    "title": "Требуется разрешение",
+    "allow": "Разрешить",
+    "deny": "Отклонить",
+    "rememberChoice": "Запомнить этот выбор",
+    "granted": "Разрешение предоставлено",
+    "denied": "Разрешение отклонено",
+    "type": {
+      "read": "Доступ на чтение",
+      "write": "Доступ на запись",
+      "all": "Полный доступ"
+    },
+    "description": {
+      "read": "Разрешить '{toolName}' от '{serverName}' выполнять операции чтения?",
+      "write": "Разрешить '{toolName}' от '{serverName}' выполнять операции записи?",
+      "all": "Разрешить '{toolName}' от '{serverName}' читать и записывать?"
+    }
   }
 }

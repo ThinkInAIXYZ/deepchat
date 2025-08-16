@@ -19,6 +19,7 @@ import {
   SelectValue
 } from '@/components/ui/select'
 import { useMcpStore } from '@/stores/mcp'
+import { useMediaQuery } from '@vueuse/core'
 import { useI18n } from 'vue-i18n'
 import McpJsonViewer from './McpJsonViewer.vue'
 import type { MCPToolDefinition } from '@shared/presenter'
@@ -50,6 +51,14 @@ const isParametersExpanded = ref(false)
 // 计算属性：获取当前服务器的工具
 const serverTools = computed(() => {
   return mcpStore.tools.filter((tool) => tool.server.name === props.serverName)
+})
+
+// 屏幕断点：lg 及以上
+const isLgScreen = useMediaQuery('(min-width: 1024px)')
+
+// 顶部下拉是否显示：小屏时显示；或大屏但左侧列表不可用（无工具）时显示
+const showTopSelector = computed(() => {
+  return !isLgScreen.value || serverTools.value.length === 0
 })
 
 watch(open, (newOpen) => {
@@ -161,8 +170,8 @@ const selectTool = (tool: MCPToolDefinition) => {
       </SheetHeader>
 
       <div class="flex flex-col flex-1 overflow-hidden">
-        <!-- 小屏幕：工具选择下拉菜单 -->
-        <div class="flex-shrink-0 px-4 py-4 lg:hidden">
+        <!-- 顶部工具选择下拉菜单：小屏显示；或大屏但左侧列表不可用时显示 -->
+        <div v-if="showTopSelector" class="flex-shrink-0 px-4 py-4">
           <Select v-model="selectedToolName">
             <SelectTrigger class="w-full">
               <SelectValue :placeholder="t('mcp.tools.selectToolToDebug')" />
@@ -185,7 +194,7 @@ const selectTool = (tool: MCPToolDefinition) => {
         <!-- 大屏幕：左右分列布局 -->
         <div class="flex-1 flex overflow-hidden min-h-0">
           <!-- 左侧工具列表 (仅大屏幕显示) -->
-          <div class="hidden lg:flex lg:w-1/3 lg:border-r lg:flex-col">
+          <div v-if="!showTopSelector" class="flex w-1/3 border-r flex-col">
             <div class="p-4 border-b flex-shrink-0">
               <h3 class="text-sm font-medium text-foreground">{{ t('mcp.tools.toolList') }}</h3>
             </div>
@@ -376,6 +385,7 @@ const selectTool = (tool: MCPToolDefinition) => {
 <style scoped>
 .line-clamp-2 {
   display: -webkit-box;
+  line-clamp: 2;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;

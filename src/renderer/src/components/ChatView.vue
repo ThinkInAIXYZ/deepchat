@@ -11,6 +11,7 @@
     <!-- 输入框区域 -->
     <div class="flex-none px-2 pb-2">
       <ChatInput
+        ref="chatInput"
         :disabled="!chatStore.getActiveThreadId() || isGenerating"
         @send="handleSend"
         @file-upload="handleFileUpload"
@@ -32,6 +33,7 @@ const route = useRoute()
 const settingsStore = useSettingsStore()
 
 const messageList = ref()
+const chatInput = ref()
 
 import { useChatStore } from '@/stores/chat'
 
@@ -45,16 +47,13 @@ const isGenerating = computed(() => {
   return chatStore.generatingThreadIds.has(chatStore.getActiveThreadId()!)
 })
 const handleSend = async (msg: UserMessageContent) => {
-  if (messageList.value) {
-    // 在发送消息前将aboveThreshold设置为false，确保消息发送过程中总是滚动到底部
-    messageList.value.aboveThreshold = false
-  }
   scrollToBottom()
   await chatStore.sendMessage(msg)
-  // 只有当用户在底部时才自动滚动
-  if (!messageList.value?.aboveThreshold) {
-    scrollToBottom()
-  }
+  scrollToBottom()
+
+  setTimeout(() => {
+    chatInput.value?.restoreFocus()
+  }, 100)
 }
 
 const handleFileUpload = () => {
@@ -70,10 +69,16 @@ onMounted(async () => {
 
   window.electron.ipcRenderer.on(STREAM_EVENTS.END, (_, msg) => {
     chatStore.handleStreamEnd(msg)
+    setTimeout(() => {
+      chatInput.value?.restoreFocus()
+    }, 200)
   })
 
   window.electron.ipcRenderer.on(STREAM_EVENTS.ERROR, (_, msg) => {
     chatStore.handleStreamError(msg)
+    setTimeout(() => {
+      chatInput.value?.restoreFocus()
+    }, 200)
   })
 
   if (route.query.modelId && route.query.providerId) {

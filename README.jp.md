@@ -122,8 +122,8 @@ DeepChatは、様々な大規模言語モデルと対話するための統一さ
       <a href="https://deepseek.com/">Deepseek</a>
     </td>
     <td>
-      <img src="./src/renderer/src/assets/llm-icons/siliconcloud.svg" width="50" height="50" alt="SiliconFlow Icon"><br/>
-      <a href="https://www.siliconflow.cn/">SiliconFlow</a>
+      <img src="./src/renderer/src/assets/llm-icons/ppio-color.svg" width="50" height="50" alt="PPIO Icon"><br/>
+      <a href="https://ppinfra.com/">PPIO</a>
     </td>
     <td>
       <img src="./src/renderer/src/assets/llm-icons/alibabacloud-color.svg" width="50" height="50" alt="DashScope Icon"><br/>
@@ -144,8 +144,8 @@ DeepChatは、様々な大規模言語モデルと対話するための統一さ
       <a href="https://fireworks.ai/">Fireworks</a>
     </td>
     <td>
-      <img src="./src/renderer/src/assets/llm-icons/ppio-color.svg" width="50" height="50" alt="PPIO Icon"><br/>
-      <a href="https://ppinfra.com/">PPIO</a>
+      <img src="./src/renderer/src/assets/llm-icons/302ai.svg" width="50" height="50" alt="302.AI Icon"><br/>
+      <a href="https://302.ai/">302.AI</a>
     </td>
   </tr>
   <tr align="center">
@@ -190,8 +190,8 @@ DeepChatは、様々な大規模言語モデルと対話するための統一さ
       <a href="https://open.bigmodel.cn/">Zhipu</a>
     </td>
     <td>
-      <img src="./src/renderer/src/assets/llm-icons/lmstudio.svg" width="50" height="50" alt="LM Studio Icon"><br/>
-      <a href="https://lmstudio.ai/">LM Studio</a>
+      <img src="./src/renderer/src/assets/llm-icons/siliconcloud.svg" width="50" height="50" alt="SiliconFlow Icon"><br/>
+      <a href="https://www.siliconflow.cn/">SiliconFlow</a>
     </td>
     <td>
       <img src="./src/renderer/src/assets/llm-icons/aihubmix.png" width="50" height="50" alt="AIHubMix Icon"><br/>
@@ -204,8 +204,8 @@ DeepChatは、様々な大規模言語モデルと対話するための統一さ
   </tr>
   <tr align="center">
     <td>
-      <img src="./src/renderer/src/assets/llm-icons/302ai.svg" width="50" height="50" alt="302.AI Icon"><br/>
-      <a href="https://302.ai/">302.AI</a>
+      <img src="./src/renderer/src/assets/llm-icons/lmstudio.svg" width="50" height="50" alt="LM Studio Icon"><br/>
+      <a href="https://lmstudio.ai/">LM Studio</a>
     </td>
     <td></td>
     <td></td>
@@ -317,6 +317,15 @@ deepchatへの貢献をご検討いただきありがとうございます！貢
 <a href="https://github.com/ThinkInAIXYZ/deepchat/graphs/contributors">
   <img src="https://contrib.rocks/image?repo=ThinkInAIXYZ/deepchat" alt="DeepChatプロジェクト貢献者" />
 </a>
+
+## 🙏🏻 謝辞
+
+このプロジェクトは、以下の素晴らしいライブラリの支援により構築されています：
+
+- [Vue](https://vuejs.org/)
+- [Electron](https://www.electronjs.org/)
+- [Electron-Vite](https://electron-vite.org/)
+- [oxlint](https://github.com/oxc-project/oxc)
 
 ## 📃 ライセンス
 

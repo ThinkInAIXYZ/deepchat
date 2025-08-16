@@ -20,8 +20,8 @@
     "invalidProxyUrl": "無効なプロキシURL、有効なhttp/https URLを入力してください",
     "contentProtection": "画面キャプチャ保護",
     "contentProtectionDialogTitle": "画面保護の切り替え確認",
-    "contentProtectionEnableDesc": "画面保護を有効にすると、画面共有ソフトウェアがDeepChatウィンドウをキャプチャするのを防ぎ、コンテンツのプライバシーを保護します。この機能はすべてのインターフェイスを完全に隠すわけではありません。責任を持って規制に準拠して使用してください。また、画面共有ソフトウェアがこの機能をサポートしない場合があります。また、一部の環境では黒いウィンドウが残る可能性があります。",
-    "contentProtectionDisableDesc": "画面保護を無効にすると、画面共有ソフトウェアがDeepChatウィンドウをキャプチャできるようになります。",
+    "contentProtectionEnableDesc": "DeepChatウィンドウの画面共有によるキャプチャを防止し、プライバシー保護に役立ちます。すべてのアプリがこの設定に対応するわけではなく、環境によっては黒いウィンドウが残る場合があります。",
+    "contentProtectionDisableDesc": "画面共有アプリによるDeepChatウィンドウのキャプチャを許可します。",
     "contentProtectionRestartNotice": "この設定を変更するとアプリケーションが再起動します。続行しますか？",
     "soundEnabled": "サウンドを有効にする",
     "copyWithCotEnabled": "COT情報をコピー",
@@ -51,7 +51,7 @@
       "title": "ショートカットキー設定"
     },
     "notifications": "システム通知",
-    "notificationsDesc": "Deepchatが前景にない場合、セッションが生成された場合、システム通知が送信されます"
+    "notificationsDesc": "DeepChatがバックグラウンドのとき、応答が完了すると通知を送信します"
   },
   "data": {
     "title": "データ設定",
@@ -70,7 +70,22 @@
     "importing": "インポート中...",
     "confirmImport": "インポートを確認",
     "importSuccessTitle": "インポート成功",
-    "importErrorTitle": "インポート失敗"
+    "importErrorTitle": "インポート失敗",
+    "resetData": "データをリセット",
+    "resetConfirmTitle": "データリセットの確認",
+    "resetConfirmDescription": "リセットするデータの種類を選択してください。この操作は元に戻せません。リセット後、アプリケーションは自動的に再起動されます。",
+    "resetChatData": "チャットデータをリセット",
+    "resetChatDataDesc": "すべてのチャット履歴と会話記録を削除",
+    "resetKnowledgeData": "ナレッジベースデータをリセット",
+    "resetKnowledgeDataDesc": "すべてのナレッジベースファイルとベクターデータを削除",
+    "resetConfig": "設定をリセット",
+    "resetConfigDesc": "すべてのアプリ設定、モデル設定、カスタムプロンプトを削除",
+    "resetAll": "完全リセット",
+    "resetAllDesc": "チャット履歴、設定、キャッシュファイルを含むすべてのデータを削除",
+    "resetting": "リセット中...",
+    "confirmReset": "リセットを確認",
+    "resetCompleteDevTitle": "データリセット完了",
+    "resetCompleteDevMessage": "開発環境では手動でアプリケーションを再起動してください。現在のプロセスを停止して pnpm run dev を再実行してください"
   },
   "model": {
     "title": "モデル設定",
@@ -93,10 +108,10 @@
     },
     "artifacts": {
       "description": "Artifacts機能を有効にすると、AIはより豊かなコンテンツを生成できます",
-      "title": "アーティファクト効果"
+      "title": "Artifacts"
     },
-    "addModel": "モデルを追加します",
-    "configureModel": "構成モデル",
+    "addModel": "モデルを追加",
+    "configureModel": "モデルを構成",
     "modelList": "モデルリスト",
     "provider": "サービスプロバイダー",
     "providerSetting": "サービスプロバイダーの設定",
@@ -105,7 +120,7 @@
       "cancel": "キャンセル",
       "contextLength": {
         "description": "モデルが処理できるコンテキスト長を設定します",
-        "label": "コンテキストの長さ"
+        "label": "コンテキスト長"
       },
       "description": "この構成は現在のモデルに対してのみ有効であり、他のモデルには影響しないことに注意してください。注意して変更してください。パラメーターが誤っていると、モデルが適切に機能しない場合があります。",
       "functionCall": {
@@ -120,15 +135,65 @@
         "description": "モデルは推論能力をサポートしていますか？",
         "label": "推論能力"
       },
+      "thinkingBudget": {
+        "label": "思考予算",
+        "description": "モデルの思考長を制限する",
+        "dynamic": "動的思考",
+        "range": "範囲: {min} - {max}",
+        "onlySupported": "Gemini 2.5 Flash、2.5 Pro、2.5 Flash-Liteでのみサポート",
+        "valueLabel": "思考予算値",
+        "placeholder": "思考予算値を入力",
+        "forceEnabled": "Gemini 2.5 シリーズモデルは思考予算を強制的に有効にします",
+        "dynamicPrefix": "-1 = 動的思考",
+        "notice": "注意：",
+        "warnings": {
+          "proNoDisable": "このモデルは思考の無効化をサポートしていません、最小値 128",
+          "proCannotDisable": "Gemini 2.5 Pro は思考機能を無効にできません",
+          "flashLiteCannotSetZero": "Gemini 2.5 Flash-Lite は 0 に設定できません、最小値は 512",
+          "modelCannotDisable": "このモデルは思考機能を無効にできません",
+          "flashLiteMinValue": "思考予算を具体的な値に設定する場合、512 未満にはできません（または 0 で思考を無効、-1 で動的思考を有効）",
+          "belowMin": "思考予算は {min} 未満にはできません{hint}",
+          "aboveMax": "思考予算は {max} を超えることはできません"
+        },
+        "hints": {
+          "flashLiteDisable": "、0 = 思考を無効、具体的な値の最小値 512",
+          "normalDisable": "、0 = 思考を無効",
+          "withZeroAndDynamic": "（または 0 で思考を無効、-1 で動的思考を有効）",
+          "withDynamic": "（または -1 で動的思考を有効）"
+        }
+      },
       "resetConfirm": {
         "confirm": "リセットを確認します",
         "message": "このモデルの構成をデフォルトにリセットする必要がありますか？この操作は取消不能です。",
         "title": "リセットを確認します"
       },
+      "reasoningEffort": {
+        "label": "推論努力度",
+        "description": "モデルの推論の深さを制御します。より高い努力度はより良い結果を生成しますが、応答が遅くなります",
+        "placeholder": "推論努力度を選択",
+        "options": {
+          "minimal": "Minimal - 最速応答",
+          "low": "Low - 低努力",
+          "medium": "Medium - 中程度の努力",
+          "high": "High - 高努力"
+        }
+      },
+      "verbosity": {
+        "label": "詳細度",
+        "description": "モデル応答の詳細レベルと長さを制御します",
+        "placeholder": "詳細度を選択",
+        "options": {
+          "low": "Low - 簡潔な回答",
+          "medium": "Medium - バランスの取れた詳細",
+          "high": "High - 詳細な回答"
+        }
+      },
       "resetToDefault": "デフォルトにリセットします",
       "saveConfig": "構成を保存します",
+      "useModelDefault": "モデルのデフォルト設定を使用",
+      "currentUsingModelDefault": "現在モデルのデフォルト設定を使用中",
       "temperature": {
-        "description": "出力のランダム性を制御します。ほとんどのモデルは0-1で、0〜2の間のサポートがあります。ランダム性が高くなるほど。",
+        "description": "出力のランダム性を制御します。値が高いほどランダム性が増します。",
         "label": "温度"
       },
       "title": "カスタムモデルパラメーター",
@@ -139,7 +204,7 @@
           "chat": "言語モデル",
           "embedding": "埋め込みモデル",
           "imageGeneration": "画像生成モデル",
-          "rerank": "モデルを並べ替えます"
+          "rerank": "リランクモデル"
         }
       },
       "validation": {
@@ -160,7 +225,10 @@
     }
   },
   "provider": {
+    "search": "プロバイダープラットフォームを検索…",
     "enable": "サービスを有効にする",
+    "enabled": "有効",
+    "disabled": "無効",
     "urlPlaceholder": "API URLを入力してください",
     "keyPlaceholder": "API Keyを入力してください",
     "verifyKey": "キーを検証",
@@ -172,6 +240,10 @@
     "enableModels": "モデルを有効にする",
     "disableAllModels": "すべてのモデルを無効にする",
     "modelsEnabled": "モデルが有効になりました",
+    "noModelsEnabled": {
+      "title": "有効なモデルがありません",
+      "description": "「モデルを有効にする」ボタンをクリックして使用したいモデルを手動で選択してください。"
+    },
     "verifyLink": "検証リンク",
     "syncModelsFailed": "モデルの同期に失敗しました...",
     "addCustomProvider": "カスタムプロバイダーを追加",
@@ -186,7 +258,8 @@
         "confirm": "無効にする"
       },
       "configModels": {
-        "title": "モデルリストを構成"
+        "title": "モデルリストを構成",
+        "description": "有効または無効にするモデルを選択"
       },
       "disableAllModels": {
         "title": "すべてのモデルを無効にする確認",
@@ -196,7 +269,12 @@
       "verify": {
         "missingFields": "API KeyとAPI URLを入力してください",
         "failed": "検証に失敗しました",
-        "success": "検証に成功しました"
+        "success": "検証に成功しました",
+        "failedDesc": "APIキーまたは設定の検証に失敗しました。設定を確認してください",
+        "successDesc": "APIキーと設定の検証に成功しました。使用可能です",
+        "connectionError": "接続エラー、ネットワーク接続とAPIアドレスを確認してください",
+        "serverError": "サーバーエラー、後でもう一度やり直してください",
+        "unauthorized": "認証に失敗し、APIキーが無効または期限切れです"
       },
       "addCustomProvider": {
         "title": "カスタムプロバイダーを追加",
@@ -223,7 +301,19 @@
       },
       "pullModel": {
         "title": "モデルを取得",
+        "description": "ローカルにダウンロードするモデルを選択",
         "pull": "取得"
+      },
+      "modelCheck": {
+        "checking": "テスト...",
+        "description": "接続性とユーザビリティテストのモデルを選択します",
+        "failed": "モデルテストに失敗しました",
+        "model": "モデルを選択します",
+        "modelPlaceholder": "テストするモデルを選択してください",
+        "noModels": "このサービスプロバイダーが利用できるモデルはありません",
+        "success": "モデルテストが成功しました",
+        "test": "テストを開始します",
+        "title": "モデルチェック"
       }
     },
     "pullModels": "モデルを取得",
@@ -237,7 +327,11 @@
     "localModels": "ローカルモデル",
     "azureApiVersion": "APIバージョン",
     "safety": {
-      "title": "セキュリティ設定"
+      "title": "セキュリティ設定",
+      "blockHighest": "高リスクをブロックします",
+      "blockMost": "中程度のリスクをブロックします",
+      "blockNone": "ブロックされていません",
+      "blockSome": "低リスクをブロックします"
     },
     "serverList": "サーバーリスト",
     "totalServers": "サーバー総数",
@@ -259,7 +353,94 @@
     "keyStatus": {
       "remaining": "残りの金額",
       "usage": "使用済み"
-    }
+    },
+    "refreshingModels": "更新中...",
+    "toast": {
+      "modelRunning": "モデルが実行されています",
+      "modelRunningDesc": "最初にモデル{model}を停止してから削除してください。"
+    },
+    "anthropicApiKeyTip": "APIキーを取得するには、人類コンソールにアクセスしてください",
+    "anthropicConnected": "人類接続",
+    "anthropicNotConnected": "人類は接続されていません",
+    "anthropicOAuthTip": "[deepchatの承認]をクリックして、人類アカウントにアクセスします",
+    "oauthLogin": "oauthログイン",
+    "authMethod": "認証方法",
+    "authMethodPlaceholder": "認証方法を選択",
+    "apiKeyLabel": "API Key",
+    "apiUrlLabel": "API URL",
+    "anthropicOAuthFlowTip": "システムは自動的に承認ウィンドウを開きます。承認後、戻って承認コードを入力してください。",
+    "anthropicBrowserOpened": "外部ブラウザが開いています",
+    "anthropicCodeInstruction": "外部ブラウザで承認を完了し、取得した認証コードを下の入力ボックスに貼り付けてください",
+    "browserOpenedSuccess": "外部ブラウザが開いています。承認を完了してください",
+    "codeRequired": "承認コードを入力してください",
+    "inputOAuthCode": "承認コードを入力します",
+    "codeExchangeFailed": "認証コード交換は失敗しました",
+    "invalidCode": "無効な承認コード",
+    "oauthCodeHint": "外部ブラウザで承認を完了した後、ここに承認コードを貼り付けてください",
+    "oauthCodePlaceholder": "承認コードを入力してください...",
+    "verifyConnection": "接続を確認",
+    "manageModels": "モデル管理",
+    "anthropicOAuthActiveTip": "OAuth認証が有効になっており、Anthropicサービスを直接使用できます",
+    "oauthVerifySuccess": "OAuth接続の確認が成功しました",
+    "oauthVerifyFailed": "OAuth接続の確認に失敗しました",
+    "configurationSaved": "構成が保存されました",
+    "configurationUpdated": "設定が更新されました",
+    "dataRefreshed": "データは更新されています",
+    "modelscope": {
+      "apiKey": "APIキー",
+      "apiKeyHelper": "ModelScopeコンソールでAPIキーを取得します",
+      "apiKeyPlaceholder": "ModelScope APIキーを入力してください",
+      "baseUrl": "APIアドレス",
+      "baseUrlHelper": "ModelScope APIサービスアドレス",
+      "connected": "接続",
+      "connecting": "接続...",
+      "description": "ModelScopeは、Alibaba Damo Academyによって開始されたサービスとしてのモデル共有プラットフォームです",
+      "details": {
+        "apiConfig": "API構成",
+        "mcpSync": "MCP同期",
+        "modelManagement": "モデル管理",
+        "operationalDescription": "ModelScopeプラットフォームで直接使用できるMCPサーバーを同期する",
+        "operationalServers": "サーバーの操作",
+        "rateLimitConfig": "レート制限構成",
+        "safetySettings": "セキュリティ設定",
+        "specialConfig": "特別な構成",
+        "syncFromModelScope": "ModelScopeから同期します",
+        "title": "プロバイダーの設定の詳細"
+      },
+      "invalidKey": "無効なAPIキー",
+      "keyRequired": "APIキーを入力してください",
+      "mcpSync": {
+        "authenticationFailed": "認証に失敗しました。APIキーを確認してください",
+        "convertingServers": "サーバー構成の変換...",
+        "description": "MODESCOPEからローカル構成までMCPサーバーを同期すると、一般的に使用されるMCPツールをすばやく追加できます。すべてのサービスはデフォルトで無効になり、インポート後に手動で有効にすることができます。",
+        "errorDetails": "エラーの詳細",
+        "errors": "エラー{count}",
+        "fetchingServers": "MCPサーバーのリストを取得...",
+        "imported": "{count}サービスがインポートされています",
+        "importingServers": "サーバー構成のインポート...",
+        "invalidServerData": "無効なサーバーデータ",
+        "noApiKey": "ModelScope APIキーを最初に構成してください",
+        "noOperationalUrls": "利用可能な操作アドレスは見つかりません",
+        "noServersFound": "利用可能なMCPサービスは見つかりません",
+        "pageNumber": "ページ番号",
+        "pageNumberPlaceholder": "ページ番号を入力してください",
+        "pageSize": "ページごとの数量",
+        "serverAlreadyExists": "サーバーはすでに存在し、インポートをスキップします",
+        "skipped": "Skip {count}サービス",
+        "sync": "同期を開始します",
+        "syncComplete": "同期完了",
+        "syncing": "同期...",
+        "title": "MCPサービスを同期します"
+      },
+      "name": "ModelScope",
+      "networkError": "ネットワーク接続エラー",
+      "notConnected": "接続されていません",
+      "verifyFailed": "検証に失敗しました",
+      "verifySuccess": "検証は成功しました"
+    },
+    "operationFailed": "操作に失敗しました",
+    "operationSuccess": "操作は成功しました",
+    "settingsApplied": "適用された設定"
   },
   "knowledgeBase": {
     "title": "ナレッジベース設定",
@@ -288,7 +469,77 @@
     "fastgptTitle": "FastGPT知識ベース",
     "fastgptDescription": "FastGPTは、複数の検索方法とドキュメント管理機能をサポートする強力な知識ベース管理システムです。",
     "addFastGptConfig": "FastGPT設定を追加",
-    "editFastGptConfig": "FastGPT設定を編集"
+    "editFastGptConfig": "FastGPT設定を編集",
+    "builtInKnowledgeDescription": "組み込みのナレッジベースは、オフライン環境でいくつかの基本機能を可能にするいくつかの簡単な実装を提供します。",
+    "builtInKnowledgeTitle": "組み込みの知識ベース",
+    "addBuiltinKnowledgeConfig": "組み込みのナレッジベースの構成を追加します",
+    "editBuiltinKnowledgeConfig": "組み込みのナレッジベースの構成を編集します",
+    "chunkSize": "ブロックサイズ",
+    "chunkSizeHelper": "ドキュメントをセグメントにカットすると、各セグメントのサイズがモデルコンテキスト制限を超えることはできません",
+    "chunkOverlap": "重複するサイズ",
+    "chunkOverlapHelper": "隣接するテキストブロック間で繰り返されるコンテンツの量により、セグメント化されたテキストブロック間にコンテキスト接続がまだあることが保証され、長いテキストのモデル処理の全体的な効果が改善されます。",
+    "selectEmbeddingModel": "埋め込みモデルを選択します",
+    "modelNotFound": "サービスプロバイダー {provider} またはモデル {model} が見つかりません",
+    "modelNotFoundDesc": "モデルが正しく構成されており、モデルが有効になっていることを確認してください。サービスプロバイダーの設定でモデル構成を確認できます。",
+    "removeBuiltinKnowledgeConfirmDesc": "組み込みのナレッジベース構成を削除すると、関連するすべてのデータが削除され、復元できません。注意してください。",
+    "removeBuiltinKnowledgeConfirmTitle": "組み込みのナレッジベース{name}を削除することを確認しますか？",
+    "descriptionDesc": "AIがこの知識ベースを取得するかどうかを決定するように、知識ベースの説明",
+    "advanced": "高度なオプション",
+    "autoDetectDimensions": "埋め込み寸法を自動的に検出します",
+    "autoDetectHelper": "埋め込み寸法を自動的に検出し、少量のトークンを消費します",
+    "chunkOverlapPlaceholder": "デフォルト値、変更は推奨されません",
+    "chunkSizePlaceholder": "デフォルト値、変更は推奨されません",
+    "dimensions": "埋め込まれた寸法",
+    "dimensionsPlaceholder": "1024などの寸法サイズを埋め込みます",
+    "selectEmbeddingModelHelper": "埋め込みモデルは、知識ベースの作成後に禁止されています",
+    "dimensionsHelper": "モデルが設定された埋め込み寸法サイズをサポートしていることを確認してください",
+    "autoDetectDimensionsError": "埋め込まれた寸法障害を自動的に検出します",
+    "fragmentsNumber": "要求されたドキュメントフラグメントの数",
+    "fragmentsNumberHelper": "要求されたドキュメントの断片が多いほど、より多くの情報が付属していますが、より多くのトークンを消費する必要があります",
+    "selectRerankModel": "再注文モデルを選択します",
+    "rerankModel": "モデルを並べ替えます",
+    "embeddingModel": "埋め込みモデル",
+    "return": "戻る",
+    "uploadHelper": "クリックしてここでファイルをアップロードまたはドラッグします",
+    "onlySupport": "サポートのみ",
+    "searchKnowledge": "ナレッジベースを検索します",
+    "searchKnowledgePlaceholder": "クエリコンテンツを入力してください",
+    "noData": "まだデータはありません",
+    "file": "書類",
+    "uploadProcessing": "アップロード",
+    "uploadCompleted": "完了したアップロード",
+    "reAdd": "再アップロード",
+    "uploadError": "アップロードに失敗しました",
+    "delete": "消去",
+    "reason": "理由",
+    "deleteSuccess": "正常に削除します",
+    "copy": "コピー",
+    "copySuccess": "正常にコピーします",
+    "source": "ソース",
+    "normalized": "L2正規化",
+    "normalizedHelper": "モデルが出力ベクトルのL2正規化をサポートしていることを確認してください",
+    "dialog": {
+      "beforequit": {
+        "cancel": "キャンセル",
+        "confirm": "確認する",
+        "title": "確認確認",
+        "description": "実行中のナレッジベースタスクがあります。ソフトウェアを終了しますか？ソフトウェアを再起動した後、中止されたタスクを復元できます。"
+      }
+    },
+    "searchError": "クエリに失敗しました",
+    "processing": "アップロード",
+    "paused": "一時停止をアップロードします",
+    "unknown": "不明なステータス",
+    "reAddFile": {
+      "title": "再アップロード確認",
+      "content": "ファイル「{fileName}」を再アップロードしてもよろしいですか？"
+    },
+    "deleteFile": {
+      "title": "ファイル削除の確認",
+      "content": "ファイル「{fileName}」を削除してもよろしいですか？この操作は元に戻せません。"
+    },
+    "resumeAllPausedTasks": "ワンクリックリカバリ",
+    "pauseAllRunningTasks": "ワンクリックの一時停止"
   },
   "mcp": {
     "title": "MCP設定",
@@ -370,6 +621,7 @@
       "imageModel": "視覚モデルを選択します",
       "customHeadersParseError": "カスタムヘッダーの解析は失敗しました",
       "customHeaders": "カスタムリクエストヘッダー",
+      "clickToEdit": "クリックして編集し、完全な内容を表示",
       "invalidKeyValueFormat": "誤ったリクエストヘッダー形式、入力が正しいかどうかを確認してください。",
       "npmRegistry": "カスタムNPMレジストリ",
       "npmRegistryPlaceholder": "カスタムNPMレジストリをセットアップし、システムを残して最速のレジストリを自動的に選択する",
@@ -417,6 +669,47 @@
     "maxDefaultServersReached": "せいぜい3つのデフォルトサーバーのみを設定できます",
     "removeDefaultFirst": "最初にいくつかのデフォルトサーバーを削除してください",
     "higressMarket": "Higress MCPのインストールに移動します",
+    "npmRegistry": {
+      "title": "NPMソース設定",
+      "currentSource": "現在のソース",
+      "cached": "キャッシュ",
+      "lastChecked": "最終チェック",
+      "refresh": "更新",
+      "advanced": "詳細設定",
+      "advancedSettings": "詳細設定",
+      "advancedSettingsDesc": "自動検出やカスタムソース設定を含むNPMソースの詳細オプションを設定",
+      "autoDetect": "最適なソースを自動検出",
+      "autoDetectDesc": "起動時に自動的に最速のNPMソースを検出して使用",
+      "customSource": "カスタムソース",
+      "customSourcePlaceholder": "カスタムNPMソースアドレスを入力",
+      "currentCustom": "現在のカスタムソース",
+      "justNow": "たった今",
+      "minutesAgo": "{minutes}分前",
+      "hoursAgo": "{hours}時間前",
+      "daysAgo": "{days}日前",
+      "refreshSuccess": "NPMソースの更新が成功しました",
+      "refreshSuccessDesc": "最適なNPMソースを再検出して更新しました",
+      "refreshFailed": "NPMソースの更新に失敗しました",
+      "autoDetectUpdated": "自動検出設定が更新されました",
+      "autoDetectEnabled": "最適なNPMソースの自動検出が有効になりました",
+      "autoDetectDisabled": "自動検出が無効になり、デフォルトソースを使用します",
+      "updateFailed": "設定の更新に失敗しました",
+      "customSourceSet": "カスタムソースが設定されました",
+      "customSourceSetDesc": "カスタムNPMソースが設定されました：{registry}",
+      "customSourceCleared": "カスタムソースがクリアされました",
+      "customSourceClearedDesc": "カスタムNPMソースをクリアし、自動検出を使用します",
+      "invalidUrl": "無効なURL",
+      "invalidUrlDesc": "有効なHTTPまたはHTTPSアドレスを入力してください",
+      "testing": "NPMソースをテスト中",
+      "testingDesc": "ソース {registry} の接続性をテスト中...",
+      "testFailed": "NPMソーステストに失敗しました",
+      "testFailedDesc": "{registry} に接続できません。エラー：{error}。URLが正しいかネットワーク接続を確認してください。",
+      "redetectingOptimal": "最適なNPMソースを再検出中...",
+      "redetectComplete": "再検出完了",
+      "redetectCompleteDesc": "現在最適なNPMソースを検出して設定しました",
+      "redetectFailed": "再検出に失敗しました",
+      "redetectFailedDesc": "最適なソースを再検出できません。デフォルト設定を使用します"
+    },
     "technicalDetails": "技術的詳細",
     "httpServer": "HTTPサーバー",
     "localProcess": "ローカルプロセス",
@@ -448,6 +741,7 @@
     "pressEnterToSave": "Enterキーで保存、Escでキャンセル",
     "noModifierOnly": "修飾キーのみをショートカットキーとして使用することはできません",
     "keyConflict": "ショートカットキーが競合しています。別の組み合わせを選択してください",
+    "clearShortcut": "ショートカットをクリア",
     "cleanHistory": "明確なチャット履歴",
     "deleteConversation": "会話を削除",
     "goSettings": "設定を開く",
@@ -465,5 +759,26 @@
     "nextTab": "次のタブに切り替えます",
     "previousTab": "前のタブに切り替えます",
     "specificTab": "指定されたタブページ（1-8）に切り替える"
+  },
+  "rateLimit": {
+    "title": "レート制限",
+    "description": "リクエストの時間間隔を制御し、API制限の超過を防ぐ",
+    "intervalLimit": "リクエスト間隔",
+    "intervalUnit": "秒",
+    "intervalHelper": "2つのリクエスト間の最小間隔、不要な場合はレート制限を無効にしてください",
+    "lastRequestTime": "最後のリクエスト",
+    "queueLength": "キューの長さ",
+    "nextAllowedTime": "次の許可されたリクエスト",
+    "never": "なし",
+    "justNow": "たった今",
+    "secondsAgo": "秒前",
+    "minutesAgo": "分前",
+    "immediately": "すぐに",
+    "secondsLater": "秒後",
+    "confirmDisableTitle": "レート制限の無効化を確認",
+    "confirmDisableMessage": "値は0以下にできません。レート制限機能を無効にしますか？",
+    "confirmDisable": "制限を無効化",
+    "disabled": "レート制限が無効化されました",
+    "disabledDescription": "レート制限機能が無効化されました"
   }
 }

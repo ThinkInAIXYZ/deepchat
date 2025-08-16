@@ -70,7 +70,22 @@
     "importing": "در حال وارد کردن...",
     "confirmImport": "پذیرش وارد کردن",
     "importSuccessTitle": "وارد کردن موفق",
-    "importErrorTitle": "وارد کردن ناموفق"
+    "importErrorTitle": "وارد کردن ناموفق",
+    "resetData": "بازنشانی داده‌ها",
+    "resetConfirmTitle": "پذیرش بازنشانی داده‌ها",
+    "resetConfirmDescription": "لطفاً نوع داده‌هایی که می‌خواهید بازنشانی کنید را انتخاب کنید. این عملیات غیرقابل بازگشت است و پس از بازنشانی، برنامه به طور خودکار مجدداً راه‌اندازی خواهد شد.",
+    "resetChatData": "بازنشانی داده‌های گفت‌وگو",
+    "resetChatDataDesc": "حذف تمام تاریخچه گفت‌وگوها و سوابق مکالمات",
+    "resetKnowledgeData": "بازنشانی داده‌های پایگاه دانش",
+    "resetKnowledgeDataDesc": "حذف تمام فایل‌های پایگاه دانش و داده‌های برداری",
+    "resetConfig": "بازنشانی پیکربندی",
+    "resetConfigDesc": "حذف تمام تنظیمات برنامه، پیکربندی‌های مدل و دستورکارهای سفارشی",
+    "resetAll": "بازنشانی کامل",
+    "resetAllDesc": "حذف تمام داده‌ها شامل تاریخچه گفت‌وگوها، پیکربندی‌ها و فایل‌های کش",
+    "resetting": "در حال بازنشانی...",
+    "confirmReset": "پذیرش بازنشانی",
+    "resetCompleteDevTitle": "بازنشانی داده‌ها تکمیل شد",
+    "resetCompleteDevMessage": "در محیط توسعه لطفاً برنامه را به صورت دستی مجدداً راه‌اندازی کنید. فرآیند فعلی را متوقف کرده و pnpm run dev را دوباره اجرا کنید"
   },
   "model": {
     "title": "تنظیمات مدل",
@@ -120,13 +135,63 @@
         "description": "آیا مدل از توانایی استدلال پشتیبانی می کند؟",
         "label": "توانایی استدلال"
       },
+      "thinkingBudget": {
+        "label": "بودجه تفکر",
+        "description": "محدود کردن طول تفکر مدل",
+        "dynamic": "تفکر پویا",
+        "range": "محدوده: {min} - {max}",
+        "onlySupported": "فقط در Gemini 2.5 Flash، 2.5 Pro و 2.5 Flash-Lite پشتیبانی می‌شود",
+        "valueLabel": "مقدار بودجه تفکر",
+        "placeholder": "مقدار بودجه تفکر را وارد کنید",
+        "forceEnabled": "مدل‌های سری Gemini 2.5 بودجه تفکر را به صورت اجباری فعال می‌کنند",
+        "dynamicPrefix": "-1 = تفکر پویا",
+        "notice": "توجه: ",
+        "warnings": {
+          "proNoDisable": "این مدل از غیرفعال کردن تفکر پشتیبانی نمی‌کند، حداقل مقدار 128",
+          "proCannotDisable": "Gemini 2.5 Pro نمی‌تواند عملکرد تفکر را غیرفعال کند",
+          "flashLiteCannotSetZero": "Gemini 2.5 Flash-Lite نمی‌تواند روی 0 تنظیم شود، حداقل مقدار 512 است",
+          "modelCannotDisable": "این مدل نمی‌تواند عملکرد تفکر را غیرفعال کند",
+          "flashLiteMinValue": "بودجه تفکر نمی‌تواند کمتر از 512 باشد هنگام تنظیم روی مقدار مشخص (یا از 0 برای غیرفعال کردن تفکر، -1 برای فعال کردن تفکر پویا استفاده کنید)",
+          "belowMin": "بودجه تفکر نمی‌تواند کمتر از {min} باشد{hint}",
+          "aboveMax": "بودجه تفکر نمی‌تواند بیشتر از {max} باشد"
+        },
+        "hints": {
+          "flashLiteDisable": "، 0 = غیرفعال کردن تفکر، مقدار مشخص حداقل 512",
+          "normalDisable": "، 0 = غیرفعال کردن تفکر",
+          "withZeroAndDynamic": "(یا از 0 برای غیرفعال کردن تفکر، -1 برای فعال کردن تفکر پویا استفاده کنید)",
+          "withDynamic": "(یا از -1 برای فعال کردن تفکر پویا استفاده کنید)"
+        }
+      },
       "resetConfirm": {
         "confirm": "تأیید مجدد",
         "message": "آیا مطمئن هستید که می خواهید پیکربندی این مدل را به صورت پیش فرض تنظیم کنید؟ این عمل غیرقابل برگشت است.",
         "title": "تأیید مجدد"
       },
+      "reasoningEffort": {
+        "label": "تلاش استدلال",
+        "description": "عمق استدلال مدل را کنترل می‌کند؛ تلاش بیشتر نتایج بهتری تولید می‌کند اما پاسخ‌های کندتری دارد",
+        "placeholder": "انتخاب تلاش استدلال",
+        "options": {
+          "minimal": "Minimal - سریع‌ترین پاسخ",
+          "low": "Low - تلاش کم",
+          "medium": "Medium - تلاش متوسط",
+          "high": "High - تلاش زیاد"
+        }
+      },
+      "verbosity": {
+        "label": "پرگویی",
+        "description": "سطح جزئیات و طول پاسخ‌های مدل را کنترل می‌کند",
+        "placeholder": "انتخاب سطح پرگویی",
+        "options": {
+          "low": "Low - پاسخ‌های مختصر",
+          "medium": "Medium - جزئیات متعادل",
+          "high": "High - پاسخ‌های تفصیلی"
+        }
+      },
       "resetToDefault": "تنظیم مجدد به طور پیش فرض",
       "saveConfig": "پیکربندی را ذخیره کنید",
+      "useModelDefault": "استفاده از پیکربندی پیش‌فرض مدل",
+      "currentUsingModelDefault": "در حال حاضر از پیکربندی پیش‌فرض مدل استفاده می‌کند",
       "temperature": {
         "description": "تصادفی بودن خروجی را کنترل کنید. بیشتر مدل ها 0-1 و برخی از پشتیبانی بین 0-2 هستند. هرچه تصادفی بالاتر باشد.",
         "label": "درجه حرارت"
@@ -160,7 +225,10 @@
     }
   },
   "provider": {
+    "search": "جستجوی پلتفرم‌های ارائه‌دهنده…",
     "enable": "روشن کردن خدمات",
+    "enabled": "فعال",
+    "disabled": "غیرفعال",
     "urlPlaceholder": "لطفاً نشانی API را وارد کنید",
     "keyPlaceholder": "لطفاً کلید API را وارد کنید",
     "verifyKey": "پذیرش کلید",
@@ -172,6 +240,10 @@
     "enableModels": "روشن کردن مدل‌ها",
     "disableAllModels": "خاموش کردن همه مدل‌ها",
     "modelsEnabled": "مدل‌ها روشن شده‌اند",
+    "noModelsEnabled": {
+      "title": "هیچ مدلی روشن نشده است",
+      "description": "لطفاً دکمه «روشن کردن مدل‌ها» را کلیک کنید تا مدل‌هایی که می‌خواهید استفاده کنید را به صورت دستی انتخاب کنید."
+    },
     "verifyLink": "پیوند راستی‌آزمایی",
     "syncModelsFailed": "همگام‌سازی مدل‌ها ناموفق بود...",
     "addCustomProvider": "افزودن فراهم‌کننده دلخواه",
@@ -191,12 +263,18 @@
         "confirm": "خاموش کردن همه"
       },
       "configModels": {
-        "title": "پیکربندی فهرست مدل‌ها"
+        "title": "پیکربندی فهرست مدل‌ها",
+        "description": "مدل‌هایی را که می‌خواهید فعال یا غیرفعال کنید انتخاب کنید"
       },
       "verify": {
         "missingFields": "لطفاً کلید API و نشانی API را وارد کنید",
         "failed": "راستی‌آزمایی ناموفق",
-        "success": "راستی‌آزمایی موفق"
+        "success": "راستی‌آزمایی موفق",
+        "failedDesc": "راستی‌آزمایی کلید API یا پیکربندی ناموفق بود، لطفاً تنظیمات را بررسی کنید",
+        "successDesc": "کلید API و پیکربندی با موفقیت راستی‌آزمایی شد، آماده استفاده است",
+        "connectionError": "خطای اتصال ، لطفا اتصال شبکه و آدرس API را بررسی کنید",
+        "serverError": "خطای سرور ، لطفاً بعداً دوباره امتحان کنید",
+        "unauthorized": "احراز هویت انجام نشد ، کلید API نامعتبر یا منقضی شده است"
       },
       "addCustomProvider": {
         "title": "افزودن فراهم‌کننده دلخواه",
@@ -223,7 +301,19 @@
       },
       "pullModel": {
         "title": "دریافت مدل",
+        "description": "مدل‌هایی را که می‌خواهید به صورت محلی دانلود کنید انتخاب کنید",
         "pull": "دریافت"
+      },
+      "modelCheck": {
+        "checking": "تست ...",
+        "description": "مدلی را برای تست اتصال و قابلیت استفاده انتخاب کنید",
+        "failed": "آزمون مدل انجام نشد",
+        "model": "یک مدل را انتخاب کنید",
+        "modelPlaceholder": "لطفاً مدل را برای آزمایش انتخاب کنید",
+        "noModels": "هیچ مدلی برای این ارائه دهنده خدمات در دسترس نیست",
+        "success": "تست مدل موفق شد",
+        "test": "آزمون را شروع کنید",
+        "title": "بررسی مدل"
       }
     },
     "pullModels": "دریافت مدل‌ها",
@@ -237,7 +327,11 @@
     "localModels": "مدل‌های محلی",
     "azureApiVersion": "نگارش API",
     "safety": {
-      "title": "تنظیمات ایمنی"
+      "title": "تنظیمات ایمنی",
+      "blockHighest": "ریسک بالا",
+      "blockMost": "خطرات متوسط ​​را مسدود کنید",
+      "blockNone": "مسدود نشده",
+      "blockSome": "بلوک ریسک کم"
     },
     "serverList": "فهرست کارسازها",
     "totalServers": "مجموع کارسازها",
@@ -259,7 +353,94 @@
     "keyStatus": {
       "remaining": "مقدار باقی مانده",
       "usage": "مورد استفاده"
-    }
+    },
+    "refreshingModels": "طراوت ...",
+    "toast": {
+      "modelRunning": "مدل در حال اجرا است",
+      "modelRunningDesc": "لطفاً ابتدا مدل {مدل را متوقف کرده و سپس آن را حذف کنید."
+    },
+    "anthropicApiKeyTip": "لطفاً برای دریافت کلید API خود به کنسول انسان شناسی بروید",
+    "anthropicConnected": "انسان شناسی متصل",
+    "anthropicNotConnected": "انسان شناسی متصل نیست",
+    "anthropicOAuthTip": "برای دسترسی به حساب انسان شناسی خود ، روی مجوز DeepChat کلیک کنید",
+    "oauthLogin": "ورود به سیستم",
+    "authMethod": "روش صدور گواهینامه",
+    "authMethodPlaceholder": "روش احراز هویت را انتخاب کنید",
+    "apiKeyLabel": "کلید API",
+    "apiUrlLabel": "آدرس API",
+    "anthropicOAuthFlowTip": "سیستم به طور خودکار پنجره مجوز را باز می کند. لطفا برگردید و پس از مجوز کد مجوز را وارد کنید.",
+    "anthropicBrowserOpened": "مرورگر خارجی باز است",
+    "anthropicCodeInstruction": "لطفاً مجوز را در یک مرورگر خارجی تکمیل کرده و کد مجوز به دست آمده را در کادر ورودی زیر بچسبانید",
+    "browserOpenedSuccess": "مرورگر خارجی باز است ، لطفاً مجوز را تکمیل کنید",
+    "codeRequired": "لطفاً کد مجوز را وارد کنید",
+    "inputOAuthCode": "کد مجوز را وارد کنید",
+    "codeExchangeFailed": "مبادله کد مجوز انجام نشد",
+    "invalidCode": "کد مجوز نامعتبر",
+    "oauthCodeHint": "لطفاً پس از تکمیل مجوز در یک مرورگر خارجی ، کد مجوز را در اینجا بچسبانید",
+    "oauthCodePlaceholder": "لطفاً کد مجوز را وارد کنید ...",
+    "verifyConnection": "تأیید اتصال",
+    "manageModels": "مدیریت مدل‌ها",
+    "anthropicOAuthActiveTip": "احراز هویت OAuth فعال است، می‌توانید مستقیماً از سرویس‌های Anthropic استفاده کنید",
+    "oauthVerifySuccess": "اتصال OAuth با موفقیت تأیید شد",
+    "oauthVerifyFailed": "تأیید اتصال OAuth ناموفق بود",
+    "configurationSaved": "پیکربندی ذخیره شده",
+    "configurationUpdated": "پیکربندی به روز شد",
+    "dataRefreshed": "داده ها تازه شده است",
+    "modelscope": {
+      "apiKey": "کلید API",
+      "apiKeyHelper": "کلید API خود را در کنسول ModelCope دریافت کنید",
+      "apiKeyPlaceholder": "لطفاً کلید API Modelcope را وارد کنید",
+      "baseUrl": "آدرس API",
+      "baseUrlHelper": "آدرس خدمات API Modelcope",
+      "connected": "متصل",
+      "connecting": "اتصال ...",
+      "description": "Modelcope یک بستر اشتراک گذاری مدل به عنوان یک سرویس است که توسط آکادمی Alibaba Damo راه اندازی شده است",
+      "details": {
+        "apiConfig": "پیکربندی API",
+        "mcpSync": "همگام سازی MCP",
+        "modelManagement": "مدیریت مدل",
+        "operationalDescription": "سرورهای MCP را همگام سازی کنید که می توانند مستقیماً در سیستم عامل ModelCope استفاده شوند",
+        "operationalServers": "کار کردن یک سرور",
+        "rateLimitConfig": "پیکربندی حد نرخ",
+        "safetySettings": "تنظیمات امنیتی",
+        "specialConfig": "پیکربندی خاص",
+        "syncFromModelScope": "همگام سازی از Modelcope",
+        "title": "جزئیات تنظیمات ارائه دهنده"
+      },
+      "invalidKey": "کلید API نامعتبر",
+      "keyRequired": "لطفا کلید API را وارد کنید",
+      "mcpSync": {
+        "authenticationFailed": "احراز هویت انجام نشد ، لطفاً کلید API را بررسی کنید",
+        "convertingServers": "تبدیل پیکربندی سرور ...",
+        "description": "همگام سازی یک سرور MCP از ModelScope به تنظیمات محلی به شما امکان می دهد تا به سرعت ابزارهای MCP متداول را اضافه کنید. کلیه خدمات به طور پیش فرض غیرفعال می شوند و پس از وارد کردن می توانند به صورت دستی فعال شوند.",
+        "errorDetails": "جزئیات خطا",
+        "errors": "خطا {تعداد}",
+        "fetchingServers": "دریافت لیست سرورهای MCP ...",
+        "imported": "{تعداد خدمات وارد شده است",
+        "importingServers": "وارد کردن پیکربندی سرور ...",
+        "invalidServerData": "داده های سرور نامعتبر",
+        "noApiKey": "لطفاً ابتدا کلید API Modelcope را پیکربندی کنید",
+        "noOperationalUrls": "هیچ آدرس عملیاتی موجود یافت نمی شود",
+        "noServersFound": "هیچ سرویس MCP در دسترس یافت نشد",
+        "pageNumber": "شماره صفحه",
+        "pageNumberPlaceholder": "لطفا شماره صفحه را وارد کنید",
+        "pageSize": "مقدار در هر صفحه",
+        "serverAlreadyExists": "سرور در حال حاضر وجود دارد ، واردات را پرش کنید",
+        "skipped": "خدمات SKIP {COUNT",
+        "sync": "همگام سازی را شروع کنید",
+        "syncComplete": "اتمام همزمان",
+        "syncing": "هماهنگ سازی ...",
+        "title": "همگام سازی خدمات MCP"
+      },
+      "name": "مدلهای مدل",
+      "networkError": "خطای اتصال شبکه",
+      "notConnected": "متصل نیست",
+      "verifyFailed": "تأیید انجام نشد",
+      "verifySuccess": "تأیید موفقیت آمیز است"
+    },
+    "operationFailed": "عملیات شکست خورد",
+    "operationSuccess": "عملیات موفقیت آمیز است",
+    "settingsApplied": "تنظیمات اعمال شده"
   },
   "knowledgeBase": {
     "title": "تنظیمات پایگاه دانش",
@@ -288,7 +469,77 @@
     "fastgptTitle": "پایگاه دانش فست‌جی‌پی‌تی",
     "fastgptDescription": "فست‌جی‌پی‌تی یک سامانه مدیریت پایگاه دانش قدرتمند است که از روش‌های بازیابی بسیار و ویژگی‌های مدیریت سند پشتیبانی می‌کند.",
     "addFastGptConfig": "افزودن پیکربندی فست‌جی‌پی‌تی",
-    "editFastGptConfig": "ویرایش پیکربندی فست‌جی‌پی‌تی"
+    "editFastGptConfig": "ویرایش پیکربندی فست‌جی‌پی‌تی",
+    "builtInKnowledgeDescription": "پایگاه دانش داخلی برخی از پیاده سازی های ساده را ارائه می دهد که برخی از کارکردهای اساسی را در یک محیط آفلاین امکان پذیر می کند.",
+    "builtInKnowledgeTitle": "پایگاه دانش داخلی",
+    "addBuiltinKnowledgeConfig": "پیکربندی پایه دانش داخلی را اضافه کنید",
+    "editBuiltinKnowledgeConfig": "پیکربندی پایه دانش داخلی را ویرایش کنید",
+    "chunkSize": "اندازه بلوک",
+    "chunkSizeHelper": "سند را به بخش ها برش دهید ، اندازه هر بخش نمی تواند از حد زمینه مدل فراتر رود",
+    "chunkOverlap": "اندازه همپوشانی",
+    "chunkOverlapHelper": "میزان محتوای تکرار شده بین بلوک های متنی مجاور ، تضمین می کند که هنوز یک ارتباط متنی بین بلوک های متنی تقسیم شده وجود دارد ، و تأثیر کلی پردازش مدل متون طولانی را بهبود می بخشد",
+    "selectEmbeddingModel": "یک مدل تعبیه شده را انتخاب کنید",
+    "modelNotFound": "ارائه دهنده خدمات {provider} یا مدل {model} یافت نشد",
+    "modelNotFoundDesc": "اطمینان حاصل کنید که مدل به درستی پیکربندی شده و مدل فعال شده است. می توانید پیکربندی مدل را در تنظیمات ارائه دهنده خدمات بررسی کنید.",
+    "removeBuiltinKnowledgeConfirmDesc": "حذف پیکربندی پایه دانش داخلی ، تمام داده های مربوطه را حذف می کند و قابل ترمیم نیست. لطفا محتاط باشید",
+    "removeBuiltinKnowledgeConfirmTitle": "تایید می‌کنید که پایگاه دانش داخلی {name} حذف شود؟",
+    "descriptionDesc": "شرح پایگاه دانش به گونه ای که هوش مصنوعی تصمیم بگیرد که آیا این پایگاه دانش را بازیابی کند",
+    "advanced": "گزینه های پیشرفته",
+    "autoDetectDimensions": "به طور خودکار ابعاد تعبیه شده را تشخیص دهید",
+    "autoDetectHelper": "به طور خودکار ابعاد تعبیه شده را تشخیص دهید ، مقدار کمی از نشانه ها را مصرف می کند",
+    "chunkOverlapPlaceholder": "مقدار پیش فرض ، هیچ اصلاح توصیه نمی شود",
+    "chunkSizePlaceholder": "مقدار پیش فرض ، هیچ اصلاح توصیه نمی شود",
+    "dimensions": "ابعاد جاسازی شده",
+    "dimensionsPlaceholder": "اندازه ابعاد تعبیه شده ، مانند 1024",
+    "selectEmbeddingModelHelper": "مدل های تعبیه شده پس از ایجاد پایگاه دانش ممنوع است",
+    "dimensionsHelper": "اطمینان حاصل کنید که مدل از اندازه ابعاد تعبیه شده پشتیبانی می کند",
+    "autoDetectDimensionsError": "به طور خودکار خرابی بعد تعبیه شده را تشخیص دهید",
+    "fragmentsNumber": "تعداد قطعات سند درخواست شده",
+    "fragmentsNumberHelper": "هرچه بخش های بیشتر از سند درخواست شده بیشتر باشد ، اطلاعات بیشتری به آن می رسد ، اما نشانه های بیشتری برای مصرف آن وجود دارد",
+    "selectRerankModel": "مدل تنظیم مجدد را انتخاب کنید",
+    "rerankModel": "مدل را دوباره مرتب کنید",
+    "embeddingModel": "مدل",
+    "return": "بازگشت",
+    "uploadHelper": "برای بارگذاری یا کشیدن پرونده در اینجا کلیک کنید",
+    "onlySupport": "فقط پشتیبانی می شود",
+    "searchKnowledge": "پایگاه دانش را جستجو کنید",
+    "searchKnowledgePlaceholder": "لطفاً محتوای پرس و جو را وارد کنید",
+    "noData": "هنوز اطلاعاتی وجود ندارد",
+    "file": "مدرک",
+    "uploadProcessing": "بارگذاری",
+    "uploadCompleted": "بارگذاری کامل",
+    "reAdd": "بارگذاری مجدد",
+    "uploadError": "بارگذاری ناموفق بود",
+    "delete": "حذف کردن",
+    "reason": "دلیل",
+    "deleteSuccess": "با موفقیت حذف کنید",
+    "copy": "کپی کردن",
+    "copySuccess": "با موفقیت کپی کنید",
+    "source": "منبع",
+    "normalized": "عادی سازی L2",
+    "normalizedHelper": "لطفاً تأیید کنید که این مدل از نرمال سازی L2 بردارهای خروجی پشتیبانی می کند",
+    "dialog": {
+      "beforequit": {
+        "cancel": "لغو کردن",
+        "confirm": "تأیید کردن",
+        "title": "تأیید خروج",
+        "description": "یک کار پایه دانش در حال اجرا وجود دارد. آیا مطمئناً از نرم افزار خارج می شوید؟ کارهای سقط شده را می توان پس از شروع مجدد نرم افزار بازگرداند."
+      }
+    },
+    "searchError": "پرس و جو انجام نشد",
+    "processing": "بارگذاری",
+    "paused": "مکث",
+    "unknown": "وضعیت ناشناخته",
+    "reAddFile": {
+      "title": "تأیید مجدد",
+      "content": "آیا مطمئن هستید که می‌خواهید پرونده \"{fileName}\" را دوباره بارگذاری کنید؟"
+    },
+    "deleteFile": {
+      "title": "تأیید پرونده را حذف کنید",
+      "content": "آیا مطمئن هستید که می‌خواهید پرونده \"{fileName}\" را حذف کنید؟ این عملیات ترمیم نشده است."
+    },
+    "resumeAllPausedTasks": "بازیابی یک کلیک",
+    "pauseAllRunningTasks": "مکث یک کلیک"
   },
   "mcp": {
     "title": "تنظیمات MCP",
@@ -391,7 +642,8 @@
       "e2bApiKey": "e2b apikey",
       "e2bApiKeyPlaceholder": "کلیدهای API E2B خود را در اینجا وارد کنید ، مانند E2B_11111XX *******",
       "e2bApiKeyHelp": "برای بدست آوردن apikey خود به e2b.dev بروید",
-      "e2bApiKeyRequired": "برای فعال کردن عملکرد E2B باید Apikey وارد شود"
+      "e2bApiKeyRequired": "برای فعال کردن عملکرد E2B باید Apikey وارد شود",
+      "clickToEdit": "برای مشاهده مطالب کامل ، روی ویرایش کلیک کنید"
     },
     "deleteServer": "پاک کردن کارساز",
     "editServer": "ویرایش کارساز",
@@ -423,7 +675,48 @@
     "builtInServerCannotBeRemoved": "کارسازهای داخلی پاک شدنی نیستند، فقط داده‌ها و متغیرهای محیط می‌توانند ویرایش شوند",
     "maxDefaultServersReached": "بیشینه ۳ کارساز پیش‌فرض می‌توان تنظیم کرد",
     "removeDefaultFirst": "لطفاً ابتدا برخی کارسازهای پیش‌فرض را بردارید",
-    "higressMarket": "رفتن به نصب MCP هایگرس"
+    "higressMarket": "رفتن به نصب MCP هایگرس",
+    "npmRegistry": {
+      "title": "تنظیمات منابع NPM",
+      "currentSource": "منبع فعلی",
+      "cached": "ذخیره شده",
+      "lastChecked": "آخرین بررسی",
+      "refresh": "تازه‌سازی",
+      "advanced": "پیشرفته",
+      "advancedSettings": "تنظیمات پیشرفته",
+      "advancedSettingsDesc": "پیکربندی گزینه‌های پیشرفته منابع NPM، شامل تشخیص خودکار و تنظیمات منبع سفارشی",
+      "autoDetect": "تشخیص خودکار منبع بهینه",
+      "autoDetectDesc": "تشخیص و استفاده خودکار از سریع‌ترین منبع NPM هنگام راه‌اندازی",
+      "customSource": "منبع سفارشی",
+      "customSourcePlaceholder": "آدرس منبع NPM سفارشی را وارد کنید",
+      "currentCustom": "منبع سفارشی فعلی",
+      "justNow": "همین الان",
+      "minutesAgo": "{minutes} دقیقه پیش",
+      "hoursAgo": "{hours} ساعت پیش",
+      "daysAgo": "{days} روز پیش",
+      "refreshSuccess": "تازه‌سازی منبع NPM موفق بود",
+      "refreshSuccessDesc": "منبع بهینه NPM دوباره تشخیص داده شد و به‌روزرسانی شد",
+      "refreshFailed": "تازه‌سازی منبع NPM ناموفق بود",
+      "autoDetectUpdated": "تنظیمات تشخیص خودکار به‌روزرسانی شد",
+      "autoDetectEnabled": "تشخیص خودکار منبع بهینه NPM فعال شد",
+      "autoDetectDisabled": "تشخیص خودکار غیرفعال شد، از منبع پیش‌فرض استفاده خواهد شد",
+      "updateFailed": "به‌روزرسانی تنظیمات ناموفق بود",
+      "customSourceSet": "منبع سفارشی تنظیم شد",
+      "customSourceSetDesc": "منبع NPM سفارشی تنظیم شد: {registry}",
+      "customSourceCleared": "منبع سفارشی پاک شد",
+      "customSourceClearedDesc": "منبع NPM سفارشی پاک شد، از تشخیص خودکار استفاده خواهد شد",
+      "invalidUrl": "آدرس نامعتبر",
+      "invalidUrlDesc": "لطفاً آدرس HTTP یا HTTPS معتبری وارد کنید",
+      "testing": "آزمایش منبع NPM",
+      "testingDesc": "آزمایش اتصال به منبع {registry}...",
+      "testFailed": "آزمایش منبع NPM ناموفق بود",
+      "testFailedDesc": "نمی‌توان به {registry} متصل شد، خطا: {error}. لطفاً بررسی کنید که آدرس درست است یا اتصال شبکه.",
+      "redetectingOptimal": "تشخیص مجدد منبع بهینه NPM...",
+      "redetectComplete": "تشخیص مجدد کامل شد",
+      "redetectCompleteDesc": "منبع بهینه فعلی NPM تشخیص داده شد و پیکربندی شد",
+      "redetectFailed": "تشخیص مجدد ناموفق بود",
+      "redetectFailedDesc": "نمی‌توان منبع بهینه را مجدداً تشخیص داد، از پیکربندی پیش‌فرض استفاده خواهد شد"
+    }
   },
   "about": {
     "title": "درباره ما",
@@ -448,6 +741,7 @@
     "pressEnterToSave": "برای نگهداری Enter را فشار دهید، برای رد کردن Esc را بزنید",
     "noModifierOnly": "نمی‌توان از کلید اصلاح‌کننده به‌تنهایی به‌عنوان میانبر استفاده کرد",
     "keyConflict": "ناسازگاری کلید میانبر، لطفاً ترکیب دیگری انتخاب کنید",
+    "clearShortcut": "پاک کردن میانبر",
     "cleanHistory": "تمیز کردن تاریخچه گفت‌وگو",
     "deleteConversation": "پاک کردن گفت‌وگو",
     "goSettings": "باز کردن تنظیمات",
@@ -465,5 +759,26 @@
     "previousTab": "رفتن به برگه پیشین",
     "specificTab": "رفتن به برگه خاص (1-8)",
     "lastTab": "رفتن به آخرین برگه"
+  },
+  "rateLimit": {
+    "title": "محدودیت نرخ",
+    "description": "کنترل فاصله زمانی درخواست‌ها، جلوگیری از تجاوز محدودیت‌های API",
+    "intervalLimit": "فاصله درخواست",
+    "intervalUnit": "ثانیه",
+    "intervalHelper": "حداقل فاصله زمانی بین دو درخواست، در صورت عدم نیاز محدودیت نرخ را غیرفعال کنید",
+    "lastRequestTime": "آخرین درخواست",
+    "queueLength": "طول صف",
+    "nextAllowedTime": "درخواست بعدی مجاز",
+    "never": "هرگز",
+    "justNow": "همین الان",
+    "secondsAgo": "ثانیه پیش",
+    "minutesAgo": "دقیقه پیش",
+    "immediately": "فوری",
+    "secondsLater": "ثانیه بعد",
+    "confirmDisableTitle": "تأیید غیرفعال کردن محدودیت نرخ",
+    "confirmDisableMessage": "مقدار نمی‌تواند کمتر یا مساوی 0 باشد. آیا محدودیت نرخ غیرفعال شود؟",
+    "confirmDisable": "غیرفعال کردن محدودیت",
+    "disabled": "محدودیت نرخ غیرفعال شد",
+    "disabledDescription": "محدودیت نرخ غیرفعال شده است"
   }
 }

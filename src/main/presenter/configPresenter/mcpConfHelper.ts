@@ -4,6 +4,14 @@ import { MCP_EVENTS } from '@/events'
 import ElectronStore from 'electron-store'
 import { app } from 'electron'
 import { compare } from 'compare-versions'
+import { presenter } from '..'
+
+// NPM Registry缓存接口
+export interface INpmRegistryCache {
+  registry: string
+  lastChecked: number
+  isAutoDetect: boolean
+}
 
 // MCP设置的接口
 interface IMcpSettings {
@@ -11,10 +19,93 @@ interface IMcpSettings {
   defaultServer?: string // 保留旧字段以支持版本兼容
   defaultServers: string[] // 新增：多个默认服务器数组
   mcpEnabled: boolean // 添加MCP启用状态字段
+  npmRegistryCache?: INpmRegistryCache // NPM源缓存
+  customNpmRegistry?: string // 用户自定义NPM源
+  autoDetectNpmRegistry?: boolean // 是否启用自动检测
   [key: string]: unknown // 允许任意键
 }
 export type MCPServerType = 'stdio' | 'sse' | 'inmemory' | 'http'
-// const filesystemPath = path.join(app.getAppPath(), 'resources', 'mcp', 'filesystem.mjs')
+
+// Extended MCP server config with additional properties for ModelScope sync
+export interface ExtendedMCPServerConfig {
+  name: string
+  description: string
+  args: string[]
+  env: Record<string, string>
+  enabled: boolean
+  type: MCPServerType
+  package?: string
+  version?: string
+  source?: string
+  logo_url?: string
+  publisher?: string
+  tags?: string[]
+  view_count?: number
+}
+
+// 检查当前系统平台
+function isMacOS(): boolean {
+  return process.platform === 'darwin'
+}
+
+function isWindows(): boolean {
+  return process.platform === 'win32'
+}
+
+function isLinux(): boolean {
+  return process.platform === 'linux'
+}
+
+// 平台特有的 MCP 服务器配置
+const PLATFORM_SPECIFIC_SERVERS: Record<string, MCPServerConfig> = {
+  // macOS 特有服务
+  ...(isMacOS()
+    ? {
+        'deepchat/apple-server': {
+          args: [],
+          descriptions: 'DeepChat内置Apple系统集成服务 (仅macOS)',
+          icons: '🍎',
+          autoApprove: ['all'],
+          type: 'inmemory' as MCPServerType,
+          command: 'deepchat/apple-server',
+          env: {},
+          disable: false
+        }
+      }
+    : {}),
+
+  // Windows 特有服务 (预留)
+  ...(isWindows()
+    ? {
+        // 'deepchat-inmemory/windows-server': {
+        //   args: [],
+        //   descriptions: 'DeepChat内置Windows系统集成服务 (仅Windows)',
+        //   icons: '🪟',
+        //   autoApprove: ['all'],
+        //   type: 'inmemory' as MCPServerType,
+        //   command: 'deepchat-inmemory/windows-server',
+        //   env: {},
+        //   disable: false
+        // }
+      }
+    : {}),
+
+  // Linux 特有服务 (预留)
+  ...(isLinux()
+    ? {
+        // 'deepchat-inmemory/linux-server': {
+        //   args: [],
+        //   descriptions: 'DeepChat内置Linux系统集成服务 (仅Linux)',
+        //   icons: '🐧',
+        //   autoApprove: ['all'],
+        //   type: 'inmemory' as MCPServerType,
+        //   command: 'deepchat-inmemory/linux-server',
+        //   env: {},
+        //   disable: false
+        // }
+      }
+    : {})
+}
 
 // 抽取inmemory类型的服务为常量
 const DEFAULT_INMEMORY_SERVERS: Record<string, MCPServerConfig> = {
@@ -139,6 +230,18 @@ const DEFAULT_INMEMORY_SERVERS: Record<string, MCPServerConfig> = {
     },
     disable: false
   },
+  builtinKnowledge: {
+    args: [],
+    descriptions: 'DeepChat内置知识库检索服务',
+    icons: '📚',
+    autoApprove: ['all'],
+    type: 'inmemory' as MCPServerType,
+    command: 'builtinKnowledge',
+    env: {
+      configs: []
+    },
+    disable: false
+  },
   'deepchat-inmemory/deep-research-server': {
     args: [],
     descriptions:
@@ -181,7 +284,9 @@ const DEFAULT_INMEMORY_SERVERS: Record<string, MCPServerConfig> = {
     command: 'deepchat-inmemory/meeting-server',
     env: {},
     disable: false
-  }
+  },
+  // 合并平台特有服务
+  ...PLATFORM_SPECIFIC_SERVERS
 }
 
 const DEFAULT_MCP_SERVERS = {
@@ -200,7 +305,11 @@ const DEFAULT_MCP_SERVERS = {
       type: 'stdio' as MCPServerType
     }
   },
-  defaultServers: ['Artifacts'], // 默认服务器列表
+  defaultServers: [
+    'Artifacts',
+    // 根据平台添加默认启用的平台特有服务
+    ...(isMacOS() ? ['deepchat/apple-server'] : [])
+  ],
   mcpEnabled: false // 默认关闭MCP功能
 }
 // 这部分mcp有系统逻辑判断是否启用，不受用户配置控制，受软件环境控制
@@ -227,13 +336,16 @@ export class McpConfHelper {
       defaults: {
         mcpServers: DEFAULT_MCP_SERVERS.mcpServers,
         defaultServers: DEFAULT_MCP_SERVERS.defaultServers,
-        mcpEnabled: DEFAULT_MCP_SERVERS.mcpEnabled
+        mcpEnabled: DEFAULT_MCP_SERVERS.mcpEnabled,
+        autoDetectNpmRegistry: true,
+        npmRegistryCache: undefined,
+        customNpmRegistry: undefined
       }
     })
   }
 
   // 获取MCP服务器配置
-  getMcpServers(): Promise<Record<string, MCPServerConfig>> {
+  async getMcpServers(): Promise<Record<string, MCPServerConfig>> {
     const storedServers = this.mcpStore.get('mcpServers') || DEFAULT_MCP_SERVERS.mcpServers
 
     // 检查并补充缺少的inmemory服务
@@ -247,8 +359,42 @@ export class McpConfHelper {
       }
     }
 
-    // 如果有新增的服务，更新存储
-    if (Object.keys(updatedServers).length > Object.keys(storedServers).length) {
+    // 移除不支持当前平台的服务
+    const serversToRemove: string[] = []
+    for (const [serverName, serverConfig] of Object.entries(updatedServers)) {
+      if (serverConfig.type === 'inmemory') {
+        // 检查是否为平台特有服务
+        if (serverName === 'deepchat/apple-server' && !isMacOS()) {
+          serversToRemove.push(serverName)
+        }
+        // 可以在这里添加其他平台特有服务的检查
+        // if (serverName === 'deepchat-inmemory/windows-server' && !isWindows()) {
+        //   serversToRemove.push(serverName)
+        // }
+        // if (serverName === 'deepchat-inmemory/linux-server' && !isLinux()) {
+        //   serversToRemove.push(serverName)
+        // }
+      }
+    }
+
+    // 移除不支持的平台特有服务
+    for (const serverName of serversToRemove) {
+      console.log(`移除不支持当前平台的服务: ${serverName}`)
+      delete updatedServers[serverName]
+    }
+
+    // 移除不兼容的服务
+    const builtinKnowledgeSupported = await presenter.knowledgePresenter.isSupported()
+    if (!builtinKnowledgeSupported) {
+      console.warn('内置知识库服务不支持当前环境，移除相关服务')
+      delete updatedServers.builtinKnowledge
+    }
+
+    // 如果有变化，更新存储
+    if (
+      Object.keys(updatedServers).length !== Object.keys(storedServers).length ||
+      serversToRemove.length > 0
+    ) {
       this.mcpStore.set('mcpServers', updatedServers)
     }
 
@@ -273,7 +419,7 @@ export class McpConfHelper {
   // 添加默认服务器
   async addMcpDefaultServer(serverName: string): Promise<void> {
     const defaultServers = this.mcpStore.get('defaultServers') || []
-    const mcpServers = this.mcpStore.get('mcpServers') || {}
+    const mcpServers = await this.getMcpServers() // 使用getMcpServers确保平台检查
 
     // 检测并清理失效的服务器
     const validDefaultServers = defaultServers.filter((server) => {
@@ -284,9 +430,15 @@ export class McpConfHelper {
       return exists
     })
 
-    // 添加新服务器（如果不在列表中）
-    if (!validDefaultServers.includes(serverName)) {
-      validDefaultServers.push(serverName)
+    // 检查要添加的服务器是否存在且支持当前平台
+    if (mcpServers[serverName]) {
+      // 添加新服务器（如果不在列表中）
+      if (!validDefaultServers.includes(serverName)) {
+        validDefaultServers.push(serverName)
+      }
+    } else {
+      console.log(`尝试添加不存在或不支持当前平台的MCP服务器: ${serverName}`)
+      return
     }
 
     // 如果有变化则更新存储并发送事件
@@ -348,6 +500,86 @@ export class McpConfHelper {
     return true
   }
 
+  // 获取NPM Registry缓存
+  getNpmRegistryCache(): INpmRegistryCache | undefined {
+    return this.mcpStore.get('npmRegistryCache')
+  }
+
+  // 设置NPM Registry缓存
+  setNpmRegistryCache(cache: INpmRegistryCache): void {
+    this.mcpStore.set('npmRegistryCache', cache)
+  }
+
+  // 检查缓存是否有效（24小时内）
+  isNpmRegistryCacheValid(): boolean {
+    const cache = this.getNpmRegistryCache()
+    if (!cache) return false
+    const now = Date.now()
+    const cacheAge = now - cache.lastChecked
+    const CACHE_DURATION = 24 * 60 * 60 * 1000 // 24小时
+    return cacheAge < CACHE_DURATION
+  }
+
+  // 获取有效的NPM Registry（按优先级：自定义源 > 缓存 > 默认）
+  getEffectiveNpmRegistry(): string | null {
+    const customRegistry = this.getCustomNpmRegistry()
+    if (customRegistry) {
+      console.log(`[NPM Registry] Using custom registry: ${customRegistry}`)
+      return customRegistry
+    }
+
+    if (this.getAutoDetectNpmRegistry() && this.isNpmRegistryCacheValid()) {
+      const cache = this.getNpmRegistryCache()
+      if (cache?.registry) {
+        console.log(`[NPM Registry] Using cached registry: ${cache.registry}`)
+        return cache.registry
+      }
+    }
+
+    console.log('[NPM Registry] No effective registry found, will use default or detect')
+    return null
+  }
+
+  // 获取自定义NPM Registry
+  getCustomNpmRegistry(): string | undefined {
+    return this.mcpStore.get('customNpmRegistry')
+  }
+
+  // 标准化NPM Registry URL
+  private normalizeNpmRegistryUrl(registry: string): string {
+    let normalized = registry.trim()
+    if (!normalized.endsWith('/')) {
+      normalized += '/'
+    }
+    return normalized
+  }
+
+  // 设置自定义NPM Registry
+  setCustomNpmRegistry(registry: string | undefined): void {
+    if (registry === undefined) {
+      this.mcpStore.delete('customNpmRegistry')
+    } else {
+      const normalizedRegistry = this.normalizeNpmRegistryUrl(registry)
+      this.mcpStore.set('customNpmRegistry', normalizedRegistry)
+      console.log(`[NPM Registry] Normalized custom registry: ${registry} -> ${normalizedRegistry}`)
+    }
+  }
+
+  // 获取自动检测NPM Registry设置
+  getAutoDetectNpmRegistry(): boolean {
+    return this.mcpStore.get('autoDetectNpmRegistry') ?? true
+  }
+
+  // 设置自动检测NPM Registry
+  setAutoDetectNpmRegistry(enabled: boolean): void {
+    this.mcpStore.set('autoDetectNpmRegistry', enabled)
+  }
+
+  // 清除NPM Registry缓存
+  clearNpmRegistryCache(): void {
+    this.mcpStore.delete('npmRegistryCache')
+  }
+
   // 移除MCP服务器
   async removeMcpServer(name: string): Promise<void> {
     const mcpServers = await this.getMcpServers()
@@ -394,13 +626,171 @@ export class McpConfHelper {
     // 更新服务器配置
     await this.setMcpServers(updatedServers)
 
-    // 恢复默认服务器设置
-    this.mcpStore.set('defaultServers', DEFAULT_MCP_SERVERS.defaultServers)
+    // 恢复默认服务器设置，确保平台特有服务的正确处理
+    const platformAwareDefaultServers = [
+      'Artifacts',
+      // 根据平台添加默认启用的平台特有服务
+      ...(isMacOS() ? ['deepchat/apple-server'] : [])
+    ]
+
+    this.mcpStore.set('defaultServers', platformAwareDefaultServers)
     eventBus.send(MCP_EVENTS.CONFIG_CHANGED, SendTarget.ALL_WINDOWS, {
       mcpServers: updatedServers,
-      defaultServers: DEFAULT_MCP_SERVERS.defaultServers,
+      defaultServers: platformAwareDefaultServers,
       mcpEnabled: this.mcpStore.get('mcpEnabled')
     })
+  }
+
+  /**
+   * Batch import MCP servers from external source (like ModelScope)
+   * @param servers - Array of MCP server configs to import
+   * @param options - Import options
+   * @returns Promise<{ imported: number; skipped: number; errors: string[] }>
+   */
+  async batchImportMcpServers(
+    servers: Array<{
+      name: string
+      description: string
+      package: string
+      version?: string
+      type?: MCPServerType
+      args?: string[]
+      env?: Record<string, string>
+      enabled?: boolean
+      source?: string
+      [key: string]: unknown
+    }>,
+    options: {
+      skipExisting?: boolean
+      enableByDefault?: boolean
+      overwriteExisting?: boolean
+    } = {}
+  ): Promise<{ imported: number; skipped: number; errors: string[] }> {
+    const { skipExisting = true, enableByDefault = false, overwriteExisting = false } = options
+    const result = {
+      imported: 0,
+      skipped: 0,
+      errors: [] as string[]
+    }
+
+    const existingServers = await this.getMcpServers()
+
+    for (const serverConfig of servers) {
+      try {
+        // Generate unique server name based on package name
+        const serverName = this.generateUniqueServerName(serverConfig.package, existingServers)
+        const existingServer = existingServers[serverName]
+
+        // Check if server already exists
+        if (existingServer && !overwriteExisting) {
+          if (skipExisting) {
+            console.log(`Skipping existing MCP server: ${serverName}`)
+            result.skipped++
+            continue
+          } else {
+            result.errors.push(`Server ${serverName} already exists`)
+            continue
+          }
+        }
+
+        // Create MCP server config
+        const mcpConfig: ExtendedMCPServerConfig = {
+          name: serverConfig.name,
+          description: serverConfig.description,
+          args: serverConfig.args || [],
+          env: serverConfig.env || {},
+          enabled: serverConfig.enabled ?? enableByDefault,
+          type: (serverConfig.type as MCPServerType) || 'stdio',
+          package: serverConfig.package,
+          version: serverConfig.version || 'latest',
+          source: serverConfig.source as string | undefined,
+          logo_url: serverConfig.logo_url as string | undefined,
+          publisher: serverConfig.publisher as string | undefined,
+          tags: serverConfig.tags as string[] | undefined,
+          view_count: serverConfig.view_count as number | undefined
+        }
+
+        // Add or update the server
+        const success = await this.addMcpServer(serverName, mcpConfig as unknown as MCPServerConfig)
+        if (success || overwriteExisting) {
+          if (existingServer && overwriteExisting) {
+            await this.updateMcpServer(serverName, mcpConfig as unknown as Partial<MCPServerConfig>)
+            console.log(`Updated MCP server: ${serverName}`)
+          } else {
+            console.log(`Imported MCP server: ${serverName}`)
+          }
+          result.imported++
+        } else {
+          result.errors.push(`Failed to import server: ${serverName}`)
+        }
+      } catch (error) {
+        const errorMsg = `Error importing server ${serverConfig.name}: ${error instanceof Error ? error.message : String(error)}`
+        console.error(errorMsg)
+        result.errors.push(errorMsg)
+      }
+    }
+
+    console.log(
+      `MCP batch import completed. Imported: ${result.imported}, Skipped: ${result.skipped}, Errors: ${result.errors.length}`
+    )
+
+    // Emit event to notify about the import
+    eventBus.sendToRenderer(MCP_EVENTS.CONFIG_CHANGED, SendTarget.ALL_WINDOWS, {
+      action: 'batch_import',
+      result
+    })
+
+    return result
+  }
+
+  /**
+   * Generate a unique server name based on package name
+   * @param packageName - The package name to base the server name on
+   * @param existingServers - Existing servers to check against
+   * @returns Unique server name
+   */
+  private generateUniqueServerName(
+    packageName: string,
+    existingServers: Record<string, MCPServerConfig>
+  ): string {
+    // Clean up package name to create a suitable server name
+    let baseName = packageName
+      .replace(/[@/]/g, '-')
+      .replace(/[^a-zA-Z0-9-_]/g, '')
+      .toLowerCase()
+
+    // If the base name doesn't exist, use it directly
+    if (!existingServers[baseName]) {
+      return baseName
+    }
+
+    // If it exists, append a number suffix
+    let counter = 1
+    let uniqueName = `${baseName}-${counter}`
+    while (existingServers[uniqueName]) {
+      counter++
+      uniqueName = `${baseName}-${counter}`
+    }
+
+    return uniqueName
+  }
+
+  /**
+   * Check if a server with given package already exists
+   * @param packageName - Package name to check
+   * @returns Promise<string | null> - Returns server name if exists, null otherwise
+   */
+  async findServerByPackage(packageName: string): Promise<string | null> {
+    const servers = await this.getMcpServers()
+
+    for (const [serverName, config] of Object.entries(servers)) {
+      const extendedConfig = config as unknown as ExtendedMCPServerConfig
+      if (extendedConfig.package === packageName) {
+        return serverName
+      }
+    }
+
+    return null
   }
 
   public onUpgrade(oldVersion: string | undefined): void {
@@ -470,6 +860,55 @@ export class McpConfHelper {
       } catch (error) {
         console.error('迁移 filesystem 服务器时出错:', error)
       }
+    }
+
+    // 升级后检查并添加平台特有服务
+    try {
+      const mcpServers = this.mcpStore.get('mcpServers') || {}
+      const defaultServers = this.mcpStore.get('defaultServers') || []
+      let hasChanges = false
+
+      // 检查是否需要添加平台特有服务
+      if (isMacOS() && !mcpServers['deepchat/apple-server']) {
+        console.log('检测到 macOS 平台，添加 Apple 系统集成服务')
+        mcpServers['deepchat/apple-server'] = PLATFORM_SPECIFIC_SERVERS['deepchat/apple-server']
+        hasChanges = true
+
+        // 如果不在默认服务器列表中，添加到默认服务器列表
+        if (!defaultServers.includes('deepchat/apple-server')) {
+          defaultServers.push('deepchat/apple-server')
+          this.mcpStore.set('defaultServers', defaultServers)
+        }
+      }
+
+      // 移除不支持当前平台的服务
+      const serversToRemove: string[] = []
+      for (const [serverName] of Object.entries(mcpServers)) {
+        if (serverName === 'deepchat/apple-server' && !isMacOS()) {
+          serversToRemove.push(serverName)
+        }
+        // 可以在这里添加其他平台特有服务的检查
+      }
+
+      for (const serverName of serversToRemove) {
+        console.log(`移除不支持当前平台的服务: ${serverName}`)
+        delete mcpServers[serverName]
+        hasChanges = true
+
+        // 从默认服务器列表中移除
+        const index = defaultServers.indexOf(serverName)
+        if (index > -1) {
+          defaultServers.splice(index, 1)
+          this.mcpStore.set('defaultServers', defaultServers)
+        }
+      }
+
+      if (hasChanges) {
+        this.mcpStore.set('mcpServers', mcpServers)
+        console.log('平台特有服务升级完成')
+      }
+    } catch (error) {
+      console.error('升级平台特有服务时出错:', error)
     }
   }
 }

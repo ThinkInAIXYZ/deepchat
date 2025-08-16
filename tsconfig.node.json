@@ -10,6 +10,7 @@
     "composite": true,
     "resolveJsonModule": false,
     "types": ["electron-vite/node"],
+    "moduleResolution": "bundler",
     "baseUrl": ".",
     "paths": {
       "@/*": [

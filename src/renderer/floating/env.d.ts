@@ -11,6 +11,7 @@ declare global {
   interface Window {
     floatingButtonAPI: {
       onClick: () => void
+      onRightClick: () => void
       onConfigUpdate: (callback: (config: any) => void) => void
       removeAllListeners: () => void
     }

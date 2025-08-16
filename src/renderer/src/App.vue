@@ -12,7 +12,11 @@ import { useToast } from './components/ui/toast/use-toast'
 import { useSettingsStore } from '@/stores/settings'
 import { useThemeStore } from '@/stores/theme'
 import { useLanguageStore } from '@/stores/language'
+import { useI18n } from 'vue-i18n'
 import TranslatePopup from '@/components/popup/TranslatePopup.vue'
+import ModelCheckDialog from '@/components/settings/ModelCheckDialog.vue'
+import { useModelCheckStore } from '@/stores/modelCheck'
+import MessageDialog from './components/ui/MessageDialog.vue'
 
 const route = useRoute()
 const configPresenter = usePresenter('configPresenter')
@@ -22,6 +26,8 @@ const { toast } = useToast()
 const settingsStore = useSettingsStore()
 const themeStore = useThemeStore()
 const langStore = useLanguageStore()
+const modelCheckStore = useModelCheckStore()
+const { t } = useI18n()
 // 错误通知队列及当前正在显示的错误
 const errorQueue = ref<Array<{ id: string; title: string; message: string; type: string }>>([])
 const currentErrorId = ref<string | null>(null)
@@ -163,6 +169,13 @@ const handleGoSettings = () => {
   }
 }
 
+// 处理ESC键 - 关闭悬浮聊天窗口
+const handleEscKey = (event: KeyboardEvent) => {
+  if (event.key === 'Escape') {
+    window.electron.ipcRenderer.send('close-floating-window')
+  }
+}
+
 getInitComplete()
 
 onMounted(() => {
@@ -172,6 +185,8 @@ onMounted(() => {
   // 设置初始 body class
   document.body.classList.add(themeStore.themeMode)
   document.body.classList.add(settingsStore.fontSizeClass)
+
+  window.addEventListener('keydown', handleEscKey)
 
   // 监听全局错误通知事件
   window.electron.ipcRenderer.on(NOTIFICATION_EVENTS.SHOW_ERROR, (_event, error) => {
@@ -202,6 +217,15 @@ onMounted(() => {
 
   window.electron.ipcRenderer.on(SHORTCUT_EVENTS.GO_SETTINGS, () => {
     handleGoSettings()
+  })
+
+  window.electron.ipcRenderer.on(NOTIFICATION_EVENTS.DATA_RESET_COMPLETE_DEV, () => {
+    toast({
+      title: t('settings.data.resetCompleteDevTitle'),
+      description: t('settings.data.resetCompleteDevMessage'),
+      variant: 'default',
+      duration: 15000
+    })
   })
 
   window.electron.ipcRenderer.on(NOTIFICATION_EVENTS.SYS_NOTIFY_CLICKED, (_, msg) => {
@@ -272,6 +296,8 @@ onBeforeUnmount(() => {
     errorDisplayTimer.value = null
   }
 
+  window.removeEventListener('keydown', handleEscKey)
+
   // 移除快捷键事件监听
   window.electron.ipcRenderer.removeAllListeners(SHORTCUT_EVENTS.ZOOM_IN)
   window.electron.ipcRenderer.removeAllListeners(SHORTCUT_EVENTS.ZOOM_OUT)
@@ -279,6 +305,7 @@ onBeforeUnmount(() => {
   window.electron.ipcRenderer.removeAllListeners(SHORTCUT_EVENTS.CREATE_NEW_CONVERSATION)
   window.electron.ipcRenderer.removeAllListeners(SHORTCUT_EVENTS.GO_SETTINGS)
   window.electron.ipcRenderer.removeAllListeners(NOTIFICATION_EVENTS.SYS_NOTIFY_CLICKED)
+  window.electron.ipcRenderer.removeAllListeners(NOTIFICATION_EVENTS.DATA_RESET_COMPLETE_DEV)
 })
 </script>
 
@@ -294,9 +321,21 @@ onBeforeUnmount(() => {
     </div>
     <!-- 全局更新弹窗 -->
     <UpdateDialog />
+    <!-- 全局消息弹窗 -->
+    <MessageDialog />
     <!-- 全局Toast提示 -->
     <Toaster />
     <SelectedTextContextMenu />
     <TranslatePopup />
+    <!-- 全局模型检查弹窗 -->
+    <ModelCheckDialog
+      :open="modelCheckStore.isDialogOpen"
+      :provider-id="modelCheckStore.currentProviderId"
+      @update:open="
+        (open) => {
+          if (!open) modelCheckStore.closeDialog()
+        }
+      "
+    />
   </div>
 </template>

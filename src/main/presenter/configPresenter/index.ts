@@ -7,7 +7,8 @@ import {
   RENDERER_MODEL_META,
   MCPServerConfig,
   Prompt,
-  IModelConfig
+  IModelConfig,
+  BuiltinKnowledgeConfig
 } from '@shared/presenter'
 import { SearchEngineTemplate } from '@shared/chat'
 import { ModelType } from '@shared/model'
@@ -22,6 +23,7 @@ import { presenter } from '@/presenter'
 import { compare } from 'compare-versions'
 import { defaultShortcutKey, ShortcutKeySetting } from './shortcutKeySettings'
 import { ModelConfigHelper } from './modelConfig'
+import { KnowledgeConfHelper } from './knowledgeConfHelper'
 
 // 定义应用设置的接口
 interface IAppSettings {
@@ -79,6 +81,9 @@ export class ConfigPresenter implements IConfigPresenter {
   private currentAppVersion: string
   private mcpConfHelper: McpConfHelper // 使用MCP配置助手
   private modelConfigHelper: ModelConfigHelper // 模型配置助手
+  private knowledgeConfHelper: KnowledgeConfHelper // 知识配置助手
+  // Model status memory cache for high-frequency read/write operations
+  private modelStatusCache: Map<string, boolean> = new Map()
 
   constructor() {
     this.userDataPath = app.getPath('userData')
@@ -87,7 +92,7 @@ export class ConfigPresenter implements IConfigPresenter {
     this.store = new ElectronStore<IAppSettings>({
       name: 'app-settings',
       defaults: {
-        language: 'en-US',
+        language: 'system',
         providers: defaultProviders,
         closeToQuit: false,
         customShortKey: defaultShortcutKey,
@@ -123,6 +128,9 @@ export class ConfigPresenter implements IConfigPresenter {
 
     // 初始化模型配置助手
     this.modelConfigHelper = new ModelConfigHelper()
+
+    // 初始化知识配置助手
+    this.knowledgeConfHelper = new KnowledgeConfHelper()
 
     // 初始化provider models目录
     this.initProviderModelsDir()
@@ -312,30 +320,63 @@ export class ConfigPresenter implements IConfigPresenter {
     return `${MODEL_STATUS_KEY_PREFIX}${providerId}_${formattedModelId}`
   }
 
-  // 获取模型启用状态
+  // 获取模型启用状态 (带内存缓存优化)
   getModelStatus(providerId: string, modelId: string): boolean {
     const statusKey = this.getModelStatusKey(providerId, modelId)
+
+    // First check memory cache
+    if (this.modelStatusCache.has(statusKey)) {
+      return this.modelStatusCache.get(statusKey)!
+    }
+
+    // Cache miss: read from settings and cache the result
     const status = this.getSetting<boolean>(statusKey)
-    // 如果状态不是布尔值，则返回 true
-    return typeof status === 'boolean' ? status : true
+    const finalStatus = typeof status === 'boolean' ? status : false
+    this.modelStatusCache.set(statusKey, finalStatus)
+
+    return finalStatus
   }
 
-  // 批量获取模型启用状态
+  // 批量获取模型启用状态 (带内存缓存优化)
   getBatchModelStatus(providerId: string, modelIds: string[]): Record<string, boolean> {
     const result: Record<string, boolean> = {}
+    const uncachedKeys: string[] = []
+    const uncachedModelIds: string[] = []
+
+    // First pass: check cache for all models
     for (const modelId of modelIds) {
       const statusKey = this.getModelStatusKey(providerId, modelId)
-      const status = this.getSetting<boolean>(statusKey)
-      // 如果状态不是布尔值，则返回 true
-      result[modelId] = typeof status === 'boolean' ? status : true
+      if (this.modelStatusCache.has(statusKey)) {
+        result[modelId] = this.modelStatusCache.get(statusKey)!
+      } else {
+        uncachedKeys.push(statusKey)
+        uncachedModelIds.push(modelId)
+      }
     }
+
+    // Second pass: fetch uncached values from settings and cache them
+    for (let i = 0; i < uncachedModelIds.length; i++) {
+      const modelId = uncachedModelIds[i]
+      const statusKey = uncachedKeys[i]
+      const status = this.getSetting<boolean>(statusKey)
+      const finalStatus = typeof status === 'boolean' ? status : false
+
+      // Cache the result and add to return object
+      this.modelStatusCache.set(statusKey, finalStatus)
+      result[modelId] = finalStatus
+    }
+
     return result
   }
 
-  // 设置模型启用状态
+  // 设置模型启用状态 (同步更新内存缓存)
   setModelStatus(providerId: string, modelId: string, enabled: boolean): void {
     const statusKey = this.getModelStatusKey(providerId, modelId)
+
+    // Update both settings and memory cache synchronously
     this.setSetting(statusKey, enabled)
+    this.modelStatusCache.set(statusKey, enabled)
+
     // 触发模型状态变更事件（需要通知所有标签页）
     eventBus.sendToRenderer(
       CONFIG_EVENTS.MODEL_STATUS_CHANGED,
@@ -354,6 +395,22 @@ export class ConfigPresenter implements IConfigPresenter {
   // 禁用模型
   disableModel(providerId: string, modelId: string): void {
     this.setModelStatus(providerId, modelId, false)
+  }
+
+  // 清理模型状态缓存 (用于配置重载或重置场景)
+  clearModelStatusCache(): void {
+    this.modelStatusCache.clear()
+  }
+
+  // 清理特定 provider 的模型状态缓存
+  clearProviderModelStatusCache(providerId: string): void {
+    const keysToDelete: string[] = []
+    for (const key of this.modelStatusCache.keys()) {
+      if (key.startsWith(`${MODEL_STATUS_KEY_PREFIX}${providerId}_`)) {
+        keysToDelete.push(key)
+      }
+    }
+    keysToDelete.forEach((key) => this.modelStatusCache.delete(key))
   }
 
   // 批量设置模型状态
@@ -1045,6 +1102,97 @@ export class ConfigPresenter implements IConfigPresenter {
   // 重置快捷键
   resetShortcutKeys() {
     this.setSetting('shortcutKey', { ...defaultShortcutKey })
+  }
+
+  // 获取知识库配置
+  getKnowledgeConfigs(): BuiltinKnowledgeConfig[] {
+    return this.knowledgeConfHelper.getKnowledgeConfigs()
+  }
+
+  // 设置知识库配置
+  setKnowledgeConfigs(configs: BuiltinKnowledgeConfig[]): void {
+    this.knowledgeConfHelper.setKnowledgeConfigs(configs)
+  }
+
+  // 获取NPM Registry缓存
+  getNpmRegistryCache(): any {
+    return this.mcpConfHelper.getNpmRegistryCache()
+  }
+
+  // 设置NPM Registry缓存
+  setNpmRegistryCache(cache: any): void {
+    return this.mcpConfHelper.setNpmRegistryCache(cache)
+  }
+
+  // 检查NPM Registry缓存是否有效
+  isNpmRegistryCacheValid(): boolean {
+    return this.mcpConfHelper.isNpmRegistryCacheValid()
+  }
+
+  // 获取有效的NPM Registry
+  getEffectiveNpmRegistry(): string | null {
+    return this.mcpConfHelper.getEffectiveNpmRegistry()
+  }
+
+  // 获取自定义NPM Registry
+  getCustomNpmRegistry(): string | undefined {
+    return this.mcpConfHelper.getCustomNpmRegistry()
+  }
+
+  // 设置自定义NPM Registry
+  setCustomNpmRegistry(registry: string | undefined): void {
+    this.mcpConfHelper.setCustomNpmRegistry(registry)
+  }
+
+  // 获取自动检测NPM Registry设置
+  getAutoDetectNpmRegistry(): boolean {
+    return this.mcpConfHelper.getAutoDetectNpmRegistry()
+  }
+
+  // 设置自动检测NPM Registry
+  setAutoDetectNpmRegistry(enabled: boolean): void {
+    this.mcpConfHelper.setAutoDetectNpmRegistry(enabled)
+  }
+
+  // 清除NPM Registry缓存
+  clearNpmRegistryCache(): void {
+    this.mcpConfHelper.clearNpmRegistryCache()
+  }
+
+  // 对比知识库配置差异
+  diffKnowledgeConfigs(newConfigs: BuiltinKnowledgeConfig[]) {
+    return KnowledgeConfHelper.diffKnowledgeConfigs(
+      this.knowledgeConfHelper.getKnowledgeConfigs(),
+      newConfigs
+    )
+  }
+
+  // 批量导入MCP服务器
+  async batchImportMcpServers(
+    servers: Array<{
+      name: string
+      description: string
+      package: string
+      version?: string
+      type?: any
+      args?: string[]
+      env?: Record<string, string>
+      enabled?: boolean
+      source?: string
+      [key: string]: unknown
+    }>,
+    options: {
+      skipExisting?: boolean
+      enableByDefault?: boolean
+      overwriteExisting?: boolean
+    } = {}
+  ): Promise<{ imported: number; skipped: number; errors: string[] }> {
+    return this.mcpConfHelper.batchImportMcpServers(servers, options)
+  }
+
+  // 根据包名查找服务器
+  async findMcpServerByPackage(packageName: string): Promise<string | null> {
+    return this.mcpConfHelper.findServerByPackage(packageName)
   }
 }
 

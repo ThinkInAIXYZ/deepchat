@@ -4,7 +4,9 @@
     "delete": "삭제",
     "cleanMessages": "메시지 정리",
     "pin": "고정하기",
-    "unpin": "고정 해제"
+    "unpin": "고정 해제",
+    "export": "내보내다",
+    "exportText": "일반 텍스트"
   },
   "toolbar": {
     "save": "저장",
@@ -25,5 +27,9 @@
     "toolbar": {
       "save": "저장"
     }
+  },
+  "export": {
+    "failed": "내보내기 실패",
+    "failedDesc": "수출 과정에서 오류가 발생했는데 다시 시도하십시오."
   }
 }

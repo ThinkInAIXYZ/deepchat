@@ -36,7 +36,7 @@
             variant="outline"
             size="xs"
             class="text-xs text-normal rounded-lg"
-            @click="validateApiKey"
+            @click="openModelCheckDialog"
           >
             <Icon icon="lucide:check-check" class="w-4 h-4 text-muted-foreground" />
             {{ t('settings.provider.verifyKey') }}
@@ -102,7 +102,7 @@
           </h3>
           <div class="flex flex-col w-full border overflow-hidden rounded-lg">
             <div
-              v-if="localModels.length === 0 && pullingModels.size === 0"
+              v-if="displayLocalModels.length === 0"
               class="p-4 text-center text-muted-foreground"
             >
               {{ t('settings.provider.noLocalModels') }}
@@ -110,36 +110,43 @@
             <div
               v-for="model in displayLocalModels"
               :key="model.name"
-              class="flex flex-row items-center justify-between p-2 border-b last:border-b-0 hover:bg-accent"
+              class="border-b last:border-b-0"
             >
-              <div class="flex flex-col flex-grow">
-                <div class="flex flex-row items-center gap-1">
-                  <span class="text-sm font-medium">{{ model.name }}</span>
-                  <span
-                    v-if="model.pulling"
-                    class="text-xs text-primary-foreground bg-primary px-1 py-0.5 rounded"
-                  >
-                    {{ t('settings.provider.pulling') }}
-                  </span>
-                  <span v-if="model.pulling" class="w-[50px]">
-                    <Progress :model-value="pullingModels.get(model.name)" class="h-1.5" />
-                  </span>
+              <template v-if="!model.pulling">
+                <ModelConfigItem
+                  :model-name="model.name"
+                  :model-id="model.name"
+                  :provider-id="provider.id"
+                  :is-custom-model="true"
+                  :type="
+                    model.capabilities.indexOf('embedding') > -1
+                      ? ModelType.Embedding
+                      : ModelType.Chat
+                  "
+                  :enabled="true"
+                  :changeable="false"
+                  @configChanged="refreshModels"
+                  @deleteModel="showDeleteModelConfirm(model.name)"
+                />
+              </template>
+              <template v-else>
+                <div class="flex flex-row items-center justify-between p-2 hover:bg-accent">
+                  <div class="flex flex-col flex-grow">
+                    <div class="flex flex-row items-center gap-1">
+                      <span class="text-sm font-medium">{{ model.name }}</span>
+                      <span class="text-xs text-primary-foreground bg-primary px-1 py-0.5 rounded">
+                        {{ t('settings.provider.pulling') }}
+                      </span>
+                      <span class="w-[50px]">
+                        <Progress :model-value="pullingModels.get(model.name)" class="h-1.5" />
+                      </span>
+                    </div>
+                    <span class="text-xs text-muted-foreground">{{
+                      formatModelSize(model.size)
+                    }}</span>
+                  </div>
                 </div>
-                <span class="text-xs text-muted-foreground">{{ formatModelSize(model.size) }}</span>
-              </div>
-              <div class="flex flex-row gap-2">
-                <Button
-                  v-if="!model.pulling"
-                  variant="destructive"
-                  size="xs"
-                  class="text-xs rounded-lg"
-                  :disabled="isModelRunning(model.name)"
-                  @click="showDeleteModelConfirm(model.name)"
-                >
-                  <Icon icon="lucide:trash-2" class="w-3.5 h-3.5 mr-1" />
-                  {{ t('settings.provider.deleteModel') }}
-                </Button>
-              </div>
+              </template>
             </div>
           </div>
         </div>
@@ -151,6 +158,9 @@
       <DialogContent class="max-w-2xl">
         <DialogHeader>
           <DialogTitle>{{ t('settings.provider.dialog.pullModel.title') }}</DialogTitle>
+          <DialogDescription>
+            {{ t('settings.provider.dialog.pullModel.description') }}
+          </DialogDescription>
         </DialogHeader>
         <div class="py-4 max-h-80 overflow-y-auto">
           <div class="grid grid-cols-1 gap-2">
@@ -189,10 +199,10 @@
       <DialogContent>
         <DialogHeader>
           <DialogTitle>{{ t('settings.provider.dialog.deleteModel.title') }}</DialogTitle>
+          <DialogDescription>
+            {{ t('settings.provider.dialog.deleteModel.content', { name: modelToDelete }) }}
+          </DialogDescription>
         </DialogHeader>
-        <div class="py-4">
-          {{ t('settings.provider.dialog.deleteModel.content', { name: modelToDelete }) }}
-        </div>
         <DialogFooter>
           <Button variant="outline" @click="showDeleteModelDialog = false">
             {{ t('dialog.cancel') }}
@@ -217,6 +227,15 @@
               )
             }}</DialogTitle
           >
+          <DialogDescription>
+            {{
+              t(
+                checkResult
+                  ? 'settings.provider.dialog.verify.successDesc'
+                  : 'settings.provider.dialog.verify.failedDesc'
+              )
+            }}
+          </DialogDescription>
         </DialogHeader>
         <DialogFooter>
           <Button variant="outline" @click="showCheckModelDialog = false">
@@ -230,7 +249,7 @@
 
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
-import { computed, ref, watch, onMounted } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
@@ -239,20 +258,27 @@ import { Icon } from '@iconify/vue'
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
+  DialogFooter,
   DialogHeader,
-  DialogTitle,
-  DialogFooter
+  DialogTitle
 } from '@/components/ui/dialog'
 import { useSettingsStore } from '@/stores/settings'
+import { useModelCheckStore } from '@/stores/modelCheck'
 import type { LLM_PROVIDER } from '@shared/presenter'
+import ModelConfigItem from './ModelConfigItem.vue'
+import { useToast } from '../ui/toast'
+import { ModelType } from '@shared/model'
 
 const { t } = useI18n()
+const { toast } = useToast()
 
 const props = defineProps<{
   provider: LLM_PROVIDER
 }>()
 
 const settingsStore = useSettingsStore()
+const modelCheckStore = useModelCheckStore()
 const apiHost = ref(props.provider.baseUrl || '')
 const apiKey = ref(props.provider.apiKey || '')
 const showPullModelDialog = ref(false)
@@ -268,6 +294,73 @@ const pullingModels = computed(() => settingsStore.ollamaPullingModels)
 
 // 预设可拉取的模型列表
 const presetModels = [
+  // OpenAI开源模型
+  {
+    name: 'gpt-oss:20b'
+  },
+  {
+    name: 'gpt-oss:120b'
+  },
+  // DeepSeek推理模型系列
+  {
+    name: 'deepseek-r1:1.5b'
+  },
+  {
+    name: 'deepseek-r1:7b'
+  },
+  {
+    name: 'deepseek-r1:8b'
+  },
+  {
+    name: 'deepseek-r1:14b'
+  },
+  {
+    name: 'deepseek-r1:32b'
+  },
+  {
+    name: 'deepseek-r1:70b'
+  },
+  {
+    name: 'deepseek-r1:671b'
+  },
+  // DeepSeek V3/V2.5系列
+  {
+    name: 'deepseek-v3:671b'
+  },
+  {
+    name: 'deepseek-v2.5:236b'
+  },
+  // Gemma3系列
+  {
+    name: 'gemma3:1b'
+  },
+  {
+    name: 'gemma3:4b'
+  },
+  {
+    name: 'gemma3:12b'
+  },
+  {
+    name: 'gemma3:27b'
+  },
+  // Gemma2系列
+  {
+    name: 'gemma2:2b'
+  },
+  {
+    name: 'gemma2:9b'
+  },
+  {
+    name: 'gemma2:27b'
+  },
+  // Gemma系列
+  {
+    name: 'gemma:2b'
+  },
+  {
+    name: 'gemma:7b'
+  },
+  // Qwen3系列
   {
     name: 'qwen3:0.6b'
   },
@@ -292,54 +385,112 @@ const presetModels = [
   {
     name: 'qwen3:235b'
   },
+  // Qwen3编程模型
   {
-    name: 'gemma3:1b'
+    name: 'qwen3-coder:30b'
+  },
+  // Qwen2.5系列
+  {
+    name: 'qwen2.5:0.5b'
   },
   {
-    name: 'gemma3:4b'
+    name: 'qwen2.5:1.5b'
   },
   {
-    name: 'gemma3:12b'
+    name: 'qwen2.5:3b'
   },
   {
-    name: 'gemma3:27b'
+    name: 'qwen2.5:7b'
   },
+  {
+    name: 'qwen2.5:14b'
+  },
+  {
+    name: 'qwen2.5:32b'
+  },
+  {
+    name: 'qwen2.5:72b'
+  },
+  // Qwen2.5编程模型系列
+  {
+    name: 'qwen2.5-coder:0.5b'
+  },
+  {
+    name: 'qwen2.5-coder:1.5b'
+  },
+  {
+    name: 'qwen2.5-coder:3b'
+  },
+  {
+    name: 'qwen2.5-coder:7b'
+  },
+  {
+    name: 'qwen2.5-coder:14b'
+  },
+  {
+    name: 'qwen2.5-coder:32b'
+  },
+  // Qwen2系列
+  {
+    name: 'qwen2:0.5b'
+  },
+  {
+    name: 'qwen2:1.5b'
+  },
+  {
+    name: 'qwen2:7b'
+  },
+  {
+    name: 'qwen2:72b'
+  },
+  // Qwen第一代系列
+  {
+    name: 'qwen:0.5b'
+  },
+  {
+    name: 'qwen:1.8b'
+  },
+  {
+    name: 'qwen:4b'
+  },
+  {
+    name: 'qwen:7b'
+  },
+  {
+    name: 'qwen:14b'
+  },
+  {
+    name: 'qwen:32b'
+  },
+  {
+    name: 'qwen:72b'
+  },
+  {
+    name: 'qwen:110b'
+  },
+  // QwQ推理模型
   {
     name: 'qwq:32b'
   },
-  {
-    name: 'deepseek-r1:1.5b'
-  },
-  {
-    name: 'deepseek-r1:7b'
-  },
-  {
-    name: 'deepseek-r1:8b'
-  },
-  {
-    name: 'deepseek-r1:14b'
-  },
-  {
-    name: 'deepseek-r1:32b'
-  },
-  {
-    name: 'deepseek-r1:70b'
-  },
-  {
-    name: 'deepseek-r1:671b'
-  },
+  // Llama3.3系列
   {
     name: 'llama3.3:70b'
   },
-  {
-    name: 'phi4:14b'
-  },
+  // Llama3.2系列
   {
     name: 'llama3.2:1b'
   },
   {
     name: 'llama3.2:3b'
   },
+  // Llama3.2视觉模型
+  {
+    name: 'llama3.2-vision:11b'
+  },
+  {
+    name: 'llama3.2-vision:90b'
+  },
+  // Llama3.1系列
   {
     name: 'llama3.1:8b'
   },
@@ -349,14 +500,219 @@ const presetModels = [
   {
     name: 'llama3.1:405b'
   },
-  {
-    name: 'mistral:7b'
-  },
+  // Llama3系列
   {
     name: 'llama3:8b'
   },
   {
     name: 'llama3:70b'
+  },
+  // Llama2系列
+  {
+    name: 'llama2:7b'
+  },
+  {
+    name: 'llama2:13b'
+  },
+  {
+    name: 'llama2:70b'
+  },
+  // LLaVA视觉模型系列
+  {
+    name: 'llava:7b'
+  },
+  {
+    name: 'llava:13b'
+  },
+  {
+    name: 'llava:34b'
+  },
+  // LLaVA-Llama3模型
+  {
+    name: 'llava-llama3:8b'
+  },
+  // Mistral系列
+  {
+    name: 'mistral:7b'
+  },
+  {
+    name: 'mistral-nemo:12b'
+  },
+  {
+    name: 'mistral-small:22b'
+  },
+  {
+    name: 'mistral-small:24b'
+  },
+  // Phi系列
+  {
+    name: 'phi3:3.8b'
+  },
+  {
+    name: 'phi3:14b'
+  },
+  {
+    name: 'phi4:14b'
+  },
+  {
+    name: 'phi4-mini-reasoning:3.8b'
+  },
+  // CodeLlama编程模型系列
+  {
+    name: 'codellama:7b'
+  },
+  {
+    name: 'codellama:13b'
+  },
+  {
+    name: 'codellama:34b'
+  },
+  {
+    name: 'codellama:70b'
+  },
+  // MiniCPM视觉模型
+  {
+    name: 'minicpm-v:8b'
+  },
+  // TinyLlama轻量模型
+  {
+    name: 'tinyllama:1.1b'
+  },
+  // SmolLM2轻量模型系列
+  {
+    name: 'smollm2:135m'
+  },
+  {
+    name: 'smollm2:360m'
+  },
+  {
+    name: 'smollm2:1.7b'
+  },
+  // Tulu3指令模型
+  {
+    name: 'tulu3:8b'
+  },
+  {
+    name: 'tulu3:70b'
+  },
+  // OLMo2开源模型
+  {
+    name: 'olmo2:7b'
+  },
+  {
+    name: 'olmo2:13b'
+  },
+  // Solar Pro模型
+  {
+    name: 'solar-pro:22b'
+  },
+  // Dolphin指令模型
+  {
+    name: 'dolphin3:8b'
+  },
+  // Command R模型系列
+  {
+    name: 'command-r7b:7b'
+  },
+  {
+    name: 'command-r7b-arabic:7b'
+  },
+  {
+    name: 'command-a:111b'
+  },
+  // Magicoder编程模型
+  {
+    name: 'magicoder:7b'
+  },
+  // Mathstral数学模型
+  {
+    name: 'mathstral:7b'
+  },
+  // Falcon2模型
+  {
+    name: 'falcon2:11b'
+  },
+  // StableLM模型
+  {
+    name: 'stablelm-zephyr:3b'
+  },
+  // Granite Guardian安全模型
+  {
+    name: 'granite3-guardian:2b'
+  },
+  {
+    name: 'granite3-guardian:8b'
+  },
+  // ShieldGemma安全模型
+  {
+    name: 'shieldgemma:2b'
+  },
+  {
+    name: 'shieldgemma:9b'
+  },
+  {
+    name: 'shieldgemma:27b'
+  },
+  // Sailor2多语言模型
+  {
+    name: 'sailor2:1b'
+  },
+  {
+    name: 'sailor2:8b'
+  },
+  {
+    name: 'sailor2:20b'
+  },
+  // 函数调用模型
+  {
+    name: 'firefunction-v2:70b'
+  },
+  {
+    name: 'nexusraven:13b'
+  },
+  // 专业工具模型
+  {
+    name: 'duckdb-nsql:7b'
+  },
+  {
+    name: 'bespoke-minicheck:7b'
+  },
+  {
+    name: 'nuextract:3.8b'
+  },
+  {
+    name: 'reader-lm:0.5b'
+  },
+  {
+    name: 'reader-lm:1.5b'
+  },
+  // 推理和分析模型
+  {
+    name: 'marco-o1:7b'
+  },
+  // 混合专家模型
+  {
+    name: 'notux:8x7b'
+  },
+  // 大规模对话模型
+  {
+    name: 'alfred:40b'
+  },
+  {
+    name: 'goliath:120b'
+  },
+  {
+    name: 'megadolphin:120b'
+  },
+  // 嵌入模型
+  {
+    name: 'nomic-embed-text:335m'
+  },
+  {
+    name: 'mxbai-embed-large:335m'
+  },
+  {
+    name: 'bge-m3:567m'
   }
 ]
 
@@ -393,6 +749,11 @@ const displayLocalModels = computed(() => {
           parameter_size: '',
           quantization_level: ''
         },
+        model_info: {
+          context_length: 0,
+          embedding_length: 0
+        },
+        capabilities: [],
         pulling: true,
         progress
       })
@@ -434,6 +795,15 @@ const pullModel = async (modelName: string) => {
 
 // 显示删除模型确认对话框
 const showDeleteModelConfirm = (modelName: string) => {
+  if (isModelRunning(modelName)) {
+    toast({
+      title: t('settings.provider.toast.modelRunning'),
+      description: t('settings.provider.toast.modelRunningDesc', { model: modelName }),
+      variant: 'destructive',
+      duration: 3000
+    })
+    return
+  }
   modelToDelete.value = modelName
   showDeleteModelDialog.value = true
 }
@@ -519,6 +889,10 @@ const validateApiKey = async () => {
     checkResult.value = false
     showCheckModelDialog.value = true
   }
+}
+
+const openModelCheckDialog = () => {
+  modelCheckStore.openDialog(props.provider.id)
 }
 
 // 监听 provider 变化

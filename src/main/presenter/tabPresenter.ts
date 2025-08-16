@@ -10,6 +10,7 @@ import { getContextMenuLabels } from '@shared/i18n'
 import { app } from 'electron'
 import { addWatermarkToNativeImage } from '@/lib/watermark'
 import { stitchImagesVertically } from '@/lib/scrollCapture'
+import { presenter } from './'
 
 export class TabPresenter implements ITabPresenter {
   // 全局标签页实例存储
@@ -533,6 +534,12 @@ export class TabPresenter implements ITabPresenter {
       // Once did-finish-load happens, emit first content loaded
       webContents.once('did-finish-load', () => {
         eventBus.sendToMain(WINDOW_EVENTS.FIRST_CONTENT_LOADED, windowId)
+        setTimeout(() => {
+          const windowPresenter = presenter.windowPresenter as any
+          if (windowPresenter && typeof windowPresenter.focusActiveTab === 'function') {
+            windowPresenter.focusActiveTab(windowId, 'initial')
+          }
+        }, 300)
       })
     }
 
@@ -609,6 +616,9 @@ export class TabPresenter implements ITabPresenter {
     // Re-adding ensures it's on top in most view hierarchies
     window.contentView.addChildView(view)
     this.updateViewBounds(window, view)
+    if (!view.webContents.isDestroyed()) {
+      view.webContents.focus()
+    }
   }
 
   /**
@@ -686,6 +696,41 @@ export class TabPresenter implements ITabPresenter {
     this.tabState.clear()
     this.windowTabs.clear()
     this.webContentsToTabId.clear()
+  }
+
+  /**
+   * 重排序窗口内的标签页
+   */
+  async reorderTabs(windowId: number, tabIds: number[]): Promise<boolean> {
+    console.log('reorderTabs', windowId, tabIds)
+
+    const windowTabs = this.windowTabs.get(windowId)
+    if (!windowTabs) return false
+
+    for (const tabId of tabIds) {
+      if (!windowTabs.includes(tabId)) {
+        console.warn(`Tab ${tabId} does not belong to window ${windowId}`)
+        return false
+      }
+    }
+
+    if (tabIds.length !== windowTabs.length) {
+      console.warn('Tab count mismatch in reorder operation')
+      return false
+    }
+
+    this.windowTabs.set(windowId, [...tabIds])
+
+    tabIds.forEach((tabId, index) => {
+      const tabState = this.tabState.get(tabId)
+      if (tabState) {
+        tabState.position = index
+      }
+    })
+
+    await this.notifyWindowTabsUpdate(windowId)
+
+    return true
   }
 
   // 将标签页移动到新窗口
@@ -895,6 +940,42 @@ export class TabPresenter implements ITabPresenter {
           await this.notifyWindowTabsUpdate(windowId)
         }
       }
+    }
+  }
+
+  registerFloatingWindow(webContentsId: number, webContents: Electron.WebContents): void {
+    try {
+      console.log(`TabPresenter: Registering floating window as virtual tab, ID: ${webContentsId}`)
+      if (this.tabs.has(webContentsId)) {
+        console.warn(`TabPresenter: Tab ${webContentsId} already exists, skipping registration`)
+        return
+      }
+      const virtualView = {
+        webContents: webContents,
+        setVisible: () => {},
+        setBounds: () => {},
+        getBounds: () => ({ x: 0, y: 0, width: 400, height: 600 })
+      } as any
+      this.webContentsToTabId.set(webContentsId, webContentsId)
+      this.tabs.set(webContentsId, virtualView)
+      console.log(
+        `TabPresenter: Virtual tab registered successfully for floating window ${webContentsId}`
+      )
+    } catch (error) {
+      console.error('TabPresenter: Failed to register floating window:', error)
+    }
+  }
+
+  unregisterFloatingWindow(webContentsId: number): void {
+    try {
+      console.log(`TabPresenter: Unregistering floating window virtual tab, ID: ${webContentsId}`)
+      this.webContentsToTabId.delete(webContentsId)
+      this.tabs.delete(webContentsId)
+      console.log(
+        `TabPresenter: Virtual tab unregistered successfully for floating window ${webContentsId}`
+      )
+    } catch (error) {
+      console.error('TabPresenter: Failed to unregister floating window:', error)
     }
   }
 }

@@ -2,7 +2,8 @@ import { contextBridge, ipcRenderer } from 'electron'
 
 // 直接定义事件常量，避免路径解析问题
 const FLOATING_BUTTON_EVENTS = {
-  CLICKED: 'floating-button:clicked'
+  CLICKED: 'floating-button:clicked',
+  RIGHT_CLICKED: 'floating-button:right-clicked'
 } as const
 
 // 定义悬浮按钮的 API
@@ -13,6 +14,14 @@ const floatingButtonAPI = {
       ipcRenderer.send(FLOATING_BUTTON_EVENTS.CLICKED)
     } catch (error) {
       console.error('FloatingPreload: Error sending IPC message:', error)
+    }
+  },
+
+  onRightClick: () => {
+    try {
+      ipcRenderer.send(FLOATING_BUTTON_EVENTS.RIGHT_CLICKED)
+    } catch (error) {
+      console.error('FloatingPreload: Error sending right click IPC message:', error)
     }
   },
 

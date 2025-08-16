@@ -2,11 +2,11 @@
   "enabled": "Activé",
   "disabled": "Désactivé",
   "loading": "Chargement...",
-  "copySuccess": "Copie réussie",
+  "copySuccess": "Copié",
   "copySuccessDesc": "Contenu copié dans le presse-papiers",
-  "copyImageSuccess": "Copie réussie",
+  "copyImageSuccess": "Copié",
   "copyImageSuccessDesc": "Image copiée dans le presse-papiers",
-  "copyFailed": "Échec de la copie",
+  "copyFailed": "Impossible de copier",
   "copyFailedDesc": "Impossible de copier le contenu dans le presse-papiers",
   "copyCode": "Copier le code",
   "copy": "Copier",
@@ -70,5 +70,8 @@
   "reset": "Réinitialiser",
   "format": "Format",
   "edit": "Modifier",
-  "delete": "Supprimer"
+  "delete": "Supprimer",
+  "save": "Enregistrer",
+  "clear": "Effacer",
+  "saved": "Sauvé"
 }

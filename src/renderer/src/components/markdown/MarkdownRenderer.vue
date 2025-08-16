@@ -5,6 +5,7 @@
       :custom-components="nodeComponents"
       :content="content"
       @copy="$emit('copy', $event)"
+      :typewriterEffect="true"
     />
   </div>
 </template>

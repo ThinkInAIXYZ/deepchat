@@ -3,11 +3,13 @@ import path from 'path'
 import { FloatingButtonConfig, FloatingButtonState } from './types'
 import logger from '../../../shared/logger'
 import { platform } from '@electron-toolkit/utils'
+import windowStateManager from 'electron-window-state'
 
 export class FloatingButtonWindow {
   private window: BrowserWindow | null = null
   private config: FloatingButtonConfig
   private state: FloatingButtonState
+  private windowState: any
 
   constructor(config: FloatingButtonConfig) {
     this.config = config
@@ -20,6 +22,13 @@ export class FloatingButtonWindow {
         height: config.size.height
       }
     }
+
+    // 初始化窗口状态管理器
+    this.windowState = windowStateManager({
+      file: 'floating-button-window-state.json',
+      defaultWidth: config.size.width,
+      defaultHeight: config.size.height
+    })
   }
 
   /**
@@ -31,16 +40,14 @@ export class FloatingButtonWindow {
     }
 
     try {
-      const position = this.calculatePosition()
-
       // 根据环境选择正确的预加载脚本路径
       const isDev = process.env.NODE_ENV === 'development'
 
       this.window = new BrowserWindow({
-        width: this.config.size.width,
-        height: this.config.size.height,
-        x: position.x,
-        y: position.y,
+        x: this.windowState.x,
+        y: this.windowState.y,
+        width: this.windowState.width,
+        height: this.windowState.height,
         frame: false,
         transparent: platform.isMacOS,
         alwaysOnTop: this.config.alwaysOnTop,
@@ -63,6 +70,7 @@ export class FloatingButtonWindow {
           sandbox: false // 禁用沙盒模式，确保预加载脚本能正常工作
         }
       })
+      this.windowState.manage(this.window)
       this.window.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
       this.window.setAlwaysOnTop(true, 'floating')
       // 设置窗口透明度
@@ -140,7 +148,7 @@ export class FloatingButtonWindow {
       }
 
       if (config.position || config.offset) {
-        const position = this.calculatePosition()
+        const position = this.getDefaultPosition()
         this.window.setPosition(position.x, position.y)
         this.state.bounds.x = position.x
         this.state.bounds.y = position.y
@@ -170,36 +178,21 @@ export class FloatingButtonWindow {
     return this.window !== null && !this.window.isDestroyed()
   }
 
+  public getWindow(): BrowserWindow | null {
+    return this.window
+  }
+
   /**
-   * 计算悬浮按钮位置
+   * 获取默认位置（右下角）
    */
-  private calculatePosition(): { x: number; y: number } {
+  private getDefaultPosition(): { x: number; y: number } {
     const primaryDisplay = screen.getPrimaryDisplay()
-    const { workAreaSize } = primaryDisplay
+    const { workArea } = primaryDisplay
 
-    let x: number, y: number
-
-    switch (this.config.position) {
-      case 'top-left':
-        x = this.config.offset.x
-        y = this.config.offset.y
-        break
-      case 'top-right':
-        x = workAreaSize.width - this.config.size.width - this.config.offset.x
-        y = this.config.offset.y
-        break
-      case 'bottom-left':
-        x = this.config.offset.x
-        y = workAreaSize.height - this.config.size.height - this.config.offset.y
-        break
-      case 'bottom-right':
-      default:
-        x = workAreaSize.width - this.config.size.width - this.config.offset.x
-        y = workAreaSize.height - this.config.size.height - this.config.offset.y
-        break
+    return {
+      x: workArea.width - this.config.size.width - 20,
+      y: workArea.height - this.config.size.height - 20
     }
-
-    return { x, y }
   }
 
   /**

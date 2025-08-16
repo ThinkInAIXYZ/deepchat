@@ -122,11 +122,14 @@
               ? t('settings.knowledgeBase.editFastGptConfig')
               : t('settings.knowledgeBase.addFastGptConfig')
           }}</DialogTitle>
+          <DialogDescription>
+            {{ t('settings.knowledgeBase.fastgptDescription') }}
+          </DialogDescription>
         </DialogHeader>
         <div class="space-y-4 py-4">
           <div class="space-y-2">
             <Label class="text-xs text-muted-foreground" for="edit-fastgpt-description">
-              {{ t('settings.knowledgeBase.fastgptDescription') }}
+              {{ t('settings.knowledgeBase.descriptionDesc') }}
             </Label>
             <Input
               id="edit-fastgpt-description"
@@ -183,7 +186,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch, toRaw } from 'vue'
+import { ref, computed, onMounted, watch, toRaw, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
 import { Button } from '@/components/ui/button'
@@ -195,7 +198,8 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogFooter
+  DialogFooter,
+  DialogDescription
 } from '@/components/ui/dialog'
 import { Collapsible, CollapsibleContent } from '@/components/ui/collapsible'
 import { useMcpStore } from '@/stores/mcp'
@@ -355,6 +359,7 @@ const updateFastGptConfigToMcp = async () => {
 const loadFastGptConfigFromMcp = async () => {
   try {
     // 获取fastGptKnowledge服务器配置
+    console.log(mcpStore.config)
     const serverConfig = mcpStore.config.mcpServers['fastGptKnowledge']
     if (serverConfig && serverConfig.env) {
       // 解析配置 - env可能是JSON字符串
@@ -412,7 +417,22 @@ watch(
 )
 
 // 组件挂载时加载配置
+let unwatch: (() => void) | undefined
 onMounted(async () => {
-  await loadFastGptConfigFromMcp()
+  unwatch = watch(
+    () => mcpStore.config.ready,
+    async (ready) => {
+      if (ready) {
+        unwatch?.() // only run once to avoid multiple calls
+        await loadFastGptConfigFromMcp()
+      }
+    },
+    { immediate: true }
+  )
+})
+
+// cancel the watch to avoid memory leaks
+onUnmounted(() => {
+  unwatch?.()
 })
 </script>

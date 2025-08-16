@@ -8,7 +8,7 @@
           :provider-websites="providerWebsites"
           @api-host-change="handleApiHostChange"
           @api-key-change="handleApiKeyChange"
-          @validate-key="handleApiKeyEnter"
+          @validate-key="openModelCheckDialog"
           @delete-provider="showDeleteProviderDialog = true"
           @oauth-success="handleOAuthSuccess"
           @oauth-error="handleOAuthError"
@@ -26,9 +26,15 @@
         <GeminiSafetyConfig
           v-if="provider.id === 'gemini'"
           :provider="provider"
-          :initial-safety-levels="geminiSafetyLevels"
+          :initial-safety-levels="geminiSafetyLevelsForChild"
           @safety-setting-change="handleSafetySettingChange"
         />
+
+        <!-- 速率限制配置 -->
+        <ProviderRateLimitConfig :provider="provider" @config-changed="handleConfigChanged" />
+
+        <!-- ModelScope MCP 同步 -->
+        <ModelScopeMcpSync v-if="provider.id === 'modelscope'" :provider="provider" />
 
         <!-- 模型管理 -->
         <ProviderModelManager
@@ -71,9 +77,14 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import ProviderApiConfig from './ProviderApiConfig.vue'
 import AzureProviderConfig from './AzureProviderConfig.vue'
 import GeminiSafetyConfig from './GeminiSafetyConfig.vue'
+import ProviderRateLimitConfig from './ProviderRateLimitConfig.vue'
+import ModelScopeMcpSync from './ModelScopeMcpSync.vue'
 import ProviderModelManager from './ProviderModelManager.vue'
 import ProviderDialogContainer from './ProviderDialogContainer.vue'
+import { useModelCheckStore } from '@/stores/modelCheck'
 import { levelToValueMap, safetyCategories } from '@/lib/gemini'
+import type { SafetyCategoryKey, SafetySettingValue } from '@/lib/gemini'
+import { useThrottleFn } from '@vueuse/core'
 
 interface ProviderWebsites {
   official: string
@@ -83,15 +94,9 @@ interface ProviderWebsites {
   defaultBaseUrl: string
 }
 
-// Define safety types for Gemini safety handling
-type SafetyCategoryKey = 'harassment' | 'hateSpeech' | 'sexuallyExplicit' | 'dangerousContent'
-type SafetySettingValue =
-  | 'BLOCK_NONE'
-  | 'BLOCK_LOW_AND_ABOVE'
-  | 'BLOCK_MEDIUM_AND_ABOVE'
-  | 'BLOCK_ONLY_HIGH'
-  | 'HARM_BLOCK_THRESHOLD_UNSPECIFIED'
+// Types are imported from @/lib/gemini
 
+// Value to level mapping for Gemini safety settings
 const valueToLevelMap: Record<SafetySettingValue, number> = {
   BLOCK_NONE: 0,
   BLOCK_LOW_AND_ABOVE: 1,
@@ -105,6 +110,7 @@ const props = defineProps<{
 }>()
 
 const settingsStore = useSettingsStore()
+const modelCheckStore = useModelCheckStore()
 const apiKey = ref(props.provider.apiKey || '')
 const apiHost = ref(props.provider.baseUrl || '')
 const azureApiVersion = ref('')
@@ -167,7 +173,8 @@ const validateApiKey = async () => {
   }
 }
 
-const initData = async () => {
+// Original initData implementation without debouncing
+const _initData = async () => {
   console.log('initData for provider:', props.provider.id)
   const providerData = settingsStore.allProviderModels.find(
     (p) => p.providerId === props.provider.id
@@ -198,8 +205,13 @@ const initData = async () => {
   // Fetch Gemini Safety Settings if applicable
   if (props.provider.id === 'gemini') {
     console.log('Fetching Gemini safety settings...')
+
+    // 先清空现有数据
+    Object.keys(geminiSafetyLevels).forEach((key) => {
+      delete geminiSafetyLevels[key]
+    })
+
     for (const key in safetyCategories) {
-      console.log('key:', key)
       const categoryKey = key as string
       try {
         const savedValue = (await settingsStore.getGeminiSafety(categoryKey)) as
@@ -207,34 +219,47 @@ const initData = async () => {
           | 'HARM_BLOCK_THRESHOLD_UNSPECIFIED'
         console.log(`Fetched Gemini safety for ${categoryKey}:`, savedValue)
         geminiSafetyLevels[categoryKey] =
-          valueToLevelMap[savedValue] ?? safetyCategories[categoryKey].defaultLevel
+          valueToLevelMap[savedValue as SafetySettingValue] ??
+          safetyCategories[categoryKey as SafetyCategoryKey].defaultLevel
         console.log(`Set Gemini level for ${categoryKey}:`, geminiSafetyLevels[categoryKey])
       } catch (error) {
         console.error(`Failed to fetch Gemini safety setting for ${categoryKey}:`, error)
-        geminiSafetyLevels[categoryKey] = safetyCategories[categoryKey].defaultLevel // Default on error
+        geminiSafetyLevels[categoryKey] =
+          safetyCategories[categoryKey as SafetyCategoryKey].defaultLevel // Default on error
       }
     }
+
+    console.log('All Gemini safety levels initialized:', JSON.stringify(geminiSafetyLevels))
   }
 }
+
+// Debounced version of initData to reduce frequent calls within 1 second
+// Ensures the final call is always executed
+const initData = useThrottleFn(_initData, 1000, true, true)
+
+// Immediate version for scenarios that require instant initialization
+const initDataImmediate = _initData
+
+// Flag to track if this is the first initialization
+let isFirstInit = true
 
 watch(
   () => props.provider,
   async () => {
     apiKey.value = props.provider.apiKey || ''
     apiHost.value = props.provider.baseUrl || ''
-    await initData() // Ensure initData completes
+
+    // Use immediate version for first initialization, debounced version for subsequent changes
+    if (isFirstInit) {
+      await initDataImmediate()
+      isFirstInit = false
+    } else {
+      initData() // Use debounced version for frequent changes
+    }
   },
   { immediate: true } // Removed deep: true as provider object itself changes
 )
 
-const handleApiKeyEnter = async (value: string) => {
-  const inputElement = document.getElementById(`${props.provider.id}-apikey`)
-  if (inputElement) {
-    inputElement.blur()
-  }
-  await settingsStore.updateProviderApi(props.provider.id, value, undefined)
-  await validateApiKey()
-}
 const handleApiKeyChange = async (value: string) => {
   await settingsStore.updateProviderApi(props.provider.id, value, undefined)
 }
@@ -333,8 +358,8 @@ const handleSafetySettingChange = async (key: SafetyCategoryKey, level: number) 
 // Handler for OAuth success
 const handleOAuthSuccess = async () => {
   console.log('OAuth authentication successful')
-  // OAuth成功后刷新provider数据
-  await initData()
+  // OAuth成功后立即刷新provider数据 (使用立即版本以快速显示结果)
+  await initDataImmediate()
   // 可以自动验证一次
   await validateApiKey()
 }
@@ -346,8 +371,18 @@ const handleOAuthError = (error: string) => {
 }
 
 // Handler for config changes
-const handleConfigChanged = async () => {
-  // 模型配置变更后重新初始化数据
-  await initData()
+const handleConfigChanged = () => {
+  // 模型配置变更后重新初始化数据 (使用防抖版本)
+  initData()
 }
+
+const openModelCheckDialog = () => {
+  modelCheckStore.openDialog(props.provider.id)
+}
+
+// 使用 computed 确保响应性正确传递
+const geminiSafetyLevelsForChild = computed(() => {
+  // 创建一个新的对象确保响应性
+  return { ...geminiSafetyLevels }
+})
 </script>

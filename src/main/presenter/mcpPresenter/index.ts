@@ -12,6 +12,7 @@ import {
 } from '@shared/presenter'
 import { ServerManager } from './serverManager'
 import { ToolManager } from './toolManager'
+import { McpRouterManager } from './mcprouterManager'
 import { eventBus, SendTarget } from '@/eventbus'
 import { MCP_EVENTS, NOTIFICATION_EVENTS } from '@/events'
 import { IConfigPresenter } from '@shared/presenter'
@@ -83,6 +84,8 @@ export class McpPresenter implements IMCPPresenter {
   private toolManager: ToolManager
   private configPresenter: IConfigPresenter
   private isInitialized: boolean = false
+  // McpRouter
+  private mcprouter?: McpRouterManager
 
   constructor(configPresenter?: IConfigPresenter) {
     console.log('Initializing MCP Presenter')
@@ -90,6 +93,12 @@ export class McpPresenter implements IMCPPresenter {
     this.configPresenter = configPresenter || presenter.configPresenter
     this.serverManager = new ServerManager(this.configPresenter)
     this.toolManager = new ToolManager(this.configPresenter, this.serverManager)
+    // init mcprouter manager
+    try {
+      this.mcprouter = new McpRouterManager(this.configPresenter)
+    } catch (e) {
+      console.warn('[MCP] McpRouterManager init failed:', e)
+    }
 
     // 监听自定义提示词服务器检查事件
     eventBus.on(CONFIG_EVENTS.CUSTOM_PROMPTS_SERVER_CHECK_REQUIRED, async () => {
@@ -117,15 +126,13 @@ export class McpPresenter implements IMCPPresenter {
         this.configPresenter.getMcpDefaultServers()
       ])
 
-      // 先测试npm registry速度
-      console.log('[MCP] Testing npm registry speed...')
+      // 初始化npm registry（优先使用缓存）
+      console.log('[MCP] Initializing npm registry...')
       try {
-        await this.serverManager.testNpmRegistrySpeed()
-        console.log(
-          `[MCP] npm registry speed test completed, selected best registry: ${this.serverManager.getNpmRegistry()}`
-        )
+        await this.serverManager.testNpmRegistrySpeed(true)
+        console.log(`[MCP] npm registry initialized: ${this.serverManager.getNpmRegistry()}`)
       } catch (error) {
-        console.error('[MCP] npm registry speed test failed:', error)
+        console.error('[MCP] npm registry initialization failed:', error)
       }
 
       // 检查并启动 deepchat-inmemory/custom-prompts-server
@@ -173,12 +180,96 @@ export class McpPresenter implements IMCPPresenter {
 
       // 检查并管理自定义提示词服务器
       await this.checkAndManageCustomPromptsServer()
+
+      this.scheduleBackgroundRegistryUpdate()
     } catch (error) {
       console.error('[MCP] Initialization failed:', error)
       // 即使初始化失败也标记为已完成，避免系统卡在未初始化状态
       this.isInitialized = true
       eventBus.send(MCP_EVENTS.INITIALIZED, SendTarget.ALL_WINDOWS)
     }
+  }
+
+  // =============== McpRouter marketplace APIs ===============
+  async listMcpRouterServers(
+    page: number,
+    limit: number
+  ): Promise<{
+    servers: Array<{
+      uuid: string
+      created_at: string
+      updated_at: string
+      name: string
+      author_name: string
+      title: string
+      description: string
+      content?: string
+      server_key: string
+      config_name?: string
+      server_url?: string
+    }>
+  }> {
+    if (!this.mcprouter) throw new Error('McpRouterManager not available')
+    const data = await this.mcprouter.listServers(page, limit)
+    return { servers: data && data.servers ? data.servers : [] }
+  }
+
+  async installMcpRouterServer(serverKey: string): Promise<boolean> {
+    if (!this.mcprouter) throw new Error('McpRouterManager not available')
+    return this.mcprouter.installServer(serverKey)
+  }
+
+  async getMcpRouterApiKey(): Promise<string> {
+    return this.configPresenter.getSetting<string>('mcprouterApiKey') || ''
+  }
+
+  async setMcpRouterApiKey(key: string): Promise<void> {
+    this.configPresenter.setSetting('mcprouterApiKey', key)
+  }
+
+  async isServerInstalled(source: string, sourceId: string): Promise<boolean> {
+    const servers = await this.configPresenter.getMcpServers()
+    for (const config of Object.values(servers)) {
+      if (config.source === source && config.sourceId === sourceId) {
+        return true
+      }
+    }
+    return false
+  }
+
+  async updateMcpRouterServersAuth(apiKey: string): Promise<void> {
+    const servers = await this.configPresenter.getMcpServers()
+    const updates: Array<{ name: string; config: Partial<MCPServerConfig> }> = []
+
+    for (const [serverName, config] of Object.entries(servers)) {
+      if (config.source === 'mcprouter' && config.customHeaders) {
+        const updatedHeaders = {
+          ...config.customHeaders,
+          Authorization: `Bearer ${apiKey}`
+        }
+        updates.push({
+          name: serverName,
+          config: { customHeaders: updatedHeaders }
+        })
+      }
+    }
+
+    // 批量更新所有服务器的 Authorization
+    for (const update of updates) {
+      await this.configPresenter.updateMcpServer(update.name, update.config)
+    }
+
+    console.log(`Updated Authorization for ${updates.length} mcprouter servers`)
+  }
+
+  private scheduleBackgroundRegistryUpdate(): void {
+    setTimeout(async () => {
+      try {
+        await this.serverManager.updateNpmRegistryInBackground()
+      } catch (error) {
+        console.error('[MCP] Background registry update failed:', error)
+      }
+    }, 5000)
   }
 
   // 添加获取初始化状态的方法
@@ -410,11 +501,10 @@ export class McpPresenter implements IMCPPresenter {
     // 通知渲染进程服务器已停止
     eventBus.send(MCP_EVENTS.SERVER_STOPPED, SendTarget.ALL_WINDOWS, serverName)
   }
-
-  async getAllToolDefinitions(): Promise<MCPToolDefinition[]> {
+  async getAllToolDefinitions(enabledMcpTools?: string[]): Promise<MCPToolDefinition[]> {
     const enabled = await this.configPresenter.getMcpEnabled()
     if (enabled) {
-      return this.toolManager.getAllToolDefinitions()
+      return await this.toolManager.getAllToolDefinitions(enabledMcpTools)
     }
     return []
   }
@@ -1108,5 +1198,78 @@ export class McpPresenter implements IMCPPresenter {
       }
     })
     return openaiTools
+  }
+
+  async grantPermission(
+    serverName: string,
+    permissionType: 'read' | 'write' | 'all',
+    remember: boolean = false
+  ): Promise<void> {
+    try {
+      console.log(
+        `[MCP] Granting ${permissionType} permission for server: ${serverName}, remember: ${remember}`
+      )
+      await this.toolManager.grantPermission(serverName, permissionType, remember)
+      console.log(
+        `[MCP] Successfully granted ${permissionType} permission for server: ${serverName}`
+      )
+    } catch (error) {
+      console.error(`[MCP] Failed to grant permission for server ${serverName}:`, error)
+      throw error
+    }
+  }
+
+  async getNpmRegistryStatus(): Promise<{
+    currentRegistry: string | null
+    isFromCache: boolean
+    lastChecked?: number
+    autoDetectEnabled: boolean
+    customRegistry?: string
+  }> {
+    const cache = this.configPresenter.getNpmRegistryCache?.()
+    const autoDetectEnabled = this.configPresenter.getAutoDetectNpmRegistry?.() ?? true
+    const customRegistry = this.configPresenter.getCustomNpmRegistry?.()
+    const currentRegistry = this.serverManager.getNpmRegistry()
+
+    let isFromCache = false
+    if (customRegistry && currentRegistry === customRegistry) {
+      isFromCache = false
+    } else if (cache && this.configPresenter.isNpmRegistryCacheValid?.()) {
+      isFromCache = currentRegistry === cache.registry
+    }
+
+    return {
+      currentRegistry,
+      isFromCache,
+      lastChecked: cache?.lastChecked,
+      autoDetectEnabled,
+      customRegistry
+    }
+  }
+
+  async refreshNpmRegistry(): Promise<string> {
+    return await this.serverManager.refreshNpmRegistry()
+  }
+
+  async setCustomNpmRegistry(registry: string | undefined): Promise<void> {
+    this.configPresenter.setCustomNpmRegistry?.(registry)
+    if (registry) {
+      console.log(`[MCP] Setting custom NPM registry: ${registry}`)
+    } else {
+      console.log('[MCP] Clearing custom NPM registry')
+    }
+    this.serverManager.loadRegistryFromCache()
+  }
+
+  async setAutoDetectNpmRegistry(enabled: boolean): Promise<void> {
+    this.configPresenter.setAutoDetectNpmRegistry?.(enabled)
+    if (enabled) {
+      this.serverManager.loadRegistryFromCache()
+    }
+  }
+
+  async clearNpmRegistryCache(): Promise<void> {
+    this.configPresenter.clearNpmRegistryCache?.()
+    console.log('[MCP] NPM Registry cache cleared')
   }
 }

@@ -12,6 +12,51 @@ export class ZhipuProvider extends OpenAICompatibleProvider {
     return [
       // 语言模型
       {
+        id: 'glm-4.5',
+        name: 'GLM-4.5',
+        group: 'zhipu',
+        providerId: this.provider.id,
+        isCustom: false,
+        contextLength: 128000,
+        maxTokens: 8192
+      },
+      {
+        id: 'glm-4.5-air',
+        name: 'GLM-4.5-Air',
+        group: 'zhipu',
+        providerId: this.provider.id,
+        isCustom: false,
+        contextLength: 128000,
+        maxTokens: 8192
+      },
+      {
+        id: 'glm-4.5-x',
+        name: 'GLM-4.5-X',
+        group: 'zhipu',
+        providerId: this.provider.id,
+        isCustom: false,
+        contextLength: 128000,
+        maxTokens: 8192
+      },
+      {
+        id: 'glm-4.5-airx',
+        name: 'GLM-4.5-AirX',
+        group: 'zhipu',
+        providerId: this.provider.id,
+        isCustom: false,
+        contextLength: 128000,
+        maxTokens: 8192
+      },
+      {
+        id: 'glm-4.5-flash',
+        name: 'GLM-4.5-Flash',
+        group: 'zhipu',
+        providerId: this.provider.id,
+        isCustom: false,
+        contextLength: 128000,
+        maxTokens: 8192
+      },
+      {
         id: 'glm-4-plus',
         name: 'GLM-4-Plus',
         group: 'zhipu',
@@ -94,6 +139,15 @@ export class ZhipuProvider extends OpenAICompatibleProvider {
         maxTokens: 32000
       },
       // 多模态模型
+      {
+        id: 'glm-4.5v',
+        name: 'GLM-4.5V',
+        group: 'zhipu',
+        providerId: this.provider.id,
+        isCustom: false,
+        contextLength: 65536,
+        maxTokens: 8192
+      },
       {
         id: 'glm-4v-plus-0111',
         name: 'GLM-4V-Plus-0111',

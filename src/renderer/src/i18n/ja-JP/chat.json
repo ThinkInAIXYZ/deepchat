@@ -4,14 +4,19 @@
     "fileArea": "ファイルエリア",
     "inputArea": "入力エリア",
     "functionSwitch": "機能スイッチ",
-    "fileSelect": "ファイル選択",
-    "pasteFiles": "ファイルのコピー＆ペーストをサポート",
+    "fileSelect": "ファイルを選択",
+    "pasteFiles": "クリップボードから貼り付けに対応",
     "dropFiles": "ファイルをここにドラッグ",
     "promptFilesAdded": "プロンプトファイルが追加されました",
     "promptFilesAddedDesc": "{count}個のファイルが正常に追加されました",
     "promptFilesError": "ファイル処理エラー",
     "promptFilesErrorDesc": "{count}個のファイルの処理に失敗しました",
-    "historyPlaceholder": "（タブを押して入力）"
+    "historyPlaceholder": "（Tabで補完）",
+    "rateLimitQueue": "キュー {count}",
+    "rateLimitWait": "待機 {seconds}秒",
+    "rateLimitQueueTooltip": "キューに{count}個のリクエスト、間隔{interval}秒",
+    "rateLimitReadyTooltip": "送信準備完了、間隔{interval}秒",
+    "rateLimitWaitingTooltip": "あと{seconds}秒待機、間隔{interval}秒"
   },
   "features": {
     "deepThinking": "深い思考",
@@ -30,7 +35,21 @@
     "error": "検索に失敗しました"
   },
   "messages": {
-    "thinking": "思考中..."
+    "thinking": "思考中...",
+    "rateLimitWaiting": "レート制限により、キューで待機中...",
+    "rateLimitTitle": "リクエストレート制限",
+    "rateLimitQueue": "キューの位置",
+    "rateLimitEstimated": "推定待機時間",
+    "rateLimitQuickSettings": "制限を調整",
+    "rateLimitSwitchProvider": "プロバイダーを切り替え",
+    "rateLimitImmediately": "すぐに",
+    "rateLimitSeconds": "秒",
+    "rateLimitMinutes": "分"
+  },
+  "rateLimit": {
+    "queueTooltip": "キューに{count}個のリクエスト、間隔{interval}秒",
+    "readyTooltip": "送信準備完了、間隔{interval}秒",
+    "waitingTooltip": "あと{seconds}秒待機、間隔{interval}秒"
   },
   "notify": {
     "generationComplete": "生成完了",

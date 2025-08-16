@@ -13,6 +13,24 @@
   },
   "messageBlockAction": {
     "continue": "ادامه",
-    "continued": "ادامه یافت"
+    "continued": "ادامه شد"
+  },
+  "messageBlockPermissionRequest": {
+    "title": "مجوز مورد نیاز",
+    "allow": "اجازه دادن",
+    "deny": "رد کردن",
+    "rememberChoice": "این انتخاب را به خاطر بسپار",
+    "granted": "مجوز داده شد",
+    "denied": "مجوز رد شد",
+    "type": {
+      "read": "دسترسی خواندن",
+      "write": "دسترسی نوشتن",
+      "all": "دسترسی کامل"
+    },
+    "description": {
+      "read": "به '{toolName}' از '{serverName}' اجازه می‌دهید عملیات خواندن انجام دهد؟",
+      "write": "به '{toolName}' از '{serverName}' اجازه می‌دهید عملیات نوشتن انجام دهد؟",
+      "all": "به '{toolName}' از '{serverName}' اجازه می‌دهید بخواند و بنویسد؟"
+    }
   }
 }

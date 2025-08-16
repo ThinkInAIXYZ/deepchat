@@ -196,6 +196,10 @@
       "name": "FastGPT知识库检索",
       "desc": "FastGPT知识库检索服务，可以对FastGPT知识库内容进行检索"
     },
+    "builtinKnowledge": {
+      "name": "内置知识库检索",
+      "desc": "DeepChat内置知识库检索服务，可以对DeepChat内置知识库内容进行检索"
+    },
     "deepchat-inmemory/custom-prompts-server": {
       "name": "自定义提示词",
       "desc": "DeepChat内置自定义提示词服务"
@@ -215,6 +219,10 @@
     "deepchat-inmemory/meeting-server": {
       "name": "多智能体会议",
       "desc": "DeepChat 内置会议服务，支持发起和主持多智能体讨论"
+    },
+    "deepchat/apple-server": {
+      "name": "macOS系统助手",
+      "desc": "让模型能操作macOS的日历、联系人、邮件、地图、备忘录、提醒事项等系统功能"
     }
   },
   "prompts": {
@@ -238,5 +246,24 @@
     "loadContent": "获取 Resource 内容",
     "pleaseSelect": "点击获取展示Resources详情",
     "dialogDescription": "浏览和查看MCP服务器提供的资源"
+  },
+  "market": {
+    "browseBuiltin": "浏览内置 MCP 市场",
+    "builtinTitle": "MCP 市场",
+    "poweredBy": "Powered by MCPRouter",
+    "keyGuide": "获取密钥",
+    "keyHelpText": "请先到",
+    "keyHelpEnd": "申请 API Key 后填写到上方输入框",
+    "apiKeyPlaceholder": "输入 MCPRouter API Key",
+    "apiKeyRequiredTitle": "需要 API Key",
+    "apiKeyRequiredDesc": "请先填写 MCPRouter API Key 后再安装",
+    "install": "安装",
+    "installed": "已安装",
+    "installSuccess": "安装成功",
+    "installFailed": "安装失败",
+    "noMore": "没有更多了",
+    "empty": "暂无服务",
+    "loadMore": "加载更多",
+    "pullDownToLoad": "继续下拉加载更多"
   }
 }

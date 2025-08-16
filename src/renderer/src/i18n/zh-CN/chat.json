@@ -11,7 +11,12 @@
     "promptFilesAddedDesc": "已成功添加 {count} 个文件",
     "promptFilesError": "文件处理错误",
     "promptFilesErrorDesc": "{count} 个文件处理失败",
-    "historyPlaceholder": "(按 Tab 填充)"
+    "historyPlaceholder": "(按 Tab 填充)",
+    "rateLimitQueue": "队列 {count}",
+    "rateLimitWait": "等待 {seconds}s",
+    "rateLimitQueueTooltip": "队列中有 {count} 个请求，间隔 {interval} 秒",
+    "rateLimitReadyTooltip": "可以发送请求，间隔 {interval} 秒",
+    "rateLimitWaitingTooltip": "还需等待 {seconds} 秒，间隔 {interval} 秒"
   },
   "features": {
     "deepThinking": "深度思考",
@@ -30,7 +35,21 @@
     "error": "搜索失败"
   },
   "messages": {
-    "thinking": "正在思考..."
+    "thinking": "正在思考...",
+    "rateLimitWaiting": "请求频率限制，正在排队等待...",
+    "rateLimitTitle": "请求频率限制",
+    "rateLimitQueue": "队列位置",
+    "rateLimitEstimated": "预计等待",
+    "rateLimitQuickSettings": "调整限制",
+    "rateLimitSwitchProvider": "切换服务商",
+    "rateLimitImmediately": "立即",
+    "rateLimitSeconds": "秒",
+    "rateLimitMinutes": "分钟"
+  },
+  "rateLimit": {
+    "queueTooltip": "队列中有 {count} 个请求，间隔 {interval} 秒",
+    "readyTooltip": "可以发送请求，间隔 {interval} 秒",
+    "waitingTooltip": "还需等待 {seconds} 秒，间隔 {interval} 秒"
   },
   "notify": {
     "generationComplete": "生成完毕",

@@ -34,6 +34,16 @@ export const useArtifactStore = defineStore('artifact', () => {
     return currentMessageId.value === messageId && currentThreadId.value === threadId
   }
 
+  const updateArtifactContent = (updates: Partial<ArtifactState>) => {
+    if (currentArtifact.value) {
+      // Create a new object to trigger reactivity
+      currentArtifact.value = {
+        ...currentArtifact.value,
+        ...updates
+      }
+    }
+  }
+
   return {
     currentArtifact,
     currentMessageId,
@@ -41,6 +51,7 @@ export const useArtifactStore = defineStore('artifact', () => {
     isOpen,
     showArtifact,
     hideArtifact,
-    validateContext
+    validateContext,
+    updateArtifactContent
   }
 })

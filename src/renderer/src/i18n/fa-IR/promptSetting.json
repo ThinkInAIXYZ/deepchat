@@ -45,6 +45,7 @@
   "uploadSuccess": "بارگذاری موفق",
   "uploadedCount": "{count} پرونده بارگذاری شد",
   "confirmDelete": "آیا مطمئن هستید که می‌خواهید دستورکار \"{name}\" را پاک کنید؟",
+  "confirmDeleteDescription": "این عمل قابل بازگشت نیست. دستورکار به طور دائم پاک خواهد شد.",
   "deleteSuccess": "پاک کردن موفق",
   "deleteFailed": "پاک کردن ناموفق",
   "inactive": "غیرفعال",

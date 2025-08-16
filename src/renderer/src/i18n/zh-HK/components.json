@@ -14,5 +14,23 @@
   "messageBlockAction": {
     "continue": "繼續",
     "continued": "已繼續"
+  },
+  "messageBlockPermissionRequest": {
+    "title": "需要權限",
+    "allow": "允許",
+    "deny": "拒絕",
+    "rememberChoice": "記住此選擇",
+    "granted": "權限已授予",
+    "denied": "權限已拒絕",
+    "type": {
+      "read": "讀取權限",
+      "write": "寫入權限",
+      "all": "完整權限"
+    },
+    "description": {
+      "all": "允許 '{serverName}' 的 '{toolName}' 執行讀取和寫入操作？",
+      "read": "允許 '{serverName}' 的 '{toolName}' 執行讀取操作？",
+      "write": "允許 '{serverName}' 的 '{toolName}' 執行寫入操作？"
+    }
   }
 }

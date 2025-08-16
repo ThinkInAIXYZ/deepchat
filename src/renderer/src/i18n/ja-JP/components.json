@@ -12,7 +12,25 @@
     "flags": "旗"
   },
   "messageBlockAction": {
-    "continue": "続く",
-    "continued": "続く"
+    "continue": "続行",
+    "continued": "続行済み"
+  },
+  "messageBlockPermissionRequest": {
+    "title": "権限が必要",
+    "allow": "許可",
+    "deny": "拒否",
+    "rememberChoice": "この選択を記憶する",
+    "granted": "権限が許可されました",
+    "denied": "権限が拒否されました",
+    "type": {
+      "read": "読み取りアクセス",
+      "write": "書き込みアクセス",
+      "all": "フルアクセス"
+    },
+    "description": {
+      "read": "'{serverName}' の '{toolName}' が読み取り操作を行うことを許可しますか？",
+      "write": "'{serverName}' の '{toolName}' が書き込み操作を行うことを許可しますか？",
+      "all": "'{serverName}' の '{toolName}' が読み取り・書き込みを行うことを許可しますか？"
+    }
   }
 }

@@ -45,6 +45,7 @@
   "uploadSuccess": "Téléchargement réussi",
   "uploadedCount": "{count} fichiers téléchargés",
   "confirmDelete": "Êtes-vous sûr de vouloir supprimer le prompt \"{name}\" ?",
+  "confirmDeleteDescription": "Cette action ne peut pas être annulée. Le prompt sera définitivement supprimé.",
   "deleteSuccess": "Suppression réussie",
   "deleteFailed": "Échec de la suppression",
   "inactive": "Inactif",

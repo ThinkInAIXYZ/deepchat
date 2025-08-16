@@ -92,14 +92,36 @@ export class FilePresenter implements IFilePresenter {
     }
   }
 
-  async prepareFile(absPath: string, typeInfo?: string): Promise<MessageFile> {
+  /**
+   * 准备文件，返回一个完整的 MessageFile 对象，支持不同的 contentType（兼容旧方法调用）
+   * @param absPath
+   * @param typeInfo
+   * @param contentType
+   * @returns
+   */
+  async prepareFileCompletely(
+    absPath: string,
+    typeInfo?: string,
+    contentType?: null | 'origin' | 'llm-friendly'
+  ): Promise<MessageFile> {
     const fullPath = path.join(absPath)
     try {
       const adapter = await this.createFileAdapter(fullPath, typeInfo)
       console.log('adapter', adapter)
       if (adapter) {
         await adapter.processFile()
-        const content = (await adapter.getLLMContent()) ?? ''
+        let content
+        switch (contentType) {
+          case 'llm-friendly':
+            content = await adapter.getLLMContent()
+            break
+          case 'origin':
+            content = await adapter.getContent()
+            break
+          default:
+            content = null
+            break
+        }
         const thumbnail = adapter.getThumbnail ? await adapter.getThumbnail() : undefined
         const result = {
           name: adapter.fileMetaData?.fileName ?? '',
@@ -130,6 +152,10 @@ export class FilePresenter implements IFilePresenter {
       console.error(error)
       throw new Error(`Can not read file: ${fullPath}`)
     }
+  }
+
+  async prepareFile(absPath: string, typeInfo?: string): Promise<MessageFile> {
+    return this.prepareFileCompletely(absPath, typeInfo, 'llm-friendly')
   }
 
   private findAdapterForMimeType(

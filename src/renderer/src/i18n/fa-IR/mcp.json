@@ -195,6 +195,14 @@
     "deepchat-inmemory/meeting-server": {
       "name": "جلسه چند-عامل",
       "desc": "سرویس جلسه داخلی DeepChat امکان میزبانی و مدیریت بحث‌های چند-عامله را فراهم می‌کند."
+    },
+    "builtinKnowledge": {
+      "desc": "خدمات جستجوی پایه دانش داخلی Deepchat ، که می تواند محتوای پایگاه دانش داخلی Deepchat را جستجو کند",
+      "name": "جستجوی پایگاه دانش داخلی"
+    },
+    "deepchat/apple-server": {
+      "desc": "بگذارید مدل عملکردهای سیستم MACOS مانند تقویم ، مخاطبین ، ایمیل ها ، نقشه ها ، یادداشت ها ، یادآوری ها و سایر سیستم ها را کار کند",
+      "name": "دستیار سیستم MACOS"
     }
   },
   "prompts": {
@@ -238,5 +246,24 @@
     "mcpDisabled": "MCP خاموش است",
     "getPromptFailed": "دریافت دستورکار ناموفق بود",
     "readResourceFailed": "خواندن منبع ناموفق بود"
+  },
+  "market": {
+    "apiKeyPlaceholder": "کلید API MCPROUTER را وارد کنید",
+    "apiKeyRequiredDesc": "لطفاً قبل از نصب ، ابتدا کلید API McProuter را پر کنید",
+    "apiKeyRequiredTitle": "به کلید API نیاز دارد",
+    "browseBuiltin": "مرور بازار داخلی MCP",
+    "builtinTitle": "بازار MCP",
+    "empty": "هنوز هیچ خدمتی وجود ندارد",
+    "install": "نصب کردن",
+    "installFailed": "نصب انجام نشد",
+    "installSuccess": "نصب با موفقیت",
+    "installed": "نصب شده",
+    "keyGuide": "کلید را دریافت کنید",
+    "keyHelpEnd": "پس از درخواست کلید API ، کادر ورودی را در بالا پر کنید",
+    "keyHelpText": "لطفا ابتدا وارد شوید",
+    "loadMore": "بار بیشتر",
+    "noMore": "نه بیشتر",
+    "poweredBy": "نیرو توسط McProuter",
+    "pullDownToLoad": "برای بارگیری بیشتر به پایین بیاید"
   }
 }

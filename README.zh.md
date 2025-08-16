@@ -122,8 +122,8 @@ DeepChat是一个功能强大的开源AI聊天平台，为用户提供与多种�
       <a href="https://deepseek.com/">Deepseek</a>
     </td>
     <td>
-      <img src="./src/renderer/src/assets/llm-icons/siliconcloud.svg" width="50" height="50" alt="Silicon图标"><br/>
-      <a href="https://www.siliconflow.cn/">SiliconFlow</a>
+      <img src="./src/renderer/src/assets/llm-icons/ppio-color.svg" width="50" height="50" alt="PPIO图标"><br/>
+      <a href="https://ppinfra.com/">PPIO</a>
     </td>
     <td>
       <img src="./src/renderer/src/assets/llm-icons/alibabacloud-color.svg" width="50" height="50" alt="DashScope图标"><br/>
@@ -144,8 +144,8 @@ DeepChat是一个功能强大的开源AI聊天平台，为用户提供与多种�
       <a href="https://fireworks.ai/">Fireworks</a>
     </td>
     <td>
-      <img src="./src/renderer/src/assets/llm-icons/ppio-color.svg" width="50" height="50" alt="PPIO图标"><br/>
-      <a href="https://ppinfra.com/">PPIO</a>
+      <img src="./src/renderer/src/assets/llm-icons/302ai.svg" width="50" height="50" alt="302.AI图标"><br/>
+      <a href="https://302.ai/">302.AI</a>
     </td>
   </tr>
   <tr align="center">
@@ -190,8 +190,8 @@ DeepChat是一个功能强大的开源AI聊天平台，为用户提供与多种�
       <a href="https://open.bigmodel.cn/">智谱</a>
     </td>
     <td>
-      <img src="./src/renderer/src/assets/llm-icons/lmstudio.svg" width="50" height="50" alt="LM Studio图标"><br/>
-      <a href="https://lmstudio.ai/">LM Studio</a>
+      <img src="./src/renderer/src/assets/llm-icons/siliconcloud.svg" width="50" height="50" alt="SiliconFlow图标"><br/>
+      <a href="https://www.siliconflow.cn/">SiliconFlow</a>
     </td>
     <td>
       <img src="./src/renderer/src/assets/llm-icons/aihubmix.png" width="50" height="50" alt="AIHubMix图标"><br/>
@@ -204,8 +204,8 @@ DeepChat是一个功能强大的开源AI聊天平台，为用户提供与多种�
   </tr>
   <tr align="center">
     <td>
-      <img src="./src/renderer/src/assets/llm-icons/302ai.svg" width="50" height="50" alt="302.AI图标"><br/>
-      <a href="https://302.ai/">302.AI</a>
+      <img src="./src/renderer/src/assets/llm-icons/lmstudio.svg" width="50" height="50" alt="LM Studio图标"><br/>
+      <a href="https://lmstudio.ai/">LM Studio</a>
     </td>
     <td></td>
     <td></td>
@@ -317,6 +317,15 @@ DeepChat是一个活跃的开源社区项目，我们欢迎各种形式的贡献
 <a href="https://github.com/ThinkInAIXYZ/deepchat/graphs/contributors">
   <img src="https://contrib.rocks/image?repo=ThinkInAIXYZ/deepchat" alt="DeepChat项目贡献者" />
 </a>
+
+## 🙏🏻 致谢
+
+本项目的构建得益于这些优秀的开源库：
+
+- [Vue](https://vuejs.org/)
+- [Electron](https://www.electronjs.org/)
+- [Electron-Vite](https://electron-vite.org/)
+- [oxlint](https://github.com/oxc-project/oxc)
 
 ## 📃 许可证
 
