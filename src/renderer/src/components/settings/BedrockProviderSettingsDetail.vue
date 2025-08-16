@@ -1,11 +1,10 @@
 <template>
   <section class="w-full h-full">
     <ScrollArea class="w-full h-full p-2 flex flex-col gap-2">
-      <div class="flex flex-col gap-4">
-        Credential
+      <div class="flex flex-col gap-4 p-2">
         <div class="flex flex-col items-start gap-2">
           <Label :for="`${provider.id}-accessKeyId`" class="flex-1 cursor-pointer"
-            >Access Key Id</Label
+            >AWS Access Key Id</Label
           >
           <Input
             :id="`${provider.id}-accessKeyId`"
@@ -18,7 +17,7 @@
         </div>
         <div class="flex flex-col items-start gap-2">
           <Label :for="`${provider.id}-secretAccessKey`" class="flex-1 cursor-pointer"
-            >Secret Access Key</Label
+            >AWS Secret Access Key</Label
           >
           <Input
             :id="`${provider.id}-secretAccessKey`"
@@ -30,7 +29,7 @@
           />
         </div>
         <div class="flex flex-col items-start gap-2">
-          <Label :for="`${provider.id}-region`" class="flex-1 cursor-pointer">Region</Label>
+          <Label :for="`${provider.id}-region`" class="flex-1 cursor-pointer">AWS Region</Label>
           <Input
             :id="`${provider.id}-region`"
             :model-value="region"
