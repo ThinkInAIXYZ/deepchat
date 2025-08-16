@@ -440,7 +440,8 @@
     },
     "operationFailed": "操作に失敗しました",
     "operationSuccess": "操作は成功しました",
-    "settingsApplied": "適用された設定"
+    "settingsApplied": "適用された設定",
+    "bedrockLimitTip": "* Anthropic Claude（Opus、Sonnet、Haikuモデルを含む）のみをサポート"
   },
   "knowledgeBase": {
     "title": "ナレッジベース設定",

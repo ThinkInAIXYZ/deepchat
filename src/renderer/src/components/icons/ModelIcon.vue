@@ -58,6 +58,7 @@ import metaColorIcon from '@/assets/llm-icons/meta.svg?url'
 import lmstudioColorIcon from '@/assets/llm-icons/lmstudio.svg?url'
 import _302aiIcon from '@/assets/llm-icons/302ai.svg?url'
 import modelscopeColorIcon from '@/assets/llm-icons/modelscope-color.svg?url'
+import awsBedrockIcon from '@/assets/llm-icons/aws-bedrock.svg?url'
 // 导入所有图标
 const icons = {
   modelscope: modelscopeColorIcon,
@@ -124,6 +125,7 @@ const icons = {
   o4: openaiColorIcon,
   glm: zhipuColorIcon,
   meta: metaColorIcon,
+  'aws-bedrock': awsBedrockIcon,
   default: defaultIcon
 }
 
@@ -162,7 +164,8 @@ const invert = computed(() => {
     props.modelId.toLowerCase().includes('groq') ||
     props.modelId.toLowerCase().includes('github') ||
     props.modelId.toLowerCase().includes('moonshot') ||
-    props.modelId.toLowerCase().includes('lmstudio')
+    props.modelId.toLowerCase().includes('lmstudio') ||
+    props.modelId.toLowerCase().includes('aws-bedrock')
   ) {
     return true
   }

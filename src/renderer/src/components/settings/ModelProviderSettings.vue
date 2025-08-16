@@ -137,6 +137,12 @@
         @auth-success="handleAnthropicAuthSuccess"
         @auth-error="handleAnthropicAuthError"
       />
+      <BedrockProviderSettingsDetail
+        v-else-if="activeProvider.apiType === 'bedrock'"
+        :key="`bedrock-${activeProvider.id}`"
+        :provider="activeProvider as AWS_BEDROCK_PROVIDER"
+        class="flex-1"
+      />
       <ModelProviderSettingsDetail
         v-else
         :key="`standard-${activeProvider.id}`"
@@ -158,11 +164,12 @@ import { useRoute, useRouter } from 'vue-router'
 import { refDebounced } from '@vueuse/core'
 import ModelProviderSettingsDetail from './ModelProviderSettingsDetail.vue'
 import OllamaProviderSettingsDetail from './OllamaProviderSettingsDetail.vue'
+import BedrockProviderSettingsDetail from './BedrockProviderSettingsDetail.vue'
 import ModelIcon from '@/components/icons/ModelIcon.vue'
 import { Icon } from '@iconify/vue'
 import AddCustomProviderDialog from './AddCustomProviderDialog.vue'
 import { useI18n } from 'vue-i18n'
-import type { LLM_PROVIDER } from '@shared/presenter'
+import type { AWS_BEDROCK_PROVIDER, LLM_PROVIDER } from '@shared/presenter'
 import { Switch } from '@/components/ui/switch'
 import { Input } from '@/components/ui/input'
 import draggable from 'vuedraggable'

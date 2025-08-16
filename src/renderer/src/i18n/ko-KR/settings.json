@@ -440,7 +440,8 @@
     },
     "operationFailed": "작동 실패",
     "operationSuccess": "운영이 성공적입니다",
-    "settingsApplied": "설정이 적용됩니다"
+    "settingsApplied": "설정이 적용됩니다",
+    "bedrockLimitTip": "* Anthropic Claude(Opus, Sonnet, Haiku 모델 포함)만 지원합니다."
   },
   "knowledgeBase": {
     "title": "지식 베이스 설정",

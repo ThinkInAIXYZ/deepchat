@@ -541,6 +541,16 @@ export interface ModelScopeMcpSyncResult {
   errors: string[]
 }
 
+export type AWS_BEDROCK_PROVIDER = LLM_PROVIDER & {
+  credential?: AwsBedrockCredential
+}
+
+export interface AwsBedrockCredential {
+  accessKeyId: string
+  secretAccessKey: string
+  region?: string
+}
+
 export interface ILlmProviderPresenter {
   setProviders(provider: LLM_PROVIDER[]): void
   getProviders(): LLM_PROVIDER[]

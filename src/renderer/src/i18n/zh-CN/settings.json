@@ -440,7 +440,8 @@
     "manageModels": "管理模型",
     "anthropicOAuthActiveTip": "OAuth 认证已启用，您可以直接使用 Anthropic 服务",
     "oauthVerifySuccess": "OAuth 连接验证成功",
-    "oauthVerifyFailed": "OAuth 连接验证失败"
+    "oauthVerifyFailed": "OAuth 连接验证失败",
+    "bedrockLimitTip": "* 仅支持 Anthropic Claude（包括 Opus，Sonnet，Haiku 模型）"
   },
   "knowledgeBase": {
     "title": "知识库设置",
