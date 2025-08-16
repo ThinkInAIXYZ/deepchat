@@ -440,7 +440,8 @@
     "dataRefreshed": "數據已刷新",
     "operationFailed": "操作失敗",
     "operationSuccess": "操作成功",
-    "settingsApplied": "設置已應用"
+    "settingsApplied": "設置已應用",
+    "bedrockLimitTip": "* 僅支援 Anthropic Claude（包括 Opus，Sonnet，Haiku 模型）"
   },
   "knowledgeBase": {
     "title": "知識庫設置",

@@ -54,6 +54,8 @@
           </Button>
         </div>
 
+        <div class="hint">{{ t('settings.provider.bedrockLimitTip') }}</div>
+
         <!-- 模型管理 -->
         <ProviderModelManager
           :provider="provider"
@@ -276,4 +278,8 @@ const handleConfigChanged = async () => {
 }
 </script>
 
-<style scoped></style>
+<style scoped>
+.hint {
+  @apply text-xs text-red-700 dark:text-red-400;
+}
+</style>

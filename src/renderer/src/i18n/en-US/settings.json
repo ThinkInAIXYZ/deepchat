@@ -440,7 +440,8 @@
     "dataRefreshed": "Data has been refreshed",
     "operationFailed": "Operation failed",
     "operationSuccess": "Operation is successful",
-    "settingsApplied": "Settings applied"
+    "settingsApplied": "Settings applied",
+    "bedrockLimitTip": "* Only Anthropic Claude supported (including Opus, Sonnet, Haiku models)"
   },
   "knowledgeBase": {
     "title": "Knowledge Base Settings",

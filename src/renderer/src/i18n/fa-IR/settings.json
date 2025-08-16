@@ -440,7 +440,8 @@
     },
     "operationFailed": "عملیات شکست خورد",
     "operationSuccess": "عملیات موفقیت آمیز است",
-    "settingsApplied": "تنظیمات اعمال شده"
+    "settingsApplied": "تنظیمات اعمال شده",
+    "bedrockLimitTip": "* فقط از Antropic Claude (شامل مدل‌های Opus، Sonnet، Haiku) پشتیبانی می‌کند"
   },
   "knowledgeBase": {
     "title": "تنظیمات پایگاه دانش",

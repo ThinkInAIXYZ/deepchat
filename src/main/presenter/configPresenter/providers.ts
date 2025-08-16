@@ -154,21 +154,6 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
     }
   },
   {
-    id: 'aws-bedrock',
-    name: 'AWS Bedrock',
-    apiType: 'bedrock',
-    apiKey: '',
-    baseUrl: '',
-    enable: false,
-    websites: {
-      official: '',
-      apiKey: '',
-      docs: '',
-      models: '',
-      defaultBaseUrl: ''
-    }
-  },
-  {
     id: 'openrouter',
     name: 'OpenRouter',
     apiType: 'openai',
@@ -606,6 +591,21 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
       docs: 'https://modelscope.cn/docs/modelscope_agent/api_service',
       models: 'https://modelscope.cn/models',
       defaultBaseUrl: 'https://api-inference.modelscope.cn/v1/'
+    }
+  },
+  {
+    id: 'aws-bedrock',
+    name: 'AWS Bedrock',
+    apiType: 'bedrock',
+    apiKey: '',
+    baseUrl: '',
+    enable: false,
+    websites: {
+      official: 'https://aws.amazon.com/bedrock/',
+      apiKey: 'https://console.aws.amazon.com/iam/',
+      docs: 'https://docs.aws.amazon.com/bedrock/latest/userguide/what-is-bedrock.html',
+      models: 'https://docs.aws.amazon.com/bedrock/latest/userguide/models-supported.html',
+      defaultBaseUrl: ''
     }
   }
 ]

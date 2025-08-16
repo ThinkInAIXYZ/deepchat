@@ -440,7 +440,8 @@
     },
     "operationFailed": "L'opération a échoué",
     "operationSuccess": "L'opération est réussie",
-    "settingsApplied": "Paramètres appliqués"
+    "settingsApplied": "Paramètres appliqués",
+    "bedrockLimitTip": "* Prend uniquement en charge Anthropic Claude (y compris les modèles Opus, Sonnet, Haiku)"
   },
   "knowledgeBase": {
     "title": "Paramètres de la base de connaissances",
