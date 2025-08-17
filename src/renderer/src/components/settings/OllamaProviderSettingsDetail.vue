@@ -23,14 +23,28 @@
 
       <div class="flex flex-col items-start p-2 gap-2">
         <Label :for="`${provider.id}-apikey`" class="flex-1 cursor-pointer">API Key</Label>
-        <Input
-          :id="`${provider.id}-apikey`"
-          v-model="apiKey"
-          type="password"
-          :placeholder="t('settings.provider.keyPlaceholder')"
-          @blur="handleApiKeyChange(String($event.target.value))"
-          @keyup.enter="handleApiKeyEnter(apiKey)"
-        />
+        <div class="relative w-full">
+          <Input
+            :id="`${provider.id}-apikey`"
+            v-model="apiKey"
+            :type="showApiKey ? 'text' : 'password'"
+            :placeholder="t('settings.provider.keyPlaceholder')"
+            style="padding-right: 2.5rem !important"
+            @blur="handleApiKeyChange(String($event.target.value))"
+            @keyup.enter="handleApiKeyEnter(apiKey)"
+          />
+          <Button
+            variant="ghost"
+            size="sm"
+            class="absolute right-2 top-1/2 transform -translate-y-1/2 h-7 w-7 p-0 hover:bg-transparent"
+            @click="showApiKey = !showApiKey"
+          >
+            <Icon
+              :icon="showApiKey ? 'lucide:eye-off' : 'lucide:eye'"
+              class="w-4 h-4 text-muted-foreground hover:text-foreground"
+            />
+          </Button>
+        </div>
         <div class="flex flex-row gap-2">
           <Button
             variant="outline"
@@ -281,6 +295,7 @@ const settingsStore = useSettingsStore()
 const modelCheckStore = useModelCheckStore()
 const apiHost = ref(props.provider.baseUrl || '')
 const apiKey = ref(props.provider.apiKey || '')
+const showApiKey = ref(false)
 const showPullModelDialog = ref(false)
 const showDeleteModelDialog = ref(false)
 const modelToDelete = ref('')

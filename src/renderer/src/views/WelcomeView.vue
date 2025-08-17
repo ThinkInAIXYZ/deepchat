@@ -112,6 +112,7 @@ const currentStep = ref(0)
 const selectedProvider = ref<string>('openai')
 const apiKey = ref('')
 const baseUrl = ref('')
+const showApiKey = ref(false)
 
 const providerModels = computed(() => {
   return (
@@ -293,12 +294,26 @@ const isFirstStep = computed(() => currentStep.value === 0)
 
                 <div v-show="selectedProvider !== 'ollama'" class="flex flex-col gap-2">
                   <Label for="api-key">{{ t('welcome.provider.apiKey') }}</Label>
-                  <Input
-                    id="api-key"
-                    v-model="apiKey"
-                    type="password"
-                    placeholder="Enter API Key"
-                  />
+                  <div class="relative w-full">
+                    <Input
+                      id="api-key"
+                      v-model="apiKey"
+                      :type="showApiKey ? 'text' : 'password'"
+                      placeholder="Enter API Key"
+                      style="padding-right: 2.5rem !important"
+                    />
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      class="absolute right-2 top-1/2 transform -translate-y-1/2 h-7 w-7 p-0 hover:bg-transparent"
+                      @click="showApiKey = !showApiKey"
+                    >
+                      <Icon
+                        :icon="showApiKey ? 'lucide:eye-off' : 'lucide:eye'"
+                        class="w-4 h-4 text-muted-foreground hover:text-foreground"
+                      />
+                    </Button>
+                  </div>
                   <div class="text-xs text-muted-foreground">
                     {{ t('settings.provider.getKeyTip') }}
                     <a
