@@ -563,6 +563,15 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
       }
     }
 
+    if (modelId.startsWith('gpt-5')) {
+      if (modelConfig.reasoningEffort) {
+        ;(requestParams as any).reasoning_effort = modelConfig.reasoningEffort
+      }
+      if (modelConfig.verbosity) {
+        ;(requestParams as any).verbosity = modelConfig.verbosity
+      }
+    }
+
     // 移除推理模型的温度参数
     OPENAI_REASONING_MODELS.forEach((noTempId) => {
       if (modelId.startsWith(noTempId)) delete requestParams.temperature

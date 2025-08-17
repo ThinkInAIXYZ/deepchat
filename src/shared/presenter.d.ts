@@ -566,7 +566,9 @@ export interface ILlmProviderPresenter {
     temperature?: number,
     maxTokens?: number,
     enabledMcpTools?: string[],
-    thinkingBudget?: number
+    thinkingBudget?: number,
+    reasoningEffort?: 'minimal' | 'low' | 'medium' | 'high',
+    verbosity?: 'low' | 'medium' | 'high'
   ): AsyncGenerator<LLMAgentEvent, void, unknown>
   generateCompletion(
     providerId: string,

@@ -443,7 +443,9 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
     temperature: number = 0.6,
     maxTokens: number = 4096,
     enabledMcpTools?: string[],
-    thinkingBudget?: number
+    thinkingBudget?: number,
+    reasoningEffort?: 'minimal' | 'low' | 'medium' | 'high',
+    verbosity?: 'low' | 'medium' | 'high'
   ): AsyncGenerator<LLMAgentEvent, void, unknown> {
     console.log(`[Agent Loop] Starting agent loop for event: ${eventId} with model: ${modelId}`)
     if (!this.canStartNewStream()) {
@@ -459,6 +461,12 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
 
     if (thinkingBudget !== undefined) {
       modelConfig.thinkingBudget = thinkingBudget
+    }
+    if (reasoningEffort !== undefined) {
+      modelConfig.reasoningEffort = reasoningEffort
+    }
+    if (verbosity !== undefined) {
+      modelConfig.verbosity = verbosity
     }
 
     this.activeStreams.set(eventId, {
