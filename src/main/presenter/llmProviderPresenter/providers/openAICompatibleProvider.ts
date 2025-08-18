@@ -563,13 +563,13 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
       }
     }
 
-    if (modelId.startsWith('gpt-5')) {
-      if (modelConfig.reasoningEffort) {
-        ;(requestParams as any).reasoning_effort = modelConfig.reasoningEffort
-      }
-      if (modelConfig.verbosity) {
-        ;(requestParams as any).verbosity = modelConfig.verbosity
-      }
+    if (modelConfig.reasoningEffort) {
+      ;(requestParams as any).reasoning_effort = modelConfig.reasoningEffort
+    }
+
+    // verbosity 仅支持 GPT-5 系列模型
+    if (modelId.startsWith('gpt-5') && modelConfig.verbosity) {
+      ;(requestParams as any).verbosity = modelConfig.verbosity
     }
 
     // 移除推理模型的温度参数
