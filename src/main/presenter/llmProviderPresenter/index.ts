@@ -175,9 +175,6 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
       if (provider.id === 'modelscope') {
         return new ModelscopeProvider(provider, this.configPresenter)
       }
-      if (provider.id === 'aws-bedrock') {
-        return new AwsBedrockProvider(provider, this.configPresenter)
-      }
       switch (provider.apiType) {
         case 'minimax':
           return new OpenAIProvider(provider, this.configPresenter)
@@ -216,6 +213,8 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
           return new GroqProvider(provider, this.configPresenter)
         case 'vercel-ai-gateway':
           return new VercelAIGatewayProvider(provider, this.configPresenter)
+        case 'aws-bedrock':
+          return new AwsBedrockProvider(provider, this.configPresenter)
         default:
           console.warn(`Unknown provider type: ${provider.apiType}`)
           return undefined

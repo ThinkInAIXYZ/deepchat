@@ -596,7 +596,7 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
   {
     id: 'aws-bedrock',
     name: 'AWS Bedrock',
-    apiType: 'bedrock',
+    apiType: 'aws-bedrock',
     apiKey: '',
     baseUrl: '',
     enable: false,
