@@ -2336,6 +2336,67 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         vision: false,
         functionCall: false,
         reasoning: false
+      },
+      // GPT-5 系列模型配置
+      {
+        id: 'gpt-5-chat',
+        name: 'OpenAI: GPT-5 Chat',
+        temperature: 0.7,
+        maxTokens: 128000,
+        contextLength: 400000,
+        match: ['openai/gpt-5-chat'],
+        vision: true,
+        functionCall: true,
+        reasoning: true,
+        reasoningEffort: 'medium',
+        verbosity: 'medium',
+        maxCompletionTokens: 128000,
+        type: ModelType.Chat
+      },
+      {
+        id: 'gpt-5',
+        name: 'OpenAI: GPT-5',
+        temperature: 0.7,
+        maxTokens: 128000,
+        contextLength: 400000,
+        match: ['openai/gpt-5', 'openai/gpt-5-2025-08-07'],
+        vision: true,
+        functionCall: true,
+        reasoning: true,
+        reasoningEffort: 'medium',
+        verbosity: 'medium',
+        maxCompletionTokens: 128000,
+        type: ModelType.Chat
+      },
+      {
+        id: 'gpt-5-mini',
+        name: 'OpenAI: GPT-5 Mini',
+        temperature: 0.7,
+        maxTokens: 128000,
+        contextLength: 400000,
+        match: ['openai/gpt-5-mini', 'openai/gpt-5-mini-2025-08-07'],
+        vision: true,
+        functionCall: true,
+        reasoning: true,
+        reasoningEffort: 'medium',
+        verbosity: 'medium',
+        maxCompletionTokens: 128000,
+        type: ModelType.Chat
+      },
+      {
+        id: 'gpt-5-nano',
+        name: 'OpenAI: GPT-5 Nano',
+        temperature: 0.7,
+        maxTokens: 128000,
+        contextLength: 400000,
+        match: ['openai/gpt-5-nano', 'openai/gpt-5-nano-2025-08-07'],
+        vision: true,
+        functionCall: true,
+        reasoning: true,
+        reasoningEffort: 'medium',
+        verbosity: 'medium',
+        maxCompletionTokens: 128000,
+        type: ModelType.Chat
       }
     ]
   },

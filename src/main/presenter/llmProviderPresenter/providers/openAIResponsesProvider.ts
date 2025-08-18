@@ -237,7 +237,7 @@ export class OpenAIResponsesProvider extends BaseLLMProvider {
     }
 
     // verbosity 仅支持 GPT-5 系列模型
-    if (modelId.startsWith('gpt-5') && modelConfig.verbosity) {
+    if (modelId.includes('gpt-5') && modelConfig.verbosity) {
       ;(requestParams as any).text = {
         verbosity: modelConfig.verbosity
       }
@@ -580,7 +580,7 @@ export class OpenAIResponsesProvider extends BaseLLMProvider {
     }
 
     // verbosity 仅支持 GPT-5 系列模型
-    if (modelId.startsWith('gpt-5') && modelConfig.verbosity) {
+    if (modelId.includes('gpt-5') && modelConfig.verbosity) {
       ;(requestParams as any).text = {
         verbosity: modelConfig.verbosity
       }
