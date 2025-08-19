@@ -813,6 +813,9 @@ export interface IDevicePresenter {
 
   // 图片缓存
   cacheImage(imageData: string): Promise<string>
+
+  // SVG内容安全净化
+  sanitizeSvgContent(svgContent: string): Promise<string | null>
 }
 
 export type DeviceInfo = {

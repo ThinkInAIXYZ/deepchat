@@ -491,7 +491,7 @@ const getThinkingBudgetConfig = (modelId: string) => {
 
 const isGPT5Model = computed(() => {
   const modelId = props.modelId.toLowerCase()
-  return modelId.startsWith('gpt-5')
+  return modelId.includes('gpt-5')
 })
 
 const supportsReasoningEffort = computed(() => {

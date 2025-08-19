@@ -263,7 +263,7 @@ export class TabPresenter implements ITabPresenter {
     }
 
     // 销毁视图
-    view.webContents.closeDevTools()
+    view.webContents.close()
     // Note: view.destroy() is also an option depending on Electron version/behavior
     return true
   }

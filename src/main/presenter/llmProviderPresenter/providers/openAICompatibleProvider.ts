@@ -217,7 +217,7 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
       ...(modelId.startsWith('o1') ||
       modelId.startsWith('o3') ||
       modelId.startsWith('o4') ||
-      modelId.startsWith('gpt-5')
+      modelId.includes('gpt-5')
         ? { max_completion_tokens: maxTokens }
         : { max_tokens: maxTokens })
     }
@@ -538,7 +538,7 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
       ...(modelId.startsWith('o1') ||
       modelId.startsWith('o3') ||
       modelId.startsWith('o4') ||
-      modelId.startsWith('gpt-5')
+      modelId.includes('gpt-5')
         ? { max_completion_tokens: maxTokens }
         : { max_tokens: maxTokens })
     }
@@ -568,7 +568,7 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
     }
 
     // verbosity 仅支持 GPT-5 系列模型
-    if (modelId.startsWith('gpt-5') && modelConfig.verbosity) {
+    if (modelId.includes('gpt-5') && modelConfig.verbosity) {
       ;(requestParams as any).verbosity = modelConfig.verbosity
     }
 

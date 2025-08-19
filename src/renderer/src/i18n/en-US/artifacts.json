@@ -36,5 +36,8 @@
   "copyFailedDesc": "Failed to copy content to clipboard",
   "copyAsImage": "Copy as Image",
   "copyImageSuccessDesc": "Image copied to clipboard",
-  "copyImageFailedDesc": "Could not copy image to clipboard."
+  "copyImageFailedDesc": "Could not copy image to clipboard.",
+  "sanitizingSvg": "Sanitizing SVG content...",
+  "svgSanitizationFailed": "SVG content failed security validation",
+  "noSvgContent": "No SVG content available"
 }
