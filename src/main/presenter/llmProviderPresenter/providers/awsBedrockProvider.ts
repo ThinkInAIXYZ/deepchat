@@ -78,7 +78,7 @@ export class AwsBedrockProvider extends BaseLLMProvider {
           ?.filter((m) => m.inferenceTypesSupported && m.inferenceTypesSupported.length > 0)
           .map<MODEL_META>((m) => ({
             id: `${m.inferenceTypesSupported?.includes('ON_DEMAND') ? m.modelId! : `${region.split('-')[0]}.${m.modelId}`}`,
-            name: m.modelName || '<Unknown>',
+            name: m.modelId?.replace('anthropic.', '') || '<Unknown>',
             providerId: this.provider.id,
             maxTokens: 64_000,
             group: `AWS Bedrock Claude - ${m.modelId?.includes('opus') ? 'opus' : m.modelId?.includes('sonnet') ? 'sonnet' : m.modelId?.includes('haiku') ? 'haiku' : 'other'}`,

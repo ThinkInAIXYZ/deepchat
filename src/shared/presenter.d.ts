@@ -576,7 +576,9 @@ export interface ILlmProviderPresenter {
     temperature?: number,
     maxTokens?: number,
     enabledMcpTools?: string[],
-    thinkingBudget?: number
+    thinkingBudget?: number,
+    reasoningEffort?: 'minimal' | 'low' | 'medium' | 'high',
+    verbosity?: 'low' | 'medium' | 'high'
   ): AsyncGenerator<LLMAgentEvent, void, unknown>
   generateCompletion(
     providerId: string,
@@ -811,6 +813,9 @@ export interface IDevicePresenter {
 
   // 图片缓存
   cacheImage(imageData: string): Promise<string>
+
+  // SVG内容安全净化
+  sanitizeSvgContent(svgContent: string): Promise<string | null>
 }
 
 export type DeviceInfo = {

@@ -9,7 +9,7 @@ const i18nDir = path.resolve(__dirname, '../src/renderer/src/i18n/zh-CN')
 const outputFile = path.resolve(__dirname, '../src/types/i18n.d.ts')
 
 function safeKey(key) {
-  return /^[a-zA-Z\$][a-zA-Z0-9_\$]*$/.test(key) ? key : `'${key}'`
+  return /^[a-zA-Z$][a-zA-Z0-9_$]*$/.test(key) ? key : `'${key}'`
 }
 
 function mergeKeys(target, source) {

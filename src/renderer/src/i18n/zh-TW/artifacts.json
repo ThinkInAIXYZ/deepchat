@@ -36,5 +36,8 @@
   "copyFailedDesc": "無法複製內容到剪貼簿",
   "copyAsImage": "複製為圖片",
   "copyImageSuccessDesc": "圖片已復製到剪貼板",
-  "copyImageFailedDesc": "無法複製圖片到剪貼板"
+  "copyImageFailedDesc": "無法複製圖片到剪貼板",
+  "noSvgContent": "沒有可用的SVG內容",
+  "sanitizingSvg": "正在淨化SVG內容...",
+  "svgSanitizationFailed": "SVG內容未通過安全驗證"
 }

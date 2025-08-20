@@ -86,7 +86,7 @@ const showThinkingBudget = computed(() => {
 
 const isGPT5Model = computed(() => {
   const modelId = props.modelId?.toLowerCase() || ''
-  return modelId.startsWith('gpt-5')
+  return modelId.includes('gpt-5')
 })
 
 // 判断模型是否支持 reasoningEffort 参数

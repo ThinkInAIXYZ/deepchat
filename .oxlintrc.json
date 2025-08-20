@@ -7,11 +7,11 @@
     ".github",
     ".cursor",
     ".vscode",
-    "build",
-    "resources",
-    "scripts",
-    "runtime",
-    "docs",
-    "test"
+    "build/**",
+    "resources/**",
+    "scripts/**",
+    "runtime/**",
+    "docs/**",
+    "test/**"
   ]
 }

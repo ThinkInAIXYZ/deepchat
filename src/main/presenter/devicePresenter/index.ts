@@ -10,6 +10,7 @@ import axios from 'axios'
 import { is } from '@electron-toolkit/utils'
 import { eventBus, SendTarget } from '../../eventbus'
 import { NOTIFICATION_EVENTS } from '../../events'
+import { svgSanitizer } from '../../lib/svgSanitizer'
 const execAsync = promisify(exec)
 
 export class DevicePresenter implements IDevicePresenter {
@@ -458,5 +459,50 @@ export class DevicePresenter implements IDevicePresenter {
     app.relaunch()
     app.exit()
     return Promise.resolve()
+  }
+
+  /**
+   * 安全净化SVG内容
+   * @param svgContent 原始SVG内容
+   * @returns 净化后的SVG内容，如果净化失败则返回null
+   */
+  async sanitizeSvgContent(svgContent: string): Promise<string | null> {
+    try {
+      console.log('Sanitizing SVG content, length:', svgContent.length)
+
+      // 基本输入验证
+      if (!svgContent || typeof svgContent !== 'string') {
+        console.warn('Invalid SVG content provided')
+        return null
+      }
+
+      // 长度限制检查
+      if (svgContent.length > 1024 * 1024) {
+        // 1MB limit
+        console.warn('SVG content exceeds size limit')
+        return null
+      }
+
+      // Debug: 显示SVG前100个字符
+      console.log('SVG preview:', svgContent.substring(0, 100) + '...')
+
+      // 使用SVG净化器处理内容
+      const sanitizedContent = svgSanitizer.sanitize(svgContent)
+
+      if (sanitizedContent) {
+        console.log('SVG content sanitized successfully, output length:', sanitizedContent.length)
+        console.log('Comments preserved:', /<!--/.test(sanitizedContent))
+        return sanitizedContent
+      } else {
+        console.warn('SVG content was rejected by sanitizer')
+        // Debug: 检查具体是哪一步失败了
+        console.log('Debug: SVG starts with <svg:', svgContent.trim().startsWith('<svg'))
+        console.log('Debug: SVG contains dangerous content:', svgContent.includes('<script'))
+        return null
+      }
+    } catch (error) {
+      console.error('Error sanitizing SVG content:', error)
+      return null
+    }
   }
 }
