@@ -23,7 +23,7 @@ export default defineConfig({
     },
     build: {
       rollupOptions: {
-        external: ['sharp','@duckdb/node-api'],
+        external: ['sharp','@duckdb/node-api', '@electric-sql/pglite'],
         output: {
           inlineDynamicImports: true,
           manualChunks: undefined,  // Disable automatic chunk splitting
