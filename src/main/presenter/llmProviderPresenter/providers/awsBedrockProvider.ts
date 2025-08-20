@@ -23,7 +23,7 @@ import { Usage } from '@anthropic-ai/sdk/resources/messages'
 export class AwsBedrockProvider extends BaseLLMProvider {
   private bedrock!: BedrockClient
   private bedrockRuntime!: BedrockRuntimeClient
-  private defaultModel = 'claude-3-7-sonnet-20250219'
+  private defaultModel = 'anthropic.claude-3-5-sonnet-20240620-v1:0'
 
   constructor(provider: AWS_BEDROCK_PROVIDER, configPresenter: ConfigPresenter) {
     super(provider, configPresenter)
@@ -43,10 +43,8 @@ export class AwsBedrockProvider extends BaseLLMProvider {
           provider.credential?.secretAccessKey || process.env.BEDROCK_SECRET_ACCESS_KEY
         const region = provider.credential?.region || process.env.BEDROCK_REGION
 
-        if (!accessKeyId || !secretAccessKey) {
-          throw new Error(
-            'apiKey must be provided as "${ACCESS_KEY_ID}:${SECRET_ACCESS_KEY}" format.'
-          )
+        if (!accessKeyId || !secretAccessKey || !region) {
+          throw new Error('Access Key Id, Secret Access Key and Region are all needed.')
         }
 
         this.bedrock = new BedrockClient({
@@ -68,20 +66,19 @@ export class AwsBedrockProvider extends BaseLLMProvider {
 
   protected async fetchProviderModels(): Promise<MODEL_META[]> {
     try {
+      const region = await this.bedrock.config.region()
       const command = new ListFoundationModelsCommand({})
       const response = await this.bedrock.send(command)
       const models = response.modelSummaries
 
       return (
         models
-          ?.filter((m) => m.modelId?.includes('anthropic.claude'))
+          ?.filter((m) => m.modelId && /^anthropic.claude-[a-z0-9\-]+(:\d+)$/g.test(m.modelId))
           ?.filter((m) => m.modelLifecycle?.status === 'ACTIVE')
+          ?.filter((m) => m.inferenceTypesSupported && m.inferenceTypesSupported.length > 0)
           .map<MODEL_META>((m) => ({
-            // id: m.modelId!,
-            // id: m.modelArn!,
-            id: `${m.inferenceTypesSupported?.includes('ON_DEMAND') ? m.modelId! : `us.${m.modelId}`}`,
-            // name: `${m.modelName} (${m.modelId})`,
-            name: m.modelId?.replace('anthropic.', '') || '<Unknown>',
+            id: `${m.inferenceTypesSupported?.includes('ON_DEMAND') ? m.modelId! : `${region.split('-')[0]}.${m.modelId}`}`,
+            name: m.modelName || '<Unknown>',
             providerId: this.provider.id,
             maxTokens: 64_000,
             group: `AWS Bedrock Claude - ${m.modelId?.includes('opus') ? 'opus' : m.modelId?.includes('sonnet') ? 'sonnet' : m.modelId?.includes('haiku') ? 'haiku' : 'other'}`,
