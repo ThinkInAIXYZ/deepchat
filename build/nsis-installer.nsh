@@ -13,21 +13,27 @@
 ; https://github.com/electron-userland/electron-builder/issues/1122
 !ifndef BUILD_UNINSTALLER
   Function checkVCRedist
-    ReadRegDWORD $0 HKLM "SOFTWARE\Microsoft\VisualStudio\14.0\VC\Runtimes\x64" "Installed"
+    ; $1: arch (e.g., "x64", "arm64")
+    ; returns $0: "1" if installed, "0" otherwise
+    ${If} $1 == "arm64"
+      ReadRegDWORD $0 HKLM "SOFTWARE\Microsoft\VisualStudio\14.0\VC\Runtimes\arm64" "Installed"
+    ${Else}
+      ReadRegDWORD $0 HKLM "SOFTWARE\Microsoft\VisualStudio\14.0\VC\Runtimes\x64" "Installed"
+    ${EndIf}
   FunctionEnd
 
   Function checkArchitectureCompatibility
-    ; Initialize variables
-    StrCpy $0 "0"  ; Default to incompatible
-    StrCpy $1 ""   ; System architecture
-    StrCpy $3 ""   ; App architecture
+    ; returns $0: "1" if compatible, "0" otherwise
+    ; returns $1: system architecture ("x64", "arm64", "x86")
+    ; returns $3: app architecture ("x64", "arm64", "universal")
+    StrCpy $0 "0"
+    StrCpy $1 ""
+    StrCpy $3 ""
 
-    ; Check system architecture using built-in NSIS functions
+    ; Check system architecture
     ${If} ${RunningX64}
-      ; Check if it's ARM64 by looking at processor architecture
       ReadEnvStr $2 "PROCESSOR_ARCHITECTURE"
       ReadEnvStr $4 "PROCESSOR_ARCHITEW6432"
-
       ${If} $2 == "ARM64"
       ${OrIf} $4 == "ARM64"
         StrCpy $1 "arm64"
@@ -38,37 +44,30 @@
       StrCpy $1 "x86"
     ${EndIf}
 
-    ; Determine app architecture based on build variables
+    ; Determine app architecture from build variables
     !ifdef APP_ARM64_NAME
-      !ifndef APP_64_NAME
-        StrCpy $3 "arm64"  ; App is ARM64 only
+      !ifdef APP_64_NAME
+        StrCpy $3 "universal"
+      !else
+        StrCpy $3 "arm64"
       !endif
-    !endif
-    !ifdef APP_64_NAME
-      !ifndef APP_ARM64_NAME
-        StrCpy $3 "x64"    ; App is x64 only
-      !endif
-    !endif
-    !ifdef APP_64_NAME
-      !ifdef APP_ARM64_NAME
-        StrCpy $3 "universal"  ; Both architectures available
+    !else
+      !ifdef APP_64_NAME
+        StrCpy $3 "x64"
       !endif
     !endif
 
-    ; If no architecture variables are defined, assume x64
+    ; Default to x64 if no specific app architecture is defined
     ${If} $3 == ""
       StrCpy $3 "x64"
     ${EndIf}
 
     ; Compare system and app architectures
     ${If} $3 == "universal"
-      ; Universal build, compatible with all architectures
       StrCpy $0 "1"
     ${ElseIf} $1 == $3
-      ; Architectures match
       StrCpy $0 "1"
     ${Else}
-      ; Architectures don't match
       StrCpy $0 "0"
     ${EndIf}
   FunctionEnd
@@ -80,9 +79,12 @@
   Push $2
   Push $3
   Push $4
+  Push $5 ; For redist URL
+  Push $6 ; For redist file path
 
-  ; Check architecture compatibility first
+  ; 1. Check architecture compatibility
   Call checkArchitectureCompatibility
+  ; $0="1" for compatible, $1=system arch, $3=app arch
   ${If} $0 != "1"
     MessageBox MB_ICONEXCLAMATION "\
       Architecture Mismatch$\r$\n$\r$\n\
@@ -95,31 +97,59 @@
     Abort
   ${EndIf}
 
-  Call checkVCRedist
-  ${If} $0 != "1"
-    MessageBox MB_YESNO "\
-      NOTE: ${PRODUCT_NAME} requires $\r$\n\
-      'Microsoft Visual C++ Redistributable'$\r$\n\
-      to function properly.$\r$\n$\r$\n\
-      Download and install now?" /SD IDYES IDYES InstallVCRedist IDNO DontInstall
-    InstallVCRedist:
-      inetc::get /CAPTION " " /BANNER "Downloading Microsoft Visual C++ Redistributable..." "https://aka.ms/vs/17/release/vc_redist.x64.exe" "$TEMP\vc_redist.x64.exe"
-      ExecWait "$TEMP\vc_redist.x64.exe /install /norestart"
-      ;IfErrors InstallError ContinueInstall ; vc_redist exit code is unreliable :(
-      Call checkVCRedist
-      ${If} $0 == "1"
-        Goto ContinueInstall
-      ${EndIf}
-
-    ;InstallError:
-      MessageBox MB_ICONSTOP "\
-        There was an unexpected error installing$\r$\n\
-        Microsoft Visual C++ Redistributable.$\r$\n\
-        The installation of ${PRODUCT_NAME} cannot continue."
-    DontInstall:
-      Abort
+  ; 2. Check for VC++ Redistributable based on the determined architecture
+  ; If the app is universal, check based on the system arch. Otherwise, app arch.
+  ${If} $3 == "universal"
+    StrCpy $2 $1
+  ${Else}
+    StrCpy $2 $3
   ${EndIf}
+
+  ; Don't check for x86 systems as we don't ship redist for it
+  ${If} $2 == "x86"
+    Goto ContinueInstall
+  ${EndIf}
+
+  Push $2 ; Pass arch to checkVCRedist
+  Call checkVCRedist
+  Pop $2
+  ${If} $0 == "1"
+    Goto ContinueInstall
+  ${EndIf}
+
+  ; 3. If not installed, prompt to download and install
+  MessageBox MB_YESNO "\
+    NOTE: ${PRODUCT_NAME} requires $\r$\n\
+    'Microsoft Visual C++ Redistributable' ($2)$\r$\n\
+    to function properly.$\r$\n$\r$\n\
+    Download and install now?" /SD IDYES IDYES InstallVCRedist IDNO DontInstall
+
+  InstallVCRedist:
+    StrCpy $5 "https://aka.ms/vs/17/release/vc_redist.$2.exe"
+    StrCpy $6 "$TEMP\vc_redist.$2.exe"
+    inetc::get /CAPTION " " /BANNER "Downloading Microsoft Visual C++ Redistributable ($2)..." "$5" "$6"
+    ExecWait "$6 /install /norestart"
+    ; vc_redist exit code is unreliable, so we re-check registry
+    
+    Push $2 ; Pass arch to checkVCRedist again
+    Call checkVCRedist
+    Pop $2
+    ${If} $0 == "1"
+      Goto ContinueInstall
+    ${EndIf}
+
+    MessageBox MB_ICONSTOP "\
+      There was an unexpected error installing$\r$\n\
+      Microsoft Visual C++ Redistributable.$\r$\n\
+      The installation of ${PRODUCT_NAME} cannot continue."
+    Abort ; Abort if installation failed
+
+  DontInstall:
+    Abort ; Abort if user chose not to install
+
   ContinueInstall:
+    Pop $6
+    Pop $5
     Pop $4
     Pop $3
     Pop $2
