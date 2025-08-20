@@ -138,7 +138,7 @@
         @auth-error="handleAnthropicAuthError"
       />
       <BedrockProviderSettingsDetail
-        v-else-if="activeProvider.apiType === 'bedrock'"
+        v-else-if="activeProvider.apiType === 'aws-bedrock'"
         :key="`bedrock-${activeProvider.id}`"
         :provider="activeProvider as AWS_BEDROCK_PROVIDER"
         class="flex-1"
