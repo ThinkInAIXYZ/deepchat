@@ -11,7 +11,7 @@ import { LLMProviderPresenter } from './llmProviderPresenter'
 import { ConfigPresenter } from './configPresenter'
 import { ThreadPresenter } from './threadPresenter'
 import { DevicePresenter } from './devicePresenter'
-import { UpgradePresenter } from './upgradePresenter'
+// import { UpgradePresenter } from './upgradePresenter'
 import { FilePresenter } from './filePresenter/FilePresenter'
 import { McpPresenter } from './mcpPresenter'
 import { SyncPresenter } from './syncPresenter'
@@ -45,7 +45,7 @@ export class Presenter implements IPresenter {
   configPresenter: ConfigPresenter
   threadPresenter: ThreadPresenter
   devicePresenter: DevicePresenter
-  upgradePresenter: UpgradePresenter
+  // upgradePresenter: UpgradePresenter
   shortcutPresenter: ShortcutPresenter
   filePresenter: FilePresenter
   mcpPresenter: McpPresenter
@@ -77,7 +77,7 @@ export class Presenter implements IPresenter {
       this.configPresenter
     )
     this.mcpPresenter = new McpPresenter(this.configPresenter)
-    this.upgradePresenter = new UpgradePresenter()
+    // this.upgradePresenter = new UpgradePresenter()
     this.shortcutPresenter = new ShortcutPresenter(this.configPresenter)
     this.filePresenter = new FilePresenter()
     this.syncPresenter = new SyncPresenter(this.configPresenter, this.sqlitePresenter)

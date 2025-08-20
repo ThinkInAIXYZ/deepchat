@@ -6,6 +6,7 @@
     "functionSwitch": "功能开关",
     "fileSelect": "选择文件",
     "aiChange":"AI处理结果",
+    "SoundInput":"语音输入",
     "pasteFiles": "支持复制粘贴文件",
     "dropFiles": "拖拽文件到此处",
     "promptFilesAdded": "Prompt 文件已添加",

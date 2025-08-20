@@ -64,6 +64,7 @@
     "@google/genai": "^1.13.0",
     "@jxa/run": "^1.4.0",
     "@modelcontextprotocol/sdk": "^1.17.2",
+    "@nut-tree/nut-js": "^4.2.0",
     "axios": "^1.7.9",
     "better-sqlite3-multiple-ciphers": "11.10.0",
     "cheerio": "^1.0.0",

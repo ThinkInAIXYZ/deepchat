@@ -79,7 +79,22 @@
               </TooltipTrigger>
               <TooltipContent>{{ t('chat.input.aiChange') }}</TooltipContent>
             </Tooltip>
-
+            
+             <Tooltip>
+              <TooltipTrigger>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  class="w-7 h-7"
+                  :class="{ 'bg-blue-500 text-white': isRecording  }"
+                  @click="SoundInput"
+                >
+                  <Icon icon="lucide:mic" class="w-4 h-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>{{ t('chat.input.SoundInput') }}</TooltipContent>
+            </Tooltip>
+            
             <Tooltip>
               <TooltipTrigger>
                 <span
@@ -255,6 +270,7 @@ import { useLanguageStore } from '@/stores/language'
 import { useToast } from '@/components/ui/toast/use-toast'
 import type { CategorizedData } from './editor/mention/suggestion'
 import type { PromptListEntry } from '@shared/presenter'
+
 const langStore = useLanguageStore()
 const mcpStore = useMcpStore()
 const { toast } = useToast()
@@ -514,7 +530,55 @@ const aiChange = () => {
 }
 
 
-// const aiChangeIsActive = ref(true)
+const isRecording  = ref(false)
+const countdown = ref(20);
+let timer: ReturnType<typeof setInterval> | null = null;
+
+const startCountdown = () => {
+  countdown.value = 15;
+  timer = setInterval(() => {
+    countdown.value--;
+    
+    if (countdown.value <= 0) {
+      // 30秒后自动释放 CapsLock
+      window.electron.ipcRenderer.send('simulate-capslock', 'release');
+      // robot.keyToggle('capslock', 'up');
+      console.log('15秒超时，自动释放 CapsLock');
+      isRecording.value = false;
+        if (timer !== null) {
+        clearTimeout(timer);
+        timer = null;
+      }
+    }
+  }, 1000);
+}
+
+const  SoundInput =async () => {
+    if (!isRecording.value) {
+      editor.chain().focus()
+    // 第一次点击：模拟按下 CapsLock
+    window.electron.ipcRenderer.send('simulate-capslock', 'press');
+    //  robot.keyToggle('capslock', 'down');
+    console.log('渲染进程: 请求按下 CapsLock');
+    
+    isRecording.value = true;
+    startCountdown();
+  } else {
+     editor.chain().focus()
+    // 第二次点击：模拟释放 CapsLock
+    window.electron.ipcRenderer.send('simulate-capslock', 'release');
+    // robot.keyToggle('capslock', 'up');
+    console.log('渲染进程: 请求释放 CapsLock');
+    
+    isRecording.value = false;
+     if (timer !== null) {
+        clearTimeout(timer);
+        timer = null;
+      }
+  }
+}
+
+
 
 const previewFile = (filePath: string) => {
   windowPresenter.previewFile(filePath)

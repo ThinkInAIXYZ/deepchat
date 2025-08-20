@@ -23,6 +23,28 @@ ipcMain.on('aiChangeEvent', (_event, arg) => {
   // 处理逻辑...
   aiChange = arg
 })
+import { keyboard, Key } from "@nut-tree/nut-js";
+// ipcMain.handle('simulate-capslock', (_event, action) => {
+//   if (action === 'press') {
+//     ks.sendKey('caps_lock');
+//     console.log('主进程: 模拟按下 CapsLock');
+//   } else if (action === 'release') {
+//     ks.sendKey('caps_lock');
+//     console.log('主进程: 模拟释放 CapsLock');
+//   }
+// });
+if (!ipcMain.listenerCount('simulate-capslock')) {
+  ipcMain.on('simulate-capslock', async (_event, action) => {
+    if (action === 'press') {
+      await keyboard.type(Key.CapsLock);
+      console.log('主进程: 模拟按下 CapsLock-press');
+    } else if (action === 'release') {
+      await keyboard.type(Key.CapsLock);
+      console.log('主进程: 模拟释放 CapsLock-release');
+    }
+  });
+}
+
 export class ToolManager {
   private configPresenter: IConfigPresenter
   private serverManager: ServerManager

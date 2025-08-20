@@ -125,7 +125,7 @@ app.whenReady().then(async () => {
     targetWindow.focus() // 确保窗口置顶
 
     // 触发更新
-    presenter.upgradePresenter.checkUpdate()
+    // presenter.upgradePresenter.checkUpdate()
   })
 
   // 监听显示/隐藏窗口事件 (从托盘或快捷键或悬浮窗口触发)

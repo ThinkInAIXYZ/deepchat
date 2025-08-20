@@ -319,7 +319,7 @@ export interface IPresenter {
   configPresenter: IConfigPresenter
   threadPresenter: IThreadPresenter
   devicePresenter: IDevicePresenter
-  upgradePresenter: IUpgradePresenter
+  // upgradePresenter: IUpgradePresenter
   shortcutPresenter: IShortcutPresenter
   filePresenter: IFilePresenter
   mcpPresenter: IMCPPresenter
@@ -862,25 +862,25 @@ export type LLMResponseStream = {
     total_tokens: number
   }
 }
-export interface IUpgradePresenter {
-  checkUpdate(): Promise<void>
-  getUpdateStatus(): {
-    status: UpdateStatus | null
-    progress: UpdateProgress | null
-    error: string | null
-    updateInfo: {
-      version: string
-      releaseDate: string
-      releaseNotes: any
-      githubUrl: string | undefined
-      downloadUrl: string | undefined
-    } | null
-  }
-  goDownloadUpgrade(type: 'github' | 'netdisk'): Promise<void>
-  startDownloadUpdate(): boolean
-  restartToUpdate(): boolean
-  restartApp(): void
-}
+// export interface IUpgradePresenter {
+//   checkUpdate(): Promise<void>
+//   getUpdateStatus(): {
+//     status: UpdateStatus | null
+//     progress: UpdateProgress | null
+//     error: string | null
+//     updateInfo: {
+//       version: string
+//       releaseDate: string
+//       releaseNotes: any
+//       githubUrl: string | undefined
+//       downloadUrl: string | undefined
+//     } | null
+//   }
+//   goDownloadUpgrade(type: 'github' | 'netdisk'): Promise<void>
+//   startDownloadUpdate(): boolean
+//   restartToUpdate(): boolean
+//   restartApp(): void
+// }
 // 更新状态类型
 export type UpdateStatus =
   | 'checking'
