@@ -441,7 +441,8 @@
     "operationFailed": "Операция не удалась",
     "operationSuccess": "Операция успешна",
     "settingsApplied": "Применяются настройки",
-    "bedrockLimitTip": "* Поддерживает только Anthropic Claude (включая модели Opus, Sonnet, Haiku)"
+    "bedrockLimitTip": "* Поддерживает только Anthropic Claude (включая модели Opus, Sonnet, Haiku)",
+    "bedrockVerifyTip": "DeepChat использует модель Claude 3.5 Sonnet для верификации. Если у вас нет разрешения на её использование, верификация не пройдёт. Это не повлияет на использование других моделей."
   },
   "knowledgeBase": {
     "title": "Настройки базы знаний",

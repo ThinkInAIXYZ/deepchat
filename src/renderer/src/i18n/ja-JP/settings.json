@@ -441,7 +441,8 @@
     "operationFailed": "操作に失敗しました",
     "operationSuccess": "操作は成功しました",
     "settingsApplied": "適用された設定",
-    "bedrockLimitTip": "* Anthropic Claude（Opus、Sonnet、Haikuモデルを含む）のみをサポート"
+    "bedrockLimitTip": "* Anthropic Claude（Opus、Sonnet、Haikuモデルを含む）のみをサポート",
+    "bedrockVerifyTip": "DeepChatは検証にClaude 3.5 Sonnetを使用しています。起動権限がない場合、検証は失敗します。ただし、他のモデルの使用には影響しません。"
   },
   "knowledgeBase": {
     "title": "ナレッジベース設定",

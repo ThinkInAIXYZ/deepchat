@@ -441,7 +441,8 @@
     "operationFailed": "작동 실패",
     "operationSuccess": "운영이 성공적입니다",
     "settingsApplied": "설정이 적용됩니다",
-    "bedrockLimitTip": "* Anthropic Claude(Opus, Sonnet, Haiku 모델 포함)만 지원합니다."
+    "bedrockLimitTip": "* Anthropic Claude(Opus, Sonnet, Haiku 모델 포함)만 지원합니다.",
+    "bedrockVerifyTip": "DeepChat은 검증을 위해 Claude 3.5 Sonnet을 사용합니다. 호출 권한이 없으면 검증이 실패합니다. 이는 다른 모델 사용에는 영향을 미치지 않습니다."
   },
   "knowledgeBase": {
     "title": "지식 베이스 설정",

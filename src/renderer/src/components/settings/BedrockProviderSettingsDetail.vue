@@ -9,6 +9,7 @@
           <Input
             :id="`${provider.id}-accessKeyId`"
             :model-value="accessKeyId"
+            type="password"
             :placeholder="t('settings.provider.urlPlaceholder')"
             @blur="handleAccessKeyIdChange(String($event.target.value))"
             @keyup.enter="handleAccessKeyIdChange(accessKeyId)"
@@ -22,6 +23,7 @@
           <Input
             :id="`${provider.id}-secretAccessKey`"
             :model-value="secretAccessKey"
+            type="password"
             :placeholder="t('settings.provider.urlPlaceholder')"
             @blur="handleSecretAccessKeyChange(String($event.target.value))"
             @keyup.enter="handleSecretAccessKeyChange(secretAccessKey)"
@@ -52,6 +54,16 @@
               t('settings.provider.verifyKey')
             }}
           </Button>
+          <TooltipProvider :delayDuration="200">
+            <Tooltip>
+              <TooltipTrigger>
+                <Icon icon="lucide:help-circle" class="w-4 h-4 text-muted-foreground" />
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>{{ t('settings.provider.bedrockVerifyTip') }}</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
         </div>
 
         <div class="hint">{{ t('settings.provider.bedrockLimitTip') }}</div>
@@ -98,6 +110,7 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { Icon } from '@iconify/vue'
 import ProviderModelManager from './ProviderModelManager.vue'
 import ProviderDialogContainer from './ProviderDialogContainer.vue'
@@ -204,27 +217,23 @@ const validateCredential = async () => {
     const resp = await settingsStore.checkProvider(props.provider.id)
     if (resp.isOk) {
       console.log('验证成功')
-      // checkResult.value = true
+      checkResult.value = true
       showCheckModelDialog.value = true
       // 验证成功后刷新当前provider的模型列表
       await settingsStore.refreshProviderModels(props.provider.id)
     } else {
       console.log('验证失败', resp.errorMsg)
-      // checkResult.value = false
+      checkResult.value = false
       showCheckModelDialog.value = true
     }
   } catch (error) {
     console.error('Failed to validate credential:', error)
-    // checkResult.value = false
+    checkResult.value = false
     showCheckModelDialog.value = true
   }
 }
 
 const handleVerifyCredential = async (updates: Partial<AWS_BEDROCK_PROVIDER>) => {
-  // const inputElement = document.getElementById(`${props.provider.id}-apikey`)
-  // if (inputElement) {
-  //   inputElement.blur()
-  // }
   await settingsStore.updateAwsBedrockProviderConfig(props.provider.id, updates)
   await validateCredential()
 }

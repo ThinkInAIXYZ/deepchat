@@ -441,7 +441,8 @@
     "operationFailed": "عملیات شکست خورد",
     "operationSuccess": "عملیات موفقیت آمیز است",
     "settingsApplied": "تنظیمات اعمال شده",
-    "bedrockLimitTip": "* فقط از Anthropic Claude (شامل مدل‌های Opus، Sonnet، Haiku) پشتیبانی می‌کند"
+    "bedrockLimitTip": "* فقط از Anthropic Claude (شامل مدل‌های Opus، Sonnet، Haiku) پشتیبانی می‌کند",
+    "bedrockVerifyTip": "DeepChat از Claude 3.5 Sonnet برای تأیید استفاده می‌کند. اگر مجوز فراخوانی نداشته باشید، تأیید انجام نخواهد شد. این موضوع تاثیری بر استفاده از مدل‌های دیگر نخواهد داشت."
   },
   "knowledgeBase": {
     "title": "تنظیمات پایگاه دانش",

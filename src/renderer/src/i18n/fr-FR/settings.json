@@ -441,7 +441,8 @@
     "operationFailed": "L'opération a échoué",
     "operationSuccess": "L'opération est réussie",
     "settingsApplied": "Paramètres appliqués",
-    "bedrockLimitTip": "* Prend uniquement en charge Anthropic Claude (y compris les modèles Opus, Sonnet, Haiku)"
+    "bedrockLimitTip": "* Prend uniquement en charge Anthropic Claude (y compris les modèles Opus, Sonnet, Haiku)",
+    "bedrockVerifyTip": "DeepChat utilise Claude 3.5 Sonnet pour la vérification. Si vous n'avez pas l'autorisation de l'invoquer, la vérification échouera. Cela n'affectera pas l'utilisation des autres modèles."
   },
   "knowledgeBase": {
     "title": "Paramètres de la base de connaissances",

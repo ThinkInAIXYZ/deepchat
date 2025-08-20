@@ -441,7 +441,8 @@
     "anthropicOAuthActiveTip": "OAuth 认证已启用，您可以直接使用 Anthropic 服务",
     "oauthVerifySuccess": "OAuth 连接验证成功",
     "oauthVerifyFailed": "OAuth 连接验证失败",
-    "bedrockLimitTip": "* 仅支持 Anthropic Claude（包括 Opus，Sonnet，Haiku 模型）"
+    "bedrockLimitTip": "* 仅支持 Anthropic Claude（包括 Opus，Sonnet，Haiku 模型）",
+    "bedrockVerifyTip": "DeepChat 使用 Claude 3.5 Sonnet 模型验证，若您无此模型的调用权限验证将失败。这不会影响其他模型的使用。"
   },
   "knowledgeBase": {
     "title": "知识库设置",

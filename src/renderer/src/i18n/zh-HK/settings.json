@@ -441,7 +441,8 @@
     "operationFailed": "操作失敗",
     "operationSuccess": "操作成功",
     "settingsApplied": "設置已應用",
-    "bedrockLimitTip": "* 僅支持 Anthropic Claude（包括 Opus，Sonnet，Haiku 模型）"
+    "bedrockLimitTip": "* 僅支持 Anthropic Claude（包括 Opus，Sonnet，Haiku 模型）",
+    "bedrockVerifyTip": "DeepChat 使用 Claude 3.5 Sonnet 模型驗證，若您無此模型的調用權限驗證將失敗。這不會影響其他模型的使用。"
   },
   "knowledgeBase": {
     "fastgptTitle": "FastGPT知識庫",
