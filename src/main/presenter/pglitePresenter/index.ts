@@ -1963,64 +1963,517 @@ export class PGlitePresenter implements IPGlitePresenter {
     await this.close()
   }
 
-  async insertVector(_opts: VectorInsertOptions): Promise<void> {
-    throw new Error('Method not implemented - will be implemented in future tasks')
+  /**
+   * Insert a single vector embedding into the database
+   * Supports requirements 4.1, 4.2, 4.3, 4.4 for vector storage and search
+   */
+  async insertVector(opts: VectorInsertOptions): Promise<void> {
+    if (!this.isConnected()) {
+      throw new Error('Database not connected')
+    }
+
+    try {
+      // Verify that the file exists
+      const file = await this.queryFile(opts.fileId)
+      if (!file) {
+        throw new Error(`File with ID ${opts.fileId} does not exist`)
+      }
+
+      const query = `
+        INSERT INTO knowledge_vectors (
+          id, file_id, chunk_id, embedding, created_at
+        ) VALUES ($1, $2, $3, $4, $5)
+      `
+
+      const vectorId = nanoid()
+      const now = Date.now()
+
+      await this.db.query(query, [
+        vectorId,
+        opts.fileId,
+        opts.chunkId,
+        `[${opts.vector.join(',')}]`, // Store as pgvector format
+        now
+      ])
+
+      console.log(`[PGlite] Inserted vector: ${vectorId} for chunk: ${opts.chunkId}`)
+    } catch (error) {
+      console.error('[PGlite] Failed to insert vector:', error)
+      throw new Error(`Failed to insert vector: ${error}`)
+    }
   }
 
-  async insertVectors(_records: Array<VectorInsertOptions>): Promise<void> {
-    throw new Error('Method not implemented - will be implemented in future tasks')
+  /**
+   * Batch insert multiple vector embeddings for performance optimization
+   * Supports requirements 4.1, 4.2, 4.3, 4.4 for vector storage and search
+   */
+  async insertVectors(records: Array<VectorInsertOptions>): Promise<void> {
+    if (!this.isConnected()) {
+      throw new Error('Database not connected')
+    }
+
+    if (!records.length) {
+      return
+    }
+
+    try {
+      // Use batch insert for performance optimization
+      const valuesSql = records
+        .map((_, index) => {
+          const baseIndex = index * 5
+          return `($${baseIndex + 1}, $${baseIndex + 2}, $${baseIndex + 3}, $${baseIndex + 4}, $${baseIndex + 5})`
+        })
+        .join(', ')
+
+      const query = `
+        INSERT INTO knowledge_vectors (
+          id, file_id, chunk_id, embedding, created_at
+        ) VALUES ${valuesSql}
+      `
+
+      const params: any[] = []
+      const now = Date.now()
+
+      for (const record of records) {
+        params.push(
+          nanoid(),
+          record.fileId,
+          record.chunkId,
+          `[${record.vector.join(',')}]`, // Store as pgvector format
+          now
+        )
+      }
+
+      await this.db.query(query, params)
+
+      console.log(`[PGlite] Inserted ${records.length} vectors`)
+    } catch (error) {
+      console.error('[PGlite] Failed to insert vectors:', error)
+      throw new Error(`Failed to insert vectors: ${error}`)
+    }
   }
 
-  async similarityQuery(_vector: number[], _options: QueryOptions): Promise<QueryResult[]> {
-    throw new Error('Method not implemented - will be implemented in future tasks')
+  /**
+   * Perform similarity search using pgvector for cosine, L2, and inner product metrics
+   * Supports requirements 4.1, 4.2, 4.3, 4.4 for vector search capabilities
+   */
+  async similarityQuery(vector: number[], options: QueryOptions): Promise<QueryResult[]> {
+    if (!this.isConnected()) {
+      throw new Error('Database not connected')
+    }
+
+    try {
+      // Determine the distance function and operator based on metric
+      let distanceFunction: string
+      let orderDirection: string
+
+      switch (options.metric) {
+        case 'cosine':
+          distanceFunction = 'embedding <=> $1' // Cosine distance operator
+          orderDirection = 'ASC' // Lower distance = more similar
+          break
+        case 'l2':
+          distanceFunction = 'embedding <-> $1' // L2 distance operator
+          orderDirection = 'ASC' // Lower distance = more similar
+          break
+        case 'ip':
+          distanceFunction = 'embedding <#> $1' // Inner product operator (negative)
+          orderDirection = 'ASC' // pgvector returns negative inner product, so ASC for highest similarity
+          break
+        default:
+          throw new Error(`Unsupported metric type: ${options.metric}`)
+      }
+
+      const query = `
+        SELECT 
+          v.id,
+          ${distanceFunction} AS distance,
+          c.content,
+          f.name,
+          f.path
+        FROM knowledge_vectors v
+        LEFT JOIN knowledge_chunks c ON c.id = v.chunk_id
+        LEFT JOIN knowledge_files f ON f.id = v.file_id
+        ORDER BY distance ${orderDirection}
+        LIMIT $2
+      `
+
+      // Convert vector to pgvector format (array string)
+      const vectorString = `[${vector.join(',')}]`
+
+      const result = await this.db.query(query, [vectorString, options.topK])
+
+      return result.rows.map((row: any) => ({
+        id: row.id,
+        metadata: {
+          from: row.name || 'Unknown',
+          filePath: row.path || '',
+          content: row.content || ''
+        },
+        distance: Number(row.distance)
+      }))
+    } catch (error) {
+      console.error('[PGlite] Failed to perform similarity query:', error)
+      throw new Error(`Failed to perform similarity query: ${error}`)
+    }
   }
 
-  async deleteVectorsByFile(_id: string): Promise<void> {
-    throw new Error('Method not implemented - will be implemented in future tasks')
+  /**
+   * Delete all vector embeddings associated with a file
+   * Supports requirements 4.1, 4.2, 4.3, 4.4 for vector storage and search
+   */
+  async deleteVectorsByFile(id: string): Promise<void> {
+    if (!this.isConnected()) {
+      throw new Error('Database not connected')
+    }
+
+    try {
+      const result = await this.db.query(`DELETE FROM knowledge_vectors WHERE file_id = $1`, [id])
+
+      console.log(`[PGlite] Deleted ${result.affectedRows} vectors for file: ${id}`)
+    } catch (error) {
+      console.error('[PGlite] Failed to delete vectors by file:', error)
+      throw new Error(`Failed to delete vectors by file: ${error}`)
+    }
   }
 
-  async insertFile(_file: KnowledgeFileMessage): Promise<void> {
-    throw new Error('Method not implemented - will be implemented in future tasks')
+  /**
+   * Insert a new knowledge file into the database
+   * Supports requirements 4.1, 4.2, 5.2 for knowledge file management
+   */
+  async insertFile(file: KnowledgeFileMessage): Promise<void> {
+    if (!this.isConnected()) {
+      throw new Error('Database not connected')
+    }
+
+    try {
+      const query = `
+        INSERT INTO knowledge_files (
+          id, name, path, mime_type, status, uploaded_at, metadata
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7)
+      `
+
+      await this.db.query(query, [
+        file.id,
+        file.name,
+        file.path,
+        file.mimeType,
+        file.status,
+        file.uploadedAt,
+        JSON.stringify(file.metadata)
+      ])
+
+      console.log(`[PGlite] Inserted knowledge file: ${file.id}`)
+    } catch (error) {
+      console.error('[PGlite] Failed to insert knowledge file:', error)
+      throw new Error(`Failed to insert knowledge file: ${error}`)
+    }
   }
 
-  async updateFile(_file: KnowledgeFileMessage): Promise<void> {
-    throw new Error('Method not implemented - will be implemented in future tasks')
+  /**
+   * Update an existing knowledge file in the database
+   * Supports requirements 4.1, 4.2, 5.2 for knowledge file management
+   */
+  async updateFile(file: KnowledgeFileMessage): Promise<void> {
+    if (!this.isConnected()) {
+      throw new Error('Database not connected')
+    }
+
+    try {
+      const query = `
+        UPDATE knowledge_files
+        SET name = $2, path = $3, mime_type = $4, status = $5, uploaded_at = $6, metadata = $7
+        WHERE id = $1
+      `
+
+      const result = await this.db.query(query, [
+        file.id,
+        file.name,
+        file.path,
+        file.mimeType,
+        file.status,
+        file.uploadedAt,
+        JSON.stringify(file.metadata)
+      ])
+
+      if (result.affectedRows === 0) {
+        throw new Error(`Knowledge file with ID ${file.id} not found`)
+      }
+
+      console.log(`[PGlite] Updated knowledge file: ${file.id}`)
+    } catch (error) {
+      console.error('[PGlite] Failed to update knowledge file:', error)
+      throw new Error(`Failed to update knowledge file: ${error}`)
+    }
   }
 
-  async queryFile(_id: string): Promise<KnowledgeFileMessage | null> {
-    throw new Error('Method not implemented - will be implemented in future tasks')
+  /**
+   * Query a single knowledge file by ID
+   * Supports requirements 4.1, 4.2, 5.2 for knowledge file management
+   */
+  async queryFile(id: string): Promise<KnowledgeFileMessage | null> {
+    if (!this.isConnected()) {
+      throw new Error('Database not connected')
+    }
+
+    try {
+      const query = `SELECT * FROM knowledge_files WHERE id = $1`
+      const result = await this.db.query(query, [id])
+
+      if (result.rows.length === 0) {
+        return null
+      }
+
+      const row = result.rows[0] as any
+      return this.toKnowledgeFileMessage(row)
+    } catch (error) {
+      console.error('[PGlite] Failed to query knowledge file:', error)
+      throw new Error(`Failed to query knowledge file: ${error}`)
+    }
   }
 
-  async queryFiles(_where: Partial<KnowledgeFileMessage>): Promise<KnowledgeFileMessage[]> {
-    throw new Error('Method not implemented - will be implemented in future tasks')
+  /**
+   * Query knowledge files by partial match conditions
+   * Supports requirements 4.1, 4.2, 5.2 for knowledge file management
+   */
+  async queryFiles(where: Partial<KnowledgeFileMessage>): Promise<KnowledgeFileMessage[]> {
+    if (!this.isConnected()) {
+      throw new Error('Database not connected')
+    }
+
+    try {
+      // Convert camelCase to snake_case for database column names
+      const camelToSnake = (key: string) =>
+        key.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`)
+
+      const entries = Object.entries(where).filter(([, value]) => value !== undefined)
+
+      let query = `SELECT * FROM knowledge_files`
+      const params: any[] = []
+
+      if (entries.length > 0) {
+        const conditions = entries
+          .map(([key], index) => {
+            const columnName = camelToSnake(key)
+            return `${columnName} = $${index + 1}`
+          })
+          .join(' AND ')
+        query += ` WHERE ${conditions}`
+        params.push(
+          ...entries.map(([, value]) => {
+            // Handle metadata field specially since it's stored as JSONB
+            if (typeof value === 'object' && value !== null) {
+              return JSON.stringify(value)
+            }
+            return value
+          })
+        )
+      }
+
+      query += ` ORDER BY uploaded_at DESC`
+
+      const result = await this.db.query(query, params)
+      return result.rows.map((row: any) => this.toKnowledgeFileMessage(row))
+    } catch (error) {
+      console.error('[PGlite] Failed to query knowledge files:', error)
+      throw new Error(`Failed to query knowledge files: ${error}`)
+    }
   }
 
+  /**
+   * List all knowledge files in the database
+   * Supports requirements 4.1, 4.2, 5.2 for knowledge file management
+   */
   async listFiles(): Promise<KnowledgeFileMessage[]> {
-    throw new Error('Method not implemented - will be implemented in future tasks')
+    if (!this.isConnected()) {
+      throw new Error('Database not connected')
+    }
+
+    try {
+      const query = `SELECT * FROM knowledge_files ORDER BY uploaded_at DESC`
+      const result = await this.db.query(query)
+      return result.rows.map((row: any) => this.toKnowledgeFileMessage(row))
+    } catch (error) {
+      console.error('[PGlite] Failed to list knowledge files:', error)
+      throw new Error(`Failed to list knowledge files: ${error}`)
+    }
   }
 
-  async deleteFile(_id: string): Promise<void> {
-    throw new Error('Method not implemented - will be implemented in future tasks')
+  /**
+   * Delete a knowledge file and all associated chunks and vectors
+   * Supports requirements 4.1, 4.2, 5.2 for knowledge file management
+   */
+  async deleteFile(id: string): Promise<void> {
+    if (!this.isConnected()) {
+      throw new Error('Database not connected')
+    }
+
+    try {
+      await this.runTransaction(async () => {
+        // Delete in order: vectors -> chunks -> file (due to foreign key constraints)
+        await this.db.query(`DELETE FROM knowledge_vectors WHERE file_id = $1`, [id])
+        await this.db.query(`DELETE FROM knowledge_chunks WHERE file_id = $1`, [id])
+
+        const result = await this.db.query(`DELETE FROM knowledge_files WHERE id = $1`, [id])
+
+        if (result.affectedRows === 0) {
+          throw new Error(`Knowledge file with ID ${id} not found`)
+        }
+      })
+
+      console.log(`[PGlite] Deleted knowledge file and associated data: ${id}`)
+    } catch (error) {
+      console.error('[PGlite] Failed to delete knowledge file:', error)
+      throw new Error(`Failed to delete knowledge file: ${error}`)
+    }
   }
 
-  async insertChunks(_chunks: KnowledgeChunkMessage[]): Promise<void> {
-    throw new Error('Method not implemented - will be implemented in future tasks')
+  /**
+   * Batch insert knowledge chunks into the database
+   * Supports requirements 4.1, 4.2, 5.2 for knowledge chunk management
+   */
+  async insertChunks(chunks: KnowledgeChunkMessage[]): Promise<void> {
+    if (!this.isConnected()) {
+      throw new Error('Database not connected')
+    }
+
+    if (!chunks.length) {
+      return
+    }
+
+    try {
+      // Use batch insert for performance optimization
+      const valuesSql = chunks
+        .map((_, index) => {
+          const baseIndex = index * 6
+          return `($${baseIndex + 1}, $${baseIndex + 2}, $${baseIndex + 3}, $${baseIndex + 4}, $${baseIndex + 5}, $${baseIndex + 6})`
+        })
+        .join(', ')
+
+      const query = `
+        INSERT INTO knowledge_chunks (
+          id, file_id, chunk_index, content, status, error
+        ) VALUES ${valuesSql}
+      `
+
+      const params: any[] = []
+      for (const chunk of chunks) {
+        params.push(
+          chunk.id,
+          chunk.fileId,
+          chunk.chunkIndex,
+          chunk.content,
+          chunk.status,
+          chunk.error ?? ''
+        )
+      }
+
+      await this.db.query(query, params)
+
+      console.log(`[PGlite] Inserted ${chunks.length} knowledge chunks`)
+    } catch (error) {
+      console.error('[PGlite] Failed to insert knowledge chunks:', error)
+      throw new Error(`Failed to insert knowledge chunks: ${error}`)
+    }
   }
 
+  /**
+   * Update the status of a knowledge chunk
+   * Supports requirements 4.1, 4.2, 5.2 for knowledge chunk management
+   */
   async updateChunkStatus(
-    _chunkId: string,
-    _status: KnowledgeTaskStatus,
-    _error?: string
+    chunkId: string,
+    status: KnowledgeTaskStatus,
+    error?: string
   ): Promise<void> {
-    throw new Error('Method not implemented - will be implemented in future tasks')
+    if (!this.isConnected()) {
+      throw new Error('Database not connected')
+    }
+
+    try {
+      const query = `
+        UPDATE knowledge_chunks
+        SET status = $2, error = $3
+        WHERE id = $1
+      `
+
+      const result = await this.db.query(query, [chunkId, status, error ?? ''])
+
+      if (result.affectedRows === 0) {
+        throw new Error(`Knowledge chunk with ID ${chunkId} not found`)
+      }
+
+      console.log(`[PGlite] Updated chunk status: ${chunkId} -> ${status}`)
+    } catch (error) {
+      console.error('[PGlite] Failed to update chunk status:', error)
+      throw new Error(`Failed to update chunk status: ${error}`)
+    }
   }
 
-  async queryChunks(_where: Partial<KnowledgeChunkMessage>): Promise<KnowledgeChunkMessage[]> {
-    throw new Error('Method not implemented - will be implemented in future tasks')
+  /**
+   * Query knowledge chunks by partial match conditions
+   * Supports requirements 4.1, 4.2, 5.2 for knowledge chunk management
+   */
+  async queryChunks(where: Partial<KnowledgeChunkMessage>): Promise<KnowledgeChunkMessage[]> {
+    if (!this.isConnected()) {
+      throw new Error('Database not connected')
+    }
+
+    try {
+      // Convert camelCase to snake_case for database column names
+      const camelToSnake = (key: string) =>
+        key.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`)
+
+      const entries = Object.entries(where).filter(([, value]) => value !== undefined)
+
+      let query = `SELECT * FROM knowledge_chunks`
+      const params: any[] = []
+
+      if (entries.length > 0) {
+        const conditions = entries
+          .map(([key], index) => {
+            const columnName = camelToSnake(key)
+            return `${columnName} = $${index + 1}`
+          })
+          .join(' AND ')
+        query += ` WHERE ${conditions}`
+        params.push(...entries.map(([, value]) => value))
+      }
+
+      query += ` ORDER BY chunk_index ASC`
+
+      const result = await this.db.query(query, params)
+      return result.rows.map((row: any) => this.toKnowledgeChunkMessage(row))
+    } catch (error) {
+      console.error('[PGlite] Failed to query knowledge chunks:', error)
+      throw new Error(`Failed to query knowledge chunks: ${error}`)
+    }
   }
 
-  async deleteChunksByFile(_fileId: string): Promise<void> {
-    throw new Error('Method not implemented - will be implemented in future tasks')
+  /**
+   * Delete all knowledge chunks associated with a file
+   * Supports requirements 4.1, 4.2, 5.2 for knowledge chunk management
+   */
+  async deleteChunksByFile(fileId: string): Promise<void> {
+    if (!this.isConnected()) {
+      throw new Error('Database not connected')
+    }
+
+    try {
+      await this.runTransaction(async () => {
+        // Delete vectors first due to foreign key constraints
+        await this.db.query(`DELETE FROM knowledge_vectors WHERE file_id = $1`, [fileId])
+
+        const result = await this.db.query(`DELETE FROM knowledge_chunks WHERE file_id = $1`, [
+          fileId
+        ])
+
+        console.log(`[PGlite] Deleted ${result.affectedRows} chunks for file: ${fileId}`)
+      })
+    } catch (error) {
+      console.error('[PGlite] Failed to delete chunks by file:', error)
+      throw new Error(`Failed to delete chunks by file: ${error}`)
+    }
   }
 
   async pauseAllRunningTasks(): Promise<void> {
@@ -2029,5 +2482,38 @@ export class PGlitePresenter implements IPGlitePresenter {
 
   async resumeAllPausedTasks(): Promise<void> {
     throw new Error('Method not implemented - will be implemented in future tasks')
+  }
+
+  // ==================== Helper Methods ====================
+
+  /**
+   * Helper method to convert database row to KnowledgeFileMessage
+   * Handles data type conversion and JSON parsing for metadata
+   */
+  private toKnowledgeFileMessage(row: any): KnowledgeFileMessage {
+    return {
+      id: row.id,
+      name: row.name,
+      path: row.path,
+      mimeType: row.mime_type,
+      status: row.status,
+      uploadedAt: Number(row.uploaded_at),
+      metadata: typeof row.metadata === 'string' ? JSON.parse(row.metadata) : row.metadata
+    }
+  }
+
+  /**
+   * Helper method to convert database row to KnowledgeChunkMessage
+   * Handles data type conversion for chunk data
+   */
+  private toKnowledgeChunkMessage(row: any): KnowledgeChunkMessage {
+    return {
+      id: row.id,
+      fileId: row.file_id,
+      chunkIndex: row.chunk_index,
+      content: row.content,
+      status: row.status,
+      error: row.error || undefined
+    }
   }
 }
