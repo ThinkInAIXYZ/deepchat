@@ -15,5 +15,24 @@ export type { PGliteConnectionConfig } from './config'
 export { PGliteConnectionManager, PGliteConnectionUtils } from './connection'
 export type { ConnectionStatus } from './connection'
 
+// Schema management
+export { PGliteSchemaManager } from './schema'
+export type { SchemaMigration, MigrationResult, SchemaValidationResult } from './schema'
+
+// Migration system
+export { PGliteMigrationEngine } from './migration'
+export type { MigrationExecutionOptions, MigrationProgress, MigrationPlan } from './migration'
+
+// Data validation
+export { PGliteDataValidator } from './validation'
+export type { ValidationRule, DataValidationResult, IntegrityCheckResult } from './validation'
+
 // Test utilities
 export { PGliteTestSetup } from './test-setup'
+export {
+  runAllMigrationTests,
+  testMigrationSystem,
+  testSchemaValidation,
+  testMigrationEngine
+} from './test-migration'
+export { runAllValidationTests, testValidationSystem, testValidationRules } from './test-validation'
