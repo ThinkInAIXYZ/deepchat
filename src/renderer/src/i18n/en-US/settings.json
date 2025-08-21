@@ -506,7 +506,7 @@
     "embeddingModel": "Embed Model",
     "return": "return",
     "uploadHelper": "Click to upload or drag the file here",
-    "onlySupport": "Supported only",
+    "fileSupport": "Support {accept} and {count} other formats",
     "searchKnowledge": "Search the Knowledge Base",
     "searchKnowledgePlaceholder": "Please enter the query content",
     "noData": "No data yet",
@@ -544,7 +544,12 @@
       "content": "Are you sure to delete the file \"{fileName}\"? \nThis operation is not restored."
     },
     "resumeAllPausedTasks": "One-click recovery",
-    "pauseAllRunningTasks": "One-click pause"
+    "pauseAllRunningTasks": "One-click pause",
+    "separators": "Block separator",
+    "separatorsHelper": "Document segmentation delimiter, a single delimiter is enclosed in double quotes (\"\"), and delimiters are separated by commas (,)",
+    "invalidSeparators": "Invalid separator",
+    "selectLanguage": "Select a preset",
+    "separatorsPreset": "Loading presets"
   },
   "mcp": {
     "title": "MCP Settings",

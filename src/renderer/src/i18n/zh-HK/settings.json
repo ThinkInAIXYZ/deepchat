@@ -506,7 +506,7 @@
     "embeddingModel": "嵌入模型",
     "return": "返回",
     "uploadHelper": "點擊上傳或拖拽文件到此處",
-    "onlySupport": "僅支持",
+    "fileSupport": "支持 {accept} 等 {count} 種格式",
     "searchKnowledge": "搜索知識庫",
     "searchKnowledgePlaceholder": "請輸入查詢內容",
     "noData": "暫無數據",
@@ -544,7 +544,12 @@
       "content": "是否確認刪除文件 \"{fileName}\"？\n此操作不可恢復。"
     },
     "resumeAllPausedTasks": "一鍵恢復",
-    "pauseAllRunningTasks": "一鍵暫停"
+    "pauseAllRunningTasks": "一鍵暫停",
+    "separators": "塊分隔符",
+    "separatorsHelper": "文檔切分分隔符，單個分隔符用半角符號雙引號(\"\")包裹，分隔符之間用半角符號逗號(,)分割",
+    "invalidSeparators": "無效的分隔符",
+    "selectLanguage": "選擇預設",
+    "separatorsPreset": "加載預設"
   },
   "mcp": {
     "title": "MCP設置",

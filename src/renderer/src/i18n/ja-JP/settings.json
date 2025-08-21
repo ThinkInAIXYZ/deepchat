@@ -506,7 +506,7 @@
     "embeddingModel": "埋め込みモデル",
     "return": "戻る",
     "uploadHelper": "クリックしてここでファイルをアップロードまたはドラッグします",
-    "onlySupport": "サポートのみ",
+    "fileSupport": "{accept} およびその他の {count} 形式をサポートします",
     "searchKnowledge": "ナレッジベースを検索します",
     "searchKnowledgePlaceholder": "クエリコンテンツを入力してください",
     "noData": "まだデータはありません",
@@ -544,7 +544,12 @@
       "content": "ファイル「{fileName}」を削除してもよろしいですか？この操作は元に戻せません。"
     },
     "resumeAllPausedTasks": "ワンクリックリカバリ",
-    "pauseAllRunningTasks": "ワンクリックの一時停止"
+    "pauseAllRunningTasks": "ワンクリックの一時停止",
+    "separators": "ブロックセパレーター",
+    "separatorsHelper": "ドキュメントのセグメンテーション区切り文字。単一の区切り文字は二重引用符 (\"\") で囲まれ、区切り文字はコンマ (,) で区切られます",
+    "invalidSeparators": "無効な分離器",
+    "selectLanguage": "プリセットを選択します",
+    "separatorsPreset": "プリセットの読み込み"
   },
   "mcp": {
     "title": "MCP設定",

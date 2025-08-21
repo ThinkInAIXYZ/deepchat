@@ -506,7 +506,7 @@
     "embeddingModel": "Modèle d'intégration",
     "return": "retour",
     "uploadHelper": "Cliquez pour télécharger ou faire glisser le fichier ici",
-    "onlySupport": "Soutenu uniquement",
+    "fileSupport": "Prend en charge {accept} et {count} autres formats",
     "searchKnowledge": "Rechercher la base de connaissances",
     "searchKnowledgePlaceholder": "Veuillez saisir le contenu de la requête",
     "noData": "Pas encore de données",
@@ -544,7 +544,12 @@
       "content": "Êtes-vous sûr de vouloir supprimer le fichier \"{fileName}\" ? Cette action est irréversible."
     },
     "resumeAllPausedTasks": "Récupération en un clic",
-    "pauseAllRunningTasks": "Pause en un clic"
+    "pauseAllRunningTasks": "Pause en un clic",
+    "separators": "Séparateur de blocage",
+    "separatorsHelper": "Document Séliquant séparateur, le séparateur unique est enveloppé dans des citations doubles à demi-largeur (\"\"), et le séparateur est divisé par une virgule à demi-largeur (,)",
+    "invalidSeparators": "Séparateur non valide",
+    "selectLanguage": "Sélectionnez un préréglage",
+    "separatorsPreset": "Chargement des préréglages"
   },
   "mcp": {
     "title": "Paramètres MCP",

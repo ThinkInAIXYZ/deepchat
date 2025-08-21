@@ -506,7 +506,7 @@
     "embeddingModel": "مدل",
     "return": "بازگشت",
     "uploadHelper": "برای بارگذاری یا کشیدن پرونده در اینجا کلیک کنید",
-    "onlySupport": "فقط پشتیبانی می شود",
+    "fileSupport": "پشتیبانی از {accept} و {count} فرمت‌های دیگر",
     "searchKnowledge": "پایگاه دانش را جستجو کنید",
     "searchKnowledgePlaceholder": "لطفاً محتوای پرس و جو را وارد کنید",
     "noData": "هنوز اطلاعاتی وجود ندارد",
@@ -544,7 +544,12 @@
       "content": "آیا مطمئن هستید که می‌خواهید پرونده \"{fileName}\" را حذف کنید؟ این عملیات ترمیم نشده است."
     },
     "resumeAllPausedTasks": "بازیابی یک کلیک",
-    "pauseAllRunningTasks": "مکث یک کلیک"
+    "pauseAllRunningTasks": "مکث یک کلیک",
+    "separators": "جدا کننده مسدود کننده",
+    "separatorsHelper": "جداکننده تقسیم‌بندی سند، یک جداکننده منفرد داخل نقل قول دوتایی (\"\") قرار می‌گیرد و جداکننده‌ها با کاما (,) از هم جدا می‌شوند",
+    "invalidSeparators": "جداکننده نامعتبر",
+    "selectLanguage": "از پیش تعیین شده را انتخاب کنید",
+    "separatorsPreset": "از پیش تنظیمات در حال بارگیری"
   },
   "mcp": {
     "title": "تنظیمات MCP",

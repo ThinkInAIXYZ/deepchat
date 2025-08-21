@@ -508,7 +508,7 @@
     "chunkOverlapPlaceholder": "默认值，不建议修改",
     "return": "返回",
     "uploadHelper": "点击上传或拖拽文件到此处",
-    "onlySupport": "仅支持",
+    "fileSupport": "支持 {accept} 等 {count} 种格式",
     "searchKnowledge": "搜索知识库",
     "searchKnowledgePlaceholder": "请输入查询内容",
     "noData": "暂无数据",
@@ -544,7 +544,12 @@
         "confirm": "确认"
       }
     },
-    "searchError": "查询失败"
+    "searchError": "查询失败",
+    "separators": "块分隔符",
+    "separatorsHelper": "文档切分分隔符，单个分隔符用半角符号双引号(\"\")包裹，分隔符之间用半角符号逗号(,)分割",
+    "invalidSeparators": "无效的分隔符",
+    "selectLanguage": "选择预设",
+    "separatorsPreset": "加载预设"
   },
   "mcp": {
     "title": "MCP设置",

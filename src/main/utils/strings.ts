@@ -4,8 +4,8 @@
  * - Removes backslashes
  * - Replaces hash characters with spaces
  * - Converts spaced double periods to single periods
- * - Collapses multiple whitespace characters into single spaces
- * - Replaces all newline variants with spaces
+ * - Normalizes line breaks to \n
+ * - Collapses multiple consecutive spaces (but preserves single line breaks)
  * - Trims leading and trailing whitespace
  *
  * @param text - The input text to sanitize
@@ -19,10 +19,11 @@ export function sanitizeText(text: string) {
   if (text.length === 0) {
     return text
   }
-  text = text.replace(/\\/g, '')
-  text = text.replace(/#/g, ' ')
-  text = text.replace(/\. \./g, '.')
-  text = text.replace(/\s\s+/g, ' ')
-  text = text.replace(/(\r\n|\n|\r)/gm, ' ')
-  return text.trim()
+  return text
+    .replace(/\\/g, '')
+    .replace(/#/g, ' ')
+    .replace(/\. \./g, '.')
+    .replace(/(\r\n|\r)/g, '\n')
+    .replace(/[ \t]+/g, ' ')
+    .trim()
 }

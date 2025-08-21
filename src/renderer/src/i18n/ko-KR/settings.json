@@ -506,7 +506,7 @@
     "embeddingModel": "임베드 모델",
     "return": "반품",
     "uploadHelper": "여기에서 파일을 업로드하거나 드래그하려면 클릭하십시오",
-    "onlySupport": "지원됩니다",
+    "fileSupport": "{accept} 및 {count}개의 다른 형식을 지원합니다",
     "searchKnowledge": "지식 기반을 검색하십시오",
     "searchKnowledgePlaceholder": "쿼리 내용을 입력하십시오",
     "noData": "아직 데이터가 없습니다",
@@ -544,7 +544,12 @@
       "content": "\"{filename}\"파일을 삭제해야합니까? 이 작업은 복원되지 않습니다."
     },
     "resumeAllPausedTasks": "원 클릭 복구",
-    "pauseAllRunningTasks": "한 번의 클릭 일시 중지"
+    "pauseAllRunningTasks": "한 번의 클릭 일시 중지",
+    "separators": "블록 분리기",
+    "separatorsHelper": "문서 분할 구분 기호, 단일 구분 기호는 큰따옴표(\"\")로 묶고, 구분 기호는 쉼표(,)로 구분합니다",
+    "invalidSeparators": "잘못된 분리기",
+    "selectLanguage": "사전 설정을 선택하십시오",
+    "separatorsPreset": "사전 설정을로드합니다"
   },
   "mcp": {
     "title": "MCP 설정",

@@ -344,7 +344,7 @@
                           />
                         </TooltipTrigger>
                         <TooltipContent>
-                          <p>{{ t('settings.knowledgeBase.normalizedHelper') }}</p>
+                          <p>⚠️ {{ t('settings.knowledgeBase.normalizedHelper') }}</p>
                         </TooltipContent>
                       </Tooltip>
                     </TooltipProvider>
@@ -362,6 +362,68 @@
                     <p>{{ t('settings.knowledgeBase.advanced') }}</p>
                   </AccordionTrigger>
                   <AccordionContent class="space-y-4">
+                    <div class="space-y-2">
+                      <div class="flex items-center gap-1">
+                        <Label
+                          class="text-xs text-muted-foreground"
+                          for="edit-builtin-config-separators"
+                        >
+                          {{ t('settings.knowledgeBase.separators') }}
+                        </Label>
+                        <TooltipProvider>
+                          <Tooltip :delay-duration="200">
+                            <TooltipTrigger as-child>
+                              <Icon
+                                icon="lucide:circle-question-mark"
+                                class="cursor-pointer text-primary outline-none focus:outline-none"
+                              />
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p class="w-64">{{ t('settings.knowledgeBase.separatorsHelper') }}</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      </div>
+                      <div class="flex items-center gap-2">
+                        <Input
+                          id="edit-builtin-config-separators"
+                          v-model="separators"
+                          placeholder='"\n\n", "\n", " ", ""'
+                          class="flex-1"
+                        ></Input>
+                        <Popover v-model:open="separatorsPopoverOpen">
+                          <PopoverTrigger as-child>
+                            <Button
+                              size="xs"
+                              variant="ghost"
+                              class="whitespace-nowrap"
+                              :title="t('settings.knowledgeBase.separatorsPreset')"
+                            >
+                              <Icon icon="lucide:book-marked" class="w-4 h-4 text-primary" />
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent class="w-40 p-2">
+                            <div class="space-y-2">
+                              <div class="text-sm text-muted-foreground">
+                                {{ t('settings.knowledgeBase.selectLanguage') }}
+                              </div>
+                              <div class="max-h-48 overflow-y-auto space-y-1">
+                                <Button
+                                  v-for="language in supportedLanguages"
+                                  :key="language"
+                                  variant="ghost"
+                                  size="sm"
+                                  class="w-full justify-start text-left"
+                                  @click="handleLanguageSelect(language)"
+                                >
+                                  {{ language }}
+                                </Button>
+                              </div>
+                            </div>
+                          </PopoverContent>
+                        </Popover>
+                      </div>
+                    </div>
                     <div class="space-y-2">
                       <div class="flex items-center gap-1">
                         <Label
@@ -390,7 +452,7 @@
                         :min="1"
                         :max="selectEmbeddingModel?.maxTokens"
                         v-model="editingBuiltinConfig.chunkSize"
-                        :Placeholder="t('settings.knowledgeBase.chunkSizePlaceholder')"
+                        :placeholder="t('settings.knowledgeBase.chunkSizePlaceholder')"
                         :step="128"
                       ></Input>
                     </div>
@@ -540,6 +602,7 @@ const mcpStore = useMcpStore()
 const settingsStore = useSettingsStore()
 const themeStore = useThemeStore()
 const llmP = usePresenter('llmproviderPresenter')
+const knowledgeP = usePresenter('knowledgePresenter')
 const emit = defineEmits<{
   (e: 'showDetail', config: BuiltinKnowledgeConfig): void
 }>()
@@ -548,6 +611,8 @@ const emit = defineEmits<{
 const embeddingModelSelectOpen = ref(false)
 // 重排模型下拉框
 const rerankModelSelectOpen = ref(false)
+// 分隔符弹窗
+const separatorsPopoverOpen = ref(false)
 // 请求文档片段数量
 const fragmentsNumber = ref<number[]>([6])
 
@@ -601,6 +666,7 @@ function openAddConfig() {
     fragmentsNumber: 6,
     enabled: true
   }
+  separators.value = ''
   fragmentsNumber.value = [6]
   selectEmbeddingModel.value = null
   selectRerankModel.value = null
@@ -677,6 +743,12 @@ const editBuiltinConfig = async (index: number) => {
   } else {
     selectRerankModel.value = null
   }
+  if (config.separators) {
+    separators.value = separatorsArray2String(config.separators)
+  } else {
+    separators.value = ''
+  }
+
   isEditing.value = true
   selectEmbeddingModel.value = embeddingModel
   editingConfigIndex.value = index
@@ -703,6 +775,7 @@ const closeBuiltinConfigDialog = () => {
     fragmentsNumber: 6,
     enabled: true
   }
+  separators.value = ''
   selectEmbeddingModel.value = null
   autoDetectDimensionsSwitch.value = true
   submitLoading.value = false
@@ -718,7 +791,22 @@ const saveBuiltinConfig = async () => {
   if (!isEditingBuiltinConfigValid.value) return
   editingBuiltinConfig.value.fragmentsNumber = fragmentsNumber.value[0]
   submitLoading.value = true
-
+  // 转换separators格式
+  if (separators.value && separators.value.trim() !== '') {
+    const separatorsArray = separatorString2Array(separators.value)
+    if (separatorsArray.length === 0) {
+      toast({
+        title: t('settings.knowledgeBase.invalidSeparators'),
+        variant: 'destructive',
+        duration: 3000
+      })
+      submitLoading.value = false
+      return
+    }
+    editingBuiltinConfig.value.separators = separatorsArray
+  } else {
+    delete editingBuiltinConfig.value.separators
+  }
   // 自动获取dimensions
   if (autoDetectDimensionsSwitch.value) {
     const result = await llmP.getDimensions(
@@ -860,6 +948,80 @@ const loadBuiltinConfigFromMcp = async () => {
   } catch (error) {
     console.error('加载BuiltinKnowledge配置失败:', error)
   }
+}
+
+const separators = ref('')
+const supportedLanguages = ref<string[]>([])
+knowledgeP.getSupportedLanguages().then((res) => {
+  supportedLanguages.value = res
+  console.log('支持的语言:', supportedLanguages.value)
+})
+
+// 处理语言选择
+const handleLanguageSelect = async (language: string) => {
+  separators.value = separatorsArray2String(await getSeparatorsForLanguage(language))
+  separatorsPopoverOpen.value = false
+}
+
+const getSeparatorsForLanguage = async (language: string) => {
+  return await knowledgeP.getSeparatorsForLanguage(language)
+}
+
+/**
+ * separator array to string
+ * @example separatorsArray2String(['\n\n', '\n', ' ', '']) // '"\n\n", "\n", " ", ""'
+ * @param arr
+ */
+const separatorsArray2String = (arr: string[]): string => {
+  // 对特殊字符进行转义处理
+  return arr
+    .map((s) => {
+      // 转义双引号、反斜杠、换行、回车、制表符等特殊字符
+      const escaped = s
+        .replace(/\\/g, '\\\\')
+        .replace(/"/g, '\\"')
+        .replace(/\n/g, '\\n')
+        .replace(/\r/g, '\\r')
+        .replace(/\t/g, '\\t')
+      return `"${escaped}"`
+    })
+    .join(', ')
+}
+/**
+ * separator string to array, remove quotes and duplicates
+ * @example separatorString2Array('"\n\n", "\n", " ", ""') // ['\n\n', '\n', ' ', '']
+ * @param str
+ */
+const separatorString2Array = (str: string): string[] => {
+  // 正则匹配所有被双引号包裹的内容（支持转义字符）
+  const regex = /"((?:\\.|[^"\\])*)"/g
+  const matches: string[] = []
+  let match
+
+  // 提取所有匹配项
+  while ((match = regex.exec(str.trim())) !== null) {
+    // 处理转义字符（将 \n、\t 等还原为实际字符）
+    const unescaped = match[1].replace(/\\([nrt"\\])/g, (_, char) => {
+      switch (char) {
+        case 'n':
+          return '\n'
+        case 'r':
+          return '\r'
+        case 't':
+          return '\t'
+        case '"':
+          return '"'
+        case '\\':
+          return '\\'
+        default:
+          return char
+      }
+    })
+    matches.push(unescaped)
+  }
+
+  // 去重并返回
+  return Array.from(new Set(matches))
 }
 
 const route = useRoute()
