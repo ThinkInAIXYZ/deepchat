@@ -64,7 +64,7 @@
               </TooltipTrigger>
               <TooltipContent>{{ t('chat.input.fileSelect') }}</TooltipContent>
             </Tooltip>
-            
+
             <Tooltip>
               <TooltipTrigger>
                 <Button
@@ -79,14 +79,14 @@
               </TooltipTrigger>
               <TooltipContent>{{ t('chat.input.aiChange') }}</TooltipContent>
             </Tooltip>
-            
-             <Tooltip>
+
+            <Tooltip>
               <TooltipTrigger>
                 <Button
                   variant="outline"
                   size="icon"
                   class="w-7 h-7"
-                  :class="{ 'bg-blue-500 text-white': isRecording  }"
+                  :class="{ 'bg-blue-500 text-white': isRecording }"
                   @click="SoundInput"
                 >
                   <Icon icon="lucide:mic" class="w-4 h-4" />
@@ -94,7 +94,7 @@
               </TooltipTrigger>
               <TooltipContent>{{ t('chat.input.SoundInput') }}</TooltipContent>
             </Tooltip>
-            
+
             <Tooltip>
               <TooltipTrigger>
                 <span
@@ -502,7 +502,6 @@ const openFilePicker = () => {
   fileInput.value?.click()
 }
 
-
 const aiChangeState = ref(localStorage.getItem('aiChangeState') || 'false')
 const aiChangeIsActive = ref(true) // 默认二次投喂开启
 //切换pinia中保存的aiChange状态
@@ -517,7 +516,7 @@ const aiChange = () => {
 
   const newValue = !isAiChange
   aiChangeIsActive.value = !newValue
-  localStorage.setItem("aiChangeIsActiveState",aiChangeIsActive.value.toString())
+  localStorage.setItem('aiChangeIsActiveState', aiChangeIsActive.value.toString())
   console.log('触发了AiChange', newValue)
   console.log('二次投喂', aiChangeIsActive.value)
 
@@ -529,56 +528,53 @@ const aiChange = () => {
   })
 }
 
-
-const isRecording  = ref(false)
-const countdown = ref(20);
-let timer: ReturnType<typeof setInterval> | null = null;
+const isRecording = ref(false)
+const countdown = ref(20)
+let timer: ReturnType<typeof setInterval> | null = null
 
 const startCountdown = () => {
-  countdown.value = 15;
+  countdown.value = 15
   timer = setInterval(() => {
-    countdown.value--;
-    
+    countdown.value--
+
     if (countdown.value <= 0) {
       // 30秒后自动释放 CapsLock
-      window.electron.ipcRenderer.send('simulate-capslock', 'release');
+      window.electron.ipcRenderer.send('simulate-capslock', 'release')
       // robot.keyToggle('capslock', 'up');
-      console.log('15秒超时，自动释放 CapsLock');
-      isRecording.value = false;
-        if (timer !== null) {
-        clearTimeout(timer);
-        timer = null;
+      console.log('15秒超时，自动释放 CapsLock')
+      isRecording.value = false
+      if (timer !== null) {
+        clearTimeout(timer)
+        timer = null
       }
     }
-  }, 1000);
+  }, 1000)
 }
 
-const  SoundInput =async () => {
-    if (!isRecording.value) {
-      editor.chain().focus()
+const SoundInput = async () => {
+  if (!isRecording.value) {
+    editor.chain().focus()
     // 第一次点击：模拟按下 CapsLock
-    window.electron.ipcRenderer.send('simulate-capslock', 'press');
+    await window.electron.ipcRenderer.send('simulate-capslock', 'press')
     //  robot.keyToggle('capslock', 'down');
-    console.log('渲染进程: 请求按下 CapsLock');
-    
-    isRecording.value = true;
-    startCountdown();
+    console.log('渲染进程: 请求按下 CapsLock')
+
+    isRecording.value = true
+    startCountdown()
   } else {
-     editor.chain().focus()
+    editor.chain().focus()
     // 第二次点击：模拟释放 CapsLock
-    window.electron.ipcRenderer.send('simulate-capslock', 'release');
+    await window.electron.ipcRenderer.send('simulate-capslock', 'release')
     // robot.keyToggle('capslock', 'up');
-    console.log('渲染进程: 请求释放 CapsLock');
-    
-    isRecording.value = false;
-     if (timer !== null) {
-        clearTimeout(timer);
-        timer = null;
-      }
+    console.log('渲染进程: 请求释放 CapsLock')
+    await emitSend()
+    isRecording.value = false
+    if (timer !== null) {
+      clearTimeout(timer)
+      timer = null
+    }
   }
 }
-
-
 
 const previewFile = (filePath: string) => {
   windowPresenter.previewFile(filePath)
@@ -1110,21 +1106,21 @@ onMounted(() => {
   window.electron.ipcRenderer.on('rate-limit:request-queued', handleRateLimitEvent)
 
   statusInterval = window.setInterval(loadRateLimitStatus, 1000)
-  
-  const aiChangeIsActiveState =  localStorage.getItem("aiChangeIsActiveState")
-  if(aiChangeIsActiveState=='true'){
+
+  const aiChangeIsActiveState = localStorage.getItem('aiChangeIsActiveState')
+  if (aiChangeIsActiveState == 'true') {
     aiChangeIsActive.value = true
-      window.electron.ipcRenderer.send('aiChangeEvent', {
-    aiChange: false
-  })
-   aiChangeState.value = JSON.stringify(false)
-  }else if(aiChangeIsActiveState=='false'){
+    window.electron.ipcRenderer.send('aiChangeEvent', {
+      aiChange: false
+    })
+    aiChangeState.value = JSON.stringify(false)
+  } else if (aiChangeIsActiveState == 'false') {
     aiChangeIsActive.value = false
-     window.electron.ipcRenderer.send('aiChangeEvent', {
-    aiChange: true
-  })
-  aiChangeState.value = JSON.stringify(true)
-  }else{
+    window.electron.ipcRenderer.send('aiChangeEvent', {
+      aiChange: true
+    })
+    aiChangeState.value = JSON.stringify(true)
+  } else {
     return
   }
 })
