@@ -52,6 +52,9 @@ export default defineConfig({
       include: [
         'monaco-editor',
         'axios'
+      ],
+      exclude: [
+        '@electric-sql/pglite'
       ]
     },
     resolve: {
