@@ -1,0 +1,140 @@
+{
+  "progress": {
+    "title": "数据库迁移",
+    "description": "正在将您的数据迁移到新的统一数据库系统。这可能需要几分钟时间。",
+    "phase": "阶段",
+    "timeRemaining": "剩余时间",
+    "records": "记录",
+    "details": "详细信息",
+    "warnings": "警告",
+    "cancel": "取消",
+    "cancelling": "正在取消...",
+    "completed": "迁移成功完成！"
+  },
+  "error": {
+    "title": "迁移错误",
+    "description": "数据库迁移过程中发生错误。",
+    "troubleshooting": "故障排除",
+    "technicalDetails": "技术详情",
+    "recoveryOptions": "恢复选项",
+    "retry": "重试迁移",
+    "rollback": "回滚更改",
+    "getHelp": "获取帮助",
+    "troubleshooting": "故障排除指南",
+    "close": "关闭",
+    "diskSpace": {
+      "description": "磁盘空间不足，无法完成迁移。",
+      "required": "所需空间",
+      "available": "可用空间",
+      "suggestion": "请释放磁盘空间后重试。"
+    },
+    "permission": {
+      "description": "应用程序没有权限访问数据库文件。",
+      "suggestion": "请以管理员身份运行应用程序或检查文件权限。"
+    },
+    "corruption": {
+      "description": "源数据库似乎已损坏。",
+      "suggestion": "请从备份恢复或联系技术支持。"
+    },
+    "schema": {
+      "description": "数据库架构版本与迁移过程不兼容。",
+      "suggestion": "请更新到最新版本或联系技术支持。"
+    },
+    "generic": {
+      "description": "迁移过程中发生意外错误。",
+      "suggestion": "请重试，如果问题持续存在，请联系技术支持。"
+    }
+  },
+  "confirmation": {
+    "title": "需要数据库迁移",
+    "description": "您的数据需要迁移到新的统一数据库系统，以获得更好的性能和功能。",
+    "info": {
+      "title": "将会发生什么？",
+      "description": "您的对话和知识库将合并到一个更高效的数据库中。"
+    },
+    "databases": "要迁移的数据库",
+    "backup": {
+      "title": "您的数据是安全的",
+      "description": "迁移开始前将自动创建备份。"
+    },
+    "estimatedTime": "预计时间",
+    "cancel": "取消",
+    "proceed": "开始迁移"
+  },
+  "troubleshooting": {
+    "title": "迁移故障排除指南",
+    "description": "数据库迁移问题的常见问题和解决方案。",
+    "commonIssues": "常见问题",
+    "solutions": "解决方案",
+    "close": "关闭",
+    "diskSpace": {
+      "title": "磁盘空间不足",
+      "description": "迁移需要额外的磁盘空间才能成功完成。",
+      "solution1": "删除临时文件并清理浏览器缓存",
+      "solution2": "将大文件移动到外部存储",
+      "solution3": "使用磁盘清理工具释放空间"
+    },
+    "permission": {
+      "title": "权限被拒绝",
+      "description": "应用程序没有足够的权限访问数据库文件。",
+      "solution1": "以管理员身份运行应用程序",
+      "solution2": "检查文件和文件夹权限",
+      "solution3": "暂时禁用杀毒软件"
+    },
+    "corruption": {
+      "title": "数据库损坏",
+      "description": "源数据库文件似乎已损坏。",
+      "solution1": "从最近的备份恢复",
+      "solution2": "运行数据库修复工具",
+      "solution3": "联系技术支持进行手动恢复"
+    },
+    "process": {
+      "title": "迁移过程",
+      "step1": {
+        "title": "检测",
+        "description": "系统检测旧数据库文件并计算迁移要求。"
+      },
+      "step2": {
+        "title": "备份",
+        "description": "在迁移开始前自动创建备份以确保数据安全。"
+      },
+      "step3": {
+        "title": "迁移",
+        "description": "将数据从旧数据库转移到新的统一系统。"
+      },
+      "step4": {
+        "title": "验证",
+        "description": "验证迁移的数据以确保完整性和完整性。"
+      }
+    },
+    "faq": {
+      "title": "常见问题",
+      "q1": {
+        "question": "迁移需要多长时间？",
+        "answer": "迁移时间取决于数据量。对于大多数用户，通常需要2-10分钟。"
+      },
+      "q2": {
+        "question": "迁移过程中我的数据安全吗？",
+        "answer": "是的，迁移开始前会自动创建备份，原始文件会保留到迁移确认成功。"
+      },
+      "q3": {
+        "question": "我可以取消迁移吗？",
+        "answer": "是的，您可以在过程中取消迁移。系统会安全停止并恢复到之前的状态。"
+      },
+      "q4": {
+        "question": "如果迁移失败会怎样？",
+        "answer": "如果迁移失败，系统会自动从备份恢复并提供详细的错误信息来帮助解决问题。"
+      },
+      "q5": {
+        "question": "我需要重启应用程序吗？",
+        "answer": "成功迁移后应用程序可能会自动重启，以确保所有组件都使用新的数据库系统。"
+      }
+    },
+    "support": {
+      "title": "需要更多帮助？",
+      "description": "如果您仍然遇到问题，我们的支持团队随时为您提供帮助。",
+      "documentation": "查看文档",
+      "contact": "联系支持"
+    }
+  }
+}

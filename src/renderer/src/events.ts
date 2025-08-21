@@ -143,3 +143,16 @@ export const DIALOG_EVENTS = {
 export const RAG_EVENTS = {
   FILE_UPDATED: 'rag:file-updated' // 文件状态更新
 }
+
+// 数据库迁移事件
+export const MIGRATION_EVENTS = {
+  STARTED: 'migration:started', // 迁移开始
+  PROGRESS: 'migration:progress', // 迁移进度更新
+  COMPLETE: 'migration:complete', // 迁移完成
+  ERROR: 'migration:error', // 迁移错误
+  CANCELLED: 'migration:cancelled', // 迁移取消
+  ROLLBACK_STARTED: 'migration:rollback-started', // 回滚开始
+  ROLLBACK_COMPLETE: 'migration:rollback-complete', // 回滚完成
+  VALIDATION_STARTED: 'migration:validation-started', // 数据验证开始
+  VALIDATION_COMPLETE: 'migration:validation-complete' // 数据验证完成
+}

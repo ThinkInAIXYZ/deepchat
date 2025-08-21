@@ -1,0 +1,140 @@
+{
+  "progress": {
+    "title": "Database Migration",
+    "description": "Migrating your data to the new unified database system. This may take a few minutes.",
+    "phase": "Phase",
+    "timeRemaining": "Time remaining",
+    "records": "Records",
+    "details": "Details",
+    "warnings": "Warnings",
+    "cancel": "Cancel",
+    "cancelling": "Cancelling...",
+    "completed": "Migration completed successfully!"
+  },
+  "error": {
+    "title": "Migration Error",
+    "description": "An error occurred during the database migration process.",
+    "troubleshooting": "Troubleshooting",
+    "technicalDetails": "Technical Details",
+    "recoveryOptions": "Recovery Options",
+    "retry": "Retry Migration",
+    "rollback": "Rollback Changes",
+    "getHelp": "Get Help",
+    "troubleshooting": "Troubleshooting Guide",
+    "close": "Close",
+    "diskSpace": {
+      "description": "There is not enough disk space to complete the migration.",
+      "required": "Required space",
+      "available": "Available space",
+      "suggestion": "Please free up disk space and try again."
+    },
+    "permission": {
+      "description": "The application does not have permission to access the database files.",
+      "suggestion": "Please run the application as administrator or check file permissions."
+    },
+    "corruption": {
+      "description": "The source database appears to be corrupted or damaged.",
+      "suggestion": "Please restore from a backup or contact support for assistance."
+    },
+    "schema": {
+      "description": "The database schema version is incompatible with the migration process.",
+      "suggestion": "Please update to the latest version or contact support."
+    },
+    "generic": {
+      "description": "An unexpected error occurred during migration.",
+      "suggestion": "Please try again or contact support if the problem persists."
+    }
+  },
+  "confirmation": {
+    "title": "Database Migration Required",
+    "description": "Your data needs to be migrated to the new unified database system for improved performance and features.",
+    "info": {
+      "title": "What will happen?",
+      "description": "Your conversations and knowledge base will be consolidated into a single, more efficient database."
+    },
+    "databases": "Databases to migrate",
+    "backup": {
+      "title": "Your data is safe",
+      "description": "Automatic backups will be created before migration begins."
+    },
+    "estimatedTime": "Estimated time",
+    "cancel": "Cancel",
+    "proceed": "Start Migration"
+  },
+  "troubleshooting": {
+    "title": "Migration Troubleshooting Guide",
+    "description": "Common issues and solutions for database migration problems.",
+    "commonIssues": "Common Issues",
+    "solutions": "Solutions",
+    "close": "Close",
+    "diskSpace": {
+      "title": "Insufficient Disk Space",
+      "description": "The migration requires additional disk space to complete successfully.",
+      "solution1": "Delete temporary files and clear browser cache",
+      "solution2": "Move large files to external storage",
+      "solution3": "Use disk cleanup tools to free up space"
+    },
+    "permission": {
+      "title": "Permission Denied",
+      "description": "The application doesn't have sufficient permissions to access database files.",
+      "solution1": "Run the application as administrator",
+      "solution2": "Check file and folder permissions",
+      "solution3": "Temporarily disable antivirus software"
+    },
+    "corruption": {
+      "title": "Database Corruption",
+      "description": "The source database files appear to be corrupted or damaged.",
+      "solution1": "Restore from a recent backup",
+      "solution2": "Run database repair tools",
+      "solution3": "Contact support for manual recovery"
+    },
+    "process": {
+      "title": "Migration Process",
+      "step1": {
+        "title": "Detection",
+        "description": "The system detects legacy database files and calculates migration requirements."
+      },
+      "step2": {
+        "title": "Backup",
+        "description": "Automatic backups are created to ensure data safety before migration begins."
+      },
+      "step3": {
+        "title": "Migration",
+        "description": "Data is transferred from legacy databases to the new unified system."
+      },
+      "step4": {
+        "title": "Validation",
+        "description": "The migrated data is validated to ensure integrity and completeness."
+      }
+    },
+    "faq": {
+      "title": "Frequently Asked Questions",
+      "q1": {
+        "question": "How long does the migration take?",
+        "answer": "Migration time depends on the amount of data. Typically, it takes 2-10 minutes for most users."
+      },
+      "q2": {
+        "question": "Is my data safe during migration?",
+        "answer": "Yes, automatic backups are created before migration begins, and the original files are preserved until migration is confirmed successful."
+      },
+      "q3": {
+        "question": "Can I cancel the migration?",
+        "answer": "Yes, you can cancel the migration during the process. The system will safely stop and restore the previous state."
+      },
+      "q4": {
+        "question": "What happens if migration fails?",
+        "answer": "If migration fails, the system automatically restores from backups and provides detailed error information to help resolve the issue."
+      },
+      "q5": {
+        "question": "Do I need to restart the application?",
+        "answer": "The application may restart automatically after successful migration to ensure all components use the new database system."
+      }
+    },
+    "support": {
+      "title": "Need More Help?",
+      "description": "If you're still experiencing issues, our support team is here to help.",
+      "documentation": "View Documentation",
+      "contact": "Contact Support"
+    }
+  }
+}
