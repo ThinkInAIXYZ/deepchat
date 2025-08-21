@@ -19,6 +19,18 @@
     <!-- Migration Troubleshooting Guide -->
     <MigrationTroubleshootingGuide v-model:open="showTroubleshootingDialog" />
 
+    <!-- Migration Blocking Overlay -->
+    <MigrationBlockingOverlay
+      :is-blocked="migrationState.isBlocked"
+      :current-phase="migrationState.currentPhase"
+      :progress-percentage="migrationState.progressPercentage"
+      :estimated-time-remaining="migrationState.estimatedTimeRemaining"
+      :start-time="migrationState.startTime"
+      :records-processed="migrationState.recordsProcessed"
+      :can-cancel="canCancelMigration"
+      @cancel="handleMigrationCancel"
+    />
+
     <!-- Migration Confirmation Dialog -->
     <Dialog v-model:open="showConfirmationDialog">
       <DialogContent class="sm:max-w-md">
@@ -128,6 +140,8 @@ import {
   MigrationErrorDialog,
   MigrationTroubleshootingGuide
 } from './index'
+import MigrationBlockingOverlay from './MigrationBlockingOverlay.vue'
+import { useMigrationState } from '@/composables/useMigrationState'
 
 export interface LegacyDatabaseInfo {
   type: 'sqlite' | 'duckdb'
@@ -146,6 +160,9 @@ interface Emits {
 
 const emit = defineEmits<Emits>()
 const { t } = useI18n()
+
+// Migration state management
+const { migrationState } = useMigrationState()
 
 // Dialog states
 const showConfirmationDialog = ref(false)

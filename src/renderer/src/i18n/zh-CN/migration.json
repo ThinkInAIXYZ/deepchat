@@ -136,5 +136,30 @@
       "documentation": "查看文档",
       "contact": "联系支持"
     }
+  },
+  "blocking": {
+    "title": "迁移进行中",
+    "description": "数据库迁移正在运行中，请等待完成。",
+    "currentPhase": "当前阶段",
+    "estimatedTime": "预计剩余时间",
+    "warning": "迁移期间请勿关闭应用程序，以防止数据损坏。",
+    "cancel": "取消迁移",
+    "showDetails": "显示详情",
+    "hideDetails": "隐藏详情",
+    "details": {
+      "startTime": "开始时间",
+      "phase": "阶段",
+      "recordsProcessed": "已处理记录"
+    }
+  },
+  "phases": {
+    "detection": "检测数据库",
+    "backup": "创建备份",
+    "schema": "设置架构",
+    "data": "迁移数据",
+    "validation": "验证数据",
+    "cleanup": "清理",
+    "initializing": "初始化",
+    "completing": "完成"
   }
 }

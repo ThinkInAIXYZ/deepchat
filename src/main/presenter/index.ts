@@ -23,6 +23,8 @@ import { OAuthPresenter } from './oauthPresenter'
 import { FloatingButtonPresenter } from './floatingButtonPresenter'
 import { CONFIG_EVENTS, WINDOW_EVENTS } from '@/events'
 import { KnowledgePresenter } from './knowledgePresenter'
+import { MigrationPresenter } from './migrationPresenter'
+import { DatabaseOperationInterceptor } from './migrationPresenter/databaseOperationInterceptor'
 
 // IPC调用上下文接口
 interface IPCCallContext {
@@ -57,6 +59,8 @@ export class Presenter implements IPresenter {
   oauthPresenter: OAuthPresenter
   floatingButtonPresenter: FloatingButtonPresenter
   knowledgePresenter: KnowledgePresenter
+  migrationPresenter: MigrationPresenter
+  databaseInterceptor?: DatabaseOperationInterceptor
   // llamaCppPresenter: LlamaCppPresenter // 保留原始注释
   dialogPresenter: DialogPresenter
 
@@ -92,6 +96,7 @@ export class Presenter implements IPresenter {
       dbDir,
       this.filePresenter
     )
+    this.migrationPresenter = new MigrationPresenter()
 
     // this.llamaCppPresenter = new LlamaCppPresenter() // 保留原始注释
     this.setupEventBus() // 设置事件总线监听
@@ -139,6 +144,9 @@ export class Presenter implements IPresenter {
 
     // 初始化悬浮按钮
     this.initializeFloatingButton()
+
+    // 初始化迁移系统
+    this.initializeMigrationSystem()
   }
 
   // 初始化悬浮按钮
@@ -148,6 +156,62 @@ export class Presenter implements IPresenter {
       console.log('FloatingButtonPresenter initialized successfully')
     } catch (error) {
       console.error('Failed to initialize FloatingButtonPresenter:', error)
+    }
+  }
+
+  // 初始化迁移系统
+  private async initializeMigrationSystem() {
+    try {
+      // Check if we're in development mode and should bypass migration
+      const isDev = process.env.NODE_ENV === 'development'
+      const bypassMigration = process.env.BYPASS_MIGRATION === 'true'
+
+      await this.migrationPresenter.initialize({
+        bypassForTesting: isDev && bypassMigration,
+        dryRun: isDev,
+        autoStart: false // Let user decide when to start migration
+      })
+
+      // Initialize database operation interceptor
+      this.databaseInterceptor = new DatabaseOperationInterceptor(
+        (this.migrationPresenter as any).applicationStateManager
+      )
+
+      // Wrap database presenters with interception
+      this.wrapDatabasePresenters()
+
+      console.log('MigrationPresenter initialized successfully')
+    } catch (error) {
+      console.error('Failed to initialize MigrationPresenter:', error)
+    }
+  }
+
+  // 包装数据库相关的 Presenter 以支持迁移期间的操作拦截
+  private wrapDatabasePresenters() {
+    if (!this.databaseInterceptor) return
+
+    try {
+      // Wrap SQLite presenter methods
+      this.sqlitePresenter = this.databaseInterceptor.wrapPresenterMethods(
+        'sqlitePresenter',
+        this.sqlitePresenter
+      )
+
+      // Wrap knowledge presenter methods
+      this.knowledgePresenter = this.databaseInterceptor.wrapPresenterMethods(
+        'knowledgePresenter',
+        this.knowledgePresenter
+      )
+
+      // Wrap thread presenter methods (for conversation operations)
+      this.threadPresenter = this.databaseInterceptor.wrapPresenterMethods(
+        'threadPresenter',
+        this.threadPresenter
+      )
+
+      console.log('Database presenters wrapped with migration interceptor')
+    } catch (error) {
+      console.error('Failed to wrap database presenters:', error)
     }
   }
 
@@ -180,6 +244,8 @@ export class Presenter implements IPresenter {
     this.syncPresenter.destroy() // 销毁同步相关资源
     this.notificationPresenter.clearAllNotifications() // 清除所有通知
     this.knowledgePresenter.destroy() // 释放所有数据库连接
+    this.migrationPresenter.destroy() // 清理迁移相关资源
+    this.databaseInterceptor?.destroy() // 清理数据库操作拦截器
     // 注意: trayPresenter.destroy() 在 main/index.ts 的 will-quit 事件中处理
     // 此处不销毁 trayPresenter，其生命周期由 main/index.ts 管理
   }

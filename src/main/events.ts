@@ -194,3 +194,17 @@ export const RAG_EVENTS = {
   FILE_UPDATED: 'rag:file-updated', // File status update
   FILE_PROGRESS: 'rag:file-progress' // File processing progress update
 }
+
+// Migration related events
+export const MIGRATION_EVENTS = {
+  DETECTED: 'migration:detected', // Legacy databases detected, migration required
+  STARTED: 'migration:started', // Migration process started
+  PROGRESS: 'migration:progress', // Migration progress update
+  COMPLETED: 'migration:completed', // Migration completed successfully
+  ERROR: 'migration:error', // Migration error occurred
+  CANCELLED: 'migration:cancelled', // Migration was cancelled
+  VALIDATION_FAILED: 'migration:validation-failed', // Migration validation failed
+  BACKUP_CREATED: 'migration:backup-created', // Backup created successfully
+  ROLLBACK_STARTED: 'migration:rollback-started', // Rollback process started
+  ROLLBACK_COMPLETED: 'migration:rollback-completed' // Rollback completed
+}

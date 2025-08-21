@@ -20,7 +20,7 @@
     "retry": "Retry Migration",
     "rollback": "Rollback Changes",
     "getHelp": "Get Help",
-    "troubleshooting": "Troubleshooting Guide",
+    "troubleshootingGuide": "Troubleshooting Guide",
     "close": "Close",
     "diskSpace": {
       "description": "There is not enough disk space to complete the migration.",
@@ -136,5 +136,30 @@
       "documentation": "View Documentation",
       "contact": "Contact Support"
     }
+  },
+  "blocking": {
+    "title": "Migration in Progress",
+    "description": "Database migration is currently running. Please wait for it to complete.",
+    "currentPhase": "Current Phase",
+    "estimatedTime": "Estimated time remaining",
+    "warning": "Do not close the application during migration to prevent data corruption.",
+    "cancel": "Cancel Migration",
+    "showDetails": "Show Details",
+    "hideDetails": "Hide Details",
+    "details": {
+      "startTime": "Started at",
+      "phase": "Phase",
+      "recordsProcessed": "Records processed"
+    }
+  },
+  "phases": {
+    "detection": "Detecting databases",
+    "backup": "Creating backups",
+    "schema": "Setting up schema",
+    "data": "Migrating data",
+    "validation": "Validating data",
+    "cleanup": "Cleaning up",
+    "initializing": "Initializing",
+    "completing": "Completing"
   }
 }
