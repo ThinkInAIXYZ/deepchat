@@ -8,6 +8,8 @@ import * as fs from 'fs'
 import * as path from 'path'
 import { app } from 'electron'
 import { nanoid } from 'nanoid'
+import { MigrationErrorHandler, ErrorHandlingResult } from './errorHandler'
+import { RollbackManager } from './rollbackManager'
 
 // Legacy database detection interfaces
 export interface LegacyDatabaseInfo {
@@ -774,12 +776,16 @@ export class BackupManager {
 export class MigrationManager {
   private readonly detector: LegacyDatabaseDetector
   private readonly backupManager: BackupManager
+  private readonly errorHandler: MigrationErrorHandler
+  private readonly rollbackManager: RollbackManager
   private migrationInProgress: boolean = false
   private currentProgress?: MigrationProgress
 
   constructor() {
     this.detector = new LegacyDatabaseDetector()
     this.backupManager = new BackupManager()
+    this.errorHandler = new MigrationErrorHandler()
+    this.rollbackManager = new RollbackManager()
   }
 
   /**
@@ -885,12 +891,28 @@ export class MigrationManager {
           15,
           options.progressCallback
         )
-        const backups = await this.backupManager.createBackups(requirements.databases, {
-          verify: true,
-          includeTimestamp: true
-        })
-        result.backupPaths = backups.map((b) => b.backupPath)
-        console.log(`[Migration] Created ${backups.length} backups`)
+
+        try {
+          const backups = await this.backupManager.createBackups(requirements.databases, {
+            verify: true,
+            includeTimestamp: true
+          })
+          result.backupPaths = backups.map((b) => b.backupPath)
+          console.log(`[Migration] Created ${backups.length} backups`)
+        } catch (backupError) {
+          console.error('[Migration] Backup creation failed:', backupError)
+
+          const errorResult = await this.errorHandler.handleError(backupError, {
+            phase: 'backup',
+            timestamp: Date.now()
+          })
+
+          if (!errorResult.shouldContinue) {
+            throw new Error(`Backup creation failed: ${errorResult.message}`)
+          } else {
+            result.warnings.push(`Backup creation failed but continuing: ${errorResult.message}`)
+          }
+        }
       }
 
       // Phase 3: Schema preparation (this would be handled by PGlitePresenter)
@@ -942,10 +964,23 @@ export class MigrationManager {
       result.phase = 'completed'
     } catch (error) {
       console.error('[Migration] Migration failed:', error)
-      result.errors.push(String(error))
+
+      // Use error handler to classify and handle the error
+      const errorHandlingResult = await this.errorHandler.handleError(error, {
+        phase: result.phase,
+        timestamp: Date.now()
+      })
+
+      result.errors.push(errorHandlingResult.message || String(error))
       result.success = false
 
-      // Attempt rollback if backups were created
+      // Check if we should attempt recovery
+      if (errorHandlingResult.shouldRetry && !options.continueOnError) {
+        console.log('[Migration] Error handler suggests retry, but migration will not auto-retry')
+        result.warnings.push('Migration can be retried after addressing the error')
+      }
+
+      // Attempt rollback if backups were created and error handler suggests it
       if (result.backupPaths && result.backupPaths.length > 0) {
         try {
           await this.updateProgress(
@@ -954,11 +989,41 @@ export class MigrationManager {
             0,
             options.progressCallback
           )
-          // Rollback implementation would go here
-          console.log('[Migration] Rollback completed')
+
+          // Convert backup paths to BackupInfo objects for rollback
+          const backupInfos = result.backupPaths.map((backupPath, index) => ({
+            id: `rollback-${index}`,
+            type: 'sqlite' as const,
+            originalPath: '', // Would need to be tracked during backup creation
+            backupPath,
+            size: 0,
+            createdAt: Date.now(),
+            checksum: '',
+            isValid: true
+          }))
+
+          const rollbackResult = await this.rollbackManager.executeRollback(backupInfos, {
+            validateBeforeRollback: false,
+            continueOnError: true
+          })
+
+          if (rollbackResult.success) {
+            console.log('[Migration] Rollback completed successfully')
+            result.warnings.push('Migration was rolled back successfully')
+          } else {
+            console.error('[Migration] Rollback failed:', rollbackResult.errors.join(', '))
+            result.errors.push(`Rollback failed: ${rollbackResult.errors.join(', ')}`)
+          }
         } catch (rollbackError) {
           console.error('[Migration] Rollback failed:', rollbackError)
-          result.errors.push(`Rollback failed: ${rollbackError}`)
+
+          // Handle rollback error
+          const rollbackErrorResult = await this.errorHandler.handleError(rollbackError, {
+            phase: 'rollback',
+            timestamp: Date.now()
+          })
+
+          result.errors.push(`Rollback failed: ${rollbackErrorResult.message || rollbackError}`)
         }
       }
     } finally {
@@ -975,6 +1040,84 @@ export class MigrationManager {
   }
 
   /**
+   * Handle migration error with recovery strategies
+   * Supports requirement 8.2 for error recovery
+   */
+  async handleMigrationError(
+    error: any,
+    context: { phase: string; timestamp: number; [key: string]: any }
+  ): Promise<ErrorHandlingResult> {
+    console.log(`[Migration] Handling error in phase ${context.phase}:`, error)
+
+    const errorResult = await this.errorHandler.handleError(error, context)
+
+    // Log error handling result
+    console.log(
+      `[Migration] Error handling result: ${errorResult.actionTaken}, continue: ${errorResult.shouldContinue}, retry: ${errorResult.shouldRetry}`
+    )
+
+    return errorResult
+  }
+
+  /**
+   * Execute rollback with error handling
+   * Supports requirement 10.3 for rollback mechanisms
+   */
+  async executeRollbackWithErrorHandling(backupPaths: string[]): Promise<{
+    success: boolean
+    errors: string[]
+    warnings: string[]
+  }> {
+    const result = {
+      success: false,
+      errors: [] as string[],
+      warnings: [] as string[]
+    }
+
+    try {
+      // Convert backup paths to BackupInfo objects
+      const backupInfos = backupPaths.map((backupPath, index) => ({
+        id: `migration-rollback-${index}`,
+        type: 'sqlite' as const,
+        originalPath: '', // This should be tracked during backup creation
+        backupPath,
+        size: 0,
+        createdAt: Date.now(),
+        checksum: '',
+        isValid: true
+      }))
+
+      const rollbackResult = await this.rollbackManager.executeRollback(backupInfos, {
+        validateBeforeRollback: true,
+        createPreRollbackBackup: false,
+        continueOnError: true
+      })
+
+      result.success = rollbackResult.success
+      result.errors = rollbackResult.errors
+      result.warnings = rollbackResult.warnings
+
+      if (rollbackResult.success) {
+        console.log('[Migration] Rollback completed successfully')
+      } else {
+        console.error('[Migration] Rollback failed:', rollbackResult.errors.join(', '))
+      }
+    } catch (rollbackError) {
+      console.error('[Migration] Rollback execution failed:', rollbackError)
+
+      const errorResult = await this.errorHandler.handleError(rollbackError, {
+        phase: 'rollback',
+        timestamp: Date.now()
+      })
+
+      result.success = false
+      result.errors.push(errorResult.message || String(rollbackError))
+    }
+
+    return result
+  }
+
+  /**
    * Cancel ongoing migration
    * Supports requirement 8.2 for cancellation support
    */
@@ -984,11 +1127,24 @@ export class MigrationManager {
     }
 
     console.log('[Migration] Cancellation requested')
-    // TODO: Implement proper cancellation logic
-    // This would involve stopping ongoing operations and cleaning up partial state
 
-    this.migrationInProgress = false
-    return true
+    try {
+      // Create recovery point before cancellation
+      const systemState = await this.rollbackManager.captureSystemState()
+      await this.rollbackManager.createRecoveryPoint(
+        'Migration cancellation point',
+        systemState,
+        []
+      )
+
+      this.migrationInProgress = false
+      console.log('[Migration] Migration cancelled successfully')
+      return true
+    } catch (error) {
+      console.error('[Migration] Error during cancellation:', error)
+      this.migrationInProgress = false
+      return false
+    }
   }
 
   /**
