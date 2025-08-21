@@ -10,6 +10,9 @@ import path from 'node:path'
 
 export default defineConfig({
   main: {
+    optimizeDeps: {
+      exclude: ['@duckdb/node-api']
+    },
     plugins: [
       externalizeDepsPlugin({
         exclude: ['mermaid', 'dompurify']
