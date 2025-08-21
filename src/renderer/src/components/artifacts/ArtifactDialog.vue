@@ -50,7 +50,7 @@
           </div>
 
           <!-- 设备尺寸切换按钮组 (仅在HTML预览时显示) -->
-          <div 
+          <div
             v-if="isPreview && artifactStore.currentArtifact?.type === 'text/html'"
             class="bg-border p-0.5 rounded-lg flex items-center"
           >
@@ -93,11 +93,17 @@
           </div>
 
           <!-- 尺寸微调输入框 (仅在平板和手机模式下显示) -->
-          <div 
-            v-if="isPreview && artifactStore.currentArtifact?.type === 'text/html' && viewportSize !== 'desktop'"
+          <div
+            v-if="
+              isPreview &&
+              artifactStore.currentArtifact?.type === 'text/html' &&
+              viewportSize !== 'desktop'
+            "
             class="flex items-center gap-2 bg-border p-1 rounded-lg"
           >
-            <span class="text-xs text-muted-foreground whitespace-nowrap">{{ t('artifacts.width') }}:</span>
+            <span class="text-xs text-muted-foreground whitespace-nowrap"
+              >{{ t('artifacts.width') }}:</span
+            >
             <input
               v-if="viewportSize === 'tablet'"
               v-model.number="tabletWidth"
@@ -248,7 +254,7 @@ const viewportSize = ref<'desktop' | 'tablet' | 'mobile'>('desktop')
 const tabletWidth = ref(768)
 const mobileWidth = ref(375)
 const tabletHeight = ref(1024) // 4:3 比例
-const mobileHeight = ref(667)  // 16:9 比例
+const mobileHeight = ref(667) // 16:9 比例
 const t = useI18n().t
 const { toast } = useToast()
 const themeStore = useThemeStore()
