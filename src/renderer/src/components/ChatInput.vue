@@ -644,20 +644,20 @@ const neonGlowStyle = computed(() => {
   }
 })
 
-const spinRingStyle = computed(() => {
-  // 调整蓝色基础透明度为0.4
-  const baseAlpha = 0.4
-  return {
-    background: `conic-gradient(from 0deg, 
-      hsla(${hue.value},100%,60%,0.0) 0%,
-      hsla(${hue.value},100%,60%,${baseAlpha * 0.375}) 25%,
-      hsla(${hue.value},100%,60%,${baseAlpha * 0.875}) 30%,
-      hsla(${hue.value},100%,60%,${baseAlpha * 0.375}) 55%,
-      hsla(${hue.value},100%,60%,0.0) 100%)`,
-    filter: 'blur(6px)',
-    animation: 'spinSlow 3.2s linear infinite'
-  }
-})
+// const spinRingStyle = computed(() => {
+//   // 调整蓝色基础透明度为0.4
+//   const baseAlpha = 0.4
+//   return {
+//     background: `conic-gradient(from 0deg, 
+//       hsla(${hue.value},100%,60%,0.0) 0%,
+//       hsla(${hue.value},100%,60%,${baseAlpha * 0.375}) 25%,
+//       hsla(${hue.value},100%,60%,${baseAlpha * 0.875}) 30%,
+//       hsla(${hue.value},100%,60%,${baseAlpha * 0.375}) 55%,
+//       hsla(${hue.value},100%,60%,0.0) 100%)`,
+//     filter: 'blur(6px)',
+//     animation: 'spinSlow 3.2s linear infinite'
+//   }
+// })
 const startCountdown = () => {
   countdown.value = 15
   timer = setInterval(() => {
