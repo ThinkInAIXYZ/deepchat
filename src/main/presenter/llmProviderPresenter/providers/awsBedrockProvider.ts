@@ -73,7 +73,7 @@ export class AwsBedrockProvider extends BaseLLMProvider {
 
       return (
         models
-          ?.filter((m) => m.modelId && /^anthropic.claude-[a-z0-9\-]+(:\d+)$/g.test(m.modelId))
+          ?.filter((m) => m.modelId && /^anthropic.claude-[a-z0-9-]+(:\d+)$/g.test(m.modelId))
           ?.filter((m) => m.modelLifecycle?.status === 'ACTIVE')
           ?.filter((m) => m.inferenceTypesSupported && m.inferenceTypesSupported.length > 0)
           .map<MODEL_META>((m) => ({
