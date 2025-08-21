@@ -3,6 +3,7 @@
  */
 import { PGlite } from '@electric-sql/pglite'
 import { vector } from '@electric-sql/pglite/vector'
+import { nanoid } from 'nanoid'
 import path from 'path'
 import fs from 'fs'
 import {
@@ -21,7 +22,7 @@ import {
 } from '@shared/presenter'
 
 // Import schema management components
-import { PGliteSchemaManager, SchemaMigration, MigrationResult } from './schema'
+import { PGliteSchemaManager } from './schema'
 import { PGliteMigrationEngine } from './migration'
 import { PGliteDataValidator } from './validation'
 
@@ -186,7 +187,6 @@ export class PGlitePresenter implements IPGlitePresenter {
   // Schema version constants
   private static readonly CURRENT_SCHEMA_VERSION = 1
   private static readonly SCHEMA_VERSION_TABLE = 'schema_versions'
-  private static readonly MIGRATION_METADATA_TABLE = 'migration_metadata'
 
   constructor(dbPath: string) {
     this.dbPath = dbPath
@@ -543,7 +543,7 @@ export class PGlitePresenter implements IPGlitePresenter {
    * Enhanced schema migration with rollback support and dependency checking
    * Supports requirements 5.3 and 5.4 for schema versioning and backward compatibility
    */
-  async migrateSchema(targetVersion: number): Promise<MigrationResult[]> {
+  async migrateSchema(targetVersion: number): Promise<void> {
     if (!this.migrationEngine) {
       throw new Error('Migration engine not initialized')
     }
@@ -566,7 +566,14 @@ export class PGlitePresenter implements IPGlitePresenter {
       const finalVersion = await this.getCurrentSchemaVersion()
       console.log(`[PGlite] Schema migration completed. Final version: v${finalVersion}`)
 
-      return results
+      // Log results but don't return them to match interface
+      results.forEach((result) => {
+        if (result.success) {
+          console.log(`[PGlite] Migration v${result.version} completed: ${result.description}`)
+        } else {
+          console.error(`[PGlite] Migration v${result.version} failed: ${result.errors.join(', ')}`)
+        }
+      })
     } catch (error) {
       console.error(`[PGlite] Schema migration failed:`, error)
       throw new Error(`Schema migration failed: ${error}`)
@@ -590,13 +597,11 @@ export class PGlitePresenter implements IPGlitePresenter {
       console.log(
         `[PGlite] Running automatic migrations from v${currentVersion} to v${targetVersion}`
       )
-      const results = await this.migrateSchema(targetVersion)
-
-      const failedMigrations = results.filter((r) => !r.success)
-      if (failedMigrations.length > 0) {
-        throw new Error(
-          `Automatic migration failed: ${failedMigrations.map((r) => r.errors.join(', ')).join('; ')}`
-        )
+      try {
+        await this.migrateSchema(targetVersion)
+        console.log('[PGlite] Automatic migrations completed successfully')
+      } catch (error) {
+        throw new Error(`Automatic migration failed: ${error}`)
       }
     }
   }
@@ -912,77 +917,397 @@ export class PGlitePresenter implements IPGlitePresenter {
     }
   }
 
-  // ==================== ISQLitePresenter Methods ====================
-  // These methods will be fully implemented in task 2.2
+  // ==================== Conversation Management Methods ====================
+  // Task 4.1: Migrate conversation management methods
 
+  /**
+   * Creates a new conversation with the specified title and settings
+   * Supports requirements 5.1 and 6.2 for conversation management
+   */
   async createConversation(
-    _title: string,
-    _settings?: Partial<CONVERSATION_SETTINGS>
+    title: string,
+    settings?: Partial<CONVERSATION_SETTINGS>
   ): Promise<string> {
-    throw new Error('Method not implemented - will be implemented in future tasks')
+    if (!this.isConnected()) {
+      throw new Error('Database not connected')
+    }
+
+    try {
+      const conversationId = nanoid()
+      const now = Date.now()
+
+      // Set default settings
+      const defaultSettings: CONVERSATION_SETTINGS = {
+        systemPrompt: '',
+        temperature: 0.7,
+        contextLength: 4000,
+        maxTokens: 2000,
+        providerId: 'openai',
+        modelId: 'gpt-4',
+        artifacts: 0,
+        enabledMcpTools: undefined,
+        thinkingBudget: undefined,
+        reasoningEffort: undefined,
+        verbosity: undefined
+      }
+
+      const finalSettings = { ...defaultSettings, ...settings }
+
+      const query = `
+        INSERT INTO conversations (
+          conv_id, title, created_at, updated_at, is_pinned, is_new, settings
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7)
+      `
+
+      await this.db.query(query, [
+        conversationId,
+        title,
+        now,
+        now,
+        0, // Default is_pinned to 0
+        1, // Default is_new to 1
+        JSON.stringify(finalSettings)
+      ])
+
+      console.log(`[PGlite] Created conversation: ${conversationId}`)
+      return conversationId
+    } catch (error) {
+      console.error('[PGlite] Failed to create conversation:', error)
+      throw new Error(`Failed to create conversation: ${error}`)
+    }
   }
 
-  async deleteConversation(_conversationId: string): Promise<void> {
-    throw new Error('Method not implemented - will be implemented in future tasks')
+  /**
+   * Deletes a conversation and all associated messages
+   * Supports requirements 5.1 and 6.2 for conversation management
+   */
+  async deleteConversation(conversationId: string): Promise<void> {
+    if (!this.isConnected()) {
+      throw new Error('Database not connected')
+    }
+
+    try {
+      await this.runTransaction(async () => {
+        // Delete message attachments first
+        await this.db.query(
+          `DELETE FROM message_attachments 
+           WHERE message_id IN (
+             SELECT msg_id FROM messages WHERE conversation_id = $1
+           )`,
+          [conversationId]
+        )
+
+        // Delete messages
+        await this.db.query('DELETE FROM messages WHERE conversation_id = $1', [conversationId])
+
+        // Delete conversation
+        const result = await this.db.query('DELETE FROM conversations WHERE conv_id = $1', [
+          conversationId
+        ])
+
+        if (result.affectedRows === 0) {
+          throw new Error(`Conversation ${conversationId} not found`)
+        }
+      })
+
+      console.log(`[PGlite] Deleted conversation: ${conversationId}`)
+    } catch (error) {
+      console.error('[PGlite] Failed to delete conversation:', error)
+      throw new Error(`Failed to delete conversation: ${error}`)
+    }
   }
 
-  async renameConversation(_conversationId: string, _title: string): Promise<CONVERSATION> {
-    throw new Error('Method not implemented - will be implemented in future tasks')
+  /**
+   * Renames a conversation and returns the updated conversation
+   * Supports requirements 5.1 and 6.2 for conversation management
+   */
+  async renameConversation(conversationId: string, title: string): Promise<CONVERSATION> {
+    if (!this.isConnected()) {
+      throw new Error('Database not connected')
+    }
+
+    try {
+      const now = Date.now()
+
+      const result = await this.db.query(
+        `UPDATE conversations 
+         SET title = $1, is_new = 0, updated_at = $2 
+         WHERE conv_id = $3`,
+        [title, now, conversationId]
+      )
+
+      if (result.affectedRows === 0) {
+        throw new Error(`Conversation ${conversationId} not found`)
+      }
+
+      console.log(`[PGlite] Renamed conversation: ${conversationId}`)
+      return await this.getConversation(conversationId)
+    } catch (error) {
+      console.error('[PGlite] Failed to rename conversation:', error)
+      throw new Error(`Failed to rename conversation: ${error}`)
+    }
   }
 
-  async getConversation(_conversationId: string): Promise<CONVERSATION> {
-    throw new Error('Method not implemented - will be implemented in future tasks')
+  /**
+   * Retrieves a conversation by ID
+   * Supports requirements 5.1 and 6.2 for conversation management
+   */
+  async getConversation(conversationId: string): Promise<CONVERSATION> {
+    if (!this.isConnected()) {
+      throw new Error('Database not connected')
+    }
+
+    try {
+      const result = await this.db.query(
+        `SELECT conv_id as id, title, created_at, updated_at, is_pinned, is_new, settings
+         FROM conversations 
+         WHERE conv_id = $1`,
+        [conversationId]
+      )
+
+      if (result.rows.length === 0) {
+        throw new Error(`Conversation ${conversationId} not found`)
+      }
+
+      const row = result.rows[0] as any
+      let settings: CONVERSATION_SETTINGS
+
+      try {
+        settings = typeof row.settings === 'string' ? JSON.parse(row.settings) : row.settings
+      } catch (error) {
+        console.warn(`[PGlite] Failed to parse settings for conversation ${conversationId}:`, error)
+        // Fallback to default settings
+        settings = {
+          systemPrompt: '',
+          temperature: 0.7,
+          contextLength: 4000,
+          maxTokens: 2000,
+          providerId: 'openai',
+          modelId: 'gpt-4',
+          artifacts: 0
+        }
+      }
+
+      return {
+        id: row.id,
+        title: row.title,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at,
+        is_pinned: row.is_pinned,
+        is_new: row.is_new,
+        settings
+      }
+    } catch (error) {
+      console.error('[PGlite] Failed to get conversation:', error)
+      throw new Error(`Failed to get conversation: ${error}`)
+    }
   }
 
-  async updateConversation(_conversationId: string, _data: Partial<CONVERSATION>): Promise<void> {
-    throw new Error('Method not implemented - will be implemented in future tasks')
+  /**
+   * Updates a conversation with partial data
+   * Supports requirements 5.1 and 6.2 for conversation management
+   */
+  async updateConversation(conversationId: string, data: Partial<CONVERSATION>): Promise<void> {
+    if (!this.isConnected()) {
+      throw new Error('Database not connected')
+    }
+
+    try {
+      const updates: string[] = []
+      const params: any[] = []
+      let paramIndex = 1
+
+      if (data.title !== undefined) {
+        updates.push(`title = $${paramIndex++}`)
+        params.push(data.title)
+      }
+
+      if (data.is_new !== undefined) {
+        updates.push(`is_new = $${paramIndex++}`)
+        params.push(data.is_new)
+      }
+
+      if (data.is_pinned !== undefined) {
+        updates.push(`is_pinned = $${paramIndex++}`)
+        params.push(data.is_pinned)
+      }
+
+      if (data.settings !== undefined) {
+        // Get current conversation to merge settings
+        const current = await this.getConversation(conversationId)
+        const mergedSettings = { ...current.settings, ...data.settings }
+        updates.push(`settings = $${paramIndex++}`)
+        params.push(JSON.stringify(mergedSettings))
+      }
+
+      if (updates.length > 0) {
+        updates.push(`updated_at = $${paramIndex++}`)
+        params.push(data.updatedAt || Date.now())
+
+        params.push(conversationId) // Add conversationId as the last parameter
+
+        const query = `UPDATE conversations SET ${updates.join(', ')} WHERE conv_id = $${paramIndex}`
+        const result = await this.db.query(query, params)
+
+        if (result.affectedRows === 0) {
+          throw new Error(`Conversation ${conversationId} not found`)
+        }
+
+        console.log(`[PGlite] Updated conversation: ${conversationId}`)
+      }
+    } catch (error) {
+      console.error('[PGlite] Failed to update conversation:', error)
+      throw new Error(`Failed to update conversation: ${error}`)
+    }
   }
 
+  /**
+   * Retrieves a paginated list of conversations
+   * Supports requirements 5.1 and 6.2 for conversation management
+   */
   async getConversationList(
-    _page: number,
-    _pageSize: number
+    page: number,
+    pageSize: number
   ): Promise<{ total: number; list: CONVERSATION[] }> {
-    throw new Error('Method not implemented - will be implemented in future tasks')
+    if (!this.isConnected()) {
+      throw new Error('Database not connected')
+    }
+
+    try {
+      const offset = (page - 1) * pageSize
+
+      // Get total count
+      const countResult = await this.db.query('SELECT COUNT(*) as count FROM conversations')
+      const total = (countResult.rows[0] as any).count
+
+      // Get paginated results
+      const result = await this.db.query(
+        `SELECT conv_id as id, title, created_at, updated_at, is_pinned, is_new, settings
+         FROM conversations 
+         ORDER BY updated_at DESC 
+         LIMIT $1 OFFSET $2`,
+        [pageSize, offset]
+      )
+
+      const list: CONVERSATION[] = result.rows.map((row: any) => {
+        let settings: CONVERSATION_SETTINGS
+
+        try {
+          settings = typeof row.settings === 'string' ? JSON.parse(row.settings) : row.settings
+        } catch (error) {
+          console.warn(`[PGlite] Failed to parse settings for conversation ${row.id}:`, error)
+          // Fallback to default settings
+          settings = {
+            systemPrompt: '',
+            temperature: 0.7,
+            contextLength: 4000,
+            maxTokens: 2000,
+            providerId: 'openai',
+            modelId: 'gpt-4',
+            artifacts: 0
+          }
+        }
+
+        return {
+          id: row.id,
+          title: row.title,
+          createdAt: row.created_at,
+          updatedAt: row.updated_at,
+          is_pinned: row.is_pinned,
+          is_new: row.is_new,
+          settings
+        }
+      })
+
+      return { total, list }
+    } catch (error) {
+      console.error('[PGlite] Failed to get conversation list:', error)
+      throw new Error(`Failed to get conversation list: ${error}`)
+    }
   }
 
+  /**
+   * Gets the total count of conversations
+   * Supports requirements 5.1 and 6.2 for conversation management
+   */
   async getConversationCount(): Promise<number> {
-    throw new Error('Method not implemented - will be implemented in future tasks')
+    if (!this.isConnected()) {
+      throw new Error('Database not connected')
+    }
+
+    try {
+      const result = await this.db.query('SELECT COUNT(*) as count FROM conversations')
+      return (result.rows[0] as any).count
+    } catch (error) {
+      console.error('[PGlite] Failed to get conversation count:', error)
+      throw new Error(`Failed to get conversation count: ${error}`)
+    }
   }
 
+  // ==================== Message Operations and Relationships ====================
+  // Task 4.2: Migrate message operations and relationships
+
+  /**
+   * Inserts a new message into the database
+   * Supports requirements 5.1 and 6.2 for message operations
+   */
   async insertMessage(
-    _conversationId: string,
-    _content: string,
-    _role: string,
-    _parentId: string,
-    _metadata: string,
-    _orderSeq: number,
-    _tokenCount: number,
-    _status: string,
-    _isContextEdge: number,
-    _isVariant: number
+    conversationId: string,
+    content: string,
+    role: string,
+    parentId: string,
+    metadata: string = '{}',
+    orderSeq: number = 0,
+    tokenCount: number = 0,
+    status: string = 'pending',
+    isContextEdge: number = 0,
+    isVariant: number = 0
   ): Promise<string> {
-    throw new Error('Method not implemented - will be implemented in future tasks')
+    if (!this.isConnected()) {
+      throw new Error('Database not connected')
+    }
+
+    try {
+      const messageId = nanoid()
+      const now = Date.now()
+
+      const query = `
+        INSERT INTO messages (
+          msg_id, conversation_id, parent_id, content, role, created_at,
+          order_seq, token_count, status, metadata, is_context_edge, is_variant
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+      `
+
+      await this.db.query(query, [
+        messageId,
+        conversationId,
+        parentId,
+        content,
+        role,
+        now,
+        orderSeq,
+        tokenCount,
+        status,
+        metadata,
+        isContextEdge,
+        isVariant
+      ])
+
+      console.log(`[PGlite] Inserted message: ${messageId}`)
+      return messageId
+    } catch (error) {
+      console.error('[PGlite] Failed to insert message:', error)
+      throw new Error(`Failed to insert message: ${error}`)
+    }
   }
 
-  async queryMessages(_conversationId: string): Promise<Array<SQLITE_MESSAGE>> {
-    throw new Error('Method not implemented - will be implemented in future tasks')
-  }
-
-  async deleteAllMessages(): Promise<void> {
-    throw new Error('Method not implemented - will be implemented in future tasks')
-  }
-
-  async getMessage(_messageId: string): Promise<SQLITE_MESSAGE | null> {
-    throw new Error('Method not implemented - will be implemented in future tasks')
-  }
-
-  async getMessageVariants(_messageId: string): Promise<SQLITE_MESSAGE[]> {
-    throw new Error('Method not implemented - will be implemented in future tasks')
-  }
-
+  /**
+   * Updates an existing message with partial data
+   * Supports requirements 5.1 and 6.2 for message operations
+   */
   async updateMessage(
-    _messageId: string,
-    _data: {
+    messageId: string,
+    data: {
       content?: string
       status?: string
       metadata?: string
@@ -990,42 +1315,645 @@ export class PGlitePresenter implements IPGlitePresenter {
       tokenCount?: number
     }
   ): Promise<void> {
-    throw new Error('Method not implemented - will be implemented in future tasks')
+    if (!this.isConnected()) {
+      throw new Error('Database not connected')
+    }
+
+    try {
+      const updates: string[] = []
+      const params: any[] = []
+      let paramIndex = 1
+
+      if (data.content !== undefined) {
+        updates.push(`content = $${paramIndex++}`)
+        params.push(data.content)
+      }
+
+      if (data.status !== undefined) {
+        updates.push(`status = $${paramIndex++}`)
+        params.push(data.status)
+      }
+
+      if (data.metadata !== undefined) {
+        updates.push(`metadata = $${paramIndex++}`)
+        params.push(data.metadata)
+      }
+
+      if (data.isContextEdge !== undefined) {
+        updates.push(`is_context_edge = $${paramIndex++}`)
+        params.push(data.isContextEdge)
+      }
+
+      if (data.tokenCount !== undefined) {
+        updates.push(`token_count = $${paramIndex++}`)
+        params.push(data.tokenCount)
+      }
+
+      if (updates.length > 0) {
+        params.push(messageId) // Add messageId as the last parameter
+
+        const query = `UPDATE messages SET ${updates.join(', ')} WHERE msg_id = $${paramIndex}`
+        const result = await this.db.query(query, params)
+
+        if (result.affectedRows === 0) {
+          throw new Error(`Message ${messageId} not found`)
+        }
+
+        console.log(`[PGlite] Updated message: ${messageId}`)
+      }
+    } catch (error) {
+      console.error('[PGlite] Failed to update message:', error)
+      throw new Error(`Failed to update message: ${error}`)
+    }
   }
 
-  async deleteMessage(_messageId: string): Promise<void> {
-    throw new Error('Method not implemented - will be implemented in future tasks')
+  /**
+   * Deletes a message and its attachments
+   * Supports requirements 5.1 and 6.2 for message operations
+   */
+  async deleteMessage(messageId: string): Promise<void> {
+    if (!this.isConnected()) {
+      throw new Error('Database not connected')
+    }
+
+    try {
+      await this.runTransaction(async () => {
+        // Delete message attachments first
+        await this.db.query('DELETE FROM message_attachments WHERE message_id = $1', [messageId])
+
+        // Delete the message
+        const result = await this.db.query('DELETE FROM messages WHERE msg_id = $1', [messageId])
+
+        if (result.affectedRows === 0) {
+          throw new Error(`Message ${messageId} not found`)
+        }
+      })
+
+      console.log(`[PGlite] Deleted message: ${messageId}`)
+    } catch (error) {
+      console.error('[PGlite] Failed to delete message:', error)
+      throw new Error(`Failed to delete message: ${error}`)
+    }
   }
 
-  async getMaxOrderSeq(_conversationId: string): Promise<number> {
-    throw new Error('Method not implemented - will be implemented in future tasks')
+  /**
+   * Queries all messages for a conversation with variant handling
+   * Supports requirements 5.1 and 6.2 for message operations and parent-child relationships
+   */
+  async queryMessages(conversationId: string): Promise<Array<SQLITE_MESSAGE>> {
+    if (!this.isConnected()) {
+      throw new Error('Database not connected')
+    }
+
+    try {
+      // First get all non-variant messages
+      const mainMessagesResult = await this.db.query(
+        `SELECT 
+           msg_id as id, conversation_id, parent_id, content, role, created_at, 
+           order_seq, token_count, status, metadata, is_context_edge, is_variant
+         FROM messages 
+         WHERE conversation_id = $1 AND is_variant != 1
+         ORDER BY created_at ASC, order_seq ASC`,
+        [conversationId]
+      )
+
+      const mainMessages = mainMessagesResult.rows as SQLITE_MESSAGE[]
+
+      // For each assistant message, get its variants
+      const messagesWithVariants = await Promise.all(
+        mainMessages.map(async (msg) => {
+          if (msg.role === 'assistant' && msg.parent_id !== '') {
+            const variantsResult = await this.db.query(
+              `SELECT 
+                 msg_id as id, conversation_id, parent_id, content, role, created_at,
+                 order_seq, token_count, status, metadata, is_context_edge, is_variant
+               FROM messages 
+               WHERE parent_id = $1 AND is_variant = 1
+               ORDER BY created_at ASC`,
+              [msg.parent_id]
+            )
+
+            const variants = variantsResult.rows as SQLITE_MESSAGE[]
+            if (variants.length > 0) {
+              return { ...msg, variants }
+            }
+          }
+          return msg
+        })
+      )
+
+      return messagesWithVariants
+    } catch (error) {
+      console.error('[PGlite] Failed to query messages:', error)
+      throw new Error(`Failed to query messages: ${error}`)
+    }
   }
 
-  async addMessageAttachment(
-    _messageId: string,
-    _attachmentType: string,
-    _attachmentData: string
-  ): Promise<void> {
-    throw new Error('Method not implemented - will be implemented in future tasks')
+  /**
+   * Gets a single message by ID
+   * Supports requirements 5.1 and 6.2 for message operations
+   */
+  async getMessage(messageId: string): Promise<SQLITE_MESSAGE | null> {
+    if (!this.isConnected()) {
+      throw new Error('Database not connected')
+    }
+
+    try {
+      const result = await this.db.query(
+        `SELECT 
+           msg_id as id, conversation_id, parent_id, content, role, created_at,
+           order_seq, token_count, status, metadata, is_context_edge, is_variant
+         FROM messages 
+         WHERE msg_id = $1`,
+        [messageId]
+      )
+
+      return result.rows.length > 0 ? (result.rows[0] as SQLITE_MESSAGE) : null
+    } catch (error) {
+      console.error('[PGlite] Failed to get message:', error)
+      throw new Error(`Failed to get message: ${error}`)
+    }
   }
 
-  async getMessageAttachments(_messageId: string, _type: string): Promise<{ content: string }[]> {
-    throw new Error('Method not implemented - will be implemented in future tasks')
+  /**
+   * Gets message variants for a given message
+   * Supports requirements 5.1 and 6.2 for message variant handling
+   */
+  async getMessageVariants(messageId: string): Promise<SQLITE_MESSAGE[]> {
+    if (!this.isConnected()) {
+      throw new Error('Database not connected')
+    }
+
+    try {
+      const result = await this.db.query(
+        `SELECT 
+           msg_id as id, conversation_id, parent_id, content, role, created_at,
+           order_seq, token_count, status, metadata, is_context_edge, is_variant
+         FROM messages 
+         WHERE parent_id = $1
+         ORDER BY created_at ASC`,
+        [messageId]
+      )
+
+      return result.rows as SQLITE_MESSAGE[]
+    } catch (error) {
+      console.error('[PGlite] Failed to get message variants:', error)
+      throw new Error(`Failed to get message variants: ${error}`)
+    }
   }
 
-  async getLastUserMessage(_conversationId: string): Promise<SQLITE_MESSAGE | null> {
-    throw new Error('Method not implemented - will be implemented in future tasks')
+  /**
+   * Gets the maximum order sequence for a conversation
+   * Supports requirements 5.1 and 6.2 for message ordering
+   */
+  async getMaxOrderSeq(conversationId: string): Promise<number> {
+    if (!this.isConnected()) {
+      throw new Error('Database not connected')
+    }
+
+    try {
+      const result = await this.db.query(
+        'SELECT MAX(order_seq) as max_seq FROM messages WHERE conversation_id = $1',
+        [conversationId]
+      )
+
+      return (result.rows[0] as any)?.max_seq || 0
+    } catch (error) {
+      console.error('[PGlite] Failed to get max order sequence:', error)
+      throw new Error(`Failed to get max order sequence: ${error}`)
+    }
   }
 
+  /**
+   * Gets the last user message in a conversation
+   * Supports requirements 5.1 and 6.2 for message operations
+   */
+  async getLastUserMessage(conversationId: string): Promise<SQLITE_MESSAGE | null> {
+    if (!this.isConnected()) {
+      throw new Error('Database not connected')
+    }
+
+    try {
+      const result = await this.db.query(
+        `SELECT 
+           msg_id as id, conversation_id, parent_id, content, role, created_at,
+           order_seq, token_count, status, metadata, is_context_edge, is_variant
+         FROM messages 
+         WHERE conversation_id = $1 AND role = 'user'
+         ORDER BY created_at DESC 
+         LIMIT 1`,
+        [conversationId]
+      )
+
+      return result.rows.length > 0 ? (result.rows[0] as SQLITE_MESSAGE) : null
+    } catch (error) {
+      console.error('[PGlite] Failed to get last user message:', error)
+      throw new Error(`Failed to get last user message: ${error}`)
+    }
+  }
+
+  /**
+   * Gets the main message by parent ID with variants
+   * Supports requirements 5.1 and 6.2 for parent-child relationship management
+   */
   async getMainMessageByParentId(
-    _conversationId: string,
-    _parentId: string
+    conversationId: string,
+    parentId: string
   ): Promise<SQLITE_MESSAGE | null> {
-    throw new Error('Method not implemented - will be implemented in future tasks')
+    if (!this.isConnected()) {
+      throw new Error('Database not connected')
+    }
+
+    try {
+      // Get the main message (non-variant)
+      const mainResult = await this.db.query(
+        `SELECT 
+           msg_id as id, conversation_id, parent_id, content, role, created_at,
+           order_seq, token_count, status, metadata, is_context_edge, is_variant
+         FROM messages 
+         WHERE conversation_id = $1 AND parent_id = $2 AND is_variant = 0
+         ORDER BY created_at ASC 
+         LIMIT 1`,
+        [conversationId, parentId]
+      )
+
+      if (mainResult.rows.length === 0) {
+        return null
+      }
+
+      const mainMessage = mainResult.rows[0] as SQLITE_MESSAGE
+
+      // Get variants for this message
+      const variantsResult = await this.db.query(
+        `SELECT 
+           msg_id as id, conversation_id, parent_id, content, role, created_at,
+           order_seq, token_count, status, metadata, is_context_edge, is_variant
+         FROM messages 
+         WHERE conversation_id = $1 AND parent_id = $2 AND is_variant = 1
+         ORDER BY created_at ASC`,
+        [conversationId, parentId]
+      )
+
+      const variants = variantsResult.rows as SQLITE_MESSAGE[]
+      if (variants.length > 0) {
+        mainMessage.variants = variants
+      }
+
+      return mainMessage
+    } catch (error) {
+      console.error('[PGlite] Failed to get main message by parent ID:', error)
+      throw new Error(`Failed to get main message by parent ID: ${error}`)
+    }
   }
 
-  async deleteAllMessagesInConversation(_conversationId: string): Promise<void> {
-    throw new Error('Method not implemented - will be implemented in future tasks')
+  /**
+   * Deletes all messages (for cleanup operations)
+   * Supports requirements 5.1 and 6.2 for message operations
+   */
+  async deleteAllMessages(): Promise<void> {
+    if (!this.isConnected()) {
+      throw new Error('Database not connected')
+    }
+
+    try {
+      await this.runTransaction(async () => {
+        // Delete all message attachments first
+        await this.db.query('DELETE FROM message_attachments')
+
+        // Delete all messages
+        await this.db.query('DELETE FROM messages')
+      })
+
+      console.log('[PGlite] Deleted all messages')
+    } catch (error) {
+      console.error('[PGlite] Failed to delete all messages:', error)
+      throw new Error(`Failed to delete all messages: ${error}`)
+    }
+  }
+
+  /**
+   * Deletes all messages in a specific conversation
+   * Supports requirements 5.1 and 6.2 for message operations
+   */
+  async deleteAllMessagesInConversation(conversationId: string): Promise<void> {
+    if (!this.isConnected()) {
+      throw new Error('Database not connected')
+    }
+
+    try {
+      await this.runTransaction(async () => {
+        // Delete message attachments for this conversation
+        await this.db.query(
+          `DELETE FROM message_attachments 
+           WHERE message_id IN (
+             SELECT msg_id FROM messages WHERE conversation_id = $1
+           )`,
+          [conversationId]
+        )
+
+        // Delete messages for this conversation
+        await this.db.query('DELETE FROM messages WHERE conversation_id = $1', [conversationId])
+      })
+
+      console.log(`[PGlite] Deleted all messages in conversation: ${conversationId}`)
+    } catch (error) {
+      console.error('[PGlite] Failed to delete all messages in conversation:', error)
+      throw new Error(`Failed to delete all messages in conversation: ${error}`)
+    }
+  }
+
+  // ==================== Message Attachment and Metadata Handling ====================
+  // Task 4.3: Add message attachment and metadata handling
+
+  /**
+   * Adds an attachment to a message
+   * Supports requirements 5.1 and 5.5 for message attachment operations and JSONB metadata storage
+   */
+  async addMessageAttachment(
+    messageId: string,
+    attachmentType: string,
+    attachmentData: string
+  ): Promise<void> {
+    if (!this.isConnected()) {
+      throw new Error('Database not connected')
+    }
+
+    try {
+      const now = Date.now()
+
+      const query = `
+        INSERT INTO message_attachments (message_id, attachment_type, attachment_data, created_at)
+        VALUES ($1, $2, $3, $4)
+      `
+
+      await this.db.query(query, [messageId, attachmentType, attachmentData, now])
+
+      console.log(`[PGlite] Added attachment to message: ${messageId}`)
+    } catch (error) {
+      console.error('[PGlite] Failed to add message attachment:', error)
+      throw new Error(`Failed to add message attachment: ${error}`)
+    }
+  }
+
+  /**
+   * Gets attachments for a message by type
+   * Supports requirements 5.1 and 5.5 for message attachment operations
+   */
+  async getMessageAttachments(messageId: string, type: string): Promise<{ content: string }[]> {
+    if (!this.isConnected()) {
+      throw new Error('Database not connected')
+    }
+
+    try {
+      const result = await this.db.query(
+        `SELECT attachment_data as content 
+         FROM message_attachments 
+         WHERE message_id = $1 AND attachment_type = $2
+         ORDER BY created_at ASC`,
+        [messageId, type]
+      )
+
+      return result.rows as { content: string }[]
+    } catch (error) {
+      console.error('[PGlite] Failed to get message attachments:', error)
+      throw new Error(`Failed to get message attachments: ${error}`)
+    }
+  }
+
+  /**
+   * Gets all attachments for a message (all types)
+   * Supports requirements 5.1 and 5.5 for comprehensive attachment retrieval
+   */
+  async getAllMessageAttachments(messageId: string): Promise<
+    Array<{
+      id: number
+      type: string
+      content: string
+      createdAt: number
+    }>
+  > {
+    if (!this.isConnected()) {
+      throw new Error('Database not connected')
+    }
+
+    try {
+      const result = await this.db.query(
+        `SELECT id, attachment_type as type, attachment_data as content, created_at
+         FROM message_attachments 
+         WHERE message_id = $1
+         ORDER BY created_at ASC`,
+        [messageId]
+      )
+
+      return result.rows as Array<{
+        id: number
+        type: string
+        content: string
+        createdAt: number
+      }>
+    } catch (error) {
+      console.error('[PGlite] Failed to get all message attachments:', error)
+      throw new Error(`Failed to get all message attachments: ${error}`)
+    }
+  }
+
+  /**
+   * Deletes a specific attachment by ID
+   * Supports requirements 5.1 and 5.5 for attachment management
+   */
+  async deleteMessageAttachment(attachmentId: number): Promise<void> {
+    if (!this.isConnected()) {
+      throw new Error('Database not connected')
+    }
+
+    try {
+      const result = await this.db.query('DELETE FROM message_attachments WHERE id = $1', [
+        attachmentId
+      ])
+
+      if (result.affectedRows === 0) {
+        throw new Error(`Attachment ${attachmentId} not found`)
+      }
+
+      console.log(`[PGlite] Deleted attachment: ${attachmentId}`)
+    } catch (error) {
+      console.error('[PGlite] Failed to delete message attachment:', error)
+      throw new Error(`Failed to delete message attachment: ${error}`)
+    }
+  }
+
+  /**
+   * Deletes all attachments for a message
+   * Supports requirements 5.1 and 5.5 for attachment cleanup
+   */
+  async deleteAllMessageAttachments(messageId: string): Promise<void> {
+    if (!this.isConnected()) {
+      throw new Error('Database not connected')
+    }
+
+    try {
+      await this.db.query('DELETE FROM message_attachments WHERE message_id = $1', [messageId])
+
+      console.log(`[PGlite] Deleted all attachments for message: ${messageId}`)
+    } catch (error) {
+      console.error('[PGlite] Failed to delete all message attachments:', error)
+      throw new Error(`Failed to delete all message attachments: ${error}`)
+    }
+  }
+
+  /**
+   * Updates message metadata with JSONB support
+   * Supports requirements 5.1 and 5.5 for JSONB metadata storage and querying
+   */
+  async updateMessageMetadata(messageId: string, metadata: Record<string, any>): Promise<void> {
+    if (!this.isConnected()) {
+      throw new Error('Database not connected')
+    }
+
+    try {
+      // Convert metadata to JSON string for compatibility with existing interface
+      const metadataJson = JSON.stringify(metadata)
+
+      const result = await this.db.query('UPDATE messages SET metadata = $1 WHERE msg_id = $2', [
+        metadataJson,
+        messageId
+      ])
+
+      if (result.affectedRows === 0) {
+        throw new Error(`Message ${messageId} not found`)
+      }
+
+      console.log(`[PGlite] Updated metadata for message: ${messageId}`)
+    } catch (error) {
+      console.error('[PGlite] Failed to update message metadata:', error)
+      throw new Error(`Failed to update message metadata: ${error}`)
+    }
+  }
+
+  /**
+   * Queries messages by metadata criteria using JSONB operations
+   * Supports requirements 5.1 and 5.5 for JSONB metadata querying
+   */
+  async queryMessagesByMetadata(
+    conversationId: string,
+    metadataQuery: Record<string, any>
+  ): Promise<SQLITE_MESSAGE[]> {
+    if (!this.isConnected()) {
+      throw new Error('Database not connected')
+    }
+
+    try {
+      // For PostgreSQL JSONB queries, we can use the @> operator for containment
+      // However, since we're storing as TEXT for compatibility, we'll use a simple JSON search
+      const metadataJson = JSON.stringify(metadataQuery)
+
+      const result = await this.db.query(
+        `SELECT 
+           msg_id as id, conversation_id, parent_id, content, role, created_at,
+           order_seq, token_count, status, metadata, is_context_edge, is_variant
+         FROM messages 
+         WHERE conversation_id = $1 AND metadata::jsonb @> $2::jsonb
+         ORDER BY created_at ASC`,
+        [conversationId, metadataJson]
+      )
+
+      return result.rows as SQLITE_MESSAGE[]
+    } catch (error) {
+      // Fallback to text-based search if JSONB operations fail
+      console.warn('[PGlite] JSONB query failed, falling back to text search:', error)
+
+      try {
+        // Simple text-based search as fallback
+        const searchTerms = Object.entries(metadataQuery).map(([key, value]) => {
+          return `"${key}":"${value}"`
+        })
+
+        let query = `SELECT 
+           msg_id as id, conversation_id, parent_id, content, role, created_at,
+           order_seq, token_count, status, metadata, is_context_edge, is_variant
+         FROM messages 
+         WHERE conversation_id = $1`
+
+        const params: any[] = [conversationId]
+
+        searchTerms.forEach((term, index) => {
+          query += ` AND metadata LIKE $${index + 2}`
+          params.push(`%${term}%`)
+        })
+
+        query += ' ORDER BY created_at ASC'
+
+        const fallbackResult = await this.db.query(query, params)
+        return fallbackResult.rows as SQLITE_MESSAGE[]
+      } catch (fallbackError) {
+        console.error('[PGlite] Failed to query messages by metadata:', fallbackError)
+        throw new Error(`Failed to query messages by metadata: ${fallbackError}`)
+      }
+    }
+  }
+
+  /**
+   * Gets message metadata as a parsed object
+   * Supports requirements 5.1 and 5.5 for metadata retrieval
+   */
+  async getMessageMetadata(messageId: string): Promise<Record<string, any> | null> {
+    if (!this.isConnected()) {
+      throw new Error('Database not connected')
+    }
+
+    try {
+      const result = await this.db.query('SELECT metadata FROM messages WHERE msg_id = $1', [
+        messageId
+      ])
+
+      if (result.rows.length === 0) {
+        return null
+      }
+
+      const metadataString = (result.rows[0] as any).metadata
+      if (!metadataString) {
+        return {}
+      }
+
+      try {
+        return JSON.parse(metadataString)
+      } catch (parseError) {
+        console.warn(`[PGlite] Failed to parse metadata for message ${messageId}:`, parseError)
+        return {}
+      }
+    } catch (error) {
+      console.error('[PGlite] Failed to get message metadata:', error)
+      throw new Error(`Failed to get message metadata: ${error}`)
+    }
+  }
+
+  /**
+   * Merges additional metadata into existing message metadata
+   * Supports requirements 5.1 and 5.5 for metadata management
+   */
+  async mergeMessageMetadata(
+    messageId: string,
+    additionalMetadata: Record<string, any>
+  ): Promise<void> {
+    if (!this.isConnected()) {
+      throw new Error('Database not connected')
+    }
+
+    try {
+      // Get existing metadata
+      const existingMetadata = (await this.getMessageMetadata(messageId)) || {}
+
+      // Merge with additional metadata
+      const mergedMetadata = { ...existingMetadata, ...additionalMetadata }
+
+      // Update the message
+      await this.updateMessageMetadata(messageId, mergedMetadata)
+
+      console.log(`[PGlite] Merged metadata for message: ${messageId}`)
+    } catch (error) {
+      console.error('[PGlite] Failed to merge message metadata:', error)
+      throw new Error(`Failed to merge message metadata: ${error}`)
+    }
   }
 
   // ==================== IVectorDatabasePresenter Methods ====================

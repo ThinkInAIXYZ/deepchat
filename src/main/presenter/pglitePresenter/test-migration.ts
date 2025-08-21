@@ -20,8 +20,11 @@ export async function testMigrationSystem(): Promise<boolean> {
     console.log('[Migration Test] ✓ Schema manager initialized')
 
     // Test 2: Migration Engine initialization
-    const _migrationEngine = new PGliteMigrationEngine(1536)
-    console.log('[Migration Test] ✓ Migration engine initialized')
+    const migrationEngine = new PGliteMigrationEngine(1536)
+    console.log(
+      '[Migration Test] ✓ Migration engine initialized:',
+      migrationEngine.constructor.name
+    )
 
     // Test 3: Data Validator initialization
     const dataValidator = new PGliteDataValidator()
@@ -128,7 +131,11 @@ export function testMigrationEngine(): boolean {
   try {
     console.log('[Migration Engine Test] Testing migration engine components')
 
-    const _migrationEngine = new PGliteMigrationEngine(1536)
+    const migrationEngine = new PGliteMigrationEngine(1536)
+    console.log(
+      '[Migration Engine Test] ✓ Migration engine created:',
+      migrationEngine.constructor.name
+    )
 
     // Test migration definitions
     const migrations = PGliteSchemaManager.getMigrations()

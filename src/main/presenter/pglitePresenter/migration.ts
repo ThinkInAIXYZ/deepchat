@@ -35,7 +35,8 @@ export interface MigrationPlan {
  * Handles migration execution with rollback support and error recovery
  */
 export class PGliteMigrationEngine {
-  private static readonly MIGRATION_TIMEOUT = 300000 // 5 minutes default
+  // Migration timeout constant (currently unused but kept for future use)
+  // private static readonly MIGRATION_TIMEOUT = 300000 // 5 minutes default
   private static readonly SCHEMA_VERSION_TABLE = 'schema_versions'
   private static readonly MIGRATION_METADATA_TABLE = 'migration_metadata'
 
