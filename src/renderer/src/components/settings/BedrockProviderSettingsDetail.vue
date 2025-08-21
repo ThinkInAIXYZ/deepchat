@@ -6,36 +6,64 @@
           <Label :for="`${provider.id}-accessKeyId`" class="flex-1 cursor-pointer"
             >AWS Access Key Id</Label
           >
-          <Input
-            :id="`${provider.id}-accessKeyId`"
-            :model-value="accessKeyId"
-            type="password"
-            :placeholder="t('settings.provider.urlPlaceholder')"
-            @blur="handleAccessKeyIdChange(String($event.target.value))"
-            @keyup.enter="handleAccessKeyIdChange(accessKeyId)"
-            @update:model-value="accessKeyId = String($event)"
-          />
+          <div class="relative w-full">
+            <Input
+              :id="`${provider.id}-accessKeyId`"
+              :model-value="accessKeyId"
+              :type="showAccessKeyId ? 'text' : 'password'"
+              :placeholder="t('settings.provider.accessKeyIdPlaceholder')"
+              style="padding-right: 2.5rem !important"
+              @blur="handleAccessKeyIdChange(String($event.target.value))"
+              @keyup.enter="handleAccessKeyIdChange(accessKeyId)"
+              @update:model-value="accessKeyId = String($event)"
+            />
+            <Button
+              variant="ghost"
+              size="sm"
+              class="absolute right-2 top-1/2 transform -translate-y-1/2 h-7 w-7 p-0 hover:bg-transparent"
+              @click="showAccessKeyId = !showAccessKeyId"
+            >
+              <Icon
+                :icon="showAccessKeyId ? 'lucide:eye-off' : 'lucide:eye'"
+                class="w-4 h-4 text-muted-foreground hover:text-foreground"
+              />
+            </Button>
+          </div>
         </div>
         <div class="flex flex-col items-start gap-2">
           <Label :for="`${provider.id}-secretAccessKey`" class="flex-1 cursor-pointer"
             >AWS Secret Access Key</Label
           >
-          <Input
-            :id="`${provider.id}-secretAccessKey`"
-            :model-value="secretAccessKey"
-            type="password"
-            :placeholder="t('settings.provider.urlPlaceholder')"
-            @blur="handleSecretAccessKeyChange(String($event.target.value))"
-            @keyup.enter="handleSecretAccessKeyChange(secretAccessKey)"
-            @update:model-value="secretAccessKey = String($event)"
-          />
+          <div class="relative w-full">
+            <Input
+              :id="`${provider.id}-secretAccessKey`"
+              :model-value="secretAccessKey"
+              :type="showSecretAccessKey ? 'text' : 'password'"
+              :placeholder="t('settings.provider.secretAccessKeyPlaceholder')"
+              style="padding-right: 2.5rem !important"
+              @blur="handleSecretAccessKeyChange(String($event.target.value))"
+              @keyup.enter="handleSecretAccessKeyChange(secretAccessKey)"
+              @update:model-value="secretAccessKey = String($event)"
+            />
+            <Button
+              variant="ghost"
+              size="sm"
+              class="absolute right-2 top-1/2 transform -translate-y-1/2 h-7 w-7 p-0 hover:bg-transparent"
+              @click="showSecretAccessKey = !showSecretAccessKey"
+            >
+              <Icon
+                :icon="showSecretAccessKey ? 'lucide:eye-off' : 'lucide:eye'"
+                class="w-4 h-4 text-muted-foreground hover:text-foreground"
+              />
+            </Button>
+          </div>
         </div>
         <div class="flex flex-col items-start gap-2">
           <Label :for="`${provider.id}-region`" class="flex-1 cursor-pointer">AWS Region</Label>
           <Input
             :id="`${provider.id}-region`"
             :model-value="region"
-            :placeholder="t('settings.provider.urlPlaceholder')"
+            :placeholder="t('settings.provider.regionPlaceholder')"
             @blur="handleRegionChange(String($event.target.value))"
             @keyup.enter="handleRegionChange(region)"
             @update:model-value="region = String($event)"
@@ -130,6 +158,8 @@ const settingsStore = useSettingsStore()
 const accessKeyId = ref(props.provider.credential?.accessKeyId || '')
 const secretAccessKey = ref(props.provider.credential?.secretAccessKey || '')
 const region = ref(props.provider.credential?.region || '')
+const showAccessKeyId = ref(false)
+const showSecretAccessKey = ref(false)
 const providerModels = ref<RENDERER_MODEL_META[]>([])
 const checkResult = ref<boolean>(false)
 const modelToDisable = ref<RENDERER_MODEL_META | null>(null)
