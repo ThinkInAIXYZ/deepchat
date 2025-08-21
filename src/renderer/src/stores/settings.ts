@@ -672,19 +672,6 @@ export const useSettingsStore = defineStore('settings', () => {
         }
       }
     )
-    // 监听配置中的模型列表变更事件
-    window.electron.ipcRenderer.on(
-      CONFIG_EVENTS.MODEL_LIST_CHANGED,
-      async (_event, providerId: string) => {
-        // 只刷新指定的provider模型，而不是所有模型
-        if (providerId) {
-          await refreshProviderModels(providerId)
-        } else {
-          // 兼容旧代码，如果没有提供providerId，则刷新所有模型
-          await refreshAllModels()
-        }
-      }
-    )
 
     // 处理模型启用状态变更事件
     window.electron.ipcRenderer.on(
@@ -757,6 +744,10 @@ export const useSettingsStore = defineStore('settings', () => {
         models[modelIndex].enabled = enabled
       }
     }
+
+    // 强制触发响应式更新
+    enabledModels.value = [...enabledModels.value]
+    console.log('enabledModels updated:', enabledModels.value)
   }
 
   // 更新模型状态

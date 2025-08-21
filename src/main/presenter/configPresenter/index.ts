@@ -378,13 +378,11 @@ export class ConfigPresenter implements IConfigPresenter {
     this.modelStatusCache.set(statusKey, enabled)
 
     // 触发模型状态变更事件（需要通知所有标签页）
-    eventBus.sendToRenderer(
-      CONFIG_EVENTS.MODEL_STATUS_CHANGED,
-      SendTarget.ALL_WINDOWS,
+    eventBus.sendToRenderer(CONFIG_EVENTS.MODEL_STATUS_CHANGED, SendTarget.ALL_WINDOWS, {
       providerId,
       modelId,
       enabled
-    )
+    })
   }
 
   // 启用模型
