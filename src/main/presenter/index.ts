@@ -25,6 +25,7 @@ import { CONFIG_EVENTS, WINDOW_EVENTS } from '@/events'
 import { KnowledgePresenter } from './knowledgePresenter'
 import { MigrationPresenter } from './migrationPresenter'
 import { DatabaseOperationInterceptor } from './migrationPresenter/databaseOperationInterceptor'
+import { is } from '@electron-toolkit/utils'
 
 // IPC调用上下文接口
 interface IPCCallContext {
@@ -163,13 +164,13 @@ export class Presenter implements IPresenter {
   private async initializeMigrationSystem() {
     try {
       // Check if we're in development mode and should bypass migration
-      const isDev = process.env.NODE_ENV === 'development'
+      const isDev = is.dev
       const bypassMigration = process.env.BYPASS_MIGRATION === 'true'
 
       await this.migrationPresenter.initialize({
         bypassForTesting: isDev && bypassMigration,
         dryRun: isDev,
-        autoStart: false // Let user decide when to start migration
+        autoStart: false // Let user dec ide when to start migration
       })
 
       // Initialize database operation interceptor
