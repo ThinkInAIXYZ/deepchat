@@ -23,6 +23,17 @@ export type { SchemaMigration, MigrationResult, SchemaValidationResult } from '.
 export { PGliteMigrationEngine } from './migration'
 export type { MigrationExecutionOptions, MigrationProgress, MigrationPlan } from './migration'
 
+// Migration manager and orchestration
+export { MigrationManager, LegacyDatabaseDetector, BackupManager } from './migrationManager'
+export type {
+  LegacyDatabaseInfo,
+  DatabaseDetectionResult,
+  MigrationOptions,
+  MigrationResult as MigrationManagerResult,
+  BackupInfo,
+  BackupOptions
+} from './migrationManager'
+
 // Data validation
 export { PGliteDataValidator } from './validation'
 export type { ValidationRule, DataValidationResult, IntegrityCheckResult } from './validation'
@@ -36,3 +47,10 @@ export {
   testMigrationEngine
 } from './test-migration'
 export { runAllValidationTests, testValidationSystem, testValidationRules } from './test-validation'
+export {
+  runAllTests as runAllMigrationManagerTests,
+  testLegacyDatabaseDetector,
+  testBackupManager,
+  testMigrationManager,
+  TestDatabaseHelper
+} from './test-migration-manager'
