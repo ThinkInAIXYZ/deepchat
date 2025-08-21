@@ -30,7 +30,10 @@
         {{ t('settings.provider.modelsEnabled') }}
       </span>
     </div>
-    <div class="flex flex-col w-full border overflow-hidden rounded-lg">
+    <div
+      v-if="enabledModels.length > 0"
+      class="flex flex-col w-full border overflow-hidden rounded-lg"
+    >
       <ModelConfigItem
         v-for="model in enabledModels"
         :key="model.id"
@@ -46,6 +49,22 @@
         @enabled-change="$emit('model-enabled-change', model, $event)"
         @config-changed="$emit('config-changed')"
       />
+    </div>
+    <div
+      v-else-if="totalModelsCount > 0"
+      class="flex flex-col w-full border border-dashed border-muted-foreground/30 rounded-lg p-4"
+    >
+      <div class="flex items-center gap-3 text-muted-foreground">
+        <Icon icon="lucide:info" class="w-5 h-5 text-blue-500" />
+        <div class="flex-1">
+          <p class="text-sm font-medium">
+            {{ t('settings.provider.noModelsEnabled.title') }}
+          </p>
+          <p class="text-xs mt-1">
+            {{ t('settings.provider.noModelsEnabled.description') }}
+          </p>
+        </div>
+      </div>
     </div>
   </div>
 </template>

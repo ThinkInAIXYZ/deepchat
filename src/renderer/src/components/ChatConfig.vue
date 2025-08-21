@@ -9,6 +9,13 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { useLanguageStore } from '@/stores/language'
 import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from '@/components/ui/select'
 
 // Define props to receive config from parent
 const props = defineProps<{
@@ -21,6 +28,8 @@ const props = defineProps<{
   thinkingBudget?: number
   modelId?: string
   providerId?: string
+  reasoningEffort?: 'minimal' | 'low' | 'medium' | 'high'
+  verbosity?: 'low' | 'medium' | 'high'
 }>()
 
 const systemPrompt = defineModel<string>('systemPrompt')
@@ -30,6 +39,8 @@ const emit = defineEmits<{
   'update:contextLength': [value: number]
   'update:maxTokens': [value: number]
   'update:thinkingBudget': [value: number | undefined]
+  'update:reasoningEffort': [value: 'minimal' | 'low' | 'medium' | 'high']
+  'update:verbosity': [value: 'low' | 'medium' | 'high']
   // 'update:artifacts': [value: 0 | 1]
 }>()
 
@@ -75,7 +86,12 @@ const showThinkingBudget = computed(() => {
 
 const isGPT5Model = computed(() => {
   const modelId = props.modelId?.toLowerCase() || ''
-  return modelId.startsWith('gpt-5')
+  return modelId.includes('gpt-5')
+})
+
+// 判断模型是否支持 reasoningEffort 参数
+const supportsReasoningEffort = computed(() => {
+  return props.reasoningEffort !== undefined
 })
 
 // 当前显示的思考预算值
@@ -274,6 +290,94 @@ const handleDynamicThinkingToggle = (enabled: boolean) => {
             </p>
           </div>
         </div>
+      </div>
+
+      <!-- Reasoning Effort (推理努力程度) -->
+      <div v-if="supportsReasoningEffort" class="space-y-4 px-2">
+        <div class="flex items-center space-x-2">
+          <Icon icon="lucide:brain" class="w-4 h-4 text-muted-foreground" />
+          <Label class="text-xs font-medium">{{
+            t('settings.model.modelConfig.reasoningEffort.label')
+          }}</Label>
+          <TooltipProvider :delayDuration="200">
+            <Tooltip>
+              <TooltipTrigger>
+                <Icon icon="lucide:help-circle" class="w-4 h-4 text-muted-foreground" />
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>{{ t('settings.model.modelConfig.reasoningEffort.description') }}</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        </div>
+        <Select
+          :model-value="props.reasoningEffort"
+          @update:model-value="
+            (value) =>
+              emit('update:reasoningEffort', value as 'minimal' | 'low' | 'medium' | 'high')
+          "
+        >
+          <SelectTrigger class="text-xs">
+            <SelectValue
+              :placeholder="t('settings.model.modelConfig.reasoningEffort.placeholder')"
+            />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="minimal">{{
+              t('settings.model.modelConfig.reasoningEffort.options.minimal')
+            }}</SelectItem>
+            <SelectItem value="low">{{
+              t('settings.model.modelConfig.reasoningEffort.options.low')
+            }}</SelectItem>
+            <SelectItem value="medium">{{
+              t('settings.model.modelConfig.reasoningEffort.options.medium')
+            }}</SelectItem>
+            <SelectItem value="high">{{
+              t('settings.model.modelConfig.reasoningEffort.options.high')
+            }}</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      <!-- Verbosity (详细程度 - 仅 GPT-5 系列) -->
+      <div v-if="isGPT5Model && verbosity !== undefined" class="space-y-4 px-2">
+        <div class="flex items-center space-x-2">
+          <Icon icon="lucide:message-square-text" class="w-4 h-4 text-muted-foreground" />
+          <Label class="text-xs font-medium">{{
+            t('settings.model.modelConfig.verbosity.label')
+          }}</Label>
+          <TooltipProvider :delayDuration="200">
+            <Tooltip>
+              <TooltipTrigger>
+                <Icon icon="lucide:help-circle" class="w-4 h-4 text-muted-foreground" />
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>{{ t('settings.model.modelConfig.verbosity.description') }}</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        </div>
+        <Select
+          :model-value="props.verbosity"
+          @update:model-value="
+            (value) => emit('update:verbosity', value as 'low' | 'medium' | 'high')
+          "
+        >
+          <SelectTrigger class="text-xs">
+            <SelectValue :placeholder="t('settings.model.modelConfig.verbosity.placeholder')" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="low">{{
+              t('settings.model.modelConfig.verbosity.options.low')
+            }}</SelectItem>
+            <SelectItem value="medium">{{
+              t('settings.model.modelConfig.verbosity.options.medium')
+            }}</SelectItem>
+            <SelectItem value="high">{{
+              t('settings.model.modelConfig.verbosity.options.high')
+            }}</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
 
       <!-- Artifacts Toggle -->

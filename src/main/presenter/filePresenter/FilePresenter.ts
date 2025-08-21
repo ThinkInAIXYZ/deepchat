@@ -13,17 +13,31 @@ import { ImageFileAdapter } from './ImageFileAdapter'
 import { nanoid } from 'nanoid'
 import { DirectoryAdapter } from './DirectoryAdapter'
 import { UnsupportFileAdapter } from './UnsupportFileAdapter'
+import {
+  FileValidationService,
+  FileValidationResult,
+  IFileValidationService
+} from './FileValidationService'
 
 export class FilePresenter implements IFilePresenter {
   private userDataPath: string
   private maxFileSize: number = 1024 * 1024 * 30 // 30 MB
   private tempDir: string
+  private fileValidationService: IFileValidationService
 
-  constructor() {
+  constructor(fileValidationService?: IFileValidationService) {
     this.userDataPath = app.getPath('userData')
     this.tempDir = path.join(this.userDataPath, 'temp')
+    this.fileValidationService = fileValidationService || new FileValidationService()
     // Ensure temp directory exists
-    fs.mkdir(this.tempDir, { recursive: true }).catch(console.error)
+    try {
+      const mkdirResult = fs.mkdir(this.tempDir, { recursive: true })
+      if (mkdirResult && typeof mkdirResult.catch === 'function') {
+        mkdirResult.catch(console.error)
+      }
+    } catch (error) {
+      console.error('Failed to create temp directory:', error)
+    }
   }
 
   async getMimeType(filePath: string): Promise<string> {
@@ -234,6 +248,60 @@ export class FilePresenter implements IFilePresenter {
     } catch {
       // If the path doesn't exist or there's any other error, return false
       return false
+    }
+  }
+
+  /**
+   * Validates if a file is supported for knowledge base processing
+   * @param filePath Path to the file to validate
+   * @returns FileValidationResult with validation details
+   */
+  async validateFileForKnowledgeBase(filePath: string): Promise<FileValidationResult> {
+    try {
+      return await this.fileValidationService.validateFile(filePath)
+    } catch (error) {
+      console.error('Error validating file for knowledge base:', error)
+      return {
+        isSupported: false,
+        error: `Validation failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        suggestedExtensions: this.fileValidationService.getSupportedExtensions()
+      }
+    }
+  }
+
+  /**
+   * Gets all supported file extensions for knowledge base processing
+   * @returns Array of supported file extensions (without dots)
+   */
+  getSupportedExtensions(): string[] {
+    try {
+      return this.fileValidationService.getSupportedExtensions()
+    } catch (error) {
+      console.error('Error getting supported extensions:', error)
+      // Return fallback extensions if service fails
+      return [
+        'txt',
+        'md',
+        'markdown',
+        'pdf',
+        'docx',
+        'pptx',
+        'xlsx',
+        'csv',
+        'json',
+        'yaml',
+        'yml',
+        'xml',
+        'js',
+        'ts',
+        'py',
+        'java',
+        'cpp',
+        'c',
+        'h',
+        'css',
+        'html'
+      ].sort()
     }
   }
 }

@@ -225,11 +225,15 @@
     }
   },
   "provider": {
+    "search": "جستجوی پلتفرم‌های ارائه‌دهنده…",
     "enable": "روشن کردن خدمات",
     "enabled": "فعال",
     "disabled": "غیرفعال",
     "urlPlaceholder": "لطفاً نشانی API را وارد کنید",
     "keyPlaceholder": "لطفاً کلید API را وارد کنید",
+    "accessKeyIdPlaceholder": "لطفاً AWS Access Key ID را وارد کنید",
+    "secretAccessKeyPlaceholder": "لطفاً AWS Secret Access Key را وارد کنید",
+    "regionPlaceholder": "لطفاً منطقه AWS را وارد کنید",
     "verifyKey": "پذیرش کلید",
     "howToGet": "چگونه دریافت کنیم",
     "getKeyTip": "لطفاً به",
@@ -239,6 +243,10 @@
     "enableModels": "روشن کردن مدل‌ها",
     "disableAllModels": "خاموش کردن همه مدل‌ها",
     "modelsEnabled": "مدل‌ها روشن شده‌اند",
+    "noModelsEnabled": {
+      "title": "هیچ مدلی روشن نشده است",
+      "description": "لطفاً دکمه «روشن کردن مدل‌ها» را کلیک کنید تا مدل‌هایی که می‌خواهید استفاده کنید را به صورت دستی انتخاب کنید."
+    },
     "verifyLink": "پیوند راستی‌آزمایی",
     "syncModelsFailed": "همگام‌سازی مدل‌ها ناموفق بود...",
     "addCustomProvider": "افزودن فراهم‌کننده دلخواه",
@@ -266,7 +274,10 @@
         "failed": "راستی‌آزمایی ناموفق",
         "success": "راستی‌آزمایی موفق",
         "failedDesc": "راستی‌آزمایی کلید API یا پیکربندی ناموفق بود، لطفاً تنظیمات را بررسی کنید",
-        "successDesc": "کلید API و پیکربندی با موفقیت راستی‌آزمایی شد، آماده استفاده است"
+        "successDesc": "کلید API و پیکربندی با موفقیت راستی‌آزمایی شد، آماده استفاده است",
+        "connectionError": "خطای اتصال ، لطفا اتصال شبکه و آدرس API را بررسی کنید",
+        "serverError": "خطای سرور ، لطفاً بعداً دوباره امتحان کنید",
+        "unauthorized": "احراز هویت انجام نشد ، کلید API نامعتبر یا منقضی شده است"
       },
       "addCustomProvider": {
         "title": "افزودن فراهم‌کننده دلخواه",
@@ -374,7 +385,67 @@
     "manageModels": "مدیریت مدل‌ها",
     "anthropicOAuthActiveTip": "احراز هویت OAuth فعال است، می‌توانید مستقیماً از سرویس‌های Anthropic استفاده کنید",
     "oauthVerifySuccess": "اتصال OAuth با موفقیت تأیید شد",
-    "oauthVerifyFailed": "تأیید اتصال OAuth ناموفق بود"
+    "oauthVerifyFailed": "تأیید اتصال OAuth ناموفق بود",
+    "configurationSaved": "پیکربندی ذخیره شده",
+    "configurationUpdated": "پیکربندی به روز شد",
+    "dataRefreshed": "داده ها تازه شده است",
+    "modelscope": {
+      "apiKey": "کلید API",
+      "apiKeyHelper": "کلید API خود را در کنسول ModelCope دریافت کنید",
+      "apiKeyPlaceholder": "لطفاً کلید API Modelcope را وارد کنید",
+      "baseUrl": "آدرس API",
+      "baseUrlHelper": "آدرس خدمات API Modelcope",
+      "connected": "متصل",
+      "connecting": "اتصال ...",
+      "description": "Modelcope یک بستر اشتراک گذاری مدل به عنوان یک سرویس است که توسط آکادمی Alibaba Damo راه اندازی شده است",
+      "details": {
+        "apiConfig": "پیکربندی API",
+        "mcpSync": "همگام سازی MCP",
+        "modelManagement": "مدیریت مدل",
+        "operationalDescription": "سرورهای MCP را همگام سازی کنید که می توانند مستقیماً در سیستم عامل ModelCope استفاده شوند",
+        "operationalServers": "کار کردن یک سرور",
+        "rateLimitConfig": "پیکربندی حد نرخ",
+        "safetySettings": "تنظیمات امنیتی",
+        "specialConfig": "پیکربندی خاص",
+        "syncFromModelScope": "همگام سازی از Modelcope",
+        "title": "جزئیات تنظیمات ارائه دهنده"
+      },
+      "invalidKey": "کلید API نامعتبر",
+      "keyRequired": "لطفا کلید API را وارد کنید",
+      "mcpSync": {
+        "authenticationFailed": "احراز هویت انجام نشد ، لطفاً کلید API را بررسی کنید",
+        "convertingServers": "تبدیل پیکربندی سرور ...",
+        "description": "همگام سازی یک سرور MCP از ModelScope به تنظیمات محلی به شما امکان می دهد تا به سرعت ابزارهای MCP متداول را اضافه کنید. کلیه خدمات به طور پیش فرض غیرفعال می شوند و پس از وارد کردن می توانند به صورت دستی فعال شوند.",
+        "errorDetails": "جزئیات خطا",
+        "errors": "خطا {تعداد}",
+        "fetchingServers": "دریافت لیست سرورهای MCP ...",
+        "imported": "{تعداد خدمات وارد شده است",
+        "importingServers": "وارد کردن پیکربندی سرور ...",
+        "invalidServerData": "داده های سرور نامعتبر",
+        "noApiKey": "لطفاً ابتدا کلید API Modelcope را پیکربندی کنید",
+        "noOperationalUrls": "هیچ آدرس عملیاتی موجود یافت نمی شود",
+        "noServersFound": "هیچ سرویس MCP در دسترس یافت نشد",
+        "pageNumber": "شماره صفحه",
+        "pageNumberPlaceholder": "لطفا شماره صفحه را وارد کنید",
+        "pageSize": "مقدار در هر صفحه",
+        "serverAlreadyExists": "سرور در حال حاضر وجود دارد ، واردات را پرش کنید",
+        "skipped": "خدمات SKIP {COUNT",
+        "sync": "همگام سازی را شروع کنید",
+        "syncComplete": "اتمام همزمان",
+        "syncing": "هماهنگ سازی ...",
+        "title": "همگام سازی خدمات MCP"
+      },
+      "name": "مدلهای مدل",
+      "networkError": "خطای اتصال شبکه",
+      "notConnected": "متصل نیست",
+      "verifyFailed": "تأیید انجام نشد",
+      "verifySuccess": "تأیید موفقیت آمیز است"
+    },
+    "operationFailed": "عملیات شکست خورد",
+    "operationSuccess": "عملیات موفقیت آمیز است",
+    "settingsApplied": "تنظیمات اعمال شده",
+    "bedrockLimitTip": "* فقط از Anthropic Claude (شامل مدل‌های Opus، Sonnet، Haiku) پشتیبانی می‌کند",
+    "bedrockVerifyTip": "DeepChat از Claude 3.5 Sonnet برای تأیید استفاده می‌کند. اگر مجوز فراخوانی نداشته باشید، تأیید انجام نخواهد شد. این موضوع تاثیری بر استفاده از مدل‌های دیگر نخواهد داشت."
   },
   "knowledgeBase": {
     "title": "تنظیمات پایگاه دانش",
@@ -435,7 +506,7 @@
     "embeddingModel": "مدل",
     "return": "بازگشت",
     "uploadHelper": "برای بارگذاری یا کشیدن پرونده در اینجا کلیک کنید",
-    "onlySupport": "فقط پشتیبانی می شود",
+    "fileSupport": "پشتیبانی از {accept} و {count} فرمت‌های دیگر",
     "searchKnowledge": "پایگاه دانش را جستجو کنید",
     "searchKnowledgePlaceholder": "لطفاً محتوای پرس و جو را وارد کنید",
     "noData": "هنوز اطلاعاتی وجود ندارد",
@@ -473,7 +544,12 @@
       "content": "آیا مطمئن هستید که می‌خواهید پرونده \"{fileName}\" را حذف کنید؟ این عملیات ترمیم نشده است."
     },
     "resumeAllPausedTasks": "بازیابی یک کلیک",
-    "pauseAllRunningTasks": "مکث یک کلیک"
+    "pauseAllRunningTasks": "مکث یک کلیک",
+    "separators": "جدا کننده مسدود کننده",
+    "separatorsHelper": "جداکننده تقسیم‌بندی سند، یک جداکننده منفرد داخل نقل قول دوتایی (\"\") قرار می‌گیرد و جداکننده‌ها با کاما (,) از هم جدا می‌شوند",
+    "invalidSeparators": "جداکننده نامعتبر",
+    "selectLanguage": "از پیش تعیین شده را انتخاب کنید",
+    "separatorsPreset": "از پیش تنظیمات در حال بارگیری"
   },
   "mcp": {
     "title": "تنظیمات MCP",
@@ -576,7 +652,8 @@
       "e2bApiKey": "e2b apikey",
       "e2bApiKeyPlaceholder": "کلیدهای API E2B خود را در اینجا وارد کنید ، مانند E2B_11111XX *******",
       "e2bApiKeyHelp": "برای بدست آوردن apikey خود به e2b.dev بروید",
-      "e2bApiKeyRequired": "برای فعال کردن عملکرد E2B باید Apikey وارد شود"
+      "e2bApiKeyRequired": "برای فعال کردن عملکرد E2B باید Apikey وارد شود",
+      "clickToEdit": "برای مشاهده مطالب کامل ، روی ویرایش کلیک کنید"
     },
     "deleteServer": "پاک کردن کارساز",
     "editServer": "ویرایش کارساز",

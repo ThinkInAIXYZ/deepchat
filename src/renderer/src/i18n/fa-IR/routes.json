@@ -12,5 +12,6 @@
   "settings-knowledge-base": "پایگاه دانش",
   "settings-prompt": "مدیریت پرامپت‌ها",
   "settings-agent": "تنظیمات عامل",
-  "agent": "Agent"
+  "agent": "Agent",
+  "settings-mcp-market": "بازار MCP"
 }

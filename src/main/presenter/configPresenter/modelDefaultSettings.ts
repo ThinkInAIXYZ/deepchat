@@ -671,24 +671,26 @@ export const defaultModelsSettings: DefaultModelSetting[] = [
   {
     id: 'gpt-oss-120b',
     name: 'GPT OSS 120B',
-    temperature: 0.7,
-    maxTokens: 131000,
-    contextLength: 131000,
+    temperature: 0.6,
+    maxTokens: 32000,
+    contextLength: 128000,
     match: ['gpt-oss-120b'],
     vision: false,
     functionCall: true,
-    reasoning: false
+    reasoning: true,
+    reasoningEffort: 'medium'
   },
   {
     id: 'gpt-oss-20b',
     name: 'GPT OSS 20B',
-    temperature: 0.7,
-    maxTokens: 33000,
-    contextLength: 131000,
+    temperature: 0.6,
+    maxTokens: 16000,
+    contextLength: 128000,
     match: ['gpt-oss-20b'],
     vision: false,
     functionCall: true,
-    reasoning: false
+    reasoning: true,
+    reasoningEffort: 'medium'
   },
   {
     id: 'o4-mini-high',
@@ -699,7 +701,8 @@ export const defaultModelsSettings: DefaultModelSetting[] = [
     match: ['o4-mini-high'],
     vision: false,
     functionCall: true,
-    reasoning: true
+    reasoning: true,
+    reasoningEffort: 'medium'
   },
   {
     id: 'o3',
@@ -710,7 +713,44 @@ export const defaultModelsSettings: DefaultModelSetting[] = [
     match: ['o3'],
     vision: false,
     functionCall: true,
-    reasoning: true
+    reasoning: true,
+    reasoningEffort: 'medium'
+  },
+  {
+    id: 'o3-pro',
+    name: 'OpenAI o3 Pro',
+    temperature: 0.7,
+    maxTokens: 100_000,
+    contextLength: 200_000,
+    match: ['o3-pro'],
+    vision: true,
+    functionCall: true,
+    reasoning: true,
+    reasoningEffort: 'high'
+  },
+  {
+    id: 'o3-mini',
+    name: 'OpenAI o3 Mini',
+    temperature: 0.7,
+    maxTokens: 65536,
+    contextLength: 200_000,
+    match: ['o3-mini'],
+    vision: false,
+    functionCall: true,
+    reasoning: true,
+    reasoningEffort: 'medium'
+  },
+  {
+    id: 'o3-preview',
+    name: 'OpenAI o3 Preview',
+    temperature: 0.7,
+    maxTokens: 100_000,
+    contextLength: 200_000,
+    match: ['o3-preview'],
+    vision: true,
+    functionCall: true,
+    reasoning: true,
+    reasoningEffort: 'medium'
   },
   {
     id: 'o4-mini',
@@ -721,7 +761,8 @@ export const defaultModelsSettings: DefaultModelSetting[] = [
     match: ['o4-mini'],
     vision: false,
     functionCall: true,
-    reasoning: true
+    reasoning: true,
+    reasoningEffort: 'medium'
   },
   {
     id: 'gpt-4.1-nano',
@@ -830,7 +871,8 @@ export const defaultModelsSettings: DefaultModelSetting[] = [
     match: ['o1-preview'],
     vision: true,
     functionCall: false,
-    reasoning: true
+    reasoning: true,
+    reasoningEffort: 'medium'
   },
   {
     id: 'o1-mini',
@@ -841,18 +883,20 @@ export const defaultModelsSettings: DefaultModelSetting[] = [
     match: ['o1-mini'],
     vision: true,
     functionCall: false,
-    reasoning: true
+    reasoning: true,
+    reasoningEffort: 'medium'
   },
   {
-    id: 'o1-mini',
-    name: 'OpenAI o1 Mini',
+    id: 'o1-pro',
+    name: 'OpenAI o1 Pro',
     temperature: 0.7,
-    maxTokens: 65536,
+    maxTokens: 32768,
     contextLength: 128000,
-    match: ['o1-mini'],
+    match: ['o1-pro'],
     vision: true,
     functionCall: false,
-    reasoning: true
+    reasoning: true,
+    reasoningEffort: 'high'
   },
   {
     id: 'o1',
@@ -863,7 +907,8 @@ export const defaultModelsSettings: DefaultModelSetting[] = [
     match: ['o1'],
     vision: true,
     functionCall: false,
-    reasoning: true
+    reasoning: true,
+    reasoningEffort: 'medium'
   },
   {
     id: 'gpt-5-chat',
@@ -1642,6 +1687,17 @@ export const defaultModelsSettings: DefaultModelSetting[] = [
     vision: true,
     functionCall: false,
     reasoning: false
+  },
+  {
+    id: 'glm-4.5v',
+    name: 'GLM-4.5V',
+    temperature: 0.7,
+    maxTokens: 8192,
+    contextLength: 65536,
+    match: ['glm-4.5v'],
+    vision: true,
+    functionCall: true,
+    reasoning: true
   },
 
   // Fireworks AI模型配置

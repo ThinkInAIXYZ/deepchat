@@ -246,5 +246,24 @@
     "mcpDisabled": "MCP가 비활성화되어 있습니다",
     "getPromptFailed": "프롬프트 가져오기 실패",
     "readResourceFailed": "리소스 읽기 실패"
+  },
+  "market": {
+    "apiKeyPlaceholder": "McProuter API 키를 입력하십시오",
+    "apiKeyRequiredDesc": "설치하기 전에 먼저 McProuter API 키를 작성하십시오.",
+    "apiKeyRequiredTitle": "API 키가 필요합니다",
+    "browseBuiltin": "내장 MCP 시장을 찾아보십시오",
+    "builtinTitle": "MCP 시장",
+    "empty": "아직 서비스가 없습니다",
+    "install": "설치하다",
+    "installFailed": "설치가 실패했습니다",
+    "installSuccess": "성공적으로 설치",
+    "installed": "설치",
+    "keyGuide": "열쇠를 얻으십시오",
+    "keyHelpEnd": "API 키를 신청 한 후 위의 입력 상자를 채우십시오.",
+    "keyHelpText": "먼저 도착하십시오",
+    "loadMore": "더로드하십시오",
+    "noMore": "더 이상",
+    "poweredBy": "McProuter에 의해 구동",
+    "pullDownToLoad": "더 많은로드하기 위해 계속 드롭 다운하십시오"
   }
 }

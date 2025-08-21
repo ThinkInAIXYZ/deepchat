@@ -140,6 +140,15 @@ export class ZhipuProvider extends OpenAICompatibleProvider {
       },
       // 多模态模型
       {
+        id: 'glm-4.5v',
+        name: 'GLM-4.5V',
+        group: 'zhipu',
+        providerId: this.provider.id,
+        isCustom: false,
+        contextLength: 65536,
+        maxTokens: 8192
+      },
+      {
         id: 'glm-4v-plus-0111',
         name: 'GLM-4V-Plus-0111',
         group: 'zhipu',

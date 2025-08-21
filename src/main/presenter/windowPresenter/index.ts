@@ -13,6 +13,7 @@ import windowStateManager from 'electron-window-state' // 窗口状态管理器
 import { SHORTCUT_EVENTS } from '@/events' // 快捷键事件常量
 // TrayPresenter 在 main/index.ts 中全局管理，本 Presenter 不负责其生命周期
 import { TabPresenter } from '../tabPresenter' // TabPresenter 类型
+import { FloatingChatWindow } from './FloatingChatWindow' // 悬浮对话窗口
 
 /**
  * 窗口 Presenter，负责管理所有 BrowserWindow 实例及其生命周期。
@@ -38,6 +39,7 @@ export class WindowPresenter implements IWindowPresenter {
       hasInitialFocus: boolean
     }
   >()
+  private floatingChatWindow: FloatingChatWindow | null = null
 
   constructor(configPresenter: ConfigPresenter) {
     this.windows = new Map()
@@ -53,10 +55,22 @@ export class WindowPresenter implements IWindowPresenter {
       event.returnValue = event.sender.id
     })
 
+    ipcMain.on('close-floating-window', (event) => {
+      // 检查发送者是否是悬浮聊天窗口
+      const webContentsId = event.sender.id
+      if (
+        this.floatingChatWindow &&
+        this.floatingChatWindow.getWindow()?.webContents.id === webContentsId
+      ) {
+        this.hideFloatingChatWindow()
+      }
+    })
+
     // 监听应用即将退出的事件，设置退出标志，避免窗口关闭时触发隐藏逻辑
     app.on('before-quit', () => {
       console.log('App is quitting, setting isQuitting flag.')
       this.isQuitting = true
+      this.destroyFloatingChatWindow()
     })
 
     // 监听快捷键事件：创建新窗口
@@ -171,16 +185,26 @@ export class WindowPresenter implements IWindowPresenter {
    * @param filePath 文件路径。
    */
   previewFile(filePath: string): void {
-    const window = this.mainWindow
-    if (window) {
+    let targetWindow = this.getFocusedWindow()
+    if (!targetWindow && this.floatingChatWindow && this.floatingChatWindow.isShowing()) {
+      const floatingWindow = this.floatingChatWindow.getWindow()
+      if (floatingWindow) {
+        targetWindow = floatingWindow
+      }
+    }
+    if (!targetWindow) {
+      targetWindow = this.mainWindow
+    }
+
+    if (targetWindow && !targetWindow.isDestroyed()) {
       console.log(`Previewing file: ${filePath}`)
       if (process.platform === 'darwin') {
-        window.previewFile(filePath)
+        targetWindow.previewFile(filePath)
       } else {
         shell.openPath(filePath) // 使用系统默认应用打开
       }
     } else {
-      console.warn('Cannot preview file, no valid main window found.')
+      console.warn('Cannot preview file, no valid window found.')
     }
   }
 
@@ -485,6 +509,17 @@ export class WindowPresenter implements IWindowPresenter {
         }
       } else {
         console.warn(`Skipping sending message "${channel}" to destroyed window ${window.id}.`)
+      }
+    }
+
+    if (this.floatingChatWindow && this.floatingChatWindow.isShowing()) {
+      const floatingWindow = this.floatingChatWindow.getWindow()
+      if (floatingWindow && !floatingWindow.isDestroyed()) {
+        try {
+          floatingWindow.webContents.send(channel, ...args)
+        } catch (error) {
+          console.error(`Error sending message "${channel}" to floating chat window:`, error)
+        }
       }
     }
   }
@@ -1077,5 +1112,81 @@ export class WindowPresenter implements IWindowPresenter {
       console.error('Error sending message to default tab:', error)
       return false // 过程中发生错误
     }
+  }
+
+  public async createFloatingChatWindow(): Promise<void> {
+    if (this.floatingChatWindow) {
+      console.log('FloatingChatWindow already exists')
+      return
+    }
+
+    try {
+      this.floatingChatWindow = new FloatingChatWindow()
+      await this.floatingChatWindow.create()
+      console.log('FloatingChatWindow created successfully')
+    } catch (error) {
+      console.error('Failed to create FloatingChatWindow:', error)
+      this.floatingChatWindow = null
+      throw error
+    }
+  }
+
+  public async showFloatingChatWindow(floatingButtonPosition?: {
+    x: number
+    y: number
+    width: number
+    height: number
+  }): Promise<void> {
+    if (!this.floatingChatWindow) {
+      await this.createFloatingChatWindow()
+    }
+
+    if (this.floatingChatWindow) {
+      this.floatingChatWindow.show(floatingButtonPosition)
+      console.log('FloatingChatWindow shown')
+    }
+  }
+
+  public hideFloatingChatWindow(): void {
+    if (this.floatingChatWindow) {
+      this.floatingChatWindow.hide()
+      console.log('FloatingChatWindow hidden')
+    }
+  }
+
+  public async toggleFloatingChatWindow(floatingButtonPosition?: {
+    x: number
+    y: number
+    width: number
+    height: number
+  }): Promise<void> {
+    if (!this.floatingChatWindow) {
+      await this.createFloatingChatWindow()
+    }
+
+    if (this.floatingChatWindow) {
+      this.floatingChatWindow.toggle(floatingButtonPosition)
+      console.log('FloatingChatWindow toggled')
+    }
+  }
+
+  public destroyFloatingChatWindow(): void {
+    if (this.floatingChatWindow) {
+      this.floatingChatWindow.destroy()
+      this.floatingChatWindow = null
+      console.log('FloatingChatWindow destroyed')
+    }
+  }
+
+  public isFloatingChatWindowVisible(): boolean {
+    return this.floatingChatWindow?.isShowing() || false
+  }
+
+  public getFloatingChatWindow(): FloatingChatWindow | null {
+    return this.floatingChatWindow
+  }
+
+  public isApplicationQuitting(): boolean {
+    return this.isQuitting
   }
 }

@@ -64,8 +64,14 @@
                 />
               </PopoverContent>
             </Popover>
-            <Popover v-model:open="settingsPopoverOpen" @update:open="handleSettingsPopoverUpdate">
-              <PopoverTrigger as-child>
+            <ScrollablePopover
+              v-model:open="settingsPopoverOpen"
+              @update:open="handleSettingsPopoverUpdate"
+              align="start"
+              content-class="w-80"
+              :enable-scrollable="true"
+            >
+              <template #trigger>
                 <Button
                   class="w-7 h-full rounded-none border-none shadow-none transition-all duration-300"
                   :class="{
@@ -77,21 +83,21 @@
                 >
                   <Icon icon="lucide:settings-2" class="w-4 h-4" />
                 </Button>
-              </PopoverTrigger>
-              <PopoverContent align="start" class="p-0 w-80">
-                <ChatConfig
-                  v-model:temperature="temperature"
-                  v-model:context-length="contextLength"
-                  v-model:max-tokens="maxTokens"
-                  v-model:system-prompt="systemPrompt"
-                  v-model:artifacts="artifacts"
-                  :context-length-limit="contextLengthLimit"
-                  :max-tokens-limit="maxTokensLimit"
-                  :model-id="activeModel?.id"
-                  :provider-id="activeModel?.providerId"
-                />
-              </PopoverContent>
-            </Popover>
+              </template>
+              <ChatConfig
+                v-model:temperature="temperature"
+                v-model:context-length="contextLength"
+                v-model:max-tokens="maxTokens"
+                v-model:system-prompt="systemPrompt"
+                v-model:artifacts="artifacts"
+                v-model:reasoning-effort="reasoningEffort"
+                v-model:verbosity="verbosity"
+                :context-length-limit="contextLengthLimit"
+                :max-tokens-limit="maxTokensLimit"
+                :model-id="activeModel?.id"
+                :provider-id="activeModel?.providerId"
+              />
+            </ScrollablePopover>
           </div>
         </template>
       </ChatInput>
@@ -104,6 +110,7 @@
 import { useI18n } from 'vue-i18n'
 import ChatInput from './ChatInput.vue'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import ScrollablePopover from './ScrollablePopover.vue'
 import { Button } from '@/components/ui/button'
 import ModelIcon from './icons/ModelIcon.vue'
 import { Badge } from '@/components/ui/badge'
@@ -152,6 +159,8 @@ const maxTokens = ref(4096)
 const maxTokensLimit = ref(4096)
 const systemPrompt = ref('')
 const artifacts = ref(settingsStore.artifactsEffectEnabled ? 1 : 0)
+const reasoningEffort = ref<'minimal' | 'low' | 'medium' | 'high' | undefined>(undefined)
+const verbosity = ref<'low' | 'medium' | 'high' | undefined>(undefined)
 
 const name = computed(() => {
   return activeModel.value?.name ? activeModel.value.name.split('/').pop() : ''
@@ -170,6 +179,8 @@ watch(
     maxTokens.value = config.maxTokens
     contextLengthLimit.value = config.contextLength
     maxTokensLimit.value = config.maxTokens
+    reasoningEffort.value = config.reasoningEffort
+    verbosity.value = config.verbosity
     // console.log('temperature', temperature.value)
     // console.log('contextLength', contextLength.value)
     // console.log('maxTokens', maxTokens.value)
@@ -399,8 +410,10 @@ const handleSend = async (content: UserMessageContent) => {
     contextLength: contextLength.value,
     maxTokens: maxTokens.value,
     artifacts: artifacts.value as 0 | 1,
+    reasoningEffort: reasoningEffort.value,
+    verbosity: verbosity.value,
     enabledMcpTools: chatStore.chatConfig.enabledMcpTools
-  })
+  } as any)
   console.log('threadId', threadId, activeModel.value)
   chatStore.sendMessage(content)
 }

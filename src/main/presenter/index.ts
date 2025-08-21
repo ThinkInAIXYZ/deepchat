@@ -94,7 +94,11 @@ export class Presenter implements IPresenter {
     this.trayPresenter = new TrayPresenter()
     this.floatingButtonPresenter = new FloatingButtonPresenter(this.configPresenter)
     this.dialogPresenter = new DialogPresenter()
-    this.knowledgePresenter = new KnowledgePresenter(this.configPresenter, dbDir)
+    this.knowledgePresenter = new KnowledgePresenter(
+      this.configPresenter,
+      dbDir,
+      this.filePresenter
+    )
 
     // this.llamaCppPresenter = new LlamaCppPresenter() // 保留原始注释
     this.setupEventBus() // 设置事件总线监听

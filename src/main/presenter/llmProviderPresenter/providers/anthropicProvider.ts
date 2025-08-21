@@ -169,6 +169,18 @@ export class AnthropicProvider extends BaseLLMProvider {
     // 默认的模型列表（如API调用失败或数据格式不正确）
     return [
       {
+        id: 'claude-opus-4-1-20250805',
+        name: 'Claude Opus 4.1',
+        providerId: this.provider.id,
+        maxTokens: 32_000,
+        group: 'Claude 4.1',
+        isCustom: false,
+        contextLength: 200000,
+        vision: true,
+        functionCall: true,
+        reasoning: true
+      },
+      {
         id: 'claude-opus-4-20250514',
         name: 'Claude Opus 4',
         providerId: this.provider.id,

@@ -10,6 +10,7 @@ import {
   QueryResult,
   KnowledgeFileResult
 } from '@shared/presenter'
+import { FileValidationResult } from '../filePresenter/FileValidationService'
 import { eventBus } from '@/eventbus'
 import { MCP_EVENTS } from '@/events'
 import { DuckDBPresenter } from './database/duckdbPresenter'
@@ -17,7 +18,13 @@ import { KnowledgeStorePresenter } from './knowledgeStorePresenter'
 import { KnowledgeTaskPresenter } from './knowledgeTaskPresenter'
 import { getMetric } from '@/utils/vector'
 import { presenter } from '..'
+import { IFilePresenter } from '@shared/presenter'
 import { DIALOG_WARN } from '@shared/dialog'
+import {
+  RecursiveCharacterTextSplitter,
+  SupportedTextSplitterLanguages,
+  type SupportedTextSplitterLanguage
+} from '@/lib/textsplitters'
 
 export class KnowledgePresenter implements IKnowledgePresenter {
   /**
@@ -26,6 +33,11 @@ export class KnowledgePresenter implements IKnowledgePresenter {
   private readonly storageDir
 
   private readonly configP: IConfigPresenter
+
+  /**
+   * File presenter for validation operations
+   */
+  private readonly filePresenter: IFilePresenter
 
   /**
    * 全局任务调度器
@@ -37,9 +49,10 @@ export class KnowledgePresenter implements IKnowledgePresenter {
    */
   private readonly storePresenterCache: Map<string, KnowledgeStorePresenter>
 
-  constructor(configP: IConfigPresenter, dbDir: string) {
+  constructor(configP: IConfigPresenter, dbDir: string, filePresenter: IFilePresenter) {
     console.log('[RAG] Initializing Built-in Knowledge Presenter')
     this.configP = configP
+    this.filePresenter = filePresenter
     this.storageDir = path.join(dbDir, 'KnowledgeBase')
     this.taskP = new KnowledgeTaskPresenter()
     this.storePresenterCache = new Map()
@@ -353,5 +366,96 @@ export class KnowledgePresenter implements IKnowledgePresenter {
   async resumeAllPausedTasks(id: string): Promise<void> {
     const rag = await this.getOrCreateStorePresenter(id)
     await rag.resumeAllPausedTasks()
+  }
+
+  async getSupportedLanguages(): Promise<string[]> {
+    return [...SupportedTextSplitterLanguages]
+  }
+
+  separators: string[] = ['\n\n', '\n', ' ', '']
+
+  async getSeparatorsForLanguage(language: string): Promise<string[]> {
+    try {
+      return RecursiveCharacterTextSplitter.getSeparatorsForLanguage(
+        language as SupportedTextSplitterLanguage
+      )
+    } catch {
+      return this.separators
+    }
+  }
+
+  /**
+   * Validates if a file is supported for knowledge base processing
+   * @param filePath Path to the file to validate
+   * @returns FileValidationResult with validation details
+   */
+  async validateFile(filePath: string): Promise<FileValidationResult> {
+    try {
+      console.log(`[RAG] Validating file for knowledge base: ${filePath}`)
+      const result = await this.filePresenter.validateFileForKnowledgeBase(filePath)
+
+      if (!result.isSupported) {
+        console.warn(`[RAG] File validation failed for ${filePath}: ${result.error}`)
+      } else {
+        console.log(
+          `[RAG] File validation successful for ${filePath}, MIME type: ${result.mimeType}`
+        )
+      }
+
+      return result
+    } catch (error) {
+      const errorMessage = `File validation error: ${error instanceof Error ? error.message : 'Unknown error'}`
+      console.error(`[RAG] ${errorMessage}`, error)
+
+      return {
+        isSupported: false,
+        error: errorMessage,
+        suggestedExtensions: await this.getSupportedFileExtensions()
+      }
+    }
+  }
+
+  /**
+   * Gets all supported file extensions for knowledge base processing
+   * @returns Array of supported file extensions (without dots)
+   */
+  async getSupportedFileExtensions(): Promise<string[]> {
+    try {
+      console.log('[RAG] Getting supported file extensions')
+      const extensions = this.filePresenter.getSupportedExtensions()
+      console.log(`[RAG] Retrieved ${extensions.length} supported extensions`)
+      return extensions
+    } catch (error) {
+      const errorMessage = `Error getting supported extensions: ${error instanceof Error ? error.message : 'Unknown error'}`
+      console.error(`[RAG] ${errorMessage}`, error)
+
+      // Return fallback extensions if service fails
+      const fallbackExtensions = [
+        'txt',
+        'md',
+        'markdown',
+        'pdf',
+        'docx',
+        'pptx',
+        'xlsx',
+        'csv',
+        'json',
+        'yaml',
+        'yml',
+        'xml',
+        'js',
+        'ts',
+        'py',
+        'java',
+        'cpp',
+        'c',
+        'h',
+        'css',
+        'html'
+      ].sort()
+
+      console.warn(`[RAG] Using fallback extensions: ${fallbackExtensions.join(', ')}`)
+      return fallbackExtensions
+    }
   }
 }

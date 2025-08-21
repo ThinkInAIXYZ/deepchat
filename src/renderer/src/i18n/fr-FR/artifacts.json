@@ -36,5 +36,14 @@
   "copyFailedDesc": "Impossible de copier le contenu dans le presse-papiers",
   "copyAsImage": "Copier en tant qu'image",
   "copyImageSuccessDesc": "Image copiée dans le presse-papiers",
-  "copyImageFailedDesc": "Impossible de copier l'image dans le presse-papiers"
+  "copyImageFailedDesc": "Impossible de copier des images dans le presse-papiers",
+  "desktop": "Bureau",
+  "tablet": "Tablette",
+  "mobile": "Mobile",
+  "width": "Largeur",
+  "height": "Hauteur",
+  "copyImageFailedDesc": "Impossible de copier l'image dans le presse-papiers",
+  "noSvgContent": "Aucun contenu SVG disponible",
+  "sanitizingSvg": "Purification du contenu SVG ...",
+  "svgSanitizationFailed": "SVG Contenu Échec Vérification de sécurité"
 }

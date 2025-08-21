@@ -53,7 +53,7 @@
           {{ fileList.length }}
         </span>
       </div>
-      <div className="flex flex-col gap-2 text-balance">
+      <div class="flex flex-col gap-2 text-balance">
         <label for="upload">
           <div
             @dragover.prevent
@@ -69,9 +69,13 @@
               </div>
               <div class="flex items-center gap-1">
                 <Icon icon="lucide:clipboard" class="w-4 h-4" />
-                <span class="text-sm">
-                  {{ t('settings.knowledgeBase.onlySupport') }}
-                  {{ acceptExts.join('，') }}
+                <span class="text-sm" :title="acceptExts.join(', ')">
+                  {{
+                    t('settings.knowledgeBase.fileSupport', {
+                      accept: acceptExts.slice(0, 5).join('，'),
+                      count: acceptExts.length
+                    })
+                  }}
                 </span>
               </div>
             </div>
@@ -101,7 +105,7 @@
           <DialogHeader>
             <DialogTitle> {{ t('settings.knowledgeBase.searchKnowledge') }} </DialogTitle>
           </DialogHeader>
-          <div className="flex w-full items-center gap-1 relative">
+          <div class="flex w-full items-center gap-1 relative">
             <Input
               v-model="searchKey"
               :placeholder="t('settings.knowledgeBase.searchKnowledgePlaceholder')"
@@ -224,8 +228,8 @@ const ctrlBtn = computed(() => {
 const { t } = useI18n()
 // 文件列表
 const fileList = ref<KnowledgeFileMessage[]>([])
-// 允许的文件扩展名
-const acceptExts = ['txt', 'md', 'markdown', 'docx', 'pptx', 'pdf']
+// 允许的文件扩展名 - 动态加载
+const acceptExts = ref<string[]>([])
 const knowledgePresenter = usePresenter('knowledgePresenter')
 // 弹窗状态
 const isSearchDialogOpen = ref(false)
@@ -283,17 +287,29 @@ const clearSearchKey = () => {
   searchKey.value = ''
 }
 
+const defaultSupported = ['txt', 'md', 'markdown', 'docx', 'pptx', 'pdf']
+
+// 加载支持的文件扩展名
+const loadSupportedExtensions = async () => {
+  try {
+    console.log('[KnowledgeFile] Loading supported extensions from backend')
+    const extensions = await knowledgePresenter.getSupportedFileExtensions()
+    // 保证 defaultSupported 排在最前，且不重复
+    const uniqueExts = extensions.filter((ext) => !defaultSupported.includes(ext))
+    acceptExts.value = [...defaultSupported, ...uniqueExts]
+    console.log(`[KnowledgeFile] Loaded ${extensions.length} supported extensions:`, extensions)
+  } catch (error) {
+    console.error('[KnowledgeFile] Failed to load supported extensions:', error)
+    // 使用回退扩展名列表
+    acceptExts.value = [...defaultSupported]
+  }
+}
+
 // 文件点击上传
-const handleChange = (event: Event) => {
+const handleChange = async (event: Event) => {
   const files = (event.target as HTMLInputElement).files
   if (files && files.length > 0) {
-    // 构造一个假的 DragEvent-like 对象，复用 handleDrop 逻辑
-    const fakeDragEvent = {
-      dataTransfer: {
-        files
-      }
-    } as DragEvent
-    handleDrop(fakeDragEvent)
+    await handleFileUpload(Array.from(files))
   }
 }
 
@@ -311,46 +327,72 @@ const toggleStatus = async (run: boolean) => {
   loadList()
 }
 
-// 上传文件到内置知识库
-const handleDrop = async (e: DragEvent) => {
-  if (e.dataTransfer?.files && e.dataTransfer.files.length > 0) {
-    for (const file of e.dataTransfer.files) {
-      // 校验类型
-      const ext = file.name.split('.').pop()?.toLowerCase()
-      if (!ext || !acceptExts.includes(ext)) {
+// 处理文件上传的通用方法
+const handleFileUpload = async (files: File[]) => {
+  for (const file of files) {
+    try {
+      console.log(`[KnowledgeFile] Processing file: ${file.name}`)
+      const path = window.api.getPathForFile(file)
+
+      // 使用后端验证而不是前端扩展名检查
+      const validationResult = await knowledgePresenter.validateFile(path)
+
+      if (!validationResult.isSupported) {
+        console.warn(
+          `[KnowledgeFile] File validation failed for ${file.name}:`,
+          validationResult.error
+        )
         toast({
-          title: `"${file.name}"${t('settings.knowledgeBase.uploadError')}`,
-          description: `${t('settings.knowledgeBase.onlySupport')} ${acceptExts.join('，')}`,
+          title: `"${file.name}" ${t('settings.knowledgeBase.uploadError')}`,
+          description: validationResult.error,
           variant: 'destructive',
           duration: 3000
         })
         continue
       }
-      try {
-        const path = window.api.getPathForFile(file)
-        const result = await knowledgePresenter.addFile(props.builtinKnowledgeDetail.id, path)
-        if (result.error) {
-          toast({
-            title: `${file.name} ${t('settings.knowledgeBase.uploadError')}`,
-            description: result.error,
-            variant: 'destructive',
-            duration: 3000
-          })
-          continue
-        }
-        if (result.data) {
-          // 判断是否存在相同id的文件，存在则跳过
-          const incoming = result.data
-          const existingFile = fileList.value.find((f) => f.id === incoming.id)
-          if (existingFile == null) {
-            fileList.value.unshift(incoming)
-          }
-        }
-      } catch (error) {
-        console.error('文件准备失败:', error)
-        return
+
+      console.log(
+        `[KnowledgeFile] File validation successful for ${file.name}, proceeding with upload`
+      )
+
+      // 如果验证通过，继续上传文件
+      const result = await knowledgePresenter.addFile(props.builtinKnowledgeDetail.id, path)
+      if (result.error) {
+        toast({
+          title: `${file.name} ${t('settings.knowledgeBase.uploadError')}`,
+          description: result.error,
+          variant: 'destructive',
+          duration: 3000
+        })
+        continue
       }
+      if (result.data) {
+        // 判断是否存在相同id的文件，存在则跳过
+        const incoming = result.data
+        const existingFile = fileList.value.find((f) => f.id === incoming.id)
+        if (existingFile == null) {
+          fileList.value.unshift(incoming)
+          console.log(`[KnowledgeFile] Successfully added file: ${file.name}`)
+        } else {
+          console.log(`[KnowledgeFile] File already exists, skipping: ${file.name}`)
+        }
+      }
+    } catch (error) {
+      console.error(`[KnowledgeFile] Error processing file ${file.name}:`, error)
+      toast({
+        title: `${file.name} ${t('settings.knowledgeBase.uploadError')}`,
+        description: (error as Error).message,
+        variant: 'destructive',
+        duration: 3000
+      })
     }
+  }
+}
+
+// 上传文件到内置知识库 - 拖拽处理
+const handleDrop = async (e: DragEvent) => {
+  if (e.dataTransfer?.files && e.dataTransfer.files.length > 0) {
+    await handleFileUpload(Array.from(e.dataTransfer.files))
   }
 }
 
@@ -379,9 +421,11 @@ const reAddFile = async (file: KnowledgeFileMessage) => {
   }
 }
 
-// 初始化文件列表
-onMounted(() => {
-  loadList()
+// 初始化文件列表和支持的扩展名
+onMounted(async () => {
+  // 并行加载文件列表和支持的扩展名
+  await Promise.all([loadList(), loadSupportedExtensions()])
+
   // 监听知识库文件更新事件
   window.electron.ipcRenderer.on(RAG_EVENTS.FILE_UPDATED, (_, data) => {
     const file = fileList.value.find((file) => file.id === data.id)

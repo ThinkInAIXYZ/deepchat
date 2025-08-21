@@ -168,6 +168,16 @@
             <span>{{ $t('settings.mcp.higressMarket') }}</span>
             <Icon icon="lucide:external-link" class="w-3.5 h-3.5 text-muted-foreground" />
           </Button>
+
+          <Button
+            variant="outline"
+            class="flex-1 flex items-center justify-center gap-2"
+            @click="openBuiltinMarket"
+          >
+            <Icon icon="lucide:gallery-vertical-end" class="w-4 h-4" />
+            <span>{{ t('mcp.market.browseBuiltin') }}</span>
+            <Icon icon="lucide:arrow-right" class="w-3.5 h-3.5 text-muted-foreground" />
+          </Button>
         </div>
       </div>
     </div>
@@ -206,9 +216,11 @@ import { useMcpStore } from '@/stores/mcp'
 import { useLanguageStore } from '@/stores/language'
 import { useToast } from '@/components/ui/toast'
 import { MCP_MARKETPLACE_URL, HIGRESS_MCP_MARKETPLACE_URL } from '../mcp-config/const'
+import { useRouter } from 'vue-router'
 
 const { t } = useI18n()
 const languageStore = useLanguageStore()
+const router = useRouter()
 const mcpStore = useMcpStore()
 const { toast } = useToast()
 
@@ -437,5 +449,10 @@ const openMcpMarketplace = () => {
 // 打开Higress MCP Marketplace
 const openHigressMcpMarketplace = () => {
   window.open(HIGRESS_MCP_MARKETPLACE_URL, '_blank')
+}
+
+// 打开内置 MCP 市场
+const openBuiltinMarket = () => {
+  router.push('/settings/mcp-market')
 }
 </script>

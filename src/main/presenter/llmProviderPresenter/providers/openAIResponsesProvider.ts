@@ -228,17 +228,18 @@ export class OpenAIResponsesProvider extends BaseLLMProvider {
       stream: false
     }
 
-    if (modelId.startsWith('gpt-5')) {
-      const modelConfig = this.configPresenter.getModelConfig(modelId, this.provider.id)
-      if (modelConfig.reasoningEffort) {
-        ;(requestParams as any).reasoning = {
-          effort: modelConfig.reasoningEffort
-        }
+    const modelConfig = this.configPresenter.getModelConfig(modelId, this.provider.id)
+
+    if (modelConfig.reasoningEffort) {
+      ;(requestParams as any).reasoning = {
+        effort: modelConfig.reasoningEffort
       }
-      if (modelConfig.verbosity) {
-        ;(requestParams as any).text = {
-          verbosity: modelConfig.verbosity
-        }
+    }
+
+    // verbosity 仅支持 GPT-5 系列模型
+    if (modelId.includes('gpt-5') && modelConfig.verbosity) {
+      ;(requestParams as any).text = {
+        verbosity: modelConfig.verbosity
       }
     }
 
@@ -572,16 +573,16 @@ export class OpenAIResponsesProvider extends BaseLLMProvider {
       requestParams.tools = apiTools
     }
 
-    if (modelId.startsWith('gpt-5')) {
-      if (modelConfig.reasoningEffort) {
-        ;(requestParams as any).reasoning = {
-          effort: modelConfig.reasoningEffort
-        }
+    if (modelConfig.reasoningEffort) {
+      ;(requestParams as any).reasoning = {
+        effort: modelConfig.reasoningEffort
       }
-      if (modelConfig.verbosity) {
-        ;(requestParams as any).text = {
-          verbosity: modelConfig.verbosity
-        }
+    }
+
+    // verbosity 仅支持 GPT-5 系列模型
+    if (modelId.includes('gpt-5') && modelConfig.verbosity) {
+      ;(requestParams as any).text = {
+        verbosity: modelConfig.verbosity
       }
     }
 
@@ -1070,8 +1071,8 @@ export class OpenAIResponsesProvider extends BaseLLMProvider {
   public async check(): Promise<{ isOk: boolean; errorMsg: string | null }> {
     try {
       if (!this.isNoModelsApi) {
-        // Use a reasonable timeout
-        const models = await this.fetchOpenAIModels({ timeout: 5000 }) // Increased timeout slightly
+        // Use unified timeout configuration from base class
+        const models = await this.fetchOpenAIModels({ timeout: this.getModelFetchTimeout() })
         this.models = models // Store fetched models
       }
       // Potentially add a simple API call test here if needed, e.g., list models even for no-API list to check key/endpoint

@@ -225,11 +225,15 @@
     }
   },
   "provider": {
+    "search": "Поиск платформ провайдеров…",
     "enable": "Включить сервис",
     "enabled": "Включен",
     "disabled": "Отключен",
     "urlPlaceholder": "Введите API URL",
     "keyPlaceholder": "Введите API Key",
+    "accessKeyIdPlaceholder": "Введите AWS Access Key ID",
+    "secretAccessKeyPlaceholder": "Введите AWS Secret Access Key",
+    "regionPlaceholder": "Введите регион AWS",
     "verifyKey": "Проверить ключ",
     "howToGet": "Как получить",
     "getKeyTip": "Перейдите по следующему адресу",
@@ -238,6 +242,10 @@
     "enableModels": "Включить модели",
     "disableAllModels": "Отключить все модели",
     "modelsEnabled": "Модели включены",
+    "noModelsEnabled": {
+      "title": "Нет активных моделей",
+      "description": "Нажмите кнопку «Включить модели», чтобы вручную выбрать модели для использования."
+    },
     "verifyLink": "Проверить ссылку",
     "syncModelsFailed": "Не удалось синхронизировать модели...",
     "addCustomProvider": "Добавить пользовательский провайдер",
@@ -265,7 +273,10 @@
         "failed": "Проверка не удалась",
         "success": "Проверка успешна",
         "failedDesc": "Проверка API ключа или конфигурации не удалась, проверьте настройки",
-        "successDesc": "API ключ и конфигурация успешно проверены, готовы к использованию"
+        "successDesc": "API ключ и конфигурация успешно проверены, готовы к использованию",
+        "connectionError": "Ошибка соединения, пожалуйста, проверьте сетевое соединение и адрес API",
+        "serverError": "Ошибка сервера, попробуйте еще раз позже",
+        "unauthorized": "Аутентификация не удалась, ключ API является недействительным или истекшим"
       },
       "addCustomProvider": {
         "title": "Добавить пользовательский провайдер",
@@ -374,7 +385,67 @@
     "manageModels": "Управление моделями",
     "anthropicOAuthActiveTip": "Аутентификация OAuth включена, вы можете использовать сервисы Anthropic напрямую",
     "oauthVerifySuccess": "Соединение OAuth успешно проверено",
-    "oauthVerifyFailed": "Ошибка проверки соединения OAuth"
+    "oauthVerifyFailed": "Ошибка проверки соединения OAuth",
+    "configurationSaved": "Конфигурация сохранена",
+    "configurationUpdated": "Конфигурация обновлена",
+    "dataRefreshed": "Данные были обновлены",
+    "modelscope": {
+      "apiKey": "API -ключ",
+      "apiKeyHelper": "Получите ключ API в консоли моделей",
+      "apiKeyPlaceholder": "Пожалуйста, введите ключ API моделей моделей",
+      "baseUrl": "Адрес API",
+      "baseUrlHelper": "ModelsCope API -адрес службы службы",
+      "connected": "Подключенный",
+      "connecting": "Соединение ...",
+      "description": "ModelCope-это платформа для обмена моделями, запущенная Alibaba Damo Academy",
+      "details": {
+        "apiConfig": "Конфигурация API",
+        "mcpSync": "Синхронизация MCP",
+        "modelManagement": "Управление моделями",
+        "operationalDescription": "Синхронизировать серверы MCP, которые можно использовать непосредственно на платформе моделей",
+        "operationalServers": "Эксплуатация сервера",
+        "rateLimitConfig": "Конфигурация ограничения скорости",
+        "safetySettings": "Настройки безопасности",
+        "specialConfig": "Специальная конфигурация",
+        "syncFromModelScope": "Синхронизация от моделей",
+        "title": "Детали настроек поставщика"
+      },
+      "invalidKey": "Неверный ключ API",
+      "keyRequired": "Пожалуйста, введите ключ API",
+      "mcpSync": {
+        "authenticationFailed": "Аутентификация не удалась, пожалуйста, проверьте ключ API",
+        "convertingServers": "Преобразование конфигурации сервера ...",
+        "description": "Синхронизация сервера MCP от моделей к локальным конфигурациям позволяет быстро добавлять обычно используемые инструменты MCP. Все службы отключены по умолчанию и могут быть включены вручную после импорта.",
+        "errorDetails": "Детали ошибки",
+        "errors": "Ошибка {count}",
+        "fetchingServers": "Получение списка серверов MCP ...",
+        "imported": "{count} Услуги были импортированы",
+        "importingServers": "Конфигурация импорта сервера ...",
+        "invalidServerData": "Неверные данные сервера",
+        "noApiKey": "Сначала настройте ключ API моделей ModelsCope",
+        "noOperationalUrls": "Не найдено доступного операционного адреса",
+        "noServersFound": "Не найдена доступной услуги MCP",
+        "pageNumber": "номер страницы",
+        "pageNumberPlaceholder": "Пожалуйста, введите номер страницы",
+        "pageSize": "Количество на страницу",
+        "serverAlreadyExists": "Сервер уже существует, пропустите импорт",
+        "skipped": "Skip {count} Сервисы",
+        "sync": "Начните синхронизировать",
+        "syncComplete": "Синхронное завершение",
+        "syncing": "Синхронизация ...",
+        "title": "Синхронизировать услуги MCP"
+      },
+      "name": "Моделикоп",
+      "networkError": "Ошибка сетевого соединения",
+      "notConnected": "Не подключен",
+      "verifyFailed": "Проверка не удалась",
+      "verifySuccess": "Проверка успешна"
+    },
+    "operationFailed": "Операция не удалась",
+    "operationSuccess": "Операция успешна",
+    "settingsApplied": "Применяются настройки",
+    "bedrockLimitTip": "* Поддерживает только Anthropic Claude (включая модели Opus, Sonnet, Haiku)",
+    "bedrockVerifyTip": "DeepChat использует модель Claude 3.5 Sonnet для верификации. Если у вас нет разрешения на её использование, верификация не пройдёт. Это не повлияет на использование других моделей."
   },
   "knowledgeBase": {
     "title": "Настройки базы знаний",
@@ -435,7 +506,7 @@
     "embeddingModel": "Встроенная модель",
     "return": "возвращаться",
     "uploadHelper": "Нажмите, чтобы загрузить или перетащить файл здесь",
-    "onlySupport": "Поддерживается только",
+    "fileSupport": "Поддержка {accept} и {count} других форматов",
     "searchKnowledge": "Поиск базы знаний",
     "searchKnowledgePlaceholder": "Пожалуйста, введите содержание запроса",
     "noData": "Нет данных пока",
@@ -473,7 +544,12 @@
       "content": "Вы обязательно удалите файл \"{filename}\"? Эта операция не восстановлена."
     },
     "resumeAllPausedTasks": "Восстановление одного клика",
-    "pauseAllRunningTasks": "Пауза с одним щелчком"
+    "pauseAllRunningTasks": "Пауза с одним щелчком",
+    "separators": "Сепаратор блока",
+    "separatorsHelper": "Разделитель сегментации документа, одиночный разделитель заключается в двойные кавычки (\"\"), а разделители разделяются запятыми (,)",
+    "invalidSeparators": "Неверный сепаратор",
+    "selectLanguage": "Выберите предустановку",
+    "separatorsPreset": "Загрузка пресетов"
   },
   "mcp": {
     "title": "Настройки MCP",
@@ -568,7 +644,8 @@
       "e2bApiKey": "E2b apikey",
       "e2bApiKeyPlaceholder": "Введите здесь свои клавиши E2B API, такие как E2B_1111XX *******",
       "e2bApiKeyHelp": "Перейдите в E2B.DEV, чтобы получить свой Apikey",
-      "e2bApiKeyRequired": "Apikey должен быть введен, чтобы включить функцию E2B"
+      "e2bApiKeyRequired": "Apikey должен быть введен, чтобы включить функцию E2B",
+      "clickToEdit": "Нажмите «Редактировать», чтобы просмотреть полный контент"
     },
     "deleteServer": "Удалить сервер",
     "editServer": "Редактировать сервер",

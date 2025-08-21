@@ -12,5 +12,6 @@
   "settings-knowledge-base": "지식 기반",
   "settings-prompt": "프롬프트 관리",
   "settings-agent": "에이전트 설정",
-  "agent": "Agent"
+  "agent": "Agent",
+  "settings-mcp-market": "MCP 시장"
 }

@@ -217,7 +217,7 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
       ...(modelId.startsWith('o1') ||
       modelId.startsWith('o3') ||
       modelId.startsWith('o4') ||
-      modelId.startsWith('gpt-5')
+      modelId.includes('gpt-5')
         ? { max_completion_tokens: maxTokens }
         : { max_tokens: maxTokens })
     }
@@ -538,7 +538,7 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
       ...(modelId.startsWith('o1') ||
       modelId.startsWith('o3') ||
       modelId.startsWith('o4') ||
-      modelId.startsWith('gpt-5')
+      modelId.includes('gpt-5')
         ? { max_completion_tokens: maxTokens }
         : { max_tokens: maxTokens })
     }
@@ -561,6 +561,15 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
       ;(requestParams as any).provider = {
         only: ['chutes']
       }
+    }
+
+    if (modelConfig.reasoningEffort) {
+      ;(requestParams as any).reasoning_effort = modelConfig.reasoningEffort
+    }
+
+    // verbosity 仅支持 GPT-5 系列模型
+    if (modelId.includes('gpt-5') && modelConfig.verbosity) {
+      ;(requestParams as any).verbosity = modelConfig.verbosity
     }
 
     // 移除推理模型的温度参数
@@ -1198,8 +1207,8 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
   public async check(): Promise<{ isOk: boolean; errorMsg: string | null }> {
     try {
       if (!this.isNoModelsApi) {
-        // Use a reasonable timeout
-        const models = await this.fetchOpenAIModels({ timeout: 5000 }) // Increased timeout slightly
+        // Use unified timeout configuration from base class
+        const models = await this.fetchOpenAIModels({ timeout: this.getModelFetchTimeout() })
         this.models = models // Store fetched models
       }
       // Potentially add a simple API call test here if needed, e.g., list models even for no-API list to check key/endpoint

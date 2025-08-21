@@ -225,11 +225,15 @@
     }
   },
   "provider": {
+    "search": "Rechercher des plateformes de fournisseurs…",
     "enable": "Activer le service",
     "enabled": "Activé",
     "disabled": "Désactivé",
     "urlPlaceholder": "Veuillez entrer l'URL de l'API",
     "keyPlaceholder": "Veuillez entrer la clé API",
+    "accessKeyIdPlaceholder": "Veuillez entrer l'AWS Access Key ID",
+    "secretAccessKeyPlaceholder": "Veuillez entrer l'AWS Secret Access Key",
+    "regionPlaceholder": "Veuillez entrer la région AWS",
     "verifyKey": "Vérifier la clé",
     "howToGet": "Comment obtenir",
     "getKeyTip": "Veuillez visiter",
@@ -239,6 +243,10 @@
     "enableModels": "Activer les modèles",
     "disableAllModels": "Désactiver tous les modèles",
     "modelsEnabled": "Les modèles ont été activés",
+    "noModelsEnabled": {
+      "title": "Aucun modèle activé",
+      "description": "Veuillez cliquer sur le bouton « Activer les modèles » pour sélectionner manuellement les modèles que vous souhaitez utiliser."
+    },
     "verifyLink": "Vérifier le lien",
     "syncModelsFailed": "Échec de la synchronisation des modèles...",
     "addCustomProvider": "Ajouter un fournisseur personnalisé",
@@ -266,7 +274,10 @@
         "failed": "Échec de la vérification",
         "success": "Vérification réussie",
         "failedDesc": "La vérification de la clé API ou de la configuration a échoué, veuillez vérifier vos paramètres",
-        "successDesc": "La clé API et la configuration ont été vérifiées avec succès, prêt à utiliser"
+        "successDesc": "La clé API et la configuration ont été vérifiées avec succès, prêt à utiliser",
+        "connectionError": "Erreur de connexion, veuillez vérifier la connexion réseau et l'adresse de l'API",
+        "serverError": "Erreur du serveur, veuillez réessayer plus tard",
+        "unauthorized": "Échec de l'authentification, la clé API n'est pas valide ou expirée"
       },
       "addCustomProvider": {
         "title": "Ajouter un fournisseur personnalisé",
@@ -374,7 +385,67 @@
     "manageModels": "Gérer les modèles",
     "anthropicOAuthActiveTip": "L'authentification OAuth est activée, vous pouvez utiliser les services Anthropic directement",
     "oauthVerifySuccess": "Connexion OAuth vérifiée avec succès",
-    "oauthVerifyFailed": "Échec de la vérification de la connexion OAuth"
+    "oauthVerifyFailed": "Échec de la vérification de la connexion OAuth",
+    "configurationSaved": "Configuration enregistrée",
+    "configurationUpdated": "Configuration mise à jour",
+    "dataRefreshed": "Les données ont été rafraîchies",
+    "modelscope": {
+      "apiKey": "Clé API",
+      "apiKeyHelper": "Obtenez votre clé API dans la console Modelcope",
+      "apiKeyPlaceholder": "Veuillez saisir la clé de l'API Modelscope",
+      "baseUrl": "Adresse API",
+      "baseUrlHelper": "Adresse du service API Modelcope",
+      "connected": "Connecté",
+      "connecting": "De liaison...",
+      "description": "Modelcope est une plate-forme de partage modèle en tant que service lancée par Alibaba Damo Academy",
+      "details": {
+        "apiConfig": "Configuration de l'API",
+        "mcpSync": "Synchronisation MCP",
+        "modelManagement": "Gestion des modèles",
+        "operationalDescription": "Synchroniser les serveurs MCP qui peuvent être utilisés directement sur la plate-forme Modelcope",
+        "operationalServers": "Exploitation d'un serveur",
+        "rateLimitConfig": "Configuration de la limite de taux",
+        "safetySettings": "Paramètres de sécurité",
+        "specialConfig": "Configuration spéciale",
+        "syncFromModelScope": "Synchronisation de Modelscope",
+        "title": "Détails des paramètres du fournisseur"
+      },
+      "invalidKey": "Clé API non valide",
+      "keyRequired": "Veuillez saisir la clé de l'API",
+      "mcpSync": {
+        "authenticationFailed": "Échec de l'authentification, veuillez vérifier la clé de l'API",
+        "convertingServers": "Conversion de la configuration du serveur ...",
+        "description": "La synchronisation d'un serveur MCP de Modelcope aux configurations locales vous permet d'ajouter rapidement des outils MCP couramment utilisés. Tous les services sont désactivés par défaut et peuvent être activés manuellement après l'importation.",
+        "errorDetails": "Détails d'erreur",
+        "errors": "Erreur {count}",
+        "fetchingServers": "Obtenir la liste des serveurs MCP ...",
+        "imported": "{comte} Les services ont été importés",
+        "importingServers": "Configuration d'importation de serveur ...",
+        "invalidServerData": "Données de serveur non valides",
+        "noApiKey": "Veuillez d'abord configurer la clé de l'API Modelcope",
+        "noOperationalUrls": "Aucune adresse de fonctionnement disponible trouvée",
+        "noServersFound": "Aucun service MCP disponible trouvé",
+        "pageNumber": "numéro de page",
+        "pageNumberPlaceholder": "Veuillez saisir le numéro de page",
+        "pageSize": "Quantité par page",
+        "serverAlreadyExists": "Le serveur existe déjà, sautez l'importation",
+        "skipped": "Skip {count} Services",
+        "sync": "Commencer à se synchroniser",
+        "syncComplete": "Achèvement synchrone",
+        "syncing": "Synchronisation...",
+        "title": "Synchroniser les services MCP"
+      },
+      "name": "Modelcope",
+      "networkError": "Erreur de connexion réseau",
+      "notConnected": "Non connecté",
+      "verifyFailed": "Échec de la vérification",
+      "verifySuccess": "La vérification est réussie"
+    },
+    "operationFailed": "L'opération a échoué",
+    "operationSuccess": "L'opération est réussie",
+    "settingsApplied": "Paramètres appliqués",
+    "bedrockLimitTip": "* Prend uniquement en charge Anthropic Claude (y compris les modèles Opus, Sonnet, Haiku)",
+    "bedrockVerifyTip": "DeepChat utilise Claude 3.5 Sonnet pour la vérification. Si vous n'avez pas l'autorisation de l'invoquer, la vérification échouera. Cela n'affectera pas l'utilisation des autres modèles."
   },
   "knowledgeBase": {
     "title": "Paramètres de la base de connaissances",
@@ -435,7 +506,7 @@
     "embeddingModel": "Modèle d'intégration",
     "return": "retour",
     "uploadHelper": "Cliquez pour télécharger ou faire glisser le fichier ici",
-    "onlySupport": "Soutenu uniquement",
+    "fileSupport": "Prend en charge {accept} et {count} autres formats",
     "searchKnowledge": "Rechercher la base de connaissances",
     "searchKnowledgePlaceholder": "Veuillez saisir le contenu de la requête",
     "noData": "Pas encore de données",
@@ -473,7 +544,12 @@
       "content": "Êtes-vous sûr de vouloir supprimer le fichier \"{fileName}\" ? Cette action est irréversible."
     },
     "resumeAllPausedTasks": "Récupération en un clic",
-    "pauseAllRunningTasks": "Pause en un clic"
+    "pauseAllRunningTasks": "Pause en un clic",
+    "separators": "Séparateur de blocage",
+    "separatorsHelper": "Document Séliquant séparateur, le séparateur unique est enveloppé dans des citations doubles à demi-largeur (\"\"), et le séparateur est divisé par une virgule à demi-largeur (,)",
+    "invalidSeparators": "Séparateur non valide",
+    "selectLanguage": "Sélectionnez un préréglage",
+    "separatorsPreset": "Chargement des préréglages"
   },
   "mcp": {
     "title": "Paramètres MCP",
@@ -568,7 +644,8 @@
       "e2bApiKey": "E2B APIKEY",
       "e2bApiKeyPlaceholder": "Entrez ici vos touches API E2B, comme E2B_1111XX *******",
       "e2bApiKeyHelp": "Allez sur e2b.dev pour obtenir votre apikey",
-      "e2bApiKeyRequired": "Apikey doit être entré pour activer la fonction E2B"
+      "e2bApiKeyRequired": "Apikey doit être entré pour activer la fonction E2B",
+      "clickToEdit": "Cliquez sur Modifier pour afficher le contenu complet"
     },
     "builtIn": "intégré",
     "builtInServerCannotBeRemoved": "Les services intégrés ne peuvent pas être supprimés, seuls les paramètres de modification et les variables d'environnement sont prises en charge.",

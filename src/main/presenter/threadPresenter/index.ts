@@ -1482,7 +1482,9 @@ export class ThreadPresenter implements IThreadPresenter {
         temperature: currentTemperature,
         maxTokens: currentMaxTokens,
         enabledMcpTools: currentEnabledMcpTools,
-        thinkingBudget: currentThinkingBudget
+        thinkingBudget: currentThinkingBudget,
+        reasoningEffort: currentReasoningEffort,
+        verbosity: currentVerbosity
       } = currentConversation.settings
 
       // 检查是否是 Agent 会话（通过 providerId 前缀识别）
@@ -1687,7 +1689,9 @@ export class ThreadPresenter implements IThreadPresenter {
             currentTemperature, // 使用最新的设置
             currentMaxTokens, // 使用最新的设置
             currentEnabledMcpTools,
-            currentThinkingBudget
+            currentThinkingBudget,
+            currentReasoningEffort,
+            currentVerbosity
           )
           for await (const event of stream) {
             const msg = event.data
@@ -1787,8 +1791,16 @@ export class ThreadPresenter implements IThreadPresenter {
       this.throwIfCancelled(state.message.id)
 
       // 7. 准备提示内容
-      const { providerId, modelId, temperature, maxTokens, enabledMcpTools, thinkingBudget } =
-        conversation.settings
+      const {
+        providerId,
+        modelId,
+        temperature,
+        maxTokens,
+        enabledMcpTools,
+        thinkingBudget,
+        reasoningEffort,
+        verbosity
+      } = conversation.settings
       const modelConfig = this.configPresenter.getModelConfig(modelId, providerId)
 
       const { finalContent, promptTokens } = await this.preparePromptContent(
@@ -1857,7 +1869,9 @@ export class ThreadPresenter implements IThreadPresenter {
         temperature,
         maxTokens,
         enabledMcpTools,
-        thinkingBudget
+        thinkingBudget,
+        reasoningEffort,
+        verbosity
       )
       for await (const event of stream) {
         const msg = event.data
@@ -3865,8 +3879,16 @@ export class ThreadPresenter implements IThreadPresenter {
         throw new Error(errorMsg)
       }
 
-      const { providerId, modelId, temperature, maxTokens, enabledMcpTools, thinkingBudget } =
-        conversation.settings
+      const {
+        providerId,
+        modelId,
+        temperature,
+        maxTokens,
+        enabledMcpTools,
+        thinkingBudget,
+        reasoningEffort,
+        verbosity
+      } = conversation.settings
       const modelConfig = this.configPresenter.getModelConfig(modelId, providerId)
 
       if (!modelConfig) {
@@ -3921,7 +3943,9 @@ export class ThreadPresenter implements IThreadPresenter {
         temperature,
         maxTokens,
         enabledMcpTools,
-        thinkingBudget
+        thinkingBudget,
+        reasoningEffort,
+        verbosity
       )
 
       for await (const event of stream) {

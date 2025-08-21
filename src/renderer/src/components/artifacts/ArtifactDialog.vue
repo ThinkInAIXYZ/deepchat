@@ -49,6 +49,97 @@
             </button>
           </div>
 
+          <!-- 设备尺寸切换按钮组 (仅在HTML预览时显示) -->
+          <div
+            v-if="isPreview && artifactStore.currentArtifact?.type === 'text/html'"
+            class="bg-border p-0.5 rounded-lg flex items-center"
+          >
+            <button
+              class="px-2 py-1 text-xs rounded-md transition-colors"
+              :class="
+                viewportSize === 'desktop'
+                  ? 'bg-background shadow-sm'
+                  : 'text-muted-foreground hover:bg-background/50'
+              "
+              @click="setViewportSize('desktop')"
+              :title="t('artifacts.desktop')"
+            >
+              <Icon icon="lucide:monitor" class="w-3 h-3" />
+            </button>
+            <button
+              class="px-2 py-1 text-xs rounded-md transition-colors"
+              :class="
+                viewportSize === 'tablet'
+                  ? 'bg-background shadow-sm'
+                  : 'text-muted-foreground hover:bg-background/50'
+              "
+              @click="setViewportSize('tablet')"
+              :title="t('artifacts.tablet')"
+            >
+              <Icon icon="lucide:tablet" class="w-3 h-3" />
+            </button>
+            <button
+              class="px-2 py-1 text-xs rounded-md transition-colors"
+              :class="
+                viewportSize === 'mobile'
+                  ? 'bg-background shadow-sm'
+                  : 'text-muted-foreground hover:bg-background/50'
+              "
+              @click="setViewportSize('mobile')"
+              :title="t('artifacts.mobile')"
+            >
+              <Icon icon="lucide:smartphone" class="w-3 h-3" />
+            </button>
+          </div>
+
+          <!-- 尺寸微调输入框 (仅在平板和手机模式下显示) -->
+          <div
+            v-if="
+              isPreview &&
+              artifactStore.currentArtifact?.type === 'text/html' &&
+              viewportSize !== 'desktop'
+            "
+            class="flex items-center gap-2 bg-border p-1 rounded-lg"
+          >
+            <span class="text-xs text-muted-foreground whitespace-nowrap"
+              >{{ t('artifacts.width') }}:</span
+            >
+            <input
+              v-if="viewportSize === 'tablet'"
+              v-model.number="tabletWidth"
+              type="number"
+              min="320"
+              max="1200"
+              class="w-16 px-2 py-1 text-xs rounded border-0 bg-background focus:ring-1 focus:ring-blue-500 focus:outline-none text-center"
+            />
+            <input
+              v-else-if="viewportSize === 'mobile'"
+              v-model.number="mobileWidth"
+              type="number"
+              min="320"
+              max="480"
+              class="w-16 px-2 py-1 text-xs rounded border-0 bg-background focus:ring-1 focus:ring-blue-500 focus:outline-none text-center"
+            />
+            <span class="text-xs text-muted-foreground">×</span>
+            <input
+              v-if="viewportSize === 'tablet'"
+              v-model.number="tabletHeight"
+              type="number"
+              min="426"
+              max="1400"
+              class="w-16 px-2 py-1 text-xs rounded border-0 bg-background focus:ring-1 focus:ring-blue-500 focus:outline-none text-center"
+            />
+            <input
+              v-else-if="viewportSize === 'mobile'"
+              v-model.number="mobileHeight"
+              type="number"
+              min="426"
+              max="1000"
+              class="w-16 px-2 py-1 text-xs rounded border-0 bg-background focus:ring-1 focus:ring-blue-500 focus:outline-none text-center"
+            />
+            <span class="text-xs text-muted-foreground">px</span>
+          </div>
+
           <!-- 导出按钮 -->
           <div class="flex items-center gap-1">
             <Button
@@ -116,6 +207,11 @@
               }
             }"
             :is-preview="isPreview"
+            :viewport-size="viewportSize"
+            v-model:tablet-width="tabletWidth"
+            v-model:mobile-width="mobileWidth"
+            v-model:tablet-height="tabletHeight"
+            v-model:mobile-height="mobileHeight"
             class="artifact-dialog-content"
           />
         </template>
@@ -154,6 +250,11 @@ import { useMonaco, detectLanguage } from 'vue-use-monaco'
 const artifactStore = useArtifactStore()
 const componentKey = ref(0)
 const isPreview = ref(false)
+const viewportSize = ref<'desktop' | 'tablet' | 'mobile'>('desktop')
+const tabletWidth = ref(768)
+const mobileWidth = ref(375)
+const tabletHeight = ref(1024) // 4:3 比例
+const mobileHeight = ref(667) // 16:9 比例
 const t = useI18n().t
 const { toast } = useToast()
 const themeStore = useThemeStore()
@@ -162,7 +263,7 @@ const appVersion = ref('')
 const codeLanguage = ref(
   artifactStore.currentArtifact?.language || artifactStore.currentArtifact?.type || ''
 )
-const { createEditor, updateCode } = useMonaco()
+const { createEditor, updateCode } = useMonaco({ MAX_HEIGHT: '500px' })
 const codeEditor = ref<any>(null)
 
 // 创建节流版本的语言检测函数，1秒内最多执行一次
@@ -176,24 +277,29 @@ const throttledDetectLanguage = useThrottleFn(
 
 watch(
   () => artifactStore.currentArtifact,
-  () => {
-    // 如果当前 artifact 的语言已经被检测过了，就不再进行检测
-    codeLanguage.value =
-      artifactStore.currentArtifact?.language ||
-      getFileExtension(artifactStore.currentArtifact?.type || '')
+  (newArtifact) => {
+    if (!newArtifact) return
+
+    // Update language detection
+    codeLanguage.value = newArtifact.language || getFileExtension(newArtifact.type || '')
+
     if (codeLanguage.value === 'mermaid') {
       return
     }
-    const newCode = artifactStore.currentArtifact?.content || ''
+
+    const newCode = newArtifact.content || ''
 
     // Check if we need to detect language
     if (!codeLanguage.value || codeLanguage.value === '') {
       throttledDetectLanguage(newCode)
     }
-    updateCode(artifactStore.currentArtifact?.content || '', codeLanguage.value)
+
+    // Always update Monaco editor content
+    updateCode(newCode, codeLanguage.value)
   },
   {
-    immediate: true
+    immediate: true,
+    deep: true // Add deep watching to catch property changes
   }
 )
 
@@ -206,6 +312,19 @@ watch(
   () => codeLanguage.value,
   () => {
     updateCode(artifactStore.currentArtifact?.content || '', codeLanguage.value)
+  }
+)
+
+// Add a specific watcher for content changes to ensure real-time updates
+watch(
+  () => artifactStore.currentArtifact?.content,
+  (newContent) => {
+    if (newContent !== undefined) {
+      updateCode(newContent, codeLanguage.value)
+    }
+  },
+  {
+    immediate: true
   }
 )
 
@@ -222,6 +341,10 @@ const { captureAndCopy } = usePageCapture()
 
 const setPreview = (value: boolean) => {
   isPreview.value = value
+}
+
+const setViewportSize = (size: 'desktop' | 'tablet' | 'mobile') => {
+  viewportSize.value = size
 }
 
 // 监听 artifact 变化，强制重新渲染组件

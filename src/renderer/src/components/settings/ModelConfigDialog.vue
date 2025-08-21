@@ -52,8 +52,8 @@
             </p>
           </div>
 
-          <!-- 温度 (GPT-5 系列模型不显示) -->
-          <div v-if="!isGPT5Model" class="space-y-2">
+          <!-- 温度 (支持推理努力程度的模型不显示) -->
+          <div v-if="!supportsReasoningEffort" class="space-y-2">
             <Label for="temperature">{{ t('settings.model.modelConfig.temperature.label') }}</Label>
             <Input
               id="temperature"
@@ -133,8 +133,8 @@
             <Switch v-model:checked="config.reasoning" />
           </div>
 
-          <!-- GPT-5 系列模型的推理努力程度 -->
-          <div v-if="isGPT5Model" class="space-y-2">
+          <!-- 推理努力程度 (支持推理努力程度的模型显示) -->
+          <div v-if="supportsReasoningEffort" class="space-y-2">
             <Label for="reasoningEffort">{{
               t('settings.model.modelConfig.reasoningEffort.label')
             }}</Label>
@@ -400,8 +400,8 @@ const validateForm = () => {
     errors.value.contextLength = t('settings.model.modelConfig.validation.contextLengthMax')
   }
 
-  // 验证温度 (仅对非 GPT-5 系列模型)
-  if (!isGPT5Model.value && config.value.temperature !== undefined) {
+  // 验证温度 (仅对不支持推理努力程度的模型)
+  if (!supportsReasoningEffort.value && config.value.temperature !== undefined) {
     if (config.value.temperature < 0) {
       errors.value.temperature = t('settings.model.modelConfig.validation.temperatureMin')
     } else if (config.value.temperature > 2) {
@@ -491,7 +491,11 @@ const getThinkingBudgetConfig = (modelId: string) => {
 
 const isGPT5Model = computed(() => {
   const modelId = props.modelId.toLowerCase()
-  return modelId.startsWith('gpt-5')
+  return modelId.includes('gpt-5')
+})
+
+const supportsReasoningEffort = computed(() => {
+  return config.value.reasoningEffort !== undefined && config.value.reasoningEffort !== null
 })
 
 // 是否显示思考预算配置

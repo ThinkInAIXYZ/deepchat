@@ -1,4 +1,5 @@
 import fs from 'node:fs'
+import path from 'node:path'
 
 import {
   BuiltinKnowledgeConfig,
@@ -59,12 +60,13 @@ export class KnowledgeStorePresenter {
         return { data: existingFile[0] }
       }
 
+      const mimeType = await presenter.filePresenter.getMimeType(filePath)
       // 先将文件基本信息插入数据库
       const fileMessage = {
         id: fileId ?? nanoid(),
-        name: '',
+        name: path.basename(filePath) || 'unknown',
         path: filePath,
-        mimeType: '',
+        mimeType,
         status: 'processing',
         uploadedAt: new Date().getTime(),
         metadata: {
@@ -91,16 +93,14 @@ export class KnowledgeStorePresenter {
   private async processFileAsync(fileMessage: KnowledgeFileMessage): Promise<void> {
     try {
       // 1. 读取文件和获取基本信息
-      const mimeType = await presenter.filePresenter.getMimeType(fileMessage.path)
       const fileInfo = await presenter.filePresenter.prepareFileCompletely(
         fileMessage.path,
-        mimeType,
+        fileMessage.mimeType,
         'origin'
       )
 
       // 2. 更新文件基本信息
       fileMessage.name = fileInfo.name
-      fileMessage.mimeType = mimeType
       fileMessage.metadata = {
         size: fileInfo.metadata.fileSize,
         totalChunks: 0
@@ -119,7 +119,8 @@ export class KnowledgeStorePresenter {
       // 3. 分片
       const chunker = new RecursiveCharacterTextSplitter({
         chunkSize: this.config.chunkSize,
-        chunkOverlap: this.config.chunkOverlap
+        chunkOverlap: this.config.chunkOverlap,
+        separators: this.config.separators
       })
       const chunks = await chunker.splitText(sanitizeText(fileInfo.content))
 
@@ -132,7 +133,7 @@ export class KnowledgeStorePresenter {
 
       // 6. 创建chunk记录
       const chunkMessages = chunks.map((content, index) => ({
-        id: nanoid(),
+        id: fileMessage.id + '_' + index,
         fileId: fileMessage.id,
         chunkIndex: index,
         content,

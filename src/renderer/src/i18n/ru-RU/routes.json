@@ -12,5 +12,6 @@
   "settings-knowledge-base": "База знаний",
   "settings-prompt": "Управление промптами",
   "settings-agent": "Настройки агента",
-  "agent": "Agent"
+  "agent": "Agent",
+  "settings-mcp-market": "MCP Market"
 }

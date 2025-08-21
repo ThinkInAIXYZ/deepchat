@@ -171,6 +171,12 @@ const handleGoSettings = () => {
 
 // 处理 agent 选择
 
+// 处理ESC键 - 关闭悬浮聊天窗口
+const handleEscKey = (event: KeyboardEvent) => {
+  if (event.key === 'Escape') {
+    window.electron.ipcRenderer.send('close-floating-window')
+  }
+}
 
 getInitComplete()
 
@@ -181,6 +187,8 @@ onMounted(() => {
   // 设置初始 body class
   document.body.classList.add(themeStore.themeMode)
   document.body.classList.add(settingsStore.fontSizeClass)
+
+  window.addEventListener('keydown', handleEscKey)
 
   // 监听全局错误通知事件
   window.electron.ipcRenderer.on(NOTIFICATION_EVENTS.SHOW_ERROR, (_event, error) => {
@@ -294,6 +302,8 @@ onBeforeUnmount(() => {
     clearTimeout(errorDisplayTimer.value)
     errorDisplayTimer.value = null
   }
+
+  window.removeEventListener('keydown', handleEscKey)
 
   // 移除快捷键事件监听
   window.electron.ipcRenderer.removeAllListeners(SHORTCUT_EVENTS.ZOOM_IN)

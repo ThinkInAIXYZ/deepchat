@@ -38,7 +38,7 @@
 </template>
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
-import { ref, computed, onMounted, PropType } from 'vue'
+import { ref, computed, PropType } from 'vue'
 import Input from './ui/input/Input.vue'
 // import Badge from './ui/badge/Badge.vue'
 import { useChatStore } from '@/stores/chat'
@@ -54,8 +54,6 @@ const chatStore = useChatStore()
 const settingsStore = useSettingsStore()
 const themeStore = useThemeStore()
 const langStore = useLanguageStore()
-const providers = ref<{ id: string; name: string; models: RENDERER_MODEL_META[] }[]>([])
-
 const emit = defineEmits<{
   (e: 'update:model', model: RENDERER_MODEL_META, providerId: string): void
 }>()
@@ -65,6 +63,35 @@ const props = defineProps({
     type: Array as PropType<ModelType[]>,
     default: undefined // ←  explicit for clarity
   }
+})
+const providers = computed(() => {
+  const sortedProviders = settingsStore.sortedProviders
+  const enabledModels = settingsStore.enabledModels
+  const orderedProviders = sortedProviders
+    .filter((provider) => provider.enable)
+    .map((provider) => {
+      const enabledProvider = enabledModels.find((ep) => ep.providerId === provider.id)
+      if (!enabledProvider || enabledProvider.models.length === 0) {
+        return null
+      }
+
+      return {
+        id: provider.id,
+        name: provider.name,
+        models:
+          !props.type || props.type.length === 0
+            ? enabledProvider.models
+            : enabledProvider.models.filter(
+                (model) => model.type !== undefined && props.type!.includes(model.type as ModelType)
+              )
+      }
+    })
+    .filter(
+      (provider): provider is { id: string; name: string; models: RENDERER_MODEL_META[] } =>
+        provider !== null && provider.models.length > 0
+    )
+
+  return orderedProviders
 })
 
 const filteredProviders = computed(() => {
@@ -99,25 +126,4 @@ const handleModelSelect = async (providerId: string, model: RENDERER_MODEL_META)
 //   if (model.description) tags.push(model.description)
 //   return tags
 // }
-
-onMounted(async () => {
-  try {
-    const enabledModels = settingsStore.enabledModels
-    providers.value = enabledModels.map(({ providerId, models }) => {
-      const provider = settingsStore.providers.find((p) => p.id === providerId)
-      return {
-        id: providerId,
-        name: provider?.name || providerId,
-        models:
-          !props.type || props.type.length === 0
-            ? models
-            : models.filter(
-                (model) => model.type !== undefined && props.type!.includes(model.type as ModelType)
-              )
-      }
-    })
-  } catch (error) {
-    console.error(t('model.error.loadFailed'), error)
-  }
-})
 </script>

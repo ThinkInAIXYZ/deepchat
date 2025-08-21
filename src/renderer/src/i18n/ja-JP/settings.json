@@ -225,11 +225,15 @@
     }
   },
   "provider": {
+    "search": "プロバイダープラットフォームを検索…",
     "enable": "サービスを有効にする",
     "enabled": "有効",
     "disabled": "無効",
     "urlPlaceholder": "API URLを入力してください",
     "keyPlaceholder": "API Keyを入力してください",
+    "accessKeyIdPlaceholder": "AWS Access Key IDを入力してください",
+    "secretAccessKeyPlaceholder": "AWS Secret Access Keyを入力してください",
+    "regionPlaceholder": "AWSリージョンを入力してください",
     "verifyKey": "キーを検証",
     "howToGet": "取得方法",
     "getKeyTip": "以下へアクセスしてください",
@@ -239,6 +243,10 @@
     "enableModels": "モデルを有効にする",
     "disableAllModels": "すべてのモデルを無効にする",
     "modelsEnabled": "モデルが有効になりました",
+    "noModelsEnabled": {
+      "title": "有効なモデルがありません",
+      "description": "「モデルを有効にする」ボタンをクリックして使用したいモデルを手動で選択してください。"
+    },
     "verifyLink": "検証リンク",
     "syncModelsFailed": "モデルの同期に失敗しました...",
     "addCustomProvider": "カスタムプロバイダーを追加",
@@ -266,7 +274,10 @@
         "failed": "検証に失敗しました",
         "success": "検証に成功しました",
         "failedDesc": "APIキーまたは設定の検証に失敗しました。設定を確認してください",
-        "successDesc": "APIキーと設定の検証に成功しました。使用可能です"
+        "successDesc": "APIキーと設定の検証に成功しました。使用可能です",
+        "connectionError": "接続エラー、ネットワーク接続とAPIアドレスを確認してください",
+        "serverError": "サーバーエラー、後でもう一度やり直してください",
+        "unauthorized": "認証に失敗し、APIキーが無効または期限切れです"
       },
       "addCustomProvider": {
         "title": "カスタムプロバイダーを追加",
@@ -374,7 +385,67 @@
     "manageModels": "モデル管理",
     "anthropicOAuthActiveTip": "OAuth認証が有効になっており、Anthropicサービスを直接使用できます",
     "oauthVerifySuccess": "OAuth接続の確認が成功しました",
-    "oauthVerifyFailed": "OAuth接続の確認に失敗しました"
+    "oauthVerifyFailed": "OAuth接続の確認に失敗しました",
+    "configurationSaved": "構成が保存されました",
+    "configurationUpdated": "設定が更新されました",
+    "dataRefreshed": "データは更新されています",
+    "modelscope": {
+      "apiKey": "APIキー",
+      "apiKeyHelper": "ModelScopeコンソールでAPIキーを取得します",
+      "apiKeyPlaceholder": "ModelScope APIキーを入力してください",
+      "baseUrl": "APIアドレス",
+      "baseUrlHelper": "ModelScope APIサービスアドレス",
+      "connected": "接続",
+      "connecting": "接続...",
+      "description": "ModelScopeは、Alibaba Damo Academyによって開始されたサービスとしてのモデル共有プラットフォームです",
+      "details": {
+        "apiConfig": "API構成",
+        "mcpSync": "MCP同期",
+        "modelManagement": "モデル管理",
+        "operationalDescription": "ModelScopeプラットフォームで直接使用できるMCPサーバーを同期する",
+        "operationalServers": "サーバーの操作",
+        "rateLimitConfig": "レート制限構成",
+        "safetySettings": "セキュリティ設定",
+        "specialConfig": "特別な構成",
+        "syncFromModelScope": "ModelScopeから同期します",
+        "title": "プロバイダーの設定の詳細"
+      },
+      "invalidKey": "無効なAPIキー",
+      "keyRequired": "APIキーを入力してください",
+      "mcpSync": {
+        "authenticationFailed": "認証に失敗しました。APIキーを確認してください",
+        "convertingServers": "サーバー構成の変換...",
+        "description": "MODESCOPEからローカル構成までMCPサーバーを同期すると、一般的に使用されるMCPツールをすばやく追加できます。すべてのサービスはデフォルトで無効になり、インポート後に手動で有効にすることができます。",
+        "errorDetails": "エラーの詳細",
+        "errors": "エラー{count}",
+        "fetchingServers": "MCPサーバーのリストを取得...",
+        "imported": "{count}サービスがインポートされています",
+        "importingServers": "サーバー構成のインポート...",
+        "invalidServerData": "無効なサーバーデータ",
+        "noApiKey": "ModelScope APIキーを最初に構成してください",
+        "noOperationalUrls": "利用可能な操作アドレスは見つかりません",
+        "noServersFound": "利用可能なMCPサービスは見つかりません",
+        "pageNumber": "ページ番号",
+        "pageNumberPlaceholder": "ページ番号を入力してください",
+        "pageSize": "ページごとの数量",
+        "serverAlreadyExists": "サーバーはすでに存在し、インポートをスキップします",
+        "skipped": "Skip {count}サービス",
+        "sync": "同期を開始します",
+        "syncComplete": "同期完了",
+        "syncing": "同期...",
+        "title": "MCPサービスを同期します"
+      },
+      "name": "ModelScope",
+      "networkError": "ネットワーク接続エラー",
+      "notConnected": "接続されていません",
+      "verifyFailed": "検証に失敗しました",
+      "verifySuccess": "検証は成功しました"
+    },
+    "operationFailed": "操作に失敗しました",
+    "operationSuccess": "操作は成功しました",
+    "settingsApplied": "適用された設定",
+    "bedrockLimitTip": "* Anthropic Claude（Opus、Sonnet、Haikuモデルを含む）のみをサポート",
+    "bedrockVerifyTip": "DeepChatは検証にClaude 3.5 Sonnetを使用しています。起動権限がない場合、検証は失敗します。ただし、他のモデルの使用には影響しません。"
   },
   "knowledgeBase": {
     "title": "ナレッジベース設定",
@@ -435,7 +506,7 @@
     "embeddingModel": "埋め込みモデル",
     "return": "戻る",
     "uploadHelper": "クリックしてここでファイルをアップロードまたはドラッグします",
-    "onlySupport": "サポートのみ",
+    "fileSupport": "{accept} およびその他の {count} 形式をサポートします",
     "searchKnowledge": "ナレッジベースを検索します",
     "searchKnowledgePlaceholder": "クエリコンテンツを入力してください",
     "noData": "まだデータはありません",
@@ -473,7 +544,12 @@
       "content": "ファイル「{fileName}」を削除してもよろしいですか？この操作は元に戻せません。"
     },
     "resumeAllPausedTasks": "ワンクリックリカバリ",
-    "pauseAllRunningTasks": "ワンクリックの一時停止"
+    "pauseAllRunningTasks": "ワンクリックの一時停止",
+    "separators": "ブロックセパレーター",
+    "separatorsHelper": "ドキュメントのセグメンテーション区切り文字。単一の区切り文字は二重引用符 (\"\") で囲まれ、区切り文字はコンマ (,) で区切られます",
+    "invalidSeparators": "無効な分離器",
+    "selectLanguage": "プリセットを選択します",
+    "separatorsPreset": "プリセットの読み込み"
   },
   "mcp": {
     "title": "MCP設定",
@@ -555,6 +631,7 @@
       "imageModel": "視覚モデルを選択します",
       "customHeadersParseError": "カスタムヘッダーの解析は失敗しました",
       "customHeaders": "カスタムリクエストヘッダー",
+      "clickToEdit": "クリックして編集し、完全な内容を表示",
       "invalidKeyValueFormat": "誤ったリクエストヘッダー形式、入力が正しいかどうかを確認してください。",
       "npmRegistry": "カスタムNPMレジストリ",
       "npmRegistryPlaceholder": "カスタムNPMレジストリをセットアップし、システムを残して最速のレジストリを自動的に選択する",

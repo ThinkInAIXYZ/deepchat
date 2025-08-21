@@ -90,6 +90,15 @@ const router = createRouter({
           }
         },
         {
+          path: 'mcp-market',
+          name: 'settings-mcp-market',
+          component: () => import('@/components/settings/McpBuiltinMarket.vue'),
+          meta: {
+            titleKey: 'routes.settings-mcp-market',
+            icon: 'lucide:shopping-bag'
+          }
+        },
+        {
           path: 'prompt',
           name: 'settings-prompt',
           component: () => import('@/components/settings/PromptSetting.vue'),

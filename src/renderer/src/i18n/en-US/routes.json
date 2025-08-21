@@ -12,5 +12,6 @@
   "settings-display": "Display",
   "settings-knowledge-base": "Knowledge Base",
   "settings-prompt": "Prompts",
-  "settings-agent": "Agent Settings"
+  "settings-agent": "Agent Settings",
+  "settings-mcp-market": "MCP Market"
 }

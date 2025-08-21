@@ -12,5 +12,6 @@
   "settings-knowledge-base": "知識庫",
   "settings-prompt": "Prompt管理",
   "settings-agent": "智能體設置",
-  "agent": "智能體"
+  "agent": "智能體",
+  "settings-mcp-market": "MCP市場"
 }

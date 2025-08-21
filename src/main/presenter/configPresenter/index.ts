@@ -333,7 +333,7 @@ export class ConfigPresenter implements IConfigPresenter {
 
     // Cache miss: read from settings and cache the result
     const status = this.getSetting<boolean>(statusKey)
-    const finalStatus = typeof status === 'boolean' ? status : true
+    const finalStatus = typeof status === 'boolean' ? status : false
     this.modelStatusCache.set(statusKey, finalStatus)
 
     return finalStatus
@@ -361,7 +361,7 @@ export class ConfigPresenter implements IConfigPresenter {
       const modelId = uncachedModelIds[i]
       const statusKey = uncachedKeys[i]
       const status = this.getSetting<boolean>(statusKey)
-      const finalStatus = typeof status === 'boolean' ? status : true
+      const finalStatus = typeof status === 'boolean' ? status : false
 
       // Cache the result and add to return object
       this.modelStatusCache.set(statusKey, finalStatus)
@@ -380,13 +380,11 @@ export class ConfigPresenter implements IConfigPresenter {
     this.modelStatusCache.set(statusKey, enabled)
 
     // 触发模型状态变更事件（需要通知所有标签页）
-    eventBus.sendToRenderer(
-      CONFIG_EVENTS.MODEL_STATUS_CHANGED,
-      SendTarget.ALL_WINDOWS,
+    eventBus.sendToRenderer(CONFIG_EVENTS.MODEL_STATUS_CHANGED, SendTarget.ALL_WINDOWS, {
       providerId,
       modelId,
       enabled
-    )
+    })
   }
 
   // 启用模型
@@ -1221,6 +1219,34 @@ export class ConfigPresenter implements IConfigPresenter {
       this.knowledgeConfHelper.getKnowledgeConfigs(),
       newConfigs
     )
+  }
+
+  // 批量导入MCP服务器
+  async batchImportMcpServers(
+    servers: Array<{
+      name: string
+      description: string
+      package: string
+      version?: string
+      type?: any
+      args?: string[]
+      env?: Record<string, string>
+      enabled?: boolean
+      source?: string
+      [key: string]: unknown
+    }>,
+    options: {
+      skipExisting?: boolean
+      enableByDefault?: boolean
+      overwriteExisting?: boolean
+    } = {}
+  ): Promise<{ imported: number; skipped: number; errors: string[] }> {
+    return this.mcpConfHelper.batchImportMcpServers(servers, options)
+  }
+
+  // 根据包名查找服务器
+  async findMcpServerByPackage(packageName: string): Promise<string | null> {
+    return this.mcpConfHelper.findServerByPackage(packageName)
   }
 }
 

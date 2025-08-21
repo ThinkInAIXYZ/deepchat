@@ -36,5 +36,14 @@
   "copyFailedDesc": "クリップボードへのコピーに失敗しました",
   "copyAsImage": "画像としてコピー",
   "copyImageSuccessDesc": "画像をクリップボードにコピーしました",
-  "copyImageFailedDesc": "画像をコピーできませんでした"
+  "copyImageFailedDesc": "画像のコピーに失敗しました",
+  "desktop": "デスクトップ",
+  "tablet": "タブレット",
+  "mobile": "モバイル",
+  "width": "幅",
+  "height": "高さ",
+  "copyImageFailedDesc": "画像をコピーできませんでした",
+  "noSvgContent": "SVGコンテンツは利用できません",
+  "sanitizingSvg": "SVGコンテンツの浄化...",
+  "svgSanitizationFailed": "SVGコンテンツにセキュリティ検証に失敗しました"
 }
