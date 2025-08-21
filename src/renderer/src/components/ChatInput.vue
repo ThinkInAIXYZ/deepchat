@@ -71,28 +71,13 @@
                   variant="outline"
                   size="icon"
                   class="w-7 h-7"
-                  :class="{ 'bg-blue-500 text-white': aiChangeIsActive }"
+                  :class="{ 'bg-blue-500 hover:bg-blue-600 text-white': aiChangeIsActive }"
                   @click="aiChange"
                 >
                   <Icon icon="lucide:cpu" class="w-4 h-4" />
                 </Button>
               </TooltipTrigger>
               <TooltipContent>{{ t('chat.input.aiChange') }}</TooltipContent>
-            </Tooltip>
-
-            <Tooltip>
-              <TooltipTrigger>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  class="w-7 h-7"
-                  :class="{ 'bg-blue-500 text-white': isRecording }"
-                  @click="SoundInput"
-                >
-                  <Icon icon="lucide:mic" class="w-4 h-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>{{ t('chat.input.SoundInput') }}</TooltipContent>
             </Tooltip>
 
             <Tooltip>
@@ -152,6 +137,69 @@
             </Tooltip>
 
             <McpToolsList />
+
+            <Tooltip>
+              <TooltipTrigger>
+                <!-- 按钮 + 炫酷光环 -->
+                <div class="relative inline-flex">
+                  <span
+                    v-if="isRecording"
+                    class="absolute inset-0 rounded-full animate-ping"
+                    :style="{
+                      background: 'rgba(59,130,246,0.4)',
+                      zIndex: 0,
+                      pointerEvents: 'none'
+                    }"
+                  ></span>
+
+                  <!-- 呼吸霓虹（录音时显示） -->
+                  <span
+                    v-if="isRecording"
+                    class="w-5 h-5 pointer-events-none absolute -inset-1 rounded-full left-1 top-1"
+                    :style="neonGlowStyle"
+                  ></span>
+
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    class="w-7 h-7 transition-colors duration-200 relative z-10"
+                    :class="{
+                      'bg-blue-500 text-white hover:bg-blue-600 hover:text-white': isRecording
+                    }"
+                    @click="SoundInput"
+                  >
+                    <Icon
+                      icon="lucide:mic"
+                      class="w-5 h-5 transition-transform duration-100"
+                      :style="{ transform: `scale(${1 + volumeRMS * 0.25})` }"
+                    />
+                  </Button>
+                </div>
+              </TooltipTrigger>
+              <TooltipContent>{{ t('chat.input.SoundInput') }}</TooltipContent>
+            </Tooltip>
+            <div v-if="isRecording" class="mt-2 text-xs text-gray-500 flex items-center gap-2">
+              <span
+                >音量: <b>{{ (volumeRMS * 100).toFixed(0) }}</b></span
+              >
+              <span
+                >峰值: <b>{{ (peakLevel * 100).toFixed(0) }}</b></span
+              >
+            </div>
+
+            <!-- 动态均衡柱（频谱） -->
+            <div v-if="isRecording" class="mt-1 flex items-end gap-1 select-none">
+              <div
+                v-for="(h, i) in barHeights"
+                :key="i"
+                class="w-1.5 rounded-full transition-[height] duration-75"
+                :style="{
+                  height: h + '%',
+                  background: barGradient,
+                  boxShadow: isRecording ? '0 0 8px rgba(0,0,0,0.15)' : 'none'
+                }"
+              ></div>
+            </div>
             <!-- {{ t('chat.input.fileSelect') }} -->
             <slot name="addon-buttons"></slot>
           </div>
@@ -222,7 +270,7 @@
 
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
-import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref, watch, onBeforeUnmount } from 'vue'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import {
@@ -532,6 +580,84 @@ const isRecording = ref(false)
 const countdown = ref(20)
 let timer: ReturnType<typeof setInterval> | null = null
 
+
+// 音量（RMS 0~1）、峰值（0~1）
+const volumeRMS = ref(0)
+const peakLevel = ref(0)
+
+// 炫彩均衡柱
+const BARS = 12
+const barHeights = ref<number[]>(Array.from({ length: BARS }, () => 5))
+
+// WebAudio资源
+let audioContext: AudioContext | null = null
+let analyser: AnalyserNode | null = null
+let source: MediaStreamAudioSourceNode | null = null
+let mediaStream: MediaStream | null = null
+let rafId: number | null = null
+
+// ===== 颜色随音量变 =====
+const hue = computed(() => {
+  // 归一化音量值 (0 ~ 1)
+  const v = Math.min(1, Math.max(0, volumeRMS.value * 1.2))
+
+  if (v < 0.5) {
+    // 蓝(240) → 紫(300)
+    return 240 + (v / 0.5) * (300 - 240)
+  } else {
+    // 紫(300) → 红(360)
+    return 300 + ((v - 0.5) / 0.5) * (360 - 300)
+  }
+})
+const barGradient = computed(
+  () => `linear-gradient(180deg, hsl(${hue.value} 90% 55%), hsl(${hue.value} 90% 45%))`
+)
+
+const neonGlowStyle = computed(() => {
+  // 动态透明度控制 (0.4 ~ 1.0)
+  const baseAlpha = 0.4 + volumeRMS.value * 0.6
+
+  // 颜色定义
+  const innerGlow = `hsla(${hue.value}, 100%, 75%, ${baseAlpha * 0.8})`
+  const middleGlow = `hsla(${hue.value}, 100%, 65%, ${baseAlpha * 0.6})`
+  const outerGlow = `hsla(${hue.value}, 100%, 60%, ${baseAlpha * 0.4})`
+
+  return {
+    // 确保完美圆形
+    borderRadius: '4px',
+    // 多层圆形光晕
+    boxShadow: `
+      /* 内圈高光 */
+      0 0 0 2px ${innerGlow},
+      0 0 4px 4px ${innerGlow},
+      
+      /* 中圈主光晕 */ 
+      0 0 12px 6px ${middleGlow},
+      
+      /* 外圈扩散光晕 */
+      0 0 24px 12px ${outerGlow}
+    `,
+    // 呼吸动画
+    animation: 'pulseGlow 1.8s ease-in-out infinite',
+    // 防止光晕被裁剪
+    transform: 'translateZ(0)'
+  }
+})
+
+const spinRingStyle = computed(() => {
+  // 调整蓝色基础透明度为0.4
+  const baseAlpha = 0.4
+  return {
+    background: `conic-gradient(from 0deg, 
+      hsla(${hue.value},100%,60%,0.0) 0%,
+      hsla(${hue.value},100%,60%,${baseAlpha * 0.375}) 25%,
+      hsla(${hue.value},100%,60%,${baseAlpha * 0.875}) 30%,
+      hsla(${hue.value},100%,60%,${baseAlpha * 0.375}) 55%,
+      hsla(${hue.value},100%,60%,0.0) 100%)`,
+    filter: 'blur(6px)',
+    animation: 'spinSlow 3.2s linear infinite'
+  }
+})
 const startCountdown = () => {
   countdown.value = 15
   timer = setInterval(() => {
@@ -556,8 +682,9 @@ const SoundInput = async () => {
     editor.chain().focus()
     // 第一次点击：模拟按下 CapsLock
     await window.electron.ipcRenderer.send('simulate-capslock', 'press')
-    //  robot.keyToggle('capslock', 'down');
     console.log('渲染进程: 请求按下 CapsLock')
+    // 开始录音 & 可视化
+    await startMeter()
 
     isRecording.value = true
     startCountdown()
@@ -565,9 +692,13 @@ const SoundInput = async () => {
     editor.chain().focus()
     // 第二次点击：模拟释放 CapsLock
     await window.electron.ipcRenderer.send('simulate-capslock', 'release')
-    // robot.keyToggle('capslock', 'up');
     console.log('渲染进程: 请求释放 CapsLock')
-    await emitSend()
+
+    //自动发送
+    // await emitSend()
+
+    // 停止录音 & 清理
+    stopMeter()
     isRecording.value = false
     if (timer !== null) {
       clearTimeout(timer)
@@ -576,6 +707,94 @@ const SoundInput = async () => {
   }
 }
 
+// ====== 音量捕获与可视化 ======
+const startMeter = async () => {
+  try {
+    mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true })
+    audioContext = new (window.AudioContext || (window as any).webkitAudioContext)()
+    analyser = audioContext.createAnalyser()
+    analyser.fftSize = 1024
+    analyser.smoothingTimeConstant = 0.8
+
+    source = audioContext.createMediaStreamSource(mediaStream)
+    source.connect(analyser)
+
+    const timeData = new Uint8Array(analyser.fftSize)
+    const freqData = new Uint8Array(analyser.frequencyBinCount)
+
+    const loop = () => {
+      if (!analyser) return
+
+      // 1) RMS 音量 & 峰值（使用时域数据）
+      analyser.getByteTimeDomainData(timeData)
+      let sumSq = 0
+      let peak = 0
+      for (let i = 0; i < timeData.length; i++) {
+        const x = (timeData[i] - 128) / 128 // [-1,1]
+        const ax = Math.abs(x)
+        peak = ax > peak ? ax : peak
+        sumSq += x * x
+      }
+      const rms = Math.sqrt(sumSq / timeData.length)
+      volumeRMS.value = rms
+      // 缓慢衰减的峰值指示
+      peakLevel.value = Math.max(peak * 0.9, peakLevel.value * 0.92)
+
+      // 2) 均衡柱（使用频域数据）
+      analyser.getByteFrequencyData(freqData) // 0~255
+      const binsPerBar = Math.max(1, Math.floor(freqData.length / BARS))
+      const heights: number[] = []
+      for (let b = 0; b < BARS; b++) {
+        const start = b * binsPerBar
+        const end = Math.min(freqData.length, start + binsPerBar)
+        let acc = 0
+        for (let j = start; j < end; j++) acc += freqData[j]
+        const avg = acc / (end - start || 1) // 0~255
+        // 转换为百分比高度 + 一点基础高度，避免完全为 0
+        const h = Math.min(100, Math.max(6, (avg / 255) * 100))
+        // 加一点错落感和音量加成，视觉更灵动
+        const wobble = (Math.sin(performance.now() / 180 + b) + 1) * 2
+        const boosted = h * (0.6 + volumeRMS.value * 0.8) + wobble
+        heights.push(Math.min(100, boosted))
+      }
+      barHeights.value = heights
+
+      rafId = requestAnimationFrame(loop)
+    }
+
+    loop()
+  } catch (err) {
+    console.error('获取麦克风失败: ', err)
+    // 失败时回退状态
+    isRecording.value = false
+  }
+}
+
+const stopMeter = () => {
+  if (rafId) {
+    cancelAnimationFrame(rafId)
+    rafId = null
+  }
+  if (audioContext) {
+    audioContext.close().catch(() => {})
+    audioContext = null
+  }
+  analyser = null
+  source = null
+
+  if (mediaStream) {
+    mediaStream.getTracks().forEach((t) => t.stop())
+    mediaStream = null
+  }
+
+  // 复位视觉
+  volumeRMS.value = 0
+  peakLevel.value = 0
+  barHeights.value = Array.from({ length: BARS }, () => 100)
+}
+onBeforeUnmount(() => {
+  stopMeter()
+})
 const previewFile = (filePath: string) => {
   windowPresenter.previewFile(filePath)
 }
@@ -1445,5 +1664,24 @@ defineExpose({
   float: left;
   height: 0;
   pointer-events: none;
+}
+@keyframes pulseGlow {
+  0%,
+  100% {
+    opacity: 0.8;
+    transform: scale(0.98);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.02);
+  }
+}
+@keyframes spinSlow {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 </style>
