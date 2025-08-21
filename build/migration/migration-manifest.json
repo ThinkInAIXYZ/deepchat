@@ -1,0 +1,28 @@
+{
+  "version": "0.3.1",
+  "migrationSystemVersion": "1.0.0",
+  "supportedLegacyVersions": [
+    "0.1.x",
+    "0.2.x",
+    "0.3.x"
+  ],
+  "requiredComponents": [
+    "PGlitePresenter",
+    "MigrationManager",
+    "MigrationPresenter",
+    "MigrationEngine",
+    "ErrorHandler",
+    "RollbackManager"
+  ],
+  "migrationCapabilities": {
+    "sqliteToPglite": true,
+    "duckdbToPglite": true,
+    "dataValidation": true,
+    "rollbackSupport": true,
+    "progressTracking": true,
+    "errorRecovery": true
+  },
+  "timestamp": "2025-08-21T08:34:56.074Z",
+  "buildPlatform": "win32",
+  "buildArch": "x64"
+}

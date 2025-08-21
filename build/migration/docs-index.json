@@ -1,0 +1,6 @@
+{
+  "userGuide": "docs/pglite-migration-user-guide.md",
+  "troubleshooting": "docs/pglite-migration-troubleshooting.md",
+  "developerGuide": "docs/pglite-architecture-developer-guide.md",
+  "releaseNotes": "MIGRATION_RELEASE_NOTES.md"
+}

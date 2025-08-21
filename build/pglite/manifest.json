@@ -1,0 +1,10 @@
+{
+  "version": "^0.3.7",
+  "assets": [
+    "pglite.wasm",
+    "pglite.data"
+  ],
+  "timestamp": "2025-08-21T08:34:55.937Z",
+  "buildPlatform": "win32",
+  "buildArch": "x64"
+}

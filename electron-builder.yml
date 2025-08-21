@@ -22,13 +22,23 @@ files:
   - '!**/{LICENSE,LICENSE.txt,*.LICENSE.txt,NOTICE.txt,README.md,CHANGELOG.md,CONTRIBUTING.md,CONTRIBUTING.zh.md,README.zh.md,README.jp.md}'
   - '!**/{.DS_Store,Thumbs.db}'
   - '!*.md'
+  - 'node_modules/@electric-sql/pglite/dist/**/*'
+  - '!node_modules/@electric-sql/pglite/dist/postgres.debug.wasm'
 
 asarUnpack:
   - '**/node_modules/sharp/**/*'
   - '**/node_modules/@img/**/*'
+  - '**/node_modules/@electric-sql/pglite/**/*'
 extraResources:
   - from: ./runtime/
     to: app.asar.unpacked/runtime
+    filter: ['**/*']
+  - from: node_modules/@electric-sql/pglite/dist/pglite.wasm
+    to: app.asar.unpacked/pglite/pglite.wasm
+  - from: node_modules/@electric-sql/pglite/dist/pglite.data
+    to: app.asar.unpacked/pglite/pglite.data
+  - from: build/pglite/
+    to: app.asar.unpacked/pglite/
     filter: ['**/*']
 electronLanguages:
   - zh-CN

@@ -1,0 +1,25 @@
+{
+  "migration": {
+    "enabled": true,
+    "autoDetect": true,
+    "autoStart": true,
+    "batchSize": 1000,
+    "validateData": true,
+    "createBackups": true,
+    "backupRetentionDays": 30,
+    "progressReporting": {
+      "enabled": true,
+      "updateInterval": 1000
+    },
+    "errorHandling": {
+      "continueOnError": false,
+      "maxRetries": 3,
+      "retryDelay": 5000
+    },
+    "ui": {
+      "showProgress": true,
+      "allowCancel": true,
+      "showDetails": false
+    }
+  }
+}

@@ -28,7 +28,9 @@ export default defineConfig({
           inlineDynamicImports: true,
           manualChunks: undefined,  // Disable automatic chunk splitting
         }
-      }
+      },
+      // Copy PGlite WASM assets during build
+      copyPublicDir: false
     }
   },
   preload: {

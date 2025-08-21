@@ -37,20 +37,3 @@ export type {
 // Data validation
 export { PGliteDataValidator } from './validation'
 export type { ValidationRule, DataValidationResult, IntegrityCheckResult } from './validation'
-
-// Test utilities
-export { PGliteTestSetup } from './test-setup'
-export {
-  runAllMigrationTests,
-  testMigrationSystem,
-  testSchemaValidation,
-  testMigrationEngine
-} from './test-migration'
-export { runAllValidationTests, testValidationSystem, testValidationRules } from './test-validation'
-export {
-  runAllTests as runAllMigrationManagerTests,
-  testLegacyDatabaseDetector,
-  testBackupManager,
-  testMigrationManager,
-  TestDatabaseHelper
-} from './test-migration-manager'

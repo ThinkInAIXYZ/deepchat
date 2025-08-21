@@ -1,0 +1,32 @@
+{
+  "preDeployment": [
+    "Validate PGlite WASM assets are included",
+    "Verify migration system components are packaged",
+    "Test migration on sample legacy databases",
+    "Validate backup and rollback functionality",
+    "Check cross-platform compatibility",
+    "Verify error handling and recovery",
+    "Test progress reporting and UI",
+    "Validate documentation completeness"
+  ],
+  "deployment": [
+    "Package application with migration system",
+    "Include PGlite WASM assets in distribution",
+    "Ensure proper file permissions for WASM files",
+    "Include migration configuration templates",
+    "Package user documentation and guides",
+    "Create release notes with migration information",
+    "Test installation on clean systems",
+    "Verify auto-update compatibility"
+  ],
+  "postDeployment": [
+    "Monitor migration success rates",
+    "Track error reports and recovery actions",
+    "Collect user feedback on migration experience",
+    "Monitor performance impact of PGlite",
+    "Validate data integrity after migrations",
+    "Track support requests related to migration",
+    "Monitor application stability post-migration",
+    "Prepare for Version N+1 legacy removal"
+  ]
+}
