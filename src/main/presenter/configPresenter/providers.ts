@@ -183,6 +183,21 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
       defaultBaseUrl: 'https://api.302.ai/v1'
     }
   },
+  {
+    id: 'vercel-ai-gateway',
+    name: 'Vercel AI Gateway',
+    apiType: 'vercel-ai-gateway',
+    apiKey: '',
+    baseUrl: 'https://ai-gateway.vercel.sh/v1',
+    enable: false,
+    websites: {
+      official: 'https://vercel.com/ai',
+      apiKey: 'https://vercel.com/dashboard',
+      docs: 'https://vercel.com/docs/ai-gateway',
+      models: 'https://vercel.com/docs/ai-gateway/models-and-providers',
+      defaultBaseUrl: 'https://ai-gateway.vercel.sh/v1'
+    }
+  },
   // {
   //   id: 'ocoolai',
   //   name: 'OCoolAI',
@@ -314,7 +329,7 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
     websites: {
       official: 'https://open.bigmodel.cn/',
       apiKey: 'https://open.bigmodel.cn/usercenter/apikeys',
-      docs: 'https://open.bigmodel.cn/dev/howuse/introduction',
+      docs: 'https://docs.bigmodel.cn',
       models: 'https://open.bigmodel.cn/modelcenter/square',
       defaultBaseUrl: 'https://open.bigmodel.cn/api/paas/v4/'
     }
@@ -561,6 +576,36 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
       models: 'https://learn.microsoft.com/en-us/azure/ai-services/openai/concepts/models',
       defaultBaseUrl:
         'https://your-resource-name.openai.azure.com/openai/deployments/your-deployment-name'
+    }
+  },
+  {
+    id: 'modelscope',
+    name: 'ModelScope',
+    apiType: 'openai',
+    apiKey: '',
+    baseUrl: 'https://api-inference.modelscope.cn/v1/',
+    enable: false,
+    websites: {
+      official: 'https://modelscope.cn/',
+      apiKey: 'https://modelscope.cn/my/myaccesstoken',
+      docs: 'https://modelscope.cn/docs/modelscope_agent/api_service',
+      models: 'https://modelscope.cn/models',
+      defaultBaseUrl: 'https://api-inference.modelscope.cn/v1/'
+    }
+  },
+  {
+    id: 'aws-bedrock',
+    name: 'AWS Bedrock',
+    apiType: 'aws-bedrock',
+    apiKey: '',
+    baseUrl: '',
+    enable: false,
+    websites: {
+      official: 'https://aws.amazon.com/bedrock/',
+      apiKey: 'https://console.aws.amazon.com/iam/',
+      docs: 'https://docs.aws.amazon.com/bedrock/latest/userguide/what-is-bedrock.html',
+      models: 'https://docs.aws.amazon.com/bedrock/latest/userguide/models-supported.html',
+      defaultBaseUrl: ''
     }
   }
 ]

@@ -257,7 +257,7 @@ const appVersion = ref('')
 const codeLanguage = ref(
   artifactStore.currentArtifact?.language || artifactStore.currentArtifact?.type || ''
 )
-const { createEditor, updateCode } = useMonaco()
+const { createEditor, updateCode } = useMonaco({ MAX_HEIGHT: '500px' })
 const codeEditor = ref<any>(null)
 
 // 创建节流版本的语言检测函数，1秒内最多执行一次
@@ -271,24 +271,29 @@ const throttledDetectLanguage = useThrottleFn(
 
 watch(
   () => artifactStore.currentArtifact,
-  () => {
-    // 如果当前 artifact 的语言已经被检测过了，就不再进行检测
-    codeLanguage.value =
-      artifactStore.currentArtifact?.language ||
-      getFileExtension(artifactStore.currentArtifact?.type || '')
+  (newArtifact) => {
+    if (!newArtifact) return
+
+    // Update language detection
+    codeLanguage.value = newArtifact.language || getFileExtension(newArtifact.type || '')
+
     if (codeLanguage.value === 'mermaid') {
       return
     }
-    const newCode = artifactStore.currentArtifact?.content || ''
+
+    const newCode = newArtifact.content || ''
 
     // Check if we need to detect language
     if (!codeLanguage.value || codeLanguage.value === '') {
       throttledDetectLanguage(newCode)
     }
-    updateCode(artifactStore.currentArtifact?.content || '', codeLanguage.value)
+
+    // Always update Monaco editor content
+    updateCode(newCode, codeLanguage.value)
   },
   {
-    immediate: true
+    immediate: true,
+    deep: true // Add deep watching to catch property changes
   }
 )
 
@@ -301,6 +306,19 @@ watch(
   () => codeLanguage.value,
   () => {
     updateCode(artifactStore.currentArtifact?.content || '', codeLanguage.value)
+  }
+)
+
+// Add a specific watcher for content changes to ensure real-time updates
+watch(
+  () => artifactStore.currentArtifact?.content,
+  (newContent) => {
+    if (newContent !== undefined) {
+      updateCode(newContent, codeLanguage.value)
+    }
+  },
+  {
+    immediate: true
   }
 )
 

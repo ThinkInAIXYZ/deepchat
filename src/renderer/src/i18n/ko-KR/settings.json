@@ -167,6 +167,27 @@
         "message": "이 모델의 구성을 기본값으로 재설정 하시겠습니까? 이 작업은 돌이킬 수 없습니다.",
         "title": "재설정 확인"
       },
+      "reasoningEffort": {
+        "label": "추론 노력도",
+        "description": "모델 추론의 깊이를 제어합니다. 더 높은 노력도는 더 나은 결과를 생성하지만 응답이 느려집니다",
+        "placeholder": "추론 노력도 선택",
+        "options": {
+          "minimal": "Minimal - 가장 빠른 응답",
+          "low": "Low - 낮은 노력",
+          "medium": "Medium - 중간 노력",
+          "high": "High - 높은 노력"
+        }
+      },
+      "verbosity": {
+        "label": "상세도",
+        "description": "모델 응답의 상세 수준과 길이를 제어합니다",
+        "placeholder": "상세도 선택",
+        "options": {
+          "low": "Low - 간결한 답변",
+          "medium": "Medium - 균형잡힌 상세",
+          "high": "High - 상세한 답변"
+        }
+      },
       "resetToDefault": "기본값으로 재설정하십시오",
       "saveConfig": "구성 저장",
       "useModelDefault": "모델 기본 설정 사용",
@@ -204,6 +225,7 @@
     }
   },
   "provider": {
+    "search": "프로바이더 플랫폼 검색…",
     "enable": "서비스 활성화",
     "enabled": "활성화됨",
     "disabled": "비활성화됨",
@@ -217,6 +239,10 @@
     "enableModels": "모델 활성화",
     "disableAllModels": "모든 모델 비활성화",
     "modelsEnabled": "모델이 활성화되었습니다",
+    "noModelsEnabled": {
+      "title": "활성화된 모델이 없습니다",
+      "description": "「모델 활성화」 버튼을 클릭하여 사용할 모델을 수동으로 선택하십시오."
+    },
     "verifyLink": "링크 확인",
     "syncModelsFailed": "모델 동기화 실패...",
     "addCustomProvider": "커스텀 제공자 추가",
@@ -236,12 +262,18 @@
         "confirm": "모두 비활성화"
       },
       "configModels": {
-        "title": "모델 목록 구성"
+        "title": "모델 목록 구성",
+        "description": "활성화하거나 비활성화할 모델 선택"
       },
       "verify": {
         "missingFields": "API 키와 API URL을 입력하세요",
         "failed": "확인 실패",
-        "success": "확인 성공"
+        "success": "확인 성공",
+        "failedDesc": "API 키 또는 설정 확인에 실패했습니다. 설정을 확인해주세요",
+        "successDesc": "API 키와 설정이 성공적으로 확인되었습니다. 사용 가능합니다",
+        "connectionError": "연결 오류, 네트워크 연결 및 API 주소를 확인하십시오.",
+        "serverError": "서버 오류, 나중에 다시 시도하십시오",
+        "unauthorized": "인증 실패, API 키가 유효하지 않거나 만료되었습니다"
       },
       "addCustomProvider": {
         "title": "커스텀 제공자 추가",
@@ -268,6 +300,7 @@
       },
       "pullModel": {
         "title": "모델 가져오기",
+        "description": "로컬로 다운로드할 모델 선택",
         "pull": "가져오기"
       },
       "modelCheck": {
@@ -349,7 +382,67 @@
     "manageModels": "모델 관리",
     "anthropicOAuthActiveTip": "OAuth 인증이 활성화되어 있어 Anthropic 서비스를 직접 사용할 수 있습니다",
     "oauthVerifySuccess": "OAuth 연결 확인 성공",
-    "oauthVerifyFailed": "OAuth 연결 확인 실패"
+    "oauthVerifyFailed": "OAuth 연결 확인 실패",
+    "configurationSaved": "구성 저장",
+    "configurationUpdated": "구성 업데이트",
+    "dataRefreshed": "데이터가 새로 고쳐졌습니다",
+    "modelscope": {
+      "apiKey": "API 키",
+      "apiKeyHelper": "ModelScope 콘솔에서 API 키를 얻으십시오",
+      "apiKeyPlaceholder": "ModelScope API 키를 입력하십시오",
+      "baseUrl": "API 주소",
+      "baseUrlHelper": "ModelScope API 서비스 주소",
+      "connected": "연결",
+      "connecting": "연결 ...",
+      "description": "ModelScope는 Alibaba Damo Academy가 시작한 Model-as-A-Service 공유 플랫폼입니다.",
+      "details": {
+        "apiConfig": "API 구성",
+        "mcpSync": "MCP 동기화",
+        "modelManagement": "모델 관리",
+        "operationalDescription": "ModelScope 플랫폼에서 직접 사용할 수있는 MCP 서버 동기화",
+        "operationalServers": "서버 작동",
+        "rateLimitConfig": "요율 제한 구성",
+        "safetySettings": "보안 설정",
+        "specialConfig": "특별 구성",
+        "syncFromModelScope": "ModelScope에서 동기화됩니다",
+        "title": "제공자 설정 세부 정보"
+      },
+      "invalidKey": "잘못된 API 키",
+      "keyRequired": "API 키를 입력하십시오",
+      "mcpSync": {
+        "authenticationFailed": "인증 실패, API 키를 확인하십시오",
+        "convertingServers": "서버 구성 변환 ...",
+        "description": "Modescope에서 로컬 구성으로 MCP 서버를 동기화하면 일반적으로 사용되는 MCP 도구를 빠르게 추가 할 수 있습니다. 모든 서비스는 기본적으로 비활성화되며 가져온 후 수동으로 활성화 할 수 있습니다.",
+        "errorDetails": "오류 세부 사항",
+        "errors": "오류 {count}",
+        "fetchingServers": "MCP 서버 목록 얻기 ...",
+        "imported": "{count} 서비스가 가져 왔습니다",
+        "importingServers": "서버 구성 가져 오기 ...",
+        "invalidServerData": "잘못된 서버 데이터",
+        "noApiKey": "먼저 ModelScope API 키를 구성하십시오",
+        "noOperationalUrls": "사용 가능한 운영 주소가 없습니다",
+        "noServersFound": "사용 가능한 MCP 서비스가 없습니다",
+        "pageNumber": "페이지 번호",
+        "pageNumberPlaceholder": "페이지 번호를 입력하십시오",
+        "pageSize": "페이지 당 수량",
+        "serverAlreadyExists": "서버가 이미 존재하고 가져 오기를 건너 뛰십시오",
+        "skipped": "{count} 서비스를 건너 뛰십시오",
+        "sync": "동기화를 시작하십시오",
+        "syncComplete": "동기 완성",
+        "syncing": "동기화...",
+        "title": "MCP 서비스 동기화"
+      },
+      "name": "ModelsCope",
+      "networkError": "네트워크 연결 오류",
+      "notConnected": "연결되지 않았습니다",
+      "verifyFailed": "확인이 실패했습니다",
+      "verifySuccess": "확인이 성공적입니다"
+    },
+    "operationFailed": "작동 실패",
+    "operationSuccess": "운영이 성공적입니다",
+    "settingsApplied": "설정이 적용됩니다",
+    "bedrockLimitTip": "* Anthropic Claude(Opus, Sonnet, Haiku 모델 포함)만 지원합니다.",
+    "bedrockVerifyTip": "DeepChat은 검증을 위해 Claude 3.5 Sonnet을 사용합니다. 호출 권한이 없으면 검증이 실패합니다. 이는 다른 모델 사용에는 영향을 미치지 않습니다."
   },
   "knowledgeBase": {
     "title": "지식 베이스 설정",
@@ -410,7 +503,7 @@
     "embeddingModel": "임베드 모델",
     "return": "반품",
     "uploadHelper": "여기에서 파일을 업로드하거나 드래그하려면 클릭하십시오",
-    "onlySupport": "지원됩니다",
+    "fileSupport": "{accept} 및 {count}개의 다른 형식을 지원합니다",
     "searchKnowledge": "지식 기반을 검색하십시오",
     "searchKnowledgePlaceholder": "쿼리 내용을 입력하십시오",
     "noData": "아직 데이터가 없습니다",
@@ -448,7 +541,12 @@
       "content": "\"{filename}\"파일을 삭제해야합니까? 이 작업은 복원되지 않습니다."
     },
     "resumeAllPausedTasks": "원 클릭 복구",
-    "pauseAllRunningTasks": "한 번의 클릭 일시 중지"
+    "pauseAllRunningTasks": "한 번의 클릭 일시 중지",
+    "separators": "블록 분리기",
+    "separatorsHelper": "문서 분할 구분 기호, 단일 구분 기호는 큰따옴표(\"\")로 묶고, 구분 기호는 쉼표(,)로 구분합니다",
+    "invalidSeparators": "잘못된 분리기",
+    "selectLanguage": "사전 설정을 선택하십시오",
+    "separatorsPreset": "사전 설정을로드합니다"
   },
   "mcp": {
     "title": "MCP 설정",
@@ -543,7 +641,8 @@
       "e2bApiKey": "E2B Apikey",
       "e2bApiKeyPlaceholder": "E2B_1111XX *******와 같은 E2B API 키를 여기에 입력하십시오.",
       "e2bApiKeyHelp": "apikey를 얻으려면 e2b.dev로 이동하십시오",
-      "e2bApiKeyRequired": "E2B 기능을 활성화하려면 Apikey를 입력해야합니다"
+      "e2bApiKeyRequired": "E2B 기능을 활성화하려면 Apikey를 입력해야합니다",
+      "clickToEdit": "전체 내용을 보려면 편집을 클릭하십시오"
     },
     "deleteServer": "서버 삭제",
     "editServer": "서버 편집",
@@ -577,6 +676,47 @@
     "maxDefaultServersReached": "최대 3 개의 기본 서버 만 설정할 수 있습니다",
     "removeDefaultFirst": "기본 서버를 먼저 제거하십시오",
     "higressMarket": "Higress MCP 설치로 이동하십시오",
+    "npmRegistry": {
+      "title": "NPM 소스 설정",
+      "currentSource": "현재 소스",
+      "cached": "캐시됨",
+      "lastChecked": "마지막 확인",
+      "refresh": "새로고침",
+      "advanced": "고급",
+      "advancedSettings": "고급 설정",
+      "advancedSettingsDesc": "자동 감지 및 사용자 정의 소스 설정을 포함한 NPM 소스의 고급 옵션 구성",
+      "autoDetect": "최적 소스 자동 감지",
+      "autoDetectDesc": "시작 시 자동으로 가장 빠른 NPM 소스를 감지하여 사용",
+      "customSource": "사용자 정의 소스",
+      "customSourcePlaceholder": "사용자 정의 NPM 소스 주소 입력",
+      "currentCustom": "현재 사용자 정의 소스",
+      "justNow": "방금 전",
+      "minutesAgo": "{minutes}분 전",
+      "hoursAgo": "{hours}시간 전",
+      "daysAgo": "{days}일 전",
+      "refreshSuccess": "NPM 소스 새로고침 성공",
+      "refreshSuccessDesc": "최적의 NPM 소스를 다시 감지하고 업데이트했습니다",
+      "refreshFailed": "NPM 소스 새로고침 실패",
+      "autoDetectUpdated": "자동 감지 설정이 업데이트되었습니다",
+      "autoDetectEnabled": "최적 NPM 소스 자동 감지가 활성화되었습니다",
+      "autoDetectDisabled": "자동 감지가 비활성화되어 기본 소스를 사용합니다",
+      "updateFailed": "설정 업데이트 실패",
+      "customSourceSet": "사용자 정의 소스가 설정되었습니다",
+      "customSourceSetDesc": "사용자 정의 NPM 소스가 설정되었습니다: {registry}",
+      "customSourceCleared": "사용자 정의 소스가 지워졌습니다",
+      "customSourceClearedDesc": "사용자 정의 NPM 소스를 지우고 자동 감지를 사용합니다",
+      "invalidUrl": "유효하지 않은 URL",
+      "invalidUrlDesc": "유효한 HTTP 또는 HTTPS 주소를 입력하세요",
+      "testing": "NPM 소스 테스트 중",
+      "testingDesc": "소스 {registry}의 연결성을 테스트 중...",
+      "testFailed": "NPM 소스 테스트 실패",
+      "testFailedDesc": "{registry}에 연결할 수 없습니다. 오류: {error}. URL이 올바른지 또는 네트워크 연결을 확인하세요.",
+      "redetectingOptimal": "최적 NPM 소스 재감지 중...",
+      "redetectComplete": "재감지 완료",
+      "redetectCompleteDesc": "현재 최적의 NPM 소스를 감지하고 설정했습니다",
+      "redetectFailed": "재감지 실패",
+      "redetectFailedDesc": "최적 소스를 재감지할 수 없어 기본 설정을 사용합니다"
+    },
     "technicalDetails": "기술 세부 사항",
     "httpServer": "HTTP 서버",
     "localProcess": "로컬 프로세스",

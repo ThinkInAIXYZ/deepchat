@@ -11,8 +11,6 @@ module.exports = {
     './components/**/*.{ts,tsx,vue}',
     './app/**/*.{ts,tsx,vue}',
     './src/**/*.{ts,tsx,vue}',
-    './node_modules/vue-renderer-markdown/dist/tailwind.ts',
-    './node_modules/vue-renderer-markdown/dist/index.css'
   ],
 
   fontFamily: {

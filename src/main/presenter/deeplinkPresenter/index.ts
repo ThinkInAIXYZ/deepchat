@@ -172,25 +172,43 @@ export class DeeplinkPresenter implements IDeeplinkPresenter {
     if (!msg) {
       return
     }
-    msg = decodeURIComponent(msg)
+
+    // Security: Validate and sanitize message content
+    msg = this.sanitizeMessageContent(decodeURIComponent(msg))
+    if (!msg) {
+      console.warn('Message content was rejected by security filters')
+      return
+    }
+
     // 如果有模型参数，尝试设置
     let modelId = params.get('model')
     if (modelId && modelId.trim() !== '') {
-      modelId = decodeURIComponent(modelId)
+      modelId = this.sanitizeStringParameter(decodeURIComponent(modelId))
     }
+
     let systemPrompt = params.get('system')
     if (systemPrompt && systemPrompt.trim() !== '') {
-      systemPrompt = decodeURIComponent(systemPrompt)
+      systemPrompt = this.sanitizeStringParameter(decodeURIComponent(systemPrompt))
     } else {
       systemPrompt = ''
     }
-    // 如果用户增加了yolo=1或者yolo=true，则自动发送消息
-    const yolo = params.get('yolo')
-    const autoSend = yolo && yolo.trim() !== ''
+
+    let mentions: string[] = []
+    const mentionsParam = params.get('mentions')
+    if (mentionsParam && mentionsParam.trim() !== '') {
+      mentions = decodeURIComponent(mentionsParam)
+        .split(',')
+        .map((mention) => this.sanitizeStringParameter(mention.trim()))
+        .filter((mention) => mention.length > 0)
+    }
+
+    // SECURITY: Disable auto-send functionality to prevent abuse
+    // The yolo parameter has been removed for security reasons
+    const autoSend = false
     console.log('msg:', msg)
     console.log('modelId:', modelId)
     console.log('systemPrompt:', systemPrompt)
-    console.log('autoSend:', autoSend)
+    console.log('autoSend:', autoSend, '(disabled for security)')
 
     const focusedWindow = presenter.windowPresenter.getFocusedWindow()
     if (focusedWindow) {
@@ -200,11 +218,73 @@ export class DeeplinkPresenter implements IDeeplinkPresenter {
       presenter.windowPresenter.show()
     }
 
+    const windowId = focusedWindow?.id || 1
+    await this.ensureChatTabActive(windowId)
     eventBus.sendToRenderer(DEEPLINK_EVENTS.START, SendTarget.DEFAULT_TAB, {
       msg,
       modelId,
       systemPrompt,
+      mentions,
       autoSend
+    })
+  }
+
+  /**
+   * 确保有一个活动的 chat 标签页
+   * @param windowId 窗口ID
+   */
+  private async ensureChatTabActive(windowId: number): Promise<void> {
+    try {
+      const tabPresenter = presenter.tabPresenter
+      const tabsData = await tabPresenter.getWindowTabsData(windowId)
+      const chatTab = tabsData.find(
+        (tab) =>
+          tab.url === 'local://chat' || tab.url.includes('#/chat') || tab.url.endsWith('/chat')
+      )
+      if (chatTab) {
+        if (!chatTab.isActive) {
+          await tabPresenter.switchTab(chatTab.id)
+          await new Promise((resolve) => setTimeout(resolve, 100))
+        }
+      } else {
+        const newTabId = await tabPresenter.createTab(windowId, 'local://chat', { active: true })
+        if (newTabId) {
+          console.log(`[Deeplink] Waiting for tab ${newTabId} renderer to be ready`)
+          await this.waitForTabReady(newTabId)
+        }
+      }
+    } catch (error) {
+      console.error('Error ensuring chat tab active:', error)
+    }
+  }
+
+  /**
+   * 等待标签页渲染进程准备就绪
+   * @param tabId 标签页ID
+   */
+  private async waitForTabReady(tabId: number): Promise<void> {
+    return new Promise((resolve) => {
+      let resolved = false
+      const onTabReady = (readyTabId: number) => {
+        if (readyTabId === tabId && !resolved) {
+          resolved = true
+          console.log(`[Deeplink] Tab ${tabId} renderer is ready`)
+          eventBus.off('tab:renderer-ready', onTabReady)
+          clearTimeout(timeoutId)
+          resolve()
+        }
+      }
+
+      eventBus.on('tab:renderer-ready', onTabReady)
+
+      const timeoutId = setTimeout(() => {
+        if (!resolved) {
+          resolved = true
+          eventBus.off('tab:renderer-ready', onTabReady)
+          console.log(`[Deeplink] Timeout waiting for tab ${tabId}, proceeding anyway`)
+          resolve()
+        }
+      }, 3000)
     })
   }
 
@@ -339,5 +419,104 @@ export class DeeplinkPresenter implements IDeeplinkPresenter {
     } catch (error) {
       console.error('Error parsing or processing MCP configuration:', error)
     }
+  }
+
+  /**
+   * 净化消息内容，防止恶意输入
+   * @param content 原始消息内容
+   * @returns 净化后的内容，如果检测到危险内容则返回空字符串
+   */
+  private sanitizeMessageContent(content: string): string {
+    if (!content || typeof content !== 'string') {
+      return ''
+    }
+
+    // 长度限制
+    if (content.length > 50000) {
+      // 50KB limit for messages
+      console.warn('Message content exceeds length limit')
+      return ''
+    }
+
+    // 检测危险的HTML标签和脚本
+    const dangerousPatterns = [
+      /<script[^>]*>[\s\S]*?<\/script>/gi,
+      /<iframe[^>]*>[\s\S]*?<\/iframe>/gi,
+      /<object[^>]*>[\s\S]*?<\/object>/gi,
+      /<embed[^>]*>/gi,
+      /<form[^>]*>[\s\S]*?<\/form>/gi,
+      /javascript\s*:/gi,
+      /vbscript\s*:/gi,
+      /data\s*:\s*text\/html/gi,
+      /on\w+\s*=\s*["'][^"']*["']/gi, // Event handlers
+      /@import\s+/gi,
+      /expression\s*\(/gi,
+      /<link[^>]*stylesheet[^>]*>/gi,
+      /<style[^>]*>[\s\S]*?<\/style>/gi
+    ]
+
+    // 检查是否包含危险模式
+    for (const pattern of dangerousPatterns) {
+      if (pattern.test(content)) {
+        console.warn('Dangerous pattern detected in message content:', pattern.source)
+        return ''
+      }
+    }
+
+    // 特别检查antArtifact标签中的潜在恶意内容
+    const antArtifactPattern = /<antArtifact[^>]*>([\s\S]*?)<\/antArtifact>/gi
+    let match
+    while ((match = antArtifactPattern.exec(content)) !== null) {
+      const artifactContent = match[1]
+
+      // 检查artifact内容中的危险模式
+      const artifactDangerousPatterns = [
+        /<script[^>]*>/gi,
+        /<iframe[^>]*>/gi,
+        /javascript\s*:/gi,
+        /vbscript\s*:/gi,
+        /on\w+\s*=/gi,
+        /<foreignObject[^>]*>[\s\S]*?<\/foreignObject>/gi,
+        /<img[^>]*onerror[^>]*>/gi,
+        /<svg[^>]*onload[^>]*>/gi
+      ]
+
+      for (const dangerousPattern of artifactDangerousPatterns) {
+        if (dangerousPattern.test(artifactContent)) {
+          console.warn(
+            'Dangerous pattern detected in antArtifact content:',
+            dangerousPattern.source
+          )
+          return ''
+        }
+      }
+    }
+
+    return content
+  }
+
+  /**
+   * 净化字符串参数
+   * @param param 参数值
+   * @returns 净化后的参数值
+   */
+  private sanitizeStringParameter(param: string): string {
+    if (!param || typeof param !== 'string') {
+      return ''
+    }
+
+    // 长度限制
+    if (param.length > 1000) {
+      return param.substring(0, 1000)
+    }
+
+    // 移除危险字符和序列
+    return param
+      .replace(/[<>]/g, '') // 移除尖括号
+      .replace(/javascript\s*:/gi, '') // 移除javascript协议
+      .replace(/vbscript\s*:/gi, '') // 移除vbscript协议
+      .replace(/data\s*:/gi, '') // 移除data协议
+      .replace(/on\w+\s*=/gi, '') // 移除事件处理器
+      .trim()
   }
 }

@@ -30,6 +30,7 @@ import { CONFIG_EVENTS } from '@/events'
 export abstract class BaseLLMProvider {
   // 单轮会话中最大工具调用次数限制
   protected static readonly MAX_TOOL_CALLS = 50
+  protected static readonly DEFAULT_MODEL_FETCH_TIMEOUT = 12000 // 提升到12秒作为通用默认值
 
   protected provider: LLM_PROVIDER
   protected models: MODEL_META[] = []
@@ -57,6 +58,14 @@ export abstract class BaseLLMProvider {
    */
   public static getMaxToolCalls(): number {
     return BaseLLMProvider.MAX_TOOL_CALLS
+  }
+
+  /**
+   * 获取模型获取超时时间配置
+   * @returns 超时时间（毫秒）
+   */
+  protected getModelFetchTimeout(): number {
+    return BaseLLMProvider.DEFAULT_MODEL_FETCH_TIMEOUT
   }
 
   /**
@@ -130,13 +139,11 @@ export abstract class BaseLLMProvider {
       this.configPresenter.getModelStatus(providerId, model.id)
     )
 
-    // 如果没有任何已启用的模型，则自动启用所有模型
-    // 这部分后续应该改为启用推荐模型
+    // 不再自动启用模型，让用户手动选择启用需要的模型
     if (!hasEnabledModels) {
-      console.info(`Auto enabling all models for provider: ${this.provider.name}`)
-      this.models.forEach((model) => {
-        this.configPresenter.enableModel(providerId, model.id)
-      })
+      console.info(
+        `Provider ${this.provider.name} models loaded, please manually enable the models you need`
+      )
     }
   }
 

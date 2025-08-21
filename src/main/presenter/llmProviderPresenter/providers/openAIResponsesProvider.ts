@@ -31,7 +31,11 @@ const OPENAI_REASONING_MODELS = [
   'o1-mini',
   'o1-pro',
   'o1-preview',
-  'o1'
+  'o1',
+  'gpt-5',
+  'gpt-5-mini',
+  'gpt-5-nano',
+  'gpt-5-chat'
 ]
 const OPENAI_IMAGE_GENERATION_MODELS = [
   'gpt-4o-all',
@@ -222,6 +226,21 @@ export class OpenAIResponsesProvider extends BaseLLMProvider {
       temperature: temperature,
       max_output_tokens: maxTokens,
       stream: false
+    }
+
+    const modelConfig = this.configPresenter.getModelConfig(modelId, this.provider.id)
+
+    if (modelConfig.reasoningEffort) {
+      ;(requestParams as any).reasoning = {
+        effort: modelConfig.reasoningEffort
+      }
+    }
+
+    // verbosity 仅支持 GPT-5 系列模型
+    if (modelId.includes('gpt-5') && modelConfig.verbosity) {
+      ;(requestParams as any).text = {
+        verbosity: modelConfig.verbosity
+      }
     }
 
     OPENAI_REASONING_MODELS.forEach((noTempId) => {
@@ -552,6 +571,19 @@ export class OpenAIResponsesProvider extends BaseLLMProvider {
     // 如果模型支持函数调用且有工具,添加 tools 参数
     if (tools.length > 0 && supportsFunctionCall && apiTools) {
       requestParams.tools = apiTools
+    }
+
+    if (modelConfig.reasoningEffort) {
+      ;(requestParams as any).reasoning = {
+        effort: modelConfig.reasoningEffort
+      }
+    }
+
+    // verbosity 仅支持 GPT-5 系列模型
+    if (modelId.includes('gpt-5') && modelConfig.verbosity) {
+      ;(requestParams as any).text = {
+        verbosity: modelConfig.verbosity
+      }
     }
 
     OPENAI_REASONING_MODELS.forEach((noTempId) => {
@@ -1039,8 +1071,8 @@ export class OpenAIResponsesProvider extends BaseLLMProvider {
   public async check(): Promise<{ isOk: boolean; errorMsg: string | null }> {
     try {
       if (!this.isNoModelsApi) {
-        // Use a reasonable timeout
-        const models = await this.fetchOpenAIModels({ timeout: 5000 }) // Increased timeout slightly
+        // Use unified timeout configuration from base class
+        const models = await this.fetchOpenAIModels({ timeout: this.getModelFetchTimeout() })
         this.models = models // Store fetched models
       }
       // Potentially add a simple API call test here if needed, e.g., list models even for no-API list to check key/endpoint

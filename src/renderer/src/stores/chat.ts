@@ -57,7 +57,10 @@ export const useChatStore = defineStore('chat', () => {
     providerId: '',
     modelId: '',
     artifacts: 0,
-    enabledMcpTools: []
+    enabledMcpTools: [],
+    thinkingBudget: undefined,
+    reasoningEffort: undefined,
+    verbosity: undefined
   })
 
   // Deeplink 消息缓存
@@ -66,6 +69,7 @@ export const useChatStore = defineStore('chat', () => {
     modelId?: string
     systemPrompt?: string
     autoSend?: boolean
+    mentions?: string[]
   } | null>(null)
 
   // Getters
@@ -962,15 +966,15 @@ export const useChatStore = defineStore('chat', () => {
   }
 
   /////////////////////////////////////////////////////////////////////////////////////////////////////////
-  // 注册消息编辑事件处理
+  // 注册 deeplink 事件处理
   window.electron.ipcRenderer.on(DEEPLINK_EVENTS.START, async (_, data) => {
-    console.log('DEEPLINK_EVENTS.START', data)
-    // 检查当前路由，如果不在新会话页面，则跳转
+    console.log(`[Renderer] Tab ${getTabId()} received DEEPLINK_EVENTS.START:`, data)
+    // 确保路由正确
     const currentRoute = router.currentRoute.value
     if (currentRoute.name !== 'chat') {
       await router.push({ name: 'chat' })
     }
-    // 检查是否存在 activeThreadId，如果存在则创建新会话
+    // 如果存在活动会话，创建新会话
     if (getActiveThreadId()) {
       await clearActiveThread()
     }
@@ -980,7 +984,8 @@ export const useChatStore = defineStore('chat', () => {
         msg: data.msg,
         modelId: data.modelId,
         systemPrompt: data.systemPrompt,
-        autoSend: data.autoSend
+        autoSend: data.autoSend,
+        mentions: data.mentions
       }
     }
   })
@@ -1100,12 +1105,13 @@ export const useChatStore = defineStore('chat', () => {
   }
 
   onMounted(() => {
-    console.log('Chat store is mounted. Setting up event listeners.')
+    console.log(`[Chat Store] Tab ${getTabId()} is mounted. Setting up event listeners.`)
 
     // store现在是被动的，等待主进程推送数据
     setupEventListeners()
 
     // 在 store 初始化完成后，通过usePresenter发送就绪信号
+    console.log(`[Chat Store] Tab ${getTabId()} sending ready signal`)
     tabP.onRendererTabReady(getTabId())
   })
 

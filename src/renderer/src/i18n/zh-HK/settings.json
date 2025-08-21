@@ -167,6 +167,27 @@
         "message": "確定要重置此模型的配置為默認值嗎？\n此操作不可撤銷。",
         "title": "確認重置"
       },
+      "reasoningEffort": {
+        "label": "推理努力程度",
+        "description": "控制模型的推理深度，更高的努力程度會產生更好的結果但響應更慢",
+        "placeholder": "選擇推理努力程度",
+        "options": {
+          "minimal": "Minimal - 最快響應",
+          "low": "Low - 低努力",
+          "medium": "Medium - 中等努力",
+          "high": "High - 高努力"
+        }
+      },
+      "verbosity": {
+        "label": "詳細程度",
+        "description": "控制模型回答的詳細程度和長度",
+        "placeholder": "選擇詳細程度",
+        "options": {
+          "low": "Low - 簡潔回答",
+          "medium": "Medium - 平衡詳細",
+          "high": "High - 詳細回答"
+        }
+      },
       "resetToDefault": "重置為默認",
       "saveConfig": "保存配置",
       "useModelDefault": "使用模型預設配置",
@@ -204,6 +225,7 @@
     }
   },
   "provider": {
+    "search": "搜尋服務商平台…",
     "enable": "開啟服務",
     "enabled": "已啟用",
     "disabled": "已禁用",
@@ -231,7 +253,8 @@
         "confirm": "禁用"
       },
       "configModels": {
-        "title": "配置模型列表"
+        "title": "配置模型列表",
+        "description": "選擇要啟用或禁用的模型"
       },
       "disableAllModels": {
         "title": "確認禁用全部模型",
@@ -241,7 +264,12 @@
       "verify": {
         "missingFields": "請輸入 API Key 和 API URL",
         "failed": "驗證失敗",
-        "success": "驗證成功"
+        "success": "驗證成功",
+        "failedDesc": "API 密鑰或配置驗證失敗，請檢查配置信息",
+        "successDesc": "API 密鑰和配置驗證成功，可以正常使用",
+        "connectionError": "連接錯誤，請檢查網絡連接和 API 地址",
+        "serverError": "服務器錯誤，請稍後重試",
+        "unauthorized": "認證失敗，API Key 無效或已過期"
       },
       "addCustomProvider": {
         "title": "添加自定義服務商",
@@ -268,6 +296,7 @@
       },
       "pullModel": {
         "title": "拉取模型",
+        "description": "選擇要下載到本地的模型",
         "pull": "拉取"
       },
       "modelCheck": {
@@ -292,6 +321,10 @@
     "noLocalModels": "沒有本地模型",
     "localModels": "本地模型",
     "modelsEnabled": "模型已經啟用",
+    "noModelsEnabled": {
+      "title": "暫無已啟用的模型",
+      "description": "請點擊「啟用模型」按鈕手動選擇需要使用的模型。"
+    },
     "azureApiVersion": "API 版本",
     "safety": {
       "title": "安全設置",
@@ -349,7 +382,67 @@
     "manageModels": "管理模型",
     "anthropicOAuthActiveTip": "OAuth 認證已啟用，您可以直接使用 Anthropic 服務",
     "oauthVerifySuccess": "OAuth 連接驗證成功",
-    "oauthVerifyFailed": "OAuth 連接驗證失敗"
+    "oauthVerifyFailed": "OAuth 連接驗證失敗",
+    "configurationSaved": "配置已保存",
+    "configurationUpdated": "配置已更新",
+    "dataRefreshed": "數據已刷新",
+    "modelscope": {
+      "apiKey": "API 密鑰",
+      "apiKeyHelper": "在 ModelScope 控制台獲取您的 API Key",
+      "apiKeyPlaceholder": "請輸入 ModelScope API Key",
+      "baseUrl": "API 地址",
+      "baseUrlHelper": "ModelScope API 服務地址",
+      "connected": "已連接",
+      "connecting": "連接中...",
+      "description": "ModelScope 是阿里巴巴達摩院推出的模型即服務共享平台",
+      "details": {
+        "apiConfig": "API 配置",
+        "mcpSync": "MCP 同步",
+        "modelManagement": "模型管理",
+        "operationalDescription": "同步 ModelScope 平台上可直接使用的 MCP 服務器",
+        "operationalServers": "運營服務器",
+        "rateLimitConfig": "速率限製配置",
+        "safetySettings": "安全設置",
+        "specialConfig": "特殊配置",
+        "syncFromModelScope": "從 ModelScope 同步",
+        "title": "提供商設置詳情"
+      },
+      "invalidKey": "無效的 API Key",
+      "keyRequired": "請輸入 API Key",
+      "mcpSync": {
+        "authenticationFailed": "認證失敗，請檢查 API Key",
+        "convertingServers": "正在轉換服務器配置...",
+        "description": "從 ModelScope 同步 MCP 服務器到本地配置，可以快速添加常用的 MCP 工具。\n所有服務默認禁用，導入後可手動啟用。",
+        "errorDetails": "錯誤詳情",
+        "errors": "錯誤 {count} 個",
+        "fetchingServers": "正在獲取 MCP 服務器列表...",
+        "imported": "已導入 {count} 個服務",
+        "importingServers": "正在導入服務器配置...",
+        "invalidServerData": "無效的服務器數據",
+        "noApiKey": "請先配置 ModelScope API Key",
+        "noOperationalUrls": "未找到可用的運營地址",
+        "noServersFound": "未找到可用的 MCP 服務",
+        "pageNumber": "頁碼",
+        "pageNumberPlaceholder": "請輸入頁碼",
+        "pageSize": "每頁數量",
+        "serverAlreadyExists": "服務器已存在，跳過導入",
+        "skipped": "跳過 {count} 個服務",
+        "sync": "開始同步",
+        "syncComplete": "同步完成",
+        "syncing": "同步中...",
+        "title": "同步 MCP 服務"
+      },
+      "name": "ModelScope",
+      "networkError": "網絡連接錯誤",
+      "notConnected": "未連接",
+      "verifyFailed": "驗證失敗",
+      "verifySuccess": "驗證成功"
+    },
+    "operationFailed": "操作失敗",
+    "operationSuccess": "操作成功",
+    "settingsApplied": "設置已應用",
+    "bedrockLimitTip": "* 僅支持 Anthropic Claude（包括 Opus，Sonnet，Haiku 模型）",
+    "bedrockVerifyTip": "DeepChat 使用 Claude 3.5 Sonnet 模型驗證，若您無此模型的調用權限驗證將失敗。這不會影響其他模型的使用。"
   },
   "knowledgeBase": {
     "fastgptTitle": "FastGPT知識庫",
@@ -410,7 +503,7 @@
     "embeddingModel": "嵌入模型",
     "return": "返回",
     "uploadHelper": "點擊上傳或拖拽文件到此處",
-    "onlySupport": "僅支持",
+    "fileSupport": "支持 {accept} 等 {count} 種格式",
     "searchKnowledge": "搜索知識庫",
     "searchKnowledgePlaceholder": "請輸入查詢內容",
     "noData": "暫無數據",
@@ -448,7 +541,12 @@
       "content": "是否確認刪除文件 \"{fileName}\"？\n此操作不可恢復。"
     },
     "resumeAllPausedTasks": "一鍵恢復",
-    "pauseAllRunningTasks": "一鍵暫停"
+    "pauseAllRunningTasks": "一鍵暫停",
+    "separators": "塊分隔符",
+    "separatorsHelper": "文檔切分分隔符，單個分隔符用半角符號雙引號(\"\")包裹，分隔符之間用半角符號逗號(,)分割",
+    "invalidSeparators": "無效的分隔符",
+    "selectLanguage": "選擇預設",
+    "separatorsPreset": "加載預設"
   },
   "mcp": {
     "title": "MCP設置",
@@ -543,7 +641,8 @@
       "e2bApiKey": "E2B ApiKey",
       "e2bApiKeyPlaceholder": "這裡輸入你的E2B Api Keys，如 e2b_1111xx*****",
       "e2bApiKeyHelp": "前往 e2b.dev 獲取你的 ApiKey",
-      "e2bApiKeyRequired": "啟用E2B功能必須要輸入 ApiKey"
+      "e2bApiKeyRequired": "啟用E2B功能必須要輸入 ApiKey",
+      "clickToEdit": "點擊編輯以查看完整內容"
     },
     "deleteServer": "刪除伺服器",
     "editServer": "編輯伺服器",
@@ -577,6 +676,47 @@
     "maxDefaultServersReached": "最多只能設置3個默認服務器",
     "removeDefaultFirst": "請先移除一些默認服務器",
     "higressMarket": "前往 Higress MCP 安裝",
+    "npmRegistry": {
+      "title": "NPM源配置",
+      "currentSource": "當前源",
+      "cached": "緩存",
+      "lastChecked": "上次檢測",
+      "refresh": "刷新",
+      "advanced": "高級",
+      "advancedSettings": "高級設置",
+      "advancedSettingsDesc": "配置NPM源的高級選項，包括自動檢測和自定義源設置",
+      "autoDetect": "自動檢測最優源",
+      "autoDetectDesc": "啟動時自動檢測並使用最快的NPM源",
+      "customSource": "自定義源",
+      "customSourcePlaceholder": "輸入自定義NPM源地址",
+      "currentCustom": "當前自定義源",
+      "justNow": "剛剛",
+      "minutesAgo": "{minutes}分鐘前",
+      "hoursAgo": "{hours}小時前",
+      "daysAgo": "{days}天前",
+      "refreshSuccess": "NPM源刷新成功",
+      "refreshSuccessDesc": "已重新檢測並更新最優NPM源",
+      "refreshFailed": "NPM源刷新失敗",
+      "autoDetectUpdated": "自動檢測設置已更新",
+      "autoDetectEnabled": "已啟用自動檢測最優NPM源",
+      "autoDetectDisabled": "已禁用自動檢測，將使用默認源",
+      "updateFailed": "設置更新失敗",
+      "customSourceSet": "自定義源已設置",
+      "customSourceSetDesc": "已設置自定義NPM源：{registry}",
+      "customSourceCleared": "自定義源已清除",
+      "customSourceClearedDesc": "已清除自定義NPM源，將使用自動檢測",
+      "invalidUrl": "無效的URL",
+      "invalidUrlDesc": "請輸入有效的HTTP或HTTPS地址",
+      "testing": "正在測試NPM源",
+      "testingDesc": "正在測試源 {registry} 的連通性...",
+      "testFailed": "NPM源測試失敗",
+      "testFailedDesc": "無法連接到 {registry}，錯誤：{error}。請檢查URL是否正確或網絡連接。",
+      "redetectingOptimal": "正在重新檢測最優NPM源...",
+      "redetectComplete": "重新檢測完成",
+      "redetectCompleteDesc": "已檢測並設置當前最優的NPM源",
+      "redetectFailed": "重新檢測失敗",
+      "redetectFailedDesc": "無法重新檢測最優源，將使用默認配置"
+    },
     "technicalDetails": "技術詳情",
     "httpServer": "HTTP服務器",
     "localProcess": "本地進程",

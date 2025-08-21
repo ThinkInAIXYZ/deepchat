@@ -142,7 +142,10 @@ export class ModelConfigHelper {
               functionCall: config.functionCall || false,
               reasoning: config.reasoning || false,
               type: config.type || ModelType.Chat,
-              thinkingBudget: config.thinkingBudget
+              thinkingBudget: config.thinkingBudget,
+              reasoningEffort: config.reasoningEffort,
+              verbosity: config.verbosity,
+              maxCompletionTokens: config.maxCompletionTokens
             }
             break
           }
@@ -160,7 +163,10 @@ export class ModelConfigHelper {
             functionCall: false,
             reasoning: false,
             type: ModelType.Chat,
-            thinkingBudget: undefined
+            thinkingBudget: undefined,
+            reasoningEffort: undefined,
+            verbosity: undefined,
+            maxCompletionTokens: undefined
           }
         }
       }

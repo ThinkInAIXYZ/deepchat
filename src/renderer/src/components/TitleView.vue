@@ -43,30 +43,32 @@
     </div>
 
     <div class="flex items-center gap-2">
-      <Popover>
-        <PopoverTrigger as-child>
+      <ScrollablePopover align="end" content-class="w-80" :enable-scrollable="true">
+        <template #trigger>
           <Button class="w-7 h-7 rounded-md" size="icon" variant="outline">
             <Icon icon="lucide:settings-2" class="w-4 h-4" />
           </Button>
-        </PopoverTrigger>
-        <PopoverContent align="end" class="p-0 w-80">
-          <ChatConfig
-            v-model:system-prompt="systemPrompt"
-            :temperature="temperature"
-            :context-length="contextLength"
-            :max-tokens="maxTokens"
-            :artifacts="artifacts"
-            :thinking-budget="thinkingBudget"
-            :model-id="chatStore.chatConfig.modelId"
-            :provider-id="chatStore.chatConfig.providerId"
-            @update:temperature="updateTemperature"
-            @update:context-length="updateContextLength"
-            @update:max-tokens="updateMaxTokens"
-            @update:artifacts="updateArtifacts"
-            @update:thinking-budget="updateThinkingBudget"
-          />
-        </PopoverContent>
-      </Popover>
+        </template>
+        <ChatConfig
+          v-model:system-prompt="systemPrompt"
+          :temperature="temperature"
+          :context-length="contextLength"
+          :max-tokens="maxTokens"
+          :artifacts="artifacts"
+          :thinking-budget="thinkingBudget"
+          :reasoning-effort="reasoningEffort"
+          :verbosity="verbosity"
+          :model-id="chatStore.chatConfig.modelId"
+          :provider-id="chatStore.chatConfig.providerId"
+          @update:temperature="updateTemperature"
+          @update:context-length="updateContextLength"
+          @update:max-tokens="updateMaxTokens"
+          @update:artifacts="updateArtifacts"
+          @update:thinking-budget="updateThinkingBudget"
+          @update:reasoning-effort="updateReasoningEffort"
+          @update:verbosity="updateVerbosity"
+        />
+      </ScrollablePopover>
     </div>
   </div>
 </template>
@@ -77,6 +79,7 @@ import { Icon } from '@iconify/vue'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import ScrollablePopover from './ScrollablePopover.vue'
 import ChatConfig from './ChatConfig.vue'
 import ModelSelect from './ModelSelect.vue'
 import ModelIcon from './icons/ModelIcon.vue'
@@ -101,6 +104,36 @@ const maxTokens = ref(chatStore.chatConfig.maxTokens)
 const systemPrompt = ref(chatStore.chatConfig.systemPrompt)
 const artifacts = ref(chatStore.chatConfig.artifacts)
 const thinkingBudget = ref(chatStore.chatConfig.thinkingBudget)
+const reasoningEffort = ref(chatStore.chatConfig.reasoningEffort)
+const verbosity = ref(chatStore.chatConfig.verbosity)
+
+// 获取模型配置来初始化默认值
+const loadModelConfig = async () => {
+  const modelId = chatStore.chatConfig.modelId
+  const providerId = chatStore.chatConfig.providerId
+
+  if (modelId && providerId) {
+    try {
+      const config = await configPresenter.getModelDefaultConfig(modelId, providerId)
+      if (config.reasoningEffort !== undefined) {
+        if (reasoningEffort.value === undefined) {
+          reasoningEffort.value = config.reasoningEffort
+        }
+      } else {
+        reasoningEffort.value = undefined
+      }
+      if (config.verbosity !== undefined) {
+        if (verbosity.value === undefined) {
+          verbosity.value = config.verbosity
+        }
+      } else {
+        verbosity.value = undefined
+      }
+    } catch (error) {
+      console.error('Failed to load model config:', error)
+    }
+  }
+}
 const contextLengthLimit = ref(chatStore.chatConfig.contextLength)
 const maxTokensLimit = ref(chatStore.chatConfig.maxTokens)
 
@@ -184,21 +217,49 @@ const updateThinkingBudget = (value: number | undefined) => {
   thinkingBudget.value = value
 }
 
+const updateReasoningEffort = (value: 'minimal' | 'low' | 'medium' | 'high') => {
+  reasoningEffort.value = value
+}
+
+const updateVerbosity = (value: 'low' | 'medium' | 'high') => {
+  verbosity.value = value
+}
+
 const onSidebarButtonClick = () => {
   chatStore.isSidebarOpen = !chatStore.isSidebarOpen
 }
 
 // Watch for changes and update store
 watch(
-  [temperature, contextLength, maxTokens, systemPrompt, artifacts, thinkingBudget],
-  ([newTemp, newContext, newMaxTokens, newSystemPrompt, newArtifacts, newThinkingBudget]) => {
+  [
+    temperature,
+    contextLength,
+    maxTokens,
+    systemPrompt,
+    artifacts,
+    thinkingBudget,
+    reasoningEffort,
+    verbosity
+  ],
+  ([
+    newTemp,
+    newContext,
+    newMaxTokens,
+    newSystemPrompt,
+    newArtifacts,
+    newThinkingBudget,
+    newReasoningEffort,
+    newVerbosity
+  ]) => {
     if (
       newTemp !== chatStore.chatConfig.temperature ||
       newContext !== chatStore.chatConfig.contextLength ||
       newMaxTokens !== chatStore.chatConfig.maxTokens ||
       newSystemPrompt !== chatStore.chatConfig.systemPrompt ||
       newArtifacts !== chatStore.chatConfig.artifacts ||
-      newThinkingBudget !== chatStore.chatConfig.thinkingBudget
+      newThinkingBudget !== chatStore.chatConfig.thinkingBudget ||
+      newReasoningEffort !== chatStore.chatConfig.reasoningEffort ||
+      newVerbosity !== chatStore.chatConfig.verbosity
     ) {
       chatStore.updateChatConfig({
         temperature: newTemp,
@@ -206,8 +267,10 @@ watch(
         maxTokens: newMaxTokens,
         systemPrompt: newSystemPrompt,
         artifacts: newArtifacts,
-        thinkingBudget: newThinkingBudget
-      })
+        thinkingBudget: newThinkingBudget,
+        reasoningEffort: newReasoningEffort,
+        verbosity: newVerbosity
+      } as any)
     }
   }
 )
@@ -215,13 +278,21 @@ watch(
 // Watch store changes to update local state
 watch(
   () => chatStore.chatConfig,
-  (newConfig) => {
+  async (newConfig, oldConfig) => {
     temperature.value = newConfig.temperature
     contextLength.value = newConfig.contextLength
     maxTokens.value = newConfig.maxTokens
     systemPrompt.value = newConfig.systemPrompt
     artifacts.value = newConfig.artifacts
     thinkingBudget.value = newConfig.thinkingBudget
+    reasoningEffort.value = newConfig.reasoningEffort
+    verbosity.value = newConfig.verbosity
+    if (
+      oldConfig &&
+      (newConfig.modelId !== oldConfig.modelId || newConfig.providerId !== oldConfig.providerId)
+    ) {
+      await loadModelConfig()
+    }
   },
   { deep: true }
 )
@@ -290,6 +361,10 @@ onMounted(async () => {
 
     await loadRateLimitStatus()
   }
+
+  setTimeout(async () => {
+    await loadModelConfig()
+  }, 100)
 
   window.electron.ipcRenderer.on(RATE_LIMIT_EVENTS.CONFIG_UPDATED, handleRateLimitEvent)
   window.electron.ipcRenderer.on(RATE_LIMIT_EVENTS.REQUEST_EXECUTED, handleRateLimitEvent)

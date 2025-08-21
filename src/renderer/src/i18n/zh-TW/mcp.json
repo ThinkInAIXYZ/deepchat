@@ -246,5 +246,24 @@
     "loadContent": "獲取 Resource 內容",
     "pleaseSelect": "點擊獲取展示Resources詳情",
     "dialogDescription": "瀏覽和查看MCP伺服器提供的資源"
+  },
+  "market": {
+    "apiKeyPlaceholder": "輸入 MCPRouter API Key",
+    "apiKeyRequiredDesc": "請先填寫 MCPRouter API Key 後再安裝",
+    "apiKeyRequiredTitle": "需要 API Key",
+    "browseBuiltin": "瀏覽內建 MCP 市場",
+    "builtinTitle": "MCP 市場",
+    "empty": "暫無服務",
+    "install": "安裝",
+    "installFailed": "安裝失敗",
+    "installSuccess": "安裝成功",
+    "installed": "已安裝",
+    "keyGuide": "獲取密鑰",
+    "keyHelpEnd": "申請 API Key 後填寫到上方輸入框",
+    "keyHelpText": "請先到",
+    "loadMore": "載入更多",
+    "noMore": "沒有更多了",
+    "poweredBy": "由 MCPRouter 驅動",
+    "pullDownToLoad": "繼續下拉載入更多"
   }
 }

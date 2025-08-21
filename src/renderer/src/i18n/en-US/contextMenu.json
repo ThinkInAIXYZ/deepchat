@@ -9,7 +9,7 @@
     "title": "Ask AI",
     "question": "Question",
     "answer": "Answer",
-    "error": "AI answer failed"
+    "error": "AI response failed"
   },
   "copy": "Copy",
   "paste": "Paste",

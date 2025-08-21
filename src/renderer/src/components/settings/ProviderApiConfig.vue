@@ -42,15 +42,29 @@
     <!-- API Key 配置 (GitHub Copilot 时隐藏手动输入) -->
     <div v-if="provider.id !== 'github-copilot'" class="flex flex-col items-start gap-2">
       <Label :for="`${provider.id}-apikey`" class="flex-1 cursor-pointer">API Key</Label>
-      <Input
-        :id="`${provider.id}-apikey`"
-        :model-value="apiKey"
-        type="password"
-        :placeholder="t('settings.provider.keyPlaceholder')"
-        @blur="handleApiKeyChange($event.target.value)"
-        @keyup.enter="$emit('validate-key', apiKey)"
-        @update:model-value="apiKey = String($event)"
-      />
+      <div class="relative w-full">
+        <Input
+          :id="`${provider.id}-apikey`"
+          :model-value="apiKey"
+          :type="showApiKey ? 'text' : 'password'"
+          :placeholder="t('settings.provider.keyPlaceholder')"
+          style="padding-right: 2.5rem !important"
+          @blur="handleApiKeyChange($event.target.value)"
+          @keyup.enter="$emit('validate-key', apiKey)"
+          @update:model-value="apiKey = String($event)"
+        />
+        <Button
+          variant="ghost"
+          size="sm"
+          class="absolute right-2 top-1/2 transform -translate-y-1/2 h-7 w-7 p-0 hover:bg-transparent"
+          @click="showApiKey = !showApiKey"
+        >
+          <Icon
+            :icon="showApiKey ? 'lucide:eye-off' : 'lucide:eye'"
+            class="w-4 h-4 text-muted-foreground hover:text-foreground"
+          />
+        </Button>
+      </div>
       <div class="flex flex-row gap-2">
         <Button
           variant="outline"
@@ -153,6 +167,7 @@ const apiKey = ref(props.provider.apiKey || '')
 const apiHost = ref(props.provider.baseUrl || '')
 const keyStatus = ref<KeyStatus | null>(null)
 const isRefreshing = ref(false)
+const showApiKey = ref(false)
 
 watch(
   () => props.provider,

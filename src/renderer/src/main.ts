@@ -1,3 +1,4 @@
+import 'vue-renderer-markdown/index.css'
 import './assets/main.css'
 import { addCollection } from '@iconify/vue'
 import lucideIcons from '@iconify-json/lucide/icons.json'
@@ -8,7 +9,6 @@ import App from './App.vue'
 import router from './router'
 import { createI18n } from 'vue-i18n'
 import locales from './i18n'
-import 'vue-renderer-markdown/index.css'
 import 'vue-virtual-scroller/dist/vue-virtual-scroller.css'
 
 const i18n = createI18n({

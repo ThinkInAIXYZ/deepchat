@@ -6,15 +6,42 @@ import { app } from 'electron'
 import { compare } from 'compare-versions'
 import { presenter } from '..'
 
+// NPM Registry缓存接口
+export interface INpmRegistryCache {
+  registry: string
+  lastChecked: number
+  isAutoDetect: boolean
+}
+
 // MCP设置的接口
 interface IMcpSettings {
   mcpServers: Record<string, MCPServerConfig>
   defaultServer?: string // 保留旧字段以支持版本兼容
   defaultServers: string[] // 新增：多个默认服务器数组
   mcpEnabled: boolean // 添加MCP启用状态字段
+  npmRegistryCache?: INpmRegistryCache // NPM源缓存
+  customNpmRegistry?: string // 用户自定义NPM源
+  autoDetectNpmRegistry?: boolean // 是否启用自动检测
   [key: string]: unknown // 允许任意键
 }
 export type MCPServerType = 'stdio' | 'sse' | 'inmemory' | 'http'
+
+// Extended MCP server config with additional properties for ModelScope sync
+export interface ExtendedMCPServerConfig {
+  name: string
+  description: string
+  args: string[]
+  env: Record<string, string>
+  enabled: boolean
+  type: MCPServerType
+  package?: string
+  version?: string
+  source?: string
+  logo_url?: string
+  publisher?: string
+  tags?: string[]
+  view_count?: number
+}
 
 // 检查当前系统平台
 function isMacOS(): boolean {
@@ -309,7 +336,10 @@ export class McpConfHelper {
       defaults: {
         mcpServers: DEFAULT_MCP_SERVERS.mcpServers,
         defaultServers: DEFAULT_MCP_SERVERS.defaultServers,
-        mcpEnabled: DEFAULT_MCP_SERVERS.mcpEnabled
+        mcpEnabled: DEFAULT_MCP_SERVERS.mcpEnabled,
+        autoDetectNpmRegistry: true,
+        npmRegistryCache: undefined,
+        customNpmRegistry: undefined
       }
     })
   }
@@ -470,6 +500,86 @@ export class McpConfHelper {
     return true
   }
 
+  // 获取NPM Registry缓存
+  getNpmRegistryCache(): INpmRegistryCache | undefined {
+    return this.mcpStore.get('npmRegistryCache')
+  }
+
+  // 设置NPM Registry缓存
+  setNpmRegistryCache(cache: INpmRegistryCache): void {
+    this.mcpStore.set('npmRegistryCache', cache)
+  }
+
+  // 检查缓存是否有效（24小时内）
+  isNpmRegistryCacheValid(): boolean {
+    const cache = this.getNpmRegistryCache()
+    if (!cache) return false
+    const now = Date.now()
+    const cacheAge = now - cache.lastChecked
+    const CACHE_DURATION = 24 * 60 * 60 * 1000 // 24小时
+    return cacheAge < CACHE_DURATION
+  }
+
+  // 获取有效的NPM Registry（按优先级：自定义源 > 缓存 > 默认）
+  getEffectiveNpmRegistry(): string | null {
+    const customRegistry = this.getCustomNpmRegistry()
+    if (customRegistry) {
+      console.log(`[NPM Registry] Using custom registry: ${customRegistry}`)
+      return customRegistry
+    }
+
+    if (this.getAutoDetectNpmRegistry() && this.isNpmRegistryCacheValid()) {
+      const cache = this.getNpmRegistryCache()
+      if (cache?.registry) {
+        console.log(`[NPM Registry] Using cached registry: ${cache.registry}`)
+        return cache.registry
+      }
+    }
+
+    console.log('[NPM Registry] No effective registry found, will use default or detect')
+    return null
+  }
+
+  // 获取自定义NPM Registry
+  getCustomNpmRegistry(): string | undefined {
+    return this.mcpStore.get('customNpmRegistry')
+  }
+
+  // 标准化NPM Registry URL
+  private normalizeNpmRegistryUrl(registry: string): string {
+    let normalized = registry.trim()
+    if (!normalized.endsWith('/')) {
+      normalized += '/'
+    }
+    return normalized
+  }
+
+  // 设置自定义NPM Registry
+  setCustomNpmRegistry(registry: string | undefined): void {
+    if (registry === undefined) {
+      this.mcpStore.delete('customNpmRegistry')
+    } else {
+      const normalizedRegistry = this.normalizeNpmRegistryUrl(registry)
+      this.mcpStore.set('customNpmRegistry', normalizedRegistry)
+      console.log(`[NPM Registry] Normalized custom registry: ${registry} -> ${normalizedRegistry}`)
+    }
+  }
+
+  // 获取自动检测NPM Registry设置
+  getAutoDetectNpmRegistry(): boolean {
+    return this.mcpStore.get('autoDetectNpmRegistry') ?? true
+  }
+
+  // 设置自动检测NPM Registry
+  setAutoDetectNpmRegistry(enabled: boolean): void {
+    this.mcpStore.set('autoDetectNpmRegistry', enabled)
+  }
+
+  // 清除NPM Registry缓存
+  clearNpmRegistryCache(): void {
+    this.mcpStore.delete('npmRegistryCache')
+  }
+
   // 移除MCP服务器
   async removeMcpServer(name: string): Promise<void> {
     const mcpServers = await this.getMcpServers()
@@ -529,6 +639,158 @@ export class McpConfHelper {
       defaultServers: platformAwareDefaultServers,
       mcpEnabled: this.mcpStore.get('mcpEnabled')
     })
+  }
+
+  /**
+   * Batch import MCP servers from external source (like ModelScope)
+   * @param servers - Array of MCP server configs to import
+   * @param options - Import options
+   * @returns Promise<{ imported: number; skipped: number; errors: string[] }>
+   */
+  async batchImportMcpServers(
+    servers: Array<{
+      name: string
+      description: string
+      package: string
+      version?: string
+      type?: MCPServerType
+      args?: string[]
+      env?: Record<string, string>
+      enabled?: boolean
+      source?: string
+      [key: string]: unknown
+    }>,
+    options: {
+      skipExisting?: boolean
+      enableByDefault?: boolean
+      overwriteExisting?: boolean
+    } = {}
+  ): Promise<{ imported: number; skipped: number; errors: string[] }> {
+    const { skipExisting = true, enableByDefault = false, overwriteExisting = false } = options
+    const result = {
+      imported: 0,
+      skipped: 0,
+      errors: [] as string[]
+    }
+
+    const existingServers = await this.getMcpServers()
+
+    for (const serverConfig of servers) {
+      try {
+        // Generate unique server name based on package name
+        const serverName = this.generateUniqueServerName(serverConfig.package, existingServers)
+        const existingServer = existingServers[serverName]
+
+        // Check if server already exists
+        if (existingServer && !overwriteExisting) {
+          if (skipExisting) {
+            console.log(`Skipping existing MCP server: ${serverName}`)
+            result.skipped++
+            continue
+          } else {
+            result.errors.push(`Server ${serverName} already exists`)
+            continue
+          }
+        }
+
+        // Create MCP server config
+        const mcpConfig: ExtendedMCPServerConfig = {
+          name: serverConfig.name,
+          description: serverConfig.description,
+          args: serverConfig.args || [],
+          env: serverConfig.env || {},
+          enabled: serverConfig.enabled ?? enableByDefault,
+          type: (serverConfig.type as MCPServerType) || 'stdio',
+          package: serverConfig.package,
+          version: serverConfig.version || 'latest',
+          source: serverConfig.source as string | undefined,
+          logo_url: serverConfig.logo_url as string | undefined,
+          publisher: serverConfig.publisher as string | undefined,
+          tags: serverConfig.tags as string[] | undefined,
+          view_count: serverConfig.view_count as number | undefined
+        }
+
+        // Add or update the server
+        const success = await this.addMcpServer(serverName, mcpConfig as unknown as MCPServerConfig)
+        if (success || overwriteExisting) {
+          if (existingServer && overwriteExisting) {
+            await this.updateMcpServer(serverName, mcpConfig as unknown as Partial<MCPServerConfig>)
+            console.log(`Updated MCP server: ${serverName}`)
+          } else {
+            console.log(`Imported MCP server: ${serverName}`)
+          }
+          result.imported++
+        } else {
+          result.errors.push(`Failed to import server: ${serverName}`)
+        }
+      } catch (error) {
+        const errorMsg = `Error importing server ${serverConfig.name}: ${error instanceof Error ? error.message : String(error)}`
+        console.error(errorMsg)
+        result.errors.push(errorMsg)
+      }
+    }
+
+    console.log(
+      `MCP batch import completed. Imported: ${result.imported}, Skipped: ${result.skipped}, Errors: ${result.errors.length}`
+    )
+
+    // Emit event to notify about the import
+    eventBus.sendToRenderer(MCP_EVENTS.CONFIG_CHANGED, SendTarget.ALL_WINDOWS, {
+      action: 'batch_import',
+      result
+    })
+
+    return result
+  }
+
+  /**
+   * Generate a unique server name based on package name
+   * @param packageName - The package name to base the server name on
+   * @param existingServers - Existing servers to check against
+   * @returns Unique server name
+   */
+  private generateUniqueServerName(
+    packageName: string,
+    existingServers: Record<string, MCPServerConfig>
+  ): string {
+    // Clean up package name to create a suitable server name
+    let baseName = packageName
+      .replace(/[@/]/g, '-')
+      .replace(/[^a-zA-Z0-9-_]/g, '')
+      .toLowerCase()
+
+    // If the base name doesn't exist, use it directly
+    if (!existingServers[baseName]) {
+      return baseName
+    }
+
+    // If it exists, append a number suffix
+    let counter = 1
+    let uniqueName = `${baseName}-${counter}`
+    while (existingServers[uniqueName]) {
+      counter++
+      uniqueName = `${baseName}-${counter}`
+    }
+
+    return uniqueName
+  }
+
+  /**
+   * Check if a server with given package already exists
+   * @param packageName - Package name to check
+   * @returns Promise<string | null> - Returns server name if exists, null otherwise
+   */
+  async findServerByPackage(packageName: string): Promise<string | null> {
+    const servers = await this.getMcpServers()
+
+    for (const [serverName, config] of Object.entries(servers)) {
+      const extendedConfig = config as unknown as ExtendedMCPServerConfig
+      if (extendedConfig.package === packageName) {
+        return serverName
+      }
+    }
+
+    return null
   }
 
   public onUpgrade(oldVersion: string | undefined): void {

@@ -4,7 +4,7 @@
   "end": "完了",
   "error": "エラー",
   "title": "ツール呼び出し",
-  "clickToView": "詳細を表示するにはクリック",
+  "clickToView": "クリックして詳細を表示",
   "functionName": "関数名",
   "permission": "権限リクエスト中",
   "params": "関数パラメータ",

@@ -2,6 +2,30 @@
   <div class="w-full h-full flex flex-row">
     <ScrollArea class="w-64 border-r h-full px-2">
       <div class="py-2 space-y-4">
+        <!-- 搜索框 -->
+        <div class="px-2">
+          <div class="relative">
+            <Input
+              v-model="searchQueryBase"
+              :placeholder="t('settings.provider.search')"
+              class="h-8 pr-8"
+              @keydown.esc="clearSearch"
+            />
+            <!-- 搜索图标：在无内容时显示 -->
+            <Icon
+              v-if="!showClearButton"
+              icon="lucide:search"
+              class="absolute right-2 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none"
+            />
+            <!-- 清除按钮：在有内容时显示 -->
+            <Icon
+              v-else
+              icon="lucide:x"
+              class="absolute right-2 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground cursor-pointer hover:text-foreground"
+              @click="clearSearch"
+            />
+          </div>
+        </div>
         <!-- 启用的服务商区域 -->
         <div v-if="enabledProviders.length > 0">
           <div class="text-xs font-medium text-muted-foreground mb-2 px-2">
@@ -113,6 +137,12 @@
         @auth-success="handleAnthropicAuthSuccess"
         @auth-error="handleAnthropicAuthError"
       />
+      <BedrockProviderSettingsDetail
+        v-else-if="activeProvider.apiType === 'aws-bedrock'"
+        :key="`bedrock-${activeProvider.id}`"
+        :provider="activeProvider as AWS_BEDROCK_PROVIDER"
+        class="flex-1"
+      />
       <ModelProviderSettingsDetail
         v-else
         :key="`standard-${activeProvider.id}`"
@@ -131,14 +161,17 @@
 import { computed, ref, nextTick } from 'vue'
 import { useSettingsStore } from '@/stores/settings'
 import { useRoute, useRouter } from 'vue-router'
+import { refDebounced } from '@vueuse/core'
 import ModelProviderSettingsDetail from './ModelProviderSettingsDetail.vue'
 import OllamaProviderSettingsDetail from './OllamaProviderSettingsDetail.vue'
+import BedrockProviderSettingsDetail from './BedrockProviderSettingsDetail.vue'
 import ModelIcon from '@/components/icons/ModelIcon.vue'
 import { Icon } from '@iconify/vue'
 import AddCustomProviderDialog from './AddCustomProviderDialog.vue'
 import { useI18n } from 'vue-i18n'
-import type { LLM_PROVIDER } from '@shared/presenter'
+import type { AWS_BEDROCK_PROVIDER, LLM_PROVIDER } from '@shared/presenter'
 import { Switch } from '@/components/ui/switch'
+import { Input } from '@/components/ui/input'
 import draggable from 'vuedraggable'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { useThemeStore } from '@/stores/theme'
@@ -152,21 +185,68 @@ const languageStore = useLanguageStore()
 const settingsStore = useSettingsStore()
 const themeStore = useThemeStore()
 const isAddProviderDialogOpen = ref(false)
+const searchQueryBase = ref('')
+const searchQuery = refDebounced(searchQueryBase, 150)
+const showClearButton = computed(() => searchQueryBase.value.trim().length > 0)
+
+const clearSearch = () => {
+  searchQueryBase.value = ''
+}
+
+const filterProviders = (providers: LLM_PROVIDER[]) => {
+  if (!searchQuery.value.trim()) {
+    return providers
+  }
+  const query = searchQuery.value.toLowerCase().trim()
+  return providers.filter(
+    (provider) =>
+      t(provider.name).toLowerCase().includes(query) ||
+      provider.id.toLowerCase().includes(query) ||
+      (provider.apiType && provider.apiType.toLowerCase().includes(query))
+  )
+}
+
+const allEnabledProviders = computed(() => settingsStore.sortedProviders.filter((p) => p.enable))
+const allDisabledProviders = computed(() => settingsStore.sortedProviders.filter((p) => !p.enable))
 
 // 分别处理启用和禁用的 providers
 const enabledProviders = computed({
-  get: () => settingsStore.sortedProviders.filter((p) => p.enable),
+  get: () => filterProviders(allEnabledProviders.value),
   set: (newProviders) => {
-    const allProviders = [...newProviders, ...disabledProviders.value]
-    settingsStore.updateProvidersOrder(allProviders)
+    const isFiltered = searchQuery.value.trim().length > 0
+    if (isFiltered) {
+      const orderMap = new Map(newProviders.map((provider, index) => [provider.id, index]))
+      const reorderedEnabled = [...allEnabledProviders.value].sort((a, b) => {
+        const orderA = orderMap.get(a.id) ?? Infinity
+        const orderB = orderMap.get(b.id) ?? Infinity
+        return orderA - orderB
+      })
+      const allProviders = [...reorderedEnabled, ...allDisabledProviders.value]
+      settingsStore.updateProvidersOrder(allProviders)
+    } else {
+      const allProviders = [...newProviders, ...allDisabledProviders.value]
+      settingsStore.updateProvidersOrder(allProviders)
+    }
   }
 })
 
 const disabledProviders = computed({
-  get: () => settingsStore.sortedProviders.filter((p) => !p.enable),
+  get: () => filterProviders(allDisabledProviders.value),
   set: (newProviders) => {
-    const allProviders = [...enabledProviders.value, ...newProviders]
-    settingsStore.updateProvidersOrder(allProviders)
+    const isFiltered = searchQuery.value.trim().length > 0
+    if (isFiltered) {
+      const orderMap = new Map(newProviders.map((provider, index) => [provider.id, index]))
+      const reorderedDisabled = [...allDisabledProviders.value].sort((a, b) => {
+        const orderA = orderMap.get(a.id) ?? Infinity
+        const orderB = orderMap.get(b.id) ?? Infinity
+        return orderA - orderB
+      })
+      const allProviders = [...allEnabledProviders.value, ...reorderedDisabled]
+      settingsStore.updateProvidersOrder(allProviders)
+    } else {
+      const allProviders = [...allEnabledProviders.value, ...newProviders]
+      settingsStore.updateProvidersOrder(allProviders)
+    }
   }
 })
 

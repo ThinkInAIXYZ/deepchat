@@ -156,17 +156,18 @@ app.whenReady().then(async () => {
   // 注册 'deepcdn' 协议，用于加载应用内置资源 (模拟 CDN)
   protocol.handle('deepcdn', (request) => {
     try {
+      // console.log('deepcdn', request.url)
       const filePath = request.url.slice('deepcdn://'.length)
-      // 根据开发/生产环境确定资源路径
-      const resourcesPath = is.dev
-        ? path.join(app.getAppPath(), 'resources')
-        : process.resourcesPath
-      // 检查资源是否被解包 (app.asar.unpacked)，优先使用解包路径
-      const unpackedResourcesPath = path.join(resourcesPath, 'app.asar.unpacked', 'resources')
-
-      const baseResourcesDir = fs.existsSync(unpackedResourcesPath)
-        ? unpackedResourcesPath
-        : path.join(resourcesPath, 'resources') // 否则使用默认资源路径
+      // 根据开发/生产环境确定资源路径（按候选目录探测，避免错误拼接导致重复 resources）
+      const candidates = is.dev
+        ? [path.join(app.getAppPath(), 'resources')]
+        : [
+            path.join(process.resourcesPath, 'app.asar.unpacked', 'resources'),
+            path.join(process.resourcesPath, 'resources'),
+            process.resourcesPath
+          ]
+      const baseResourcesDir =
+        candidates.find((p) => fs.existsSync(path.join(p, 'cdn'))) || candidates[0]
 
       const fullPath = path.join(baseResourcesDir, 'cdn', filePath)
 

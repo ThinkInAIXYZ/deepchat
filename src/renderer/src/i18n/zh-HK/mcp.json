@@ -246,5 +246,24 @@
     "mcpDisabled": "MCP功能已禁用",
     "getPromptFailed": "獲取提示模板失敗",
     "readResourceFailed": "讀取資源失敗"
+  },
+  "market": {
+    "apiKeyPlaceholder": "輸入 MCPRouter API Key",
+    "apiKeyRequiredDesc": "請先填寫 MCPRouter API Key 後再安裝",
+    "apiKeyRequiredTitle": "需要 API Key",
+    "browseBuiltin": "瀏覽內置 MCP 市場",
+    "builtinTitle": "MCP 市場",
+    "empty": "暫無服務",
+    "install": "安裝",
+    "installFailed": "安裝失敗",
+    "installSuccess": "安裝成功",
+    "installed": "已安裝",
+    "keyGuide": "獲取密鑰",
+    "keyHelpEnd": "申請 API Key 後填寫到上方輸入框",
+    "keyHelpText": "請先到",
+    "loadMore": "加載更多",
+    "noMore": "沒有更多了",
+    "poweredBy": "Powered by MCPRouter",
+    "pullDownToLoad": "繼續下拉加載更多"
   }
 }

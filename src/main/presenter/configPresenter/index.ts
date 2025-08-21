@@ -331,7 +331,7 @@ export class ConfigPresenter implements IConfigPresenter {
 
     // Cache miss: read from settings and cache the result
     const status = this.getSetting<boolean>(statusKey)
-    const finalStatus = typeof status === 'boolean' ? status : true
+    const finalStatus = typeof status === 'boolean' ? status : false
     this.modelStatusCache.set(statusKey, finalStatus)
 
     return finalStatus
@@ -359,7 +359,7 @@ export class ConfigPresenter implements IConfigPresenter {
       const modelId = uncachedModelIds[i]
       const statusKey = uncachedKeys[i]
       const status = this.getSetting<boolean>(statusKey)
-      const finalStatus = typeof status === 'boolean' ? status : true
+      const finalStatus = typeof status === 'boolean' ? status : false
 
       // Cache the result and add to return object
       this.modelStatusCache.set(statusKey, finalStatus)
@@ -1114,12 +1114,85 @@ export class ConfigPresenter implements IConfigPresenter {
     this.knowledgeConfHelper.setKnowledgeConfigs(configs)
   }
 
+  // 获取NPM Registry缓存
+  getNpmRegistryCache(): any {
+    return this.mcpConfHelper.getNpmRegistryCache()
+  }
+
+  // 设置NPM Registry缓存
+  setNpmRegistryCache(cache: any): void {
+    return this.mcpConfHelper.setNpmRegistryCache(cache)
+  }
+
+  // 检查NPM Registry缓存是否有效
+  isNpmRegistryCacheValid(): boolean {
+    return this.mcpConfHelper.isNpmRegistryCacheValid()
+  }
+
+  // 获取有效的NPM Registry
+  getEffectiveNpmRegistry(): string | null {
+    return this.mcpConfHelper.getEffectiveNpmRegistry()
+  }
+
+  // 获取自定义NPM Registry
+  getCustomNpmRegistry(): string | undefined {
+    return this.mcpConfHelper.getCustomNpmRegistry()
+  }
+
+  // 设置自定义NPM Registry
+  setCustomNpmRegistry(registry: string | undefined): void {
+    this.mcpConfHelper.setCustomNpmRegistry(registry)
+  }
+
+  // 获取自动检测NPM Registry设置
+  getAutoDetectNpmRegistry(): boolean {
+    return this.mcpConfHelper.getAutoDetectNpmRegistry()
+  }
+
+  // 设置自动检测NPM Registry
+  setAutoDetectNpmRegistry(enabled: boolean): void {
+    this.mcpConfHelper.setAutoDetectNpmRegistry(enabled)
+  }
+
+  // 清除NPM Registry缓存
+  clearNpmRegistryCache(): void {
+    this.mcpConfHelper.clearNpmRegistryCache()
+  }
+
   // 对比知识库配置差异
   diffKnowledgeConfigs(newConfigs: BuiltinKnowledgeConfig[]) {
     return KnowledgeConfHelper.diffKnowledgeConfigs(
       this.knowledgeConfHelper.getKnowledgeConfigs(),
       newConfigs
     )
+  }
+
+  // 批量导入MCP服务器
+  async batchImportMcpServers(
+    servers: Array<{
+      name: string
+      description: string
+      package: string
+      version?: string
+      type?: any
+      args?: string[]
+      env?: Record<string, string>
+      enabled?: boolean
+      source?: string
+      [key: string]: unknown
+    }>,
+    options: {
+      skipExisting?: boolean
+      enableByDefault?: boolean
+      overwriteExisting?: boolean
+    } = {}
+  ): Promise<{ imported: number; skipped: number; errors: string[] }> {
+    return this.mcpConfHelper.batchImportMcpServers(servers, options)
+  }
+
+  // 根据包名查找服务器
+  async findMcpServerByPackage(packageName: string): Promise<string | null> {
+    return this.mcpConfHelper.findServerByPackage(packageName)
   }
 }
 

@@ -30,9 +30,9 @@
   "htmlPreviewTitle": "Aperçu HTML",
   "svgPreviewTitle": "Aperçu SVG",
   "copy": "Copier",
-  "copySuccess": "Copie réussie",
+  "copySuccess": "Copié",
   "copySuccessDesc": "Contenu copié dans le presse-papiers",
-  "copyFailed": "Échec de la copie",
+  "copyFailed": "Impossible de copier",
   "copyFailedDesc": "Impossible de copier le contenu dans le presse-papiers",
   "copyAsImage": "Copier en tant qu'image",
   "copyImageSuccessDesc": "Image copiée dans le presse-papiers",
@@ -41,5 +41,9 @@
   "tablet": "Tablette",
   "mobile": "Mobile",
   "width": "Largeur",
-  "height": "Hauteur"
+  "height": "Hauteur",
+  "copyImageFailedDesc": "Impossible de copier l'image dans le presse-papiers",
+  "noSvgContent": "Aucun contenu SVG disponible",
+  "sanitizingSvg": "Purification du contenu SVG ...",
+  "svgSanitizationFailed": "SVG Contenu Échec Vérification de sécurité"
 }

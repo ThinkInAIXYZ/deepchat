@@ -41,5 +41,8 @@
   "tablet": "Tablet",
   "mobile": "Mobile",
   "width": "Width",
-  "height": "Height"
+  "height": "Height",
+  "sanitizingSvg": "Sanitizing SVG content...",
+  "svgSanitizationFailed": "SVG content failed security validation",
+  "noSvgContent": "No SVG content available"
 }

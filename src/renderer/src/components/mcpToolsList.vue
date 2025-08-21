@@ -34,16 +34,22 @@ const getTools = (serverName: string) => {
 
 // 获取每个mcp服务的可用工具数量
 const getEnabledToolCountByServer = (serverName: string) => {
-  const enabledTools = chatStore.chatConfig.enabledMcpTools ?? []
   const serverTools = mcpStore.tools.filter((tool) => tool.server.name === serverName)
-  return serverTools.filter((tool) => enabledTools.includes(tool.function.name)).length
+  if (chatStore.chatConfig.enabledMcpTools) {
+    const enabledTools = chatStore.chatConfig.enabledMcpTools
+    return serverTools.filter((tool) => enabledTools.includes(tool.function.name)).length
+  }
+  return serverTools.length
 }
 
 // 获取可用工具总数
 const getTotalEnabledToolCount = () => {
-  const enabledMcpTools = chatStore.chatConfig.enabledMcpTools || []
-  const filterList = mcpStore.tools.filter((item) => enabledMcpTools.includes(item.function.name))
-  return filterList.length
+  if (chatStore.chatConfig.enabledMcpTools) {
+    const enabledMcpTools = chatStore.chatConfig.enabledMcpTools
+    const filterList = mcpStore.tools.filter((item) => enabledMcpTools.includes(item.function.name))
+    return filterList.length
+  }
+  return mcpStore.tools.length
 }
 
 // 处理单个服务开关状态变化

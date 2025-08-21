@@ -41,5 +41,8 @@
   "tablet": "平板",
   "mobile": "手機",
   "width": "寬度",
-  "height": "高度"
+  "height": "高度",
+  "noSvgContent": "沒有可用的SVG內容",
+  "sanitizingSvg": "正在淨化SVG內容...",
+  "svgSanitizationFailed": "SVG內容未通過安全驗證"
 }

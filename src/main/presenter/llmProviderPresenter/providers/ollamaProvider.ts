@@ -175,9 +175,16 @@ export class OllamaProvider extends BaseLLMProvider {
         }
       }
 
-      // 处理<think>标签
+      // 处理 thinking 字段
       const content = response.message?.content || ''
-      if (content.includes('<think>')) {
+      const thinking = response.message?.thinking || ''
+
+      if (thinking) {
+        resultResp.reasoning_content = thinking
+        resultResp.content = content
+      }
+      // 处理<think>标签（其他模型）
+      else if (content.includes('<think>')) {
         const thinkStart = content.indexOf('<think>')
         const thinkEnd = content.indexOf('</think>')
 
@@ -194,7 +201,7 @@ export class OllamaProvider extends BaseLLMProvider {
           resultResp.content = content
         }
       } else {
-        // 没有think标签，所有内容作为普通内容
+        // 没有特殊格式，所有内容作为普通内容
         resultResp.content = content
       }
 
@@ -495,6 +502,7 @@ export class OllamaProvider extends BaseLLMProvider {
           num_predict: maxTokens
         },
         stream: true as const,
+        ...(modelConfig?.reasoningEffort && { reasoning_effort: modelConfig.reasoningEffort }),
         ...(supportsFunctionCall && ollamaTools && ollamaTools.length > 0
           ? { tools: ollamaTools }
           : {})
@@ -597,6 +605,12 @@ export class OllamaProvider extends BaseLLMProvider {
 
           stopReason = 'tool_use'
           continue
+        }
+
+        // 处理 thinking 字段
+        const currentThinking = chunk.message?.thinking || ''
+        if (currentThinking) {
+          yield { type: 'reasoning', reasoning_content: currentThinking }
         }
 
         // 获取当前内容

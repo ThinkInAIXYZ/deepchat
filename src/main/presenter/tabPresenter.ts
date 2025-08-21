@@ -10,6 +10,7 @@ import { getContextMenuLabels } from '@shared/i18n'
 import { app } from 'electron'
 import { addWatermarkToNativeImage } from '@/lib/watermark'
 import { stitchImagesVertically } from '@/lib/scrollCapture'
+import { presenter } from './'
 
 export class TabPresenter implements ITabPresenter {
   // 全局标签页实例存储
@@ -262,7 +263,7 @@ export class TabPresenter implements ITabPresenter {
     }
 
     // 销毁视图
-    view.webContents.closeDevTools()
+    view.webContents.close()
     // Note: view.destroy() is also an option depending on Electron version/behavior
     return true
   }
@@ -533,6 +534,12 @@ export class TabPresenter implements ITabPresenter {
       // Once did-finish-load happens, emit first content loaded
       webContents.once('did-finish-load', () => {
         eventBus.sendToMain(WINDOW_EVENTS.FIRST_CONTENT_LOADED, windowId)
+        setTimeout(() => {
+          const windowPresenter = presenter.windowPresenter as any
+          if (windowPresenter && typeof windowPresenter.focusActiveTab === 'function') {
+            windowPresenter.focusActiveTab(windowId, 'initial')
+          }
+        }, 300)
       })
     }
 
@@ -933,6 +940,42 @@ export class TabPresenter implements ITabPresenter {
           await this.notifyWindowTabsUpdate(windowId)
         }
       }
+    }
+  }
+
+  registerFloatingWindow(webContentsId: number, webContents: Electron.WebContents): void {
+    try {
+      console.log(`TabPresenter: Registering floating window as virtual tab, ID: ${webContentsId}`)
+      if (this.tabs.has(webContentsId)) {
+        console.warn(`TabPresenter: Tab ${webContentsId} already exists, skipping registration`)
+        return
+      }
+      const virtualView = {
+        webContents: webContents,
+        setVisible: () => {},
+        setBounds: () => {},
+        getBounds: () => ({ x: 0, y: 0, width: 400, height: 600 })
+      } as any
+      this.webContentsToTabId.set(webContentsId, webContentsId)
+      this.tabs.set(webContentsId, virtualView)
+      console.log(
+        `TabPresenter: Virtual tab registered successfully for floating window ${webContentsId}`
+      )
+    } catch (error) {
+      console.error('TabPresenter: Failed to register floating window:', error)
+    }
+  }
+
+  unregisterFloatingWindow(webContentsId: number): void {
+    try {
+      console.log(`TabPresenter: Unregistering floating window virtual tab, ID: ${webContentsId}`)
+      this.webContentsToTabId.delete(webContentsId)
+      this.tabs.delete(webContentsId)
+      console.log(
+        `TabPresenter: Virtual tab unregistered successfully for floating window ${webContentsId}`
+      )
+    } catch (error) {
+      console.error('TabPresenter: Failed to unregister floating window:', error)
     }
   }
 }

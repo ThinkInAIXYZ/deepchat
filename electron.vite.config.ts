@@ -23,7 +23,11 @@ export default defineConfig({
     },
     build: {
       rollupOptions: {
-        external: ['sharp']
+        external: ['sharp','@duckdb/node-api'],
+        output: {
+          inlineDynamicImports: true,
+          manualChunks: undefined,  // Disable automatic chunk splitting
+        }
       }
     }
   },

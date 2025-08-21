@@ -53,14 +53,28 @@
         <Label :for="`${provider.id}-apikey`" class="flex-1 cursor-pointer">{{
           t('settings.provider.apiKeyLabel')
         }}</Label>
-        <Input
-          :id="`${provider.id}-apikey`"
-          v-model="apiKey"
-          type="password"
-          :placeholder="t('settings.provider.keyPlaceholder')"
-          @blur="handleApiKeyChange(String($event.target.value))"
-          @keyup.enter="handleApiKeyEnter(apiKey)"
-        />
+        <div class="relative w-full">
+          <Input
+            :id="`${provider.id}-apikey`"
+            v-model="apiKey"
+            :type="showApiKey ? 'text' : 'password'"
+            :placeholder="t('settings.provider.keyPlaceholder')"
+            style="padding-right: 2.5rem !important"
+            @blur="handleApiKeyChange(String($event.target.value))"
+            @keyup.enter="handleApiKeyEnter(apiKey)"
+          />
+          <Button
+            variant="ghost"
+            size="sm"
+            class="absolute right-2 top-1/2 transform -translate-y-1/2 h-7 w-7 p-0 hover:bg-transparent"
+            @click="showApiKey = !showApiKey"
+          >
+            <Icon
+              :icon="showApiKey ? 'lucide:eye-off' : 'lucide:eye'"
+              class="w-4 h-4 text-muted-foreground hover:text-foreground"
+            />
+          </Button>
+        </div>
         <div class="flex flex-row gap-2">
           <Button
             variant="outline"
@@ -219,7 +233,7 @@
           :provider="provider"
           :enabled-models="enabledModels"
           :total-models-count="totalModelsCount"
-          @show-model-list-dialog="openModelCheckDialog"
+          @show-model-list-dialog="showModelListDialog = true"
           @disable-all-models="handleDisableAllModels"
           @model-enabled-change="handleModelEnabledChange"
           @config-changed="handleConfigChanged"
@@ -239,6 +253,15 @@
                 )
               }}
             </DialogTitle>
+            <DialogDescription>
+              {{
+                t(
+                  checkResult
+                    ? 'settings.provider.dialog.verify.successDesc'
+                    : 'settings.provider.dialog.verify.failedDesc'
+                )
+              }}
+            </DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button variant="outline" @click="showCheckModelDialog = false">
@@ -257,11 +280,11 @@
         >
           <DialogHeader>
             <DialogTitle>{{ t('settings.provider.inputOAuthCode') }}</DialogTitle>
+            <DialogDescription>
+              {{ t('settings.provider.oauthCodeHint') }}
+            </DialogDescription>
           </DialogHeader>
           <div class="space-y-4">
-            <div class="text-sm text-muted-foreground">
-              {{ t('settings.provider.oauthCodeHint') }}
-            </div>
             <Input
               v-model="oauthCode"
               :placeholder="t('settings.provider.oauthCodePlaceholder')"
@@ -288,6 +311,15 @@
         </DialogContent>
       </Dialog>
     </div>
+    <ProviderDialogContainer
+      v-model:show-model-list-dialog="showModelListDialog"
+      :provider="provider"
+      :provider-models="providerModels"
+      :custom-models="customModels"
+      :model-to-disable="null"
+      :check-result="false"
+      @model-enabled-change="handleModelEnabledChange"
+    />
   </section>
 </template>
 
@@ -301,6 +333,7 @@ import { Icon } from '@iconify/vue'
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle
@@ -317,6 +350,7 @@ import { useModelCheckStore } from '@/stores/modelCheck'
 import { usePresenter } from '@/composables/usePresenter'
 import type { LLM_PROVIDER, RENDERER_MODEL_META } from '@shared/presenter'
 import ProviderModelManager from './ProviderModelManager.vue'
+import ProviderDialogContainer from './ProviderDialogContainer.vue'
 
 const { t } = useI18n()
 
@@ -337,7 +371,9 @@ const oauthPresenter = usePresenter('oauthPresenter')
 const authMethod = ref<'apikey' | 'oauth'>('apikey')
 const apiHost = ref(props.provider.baseUrl || '')
 const apiKey = ref(props.provider.apiKey || '')
+const showApiKey = ref(false)
 const showCheckModelDialog = ref(false)
+const showModelListDialog = ref(false)
 const checkResult = ref<boolean>(false)
 const isLoggingIn = ref(false)
 const validationResult = ref<{ success: boolean; message: string } | null>(null)
@@ -361,6 +397,18 @@ const totalModelsCount = computed(() => {
     (provider) => provider.providerId === props.provider.id
   )
   return providerModels?.models.length || 0
+})
+
+const providerModels = computed((): RENDERER_MODEL_META[] => {
+  const provider = settingsStore.allProviderModels.find((p) => p.providerId === props.provider.id)
+  return provider?.models || []
+})
+
+const customModels = computed((): RENDERER_MODEL_META[] => {
+  const providerCustomModels = settingsStore.customModels.find(
+    (p) => p.providerId === props.provider.id
+  )
+  return providerCustomModels?.models || []
 })
 
 // 初始化认证方法检测

@@ -8,7 +8,9 @@ import {
   ChatMessage,
   LLMAgentEvent,
   KeyStatus,
-  LLM_EMBEDDING_ATTRS
+  LLM_EMBEDDING_ATTRS,
+  ModelScopeMcpSyncOptions,
+  ModelScopeMcpSyncResult
 } from '@shared/presenter'
 import { BaseLLMProvider } from './baseProvider'
 import { OpenAIProvider } from './providers/openAIProvider'
@@ -24,6 +26,7 @@ import { GithubProvider } from './providers/githubProvider'
 import { GithubCopilotProvider } from './providers/githubCopilotProvider'
 import { OllamaProvider } from './providers/ollamaProvider'
 import { AnthropicProvider } from './providers/anthropicProvider'
+import { AwsBedrockProvider } from './providers/awsBedrockProvider'
 import { DoubaoProvider } from './providers/doubaoProvider'
 import { ShowResponse } from 'ollama'
 import { CONFIG_EVENTS, RATE_LIMIT_EVENTS } from '@/events'
@@ -38,6 +41,8 @@ import { OpenRouterProvider } from './providers/openRouterProvider'
 import { MinimaxProvider } from './providers/minimaxProvider'
 import { AihubmixProvider } from './providers/aihubmixProvider'
 import { _302AIProvider } from './providers/_302AIProvider'
+import { ModelscopeProvider } from './providers/modelscopeProvider'
+import { VercelAIGatewayProvider } from './providers/vercelAIGatewayProvider'
 
 // 速率限制配置接口
 interface RateLimitConfig {
@@ -167,6 +172,9 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
       if (provider.id === 'aihubmix') {
         return new AihubmixProvider(provider, this.configPresenter)
       }
+      if (provider.id === 'modelscope') {
+        return new ModelscopeProvider(provider, this.configPresenter)
+      }
       switch (provider.apiType) {
         case 'minimax':
           return new OpenAIProvider(provider, this.configPresenter)
@@ -203,6 +211,10 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
           return new TogetherProvider(provider, this.configPresenter)
         case 'groq':
           return new GroqProvider(provider, this.configPresenter)
+        case 'vercel-ai-gateway':
+          return new VercelAIGatewayProvider(provider, this.configPresenter)
+        case 'aws-bedrock':
+          return new AwsBedrockProvider(provider, this.configPresenter)
         default:
           console.warn(`Unknown provider type: ${provider.apiType}`)
           return undefined
@@ -434,7 +446,9 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
     temperature: number = 0.6,
     maxTokens: number = 4096,
     enabledMcpTools?: string[],
-    thinkingBudget?: number
+    thinkingBudget?: number,
+    reasoningEffort?: 'minimal' | 'low' | 'medium' | 'high',
+    verbosity?: 'low' | 'medium' | 'high'
   ): AsyncGenerator<LLMAgentEvent, void, unknown> {
     console.log(`[Agent Loop] Starting agent loop for event: ${eventId} with model: ${modelId}`)
     if (!this.canStartNewStream()) {
@@ -450,6 +464,12 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
 
     if (thinkingBudget !== undefined) {
       modelConfig.thinkingBudget = thinkingBudget
+    }
+    if (reasoningEffort !== undefined) {
+      modelConfig.reasoningEffort = reasoningEffort
+    }
+    if (verbosity !== undefined) {
+      modelConfig.verbosity = verbosity
     }
 
     this.activeStreams.set(eventId, {
@@ -1597,6 +1617,141 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
       if (!currentProviderIds.has(providerId)) {
         this.cleanupProviderRateLimit(providerId)
       }
+    }
+  }
+
+  /**
+   * Sync MCP servers from ModelScope and import them to local configuration
+   * @param providerId - Provider ID (should be 'modelscope')
+   * @param syncOptions - Simplified sync options
+   * @returns Promise with sync result statistics
+   */
+  async syncModelScopeMcpServers(
+    providerId: string,
+    syncOptions?: ModelScopeMcpSyncOptions
+  ): Promise<ModelScopeMcpSyncResult> {
+    console.log(`[ModelScope MCP Sync] Starting sync for provider: ${providerId}`)
+    console.log(`[ModelScope MCP Sync] Sync options:`, syncOptions)
+
+    if (providerId !== 'modelscope') {
+      const error = 'MCP sync is only supported for ModelScope provider'
+      console.error(`[ModelScope MCP Sync] Error: ${error}`)
+      throw new Error(error)
+    }
+
+    const provider = this.getProviderInstance(providerId)
+
+    // Type check for ModelscopeProvider
+    if (provider.constructor.name !== 'ModelscopeProvider') {
+      const error = 'Provider is not a ModelScope provider instance'
+      console.error(`[ModelScope MCP Sync] Error: ${error}`)
+      throw new Error(error)
+    }
+
+    const result: ModelScopeMcpSyncResult = {
+      imported: 0,
+      skipped: 0,
+      errors: []
+    }
+
+    try {
+      // Create async task to prevent blocking main thread
+      const syncTask = async () => {
+        console.log(`[ModelScope MCP Sync] Fetching MCP servers from ModelScope API...`)
+
+        // Call ModelscopeProvider to fetch MCP servers
+        const modelscopeProvider = provider as any
+        const mcpResponse = await modelscopeProvider.syncMcpServers(syncOptions)
+
+        if (!mcpResponse || !mcpResponse.success || !mcpResponse.data?.mcp_server_list) {
+          const errorMsg = 'Invalid response from ModelScope MCP API'
+          console.error(`[ModelScope MCP Sync] ${errorMsg}`, mcpResponse)
+          result.errors.push(errorMsg)
+          return result
+        }
+
+        const mcpServers = mcpResponse.data.mcp_server_list
+        console.log(`[ModelScope MCP Sync] Fetched ${mcpServers.length} MCP servers from API`)
+
+        // Convert ModelScope operational MCP servers to internal format
+        const convertedServers = mcpServers
+          .map((server: any) => {
+            try {
+              // Check if operational URLs are available
+              if (!server.operational_urls || server.operational_urls.length === 0) {
+                const errorMsg = `No operational URLs found for server ${server.id}`
+                console.warn(`[ModelScope MCP Sync] ${errorMsg}`)
+                result.errors.push(errorMsg)
+                return null
+              }
+
+              // Use ModelScope provider's conversion method for consistency
+              const modelscopeProvider = provider as any
+              const converted = modelscopeProvider.convertMcpServerToConfig(server)
+
+              console.log(
+                `[ModelScope MCP Sync] Converted operational server: ${converted.displayName} (${converted.name})`
+              )
+              return converted
+            } catch (conversionError) {
+              const errorMsg = `Failed to convert server ${server.name || server.id}: ${conversionError instanceof Error ? conversionError.message : String(conversionError)}`
+              console.error(`[ModelScope MCP Sync] ${errorMsg}`)
+              result.errors.push(errorMsg)
+              return null
+            }
+          })
+          .filter((server: any) => server !== null)
+
+        console.log(
+          `[ModelScope MCP Sync] Successfully converted ${convertedServers.length} servers`
+        )
+
+        // Import servers to configuration using configPresenter
+        for (const serverConfig of convertedServers) {
+          try {
+            const existingServers = await this.configPresenter.getMcpServers()
+
+            // Check if server already exists
+            if (existingServers[serverConfig.name]) {
+              console.log(
+                `[ModelScope MCP Sync] Server ${serverConfig.name} already exists, skipping`
+              )
+              result.skipped++
+              continue
+            }
+
+            // Add server to configuration
+            const success = await this.configPresenter.addMcpServer(serverConfig.name, serverConfig)
+            if (success) {
+              console.log(
+                `[ModelScope MCP Sync] Successfully imported server: ${serverConfig.name}`
+              )
+              result.imported++
+            } else {
+              const errorMsg = `Failed to add server ${serverConfig.name} to configuration`
+              console.error(`[ModelScope MCP Sync] ${errorMsg}`)
+              result.errors.push(errorMsg)
+            }
+          } catch (importError) {
+            const errorMsg = `Failed to import server ${serverConfig.name}: ${importError instanceof Error ? importError.message : String(importError)}`
+            console.error(`[ModelScope MCP Sync] ${errorMsg}`)
+            result.errors.push(errorMsg)
+          }
+        }
+
+        console.log(
+          `[ModelScope MCP Sync] Sync completed. Imported: ${result.imported}, Skipped: ${result.skipped}, Errors: ${result.errors.length}`
+        )
+        return result
+      }
+
+      // Execute async without blocking
+      return await syncTask()
+    } catch (error) {
+      const errorMsg = `ModelScope MCP sync failed: ${error instanceof Error ? error.message : String(error)}`
+      console.error(`[ModelScope MCP Sync] ${errorMsg}`)
+      result.errors.push(errorMsg)
+      return result
     }
   }
 }

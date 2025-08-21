@@ -9,23 +9,23 @@
     "exportText": "متن ساده"
   },
   "toolbar": {
-    "save": "نگه‌داری",
+    "save": "ذخیره",
     "cancel": "رد کردن",
-    "previousVariant": "رفتن به نگارش پیشین",
-    "nextVariant": "رفتن به نگارش بعدی",
-    "copy": "رونوشت پاسخ به مارک‌داون",
+    "previousVariant": "گونه قبلی",
+    "nextVariant": "گونه بعدی",
+    "copy": "رونوشت به Markdown",
     "copyImage": "رونوشت در قالب تصویر",
     "copyImageWithLongPress": "رونوشت در قالب تصویر (فشار طولانی برای گرفتن از بالا)",
     "copyFromTopSuccess": "تصویر کامل گفتگو رونویسی شد",
     "capturing": "در حال گرفتن...",
-    "retry": "ساخت دوباره",
-    "fork": "شاخه‌سازی به نشست جدید",
+    "retry": "تولید دوباره",
+    "fork": "ساخت شاخه",
     "edit": "ویرایش پیام",
     "delete": "پاک کردن پیام"
   },
   "message": {
     "toolbar": {
-      "save": "نگه‌داری"
+      "save": "ذخیره"
     }
   },
   "export": {

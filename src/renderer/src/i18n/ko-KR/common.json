@@ -70,5 +70,8 @@
   "reset": "재설정",
   "format": "형식",
   "edit": "편집",
-  "delete": "삭제"
+  "delete": "삭제",
+  "save": "저장",
+  "clear": "지우기",
+  "saved": "저장"
 }
