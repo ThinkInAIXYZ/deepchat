@@ -5,7 +5,7 @@ import { ConversationsTable } from './tables/conversations'
 import { MessagesTable } from './tables/messages'
 import { AttachmentsTable } from './tables/attachments'
 import {
-  ISQLitePresenter,
+  IDatabasePresenter,
   SQLITE_MESSAGE,
   CONVERSATION,
   CONVERSATION_SETTINGS
@@ -20,7 +20,7 @@ export enum ImportMode {
   OVERWRITE = 'overwrite' // 覆盖导入
 }
 
-export class SQLitePresenter implements ISQLitePresenter {
+export class SQLitePresenter implements IDatabasePresenter {
   private db!: Database.Database
   private conversationsTable!: ConversationsTable
   private messagesTable!: MessagesTable

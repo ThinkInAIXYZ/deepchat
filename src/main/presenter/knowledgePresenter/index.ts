@@ -13,7 +13,7 @@ import {
 import { FileValidationResult } from '../filePresenter/FileValidationService'
 import { eventBus } from '@/eventbus'
 import { MCP_EVENTS } from '@/events'
-import { DuckDBPresenter } from './database/duckdbPresenter'
+import { PgliteVectorPresenter } from '../pglitePresenter/PgliteVectorPresenter'
 import { KnowledgeStorePresenter } from './knowledgeStorePresenter'
 import { KnowledgeTaskPresenter } from './knowledgeTaskPresenter'
 import { getMetric } from '@/utils/vector'
@@ -261,15 +261,15 @@ export class KnowledgePresenter implements IKnowledgePresenter {
     id: string,
     dimensions: number,
     normalized: boolean
-  ): Promise<DuckDBPresenter> => {
+  ): Promise<PgliteVectorPresenter> => {
     const dbPath = path.join(this.storageDir, id)
     if (fs.existsSync(dbPath)) {
-      const db = new DuckDBPresenter(dbPath)
+      const db = new PgliteVectorPresenter(dbPath)
       await db.open()
       return db
     }
     // 如果数据库不存在，则初始化
-    const db = new DuckDBPresenter(dbPath)
+    const db = new PgliteVectorPresenter(dbPath)
     await db.initialize(dimensions, {
       metric: getMetric(normalized)
     })

@@ -237,7 +237,7 @@ export interface IShortcutPresenter {
   destroy(): void
 }
 
-export interface ISQLitePresenter {
+export interface IDatabasePresenter {
   close(): void
   createConversation(title: string, settings?: Partial<CONVERSATION_SETTINGS>): Promise<string>
   deleteConversation(conversationId: string): Promise<void>
@@ -314,7 +314,7 @@ export interface OAuthConfig {
 
 export interface IPresenter {
   windowPresenter: IWindowPresenter
-  sqlitePresenter: ISQLitePresenter
+  databasePresenter: IDatabasePresenter
   llmproviderPresenter: ILlmProviderPresenter
   configPresenter: IConfigPresenter
   threadPresenter: IThreadPresenter

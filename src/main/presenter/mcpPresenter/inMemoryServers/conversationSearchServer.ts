@@ -152,7 +152,7 @@ export class ConversationSearchServer {
     offset: number = 0
   ): Promise<SearchResult> {
     try {
-      const sqlitePresenter = presenter.sqlitePresenter
+      const sqlitePresenter = presenter.databasePresenter
 
       // 使用原始SQL进行全文搜索
       const searchQuery = `%${query}%`
@@ -248,7 +248,7 @@ export class ConversationSearchServer {
     offset: number = 0
   ): Promise<SearchResult> {
     try {
-      const sqlitePresenter = presenter.sqlitePresenter
+      const sqlitePresenter = presenter.databasePresenter
       const searchQuery = `%${query}%`
 
       let sql = `
@@ -330,7 +330,7 @@ export class ConversationSearchServer {
   // 获取对话历史
   private async getConversationHistory(conversationId: string, includeSystem: boolean = false) {
     try {
-      const sqlitePresenter = presenter.sqlitePresenter
+      const sqlitePresenter = presenter.databasePresenter
       const conversation = await sqlitePresenter.getConversation(conversationId)
       const messages = await sqlitePresenter.queryMessages(conversationId)
 
@@ -360,7 +360,7 @@ export class ConversationSearchServer {
   // 获取对话统计信息
   private async getConversationStats(days: number = 30) {
     try {
-      const sqlitePresenter = presenter.sqlitePresenter
+      const sqlitePresenter = presenter.databasePresenter
       const db = (sqlitePresenter as any).db
 
       const sinceTimestamp = Date.now() - days * 24 * 60 * 60 * 1000

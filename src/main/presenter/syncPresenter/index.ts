@@ -1,7 +1,7 @@
 import { app, shell } from 'electron'
 import path from 'path'
 import fs from 'fs'
-import { ISyncPresenter, IConfigPresenter, ISQLitePresenter } from '@shared/presenter'
+import { ISyncPresenter, IConfigPresenter, IDatabasePresenter } from '@shared/presenter'
 import { eventBus, SendTarget } from '@/eventbus'
 import { SYNC_EVENTS } from '@/events'
 import { DataImporter } from '../sqlitePresenter/importData'
@@ -17,7 +17,7 @@ interface AppSettings {
 
 export class SyncPresenter implements ISyncPresenter {
   private configPresenter: IConfigPresenter
-  private sqlitePresenter: ISQLitePresenter
+  private sqlitePresenter: IDatabasePresenter
   private isBackingUp: boolean = false
   private backupTimer: NodeJS.Timeout | null = null
   private readonly BACKUP_DELAY = 60 * 1000 // 60秒无变更后触发备份
@@ -27,7 +27,7 @@ export class SyncPresenter implements ISyncPresenter {
   private readonly DB_PATH = path.join(app.getPath('userData'), 'app_db', 'chat.db')
   private readonly MODEL_CONFIG_PATH = path.join(app.getPath('userData'), 'model-config.json')
 
-  constructor(configPresenter: IConfigPresenter, sqlitePresenter: ISQLitePresenter) {
+  constructor(configPresenter: IConfigPresenter, sqlitePresenter: IDatabasePresenter) {
     this.configPresenter = configPresenter
     this.sqlitePresenter = sqlitePresenter
     this.init()

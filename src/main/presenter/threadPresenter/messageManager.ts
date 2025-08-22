@@ -3,7 +3,7 @@ import {
   MESSAGE_METADATA,
   MESSAGE_ROLE,
   MESSAGE_STATUS,
-  ISQLitePresenter,
+  IDatabasePresenter,
   SQLITE_MESSAGE
 } from '@shared/presenter'
 import { Message, AssistantMessageBlock } from '@shared/chat'
@@ -11,9 +11,9 @@ import { eventBus, SendTarget } from '@/eventbus'
 import { CONVERSATION_EVENTS } from '@/events'
 
 export class MessageManager implements IMessageManager {
-  private sqlitePresenter: ISQLitePresenter
+  private sqlitePresenter: IDatabasePresenter
 
-  constructor(sqlitePresenter: ISQLitePresenter) {
+  constructor(sqlitePresenter: IDatabasePresenter) {
     this.sqlitePresenter = sqlitePresenter
   }
 

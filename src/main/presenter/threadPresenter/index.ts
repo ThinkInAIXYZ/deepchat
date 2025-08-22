@@ -7,7 +7,7 @@ import {
   MESSAGE_METADATA,
   SearchResult,
   MODEL_META,
-  ISQLitePresenter,
+  IDatabasePresenter,
   IConfigPresenter,
   ILlmProviderPresenter,
   MCPToolResponse,
@@ -57,7 +57,7 @@ interface GeneratingMessageState {
 }
 
 export class ThreadPresenter implements IThreadPresenter {
-  private sqlitePresenter: ISQLitePresenter
+  private sqlitePresenter: IDatabasePresenter
   private messageManager: MessageManager
   private llmProviderPresenter: ILlmProviderPresenter
   private configPresenter: IConfigPresenter
@@ -70,7 +70,7 @@ export class ThreadPresenter implements IThreadPresenter {
   private fetchThreadLength: number = 300
 
   constructor(
-    sqlitePresenter: ISQLitePresenter,
+    sqlitePresenter: IDatabasePresenter,
     llmProviderPresenter: ILlmProviderPresenter,
     configPresenter: IConfigPresenter
   ) {

@@ -314,8 +314,8 @@ export class DevicePresenter implements IDevicePresenter {
           // 删除聊天数据
           console.log('Resetting chat data...')
           try {
-            if (presenter.sqlitePresenter) {
-              presenter.sqlitePresenter.close()
+            if (presenter.databasePresenter) {
+              presenter.databasePresenter.close()
               console.log('SQLite database connection closed')
             }
             await new Promise((resolve) => setTimeout(resolve, 500))
@@ -395,8 +395,8 @@ export class DevicePresenter implements IDevicePresenter {
           // 删除整个用户数据目录
           console.log('Performing complete reset of user data...')
           try {
-            if (presenter.sqlitePresenter) {
-              presenter.sqlitePresenter.close()
+            if (presenter.databasePresenter) {
+              presenter.databasePresenter.close()
               console.log('SQLite database connection closed')
             }
             if (presenter.knowledgePresenter) {

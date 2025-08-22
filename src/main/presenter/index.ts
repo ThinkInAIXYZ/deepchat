@@ -2,9 +2,9 @@ import { DialogPresenter } from './dialogPresenter/index'
 import { ipcMain, IpcMainInvokeEvent, app } from 'electron'
 // import { LlamaCppPresenter } from './llamaCppPresenter' // 保留原始注释
 import { WindowPresenter } from './windowPresenter'
-import { SQLitePresenter } from './sqlitePresenter'
+import { PglitePresenter } from './pglitePresenter'
 import { ShortcutPresenter } from './shortcutPresenter'
-import { IPresenter } from '@shared/presenter'
+import { IPresenter, IDatabasePresenter } from '@shared/presenter'
 import { eventBus } from '@/eventbus'
 import path from 'path'
 import { LLMProviderPresenter } from './llmProviderPresenter'
@@ -40,7 +40,7 @@ interface IPCCallContext {
 // 主 Presenter 类，负责协调其他 Presenter 并处理 IPC 通信
 export class Presenter implements IPresenter {
   windowPresenter: WindowPresenter
-  sqlitePresenter: SQLitePresenter
+  databasePresenter: IDatabasePresenter
   llmproviderPresenter: LLMProviderPresenter
   configPresenter: ConfigPresenter
   threadPresenter: ThreadPresenter
@@ -67,12 +67,12 @@ export class Presenter implements IPresenter {
     this.tabPresenter = new TabPresenter(this.windowPresenter)
     this.llmproviderPresenter = new LLMProviderPresenter(this.configPresenter)
     this.devicePresenter = new DevicePresenter()
-    // 初始化 SQLite 数据库路径
+    // 初始化 PGLite 数据库路径
     const dbDir = path.join(app.getPath('userData'), 'app_db')
-    const dbPath = path.join(dbDir, 'chat.db')
-    this.sqlitePresenter = new SQLitePresenter(dbPath)
+    const dbPath = path.join(dbDir, 'chat.pglite')
+    this.databasePresenter = new PglitePresenter(dbPath)
     this.threadPresenter = new ThreadPresenter(
-      this.sqlitePresenter,
+      this.databasePresenter,
       this.llmproviderPresenter,
       this.configPresenter
     )
@@ -80,7 +80,7 @@ export class Presenter implements IPresenter {
     this.upgradePresenter = new UpgradePresenter()
     this.shortcutPresenter = new ShortcutPresenter(this.configPresenter)
     this.filePresenter = new FilePresenter()
-    this.syncPresenter = new SyncPresenter(this.configPresenter, this.sqlitePresenter)
+    this.syncPresenter = new SyncPresenter(this.configPresenter, this.databasePresenter)
     this.deeplinkPresenter = new DeeplinkPresenter()
     this.notificationPresenter = new NotificationPresenter()
     this.oauthPresenter = new OAuthPresenter()
@@ -175,7 +175,7 @@ export class Presenter implements IPresenter {
   destroy() {
     this.floatingButtonPresenter.destroy() // 销毁悬浮按钮
     this.tabPresenter.destroy()
-    this.sqlitePresenter.close() // 关闭数据库连接
+    this.databasePresenter.close() // 关闭数据库连接
     this.shortcutPresenter.destroy() // 销毁快捷键监听
     this.syncPresenter.destroy() // 销毁同步相关资源
     this.notificationPresenter.clearAllNotifications() // 清除所有通知
