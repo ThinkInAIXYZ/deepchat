@@ -115,6 +115,13 @@ const loadModelConfig = async () => {
   if (modelId && providerId) {
     try {
       const config = await configPresenter.getModelDefaultConfig(modelId, providerId)
+      if (config.thinkingBudget !== undefined) {
+        if (thinkingBudget.value === undefined) {
+          thinkingBudget.value = config.thinkingBudget
+        }
+      } else {
+        thinkingBudget.value = undefined
+      }
       if (config.reasoningEffort !== undefined) {
         if (reasoningEffort.value === undefined) {
           reasoningEffort.value = config.reasoningEffort

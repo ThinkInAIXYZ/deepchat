@@ -746,8 +746,9 @@ export class ThreadPresenter implements IThreadPresenter {
       mergedSettings.maxTokens = defaultModelsSettings.maxTokens
       mergedSettings.contextLength = defaultModelsSettings.contextLength
       mergedSettings.temperature = defaultModelsSettings.temperature ?? 0.7
-      // 重置 thinkingBudget 为模型默认配置，如果模型配置中没有则设为 undefined
-      mergedSettings.thinkingBudget = defaultModelsSettings.thinkingBudget
+      if (settings.thinkingBudget === undefined) {
+        mergedSettings.thinkingBudget = defaultModelsSettings.thinkingBudget
+      }
     }
     if (settings.artifacts) {
       mergedSettings.artifacts = settings.artifacts

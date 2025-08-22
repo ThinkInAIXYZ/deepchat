@@ -255,8 +255,7 @@ const handleDynamicThinkingToggle = (enabled: boolean) => {
               }}</Label>
             </div>
             <Switch
-              :checked="displayThinkingBudget === -1"
-              :disabled="displayThinkingBudget === undefined"
+              :checked="(props.thinkingBudget ?? -1) === -1"
               @update:checked="handleDynamicThinkingToggle"
             />
           </div>
@@ -277,7 +276,7 @@ const handleDynamicThinkingToggle = (enabled: boolean) => {
                   ? t('settings.model.modelConfig.useModelDefault')
                   : t('settings.model.modelConfig.thinkingBudget.placeholder')
               "
-              :disabled="displayThinkingBudget === -1 || displayThinkingBudget === undefined"
+              :disabled="(props.thinkingBudget ?? -1) === -1"
             />
             <p class="text-xs text-muted-foreground">
               {{

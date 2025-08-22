@@ -90,6 +90,7 @@
                 v-model:max-tokens="maxTokens"
                 v-model:system-prompt="systemPrompt"
                 v-model:artifacts="artifacts"
+                v-model:thinking-budget="thinkingBudget"
                 v-model:reasoning-effort="reasoningEffort"
                 v-model:verbosity="verbosity"
                 :context-length-limit="contextLengthLimit"
@@ -159,6 +160,7 @@ const maxTokens = ref(4096)
 const maxTokensLimit = ref(4096)
 const systemPrompt = ref('')
 const artifacts = ref(settingsStore.artifactsEffectEnabled ? 1 : 0)
+const thinkingBudget = ref<number | undefined>(undefined)
 const reasoningEffort = ref<'minimal' | 'low' | 'medium' | 'high' | undefined>(undefined)
 const verbosity = ref<'low' | 'medium' | 'high' | undefined>(undefined)
 
@@ -179,6 +181,7 @@ watch(
     maxTokens.value = config.maxTokens
     contextLengthLimit.value = config.contextLength
     maxTokensLimit.value = config.maxTokens
+    thinkingBudget.value = config.thinkingBudget
     reasoningEffort.value = config.reasoningEffort
     verbosity.value = config.verbosity
     // console.log('temperature', temperature.value)
@@ -410,6 +413,7 @@ const handleSend = async (content: UserMessageContent) => {
     contextLength: contextLength.value,
     maxTokens: maxTokens.value,
     artifacts: artifacts.value as 0 | 1,
+    thinkingBudget: thinkingBudget.value,
     reasoningEffort: reasoningEffort.value,
     verbosity: verbosity.value,
     enabledMcpTools: chatStore.chatConfig.enabledMcpTools
