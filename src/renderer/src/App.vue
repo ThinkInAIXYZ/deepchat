@@ -39,15 +39,19 @@ const devicePresenter = usePresenter('devicePresenter')
 watch(
   [() => themeStore.themeMode, () => settingsStore.fontSizeClass],
   ([newTheme, newFontSizeClass], [oldTheme, oldFontSizeClass]) => {
+    let newThemeName = newTheme
+    if (newTheme === 'system') {
+      newThemeName = themeStore.isDark ? 'dark' : 'light'
+    }
     if (oldTheme) {
       document.documentElement.classList.remove(oldTheme)
     }
     if (oldFontSizeClass) {
       document.documentElement.classList.remove(oldFontSizeClass)
     }
-    document.documentElement.classList.add(newTheme)
+    document.documentElement.classList.add(newThemeName)
     document.documentElement.classList.add(newFontSizeClass)
-    console.log('newTheme', themeStore.themeMode)
+    console.log('newTheme', newThemeName)
   },
   { immediate: false } // 初始化在 onMounted 中处理
 )
