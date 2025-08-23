@@ -1,0 +1,58 @@
+{
+  "_comment": "Demo公司品牌配置示例",
+  "app": {
+    "name": "BananaAI",
+    "productName": "DemoAI助手",
+    "appId": "com.banana.ai-assistant",
+    "description": "DemoAI助手，您的智能工作伙伴",
+    "author": "Demo科技有限公司",
+    "website": "https://banana.com",
+    "copyright": "© 2025 Demo科技有限公司",
+    "executableName": "BananaAI"
+  },
+  "update": {
+    "baseUrl": "https://updates.banana.com/"
+  },
+  "i18n": {
+    "appTitle": {
+      "en-US": "Banana AI Assistant",
+      "zh-CN": "DemoAI助手",
+      "zh-TW": "DemoAI助手",
+      "zh-HK": "DemoAI助手",
+      "ja-JP": "バナナAIアシスタント",
+      "ko-KR": "바나나 AI 어시스턴트",
+      "ru-RU": "Банановый ИИ Помощник",
+      "fr-FR": "Assistant IA Banane",
+      "fa-IR": "دستیار هوش مصنوعی موز"
+    },
+    "appDescription": {
+      "en-US": "Banana AI Assistant is your intelligent work partner",
+      "zh-CN": "DemoAI助手是您的智能工作伙伴",
+      "zh-TW": "DemoAI助手是您的智能工作夥伴",
+      "zh-HK": "DemoAI助手是您的智能工作夥伴",
+      "ja-JP": "バナナAIアシスタントは、あなたの知的な仕事のパートナーです",
+      "ko-KR": "바나나 AI 어시스턴트는 당신의 지능형 업무 파트너입니다",
+      "ru-RU": "Банановый ИИ Помощник - ваш умный рабочий партнер",
+      "fr-FR": "L'Assistant IA Banane est votre partenaire de travail intelligent",
+      "fa-IR": "دستیار هوش مصنوعی موز شریک هوشمند کاری شماست"
+    },
+    "websiteText": {
+      "en-US": "Visit Banana Website",
+      "zh-CN": "访问Demo官网",
+      "zh-TW": "造訪Demo官網",
+      "zh-HK": "訪問Demo官網",
+      "ja-JP": "バナナウェブサイトを訪問",
+      "ko-KR": "바나나 웹사이트 방문",
+      "ru-RU": "Посетить сайт Банана",
+      "fr-FR": "Visitez le site Banane",
+      "fa-IR": "وبسایت موز را ببینید"
+    }
+  },
+  "github": {
+    "repository": "banana-company/ai-assistant"
+  },
+  "mcp": {
+    "serverDescriptionSuffix": "Demo内置",
+    "serverDescriptionSuffixEn": "Banana built-in"
+  }
+}
