@@ -1,6 +1,5 @@
-import { PGlite } from '@electric-sql/pglite'
 import fs from 'fs'
-import path from 'path'
+import { PGlite } from '@electric-sql/pglite'
 import { nanoid } from 'nanoid'
 import {
   IDatabasePresenter,
@@ -26,14 +25,11 @@ export class PglitePresenter implements IDatabasePresenter {
 
   private async initialize(password?: string): Promise<void> {
     try {
-      // 确保数据库目录存在
-      const dbDir = path.dirname(this.dbPath)
-      if (!fs.existsSync(dbDir)) {
-        fs.mkdirSync(dbDir, { recursive: true })
+      if (!fs.existsSync(this.dbPath)) {
+        fs.mkdirSync(this.dbPath, { recursive: true })
       }
-
       // 初始化PGLite实例
-      this.pgLite = new PGlite(this.dbPath)
+      this.pgLite = await PGlite.create('file://' + this.dbPath)
       this.isConnected = true
 
       // 如果有密码，设置加密（PGLite可能需要额外配置）

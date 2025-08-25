@@ -19,18 +19,15 @@ export class PgliteVectorPresenter implements IVectorDatabasePresenter {
   private isConnected: boolean = false
 
   // 表名常量
-  private readonly vectorTable = 'vector'
-  private readonly fileTable = 'file'
-  private readonly chunkTable = 'chunk'
-  private readonly metadataTable = 'metadata'
+  private readonly vectorTable = 'deepchat_vector'
+  private readonly fileTable = 'deepchat_file'
+  private readonly chunkTable = 'deepchat_chunk'
+  private readonly metadataTable = 'deepchat_metadata'
 
   constructor(dbPath: string) {
     this.dbPath = dbPath
     // 注意：数据库初始化和连接在initialize()和open()方法中进行
     // 不在构造函数中直接初始化，以遵循原有的DuckDBPresenter模式
-    if (!fs.existsSync(this.dbPath)) {
-      fs.mkdirSync(this.dbPath, { recursive: true })
-    }
   }
 
   async initialize(dimensions: number, opts?: IndexOptions): Promise<void> {
@@ -116,32 +113,6 @@ export class PgliteVectorPresenter implements IVectorDatabasePresenter {
   }
 
   // ==================== IVectorDatabasePresenter 接口实现 ====================
-
-  /**
-   * 获取数据库中向量的维度
-   */
-  private async getVectorDimensions(): Promise<number> {
-    try {
-      const result = await this.pgLite.query(`
-        SELECT atttypmod 
-        FROM pg_attribute 
-        WHERE attrelid = '${this.vectorTable}'::regclass 
-        AND attname = 'embedding'
-      `)
-
-      if (result.rows.length > 0) {
-        // atttypmod 对 vector 类型返回维度+4
-        return (result.rows[0] as any).atttypmod - 4
-      }
-
-      // 如果无法获取，返回默认维度
-      return 1536
-    } catch (error) {
-      console.warn('[PGLite] Unable to get vector dimensions, using default 1536:', error)
-      return 1536
-    }
-  }
-
   async insertFile(file: KnowledgeFileMessage): Promise<void> {
     const sql = `
       INSERT INTO ${this.fileTable} (id, name, path, mime_type, status, uploaded_at, metadata)
@@ -316,14 +287,6 @@ export class PgliteVectorPresenter implements IVectorDatabasePresenter {
       throw new Error(`File with ID ${opts.fileId} does not exist`)
     }
 
-    // 验证向量维度
-    const expectedDimensions = await this.getVectorDimensions()
-    if (opts.vector.length !== expectedDimensions) {
-      throw new Error(
-        `Vector dimension mismatch: expected ${expectedDimensions}, got ${opts.vector.length}`
-      )
-    }
-
     // 转换为 PostgreSQL vector 格式
     const vectorString = `[${opts.vector.join(',')}]`
 
@@ -338,16 +301,6 @@ export class PgliteVectorPresenter implements IVectorDatabasePresenter {
 
   async insertVectors(records: VectorInsertOptions[]): Promise<void> {
     if (!records.length) return
-
-    // 验证向量维度
-    const expectedDimensions = await this.getVectorDimensions()
-    for (const record of records) {
-      if (record.vector.length !== expectedDimensions) {
-        throw new Error(
-          `Vector dimension mismatch: expected ${expectedDimensions}, got ${record.vector.length}`
-        )
-      }
-    }
 
     // 批量插入优化
     const values = records
@@ -378,7 +331,7 @@ export class PgliteVectorPresenter implements IVectorDatabasePresenter {
     }
 
     // 选择距离操作符
-    let distanceOp = '<=>' // 默认余弦距离
+    let distanceOp: string
     switch (options.metric) {
       case 'l2':
         distanceOp = '<->'
@@ -482,13 +435,16 @@ export class PgliteVectorPresenter implements IVectorDatabasePresenter {
   // ==================== 初始化相关 ====================
 
   private async create(): Promise<void> {
-    this.pgLite = new PGlite(this.dbPath, {
+    if (!fs.existsSync(this.dbPath)) {
+      fs.mkdirSync(this.dbPath, { recursive: true })
+    }
+    this.pgLite = await PGlite.create('file://' + this.dbPath, {
       extensions: { vector }
     })
     this.isConnected = true
 
     // 启用 vector 扩展，如果失败则抛出错误
-    await this.pgLite.exec('CREATE EXTENSION IF NOT EXISTS vector')
+    await this.pgLite.exec('CREATE EXTENSION vector')
     console.log(`[PGLite] Vector extension enabled`)
     console.log(`[PGLite] Connected to PGLite at ${this.dbPath}`)
   }
@@ -590,7 +546,7 @@ export class PgliteVectorPresenter implements IVectorDatabasePresenter {
     // 向量相似度索引 - 使用 HNSW 索引
     const metric = opts?.metric || 'cosine'
 
-    let opsClass = 'vector_cosine_ops'
+    let opsClass: string
     switch (metric) {
       case 'l2':
         opsClass = 'vector_l2_ops'

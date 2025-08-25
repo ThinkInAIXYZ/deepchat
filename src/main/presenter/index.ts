@@ -1,3 +1,5 @@
+import path from 'node:path'
+
 import { DialogPresenter } from './dialogPresenter/index'
 import { ipcMain, IpcMainInvokeEvent, app } from 'electron'
 // import { LlamaCppPresenter } from './llamaCppPresenter' // 保留原始注释
@@ -6,7 +8,6 @@ import { PglitePresenter } from './pglitePresenter'
 import { ShortcutPresenter } from './shortcutPresenter'
 import { IPresenter, IDatabasePresenter } from '@shared/presenter'
 import { eventBus } from '@/eventbus'
-import path from 'path'
 import { LLMProviderPresenter } from './llmProviderPresenter'
 import { ConfigPresenter } from './configPresenter'
 import { ThreadPresenter } from './threadPresenter'
@@ -69,7 +70,7 @@ export class Presenter implements IPresenter {
     this.devicePresenter = new DevicePresenter()
     // 初始化 PGLite 数据库路径
     const dbDir = path.join(app.getPath('userData'), 'app_db')
-    const dbPath = path.join(dbDir, 'chat.pglite')
+    const dbPath = path.join(dbDir, 'chat')
     this.databasePresenter = new PglitePresenter(dbPath)
     this.threadPresenter = new ThreadPresenter(
       this.databasePresenter,
