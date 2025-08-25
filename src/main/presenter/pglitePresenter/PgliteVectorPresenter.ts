@@ -1,4 +1,5 @@
 import { PGlite } from '@electric-sql/pglite'
+import { vector } from '@electric-sql/pglite/vector'
 import fs from 'fs'
 import { nanoid } from 'nanoid'
 import {
@@ -27,6 +28,9 @@ export class PgliteVectorPresenter implements IVectorDatabasePresenter {
     this.dbPath = dbPath
     // 注意：数据库初始化和连接在initialize()和open()方法中进行
     // 不在构造函数中直接初始化，以遵循原有的DuckDBPresenter模式
+    if (!fs.existsSync(this.dbPath)) {
+      fs.mkdirSync(this.dbPath, { recursive: true })
+    }
   }
 
   async initialize(dimensions: number, opts?: IndexOptions): Promise<void> {
@@ -112,6 +116,31 @@ export class PgliteVectorPresenter implements IVectorDatabasePresenter {
   }
 
   // ==================== IVectorDatabasePresenter 接口实现 ====================
+
+  /**
+   * 获取数据库中向量的维度
+   */
+  private async getVectorDimensions(): Promise<number> {
+    try {
+      const result = await this.pgLite.query(`
+        SELECT atttypmod 
+        FROM pg_attribute 
+        WHERE attrelid = '${this.vectorTable}'::regclass 
+        AND attname = 'embedding'
+      `)
+
+      if (result.rows.length > 0) {
+        // atttypmod 对 vector 类型返回维度+4
+        return (result.rows[0] as any).atttypmod - 4
+      }
+
+      // 如果无法获取，返回默认维度
+      return 1536
+    } catch (error) {
+      console.warn('[PGLite] Unable to get vector dimensions, using default 1536:', error)
+      return 1536
+    }
+  }
 
   async insertFile(file: KnowledgeFileMessage): Promise<void> {
     const sql = `
@@ -287,6 +316,15 @@ export class PgliteVectorPresenter implements IVectorDatabasePresenter {
       throw new Error(`File with ID ${opts.fileId} does not exist`)
     }
 
+    // 验证向量维度
+    const expectedDimensions = await this.getVectorDimensions()
+    if (opts.vector.length !== expectedDimensions) {
+      throw new Error(
+        `Vector dimension mismatch: expected ${expectedDimensions}, got ${opts.vector.length}`
+      )
+    }
+
+    // 转换为 PostgreSQL vector 格式
     const vectorString = `[${opts.vector.join(',')}]`
 
     await this.pgLite.query(
@@ -301,6 +339,17 @@ export class PgliteVectorPresenter implements IVectorDatabasePresenter {
   async insertVectors(records: VectorInsertOptions[]): Promise<void> {
     if (!records.length) return
 
+    // 验证向量维度
+    const expectedDimensions = await this.getVectorDimensions()
+    for (const record of records) {
+      if (record.vector.length !== expectedDimensions) {
+        throw new Error(
+          `Vector dimension mismatch: expected ${expectedDimensions}, got ${record.vector.length}`
+        )
+      }
+    }
+
+    // 批量插入优化
     const values = records
       .map((_, index) => {
         const offset = index * 4
@@ -321,111 +370,58 @@ export class PgliteVectorPresenter implements IVectorDatabasePresenter {
 
   async similarityQuery(vector: number[], options: QueryOptions): Promise<QueryResult[]> {
     const k = options.topK
+    const vectorString = `[${vector.join(',')}]`
 
-    // 直接查询所有向量数据
+    // 设置查询参数
+    if (options.efSearch) {
+      await this.pgLite.exec(`SET hnsw.ef_search = ${options.efSearch}`)
+    }
+
+    // 选择距离操作符
+    let distanceOp = '<=>' // 默认余弦距离
+    switch (options.metric) {
+      case 'l2':
+        distanceOp = '<->'
+        break
+      case 'ip':
+        distanceOp = '<#>'
+        break
+      case 'cosine':
+      default:
+        distanceOp = '<=>'
+        break
+    }
+
     const sql = `
       SELECT 
-        t.id as id, 
-        t.embedding as embedding,
-        t1.content as content, 
-        t2.name as name, 
+        t.id as id,
+        t.embedding ${distanceOp} $1 as distance,
+        t1.content as content,
+        t2.name as name,
         t2.path as path
       FROM ${this.vectorTable} t
       LEFT JOIN ${this.chunkTable} t1 ON t1.id = t.chunk_id
       LEFT JOIN ${this.fileTable} t2 ON t2.id = t.file_id
+      ORDER BY t.embedding ${distanceOp} $1
+      LIMIT $2
     `
 
     try {
-      const result = await this.pgLite.query(sql)
+      const result = await this.pgLite.query(sql, [vectorString, k])
 
-      // 在JavaScript中计算相似度
-      const results = result.rows.map((row: any) => {
-        const embeddingData = JSON.parse(row.embedding) as number[]
-        const distance = this.calculateDistance(vector, embeddingData, options.metric)
-
-        return {
-          id: row.id,
-          distance: distance,
-          metadata: {
-            from: row.name,
-            filePath: row.path,
-            content: row.content
-          }
+      return result.rows.map((row: any) => ({
+        id: row.id,
+        distance: row.distance,
+        metadata: {
+          from: row.name,
+          filePath: row.path,
+          content: row.content
         }
-      })
-
-      // 排序并限制结果数量
-      const sortDirection = options.metric === 'ip' ? 'desc' : 'asc'
-      results.sort((a, b) => {
-        return sortDirection === 'desc' ? b.distance - a.distance : a.distance - b.distance
-      })
-
-      return results.slice(0, k)
+      }))
     } catch (err) {
       console.error('[PGLite] similarityQuery error', sql, err)
       throw err
     }
-  }
-
-  /**
-   * 计算两个向量之间的距离
-   */
-  private calculateDistance(vec1: number[], vec2: number[], metric: string): number {
-    if (vec1.length !== vec2.length) {
-      throw new Error('Vector dimensions must match')
-    }
-
-    switch (metric) {
-      case 'cosine':
-        return this.cosineDistance(vec1, vec2)
-      case 'l2':
-        return this.euclideanDistance(vec1, vec2)
-      case 'ip':
-        return this.innerProduct(vec1, vec2)
-      default:
-        return this.euclideanDistance(vec1, vec2)
-    }
-  }
-
-  /**
-   * 计算余弦距离
-   */
-  private cosineDistance(vec1: number[], vec2: number[]): number {
-    let dotProduct = 0
-    let norm1 = 0
-    let norm2 = 0
-
-    for (let i = 0; i < vec1.length; i++) {
-      dotProduct += vec1[i] * vec2[i]
-      norm1 += vec1[i] * vec1[i]
-      norm2 += vec2[i] * vec2[i]
-    }
-
-    const cosineSimilarity = dotProduct / (Math.sqrt(norm1) * Math.sqrt(norm2))
-    return 1 - cosineSimilarity // 返回距离（越小越相似）
-  }
-
-  /**
-   * 计算欧几里得距离
-   */
-  private euclideanDistance(vec1: number[], vec2: number[]): number {
-    let sum = 0
-    for (let i = 0; i < vec1.length; i++) {
-      const diff = vec1[i] - vec2[i]
-      sum += diff * diff
-    }
-    return Math.sqrt(sum)
-  }
-
-  /**
-   * 计算内积
-   */
-  private innerProduct(vec1: number[], vec2: number[]): number {
-    let sum = 0
-    for (let i = 0; i < vec1.length; i++) {
-      sum += vec1[i] * vec2[i]
-    }
-    return sum
   }
 
   async deleteVectorsByFile(fileId: string): Promise<void> {
@@ -486,14 +482,23 @@ export class PgliteVectorPresenter implements IVectorDatabasePresenter {
   // ==================== 初始化相关 ====================
 
   private async create(): Promise<void> {
-    this.pgLite = new PGlite(this.dbPath)
+    this.pgLite = new PGlite(this.dbPath, {
+      extensions: { vector }
+    })
     this.isConnected = true
+
+    // 启用 vector 扩展，如果失败则抛出错误
+    await this.pgLite.exec('CREATE EXTENSION IF NOT EXISTS vector')
+    console.log(`[PGLite] Vector extension enabled`)
     console.log(`[PGLite] Connected to PGLite at ${this.dbPath}`)
   }
 
   private async connect(): Promise<void> {
-    this.pgLite = new PGlite(this.dbPath)
+    this.pgLite = new PGlite(this.dbPath, {
+      extensions: { vector }
+    })
     this.isConnected = true
+    await this.pgLite.exec('CREATE EXTENSION IF NOT EXISTS vector')
     console.log(`[PGLite] Connected to PGLite at ${this.dbPath}`)
   }
 
@@ -537,20 +542,21 @@ export class PgliteVectorPresenter implements IVectorDatabasePresenter {
   }
 
   /** 创建定长向量表 */
-  private async initVectorTable(_dimensions: number): Promise<void> {
-    // 使用TEXT类型存储向量数据，直到PGLite完全支持vector类型
+  private async initVectorTable(dimensions: number): Promise<void> {
+    // 使用原生 vector 类型存储向量数据
     await this.pgLite.exec(`
       CREATE TABLE IF NOT EXISTS ${this.vectorTable} (
         id VARCHAR PRIMARY KEY,
-        embedding TEXT,
+        embedding vector(${dimensions}),
         file_id VARCHAR,
         chunk_id VARCHAR
       )
     `)
+    console.log(`[PGLite] Created vector table with native vector(${dimensions}) type`)
   }
 
   /** 创建索引 */
-  private async initTableIndex(_opts?: IndexOptions): Promise<void> {
+  private async initTableIndex(opts?: IndexOptions): Promise<void> {
     // file表索引
     await this.pgLite.exec(`
       CREATE INDEX IF NOT EXISTS idx_${this.fileTable}_id ON ${this.fileTable} (id)
@@ -573,7 +579,7 @@ export class PgliteVectorPresenter implements IVectorDatabasePresenter {
       CREATE INDEX IF NOT EXISTS idx_${this.chunkTable}_status ON ${this.chunkTable} (status)
     `)
 
-    // vector表基础索引（暂时不创建向量相似度索引，直到PGLite支持）
+    // vector表基础索引
     await this.pgLite.exec(`
       CREATE INDEX IF NOT EXISTS idx_${this.vectorTable}_file_id ON ${this.vectorTable} (file_id)
     `)
@@ -581,9 +587,33 @@ export class PgliteVectorPresenter implements IVectorDatabasePresenter {
       CREATE INDEX IF NOT EXISTS idx_${this.vectorTable}_chunk_id ON ${this.vectorTable} (chunk_id)
     `)
 
-    console.log(
-      '[PGLite] Vector similarity index will be created when pgvector extension is available'
-    )
+    // 向量相似度索引 - 使用 HNSW 索引
+    const metric = opts?.metric || 'cosine'
+
+    let opsClass = 'vector_cosine_ops'
+    switch (metric) {
+      case 'l2':
+        opsClass = 'vector_l2_ops'
+        break
+      case 'ip':
+        opsClass = 'vector_ip_ops'
+        break
+      case 'cosine':
+      default:
+        opsClass = 'vector_cosine_ops'
+        break
+    }
+
+    const m = opts?.M || 16
+    const efConstruction = opts?.efConstruction || 64
+
+    await this.pgLite.exec(`
+      CREATE INDEX IF NOT EXISTS idx_${this.vectorTable}_embedding_hnsw
+      ON ${this.vectorTable} 
+      USING hnsw (embedding ${opsClass})
+      WITH (m = ${m}, ef_construction = ${efConstruction})
+    `)
+    console.log('[PGLite] HNSW vector similarity index created successfully')
   }
 
   /**
