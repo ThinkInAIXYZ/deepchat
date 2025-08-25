@@ -406,6 +406,64 @@ function copyBrandAssets() {
   }
 }
 
+// 更新HTML文件中的标题
+function updateHtmlTitles(config) {
+  if (!config.app || !config.app.productName) {
+    return
+  }
+
+  const htmlFiles = [
+    'src/renderer/index.html',
+    'src/renderer/shell/index.html',
+    'src/renderer/floating/index.html'
+  ]
+
+  let updatedCount = 0
+
+  for (const filePath of htmlFiles) {
+    const fullPath = path.join(PROJECT_ROOT, filePath)
+    
+    if (!fs.existsSync(fullPath)) {
+      continue
+    }
+
+    try {
+      let content = fs.readFileSync(fullPath, 'utf8')
+      const originalContent = content
+
+      // 替换 title 标签中的内容
+      if (filePath.includes('shell/index.html')) {
+        // shell 页面的标题格式：AppName - Shell
+        content = content.replace(
+          /<title>DeepChat - Shell<\/title>/,
+          `<title>${config.app.productName} - Shell</title>`
+        )
+      } else if (filePath.includes('floating/index.html')) {
+        // floating 页面保持 "Floating Button" 不变
+        // 这个页面的标题是功能性的，不需要改为品牌名称
+      } else {
+        // 主页面和其他页面使用应用名称
+        content = content.replace(
+          /<title>DeepChat<\/title>/,
+          `<title>${config.app.productName}</title>`
+        )
+      }
+
+      // 只有内容发生变化时才写入文件
+      if (content !== originalContent) {
+        fs.writeFileSync(fullPath, content, 'utf8')
+        updatedCount++
+      }
+    } catch (err) {
+      warning(`更新 ${filePath} 失败: ${err.message}`)
+    }
+  }
+
+  if (updatedCount > 0) {
+    success(`已更新 ${updatedCount} 个 HTML 文件的标题`)
+  }
+}
+
 // 主函数
 function main() {
   log('🚀 开始执行 DeepChat 品牌替换...', colors.blue)
@@ -426,6 +484,7 @@ function main() {
   updateI18nFiles(config)
   updateAllI18nDeepChatReferences(config)
   updateMcpConfHelper(config)
+  updateHtmlTitles(config)
   copyBrandAssets()
 
   log('')
