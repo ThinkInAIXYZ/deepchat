@@ -128,7 +128,7 @@ This guide should provide a good starting point for developers. For specific que
 -   Project Structure: Based on `ls()` output and `CONTRIBUTING.md`.
 -   Architecture Overview: Explaining Electron's main/renderer architecture, the tech stack (Vue.js, TypeScript), and linking to relevant documents in `docs/` that I identified earlier.
 -   API Documentation: Pointing to `shared/presenter.d.ts` and `src/preload/index.d.ts`.
--   Model Context Protocol (MCP): Explaining its purpose based on `README.md` and linking to `docs/function-call-and-mcp.md` and other MCP-specific architectural documents.
+-   Model Context Protocol (MCP): Explaining its purpose based on `README.md` and linking to `docs/tool-calling-system.md` and other MCP-specific architectural documents.
 -   Development Setup: Linking to the relevant sections in `README.md` and `CONTRIBUTING.md`.
 -   Building the Application: Linking to the relevant section in `README.md`.
 -   Contribution Guidelines: Linking to `CONTRIBUTING.md`.
