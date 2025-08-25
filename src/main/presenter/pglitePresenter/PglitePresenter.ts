@@ -28,8 +28,8 @@ export class PglitePresenter implements IDatabasePresenter {
       if (!fs.existsSync(this.dbPath)) {
         fs.mkdirSync(this.dbPath, { recursive: true })
       }
-      // 初始化PGLite实例
-      this.pgLite = await PGlite.create('file://' + this.dbPath)
+      // 初始化PGlite实例
+      this.pgLite = await PGlite.create(this.dbPath)
       this.isConnected = true
 
       // 如果有密码，设置加密（PGLite可能需要额外配置）
@@ -60,7 +60,7 @@ export class PglitePresenter implements IDatabasePresenter {
       this.cleanupDatabaseFiles()
 
       // 重新创建数据库
-      this.pgLite = new PGlite(this.dbPath)
+      this.pgLite = await PGlite.create(this.dbPath)
       this.isConnected = true
 
       if (password) {
@@ -375,24 +375,24 @@ export class PglitePresenter implements IDatabasePresenter {
 
   // 删除对话
   public async deleteConversation(conversationId: string): Promise<void> {
-    await this.runTransaction(() => {
+    await this.runTransaction(async () => {
       // 删除相关的消息附件
-      this.pgLite.query(
+      await this.pgLite.query(
         'DELETE FROM message_attachments WHERE message_id IN (SELECT message_id FROM messages WHERE conv_id = $1)',
         [conversationId]
       )
 
       // 删除相关的附件
-      this.pgLite.query(
+      await this.pgLite.query(
         'DELETE FROM attachments WHERE message_id IN (SELECT message_id FROM messages WHERE conv_id = $1)',
         [conversationId]
       )
 
       // 删除相关的消息
-      this.pgLite.query('DELETE FROM messages WHERE conv_id = $1', [conversationId])
+      await this.pgLite.query('DELETE FROM messages WHERE conv_id = $1', [conversationId])
 
       // 删除对话
-      this.pgLite.query('DELETE FROM conversations WHERE conv_id = $1', [conversationId])
+      await this.pgLite.query('DELETE FROM conversations WHERE conv_id = $1', [conversationId])
     })
   }
 
@@ -504,10 +504,10 @@ export class PglitePresenter implements IDatabasePresenter {
 
   // 删除消息
   public async deleteMessage(messageId: string): Promise<void> {
-    await this.runTransaction(() => {
-      this.pgLite.query('DELETE FROM message_attachments WHERE message_id = $1', [messageId])
-      this.pgLite.query('DELETE FROM attachments WHERE message_id = $1', [messageId])
-      this.pgLite.query('DELETE FROM messages WHERE message_id = $1', [messageId])
+    await this.runTransaction(async () => {
+      await this.pgLite.query('DELETE FROM message_attachments WHERE message_id = $1', [messageId])
+      await this.pgLite.query('DELETE FROM attachments WHERE message_id = $1', [messageId])
+      await this.pgLite.query('DELETE FROM messages WHERE message_id = $1', [messageId])
     })
   }
 
@@ -552,17 +552,17 @@ export class PglitePresenter implements IDatabasePresenter {
 
   // 删除所有消息
   public async deleteAllMessages(): Promise<void> {
-    await this.runTransaction(() => {
-      this.pgLite.query('DELETE FROM message_attachments')
-      this.pgLite.query('DELETE FROM attachments')
-      this.pgLite.query('DELETE FROM messages')
+    await this.runTransaction(async () => {
+      await this.pgLite.query('DELETE FROM message_attachments')
+      await this.pgLite.query('DELETE FROM attachments')
+      await this.pgLite.query('DELETE FROM messages')
     })
   }
 
   // 执行事务
   public async runTransaction(operations: () => void): Promise<void> {
     await this.pgLite.transaction(async () => {
-      operations()
+      await (operations as any)()
     })
   }
 
@@ -599,16 +599,16 @@ export class PglitePresenter implements IDatabasePresenter {
 
   // 删除对话中的所有消息
   public async deleteAllMessagesInConversation(conversationId: string): Promise<void> {
-    await this.runTransaction(() => {
-      this.pgLite.query(
+    await this.runTransaction(async () => {
+      await this.pgLite.query(
         'DELETE FROM message_attachments WHERE message_id IN (SELECT message_id FROM messages WHERE conv_id = $1)',
         [conversationId]
       )
-      this.pgLite.query(
+      await this.pgLite.query(
         'DELETE FROM attachments WHERE message_id IN (SELECT message_id FROM messages WHERE conv_id = $1)',
         [conversationId]
       )
-      this.pgLite.query('DELETE FROM messages WHERE conv_id = $1', [conversationId])
+      await this.pgLite.query('DELETE FROM messages WHERE conv_id = $1', [conversationId])
     })
   }
 
