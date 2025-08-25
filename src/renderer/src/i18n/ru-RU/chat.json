@@ -54,5 +54,16 @@
   "notify": {
     "generationComplete": "Поколение завершено",
     "generationError": "Поколение не удалось"
+  },
+  "navigation": {
+    "title": "Навигация по сообщениям",
+    "searchPlaceholder": "Поиск сообщений...",
+    "noResults": "Подходящих сообщений не найдено",
+    "noMessages": "Пока сообщений нет",
+    "totalMessages": "Всего {count} сообщений",
+    "searchResults": "Найдено {count} результатов из {total} сообщений",
+    "userMessage": "Сообщение пользователя",
+    "assistantMessage": "Ответ ассистента",
+    "unknownMessage": "Неизвестное сообщение"
   }
 }

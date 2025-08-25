@@ -54,5 +54,16 @@
   "notify": {
     "generationComplete": "生成完了",
     "generationError": "生成失敗"
+  },
+  "navigation": {
+    "title": "メッセージナビゲーション",
+    "searchPlaceholder": "メッセージを検索...",
+    "noResults": "一致するメッセージが見つかりません",
+    "noMessages": "まだメッセージはありません",
+    "totalMessages": "合計 {count} 件のメッセージ",
+    "searchResults": "{total} 件中 {count} 件の結果を表示",
+    "userMessage": "ユーザーメッセージ",
+    "assistantMessage": "アシスタントの返信",
+    "unknownMessage": "不明なメッセージ"
   }
 }
