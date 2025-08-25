@@ -45,7 +45,7 @@
     </div>
 
     <!-- 消息列表 -->
-    <div class="flex-1 overflow-y-auto">
+    <div ref="messagesContainer" class="flex-1 overflow-y-auto scroll-smooth relative">
       <div class="p-2 space-y-1">
         <div
           v-for="(message, index) in filteredMessages"
@@ -98,6 +98,21 @@
           {{ searchQuery ? t('chat.navigation.noResults') : t('chat.navigation.noMessages') }}
         </p>
       </div>
+
+      <!-- 滚动锚点 -->
+      <div ref="scrollAnchor" class="h-2" />
+
+      <!-- 滚动到底部按钮 -->
+      <div v-if="showScrollToBottomButton && !searchQuery.trim()" class="absolute bottom-4 right-4">
+        <Button
+          variant="outline"
+          size="icon"
+          class="h-8 w-8 rounded-full shadow-lg bg-background border"
+          @click="scrollToBottom"
+        >
+          <Icon icon="lucide:arrow-down" class="h-4 w-4" />
+        </Button>
+      </div>
     </div>
 
     <div class="p-4 border-t border-border">
@@ -109,7 +124,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import { Icon } from '@iconify/vue'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -135,6 +150,9 @@ const { t } = useI18n()
 const themeStore = useThemeStore()
 
 const searchQuery = ref('')
+const messagesContainer = ref<HTMLDivElement>()
+const scrollAnchor = ref<HTMLDivElement>()
+const showScrollToBottomButton = ref(false)
 
 // 获取消息完整内容用于搜索
 const getFullMessageContent = (message: Message): string => {
@@ -228,10 +246,94 @@ const highlightSearchQuery = (text: string): string => {
   )
 }
 
+// 滚动到底部
+const scrollToBottom = () => {
+  nextTick(() => {
+    scrollAnchor.value?.scrollIntoView({
+      behavior: 'instant',
+      block: 'end'
+    })
+  })
+}
+
 // 滚动到指定消息
 const scrollToMessage = (messageId: string) => {
   emit('scrollToMessage', messageId)
 }
+
+watch(
+  () => props.messages.length,
+  (newLength, oldLength) => {
+    // 只在新增消息时滚动，避免过度滚动
+    if (newLength > oldLength && !searchQuery.value.trim()) {
+      nextTick(() => {
+        scrollToBottom()
+      })
+    }
+  }
+)
+
+watch(
+  () => props.isOpen,
+  (newIsOpen) => {
+    if (newIsOpen && !searchQuery.value.trim()) {
+      nextTick(() => {
+        scrollToBottom()
+        setupScrollObserver()
+      })
+    } else if (newIsOpen) {
+      nextTick(() => {
+        setupScrollObserver()
+      })
+    }
+  }
+)
+
+let intersectionObserver: IntersectionObserver | null = null
+
+const setupScrollObserver = () => {
+  if (intersectionObserver) {
+    intersectionObserver.disconnect()
+  }
+
+  intersectionObserver = new IntersectionObserver(
+    (entries) => {
+      const entry = entries[0]
+      showScrollToBottomButton.value = !entry.isIntersecting
+    },
+    {
+      root: messagesContainer.value,
+      rootMargin: '0px 0px 20px 0px',
+      threshold: 0
+    }
+  )
+
+  if (scrollAnchor.value) {
+    intersectionObserver.observe(scrollAnchor.value)
+  }
+}
+
+// 组件挂载时滚动到底部
+onMounted(() => {
+  if (props.isOpen && !searchQuery.value.trim()) {
+    nextTick(() => {
+      scrollToBottom()
+      setupScrollObserver()
+    })
+  } else {
+    nextTick(() => {
+      setupScrollObserver()
+    })
+  }
+})
+
+// 清理观察器
+onUnmounted(() => {
+  if (intersectionObserver) {
+    intersectionObserver.disconnect()
+    intersectionObserver = null
+  }
+})
 </script>
 
 <style scoped>
