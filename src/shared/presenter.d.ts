@@ -428,8 +428,9 @@ export interface IConfigPresenter {
   getNotificationsEnabled(): boolean
   // 主题设置
   initTheme(): void
-  toggleTheme(theme: 'dark' | 'light' | 'system'): Promise<boolean>
+  setTheme(theme: 'dark' | 'light' | 'system'): Promise<boolean>
   getTheme(): Promise<string>
+  getCurrentThemeIsDark(): Promise<boolean>
   getSystemTheme(): Promise<'dark' | 'light'>
   getCustomPrompts(): Promise<Prompt[]>
   setCustomPrompts(prompts: Prompt[]): Promise<void>
