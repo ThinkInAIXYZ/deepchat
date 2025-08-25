@@ -207,33 +207,55 @@ function updateI18nFiles(config) {
   const locales = ['en-US', 'zh-CN', 'zh-TW', 'zh-HK', 'ja-JP', 'ko-KR', 'ru-RU', 'fr-FR', 'fa-IR']
 
   for (const locale of locales) {
+    // 更新 about.json
     const aboutPath = path.join(i18nDir, locale, 'about.json')
+    if (fs.existsSync(aboutPath)) {
+      try {
+        const aboutJson = JSON.parse(fs.readFileSync(aboutPath, 'utf8'))
 
-    if (!fs.existsSync(aboutPath)) {
-      continue
+        // 更新应用标题
+        if (config.i18n.appTitle && config.i18n.appTitle[locale]) {
+          aboutJson.title = config.i18n.appTitle[locale]
+        }
+
+        // 更新应用描述
+        if (config.i18n.appDescription && config.i18n.appDescription[locale]) {
+          aboutJson.description = config.i18n.appDescription[locale]
+        }
+
+        // 更新网站文本
+        if (config.i18n.websiteText && config.i18n.websiteText[locale]) {
+          aboutJson.website = config.i18n.websiteText[locale]
+        }
+
+        fs.writeFileSync(aboutPath, JSON.stringify(aboutJson, null, 2), 'utf8')
+      } catch (err) {
+        warning(`更新 ${locale}/about.json 失败: ${err.message}`)
+      }
     }
 
-    try {
-      const aboutJson = JSON.parse(fs.readFileSync(aboutPath, 'utf8'))
+    // 更新 welcome.json
+    const welcomePath = path.join(i18nDir, locale, 'welcome.json')
+    if (fs.existsSync(welcomePath)) {
+      try {
+        const welcomeJson = JSON.parse(fs.readFileSync(welcomePath, 'utf8'))
 
-      // 更新应用标题
-      if (config.i18n.appTitle && config.i18n.appTitle[locale]) {
-        aboutJson.title = config.i18n.appTitle[locale]
+        // 更新欢迎页面标题
+        if (config.i18n.welcomeTitle && config.i18n.welcomeTitle[locale]) {
+          welcomeJson.title = config.i18n.welcomeTitle[locale]
+        }
+
+        // 更新设置描述
+        if (config.i18n.welcomeSetupDescription && config.i18n.welcomeSetupDescription[locale]) {
+          if (welcomeJson.steps && welcomeJson.steps.welcome) {
+            welcomeJson.steps.welcome.description = config.i18n.welcomeSetupDescription[locale]
+          }
+        }
+
+        fs.writeFileSync(welcomePath, JSON.stringify(welcomeJson, null, 2), 'utf8')
+      } catch (err) {
+        warning(`更新 ${locale}/welcome.json 失败: ${err.message}`)
       }
-
-      // 更新应用描述
-      if (config.i18n.appDescription && config.i18n.appDescription[locale]) {
-        aboutJson.description = config.i18n.appDescription[locale]
-      }
-
-      // 更新网站文本
-      if (config.i18n.websiteText && config.i18n.websiteText[locale]) {
-        aboutJson.website = config.i18n.websiteText[locale]
-      }
-
-      fs.writeFileSync(aboutPath, JSON.stringify(aboutJson, null, 2), 'utf8')
-    } catch (err) {
-      warning(`更新 ${locale} 国际化文件失败: ${err.message}`)
     }
   }
 
@@ -268,13 +290,81 @@ function updateMcpConfHelper(config) {
   }
 }
 
+// 更新所有包含 DeepChat 引用的 i18n 文件
+function updateAllI18nDeepChatReferences(config) {
+  const i18nDir = path.join(PROJECT_ROOT, 'src/renderer/src/i18n')
+  
+  if (!config.i18n || !config.i18n.appTitle) {
+    return
+  }
+
+  // 支持的语言
+  const locales = ['en-US', 'zh-CN', 'zh-TW', 'zh-HK', 'ja-JP', 'ko-KR', 'ru-RU', 'fr-FR', 'fa-IR']
+  
+  // 需要处理的文件列表
+  const filesToProcess = [
+    'mcp.json',
+    'settings.json', 
+    'update.json',
+    'index.ts'
+  ]
+
+  let updatedCount = 0
+
+  for (const locale of locales) {
+    const localeDir = path.join(i18nDir, locale)
+    
+    if (!fs.existsSync(localeDir)) {
+      continue
+    }
+
+    // 获取该语言的应用名称
+    const appName = config.i18n.appTitle[locale] || config.app.productName || 'MyApp'
+
+    for (const fileName of filesToProcess) {
+      const filePath = path.join(localeDir, fileName)
+      
+      if (!fs.existsSync(filePath)) {
+        continue
+      }
+
+      try {
+        let content = fs.readFileSync(filePath, 'utf8')
+        const originalContent = content
+
+        // 替换所有 DeepChat 引用为新的应用名称
+        content = content.replace(/DeepChat/g, appName)
+
+        // 只有内容发生变化时才写入文件
+        if (content !== originalContent) {
+          fs.writeFileSync(filePath, content, 'utf8')
+          updatedCount++
+        }
+      } catch (err) {
+        warning(`更新 ${locale}/${fileName} 中的 DeepChat 引用失败: ${err.message}`)
+      }
+    }
+  }
+
+  if (updatedCount > 0) {
+    success(`已更新 ${updatedCount} 个文件中的 DeepChat 引用`)
+  } else {
+    info('未找到需要更新的 DeepChat 引用')
+  }
+}
+
 // 复制品牌资源文件
 function copyBrandAssets() {
   const assetsDir = path.join(PROJECT_ROOT, 'scripts/brand-assets')
 
   if (!fs.existsSync(assetsDir)) {
-    warning('品牌资源目录不存在: scripts/brand-assets/')
-    warning('请创建该目录并放入您的品牌资源文件')
+    info('品牌资源目录不存在: scripts/brand-assets/')
+    info('如需替换应用图标和 Logo，请创建该目录并放入以下文件：')
+    info('  - icon.png (应用图标，512x512)')
+    info('  - icon.ico (Windows 图标)')
+    info('  - logo.png (亮色主题 Logo)')
+    info('  - logo-dark.png (暗色主题 Logo)')
+    info('跳过资源文件复制，继续其他品牌替换...')
     return
   }
 
@@ -313,8 +403,6 @@ function copyBrandAssets() {
 
   if (copiedCount > 0) {
     success(`已复制 ${copiedCount} 个品牌资源文件`)
-  } else {
-    warning('未找到品牌资源文件，请检查 scripts/brand-assets/ 目录')
   }
 }
 
@@ -336,6 +424,7 @@ function main() {
   updateMainIndex(config)
   updateUpgradePresenter(config)
   updateI18nFiles(config)
+  updateAllI18nDeepChatReferences(config)
   updateMcpConfHelper(config)
   copyBrandAssets()
 

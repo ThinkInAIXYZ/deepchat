@@ -46,6 +46,28 @@
       "ru-RU": "Посетить наш сайт",
       "fr-FR": "Visitez notre site web",
       "fa-IR": "وبسایت ما را ببینید"
+    },
+    "welcomeTitle": {
+      "en-US": "Welcome to MyApp",
+      "zh-CN": "欢迎使用 MyApp",
+      "zh-TW": "歡迎使用 MyApp",
+      "zh-HK": "歡迎使用 MyApp",
+      "ja-JP": "MyAppへようこそ",
+      "ko-KR": "MyApp에 오신 것을 환영합니다",
+      "ru-RU": "Добро пожаловать в MyApp",
+      "fr-FR": "Bienvenue sur MyApp",
+      "fa-IR": "به MyApp خوش آمدید"
+    },
+    "welcomeSetupDescription": {
+      "en-US": "Let's start setting up MyApp",
+      "zh-CN": "让我们开始设置 MyApp",
+      "zh-TW": "讓我們開始設定 MyApp",
+      "zh-HK": "讓我們開始設置 MyApp",
+      "ja-JP": "MyAppの設定を始めましょう",
+      "ko-KR": "MyApp 설정을 시작합시다",
+      "ru-RU": "Начнем настройку MyApp",
+      "fr-FR": "Commençons la configuration de MyApp",
+      "fa-IR": "بیایید تنظیم MyApp را شروع کنیم"
     }
   },
   "github": {
