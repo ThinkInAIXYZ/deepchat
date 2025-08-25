@@ -284,7 +284,7 @@ const scrollToMessage = (messageId: string) => {
     if (messageElement) {
       messageElement.scrollIntoView({
         behavior: 'smooth',
-        block: 'center'
+        block: 'start'
       })
 
       // 添加高亮效果
