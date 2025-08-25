@@ -225,6 +225,30 @@ The LLM system follows a two-layer architecture:
 3. Implement responsive design with Tailwind CSS
 4. Add proper error handling and loading states
 
+### UI Changes and Layout Documentation
+
+When making UI/layout changes that affect the visual structure or user interface:
+
+1. **Before Implementation**: Create ASCII diagrams to show the current layout
+2. **After Implementation**: Create ASCII diagrams to show the proposed/new layout
+3. **Visual Comparison**: Use BEFORE/AFTER format to clearly demonstrate changes
+4. **Seek Approval**: Present ASCII mockups to user before implementing changes
+
+Example format:
+```
+BEFORE:
+┌─────────────────────────────────────────────┐
+│ [Icon] Component Name    [Button] [Hidden]  │
+└─────────────────────────────────────────────┘
+
+AFTER:
+┌─────────────────────────────────────────────┐
+│ [Icon] Component Name    [Button] [Visible] │
+└─────────────────────────────────────────────┘
+```
+
+This ensures UI changes are clearly communicated and approved before implementation.
+
 ### Debugging
 
 - **Main Process**: Use VSCode debugger with breakpoints
