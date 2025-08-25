@@ -275,6 +275,27 @@ const scrollToBottom = () => {
   })
 }
 
+/**
+ * 滚动到指定消息
+ */
+const scrollToMessage = (messageId: string) => {
+  nextTick(() => {
+    const messageElement = document.querySelector(`[data-message-id="${messageId}"]`)
+    if (messageElement) {
+      messageElement.scrollIntoView({
+        behavior: 'smooth',
+        block: 'center'
+      })
+
+      // 添加高亮效果
+      messageElement.classList.add('message-highlight')
+      setTimeout(() => {
+        messageElement.classList.remove('message-highlight')
+      }, 2000)
+    }
+  })
+}
+
 onMounted(() => {
   // 获取应用版本
   devicePresenter.getAppVersion().then((version) => {
@@ -369,6 +390,19 @@ const createNewThread = async () => {
 }
 defineExpose({
   scrollToBottom,
+  scrollToMessage,
   aboveThreshold
 })
 </script>
+
+<style scoped>
+.message-highlight {
+  background-color: rgba(59, 130, 246, 0.1);
+  border-left: 3px solid rgb(59, 130, 246);
+  transition: all 0.3s ease;
+}
+
+.dark .message-highlight {
+  background-color: rgba(59, 130, 246, 0.15);
+}
+</style>

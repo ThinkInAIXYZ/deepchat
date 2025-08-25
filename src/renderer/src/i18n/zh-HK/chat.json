@@ -54,5 +54,16 @@
   "notify": {
     "generationComplete": "生成完畢",
     "generationError": "生成失敗"
+  },
+  "navigation": {
+    "title": "訊息導航",
+    "searchPlaceholder": "搜索訊息...",
+    "noResults": "冇搵到相符嘅訊息",
+    "noMessages": "暫時冇訊息",
+    "totalMessages": "共 {count} 條訊息",
+    "searchResults": "搵到 {count} 條結果，共 {total} 條訊息",
+    "userMessage": "用戶訊息",
+    "assistantMessage": "助手回覆",
+    "unknownMessage": "未知訊息"
   }
 }

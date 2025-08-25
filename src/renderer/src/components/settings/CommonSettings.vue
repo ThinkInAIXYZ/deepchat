@@ -42,7 +42,6 @@
             <Icon icon="lucide:trash-2" class="w-4 h-4 text-destructive" />
           </Button>
           <Button
-            v-if="isCurrentEngineCustom"
             variant="outline"
             size="icon"
             :title="t('settings.common.testSearchEngine')"

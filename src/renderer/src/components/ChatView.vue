@@ -112,4 +112,8 @@ onUnmounted(async () => {
   window.electron.ipcRenderer.removeAllListeners(STREAM_EVENTS.END)
   window.electron.ipcRenderer.removeAllListeners(STREAM_EVENTS.ERROR)
 })
+
+defineExpose({
+  messageList
+})
 </script>

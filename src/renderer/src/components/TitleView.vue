@@ -43,6 +43,20 @@
     </div>
 
     <div class="flex items-center gap-2">
+      <!-- 消息导航按钮 -->
+      <Button
+        class="w-7 h-7 rounded-md relative !p-0"
+        size="icon"
+        variant="outline"
+        :class="{ 'bg-accent': chatStore.isMessageNavigationOpen }"
+        @click="chatStore.isMessageNavigationOpen = !chatStore.isMessageNavigationOpen"
+      >
+        <Icon
+          icon="lucide:list"
+          class="w-4 h-4 absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2"
+        />
+      </Button>
+
       <ScrollablePopover align="end" content-class="w-80" :enable-scrollable="true">
         <template #trigger>
           <Button class="w-7 h-7 rounded-md" size="icon" variant="outline">

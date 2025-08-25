@@ -54,5 +54,16 @@
   "notify": {
     "generationComplete": "ساخت تکمیل شد",
     "generationError": "ساخت ناموفق بود"
+  },
+  "navigation": {
+    "title": "ناوبری پیام‌ها",
+    "searchPlaceholder": "جستجوی پیام‌ها...",
+    "noResults": "پیام منطبق پیدا نشد",
+    "noMessages": "هنوز پیامی وجود ندارد",
+    "totalMessages": "مجموع {count} پیام",
+    "searchResults": "{count} نتیجه از {total} پیام پیدا شد",
+    "userMessage": "پیام کاربر",
+    "assistantMessage": "پاسخ دستیار",
+    "unknownMessage": "پیام ناشناخته"
   }
 }
