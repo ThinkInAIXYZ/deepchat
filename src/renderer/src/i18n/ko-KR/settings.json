@@ -737,11 +737,11 @@
   },
   "display": {
     "fontSize": "텍스트 크기",
-    "text-2xl": "매우 큽니다",
-    "text-base": "기본",
-    "text-lg": "큰",
-    "text-sm": "작은",
-    "text-xl": "매우 큽니다",
+    "text-sm": "작음",
+    "text-base": "보통",
+    "text-lg": "큼",
+    "text-xl": "XL",
+    "text-2xl": "XXL",
     "floatingButton": "플로팅 버튼",
     "floatingButtonDesc": "데스크톱에 플로팅 버튼을 표시하여 애플리케이션 창을 빠르게 활성화할 수 있습니다"
   },

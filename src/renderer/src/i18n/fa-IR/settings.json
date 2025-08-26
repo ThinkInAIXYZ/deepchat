@@ -737,11 +737,11 @@
   },
   "display": {
     "fontSize": "اندازه قلم",
-    "text-2xl": "بسیار  بسیار بزرگ",
-    "text-base": "پیش‌فرض",
-    "text-lg": "بزرگ",
     "text-sm": "کوچک",
-    "text-xl": "بسیار بزرگ",
+    "text-base": "متوسط",
+    "text-lg": "بزرگ",
+    "text-xl": "XL",
+    "text-2xl": "XXL",
     "floatingButton": "دکمه شناور",
     "floatingButtonDesc": "نمایش یک دکمه شناور بر روی دسکتاپ برای فعال‌سازی سریع پنجره برنامه"
   },

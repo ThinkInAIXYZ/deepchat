@@ -738,7 +738,7 @@
   "display": {
     "fontSize": "文字大小",
     "text-sm": "小",
-    "text-base": "默认",
+    "text-base": "标准",
     "text-lg": "大",
     "text-xl": "特大",
     "text-2xl": "超大",

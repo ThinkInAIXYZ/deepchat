@@ -737,11 +737,11 @@
   },
   "display": {
     "fontSize": "Taille de texte",
-    "text-2xl": "Extrêmement grand",
-    "text-base": "défaut",
-    "text-lg": "grand",
     "text-sm": "Petit",
-    "text-xl": "Extrêmement grand",
+    "text-base": "Moyen",
+    "text-lg": "Grand",
+    "text-xl": "XL",
+    "text-2xl": "XXL",
     "floatingButton": "Bouton flottant",
     "floatingButtonDesc": "Afficher un bouton flottant sur le bureau pour activer rapidement la fenêtre de l'application"
   },

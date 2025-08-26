@@ -737,11 +737,11 @@
   },
   "display": {
     "fontSize": "Text size",
-    "text-2xl": "Extremely large",
-    "text-base": "Default",
-    "text-lg": "Big",
     "text-sm": "Small",
-    "text-xl": "Large",
+    "text-base": "Medium",
+    "text-lg": "Large",
+    "text-xl": "X-Large",
+    "text-2xl": "XX-Large",
     "floatingButton": "Floating Button",
     "floatingButtonDesc": "Display a floating button on the desktop to quickly activate the application window"
   },

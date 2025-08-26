@@ -737,11 +737,11 @@
   },
   "display": {
     "fontSize": "テキストサイズ",
-    "text-2xl": "非常に大きい",
-    "text-base": "デフォルト",
-    "text-lg": "大きい",
-    "text-sm": "小さい",
-    "text-xl": "非常に大きい",
+    "text-sm": "小",
+    "text-base": "中",
+    "text-lg": "大",
+    "text-xl": "XL",
+    "text-2xl": "XXL",
     "floatingButton": "フローティングボタン",
     "floatingButtonDesc": "デスクトップにフローティングボタンを表示し、アプリケーションウィンドウを素早く起動できます"
   },
