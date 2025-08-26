@@ -31,27 +31,35 @@
       <div ref="scrollAnchor" class="h-8" />
     </div>
     <template v-if="!isCapturingImage">
-      <div v-if="showCancelButton" class="absolute bottom-2 left-1/2 -translate-x-1/2">
-        <Button variant="outline" size="sm" class="rounded-lg" @click="handleCancel">
+      <div class="absolute bottom-2 left-1/2 -translate-x-1/2 flex items-center gap-2">
+        <!-- 取消按钮 -->
+        <Button
+          v-if="showCancelButton"
+          variant="outline"
+          size="sm"
+          class="rounded-lg"
+          @click="handleCancel"
+        >
           <Icon
             icon="lucide:square"
             class="w-6 h-6 bg-red-500 p-1 text-primary-foreground rounded-full"
           />
           <span class="">{{ t('common.cancel') }}</span>
         </Button>
-      </div>
-      <div
-        v-else
-        class="absolute bottom-2 left-1/2 -translate-x-1/2 flex items-center"
-        :class="[aboveThreshold ? 'w-36' : ' w-24']"
-        :style="{
-          transition: 'width 300ms ease-in-out'
-        }"
-      >
-        <Button variant="outline" size="sm" class="rounded-lg shrink-0" @click="createNewThread">
+
+        <!-- 新聊天按钮 (仅在非生成状态显示) -->
+        <Button
+          v-if="!showCancelButton"
+          variant="outline"
+          size="sm"
+          class="rounded-lg shrink-0"
+          @click="createNewThread"
+        >
           <Icon icon="lucide:plus" class="w-6 h-6 text-muted-foreground" />
           <span class="">{{ t('common.newChat') }}</span>
         </Button>
+
+        <!-- 滚动到底部按钮 -->
         <transition
           enter-active-class="transition-all duration-300 ease-out"
           enter-from-class="opacity-0 translate-y-2"
@@ -61,10 +69,13 @@
           leave-to-class="opacity-0 translate-y-2"
         >
           <Button
-            v-if="aboveThreshold"
+            v-if="aboveThreshold || showCancelButton"
             variant="outline"
             size="icon"
-            class="w-8 h-8 ml-2 shrink-0 rounded-lg"
+            :class="[
+              'w-8 h-8 shrink-0 rounded-lg relative',
+              showCancelButton ? 'scroll-to-bottom-loading' : ''
+            ]"
             @click="scrollToBottom"
           >
             <Icon icon="lucide:arrow-down" class="w-5 h-5 text-muted-foreground" />
@@ -404,5 +415,61 @@ defineExpose({
 
 .dark .message-highlight {
   background-color: rgba(59, 130, 246, 0.15);
+}
+
+.scroll-to-bottom-loading {
+  position: relative;
+  overflow: visible;
+}
+
+.scroll-to-bottom-loading::before {
+  content: '';
+  position: absolute;
+  top: -1px;
+  left: -1px;
+  right: -1px;
+  bottom: -1px;
+  border-radius: inherit;
+  border: 1px solid hsl(var(--border));
+  pointer-events: none;
+}
+
+.scroll-to-bottom-loading::after {
+  content: '';
+  position: absolute;
+  top: -2px;
+  left: -2px;
+  right: -2px;
+  bottom: -2px;
+  border-radius: inherit;
+  background: conic-gradient(
+    from 0deg,
+    transparent,
+    transparent 25%,
+    hsl(var(--primary) / 0.15),
+    hsl(var(--primary) / 0.4),
+    hsl(var(--primary) / 0.8),
+    hsl(var(--primary) / 0.9),
+    hsl(var(--primary) / 0.6),
+    hsl(var(--primary) / 0.25),
+    transparent 80%,
+    transparent
+  );
+  mask: radial-gradient(circle at center, transparent calc(50% - 1px), black 50%, black 100%);
+  -webkit-mask: radial-gradient(
+    circle at center,
+    transparent calc(50% - 1px),
+    black 50%,
+    black 100%
+  );
+  animation: spin 1.2s linear infinite;
+  pointer-events: none;
+  will-change: transform;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 </style>
