@@ -13,6 +13,9 @@
     "src/renderer/floating/**/*",
     "src/renderer/floating/**/*.vue",
     "src/renderer/floating/assets/**/*",
+    "src/renderer/splash/**/*",
+    "src/renderer/splash/**/*.vue",
+    "src/renderer/splash/assets/**/*",
     "src/preload/*.d.ts",
     "src/shared/**/*"
   ],

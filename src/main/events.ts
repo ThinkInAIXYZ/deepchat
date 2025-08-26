@@ -195,3 +195,13 @@ export const RAG_EVENTS = {
   FILE_UPDATED: 'rag:file-updated', // File status update
   FILE_PROGRESS: 'rag:file-progress' // File processing progress update
 }
+
+// Lifecycle management events
+export const LIFECYCLE_EVENTS = {
+  PHASE_STARTED: 'lifecycle:phase-started', // Lifecycle phase started
+  PHASE_COMPLETED: 'lifecycle:phase-completed', // Lifecycle phase completed
+  HOOK_EXECUTED: 'lifecycle:hook-executed', // Lifecycle hook executed
+  ERROR_OCCURRED: 'lifecycle:error-occurred', // Lifecycle error occurred
+  PROGRESS_UPDATED: 'lifecycle:progress-updated', // Lifecycle progress updated
+  SHUTDOWN_REQUESTED: 'lifecycle:shutdown-requested' // Application shutdown requested
+}

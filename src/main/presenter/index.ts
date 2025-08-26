@@ -23,6 +23,7 @@ import { OAuthPresenter } from './oauthPresenter'
 import { FloatingButtonPresenter } from './floatingButtonPresenter'
 import { CONFIG_EVENTS, WINDOW_EVENTS } from '@/events'
 import { KnowledgePresenter } from './knowledgePresenter'
+import { ILifecycleManager } from '@/lib/lifecycle'
 
 // IPC调用上下文接口
 interface IPCCallContext {
@@ -59,18 +60,33 @@ export class Presenter implements IPresenter {
   knowledgePresenter: KnowledgePresenter
   // llamaCppPresenter: LlamaCppPresenter // 保留原始注释
   dialogPresenter: DialogPresenter
+  lifecycleManager?: import('@/lib/lifecycle').ILifecycleManager
 
-  constructor() {
+  constructor(
+    database: SQLitePresenter,
+    lifecycleManager?: import('@/lib/lifecycle').ILifecycleManager
+  ) {
+    // Store lifecycle manager reference for component access
+    this.lifecycleManager = lifecycleManager
     // 初始化各个 Presenter 实例及其依赖
     this.configPresenter = new ConfigPresenter()
     this.windowPresenter = new WindowPresenter(this.configPresenter)
     this.tabPresenter = new TabPresenter(this.windowPresenter)
     this.llmproviderPresenter = new LLMProviderPresenter(this.configPresenter)
     this.devicePresenter = new DevicePresenter()
-    // 初始化 SQLite 数据库路径
+
+    // Define dbDir for knowledge presenter
     const dbDir = path.join(app.getPath('userData'), 'app_db')
-    const dbPath = path.join(dbDir, 'chat.db')
-    this.sqlitePresenter = new SQLitePresenter(dbPath)
+
+    // Use provided database instance or create a new one (fallback for compatibility)
+    if (database) {
+      this.sqlitePresenter = database
+    } else {
+      // Fallback: create database instance directly (for backward compatibility)
+      const dbPath = path.join(dbDir, 'chat.db')
+      this.sqlitePresenter = new SQLitePresenter(dbPath)
+    }
+
     this.threadPresenter = new ThreadPresenter(
       this.sqlitePresenter,
       this.llmproviderPresenter,
@@ -171,6 +187,11 @@ export class Presenter implements IPresenter {
     }
   }
 
+  // Get lifecycle manager instance for component access
+  getLifecycleManager(): import('@/lib/lifecycle').ILifecycleManager | undefined {
+    return this.lifecycleManager
+  }
+
   // 在应用退出时进行清理，关闭数据库连接
   destroy() {
     this.floatingButtonPresenter.destroy() // 销毁悬浮按钮
@@ -185,7 +206,17 @@ export class Presenter implements IPresenter {
   }
 }
 
-export const presenter = new Presenter()
+// Export presenter instance - will be initialized with database during lifecycle
+export let presenter: Presenter
+
+// Initialize presenter with database instance and optional lifecycle manager
+export function initializePresenter(
+  database: SQLitePresenter,
+  lifecycleManager?: ILifecycleManager
+): Presenter {
+  presenter = new Presenter(database, lifecycleManager)
+  return presenter
+}
 
 // 检查对象属性是否为函数 (用于动态调用)
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

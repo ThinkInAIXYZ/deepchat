@@ -42,7 +42,8 @@ export default defineConfig({
       rollupOptions: {
         input: {
           index: resolve('src/preload/index.ts'),
-          floating: resolve('src/preload/floating-preload.ts')
+          floating: resolve('src/preload/floating-preload.ts'),
+          splash: resolve('src/preload/splash.ts')
         }
       }
     }
@@ -91,7 +92,8 @@ export default defineConfig({
         input: {
           shell: resolve('src/renderer/shell/index.html'),
           index: resolve('src/renderer/index.html'),
-          floating: resolve('src/renderer/floating/index.html')
+          floating: resolve('src/renderer/floating/index.html'),
+          splash: resolve('src/renderer/splash/index.html')
         }
       }
     }

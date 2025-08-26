@@ -332,6 +332,7 @@ export interface IPresenter {
   knowledgePresenter: IKnowledgePresenter
   init(): void
   destroy(): void
+  getLifecycleManager?(): any // Optional lifecycle manager access
 }
 
 export interface INotificationPresenter {
