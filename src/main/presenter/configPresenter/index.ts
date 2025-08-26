@@ -276,6 +276,11 @@ export class ConfigPresenter implements IConfigPresenter {
       this.store.set(key, value)
       // 触发设置变更事件（仅主进程内部使用）
       eventBus.sendToMain(CONFIG_EVENTS.SETTING_CHANGED, key, value)
+
+      // 特殊处理：字体大小设置需要通知所有标签页
+      if (key === 'fontSizeLevel') {
+        eventBus.sendToRenderer(CONFIG_EVENTS.FONT_SIZE_CHANGED, SendTarget.ALL_WINDOWS, value)
+      }
     } catch (error) {
       console.error(`[Config] Failed to set setting ${key}:`, error)
     }
