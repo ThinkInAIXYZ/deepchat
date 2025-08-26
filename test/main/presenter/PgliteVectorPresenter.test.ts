@@ -1,14 +1,13 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import { PgliteVectorPresenter } from '@/presenter/pglitePresenter/PgliteVectorPresenter'
+import { PgliteVectorPresenter } from '../../../src/main/presenter/KnowledgePresenter/database/PgliteVectorPresenter'
 import fs from 'fs'
-import path from 'path'
 import {
   VectorInsertOptions,
   QueryOptions,
   KnowledgeFileMessage,
   KnowledgeChunkMessage,
   IndexOptions
-} from '@shared/presenter'
+} from '../../../src/shared/presenter'
 
 // Mock PGLite
 vi.mock('@electric-sql/pglite', () => ({

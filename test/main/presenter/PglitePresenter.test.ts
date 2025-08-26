@@ -1,8 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import { PglitePresenter } from '@/presenter/pglitePresenter/PglitePresenter'
+import { PglitePresenter } from '../../../src/main/presenter/pglitePresenter'
 import fs from 'fs'
-import path from 'path'
-import { CONVERSATION_SETTINGS } from '@shared/presenter'
+import { CONVERSATION_SETTINGS } from '../../../src/shared/presenter'
 
 // Mock PGLite
 vi.mock('@electric-sql/pglite', () => ({
