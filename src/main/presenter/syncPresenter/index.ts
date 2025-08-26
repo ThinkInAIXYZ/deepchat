@@ -17,7 +17,7 @@ interface AppSettings {
 
 export class SyncPresenter implements ISyncPresenter {
   private configPresenter: IConfigPresenter
-  private sqlitePresenter: IDatabasePresenter
+  private databasePresenter: IDatabasePresenter
   private isBackingUp: boolean = false
   private backupTimer: NodeJS.Timeout | null = null
   private readonly BACKUP_DELAY = 60 * 1000 // 60秒无变更后触发备份
@@ -27,9 +27,9 @@ export class SyncPresenter implements ISyncPresenter {
   private readonly DB_PATH = path.join(app.getPath('userData'), 'app_db', 'chat.db')
   private readonly MODEL_CONFIG_PATH = path.join(app.getPath('userData'), 'model-config.json')
 
-  constructor(configPresenter: IConfigPresenter, sqlitePresenter: IDatabasePresenter) {
+  constructor(configPresenter: IConfigPresenter, databasePresenter: IDatabasePresenter) {
     this.configPresenter = configPresenter
-    this.sqlitePresenter = sqlitePresenter
+    this.databasePresenter = databasePresenter
     this.init()
   }
 
@@ -143,7 +143,7 @@ export class SyncPresenter implements ISyncPresenter {
 
     try {
       // 关闭数据库连接
-      this.sqlitePresenter.close()
+      this.databasePresenter.close()
 
       // 备份当前文件
       const tempDbPath = path.join(app.getPath('temp'), `chat_${Date.now()}.db`)

@@ -152,7 +152,7 @@ export class ConversationSearchServer {
     offset: number = 0
   ): Promise<SearchResult> {
     try {
-      const sqlitePresenter = presenter.databasePresenter
+      const databasePresenter = presenter.databasePresenter
 
       // 使用原始SQL进行全文搜索
       const searchQuery = `%${query}%`
@@ -188,7 +188,7 @@ export class ConversationSearchServer {
       `
 
       // 获取数据库实例
-      const db = (sqlitePresenter as any).db
+      const db = (databasePresenter as any).db
 
       // 执行对话标题搜索
       const conversationResults = db.prepare(conversationSql).all(searchQuery, limit, offset)
@@ -248,7 +248,7 @@ export class ConversationSearchServer {
     offset: number = 0
   ): Promise<SearchResult> {
     try {
-      const sqlitePresenter = presenter.databasePresenter
+      const databasePresenter = presenter.databasePresenter
       const searchQuery = `%${query}%`
 
       let sql = `
@@ -297,7 +297,7 @@ export class ConversationSearchServer {
         countParams.push(role)
       }
 
-      const db = (sqlitePresenter as any).db
+      const db = (databasePresenter as any).db
 
       const messages = db
         .prepare(sql)
@@ -330,9 +330,9 @@ export class ConversationSearchServer {
   // 获取对话历史
   private async getConversationHistory(conversationId: string, includeSystem: boolean = false) {
     try {
-      const sqlitePresenter = presenter.databasePresenter
-      const conversation = await sqlitePresenter.getConversation(conversationId)
-      const messages = await sqlitePresenter.queryMessages(conversationId)
+      const databasePresenter = presenter.databasePresenter
+      const conversation = await databasePresenter.getConversation(conversationId)
+      const messages = await databasePresenter.queryMessages(conversationId)
 
       const filteredMessages = includeSystem
         ? messages
@@ -360,8 +360,8 @@ export class ConversationSearchServer {
   // 获取对话统计信息
   private async getConversationStats(days: number = 30) {
     try {
-      const sqlitePresenter = presenter.databasePresenter
-      const db = (sqlitePresenter as any).db
+      const databasePresenter = presenter.databasePresenter
+      const db = (databasePresenter as any).db
 
       const sinceTimestamp = Date.now() - days * 24 * 60 * 60 * 1000
 

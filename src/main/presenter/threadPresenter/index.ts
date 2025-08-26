@@ -57,7 +57,7 @@ interface GeneratingMessageState {
 }
 
 export class ThreadPresenter implements IThreadPresenter {
-  private sqlitePresenter: IDatabasePresenter
+  private databasePresenter: IDatabasePresenter
   private messageManager: MessageManager
   private llmProviderPresenter: ILlmProviderPresenter
   private configPresenter: IConfigPresenter
@@ -70,12 +70,12 @@ export class ThreadPresenter implements IThreadPresenter {
   private fetchThreadLength: number = 300
 
   constructor(
-    sqlitePresenter: IDatabasePresenter,
+    databasePresenter: IDatabasePresenter,
     llmProviderPresenter: ILlmProviderPresenter,
     configPresenter: IConfigPresenter
   ) {
-    this.sqlitePresenter = sqlitePresenter
-    this.messageManager = new MessageManager(sqlitePresenter)
+    this.databasePresenter = databasePresenter
+    this.messageManager = new MessageManager(databasePresenter)
     this.llmProviderPresenter = llmProviderPresenter
     this.searchManager = new SearchManager()
     this.configPresenter = configPresenter
@@ -254,7 +254,7 @@ export class ThreadPresenter implements IThreadPresenter {
 
   // 处理会话更新和标题生成
   private async handleConversationUpdates(state: GeneratingMessageState): Promise<void> {
-    const conversation = await this.sqlitePresenter.getConversation(state.conversationId)
+    const conversation = await this.databasePresenter.getConversation(state.conversationId)
     let titleUpdated = false
 
     if (conversation.is_new === 1) {
@@ -272,7 +272,7 @@ export class ThreadPresenter implements IThreadPresenter {
     }
 
     if (!titleUpdated) {
-      this.sqlitePresenter
+      this.databasePresenter
         .updateConversation(state.conversationId, {
           updatedAt: Date.now()
         })
@@ -454,7 +454,7 @@ export class ThreadPresenter implements IThreadPresenter {
 
               // 保存搜索结果
               for (const result of searchResults) {
-                await this.sqlitePresenter.addMessageAttachment(
+                await this.databasePresenter.addMessageAttachment(
                   eventId,
                   'search_result',
                   JSON.stringify(result)
@@ -679,7 +679,7 @@ export class ThreadPresenter implements IThreadPresenter {
   }
 
   async renameConversation(conversationId: string, title: string): Promise<CONVERSATION> {
-    await this.sqlitePresenter.renameConversation(conversationId, title)
+    await this.databasePresenter.renameConversation(conversationId, title)
     await this.broadcastThreadListUpdate() // 必须广播
 
     const conversation = await this.getConversation(conversationId)
@@ -764,7 +764,7 @@ export class ThreadPresenter implements IThreadPresenter {
     if (settings.systemPrompt) {
       mergedSettings.systemPrompt = settings.systemPrompt
     }
-    const conversationId = await this.sqlitePresenter.createConversation(title, mergedSettings)
+    const conversationId = await this.databasePresenter.createConversation(title, mergedSettings)
 
     // 根据 forceNewAndActivate 标志决定激活行为
     if (options.forceNewAndActivate) {
@@ -784,7 +784,7 @@ export class ThreadPresenter implements IThreadPresenter {
   }
 
   async deleteConversation(conversationId: string): Promise<void> {
-    await this.sqlitePresenter.deleteConversation(conversationId)
+    await this.databasePresenter.deleteConversation(conversationId)
 
     // 作为兜底，确保所有与此会话相关的绑定都被移除
     for (const [tabId, activeId] of this.activeConversationIds.entries()) {
@@ -797,16 +797,16 @@ export class ThreadPresenter implements IThreadPresenter {
   }
 
   async getConversation(conversationId: string): Promise<CONVERSATION> {
-    return await this.sqlitePresenter.getConversation(conversationId)
+    return await this.databasePresenter.getConversation(conversationId)
   }
 
   async toggleConversationPinned(conversationId: string, pinned: boolean): Promise<void> {
-    await this.sqlitePresenter.updateConversation(conversationId, { is_pinned: pinned ? 1 : 0 })
+    await this.databasePresenter.updateConversation(conversationId, { is_pinned: pinned ? 1 : 0 })
     await this.broadcastThreadListUpdate() // 必须广播
   }
 
   async updateConversationTitle(conversationId: string, title: string): Promise<void> {
-    await this.sqlitePresenter.updateConversation(conversationId, { title })
+    await this.databasePresenter.updateConversation(conversationId, { title })
     await this.broadcastThreadListUpdate() // 必须广播
   }
 
@@ -837,7 +837,7 @@ export class ThreadPresenter implements IThreadPresenter {
       }
     }
 
-    await this.sqlitePresenter.updateConversation(conversationId, { settings: mergedSettings })
+    await this.databasePresenter.updateConversation(conversationId, { settings: mergedSettings })
     await this.broadcastThreadListUpdate() // 必须广播
   }
 
@@ -845,12 +845,12 @@ export class ThreadPresenter implements IThreadPresenter {
     page: number,
     pageSize: number
   ): Promise<{ total: number; list: CONVERSATION[] }> {
-    return await this.sqlitePresenter.getConversationList(page, pageSize)
+    return await this.databasePresenter.getConversationList(page, pageSize)
   }
 
   async loadMoreThreads(): Promise<{ hasMore: boolean; total: number }> {
     // 获取会话总数
-    const total = await this.sqlitePresenter.getConversationCount()
+    const total = await this.databasePresenter.getConversationCount()
 
     // 检查是否还有更多会话可以加载
     const hasMore = this.fetchThreadLength < total
@@ -1000,10 +1000,10 @@ export class ThreadPresenter implements IThreadPresenter {
   }
 
   async clearContext(conversationId: string): Promise<void> {
-    await this.sqlitePresenter.runTransaction(async () => {
+    await this.databasePresenter.runTransaction(async () => {
       const conversation = await this.getConversation(conversationId)
       if (conversation) {
-        await this.sqlitePresenter.deleteAllMessages()
+        await this.databasePresenter.deleteAllMessages()
       }
     })
   }
@@ -1057,12 +1057,12 @@ export class ThreadPresenter implements IThreadPresenter {
       const { list: messages } = await this.getMessages(conversationId, 1, 2)
       if (messages.length === 1) {
         // 更新会话的 is_new 标志位
-        await this.sqlitePresenter.updateConversation(conversationId, {
+        await this.databasePresenter.updateConversation(conversationId, {
           is_new: 0,
           updatedAt: Date.now()
         })
       } else {
-        await this.sqlitePresenter.updateConversation(conversationId, {
+        await this.databasePresenter.updateConversation(conversationId, {
           updatedAt: Date.now()
         })
       }
@@ -1334,7 +1334,7 @@ export class ThreadPresenter implements IThreadPresenter {
         // 检查是否已被取消
         this.throwIfCancelled(messageId)
 
-        await this.sqlitePresenter.addMessageAttachment(
+        await this.databasePresenter.addMessageAttachment(
           messageId,
           'search_result',
           JSON.stringify({
@@ -1384,7 +1384,7 @@ export class ThreadPresenter implements IThreadPresenter {
 
   // 从数据库获取搜索结果
   async getSearchResults(messageId: string): Promise<SearchResult[]> {
-    const results = await this.sqlitePresenter.getMessageAttachments(messageId, 'search_result')
+    const results = await this.databasePresenter.getMessageAttachments(messageId, 'search_result')
     return results.map((result) => JSON.parse(result.content) as SearchResult) ?? []
   }
 
@@ -2505,7 +2505,7 @@ export class ThreadPresenter implements IThreadPresenter {
   }
 
   async getMessageExtraInfo(messageId: string, type: string): Promise<Record<string, unknown>[]> {
-    const attachments = await this.sqlitePresenter.getMessageAttachments(messageId, type)
+    const attachments = await this.databasePresenter.getMessageAttachments(messageId, type)
     return attachments.map((attachment) => JSON.parse(attachment.content))
   }
 
@@ -2540,13 +2540,13 @@ export class ThreadPresenter implements IThreadPresenter {
   ): Promise<string> {
     try {
       // 1. 获取源会话信息
-      const sourceConversation = await this.sqlitePresenter.getConversation(targetConversationId)
+      const sourceConversation = await this.databasePresenter.getConversation(targetConversationId)
       if (!sourceConversation) {
         throw new Error('源会话不存在')
       }
 
       // 2. 创建新会话
-      const newConversationId = await this.sqlitePresenter.createConversation(newTitle)
+      const newConversationId = await this.databasePresenter.createConversation(newTitle)
 
       // 更新会话设置
       if (settings || sourceConversation.settings) {
@@ -2557,7 +2557,7 @@ export class ThreadPresenter implements IThreadPresenter {
       }
 
       // 更新is_new标志
-      await this.sqlitePresenter.updateConversation(newConversationId, { is_new: 0 })
+      await this.databasePresenter.updateConversation(newConversationId, { is_new: 0 })
 
       // 3. 获取源会话中的消息历史
       const message = await this.messageManager.getMessage(targetMessageId)
@@ -2576,7 +2576,7 @@ export class ThreadPresenter implements IThreadPresenter {
         }
 
         // 获取消息序号
-        const orderSeq = (await this.sqlitePresenter.getMaxOrderSeq(newConversationId)) + 1
+        const orderSeq = (await this.databasePresenter.getMaxOrderSeq(newConversationId)) + 1
 
         // 解析元数据
         const metadata: MESSAGE_METADATA = {
@@ -2598,7 +2598,7 @@ export class ThreadPresenter implements IThreadPresenter {
         const content = typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content)
 
         // 直接插入消息记录
-        await this.sqlitePresenter.insertMessage(
+        await this.databasePresenter.insertMessage(
           newConversationId, // 新会话ID
           content, // 内容
           msg.role, // 角色
@@ -2748,7 +2748,7 @@ export class ThreadPresenter implements IThreadPresenter {
 
   private async broadcastThreadListUpdate(): Promise<void> {
     // 1. 获取所有会话 (假设9999足够大)
-    const result = await this.sqlitePresenter.getConversationList(1, this.fetchThreadLength)
+    const result = await this.databasePresenter.getConversationList(1, this.fetchThreadLength)
 
     // 2. 分离置顶和非置顶会话
     const pinnedConversations: CONVERSATION[] = []

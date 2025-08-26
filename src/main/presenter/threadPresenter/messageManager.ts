@@ -11,10 +11,10 @@ import { eventBus, SendTarget } from '@/eventbus'
 import { CONVERSATION_EVENTS } from '@/events'
 
 export class MessageManager implements IMessageManager {
-  private sqlitePresenter: IDatabasePresenter
+  private databasePresenter: IDatabasePresenter
 
-  constructor(sqlitePresenter: IDatabasePresenter) {
-    this.sqlitePresenter = sqlitePresenter
+  constructor(databasePresenter: IDatabasePresenter) {
+    this.databasePresenter = databasePresenter
   }
 
   private convertToMessage(sqliteMessage: SQLITE_MESSAGE): Message {
@@ -63,8 +63,8 @@ export class MessageManager implements IMessageManager {
     metadata: MESSAGE_METADATA,
     searchResults?: string
   ): Promise<Message> {
-    const maxOrderSeq = await this.sqlitePresenter.getMaxOrderSeq(conversationId)
-    const msgId = await this.sqlitePresenter.insertMessage(
+    const maxOrderSeq = await this.databasePresenter.getMaxOrderSeq(conversationId)
+    const msgId = await this.databasePresenter.insertMessage(
       conversationId,
       content,
       role,
@@ -78,7 +78,7 @@ export class MessageManager implements IMessageManager {
     )
 
     if (searchResults) {
-      await this.sqlitePresenter.addMessageAttachment(msgId, 'search_results', searchResults)
+      await this.databasePresenter.addMessageAttachment(msgId, 'search_results', searchResults)
     }
     const message = await this.getMessage(msgId)
     if (!message) {
@@ -88,8 +88,8 @@ export class MessageManager implements IMessageManager {
   }
 
   async editMessage(messageId: string, content: string): Promise<Message> {
-    await this.sqlitePresenter.updateMessage(messageId, { content })
-    const message = await this.sqlitePresenter.getMessage(messageId)
+    await this.databasePresenter.updateMessage(messageId, { content })
+    const message = await this.databasePresenter.getMessage(messageId)
     if (!message) {
       throw new Error(`Message ${messageId} not found`)
     }
@@ -106,7 +106,7 @@ export class MessageManager implements IMessageManager {
   }
 
   async deleteMessage(messageId: string): Promise<void> {
-    await this.sqlitePresenter.deleteMessage(messageId)
+    await this.databasePresenter.deleteMessage(messageId)
   }
 
   async retryMessage(messageId: string, metadata: MESSAGE_METADATA): Promise<Message> {
@@ -129,7 +129,7 @@ export class MessageManager implements IMessageManager {
   }
 
   async getMessage(messageId: string): Promise<Message> {
-    const message = await this.sqlitePresenter.getMessage(messageId)
+    const message = await this.databasePresenter.getMessage(messageId)
     if (!message) {
       throw new Error(`Message ${messageId} not found`)
     }
@@ -137,7 +137,7 @@ export class MessageManager implements IMessageManager {
   }
 
   async getMessageVariants(messageId: string): Promise<Message[]> {
-    const variants = await this.sqlitePresenter.getMessageVariants(messageId)
+    const variants = await this.databasePresenter.getMessageVariants(messageId)
     return variants.map((variant) => this.convertToMessage(variant))
   }
 
@@ -145,7 +145,7 @@ export class MessageManager implements IMessageManager {
     conversationId: string,
     parentId: string
   ): Promise<Message | null> {
-    const message = await this.sqlitePresenter.getMainMessageByParentId(conversationId, parentId)
+    const message = await this.databasePresenter.getMainMessageByParentId(conversationId, parentId)
     if (!message) {
       return null
     }
@@ -157,7 +157,7 @@ export class MessageManager implements IMessageManager {
     page: number,
     pageSize: number
   ): Promise<{ total: number; list: Message[] }> {
-    const sqliteMessages = await this.sqlitePresenter.queryMessages(conversationId)
+    const sqliteMessages = await this.databasePresenter.queryMessages(conversationId)
     const start = (page - 1) * pageSize
     const end = start + pageSize
 
@@ -179,14 +179,14 @@ export class MessageManager implements IMessageManager {
   }
 
   async updateMessageStatus(messageId: string, status: MESSAGE_STATUS): Promise<void> {
-    await this.sqlitePresenter.updateMessage(messageId, { status })
+    await this.databasePresenter.updateMessage(messageId, { status })
   }
 
   async updateMessageMetadata(
     messageId: string,
     metadata: Partial<MESSAGE_METADATA>
   ): Promise<void> {
-    const message = await this.sqlitePresenter.getMessage(messageId)
+    const message = await this.databasePresenter.getMessage(messageId)
     if (!message) {
       return
     }
@@ -194,19 +194,19 @@ export class MessageManager implements IMessageManager {
       ...JSON.parse(message.metadata),
       ...metadata
     }
-    await this.sqlitePresenter.updateMessage(messageId, {
+    await this.databasePresenter.updateMessage(messageId, {
       metadata: JSON.stringify(updatedMetadata)
     })
   }
 
   async markMessageAsContextEdge(messageId: string, isEdge: boolean): Promise<void> {
-    await this.sqlitePresenter.updateMessage(messageId, {
+    await this.databasePresenter.updateMessage(messageId, {
       isContextEdge: isEdge ? 1 : 0
     })
   }
 
   async getContextMessages(conversationId: string, messageCount: number): Promise<Message[]> {
-    const sqliteMessages = await this.sqlitePresenter.queryMessages(conversationId)
+    const sqliteMessages = await this.databasePresenter.queryMessages(conversationId)
 
     // 按创建时间和序号倒序排序
     const messages = sqliteMessages
@@ -230,7 +230,7 @@ export class MessageManager implements IMessageManager {
   }
 
   async getLastUserMessage(conversationId: string): Promise<Message | null> {
-    const sqliteMessage = await this.sqlitePresenter.getLastUserMessage(conversationId)
+    const sqliteMessage = await this.databasePresenter.getLastUserMessage(conversationId)
     if (!sqliteMessage) {
       return null
     }
@@ -238,7 +238,7 @@ export class MessageManager implements IMessageManager {
   }
 
   async clearAllMessages(conversationId: string): Promise<void> {
-    await this.sqlitePresenter.deleteAllMessagesInConversation(conversationId)
+    await this.databasePresenter.deleteAllMessagesInConversation(conversationId)
   }
   /**
    * 初始化未完成的消息
@@ -246,7 +246,7 @@ export class MessageManager implements IMessageManager {
   public async initializeUnfinishedMessages(): Promise<void> {
     try {
       // 获取所有对话
-      const { list: conversations } = await this.sqlitePresenter.getConversationList(1, 1000)
+      const { list: conversations } = await this.databasePresenter.getConversationList(1, 1000)
 
       for (const conversation of conversations) {
         // 获取每个对话的消息
