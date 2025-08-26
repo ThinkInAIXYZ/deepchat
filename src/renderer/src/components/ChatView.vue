@@ -49,8 +49,6 @@ const isGenerating = computed(() => {
 const handleSend = async (msg: UserMessageContent) => {
   scrollToBottom()
   await chatStore.sendMessage(msg)
-  scrollToBottom()
-
   setTimeout(() => {
     chatInput.value?.restoreFocus()
   }, 100)
