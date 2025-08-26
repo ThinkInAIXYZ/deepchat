@@ -8,8 +8,7 @@
     >
       <ModelIcon
         :model-id="currentMessage.model_provider"
-        custom-class=" block"
-        class="w-3 h-3"
+        custom-class="w-3 h-3"
         :is-dark="themeStore.isDark"
         :alt="currentMessage.role"
       />
