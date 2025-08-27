@@ -176,8 +176,6 @@
         </div>
       </div>
 
-
-
       <!-- 音效开关 -->
       <div class="flex flex-row p-2 items-center gap-2 px-2">
         <span class="flex flex-row items-center gap-2 flex-grow w-full" :dir="langStore.dir">
@@ -669,7 +667,6 @@ const loggingEnabled = computed({
   }
 })
 
-
 // 处理搜索预览状态变更
 const handleSearchPreviewChange = (value: boolean) => {
   console.log('切换搜索预览状态:', value)
@@ -687,7 +684,6 @@ const handleLoggingChange = (value: boolean) => {
   newLoggingValue.value = value
   isLoggingDialogOpen.value = true
 }
-
 
 // 处理网页内容长度限制变更
 const handleWebContentLengthLimitChange = async (value: string | number) => {
