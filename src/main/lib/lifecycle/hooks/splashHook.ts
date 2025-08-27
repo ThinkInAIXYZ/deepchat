@@ -1,5 +1,6 @@
 import { LifecyclePhase } from '@shared/lifecycle'
 import { LifecycleHook, LifecycleContext } from '@shared/presenter'
+import { is } from '@electron-toolkit/utils'
 
 /**
  * Database initialization hook for the init phase
@@ -10,7 +11,7 @@ export const splashHook: LifecycleHook = {
   phase: LifecyclePhase.BEFORE_START,
   priority: 10,
   async execute(_context: LifecycleContext): Promise<void> {
-    const timeout = import.meta.env.VITE_APP_SPLASH_TIMEOUT || 0
+    const timeout = is.dev ? Number(import.meta.env.VITE_APP_SPLASH_TIMEOUT) : 0
     console.log(`Splash will blocked ${timeout}ms`)
     // delay 10s
     await new Promise((resolve) => setTimeout(resolve, timeout))
