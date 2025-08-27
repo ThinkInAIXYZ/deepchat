@@ -2,6 +2,8 @@ import { app } from 'electron'
 import { LifecycleManager, registerCoreHooks } from './lib/lifecycle'
 import { getInstance, Presenter } from './presenter'
 
+app.setAppUserModelId('com.deepchat.app')
+
 // Set application command line arguments
 app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required') // Allow video autoplay
 app.commandLine.appendSwitch('webrtc-max-cpu-consumption-percentage', '100') // Set WebRTC max CPU usage

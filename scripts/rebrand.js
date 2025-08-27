@@ -160,7 +160,7 @@ function updateMainIndex(config) {
 
     // 替换 setAppUserModelId
     content = content.replace(
-      /electronApp\.setAppUserModelId\('.*?'\)/,
+      /app\.setAppUserModelId\('.*?'\)/,
       `electronApp.setAppUserModelId('${config.app.appId}')`
     )
 

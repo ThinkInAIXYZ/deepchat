@@ -148,16 +148,18 @@ classDiagram
 
 ```mermaid
 sequenceDiagram
-    participant AppStartup
+    participant LifecycleManager as 生命周期管理器
+    participant PresenterInitHook as Presenter初始化钩子
     participant McpPresenter
     participant ServerManager
     participant IConfigPresenter
     participant McpClient
 
-    AppStartup->>McpPresenter: constructor(configPresenter)
-    McpPresenter->>ServerManager: constructor(configPresenter)
-    McpPresenter->>ToolManager: constructor(configPresenter, serverManager)
-    AppStartup->>McpPresenter: initialize()
+    LifecycleManager->>PresenterInitHook: execute()
+    PresenterInitHook->>McpPresenter: new McpPresenter(configPresenter)
+    McpPresenter->>ServerManager: new ServerManager(configPresenter)
+    McpPresenter->>ToolManager: new ToolManager(configPresenter, serverManager)
+    PresenterInitHook->>McpPresenter: initialize()
     McpPresenter->>IConfigPresenter: getMcpServers()
     McpPresenter->>IConfigPresenter: getMcpDefaultServers()
     McpPresenter->>ServerManager: testNpmRegistrySpeed()

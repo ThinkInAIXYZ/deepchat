@@ -38,7 +38,7 @@ For more details, refer to the "Project Structure" section in [CONTRIBUTING.md](
 ### Electron Architecture
 
 DeepChat is an Electron application. This means it has:
--   **Main Process**: A single process that is the entry point of the application. It runs Node.js and has access to system-level operations. It's responsible for creating and managing application windows (renderer processes) and handling application lifecycle events. The code for the main process is in `src/main/`.
+-   **Main Process**: A single process that is the entry point of the application. It runs Node.js and has access to system-level operations. It's responsible for creating and managing application windows (renderer processes) and handling application lifecycle events. The code for the main process is in `src/main/`. For a detailed explanation of the application lifecycle, see the [App Lifecycle Management](./app-lifecycle.md) document.
 -   **Renderer Processes**: Each window in DeepChat runs its own renderer process. This process is responsible for rendering web content (HTML, CSS, JavaScript). The UI is built using web technologies. The code for the renderer process is in `src/renderer/`.
 -   **Preload Scripts**: These scripts run in a privileged context in the renderer process and can expose specific Node.js APIs or main process functionalities to the renderer process via an IPC (Inter-Process Communication) bridge. See `src/preload/`.
 -   **Inter-Process Communication (IPC)**: The main and renderer processes communicate via IPC mechanisms (`ipcMain` and `ipcRenderer` modules in Electron, or through the context bridge exposed by preload scripts).
