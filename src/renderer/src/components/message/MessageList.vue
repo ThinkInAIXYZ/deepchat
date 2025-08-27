@@ -76,7 +76,7 @@
               variant="outline"
               size="icon"
               class="w-8 h-8 shrink-0 rounded-lg relative z-10"
-              @click="scrollToBottom"
+              @click="() => scrollToBottom(true)"
             >
               <Icon icon="lucide:arrow-down" class="w-5 h-5 text-muted-foreground" />
             </Button>
@@ -278,12 +278,14 @@ const handleCopyImage = async (
   }
 }
 
-const scrollToBottom = () => {
+const scrollToBottom = (smooth = false) => {
   nextTick(() => {
-    scrollAnchor.value?.scrollIntoView({
-      behavior: 'instant',
-      block: 'end'
-    })
+    if (scrollAnchor.value) {
+      scrollAnchor.value.scrollIntoView({
+        behavior: smooth ? 'smooth' : 'instant',
+        block: 'end'
+      })
+    }
   })
 }
 
@@ -328,7 +330,9 @@ onMounted(() => {
     () => {
       const lastMessage = props.messages[props.messages.length - 1]
       if (lastMessage?.status === 'pending' && !aboveThreshold.value) {
-        scrollToBottom()
+        nextTick(() => {
+          scrollToBottom()
+        })
       }
     }
   )

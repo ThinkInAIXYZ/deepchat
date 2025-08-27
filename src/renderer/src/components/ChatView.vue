@@ -21,7 +21,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, watch, computed } from 'vue'
+import { ref, onMounted, onUnmounted, watch, computed, nextTick } from 'vue'
 import MessageList from './message/MessageList.vue'
 import ChatInput from './ChatInput.vue'
 import { useRoute } from 'vue-router'
@@ -67,6 +67,12 @@ onMounted(async () => {
 
   window.electron.ipcRenderer.on(STREAM_EVENTS.END, (_, msg) => {
     chatStore.handleStreamEnd(msg)
+    // 当用户没有主动向上滚动时才自动滚动到底部
+    nextTick(() => {
+      if (messageList.value && !messageList.value.aboveThreshold) {
+        scrollToBottom(false)
+      }
+    })
     setTimeout(() => {
       chatInput.value?.restoreFocus()
     }, 200)
