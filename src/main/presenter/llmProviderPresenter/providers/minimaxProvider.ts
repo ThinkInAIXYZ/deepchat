@@ -4,7 +4,7 @@ import { ConfigPresenter } from '../../configPresenter'
 
 export class MinimaxProvider extends OpenAICompatibleProvider {
   constructor(provider: LLM_PROVIDER, configPresenter: ConfigPresenter) {
-    // 初始化智谱AI模型配置
+    // 初始化minimax AI模型配置
     super(provider, configPresenter)
   }
 
