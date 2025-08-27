@@ -45,6 +45,9 @@
     "loggingEnableDesc": "L'activation de la journalisation nous aidera à diagnostiquer les problèmes et à améliorer l'application. Les fichiers journaux peuvent contenir des informations sensibles.",
     "loggingDisableDesc": "La désactivation de la journalisation arrêtera la collecte des journaux d'application.",
     "loggingRestartNotice": "La modification de ce paramètre redémarrera l'application. Voulez-vous continuer ?",
+    "webContentLengthLimit": "Limite de longueur du contenu Web",
+    "webContentLengthLimitHint": "(Définir à 0 pour aucune limite)",
+    "webContentLengthLimitTooltip": "Définir la longueur maximale du contenu textuel extrait des pages web (nombre de caractères), plage : 0-50000. Définir à 0 signifie aucune limite et récupère le contenu web complet ; des valeurs plus élevées fournissent un contenu web plus complet mais peuvent augmenter le temps de traitement et l'utilisation de jetons.",
     "openLogFolder": "Ouvrir le dossier des journaux",
     "shortcut": {
       "newChat": "Créer une nouvelle conversation",
