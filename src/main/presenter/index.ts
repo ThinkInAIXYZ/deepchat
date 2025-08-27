@@ -3,12 +3,29 @@ import { DialogPresenter } from './dialogPresenter/index'
 import { ipcMain, IpcMainInvokeEvent, app } from 'electron'
 // import { LlamaCppPresenter } from './llamaCppPresenter' // 保留原始注释
 import { WindowPresenter } from './windowPresenter'
-import { SQLitePresenter } from './sqlitePresenter'
 import { ShortcutPresenter } from './shortcutPresenter'
-import { ILifecycleManager, IPresenter } from '@shared/presenter'
+import {
+  IConfigPresenter,
+  IDeeplinkPresenter,
+  IDevicePresenter,
+  IDialogPresenter,
+  IFilePresenter,
+  IKnowledgePresenter,
+  ILifecycleManager,
+  ILlmProviderPresenter,
+  IMCPPresenter,
+  INotificationPresenter,
+  IPresenter,
+  IShortcutPresenter,
+  ISQLitePresenter,
+  ISyncPresenter,
+  ITabPresenter,
+  IThreadPresenter,
+  IUpgradePresenter,
+  IWindowPresenter
+} from '@shared/presenter'
 import { eventBus } from '@/eventbus'
 import { LLMProviderPresenter } from './llmProviderPresenter'
-import { ConfigPresenter } from './configPresenter'
 import { ThreadPresenter } from './threadPresenter'
 import { DevicePresenter } from './devicePresenter'
 import { UpgradePresenter } from './upgradePresenter'
@@ -42,50 +59,41 @@ export class Presenter implements IPresenter {
   // 私有静态实例
   private static instance: Presenter
 
-  windowPresenter: WindowPresenter
-  sqlitePresenter: SQLitePresenter
-  llmproviderPresenter: LLMProviderPresenter
-  configPresenter: ConfigPresenter
-  threadPresenter: ThreadPresenter
-  devicePresenter: DevicePresenter
-  upgradePresenter: UpgradePresenter
-  shortcutPresenter: ShortcutPresenter
-  filePresenter: FilePresenter
-  mcpPresenter: McpPresenter
-  syncPresenter: SyncPresenter
-  deeplinkPresenter: DeeplinkPresenter
-  notificationPresenter: NotificationPresenter
-  tabPresenter: TabPresenter
+  windowPresenter: IWindowPresenter
+  sqlitePresenter: ISQLitePresenter
+  llmproviderPresenter: ILlmProviderPresenter
+  configPresenter: IConfigPresenter
+  threadPresenter: IThreadPresenter
+  devicePresenter: IDevicePresenter
+  upgradePresenter: IUpgradePresenter
+  shortcutPresenter: IShortcutPresenter
+  filePresenter: IFilePresenter
+  mcpPresenter: IMCPPresenter
+  syncPresenter: ISyncPresenter
+  deeplinkPresenter: IDeeplinkPresenter
+  notificationPresenter: INotificationPresenter
+  tabPresenter: ITabPresenter
   trayPresenter: TrayPresenter
   oauthPresenter: OAuthPresenter
   floatingButtonPresenter: FloatingButtonPresenter
-  knowledgePresenter: KnowledgePresenter
+  knowledgePresenter: IKnowledgePresenter
   // llamaCppPresenter: LlamaCppPresenter // 保留原始注释
-  dialogPresenter: DialogPresenter
+  dialogPresenter: IDialogPresenter
   lifecycleManager: ILifecycleManager
 
-  private constructor(lifecycleManager: ILifecycleManager, database: SQLitePresenter) {
+  private constructor(lifecycleManager: ILifecycleManager) {
     // Store lifecycle manager reference for component access
+    // If the initialization is successful, there should be no null here
     this.lifecycleManager = lifecycleManager
+    const context = lifecycleManager.getLifecycleContext()
+    this.configPresenter = context.config as IConfigPresenter
+    this.sqlitePresenter = context.database as ISQLitePresenter
+
     // 初始化各个 Presenter 实例及其依赖
-    this.configPresenter = new ConfigPresenter()
     this.windowPresenter = new WindowPresenter(this.configPresenter)
     this.tabPresenter = new TabPresenter(this.windowPresenter)
     this.llmproviderPresenter = new LLMProviderPresenter(this.configPresenter)
     this.devicePresenter = new DevicePresenter()
-
-    // Define dbDir for knowledge presenter
-    const dbDir = path.join(app.getPath('userData'), 'app_db')
-
-    // Use provided database instance or create a new one (fallback for compatibility)
-    if (database) {
-      this.sqlitePresenter = database
-    } else {
-      // Fallback: create database instance directly (for backward compatibility)
-      const dbPath = path.join(dbDir, 'chat.db')
-      this.sqlitePresenter = new SQLitePresenter(dbPath)
-    }
-
     this.threadPresenter = new ThreadPresenter(
       this.sqlitePresenter,
       this.llmproviderPresenter,
@@ -102,6 +110,9 @@ export class Presenter implements IPresenter {
     this.trayPresenter = new TrayPresenter()
     this.floatingButtonPresenter = new FloatingButtonPresenter(this.configPresenter)
     this.dialogPresenter = new DialogPresenter()
+
+    // Define dbDir for knowledge presenter
+    const dbDir = path.join(app.getPath('userData'), 'app_db')
     this.knowledgePresenter = new KnowledgePresenter(
       this.configPresenter,
       dbDir,
@@ -112,13 +123,10 @@ export class Presenter implements IPresenter {
     this.setupEventBus() // 设置事件总线监听
   }
 
-  public static getInstance(
-    lifecycleManager: ILifecycleManager,
-    database: SQLitePresenter
-  ): Presenter {
+  public static getInstance(lifecycleManager: ILifecycleManager): Presenter {
     if (!Presenter.instance) {
       // 只能在类内部调用私有构造函数
-      Presenter.instance = new Presenter(lifecycleManager, database)
+      Presenter.instance = new Presenter(lifecycleManager)
     }
     return Presenter.instance
   }
@@ -215,12 +223,9 @@ export class Presenter implements IPresenter {
 export let presenter: Presenter
 
 // Initialize presenter with database instance and optional lifecycle manager
-export function getInstance(
-  lifecycleManager: ILifecycleManager,
-  database: SQLitePresenter
-): Presenter {
+export function getInstance(lifecycleManager: ILifecycleManager): Presenter {
   // only allow initialize once
-  if (presenter == null) presenter = Presenter.getInstance(lifecycleManager, database)
+  if (presenter == null) presenter = Presenter.getInstance(lifecycleManager)
   return presenter
 }
 

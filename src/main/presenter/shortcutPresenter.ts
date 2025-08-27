@@ -8,11 +8,11 @@ import {
   defaultShortcutKey,
   ShortcutKeySetting
 } from './configPresenter/shortcutKeySettings'
-import { ConfigPresenter } from './configPresenter'
+import { IConfigPresenter, IShortcutPresenter } from '@shared/presenter'
 
-export class ShortcutPresenter {
+export class ShortcutPresenter implements IShortcutPresenter {
   private isActive: boolean = false
-  private configPresenter: ConfigPresenter
+  private configPresenter: IConfigPresenter
   private shortcutKeys: ShortcutKeySetting = {
     ...defaultShortcutKey
   }
@@ -21,7 +21,7 @@ export class ShortcutPresenter {
    * 创建一个新的 ShortcutPresenter 实例
    * @param shortKey 可选的自定义快捷键设置
    */
-  constructor(configPresenter: ConfigPresenter) {
+  constructor(configPresenter: IConfigPresenter) {
     this.configPresenter = configPresenter
   }
 

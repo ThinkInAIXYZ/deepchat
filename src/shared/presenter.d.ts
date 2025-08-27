@@ -179,6 +179,16 @@ export interface IWindowPresenter {
   sendToDefaultTab(channel: string, switchToTarget?: boolean, ...args: unknown[]): Promise<boolean>
   closeWindow(windowId: number, forceClose?: boolean): Promise<void>
   isApplicationQuitting(): boolean
+  getFocusedWindow(): BrowserWindow | undefined
+  sendToActiveTab(windowId: number, channel: string, ...args: unknown[]): Promise<boolean>
+  getAllWindows(): BrowserWindow[]
+  toggleFloatingChatWindow(floatingButtonPosition?: {
+    x: number
+    y: number
+    width: number
+    height: number
+  }): Promise<void>
+  createFloatingChatWindow(): Promise<void>
 }
 
 export interface ITabPresenter {
@@ -218,6 +228,7 @@ export interface ITabPresenter {
   registerFloatingWindow(webContentsId: number, webContents: Electron.WebContents): void
   unregisterFloatingWindow(webContentsId: number): void
   resetTabToBlank(tabId: number): Promise<void>
+  destroy(): Promise<void>
 }
 
 export interface TabCreateOptions {
@@ -234,6 +245,7 @@ export interface ILlamaCppPresenter {
 
 export interface IShortcutPresenter {
   registerShortcuts(): void
+  unregisterShortcuts(): void
   destroy(): void
 }
 
@@ -627,7 +639,16 @@ export interface ILlmProviderPresenter {
     providerId: string,
     syncOptions?: ModelScopeMcpSyncOptions
   ): Promise<ModelScopeMcpSyncResult>
+
+  generateCompletionStandalone(
+    providerId: string,
+    messages: ChatMessage[],
+    modelId: string,
+    temperature?: number,
+    maxTokens?: number
+  ): Promise<string>
 }
+
 export type CONVERSATION_SETTINGS = {
   systemPrompt: string
   temperature: number
@@ -654,6 +675,8 @@ export type CONVERSATION = {
 }
 
 export interface IThreadPresenter {
+  searchAssistantModel: MODEL_META | null
+  searchAssistantProviderId: string | null
   // 基本对话操作
   createConversation(
     title: string,
@@ -1044,7 +1067,7 @@ export interface MCPToolCall {
     name: string
     arguments: string
   }
-  server: {
+  server?: {
     name: string
     icons: string
     description: string
@@ -1112,6 +1135,7 @@ export interface MCPResourceContent {
 }
 
 export interface IMCPPresenter {
+  isReady(): boolean
   getMcpServers(): Promise<Record<string, MCPServerConfig>>
   getMcpClients(): Promise<McpClient[]>
   getMcpDefaultServers(): Promise<string[]>
@@ -1124,19 +1148,12 @@ export interface IMCPPresenter {
   isServerRunning(serverName: string): Promise<boolean>
   startServer(serverName: string): Promise<void>
   stopServer(serverName: string): Promise<void>
-  getAllToolDefinitions(): Promise<MCPToolDefinition[]>
+  getAllToolDefinitions(enabledMcpTools?: string[]): Promise<MCPToolDefinition[]>
   getAllPrompts(): Promise<Array<PromptListEntry & { client: { name: string; icon: string } }>>
   getAllResources(): Promise<Array<ResourceListEntry & { client: { name: string; icon: string } }>>
   getPrompt(prompt: PromptListEntry, args?: Record<string, unknown>): Promise<unknown>
   readResource(resource: ResourceListEntry): Promise<Resource>
-  callTool(request: {
-    id: string
-    type: string
-    function: {
-      name: string
-      arguments: string
-    }
-  }): Promise<{ content: string; rawData: MCPToolResponse }>
+  callTool(request: MCPToolCall): Promise<{ content: string; rawData: MCPToolResponse }>
   setMcpEnabled(enabled: boolean): Promise<void>
   getMcpEnabled(): Promise<boolean>
   resetToDefaultServers(): Promise<void>
@@ -1184,6 +1201,20 @@ export interface IMCPPresenter {
   setMcpRouterApiKey?(key: string): Promise<void>
   isServerInstalled?(source: string, sourceId: string): Promise<boolean>
   updateMcpRouterServersAuth?(apiKey: string): Promise<void>
+
+  mcpToolsToAnthropicTools(
+    mcpTools: MCPToolDefinition[],
+    serverName: string
+  ): Promise<AnthropicTool[]>
+  mcpToolsToGeminiTools(
+    mcpTools: MCPToolDefinition[] | undefined,
+    serverName: string
+  ): Promise<ToolListUnion>
+  mcpToolsToOpenAITools(mcpTools: MCPToolDefinition[], serverName: string): Promise<OpenAITool[]>
+  mcpToolsToOpenAIResponsesTools(
+    mcpTools: MCPToolDefinition[],
+    serverName: string
+  ): Promise<OpenAI.Responses.Tool[]>
 }
 
 export interface IDeeplinkPresenter {
@@ -1827,8 +1858,6 @@ import { ISQLitePresenter } from '@shared/presenter'
 export interface LifecycleContext {
   phase: LifecyclePhase
   manager: ILifecycleManager
-  database?: ISQLitePresenter
-  config?: any
   [key: string]: any
 }
 
@@ -1837,6 +1866,7 @@ export interface LifecycleContext {
  */
 export interface LifecycleHook {
   name: string // Descriptive name for logging and debugging
+  phase: LifecyclePhase // register phase
   priority?: number // Lower numbers execute first (default: 100)
   execute: (context: LifecycleContext) => Promise<void | boolean>
   timeout?: number // Optional timeout in milliseconds
@@ -1865,8 +1895,8 @@ export interface ILifecycleManager {
   isPhaseComplete(phase: LifecyclePhase): boolean
 
   // Hook registration - for components that need to execute logic during specific phases
-  registerHook(phase: LifecyclePhase, hook: LifecycleHook): string // Returns generated hook ID
-  unregisterHook(phase: LifecyclePhase, hookId: string): void
+  registerHook(hook: LifecycleHook): string // Returns generated hook ID
+  unregisterHook(hookId: string): void
 
   // Shutdown control
   requestShutdown(): Promise<boolean>

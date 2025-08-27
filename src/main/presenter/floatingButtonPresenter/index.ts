@@ -1,16 +1,16 @@
 import { FloatingButtonWindow } from './FloatingButtonWindow'
 import { FloatingButtonConfig, FloatingButtonState, DEFAULT_FLOATING_BUTTON_CONFIG } from './types'
-import { ConfigPresenter } from '../configPresenter'
 import { ipcMain, Menu, app } from 'electron'
 import { FLOATING_BUTTON_EVENTS } from '@/events'
 import { presenter } from '../index'
+import { IConfigPresenter } from '@shared/presenter'
 
 export class FloatingButtonPresenter {
   private floatingWindow: FloatingButtonWindow | null = null
   private config: FloatingButtonConfig
-  private configPresenter: ConfigPresenter
+  private configPresenter: IConfigPresenter
 
-  constructor(configPresenter: ConfigPresenter) {
+  constructor(configPresenter: IConfigPresenter) {
     this.configPresenter = configPresenter
     this.config = {
       ...DEFAULT_FLOATING_BUTTON_CONFIG

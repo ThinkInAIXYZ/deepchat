@@ -1,7 +1,6 @@
 import { app } from 'electron'
 import { LifecycleManager, registerCoreHooks } from './lib/lifecycle'
 import { getInstance, Presenter } from './presenter'
-import { eventBus } from './eventbus'
 
 // Set application command line arguments
 app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required') // Allow video autoplay
@@ -24,18 +23,13 @@ if (process.platform === 'darwin') {
 const lifecycleManager = new LifecycleManager()
 registerCoreHooks(lifecycleManager)
 
-// Initialize presenter after database is ready
+// Initialize presenter after ready
 let presenter: Presenter
-eventBus.on('database:ready', (database) => {
-  presenter = getInstance(lifecycleManager, database)
-  // Initialize DeepLink handling after presenter is ready
-  presenter.deeplinkPresenter.init()
-})
-
 // Start the lifecycle management system instead of using app.whenReady()
 app.whenReady().then(async () => {
   try {
     await lifecycleManager.start()
+    presenter = getInstance(lifecycleManager)
     console.log('Application lifecycle startup completed successfully')
   } catch (error) {
     console.error('Application lifecycle startup failed:', error)
