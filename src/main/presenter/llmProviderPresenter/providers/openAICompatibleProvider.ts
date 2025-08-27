@@ -642,6 +642,50 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
         continue
       }
 
+      // 处理图片数据（OpenRouter Gemini 格式）
+      if (delta?.images && Array.isArray(delta.images)) {
+        for (const image of delta.images) {
+          if (image.type === 'image_url' && image.image_url?.url) {
+            try {
+              const cachedUrl = await presenter.devicePresenter.cacheImage(image.image_url.url)
+              yield {
+                type: 'image_data',
+                image_data: {
+                  data: cachedUrl,
+                  mimeType: 'deepchat/image-url'
+                }
+              }
+            } catch (cacheError) {
+              console.warn('[handleChatCompletion] Failed to cache image:', cacheError)
+              yield {
+                type: 'image_data',
+                image_data: {
+                  data: image.image_url.url,
+                  mimeType: 'deepchat/image-url'
+                }
+              }
+            }
+          }
+        }
+        continue
+      }
+
+      // 处理 Gemini 原生格式的图片数据（inlineData）
+      if (delta?.content?.parts && Array.isArray(delta.content.parts)) {
+        for (const part of delta.content.parts) {
+          if (part.inlineData && part.inlineData.data) {
+            yield {
+              type: 'image_data',
+              image_data: {
+                data: part.inlineData.data,
+                mimeType: part.inlineData.mimeType || 'image/png'
+              }
+            }
+          }
+        }
+        continue
+      }
+
       // 原生 tool_calls 处理
       if (supportsFunctionCall && delta?.tool_calls?.length > 0) {
         toolUseDetected = true

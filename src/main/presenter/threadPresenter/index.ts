@@ -54,6 +54,11 @@ interface GeneratingMessageState {
     total_tokens: number
     context_length: number
   }
+  // 图片 Markdown 缓冲相关
+  contentBuffer?: string
+  bufferTimeout?: NodeJS.Timeout
+  lastBufferTime?: number
+  firstCharSent?: boolean
 }
 
 export class ThreadPresenter implements IThreadPresenter {
@@ -117,6 +122,14 @@ export class ThreadPresenter implements IThreadPresenter {
     const { eventId, error } = msg
     const state = this.generatingMessages.get(eventId)
     if (state) {
+      // 刷新剩余缓冲内容
+      if (state.contentBuffer) {
+        await this.flushContentBuffer(eventId)
+      }
+
+      // 清理缓冲相关资源
+      this.cleanupContentBuffer(state)
+
       await this.messageManager.handleMessageError(eventId, String(error))
       this.generatingMessages.delete(eventId)
     }
@@ -158,6 +171,17 @@ export class ThreadPresenter implements IThreadPresenter {
     }
 
     eventBus.sendToRenderer(STREAM_EVENTS.END, SendTarget.ALL_WINDOWS, msg)
+  }
+
+  // 清理内容缓冲相关资源
+  private cleanupContentBuffer(state: GeneratingMessageState): void {
+    if (state.bufferTimeout) {
+      clearTimeout(state.bufferTimeout)
+      state.bufferTimeout = undefined
+    }
+    state.contentBuffer = undefined
+    state.lastBufferTime = undefined
+    state.firstCharSent = undefined
   }
 
   // 完成消息的通用方法
@@ -233,6 +257,14 @@ export class ThreadPresenter implements IThreadPresenter {
       metadata.reasoningEndTime = state.lastReasoningTime - state.startTime
     }
 
+    // 刷新剩余缓冲内容
+    if (state.contentBuffer) {
+      await this.flushContentBuffer(eventId)
+    }
+
+    // 清理缓冲相关资源
+    this.cleanupContentBuffer(state)
+
     // 更新消息的usage信息
     await this.messageManager.updateMessageMetadata(eventId, metadata)
     await this.messageManager.updateMessageStatus(eventId, 'sent')
@@ -281,6 +313,131 @@ export class ThreadPresenter implements IThreadPresenter {
         })
       await this.broadcastThreadListUpdate()
     }
+  }
+
+  // 检测是否包含不完整的图片 Markdown
+  private hasIncompleteImageMarkdown(content: string): boolean {
+    // 首先检查是否包含图片 Markdown 的开始标记
+    if (!content.includes('![')) {
+      return false
+    }
+
+    // 检测可能的不完整图片 Markdown 模式
+    const patterns = [
+      /!\[([^\]]*)?$/, // ![text 结尾（方括号未完成）
+      /!\[([^\]]*)\]\($/, // ![text]( 结尾（链接未开始）
+      /!\[([^\]]*)\]\([^)]*$/ // ![text](incomplete_url 结尾（圆括号未完成）
+    ]
+
+    // 专门检测以特定协议开头但未完成的URL
+    const urlProtocolPatterns = [
+      /!\[[^\]]*\]\((?:data:|https?:|base64:)[^)]*[^)]$/, // 协议开头但未结束
+      /!\[[^\]]*\]\(data:image\/[^;]*;base64,[A-Za-z0-9+/]*(={0,2})?$/ // base64图片但可能未完成
+    ]
+
+    const basicIncomplete = patterns.some((pattern) => pattern.test(content))
+    const urlIncomplete = urlProtocolPatterns.some((pattern) => pattern.test(content))
+    const hasIncomplete = basicIncomplete || urlIncomplete
+
+    return hasIncomplete
+  }
+
+  // 检测是否包含完整的图片 Markdown
+  private hasCompleteImageMarkdown(content: string): boolean {
+    const completePattern = /!\[([^\]]*)\]\([^)]+\)/
+    const hasComplete = completePattern.test(content)
+
+    return hasComplete
+  }
+
+  // 释放缓冲的内容
+  private async flushContentBuffer(eventId: string): Promise<void> {
+    const state = this.generatingMessages.get(eventId)
+    if (!state || !state.contentBuffer) return
+
+    let bufferedContent = state.contentBuffer
+
+    // 如果第一个字符已经发送过，去掉第一个字符
+    if (state.firstCharSent && bufferedContent.length > 0) {
+      bufferedContent = bufferedContent.slice(1)
+    }
+
+    // 清理缓冲状态
+    state.contentBuffer = undefined
+    state.firstCharSent = undefined
+
+    // 清除缓冲超时
+    if (state.bufferTimeout) {
+      clearTimeout(state.bufferTimeout)
+      state.bufferTimeout = undefined
+    }
+
+    // 处理缓冲的内容
+    if (bufferedContent.length > 0) {
+      await this.processContentUpdate(eventId, bufferedContent, Date.now())
+    }
+  }
+
+  // 设置缓冲超时
+  private setBufferTimeout(eventId: string): void {
+    const state = this.generatingMessages.get(eventId)
+    if (!state) return
+
+    // 清除现有超时
+    if (state.bufferTimeout) {
+      clearTimeout(state.bufferTimeout)
+    }
+
+    // 设置新超时（2秒后强制释放缓冲）
+    state.bufferTimeout = setTimeout(async () => {
+      await this.flushContentBuffer(eventId)
+    }, 2000)
+  }
+
+  // 处理内容更新的核心逻辑
+  private async processContentUpdate(
+    eventId: string,
+    content: string,
+    currentTime: number
+  ): Promise<void> {
+    const state = this.generatingMessages.get(eventId)
+    if (!state) return
+
+    const lastBlock = state.message.content[state.message.content.length - 1]
+
+    // 处理普通内容
+    if (lastBlock && lastBlock.type === 'content') {
+      lastBlock.content += content
+    } else {
+      // 使用保护逻辑
+      const finalizeLastBlock = () => {
+        const lastBlock =
+          state.message.content.length > 0
+            ? state.message.content[state.message.content.length - 1]
+            : undefined
+        if (lastBlock) {
+          if (lastBlock.type === 'tool_call_permission' && lastBlock.status === 'pending') {
+            lastBlock.status = 'granted'
+            return
+          }
+          // 只有当上一个块不是一个正在等待结果的工具调用时，才将其标记为成功
+          if (!(lastBlock.type === 'tool_call' && lastBlock.status === 'loading')) {
+            lastBlock.status = 'success'
+          }
+        }
+      }
+
+      finalizeLastBlock()
+      state.message.content.push({
+        type: 'content',
+        content: content,
+        status: 'loading',
+        timestamp: currentTime
+      })
+    }
+
+    // 更新消息内容
+    await this.messageManager.editMessage(eventId, JSON.stringify(state.message.content))
   }
 
   async handleLLMAgentResponse(msg: LLMAgentEventData) {
@@ -599,18 +756,74 @@ export class ThreadPresenter implements IThreadPresenter {
           image_data: image_data
         })
       } else if (content) {
-        // 处理普通内容
-        if (lastBlock && lastBlock.type === 'content') {
-          lastBlock.content += content
-        } else {
-          finalizeLastBlock() // 使用保护逻辑
-          state.message.content.push({
-            type: 'content',
-            content: content,
-            status: 'loading',
-            timestamp: currentTime
-          })
+        // 优化的图片 Markdown 处理逻辑
+        const combinedContent = (state.contentBuffer || '') + content
+
+        // 策略1: 如果内容包含图片开始标记，开始缓冲
+        if (
+          !state.contentBuffer &&
+          content === '!' &&
+          (state.message.content[state.message.content.length - 1]?.type !== 'content' ||
+            !state.message.content[state.message.content.length - 1]?.content?.endsWith('!'))
+        ) {
+          // 可能是图片 Markdown 的开始，先发送第一个字符，然后开始缓冲
+          await this.processContentUpdate(state.message.id, content, currentTime)
+          state.contentBuffer = content
+          state.firstCharSent = true
+          state.lastBufferTime = currentTime
+          this.setBufferTimeout(state.message.id)
+          return
         }
+
+        // 策略2: 如果有缓冲且当前字符是右括号，检查是否完成
+        if (state.contentBuffer && content === ')') {
+          // 检查是否形成完整的图片 Markdown
+          if (this.hasCompleteImageMarkdown(combinedContent)) {
+            // 通过 flushContentBuffer 来处理，确保占位符被正确替换
+            state.contentBuffer = combinedContent
+            await this.flushContentBuffer(state.message.id)
+            return
+          }
+        }
+
+        // 策略3: 如果有缓冲，继续累积
+        if (state.contentBuffer) {
+          state.contentBuffer = combinedContent
+          state.lastBufferTime = currentTime
+
+          // 检查是否应该继续缓冲
+          if (this.hasCompleteImageMarkdown(combinedContent)) {
+            // 完整了，释放缓冲
+            state.contentBuffer = combinedContent
+            await this.flushContentBuffer(state.message.id)
+            return
+          } else if (this.hasIncompleteImageMarkdown(combinedContent)) {
+            // 仍然不完整，继续缓冲
+            this.setBufferTimeout(state.message.id)
+            return
+          } else {
+            // 检查是否包含图片开始但可能还在构建中
+            if (combinedContent.includes('![') && !combinedContent.includes(')')) {
+              // 看起来还在构建图片 Markdown，继续缓冲
+              this.setBufferTimeout(state.message.id)
+              return
+            } else {
+              // 既不完整也不是图片 Markdown，释放缓冲
+              state.contentBuffer = undefined
+
+              if (state.bufferTimeout) {
+                clearTimeout(state.bufferTimeout)
+                state.bufferTimeout = undefined
+              }
+
+              await this.processContentUpdate(state.message.id, combinedContent, currentTime)
+              return
+            }
+          }
+        }
+
+        // 策略4: 正常处理内容（没有缓冲）
+        await this.processContentUpdate(state.message.id, content, currentTime)
       }
 
       // 处理推理内容
@@ -2388,6 +2601,14 @@ export class ThreadPresenter implements IThreadPresenter {
     if (state) {
       // 设置统一的取消标志
       state.isCancelled = true
+
+      // 刷新剩余缓冲内容
+      if (state.contentBuffer) {
+        await this.flushContentBuffer(messageId)
+      }
+
+      // 清理缓冲相关资源
+      this.cleanupContentBuffer(state)
 
       // 标记消息不再处于搜索状态
       if (state.isSearching) {
