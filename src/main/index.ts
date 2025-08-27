@@ -1,6 +1,5 @@
 import { app } from 'electron'
-import { LifecycleManager } from './lib/lifecycle'
-import { registerCoreHooks } from './lib/lifecycle/coreHooks'
+import { LifecycleManager, registerCoreHooks } from './lib/lifecycle'
 import { getInstance, Presenter } from './presenter'
 import { eventBus } from './eventbus'
 

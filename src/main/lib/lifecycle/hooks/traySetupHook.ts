@@ -3,8 +3,8 @@
  * Initializes the system tray icon and menu
  */
 
-import { LifecycleHook, LifecycleContext } from '../types'
-import { presenter } from '../../../presenter'
+import { LifecycleHook, LifecycleContext } from '@shared/presenter'
+import { presenter } from '@/presenter'
 
 export const traySetupHook: LifecycleHook = {
   name: 'tray-setup',

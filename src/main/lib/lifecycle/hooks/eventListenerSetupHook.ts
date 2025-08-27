@@ -5,11 +5,11 @@
 
 import { app } from 'electron'
 import { electronApp, optimizer } from '@electron-toolkit/utils'
-import { LifecycleHook, LifecycleContext } from '../types'
-import { eventBus } from '../../../eventbus'
-import { WINDOW_EVENTS, TRAY_EVENTS, FLOATING_BUTTON_EVENTS } from '../../../events'
-import { handleShowHiddenWindow } from '../../../utils'
-import { presenter } from '../../../presenter'
+import { LifecycleHook, LifecycleContext } from '@shared/presenter'
+import { eventBus } from '@/eventbus'
+import { WINDOW_EVENTS, TRAY_EVENTS, FLOATING_BUTTON_EVENTS } from '@/events'
+import { handleShowHiddenWindow } from '@/utils'
+import { presenter } from '@/presenter'
 
 export const eventListenerSetupHook: LifecycleHook = {
   name: 'event-listener-setup',

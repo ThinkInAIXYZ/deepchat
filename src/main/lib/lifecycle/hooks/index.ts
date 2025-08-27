@@ -9,10 +9,3 @@ export { configInitHook } from './configInitHook'
 export { eventListenerSetupHook } from './eventListenerSetupHook'
 export { traySetupHook } from './traySetupHook'
 export { windowCreationHook } from './windowCreationHook'
-
-// Re-export types for convenience
-export type { LifecycleHook, LifecycleContext } from '../types'
-
-// Re-export monitoring utilities
-export { LifecycleEventMonitor, lifecycleEventMonitor } from '../LifecycleEventMonitor'
-export type { LifecycleEventStats } from '../LifecycleEventMonitor'

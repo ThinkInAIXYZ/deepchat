@@ -2,22 +2,15 @@
  * SplashWindowManager - Manages splash screen display during application initialization
  */
 
-import { BrowserWindow, nativeImage } from 'electron'
 import path from 'path'
+import { BrowserWindow, nativeImage } from 'electron'
 import { eventBus, SendTarget } from '../../eventbus'
-import { LIFECYCLE_EVENTS } from '../../events'
-import { LifecyclePhase } from './types'
+import { LIFECYCLE_EVENTS } from '@/events'
+import { ISplashWindowManager } from '@shared/presenter'
 import { is } from '@electron-toolkit/utils'
 import icon from '../../../../resources/icon.png?asset' // 应用图标 (macOS/Linux)
 import iconWin from '../../../../resources/icon.ico?asset' // 应用图标 (Windows)
-
-export interface ISplashWindowManager {
-  create(): Promise<void>
-  updateProgress(phase: LifecyclePhase, progress: number): void
-  updateMessage(message: string): void
-  close(): Promise<void>
-  isVisible(): boolean
-}
+import { LifecyclePhase } from '@shared/lifecycle'
 
 export class SplashWindowManager implements ISplashWindowManager {
   private splashWindow: BrowserWindow | null = null

@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { databaseInitHook } from '../../../src/main/lib/lifecycle/hooks/databaseInitHook'
-import { LifecycleContext, LifecyclePhase } from '../../../src/main/lib/lifecycle/types'
 import { DatabaseInitializer } from '../../../src/main/lib/lifecycle/DatabaseInitializer'
 import { getInstance } from '../../../src/main/presenter'
+import { LifecycleContext, LifecyclePhase } from '../../../src/shared/presenter'
 
 // Mock dependencies
 vi.mock('../../src/main/lib/lifecycle/DatabaseInitializer')

@@ -1,4 +1,4 @@
-import { ILifecycleManager, LifecyclePhase } from './types'
+import { ILifecycleManager } from '@shared/presenter'
 import {
   databaseInitHook,
   protocolRegistrationHook,
@@ -7,6 +7,7 @@ import {
   traySetupHook,
   windowCreationHook
 } from './hooks'
+import { LifecyclePhase } from '@shared/lifecycle'
 
 /**
  * Register core application hooks with the lifecycle manager

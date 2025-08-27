@@ -3,24 +3,26 @@
  */
 
 import { app } from 'electron'
-import { eventBus, SendTarget } from '../../eventbus'
-import { LIFECYCLE_EVENTS } from '../../events'
-import {
-  LifecyclePhase,
-  LifecycleHook,
-  LifecycleContext,
-  LifecycleState,
-  ILifecycleManager
-} from './types'
-import { SplashWindowManager, ISplashWindowManager } from './SplashWindowManager'
+import { eventBus, SendTarget } from '@/eventbus'
+import { LIFECYCLE_EVENTS } from '@/events'
+import { SplashWindowManager } from './SplashWindowManager'
 import { LifecycleErrorHandler } from './ErrorHandler'
 import { is } from '@electron-toolkit/utils'
+import {
+  ILifecycleManager,
+  ISplashWindowManager,
+  LifecycleContext,
+  LifecycleHook,
+  LifecycleState
+} from '@shared/presenter'
+import { LifecyclePhase } from '@shared/lifecycle'
 
 export class LifecycleManager implements ILifecycleManager {
   private state: LifecycleState
   private hookIdCounter = 0
   private splashManager: ISplashWindowManager
   private errorHandler: LifecycleErrorHandler
+  private lifecycleContext: LifecycleContext
 
   constructor() {
     this.state = {
@@ -40,11 +42,14 @@ export class LifecycleManager implements ILifecycleManager {
     // Initialize splash window manager
     this.splashManager = new SplashWindowManager()
 
-    // Enable debug mode if NODE_ENV is development
-    is.dev = is.dev
-
     // Initialize error handler
     this.errorHandler = new LifecycleErrorHandler()
+
+    // Initialize single lifecycle context instance
+    this.lifecycleContext = {
+      phase: LifecyclePhase.INIT, // Will be updated during execution
+      manager: this
+    }
 
     // Set up shutdown interception
     this.setupShutdownInterception()
@@ -341,10 +346,9 @@ export class LifecycleManager implements ILifecycleManager {
     eventBus.sendToRenderer(LIFECYCLE_EVENTS.PHASE_STARTED, SendTarget.ALL_WINDOWS, phaseStartEvent)
 
     const phaseHooks = this.state.hooks.get(phase) || []
-    const context: LifecycleContext = {
-      phase,
-      manager: this
-    }
+
+    // Update the single context instance with current phase
+    this.lifecycleContext.phase = phase
 
     let successfulHooks = 0
     let failedHooks = 0
@@ -360,7 +364,7 @@ export class LifecycleManager implements ILifecycleManager {
       this.splashManager.updateProgress(phase, hookProgress)
 
       try {
-        await this.executeHook(hook, context)
+        await this.executeHook(hook, this.lifecycleContext)
         successfulHooks++
       } catch (hookError) {
         failedHooks++
@@ -430,10 +434,9 @@ export class LifecycleManager implements ILifecycleManager {
     eventBus.sendToRenderer(LIFECYCLE_EVENTS.PHASE_STARTED, SendTarget.ALL_WINDOWS, phaseStartEvent)
 
     const phaseHooks = this.state.hooks.get(phase) || []
-    const context: LifecycleContext = {
-      phase,
-      manager: this
-    }
+
+    // Update the single context instance with current phase
+    this.lifecycleContext.phase = phase
 
     let successfulHooks = 0
     let failedHooks = 0
@@ -442,7 +445,7 @@ export class LifecycleManager implements ILifecycleManager {
     // Execute hooks and check for shutdown prevention
     for (const { hook } of phaseHooks) {
       try {
-        const result = await this.executeHook(hook, context)
+        const result = await this.executeHook(hook, this.lifecycleContext)
         successfulHooks++
 
         // If any before-quit hook returns false, prevent shutdown
@@ -678,5 +681,12 @@ export class LifecycleManager implements ILifecycleManager {
    */
   clearErrorHistory(): void {
     this.errorHandler.clearErrorHistory()
+  }
+
+  /**
+   * Get the single lifecycle context instance
+   */
+  getLifecycleContext(): LifecycleContext {
+    return this.lifecycleContext
   }
 }

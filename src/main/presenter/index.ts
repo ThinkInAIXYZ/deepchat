@@ -1,12 +1,12 @@
+import path from 'path'
 import { DialogPresenter } from './dialogPresenter/index'
 import { ipcMain, IpcMainInvokeEvent, app } from 'electron'
 // import { LlamaCppPresenter } from './llamaCppPresenter' // 保留原始注释
 import { WindowPresenter } from './windowPresenter'
 import { SQLitePresenter } from './sqlitePresenter'
 import { ShortcutPresenter } from './shortcutPresenter'
-import { IPresenter } from '@shared/presenter'
+import { ILifecycleManager, IPresenter } from '@shared/presenter'
 import { eventBus } from '@/eventbus'
-import path from 'path'
 import { LLMProviderPresenter } from './llmProviderPresenter'
 import { ConfigPresenter } from './configPresenter'
 import { ThreadPresenter } from './threadPresenter'
@@ -23,7 +23,6 @@ import { OAuthPresenter } from './oauthPresenter'
 import { FloatingButtonPresenter } from './floatingButtonPresenter'
 import { CONFIG_EVENTS, WINDOW_EVENTS } from '@/events'
 import { KnowledgePresenter } from './knowledgePresenter'
-import { ILifecycleManager } from '@/lib/lifecycle'
 
 // IPC调用上下文接口
 interface IPCCallContext {

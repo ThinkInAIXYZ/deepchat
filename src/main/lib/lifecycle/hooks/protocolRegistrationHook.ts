@@ -4,7 +4,7 @@
  */
 
 import { protocol, app } from 'electron'
-import { LifecycleHook, LifecycleContext } from '../types'
+import { LifecycleHook, LifecycleContext } from '@shared/presenter'
 import path from 'path'
 import fs from 'fs'
 import { is } from '@electron-toolkit/utils'

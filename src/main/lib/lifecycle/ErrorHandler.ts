@@ -2,11 +2,12 @@
  * Enhanced error handling and recovery mechanisms for lifecycle management
  */
 
-import { eventBus, SendTarget } from '../../eventbus'
-import { LIFECYCLE_EVENTS } from '../../events'
-import { LifecyclePhase, LifecycleHook, LifecycleContext } from './types'
-import { DIALOG_ERROR } from '../../../shared/dialog'
+import { eventBus, SendTarget } from '@/eventbus'
+import { LIFECYCLE_EVENTS } from '@/events'
+import { LifecycleHook, LifecycleContext } from '@shared/presenter'
+import { DIALOG_ERROR } from '@shared/dialog'
 import { is } from '@electron-toolkit/utils'
+import { LifecyclePhase } from '@shared/lifecycle'
 
 export interface LifecycleError {
   hookName: string

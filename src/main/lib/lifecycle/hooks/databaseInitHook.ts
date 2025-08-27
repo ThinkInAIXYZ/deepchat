@@ -1,4 +1,4 @@
-import { LifecycleHook, LifecycleContext } from '../types'
+import { LifecycleHook, LifecycleContext } from '@shared/presenter'
 import { DatabaseInitializer } from '../DatabaseInitializer'
 
 /**

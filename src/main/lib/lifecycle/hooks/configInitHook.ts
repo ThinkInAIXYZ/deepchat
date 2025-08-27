@@ -3,10 +3,10 @@
  * Initializes application configuration and proxy settings
  */
 
-import { LifecycleHook, LifecycleContext } from '../types'
-import { presenter } from '../../../presenter'
-import { ProxyMode, proxyConfig } from '../../../presenter/proxyConfig'
+import { LifecycleHook, LifecycleContext } from '@shared/presenter'
+import { presenter } from '@/presenter'
 import { setLoggingEnabled } from '@shared/logger'
+import { proxyConfig, ProxyMode } from '@/presenter/proxyConfig'
 
 export const configInitHook: LifecycleHook = {
   name: 'config-initialization',
@@ -19,10 +19,6 @@ export const configInitHook: LifecycleHook = {
     if (!presenter) {
       throw new Error('Presenter not initialized - database hook should run first')
     }
-
-    // TODO: Add 5-second delay to demonstrate splash window (for development/testing)
-    console.log('Simulating configuration loading delay...')
-    await new Promise((resolve) => setTimeout(resolve, 5000))
 
     // Read logging settings from config and apply
     const loggingEnabled = presenter.configPresenter.getLoggingEnabled()

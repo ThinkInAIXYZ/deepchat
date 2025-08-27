@@ -3,8 +3,8 @@
  * Creates the initial application window and registers shortcuts
  */
 
-import { LifecycleHook, LifecycleContext } from '../types'
-import { presenter } from '../../../presenter'
+import { LifecycleHook, LifecycleContext } from '@shared/presenter'
+import { presenter } from '@/presenter'
 
 export const windowCreationHook: LifecycleHook = {
   name: 'window-creation',
