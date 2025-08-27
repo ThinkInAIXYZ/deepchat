@@ -7,7 +7,6 @@ import { eventBus, SendTarget } from '@/eventbus'
 import { LIFECYCLE_EVENTS } from '@/events'
 import { SplashWindowManager } from './SplashWindowManager'
 import { LifecycleErrorHandler } from './ErrorHandler'
-import { is } from '@electron-toolkit/utils'
 import {
   ILifecycleManager,
   ISplashWindowManager,
@@ -16,7 +15,15 @@ import {
   LifecycleState
 } from '@shared/presenter'
 import { LifecyclePhase } from '@shared/lifecycle'
-import { getInstance } from '@/presenter'
+import {
+  PhaseStartedEventData,
+  PhaseCompletedEventData,
+  HookExecutedEventData,
+  ErrorOccurredEventData,
+  ProgressUpdatedEventData,
+  ShutdownRequestedEventData
+} from './types'
+import { is } from '@electron-toolkit/utils'
 
 export class LifecycleManager implements ILifecycleManager {
   private state: LifecycleState
@@ -70,15 +77,11 @@ export class LifecycleManager implements ILifecycleManager {
     this.state.startTime = Date.now()
 
     // Emit startup event
-    eventBus.sendToMain(LIFECYCLE_EVENTS.PHASE_STARTED, {
+    this.notifyMessage(LIFECYCLE_EVENTS.PHASE_STARTED, {
       phase: 'startup',
       timestamp: this.state.startTime,
       totalPhases: 4 // init, before-start, ready, after-start
-    })
-
-    if (is.dev) {
-      console.log(`[LifecycleManager] Starting application lifecycle (debug mode enabled)`)
-    }
+    } as PhaseStartedEventData)
 
     try {
       // Create and show splash window
@@ -88,47 +91,27 @@ export class LifecycleManager implements ILifecycleManager {
       await this.executePhase(LifecyclePhase.INIT)
       await this.executePhase(LifecyclePhase.BEFORE_START)
       await this.executePhase(LifecyclePhase.READY)
-
-      // init presenter
-      const presenter = getInstance(this)
-      presenter.deeplinkPresenter.init()
-
-      // After startup
       await this.executePhase(LifecyclePhase.AFTER_START)
 
       // Close splash window after startup is complete
       await this.splashManager.close()
 
       // Emit startup completion event
-      const completionEvent = {
+      const completionEvent: PhaseCompletedEventData = {
+        phase: 'startup',
         timestamp: Date.now(),
         totalDuration: Date.now() - this.state.startTime,
         completedPhases: Array.from(this.state.completedPhases)
       }
 
-      eventBus.sendToMain(LIFECYCLE_EVENTS.PHASE_COMPLETED, {
-        phase: 'startup',
-        ...completionEvent
-      })
-      eventBus.sendToRenderer(LIFECYCLE_EVENTS.PHASE_COMPLETED, SendTarget.ALL_WINDOWS, {
-        phase: 'startup',
-        ...completionEvent
-      })
-
-      if (is.dev) {
-        console.log(
-          `[LifecycleManager] Application lifecycle startup completed (${completionEvent.totalDuration}ms)`
-        )
-      }
+      this.notifyMessage(LIFECYCLE_EVENTS.PHASE_COMPLETED, completionEvent)
     } catch (error) {
-      console.error('Lifecycle startup failed:', error)
-
       // Close splash window on error
       if (this.splashManager.isVisible()) {
         await this.splashManager.close()
       }
 
-      const errorEvent = {
+      const errorEvent: ErrorOccurredEventData = {
         phase: this.state.currentPhase || 'startup',
         error: error instanceof Error ? error.message : String(error),
         errorStack: error instanceof Error ? error.stack : undefined,
@@ -136,12 +119,7 @@ export class LifecycleManager implements ILifecycleManager {
         totalDuration: Date.now() - this.state.startTime
       }
 
-      eventBus.sendToMain(LIFECYCLE_EVENTS.ERROR_OCCURRED, errorEvent)
-      eventBus.sendToRenderer(LIFECYCLE_EVENTS.ERROR_OCCURRED, SendTarget.ALL_WINDOWS, {
-        ...errorEvent,
-        errorStack: undefined // Don't send stack trace to renderer for security
-      })
-
+      this.notifyMessage(LIFECYCLE_EVENTS.ERROR_OCCURRED, errorEvent)
       throw error
     }
   }
@@ -215,25 +193,15 @@ export class LifecycleManager implements ILifecycleManager {
 
     this.state.isShuttingDown = true
 
-    const shutdownEvent = {
+    const shutdownEvent: ShutdownRequestedEventData = {
+      phase: LifecyclePhase.BEFORE_QUIT,
       timestamp: Date.now(),
       beforeQuitHooks: this.state.hooks.get(LifecyclePhase.BEFORE_QUIT)?.length || 0,
       willQuitHooks: this.state.hooks.get(LifecyclePhase.WILL_QUIT)?.length || 0
     }
 
     // Emit shutdown request to both main and renderer processes
-    eventBus.sendToMain(LIFECYCLE_EVENTS.SHUTDOWN_REQUESTED, shutdownEvent)
-    eventBus.sendToRenderer(
-      LIFECYCLE_EVENTS.SHUTDOWN_REQUESTED,
-      SendTarget.ALL_WINDOWS,
-      shutdownEvent
-    )
-
-    if (is.dev) {
-      console.log(
-        `[LifecycleManager] Shutdown requested with ${shutdownEvent.beforeQuitHooks} before-quit hooks and ${shutdownEvent.willQuitHooks} will-quit hooks`
-      )
-    }
+    this.notifyMessage(LIFECYCLE_EVENTS.SHUTDOWN_REQUESTED, shutdownEvent)
 
     try {
       // Execute before-quit phase with interception capability
@@ -244,50 +212,36 @@ export class LifecycleManager implements ILifecycleManager {
         await this.executePhase(LifecyclePhase.WILL_QUIT)
 
         // Emit shutdown completion event
-        const completionEvent = {
+        const completionEvent: PhaseCompletedEventData = {
+          phase: 'shutdown',
           timestamp: Date.now(),
           shutdownAllowed: true,
           totalDuration: Date.now() - shutdownEvent.timestamp
         }
 
-        eventBus.sendToMain(LIFECYCLE_EVENTS.PHASE_COMPLETED, {
-          phase: 'shutdown',
-          ...completionEvent
-        })
-        eventBus.sendToRenderer(LIFECYCLE_EVENTS.PHASE_COMPLETED, SendTarget.ALL_WINDOWS, {
-          phase: 'shutdown',
-          ...completionEvent
-        })
+        this.notifyMessage(LIFECYCLE_EVENTS.PHASE_COMPLETED, completionEvent)
 
         return true
       } else {
         this.state.isShuttingDown = false
 
         // Emit shutdown prevention event
-        const preventionEvent = {
+        const preventionEvent: ErrorOccurredEventData = {
+          phase: 'shutdown',
+          error: 'Shutdown prevented',
           timestamp: Date.now(),
           shutdownAllowed: false,
           reason: 'Prevented by before-quit hook'
         }
 
-        eventBus.sendToMain(LIFECYCLE_EVENTS.ERROR_OCCURRED, {
-          phase: 'shutdown',
-          error: 'Shutdown prevented',
-          ...preventionEvent
-        })
-        eventBus.sendToRenderer(LIFECYCLE_EVENTS.ERROR_OCCURRED, SendTarget.ALL_WINDOWS, {
-          phase: 'shutdown',
-          error: 'Shutdown prevented',
-          ...preventionEvent
-        })
+        this.notifyMessage(LIFECYCLE_EVENTS.ERROR_OCCURRED, preventionEvent)
 
         return false
       }
     } catch (error) {
-      console.error('Shutdown process failed:', error)
       this.state.isShuttingDown = false
 
-      const errorEvent = {
+      const errorEvent: ErrorOccurredEventData = {
         phase: 'shutdown',
         error: error instanceof Error ? error.message : String(error),
         errorStack: error instanceof Error ? error.stack : undefined,
@@ -295,11 +249,7 @@ export class LifecycleManager implements ILifecycleManager {
         shutdownAllowed: false
       }
 
-      eventBus.sendToMain(LIFECYCLE_EVENTS.ERROR_OCCURRED, errorEvent)
-      eventBus.sendToRenderer(LIFECYCLE_EVENTS.ERROR_OCCURRED, SendTarget.ALL_WINDOWS, {
-        ...errorEvent,
-        errorStack: undefined // Don't send stack trace to renderer for security
-      })
+      this.notifyMessage(LIFECYCLE_EVENTS.ERROR_OCCURRED, errorEvent)
 
       return false
     }
@@ -327,14 +277,6 @@ export class LifecycleManager implements ILifecycleManager {
   private async executePhase(phase: LifecyclePhase): Promise<void> {
     const phaseStartTime = Date.now()
 
-    if (is.dev) {
-      console.log(
-        `[LifecycleManager] Starting lifecycle phase: ${phase} with ${this.state.hooks.get(phase)?.length || 0} hooks`
-      )
-    } else {
-      console.log(`Starting lifecycle phase: ${phase}`)
-    }
-
     this.state.currentPhase = phase
     this.state.phaseStartTimes.set(phase, phaseStartTime)
 
@@ -342,7 +284,7 @@ export class LifecycleManager implements ILifecycleManager {
     const phaseProgress = this.calculatePhaseProgress(phase)
     this.splashManager.updateProgress(phase, phaseProgress.start)
 
-    const phaseStartEvent = {
+    const phaseStartEvent: PhaseStartedEventData = {
       phase,
       timestamp: phaseStartTime,
       hookCount: this.state.hooks.get(phase)?.length || 0,
@@ -350,8 +292,7 @@ export class LifecycleManager implements ILifecycleManager {
     }
 
     // Emit phase started event to both main and renderer processes
-    eventBus.sendToMain(LIFECYCLE_EVENTS.PHASE_STARTED, phaseStartEvent)
-    eventBus.sendToRenderer(LIFECYCLE_EVENTS.PHASE_STARTED, SendTarget.ALL_WINDOWS, phaseStartEvent)
+    this.notifyMessage(LIFECYCLE_EVENTS.PHASE_STARTED, phaseStartEvent)
 
     const phaseHooks = this.state.hooks.get(phase) || []
 
@@ -387,7 +328,7 @@ export class LifecycleManager implements ILifecycleManager {
     this.state.completedPhases.add(phase)
 
     const phaseDuration = Date.now() - phaseStartTime
-    const phaseCompletedEvent = {
+    const phaseCompletedEvent: PhaseCompletedEventData = {
       phase,
       timestamp: Date.now(),
       duration: phaseDuration,
@@ -397,22 +338,7 @@ export class LifecycleManager implements ILifecycleManager {
     }
 
     // Emit phase completed event to both main and renderer processes
-    eventBus.sendToMain(LIFECYCLE_EVENTS.PHASE_COMPLETED, phaseCompletedEvent)
-    if (getInstance(this)) {
-      // can send to renderer after presenter ready
-      eventBus.sendToRenderer(
-        LIFECYCLE_EVENTS.PHASE_COMPLETED,
-        SendTarget.ALL_WINDOWS,
-        phaseCompletedEvent
-      )
-    }
-    if (is.dev) {
-      console.log(
-        `[LifecycleManager] Completed lifecycle phase: ${phase} (${phaseDuration}ms, ${successfulHooks}/${phaseHooks.length} hooks successful)`
-      )
-    } else {
-      console.log(`Completed lifecycle phase: ${phase}`)
-    }
+    this.notifyMessage(LIFECYCLE_EVENTS.PHASE_COMPLETED, phaseCompletedEvent)
   }
 
   /**
@@ -421,18 +347,10 @@ export class LifecycleManager implements ILifecycleManager {
   private async executeShutdownPhase(phase: LifecyclePhase): Promise<boolean> {
     const phaseStartTime = Date.now()
 
-    if (is.dev) {
-      console.log(
-        `[LifecycleManager] Starting shutdown phase: ${phase} with ${this.state.hooks.get(phase)?.length || 0} hooks`
-      )
-    } else {
-      console.log(`Starting shutdown phase: ${phase}`)
-    }
-
     this.state.currentPhase = phase
     this.state.phaseStartTimes.set(phase, phaseStartTime)
 
-    const phaseStartEvent = {
+    const phaseStartEvent: PhaseStartedEventData = {
       phase,
       timestamp: phaseStartTime,
       hookCount: this.state.hooks.get(phase)?.length || 0,
@@ -440,9 +358,7 @@ export class LifecycleManager implements ILifecycleManager {
     }
 
     // Emit phase started event to both main and renderer processes
-    eventBus.sendToMain(LIFECYCLE_EVENTS.PHASE_STARTED, phaseStartEvent)
-    eventBus.sendToRenderer(LIFECYCLE_EVENTS.PHASE_STARTED, SendTarget.ALL_WINDOWS, phaseStartEvent)
-
+    this.notifyMessage(LIFECYCLE_EVENTS.PHASE_STARTED, phaseStartEvent)
     const phaseHooks = this.state.hooks.get(phase) || []
 
     // Update the single context instance with current phase
@@ -460,31 +376,29 @@ export class LifecycleManager implements ILifecycleManager {
 
         // If any before-quit hook returns false, prevent shutdown
         if (phase === LifecyclePhase.BEFORE_QUIT && result === false) {
-          console.log(`Shutdown prevented by hook: ${hook.name}`)
           preventedShutdown = true
 
           // Emit shutdown prevention event
-          eventBus.sendToMain(LIFECYCLE_EVENTS.ERROR_OCCURRED, {
+          this.notifyMessage(LIFECYCLE_EVENTS.ERROR_OCCURRED, {
             hookName: hook.name,
             phase,
             error: 'Shutdown prevented by hook',
             timestamp: Date.now(),
             shutdownPrevented: true
-          })
+          } as ErrorOccurredEventData)
 
           return false
         }
       } catch (hookError) {
         failedHooks++
         // Error handling is already done in executeHook
-        console.error(`Hook execution failed: ${hook.name}`, hookError)
       }
     }
 
     this.state.completedPhases.add(phase)
 
     const phaseDuration = Date.now() - phaseStartTime
-    const phaseCompletedEvent = {
+    const phaseCompletedEvent: PhaseCompletedEventData = {
       phase,
       timestamp: Date.now(),
       duration: phaseDuration,
@@ -496,20 +410,7 @@ export class LifecycleManager implements ILifecycleManager {
     }
 
     // Emit phase completed event to both main and renderer processes
-    eventBus.sendToMain(LIFECYCLE_EVENTS.PHASE_COMPLETED, phaseCompletedEvent)
-    eventBus.sendToRenderer(
-      LIFECYCLE_EVENTS.PHASE_COMPLETED,
-      SendTarget.ALL_WINDOWS,
-      phaseCompletedEvent
-    )
-
-    if (is.dev) {
-      console.log(
-        `[LifecycleManager] Completed shutdown phase: ${phase} (${phaseDuration}ms, ${successfulHooks}/${phaseHooks.length} hooks successful)`
-      )
-    } else {
-      console.log(`Completed shutdown phase: ${phase}`)
-    }
+    this.notifyMessage(LIFECYCLE_EVENTS.PHASE_COMPLETED, phaseCompletedEvent)
 
     return true
   }
@@ -521,13 +422,17 @@ export class LifecycleManager implements ILifecycleManager {
     hook: LifecycleHook,
     context: LifecycleContext
   ): Promise<void | boolean> {
-    if (is.dev) {
-      console.log(
-        `[LifecycleManager] Starting hook: ${hook.name} (priority: ${hook.priority || 100}, critical: ${hook.critical || false}, timeout: ${hook.timeout || 'none'})`
-      )
-    } else {
-      console.log(`Executing lifecycle hook: ${hook.name}`)
+    // Emit successful hook execution event
+    const { name, phase, priority, critical, timeout } = hook
+    const executedMessage: HookExecutedEventData = {
+      name,
+      phase,
+      priority,
+      critical,
+      timeout,
+      timestamp: Date.now()
     }
+    this.notifyMessage(LIFECYCLE_EVENTS.HOOK_EXECUTED, executedMessage)
 
     // Use the error handler to execute the hook with retry and recovery mechanisms
     const result = await this.errorHandler.executeHookWithRetry(hook, context, {
@@ -537,32 +442,21 @@ export class LifecycleManager implements ILifecycleManager {
       logLevel: hook.critical ? 'error' : 'warn'
     })
 
-    // Emit successful hook execution event
-    eventBus.sendToMain(LIFECYCLE_EVENTS.HOOK_EXECUTED, {
-      hookName: hook.name,
-      phase: context.phase,
-      duration: 0, // Duration is handled by error handler
-      timestamp: Date.now(),
-      priority: hook.priority || 100,
-      critical: hook.critical || false,
-      result: result !== undefined ? result : null
-    })
-
-    // Also broadcast to renderer processes for monitoring tools
-    eventBus.sendToRenderer(LIFECYCLE_EVENTS.HOOK_EXECUTED, SendTarget.ALL_WINDOWS, {
-      hookName: hook.name,
-      phase: context.phase,
-      duration: 0,
-      timestamp: Date.now(),
-      priority: hook.priority || 100,
-      critical: hook.critical || false
-    })
-
     if (is.dev) {
-      console.log(`[LifecycleManager] Completed hook: ${hook.name} - Result: ${result}`)
-    } else {
-      console.log(`Completed lifecycle hook: ${hook.name}`)
+      const hookDelay = Number(import.meta.env.VITE_APP_LIFECYCLE_HOOK_DELAY)
+      await new Promise((resolve) => setTimeout(resolve, hookDelay))
     }
+
+    const computedMessage: HookExecutedEventData = {
+      name,
+      phase,
+      priority,
+      critical,
+      timeout,
+      timestamp: Date.now()
+    }
+    // Emit successful hook execution event
+    this.notifyMessage(LIFECYCLE_EVENTS.HOOK_COMPUTED, computedMessage)
 
     return result
   }
@@ -604,51 +498,76 @@ export class LifecycleManager implements ILifecycleManager {
    */
   private setupLifecycleEventListeners(): void {
     // Listen to phase started events for debugging
-    eventBus.on(LIFECYCLE_EVENTS.PHASE_STARTED, (data: any) => {
-      if (is.dev) {
+    eventBus.on(LIFECYCLE_EVENTS.PHASE_STARTED, (data: PhaseStartedEventData) => {
+      if (data.phase === 'startup') {
+        console.log(`[LifecycleManager] Starting application lifecycle`)
+      } else if (data.isShutdownPhase) {
         console.log(
-          `[LifecycleManager] Phase started: ${data.phase} at ${new Date(data.timestamp).toISOString()}`
+          `[LifecycleManager] Starting shutdown phase: '${data.phase}' with ${data.hookCount} hooks`
+        )
+      } else {
+        console.log(
+          `[LifecycleManager] Starting lifecycle phase '${data.phase}' with ${data.hookCount} hooks`
         )
       }
     })
 
     // Listen to phase completed events for debugging
-    eventBus.on(LIFECYCLE_EVENTS.PHASE_COMPLETED, (data: any) => {
-      if (is.dev) {
+    eventBus.on(LIFECYCLE_EVENTS.PHASE_COMPLETED, (data: PhaseCompletedEventData) => {
+      if (data.phase === 'startup') {
         console.log(
-          `[LifecycleManager] Phase completed: ${data.phase} in ${data.duration}ms at ${new Date(data.timestamp).toISOString()}`
+          `[LifecycleManager] Application lifecycle startup completed (${data.totalDuration}ms)`
+        )
+      } else if (data.isShutdownPhase) {
+        console.log(
+          `[LifecycleManager] Completed shutdown phase: ${data.phase} (${data.duration}ms, ${data.successfulHooks}/${data.hookCount} hooks successful)`
+        )
+      } else {
+        console.log(
+          `[LifecycleManager] Completed lifecycle phase: ${data.phase} (${data.duration}ms, ${data.successfulHooks}/${data.hookCount} hooks successful)`
         )
       }
     })
 
-    // Listen to hook executed events for debugging
-    eventBus.on(LIFECYCLE_EVENTS.HOOK_EXECUTED, (data: any) => {
-      if (is.dev) {
-        console.log(
-          `[LifecycleManager] Hook executed: ${data.hookName} in phase ${data.phase} (${data.duration}ms) at ${new Date(data.timestamp).toISOString()}`
-        )
-      }
+    // Listen to hook executed events
+    eventBus.on(LIFECYCLE_EVENTS.HOOK_EXECUTED, (data: HookExecutedEventData) => {
+      console.log(
+        `[LifecycleManager] Starting hook: ${data.name}) - ${data.priority}, ${data.critical}, ${data.timeout}`
+      )
+    })
+    // Listen to hook computed events
+    eventBus.on(LIFECYCLE_EVENTS.HOOK_COMPUTED, (data: HookExecutedEventData) => {
+      console.log(`[LifecycleManager] Computed hook: ${data.name})`)
     })
 
     // Listen to error events for monitoring
-    eventBus.on(LIFECYCLE_EVENTS.ERROR_OCCURRED, (data: any) => {
-      console.error(`[LifecycleManager] Error in ${data.phase || 'unknown phase'}: ${data.error}`)
-      if (data.hookName) {
-        console.error(`[LifecycleManager] Failed hook: ${data.hookName} (${data.duration || 0}ms)`)
+    eventBus.on(LIFECYCLE_EVENTS.ERROR_OCCURRED, (data: ErrorOccurredEventData) => {
+      if (data.shutdownPrevented) {
+        console.log(`Shutdown prevented by hook: ${data.hookName}`)
+      } else if (data.phase === 'shutdown' && data.error === 'Shutdown prevented') {
+        // Already handled by shutdown prevention logging
+      } else if (data.phase === 'shutdown') {
+        console.error('Shutdown process failed:', data.error)
+      } else {
+        console.error(`[LifecycleManager] Error in ${data.phase || 'unknown phase'}: ${data.error}`)
+        if (data.hookName) {
+          console.error(`Hook execution failed: ${data.hookName}`, data.error)
+        }
       }
     })
 
     // Listen to progress updates for monitoring
-    eventBus.on(LIFECYCLE_EVENTS.PROGRESS_UPDATED, (data: any) => {
-      if (is.dev) {
-        console.log(
-          `[LifecycleManager] Progress update: ${data.phase} - ${data.progress}% - ${data.message || 'No message'}`
-        )
-      }
+    eventBus.on(LIFECYCLE_EVENTS.PROGRESS_UPDATED, (data: ProgressUpdatedEventData) => {
+      console.log(
+        `[LifecycleManager] Progress update: ${data.phase} - ${data.progress}% - ${data.message || 'No message'}`
+      )
     })
 
     // Listen to shutdown requests for monitoring
-    eventBus.on(LIFECYCLE_EVENTS.SHUTDOWN_REQUESTED, (data: any) => {
+    eventBus.on(LIFECYCLE_EVENTS.SHUTDOWN_REQUESTED, (data: ShutdownRequestedEventData) => {
+      console.log(
+        `[LifecycleManager] Shutdown requested with ${data.beforeQuitHooks} before-quit hooks and ${data.willQuitHooks} will-quit hooks`
+      )
       console.log(
         `[LifecycleManager] Shutdown requested at ${new Date(data.timestamp).toISOString()}`
       )
@@ -698,5 +617,12 @@ export class LifecycleManager implements ILifecycleManager {
    */
   getLifecycleContext(): LifecycleContext {
     return this.lifecycleContext
+  }
+
+  private notifyMessage(event: string, data: any) {
+    eventBus.sendToMain(event, data)
+    if (this.lifecycleContext.presenter) {
+      eventBus.sendToRenderer(event, SendTarget.ALL_WINDOWS, data)
+    }
   }
 }

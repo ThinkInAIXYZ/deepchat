@@ -4,18 +4,17 @@
 
 import path from 'path'
 import { BrowserWindow, nativeImage } from 'electron'
-import { eventBus, SendTarget } from '../../eventbus'
+import { eventBus } from '../../eventbus'
 import { LIFECYCLE_EVENTS } from '@/events'
 import { ISplashWindowManager } from '@shared/presenter'
 import { is } from '@electron-toolkit/utils'
 import icon from '../../../../resources/icon.png?asset' // 应用图标 (macOS/Linux)
 import iconWin from '../../../../resources/icon.ico?asset' // 应用图标 (Windows)
 import { LifecyclePhase } from '@shared/lifecycle'
+import { ProgressUpdatedEventData } from './types'
 
 export class SplashWindowManager implements ISplashWindowManager {
   private splashWindow: BrowserWindow | null = null
-
-  constructor() {}
 
   /**
    * Create and display the splash window
@@ -42,8 +41,7 @@ export class SplashWindowManager implements ISplashWindowManager {
         autoHideMenuBar: true,
         webPreferences: {
           preload: path.join(__dirname, '../preload/splash.mjs'),
-          sandbox: false,
-          devTools: is.dev
+          sandbox: false
         }
       })
 
@@ -99,7 +97,7 @@ export class SplashWindowManager implements ISplashWindowManager {
     })
 
     // Emit progress event to both main and renderer processes
-    const progressEvent = {
+    const progressEvent: ProgressUpdatedEventData = {
       phase,
       progress,
       message,
@@ -107,22 +105,7 @@ export class SplashWindowManager implements ISplashWindowManager {
     }
 
     eventBus.sendToMain(LIFECYCLE_EVENTS.PROGRESS_UPDATED, progressEvent)
-    eventBus.sendToRenderer(
-      LIFECYCLE_EVENTS.PROGRESS_UPDATED,
-      SendTarget.ALL_WINDOWS,
-      progressEvent
-    )
-  }
-
-  /**
-   * Update the message displayed in the splash window
-   */
-  updateMessage(message: string): void {
-    if (!this.splashWindow || this.splashWindow.isDestroyed()) {
-      return
-    }
-
-    this.splashWindow.webContents.send('splash-message', { message })
+    this.splashWindow.webContents.send(LIFECYCLE_EVENTS.PROGRESS_UPDATED, progressEvent)
   }
 
   /**

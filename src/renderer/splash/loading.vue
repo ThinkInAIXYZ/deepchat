@@ -82,25 +82,20 @@ onMounted(() => {
   // Listen for progress updates from main process
   if (window.electron?.ipcRenderer) {
     const handleProgressUpdate = (_: any, data: { progress: number; message?: string }) => {
+      console.log('handleProgressUpdate', data.progress, data.message)
       progress.value = data.progress
       if (data.message) {
         statusMessage.value = data.message
       }
     }
 
-    const handleMessageUpdate = (_: any, data: { message: string }) => {
-      statusMessage.value = data.message
-    }
-
     window.electron.ipcRenderer.on('splash-update', handleProgressUpdate)
-    window.electron.ipcRenderer.on('splash-message', handleMessageUpdate)
   }
 })
 
 onUnmounted(() => {
   // Cleanup listeners
   window.electron.ipcRenderer.removeAllListeners('splash-update')
-  window.electron.ipcRenderer.removeAllListeners('splash-message')
 })
 </script>
 

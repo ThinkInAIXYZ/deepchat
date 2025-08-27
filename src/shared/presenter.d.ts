@@ -1933,7 +1933,6 @@ export interface ILifecycleManager {
 export interface ISplashWindowManager {
   create(): Promise<void>
   updateProgress(phase: LifecyclePhase, progress: number): void
-  updateMessage(message: string): void
   close(): Promise<void>
   isVisible(): boolean
 }
