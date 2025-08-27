@@ -686,6 +686,61 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
         continue
       }
 
+      // 处理 content 中直接包含 base64 图片的情况
+      let processedCurrentContent = currentContent
+      if (currentContent && currentContent.includes('![image](data:image/')) {
+        try {
+          // 使用正则表达式匹配 markdown 格式的 base64 图片
+          const base64ImageRegex = /!\[image\]\((data:image\/[^;]+;base64,[^)]+)\)/g
+          let hasImages = false
+
+          let match
+          while ((match = base64ImageRegex.exec(currentContent)) !== null) {
+            const base64Data = match[1] // 完整的 data:image/...;base64,... 格式
+
+            try {
+              // 缓存图片并获取URL
+              const cachedUrl = await presenter.devicePresenter.cacheImage(base64Data)
+
+              // 发送图片数据事件
+              yield {
+                type: 'image_data',
+                image_data: {
+                  data: cachedUrl,
+                  mimeType: 'deepchat/image-url'
+                }
+              }
+
+              // 从内容中完全移除图片部分，避免重复显示（image_data事件已经处理了图片显示）
+              processedCurrentContent = processedCurrentContent.replace(match[0], '')
+              hasImages = true
+
+              console.log(
+                `[handleChatCompletion] Successfully cached base64 image from content and removed from text`
+              )
+            } catch (cacheError) {
+              console.warn(
+                '[handleChatCompletion] Failed to cache base64 image from content:',
+                cacheError
+              )
+              // 缓存失败时保持原始内容不变
+            }
+          }
+
+          // 如果处理了图片，清理多余的空行并记录日志
+          if (hasImages) {
+            // 清理移除图片后可能留下的多余空行
+            processedCurrentContent = processedCurrentContent.replace(/\n\s*\n/g, '\n').trim()
+            console.log(
+              `[handleChatCompletion] Processed ${currentContent.length} chars -> ${processedCurrentContent.length} chars (images removed)`
+            )
+          }
+        } catch (error) {
+          console.error('[handleChatCompletion] Error processing base64 images in content:', error)
+          // 处理失败时继续正常流程
+        }
+      }
+
       // 原生 tool_calls 处理
       if (supportsFunctionCall && delta?.tool_calls?.length > 0) {
         toolUseDetected = true
@@ -777,10 +832,10 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
       }
 
       // 如果没有内容，则继续下一个 chunk
-      if (!currentContent) continue
+      if (!processedCurrentContent) continue
 
       // 2. 字符级流式处理内容
-      for (const char of currentContent) {
+      for (const char of processedCurrentContent) {
         pendingBuffer += char
 
         // 循环处理 pendingBuffer 直到它为空，或者不足以继续匹配
