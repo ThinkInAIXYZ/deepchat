@@ -5,9 +5,11 @@
 
 import { LifecycleHook, LifecycleContext } from '@shared/presenter'
 import { presenter } from '@/presenter'
+import { LifecyclePhase } from '@shared/lifecycle'
 
 export const windowCreationHook: LifecycleHook = {
   name: 'window-creation',
+  phase: LifecyclePhase.AFTER_START,
   priority: 20,
   critical: false,
   execute: async (_context: LifecycleContext) => {

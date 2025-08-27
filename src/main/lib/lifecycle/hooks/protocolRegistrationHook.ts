@@ -8,9 +8,11 @@ import { LifecycleHook, LifecycleContext } from '@shared/presenter'
 import path from 'path'
 import fs from 'fs'
 import { is } from '@electron-toolkit/utils'
+import { LifecyclePhase } from '@shared/lifecycle'
 
 export const protocolRegistrationHook: LifecycleHook = {
   name: 'protocol-registration',
+  phase: LifecyclePhase.INIT,
   priority: 10,
   critical: true,
   execute: async (_context: LifecycleContext) => {

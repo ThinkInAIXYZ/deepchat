@@ -10,9 +10,11 @@ import { eventBus } from '@/eventbus'
 import { WINDOW_EVENTS, TRAY_EVENTS, FLOATING_BUTTON_EVENTS } from '@/events'
 import { handleShowHiddenWindow } from '@/utils'
 import { presenter } from '@/presenter'
+import { LifecyclePhase } from '@shared/lifecycle'
 
 export const eventListenerSetupHook: LifecycleHook = {
   name: 'event-listener-setup',
+  phase: LifecyclePhase.READY,
   priority: 10,
   critical: false,
   execute: async (_context: LifecycleContext) => {

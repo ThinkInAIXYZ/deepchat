@@ -1,5 +1,6 @@
 import { LifecycleHook, LifecycleContext } from '@shared/presenter'
 import { DatabaseInitializer } from '../DatabaseInitializer'
+import { LifecyclePhase } from '@shared/lifecycle'
 
 /**
  * Database initialization hook for the init phase
@@ -7,10 +8,9 @@ import { DatabaseInitializer } from '../DatabaseInitializer'
  */
 export const databaseInitHook: LifecycleHook = {
   name: 'database-initialization',
-  priority: 1, // Execute early in the init phase
+  phase: LifecyclePhase.INIT,
+  priority: 2, // Execute after config init
   critical: true, // Database initialization is critical for app functionality
-  timeout: 30000, // 30 second timeout for database initialization
-
   async execute(context: LifecycleContext): Promise<void> {
     console.log('DatabaseInitHook: Starting database initialization')
 

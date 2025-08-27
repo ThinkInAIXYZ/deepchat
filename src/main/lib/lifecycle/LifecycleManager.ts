@@ -16,6 +16,7 @@ import {
   LifecycleState
 } from '@shared/presenter'
 import { LifecyclePhase } from '@shared/lifecycle'
+import { getInstance } from '@/presenter'
 
 export class LifecycleManager implements ILifecycleManager {
   private state: LifecycleState
@@ -87,6 +88,12 @@ export class LifecycleManager implements ILifecycleManager {
       await this.executePhase(LifecyclePhase.INIT)
       await this.executePhase(LifecyclePhase.BEFORE_START)
       await this.executePhase(LifecyclePhase.READY)
+
+      // init presenter
+      const presenter = getInstance(this)
+      presenter.deeplinkPresenter.init()
+
+      // After startup
       await this.executePhase(LifecyclePhase.AFTER_START)
 
       // Close splash window after startup is complete
@@ -156,8 +163,9 @@ export class LifecycleManager implements ILifecycleManager {
   /**
    * Register a hook for a specific lifecycle phase
    */
-  registerHook(phase: LifecyclePhase, hook: LifecycleHook): string {
+  registerHook(hook: LifecycleHook): string {
     const hookId = `hook_${++this.hookIdCounter}_${Date.now()}`
+    const phase = hook.phase
     const phaseHooks = this.state.hooks.get(phase)
 
     if (!phaseHooks) {
@@ -183,17 +191,17 @@ export class LifecycleManager implements ILifecycleManager {
   /**
    * Unregister a hook from a specific lifecycle phase
    */
-  unregisterHook(phase: LifecyclePhase, hookId: string): void {
-    const phaseHooks = this.state.hooks.get(phase)
-
-    if (!phaseHooks) {
-      throw new Error(`Invalid lifecycle phase: ${phase}`)
-    }
-
-    const index = phaseHooks.findIndex((h) => h.id === hookId)
-    if (index !== -1) {
-      const removedHook = phaseHooks.splice(index, 1)[0]
-      console.log(`Unregistered lifecycle hook '${removedHook.hook.name}' from phase '${phase}'`)
+  unregisterHook(hookId: string): void {
+    for (const [phase, phaseHooks] of this.state.hooks) {
+      if (!phaseHooks) {
+        throw new Error(`Invalid lifecycle phase: ${phase}`)
+      }
+      const index = phaseHooks.findIndex((h) => h.id === hookId)
+      if (index !== -1) {
+        const removedHook = phaseHooks.splice(index, 1)[0]
+        console.log(`Unregistered lifecycle hook '${removedHook.hook.name}' from phase '${phase}'`)
+        break
+      }
     }
   }
 
@@ -390,12 +398,14 @@ export class LifecycleManager implements ILifecycleManager {
 
     // Emit phase completed event to both main and renderer processes
     eventBus.sendToMain(LIFECYCLE_EVENTS.PHASE_COMPLETED, phaseCompletedEvent)
-    eventBus.sendToRenderer(
-      LIFECYCLE_EVENTS.PHASE_COMPLETED,
-      SendTarget.ALL_WINDOWS,
-      phaseCompletedEvent
-    )
-
+    if (getInstance(this)) {
+      // can send to renderer after presenter ready
+      eventBus.sendToRenderer(
+        LIFECYCLE_EVENTS.PHASE_COMPLETED,
+        SendTarget.ALL_WINDOWS,
+        phaseCompletedEvent
+      )
+    }
     if (is.dev) {
       console.log(
         `[LifecycleManager] Completed lifecycle phase: ${phase} (${phaseDuration}ms, ${successfulHooks}/${phaseHooks.length} hooks successful)`

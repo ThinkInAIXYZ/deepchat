@@ -1,7 +1,6 @@
 import { app } from 'electron'
 import path from 'path'
 import { SQLitePresenter } from '@/presenter/sqlitePresenter'
-import { eventBus } from '@/eventbus'
 
 /**
  * Database initialization interface
@@ -43,8 +42,6 @@ export class DatabaseInitializer implements IDatabaseInitializer {
       if (!isValid) {
         throw new Error('Database connection validation failed')
       }
-      // Emit database-ready event
-      eventBus.emit('database:ready', this.database)
 
       console.log('DatabaseInitializer: Database initialization completed successfully')
       return this.database
