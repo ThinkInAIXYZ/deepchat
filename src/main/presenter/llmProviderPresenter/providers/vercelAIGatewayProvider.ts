@@ -1,9 +1,8 @@
-import { LLM_PROVIDER, LLMResponse, ChatMessage } from '@shared/presenter'
+import { LLM_PROVIDER, LLMResponse, ChatMessage, IConfigPresenter } from '@shared/presenter'
 import { OpenAICompatibleProvider } from './openAICompatibleProvider'
-import { ConfigPresenter } from '../../configPresenter'
 
 export class VercelAIGatewayProvider extends OpenAICompatibleProvider {
-  constructor(provider: LLM_PROVIDER, configPresenter: ConfigPresenter) {
+  constructor(provider: LLM_PROVIDER, configPresenter: IConfigPresenter) {
     super(provider, configPresenter)
   }
 

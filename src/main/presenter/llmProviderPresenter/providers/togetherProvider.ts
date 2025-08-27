@@ -1,9 +1,8 @@
-import { LLM_PROVIDER, LLMResponse, MODEL_META } from '@shared/presenter'
+import { IConfigPresenter, LLM_PROVIDER, LLMResponse, MODEL_META } from '@shared/presenter'
 import { OpenAICompatibleProvider } from './openAICompatibleProvider'
-import { ConfigPresenter } from '../../configPresenter'
 import Together from 'together-ai'
 export class TogetherProvider extends OpenAICompatibleProvider {
-  constructor(provider: LLM_PROVIDER, configPresenter: ConfigPresenter) {
+  constructor(provider: LLM_PROVIDER, configPresenter: IConfigPresenter) {
     super(provider, configPresenter)
   }
 

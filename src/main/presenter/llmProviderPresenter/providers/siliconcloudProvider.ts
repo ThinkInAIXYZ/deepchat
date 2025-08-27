@@ -1,6 +1,12 @@
-import { LLM_PROVIDER, LLMResponse, MODEL_META, ChatMessage, KeyStatus } from '@shared/presenter'
+import {
+  LLM_PROVIDER,
+  LLMResponse,
+  MODEL_META,
+  ChatMessage,
+  KeyStatus,
+  IConfigPresenter
+} from '@shared/presenter'
 import { OpenAICompatibleProvider } from './openAICompatibleProvider'
-import { ConfigPresenter } from '../../configPresenter'
 
 // Define interface for SiliconCloud API key response
 interface SiliconCloudKeyResponse {
@@ -23,7 +29,7 @@ interface SiliconCloudKeyResponse {
 }
 
 export class SiliconcloudProvider extends OpenAICompatibleProvider {
-  constructor(provider: LLM_PROVIDER, configPresenter: ConfigPresenter) {
+  constructor(provider: LLM_PROVIDER, configPresenter: IConfigPresenter) {
     super(provider, configPresenter)
   }
 

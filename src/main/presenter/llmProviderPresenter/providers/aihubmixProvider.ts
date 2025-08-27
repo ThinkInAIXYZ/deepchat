@@ -1,12 +1,11 @@
-import { LLM_PROVIDER, LLMResponse, ChatMessage } from '@shared/presenter'
+import { LLM_PROVIDER, LLMResponse, ChatMessage, IConfigPresenter } from '@shared/presenter'
 import { OpenAICompatibleProvider } from './openAICompatibleProvider'
-import { ConfigPresenter } from '../../configPresenter'
 import { proxyConfig } from '@/presenter/proxyConfig'
 import { ProxyAgent } from 'undici'
 import OpenAI from 'openai'
 
 export class AihubmixProvider extends OpenAICompatibleProvider {
-  constructor(provider: LLM_PROVIDER, configPresenter: ConfigPresenter) {
+  constructor(provider: LLM_PROVIDER, configPresenter: IConfigPresenter) {
     super(provider, configPresenter)
   }
 

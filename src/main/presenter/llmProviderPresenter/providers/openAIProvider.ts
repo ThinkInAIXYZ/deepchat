@@ -1,8 +1,7 @@
-import { LLM_PROVIDER, LLMResponse } from '@shared/presenter'
+import { IConfigPresenter, LLM_PROVIDER, LLMResponse } from '@shared/presenter'
 import { OpenAICompatibleProvider } from './openAICompatibleProvider'
-import { ConfigPresenter } from '../../configPresenter'
 export class OpenAIProvider extends OpenAICompatibleProvider {
-  constructor(provider: LLM_PROVIDER, configPresenter: ConfigPresenter) {
+  constructor(provider: LLM_PROVIDER, configPresenter: IConfigPresenter) {
     super(provider, configPresenter)
   }
 

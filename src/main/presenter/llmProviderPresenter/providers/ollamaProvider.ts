@@ -8,10 +8,10 @@ import {
   ModelConfig,
   LLMCoreStreamEvent,
   ChatMessage,
-  LLM_EMBEDDING_ATTRS
+  LLM_EMBEDDING_ATTRS,
+  IConfigPresenter
 } from '@shared/presenter'
 import { BaseLLMProvider, SUMMARY_TITLES_PROMPT } from '../baseProvider'
-import { ConfigPresenter } from '../../configPresenter'
 import { Ollama, Message, ShowResponse } from 'ollama'
 import { presenter } from '@/presenter'
 import { EMBEDDING_TEST_KEY, isNormalized } from '@/utils/vector'
@@ -38,7 +38,7 @@ interface OllamaTool {
 
 export class OllamaProvider extends BaseLLMProvider {
   private ollama: Ollama
-  constructor(provider: LLM_PROVIDER, configPresenter: ConfigPresenter) {
+  constructor(provider: LLM_PROVIDER, configPresenter: IConfigPresenter) {
     super(provider, configPresenter)
     if (this.provider.apiKey) {
       this.ollama = new Ollama({

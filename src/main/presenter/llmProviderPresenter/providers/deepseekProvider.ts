@@ -1,6 +1,11 @@
-import { LLM_PROVIDER, LLMResponse, ChatMessage, KeyStatus } from '@shared/presenter'
+import {
+  LLM_PROVIDER,
+  LLMResponse,
+  ChatMessage,
+  KeyStatus,
+  IConfigPresenter
+} from '@shared/presenter'
 import { OpenAICompatibleProvider } from './openAICompatibleProvider'
-import { ConfigPresenter } from '../../configPresenter'
 import { SUMMARY_TITLES_PROMPT } from '../baseProvider'
 
 // Define interface for DeepSeek API key response
@@ -15,7 +20,7 @@ interface DeepSeekBalanceResponse {
 }
 
 export class DeepseekProvider extends OpenAICompatibleProvider {
-  constructor(provider: LLM_PROVIDER, configPresenter: ConfigPresenter) {
+  constructor(provider: LLM_PROVIDER, configPresenter: IConfigPresenter) {
     super(provider, configPresenter)
   }
 

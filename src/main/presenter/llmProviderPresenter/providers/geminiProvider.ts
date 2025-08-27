@@ -15,6 +15,7 @@ import {
 import { ModelType } from '@shared/model'
 import {
   ChatMessage,
+  IConfigPresenter,
   LLM_PROVIDER,
   LLMCoreStreamEvent,
   LLMResponse,
@@ -22,7 +23,6 @@ import {
   MODEL_META,
   ModelConfig
 } from '@shared/presenter'
-import { ConfigPresenter } from '../../configPresenter'
 import { BaseLLMProvider, SUMMARY_TITLES_PROMPT } from '../baseProvider'
 import { eventBus, SendTarget } from '@/eventbus'
 import { CONFIG_EVENTS } from '@/events'
@@ -138,7 +138,7 @@ export class GeminiProvider extends BaseLLMProvider {
     }
   ]
 
-  constructor(provider: LLM_PROVIDER, configPresenter: ConfigPresenter) {
+  constructor(provider: LLM_PROVIDER, configPresenter: IConfigPresenter) {
     super(provider, configPresenter)
     this.genAI = new GoogleGenAI({
       apiKey: this.provider.apiKey,

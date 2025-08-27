@@ -4,9 +4,8 @@ import { join } from 'path'
 import icon from '../../../../resources/icon.png?asset' // 应用图标 (macOS/Linux)
 import iconWin from '../../../../resources/icon.ico?asset' // 应用图标 (Windows)
 import { is } from '@electron-toolkit/utils' // Electron 工具库
-import { IWindowPresenter } from '@shared/presenter' // 窗口 Presenter 接口
+import { IConfigPresenter, IWindowPresenter } from '@shared/presenter' // 窗口 Presenter 接口
 import { eventBus } from '@/eventbus' // 事件总线
-import { ConfigPresenter } from '../configPresenter' // 配置 Presenter
 import { CONFIG_EVENTS, SYSTEM_EVENTS, WINDOW_EVENTS } from '@/events' // 系统/窗口/配置 事件常量
 import { presenter } from '../' // 全局 presenter 注册中心
 import windowStateManager from 'electron-window-state' // 窗口状态管理器
@@ -22,7 +21,7 @@ import { FloatingChatWindow } from './FloatingChatWindow' // 悬浮对话窗口
 export class WindowPresenter implements IWindowPresenter {
   // 管理所有 BrowserWindow 实例的 Map，key 为窗口 ID
   windows: Map<number, BrowserWindow>
-  private configPresenter: ConfigPresenter
+  private configPresenter: IConfigPresenter
   // 退出标志，表示应用是否正在关闭过程中 (由 'before-quit' 设置)
   private isQuitting: boolean = false
   // 当前获得焦点的窗口 ID (内部记录)
@@ -41,7 +40,7 @@ export class WindowPresenter implements IWindowPresenter {
   >()
   private floatingChatWindow: FloatingChatWindow | null = null
 
-  constructor(configPresenter: ConfigPresenter) {
+  constructor(configPresenter: IConfigPresenter) {
     this.windows = new Map()
     this.configPresenter = configPresenter
 

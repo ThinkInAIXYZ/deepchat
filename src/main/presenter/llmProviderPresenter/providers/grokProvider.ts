@@ -1,6 +1,5 @@
-import { LLM_PROVIDER, LLMResponse, ChatMessage } from '@shared/presenter'
+import { LLM_PROVIDER, LLMResponse, ChatMessage, IConfigPresenter } from '@shared/presenter'
 import { OpenAICompatibleProvider } from './openAICompatibleProvider'
-import { ConfigPresenter } from '../../configPresenter'
 import { ModelConfig, MCPToolDefinition, LLMCoreStreamEvent } from '@shared/presenter'
 
 export class GrokProvider extends OpenAICompatibleProvider {
@@ -8,7 +7,7 @@ export class GrokProvider extends OpenAICompatibleProvider {
   private static readonly IMAGE_MODEL_ID = 'grok-2-image'
   // private static readonly IMAGE_ENDPOINT = '/images/generations'
 
-  constructor(provider: LLM_PROVIDER, configPresenter: ConfigPresenter) {
+  constructor(provider: LLM_PROVIDER, configPresenter: IConfigPresenter) {
     super(provider, configPresenter)
   }
 

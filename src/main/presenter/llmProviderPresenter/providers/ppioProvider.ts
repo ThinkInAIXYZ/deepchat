@@ -1,6 +1,12 @@
-import { LLM_PROVIDER, LLMResponse, ChatMessage, KeyStatus, MODEL_META } from '@shared/presenter'
+import {
+  LLM_PROVIDER,
+  LLMResponse,
+  ChatMessage,
+  KeyStatus,
+  MODEL_META,
+  IConfigPresenter
+} from '@shared/presenter'
 import { OpenAICompatibleProvider } from './openAICompatibleProvider'
-import { ConfigPresenter } from '../../configPresenter'
 
 // Define interface for PPIO API key response
 interface PPIOKeyResponse {
@@ -23,7 +29,7 @@ interface PPIOModelResponse {
 }
 
 export class PPIOProvider extends OpenAICompatibleProvider {
-  constructor(provider: LLM_PROVIDER, configPresenter: ConfigPresenter) {
+  constructor(provider: LLM_PROVIDER, configPresenter: IConfigPresenter) {
     super(provider, configPresenter)
   }
 

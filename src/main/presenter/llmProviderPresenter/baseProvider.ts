@@ -7,9 +7,9 @@ import {
   ModelConfig,
   ChatMessage,
   KeyStatus,
-  LLM_EMBEDDING_ATTRS
+  LLM_EMBEDDING_ATTRS,
+  IConfigPresenter
 } from '@shared/presenter'
-import { ConfigPresenter } from '../configPresenter'
 import { DevicePresenter } from '../devicePresenter'
 import { jsonrepair } from 'jsonrepair'
 import { eventBus, SendTarget } from '@/eventbus'
@@ -36,14 +36,14 @@ export abstract class BaseLLMProvider {
   protected models: MODEL_META[] = []
   protected customModels: MODEL_META[] = []
   protected isInitialized: boolean = false
-  protected configPresenter: ConfigPresenter
+  protected configPresenter: IConfigPresenter
 
   protected defaultHeaders: Record<string, string> = {
     'HTTP-Referer': 'https://deepchatai.cn',
     'X-Title': 'DeepChat'
   }
 
-  constructor(provider: LLM_PROVIDER, configPresenter: ConfigPresenter) {
+  constructor(provider: LLM_PROVIDER, configPresenter: IConfigPresenter) {
     this.provider = provider
     this.configPresenter = configPresenter
     this.defaultHeaders = DevicePresenter.getDefaultHeaders()

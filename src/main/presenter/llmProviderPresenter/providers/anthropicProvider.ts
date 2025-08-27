@@ -5,10 +5,10 @@ import {
   LLMCoreStreamEvent,
   ModelConfig,
   MCPToolDefinition,
-  ChatMessage
+  ChatMessage,
+  IConfigPresenter
 } from '@shared/presenter'
 import { BaseLLMProvider, SUMMARY_TITLES_PROMPT } from '../baseProvider'
-import { ConfigPresenter } from '../../configPresenter'
 import Anthropic from '@anthropic-ai/sdk'
 import { presenter } from '@/presenter'
 import { Usage } from '@anthropic-ai/sdk/resources'
@@ -21,7 +21,7 @@ export class AnthropicProvider extends BaseLLMProvider {
   private isOAuthMode = false
   private defaultModel = 'claude-3-7-sonnet-20250219'
 
-  constructor(provider: LLM_PROVIDER, configPresenter: ConfigPresenter) {
+  constructor(provider: LLM_PROVIDER, configPresenter: IConfigPresenter) {
     super(provider, configPresenter)
     this.init()
   }

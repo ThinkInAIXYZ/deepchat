@@ -1,10 +1,15 @@
-import { LLM_PROVIDER, LLMResponse, MODEL_META, ChatMessage } from '@shared/presenter'
+import {
+  LLM_PROVIDER,
+  LLMResponse,
+  MODEL_META,
+  ChatMessage,
+  IConfigPresenter
+} from '@shared/presenter'
 import { OpenAICompatibleProvider } from './openAICompatibleProvider'
-import { ConfigPresenter } from '../../configPresenter'
 import { ModelsPage } from 'openai/resources'
 
 export class GithubProvider extends OpenAICompatibleProvider {
-  constructor(provider: LLM_PROVIDER, configPresenter: ConfigPresenter) {
+  constructor(provider: LLM_PROVIDER, configPresenter: IConfigPresenter) {
     super(provider, configPresenter)
   }
   protected async fetchOpenAIModels(options?: { timeout: number }): Promise<MODEL_META[]> {

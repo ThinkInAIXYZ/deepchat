@@ -7,7 +7,8 @@ import {
   LLMCoreStreamEvent,
   ModelConfig,
   ChatMessage,
-  LLM_EMBEDDING_ATTRS
+  LLM_EMBEDDING_ATTRS,
+  IConfigPresenter
 } from '@shared/presenter'
 import { BaseLLMProvider, SUMMARY_TITLES_PROMPT } from '../baseProvider'
 import OpenAI, { AzureOpenAI } from 'openai'
@@ -19,7 +20,6 @@ import {
   ChatCompletionMessageParam,
   ChatCompletionToolMessageParam
 } from 'openai/resources'
-import { ConfigPresenter } from '../../configPresenter'
 import { presenter } from '@/presenter'
 import { eventBus, SendTarget } from '@/eventbus'
 import { NOTIFICATION_EVENTS } from '@/events'
@@ -71,7 +71,7 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
   // 添加不支持 OpenAI 标准接口的供应商黑名单
   private static readonly NO_MODELS_API_LIST: string[] = []
 
-  constructor(provider: LLM_PROVIDER, configPresenter: ConfigPresenter) {
+  constructor(provider: LLM_PROVIDER, configPresenter: IConfigPresenter) {
     super(provider, configPresenter)
     this.createOpenAIClient()
     if (OpenAICompatibleProvider.NO_MODELS_API_LIST.includes(this.provider.id.toLowerCase())) {

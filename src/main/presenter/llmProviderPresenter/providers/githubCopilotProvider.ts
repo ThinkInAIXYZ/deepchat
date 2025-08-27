@@ -5,10 +5,10 @@ import {
   ChatMessage,
   LLMCoreStreamEvent,
   ModelConfig,
-  MCPToolDefinition
+  MCPToolDefinition,
+  IConfigPresenter
 } from '@shared/presenter'
 import { BaseLLMProvider, SUMMARY_TITLES_PROMPT } from '../baseProvider'
-import { ConfigPresenter } from '../../configPresenter'
 import { HttpsProxyAgent } from 'https-proxy-agent'
 
 // 扩展RequestInit类型以支持agent属性
@@ -29,7 +29,7 @@ export class GithubCopilotProvider extends BaseLLMProvider {
   private baseApiUrl = 'https://api.githubcopilot.com'
   private tokenUrl = 'https://api.github.com/copilot_internal/v2/token'
 
-  constructor(provider: LLM_PROVIDER, configPresenter: ConfigPresenter) {
+  constructor(provider: LLM_PROVIDER, configPresenter: IConfigPresenter) {
     super(provider, configPresenter)
 
     console.log('🎯 [GitHub Copilot] Constructor called')

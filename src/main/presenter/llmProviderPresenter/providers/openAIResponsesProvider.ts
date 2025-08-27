@@ -5,11 +5,11 @@ import {
   MCPToolDefinition,
   LLMCoreStreamEvent,
   ModelConfig,
-  ChatMessage
+  ChatMessage,
+  IConfigPresenter
 } from '@shared/presenter'
 import { BaseLLMProvider, SUMMARY_TITLES_PROMPT } from '../baseProvider'
 import OpenAI, { AzureOpenAI } from 'openai'
-import { ConfigPresenter } from '../../configPresenter'
 import { presenter } from '@/presenter'
 import { eventBus, SendTarget } from '@/eventbus'
 import { NOTIFICATION_EVENTS } from '@/events'
@@ -61,7 +61,7 @@ export class OpenAIResponsesProvider extends BaseLLMProvider {
   // 添加不支持 OpenAI 标准接口的供应商黑名单
   private static readonly NO_MODELS_API_LIST: string[] = []
 
-  constructor(provider: LLM_PROVIDER, configPresenter: ConfigPresenter) {
+  constructor(provider: LLM_PROVIDER, configPresenter: IConfigPresenter) {
     super(provider, configPresenter)
     this.createOpenAIClient()
     if (OpenAIResponsesProvider.NO_MODELS_API_LIST.includes(this.provider.id.toLowerCase())) {

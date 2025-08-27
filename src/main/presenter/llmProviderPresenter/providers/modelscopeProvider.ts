@@ -1,6 +1,11 @@
-import { LLM_PROVIDER, LLMResponse, ChatMessage, KeyStatus } from '@shared/presenter'
+import {
+  LLM_PROVIDER,
+  LLMResponse,
+  ChatMessage,
+  KeyStatus,
+  IConfigPresenter
+} from '@shared/presenter'
 import { OpenAICompatibleProvider } from './openAICompatibleProvider'
-import { ConfigPresenter } from '../../configPresenter'
 
 // Define interface for ModelScope MCP API response
 interface ModelScopeMcpServerResponse {
@@ -39,7 +44,7 @@ interface ModelScopeMcpServer {
 }
 
 export class ModelscopeProvider extends OpenAICompatibleProvider {
-  constructor(provider: LLM_PROVIDER, configPresenter: ConfigPresenter) {
+  constructor(provider: LLM_PROVIDER, configPresenter: IConfigPresenter) {
     super(provider, configPresenter)
   }
 

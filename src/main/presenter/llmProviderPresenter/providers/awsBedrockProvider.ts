@@ -5,10 +5,10 @@ import {
   ModelConfig,
   MCPToolDefinition,
   ChatMessage,
-  AWS_BEDROCK_PROVIDER
+  AWS_BEDROCK_PROVIDER,
+  IConfigPresenter
 } from '@shared/presenter'
 import { BaseLLMProvider, SUMMARY_TITLES_PROMPT } from '../baseProvider'
-import { ConfigPresenter } from '../../configPresenter'
 import { presenter } from '@/presenter'
 import { BedrockClient, ListFoundationModelsCommand } from '@aws-sdk/client-bedrock'
 import {
@@ -25,7 +25,7 @@ export class AwsBedrockProvider extends BaseLLMProvider {
   private bedrockRuntime!: BedrockRuntimeClient
   private defaultModel = 'anthropic.claude-3-5-sonnet-20240620-v1:0'
 
-  constructor(provider: AWS_BEDROCK_PROVIDER, configPresenter: ConfigPresenter) {
+  constructor(provider: AWS_BEDROCK_PROVIDER, configPresenter: IConfigPresenter) {
     super(provider, configPresenter)
     this.init()
   }

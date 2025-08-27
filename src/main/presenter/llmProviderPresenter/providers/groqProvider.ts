@@ -1,6 +1,11 @@
-import { LLM_PROVIDER, LLMResponse, ChatMessage, MODEL_META } from '@shared/presenter'
+import {
+  LLM_PROVIDER,
+  LLMResponse,
+  ChatMessage,
+  MODEL_META,
+  IConfigPresenter
+} from '@shared/presenter'
 import { OpenAICompatibleProvider } from './openAICompatibleProvider'
-import { ConfigPresenter } from '../../configPresenter'
 
 // Define interface for Groq model response (following PPIO naming convention)
 interface GroqModelResponse {
@@ -23,7 +28,7 @@ interface GroqModelResponse {
 }
 
 export class GroqProvider extends OpenAICompatibleProvider {
-  constructor(provider: LLM_PROVIDER, configPresenter: ConfigPresenter) {
+  constructor(provider: LLM_PROVIDER, configPresenter: IConfigPresenter) {
     super(provider, configPresenter)
   }
 
