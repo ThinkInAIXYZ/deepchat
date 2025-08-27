@@ -416,7 +416,8 @@ function updateHtmlTitles(config) {
   const htmlFiles = [
     'src/renderer/index.html',
     'src/renderer/shell/index.html',
-    'src/renderer/floating/index.html'
+    'src/renderer/floating/index.html',
+    'src/renderer/splash/index.html'
   ]
 
   let updatedCount = 0

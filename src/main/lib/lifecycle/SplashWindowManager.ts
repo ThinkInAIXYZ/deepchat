@@ -51,9 +51,8 @@ export class SplashWindowManager implements ISplashWindowManager {
       })
 
       // Load the splash HTML template
-      const isDev = is.dev
-      if (isDev) {
-        this.splashWindow.loadURL('http://localhost:5173/splash/')
+      if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
+        this.splashWindow.loadURL(process.env['ELECTRON_RENDERER_URL'] + '/splash/index.html')
       } else {
         this.splashWindow.loadFile(path.join(__dirname, '../renderer/splash/index.html'))
       }
