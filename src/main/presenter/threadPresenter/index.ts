@@ -129,6 +129,20 @@ export class ThreadPresenter implements IThreadPresenter {
     return null
   }
 
+  private async getTabWindowType(tabId: number): Promise<'floating' | 'main' | 'unknown'> {
+    try {
+      const tabView = await presenter.tabPresenter.getTab(tabId)
+      if (!tabView) {
+        return 'unknown'
+      }
+      const windowId = presenter.tabPresenter['tabWindowMap'].get(tabId)
+      return windowId ? 'main' : 'floating'
+    } catch (error) {
+      console.error('Error determining tab window type:', error)
+      return 'unknown'
+    }
+  }
+
   async handleLLMAgentError(msg: LLMAgentEventData) {
     const { eventId, error } = msg
     const state = this.generatingMessages.get(eventId)
@@ -1133,11 +1147,26 @@ export class ThreadPresenter implements IThreadPresenter {
         `Conversation ${conversationId} is already open in tab ${existingTabId}. Switching to it.`
       )
       // 命令TabPresenter切换到已存在的Tab
-      await presenter.tabPresenter.switchTab(existingTabId)
-      // 注意：这里不应该再为 requesting tab (即 tabId) 设置 activeConversationId
-      // 也不需要发送ACTIVATED事件，因为tab-session的绑定关系没有改变。
-      // switchTab 自身会处理UI的激活。
-      return
+      const currentTabType = await this.getTabWindowType(tabId)
+      const existingTabType = await this.getTabWindowType(existingTabId)
+      if (currentTabType !== existingTabType) {
+        this.activeConversationIds.delete(existingTabId)
+        eventBus.sendToRenderer(CONVERSATION_EVENTS.DEACTIVATED, SendTarget.ALL_WINDOWS, {
+          tabId: existingTabId
+        })
+        this.activeConversationIds.set(tabId, conversationId)
+        eventBus.sendToRenderer(CONVERSATION_EVENTS.ACTIVATED, SendTarget.ALL_WINDOWS, {
+          conversationId,
+          tabId
+        })
+        return
+      } else {
+        await presenter.tabPresenter.switchTab(existingTabId)
+        // 注意：这里不应该再为 requesting tab (即 tabId) 设置 activeConversationId
+        // 也不需要发送ACTIVATED事件，因为tab-session的绑定关系没有改变。
+        // switchTab 自身会处理UI的激活。
+        return
+      }
     }
 
     // 如果会话未在其他Tab打开，或者是请求激活当前Tab已绑定的会话，则正常执行绑定
