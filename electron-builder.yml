@@ -30,6 +30,9 @@ extraResources:
   - from: ./runtime/
     to: app.asar.unpacked/runtime
     filter: ['**/*']
+  - from: ./app.asar.unpacked/internal-proxy
+    to: app.asar.unpacked/internal-proxy  
+    filter: ['**/*']
 electronLanguages:
   - zh-CN
   - zh-TW

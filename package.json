@@ -66,6 +66,7 @@
     "@google/genai": "^1.13.0",
     "@jxa/run": "^1.4.0",
     "@modelcontextprotocol/sdk": "^1.17.2",
+    "adm-zip": "^0.5.16",
     "axios": "^1.7.9",
     "better-sqlite3-multiple-ciphers": "12.2.0",
     "cheerio": "^1.0.0",
