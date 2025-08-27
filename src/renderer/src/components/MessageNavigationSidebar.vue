@@ -160,8 +160,14 @@ const getFullMessageContent = (message: Message): string => {
     const userContent = message.content as import('@shared/chat').UserMessageContent
     return userContent.text || ''
   } else if (message.role === 'assistant') {
-    const assistantContent = message.content as import('@shared/chat').AssistantMessageBlock[]
-    return assistantContent
+    const assistantMessage = message as import('@shared/chat').AssistantMessage
+    let contentToDisplay =
+      assistantMessage.content as import('@shared/chat').AssistantMessageBlock[]
+    if (assistantMessage.variants && assistantMessage.variants.length > 0) {
+      const latestVariant = assistantMessage.variants[assistantMessage.variants.length - 1]
+      contentToDisplay = latestVariant.content as import('@shared/chat').AssistantMessageBlock[]
+    }
+    return contentToDisplay
       .filter((block: import('@shared/chat').AssistantMessageBlock) => block.type === 'content')
       .map((block: import('@shared/chat').AssistantMessageBlock) => block.content || '')
       .join(' ')
