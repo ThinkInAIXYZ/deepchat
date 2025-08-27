@@ -1,11 +1,11 @@
+import { LifecyclePhase } from './../../../src/shared/lifecycle'
+import { SplashWindowManager } from './../../../src/main/lib/lifecycle/SplashWindowManager'
 /**
  * Unit tests for SplashWindowManager
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { BrowserWindow } from 'electron'
-import { SplashWindowManager } from '../../../src/main/lib/lifecycle/SplashWindowManager'
-import { LifecyclePhase } from '../../../src/main/lib/lifecycle/types'
 
 // Mock Electron
 vi.mock('electron', () => ({

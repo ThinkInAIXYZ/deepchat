@@ -4,11 +4,8 @@
 
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest'
 import { LifecycleErrorHandler } from '../../../src/main/lib/lifecycle/ErrorHandler'
-import {
-  LifecyclePhase,
-  LifecycleHook,
-  LifecycleContext
-} from '../../../src/main/lib/lifecycle/types'
+import { LifecycleHook, LifecycleContext } from './../../../src/shared/presenter'
+import { LifecyclePhase } from './../../../src/shared/lifecycle'
 
 // Mock the eventBus
 vi.mock('../../../src/main/eventbus', () => ({
