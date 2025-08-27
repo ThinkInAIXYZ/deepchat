@@ -47,6 +47,7 @@ interface IAppSettings {
   loggingEnabled?: boolean // 日志记录是否启用
   floatingButtonEnabled?: boolean // 悬浮按钮是否启用
   default_system_prompt?: string // 默认系统提示词
+  webContentLengthLimit?: number // 网页内容截断长度限制，默认3000字符
   [key: string]: unknown // 允许任意键，使用unknown类型替代any
 }
 
@@ -109,6 +110,7 @@ export class ConfigPresenter implements IConfigPresenter {
         loggingEnabled: false,
         floatingButtonEnabled: false,
         default_system_prompt: '',
+        webContentLengthLimit: 3000,
         appVersion: this.currentAppVersion
       }
     })
