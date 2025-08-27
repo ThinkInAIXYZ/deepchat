@@ -67,7 +67,7 @@
             :min="0"
             :max="50000"
             :step="1000"
-            :model-value="3000"
+            :model-value="webContentLengthLimit"
             @update:model-value="handleWebContentLengthLimitChange"
             class="text-right"
             placeholder="3000"
@@ -414,6 +414,9 @@ const selectedProxyMode = ref('system')
 const customProxyUrl = ref('')
 const showUrlError = ref(false)
 
+// 网页内容长度限制
+const webContentLengthLimit = ref(3000)
+
 // 新增搜索引擎相关
 const isAddSearchEngineDialogOpen = ref(false)
 const newSearchEngine = ref({
@@ -528,6 +531,16 @@ onMounted(async () => {
   customProxyUrl.value = await configPresenter.getCustomProxyUrl()
   if (selectedProxyMode.value === 'custom' && customProxyUrl.value) {
     validateProxyUrl()
+  }
+
+  // 加载网页内容长度限制设置
+  try {
+    const savedLimit = await configPresenter.getSetting<number>('webContentLengthLimit')
+    if (savedLimit !== undefined && savedLimit !== null) {
+      webContentLengthLimit.value = savedLimit
+    }
+  } catch (error) {
+    console.error('加载网页内容长度限制设置失败:', error)
   }
 })
 
@@ -685,6 +698,8 @@ const handleWebContentLengthLimitChange = async (value: string | number) => {
       console.log('设置网页内容长度限制:', displayText)
       // 直接调用presenter设置，不依赖store
       await configPresenter.setSetting('webContentLengthLimit', numValue)
+      // 更新响应式变量
+      webContentLengthLimit.value = numValue
     } catch (error) {
       console.error('设置网页内容长度限制失败:', error)
     }
