@@ -40,6 +40,9 @@ interface IPCCallContext {
 
 // 主 Presenter 类，负责协调其他 Presenter 并处理 IPC 通信
 export class Presenter implements IPresenter {
+  // 私有静态实例
+  private static instance: Presenter
+
   windowPresenter: WindowPresenter
   sqlitePresenter: SQLitePresenter
   llmproviderPresenter: LLMProviderPresenter
@@ -60,12 +63,9 @@ export class Presenter implements IPresenter {
   knowledgePresenter: KnowledgePresenter
   // llamaCppPresenter: LlamaCppPresenter // 保留原始注释
   dialogPresenter: DialogPresenter
-  lifecycleManager?: import('@/lib/lifecycle').ILifecycleManager
+  lifecycleManager: ILifecycleManager
 
-  constructor(
-    database: SQLitePresenter,
-    lifecycleManager?: import('@/lib/lifecycle').ILifecycleManager
-  ) {
+  private constructor(lifecycleManager: ILifecycleManager, database: SQLitePresenter) {
     // Store lifecycle manager reference for component access
     this.lifecycleManager = lifecycleManager
     // 初始化各个 Presenter 实例及其依赖
@@ -111,6 +111,17 @@ export class Presenter implements IPresenter {
 
     // this.llamaCppPresenter = new LlamaCppPresenter() // 保留原始注释
     this.setupEventBus() // 设置事件总线监听
+  }
+
+  public static getInstance(
+    lifecycleManager: ILifecycleManager,
+    database: SQLitePresenter
+  ): Presenter {
+    if (!Presenter.instance) {
+      // 只能在类内部调用私有构造函数
+      Presenter.instance = new Presenter(lifecycleManager, database)
+    }
+    return Presenter.instance
   }
 
   // 设置事件总线监听和转发
@@ -187,11 +198,6 @@ export class Presenter implements IPresenter {
     }
   }
 
-  // Get lifecycle manager instance for component access
-  getLifecycleManager(): import('@/lib/lifecycle').ILifecycleManager | undefined {
-    return this.lifecycleManager
-  }
-
   // 在应用退出时进行清理，关闭数据库连接
   destroy() {
     this.floatingButtonPresenter.destroy() // 销毁悬浮按钮
@@ -210,11 +216,12 @@ export class Presenter implements IPresenter {
 export let presenter: Presenter
 
 // Initialize presenter with database instance and optional lifecycle manager
-export function initializePresenter(
-  database: SQLitePresenter,
-  lifecycleManager?: ILifecycleManager
+export function getInstance(
+  lifecycleManager: ILifecycleManager,
+  database: SQLitePresenter
 ): Presenter {
-  presenter = new Presenter(database, lifecycleManager)
+  // only allow initialize once
+  if (presenter == null) presenter = Presenter.getInstance(lifecycleManager, database)
   return presenter
 }
 

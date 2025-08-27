@@ -1,7 +1,7 @@
 import { app } from 'electron'
 import { LifecycleManager } from './lib/lifecycle'
 import { registerCoreHooks } from './lib/lifecycle/coreHooks'
-import { initializePresenter, Presenter } from './presenter'
+import { getInstance, Presenter } from './presenter'
 import { eventBus } from './eventbus'
 
 // Set application command line arguments
@@ -28,7 +28,7 @@ registerCoreHooks(lifecycleManager)
 // Initialize presenter after database is ready
 let presenter: Presenter
 eventBus.on('database:ready', (database) => {
-  presenter = initializePresenter(database, lifecycleManager)
+  presenter = getInstance(lifecycleManager, database)
   // Initialize DeepLink handling after presenter is ready
   presenter.deeplinkPresenter.init()
 })

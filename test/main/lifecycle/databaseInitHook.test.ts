@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { databaseInitHook } from '../../src/main/lib/lifecycle/hooks/databaseInitHook'
-import { LifecycleContext, LifecyclePhase } from '../../src/main/lib/lifecycle/types'
-import { DatabaseInitializer } from '../../src/main/lib/lifecycle/DatabaseInitializer'
-import { initializePresenter } from '../../src/main/presenter'
+import { databaseInitHook } from '../../../src/main/lib/lifecycle/hooks/databaseInitHook'
+import { LifecycleContext, LifecyclePhase } from '../../../src/main/lib/lifecycle/types'
+import { DatabaseInitializer } from '../../../src/main/lib/lifecycle/DatabaseInitializer'
+import { getInstance } from '../../../src/main/presenter'
 
 // Mock dependencies
 vi.mock('../../src/main/lib/lifecycle/DatabaseInitializer')
@@ -53,7 +53,7 @@ describe('databaseInitHook', () => {
       expect(mockDbInitializer.initialize).toHaveBeenCalled()
       expect(mockDbInitializer.migrate).toHaveBeenCalled()
       expect(mockContext.database).toBe(mockDatabase)
-      expect(initializePresenter).toHaveBeenCalledWith(mockDatabase)
+      expect(getInstance).toHaveBeenCalledWith(mockDatabase)
     })
 
     it('should throw error if database initialization fails', async () => {
@@ -63,7 +63,7 @@ describe('databaseInitHook', () => {
       await expect(databaseInitHook.execute(mockContext)).rejects.toThrow(
         'Database initialization failed'
       )
-      expect(initializePresenter).not.toHaveBeenCalled()
+      expect(getInstance).not.toHaveBeenCalled()
     })
 
     it('should throw error if migration fails', async () => {
@@ -71,12 +71,12 @@ describe('databaseInitHook', () => {
       mockDbInitializer.migrate.mockRejectedValue(migrationError)
 
       await expect(databaseInitHook.execute(mockContext)).rejects.toThrow('Migration failed')
-      expect(initializePresenter).not.toHaveBeenCalled()
+      expect(getInstance).not.toHaveBeenCalled()
     })
 
     it('should throw error if presenter initialization fails', async () => {
       const presenterError = new Error('Presenter initialization failed')
-      vi.mocked(initializePresenter).mockImplementation(() => {
+      vi.mocked(getInstance).mockImplementation(() => {
         throw presenterError
       })
 

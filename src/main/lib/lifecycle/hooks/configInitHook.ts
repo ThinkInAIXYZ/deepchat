@@ -20,7 +20,7 @@ export const configInitHook: LifecycleHook = {
       throw new Error('Presenter not initialized - database hook should run first')
     }
 
-    // Add 5-second delay to demonstrate splash window (for development/testing)
+    // TODO: Add 5-second delay to demonstrate splash window (for development/testing)
     console.log('Simulating configuration loading delay...')
     await new Promise((resolve) => setTimeout(resolve, 5000))
 
