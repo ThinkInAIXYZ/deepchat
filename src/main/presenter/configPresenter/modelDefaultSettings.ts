@@ -374,18 +374,6 @@ export const defaultModelsSettings: DefaultModelSetting[] = [
     thinkingBudget: -1 // 动态思维
   },
   {
-    id: 'models/gemini-2.5-flash-lite',
-    name: 'Gemini 2.5 Flash-Lite',
-    temperature: 0.7,
-    maxTokens: 65535,
-    contextLength: 1048576,
-    match: ['models/gemini-2.5-flash-lite', 'gemini-2.5-flash-lite'],
-    vision: true,
-    functionCall: true,
-    reasoning: true,
-    thinkingBudget: -1 // 动态思维
-  },
-  {
     id: 'models/gemini-2.5-flash-lite-preview-06-17',
     name: 'Gemini 2.5 Flash-Lite Preview',
     temperature: 0.7,
