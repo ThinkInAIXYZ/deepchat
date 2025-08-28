@@ -2346,7 +2346,8 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         match: ['google/gemini-2.5-flash-image-preview', 'gemini-2.5-flash-image-preview'],
         vision: true,
         functionCall: false,
-        reasoning: false
+        reasoning: false,
+        type: ModelType.ImageGeneration
       },
       {
         id: 'deepseek-r1-0528:free',
