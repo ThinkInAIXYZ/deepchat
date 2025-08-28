@@ -114,7 +114,7 @@ export class LifecycleErrorHandler {
           if (options.allowRetry && this.canRetry(error.hookName)) {
             return { shouldRetry: true, shouldContinue: false }
           }
-        // Fall through to abort if retry not possible
+          return { shouldRetry: false, shouldContinue: false }
         case 'abort':
           return { shouldRetry: false, shouldContinue: false }
         case 'continue':
