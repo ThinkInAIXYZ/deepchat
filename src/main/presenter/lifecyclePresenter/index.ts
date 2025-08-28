@@ -175,8 +175,8 @@ export class LifecycleManager implements ILifecycleManager {
     // Update the single context instance with current phase
     this.lifecycleContext.phase = phase
 
-    let successfulHooks = 0
-    let failedHooks = 0
+    let _successfulHooks = 0
+    let _failedHooks = 0
 
     // Execute hooks in priority order
     for (let i = 0; i < phaseHooks.length; i++) {
@@ -190,9 +190,9 @@ export class LifecycleManager implements ILifecycleManager {
 
       try {
         await this.executeHook(hook, this.lifecycleContext)
-        successfulHooks++
+        _successfulHooks++
       } catch (hookError) {
-        failedHooks++
+        _failedHooks++
         // For critical hooks, the error is already handled in executeHook
         // For startup phases (init, before-ready, ready), the app will exit
         if (hook.critical) {
