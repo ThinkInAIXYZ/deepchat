@@ -32,7 +32,8 @@ export const CONFIG_EVENTS = {
   OAUTH_LOGIN_START: 'config:oauth-login-start', // OAuth登录开始
   OAUTH_LOGIN_SUCCESS: 'config:oauth-login-success', // OAuth登录成功
   OAUTH_LOGIN_ERROR: 'config:oauth-login-error', // OAuth登录失败
-  THEME_CHANGED: 'config:theme-changed' // 主题变更事件
+  THEME_CHANGED: 'config:theme-changed', // 主题变更事件
+  FONT_SIZE_CHANGED: 'config:font-size-changed' // 字体大小变更事件
 }
 
 // 会话相关事件

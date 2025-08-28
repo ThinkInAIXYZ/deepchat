@@ -54,6 +54,22 @@ interface GeneratingMessageState {
     total_tokens: number
     context_length: number
   }
+  // 统一的自适应内容处理
+  adaptiveBuffer?: {
+    content: string
+    lastUpdateTime: number
+    updateCount: number
+    totalSize: number
+    isLargeContent: boolean
+    chunks?: string[]
+    currentChunkIndex?: number
+    // 精确追踪已发送内容的位置
+    sentPosition: number // 已发送到渲染器的内容位置
+    isProcessing?: boolean
+  }
+  flushTimeout?: NodeJS.Timeout
+  throttleTimeout?: NodeJS.Timeout
+  lastRendererUpdateTime?: number
 }
 
 export class ThreadPresenter implements IThreadPresenter {
@@ -113,10 +129,32 @@ export class ThreadPresenter implements IThreadPresenter {
     return null
   }
 
+  private async getTabWindowType(tabId: number): Promise<'floating' | 'main' | 'unknown'> {
+    try {
+      const tabView = await presenter.tabPresenter.getTab(tabId)
+      if (!tabView) {
+        return 'unknown'
+      }
+      const windowId = presenter.tabPresenter['tabWindowMap'].get(tabId)
+      return windowId ? 'main' : 'floating'
+    } catch (error) {
+      console.error('Error determining tab window type:', error)
+      return 'unknown'
+    }
+  }
+
   async handleLLMAgentError(msg: LLMAgentEventData) {
     const { eventId, error } = msg
     const state = this.generatingMessages.get(eventId)
     if (state) {
+      // 刷新剩余缓冲内容
+      if (state.adaptiveBuffer) {
+        await this.flushAdaptiveBuffer(eventId)
+      }
+
+      // 清理缓冲相关资源
+      this.cleanupContentBuffer(state)
+
       await this.messageManager.handleMessageError(eventId, String(error))
       this.generatingMessages.delete(eventId)
     }
@@ -158,6 +196,20 @@ export class ThreadPresenter implements IThreadPresenter {
     }
 
     eventBus.sendToRenderer(STREAM_EVENTS.END, SendTarget.ALL_WINDOWS, msg)
+  }
+
+  // 清理所有缓冲相关资源
+  private cleanupContentBuffer(state: GeneratingMessageState): void {
+    if (state.flushTimeout) {
+      clearTimeout(state.flushTimeout)
+      state.flushTimeout = undefined
+    }
+    if (state.throttleTimeout) {
+      clearTimeout(state.throttleTimeout)
+      state.throttleTimeout = undefined
+    }
+    state.adaptiveBuffer = undefined
+    state.lastRendererUpdateTime = undefined
   }
 
   // 完成消息的通用方法
@@ -233,6 +285,14 @@ export class ThreadPresenter implements IThreadPresenter {
       metadata.reasoningEndTime = state.lastReasoningTime - state.startTime
     }
 
+    // 刷新剩余缓冲内容
+    if (state.adaptiveBuffer) {
+      await this.flushAdaptiveBuffer(eventId)
+    }
+
+    // 清理缓冲相关资源
+    this.cleanupContentBuffer(state)
+
     // 更新消息的usage信息
     await this.messageManager.updateMessageMetadata(eventId, metadata)
     await this.messageManager.updateMessageStatus(eventId, 'sent')
@@ -282,6 +342,226 @@ export class ThreadPresenter implements IThreadPresenter {
       await this.broadcastThreadListUpdate()
     }
   }
+
+  // 释放缓冲的内容
+
+  // 统一的自适应内容刷新
+  private async flushAdaptiveBuffer(eventId: string): Promise<void> {
+    const state = this.generatingMessages.get(eventId)
+    if (!state?.adaptiveBuffer) return
+
+    const buffer = state.adaptiveBuffer
+    const now = Date.now()
+
+    // 清理超时
+    if (state.flushTimeout) {
+      clearTimeout(state.flushTimeout)
+      state.flushTimeout = undefined
+    }
+
+    // 处理缓冲的内容 - 只发送从 sentPosition 开始的新内容
+    if (buffer.content && buffer.sentPosition < buffer.content.length) {
+      const newContent = buffer.content.slice(buffer.sentPosition)
+      if (newContent) {
+        await this.processBufferedContent(eventId, newContent, now)
+        // 更新已发送位置
+        buffer.sentPosition = buffer.content.length
+      }
+    }
+
+    // 清理缓冲
+    state.adaptiveBuffer = undefined
+  }
+
+  // 优化的自适应内容处理 - 核心逻辑 (当前未使用)
+  // private async addToAdaptiveBuffer(eventId: string, content: string): Promise<void> {
+  //   // 方法保留以备将来使用
+  // }
+
+  // 分块大内容 - 使用更小的分块避免UI阻塞
+  private splitLargeContent(content: string): string[] {
+    const chunks: string[] = []
+    let maxChunkSize = 4096 // 默认4KB
+
+    // 对于图片base64内容，使用非常小的分块
+    if (content.includes('data:image/')) {
+      maxChunkSize = 512 // 图片内容使用512字节分块
+    }
+
+    // 对于超长内容，进一步减小分块
+    if (content.length > 50000) {
+      maxChunkSize = Math.min(maxChunkSize, 256)
+    }
+
+    for (let i = 0; i < content.length; i += maxChunkSize) {
+      chunks.push(content.slice(i, i + maxChunkSize))
+    }
+
+    return chunks
+  }
+
+  // 智能判断是否需要分块处理 - 优化阈值判断
+  private shouldSplitContent(content: string): boolean {
+    const sizeThreshold = 8192 // 8KB - 适中的阈值
+    const hasBase64Image = content.includes('data:image/') && content.includes('base64,')
+    const hasLargeBase64 = hasBase64Image && content.length > 5120 // 图片内容超过5KB才分块
+
+    return content.length > sizeThreshold || hasLargeBase64
+  }
+
+  // 处理缓冲的内容 - 优化异步处理
+  private async processBufferedContent(
+    eventId: string,
+    content: string,
+    currentTime: number
+  ): Promise<void> {
+    const state = this.generatingMessages.get(eventId)
+    if (!state) return
+
+    const buffer = state.adaptiveBuffer
+
+    // 如果是大内容，使用分块处理
+    if (buffer?.isLargeContent) {
+      await this.processLargeContentAsynchronously(eventId, content, currentTime)
+      return
+    }
+
+    // 正常内容处理
+    await this.processNormalContent(eventId, content, currentTime)
+  }
+
+  // 异步处理大内容 - 避免阻塞主进程
+  private async processLargeContentAsynchronously(
+    eventId: string,
+    content: string,
+    currentTime: number
+  ): Promise<void> {
+    const state = this.generatingMessages.get(eventId)
+    if (!state) return
+
+    const buffer = state.adaptiveBuffer
+    if (!buffer) return
+
+    // 设置处理状态
+    buffer.isProcessing = true
+
+    try {
+      // 动态分块 - 只处理传入的新增内容
+      const chunks = this.splitLargeContent(content)
+      const totalChunks = chunks.length
+
+      console.log(
+        `[ThreadPresenter] Processing ${totalChunks} chunks asynchronously for ${content.length} bytes`
+      )
+
+      // 初始化或获取内容块
+      const lastBlock = state.message.content[state.message.content.length - 1]
+      let contentBlock: any
+
+      if (lastBlock && lastBlock.type === 'content') {
+        contentBlock = lastBlock
+      } else {
+        this.finalizeLastBlock(state)
+        contentBlock = {
+          type: 'content',
+          content: '',
+          status: 'loading',
+          timestamp: currentTime
+        }
+        state.message.content.push(contentBlock)
+      }
+
+      // 批量处理分块，每次处琅5个
+      const batchSize = 5
+      for (let batchStart = 0; batchStart < chunks.length; batchStart += batchSize) {
+        const batchEnd = Math.min(batchStart + batchSize, chunks.length)
+        const batch = chunks.slice(batchStart, batchEnd)
+
+        // 合并当前批次的内容
+        const batchContent = batch.join('')
+        contentBlock.content += batchContent
+
+        // 更新数据库
+        await this.messageManager.editMessage(eventId, JSON.stringify(state.message.content))
+
+        // 发送渲染器事件
+        const eventData: any = {
+          eventId,
+          content: batchContent,
+          chunkInfo: {
+            current: batchEnd,
+            total: totalChunks,
+            isLargeContent: true,
+            batchSize: batch.length
+          }
+        }
+
+        eventBus.sendToRenderer(STREAM_EVENTS.RESPONSE, SendTarget.ALL_WINDOWS, eventData)
+
+        // 每批次之间的延迟，让出event loop
+        if (batchEnd < chunks.length) {
+          await new Promise((resolve) => setImmediate(resolve))
+        }
+      }
+
+      console.log(`[ThreadPresenter] Completed processing ${totalChunks} chunks`)
+    } catch (error) {
+      console.error('[ThreadPresenter] Error in processLargeContentAsynchronously:', error)
+    } finally {
+      // 清理处理状态
+      buffer.isProcessing = false
+    }
+  }
+
+  // 处理普通内容
+  private async processNormalContent(
+    eventId: string,
+    content: string,
+    currentTime: number
+  ): Promise<void> {
+    const state = this.generatingMessages.get(eventId)
+    if (!state) return
+
+    const lastBlock = state.message.content[state.message.content.length - 1]
+
+    if (lastBlock && lastBlock.type === 'content') {
+      lastBlock.content += content
+    } else {
+      this.finalizeLastBlock(state)
+      state.message.content.push({
+        type: 'content',
+        content: content,
+        status: 'loading',
+        timestamp: currentTime
+      })
+    }
+
+    // 只更新数据库，不额外发送到渲染器（避免重复发送）
+    await this.messageManager.editMessage(eventId, JSON.stringify(state.message.content))
+  }
+
+  // 完成最后一个块的状态
+  private finalizeLastBlock(state: GeneratingMessageState): void {
+    const lastBlock =
+      state.message.content.length > 0
+        ? state.message.content[state.message.content.length - 1]
+        : undefined
+
+    if (lastBlock) {
+      if (lastBlock.type === 'tool_call_permission' && lastBlock.status === 'pending') {
+        lastBlock.status = 'granted'
+        return
+      }
+      if (!(lastBlock.type === 'tool_call' && lastBlock.status === 'loading')) {
+        lastBlock.status = 'success'
+      }
+    }
+  }
+
+  // 统一的数据库和渲染器更新 (当前未使用)
+  // private async updateMessageAndRenderer(eventId: string, content: string, currentTime: number, chunkInfo?: any): Promise<void> {
+  //   // 方法保留以备将来使用
+  // }
 
   async handleLLMAgentResponse(msg: LLMAgentEventData) {
     const currentTime = Date.now()
@@ -599,18 +879,8 @@ export class ThreadPresenter implements IThreadPresenter {
           image_data: image_data
         })
       } else if (content) {
-        // 处理普通内容
-        if (lastBlock && lastBlock.type === 'content') {
-          lastBlock.content += content
-        } else {
-          finalizeLastBlock() // 使用保护逻辑
-          state.message.content.push({
-            type: 'content',
-            content: content,
-            status: 'loading',
-            timestamp: currentTime
-          })
-        }
+        // 简化的直接内容处理
+        await this.processContentDirectly(state.message.id, content, currentTime)
       }
 
       // 处理推理内容
@@ -877,11 +1147,26 @@ export class ThreadPresenter implements IThreadPresenter {
         `Conversation ${conversationId} is already open in tab ${existingTabId}. Switching to it.`
       )
       // 命令TabPresenter切换到已存在的Tab
-      await presenter.tabPresenter.switchTab(existingTabId)
-      // 注意：这里不应该再为 requesting tab (即 tabId) 设置 activeConversationId
-      // 也不需要发送ACTIVATED事件，因为tab-session的绑定关系没有改变。
-      // switchTab 自身会处理UI的激活。
-      return
+      const currentTabType = await this.getTabWindowType(tabId)
+      const existingTabType = await this.getTabWindowType(existingTabId)
+      if (currentTabType !== existingTabType) {
+        this.activeConversationIds.delete(existingTabId)
+        eventBus.sendToRenderer(CONVERSATION_EVENTS.DEACTIVATED, SendTarget.ALL_WINDOWS, {
+          tabId: existingTabId
+        })
+        this.activeConversationIds.set(tabId, conversationId)
+        eventBus.sendToRenderer(CONVERSATION_EVENTS.ACTIVATED, SendTarget.ALL_WINDOWS, {
+          conversationId,
+          tabId
+        })
+        return
+      } else {
+        await presenter.tabPresenter.switchTab(existingTabId)
+        // 注意：这里不应该再为 requesting tab (即 tabId) 设置 activeConversationId
+        // 也不需要发送ACTIVATED事件，因为tab-session的绑定关系没有改变。
+        // switchTab 自身会处理UI的激活。
+        return
+      }
     }
 
     // 如果会话未在其他Tab打开，或者是请求激活当前Tab已绑定的会话，则正常执行绑定
@@ -2388,6 +2673,14 @@ export class ThreadPresenter implements IThreadPresenter {
     if (state) {
       // 设置统一的取消标志
       state.isCancelled = true
+
+      // 刷新剩余缓冲内容
+      if (state.adaptiveBuffer) {
+        await this.flushAdaptiveBuffer(messageId)
+      }
+
+      // 清理缓冲相关资源
+      this.cleanupContentBuffer(state)
 
       // 标记消息不再处于搜索状态
       if (state.isSearching) {
@@ -3916,5 +4209,60 @@ export class ThreadPresenter implements IThreadPresenter {
     }
 
     return formattedMessages
+  }
+
+  /**
+   * 直接处理内容的方法
+   */
+  private async processContentDirectly(
+    eventId: string,
+    content: string,
+    currentTime: number
+  ): Promise<void> {
+    const state = this.generatingMessages.get(eventId)
+    if (!state) return
+
+    // 检查是否需要分块处理
+    if (this.shouldSplitContent(content)) {
+      await this.processLargeContentInChunks(eventId, content, currentTime)
+    } else {
+      await this.processNormalContent(eventId, content, currentTime)
+    }
+  }
+
+  /**
+   * 分块处理大内容
+   */
+  private async processLargeContentInChunks(
+    eventId: string,
+    content: string,
+    currentTime: number
+  ): Promise<void> {
+    const state = this.generatingMessages.get(eventId)
+    if (!state) return
+
+    console.log(`[ThreadPresenter] Processing large content in chunks: ${content.length} bytes`)
+
+    const lastBlock = state.message.content[state.message.content.length - 1]
+    let contentBlock: any
+
+    if (lastBlock && lastBlock.type === 'content') {
+      contentBlock = lastBlock
+    } else {
+      this.finalizeLastBlock(state)
+      contentBlock = {
+        type: 'content',
+        content: '',
+        status: 'loading',
+        timestamp: currentTime
+      }
+      state.message.content.push(contentBlock)
+    }
+
+    // 直接添加内容，不做复杂分块
+    contentBlock.content += content
+
+    // 只更新数据库，不额外发送到渲染器（避免重复发送）
+    await this.messageManager.editMessage(eventId, JSON.stringify(state.message.content))
   }
 }

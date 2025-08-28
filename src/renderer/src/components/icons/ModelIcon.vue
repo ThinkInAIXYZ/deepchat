@@ -174,13 +174,11 @@ const invert = computed(() => {
 </script>
 
 <template>
-  <div>
-    <img
-      :src="icons[iconKey]"
-      :alt="iconKey"
-      :class="[customClass, { invert }, invert ? 'opacity-50' : '']"
-    />
-  </div>
+  <img
+    :src="icons[iconKey]"
+    :alt="iconKey"
+    :class="[customClass, { invert }, invert ? 'opacity-50' : '']"
+  />
 </template>
 
 <style scoped>

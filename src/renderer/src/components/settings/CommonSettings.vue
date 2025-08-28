@@ -52,6 +52,29 @@
         </div>
       </div>
 
+      <!-- 网页内容长度限制 -->
+      <div class="flex flex-row p-2 items-center gap-2 px-2">
+        <span class="flex flex-row items-center gap-2 flex-grow w-full" :dir="langStore.dir">
+          <Icon icon="lucide:globe" class="w-4 h-4 text-muted-foreground" />
+          <span class="text-sm font-medium">{{ t('settings.common.webContentLengthLimit') }}</span>
+          <div class="text-xs text-muted-foreground ml-1">
+            {{ t('settings.common.webContentLengthLimitHint') }}
+          </div>
+        </span>
+        <div class="flex-shrink-0 min-w-32">
+          <Input
+            type="number"
+            :min="0"
+            :max="50000"
+            :step="1000"
+            :model-value="webContentLengthLimit"
+            @update:model-value="handleWebContentLengthLimitChange"
+            class="text-right"
+            placeholder="3000"
+          />
+        </div>
+      </div>
+
       <!-- 搜索助手模型选择 -->
       <div class="flex flex-row p-2 items-center gap-2 px-2">
         <span class="flex flex-row items-center gap-2 flex-grow w-full" :dir="langStore.dir">
@@ -389,6 +412,9 @@ const selectedProxyMode = ref('system')
 const customProxyUrl = ref('')
 const showUrlError = ref(false)
 
+// 网页内容长度限制
+const webContentLengthLimit = ref(3000)
+
 // 新增搜索引擎相关
 const isAddSearchEngineDialogOpen = ref(false)
 const newSearchEngine = ref({
@@ -503,6 +529,16 @@ onMounted(async () => {
   customProxyUrl.value = await configPresenter.getCustomProxyUrl()
   if (selectedProxyMode.value === 'custom' && customProxyUrl.value) {
     validateProxyUrl()
+  }
+
+  // 加载网页内容长度限制设置
+  try {
+    const savedLimit = await configPresenter.getSetting<number>('webContentLengthLimit')
+    if (savedLimit !== undefined && savedLimit !== null) {
+      webContentLengthLimit.value = savedLimit
+    }
+  } catch (error) {
+    console.error('加载网页内容长度限制设置失败:', error)
   }
 })
 
@@ -647,6 +683,23 @@ const handleLoggingChange = (value: boolean) => {
   // 显示确认对话框
   newLoggingValue.value = value
   isLoggingDialogOpen.value = true
+}
+
+// 处理网页内容长度限制变更
+const handleWebContentLengthLimitChange = async (value: string | number) => {
+  const numValue = typeof value === 'string' ? parseInt(value, 10) : value
+  if ((numValue >= 1 && numValue <= 50000) || numValue === 0) {
+    try {
+      const displayText = numValue === 0 ? '无限制' : `${numValue}字符`
+      console.log('设置网页内容长度限制:', displayText)
+      // 直接调用presenter设置，不依赖store
+      await configPresenter.setSetting('webContentLengthLimit', numValue)
+      // 更新响应式变量
+      webContentLengthLimit.value = numValue
+    } catch (error) {
+      console.error('设置网页内容长度限制失败:', error)
+    }
+  }
 }
 
 const cancelLoggingChange = () => {

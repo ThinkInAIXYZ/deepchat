@@ -45,6 +45,9 @@
     "loggingEnableDesc": "啟用日誌將幫助我們診斷問題並改進應用程式。日誌檔案可能包含敏感資訊。",
     "loggingDisableDesc": "停用日誌將停止收集應用程式日誌。",
     "loggingRestartNotice": "切換此設定將會重新啟動應用程式，請問您是否要繼續？",
+    "webContentLengthLimit": "網頁內容長度限制",
+    "webContentLengthLimitHint": "（設定為0表示不限制）",
+    "webContentLengthLimitTooltip": "設定從網頁擷取的文字內容長度上限（字元數），範圍：0-50000。設定為0表示不限制長度，取得完整網頁內容；較大的值可以取得更完整的網頁內容，但可能增加處理時間和token消耗。",
     "openLogFolder": "打開日誌文件夾",
     "shortcut": {
       "newChat": "新建聊天",
@@ -737,11 +740,11 @@
   },
   "display": {
     "fontSize": "文字大小",
-    "text-2xl": "超大",
-    "text-base": "預設",
-    "text-lg": "大",
     "text-sm": "小",
+    "text-base": "標準",
+    "text-lg": "大",
     "text-xl": "特大",
+    "text-2xl": "超大",
     "floatingButton": "懸浮按鈕",
     "floatingButtonDesc": "在桌面顯示一個懸浮按鈕，可以快速喚起應用程式視窗"
   },

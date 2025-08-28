@@ -47,6 +47,7 @@ interface IAppSettings {
   loggingEnabled?: boolean // 日志记录是否启用
   floatingButtonEnabled?: boolean // 悬浮按钮是否启用
   default_system_prompt?: string // 默认系统提示词
+  webContentLengthLimit?: number // 网页内容截断长度限制，默认3000字符
   [key: string]: unknown // 允许任意键，使用unknown类型替代any
 }
 
@@ -109,6 +110,7 @@ export class ConfigPresenter implements IConfigPresenter {
         loggingEnabled: false,
         floatingButtonEnabled: false,
         default_system_prompt: '',
+        webContentLengthLimit: 3000,
         appVersion: this.currentAppVersion
       }
     })
@@ -276,6 +278,11 @@ export class ConfigPresenter implements IConfigPresenter {
       this.store.set(key, value)
       // 触发设置变更事件（仅主进程内部使用）
       eventBus.sendToMain(CONFIG_EVENTS.SETTING_CHANGED, key, value)
+
+      // 特殊处理：字体大小设置需要通知所有标签页
+      if (key === 'fontSizeLevel') {
+        eventBus.sendToRenderer(CONFIG_EVENTS.FONT_SIZE_CHANGED, SendTarget.ALL_WINDOWS, value)
+      }
     } catch (error) {
       console.error(`[Config] Failed to set setting ${key}:`, error)
     }

@@ -209,7 +209,10 @@ For more details on how to use these features, see the [User Guide](./docs/user-
       <img src="./src/renderer/src/assets/llm-icons/lmstudio.svg" width="50" height="50" alt="LM Studio Icon"><br/>
       <a href="https://lmstudio.ai/">LM Studio</a>
     </td>
-    <td></td>
+    <td>
+      <img src="./src/renderer/src/assets/llm-icons/groq.svg" width="50" height="50" alt="Groq Icon"><br/>
+      <a href="https://groq.com/">Groq</a>
+    </td>
     <td></td>
     <td></td>
   </tr>
