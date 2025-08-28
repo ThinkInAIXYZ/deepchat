@@ -182,15 +182,15 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         reasoning: true
       },
       {
-        id: 'models/gemini-2.5-flash',
-        name: 'Gemini 2.5 Flash',
+        id: 'google/gemini-2.5-flash-image-preview',
+        name: 'Gemini 2.5 Flash Image Preview',
         temperature: 0.7,
-        maxTokens: 65536,
-        contextLength: 1048576,
-        match: ['models/gemini-2.5-flash', 'gemini-2.5-flash'],
+        maxTokens: 32768,
+        contextLength: 32768,
+        match: ['google/gemini-2.5-flash-image-preview', 'gemini-2.5-flash-image-preview'],
         vision: true,
-        functionCall: true,
-        reasoning: true
+        functionCall: false,
+        reasoning: false
       },
       {
         id: 'models/gemini-2.5-flash-lite-preview-06-17',
@@ -199,6 +199,17 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         maxTokens: 64000,
         contextLength: 1000000,
         match: ['models/gemini-2.5-flash-lite-preview-06-17', 'gemini-2.5-flash-lite-preview'],
+        vision: true,
+        functionCall: true,
+        reasoning: true
+      },
+      {
+        id: 'models/gemini-2.5-flash',
+        name: 'Gemini 2.5 Flash',
+        temperature: 0.7,
+        maxTokens: 65536,
+        contextLength: 1048576,
+        match: ['models/gemini-2.5-flash', 'gemini-2.5-flash'],
         vision: true,
         functionCall: true,
         reasoning: true
@@ -2314,6 +2325,17 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
   // OpenRouter提供商特定模型配置
   openrouter: {
     models: [
+      {
+        id: 'google/gemini-2.5-flash-image-preview',
+        name: 'Gemini 2.5 Flash Image Preview',
+        temperature: 0.7,
+        maxTokens: 32768,
+        contextLength: 32768,
+        match: ['google/gemini-2.5-flash-image-preview', 'gemini-2.5-flash-image-preview'],
+        vision: true,
+        functionCall: false,
+        reasoning: false
+      },
       {
         id: 'deepseek-r1-0528:free',
         name: 'DeepSeek R1-0528:free',

@@ -191,12 +191,13 @@ export class GeminiProvider extends BaseLLMProvider {
           const isVisionModel =
             displayName.toLowerCase().includes('vision') || modelName.includes('gemini-') // Gemini 系列一般都支持视觉
 
-          const isFunctionCallSupported = !modelName.includes('gemma-3') // Gemma 模型不支持函数调用
+          const isFunctionCallSupported =
+            !modelName.includes('gemma-3') && !modelName.includes('flash-image-preview') // Gemma 模型和 flash-image-preview 不支持函数调用
 
           // 判断是否支持推理（thinking）
           const isReasoningSupported =
             modelName.includes('thinking') ||
-            modelName.includes('2.5') ||
+            (modelName.includes('2.5') && !modelName.includes('flash-image-preview')) ||
             modelName.includes('2.0-flash') ||
             modelName.includes('exp-1206')
 
