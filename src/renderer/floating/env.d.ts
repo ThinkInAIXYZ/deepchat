@@ -12,6 +12,9 @@ declare global {
     floatingButtonAPI: {
       onClick: () => void
       onRightClick: () => void
+      onDragStart: (x: number, y: number) => void
+      onDragMove: (x: number, y: number) => void
+      onDragEnd: (x: number, y: number) => void
       onConfigUpdate: (callback: (config: any) => void) => void
       removeAllListeners: () => void
     }

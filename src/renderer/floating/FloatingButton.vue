@@ -1,15 +1,20 @@
 <template>
   <div
-    class="w-screen h-screen bg-transparent overflow-hidden select-none flex items-center justify-center drag-region"
+    class="w-screen h-screen bg-transparent overflow-hidden select-none flex items-center justify-center"
   >
     <div
       ref="floatingButton"
-      class="w-15 h-15 rounded-full border-2 border-white/30 flex items-center justify-center cursor-pointer transition-all duration-300 relative overflow-hidden select-none floating-button no-drag"
-      :class="{ 'floating-button-pulse': isPulsing }"
-      @click="handleClick"
-      @contextmenu="handleRightClick"
-      @mouseenter="handleMouseEnter"
+      class="w-15 h-15 rounded-full border-2 border-white/30 flex items-center justify-center cursor-pointer transition-all duration-300 relative overflow-hidden select-none floating-button"
+      :class="{
+        'floating-button-pulse': isPulsing,
+        dragging: isDragging
+      }"
+      @mousedown="handleMouseDown"
+      @mousemove="handleMouseMove"
+      @mouseup="handleMouseUp"
       @mouseleave="handleMouseLeave"
+      @mouseenter="handleMouseEnter"
+      @contextmenu="handleRightClick"
     >
       <img
         src="../src/assets/logo.png"
@@ -22,11 +27,118 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
+
 // 响应式状态
 const isPulsing = ref(true)
+const isDragging = ref(false)
 const floatingButton = ref<HTMLElement>()
 
-// 点击处理 - 专注于唤起主窗口
+// 拖拽状态
+interface DragState {
+  isDragging: boolean
+  isMouseDown: boolean
+  startX: number
+  startY: number
+  startScreenX: number
+  startScreenY: number
+  dragTimer: number | null
+  lastMoveTime: number
+}
+
+const dragState = ref<DragState>({
+  isDragging: false,
+  isMouseDown: false,
+  startX: 0,
+  startY: 0,
+  startScreenX: 0,
+  startScreenY: 0,
+  dragTimer: null,
+  lastMoveTime: 0
+})
+
+// 常量配置
+const DRAG_DELAY = 200
+const DRAG_THRESHOLD = 5
+
+// 鼠标按下处理
+const handleMouseDown = (event: MouseEvent) => {
+  event.preventDefault()
+
+  dragState.value.isMouseDown = true
+  dragState.value.startX = event.clientX
+  dragState.value.startY = event.clientY
+  dragState.value.startScreenX = event.screenX
+  dragState.value.startScreenY = event.screenY
+  dragState.value.lastMoveTime = Date.now()
+
+  // 设置延迟定时器
+  dragState.value.dragTimer = window.setTimeout(() => {
+    if (dragState.value.isMouseDown) {
+      startDragging(event)
+    }
+  }, DRAG_DELAY)
+
+  document.addEventListener('mousemove', handleMouseMove)
+  document.addEventListener('mouseup', handleMouseUp)
+}
+
+// 鼠标移动处理
+const handleMouseMove = (event: MouseEvent) => {
+  if (!dragState.value.isMouseDown) return
+
+  const deltaX = Math.abs(event.clientX - dragState.value.startX)
+  const deltaY = Math.abs(event.clientY - dragState.value.startY)
+
+  if (!dragState.value.isDragging && (deltaX > DRAG_THRESHOLD || deltaY > DRAG_THRESHOLD)) {
+    startDragging(event)
+  }
+
+  if (dragState.value.isDragging) {
+    const now = Date.now()
+    if (now - dragState.value.lastMoveTime >= 16) {
+      dragState.value.lastMoveTime = now
+      window.floatingButtonAPI?.onDragMove(event.screenX, event.screenY)
+    }
+  }
+}
+
+// 鼠标释放处理
+const handleMouseUp = (event: MouseEvent) => {
+  const wasDragging = dragState.value.isDragging
+
+  // 清理状态
+  clearDragTimer()
+  dragState.value.isMouseDown = false
+
+  if (wasDragging) {
+    dragState.value.isDragging = false
+    isDragging.value = false
+    window.floatingButtonAPI?.onDragEnd(event.screenX, event.screenY)
+  } else {
+    handleClick()
+  }
+
+  document.removeEventListener('mousemove', handleMouseMove)
+  document.removeEventListener('mouseup', handleMouseUp)
+}
+
+// 开始拖拽
+const startDragging = (_event: MouseEvent) => {
+  dragState.value.isDragging = true
+  isDragging.value = true
+  // 使用初始记录的屏幕坐标，避免跳跃
+  window.floatingButtonAPI?.onDragStart(dragState.value.startScreenX, dragState.value.startScreenY)
+}
+
+// 清理拖拽定时器
+const clearDragTimer = () => {
+  if (dragState.value.dragTimer) {
+    clearTimeout(dragState.value.dragTimer)
+    dragState.value.dragTimer = null
+  }
+}
+
+// 点击处理
 const handleClick = () => {
   // 点击反馈动画
   if (floatingButton.value) {
@@ -51,6 +163,17 @@ const handleClick = () => {
 
 const handleRightClick = (event: MouseEvent) => {
   event.preventDefault()
+
+  // 重置拖拽状态，防止右键后左键被误认为拖拽
+  clearDragTimer()
+  dragState.value.isMouseDown = false
+  dragState.value.isDragging = false
+  isDragging.value = false
+
+  // 清理全局事件监听
+  document.removeEventListener('mousemove', handleMouseMove)
+  document.removeEventListener('mouseup', handleMouseUp)
+
   if (floatingButton.value) {
     floatingButton.value.style.transform = 'scale(0.9)'
     setTimeout(() => {
@@ -98,6 +221,13 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+  // 清理拖拽定时器
+  clearDragTimer()
+
+  // 清理全局事件监听
+  document.removeEventListener('mousemove', handleMouseMove)
+  document.removeEventListener('mouseup', handleMouseUp)
+
   // 清理配置更新监听器
   if (window.floatingButtonAPI) {
     window.floatingButtonAPI.removeAllListeners()
@@ -106,16 +236,6 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-/* 拖拽区域 */
-.drag-region {
-  -webkit-app-region: drag;
-}
-
-/* 禁用拖拽的元素 */
-.no-drag {
-  -webkit-app-region: no-drag;
-}
-
 /* 确保图片不会阻止点击事件 */
 .pointer-events-none {
   pointer-events: none;
@@ -124,10 +244,19 @@ onUnmounted(() => {
 /* 悬浮按钮基础样式 */
 .floating-button {
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  /* 按钮本身不可拖拽，只响应点击 */
-  -webkit-app-region: no-drag;
   /* 确保按钮可以接收鼠标事件 */
   pointer-events: auto;
+  /* 禁止文本选择 */
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* 拖拽状态样式 */
+.floating-button.dragging {
+  cursor: grabbing;
+  transform: scale(1.05);
+  box-shadow: 0 12px 30px rgba(102, 126, 234, 0.5);
+  transition: none; /* 拖拽时禁用过渡动画 */
 }
 
 /* 悬浮按钮悬停效果 */

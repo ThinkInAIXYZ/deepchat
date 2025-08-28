@@ -9,6 +9,7 @@
     />
   </div>
 </template>
+
 <script setup lang="ts">
 import NodeRenderer, { CodeBlockNode } from 'vue-renderer-markdown'
 import ReferenceNode from './ReferenceNode.vue'
@@ -53,6 +54,7 @@ const nodeComponents = {
 
 defineEmits(['copy'])
 </script>
+
 <style>
 .prose {
   li p {
@@ -64,6 +66,15 @@ defineEmits(['copy'])
     margin-block-end: 0.5em;
     margin-inline-start: auto;
     margin-inline-end: auto;
+  }
+
+  /*
+    精准定位到那个被错误地渲染在 <a> 标签内部的 <div>，
+    并强制其以行内方式显示，从而修正换行 bug。
+    这可以保留链接组件原有的所有样式（包括颜色）。
+  */
+  a .markdown-renderer {
+    @apply inline;
   }
 }
 </style>

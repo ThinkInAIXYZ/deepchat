@@ -58,7 +58,31 @@ export class GeminiProvider extends BaseLLMProvider {
       providerId: 'gemini',
       isCustom: false,
       contextLength: 1048576,
-      maxTokens: 65536,
+      maxTokens: 65535,
+      vision: true,
+      functionCall: true,
+      reasoning: true
+    },
+    {
+      id: 'models/gemini-2.5-flash-lite-preview-06-17',
+      name: 'Gemini 2.5 Flash-Lite Preview',
+      group: 'default',
+      providerId: 'gemini',
+      isCustom: false,
+      contextLength: 1048576,
+      maxTokens: 65535,
+      vision: true,
+      functionCall: true,
+      reasoning: true
+    },
+    {
+      id: 'models/gemini-2.5-flash-lite',
+      name: 'Gemini 2.5 Flash-Lite',
+      group: 'default',
+      providerId: 'gemini',
+      isCustom: false,
+      contextLength: 1048576,
+      maxTokens: 65535,
       vision: true,
       functionCall: true,
       reasoning: true
@@ -70,46 +94,10 @@ export class GeminiProvider extends BaseLLMProvider {
       providerId: 'gemini',
       isCustom: false,
       contextLength: 1048576,
-      maxTokens: 65536,
+      maxTokens: 65535,
       vision: true,
       functionCall: true,
       reasoning: true
-    },
-    {
-      id: 'models/gemini-2.5-flash-lite-preview-06-17',
-      name: 'Gemini 2.5 Flash-Lite Preview',
-      group: 'default',
-      providerId: 'gemini',
-      isCustom: false,
-      contextLength: 1_000_000,
-      maxTokens: 64_000,
-      vision: true,
-      functionCall: true,
-      reasoning: true
-    },
-    {
-      id: 'models/gemini-2.0-flash',
-      name: 'Gemini 2.0 Flash',
-      group: 'default',
-      providerId: 'gemini',
-      isCustom: false,
-      contextLength: 1_048_576,
-      maxTokens: 8192,
-      vision: true,
-      functionCall: true,
-      reasoning: true
-    },
-    {
-      id: 'models/gemini-2.0-flash-lite',
-      name: 'Gemini 2.0 Flash Lite',
-      group: 'default',
-      providerId: 'gemini',
-      isCustom: false,
-      contextLength: 1_048_576,
-      maxTokens: 8192,
-      vision: true,
-      functionCall: true,
-      reasoning: false
     },
     {
       id: 'models/gemini-2.0-flash-preview-image-generation',
@@ -120,9 +108,33 @@ export class GeminiProvider extends BaseLLMProvider {
       contextLength: 32000,
       maxTokens: 8192,
       vision: true,
-      functionCall: true,
+      functionCall: false,
       reasoning: false,
       type: ModelType.ImageGeneration
+    },
+    {
+      id: 'models/gemini-2.0-flash-lite',
+      name: 'Gemini 2.0 Flash Lite',
+      group: 'default',
+      providerId: 'gemini',
+      isCustom: false,
+      contextLength: 1048576,
+      maxTokens: 8191,
+      vision: true,
+      functionCall: true,
+      reasoning: false
+    },
+    {
+      id: 'models/gemini-2.0-flash',
+      name: 'Gemini 2.0 Flash',
+      group: 'default',
+      providerId: 'gemini',
+      isCustom: false,
+      contextLength: 1048576,
+      maxTokens: 8191,
+      vision: true,
+      functionCall: true,
+      reasoning: true
     },
     {
       id: 'models/gemini-1.5-flash',
@@ -130,8 +142,8 @@ export class GeminiProvider extends BaseLLMProvider {
       group: 'default',
       providerId: 'gemini',
       isCustom: false,
-      contextLength: 1_048_576,
-      maxTokens: 8192,
+      contextLength: 1048576,
+      maxTokens: 8191,
       vision: true,
       functionCall: true,
       reasoning: false
@@ -866,7 +878,7 @@ export class GeminiProvider extends BaseLLMProvider {
     console.log('modelConfig', modelConfig, modelId)
 
     // 检查是否是图片生成模型
-    const isImageGenerationModel = modelId === 'models/gemini-2.0-flash-preview-image-generation'
+    const isImageGenerationModel = modelConfig?.type === ModelType.ImageGeneration
 
     // 如果是图片生成模型，使用特殊处理
     if (isImageGenerationModel) {
@@ -935,7 +947,7 @@ export class GeminiProvider extends BaseLLMProvider {
     let isInThinkTag = false
     let toolUseDetected = false
     let usageMetadata: GenerateContentResponseUsageMetadata | undefined
-    let isNewThoughtFormatDetected = false
+    let isNewThoughtFormatDetected = modelConfig.reasoning === true
 
     // 流处理循环
     for await (const chunk of result) {

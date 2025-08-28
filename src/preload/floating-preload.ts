@@ -3,7 +3,10 @@ import { contextBridge, ipcRenderer } from 'electron'
 // 直接定义事件常量，避免路径解析问题
 const FLOATING_BUTTON_EVENTS = {
   CLICKED: 'floating-button:clicked',
-  RIGHT_CLICKED: 'floating-button:right-clicked'
+  RIGHT_CLICKED: 'floating-button:right-clicked',
+  DRAG_START: 'floating-button:drag-start',
+  DRAG_MOVE: 'floating-button:drag-move',
+  DRAG_END: 'floating-button:drag-end'
 } as const
 
 // 定义悬浮按钮的 API
@@ -22,6 +25,31 @@ const floatingButtonAPI = {
       ipcRenderer.send(FLOATING_BUTTON_EVENTS.RIGHT_CLICKED)
     } catch (error) {
       console.error('FloatingPreload: Error sending right click IPC message:', error)
+    }
+  },
+
+  // 拖拽相关API
+  onDragStart: (x: number, y: number) => {
+    try {
+      ipcRenderer.send(FLOATING_BUTTON_EVENTS.DRAG_START, { x, y })
+    } catch (error) {
+      console.error('FloatingPreload: Error sending drag start IPC message:', error)
+    }
+  },
+
+  onDragMove: (x: number, y: number) => {
+    try {
+      ipcRenderer.send(FLOATING_BUTTON_EVENTS.DRAG_MOVE, { x, y })
+    } catch (error) {
+      console.error('FloatingPreload: Error sending drag move IPC message:', error)
+    }
+  },
+
+  onDragEnd: (x: number, y: number) => {
+    try {
+      ipcRenderer.send(FLOATING_BUTTON_EVENTS.DRAG_END, { x, y })
+    } catch (error) {
+      console.error('FloatingPreload: Error sending drag end IPC message:', error)
     }
   },
 
