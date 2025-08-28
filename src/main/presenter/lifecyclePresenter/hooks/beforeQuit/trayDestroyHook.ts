@@ -1,6 +1,5 @@
 /**
- * Tray setup hook for after-start phase
- * Initializes the system tray icon and menu
+ * Tray destroy hook
  */
 
 import { LifecycleHook, LifecycleContext } from '@shared/presenter'

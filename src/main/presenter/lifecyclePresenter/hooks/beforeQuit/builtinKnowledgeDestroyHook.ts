@@ -1,6 +1,5 @@
 /**
- * presenter setup hook for after-start phase
- * Initializes the system presenter icon and menu
+ * built-in knowledge destroy hook
  */
 
 import { LifecycleHook, LifecycleContext } from '@shared/presenter'

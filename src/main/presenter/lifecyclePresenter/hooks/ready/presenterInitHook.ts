@@ -1,10 +1,11 @@
+/**
+ * Presenter lifecycle hook
+ */
+
 import { LifecyclePhase } from '@shared/lifecycle'
 import { LifecycleHook, LifecycleContext } from '@shared/presenter'
 import { getInstance } from '@/presenter'
 
-/**
- * Presenter lifecycle hook
- */
 export const presenterInitHook: LifecycleHook = {
   name: 'presenter-initialization',
   phase: LifecyclePhase.READY,

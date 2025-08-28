@@ -1,6 +1,5 @@
 /**
- * presenter setup hook for after-start phase
- * Initializes the system presenter icon and menu
+ * window quitting flag setup hook
  */
 
 import { LifecycleHook, LifecycleContext } from '@shared/presenter'
@@ -15,7 +14,7 @@ export const windowQuittingHook: LifecycleHook = {
   execute: async (_context: LifecycleContext) => {
     // Ensure presenter is available
     if (!presenter) {
-      throw new Error('presenterDestroyHook: Presenter has been destroyed')
+      throw new Error('windowQuittingHook: Presenter has been destroyed')
     }
     presenter.windowPresenter.setApplicationQuitting(true)
     presenter.windowPresenter.destroyFloatingChatWindow()

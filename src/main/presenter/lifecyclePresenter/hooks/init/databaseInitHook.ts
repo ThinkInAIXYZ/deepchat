@@ -1,11 +1,12 @@
-import { LifecycleHook, LifecycleContext } from '@shared/presenter'
-import { DatabaseInitializer } from '../../DatabaseInitializer'
-import { LifecyclePhase } from '@shared/lifecycle'
-
 /**
  * Database initialization hook for the init phase
  * This hook initializes the database and makes it available to other components
  */
+
+import { LifecycleHook, LifecycleContext } from '@shared/presenter'
+import { DatabaseInitializer } from '../../DatabaseInitializer'
+import { LifecyclePhase } from '@shared/lifecycle'
+
 export const databaseInitHook: LifecycleHook = {
   name: 'database-initialization',
   phase: LifecyclePhase.INIT,
