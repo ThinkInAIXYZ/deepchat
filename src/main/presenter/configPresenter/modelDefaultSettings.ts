@@ -349,6 +349,17 @@ export const defaultModelsSettings: DefaultModelSetting[] = [
     thinkingBudget: -1 // 动态思维
   },
   {
+    id: 'google/gemini-2.5-flash-image-preview',
+    name: 'Gemini 2.5 Flash Image Preview',
+    temperature: 0.7,
+    maxTokens: 32768,
+    contextLength: 32768,
+    match: ['google/gemini-2.5-flash-image-preview', 'gemini-2.5-flash-image-preview'],
+    vision: true,
+    functionCall: false,
+    reasoning: false
+  },
+  {
     id: 'models/gemini-2.5-flash',
     name: 'Gemini 2.5 Flash',
     temperature: 0.7,
