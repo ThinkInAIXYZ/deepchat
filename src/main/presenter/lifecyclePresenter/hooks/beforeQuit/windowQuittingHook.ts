@@ -9,7 +9,7 @@ import { LifecyclePhase } from '@shared/lifecycle'
 export const windowQuittingHook: LifecycleHook = {
   name: 'window-quitting',
   phase: LifecyclePhase.BEFORE_QUIT,
-  priority: Number.MAX_VALUE, // make sure presenter be destroyed lastest
+  priority: 10, // make sure presenter be destroyed lastest
   critical: false,
   execute: async (_context: LifecycleContext) => {
     // Ensure presenter is available
