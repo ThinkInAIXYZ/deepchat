@@ -1,9 +1,7 @@
 <template>
   <div
     class="min-h-screen flex flex-col justify-center items-center overflow-hidden select-none text-white font-['Geist',-apple-system,BlinkMacSystemFont,'Segoe_UI',Roboto,sans-serif] relative"
-    style="
-      background: linear-gradient(135deg, hsl(var(--base-900)) 0%, hsl(var(--base-950)) 100%);
-    "
+    style="background: linear-gradient(135deg, hsl(var(--base-900)) 0%, hsl(var(--base-950)) 100%)"
   >
     <!-- Main Loading Animation -->
     <div class="loader-wrapper">
@@ -24,9 +22,7 @@
         src="@/assets/logo.png"
         alt="DeepChat Logo"
         class="w-8 h-8 object-contain opacity-70"
-        style="
-          filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
-        "
+        style="filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3))"
       />
     </div>
   </div>
@@ -44,7 +40,13 @@
   justify-content: center;
   width: 180px;
   height: 180px;
-  font-family: 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-family:
+    'Geist',
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    Roboto,
+    sans-serif;
   font-size: 1.2em;
   font-weight: 300;
   color: white;

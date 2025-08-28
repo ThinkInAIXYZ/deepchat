@@ -235,15 +235,16 @@ export class LifecycleManager implements ILifecycleManager {
     // Update the single context instance with current phase
     this.lifecycleContext.phase = phase
 
-    // Execute hooks and check for shutdown prevention
-    for (const { hook } of phaseHooks) {
+    // Execute all hooks in parallel for maximum performance
+    const hookPromises = phaseHooks.map(async ({ hook }) => {
       try {
         const result = await this.executeHook(hook, this.lifecycleContext)
 
         // If any before-quit hook returns false, prevent shutdown
         if (phase === LifecyclePhase.BEFORE_QUIT && result === false) {
-          return false
+          return { hook, result: false, success: true }
         }
+        return { hook, result, success: true }
       } catch (hookError) {
         // For critical hooks in shutdown, we still continue but log the error
         // Shutdown should not be prevented by hook failures
@@ -259,7 +260,19 @@ export class LifecycleManager implements ILifecycleManager {
             errorMessage
           )
         }
+        return { hook, result: undefined, success: false }
       }
+    })
+
+    const hookResults = await Promise.all(hookPromises)
+
+    // Check if any hook prevented shutdown
+    const shutdownPrevented = hookResults.some(
+      (result) => result.success && result.result === false && phase === LifecyclePhase.BEFORE_QUIT
+    )
+
+    if (shutdownPrevented) {
+      return false
     }
 
     this.state.completedPhases.add(phase)
