@@ -198,6 +198,7 @@ export interface IWindowPresenter {
 export interface ITabPresenter {
   createTab(windowId: number, url: string, options?: TabCreateOptions): Promise<number | null>
   closeTab(tabId: number): Promise<boolean>
+  closeTabs(windowId: number): Promise<void>
   switchTab(tabId: number): Promise<boolean>
   getTab(tabId: number): Promise<BrowserView | undefined>
   detachTab(tabId: number): Promise<boolean>

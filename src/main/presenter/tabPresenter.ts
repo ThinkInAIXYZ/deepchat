@@ -197,6 +197,14 @@ export class TabPresenter implements ITabPresenter {
   }
 
   /**
+   * 销毁标签页
+   */
+  async closeTabs(windowId: number): Promise<void> {
+    const tabs = [...(this.windowTabs.get(windowId) ?? [])]
+    tabs.forEach((t) => this.closeTab(t))
+  }
+
+  /**
    * 激活标签页
    */
   async switchTab(tabId: number): Promise<boolean> {

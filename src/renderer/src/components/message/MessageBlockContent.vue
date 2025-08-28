@@ -5,13 +5,13 @@
       <!-- 使用结构化渲染器替代 v-html -->
       <MarkdownRenderer
         v-if="part.type === 'text'"
-        :content="part.content"
+        :content="escapedContent(part.content)"
         :loading="part.loading"
         @copy="handleCopyClick"
       />
 
-      <ArtifactThinking v-if="part.type === 'thinking' && part.loading" />
-      <div v-if="part.type === 'artifact' && part.artifact" class="my-1">
+      <ArtifactThinking v-else-if="part.type === 'thinking' && part.loading" />
+      <div v-else-if="part.type === 'artifact' && part.artifact" class="my-1">
         <ArtifactPreview
           :block="{
             content: part.content,
@@ -22,7 +22,7 @@
           :loading="part.loading"
         />
       </div>
-      <div v-if="part.type === 'tool_call' && part.tool_call" class="my-1">
+      <div v-else-if="part.type === 'tool_call' && part.tool_call" class="my-1">
         <ToolCallPreview :block="part" :block-status="props.block.status" />
       </div>
     </template>
@@ -60,6 +60,11 @@ const { processedContent } = useBlockContent(props)
 // Handle copy functionality
 const handleCopyClick = () => {
   // 现在复制功能在组件内部处理
+}
+
+// 逃逸方括号，避免 markdown 被解析为 reference
+const escapedContent = (content: string) => {
+  return content.replace(/\[/g, '&#91;').replace(/\]/g, '&#93;')
 }
 
 // 修改 watch 函数

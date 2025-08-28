@@ -779,6 +779,7 @@ export class WindowPresenter implements IWindowPresenter {
           console.log(
             `Window ${windowId}: Allowing default close behavior (app is quitting or macOS last window configured to quit).`
           )
+          presenter.tabPresenter.closeTabs(windowId)
         }
       } else {
         // 如果 isQuitting 为 true，表示应用正在主动退出，允许窗口正常关闭
