@@ -14,10 +14,10 @@ import { LifecyclePhase } from '@shared/lifecycle'
 export const configInitHook: LifecycleHook = {
   name: 'config-initialization',
   phase: LifecyclePhase.INIT,
-  priority: 1, // Execute early in the init phase
+  priority: 1, // first in init phase
   critical: true,
   execute: async (context: LifecycleContext) => {
-    console.log('Initializing application configuration')
+    console.log('configInitHook: Initializing application configuration')
 
     // Ensure presenter is available (should be initialized by database hook)
     const configPresenter = new ConfigPresenter()
@@ -34,6 +34,6 @@ export const configInitHook: LifecycleHook = {
     // Store config in context for other hooks
     context.config = configPresenter
 
-    console.log('Application configuration initialized successfully')
+    console.log('configInitHook: Application configuration initialized successfully')
   }
 }

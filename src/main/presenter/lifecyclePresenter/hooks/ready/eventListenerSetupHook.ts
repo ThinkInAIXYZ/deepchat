@@ -18,11 +18,11 @@ export const eventListenerSetupHook: LifecycleHook = {
   priority: 10,
   critical: false,
   execute: async (_context: LifecycleContext) => {
-    console.log('Setting up application event listeners')
+    console.log('eventListenerSetupHook: Setting up application event listeners')
 
     // Ensure presenter is available
     if (!presenter) {
-      throw new Error('Presenter not initialized - database hook should run first')
+      throw new Error('eventListenerSetupHook: Presenter not initialized')
     }
 
     // Add F12 DevTools support for new windows in development, ignore CmdOrControl + R in production
@@ -48,7 +48,9 @@ export const eventListenerSetupHook: LifecycleHook = {
           targetWindow.show()
           targetWindow.focus() // Ensure window gets focus
         } else {
-          console.warn('App activated but target window is destroyed, creating new window.')
+          console.warn(
+            'eventListenerSetupHook: App activated but target window is destroyed, creating new window.'
+          )
           presenter.windowPresenter.createShellWindow({
             // If target window is destroyed, create new window
             initialTab: { url: 'local://chat' }
@@ -62,7 +64,7 @@ export const eventListenerSetupHook: LifecycleHook = {
       try {
         await presenter.floatingButtonPresenter.setEnabled(enabled)
       } catch (error) {
-        console.error('Failed to set floating button enabled state:', error)
+        console.error('eventListenerSetupHook: Failed to set floating button enabled state:', error)
       }
     })
 
@@ -104,6 +106,6 @@ export const eventListenerSetupHook: LifecycleHook = {
       }, 50) // 50ms delay
     })
 
-    console.log('Application event listeners set up successfully')
+    console.log('eventListenerSetupHook: Application event listeners set up successfully')
   }
 }

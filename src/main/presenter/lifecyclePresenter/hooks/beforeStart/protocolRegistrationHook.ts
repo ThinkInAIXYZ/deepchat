@@ -12,11 +12,11 @@ import { LifecyclePhase } from '@shared/lifecycle'
 
 export const protocolRegistrationHook: LifecycleHook = {
   name: 'protocol-registration',
-  phase: LifecyclePhase.INIT,
-  priority: 10,
+  phase: LifecyclePhase.BEFORE_START,
+  priority: 1,
   critical: true,
   execute: async (_context: LifecycleContext) => {
-    console.log('Registering application protocols')
+    console.log('protocolRegistrationHook: Registering application protocols')
 
     // Register 'deepcdn' protocol for loading built-in resources (simulating CDN)
     protocol.handle('deepcdn', (request) => {
@@ -53,7 +53,7 @@ export const protocolRegistrationHook: LifecycleHook = {
 
         // Check if file exists
         if (!fs.existsSync(fullPath)) {
-          console.warn(`deepcdn handler: File not found: ${fullPath}`)
+          console.warn(`protocolRegistrationHook: deepcdn handler: File not found: ${fullPath}`)
           return new Response(`File not found: ${filePath}`, {
             status: 404,
             headers: { 'Content-Type': 'text/plain' }
@@ -66,7 +66,7 @@ export const protocolRegistrationHook: LifecycleHook = {
           headers: { 'Content-Type': mimeType }
         })
       } catch (error: unknown) {
-        console.error('Error handling deepcdn request:', error)
+        console.error('protocolRegistrationHook: Error handling deepcdn request:', error)
         const errorMessage = error instanceof Error ? error.message : String(error)
         return new Response(`Server error: ${errorMessage}`, {
           status: 500,
@@ -84,7 +84,9 @@ export const protocolRegistrationHook: LifecycleHook = {
 
         // Check if file exists
         if (!fs.existsSync(fullPath)) {
-          console.warn(`imgcache handler: Image file not found: ${fullPath}`)
+          console.warn(
+            `protocolRegistrationHook: imgcache handler: Image file not found: ${fullPath}`
+          )
           return new Response(`Image not found: ${filePath}`, {
             status: 404,
             headers: { 'Content-Type': 'text/plain' }
@@ -117,7 +119,7 @@ export const protocolRegistrationHook: LifecycleHook = {
           headers: { 'Content-Type': mimeType }
         })
       } catch (error: unknown) {
-        console.error('Error handling imgcache request:', error)
+        console.error('protocolRegistrationHook: Error handling imgcache request:', error)
         const errorMessage = error instanceof Error ? error.message : String(error)
         return new Response(`Server error: ${errorMessage}`, {
           status: 500,
@@ -126,6 +128,6 @@ export const protocolRegistrationHook: LifecycleHook = {
       }
     })
 
-    console.log('Application protocols registered successfully')
+    console.log('protocolRegistrationHook: Application protocols registered successfully')
   }
 }

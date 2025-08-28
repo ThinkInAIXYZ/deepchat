@@ -25,6 +25,8 @@ import {
 } from './types'
 import { is } from '@electron-toolkit/utils'
 
+export { registerCoreHooks } from './coreHooks'
+
 export class LifecycleManager implements ILifecycleManager {
   private state: LifecycleState
   private hookIdCounter = 0
@@ -130,28 +132,16 @@ export class LifecycleManager implements ILifecycleManager {
    * Request application shutdown with hook interception
    */
   async requestShutdown(): Promise<boolean> {
-    if (this.state.isShuttingDown) {
-      return true
-    }
-
-    this.state.isShuttingDown = true
-
-    const shutdownEvent: PhaseStartedEventData = {
+    // Emit shutdown request to both main and renderer processes
+    this.notifyMessage(LIFECYCLE_EVENTS.SHUTDOWN_REQUESTED, {
       phase: LifecyclePhase.BEFORE_QUIT,
       hookCount: this.state.hooks.get(LifecyclePhase.BEFORE_QUIT)?.length || 0
-    }
-
-    // Emit shutdown request to both main and renderer processes
-    this.notifyMessage(LIFECYCLE_EVENTS.SHUTDOWN_REQUESTED, shutdownEvent)
+    } as PhaseStartedEventData)
 
     try {
       // Execute before-quit phase with interception capability
-      const canShutdown = await this.executeShutdownPhase(LifecyclePhase.BEFORE_QUIT)
-
-      return canShutdown
+      return await this.executeShutdownPhase(LifecyclePhase.BEFORE_QUIT)
     } catch (error) {
-      this.state.isShuttingDown = false
-
       this.notifyMessage(LIFECYCLE_EVENTS.ERROR_OCCURRED, {
         phase: this.state.currentPhase,
         reason: error instanceof Error ? error.message : String(error)
@@ -235,13 +225,11 @@ export class LifecycleManager implements ILifecycleManager {
     this.state.currentPhase = phase
     this.state.phaseStartTimes.set(phase, phaseStartTime)
 
-    const phaseStartEvent: PhaseStartedEventData = {
+    // Emit phase started event to both main and renderer processes
+    this.notifyMessage(LIFECYCLE_EVENTS.PHASE_STARTED, {
       phase,
       hookCount: this.state.hooks.get(phase)?.length || 0
-    }
-
-    // Emit phase started event to both main and renderer processes
-    this.notifyMessage(LIFECYCLE_EVENTS.PHASE_STARTED, phaseStartEvent)
+    } as PhaseStartedEventData)
     const phaseHooks = this.state.hooks.get(phase) || []
 
     // Update the single context instance with current phase
@@ -256,7 +244,6 @@ export class LifecycleManager implements ILifecycleManager {
         if (phase === LifecyclePhase.BEFORE_QUIT && result === false) {
           return false
         }
-        return true
       } catch (hookError) {
         // For critical hooks in shutdown, we still continue but log the error
         // Shutdown should not be prevented by hook failures
@@ -350,9 +337,12 @@ export class LifecycleManager implements ILifecycleManager {
       if (!this.state.isShuttingDown) {
         event.preventDefault()
 
+        this.state.isShuttingDown = true
         const canShutdown = await this.requestShutdown()
         if (canShutdown) {
           app.quit()
+        } else {
+          this.state.isShuttingDown = false
         }
       }
     })
@@ -379,18 +369,18 @@ export class LifecycleManager implements ILifecycleManager {
     // Listen to hook executed events
     eventBus.on(LIFECYCLE_EVENTS.HOOK_EXECUTED, (data: HookExecutedEventData) => {
       console.log(
-        `[LifecycleManager] Hook executed: ${data.name}) - priority: ${data.priority}, critical: ${data.critical}`
+        `[LifecycleManager] Hook executed: ${data.name} [priority: ${data.priority}, critical: ${data.critical}]`
       )
     })
 
     // Listen to hook completed events
     eventBus.on(LIFECYCLE_EVENTS.HOOK_COMPLETED, (data: HookExecutedEventData) => {
-      console.log(`[LifecycleManager] Hook completed: ${data.name})`)
+      console.log(`[LifecycleManager] Hook completed: ${data.name}`)
     })
 
     // Listen to hook failed events
     eventBus.on(LIFECYCLE_EVENTS.HOOK_FAILED, (data: HookFailedEventData) => {
-      console.log(`[LifecycleManager] Hook failed: ${data.name})`, data.error)
+      console.log(`[LifecycleManager] Hook failed: ${data.name}`, data.error)
     })
 
     // Listen to error events for monitoring

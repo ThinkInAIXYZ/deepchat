@@ -13,16 +13,16 @@ export const traySetupHook: LifecycleHook = {
   priority: 10,
   critical: false,
   execute: async (_context: LifecycleContext) => {
-    console.log('Setting up system tray')
+    console.log('traySetupHook: Setting up system tray')
 
     // Ensure presenter is available
     if (!presenter) {
-      throw new Error('Presenter not initialized - database hook should run first')
+      throw new Error('traySetupHook: Presenter not initialize')
     }
 
     // Initialize tray icon and menu, store presenter instance
     presenter.setupTray()
 
-    console.log('System tray set up successfully')
+    console.log('traySetupHook: System tray set up successfully')
   }
 }

@@ -1,5 +1,5 @@
 import { LifecycleHook, LifecycleContext } from '@shared/presenter'
-import { DatabaseInitializer } from '../DatabaseInitializer'
+import { DatabaseInitializer } from '../../DatabaseInitializer'
 import { LifecyclePhase } from '@shared/lifecycle'
 
 /**
@@ -10,9 +10,9 @@ export const databaseInitHook: LifecycleHook = {
   name: 'database-initialization',
   phase: LifecyclePhase.INIT,
   priority: 2, // Execute after config init
-  critical: true, // Database initialization is critical for app functionality
+  critical: true,
   async execute(context: LifecycleContext): Promise<void> {
-    console.log('DatabaseInitHook: Starting database initialization')
+    console.log('databaseInitHook: DatabaseInitHook: Starting database initialization')
 
     try {
       // Create database initializer
@@ -27,10 +27,10 @@ export const databaseInitHook: LifecycleHook = {
       // Store database in context for other hooks
       context.database = database
 
-      console.log('DatabaseInitHook: Database initialization completed successfully')
+      console.log('databaseInitHook: Database initialization completed successfully')
     } catch (error) {
-      console.error('DatabaseInitHook: Database initialization failed:', error)
-      throw error // Re-throw to halt the init phase since this is critical
+      console.error('databaseInitHook: Database initialization failed:', error)
+      throw error
     }
   }
 }

@@ -1,5 +1,5 @@
 import { app, dialog } from 'electron'
-import { LifecycleManager, registerCoreHooks } from './lib/lifecycle'
+import { LifecycleManager, registerCoreHooks } from './presenter/lifecyclePresenter'
 import { getInstance, Presenter } from './presenter'
 import { electronApp } from '@electron-toolkit/utils'
 
@@ -46,8 +46,7 @@ app.whenReady().then(async () => {
 })
 
 // Handle window-all-closed event
-// macOS platform will remain in Dock, Windows will remain in tray
-// Floating button windows are not counted as main windows
+// Keep this event to avoid unexpected situations
 app.on('window-all-closed', () => {
   if (!presenter) return
 
@@ -56,44 +55,7 @@ app.on('window-all-closed', () => {
 
   if (mainWindows.length === 0) {
     // When only floating button windows exist, quit app on non-macOS platforms
-    if (process.platform !== 'darwin') {
-      console.log('main: All main windows closed on non-macOS platform, requesting shutdown')
-      lifecycleManager.requestShutdown()
-    } else {
-      console.log('main: All main windows closed on macOS, keeping app running in dock')
-    }
-  }
-})
-
-// Handle will-quit event for final resource cleanup (like destroying tray)
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-app.on('will-quit', (_event) => {
-  console.log('main: app will-quit event triggered.')
-
-  if (!presenter) return
-
-  // Destroy tray icon
-  if (presenter.trayPresenter) {
-    console.log('main: Destroying tray during will-quit.')
-    presenter.trayPresenter.destroy()
-  } else {
-    console.warn('main: TrayPresenter not found in presenter during will-quit.')
-  }
-
-  // Call presenter's destroy method for other cleanup
-  if (presenter.destroy) {
-    console.log('main: Calling presenter.destroy() during will-quit.')
-    presenter.destroy()
-  }
-})
-
-// Handle before-quit event - destroy floating button to ensure app can exit properly
-app.on('before-quit', () => {
-  if (!presenter) return
-
-  try {
-    presenter.floatingButtonPresenter.destroy()
-  } catch (error) {
-    console.error('main: Error destroying floating button during before-quit:', error)
+    console.log('main: All main windows closed, requesting shutdown')
+    app.quit()
   }
 })
