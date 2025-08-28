@@ -234,7 +234,8 @@ export class ToolManager {
       lowerToolName.includes('fetch') ||
       lowerToolName.includes('search') ||
       lowerToolName.includes('find') ||
-      lowerToolName.includes('query')
+      lowerToolName.includes('query') ||
+      lowerToolName.includes('tree')
     ) {
       return 'read'
     }
