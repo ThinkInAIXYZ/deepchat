@@ -3,6 +3,7 @@ import * as cheerio from 'cheerio'
 import { SearchResult } from '../../../shared/presenter'
 import { HttpsProxyAgent } from 'https-proxy-agent'
 import { proxyConfig } from '@/presenter/proxyConfig'
+import { presenter } from '@/presenter'
 // 统一的搜索结果类型
 
 /**
@@ -164,8 +165,30 @@ export class ContentEnricher {
       .replace(/[\r\n]+/g, ' ')
       .replace(/\s+/g, ' ')
       .trim()
-      .slice(0, 3000)
-    return mainContent
+
+    // 获取配置的长度限制，如果获取失败则使用默认值3000
+    let lengthLimit = 3000
+    try {
+      const configValue = presenter.configPresenter.getSetting<number>('webContentLengthLimit')
+      if (configValue && typeof configValue === 'number') {
+        if (configValue === 0) {
+          // 0 表示不限制长度
+          return mainContent
+        } else if (configValue > 0 && configValue <= 50000) {
+          lengthLimit = configValue
+        }
+      }
+    } catch (error) {
+      // 忽略错误，使用默认值
+    }
+
+    // 如果内容长度小于或等于限制，直接返回全部内容
+    if (mainContent.length <= lengthLimit) {
+      return mainContent
+    }
+
+    // 否则截断到指定长度
+    return mainContent.slice(0, lengthLimit)
   }
 
   /**

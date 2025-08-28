@@ -1108,6 +1108,13 @@ export const useChatStore = defineStore('chat', () => {
     window.electron.ipcRenderer.on(CONVERSATION_EVENTS.MESSAGE_EDITED, (_, msgId: string) => {
       handleMessageEdited(msgId)
     })
+
+    window.electron.ipcRenderer.on(CONVERSATION_EVENTS.DEACTIVATED, (_, msg) => {
+      if (msg.tabId !== getTabId()) {
+        return
+      }
+      setActiveThreadId(null)
+    })
   }
 
   onMounted(() => {

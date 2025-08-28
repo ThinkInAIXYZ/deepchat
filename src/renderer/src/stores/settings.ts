@@ -691,6 +691,9 @@ export const useSettingsStore = defineStore('settings', () => {
 
     // 设置拷贝事件监听器
     setupCopyWithCotEnabledListener()
+
+    // 设置字体大小事件监听器
+    setupFontSizeListener()
   }
 
   // 更新本地模型状态，不触发后端请求
@@ -1430,6 +1433,15 @@ export const useSettingsStore = defineStore('settings', () => {
       CONFIG_EVENTS.COPY_WITH_COT_CHANGED,
       (_event, enabled: boolean) => {
         copyWithCotEnabled.value = enabled
+      }
+    )
+  }
+
+  const setupFontSizeListener = () => {
+    window.electron.ipcRenderer.on(
+      CONFIG_EVENTS.FONT_SIZE_CHANGED,
+      (_event, newFontSizeLevel: number) => {
+        fontSizeLevel.value = newFontSizeLevel
       }
     )
   }

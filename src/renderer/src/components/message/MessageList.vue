@@ -68,18 +68,19 @@
           leave-from-class="opacity-100 translate-y-0"
           leave-to-class="opacity-0 translate-y-2"
         >
-          <Button
+          <div
             v-if="aboveThreshold || showCancelButton"
-            variant="outline"
-            size="icon"
-            :class="[
-              'w-8 h-8 shrink-0 rounded-lg relative',
-              showCancelButton ? 'scroll-to-bottom-loading' : ''
-            ]"
-            @click="scrollToBottom"
+            :class="['relative', showCancelButton ? 'scroll-to-bottom-loading-container' : '']"
           >
-            <Icon icon="lucide:arrow-down" class="w-5 h-5 text-muted-foreground" />
-          </Button>
+            <Button
+              variant="outline"
+              size="icon"
+              class="w-8 h-8 shrink-0 rounded-lg relative z-10"
+              @click="() => scrollToBottom(true)"
+            >
+              <Icon icon="lucide:arrow-down" class="w-5 h-5 text-muted-foreground" />
+            </Button>
+          </div>
         </transition>
       </div>
     </template>
@@ -277,12 +278,14 @@ const handleCopyImage = async (
   }
 }
 
-const scrollToBottom = () => {
+const scrollToBottom = (smooth = false) => {
   nextTick(() => {
-    scrollAnchor.value?.scrollIntoView({
-      behavior: 'instant',
-      block: 'end'
-    })
+    if (scrollAnchor.value) {
+      scrollAnchor.value.scrollIntoView({
+        behavior: smooth ? 'smooth' : 'instant',
+        block: 'end'
+      })
+    }
   })
 }
 
@@ -327,7 +330,9 @@ onMounted(() => {
     () => {
       const lastMessage = props.messages[props.messages.length - 1]
       if (lastMessage?.status === 'pending' && !aboveThreshold.value) {
-        scrollToBottom()
+        nextTick(() => {
+          scrollToBottom()
+        })
       }
     }
   )
@@ -417,57 +422,46 @@ defineExpose({
   background-color: rgba(59, 130, 246, 0.15);
 }
 
-.scroll-to-bottom-loading {
+.scroll-to-bottom-loading-container {
   position: relative;
-  overflow: visible;
+  isolation: isolate;
 }
 
-.scroll-to-bottom-loading::before {
+.scroll-to-bottom-loading-container::before {
   content: '';
   position: absolute;
-  top: -1px;
-  left: -1px;
-  right: -1px;
-  bottom: -1px;
-  border-radius: inherit;
-  border: 1px solid hsl(var(--border));
+  top: -3px;
+  left: -3px;
+  right: -3px;
+  bottom: -3px;
+  border-radius: 0.5rem;
+  background: linear-gradient(135deg, #9b59b6, #84cdfa, #5ad1cd);
+  animation: rotate-glow 1.2s linear infinite;
   pointer-events: none;
+  z-index: 1;
+  filter: blur(8px);
 }
 
-.scroll-to-bottom-loading::after {
+.scroll-to-bottom-loading-container::after {
   content: '';
   position: absolute;
-  top: -2px;
-  left: -2px;
-  right: -2px;
-  bottom: -2px;
-  border-radius: inherit;
-  background: conic-gradient(
-    from 0deg,
-    transparent,
-    transparent 25%,
-    hsl(var(--primary) / 0.15),
-    hsl(var(--primary) / 0.4),
-    hsl(var(--primary) / 0.8),
-    hsl(var(--primary) / 0.9),
-    hsl(var(--primary) / 0.6),
-    hsl(var(--primary) / 0.25),
-    transparent 80%,
-    transparent
-  );
-  mask: radial-gradient(circle at center, transparent calc(50% - 1px), black 50%, black 100%);
-  -webkit-mask: radial-gradient(
-    circle at center,
-    transparent calc(50% - 1px),
-    black 50%,
-    black 100%
-  );
-  animation: spin 1.2s linear infinite;
+  top: -5px;
+  left: -5px;
+  right: -5px;
+  bottom: -5px;
+  border-radius: 0.5rem;
+  background: linear-gradient(135deg, #9b59b6, #84cdfa, #5ad1cd);
+  animation: rotate-glow 1.2s linear infinite;
   pointer-events: none;
-  will-change: transform;
+  z-index: 0;
+  filter: blur(20px);
+  opacity: 0.6;
 }
 
-@keyframes spin {
+@keyframes rotate-glow {
+  from {
+    transform: rotate(0deg);
+  }
   to {
     transform: rotate(360deg);
   }

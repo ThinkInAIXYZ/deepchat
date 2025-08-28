@@ -191,12 +191,13 @@ export class GeminiProvider extends BaseLLMProvider {
           const isVisionModel =
             displayName.toLowerCase().includes('vision') || modelName.includes('gemini-') // Gemini 系列一般都支持视觉
 
-          const isFunctionCallSupported = !modelName.includes('gemma-3') // Gemma 模型不支持函数调用
+          const isFunctionCallSupported =
+            !modelName.includes('gemma-3') && !modelName.includes('flash-image-preview') // Gemma 模型和 flash-image-preview 不支持函数调用
 
           // 判断是否支持推理（thinking）
           const isReasoningSupported =
             modelName.includes('thinking') ||
-            modelName.includes('2.5') ||
+            (modelName.includes('2.5') && !modelName.includes('flash-image-preview')) ||
             modelName.includes('2.0-flash') ||
             modelName.includes('exp-1206')
 
@@ -934,6 +935,7 @@ export class GeminiProvider extends BaseLLMProvider {
     let isInThinkTag = false
     let toolUseDetected = false
     let usageMetadata: GenerateContentResponseUsageMetadata | undefined
+    let isNewThoughtFormatDetected = false
 
     // 流处理循环
     for await (const chunk of result) {
@@ -987,6 +989,7 @@ export class GeminiProvider extends BaseLLMProvider {
         for (const part of chunk.candidates[0].content.parts) {
           // 检查是否是思考内容 (新格式)
           if ((part as any).thought === true && part.text) {
+            isNewThoughtFormatDetected = true
             thoughtContent += part.text
           } else if (part.text) {
             content += part.text
@@ -1012,71 +1015,48 @@ export class GeminiProvider extends BaseLLMProvider {
           type: 'reasoning',
           reasoning_content: thoughtContent
         }
-        thoughtContent = '' // 清空已发送的思考内容
       }
 
       if (!content) continue
 
-      buffer += content
+      if (isNewThoughtFormatDetected) {
+        yield {
+          type: 'text',
+          content: content
+        }
+      } else {
+        buffer += content
 
-      // 处理思考标签
-      if (buffer.includes('<think>') && !isInThinkTag) {
-        const thinkStart = buffer.indexOf('<think>')
-
-        // 发送<think>标签前的文本
-        if (thinkStart > 0) {
-          yield {
-            type: 'text',
-            content: buffer.substring(0, thinkStart)
+        if (buffer.includes('<think>') && !isInThinkTag) {
+          const thinkStart = buffer.indexOf('<think>')
+          if (thinkStart > 0) {
+            yield { type: 'text', content: buffer.substring(0, thinkStart) }
           }
+          buffer = buffer.substring(thinkStart + 7)
+          isInThinkTag = true
         }
 
-        buffer = buffer.substring(thinkStart + 7)
-        isInThinkTag = true
-        continue
-      }
-
-      // 处理思考标签结束
-      if (isInThinkTag && buffer.includes('</think>')) {
-        const thinkEnd = buffer.indexOf('</think>')
-        const reasoningContent = buffer.substring(0, thinkEnd)
-
-        // 发送推理内容
-        if (reasoningContent) {
-          yield {
-            type: 'reasoning',
-            reasoning_content: reasoningContent
+        if (isInThinkTag && buffer.includes('</think>')) {
+          const thinkEnd = buffer.indexOf('</think>')
+          const reasoningContent = buffer.substring(0, thinkEnd)
+          if (reasoningContent) {
+            yield {
+              type: 'reasoning',
+              reasoning_content: reasoningContent
+            }
           }
+          buffer = buffer.substring(thinkEnd + 8)
+          isInThinkTag = false
         }
 
-        buffer = buffer.substring(thinkEnd + 8)
-        isInThinkTag = false
-
-        // 如果还有剩余内容，继续处理
-        if (buffer) {
+        if (!isInThinkTag && buffer) {
           yield {
             type: 'text',
             content: buffer
           }
           buffer = ''
         }
-
-        continue
       }
-
-      // 如果在思考标签内，不输出内容
-      if (isInThinkTag) {
-        continue
-      }
-
-      // 正常输出文本内容
-      yield {
-        type: 'text',
-        content: content
-      }
-
-      // 内容已经发送，清空buffer避免重复
-      buffer = ''
     }
 
     if (usageMetadata) {
@@ -1091,7 +1071,7 @@ export class GeminiProvider extends BaseLLMProvider {
     }
 
     // 处理剩余缓冲区内容
-    if (buffer) {
+    if (!isNewThoughtFormatDetected && buffer) {
       if (isInThinkTag) {
         yield {
           type: 'reasoning',

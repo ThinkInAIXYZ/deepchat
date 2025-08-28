@@ -1,5 +1,4 @@
 const animate = require('tailwindcss-animate')
-
 /** @type {import('tailwindcss').Config} */
 module.exports = {
   darkMode: ['class'],
@@ -11,6 +10,7 @@ module.exports = {
     './components/**/*.{ts,tsx,vue}',
     './app/**/*.{ts,tsx,vue}',
     './src/**/*.{ts,tsx,vue}',
+    './node_modules/vue-renderer-markdown/dist/tailwind.ts'
   ],
 
   fontFamily: {

@@ -207,7 +207,10 @@ DeepChat是一个功能强大的开源AI聊天平台，为用户提供与多种�
       <img src="./src/renderer/src/assets/llm-icons/lmstudio.svg" width="50" height="50" alt="LM Studio图标"><br/>
       <a href="https://lmstudio.ai/">LM Studio</a>
     </td>
-    <td></td>
+    <td>
+      <img src="./src/renderer/src/assets/llm-icons/groq.svg" width="50" height="50" alt="Groq图标"><br/>
+      <a href="https://groq.com/">Groq</a>
+    </td>
     <td></td>
     <td></td>
   </tr>

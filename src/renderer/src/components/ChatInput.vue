@@ -32,6 +32,7 @@
               :mime-type="file.mimeType"
               :tokens="file.token"
               :thumbnail="file.thumbnail"
+              :context="'input'"
               @click="previewFile(file.path)"
               @delete="deleteFile(idx)"
             />
@@ -502,7 +503,8 @@ const handlePaste = async (e: ClipboardEvent) => {
               fileModified: new Date()
             },
             token: calculateImageTokens(imageInfo.width, imageInfo.height),
-            path: tempFilePath
+            path: tempFilePath,
+            thumbnail: imageInfo.compressedBase64 // 添加缩略图
           }
           if (fileInfo) {
             selectedFiles.value.push(fileInfo)

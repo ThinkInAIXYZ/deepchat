@@ -48,6 +48,9 @@
     "loggingDialogTitle": "确认日志设置更改",
     "loggingEnableDesc": "启用日志将帮助我们诊断问题并改进应用程序。日志文件可能包含敏感信息。",
     "loggingDisableDesc": "禁用日志将停止收集应用程序日志。",
+    "webContentLengthLimit": "网页内容长度限制",
+    "webContentLengthLimitHint": "（设置为0表示不限制）",
+    "webContentLengthLimitTooltip": "设置从网页提取的文本内容长度上限（字符数），范围：0-50000。设置为0表示不限制长度，获取完整网页内容；较大的值可以获取更完整的网页内容，但可能增加处理时间和token消耗。",
     "loggingRestartNotice": "切换此设置将导致程序重启，请确认是否继续？",
     "openLogFolder": "打开日志文件夹",
     "notifications": "系统通知",
@@ -738,7 +741,7 @@
   "display": {
     "fontSize": "文字大小",
     "text-sm": "小",
-    "text-base": "默认",
+    "text-base": "标准",
     "text-lg": "大",
     "text-xl": "特大",
     "text-2xl": "超大",
