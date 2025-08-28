@@ -1,8 +1,7 @@
 import { app } from 'electron'
 import { LifecycleManager, registerCoreHooks } from './lib/lifecycle'
 import { getInstance, Presenter } from './presenter'
-
-app.setAppUserModelId('com.wefonk.deepchat')
+import { electronApp } from '@electron-toolkit/utils'
 
 // Set application command line arguments
 app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required') // Allow video autoplay
@@ -29,6 +28,8 @@ registerCoreHooks(lifecycleManager)
 let presenter: Presenter
 // Start the lifecycle management system instead of using app.whenReady()
 app.whenReady().then(async () => {
+  // Set app user model id for windows
+  electronApp.setAppUserModelId('com.wefonk.deepchat')
   try {
     await lifecycleManager.start()
     presenter = getInstance(lifecycleManager)
