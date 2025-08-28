@@ -42,7 +42,7 @@ const nodeComponents = {
             type: v.artifactType,
             title: v.artifactTitle,
             language: v.language,
-						content: v.node.code,
+            content: v.node.code,
             status: 'loaded'
           },
           messageId,
