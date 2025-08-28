@@ -88,18 +88,6 @@ export class GeminiProvider extends BaseLLMProvider {
       reasoning: true
     },
     {
-      id: 'models/gemini-2.5-flash-lite',
-      name: 'Gemini 2.5 Flash-Lite',
-      group: 'default',
-      providerId: 'gemini',
-      isCustom: false,
-      contextLength: 1048576,
-      maxTokens: 65535,
-      vision: true,
-      functionCall: true,
-      reasoning: true
-    },
-    {
       id: 'models/gemini-2.5-flash-lite-preview-06-17',
       name: 'Gemini 2.5 Flash-Lite Preview',
       group: 'default',
@@ -890,7 +878,7 @@ export class GeminiProvider extends BaseLLMProvider {
     console.log('modelConfig', modelConfig, modelId)
 
     // 检查是否是图片生成模型
-    const isImageGenerationModel = modelId === 'models/gemini-2.0-flash-preview-image-generation'
+    const isImageGenerationModel = modelConfig?.type === ModelType.ImageGeneration
 
     // 如果是图片生成模型，使用特殊处理
     if (isImageGenerationModel) {
