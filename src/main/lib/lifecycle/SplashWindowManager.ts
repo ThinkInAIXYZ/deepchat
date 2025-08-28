@@ -83,9 +83,7 @@ export class SplashWindowManager implements ISplashWindowManager {
       [LifecyclePhase.INIT]: 'Initializing application...',
       [LifecyclePhase.BEFORE_START]: 'Preparing startup...',
       [LifecyclePhase.READY]: 'Loading components...',
-      [LifecyclePhase.AFTER_START]: 'Finalizing startup...',
-      [LifecyclePhase.BEFORE_QUIT]: 'Preparing shutdown...',
-      [LifecyclePhase.WILL_QUIT]: 'Shutting down...'
+      [LifecyclePhase.AFTER_START]: 'Finalizing startup...'
     }
 
     const message = phaseMessages[phase] || 'Loading...'
@@ -101,8 +99,7 @@ export class SplashWindowManager implements ISplashWindowManager {
     const progressEvent: ProgressUpdatedEventData = {
       phase,
       progress,
-      message,
-      timestamp: Date.now()
+      message
     }
 
     eventBus.sendToMain(LIFECYCLE_EVENTS.PROGRESS_UPDATED, progressEvent)

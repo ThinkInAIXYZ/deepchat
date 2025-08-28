@@ -1861,17 +1861,16 @@ export interface LifecycleContext {
 export interface LifecycleHook {
   name: string // Descriptive name for logging and debugging
   phase: LifecyclePhase // register phase
-  priority?: number // Lower numbers execute first (default: 100)
+  priority: number // Lower numbers execute first (default: 100)
+  critical: boolean // If true, failure halts the current flow; if false, failure can be skipped
   execute: (context: LifecycleContext) => Promise<void | boolean>
-  timeout?: number // Optional timeout in milliseconds
-  critical?: boolean // If true, failure halts the phase (default: false)
 }
 
 /**
  * Internal lifecycle state tracking
  */
 export interface LifecycleState {
-  currentPhase: LifecyclePhase | null
+  currentPhase: LifecyclePhase
   completedPhases: Set<LifecyclePhase>
   startTime: number
   phaseStartTimes: Map<LifecyclePhase, number>
@@ -1885,40 +1884,12 @@ export interface LifecycleState {
 export interface ILifecycleManager {
   // Phase management
   start(): Promise<void>
-  getCurrentPhase(): LifecyclePhase | null
-  isPhaseComplete(phase: LifecyclePhase): boolean
 
   // Hook registration - for components that need to execute logic during specific phases
   registerHook(hook: LifecycleHook): string // Returns generated hook ID
-  unregisterHook(hookId: string): void
 
   // Shutdown control
   requestShutdown(): Promise<boolean>
-  forceShutdown(): void
-
-  // Splash window management
-  getSplashManager(): ISplashWindowManager
-
-  // Error handling and recovery
-  getErrorStatistics(): {
-    totalErrors: number
-    criticalErrors: number
-    nonCriticalErrors: number
-    retriedHooks: number
-    failedHooks: Array<{
-      hookName: string
-      phase: LifecyclePhase
-      error: string
-      timestamp: number
-    }>
-  }
-  updateRetryConfig(config: {
-    maxRetries?: number
-    retryDelay?: number
-    backoffMultiplier?: number
-    maxRetryDelay?: number
-  }): void
-  clearErrorHistory(): void
 
   // Context management
   getLifecycleContext(): LifecycleContext

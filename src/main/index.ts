@@ -1,4 +1,4 @@
-import { app } from 'electron'
+import { app, dialog } from 'electron'
 import { LifecycleManager, registerCoreHooks } from './lib/lifecycle'
 import { getInstance, Presenter } from './presenter'
 import { electronApp } from '@electron-toolkit/utils'
@@ -31,11 +31,16 @@ app.whenReady().then(async () => {
   // Set app user model id for windows
   electronApp.setAppUserModelId('com.wefonk.deepchat')
   try {
+    console.log('main: Application lifecycle startup')
     await lifecycleManager.start()
     presenter = getInstance(lifecycleManager)
-    console.log('Application lifecycle startup completed successfully')
+    console.log('main: Application lifecycle startup completed successfully')
   } catch (error) {
-    console.error('Application lifecycle startup failed:', error)
+    console.error('main: Application lifecycle startup failed:', error)
+    dialog.showErrorBox(
+      'Application startup failed',
+      error instanceof Error ? error.message : String(error)
+    )
     app.quit()
   }
 })

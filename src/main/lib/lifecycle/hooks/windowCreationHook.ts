@@ -11,7 +11,7 @@ export const windowCreationHook: LifecycleHook = {
   name: 'window-creation',
   phase: LifecyclePhase.AFTER_START,
   priority: 20,
-  critical: false,
+  critical: true,
   execute: async (_context: LifecycleContext) => {
     console.log('Creating initial application window')
 
@@ -19,9 +19,6 @@ export const windowCreationHook: LifecycleHook = {
     if (!presenter) {
       throw new Error('Presenter not initialized - database hook should run first')
     }
-
-    // Immediately perform basic initialization, don't wait for window ready-to-show event
-    presenter.init()
 
     // If no windows exist, create main window (first app startup)
     if (presenter.windowPresenter.getAllWindows().length === 0) {

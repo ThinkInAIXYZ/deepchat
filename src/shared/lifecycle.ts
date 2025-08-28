@@ -6,6 +6,5 @@ export enum LifecyclePhase {
   BEFORE_START = 'before-start',
   READY = 'ready',
   AFTER_START = 'after-start',
-  BEFORE_QUIT = 'before-quit',
-  WILL_QUIT = 'will-quit'
+  BEFORE_QUIT = 'before-quit'
 }
