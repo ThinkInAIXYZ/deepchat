@@ -34,10 +34,13 @@ export const windowCreationHook: LifecycleHook = {
             `windowCreationHook: Initial shell window created successfully with ID: ${windowId}`
           )
         } else {
-          console.error('windowCreationHook: Failed to create initial shell window - returned null')
+          throw new Error(
+            'windowCreationHook: Failed to create initial shell window - returned null'
+          )
         }
       } catch (error) {
         console.error('windowCreationHook: Error creating initial shell window:', error)
+        throw error
       }
     } else {
       console.log(
