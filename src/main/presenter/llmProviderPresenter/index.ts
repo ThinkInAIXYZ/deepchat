@@ -19,6 +19,7 @@ import { SiliconcloudProvider } from './providers/siliconcloudProvider'
 import { eventBus, SendTarget } from '@/eventbus'
 import { OpenAICompatibleProvider } from './providers/openAICompatibleProvider'
 import { PPIOProvider } from './providers/ppioProvider'
+import { TokenFluxProvider } from './providers/tokenfluxProvider'
 import { OLLAMA_EVENTS } from '@/events'
 import { ConfigPresenter } from '../configPresenter'
 import { GeminiProvider } from './providers/geminiProvider'
@@ -165,6 +166,9 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
 
       if (provider.id === 'ppio') {
         return new PPIOProvider(provider, this.configPresenter)
+      }
+      if (provider.id === 'tokenflux') {
+        return new TokenFluxProvider(provider, this.configPresenter)
       }
       if (provider.id === 'deepseek') {
         return new DeepseekProvider(provider, this.configPresenter)

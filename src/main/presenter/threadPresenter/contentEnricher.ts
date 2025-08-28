@@ -178,7 +178,7 @@ export class ContentEnricher {
           lengthLimit = configValue
         }
       }
-    } catch (error) {
+    } catch {
       // 忽略错误，使用默认值
     }
 
