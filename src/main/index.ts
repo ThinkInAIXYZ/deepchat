@@ -41,12 +41,11 @@ app.whenReady().then(async () => {
       'Application startup failed',
       error instanceof Error ? error.message : String(error)
     )
-    app.quit()
+    app.quit() // Serious error, exit the program
   }
 })
 
 // Handle window-all-closed event
-// Keep this event to avoid unexpected situations
 app.on('window-all-closed', () => {
   if (!presenter) return
 
@@ -56,6 +55,6 @@ app.on('window-all-closed', () => {
   if (mainWindows.length === 0) {
     // When only floating button windows exist, quit app on non-macOS platforms
     console.log('main: All main windows closed, requesting shutdown')
-    app.quit()
+    app.quit() // Keep this event to avoid unexpected situations
   }
 })

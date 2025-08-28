@@ -1,5 +1,5 @@
 // src\main\presenter\windowPresenter\index.ts
-import { BrowserWindow, shell, app, nativeImage, ipcMain } from 'electron'
+import { BrowserWindow, shell, nativeImage, ipcMain } from 'electron'
 import { join } from 'path'
 import icon from '../../../../resources/icon.png?asset' // 应用图标 (macOS/Linux)
 import iconWin from '../../../../resources/icon.ico?asset' // 应用图标 (Windows)
@@ -22,7 +22,7 @@ export class WindowPresenter implements IWindowPresenter {
   // 管理所有 BrowserWindow 实例的 Map，key 为窗口 ID
   windows: Map<number, BrowserWindow>
   private configPresenter: IConfigPresenter
-  // 退出标志，表示应用是否正在关闭过程中 (由 'before-quit' 设置)
+  // 退出标志，表示应用是否正在关闭过程中 (由 'before-quit' hook 设置)
   private isQuitting: boolean = false
   // 当前获得焦点的窗口 ID (内部记录)
   private focusedWindowId: number | null = null
@@ -63,13 +63,6 @@ export class WindowPresenter implements IWindowPresenter {
       ) {
         this.hideFloatingChatWindow()
       }
-    })
-
-    // 监听应用即将退出的事件，设置退出标志，避免窗口关闭时触发隐藏逻辑
-    app.on('before-quit', () => {
-      console.log('App is quitting, setting isQuitting flag.')
-      this.isQuitting = true
-      this.destroyFloatingChatWindow()
     })
 
     // 监听快捷键事件：创建新窗口
@@ -141,13 +134,6 @@ export class WindowPresenter implements IWindowPresenter {
           console.warn(`Skipping theme update for destroyed window ${window.id}.`)
         }
       })
-    })
-
-    // 监听强制退出应用事件 (例如：从菜单触发)，设置退出标志并调用 app.quit()
-    eventBus.on(WINDOW_EVENTS.FORCE_QUIT_APP, () => {
-      console.log('Force quitting application.')
-      this.isQuitting = true // 设置退出标志
-      app.quit() // 显式退出应用
     })
 
     // 监听内容保护设置变更事件，更新所有窗口并重启应用
@@ -1187,5 +1173,9 @@ export class WindowPresenter implements IWindowPresenter {
 
   public isApplicationQuitting(): boolean {
     return this.isQuitting
+  }
+
+  public setApplicationQuitting(isQuitting: boolean): void {
+    this.isQuitting = isQuitting
   }
 }

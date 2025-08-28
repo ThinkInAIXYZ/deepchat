@@ -389,7 +389,7 @@ export class UpgradePresenter implements IUpgradePresenter {
       autoUpdater.quitAndInstall()
       // 如果30秒还没完成，就强制退出重启
       setTimeout(() => {
-        app.quit()
+        app.quit() // Exit trigger: upgrade
       }, 30000)
     } catch (e) {
       console.error('退出并安装失败', e)

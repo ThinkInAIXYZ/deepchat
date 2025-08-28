@@ -179,6 +179,10 @@ export interface IWindowPresenter {
   sendToDefaultTab(channel: string, switchToTarget?: boolean, ...args: unknown[]): Promise<boolean>
   closeWindow(windowId: number, forceClose?: boolean): Promise<void>
   isApplicationQuitting(): boolean
+  setApplicationQuitting(isQuitting: boolean): void
+  destroyFloatingChatWindow(): void
+  isFloatingChatWindowVisible(): boolean
+  getFloatingChatWindow(): FloatingChatWindow | null
   getFocusedWindow(): BrowserWindow | undefined
   sendToActiveTab(windowId: number, channel: string, ...args: unknown[]): Promise<boolean>
   getAllWindows(): BrowserWindow[]

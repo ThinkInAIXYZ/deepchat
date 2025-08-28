@@ -81,7 +81,7 @@ export class DeeplinkPresenter implements IDeeplinkPresenter {
     // 处理 Windows 上协议被调用的情况
     const gotTheLock = app.requestSingleInstanceLock()
     if (!gotTheLock) {
-      app.quit()
+      app.quit() // Exit trigger: Second instance
     } else {
       app.on('second-instance', (_event, commandLine) => {
         // 用户尝试运行第二个实例，我们应该聚焦到我们的窗口

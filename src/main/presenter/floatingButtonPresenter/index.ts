@@ -228,7 +228,7 @@ export class FloatingButtonPresenter {
   private exitApplication(): void {
     try {
       console.log('Exiting application from floating button context menu')
-      app.quit()
+      app.quit() // Exit trigger: floating menu
     } catch (error) {
       console.error('Failed to exit application from floating button:', error)
     }

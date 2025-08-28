@@ -54,7 +54,7 @@ export class TrayPresenter {
       {
         label: labels.quit || '退出',
         click: async () => {
-          app.quit()
+          app.quit() // Exit trigger: tray menu
         }
       }
     ])

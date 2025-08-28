@@ -80,7 +80,7 @@ export class ShortcutPresenter implements IShortcutPresenter {
     // Command+Q 或 Ctrl+Q 退出程序
     if (this.shortcutKeys.Quit) {
       globalShortcut.register(this.shortcutKeys.Quit, () => {
-        app.quit()
+        app.quit() // Exit trigger: shortcut key
       })
     }
 

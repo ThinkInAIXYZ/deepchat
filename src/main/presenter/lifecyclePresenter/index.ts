@@ -4,7 +4,7 @@
 
 import { app } from 'electron'
 import { eventBus, SendTarget } from '@/eventbus'
-import { LIFECYCLE_EVENTS } from '@/events'
+import { LIFECYCLE_EVENTS, WINDOW_EVENTS } from '@/events'
 import { SplashWindowManager } from './SplashWindowManager'
 import {
   ILifecycleManager,
@@ -340,11 +340,17 @@ export class LifecycleManager implements ILifecycleManager {
         this.state.isShuttingDown = true
         const canShutdown = await this.requestShutdown()
         if (canShutdown) {
-          app.quit()
+          app.quit() // Main exit: finish beforeQuit
         } else {
           this.state.isShuttingDown = false
         }
       }
+    })
+
+    // 监听强制退出应用事件 (例如：从菜单触发)，设置退出标志并调用 app.quit()
+    eventBus.on(WINDOW_EVENTS.FORCE_QUIT_APP, () => {
+      console.log('Force quitting application.')
+      this.forceShutdown()
     })
   }
 
@@ -420,5 +426,11 @@ export class LifecycleManager implements ILifecycleManager {
     if (this.lifecycleContext.presenter) {
       eventBus.sendToRenderer(event, SendTarget.ALL_WINDOWS, data)
     }
+  }
+
+  private forceShutdown(): void {
+    console.log('Force shutdown requested')
+    this.state.isShuttingDown = true
+    app.quit() // Main exit: force quit
   }
 }
