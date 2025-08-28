@@ -63,7 +63,7 @@ const handleCopyClick = () => {
 }
 
 // 逃逸方括号，避免 markdown 被解析为 reference
-const escapedContent = (content:string) => {
+const escapedContent = (content: string) => {
   return content.replace(/\[/g, '&#91;').replace(/\]/g, '&#93;')
 }
 
