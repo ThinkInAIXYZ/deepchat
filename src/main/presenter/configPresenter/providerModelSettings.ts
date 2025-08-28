@@ -215,6 +215,17 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         reasoning: true
       },
       {
+        id: 'models/gemini-2.5-flash-lite',
+        name: 'Gemini 2.5 Flash Lite',
+        temperature: 0.7,
+        maxTokens: 65535,
+        contextLength: 1048576,
+        match: ['models/gemini-2.5-flash-lite', 'gemini-2.5-flash-lite'],
+        vision: true,
+        functionCall: true,
+        reasoning: true
+      },
+      {
         id: 'models/gemini-2.0-flash',
         name: 'Gemini 2.0 Flash',
         temperature: 0.7,
