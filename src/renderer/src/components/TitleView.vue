@@ -102,6 +102,7 @@ import { onMounted, onUnmounted, ref, watch, computed } from 'vue'
 import { useChatStore } from '@/stores/chat'
 import { usePresenter } from '@/composables/usePresenter'
 import { useThemeStore } from '@/stores/theme'
+import { useSettingsStore } from '@/stores/settings'
 import { ModelType } from '@shared/model'
 import { RATE_LIMIT_EVENTS } from '@/events'
 
@@ -111,6 +112,7 @@ const llmPresenter = usePresenter('llmproviderPresenter')
 const { t } = useI18n()
 const chatStore = useChatStore()
 const themeStore = useThemeStore()
+const settingsStore = useSettingsStore()
 // Chat configuration state
 const temperature = ref(chatStore.chatConfig.temperature)
 const contextLength = ref(chatStore.chatConfig.contextLength)
@@ -355,8 +357,19 @@ const handleModelUpdate = (model: MODEL_META) => {
   modelSelectOpen.value = false
 }
 
+const isRateLimitEnabled = () => {
+  if (!props.model?.providerId) return false
+  const provider = settingsStore.providers.find((p) => p.id === props.model?.providerId)
+  return provider?.rateLimit?.enabled ?? false
+}
+
 const loadRateLimitStatus = async () => {
   if (props.model?.providerId) {
+    if (!isRateLimitEnabled()) {
+      rateLimitStatus.value = null
+      return
+    }
+
     try {
       const status = await llmPresenter.getProviderRateLimitStatus(props.model.providerId)
       rateLimitStatus.value = status
@@ -368,11 +381,32 @@ const loadRateLimitStatus = async () => {
 
 const handleRateLimitEvent = (data: any) => {
   if (data.providerId === props.model?.providerId) {
-    loadRateLimitStatus()
+    if (data.config && !data.config.enabled) {
+      rateLimitStatus.value = null
+    } else {
+      loadRateLimitStatus()
+    }
+    startRateLimitPolling()
   }
 }
 
-let statusInterval: number | null = null
+let statusInterval: ReturnType<typeof setInterval> | null = null
+
+const startRateLimitPolling = () => {
+  if (statusInterval) {
+    clearInterval(statusInterval)
+  }
+  if (isRateLimitEnabled()) {
+    statusInterval = setInterval(loadRateLimitStatus, 1000)
+  }
+}
+
+const stopRateLimitPolling = () => {
+  if (statusInterval) {
+    clearInterval(statusInterval)
+    statusInterval = null
+  }
+}
 
 onMounted(async () => {
   if (props.model) {
@@ -391,26 +425,32 @@ onMounted(async () => {
   window.electron.ipcRenderer.on(RATE_LIMIT_EVENTS.REQUEST_EXECUTED, handleRateLimitEvent)
   window.electron.ipcRenderer.on(RATE_LIMIT_EVENTS.REQUEST_QUEUED, handleRateLimitEvent)
 
-  statusInterval = window.setInterval(loadRateLimitStatus, 1000)
+  // 只有在速率限制启用时才开始轮询
+  startRateLimitPolling()
 })
 
 onUnmounted(() => {
-  if (statusInterval) {
-    clearInterval(statusInterval)
-  }
-  window.electron.ipcRenderer.removeListener(RATE_LIMIT_EVENTS.CONFIG_UPDATED, handleRateLimitEvent)
-  window.electron.ipcRenderer.removeListener(
-    RATE_LIMIT_EVENTS.REQUEST_EXECUTED,
-    handleRateLimitEvent
-  )
-  window.electron.ipcRenderer.removeListener(RATE_LIMIT_EVENTS.REQUEST_QUEUED, handleRateLimitEvent)
+  stopRateLimitPolling()
+  window.electron.ipcRenderer.removeAllListeners(RATE_LIMIT_EVENTS.CONFIG_UPDATED)
+  window.electron.ipcRenderer.removeAllListeners(RATE_LIMIT_EVENTS.REQUEST_EXECUTED)
+  window.electron.ipcRenderer.removeAllListeners(RATE_LIMIT_EVENTS.REQUEST_QUEUED)
 })
 
 watch(
   () => props.model?.providerId,
   () => {
     loadRateLimitStatus()
+    startRateLimitPolling()
   }
+)
+
+watch(
+  () => settingsStore.providers,
+  () => {
+    loadRateLimitStatus()
+    startRateLimitPolling()
+  },
+  { deep: true }
 )
 </script>
 

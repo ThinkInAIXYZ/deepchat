@@ -218,6 +218,7 @@ import { useSettingsStore } from '@/stores/settings'
 import McpToolsList from './mcpToolsList.vue'
 import { useEventListener } from '@vueuse/core'
 import { calculateImageTokens, getClipboardImageInfo, imageFileToBase64 } from '@/lib/image'
+import { RATE_LIMIT_EVENTS } from '@/events'
 import { Editor, EditorContent, JSONContent } from '@tiptap/vue-3'
 import Document from '@tiptap/extension-document'
 import Paragraph from '@tiptap/extension-paragraph'
@@ -952,6 +953,11 @@ const handleSearchMouseLeave = () => {
 const loadRateLimitStatus = async () => {
   const currentProviderId = chatStore.chatConfig.providerId
   if (currentProviderId) {
+    if (!isRateLimitEnabled()) {
+      rateLimitStatus.value = null
+      return
+    }
+
     try {
       const status = await llmPresenter.getProviderRateLimitStatus(currentProviderId)
       rateLimitStatus.value = status
@@ -961,13 +967,42 @@ const loadRateLimitStatus = async () => {
   }
 }
 
+const isRateLimitEnabled = () => {
+  const currentProviderId = chatStore.chatConfig.providerId
+  if (!currentProviderId) return false
+
+  const provider = settingsStore.providers.find((p) => p.id === currentProviderId)
+  return provider?.rateLimit?.enabled ?? false
+}
+
 const handleRateLimitEvent = (data: any) => {
   if (data.providerId === chatStore.chatConfig.providerId) {
-    loadRateLimitStatus()
+    if (data.config && !data.config.enabled) {
+      rateLimitStatus.value = null
+    } else {
+      loadRateLimitStatus()
+    }
+    startRateLimitPolling()
   }
 }
 
-let statusInterval: number | null = null
+let statusInterval: ReturnType<typeof setInterval> | null = null
+
+const startRateLimitPolling = () => {
+  if (statusInterval) {
+    clearInterval(statusInterval)
+  }
+  if (isRateLimitEnabled()) {
+    statusInterval = setInterval(loadRateLimitStatus, 1000)
+  }
+}
+
+const stopRateLimitPolling = () => {
+  if (statusInterval) {
+    clearInterval(statusInterval)
+    statusInterval = null
+  }
+}
 
 onMounted(() => {
   initSettings()
@@ -997,20 +1032,19 @@ onMounted(() => {
     }
   })
 
-  window.electron.ipcRenderer.on('rate-limit:config-updated', handleRateLimitEvent)
-  window.electron.ipcRenderer.on('rate-limit:request-executed', handleRateLimitEvent)
-  window.electron.ipcRenderer.on('rate-limit:request-queued', handleRateLimitEvent)
+  window.electron.ipcRenderer.on(RATE_LIMIT_EVENTS.CONFIG_UPDATED, handleRateLimitEvent)
+  window.electron.ipcRenderer.on(RATE_LIMIT_EVENTS.REQUEST_EXECUTED, handleRateLimitEvent)
+  window.electron.ipcRenderer.on(RATE_LIMIT_EVENTS.REQUEST_QUEUED, handleRateLimitEvent)
 
-  statusInterval = window.setInterval(loadRateLimitStatus, 1000)
+  // 只有在速率限制启用时才开始轮询
+  startRateLimitPolling()
 })
 
 onUnmounted(() => {
-  if (statusInterval) {
-    clearInterval(statusInterval)
-  }
-  window.electron.ipcRenderer.removeListener('rate-limit:config-updated', handleRateLimitEvent)
-  window.electron.ipcRenderer.removeListener('rate-limit:request-executed', handleRateLimitEvent)
-  window.electron.ipcRenderer.removeListener('rate-limit:request-queued', handleRateLimitEvent)
+  stopRateLimitPolling()
+  window.electron.ipcRenderer.removeAllListeners(RATE_LIMIT_EVENTS.CONFIG_UPDATED)
+  window.electron.ipcRenderer.removeAllListeners(RATE_LIMIT_EVENTS.REQUEST_EXECUTED)
+  window.electron.ipcRenderer.removeAllListeners(RATE_LIMIT_EVENTS.REQUEST_QUEUED)
 })
 
 watch(
@@ -1018,6 +1052,23 @@ watch(
   async () => {
     selectedSearchEngine.value = settingsStore.activeSearchEngine?.id ?? 'google'
   }
+)
+
+watch(
+  () => chatStore.chatConfig.providerId,
+  () => {
+    loadRateLimitStatus()
+    startRateLimitPolling()
+  }
+)
+
+watch(
+  () => settingsStore.providers,
+  () => {
+    loadRateLimitStatus()
+    startRateLimitPolling()
+  },
+  { deep: true }
 )
 
 watch(

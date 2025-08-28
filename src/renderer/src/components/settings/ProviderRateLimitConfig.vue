@@ -128,6 +128,8 @@ function convertIntervalToQps(interval: number): number {
 const handleEnabledChange = async (enabled: boolean) => {
   rateLimitEnabled.value = enabled
   await updateRateLimitConfig()
+  // 根据启用状态控制轮询
+  startStatusPolling()
 }
 
 const handleIntervalChange = async () => {
@@ -220,6 +222,24 @@ const handleRateLimitEvent = (data: any) => {
   }
 }
 
+let statusInterval: ReturnType<typeof setInterval> | null = null
+
+const startStatusPolling = () => {
+  if (statusInterval) {
+    clearInterval(statusInterval)
+  }
+  if (rateLimitEnabled.value) {
+    statusInterval = setInterval(loadStatus, 1000)
+  }
+}
+
+const stopStatusPolling = () => {
+  if (statusInterval) {
+    clearInterval(statusInterval)
+    statusInterval = null
+  }
+}
+
 onMounted(() => {
   loadStatus()
 
@@ -227,22 +247,14 @@ onMounted(() => {
   window.electron.ipcRenderer.on(RATE_LIMIT_EVENTS.REQUEST_EXECUTED, handleRateLimitEvent)
   window.electron.ipcRenderer.on(RATE_LIMIT_EVENTS.REQUEST_QUEUED, handleRateLimitEvent)
 
-  const statusInterval = setInterval(loadStatus, 1000)
+  // 只有在速率限制启用时才开始轮询
+  startStatusPolling()
 
   onUnmounted(() => {
-    clearInterval(statusInterval)
-    window.electron.ipcRenderer.removeListener(
-      RATE_LIMIT_EVENTS.CONFIG_UPDATED,
-      handleRateLimitEvent
-    )
-    window.electron.ipcRenderer.removeListener(
-      RATE_LIMIT_EVENTS.REQUEST_EXECUTED,
-      handleRateLimitEvent
-    )
-    window.electron.ipcRenderer.removeListener(
-      RATE_LIMIT_EVENTS.REQUEST_QUEUED,
-      handleRateLimitEvent
-    )
+    stopStatusPolling()
+    window.electron.ipcRenderer.removeAllListeners(RATE_LIMIT_EVENTS.CONFIG_UPDATED)
+    window.electron.ipcRenderer.removeAllListeners(RATE_LIMIT_EVENTS.REQUEST_EXECUTED)
+    window.electron.ipcRenderer.removeAllListeners(RATE_LIMIT_EVENTS.REQUEST_QUEUED)
   })
 })
 
@@ -251,6 +263,10 @@ watch(intervalValue, (newValue) => {
   if (newValue > 0) {
     previousValidValue.value = newValue
   }
+})
+
+watch(rateLimitEnabled, () => {
+  startStatusPolling()
 })
 
 // 监听 provider 变化
