@@ -54,7 +54,7 @@ export const configInitHook: LifecycleHook = {
 
 ### Registering a Hook
 
-To register a hook, add it to the `src/main/lib/lifecycle/hooks/index.ts` file. The `LifecycleManager` will automatically register all hooks exported from this file.
+To register a hook, add it to the `src/main/lib/lifecycle/hooks/index.ts` file. The hooks are then registered with the `LifecycleManager` via the `registerCoreHooks()` function during application startup.
 
 ## LifecycleManager
 
