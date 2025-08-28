@@ -182,7 +182,10 @@ export const FLOATING_BUTTON_EVENTS = {
   RIGHT_CLICKED: 'floating-button:right-clicked', // 悬浮按钮被右键点击
   VISIBILITY_CHANGED: 'floating-button:visibility-changed', // 悬浮按钮显示状态改变
   POSITION_CHANGED: 'floating-button:position-changed', // 悬浮按钮位置改变
-  ENABLED_CHANGED: 'floating-button:enabled-changed' // 悬浮按钮启用状态改变
+  ENABLED_CHANGED: 'floating-button:enabled-changed', // 悬浮按钮启用状态改变
+  DRAG_START: 'floating-button:drag-start', // 悬浮按钮开始拖拽
+  DRAG_MOVE: 'floating-button:drag-move', // 悬浮按钮拖拽移动
+  DRAG_END: 'floating-button:drag-end' // 悬浮按钮结束拖拽
 }
 
 // Dialog related events

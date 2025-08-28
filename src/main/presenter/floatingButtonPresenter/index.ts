@@ -47,8 +47,19 @@ export class FloatingButtonPresenter {
   public destroy(): void {
     this.config.enabled = false
 
+    const floatingChatWindow = presenter.windowPresenter.getFloatingChatWindow()
+    if (floatingChatWindow?.isShowing()) {
+      floatingChatWindow.hide()
+      console.log('FloatingChatWindow closed when disabling floating button')
+    }
+
+    // 清理所有事件监听器
     ipcMain.removeAllListeners(FLOATING_BUTTON_EVENTS.CLICKED)
     ipcMain.removeAllListeners(FLOATING_BUTTON_EVENTS.RIGHT_CLICKED)
+    ipcMain.removeAllListeners(FLOATING_BUTTON_EVENTS.DRAG_START)
+    ipcMain.removeAllListeners(FLOATING_BUTTON_EVENTS.DRAG_MOVE)
+    ipcMain.removeAllListeners(FLOATING_BUTTON_EVENTS.DRAG_END)
+
     if (this.floatingWindow) {
       this.floatingWindow.destroy()
       this.floatingWindow = null
@@ -109,7 +120,11 @@ export class FloatingButtonPresenter {
   private async createFloatingWindow(): Promise<void> {
     ipcMain.removeAllListeners(FLOATING_BUTTON_EVENTS.CLICKED)
     ipcMain.removeAllListeners(FLOATING_BUTTON_EVENTS.RIGHT_CLICKED)
+    ipcMain.removeAllListeners(FLOATING_BUTTON_EVENTS.DRAG_START)
+    ipcMain.removeAllListeners(FLOATING_BUTTON_EVENTS.DRAG_MOVE)
+    ipcMain.removeAllListeners(FLOATING_BUTTON_EVENTS.DRAG_END)
 
+    // 处理点击事件
     ipcMain.on(FLOATING_BUTTON_EVENTS.CLICKED, async () => {
       try {
         let floatingButtonPosition: { x: number; y: number; width: number; height: number } | null =
@@ -141,6 +156,122 @@ export class FloatingButtonPresenter {
         this.showContextMenu()
       } catch (error) {
         console.error('Failed to handle floating button right click:', error)
+      }
+    })
+
+    // 处理拖拽事件
+    let dragState = {
+      isDragging: false,
+      startX: 0,
+      startY: 0,
+      windowX: 0,
+      windowY: 0,
+      wasFloatingChatVisible: false // 记录拖拽前浮窗是否可见
+    }
+
+    ipcMain.on(FLOATING_BUTTON_EVENTS.DRAG_START, (_event, { x, y }: { x: number; y: number }) => {
+      try {
+        if (this.floatingWindow && this.floatingWindow.exists()) {
+          const buttonWindow = this.floatingWindow.getWindow()
+          if (buttonWindow && !buttonWindow.isDestroyed()) {
+            const bounds = buttonWindow.getBounds()
+
+            // 检查浮窗是否可见，如果可见则隐藏
+            const floatingChatWindow = presenter.windowPresenter.getFloatingChatWindow()
+            dragState.wasFloatingChatVisible = floatingChatWindow?.isShowing() || false
+
+            if (dragState.wasFloatingChatVisible) {
+              floatingChatWindow?.hide()
+              console.log('FloatingChatWindow hidden during drag start')
+            }
+
+            dragState = {
+              ...dragState,
+              isDragging: true,
+              startX: x,
+              startY: y,
+              windowX: bounds.x,
+              windowY: bounds.y
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Failed to handle drag start:', error)
+      }
+    })
+
+    ipcMain.on(FLOATING_BUTTON_EVENTS.DRAG_MOVE, (_event, { x, y }: { x: number; y: number }) => {
+      try {
+        if (dragState.isDragging && this.floatingWindow && this.floatingWindow.exists()) {
+          const buttonWindow = this.floatingWindow.getWindow()
+          if (buttonWindow && !buttonWindow.isDestroyed()) {
+            const deltaX = x - dragState.startX
+            const deltaY = y - dragState.startY
+            const newX = dragState.windowX + deltaX
+            const newY = dragState.windowY + deltaY
+
+            buttonWindow.setPosition(newX, newY)
+          }
+        }
+      } catch (error) {
+        console.error('Failed to handle drag move:', error)
+      }
+    })
+
+    ipcMain.on(FLOATING_BUTTON_EVENTS.DRAG_END, (_event, _data: { x: number; y: number }) => {
+      try {
+        if (dragState.isDragging && this.floatingWindow && this.floatingWindow.exists()) {
+          const buttonWindow = this.floatingWindow.getWindow()
+          if (buttonWindow && !buttonWindow.isDestroyed()) {
+            // 简单边界检查
+            const { screen } = require('electron')
+            const primaryDisplay = screen.getPrimaryDisplay()
+            const { workArea } = primaryDisplay
+
+            const bounds = buttonWindow.getBounds()
+
+            // 确保悬浮球完全在屏幕范围内
+            const targetX = Math.max(0, Math.min(bounds.x, workArea.width - bounds.width))
+            const targetY = Math.max(0, Math.min(bounds.y, workArea.height - bounds.height))
+
+            // 只有在越界时才调整位置
+            if (targetX !== bounds.x || targetY !== bounds.y) {
+              buttonWindow.setPosition(targetX, targetY)
+            }
+          }
+        }
+
+        // 如果拖拽前浮窗是可见的，拖拽结束后重新显示
+        if (dragState.wasFloatingChatVisible) {
+          const floatingChatWindow = presenter.windowPresenter.getFloatingChatWindow()
+          if (floatingChatWindow) {
+            // 获取悬浮球当前位置，用于计算浮窗显示位置
+            let floatingButtonPosition:
+              | { x: number; y: number; width: number; height: number }
+              | undefined = undefined
+            if (this.floatingWindow && this.floatingWindow.exists()) {
+              const buttonWindow = this.floatingWindow.getWindow()
+              if (buttonWindow && !buttonWindow.isDestroyed()) {
+                const bounds = buttonWindow.getBounds()
+                floatingButtonPosition = {
+                  x: bounds.x,
+                  y: bounds.y,
+                  width: bounds.width,
+                  height: bounds.height
+                }
+              }
+            }
+
+            floatingChatWindow.show(floatingButtonPosition)
+            console.log('FloatingChatWindow shown after drag end')
+          }
+        }
+
+        // 重置拖拽状态
+        dragState.isDragging = false
+        dragState.wasFloatingChatVisible = false
+      } catch (error) {
+        console.error('Failed to handle drag end:', error)
       }
     })
 
