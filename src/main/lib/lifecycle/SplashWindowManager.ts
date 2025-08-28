@@ -41,7 +41,9 @@ export class SplashWindowManager implements ISplashWindowManager {
         autoHideMenuBar: true,
         webPreferences: {
           preload: path.join(__dirname, '../preload/splash.mjs'),
-          sandbox: false
+          contextIsolation: true,
+          nodeIntegration: false,
+          sandbox: true
         }
       })
 
