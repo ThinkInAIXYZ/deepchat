@@ -456,7 +456,7 @@ export class LifecycleManager implements ILifecycleManager {
       timestamp: Date.now()
     }
     // Emit successful hook execution event
-    this.notifyMessage(LIFECYCLE_EVENTS.HOOK_COMPUTED, computedMessage)
+    this.notifyMessage(LIFECYCLE_EVENTS.HOOK_COMPLETED, computedMessage)
 
     return result
   }
@@ -536,7 +536,7 @@ export class LifecycleManager implements ILifecycleManager {
       )
     })
     // Listen to hook computed events
-    eventBus.on(LIFECYCLE_EVENTS.HOOK_COMPUTED, (data: HookExecutedEventData) => {
+    eventBus.on(LIFECYCLE_EVENTS.HOOK_COMPLETED, (data: HookExecutedEventData) => {
       console.log(`[LifecycleManager] Computed hook: ${data.name})`)
     })
 
