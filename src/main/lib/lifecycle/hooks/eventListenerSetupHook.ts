@@ -4,7 +4,7 @@
  */
 
 import { app } from 'electron'
-import { electronApp, optimizer } from '@electron-toolkit/utils'
+import { optimizer } from '@electron-toolkit/utils'
 import { LifecycleHook, LifecycleContext } from '@shared/presenter'
 import { eventBus } from '@/eventbus'
 import { WINDOW_EVENTS, TRAY_EVENTS, FLOATING_BUTTON_EVENTS } from '@/events'
@@ -24,9 +24,6 @@ export const eventListenerSetupHook: LifecycleHook = {
     if (!presenter) {
       throw new Error('Presenter not initialized - database hook should run first')
     }
-
-    // Set app user model id for windows
-    electronApp.setAppUserModelId('com.wefonk.deepchat')
 
     // Add F12 DevTools support for new windows in development, ignore CmdOrControl + R in production
     app.on('browser-window-created', (_, window) => {

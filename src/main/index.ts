@@ -2,7 +2,7 @@ import { app } from 'electron'
 import { LifecycleManager, registerCoreHooks } from './lib/lifecycle'
 import { getInstance, Presenter } from './presenter'
 
-app.setAppUserModelId('com.deepchat.app')
+app.setAppUserModelId('com.wefonk.deepchat')
 
 // Set application command line arguments
 app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required') // Allow video autoplay
