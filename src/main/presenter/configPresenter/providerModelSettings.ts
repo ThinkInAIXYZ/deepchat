@@ -205,17 +205,6 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         reasoning: true
       },
       {
-        id: 'models/gemini-2.5-flash',
-        name: 'Gemini 2.5 Flash',
-        temperature: 0.7,
-        maxTokens: 65535,
-        contextLength: 1048576,
-        match: ['models/gemini-2.5-flash', 'gemini-2.5-flash'],
-        vision: true,
-        functionCall: true,
-        reasoning: true
-      },
-      {
         id: 'models/gemini-2.5-flash-lite',
         name: 'Gemini 2.5 Flash Lite',
         temperature: 0.7,
@@ -227,26 +216,15 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         reasoning: true
       },
       {
-        id: 'models/gemini-2.0-flash',
-        name: 'Gemini 2.0 Flash',
+        id: 'models/gemini-2.5-flash',
+        name: 'Gemini 2.5 Flash',
         temperature: 0.7,
-        maxTokens: 8191,
+        maxTokens: 65535,
         contextLength: 1048576,
-        match: ['models/gemini-2.0-flash', 'gemini-2.0-flash'],
+        match: ['models/gemini-2.5-flash', 'gemini-2.5-flash'],
         vision: true,
         functionCall: true,
         reasoning: true
-      },
-      {
-        id: 'models/gemini-2.0-flash-lite',
-        name: 'Gemini 2.0 Flash Lite',
-        temperature: 0.7,
-        maxTokens: 8191,
-        contextLength: 1048576,
-        match: ['models/gemini-2.0-flash-lite', 'gemini-2.0-flash-lite'],
-        vision: true,
-        functionCall: true,
-        reasoning: false
       },
       {
         id: 'models/gemini-2.0-flash-preview-image-generation',
@@ -262,6 +240,28 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         functionCall: false,
         reasoning: false,
         type: ModelType.ImageGeneration
+      },
+      {
+        id: 'models/gemini-2.0-flash-lite',
+        name: 'Gemini 2.0 Flash Lite',
+        temperature: 0.7,
+        maxTokens: 8191,
+        contextLength: 1048576,
+        match: ['models/gemini-2.0-flash-lite', 'gemini-2.0-flash-lite'],
+        vision: true,
+        functionCall: true,
+        reasoning: false
+      },
+      {
+        id: 'models/gemini-2.0-flash',
+        name: 'Gemini 2.0 Flash',
+        temperature: 0.7,
+        maxTokens: 8191,
+        contextLength: 1048576,
+        match: ['models/gemini-2.0-flash', 'gemini-2.0-flash'],
+        vision: true,
+        functionCall: true,
+        reasoning: true
       },
       {
         id: 'models/gemini-1.5-flash',

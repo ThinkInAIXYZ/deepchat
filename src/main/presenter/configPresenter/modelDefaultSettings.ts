@@ -350,12 +350,24 @@ export const defaultModelsSettings: DefaultModelSetting[] = [
     thinkingBudget: -1 // 动态思维
   },
   {
-    id: 'models/gemini-2.5-flash',
-    name: 'Gemini 2.5 Flash',
+    id: 'google/gemini-2.5-flash-image-preview',
+    name: 'Gemini 2.5 Flash Image Preview',
+    temperature: 0.7,
+    maxTokens: 32768,
+    contextLength: 32768,
+    match: ['google/gemini-2.5-flash-image-preview', 'gemini-2.5-flash-image-preview'],
+    vision: true,
+    functionCall: false,
+    reasoning: false,
+    type: ModelType.ImageGeneration
+  },
+  {
+    id: 'models/gemini-2.5-flash-lite-preview-06-17',
+    name: 'Gemini 2.5 Flash-Lite Preview',
     temperature: 0.7,
     maxTokens: 65535,
     contextLength: 1048576,
-    match: ['models/gemini-2.5-flash', 'gemini-2.5-flash'],
+    match: ['models/gemini-2.5-flash-lite-preview-06-17', 'gemini-2.5-flash-lite-preview'],
     vision: true,
     functionCall: true,
     reasoning: true,
@@ -374,61 +386,16 @@ export const defaultModelsSettings: DefaultModelSetting[] = [
     thinkingBudget: -1 // 动态思维
   },
   {
-    id: 'models/gemini-2.5-flash-lite-preview-06-17',
-    name: 'Gemini 2.5 Flash-Lite Preview',
+    id: 'models/gemini-2.5-flash',
+    name: 'Gemini 2.5 Flash',
     temperature: 0.7,
     maxTokens: 65535,
     contextLength: 1048576,
-    match: ['models/gemini-2.5-flash-lite-preview-06-17', 'gemini-2.5-flash-lite-preview'],
+    match: ['models/gemini-2.5-flash', 'gemini-2.5-flash'],
     vision: true,
     functionCall: true,
     reasoning: true,
     thinkingBudget: -1 // 动态思维
-  },
-  {
-    id: 'models/gemini-2.0-flash',
-    name: 'Gemini 2.0 Flash',
-    temperature: 0.7,
-    maxTokens: 8191,
-    contextLength: 1048576,
-    match: ['models/gemini-2.0-flash', 'gemini-2.0-flash'],
-    vision: true,
-    functionCall: true,
-    reasoning: true //Experimental
-  },
-  {
-    id: 'models/gemini-2.0-flash-lite',
-    name: 'Gemini 2.0 Flash Lite',
-    temperature: 0.7,
-    maxTokens: 8191,
-    contextLength: 1048576,
-    match: ['models/gemini-2.0-flash-lite', 'gemini-2.0-flash-lite'],
-    vision: true,
-    functionCall: true,
-    reasoning: false
-  },
-  {
-    id: 'models/gemini-1.5-flash',
-    name: 'Gemini 1.5 Flash',
-    temperature: 0.7,
-    maxTokens: 8191,
-    contextLength: 1048576,
-    match: ['models/gemini-1.5-flash', 'gemini-1.5-flash'],
-    vision: true,
-    functionCall: true,
-    reasoning: false
-  },
-  {
-    id: 'google/gemini-2.5-flash-image-preview',
-    name: 'Gemini 2.5 Flash Image Preview',
-    temperature: 0.7,
-    maxTokens: 32768,
-    contextLength: 32768,
-    match: ['google/gemini-2.5-flash-image-preview', 'gemini-2.5-flash-image-preview'],
-    vision: true,
-    functionCall: false,
-    reasoning: false,
-    type: ModelType.ImageGeneration
   },
   {
     id: 'models/gemini-2.0-flash-preview-image-generation',
@@ -444,6 +411,39 @@ export const defaultModelsSettings: DefaultModelSetting[] = [
     functionCall: false,
     reasoning: false,
     type: ModelType.ImageGeneration
+  },
+  {
+    id: 'models/gemini-2.0-flash-lite',
+    name: 'Gemini 2.0 Flash Lite',
+    temperature: 0.7,
+    maxTokens: 8191,
+    contextLength: 1048576,
+    match: ['models/gemini-2.0-flash-lite', 'gemini-2.0-flash-lite'],
+    vision: true,
+    functionCall: true,
+    reasoning: false
+  },
+  {
+    id: 'models/gemini-2.0-flash',
+    name: 'Gemini 2.0 Flash',
+    temperature: 0.7,
+    maxTokens: 8191,
+    contextLength: 1048576,
+    match: ['models/gemini-2.0-flash', 'gemini-2.0-flash'],
+    vision: true,
+    functionCall: true,
+    reasoning: true //Experimental
+  },
+  {
+    id: 'models/gemini-1.5-flash',
+    name: 'Gemini 1.5 Flash',
+    temperature: 0.7,
+    maxTokens: 8191,
+    contextLength: 1048576,
+    match: ['models/gemini-1.5-flash', 'gemini-1.5-flash'],
+    vision: true,
+    functionCall: true,
+    reasoning: false
   },
   // DeepSeek系列模型配置
   {

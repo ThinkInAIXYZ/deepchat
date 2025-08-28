@@ -64,8 +64,8 @@ export class GeminiProvider extends BaseLLMProvider {
       reasoning: true
     },
     {
-      id: 'models/gemini-2.5-flash',
-      name: 'Gemini 2.5 Flash',
+      id: 'models/gemini-2.5-flash-lite-preview-06-17',
+      name: 'Gemini 2.5 Flash-Lite Preview',
       group: 'default',
       providerId: 'gemini',
       isCustom: false,
@@ -88,8 +88,8 @@ export class GeminiProvider extends BaseLLMProvider {
       reasoning: true
     },
     {
-      id: 'models/gemini-2.5-flash-lite-preview-06-17',
-      name: 'Gemini 2.5 Flash-Lite Preview',
+      id: 'models/gemini-2.5-flash',
+      name: 'Gemini 2.5 Flash',
       group: 'default',
       providerId: 'gemini',
       isCustom: false,
@@ -100,16 +100,17 @@ export class GeminiProvider extends BaseLLMProvider {
       reasoning: true
     },
     {
-      id: 'models/gemini-2.0-flash',
-      name: 'Gemini 2.0 Flash',
+      id: 'models/gemini-2.0-flash-preview-image-generation',
+      name: 'Gemini 2.0 Flash Preview Image Generation',
       group: 'default',
       providerId: 'gemini',
       isCustom: false,
-      contextLength: 1048576,
-      maxTokens: 8191,
+      contextLength: 32000,
+      maxTokens: 8192,
       vision: true,
-      functionCall: true,
-      reasoning: true
+      functionCall: false,
+      reasoning: false,
+      type: ModelType.ImageGeneration
     },
     {
       id: 'models/gemini-2.0-flash-lite',
@@ -124,6 +125,18 @@ export class GeminiProvider extends BaseLLMProvider {
       reasoning: false
     },
     {
+      id: 'models/gemini-2.0-flash',
+      name: 'Gemini 2.0 Flash',
+      group: 'default',
+      providerId: 'gemini',
+      isCustom: false,
+      contextLength: 1048576,
+      maxTokens: 8191,
+      vision: true,
+      functionCall: true,
+      reasoning: true
+    },
+    {
       id: 'models/gemini-1.5-flash',
       name: 'Gemini 1.5 Flash',
       group: 'default',
@@ -134,19 +147,6 @@ export class GeminiProvider extends BaseLLMProvider {
       vision: true,
       functionCall: true,
       reasoning: false
-    },
-    {
-      id: 'models/gemini-2.0-flash-preview-image-generation',
-      name: 'Gemini 2.0 Flash Preview Image Generation',
-      group: 'default',
-      providerId: 'gemini',
-      isCustom: false,
-      contextLength: 32000,
-      maxTokens: 8192,
-      vision: true,
-      functionCall: false,
-      reasoning: false,
-      type: ModelType.ImageGeneration
     }
   ]
 
