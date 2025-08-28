@@ -5,7 +5,7 @@
       <!-- 使用结构化渲染器替代 v-html -->
       <MarkdownRenderer
         v-if="part.type === 'text'"
-        :content="part.content"
+        :content="escapedContent(part.content)"
         :loading="part.loading"
         @copy="handleCopyClick"
       />
@@ -60,6 +60,11 @@ const { processedContent } = useBlockContent(props)
 // Handle copy functionality
 const handleCopyClick = () => {
   // 现在复制功能在组件内部处理
+}
+
+// 逃逸方括号，避免 markdown 被解析为 reference
+const escapedContent = (content:string) => {
+  return content.replace(/\[/g, '&#91;').replace(/\]/g, '&#93;')
 }
 
 // 修改 watch 函数
