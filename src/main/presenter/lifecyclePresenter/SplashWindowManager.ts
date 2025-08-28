@@ -87,23 +87,19 @@ export class SplashWindowManager implements ISplashWindowManager {
     }
 
     const message = phaseMessages[phase] || 'Loading...'
-
-    // Send progress update to splash window
-    this.splashWindow.webContents.send('splash-update', {
-      phase,
-      progress: Math.max(0, Math.min(100, progress)),
-      message
-    })
+    const clamped = Math.max(0, Math.min(100, progress))
 
     // Emit progress event to both main and renderer processes
-    const progressEvent: ProgressUpdatedEventData = {
+    eventBus.sendToMain(LIFECYCLE_EVENTS.PROGRESS_UPDATED, {
       phase,
-      progress,
+      progress: clamped,
       message
-    }
-
-    eventBus.sendToMain(LIFECYCLE_EVENTS.PROGRESS_UPDATED, progressEvent)
-    this.splashWindow.webContents.send(LIFECYCLE_EVENTS.PROGRESS_UPDATED, progressEvent)
+    } as ProgressUpdatedEventData)
+    this.splashWindow.webContents.send('splash-update', {
+      phase,
+      progress: clamped,
+      message
+    })
   }
 
   /**
