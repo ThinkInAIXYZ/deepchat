@@ -935,7 +935,7 @@ export class GeminiProvider extends BaseLLMProvider {
     let isInThinkTag = false
     let toolUseDetected = false
     let usageMetadata: GenerateContentResponseUsageMetadata | undefined
-    let isNewThoughtFormatDetected = false
+    let isNewThoughtFormatDetected = modelConfig.reasoning === true
 
     // 流处理循环
     for await (const chunk of result) {
