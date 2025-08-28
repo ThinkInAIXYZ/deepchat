@@ -87,21 +87,4 @@ export class DatabaseInitializer implements IDatabaseInitializer {
       return false
     }
   }
-
-  /**
-   * Get the initialized database instance
-   */
-  getDatabase(): SQLitePresenter | undefined {
-    return this.database
-  }
-
-  /**
-   * Close database connection
-   */
-  close(): void {
-    if (this.database) {
-      this.database.close()
-      this.database = undefined
-    }
-  }
 }
