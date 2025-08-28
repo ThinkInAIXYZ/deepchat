@@ -1847,12 +1847,6 @@ export interface IVectorDatabasePresenter {
 }
 
 /**
- * Lifecycle management types and interfaces
- */
-
-import { ISQLitePresenter } from '@shared/presenter'
-
-/**
  * Context object passed to lifecycle hooks during execution
  */
 export interface LifecycleContext {
