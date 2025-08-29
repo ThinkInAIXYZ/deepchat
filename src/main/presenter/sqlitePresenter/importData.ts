@@ -67,13 +67,10 @@ export class DataImporter {
    * @returns 导入的会话数量
    */
   public async importData(): Promise<number> {
-    console.log('DataImporter: Starting data import...')
-
     // 获取所有会话 - 兼容不同版本的数据库schema
     let conversations: any[]
 
     try {
-      console.log('DataImporter: Attempting to query conversations with all new fields...')
       // 尝试使用包含所有新字段的查询
       conversations = this.sourceDb
         .prepare(
@@ -91,15 +88,8 @@ export class DataImporter {
           FROM conversations`
         )
         .all() as any[]
-      console.log(
-        `DataImporter: Successfully queried ${conversations.length} conversations with all fields`
-      )
-    } catch (error) {
+    } catch {
       // 如果失败，使用基础字段查询（兼容旧版本数据库）
-      console.warn(
-        'DataImporter: Failed to query with new fields, falling back to basic query:',
-        error
-      )
       try {
         conversations = this.sourceDb
           .prepare(
@@ -114,10 +104,6 @@ export class DataImporter {
           )
           .all() as any[]
 
-        console.log(
-          `DataImporter: Successfully queried ${conversations.length} conversations with basic fields`
-        )
-
         // 为缺失的字段设置默认值
         conversations = conversations.map((conv) => ({
           ...conv,
@@ -127,55 +113,34 @@ export class DataImporter {
           verbosity: null
         }))
       } catch (fallbackError) {
-        console.error(
-          'DataImporter: Failed to query conversations even with basic fields:',
-          fallbackError
-        )
         throw new Error(
           `Failed to query conversations: ${fallbackError instanceof Error ? fallbackError.message : String(fallbackError)}`
         )
       }
     }
 
-    console.log(`DataImporter: Preparing to import ${conversations.length} conversations`)
-
     // 使用better-sqlite3的transaction API来处理事务
     const importTransaction = this.targetDb.transaction(() => {
       let importedCount = 0
       for (const conv of conversations) {
-        console.log(`DataImporter: Processing conversation ${conv.conv_id}`)
-
-        try {
-          // 如果是增量导入模式，检查会话是否已存在
-          const existingConv = this.targetDb
-            .prepare('SELECT conv_id FROM conversations WHERE conv_id = ?')
-            .get(conv.conv_id)
-          if (existingConv) {
-            console.log(`DataImporter: Conversation ${conv.conv_id} already exists, skipping`)
-            continue // 跳过已存在的会话
-          }
-
-          this.importConversation(conv)
-          importedCount++
-          console.log(`DataImporter: Successfully imported conversation ${conv.conv_id}`)
-        } catch (convError) {
-          console.error(`DataImporter: Failed to import conversation ${conv.conv_id}:`, convError)
-          throw convError
+        // 如果是增量导入模式，检查会话是否已存在
+        const existingConv = this.targetDb
+          .prepare('SELECT conv_id FROM conversations WHERE conv_id = ?')
+          .get(conv.conv_id)
+        if (existingConv) {
+          continue // 跳过已存在的会话
         }
+
+        this.importConversation(conv)
+        importedCount++
       }
       return importedCount
     })
 
     try {
-      console.log('DataImporter: Starting transaction...')
       // 执行事务并返回导入的会话数量
-      const result = importTransaction()
-      console.log(
-        `DataImporter: Transaction completed successfully. Imported ${result} conversations`
-      )
-      return result
+      return importTransaction()
     } catch (transactionError) {
-      console.error('DataImporter: Transaction failed:', transactionError)
       // 事务会自动回滚，抛出详细错误
       throw new Error(
         `Failed to import data: ${transactionError instanceof Error ? transactionError.message : String(transactionError)}`
@@ -188,14 +153,11 @@ export class DataImporter {
    * @param conv 会话数据
    */
   private importConversation(conv: any): void {
-    console.log(`DataImporter: Importing conversation ${conv.conv_id} - ${conv.title}`)
-
     // 为会话生成新ID
     // const newConvId = nanoid()
     // this.idMappings.conversations.set(conv.conv_id, newConvId)
 
     try {
-      console.log(`DataImporter: Attempting to insert conversation ${conv.conv_id} with all fields`)
       // 首先尝试使用包含所有新字段的INSERT语句
       this.targetDb
         .prepare(
@@ -225,15 +187,8 @@ export class DataImporter {
           conv.reasoning_effort || null,
           conv.verbosity || null
         )
-      console.log(
-        `DataImporter: Successfully inserted conversation ${conv.conv_id} with all fields`
-      )
-    } catch (error) {
+    } catch {
       // 如果失败，使用基础字段的INSERT语句（兼容旧版本目标数据库）
-      console.warn(
-        `DataImporter: Failed to insert conversation ${conv.conv_id} with new fields, falling back to basic insert:`,
-        error
-      )
       try {
         this.targetDb
           .prepare(
@@ -258,14 +213,7 @@ export class DataImporter {
             conv.is_new || 0,
             conv.artifacts || 0
           )
-        console.log(
-          `DataImporter: Successfully inserted conversation ${conv.conv_id} with basic fields`
-        )
       } catch (fallbackError) {
-        console.error(
-          `DataImporter: Failed to insert conversation ${conv.conv_id} even with basic fields:`,
-          fallbackError
-        )
         throw new Error(
           `Failed to insert conversation ${conv.conv_id}: ${fallbackError instanceof Error ? fallbackError.message : String(fallbackError)}`
         )
@@ -273,15 +221,9 @@ export class DataImporter {
     }
 
     // 导入该会话的所有消息
-    console.log(`DataImporter: Starting to import messages for conversation ${conv.conv_id}`)
     try {
       this.importMessages(conv.conv_id)
-      console.log(`DataImporter: Successfully imported messages for conversation ${conv.conv_id}`)
     } catch (messageError) {
-      console.error(
-        `DataImporter: Failed to import messages for conversation ${conv.conv_id}:`,
-        messageError
-      )
       throw new Error(
         `Failed to import messages for conversation ${conv.conv_id}: ${messageError instanceof Error ? messageError.message : String(messageError)}`
       )
@@ -293,75 +235,63 @@ export class DataImporter {
    * @param oldConvId 原会话ID
    */
   private importMessages(oldConvId: string): void {
-    try {
-      // 获取会话的所有消息
-      const messages = this.sourceDb
-        .prepare(
-          `SELECT
-            msg_id, parent_id, role, content, created_at,
-            order_seq, token_count, status, metadata,
-            is_context_edge, is_variant
-          FROM messages
-          WHERE conversation_id = ?
-          ORDER BY order_seq`
-        )
-        .all(oldConvId) as any[]
+    // 获取会话的所有消息
+    const messages = this.sourceDb
+      .prepare(
+        `SELECT
+          msg_id, parent_id, role, content, created_at,
+          order_seq, token_count, status, metadata,
+          is_context_edge, is_variant
+        FROM messages
+        WHERE conversation_id = ?
+        ORDER BY order_seq`
+      )
+      .all(oldConvId) as any[]
 
-      console.log(`DataImporter: Found ${messages.length} messages for conversation ${oldConvId}`)
+    // 逐个导入消息
+    for (const msg of messages) {
+      const newMsgId = nanoid()
+      this.idMappings.messages.set(msg.msg_id, newMsgId)
 
-      // 逐个导入消息
-      for (const msg of messages) {
-        console.log(`DataImporter: Importing message ${msg.msg_id} (role: ${msg.role})`)
-
-        const newMsgId = nanoid()
-        this.idMappings.messages.set(msg.msg_id, newMsgId)
-
-        // 处理父消息ID映射
-        let newParentId = ''
-        if (msg.parent_id && msg.parent_id !== '') {
-          newParentId = this.idMappings.messages.get(msg.parent_id) || ''
-        }
-
-        try {
-          // 插入消息
-          this.targetDb
-            .prepare(
-              `INSERT INTO messages (
-                msg_id, conversation_id, parent_id, role, content,
-                created_at, order_seq, token_count, status, metadata,
-                is_context_edge, is_variant
-              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-            )
-            .run(
-              newMsgId,
-              oldConvId,
-              newParentId,
-              msg.role,
-              msg.content,
-              msg.created_at,
-              msg.order_seq,
-              msg.token_count || 0,
-              msg.status || 'sent',
-              msg.metadata || null,
-              msg.is_context_edge || 0,
-              msg.is_variant || 0
-            )
-
-          console.log(`DataImporter: Successfully inserted message ${msg.msg_id} -> ${newMsgId}`)
-
-          // 导入消息的附件
-          this.importAttachments(msg.msg_id, newMsgId)
-          this.importMessageAttachments(msg.msg_id, newMsgId)
-        } catch (msgError) {
-          console.error(`DataImporter: Failed to insert message ${msg.msg_id}:`, msgError)
-          throw new Error(
-            `Failed to insert message ${msg.msg_id}: ${msgError instanceof Error ? msgError.message : String(msgError)}`
-          )
-        }
+      // 处理父消息ID映射
+      let newParentId = ''
+      if (msg.parent_id && msg.parent_id !== '') {
+        newParentId = this.idMappings.messages.get(msg.parent_id) || ''
       }
-    } catch (error) {
-      console.error(`DataImporter: Failed to import messages for conversation ${oldConvId}:`, error)
-      throw error
+
+      try {
+        // 插入消息
+        this.targetDb
+          .prepare(
+            `INSERT INTO messages (
+              msg_id, conversation_id, parent_id, role, content,
+              created_at, order_seq, token_count, status, metadata,
+              is_context_edge, is_variant
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+          )
+          .run(
+            newMsgId,
+            oldConvId,
+            newParentId,
+            msg.role,
+            msg.content,
+            msg.created_at,
+            msg.order_seq,
+            msg.token_count || 0,
+            msg.status || 'sent',
+            msg.metadata || null,
+            msg.is_context_edge || 0,
+            msg.is_variant || 0
+          )
+
+        // 导入消息的附件
+        this.importAttachments(msg.msg_id, newMsgId)
+        this.importMessageAttachments(msg.msg_id, newMsgId)
+      } catch (msgError) {
+        throw new Error(
+          `Failed to insert message ${msg.msg_id}: ${msgError instanceof Error ? msgError.message : String(msgError)}`
+        )
+      }
     }
   }
 
@@ -371,61 +301,54 @@ export class DataImporter {
    * @param newMsgId 新消息ID
    */
   private importAttachments(oldMsgId: string, newMsgId: string): void {
-    try {
-      // 获取消息的所有附件
-      const attachments = this.sourceDb
-        .prepare(
-          `SELECT
-            attach_id, attachment_type, file_name, file_size,
-            storage_type, storage_path, thumbnail, vectorized,
-            data_summary, mime_type, created_at
-          FROM attachments
-          WHERE message_id = ?`
-        )
-        .all(oldMsgId) as any[]
+    // 获取消息的所有附件
+    const attachments = this.sourceDb
+      .prepare(
+        `SELECT
+          attach_id, attachment_type, file_name, file_size,
+          storage_type, storage_path, thumbnail, vectorized,
+          data_summary, mime_type, created_at
+        FROM attachments
+        WHERE message_id = ?`
+      )
+      .all(oldMsgId) as any[]
 
-      console.log(`DataImporter: Found ${attachments.length} attachments for message ${oldMsgId}`)
+    // 逐个导入附件
+    for (const attachment of attachments) {
+      const newAttachId = nanoid()
+      this.idMappings.attachments.set(attachment.attach_id, newAttachId)
 
-      // 逐个导入附件
-      for (const attachment of attachments) {
-        const newAttachId = nanoid()
-        this.idMappings.attachments.set(attachment.attach_id, newAttachId)
-
-        // 处理存储路径
-        let storagePath = attachment.storage_path
-        if (storagePath && attachment.storage_type === 'path') {
-          // 如果是文件路径，可能需要复制文件或调整路径
-          // 这里简单处理，实际应用中可能需要更复杂的逻辑
-          storagePath = path.basename(storagePath)
-        }
-
-        // 插入附件
-        this.targetDb
-          .prepare(
-            `INSERT INTO attachments (
-              attach_id, message_id, attachment_type, file_name,
-              file_size, storage_type, storage_path, thumbnail,
-              vectorized, data_summary, mime_type, created_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-          )
-          .run(
-            newAttachId,
-            newMsgId,
-            attachment.attachment_type,
-            attachment.file_name,
-            attachment.file_size || 0,
-            attachment.storage_type,
-            storagePath,
-            attachment.thumbnail,
-            attachment.vectorized || 0,
-            attachment.data_summary,
-            attachment.mime_type,
-            attachment.created_at
-          )
+      // 处理存储路径
+      let storagePath = attachment.storage_path
+      if (storagePath && attachment.storage_type === 'path') {
+        // 如果是文件路径，可能需要复制文件或调整路径
+        // 这里简单处理，实际应用中可能需要更复杂的逻辑
+        storagePath = path.basename(storagePath)
       }
-    } catch (error) {
-      console.error(`DataImporter: Failed to import attachments for message ${oldMsgId}:`, error)
-      throw error
+
+      // 插入附件
+      this.targetDb
+        .prepare(
+          `INSERT INTO attachments (
+            attach_id, message_id, attachment_type, file_name,
+            file_size, storage_type, storage_path, thumbnail,
+            vectorized, data_summary, mime_type, created_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        )
+        .run(
+          newAttachId,
+          newMsgId,
+          attachment.attachment_type,
+          attachment.file_name,
+          attachment.file_size || 0,
+          attachment.storage_type,
+          storagePath,
+          attachment.thumbnail,
+          attachment.vectorized || 0,
+          attachment.data_summary,
+          attachment.mime_type,
+          attachment.created_at
+        )
     }
   }
 
@@ -435,93 +358,73 @@ export class DataImporter {
    * @param newMsgId 新消息ID
    */
   private importMessageAttachments(oldMsgId: string, newMsgId: string): void {
+    // 获取消息的所有message_attachments - 兼容不同的schema版本
+    let messageAttachments: any[]
+
     try {
-      // 获取消息的所有message_attachments - 兼容不同的schema版本
-      let messageAttachments: any[]
+      // 首先尝试包含metadata字段的查询
+      messageAttachments = this.sourceDb
+        .prepare(
+          `SELECT
+            attachment_id, type, content, created_at, metadata
+          FROM message_attachments
+          WHERE message_id = ?`
+        )
+        .all(oldMsgId) as any[]
+    } catch {
+      // 如果失败，使用不包含metadata的查询（兼容新版本schema）
+      messageAttachments = this.sourceDb
+        .prepare(
+          `SELECT
+            attachment_id, type, content, created_at
+          FROM message_attachments
+          WHERE message_id = ?`
+        )
+        .all(oldMsgId) as any[]
+
+      // 为缺失的字段设置默认值
+      messageAttachments = messageAttachments.map((attachment) => ({
+        ...attachment,
+        metadata: null
+      }))
+    }
+
+    // 逐个导入message_attachments
+    for (const attachment of messageAttachments) {
+      const newAttachmentId = nanoid()
 
       try {
-        // 首先尝试包含metadata字段的查询
-        messageAttachments = this.sourceDb
+        // 首先尝试包含metadata字段的INSERT
+        this.targetDb
           .prepare(
-            `SELECT
-              attachment_id, type, content, created_at, metadata
-            FROM message_attachments
-            WHERE message_id = ?`
+            `INSERT INTO message_attachments (
+              attachment_id, message_id, type, content, created_at, metadata
+            ) VALUES (?, ?, ?, ?, ?, ?)`
           )
-          .all(oldMsgId) as any[]
-      } catch (queryError) {
-        // 如果失败，使用不包含metadata的查询（兼容新版本schema）
-        console.warn(
-          `DataImporter: Failed to query message_attachments with metadata field, trying without metadata:`,
-          queryError
-        )
-        messageAttachments = this.sourceDb
+          .run(
+            newAttachmentId,
+            newMsgId,
+            attachment.type,
+            attachment.content,
+            attachment.created_at,
+            attachment.metadata
+          )
+      } catch {
+        // 如果失败，使用不包含metadata的INSERT（兼容新版本schema）
+        this.targetDb
           .prepare(
-            `SELECT
-              attachment_id, type, content, created_at
-            FROM message_attachments
-            WHERE message_id = ?`
+            `INSERT INTO message_attachments (
+              attachment_id, message_id, type, content, created_at
+            ) VALUES (?, ?, ?, ?, ?)`
           )
-          .all(oldMsgId) as any[]
-
-        // 为缺失的字段设置默认值
-        messageAttachments = messageAttachments.map((attachment) => ({
-          ...attachment,
-          metadata: null
-        }))
-      }
-
-      console.log(
-        `DataImporter: Found ${messageAttachments.length} message attachments for message ${oldMsgId}`
-      )
-
-      // 逐个导入message_attachments
-      for (const attachment of messageAttachments) {
-        const newAttachmentId = nanoid()
-
-        try {
-          // 首先尝试包含metadata字段的INSERT
-          this.targetDb
-            .prepare(
-              `INSERT INTO message_attachments (
-                attachment_id, message_id, type, content, created_at, metadata
-              ) VALUES (?, ?, ?, ?, ?, ?)`
-            )
-            .run(
-              newAttachmentId,
-              newMsgId,
-              attachment.type,
-              attachment.content,
-              attachment.created_at,
-              attachment.metadata
-            )
-        } catch (insertError) {
-          // 如果失败，使用不包含metadata的INSERT（兼容新版本schema）
-          console.warn(
-            `DataImporter: Failed to insert message_attachment with metadata, trying without metadata:`,
-            insertError
+          .run(
+            newAttachmentId,
+            newMsgId,
+            attachment.type,
+            attachment.content,
+            attachment.created_at
           )
-          this.targetDb
-            .prepare(
-              `INSERT INTO message_attachments (
-                attachment_id, message_id, type, content, created_at
-              ) VALUES (?, ?, ?, ?, ?)`
-            )
-            .run(
-              newAttachmentId,
-              newMsgId,
-              attachment.type,
-              attachment.content,
-              attachment.created_at
-            )
-        }
       }
-    } catch (error) {
-      console.error(
-        `DataImporter: Failed to import message attachments for message ${oldMsgId}:`,
-        error
-      )
-      throw error
     }
   }
 
