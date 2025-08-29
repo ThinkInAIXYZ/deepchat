@@ -90,6 +90,9 @@ const handleMouseMove = (event: MouseEvent) => {
   const deltaY = Math.abs(event.clientY - dragState.value.startY)
 
   if (!dragState.value.isDragging && (deltaX > DRAG_THRESHOLD || deltaY > DRAG_THRESHOLD)) {
+    // 位移启动拖拽时，立即清除定时器，防止二次触发
+    clearDragTimer(); 
+
     startDragging(event)
   }
 
