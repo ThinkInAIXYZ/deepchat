@@ -67,16 +67,52 @@ export class DataImporter {
    * @returns 导入的会话数量
    */
   public async importData(): Promise<number> {
-    // 获取所有会话
-    const conversations = this.sourceDb
-      .prepare(
-        `SELECT
-          conv_id, title, created_at, updated_at, system_prompt,
-          temperature, context_length, max_tokens, provider_id,
-          model_id, is_pinned, is_new, artifacts
-        FROM conversations`
-      )
-      .all() as any[]
+    // 获取所有会话 - 兼容不同版本的数据库schema
+    let conversations: any[]
+
+    try {
+      // 尝试使用包含所有新字段的查询
+      conversations = this.sourceDb
+        .prepare(
+          `SELECT
+            conv_id, title, created_at, updated_at, system_prompt,
+            temperature, context_length, max_tokens, provider_id,
+            model_id, 
+            COALESCE(is_pinned, 0) as is_pinned, 
+            COALESCE(is_new, 0) as is_new, 
+            COALESCE(artifacts, 0) as artifacts,
+            enabled_mcp_tools,
+            thinking_budget,
+            reasoning_effort,
+            verbosity
+          FROM conversations`
+        )
+        .all() as any[]
+    } catch (error) {
+      // 如果失败，使用基础字段查询（兼容旧版本数据库）
+      console.warn('Failed to query with new fields, falling back to basic query:', error)
+      conversations = this.sourceDb
+        .prepare(
+          `SELECT
+            conv_id, title, created_at, updated_at, system_prompt,
+            temperature, context_length, max_tokens, provider_id,
+            model_id, 
+            COALESCE(is_pinned, 0) as is_pinned, 
+            COALESCE(is_new, 0) as is_new, 
+            COALESCE(artifacts, 0) as artifacts
+          FROM conversations`
+        )
+        .all() as any[]
+
+      // 为缺失的字段设置默认值
+      conversations = conversations.map((conv) => ({
+        ...conv,
+        enabled_mcp_tools: null,
+        thinking_budget: null,
+        reasoning_effort: null,
+        verbosity: null
+      }))
+    }
 
     // 使用better-sqlite3的transaction API来处理事务
     const importTransaction = this.targetDb.transaction(() => {
@@ -114,31 +150,63 @@ export class DataImporter {
     // const newConvId = nanoid()
     // this.idMappings.conversations.set(conv.conv_id, newConvId)
 
-    // 插入会话
-    this.targetDb
-      .prepare(
-        `INSERT INTO conversations (
-          conv_id, title, created_at, updated_at, system_prompt,
-          temperature, context_length, max_tokens, provider_id,
-          model_id, is_pinned, is_new, artifacts, thinking_budget
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-      )
-      .run(
-        conv.conv_id,
-        conv.title,
-        conv.created_at,
-        conv.updated_at,
-        conv.system_prompt,
-        conv.temperature,
-        conv.context_length,
-        conv.max_tokens,
-        conv.provider_id,
-        conv.model_id,
-        conv.is_pinned || 0,
-        conv.is_new || 0,
-        conv.artifacts || 0,
-        conv.thinking_budget !== undefined ? conv.thinking_budget : null
-      )
+    try {
+      // 首先尝试使用包含所有新字段的INSERT语句
+      this.targetDb
+        .prepare(
+          `INSERT INTO conversations (
+            conv_id, title, created_at, updated_at, system_prompt,
+            temperature, context_length, max_tokens, provider_id,
+            model_id, is_pinned, is_new, artifacts, enabled_mcp_tools,
+            thinking_budget, reasoning_effort, verbosity
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        )
+        .run(
+          conv.conv_id,
+          conv.title,
+          conv.created_at,
+          conv.updated_at,
+          conv.system_prompt,
+          conv.temperature,
+          conv.context_length,
+          conv.max_tokens,
+          conv.provider_id,
+          conv.model_id,
+          conv.is_pinned || 0,
+          conv.is_new || 0,
+          conv.artifacts || 0,
+          conv.enabled_mcp_tools || null,
+          conv.thinking_budget || null,
+          conv.reasoning_effort || null,
+          conv.verbosity || null
+        )
+    } catch (error) {
+      // 如果失败，使用基础字段的INSERT语句（兼容旧版本目标数据库）
+      console.warn('Failed to insert with new fields, falling back to basic insert:', error)
+      this.targetDb
+        .prepare(
+          `INSERT INTO conversations (
+            conv_id, title, created_at, updated_at, system_prompt,
+            temperature, context_length, max_tokens, provider_id,
+            model_id, is_pinned, is_new, artifacts
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        )
+        .run(
+          conv.conv_id,
+          conv.title,
+          conv.created_at,
+          conv.updated_at,
+          conv.system_prompt,
+          conv.temperature,
+          conv.context_length,
+          conv.max_tokens,
+          conv.provider_id,
+          conv.model_id,
+          conv.is_pinned || 0,
+          conv.is_new || 0,
+          conv.artifacts || 0
+        )
+    }
 
     // 导入该会话的所有消息
     this.importMessages(conv.conv_id)
