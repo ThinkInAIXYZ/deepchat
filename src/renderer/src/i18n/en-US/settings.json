@@ -796,6 +796,10 @@
   },
   "promptSetting": {
     "resetToDefault": "Reset to default prompt",
-    "clear": "Clear prompt words"
+    "clear": "Clear prompt words",
+    "resetToDefaultSuccess": "Reset to default system prompt successfully",
+    "resetToDefaultFailed": "Failed to reset, please try again",
+    "clearSuccess": "System prompt cleared successfully",
+    "clearFailed": "Failed to clear, please try again"
   }
 }

@@ -1054,7 +1054,7 @@ const resetToDefaultPrompt = async () => {
     defaultPromptSaveStatus.value = 'saved'
 
     toast({
-      title: t('promptSetting.resetToDefaultSuccess'),
+      title: t('settings.promptSetting.resetToDefaultSuccess'),
       variant: 'default'
     })
 
@@ -1067,7 +1067,7 @@ const resetToDefaultPrompt = async () => {
   } catch {
     defaultPromptSaveStatus.value = 'idle'
     toast({
-      title: t('promptSetting.resetToDefaultFailed'),
+      title: t('settings.promptSetting.resetToDefaultFailed'),
       variant: 'destructive'
     })
   }
@@ -1085,7 +1085,7 @@ const clearSystemPrompt = async () => {
     defaultPromptSaveStatus.value = 'saved'
 
     toast({
-      title: t('promptSetting.clearSuccess'),
+      title: t('settings.promptSetting.clearSuccess'),
       variant: 'default'
     })
 
@@ -1098,7 +1098,7 @@ const clearSystemPrompt = async () => {
   } catch {
     defaultPromptSaveStatus.value = 'idle'
     toast({
-      title: t('promptSetting.clearFailed'),
+      title: t('settings.promptSetting.clearFailed'),
       variant: 'destructive'
     })
   }
