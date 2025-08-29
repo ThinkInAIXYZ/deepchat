@@ -1,6 +1,6 @@
 import { FloatingButtonWindow } from './FloatingButtonWindow'
 import { FloatingButtonConfig, FloatingButtonState, DEFAULT_FLOATING_BUTTON_CONFIG } from './types'
-import { ipcMain, Menu, app } from 'electron'
+import { ipcMain, Menu, app, screen } from 'electron'
 import { FLOATING_BUTTON_EVENTS } from '@/events'
 import { presenter } from '../index'
 import { IConfigPresenter } from '@shared/presenter'
@@ -238,16 +238,20 @@ export class FloatingButtonPresenter {
         ) {
           const buttonWindow = this.floatingWindow.getWindow()
           if (buttonWindow && !buttonWindow.isDestroyed()) {
-            // 简单边界检查
-            const { screen } = require('electron')
-            const primaryDisplay = screen.getPrimaryDisplay()
-            const { workArea } = primaryDisplay
-
+            // 多显示器边界检查
             const bounds = buttonWindow.getBounds()
+            const currentDisplay = screen.getDisplayMatching(bounds)
+            const { workArea } = currentDisplay
 
-            // 确保悬浮球完全在屏幕范围内
-            const targetX = Math.max(0, Math.min(bounds.x, workArea.width - bounds.width))
-            const targetY = Math.max(0, Math.min(bounds.y, workArea.height - bounds.height))
+            // 确保悬浮球完全在当前显示器的工作区内
+            const targetX = Math.max(
+              workArea.x,
+              Math.min(bounds.x, workArea.x + workArea.width - bounds.width)
+            )
+            const targetY = Math.max(
+              workArea.y,
+              Math.min(bounds.y, workArea.y + workArea.height - bounds.height)
+            )
 
             // 只有在越界时才调整位置
             if (targetX !== bounds.x || targetY !== bounds.y) {
