@@ -11,6 +11,8 @@
 // 配置相关事件
 export const CONFIG_EVENTS = {
   PROVIDER_CHANGED: 'config:provider-changed', // 替代 provider-setting-changed
+  PROVIDER_ATOMIC_UPDATE: 'config:provider-atomic-update', // 新增：原子操作单个 provider 更新
+  PROVIDER_BATCH_UPDATE: 'config:provider-batch-update', // 新增：批量 provider 更新
   MODEL_LIST_CHANGED: 'config:model-list-changed', // 替代 provider-models-updated（ConfigPresenter）
   MODEL_STATUS_CHANGED: 'config:model-status-changed', // 替代 model-status-changed（ConfigPresenter）
   SETTING_CHANGED: 'config:setting-changed', // 替代 setting-changed（ConfigPresenter）

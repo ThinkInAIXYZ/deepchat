@@ -107,10 +107,14 @@ export abstract class BaseLLMProvider {
     if (this.provider.enable) {
       try {
         this.isInitialized = true
-        await this.fetchModels()
+        this.fetchModels()
+          .then(() => {
+            return this.autoEnableModelsIfNeeded()
+          })
+          .then(() => {
+            console.info('Provider initialized successfully:', this.provider.name)
+          })
         // 检查是否需要自动启用所有模型
-        await this.autoEnableModelsIfNeeded()
-        console.info('Provider initialized successfully:', this.provider.name)
       } catch (error) {
         console.warn('Provider initialization failed:', this.provider.name, error)
       }

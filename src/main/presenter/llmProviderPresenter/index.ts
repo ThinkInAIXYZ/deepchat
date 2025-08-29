@@ -13,6 +13,7 @@ import {
   ModelScopeMcpSyncResult,
   IConfigPresenter
 } from '@shared/presenter'
+import { ProviderChange, ProviderBatchUpdate } from '@shared/provider-operations'
 import { BaseLLMProvider } from './baseProvider'
 import { OpenAIProvider } from './providers/openAIProvider'
 import { DeepseekProvider } from './providers/deepseekProvider'
@@ -110,6 +111,15 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
       for (const provider of this.providerInstances.values()) {
         provider.onProxyResolved()
       }
+    })
+
+    // 监听原子操作事件
+    eventBus.on(CONFIG_EVENTS.PROVIDER_ATOMIC_UPDATE, (change: ProviderChange) => {
+      this.handleProviderAtomicUpdate(change)
+    })
+
+    eventBus.on(CONFIG_EVENTS.PROVIDER_BATCH_UPDATE, (batchUpdate: ProviderBatchUpdate) => {
+      this.handleProviderBatchUpdate(batchUpdate)
     })
   }
 
@@ -285,6 +295,211 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
 
     // 如果当前 provider 不在新的列表中，清除当前 provider
     if (this.currentProviderId && !providers.find((p) => p.id === this.currentProviderId)) {
+      this.currentProviderId = null
+    }
+  }
+
+  /**
+   * 处理单个 provider 的原子更新
+   */
+  private handleProviderAtomicUpdate(change: ProviderChange): void {
+    console.log(`Handling atomic provider update:`, change)
+
+    switch (change.operation) {
+      case 'add':
+        this.handleProviderAdd(change)
+        break
+      case 'remove':
+        this.handleProviderRemove(change)
+        break
+      case 'update':
+        this.handleProviderUpdate(change)
+        break
+      case 'reorder':
+        this.handleProviderReorder(change)
+        break
+    }
+  }
+
+  /**
+   * 处理批量 provider 更新
+   */
+  private handleProviderBatchUpdate(batchUpdate: ProviderBatchUpdate): void {
+    console.log(`Handling batch provider update with ${batchUpdate.changes.length} changes`)
+
+    // 更新内存中的 provider 列表
+    this.providers.clear()
+    batchUpdate.providers.forEach((provider) => {
+      this.providers.set(provider.id, provider)
+    })
+
+    // 处理每个变更
+    for (const change of batchUpdate.changes) {
+      this.handleProviderAtomicUpdate(change)
+    }
+
+    this.onProvidersUpdated(batchUpdate.providers)
+  }
+
+  /**
+   * 处理 provider 新增
+   */
+  private handleProviderAdd(change: ProviderChange): void {
+    if (!change.provider) return
+
+    // 更新内存中的 provider 列表
+    this.providers.set(change.providerId, change.provider)
+
+    // 如果 provider 启用且需要重建，创建实例
+    if (change.provider.enable && change.requiresRebuild) {
+      try {
+        console.log(`Creating new provider instance: ${change.providerId}`)
+        this.getProviderInstance(change.providerId)
+      } catch (error) {
+        console.error(`Failed to create provider instance ${change.providerId}:`, error)
+      }
+    }
+  }
+
+  /**
+   * 处理 provider 删除
+   */
+  private handleProviderRemove(change: ProviderChange): void {
+    // 从内存中移除 provider
+    this.providers.delete(change.providerId)
+
+    // 如果需要重建（删除操作总是需要），清理实例
+    if (change.requiresRebuild) {
+      const instance = this.providerInstances.get(change.providerId)
+      if (instance) {
+        console.log(`Removing provider instance: ${change.providerId}`)
+        this.providerInstances.delete(change.providerId)
+      }
+
+      // 如果删除的是当前 provider，清除当前 provider
+      if (this.currentProviderId === change.providerId) {
+        this.currentProviderId = null
+      }
+    }
+  }
+
+  /**
+   * 处理 provider 更新
+   */
+  private handleProviderUpdate(change: ProviderChange): void {
+    if (!change.updates) return
+
+    // 获取当前 provider 配置
+    const currentProvider = this.providers.get(change.providerId)
+    if (!currentProvider) return
+
+    // 更新 provider 配置
+    const updatedProvider = { ...currentProvider, ...change.updates }
+    this.providers.set(change.providerId, updatedProvider)
+
+    // 检查是否是启用状态变更
+    const wasEnabled = currentProvider.enable
+    const isEnabled = updatedProvider.enable
+    const enableStatusChanged = 'enable' in change.updates && wasEnabled !== isEnabled
+
+    // 如果需要重建实例
+    if (change.requiresRebuild) {
+      console.log(`Rebuilding provider instance: ${change.providerId}`)
+
+      // 移除旧实例
+      this.providerInstances.delete(change.providerId)
+
+      // 如果 provider 仍然启用，创建新实例
+      if (updatedProvider.enable) {
+        try {
+          this.getProviderInstance(change.providerId)
+        } catch (error) {
+          console.error(`Failed to rebuild provider instance ${change.providerId}:`, error)
+        }
+      } else if (enableStatusChanged && !isEnabled) {
+        // Provider 被禁用，确保清理实例和相关状态
+        console.log(`Provider ${change.providerId} disabled, cleaning up instance`)
+        this.cleanupProviderInstance(change.providerId)
+      }
+    } else {
+      // 如果不需要重建但启用状态发生变化
+      if (enableStatusChanged) {
+        if (!isEnabled) {
+          // Provider 被禁用，清理实例
+          console.log(`Provider ${change.providerId} disabled, cleaning up instance`)
+          this.cleanupProviderInstance(change.providerId)
+        } else {
+          // Provider 被启用，创建实例
+          try {
+            console.log(`Provider ${change.providerId} enabled, creating instance`)
+            this.getProviderInstance(change.providerId)
+          } catch (error) {
+            console.error(`Failed to create provider instance ${change.providerId}:`, error)
+          }
+        }
+      } else {
+        // 如果不需要重建且启用状态未变，仅更新实例配置
+        const instance = this.providerInstances.get(change.providerId)
+        if (instance && 'updateConfig' in instance) {
+          try {
+            ;(instance as any).updateConfig(updatedProvider)
+          } catch (error) {
+            console.error(`Failed to update provider config ${change.providerId}:`, error)
+          }
+        }
+      }
+    }
+  }
+
+  /**
+   * 处理 provider 重新排序
+   */
+  private handleProviderReorder(_change: ProviderChange): void {
+    // 重新排序不需要重建实例，仅通知更新
+    console.log(`Provider reorder completed, no instance rebuild required`)
+  }
+
+  /**
+   * 清理 provider 实例和相关资源
+   */
+  private cleanupProviderInstance(providerId: string): void {
+    // 停止该 provider 的所有活跃流
+    const activeStreamsToStop = Array.from(this.activeStreams.entries()).filter(
+      ([, streamState]) => streamState.providerId === providerId
+    )
+
+    for (const [eventId, streamState] of activeStreamsToStop) {
+      console.log(`Stopping active stream for disabled provider ${providerId}: ${eventId}`)
+      try {
+        streamState.abortController.abort()
+      } catch (error) {
+        console.error(`Failed to abort stream ${eventId}:`, error)
+      }
+      this.activeStreams.delete(eventId)
+    }
+
+    // 移除 provider 实例
+    const instance = this.providerInstances.get(providerId)
+    if (instance) {
+      console.log(`Removing provider instance: ${providerId}`)
+      this.providerInstances.delete(providerId)
+
+      // 如果实例有清理方法，调用它
+      if ('cleanup' in instance && typeof (instance as any).cleanup === 'function') {
+        try {
+          ;(instance as any).cleanup()
+        } catch (error) {
+          console.error(`Failed to cleanup provider instance ${providerId}:`, error)
+        }
+      }
+    }
+
+    // 清理速率限制状态
+    this.providerRateLimitStates.delete(providerId)
+
+    // 如果这是当前活跃的 provider，清除当前 provider
+    if (this.currentProviderId === providerId) {
+      console.log(`Clearing current provider as it was disabled: ${providerId}`)
       this.currentProviderId = null
     }
   }

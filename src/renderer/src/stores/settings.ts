@@ -836,7 +836,8 @@ export const useSettingsStore = defineStore('settings', () => {
     }
     delete updatedProvider.websites
 
-    await configP.setProviderById(providerId, updatedProvider)
+    // 使用新的原子操作接口
+    const requiresRebuild = await configP.updateProviderAtomic(providerId, updates)
 
     // 只在特定字段变化时刷新providers
     const needRefreshProviders = ['name', 'enable'].some((key) => key in updates)
@@ -850,8 +851,9 @@ export const useSettingsStore = defineStore('settings', () => {
       }
     }
 
-    // 只在特定条件下刷新模型列表
-    const needRefreshModels = ['enable', 'apiKey', 'baseUrl'].some((key) => key in updates)
+    // 只在需要重建实例且模型可能受影响时刷新模型列表
+    const needRefreshModels =
+      requiresRebuild && ['enable', 'apiKey', 'baseUrl'].some((key) => key in updates)
     if (needRefreshModels && updatedProvider.enable) {
       await refreshAllModels()
     }
@@ -1014,23 +1016,22 @@ export const useSettingsStore = defineStore('settings', () => {
   // 添加自定义Provider
   const addCustomProvider = async (provider: LLM_PROVIDER): Promise<void> => {
     try {
-      const currentProviders = await configP.getProviders()
-      const newProivider = {
+      const newProvider = {
         ...toRaw(provider),
         custom: true
       }
-      const newProviders = [...currentProviders, newProivider].map((p) => {
-        delete p.websites
-        return p
-      })
-      await configP.setProviders(newProviders)
-      providers.value = newProviders
+      delete newProvider.websites
+
+      // 使用新的原子操作接口
+      await configP.addProviderAtomic(newProvider)
+
+      // 更新本地状态
+      providers.value = await configP.getProviders()
 
       // 如果新provider启用了，刷新模型列表
       if (provider.enable) {
         await refreshAllModels()
       }
-      providers.value = await configP.getProviders()
     } catch (error) {
       console.error('Failed to add custom provider:', error)
       throw error
@@ -1040,15 +1041,11 @@ export const useSettingsStore = defineStore('settings', () => {
   // 删除Provider
   const removeProvider = async (providerId: string): Promise<void> => {
     try {
-      const currentProviders = await configP.getProviders()
-      const filteredProviders = currentProviders
-        .filter((p) => p.id !== providerId)
-        .map((p) => {
-          delete p.websites
-          return p
-        })
-      await configP.setProviders(filteredProviders)
-      providers.value = filteredProviders
+      // 使用新的原子操作接口
+      await configP.removeProviderAtomic(providerId)
+
+      // 更新本地状态
+      providers.value = await configP.getProviders()
 
       // 从保存的顺序中移除此 provider
       providerOrder.value = providerOrder.value.filter((id) => id !== providerId)
@@ -1525,9 +1522,11 @@ export const useSettingsStore = defineStore('settings', () => {
       // 保存新的顺序到配置中
       await configP.setSetting('providerOrder', finalOrder)
 
+      // 使用新的原子操作接口 - 重新排序不需要重建实例
+      await configP.reorderProvidersAtomic(newProviders)
+
       // 强制更新 providers 以触发视图更新
-      providers.value = [...providers.value]
-      await configP.setProviders(providers.value)
+      providers.value = [...newProviders]
     } catch (error) {
       console.error('Failed to update provider order:', error)
     }

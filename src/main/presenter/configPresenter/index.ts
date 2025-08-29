@@ -10,6 +10,11 @@ import {
   IModelConfig,
   BuiltinKnowledgeConfig
 } from '@shared/presenter'
+import {
+  ProviderChange,
+  ProviderBatchUpdate,
+  checkRequiresRebuild
+} from '@shared/provider-operations'
 import { SearchEngineTemplate } from '@shared/chat'
 import { ModelType } from '@shared/model'
 import ElectronStore from 'electron-store'
@@ -318,6 +323,102 @@ export class ConfigPresenter implements IConfigPresenter {
     } else {
       console.error(`[Config] Provider ${id} not found`)
     }
+  }
+
+  /**
+   * 原子操作：更新单个 provider 配置
+   * @param id Provider ID
+   * @param updates 更新的字段
+   * @returns 是否需要重建实例
+   */
+  updateProviderAtomic(id: string, updates: Partial<LLM_PROVIDER>): boolean {
+    const providers = this.getProviders()
+    const index = providers.findIndex((p) => p.id === id)
+
+    if (index === -1) {
+      console.error(`[Config] Provider ${id} not found`)
+      return false
+    }
+
+    // 检查是否需要重建实例
+    const requiresRebuild = checkRequiresRebuild(updates)
+
+    // 更新配置
+    providers[index] = { ...providers[index], ...updates }
+    this.setSetting<LLM_PROVIDER[]>(PROVIDERS_STORE_KEY, providers)
+
+    // 触发精确的变更事件
+    const change: ProviderChange = {
+      operation: 'update',
+      providerId: id,
+      requiresRebuild,
+      updates
+    }
+    eventBus.send(CONFIG_EVENTS.PROVIDER_ATOMIC_UPDATE, SendTarget.ALL_WINDOWS, change)
+
+    return requiresRebuild
+  }
+
+  /**
+   * 原子操作：批量更新 providers
+   * @param batchUpdate 批量更新请求
+   */
+  updateProvidersBatch(batchUpdate: ProviderBatchUpdate): void {
+    // 更新完整的 provider 列表（用于顺序变更）
+    this.setSetting<LLM_PROVIDER[]>(PROVIDERS_STORE_KEY, batchUpdate.providers)
+
+    // 触发批量变更事件
+    eventBus.send(CONFIG_EVENTS.PROVIDER_BATCH_UPDATE, SendTarget.ALL_WINDOWS, batchUpdate)
+  }
+
+  /**
+   * 原子操作：添加 provider
+   * @param provider 新的 provider
+   */
+  addProviderAtomic(provider: LLM_PROVIDER): void {
+    const providers = this.getProviders()
+    providers.push(provider)
+    this.setSetting<LLM_PROVIDER[]>(PROVIDERS_STORE_KEY, providers)
+
+    const change: ProviderChange = {
+      operation: 'add',
+      providerId: provider.id,
+      requiresRebuild: true, // 新增 provider 总是需要创建实例
+      provider
+    }
+    eventBus.send(CONFIG_EVENTS.PROVIDER_ATOMIC_UPDATE, SendTarget.ALL_WINDOWS, change)
+  }
+
+  /**
+   * 原子操作：删除 provider
+   * @param providerId Provider ID
+   */
+  removeProviderAtomic(providerId: string): void {
+    const providers = this.getProviders()
+    const filteredProviders = providers.filter((p) => p.id !== providerId)
+    this.setSetting<LLM_PROVIDER[]>(PROVIDERS_STORE_KEY, filteredProviders)
+
+    const change: ProviderChange = {
+      operation: 'remove',
+      providerId,
+      requiresRebuild: true // 删除 provider 需要清理实例
+    }
+    eventBus.send(CONFIG_EVENTS.PROVIDER_ATOMIC_UPDATE, SendTarget.ALL_WINDOWS, change)
+  }
+
+  /**
+   * 原子操作：重新排序 providers
+   * @param providers 新的 provider 排序
+   */
+  reorderProvidersAtomic(providers: LLM_PROVIDER[]): void {
+    this.setSetting<LLM_PROVIDER[]>(PROVIDERS_STORE_KEY, providers)
+
+    const change: ProviderChange = {
+      operation: 'reorder',
+      providerId: '', // 重排序影响所有 provider
+      requiresRebuild: false // 仅重排序不需要重建实例
+    }
+    eventBus.send(CONFIG_EVENTS.PROVIDER_ATOMIC_UPDATE, SendTarget.ALL_WINDOWS, change)
   }
 
   // 构造模型状态的存储键

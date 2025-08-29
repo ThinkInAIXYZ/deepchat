@@ -4,6 +4,7 @@ import { MessageFile } from './chat'
 import { ShowResponse } from 'ollama'
 import { ShortcutKeySetting } from '@/presenter/configPresenter/shortcutKeySettings'
 import { ModelType } from '@shared/model'
+import { ProviderChange, ProviderBatchUpdate } from './provider-operations'
 
 export type SQLITE_MESSAGE = {
   id: string
@@ -480,6 +481,13 @@ export interface IConfigPresenter {
   getAutoDetectNpmRegistry?(): boolean
   setAutoDetectNpmRegistry?(enabled: boolean): void
   clearNpmRegistryCache?(): void
+
+  // 原子操作接口
+  updateProviderAtomic(id: string, updates: Partial<LLM_PROVIDER>): boolean
+  addProviderAtomic(provider: LLM_PROVIDER): void
+  removeProviderAtomic(providerId: string): void
+  reorderProvidersAtomic(providers: LLM_PROVIDER[]): void
+  updateProvidersBatch(batchUpdate: ProviderBatchUpdate): void
 }
 export type RENDERER_MODEL_META = {
   id: string
