@@ -42,8 +42,7 @@ export default defineConfig({
       rollupOptions: {
         input: {
           index: resolve('src/preload/index.ts'),
-          floating: resolve('src/preload/floating-preload.ts'),
-          splash: resolve('src/preload/splash.ts')
+          floating: resolve('src/preload/floating-preload.ts')
         }
       }
     }

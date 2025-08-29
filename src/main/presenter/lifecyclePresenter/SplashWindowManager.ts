@@ -39,12 +39,7 @@ export class SplashWindowManager implements ISplashWindowManager {
         center: true,
         show: false, // 先隐藏窗口，等待 ready-to-show 以避免白屏
         autoHideMenuBar: true,
-        webPreferences: {
-          preload: path.join(__dirname, '../preload/splash.mjs'),
-          contextIsolation: true,
-          nodeIntegration: false,
-          sandbox: true
-        }
+        skipTaskbar: true
       })
 
       // Show the window
