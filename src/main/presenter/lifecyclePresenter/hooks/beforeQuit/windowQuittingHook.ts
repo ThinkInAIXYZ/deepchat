@@ -14,8 +14,15 @@ export const windowQuittingHook: LifecycleHook = {
   execute: async (_context: LifecycleContext) => {
     // Ensure presenter is available
     if (!presenter) {
-      throw new Error('windowQuittingHook: Presenter has been destroyed')
+      console.log(
+        'windowQuittingHook: Presenter not available, isQuitting flag should already be set by LifecycleManager'
+      )
+      return
     }
+
+    console.log(
+      'windowQuittingHook: Setting application quitting flag and destroying floating window'
+    )
     presenter.windowPresenter.setApplicationQuitting(true)
     presenter.windowPresenter.destroyFloatingChatWindow()
   }

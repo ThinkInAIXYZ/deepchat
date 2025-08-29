@@ -416,11 +416,40 @@ export class LifecycleManager implements ILifecycleManager {
         event.preventDefault()
 
         this.state.isShuttingDown = true
+
+        try {
+          const { presenter } = await import('@/presenter')
+          if (presenter?.windowPresenter) {
+            console.log('LifecycleManager: Setting application quitting flag via presenter')
+            presenter.windowPresenter.setApplicationQuitting(true)
+          } else {
+            console.log(
+              'LifecycleManager: Presenter not available during shutdown, will be handled by hook if presenter initializes'
+            )
+          }
+        } catch (error) {
+          console.log(
+            'LifecycleManager: Could not access presenter during shutdown, will rely on hook fallback:',
+            error
+          )
+        }
+
         const canShutdown = await this.requestShutdown()
         if (canShutdown) {
           app.quit() // Main exit: finish beforeQuit
         } else {
           this.state.isShuttingDown = false
+          try {
+            const { presenter } = await import('@/presenter')
+            if (presenter?.windowPresenter) {
+              presenter.windowPresenter.setApplicationQuitting(false)
+            }
+          } catch (error) {
+            console.log(
+              'LifecycleManager: Failed to reset isQuitting flag after cancelled shutdown:',
+              error
+            )
+          }
         }
       }
     })
