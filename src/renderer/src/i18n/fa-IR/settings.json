@@ -793,5 +793,9 @@
     "confirmDisable": "غیرفعال کردن محدودیت",
     "disabled": "محدودیت نرخ غیرفعال شد",
     "disabledDescription": "محدودیت نرخ غیرفعال شده است"
+  },
+  "promptSetting": {
+    "resetToDefault": "تنظیم مجدد به پیش فرض کلمه سریع",
+    "clear": "کلمات سریع را پاک کنید"
   }
 }

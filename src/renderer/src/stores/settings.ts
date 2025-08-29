@@ -1629,6 +1629,16 @@ export const useSettingsStore = defineStore('settings', () => {
     await configP.setDefaultSystemPrompt(prompt)
   }
 
+  // 重置为默认系统提示词
+  const resetToDefaultPrompt = async (): Promise<void> => {
+    await configP.resetToDefaultPrompt()
+  }
+
+  // 清空系统提示词
+  const clearSystemPrompt = async (): Promise<void> => {
+    await configP.clearSystemPrompt()
+  }
+
   // 模型配置相关方法
   const getModelConfig = async (modelId: string, providerId: string): Promise<any> => {
     return await configP.getModelDefaultConfig(modelId, providerId)
@@ -1730,6 +1740,8 @@ export const useSettingsStore = defineStore('settings', () => {
     getAwsBedrockCredential,
     getDefaultSystemPrompt,
     setDefaultSystemPrompt,
+    resetToDefaultPrompt,
+    clearSystemPrompt,
     setupProviderListener,
     getModelConfig,
     setModelConfig,

@@ -793,5 +793,9 @@
     "confirmDisable": "關閉限制",
     "disabled": "速率限制已關閉",
     "disabledDescription": "速率限制功能已關閉"
+  },
+  "promptSetting": {
+    "resetToDefault": "重置為默認提示詞",
+    "clear": "清空提示詞"
   }
 }

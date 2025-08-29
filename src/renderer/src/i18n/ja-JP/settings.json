@@ -793,5 +793,9 @@
     "confirmDisable": "制限を無効化",
     "disabled": "レート制限が無効化されました",
     "disabledDescription": "レート制限機能が無効化されました"
+  },
+  "promptSetting": {
+    "resetToDefault": "デフォルトのプロンプトワードにリセットします",
+    "clear": "迅速な単語を明確にします"
   }
 }

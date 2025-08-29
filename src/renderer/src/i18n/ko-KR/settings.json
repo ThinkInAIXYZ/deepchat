@@ -793,5 +793,9 @@
     "confirmDisable": "제한 비활성화",
     "disabled": "속도 제한이 비활성화됨",
     "disabledDescription": "속도 제한 기능이 비활성화되었습니다"
+  },
+  "promptSetting": {
+    "resetToDefault": "기본 프롬프트 단어로 재설정하십시오",
+    "clear": "명확한 신속한 단어"
   }
 }

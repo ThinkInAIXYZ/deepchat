@@ -793,5 +793,9 @@
     "confirmDisable": "Désactiver la limitation",
     "disabled": "Limitation de débit désactivée",
     "disabledDescription": "La limitation de débit a été désactivée"
+  },
+  "promptSetting": {
+    "resetToDefault": "Réinitialiser avec un mot rapide par défaut",
+    "clear": "Effacer les mots rapides"
   }
 }

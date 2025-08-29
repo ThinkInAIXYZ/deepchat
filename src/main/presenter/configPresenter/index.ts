@@ -30,6 +30,12 @@ import { defaultShortcutKey, ShortcutKeySetting } from './shortcutKeySettings'
 import { ModelConfigHelper } from './modelConfig'
 import { KnowledgeConfHelper } from './knowledgeConfHelper'
 
+// 默认系统提示词常量
+const DEFAULT_SYSTEM_PROMPT = `You are DeepChat, a highly capable AI assistant. Your goal is to fully complete the user’s requested task before handing the conversation back to them. Keep working autonomously until the task is fully resolved.
+Be thorough in gathering information. Before replying, make sure you have all the details necessary to provide a complete solution. Use additional tools or ask clarifying questions when needed, but if you can find the answer on your own, avoid asking the user for help.
+When using tools, briefly describe your intended steps first—for example, which tool you’ll use and for what purpose.
+Adhere to this in all languages.Always respond in the same language as the user's query.`
+
 // 定义应用设置的接口
 interface IAppSettings {
   // 在这里定义你的配置项，例如：
@@ -147,7 +153,7 @@ export class ConfigPresenter implements IConfigPresenter {
       const oldVersion = this.store.get('appVersion')
       this.store.set('appVersion', this.currentAppVersion)
       // 迁移数据
-      this.migrateModelData(oldVersion)
+      this.migrateConfigData(oldVersion)
       this.mcpConfHelper.onUpgrade(oldVersion)
     }
 
@@ -184,7 +190,7 @@ export class ConfigPresenter implements IConfigPresenter {
     return this.providersModelStores.get(providerId)!
   }
 
-  private migrateModelData(oldVersion: string | undefined): void {
+  private migrateConfigData(oldVersion: string | undefined): void {
     // 0.2.4 版本之前，minimax 的 baseUrl 是错误的，需要修正
     if (oldVersion && compare(oldVersion, '0.2.4', '<')) {
       const providers = this.getProviders()
@@ -265,6 +271,14 @@ export class ConfigPresenter implements IConfigPresenter {
       // 如果过滤后数量不同，说明有移除操作，需要保存更新后的提供商列表
       if (filteredProviders.length !== providers.length) {
         this.setProviders(filteredProviders)
+      }
+    }
+
+    // 0.3.4 版本之前，如果默认系统提示词为空，则设置为内置的默认提示词
+    if (oldVersion && compare(oldVersion, '0.3.4', '<')) {
+      const currentPrompt = this.getSetting<string>('default_system_prompt')
+      if (!currentPrompt || currentPrompt.trim() === '') {
+        this.setSetting('default_system_prompt', DEFAULT_SYSTEM_PROMPT)
       }
     }
   }
@@ -1188,6 +1202,16 @@ export class ConfigPresenter implements IConfigPresenter {
   // 设置默认系统提示词
   async setDefaultSystemPrompt(prompt: string): Promise<void> {
     this.setSetting('default_system_prompt', prompt)
+  }
+
+  // 重置为默认系统提示词
+  async resetToDefaultPrompt(): Promise<void> {
+    this.setSetting('default_system_prompt', DEFAULT_SYSTEM_PROMPT)
+  }
+
+  // 清空系统提示词
+  async clearSystemPrompt(): Promise<void> {
+    this.setSetting('default_system_prompt', '')
   }
 
   // 获取默认快捷键

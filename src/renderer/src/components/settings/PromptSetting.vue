@@ -25,24 +25,54 @@
 
       <!-- 默认系统提示词设置区域 -->
       <div class="bg-card border border-border rounded-lg p-4">
-        <div class="flex items-center gap-2 mb-3">
-          <Icon
-            :icon="getStatusIcon()"
-            :class="[
-              'w-5 h-5 transition-colors duration-200',
-              getStatusColor(),
-              defaultPromptSaveStatus === 'saving' ? 'animate-spin' : ''
-            ]"
-          />
-          <Label class="text-base font-medium">{{ t('promptSetting.defaultSystemPrompt') }}</Label>
-          <div class="flex items-center gap-1 text-xs text-muted-foreground">
-            <span v-if="defaultPromptSaveStatus === 'typing'">{{ t('promptSetting.typing') }}</span>
-            <span v-else-if="defaultPromptSaveStatus === 'saving'">{{
-              t('promptSetting.saving')
-            }}</span>
-            <span v-else-if="defaultPromptSaveStatus === 'saved'">{{
-              t('promptSetting.saved')
-            }}</span>
+        <div class="flex items-center justify-between mb-3">
+          <div class="flex items-center gap-2">
+            <Icon
+              :icon="getStatusIcon()"
+              :class="[
+                'w-5 h-5 transition-colors duration-200',
+                getStatusColor(),
+                defaultPromptSaveStatus === 'saving' ? 'animate-spin' : ''
+              ]"
+            />
+            <Label class="text-base font-medium">{{
+              t('promptSetting.defaultSystemPrompt')
+            }}</Label>
+            <div class="flex items-center gap-1 text-xs text-muted-foreground">
+              <span v-if="defaultPromptSaveStatus === 'typing'">{{
+                t('promptSetting.typing')
+              }}</span>
+              <span v-else-if="defaultPromptSaveStatus === 'saving'">{{
+                t('promptSetting.saving')
+              }}</span>
+              <span v-else-if="defaultPromptSaveStatus === 'saved'">{{
+                t('promptSetting.saved')
+              }}</span>
+            </div>
+          </div>
+
+          <!-- 操作按钮 -->
+          <div class="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              class="h-7 px-3 text-xs"
+              :disabled="defaultPromptSaveStatus === 'saving'"
+              @click="resetToDefaultPrompt"
+            >
+              <Icon icon="lucide:rotate-ccw" class="w-3.5 h-3.5" />
+              {{ t('settings.promptSetting.resetToDefault') }}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              class="h-7 px-3 text-xs text-destructive hover:bg-destructive hover:text-destructive-foreground"
+              :disabled="defaultPromptSaveStatus === 'saving'"
+              @click="clearSystemPrompt"
+            >
+              <Icon icon="lucide:trash-2" class="w-3.5 h-3.5" />
+              {{ t('settings.promptSetting.clear') }}
+            </Button>
           </div>
         </div>
         <div class="space-y-2">
@@ -1009,6 +1039,68 @@ const getStatusColor = () => {
       return 'text-green-500'
     default:
       return 'text-primary'
+  }
+}
+
+// 重置为默认系统提示词
+const resetToDefaultPrompt = async () => {
+  if (defaultPromptSaveStatus.value === 'saving') return
+
+  try {
+    defaultPromptSaveStatus.value = 'saving'
+    await settingsStore.resetToDefaultPrompt()
+    // 重新加载当前值
+    defaultSystemPrompt.value = await settingsStore.getDefaultSystemPrompt()
+    defaultPromptSaveStatus.value = 'saved'
+
+    toast({
+      title: t('promptSetting.resetToDefaultSuccess'),
+      variant: 'default'
+    })
+
+    // 2秒后重置状态
+    setTimeout(() => {
+      if (defaultPromptSaveStatus.value === 'saved') {
+        defaultPromptSaveStatus.value = 'idle'
+      }
+    }, 2000)
+  } catch {
+    defaultPromptSaveStatus.value = 'idle'
+    toast({
+      title: t('promptSetting.resetToDefaultFailed'),
+      variant: 'destructive'
+    })
+  }
+}
+
+// 清空系统提示词
+const clearSystemPrompt = async () => {
+  if (defaultPromptSaveStatus.value === 'saving') return
+
+  try {
+    defaultPromptSaveStatus.value = 'saving'
+    await settingsStore.clearSystemPrompt()
+    // 清空当前值
+    defaultSystemPrompt.value = ''
+    defaultPromptSaveStatus.value = 'saved'
+
+    toast({
+      title: t('promptSetting.clearSuccess'),
+      variant: 'default'
+    })
+
+    // 2秒后重置状态
+    setTimeout(() => {
+      if (defaultPromptSaveStatus.value === 'saved') {
+        defaultPromptSaveStatus.value = 'idle'
+      }
+    }, 2000)
+  } catch {
+    defaultPromptSaveStatus.value = 'idle'
+    toast({
+      title: t('promptSetting.clearFailed'),
+      variant: 'destructive'
+    })
   }
 }
 

@@ -458,6 +458,8 @@ export interface IConfigPresenter {
   // 默认系统提示词设置
   getDefaultSystemPrompt(): Promise<string>
   setDefaultSystemPrompt(prompt: string): Promise<void>
+  resetToDefaultPrompt(): Promise<void>
+  clearSystemPrompt(): Promise<void>
   // 快捷键设置
   getDefaultShortcutKey(): ShortcutKeySetting
   getShortcutKey(): ShortcutKeySetting

@@ -793,5 +793,9 @@
     "confirmDisable": "Disable Limit",
     "disabled": "Rate Limit Disabled",
     "disabledDescription": "Rate limiting has been disabled"
+  },
+  "promptSetting": {
+    "resetToDefault": "Reset to default prompt",
+    "clear": "Clear prompt words"
   }
 }
