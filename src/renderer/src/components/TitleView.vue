@@ -74,6 +74,7 @@
           :verbosity="verbosity"
           :model-id="chatStore.chatConfig.modelId"
           :provider-id="chatStore.chatConfig.providerId"
+          :model-type="modelType"
           @update:temperature="updateTemperature"
           @update:context-length="updateContextLength"
           @update:max-tokens="updateMaxTokens"
@@ -122,7 +123,7 @@ const artifacts = ref(chatStore.chatConfig.artifacts)
 const thinkingBudget = ref(chatStore.chatConfig.thinkingBudget)
 const reasoningEffort = ref(chatStore.chatConfig.reasoningEffort)
 const verbosity = ref(chatStore.chatConfig.verbosity)
-
+const modelType = ref(ModelType.Chat)
 // 获取模型配置来初始化默认值
 const loadModelConfig = async () => {
   const modelId = chatStore.chatConfig.modelId
@@ -131,6 +132,7 @@ const loadModelConfig = async () => {
   if (modelId && providerId) {
     try {
       const config = await configPresenter.getModelDefaultConfig(modelId, providerId)
+      modelType.value = config.type
       if (config.thinkingBudget !== undefined) {
         if (thinkingBudget.value === undefined) {
           thinkingBudget.value = config.thinkingBudget

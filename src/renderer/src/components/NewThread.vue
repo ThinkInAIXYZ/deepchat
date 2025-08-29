@@ -97,6 +97,7 @@
                 :max-tokens-limit="maxTokensLimit"
                 :model-id="activeModel?.id"
                 :provider-id="activeModel?.providerId"
+                :model-type="activeModel?.type"
               />
             </ScrollablePopover>
           </div>
@@ -145,12 +146,14 @@ const activeModel = ref({
   name: '',
   id: '',
   providerId: '',
-  tags: []
+  tags: [],
+  type: ModelType.Chat
 } as {
   name: string
   id: string
   providerId: string
   tags: string[]
+  type: ModelType
 })
 
 const temperature = ref(0.6)
@@ -209,7 +212,8 @@ watch(
                     name: model.name,
                     id: model.id,
                     providerId: provider.providerId,
-                    tags: []
+                    tags: [],
+                    type: model.type ?? ModelType.Chat
                   }
                   return
                 }
@@ -235,7 +239,8 @@ watch(
                   name: model.name,
                   id: model.id,
                   providerId: provider.providerId,
-                  tags: []
+                  tags: [],
+                  type: model.type ?? ModelType.Chat
                 }
                 return
               }
@@ -259,7 +264,8 @@ watch(
           name: model.name,
           id: model.id,
           providerId: model.providerId,
-          tags: []
+          tags: [],
+          type: model.type ?? ModelType.Chat
         }
       }
     }
@@ -290,7 +296,8 @@ const handleModelUpdate = (model: MODEL_META, providerId: string) => {
     name: model.name,
     id: model.id,
     providerId: providerId,
-    tags: []
+    tags: [],
+    type: model.type ?? ModelType.Chat
   }
   chatStore.updateChatConfig({
     modelId: model.id,

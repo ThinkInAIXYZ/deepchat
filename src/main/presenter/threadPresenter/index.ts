@@ -30,6 +30,7 @@ import {
   UserMessageMentionBlock,
   UserMessageCodeBlock
 } from '@shared/chat'
+import { ModelType } from '@shared/model'
 import { approximateTokenSize } from 'tokenx'
 import { generateSearchPrompt, SearchManager } from './searchManager'
 import { getFileContext } from './fileContext'
@@ -2094,24 +2095,34 @@ export class ThreadPresenter implements IThreadPresenter {
     userMessage: Message,
     vision: boolean,
     imageFiles: MessageFile[],
-    supportsFunctionCall: boolean
+    supportsFunctionCall: boolean,
+    modelType?: ModelType
   ): Promise<{
     finalContent: ChatMessage[]
     promptTokens: number
   }> {
     const { systemPrompt, contextLength, artifacts, enabledMcpTools } = conversation.settings
 
-    const searchPrompt = searchResults ? generateSearchPrompt(userContent, searchResults) : ''
+    // 判断是否为图片生成模型
+    const isImageGeneration = modelType === ModelType.ImageGeneration
+
+    // 图片生成模型不使用搜索、系统提示词和MCP工具
+    const searchPrompt =
+      !isImageGeneration && searchResults ? generateSearchPrompt(userContent, searchResults) : ''
     const enrichedUserMessage =
-      urlResults.length > 0
+      !isImageGeneration && urlResults.length > 0
         ? '\n\n' + ContentEnricher.enrichUserMessageWithUrlContent(userContent, urlResults)
         : ''
 
     // 计算token数量
     const searchPromptTokens = searchPrompt ? approximateTokenSize(searchPrompt ?? '') : 0
-    const systemPromptTokens = systemPrompt ? approximateTokenSize(systemPrompt ?? '') : 0
+    const systemPromptTokens =
+      !isImageGeneration && systemPrompt ? approximateTokenSize(systemPrompt ?? '') : 0
     const userMessageTokens = approximateTokenSize(userContent + enrichedUserMessage)
-    const mcpTools = await presenter.mcpPresenter.getAllToolDefinitions(enabledMcpTools)
+    // 图片生成模型不使用MCP工具
+    const mcpTools = !isImageGeneration
+      ? await presenter.mcpPresenter.getAllToolDefinitions(enabledMcpTools)
+      : []
     const mcpToolsTokens = mcpTools.reduce(
       (acc, tool) => acc + approximateTokenSize(JSON.stringify(tool)),
       0
@@ -2131,7 +2142,7 @@ export class ThreadPresenter implements IThreadPresenter {
     // 格式化消息
     const formattedMessages = this.formatMessagesForCompletion(
       selectedContextMessages,
-      systemPrompt,
+      isImageGeneration ? '' : systemPrompt, // 图片生成模型不使用系统提示词
       artifacts,
       searchPrompt,
       userContent,

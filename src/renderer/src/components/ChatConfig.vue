@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
-import { computed } from 'vue'
+import { computed, watch } from 'vue'
 import { Label } from '@/components/ui/label'
 import { Slider } from '@/components/ui/slider'
 import { Icon } from '@iconify/vue'
@@ -30,9 +30,25 @@ const props = defineProps<{
   providerId?: string
   reasoningEffort?: 'minimal' | 'low' | 'medium' | 'high'
   verbosity?: 'low' | 'medium' | 'high'
+  modelType?: 'chat' | 'imageGeneration' | 'embedding' | 'rerank'
 }>()
 
 const systemPrompt = defineModel<string>('systemPrompt')
+
+// 判断是否为图片生成模型
+const isImageGenerationModel = computed(() => {
+  return props.modelType === 'imageGeneration'
+})
+
+// 当模型类型改变且为图片生成模型时，清空系统提示词
+watch(
+  () => props.modelType,
+  (newType) => {
+    if (newType === 'imageGeneration' && systemPrompt.value) {
+      systemPrompt.value = ''
+    }
+  }
+)
 // Define emits to send updates to parent
 const emit = defineEmits<{
   'update:temperature': [value: number]
@@ -122,11 +138,33 @@ const handleDynamicThinkingToggle = (enabled: boolean) => {
 
 <template>
   <div class="pt-2 pb-6 px-2" :dir="langStore.dir">
-    <h2 class="text-xs text-muted-foreground px-2">{{ t('settings.model.title') }}</h2>
+    <div class="flex items-center gap-2 px-2 mb-2">
+      <h2 class="text-xs text-muted-foreground">{{ t('settings.model.title') }}</h2>
+      <Icon
+        v-if="props.modelType === 'chat'"
+        icon="lucide:message-circle"
+        class="w-3 h-3 text-muted-foreground"
+      />
+      <Icon
+        v-else-if="props.modelType === 'imageGeneration'"
+        icon="lucide:image"
+        class="w-3 h-3 text-muted-foreground"
+      />
+      <Icon
+        v-else-if="props.modelType === 'embedding'"
+        icon="lucide:layers"
+        class="w-3 h-3 text-muted-foreground"
+      />
+      <Icon
+        v-else-if="props.modelType === 'rerank'"
+        icon="lucide:arrow-up-down"
+        class="w-3 h-3 text-muted-foreground"
+      />
+    </div>
 
     <div class="space-y-6">
-      <!-- System Prompt -->
-      <div class="space-y-2 px-2">
+      <!-- System Prompt (隐藏图片生成模型的系统提示词) -->
+      <div v-if="!isImageGenerationModel" class="space-y-2 px-2">
         <div class="flex items-center space-x-2 py-1.5">
           <Icon icon="lucide:terminal" class="w-4 h-4 text-muted-foreground" />
           <Label class="text-xs font-medium">{{ t('settings.model.systemPrompt.label') }}</Label>
@@ -339,7 +377,7 @@ const handleDynamicThinkingToggle = (enabled: boolean) => {
       </div>
 
       <!-- Verbosity (详细程度 - 仅 GPT-5 系列) -->
-      <div v-if="isGPT5Model && verbosity !== undefined" class="space-y-4 px-2">
+      <div v-if="isGPT5Model && props.verbosity !== undefined" class="space-y-4 px-2">
         <div class="flex items-center space-x-2">
           <Icon icon="lucide:message-square-text" class="w-4 h-4 text-muted-foreground" />
           <Label class="text-xs font-medium">{{
