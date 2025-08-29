@@ -1926,3 +1926,14 @@ export interface LifecycleEventStats {
     }
   >
 }
+
+/**
+ * Interface for tracking hook execution results within priority groups
+ */
+export interface HookExecutionResult {
+  hookId: string
+  hook: LifecycleHook
+  success: boolean
+  result?: void | boolean
+  error?: Error
+}
