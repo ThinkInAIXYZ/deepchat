@@ -61,17 +61,48 @@
             {{ t('settings.common.webContentLengthLimitHint') }}
           </div>
         </span>
-        <div class="flex-shrink-0 min-w-32">
-          <Input
-            type="number"
-            :min="0"
-            :max="50000"
-            :step="1000"
-            :model-value="webContentLengthLimit"
-            @update:model-value="handleWebContentLengthLimitChange"
-            class="text-right"
-            placeholder="3000"
-          />
+        <div class="flex-shrink-0 flex items-center gap-1">
+          <Button
+            variant="outline"
+            size="icon"
+            class="h-8 w-8 rounded-full"
+            @click="decreaseWebContentLimit"
+            :disabled="webContentLengthLimit <= 0"
+          >
+            <Icon icon="lucide:minus" class="h-3 w-3" />
+          </Button>
+          <div class="relative">
+            <div
+              v-if="!isEditingLimit"
+              @click="startEditingLimit"
+              class="min-w-16 h-8 flex items-center justify-center text-sm font-semibold cursor-pointer hover:bg-accent rounded px-2"
+            >
+              {{ webContentLengthLimit }}
+            </div>
+            <Input
+              v-else
+              ref="limitInputRef"
+              type="number"
+              :min="0"
+              :max="10000"
+              :model-value="webContentLengthLimit"
+              @update:model-value="handleWebContentLengthLimitChange"
+              @blur="stopEditingLimit"
+              @keydown.enter="stopEditingLimit"
+              @keydown.escape="stopEditingLimit"
+              class="min-w-16 h-8 text-center text-sm font-semibold"
+            />
+          </div>
+          <Button
+            variant="outline"
+            size="icon"
+            class="h-8 w-8 rounded-full"
+            @click="increaseWebContentLimit"
+            :disabled="webContentLengthLimit >= 10000"
+          >
+            <Icon icon="lucide:plus" class="h-3 w-3" />
+          </Button>
+          <span class="text-xs text-muted-foreground ml-1">字符</span>
         </div>
       </div>
 
@@ -414,6 +445,8 @@ const showUrlError = ref(false)
 
 // 网页内容长度限制
 const webContentLengthLimit = ref(3000)
+const isEditingLimit = ref(false)
+const limitInputRef = ref<HTMLInputElement>()
 
 // 新增搜索引擎相关
 const isAddSearchEngineDialogOpen = ref(false)
@@ -688,7 +721,7 @@ const handleLoggingChange = (value: boolean) => {
 // 处理网页内容长度限制变更
 const handleWebContentLengthLimitChange = async (value: string | number) => {
   const numValue = typeof value === 'string' ? parseInt(value, 10) : value
-  if ((numValue >= 1 && numValue <= 50000) || numValue === 0) {
+  if (numValue >= 0 && numValue <= 10000 && !isNaN(numValue)) {
     try {
       const displayText = numValue === 0 ? '无限制' : `${numValue}字符`
       console.log('设置网页内容长度限制:', displayText)
@@ -700,6 +733,28 @@ const handleWebContentLengthLimitChange = async (value: string | number) => {
       console.error('设置网页内容长度限制失败:', error)
     }
   }
+}
+
+// 增加网页内容长度限制
+const increaseWebContentLimit = () => {
+  const newValue = Math.min(webContentLengthLimit.value + 100, 20000)
+  handleWebContentLengthLimitChange(newValue)
+}
+
+// 减少网页内容长度限制
+const decreaseWebContentLimit = () => {
+  const newValue = Math.max(webContentLengthLimit.value - 100, 0)
+  handleWebContentLengthLimitChange(newValue)
+}
+
+// 开始编辑限制值
+const startEditingLimit = () => {
+  isEditingLimit.value = true
+}
+
+// 结束编辑限制值
+const stopEditingLimit = () => {
+  isEditingLimit.value = false
 }
 
 const cancelLoggingChange = () => {
