@@ -81,7 +81,131 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
 
   // 火山引擎(Doubao)提供商特定模型配置
   doubao: {
-    models: []
+    models: [
+      // DeepSeek 模型
+      {
+        id: 'deepseek-v3-1-250821',
+        name: 'DeepSeek V3.1',
+        temperature: 0.7,
+        maxTokens: 32000,
+        contextLength: 128000,
+        match: ['deepseek-v3-1-250821', 'deepseek-v3.1'],
+        vision: false,
+        functionCall: true,
+        reasoning: true
+      },
+      {
+        id: 'deepseek-r1-250120',
+        name: 'DeepSeek R1',
+        temperature: 0.7,
+        maxTokens: 4096,
+        contextLength: 64000,
+        match: ['deepseek-r1-250120', 'deepseek-r1'],
+        vision: false,
+        functionCall: false,
+        reasoning: true
+      },
+      {
+        id: 'deepseek-r1-distill-qwen-32b-250120',
+        name: 'DeepSeek R1 Distill Qwen 32B',
+        temperature: 0.7,
+        maxTokens: 4096,
+        contextLength: 32000,
+        match: ['deepseek-r1-distill-qwen-32b-250120', 'deepseek-r1-distill-qwen-32b'],
+        vision: false,
+        functionCall: false,
+        reasoning: true
+      },
+      {
+        id: 'deepseek-r1-distill-qwen-7b-250120',
+        name: 'DeepSeek R1 Distill Qwen 7B',
+        temperature: 0.7,
+        maxTokens: 4096,
+        contextLength: 32000,
+        match: ['deepseek-r1-distill-qwen-7b-250120', 'deepseek-r1-distill-qwen-7b'],
+        vision: false,
+        functionCall: false,
+        reasoning: true
+      },
+      {
+        id: 'deepseek-v3-250324',
+        name: 'DeepSeek V3',
+        temperature: 0.7,
+        maxTokens: 4096,
+        contextLength: 64000,
+        match: ['deepseek-v3-250324', 'deepseek-v3'],
+        vision: false,
+        functionCall: true,
+        reasoning: false
+      },
+      // 豆包原生模型
+      {
+        id: 'doubao-seed-1-6-vision-250815',
+        name: 'Doubao Seed 1.6 Vision',
+        temperature: 0.7,
+        maxTokens: 32000,
+        contextLength: 256000,
+        match: ['doubao-seed-1-6-vision-250815', 'doubao-seed-1.6-vision'],
+        vision: true,
+        functionCall: true,
+        reasoning: true
+      },
+      {
+        id: 'doubao-seed-1-6-250615',
+        name: 'Doubao Seed 1.6',
+        temperature: 0.7,
+        maxTokens: 32000,
+        contextLength: 256000,
+        match: ['doubao-seed-1-6-250615', 'doubao-seed-1.6'],
+        vision: true,
+        functionCall: true,
+        reasoning: true
+      },
+      {
+        id: 'doubao-seed-1-6-flash-250715',
+        name: 'Doubao Seed 1.6 Flash',
+        temperature: 0.7,
+        maxTokens: 32000,
+        contextLength: 256000,
+        match: ['doubao-seed-1-6-flash-250715', 'doubao-seed-1.6-flash'],
+        vision: true,
+        functionCall: true,
+        reasoning: true
+      },
+      {
+        id: 'doubao-seed-1-6-flash-250615',
+        name: 'Doubao Seed 1.6 Flash (250615)',
+        temperature: 0.7,
+        maxTokens: 32000,
+        contextLength: 256000,
+        match: ['doubao-seed-1-6-flash-250615'],
+        vision: true,
+        functionCall: true,
+        reasoning: true
+      },
+      {
+        id: 'doubao-seed-1-6-thinking-250715',
+        name: 'Doubao Seed 1.6 Thinking',
+        temperature: 0.7,
+        maxTokens: 32000,
+        contextLength: 256000,
+        match: ['doubao-seed-1-6-thinking-250715', 'doubao-seed-1.6-thinking'],
+        vision: true,
+        functionCall: true,
+        reasoning: true
+      },
+      {
+        id: 'doubao-seed-1-6-thinking-250615',
+        name: 'Doubao Seed 1.6 Thinking (250615)',
+        temperature: 0.7,
+        maxTokens: 32000,
+        contextLength: 256000,
+        match: ['doubao-seed-1-6-thinking-250615'],
+        vision: true,
+        functionCall: true,
+        reasoning: true
+      }
+    ]
   },
 
   // Anthropic提供商特定模型配置
