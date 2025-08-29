@@ -62,6 +62,9 @@ const DRAG_THRESHOLD = 5
 
 // 鼠标按下处理
 const handleMouseDown = (event: MouseEvent) => {
+  if (event.button !== 0) {
+    return
+  }
   event.preventDefault()
 
   dragState.value.isMouseDown = true
@@ -90,6 +93,9 @@ const handleMouseMove = (event: MouseEvent) => {
   const deltaY = Math.abs(event.clientY - dragState.value.startY)
 
   if (!dragState.value.isDragging && (deltaX > DRAG_THRESHOLD || deltaY > DRAG_THRESHOLD)) {
+    // 位移启动拖拽时，立即清除定时器，防止二次触发
+    clearDragTimer()
+
     startDragging(event)
   }
 
@@ -104,6 +110,9 @@ const handleMouseMove = (event: MouseEvent) => {
 
 // 鼠标释放处理
 const handleMouseUp = (event: MouseEvent) => {
+  if (event.button !== 0) {
+    return
+  }
   const wasDragging = dragState.value.isDragging
 
   // 清理状态
