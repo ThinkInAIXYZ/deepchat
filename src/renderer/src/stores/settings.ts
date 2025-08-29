@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, onMounted, toRaw, computed } from 'vue'
 import { type LLM_PROVIDER, type RENDERER_MODEL_META } from '@shared/presenter'
+import type { ProviderChange, ProviderBatchUpdate } from '@shared/provider-operations'
 import { ModelType } from '@shared/model'
 import { usePresenter } from '@/composables/usePresenter'
 import { SearchEngineTemplate } from '@shared/chat'
@@ -659,6 +660,54 @@ export const useSettingsStore = defineStore('settings', () => {
       await loadSavedOrder()
       await refreshAllModels()
     })
+    // 监听原子provider更新事件
+    window.electron.ipcRenderer.on(
+      CONFIG_EVENTS.PROVIDER_ATOMIC_UPDATE,
+      async (_event, change: ProviderChange) => {
+        console.log(
+          `Provider atomic update - operation: ${change.operation}, providerId: ${change.providerId}`
+        )
+        providers.value = await configP.getProviders()
+        await loadSavedOrder()
+        if (change.operation === 'reorder') {
+          // 重排序不需要刷新模型，只需要更新顺序
+          return
+        } else if (change.operation === 'remove') {
+          // 删除provider时，清理相关模型数据
+          enabledModels.value = enabledModels.value.filter(
+            (p) => p.providerId !== change.providerId
+          )
+          allProviderModels.value = allProviderModels.value.filter(
+            (p) => p.providerId !== change.providerId
+          )
+        } else {
+          // add 或 update 操作，刷新该provider的模型
+          await refreshProviderModels(change.providerId)
+        }
+      }
+    )
+    // 监听批量provider更新事件
+    window.electron.ipcRenderer.on(
+      CONFIG_EVENTS.PROVIDER_BATCH_UPDATE,
+      async (_event, batchUpdate: ProviderBatchUpdate) => {
+        console.log('Provider batch update - changes:', batchUpdate.changes)
+        providers.value = await configP.getProviders()
+        await loadSavedOrder()
+        // 处理批量变更
+        for (const change of batchUpdate.changes) {
+          if (change.operation === 'remove') {
+            enabledModels.value = enabledModels.value.filter(
+              (p) => p.providerId !== change.providerId
+            )
+            allProviderModels.value = allProviderModels.value.filter(
+              (p) => p.providerId !== change.providerId
+            )
+          } else if (change.operation !== 'reorder') {
+            await refreshProviderModels(change.providerId)
+          }
+        }
+      }
+    )
 
     // 监听模型列表更新事件
     window.electron.ipcRenderer.on(
@@ -1325,6 +1374,10 @@ export const useSettingsStore = defineStore('settings', () => {
     removeOllamaEventListeners()
     // 清理搜索引擎事件监听器
     window.electron?.ipcRenderer?.removeAllListeners(CONFIG_EVENTS.SEARCH_ENGINES_UPDATED)
+    // 清理provider相关事件监听器
+    window.electron?.ipcRenderer?.removeAllListeners(CONFIG_EVENTS.PROVIDER_CHANGED)
+    window.electron?.ipcRenderer?.removeAllListeners(CONFIG_EVENTS.PROVIDER_ATOMIC_UPDATE)
+    window.electron?.ipcRenderer?.removeAllListeners(CONFIG_EVENTS.PROVIDER_BATCH_UPDATE)
   }
 
   // 添加设置notificationsEnabled的方法
