@@ -65,13 +65,15 @@
         </template>
         <ChatConfig
           v-model:system-prompt="systemPrompt"
-          :temperature="temperature"
-          :context-length="contextLength"
-          :max-tokens="maxTokens"
-          :artifacts="artifacts"
-          :thinking-budget="thinkingBudget"
-          :reasoning-effort="reasoningEffort"
-          :verbosity="verbosity"
+          v-model:temperature="temperature"
+          v-model:context-length="contextLength"
+          v-model:max-tokens="maxTokens"
+          v-model:artifacts="artifacts"
+          v-model:thinking-budget="thinkingBudget"
+          v-model:reasoning-effort="reasoningEffort"
+          v-model:verbosity="verbosity"
+          :context-length-limit="contextLengthLimit"
+          :max-tokens-limit="maxTokensLimit"
           :model-id="chatStore.chatConfig.modelId"
           :provider-id="chatStore.chatConfig.providerId"
           :model-type="modelType"
@@ -124,7 +126,7 @@ const thinkingBudget = ref(chatStore.chatConfig.thinkingBudget)
 const reasoningEffort = ref(chatStore.chatConfig.reasoningEffort)
 const verbosity = ref(chatStore.chatConfig.verbosity)
 const modelType = ref(ModelType.Chat)
-// 获取模型配置来初始化默认值
+// 获取模型配置来初始化默认值并智能调整当前参数
 const loadModelConfig = async () => {
   const modelId = chatStore.chatConfig.modelId
   const providerId = chatStore.chatConfig.providerId
@@ -133,13 +135,39 @@ const loadModelConfig = async () => {
     try {
       const config = await configPresenter.getModelDefaultConfig(modelId, providerId)
       modelType.value = config.type
+
+      contextLengthLimit.value = config.contextLength
+      maxTokensLimit.value = config.maxTokens
+
+      if (contextLength.value > config.contextLength) {
+        contextLength.value = config.contextLength
+      } else if (contextLength.value < 2048) {
+        contextLength.value = Math.max(2048, config.contextLength)
+      }
+
+      const maxTokensMax = !config.maxTokens || config.maxTokens < 8192 ? 8192 : config.maxTokens
+      if (maxTokens.value > maxTokensMax) {
+        maxTokens.value = maxTokensMax
+      } else if (maxTokens.value < 1024) {
+        maxTokens.value = 1024
+      }
+      // reset to default temperature
+      temperature.value = config.temperature ?? 0.6
+
       if (config.thinkingBudget !== undefined) {
         if (thinkingBudget.value === undefined) {
           thinkingBudget.value = config.thinkingBudget
+        } else {
+          if (thinkingBudget.value < -1) {
+            thinkingBudget.value = -1
+          } else if (thinkingBudget.value > 32768) {
+            thinkingBudget.value = 32768
+          }
         }
       } else {
         thinkingBudget.value = undefined
       }
+
       if (config.reasoningEffort !== undefined) {
         if (reasoningEffort.value === undefined) {
           reasoningEffort.value = config.reasoningEffort
@@ -147,6 +175,7 @@ const loadModelConfig = async () => {
       } else {
         reasoningEffort.value = undefined
       }
+
       if (config.verbosity !== undefined) {
         if (verbosity.value === undefined) {
           verbosity.value = config.verbosity
