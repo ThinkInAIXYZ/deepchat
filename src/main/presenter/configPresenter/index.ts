@@ -23,7 +23,7 @@ import path from 'path'
 import { app, nativeTheme, shell } from 'electron'
 import fs from 'fs'
 import { CONFIG_EVENTS, SYSTEM_EVENTS, FLOATING_BUTTON_EVENTS } from '@/events'
-import { McpConfHelper, SYSTEM_INMEM_MCP_SERVERS } from './mcpConfHelper'
+import { McpConfHelper } from './mcpConfHelper'
 import { presenter } from '@/presenter'
 import { compare } from 'compare-versions'
 import { defaultShortcutKey, ShortcutKeySetting } from './shortcutKeySettings'
@@ -942,26 +942,7 @@ export class ConfigPresenter implements IConfigPresenter {
 
   // 获取MCP服务器配置
   async getMcpServers(): Promise<Record<string, MCPServerConfig>> {
-    const servers = await this.mcpConfHelper.getMcpServers()
-
-    // 检查是否有自定义提示词，如果有则添加 custom-prompts-server
-    try {
-      const customPrompts = await this.getCustomPrompts()
-      if (customPrompts && customPrompts.length > 0) {
-        const customPromptsServerName = 'deepchat-inmemory/custom-prompts-server'
-        const systemServers = SYSTEM_INMEM_MCP_SERVERS[customPromptsServerName]
-
-        if (systemServers && !servers[customPromptsServerName]) {
-          servers[customPromptsServerName] = systemServers
-          servers[customPromptsServerName].disable = false
-          servers[customPromptsServerName].autoApprove = ['all']
-        }
-      }
-    } catch {
-      // 检查自定义提示词时出错
-    }
-
-    return servers
+    return await this.mcpConfHelper.getMcpServers()
   }
 
   // 设置MCP服务器配置
@@ -1162,9 +1143,6 @@ export class ConfigPresenter implements IConfigPresenter {
   // 保存自定义 prompts
   async setCustomPrompts(prompts: Prompt[]): Promise<void> {
     await this.customPromptsStore.set('prompts', prompts)
-
-    // 通知MCP系统检查并启动/停止自定义提示词服务器（仅主进程内部）
-    eventBus.sendToMain(CONFIG_EVENTS.CUSTOM_PROMPTS_SERVER_CHECK_REQUIRED)
   }
 
   // 添加单个 prompt

@@ -19,7 +19,6 @@ import { IConfigPresenter } from '@shared/presenter'
 import { getErrorMessageLabels } from '@shared/i18n'
 import { OpenAI } from 'openai'
 import { ToolListUnion, Type, FunctionDeclaration } from '@google/genai'
-import { CONFIG_EVENTS } from '@/events'
 import { presenter } from '@/presenter'
 
 // 定义MCP工具接口
@@ -100,11 +99,6 @@ export class McpPresenter implements IMCPPresenter {
       console.warn('[MCP] McpRouterManager init failed:', e)
     }
 
-    // 监听自定义提示词服务器检查事件
-    eventBus.on(CONFIG_EVENTS.CUSTOM_PROMPTS_SERVER_CHECK_REQUIRED, async () => {
-      await this.checkAndManageCustomPromptsServer()
-    })
-
     // 延迟初始化，确保其他组件已经准备好
     setTimeout(() => {
       this.initialize()
@@ -177,9 +171,6 @@ export class McpPresenter implements IMCPPresenter {
       this.isInitialized = true
       console.log('[MCP] Initialization completed')
       eventBus.send(MCP_EVENTS.INITIALIZED, SendTarget.ALL_WINDOWS)
-
-      // 检查并管理自定义提示词服务器
-      await this.checkAndManageCustomPromptsServer()
 
       this.scheduleBackgroundRegistryUpdate()
     } catch (error) {
@@ -275,55 +266,6 @@ export class McpPresenter implements IMCPPresenter {
   // 添加获取初始化状态的方法
   isReady(): boolean {
     return this.isInitialized
-  }
-
-  // 检查并管理自定义提示词服务器
-  private async checkAndManageCustomPromptsServer(): Promise<void> {
-    const customPromptsServerName = 'deepchat-inmemory/custom-prompts-server'
-
-    try {
-      // 获取当前自定义提示词
-      const customPrompts = await this.configPresenter.getCustomPrompts()
-      const hasCustomPrompts = customPrompts && customPrompts.length > 0
-
-      // 检查服务器是否正在运行
-      const isServerRunning = this.serverManager.isServerRunning(customPromptsServerName)
-
-      if (hasCustomPrompts && !isServerRunning) {
-        // 有自定义提示词但服务器未运行，启动服务器
-        try {
-          await this.serverManager.startServer(customPromptsServerName)
-          eventBus.send(MCP_EVENTS.SERVER_STARTED, SendTarget.ALL_WINDOWS, customPromptsServerName)
-        } catch (error) {
-          console.error(`Failed to start custom prompts server ${customPromptsServerName}:`, error)
-        }
-      } else if (!hasCustomPrompts && isServerRunning) {
-        // 没有自定义提示词但服务器正在运行，停止服务器
-        try {
-          await this.serverManager.stopServer(customPromptsServerName)
-          eventBus.send(MCP_EVENTS.SERVER_STOPPED, SendTarget.ALL_WINDOWS, customPromptsServerName)
-        } catch (error) {
-          console.error(`Failed to stop custom prompts server ${customPromptsServerName}:`, error)
-        }
-      } else if (hasCustomPrompts && isServerRunning) {
-        // 有自定义提示词且服务器正在运行，重启服务器以刷新缓存
-        try {
-          await this.serverManager.stopServer(customPromptsServerName)
-          await this.serverManager.startServer(customPromptsServerName)
-          eventBus.send(MCP_EVENTS.SERVER_STARTED, SendTarget.ALL_WINDOWS, customPromptsServerName)
-        } catch (error) {
-          console.error(
-            `Failed to restart custom prompts server ${customPromptsServerName}:`,
-            error
-          )
-        }
-      }
-
-      // 通知客户端列表已更新
-      eventBus.send(MCP_EVENTS.CLIENT_LIST_UPDATED, SendTarget.ALL_WINDOWS)
-    } catch (error) {
-      console.error('Failed to manage custom prompts server:', error)
-    }
   }
 
   // 获取MCP服务器配置

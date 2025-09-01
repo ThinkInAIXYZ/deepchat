@@ -314,16 +314,7 @@ const DEFAULT_MCP_SERVERS = {
 }
 // 这部分mcp有系统逻辑判断是否启用，不受用户配置控制，受软件环境控制
 export const SYSTEM_INMEM_MCP_SERVERS: Record<string, MCPServerConfig> = {
-  'deepchat-inmemory/custom-prompts-server': {
-    command: 'deepchat-inmemory/custom-prompts-server',
-    args: [],
-    env: {},
-    descriptions: 'DeepChat内置自定义提示词服务',
-    icons: '📝',
-    autoApprove: ['all'],
-    type: 'inmemory' as MCPServerType,
-    disable: false
-  }
+  // custom-prompts-server 已移除，现在通过 config 数据源提供提示词功能
 }
 
 export class McpConfHelper {
@@ -859,6 +850,34 @@ export class McpConfHelper {
         }
       } catch (error) {
         console.error('迁移 filesystem 服务器时出错:', error)
+      }
+    }
+
+    // 移除 custom-prompts-server 服务（版本 < 0.3.5）
+    if (oldVersion && compare(oldVersion, '0.3.5', '<')) {
+      try {
+        const mcpServers = this.mcpStore.get('mcpServers') || {}
+        const customPromptsServerName = 'deepchat-inmemory/custom-prompts-server'
+
+        if (mcpServers[customPromptsServerName]) {
+          console.log('检测到旧版本的 custom-prompts-server，开始移除')
+          delete mcpServers[customPromptsServerName]
+          this.mcpStore.set('mcpServers', mcpServers)
+
+          // 从默认服务器列表中移除（如果存在）
+          const defaultServers = this.mcpStore.get('defaultServers') || []
+          const updatedDefaultServers = defaultServers.filter(
+            (name) => name !== customPromptsServerName
+          )
+          if (updatedDefaultServers.length !== defaultServers.length) {
+            this.mcpStore.set('defaultServers', updatedDefaultServers)
+            console.log('从默认服务器列表中移除 custom-prompts-server')
+          }
+
+          console.log('移除 custom-prompts-server 完成')
+        }
+      } catch (error) {
+        console.error('移除 custom-prompts-server 时出错:', error)
       }
     }
 

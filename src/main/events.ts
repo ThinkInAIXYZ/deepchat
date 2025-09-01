@@ -25,7 +25,6 @@ export const CONFIG_EVENTS = {
   COPY_WITH_COT_CHANGED: 'config:copy-with-cot-enabled-changed',
   PROXY_RESOLVED: 'config:proxy-resolved',
   LANGUAGE_CHANGED: 'config:language-changed', // 新增：语言变更事件
-  CUSTOM_PROMPTS_SERVER_CHECK_REQUIRED: 'config:custom-prompts-server-check-required', // 新增：需要检查自定义提示词服务器事件
   // 模型配置相关事件
   MODEL_CONFIG_CHANGED: 'config:model-config-changed', // 模型配置变更事件
   MODEL_CONFIG_RESET: 'config:model-config-reset', // 模型配置重置事件

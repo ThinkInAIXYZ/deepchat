@@ -12,7 +12,8 @@ import type {
   MCPToolDefinition,
   PromptListEntry,
   Resource,
-  ResourceListEntry
+  ResourceListEntry,
+  Prompt
 } from '@shared/presenter'
 // 自定义类型定义
 interface MCPToolCallRequest {
@@ -34,6 +35,8 @@ export const useMcpStore = defineStore('mcp', () => {
   const { t } = useI18n()
   // 获取MCP相关的presenter
   const mcpPresenter = usePresenter('mcpPresenter')
+  // 获取配置相关的presenter
+  const configPresenter = usePresenter('configPresenter')
 
   // ==================== 状态定义 ====================
   // MCP配置
@@ -138,10 +141,11 @@ export const useMcpStore = defineStore('mcp', () => {
         await loadTools()
         await loadClients()
       } else {
-        // 如果禁用MCP，清空工具列表
+        // 如果禁用MCP，清空工具列表和资源，但保留prompts（包含config数据）
         tools.value = []
-        prompts.value = []
         resources.value = []
+        // 重新加载prompts以确保config数据仍然可用
+        await loadPrompts()
       }
 
       return true
@@ -344,21 +348,45 @@ export const useMcpStore = defineStore('mcp', () => {
 
   // 加载提示模板
   const loadPrompts = async () => {
-    // 如果MCP未启用，则不加载提示模板
-    if (!config.value.mcpEnabled) {
-      prompts.value = []
-      return false
-    }
-
     try {
-      const promptsData = await mcpPresenter.getAllPrompts()
+      // 如果MCP启用，则加载MCP提示模板
+      let mcpPrompts: PromptListEntry[] = []
+      if (config.value.mcpEnabled) {
+        try {
+          mcpPrompts = await mcpPresenter.getAllPrompts()
+        } catch (error) {
+          console.warn('Failed to load MCP prompts:', error)
+          mcpPrompts = []
+        }
+      }
 
-      // 将主进程返回的数据格式转换为渲染进程所需的格式
-      prompts.value = promptsData
+      // 从config加载自定义提示模板
+      let customPrompts: PromptListEntry[] = []
+      try {
+        const configPrompts: Prompt[] = await configPresenter.getCustomPrompts()
+        // 将Prompt格式转换为PromptListEntry格式
+        customPrompts = configPrompts.map((prompt) => ({
+          name: prompt.name,
+          description: prompt.description,
+          arguments: prompt.parameters || [],
+          files: prompt.files || [],
+          client: {
+            name: 'config',
+            icon: '⚙️'
+          }
+        }))
+      } catch (error) {
+        console.warn('Failed to load custom prompts from config:', error)
+        customPrompts = []
+      }
+
+      // 合并两个数据源
+      prompts.value = [...customPrompts, ...mcpPrompts]
 
       return true
     } catch (error) {
       console.error(t('mcp.errors.loadPromptsFailed'), error)
+      prompts.value = []
       return false
     }
   }
@@ -510,7 +538,10 @@ export const useMcpStore = defineStore('mcp', () => {
     initEvents()
     await loadConfig()
 
-    // 如果MCP已启用，加载工具、客户端、提示模板和资源
+    // 总是加载提示模板（包含config数据源）
+    await loadPrompts()
+
+    // 如果MCP已启用，加载工具、客户端和资源
     if (config.value.mcpEnabled) {
       await loadTools()
       await loadClients()

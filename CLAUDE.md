@@ -153,6 +153,7 @@ The LLM system follows a two-layer architecture:
 - **Tool Execution**: Seamless integration with LLM providers
 - **Format Conversion**: Bridges MCP tools with various LLM provider formats
 - **Built-in Services**: In-memory servers for code execution, web access, file operations
+- **Data Source Decoupling**: Custom prompts work independently of MCP through config data source
 
 ## Code Structure
 
@@ -217,6 +218,15 @@ The LLM system follows a two-layer architecture:
 1. Implement tool in `src/main/presenter/mcpPresenter/inMemoryServers/`
 2. Register in `mcpPresenter/index.ts`
 3. Add tool configuration UI if needed
+
+### Managing Custom Prompts
+
+Custom prompts are managed independently of MCP through the config data source:
+
+1. **Config Storage**: Prompts stored via `configPresenter.getCustomPrompts()`
+2. **UI Management**: Use `promptsStore` for CRUD operations in settings
+3. **@ Operations**: Mention system loads from both config and MCP sources
+4. **MCP Independence**: @ prompt functionality works even when MCP is disabled
 
 ### Creating New UI Components
 
