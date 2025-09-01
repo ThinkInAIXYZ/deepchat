@@ -220,7 +220,12 @@ export class FloatingButtonPresenter {
             const newX = dragState.windowX + deltaX
             const newY = dragState.windowY + deltaY
 
-            buttonWindow.setPosition(newX, newY)
+            buttonWindow.setBounds({
+              x: newX,
+              y: newY,
+              width: this.config.size.width,
+              height: this.config.size.height
+            })
           }
         }
       } catch (error) {
