@@ -1,9 +1,9 @@
 <template>
   <div class="w-full h-full flex flex-row">
     <ScrollArea class="w-64 border-r h-full px-2">
-      <div class="py-2 space-y-4">
+      <div class="space-y-4">
         <!-- 搜索框 -->
-        <div class="px-2">
+        <div class="p-2 sticky top-0 z-10 bg-container">
           <div class="relative">
             <Input
               v-model="searchQueryBase"
@@ -112,13 +112,14 @@
           </draggable>
         </div>
 
-        <div
-          class="flex flex-row items-center gap-2 rounded-lg p-2 cursor-pointer hover:bg-accent mt-2"
-          :dir="languageStore.dir"
-          @click="openAddProviderDialog"
-        >
-          <Icon icon="lucide:plus" class="w-4 h-4 text-muted-foreground" />
-          <span class="text-sm font-medium">{{ t('settings.provider.addCustomProvider') }}</span>
+        <div class="sticky bottom-0 z-10 p-2 bg-container" :dir="languageStore.dir">
+          <button
+            class="w-full flex flex-row items-center gap-2 rounded-lg p-2 bg-container cursor-pointer hover:bg-accent"
+            @click="openAddProviderDialog"
+          >
+            <Icon icon="lucide:plus" class="w-4 h-4 text-muted-foreground" />
+            <span class="text-sm font-medium">{{ t('settings.provider.addCustomProvider') }}</span>
+          </button>
         </div>
       </div>
     </ScrollArea>
