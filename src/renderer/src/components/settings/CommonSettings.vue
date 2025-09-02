@@ -14,39 +14,23 @@
                 <SelectValue :placeholder="t('settings.common.searchEngineSelect')" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem
-                  v-for="engine in settingsStore.searchEngines"
-                  :key="engine.id"
-                  :value="engine.id"
-                >
+                <SelectItem v-for="engine in settingsStore.searchEngines" :key="engine.id" :value="engine.id">
                   {{ engine.name }}
                 </SelectItem>
               </SelectContent>
             </Select>
           </div>
-          <Button
-            variant="outline"
-            size="icon"
-            :title="t('settings.common.addCustomSearchEngine')"
-            @click="openAddSearchEngineDialog"
-          >
+          <Button variant="outline" size="icon" :title="t('settings.common.addCustomSearchEngine')"
+            @click="openAddSearchEngineDialog">
             <Icon icon="lucide:plus" class="w-4 h-4" />
           </Button>
-          <Button
-            v-if="isCurrentEngineCustom"
-            variant="outline"
-            size="icon"
+          <Button v-if="isCurrentEngineCustom" variant="outline" size="icon"
             :title="t('settings.common.deleteCustomSearchEngine')"
-            @click="currentEngine && openDeleteSearchEngineDialog(currentEngine)"
-          >
+            @click="currentEngine && openDeleteSearchEngineDialog(currentEngine)">
             <Icon icon="lucide:trash-2" class="w-4 h-4 text-destructive" />
           </Button>
-          <Button
-            variant="outline"
-            size="icon"
-            :title="t('settings.common.testSearchEngine')"
-            @click="openTestSearchEngineDialog"
-          >
+          <Button variant="outline" size="icon" :title="t('settings.common.testSearchEngine')"
+            @click="openTestSearchEngineDialog">
             <Icon icon="lucide:flask-conical" class="w-4 h-4" />
           </Button>
         </div>
@@ -62,44 +46,23 @@
           </div>
         </span>
         <div class="flex-shrink-0 flex items-center gap-1">
-          <Button
-            variant="outline"
-            size="icon"
-            class="h-8 w-8 rounded-full"
-            @click="decreaseWebContentLimit"
-            :disabled="webContentLengthLimit <= 0"
-          >
+          <Button variant="outline" size="icon" class="h-8 w-8 rounded-full" @click="decreaseWebContentLimit"
+            :disabled="webContentLengthLimit <= 0">
             <Icon icon="lucide:minus" class="h-3 w-3" />
           </Button>
           <div class="relative">
-            <div
-              v-if="!isEditingLimit"
-              @click="startEditingLimit"
-              class="min-w-16 h-8 flex items-center justify-center text-sm font-semibold cursor-pointer hover:bg-accent rounded px-2"
-            >
+            <div v-if="!isEditingLimit" @click="startEditingLimit"
+              class="min-w-16 h-8 flex items-center justify-center text-sm font-semibold cursor-pointer hover:bg-accent rounded px-2">
               {{ webContentLengthLimit }}
             </div>
-            <Input
-              v-else
-              ref="limitInputRef"
-              type="number"
-              :min="0"
-              :max="10000"
-              :model-value="webContentLengthLimit"
-              @update:model-value="handleWebContentLengthLimitChange"
-              @blur="stopEditingLimit"
-              @keydown.enter="stopEditingLimit"
-              @keydown.escape="stopEditingLimit"
-              class="min-w-16 h-8 text-center text-sm font-semibold"
-            />
+            <Input v-else ref="limitInputRef" type="number" :min="0" :max="10000" :model-value="webContentLengthLimit"
+              @update:model-value="handleWebContentLengthLimitChange" @blur="stopEditingLimit"
+              @keydown.enter="stopEditingLimit" @keydown.escape="stopEditingLimit"
+              class="min-w-16 h-8 text-center text-sm font-semibold rounded px-2"
+              :class="{ 'bg-accent': isEditingLimit }" />
           </div>
-          <Button
-            variant="outline"
-            size="icon"
-            class="h-8 w-8 rounded-full"
-            @click="increaseWebContentLimit"
-            :disabled="webContentLengthLimit >= 10000"
-          >
+          <Button variant="outline" size="icon" class="h-8 w-8 rounded-full" @click="increaseWebContentLimit"
+            :disabled="webContentLengthLimit >= 10000">
             <Icon icon="lucide:plus" class="h-3 w-3" />
           </Button>
           <span class="text-xs text-muted-foreground ml-1">字符</span>
@@ -117,23 +80,17 @@
             <PopoverTrigger as-child>
               <Button variant="outline" class="w-full justify-between">
                 <div class="flex items-center gap-2">
-                  <ModelIcon
-                    :model-id="selectedSearchModel?.id || ''"
-                    class="h-4 w-4"
-                    :is-dark="themeStore.isDark"
-                  />
+                  <ModelIcon :model-id="selectedSearchModel?.id || ''" class="h-4 w-4" :is-dark="themeStore.isDark" />
                   <span class="truncate">{{
                     selectedSearchModel?.name || t('settings.common.selectModel')
-                  }}</span>
+                    }}</span>
                 </div>
                 <ChevronDown class="h-4 w-4 opacity-50" />
               </Button>
             </PopoverTrigger>
             <PopoverContent class="w-80 p-0">
-              <ModelSelect
-                :type="[ModelType.Chat, ModelType.ImageGeneration]"
-                @update:model="handleSearchModelSelect"
-              />
+              <ModelSelect :type="[ModelType.Chat, ModelType.ImageGeneration]"
+                @update:model="handleSearchModelSelect" />
             </PopoverContent>
           </Popover>
         </div>
@@ -164,13 +121,8 @@
             <span class="text-sm font-medium">{{ t('settings.common.customProxyUrl') }}</span>
           </span>
           <div class="flex-shrink-0 min-w-64 max-w-96">
-            <Input
-              v-model="customProxyUrl"
-              :placeholder="t('settings.common.customProxyUrlPlaceholder')"
-              :class="{ 'border-red-500': showUrlError }"
-              @input="validateProxyUrl"
-              @blur="validateProxyUrl"
-            />
+            <Input v-model="customProxyUrl" :placeholder="t('settings.common.customProxyUrlPlaceholder')"
+              :class="{ 'border-red-500': showUrlError }" @input="validateProxyUrl" @blur="validateProxyUrl" />
           </div>
         </div>
         <div v-if="showUrlError" class="text-xs text-red-500 ml-6">
@@ -184,11 +136,8 @@
           <span class="text-sm font-medium">{{ t('settings.common.searchPreview') }}</span>
         </span>
         <div class="flex-shrink-0">
-          <Switch
-            id="search-preview-switch"
-            :checked="searchPreviewEnabled"
-            @update:checked="handleSearchPreviewChange"
-          />
+          <Switch id="search-preview-switch" :checked="searchPreviewEnabled"
+            @update:checked="handleSearchPreviewChange" />
         </div>
       </div>
 
@@ -199,11 +148,7 @@
           <span class="text-sm font-medium">{{ t('settings.common.loggingEnabled') }}</span>
         </span>
         <div class="flex-shrink-0">
-          <Switch
-            id="logging-switch"
-            :checked="loggingEnabled"
-            @update:checked="handleLoggingChange"
-          />
+          <Switch id="logging-switch" :checked="loggingEnabled" @update:checked="handleLoggingChange" />
         </div>
       </div>
 
@@ -225,11 +170,7 @@
           <span class="text-sm font-medium">{{ t('settings.common.copyWithCotEnabled') }}</span>
         </span>
         <div class="flex-shrink-0">
-          <Switch
-            id="copy-with-cot-switch"
-            :checked="copyWithCotEnabled"
-            @update:checked="handleCopyWithCotChange"
-          />
+          <Switch id="copy-with-cot-switch" :checked="copyWithCotEnabled" @update:checked="handleCopyWithCotChange" />
         </div>
       </div>
 
@@ -257,21 +198,16 @@
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      <div
-        class="p-2 flex flex-row items-center gap-2 hover:bg-accent rounded-lg cursor-pointer"
-        @click="openLogFolder"
-        :dir="langStore.dir"
-      >
+      <div class="p-2 flex flex-row items-center gap-2 hover:bg-accent rounded-lg cursor-pointer" @click="openLogFolder"
+        :dir="langStore.dir">
         <Icon icon="lucide:external-link" class="w-4 h-4 text-muted-foreground" />
         <span class="text-sm font-medium">{{ t('settings.common.openLogFolder') }}</span>
       </div>
       <!-- 重置数据 -->
       <Dialog v-model:open="isDialogOpen">
         <DialogTrigger as-child>
-          <div
-            class="p-2 flex flex-row items-center gap-2 hover:bg-accent rounded-lg cursor-pointer"
-            :dir="langStore.dir"
-          >
+          <div class="p-2 flex flex-row items-center gap-2 hover:bg-accent rounded-lg cursor-pointer"
+            :dir="langStore.dir">
             <Icon icon="lucide:trash" class="w-4 h-4 text-muted-foreground" />
             <span class="text-sm font-medium">{{ t('settings.common.resetData') }}</span>
           </div>
@@ -311,24 +247,17 @@
           <Label for="search-engine-name" class="text-right">
             {{ t('settings.common.searchEngineName') }}
           </Label>
-          <Input
-            id="search-engine-name"
-            v-model="newSearchEngine.name"
-            class="col-span-3"
-            :placeholder="t('settings.common.searchEngineNamePlaceholder')"
-          />
+          <Input id="search-engine-name" v-model="newSearchEngine.name" class="col-span-3"
+            :placeholder="t('settings.common.searchEngineNamePlaceholder')" />
         </div>
         <div class="grid grid-cols-4 items-center gap-4">
           <Label for="search-engine-url" class="text-right">
             {{ t('settings.common.searchEngineUrl') }}
           </Label>
           <div class="col-span-3">
-            <Input
-              id="search-engine-url"
-              v-model="newSearchEngine.searchUrl"
+            <Input id="search-engine-url" v-model="newSearchEngine.searchUrl"
               :placeholder="t('settings.common.searchEngineUrlPlaceholder')"
-              :class="{ 'border-red-500': showSearchUrlError }"
-            />
+              :class="{ 'border-red-500': showSearchUrlError }" />
             <div v-if="showSearchUrlError" class="text-xs text-red-500 mt-1">
               {{ t('settings.common.searchEngineUrlError') }}
             </div>
@@ -402,7 +331,7 @@ import {
   SelectTrigger,
   SelectValue
 } from '@/components/ui/select'
-import { ref, onMounted, watch, computed } from 'vue'
+import { ref, onMounted, watch, computed, nextTick } from 'vue'
 import { useSettingsStore } from '@/stores/settings'
 import {
   Dialog,
@@ -446,7 +375,7 @@ const showUrlError = ref(false)
 // 网页内容长度限制
 const webContentLengthLimit = ref(3000)
 const isEditingLimit = ref(false)
-const limitInputRef = ref<HTMLInputElement>()
+const limitInputRef = ref<{ dom: HTMLInputElement }>()
 
 // 新增搜索引擎相关
 const isAddSearchEngineDialogOpen = ref(false)
@@ -590,6 +519,13 @@ watch(customProxyUrl, () => {
   proxyUrlDebounceTimer = window.setTimeout(() => {
     validateProxyUrl()
   }, 300)
+})
+
+watch(() => isEditingLimit.value, async (newValue) => {
+  if (newValue) {
+    await nextTick()
+    limitInputRef.value?.dom?.focus?.()
+  }
 })
 
 const isDialogOpen = ref(false)
@@ -818,3 +754,18 @@ const testSearchEngine = async () => {
   }
 }
 </script>
+
+<style scoped>
+input::-webkit-outer-spin-button,
+input::-webkit-inner-spin-button {
+  /* display: none; <- Crashes Chrome on hover */
+  -webkit-appearance: none;
+  margin: 0;
+  /* <-- Apparently some margin are still there even though it's hidden */
+}
+
+input[type=number] {
+  -moz-appearance: textfield;
+  /* Firefox */
+}
+</style>
