@@ -18,6 +18,7 @@ import { BaseLLMProvider } from './baseProvider'
 import { OpenAIProvider } from './providers/openAIProvider'
 import { DeepseekProvider } from './providers/deepseekProvider'
 import { SiliconcloudProvider } from './providers/siliconcloudProvider'
+import { DashscopeProvider } from './providers/dashscopeProvider'
 import { eventBus, SendTarget } from '@/eventbus'
 import { OpenAICompatibleProvider } from './providers/openAICompatibleProvider'
 import { PPIOProvider } from './providers/ppioProvider'
@@ -197,6 +198,8 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
         case 'silicon':
         case 'siliconcloud':
           return new SiliconcloudProvider(provider, this.configPresenter)
+        case 'dashscope':
+          return new DashscopeProvider(provider, this.configPresenter)
         case 'ppio':
           return new PPIOProvider(provider, this.configPresenter)
         case 'gemini':

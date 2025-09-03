@@ -383,7 +383,7 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
   {
     id: 'dashscope',
     name: 'DashScope',
-    apiType: 'openai',
+    apiType: 'dashscope',
     apiKey: '',
     baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1/',
     enable: false,
