@@ -255,12 +255,13 @@ export class UpgradePresenter implements IUpgradePresenter {
 
       // 首先获取版本信息文件
       const platformString = getPlatformInfo()
-      const updateChannel = this._configPresenter.getUpdateChannel()
+      const rawChannel = this._configPresenter.getUpdateChannel()
+      const updateChannel = rawChannel === 'canary' ? 'canary' : 'upgrade' // Sanitize channel
       const randomId = Math.floor(Date.now() / 3600000) // Timestamp truncated to hour
-      const versionPath = updateChannel === 'canary' ? 'canary' : 'upgrade'
+      const versionPath = updateChannel
       const versionUrl = `${this._baseUrl}/${versionPath}/${platformString}.json?noCache=${randomId}`
       console.log('versionUrl', versionUrl)
-      const response = await axios.get<VersionInfo>(versionUrl)
+      const response = await axios.get<VersionInfo>(versionUrl, { timeout: 60000 }) // Add network timeout
       const remoteVersion = response.data
       const currentVersion = app.getVersion()
 
