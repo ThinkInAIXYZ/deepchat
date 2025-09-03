@@ -317,8 +317,8 @@ DeepChatはアクティブなオープンソースコミュニティプロジェ
 
 deepchatへの貢献をご検討いただきありがとうございます！貢献ガイドは[貢献ガイドライン](./CONTRIBUTING.md)でご確認いただけます。
 
-<a href="https://github.com/ThinkInAIXYZ/deepchat/graphs/contributors">
-  <img src="https://contrib.rocks/image?repo=ThinkInAIXYZ/deepchat" alt="DeepChatプロジェクト貢献者" />
+<a href="https://openomy.com/thinkinaixyz/deepchat" target="_blank" style="display: block; width: 100%;" align="center">
+  <img src="https://openomy.com/svg?repo=thinkinaixyz/deepchat&chart=bubble&latestMonth=3" target="_blank" alt="Contribution Leaderboard" style="display: block; width: 100%;" />
 </a>
 
 ## 🙏🏻 謝辞

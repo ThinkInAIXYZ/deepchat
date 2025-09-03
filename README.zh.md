@@ -317,8 +317,8 @@ DeepChat是一个活跃的开源社区项目，我们欢迎各种形式的贡献
 
 感谢您考虑为deepchat做出贡献！贡献指南可以在[贡献指南](./CONTRIBUTING.md)中找到。
 
-<a href="https://github.com/ThinkInAIXYZ/deepchat/graphs/contributors">
-  <img src="https://contrib.rocks/image?repo=ThinkInAIXYZ/deepchat" alt="DeepChat项目贡献者" />
+<a href="https://openomy.com/thinkinaixyz/deepchat" target="_blank" style="display: block; width: 100%;" align="center">
+  <img src="https://openomy.com/svg?repo=thinkinaixyz/deepchat&chart=bubble&latestMonth=3" target="_blank" alt="Contribution Leaderboard" style="display: block; width: 100%;" />
 </a>
 
 ## 🙏🏻 致谢
