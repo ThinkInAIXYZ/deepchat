@@ -5,6 +5,9 @@
   "disclaimerButton": "免责声明",
   "disclaimerTitle": "使用条款声明",
   "checkUpdateButton": "检查更新",
+  "updateChannel": "更新渠道",
+  "stableChannel": "正式版",
+  "canaryChannel": "内测版",
   "deviceInfo": {
     "title": "设备信息",
     "platform": "平台",

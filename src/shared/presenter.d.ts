@@ -379,6 +379,9 @@ export interface IConfigPresenter {
   // 悬浮按钮设置
   getFloatingButtonEnabled(): boolean
   setFloatingButtonEnabled(enabled: boolean): void
+  // 更新渠道设置
+  getUpdateChannel(): string
+  setUpdateChannel(channel: string): void
   // 日志设置
   getLoggingEnabled(): boolean
   setLoggingEnabled(enabled: boolean): void

@@ -12,5 +12,8 @@
   },
   "disclaimerButton": "رد مسئولیت",
   "disclaimerTitle": "بیانیه شرایط استفاده",
-  "checkUpdateButton": "بررسی به‌روزرسانی"
+  "checkUpdateButton": "بررسی به‌روزرسانی",
+  "updateChannel": "کانال به‌روزرسانی",
+  "stableChannel": "پایدار",
+  "canaryChannel": "کاناری"
 }

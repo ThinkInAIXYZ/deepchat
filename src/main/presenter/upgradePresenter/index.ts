@@ -1,5 +1,10 @@
 import { app, shell } from 'electron'
-import { IUpgradePresenter, UpdateStatus, UpdateProgress } from '@shared/presenter'
+import {
+  IUpgradePresenter,
+  UpdateStatus,
+  UpdateProgress,
+  IConfigPresenter
+} from '@shared/presenter'
 import { eventBus, SendTarget } from '@/eventbus'
 import { UPDATE_EVENTS, WINDOW_EVENTS } from '@/events'
 import electronUpdater from 'electron-updater'
@@ -38,7 +43,7 @@ const getPlatformInfo = () => {
 
 // 获取版本检查的基础URL
 const getVersionCheckBaseUrl = () => {
-  return 'https://cdn.deepchatai.cn/upgrade'
+  return 'https://cdn.deepchatai.cn'
 }
 
 // 获取自动更新状态文件路径
@@ -56,8 +61,10 @@ export class UpgradePresenter implements IUpgradePresenter {
   private _lastCheckTime: number = 0 // 上次检查更新的时间戳
   private _updateMarkerPath: string
   private _previousUpdateFailed: boolean = false // 标记上次更新是否失败
+  private _configPresenter: IConfigPresenter // 配置presenter
 
-  constructor() {
+  constructor(configPresenter: IConfigPresenter) {
+    this._configPresenter = configPresenter
     this._baseUrl = getVersionCheckBaseUrl()
     this._updateMarkerPath = getUpdateMarkerFilePath()
 
@@ -248,8 +255,10 @@ export class UpgradePresenter implements IUpgradePresenter {
 
       // 首先获取版本信息文件
       const platformString = getPlatformInfo()
+      const updateChannel = this._configPresenter.getUpdateChannel()
       const randomId = Math.floor(Date.now() / 3600000) // Timestamp truncated to hour
-      const versionUrl = `${this._baseUrl}/${platformString}.json?noCache=${randomId}`
+      const versionPath = updateChannel === 'canary' ? 'canary' : 'upgrade'
+      const versionUrl = `${this._baseUrl}/${versionPath}/${platformString}.json?noCache=${randomId}`
       console.log('versionUrl', versionUrl)
       const response = await axios.get<VersionInfo>(versionUrl)
       const remoteVersion = response.data
@@ -288,7 +297,10 @@ export class UpgradePresenter implements IUpgradePresenter {
         }
 
         // 设置自动更新的URL
-        const autoUpdateUrl = `${this._baseUrl}/v${remoteVersion.version}/${platformString}`
+        const autoUpdateUrl =
+          updateChannel === 'canary'
+            ? `${this._baseUrl}/canary/${platformString}`
+            : `${this._baseUrl}/upgrade/v${remoteVersion.version}/${platformString}`
         console.log('设置自动更新URL:', autoUpdateUrl)
         autoUpdater.setFeedURL(autoUpdateUrl)
 

@@ -100,7 +100,7 @@ export class Presenter implements IPresenter {
       this.configPresenter
     )
     this.mcpPresenter = new McpPresenter(this.configPresenter)
-    this.upgradePresenter = new UpgradePresenter()
+    this.upgradePresenter = new UpgradePresenter(this.configPresenter)
     this.shortcutPresenter = new ShortcutPresenter(this.configPresenter)
     this.filePresenter = new FilePresenter()
     this.syncPresenter = new SyncPresenter(this.configPresenter, this.sqlitePresenter)

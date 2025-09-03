@@ -5,6 +5,9 @@
   "disclaimerButton": "Отказ от ответственности",
   "disclaimerTitle": "Условия использования",
   "checkUpdateButton": "Проверить обновления",
+  "updateChannel": "Канал обновлений",
+  "stableChannel": "Стабильный",
+  "canaryChannel": "Канареечный",
   "deviceInfo": {
     "title": "Сведения об устройстве",
     "platform": "Платформа",
