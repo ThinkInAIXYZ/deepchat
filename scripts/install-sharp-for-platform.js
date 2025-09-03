@@ -23,7 +23,7 @@ const platformConfigs = {
   },
   'win32-arm64': {
     os: ['current', 'win32'],
-    cpu: ['current', 'arm64']
+    cpu: ['current', 'wasm32']
   },
   'linux-x64': {
     os: ['current', 'linux'],
