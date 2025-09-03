@@ -430,31 +430,31 @@ defineExpose({
 .scroll-to-bottom-loading-container::before {
   content: '';
   position: absolute;
+  top: -2px;
+  left: -2px;
+  right: -2px;
+  bottom: -2px;
+  border-radius: 0.5rem;
+  background: linear-gradient(135deg, #9b59b6, #84cdfa, #5ad1cd);
+  /* animation: rotate-glow 1.2s linear infinite; */
+  pointer-events: none;
+  z-index: 1;
+  filter: blur(6px);
+}
+
+.scroll-to-bottom-loading-container::after {
+  content: '';
+  position: absolute;
   top: -3px;
   left: -3px;
   right: -3px;
   bottom: -3px;
   border-radius: 0.5rem;
   background: linear-gradient(135deg, #9b59b6, #84cdfa, #5ad1cd);
-  animation: rotate-glow 1.2s linear infinite;
-  pointer-events: none;
-  z-index: 1;
-  filter: blur(8px);
-}
-
-.scroll-to-bottom-loading-container::after {
-  content: '';
-  position: absolute;
-  top: -5px;
-  left: -5px;
-  right: -5px;
-  bottom: -5px;
-  border-radius: 0.5rem;
-  background: linear-gradient(135deg, #9b59b6, #84cdfa, #5ad1cd);
-  animation: rotate-glow 1.2s linear infinite;
+  /* animation: rotate-glow 1.2s linear infinite; */
   pointer-events: none;
   z-index: 0;
-  filter: blur(20px);
+  filter: blur(10px);
   opacity: 0.6;
 }
 
