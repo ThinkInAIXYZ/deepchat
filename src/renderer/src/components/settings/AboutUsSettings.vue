@@ -213,7 +213,7 @@ const setUpdateChannel = async (channel: string) => {
     await configPresenter.setUpdateChannel(channel)
     // v-model 会自动更新 updateChannel.value，不需要手动设置
   } catch (error) {
-    console.error('设置更新渠道失败:', error)
+    console.error('updateChannelSetError:', error)
   }
 }
 

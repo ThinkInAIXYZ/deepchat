@@ -1202,8 +1202,6 @@ export class ConfigPresenter implements IConfigPresenter {
   // 设置更新渠道
   setUpdateChannel(channel: string): void {
     this.setSetting('updateChannel', channel)
-    // 触发更新渠道变更事件（需要通知所有标签页）
-    eventBus.sendToRenderer(CONFIG_EVENTS.UPDATE_CHANNEL_CHANGED, SendTarget.ALL_WINDOWS, channel)
   }
 
   // 获取默认快捷键
