@@ -118,8 +118,12 @@
               <p class="text-xs text-muted-foreground">
                 {{ t('settings.model.modelConfig.functionCall.description') }}
               </p>
+              <!-- DeepSeek-V3.1 互斥提示 -->
+              <p v-if="isDeepSeekV31Model" class="text-xs text-orange-600">
+                {{ t('dialog.mutualExclusive.warningText.functionCall') }}
+              </p>
             </div>
-            <Switch v-model:checked="config.functionCall" />
+            <Switch :checked="config.functionCall" @update:checked="handleFunctionCallToggle" />
           </div>
 
           <!-- 推理能力 -->
@@ -129,8 +133,12 @@
               <p class="text-xs text-muted-foreground">
                 {{ t('settings.model.modelConfig.reasoning.description') }}
               </p>
+              <!-- DeepSeek-V3.1 互斥提示 -->
+              <p v-if="isDeepSeekV31Model" class="text-xs text-orange-600">
+                {{ t('dialog.mutualExclusive.warningText.reasoning') }}
+              </p>
             </div>
-            <Switch v-model:checked="config.reasoning" />
+            <Switch :checked="config.reasoning" @update:checked="handleReasoningToggle" />
           </div>
 
           <!-- 推理努力程度 (支持推理努力程度的模型显示) -->
@@ -285,6 +293,26 @@
       </DialogFooter>
     </DialogContent>
   </Dialog>
+
+  <!-- DeepSeek-V3.1 互斥确认对话框 -->
+  <AlertDialog :open="showMutualExclusiveAlert" @update:open="showMutualExclusiveAlert = $event">
+    <AlertDialogContent>
+      <AlertDialogHeader>
+        <AlertDialogTitle>{{ getConfirmTitle }}</AlertDialogTitle>
+        <AlertDialogDescription>
+          {{ getConfirmMessage }}
+        </AlertDialogDescription>
+      </AlertDialogHeader>
+      <AlertDialogFooter>
+        <AlertDialogCancel @click="cancelMutualExclusiveToggle">
+          {{ t('dialog.cancel') }}
+        </AlertDialogCancel>
+        <AlertDialogAction @click="confirmMutualExclusiveToggle">
+          {{ t('dialog.mutualExclusive.confirmEnable') }}
+        </AlertDialogAction>
+      </AlertDialogFooter>
+    </AlertDialogContent>
+  </AlertDialog>
 </template>
 
 <script setup lang="ts">
@@ -311,6 +339,16 @@ import {
   SelectTrigger,
   SelectValue
 } from '@/components/ui/select'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle
+} from '@/components/ui/alert-dialog'
 
 interface Props {
   open: boolean
@@ -344,6 +382,13 @@ const config = ref<ModelConfig>({
 
 // 重置确认对话框
 const showResetConfirm = ref(false)
+
+// DeepSeek-V3.1 互斥确认对话框
+const showMutualExclusiveAlert = ref(false)
+const mutualExclusiveAction = ref<{
+  from: 'reasoning' | 'functionCall'
+  to: 'reasoning' | 'functionCall'
+} | null>(null)
 
 // 错误信息
 const errors = ref<Record<string, string>>({})
@@ -494,6 +539,11 @@ const isGPT5Model = computed(() => {
   return modelId.includes('gpt-5')
 })
 
+const isDeepSeekV31Model = computed(() => {
+  const modelId = props.modelId.toLowerCase()
+  return modelId.includes('deepseek-v3.1') || modelId.includes('deepseek-v3-1')
+})
+
 const supportsReasoningEffort = computed(() => {
   return config.value.reasoningEffort !== undefined && config.value.reasoningEffort !== null
 })
@@ -584,6 +634,58 @@ const getDisableHint = () => {
     return '' // Pro 模型的限制已在红色警告中显示
   }
 }
+
+const handleMutualExclusiveToggle = (feature: 'reasoning' | 'functionCall', enabled: boolean) => {
+  if (!enabled) {
+    config.value[feature] = false
+    return
+  }
+
+  const oppositeFeature = feature === 'reasoning' ? 'functionCall' : 'reasoning'
+
+  if (isDeepSeekV31Model.value && config.value[oppositeFeature]) {
+    mutualExclusiveAction.value = { from: feature, to: oppositeFeature }
+    showMutualExclusiveAlert.value = true
+  } else {
+    config.value[feature] = true
+  }
+}
+
+const handleReasoningToggle = (enabled: boolean) => {
+  handleMutualExclusiveToggle('reasoning', enabled)
+}
+
+const handleFunctionCallToggle = (enabled: boolean) => {
+  handleMutualExclusiveToggle('functionCall', enabled)
+}
+
+const cancelMutualExclusiveToggle = () => {
+  mutualExclusiveAction.value = null
+  showMutualExclusiveAlert.value = false
+}
+
+const confirmMutualExclusiveToggle = () => {
+  if (mutualExclusiveAction.value) {
+    const { from, to } = mutualExclusiveAction.value
+    config.value[from] = true
+    config.value[to] = false
+
+    mutualExclusiveAction.value = null
+    showMutualExclusiveAlert.value = false
+  }
+}
+
+const getConfirmMessage = computed(() => {
+  if (!mutualExclusiveAction.value) return ''
+  const { from } = mutualExclusiveAction.value
+  return t(`dialog.mutualExclusive.message.${from}`)
+})
+
+const getConfirmTitle = computed(() => {
+  if (!mutualExclusiveAction.value) return ''
+  const { from } = mutualExclusiveAction.value
+  return t(`dialog.mutualExclusive.title.${from}`)
+})
 
 onMounted(() => {
   if (props.open) {

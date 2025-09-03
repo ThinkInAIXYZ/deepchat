@@ -23,7 +23,22 @@
   "fork": {
     "tag": "Branche",
     "confirm": "Créer une branche",
-    "description": "Copier les messages du début jusqu’au message actuel dans une nouvelle conversation.",
+    "description": "Copier les messages du début jusqu'au message actuel dans une nouvelle conversation.",
     "title": "Créer une branche"
+  },
+  "mutualExclusive": {
+    "title": {
+      "reasoning": "Confirmer l'activation du raisonnement",
+      "functionCall": "Confirmer l'activation des appels de fonction"
+    },
+    "message": {
+      "reasoning": "L'activation du raisonnement désactivera automatiquement les appels de fonction. Il s'agit d'une limitation des modèles DeepSeek-V3.1, et les deux fonctionnalités ne peuvent pas être utilisées simultanément. Continuer ?",
+      "functionCall": "L'activation des appels de fonction désactivera automatiquement le raisonnement. Il s'agit d'une limitation des modèles DeepSeek-V3.1, et les deux fonctionnalités ne peuvent pas être utilisées simultanément. Continuer ?"
+    },
+    "warningText": {
+      "reasoning": "Attention : L'activation du raisonnement désactivera automatiquement les appels de fonction, ce qui est une exigence des modèles DeepSeek-V3.1.",
+      "functionCall": "Attention : L'activation des appels de fonction désactivera automatiquement le raisonnement, ce qui est une exigence des modèles DeepSeek-V3.1."
+    },
+    "confirmEnable": "Confirmer l'activation"
   }
 }
