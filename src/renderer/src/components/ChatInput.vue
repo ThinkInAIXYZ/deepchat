@@ -241,6 +241,7 @@ import { useLanguageStore } from '@/stores/language'
 import { useToast } from '@/components/ui/toast/use-toast'
 import type { CategorizedData } from './editor/mention/suggestion'
 import type { PromptListEntry } from '@shared/presenter'
+import { sanitizeText } from '@/lib/sanitizeText'
 
 const langStore = useLanguageStore()
 const mcpStore = useMcpStore()
@@ -378,6 +379,9 @@ let dragLeaveTimer: number | null = null
 
 const selectedFiles = ref<MessageFile[]>([])
 
+// capture-phase paste handler attached to the editor DOM
+let editorPasteHandler: ((e: ClipboardEvent) => void) | null = null
+
 const rateLimitStatus = ref<{
   config: { enabled: boolean; qpsLimit: number }
   currentQps: number
@@ -477,6 +481,10 @@ const previewFile = (filePath: string) => {
 }
 
 const handlePaste = async (e: ClipboardEvent) => {
+  // Avoid double-processing when we already handled the event in the
+  // capture-phase editor listener.
+  if ((e as any)?._deepchatHandled) return
+
   const files = e.clipboardData?.files
   if (files && files.length > 0) {
     for (const file of files) {
@@ -1038,6 +1046,52 @@ onMounted(() => {
 
   // 只有在速率限制启用时才开始轮询
   startRateLimitPolling()
+
+  // Attach a capture-phase paste listener directly to the editor DOM so we
+  // can sanitize/handle clipboard data before TipTap inserts it.
+  try {
+    if (editor && editor.view && editor.view.dom) {
+      editorPasteHandler = (e: ClipboardEvent) => {
+        try {
+          // mark event to avoid double-processing
+          ;(e as any)._deepchatHandled = true
+
+          const files = e.clipboardData?.files
+          if (files && files.length > 0) {
+            // Prevent TipTap from treating files as plain text
+            e.preventDefault()
+            e.stopPropagation()
+            void handlePaste(e)
+            return
+          }
+
+          const text = e.clipboardData?.getData('text/plain') || ''
+
+          if (text) {
+            e.preventDefault()
+            e.stopPropagation()
+
+            const clean = sanitizeText(text)
+
+            const sel = editor.state.selection
+            const from = sel.from
+            const to = sel.to
+
+            // Replace current selection (or insert at cursor) with sanitized text
+            editor.commands.insertContentAt({ from, to }, clean, { updateSelection: true })
+            // keep the reactive inputText in sync
+            inputText.value = editor.getText()
+          }
+        } catch (err) {
+          console.error('editor paste handler error', err)
+        }
+      }
+
+      editor.view.dom.addEventListener('paste', editorPasteHandler as EventListener, true)
+    }
+  } catch (err) {
+    console.warn('Failed to attach editor paste handler', err)
+  }
 })
 
 onUnmounted(() => {
@@ -1045,6 +1099,16 @@ onUnmounted(() => {
   window.electron.ipcRenderer.removeAllListeners(RATE_LIMIT_EVENTS.CONFIG_UPDATED)
   window.electron.ipcRenderer.removeAllListeners(RATE_LIMIT_EVENTS.REQUEST_EXECUTED)
   window.electron.ipcRenderer.removeAllListeners(RATE_LIMIT_EVENTS.REQUEST_QUEUED)
+
+  // Remove capture-phase paste listener
+  try {
+    if (editorPasteHandler && editor && editor.view && editor.view.dom) {
+      editor.view.dom.removeEventListener('paste', editorPasteHandler as EventListener, true)
+      editorPasteHandler = null
+    }
+  } catch (err) {
+    console.warn('Failed to remove editor paste handler', err)
+  }
 })
 
 watch(
