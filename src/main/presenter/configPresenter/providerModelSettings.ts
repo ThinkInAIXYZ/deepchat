@@ -1852,6 +1852,50 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         reasoning: true
       },
       {
+        id: 'tencent/Hunyuan-A13B-Instruct',
+        name: 'tencent/Hunyuan-A13B-Instruct',
+        temperature: 0.6,
+        maxTokens: 8192,
+        contextLength: 100_000,
+        match: ['tencent/hunyuan-a13b-instruct', 'hunyuan-a13b-instruct'],
+        vision: false,
+        functionCall: true,
+        reasoning: true
+      },
+      {
+        id: 'zai-org/GLM-4.5V',
+        name: 'zai-org/GLM-4.5V',
+        temperature: 0.6,
+        maxTokens: 8192,
+        contextLength: 100_000,
+        match: ['zai-org/glm-4.5v', 'glm-4.5v'],
+        vision: true,
+        functionCall: true,
+        reasoning: true
+      },
+      {
+        id: 'deepseek-ai/DeepSeek-V3.1',
+        name: 'deepseek-ai/DeepSeek-V3.1',
+        temperature: 0.6,
+        maxTokens: 7000,
+        contextLength: 62000,
+        match: ['deepseek-ai/deepseek-v3.1', 'deepseek-v3.1'],
+        vision: false,
+        functionCall: true,
+        reasoning: true
+      },
+      {
+        id: 'Pro/deepseek-ai/DeepSeek-V3.1',
+        name: 'DeepSeek V3.1 Pro',
+        temperature: 0.6,
+        maxTokens: 7000,
+        contextLength: 62000,
+        match: ['pro/deepseek-ai/deepseek-v3.1'],
+        vision: false,
+        functionCall: true,
+        reasoning: true
+      },
+      {
         id: 'Pro/deepseek-ai/DeepSeek-V3',
         name: 'DeepSeek V3 Pro',
         temperature: 0.6,
