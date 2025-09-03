@@ -92,7 +92,7 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         match: ['deepseek-v3-1-250821', 'deepseek-v3.1'],
         vision: false,
         functionCall: true,
-        reasoning: true
+        reasoning: false
       },
       {
         id: 'deepseek-r1-250120',
