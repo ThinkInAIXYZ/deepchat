@@ -138,6 +138,23 @@
         "description": "Le modèle prend-il en charge la capacité de raisonnement?",
         "label": "Capacité de raisonnement"
       },
+      "enableSearch": {
+        "label": "Recherche Web",
+        "description": "Permettre au modèle de rechercher sur le web pour obtenir les dernières informations"
+      },
+      "forcedSearch": {
+        "label": "Recherche Forcée",
+        "description": "Forcer le modèle à effectuer une recherche web, désactivé le modèle décide automatiquement"
+      },
+      "searchStrategy": {
+        "label": "Stratégie de Recherche",
+        "description": "Choisir le mode de performance de recherche : turbo équilibre vitesse et efficacité, max fournit des résultats optimaux",
+        "placeholder": "Sélectionner la stratégie de recherche",
+        "options": {
+          "turbo": "Turbo - Équilibre vitesse de réponse et efficacité de recherche (Recommandé)",
+          "max": "Max - Mode haute performance, fournit des résultats de recherche optimaux"
+        }
+      },
       "thinkingBudget": {
         "label": "Budget de Réflexion",
         "range": "Plage: {min} - {max}",

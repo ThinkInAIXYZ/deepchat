@@ -138,6 +138,23 @@
         "description": "Does the model support reasoning ability?",
         "label": "Reasoning ability"
       },
+      "enableSearch": {
+        "label": "Web Search",
+        "description": "Enable the model to search the web for the latest information"
+      },
+      "forcedSearch": {
+        "label": "Forced Search",
+        "description": "Force the model to perform web search, when disabled the model decides automatically"
+      },
+      "searchStrategy": {
+        "label": "Search Strategy",
+        "description": "Choose search performance mode: turbo balances speed and effectiveness, max provides optimal search results",
+        "placeholder": "Select search strategy",
+        "options": {
+          "turbo": "Turbo - Balance response speed and search effectiveness (Recommended)",
+          "max": "Max - High performance mode, provides optimal search results"
+        }
+      },
       "thinkingBudget": {
         "label": "Thinking Budget",
         "range": "Range: {min} - {max}",

@@ -18,6 +18,9 @@ export interface ProviderModelSetting {
   verbosity?: 'low' | 'medium' | 'high'
   maxCompletionTokens?: number // GPT-5 系列使用此参数替代 maxTokens
   thinkingBudget?: number // 思维预算参数
+  enableSearch?: boolean // 是否支持联网搜索
+  forcedSearch?: boolean // 是否强制联网搜索
+  searchStrategy?: 'turbo' | 'max' // 搜索策略
 }
 
 // 为每个提供商创建映射对象，使用models数组包装模型配置
@@ -2219,7 +2222,10 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         match: ['qwen-turbo-latest'],
         vision: false,
         functionCall: true,
-        reasoning: false
+        reasoning: false,
+        enableSearch: false,
+        forcedSearch: false,
+        searchStrategy: 'turbo'
       },
       {
         id: 'qwen-turbo-2024-11-01',
@@ -2277,6 +2283,20 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         reasoning: false
       },
       {
+        id: 'qwen-turbo-2025-07-15',
+        name: 'Qwen Turbo 2025 07 15',
+        temperature: 0.7,
+        contextLength: 1000000,
+        maxTokens: 8192,
+        match: ['qwen-turbo-2025-07-15'],
+        vision: false,
+        functionCall: true,
+        reasoning: false,
+        enableSearch: false,
+        forcedSearch: false,
+        searchStrategy: 'turbo'
+      },
+      {
         id: 'qwen-turbo',
         name: 'Qwen Turbo',
         temperature: 0.7,
@@ -2285,7 +2305,38 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         match: ['qwen-turbo'],
         vision: false,
         functionCall: true,
-        reasoning: false
+        reasoning: false,
+        enableSearch: false,
+        forcedSearch: false,
+        searchStrategy: 'turbo'
+      },
+      {
+        id: 'qwen-flash',
+        name: 'Qwen Flash',
+        temperature: 0.7,
+        contextLength: 1000000,
+        maxTokens: 16384,
+        match: ['qwen-flash'],
+        vision: false,
+        functionCall: true,
+        reasoning: false,
+        enableSearch: false,
+        forcedSearch: false,
+        searchStrategy: 'turbo'
+      },
+      {
+        id: 'qwen-flash-2025-07-28',
+        name: 'Qwen Flash 2025 07 28',
+        temperature: 0.7,
+        contextLength: 1000000,
+        maxTokens: 16384,
+        match: ['qwen-flash-2025-07-28'],
+        vision: false,
+        functionCall: true,
+        reasoning: false,
+        enableSearch: false,
+        forcedSearch: false,
+        searchStrategy: 'turbo'
       },
       {
         id: 'qwen-plus-latest',
@@ -2296,7 +2347,10 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         match: ['qwen-plus-latest'],
         vision: false,
         functionCall: true,
-        reasoning: false
+        reasoning: false,
+        enableSearch: false,
+        forcedSearch: false,
+        searchStrategy: 'turbo'
       },
       {
         id: 'qwen-plus-2024-12-20',
@@ -2398,6 +2452,20 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         reasoning: false
       },
       {
+        id: 'qwen-plus-2025-07-14',
+        name: 'Qwen Plus 2025 07 14',
+        temperature: 0.7,
+        contextLength: 131072,
+        maxTokens: 8192,
+        match: ['qwen-plus-2025-07-14'],
+        vision: false,
+        functionCall: true,
+        reasoning: false,
+        enableSearch: false,
+        forcedSearch: false,
+        searchStrategy: 'turbo'
+      },
+      {
         id: 'qwen-plus',
         name: 'Qwen Plus',
         temperature: 0.7,
@@ -2406,7 +2474,10 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         match: ['qwen-plus'],
         vision: false,
         functionCall: true,
-        reasoning: false
+        reasoning: false,
+        enableSearch: false,
+        forcedSearch: false,
+        searchStrategy: 'turbo'
       },
       {
         id: 'qwen-max-latest',
@@ -2472,7 +2543,10 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         match: ['qwen-max'],
         vision: false,
         functionCall: true,
-        reasoning: false
+        reasoning: false,
+        enableSearch: false,
+        forcedSearch: false,
+        searchStrategy: 'turbo'
       },
       // Qwen3系列模型
       {
@@ -2594,6 +2668,33 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         functionCall: true,
         reasoning: true,
         thinkingBudget: 20000
+      },
+      // QwQ 系列模型
+      {
+        id: 'qwq-plus',
+        name: 'QwQ Plus',
+        temperature: 0.7,
+        maxTokens: 4096,
+        contextLength: 32768,
+        match: ['qwq-plus'],
+        vision: false,
+        functionCall: false,
+        reasoning: true,
+        enableSearch: false,
+        forcedSearch: false,
+        searchStrategy: 'turbo'
+      },
+      {
+        id: 'qwq-plus-latest',
+        name: 'QwQ Plus Latest',
+        temperature: 0.7,
+        maxTokens: 4096,
+        contextLength: 32768,
+        match: ['qwq-plus-latest'],
+        vision: false,
+        functionCall: false,
+        reasoning: true,
+        enableSearch: false
       }
     ]
   },
@@ -2968,7 +3069,10 @@ export function getProviderSpecificModelConfig(
         reasoningEffort: config.reasoningEffort,
         verbosity: config.verbosity,
         maxCompletionTokens: config.maxCompletionTokens,
-        thinkingBudget: config.thinkingBudget
+        thinkingBudget: config.thinkingBudget,
+        enableSearch: config.enableSearch || false,
+        forcedSearch: config.forcedSearch || false,
+        searchStrategy: config.searchStrategy || 'turbo'
       }
     }
   }

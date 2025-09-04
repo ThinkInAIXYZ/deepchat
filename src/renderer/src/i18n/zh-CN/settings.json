@@ -146,6 +146,23 @@
         "label": "推理能力",
         "description": "模型是否支持推理能力"
       },
+      "enableSearch": {
+        "label": "联网搜索",
+        "description": "开启后模型可以联网搜索获取最新信息"
+      },
+      "forcedSearch": {
+        "label": "强制搜索",
+        "description": "开启后强制模型进行联网搜索，关闭时由模型自行决定"
+      },
+      "searchStrategy": {
+        "label": "搜索策略",
+        "description": "选择搜索性能模式：turbo 兼顾速度与效果，max 提供最优搜索效果",
+        "placeholder": "选择搜索策略",
+        "options": {
+          "turbo": "Turbo - 兼顾响应速度与搜索效果（推荐）",
+          "max": "Max - 高性能模式，提供最优搜索效果"
+        }
+      },
       "thinkingBudget": {
         "label": "思考预算",
         "range": "范围: {min} - {max}",

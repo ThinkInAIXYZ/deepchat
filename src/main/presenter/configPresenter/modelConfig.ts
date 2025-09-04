@@ -143,6 +143,9 @@ export class ModelConfigHelper {
               reasoning: config.reasoning || false,
               type: config.type || ModelType.Chat,
               thinkingBudget: config.thinkingBudget,
+              enableSearch: config.enableSearch || false,
+              forcedSearch: config.forcedSearch || false,
+              searchStrategy: config.searchStrategy || 'turbo',
               reasoningEffort: config.reasoningEffort,
               verbosity: config.verbosity,
               maxCompletionTokens: config.maxCompletionTokens
@@ -164,6 +167,9 @@ export class ModelConfigHelper {
             reasoning: false,
             type: ModelType.Chat,
             thinkingBudget: undefined,
+            enableSearch: false,
+            forcedSearch: false,
+            searchStrategy: 'turbo',
             reasoningEffort: undefined,
             verbosity: undefined,
             maxCompletionTokens: undefined

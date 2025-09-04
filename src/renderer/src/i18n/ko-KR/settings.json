@@ -138,6 +138,23 @@
         "description": "모델이 추론 능력을 지원합니까?",
         "label": "추론 능력"
       },
+      "enableSearch": {
+        "label": "웹 검색",
+        "description": "모델이 웹을 검색하여 최신 정보를 얻을 수 있도록 활성화"
+      },
+      "forcedSearch": {
+        "label": "강제 검색",
+        "description": "모델이 웹 검색을 강제 수행하도록, 비활성화시 모델이 자동으로 결정"
+      },
+      "searchStrategy": {
+        "label": "검색 전략",
+        "description": "검색 성능 모드 선택: turbo는 속도와 효과의 균형, max는 최적의 검색 결과 제공",
+        "placeholder": "검색 전략 선택",
+        "options": {
+          "turbo": "Turbo - 응답 속도와 검색 효과의 균형 (권장)",
+          "max": "Max - 고성능 모드, 최적의 검색 결과 제공"
+        }
+      },
       "thinkingBudget": {
         "label": "사고 예산",
         "range": "범위: {min} - {max}",

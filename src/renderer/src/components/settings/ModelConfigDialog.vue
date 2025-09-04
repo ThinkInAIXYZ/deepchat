@@ -303,6 +303,60 @@
               </div>
             </div>
           </div>
+
+          <!-- 联网搜索 (DashScope 支持搜索的模型) -->
+          <div v-if="showDashScopeSearch" class="space-y-4">
+            <div class="flex items-center justify-between">
+              <div class="space-y-0.5">
+                <Label>{{ t('settings.model.modelConfig.enableSearch.label') }}</Label>
+                <p class="text-xs text-muted-foreground">
+                  {{ t('settings.model.modelConfig.enableSearch.description') }}
+                </p>
+              </div>
+              <Switch v-model:checked="config.enableSearch" />
+            </div>
+
+            <!-- 搜索配置子选项 -->
+            <div v-if="config.enableSearch" class="space-y-3 pl-4 border-l-2 border-muted">
+              <!-- 强制搜索 -->
+              <div class="flex items-center justify-between">
+                <div class="space-y-0.5">
+                  <Label class="text-sm">{{
+                    t('settings.model.modelConfig.forcedSearch.label')
+                  }}</Label>
+                  <p class="text-xs text-muted-foreground">
+                    {{ t('settings.model.modelConfig.forcedSearch.description') }}
+                  </p>
+                </div>
+                <Switch v-model:checked="config.forcedSearch" />
+              </div>
+
+              <!-- 搜索策略 -->
+              <div class="space-y-2">
+                <Label class="text-sm">{{
+                  t('settings.model.modelConfig.searchStrategy.label')
+                }}</Label>
+                <Select v-model="config.searchStrategy">
+                  <SelectTrigger>
+                    <SelectValue
+                      :placeholder="t('settings.model.modelConfig.searchStrategy.placeholder')"
+                    />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="turbo">{{
+                      t('settings.model.modelConfig.searchStrategy.options.turbo')
+                    }}</SelectItem>
+                    <SelectItem value="max">{{
+                      t('settings.model.modelConfig.searchStrategy.options.max')
+                    }}</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p class="text-xs text-muted-foreground">
+                  {{ t('settings.model.modelConfig.searchStrategy.description') }}
+                </p>
+              </div>
+            </div>
+          </div>
         </form>
       </div>
 
@@ -423,7 +477,10 @@ const config = ref<ModelConfig>({
   reasoning: false,
   type: ModelType.Chat,
   reasoningEffort: 'medium',
-  verbosity: 'medium'
+  verbosity: 'medium',
+  enableSearch: false,
+  forcedSearch: false,
+  searchStrategy: 'turbo'
 })
 
 // 重置确认对话框
@@ -458,7 +515,10 @@ const loadConfig = async () => {
       reasoning: false,
       type: ModelType.Chat,
       reasoningEffort: 'medium',
-      verbosity: 'medium'
+      verbosity: 'medium',
+      enableSearch: false,
+      forcedSearch: false,
+      searchStrategy: 'turbo'
     }
 
     config.value = defaultConfig
@@ -669,6 +729,16 @@ const showQwen3ThinkingBudget = computed(() => {
   const modelConfig = getThinkingBudgetConfig(props.modelId)
   const isSupported = modelConfig !== null
   return isDashscope && hasReasoning && isQwen3Model && isSupported
+})
+
+// 是否显示DashScope搜索配置
+const showDashScopeSearch = computed(() => {
+  const isDashscope = props.providerId === 'dashscope'
+  const modelId = props.modelId.toLowerCase()
+  // DashScope 支持搜索的模型列表
+  const supportedModels = ['qwen-max', 'qwen-plus', 'qwen-flash', 'qwen-turbo', 'qwq-plus']
+  const isSupported = supportedModels.some((supportedModel) => modelId.includes(supportedModel))
+  return isDashscope && isSupported
 })
 
 // 思考预算范围

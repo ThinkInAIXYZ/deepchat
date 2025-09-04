@@ -138,6 +138,23 @@
         "description": "モデルは推論能力をサポートしていますか？",
         "label": "推論能力"
       },
+      "enableSearch": {
+        "label": "ウェブ検索",
+        "description": "モデルがウェブを検索して最新の情報を取得できるようにする"
+      },
+      "forcedSearch": {
+        "label": "強制検索",
+        "description": "モデルにウェブ検索を強制実行させる、無効の場合はモデルが自動的に決定"
+      },
+      "searchStrategy": {
+        "label": "検索戦略",
+        "description": "検索パフォーマンスモードを選択：turboは速度と効果のバランス、maxは最適な検索結果を提供",
+        "placeholder": "検索戦略を選択",
+        "options": {
+          "turbo": "Turbo - レスポンス速度と検索効果のバランス（推奨）",
+          "max": "Max - 高性能モード、最適な検索結果を提供"
+        }
+      },
       "thinkingBudget": {
         "label": "思考予算",
         "range": "範囲: {min} - {max}",
