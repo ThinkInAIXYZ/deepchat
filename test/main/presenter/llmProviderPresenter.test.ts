@@ -3,6 +3,41 @@ import { LLMProviderPresenter } from '../../../src/main/presenter/llmProviderPre
 import { ConfigPresenter } from '../../../src/main/presenter/configPresenter/index'
 import { LLM_PROVIDER, ChatMessage, LLMAgentEvent } from '../../../src/shared/presenter'
 
+// Ensure electron is mocked for this suite to avoid CJS named export issues
+vi.mock('electron', () => {
+  return {
+    app: {
+      getName: vi.fn(() => 'DeepChat'),
+      getVersion: vi.fn(() => '0.0.0-test'),
+      getPath: vi.fn(() => '/mock/path'),
+      isReady: vi.fn(() => true),
+      on: vi.fn()
+    },
+    session: {},
+    ipcMain: {
+      on: vi.fn(),
+      handle: vi.fn(),
+      removeHandler: vi.fn()
+    },
+    BrowserWindow: vi.fn(() => ({
+      loadURL: vi.fn(),
+      loadFile: vi.fn(),
+      on: vi.fn(),
+      webContents: { send: vi.fn(), on: vi.fn(), isDestroyed: vi.fn(() => false) },
+      isDestroyed: vi.fn(() => false),
+      close: vi.fn(),
+      show: vi.fn(),
+      hide: vi.fn()
+    })),
+    dialog: {
+      showOpenDialog: vi.fn()
+    },
+    shell: {
+      openExternal: vi.fn()
+    }
+  }
+})
+
 // Mock eventBus
 vi.mock('@/eventbus', () => ({
   eventBus: {

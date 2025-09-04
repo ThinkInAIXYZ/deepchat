@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import type { AssistantMessageBlock } from '@shared/chat'
 import type { LLMAgentEvent } from '@shared/types/core/agent-events'
 
@@ -112,6 +112,16 @@ describe('Message Block Data Structure Snapshot Tests', () => {
   })
 
   describe('Event-to-Block Mapping Snapshots', () => {
+    const fixedNow = 1704067200000
+
+    beforeEach(() => {
+      vi.useFakeTimers()
+      vi.setSystemTime(fixedNow)
+    })
+
+    afterEach(() => {
+      vi.useRealTimers()
+    })
     it('should map text event to content block consistently', () => {
       const event: LLMAgentEvent = {
         type: 'response',

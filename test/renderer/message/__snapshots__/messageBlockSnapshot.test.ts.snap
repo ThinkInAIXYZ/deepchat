@@ -92,7 +92,7 @@ exports[`Message Block Data Structure Snapshot Tests > Event-to-Block Mapping Sn
 {
   "content": "Network connection failed",
   "status": "error",
-  "timestamp": 1756971033350,
+  "timestamp": 1704067200000,
   "type": "error",
 }
 `;
@@ -101,7 +101,7 @@ exports[`Message Block Data Structure Snapshot Tests > Event-to-Block Mapping Sn
 {
   "action_type": "tool_call_permission",
   "status": "pending",
-  "timestamp": 1756971033350,
+  "timestamp": 1704067200000,
   "tool_call": {
     "id": "tool-789",
     "name": "writeFile",
@@ -121,7 +121,7 @@ exports[`Message Block Data Structure Snapshot Tests > Event-to-Block Mapping Sn
     "queueLength": 3,
   },
   "status": "pending",
-  "timestamp": 1756971033350,
+  "timestamp": 1704067200000,
   "type": "action",
 }
 `;
@@ -130,7 +130,7 @@ exports[`Message Block Data Structure Snapshot Tests > Event-to-Block Mapping Sn
 {
   "content": "Let me analyze this...",
   "status": "success",
-  "timestamp": 1756971033349,
+  "timestamp": 1704067200000,
   "type": "reasoning_content",
 }
 `;
@@ -139,7 +139,7 @@ exports[`Message Block Data Structure Snapshot Tests > Event-to-Block Mapping Sn
 {
   "content": "Hello world!",
   "status": "success",
-  "timestamp": 1756971033349,
+  "timestamp": 1704067200000,
   "type": "content",
 }
 `;
@@ -147,7 +147,7 @@ exports[`Message Block Data Structure Snapshot Tests > Event-to-Block Mapping Sn
 exports[`Message Block Data Structure Snapshot Tests > Event-to-Block Mapping Snapshots > should map tool call start event consistently 1`] = `
 {
   "status": "loading",
-  "timestamp": 1756971033349,
+  "timestamp": 1704067200000,
   "tool_call": {
     "id": "tool-456",
     "name": "searchWeb",
