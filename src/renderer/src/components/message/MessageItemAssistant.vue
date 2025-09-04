@@ -48,17 +48,17 @@
             :message-id="currentMessage.id"
             :thread-id="currentThreadId"
           />
+          <MessageBlockPermissionRequest
+            v-else-if="block.type === 'action' && block.action_type === 'tool_call_permission'"
+            :block="block"
+            :message-id="currentMessage.id"
+            :conversation-id="currentThreadId"
+          />
           <MessageBlockAction
             v-else-if="block.type === 'action'"
             :message-id="currentMessage.id"
             :conversation-id="currentThreadId"
             :block="block"
-          />
-          <MessageBlockPermissionRequest
-            v-else-if="block.type === 'tool_call_permission'"
-            :block="block"
-            :message-id="currentMessage.id"
-            :conversation-id="currentThreadId"
           />
           <MessageBlockImage
             v-else-if="block.type === 'image'"

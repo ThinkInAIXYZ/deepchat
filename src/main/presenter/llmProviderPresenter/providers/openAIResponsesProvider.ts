@@ -8,6 +8,7 @@ import {
   ChatMessage,
   IConfigPresenter
 } from '@shared/presenter'
+import { createStreamEvent } from '@shared/types/core/llm-events'
 import { BaseLLMProvider, SUMMARY_TITLES_PROMPT } from '../baseProvider'
 import OpenAI, { AzureOpenAI } from 'openai'
 import { presenter } from '@/presenter'
@@ -229,7 +230,6 @@ export class OpenAIResponsesProvider extends BaseLLMProvider {
     }
 
     const modelConfig = this.configPresenter.getModelConfig(modelId, this.provider.id)
-
     if (modelConfig.reasoningEffort) {
       ;(requestParams as any).reasoning = {
         effort: modelConfig.reasoningEffort
@@ -356,8 +356,8 @@ export class OpenAIResponsesProvider extends BaseLLMProvider {
 
     if (!prompt) {
       console.error('[handleImgGeneration] Could not extract prompt for image generation.')
-      yield { type: 'error', error_message: 'Could not extract prompt for image generation.' }
-      yield { type: 'stop', stop_reason: 'error' }
+      yield createStreamEvent.error('Could not extract prompt for image generation.')
+      yield createStreamEvent.stop('error')
       return
     }
 
@@ -481,52 +481,43 @@ export class OpenAIResponsesProvider extends BaseLLMProvider {
           const cachedUrl = await presenter.devicePresenter.cacheImage(imageUrl)
 
           // 返回缓存后的URL
-          yield {
-            type: 'image_data',
-            image_data: {
-              data: cachedUrl,
-              mimeType: 'deepchat/image-url'
-            }
-          }
+          yield createStreamEvent.imageData({
+            data: cachedUrl,
+            mimeType: 'deepchat/image-url'
+          })
 
           // 处理 usage 信息
           if (result.usage) {
-            yield {
-              type: 'usage',
-              usage: {
-                prompt_tokens: result.usage.input_tokens || 0,
-                completion_tokens: result.usage.output_tokens || 0,
-                total_tokens: result.usage.total_tokens || 0
-              }
-            }
+            yield createStreamEvent.usage({
+              prompt_tokens: result.usage.input_tokens || 0,
+              completion_tokens: result.usage.output_tokens || 0,
+              total_tokens: result.usage.total_tokens || 0
+            })
           }
 
-          yield { type: 'stop', stop_reason: 'complete' }
+          yield createStreamEvent.stop('complete')
         } catch (cacheError) {
           // 缓存失败时降级为使用原始URL
           console.warn(
             '[handleImgGeneration] Failed to cache image, using original URL:',
             cacheError
           )
-          yield {
-            type: 'image_data',
-            image_data: {
-              data: result.data[0]?.url || result.data[0]?.b64_json || '',
-              mimeType: 'deepchat/image-url'
-            }
-          }
-          yield { type: 'stop', stop_reason: 'complete' }
+          yield createStreamEvent.imageData({
+            data: result.data[0]?.url || result.data[0]?.b64_json || '',
+            mimeType: 'deepchat/image-url'
+          })
+          yield createStreamEvent.stop('complete')
         }
       } else {
         console.error('[handleImgGeneration] No image data received from API.', result)
-        yield { type: 'error', error_message: 'No image data received from API.' }
-        yield { type: 'stop', stop_reason: 'error' }
+        yield createStreamEvent.error('No image data received from API.')
+        yield createStreamEvent.stop('error')
       }
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : String(error)
       console.error('[handleImgGeneration] Error during image generation:', errorMessage)
-      yield { type: 'error', error_message: `Image generation failed: ${errorMessage}` }
-      yield { type: 'stop', stop_reason: 'error' }
+      yield createStreamEvent.error(`Image generation failed: ${errorMessage}`)
+      yield createStreamEvent.stop('error')
     }
   }
 
@@ -572,7 +563,6 @@ export class OpenAIResponsesProvider extends BaseLLMProvider {
     if (tools.length > 0 && supportsFunctionCall && apiTools) {
       requestParams.tools = apiTools
     }
-
     if (modelConfig.reasoningEffort) {
       ;(requestParams as any).reasoning = {
         effort: modelConfig.reasoningEffort
@@ -695,7 +685,7 @@ export class OpenAIResponsesProvider extends BaseLLMProvider {
             if (pendingBuffer.endsWith(thinkEndMarker)) {
               thinkState = 'none'
               if (thinkBuffer) {
-                yield { type: 'reasoning', reasoning_content: thinkBuffer }
+                yield createStreamEvent.reasoning(thinkBuffer)
                 thinkBuffer = ''
               }
               pendingBuffer = ''
@@ -707,21 +697,21 @@ export class OpenAIResponsesProvider extends BaseLLMProvider {
               const charsToYield = pendingBuffer.slice(0, -thinkEndMarker.length + 1)
               if (charsToYield) {
                 thinkBuffer += charsToYield
-                yield { type: 'reasoning', reasoning_content: charsToYield }
+                yield createStreamEvent.reasoning(charsToYield)
               }
               pendingBuffer = pendingBuffer.slice(-thinkEndMarker.length + 1)
               if (thinkEndMarker.startsWith(pendingBuffer)) {
                 thinkState = 'end'
               } else {
                 thinkBuffer += pendingBuffer
-                yield { type: 'reasoning', reasoning_content: pendingBuffer }
+                yield createStreamEvent.reasoning(pendingBuffer)
                 pendingBuffer = ''
                 thinkState = 'inside'
               }
               processedChar = true
             } else {
               thinkBuffer += char
-              yield { type: 'reasoning', reasoning_content: char }
+              yield createStreamEvent.reasoning(char)
               pendingBuffer = ''
               processedChar = true
             }
@@ -729,7 +719,7 @@ export class OpenAIResponsesProvider extends BaseLLMProvider {
             if (pendingBuffer.endsWith(thinkEndMarker)) {
               thinkState = 'none'
               if (thinkBuffer) {
-                yield { type: 'reasoning', reasoning_content: thinkBuffer }
+                yield createStreamEvent.reasoning(thinkBuffer)
                 thinkBuffer = ''
               }
               pendingBuffer = ''
@@ -737,7 +727,7 @@ export class OpenAIResponsesProvider extends BaseLLMProvider {
             } else if (!thinkEndMarker.startsWith(pendingBuffer)) {
               const failedTagChars = pendingBuffer
               thinkBuffer += failedTagChars
-              yield { type: 'reasoning', reasoning_content: failedTagChars }
+              yield createStreamEvent.reasoning(failedTagChars)
               pendingBuffer = ''
               thinkState = 'inside'
               processedChar = true
@@ -853,7 +843,7 @@ export class OpenAIResponsesProvider extends BaseLLMProvider {
             if (matchedThink) {
               const textBefore = pendingBuffer.slice(0, -thinkStartMarker.length)
               if (textBefore) {
-                yield { type: 'text', content: textBefore }
+                yield createStreamEvent.text(textBefore)
               }
               console.log(
                 '[handleChatCompletion] <think> start tag matched. Entering inside state.'
@@ -864,7 +854,7 @@ export class OpenAIResponsesProvider extends BaseLLMProvider {
             } else if (matchedFunc) {
               const textBefore = pendingBuffer.slice(0, -funcStartMarker.length)
               if (textBefore) {
-                yield { type: 'text', content: textBefore }
+                yield createStreamEvent.text(textBefore)
               }
               console.log(
                 '[handleChatCompletion] Non-native <function_call> start tag detected. Entering inside state.'
@@ -884,7 +874,7 @@ export class OpenAIResponsesProvider extends BaseLLMProvider {
             else if (pendingBuffer.length > 0) {
               // Buffer doesn't start with '<', or starts with '<' but doesn't match start of either tag anymore
               const charToYield = pendingBuffer[0]
-              yield { type: 'text', content: charToYield }
+              yield createStreamEvent.text(charToYield)
               pendingBuffer = pendingBuffer.slice(1)
               // Re-evaluate potential matches with the shortened buffer immediately
               potentialThink =
@@ -909,24 +899,21 @@ export class OpenAIResponsesProvider extends BaseLLMProvider {
             completion_tokens: response.usage.output_tokens || 0,
             total_tokens: response.usage.total_tokens || 0
           }
-          yield { type: 'usage', usage }
+          yield createStreamEvent.usage(usage)
         }
 
         if (response.reasoning?.summary) {
-          yield { type: 'reasoning', reasoning_content: response.reasoning.summary }
+          yield createStreamEvent.reasoning(response.reasoning.summary)
         }
 
-        yield { type: 'stop', stop_reason: toolUseDetected ? 'tool_use' : stopReason }
+        yield createStreamEvent.stop(toolUseDetected ? 'tool_use' : stopReason)
         return
       }
 
       if ('error' in chunk) {
         const errorChunk = chunk as { error: { message?: string } }
-        yield {
-          type: 'error',
-          error_message: errorChunk.error?.message || 'Unknown error occurred'
-        }
-        yield { type: 'stop', stop_reason: 'error' }
+        yield createStreamEvent.error(errorChunk.error?.message || 'Unknown error occurred')
+        yield createStreamEvent.stop('error')
         return
       }
     }
@@ -937,13 +924,13 @@ export class OpenAIResponsesProvider extends BaseLLMProvider {
       console.warn('[handleChatCompletion] Finalizing with non-empty pendingBuffer:', pendingBuffer)
       // Decide how to yield based on final state
       if (thinkState === 'inside' || thinkState === 'end') {
-        yield { type: 'reasoning', reasoning_content: pendingBuffer }
+        yield createStreamEvent.reasoning(pendingBuffer)
         thinkBuffer += pendingBuffer
       } else if (funcState === 'inside' || funcState === 'end') {
         // Add remaining to func buffer - it will be handled below
         funcCallBuffer += pendingBuffer
       } else {
-        yield { type: 'text', content: pendingBuffer }
+        yield createStreamEvent.text(pendingBuffer)
       }
       pendingBuffer = ''
     }
@@ -989,11 +976,11 @@ export class OpenAIResponsesProvider extends BaseLLMProvider {
           console.log(
             '[handleChatCompletion] Incomplete function call buffer parsing yielded no calls. Emitting as text.'
           )
-          yield { type: 'text', content: potentialContent }
+          yield createStreamEvent.text(potentialContent)
         }
       } catch (e) {
         console.error('[handleChatCompletion] Error parsing incomplete function call buffer:', e)
-        yield { type: 'text', content: potentialContent }
+        yield createStreamEvent.text(potentialContent)
       }
       funcCallBuffer = ''
     }

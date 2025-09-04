@@ -962,6 +962,17 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
 
                 needContinueConversation = false
                 break // Break inner loop on provider error
+              case 'rate_limit':
+                if (chunk.rate_limit) {
+                  yield {
+                    type: 'response',
+                    data: {
+                      eventId,
+                      rate_limit: chunk.rate_limit
+                    }
+                  }
+                }
+                break
               case 'stop':
                 console.log(
                   `Provider stream stopped for event ${eventId}. Reason: ${chunk.stop_reason}`
@@ -1622,11 +1633,11 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
       throw new Error('Ollama provider not found')
     }
     return provider.pullModel(modelName, (progress) => {
-      console.log('pullOllamaModels', {
-        eventId: 'pullOllamaModels',
-        modelName: modelName,
-        ...progress
-      })
+      // console.log('pullOllamaModels', {
+      //   eventId: 'pullOllamaModels',
+      //   modelName: modelName,
+      //   ...progress
+      // })
       eventBus.sendToRenderer(OLLAMA_EVENTS.PULL_MODEL_PROGRESS, SendTarget.ALL_WINDOWS, {
         eventId: 'pullOllamaModels',
         modelName: modelName,

@@ -1,57 +1,18 @@
-import { FileMetaData } from './presenter'
+// Core chat types (strong-typed UI blocks)
 
 export type Message = {
   id: string
-
   content: UserMessageContent | AssistantMessageBlock[]
   role: MESSAGE_ROLE
   timestamp: number
   avatar: string
   name: string
-  model_name: string
-  model_id: string
-  model_provider: string
-  status: 'sent' | 'pending' | 'error'
-  error: string
-  // user只有prompt_tokens，其他数值可以留为0
-  usage: {
-    context_usage: number
-    tokens_per_second: number
-    total_tokens: number
-    generation_time: number
-    first_token_time: number
-    reasoning_start_time: number
-    reasoning_end_time: number
-    input_tokens: number
-    output_tokens: number
-  }
-  parentId?: string
-  conversationId: string
-  is_variant: number
-  variants?: Message[]
 }
 
-export type UserMessage = Message & {
-  role: 'user'
-  content: UserMessageContent
-}
+export type MESSAGE_ROLE = 'user' | 'assistant' | 'system' | 'agent'
 
-export type AssistantMessage = Message & {
-  role: 'assistant'
-  content: AssistantMessageBlock[]
-}
-
-export type UserMessageTextBlock = {
-  type: 'text'
-  content: string
-}
-
-export type UserMessageCodeBlock = {
-  type: 'code'
-  content: string
-  language: string
-}
-
+export type UserMessageTextBlock = { type: 'text'; content: string }
+export type UserMessageCodeBlock = { type: 'code'; content: string; language: string }
 export type UserMessageMentionBlock = {
   type: 'mention'
   content: string
@@ -62,8 +23,12 @@ export type UserMessageMentionBlock = {
 export type UserMessageContent = {
   continue?: boolean
   files: MessageFile[]
-  resources?: ResourceListEntryWithClient[]
-  prompts?: PromptWithClient[]
+  resources?: Array<{ uri: string; name?: string; client: { name: string; icon: string } }>
+  prompts?: Array<{
+    name: string
+    description?: string
+    arguments?: { name: string; description?: string; required: boolean }[]
+  }>
   links: string[]
   think: boolean
   search: boolean
@@ -75,9 +40,8 @@ export type MessageFile = {
   name: string
   content: string
   mimeType: string
-  metadata: FileMetaData
-  token: number
-  path: string
+  token?: number
+  path?: string
   thumbnail?: string
 }
 
@@ -126,35 +90,6 @@ export type AssistantMessageBlock = {
     server_description?: string
   }
   action_type?: 'tool_call_permission' | 'maximum_tool_calls_reached' | 'rate_limit'
-  image_data?: {
-    data: string
-    mimeType: string
-  }
-  reasoning_time?: {
-    start: number
-    end: number
-  }
-}
-// 搜索相关的消息块类型
-export type SearchBlock = {
-  type: 'search'
-  status: 'loading' | 'success' | 'error'
-  timestamp: number
-  extra: {
-    total?: number
-    pages?: Array<{
-      title: string
-      url: string
-      content?: string
-    }>
-  }
-}
-
-export interface SearchEngineTemplate {
-  id: string
-  name: string
-  selector: string
-  searchUrl: string
-  extractorScript: string
-  isCustom?: boolean
+  image_data?: { data: string; mimeType: string }
+  reasoning_time?: { start: number; end: number }
 }

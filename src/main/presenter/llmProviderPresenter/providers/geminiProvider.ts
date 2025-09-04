@@ -23,6 +23,7 @@ import {
   MODEL_META,
   ModelConfig
 } from '@shared/presenter'
+import { createStreamEvent } from '@shared/types/core/llm-events'
 import { BaseLLMProvider, SUMMARY_TITLES_PROMPT } from '../baseProvider'
 import { eventBus, SendTarget } from '@/eventbus'
 import { CONFIG_EVENTS } from '@/events'
@@ -967,26 +968,14 @@ export class GeminiProvider extends BaseLLMProvider {
         toolUseDetected = true
 
         // 发送工具调用开始事件
-        yield {
-          type: 'tool_call_start',
-          tool_call_id: toolCallId,
-          tool_call_name: functionName
-        }
+        yield createStreamEvent.toolCallStart(toolCallId, functionName || '')
 
         // 发送工具调用参数
         const argsString = JSON.stringify(functionArgs)
-        yield {
-          type: 'tool_call_chunk',
-          tool_call_id: toolCallId,
-          tool_call_arguments_chunk: argsString
-        }
+        yield createStreamEvent.toolCallChunk(toolCallId, argsString)
 
         // 发送工具调用结束事件
-        yield {
-          type: 'tool_call_end',
-          tool_call_id: toolCallId,
-          tool_call_arguments_complete: argsString
-        }
+        yield createStreamEvent.toolCallEnd(toolCallId, argsString)
 
         // 设置停止原因为工具使用
         break
@@ -1007,13 +996,10 @@ export class GeminiProvider extends BaseLLMProvider {
             content += part.text
           } else if (part.inlineData && part.inlineData.data && part.inlineData.mimeType) {
             // 处理图像数据
-            yield {
-              type: 'image_data',
-              image_data: {
-                data: part.inlineData.data,
-                mimeType: part.inlineData.mimeType
-              }
-            }
+            yield createStreamEvent.imageData({
+              data: part.inlineData.data,
+              mimeType: part.inlineData.mimeType
+            })
           }
         }
       } else {
@@ -1023,26 +1009,20 @@ export class GeminiProvider extends BaseLLMProvider {
 
       // 如果检测到思考内容，直接发送
       if (thoughtContent) {
-        yield {
-          type: 'reasoning',
-          reasoning_content: thoughtContent
-        }
+        yield createStreamEvent.reasoning(thoughtContent)
       }
 
       if (!content) continue
 
       if (isNewThoughtFormatDetected) {
-        yield {
-          type: 'text',
-          content: content
-        }
+        yield createStreamEvent.text(content)
       } else {
         buffer += content
 
         if (buffer.includes('<think>') && !isInThinkTag) {
           const thinkStart = buffer.indexOf('<think>')
           if (thinkStart > 0) {
-            yield { type: 'text', content: buffer.substring(0, thinkStart) }
+            yield createStreamEvent.text(buffer.substring(0, thinkStart))
           }
           buffer = buffer.substring(thinkStart + 7)
           isInThinkTag = true
@@ -1052,53 +1032,38 @@ export class GeminiProvider extends BaseLLMProvider {
           const thinkEnd = buffer.indexOf('</think>')
           const reasoningContent = buffer.substring(0, thinkEnd)
           if (reasoningContent) {
-            yield {
-              type: 'reasoning',
-              reasoning_content: reasoningContent
-            }
+            yield createStreamEvent.reasoning(reasoningContent)
           }
           buffer = buffer.substring(thinkEnd + 8)
           isInThinkTag = false
         }
 
         if (!isInThinkTag && buffer) {
-          yield {
-            type: 'text',
-            content: buffer
-          }
+          yield createStreamEvent.text(buffer)
           buffer = ''
         }
       }
     }
 
     if (usageMetadata) {
-      yield {
-        type: 'usage',
-        usage: {
-          prompt_tokens: usageMetadata.promptTokenCount || 0,
-          completion_tokens: usageMetadata.candidatesTokenCount || 0,
-          total_tokens: usageMetadata.totalTokenCount || 0
-        }
-      }
+      yield createStreamEvent.usage({
+        prompt_tokens: usageMetadata.promptTokenCount || 0,
+        completion_tokens: usageMetadata.candidatesTokenCount || 0,
+        total_tokens: usageMetadata.totalTokenCount || 0
+      })
     }
 
     // 处理剩余缓冲区内容
     if (!isNewThoughtFormatDetected && buffer) {
       if (isInThinkTag) {
-        yield {
-          type: 'reasoning',
-          reasoning_content: buffer
-        }
+        yield createStreamEvent.reasoning(buffer)
       } else {
-        yield {
-          type: 'text',
-          content: buffer
-        }
+        yield createStreamEvent.text(buffer)
       }
     }
 
     // 发送停止事件
-    yield { type: 'stop', stop_reason: toolUseDetected ? 'tool_use' : 'complete' }
+    yield createStreamEvent.stop(toolUseDetected ? 'tool_use' : 'complete')
   }
 
   /**
@@ -1168,33 +1133,24 @@ export class GeminiProvider extends BaseLLMProvider {
           for (const part of chunk.candidates[0].content.parts) {
             if (part.text) {
               // 输出文本内容
-              yield {
-                type: 'text',
-                content: part.text
-              }
+              yield createStreamEvent.text(part.text)
             } else if (part.inlineData) {
               // 输出图像数据
-              yield {
-                type: 'image_data',
-                image_data: {
-                  data: part.inlineData.data || '',
-                  mimeType: part.inlineData.mimeType || ''
-                }
-              }
+              yield createStreamEvent.imageData({
+                data: part.inlineData.data || '',
+                mimeType: part.inlineData.mimeType || ''
+              })
             }
           }
         }
       }
 
       // 发送停止事件
-      yield { type: 'stop', stop_reason: 'complete' }
+      yield createStreamEvent.stop('complete')
     } catch (error) {
       console.error('Image generation stream error:', error)
-      yield {
-        type: 'error',
-        error_message: error instanceof Error ? error.message : '图像生成失败'
-      }
-      yield { type: 'stop', stop_reason: 'error' }
+      yield createStreamEvent.error(error instanceof Error ? error.message : '图像生成失败')
+      yield createStreamEvent.stop('error')
     }
   }
 

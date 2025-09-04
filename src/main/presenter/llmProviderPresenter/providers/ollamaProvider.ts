@@ -11,6 +11,7 @@ import {
   LLM_EMBEDDING_ATTRS,
   IConfigPresenter
 } from '@shared/presenter'
+import { createStreamEvent } from '@shared/types/core/llm-events'
 import { BaseLLMProvider, SUMMARY_TITLES_PROMPT } from '../baseProvider'
 import { Ollama, Message, ShowResponse } from 'ollama'
 import { presenter } from '@/presenter'
@@ -581,25 +582,19 @@ export class OllamaProvider extends BaseLLMProvider {
               }
 
               // 发送工具调用开始事件
-              yield {
-                type: 'tool_call_start',
-                tool_call_id: toolId,
-                tool_call_name: toolCall.function?.name || ''
-              }
+              yield createStreamEvent.toolCallStart(toolId, toolCall.function?.name || '')
 
               // 发送工具调用参数块事件
-              yield {
-                type: 'tool_call_chunk',
-                tool_call_id: toolId,
-                tool_call_arguments_chunk: JSON.stringify(toolCall.function?.arguments || {})
-              }
+              yield createStreamEvent.toolCallChunk(
+                toolId,
+                JSON.stringify(toolCall.function?.arguments || {})
+              )
 
               // 发送工具调用结束事件
-              yield {
-                type: 'tool_call_end',
-                tool_call_id: toolId,
-                tool_call_arguments_complete: JSON.stringify(toolCall.function?.arguments || {})
-              }
+              yield createStreamEvent.toolCallEnd(
+                toolId,
+                JSON.stringify(toolCall.function?.arguments || {})
+              )
             }
           }
 
@@ -610,7 +605,7 @@ export class OllamaProvider extends BaseLLMProvider {
         // 处理 thinking 字段
         const currentThinking = chunk.message?.thinking || ''
         if (currentThinking) {
-          yield { type: 'reasoning', reasoning_content: currentThinking }
+          yield createStreamEvent.reasoning(currentThinking)
         }
 
         // 获取当前内容
@@ -717,7 +712,7 @@ export class OllamaProvider extends BaseLLMProvider {
             continue
           }
           if (usage) {
-            yield { type: 'usage', usage }
+            yield createStreamEvent.usage(usage)
           }
 
           // --- 思考标签处理 ---
@@ -725,7 +720,7 @@ export class OllamaProvider extends BaseLLMProvider {
             if (pendingBuffer.endsWith(thinkEndMarker)) {
               thinkState = 'none'
               if (thinkBuffer) {
-                yield { type: 'reasoning', reasoning_content: thinkBuffer }
+                yield createStreamEvent.reasoning(thinkBuffer)
                 thinkBuffer = ''
               }
               pendingBuffer = ''
@@ -737,21 +732,21 @@ export class OllamaProvider extends BaseLLMProvider {
               const charsToYield = pendingBuffer.slice(0, -thinkEndMarker.length + 1)
               if (charsToYield) {
                 thinkBuffer += charsToYield
-                yield { type: 'reasoning', reasoning_content: charsToYield }
+                yield createStreamEvent.reasoning(charsToYield)
               }
               pendingBuffer = pendingBuffer.slice(-thinkEndMarker.length + 1)
               if (thinkEndMarker.startsWith(pendingBuffer)) {
                 thinkState = 'end'
               } else {
                 thinkBuffer += pendingBuffer
-                yield { type: 'reasoning', reasoning_content: pendingBuffer }
+                yield createStreamEvent.reasoning(pendingBuffer)
                 pendingBuffer = ''
                 thinkState = 'inside'
               }
               processedChar = true
             } else {
               thinkBuffer += char
-              yield { type: 'reasoning', reasoning_content: char }
+              yield createStreamEvent.reasoning(char)
               pendingBuffer = ''
               processedChar = true
             }
@@ -759,7 +754,7 @@ export class OllamaProvider extends BaseLLMProvider {
             if (pendingBuffer.endsWith(thinkEndMarker)) {
               thinkState = 'none'
               if (thinkBuffer) {
-                yield { type: 'reasoning', reasoning_content: thinkBuffer }
+                yield createStreamEvent.reasoning(thinkBuffer)
                 thinkBuffer = ''
               }
               pendingBuffer = ''
@@ -767,7 +762,7 @@ export class OllamaProvider extends BaseLLMProvider {
             } else if (!thinkEndMarker.startsWith(pendingBuffer)) {
               const failedTagChars = pendingBuffer
               thinkBuffer += failedTagChars
-              yield { type: 'reasoning', reasoning_content: failedTagChars }
+              yield createStreamEvent.reasoning(failedTagChars)
               pendingBuffer = ''
               thinkState = 'inside'
               processedChar = true
@@ -888,7 +883,7 @@ export class OllamaProvider extends BaseLLMProvider {
             if (matchedThink) {
               const textBefore = pendingBuffer.slice(0, -thinkStartMarker.length)
               if (textBefore) {
-                yield { type: 'text', content: textBefore }
+                yield createStreamEvent.text(textBefore)
               }
               thinkState = 'inside'
               funcState = 'none' // 重置其他状态
@@ -896,7 +891,7 @@ export class OllamaProvider extends BaseLLMProvider {
             } else if (matchedFunc) {
               const textBefore = pendingBuffer.slice(0, -funcStartMarker.length)
               if (textBefore) {
-                yield { type: 'text', content: textBefore }
+                yield createStreamEvent.text(textBefore)
               }
               funcState = 'inside'
               thinkState = 'none' // 重置其他状态
@@ -913,7 +908,7 @@ export class OllamaProvider extends BaseLLMProvider {
 
               const textBefore = pendingBuffer.slice(0, -markerText.length)
               if (textBefore) {
-                yield { type: 'text', content: textBefore }
+                yield createStreamEvent.text(textBefore)
               }
 
               isInCodeBlock = true
@@ -930,7 +925,7 @@ export class OllamaProvider extends BaseLLMProvider {
             else if (pendingBuffer.length > 0) {
               // 缓冲区不以'<'开头，或以'<'开头但不再匹配任何标签的开始
               const charToYield = pendingBuffer[0]
-              yield { type: 'text', content: charToYield }
+              yield createStreamEvent.text(charToYield)
               pendingBuffer = pendingBuffer.slice(1)
               // 使用缩短的缓冲区立即重新评估潜在匹配
               potentialThink =
@@ -959,7 +954,7 @@ export class OllamaProvider extends BaseLLMProvider {
           // 将剩余内容添加到函数缓冲区 - 稍后处理
           funcCallBuffer += pendingBuffer
         } else {
-          yield { type: 'text', content: pendingBuffer }
+          yield createStreamEvent.text(pendingBuffer)
         }
         pendingBuffer = ''
       }
@@ -993,7 +988,7 @@ export class OllamaProvider extends BaseLLMProvider {
             }
           } else {
             // 如果解析失败或没有结果，将缓冲区作为文本输出
-            yield { type: 'text', content: potentialContent }
+            yield createStreamEvent.text(potentialContent)
           }
         } catch (e) {
           console.error('解析不完整的函数调用缓冲区时出错:', e)
@@ -1043,18 +1038,15 @@ export class OllamaProvider extends BaseLLMProvider {
 
       // 输出使用情况
       if (usage) {
-        yield { type: 'usage', usage: usage }
+        yield createStreamEvent.usage(usage)
       }
 
       // 如果检测到工具使用，则覆盖停止原因
       const finalStopReason = toolUseDetected ? 'tool_use' : stopReason
-      yield { type: 'stop', stop_reason: finalStopReason }
+      yield createStreamEvent.stop(finalStopReason)
     } catch (error: unknown) {
-      yield {
-        type: 'error',
-        error_message: error instanceof Error ? error.message : String(error)
-      }
-      yield { type: 'stop', stop_reason: 'error' }
+      yield createStreamEvent.error(error instanceof Error ? error.message : String(error))
+      yield createStreamEvent.stop('error')
     }
   }
 
