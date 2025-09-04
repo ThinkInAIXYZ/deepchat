@@ -230,7 +230,6 @@ export class OpenAIResponsesProvider extends BaseLLMProvider {
     }
 
     const modelConfig = this.configPresenter.getModelConfig(modelId, this.provider.id)
-
     if (modelConfig.reasoningEffort) {
       ;(requestParams as any).reasoning = {
         effort: modelConfig.reasoningEffort
@@ -564,7 +563,6 @@ export class OpenAIResponsesProvider extends BaseLLMProvider {
     if (tools.length > 0 && supportsFunctionCall && apiTools) {
       requestParams.tools = apiTools
     }
-
     if (modelConfig.reasoningEffort) {
       ;(requestParams as any).reasoning = {
         effort: modelConfig.reasoningEffort
