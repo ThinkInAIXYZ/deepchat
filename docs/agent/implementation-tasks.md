@@ -24,13 +24,13 @@
 - [x] 更新 `types/index.d.ts` 导出新结构
 - [x] 保持构建兼容性，所有类型检查通过
 
-## 阶段 4：Provider 接入强类型事件 (In Progress)
+## 阶段 4：Provider 接入强类型事件 (Completed)
 - [x] 在 Provider 实现中输出 `LLMCoreStreamEvent`（工厂构造）
 - [x] `tool_call_*` 严格遵循 start/chunk/end 序列与 id 聚合
 - [x] 在结束前发送一次 `usage`
-- [ ] 触发限流时发送 `rate_limit`
-- [ ] 错误统一 `error` + `stop`
-- [ ] 为上述行为补充单测（序列/字段/边界）
+- [x] 触发限流时发送 `rate_limit`（在 Presenter 层处理）
+- [x] 错误统一 `error` + `stop`
+- [x] 为上述行为补充单测（序列/字段/边界）
 
 ## 阶段 5：Agent 与 UI 对齐
 - [ ] Agent 层：仅消费 CoreEvent，产出 `LLMAgentEvent`（严格区分 `response/error/end`）

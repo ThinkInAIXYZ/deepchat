@@ -8,6 +8,7 @@ import {
   AWS_BEDROCK_PROVIDER,
   IConfigPresenter
 } from '@shared/presenter'
+import { createStreamEvent } from '@shared/types/core/llm-events'
 import { BaseLLMProvider, SUMMARY_TITLES_PROMPT } from '../baseProvider'
 import { presenter } from '@/presenter'
 import { BedrockClient, ListFoundationModelsCommand } from '@aws-sdk/client-bedrock'
@@ -889,27 +890,18 @@ ${text}
         }
       }
       if (usageMetadata) {
-        yield {
-          type: 'usage',
-          usage: {
-            prompt_tokens: usageMetadata.input_tokens,
-            completion_tokens: usageMetadata.output_tokens,
-            total_tokens: usageMetadata.input_tokens + usageMetadata.output_tokens
-          }
-        }
+        yield createStreamEvent.usage({
+          prompt_tokens: usageMetadata.input_tokens,
+          completion_tokens: usageMetadata.output_tokens,
+          total_tokens: usageMetadata.input_tokens + usageMetadata.output_tokens
+        })
       }
       // 发送停止事件
-      yield {
-        type: 'stop',
-        stop_reason: toolUseDetected ? 'tool_use' : 'complete'
-      }
+      yield createStreamEvent.stop(toolUseDetected ? 'tool_use' : 'complete')
     } catch (error) {
       console.error('AWS Bedrock Claude coreStream error:', error)
-      yield {
-        type: 'error',
-        error_message: error instanceof Error ? error.message : '未知错误'
-      }
-      yield { type: 'stop', stop_reason: 'error' }
+      yield createStreamEvent.error(error instanceof Error ? error.message : '未知错误')
+      yield createStreamEvent.stop('error')
     }
   }
 }
