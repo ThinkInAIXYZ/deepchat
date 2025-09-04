@@ -9,12 +9,12 @@
 - [x] 生成 Provider 工作的 Cursor 规则
 
 ## 阶段 2：核心类型骨架
-- [ ] 新建 `src/shared/types/core/usage.ts`（`UsageStats/RateLimitInfo`）
-- [ ] 新建 `src/shared/types/core/llm-events.ts`（判别联合+工厂+守卫）
-- [ ] 新建 `src/shared/types/core/agent-events.ts`（`LLMAgentEvent*` 引用共享类型）
-- [ ] 新建 `src/shared/types/core/chat.ts`（`Message/AssistantMessageBlock/UserMessageContent`）
-- [ ] 新建 `src/shared/types/core/mcp.ts`（MCP 相关类型）
-- [ ] 新建 `src/shared/types/index.d.ts`（统一 re-export）
+- [x] 新建 `src/shared/types/core/usage.ts`（`UsageStats/RateLimitInfo`）
+- [x] 新建 `src/shared/types/core/llm-events.ts`（判别联合+工厂+守卫）
+- [x] 新建 `src/shared/types/core/agent-events.ts`（`LLMAgentEvent*` 引用共享类型）
+- [x] 新建 `src/shared/types/core/chat.ts`（`Message/AssistantMessageBlock/UserMessageContent`）
+- [x] 新建 `src/shared/types/core/mcp.ts`（MCP 相关类型）
+- [x] 新建 `src/shared/types/index.d.ts`（统一 re-export）
 
 ## 阶段 3：Presenter 类型拆分
 - [ ] 将 `presenter.d.ts` 拆分到 `src/shared/types/presenters/*.presenter.d.ts`
