@@ -89,7 +89,6 @@ export type AssistantMessageBlock = {
     | 'error'
     | 'tool_call'
     | 'action'
-    | 'tool_call_permission' // NEW: Dedicated permission request block type
     | 'image'
     | 'artifact-thinking'
   content?: string

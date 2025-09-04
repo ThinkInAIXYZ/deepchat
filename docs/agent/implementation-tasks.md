@@ -32,10 +32,10 @@
 - [x] 错误统一 `error` + `stop`
 - [x] 为上述行为补充单测（序列/字段/边界）
 
-## 阶段 5：Agent 与 UI 对齐
-- [ ] Agent 层：仅消费 CoreEvent，产出 `LLMAgentEvent`（严格区分 `response/error/end`）
-- [ ] UI 层：移除独立 `tool_call_permission` 类型，统一 `action + action_type`
-- [ ] 按映射表完善渲染器，完成快照测试与契约测试
+## 阶段 5：Agent 与 UI 对齐 (Completed)
+- [x] Agent 层：仅消费 CoreEvent，产出 `LLMAgentEvent`（严格区分 `response/error/end`）
+- [x] UI 层：移除独立 `tool_call_permission` 类型，统一 `action + action_type`
+- [x] 按映射表完善渲染器，完成快照测试与契约测试
 
 ## 阶段 6：质量与工具
 - [ ] 增加 OxLint/TS 规则，禁止新增“单接口+可选字段”的事件类型

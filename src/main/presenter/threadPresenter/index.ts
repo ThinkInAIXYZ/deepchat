@@ -172,7 +172,10 @@ export class ThreadPresenter implements IThreadPresenter {
 
       // 检查是否有未处理的权限请求
       const hasPendingPermissions = state.message.content.some(
-        (block) => block.type === 'tool_call_permission' && block.status === 'pending'
+        (block) =>
+          block.type === 'action' &&
+          block.action_type === 'tool_call_permission' &&
+          block.status === 'pending'
       )
 
       if (hasPendingPermissions) {
@@ -182,7 +185,10 @@ export class ThreadPresenter implements IThreadPresenter {
         // 保持消息在generating状态，等待权限响应
         // 但是要更新非权限块为success状态
         state.message.content.forEach((block) => {
-          if (block.type !== 'tool_call_permission' && block.status === 'loading') {
+          if (
+            !(block.type === 'action' && block.action_type === 'tool_call_permission') &&
+            block.status === 'loading'
+          ) {
             block.status = 'success'
           }
         })
@@ -221,7 +227,7 @@ export class ThreadPresenter implements IThreadPresenter {
   ): Promise<void> {
     // 将所有块设为success状态，但保留权限块的状态
     state.message.content.forEach((block) => {
-      if (block.type === 'tool_call_permission') {
+      if (block.type === 'action' && block.action_type === 'tool_call_permission') {
         // 权限块保持其当前状态（granted/denied/error）
         return
       }
@@ -549,7 +555,11 @@ export class ThreadPresenter implements IThreadPresenter {
         : undefined
 
     if (lastBlock) {
-      if (lastBlock.type === 'tool_call_permission' && lastBlock.status === 'pending') {
+      if (
+        lastBlock.type === 'action' &&
+        lastBlock.action_type === 'tool_call_permission' &&
+        lastBlock.status === 'pending'
+      ) {
         lastBlock.status = 'granted'
         return
       }
@@ -592,7 +602,11 @@ export class ThreadPresenter implements IThreadPresenter {
             ? state.message.content[state.message.content.length - 1]
             : undefined
         if (lastBlock) {
-          if (lastBlock.type === 'tool_call_permission' && lastBlock.status === 'pending') {
+          if (
+            lastBlock.type === 'action' &&
+            lastBlock.action_type === 'tool_call_permission' &&
+            lastBlock.status === 'pending'
+          ) {
             lastBlock.status = 'granted'
             return
           }
@@ -807,7 +821,8 @@ export class ThreadPresenter implements IThreadPresenter {
           const { permission_request } = msg
 
           state.message.content.push({
-            type: 'tool_call_permission',
+            type: 'action',
+            action_type: 'tool_call_permission',
             content:
               typeof tool_call_response === 'string'
                 ? tool_call_response
@@ -3716,7 +3731,10 @@ export class ThreadPresenter implements IThreadPresenter {
 
       const content = message.content as AssistantMessageBlock[]
       const permissionBlock = content.find(
-        (block) => block.type === 'tool_call_permission' && block.tool_call?.id === toolCallId
+        (block) =>
+          block.type === 'action' &&
+          block.action_type === 'tool_call_permission' &&
+          block.tool_call?.id === toolCallId
       )
 
       if (!permissionBlock) {
@@ -3834,7 +3852,10 @@ export class ThreadPresenter implements IThreadPresenter {
       // 验证权限是否生效 - 获取最新的服务器配置
       const content = message.content as AssistantMessageBlock[]
       const permissionBlock = content.find(
-        (block) => block.type === 'tool_call_permission' && block.status === 'granted'
+        (block) =>
+          block.type === 'action' &&
+          block.action_type === 'tool_call_permission' &&
+          block.status === 'granted'
       )
 
       if (!permissionBlock) {
@@ -3924,7 +3945,7 @@ export class ThreadPresenter implements IThreadPresenter {
 
       // 将所有loading状态的块设为success，但保留权限块的状态
       content.forEach((block) => {
-        if (block.type === 'tool_call_permission') {
+        if (block.type === 'action' && block.action_type === 'tool_call_permission') {
           // 权限块保持其当前状态（granted/denied/error）
           return
         }
@@ -4128,7 +4149,10 @@ export class ThreadPresenter implements IThreadPresenter {
   ): { id: string; name: string; params: string } | null {
     // 查找已授权的权限块
     const grantedPermissionBlock = content.find(
-      (block) => block.type === 'tool_call_permission' && block.status === 'granted'
+      (block) =>
+        block.type === 'action' &&
+        block.action_type === 'tool_call_permission' &&
+        block.status === 'granted'
     )
 
     if (!grantedPermissionBlock?.tool_call) {

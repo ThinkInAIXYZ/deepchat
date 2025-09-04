@@ -960,6 +960,17 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
 
                 needContinueConversation = false
                 break // Break inner loop on provider error
+              case 'rate_limit':
+                if (chunk.rate_limit) {
+                  yield {
+                    type: 'response',
+                    data: {
+                      eventId,
+                      rate_limit: chunk.rate_limit
+                    }
+                  }
+                }
+                break
               case 'stop':
                 console.log(
                   `Provider stream stopped for event ${eventId}. Reason: ${chunk.stop_reason}`
