@@ -43,7 +43,8 @@ vi.mock('@/eventbus', () => ({
   eventBus: {
     on: vi.fn(),
     sendToRenderer: vi.fn(),
-    emit: vi.fn()
+    emit: vi.fn(),
+    send: vi.fn()
   },
   SendTarget: {
     ALL_WINDOWS: 'ALL_WINDOWS'
@@ -120,6 +121,15 @@ describe('LLMProviderPresenter Integration Tests', () => {
     // Reset mock implementations
     mockConfigPresenter.getProviders = vi.fn().mockReturnValue([mockProvider])
     mockConfigPresenter.getProviderById = vi.fn().mockReturnValue(mockProvider)
+    mockConfigPresenter.getModelConfig = vi.fn().mockReturnValue({
+      maxTokens: 4096,
+      contextLength: 4096,
+      temperature: 0.7,
+      vision: false,
+      functionCall: false,
+      reasoning: false,
+      type: 'chat'
+    })
     mockConfigPresenter.enableModel = vi.fn()
     mockConfigPresenter.setProviderModels = vi.fn()
     mockConfigPresenter.getCustomModels = vi.fn().mockReturnValue([])

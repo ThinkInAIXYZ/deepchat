@@ -5,7 +5,9 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': resolve('src/main/'),
-        '@shared': resolve('src/shared')
+        '@shared': resolve('src/shared'),
+        'electron': resolve('test/mocks/electron.ts'),
+        '@electron-toolkit/utils': resolve('test/mocks/electron-toolkit-utils.ts')
     }
   },
   test: {
