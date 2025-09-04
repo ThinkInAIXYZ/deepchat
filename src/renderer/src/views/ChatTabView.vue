@@ -49,7 +49,7 @@
 
     <!-- 消息导航侧边栏 (大屏幕) -->
     <div
-      v-show="chatStore.isMessageNavigationOpen && isLargeScreen"
+      v-show="chatStore.isMessageNavigationOpen && !artifactStore.isOpen && isLargeScreen"
       class="fixed right-0 top-0 w-80 max-w-80 h-full z-10 hidden lg:block"
     >
       <MessageNavigationSidebar
