@@ -152,6 +152,7 @@
         "gemini": {
           "description": "限制模型思考长度",
           "dynamic": "动态思维",
+          "onlySupported": "仅在 Gemini 2.5 Flash、2.5 Pro 和 2.5 Flash-Lite 中支持",
           "valueLabel": "思考预算值",
           "placeholder": "输入思考预算值",
           "forceEnabled": "Gemini 2.5 系列模型强制开启思考预算",
