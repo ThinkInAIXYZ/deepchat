@@ -38,7 +38,10 @@
           <NewThread v-if="!chatStore.getActiveThreadId()" />
           <template v-else>
             <!-- 标题栏 -->
-            <TitleView :model="activeModel" @messageNavigationToggle="handleMessageNavigationToggle"/>
+            <TitleView
+              :model="activeModel"
+              @messageNavigationToggle="handleMessageNavigationToggle"
+            />
 
             <!-- 聊天内容区域 -->
             <ChatView ref="chatViewRef" />
@@ -212,12 +215,12 @@ const activeModel = computed(() => {
 
 const handleMessageNavigationToggle = () => {
   if (artifactStore.isOpen) {
-    artifactStore.isOpen = false;
-    chatStore.isMessageNavigationOpen = true;
+    artifactStore.isOpen = false
+    chatStore.isMessageNavigationOpen = true
   } else {
-    chatStore.isMessageNavigationOpen = !chatStore.isMessageNavigationOpen;
+    chatStore.isMessageNavigationOpen = !chatStore.isMessageNavigationOpen
   }
-};
+}
 
 /**
  * 处理滚动到指定消息

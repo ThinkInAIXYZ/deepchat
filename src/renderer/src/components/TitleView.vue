@@ -109,7 +109,7 @@ import { useSettingsStore } from '@/stores/settings'
 import { ModelType } from '@shared/model'
 import { RATE_LIMIT_EVENTS } from '@/events'
 
-const emit = defineEmits(['messageNavigationToggle']);
+const emit = defineEmits(['messageNavigationToggle'])
 
 const configPresenter = usePresenter('configPresenter')
 const llmPresenter = usePresenter('llmproviderPresenter')
@@ -287,8 +287,8 @@ const onSidebarButtonClick = () => {
 
 // 新增的事件处理函数
 const onMessageNavigationButtonClick = () => {
-  emit('messageNavigationToggle');
-};
+  emit('messageNavigationToggle')
+}
 
 // Watch for changes and update store
 watch(
