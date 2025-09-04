@@ -159,43 +159,70 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
 
   private createProviderInstance(provider: LLM_PROVIDER): BaseLLMProvider | undefined {
     try {
-      if (provider.id === '302ai') {
-        return new _302AIProvider(provider, this.configPresenter)
-      }
-      if (provider.id === 'minimax') {
-        return new MinimaxProvider(provider, this.configPresenter)
-      }
-      // 特殊处理 grok
-      if (provider.apiType === 'grok' || provider.id === 'grok') {
-        console.log('match grok')
-        return new GrokProvider(provider, this.configPresenter)
-      }
-      // 特殊处理 openrouter
-      if (provider.id === 'openrouter') {
-        return new OpenRouterProvider(provider, this.configPresenter)
+      switch (provider.id) {
+        case '302ai':
+          return new _302AIProvider(provider, this.configPresenter)
+        case 'minimax':
+          return new MinimaxProvider(provider, this.configPresenter)
+        case 'grok':
+          return new GrokProvider(provider, this.configPresenter)
+        case 'openrouter':
+          return new OpenRouterProvider(provider, this.configPresenter)
+        case 'ppio':
+          return new PPIOProvider(provider, this.configPresenter)
+        case 'tokenflux':
+          return new TokenFluxProvider(provider, this.configPresenter)
+        case 'deepseek':
+          return new DeepseekProvider(provider, this.configPresenter)
+        case 'aihubmix':
+          return new AihubmixProvider(provider, this.configPresenter)
+        case 'modelscope':
+          return new ModelscopeProvider(provider, this.configPresenter)
+        case 'siliconcloud':
+          return new SiliconcloudProvider(provider, this.configPresenter)
+        case 'dashscope':
+          return new DashscopeProvider(provider, this.configPresenter)
+        case 'gemini':
+          return new GeminiProvider(provider, this.configPresenter)
+        case 'zhipu':
+          return new ZhipuProvider(provider, this.configPresenter)
+        case 'github':
+          return new GithubProvider(provider, this.configPresenter)
+        case 'github-copilot':
+          return new GithubCopilotProvider(provider, this.configPresenter)
+        case 'ollama':
+          return new OllamaProvider(provider, this.configPresenter)
+        case 'anthropic':
+          return new AnthropicProvider(provider, this.configPresenter)
+        case 'doubao':
+          return new DoubaoProvider(provider, this.configPresenter)
+        case 'openai':
+          return new OpenAIProvider(provider, this.configPresenter)
+        case 'openai-responses':
+          return new OpenAIResponsesProvider(provider, this.configPresenter)
+        case 'lmstudio':
+          return new LMStudioProvider(provider, this.configPresenter)
+        case 'together':
+          return new TogetherProvider(provider, this.configPresenter)
+        case 'groq':
+          return new GroqProvider(provider, this.configPresenter)
+        case 'vercel-ai-gateway':
+          return new VercelAIGatewayProvider(provider, this.configPresenter)
+        case 'aws-bedrock':
+          return new AwsBedrockProvider(provider, this.configPresenter)
+        default:
+          console.log(
+            `No specific provider found for id: ${provider.id}, falling back to apiType: ${provider.apiType}`
+          )
+          break
       }
 
-      if (provider.id === 'ppio') {
-        return new PPIOProvider(provider, this.configPresenter)
-      }
-      if (provider.id === 'tokenflux') {
-        return new TokenFluxProvider(provider, this.configPresenter)
-      }
-      if (provider.id === 'deepseek') {
-        return new DeepseekProvider(provider, this.configPresenter)
-      }
-      if (provider.id === 'aihubmix') {
-        return new AihubmixProvider(provider, this.configPresenter)
-      }
-      if (provider.id === 'modelscope') {
-        return new ModelscopeProvider(provider, this.configPresenter)
-      }
+      // 回退逻辑：基于 apiType 创建 provider
       switch (provider.apiType) {
         case 'minimax':
           return new OpenAIProvider(provider, this.configPresenter)
         case 'deepseek':
           return new DeepseekProvider(provider, this.configPresenter)
-        case 'silicon':
         case 'siliconcloud':
           return new SiliconcloudProvider(provider, this.configPresenter)
         case 'dashscope':
@@ -228,12 +255,14 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
           return new TogetherProvider(provider, this.configPresenter)
         case 'groq':
           return new GroqProvider(provider, this.configPresenter)
+        case 'grok':
+          return new GrokProvider(provider, this.configPresenter)
         case 'vercel-ai-gateway':
           return new VercelAIGatewayProvider(provider, this.configPresenter)
         case 'aws-bedrock':
           return new AwsBedrockProvider(provider, this.configPresenter)
         default:
-          console.warn(`Unknown provider type: ${provider.apiType}`)
+          console.warn(`Unknown provider type: ${provider.apiType} for provider id: ${provider.id}`)
           return undefined
       }
     } catch (error) {
