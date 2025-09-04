@@ -1277,115 +1277,15 @@ export interface ISyncPresenter {
 }
 
 // 从 LLM Provider 的 coreStream 返回的标准化事件
-export interface LLMCoreStreamEvent {
-  type:
-    | 'text'
-    | 'reasoning'
-    | 'tool_call_start'
-    | 'tool_call_chunk'
-    | 'tool_call_end'
-    | 'error'
-    | 'usage'
-    | 'stop'
-    | 'image_data'
-    | 'rate_limit'
-  content?: string // 用于 type 'text'
-  reasoning_content?: string // 用于 type 'reasoning'
-  tool_call_id?: string // 用于 tool_call_* 类型
-  tool_call_name?: string // 用于 tool_call_start
-  tool_call_arguments_chunk?: string // 用于 tool_call_chunk (流式参数)
-  tool_call_arguments_complete?: string // 用于 tool_call_end (可选，如果一次性可用)
-  error_message?: string // 用于 type 'error'
-  usage?: {
-    // 用于 type 'usage'
-    prompt_tokens: number
-    completion_tokens: number
-    total_tokens: number
-  }
-  rate_limit?: {
-    providerId: string
-    qpsLimit: number
-    currentQps: number
-    queueLength: number
-    estimatedWaitTime?: number
-  }
-  stop_reason?: 'tool_use' | 'max_tokens' | 'stop_sequence' | 'error' | 'complete' // 用于 type 'stop'
-  image_data?: {
-    // 用于 type 'image_data'
-    data: string // Base64 编码的图像数据
-    mimeType: string
-  }
-}
+export type LLMCoreStreamEvent = import('../../core/llm-events').LLMCoreStreamEvent
 
 // 定义ChatMessage接口用于统一消息格式
-export interface ChatMessage {
-  role: 'system' | 'user' | 'assistant' | 'tool'
-  content?: string | ChatMessageContent[]
-  tool_calls?: Array<{
-    function: {
-      arguments: string
-      name: string
-    }
-    id: string
-    type: 'function'
-  }>
-  tool_call_id?: string
-}
+export type ChatMessage = import('../../core/llm-events').ChatMessage
 
-export interface ChatMessageContent {
-  type: 'text' | 'image_url'
-  text?: string
-  image_url?: {
-    url: string
-    detail?: 'auto' | 'low' | 'high'
-  }
-}
+export type ChatMessageContent = import('../../core/llm-events').ChatMessageContent
 
-export interface LLMAgentEventData {
-  eventId: string
-  content?: string
-  reasoning_content?: string
-  tool_call_id?: string
-  tool_call_name?: string
-  tool_call_params?: string
-  tool_call_response?: string | MCPToolResponse['content'] // Allow complex tool response content
-  maximum_tool_calls_reached?: boolean
-  tool_call_server_name?: string
-  tool_call_server_icons?: string
-  tool_call_server_description?: string
-
-  tool_call_response_raw?: any
-  tool_call?: 'start' | 'running' | 'end' | 'error' | 'update' | 'permission-required'
-
-  // Permission request related fields
-  permission_request?: {
-    toolName: string
-    serverName: string
-    permissionType: 'read' | 'write' | 'all'
-    description: string
-  }
-
-  totalUsage?: {
-    prompt_tokens: number
-    completion_tokens: number
-    total_tokens: number
-    context_length: number
-  }
-  image_data?: { data: string; mimeType: string }
-  rate_limit?: {
-    providerId: string
-    qpsLimit: number
-    currentQps: number
-    queueLength: number
-    estimatedWaitTime?: number
-  }
-  error?: string // For error event
-  userStop?: boolean // For end event
-}
-export type LLMAgentEvent =
-  | { type: 'response'; data: LLMAgentEventData }
-  | { type: 'error'; data: { eventId: string; error: string } }
-  | { type: 'end'; data: { eventId: string; userStop: boolean } }
+export type LLMAgentEventData = import('../../core/agent-events').LLMAgentEventData
+export type LLMAgentEvent = import('../../core/agent-events').LLMAgentEvent
 
 export { ShortcutKey, ShortcutKeySetting } from '@/presenter/configPresenter/shortcutKeySettings'
 
