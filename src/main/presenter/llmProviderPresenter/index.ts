@@ -1633,11 +1633,11 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
       throw new Error('Ollama provider not found')
     }
     return provider.pullModel(modelName, (progress) => {
-      console.log('pullOllamaModels', {
-        eventId: 'pullOllamaModels',
-        modelName: modelName,
-        ...progress
-      })
+      // console.log('pullOllamaModels', {
+      //   eventId: 'pullOllamaModels',
+      //   modelName: modelName,
+      //   ...progress
+      // })
       eventBus.sendToRenderer(OLLAMA_EVENTS.PULL_MODEL_PROGRESS, SendTarget.ALL_WINDOWS, {
         eventId: 'pullOllamaModels',
         modelName: modelName,

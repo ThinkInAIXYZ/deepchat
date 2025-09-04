@@ -22,9 +22,7 @@ MessageItemAssistant.vue (UI组件)
 
 #### 1. LLMCoreStreamEvent (底层流式事件)
 
-定义在 `src/shared/presenter.d.ts` 中，这是最底层的流式事件接口：
-
-```typescript
+定义在 `src/shared/types/core/llm-events.ts` 中，这是最底层的流式事件接口：
 // 使用严格的联合类型设计，确保类型安全
 export type LLMCoreStreamEvent =
   | TextStreamEvent
@@ -222,11 +220,10 @@ const invalidEvent = {
 // 使用工厂函数创建事件（推荐）
 import { createStreamEvent } from './llm-core-events'
 
+import { createStreamEvent } from '@shared/types/core/llm-events'
+
 const textEvent = createStreamEvent.text('Hello world')
 const toolEvent = createStreamEvent.toolCallStart('call_123', 'getWeather')
-```
-
-#### 术语与边界
 
 - 强约束：`LLMCoreStreamEvent` 仅在 Provider 实现内部出现；跨进程（main → renderer）的 IPC 事件统一为 `LLMAgentEvent`；UI 层仅消费 `LLMAgentEvent`，并映射为 `AssistantMessageBlock`。
 - 事件不可混用：禁止在 Agent 或 UI 层直接拼装 CoreEvent；禁止 Provider 直接产出 UI 块。
