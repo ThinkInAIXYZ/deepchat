@@ -64,6 +64,9 @@ export class DashscopeProvider extends OpenAICompatibleProvider {
           ...params,
           enable_thinking: true
         }
+        if (modelConfig?.thinkingBudget) {
+          modifiedParams.thinking_budget = modelConfig.thinkingBudget
+        }
         return originalCreate(modifiedParams, options)
       }) as any
 

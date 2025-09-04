@@ -140,29 +140,41 @@
       },
       "thinkingBudget": {
         "label": "Thinking Budget",
-        "description": "Limit the length of model thinking",
-        "dynamic": "Dynamic Thinking",
         "range": "Range: {min} - {max}",
-        "onlySupported": "Only supported in Gemini 2.5 Flash, 2.5 Pro and 2.5 Flash-Lite",
-        "valueLabel": "Thinking Budget Value",
-        "placeholder": "Enter thinking budget value",
-        "forceEnabled": "Gemini 2.5 series models force enable thinking budget",
-        "dynamicPrefix": "-1 = Dynamic Thinking",
-        "notice": "Notice: ",
-        "warnings": {
-          "proNoDisable": "This model does not support disabling thinking, minimum value 128",
-          "proCannotDisable": "Gemini 2.5 Pro cannot disable thinking function",
-          "flashLiteCannotSetZero": "Gemini 2.5 Flash-Lite cannot be set to 0, minimum value is 512",
-          "modelCannotDisable": "This model cannot disable thinking function",
-          "flashLiteMinValue": "Thinking budget cannot be less than 512 when set to specific value (or use 0 to disable thinking, -1 to enable dynamic thinking)",
-          "belowMin": "Thinking budget cannot be less than {min}{hint}",
-          "aboveMax": "Thinking budget cannot be greater than {max}"
+        "gemini": {
+          "description": "Limit the length of model thinking",
+          "dynamic": "Dynamic Thinking",
+          "onlySupported": "Only supported in Gemini 2.5 Flash, 2.5 Pro, and 2.5 Flash-Lite",
+          "valueLabel": "Thinking Budget Value",
+          "placeholder": "Enter thinking budget value",
+          "forceEnabled": "Gemini 2.5 series models force enable thinking budget",
+          "dynamicPrefix": "-1 = Dynamic Thinking",
+          "notice": "Notice: ",
+          "warnings": {
+            "proNoDisable": "This model does not support disabling thinking, minimum value 128",
+            "proCannotDisable": "Gemini 2.5 Pro cannot disable thinking function",
+            "flashLiteCannotSetZero": "Gemini 2.5 Flash-Lite cannot be set to 0, minimum value is 512",
+            "modelCannotDisable": "This model cannot disable thinking function",
+            "flashLiteMinValue": "Thinking budget cannot be less than 512 when set to specific value (or use 0 to disable thinking, -1 to enable dynamic thinking)",
+            "belowMin": "Thinking budget cannot be less than {min}{hint}",
+            "aboveMax": "Thinking budget cannot be greater than {max}"
+          },
+          "hints": {
+            "flashLiteDisable": ", 0 = disable thinking, specific value minimum 512",
+            "normalDisable": ", 0 = disable thinking",
+            "withZeroAndDynamic": "(or use 0 to disable thinking, -1 to enable dynamic thinking)",
+            "withDynamic": "(or use -1 to enable dynamic thinking)"
+          }
         },
-        "hints": {
-          "flashLiteDisable": ", 0 = disable thinking, specific value minimum 512",
-          "normalDisable": ", 0 = disable thinking",
-          "withZeroAndDynamic": "(or use 0 to disable thinking, -1 to enable dynamic thinking)",
-          "withDynamic": "(or use -1 to enable dynamic thinking)"
+        "qwen3": {
+          "description": "Set the maximum token length for thinking process to control the depth of model reasoning",
+          "valueLabel": "Thinking Budget Value",
+          "placeholder": "Enter thinking budget value",
+          "validation": {
+            "required": "Please enter thinking budget value",
+            "minValue": "Thinking budget value must be greater than or equal to 1",
+            "maxValue": "Thinking budget value cannot exceed {max}"
+          }
         }
       },
       "resetConfirm": {
