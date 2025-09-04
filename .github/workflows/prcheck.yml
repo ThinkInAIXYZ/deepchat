@@ -29,10 +29,10 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install
-    
+
       - name: lint
         run: pnpm run lint
-      
+
       - name: format:check
         run: pnpm run format:check
 
@@ -41,12 +41,6 @@ jobs:
         env:
           TARGET_OS: linux
           TARGET_ARCH: ${{ matrix.arch }}
-
-      - name: Install dependencies
-        run: pnpm install
-
-      - name: Check Lint
-        run: pnpm run lint
 
       - name: Check translations
         run: pnpm run i18n
