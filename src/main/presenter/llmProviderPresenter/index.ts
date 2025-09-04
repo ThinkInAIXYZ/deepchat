@@ -178,6 +178,7 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
           return new AihubmixProvider(provider, this.configPresenter)
         case 'modelscope':
           return new ModelscopeProvider(provider, this.configPresenter)
+        case 'silicon':
         case 'siliconcloud':
           return new SiliconcloudProvider(provider, this.configPresenter)
         case 'dashscope':
@@ -223,6 +224,7 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
           return new OpenAIProvider(provider, this.configPresenter)
         case 'deepseek':
           return new DeepseekProvider(provider, this.configPresenter)
+        case 'silicon':
         case 'siliconcloud':
           return new SiliconcloudProvider(provider, this.configPresenter)
         case 'dashscope':

@@ -17,6 +17,7 @@ export interface ProviderModelSetting {
   reasoningEffort?: 'minimal' | 'low' | 'medium' | 'high'
   verbosity?: 'low' | 'medium' | 'high'
   maxCompletionTokens?: number // GPT-5 系列使用此参数替代 maxTokens
+  thinkingBudget?: number // 思维预算参数
 }
 
 // 为每个提供商创建映射对象，使用models数组包装模型配置
@@ -2472,6 +2473,127 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         vision: false,
         functionCall: true,
         reasoning: false
+      },
+      // Qwen3系列模型
+      {
+        id: 'qwen3-235b-a22b-thinking-2507',
+        name: 'Qwen3 235B A22B Thinking 2507',
+        temperature: 0.6,
+        maxTokens: 8192,
+        contextLength: 40960,
+        match: ['qwen3-235b-a22b-thinking-2507'],
+        vision: false,
+        functionCall: true,
+        reasoning: true,
+        thinkingBudget: 81920
+      },
+      {
+        id: 'qwen3-235b-a22b',
+        name: 'Qwen3 235B A22B',
+        temperature: 0.6,
+        maxTokens: 8192,
+        contextLength: 40960,
+        match: ['qwen3-235b-a22b'],
+        vision: false,
+        functionCall: true,
+        reasoning: true,
+        thinkingBudget: 81920
+      },
+      {
+        id: 'qwen3-30b-a3b-thinking-2507',
+        name: 'Qwen3 30B A3B Thinking 2507',
+        temperature: 0.6,
+        maxTokens: 8192,
+        contextLength: 40960,
+        match: ['qwen3-30b-a3b-thinking-2507'],
+        vision: false,
+        functionCall: true,
+        reasoning: true,
+        thinkingBudget: 81920
+      },
+      {
+        id: 'qwen3-32b',
+        name: 'Qwen3 32B',
+        temperature: 0.6,
+        maxTokens: 8192,
+        contextLength: 40960,
+        match: ['qwen3-32b'],
+        vision: false,
+        functionCall: true,
+        reasoning: true,
+        thinkingBudget: 38912
+      },
+      {
+        id: 'qwen3-30b-a3b',
+        name: 'Qwen3 30B A3B',
+        temperature: 0.6,
+        maxTokens: 8192,
+        contextLength: 40960,
+        match: ['qwen3-30b-a3b'],
+        vision: false,
+        functionCall: true,
+        reasoning: true,
+        thinkingBudget: 38912
+      },
+      {
+        id: 'qwen3-14b',
+        name: 'Qwen3 14B',
+        temperature: 0.6,
+        maxTokens: 8192,
+        contextLength: 40960,
+        match: ['qwen3-14b'],
+        vision: false,
+        functionCall: true,
+        reasoning: true,
+        thinkingBudget: 38912
+      },
+      {
+        id: 'qwen3-8b',
+        name: 'Qwen3 8B',
+        temperature: 0.6,
+        maxTokens: 8192,
+        contextLength: 40960,
+        match: ['qwen3-8b'],
+        vision: false,
+        functionCall: true,
+        reasoning: true,
+        thinkingBudget: 38912
+      },
+      {
+        id: 'qwen3-4b',
+        name: 'Qwen3 4B',
+        temperature: 0.6,
+        maxTokens: 8192,
+        contextLength: 40960,
+        match: ['qwen3-4b'],
+        vision: false,
+        functionCall: true,
+        reasoning: true,
+        thinkingBudget: 38912
+      },
+      {
+        id: 'qwen3-1.7b',
+        name: 'Qwen3 1.7B',
+        temperature: 0.6,
+        maxTokens: 8192,
+        contextLength: 40960,
+        match: ['qwen3-1.7b'],
+        vision: false,
+        functionCall: true,
+        reasoning: true,
+        thinkingBudget: 20000
+      },
+      {
+        id: 'qwen3-0.6b',
+        name: 'Qwen3 0.6B',
+        temperature: 0.6,
+        maxTokens: 8192,
+        contextLength: 40960,
+        match: ['qwen3-0.6b'],
+        vision: false,
+        functionCall: true,
+        reasoning: true,
+        thinkingBudget: 20000
       }
     ]
   },
@@ -2845,7 +2967,8 @@ export function getProviderSpecificModelConfig(
         type: config.type || ModelType.Chat,
         reasoningEffort: config.reasoningEffort,
         verbosity: config.verbosity,
-        maxCompletionTokens: config.maxCompletionTokens
+        maxCompletionTokens: config.maxCompletionTokens,
+        thinkingBudget: config.thinkingBudget
       }
     }
   }

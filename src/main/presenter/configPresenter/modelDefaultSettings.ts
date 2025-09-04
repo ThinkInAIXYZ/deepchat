@@ -1249,6 +1249,18 @@ export const defaultModelsSettings: DefaultModelSetting[] = [
 
   // Qwen3系列模型
   {
+    id: 'qwen3-235b-a22b-thinking-2507',
+    name: 'Qwen3 235B A22B Thinking 2507',
+    temperature: 0.6,
+    maxTokens: 8192,
+    contextLength: 40960,
+    match: ['qwen3-235b-a22b-thinking-2507', 'qwen/qwen3-235b-a22b-thinking-2507'],
+    vision: false,
+    functionCall: true,
+    reasoning: true,
+    thinkingBudget: 81920
+  },
+  {
     id: 'qwen3-235b-a22b',
     name: 'Qwen3 235B A22B',
     temperature: 0.6,
@@ -1256,8 +1268,21 @@ export const defaultModelsSettings: DefaultModelSetting[] = [
     contextLength: 40960,
     match: ['qwen3-235b-a22b', 'qwen/qwen3-235b-a22b'],
     vision: false,
-    functionCall: false,
-    reasoning: true
+    functionCall: true,
+    reasoning: true,
+    thinkingBudget: 81920
+  },
+  {
+    id: 'qwen3-30b-a3b-thinking-2507',
+    name: 'Qwen3 30B A3B Thinking 2507',
+    temperature: 0.6,
+    maxTokens: 8192,
+    contextLength: 40960,
+    match: ['qwen3-30b-a3b-thinking-2507', 'qwen/qwen3-30b-a3b-thinking-2507'],
+    vision: false,
+    functionCall: true,
+    reasoning: true,
+    thinkingBudget: 81920
   },
   {
     id: 'qwen3-32b',
@@ -1267,8 +1292,9 @@ export const defaultModelsSettings: DefaultModelSetting[] = [
     contextLength: 40960,
     match: ['qwen3-32b', 'qwen/qwen3-32b'],
     vision: false,
-    functionCall: false,
-    reasoning: true
+    functionCall: true,
+    reasoning: true,
+    thinkingBudget: 38912
   },
   {
     id: 'qwen3-30b-a3b',
@@ -1278,8 +1304,9 @@ export const defaultModelsSettings: DefaultModelSetting[] = [
     contextLength: 40960,
     match: ['qwen3-30b-a3b', 'qwen/qwen3-30b-a3b'],
     vision: false,
-    functionCall: false,
-    reasoning: true
+    functionCall: true,
+    reasoning: true,
+    thinkingBudget: 38912
   },
   {
     id: 'qwen3-14b',
@@ -1289,8 +1316,9 @@ export const defaultModelsSettings: DefaultModelSetting[] = [
     contextLength: 40960,
     match: ['qwen3-14b', 'qwen/qwen3-14b'],
     vision: false,
-    functionCall: false,
-    reasoning: true
+    functionCall: true,
+    reasoning: true,
+    thinkingBudget: 38912
   },
   {
     id: 'qwen3-8b',
@@ -1300,8 +1328,9 @@ export const defaultModelsSettings: DefaultModelSetting[] = [
     contextLength: 40960,
     match: ['qwen3-8b', 'qwen/qwen3-8b'],
     vision: false,
-    functionCall: false,
-    reasoning: true
+    functionCall: true,
+    reasoning: true,
+    thinkingBudget: 38912
   },
   {
     id: 'qwen3-4b',
@@ -1311,8 +1340,9 @@ export const defaultModelsSettings: DefaultModelSetting[] = [
     contextLength: 40960,
     match: ['qwen3-4b', 'qwen/qwen3-4b'],
     vision: false,
-    functionCall: false,
-    reasoning: true
+    functionCall: true,
+    reasoning: true,
+    thinkingBudget: 38912
   },
   {
     id: 'qwen3-1.7b',
@@ -1322,8 +1352,9 @@ export const defaultModelsSettings: DefaultModelSetting[] = [
     contextLength: 40960,
     match: ['qwen3-1.7b', 'qwen/qwen3-1.7b'],
     vision: false,
-    functionCall: false,
-    reasoning: true
+    functionCall: true,
+    reasoning: true,
+    thinkingBudget: 20000
   },
   {
     id: 'qwen3-0.6b',
@@ -1333,8 +1364,9 @@ export const defaultModelsSettings: DefaultModelSetting[] = [
     contextLength: 40960,
     match: ['qwen3-0.6b', 'qwen/qwen3-0.6b'],
     vision: false,
-    functionCall: false,
-    reasoning: true
+    functionCall: true,
+    reasoning: true,
+    thinkingBudget: 20000
   },
 
   // Yi系列
