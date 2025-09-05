@@ -65,7 +65,7 @@ const props = defineProps<{
 const { t } = useI18n()
 const { createEditor, updateCode } = useMonaco({
   wordWrap: 'on',
-  wrappingIndent: 'same',
+  wrappingIndent: 'same'
 })
 const artifactStore = useArtifactStore()
 const copyText = ref(t('common.copy'))

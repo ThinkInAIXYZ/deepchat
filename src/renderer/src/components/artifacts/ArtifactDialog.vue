@@ -266,7 +266,7 @@ const codeLanguage = ref(
 const { createEditor, updateCode } = useMonaco({
   MAX_HEIGHT: '500px',
   wordWrap: 'on',
-  wrappingIndent: 'same',
+  wrappingIndent: 'same'
 })
 const codeEditor = ref<any>(null)
 
