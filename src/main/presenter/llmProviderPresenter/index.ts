@@ -701,7 +701,10 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
     enabledMcpTools?: string[],
     thinkingBudget?: number,
     reasoningEffort?: 'minimal' | 'low' | 'medium' | 'high',
-    verbosity?: 'low' | 'medium' | 'high'
+    verbosity?: 'low' | 'medium' | 'high',
+    enableSearch?: boolean,
+    forcedSearch?: boolean,
+    searchStrategy?: 'turbo' | 'max'
   ): AsyncGenerator<LLMAgentEvent, void, unknown> {
     console.log(`[Agent Loop] Starting agent loop for event: ${eventId} with model: ${modelId}`)
     if (!this.canStartNewStream()) {
@@ -723,6 +726,15 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
     }
     if (verbosity !== undefined) {
       modelConfig.verbosity = verbosity
+    }
+    if (enableSearch !== undefined) {
+      modelConfig.enableSearch = enableSearch
+    }
+    if (forcedSearch !== undefined) {
+      modelConfig.forcedSearch = forcedSearch
+    }
+    if (searchStrategy !== undefined) {
+      modelConfig.searchStrategy = searchStrategy
     }
 
     this.activeStreams.set(eventId, {

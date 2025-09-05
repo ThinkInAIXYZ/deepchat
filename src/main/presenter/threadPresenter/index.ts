@@ -1778,7 +1778,10 @@ export class ThreadPresenter implements IThreadPresenter {
         enabledMcpTools: currentEnabledMcpTools,
         thinkingBudget: currentThinkingBudget,
         reasoningEffort: currentReasoningEffort,
-        verbosity: currentVerbosity
+        verbosity: currentVerbosity,
+        enableSearch: currentEnableSearch,
+        forcedSearch: currentForcedSearch,
+        searchStrategy: currentSearchStrategy
       } = currentConversation.settings
       const stream = this.llmProviderPresenter.startStreamCompletion(
         currentProviderId, // 使用最新的设置
@@ -1790,7 +1793,10 @@ export class ThreadPresenter implements IThreadPresenter {
         currentEnabledMcpTools,
         currentThinkingBudget,
         currentReasoningEffort,
-        currentVerbosity
+        currentVerbosity,
+        currentEnableSearch,
+        currentForcedSearch,
+        currentSearchStrategy
       )
       for await (const event of stream) {
         const msg = event.data
@@ -1896,7 +1902,10 @@ export class ThreadPresenter implements IThreadPresenter {
         enabledMcpTools,
         thinkingBudget,
         reasoningEffort,
-        verbosity
+        verbosity,
+        enableSearch,
+        forcedSearch,
+        searchStrategy
       } = conversation.settings
       const modelConfig = this.configPresenter.getModelConfig(modelId, providerId)
 
@@ -1968,7 +1977,10 @@ export class ThreadPresenter implements IThreadPresenter {
         enabledMcpTools,
         thinkingBudget,
         reasoningEffort,
-        verbosity
+        verbosity,
+        enableSearch,
+        forcedSearch,
+        searchStrategy
       )
       for await (const event of stream) {
         const msg = event.data
@@ -4011,7 +4023,10 @@ export class ThreadPresenter implements IThreadPresenter {
         enabledMcpTools,
         thinkingBudget,
         reasoningEffort,
-        verbosity
+        verbosity,
+        enableSearch,
+        forcedSearch,
+        searchStrategy
       } = conversation.settings
       const modelConfig = this.configPresenter.getModelConfig(modelId, providerId)
 
@@ -4069,7 +4084,10 @@ export class ThreadPresenter implements IThreadPresenter {
         enabledMcpTools,
         thinkingBudget,
         reasoningEffort,
-        verbosity
+        verbosity,
+        enableSearch,
+        forcedSearch,
+        searchStrategy
       )
 
       for await (const event of stream) {

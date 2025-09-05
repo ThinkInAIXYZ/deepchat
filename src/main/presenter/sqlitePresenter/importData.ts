@@ -84,7 +84,10 @@ export class DataImporter {
             enabled_mcp_tools,
             thinking_budget,
             reasoning_effort,
-            verbosity
+            verbosity,
+            enable_search,
+            forced_search,
+            search_strategy
           FROM conversations`
         )
         .all() as any[]

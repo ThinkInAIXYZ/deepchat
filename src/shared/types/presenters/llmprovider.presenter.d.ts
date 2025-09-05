@@ -151,7 +151,10 @@ export interface ILlmProviderPresenter {
     enabledMcpTools?: string[],
     thinkingBudget?: number,
     reasoningEffort?: 'minimal' | 'low' | 'medium' | 'high',
-    verbosity?: 'low' | 'medium' | 'high'
+    verbosity?: 'low' | 'medium' | 'high',
+    enableSearch?: boolean,
+    forcedSearch?: boolean,
+    searchStrategy?: 'turbo' | 'max'
   ): AsyncGenerator<LLMAgentEvent, void, unknown>
   generateCompletion(
     providerId: string,
