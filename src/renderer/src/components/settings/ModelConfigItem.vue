@@ -12,6 +12,12 @@
         title="函数调用能力"
       />
       <Icon v-if="reasoning" icon="lucide:brain" class="w-4 h-4 text-purple-500" title="推理能力" />
+      <Icon
+        v-if="enableSearch"
+        icon="lucide:globe"
+        class="w-4 h-4 text-green-500"
+        title="联网搜索能力"
+      />
     </div>
     <div class="flex-grow"></div>
     <div class="flex flex-row items-center gap-2">
@@ -89,6 +95,7 @@ withDefaults(
     vision?: boolean
     functionCall?: boolean
     reasoning?: boolean
+    enableSearch?: boolean
     type?: ModelType
     changeable?: boolean
   }>(),

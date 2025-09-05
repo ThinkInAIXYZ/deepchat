@@ -557,12 +557,15 @@ export class ConfigPresenter implements IConfigPresenter {
           model.functionCall !== undefined ? model.functionCall : config.functionCall || false
         model.reasoning =
           model.reasoning !== undefined ? model.reasoning : config.reasoning || false
+        model.enableSearch =
+          model.enableSearch !== undefined ? model.enableSearch : config.enableSearch || false
         model.type = model.type !== undefined ? model.type : config.type || ModelType.Chat
       } else {
         // 确保模型具有这些属性，如果没有配置，默认为false
         model.vision = model.vision || false
         model.functionCall = model.functionCall || false
         model.reasoning = model.reasoning || false
+        model.enableSearch = model.enableSearch || false
         model.type = model.type || ModelType.Chat
       }
       return model
@@ -619,7 +622,8 @@ export class ConfigPresenter implements IConfigPresenter {
             // 确保能力属性被复制
             vision: model.vision || false,
             functionCall: model.functionCall || false,
-            reasoning: model.reasoning || false
+            reasoning: model.reasoning || false,
+            enableSearch: model.enableSearch || false
           }))
 
         return {
@@ -640,6 +644,7 @@ export class ConfigPresenter implements IConfigPresenter {
       model.vision = model.vision !== undefined ? model.vision : false
       model.functionCall = model.functionCall !== undefined ? model.functionCall : false
       model.reasoning = model.reasoning !== undefined ? model.reasoning : false
+      model.enableSearch = model.enableSearch !== undefined ? model.enableSearch : false
       return model
     })
 

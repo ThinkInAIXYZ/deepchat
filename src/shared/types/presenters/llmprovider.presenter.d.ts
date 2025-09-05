@@ -17,6 +17,7 @@ export type RENDERER_MODEL_META = {
   vision?: boolean
   functionCall?: boolean
   reasoning?: boolean
+  enableSearch?: boolean
   type?: ModelType
   contextLength?: number
   maxTokens?: number
@@ -33,6 +34,7 @@ export type MODEL_META = {
   vision?: boolean
   functionCall?: boolean
   reasoning?: boolean
+  enableSearch?: boolean
   type?: ModelType
   contextLength?: number
   maxTokens?: number

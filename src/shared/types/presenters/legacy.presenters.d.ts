@@ -509,6 +509,7 @@ export type RENDERER_MODEL_META = {
   vision?: boolean
   functionCall?: boolean
   reasoning?: boolean
+  enableSearch?: boolean
   type?: ModelType
 }
 export type MODEL_META = {
@@ -523,6 +524,7 @@ export type MODEL_META = {
   vision?: boolean
   functionCall?: boolean
   reasoning?: boolean
+  enableSearch?: boolean
   type?: ModelType
 }
 export type LLM_PROVIDER = {
