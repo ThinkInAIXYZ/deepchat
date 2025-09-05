@@ -1,5 +1,5 @@
 <template>
-  <div class="flex flex-col overflow-hidden h-0 flex-1">
+  <div :class="['flex flex-col overflow-hidden h-0 flex-1', chatContentClasses]">
     <!-- 消息列表区域 -->
     <MessageList
       :key="chatStore.getActiveThreadId() ?? 'default'"
@@ -28,6 +28,25 @@ import { useRoute } from 'vue-router'
 import { UserMessageContent } from '@shared/chat'
 import { STREAM_EVENTS } from '@/events'
 import { useSettingsStore } from '@/stores/settings'
+
+import { useChatWidthStore } from '../stores/chatWidth'
+import { ChatWidthMode } from '../../../constants/chatWidthModes'
+
+const chatWidthStore = useChatWidthStore()
+const chatContentClasses = computed(() => {
+  switch (chatWidthStore.chatWidthMode) {
+    case ChatWidthMode.NARROW:
+      return 'max-w-3xl mx-auto'
+    case ChatWidthMode.MEDIUM:
+      return 'max-w-4xl mx-auto'
+    case ChatWidthMode.WIDE:
+      return 'max-w-7xl mx-auto'
+    case ChatWidthMode.FULL:
+      return 'max-w-full mx-auto'
+    default:
+      return 'max-w-4xl mx-auto'
+  }
+})
 
 const route = useRoute()
 const settingsStore = useSettingsStore()

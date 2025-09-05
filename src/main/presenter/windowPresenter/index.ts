@@ -906,7 +906,7 @@ export class WindowPresenter implements IWindowPresenter {
 
     // 开发模式下可选开启 DevTools
     if (is.dev) {
-      // shellWindow.webContents.openDevTools({ mode: 'detach' });
+      shellWindow.webContents.openDevTools({ mode: 'detach' })
     }
 
     console.log(`Shell window ${windowId} created successfully.`)

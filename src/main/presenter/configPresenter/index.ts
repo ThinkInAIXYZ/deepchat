@@ -22,13 +22,15 @@ import { DEFAULT_PROVIDERS } from './providers'
 import path from 'path'
 import { app, nativeTheme, shell } from 'electron'
 import fs from 'fs'
-import { CONFIG_EVENTS, SYSTEM_EVENTS, FLOATING_BUTTON_EVENTS } from '@/events'
+import { SYSTEM_EVENTS, FLOATING_BUTTON_EVENTS, CONFIG_EVENTS } from '@/events'
 import { McpConfHelper } from './mcpConfHelper'
 import { presenter } from '@/presenter'
 import { compare } from 'compare-versions'
 import { defaultShortcutKey, ShortcutKeySetting } from './shortcutKeySettings'
 import { ModelConfigHelper } from './modelConfig'
 import { KnowledgeConfHelper } from './knowledgeConfHelper'
+
+import { ChatWidthMode } from '../../../constants/chatWidthModes'
 
 // 默认系统提示词常量
 const DEFAULT_SYSTEM_PROMPT = `You are DeepChat, a highly capable AI assistant. Your goal is to fully complete the user’s requested task before handing the conversation back to them. Keep working autonomously until the task is fully resolved.
@@ -1136,6 +1138,17 @@ export class ConfigPresenter implements IConfigPresenter {
 
   async getSystemTheme(): Promise<'dark' | 'light'> {
     return nativeTheme.shouldUseDarkColors ? 'dark' : 'light'
+  }
+
+  // 获取聊天窗口宽度设置
+  public async getChatWidth(): Promise<ChatWidthMode> {
+    return this.getSetting<ChatWidthMode>('chatWidthMode') || ChatWidthMode.MEDIUM
+  }
+
+  public async setChatWidth(mode: ChatWidthMode): Promise<void> {
+    this.setSetting<ChatWidthMode>('chatWidthMode', mode)
+    // 通知所有窗口子字宽已更改
+    eventBus.sendToRenderer(CONFIG_EVENTS.CHAT_WIDTH_CHANGED, SendTarget.ALL_WINDOWS, mode)
   }
 
   // 获取所有自定义 prompts

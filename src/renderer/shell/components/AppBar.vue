@@ -69,6 +69,14 @@
       <Button
         variant="ghost"
         class="text-xs font-medium px-2 h-7 bg-transparent rounded-md flex items-center justify-center hover:bg-zinc-500/20"
+        @click="onChatWidthClick"
+      >
+        <Icon icon="lucide:scan-text" class="w-4 h-4" />
+      </Button>
+
+      <Button
+        variant="ghost"
+        class="text-xs font-medium px-2 h-7 bg-transparent rounded-md flex items-center justify-center hover:bg-zinc-500/20"
         @click="onThemeClick"
       >
         <Icon v-if="themeStore.themeMode === 'dark'" icon="lucide:moon" class="w-4 h-4" />
@@ -128,6 +136,10 @@ import { useTabStore } from '@shell/stores/tab'
 import { useThemeStore } from '@/stores/theme'
 import { useElementSize } from '@vueuse/core'
 import { useLanguageStore } from '@/stores/language'
+
+import { useChatWidthStore } from '../../src/stores/chatWidth'
+const chatWidthStore = useChatWidthStore()
+
 const tabStore = useTabStore()
 const langStore = useLanguageStore()
 const windowPresenter = usePresenter('windowPresenter')
@@ -436,6 +448,11 @@ const handleDragEnd = async (event: DragEvent) => {
 const onThemeClick = () => {
   console.log('onThemeClick')
   themeStore.cycleTheme()
+}
+
+const onChatWidthClick = () => {
+  console.log('onChatWidthClick')
+  chatWidthStore.cycleChatWidth()
 }
 
 onMounted(() => {

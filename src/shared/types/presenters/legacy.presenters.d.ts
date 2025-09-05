@@ -461,6 +461,9 @@ export interface IConfigPresenter {
   addCustomPrompt(prompt: Prompt): Promise<void>
   updateCustomPrompt(promptId: string, updates: Partial<Prompt>): Promise<void>
   deleteCustomPrompt(promptId: string): Promise<void>
+  // 字宽设置
+  getChatWidth(): Promise<ChatWidthMode>
+  setChatWidth(mode: ChatWidthMode): Promise<void>
   // 默认系统提示词设置
   getDefaultSystemPrompt(): Promise<string>
   setDefaultSystemPrompt(prompt: string): Promise<void>

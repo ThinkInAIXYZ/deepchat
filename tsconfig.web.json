@@ -17,7 +17,8 @@
     "src/renderer/splash/**/*.vue",
     "src/renderer/splash/assets/**/*",
     "src/preload/*.d.ts",
-    "src/shared/**/*"
+    "src/shared/**/*",
+    "src/constants/**/*.ts"
   ],
   "compilerOptions": {
     "composite": true,
