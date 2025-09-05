@@ -21,7 +21,16 @@ export class DashscopeProvider extends OpenAICompatibleProvider {
     'qwen3-8b',
     'qwen3-4b',
     'qwen3-1.7b',
-    'qwen3-0.6b'
+    'qwen3-0.6b',
+    // 商业版
+    'qwen-plus',
+    'qwen-plus-latest',
+    'qwen-plus-2025-04-28',
+    'qwen-flash',
+    'qwen-flash-2025-07-28',
+    'qwen-turbo',
+    'qwen-turbo-latest',
+    'qwen-turbo-2025-04-28'
   ]
 
   // 支持 enable_search 参数的模型列表（联网搜索）
