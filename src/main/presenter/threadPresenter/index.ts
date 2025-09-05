@@ -1018,6 +1018,9 @@ export class ThreadPresenter implements IThreadPresenter {
       defaultSettings = { ...latestConversation.settings }
       defaultSettings.systemPrompt = ''
       defaultSettings.reasoningEffort = undefined
+      defaultSettings.enableSearch = undefined
+      defaultSettings.forcedSearch = undefined
+      defaultSettings.searchStrategy = undefined
     }
     Object.keys(settings).forEach((key) => {
       if (settings[key] === undefined || settings[key] === null || settings[key] === '') {
