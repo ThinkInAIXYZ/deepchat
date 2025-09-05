@@ -36,15 +36,15 @@ const chatWidthStore = useChatWidthStore()
 const chatContentClasses = computed(() => {
   switch (chatWidthStore.chatWidthMode) {
     case ChatWidthMode.NARROW:
-      return 'max-w-3xl mx-auto'
+      return 'max-w-3xl mx-auto min-w-[48rem]'
     case ChatWidthMode.MEDIUM:
-      return 'max-w-4xl mx-auto'
+      return 'max-w-4xl mx-auto min-w-[56rem]'
     case ChatWidthMode.WIDE:
-      return 'max-w-7xl mx-auto'
+      return 'max-w-7xl mx-auto min-w-[80rem]'
     case ChatWidthMode.FULL:
-      return 'max-w-full mx-auto'
+      return 'max-w-full mx-auto min-w-full'
     default:
-      return 'max-w-4xl mx-auto'
+      return 'max-w-4xl mx-auto min-w-[56rem]'
   }
 })
 
