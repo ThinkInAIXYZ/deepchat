@@ -66,7 +66,6 @@ const { t } = useI18n()
 const { createEditor, updateCode } = useMonaco({
   wordWrap: 'on',
   wrappingIndent: 'same',
-  scrollbar: { horizontal: 'hidden' }
 })
 const artifactStore = useArtifactStore()
 const copyText = ref(t('common.copy'))

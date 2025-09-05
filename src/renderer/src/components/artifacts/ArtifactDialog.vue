@@ -267,7 +267,6 @@ const { createEditor, updateCode } = useMonaco({
   MAX_HEIGHT: '500px',
   wordWrap: 'on',
   wrappingIndent: 'same',
-  scrollbar: { horizontal: 'hidden' }
 })
 const codeEditor = ref<any>(null)
 
