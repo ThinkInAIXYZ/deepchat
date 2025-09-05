@@ -38,7 +38,10 @@
           <NewThread v-if="!chatStore.getActiveThreadId()" />
           <template v-else>
             <!-- 标题栏 -->
-            <TitleView :model="activeModel" />
+            <TitleView
+              :model="activeModel"
+              @messageNavigationToggle="handleMessageNavigationToggle"
+            />
 
             <!-- 聊天内容区域 -->
             <ChatView ref="chatViewRef" />
@@ -49,7 +52,7 @@
 
     <!-- 消息导航侧边栏 (大屏幕) -->
     <div
-      v-show="chatStore.isMessageNavigationOpen && isLargeScreen"
+      v-show="chatStore.isMessageNavigationOpen && !artifactStore.isOpen && isLargeScreen"
       class="fixed right-0 top-0 w-80 max-w-80 h-full z-10 hidden lg:block"
     >
       <MessageNavigationSidebar
@@ -209,6 +212,15 @@ const activeModel = computed(() => {
     tags: []
   }
 })
+
+const handleMessageNavigationToggle = () => {
+  if (artifactStore.isOpen) {
+    artifactStore.isOpen = false
+    chatStore.isMessageNavigationOpen = true
+  } else {
+    chatStore.isMessageNavigationOpen = !chatStore.isMessageNavigationOpen
+  }
+}
 
 /**
  * 处理滚动到指定消息

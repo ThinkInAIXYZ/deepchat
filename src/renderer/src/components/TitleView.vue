@@ -49,7 +49,7 @@
         size="icon"
         variant="outline"
         :class="{ 'bg-accent': chatStore.isMessageNavigationOpen }"
-        @click="chatStore.isMessageNavigationOpen = !chatStore.isMessageNavigationOpen"
+        @click="onMessageNavigationButtonClick"
       >
         <Icon
           icon="lucide:list"
@@ -114,6 +114,8 @@ import { useThemeStore } from '@/stores/theme'
 import { useSettingsStore } from '@/stores/settings'
 import { ModelType } from '@shared/model'
 import { RATE_LIMIT_EVENTS } from '@/events'
+
+const emit = defineEmits(['messageNavigationToggle'])
 
 const configPresenter = usePresenter('configPresenter')
 const llmPresenter = usePresenter('llmproviderPresenter')
@@ -317,6 +319,11 @@ const updateVerbosity = (value: 'low' | 'medium' | 'high') => {
 
 const onSidebarButtonClick = () => {
   chatStore.isSidebarOpen = !chatStore.isSidebarOpen
+}
+
+// 新增的事件处理函数
+const onMessageNavigationButtonClick = () => {
+  emit('messageNavigationToggle')
 }
 
 // Watch for changes and update store
