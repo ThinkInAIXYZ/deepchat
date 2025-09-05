@@ -113,7 +113,10 @@ export class DataImporter {
           enabled_mcp_tools: null,
           thinking_budget: null,
           reasoning_effort: null,
-          verbosity: null
+          verbosity: null,
+          enable_search: null,
+          forced_search: null,
+          search_strategy: null
         }))
       } catch (fallbackError) {
         throw new Error(
@@ -168,8 +171,9 @@ export class DataImporter {
             conv_id, title, created_at, updated_at, system_prompt,
             temperature, context_length, max_tokens, provider_id,
             model_id, is_pinned, is_new, artifacts, enabled_mcp_tools,
-            thinking_budget, reasoning_effort, verbosity
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+            thinking_budget, reasoning_effort, verbosity,
+            enable_search, forced_search, search_strategy
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
         )
         .run(
           conv.conv_id,
@@ -188,7 +192,10 @@ export class DataImporter {
           conv.enabled_mcp_tools || null,
           conv.thinking_budget || null,
           conv.reasoning_effort || null,
-          conv.verbosity || null
+          conv.verbosity || null,
+          conv.enable_search ?? null,
+          conv.forced_search ?? null,
+          conv.search_strategy ?? null
         )
     } catch {
       // 如果失败，使用基础字段的INSERT语句（兼容旧版本目标数据库）
