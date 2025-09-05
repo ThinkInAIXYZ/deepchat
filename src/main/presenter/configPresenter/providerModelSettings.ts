@@ -2502,7 +2502,10 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         match: ['qwen-max-latest'],
         vision: false,
         functionCall: true,
-        reasoning: false
+        reasoning: false,
+        enableSearch: false,
+        forcedSearch: false,
+        searchStrategy: 'turbo'
       },
       {
         id: 'qwen-max-2024-09-19',
@@ -3084,13 +3087,12 @@ export function getProviderSpecificModelConfig(
         verbosity: config.verbosity,
         maxCompletionTokens: config.maxCompletionTokens,
         thinkingBudget: config.thinkingBudget,
-        enableSearch: config.enableSearch || false,
-        forcedSearch: config.forcedSearch || false,
+        enableSearch: config.enableSearch ?? false,
+        forcedSearch: config.forcedSearch ?? false,
         searchStrategy: config.searchStrategy || 'turbo'
       }
     }
   }
 
-  // 如果没有找到匹配的配置，返回undefined
   return undefined
 }

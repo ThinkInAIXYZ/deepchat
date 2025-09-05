@@ -70,6 +70,9 @@
           v-model:max-tokens="maxTokens"
           v-model:artifacts="artifacts"
           v-model:thinking-budget="thinkingBudget"
+          v-model:enable-search="enableSearch"
+          v-model:forced-search="forcedSearch"
+          v-model:search-strategy="searchStrategy"
           v-model:reasoning-effort="reasoningEffort"
           v-model:verbosity="verbosity"
           :context-length-limit="contextLengthLimit"
@@ -82,6 +85,9 @@
           @update:max-tokens="updateMaxTokens"
           @update:artifacts="updateArtifacts"
           @update:thinking-budget="updateThinkingBudget"
+          @update:enable-search="updateEnableSearch"
+          @update:forced-search="updateForcedSearch"
+          @update:search-strategy="updateSearchStrategy"
           @update:reasoning-effort="updateReasoningEffort"
           @update:verbosity="updateVerbosity"
         />
@@ -123,6 +129,10 @@ const maxTokens = ref(chatStore.chatConfig.maxTokens)
 const systemPrompt = ref(chatStore.chatConfig.systemPrompt)
 const artifacts = ref(chatStore.chatConfig.artifacts)
 const thinkingBudget = ref(chatStore.chatConfig.thinkingBudget)
+const enableSearch = ref(chatStore.chatConfig.enableSearch)
+const forcedSearch = ref(chatStore.chatConfig.forcedSearch)
+const searchStrategy = ref(chatStore.chatConfig.searchStrategy)
+
 const reasoningEffort = ref(chatStore.chatConfig.reasoningEffort)
 const verbosity = ref(chatStore.chatConfig.verbosity)
 const modelType = ref(ModelType.Chat)
@@ -166,6 +176,20 @@ const loadModelConfig = async () => {
         }
       } else {
         thinkingBudget.value = undefined
+      }
+
+      // 只在用户没有明确设置时才使用模型默认配置
+      // 避免覆盖用户已有的配置选择
+      if (config.enableSearch !== undefined && enableSearch.value === undefined) {
+        enableSearch.value = config.enableSearch
+      }
+
+      if (config.forcedSearch !== undefined && forcedSearch.value === undefined) {
+        forcedSearch.value = config.forcedSearch
+      }
+
+      if (config.searchStrategy !== undefined && searchStrategy.value === undefined) {
+        searchStrategy.value = config.searchStrategy
       }
 
       if (config.reasoningEffort !== undefined) {
@@ -271,6 +295,18 @@ const updateThinkingBudget = (value: number | undefined) => {
   thinkingBudget.value = value
 }
 
+const updateEnableSearch = (value: boolean | undefined) => {
+  enableSearch.value = value
+}
+
+const updateForcedSearch = (value: boolean | undefined) => {
+  forcedSearch.value = value
+}
+
+const updateSearchStrategy = (value: 'turbo' | 'max' | undefined) => {
+  searchStrategy.value = value
+}
+
 const updateReasoningEffort = (value: 'minimal' | 'low' | 'medium' | 'high') => {
   reasoningEffort.value = value
 }
@@ -292,6 +328,9 @@ watch(
     systemPrompt,
     artifacts,
     thinkingBudget,
+    enableSearch,
+    forcedSearch,
+    searchStrategy,
     reasoningEffort,
     verbosity
   ],
@@ -302,6 +341,9 @@ watch(
     newSystemPrompt,
     newArtifacts,
     newThinkingBudget,
+    newEnableSearch,
+    newForcedSearch,
+    newSearchStrategy,
     newReasoningEffort,
     newVerbosity
   ]) => {
@@ -312,6 +354,9 @@ watch(
       newSystemPrompt !== chatStore.chatConfig.systemPrompt ||
       newArtifacts !== chatStore.chatConfig.artifacts ||
       newThinkingBudget !== chatStore.chatConfig.thinkingBudget ||
+      newEnableSearch !== chatStore.chatConfig.enableSearch ||
+      newForcedSearch !== chatStore.chatConfig.forcedSearch ||
+      newSearchStrategy !== chatStore.chatConfig.searchStrategy ||
       newReasoningEffort !== chatStore.chatConfig.reasoningEffort ||
       newVerbosity !== chatStore.chatConfig.verbosity
     ) {
@@ -322,6 +367,9 @@ watch(
         systemPrompt: newSystemPrompt,
         artifacts: newArtifacts,
         thinkingBudget: newThinkingBudget,
+        enableSearch: newEnableSearch,
+        forcedSearch: newForcedSearch,
+        searchStrategy: newSearchStrategy,
         reasoningEffort: newReasoningEffort,
         verbosity: newVerbosity
       } as any)
@@ -339,6 +387,9 @@ watch(
     systemPrompt.value = newConfig.systemPrompt
     artifacts.value = newConfig.artifacts
     thinkingBudget.value = newConfig.thinkingBudget
+    enableSearch.value = newConfig.enableSearch
+    forcedSearch.value = newConfig.forcedSearch
+    searchStrategy.value = newConfig.searchStrategy
     reasoningEffort.value = newConfig.reasoningEffort
     verbosity.value = newConfig.verbosity
     if (

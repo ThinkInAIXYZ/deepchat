@@ -22,6 +22,9 @@ export type CONVERSATION_SETTINGS = {
   artifacts: 0 | 1
   enabledMcpTools?: string[]
   thinkingBudget?: number
+  enableSearch?: boolean
+  forcedSearch?: boolean
+  searchStrategy?: 'turbo' | 'max'
   reasoningEffort?: 'minimal' | 'low' | 'medium' | 'high'
   verbosity?: 'low' | 'medium' | 'high'
 }

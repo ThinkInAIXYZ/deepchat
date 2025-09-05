@@ -26,6 +26,9 @@ const props = defineProps<{
   maxTokens: number
   artifacts: number
   thinkingBudget?: number
+  enableSearch?: boolean
+  forcedSearch?: boolean
+  searchStrategy?: 'turbo' | 'max'
   modelId?: string
   providerId?: string
   reasoningEffort?: 'minimal' | 'low' | 'medium' | 'high'
@@ -55,6 +58,9 @@ const emit = defineEmits<{
   'update:contextLength': [value: number]
   'update:maxTokens': [value: number]
   'update:thinkingBudget': [value: number | undefined]
+  'update:enableSearch': [value: boolean | undefined]
+  'update:forcedSearch': [value: boolean | undefined]
+  'update:searchStrategy': [value: 'turbo' | 'max' | undefined]
   'update:reasoningEffort': [value: 'minimal' | 'low' | 'medium' | 'high']
   'update:verbosity': [value: 'low' | 'medium' | 'high']
   // 'update:artifacts': [value: 0 | 1]
@@ -104,6 +110,31 @@ const showThinkingBudget = computed(() => {
   const isQwen3 = props.modelId?.includes('qwen3')
 
   return (isGemini && isGemini25) || (isDashscope && isQwen3)
+})
+
+// 是否显示搜索配置 - 支持 Dashscope 的特定模型
+const showSearchConfig = computed(() => {
+  const isDashscope = props.providerId === 'dashscope'
+
+  if (!isDashscope || !props.modelId) return false
+
+  // 支持搜索的模型列表
+  const enableSearchModels = [
+    'qwen-max',
+    'qwen-plus',
+    'qwen-plus-latest',
+    'qwen-plus-2025-07-14',
+    'qwen-flash',
+    'qwen-flash-2025-07-28',
+    'qwen-turbo',
+    'qwen-turbo-latest',
+    'qwen-turbo-2025-07-15',
+    'qwq-plus'
+  ]
+
+  return enableSearchModels.some((modelName) =>
+    props.modelId?.toLowerCase().includes(modelName.toLowerCase())
+  )
 })
 
 const isGPT5Model = computed(() => {
@@ -503,6 +534,82 @@ const qwen3ThinkingBudgetError = computed(() => {
                       })
                 }}
               </span>
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Search Configuration (联网搜索配置) -->
+      <div v-if="showSearchConfig" class="space-y-4 px-2">
+        <div class="flex items-center space-x-2">
+          <Icon icon="lucide:search" class="w-4 h-4 text-muted-foreground" />
+          <Label class="text-xs font-medium">{{
+            t('settings.model.modelConfig.enableSearch.label')
+          }}</Label>
+          <TooltipProvider :delayDuration="200">
+            <Tooltip>
+              <TooltipTrigger>
+                <Icon icon="lucide:help-circle" class="w-4 h-4 text-muted-foreground" />
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>{{ t('settings.model.modelConfig.enableSearch.description') }}</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        </div>
+
+        <div class="space-y-3 pl-4 border-l-2 border-muted">
+          <!-- 启用搜索开关 -->
+          <div class="flex items-center justify-between">
+            <div class="space-y-0.5">
+              <Label class="text-sm">{{
+                t('settings.model.modelConfig.enableSearch.label')
+              }}</Label>
+            </div>
+            <Switch
+              :checked="props.enableSearch ?? false"
+              @update:checked="(value) => emit('update:enableSearch', value)"
+            />
+          </div>
+
+          <!-- 强制搜索开关 -->
+          <div v-if="props.enableSearch" class="flex items-center justify-between">
+            <div class="space-y-0.5">
+              <Label class="text-sm">{{
+                t('settings.model.modelConfig.forcedSearch.label')
+              }}</Label>
+            </div>
+            <Switch
+              :checked="props.forcedSearch ?? false"
+              @update:checked="(value) => emit('update:forcedSearch', value)"
+            />
+          </div>
+
+          <!-- 搜索策略选择 -->
+          <div v-if="props.enableSearch" class="space-y-2">
+            <Label class="text-sm">{{
+              t('settings.model.modelConfig.searchStrategy.label')
+            }}</Label>
+            <Select
+              :model-value="props.searchStrategy ?? 'turbo'"
+              @update:model-value="
+                (value) => emit('update:searchStrategy', value as 'turbo' | 'max')
+              "
+            >
+              <SelectTrigger class="text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="turbo">{{
+                  t('settings.model.modelConfig.searchStrategy.options.turbo')
+                }}</SelectItem>
+                <SelectItem value="max">{{
+                  t('settings.model.modelConfig.searchStrategy.options.max')
+                }}</SelectItem>
+              </SelectContent>
+            </Select>
+            <p class="text-xs text-muted-foreground">
+              {{ t('settings.model.modelConfig.searchStrategy.description') }}
             </p>
           </div>
         </div>
