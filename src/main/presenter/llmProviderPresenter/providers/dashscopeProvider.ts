@@ -44,7 +44,8 @@ export class DashscopeProvider extends OpenAICompatibleProvider {
     'qwen-turbo',
     'qwen-turbo-latest',
     'qwen-turbo-2025-07-15',
-    'qwq-plus'
+    'qwq-plus',
+    'qwen3-max-preview'
   ]
 
   constructor(provider: LLM_PROVIDER, configPresenter: IConfigPresenter) {

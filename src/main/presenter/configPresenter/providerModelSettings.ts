@@ -2567,6 +2567,20 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
       },
       // Qwen3系列模型
       {
+        id: 'qwen3-max-preview',
+        name: 'Qwen3 Max Preview',
+        temperature: 0.7,
+        maxTokens: 32768,
+        contextLength: 262144,
+        match: ['qwen3-max-preview'],
+        vision: false,
+        functionCall: true,
+        reasoning: false,
+        enableSearch: true,
+        forcedSearch: false,
+        searchStrategy: 'turbo'
+      },
+      {
         id: 'qwen3-235b-a22b-thinking-2507',
         name: 'Qwen3 235B A22B Thinking 2507',
         temperature: 0.6,
