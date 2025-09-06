@@ -280,7 +280,8 @@ const editor = new Editor({
         class:
           'mention px-1.5 py-0.5 text-xs rounded-md bg-secondary text-foreground inline-block max-w-64 align-sub !truncate'
       },
-      suggestion
+      suggestion,
+      deleteTriggerWithBackspace: true
     }),
     Placeholder.configure({
       placeholder: () => {
