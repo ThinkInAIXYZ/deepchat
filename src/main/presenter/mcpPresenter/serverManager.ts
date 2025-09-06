@@ -8,9 +8,9 @@ import { MCP_EVENTS } from '@/events'
 import { getErrorMessageLabels } from '@shared/i18n'
 
 const NPM_REGISTRY_LIST = [
+  'https://registry.npmmirror.com/',
   'https://registry.npmjs.org/',
-  'https://r.cnpmjs.org/',
-  'https://registry.npmmirror.com/'
+  'https://r.cnpmjs.org/'
 ]
 
 export class ServerManager {
@@ -68,7 +68,7 @@ export class ServerManager {
     }
 
     console.log('[NPM Registry] Testing registry speed...')
-    const timeout = 3000
+    const timeout = 10000
     const testPackage = 'tiny-runtime-injector'
 
     // 获取代理配置

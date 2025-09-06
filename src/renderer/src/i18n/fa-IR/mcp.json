@@ -39,7 +39,9 @@
     "jsonInputPlaceholder": "داده‌ها را در قالب JSON وارد کنید",
     "type": "نوع",
     "annotations": "حاشیه‌نویسی",
-    "invalidJsonFormat": "قالب JSON نادرست است"
+    "invalidJsonFormat": "قالب JSON نادرست است",
+    "allowedValues": "مقادیر مجاز",
+    "arrayItemValues": "مقادیر عنصر آرایه"
   },
   "addServer": "افزودن کارساز",
   "addServerDialog": {

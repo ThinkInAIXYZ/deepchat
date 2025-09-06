@@ -39,7 +39,9 @@
     "invalidJson": "Format JSON invalide",
     "inputHint": "Veuillez entrer les paramètres au format JSON",
     "required": "Requis",
-    "noDescription": "Pas de description"
+    "noDescription": "Pas de description",
+    "allowedValues": "Valeurs autorisées",
+    "arrayItemValues": "Valeurs des éléments du tableau"
   },
   "addServer": "Ajouter un serveur",
   "addServerDialog": {
