@@ -159,7 +159,7 @@
     "required": "必填",
     "noDescription": "無描述",
     "allowedValues": "允許的值",
-    "arrayItemValues": "數組元素值"
+    "arrayItemValues": "陣列元素值"
   },
   "inmemory": {
     "Artifacts": {

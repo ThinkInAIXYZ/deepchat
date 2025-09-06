@@ -73,9 +73,14 @@ export class ServerManager {
 
     // 获取代理配置
     const proxyUrl = proxyConfig.getProxyUrl()
-    const proxyOptions = proxyUrl
-      ? { proxy: { host: new URL(proxyUrl).hostname, port: parseInt(new URL(proxyUrl).port) } }
-      : {}
+    const proxyOptions = (() => {
+      if (!proxyUrl) return {}
+      const u = new URL(proxyUrl)
+      const host = u.hostname
+      const port = u.port ? parseInt(u.port, 10) : u.protocol === 'https:' ? 443 : 80
+      const auth = u.username ? { username: u.username, password: u.password ?? '' } : undefined
+      return { proxy: { host, port, ...(auth ? { auth } : {}) } }
+    })()
 
     const results = await Promise.all(
       NPM_REGISTRY_LIST.map(async (registry) => {
@@ -84,21 +89,22 @@ export class ServerManager {
         let isTimeout = false
         let time = 0
 
+        const controller = new AbortController()
+        const timeoutId = setTimeout(() => controller.abort(), timeout)
         try {
-          const controller = new AbortController()
-          const timeoutId = setTimeout(() => controller.abort(), timeout)
-
           const response = await axios.get(`${registry}${testPackage}`, {
             ...proxyOptions,
             signal: controller.signal
           })
-
-          clearTimeout(timeoutId)
           success = response.status >= 200 && response.status < 300
-          time = Date.now() - start
         } catch (error) {
+          isTimeout =
+            (error instanceof Error &&
+              (error.name === 'AbortError' || error.name === 'CanceledError')) ||
+            Date.now() - start >= timeout
+        } finally {
+          clearTimeout(timeoutId)
           time = Date.now() - start
-          isTimeout = (error instanceof Error && error.name === 'AbortError') || time >= timeout
         }
 
         return {

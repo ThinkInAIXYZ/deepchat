@@ -138,7 +138,7 @@
     "inputHint": "JSON 형식으로 매개변수를 입력하세요",
     "required": "필수",
     "noDescription": "설명 없음",
-    "allowedValues": "허용 값",
+    "allowedValues": "허용되는 값",
     "arrayItemValues": "배열 요소 값"
   },
   "inmemory": {
