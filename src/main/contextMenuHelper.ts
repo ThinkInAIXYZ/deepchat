@@ -110,6 +110,7 @@ export default function contextMenu(options: ContextMenuOptions): () => void {
             }
 
             console.log('contextMenu: start saving pic', filePath)
+            console.log('contextMenu: source URL:', url)
 
             // 获取图片数据
             if (isBase64) {
@@ -120,23 +121,30 @@ export default function contextMenu(options: ContextMenuOptions): () => void {
               }
               imageBuffer = Buffer.from(base64Data, 'base64')
             } else {
-              // 处理普通URL或本地文件路径
-              if (url.startsWith('http://') || url.startsWith('https://')) {
-                // 处理HTTP URL
+              // 处理普通URL
+              try {
                 const response = await net.fetch(url)
                 if (!response.ok) {
                   throw new Error(`下载图片失败: ${response.status}`)
                 }
                 imageBuffer = Buffer.from(await response.arrayBuffer())
-              } else if (url.startsWith('file://')) {
-                // 处理file:// URL - 使用node fs读取本地文件
-                const fs = require('fs').promises
-                const filePath = url.substring(7) // 移除 file:// 前缀
-                imageBuffer = await fs.readFile(filePath)
-              } else {
-                // 处理本地文件路径（非file://格式）
-                const fs = require('fs').promises
-                imageBuffer = await fs.readFile(url)
+              } catch (fetchError) {
+                console.error('contextMenu: fetch failed, trying alternative methods:', fetchError)
+
+                // 如果net.fetch失败，尝试其他方法
+                if (url.startsWith('file://')) {
+                  // 处理file:// URL
+                  const fs = require('fs').promises
+                  const filePath = url.substring(7) // 移除 file:// 前缀
+                  imageBuffer = await fs.readFile(filePath)
+                } else if (url.startsWith('/') || url.match(/^[A-Za-z]:\\/)) {
+                  // 处理本地文件路径（Unix或Windows格式）
+                  const fs = require('fs').promises
+                  imageBuffer = await fs.readFile(url)
+                } else {
+                  // 重新抛出原始错误
+                  throw fetchError
+                }
               }
             }
 
