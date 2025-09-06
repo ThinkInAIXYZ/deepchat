@@ -77,7 +77,26 @@ export default function contextMenu(options: ContextMenuOptions): () => void {
         click: async () => {
           try {
             // 获取文件名和URL
-            const url = params.srcURL || ''
+            let url = params.srcURL || ''
+            console.log('contextMenu: all params available:', Object.keys(params))
+            console.log('contextMenu: srcURL:', params.srcURL)
+            console.log('contextMenu: linkURL:', params.linkURL)
+            console.log('contextMenu: pageURL:', params.pageURL)
+
+            // 如果srcURL为空，尝试其他可能的URL来源
+            if (!url && params.linkURL) {
+              url = params.linkURL
+            }
+            if (!url && params.pageURL) {
+              url = params.pageURL
+            }
+
+            console.log('contextMenu: final url:', url)
+
+            if (!url) {
+              throw new Error('无法获取图片URL，请检查图片源')
+            }
+
             let fileName = 'image.png'
             let imageBuffer: Buffer | null = null
 
