@@ -39,7 +39,9 @@
     "jsonInputPlaceholder": "Enter the parameters in JSON format",
     "type": "Type",
     "annotations": "Annotations",
-    "invalidJsonFormat": "JSON format is incorrect"
+    "invalidJsonFormat": "JSON format is incorrect",
+    "allowedValues": "Allowed values",
+    "arrayItemValues": "Array item values"
   },
   "addServer": "Add Server",
   "addServerDialog": {
