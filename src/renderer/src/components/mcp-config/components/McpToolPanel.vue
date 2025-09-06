@@ -141,7 +141,11 @@ const toolParametersDescription = computed(() => {
   return Object.entries(properties).map(([key, prop]) => ({
     name: key,
     description: prop.description || '',
-    type: prop.enum ? 'enum' : (prop.type === 'array' && prop.items?.enum ? 'array[enum]' : (prop.type || 'unknown')),
+    type: prop.enum
+      ? 'enum'
+      : prop.type === 'array' && prop.items?.enum
+        ? 'array[enum]'
+        : prop.type || 'unknown',
     originalType: prop.type || 'unknown',
     required: required.includes(key),
     annotations: prop.annotations,
@@ -292,17 +296,25 @@ const selectTool = (tool: MCPToolDefinition) => {
                           >
                             {{ t('mcp.tools.required') }}
                           </Badge>
-                          <Badge 
-                            :variant="param.type === 'enum' || param.type === 'array[enum]' ? 'default' : 'outline'" 
+                          <Badge
+                            :variant="
+                              param.type === 'enum' || param.type === 'array[enum]'
+                                ? 'default'
+                                : 'outline'
+                            "
                             class="text-xs px-1 py-0"
-                            :class="param.type === 'enum' || param.type === 'array[enum]' ? 'bg-blue-500 text-white' : ''"
+                            :class="
+                              param.type === 'enum' || param.type === 'array[enum]'
+                                ? 'bg-blue-500 text-white'
+                                : ''
+                            "
                           >
-                            {{ 
-                              param.type === 'enum' 
-                                ? `enum(${param.originalType})` 
+                            {{
+                              param.type === 'enum'
+                                ? `enum(${param.originalType})`
                                 : param.type === 'array[enum]'
                                   ? `array[enum(${param.items?.type || 'string'})]`
-                                  : param.type 
+                                  : param.type
                             }}
                           </Badge>
                         </div>
