@@ -120,12 +120,24 @@ export default function contextMenu(options: ContextMenuOptions): () => void {
               }
               imageBuffer = Buffer.from(base64Data, 'base64')
             } else {
-              // 处理普通URL
-              const response = await net.fetch(url)
-              if (!response.ok) {
-                throw new Error(`下载图片失败: ${response.status}`)
+              // 处理普通URL或本地文件路径
+              if (url.startsWith('http://') || url.startsWith('https://')) {
+                // 处理HTTP URL
+                const response = await net.fetch(url)
+                if (!response.ok) {
+                  throw new Error(`下载图片失败: ${response.status}`)
+                }
+                imageBuffer = Buffer.from(await response.arrayBuffer())
+              } else if (url.startsWith('file://')) {
+                // 处理file:// URL - 使用node fs读取本地文件
+                const fs = require('fs').promises
+                const filePath = url.substring(7) // 移除 file:// 前缀
+                imageBuffer = await fs.readFile(filePath)
+              } else {
+                // 处理本地文件路径（非file://格式）
+                const fs = require('fs').promises
+                imageBuffer = await fs.readFile(url)
               }
-              imageBuffer = Buffer.from(await response.arrayBuffer())
             }
 
             if (!imageBuffer) {
