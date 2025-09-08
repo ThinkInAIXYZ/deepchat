@@ -43,11 +43,7 @@
                 <SelectValue :placeholder="t('promptSetting.selectSystemPrompt')" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem
-                  v-for="prompt in systemPrompts"
-                  :key="prompt.id"
-                  :value="prompt.id"
-                >
+                <SelectItem v-for="prompt in systemPrompts" :key="prompt.id" :value="prompt.id">
                   {{ prompt.name }}
                 </SelectItem>
               </SelectContent>
@@ -87,7 +83,9 @@
                   <AlertDialogContent>
                     <AlertDialogHeader>
                       <AlertDialogTitle>{{
-                        t('promptSetting.confirmDeleteSystemPrompt', { name: currentSystemPrompt.name })
+                        t('promptSetting.confirmDeleteSystemPrompt', {
+                          name: currentSystemPrompt.name
+                        })
                       }}</AlertDialogTitle>
                       <AlertDialogDescription>{{
                         t('promptSetting.confirmDeleteSystemPromptDescription')
@@ -131,165 +129,181 @@
           </div>
         </div>
 
-      <!-- 空状态 -->
-      <div v-if="prompts.length === 0" class="text-center text-muted-foreground py-12">
-        <Icon icon="lucide:book-open-text" class="w-12 h-12 mx-auto mb-4 opacity-50" />
-        <p class="text-lg font-medium">{{ t('promptSetting.noPrompt') }}</p>
-        <p class="text-sm mt-1">{{ t('promptSetting.noPromptDesc') }}</p>
-      </div>
+        <!-- 空状态 -->
+        <div v-if="prompts.length === 0" class="text-center text-muted-foreground py-12">
+          <Icon icon="lucide:book-open-text" class="w-12 h-12 mx-auto mb-4 opacity-50" />
+          <p class="text-lg font-medium">{{ t('promptSetting.noPrompt') }}</p>
+          <p class="text-sm mt-1">{{ t('promptSetting.noPromptDesc') }}</p>
+        </div>
 
-      <!-- Prompt卡片网格 -->
-      <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        <div
-          v-for="(prompt, index) in prompts"
-          :key="prompt.id"
-          class="bg-card border border-border rounded-lg p-4 hover:border-primary/50 transition-colors duration-200"
-        >
-          <!-- 卡片头部 -->
-          <div class="flex items-start justify-between mb-3">
-            <div class="flex items-center gap-3 flex-1 min-w-0">
-              <div class="p-2 bg-primary/10 rounded-lg flex-shrink-0">
-                <Icon icon="lucide:scroll-text" class="w-5 h-5 text-primary" />
+        <!-- Prompt卡片网格 -->
+        <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div
+            v-for="(prompt, index) in prompts"
+            :key="prompt.id"
+            class="bg-card border border-border rounded-lg p-4 hover:border-primary/50 transition-colors duration-200"
+          >
+            <!-- 卡片头部 -->
+            <div class="flex items-start justify-between mb-3">
+              <div class="flex items-center gap-3 flex-1 min-w-0">
+                <div class="p-2 bg-primary/10 rounded-lg flex-shrink-0">
+                  <Icon icon="lucide:scroll-text" class="w-5 h-5 text-primary" />
+                </div>
+                <div class="flex-1 min-w-0">
+                  <div class="font-semibold text-sm truncate" :title="prompt.name">
+                    {{ prompt.name }}
+                  </div>
+                  <div class="flex items-center gap-2 mt-1">
+                    <span class="text-xs px-2 py-0.5 bg-muted rounded-md text-muted-foreground">
+                      {{ getSourceLabel(prompt.source) }}
+                    </span>
+                    <span
+                      :class="[
+                        'text-xs px-2 py-0.5 rounded-md cursor-pointer transition-colors',
+                        prompt.enabled
+                          ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 hover:bg-green-200 dark:hover:bg-green-900/50'
+                          : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
+                      ]"
+                      :title="
+                        prompt.enabled
+                          ? t('promptSetting.clickToDisable')
+                          : t('promptSetting.clickToEnable')
+                      "
+                      @click="togglePromptEnabled(index)"
+                    >
+                      {{ prompt.enabled ? t('promptSetting.active') : t('promptSetting.inactive') }}
+                    </span>
+                  </div>
+                </div>
               </div>
-              <div class="flex-1 min-w-0">
-                <div class="font-semibold text-sm truncate" :title="prompt.name">
-                  {{ prompt.name }}
-                </div>
-                <div class="flex items-center gap-2 mt-1">
-                  <span class="text-xs px-2 py-0.5 bg-muted rounded-md text-muted-foreground">
-                    {{ getSourceLabel(prompt.source) }}
-                  </span>
-                  <span
-                    :class="[
-                      'text-xs px-2 py-0.5 rounded-md cursor-pointer transition-colors',
-                      prompt.enabled
-                        ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 hover:bg-green-200 dark:hover:bg-green-900/50'
-                        : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
-                    ]"
-                    :title="
-                      prompt.enabled
-                        ? t('promptSetting.clickToDisable')
-                        : t('promptSetting.clickToEnable')
-                    "
-                    @click="togglePromptEnabled(index)"
-                  >
-                    {{ prompt.enabled ? t('promptSetting.active') : t('promptSetting.inactive') }}
-                  </span>
-                </div>
+
+              <!-- 操作按钮 -->
+              <div class="flex items-center gap-1 flex-shrink-0 ml-2">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  class="h-7 w-7 text-muted-foreground hover:text-foreground hover:bg-muted"
+                  :title="t('common.edit')"
+                  @click="editPrompt(index)"
+                >
+                  <Icon icon="lucide:pencil" class="w-3.5 h-3.5" />
+                </Button>
+
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      class="h-7 w-7 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                      :title="t('common.delete')"
+                    >
+                      <Icon icon="lucide:trash-2" class="w-3.5 h-3.5" />
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>{{
+                        t('promptSetting.confirmDelete', { name: prompt.name })
+                      }}</AlertDialogTitle>
+                      <AlertDialogDescription>{{
+                        t('promptSetting.confirmDeleteDescription')
+                      }}</AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>{{ t('common.cancel') }}</AlertDialogCancel>
+                      <AlertDialogAction @click="deletePrompt(index)">{{
+                        t('common.confirm')
+                      }}</AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
               </div>
             </div>
 
-            <!-- 操作按钮 -->
-            <div class="flex items-center gap-1 flex-shrink-0 ml-2">
-              <Button
-                variant="ghost"
-                size="icon"
-                class="h-7 w-7 text-muted-foreground hover:text-foreground hover:bg-muted"
-                :title="t('common.edit')"
-                @click="editPrompt(index)"
-              >
-                <Icon icon="lucide:pencil" class="w-3.5 h-3.5" />
-              </Button>
-
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    class="h-7 w-7 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-                    :title="t('common.delete')"
-                  >
-                    <Icon icon="lucide:trash-2" class="w-3.5 h-3.5" />
-                  </Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>{{
-                      t('promptSetting.confirmDelete', { name: prompt.name })
-                    }}</AlertDialogTitle>
-                    <AlertDialogDescription>{{
-                      t('promptSetting.confirmDeleteDescription')
-                    }}</AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>{{ t('common.cancel') }}</AlertDialogCancel>
-                    <AlertDialogAction @click="deletePrompt(index)">{{
-                      t('common.confirm')
-                    }}</AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
-            </div>
-          </div>
-
-          <!-- 描述 -->
-          <div class="text-xs text-muted-foreground mb-3 line-clamp-2" :title="prompt.description">
-            {{ prompt.description || t('promptSetting.noDescription') }}
-          </div>
-
-          <!-- 内容预览 -->
-          <div class="relative mb-3">
+            <!-- 描述 -->
             <div
-              :class="[
-                'text-xs bg-muted/50 rounded-md p-2 border text-muted-foreground break-all',
-                !isExpanded(prompt.id) && 'line-clamp-2'
-              ]"
+              class="text-xs text-muted-foreground mb-3 line-clamp-2"
+              :title="prompt.description"
             >
-              {{ prompt.content }}
+              {{ prompt.description || t('promptSetting.noDescription') }}
             </div>
-            <Button
-              v-if="prompt.content.length > 100"
-              variant="ghost"
-              size="sm"
-              class="text-xs text-primary h-6 px-2 mt-1"
-              @click="toggleShowMore(prompt.id)"
-            >
-              {{
-                isExpanded(prompt.id) ? t('promptSetting.showLess') : t('promptSetting.showMore')
-              }}
-            </Button>
-          </div>
 
-          <!-- 底部统计信息 -->
-          <div class="flex items-center justify-between pt-2 border-t border-border">
-            <div class="flex items-center gap-4 text-xs text-muted-foreground">
-              <div class="flex items-center gap-1">
-                <Icon icon="lucide:type" class="w-3 h-3" />
-                <span>{{ prompt.content.length }}</span>
+            <!-- 内容预览 -->
+            <div class="relative mb-3">
+              <div
+                :class="[
+                  'text-xs bg-muted/50 rounded-md p-2 border text-muted-foreground break-all',
+                  !isExpanded(prompt.id) && 'line-clamp-2'
+                ]"
+              >
+                {{ prompt.content }}
               </div>
-              <div v-if="prompt.parameters?.length" class="flex items-center gap-1">
-                <Icon icon="lucide:settings" class="w-3 h-3" />
-                <span>{{ prompt.parameters.length }}</span>
-              </div>
+              <Button
+                v-if="prompt.content.length > 100"
+                variant="ghost"
+                size="sm"
+                class="text-xs text-primary h-6 px-2 mt-1"
+                @click="toggleShowMore(prompt.id)"
+              >
+                {{
+                  isExpanded(prompt.id) ? t('promptSetting.showLess') : t('promptSetting.showMore')
+                }}
+              </Button>
             </div>
-            <div class="text-xs text-muted-foreground">
-              {{ formatDate(prompt.id) }}
+
+            <!-- 底部统计信息 -->
+            <div class="flex items-center justify-between pt-2 border-t border-border">
+              <div class="flex items-center gap-4 text-xs text-muted-foreground">
+                <div class="flex items-center gap-1">
+                  <Icon icon="lucide:type" class="w-3 h-3" />
+                  <span>{{ prompt.content.length }}</span>
+                </div>
+                <div v-if="prompt.parameters?.length" class="flex items-center gap-1">
+                  <Icon icon="lucide:settings" class="w-3 h-3" />
+                  <span>{{ prompt.parameters.length }}</span>
+                </div>
+              </div>
+              <div class="text-xs text-muted-foreground">
+                {{ formatDate(prompt.id) }}
+              </div>
             </div>
           </div>
         </div>
-      </div>
       </div>
     </div>
 
     <!-- 系统提示词新增/编辑对话框 -->
     <Sheet v-model:open="openSystemPromptDialog">
-      <SheetContent side="right" class="!w-[60vw] !max-w-[90vw] h-full flex flex-col p-0 bg-background">
+      <SheetContent
+        side="right"
+        class="!w-[60vw] !max-w-[90vw] h-full flex flex-col p-0 bg-background"
+      >
         <SheetHeader class="px-6 py-4 border-b bg-card/50">
           <SheetTitle class="flex items-center gap-2">
             <Icon icon="lucide:settings" class="w-5 h-5 text-primary" />
             <span>
-              {{ editingSystemPrompt ? t('promptSetting.editSystemPrompt') : t('promptSetting.addSystemPrompt') }}
+              {{
+                editingSystemPrompt
+                  ? t('promptSetting.editSystemPrompt')
+                  : t('promptSetting.addSystemPrompt')
+              }}
             </span>
           </SheetTitle>
           <SheetDescription>
-            {{ editingSystemPrompt ? t('promptSetting.editSystemPromptDesc') : t('promptSetting.addSystemPromptDesc') }}
+            {{
+              editingSystemPrompt
+                ? t('promptSetting.editSystemPromptDesc')
+                : t('promptSetting.addSystemPromptDesc')
+            }}
           </SheetDescription>
         </SheetHeader>
 
         <div class="flex-1 overflow-y-auto px-6 py-4 space-y-4">
           <!-- 名称 -->
           <div class="space-y-2">
-            <Label for="system-prompt-name" class="text-sm font-medium">{{ t('promptSetting.name') }}</Label>
+            <Label for="system-prompt-name" class="text-sm font-medium">{{
+              t('promptSetting.name')
+            }}</Label>
             <Input
               id="system-prompt-name"
               v-model="systemPromptForm.name"
@@ -299,7 +313,9 @@
 
           <!-- 内容 -->
           <div class="space-y-2">
-            <Label for="system-prompt-content" class="text-sm font-medium">{{ t('promptSetting.promptContent') }}</Label>
+            <Label for="system-prompt-content" class="text-sm font-medium">{{
+              t('promptSetting.promptContent')
+            }}</Label>
             <textarea
               id="system-prompt-content"
               v-model="systemPromptForm.content"
@@ -315,8 +331,13 @@
               {{ systemPromptForm.content.length }} {{ t('promptSetting.characters') }}
             </div>
             <div class="flex items-center gap-3">
-              <Button variant="outline" @click="closeSystemPromptDialog">{{ t('common.cancel') }}</Button>
-              <Button :disabled="!systemPromptForm.name || !systemPromptForm.content" @click="saveSystemPrompt">
+              <Button variant="outline" @click="closeSystemPromptDialog">{{
+                t('common.cancel')
+              }}</Button>
+              <Button
+                :disabled="!systemPromptForm.name || !systemPromptForm.content"
+                @click="saveSystemPrompt"
+              >
                 <Icon icon="lucide:save" class="w-4 h-4 mr-1" />
                 {{ t('common.confirm') }}
               </Button>
@@ -800,7 +821,8 @@ const loadSystemPrompts = async () => {
 }
 
 const updateCurrentSystemPrompt = () => {
-  currentSystemPrompt.value = systemPrompts.value.find(p => p.id === selectedSystemPromptId.value) || null
+  currentSystemPrompt.value =
+    systemPrompts.value.find((p) => p.id === selectedSystemPromptId.value) || null
 }
 
 const handleSystemPromptChange = async (promptId: string) => {
@@ -889,7 +911,7 @@ const saveCurrentSystemPrompt = async () => {
       updatedAt: Date.now()
     })
 
-    const index = systemPrompts.value.findIndex(p => p.id === currentSystemPrompt.value!.id)
+    const index = systemPrompts.value.findIndex((p) => p.id === currentSystemPrompt.value!.id)
     if (index !== -1) {
       systemPrompts.value[index].content = currentSystemPrompt.value.content
       systemPrompts.value[index].updatedAt = Date.now()
@@ -924,7 +946,7 @@ Adhere to this in all languages.Always respond in the same language as the user'
       currentSystemPrompt.value.content = originalContent
     }
 
-    const index = systemPrompts.value.findIndex(p => p.id === 'default')
+    const index = systemPrompts.value.findIndex((p) => p.id === 'default')
     if (index !== -1) {
       systemPrompts.value[index].content = originalContent
       systemPrompts.value[index].updatedAt = Date.now()
@@ -1264,7 +1286,6 @@ const closeDialog = () => {
   openAddDialog.value = false
   resetForm()
 }
-
 
 const filePresenter = usePresenter('filePresenter')
 
