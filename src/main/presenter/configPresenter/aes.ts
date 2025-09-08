@@ -64,7 +64,7 @@ export class AESHelper {
    * @param cipherText Ciphertext (hexadecimal format)
    * @param key Encryption key (Buffer format)
    * @param iv Initialization vector (hexadecimal format)
-   * @returns 解密后的明文
+   * @returns Decrypted plaintext
    */
   static decrypt(cipherText: string, key: Buffer, iv: string): string {
     try {
@@ -77,14 +77,14 @@ export class AESHelper {
       return decrypted
     } catch (error) {
       throw new Error(
-        `解密失败: ${error instanceof Error ? error.message : '密文可能被篡改或密钥错误'}`
+        `Decryption failed: ${error instanceof Error ? error.message : 'Ciphertext may be tampered or key is incorrect'}`
       )
     }
   }
 
   /**
-   * 生成随机IV
-   * @returns 十六进制格式的IV
+   * Generate random IV
+   * @returns IV in hexadecimal format
    */
   static generateIV(): string {
     return crypto.randomBytes(IV_LENGTH).toString('hex')
