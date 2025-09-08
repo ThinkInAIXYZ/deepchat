@@ -3139,7 +3139,8 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         match: ['grok-3-mini-fast', 'grok-3-mini-fast-latest', 'grok-3-mini-fast-beta'],
         vision: false,
         functionCall: true,
-        reasoning: true
+        reasoning: true,
+        reasoningEffort: 'low'
       },
       {
         id: 'grok-3-mini-beta',
@@ -3150,7 +3151,8 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         match: ['grok-3-mini', 'grok-3-mini-latest', 'grok-3-mini-beta'],
         vision: false,
         functionCall: true,
-        reasoning: true
+        reasoning: true,
+        reasoningEffort: 'low'
       },
       {
         id: 'grok-3-fast-beta',

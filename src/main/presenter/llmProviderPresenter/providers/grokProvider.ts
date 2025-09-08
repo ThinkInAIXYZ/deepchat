@@ -7,6 +7,12 @@ export class GrokProvider extends OpenAICompatibleProvider {
   private static readonly IMAGE_MODEL_ID = 'grok-2-image'
   // private static readonly IMAGE_ENDPOINT = '/images/generations'
 
+  // Reasoning models that support reasoning_content
+  private static readonly REASONING_MODELS: string[] = ['grok-4', 'grok-3-mini', 'grok-3-mini-fast']
+
+  // Models that support reasoning_effort parameter (grok-4 does not)
+  private static readonly REASONING_EFFORT_MODELS: string[] = ['grok-3-mini', 'grok-3-mini-fast']
+
   constructor(provider: LLM_PROVIDER, configPresenter: IConfigPresenter) {
     super(provider, configPresenter)
   }
@@ -14,6 +20,20 @@ export class GrokProvider extends OpenAICompatibleProvider {
   // Check if it's an image model
   private isImageModel(modelId: string): boolean {
     return modelId.startsWith(GrokProvider.IMAGE_MODEL_ID)
+  }
+
+  // Check if model supports reasoning
+  private isReasoningModel(modelId: string): boolean {
+    return GrokProvider.REASONING_MODELS.some((model) =>
+      modelId.toLowerCase().includes(model.toLowerCase())
+    )
+  }
+
+  // Check if model supports reasoning_effort parameter
+  private supportsReasoningEffort(modelId: string): boolean {
+    return GrokProvider.REASONING_EFFORT_MODELS.some((model) =>
+      modelId.toLowerCase().includes(model.toLowerCase())
+    )
   }
 
   async completions(
@@ -136,8 +156,12 @@ export class GrokProvider extends OpenAICompatibleProvider {
     modelConfig: ModelConfig,
     temperature: number,
     maxTokens: number,
-    tools: MCPToolDefinition[]
+    mcpTools: MCPToolDefinition[]
   ): AsyncGenerator<LLMCoreStreamEvent> {
+    if (!this.isInitialized) throw new Error('Provider not initialized')
+    if (!modelId) throw new Error('Model ID is required')
+
+    // Handle image generation models
     if (this.isImageModel(modelId)) {
       const result = await this.handleImageGeneration(messages)
       // Use additional fields directly
@@ -158,8 +182,40 @@ export class GrokProvider extends OpenAICompatibleProvider {
       }
       // Add brief delay to ensure all RESPONSE events are processed
       await new Promise((resolve) => setTimeout(resolve, 300))
+      return
+    }
+
+    // Handle reasoning models
+    if (this.isReasoningModel(modelId) && modelConfig?.reasoningEffort) {
+      const originalCreate = this.openai.chat.completions.create.bind(this.openai.chat.completions)
+      this.openai.chat.completions.create = ((params: any, options?: any) => {
+        const modifiedParams = { ...params }
+
+        if (this.supportsReasoningEffort(modelId)) {
+          modifiedParams.reasoning_effort = modelConfig.reasoningEffort
+        }
+
+        return originalCreate(modifiedParams, options)
+      }) as any
+
+      try {
+        const effectiveModelConfig = {
+          ...modelConfig,
+          reasoningEffort: undefined
+        }
+        yield* super.coreStream(
+          messages,
+          modelId,
+          effectiveModelConfig,
+          temperature,
+          maxTokens,
+          mcpTools
+        )
+      } finally {
+        this.openai.chat.completions.create = originalCreate
+      }
     } else {
-      yield* super.coreStream(messages, modelId, modelConfig, temperature, maxTokens, tools)
+      yield* super.coreStream(messages, modelId, modelConfig, temperature, maxTokens, mcpTools)
     }
   }
 }

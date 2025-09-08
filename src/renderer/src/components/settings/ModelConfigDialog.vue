@@ -153,18 +153,30 @@
                 />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="minimal">{{
-                  t('settings.model.modelConfig.reasoningEffort.options.minimal')
-                }}</SelectItem>
-                <SelectItem value="low">{{
-                  t('settings.model.modelConfig.reasoningEffort.options.low')
-                }}</SelectItem>
-                <SelectItem value="medium">{{
-                  t('settings.model.modelConfig.reasoningEffort.options.medium')
-                }}</SelectItem>
-                <SelectItem value="high">{{
-                  t('settings.model.modelConfig.reasoningEffort.options.high')
-                }}</SelectItem>
+                <!-- Grok models only support low and high -->
+                <template v-if="props.providerId === 'grok'">
+                  <SelectItem value="low">{{
+                    t('settings.model.modelConfig.reasoningEffort.options.low')
+                  }}</SelectItem>
+                  <SelectItem value="high">{{
+                    t('settings.model.modelConfig.reasoningEffort.options.high')
+                  }}</SelectItem>
+                </template>
+                <!-- Other models support all four options -->
+                <template v-else>
+                  <SelectItem value="minimal">{{
+                    t('settings.model.modelConfig.reasoningEffort.options.minimal')
+                  }}</SelectItem>
+                  <SelectItem value="low">{{
+                    t('settings.model.modelConfig.reasoningEffort.options.low')
+                  }}</SelectItem>
+                  <SelectItem value="medium">{{
+                    t('settings.model.modelConfig.reasoningEffort.options.medium')
+                  }}</SelectItem>
+                  <SelectItem value="high">{{
+                    t('settings.model.modelConfig.reasoningEffort.options.high')
+                  }}</SelectItem>
+                </template>
               </SelectContent>
             </Select>
             <p class="text-xs text-muted-foreground">
