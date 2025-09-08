@@ -228,7 +228,7 @@ export class GitHubCopilotDeviceFlow {
                   msg.style.fontSize = '12px';
                   msg.style.color = '#0969da';
                   msg.style.marginTop = '8px';
-                  msg.innerHTML = 'If the browser didn\'t open automatically, the link has been copied to clipboard. Please paste it into your browser address bar.';
+                  msg.innerHTML = 'If the browser didn't open automatically, the link has been copied to clipboard. Please paste it into your browser address bar.';
                   document.querySelector('.footer').appendChild(msg);
                 }, 2000);
               } catch (error) {
