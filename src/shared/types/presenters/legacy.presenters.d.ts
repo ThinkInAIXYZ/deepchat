@@ -72,6 +72,15 @@ export interface Prompt {
   createdAt?: number // 创建时间
   updatedAt?: number // 更新时间
 }
+
+export interface SystemPrompt {
+  id: string
+  name: string
+  content: string
+  isDefault?: boolean
+  createdAt?: number
+  updatedAt?: number
+}
 export interface PromptListEntry {
   name: string
   description?: string
@@ -466,6 +475,14 @@ export interface IConfigPresenter {
   setDefaultSystemPrompt(prompt: string): Promise<void>
   resetToDefaultPrompt(): Promise<void>
   clearSystemPrompt(): Promise<void>
+  // 系统提示词管理
+  getSystemPrompts(): Promise<SystemPrompt[]>
+  setSystemPrompts(prompts: SystemPrompt[]): Promise<void>
+  addSystemPrompt(prompt: SystemPrompt): Promise<void>
+  updateSystemPrompt(promptId: string, updates: Partial<SystemPrompt>): Promise<void>
+  deleteSystemPrompt(promptId: string): Promise<void>
+  setDefaultSystemPromptId(promptId: string): Promise<void>
+  getDefaultSystemPromptId(): Promise<string>
   // 快捷键设置
   getDefaultShortcutKey(): ShortcutKeySetting
   getShortcutKey(): ShortcutKeySetting

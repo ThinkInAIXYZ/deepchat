@@ -7,6 +7,7 @@ import {
   RENDERER_MODEL_META,
   MCPServerConfig,
   Prompt,
+  SystemPrompt,
   IModelConfig,
   BuiltinKnowledgeConfig
 } from '@shared/presenter'
@@ -90,6 +91,7 @@ export class ConfigPresenter implements IConfigPresenter {
   private store: ElectronStore<IAppSettings>
   private providersModelStores: Map<string, ElectronStore<IModelStore>> = new Map()
   private customPromptsStore: ElectronStore<{ prompts: Prompt[] }>
+  private systemPromptsStore: ElectronStore<{ prompts: SystemPrompt[] }>
   private userDataPath: string
   private currentAppVersion: string
   private mcpConfHelper: McpConfHelper // 使用MCP配置助手
@@ -135,6 +137,22 @@ export class ConfigPresenter implements IConfigPresenter {
       name: 'custom_prompts',
       defaults: {
         prompts: []
+      }
+    })
+
+    this.systemPromptsStore = new ElectronStore<{ prompts: SystemPrompt[] }>({
+      name: 'system_prompts',
+      defaults: {
+        prompts: [
+          {
+            id: 'default',
+            name: 'DeepChat',
+            content: DEFAULT_SYSTEM_PROMPT,
+            isDefault: true,
+            createdAt: Date.now(),
+            updatedAt: Date.now()
+          }
+        ]
       }
     })
 
@@ -1181,6 +1199,11 @@ export class ConfigPresenter implements IConfigPresenter {
 
   // 获取默认系统提示词
   async getDefaultSystemPrompt(): Promise<string> {
+    const prompts = await this.getSystemPrompts()
+    const defaultPrompt = prompts.find((p) => p.isDefault)
+    if (defaultPrompt) {
+      return defaultPrompt.content
+    }
     return this.getSetting<string>('default_system_prompt') || ''
   }
 
@@ -1197,6 +1220,55 @@ export class ConfigPresenter implements IConfigPresenter {
   // 清空系统提示词
   async clearSystemPrompt(): Promise<void> {
     this.setSetting('default_system_prompt', '')
+  }
+
+  async getSystemPrompts(): Promise<SystemPrompt[]> {
+    try {
+      return this.systemPromptsStore.get('prompts') || []
+    } catch {
+      return []
+    }
+  }
+
+  async setSystemPrompts(prompts: SystemPrompt[]): Promise<void> {
+    await this.systemPromptsStore.set('prompts', prompts)
+  }
+
+  async addSystemPrompt(prompt: SystemPrompt): Promise<void> {
+    const prompts = await this.getSystemPrompts()
+    prompts.push(prompt)
+    await this.setSystemPrompts(prompts)
+  }
+
+  async updateSystemPrompt(promptId: string, updates: Partial<SystemPrompt>): Promise<void> {
+    const prompts = await this.getSystemPrompts()
+    const index = prompts.findIndex((p) => p.id === promptId)
+    if (index !== -1) {
+      prompts[index] = { ...prompts[index], ...updates }
+      await this.setSystemPrompts(prompts)
+    }
+  }
+
+  async deleteSystemPrompt(promptId: string): Promise<void> {
+    const prompts = await this.getSystemPrompts()
+    const filteredPrompts = prompts.filter((p) => p.id !== promptId)
+    await this.setSystemPrompts(filteredPrompts)
+  }
+
+  async setDefaultSystemPromptId(promptId: string): Promise<void> {
+    const prompts = await this.getSystemPrompts()
+    const updatedPrompts = prompts.map((p) => ({ ...p, isDefault: false }))
+    const targetIndex = updatedPrompts.findIndex((p) => p.id === promptId)
+    if (targetIndex !== -1) {
+      updatedPrompts[targetIndex].isDefault = true
+      await this.setSystemPrompts(updatedPrompts)
+    }
+  }
+
+  async getDefaultSystemPromptId(): Promise<string> {
+    const prompts = await this.getSystemPrompts()
+    const defaultPrompt = prompts.find((p) => p.isDefault)
+    return defaultPrompt?.id || 'default'
   }
 
   // 获取更新渠道
