@@ -294,11 +294,43 @@ export class ConfigPresenter implements IConfigPresenter {
       }
     }
 
-    // 0.3.4 版本之前，如果默认系统提示词为空，则设置为内置的默认提示词
-    if (oldVersion && compare(oldVersion, '0.3.4', '<')) {
-      const currentPrompt = this.getSetting<string>('default_system_prompt')
-      if (!currentPrompt || currentPrompt.trim() === '') {
-        this.setSetting('default_system_prompt', DEFAULT_SYSTEM_PROMPT)
+    // 0.3.5 版本之前，处理默认系统提示词的迁移和设置
+    if (oldVersion && compare(oldVersion, '0.3.5', '<')) {
+      try {
+        const currentPrompt = this.getSetting<string>('default_system_prompt')
+        if (!currentPrompt || currentPrompt.trim() === '') {
+          this.setSetting('default_system_prompt', DEFAULT_SYSTEM_PROMPT)
+        }
+        const legacyDefault = this.getSetting<string>('default_system_prompt')
+        if (
+          typeof legacyDefault === 'string' &&
+          legacyDefault.trim() &&
+          legacyDefault.trim() !== DEFAULT_SYSTEM_PROMPT.trim()
+        ) {
+          const prompts = (this.systemPromptsStore.get('prompts') || []) as SystemPrompt[]
+          const now = Date.now()
+          const idx = prompts.findIndex((p) => p.id === 'default')
+          if (idx !== -1) {
+            prompts[idx] = {
+              ...prompts[idx],
+              content: legacyDefault,
+              isDefault: true,
+              updatedAt: now
+            }
+          } else {
+            prompts.push({
+              id: 'default',
+              name: 'DeepChat',
+              content: legacyDefault,
+              isDefault: true,
+              createdAt: now,
+              updatedAt: now
+            })
+          }
+          this.systemPromptsStore.set('prompts', prompts)
+        }
+      } catch (e) {
+        console.warn('Failed to migrate legacy default_system_prompt:', e)
       }
     }
   }
