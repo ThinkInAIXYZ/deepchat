@@ -3,32 +3,32 @@ import { app } from 'electron'
 import path from 'path'
 import { is } from '@electron-toolkit/utils'
 
-// 配置日志文件路径
-// 使用logger记录而不是console
+// Configure log file path
+// Use logger for recording instead of console
 const userData = app?.getPath('userData') || ''
 if (userData) {
   log.transports.file.resolvePathFn = () => path.join(userData, 'logs/main.log')
 }
 
-// 获取日志开关状态
+// Get logging switch status
 let loggingEnabled = false
 
-// 导出设置日志开关的方法
+// Export method to set logging switch
 export function setLoggingEnabled(enabled: boolean): void {
   loggingEnabled = enabled
-  // 如果禁用日志，将文件日志级别设置为 false
+  // If logging is disabled, set file log level to false
   log.transports.file.level = enabled ? 'info' : false
 }
 
-// 配置控制台日志
+// Configure console logging
 log.transports.console.level = is.dev ? 'debug' : 'info'
 
-// 配置文件日志
+// Configure file logging
 log.transports.file.level = 'info'
 log.transports.file.maxSize = 1024 * 1024 * 10 // 10MB
 log.transports.file.format = '[{y}-{m}-{d} {h}:{i}:{s}.{ms}] [{level}] {text}'
 
-// 创建不同级别的日志函数
+// Create different level logging functions
 const logger = {
   error: (...params: unknown[]) => log.error(...params),
   warn: (...params: unknown[]) => log.warn(...params),
@@ -39,7 +39,7 @@ const logger = {
   log: (...params: unknown[]) => log.info(...params)
 }
 
-// 拦截console方法，重定向到logger
+// Intercept console methods and redirect to logger
 function hookConsole() {
   const originalConsole = {
     log: console.log,
@@ -50,44 +50,44 @@ function hookConsole() {
     trace: console.trace
   }
 
-  // 替换console方法
+  // Replace console methods
   console.log = (...args: unknown[]) => {
-    // 只有在启用日志或开发模式下才记录日志
+    // Only log when logging is enabled or in development mode
     if (loggingEnabled || is.dev) {
       logger.info(...args)
     }
   }
 
   console.error = (...args: unknown[]) => {
-    // 只有在启用日志或开发模式下才记录日志
+    // Only log when logging is enabled or in development mode
     if (loggingEnabled || is.dev) {
       logger.error(...args)
     }
   }
 
   console.warn = (...args: unknown[]) => {
-    // 只有在启用日志或开发模式下才记录日志
+    // Only log when logging is enabled or in development mode
     if (loggingEnabled || is.dev) {
       logger.warn(...args)
     }
   }
 
   console.info = (...args: unknown[]) => {
-    // 只有在启用日志或开发模式下才记录日志
+    // Only log when logging is enabled or in development mode
     if (loggingEnabled || is.dev) {
       logger.info(...args)
     }
   }
 
   console.debug = (...args: unknown[]) => {
-    // 只有在启用日志或开发模式下才记录日志
+    // Only log when logging is enabled or in development mode
     if (loggingEnabled || is.dev) {
       logger.debug(...args)
     }
   }
 
   console.trace = (...args: unknown[]) => {
-    // 只有在启用日志或开发模式下才记录日志
+    // Only log when logging is enabled or in development mode
     if (loggingEnabled || is.dev) {
       logger.debug(...args)
     }
@@ -96,6 +96,6 @@ function hookConsole() {
   return originalConsole
 }
 
-// 导出原始console方法，以便需要时可以恢复
+// Export original console methods for restoration when needed
 export const originalConsole = hookConsole()
 export default logger

@@ -95,7 +95,7 @@ export interface IThreadPresenter {
   searchAssistantModel: MODEL_META | null
   searchAssistantProviderId: string | null
 
-  // 基本对话操作
+  // Basic conversation operations
   createConversation(
     title: string,
     settings: Partial<CONVERSATION_SETTINGS>,
@@ -111,7 +111,7 @@ export interface IThreadPresenter {
     settings: Partial<CONVERSATION_SETTINGS>
   ): Promise<void>
 
-  // 会话分支操作
+  // Conversation branching operations
   forkConversation(
     targetConversationId: string,
     targetMessageId: string,
@@ -119,7 +119,7 @@ export interface IThreadPresenter {
     settings?: Partial<CONVERSATION_SETTINGS>
   ): Promise<string>
 
-  // 对话列表和激活状态
+  // Conversation list and activation status
   getConversationList(
     page: number,
     pageSize: number
@@ -133,7 +133,7 @@ export interface IThreadPresenter {
   getSearchResults(messageId: string): Promise<SearchResult[]>
   clearAllMessages(conversationId: string): Promise<void>
 
-  // 消息操作
+  // Message operations
   getMessages(
     conversationId: string,
     page: number,
@@ -150,11 +150,11 @@ export interface IThreadPresenter {
   updateMessageMetadata(messageId: string, metadata: Partial<MESSAGE_METADATA>): Promise<void>
   getMessageExtraInfo(messageId: string, type: string): Promise<Record<string, unknown>[]>
 
-  // popup 操作
+  // Popup operations
   translateText(text: string, tabId: number): Promise<string>
   askAI(text: string, tabId: number): Promise<string>
 
-  // 上下文控制
+  // Context control
   getContextMessages(conversationId: string): Promise<MESSAGE[]>
   clearContext(conversationId: string): Promise<void>
   markMessageAsContextEdge(messageId: string, isEdge: boolean): Promise<void>
@@ -187,7 +187,7 @@ export interface IThreadPresenter {
 }
 
 export interface IMessageManager {
-  // 基本消息操作
+  // Basic message operations
   sendMessage(
     conversationId: string,
     content: string,
@@ -200,7 +200,7 @@ export interface IMessageManager {
   deleteMessage(messageId: string): Promise<void>
   retryMessage(messageId: string, metadata: MESSAGE_METADATA): Promise<MESSAGE>
 
-  // 消息查询
+  // Message queries
   getMessage(messageId: string): Promise<MESSAGE>
   getMessageVariants(messageId: string): Promise<MESSAGE[]>
   getMessageThread(
@@ -213,10 +213,10 @@ export interface IMessageManager {
   }>
   getContextMessages(conversationId: string, contextLength: number): Promise<MESSAGE[]>
 
-  // 消息状态管理
+  // Message status management
   updateMessageStatus(messageId: string, status: MESSAGE_STATUS): Promise<void>
   updateMessageMetadata(messageId: string, metadata: Partial<MESSAGE_METADATA>): Promise<void>
 
-  // 上下文管理
+  // Context management
   markMessageAsContextEdge(messageId: string, isEdge: boolean): Promise<void>
 }

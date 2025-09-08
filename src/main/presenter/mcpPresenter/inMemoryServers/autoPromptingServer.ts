@@ -10,19 +10,19 @@ import { Prompt } from '@shared/presenter'
 
 // 模板参数的 Schema
 const TemplateParameterSchema = z.object({
-  name: z.string().describe('参数名'),
-  description: z.string().describe('参数描述'),
-  required: z.boolean().describe('是否为必填参数')
+  name: z.string().describe('Parameter name'),
+  description: z.string().describe('Parameter description'),
+  required: z.boolean().describe('Whether this parameter is required')
   // type 字段已移除，所有模板参数都是 string
 })
 
 // 模板定义的 Schema
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 const TemplateDefinitionSchema = z.object({
-  name: z.string().describe('模板名称'),
-  description: z.string().describe('模板描述'),
-  content: z.string().describe('模板内容，包含占位符'),
-  parameters: z.array(TemplateParameterSchema).optional().describe('模板参数列表')
+  name: z.string().describe('Template name'),
+  description: z.string().describe('Template description'),
+  content: z.string().describe('Template content with placeholders'),
+  parameters: z.array(TemplateParameterSchema).optional().describe('Template parameters list')
 })
 
 // 使用 z.infer 从 Schema 推断出 TypeScript 类型
@@ -31,14 +31,17 @@ type TemplateDefinition = z.infer<typeof TemplateDefinitionSchema>
 
 // 获取模板参数信息的函数参数 Schema
 const GetTemplateParametersArgsSchema = z.object({
-  templateName: z.string().describe('要获取参数的模板名称')
+  templateName: z.string().describe('Name of the template to get parameters for')
 })
 
 // 填充模板的函数参数 Schema
 const FillTemplateArgsSchema = z.object({
-  templateName: z.string().describe('要填充的模板名称'),
-  templateArgs: z.record(z.string(), z.string()).optional().describe('填充模板所需的参数键值对'),
-  additionalContent: z.string().optional().describe('用户希望添加到Prompt末尾的额外内容')
+  templateName: z.string().describe('Name of the template to fill'),
+  templateArgs: z
+    .record(z.string(), z.string())
+    .optional()
+    .describe('Key-value pairs for template parameters'),
+  additionalContent: z.string().optional().describe('Additional content to append to the prompt')
 })
 
 // Zod Schema 转换为 JSON Schema
@@ -105,17 +108,19 @@ export class AutoPromptingServer {
       tools: [
         {
           name: 'list_all_prompt_template_names',
-          description: '获取所有可用提示词模板的名称列表。',
+          description: 'Get a list of all available prompt template names.',
           inputSchema: zodToJsonSchema(z.object({})) // 无需参数
         },
         {
           name: 'get_prompt_template_parameters',
-          description: '根据提示词模板名称获取其所需的参数列表和描述。',
+          description:
+            'Get the required parameter list and descriptions for a prompt template by name.',
           inputSchema: GetTemplateParametersArgsJsonSchema
         },
         {
           name: 'fill_prompt_template',
-          description: '根据提示词模板名称和参数，填充模板内容并生成最终的Prompt。',
+          description:
+            'Fill template content and generate final prompt based on template name and parameters.',
           inputSchema: FillTemplateArgsJsonSchema
         }
       ]

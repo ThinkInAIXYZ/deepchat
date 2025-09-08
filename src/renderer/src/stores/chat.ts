@@ -113,7 +113,7 @@ export const useChatStore = defineStore('chat', () => {
     try {
       await clearActiveThread()
     } catch (error) {
-      console.error('清空活动会话并加载第一页失败:', error)
+      console.error('Failed to clear active thread and load first page:', error)
       throw error
     }
   }
@@ -127,7 +127,7 @@ export const useChatStore = defineStore('chat', () => {
       setActiveThreadId(threadId)
       return threadId
     } catch (error) {
-      console.error('创建会话失败:', error)
+      console.error('Failed to create thread:', error)
       throw error
     }
   }
@@ -232,7 +232,7 @@ export const useChatStore = defineStore('chat', () => {
           | UserMessage[]
       )
     } catch (error) {
-      console.error('加载消息失败:', error)
+      console.error('Failed to load messages:', error)
       throw error
     }
   }
@@ -259,7 +259,7 @@ export const useChatStore = defineStore('chat', () => {
       await loadMessages()
       await threadP.startStreamCompletion(getActiveThreadId()!)
     } catch (error) {
-      console.error('发送消息失败:', error)
+      console.error('Failed to send message:', error)
       throw error
     }
   }
@@ -279,7 +279,7 @@ export const useChatStore = defineStore('chat', () => {
       updateThreadWorkingStatus(getActiveThreadId()!, 'working')
       await threadP.startStreamCompletion(getActiveThreadId()!, messageId)
     } catch (error) {
-      console.error('重试消息失败:', error)
+      console.error('Failed to retry message:', error)
       throw error
     }
   }
@@ -308,7 +308,7 @@ export const useChatStore = defineStore('chat', () => {
 
       return newThreadId
     } catch (error) {
-      console.error('创建会话分支失败:', error)
+      console.error('Failed to create thread branch:', error)
       throw error
     }
   }
@@ -706,7 +706,7 @@ export const useChatStore = defineStore('chat', () => {
             })
           }
         } catch (error) {
-          console.error('加载错误消息失败:', error)
+          console.error('Failed to load error message:', error)
         }
       }
       getGeneratingMessagesCache().delete(msg.eventId)
@@ -744,7 +744,7 @@ export const useChatStore = defineStore('chat', () => {
         chatConfig.value = { ...conversation.settings }
       }
     } catch (error) {
-      console.error('加载对话配置失败:', error)
+      console.error('Failed to load conversation config:', error)
       throw error
     }
   }
@@ -754,7 +754,7 @@ export const useChatStore = defineStore('chat', () => {
     try {
       await threadP.updateConversationSettings(getActiveThreadId()!, chatConfig.value)
     } catch (error) {
-      console.error('保存对话配置失败:', error)
+      console.error('Failed to save conversation config:', error)
       throw error
     }
   }
@@ -771,7 +771,7 @@ export const useChatStore = defineStore('chat', () => {
       await threadP.deleteMessage(messageId)
       loadMessages()
     } catch (error) {
-      console.error('删除消息失败:', error)
+      console.error('Failed to delete message:', error)
     }
   }
   const clearAllMessages = async (threadId: string) => {
@@ -793,7 +793,7 @@ export const useChatStore = defineStore('chat', () => {
       // 从状态Map中移除会话状态
       getThreadsWorkingStatus().delete(threadId)
     } catch (error) {
-      console.error('清空消息失败:', error)
+      console.error('Failed to clear messages:', error)
       throw error
     }
   }
@@ -827,7 +827,7 @@ export const useChatStore = defineStore('chat', () => {
         }
       }
     } catch (error) {
-      console.error('取消生成失败:', error)
+      console.error('Failed to cancel generation:', error)
     }
   }
   const continueStream = async (conversationId: string, messageId: string) => {
@@ -852,7 +852,7 @@ export const useChatStore = defineStore('chat', () => {
       )
 
       if (!aiResponseMessage) {
-        console.error('创建助手消息失败')
+        console.error('Failed to create assistant message')
         return
       }
 
@@ -865,7 +865,7 @@ export const useChatStore = defineStore('chat', () => {
       await loadMessages()
       await threadP.continueStreamCompletion(conversationId, messageId)
     } catch (error) {
-      console.error('继续生成失败:', error)
+      console.error('Failed to continue generation:', error)
       throw error
     }
   }
@@ -1033,7 +1033,7 @@ export const useChatStore = defineStore('chat', () => {
   const handleMeetingInstruction = async (data: { prompt: string }) => {
     // 确保当前有活动的会话，否则指令无法执行
     if (!getActiveThreadId()) {
-      console.warn('收到会议指令，但没有活动的会话。指令被忽略。')
+      console.warn('Received meeting command, but no active session. Command ignored.')
       return
     }
     try {
@@ -1048,7 +1048,7 @@ export const useChatStore = defineStore('chat', () => {
         content: [{ type: 'text', content: data.prompt }]
       })
     } catch (error) {
-      console.error('处理会议指令时发生错误:', error)
+      console.error('Error occurred while processing meeting command:', error)
     }
   }
 
@@ -1144,7 +1144,7 @@ export const useChatStore = defineStore('chat', () => {
       // 直接使用主线程导出
       return await exportWithMainThread(threadId, format)
     } catch (error) {
-      console.error('导出会话失败:', error)
+      console.error('Failed to export thread:', error)
       throw error
     }
   }

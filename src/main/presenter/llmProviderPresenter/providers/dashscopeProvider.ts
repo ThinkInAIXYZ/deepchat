@@ -11,9 +11,9 @@ import {
 import { OpenAICompatibleProvider } from './openAICompatibleProvider'
 
 export class DashscopeProvider extends OpenAICompatibleProvider {
-  // 支持 enable_thinking 参数的模型列表（双模式模型）
+  // List of models that support enable_thinking parameter (dual-mode models)
   private static readonly ENABLE_THINKING_MODELS: string[] = [
-    // 开源版
+    // Open source versions
     'qwen3-235b-a22b',
     'qwen3-32b',
     'qwen3-30b-a3b',
@@ -22,7 +22,7 @@ export class DashscopeProvider extends OpenAICompatibleProvider {
     'qwen3-4b',
     'qwen3-1.7b',
     'qwen3-0.6b',
-    // 商业版
+    // Commercial versions
     'qwen-plus',
     'qwen-plus-latest',
     'qwen-plus-2025-04-28',
@@ -33,7 +33,7 @@ export class DashscopeProvider extends OpenAICompatibleProvider {
     'qwen-turbo-2025-04-28'
   ]
 
-  // 支持 enable_search 参数的模型列表（联网搜索）
+  // List of models that support enable_search parameter (internet search)
   private static readonly ENABLE_SEARCH_MODELS: string[] = [
     'qwen-max',
     'qwen-plus',
@@ -53,9 +53,9 @@ export class DashscopeProvider extends OpenAICompatibleProvider {
   }
 
   /**
-   * 检查模型是否支持 enable_thinking 参数
-   * @param modelId 模型ID
-   * @returns boolean 是否支持 enable_thinking
+   * Check if model supports enable_thinking parameter
+   * @param modelId Model ID
+   * @returns boolean Whether enable_thinking is supported
    */
   private supportsEnableThinking(modelId: string): boolean {
     const normalizedModelId = modelId.toLowerCase()
@@ -65,9 +65,9 @@ export class DashscopeProvider extends OpenAICompatibleProvider {
   }
 
   /**
-   * 检查模型是否支持 enable_search 参数
-   * @param modelId 模型ID
-   * @returns boolean 是否支持 enable_search
+   * Check if model supports enable_search parameter
+   * @param modelId Model ID
+   * @returns boolean Whether enable_search is supported
    */
   private supportsEnableSearch(modelId: string): boolean {
     const normalizedModelId = modelId.toLowerCase()
@@ -77,7 +77,7 @@ export class DashscopeProvider extends OpenAICompatibleProvider {
   }
 
   /**
-   * 重写 coreStream 方法以支持 DashScope 的 enable_thinking 和 enable_search 参数
+   * Override coreStream method to support DashScope's enable_thinking and enable_search parameters
    */
   async *coreStream(
     messages: ChatMessage[],
@@ -94,9 +94,9 @@ export class DashscopeProvider extends OpenAICompatibleProvider {
     const shouldAddEnableSearch = this.supportsEnableSearch(modelId) && modelConfig?.enableSearch
 
     if (shouldAddEnableThinking || shouldAddEnableSearch) {
-      // 原始的 create 方法
+      // Original create method
       const originalCreate = this.openai.chat.completions.create.bind(this.openai.chat.completions)
-      // 替换 create 方法以添加 enable_thinking 和 enable_search 参数
+      // Replace create method to add enable_thinking and enable_search parameters
       this.openai.chat.completions.create = ((params: any, options?: any) => {
         const modifiedParams = { ...params }
 
@@ -174,7 +174,7 @@ export class DashscopeProvider extends OpenAICompatibleProvider {
       [
         {
           role: 'user',
-          content: `请总结以下内容，使用简洁的语言，突出重点：\n${text}`
+          content: `Please summarize the following content using concise language and highlighting key points:\n${text}`
         }
       ],
       modelId,

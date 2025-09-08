@@ -30,40 +30,40 @@ import { defaultShortcutKey, ShortcutKeySetting } from './shortcutKeySettings'
 import { ModelConfigHelper } from './modelConfig'
 import { KnowledgeConfHelper } from './knowledgeConfHelper'
 
-// 默认系统提示词常量
+// Default system prompt constant
 const DEFAULT_SYSTEM_PROMPT = `You are DeepChat, a highly capable AI assistant. Your goal is to fully complete the user’s requested task before handing the conversation back to them. Keep working autonomously until the task is fully resolved.
 Be thorough in gathering information. Before replying, make sure you have all the details necessary to provide a complete solution. Use additional tools or ask clarifying questions when needed, but if you can find the answer on your own, avoid asking the user for help.
 When using tools, briefly describe your intended steps first—for example, which tool you’ll use and for what purpose.
 Adhere to this in all languages.Always respond in the same language as the user's query.`
 
-// 定义应用设置的接口
+// Define application settings interface
 interface IAppSettings {
-  // 在这里定义你的配置项，例如：
+  // Define your configuration items here, for example:
   language: string
   providers: LLM_PROVIDER[]
-  closeToQuit: boolean // 是否点击关闭按钮时退出程序
-  appVersion?: string // 用于版本检查和数据迁移
-  proxyMode?: string // 代理模式：system, none, custom
-  customProxyUrl?: string // 自定义代理地址
-  customShortKey?: ShortcutKeySetting // 自定义快捷键
-  artifactsEffectEnabled?: boolean // artifacts动画效果是否启用
-  searchPreviewEnabled?: boolean // 搜索预览是否启用
-  contentProtectionEnabled?: boolean // 投屏保护是否启用
-  syncEnabled?: boolean // 是否启用同步功能
-  syncFolderPath?: string // 同步文件夹路径
-  lastSyncTime?: number // 上次同步时间
-  customSearchEngines?: string // 自定义搜索引擎JSON字符串
-  soundEnabled?: boolean // 音效是否启用
+  closeToQuit: boolean // Whether to quit the program when clicking the close button
+  appVersion?: string // Used for version checking and data migration
+  proxyMode?: string // Proxy mode: system, none, custom
+  customProxyUrl?: string // Custom proxy address
+  customShortKey?: ShortcutKeySetting // Custom shortcut keys
+  artifactsEffectEnabled?: boolean // Whether artifacts animation effects are enabled
+  searchPreviewEnabled?: boolean // Whether search preview is enabled
+  contentProtectionEnabled?: boolean // Whether content protection is enabled
+  syncEnabled?: boolean // Whether sync functionality is enabled
+  syncFolderPath?: string // Sync folder path
+  lastSyncTime?: number // Last sync time
+  customSearchEngines?: string // Custom search engines JSON string
+  soundEnabled?: boolean // Whether sound effects are enabled
   copyWithCotEnabled?: boolean
-  loggingEnabled?: boolean // 日志记录是否启用
-  floatingButtonEnabled?: boolean // 悬浮按钮是否启用
-  default_system_prompt?: string // 默认系统提示词
-  webContentLengthLimit?: number // 网页内容截断长度限制，默认3000字符
-  updateChannel?: string // 更新渠道：'stable' | 'canary'
-  [key: string]: unknown // 允许任意键，使用unknown类型替代any
+  loggingEnabled?: boolean // Whether logging is enabled
+  floatingButtonEnabled?: boolean // Whether floating button is enabled
+  default_system_prompt?: string // Default system prompt
+  webContentLengthLimit?: number // Web content truncation length limit, default 3000 characters
+  updateChannel?: string // Update channel: 'stable' | 'canary'
+  [key: string]: unknown // Allow arbitrary keys, using unknown type instead of any
 }
 
-// 为模型存储创建接口
+// Create interface for model storage
 interface IModelStore {
   models: MODEL_META[]
   custom_models: MODEL_META[]
@@ -79,11 +79,11 @@ const defaultProviders = DEFAULT_PROVIDERS.map((provider) => ({
   websites: provider.websites
 }))
 
-// 定义 storeKey 常量
+// Define storeKey constants
 const PROVIDERS_STORE_KEY = 'providers'
 
 const PROVIDER_MODELS_DIR = 'provider_models'
-// 模型状态键前缀
+// Model state key prefix
 const MODEL_STATUS_KEY_PREFIX = 'model_status_'
 
 export class ConfigPresenter implements IConfigPresenter {
@@ -92,16 +92,16 @@ export class ConfigPresenter implements IConfigPresenter {
   private customPromptsStore: ElectronStore<{ prompts: Prompt[] }>
   private userDataPath: string
   private currentAppVersion: string
-  private mcpConfHelper: McpConfHelper // 使用MCP配置助手
-  private modelConfigHelper: ModelConfigHelper // 模型配置助手
-  private knowledgeConfHelper: KnowledgeConfHelper // 知识配置助手
+  private mcpConfHelper: McpConfHelper // Use MCP configuration helper
+  private modelConfigHelper: ModelConfigHelper // Model configuration helper
+  private knowledgeConfHelper: KnowledgeConfHelper // Knowledge configuration helper
   // Model status memory cache for high-frequency read/write operations
   private modelStatusCache: Map<string, boolean> = new Map()
 
   constructor() {
     this.userDataPath = app.getPath('userData')
     this.currentAppVersion = app.getVersion()
-    // 初始化应用设置存储
+    // Initialize application settings storage
     this.store = new ElectronStore<IAppSettings>({
       name: 'app-settings',
       defaults: {
@@ -123,14 +123,14 @@ export class ConfigPresenter implements IConfigPresenter {
         floatingButtonEnabled: false,
         default_system_prompt: '',
         webContentLengthLimit: 3000,
-        updateChannel: 'stable', // 默认使用正式版
+        updateChannel: 'stable', // Default to stable version
         appVersion: this.currentAppVersion
       }
     })
 
     this.initTheme()
 
-    // 初始化 custom prompts 存储
+    // Initialize custom prompts storage
     this.customPromptsStore = new ElectronStore<{ prompts: Prompt[] }>({
       name: 'custom_prompts',
       defaults: {
@@ -138,23 +138,23 @@ export class ConfigPresenter implements IConfigPresenter {
       }
     })
 
-    // 初始化MCP配置助手
+    // Initialize MCP configuration helper
     this.mcpConfHelper = new McpConfHelper()
 
-    // 初始化模型配置助手
+    // Initialize model configuration helper
     this.modelConfigHelper = new ModelConfigHelper()
 
-    // 初始化知识配置助手
+    // Initialize knowledge configuration helper
     this.knowledgeConfHelper = new KnowledgeConfHelper()
 
-    // 初始化provider models目录
+    // Initialize provider models directory
     this.initProviderModelsDir()
 
-    // 如果应用版本更新了，更新appVersion
+    // If application version is updated, update appVersion
     if (this.store.get('appVersion') !== this.currentAppVersion) {
       const oldVersion = this.store.get('appVersion')
       this.store.set('appVersion', this.currentAppVersion)
-      // 迁移数据
+      // Migrate data
       this.migrateConfigData(oldVersion)
       this.mcpConfHelper.onUpgrade(oldVersion)
     }
@@ -193,7 +193,7 @@ export class ConfigPresenter implements IConfigPresenter {
   }
 
   private migrateConfigData(oldVersion: string | undefined): void {
-    // 0.2.4 版本之前，minimax 的 baseUrl 是错误的，需要修正
+    // Before version 0.2.4, minimax's baseUrl was incorrect and needs to be fixed
     if (oldVersion && compare(oldVersion, '0.2.4', '<')) {
       const providers = this.getProviders()
       for (const provider of providers) {
@@ -203,80 +203,80 @@ export class ConfigPresenter implements IConfigPresenter {
         }
       }
     }
-    // 0.0.10 版本之前，模型数据存储在app-settings.json中
+    // Before version 0.0.10, model data was stored in app-settings.json
     if (oldVersion && compare(oldVersion, '0.0.10', '<')) {
-      // 迁移旧的模型数据
+      // Migrate old model data
       const providers = this.getProviders()
 
       for (const provider of providers) {
-        // 检查并修正 ollama 的 baseUrl
+        // Check and fix ollama's baseUrl
         if (provider.id === 'ollama' && provider.baseUrl) {
           if (provider.baseUrl.endsWith('/v1')) {
             provider.baseUrl = provider.baseUrl.replace(/\/v1$/, '')
-            // 保存修改后的提供者
+            // Save the modified provider
             this.setProviderById('ollama', provider)
           }
         }
 
-        // 迁移provider模型
+        // Migrate provider models
         const oldProviderModelsKey = `${provider.id}_models`
         const oldModels =
           this.getSetting<(MODEL_META & { enabled: boolean })[]>(oldProviderModelsKey)
 
         if (oldModels && oldModels.length > 0) {
           const store = this.getProviderModelStore(provider.id)
-          // 遍历旧模型，保存启用状态
+          // Iterate through old models, save enabled state
           oldModels.forEach((model) => {
             if (model.enabled) {
               this.setModelStatus(provider.id, model.id, true)
             }
-            // @ts-ignore - 需要删除enabled属性以便独立存储状态
+            // @ts-ignore - Need to delete enabled property for independent state storage
             delete model.enabled
           })
-          // 保存模型列表到新存储
+          // Save model list to new storage
           store.set('models', oldModels)
-          // 清除旧存储
+          // Clear old storage
           this.store.delete(oldProviderModelsKey)
         }
 
-        // 迁移custom模型
+        // Migrate custom models
         const oldCustomModelsKey = `custom_models_${provider.id}`
         const oldCustomModels =
           this.getSetting<(MODEL_META & { enabled: boolean })[]>(oldCustomModelsKey)
 
         if (oldCustomModels && oldCustomModels.length > 0) {
           const store = this.getProviderModelStore(provider.id)
-          // 遍历旧的自定义模型，保存启用状态
+          // Iterate through old custom models, save enabled state
           oldCustomModels.forEach((model) => {
             if (model.enabled) {
               this.setModelStatus(provider.id, model.id, true)
             }
-            // @ts-ignore - 需要删除enabled属性以便独立存储状态
+            // @ts-ignore - Need to delete enabled property for independent state storage
             delete model.enabled
           })
-          // 保存自定义模型列表到新存储
+          // Save custom model list to new storage
           store.set('custom_models', oldCustomModels)
-          // 清除旧存储
+          // Clear old storage
           this.store.delete(oldCustomModelsKey)
         }
       }
     }
 
-    // 0.0.17 版本之前，需要移除 qwenlm 提供商
+    // Before version 0.0.17, need to remove qwenlm provider
     if (oldVersion && compare(oldVersion, '0.0.17', '<')) {
-      // 获取当前所有提供商
+      // Get all current providers
       const providers = this.getProviders()
 
-      // 过滤掉 qwenlm 提供商
+      // Filter out qwenlm provider
       const filteredProviders = providers.filter((provider) => provider.id !== 'qwenlm')
 
-      // 如果过滤后数量不同，说明有移除操作，需要保存更新后的提供商列表
+      // If filtered count differs, there was removal operation, need to save updated provider list
       if (filteredProviders.length !== providers.length) {
         this.setProviders(filteredProviders)
       }
     }
 
-    // 0.3.4 版本之前，如果默认系统提示词为空，则设置为内置的默认提示词
+    // Before version 0.3.4, if default system prompt is empty, set it to built-in default prompt
     if (oldVersion && compare(oldVersion, '0.3.4', '<')) {
       const currentPrompt = this.getSetting<string>('default_system_prompt')
       if (!currentPrompt || currentPrompt.trim() === '') {
@@ -297,10 +297,10 @@ export class ConfigPresenter implements IConfigPresenter {
   setSetting<T>(key: string, value: T): void {
     try {
       this.store.set(key, value)
-      // 触发设置变更事件（仅主进程内部使用）
+      // Trigger setting change event (main process internal use only)
       eventBus.sendToMain(CONFIG_EVENTS.SETTING_CHANGED, key, value)
 
-      // 特殊处理：字体大小设置需要通知所有标签页
+      // Special handling: font size settings need to notify all tabs
       if (key === 'fontSizeLevel') {
         eventBus.sendToRenderer(CONFIG_EVENTS.FONT_SIZE_CHANGED, SendTarget.ALL_WINDOWS, value)
       }
@@ -321,7 +321,7 @@ export class ConfigPresenter implements IConfigPresenter {
 
   setProviders(providers: LLM_PROVIDER[]): void {
     this.setSetting<LLM_PROVIDER[]>(PROVIDERS_STORE_KEY, providers)
-    // 触发新事件（需要通知所有标签页）
+    // Trigger new event (need to notify all tabs)
     eventBus.send(CONFIG_EVENTS.PROVIDER_CHANGED, SendTarget.ALL_WINDOWS)
   }
 
@@ -356,14 +356,14 @@ export class ConfigPresenter implements IConfigPresenter {
       return false
     }
 
-    // 检查是否需要重建实例
+    // Check if instance rebuild is needed
     const requiresRebuild = checkRequiresRebuild(updates)
 
-    // 更新配置
+    // Update configuration
     providers[index] = { ...providers[index], ...updates }
     this.setSetting<LLM_PROVIDER[]>(PROVIDERS_STORE_KEY, providers)
 
-    // 触发精确的变更事件
+    // Trigger precise change event
     const change: ProviderChange = {
       operation: 'update',
       providerId: id,
@@ -380,10 +380,10 @@ export class ConfigPresenter implements IConfigPresenter {
    * @param batchUpdate 批量更新请求
    */
   updateProvidersBatch(batchUpdate: ProviderBatchUpdate): void {
-    // 更新完整的 provider 列表（用于顺序变更）
+    // Update complete provider list (used for order changes)
     this.setSetting<LLM_PROVIDER[]>(PROVIDERS_STORE_KEY, batchUpdate.providers)
 
-    // 触发批量变更事件
+    // Trigger batch change event
     eventBus.send(CONFIG_EVENTS.PROVIDER_BATCH_UPDATE, SendTarget.ALL_WINDOWS, batchUpdate)
   }
 
@@ -399,7 +399,7 @@ export class ConfigPresenter implements IConfigPresenter {
     const change: ProviderChange = {
       operation: 'add',
       providerId: provider.id,
-      requiresRebuild: true, // 新增 provider 总是需要创建实例
+      requiresRebuild: true, // Adding new provider always requires creating instance
       provider
     }
     eventBus.send(CONFIG_EVENTS.PROVIDER_ATOMIC_UPDATE, SendTarget.ALL_WINDOWS, change)
@@ -417,7 +417,7 @@ export class ConfigPresenter implements IConfigPresenter {
     const change: ProviderChange = {
       operation: 'remove',
       providerId,
-      requiresRebuild: true // 删除 provider 需要清理实例
+      requiresRebuild: true // Deleting provider requires cleaning up instances
     }
     eventBus.send(CONFIG_EVENTS.PROVIDER_ATOMIC_UPDATE, SendTarget.ALL_WINDOWS, change)
   }
@@ -431,20 +431,20 @@ export class ConfigPresenter implements IConfigPresenter {
 
     const change: ProviderChange = {
       operation: 'reorder',
-      providerId: '', // 重排序影响所有 provider
-      requiresRebuild: false // 仅重排序不需要重建实例
+      providerId: '', // Reordering affects all providers
+      requiresRebuild: false // Only reordering doesn't require rebuilding instances
     }
     eventBus.send(CONFIG_EVENTS.PROVIDER_ATOMIC_UPDATE, SendTarget.ALL_WINDOWS, change)
   }
 
-  // 构造模型状态的存储键
+  // Construct storage key for model state
   private getModelStatusKey(providerId: string, modelId: string): string {
-    // 将 modelId 中的点号替换为连字符
+    // Replace dots in modelId with hyphens
     const formattedModelId = modelId.replace(/\./g, '-')
     return `${MODEL_STATUS_KEY_PREFIX}${providerId}_${formattedModelId}`
   }
 
-  // 获取模型启用状态 (带内存缓存优化)
+  // Get model enabled state (with memory cache optimization)
   getModelStatus(providerId: string, modelId: string): boolean {
     const statusKey = this.getModelStatusKey(providerId, modelId)
 
@@ -461,7 +461,7 @@ export class ConfigPresenter implements IConfigPresenter {
     return finalStatus
   }
 
-  // 批量获取模型启用状态 (带内存缓存优化)
+  // Batch get model enabled states (with memory cache optimization)
   getBatchModelStatus(providerId: string, modelIds: string[]): Record<string, boolean> {
     const result: Record<string, boolean> = {}
     const uncachedKeys: string[] = []
@@ -493,7 +493,7 @@ export class ConfigPresenter implements IConfigPresenter {
     return result
   }
 
-  // 设置模型启用状态 (同步更新内存缓存)
+  // Set model enabled state (synchronously update memory cache)
   setModelStatus(providerId: string, modelId: string, enabled: boolean): void {
     const statusKey = this.getModelStatusKey(providerId, modelId)
 
@@ -501,7 +501,7 @@ export class ConfigPresenter implements IConfigPresenter {
     this.setSetting(statusKey, enabled)
     this.modelStatusCache.set(statusKey, enabled)
 
-    // 触发模型状态变更事件（需要通知所有标签页）
+    // Trigger model state change event (need to notify all tabs)
     eventBus.sendToRenderer(CONFIG_EVENTS.MODEL_STATUS_CHANGED, SendTarget.ALL_WINDOWS, {
       providerId,
       modelId,
@@ -509,22 +509,22 @@ export class ConfigPresenter implements IConfigPresenter {
     })
   }
 
-  // 启用模型
+  // Enable model
   enableModel(providerId: string, modelId: string): void {
     this.setModelStatus(providerId, modelId, true)
   }
 
-  // 禁用模型
+  // Disable model
   disableModel(providerId: string, modelId: string): void {
     this.setModelStatus(providerId, modelId, false)
   }
 
-  // 清理模型状态缓存 (用于配置重载或重置场景)
+  // Clear model state cache (for configuration reload or reset scenarios)
   clearModelStatusCache(): void {
     this.modelStatusCache.clear()
   }
 
-  // 清理特定 provider 的模型状态缓存
+  // Clear model state cache for specific provider
   clearProviderModelStatusCache(providerId: string): void {
     const keysToDelete: string[] = []
     for (const key of this.modelStatusCache.keys()) {
@@ -535,7 +535,7 @@ export class ConfigPresenter implements IConfigPresenter {
     keysToDelete.forEach((key) => this.modelStatusCache.delete(key))
   }
 
-  // 批量设置模型状态
+  // Batch set model states
   batchSetModelStatus(providerId: string, modelStatusMap: Record<string, boolean>): void {
     for (const [modelId, enabled] of Object.entries(modelStatusMap)) {
       this.setModelStatus(providerId, modelId, enabled)
@@ -551,7 +551,7 @@ export class ConfigPresenter implements IConfigPresenter {
       if (config) {
         model.maxTokens = config.maxTokens
         model.contextLength = config.contextLength
-        // 如果模型中已经有这些属性则保留，否则使用配置中的值或默认为false
+        // If model already has these properties, keep them, otherwise use values from config or default to false
         model.vision = model.vision !== undefined ? model.vision : config.vision || false
         model.functionCall =
           model.functionCall !== undefined ? model.functionCall : config.functionCall || false
@@ -561,7 +561,7 @@ export class ConfigPresenter implements IConfigPresenter {
           model.enableSearch !== undefined ? model.enableSearch : config.enableSearch || false
         model.type = model.type !== undefined ? model.type : config.type || ModelType.Chat
       } else {
-        // 确保模型具有这些属性，如果没有配置，默认为false
+        // Ensure model has these properties, default to false if not configured
         model.vision = model.vision || false
         model.functionCall = model.functionCall || false
         model.reasoning = model.reasoning || false
@@ -609,17 +609,17 @@ export class ConfigPresenter implements IConfigPresenter {
           ...this.getCustomModels(providerId)
         ]
 
-        // 批量获取模型状态
+        // Batch get model states
         const modelIds = allModels.map((model) => model.id)
         const modelStatusMap = this.getBatchModelStatus(providerId, modelIds)
 
-        // 根据批量获取的状态过滤启用的模型
+        // Filter enabled models based on batch retrieved states
         const enabledModels = allModels
           .filter((model) => modelStatusMap[model.id])
           .map((model) => ({
             ...model,
             enabled: true,
-            // 确保能力属性被复制
+            // Ensure capability properties are copied
             vision: model.vision || false,
             functionCall: model.functionCall || false,
             reasoning: model.reasoning || false,
@@ -638,9 +638,9 @@ export class ConfigPresenter implements IConfigPresenter {
     const store = this.getProviderModelStore(providerId)
     let customModels = store.get('custom_models') || []
 
-    // 确保自定义模型也有能力属性
+    // Ensure custom models also have capability properties
     customModels = customModels.map((model) => {
-      // 如果模型已经有这些属性，保留它们，否则默认为false
+      // If model already has these properties, keep them, otherwise default to false
       model.vision = model.vision !== undefined ? model.vision : false
       model.functionCall = model.functionCall !== undefined ? model.functionCall : false
       model.reasoning = model.reasoning !== undefined ? model.reasoning : false
@@ -660,9 +660,9 @@ export class ConfigPresenter implements IConfigPresenter {
     const models = this.getCustomModels(providerId)
     const existingIndex = models.findIndex((m) => m.id === model.id)
 
-    // 创建不包含enabled属性的模型副本
+    // Create model copy without enabled property
     const modelWithoutStatus: MODEL_META = { ...model }
-    // @ts-ignore - 需要删除enabled属性以便独立存储状态
+    // @ts-ignore - Need to delete enabled property for independent state storage
     delete modelWithoutStatus.enabled
 
     if (existingIndex !== -1) {
@@ -672,9 +672,9 @@ export class ConfigPresenter implements IConfigPresenter {
     }
 
     this.setCustomModels(providerId, models)
-    // 单独设置模型状态
+    // Set individual model state
     this.setModelStatus(providerId, model.id, true)
-    // 触发模型列表变更事件（需要通知所有标签页）
+    // Trigger model list change event (need to notify all tabs)
     eventBus.sendToRenderer(CONFIG_EVENTS.MODEL_LIST_CHANGED, SendTarget.ALL_WINDOWS, providerId)
   }
 
@@ -683,11 +683,11 @@ export class ConfigPresenter implements IConfigPresenter {
     const filteredModels = models.filter((model) => model.id !== modelId)
     this.setCustomModels(providerId, filteredModels)
 
-    // 删除模型状态
+    // Delete model state
     const statusKey = this.getModelStatusKey(providerId, modelId)
     this.store.delete(statusKey)
 
-    // 触发模型列表变更事件（需要通知所有标签页）
+    // Trigger model list change event (need to notify all tabs)
     eventBus.sendToRenderer(CONFIG_EVENTS.MODEL_LIST_CHANGED, SendTarget.ALL_WINDOWS, providerId)
   }
 
@@ -710,7 +710,7 @@ export class ConfigPresenter implements IConfigPresenter {
     this.setSetting('closeToQuit', value)
   }
 
-  // 获取应用当前语言，考虑系统语言设置
+  // Get application current language, considering system language settings
   getLanguage(): string {
     const language = this.getSetting<string>('language') || 'system'
 
@@ -721,14 +721,14 @@ export class ConfigPresenter implements IConfigPresenter {
     return this.getSystemLanguage()
   }
 
-  // 设置应用语言
+  // Set application language
   setLanguage(language: string): void {
     this.setSetting('language', language)
-    // 触发语言变更事件（需要通知所有标签页）
+    // Trigger language change event (need to notify all tabs)
     eventBus.sendToRenderer(CONFIG_EVENTS.LANGUAGE_CHANGED, SendTarget.ALL_WINDOWS, language)
   }
 
-  // 获取系统语言并匹配支持的语言列表
+  // Get system language and match supported language list
   private getSystemLanguage(): string {
     const systemLang = app.getLocale()
     const supportedLanguages = [
@@ -743,19 +743,19 @@ export class ConfigPresenter implements IConfigPresenter {
       'fa-IR'
     ]
 
-    // 完全匹配
+    // Exact match
     if (supportedLanguages.includes(systemLang)) {
       return systemLang
     }
 
-    // 部分匹配（只匹配语言代码）
+    // Partial match (only match language code)
     const langCode = systemLang.split('-')[0]
     const matchedLang = supportedLanguages.find((lang) => lang.startsWith(langCode))
     if (matchedLang) {
       return matchedLang
     }
 
-    // 默认返回英文
+    // Default return English
     return 'en-US'
   }
 
@@ -763,82 +763,82 @@ export class ConfigPresenter implements IConfigPresenter {
     return DEFAULT_PROVIDERS
   }
 
-  // 获取代理模式
+  // Get proxy mode
   getProxyMode(): string {
     return this.getSetting<string>('proxyMode') || 'system'
   }
 
-  // 设置代理模式
+  // Set proxy mode
   setProxyMode(mode: string): void {
     this.setSetting('proxyMode', mode)
     eventBus.sendToMain(CONFIG_EVENTS.PROXY_MODE_CHANGED, mode)
   }
 
-  // 获取自定义代理地址
+  // Get custom proxy address
   getCustomProxyUrl(): string {
     return this.getSetting<string>('customProxyUrl') || ''
   }
 
-  // 设置自定义代理地址
+  // Set custom proxy address
   setCustomProxyUrl(url: string): void {
     this.setSetting('customProxyUrl', url)
     eventBus.sendToMain(CONFIG_EVENTS.CUSTOM_PROXY_URL_CHANGED, url)
   }
 
-  // 获取同步功能状态
+  // Get sync function status
   getSyncEnabled(): boolean {
     return this.getSetting<boolean>('syncEnabled') || false
   }
 
-  // 获取日志文件夹路径
+  // Get log folder path
   getLoggingFolderPath(): string {
     return path.join(this.userDataPath, 'logs')
   }
 
-  // 打开日志文件夹
+  // Open log folder
   async openLoggingFolder(): Promise<void> {
     const loggingFolderPath = this.getLoggingFolderPath()
 
-    // 如果文件夹不存在，先创建它
+    // If folder doesn't exist, create it first
     if (!fs.existsSync(loggingFolderPath)) {
       fs.mkdirSync(loggingFolderPath, { recursive: true })
     }
 
-    // 打开文件夹
+    // Open folder
     await shell.openPath(loggingFolderPath)
   }
 
-  // 设置同步功能状态
+  // Set sync function status
   setSyncEnabled(enabled: boolean): void {
     console.log('setSyncEnabled', enabled)
     this.setSetting('syncEnabled', enabled)
     eventBus.send(CONFIG_EVENTS.SYNC_SETTINGS_CHANGED, SendTarget.ALL_WINDOWS, { enabled })
   }
 
-  // 获取同步文件夹路径
+  // Get sync folder path
   getSyncFolderPath(): string {
     return (
       this.getSetting<string>('syncFolderPath') || path.join(app.getPath('home'), 'DeepchatSync')
     )
   }
 
-  // 设置同步文件夹路径
+  // Set sync folder path
   setSyncFolderPath(folderPath: string): void {
     this.setSetting('syncFolderPath', folderPath)
     eventBus.send(CONFIG_EVENTS.SYNC_SETTINGS_CHANGED, SendTarget.ALL_WINDOWS, { folderPath })
   }
 
-  // 获取上次同步时间
+  // Get last sync time
   getLastSyncTime(): number {
     return this.getSetting<number>('lastSyncTime') || 0
   }
 
-  // 设置上次同步时间
+  // Set last sync time
   setLastSyncTime(time: number): void {
     this.setSetting('lastSyncTime', time)
   }
 
-  // 获取自定义搜索引擎
+  // Get custom search engines
   async getCustomSearchEngines(): Promise<SearchEngineTemplate[]> {
     try {
       const customEnginesJson = this.store.get('customSearchEngines')
@@ -847,48 +847,48 @@ export class ConfigPresenter implements IConfigPresenter {
       }
       return []
     } catch (error) {
-      console.error('获取自定义搜索引擎失败:', error)
+      console.error('Failed to get custom search engines:', error)
       return []
     }
   }
 
-  // 设置自定义搜索引擎
+  // Set custom search engines
   async setCustomSearchEngines(engines: SearchEngineTemplate[]): Promise<void> {
     try {
       this.store.set('customSearchEngines', JSON.stringify(engines))
-      // 发送事件通知搜索引擎更新（需要通知所有标签页）
+      // Send event to notify search engine update (need to notify all tabs)
       eventBus.send(CONFIG_EVENTS.SEARCH_ENGINES_UPDATED, SendTarget.ALL_WINDOWS, engines)
     } catch (error) {
-      console.error('设置自定义搜索引擎失败:', error)
+      console.error('Failed to set custom search engines:', error)
       throw error
     }
   }
 
-  // 获取搜索预览设置状态
+  // Get search preview setting status
   getSearchPreviewEnabled(): Promise<boolean> {
     const value = this.getSetting<boolean>('searchPreviewEnabled')
-    // 默认关闭搜索预览
+    // Default search preview is off
     return Promise.resolve(value === undefined || value === null ? false : value)
   }
 
-  // 设置搜索预览状态
+  // Set search preview status
   setSearchPreviewEnabled(enabled: boolean): void {
     console.log('ConfigPresenter.setSearchPreviewEnabled:', enabled, typeof enabled)
 
-    // 确保传入的是布尔值
+    // Ensure the input is a boolean value
     const boolValue = Boolean(enabled)
 
     this.setSetting('searchPreviewEnabled', boolValue)
   }
 
-  // 获取投屏保护设置状态
+  // Get content protection setting status
   getContentProtectionEnabled(): boolean {
     const value = this.getSetting<boolean>('contentProtectionEnabled')
-    // 默认投屏保护关闭
+    // Default content protection is off
     return value === undefined || value === null ? false : value
   }
 
-  // 设置投屏保护状态
+  // Set content protection status
   setContentProtectionEnabled(enabled: boolean): void {
     this.setSetting('contentProtectionEnabled', enabled)
     eventBus.send(CONFIG_EVENTS.CONTENT_PROTECTION_CHANGED, SendTarget.ALL_WINDOWS, enabled)
@@ -905,13 +905,13 @@ export class ConfigPresenter implements IConfigPresenter {
     }, 1000)
   }
 
-  // 获取音效开关状态
+  // Get sound effects switch status
   getSoundEnabled(): boolean {
     const value = this.getSetting<boolean>('soundEnabled') ?? false
     return value === undefined || value === null ? false : value
   }
 
-  // 设置音效开关状态
+  // Set sound effects switch status
   setSoundEnabled(enabled: boolean): void {
     this.setSetting('soundEnabled', enabled)
     eventBus.sendToRenderer(CONFIG_EVENTS.SOUND_ENABLED_CHANGED, SendTarget.ALL_WINDOWS, enabled)
@@ -927,13 +927,13 @@ export class ConfigPresenter implements IConfigPresenter {
     eventBus.sendToRenderer(CONFIG_EVENTS.COPY_WITH_COT_CHANGED, SendTarget.ALL_WINDOWS, enabled)
   }
 
-  // 获取悬浮按钮开关状态
+  // Get floating button switch status
   getFloatingButtonEnabled(): boolean {
     const value = this.getSetting<boolean>('floatingButtonEnabled') ?? false
     return value === undefined || value === null ? false : value
   }
 
-  // 设置悬浮按钮开关状态
+  // Set floating button switch status
   setFloatingButtonEnabled(enabled: boolean): void {
     this.setSetting('floatingButtonEnabled', enabled)
     eventBus.sendToMain(FLOATING_BUTTON_EVENTS.ENABLED_CHANGED, enabled)
@@ -945,24 +945,24 @@ export class ConfigPresenter implements IConfigPresenter {
     }
   }
 
-  // ===================== MCP配置相关方法 =====================
+  // ===================== MCP configuration related methods =====================
 
-  // 获取MCP服务器配置
+  // Get MCP server configuration
   async getMcpServers(): Promise<Record<string, MCPServerConfig>> {
     return await this.mcpConfHelper.getMcpServers()
   }
 
-  // 设置MCP服务器配置
+  // Set MCP server configuration
   async setMcpServers(servers: Record<string, MCPServerConfig>): Promise<void> {
     return this.mcpConfHelper.setMcpServers(servers)
   }
 
-  // 获取默认MCP服务器
+  // Get default MCP server
   getMcpDefaultServers(): Promise<string[]> {
     return this.mcpConfHelper.getMcpDefaultServers()
   }
 
-  // 设置默认MCP服务器
+  // Set default MCP server
   async addMcpDefaultServer(serverName: string): Promise<void> {
     return this.mcpConfHelper.addMcpDefaultServer(serverName)
   }
@@ -975,32 +975,32 @@ export class ConfigPresenter implements IConfigPresenter {
     return this.mcpConfHelper.toggleMcpDefaultServer(serverName)
   }
 
-  // 获取MCP启用状态
+  // Get MCP enabled status
   getMcpEnabled(): Promise<boolean> {
     return this.mcpConfHelper.getMcpEnabled()
   }
 
-  // 设置MCP启用状态
+  // Set MCP enabled status
   async setMcpEnabled(enabled: boolean): Promise<void> {
     return this.mcpConfHelper.setMcpEnabled(enabled)
   }
 
-  // 添加MCP服务器
+  // Add MCP server
   async addMcpServer(name: string, config: MCPServerConfig): Promise<boolean> {
     return this.mcpConfHelper.addMcpServer(name, config)
   }
 
-  // 移除MCP服务器
+  // Remove MCP server
   async removeMcpServer(name: string): Promise<void> {
     return this.mcpConfHelper.removeMcpServer(name)
   }
 
-  // 更新MCP服务器配置
+  // Update MCP server configuration
   async updateMcpServer(name: string, config: Partial<MCPServerConfig>): Promise<void> {
     await this.mcpConfHelper.updateMcpServer(name, config)
   }
 
-  // 提供getMcpConfHelper方法，用于获取MCP配置助手
+  // Provide getMcpConfHelper method to get MCP configuration helper
   getMcpConfHelper(): McpConfHelper {
     return this.mcpConfHelper
   }
@@ -1023,7 +1023,7 @@ export class ConfigPresenter implements IConfigPresenter {
    */
   setModelConfig(modelId: string, providerId: string, config: ModelConfig): void {
     this.modelConfigHelper.setModelConfig(modelId, providerId, config)
-    // 触发模型配置变更事件（需要通知所有标签页）
+    // Trigger model configuration change event (need to notify all tabs)
     eventBus.sendToRenderer(
       CONFIG_EVENTS.MODEL_CONFIG_CHANGED,
       SendTarget.ALL_WINDOWS,

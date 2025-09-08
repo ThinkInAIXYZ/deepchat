@@ -50,7 +50,7 @@ const safetySettingKeys = Object.keys(keyToHarmCategoryMap)
 export class GeminiProvider extends BaseLLMProvider {
   private genAI: GoogleGenAI
 
-  // 定义静态的模型配置
+  // Define static model configuration
   private static readonly GEMINI_MODELS: MODEL_META[] = [
     {
       id: 'gemini-2.5-pro',
@@ -164,7 +164,7 @@ export class GeminiProvider extends BaseLLMProvider {
     this.init()
   }
 
-  // 实现BaseLLMProvider中的抽象方法fetchProviderModels
+  // Implement abstract method fetchProviderModels from BaseLLMProvider
   protected async fetchProviderModels(): Promise<MODEL_META[]> {
     try {
       const modelsResponse = await this.genAI.models.list()
@@ -187,40 +187,40 @@ export class GeminiProvider extends BaseLLMProvider {
       // 映射 API 返回的模型数据
       const apiModels: MODEL_META[] = models
         .filter((model: any) => {
-          // 过滤掉嵌入模型和其他非聊天模型
+          // Filter out embedding models and other non-chat models
           const name = model.name.toLowerCase()
           return (
             !name.includes('embedding') &&
             !name.includes('aqa') &&
             !name.includes('text-embedding') &&
             !name.includes('gemma-3n-e4b-it')
-          ) // 过滤掉特定的小模型
+          ) // Filter out specific small models
         })
         .map((model: any) => {
           const modelName = model.name
           const displayName = model.displayName
 
-          // 判断模型功能支持
+          // Determine model functionality support
           const isVisionModel =
-            displayName.toLowerCase().includes('vision') || modelName.includes('gemini-') // Gemini 系列一般都支持视觉
+            displayName.toLowerCase().includes('vision') || modelName.includes('gemini-') // Gemini series generally support vision
 
           const isFunctionCallSupported =
-            !modelName.includes('gemma-3') && !modelName.includes('flash-image-preview') // Gemma 模型和 flash-image-preview 不支持函数调用
+            !modelName.includes('gemma-3') && !modelName.includes('flash-image-preview') // Gemma models and flash-image-preview do not support function calls
 
-          // 判断是否支持推理（thinking）
+          // Determine if reasoning (thinking) is supported
           const isReasoningSupported =
             modelName.includes('thinking') ||
             (modelName.includes('2.5') && !modelName.includes('flash-image-preview')) ||
             modelName.includes('2.0-flash') ||
             modelName.includes('exp-1206')
 
-          // 判断模型类型
+          // Determine model type
           let modelType = ModelType.Chat
           if (modelName.includes('image-generation')) {
             modelType = ModelType.ImageGeneration
           }
 
-          // 确定模型分组
+          // Determine model group
           let group = 'default'
           if (modelName.includes('exp') || modelName.includes('preview')) {
             group = 'experimental'
@@ -247,7 +247,7 @@ export class GeminiProvider extends BaseLLMProvider {
       return apiModels
     } catch (error) {
       console.warn('Failed to fetch models from Gemini API:', error)
-      // 如果 API 调用失败，回退到静态模型列表
+      // If API call fails, fallback to static model list
       return GeminiProvider.GEMINI_MODELS.map((model) => ({
         ...model,
         providerId: this.provider.id
@@ -255,13 +255,13 @@ export class GeminiProvider extends BaseLLMProvider {
     }
   }
 
-  // 实现BaseLLMProvider中的summaryTitles抽象方法
+  // Implement summaryTitles abstract method from BaseLLMProvider
   public async summaryTitles(
     messages: { role: 'system' | 'user' | 'assistant'; content: string }[],
     modelId: string
   ): Promise<string> {
     console.log('gemini ignore modelId', modelId)
-    // 使用Gemini API生成对话标题
+    // Use Gemini API to generate conversation titles
     try {
       const conversationText = messages.map((m) => `${m.role}: ${m.content}`).join('\n')
       const prompt = `${SUMMARY_TITLES_PROMPT}\n\n${conversationText}`
@@ -272,27 +272,27 @@ export class GeminiProvider extends BaseLLMProvider {
         config: this.getGenerationConfig(0.4, undefined, modelId, false)
       })
 
-      return result.text?.trim() || '新对话'
+      return result.text?.trim() || 'New Conversation'
     } catch (error) {
-      console.error('生成对话标题失败:', error)
-      return '新对话'
+      console.error('Failed to generate conversation title:', error)
+      return 'New Conversation'
     }
   }
 
-  // 重载fetchModels方法，因为Gemini没有获取模型的API
+  // Override fetchModels method since Gemini doesn't have a model fetching API
   async fetchModels(): Promise<MODEL_META[]> {
     // Gemini没有获取模型的API，直接使用init方法中的硬编码模型列表
     return this.models
   }
 
-  // 重载check方法，使用第一个默认模型进行测试
+  // Override check method to use the first default model for testing
   async check(): Promise<{ isOk: boolean; errorMsg: string | null }> {
     try {
       if (!this.provider.apiKey) {
-        return { isOk: false, errorMsg: '缺少API密钥' }
+        return { isOk: false, errorMsg: 'Missing API key' }
       }
 
-      // 使用第一个模型进行简单测试
+      // Use the first model for simple testing
       const result = await this.genAI.models.generateContent({
         model: 'models/gemini-1.5-flash-8b',
         contents: [{ role: 'user', parts: [{ text: 'Hello' }] }]
@@ -308,10 +308,10 @@ export class GeminiProvider extends BaseLLMProvider {
     if (this.provider.enable) {
       try {
         this.isInitialized = true
-        // 使用API获取模型列表，如果失败则回退到静态列表
+        // Use API to get model list, fallback to static list if failed
         this.models = await this.fetchProviderModels()
         await this.autoEnableModelsIfNeeded()
-        // gemini 比较慢，特殊补偿一下
+        // Gemini is relatively slow, special compensation
         eventBus.sendToRenderer(
           CONFIG_EVENTS.MODEL_LIST_CHANGED,
           SendTarget.ALL_WINDOWS,
@@ -766,7 +766,7 @@ export class GeminiProvider extends BaseLLMProvider {
     }
 
     try {
-      const prompt = `请为以下内容生成一个简洁的摘要：\n\n${text}`
+      const prompt = `Please generate a concise summary for the following content:\n\n${text}`
 
       const result = await this.genAI.models.generateContent({
         model: modelId,
@@ -824,7 +824,7 @@ export class GeminiProvider extends BaseLLMProvider {
     }
 
     try {
-      const prompt = `根据以下上下文，请提供最多5个合理的建议选项，每个选项不超过100个字符。请以JSON数组格式返回，不要有其他说明：\n\n${context}`
+      const prompt = `Based on the following context, please provide up to 5 reasonable suggestion options, each not exceeding 100 characters. Please return in JSON array format without other explanations:\n\n${context}`
 
       const result = await this.genAI.models.generateContent({
         model: modelId,
@@ -855,11 +855,11 @@ export class GeminiProvider extends BaseLLMProvider {
         }
       }
 
-      // 如果都失败了，返回一个默认提示
-      return ['无法生成建议']
+      // If all fail, return a default prompt
+      return ['Unable to generate suggestions']
     } catch (error) {
       console.error('Gemini suggestions error:', error)
-      return ['发生错误，无法获取建议']
+      return ['Error occurred, unable to get suggestions']
     }
   }
   /**
@@ -1149,7 +1149,9 @@ export class GeminiProvider extends BaseLLMProvider {
       yield createStreamEvent.stop('complete')
     } catch (error) {
       console.error('Image generation stream error:', error)
-      yield createStreamEvent.error(error instanceof Error ? error.message : '图像生成失败')
+      yield createStreamEvent.error(
+        error instanceof Error ? error.message : 'Image generation failed'
+      )
       yield createStreamEvent.stop('error')
     }
   }

@@ -8,15 +8,15 @@ export interface WatermarkOptions {
     brand?: string
     time?: string
     tip?: string
-    model?: string // 模型名称
-    provider?: string // 供应商名称
+    model?: string // Model name
+    provider?: string // Provider name
   }
 }
 
 /**
- * 创建水印SVG
- * @param width 图片宽度
- * @param options 水印选项
+ * Create watermark SVG
+ * @param width Image width
+ * @param options Watermark options
  */
 const createWatermarkSvg = (width: number, options: WatermarkOptions): string => {
   const { isDark = false, version = '1.0.0', texts = {} } = options
@@ -25,22 +25,22 @@ const createWatermarkSvg = (width: number, options: WatermarkOptions): string =>
   const yPadding = 40
   const lineHeight = 24
 
-  // 计算文本垂直居中的基准Y坐标
+  // Calculate baseline Y coordinate for vertically centered text
   const textBaselineY = borderHeight / 2 + 4
   const upperTextY = textBaselineY - lineHeight / 2 + 4
   const lowerTextY = textBaselineY + lineHeight / 2 + 4
 
-  // 品牌标识和版本信息
+  // Brand identifier and version information
   const brandText = texts.brand || 'DeepChat'
   const versionInfo = 'v' + version
 
-  // 构建时间信息，在时间戳前面添加模型和供应商信息
+  // Build time information, add model and provider info before timestamp
   const now = new Date()
   const timeStr =
     texts.time ||
     `${now.getFullYear()}/${String(now.getMonth() + 1).padStart(2, '0')}/${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
 
-  // 构建完整的时间行：模型信息 + 时间戳
+  // Build complete time line: model info + timestamp
   let timeLineText = ''
   if (texts.model || texts.provider) {
     const modelInfo: string[] = []
@@ -63,28 +63,28 @@ const createWatermarkSvg = (width: number, options: WatermarkOptions): string =>
 
   return `
     <svg width="${width}" height="${borderHeight}" xmlns="http://www.w3.org/2000/svg">
-      <!-- 背景 -->
+      <!-- Background -->
       <rect width="${width}" height="${borderHeight}" fill="${backgroundColor}"/>
 
-      <!-- 分隔线 -->
+      <!-- Separator line -->
       <rect x="0" y="0" width="${width}" height="1" fill="${lineColor}"/>
 
-      <!-- 时间信息 (左对齐) -->
+      <!-- Time information (left aligned) -->
       <text x="${yPadding}" y="${upperTextY}" font-family="Arial, sans-serif" font-size="16" fill="${textColor}">
         ${timeLineText}
       </text>
 
-      <!-- 提示文本 (左对齐) -->
+      <!-- Tip text (left aligned) -->
       <text x="${yPadding}" y="${lowerTextY}" font-family="Arial, sans-serif" font-size="16" fill="${textColor}">
         ${tipText}
       </text>
 
-      <!-- 品牌标识 (右对齐) -->
+      <!-- Brand identifier (right aligned) -->
       <text x="${width - yPadding}" y="${upperTextY}" font-family="Arial, sans-serif" font-size="28" font-weight="bold" text-anchor="end" fill="${textColor}">
         ${brandText}
       </text>
 
-      <!-- 版本信息 (右对齐) -->
+      <!-- Version information (right aligned) -->
       <text x="${width - yPadding}" y="${lowerTextY}" font-family="Arial, sans-serif" font-size="16" text-anchor="end" fill="${textColor}">
         ${versionInfo}
       </text>
@@ -93,27 +93,27 @@ const createWatermarkSvg = (width: number, options: WatermarkOptions): string =>
 }
 
 /**
- * 为图片添加水印 (主进程版本)
- * @param imageBuffer 原始图片的Buffer
- * @param options 水印选项
+ * Add watermark to image (main process version)
+ * @param imageBuffer Original image buffer
+ * @param options Watermark options
  */
 export const addWatermarkToImage = async (
   imageBuffer: Buffer,
   options: WatermarkOptions = {}
 ): Promise<Buffer> => {
   try {
-    // 获取原始图片信息
+    // Get original image information
     const { width, height } = await sharp(imageBuffer).metadata()
 
     if (!width || !height) {
-      throw new Error('无法获取图片尺寸')
+      throw new Error('Unable to get image dimensions')
     }
 
     const borderHeight = 80
     const watermarkSvg = createWatermarkSvg(width, options)
     const watermarkBuffer = Buffer.from(watermarkSvg)
 
-    // 创建带水印的图片
+    // Create watermarked image
     const result = await sharp({
       create: {
         width,
@@ -123,13 +123,13 @@ export const addWatermarkToImage = async (
       }
     })
       .composite([
-        // 原始图片
+        // Original image
         {
           input: imageBuffer,
           top: 0,
           left: 0
         },
-        // 水印
+        // Watermark
         {
           input: watermarkBuffer,
           top: height,
@@ -141,16 +141,16 @@ export const addWatermarkToImage = async (
 
     return result
   } catch (error) {
-    console.error('添加水印时出错:', error)
-    // 如果添加水印失败，返回原始图片
+    console.error('Error adding watermark:', error)
+    // If watermark addition fails, return original image
     return imageBuffer
   }
 }
 
 /**
- * 从nativeImage创建带水印的图片
- * @param image Electron nativeImage对象
- * @param options 水印选项
+ * Create watermarked image from nativeImage
+ * @param image Electron nativeImage object
+ * @param options Watermark options
  */
 export const addWatermarkToNativeImage = async (
   image: Electron.NativeImage,

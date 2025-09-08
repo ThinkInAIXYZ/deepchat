@@ -74,9 +74,9 @@ export type LLM_EMBEDDING_ATTRS = {
 
 export interface KeyStatus {
   remainNum?: number
-  /** 剩余额度 */
+  /** Remaining quota */
   limit_remaining?: string
-  /** 已使用额度 */
+  /** Used quota */
   usage?: string
 }
 

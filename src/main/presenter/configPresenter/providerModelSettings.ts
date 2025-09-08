@@ -1,31 +1,31 @@
 import { ModelType } from '@shared/model'
 import { ModelConfig } from '@shared/presenter'
 
-// 定义每个provider的模型匹配规则和配置的接口，与modelDefaultSettings保持一致的风格
+// Define the model matching rules and configuration interface for each provider, maintaining consistency with modelDefaultSettings
 export interface ProviderModelSetting {
-  id: string // 模型ID
-  name: string // 模型名称
-  match: string[] // 用于匹配模型ID的字符串数组
-  maxTokens: number // 最大生成token数
-  contextLength: number // 上下文长度
-  temperature?: number // 温度参数
-  vision?: boolean // 是否支持视觉
-  functionCall?: boolean // 是否支持函数调用
-  reasoning?: boolean // 是否支持推理能力
-  type?: ModelType // 模型类型，默认为Chat
-  // GPT-5 系列新参数
+  id: string // Model ID
+  name: string // Model name
+  match: string[] // String array used to match model IDs
+  maxTokens: number // Maximum generation token count
+  contextLength: number // Context length
+  temperature?: number // Temperature parameter
+  vision?: boolean // Whether vision is supported
+  functionCall?: boolean // Whether function calling is supported
+  reasoning?: boolean // Whether reasoning capability is supported
+  type?: ModelType // Model type, defaults to Chat
+  // GPT-5 series new parameters
   reasoningEffort?: 'minimal' | 'low' | 'medium' | 'high'
   verbosity?: 'low' | 'medium' | 'high'
-  maxCompletionTokens?: number // GPT-5 系列使用此参数替代 maxTokens
-  thinkingBudget?: number // 思维预算参数
-  enableSearch?: boolean // 是否支持联网搜索
-  forcedSearch?: boolean // 是否强制联网搜索
-  searchStrategy?: 'turbo' | 'max' // 搜索策略
+  maxCompletionTokens?: number // GPT-5 series uses this parameter instead of maxTokens
+  thinkingBudget?: number // Thinking budget parameter
+  enableSearch?: boolean // Whether internet search is supported
+  forcedSearch?: boolean // Whether forced internet search is enabled
+  searchStrategy?: 'turbo' | 'max' // Search strategy
 }
 
-// 为每个提供商创建映射对象，使用models数组包装模型配置
+// Create mapping objects for each provider, wrapping model configurations with models array
 export const providerModelSettings: Record<string, { models: ProviderModelSetting[] }> = {
-  // OpenAI提供商特定模型配置
+  // OpenAI provider-specific model configurations
   openai: {
     models: [
       {
@@ -83,10 +83,10 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
     ]
   },
 
-  // 火山引擎(Doubao)提供商特定模型配置
+  // Volcengine (Doubao) provider-specific model configurations
   doubao: {
     models: [
-      // DeepSeek 模型
+      // DeepSeek models
       {
         id: 'deepseek-v3-1-250821',
         name: 'DeepSeek V3.1',
@@ -142,7 +142,7 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         functionCall: true,
         reasoning: false
       },
-      // 豆包原生模型
+      // Doubao native models
       {
         id: 'doubao-seed-1-6-vision-250815',
         name: 'Doubao Seed 1.6 Vision',
@@ -212,7 +212,7 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
     ]
   },
 
-  // Anthropic提供商特定模型配置
+  // Anthropic provider-specific model configurations
   anthropic: {
     models: [
       {
@@ -295,7 +295,7 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
     ]
   },
 
-  // Gemini提供商特定模型配置
+  // Gemini provider-specific model configurations
   gemini: {
     models: [
       {
@@ -416,12 +416,12 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
     ]
   },
 
-  // 华为云Hunyuan提供商特定模型配置
+  // Huawei Cloud Hunyuan provider-specific model configurations
   hunyuan: {
     models: []
   },
 
-  // DeepSeek提供商特定模型配置
+  // DeepSeek provider-specific model configurations
   deepseek: {
     models: [
       {
@@ -443,21 +443,21 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         contextLength: 65536,
         match: ['deepseek-reasoner'],
         vision: false,
-        functionCall: false, // 必须关闭，否则会自动调用3.1的非思考模式
+        functionCall: false, // Must be disabled, otherwise it will automatically call 3.1's non-thinking mode
         reasoning: true
       }
     ]
   },
 
-  // MiniMax提供商特定模型配置
+  // MiniMax provider-specific model configurations
   minimax: {
     models: []
   },
 
-  // 智谱AI提供商特定模型配置
+  // Zhipu AI provider-specific model configurations
   zhipu: {
     models: [
-      // GLM 4.5 系列模型
+      // GLM 4.5 series models
       {
         id: 'glm-4.5v',
         name: 'GLM-4.5V',
@@ -527,15 +527,15 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
     ]
   },
 
-  // Moonshot提供商特定模型配置
+  // Moonshot provider-specific model configurations
   moonshot: {
     models: []
   },
 
-  // Ollama提供商特定模型配置
+  // Ollama provider-specific model configurations
   ollama: {
     models: [
-      // OpenAI开源模型
+      // OpenAI open-source models
       {
         id: 'gpt-oss:20b',
         name: 'GPT-OSS 20B',
@@ -560,7 +560,7 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         reasoning: true,
         reasoningEffort: 'medium'
       },
-      // DeepSeek推理模型系列
+      // DeepSeek reasoning model series
       {
         id: 'deepseek-r1:1.5b',
         name: 'DeepSeek R1 1.5B',
@@ -638,7 +638,7 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         functionCall: false,
         reasoning: true
       },
-      // DeepSeek V3/V2.5系列
+      // DeepSeek V3/V2.5 series
       {
         id: 'deepseek-v3:671b',
         name: 'DeepSeek V3 671B',
@@ -661,7 +661,7 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         functionCall: true,
         reasoning: false
       },
-      // Gemma3系列
+      // Gemma3 series
       {
         id: 'gemma3:1b',
         name: 'Gemma3 1B',
@@ -706,7 +706,7 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         functionCall: true,
         reasoning: false
       },
-      // Gemma2系列
+      // Gemma2 series
       {
         id: 'gemma2:2b',
         name: 'Gemma2 2B',
@@ -740,7 +740,7 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         functionCall: true,
         reasoning: false
       },
-      // Gemma系列
+      // Gemma series
       {
         id: 'gemma:2b',
         name: 'Gemma 2B',
@@ -763,7 +763,7 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         functionCall: true,
         reasoning: false
       },
-      // Qwen3系列
+      // Qwen3 series
       {
         id: 'qwen3:0.6b',
         name: 'Qwen3 0.6B',
@@ -852,7 +852,7 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         functionCall: true,
         reasoning: true
       },
-      // Qwen3编程模型
+      // Qwen3 programming models
       {
         id: 'qwen3-coder:30b',
         name: 'Qwen3 Coder 30B',
@@ -864,7 +864,7 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         functionCall: true,
         reasoning: true
       },
-      // Qwen2.5系列
+      // Qwen2.5 series
       {
         id: 'qwen2.5:0.5b',
         name: 'Qwen2.5 0.5B',
@@ -942,7 +942,7 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         functionCall: true,
         reasoning: false
       },
-      // Qwen2.5编程模型系列
+      // Qwen2.5 programming model series
       {
         id: 'qwen2.5-coder:0.5b',
         name: 'Qwen2.5 Coder 0.5B',
@@ -1009,7 +1009,7 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         functionCall: true,
         reasoning: false
       },
-      // Qwen2系列
+      // Qwen2 series
       {
         id: 'qwen2:0.5b',
         name: 'Qwen2 0.5B',
@@ -1054,7 +1054,7 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         functionCall: true,
         reasoning: false
       },
-      // Qwen第一代系列
+      // Qwen first generation series
       {
         id: 'qwen:0.5b',
         name: 'Qwen 0.5B',
@@ -1143,7 +1143,7 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         functionCall: false,
         reasoning: false
       },
-      // QwQ推理模型
+      // QwQ reasoning models
       {
         id: 'qwq:32b',
         name: 'QwQ 32B',
@@ -1155,7 +1155,7 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         functionCall: false,
         reasoning: true
       },
-      // Llama3.3系列
+      // Llama3.3 series
       {
         id: 'llama3.3:70b',
         name: 'Llama 3.3 70B',
@@ -1167,7 +1167,7 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         functionCall: true,
         reasoning: false
       },
-      // Llama3.2系列
+      // Llama3.2 series
       {
         id: 'llama3.2:1b',
         name: 'Llama 3.2 1B',
@@ -1190,7 +1190,7 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         functionCall: true,
         reasoning: false
       },
-      // Llama3.2视觉模型
+      // Llama3.2 vision models
       {
         id: 'llama3.2-vision:11b',
         name: 'Llama 3.2 Vision 11B',
@@ -1213,7 +1213,7 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         functionCall: true,
         reasoning: false
       },
-      // Llama3.1系列
+      // Llama3.1 series
       {
         id: 'llama3.1:8b',
         name: 'Llama 3.1 8B',
@@ -1247,7 +1247,7 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         functionCall: true,
         reasoning: false
       },
-      // Llama3系列
+      // Llama3 series
       {
         id: 'llama3:8b',
         name: 'Llama 3 8B',
@@ -1270,7 +1270,7 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         functionCall: false,
         reasoning: false
       },
-      // Llama2系列
+      // Llama2 series
       {
         id: 'llama2:7b',
         name: 'Llama 2 7B',
@@ -1304,7 +1304,7 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         functionCall: false,
         reasoning: false
       },
-      // LLaVA视觉模型系列
+      // LLaVA vision model series
       {
         id: 'llava:7b',
         name: 'LLaVA 7B',
@@ -1338,7 +1338,7 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         functionCall: false,
         reasoning: false
       },
-      // LLaVA-Llama3模型
+      // LLaVA-Llama3 models
       {
         id: 'llava-llama3:8b',
         name: 'LLaVA Llama3 8B',
@@ -1350,7 +1350,7 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         functionCall: false,
         reasoning: false
       },
-      // Mistral系列
+      // Mistral series
       {
         id: 'mistral:7b',
         name: 'Mistral 7B',
@@ -1395,7 +1395,7 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         functionCall: true,
         reasoning: false
       },
-      // Phi系列
+      // Phi series
       {
         id: 'phi3:3.8b',
         name: 'Phi-3 3.8B',
@@ -1440,7 +1440,7 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         functionCall: false,
         reasoning: true
       },
-      // CodeLlama编程模型系列
+      // CodeLlama programming model series
       {
         id: 'codellama:7b',
         name: 'Code Llama 7B',
@@ -1485,7 +1485,7 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         functionCall: false,
         reasoning: false
       },
-      // MiniCPM视觉模型
+      // MiniCPM vision models
       {
         id: 'minicpm-v:8b',
         name: 'MiniCPM-V 8B',
@@ -1497,7 +1497,7 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         functionCall: false,
         reasoning: false
       },
-      // TinyLlama轻量模型
+      // TinyLlama lightweight models
       {
         id: 'tinyllama:1.1b',
         name: 'TinyLlama 1.1B',
@@ -1509,7 +1509,7 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         functionCall: false,
         reasoning: false
       },
-      // SmolLM2轻量模型系列
+      // SmolLM2 lightweight model series
       {
         id: 'smollm2:135m',
         name: 'SmolLM2 135M',
@@ -1543,7 +1543,7 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         functionCall: true,
         reasoning: false
       },
-      // Tulu3指令模型
+      // Tulu3 instruction models
       {
         id: 'tulu3:8b',
         name: 'Tulu3 8B',
@@ -1566,7 +1566,7 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         functionCall: true,
         reasoning: false
       },
-      // OLMo2开源模型
+      // OLMo2 open-source models
       {
         id: 'olmo2:7b',
         name: 'OLMo2 7B',
@@ -1589,7 +1589,7 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         functionCall: false,
         reasoning: false
       },
-      // Solar Pro模型
+      // Solar Pro models
       {
         id: 'solar-pro:22b',
         name: 'Solar Pro 22B',
@@ -1601,7 +1601,7 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         functionCall: true,
         reasoning: false
       },
-      // Dolphin指令模型
+      // Dolphin instruction models
       {
         id: 'dolphin3:8b',
         name: 'Dolphin3 8B',
@@ -1613,7 +1613,7 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         functionCall: true,
         reasoning: false
       },
-      // Command R模型系列
+      // Command R model series
       {
         id: 'command-r7b:7b',
         name: 'Command R7B 7B',
@@ -1647,7 +1647,7 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         functionCall: true,
         reasoning: false
       },
-      // Magicoder编程模型
+      // Magicoder programming models
       {
         id: 'magicoder:7b',
         name: 'Magicoder 7B',
@@ -1659,7 +1659,7 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         functionCall: false,
         reasoning: false
       },
-      // Mathstral数学模型
+      // Mathstral math models
       {
         id: 'mathstral:7b',
         name: 'Mathstral 7B',
@@ -1671,7 +1671,7 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         functionCall: false,
         reasoning: true
       },
-      // Falcon2模型
+      // Falcon2 models
       {
         id: 'falcon2:11b',
         name: 'Falcon2 11B',
@@ -1683,7 +1683,7 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         functionCall: false,
         reasoning: false
       },
-      // StableLM模型
+      // StableLM models
       {
         id: 'stablelm-zephyr:3b',
         name: 'StableLM Zephyr 3B',
@@ -1695,7 +1695,7 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         functionCall: false,
         reasoning: false
       },
-      // Granite Guardian安全模型
+      // Granite Guardian safety models
       {
         id: 'granite3-guardian:2b',
         name: 'Granite3 Guardian 2B',
@@ -1718,7 +1718,7 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         functionCall: false,
         reasoning: false
       },
-      // ShieldGemma安全模型
+      // ShieldGemma safety models
       {
         id: 'shieldgemma:2b',
         name: 'ShieldGemma 2B',
@@ -1752,7 +1752,7 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         functionCall: false,
         reasoning: false
       },
-      // 嵌入模型
+      // Embedding models
       {
         id: 'nomic-embed-text:335m',
         name: 'Nomic Embed Text 335M',
@@ -1792,12 +1792,12 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
     ]
   },
 
-  // 七牛云提供商特定模型配置
+  // Qiniu Cloud provider-specific model configurations
   qiniu: {
     models: []
   },
 
-  // SiliconFlow提供商特定模型配置
+  // SiliconFlow provider-specific model configurations
   silicon: {
     models: [
       {
@@ -1946,12 +1946,12 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
     ]
   },
 
-  // Fireworks提供商特定模型配置
+  // Fireworks provider-specific model configurations
   fireworks: {
     models: []
   },
 
-  // PPIO提供商特定模型配置
+  // PPIO provider-specific model configurations
   ppio: {
     models: [
       {
@@ -2144,12 +2144,12 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
     ]
   },
 
-  // GitHub提供商特定模型配置
+  // GitHub provider-specific model configurations
   github: {
     models: []
   },
 
-  // GitHub Copilot提供商特定模型配置
+  // GitHub Copilot provider-specific model configurations
   'github-copilot': {
     models: [
       {
@@ -2210,7 +2210,7 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
     ]
   },
 
-  // 阿里云提供商特定模型配置, 注意匹配排序，only max/plus/turbo
+  // Alibaba Cloud provider-specific model configurations, note matching order: only max/plus/turbo
   dashscope: {
     models: [
       {
@@ -2565,7 +2565,7 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         forcedSearch: false,
         searchStrategy: 'turbo'
       },
-      // Qwen3系列模型
+      // Qwen3 series models
       {
         id: 'qwen3-max-preview',
         name: 'Qwen3 Max Preview',
@@ -2700,7 +2700,7 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         reasoning: true,
         thinkingBudget: 20000
       },
-      // QwQ 系列模型
+      // QwQ series models
       {
         id: 'qwq-plus',
         name: 'QwQ Plus',
@@ -2756,7 +2756,7 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
       }
     ]
   },
-  // OpenRouter提供商特定模型配置
+  // OpenRouter provider-specific model configurations
   openrouter: {
     models: [
       {
@@ -2783,7 +2783,7 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         reasoning: true
       },
       {
-        //对fc支持有问题，避免使用
+        // Has issues with fc support, avoid using
         id: 'deepseek-chat-v3-0324:free',
         name: 'DeepSeek v3-0324:free',
         temperature: 0.6,
@@ -2794,7 +2794,7 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         functionCall: false,
         reasoning: false
       },
-      // GPT-5 系列模型配置
+      // GPT-5 series model configurations
       {
         id: 'gpt-5-chat',
         name: 'OpenAI: GPT-5 Chat',
@@ -2855,7 +2855,7 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         maxCompletionTokens: 128000,
         type: ModelType.Chat
       },
-      // O1 系列模型配置
+      // O1 series model configurations
       {
         id: 'o1-mini',
         name: 'OpenAI: o1-mini',
@@ -2912,7 +2912,7 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         maxCompletionTokens: 32768,
         type: ModelType.Chat
       },
-      // O3 系列模型配置
+      // O3 series model configurations
       {
         id: 'o3',
         name: 'OpenAI: o3',
@@ -2972,7 +2972,7 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
     ]
   },
 
-  // Grok提供商特定模型配置
+  // Grok provider-specific model configurations
   grok: {
     models: [
       {
@@ -3055,12 +3055,12 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
     ]
   },
 
-  // Azure OpenAI提供商特定模型配置
+  // Azure OpenAI provider-specific model configurations
   'azure-openai': {
     models: []
   },
 
-  // LM Studio提供商特定模型配置
+  // LM Studio provider-specific model configurations
   lmstudio: {
     models: []
   }
@@ -3076,23 +3076,23 @@ export function getProviderSpecificModelConfig(
   providerId: string,
   modelId: string
 ): ModelConfig | undefined {
-  // 将modelId转为小写以进行不区分大小写的匹配
+  // Convert modelId to lowercase for case-insensitive matching
   const lowerModelId = modelId.toLowerCase()
 
-  // 检查该提供商是否存在特定配置
+  // Check if the provider has specific configurations
   const providerSetting = providerModelSettings[providerId]
   if (!providerSetting || !providerSetting.models) {
     return undefined
   }
 
-  // 遍历该提供商的模型数组，查找匹配的模型配置
+  // Iterate through the provider's model array to find matching model configurations
   for (const config of providerSetting.models) {
-    // 检查是否有任何匹配条件符合
+    // Check if any matching conditions are met
     if (config.match.some((matchStr) => lowerModelId.includes(matchStr.toLowerCase()))) {
       return {
         maxTokens: config.maxTokens,
         contextLength: config.contextLength,
-        temperature: config.temperature, // 保持可选，某些模型不支持
+        temperature: config.temperature, // Keep optional, some models don't support it
         vision: config.vision || false,
         functionCall: config.functionCall || false,
         reasoning: config.reasoning || false,

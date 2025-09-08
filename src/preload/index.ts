@@ -1,7 +1,7 @@
 import { clipboard, contextBridge, nativeImage, webUtils, webFrame, ipcRenderer } from 'electron'
 import { exposeElectronAPI } from '@electron-toolkit/preload'
 
-// 缓存变量
+// Cache variables
 let cachedWindowId: number | undefined = undefined
 let cachedWebContentsId: number | undefined = undefined
 
@@ -41,7 +41,7 @@ if (process.contextIsolated) {
   try {
     contextBridge.exposeInMainWorld('api', api)
   } catch (error) {
-    console.error(error)
+    console.error('Preload: Failed to expose API via contextBridge:', error)
   }
 } else {
   // @ts-ignore (define in dts)
@@ -50,7 +50,12 @@ if (process.contextIsolated) {
 window.addEventListener('DOMContentLoaded', () => {
   cachedWebContentsId = ipcRenderer.sendSync('get-web-contents-id')
   cachedWindowId = ipcRenderer.sendSync('get-window-id')
-  console.log('cachedWebContentsId', cachedWebContentsId, cachedWindowId)
-  webFrame.setVisualZoomLevelLimits(1, 1) // 禁用 trackpad 缩放
+  console.log(
+    'Preload: Initialized with WebContentsId:',
+    cachedWebContentsId,
+    'WindowId:',
+    cachedWindowId
+  )
+  webFrame.setVisualZoomLevelLimits(1, 1) // Disable trackpad zooming
   webFrame.setZoomFactor(1)
 })

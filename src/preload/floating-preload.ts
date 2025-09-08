@@ -1,6 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron'
 
-// 直接定义事件常量，避免路径解析问题
+// Define event constants directly to avoid path resolution issues
 const FLOATING_BUTTON_EVENTS = {
   CLICKED: 'floating-button:clicked',
   RIGHT_CLICKED: 'floating-button:right-clicked',
@@ -9,9 +9,9 @@ const FLOATING_BUTTON_EVENTS = {
   DRAG_END: 'floating-button:drag-end'
 } as const
 
-// 定义悬浮按钮的 API
+// Define floating button API
 const floatingButtonAPI = {
-  // 通知主进程悬浮按钮被点击
+  // Notify main process that floating button was clicked
   onClick: () => {
     try {
       ipcRenderer.send(FLOATING_BUTTON_EVENTS.CLICKED)
@@ -28,7 +28,7 @@ const floatingButtonAPI = {
     }
   },
 
-  // 拖拽相关API
+  // Drag-related API
   onDragStart: (x: number, y: number) => {
     try {
       ipcRenderer.send(FLOATING_BUTTON_EVENTS.DRAG_START, { x, y })
@@ -53,21 +53,21 @@ const floatingButtonAPI = {
     }
   },
 
-  // 监听来自主进程的事件
+  // Listen to events from main process
   onConfigUpdate: (callback: (config: any) => void) => {
     ipcRenderer.on('floating-button-config-update', (_event, config) => {
       callback(config)
     })
   },
 
-  // 移除事件监听器
+  // Remove event listeners
   removeAllListeners: () => {
     console.log('FloatingPreload: Removing all listeners')
     ipcRenderer.removeAllListeners('floating-button-config-update')
   }
 }
 
-// 尝试不同的方式暴露API
+// Try different ways to expose API
 if (process.contextIsolated) {
   try {
     contextBridge.exposeInMainWorld('floatingButtonAPI', floatingButtonAPI)

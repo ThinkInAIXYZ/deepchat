@@ -335,7 +335,7 @@ export const defaultModelsSettings: DefaultModelSetting[] = [
     reasoning: false
   },
 
-  // Gemini 系列模型
+  // Gemini series models
   // ref: https://ai.google.dev/gemini-api/docs/models
   {
     id: 'gemini-2.5-pro',
@@ -347,7 +347,7 @@ export const defaultModelsSettings: DefaultModelSetting[] = [
     vision: true,
     functionCall: true,
     reasoning: true,
-    thinkingBudget: -1 // 动态思维
+    thinkingBudget: -1 // Dynamic thinking
   },
   {
     id: 'google/gemini-2.5-flash-image-preview',
@@ -371,7 +371,7 @@ export const defaultModelsSettings: DefaultModelSetting[] = [
     vision: true,
     functionCall: true,
     reasoning: true,
-    thinkingBudget: -1 // 动态思维
+    thinkingBudget: -1 // Dynamic thinking
   },
   {
     id: 'models/gemini-2.5-flash-lite',
@@ -383,7 +383,7 @@ export const defaultModelsSettings: DefaultModelSetting[] = [
     vision: true,
     functionCall: true,
     reasoning: true,
-    thinkingBudget: -1 // 动态思维
+    thinkingBudget: -1 // Dynamic thinking
   },
   {
     id: 'models/gemini-2.5-flash',
@@ -395,7 +395,7 @@ export const defaultModelsSettings: DefaultModelSetting[] = [
     vision: true,
     functionCall: true,
     reasoning: true,
-    thinkingBudget: -1 // 动态思维
+    thinkingBudget: -1 // Dynamic thinking
   },
   {
     id: 'models/gemini-2.0-flash-preview-image-generation',

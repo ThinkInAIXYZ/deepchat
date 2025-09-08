@@ -21,7 +21,7 @@ export class OAuthPresenter {
   private callbackPort = 3000
 
   /**
-   * 验证GitHub访问令牌
+   * Validate GitHub access token
    */
   private async validateGitHubAccessToken(token: string): Promise<boolean> {
     try {
@@ -40,31 +40,31 @@ export class OAuthPresenter {
   }
 
   /**
-   * 开始GitHub Copilot Device Flow登录流程（推荐）
+   * Start GitHub Copilot Device Flow login process (recommended)
    */
   async startGitHubCopilotDeviceFlowLogin(providerId: string): Promise<boolean> {
     try {
       console.log('Starting GitHub Copilot Device Flow login for provider:', providerId)
 
-      // 使用专门的GitHub Copilot Device Flow实现
+      // Use dedicated GitHub Copilot Device Flow implementation
       console.log('Creating GitHub Device Flow instance...')
       const githubDeviceFlow = createGitHubCopilotDeviceFlow()
 
-      // 开始Device Flow登录
+      // Start Device Flow login
       console.log('Starting Device Flow login...')
       const accessToken = await githubDeviceFlow.startDeviceFlow()
       console.log('Received access token:', accessToken ? 'SUCCESS' : 'FAILED')
 
-      // 验证令牌
+      // Validate token
       console.log('Validating access token...')
       const isValid = await this.validateGitHubAccessToken(accessToken)
       console.log('Token validation result:', isValid)
 
       if (!isValid) {
-        throw new Error('获取的访问令牌无效')
+        throw new Error('Obtained access token is invalid')
       }
 
-      // 保存访问令牌到provider配置
+      // Save access token to provider configuration
       console.log('Saving access token to provider configuration...')
       const provider = presenter.configPresenter.getProviderById(providerId)
       if (provider) {
@@ -83,17 +83,17 @@ export class OAuthPresenter {
   }
 
   /**
-   * 开始GitHub Copilot OAuth登录流程（传统方式）
+   * Start GitHub Copilot OAuth login process (traditional method)
    */
   async startGitHubCopilotLogin(providerId: string): Promise<boolean> {
     try {
       console.log('Starting GitHub Copilot OAuth login for provider:', providerId)
 
-      // 使用专门的GitHub Copilot OAuth实现
+      // Use dedicated GitHub Copilot OAuth implementation
       console.log('Creating GitHub OAuth instance...')
       const githubOAuth = createGitHubCopilotOAuth()
 
-      // 开始OAuth登录
+      // Start OAuth login
       console.log('Starting OAuth login flow...')
       const authCode = await githubOAuth.startLogin()
       console.log('Received auth code:', authCode ? 'SUCCESS' : 'FAILED')
@@ -103,16 +103,16 @@ export class OAuthPresenter {
       const accessToken = await githubOAuth.exchangeCodeForToken(authCode)
       console.log('Received access token:', accessToken ? 'SUCCESS' : 'FAILED')
 
-      // 验证令牌
+      // Validate token
       console.log('Validating access token...')
       const isValid = await githubOAuth.validateToken(accessToken)
       console.log('Token validation result:', isValid)
 
       if (!isValid) {
-        throw new Error('获取的访问令牌无效')
+        throw new Error('Obtained access token is invalid')
       }
 
-      // 保存访问令牌到provider配置
+      // Save access token to provider configuration
       console.log('Saving access token to provider configuration...')
       const provider = presenter.configPresenter.getProviderById(providerId)
       if (provider) {
@@ -135,7 +135,7 @@ export class OAuthPresenter {
   }
 
   /**
-   * 检查Anthropic OAuth凭据是否存在
+   * Check if Anthropic OAuth credentials exist
    */
   async hasAnthropicCredentials(): Promise<boolean> {
     try {
@@ -148,7 +148,7 @@ export class OAuthPresenter {
   }
 
   /**
-   * 获取有效的Anthropic访问令牌
+   * Get valid Anthropic access token
    */
   async getAnthropicAccessToken(): Promise<string | null> {
     try {
@@ -161,7 +161,7 @@ export class OAuthPresenter {
   }
 
   /**
-   * 清除Anthropic OAuth凭据
+   * Clear Anthropic OAuth credentials
    */
   async clearAnthropicCredentials(): Promise<void> {
     try {
@@ -174,7 +174,7 @@ export class OAuthPresenter {
   }
 
   /**
-   * 启动Anthropic OAuth流程（外部浏览器）
+   * Start Anthropic OAuth flow (external browser)
    */
   async startAnthropicOAuthFlow(): Promise<string> {
     try {
@@ -190,7 +190,7 @@ export class OAuthPresenter {
   }
 
   /**
-   * 完成Anthropic OAuth流程（使用用户输入的code）
+   * Complete Anthropic OAuth flow (using user-provided code)
    */
   async completeAnthropicOAuthWithCode(code: string): Promise<boolean> {
     try {
@@ -212,7 +212,7 @@ export class OAuthPresenter {
   }
 
   /**
-   * 取消Anthropic OAuth流程
+   * Cancel Anthropic OAuth flow
    */
   async cancelAnthropicOAuthFlow(): Promise<void> {
     try {
@@ -225,23 +225,23 @@ export class OAuthPresenter {
   }
 
   /**
-   * 开始OAuth登录流程（通用方法）
+   * Start OAuth login flow (generic method)
    */
   async startOAuthLogin(providerId: string, config: OAuthConfig): Promise<boolean> {
     try {
-      // 启动回调服务器
+      // Start callback server
       await this.startCallbackServer()
 
-      // 开始OAuth登录
+      // Start OAuth login
       const authCode = await this.startOAuthFlow(config)
 
-      // 停止回调服务器
+      // Stop callback server
       this.stopCallbackServer()
 
       // 用授权码交换访问令牌
       const accessToken = await this.exchangeCodeForToken(authCode, config)
 
-      // 保存访问令牌到provider配置
+      // Save access token to provider configuration
       const provider = presenter.configPresenter.getProviderById(providerId)
       if (provider) {
         provider.apiKey = accessToken
@@ -258,7 +258,7 @@ export class OAuthPresenter {
   }
 
   /**
-   * 启动回调服务器
+   * Start callback server
    */
   private async startCallbackServer(): Promise<void> {
     return new Promise((resolve, reject) => {
@@ -267,7 +267,7 @@ export class OAuthPresenter {
 
         console.log('Callback server received request:', url.href)
 
-        // 设置CORS头
+        // Set CORS headers
         res.setHeader('Access-Control-Allow-Origin', '*')
         res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
         res.setHeader('Access-Control-Allow-Headers', 'Content-Type')
@@ -277,25 +277,25 @@ export class OAuthPresenter {
           const error = url.searchParams.get('error')
 
           if (code) {
-            // 成功页面
+            // Success page
             res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' })
             res.end(`
               <!DOCTYPE html>
               <html>
               <head>
                 <meta charset="utf-8">
-                <title>授权成功</title>
+                <title>Authorization Successful</title>
                 <style>
                   body { font-family: Arial, sans-serif; text-align: center; padding: 50px; }
                   .success { color: #28a745; }
                 </style>
               </head>
               <body>
-                <h1 class="success">✅ 授权成功</h1>
-                <p>您已成功授权 GitHub Copilot 访问权限。</p>
-                <p>您可以关闭此窗口了。</p>
+                <h1 class="success">✅ Authorization Successful</h1>
+                <p>You have successfully authorized GitHub Copilot access.</p>
+                <p>You can close this window now.</p>
                 <script>
-                  // 3秒后自动关闭窗口
+                  // Auto close window after 3 seconds
                   setTimeout(() => {
                     window.close();
                   }, 3000);
@@ -304,26 +304,26 @@ export class OAuthPresenter {
               </html>
             `)
 
-            // 触发回调处理
+            // Trigger callback handling
             this.handleServerCallback(code, null)
           } else if (error) {
-            // 错误页面
+            // Error page
             res.writeHead(400, { 'Content-Type': 'text/html; charset=utf-8' })
             res.end(`
               <!DOCTYPE html>
               <html>
               <head>
                 <meta charset="utf-8">
-                <title>授权失败</title>
+                <title>Authorization Failed</title>
                 <style>
                   body { font-family: Arial, sans-serif; text-align: center; padding: 50px; }
                   .error { color: #dc3545; }
                 </style>
               </head>
               <body>
-                <h1 class="error">❌ 授权失败</h1>
-                <p>授权过程中发生错误：${error}</p>
-                <p>您可以关闭此窗口并重试。</p>
+                <h1 class="error">❌ Authorization Failed</h1>
+                <p>An error occurred during authorization: ${error}</p>
+                <p>You can close this window and try again.</p>
               </body>
               </html>
             `)
@@ -352,7 +352,7 @@ export class OAuthPresenter {
   }
 
   /**
-   * 停止回调服务器
+   * Stop callback server
    */
   private stopCallbackServer(): void {
     if (this.callbackServer) {
@@ -362,37 +362,37 @@ export class OAuthPresenter {
     }
   }
 
-  // 回调处理的resolve和reject函数
+  // Callback handling resolve and reject functions
   private callbackResolve: ((value: string) => void) | null = null
   private callbackReject: ((reason?: Error) => void) | null = null
 
   /**
-   * 处理服务器回调
+   * Handle server callback
    */
   private handleServerCallback(code: string | null, error: string | null): void {
     if (error) {
       console.error('OAuth server callback error:', error)
-      this.callbackReject?.(new Error(`OAuth授权失败: ${error}`))
+      this.callbackReject?.(new Error(`OAuth authorization failed: ${error}`))
     } else if (code) {
       console.log('OAuth server callback success, received code:', code)
       this.callbackResolve?.(code)
     }
 
-    // 清理回调函数
+    // Clean up callback functions
     this.callbackResolve = null
     this.callbackReject = null
   }
 
   /**
-   * 开始OAuth流程
+   * Start OAuth flow
    */
   private async startOAuthFlow(config: OAuthConfig): Promise<string> {
     return new Promise((resolve, reject) => {
-      // 保存回调函数
+      // Save callback functions
       this.callbackResolve = resolve
       this.callbackReject = reject
 
-      // 创建授权窗口
+      // Create authorization window
       this.authWindow = new BrowserWindow({
         width: 500,
         height: 700,
@@ -402,54 +402,54 @@ export class OAuthPresenter {
           contextIsolation: true
         },
         autoHideMenuBar: true,
-        title: 'GitHub 授权登录'
+        title: 'GitHub Authorization Login'
       })
 
-      // 构建授权URL
+      // Build authorization URL
       const authUrl = this.buildAuthUrl(config)
       console.log('Opening OAuth URL:', authUrl)
 
-      // 加载授权页面
+      // Load authorization page
       this.authWindow.loadURL(authUrl)
       this.authWindow.show()
 
-      // 处理窗口关闭
+      // Handle window close
       this.authWindow.on('closed', () => {
         this.authWindow = null
         if (this.callbackReject) {
-          this.callbackReject(new Error('用户取消了登录'))
+          this.callbackReject(new Error('User cancelled login'))
           this.callbackReject = null
           this.callbackResolve = null
         }
       })
 
-      // 处理加载错误
+      // Handle loading errors
       this.authWindow.webContents.on('did-fail-load', (_event, errorCode, errorDescription) => {
         console.error('OAuth page load failed:', errorCode, errorDescription)
         this.closeAuthWindow()
         if (this.callbackReject) {
-          this.callbackReject(new Error(`加载授权页面失败: ${errorDescription}`))
+          this.callbackReject(new Error(`Failed to load authorization page: ${errorDescription}`))
           this.callbackReject = null
           this.callbackResolve = null
         }
       })
 
-      // 监听页面导航，检查是否到达了回调页面
+      // Monitor page navigation to check if callback page is reached
       this.authWindow.webContents.on('did-navigate', (_event, navigationUrl) => {
         console.log('OAuth window navigated to:', navigationUrl)
-        // 如果导航到了我们的回调页面，说明授权流程已经完成
+        // If navigated to our callback page, authorization flow is complete
         if (navigationUrl.includes('deepchatai.cn/auth/github/callback')) {
-          // 关闭授权窗口，因为回调服务器会处理剩余的逻辑
+          // Close authorization window as callback server handles remaining logic
           setTimeout(() => {
             this.closeAuthWindow()
-          }, 2000) // 2秒后关闭，让用户看到成功页面
+          }, 2000) // Close after 2 seconds to let user see success page
         }
       })
     })
   }
 
   /**
-   * 构建授权URL
+   * Build authorization URL
    */
   private buildAuthUrl(config: OAuthConfig): string {
     const params = new URLSearchParams({
@@ -463,7 +463,7 @@ export class OAuthPresenter {
   }
 
   /**
-   * 用授权码交换访问令牌
+   * Exchange authorization code for access token
    */
   private async exchangeCodeForToken(code: string, config: OAuthConfig): Promise<string> {
     const response = await fetch('https://github.com/login/oauth/access_token', {
@@ -499,7 +499,7 @@ export class OAuthPresenter {
   }
 
   /**
-   * 关闭授权窗口
+   * Close authorization window
    */
   private closeAuthWindow(): void {
     if (this.authWindow && !this.authWindow.isDestroyed()) {
@@ -509,7 +509,7 @@ export class OAuthPresenter {
   }
 }
 
-// GitHub Copilot的OAuth配置
+// GitHub Copilot OAuth configuration
 export const GITHUB_COPILOT_OAUTH_CONFIG: OAuthConfig = {
   authUrl: 'https://github.com/login/oauth/authorize',
   redirectUri:

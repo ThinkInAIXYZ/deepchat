@@ -3,7 +3,7 @@ import { OpenAICompatibleProvider } from './openAICompatibleProvider'
 import { ModelConfig, MCPToolDefinition, LLMCoreStreamEvent } from '@shared/presenter'
 
 export class GrokProvider extends OpenAICompatibleProvider {
-  // 图像生成模型ID
+  // Image generation model ID
   private static readonly IMAGE_MODEL_ID = 'grok-2-image'
   // private static readonly IMAGE_ENDPOINT = '/images/generations'
 
@@ -11,7 +11,7 @@ export class GrokProvider extends OpenAICompatibleProvider {
     super(provider, configPresenter)
   }
 
-  // 判断是否为图像模型
+  // Check if it's an image model
   private isImageModel(modelId: string): boolean {
     return modelId.startsWith(GrokProvider.IMAGE_MODEL_ID)
   }
@@ -22,7 +22,7 @@ export class GrokProvider extends OpenAICompatibleProvider {
     temperature?: number,
     maxTokens?: number
   ): Promise<LLMResponse> {
-    // 图像生成模型需要特殊处理
+    // Image generation models require special handling
     if (this.isImageModel(modelId)) {
       return this.handleImageGeneration(messages)
     }
@@ -35,7 +35,7 @@ export class GrokProvider extends OpenAICompatibleProvider {
     temperature?: number,
     maxTokens?: number
   ): Promise<LLMResponse> {
-    // 图像生成模型不支持摘要
+    // Image generation models do not support summaries
     if (this.isImageModel(modelId)) {
       throw new Error('Image generation model does not support summaries')
     }
@@ -43,7 +43,7 @@ export class GrokProvider extends OpenAICompatibleProvider {
       [
         {
           role: 'user',
-          content: `请总结以下内容，使用简洁的语言，突出重点：\n${text}`
+          content: `Please summarize the following content using concise language and highlighting key points:\n${text}`
         }
       ],
       modelId,
@@ -58,7 +58,7 @@ export class GrokProvider extends OpenAICompatibleProvider {
     temperature?: number,
     maxTokens?: number
   ): Promise<LLMResponse> {
-    // 图像生成模型使用特殊处理
+    // Image generation models use special handling
     if (this.isImageModel(modelId)) {
       return this.handleImageGeneration([{ role: 'user', content: prompt }])
     }
@@ -75,7 +75,7 @@ export class GrokProvider extends OpenAICompatibleProvider {
     )
   }
 
-  // 处理图像生成请求的特殊方法
+  // Special method for handling image generation requests
   private async handleImageGeneration(
     messages: ChatMessage[]
   ): Promise<LLMResponse & { imageData?: string; mimeType?: string }> {
@@ -83,7 +83,7 @@ export class GrokProvider extends OpenAICompatibleProvider {
       throw new Error('Provider not initialized')
     }
 
-    // 提取提示词（使用最后一条用户消息）
+    // Extract prompt (use the last user message)
     const userMessage = messages.findLast((msg) => msg.role === 'user')
     if (!userMessage) {
       throw new Error('No user message found for image generation')
@@ -97,34 +97,36 @@ export class GrokProvider extends OpenAICompatibleProvider {
             .map((c) => c.text)
             .join('\n') || ''
 
-    // 创建图像生成请求
+    // Create image generation request
     try {
       const response = await this.openai.images.generate({
         model: GrokProvider.IMAGE_MODEL_ID,
         prompt,
         response_format: 'b64_json'
       })
-      // 处理响应
+      // Handle response
       if (response.data && response.data.length > 0) {
         const imageData = response.data[0]
         if (imageData.b64_json) {
-          // 返回base64编码的图像数据，同时保存原始数据
+          // Return base64-encoded image data while preserving original data
           return {
-            content: `![生成的图像](data:image/png;base64,${imageData.b64_json})`,
+            content: `![Generated Image](data:image/png;base64,${imageData.b64_json})`,
             imageData: imageData.b64_json,
             mimeType: 'image/png'
           }
         } else if (imageData.url) {
-          // 返回图像URL
+          // Return image URL
           return {
-            content: `![生成的图像](${imageData.url})`
+            content: `![Generated Image](${imageData.url})`
           }
         }
       }
       throw new Error('No image data received from API')
     } catch (error: unknown) {
       console.error('Image generation failed:', error)
-      throw new Error(`图像生成失败: ${error instanceof Error ? error.message : '未知错误'}`)
+      throw new Error(
+        `Image generation failed: ${error instanceof Error ? error.message : 'Unknown error'}`
+      )
     }
   }
 
@@ -138,7 +140,7 @@ export class GrokProvider extends OpenAICompatibleProvider {
   ): AsyncGenerator<LLMCoreStreamEvent> {
     if (this.isImageModel(modelId)) {
       const result = await this.handleImageGeneration(messages)
-      // 直接使用额外字段
+      // Use additional fields directly
       if (result.imageData && result.mimeType) {
         yield {
           type: 'image_data',
@@ -148,13 +150,13 @@ export class GrokProvider extends OpenAICompatibleProvider {
           }
         }
       } else {
-        // 如果没有imageData字段，回退到文本形式
+        // If no imageData field, fallback to text format
         yield {
           type: 'text',
           content: result.content
         }
       }
-      // 添加短暂延迟，确保所有 RESPONSE 事件已处理完毕
+      // Add brief delay to ensure all RESPONSE events are processed
       await new Promise((resolve) => setTimeout(resolve, 300))
     } else {
       yield* super.coreStream(messages, modelId, modelConfig, temperature, maxTokens, tools)

@@ -31,7 +31,7 @@ export class ExcelFileAdapter extends BaseFileAdapter {
     const range = XLSX.utils.decode_range(sheet['!ref'] || 'A1:A1')
     const rows: string[][] = []
 
-    // 获取所有单元格数据
+    // Get all cell data
     for (let r = range.s.r; r <= range.e.r; r++) {
       const row: string[] = []
       for (let c = range.s.c; c <= range.e.c; c++) {
@@ -74,7 +74,7 @@ export class ExcelFileAdapter extends BaseFileAdapter {
 
     ## Sheets Information\n`
 
-    // 为每个工作表生成预览
+    // Generate preview for each worksheet
     const sheetsContent = workbook.SheetNames.map((sheetName) => {
       const sheet = workbook.Sheets[sheetName]
       const range = XLSX.utils.decode_range(sheet['!ref'] || 'A1:A1')

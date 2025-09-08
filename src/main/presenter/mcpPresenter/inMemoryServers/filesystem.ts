@@ -211,7 +211,7 @@ export class FileSystemServer {
 
   constructor(allowedDirectories: string[]) {
     if (allowedDirectories.length === 0) {
-      throw new Error('至少需要提供一个允许访问的目录')
+      throw new Error('At least one allowed directory must be provided')
     }
 
     // 将目录路径标准化
@@ -243,10 +243,10 @@ export class FileSystemServer {
         try {
           const stats = await fs.stat(dir)
           if (!stats.isDirectory()) {
-            throw new Error(`错误: ${dir} 不是一个目录`)
+            throw new Error(`Error: ${dir} is not a directory`)
           }
         } catch (error) {
-          throw new Error(`访问目录 ${dir} 时出错: ${error}`)
+          throw new Error(`Error accessing directory ${dir}: ${error}`)
         }
       })
     )
@@ -697,7 +697,7 @@ export class FileSystemServer {
       }
 
       if (!matchFound) {
-        throw new Error(`无法找到精确匹配的内容进行编辑:\n${edit.oldText}`)
+        throw new Error(`Cannot find exact matching content to edit:\n${edit.oldText}`)
       }
     }
 

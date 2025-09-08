@@ -65,12 +65,12 @@ export interface Prompt {
     description: string
     required: boolean
   }>
-  files?: FileItem[] // 关联的文件
-  messages?: Array<{ role: string; content: { text: string } }> // 根据 getPrompt 示例添加
-  enabled?: boolean // 是否启用
-  source?: 'local' | 'imported' | 'builtin' // 来源类型
-  createdAt?: number // 创建时间
-  updatedAt?: number // 更新时间
+  files?: FileItem[] // Associated files
+  messages?: Array<{ role: string; content: { text: string } }> // Added based on getPrompt example
+  enabled?: boolean // Whether enabled
+  source?: 'local' | 'imported' | 'builtin' // Source type
+  createdAt?: number // Creation time
+  updatedAt?: number // Update time
 }
 export interface PromptListEntry {
   name: string
@@ -80,13 +80,13 @@ export interface PromptListEntry {
     description?: string
     required: boolean
   }[]
-  files?: FileItem[] // 关联的文件
+  files?: FileItem[] // Associated files
   client: {
     name: string
     icon: string
   }
 }
-// 定义工具调用结果的接口
+// Interface for tool call results
 export interface ToolCallResult {
   isError?: boolean
   content: Array<{
@@ -95,7 +95,7 @@ export interface ToolCallResult {
   }>
 }
 
-// 定义工具列表的接口
+// Interface for tool lists
 export interface Tool {
   name: string
   description: string
@@ -132,10 +132,10 @@ export interface ModelConfig {
   enableSearch?: boolean
   forcedSearch?: boolean
   searchStrategy?: 'turbo' | 'max'
-  // GPT-5 系列新参数
+  // New parameters for GPT-5 series
   reasoningEffort?: 'minimal' | 'low' | 'medium' | 'high'
   verbosity?: 'low' | 'medium' | 'high'
-  maxCompletionTokens?: number // GPT-5 系列使用此参数替代 maxTokens
+  maxCompletionTokens?: number // GPT-5 series uses this parameter to replace maxTokens
 }
 
 export interface IModelConfig {
@@ -230,7 +230,7 @@ export interface ITabPresenter {
       }
     }
   ): Promise<string | null>
-  // 新增渲染进程Tab事件处理方法
+  // Added renderer process Tab event handling methods
   onRendererTabReady(tabId: number): Promise<void>
   onRendererTabActivated(threadId: string): Promise<void>
   isLastTabInWindow(tabId: number): Promise<boolean>
@@ -286,7 +286,7 @@ export interface ISQLitePresenter {
   deleteAllMessages(): Promise<void>
   runTransaction(operations: () => void): Promise<void>
 
-  // 新增的消息管理方法
+  // Added message management methods
   getMessage(messageId: string): Promise<SQLITE_MESSAGE | null>
   getMessageVariants(messageId: string): Promise<SQLITE_MESSAGE[]>
   updateMessage(
@@ -373,61 +373,61 @@ export interface IConfigPresenter {
   getEnabledProviders(): LLM_PROVIDER[]
   getModelDefaultConfig(modelId: string, providerId?: string): ModelConfig
   getAllEnabledModels(): Promise<{ providerId: string; models: RENDERER_MODEL_META[] }[]>
-  // 音效设置
+  // Sound effect settings
   getSoundEnabled(): boolean
   setSoundEnabled(enabled: boolean): void
-  // COT拷贝设置
+  // Chain of Thought copy settings
   getCopyWithCotEnabled(): boolean
   setCopyWithCotEnabled(enabled: boolean): void
-  // 悬浮按钮设置
+  // Floating button settings
   getFloatingButtonEnabled(): boolean
   setFloatingButtonEnabled(enabled: boolean): void
-  // 更新渠道设置
+  // Update channel settings
   getUpdateChannel(): string
   setUpdateChannel(channel: string): void
-  // 日志设置
+  // Logging settings
   getLoggingEnabled(): boolean
   setLoggingEnabled(enabled: boolean): void
   openLoggingFolder(): void
-  // 自定义模型管理
+  // Custom model management
   getCustomModels(providerId: string): MODEL_META[]
   setCustomModels(providerId: string, models: MODEL_META[]): void
   addCustomModel(providerId: string, model: MODEL_META): void
   removeCustomModel(providerId: string, modelId: string): void
   updateCustomModel(providerId: string, modelId: string, updates: Partial<MODEL_META>): void
-  // 关闭行为设置
+  // Close behavior settings
   getCloseToQuit(): boolean
   setCloseToQuit(value: boolean): void
   getModelStatus(providerId: string, modelId: string): boolean
   setModelStatus(providerId: string, modelId: string, enabled: boolean): void
-  // 批量获取模型状态
+  // Batch get model status
   getBatchModelStatus(providerId: string, modelIds: string[]): Record<string, boolean>
-  // 语言设置
+  // Language settings
   getLanguage(): string
   setLanguage(language: string): void
   getDefaultProviders(): LLM_PROVIDER[]
-  // 代理设置
+  // Proxy settings
   getProxyMode(): string
   setProxyMode(mode: string): void
   getCustomProxyUrl(): string
   setCustomProxyUrl(url: string): void
-  // 自定义搜索引擎
+  // Custom search engine
   getCustomSearchEngines(): Promise<SearchEngineTemplate[]>
   setCustomSearchEngines(engines: SearchEngineTemplate[]): Promise<void>
-  // 搜索预览设置
+  // Search preview settings
   getSearchPreviewEnabled(): Promise<boolean>
   setSearchPreviewEnabled(enabled: boolean): void
-  // 投屏保护设置
+  // Screen sharing protection settings
   getContentProtectionEnabled(): boolean
   setContentProtectionEnabled(enabled: boolean): void
-  // 同步设置
+  // Sync settings
   getSyncEnabled(): boolean
   setSyncEnabled(enabled: boolean): void
   getSyncFolderPath(): string
   setSyncFolderPath(folderPath: string): void
   getLastSyncTime(): number
   setLastSyncTime(time: number): void
-  // MCP配置相关方法
+  // MCP configuration related methods
   getMcpServers(): Promise<Record<string, MCPServerConfig>>
   setMcpServers(servers: Record<string, MCPServerConfig>): Promise<void>
   getMcpDefaultServers(): Promise<string[]>
@@ -439,7 +439,7 @@ export interface IConfigPresenter {
   addMcpServer(serverName: string, config: MCPServerConfig): Promise<boolean>
   removeMcpServer(serverName: string): Promise<void>
   updateMcpServer(serverName: string, config: Partial<MCPServerConfig>): Promise<void>
-  getMcpConfHelper(): any // 用于获取MCP配置助手
+  getMcpConfHelper(): any // Used to get MCP configuration helper
   getModelConfig(modelId: string, providerId?: string): ModelConfig
   setModelConfig(modelId: string, providerId: string, config: ModelConfig): void
   resetModelConfig(modelId: string, providerId: string): void
@@ -450,7 +450,7 @@ export interface IConfigPresenter {
   importModelConfigs(configs: Record<string, IModelConfig>, overwrite: boolean): void
   setNotificationsEnabled(enabled: boolean): void
   getNotificationsEnabled(): boolean
-  // 主题设置
+  // Theme settings
   initTheme(): void
   setTheme(theme: 'dark' | 'light' | 'system'): Promise<boolean>
   getTheme(): Promise<string>
@@ -461,17 +461,17 @@ export interface IConfigPresenter {
   addCustomPrompt(prompt: Prompt): Promise<void>
   updateCustomPrompt(promptId: string, updates: Partial<Prompt>): Promise<void>
   deleteCustomPrompt(promptId: string): Promise<void>
-  // 默认系统提示词设置
+  // Default system prompt settings
   getDefaultSystemPrompt(): Promise<string>
   setDefaultSystemPrompt(prompt: string): Promise<void>
   resetToDefaultPrompt(): Promise<void>
   clearSystemPrompt(): Promise<void>
-  // 快捷键设置
+  // Shortcut key settings
   getDefaultShortcutKey(): ShortcutKeySetting
   getShortcutKey(): ShortcutKeySetting
   setShortcutKey(customShortcutKey: ShortcutKeySetting): void
   resetShortcutKeys(): void
-  // 知识库设置
+  // Knowledge base settings
   getKnowledgeConfigs(): BuiltinKnowledgeConfig[]
   setKnowledgeConfigs(configs: BuiltinKnowledgeConfig[]): void
   diffKnowledgeConfigs(configs: BuiltinKnowledgeConfig[]): {
@@ -479,7 +479,7 @@ export interface IConfigPresenter {
     deleted: BuiltinKnowledgeConfig[]
     updated: BuiltinKnowledgeConfig[]
   }
-  // NPM Registry 相关方法
+  // NPM Registry related methods
   getNpmRegistryCache?(): any
   setNpmRegistryCache?(cache: any): void
   isNpmRegistryCacheValid?(): boolean
@@ -490,7 +490,7 @@ export interface IConfigPresenter {
   setAutoDetectNpmRegistry?(enabled: boolean): void
   clearNpmRegistryCache?(): void
 
-  // 原子操作接口
+  // Atomic operation interfaces
   updateProviderAtomic(id: string, updates: Partial<LLM_PROVIDER>): boolean
   addProviderAtomic(provider: LLM_PROVIDER): void
   removeProviderAtomic(providerId: string): void
@@ -535,7 +535,7 @@ export type LLM_PROVIDER = {
   baseUrl: string
   enable: boolean
   custom?: boolean
-  authMode?: 'apikey' | 'oauth' // 认证模式
+  authMode?: 'apikey' | 'oauth' // Authentication mode
   oauthToken?: string // OAuth token
   rateLimit?: {
     enabled: boolean
@@ -706,12 +706,12 @@ export type CONVERSATION = {
 export interface IThreadPresenter {
   searchAssistantModel: MODEL_META | null
   searchAssistantProviderId: string | null
-  // 基本对话操作
+  // Basic conversation operations
   createConversation(
     title: string,
     settings: Partial<CONVERSATION_SETTINGS>,
     tabId: number,
-    options?: { forceNewAndActivate?: boolean } // 新增 options 参数, 支持强制新建会话，避免空会话的单例检测
+    options?: { forceNewAndActivate?: boolean } // Added options parameter, supports forced creation of new sessions, avoiding singleton detection for empty sessions
   ): Promise<string>
   deleteConversation(conversationId: string): Promise<void>
   getConversation(conversationId: string): Promise<CONVERSATION>
@@ -722,7 +722,7 @@ export interface IThreadPresenter {
     settings: Partial<CONVERSATION_SETTINGS>
   ): Promise<void>
 
-  // 会话分支操作
+  // Conversation branching operations
   forkConversation(
     targetConversationId: string,
     targetMessageId: string,
@@ -730,7 +730,7 @@ export interface IThreadPresenter {
     settings?: Partial<CONVERSATION_SETTINGS>
   ): Promise<string>
 
-  // 对话列表和激活状态
+  // Conversation list and activation status
   getConversationList(
     page: number,
     pageSize: number
@@ -744,7 +744,7 @@ export interface IThreadPresenter {
   getSearchResults(messageId: string): Promise<SearchResult[]>
   clearAllMessages(conversationId: string): Promise<void>
 
-  // 消息操作
+  // Message operations
   getMessages(
     conversationId: string,
     page: number,
@@ -761,11 +761,11 @@ export interface IThreadPresenter {
   updateMessageMetadata(messageId: string, metadata: Partial<MESSAGE_METADATA>): Promise<void>
   getMessageExtraInfo(messageId: string, type: string): Promise<Record<string, unknown>[]>
 
-  // popup 操作
+  // Popup operations
   translateText(text: string, tabId: number): Promise<string>
   askAI(text: string, tabId: number): Promise<string>
 
-  // 上下文控制
+  // Context control
   getContextMessages(conversationId: string): Promise<MESSAGE[]>
   clearContext(conversationId: string): Promise<void>
   markMessageAsContextEdge(messageId: string, isEdge: boolean): Promise<void>
@@ -775,9 +775,9 @@ export interface IThreadPresenter {
   getActiveSearchEngine(): Promise<SearchEngineTemplate>
   setActiveSearchEngine(engineId: string): Promise<void>
   setSearchEngine(engineId: string): Promise<boolean>
-  // 搜索引擎测试
+  // Search engine testing
   testSearchEngine(query?: string): Promise<boolean>
-  // 搜索助手模型设置
+  // Search assistant model settings
   setSearchAssistantModel(model: MODEL_META, providerId: string): void
   getMainMessageByParentId(conversationId: string, parentId: string): Promise<Message | null>
   destroy(): void
@@ -817,7 +817,7 @@ export type MESSAGE_METADATA = {
 }
 
 export interface IMessageManager {
-  // 基本消息操作
+  // Basic message operations
   sendMessage(
     conversationId: string,
     content: string,
@@ -830,7 +830,7 @@ export interface IMessageManager {
   deleteMessage(messageId: string): Promise<void>
   retryMessage(messageId: string, metadata: MESSAGE_METADATA): Promise<MESSAGE>
 
-  // 消息查询
+  // Message queries
   getMessage(messageId: string): Promise<MESSAGE>
   getMessageVariants(messageId: string): Promise<MESSAGE[]>
   getMessageThread(
@@ -843,11 +843,11 @@ export interface IMessageManager {
   }>
   getContextMessages(conversationId: string, contextLength: number): Promise<MESSAGE[]>
 
-  // 消息状态管理
+  // Message status management
   updateMessageStatus(messageId: string, status: MESSAGE_STATUS): Promise<void>
   updateMessageMetadata(messageId: string, metadata: Partial<MESSAGE_METADATA>): Promise<void>
 
-  // 上下文管理
+  // Context management
   markMessageAsContextEdge(messageId: string, isEdge: boolean): Promise<void>
 }
 
@@ -860,14 +860,14 @@ export interface IDevicePresenter {
   resetData(): Promise<void>
   resetDataByType(resetType: 'chat' | 'knowledge' | 'config' | 'all'): Promise<void>
 
-  // 目录选择和应用重启
+  // Directory selection and application restart
   selectDirectory(): Promise<{ canceled: boolean; filePaths: string[] }>
   restartApp(): Promise<void>
 
-  // 图片缓存
+  // Image caching
   cacheImage(imageData: string): Promise<string>
 
-  // SVG内容安全净化
+  // SVG content security sanitization
   sanitizeSvgContent(svgContent: string): Promise<string | null>
 }
 
@@ -951,7 +951,7 @@ export interface IUpgradePresenter {
   restartToUpdate(): boolean
   restartApp(): void
 }
-// 更新状态类型
+// Update status types
 export type UpdateStatus =
   | 'checking'
   | 'available'
@@ -1014,11 +1014,11 @@ export interface FileMetaData {
   fileCreated: Date
   fileModified: Date
 }
-// 根据 Ollama SDK 定义模型接口
+// Define model interface based on Ollama SDK
 export interface OllamaModel {
   name: string
   model: string
-  modified_at: Date | string // 修改为可以是 Date 或 string
+  modified_at: Date | string // Modified to allow Date or string
   size: number
   digest: string
   details: {
@@ -1028,7 +1028,7 @@ export interface OllamaModel {
     parameter_size: string
     quantization_level: string
   }
-  // 合并show接口一些信息
+  // Merge some information from show interface
   model_info: {
     context_length: number
     embedding_length: number
@@ -1039,7 +1039,7 @@ export interface OllamaModel {
   capabilities: string[]
 }
 
-// 定义进度回调的接口
+// Define progress callback interface
 export interface ProgressResponse {
   status: string
   digest?: string
@@ -1047,7 +1047,7 @@ export interface ProgressResponse {
   completed?: number
 }
 
-// MCP相关类型定义
+// MCP related type definitions
 export interface MCPServerConfig {
   command: string
   args: string[]
@@ -1060,8 +1060,8 @@ export interface MCPServerConfig {
   customHeaders?: Record<string, string>
   customNpmRegistry?: string
   type: 'sse' | 'stdio' | 'inmemory' | 'http'
-  source?: string // 来源标识: "mcprouter" | "modelscope" | undefined(for manual)
-  sourceId?: string // 来源ID: mcprouter的uuid 或 modelscope的mcpServer.id
+  source?: string // Source identifier: "mcprouter" | "modelscope" | undefined(for manual)
+  sourceId?: string // Source ID: mcprouter uuid or modelscope mcpServer.id
 }
 
 export interface MCPConfig {
@@ -1104,28 +1104,28 @@ export interface MCPToolCall {
 }
 
 export interface MCPToolResponse {
-  /** 工具调用的唯一标识符 */
+  /** Unique identifier for tool call */
   toolCallId: string
 
   /**
-   * 工具调用的响应内容
-   * 可以是简单字符串或结构化内容数组
+   * Tool call response content
+   * Can be simple string or structured content array
    */
   content: string | MCPContentItem[]
 
-  /** 可选的元数据 */
+  /** Optional metadata */
   _meta?: Record<string, any>
 
-  /** 是否发生错误 */
+  /** Whether an error occurred */
   isError?: boolean
 
-  /** 当使用兼容模式时，可能直接返回工具结果 */
+  /** When using compatibility mode, may directly return tool results */
   toolResult?: unknown
 
-  /** 是否需要权限 */
+  /** Whether permission is required */
   requiresPermission?: boolean
 
-  /** 权限请求信息 */
+  /** Permission request information */
   permissionRequest?: {
     toolName: string
     serverName: string
@@ -1134,31 +1134,31 @@ export interface MCPToolResponse {
   }
 }
 
-/** 内容项类型 */
+/** Content item type */
 export type MCPContentItem = MCPTextContent | MCPImageContent | MCPResourceContent
 
-/** 文本内容 */
+/** Text content */
 export interface MCPTextContent {
   type: 'text'
   text: string
 }
 
-/** 图像内容 */
+/** Image content */
 export interface MCPImageContent {
   type: 'image'
-  data: string // Base64编码的图像数据
-  mimeType: string // 例如 "image/png", "image/jpeg" 等
+  data: string // Base64 encoded image data
+  mimeType: string // E.g., "image/png", "image/jpeg", etc.
 }
 
-/** 资源内容 */
+/** Resource content */
 export interface MCPResourceContent {
   type: 'resource'
   resource: {
     uri: string
     mimeType?: string
-    /** 资源文本内容，与blob互斥 */
+    /** Resource text content, mutually exclusive with blob */
     text?: string
-    /** 资源二进制内容，与text互斥 */
+    /** Resource binary content, mutually exclusive with text */
     blob?: string
   }
 }
@@ -1193,7 +1193,7 @@ export interface IMCPPresenter {
     permissionType: 'read' | 'write' | 'all',
     remember?: boolean
   ): Promise<void>
-  // NPM Registry 管理方法
+  // NPM Registry management methods
   getNpmRegistryStatus?(): Promise<{
     currentRegistry: string | null
     isFromCache: boolean
@@ -1248,49 +1248,49 @@ export interface IMCPPresenter {
 
 export interface IDeeplinkPresenter {
   /**
-   * 初始化 DeepLink 协议
+   * Initialize DeepLink protocol
    */
   init(): void
 
   /**
-   * 处理 DeepLink 协议
+   * Handle DeepLink protocol
    * @param url DeepLink URL
    */
   handleDeepLink(url: string): Promise<void>
 
   /**
-   * 处理 start 命令
-   * @param params URL 参数
+   * Handle start command
+   * @param params URL parameters
    */
   handleStart(params: URLSearchParams): Promise<void>
 
   /**
-   * 处理 mcp/install 命令
-   * @param params URL 参数
+   * Handle mcp/install command
+   * @param params URL parameters
    */
   handleMcpInstall(params: URLSearchParams): Promise<void>
 }
 
 export interface ISyncPresenter {
-  // 备份相关操作
+  // Backup related operations
   startBackup(): Promise<void>
   cancelBackup(): Promise<void>
   getBackupStatus(): Promise<{ isBackingUp: boolean; lastBackupTime: number }>
 
-  // 导入相关操作
+  // Import related operations
   importFromSync(importMode?: ImportMode): Promise<{ success: boolean; message: string }>
   checkSyncFolder(): Promise<{ exists: boolean; path: string }>
   openSyncFolder(): Promise<void>
 
-  // 初始化和销毁
+  // Initialization and destruction
   init(): void
   destroy(): void
 }
 
-// 从 LLM Provider 的 coreStream 返回的标准化事件
+// Standardized events returned from LLM Provider's coreStream
 export type LLMCoreStreamEvent = import('../../core/llm-events').LLMCoreStreamEvent
 
-// 定义ChatMessage接口用于统一消息格式
+// Define ChatMessage interface for unified message format
 export type ChatMessage = import('../../core/llm-events').ChatMessage
 
 export type ChatMessageContent = import('../../core/llm-events').ChatMessageContent
@@ -1315,17 +1315,17 @@ export interface DefaultModelSetting {
   enableSearch?: boolean
   forcedSearch?: boolean
   searchStrategy?: 'turbo' | 'max'
-  // GPT-5 系列新参数
+  // New parameters for GPT-5 series
   reasoningEffort?: 'minimal' | 'low' | 'medium' | 'high'
   verbosity?: 'low' | 'medium' | 'high'
-  maxCompletionTokens?: number // GPT-5 系列使用此参数替代 maxTokens
+  maxCompletionTokens?: number // GPT-5 series uses this parameter to replace maxTokens
 }
 
 export interface KeyStatus {
   remainNum?: number
-  /** 剩余额度 */
+  /** Remaining quota */
   limit_remaining?: string
-  /** 已使用额度 */
+  /** Used quota */
   usage?: string
 }
 
@@ -1419,7 +1419,7 @@ export interface KnowledgeChunkTask {
     fileId: string
     [key: string]: any
   }
-  run: (context: { signal: AbortSignal }) => Promise<void> // 任务执行体，支持终止信号
+  run: (context: { signal: AbortSignal }) => Promise<void> // Task executor, supports abort signal
   onSuccess?: () => void
   onError?: (error: Error) => void
   onTerminate?: () => void // task termination callback

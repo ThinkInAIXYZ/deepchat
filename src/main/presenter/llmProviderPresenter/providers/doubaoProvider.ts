@@ -11,7 +11,7 @@ import {
 import { OpenAICompatibleProvider } from './openAICompatibleProvider'
 
 export class DoubaoProvider extends OpenAICompatibleProvider {
-  // 支持 thinking 参数的模型列表
+  // List of models that support thinking parameter
   private static readonly THINKING_MODELS: string[] = [
     'deepseek-v3-1-250821',
     'doubao-seed-1-6-vision-250815',
@@ -23,7 +23,7 @@ export class DoubaoProvider extends OpenAICompatibleProvider {
   ]
 
   constructor(provider: LLM_PROVIDER, configPresenter: IConfigPresenter) {
-    // 初始化豆包模型配置
+    // Initialize Doubao model configuration
     super(provider, configPresenter)
   }
 
@@ -32,7 +32,7 @@ export class DoubaoProvider extends OpenAICompatibleProvider {
   }
 
   /**
-   * 重写 coreStream 方法以支持豆包的 thinking 参数
+   * Override coreStream method to support Doubao's thinking parameter
    */
   async *coreStream(
     messages: ChatMessage[],
@@ -48,9 +48,9 @@ export class DoubaoProvider extends OpenAICompatibleProvider {
     const shouldAddThinking = this.supportsThinking(modelId) && modelConfig?.reasoning
 
     if (shouldAddThinking) {
-      // 原始的 create 方法
+      // Original create method
       const originalCreate = this.openai.chat.completions.create.bind(this.openai.chat.completions)
-      // 替换 create 方法以添加 thinking 参数
+      // Replace create method to add thinking parameter
       this.openai.chat.completions.create = ((params: any, options?: any) => {
         const modifiedParams = {
           ...params,
@@ -81,7 +81,7 @@ export class DoubaoProvider extends OpenAICompatibleProvider {
 
   protected async fetchOpenAIModels(): Promise<MODEL_META[]> {
     return [
-      // DeepSeek 模型
+      // DeepSeek models
       {
         id: 'deepseek-v3-1-250821',
         name: 'deepseek-v3.1',
@@ -142,7 +142,7 @@ export class DoubaoProvider extends OpenAICompatibleProvider {
         functionCall: true,
         vision: false
       },
-      // 豆包原生模型
+      // Doubao native models
       {
         id: 'doubao-seed-1-6-vision-250815',
         name: 'doubao-seed-1.6-vision',

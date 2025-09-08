@@ -2,8 +2,8 @@ export const CommandKey = 'CommandOrControl'
 
 const ShiftKey = 'Shift'
 
-// 注册标签页数字快捷键 (1-8) -> 为固定 CommandKey+1 ~ CommandKey+8 切换 Tab
-// 如下为常规快捷键定义
+// Register tab number shortcut keys (1-8) -> Fixed CommandKey+1 ~ CommandKey+8 to switch tabs
+// Below are regular shortcut key definitions
 export const rendererShortcutKey = {
   NewConversation: `${CommandKey}+N`,
   NewWindow: `${CommandKey}+${ShiftKey}+N`,
@@ -20,7 +20,7 @@ export const rendererShortcutKey = {
   SwtichToLastTab: `${CommandKey}+9`
 }
 
-// 系统层面 快捷键
+// System-level shortcut keys
 export const systemShortcutKey = {
   ShowHideWindow: `${CommandKey}+O`,
   Quit: `${CommandKey}+Q`

@@ -107,7 +107,7 @@ export class FilePresenter implements IFilePresenter {
   }
 
   /**
-   * 准备文件，返回一个完整的 MessageFile 对象，支持不同的 contentType（兼容旧方法调用）
+   * Prepare file and return a complete MessageFile object, supporting different contentType (compatible with legacy method calls)
    * @param absPath
    * @param typeInfo
    * @param contentType
@@ -143,7 +143,7 @@ export class FilePresenter implements IFilePresenter {
             adapter.mimeType && adapter.mimeType.startsWith('image')
               ? calculateImageTokens(adapter as ImageFileAdapter)
               : adapter.mimeType && adapter.mimeType.startsWith('audio')
-                ? approximateTokenSize(`音频文件路径: ${adapter.filePath}`)
+                ? approximateTokenSize(`Audio file path: ${adapter.filePath}`)
                 : approximateTokenSize(content || ''),
           path: adapter.filePath,
           mimeType: adapter.mimeType ?? '',
@@ -176,13 +176,13 @@ export class FilePresenter implements IFilePresenter {
     mimeType: string,
     adapterMap: Map<string, FileAdapterConstructor>
   ): FileAdapterConstructor | undefined {
-    // 首先尝试精确匹配，一定要先精确匹配，比如text/*默认是 Text Adapter，但是text/csv并不是
+    // First try exact match - must do exact match first, e.g. text/* defaults to Text Adapter, but text/csv is not
     const exactMatch = adapterMap.get(mimeType)
     if (exactMatch) {
       return exactMatch
     }
 
-    // 尝试通配符匹配
+    // Try wildcard match
     const type = mimeType.split('/')[0]
     const wildcardMatch = adapterMap.get(`${type}/*`)
 
@@ -212,29 +212,29 @@ export class FilePresenter implements IFilePresenter {
   }
 
   async writeImageBase64(file: { name: string; content: string }): Promise<string> {
-    // 检查是否是base64格式的图片数据
+    // Check if it's base64 format image data
     if (!file.content.startsWith('data:image/')) {
       throw new Error('Invalid image base64 data')
     }
 
-    // 从base64字符串中提取实际的图片数据
+    // Extract actual image data from base64 string
     const base64Data = file.content.split(',')[1]
     if (!base64Data) {
       throw new Error('Invalid base64 image format')
     }
 
-    // 将base64转换为二进制数据
+    // Convert base64 to binary data
     const binaryData = Buffer.from(base64Data, 'base64')
 
-    // 获取文件扩展名
+    // Get file extension
     const mimeMatch = file.content.match(/^data:image\/([a-zA-Z0-9]+);base64,/)
     const ext = mimeMatch ? `.${mimeMatch[1].toLowerCase()}` : '.png'
 
-    // 生成临时文件名
+    // Generate temporary filename
     const tempName = `${nanoid()}${ext}`
     const tempPath = path.join(this.tempDir, tempName)
 
-    // 写入文件
+    // Write file
     await fs.writeFile(tempPath, binaryData)
 
     return tempPath
@@ -307,7 +307,7 @@ export class FilePresenter implements IFilePresenter {
 }
 
 function calculateImageTokens(adapter: ImageFileAdapter): number {
-  // 方法1：基于图片尺寸
+  // Method 1: Based on image dimensions
   const pixelBasedTokens = Math.round(
     ((adapter.imageMetadata.compressWidth ?? adapter.imageMetadata.width ?? 1) *
       (adapter.imageMetadata.compressHeight ?? adapter.imageMetadata.height ?? 1)) /

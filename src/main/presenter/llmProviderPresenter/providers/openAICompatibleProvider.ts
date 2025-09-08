@@ -56,20 +56,20 @@ const OPENAI_IMAGE_GENERATION_MODELS = [
   'dall-e-2'
 ]
 
-// 添加支持的图片尺寸常量
+// Add supported image size constants
 const SUPPORTED_IMAGE_SIZES = {
   SQUARE: '1024x1024',
   LANDSCAPE: '1536x1024',
   PORTRAIT: '1024x1536'
 } as const
 
-// 添加可设置尺寸的模型列表
+// Add list of models with configurable sizes
 const SIZE_CONFIGURABLE_MODELS = ['gpt-image-1', 'gpt-4o-image', 'gpt-4o-all']
 
 export class OpenAICompatibleProvider extends BaseLLMProvider {
   protected openai!: OpenAI
   protected isNoModelsApi: boolean = false
-  // 添加不支持 OpenAI 标准接口的供应商黑名单
+  // Add blacklist of providers that don't support OpenAI standard interface
   private static readonly NO_MODELS_API_LIST: string[] = []
 
   constructor(provider: LLM_PROVIDER, configPresenter: IConfigPresenter) {
@@ -216,9 +216,9 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
     this.createOpenAIClient()
   }
 
-  // 实现BaseLLMProvider中的抽象方法fetchProviderModels
+  // Implement abstract method fetchProviderModels from BaseLLMProvider
   protected async fetchProviderModels(options?: { timeout: number }): Promise<MODEL_META[]> {
-    // 检查供应商是否在黑名单中
+    // Check if provider is in blacklist
     if (this.isNoModelsApi) {
       // console.log(`Provider ${this.provider.name} does not support OpenAI models API`)
       return this.models
@@ -241,24 +241,24 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
   }
 
   /**
-   * User消息，上层会根据是否存在 vision 去插入 image_url
-   * Ass 消息，需要判断一下，把图片转换成正确的上下文，因为模型可以切换
+   * User messages: Upper layer will insert image_url based on whether vision exists
+   * Assistant messages: Need to judge and convert images to correct context, as models can be switched
    * @param messages
    * @returns
    */
   protected formatMessages(messages: ChatMessage[]): ChatCompletionMessageParam[] {
     return messages.map((msg) => {
-      // 处理基本消息结构
+      // Handle basic message structure
       const baseMessage: Partial<ChatCompletionMessageParam> = {
         role: msg.role as 'system' | 'user' | 'assistant' | 'tool'
       }
 
-      // 处理content转换为字符串
+      // Handle content conversion to string
       if (msg.content !== undefined && msg.role !== 'user') {
         if (typeof msg.content === 'string') {
           baseMessage.content = msg.content
         } else if (Array.isArray(msg.content)) {
-          // 处理多模态内容数组
+          // Handle multimodal content arrays
           const textParts: string[] = []
           for (const part of msg.content) {
             if (part.type === 'text' && part.text) {
@@ -290,7 +290,7 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
     })
   }
 
-  // OpenAI完成方法
+  // OpenAI completion method
   protected async openAICompletion(
     messages: ChatMessage[],
     modelId?: string,
@@ -330,14 +330,14 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
       content: ''
     }
 
-    // 处理原生 reasoning_content
+    // Handle native reasoning_content
     if (message.reasoning_content) {
       resultResp.reasoning_content = message.reasoning_content
       resultResp.content = message.content || ''
       return resultResp
     }
 
-    // 处理 <think> 标签
+    // Handle <think> tags
     if (message.content) {
       const content = message.content.trimStart()
       if (content.includes('<think>')) {

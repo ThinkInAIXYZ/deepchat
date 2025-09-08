@@ -258,7 +258,7 @@ watch(
         }
       }
     } catch (error) {
-      console.warn('获取用户偏好模型失败:', error)
+      console.warn('Failed to get user preferred model:', error)
     }
 
     // 如果没有偏好模型或偏好模型不可用，使用第一个可用模型

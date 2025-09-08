@@ -9,29 +9,29 @@ const DIGEST = 'sha512'
 
 export class AESHelper {
   /**
-   * 生成随机盐值
-   * @returns 十六进制格式的盐值
+   * Generate random salt value
+   * @returns Salt value in hexadecimal format
    */
   static generateSalt(): string {
     return crypto.randomBytes(SALT_LENGTH).toString('hex')
   }
 
   /**
-   * 从密码派生密钥
-   * @param password 原始密码
-   * @param salt 盐值
-   * @returns 派生密钥Buffer
+   * Derive key from password
+   * @param password Original password
+   * @param salt Salt value
+   * @returns Derived key Buffer
    */
   static deriveKey(password: string, salt: string): Buffer {
     return crypto.pbkdf2Sync(password, salt, ITERATIONS, KEY_LENGTH, DIGEST)
   }
 
   /**
-   * AES加密
-   * @param plainText 明文
-   * @param key 加密密钥（Buffer格式）
-   * @param iv 初始化向量（可选）
-   * @returns 包含密文和IV的对象
+   * AES encryption
+   * @param plainText Plain text
+   * @param key Encryption key (Buffer format)
+   * @param iv Initialization vector (optional)
+   * @returns Object containing ciphertext and IV
    */
   static encrypt(
     plainText: string,
@@ -53,15 +53,17 @@ export class AESHelper {
         iv: usedIv.toString('hex')
       }
     } catch (error) {
-      throw new Error(`加密失败: ${error instanceof Error ? error.message : '未知错误'}`)
+      throw new Error(
+        `Encryption failed: ${error instanceof Error ? error.message : 'Unknown error'}`
+      )
     }
   }
 
   /**
-   * AES解密
-   * @param cipherText 密文（十六进制格式）
-   * @param key 加密密钥（Buffer格式）
-   * @param iv 初始化向量（十六进制格式）
+   * AES decryption
+   * @param cipherText Ciphertext (hexadecimal format)
+   * @param key Encryption key (Buffer format)
+   * @param iv Initialization vector (hexadecimal format)
    * @returns 解密后的明文
    */
   static decrypt(cipherText: string, key: Buffer, iv: string): string {

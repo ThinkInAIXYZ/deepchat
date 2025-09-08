@@ -24,17 +24,17 @@ export class PdfFileAdapter extends BaseFileAdapter {
       if (stats.size <= this.maxFileSize) {
         const buffer = await fs.readFile(this.filePath)
 
-        // 创建自定义渲染选项，用于收集每页内容
+        // Create custom rendering options to collect content for each page
         const pageTexts: string[] = []
         const renderOptions = {
           verbosityLevel: 0 as 0 | 5 | undefined,
           pageTexts,
           normalizeWhitespace: false,
           disableCombineTextItems: false,
-          // 自定义渲染器，按页面收集文本
+          // Custom renderer to collect text by page
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           pagerender: function (pageData: any) {
-            // 获取当前页面的文本内容
+            // Get text content from current page
             const renderOptions = {
               normalizeWhitespace: false,
               disableCombineTextItems: false
@@ -44,7 +44,7 @@ export class PdfFileAdapter extends BaseFileAdapter {
               let lastY: number | null = null
               let text = ''
 
-              // 处理文本项，尝试保留段落结构
+              // Process text items, try to preserve paragraph structure
               for (const item of textContent.items) {
                 if (lastY === null || Math.abs(lastY - item.transform[5]) > 5) {
                   if (text) text += '\n'
@@ -55,7 +55,7 @@ export class PdfFileAdapter extends BaseFileAdapter {
                 text += item.str
               }
 
-              // 将当前页面的文本添加到页面集合中
+              // Add current page text to page collection
               pageTexts.push(text)
               return text
             })
@@ -64,7 +64,7 @@ export class PdfFileAdapter extends BaseFileAdapter {
 
         try {
           this.pdfData = await pdfParse(buffer, renderOptions)
-          // 将每页内容添加到 pdfData 对象中
+          // Add page contents to pdfData object
           this.pdfData.pageContents = pageTexts
         } catch (error) {
           console.error('Error parsing PDF:', error)
@@ -172,12 +172,12 @@ export class PdfFileAdapter extends BaseFileAdapter {
     return markdownParagraphs.filter((p) => p).join('\n\n')
   }
 
-  // 获取指定页面的原始文本内容
+  // Get raw text content for specified page
   public async getPageContent(pageNumber: number): Promise<string | undefined> {
     const pdfData = await this.loadPdfData()
     if (!pdfData || !pdfData.pageContents) return undefined
 
-    // 页码从1开始，数组索引从0开始
+    // Page numbers start from 1, array index starts from 0
     const pageIndex = pageNumber - 1
     if (pageIndex < 0 || pageIndex >= pdfData.pageContents.length) {
       return undefined
@@ -186,7 +186,7 @@ export class PdfFileAdapter extends BaseFileAdapter {
     return pdfData.pageContents[pageIndex]
   }
 
-  // 获取指定页面的Markdown格式内容
+  // Get Markdown format content for specified page
   public async getPageMarkdown(pageNumber: number): Promise<string | undefined> {
     const pageContent = await this.getPageContent(pageNumber)
     if (!pageContent) return undefined
@@ -194,7 +194,7 @@ export class PdfFileAdapter extends BaseFileAdapter {
     return this.convertTextToMarkdown(pageContent)
   }
 
-  // 获取所有页面的Markdown格式内容
+  // Get Markdown format content for all pages
   public async getAllPagesMarkdown(): Promise<string[] | undefined> {
     const pdfData = await this.loadPdfData()
     if (!pdfData || !pdfData.pageContents) return undefined
@@ -206,11 +206,11 @@ export class PdfFileAdapter extends BaseFileAdapter {
     if (this.fileContent === undefined) {
       const pdfData = await this.loadPdfData()
       if (pdfData) {
-        // 如果有分页内容，则使用分页内容
+        // If page contents exist, use page contents
         if (pdfData.pageContents && pdfData.pageContents.length > 0) {
           this.fileContent = pdfData.pageContents.join('\n\n--- Page Separator ---\n\n')
         } else {
-          // 否则使用整体内容
+          // Otherwise use overall content
           this.fileContent = pdfData.text
         }
       }
@@ -222,7 +222,7 @@ export class PdfFileAdapter extends BaseFileAdapter {
     const pdfData = await this.loadPdfData()
     if (!pdfData) return undefined
 
-    // 获取所有页面的Markdown内容
+    // Get Markdown content for all pages
     let allPagesMarkdown = ''
     if (pdfData.pageContents) {
       const markdownPages = pdfData.pageContents.map((pageContent, index) => {
@@ -233,7 +233,7 @@ export class PdfFileAdapter extends BaseFileAdapter {
 
       allPagesMarkdown = markdownPages.join('\n\n---\n\n')
     } else {
-      // 如果没有分页内容，则使用整体内容
+      // If no page contents, use overall content
       allPagesMarkdown = this.convertTextToMarkdown(pdfData.text)
     }
 

@@ -15,7 +15,7 @@ const i18n = createI18n({
   legacy: false,
   messages: locales
 })
-// 添加整个图标集合到本地
+// Add icon collections to local registry
 addCollection(lucideIcons)
 addCollection(vscodeIcons)
 const pinia = createPinia()

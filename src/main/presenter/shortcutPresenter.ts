@@ -204,7 +204,7 @@ export class ShortcutPresenter implements IShortcutPresenter {
       // 切换到下一个标签页
       await presenter.tabPresenter.switchTab(tabsData[nextTabIndex].id)
     } catch (error) {
-      console.error('切换到下一个标签页失败:', error)
+      console.error('Failed to switch to next tab:', error)
     }
   }
 
@@ -224,7 +224,7 @@ export class ShortcutPresenter implements IShortcutPresenter {
       // 切换到上一个标签页
       await presenter.tabPresenter.switchTab(tabsData[previousTabIndex].id)
     } catch (error) {
-      console.error('切换到上一个标签页失败:', error)
+      console.error('Failed to switch to previous tab:', error)
     }
   }
 
@@ -237,7 +237,7 @@ export class ShortcutPresenter implements IShortcutPresenter {
       // 切换到指定索引的标签页
       await presenter.tabPresenter.switchTab(tabsData[index].id)
     } catch (error) {
-      console.error(`切换到索引 ${index} 的标签页失败:`, error)
+      console.error(`Failed to switch to tab at index ${index}:`, error)
     }
   }
 
@@ -250,7 +250,7 @@ export class ShortcutPresenter implements IShortcutPresenter {
       // 切换到最后一个标签页
       await presenter.tabPresenter.switchTab(tabsData[tabsData.length - 1].id)
     } catch (error) {
-      console.error('切换到最后一个标签页失败:', error)
+      console.error('Failed to switch to last tab:', error)
     }
   }
 

@@ -100,7 +100,7 @@ export const getMimeTypeAdapterMap = (): Map<string, FileAdapterConstructor> => 
   map.set('text/x-h', CodeFileAdapter)
   map.set('text/x-hpp', CodeFileAdapter)
 
-  // 其他格式
+  // Other formats
   map.set('*/*', UnsupportFileAdapter)
   map.set('', UnsupportFileAdapter)
 

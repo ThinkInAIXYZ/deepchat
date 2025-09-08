@@ -26,7 +26,7 @@ export class ImageFileAdapter extends BaseFileAdapter {
   }
 
   /**
-   * 提取图片的基本信息
+   * Extract basic image information
    */
   private async extractImageMetadata(): Promise<void> {
     try {
@@ -38,7 +38,7 @@ export class ImageFileAdapter extends BaseFileAdapter {
       }
     } catch (error) {
       console.error('Error extracting image metadata:', error)
-      // 如果 sharp 失败，至少从文件扩展名获取格式
+      // If sharp fails, at least get format from file extension
       this.imageMetadata.format = path.extname(this.filePath).substring(1).toLowerCase()
     }
   }

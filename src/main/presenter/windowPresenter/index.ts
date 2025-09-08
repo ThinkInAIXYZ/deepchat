@@ -1,34 +1,34 @@
 // src\main\presenter\windowPresenter\index.ts
 import { BrowserWindow, shell, nativeImage, ipcMain, screen } from 'electron'
 import { join } from 'path'
-import icon from '../../../../resources/icon.png?asset' // 应用图标 (macOS/Linux)
-import iconWin from '../../../../resources/icon.ico?asset' // 应用图标 (Windows)
-import { is } from '@electron-toolkit/utils' // Electron 工具库
-import { IConfigPresenter, IWindowPresenter } from '@shared/presenter' // 窗口 Presenter 接口
-import { eventBus } from '@/eventbus' // 事件总线
-import { CONFIG_EVENTS, SYSTEM_EVENTS, WINDOW_EVENTS } from '@/events' // 系统/窗口/配置 事件常量
-import { presenter } from '../' // 全局 presenter 注册中心
-import windowStateManager from 'electron-window-state' // 窗口状态管理器
-import { SHORTCUT_EVENTS } from '@/events' // 快捷键事件常量
-// TrayPresenter 在 main/index.ts 中全局管理，本 Presenter 不负责其生命周期
-import { TabPresenter } from '../tabPresenter' // TabPresenter 类型
-import { FloatingChatWindow } from './FloatingChatWindow' // 悬浮对话窗口
+import icon from '../../../../resources/icon.png?asset' // App icon (macOS/Linux)
+import iconWin from '../../../../resources/icon.ico?asset' // App icon (Windows)
+import { is } from '@electron-toolkit/utils' // Electron utilities
+import { IConfigPresenter, IWindowPresenter } from '@shared/presenter' // Window Presenter interface
+import { eventBus } from '@/eventbus' // Event bus
+import { CONFIG_EVENTS, SYSTEM_EVENTS, WINDOW_EVENTS } from '@/events' // System/Window/Config event constants
+import { presenter } from '../' // Global presenter registry
+import windowStateManager from 'electron-window-state' // Window state manager
+import { SHORTCUT_EVENTS } from '@/events' // Shortcut event constants
+// TrayPresenter is globally managed in main/index.ts, this Presenter is not responsible for its lifecycle
+import { TabPresenter } from '../tabPresenter' // TabPresenter type
+import { FloatingChatWindow } from './FloatingChatWindow' // Floating chat window
 
 /**
- * 窗口 Presenter，负责管理所有 BrowserWindow 实例及其生命周期。
- * 包括创建、销毁、最小化、最大化、隐藏、显示、焦点管理以及与标签页的交互。
+ * Window Presenter, responsible for managing all BrowserWindow instances and their lifecycles.
+ * Including creation, destruction, minimization, maximization, hiding, showing, focus management, and interaction with tabs.
  */
 export class WindowPresenter implements IWindowPresenter {
-  // 管理所有 BrowserWindow 实例的 Map，key 为窗口 ID
+  // Map managing all BrowserWindow instances, key is window ID
   windows: Map<number, BrowserWindow>
   private configPresenter: IConfigPresenter
-  // 退出标志，表示应用是否正在关闭过程中 (由 'before-quit' hook 设置)
+  // Exit flag indicating if app is in the process of quitting (set by 'before-quit' hook)
   private isQuitting: boolean = false
-  // 当前获得焦点的窗口 ID (内部记录)
+  // Current focused window ID (internal record)
   private focusedWindowId: number | null = null
-  // 主窗口 id
+  // Main window ID
   private mainWindowId: number | null = null
-  // 窗口聚焦状态管理
+  // Window focus state management
   private windowFocusStates = new Map<
     number,
     {
@@ -44,7 +44,7 @@ export class WindowPresenter implements IWindowPresenter {
     this.windows = new Map()
     this.configPresenter = configPresenter
 
-    // 注册 IPC 处理器，供 Renderer 调用以获取窗口和 WebContents ID
+    // Register IPC handlers for Renderer to call to get window and WebContents IDs
     ipcMain.on('get-window-id', (event) => {
       const window = BrowserWindow.fromWebContents(event.sender)
       event.returnValue = window ? window.id : null
@@ -55,7 +55,7 @@ export class WindowPresenter implements IWindowPresenter {
     })
 
     ipcMain.on('close-floating-window', (event) => {
-      // 检查发送者是否是悬浮聊天窗口
+      // Check if sender is the floating chat window
       const webContentsId = event.sender.id
       if (
         this.floatingChatWindow &&
@@ -65,13 +65,13 @@ export class WindowPresenter implements IWindowPresenter {
       }
     })
 
-    // 监听快捷键事件：创建新窗口
+    // Listen for shortcut event: create new window
     eventBus.on(SHORTCUT_EVENTS.CREATE_NEW_WINDOW, () => {
       console.log('Creating new shell window via shortcut.')
       this.createShellWindow({ initialTab: { url: 'local://chat' } })
     })
 
-    // 监听快捷键事件：创建新标签页
+    // Listen for shortcut event: create new tab
     eventBus.on(SHORTCUT_EVENTS.CREATE_NEW_TAB, async (windowId: number) => {
       console.log(`Creating new tab via shortcut for window ${windowId}.`)
       const window = this.windows.get(windowId)

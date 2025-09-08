@@ -9,13 +9,13 @@ import { OpenAICompatibleProvider } from './openAICompatibleProvider'
 
 export class ZhipuProvider extends OpenAICompatibleProvider {
   constructor(provider: LLM_PROVIDER, configPresenter: IConfigPresenter) {
-    // 初始化智谱AI模型配置
+    // Initialize Zhipu AI model configuration
     super(provider, configPresenter)
   }
 
   protected async fetchOpenAIModels(): Promise<MODEL_META[]> {
     return [
-      // 语言模型
+      // Language models
       {
         id: 'glm-4.5',
         name: 'GLM-4.5',
@@ -115,7 +115,7 @@ export class ZhipuProvider extends OpenAICompatibleProvider {
         contextLength: 128000,
         maxTokens: 16000
       },
-      // 推理模型
+      // Reasoning models
       {
         id: 'glm-z1-air',
         name: 'GLM-Z1-Air',
@@ -143,7 +143,7 @@ export class ZhipuProvider extends OpenAICompatibleProvider {
         contextLength: 32000,
         maxTokens: 32000
       },
-      // 多模态模型
+      // Multimodal models
       {
         id: 'glm-4.5v',
         name: 'GLM-4.5V',

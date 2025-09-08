@@ -94,7 +94,7 @@ export const useTabStore = defineStore('tab', () => {
       updateWindowTabs(windowId, tabsData)
     })
 
-    // 监听标题更新事件
+    // Listen for title update events
     window.electron.ipcRenderer.on(
       TAB_EVENTS.TITLE_UPDATED,
       (_, data: { tabId: number; title: string; windowId: number }) => {

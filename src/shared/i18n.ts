@@ -1,12 +1,12 @@
-// 翻译键值类型
+// Translation key-value type interface
 export interface TranslationMap {
   [key: string]: string
 }
 
-// 定义支持的语言
+// Define supported languages
 export const supportedLocales = ['zh-CN', 'zh-TW', 'en-US', 'ja', 'ko', 'fr', 'de', 'es']
 
-// 上下文菜单翻译
+// Context menu translations
 export const contextMenuTranslations: Record<string, TranslationMap> = {
   'zh-CN': {
     copy: '复制',
@@ -130,7 +130,7 @@ export const contextMenuTranslations: Record<string, TranslationMap> = {
   }
 }
 
-// 错误消息翻译
+// Error message translations
 export const errorMessageTranslations: Record<string, TranslationMap> = {
   'zh-CN': {
     mcpConnectionErrorTitle: 'MCP 连接错误',
@@ -326,19 +326,19 @@ export const errorMessageTranslations: Record<string, TranslationMap> = {
 }
 
 /**
- * 根据语言代码获取最佳匹配的翻译
- * @param locale 语言代码
- * @param translations 翻译映射表
- * @returns 匹配的翻译对象
+ * Get the best matching translation based on language code
+ * @param locale Language code
+ * @param translations Translation mapping table
+ * @returns Matching translation object
  */
 export function getBestMatchTranslation(
   locale: string,
   translations: Record<string, TranslationMap>
 ): TranslationMap {
-  // 默认使用英语
+  // Default to English
   let targetLocale = 'en-US'
 
-  // 查找最佳匹配的语言
+  // Find the best matching language
   for (const supported of supportedLocales) {
     if (
       locale.startsWith(supported) ||
@@ -353,18 +353,18 @@ export function getBestMatchTranslation(
 }
 
 /**
- * 获取上下文菜单的翻译
- * @param locale 语言代码
- * @returns 上下文菜单翻译
+ * Get context menu translations
+ * @param locale Language code
+ * @returns Context menu translations
  */
 export function getContextMenuLabels(locale: string): TranslationMap {
   return getBestMatchTranslation(locale, contextMenuTranslations)
 }
 
 /**
- * 获取错误消息的翻译
- * @param locale 语言代码
- * @returns 错误消息翻译
+ * Get error message translations
+ * @param locale Language code
+ * @returns Error message translations
  */
 export function getErrorMessageLabels(locale: string): TranslationMap {
   return getBestMatchTranslation(locale, errorMessageTranslations)

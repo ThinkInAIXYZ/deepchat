@@ -16,21 +16,21 @@ import { eventBus, SendTarget } from '@/eventbus'
 import { CONFIG_EVENTS } from '@/events'
 
 /**
- * 基础LLM提供商抽象类
+ * Base LLM Provider Abstract Class
  *
- * 该类定义了所有LLM提供商必须实现的接口和共享功能，包括：
- * - 模型管理（获取、添加、删除、更新模型）
- * - 统一的消息格式
- * - 工具调用处理
- * - 对话生成和流式处理
+ * This class defines the interfaces and shared functionality that all LLM providers must implement, including:
+ * - Model management (fetch, add, delete, update models)
+ * - Unified message format
+ * - Tool call handling
+ * - Conversation generation and streaming processing
  *
- * 所有特定的LLM提供商（如OpenAI、Anthropic、Gemini、Ollama等）都必须继承此类
- * 并实现其抽象方法。
+ * All specific LLM providers (such as OpenAI, Anthropic, Gemini, Ollama, etc.) must inherit from this class
+ * and implement its abstract methods.
  */
 export abstract class BaseLLMProvider {
-  // 单轮会话中最大工具调用次数限制
+  // Maximum tool calls limit in a single conversation turn
   protected static readonly MAX_TOOL_CALLS = 50
-  protected static readonly DEFAULT_MODEL_FETCH_TIMEOUT = 12000 // 提升到12秒作为通用默认值
+  protected static readonly DEFAULT_MODEL_FETCH_TIMEOUT = 12000 // Increased to 12 seconds as universal default
 
   protected provider: LLM_PROVIDER
   protected models: MODEL_META[] = []
@@ -53,24 +53,24 @@ export abstract class BaseLLMProvider {
   }
 
   /**
-   * 获取单轮会话中最大工具调用次数
-   * @returns 配置的单轮会话中最大工具调用次数
+   * Get the maximum tool calls limit in a single conversation turn
+   * @returns Configured maximum tool calls in a single conversation turn
    */
   public static getMaxToolCalls(): number {
     return BaseLLMProvider.MAX_TOOL_CALLS
   }
 
   /**
-   * 获取模型获取超时时间配置
-   * @returns 超时时间（毫秒）
+   * Get the model fetch timeout configuration
+   * @returns Timeout duration (milliseconds)
    */
   protected getModelFetchTimeout(): number {
     return BaseLLMProvider.DEFAULT_MODEL_FETCH_TIMEOUT
   }
 
   /**
-   * 从配置中加载缓存的模型数据
-   * 在构造函数中调用，避免每次都需要重新获取模型列表
+   * Load cached model data from configuration
+   * Called in constructor to avoid needing to re-fetch model lists every time
    */
   private loadCachedModels(): void {
     try {
@@ -100,8 +100,8 @@ export abstract class BaseLLMProvider {
   }
 
   /**
-   * 初始化提供商
-   * 包括获取模型列表、配置代理等
+   * Initialize the provider
+   * Including fetching model list, configuring proxy, etc.
    */
   protected async init() {
     if (this.provider.enable) {
@@ -114,7 +114,7 @@ export abstract class BaseLLMProvider {
           .then(() => {
             console.info('Provider initialized successfully:', this.provider.name)
           })
-        // 检查是否需要自动启用所有模型
+        // Check if we need to automatically enable all models
       } catch (error) {
         console.warn('Provider initialization failed:', this.provider.name, error)
       }
@@ -122,17 +122,17 @@ export abstract class BaseLLMProvider {
   }
 
   /**
-   * 检查并自动启用模型
-   * 如果没有任何已启用的模型，则自动启用所有模型
+   * Check and automatically enable models
+   * If no models are enabled, automatically enable all models
    */
   protected async autoEnableModelsIfNeeded() {
     if (!this.models || this.models.length === 0) return
     const providerId = this.provider.id
 
-    // 检查是否有自定义模型 (use cached customModels)
+    // Check if there are custom models (use cached customModels)
     if (this.customModels && this.customModels.length > 0) return
 
-    // 检查是否有任何模型的状态被手动修改过
+    // Check if any model's status has been manually modified
     const hasManuallyModifiedModels = this.models.some((model) =>
       this.configPresenter.getModelStatus(providerId, model.id)
     )

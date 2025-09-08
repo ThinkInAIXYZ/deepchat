@@ -24,7 +24,7 @@ export class OpenAIProvider extends OpenAICompatibleProvider {
       [
         {
           role: 'user',
-          content: `请总结以下内容，使用简洁的语言，突出重点：\n${text}`
+          content: `Please summarize the following content using concise language and highlighting key points:\n${text}`
         }
       ],
       modelId,

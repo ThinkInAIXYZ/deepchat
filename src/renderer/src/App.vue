@@ -28,14 +28,14 @@ const themeStore = useThemeStore()
 const langStore = useLanguageStore()
 const modelCheckStore = useModelCheckStore()
 const { t } = useI18n()
-// 错误通知队列及当前正在显示的错误
+// Error notification queue and currently displayed error
 const errorQueue = ref<Array<{ id: string; title: string; message: string; type: string }>>([])
 const currentErrorId = ref<string | null>(null)
 const errorDisplayTimer = ref<number | null>(null)
 
 const isMacOS = ref(false)
 const devicePresenter = usePresenter('devicePresenter')
-// 监听主题和字体大小变化，直接更新 body class
+// Watch theme and font size changes, update body class directly
 watch(
   [() => themeStore.themeMode, () => settingsStore.fontSizeClass],
   ([newTheme, newFontSizeClass], [oldTheme, oldFontSizeClass]) => {
@@ -53,72 +53,72 @@ watch(
     document.documentElement.classList.add(newFontSizeClass)
     console.log('newTheme', newThemeName)
   },
-  { immediate: false } // 初始化在 onMounted 中处理
+  { immediate: false } // Initialization is handled in onMounted
 )
 
-// 处理错误通知
+// Handle error notifications
 const showErrorToast = (error: { id: string; title: string; message: string; type: string }) => {
-  // 查找队列中是否已存在相同ID的错误，防止重复
+  // Check if error with same ID already exists in queue to prevent duplicates
   const existingErrorIndex = errorQueue.value.findIndex((e) => e.id === error.id)
 
   if (existingErrorIndex === -1) {
-    // 如果当前有错误正在展示，将新错误放入队列
+    // If there's currently an error being displayed, add new error to queue
     if (currentErrorId.value) {
       if (errorQueue.value.length > 5) {
         errorQueue.value.shift()
       }
       errorQueue.value.push(error)
     } else {
-      // 否则直接展示这个错误
+      // Otherwise display this error directly
       displayError(error)
     }
   }
 }
 
-// 显示指定的错误
+// Display specified error
 const displayError = (error: { id: string; title: string; message: string; type: string }) => {
-  // 更新当前显示的错误ID
+  // Update currently displayed error ID
   currentErrorId.value = error.id
 
-  // 显示错误通知
+  // Show error notification
   const { dismiss } = toast({
     title: error.title,
     description: error.message,
     variant: 'destructive',
     onOpenChange: (open) => {
       if (!open) {
-        // 用户手动关闭时也显示下一个错误
+        // Also show next error when user manually closes
         handleErrorClosed()
       }
     }
   })
 
-  // 设置定时器，3秒后自动关闭当前错误
+  // Set timer to automatically close current error after 3 seconds
   if (errorDisplayTimer.value) {
     clearTimeout(errorDisplayTimer.value)
   }
 
   errorDisplayTimer.value = window.setTimeout(() => {
     console.log('errorDisplayTimer.value', errorDisplayTimer.value)
-    // 处理错误关闭后的逻辑
+    // Handle logic after error is closed
     dismiss()
     handleErrorClosed()
   }, 3000)
 }
 
-// 处理错误关闭后的逻辑
+// Handle logic after error is closed
 const handleErrorClosed = () => {
-  // 清除当前错误ID
+  // Clear current error ID
   currentErrorId.value = null
 
-  // 显示队列中的下一个错误（如果有）
+  // Display next error in queue (if any)
   if (errorQueue.value.length > 0) {
     const nextError = errorQueue.value.shift()
     if (nextError) {
       displayError(nextError)
     }
   } else {
-    // 队列为空，清除定时器
+    // Queue is empty, clear timer
     if (errorDisplayTimer.value) {
       clearTimeout(errorDisplayTimer.value)
       errorDisplayTimer.value = null
@@ -136,44 +136,44 @@ const getInitComplete = async () => {
   }
 }
 
-// 处理字体缩放
+// Handle font scaling
 const handleZoomIn = () => {
-  // 字体大小增加逻辑
+  // Font size increase logic
   const currentLevel = settingsStore.fontSizeLevel
   settingsStore.updateFontSizeLevel(currentLevel + 1)
 }
 
 const handleZoomOut = () => {
-  // 字体大小减小逻辑
+  // Font size decrease logic
   const currentLevel = settingsStore.fontSizeLevel
   settingsStore.updateFontSizeLevel(currentLevel - 1)
 }
 
 const handleZoomResume = () => {
-  // 重置字体大小
-  settingsStore.updateFontSizeLevel(1) // 1 对应 'text-base'，默认字体大小
+  // Reset font size
+  settingsStore.updateFontSizeLevel(1) // 1 corresponds to 'text-base', default font size
 }
 
-// 处理创建新会话
+// Handle creating new conversation
 const handleCreateNewConversation = () => {
   try {
     chatStore.createNewEmptyThread()
-    // 简化处理，只记录日志，实际功能待实现
+    // Simplified handling, just log, actual functionality to be implemented
   } catch (error) {
-    console.error('创建新会话失败:', error)
+    console.error('Failed to create new conversation:', error)
   }
 }
 
-// 处理进入设置页面
+// Handle going to settings page
 const handleGoSettings = () => {
   const currentRoute = router.currentRoute.value
-  // 检查当前路由或其父路由是否已经是settings
+  // Check if current route or its parent route is already settings
   if (!currentRoute.path.startsWith('/settings')) {
     router.push({ name: 'settings' })
   }
 }
 
-// 处理ESC键 - 关闭悬浮聊天窗口
+// Handle ESC key - close floating chat window
 const handleEscKey = (event: KeyboardEvent) => {
   if (event.key === 'Escape') {
     window.electron.ipcRenderer.send('close-floating-window')
@@ -186,18 +186,18 @@ onMounted(() => {
   devicePresenter.getDeviceInfo().then((deviceInfo) => {
     isMacOS.value = deviceInfo.platform === 'darwin'
   })
-  // 设置初始 body class
+  // Set initial body class
   document.body.classList.add(themeStore.themeMode)
   document.body.classList.add(settingsStore.fontSizeClass)
 
   window.addEventListener('keydown', handleEscKey)
 
-  // 监听全局错误通知事件
+  // Listen for global error notification events
   window.electron.ipcRenderer.on(NOTIFICATION_EVENTS.SHOW_ERROR, (_event, error) => {
     showErrorToast(error)
   })
 
-  // 监听快捷键事件
+  // Listen for shortcut key events
   window.electron.ipcRenderer.on(SHORTCUT_EVENTS.ZOOM_IN, () => {
     handleZoomIn()
   })
@@ -211,7 +211,7 @@ onMounted(() => {
   })
 
   window.electron.ipcRenderer.on(SHORTCUT_EVENTS.CREATE_NEW_CONVERSATION, () => {
-    // 检查当前路由是否为聊天页面
+    // Check if current route is chat page
     const currentRoute = router.currentRoute.value
     if (currentRoute.name !== 'chat') {
       return
@@ -235,16 +235,16 @@ onMounted(() => {
   window.electron.ipcRenderer.on(NOTIFICATION_EVENTS.SYS_NOTIFY_CLICKED, (_, msg) => {
     let threadId: string | null = null
 
-    // 检查msg是否为字符串且是否以chat/开头
+    // Check if msg is string and starts with chat/
     if (typeof msg === 'string' && msg.startsWith('chat/')) {
-      // 按/分割，检查是否有三段数据
+      // Split by /, check if there are three segments
       const parts = msg.split('/')
       if (parts.length === 3) {
-        // 提取中间部分作为threadId
+        // Extract middle part as threadId
         threadId = parts[1]
       }
     } else if (msg && msg.threadId) {
-      // 兼容原有格式，如果msg是对象且包含threadId属性
+      // Compatible with original format, if msg is object and contains threadId property
       threadId = msg.threadId
     }
 
@@ -271,16 +271,16 @@ onMounted(() => {
       if (newTab !== activeTab.value) {
         activeTab.value = newTab
       }
-      // 路由变化时关闭 artifacts 页面
+      // Close artifacts page when route changes
       artifactStore.hideArtifact()
     }
   )
 
-  // 监听当前对话的变化
+  // Listen for changes to current conversation
   watch(
     () => chatStore.getActiveThreadId(),
     () => {
-      // 当切换对话时关闭 artifacts 页面
+      // Close artifacts page when switching conversations
       artifactStore.hideArtifact()
     }
   )
@@ -293,7 +293,7 @@ onMounted(() => {
   )
 })
 
-// 在组件卸载前清除定时器和事件监听
+// Clear timers and event listeners before component unmounts
 onBeforeUnmount(() => {
   if (errorDisplayTimer.value) {
     clearTimeout(errorDisplayTimer.value)
@@ -302,7 +302,7 @@ onBeforeUnmount(() => {
 
   window.removeEventListener('keydown', handleEscKey)
 
-  // 移除快捷键事件监听
+  // Remove shortcut key event listeners
   window.electron.ipcRenderer.removeAllListeners(SHORTCUT_EVENTS.ZOOM_IN)
   window.electron.ipcRenderer.removeAllListeners(SHORTCUT_EVENTS.ZOOM_OUT)
   window.electron.ipcRenderer.removeAllListeners(SHORTCUT_EVENTS.ZOOM_RESUME)
@@ -319,19 +319,19 @@ onBeforeUnmount(() => {
       class="flex flex-row h-0 flex-grow relative overflow-hidden px-[1px] py-[1px]"
       :dir="langStore.dir"
     >
-      <!-- 主内容区域 -->
+      <!-- Main content area -->
 
       <RouterView />
     </div>
-    <!-- 全局更新弹窗 -->
+    <!-- Global update dialog -->
     <UpdateDialog />
-    <!-- 全局消息弹窗 -->
+    <!-- Global message dialog -->
     <MessageDialog />
-    <!-- 全局Toast提示 -->
+    <!-- Global Toast notifications -->
     <Toaster />
     <SelectedTextContextMenu />
     <TranslatePopup />
-    <!-- 全局模型检查弹窗 -->
+    <!-- Global model check dialog -->
     <ModelCheckDialog
       :open="modelCheckStore.isDialogOpen"
       :provider-id="modelCheckStore.currentProviderId"
