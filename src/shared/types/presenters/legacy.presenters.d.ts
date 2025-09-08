@@ -72,6 +72,15 @@ export interface Prompt {
   createdAt?: number // Creation time
   updatedAt?: number // Update time
 }
+
+export interface SystemPrompt {
+  id: string
+  name: string
+  content: string
+  isDefault?: boolean
+  createdAt?: number
+  updatedAt?: number
+}
 export interface PromptListEntry {
   name: string
   description?: string
@@ -466,6 +475,14 @@ export interface IConfigPresenter {
   setDefaultSystemPrompt(prompt: string): Promise<void>
   resetToDefaultPrompt(): Promise<void>
   clearSystemPrompt(): Promise<void>
+  // System prompt management
+  getSystemPrompts(): Promise<SystemPrompt[]>
+  setSystemPrompts(prompts: SystemPrompt[]): Promise<void>
+  addSystemPrompt(prompt: SystemPrompt): Promise<void>
+  updateSystemPrompt(promptId: string, updates: Partial<SystemPrompt>): Promise<void>
+  deleteSystemPrompt(promptId: string): Promise<void>
+  setDefaultSystemPromptId(promptId: string): Promise<void>
+  getDefaultSystemPromptId(): Promise<string>
   // Shortcut key settings
   getDefaultShortcutKey(): ShortcutKeySetting
   getShortcutKey(): ShortcutKeySetting

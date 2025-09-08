@@ -529,7 +529,162 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
 
   // Moonshot provider-specific model configurations
   moonshot: {
-    models: []
+    models: [
+      {
+        id: 'kimi-k2-0905-preview',
+        name: 'Kimi K2 0905 Preview',
+        temperature: 0.7,
+        maxTokens: 65536,
+        contextLength: 262144,
+        match: ['kimi-k2-0905-preview'],
+        vision: false,
+        functionCall: true,
+        reasoning: false
+      },
+      {
+        id: 'kimi-k2-0711-preview',
+        name: 'Kimi K2 0711 Preview',
+        temperature: 0.7,
+        maxTokens: 65536,
+        contextLength: 131072,
+        match: ['kimi-k2-0711-preview'],
+        vision: false,
+        functionCall: true,
+        reasoning: false
+      },
+      {
+        id: 'kimi-k2-turbo-preview',
+        name: 'Kimi K2 Turbo Preview',
+        temperature: 0.7,
+        maxTokens: 65536,
+        contextLength: 262144,
+        match: ['kimi-k2-turbo-preview'],
+        vision: false,
+        functionCall: true,
+        reasoning: false
+      },
+      {
+        id: 'kimi-latest',
+        name: 'Kimi Latest',
+        temperature: 0.7,
+        maxTokens: 65536,
+        contextLength: 131072,
+        match: ['kimi-latest'],
+        vision: true,
+        functionCall: true,
+        reasoning: false
+      },
+      {
+        id: 'kimi-latest-8k',
+        name: 'Kimi Latest 8K',
+        temperature: 0.7,
+        maxTokens: 4096,
+        contextLength: 8192,
+        match: ['kimi-latest-8k'],
+        vision: true,
+        functionCall: true,
+        reasoning: false
+      },
+      {
+        id: 'kimi-latest-32k',
+        name: 'Kimi Latest 32K',
+        temperature: 0.7,
+        maxTokens: 16384,
+        contextLength: 32768,
+        match: ['kimi-latest-32k'],
+        vision: true,
+        functionCall: true,
+        reasoning: false
+      },
+      {
+        id: 'kimi-latest-128k',
+        name: 'Kimi Latest 128K',
+        temperature: 0.7,
+        maxTokens: 65536,
+        contextLength: 131072,
+        match: ['kimi-latest-128k'],
+        vision: true,
+        functionCall: true,
+        reasoning: false
+      },
+      {
+        id: 'moonshot-v1-8k',
+        name: 'Moonshot V1 8K',
+        temperature: 0.7,
+        maxTokens: 4096,
+        contextLength: 8192,
+        match: ['moonshot-v1-8k'],
+        vision: false,
+        functionCall: true,
+        reasoning: false
+      },
+      {
+        id: 'moonshot-v1-32k',
+        name: 'Moonshot V1 32K',
+        temperature: 0.7,
+        maxTokens: 16384,
+        contextLength: 32768,
+        match: ['moonshot-v1-32k'],
+        vision: false,
+        functionCall: true,
+        reasoning: false
+      },
+      {
+        id: 'moonshot-v1-128k',
+        name: 'Moonshot V1 128K',
+        temperature: 0.7,
+        maxTokens: 65536,
+        contextLength: 131072,
+        match: ['moonshot-v1-128k'],
+        vision: false,
+        functionCall: true,
+        reasoning: false
+      },
+      {
+        id: 'moonshot-v1-8k-vision-preview',
+        name: 'Moonshot V1 8K Vision Preview',
+        temperature: 0.7,
+        maxTokens: 4096,
+        contextLength: 8192,
+        match: ['moonshot-v1-8k-vision-preview'],
+        vision: true,
+        functionCall: true,
+        reasoning: false
+      },
+      {
+        id: 'moonshot-v1-32k-vision-preview',
+        name: 'Moonshot V1 32K Vision Preview',
+        temperature: 0.7,
+        maxTokens: 16384,
+        contextLength: 32768,
+        match: ['moonshot-v1-32k-vision-preview'],
+        vision: true,
+        functionCall: true,
+        reasoning: false
+      },
+      {
+        id: 'moonshot-v1-128k-vision-preview',
+        name: 'Moonshot V1 128K Vision Preview',
+        temperature: 0.7,
+        maxTokens: 65536,
+        contextLength: 131072,
+        match: ['moonshot-v1-128k-vision-preview'],
+        vision: true,
+        functionCall: true,
+        reasoning: false
+      },
+      {
+        id: 'kimi-thinking-preview',
+        name: 'Kimi Thinking Preview',
+        temperature: 0.7,
+        maxTokens: 65536,
+        contextLength: 131072,
+        match: ['kimi-thinking-preview'],
+        vision: true,
+        functionCall: false,
+        reasoning: true
+      }
+    ]
   },
 
   // Ollama provider-specific model configurations

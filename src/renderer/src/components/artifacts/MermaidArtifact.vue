@@ -33,7 +33,7 @@ onMounted(() => {
   mermaid.initialize({
     startOnLoad: true,
     theme: document.documentElement.classList.contains('dark') ? 'dark' : 'default',
-    securityLevel: 'loose',
+    securityLevel: 'strict',
     fontFamily: 'inherit'
   })
 

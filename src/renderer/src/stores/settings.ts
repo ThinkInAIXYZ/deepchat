@@ -1639,6 +1639,34 @@ export const useSettingsStore = defineStore('settings', () => {
     await configP.clearSystemPrompt()
   }
 
+  const getSystemPrompts = async () => {
+    return await configP.getSystemPrompts()
+  }
+
+  const setSystemPrompts = async (prompts: any[]) => {
+    await configP.setSystemPrompts(prompts)
+  }
+
+  const addSystemPrompt = async (prompt: any) => {
+    await configP.addSystemPrompt(prompt)
+  }
+
+  const updateSystemPrompt = async (promptId: string, updates: any) => {
+    await configP.updateSystemPrompt(promptId, updates)
+  }
+
+  const deleteSystemPrompt = async (promptId: string) => {
+    await configP.deleteSystemPrompt(promptId)
+  }
+
+  const setDefaultSystemPromptId = async (promptId: string) => {
+    await configP.setDefaultSystemPromptId(promptId)
+  }
+
+  const getDefaultSystemPromptId = async () => {
+    return await configP.getDefaultSystemPromptId()
+  }
+
   // 模型配置相关方法
   const getModelConfig = async (modelId: string, providerId: string): Promise<any> => {
     return await configP.getModelDefaultConfig(modelId, providerId)
@@ -1742,6 +1770,13 @@ export const useSettingsStore = defineStore('settings', () => {
     setDefaultSystemPrompt,
     resetToDefaultPrompt,
     clearSystemPrompt,
+    getSystemPrompts,
+    setSystemPrompts,
+    addSystemPrompt,
+    updateSystemPrompt,
+    deleteSystemPrompt,
+    setDefaultSystemPromptId,
+    getDefaultSystemPromptId,
     setupProviderListener,
     getModelConfig,
     setModelConfig,
