@@ -1,6 +1,6 @@
 <template>
-  <div class="h-full p-6 overflow-auto bg-background">
-    <div class="max-w-7xl mx-auto space-y-8">
+  <div class="h-full p-6 overflow-auto bg-background w-full">
+    <div class="max-w-full mx-auto space-y-8">
       <!-- Header -->
       <div class="mb-8">
         <h1 class="text-3xl font-bold text-foreground mb-2">UI Kit Playground</h1>
@@ -11,13 +11,13 @@
 
       <!-- Simple Tab Navigation (debugging) -->
       <div class="flex border-b border-border mb-6">
-        <button 
+        <button
           v-for="tab in tabs"
           :key="tab.id"
           :class="[
             'px-4 py-2 text-sm font-medium transition-colors',
-            activeTab === tab.id 
-              ? 'border-b-2 border-primary text-primary' 
+            activeTab === tab.id
+              ? 'border-b-2 border-primary text-primary'
               : 'text-muted-foreground hover:text-foreground'
           ]"
           @click="setActiveTab(tab.id)"
@@ -31,13 +31,13 @@
           <div class="space-y-8">
             <section>
               <h2 class="text-xl font-semibold mb-4">Chat Components</h2>
-              
+
               <!-- Chat Container Demo -->
               <div class="bg-card border border-border rounded-lg p-6">
                 <h3 class="text-lg font-medium mb-4">ChatContainer with Components</h3>
                 <div class="h-96 max-w-2xl mx-auto">
                   <ChatContainer>
-                    <ChatHeader 
+                    <ChatHeader
                       title="AI Assistant"
                       subtitle="Powered by GPT-4"
                     >
@@ -59,7 +59,7 @@
                           <template #default="{ message }">
                             {{ message.content }}
                           </template>
-                          
+
                           <template #actions="{ message }">
                             <MessageToolbar :message="message" @action="handleMessageAction" />
                           </template>
@@ -67,7 +67,7 @@
                       </template>
                     </MessageList>
 
-                    <PromptInput 
+                    <PromptInput
                       placeholder="Type your message..."
                       @send="handleSend"
                     />
@@ -83,11 +83,11 @@
           <div class="space-y-8">
             <section>
               <h2 class="text-xl font-semibold mb-4">Message Block Components</h2>
-              
+
               <!-- Tool Call Demo -->
               <div class="space-y-4">
                 <h3 class="text-lg font-medium">MessageBlockToolCall</h3>
-                <MessageBlockToolCall 
+                <MessageBlockToolCall
                   :tool-call="sampleToolCall"
                   @retry="handleToolRetry"
                 />
@@ -111,7 +111,7 @@
                 <h3 class="text-lg font-medium">InlineCitation</h3>
                 <div class="p-4 bg-muted/50 rounded-md">
                   <p class="text-sm">
-                    Vue 3 introduced the Composition API 
+                    Vue 3 introduced the Composition API
                     <InlineCitation :citation="sampleCitation" :index="1" />
                     which provides better TypeScript support and code reusability.
                   </p>
@@ -126,12 +126,12 @@
           <div class="space-y-8">
             <section>
               <h2 class="text-xl font-semibold mb-4">Utility Components</h2>
-              
+
               <!-- Task Demo -->
               <div class="space-y-4">
                 <h3 class="text-lg font-medium">Task</h3>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-4xl">
-                  <Task 
+                  <Task
                     v-for="task in sampleTasks"
                     :key="task.id"
                     :task="task"
@@ -180,11 +180,11 @@
           <div class="space-y-8">
             <section>
               <h2 class="text-xl font-semibold mb-4">Layout Components</h2>
-              
+
               <!-- Tabs Demo -->
               <div class="space-y-4">
                 <h3 class="text-lg font-medium">Tabs Variants</h3>
-                
+
                 <!-- Default Tabs -->
                 <div class="space-y-2">
                   <h4 class="text-sm font-medium text-muted-foreground">Default</h4>
