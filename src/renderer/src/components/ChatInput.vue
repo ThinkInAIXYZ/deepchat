@@ -1078,25 +1078,16 @@ onMounted(() => {
             const from = sel.from
             const to = sel.to
 
-            // Convert text with newlines to proper TipTap node structure
-            const convertTextToNodes = (text: string) => {
-              const lines = text.split('\n')
-              const content: any[] = []
-
-              lines.forEach((line, index) => {
-                if (index > 0) {
-                  content.push({ type: 'hardBreak' })
-                }
-                if (line.length > 0) {
-                  content.push({ type: 'text', text: line })
-                }
-              })
-              return [
-                {
-                  type: 'paragraph',
-                  content: content
-                }
-              ]
+            // Convert text with newlines to TipTap inline nodes (preserves blank lines, handles CRLF)
+            const convertTextToNodes = (txt: string): JSONContent[] => {
+              const lines = txt.replace(/\r/g, '').split('\n')
+              const content: JSONContent[] = []
+              for (let i = 0; i < lines.length; i++) {
+                if (i > 0) content.push({ type: 'hardBreak' })
+                const line = lines[i]
+                if (line.length > 0) content.push({ type: 'text', text: line })
+              }
+              return content
             }
             editor
               .chain()
