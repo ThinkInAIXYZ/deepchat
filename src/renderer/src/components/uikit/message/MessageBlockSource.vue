@@ -30,22 +30,15 @@ const emit = defineEmits<{
 
 const isOpen = ref(!props.defaultCollapsed)
 
-const containerClasses = computed(() => 
-  cn(
-    'w-full',
-    props.class
-  )
-)
+const containerClasses = computed(() => cn('w-full', props.class))
 
-const statusClasses = computed(() => 
-  cn(
-    'inline-flex items-center gap-1 text-xs px-2 py-1 rounded-full',
-    {
-      'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200': props.status === 'searching',
-      'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200': props.status === 'completed',
-      'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200': props.status === 'error'
-    }
-  )
+const statusClasses = computed(() =>
+  cn('inline-flex items-center gap-1 text-xs px-2 py-1 rounded-full', {
+    'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200': props.status === 'searching',
+    'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200':
+      props.status === 'completed',
+    'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200': props.status === 'error'
+  })
 )
 
 const handleResultClick = (result: SearchResult) => {
@@ -64,42 +57,39 @@ const handleExpandToggle = () => {
       <div class="flex items-center justify-between">
         <div class="flex items-center gap-2">
           <CardTitle class="text-sm flex items-center gap-2">
-            <svg 
-              xmlns="http://www.w3.org/2000/svg" 
-              width="16" 
-              height="16" 
-              viewBox="0 0 24 24" 
-              fill="none" 
-              stroke="currentColor" 
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
               stroke-width="2"
             >
-              <circle cx="11" cy="11" r="8"/>
-              <path d="m21 21-4.35-4.35"/>
+              <circle cx="11" cy="11" r="8" />
+              <path d="m21 21-4.35-4.35" />
             </svg>
             Search Results
           </CardTitle>
           <Badge :class="statusClasses">
-            {{ status === 'searching' ? 'Searching...' : `${totalResults || results.length} results` }}
+            {{
+              status === 'searching' ? 'Searching...' : `${totalResults || results.length} results`
+            }}
           </Badge>
         </div>
-        
-        <Button
-          v-if="collapsible"
-          variant="ghost"
-          size="xs"
-          @click="handleExpandToggle"
-        >
-          <svg 
-            xmlns="http://www.w3.org/2000/svg" 
-            width="12" 
-            height="12" 
-            viewBox="0 0 24 24" 
-            fill="none" 
-            stroke="currentColor" 
+
+        <Button v-if="collapsible" variant="ghost" size="xs" @click="handleExpandToggle">
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="12"
+            height="12"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
             stroke-width="2"
             :class="cn('transition-transform', { 'rotate-180': isOpen })"
           >
-            <path d="m6 9 6 6 6-6"/>
+            <path d="m6 9 6 6 6-6" />
           </svg>
         </Button>
       </div>
@@ -137,19 +127,19 @@ const handleExpandToggle = () => {
                     </span>
                   </div>
                 </div>
-                
-                <svg 
-                  xmlns="http://www.w3.org/2000/svg" 
-                  width="12" 
-                  height="12" 
-                  viewBox="0 0 24 24" 
-                  fill="none" 
-                  stroke="currentColor" 
+
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="12"
+                  height="12"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
                   stroke-width="2"
                   class="shrink-0 mt-1 text-muted-foreground"
                 >
-                  <path d="M7 17L17 7"/>
-                  <path d="M7 7h10v10"/>
+                  <path d="M7 17L17 7" />
+                  <path d="M7 7h10v10" />
                 </svg>
               </div>
             </div>
@@ -159,9 +149,7 @@ const handleExpandToggle = () => {
             Failed to fetch search results
           </div>
 
-          <div v-else class="text-center py-4 text-muted-foreground text-sm">
-            No results found
-          </div>
+          <div v-else class="text-center py-4 text-muted-foreground text-sm">No results found</div>
         </CardContent>
       </CollapsibleContent>
     </Collapsible>

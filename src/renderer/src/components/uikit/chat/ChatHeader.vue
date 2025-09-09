@@ -11,7 +11,7 @@ interface Props extends ChatComponentProps {
 
 const props = withDefaults(defineProps<Props>(), {})
 
-const headerClasses = computed(() => 
+const headerClasses = computed(() =>
   cn(
     'flex items-center justify-between',
     'px-4 py-3 border-b border-border',
@@ -31,7 +31,7 @@ const headerClasses = computed(() =>
         {{ subtitle }}
       </p>
     </div>
-    
+
     <div class="flex items-center gap-2">
       <slot name="actions" />
     </div>

@@ -30,7 +30,7 @@ const emit = defineEmits<{
   navigate: [url: string]
 }>()
 
-const citationClasses = computed(() => 
+const citationClasses = computed(() =>
   cn(
     'inline-flex items-center gap-1 text-xs',
     {
@@ -58,13 +58,8 @@ const formatTimestamp = (timestamp: Date | string) => {
 <template>
   <HoverCard>
     <HoverCardTrigger as-child>
-      <span 
-        :class="citationClasses"
-        @click="handleClick"
-      >
-        <span class="font-medium">
-          [{{ index || citation.id }}]
-        </span>
+      <span :class="citationClasses" @click="handleClick">
+        <span class="font-medium"> [{{ index || citation.id }}] </span>
         <slot :citation="citation" />
       </span>
     </HoverCardTrigger>
@@ -75,20 +70,20 @@ const formatTimestamp = (timestamp: Date | string) => {
           <h4 class="text-sm font-semibold text-foreground line-clamp-2">
             {{ citation.title }}
           </h4>
-          
-          <svg 
+
+          <svg
             v-if="citation.url"
-            xmlns="http://www.w3.org/2000/svg" 
-            width="12" 
-            height="12" 
-            viewBox="0 0 24 24" 
-            fill="none" 
-            stroke="currentColor" 
+            xmlns="http://www.w3.org/2000/svg"
+            width="12"
+            height="12"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
             stroke-width="2"
             class="shrink-0 mt-0.5 text-muted-foreground"
           >
-            <path d="M7 17L17 7"/>
-            <path d="M7 7h10v10"/>
+            <path d="M7 17L17 7" />
+            <path d="M7 7h10v10" />
           </svg>
         </div>
 
@@ -100,7 +95,7 @@ const formatTimestamp = (timestamp: Date | string) => {
           <Badge v-if="citation.source" variant="outline" class="text-xs">
             {{ citation.source }}
           </Badge>
-          
+
           <span v-if="citation.timestamp" class="text-xs text-muted-foreground">
             {{ formatTimestamp(citation.timestamp) }}
           </span>

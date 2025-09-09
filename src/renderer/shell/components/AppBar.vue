@@ -1,8 +1,11 @@
 <template>
-  <div class="flex flex-row h-9" :dir="langStore.dir">
+  <div
+    class="flex flex-row h-9 flex-shrink-0 bg-[#D9D9D900] dark:bg-transparent"
+    :dir="langStore.dir"
+  >
     <div
       class="h-9 flex-shrink-0 w-0 flex-1 flex select-none text-center text-sm font-medium flex-row items-center justify-start window-drag-region"
-      :class="['', isMacOS ? (isFullscreened ? 'pl-2 pr-2' : 'pl-20 pr-2') : 'px-2']"
+      :class="['', isMacOS ? (isFullscreened ? 'pl-0 pr-0' : 'pl-20 pr-0') : 'pl-0 pr-0']"
     >
       <!-- App title/content in center -->
       <Button
@@ -23,12 +26,12 @@
       </Button>
       <div
         ref="tabContainerWrapper"
-        class="h-full flex flex-row items-end justify-start overflow-y-hidden overflow-x-auto scrollbar-hide"
+        class="h-full flex flex-row items-center justify-start overflow-y-hidden overflow-x-auto scrollbar-hide"
         @scroll="onTabContainerWrapperScroll"
       >
         <div
           ref="tabContainer"
-          class="h-full flex flex-row items-end justify-start relative"
+          class="h-full flex flex-row items-center justify-start relative"
           @dragover="onTabContainerDragOver"
           @drop="onTabContainerDrop"
         >
@@ -44,7 +47,7 @@
             @dragstart="onTabDragStart(tab.id, $event)"
             @dragover="onTabItemDragOver(idx, $event)"
           >
-            <img src="@/assets/logo.png" class="w-4 h-4 mr-2 rounded-sm" />
+            <img src="@/assets/logo.png" class="w-4 h-4 rounded-sm" />
             <span class="truncate">{{ tab.title ?? 'DeepChat' }}</span>
           </AppBarTabItem>
           <!-- 拖拽插入指示器 -->
@@ -53,17 +56,16 @@
             class="absolute top-0 bottom-0 w-0.5 bg-blue-500 z-10 pointer-events-none"
             :style="{ left: dragInsertPosition + 'px' }"
           ></div>
+          <!-- Tab Plus Button - moved inside tab container -->
+          <button
+            class="tab-plus-button flex justify-center items-center w-6 h-6 ml-2 window-no-drag-region"
+            @click="openNewTab"
+          >
+            <Icon icon="lucide:plus" class="w-4 h-4" />
+          </button>
           <div ref="endOfTabs" class="w-0 flex-shrink-0 h-full"></div>
         </div>
       </div>
-
-      <!-- Tab Plus Button -->
-      <button
-        class="tab-plus-button flex flex-row justify-center items-center p-0 gap-2.5 w-6 h-6 ml-1"
-        @click="openNewTab"
-      >
-        <Icon icon="lucide:plus" class="w-4 h-4 text-zinc-700 dark:text-zinc-300" />
-      </button>
 
       <!-- Blank Fill (Flexible Space) -->
       <div class="flex-1"></div>
@@ -74,8 +76,16 @@
         @click="onThemeClick"
       >
         <div class="flex justify-center items-center w-6 h-6">
-          <Icon v-if="themeStore.themeMode === 'dark'" icon="lucide:moon" class="w-4 h-4 text-zinc-700 dark:text-zinc-300" />
-          <Icon v-else-if="themeStore.themeMode === 'light'" icon="lucide:sun" class="w-4 h-4 text-zinc-700 dark:text-zinc-300" />
+          <Icon
+            v-if="themeStore.themeMode === 'dark'"
+            icon="lucide:moon"
+            class="w-4 h-4 text-zinc-700 dark:text-zinc-300"
+          />
+          <Icon
+            v-else-if="themeStore.themeMode === 'light'"
+            icon="lucide:sun"
+            class="w-4 h-4 text-zinc-700 dark:text-zinc-300"
+          />
           <Icon v-else icon="lucide:monitor" class="w-4 h-4 text-zinc-700 dark:text-zinc-300" />
         </div>
       </button>
@@ -622,19 +632,26 @@ button {
 .tab-plus-button {
   /* Auto layout */
   display: flex;
-  flex-direction: row;
   justify-content: center;
   align-items: center;
   padding: 0px;
-  gap: 10px;
 
   width: 24px;
   height: 24px;
 
   /* Inside auto layout */
   flex: none;
-  order: 4;
   flex-grow: 0;
+}
+
+.tab-plus-button .iconify {
+  color: #505050;
+  width: 16px;
+  height: 16px;
+}
+
+.dark .tab-plus-button .iconify {
+  color: rgba(255, 255, 255, 0.6);
 }
 
 .more-button {

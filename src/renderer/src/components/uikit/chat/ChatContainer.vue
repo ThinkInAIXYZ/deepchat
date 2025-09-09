@@ -9,7 +9,7 @@ interface Props extends ChatComponentProps {
 
 const props = withDefaults(defineProps<Props>(), {})
 
-const containerClasses = computed(() => 
+const containerClasses = computed(() =>
   cn(
     'flex flex-col h-full',
     'bg-background border border-border rounded-lg',

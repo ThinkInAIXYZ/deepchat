@@ -17,12 +17,7 @@ const activeTab = inject<{ value: string }>('activeTab')
 
 const isActive = computed(() => activeTab?.value === props.tabId)
 
-const contentClasses = computed(() => 
-  cn(
-    'w-full',
-    props.class
-  )
-)
+const contentClasses = computed(() => cn('w-full', props.class))
 
 // Track if this tab has been rendered before (for lazy loading)
 const hasBeenActive = ref(false)
@@ -40,7 +35,7 @@ const shouldRender = computed(() => {
 </script>
 
 <template>
-  <div 
+  <div
     v-if="shouldRender"
     v-show="isActive"
     :class="contentClasses"

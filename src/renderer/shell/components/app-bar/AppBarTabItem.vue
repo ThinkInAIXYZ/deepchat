@@ -3,12 +3,12 @@
     ref="tabItem"
     draggable="true"
     class="win-tab group transition-all duration-200"
-    :class="{ 'active': active }"
+    :class="{ active: active }"
     @dragstart="onDragStart"
     @click="onClick"
   >
     <div class="flex items-center justify-between w-full" :dir="langStore.dir">
-      <div class="flex items-center truncate flex-1 min-w-0">
+      <div class="flex items-center gap-2 truncate flex-1 min-w-0">
         <slot></slot>
       </div>
       <button
@@ -69,7 +69,7 @@ const onDragStart = (event: DragEvent) => {
   align-items: flex-start;
   padding: 0px 12px;
 
-  width: 136px;
+  width: 128px;
   min-width: 128px;
   height: 36px;
 
@@ -84,11 +84,11 @@ const onDragStart = (event: DragEvent) => {
 }
 
 .win-tab.active {
-  background: #FFFFFF;
+  background: #ffffff;
 }
 
 .win-tab:not(.active) {
-  background: #F8F9FA;
+  background: #d9d9d900;
 }
 
 /* Dark mode overrides */
@@ -97,7 +97,7 @@ const onDragStart = (event: DragEvent) => {
 }
 
 .dark .win-tab.active {
-  background: #1F2937;
+  background: #1f2937;
   border-color: rgba(255, 255, 255, 0.1);
 }
 
@@ -107,5 +107,35 @@ const onDragStart = (event: DragEvent) => {
 
 .dark .win-tab:not(.active):hover {
   background: rgba(30, 41, 59, 0.5);
+}
+
+/* Text styling to match design specifications */
+.win-tab :deep(span) {
+  font-family: 'Geist';
+  font-style: normal;
+  font-weight: 400;
+  font-size: 12px;
+  line-height: 16px;
+  color: rgba(37, 37, 37, 0.8);
+}
+
+.win-tab.active :deep(span) {
+  color: rgba(37, 37, 37, 1);
+}
+
+.dark .win-tab :deep(span) {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.dark .win-tab.active :deep(span) {
+  color: rgba(255, 255, 255, 0.9);
+}
+
+/* Icon sizing to match design specifications */
+.win-tab :deep(img),
+.win-tab :deep(.iconify) {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
 }
 </style>

@@ -17,12 +17,7 @@ const props = withDefaults(defineProps<Props>(), {
 
 const scrollAreaRef = ref<InstanceType<typeof ScrollArea>>()
 
-const listClasses = computed(() => 
-  cn(
-    'flex-1 p-4 space-y-4',
-    props.class
-  )
-)
+const listClasses = computed(() => cn('flex-1 p-4 space-y-4', props.class))
 
 // Auto-scroll to bottom when new messages arrive
 const scrollToBottom = () => {

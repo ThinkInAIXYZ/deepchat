@@ -16,7 +16,7 @@ const props = withDefaults(defineProps<Props>(), {
   variant: 'assistant'
 })
 
-const messageClasses = computed(() => 
+const messageClasses = computed(() =>
   cn(
     'flex gap-3 max-w-full',
     {
@@ -28,25 +28,19 @@ const messageClasses = computed(() =>
 )
 
 const contentClasses = computed(() =>
-  cn(
-    'flex flex-col gap-2 max-w-[80%]',
-    {
-      'items-end': props.variant === 'user',
-      'items-start': props.variant !== 'user'
-    }
-  )
+  cn('flex flex-col gap-2 max-w-[80%]', {
+    'items-end': props.variant === 'user',
+    'items-start': props.variant !== 'user'
+  })
 )
 
 const bubbleClasses = computed(() =>
-  cn(
-    'rounded-lg px-3 py-2 text-sm',
-    {
-      'bg-primary text-primary-foreground': props.variant === 'user',
-      'bg-muted text-foreground': props.variant === 'assistant',
-      'bg-secondary text-secondary-foreground': props.variant === 'system',
-      'bg-destructive text-destructive-foreground': props.variant === 'error'
-    }
-  )
+  cn('rounded-lg px-3 py-2 text-sm', {
+    'bg-primary text-primary-foreground': props.variant === 'user',
+    'bg-muted text-foreground': props.variant === 'assistant',
+    'bg-secondary text-secondary-foreground': props.variant === 'system',
+    'bg-destructive text-destructive-foreground': props.variant === 'error'
+  })
 )
 
 const getAvatarFallback = () => {
@@ -68,10 +62,14 @@ const getAvatarFallback = () => {
     <!-- Message Content -->
     <div :class="contentClasses">
       <!-- Header with name and timestamp -->
-      <div v-if="name || timestamp" 
-           :class="cn('flex items-center gap-2 text-xs text-muted-foreground', {
-             'flex-row-reverse': variant === 'user'
-           })">
+      <div
+        v-if="name || timestamp"
+        :class="
+          cn('flex items-center gap-2 text-xs text-muted-foreground', {
+            'flex-row-reverse': variant === 'user'
+          })
+        "
+      >
         <span v-if="name">{{ name }}</span>
         <span v-if="timestamp">{{ timestamp }}</span>
       </div>

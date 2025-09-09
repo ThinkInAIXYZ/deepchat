@@ -25,25 +25,11 @@ const emit = defineEmits<{
   sectionChange: [sectionId: string]
 }>()
 
-const containerClasses = computed(() => 
-  cn(
-    'flex gap-6 h-full',
-    props.class
-  )
-)
+const containerClasses = computed(() => cn('flex gap-6 h-full', props.class))
 
-const sidebarClasses = computed(() => 
-  cn(
-    'w-64 shrink-0',
-    'border-r border-border'
-  )
-)
+const sidebarClasses = computed(() => cn('w-64 shrink-0', 'border-r border-border'))
 
-const contentClasses = computed(() => 
-  cn(
-    'flex-1 min-w-0'
-  )
-)
+const contentClasses = computed(() => cn('flex-1 min-w-0'))
 
 const getSectionClasses = (section: SettingsSection) =>
   cn(
@@ -66,7 +52,7 @@ const handleSectionClick = (sectionId: string) => {
     <div v-if="sections.length > 0" :class="sidebarClasses">
       <div class="p-4">
         <h2 class="text-lg font-semibold text-foreground mb-4">Settings</h2>
-        
+
         <nav class="space-y-1">
           <button
             v-for="section in sections"
@@ -75,13 +61,10 @@ const handleSectionClick = (sectionId: string) => {
             @click="handleSectionClick(section.id)"
           >
             <span v-if="section.icon" class="text-lg">{{ section.icon }}</span>
-            
+
             <div class="flex flex-col items-start text-left min-w-0">
               <span class="font-medium text-sm">{{ section.title }}</span>
-              <span 
-                v-if="section.description" 
-                class="text-xs text-muted-foreground line-clamp-1"
-              >
+              <span v-if="section.description" class="text-xs text-muted-foreground line-clamp-1">
                 {{ section.description }}
               </span>
             </div>
@@ -93,20 +76,13 @@ const handleSectionClick = (sectionId: string) => {
     <!-- Main Content -->
     <div :class="contentClasses">
       <div class="p-6">
-        <slot 
-          name="header" 
-          :activeSection="activeSection"
-          :sections="sections"
-        />
+        <slot name="header" :activeSection="activeSection" :sections="sections" />
 
         <Separator v-if="$slots.header" class="my-6" />
 
         <!-- Settings Content -->
         <div class="space-y-6">
-          <slot 
-            :activeSection="activeSection" 
-            :sections="sections"
-          />
+          <slot :activeSection="activeSection" :sections="sections" />
         </div>
       </div>
     </div>

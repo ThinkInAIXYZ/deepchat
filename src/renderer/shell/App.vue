@@ -1,10 +1,10 @@
 <template>
   <div
-    class="w-screen h-screen"
+    class="w-screen h-screen flex flex-col"
     :class="[isMacOS ? 'bg-transparent' : themeStore.isDark ? 'bg-zinc-900' : 'bg-zinc-200']"
   >
     <AppBar />
-    <main class="content-container">
+    <main class="content-container flex-1">
       <!-- WebContentsView will be rendered here by the main process -->
     </main>
   </div>

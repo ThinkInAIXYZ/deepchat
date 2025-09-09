@@ -26,7 +26,7 @@ const emit = defineEmits<{
   action: [actionId: string, message: MessageContent]
 }>()
 
-const toolbarClasses = computed(() => 
+const toolbarClasses = computed(() =>
   cn(
     'flex items-center gap-1 opacity-0 group-hover:opacity-100',
     'transition-opacity duration-200',
@@ -40,24 +40,47 @@ const handleAction = (actionId: string) => {
 
 // Default actions
 const defaultActions = [
-  { id: 'copy', label: 'Copy', tooltip: 'Copy message', icon: 'copy', visible: true, disabled: false },
-  { id: 'edit', label: 'Edit', tooltip: 'Edit message', icon: 'edit', visible: true, disabled: false },
-  { id: 'regenerate', label: 'Regenerate', tooltip: 'Regenerate response', icon: 'refresh', visible: true, disabled: false },
-  { id: 'delete', label: 'Delete', tooltip: 'Delete message', icon: 'delete', visible: true, disabled: false }
+  {
+    id: 'copy',
+    label: 'Copy',
+    tooltip: 'Copy message',
+    icon: 'copy',
+    visible: true,
+    disabled: false
+  },
+  {
+    id: 'edit',
+    label: 'Edit',
+    tooltip: 'Edit message',
+    icon: 'edit',
+    visible: true,
+    disabled: false
+  },
+  {
+    id: 'regenerate',
+    label: 'Regenerate',
+    tooltip: 'Regenerate response',
+    icon: 'refresh',
+    visible: true,
+    disabled: false
+  },
+  {
+    id: 'delete',
+    label: 'Delete',
+    tooltip: 'Delete message',
+    icon: 'delete',
+    visible: true,
+    disabled: false
+  }
 ]
 
-const visibleActions = computed(() => 
-  props.actions.length > 0 ? props.actions : defaultActions
-)
+const visibleActions = computed(() => (props.actions.length > 0 ? props.actions : defaultActions))
 </script>
 
 <template>
   <TooltipProvider>
     <div :class="toolbarClasses">
-      <template 
-        v-for="action in visibleActions" 
-        :key="action.id"
-      >
+      <template v-for="action in visibleActions" :key="action.id">
         <Tooltip v-if="action.visible !== false">
           <TooltipTrigger as-child>
             <Button

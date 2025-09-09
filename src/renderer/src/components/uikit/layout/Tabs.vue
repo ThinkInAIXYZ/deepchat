@@ -32,50 +32,37 @@ const activeTabId = ref(props.activeTab || props.tabs[0]?.id)
 // Provide active tab to children
 provide('activeTab', activeTabId)
 
-const containerClasses = computed(() => 
-  cn(
-    'w-full',
-    props.class
-  )
+const containerClasses = computed(() => cn('w-full', props.class))
+
+const tabsListClasses = computed(() =>
+  cn('flex items-center gap-1', {
+    'border-b border-border': props.variant === 'default' || props.variant === 'underline',
+    'bg-muted rounded-lg p-1': props.variant === 'pills'
+  })
 )
 
-const tabsListClasses = computed(() => 
-  cn(
-    'flex items-center gap-1',
-    {
-      'border-b border-border': props.variant === 'default' || props.variant === 'underline',
-      'bg-muted rounded-lg p-1': props.variant === 'pills'
-    }
-  )
-)
-
-const getTabClasses = (tab: Tab) => 
+const getTabClasses = (tab: Tab) =>
   cn(
     'flex items-center gap-2 px-3 py-2 text-sm font-medium transition-colors',
     'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
     {
       // Default variant
-      'border-b-2 border-transparent hover:text-foreground': 
-        props.variant === 'default',
-      'border-primary text-primary': 
-        props.variant === 'default' && activeTabId.value === tab.id,
-      'text-muted-foreground': 
-        props.variant === 'default' && activeTabId.value !== tab.id,
+      'border-b-2 border-transparent hover:text-foreground': props.variant === 'default',
+      'border-primary text-primary': props.variant === 'default' && activeTabId.value === tab.id,
+      'text-muted-foreground': props.variant === 'default' && activeTabId.value !== tab.id,
 
-      // Pills variant  
-      'rounded-md hover:bg-background/60': 
-        props.variant === 'pills',
-      'bg-background text-foreground shadow-sm': 
+      // Pills variant
+      'rounded-md hover:bg-background/60': props.variant === 'pills',
+      'bg-background text-foreground shadow-sm':
         props.variant === 'pills' && activeTabId.value === tab.id,
-      'text-muted-foreground hover:text-foreground': 
+      'text-muted-foreground hover:text-foreground':
         props.variant === 'pills' && activeTabId.value !== tab.id,
 
       // Underline variant
-      'border-b-2 border-transparent hover:border-border': 
-        props.variant === 'underline',
-      'border-primary text-foreground': 
+      'border-b-2 border-transparent hover:border-border': props.variant === 'underline',
+      'border-primary text-foreground':
         props.variant === 'underline' && activeTabId.value === tab.id,
-      'text-muted-foreground hover:text-foreground transition-colors': 
+      'text-muted-foreground hover:text-foreground transition-colors':
         props.variant === 'underline' && activeTabId.value !== tab.id,
 
       // Disabled state
@@ -85,7 +72,7 @@ const getTabClasses = (tab: Tab) =>
 
 const handleTabClick = (tab: Tab) => {
   if (tab.disabled) return
-  
+
   activeTabId.value = tab.id
   emit('tabChange', tab.id)
 }
@@ -111,7 +98,7 @@ const handleTabClose = (tab: Tab, event: Event) => {
         @click="handleTabClick(tab)"
       >
         <span>{{ tab.label }}</span>
-        
+
         <!-- Badge -->
         <span
           v-if="tab.badge"
@@ -127,17 +114,17 @@ const handleTabClose = (tab: Tab, event: Event) => {
           class="ml-1 p-0.5 rounded hover:bg-muted-foreground/20 transition-colors"
           @click="handleTabClose(tab, $event)"
         >
-          <svg 
-            xmlns="http://www.w3.org/2000/svg" 
-            width="12" 
-            height="12" 
-            viewBox="0 0 24 24" 
-            fill="none" 
-            stroke="currentColor" 
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="12"
+            height="12"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
             stroke-width="2"
           >
-            <path d="m18 6-12 12"/>
-            <path d="m6 6 12 12"/>
+            <path d="m18 6-12 12" />
+            <path d="m6 6 12 12" />
           </svg>
         </button>
       </button>

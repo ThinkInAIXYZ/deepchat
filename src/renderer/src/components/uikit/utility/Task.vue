@@ -27,7 +27,7 @@ const emit = defineEmits<{
   delete: [task: TaskItem]
 }>()
 
-const containerClasses = computed(() => 
+const containerClasses = computed(() =>
   cn(
     'w-full',
     {
@@ -38,16 +38,17 @@ const containerClasses = computed(() =>
   )
 )
 
-const statusClasses = computed(() => 
-  cn(
-    'text-xs px-2 py-1 rounded-full',
-    {
-      'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200': props.task.status === 'pending',
-      'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200': props.task.status === 'in_progress',
-      'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200': props.task.status === 'completed',
-      'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200': props.task.status === 'cancelled'
-    }
-  )
+const statusClasses = computed(() =>
+  cn('text-xs px-2 py-1 rounded-full', {
+    'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200':
+      props.task.status === 'pending',
+    'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200':
+      props.task.status === 'in_progress',
+    'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200':
+      props.task.status === 'completed',
+    'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200':
+      props.task.status === 'cancelled'
+  })
 )
 
 const statusIcons = {
@@ -93,8 +94,8 @@ const isOverdue = computed(() => {
           <CardTitle :class="cn('text-base', { 'text-sm': compact })">
             {{ task.title }}
           </CardTitle>
-          
-          <CardDescription 
+
+          <CardDescription
             v-if="task.description && !compact"
             class="mt-1 text-sm text-muted-foreground line-clamp-2"
           >
@@ -108,21 +109,15 @@ const isOverdue = computed(() => {
           </Badge>
 
           <!-- Overdue indicator -->
-          <Badge v-if="isOverdue" variant="destructive" class="text-xs">
-            Overdue
-          </Badge>
+          <Badge v-if="isOverdue" variant="destructive" class="text-xs"> Overdue </Badge>
         </div>
       </div>
 
       <!-- Task metadata -->
       <div v-if="!compact" class="flex items-center gap-4 text-xs text-muted-foreground mt-2">
-        <span v-if="task.assignee">
-          👤 {{ task.assignee }}
-        </span>
-        
-        <span v-if="task.dueDate">
-          📅 {{ formatDate(task.dueDate) }}
-        </span>
+        <span v-if="task.assignee"> 👤 {{ task.assignee }} </span>
+
+        <span v-if="task.dueDate"> 📅 {{ formatDate(task.dueDate) }} </span>
       </div>
     </CardHeader>
 
@@ -148,7 +143,7 @@ const isOverdue = computed(() => {
           >
             Start
           </Button>
-          
+
           <Button
             v-if="task.status === 'in_progress'"
             variant="outline"
@@ -171,33 +166,33 @@ const isOverdue = computed(() => {
         <div class="ml-auto flex items-center gap-1">
           <!-- Edit -->
           <Button variant="ghost" size="xs" @click="handleEdit">
-            <svg 
-              xmlns="http://www.w3.org/2000/svg" 
-              width="12" 
-              height="12" 
-              viewBox="0 0 24 24" 
-              fill="none" 
-              stroke="currentColor" 
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="12"
+              height="12"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
               stroke-width="2"
             >
-              <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/>
+              <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
             </svg>
           </Button>
 
           <!-- Delete -->
           <Button variant="ghost" size="xs" @click="handleDelete">
-            <svg 
-              xmlns="http://www.w3.org/2000/svg" 
-              width="12" 
-              height="12" 
-              viewBox="0 0 24 24" 
-              fill="none" 
-              stroke="currentColor" 
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="12"
+              height="12"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
               stroke-width="2"
             >
-              <path d="M3 6h18"/>
-              <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/>
-              <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>
+              <path d="M3 6h18" />
+              <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
+              <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
             </svg>
           </Button>
         </div>
@@ -205,8 +200,8 @@ const isOverdue = computed(() => {
 
       <!-- Custom actions slot -->
       <div v-if="$slots.actions" class="mt-3 pt-3 border-t border-border">
-        <slot 
-          name="actions" 
+        <slot
+          name="actions"
           :task="task"
           :handleStatusChange="handleStatusChange"
           :handleEdit="handleEdit"

@@ -4,9 +4,7 @@
       <!-- Header -->
       <div class="mb-8">
         <h1 class="text-3xl font-bold text-foreground mb-2">UI Kit Playground</h1>
-        <p class="text-muted-foreground">
-          Interactive showcase of AI/Agent UI Kit components
-        </p>
+        <p class="text-muted-foreground">Interactive showcase of AI/Agent UI Kit components</p>
       </div>
 
       <!-- Simple Tab Navigation (debugging) -->
@@ -28,183 +26,174 @@
 
       <!-- Tab Content -->
       <div v-if="activeTab === 'chat'">
-          <div class="space-y-8">
-            <section>
-              <h2 class="text-xl font-semibold mb-4">Chat Components</h2>
+        <div class="space-y-8">
+          <section>
+            <h2 class="text-xl font-semibold mb-4">Chat Components</h2>
 
-              <!-- Chat Container Demo -->
-              <div class="bg-card border border-border rounded-lg p-6">
-                <h3 class="text-lg font-medium mb-4">ChatContainer with Components</h3>
-                <div class="h-96 max-w-2xl mx-auto">
-                  <ChatContainer>
-                    <ChatHeader
-                      title="AI Assistant"
-                      subtitle="Powered by GPT-4"
-                    >
-                      <template #actions>
-                        <Button variant="ghost" size="sm">⚙️</Button>
-                      </template>
-                    </ChatHeader>
+            <!-- Chat Container Demo -->
+            <div class="bg-card border border-border rounded-lg p-6">
+              <h3 class="text-lg font-medium mb-4">ChatContainer with Components</h3>
+              <div class="h-96 max-w-2xl mx-auto">
+                <ChatContainer>
+                  <ChatHeader title="AI Assistant" subtitle="Powered by GPT-4">
+                    <template #actions>
+                      <Button variant="ghost" size="sm">⚙️</Button>
+                    </template>
+                  </ChatHeader>
 
-                    <MessageList :messages="sampleMessages" class="flex-1">
-                      <template #default="{ messages }">
-                        <ChatMessage
-                          v-for="message in messages as any"
-                          :key="message.id"
-                          :message="message"
-                          :variant="message.role as any"
-                          :name="message.role === 'user' ? 'You' : 'Assistant'"
-                          class="group"
-                        >
-                          <template #default="{ message }">
-                            {{ message.content }}
-                          </template>
+                  <MessageList :messages="sampleMessages" class="flex-1">
+                    <template #default="{ messages }">
+                      <ChatMessage
+                        v-for="message in messages as any"
+                        :key="message.id"
+                        :message="message"
+                        :variant="message.role as any"
+                        :name="message.role === 'user' ? 'You' : 'Assistant'"
+                        class="group"
+                      >
+                        <template #default="{ message }">
+                          {{ message.content }}
+                        </template>
 
-                          <template #actions="{ message }">
-                            <MessageToolbar :message="message" @action="handleMessageAction" />
-                          </template>
-                        </ChatMessage>
-                      </template>
-                    </MessageList>
+                        <template #actions="{ message }">
+                          <MessageToolbar :message="message" @action="handleMessageAction" />
+                        </template>
+                      </ChatMessage>
+                    </template>
+                  </MessageList>
 
-                    <PromptInput
-                      placeholder="Type your message..."
-                      @send="handleSend"
-                    />
-                  </ChatContainer>
-                </div>
+                  <PromptInput placeholder="Type your message..." @send="handleSend" />
+                </ChatContainer>
               </div>
-            </section>
-          </div>
+            </div>
+          </section>
+        </div>
       </div>
 
       <!-- Message Blocks -->
       <div v-else-if="activeTab === 'message-blocks'">
-          <div class="space-y-8">
-            <section>
-              <h2 class="text-xl font-semibold mb-4">Message Block Components</h2>
+        <div class="space-y-8">
+          <section>
+            <h2 class="text-xl font-semibold mb-4">Message Block Components</h2>
 
-              <!-- Tool Call Demo -->
-              <div class="space-y-4">
-                <h3 class="text-lg font-medium">MessageBlockToolCall</h3>
-                <MessageBlockToolCall
-                  :tool-call="sampleToolCall"
-                  @retry="handleToolRetry"
-                />
-              </div>
+            <!-- Tool Call Demo -->
+            <div class="space-y-4">
+              <h3 class="text-lg font-medium">MessageBlockToolCall</h3>
+              <MessageBlockToolCall :tool-call="sampleToolCall" @retry="handleToolRetry" />
+            </div>
 
-              <!-- Search Results Demo -->
-              <div class="space-y-4">
-                <h3 class="text-lg font-medium">MessageBlockSource</h3>
-                <MessageBlockSource
-                  query="Vue 3 Composition API"
-                  :results="sampleSearchResults"
-                  :total-results="150"
-                  :search-time="245"
-                  status="completed"
-                  @result-click="handleResultClick"
-                />
-              </div>
+            <!-- Search Results Demo -->
+            <div class="space-y-4">
+              <h3 class="text-lg font-medium">MessageBlockSource</h3>
+              <MessageBlockSource
+                query="Vue 3 Composition API"
+                :results="sampleSearchResults"
+                :total-results="150"
+                :search-time="245"
+                status="completed"
+                @result-click="handleResultClick"
+              />
+            </div>
 
-              <!-- Inline Citation Demo -->
-              <div class="space-y-4">
-                <h3 class="text-lg font-medium">InlineCitation</h3>
-                <div class="p-4 bg-muted/50 rounded-md">
-                  <p class="text-sm">
-                    Vue 3 introduced the Composition API
-                    <InlineCitation :citation="sampleCitation" :index="1" />
-                    which provides better TypeScript support and code reusability.
-                  </p>
-                </div>
+            <!-- Inline Citation Demo -->
+            <div class="space-y-4">
+              <h3 class="text-lg font-medium">InlineCitation</h3>
+              <div class="p-4 bg-muted/50 rounded-md">
+                <p class="text-sm">
+                  Vue 3 introduced the Composition API
+                  <InlineCitation :citation="sampleCitation" :index="1" />
+                  which provides better TypeScript support and code reusability.
+                </p>
               </div>
-            </section>
-          </div>
+            </div>
+          </section>
+        </div>
       </div>
 
       <!-- Utility Components -->
       <div v-else-if="activeTab === 'utility'">
-          <div class="space-y-8">
-            <section>
-              <h2 class="text-xl font-semibold mb-4">Utility Components</h2>
+        <div class="space-y-8">
+          <section>
+            <h2 class="text-xl font-semibold mb-4">Utility Components</h2>
 
-              <!-- Task Demo -->
-              <div class="space-y-4">
-                <h3 class="text-lg font-medium">Task</h3>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-4xl">
-                  <Task
-                    v-for="task in sampleTasks"
-                    :key="task.id"
-                    :task="task"
-                    @status-change="handleTaskStatusChange"
-                    @edit="handleTaskEdit"
-                  />
-                </div>
+            <!-- Task Demo -->
+            <div class="space-y-4">
+              <h3 class="text-lg font-medium">Task</h3>
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-4xl">
+                <Task
+                  v-for="task in sampleTasks"
+                  :key="task.id"
+                  :task="task"
+                  @status-change="handleTaskStatusChange"
+                  @edit="handleTaskEdit"
+                />
               </div>
+            </div>
 
-              <!-- Provider Selector Demo -->
-              <div class="space-y-4">
-                <h3 class="text-lg font-medium">ProviderSelector</h3>
-                <div class="max-w-md">
-                  <ProviderSelector
-                    :providers="sampleProviders"
-                    :selected-provider="selectedProvider"
-                    @provider-change="handleProviderChange"
-                  />
-                </div>
+            <!-- Provider Selector Demo -->
+            <div class="space-y-4">
+              <h3 class="text-lg font-medium">ProviderSelector</h3>
+              <div class="max-w-md">
+                <ProviderSelector
+                  :providers="sampleProviders"
+                  :selected-provider="selectedProvider"
+                  @provider-change="handleProviderChange"
+                />
               </div>
+            </div>
 
-              <!-- Tool Output Demo -->
-              <div class="space-y-4">
-                <h3 class="text-lg font-medium">ToolOutput</h3>
-                <div class="space-y-4 max-w-2xl">
-                  <ToolOutput
-                    title="JSON Response"
-                    :output="sampleJsonOutput"
-                    format="json"
-                    status="success"
-                  />
-                  <ToolOutput
-                    title="Error Output"
-                    output="Connection timeout after 30 seconds"
-                    format="text"
-                    status="error"
-                  />
-                </div>
+            <!-- Tool Output Demo -->
+            <div class="space-y-4">
+              <h3 class="text-lg font-medium">ToolOutput</h3>
+              <div class="space-y-4 max-w-2xl">
+                <ToolOutput
+                  title="JSON Response"
+                  :output="sampleJsonOutput"
+                  format="json"
+                  status="success"
+                />
+                <ToolOutput
+                  title="Error Output"
+                  output="Connection timeout after 30 seconds"
+                  format="text"
+                  status="error"
+                />
               </div>
-            </section>
-          </div>
+            </div>
+          </section>
+        </div>
       </div>
 
       <!-- Layout Components -->
       <div v-else-if="activeTab === 'layout'">
-          <div class="space-y-8">
-            <section>
-              <h2 class="text-xl font-semibold mb-4">Layout Components</h2>
+        <div class="space-y-8">
+          <section>
+            <h2 class="text-xl font-semibold mb-4">Layout Components</h2>
 
-              <!-- Tabs Demo -->
-              <div class="space-y-4">
-                <h3 class="text-lg font-medium">Tabs Variants</h3>
+            <!-- Tabs Demo -->
+            <div class="space-y-4">
+              <h3 class="text-lg font-medium">Tabs Variants</h3>
 
-                <!-- Default Tabs -->
-                <div class="space-y-2">
-                  <h4 class="text-sm font-medium text-muted-foreground">Default</h4>
-                  <Tabs :tabs="demoTabs" variant="default" />
-                </div>
-
-                <!-- Pills Tabs -->
-                <div class="space-y-2">
-                  <h4 class="text-sm font-medium text-muted-foreground">Pills</h4>
-                  <Tabs :tabs="demoTabs" variant="pills" />
-                </div>
-
-                <!-- Underline Tabs -->
-                <div class="space-y-2">
-                  <h4 class="text-sm font-medium text-muted-foreground">Underline</h4>
-                  <Tabs :tabs="demoTabs" variant="underline" />
-                </div>
+              <!-- Default Tabs -->
+              <div class="space-y-2">
+                <h4 class="text-sm font-medium text-muted-foreground">Default</h4>
+                <Tabs :tabs="demoTabs" variant="default" />
               </div>
-            </section>
-          </div>
+
+              <!-- Pills Tabs -->
+              <div class="space-y-2">
+                <h4 class="text-sm font-medium text-muted-foreground">Pills</h4>
+                <Tabs :tabs="demoTabs" variant="pills" />
+              </div>
+
+              <!-- Underline Tabs -->
+              <div class="space-y-2">
+                <h4 class="text-sm font-medium text-muted-foreground">Underline</h4>
+                <Tabs :tabs="demoTabs" variant="underline" />
+              </div>
+            </div>
+          </section>
+        </div>
       </div>
     </div>
   </div>
@@ -269,7 +258,11 @@ const sampleToolCall: ToolCall = {
   status: 'completed',
   result: {
     results: [
-      { title: 'Vue 3 Composition API Guide', url: 'https://vuejs.org/guide/', snippet: 'Learn about the powerful Composition API...' }
+      {
+        title: 'Vue 3 Composition API Guide',
+        url: 'https://vuejs.org/guide/',
+        snippet: 'Learn about the powerful Composition API...'
+      }
     ]
   }
 }
