@@ -967,6 +967,7 @@ export interface IUpgradePresenter {
   startDownloadUpdate(): boolean
   restartToUpdate(): boolean
   restartApp(): void
+  isUpdatingInProgress(): boolean
 }
 // Update status types
 export type UpdateStatus =

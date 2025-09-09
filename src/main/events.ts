@@ -65,13 +65,15 @@ export const UPDATE_EVENTS = {
   STATUS_CHANGED: 'update:status-changed', // 替代 update-status-changed
   ERROR: 'update:error', // 替代 update-error
   PROGRESS: 'update:progress', // 下载进度
-  WILL_RESTART: 'update:will-restart' // 准备重启
+  WILL_RESTART: 'update:will-restart', // 准备重启
+  STATE_CHANGED: 'update:state-changed' // 更新状态变化（用于生命周期管理通信）
 }
 
 // 窗口相关事件
 export const WINDOW_EVENTS = {
   READY_TO_SHOW: 'window:ready-to-show', // 替代 main-window-ready-to-show
   FORCE_QUIT_APP: 'window:force-quit-app', // 替代 force-quit-app
+  SET_APPLICATION_QUITTING: 'window:set-application-quitting', // 设置应用退出状态
   APP_FOCUS: 'app:focus',
   APP_BLUR: 'app:blur',
   WINDOW_MAXIMIZED: 'window:maximized',

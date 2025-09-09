@@ -62,6 +62,7 @@ export class UpgradePresenter implements IUpgradePresenter {
   private _updateMarkerPath: string
   private _previousUpdateFailed: boolean = false // 标记上次更新是否失败
   private _configPresenter: IConfigPresenter // 配置presenter
+  private _isUpdating: boolean = false // Flag to track if update installation is in progress
 
   constructor(configPresenter: IConfigPresenter) {
     this._configPresenter = configPresenter
@@ -391,21 +392,46 @@ export class UpgradePresenter implements IUpgradePresenter {
     }
   }
 
-  // 执行退出并安装
+  // Execute quit and install update for all platforms
   private _doQuitAndInstall(): void {
-    console.log('准备退出并安装更新')
+    console.log('Preparing to quit and install update')
     try {
-      // 发送即将重启的消息
+      // Send restart notification to all windows
       eventBus.sendToRenderer(UPDATE_EVENTS.WILL_RESTART, SendTarget.ALL_WINDOWS)
-      // 通知需要完全退出应用
-      eventBus.sendToMain(WINDOW_EVENTS.FORCE_QUIT_APP)
-      autoUpdater.quitAndInstall()
-      // 如果30秒还没完成，就强制退出重启
+
+      // Set flags to prevent lifecycle and window management interference
+      console.log('Update installation: setting application state for proper quit behavior')
+      this.setUpdatingFlag(true)
+      eventBus.sendToMain(WINDOW_EVENTS.SET_APPLICATION_QUITTING, { isQuitting: true })
+
+      // Platform-specific quit and install behavior
+      if (process.platform === 'darwin') {
+        console.log('macOS update: calling quitAndInstall with forceRunAfter=true')
+        // Delay to ensure message delivery completion
+        setTimeout(() => {
+          autoUpdater.quitAndInstall(false, true) // silent=false, forceRunAfter=true
+        }, 500)
+      } else {
+        console.log(`${process.platform} update: calling quitAndInstall`)
+        // For Windows/Linux, still use shorter delay but same approach
+        setTimeout(() => {
+          autoUpdater.quitAndInstall()
+        }, 500)
+      }
+
+      // Force quit if installation doesn't complete within 30 seconds
       setTimeout(() => {
+        console.log('Update installation timeout, force quit')
         app.quit() // Exit trigger: upgrade
       }, 30000)
     } catch (e) {
-      console.error('退出并安装失败', e)
+      console.error('Failed to quit and install update', e)
+      this.setUpdatingFlag(false)
+
+      // Reset application quitting state on error
+      console.log('Resetting application quitting flag after update error')
+      eventBus.sendToMain(WINDOW_EVENTS.SET_APPLICATION_QUITTING, { isQuitting: false })
+
       eventBus.sendToRenderer(UPDATE_EVENTS.ERROR, SendTarget.ALL_WINDOWS, {
         error: e instanceof Error ? e.message : String(e)
       })
@@ -449,5 +475,17 @@ export class UpgradePresenter implements IUpgradePresenter {
         error: e instanceof Error ? e.message : String(e)
       })
     }
+  }
+
+  // Set update flag and broadcast state
+  private setUpdatingFlag(updating: boolean): void {
+    this._isUpdating = updating
+    // Broadcast update state to lifecycle manager
+    eventBus.sendToMain(UPDATE_EVENTS.STATE_CHANGED, { isUpdating: updating })
+  }
+
+  // Get update flag
+  isUpdatingInProgress(): boolean {
+    return this._isUpdating
   }
 }
