@@ -1079,7 +1079,11 @@ onMounted(() => {
             const to = sel.to
 
             // Replace current selection (or insert at cursor) with sanitized text
-            editor.commands.insertContentAt({ from, to }, clean, { updateSelection: true })
+            editor
+              .chain()
+              .insertContentAt({ from, to }, clean, { updateSelection: true })
+              .scrollIntoView()
+              .run()
             // keep the reactive inputText in sync
             inputText.value = editor.getText()
           }
