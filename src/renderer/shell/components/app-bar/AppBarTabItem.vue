@@ -97,12 +97,12 @@ const onDragStart = (event: DragEvent) => {
 }
 
 .dark .win-tab.active {
-  background: #1f2937;
+  background: #252525;
   border-color: rgba(255, 255, 255, 0.1);
 }
 
 .dark .win-tab:not(.active) {
-  background: rgba(15, 23, 42, 0.5);
+  background: #d9d9d900;
 }
 
 .dark .win-tab:not(.active):hover {

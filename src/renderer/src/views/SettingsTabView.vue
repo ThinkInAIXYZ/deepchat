@@ -24,12 +24,14 @@ import { useRouter } from 'vue-router'
 import { useRoute, RouterView } from 'vue-router'
 import { onMounted, Ref, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useTitle } from '@vueuse/core'
+import { useTitle, useFavicon } from '@vueuse/core'
+import { getFaviconIcon } from '@/composables/useModelIcons'
 
 const { t } = useI18n()
 const router = useRouter()
 const route = useRoute()
 const title = useTitle()
+const favicon = useFavicon()
 const settings: Ref<
   {
     title: string
@@ -70,8 +72,20 @@ const updateTitle = () => {
 // 监听路由变化
 watch(
   () => route.name,
-  () => {
+  (newName, oldName) => {
     updateTitle()
+    // 只有路由真正变化时才更新favicon
+    if (newName !== oldName) {
+      try {
+        console.log('Setting settings favicon')
+        const newFaviconUrl = getFaviconIcon()
+        if (favicon.value !== newFaviconUrl) {
+          favicon.value = newFaviconUrl
+        }
+      } catch (error) {
+        console.warn('Error setting settings favicon:', error)
+      }
+    }
   },
   { immediate: true }
 )

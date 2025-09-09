@@ -97,7 +97,7 @@
 import { defineAsyncComponent } from 'vue'
 import { useChatStore } from '@/stores/chat'
 import { computed, watch, ref } from 'vue'
-import { onClickOutside, useTitle, useMediaQuery } from '@vueuse/core'
+import { onClickOutside, useTitle, useMediaQuery, useFavicon } from '@vueuse/core'
 import { useSettingsStore } from '@/stores/settings'
 import { RENDERER_MODEL_META } from '@shared/presenter'
 import { useArtifactStore } from '@/stores/artifact'
@@ -105,6 +105,7 @@ import ArtifactDialog from '@/components/artifacts/ArtifactDialog.vue'
 import MessageNavigationSidebar from '@/components/MessageNavigationSidebar.vue'
 import { useRoute } from 'vue-router'
 import { useLanguageStore } from '@/stores/language'
+import { getFaviconIcon } from '@/composables/useModelIcons'
 const ThreadsView = defineAsyncComponent(() => import('@/components/ThreadsView.vue'))
 const TitleView = defineAsyncComponent(() => import('@/components/TitleView.vue'))
 const ChatView = defineAsyncComponent(() => import('@/components/ChatView.vue'))
@@ -114,6 +115,7 @@ const settingsStore = useSettingsStore()
 const route = useRoute()
 const chatStore = useChatStore()
 const title = useTitle()
+const favicon = useFavicon()
 const langStore = useLanguageStore()
 const chatViewRef = ref()
 // 添加标题更新逻辑
@@ -126,11 +128,34 @@ const updateTitle = () => {
   }
 }
 
+// 添加 favicon 更新逻辑
+const updateFavicon = () => {
+  try {
+    const activeThread = chatStore.activeThread
+    const providerId = activeThread?.settings.providerId
+    console.log('Setting favicon for provider:', providerId)
+
+    const newFaviconUrl = getFaviconIcon(providerId)
+    // 避免重复设置相同的favicon
+    if (favicon.value !== newFaviconUrl) {
+      favicon.value = newFaviconUrl
+    }
+  } catch (error) {
+    console.warn('Error updating favicon:', error)
+    // 出错时使用默认图标
+    favicon.value = getFaviconIcon()
+  }
+}
+
 // 监听活动会话变化
 watch(
   () => chatStore.activeThread,
-  () => {
+  (newThread, oldThread) => {
     updateTitle()
+    // 只有当 providerId 真正变化时才更新 favicon
+    if (newThread?.settings.providerId !== oldThread?.settings.providerId) {
+      updateFavicon()
+    }
   },
   { immediate: true }
 )
@@ -141,6 +166,8 @@ watch(
   () => {
     if (chatStore.activeThread) {
       updateTitle()
+      // 标题变化时通常不需要更新favicon，除非是设置变更
+      // updateFavicon()
     }
   },
   { deep: true }

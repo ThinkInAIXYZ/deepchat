@@ -100,9 +100,7 @@ const getStatusIcon = (status?: Provider['status']) => {
                 </p>
 
                 <div v-if="provider.models?.length" class="text-xs text-muted-foreground">
-                  {{ provider.models.length }} model{{
-                    provider.models.length !== 1 ? 's' : ''
-                  }}
+                  {{ provider.models.length }} model{{ provider.models.length !== 1 ? 's' : '' }}
                   available
                 </div>
               </div>
