@@ -218,17 +218,17 @@ export class GitHubCopilotDeviceFlow {
                 const githubUrl = GITHUB_DEVICE_URL;
                 // Try to copy link to clipboard
                 await window.electronAPI.copyToClipboard(githubUrl);
-                
+
                 // Try to open browser
                 window.electronAPI.openExternal(githubUrl);
-                
+
                 // Show fallback message
                 setTimeout(() => {
                   const msg = document.createElement('div');
                   msg.style.fontSize = '12px';
                   msg.style.color = '#0969da';
                   msg.style.marginTop = '8px';
-                  msg.innerHTML = 'If the browser didn't open automatically, the link has been copied to clipboard. Please paste it into your browser address bar.';
+                  msg.innerHTML = 'If the browser did not open automatically, the link has been copied to clipboard. Please paste it into your browser address bar.';
                   document.querySelector('.footer').appendChild(msg);
                 }, 2000);
               } catch (error) {
