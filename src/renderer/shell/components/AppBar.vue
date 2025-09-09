@@ -1,7 +1,7 @@
 <template>
-  <div class="flex flex-row h-10" :dir="langStore.dir">
+  <div class="flex flex-row h-9" :dir="langStore.dir">
     <div
-      class="h-10 flex-shrink-0 w-0 flex-1 flex select-none text-center text-sm font-medium flex-row items-center justify-start window-drag-region"
+      class="h-9 flex-shrink-0 w-0 flex-1 flex select-none text-center text-sm font-medium flex-row items-center justify-start window-drag-region"
       :class="['', isMacOS ? (isFullscreened ? 'pl-2 pr-2' : 'pl-20 pr-2') : 'px-2']"
     >
       <!-- App title/content in center -->
@@ -23,12 +23,12 @@
       </Button>
       <div
         ref="tabContainerWrapper"
-        class="h-full flex flex-row items-center justify-start overflow-y-hidden overflow-x-auto scrollbar-hide"
+        class="h-full flex flex-row items-end justify-start overflow-y-hidden overflow-x-auto scrollbar-hide"
         @scroll="onTabContainerWrapperScroll"
       >
         <div
           ref="tabContainer"
-          class="h-full flex flex-row items-center justify-start gap-1 relative"
+          class="h-full flex flex-row items-end justify-start relative"
           @dragover="onTabContainerDragOver"
           @drop="onTabContainerDrop"
         >
@@ -57,38 +57,55 @@
         </div>
       </div>
 
-      <Button
-        variant="ghost"
-        class="flex-shrink-0 text-xs ml-1 font-medium px-2 h-6 bg-transparent rounded-md flex items-center justify-center hover:bg-zinc-500/20"
+      <!-- Tab Plus Button -->
+      <button
+        class="tab-plus-button flex flex-row justify-center items-center p-0 gap-2.5 w-6 h-6 ml-1"
         @click="openNewTab"
       >
-        <Icon icon="lucide:plus" class="w-4 h-4" />
-      </Button>
+        <Icon icon="lucide:plus" class="w-4 h-4 text-zinc-700 dark:text-zinc-300" />
+      </button>
+
+      <!-- Blank Fill (Flexible Space) -->
       <div class="flex-1"></div>
 
-      <Button
-        variant="ghost"
-        class="text-xs font-medium px-2 h-7 bg-transparent rounded-md flex items-center justify-center hover:bg-zinc-500/20"
+      <!-- History Button -->
+      <button
+        class="more-button flex flex-row justify-center items-center px-3 gap-2.5 w-12 h-9 border-l border-black/5 dark:border-white/5"
         @click="onThemeClick"
       >
-        <Icon v-if="themeStore.themeMode === 'dark'" icon="lucide:moon" class="w-4 h-4" />
-        <Icon v-else-if="themeStore.themeMode === 'light'" icon="lucide:sun" class="w-4 h-4" />
-        <Icon v-else icon="lucide:monitor" class="w-4 h-4" />
-      </Button>
-      <Button
-        variant="ghost"
-        class="text-xs font-medium px-2 h-7 bg-transparent rounded-md flex items-center justify-center hover:bg-zinc-500/20"
+        <div class="flex justify-center items-center w-6 h-6">
+          <Icon v-if="themeStore.themeMode === 'dark'" icon="lucide:moon" class="w-4 h-4 text-zinc-700 dark:text-zinc-300" />
+          <Icon v-else-if="themeStore.themeMode === 'light'" icon="lucide:sun" class="w-4 h-4 text-zinc-700 dark:text-zinc-300" />
+          <Icon v-else icon="lucide:monitor" class="w-4 h-4 text-zinc-700 dark:text-zinc-300" />
+        </div>
+      </button>
+
+      <!-- UI Kit Playground Button -->
+      <button
+        class="more-button flex flex-row justify-center items-center px-3 gap-2.5 w-12 h-9 border-l border-black/5 dark:border-white/5"
         @click="openUIKitPlayground"
       >
-        <Icon icon="lucide:palette" class="w-4 h-4" />
-      </Button>
-      <Button
-        variant="ghost"
-        class="text-xs font-medium px-2 h-7 bg-transparent rounded-md flex items-center justify-center hover:bg-zinc-500/20"
+        <div class="flex justify-center items-center w-6 h-6">
+          <Icon icon="lucide:palette" class="w-4 h-4 text-zinc-700 dark:text-zinc-300" />
+        </div>
+      </button>
+
+      <!-- Settings Button -->
+      <button
+        class="more-button flex flex-row justify-center items-center px-3 gap-2.5 w-12 h-9 border-l border-black/5 dark:border-white/5"
         @click="openSettings"
       >
-        <Icon icon="lucide:settings" class="w-4 h-4" />
-      </Button>
+        <div class="flex justify-center items-center w-6 h-6">
+          <Icon icon="lucide:settings" class="w-4 h-4 text-zinc-700 dark:text-zinc-300" />
+        </div>
+      </button>
+
+      <!-- More Options Button -->
+      <button
+        class="more-button flex flex-row justify-center items-center px-3 gap-2.5 w-10 h-9 border-l border-black/5 dark:border-white/5"
+      >
+        <Icon icon="lucide:more-horizontal" class="w-4 h-4 text-black/50 dark:text-white/50" />
+      </button>
       <!-- <Button
         class="text-xs font-medium px-2 h-7 bg-transparent rounded-md flex items-center justify-center"
         @click="openNewWindow"
@@ -600,4 +617,54 @@ button {
   scrollbar-color: #a1a1aa transparent;
 }
 */
+
+/* Figma design matching styles */
+.tab-plus-button {
+  /* Auto layout */
+  display: flex;
+  flex-direction: row;
+  justify-content: center;
+  align-items: center;
+  padding: 0px;
+  gap: 10px;
+
+  width: 24px;
+  height: 24px;
+
+  /* Inside auto layout */
+  flex: none;
+  order: 4;
+  flex-grow: 0;
+}
+
+.more-button {
+  /* Auto layout */
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: row;
+  justify-content: center;
+  align-items: center;
+  padding: 0px 12px;
+  gap: 10px;
+
+  height: 36px;
+  border-left: 1px solid rgba(0, 0, 0, 0.05);
+
+  /* Inside auto layout */
+  flex: none;
+  align-self: stretch;
+  flex-grow: 0;
+}
+
+.dark .more-button {
+  border-left-color: rgba(255, 255, 255, 0.05);
+}
+
+.more-button:hover {
+  background-color: rgba(0, 0, 0, 0.05);
+}
+
+.dark .more-button:hover {
+  background-color: rgba(255, 255, 255, 0.05);
+}
 </style>
