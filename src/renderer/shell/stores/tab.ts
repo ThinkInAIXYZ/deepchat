@@ -105,6 +105,17 @@ export const useTabStore = defineStore('tab', () => {
       }
     )
 
+    // Listen for favicon update events
+    window.electron.ipcRenderer.on(
+      TAB_EVENTS.FAVICON_UPDATED,
+      (_, data: { tabId: number; icon: string; windowId: number }) => {
+        const tab = tabs.value.find((t) => t.id === data.tabId)
+        if (tab) {
+          tab.icon = data.icon
+        }
+      }
+    )
+
     // console.log('tabsData', tabsData)
     if (tabsData.length <= 0) {
       // await addTab({

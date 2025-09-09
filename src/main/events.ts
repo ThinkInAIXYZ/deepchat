@@ -158,6 +158,7 @@ export const SHORTCUT_EVENTS = {
 // 标签页相关事件
 export const TAB_EVENTS = {
   TITLE_UPDATED: 'tab:title-updated', // 标签页标题更新
+  FAVICON_UPDATED: 'tab:favicon-updated', // 标签页图标更新
   CONTENT_UPDATED: 'tab:content-updated', // 标签页内容更新
   STATE_CHANGED: 'tab:state-changed', // 标签页状态变化
   VISIBILITY_CHANGED: 'tab:visibility-changed', // 标签页可见性变化

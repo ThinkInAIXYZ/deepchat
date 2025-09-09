@@ -47,7 +47,7 @@
             @dragstart="onTabDragStart(tab.id, $event)"
             @dragover="onTabItemDragOver(idx, $event)"
           >
-            <img src="@/assets/logo.png" class="w-4 h-4 rounded-sm" />
+            <img :src="tab.icon || '@/assets/logo.png'" class="w-4 h-4 rounded-sm" />
             <span class="truncate">{{ tab.title ?? 'DeepChat' }}</span>
           </AppBarTabItem>
           <!-- 拖拽插入指示器 -->
