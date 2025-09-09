@@ -78,6 +78,13 @@
       <Button
         variant="ghost"
         class="text-xs font-medium px-2 h-7 bg-transparent rounded-md flex items-center justify-center hover:bg-zinc-500/20"
+        @click="openUIKitPlayground"
+      >
+        <Icon icon="lucide:palette" class="w-4 h-4" />
+      </Button>
+      <Button
+        variant="ghost"
+        class="text-xs font-medium px-2 h-7 bg-transparent rounded-md flex items-center justify-center hover:bg-zinc-500/20"
         @click="openSettings"
       >
         <Icon icon="lucide:settings" class="w-4 h-4" />
@@ -512,6 +519,23 @@ const closeWindow = () => {
   const id = window.api.getWindowId()
   if (id != null) {
     windowPresenter.close(id)
+  }
+}
+
+const openUIKitPlayground = () => {
+  // 检查是否已经存在UI Kit Playground标签页
+  const existingPlaygroundTab = tabStore.tabs.find((tab) => tab.url.includes('#/uikit-playground'))
+
+  if (existingPlaygroundTab) {
+    // 如果已经存在，切换到该标签页
+    tabStore.setCurrentTabId(existingPlaygroundTab.id)
+  } else {
+    // 如果不存在，创建新的
+    tabStore.addTab({
+      name: 'UI Kit Playground',
+      icon: 'lucide:palette',
+      viewType: 'uikit-playground'
+    })
   }
 }
 

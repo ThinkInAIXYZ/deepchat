@@ -26,6 +26,15 @@ const router = createRouter({
       }
     },
     {
+      path: '/uikit-playground',
+      name: 'uikit-playground',
+      component: () => import('@/views/UIKitPlaygroundView.vue'),
+      meta: {
+        titleKey: 'UI Kit Playground',
+        icon: 'lucide:palette'
+      }
+    },
+    {
       path: '/settings',
       name: 'settings',
       component: () => import('@/views/SettingsTabView.vue'),
