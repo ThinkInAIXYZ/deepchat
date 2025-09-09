@@ -748,7 +748,14 @@ const showDashScopeSearch = computed(() => {
   const isDashscope = props.providerId === 'dashscope'
   const modelId = props.modelId.toLowerCase()
   // DashScope 支持搜索的模型列表
-  const supportedModels = ['qwen-max', 'qwen-plus', 'qwen-flash', 'qwen-turbo', 'qwq-plus']
+  const supportedModels = [
+    'qwen3-max',
+    'qwen-max',
+    'qwen-plus',
+    'qwen-flash',
+    'qwen-turbo',
+    'qwq-plus'
+  ]
   const isSupported = supportedModels.some((supportedModel) => modelId.includes(supportedModel))
   return isDashscope && isSupported
 })

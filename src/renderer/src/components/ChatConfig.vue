@@ -120,6 +120,7 @@ const showSearchConfig = computed(() => {
 
   // 支持搜索的模型列表
   const enableSearchModels = [
+    'qwen3-max',
     'qwen-max',
     'qwen-plus',
     'qwen-plus-latest',
