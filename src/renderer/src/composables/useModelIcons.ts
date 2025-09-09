@@ -59,6 +59,7 @@ import lmstudioColorIcon from '@/assets/llm-icons/lmstudio.svg?url'
 import _302aiIcon from '@/assets/llm-icons/302ai.svg?url'
 import modelscopeColorIcon from '@/assets/llm-icons/modelscope-color.svg?url'
 import awsBedrockIcon from '@/assets/llm-icons/aws-bedrock.svg?url'
+import deepchatIcon from '@/assets/logo.png?url'
 
 // 创建 providerId 到图标 URL 的映射，与 ModelIcon.vue 保持一致
 const modelIconMap: Record<string, string> = {
@@ -128,13 +129,14 @@ const modelIconMap: Record<string, string> = {
   glm: zhipuColorIcon,
   meta: metaColorIcon,
   'aws-bedrock': awsBedrockIcon,
+  deepchat: deepchatIcon,
   default: defaultIcon
 }
 
 export function getFaviconIcon(providerId?: string): string {
   try {
     if (!providerId) {
-      return modelIconMap.default
+      return modelIconMap.deepchat
     }
 
     const lowerProviderId = providerId.toLowerCase()

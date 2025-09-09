@@ -47,7 +47,11 @@
             @dragstart="onTabDragStart(tab.id, $event)"
             @dragover="onTabItemDragOver(idx, $event)"
           >
-            <img :src="tab.icon || '@/assets/logo.png'" class="w-4 h-4 rounded-sm" />
+            <img
+              :src="getValidIconUrl(tab)"
+              class="w-4 h-4 rounded-sm"
+              @error="handleIconError(tab.id)"
+            />
             <span class="truncate">{{ tab.title ?? 'DeepChat' }}</span>
           </AppBarTabItem>
           <!-- 拖拽插入指示器 -->
@@ -150,7 +154,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, nextTick, computed } from 'vue'
+import { ref, onMounted, nextTick, computed, watch } from 'vue'
 import { MinusIcon, XIcon } from 'lucide-vue-next'
 import MaximizeIcon from './icons/MaximizeIcon.vue'
 import RestoreIcon from './icons/RestoreIcon.vue'
@@ -162,6 +166,8 @@ import { useTabStore } from '@shell/stores/tab'
 import { useThemeStore } from '@/stores/theme'
 import { useElementSize } from '@vueuse/core'
 import { useLanguageStore } from '@/stores/language'
+import deepchatIcon from '@/assets/logo.png?url'
+
 const tabStore = useTabStore()
 const langStore = useLanguageStore()
 const windowPresenter = usePresenter('windowPresenter')
@@ -182,6 +188,8 @@ const tabContainer = ref<HTMLElement | null>(null)
 let draggedTabId: number | null = null
 const dragInsertIndex = ref(-1)
 const dragInsertPosition = ref(0)
+const failedIcons = ref(new Set<number>())
+const iconUrls = ref(new Map<number, string>())
 
 const tabContainerWrapperSize = useElementSize(tabContainerWrapper)
 const tabContainerSize = useElementSize(tabContainer)
@@ -467,13 +475,101 @@ const handleDragEnd = async (event: DragEvent) => {
   draggedTabId = null
 }
 
+const handleIconError = (tabId: number) => {
+  console.log('Icon failed to load for tab:', tabId)
+  failedIcons.value.add(tabId)
+}
+
 const onThemeClick = () => {
   console.log('onThemeClick')
   themeStore.cycleTheme()
 }
 
+// 辅助函数：检查是否应该显示自定义图标
+const shouldShowCustomIcon = (tab: { id: number; icon?: string }) => {
+  return tab.icon &&
+         tab.icon.trim() !== '' &&
+         !failedIcons.value.has(tab.id)
+}
+
+// 辅助函数：获取有效的图标URL
+const getValidIconUrl = (tab: { id: number; icon?: string }) => {
+  if (!shouldShowCustomIcon(tab)) {
+    return deepchatIcon
+  }
+  return tab.icon
+}
+
+// 监听标签页数组变化（增删），清理失效的状态
+watch(
+  () => tabStore.tabs.length,
+  () => {
+    const currentTabIds = new Set(tabStore.tabs.map((tab) => tab.id))
+
+    // 清理已不存在的标签页的失败状态
+    const failedIconsCopy = new Set(failedIcons.value)
+    for (const tabId of failedIconsCopy) {
+      if (!currentTabIds.has(tabId)) {
+        failedIcons.value.delete(tabId)
+        iconUrls.value.delete(tabId)
+        console.log('Cleaned up icon state for removed tab:', tabId)
+      }
+    }
+
+    // 清理图标URL缓存
+    const cachedTabIds = new Set(iconUrls.value.keys())
+    for (const tabId of cachedTabIds) {
+      if (!currentTabIds.has(tabId)) {
+        iconUrls.value.delete(tabId)
+      }
+    }
+  }
+)
+
+// 监听标签页图标变化，处理图标URL更新
+watch(
+  () => tabStore.tabs.map(tab => ({ id: tab.id, icon: tab.icon })),
+  (newIconData, oldIconData) => {
+    if (!oldIconData) return // 初始化时跳过
+
+    const oldIconMap = new Map(oldIconData.map(item => [item.id, item.icon]))
+
+    newIconData.forEach(({ id, icon }) => {
+      const oldIcon = oldIconMap.get(id)
+      const cachedIcon = iconUrls.value.get(id)
+
+      // 检查图标URL是否真的发生了变化
+      if (icon !== oldIcon || icon !== cachedIcon) {
+        console.log('Icon changed for tab:', id, 'from:', oldIcon || cachedIcon, 'to:', icon)
+
+        // 更新缓存
+        if (icon) {
+          iconUrls.value.set(id, icon)
+        } else {
+          iconUrls.value.delete(id)
+        }
+
+        // 清除失败状态以允许重试新图标
+        if (failedIcons.value.has(id)) {
+          failedIcons.value.delete(id)
+          console.log('Cleared failed icon state for tab:', id, 'due to icon change')
+        }
+      }
+    })
+  },
+  { deep: false }
+)
+
 onMounted(() => {
   console.log('onMounted', tabStore.tabs)
+
+  // 初始化图标URL缓存
+  tabStore.tabs.forEach(tab => {
+    if (tab.icon && tab.icon.trim() !== '') {
+      iconUrls.value.set(tab.id, tab.icon)
+    }
+  })
+
   // Listen for window maximize/unmaximize events
   devicePresenter.getDeviceInfo().then((deviceInfo) => {
     isMacOS.value = deviceInfo.platform === 'darwin'
@@ -498,7 +594,7 @@ onMounted(() => {
 const openNewTab = () => {
   tabStore.addTab({
     name: 'New Tab',
-    icon: 'lucide:plus',
+    icon: deepchatIcon,
     viewType: 'chat'
   })
   setTimeout(() => {
@@ -560,7 +656,7 @@ const openUIKitPlayground = () => {
     // 如果不存在，创建新的
     tabStore.addTab({
       name: 'UI Kit Playground',
-      icon: 'lucide:palette',
+      icon: deepchatIcon,
       viewType: 'uikit-playground'
     })
   }
@@ -577,7 +673,7 @@ const openSettings = () => {
     // 如果不存在设置标签页，创建新的
     tabStore.addTab({
       name: 'Settings',
-      icon: 'lucide:settings',
+      icon: deepchatIcon,
       viewType: 'settings'
     })
   }

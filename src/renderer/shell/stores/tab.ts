@@ -25,7 +25,7 @@ export const useTabStore = defineStore('tab', () => {
         position = tab.position
       }
     }
-
+    console.log('ddd', tab.icon)
     const newTab: TabData = {
       id: viewId ?? 0,
       title: tab.name,

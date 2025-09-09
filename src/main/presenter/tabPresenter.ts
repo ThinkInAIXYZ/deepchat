@@ -556,9 +556,9 @@ export class TabPresenter implements ITabPresenter {
       if (favicons.length > 0) {
         const state = this.tabState.get(tabId)
         if (state) {
-          if (state.icon !== favicons[0]) {
-            // console.log('page-favicon-updated', state.icon, favicons[0])
-            state.icon = favicons[0]
+          const newIcon = favicons[0]
+          if (state.icon !== newIcon) {
+            state.icon = newIcon
 
             // 通知渲染进程图标已更新
             const window = BrowserWindow.fromId(windowId)
