@@ -13,9 +13,9 @@ const props = withDefaults(defineProps<Props>(), {
   lazy: false
 })
 
-const activeTab = inject<string>('activeTab')
+const activeTab = inject<{ value: string }>('activeTab')
 
-const isActive = computed(() => activeTab === props.tabId)
+const isActive = computed(() => activeTab?.value === props.tabId)
 
 const contentClasses = computed(() => 
   cn(

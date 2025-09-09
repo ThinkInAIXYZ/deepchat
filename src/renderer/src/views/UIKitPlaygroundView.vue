@@ -1,5 +1,5 @@
 <template>
-  <div class="h-full p-6 overflow-auto">
+  <div class="h-full p-6 overflow-auto bg-background">
     <div class="max-w-7xl mx-auto space-y-8">
       <!-- Header -->
       <div class="mb-8">
@@ -9,15 +9,25 @@
         </p>
       </div>
 
-      <!-- Navigation Tabs -->
-      <Tabs 
-        :tabs="tabs" 
-        :active-tab="activeTab" 
-        variant="underline"
-        @tab-change="setActiveTab"
-      >
-        <!-- Chat Components -->
-        <TabItem tab-id="chat">
+      <!-- Simple Tab Navigation (debugging) -->
+      <div class="flex border-b border-border mb-6">
+        <button 
+          v-for="tab in tabs"
+          :key="tab.id"
+          :class="[
+            'px-4 py-2 text-sm font-medium transition-colors',
+            activeTab === tab.id 
+              ? 'border-b-2 border-primary text-primary' 
+              : 'text-muted-foreground hover:text-foreground'
+          ]"
+          @click="setActiveTab(tab.id)"
+        >
+          {{ tab.label }}
+        </button>
+      </div>
+
+      <!-- Tab Content -->
+      <div v-if="activeTab === 'chat'">
           <div class="space-y-8">
             <section>
               <h2 class="text-xl font-semibold mb-4">Chat Components</h2>
@@ -66,10 +76,10 @@
               </div>
             </section>
           </div>
-        </TabItem>
+      </div>
 
-        <!-- Message Blocks -->
-        <TabItem tab-id="message-blocks">
+      <!-- Message Blocks -->
+      <div v-else-if="activeTab === 'message-blocks'">
           <div class="space-y-8">
             <section>
               <h2 class="text-xl font-semibold mb-4">Message Block Components</h2>
@@ -109,10 +119,10 @@
               </div>
             </section>
           </div>
-        </TabItem>
+      </div>
 
-        <!-- Utility Components -->
-        <TabItem tab-id="utility">
+      <!-- Utility Components -->
+      <div v-else-if="activeTab === 'utility'">
           <div class="space-y-8">
             <section>
               <h2 class="text-xl font-semibold mb-4">Utility Components</h2>
@@ -163,10 +173,10 @@
               </div>
             </section>
           </div>
-        </TabItem>
+      </div>
 
-        <!-- Layout Components -->
-        <TabItem tab-id="layout">
+      <!-- Layout Components -->
+      <div v-else-if="activeTab === 'layout'">
           <div class="space-y-8">
             <section>
               <h2 class="text-xl font-semibold mb-4">Layout Components</h2>
@@ -195,8 +205,7 @@
               </div>
             </section>
           </div>
-        </TabItem>
-      </Tabs>
+      </div>
     </div>
   </div>
 </template>
@@ -218,7 +227,6 @@ import {
   ProviderSelector,
   ToolOutput,
   Tabs,
-  TabItem,
   type MessageContent,
   type ToolCall,
   type SearchResult,
