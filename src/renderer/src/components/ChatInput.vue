@@ -1078,10 +1078,29 @@ onMounted(() => {
             const from = sel.from
             const to = sel.to
 
-            // Replace current selection (or insert at cursor) with sanitized text
+            // Convert text with newlines to proper TipTap node structure
+            const convertTextToNodes = (text: string) => {
+              const lines = text.split('\n')
+              const content: any[] = []
+
+              lines.forEach((line, index) => {
+                if (index > 0) {
+                  content.push({ type: 'hardBreak' })
+                }
+                if (line.length > 0) {
+                  content.push({ type: 'text', text: line })
+                }
+              })
+              return [
+                {
+                  type: 'paragraph',
+                  content: content
+                }
+              ]
+            }
             editor
               .chain()
-              .insertContentAt({ from, to }, clean, { updateSelection: true })
+              .insertContentAt({ from, to }, convertTextToNodes(clean), { updateSelection: true })
               .scrollIntoView()
               .run()
             // keep the reactive inputText in sync
