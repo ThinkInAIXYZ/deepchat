@@ -1143,19 +1143,30 @@ const handlePostInsertActions = async (m: CategorizedData): Promise<void> => {
 </script>
 
 <style scoped>
-/* Container surface: dark background, no border/radius/shadow, full width */
-:global(.dark) .prompt-input-root .prompt-surface {
-  background-color: rgba(53, 53, 53, 0.82);
-  border: none;
-  border-radius: 0;
-  box-shadow: none;
+/* Outer frame (input shell) */
+.prompt-surface {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  padding: 12px 16px 0 16px; /* match spec; bottom provided by bar */
+  gap: 10px;
+  min-height: 114px;
+  box-sizing: border-box;
 }
 
-/* Editor area spacing and typography */
+:global(.dark) .prompt-input-root .prompt-surface {
+  background: #252525;
+  border-style: solid;
+  border-color: rgba(255, 255, 255, 0.1);
+  border-width: 1px 0 1px 1px; /* top, bottom, left */
+  border-radius: 0 0 0 8px; /* bottom-left only */
+}
+
+/* Editor area typography */
 .editor :deep([data-tiptap-editor]),
 .editor :deep(.tiptap),
 .editor :deep(.p-2.text-sm) {
-  padding: 12px 16px !important;
+  padding: 0 !important; /* padding comes from outer frame */
   font-size: 12px !important;
   line-height: 18px !important;
 }
@@ -1172,9 +1183,9 @@ const handlePostInsertActions = async (m: CategorizedData): Promise<void> => {
   color: rgba(255, 255, 255, 0.5);
 }
 
-/* Bottom bar padding */
+/* Bottom bar spacing */
 .bottom-bar {
-  padding: 0 16px 8px 16px;
+  padding: 0 0 8px 0; /* outer frame already has 16px sides */
 }
 
 /* Icon button sizes (file/search) */
