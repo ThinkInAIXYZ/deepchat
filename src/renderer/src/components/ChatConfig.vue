@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
-import { computed, watch } from 'vue'
+import { computed, watch, ref } from 'vue'
+import { useSettingsStore } from '@/stores/settings'
 import { Label } from '@/components/ui/label'
 import { Slider } from '@/components/ui/slider'
 import { Icon } from '@iconify/vue'
@@ -68,6 +69,26 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 const langStore = useLanguageStore()
+const settingsStore = useSettingsStore()
+const modelReasoning = ref(false)
+
+const getModelReasoning = async () => {
+  if (!props.modelId || !props.providerId) return false
+  try {
+    const modelConfig = await settingsStore.getModelConfig(props.modelId, props.providerId)
+    return modelConfig.reasoning || false
+  } catch (error) {
+    return false
+  }
+}
+
+watch(
+  () => [props.modelId, props.providerId],
+  async () => {
+    modelReasoning.value = await getModelReasoning()
+  },
+  { immediate: true }
+)
 // Create computed properties for slider values (which expect arrays)
 const temperatureValue = computed({
   get: () => [props.temperature],
@@ -105,11 +126,29 @@ const showThinkingBudget = computed(() => {
   const isGemini = props.providerId === 'gemini'
   const isGemini25 = props.modelId?.includes('gemini-2.5')
 
-  // Qwen3 系列
+  // DashScope
   const isDashscope = props.providerId === 'dashscope'
-  const isQwen3 = props.modelId?.includes('qwen3')
+  const modelId = props.modelId?.toLowerCase() || ''
+  const supportedQwenThinkingModels = [
+    // Open source versions
+    'qwen3-235b-a22b',
+    'qwen3-32b',
+    'qwen3-30b-a3b',
+    'qwen3-14b',
+    'qwen3-8b',
+    'qwen3-4b',
+    'qwen3-1.7b',
+    'qwen3-0.6b',
+    // Commercial versions
+    'qwen-plus',
+    'qwen-flash',
+    'qwen-turbo'
+  ]
+  const isQwenThinking = supportedQwenThinkingModels.some((supportedModel) =>
+    modelId.includes(supportedModel)
+  )
 
-  return (isGemini && isGemini25) || (isDashscope && isQwen3)
+  return (isGemini && isGemini25) || (isDashscope && isQwenThinking && modelReasoning.value)
 })
 
 // 是否显示搜索配置 - 支持 Dashscope 的特定模型
@@ -118,8 +157,9 @@ const showSearchConfig = computed(() => {
 
   if (!isDashscope || !props.modelId) return false
 
-  // 支持搜索的模型列表
+  // Dashscope - ENABLE_SEARCH_MODELS
   const enableSearchModels = [
+    'qwen3-max-preview',
     'qwen3-max',
     'qwen-max',
     'qwen-plus',

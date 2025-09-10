@@ -544,11 +544,7 @@ const loadConfig = async () => {
     }
   }
 
-  if (
-    props.providerId === 'dashscope' &&
-    props.modelId.includes('qwen3') &&
-    config.value.thinkingBudget === undefined
-  ) {
+  if (props.providerId === 'dashscope' && config.value.thinkingBudget === undefined) {
     const thinkingConfig = getThinkingBudgetConfig(props.modelId)
     if (thinkingConfig) {
       config.value.thinkingBudget = thinkingConfig.defaultValue
@@ -707,6 +703,19 @@ const getThinkingBudgetConfig = (modelId: string) => {
     }
   }
 
+  if (
+    modelId.includes('qwen-plus') ||
+    modelId.includes('qwen-turbo') ||
+    modelId.includes('qwen-flash')
+  ) {
+    return {
+      min: 0,
+      max: 500000,
+      defaultValue: 500000,
+      canDisable: true
+    }
+  }
+
   return null // 不支持的模型
 }
 
@@ -737,18 +746,38 @@ const showGeminiThinkingBudget = computed(() => {
 const showQwen3ThinkingBudget = computed(() => {
   const isDashscope = props.providerId === 'dashscope'
   const hasReasoning = config.value.reasoning
-  const isQwen3Model = props.modelId.includes('qwen3')
+  const modelId = props.modelId.toLowerCase()
+  // DashScope - ENABLE_THINKING_MODELS
+  const supportedThinkingModels = [
+    // Open source versions
+    'qwen3-235b-a22b',
+    'qwen3-32b',
+    'qwen3-30b-a3b',
+    'qwen3-14b',
+    'qwen3-8b',
+    'qwen3-4b',
+    'qwen3-1.7b',
+    'qwen3-0.6b',
+    // Commercial versions
+    'qwen-plus',
+    'qwen-flash',
+    'qwen-turbo'
+  ]
+  const isSupported = supportedThinkingModels.some((supportedModel) =>
+    modelId.includes(supportedModel)
+  )
   const modelConfig = getThinkingBudgetConfig(props.modelId)
-  const isSupported = modelConfig !== null
-  return isDashscope && hasReasoning && isQwen3Model && isSupported
+  const hasValidConfig = modelConfig !== null
+  return isDashscope && hasReasoning && isSupported && hasValidConfig
 })
 
 // 是否显示DashScope搜索配置
 const showDashScopeSearch = computed(() => {
   const isDashscope = props.providerId === 'dashscope'
   const modelId = props.modelId.toLowerCase()
-  // DashScope 支持搜索的模型列表
-  const supportedModels = [
+  // DashScope - ENABLE_SEARCH_MODELS
+  const supportedSearchModels = [
+    'qwen3-max-preview',
     'qwen3-max',
     'qwen-max',
     'qwen-plus',
@@ -756,7 +785,9 @@ const showDashScopeSearch = computed(() => {
     'qwen-turbo',
     'qwq-plus'
   ]
-  const isSupported = supportedModels.some((supportedModel) => modelId.includes(supportedModel))
+  const isSupported = supportedSearchModels.some((supportedModel) =>
+    modelId.includes(supportedModel)
+  )
   return isDashscope && isSupported
 })
 
