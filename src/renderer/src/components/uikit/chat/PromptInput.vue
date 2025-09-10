@@ -38,7 +38,7 @@
         <editor-content :editor="editor" class="editor p-0" @keydown="onKeydown" />
 
         <div class="bottom-bar flex items-center justify-between">
-          <div class="flex gap-1.5">
+          <div class="flex gap-1.5 items-center">
             <Tooltip>
               <TooltipTrigger>
                 <Button
@@ -119,6 +119,30 @@
             </Tooltip>
 
             <McpToolsList />
+            <div class="flex-1 min-w-[206px]"></div>
+
+            <!-- Model select chip -->
+            <Popover v-model:open="modelSelectOpen">
+              <PopoverTrigger as-child>
+                <Button
+                  variant="outline"
+                  class="model-chip border-none rounded-lg shadow-none items-center gap-1.5 px-2 h-[26px]"
+                  size="sm"
+                >
+                  <ModelIcon
+                    class="w-4 h-4"
+                    :model-id="activeModel.providerId"
+                    :is-dark="themeStore.isDark"
+                  />
+                  <span class="text-xs font-bold truncate max-w-[150px]">{{ name }}</span>
+                  <Icon icon="lucide:chevron-right" class="w-4 h-4" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent align="start" class="p-0 w-80">
+                <ModelSelect :type="[ModelType.Chat, ModelType.ImageGeneration]" @update:model="handleModelUpdate" />
+              </PopoverContent>
+            </Popover>
+
             <slot name="addon-buttons"></slot>
           </div>
 
@@ -238,10 +262,17 @@ import { useToast } from '@/components/ui/toast/use-toast'
 import type { CategorizedData } from '@/components/editor/mention/suggestion'
 import type { PromptListEntry } from '@shared/presenter'
 import { sanitizeText } from '@/lib/sanitizeText'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import ModelSelect from '@/components/ModelSelect.vue'
+import ModelIcon from '@/components/icons/ModelIcon.vue'
+import { ModelType } from '@shared/model'
+import { useThemeStore } from '@/stores/theme'
+import type { MODEL_META } from '@shared/presenter'
 
 defineOptions({ inheritAttrs: false })
 
 const langStore = useLanguageStore()
+const themeStore = useThemeStore()
 const mcpStore = useMcpStore()
 const { toast } = useToast()
 const { t } = useI18n()
@@ -319,6 +350,23 @@ const llmPresenter = usePresenter('llmproviderPresenter')
 const settings = ref({ deepThinking: false, webSearch: false })
 const selectedSearchEngine = ref('')
 const searchEngines = computed(() => settingsStore.searchEngines)
+
+// model select state
+const modelSelectOpen = ref(false)
+const activeModel = ref({
+  name: '',
+  id: '',
+  providerId: '',
+  tags: [],
+  type: ModelType.Chat
+} as {
+  name: string
+  id: string
+  providerId: string
+  tags: string[]
+  type: ModelType
+})
+const name = computed(() => (activeModel.value?.name ? activeModel.value.name.split('/').pop() : ''))
 
 const currentContextLength = computed(() => {
   return (
@@ -954,6 +1002,29 @@ watch(
   }
 )
 
+// initialize and keep active model in sync with current chat config
+watch(
+  () => [settingsStore.enabledModels, chatStore.chatConfig.providerId, chatStore.chatConfig.modelId],
+  () => {
+    const providerId = chatStore.chatConfig.providerId
+    const modelId = chatStore.chatConfig.modelId
+    if (providerId && modelId) {
+      const provider = settingsStore.enabledModels.find((p) => p.providerId === providerId)
+      const model = provider?.models.find((m) => m.id === modelId)
+      if (provider && model) {
+        activeModel.value = {
+          name: model.name,
+          id: model.id,
+          providerId: provider.providerId,
+          tags: [],
+          type: model.type ?? ModelType.Chat
+        }
+      }
+    }
+  },
+  { immediate: true, deep: true }
+)
+
 watch(
   () => chatStore.chatConfig.providerId,
   () => {
@@ -1140,6 +1211,21 @@ const handlePostInsertActions = async (m: CategorizedData): Promise<void> => {
     }
   }
 }
+
+// model select handlers
+const handleModelUpdate = (model: MODEL_META, providerId: string) => {
+  activeModel.value = {
+    name: model.name,
+    id: model.id,
+    providerId,
+    tags: [],
+    type: model.type ?? ModelType.Chat
+  }
+  chatStore.updateChatConfig({ modelId: model.id, providerId })
+  // remember preference for convenience
+  configPresenter.setSetting('preferredModel', { modelId: model.id, providerId })
+  modelSelectOpen.value = false
+}
 </script>
 
 <style scoped>
@@ -1219,6 +1305,9 @@ const handlePostInsertActions = async (m: CategorizedData): Promise<void> => {
   height: 24px !important;
   padding: 4px 12px !important;
   border-radius: 6px !important;
+}
+:global(.dark) .model-chip {
+  border: 1px solid rgba(255, 255, 255, 0.05) !important;
 }
 :global(.dark) .send-btn {
   background: #0088ff !important;

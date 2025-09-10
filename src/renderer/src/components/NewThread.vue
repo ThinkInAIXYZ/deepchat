@@ -24,88 +24,7 @@
         :max-rows="10"
         :context-length="contextLength"
         @send="handleSend"
-      >
-        <template #addon-buttons>
-          <div
-            key="newThread-model-select"
-            class="new-thread-model-select overflow-hidden flex items-center h-7 rounded-lg shadow-sm border border-input transition-all duration-300"
-            :dir="langStore.dir"
-          >
-            <Popover v-model:open="modelSelectOpen">
-              <PopoverTrigger as-child>
-                <Button
-                  variant="outline"
-                  class="flex border-none rounded-none shadow-none items-center gap-1.5 px-2 h-full"
-                  size="sm"
-                >
-                  <ModelIcon
-                    class="w-4 h-4"
-                    :model-id="activeModel.providerId"
-                    :is-dark="themeStore.isDark"
-                  ></ModelIcon>
-                  <!-- <Icon icon="lucide:message-circle" class="w-5 h-5 text-muted-foreground" /> -->
-                  <h2 class="text-xs font-bold max-w-[150px] truncate">{{ name }}</h2>
-                  <Badge
-                    v-for="tag in activeModel.tags"
-                    :key="tag"
-                    variant="outline"
-                    class="py-0 rounded-lg"
-                    size="xs"
-                  >
-                    {{ t(`model.tags.${tag}`) }}</Badge
-                  >
-                  <Icon icon="lucide:chevron-right" class="w-4 h-4" />
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent align="start" class="p-0 w-80">
-                <ModelSelect
-                  :type="[ModelType.Chat, ModelType.ImageGeneration]"
-                  @update:model="handleModelUpdate"
-                />
-              </PopoverContent>
-            </Popover>
-            <ScrollablePopover
-              v-model:open="settingsPopoverOpen"
-              @update:open="handleSettingsPopoverUpdate"
-              align="start"
-              content-class="w-80"
-              :enable-scrollable="true"
-            >
-              <template #trigger>
-                <Button
-                  class="w-7 h-full rounded-none border-none shadow-none transition-all duration-300"
-                  :class="{
-                    'w-0 opacity-0 p-0 overflow-hidden': !showSettingsButton && !isHovering,
-                    'w-7 opacity-100': showSettingsButton || isHovering
-                  }"
-                  size="icon"
-                  variant="outline"
-                >
-                  <Icon icon="lucide:settings-2" class="w-4 h-4" />
-                </Button>
-              </template>
-              <ChatConfig
-                v-model:temperature="temperature"
-                v-model:context-length="contextLength"
-                v-model:max-tokens="maxTokens"
-                v-model:system-prompt="systemPrompt"
-                v-model:artifacts="artifacts"
-                v-model:thinking-budget="thinkingBudget"
-                v-model:enable-search="enableSearch"
-                v-model:forced-search="forcedSearch"
-                v-model:search-strategy="searchStrategy"
-                v-model:reasoning-effort="reasoningEffort"
-                v-model:verbosity="verbosity"
-                :context-length-limit="contextLengthLimit"
-                :max-tokens-limit="maxTokensLimit"
-                :model-id="activeModel?.id"
-                :provider-id="activeModel?.providerId"
-                :model-type="activeModel?.type"
-              />
-            </ScrollablePopover>
-          </div>
-        </template>
-      </PromptInput>
+      />
       <div class="h-12"></div>
     </div>
   </div>
@@ -114,28 +33,17 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
 import PromptInput from '@/components/uikit/chat/PromptInput.vue'
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import ScrollablePopover from './ScrollablePopover.vue'
 import { Button } from '@/components/ui/button'
-import ModelIcon from './icons/ModelIcon.vue'
-import { Badge } from '@/components/ui/badge'
 import { Icon } from '@iconify/vue'
-import ModelSelect from './ModelSelect.vue'
 import { useChatStore } from '@/stores/chat'
 import { MODEL_META } from '@shared/presenter'
 import { useSettingsStore } from '@/stores/settings'
-import { computed, nextTick, ref, watch, onMounted } from 'vue'
+import { nextTick, ref, watch, onMounted } from 'vue'
 import { UserMessageContent } from '@shared/chat'
-import ChatConfig from './ChatConfig.vue'
 import { usePresenter } from '@/composables/usePresenter'
-import { useEventListener } from '@vueuse/core'
-import { useThemeStore } from '@/stores/theme'
-import { useLanguageStore } from '@/stores/language'
 import { ModelType } from '@shared/model'
 
 const configPresenter = usePresenter('configPresenter')
-const themeStore = useThemeStore()
-const langStore = useLanguageStore()
 // 定义偏好模型的类型
 interface PreferredModel {
   modelId: string
@@ -173,9 +81,7 @@ const searchStrategy = ref<'turbo' | 'max' | undefined>(undefined)
 const reasoningEffort = ref<'minimal' | 'low' | 'medium' | 'high' | undefined>(undefined)
 const verbosity = ref<'low' | 'medium' | 'high' | undefined>(undefined)
 
-const name = computed(() => {
-  return activeModel.value?.name ? activeModel.value.name.split('/').pop() : ''
-})
+// derived name no longer used in template
 
 watch(
   () => activeModel.value,
@@ -282,19 +188,7 @@ watch(
   { immediate: true, deep: true }
 )
 
-const modelSelectOpen = ref(false)
-const settingsPopoverOpen = ref(false)
-const showSettingsButton = ref(false)
-const isHovering = ref(false)
 const chatInputRef = ref<InstanceType<typeof PromptInput> | null>(null)
-// 监听鼠标悬停
-const handleMouseEnter = () => {
-  isHovering.value = true
-}
-
-const handleMouseLeave = () => {
-  isHovering.value = false
-}
 
 const onSidebarButtonClick = () => {
   chatStore.isSidebarOpen = !chatStore.isSidebarOpen
@@ -319,7 +213,6 @@ const handleModelUpdate = (model: MODEL_META, providerId: string) => {
     providerId: providerId
   })
 
-  modelSelectOpen.value = false
 }
 
 // 监听 deeplinkCache 变化
@@ -387,38 +280,11 @@ watch(
 )
 
 onMounted(async () => {
-  const groupElement = document.querySelector('.new-thread-model-select')
   configPresenter.getDefaultSystemPrompt().then((prompt) => {
     systemPrompt.value = prompt
   })
-  if (groupElement) {
-    useEventListener(groupElement, 'mouseenter', handleMouseEnter)
-    useEventListener(groupElement, 'mouseleave', handleMouseLeave)
-  }
 })
 
-const handleSettingsPopoverUpdate = (isOpen: boolean) => {
-  if (isOpen) {
-    // 如果打开，立即显示按钮
-    showSettingsButton.value = true
-  } else {
-    // 如果关闭，延迟隐藏按钮，等待动画完成
-    setTimeout(() => {
-      showSettingsButton.value = false
-    }, 300) // 300ms是一个常见的动画持续时间，可以根据实际情况调整
-  }
-}
-
-// 初始化时设置showSettingsButton的值与settingsPopoverOpen一致
-watch(
-  settingsPopoverOpen,
-  (value) => {
-    if (value) {
-      showSettingsButton.value = true
-    }
-  },
-  { immediate: true }
-)
 
 const handleSend = async (content: UserMessageContent) => {
   const threadId = await chatStore.createThread(content.text, {
