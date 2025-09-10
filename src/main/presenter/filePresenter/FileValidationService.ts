@@ -1,7 +1,7 @@
 import { FileAdapterConstructor } from './FileAdapterConstructor'
 import { getMimeTypeAdapterMap, detectMimeType } from './mime'
 import { UnsupportFileAdapter } from './UnsupportFileAdapter'
-import * as mimeTypes from 'mime-types'
+import { extension as mimeTypesExtension } from 'es-mime-types'
 
 export interface FileValidationResult {
   isSupported: boolean
@@ -143,7 +143,7 @@ export class FileValidationService implements IFileValidationService {
         }
 
         // Get extensions for this MIME type
-        const extension = mimeTypes.extension(mimeType)
+        const extension = mimeTypesExtension(mimeType)
         if (extension) {
           supportedExtensions.add(extension)
         }
