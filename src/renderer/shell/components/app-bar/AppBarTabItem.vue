@@ -123,7 +123,7 @@ const onDragStart = (event: DragEvent) => {
 }
 
 .dark .win-tab.active {
-  background: #252525;
+  background: rgba(53, 53, 53, 0.82);
   border-color: rgba(255, 255, 255, 0.1);
 }
 
