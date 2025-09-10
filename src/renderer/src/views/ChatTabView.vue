@@ -1,96 +1,96 @@
 <template>
-  <div class="w-full h-full flex-row flex">
-    <div
-      :class="[
-        'flex-1 w-0 h-full transition-all duration-200 max-lg:!mr-0',
-        artifactStore.isOpen && route.name === 'chat' ? 'mr-[calc(60%_-_104px)]' : '',
-        chatStore.isMessageNavigationOpen && !artifactStore.isOpen && isLargeScreen ? 'mr-80' : ''
-      ]"
-    >
+  <!-- Two-column layout: Chat area | Right drawer (threads / artifacts) -->
+  <div class="w-full h-full flex">
+    <!-- Chat area (with message navigation on the right) -->
+    <div class="flex-1 w-0 h-full transition-all duration-200">
       <div class="flex h-full">
-        <!-- 会话列表 (根据语言方向自适应位置) -->
-        <Transition
-          enter-active-class="transition-all duration-300 ease-out"
-          leave-active-class="transition-all duration-300 ease-in"
-          :enter-from-class="
-            langStore.dir === 'rtl' ? 'translate-x-full opacity-0' : '-translate-x-full opacity-0'
-          "
-          :leave-to-class="
-            langStore.dir === 'rtl' ? 'translate-x-full opacity-0' : '-translate-x-full opacity-0'
-          "
-        >
-          <div
-            v-show="chatStore.isSidebarOpen"
-            ref="sidebarRef"
-            :class="[
-              'w-60 max-w-60 h-full fixed z-20 lg:relative',
-              langStore.dir === 'rtl' ? 'right-0' : 'left-0'
-            ]"
-            :dir="langStore.dir"
-          >
-            <ThreadsView class="transform" />
-          </div>
-        </Transition>
-
-        <!-- 主聊天区域 -->
+        <!-- Main chat column -->
         <div class="flex-1 flex flex-col w-0">
-          <!-- 新会话 -->
+          <!-- New thread -->
           <NewThread v-if="!chatStore.getActiveThreadId()" />
           <template v-else>
-            <!-- 标题栏 -->
+            <!-- Title bar -->
             <TitleView
               :model="activeModel"
               @messageNavigationToggle="handleMessageNavigationToggle"
             />
 
-            <!-- 聊天内容区域 -->
-            <ChatView ref="chatViewRef" />
+            <!-- Content: left messages+input, right message navigation -->
+            <div class="flex flex-1 min-h-0">
+              <ChatView ref="chatViewRef" class="flex-1 min-w-0" />
+              <!-- Message navigation (inline on large screens) -->
+              <div
+                v-show="chatStore.isMessageNavigationOpen && isLargeScreen"
+                class="hidden lg:block w-80 max-w-80 h-full border-l shrink-0"
+                ref="messageNavigationRef"
+              >
+                <MessageNavigationSidebar
+                  :messages="chatStore.getMessages()"
+                  :is-open="chatStore.isMessageNavigationOpen"
+                  @close="chatStore.isMessageNavigationOpen = false"
+                  @scroll-to-message="handleScrollToMessage"
+                />
+              </div>
+            </div>
           </template>
         </div>
       </div>
     </div>
-
-    <!-- 消息导航侧边栏 (大屏幕) -->
-    <div
-      v-show="chatStore.isMessageNavigationOpen && !artifactStore.isOpen && isLargeScreen"
-      class="fixed right-0 top-0 w-80 max-w-80 h-full z-10 hidden lg:block"
+    <!-- Right drawer area: threads list (fixed on extra large screens) -->
+    <aside
+      ref="sidebarRef"
+      class="hidden xl:flex h-full w-60 max-w-60 shrink-0 border-l"
+      v-show="chatStore.isSidebarOpen && !artifactStore.isOpen"
     >
-      <MessageNavigationSidebar
-        :messages="chatStore.getMessages()"
-        :is-open="chatStore.isMessageNavigationOpen"
-        @close="chatStore.isMessageNavigationOpen = false"
-        @scroll-to-message="handleScrollToMessage"
-      />
-    </div>
-
-    <!-- 小屏幕模式下的消息导航侧边栏 -->
-    <Teleport to="body">
-      <Transition
-        enter-active-class="transition-all duration-300 ease-out"
-        leave-active-class="transition-all duration-300 ease-in"
-        enter-from-class="translate-x-full opacity-0"
-        leave-to-class="translate-x-full opacity-0"
-      >
-        <div v-if="chatStore.isMessageNavigationOpen" class="fixed inset-0 z-50 flex lg:hidden">
-          <!-- 背景遮罩 -->
-          <div class="flex-1" @click="chatStore.isMessageNavigationOpen = false"></div>
-
-          <!-- 侧边栏 -->
-          <div ref="messageNavigationRef" class="w-80 max-w-80">
-            <MessageNavigationSidebar
-              :messages="chatStore.getMessages()"
-              :is-open="chatStore.isMessageNavigationOpen"
-              @close="chatStore.isMessageNavigationOpen = false"
-              @scroll-to-message="handleScrollToMessage"
-            />
-          </div>
-        </div>
-      </Transition>
-    </Teleport>
-
-    <!-- Artifacts 预览区域 -->
-    <ArtifactDialog />
+      <ThreadsView class="flex-1" />
+    </aside>
   </div>
+
+  <!-- Small screens: message navigation drawer (original behavior) -->
+  <Teleport to="body">
+    <Transition
+      enter-active-class="transition-all duration-300 ease-out"
+      leave-active-class="transition-all duration-300 ease-in"
+      enter-from-class="translate-x-full opacity-0"
+      leave-to-class="translate-x-full opacity-0"
+    >
+      <div v-if="chatStore.isMessageNavigationOpen" class="fixed inset-0 z-50 flex lg:hidden">
+        <div class="flex-1" @click="chatStore.isMessageNavigationOpen = false"></div>
+        <div ref="messageNavigationRef" class="w-80 max-w-80">
+          <MessageNavigationSidebar
+            :messages="chatStore.getMessages()"
+            :is-open="chatStore.isMessageNavigationOpen"
+            @close="chatStore.isMessageNavigationOpen = false"
+            @scroll-to-message="handleScrollToMessage"
+          />
+        </div>
+      </div>
+    </Transition>
+  </Teleport>
+
+  <!-- Small/medium screens: threads list as right-side drawer -->
+  <Teleport to="body">
+    <Transition
+      enter-active-class="transition-all duration-300 ease-out"
+      leave-active-class="transition-all duration-300 ease-in"
+      enter-from-class="translate-x-full opacity-0"
+      leave-to-class="translate-x-full opacity-0"
+    >
+      <div
+        v-if="chatStore.isSidebarOpen && !isWideScreen"
+        class="fixed inset-0 z-50 flex xl:hidden"
+      >
+        <!-- Backdrop -->
+        <div class="flex-1" @click="chatStore.isSidebarOpen = false"></div>
+        <!-- Right-side threads drawer -->
+        <div ref="threadDrawerRef" class="w-60 max-w-60 h-full border-l bg-background">
+          <ThreadsView class="h-full" />
+        </div>
+      </div>
+    </Transition>
+  </Teleport>
+  <!-- Artifacts keep independent right-side overlay experience -->
+  <ArtifactDialog />
 </template>
 
 <script setup lang="ts">
@@ -176,14 +176,18 @@ watch(
 // 点击外部区域关闭侧边栏
 const sidebarRef = ref<HTMLElement>()
 const messageNavigationRef = ref<HTMLElement>()
+const threadDrawerRef = ref<HTMLElement>()
 const isLargeScreen = useMediaQuery('(min-width: 1024px)')
+const isWideScreen = useMediaQuery('(min-width: 1280px)')
+
+onClickOutside(threadDrawerRef, () => {
+  if (chatStore.isSidebarOpen && !isWideScreen.value) {
+    chatStore.isSidebarOpen = false
+  }
+})
 
 onClickOutside(sidebarRef, (event) => {
   const isClickInMessageNavigation = messageNavigationRef.value?.contains(event.target as Node)
-
-  if (chatStore.isSidebarOpen && !isLargeScreen.value) {
-    chatStore.isSidebarOpen = false
-  }
   if (chatStore.isMessageNavigationOpen && !isLargeScreen.value && !isClickInMessageNavigation) {
     chatStore.isMessageNavigationOpen = false
   }

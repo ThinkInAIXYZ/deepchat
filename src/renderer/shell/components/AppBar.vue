@@ -487,9 +487,7 @@ const onThemeClick = () => {
 
 // 辅助函数：检查是否应该显示自定义图标
 const shouldShowCustomIcon = (tab: { id: number; icon?: string }) => {
-  return tab.icon &&
-         tab.icon.trim() !== '' &&
-         !failedIcons.value.has(tab.id)
+  return tab.icon && tab.icon.trim() !== '' && !failedIcons.value.has(tab.id)
 }
 
 // 辅助函数：获取有效的图标URL
@@ -528,11 +526,11 @@ watch(
 
 // 监听标签页图标变化，处理图标URL更新
 watch(
-  () => tabStore.tabs.map(tab => ({ id: tab.id, icon: tab.icon })),
+  () => tabStore.tabs.map((tab) => ({ id: tab.id, icon: tab.icon })),
   (newIconData, oldIconData) => {
     if (!oldIconData) return // 初始化时跳过
 
-    const oldIconMap = new Map(oldIconData.map(item => [item.id, item.icon]))
+    const oldIconMap = new Map(oldIconData.map((item) => [item.id, item.icon]))
 
     newIconData.forEach(({ id, icon }) => {
       const oldIcon = oldIconMap.get(id)
@@ -564,7 +562,7 @@ onMounted(() => {
   console.log('onMounted', tabStore.tabs)
 
   // 初始化图标URL缓存
-  tabStore.tabs.forEach(tab => {
+  tabStore.tabs.forEach((tab) => {
     if (tab.icon && tab.icon.trim() !== '') {
       iconUrls.value.set(tab.id, tab.icon)
     }

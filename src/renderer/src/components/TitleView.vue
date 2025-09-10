@@ -1,15 +1,6 @@
 <template>
   <div class="flex items-center justify-between w-full p-2">
     <div class="flex flex-row gap-2 items-center">
-      <Button
-        class="w-7 h-7 rounded-md"
-        size="icon"
-        variant="outline"
-        @click="onSidebarButtonClick"
-      >
-        <Icon v-if="chatStore.isSidebarOpen" icon="lucide:panel-left-close" class="w-4 h-4" />
-        <Icon v-else icon="lucide:panel-left-open" class="w-4 h-4" />
-      </Button>
       <Popover v-model:open="modelSelectOpen">
         <PopoverTrigger as-child>
           <Button variant="outline" class="flex items-center gap-1.5 px-2 h-7 relative" size="sm">
@@ -55,6 +46,17 @@
           icon="lucide:list"
           class="w-4 h-4 absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2"
         />
+      </Button>
+
+      <!-- Right drawer (threads / artifacts) toggle -->
+      <Button
+        class="w-7 h-7 rounded-md"
+        size="icon"
+        variant="outline"
+        @click="onSidebarButtonClick"
+      >
+        <Icon v-if="chatStore.isSidebarOpen" icon="lucide:panel-right-close" class="w-4 h-4" />
+        <Icon v-else icon="lucide:panel-right-open" class="w-4 h-4" />
       </Button>
 
       <ScrollablePopover align="end" content-class="w-80" :enable-scrollable="true">

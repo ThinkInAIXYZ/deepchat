@@ -1,5 +1,5 @@
 <template>
-  <div class="flex flex-col overflow-hidden h-0 flex-1">
+  <div class="flex flex-col overflow-hidden flex-1 min-h-0 h-full">
     <!-- 消息列表区域 -->
     <MessageList
       :key="chatStore.getActiveThreadId() ?? 'default'"
