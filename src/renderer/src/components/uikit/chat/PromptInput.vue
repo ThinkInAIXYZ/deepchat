@@ -1,101 +1,90 @@
+<template>
+  <!-- Wrapper mimicking the new prompt bar while reusing ChatInput functionality -->
+  <div class="prompt-input w-full max-w-4xl mx-auto">
+    <div
+      class="flex flex-col gap-2 px-4 py-3 rounded-b-lg border-t border-border bg-background"
+      :dir="langStore.dir"
+    >
+      <!-- Forward to existing ChatInput for full functionality -->
+      <ChatInput
+        ref="innerRef"
+        v-bind="passThroughProps"
+        :disabled="disabled"
+        :rows="rows"
+        :max-rows="maxRows"
+        :context-length="contextLength"
+        @send="(v) => $emit('send', v)"
+        @file-upload="(v) => $emit('file-upload', v)"
+        class="prompt-input-inner"
+      />
+    </div>
+  </div>
+</template>
+
 <script setup lang="ts">
-import { computed, ref, type HTMLAttributes } from 'vue'
-import { cn } from '@/lib/utils'
-import { Textarea } from '@/components/ui/textarea'
-import { Button } from '@/components/ui/button'
-import type { ChatComponentProps } from '../types'
+import { computed, ref } from 'vue'
+import ChatInput from '@/components/ChatInput.vue'
+import { useLanguageStore } from '@/stores/language'
 
-interface Props extends ChatComponentProps {
-  placeholder?: string
-  maxRows?: number
-  class?: HTMLAttributes['class']
-}
+defineOptions({ inheritAttrs: false })
 
-const props = withDefaults(defineProps<Props>(), {
-  placeholder: 'Type your message...',
-  maxRows: 6
-})
-
-const emit = defineEmits<{
-  send: [content: string]
-  input: [content: string]
-}>()
-
-const inputValue = ref('')
-const textareaRef = ref<InstanceType<typeof Textarea>>()
-
-const containerClasses = computed(() =>
-  cn(
-    'flex items-end gap-2 p-4',
-    'border-t border-border bg-background/95 backdrop-blur',
-    props.class
-  )
+const props = withDefaults(
+  defineProps<{
+    contextLength?: number
+    maxRows?: number
+    rows?: number
+    disabled?: boolean
+  }>(),
+  {
+    maxRows: 10,
+    rows: 1,
+    disabled: false
+  }
 )
 
-const handleSend = () => {
-  if (inputValue.value.trim() && !props.disabled) {
-    emit('send', inputValue.value.trim())
-    inputValue.value = ''
-  }
-}
+const passThroughProps = computed(() => ({
+  contextLength: props.contextLength,
+  maxRows: props.maxRows,
+  rows: props.rows,
+  disabled: props.disabled
+}))
 
-const handleKeydown = (event: KeyboardEvent) => {
-  if (event.key === 'Enter' && !event.shiftKey) {
-    event.preventDefault()
-    handleSend()
-  }
-}
+const langStore = useLanguageStore()
+const innerRef = ref<InstanceType<typeof ChatInput> | null>(null)
 
-const handleInput = () => {
-  emit('input', inputValue.value)
-}
+defineEmits<{
+  send: [value: any]
+  'file-upload': [value: any]
+}>()
 
+// Expose the common methods so ChatView can keep using ref APIs
 defineExpose({
-  focus: () => textareaRef.value?.$el?.focus(),
-  clear: () => {
-    inputValue.value = ''
-  },
-  setValue: (value: string) => {
-    inputValue.value = value
-  }
+  restoreFocus: () => innerRef.value?.restoreFocus?.(),
+  clearContent: () => innerRef.value?.clearContent?.(),
+  appendText: (t: string) => innerRef.value?.appendText?.(t),
+  appendMention: (n: string) => innerRef.value?.appendMention?.(n)
 })
 </script>
 
-<template>
-  <div :class="containerClasses">
-    <div class="flex-1">
-      <Textarea
-        ref="textareaRef"
-        v-model="inputValue"
-        :placeholder="placeholder"
-        :disabled="disabled || loading"
-        :rows="1"
-        :max-rows="maxRows"
-        class="min-h-[40px] resize-none border-0 p-3 shadow-none focus-visible:ring-0"
-        @keydown="handleKeydown"
-        @input="handleInput"
-      />
-    </div>
+<style scoped>
+/* Make the inner ChatInput container visually match the new prompt bar */
+.prompt-input :deep(.bg-card) {
+  background-color: transparent !important;
+}
 
-    <Button :disabled="!inputValue.trim() || disabled || loading" size="icon" @click="handleSend">
-      <slot name="send-icon">
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          width="16"
-          height="16"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-        >
-          <path
-            d="M3.714 3.048a.498.498 0 0 0-.683.627l2.843 7.627a2 2 0 0 1 0 1.396l-2.842 7.627a.498.498 0 0 0 .682.627l18-8.5a.5.5 0 0 0 0-.904z"
-          />
-          <path d="M6 12h16" />
-        </svg>
-      </slot>
-    </Button>
-  </div>
-</template>
+.prompt-input :deep(.border.border-border.rounded-lg) {
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+
+.prompt-input :deep(.p-2) {
+  padding: 0 !important;
+}
+
+.prompt-input :deep(.file-list-enter-active),
+.prompt-input :deep(.file-list-leave-active) {
+  transition: all 0.2s ease;
+}
+</style>
+
