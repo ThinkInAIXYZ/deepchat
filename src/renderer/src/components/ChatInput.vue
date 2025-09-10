@@ -1078,10 +1078,20 @@ onMounted(() => {
             const from = sel.from
             const to = sel.to
 
-            // Replace current selection (or insert at cursor) with sanitized text
+            // Convert text with newlines to TipTap inline nodes (preserves blank lines, handles CRLF)
+            const convertTextToNodes = (txt: string): JSONContent[] => {
+              const lines = txt.replace(/\r/g, '').split('\n')
+              const content: JSONContent[] = []
+              for (let i = 0; i < lines.length; i++) {
+                if (i > 0) content.push({ type: 'hardBreak' })
+                const line = lines[i]
+                if (line.length > 0) content.push({ type: 'text', text: line })
+              }
+              return content
+            }
             editor
               .chain()
-              .insertContentAt({ from, to }, clean, { updateSelection: true })
+              .insertContentAt({ from, to }, convertTextToNodes(clean), { updateSelection: true })
               .scrollIntoView()
               .run()
             // keep the reactive inputText in sync
