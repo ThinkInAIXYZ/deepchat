@@ -19,6 +19,25 @@ import sfxtyMp3 from '/sounds/sfx-typing.mp3?url'
 // 定义会话工作状态类型
 export type WorkingStatus = 'working' | 'error' | 'completed' | 'none'
 
+// Shallow comparison for config objects
+const hasConfigChanged = (
+  oldConfig: CONVERSATION_SETTINGS,
+  newConfig: CONVERSATION_SETTINGS
+): boolean => {
+  const keys = Object.keys(newConfig) as (keyof CONVERSATION_SETTINGS)[]
+  return keys.some((key) => {
+    const oldVal = oldConfig[key]
+    const newVal = newConfig[key]
+
+    // Handle arrays (like enabledMcpTools)
+    if (Array.isArray(oldVal) && Array.isArray(newVal)) {
+      return oldVal.length !== newVal.length || oldVal.some((item, index) => item !== newVal[index])
+    }
+
+    return oldVal !== newVal
+  })
+}
+
 export const useChatStore = defineStore('chat', () => {
   const threadP = usePresenter('threadPresenter')
   const windowP = usePresenter('windowPresenter')
@@ -741,6 +760,7 @@ export const useChatStore = defineStore('chat', () => {
         Object.assign(threadToUpdate, conversation)
       }
       if (conversation) {
+        // Replace entire config object to keep reactivity, but do not persist back immediately
         chatConfig.value = { ...conversation.settings }
       }
     } catch (error) {
@@ -760,9 +780,14 @@ export const useChatStore = defineStore('chat', () => {
   }
 
   const updateChatConfig = async (newConfig: Partial<CONVERSATION_SETTINGS>) => {
-    chatConfig.value = { ...chatConfig.value, ...newConfig }
-    await saveChatConfig()
-    await loadChatConfig() // 加载对话配置
+    // Only persist when there is an actual change
+    const merged = { ...chatConfig.value, ...newConfig }
+    const changed = hasConfigChanged(chatConfig.value, merged)
+    chatConfig.value = merged
+    if (changed) {
+      await saveChatConfig()
+      await loadChatConfig() // 加载对话配置
+    }
   }
 
   const deleteMessage = async (messageId: string) => {
