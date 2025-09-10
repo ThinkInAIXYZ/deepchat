@@ -2,7 +2,7 @@
   <!-- Wrapper mimicking the new prompt bar while reusing ChatInput functionality -->
   <div class="prompt-input w-full">
     <div
-      class="flex flex-col gap-2 px-4 py-3 rounded-b-lg border-t border-border bg-background"
+      class="flex flex-col gap-2 px-4 py-3 rounded-b-lg bg-background"
       :dir="langStore.dir"
     >
       <!-- Forward to existing ChatInput for full functionality -->
@@ -73,8 +73,11 @@ defineExpose({
 }
 
 .prompt-input :deep(.border.border-border.rounded-lg) {
-  border: 0 !important;
-  border-radius: 0 !important;
+  border-top-width: 1px !important;
+  border-left-width: 0 !important;
+  border-right-width: 0 !important;
+  border-bottom-width: 0 !important;
+  border-radius: 0 0 0.5rem 0.5rem !important; /* bottom corners */
   box-shadow: none !important;
 }
 
@@ -85,5 +88,48 @@ defineExpose({
 .prompt-input :deep(.file-list-enter-active),
 .prompt-input :deep(.file-list-leave-active) {
   transition: all 0.2s ease;
+}
+
+/* Editor area: 12px top/bottom, 16px sides, 12px font with 18px leading */
+.prompt-input :deep(.editor-content),
+.prompt-input :deep([data-tiptap-editor]),
+.prompt-input :deep(.tiptap) {
+  padding: 12px 16px !important;
+}
+.prompt-input :deep(.p-2.text-sm) {
+  padding: 12px 16px !important;
+  font-size: 12px !important;
+  line-height: 18px !important;
+}
+.prompt-input :deep(.tiptap p.is-editor-empty:first-child::before) {
+  font-size: 12px !important;
+  line-height: 18px !important;
+}
+
+/* Bottom bar: 6px gap, compact controls */
+.prompt-input :deep(.flex.items-center.justify-between) {
+  padding: 0 16px 8px 16px !important;
+}
+
+/* Left icon buttons: 28x26, 6px radius, thin border */
+.prompt-input :deep(button[data-role="file-btn"]) {
+  width: 28px !important;
+  height: 26px !important;
+  padding: 4px 6px !important;
+  border-radius: 6px !important;
+}
+.prompt-input :deep(.search-engine-select .w-7) {
+  width: 28px !important;
+}
+.prompt-input :deep(.search-engine-select .h-7) {
+  height: 26px !important;
+}
+
+/* Send button: 40x24, 6px radius */
+.prompt-input :deep(button[data-role="send-btn"]) {
+  width: 40px !important;
+  height: 24px !important;
+  padding: 4px 12px !important;
+  border-radius: 6px !important;
 }
 </style>

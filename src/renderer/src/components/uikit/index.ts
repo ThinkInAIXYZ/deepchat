@@ -15,3 +15,6 @@ export * from './utility'
 
 // Types
 export * from './types'
+
+// Lightweight selectors for prompt area
+export { default as ModelLabelSelect } from './ModelLabelSelect.vue'

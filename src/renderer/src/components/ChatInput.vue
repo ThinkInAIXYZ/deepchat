@@ -1,6 +1,6 @@
 <template>
   <div
-    class="w-full max-w-4xl mx-auto"
+    class="w-full"
     @dragenter.prevent="handleDragEnter"
     @dragover.prevent="handleDragOver"
     @drop.prevent="handleDrop"
@@ -10,7 +10,7 @@
     <TooltipProvider>
       <div
         :dir="langStore.dir"
-        class="bg-card border border-border rounded-lg focus-within:border-primary p-2 flex flex-col gap-2 shadow-sm relative"
+        class="chat-input-root bg-card border border-border rounded-lg focus-within:border-primary p-2 flex flex-col gap-2 shadow-sm relative"
       >
         <!-- {{  t('chat.input.fileArea') }} -->
         <div v-if="selectedFiles.length > 0">
@@ -50,6 +50,7 @@
                   variant="outline"
                   size="icon"
                   class="w-7 h-7 text-xs rounded-lg"
+                  data-role="file-btn"
                   @click="openFilePicker"
                 >
                   <Icon icon="lucide:paperclip" class="w-4 h-4" />
@@ -126,6 +127,8 @@
             <slot name="addon-buttons"></slot>
           </div>
           <div class="flex items-center gap-2">
+            <!-- Model label selector placed before send button -->
+            <ModelLabelSelect />
             <div
               v-if="
                 contextLength &&
@@ -166,10 +169,11 @@
               variant="default"
               size="icon"
               class="w-7 h-7 text-xs rounded-lg"
+              data-role="send-btn"
               :disabled="disabledSend"
               @click="emitSend"
             >
-              <Icon icon="lucide:arrow-up" class="w-4 h-4" />
+              <Icon icon="lucide:send-horizontal" class="w-4 h-4" />
             </Button>
           </div>
         </div>
@@ -238,6 +242,7 @@ import { useMcpStore } from '@/stores/mcp'
 import { ResourceListEntry } from '@shared/presenter'
 import { searchHistory } from '@/lib/searchHistory'
 import { useLanguageStore } from '@/stores/language'
+import ModelLabelSelect from '@/components/uikit/ModelLabelSelect.vue'
 import { useToast } from '@/components/ui/toast/use-toast'
 import type { CategorizedData } from './editor/mention/suggestion'
 import type { PromptListEntry } from '@shared/presenter'
