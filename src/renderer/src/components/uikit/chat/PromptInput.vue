@@ -1000,6 +1000,33 @@ onUnmounted(() => {
   }
 })
 
+// choose a default model when chatConfig is empty
+const ensureDefaultModel = async () => {
+  if (chatStore.chatConfig.providerId && chatStore.chatConfig.modelId) return
+  try {
+    const preferred = (await configPresenter.getSetting('preferredModel')) as
+      | { modelId: string; providerId: string }
+      | undefined
+    if (preferred) {
+      const provider = settingsStore.enabledModels.find(
+        (p) => p.providerId === preferred.providerId
+      )
+      const model = provider?.models.find((m) => m.id === preferred.modelId)
+      if (provider && model) {
+        chatStore.updateChatConfig({ modelId: model.id, providerId: provider.providerId })
+        return
+      }
+    }
+  } catch {}
+  // fallback to first available chat or image model
+  const first = settingsStore.enabledModels
+    .flatMap((p) => p.models.map((m) => ({ ...m, providerId: p.providerId })))
+    .find((m) => m.type === ModelType.Chat || m.type === ModelType.ImageGeneration)
+  if (first) {
+    chatStore.updateChatConfig({ modelId: first.id, providerId: first.providerId })
+  }
+}
+
 watch(
   () => settingsStore.activeSearchEngine?.id,
   async () => {
@@ -1220,33 +1247,6 @@ const handlePostInsertActions = async (m: CategorizedData): Promise<void> => {
         })
       }
     }
-  }
-}
-
-// choose a default model when chatConfig is empty
-const ensureDefaultModel = async () => {
-  if (chatStore.chatConfig.providerId && chatStore.chatConfig.modelId) return
-  try {
-    const preferred = (await configPresenter.getSetting('preferredModel')) as
-      | { modelId: string; providerId: string }
-      | undefined
-    if (preferred) {
-      const provider = settingsStore.enabledModels.find(
-        (p) => p.providerId === preferred.providerId
-      )
-      const model = provider?.models.find((m) => m.id === preferred.modelId)
-      if (provider && model) {
-        chatStore.updateChatConfig({ modelId: model.id, providerId: provider.providerId })
-        return
-      }
-    }
-  } catch {}
-  // fallback to first available chat or image model
-  const first = settingsStore.enabledModels
-    .flatMap((p) => p.models.map((m) => ({ ...m, providerId: p.providerId })))
-    .find((m) => m.type === ModelType.Chat || m.type === ModelType.ImageGeneration)
-  if (first) {
-    chatStore.updateChatConfig({ modelId: first.id, providerId: first.providerId })
   }
 }
 
