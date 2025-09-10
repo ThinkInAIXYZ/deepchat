@@ -103,8 +103,6 @@ import { RENDERER_MODEL_META } from '@shared/presenter'
 import { useArtifactStore } from '@/stores/artifact'
 import ArtifactDialog from '@/components/artifacts/ArtifactDialog.vue'
 import MessageNavigationSidebar from '@/components/MessageNavigationSidebar.vue'
-import { useRoute } from 'vue-router'
-import { useLanguageStore } from '@/stores/language'
 import { getFaviconIcon } from '@/composables/useModelIcons'
 const ThreadsView = defineAsyncComponent(() => import('@/components/ThreadsView.vue'))
 const TitleView = defineAsyncComponent(() => import('@/components/TitleView.vue'))
@@ -112,11 +110,9 @@ const ChatView = defineAsyncComponent(() => import('@/components/ChatView.vue'))
 const NewThread = defineAsyncComponent(() => import('@/components/NewThread.vue'))
 const artifactStore = useArtifactStore()
 const settingsStore = useSettingsStore()
-const route = useRoute()
 const chatStore = useChatStore()
 const title = useTitle()
 const favicon = useFavicon()
-const langStore = useLanguageStore()
 const chatViewRef = ref()
 // 添加标题更新逻辑
 const updateTitle = () => {
