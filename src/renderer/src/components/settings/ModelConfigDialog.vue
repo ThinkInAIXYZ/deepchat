@@ -369,6 +369,19 @@
               </div>
             </div>
           </div>
+
+          <!-- 联网搜索 (Grok 支持搜索的模型) -->
+          <div v-if="showGrokSearch" class="space-y-4">
+            <div class="flex items-center justify-between">
+              <div class="space-y-0.5">
+                <Label>{{ t('settings.model.modelConfig.enableSearch.label') }}</Label>
+                <p class="text-xs text-muted-foreground">
+                  {{ t('settings.model.modelConfig.enableSearch.description') }}
+                </p>
+              </div>
+              <Switch v-model:checked="config.enableSearch" />
+            </div>
+          </div>
         </form>
       </div>
 
@@ -815,6 +828,27 @@ const showDashScopeSearch = computed(() => {
     modelId.includes(supportedModel)
   )
   return isDashscope && isSupported
+})
+
+// 是否显示Grok搜索配置
+const showGrokSearch = computed(() => {
+  const isGrok = props.providerId === 'grok'
+  const modelId = props.modelId.toLowerCase()
+  // According to requirements, all Grok models support internet search
+  const supportedSearchModels = [
+    'grok-4',
+    'grok-3-mini',
+    'grok-3-mini-fast',
+    'grok-3-fast',
+    'grok-3',
+    'grok-2',
+    'grok-2-vision',
+    'grok-2-image'
+  ]
+  const isSupported =
+    supportedSearchModels.some((supportedModel) => modelId.includes(supportedModel)) ||
+    modelId.includes('grok')
+  return isGrok && isSupported
 })
 
 // 思考预算范围

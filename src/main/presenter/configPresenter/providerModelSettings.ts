@@ -3140,7 +3140,8 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         vision: false,
         functionCall: true,
         reasoning: true,
-        reasoningEffort: 'low'
+        reasoningEffort: 'low',
+        enableSearch: false
       },
       {
         id: 'grok-3-mini-beta',
@@ -3152,7 +3153,8 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         vision: false,
         functionCall: true,
         reasoning: true,
-        reasoningEffort: 'low'
+        reasoningEffort: 'low',
+        enableSearch: false
       },
       {
         id: 'grok-3-fast-beta',
@@ -3163,7 +3165,8 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         match: ['grok-3-fast', 'grok-3-fast-latest', 'grok-3-fast-beta'],
         vision: false,
         functionCall: true,
-        reasoning: false
+        reasoning: false,
+        enableSearch: false
       },
       {
         id: 'grok-2-vision-1212',
@@ -3174,7 +3177,8 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         match: ['grok-2-vision', 'grok-2-vision-latest', 'grok-2-vision-1212'],
         vision: true,
         functionCall: false,
-        reasoning: false
+        reasoning: false,
+        enableSearch: false
       },
       {
         id: 'grok-2-image-1212',
@@ -3185,7 +3189,8 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         match: ['grok-2-image', 'grok-2-image-latest', 'grok-2-image-1212'],
         vision: true,
         functionCall: false,
-        reasoning: false
+        reasoning: false,
+        enableSearch: false
       },
       {
         id: 'grok-3-beta',
@@ -3196,7 +3201,8 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         match: ['grok-3', 'grok-3-latest', 'grok-3-beta'],
         vision: false,
         functionCall: true,
-        reasoning: false
+        reasoning: false,
+        enableSearch: false
       },
       {
         id: 'grok-2-1212',
@@ -3207,7 +3213,8 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         match: ['grok-2', 'grok-2-latest', 'grok-2-1212'],
         vision: false,
         functionCall: true,
-        reasoning: false
+        reasoning: false,
+        enableSearch: false
       }
     ]
   },
