@@ -1,34 +1,35 @@
 <template>
   <!-- Wrapper mimicking the new prompt bar while reusing ChatInput functionality -->
   <div class="prompt-input w-full">
-    <div
-      class="flex flex-col gap-2 px-4 py-3 rounded-b-lg bg-background"
-      :dir="langStore.dir"
-    >
+    <div class="flex flex-col gap-2 px-4 py-3 rounded-b-lg bg-background" :dir="langStore.dir">
       <!-- Forward to existing ChatInput for full functionality -->
       <ChatInput
         ref="innerRef"
-        v-bind="passThroughProps"
+        v-bind="$attrs"
         :disabled="disabled"
         :rows="rows"
         :max-rows="maxRows"
         :context-length="contextLength"
         @send="(v) => $emit('send', v)"
         @file-upload="(v) => $emit('file-upload', v)"
-        class="prompt-input-inner w-full max-w-none mx-0"
-      />
+        class="prompt-input-inner w-full mx-auto"
+      >
+        <template #addon-buttons>
+          <slot name="addon-buttons" />
+        </template>
+      </ChatInput>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { ref } from 'vue'
 import ChatInput from '@/components/ChatInput.vue'
 import { useLanguageStore } from '@/stores/language'
 
 defineOptions({ inheritAttrs: false })
 
-const props = withDefaults(
+withDefaults(
   defineProps<{
     contextLength?: number
     maxRows?: number
@@ -41,13 +42,6 @@ const props = withDefaults(
     disabled: false
   }
 )
-
-const passThroughProps = computed(() => ({
-  contextLength: props.contextLength,
-  maxRows: props.maxRows,
-  rows: props.rows,
-  disabled: props.disabled
-}))
 
 const langStore = useLanguageStore()
 const innerRef = ref<InstanceType<typeof ChatInput> | null>(null)
@@ -81,9 +75,7 @@ defineExpose({
   box-shadow: none !important;
 }
 
-.prompt-input :deep(.p-2) {
-  padding: 0 !important;
-}
+/* Avoid overriding generic p-2 to keep ChatInput's internal layout */
 
 .prompt-input :deep(.file-list-enter-active),
 .prompt-input :deep(.file-list-leave-active) {
@@ -111,25 +103,5 @@ defineExpose({
   padding: 0 16px 8px 16px !important;
 }
 
-/* Left icon buttons: 28x26, 6px radius, thin border */
-.prompt-input :deep(button[data-role="file-btn"]) {
-  width: 28px !important;
-  height: 26px !important;
-  padding: 4px 6px !important;
-  border-radius: 6px !important;
-}
-.prompt-input :deep(.search-engine-select .w-7) {
-  width: 28px !important;
-}
-.prompt-input :deep(.search-engine-select .h-7) {
-  height: 26px !important;
-}
-
-/* Send button: 40x24, 6px radius */
-.prompt-input :deep(button[data-role="send-btn"]) {
-  width: 40px !important;
-  height: 24px !important;
-  padding: 4px 12px !important;
-  border-radius: 6px !important;
-}
+/* Do not resize internal buttons; keep ChatInput defaults for consistent layout */
 </style>

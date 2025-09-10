@@ -95,7 +95,7 @@
                     @update:open="handleSelectOpen"
                   >
                     <SelectTrigger
-                      class="h-full rounded-none border-none shadow-none hover:bg-accent text-muted-foreground dark:hover:text-primary-foreground transition-all duration-300"
+                      class="h-full rounded-none border-none shadow-none hover:bg-accent text-muted-foreground dark:hover:text-primary-foreground transition-all duration-300 relative justify-center"
                       :class="{
                         'w-0 opacity-0 p-0 overflow-hidden':
                           !showSearchSettingsButton && !isSearchHovering && !isSelectOpen,
@@ -103,8 +103,11 @@
                           showSearchSettingsButton || isSearchHovering || isSelectOpen
                       }"
                     >
-                      <div class="flex items-center gap-1">
-                        <SelectValue class="text-xs font-bold truncate" />
+                      <!-- Absolute overlay keeps text geometrically centered regardless of caret width -->
+                      <div
+                        class="absolute inset-0 flex items-center justify-center pointer-events-none"
+                      >
+                        <SelectValue class="text-xs font-bold truncate text-center max-w-[70%]" />
                       </div>
                     </SelectTrigger>
                     <SelectContent align="start" class="w-64">
@@ -127,8 +130,6 @@
             <slot name="addon-buttons"></slot>
           </div>
           <div class="flex items-center gap-2">
-            <!-- Model label selector placed before send button -->
-            <ModelLabelSelect />
             <div
               v-if="
                 contextLength &&
@@ -242,7 +243,6 @@ import { useMcpStore } from '@/stores/mcp'
 import { ResourceListEntry } from '@shared/presenter'
 import { searchHistory } from '@/lib/searchHistory'
 import { useLanguageStore } from '@/stores/language'
-import ModelLabelSelect from '@/components/uikit/ModelLabelSelect.vue'
 import { useToast } from '@/components/ui/toast/use-toast'
 import type { CategorizedData } from './editor/mention/suggestion'
 import type { PromptListEntry } from '@shared/presenter'

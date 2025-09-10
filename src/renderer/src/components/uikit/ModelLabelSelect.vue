@@ -13,7 +13,10 @@
       </Button>
     </PopoverTrigger>
     <PopoverContent align="end" class="p-0 w-80">
-      <ModelSelect :type="[ModelType.Chat, ModelType.ImageGeneration]" @update:model="handleModelUpdate" />
+      <ModelSelect
+        :type="[ModelType.Chat, ModelType.ImageGeneration]"
+        @update:model="handleModelUpdate"
+      />
     </PopoverContent>
   </Popover>
 </template>
@@ -54,4 +57,3 @@ const handleModelUpdate = (m: MODEL_META, providerId: string) => {
   open.value = false
 }
 </script>
-

@@ -16,7 +16,7 @@
       <h1 class="text-2xl font-bold px-8 pt-4">{{ t('newThread.greeting') }}</h1>
       <h3 class="text-lg px-8 pb-2">{{ t('newThread.prompt') }}</h3>
       <div class="h-12"></div>
-      <ChatInput
+      <PromptInput
         ref="chatInputRef"
         key="newThread"
         class="!max-w-2xl flex-shrink-0 px-4"
@@ -105,7 +105,7 @@
             </ScrollablePopover>
           </div>
         </template>
-      </ChatInput>
+      </PromptInput>
       <div class="h-12"></div>
     </div>
   </div>
@@ -113,7 +113,7 @@
 
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
-import ChatInput from './ChatInput.vue'
+import PromptInput from '@/components/uikit/chat/PromptInput.vue'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import ScrollablePopover from './ScrollablePopover.vue'
 import { Button } from '@/components/ui/button'
@@ -286,7 +286,7 @@ const modelSelectOpen = ref(false)
 const settingsPopoverOpen = ref(false)
 const showSettingsButton = ref(false)
 const isHovering = ref(false)
-const chatInputRef = ref<InstanceType<typeof ChatInput> | null>(null)
+const chatInputRef = ref<InstanceType<typeof PromptInput> | null>(null)
 // 监听鼠标悬停
 const handleMouseEnter = () => {
   isHovering.value = true
