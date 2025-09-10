@@ -4,8 +4,7 @@
       <Button
         variant="outline"
         size="sm"
-        class="h-7 rounded-md px-2 gap-1 text-xs font-medium"
-        :class="['flex items-center']"
+        class="h-7 rounded-md px-2 gap-1 text-xs font-medium flex items-center flex-shrink-0"
       >
         <ModelIcon :model-id="model.providerId" :is-dark="themeStore.isDark" class="w-4 h-4" />
         <span class="truncate max-w-[160px]">{{ model.name }}</span>
@@ -22,7 +21,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Button } from '@/components/ui/button'
 import { Icon } from '@iconify/vue'
@@ -56,4 +55,31 @@ const handleModelUpdate = (m: MODEL_META, providerId: string) => {
   configPresenter.setSetting('preferredModel', { modelId: m.id, providerId })
   open.value = false
 }
+
+// Ensure a default model exists for new chats
+onMounted(async () => {
+  if (!chatStore.chatConfig.modelId || !chatStore.chatConfig.providerId) {
+    try {
+      const preferred = (await configPresenter.getSetting('preferredModel')) as
+        | { modelId: string; providerId: string }
+        | undefined
+      if (preferred) {
+        const provider = settingsStore.enabledModels.find(
+          (p) => p.providerId === preferred.providerId
+        )
+        const m = provider?.models.find((mm) => mm.id === preferred.modelId)
+        if (provider && m) {
+          chatStore.updateChatConfig({ modelId: m.id, providerId: provider.providerId })
+          return
+        }
+      }
+    } catch {}
+    const first = settingsStore.enabledModels
+      .flatMap((p) => p.models.map((m) => ({ ...m, providerId: p.providerId })))
+      .find((m) => m.type === ModelType.Chat || m.type === ModelType.ImageGeneration)
+    if (first) {
+      chatStore.updateChatConfig({ modelId: first.id, providerId: first.providerId })
+    }
+  }
+})
 </script>

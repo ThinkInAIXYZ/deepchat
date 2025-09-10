@@ -212,7 +212,6 @@ const handleModelUpdate = (model: MODEL_META, providerId: string) => {
     modelId: model.id,
     providerId: providerId
   })
-
 }
 
 // 监听 deeplinkCache 变化
@@ -284,7 +283,6 @@ onMounted(async () => {
     systemPrompt.value = prompt
   })
 })
-
 
 const handleSend = async (content: UserMessageContent) => {
   const threadId = await chatStore.createThread(content.text, {

@@ -65,14 +65,16 @@
             <Tooltip>
               <TooltipTrigger>
                 <span
-                  class="search-engine-select overflow-hidden flex items-center rounded-lg transition-all duration-300"
+                  class="search-engine-select overflow-hidden flex items-center rounded-lg transition-all duration-300 gap-0"
                   :class="{ active: settings.webSearch }"
                   :dir="langStore.dir"
+                  @mouseenter="handleSearchMouseEnter()"
+                  @mouseleave="handleSearchMouseLeave()"
                 >
                   <Button
                     variant="outline"
                     :class="[
-                      'flex border-none rounded-none shadow-none items-center gap-1.5 px-2 h-full',
+                      'flex w-7 h-[26px] border-none rounded-none shadow-none items-center justify-center p-0',
                       settings.webSearch
                         ? 'dark:!bg-primary bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground'
                         : ''
@@ -83,66 +85,47 @@
                   >
                     <Icon icon="lucide:globe" class="w-4 h-4" />
                   </Button>
-                  <Select
-                    v-model="selectedSearchEngine"
-                    @update:model-value="onSearchEngineChange"
-                    @update:open="handleSelectOpen"
+                  <div
+                    class="h-[26px] overflow-hidden transition-all duration-300"
+                    :class="{
+                      'w-0 opacity-0':
+                        !showSearchSettingsButton && !isSearchHovering && !isSelectOpen,
+                      'w-24 opacity-100':
+                        showSearchSettingsButton || isSearchHovering || isSelectOpen
+                    }"
                   >
-                    <SelectTrigger
-                      class="h-full rounded-none border-none shadow-none hover:bg-accent text-muted-foreground dark:hover:text-primary-foreground transition-all duration-300 relative justify-center"
-                      :class="{
-                        'w-0 opacity-0 p-0 overflow-hidden':
-                          !showSearchSettingsButton && !isSearchHovering && !isSelectOpen,
-                        'w-24 max-w-28 px-2 opacity-100':
-                          showSearchSettingsButton || isSearchHovering || isSelectOpen
-                      }"
+                    <Select
+                      v-model="selectedSearchEngine"
+                      @update:model-value="onSearchEngineChange"
+                      @update:open="handleSelectOpen"
+                      class="w-full h-full"
                     >
-                      <div
-                        class="absolute inset-0 flex items-center justify-center pointer-events-none"
+                      <SelectTrigger
+                        class="w-full h-full rounded-none border-none shadow-none hover:bg-accent text-muted-foreground dark:hover:text-primary-foreground relative justify-center"
                       >
-                        <SelectValue class="text-xs font-bold truncate text-center max-w-[70%]" />
-                      </div>
-                    </SelectTrigger>
-                    <SelectContent align="start" class="w-64">
-                      <SelectItem
-                        v-for="engine in searchEngines"
-                        :key="engine.id"
-                        :value="engine.id"
-                      >
-                        {{ engine.name }}
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
+                        <div
+                          class="absolute inset-0 flex items-center justify-center pointer-events-none"
+                        >
+                          <SelectValue class="text-xs font-bold truncate text-center max-w-[70%]" />
+                        </div>
+                      </SelectTrigger>
+                      <SelectContent align="start" class="w-64">
+                        <SelectItem
+                          v-for="engine in searchEngines"
+                          :key="engine.id"
+                          :value="engine.id"
+                        >
+                          {{ engine.name }}
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </span>
               </TooltipTrigger>
               <TooltipContent>{{ t('chat.features.webSearch') }}</TooltipContent>
             </Tooltip>
 
             <McpToolsList />
-            <div class="flex-1 min-w-[206px]"></div>
-
-            <!-- Model select chip -->
-            <Popover v-model:open="modelSelectOpen">
-              <PopoverTrigger as-child>
-                <Button
-                  variant="outline"
-                  class="model-chip border-none rounded-lg shadow-none items-center gap-1.5 px-2 h-[26px]"
-                  size="sm"
-                >
-                  <ModelIcon
-                    class="w-4 h-4"
-                    :model-id="activeModel.providerId"
-                    :is-dark="themeStore.isDark"
-                  />
-                  <span class="text-xs font-bold truncate max-w-[150px]">{{ name }}</span>
-                  <Icon icon="lucide:chevron-right" class="w-4 h-4" />
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent align="start" class="p-0 w-80">
-                <ModelSelect :type="[ModelType.Chat, ModelType.ImageGeneration]" @update:model="handleModelUpdate" />
-              </PopoverContent>
-            </Popover>
-
             <slot name="addon-buttons"></slot>
           </div>
 
@@ -180,6 +163,30 @@
               </span>
               <span v-else-if="!canSendImmediately">{{ formatWaitTime() }}</span>
             </div>
+
+            <Popover v-model:open="modelSelectOpen">
+              <PopoverTrigger as-child>
+                <Button
+                  variant="outline"
+                  class="model-chip border-none rounded-lg shadow-none items-center gap-1.5 px-2 h-[26px] flex-shrink-0"
+                  size="sm"
+                >
+                  <ModelIcon
+                    class="w-4 h-4"
+                    :model-id="activeModel.providerId"
+                    :is-dark="themeStore.isDark"
+                  />
+                  <span class="text-xs font-bold truncate max-w-[150px]">{{ name }}</span>
+                  <Icon icon="lucide:chevron-right" class="w-4 h-4" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent align="end" class="p-0 w-80">
+                <ModelSelect
+                  :type="[ModelType.Chat, ModelType.ImageGeneration]"
+                  @update:model="handleModelUpdate"
+                />
+              </PopoverContent>
+            </Popover>
 
             <Button
               variant="default"
@@ -237,7 +244,6 @@ import { usePresenter } from '@/composables/usePresenter'
 import { approximateTokenSize } from 'tokenx'
 import { useSettingsStore } from '@/stores/settings'
 import McpToolsList from '@/components/mcpToolsList.vue'
-import { useEventListener } from '@vueuse/core'
 import { calculateImageTokens, getClipboardImageInfo, imageFileToBase64 } from '@/lib/image'
 import { RATE_LIMIT_EVENTS } from '@/events'
 import { Editor, EditorContent, JSONContent } from '@tiptap/vue-3'
@@ -366,7 +372,9 @@ const activeModel = ref({
   tags: string[]
   type: ModelType
 })
-const name = computed(() => (activeModel.value?.name ? activeModel.value.name.split('/').pop() : ''))
+const name = computed(() =>
+  activeModel.value?.name ? activeModel.value.name.split('/').pop() : ''
+)
 
 const currentContextLength = computed(() => {
   return (
@@ -897,13 +905,10 @@ const restoreFocus = () => {
 
 onMounted(() => {
   initSettings()
+  ensureDefaultModel()
   setPromptFilesHandler(handlePromptFiles)
   loadRateLimitStatus()
-  const searchElement = document.querySelector('.search-engine-select')
-  if (searchElement) {
-    useEventListener(searchElement, 'mouseenter', handleSearchMouseEnter)
-    useEventListener(searchElement, 'mouseleave', handleSearchMouseLeave)
-  }
+  // hover handled via template events to avoid selector-timing issues
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   window.addEventListener('context-menu-ask-ai', (e: any) => {
     inputText.value = e.detail
@@ -1004,7 +1009,11 @@ watch(
 
 // initialize and keep active model in sync with current chat config
 watch(
-  () => [settingsStore.enabledModels, chatStore.chatConfig.providerId, chatStore.chatConfig.modelId],
+  () => [
+    settingsStore.enabledModels,
+    chatStore.chatConfig.providerId,
+    chatStore.chatConfig.modelId
+  ],
   () => {
     const providerId = chatStore.chatConfig.providerId
     const modelId = chatStore.chatConfig.modelId
@@ -1020,6 +1029,8 @@ watch(
           type: model.type ?? ModelType.Chat
         }
       }
+    } else {
+      ensureDefaultModel()
     }
   },
   { immediate: true, deep: true }
@@ -1212,6 +1223,33 @@ const handlePostInsertActions = async (m: CategorizedData): Promise<void> => {
   }
 }
 
+// choose a default model when chatConfig is empty
+const ensureDefaultModel = async () => {
+  if (chatStore.chatConfig.providerId && chatStore.chatConfig.modelId) return
+  try {
+    const preferred = (await configPresenter.getSetting('preferredModel')) as
+      | { modelId: string; providerId: string }
+      | undefined
+    if (preferred) {
+      const provider = settingsStore.enabledModels.find(
+        (p) => p.providerId === preferred.providerId
+      )
+      const model = provider?.models.find((m) => m.id === preferred.modelId)
+      if (provider && model) {
+        chatStore.updateChatConfig({ modelId: model.id, providerId: provider.providerId })
+        return
+      }
+    }
+  } catch {}
+  // fallback to first available chat or image model
+  const first = settingsStore.enabledModels
+    .flatMap((p) => p.models.map((m) => ({ ...m, providerId: p.providerId })))
+    .find((m) => m.type === ModelType.Chat || m.type === ModelType.ImageGeneration)
+  if (first) {
+    chatStore.updateChatConfig({ modelId: first.id, providerId: first.providerId })
+  }
+}
+
 // model select handlers
 const handleModelUpdate = (model: MODEL_META, providerId: string) => {
   activeModel.value = {
@@ -1245,6 +1283,8 @@ const handleModelUpdate = (model: MODEL_META, providerId: string) => {
   border-style: solid;
   border-color: rgba(255, 255, 255, 0.1);
   border-width: 1px 0 1px 1px; /* top, bottom, left */
+  border-top-width: 1px;
+  border-top-color: rgba(255, 255, 255, 0.1);
   border-radius: 0 0 0 8px; /* bottom-left only */
 }
 
@@ -1283,10 +1323,12 @@ const handleModelUpdate = (model: MODEL_META, providerId: string) => {
   border-radius: 6px !important;
 }
 
-/* Ensure search capsule aligns to 26px height */
+/* Ensure search capsule aligns to 26px height and collapses cleanly */
 .search-engine-select {
   height: 26px;
-  gap: 6px;
+  gap: 0;
+  display: inline-flex;
+  align-items: center;
 }
 
 /* Remove borders on dark for controls */
