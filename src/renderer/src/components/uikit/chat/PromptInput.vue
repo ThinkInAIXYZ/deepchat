@@ -1,6 +1,6 @@
 <template>
   <!-- Wrapper mimicking the new prompt bar while reusing ChatInput functionality -->
-  <div class="prompt-input w-full max-w-4xl mx-auto">
+  <div class="prompt-input w-full">
     <div
       class="flex flex-col gap-2 px-4 py-3 rounded-b-lg border-t border-border bg-background"
       :dir="langStore.dir"
@@ -15,7 +15,7 @@
         :context-length="contextLength"
         @send="(v) => $emit('send', v)"
         @file-upload="(v) => $emit('file-upload', v)"
-        class="prompt-input-inner"
+        class="prompt-input-inner w-full max-w-none mx-0"
       />
     </div>
   </div>
@@ -87,4 +87,3 @@ defineExpose({
   transition: all 0.2s ease;
 }
 </style>
-
