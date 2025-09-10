@@ -8,7 +8,11 @@
     @click="onClick"
   >
     <div class="flex items-center justify-between w-full" :dir="langStore.dir">
-      <div class="flex items-center gap-2 truncate flex-1 min-w-0">
+      <div
+        ref="titleEl"
+        class="flex items-center gap-2 flex-1 min-w-0 overflow-hidden whitespace-nowrap"
+        :class="{ 'text-fade': isOverflowing }"
+      >
         <slot></slot>
       </div>
       <button
@@ -24,10 +28,13 @@
 <script setup lang="ts">
 import { useLanguageStore } from '@/stores/language'
 import { Icon } from '@iconify/vue'
-import { ref } from 'vue'
+import { ref, onMounted, onBeforeUnmount } from 'vue'
 const langStore = useLanguageStore()
 
 const tabItem = ref<HTMLElement | null>(null)
+const titleEl = ref<HTMLElement | null>(null)
+const isOverflowing = ref(false)
+let ro: ResizeObserver | null = null
 
 const emit = defineEmits<{
   (e: 'click'): void
@@ -40,6 +47,25 @@ defineProps<{
   size: number
   index: number
 }>()
+
+const updateOverflow = () => {
+  const el = titleEl.value
+  if (!el) return
+  isOverflowing.value = el.scrollWidth > el.clientWidth + 1
+}
+
+onMounted(() => {
+  updateOverflow()
+  if (titleEl.value) {
+    ro = new ResizeObserver(() => updateOverflow())
+    ro.observe(titleEl.value)
+  }
+})
+
+onBeforeUnmount(() => {
+  if (ro && titleEl.value) ro.unobserve(titleEl.value)
+  ro = null
+})
 
 const onClick = () => {
   emit('click')
@@ -137,5 +163,37 @@ const onDragStart = (event: DragEvent) => {
   width: 16px;
   height: 16px;
   flex-shrink: 0;
+}
+
+/* Tail fade-out for long titles */
+.text-fade {
+  --fade-size: 24px;
+  -webkit-mask-image: linear-gradient(
+    to right,
+    #000 0,
+    #000 calc(100% - var(--fade-size)),
+    #0000 100%
+  );
+  mask-image: linear-gradient(
+    to right,
+    rgba(0, 0, 0, 1) 0,
+    rgba(0, 0, 0, 1) calc(100% - var(--fade-size)),
+    rgba(0, 0, 0, 0) 100%
+  );
+}
+
+[dir='rtl'] .text-fade {
+  -webkit-mask-image: linear-gradient(
+    to left,
+    #000 0,
+    #000 calc(100% - var(--fade-size)),
+    #0000 100%
+  );
+  mask-image: linear-gradient(
+    to left,
+    rgba(0, 0, 0, 1) 0,
+    rgba(0, 0, 0, 1) calc(100% - var(--fade-size)),
+    rgba(0, 0, 0, 0) 100%
+  );
 }
 </style>

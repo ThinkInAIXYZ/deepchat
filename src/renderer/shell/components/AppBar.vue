@@ -52,7 +52,7 @@
               class="w-4 h-4 rounded-sm"
               @error="handleIconError(tab.id)"
             />
-            <span class="truncate">{{ tab.title ?? 'DeepChat' }}</span>
+            <span>{{ tab.title ?? 'DeepChat' }}</span>
           </AppBarTabItem>
           <!-- 拖拽插入指示器 -->
           <div
