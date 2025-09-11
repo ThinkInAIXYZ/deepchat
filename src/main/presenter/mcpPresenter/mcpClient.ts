@@ -27,6 +27,8 @@ import {
   ResourceListEntry,
   Resource
 } from '@shared/presenter'
+import $RefParser from '@apidevtools/json-schema-ref-parser'
+
 // TODO: resources 和 prompts 的类型,Notifactions 的类型 https://github.com/modelcontextprotocol/typescript-sdk/blob/main/src/examples/client/simpleStreamableHttp.ts
 // Simple OAuth provider for handling Bearer Token
 class SimpleOAuthProvider {
@@ -898,8 +900,37 @@ export class McpClient {
         throw new Error(`MCP client ${this.serverName} not initialized`)
       }
 
-      const response = await this.client.listTools()
+      const rawResponse = await this.client.listTools()
+      let response = rawResponse
 
+      // Only dereference individual tool schemas if they contain $defs
+      try {
+        if (
+          response &&
+          typeof response === 'object' &&
+          'tools' in response &&
+          Array.isArray(response.tools)
+        ) {
+          const tools = response.tools as any[]
+          for (const tool of tools) {
+            if (
+              tool.inputSchema &&
+              typeof tool.inputSchema === 'object' &&
+              tool.inputSchema.$defs
+            ) {
+              try {
+                tool.inputSchema = await $RefParser.dereference(tool.inputSchema)
+              } catch (derefError) {
+                console.warn(`Failed to dereference schema for tool ${tool.name}:`, derefError)
+                // Keep original schema if dereferencing fails
+              }
+            }
+          }
+        }
+      } catch (e) {
+        console.log('error during schema dereferencing', e)
+        // Continue with original response if dereferencing fails
+      }
       // 成功调用后重置重启标志
       this.hasRestarted = false
 
