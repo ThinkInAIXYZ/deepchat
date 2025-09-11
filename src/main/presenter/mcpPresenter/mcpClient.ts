@@ -3,6 +3,13 @@ import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js'
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js'
 import { type Transport } from '@modelcontextprotocol/sdk/shared/transport.js'
+import {
+  ToolListChangedNotificationSchema,
+  PromptListChangedNotificationSchema,
+  ResourceListChangedNotificationSchema,
+  ResourceUpdatedNotificationSchema,
+  LoggingMessageNotificationSchema
+} from '@modelcontextprotocol/sdk/types.js'
 import { eventBus, SendTarget } from '@/eventbus'
 import { MCP_EVENTS } from '@/events'
 import path from 'path'
@@ -587,6 +594,9 @@ export class McpClient {
         }
       )
 
+      // 设置通知处理器
+      this.registerNotificationHandlers()
+
       // 设置连接超时
       const timeoutPromise = new Promise<void>((_, reject) => {
         this.connectionTimeout = setTimeout(
@@ -691,6 +701,66 @@ export class McpClient {
     this.cachedTools = null
     this.cachedPrompts = null
     this.cachedResources = null
+  }
+
+  // Register notification handlers
+  private registerNotificationHandlers(): void {
+    if (!this.client) {
+      return
+    }
+
+    // Tool list changed notification - clear tool cache and actively refresh
+    this.client.setNotificationHandler(ToolListChangedNotificationSchema, async () => {
+      console.info(`[MCP] Tools list changed for server: ${this.serverName}`)
+      this.cachedTools = null
+      // Actively refresh tool list
+      try {
+        await this.listTools()
+      } catch (error) {
+        console.warn(`[MCP] Failed to refresh tools after notification:`, error)
+      }
+    })
+
+    // Prompt list changed notification - clear prompt cache and actively refresh
+    this.client.setNotificationHandler(PromptListChangedNotificationSchema, async () => {
+      console.info(`[MCP] Prompts list changed for server: ${this.serverName}`)
+      this.cachedPrompts = null
+      // Actively refresh prompt list
+      try {
+        await this.listPrompts()
+      } catch (error) {
+        console.warn(`[MCP] Failed to refresh prompts after notification:`, error)
+      }
+    })
+
+    // Resource list changed notification - clear resource cache and actively refresh
+    this.client.setNotificationHandler(ResourceListChangedNotificationSchema, async () => {
+      console.info(`[MCP] Resources list changed for server: ${this.serverName}`)
+      this.cachedResources = null
+      // Actively refresh resource list
+      try {
+        await this.listResources()
+      } catch (error) {
+        console.warn(`[MCP] Failed to refresh resources after notification:`, error)
+      }
+    })
+
+    // Resource updated notification - clear resource cache and actively refresh
+    this.client.setNotificationHandler(ResourceUpdatedNotificationSchema, async (params) => {
+      console.info(`[MCP] Resource updated for server: ${this.serverName}`, params)
+      this.cachedResources = null
+      // Actively refresh resource list
+      try {
+        await this.listResources()
+      } catch (error) {
+        console.warn(`[MCP] Failed to refresh resources after update notification:`, error)
+      }
+    })
+
+    // Logging message notification - just log the message
+    this.client.setNotificationHandler(LoggingMessageNotificationSchema, async (params) => {
+      console.info(`[MCP] Log message from server ${this.serverName}:`, params)
+    })
   }
 
   // 检查服务器是否正在运行
