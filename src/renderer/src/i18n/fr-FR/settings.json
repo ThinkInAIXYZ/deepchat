@@ -255,6 +255,7 @@
         "label": "Capacité visuelle"
       },
       "searchLimit": {
+        "label": "Limitation de recherche",
         "description": "Limitation du modèle : l'activation de la recherche web désactivera les appels de fonctions d'outils"
       }
     }

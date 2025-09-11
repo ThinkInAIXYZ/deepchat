@@ -255,6 +255,7 @@
         "label": "Visual ability"
       },
       "searchLimit": {
+        "label": "Search limitation",
         "description": "Model limitation: Enabling web search will disable tool function calls"
       }
     }

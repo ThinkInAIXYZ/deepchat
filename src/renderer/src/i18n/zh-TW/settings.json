@@ -255,6 +255,7 @@
         "label": "視覺能力"
       },
       "searchLimit": {
+        "label": "搜尋限制",
         "description": "模型限制: 啟用網路搜尋將使工具函數呼叫失效"
       }
     }
