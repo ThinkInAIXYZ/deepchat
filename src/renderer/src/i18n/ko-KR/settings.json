@@ -253,6 +253,9 @@
       "vision": {
         "description": "모델이 시각적 능력을 지원합니까?",
         "label": "시각적 능력"
+      },
+      "searchLimit": {
+        "description": "모델 제한: 네트워크 검색을 활성화하면 도구 함수 호출이 비활성화됩니다"
       }
     }
   },

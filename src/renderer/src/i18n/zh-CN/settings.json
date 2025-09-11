@@ -163,6 +163,10 @@
           "max": "Max - 高性能模式，提供最优搜索效果"
         }
       },
+      "searchLimit": {
+        "label": "搜索限制",
+        "description": "模型限制: 启用联网搜索将使工具函数调用失效"
+      },
       "thinkingBudget": {
         "label": "思考预算",
         "range": "范围: {min} - {max}",
