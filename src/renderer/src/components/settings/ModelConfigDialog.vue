@@ -272,6 +272,19 @@
             </div>
           </div>
 
+          <!-- 联网搜索 (Gemini 支持搜索的模型) -->
+          <div v-if="showGeminiSearch" class="space-y-4">
+            <div class="flex items-center justify-between">
+              <div class="space-y-0.5">
+                <Label>{{ t('settings.model.modelConfig.enableSearch.label') }}</Label>
+                <p class="text-xs text-muted-foreground">
+                  {{ t('settings.model.modelConfig.enableSearch.description') }}
+                </p>
+              </div>
+              <Switch v-model:checked="config.enableSearch" />
+            </div>
+          </div>
+
           <!-- 思考预算 (Qwen3 模型) -->
           <div v-if="showQwen3ThinkingBudget" class="space-y-4">
             <div class="flex items-center justify-between">
@@ -849,6 +862,26 @@ const showGrokSearch = computed(() => {
     supportedSearchModels.some((supportedModel) => modelId.includes(supportedModel)) ||
     modelId.includes('grok')
   return isGrok && isSupported
+})
+
+// 是否显示Gemini搜索配置
+const showGeminiSearch = computed(() => {
+  const isGemini = props.providerId === 'gemini'
+  const modelId = props.modelId.toLowerCase()
+  const supportedSearchModels = [
+    'gemini-2.5-pro',
+    'gemini-2.5-flash',
+    'gemini-2.5-flash-lite',
+    'gemini-2.5-flash-lite-preview-06-17',
+		'gemini-2.0-flash',
+		'gemini-2.0-flash-lite',
+		'gemini-1.5-pro',
+    'gemini-1.5-flash'
+  ]
+  const isSupported =
+    supportedSearchModels.some((supportedModel) => modelId.includes(supportedModel)) ||
+    modelId.includes('gemini')
+  return isGemini && isSupported
 })
 
 // 思考预算范围

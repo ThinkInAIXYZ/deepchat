@@ -307,7 +307,8 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         match: ['gemini-2.5-pro'],
         vision: true,
         functionCall: true,
-        reasoning: true
+        reasoning: true,
+        enableSearch: false
       },
       {
         id: 'google/gemini-2.5-flash-image-preview',
@@ -330,7 +331,8 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         match: ['models/gemini-2.5-flash-lite-preview-06-17', 'gemini-2.5-flash-lite-preview'],
         vision: true,
         functionCall: true,
-        reasoning: true
+        reasoning: true,
+        enableSearch: false
       },
       {
         id: 'models/gemini-2.5-flash-lite',
@@ -341,7 +343,8 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         match: ['models/gemini-2.5-flash-lite', 'gemini-2.5-flash-lite'],
         vision: true,
         functionCall: true,
-        reasoning: true
+        reasoning: true,
+        enableSearch: false
       },
       {
         id: 'models/gemini-2.5-flash',
@@ -352,7 +355,8 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         match: ['models/gemini-2.5-flash', 'gemini-2.5-flash'],
         vision: true,
         functionCall: true,
-        reasoning: true
+        reasoning: true,
+        enableSearch: false
       },
       {
         id: 'models/gemini-2.0-flash-preview-image-generation',
@@ -378,7 +382,8 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         match: ['models/gemini-2.0-flash-lite', 'gemini-2.0-flash-lite'],
         vision: true,
         functionCall: true,
-        reasoning: false
+        reasoning: false,
+        enableSearch: false
       },
       {
         id: 'models/gemini-2.0-flash',
@@ -389,7 +394,8 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         match: ['models/gemini-2.0-flash', 'gemini-2.0-flash'],
         vision: true,
         functionCall: true,
-        reasoning: true
+        reasoning: true,
+        enableSearch: false
       },
       {
         id: 'models/gemini-1.5-flash',
@@ -400,7 +406,8 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         match: ['models/gemini-1.5-flash', 'gemini-1.5-flash'],
         vision: true,
         functionCall: true,
-        reasoning: false
+        reasoning: false,
+        enableSearch: false
       },
       {
         id: 'models/gemini-1.5-pro',
@@ -411,7 +418,8 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         match: ['models/gemini-1.5-pro', 'gemini-1.5-pro'],
         vision: true,
         functionCall: true,
-        reasoning: false
+        reasoning: false,
+        enableSearch: false
       }
     ]
   },
