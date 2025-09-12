@@ -612,7 +612,8 @@ export class McpPresenter implements IMCPPresenter {
       'properties',
       'items',
       'enum',
-      'anyOf'
+      'anyOf',
+      '$def'
     ]
 
     const properties = tool.inputSchema.properties
