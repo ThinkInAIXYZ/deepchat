@@ -164,7 +164,6 @@
     "vue-virtual-scroller": "^2.0.0-beta.8",
     "vuedraggable": "^4.1.0",
     "yaml": "^2.8.1",
-    "@apidevtools/json-schema-ref-parser": "^14.2.1",
     "zod-to-json-schema": "^3.24.6"
   },
   "simple-git-hooks": {
