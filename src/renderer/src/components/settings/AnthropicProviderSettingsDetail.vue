@@ -3,7 +3,18 @@
     <div class="w-full h-full p-2 flex flex-col gap-2 overflow-y-auto">
       <!-- 认证方式选择 -->
       <div class="flex flex-col items-start p-2 gap-2">
-        <Label class="flex-1 cursor-pointer">{{ t('settings.provider.authMethod') }}</Label>
+        <div class="flex justify-between items-center w-full">
+          <Label class="flex-1 cursor-pointer">{{ t('settings.provider.authMethod') }}</Label>
+          <Button
+            v-if="provider.custom"
+            variant="destructive"
+            size="sm"
+            class="text-xs rounded-lg"
+            @click="showDeleteProviderDialog = true"
+          >
+            <Icon icon="lucide:trash-2" class="w-4 h-4 mr-1" />{{ t('settings.provider.delete') }}
+          </Button>
+        </div>
         <Select
           v-model="authMethod"
           @update:model-value="(value: string) => switchAuthMethod(value as 'apikey' | 'oauth')"
@@ -30,11 +41,9 @@
 
       <!-- API Key 认证方式 -->
       <div v-if="authMethod === 'apikey'" class="flex flex-col items-start p-2 gap-2">
-        <div class="flex justify-between items-center w-full">
-          <Label :for="`${provider.id}-url`" class="flex-1 cursor-pointer">{{
-            t('settings.provider.apiUrlLabel')
-          }}</Label>
-        </div>
+        <Label :for="`${provider.id}-url`" class="flex-1 cursor-pointer">{{
+          t('settings.provider.apiUrlLabel')
+        }}</Label>
         <Input
           :id="`${provider.id}-url`"
           v-model="apiHost"
@@ -313,12 +322,14 @@
     </div>
     <ProviderDialogContainer
       v-model:show-model-list-dialog="showModelListDialog"
+      v-model:show-delete-provider-dialog="showDeleteProviderDialog"
       :provider="provider"
       :provider-models="providerModels"
       :custom-models="customModels"
       :model-to-disable="null"
       :check-result="false"
       @model-enabled-change="handleModelEnabledChange"
+      @confirm-delete-provider="confirmDeleteProvider"
     />
   </section>
 </template>
@@ -382,6 +393,7 @@ const showCodeDialog = ref(false)
 const oauthCode = ref('')
 const codeValidationError = ref('')
 const isSubmittingCode = ref(false)
+const showDeleteProviderDialog = ref(false)
 
 // Computed
 const hasOAuthToken = ref(false)
@@ -686,6 +698,16 @@ const handleModelEnabledChange = async (model: RENDERER_MODEL_META, enabled: boo
 const handleConfigChanged = () => {
   // 配置变更时可以做一些额外的处理，比如刷新UI等
   console.log('Model configuration changed')
+}
+
+// delete service provider related
+const confirmDeleteProvider = async () => {
+  try {
+    await settingsStore.removeProvider(props.provider.id)
+    showDeleteProviderDialog.value = false
+  } catch (error) {
+    console.error('Failed to delete supplier:', error)
+  }
 }
 
 // 清除验证结果的定时器
