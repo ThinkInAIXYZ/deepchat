@@ -273,7 +273,7 @@ interface InputQueue {
 }
 ```
 
-### 5. Master Loop Agent
+### 5. Master Loop Agent with Step Management
 ```typescript
 interface MasterLoopAgent extends Agent {
   // Sub-agent management
@@ -297,6 +297,20 @@ interface MasterLoopAgent extends Agent {
   monitorAgentProgress(agentId: string): AgentProgress
   handleAgentCompletion(agentId: string, result: AgentOutput): void
   handleAgentFailure(agentId: string, error: Error): void
+  
+  // Todo Task Management for Step Decomposition
+  createTodoTask(description: string, dependencies?: string[]): TodoTask
+  updateTaskStatus(taskId: string, status: TaskStatus): void
+  getActiveTasks(): TodoTask[]
+  getTaskById(taskId: string): TodoTask | null
+  waitForDependencies(taskId: string): Promise<void>
+  markTaskComplete(taskId: string, result?: any): void
+  
+  // Step Management - prevents loop from proceeding until all action agents complete
+  canProceedToNextStep(): boolean
+  getAllPendingActionAgents(): string[]
+  blockStepProgression(reason: string): void
+  unblockStepProgression(): void
 }
 
 interface SessionState {
@@ -306,6 +320,13 @@ interface SessionState {
   pendingInputs: QueuedInput[]
   resourceUsage: ResourceMetrics
   userPreferences: UserPreferences
+  
+  // Enhanced session state with todo task tracking
+  todoTasks: TodoTask[]
+  currentStep: number
+  stepStatus: 'running' | 'blocked' | 'completed' | 'failed'
+  blockedReason?: string
+  pendingActionAgents: string[]
 }
 
 interface CompletedTask {
@@ -319,9 +340,137 @@ interface CompletedTask {
   success: boolean
   error?: string
 }
+
+// Todo Task Data Structure for Step Tracking
+interface TodoTask {
+  id: string
+  description: string
+  status: 'pending' | 'in_progress' | 'completed' | 'failed' | 'blocked'
+  dependencies: string[] // IDs of tasks that must complete before this task can start
+  assignedAgent?: string // ID of the action agent handling this task
+  result?: any // Result from the action agent
+  error?: string // Error message if task failed
+  createdAt: number
+  startedAt?: number
+  completedAt?: number
+  priority: number // 0-10 priority level
+  timeoutMs?: number // Optional timeout for task completion
+  metadata?: Record<string, any> // Additional task metadata
+}
+
+interface TaskStatus {
+  taskId: string
+  status: 'pending' | 'in_progress' | 'completed' | 'failed' | 'blocked'
+  progress?: number // 0-100 progress percentage
+  estimatedRemainingTime?: number // Estimated time remaining in ms
+  agentId?: string // ID of the agent working on this task
+}
 ```
 
-### 6. Action Agent Execution Model
+### 6. Loop Agent Step Management System
+
+The Master Loop Agent includes a sophisticated step management system that prevents progression to the next step until all action agents have completed their current tasks:
+
+#### Step Management Logic
+```typescript
+// Enhanced Master Loop Agent execution with step control
+class EnhancedMasterLoopAgent implements MasterLoopAgent {
+  private currentStep: number = 0
+  private stepStatus: StepStatus = 'idle'
+  private pendingTasks: Map<string, TodoTask> = new Map()
+  private taskDependencies: Map<string, string[]> = new Map()
+  private stepBlockers: Set<string> = new Set()
+  
+  async executeTask(task: TodoTask): Promise<void> {
+    // Set task status to in_progress
+    this.updateTaskStatus(task.id, 'in_progress')
+    
+    try {
+      // Wait for all dependencies to complete
+      await this.waitForDependencies(task.id)
+      
+      // Delegate to appropriate action agent
+      const result = await this.delegateToActionAgent(task.assignedAgent!, {
+        task: task.description,
+        context: this.getCurrentContext(),
+        dependencies: task.dependencies.map(depId => this.getTaskById(depId)?.result)
+      })
+      
+      // Mark task complete with result
+      this.markTaskComplete(task.id, result)
+      
+    } catch (error) {
+      // Handle task failure
+      this.updateTaskStatus(task.id, 'failed', error.message)
+      throw error
+    }
+  }
+  
+  async waitForDependencies(taskId: string): Promise<void> {
+    const task = this.getTaskById(taskId)
+    if (!task) return
+    
+    // Wait for all dependency tasks to complete
+    for (const depId of task.dependencies) {
+      const depTask = this.getTaskById(depId)
+      if (depTask && depTask.status !== 'completed') {
+        // Block step progression until dependency completes
+        this.blockStepProgression(`Waiting for dependency task: ${depId}`)
+        await this.waitForTaskCompletion(depId)
+        this.unblockStepProgression()
+      }
+    }
+  }
+  
+  canProceedToNextStep(): boolean {
+    // Check if any action agents are still processing
+    const pendingAgents = this.getAllPendingActionAgents()
+    const hasPendingTasks = this.pendingTasks.size > 0
+    const hasStepBlockers = this.stepBlockers.size > 0
+    
+    return !hasPendingTasks && !hasStepBlockers && pendingAgents.length === 0
+  }
+  
+  blockStepProgression(reason: string): void {
+    this.stepBlockers.add(reason)
+    this.stepStatus = 'blocked'
+    this.updateSessionState({ blockedReason: reason })
+  }
+  
+  unblockStepProgression(): void {
+    this.stepBlockers.clear()
+    this.stepStatus = 'running'
+    this.updateSessionState({ blockedReason: undefined })
+  }
+  
+  // Enhanced agent completion handler
+  handleAgentCompletion(agentId: string, result: AgentOutput): void {
+    super.handleAgentCompletion(agentId, result)
+    
+    // Update any tasks assigned to this agent
+    this.pendingTasks.forEach((task, taskId) => {
+      if (task.assignedAgent === agentId) {
+        this.markTaskComplete(taskId, result)
+      }
+    })
+    
+    // Check if we can proceed to next step
+    if (this.canProceedToNextStep()) {
+      this.advanceToNextStep()
+    }
+  }
+}
+```
+
+#### Step Management Benefits
+1. **Sequential Task Execution**: Tasks execute in proper order based on dependencies
+2. **Blocking Mechanism**: Loop waits for all action agents to complete before proceeding
+3. **Dependency Tracking**: Complex task dependencies are properly managed
+4. **Progress Visibility**: Real-time tracking of task and step completion
+5. **Error Handling**: Failed tasks properly block progression and provide clear error messages
+6. **Resource Optimization**: Prevents resource contention by sequential execution
+
+### 7. Action Agent Execution Model
 
 Action agents follow a strict execution model with clear input/output contracts:
 
@@ -575,15 +724,19 @@ interface EnhancedEventSystem {
    - Implement input queue system with priority handling
    - Standardize event interface for agent communication
 
-2. **Create Master Loop Agent Framework**
-   - Master agent with sub-agent management
-   - Session state management and persistence
+2. **Create Master Loop Agent Framework with Step Management**
+   - Master agent with sub-agent management and todo task tracking
+   - Session state management and persistence with step control
    - Input queue orchestration and delegation logic
+   - **Todo Task Management System**: Create `TodoTask` data structure with dependencies
+   - **Step Blocking Mechanism**: Implement `canProceedToNextStep()` logic
+   - **Agent Completion Tracking**: Track pending action agents and block progression
 
 3. **Implement Action Agent Base Class**
    - Agent specification system with provider configuration
    - Input validation and output formatting
    - Internal execution isolation with proper encapsulation
+   - **Task Assignment Integration**: Support task ID assignment and completion reporting
 
 4. **Enhanced Tool System**
    - Tool registration with access control
@@ -657,22 +810,32 @@ interface EnhancedEventSystem {
 - **Solution**: Specification-based agent matching with context awareness
 - **Implementation**: Intelligent agent selection algorithm with fallback strategies
 
-### 2. Action Agent Isolation
+### 2. Loop Agent Step Management and Blocking
+- **Challenge**: Ensuring loop agent waits for all action agents to complete before proceeding to next step or task
+- **Solution**: Todo task data structure with dependency tracking and step blocking mechanism
+- **Implementation**: `canProceedToNextStep()` checks pending agents, tasks, and blockers; `blockStepProgression()` prevents premature advancement
+- **Key Requirements**:
+  - Track all pending action agents via `getAllPendingActionAgents()`
+  - Manage task dependencies through `TodoTask.dependencies` array
+  - Block progression until all tasks complete or fail
+  - Provide clear visibility into blocking reasons
+
+### 3. Action Agent Isolation
 - **Challenge**: Encapsulating internal reasoning while exposing only final outputs
 - **Solution**: Strict input/output contracts with validation layers
 - **Implementation**: Execution context isolation with controlled tool access
 
-### 3. Provider Configuration Management
+### 4. Provider Configuration Management
 - **Challenge**: Dynamic provider and model selection per agent
 - **Solution**: Provider preference system with fallback mechanisms
 - **Implementation**: Provider-aware tool execution with automatic failover
 
-### 4. Async Tool Integration with Agent Context
+### 5. Async Tool Integration with Agent Context
 - **Challenge**: Managing long-running tasks across agent boundaries
 - **Solution**: Task registry with agent context preservation
 - **Implementation**: Context-aware callback system with state recovery
 
-### 5. Resource Contention and Optimization
+### 6. Resource Contention and Optimization
 - **Challenge**: Multiple agents competing for limited provider resources
 - **Solution**: Provider-aware resource pooling with priority scheduling
 - **Implementation**: Adaptive resource allocation based on agent requirements
@@ -686,6 +849,11 @@ interface EnhancedEventSystem {
 5. **Improved Scalability**: Horizontal scaling of agent instances
 6. **Enhanced Monitoring**: Comprehensive observability of agent behavior
 7. **Flexible Deployment**: Agents can be distributed across processes/nodes
+8. **Reliable Step Management**: Loop agent properly waits for all action agents to complete
+   - **Task Dependency Management**: Complex task hierarchies with proper sequencing
+   - **Progress Visibility**: Real-time tracking of task completion and blocking reasons
+   - **Error Isolation**: Failed tasks don't affect unrelated tasks but properly block dependent ones
+   - **Predictable Execution**: No race conditions or premature step advancement
 
 ## Next Steps
 
