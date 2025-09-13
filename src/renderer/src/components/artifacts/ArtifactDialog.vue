@@ -332,11 +332,12 @@ watch(
   }
 )
 
-watch(
+const { stop: stopWatch } = watch(
   () => codeEditor.value,
   () => {
     if (!codeEditor.value) return
     createEditor(codeEditor.value, artifactStore.currentArtifact?.content || '', codeLanguage.value)
+    stopWatch()
   }
 )
 

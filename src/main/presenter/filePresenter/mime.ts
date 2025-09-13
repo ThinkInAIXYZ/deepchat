@@ -11,7 +11,7 @@ import { AudioFileAdapter } from './AudioFileAdapter'
 import { UnsupportFileAdapter } from './UnsupportFileAdapter'
 import fs from 'fs/promises'
 import path from 'path'
-import * as mime from 'mime-types'
+import { lookup } from 'es-mime-types'
 
 export const getMimeTypeAdapterMap = (): Map<string, FileAdapterConstructor> => {
   const map = new Map<string, FileAdapterConstructor>()
@@ -109,7 +109,7 @@ export const getMimeTypeAdapterMap = (): Map<string, FileAdapterConstructor> => 
 
 export const detectMimeType = async (filePath: string): Promise<string> => {
   try {
-    const mimeType = mime.lookup(filePath)
+    const mimeType = lookup(filePath)
     console.log(`[getMimeType] mime.lookup result for ${path.basename(filePath)}:`, mimeType)
     if (mimeType) {
       console.log('Detected by mime.lookup:', mimeType)

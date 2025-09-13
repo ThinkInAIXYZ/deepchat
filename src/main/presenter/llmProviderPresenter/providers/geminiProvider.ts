@@ -4,13 +4,15 @@ import {
   FunctionCallingConfigMode,
   GenerateContentParameters,
   GenerateContentResponseUsageMetadata,
-  GenerationConfig,
   GoogleGenAI,
   HarmBlockThreshold,
   HarmCategory,
   Modality,
   Part,
-  SafetySetting
+  SafetySetting,
+  Tool,
+  GoogleSearch,
+  GenerateContentConfig
 } from '@google/genai'
 import { ModelType } from '@shared/model'
 import {
@@ -269,7 +271,7 @@ export class GeminiProvider extends BaseLLMProvider {
       const result = await this.genAI.models.generateContent({
         model: modelId,
         contents: [{ role: 'user', parts: [{ text: prompt }] }],
-        config: this.getGenerationConfig(0.4, undefined, modelId, false)
+        config: this.getGenerateContentConfig(0.4, undefined, modelId, false)
       })
 
       return result.text?.trim() || 'New Conversation'
@@ -398,39 +400,40 @@ export class GeminiProvider extends BaseLLMProvider {
   }
 
   // 获取生成配置，不再创建模型实例
-  private getGenerationConfig(
+  private getGenerateContentConfig(
     temperature?: number,
     maxTokens?: number,
     modelId?: string,
     reasoning?: boolean,
     thinkingBudget?: number
-  ): GenerationConfig {
-    const generationConfig: GenerationConfig = {
+  ): GenerateContentConfig {
+    const config: GenerateContentConfig = {
       temperature,
-      maxOutputTokens: maxTokens
+      maxOutputTokens: maxTokens,
+      topP: 1 // topP默认为1.0
     }
 
     // 从当前模型列表中查找指定的模型
     if (modelId && this.models) {
       const model = this.models.find((m) => m.id === modelId)
       if (model && model.type === ModelType.ImageGeneration) {
-        generationConfig.responseModalities = [Modality.TEXT, Modality.IMAGE]
+        config.responseModalities = [Modality.TEXT, Modality.IMAGE]
       }
     }
 
     // 正确配置思考功能
     if (reasoning) {
-      generationConfig.thinkingConfig = {
+      config.thinkingConfig = {
         includeThoughts: true
       }
 
       // 仅对支持 thinkingBudget 的 Gemini 2.5 系列模型添加 thinkingBudget 参数
       if (modelId && this.supportsThinkingBudget(modelId) && thinkingBudget !== undefined) {
-        generationConfig.thinkingConfig.thinkingBudget = thinkingBudget
+        config.thinkingConfig.thinkingBudget = thinkingBudget
       }
     }
 
-    return generationConfig
+    return config
   }
 
   // 将 ChatMessage 转换为 Gemini 格式的消息
@@ -644,24 +647,23 @@ export class GeminiProvider extends BaseLLMProvider {
 
       const { systemInstruction, contents } = this.formatGeminiMessages(messages)
 
-      // 创建基本请求参数
-      const generationConfig: GenerationConfig = {
-        temperature: temperature || 0.7,
-        maxOutputTokens: maxTokens
+      // 创建 GenerateContentConfig
+      const generateContentConfig: GenerateContentConfig = this.getGenerateContentConfig(
+        temperature || 0.7,
+        maxTokens,
+        modelId,
+        false // completions 方法中不处理 reasoning
+      )
+
+      if (systemInstruction) {
+        generateContentConfig.systemInstruction = systemInstruction
       }
 
-      // 执行请求
+      // 一次性创建 requestParams
       const requestParams: GenerateContentParameters = {
         model: modelId,
         contents,
-        config: generationConfig
-      }
-
-      if (systemInstruction) {
-        requestParams.config = {
-          ...generationConfig,
-          systemInstruction
-        }
+        config: generateContentConfig
       }
 
       const result = await this.genAI.models.generateContent(requestParams)
@@ -771,7 +773,7 @@ export class GeminiProvider extends BaseLLMProvider {
       const result = await this.genAI.models.generateContent({
         model: modelId,
         contents: [{ role: 'user', parts: [{ text: prompt }] }],
-        config: this.getGenerationConfig(temperature, maxTokens, modelId, false)
+        config: this.getGenerateContentConfig(temperature, maxTokens, modelId, false)
       })
 
       return this.processGeminiResponse(result)
@@ -799,7 +801,7 @@ export class GeminiProvider extends BaseLLMProvider {
       const result = await this.genAI.models.generateContent({
         model: modelId,
         contents: [{ role: 'user', parts: [{ text: prompt }] }],
-        config: this.getGenerationConfig(temperature, maxTokens, modelId, false)
+        config: this.getGenerateContentConfig(temperature, maxTokens, modelId, false)
       })
 
       return this.processGeminiResponse(result)
@@ -829,7 +831,7 @@ export class GeminiProvider extends BaseLLMProvider {
       const result = await this.genAI.models.generateContent({
         model: modelId,
         contents: [{ role: 'user', parts: [{ text: prompt }] }],
-        config: this.getGenerationConfig(temperature, maxTokens, modelId, false)
+        config: this.getGenerateContentConfig(temperature, maxTokens, modelId, false)
       })
 
       const responseText = result.text || ''
@@ -890,55 +892,55 @@ export class GeminiProvider extends BaseLLMProvider {
     const safetySettings = await this.getFormattedSafetySettings()
     console.log('safetySettings', safetySettings)
 
-    // 将MCP工具转换为Gemini格式的工具（所有Gemini模型都支持原生工具调用）
-    const geminiTools =
-      mcpTools.length > 0
-        ? await presenter.mcpPresenter.mcpToolsToGeminiTools(mcpTools, this.provider.id)
-        : undefined
+    // 添加Gemini工具调用
+    let geminiTools: Tool[] = []
+
+    // 注意：googleSearch内置工具与外部工具是互斥的
+    if (modelConfig.enableSearch) {
+      geminiTools.push({ googleSearch: {} as GoogleSearch })
+    } else {
+      if (mcpTools.length > 0)
+        geminiTools = await presenter.mcpPresenter.mcpToolsToGeminiTools(mcpTools, this.provider.id)
+    }
 
     // 格式化消息为Gemini格式
     const formattedParts = this.formatGeminiMessages(messages)
 
-    // 创建请求参数
-    const requestParams: GenerateContentParameters = {
-      model: modelId,
-      contents: formattedParts.contents,
-      config: this.getGenerationConfig(
-        temperature,
-        maxTokens,
-        modelId,
-        modelConfig.reasoning,
-        modelConfig.thinkingBudget
-      )
-    }
-    console.log('requestParams', requestParams)
+    // 1. 获取基础 config
+    const generateContentConfig: GenerateContentConfig = this.getGenerateContentConfig(
+      temperature,
+      maxTokens,
+      modelId,
+      modelConfig.reasoning,
+      modelConfig.thinkingBudget
+    )
+
+    // 2. 在本地变量上添加其他属性
     if (formattedParts.systemInstruction) {
-      requestParams.config = {
-        ...requestParams.config,
-        systemInstruction: formattedParts.systemInstruction
-      }
+      generateContentConfig.systemInstruction = formattedParts.systemInstruction
     }
 
-    // 添加工具配置
-    if (geminiTools && geminiTools.length > 0) {
-      requestParams.config = {
-        ...requestParams.config,
-        tools: geminiTools,
-        toolConfig: {
-          functionCallingConfig: {
-            mode: FunctionCallingConfigMode.AUTO // 允许模型自动决定是否调用工具
-          }
+    if (geminiTools.length > 0) {
+      generateContentConfig.tools = geminiTools
+      generateContentConfig.toolConfig = {
+        functionCallingConfig: {
+          mode: FunctionCallingConfigMode.AUTO // 允许模型自动决定是否调用工具
         }
       }
     }
 
-    // 添加安全设置
     if (safetySettings) {
-      requestParams.config = {
-        ...requestParams.config,
-        safetySettings
-      }
+      generateContentConfig.safetySettings = safetySettings
     }
+
+    // 3. 一次性创建完整的 requestParams
+    const requestParams: GenerateContentParameters = {
+      model: modelId,
+      contents: formattedParts.contents,
+      config: generateContentConfig
+    }
+
+    console.log('requestParams', requestParams)
 
     // 发送流式请求
     const result = await this.genAI.models.generateContentStream(requestParams)
@@ -1124,7 +1126,7 @@ export class GeminiProvider extends BaseLLMProvider {
       const result = await this.genAI.models.generateContentStream({
         model: modelId,
         contents: [{ role: 'user', parts }],
-        config: this.getGenerationConfig(temperature, maxTokens, modelId, false) // 图像生成不需要reasoning
+        config: this.getGenerateContentConfig(temperature, maxTokens, modelId, false) // 图像生成不需要reasoning
       })
 
       // 处理流式响应

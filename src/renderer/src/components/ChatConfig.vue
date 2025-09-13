@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
-import { computed, watch } from 'vue'
+import { computed, watch, ref } from 'vue'
+import { useSettingsStore } from '@/stores/settings'
 import { Label } from '@/components/ui/label'
 import { Slider } from '@/components/ui/slider'
 import { Icon } from '@iconify/vue'
@@ -68,6 +69,26 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 const langStore = useLanguageStore()
+const settingsStore = useSettingsStore()
+const modelReasoning = ref(false)
+
+const getModelReasoning = async () => {
+  if (!props.modelId || !props.providerId) return false
+  try {
+    const modelConfig = await settingsStore.getModelConfig(props.modelId, props.providerId)
+    return modelConfig.reasoning || false
+  } catch (error) {
+    return false
+  }
+}
+
+watch(
+  () => [props.modelId, props.providerId],
+  async () => {
+    modelReasoning.value = await getModelReasoning()
+  },
+  { immediate: true }
+)
 // Create computed properties for slider values (which expect arrays)
 const temperatureValue = computed({
   get: () => [props.temperature],
@@ -105,21 +126,41 @@ const showThinkingBudget = computed(() => {
   const isGemini = props.providerId === 'gemini'
   const isGemini25 = props.modelId?.includes('gemini-2.5')
 
-  // Qwen3 系列
+  // DashScope
   const isDashscope = props.providerId === 'dashscope'
-  const isQwen3 = props.modelId?.includes('qwen3')
+  const modelId = props.modelId?.toLowerCase() || ''
+  const supportedQwenThinkingModels = [
+    // Open source versions
+    'qwen3-next-80b-a3b-thinking',
+    'qwen3-235b-a22b',
+    'qwen3-32b',
+    'qwen3-30b-a3b',
+    'qwen3-14b',
+    'qwen3-8b',
+    'qwen3-4b',
+    'qwen3-1.7b',
+    'qwen3-0.6b',
+    // Commercial versions
+    'qwen-plus',
+    'qwen-flash',
+    'qwen-turbo'
+  ]
+  const isQwenThinking = supportedQwenThinkingModels.some((supportedModel) =>
+    modelId.includes(supportedModel)
+  )
 
-  return (isGemini && isGemini25) || (isDashscope && isQwen3)
+  return (isGemini && isGemini25) || (isDashscope && isQwenThinking && modelReasoning.value)
 })
 
 // 是否显示搜索配置 - 支持 Dashscope 的特定模型
-const showSearchConfig = computed(() => {
+const showDashscopeSearchConfig = computed(() => {
   const isDashscope = props.providerId === 'dashscope'
 
   if (!isDashscope || !props.modelId) return false
 
-  // 支持搜索的模型列表
+  // Dashscope - ENABLE_SEARCH_MODELS
   const enableSearchModels = [
+    'qwen3-max-preview',
     'qwen3-max',
     'qwen-max',
     'qwen-plus',
@@ -131,6 +172,29 @@ const showSearchConfig = computed(() => {
     'qwen-turbo-latest',
     'qwen-turbo-2025-07-15',
     'qwq-plus'
+  ]
+
+  return enableSearchModels.some((modelName) =>
+    props.modelId?.toLowerCase().includes(modelName.toLowerCase())
+  )
+})
+
+// 是否显示搜索配置 - 支持 Gemini 的特定模型
+const showGeminiSearchConfig = computed(() => {
+  const isSearchableModel = props.providerId === 'gemini'
+
+  if (!isSearchableModel || !props.modelId) return false
+
+  // ENABLE_SEARCH_MODELS
+  const enableSearchModels = [
+    'gemini-2.5-pro',
+    'gemini-2.5-flash',
+    'gemini-2.5-flash-lite',
+    'gemini-2.5-flash-lite-preview-06-17',
+    'gemini-2.0-flash',
+    'gemini-2.0-flash-lite',
+    'gemini-1.5-pro',
+    'gemini-1.5-flash'
   ]
 
   return enableSearchModels.some((modelName) =>
@@ -540,8 +604,50 @@ const qwen3ThinkingBudgetError = computed(() => {
         </div>
       </div>
 
+      <!-- Search Configuration (Gemini联网搜索配置) -->
+      <div v-if="showGeminiSearchConfig" class="space-y-4 px-2">
+        <div class="flex items-center space-x-2">
+          <Icon icon="lucide:search" class="w-4 h-4 text-muted-foreground" />
+          <Label class="text-xs font-medium">{{
+            t('settings.model.modelConfig.enableSearch.label')
+          }}</Label>
+          <TooltipProvider :delayDuration="200">
+            <Tooltip>
+              <TooltipTrigger>
+                <Icon icon="lucide:help-circle" class="w-4 h-4 text-muted-foreground" />
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>{{ t('settings.model.modelConfig.enableSearch.description') }}</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        </div>
+
+        <div class="space-y-3 pl-4 border-l-2 border-muted">
+          <!-- 启用搜索开关 -->
+          <div class="flex items-center justify-between">
+            <div class="space-y-0.5">
+              <Label class="text-sm">{{
+                t('settings.model.modelConfig.enableSearch.label')
+              }}</Label>
+            </div>
+            <Switch
+              :checked="props.enableSearch ?? false"
+              @update:checked="(value) => emit('update:enableSearch', value)"
+            />
+          </div>
+
+          <!-- 搜索策略选择 -->
+          <div v-if="props.enableSearch" class="space-y-2">
+            <p class="text-xs text-muted-foreground">
+              {{ t('settings.model.modelConfig.searchLimit.description') }}
+            </p>
+          </div>
+        </div>
+      </div>
+
       <!-- Search Configuration (联网搜索配置) -->
-      <div v-if="showSearchConfig" class="space-y-4 px-2">
+      <div v-if="showDashscopeSearchConfig" class="space-y-4 px-2">
         <div class="flex items-center space-x-2">
           <Icon icon="lucide:search" class="w-4 h-4 text-muted-foreground" />
           <Label class="text-xs font-medium">{{

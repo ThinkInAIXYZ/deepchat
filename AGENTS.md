@@ -1,35 +1,42 @@
 # Repository Guidelines
 
 ## Project Structure & Module Organization
-- `src/main/` Electron main process; `src/preload/` isolated preload; `src/renderer/` Vue 3 app (HTML in `index.html`, code in `src/renderer/src/`).
-- `src/shared/` cross‑process utilities and types; `src/types/` project typings.
-- `test/` Vitest suites (`test/main/**`, `test/renderer/**`).
-- `build/`, `resources/`, `scripts/`, `runtime/` packaging assets, helpers, embedded runtimes.
-- `docs/`, `out/`, `dist/` generated artifacts.
+- `src/main/`: Electron main process; presenters in `presenter/` (Window/Tab/Thread/Mcp/Config/LLMProvider), `eventbus.ts` for app events.
+- `src/preload/`: Secure IPC bridge (contextIsolation on).
+- `src/renderer/`: Vue 3 app. App code in `src/renderer/src` (`components/`, `stores/`, `views/`, `i18n/`, `lib/`). Shell UI lives in `src/renderer/shell/`.
+- `src/shared/`: Shared TS types/utilities.
+- `test/`: Vitest suites (`test/main`, `test/renderer`) with setup files.
+- `scripts/`: Build/signing/runtime installers, commit checks.
+- Build outputs/assets: `build/`, `resources/`, `out/`, `dist/`.
 
 ## Build, Test, and Development Commands
-- Install: `pnpm i` (enforced via `preinstall`). Node ≥ 20.19, pnpm ≥ 10.11.
-- Dev (watch): `pnpm dev` (Electron + Vite), debug: `pnpm dev:inspect`.
-- Preview: `pnpm start` (production preview).
-- Type check: `pnpm typecheck` (Node + Web configs).
-- Lint: `pnpm lint` (oxlint). Format: `pnpm format` / check: `pnpm format:check`.
-- Test all: `pnpm test`; main: `pnpm test:main`; renderer: `pnpm test:renderer`; coverage: `pnpm test:coverage`.
-- Build app: `pnpm build`; platform targets: `pnpm build:mac`, `:win`, `:linux` (see variants like `:x64`, `:arm64`).
+- Install: `pnpm install` + `pnpm run installRuntime` (first time).
+- Dev: `pnpm run dev` (HMR). Inspect: `pnpm run dev:inspect`; Linux: `pnpm run dev:linux`.
+- Preview: `pnpm start`.
+- Type check: `pnpm run typecheck` (or `typecheck:node` / `typecheck:web`).
+- Lint/format: `pnpm run lint`, `pnpm run format`, `pnpm run format:check`.
+- Test: `pnpm test`, `test:main`, `test:renderer`, `test:coverage`, `test:watch`, `test:ui`.
+- Build: `pnpm run build` then `build:win|mac|linux` (add `:x64|:arm64`).
 
 ## Coding Style & Naming Conventions
-- Prettier: single quotes, no semicolons, width 100, no trailing commas.
-- EditorConfig: 2‑space indent, LF, final newline, trim trailing whitespace.
-- TypeScript across main/renderer; Vue SFCs in `src/renderer/src/**`. Use PascalCase for components, camelCase for variables/functions, kebab‑case filenames for Vue components if already present.
+- TypeScript + Vue 3 Composition API; Pinia for state; Tailwind for styles.
+- i18n: all user-facing strings use vue-i18n keys in `src/renderer/src/i18n`.
+- Prettier: single quotes, no semicolons, width 100. Run `pnpm run format`.
+- OxLint for JS/TS; hooks run `lint-staged` and `typecheck`.
+- Names: Vue components PascalCase (`ChatInput.vue`); variables/functions `camelCase`; types/classes `PascalCase`; constants `SCREAMING_SNAKE_CASE`.
 
 ## Testing Guidelines
-- Framework: Vitest; environments: Node (main) and jsdom (renderer). Vue Test Utils for components.
-- File naming: `*.test.ts`/`*.spec.ts` mirroring source; place under `test/main/**` or `test/renderer/**`.
-- Coverage thresholds: 80% global (branches, functions, lines, statements). Report in `coverage/` and `coverage/renderer/`.
+- Framework: Vitest (+ jsdom) and Vue Test Utils.
+- Location mirrors source under `test/main/**` and `test/renderer/**`.
+- Names: `*.test.ts`/`*.spec.ts`. Coverage: `pnpm run test:coverage`.
 
 ## Commit & Pull Request Guidelines
-- Conventional Commits enforced: `type(scope): subject` (≤ 50 chars). Types: feat, fix, docs, dx, style, refactor, perf, test, workflow, build, ci, chore, types, wip, release.
-- PRs: use `.github/pull_request_template.md`. Include description, linked issues, screenshots/GIFs for UI, and platform notes (Win/macOS/Linux) when applicable.
+- Conventional commits enforced by hook: `type(scope): subject` ≤ 50 chars; types: `feat|fix|docs|dx|style|refactor|perf|test|workflow|build|ci|chore|types|wip|release`.
+- Do not include AI co-authoring footers in commits.
+- PRs: clear description, link issues (`Closes #123`), screenshots/GIFs for UI, pass lint/typecheck/tests. Keep changes focused.
+- UI changes: include BEFORE/AFTER ASCII layout blocks to communicate structure.
 
-## Security & Configuration Tips
-- Start from `.env.example`; never commit secrets. Brand configs: `brand-config.*.json`.
-- Native deps: use `pnpm install` hooks; for image/DB runtimes see `pnpm installRuntime:*` and `scripts/` installers.
+## Architecture Notes & Security
+- Patterns: Presenter pattern in main; EventBus for inter-process events; two-layer LLM provider (Agent Loop + Provider); integrated MCP tools.
+- Secrets: use `.env` (see `.env.example`); never commit keys.
+- Toolchains: Node ≥ 20.19, pnpm ≥ 10.11 (pnpm only). Windows: enable Developer Mode for symlinks.

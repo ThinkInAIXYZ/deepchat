@@ -14,6 +14,7 @@ export class DashscopeProvider extends OpenAICompatibleProvider {
   // List of models that support enable_thinking parameter (dual-mode models)
   private static readonly ENABLE_THINKING_MODELS: string[] = [
     // Open source versions
+    'qwen3-next-80b-a3b-thinking',
     'qwen3-235b-a22b',
     'qwen3-32b',
     'qwen3-30b-a3b',
@@ -35,6 +36,7 @@ export class DashscopeProvider extends OpenAICompatibleProvider {
 
   // List of models that support enable_search parameter (internet search)
   private static readonly ENABLE_SEARCH_MODELS: string[] = [
+    'qwen3-max-preview',
     'qwen-max',
     'qwen-plus',
     'qwen-plus-latest',
@@ -44,8 +46,7 @@ export class DashscopeProvider extends OpenAICompatibleProvider {
     'qwen-turbo',
     'qwen-turbo-latest',
     'qwen-turbo-2025-07-15',
-    'qwq-plus',
-    'qwen3-max-preview'
+    'qwq-plus'
   ]
 
   constructor(provider: LLM_PROVIDER, configPresenter: IConfigPresenter) {

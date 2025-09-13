@@ -307,7 +307,8 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         match: ['gemini-2.5-pro'],
         vision: true,
         functionCall: true,
-        reasoning: true
+        reasoning: true,
+        enableSearch: false
       },
       {
         id: 'google/gemini-2.5-flash-image-preview',
@@ -330,7 +331,8 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         match: ['models/gemini-2.5-flash-lite-preview-06-17', 'gemini-2.5-flash-lite-preview'],
         vision: true,
         functionCall: true,
-        reasoning: true
+        reasoning: true,
+        enableSearch: false
       },
       {
         id: 'models/gemini-2.5-flash-lite',
@@ -341,7 +343,8 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         match: ['models/gemini-2.5-flash-lite', 'gemini-2.5-flash-lite'],
         vision: true,
         functionCall: true,
-        reasoning: true
+        reasoning: true,
+        enableSearch: false
       },
       {
         id: 'models/gemini-2.5-flash',
@@ -352,7 +355,8 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         match: ['models/gemini-2.5-flash', 'gemini-2.5-flash'],
         vision: true,
         functionCall: true,
-        reasoning: true
+        reasoning: true,
+        enableSearch: false
       },
       {
         id: 'models/gemini-2.0-flash-preview-image-generation',
@@ -378,7 +382,8 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         match: ['models/gemini-2.0-flash-lite', 'gemini-2.0-flash-lite'],
         vision: true,
         functionCall: true,
-        reasoning: false
+        reasoning: false,
+        enableSearch: false
       },
       {
         id: 'models/gemini-2.0-flash',
@@ -389,7 +394,8 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         match: ['models/gemini-2.0-flash', 'gemini-2.0-flash'],
         vision: true,
         functionCall: true,
-        reasoning: true
+        reasoning: true,
+        enableSearch: false
       },
       {
         id: 'models/gemini-1.5-flash',
@@ -400,7 +406,8 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         match: ['models/gemini-1.5-flash', 'gemini-1.5-flash'],
         vision: true,
         functionCall: true,
-        reasoning: false
+        reasoning: false,
+        enableSearch: false
       },
       {
         id: 'models/gemini-1.5-pro',
@@ -411,7 +418,8 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         match: ['models/gemini-1.5-pro', 'gemini-1.5-pro'],
         vision: true,
         functionCall: true,
-        reasoning: false
+        reasoning: false,
+        enableSearch: false
       }
     ]
   },
@@ -2881,6 +2889,30 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         functionCall: false,
         reasoning: true,
         enableSearch: false
+      },
+      // Qwen3 Next 80B series models
+      {
+        id: 'qwen3-next-80b-a3b-thinking',
+        name: 'Qwen3 Next 80B A3B Thinking',
+        temperature: 0.7,
+        maxTokens: 32768,
+        contextLength: 131072,
+        match: ['qwen3-next-80b-a3b-thinking'],
+        vision: false,
+        functionCall: false,
+        reasoning: true,
+        thinkingBudget: 81920
+      },
+      {
+        id: 'qwen3-next-80b-a3b-instruct',
+        name: 'Qwen3 Next 80B A3B Instruct',
+        temperature: 0.7,
+        maxTokens: 32768,
+        contextLength: 131072,
+        match: ['qwen3-next-80b-a3b-instruct'],
+        vision: false,
+        functionCall: true,
+        reasoning: false
       }
     ]
   },
@@ -3140,7 +3172,8 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         vision: false,
         functionCall: true,
         reasoning: true,
-        reasoningEffort: 'low'
+        reasoningEffort: 'low',
+        enableSearch: false
       },
       {
         id: 'grok-3-mini-beta',
@@ -3152,7 +3185,8 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         vision: false,
         functionCall: true,
         reasoning: true,
-        reasoningEffort: 'low'
+        reasoningEffort: 'low',
+        enableSearch: false
       },
       {
         id: 'grok-3-fast-beta',
@@ -3163,7 +3197,8 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         match: ['grok-3-fast', 'grok-3-fast-latest', 'grok-3-fast-beta'],
         vision: false,
         functionCall: true,
-        reasoning: false
+        reasoning: false,
+        enableSearch: false
       },
       {
         id: 'grok-2-vision-1212',
@@ -3174,7 +3209,8 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         match: ['grok-2-vision', 'grok-2-vision-latest', 'grok-2-vision-1212'],
         vision: true,
         functionCall: false,
-        reasoning: false
+        reasoning: false,
+        enableSearch: false
       },
       {
         id: 'grok-2-image-1212',
@@ -3185,7 +3221,8 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         match: ['grok-2-image', 'grok-2-image-latest', 'grok-2-image-1212'],
         vision: true,
         functionCall: false,
-        reasoning: false
+        reasoning: false,
+        enableSearch: false
       },
       {
         id: 'grok-3-beta',
@@ -3196,7 +3233,8 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         match: ['grok-3', 'grok-3-latest', 'grok-3-beta'],
         vision: false,
         functionCall: true,
-        reasoning: false
+        reasoning: false,
+        enableSearch: false
       },
       {
         id: 'grok-2-1212',
@@ -3207,7 +3245,8 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         match: ['grok-2', 'grok-2-latest', 'grok-2-1212'],
         vision: false,
         functionCall: true,
-        reasoning: false
+        reasoning: false,
+        enableSearch: false
       }
     ]
   },

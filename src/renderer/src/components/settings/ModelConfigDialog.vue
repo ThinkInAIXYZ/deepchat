@@ -272,6 +272,19 @@
             </div>
           </div>
 
+          <!-- 联网搜索 (Gemini 支持搜索的模型) -->
+          <div v-if="showGeminiSearch" class="space-y-4">
+            <div class="flex items-center justify-between">
+              <div class="space-y-0.5">
+                <Label>{{ t('settings.model.modelConfig.enableSearch.label') }}</Label>
+                <p class="text-xs text-muted-foreground">
+                  {{ t('settings.model.modelConfig.enableSearch.description') }}
+                </p>
+              </div>
+              <Switch v-model:checked="config.enableSearch" />
+            </div>
+          </div>
+
           <!-- 思考预算 (Qwen3 模型) -->
           <div v-if="showQwen3ThinkingBudget" class="space-y-4">
             <div class="flex items-center justify-between">
@@ -367,6 +380,19 @@
                   {{ t('settings.model.modelConfig.searchStrategy.description') }}
                 </p>
               </div>
+            </div>
+          </div>
+
+          <!-- 联网搜索 (Grok 支持搜索的模型) -->
+          <div v-if="showGrokSearch" class="space-y-4">
+            <div class="flex items-center justify-between">
+              <div class="space-y-0.5">
+                <Label>{{ t('settings.model.modelConfig.enableSearch.label') }}</Label>
+                <p class="text-xs text-muted-foreground">
+                  {{ t('settings.model.modelConfig.enableSearch.description') }}
+                </p>
+              </div>
+              <Switch v-model:checked="config.enableSearch" />
             </div>
           </div>
         </form>
@@ -544,11 +570,7 @@ const loadConfig = async () => {
     }
   }
 
-  if (
-    props.providerId === 'dashscope' &&
-    props.modelId.includes('qwen3') &&
-    config.value.thinkingBudget === undefined
-  ) {
+  if (props.providerId === 'dashscope' && config.value.thinkingBudget === undefined) {
     const thinkingConfig = getThinkingBudgetConfig(props.modelId)
     if (thinkingConfig) {
       config.value.thinkingBudget = thinkingConfig.defaultValue
@@ -707,6 +729,55 @@ const getThinkingBudgetConfig = (modelId: string) => {
     }
   }
 
+  // qwen3-next-80b-a3b-thinking
+  if (modelId.includes('qwen3-next-80b-a3b-thinking')) {
+    return {
+      min: 0,
+      max: 81920,
+      defaultValue: 81920,
+      canDisable: true
+    }
+  }
+
+  // qwen-plus
+  if (modelId.includes('qwen-plus-latest') || modelId.includes('qwen-plus-2025-07-28')) {
+    return {
+      min: 0,
+      max: 81920,
+      defaultValue: 81920,
+      canDisable: true
+    }
+  }
+
+  if (modelId.includes('qwen-plus')) {
+    return {
+      min: 0,
+      max: 38912,
+      defaultValue: 38912,
+      canDisable: true
+    }
+  }
+
+  // qwen-flash
+  if (modelId.includes('qwen-flash')) {
+    return {
+      min: 0,
+      max: 81920,
+      defaultValue: 81920,
+      canDisable: true
+    }
+  }
+
+  // qwen-turbo
+  if (modelId.includes('qwen-turbo')) {
+    return {
+      min: 0,
+      max: 38912,
+      defaultValue: 38912,
+      canDisable: true
+    }
+  }
+
   return null // 不支持的模型
 }
 
@@ -737,18 +808,44 @@ const showGeminiThinkingBudget = computed(() => {
 const showQwen3ThinkingBudget = computed(() => {
   const isDashscope = props.providerId === 'dashscope'
   const hasReasoning = config.value.reasoning
-  const isQwen3Model = props.modelId.includes('qwen3')
+  const modelId = props.modelId.toLowerCase()
+  // DashScope - ENABLE_THINKING_MODELS
+  const supportedThinkingModels = [
+    // Open source versions
+    'qwen3-next-80b-a3b-thinking',
+    'qwen3-235b-a22b',
+    'qwen3-32b',
+    'qwen3-30b-a3b',
+    'qwen3-14b',
+    'qwen3-8b',
+    'qwen3-4b',
+    'qwen3-1.7b',
+    'qwen3-0.6b',
+    // Commercial versions
+    'qwen-plus',
+    'qwen-plus-latest',
+    'qwen-plus-2025-04-28',
+    'qwen-flash',
+    'qwen-flash-2025-07-28',
+    'qwen-turbo',
+    'qwen-turbo-latest',
+    'qwen-turbo-2025-04-28'
+  ]
+  const isSupported = supportedThinkingModels.some((supportedModel) =>
+    modelId.includes(supportedModel)
+  )
   const modelConfig = getThinkingBudgetConfig(props.modelId)
-  const isSupported = modelConfig !== null
-  return isDashscope && hasReasoning && isQwen3Model && isSupported
+  const hasValidConfig = modelConfig !== null
+  return isDashscope && hasReasoning && isSupported && hasValidConfig
 })
 
 // 是否显示DashScope搜索配置
 const showDashScopeSearch = computed(() => {
   const isDashscope = props.providerId === 'dashscope'
   const modelId = props.modelId.toLowerCase()
-  // DashScope 支持搜索的模型列表
-  const supportedModels = [
+  // DashScope - ENABLE_SEARCH_MODELS
+  const supportedSearchModels = [
+    'qwen3-max-preview',
     'qwen3-max',
     'qwen-max',
     'qwen-plus',
@@ -756,8 +853,51 @@ const showDashScopeSearch = computed(() => {
     'qwen-turbo',
     'qwq-plus'
   ]
-  const isSupported = supportedModels.some((supportedModel) => modelId.includes(supportedModel))
+  const isSupported = supportedSearchModels.some((supportedModel) =>
+    modelId.includes(supportedModel)
+  )
   return isDashscope && isSupported
+})
+
+// 是否显示Grok搜索配置
+const showGrokSearch = computed(() => {
+  const isGrok = props.providerId === 'grok'
+  const modelId = props.modelId.toLowerCase()
+  // According to requirements, all Grok models support internet search
+  const supportedSearchModels = [
+    'grok-4',
+    'grok-3-mini',
+    'grok-3-mini-fast',
+    'grok-3-fast',
+    'grok-3',
+    'grok-2',
+    'grok-2-vision',
+    'grok-2-image'
+  ]
+  const isSupported =
+    supportedSearchModels.some((supportedModel) => modelId.includes(supportedModel)) ||
+    modelId.includes('grok')
+  return isGrok && isSupported
+})
+
+// 是否显示Gemini搜索配置
+const showGeminiSearch = computed(() => {
+  const isGemini = props.providerId === 'gemini'
+  const modelId = props.modelId.toLowerCase()
+  const supportedSearchModels = [
+    'gemini-2.5-pro',
+    'gemini-2.5-flash',
+    'gemini-2.5-flash-lite',
+    'gemini-2.5-flash-lite-preview-06-17',
+    'gemini-2.0-flash',
+    'gemini-2.0-flash-lite',
+    'gemini-1.5-pro',
+    'gemini-1.5-flash'
+  ]
+  const isSupported =
+    supportedSearchModels.some((supportedModel) => modelId.includes(supportedModel)) ||
+    modelId.includes('gemini')
+  return isGemini && isSupported
 })
 
 // 思考预算范围
