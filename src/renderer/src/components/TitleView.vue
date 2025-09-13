@@ -146,10 +146,20 @@ const lastStoreConfigHash = ref('')
 
 // Simple hash function for config comparison
 const getConfigHash = (config: any) => {
-  const keys = ['temperature', 'contextLength', 'maxTokens', 'systemPrompt', 'artifacts', 
-                'thinkingBudget', 'enableSearch', 'forcedSearch', 'searchStrategy', 
-                'reasoningEffort', 'verbosity']
-  return keys.map(key => `${key}:${config[key]}`).join('|')
+  const keys = [
+    'temperature',
+    'contextLength',
+    'maxTokens',
+    'systemPrompt',
+    'artifacts',
+    'thinkingBudget',
+    'enableSearch',
+    'forcedSearch',
+    'searchStrategy',
+    'reasoningEffort',
+    'verbosity'
+  ]
+  return keys.map((key) => `${key}:${config[key]}`).join('|')
 }
 
 // 获取模型配置来初始化默认值并智能调整当前参数
@@ -404,15 +414,15 @@ watch(
   () => chatStore.chatConfig,
   async (newConfig, oldConfig) => {
     const newHash = getConfigHash(newConfig)
-    
+
     // Skip update if config hasn't actually changed
     if (lastStoreConfigHash.value === newHash) {
       return
     }
-    
+
     isSyncingFromStore.value = true
     lastStoreConfigHash.value = newHash
-    
+
     temperature.value = newConfig.temperature
     contextLength.value = newConfig.contextLength
     maxTokens.value = newConfig.maxTokens
@@ -424,7 +434,7 @@ watch(
     searchStrategy.value = newConfig.searchStrategy
     reasoningEffort.value = newConfig.reasoningEffort
     verbosity.value = newConfig.verbosity
-    
+
     if (
       oldConfig &&
       (newConfig.modelId !== oldConfig.modelId || newConfig.providerId !== oldConfig.providerId)

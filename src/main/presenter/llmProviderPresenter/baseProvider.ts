@@ -107,12 +107,14 @@ export abstract class BaseLLMProvider {
     if (this.provider.enable) {
       try {
         this.isInitialized = true
+        // Attach a catch handler to avoid unhandled rejections during async init
         this.fetchModels()
-          .then(() => {
-            return this.autoEnableModelsIfNeeded()
-          })
+          .then(() => this.autoEnableModelsIfNeeded())
           .then(() => {
             console.info('Provider initialized successfully:', this.provider.name)
+          })
+          .catch((error) => {
+            console.warn('Provider initialization fetchModels failed:', this.provider.name, error)
           })
         // Check if we need to automatically enable all models
       } catch (error) {
