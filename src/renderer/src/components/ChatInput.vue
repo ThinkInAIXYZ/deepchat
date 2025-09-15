@@ -481,10 +481,10 @@ const previewFile = (filePath: string) => {
   windowPresenter.previewFile(filePath)
 }
 
-const handlePaste = async (e: ClipboardEvent) => {
-  // Avoid double-processing when we already handled the event in the
-  // capture-phase editor listener.
-  if ((e as any)?._deepchatHandled) return
+const handlePaste = async (e: ClipboardEvent, fromCapture = false) => {
+  // Avoid double-processing only for bubble-phase handler on wrapper.
+  // Allow processing when invoked from the capture-phase editor listener.
+  if (!fromCapture && (e as any)?._deepchatHandled) return
 
   const files = e.clipboardData?.files
   if (files && files.length > 0) {
@@ -1062,7 +1062,7 @@ onMounted(() => {
             // Prevent TipTap from treating files as plain text
             e.preventDefault()
             e.stopPropagation()
-            void handlePaste(e)
+            void handlePaste(e, true)
             return
           }
 
