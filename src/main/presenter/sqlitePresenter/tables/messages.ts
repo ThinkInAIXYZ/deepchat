@@ -138,6 +138,15 @@ export class MessagesTable extends BaseTable {
     }
   }
 
+  async updateParentId(messageId: string, parentId: string): Promise<void> {
+    const updateStmt = this.db.prepare(`
+      UPDATE messages
+      SET parent_id = ?
+      WHERE msg_id = ?
+    `)
+    updateStmt.run(parentId, messageId)
+  }
+
   async delete(messageId: string): Promise<void> {
     const deleteStmt = this.db.prepare('DELETE FROM messages WHERE msg_id = ?')
     deleteStmt.run(messageId)

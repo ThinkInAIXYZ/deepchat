@@ -2907,7 +2907,12 @@ export class ThreadPresenter implements IThreadPresenter {
       // 获取目标消息之前的所有消息（包括目标消息）
       const messageHistory = await this.getMessageHistory(targetMessageId, 100)
 
-      // 4. 直接操作数据库复制消息到新会话
+      // 4. 创建消息ID映射表，用于维护父子关系
+      const messageIdMap = new Map<string, string>() // 旧消息ID -> 新消息ID
+      const parentChildMap = new Map<string, string[]>() // 父消息ID -> 子消息ID列表
+      const messagesToProcess: Array<{ msg: any; orderSeq: number }> = []
+
+      // 首先收集所有需要复制的消息，并建立父子关系映射
       for (const msg of messageHistory) {
         // 只复制已发送成功的消息
         if (msg.status !== 'sent') {
@@ -2917,6 +2922,19 @@ export class ThreadPresenter implements IThreadPresenter {
         // 获取消息序号
         const orderSeq = (await this.sqlitePresenter.getMaxOrderSeq(newConversationId)) + 1
 
+        // 记录父子关系
+        if (msg.parentId && msg.parentId !== '') {
+          if (!parentChildMap.has(msg.parentId)) {
+            parentChildMap.set(msg.parentId, [])
+          }
+          parentChildMap.get(msg.parentId)!.push(msg.id)
+        }
+
+        messagesToProcess.push({ msg, orderSeq })
+      }
+
+      // 5. 按顺序插入所有消息，先不设置父ID
+      for (const { msg, orderSeq } of messagesToProcess) {
         // 解析元数据
         const metadata: MESSAGE_METADATA = {
           totalTokens: msg.usage?.total_tokens || 0,
@@ -2936,12 +2954,12 @@ export class ThreadPresenter implements IThreadPresenter {
         // 内容处理（确保是字符串）
         const content = typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content)
 
-        // 直接插入消息记录
-        await this.sqlitePresenter.insertMessage(
+        // 插入消息记录，暂时不设置父ID
+        const newMessageId = await this.sqlitePresenter.insertMessage(
           newConversationId, // 新会话ID
           content, // 内容
           msg.role, // 角色
-          '', // 无父消息ID
+          '', // 暂时无父消息ID，稍后更新
           JSON.stringify(metadata), // 元数据
           orderSeq, // 序号
           tokenCount, // token数
@@ -2949,12 +2967,27 @@ export class ThreadPresenter implements IThreadPresenter {
           0, // 不是上下文边界
           0 // 不是变体
         )
+
+        // 记录新旧消息ID的映射关系
+        messageIdMap.set(msg.id, newMessageId)
       }
 
-      // 在所有数据库操作完成后，调用广播方法
+      // 6. 更新所有消息的父ID，恢复正确的父子关系
+      for (const { msg } of messagesToProcess) {
+        if (msg.parentId && msg.parentId !== '') {
+          const newMessageId = messageIdMap.get(msg.id)
+          const newParentId = messageIdMap.get(msg.parentId)
+
+          if (newMessageId && newParentId) {
+            await this.sqlitePresenter.updateMessageParentId(newMessageId, newParentId)
+          }
+        }
+      }
+
+      // 7. 在所有数据库操作完成后，调用广播方法
       await this.broadcastThreadListUpdate()
 
-      // 5. 触发会话创建事件
+      // 8. 触发会话创建事件
       return newConversationId
     } catch (error) {
       console.error('分支会话失败:', error)
