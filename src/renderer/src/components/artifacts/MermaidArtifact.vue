@@ -92,6 +92,9 @@ watch(
   align-items: center;
   justify-content: center;
 }
+.mermaid-block-header img{
+  margin: 0 !important;
+}
 
 .mermaid :deep(svg) {
   width: 100% !important;

@@ -1,3 +1,4 @@
+import 'vue-renderer-markdown/index.css'
 import './assets/main.css'
 import { addCollection } from '@iconify/vue'
 import lucideIcons from '@iconify-json/lucide/icons.json'
@@ -9,7 +10,6 @@ import router from './router'
 import { createI18n } from 'vue-i18n'
 import locales from './i18n'
 import 'vue-virtual-scroller/dist/vue-virtual-scroller.css'
-import 'vue-renderer-markdown/index.tailwind.css'
 
 const i18n = createI18n({
   locale: 'zh-CN',
