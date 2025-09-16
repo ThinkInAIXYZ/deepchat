@@ -80,6 +80,15 @@
     --usage-low: 142 71% 45%; /* 亮绿 */
     --usage-mid: 48 96% 53%; /* 亮黄 */
     --usage-high: 0 72% 51%; /* 亮红 */
+
+    /* Figma design rules (light) */
+    --text-foreground: 0 0% 14%;
+    --text-secondary-foreground: 0 0% 14% / 0.5;
+    --text-accent-foreground: 0 0% 14% / 0.8;
+    --text-muted-foreground: 0 0% 14% / 0.2;
+    --text-skeleton-primary: 0 0% 14% / 0.05;
+    --background-70: 0 0% 100% / 0.7;
+    --window-inner-border: 0 0% 100% / 0.25;
   }
 
   .dark {
@@ -120,6 +129,15 @@
     --usage-low: 142 40% 60%; /* 暗绿 */
     --usage-mid: 48 80% 60%; /* 暗黄 */
     --usage-high: 0 70% 65%; /* 暗红 */
+
+    /* Figma design rules (dark) */
+    --text-foreground: 0 0% 100%;
+    --text-secondary-foreground: 0 0% 100% / 0.5;
+    --text-accent-foreground: 0 0% 100% / 0.8;
+    --text-muted-foreground: 0 0% 100% / 0.2;
+    --text-skeleton-primary: 0 0% 100% / 0.05;
+    --background-70: 0 0% 14% / 0.7;
+    --window-inner-border: 0 0% 100% / 0.25;
   }
 }
 @layer base {

@@ -1,5 +1,5 @@
 <template>
-  <div class="flex items-center justify-between w-full p-2">
+  <Toolbar bordered dense class="justify-between w-full px-2">
     <div class="flex flex-row gap-2 items-center">
       <Button
         class="w-7 h-7 rounded-md"
@@ -93,13 +93,13 @@
         />
       </ScrollablePopover>
     </div>
-  </div>
+  </Toolbar>
 </template>
 
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
-import { Button, Badge, Popover, PopoverContent, PopoverTrigger } from '@/components/uikit'
+import { Toolbar, Button, Badge, Popover, PopoverContent, PopoverTrigger } from '@/components/uikit'
 import ScrollablePopover from './ScrollablePopover.vue'
 import ChatConfig from './ChatConfig.vue'
 import ModelSelect from './ModelSelect.vue'
