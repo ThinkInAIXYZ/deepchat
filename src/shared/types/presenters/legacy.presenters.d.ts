@@ -308,6 +308,7 @@ export interface ISQLitePresenter {
       tokenCount?: number
     }
   ): Promise<void>
+  updateMessageParentId(messageId: string, parentId: string): Promise<void>
   deleteMessage(messageId: string): Promise<void>
   getMaxOrderSeq(conversationId: string): Promise<number>
   addMessageAttachment(
