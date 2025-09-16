@@ -1,26 +1,24 @@
 <template>
-  <div class="flex flex-row h-10" :dir="langStore.dir">
+  <Toolbar bordered class="flex-row" :dir="langStore.dir">
     <div
       class="h-10 flex-shrink-0 w-0 flex-1 flex select-none text-center text-sm font-medium flex-row items-center justify-start window-drag-region"
       :class="['', isMacOS ? (isFullscreened ? 'pl-2 pr-2' : 'pl-20 pr-2') : 'px-2']"
     >
       <!-- App title/content in center -->
-      <Button
+      <IconButton
         v-if="isTabContainerOverflowingLeft"
-        variant="ghost"
-        class="flex-shrink-0 text-xs font-medium px-2 h-6 mt-0.5 bg-transparent rounded-md flex items-center justify-center hover:bg-zinc-500/20 mr-1"
+        class="flex-shrink-0 text-xs font-medium mt-0.5 hover:bg-accent/50 mr-1"
         @click="scrollTabContainer('left')"
       >
         <Icon icon="lucide:chevron-left" class="w-4 h-4" />
-      </Button>
-      <Button
+      </IconButton>
+      <IconButton
         v-if="isTabContainerOverflowingRight"
-        variant="ghost"
-        class="flex-shrink-0 text-xs font-medium px-2 h-6 mt-0.5 bg-transparent rounded-md flex items-center justify-center hover:bg-zinc-500/20 mr-1"
+        class="flex-shrink-0 text-xs font-medium mt-0.5 hover:bg-accent/50 mr-1"
         @click="scrollTabContainer('right')"
       >
         <Icon icon="lucide:chevron-right" class="w-4 h-4" />
-      </Button>
+      </IconButton>
       <div
         ref="tabContainerWrapper"
         class="h-full flex flex-row items-center justify-start overflow-y-hidden overflow-x-auto scrollbar-hide"
@@ -32,13 +30,13 @@
           @dragover="onTabContainerDragOver"
           @drop="onTabContainerDrop"
         >
-          <AppBarTabItem
+          <TabItem
             v-for="(tab, idx) in tabStore.tabs"
             :key="tab.id"
             :active="tab.id === tabStore.currentTabId"
-            :size="tabStore.tabs.length"
-            :index="idx"
+            closable
             class="window-no-drag-region"
+            draggable="true"
             @click="tabStore.setCurrentTabId(tab.id)"
             @close="tabStore.removeTab(tab.id)"
             @dragstart="onTabDragStart(tab.id, $event)"
@@ -46,7 +44,7 @@
           >
             <img src="@/assets/logo.png" class="w-4 h-4 mr-2 rounded-sm" />
             <span class="truncate">{{ tab.title ?? 'DeepChat' }}</span>
-          </AppBarTabItem>
+          </TabItem>
           <!-- 拖拽插入指示器 -->
           <div
             v-if="dragInsertIndex !== -1"
@@ -57,31 +55,22 @@
         </div>
       </div>
 
-      <Button
-        variant="ghost"
-        class="flex-shrink-0 text-xs ml-1 font-medium px-2 h-6 bg-transparent rounded-md flex items-center justify-center hover:bg-zinc-500/20"
-        @click="openNewTab"
+      <IconButton
+        class="flex-shrink-0 text-xs ml-1 font-medium hover:bg-accent/50"
+        @click="openNewTab($event)"
       >
         <Icon icon="lucide:plus" class="w-4 h-4" />
-      </Button>
+      </IconButton>
       <div class="flex-1"></div>
 
-      <Button
-        variant="ghost"
-        class="text-xs font-medium px-2 h-7 bg-transparent rounded-md flex items-center justify-center hover:bg-zinc-500/20"
-        @click="onThemeClick"
-      >
+      <IconButton class="text-xs font-medium hover:bg-accent/50" @click="onThemeClick">
         <Icon v-if="themeStore.themeMode === 'dark'" icon="lucide:moon" class="w-4 h-4" />
         <Icon v-else-if="themeStore.themeMode === 'light'" icon="lucide:sun" class="w-4 h-4" />
         <Icon v-else icon="lucide:monitor" class="w-4 h-4" />
-      </Button>
-      <Button
-        variant="ghost"
-        class="text-xs font-medium px-2 h-7 bg-transparent rounded-md flex items-center justify-center hover:bg-zinc-500/20"
-        @click="openSettings"
-      >
+      </IconButton>
+      <IconButton class="text-xs font-medium hover:bg-accent/50" @click="openSettings">
         <Icon icon="lucide:settings" class="w-4 h-4" />
-      </Button>
+      </IconButton>
       <!-- <Button
         class="text-xs font-medium px-2 h-7 bg-transparent rounded-md flex items-center justify-center"
         @click="openNewWindow"
@@ -112,7 +101,7 @@
         <XIcon class="h-4 w-4" />
       </button>
     </div>
-  </div>
+  </Toolbar>
 </template>
 
 <script setup lang="ts">
@@ -121,9 +110,8 @@ import { MinusIcon, XIcon } from 'lucide-vue-next'
 import MaximizeIcon from './icons/MaximizeIcon.vue'
 import RestoreIcon from './icons/RestoreIcon.vue'
 import { usePresenter } from '@/composables/usePresenter'
-import { Button } from '@/components/ui/button'
+import { Toolbar, IconButton, TabItem } from '@/components/uikit'
 import { Icon } from '@iconify/vue'
-import AppBarTabItem from './app-bar/AppBarTabItem.vue'
 import { useTabStore } from '@shell/stores/tab'
 import { useThemeStore } from '@/stores/theme'
 import { useElementSize } from '@vueuse/core'
@@ -461,12 +449,11 @@ onMounted(() => {
   window.addEventListener('dragend', handleDragEnd)
 })
 
-const openNewTab = () => {
-  tabStore.addTab({
-    name: 'New Tab',
-    icon: 'lucide:plus',
-    viewType: 'chat'
-  })
+const openNewTab = (evt?: MouseEvent) => {
+  const isDev = import.meta.env.DEV
+  const shift = !!evt?.shiftKey
+  const viewType = shift && isDev ? 'playground' : 'chat'
+  tabStore.addTab({ name: shift ? 'Playground' : 'New Tab', icon: 'lucide:plus', viewType })
   setTimeout(() => {
     nextTick(() => {
       if (endOfTabs.value) {

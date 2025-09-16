@@ -1,0 +1,84 @@
+/* UIKit theme tokens (opt-in). Apply by adding `class="uikit-theme"` on a wrapper element. */
+.uikit-theme {
+  /* Base grayscale scale */
+  --base-50: 210 28% 100%;
+  --base-100: 210 28% 98.1%;
+  --base-200: 214.3 21.44% 93.4%;
+  --base-300: 212.7 17.44% 85.9%;
+  --base-400: 215 12.16% 67.1%;
+  --base-500: 215.4 9.04% 48.9%;
+  --base-600: 215.3 11.44% 36.5%;
+  --base-700: 215.3 16% 28.7%;
+  --base-800: 217.2 22.08% 19.5%;
+  --base-900: 222.2 33.92% 13.2%;
+  --base-950: 222.2 33.92% 13.2%;
+
+  /* Primary brand scale */
+  --primary-50: 225.9 100% 96.7%;
+  --primary-100: 226.5 100% 93.9%;
+  --primary-200: 228 96.5% 88.8%;
+  --primary-300: 229.7 93.5% 81.8%;
+  --primary-400: 234.5 89.5% 73.9%;
+  --primary-500: 238.7 83.5% 66.7%;
+  --primary-600: 243.4 75.4% 58.6%;
+  --primary-700: 244.5 57.9% 50.6%;
+  --primary-800: 243.7 54.5% 41.4%;
+  --primary-900: 242.2 47.4% 34.3%;
+
+  /* Derived tokens */
+  --white: 0 0% 100%;
+  --black: 0 0% 0%;
+  --background: var(--white);
+  --foreground: var(--base-800);
+  --card: var(--white);
+  --card-foreground: var(--base-800);
+  --popover: var(--white);
+  --popover-foreground: var(--base-800);
+  --primary: var(--primary-600);
+  --primary-foreground: 0 0% 100%;
+  --secondary: var(--base-200);
+  --secondary-foreground: var(--base-700);
+  --muted: var(--base-100);
+  --muted-foreground: var(--base-400);
+  --accent: var(--base-100);
+  --accent-foreground: var(--base-800);
+  --destructive: 0 84.2% 60.2%;
+  --destructive-foreground: 0 0% 98%;
+  --border: var(--base-200);
+  --input: var(--base-300);
+  --ring: var(--primary-600);
+  --container: var(--white);
+  --radius: 0.75rem;
+
+  /* Custom usage tokens */
+  --usage-low: 142 71% 45%;
+  --usage-mid: 48 96% 53%;
+  --usage-high: 0 72% 51%;
+}
+
+.uikit-theme.dark {
+  --container: var(--black);
+  --background: var(--base-950);
+  --foreground: var(--base-200);
+  --card: var(--base-900);
+  --card-foreground: var(--base-200);
+  --popover: var(--base-900);
+  --popover-foreground: var(--base-200);
+  --primary: var(--primary-600);
+  --primary-foreground: 0 0% 100%;
+  --secondary: var(--base-700);
+  --secondary-foreground: var(--base-50);
+  --muted: var(--base-800);
+  --muted-foreground: var(--base-500);
+  --accent: var(--base-800);
+  --accent-foreground: var(--base-200);
+  --destructive: 0 62.8% 30.6%;
+  --destructive-foreground: 0 0% 98%;
+  --border: var(--base-800);
+  --input: var(--base-700);
+  --ring: var(--primary-600);
+
+  --usage-low: 142 40% 60%;
+  --usage-mid: 48 80% 60%;
+  --usage-high: 0 70% 65%;
+}

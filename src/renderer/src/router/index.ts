@@ -126,8 +126,24 @@ const router = createRouter({
           }
         }
       ]
+    },
+    {
+      path: '/playground',
+      name: 'playground',
+      component: () => import('@/views/PlaygroundView.vue'),
+      meta: { titleKey: 'routes.playground', icon: 'lucide:beaker', devOnly: true }
     }
   ]
+})
+
+// Dev-only route guard
+router.beforeEach((to, _from, next) => {
+  const devOnly = to.matched.some((r) => (r.meta as any)?.devOnly)
+  if (devOnly && !import.meta.env.DEV) {
+    next({ path: '/chat' })
+  } else {
+    next()
+  }
 })
 
 export default router
