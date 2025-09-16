@@ -46,12 +46,7 @@
           <div class="flex gap-1.5">
             <Tooltip>
               <TooltipTrigger>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  class="w-7 h-7 text-xs rounded-lg"
-                  @click="openFilePicker"
-                >
+                <IconButton class="w-7 h-7" @click="openFilePicker">
                   <Icon icon="lucide:paperclip" class="w-4 h-4" />
                   <input
                     ref="fileInput"
@@ -61,33 +56,29 @@
                     accept="application/json,application/javascript,text/plain,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.oasis.opendocument.spreadsheet,application/vnd.ms-excel.sheet.binary.macroEnabled.12,application/vnd.apple.numbers,text/markdown,application/x-yaml,application/xml,application/typescript,text/typescript,text/x-typescript,application/x-typescript,application/x-sh,text/*,application/pdf,image/jpeg,image/jpg,image/png,image/gif,image/webp,image/bmp,image/*,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation,text/html,text/css,application/xhtml+xml,.js,.jsx,.ts,.tsx,.py,.java,.c,.cpp,.cs,.go,.rb,.php,.rs,.swift,.kt,.scala,.pl,.lua,.sh,.json,.yaml,.yml,.xml,.html,.htm,.css,.md,audio/mp3,audio/wav,audio/mp4,audio/mpeg,.mp3,.wav,.m4a"
                     @change="handleFileSelect"
                   />
-                </Button>
+                </IconButton>
               </TooltipTrigger>
               <TooltipContent>{{ t('chat.input.fileSelect') }}</TooltipContent>
             </Tooltip>
             <Tooltip>
               <TooltipTrigger>
-                <span
-                  class="search-engine-select overflow-hidden flex items-center h-7 rounded-lg shadow-sm border border-input transition-all duration-300"
-                  :class="{
-                    'border-primary': settings.webSearch
-                  }"
+                <Pill
+                  class="search-engine-select overflow-hidden flex items-center h-7 p-0 shadow-sm border border-input transition-all duration-300"
+                  :class="settings.webSearch ? 'border-primary' : undefined"
                   :dir="langStore.dir"
                 >
-                  <Button
-                    variant="outline"
-                    :class="[
-                      'flex w-7 border-none rounded-none shadow-none items-center gap-1.5 px-2 h-full',
+                  <IconButton
+                    class="w-7 h-7 rounded-none"
+                    :class="
                       settings.webSearch
-                        ? 'dark:!bg-primary bg-primary border-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground'
+                        ? 'dark:!bg-primary bg-primary text-primary-foreground hover:bg-primary/90'
                         : ''
-                    ]"
+                    "
                     :dir="langStore.dir"
-                    size="icon"
                     @click="onWebSearchClick"
                   >
                     <Icon icon="lucide:globe" class="w-4 h-4" />
-                  </Button>
+                  </IconButton>
                   <Select
                     v-model="selectedSearchEngine"
                     @update:model-value="onSearchEngineChange"
@@ -116,7 +107,7 @@
                       </SelectItem>
                     </SelectContent>
                   </Select>
-                </span>
+                </Pill>
               </TooltipTrigger>
               <TooltipContent>{{ t('chat.features.webSearch') }}</TooltipContent>
             </Tooltip>
@@ -203,6 +194,7 @@ import {
   SelectValue
 } from '@/components/ui/select'
 import { Icon } from '@iconify/vue'
+import { IconButton, Pill } from '@/components/uikit'
 import FileItem from './FileItem.vue'
 import { useChatStore } from '@/stores/chat'
 import {

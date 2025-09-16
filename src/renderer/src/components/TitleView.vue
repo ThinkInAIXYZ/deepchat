@@ -1,15 +1,10 @@
 <template>
   <Toolbar bordered dense class="justify-between w-full px-2">
     <div class="flex flex-row gap-2 items-center">
-      <Button
-        class="w-7 h-7 rounded-md"
-        size="icon"
-        variant="outline"
-        @click="onSidebarButtonClick"
-      >
+      <IconButton class="w-7 h-7" @click="onSidebarButtonClick">
         <Icon v-if="chatStore.isSidebarOpen" icon="lucide:panel-left-close" class="w-4 h-4" />
         <Icon v-else icon="lucide:panel-left-open" class="w-4 h-4" />
-      </Button>
+      </IconButton>
       <Popover v-model:open="modelSelectOpen">
         <PopoverTrigger as-child>
           <Button variant="outline" class="flex items-center gap-1.5 px-2 h-7 relative" size="sm">
@@ -44,10 +39,8 @@
 
     <div class="flex items-center gap-2">
       <!-- 消息导航按钮 -->
-      <Button
-        class="w-7 h-7 rounded-md relative !p-0"
-        size="icon"
-        variant="outline"
+      <IconButton
+        class="w-7 h-7 relative"
         :class="{ 'bg-accent': chatStore.isMessageNavigationOpen }"
         @click="onMessageNavigationButtonClick"
       >
@@ -55,13 +48,13 @@
           icon="lucide:list"
           class="w-4 h-4 absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2"
         />
-      </Button>
+      </IconButton>
 
       <ScrollablePopover align="end" content-class="w-80" :enable-scrollable="true">
         <template #trigger>
-          <Button class="w-7 h-7 rounded-md" size="icon" variant="outline">
+          <IconButton class="w-7 h-7">
             <Icon icon="lucide:settings-2" class="w-4 h-4" />
-          </Button>
+          </IconButton>
         </template>
         <ChatConfig
           v-model:system-prompt="systemPrompt"
