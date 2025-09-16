@@ -92,7 +92,7 @@ watch(
   align-items: center;
   justify-content: center;
 }
-.mermaid-block-header img{
+.mermaid-block-header img {
   margin: 0 !important;
 }
 

@@ -57,14 +57,14 @@ defineEmits(['copy'])
 
 <style>
 .prose {
-  pre{
+  pre {
     background: transparent !important;
     margin-top: 0;
     margin-bottom: 0;
   }
-  .mermaid-block-header img{
-  margin: 0 !important;
-}
+  .mermaid-block-header img {
+    margin: 0 !important;
+  }
   li p {
     @apply py-0 my-0;
   }
