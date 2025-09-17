@@ -201,85 +201,117 @@ watch(
     // console.log('maxTokens', maxTokens.value)
   }
 )
+// 初始化与校验逻辑：只在激活时初始化一次；仅监听 enabledModels 变化做有效性校验
+const initialized = ref(false)
+
+const findEnabledModel = (providerId: string, modelId: string) => {
+  for (const provider of settingsStore.enabledModels) {
+    if (provider.providerId === providerId) {
+      for (const model of provider.models) {
+        if (model.id === modelId) {
+          return { model, providerId: provider.providerId }
+        }
+      }
+    }
+  }
+  return undefined
+}
+
+const pickFirstEnabledModel = () => {
+  const found = settingsStore.enabledModels
+    .flatMap((p) => p.models.map((m) => ({ ...m, providerId: p.providerId })))
+    .find((m) => m.type === ModelType.Chat || m.type === ModelType.ImageGeneration)
+  return found
+}
+
+const setActiveFromEnabled = (m: {
+  name: string
+  id: string
+  providerId: string
+  type?: ModelType
+}) => {
+  activeModel.value = {
+    name: m.name,
+    id: m.id,
+    providerId: m.providerId,
+    tags: [],
+    type: m.type ?? ModelType.Chat
+  }
+}
+
+const initActiveModel = async () => {
+  if (initialized.value) return
+  // 1) 尝试根据最近会话（区分 pinned/非 pinned）选择
+  if (chatStore.threads.length > 0) {
+    const pinnedGroup = chatStore.threads.find((g) => g.dt === 'Pinned')
+    const pinnedFirst = pinnedGroup?.dtThreads?.[0]
+    const normalGroup = chatStore.threads.find((g) => g.dt !== 'Pinned' && g.dtThreads.length > 0)
+    const normalFirst = normalGroup?.dtThreads?.[0]
+    const candidate = [pinnedFirst, normalFirst]
+      .filter(Boolean)
+      .sort((a, b) => (b!.updatedAt || 0) - (a!.updatedAt || 0))[0] as
+      | typeof pinnedFirst
+      | undefined
+    if (candidate?.settings?.modelId && candidate?.settings?.providerId) {
+      const match = findEnabledModel(candidate.settings.providerId, candidate.settings.modelId)
+      if (match) {
+        setActiveFromEnabled({ ...match.model, providerId: match.providerId })
+        initialized.value = true
+        return
+      }
+    }
+  }
+
+  // 2) 尝试用户上次选择的偏好模型
+  try {
+    const preferredModel = (await configPresenter.getSetting('preferredModel')) as
+      | PreferredModel
+      | undefined
+    if (preferredModel?.modelId && preferredModel?.providerId) {
+      const match = findEnabledModel(preferredModel.providerId, preferredModel.modelId)
+      if (match) {
+        setActiveFromEnabled({ ...match.model, providerId: match.providerId })
+        initialized.value = true
+        return
+      }
+    }
+  } catch (error) {
+    console.warn('Failed to get user preferred model:', error)
+  }
+
+  // 3) 选择第一个可用模型
+  const first = pickFirstEnabledModel()
+  if (first) {
+    setActiveFromEnabled(first)
+    initialized.value = true
+  }
+}
+
+// 仅监听 enabledModels：
+// - 若未初始化，进行一次初始化
+// - 若已初始化但当前模型不再可用，则回退到第一个 enabled 模型
 watch(
-  () => [settingsStore.enabledModels, chatStore.threads],
+  () => settingsStore.enabledModels,
   async () => {
-    // 如果有现有线程，使用最近线程的模型
-    if (chatStore.threads.length > 0) {
-      if (chatStore.threads[0].dtThreads.length > 0) {
-        const thread = chatStore.threads[0].dtThreads[0]
-        const modelId = thread.settings.modelId
-        const providerId = thread.settings.providerId
-
-        // 同时匹配 modelId 和 providerId
-        if (modelId && providerId) {
-          for (const provider of settingsStore.enabledModels) {
-            if (provider.providerId === providerId) {
-              for (const model of provider.models) {
-                if (model.id === modelId) {
-                  activeModel.value = {
-                    name: model.name,
-                    id: model.id,
-                    providerId: provider.providerId,
-                    tags: [],
-                    type: model.type ?? ModelType.Chat
-                  }
-                  return
-                }
-              }
-            }
-          }
-        }
-      }
+    if (!initialized.value) {
+      await initActiveModel()
+      return
     }
 
-    // 如果没有现有线程，尝试使用用户上次选择的模型
-    try {
-      const preferredModel = (await configPresenter.getSetting('preferredModel')) as
-        | PreferredModel
-        | undefined
-      if (preferredModel && preferredModel.modelId && preferredModel.providerId) {
-        // 验证偏好模型是否还在可用模型列表中
-        for (const provider of settingsStore.enabledModels) {
-          if (provider.providerId === preferredModel.providerId) {
-            for (const model of provider.models) {
-              if (model.id === preferredModel.modelId) {
-                activeModel.value = {
-                  name: model.name,
-                  id: model.id,
-                  providerId: provider.providerId,
-                  tags: [],
-                  type: model.type ?? ModelType.Chat
-                }
-                return
-              }
-            }
-          }
-        }
-      }
-    } catch (error) {
-      console.warn('Failed to get user preferred model:', error)
+    // 校验当前模型是否仍可用
+    const current = activeModel.value
+    if (!current?.id || !current?.providerId) {
+      const first = pickFirstEnabledModel()
+      if (first) setActiveFromEnabled(first)
+      return
     }
-
-    // 如果没有偏好模型或偏好模型不可用，使用第一个可用模型
-    if (settingsStore.enabledModels.length > 0) {
-      const model = settingsStore.enabledModels
-        .flatMap((provider) =>
-          provider.models.map((m) => ({ ...m, providerId: provider.providerId }))
-        )
-        .find((m) => m.type === ModelType.Chat || m.type === ModelType.ImageGeneration)
-      if (model) {
-        activeModel.value = {
-          name: model.name,
-          id: model.id,
-          providerId: model.providerId,
-          tags: [],
-          type: model.type ?? ModelType.Chat
-        }
-      }
+    const stillExists = !!findEnabledModel(current.providerId, current.id)
+    if (!stillExists) {
+      const first = pickFirstEnabledModel()
+      if (first) setActiveFromEnabled(first)
     }
   },
-  { immediate: true, deep: true }
+  { immediate: false, deep: true }
 )
 
 const modelSelectOpen = ref(false)
@@ -391,6 +423,8 @@ onMounted(async () => {
   configPresenter.getDefaultSystemPrompt().then((prompt) => {
     systemPrompt.value = prompt
   })
+  // 组件激活时初始化一次默认模型
+  await initActiveModel()
   if (groupElement) {
     useEventListener(groupElement, 'mouseenter', handleMouseEnter)
     useEventListener(groupElement, 'mouseleave', handleMouseLeave)
