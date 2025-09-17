@@ -284,6 +284,29 @@ export const useChatStore = defineStore('chat', () => {
     }
   }
 
+  const regenerateFromUserMessage = async (userMessageId: string) => {
+    if (!getActiveThreadId()) return
+    try {
+      generatingThreadIds.value.add(getActiveThreadId()!)
+      updateThreadWorkingStatus(getActiveThreadId()!, 'working')
+
+      const aiResponseMessage = await threadP.regenerateFromUserMessage(
+        getActiveThreadId()!,
+        userMessageId
+      )
+
+      getGeneratingMessagesCache().set(aiResponseMessage.id, {
+        message: aiResponseMessage,
+        threadId: getActiveThreadId()!
+      })
+
+      await loadMessages()
+    } catch (error) {
+      console.error('Failed to regenerate from user message:', error)
+      throw error
+    }
+  }
+
   // 创建会话分支（从指定消息开始fork一个新会话）
   const forkThread = async (messageId: string, forkTag: string = '(fork)') => {
     if (!getActiveThreadId()) return
@@ -1237,6 +1260,7 @@ export const useChatStore = defineStore('chat', () => {
     getMessages,
     getCurrentThreadMessages,
     exportThread,
-    showProviderSelector
+    showProviderSelector,
+    regenerateFromUserMessage
   }
 })

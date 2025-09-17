@@ -41,6 +41,20 @@
             <Tooltip :delayDuration="200">
               <TooltipTrigger as-child>
                 <Button
+                  v-show="!isAssistant && !isEditMode"
+                  variant="ghost"
+                  size="icon"
+                  class="w-4 h-4 text-muted-foreground hover:text-primary hover:bg-transparent"
+                  @click="emit('retry')"
+                >
+                  <Icon icon="lucide:refresh-cw" class="w-3 h-3" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>{{ t('thread.toolbar.retry') }}</TooltipContent>
+            </Tooltip>
+            <Tooltip :delayDuration="200">
+              <TooltipTrigger as-child>
+                <Button
                   v-show="isAssistant && hasVariants"
                   :disabled="currentVariantIndex === 0"
                   variant="ghost"

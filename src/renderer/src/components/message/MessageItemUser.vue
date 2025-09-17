@@ -78,6 +78,7 @@
         :is-assistant="false"
         :is-edit-mode="isEditMode"
         :is-capturing-image="false"
+        @retry="emit('retry')"
         @delete="handleAction('delete')"
         @copy="handleAction('copy')"
         @edit="startEdit"
