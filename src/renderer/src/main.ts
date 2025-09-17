@@ -1,4 +1,3 @@
-import 'vue-renderer-markdown/index.css'
 import './assets/main.css'
 import { addCollection } from '@iconify/vue'
 import lucideIcons from '@iconify-json/lucide/icons.json'
