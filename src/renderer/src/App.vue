@@ -164,14 +164,7 @@ const handleCreateNewConversation = () => {
   }
 }
 
-// Handle going to settings page
-const handleGoSettings = () => {
-  const currentRoute = router.currentRoute.value
-  // Check if current route or its parent route is already settings
-  if (!currentRoute.path.startsWith('/settings')) {
-    router.push({ name: 'settings' })
-  }
-}
+// Removed GO_SETTINGS handler; now handled in main via tab logic
 
 // Handle ESC key - close floating chat window
 const handleEscKey = (event: KeyboardEvent) => {
@@ -219,9 +212,7 @@ onMounted(() => {
     handleCreateNewConversation()
   })
 
-  window.electron.ipcRenderer.on(SHORTCUT_EVENTS.GO_SETTINGS, () => {
-    handleGoSettings()
-  })
+  // GO_SETTINGS is now handled in main process (open/focus Settings tab)
 
   window.electron.ipcRenderer.on(NOTIFICATION_EVENTS.DATA_RESET_COMPLETE_DEV, () => {
     toast({
@@ -307,7 +298,7 @@ onBeforeUnmount(() => {
   window.electron.ipcRenderer.removeAllListeners(SHORTCUT_EVENTS.ZOOM_OUT)
   window.electron.ipcRenderer.removeAllListeners(SHORTCUT_EVENTS.ZOOM_RESUME)
   window.electron.ipcRenderer.removeAllListeners(SHORTCUT_EVENTS.CREATE_NEW_CONVERSATION)
-  window.electron.ipcRenderer.removeAllListeners(SHORTCUT_EVENTS.GO_SETTINGS)
+  // GO_SETTINGS listener removed; handled in main
   window.electron.ipcRenderer.removeAllListeners(NOTIFICATION_EVENTS.SYS_NOTIFY_CLICKED)
   window.electron.ipcRenderer.removeAllListeners(NOTIFICATION_EVENTS.DATA_RESET_COMPLETE_DEV)
 })
