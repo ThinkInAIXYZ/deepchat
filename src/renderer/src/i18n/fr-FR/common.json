@@ -10,6 +10,7 @@
   "copyFailedDesc": "Impossible de copier le contenu dans le presse-papiers",
   "copyCode": "Copier le code",
   "copy": "Copier",
+  "copied": "Copié",
   "paste": "Coller",
   "export": "Exporter",
   "newChat": "Nouvelle conversation",

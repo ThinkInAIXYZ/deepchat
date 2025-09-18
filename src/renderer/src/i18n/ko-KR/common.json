@@ -9,6 +9,7 @@
   "copyFailed": "복사 실패",
   "copyFailedDesc": "클립보드에 복사할 수 없습니다",
   "copyCode": "코드 복사",
+  "copied": "복사됨",
   "export": "내보내기",
   "newChat": "새 채팅",
   "newTopic": "새 주제",
