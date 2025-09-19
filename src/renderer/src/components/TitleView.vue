@@ -163,8 +163,10 @@ const loadModelConfig = async () => {
       } else if (maxTokens.value < 1024) {
         maxTokens.value = 1024
       }
-      // reset to default temperature
-      temperature.value = config.temperature ?? 0.6
+      // Do not override user-set temperature; only set if unset
+      if (temperature.value === undefined || temperature.value === null) {
+        temperature.value = config.temperature ?? 0.6
+      }
 
       if (config.thinkingBudget !== undefined) {
         if (thinkingBudget.value === undefined) {

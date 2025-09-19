@@ -658,7 +658,7 @@ ${text}
       const payload = {
         anthropic_version: 'bedrock-2023-05-31',
         max_tokens: maxTokens || 1024,
-        temperature: temperature || 0.7,
+        temperature: temperature ?? 0.7,
         // system: formattedMessagesObject.system,
         messages: formattedMessagesObject.messages,
         thinking: undefined as any,

@@ -1046,7 +1046,7 @@ export class ThreadPresenter implements IThreadPresenter {
     if (settings.maxTokens) {
       mergedSettings.maxTokens = settings.maxTokens
     }
-    if (settings.temperature) {
+    if (settings.temperature !== undefined && settings.temperature !== null) {
       mergedSettings.temperature = settings.temperature
     }
     if (settings.contextLength) {

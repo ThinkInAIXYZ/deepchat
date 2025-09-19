@@ -436,7 +436,7 @@ const qwen3ThinkingBudgetError = computed(() => {
           </div>
           <span class="text-xs text-muted-foreground">{{ temperatureValue[0] }}</span>
         </div>
-        <Slider v-model="temperatureValue" :min="0.1" :max="1.5" :step="0.1" />
+        <Slider v-model="temperatureValue" :min="0" :max="1.5" :step="0.1" />
       </div>
 
       <!-- Context Length -->

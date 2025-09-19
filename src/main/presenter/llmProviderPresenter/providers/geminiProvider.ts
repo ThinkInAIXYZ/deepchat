@@ -649,7 +649,7 @@ export class GeminiProvider extends BaseLLMProvider {
 
       // 创建 GenerateContentConfig
       const generateContentConfig: GenerateContentConfig = this.getGenerateContentConfig(
-        temperature || 0.7,
+        temperature ?? 0.7,
         maxTokens,
         modelId,
         false // completions 方法中不处理 reasoning
