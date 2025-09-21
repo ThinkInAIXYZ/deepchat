@@ -7,7 +7,6 @@
         v-if="part.type === 'text'"
         :content="part.content"
         :loading="part.loading"
-        @copy="handleCopyClick"
       />
 
       <ArtifactThinking v-else-if="part.type === 'thinking' && part.loading" />
@@ -56,11 +55,6 @@ const props = defineProps<{
 const messageBlock = ref<HTMLDivElement>()
 
 const { processedContent } = useBlockContent(props)
-
-// Handle copy functionality
-const handleCopyClick = () => {
-  // 现在复制功能在组件内部处理
-}
 
 // 修改 watch 函数
 watch(

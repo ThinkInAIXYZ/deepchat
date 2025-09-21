@@ -124,6 +124,29 @@ export class WindowPresenter implements IWindowPresenter {
       }
     })
 
+    // Listen for shortcut event: go settings (from main shortcut or renderer IPC bridge)
+    eventBus.on(SHORTCUT_EVENTS.GO_SETTINGS, async (windowId?: number) => {
+      try {
+        const targetWindowId = windowId ?? this.getFocusedWindow()?.id ?? this.mainWindow?.id
+        if (!targetWindowId) return
+        await this.openOrFocusSettingsTab(targetWindowId)
+      } catch (err) {
+        console.error('Failed to open/focus settings tab via eventBus:', err)
+      }
+    })
+
+    // Allow renderer to request opening/focusing settings via IPC
+    ipcMain.on(SHORTCUT_EVENTS.GO_SETTINGS, async (event, maybeWindowId?: number) => {
+      try {
+        const senderWindow = BrowserWindow.fromWebContents(event.sender)
+        const targetWindowId = maybeWindowId ?? senderWindow?.id ?? this.mainWindow?.id
+        if (!targetWindowId) return
+        await this.openOrFocusSettingsTab(targetWindowId)
+      } catch (err) {
+        console.error('Failed to open/focus settings tab via IPC:', err)
+      }
+    })
+
     // 监听系统主题更新事件，通知所有窗口 Renderer
     eventBus.on(SYSTEM_EVENTS.SYSTEM_THEME_UPDATED, (isDark: boolean) => {
       console.log('System theme updated, notifying all windows.')
@@ -157,6 +180,25 @@ export class WindowPresenter implements IWindowPresenter {
       console.log(`WindowPresenter: Setting application quitting state to ${data.isQuitting}`)
       this.setApplicationQuitting(data.isQuitting)
     })
+  }
+
+  /**
+   * Open Settings tab if not exists, otherwise focus existing one in the given window.
+   */
+  public async openOrFocusSettingsTab(windowId: number): Promise<void> {
+    const window = this.windows.get(windowId)
+    if (!window || window.isDestroyed()) return
+    const tabPresenterInstance = presenter.tabPresenter as TabPresenter
+    const tabsData = await tabPresenterInstance.getWindowTabsData(windowId)
+    const settingsTab = tabsData.find((t) => {
+      const url = t.url || ''
+      return url.startsWith('local://settings') || url.includes('#/settings')
+    })
+    if (settingsTab) {
+      await tabPresenterInstance.switchTab(settingsTab.id)
+    } else {
+      await tabPresenterInstance.createTab(windowId, 'local://settings', { active: true })
+    }
   }
 
   /**

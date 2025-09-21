@@ -1046,7 +1046,7 @@ export class ThreadPresenter implements IThreadPresenter {
     if (settings.maxTokens) {
       mergedSettings.maxTokens = settings.maxTokens
     }
-    if (settings.temperature) {
+    if (settings.temperature !== undefined && settings.temperature !== null) {
       mergedSettings.temperature = settings.temperature
     }
     if (settings.contextLength) {
@@ -2673,6 +2673,55 @@ export class ThreadPresenter implements IThreadPresenter {
     })
 
     return assistantMessage as AssistantMessage
+  }
+
+  async regenerateFromUserMessage(
+    conversationId: string,
+    userMessageId: string
+  ): Promise<AssistantMessage> {
+    const userMessage = await this.messageManager.getMessage(userMessageId)
+    if (!userMessage || userMessage.role !== 'user') {
+      throw new Error('Can only regenerate based on user messages.')
+    }
+
+    const conversation = await this.getConversation(conversationId)
+    const { providerId, modelId } = conversation.settings
+
+    const assistantMessage = (await this.messageManager.sendMessage(
+      conversationId,
+      JSON.stringify([]),
+      'assistant',
+      userMessageId,
+      false,
+      {
+        totalTokens: 0,
+        generationTime: 0,
+        firstTokenTime: 0,
+        tokensPerSecond: 0,
+        contextUsage: 0,
+        inputTokens: 0,
+        outputTokens: 0,
+        model: modelId,
+        provider: providerId
+      }
+    )) as AssistantMessage
+
+    this.generatingMessages.set(assistantMessage.id, {
+      message: assistantMessage,
+      conversationId,
+      startTime: Date.now(),
+      firstTokenTime: null,
+      promptTokens: 0,
+      reasoningStartTime: null,
+      reasoningEndTime: null,
+      lastReasoningTime: null
+    })
+
+    this.startStreamCompletion(conversationId, userMessageId).catch((e) => {
+      console.error('Failed to start regeneration from user message:', e)
+    })
+
+    return assistantMessage
   }
 
   async getMessageVariants(messageId: string): Promise<Message[]> {

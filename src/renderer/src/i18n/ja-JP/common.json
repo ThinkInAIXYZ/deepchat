@@ -10,6 +10,7 @@
   "copyFailedDesc": "クリップボードへのコピーに失敗しました",
   "copyCode": "コードをコピー",
   "copy": "コピー",
+  "copied": "コピーしました",
   "paste": "貼り付け",
   "export": "エクスポート",
   "newChat": "新しいチャット",

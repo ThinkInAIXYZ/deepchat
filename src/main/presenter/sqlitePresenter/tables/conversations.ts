@@ -159,7 +159,7 @@ export class ConversationsTable extends BaseTable {
       now,
       now,
       settings.systemPrompt || '',
-      settings.temperature || 0.7,
+      settings.temperature ?? 0.7,
       settings.contextLength || 4000,
       settings.maxTokens || 2000,
       settings.providerId || 'openai',

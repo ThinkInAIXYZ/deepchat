@@ -380,19 +380,32 @@ const handleCancel = () => {
 }
 
 // Handle retry event from MessageItemUser
-const handleRetry = (index: number) => {
-  // Find the next assistant message after this user message
+const handleRetry = async (index: number) => {
+  let triggered = false
   for (let i = index + 1; i < props.messages.length; i++) {
     if (props.messages[i].role === 'assistant') {
       try {
         const assistantRef = assistantRefs[i]
         if (assistantRef && typeof assistantRef.handleAction === 'function') {
           assistantRef.handleAction('retry')
-          break
+          triggered = true
         }
       } catch (error) {
         console.error('Failed to trigger retry action:', error)
       }
+      break
+    }
+  }
+
+  if (!triggered) {
+    try {
+      const userMsg = props.messages[index]
+      if (userMsg && userMsg.role === 'user') {
+        await chatStore.regenerateFromUserMessage(userMsg.id)
+        scrollToBottom(true)
+      }
+    } catch (error) {
+      console.error('Failed to regenerate from user message:', error)
     }
   }
 }

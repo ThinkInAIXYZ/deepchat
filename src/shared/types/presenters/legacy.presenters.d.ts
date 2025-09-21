@@ -190,6 +190,7 @@ export interface IWindowPresenter {
   sendToAllWindows(channel: string, ...args: unknown[]): void
   sendToWindow(windowId: number, channel: string, ...args: unknown[]): boolean
   sendToDefaultTab(channel: string, switchToTarget?: boolean, ...args: unknown[]): Promise<boolean>
+  openOrFocusSettingsTab(windowId: number): Promise<void>
   closeWindow(windowId: number, forceClose?: boolean): Promise<void>
   isApplicationQuitting(): boolean
   setApplicationQuitting(isQuitting: boolean): void
@@ -770,6 +771,7 @@ export interface IThreadPresenter {
   ): Promise<{ total: number; list: MESSAGE[] }>
   sendMessage(conversationId: string, content: string, role: MESSAGE_ROLE): Promise<MESSAGE | null>
   startStreamCompletion(conversationId: string, queryMsgId?: string): Promise<void>
+  regenerateFromUserMessage(conversationId: string, userMessageId: string): Promise<MESSAGE>
   editMessage(messageId: string, content: string): Promise<MESSAGE>
   deleteMessage(messageId: string): Promise<void>
   retryMessage(messageId: string, modelId?: string): Promise<MESSAGE>

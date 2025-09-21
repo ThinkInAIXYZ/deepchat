@@ -337,7 +337,7 @@ export function usePageCapture() {
 
       return { success: true, imageData: finalImage }
     } catch (error) {
-      console.error('[CAPTURE_DEBUG] 截图过程中发生错误:', error)
+      console.error('截图过程中发生错误:', error)
       return {
         success: false,
         error: error instanceof Error ? error.message : '未知错误'
@@ -358,10 +358,12 @@ export function usePageCapture() {
    */
   const captureAndCopy = async (config: CaptureConfig): Promise<boolean> => {
     const result = await captureArea(config)
+
     if (result.success && result.imageData) {
       window.api.copyImage(result.imageData)
       return true
     }
+
     return false
   }
 

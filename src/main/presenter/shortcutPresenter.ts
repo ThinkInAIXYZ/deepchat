@@ -110,7 +110,7 @@ export class ShortcutPresenter implements IShortcutPresenter {
       globalShortcut.register(this.shortcutKeys.GoSettings, () => {
         const focusedWindow = presenter.windowPresenter.getFocusedWindow()
         if (focusedWindow?.isFocused()) {
-          presenter.windowPresenter.sendToActiveTab(focusedWindow.id, SHORTCUT_EVENTS.GO_SETTINGS)
+          eventBus.sendToMain(SHORTCUT_EVENTS.GO_SETTINGS, focusedWindow.id)
         }
       })
     }

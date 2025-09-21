@@ -781,7 +781,7 @@ export class AnthropicProvider extends BaseLLMProvider {
         requestParams = {
           model: modelId,
           max_tokens: maxTokens || 1024,
-          temperature: temperature || 0.7,
+          temperature: temperature ?? 0.7,
           system: "You are Claude Code, Anthropic's official CLI for Claude.",
           messages: oauthMessages
         }
@@ -794,7 +794,7 @@ export class AnthropicProvider extends BaseLLMProvider {
         requestParams = {
           model: modelId,
           max_tokens: maxTokens || 1024,
-          temperature: temperature || 0.7,
+          temperature: temperature ?? 0.7,
           messages: formattedMessages.messages
         }
 
@@ -898,7 +898,7 @@ ${text}
         requestParams = {
           model: modelId,
           max_tokens: maxTokens || 1024,
-          temperature: temperature || 0.7,
+          temperature: temperature ?? 0.7,
           system: "You are Claude Code, Anthropic's official CLI for Claude.",
           messages: [{ role: 'user', content: finalPrompt }]
         }
@@ -909,7 +909,7 @@ ${text}
         requestParams = {
           model: modelId,
           max_tokens: maxTokens || 1024,
-          temperature: temperature || 0.7,
+          temperature: temperature ?? 0.7,
           messages: [{ role: 'user' as const, content: [{ type: 'text' as const, text: prompt }] }]
         }
 
@@ -967,7 +967,7 @@ ${context}
         requestParams = {
           model: modelId,
           max_tokens: maxTokens || 1024,
-          temperature: temperature || 0.7,
+          temperature: temperature ?? 0.7,
           system: "You are Claude Code, Anthropic's official CLI for Claude.",
           messages: [{ role: 'user', content: finalPrompt }]
         }
@@ -978,7 +978,7 @@ ${context}
         requestParams = {
           model: modelId,
           max_tokens: maxTokens || 1024,
-          temperature: temperature || 0.7,
+          temperature: temperature ?? 0.7,
           messages: [{ role: 'user' as const, content: [{ type: 'text' as const, text: prompt }] }]
         }
 
@@ -1042,7 +1042,7 @@ ${context}
       const streamParams = {
         model: modelId,
         max_tokens: maxTokens || 1024,
-        temperature: temperature || 0.7,
+        temperature: temperature ?? 0.7,
         messages: formattedMessagesObject.messages,
         stream: true
       } as Anthropic.Messages.MessageCreateParamsStreaming
@@ -1266,7 +1266,7 @@ ${context}
       const streamParams: any = {
         model: modelId,
         max_tokens: maxTokens || 1024,
-        temperature: temperature || 0.7,
+        temperature: temperature ?? 0.7,
         system: "You are Claude Code, Anthropic's official CLI for Claude.",
         messages: oauthMessages,
         stream: true

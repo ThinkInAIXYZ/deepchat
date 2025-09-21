@@ -304,12 +304,14 @@ const handleAction = (action: HandleActionType) => {
 
     emit('scrollToBottom')
   } else if (action === 'copyImage') {
-    emit('copyImage', currentMessage.value.id, currentMessage.value.parentId, false, {
+    // 使用原始消息的ID，因为DOM中的data-message-id使用的是message.id
+    emit('copyImage', props.message.id, currentMessage.value.parentId, false, {
       model_name: currentMessage.value.model_name,
       model_provider: currentMessage.value.model_provider
     })
   } else if (action === 'copyImageFromTop') {
-    emit('copyImage', currentMessage.value.id, currentMessage.value.parentId, true, {
+    // 使用原始消息的ID，因为DOM中的data-message-id使用的是message.id
+    emit('copyImage', props.message.id, currentMessage.value.parentId, true, {
       model_name: currentMessage.value.model_name,
       model_provider: currentMessage.value.model_provider
     })

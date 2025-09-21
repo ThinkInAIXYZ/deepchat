@@ -350,7 +350,7 @@ export class GithubCopilotProvider extends BaseLLMProvider {
         messages: formattedMessages,
         max_tokens: maxTokens || 4096,
         stream: true,
-        temperature: temperature || 0.7
+        temperature: temperature ?? 0.7
       }
 
       // Add tools when available
@@ -506,7 +506,7 @@ export class GithubCopilotProvider extends BaseLLMProvider {
         messages: formattedMessages,
         max_tokens: maxTokens || 4096,
         stream: false,
-        temperature: temperature || 0.7
+        temperature: temperature ?? 0.7
       }
 
       const headers: Record<string, string> = {

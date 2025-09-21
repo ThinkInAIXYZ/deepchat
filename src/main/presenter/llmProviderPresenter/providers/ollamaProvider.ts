@@ -158,7 +158,7 @@ export class OllamaProvider extends BaseLLMProvider {
         model: modelId,
         messages: this.formatMessages(messages),
         options: {
-          temperature: temperature || 0.7,
+          temperature: temperature ?? 0.7,
           num_predict: maxTokens
         }
       })
@@ -226,7 +226,7 @@ export class OllamaProvider extends BaseLLMProvider {
         model: modelId,
         prompt: prompt,
         options: {
-          temperature: temperature || 0.5,
+          temperature: temperature ?? 0.5,
           num_predict: maxTokens
         }
       })
@@ -252,7 +252,7 @@ export class OllamaProvider extends BaseLLMProvider {
         model: modelId,
         prompt: prompt,
         options: {
-          temperature: temperature || 0.7,
+          temperature: temperature ?? 0.7,
           num_predict: maxTokens
         }
       })
@@ -280,7 +280,7 @@ export class OllamaProvider extends BaseLLMProvider {
         model: modelId,
         prompt: prompt,
         options: {
-          temperature: temperature || 0.8,
+          temperature: temperature ?? 0.8,
           num_predict: maxTokens || 200
         }
       })
@@ -499,7 +499,7 @@ export class OllamaProvider extends BaseLLMProvider {
         model: modelId,
         messages: processedMessages,
         options: {
-          temperature: temperature || 0.7,
+          temperature: temperature ?? 0.7,
           num_predict: maxTokens
         },
         stream: true as const,

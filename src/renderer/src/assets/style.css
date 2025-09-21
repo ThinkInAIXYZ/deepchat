@@ -1,3 +1,5 @@
+@layer vrm, base;
+@import 'vue-renderer-markdown/index.css' layer(vrm);
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -140,13 +142,16 @@
     --window-inner-border: 0 0% 100% / 0.25;
   }
 }
+
 @layer base {
   * {
     @apply border-border;
   }
+
   body {
     @apply bg-transparent text-foreground font-text;
   }
+
   html {
     font-family:
       'Geist',
@@ -165,6 +170,7 @@
   .font-display {
     font-weight: var(--display-weight);
   }
+
   .font-text {
     font-weight: var(--text-weight);
   }
