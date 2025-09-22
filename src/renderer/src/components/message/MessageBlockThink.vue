@@ -47,12 +47,11 @@ const renderedContent = computed(() => {
 })
 
 const headerText = computed(() => {
-  const base =
-    props.block.status === 'loading'
-      ? t('chat.features.deepThinkingProgress')
-      : t('chat.features.deepThinking')
-  const suffix = reasoningDuration.value > 0 ? t('chat.features.thinkingDuration', [reasoningDuration.value]) : ''
-  return `${base} ${suffix}`.trim()
+  // Format: "Thought for 20s" (localized)
+  const seconds = Math.max(0, Math.floor(reasoningDuration.value))
+  return props.block.status === 'loading'
+    ? t('chat.features.thoughtForSecondsLoading', { seconds })
+    : t('chat.features.thoughtForSeconds', { seconds })
 })
 
 watch(

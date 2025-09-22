@@ -19,10 +19,9 @@
     "rateLimitWaitingTooltip": "{seconds}초 더 대기, 간격 {interval}초"
   },
   "features": {
-    "deepThinking": "심층 사고",
     "webSearch": "웹 검색",
-    "deepThinkingProgress": "심층 사고 진행 중...",
-    "thinkingDuration": "({0}초 소요)",
+    "thoughtForSeconds": "{seconds}초 동안 생각",
+    "thoughtForSecondsLoading": "{seconds}초 동안 생각",
     "artifactThinking": "아티팩트 추론"
   },
   "search": {

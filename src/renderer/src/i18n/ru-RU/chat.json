@@ -19,10 +19,9 @@
     "rateLimitWaitingTooltip": "Ещё {seconds} секунд ожидания, интервал {interval} секунд"
   },
   "features": {
-    "deepThinking": "Глубокое мышление",
     "webSearch": "Поиск в интернете",
-    "deepThinkingProgress": "Глубокое мышление...",
-    "thinkingDuration": "(Заняло {0} секунд)",
+    "thoughtForSeconds": "Думал {seconds}с",
+    "thoughtForSecondsLoading": "Думал {seconds}с",
     "artifactThinking": "Артефакт мышление"
   },
   "search": {

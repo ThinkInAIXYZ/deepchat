@@ -95,6 +95,32 @@
         <TabItem closable>Closable</TabItem>
       </TabStrip>
     </section>
+
+    <Separator />
+
+    <section>
+      <h3 class="text-sm font-medium mb-2">ThinkContent</h3>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div class="space-y-2">
+          <div class="text-xs text-muted-foreground">Loading, collapsed</div>
+          <ThinkContent
+            :label="'Thought for 20s'"
+            :expanded="false"
+            :thinking="true"
+            :content-html="demoHtml"
+          />
+        </div>
+        <div class="space-y-2">
+          <div class="text-xs text-muted-foreground">Completed, expanded</div>
+          <ThinkContent
+            :label="'Thought for 20s'"
+            :expanded="true"
+            :thinking="false"
+            :content-html="demoHtml"
+          />
+        </div>
+      </div>
+    </section>
   </div>
 </template>
 
@@ -128,8 +154,18 @@ import {
   Chip,
   Pill,
   TabStrip,
-  TabItem
+  TabItem,
+  ThinkContent
 } from '@/components/uikit'
+
+const demoHtml = `
+<p>Apply an instance swap property to a component</p>
+<ol>
+  <li>Select an instance nested within a main component or variant.</li>
+  <li>If you’re working with variants, enable multi-edit to edit matching objects and speed up your workflow.</li>
+  <li>At the top of right sidebar, click Apply instance swap property.</li>
+  <li>Choose an instance property from the list.</li>
+</ol>`
 </script>
 
 <style scoped>
