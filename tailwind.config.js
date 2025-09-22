@@ -27,6 +27,9 @@ module.exports = {
       }
     },
     extend: {
+      fontFamily: {
+        sans: ['var(--font-family-sans)']
+      },
       colors: {
         border: 'hsl(var(--border))',
         input: 'hsl(var(--input))',
@@ -106,6 +109,101 @@ module.exports = {
         '2xl': 'var(--radius-2xl)',
         '3xl': 'var(--radius-3xl)',
         full: 'var(--radius-full)'
+      },
+      boxShadow: {
+        none: 'var(--shadow-none)',
+        '2xs': 'var(--shadow-2xs)',
+        xs: 'var(--shadow-xs)',
+        sm: 'var(--shadow-sm)',
+        md: 'var(--shadow-md)',
+        lg: 'var(--shadow-lg)',
+        xl: 'var(--shadow-xl)',
+        '2xl': 'var(--shadow-2xl)',
+        inset: 'var(--shadow-inset-sm)',
+        'inset-2xs': 'var(--shadow-inset-2xs)',
+        'inset-xs': 'var(--shadow-inset-xs)',
+        'inset-sm': 'var(--shadow-inset-sm)'
+      },
+      blur: {
+        none: 'var(--blur-none)',
+        xs: 'var(--blur-xs)',
+        sm: 'var(--blur-sm)',
+        md: 'var(--blur-md)',
+        lg: 'var(--blur-lg)',
+        xl: 'var(--blur-xl)',
+        '2xl': 'var(--blur-2xl)',
+        '3xl': 'var(--blur-3xl)'
+      },
+      backdropBlur: {
+        none: 'var(--blur-none)',
+        xs: 'var(--blur-xs)',
+        sm: 'var(--blur-sm)',
+        md: 'var(--blur-md)',
+        lg: 'var(--blur-lg)',
+        xl: 'var(--blur-xl)',
+        '2xl': 'var(--blur-2xl)',
+        '3xl': 'var(--blur-3xl)'
+      },
+      opacity: {
+        0: 'var(--opacity-0)',
+        5: 'var(--opacity-5)',
+        10: 'var(--opacity-10)',
+        15: 'var(--opacity-15)',
+        20: 'var(--opacity-20)',
+        25: 'var(--opacity-25)',
+        30: 'var(--opacity-30)',
+        35: 'var(--opacity-35)',
+        40: 'var(--opacity-40)',
+        45: 'var(--opacity-45)',
+        50: 'var(--opacity-50)',
+        55: 'var(--opacity-55)',
+        60: 'var(--opacity-60)',
+        65: 'var(--opacity-65)',
+        70: 'var(--opacity-70)',
+        75: 'var(--opacity-75)',
+        80: 'var(--opacity-80)',
+        85: 'var(--opacity-85)',
+        90: 'var(--opacity-90)',
+        95: 'var(--opacity-95)',
+        100: 'var(--opacity-100)'
+      },
+      backdropOpacity: {
+        0: 'var(--opacity-0)',
+        5: 'var(--opacity-5)',
+        10: 'var(--opacity-10)',
+        15: 'var(--opacity-15)',
+        20: 'var(--opacity-20)',
+        25: 'var(--opacity-25)',
+        30: 'var(--opacity-30)',
+        35: 'var(--opacity-35)',
+        40: 'var(--opacity-40)',
+        45: 'var(--opacity-45)',
+        50: 'var(--opacity-50)',
+        55: 'var(--opacity-55)',
+        60: 'var(--opacity-60)',
+        65: 'var(--opacity-65)',
+        70: 'var(--opacity-70)',
+        75: 'var(--opacity-75)',
+        80: 'var(--opacity-80)',
+        85: 'var(--opacity-85)',
+        90: 'var(--opacity-90)',
+        95: 'var(--opacity-95)',
+        100: 'var(--opacity-100)'
+      },
+      fontSize: {
+        xs: ['var(--font-size-xs)', { lineHeight: 'var(--line-height-xs)' }],
+        sm: ['var(--font-size-sm)', { lineHeight: 'var(--line-height-sm)' }],
+        base: ['var(--font-size-base)', { lineHeight: 'var(--line-height-base)' }],
+        lg: ['var(--font-size-lg)', { lineHeight: 'var(--line-height-lg)' }],
+        xl: ['var(--font-size-xl)', { lineHeight: 'var(--line-height-xl)' }],
+        '2xl': ['var(--font-size-2xl)', { lineHeight: 'var(--line-height-2xl)' }],
+        '3xl': ['var(--font-size-3xl)', { lineHeight: 'var(--line-height-3xl)' }],
+        '4xl': ['var(--font-size-4xl)', { lineHeight: 'var(--line-height-4xl)' }],
+        '5xl': ['var(--font-size-5xl)', { lineHeight: 'var(--line-height-5xl)' }],
+        '6xl': ['var(--font-size-6xl)', { lineHeight: 'var(--line-height-6xl)' }],
+        '7xl': ['var(--font-size-7xl)', { lineHeight: 'var(--line-height-7xl)' }],
+        '8xl': ['var(--font-size-8xl)', { lineHeight: 'var(--line-height-8xl)' }],
+        '9xl': ['var(--font-size-9xl)', { lineHeight: 'var(--line-height-9xl)' }]
       },
       keyframes: {
         'accordion-down': {

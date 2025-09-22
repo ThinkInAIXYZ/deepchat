@@ -44,7 +44,7 @@ import {
 设计要点（与 Figma 对齐）
 - 半径：默认 `--radius-md`（即 Tailwind `rounded`），容器多使用 `rounded-xl`，控件 `rounded-lg`，其余按 `--radius-*` 映射。
 - 间距：控件高度 `h-9` 为默认，sm/xs 变体见 Button/Input 系列。
-- 颜色：控件前景/背景统一使用变量，如 `bg-card text-card-foreground`。
+- 颜色：控件前景/背景统一使用变量，如 `bg-card text-card-foreground`；阴影类使用 `shadow-{token}`。
 
 后续增量
 - 表单组合（Form、Field、HelperText、Validation）。

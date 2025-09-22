@@ -10,8 +10,9 @@
 
 基础 token（与 Tailwind 对齐）：
 - 颜色：`--background`/`--foreground`/`--card`/`--accent`/`--muted`/`--primary{,-foreground}`/`--secondary{,-foreground}`/`--destructive{,-foreground}` 等（见 `tailwind.config.js`）。
+- 字体：`--font-family-sans`，尺寸 `--font-size-{xs..9xl}`，行高 `--line-height-{xs..9xl}`，权重 `--font-weight-{thin..black}`。
 - 圆角：`--radius-{none|xs|sm|md|lg|xl|2xl|3xl|full}` 与默认 `--radius`（映射 Figma Border Radius 面板）。
-- 阴影：沿用 shadcn 默认阴影与局部覆盖。
+- 阴影：`--shadow-{none|2xs|xs|sm|md|lg|xl|2xl}` 与 `--shadow-inset-{2xs|xs|sm}`。
 - 动画：统一使用 `tailwindcss-animate` 与既有 keyframes。
 
 主题与品牌：
