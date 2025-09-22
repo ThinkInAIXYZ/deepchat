@@ -1,30 +1,55 @@
 export type ThemeTokens = Record<string, string>
 
 export const deepchatV3LightBrand: ThemeTokens = {
-  // Light (mapped from Figma day tokens)
+  // Light (mapped from Figma Theme Colors panel)
   '--background': '0 0% 100%', // #ffffff
-  '--foreground': '0 0% 14%', // #252525
+  '--foreground': '229 85% 5%', // #020618
   '--card': '0 0% 100%',
-  '--card-foreground': '0 0% 14%',
+  '--card-foreground': '229 85% 5%',
   '--popover': '0 0% 100%',
-  '--popover-foreground': '0 0% 14%',
-  '--primary': '210 100% 43%', // #006EDC
-  '--primary-foreground': '0 0% 100%',
-  '--secondary': '0 0% 96%',
-  '--secondary-foreground': '0 0% 43%',
-  '--muted': '0 0% 0% / 0.02', // #00000006
-  '--muted-foreground': '0 0% 40%',
-  '--accent': '0 0% 96%',
-  '--accent-foreground': '0 0% 14% / 0.8', // #252525cc
-  '--destructive': '0 84% 60%',
-  '--destructive-foreground': '0 0% 98%',
-  '--border': '0 0% 0% / 0.05', // #0000000d
-  '--input': '0 0% 0% / 0.08',
-  '--ring': '210 100% 43%',
+  '--popover-foreground': '229 85% 5%',
+  '--primary': '221 97% 54%', // #155dfc
+  '--primary-foreground': '210 40% 98%', // #f8fafc
+  '--secondary': '210 40% 96%', // #f1f5f9
+  '--secondary-foreground': '223 48% 11%', // #0f172b
+  '--muted': '210 40% 96%', // #f1f5f9
+  '--muted-foreground': '215 18% 47%', // #62748e
+  '--accent': '210 40% 96%',
+  '--accent-foreground': '223 48% 11%',
+  '--destructive': '357 100% 45%', // #e7000b
+  '--destructive-foreground': '210 40% 98%',
+  '--border': '214 32% 91%', // #e2e8f0
+  '--input': '214 32% 91%',
+  '--ring': '229 85% 5%',
   '--container': '0 0% 100%',
-  '--usage-low': '215 16% 90%',
-  '--usage-mid': '215 16% 70%',
-  '--usage-high': '215 16% 40%'
+  '--chart-1': '12 76% 61%', // #e76e50
+  '--chart-2': '173 58% 39%', // #2a9d90
+  '--chart-3': '197 37% 24%', // #274754
+  '--chart-4': '43 74% 66%', // #e8c468
+  '--chart-5': '27 87% 67%', // #f4a462
+  '--sidebar': '210 40% 98%', // #f8fafc (alias for sidebar-background)
+  '--sidebar-background': '210 40% 98%',
+  '--sidebar-foreground': '215 28% 27%', // #314158
+  '--sidebar-primary': '223 48% 11%', // #0f172b
+  '--sidebar-primary-foreground': '210 40% 98%',
+  '--sidebar-accent': '210 40% 96%',
+  '--sidebar-accent-foreground': '223 48% 11%',
+  '--sidebar-border': '214 32% 91%',
+  '--sidebar-ring': '221 97% 54%', // #155dfc
+  '--usage-low': '173 58% 39%', // #2a9d90
+  '--usage-mid': '43 74% 66%', // #e8c468
+  '--usage-high': '12 76% 61%', // #e76e50
+  // Border radius tokens (px)
+  '--radius-none': '0px',
+  '--radius-xs': '2px',
+  '--radius-sm': '4px',
+  '--radius-md': '6px',
+  '--radius-lg': '8px',
+  '--radius-xl': '12px',
+  '--radius-2xl': '16px',
+  '--radius-3xl': '24px',
+  '--radius-full': '9999px',
+  '--radius': 'var(--radius-md)' // default rounded
 }
 
 export const deepchatV3DarkBrand: ThemeTokens = {

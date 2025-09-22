@@ -43,54 +43,64 @@
 
     --container: 0 0% 100%;
     --background: 0 0% 100%;
-    --foreground: 0 0% 14%;
+    --foreground: 229 85% 5%;
     --card: 0 0% 100%;
-    --card-foreground: 0 0% 14%;
+    --card-foreground: 229 85% 5%;
     --popover: 0 0% 100%;
-    --popover-foreground: 0 0% 14%;
-    --primary: 210 100% 43%;
-    --primary-foreground: 0 0% 100%;
-    --secondary: 0 0% 96%;
-    --secondary-foreground: 0 0% 43%;
-    --muted: 0 0% 0% / 0.02;
-    --muted-foreground: 0 0% 40%;
-    --accent: 0 0% 96%;
-    --accent-foreground: 0 0% 14%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 0 0% 0% / 0.05;
-    --input: 0 0% 0% / 0.08;
-    --ring: 210 100% 43%;
-    --chart-1: var(--primary-600);
-    --chart-2: var(--primary-200);
-    --chart-3: var(--primary-400);
-    --chart-4: var(--primary-300);
-    --chart-5: var(--primary-100);
-    --radius: 0.75rem;
-    --sidebar: 0 0% 100%;
-    --sidebar-foreground: var(--base-800);
-    --sidebar-primary: var(--primary-600);
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: var(--base-50);
-    --sidebar-accent-foreground: var(--base-800);
-    --sidebar-border: var(--base-200);
-    --sidebar-ring: var(--primary-600);
+    --popover-foreground: 229 85% 5%;
+    --primary: 221 97% 54%;
+    --primary-foreground: 210 40% 98%;
+    --secondary: 210 40% 96%;
+    --secondary-foreground: 223 48% 11%;
+    --muted: 210 40% 96%;
+    --muted-foreground: 215 18% 47%;
+    --accent: 210 40% 96%;
+    --accent-foreground: 223 48% 11%;
+    --destructive: 357 100% 45%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 214 32% 91%;
+    --input: 214 32% 91%;
+    --ring: 229 85% 5%;
+    --chart-1: 12 76% 61%;
+    --chart-2: 173 58% 39%;
+    --chart-3: 197 37% 24%;
+    --chart-4: 43 74% 66%;
+    --chart-5: 27 87% 67%;
+    --radius-none: 0px;
+    --radius-xs: 2px;
+    --radius-sm: 4px;
+    --radius-md: 6px;
+    --radius-lg: 8px;
+    --radius-xl: 12px;
+    --radius-2xl: 16px;
+    --radius-3xl: 24px;
+    --radius-full: 9999px;
+    --radius: var(--radius-md);
+    --sidebar-background: 210 40% 98%;
+    --sidebar: var(--sidebar-background);
+    --sidebar-foreground: 215 28% 27%;
+    --sidebar-primary: 223 48% 11%;
+    --sidebar-primary-foreground: 210 40% 98%;
+    --sidebar-accent: 210 40% 96%;
+    --sidebar-accent-foreground: 223 48% 11%;
+    --sidebar-border: 214 32% 91%;
+    --sidebar-ring: 221 97% 54%;
 
     --display-weight: 700;
     --text-weight: 400;
 
-    --usage-low: 142 71% 45%; /* 亮绿 */
-    --usage-mid: 48 96% 53%; /* 亮黄 */
-    --usage-high: 0 72% 51%; /* 亮红 */
+    --usage-low: 173 58% 39%; /* teal */
+    --usage-mid: 43 74% 66%; /* amber */
+    --usage-high: 12 76% 61%; /* orange */
 
     /* Figma design rules (light) */
-    --text-foreground: 0 0% 14%;
-    --text-secondary-foreground: 0 0% 14% / 0.5;
-    --text-accent-foreground: 0 0% 14% / 0.8;
-    --text-muted-foreground: 0 0% 14% / 0.2;
-    --text-skeleton-primary: 0 0% 14% / 0.05;
+    --text-foreground: 229 85% 5%;
+    --text-secondary-foreground: 229 85% 5% / 0.5;
+    --text-accent-foreground: 223 48% 11%;
+    --text-muted-foreground: 229 85% 5% / 0.2;
+    --text-skeleton-primary: 229 85% 5% / 0.05;
     --background-70: 0 0% 100% / 0.7;
-    --window-inner-border: 0 0% 100% / 0.25;
+    --window-inner-border: 214 32% 91% / 0.25;
   }
 
   .dark {
@@ -101,7 +111,7 @@
     --card-foreground: 0 0% 100%;
     --popover: 0 0% 14%;
     --popover-foreground: 0 0% 100%;
-    --primary: 210 100% 43%;
+    --primary: 221 97% 54%;
     --primary-foreground: 0 0% 100%;
     --secondary: 0 0% 20%;
     --secondary-foreground: 0 0% 90%;
@@ -113,24 +123,25 @@
     --destructive-foreground: 0 0% 98%;
     --border: 0 0% 100% / 0.05;
     --input: 0 0% 100% / 0.1;
-    --ring: 210 100% 43%;
-    --chart-1: var(--primary-600);
-    --chart-2: var(--primary-200);
-    --chart-3: var(--primary-400);
-    --chart-4: var(--primary-300);
-    --chart-5: var(--primary-100);
-    --sidebar: var(--base-900);
+    --ring: 221 97% 54%;
+    --chart-1: 12 76% 61%;
+    --chart-2: 173 58% 39%;
+    --chart-3: 197 37% 24%;
+    --chart-4: 43 74% 66%;
+    --chart-5: 27 87% 67%;
+    --sidebar-background: var(--base-900);
+    --sidebar: var(--sidebar-background);
     --sidebar-foreground: var(--base-200);
-    --sidebar-primary: var(--primary-600);
+    --sidebar-primary: 221 97% 54%;
     --sidebar-primary-foreground: 0 0% 100%;
     --sidebar-accent: var(--base-800);
     --sidebar-accent-foreground: var(--base-200);
     --sidebar-border: var(--base-800);
-    --sidebar-ring: var(--primary-600);
+    --sidebar-ring: 221 97% 54%;
 
-    --usage-low: 142 40% 60%; /* 暗绿 */
-    --usage-mid: 48 80% 60%; /* 暗黄 */
-    --usage-high: 0 70% 65%; /* 暗红 */
+    --usage-low: 173 58% 39%; /* teal */
+    --usage-mid: 43 74% 66%; /* amber */
+    --usage-high: 12 76% 61%; /* orange */
 
     /* Figma design rules (dark) */
     --text-foreground: 0 0% 100%;
