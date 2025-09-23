@@ -86,7 +86,7 @@
                     @update:open="handleSelectOpen"
                   >
                     <SelectTrigger
-                      class="h-full rounded-none border-none bg-transparent text-xs font-medium text-muted-foreground shadow-none transition-all duration-300 hover:bg-transparent"
+                      class="h-full rounded-none border-none bg-transparent text-xs font-medium text-accent-foreground shadow-none transition-all duration-300 hover:bg-transparent"
                       :class="{
                         'w-0 overflow-hidden p-0 opacity-0':
                           !showSearchSettingsButton && !isSearchHovering && !isSelectOpen,
@@ -129,7 +129,7 @@
                   ? 'text-destructive'
                   : currentContextLength / (contextLength ?? 1000) > 0.8
                     ? 'text-yellow-400'
-                    : 'text-muted-foreground'
+                    : 'text-accent-foreground'
               ]"
             >
               {{ currentContextLengthText }}

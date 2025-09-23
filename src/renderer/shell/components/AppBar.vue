@@ -42,7 +42,7 @@
             @dragstart="onTabDragStart(tab.id, $event)"
             @dragover="onTabItemDragOver(idx, $event)"
           >
-            <img src="@/assets/logo.png" class="w-4 h-4 mr-2 rounded-sm" />
+            <img src="@/assets/logo.png" class="w-4 h-4 mr-2 rounded-sm flex-shrink-0" />
             <span class="truncate">{{ tab.title ?? 'DeepChat' }}</span>
           </TabItem>
           <!-- 拖拽插入指示器 -->
@@ -55,22 +55,35 @@
         </div>
       </div>
 
-      <IconButton
-        class="flex-shrink-0 text-xs ml-1 font-medium hover:bg-accent/50"
-        @click="openNewTab($event)"
-      >
-        <Icon icon="lucide:plus" class="w-4 h-4" />
-      </IconButton>
+      <div class="flex items-center h-10 px-2">
+        <IconButton
+          class="flex-shrink-0 text-xs font-medium hover:bg-accent/50 size-6"
+          @click="openNewTab($event)"
+        >
+          <Icon icon="lucide:plus" class="w-4 h-4" />
+        </IconButton>
+      </div>
       <div class="flex-1"></div>
 
-      <IconButton class="text-xs font-medium hover:bg-accent/50" @click="onThemeClick">
-        <Icon v-if="themeStore.themeMode === 'dark'" icon="lucide:moon" class="w-4 h-4" />
-        <Icon v-else-if="themeStore.themeMode === 'light'" icon="lucide:sun" class="w-4 h-4" />
-        <Icon v-else icon="lucide:monitor" class="w-4 h-4" />
-      </IconButton>
-      <IconButton class="text-xs font-medium hover:bg-accent/50" @click="openSettings">
-        <Icon icon="lucide:settings" class="w-4 h-4" />
-      </IconButton>
+      <!-- Right actions: theme toggle and settings (original behavior) with new container style -->
+      <div
+        class="flex h-10 items-center justify-center px-2 border-l"
+        :style="{ borderColor: 'hsl(var(--border))' }"
+      >
+        <IconButton class="text-xs font-medium hover:bg-accent/50 size-6" @click="onThemeClick">
+          <Icon v-if="themeStore.themeMode === 'dark'" icon="lucide:moon" class="w-4 h-4" />
+          <Icon v-else-if="themeStore.themeMode === 'light'" icon="lucide:sun" class="w-4 h-4" />
+          <Icon v-else icon="lucide:monitor" class="w-4 h-4" />
+        </IconButton>
+      </div>
+      <div
+        class="flex h-10 items-center justify-center px-2 border-l"
+        :style="{ borderColor: 'hsl(var(--border))' }"
+      >
+        <IconButton class="text-xs font-medium hover:bg-accent/50 size-6" @click="openSettings">
+          <Icon icon="lucide:settings" class="w-4 h-4" />
+        </IconButton>
+      </div>
       <!-- <Button
         class="text-xs font-medium px-2 h-7 bg-transparent rounded-md flex items-center justify-center"
         @click="openNewWindow"
@@ -508,6 +521,8 @@ const openSettings = () => {
     windowPresenter.openOrFocusSettingsTab(windowId)
   }
 }
+
+// removed: openHistory/openMore after restoring original actions
 </script>
 
 <style scoped>

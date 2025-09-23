@@ -22,11 +22,12 @@ withDefaults(defineProps<Props>(), {
 <template>
   <div
     :class="[
-      'h-9 px-3 rounded-md flex items-center gap-2 select-none cursor-default',
-      'border border-transparent',
+      'group h-9 px-3 rounded-md flex items-center gap-2 select-none cursor-default',
+      'min-w-[128px] max-w-[200px] overflow-hidden',
+      'border',
       active
-        ? 'bg-background text-foreground shadow-sm'
-        : 'hover:bg-accent hover:text-accent-foreground',
+        ? 'bg-white/10 text-foreground border-[color:var(--border)]'
+        : 'text-secondary-foreground hover:bg-white/5 border-transparent',
       $props.class
     ]"
     draggable="true"
@@ -35,7 +36,12 @@ withDefaults(defineProps<Props>(), {
     @click="emit('click')"
   >
     <slot />
-    <IconButton v-if="closable" class="ml-1" @click.stop="emit('close')">
+    <IconButton
+      v-if="closable"
+      class="ml-1 transition-opacity"
+      :class="active ? 'opacity-80 group-hover:opacity-100' : 'opacity-50 group-hover:opacity-80'"
+      @click.stop="emit('close')"
+    >
       <svg
         xmlns="http://www.w3.org/2000/svg"
         viewBox="0 0 24 24"

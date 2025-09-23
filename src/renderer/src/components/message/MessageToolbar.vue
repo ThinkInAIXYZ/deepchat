@@ -2,7 +2,7 @@
   <template v-if="!isCapturingImage">
     <TooltipProvider>
       <div
-        class="w-full h-8 text-xs text-muted-foreground items-center justify-between flex flex-row opacity-0 group-hover:opacity-100 transition-opacity"
+        class="w-full h-8 text-xs text-accent-foreground items-center justify-between flex flex-row opacity-0 group-hover:opacity-100 transition-opacity"
         :class="[isAssistant ? '' : 'flex-row-reverse']"
       >
         <span v-show="!loading" class="flex flex-row gap-3">
@@ -13,7 +13,7 @@
                 <Button
                   variant="ghost"
                   size="icon"
-                  class="w-4 h-4 text-muted-foreground hover:text-primary hover:bg-transparent"
+                  class="w-4 h-4 text-accent-foreground hover:text-primary hover:bg-transparent"
                   @click="emit('save')"
                 >
                   <Icon icon="lucide:check" class="w-3 h-3" />
@@ -26,7 +26,7 @@
                 <Button
                   variant="ghost"
                   size="icon"
-                  class="w-4 h-4 text-muted-foreground hover:text-primary hover:bg-transparent"
+                  class="w-4 h-4 text-accent-foreground hover:text-primary hover:bg-transparent"
                   @click="emit('cancel')"
                 >
                   <Icon icon="lucide:x" class="w-3 h-3" />
@@ -44,7 +44,7 @@
                   v-show="!isAssistant && !isEditMode"
                   variant="ghost"
                   size="icon"
-                  class="w-4 h-4 text-muted-foreground hover:text-primary hover:bg-transparent"
+                  class="w-4 h-4 text-accent-foreground hover:text-primary hover:bg-transparent"
                   @click="emit('retry')"
                 >
                   <Icon icon="lucide:refresh-cw" class="w-3 h-3" />
@@ -59,7 +59,7 @@
                   :disabled="currentVariantIndex === 0"
                   variant="ghost"
                   size="icon"
-                  class="w-4 h-4 text-muted-foreground hover:text-primary hover:bg-transparent"
+                  class="w-4 h-4 text-accent-foreground hover:text-primary hover:bg-transparent"
                   @click="emit('prev')"
                 >
                   <Icon icon="lucide:chevron-left" class="w-3 h-3" />
@@ -78,7 +78,7 @@
                   :disabled="hasVariants && totalVariants === (currentVariantIndex ?? 0) + 1"
                   variant="ghost"
                   size="icon"
-                  class="w-4 h-4 text-muted-foreground hover:text-primary hover:bg-transparent"
+                  class="w-4 h-4 text-accent-foreground hover:text-primary hover:bg-transparent"
                   @click="emit('next')"
                 >
                   <Icon icon="lucide:chevron-right" class="w-3 h-3" />
@@ -91,7 +91,7 @@
                 <Button
                   variant="ghost"
                   size="icon"
-                  class="w-4 h-4 text-muted-foreground hover:text-primary hover:bg-transparent relative"
+                  class="w-4 h-4 text-accent-foreground hover:text-primary hover:bg-transparent relative"
                   @click="handleCopy"
                 >
                   <Icon icon="lucide:copy" class="w-3 h-3" />
@@ -111,7 +111,7 @@
                   v-show="isAssistant"
                   variant="ghost"
                   size="icon"
-                  class="w-4 h-4 text-muted-foreground hover:text-primary hover:bg-transparent relative"
+                  class="w-4 h-4 text-accent-foreground hover:text-primary hover:bg-transparent relative"
                   :disabled="isCapturingImage"
                   @mousedown="handleCopyImageStart"
                   @mouseup="handleCopyImageEnd"
@@ -147,7 +147,7 @@
                   v-show="isAssistant"
                   variant="ghost"
                   size="icon"
-                  class="w-4 h-4 text-muted-foreground hover:text-primary hover:bg-transparent"
+                  class="w-4 h-4 text-accent-foreground hover:text-primary hover:bg-transparent"
                   @click="emit('retry')"
                 >
                   <Icon icon="lucide:refresh-cw" class="w-3 h-3" />
@@ -161,7 +161,7 @@
                   v-show="isAssistant && !loading && !isInGeneratingThread"
                   variant="ghost"
                   size="icon"
-                  class="w-4 h-4 text-muted-foreground hover:text-primary hover:bg-transparent"
+                  class="w-4 h-4 text-accent-foreground hover:text-primary hover:bg-transparent"
                   @click="emit('fork')"
                 >
                   <Icon icon="lucide:git-branch" class="w-3 h-3" />
@@ -175,7 +175,7 @@
                   v-show="!isAssistant && !isEditMode"
                   variant="ghost"
                   size="icon"
-                  class="w-4 h-4 text-muted-foreground hover:text-primary hover:bg-transparent"
+                  class="w-4 h-4 text-accent-foreground hover:text-primary hover:bg-transparent"
                   @click="emit('edit')"
                 >
                   <Icon icon="lucide:edit" class="w-3 h-3" />
@@ -188,7 +188,7 @@
                 <Button
                   variant="ghost"
                   size="icon"
-                  class="w-4 h-4 text-muted-foreground hover:text-primary hover:bg-transparent"
+                  class="w-4 h-4 text-accent-foreground hover:text-primary hover:bg-transparent"
                   @click="emit('delete')"
                 >
                   <Icon icon="lucide:trash-2" class="w-3 h-3" />

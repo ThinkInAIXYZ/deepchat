@@ -9,7 +9,11 @@ withDefaults(defineProps<Props>(), {})
 </script>
 
 <template>
-  <Button variant="ghost" size="icon" :class="['bg-transparent hover:bg-accent/50', $props.class]">
+  <Button
+    variant="default"
+    size="icon"
+    :class="['bg-transparent hover:bg-accent/50', $props.class]"
+  >
     <slot />
   </Button>
 </template>
