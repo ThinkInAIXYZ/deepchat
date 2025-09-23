@@ -215,7 +215,9 @@ export class _302AIProvider extends OpenAICompatibleProvider {
             }
           })
 
-          this.configPresenter.setModelConfig(modelId, this.provider.id, newConfig)
+          this.configPresenter.setModelConfig(modelId, this.provider.id, newConfig, {
+            source: 'provider'
+          })
         }
 
         // Create MODEL_META object

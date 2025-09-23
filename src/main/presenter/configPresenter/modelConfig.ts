@@ -1,19 +1,155 @@
 import { ModelType } from '@shared/model'
-import { IModelConfig, ModelConfig } from '@shared/presenter'
+import { IModelConfig, ModelConfig, ModelConfigSource } from '@shared/presenter'
 import ElectronStore from 'electron-store'
 import { defaultModelsSettings } from './modelDefaultSettings'
 import { getProviderSpecificModelConfig } from './providerModelSettings'
 
 const SPECIAL_CONCAT_CHAR = '-_-'
 
+const MODEL_CONFIG_META_KEY = '__meta__'
+
+interface ModelConfigStoreMeta {
+  lastRefreshVersion?: string
+  userConfigKeys: string[]
+}
+
+type ModelConfigStoreSchema = Record<string, IModelConfig | ModelConfigStoreMeta>
+
 export class ModelConfigHelper {
-  private modelConfigStore: ElectronStore<Record<string, IModelConfig>>
+  private modelConfigStore: ElectronStore<ModelConfigStoreSchema>
   private memoryCache: Map<string, IModelConfig> = new Map()
   private cacheInitialized: boolean = false
+  private currentVersion: string
 
-  constructor() {
-    this.modelConfigStore = new ElectronStore<Record<string, IModelConfig>>({
+  constructor(appVersion: string = '0.0.0') {
+    this.modelConfigStore = new ElectronStore<ModelConfigStoreSchema>({
       name: 'model-config'
+    })
+    this.currentVersion = appVersion
+    this.ensureStoreSynced()
+  }
+
+  private ensureStoreSynced(): void {
+    const meta = this.getStoreMeta()
+    if (!meta) {
+      this.initializeMetaFromLegacyStore()
+      return
+    }
+
+    if (meta.lastRefreshVersion !== this.currentVersion) {
+      this.refreshDerivedConfigs(meta)
+    }
+  }
+
+  private initializeMetaFromLegacyStore(): void {
+    const legacyEntries = this.modelConfigStore.store
+    const userKeys: Set<string> = new Set()
+
+    Object.entries(legacyEntries).forEach(([key, value]) => {
+      if (this.isMetaKey(key)) {
+        return
+      }
+
+      const entry = value as IModelConfig | undefined
+      if (entry && this.isEntryUserDefined(entry)) {
+        userKeys.add(key)
+        const updatedEntry: IModelConfig = {
+          ...entry,
+          source: 'user',
+          config: {
+            ...entry.config,
+            isUserDefined: true
+          }
+        }
+        this.modelConfigStore.set(key, updatedEntry)
+      } else {
+        this.modelConfigStore.delete(key)
+      }
+    })
+
+    this.memoryCache.clear()
+    this.cacheInitialized = false
+
+    this.updateStoreMeta({
+      lastRefreshVersion: this.currentVersion,
+      userConfigKeys: Array.from(userKeys)
+    })
+  }
+
+  private refreshDerivedConfigs(meta: ModelConfigStoreMeta): void {
+    const userKeySet = new Set(meta.userConfigKeys || [])
+
+    Object.keys(this.modelConfigStore.store).forEach((key) => {
+      if (this.isMetaKey(key)) {
+        return
+      }
+
+      if (userKeySet.has(key)) {
+        return
+      }
+
+      this.modelConfigStore.delete(key)
+      this.memoryCache.delete(key)
+    })
+
+    this.cacheInitialized = false
+
+    this.updateStoreMeta({
+      lastRefreshVersion: this.currentVersion,
+      userConfigKeys: Array.from(userKeySet)
+    })
+  }
+
+  private getStoreMeta(): ModelConfigStoreMeta | undefined {
+    const meta = this.modelConfigStore.get(MODEL_CONFIG_META_KEY)
+    return meta as ModelConfigStoreMeta | undefined
+  }
+
+  private updateStoreMeta(meta: ModelConfigStoreMeta): void {
+    this.modelConfigStore.set(MODEL_CONFIG_META_KEY, meta)
+  }
+
+  private getOrCreateMeta(): ModelConfigStoreMeta {
+    let meta = this.getStoreMeta()
+    if (!meta) {
+      this.initializeMetaFromLegacyStore()
+      meta = this.getStoreMeta()
+    }
+    if (!meta) {
+      meta = {
+        lastRefreshVersion: this.currentVersion,
+        userConfigKeys: []
+      }
+      this.updateStoreMeta(meta)
+    }
+    return meta
+  }
+
+  private isMetaKey(key: string): boolean {
+    return key === MODEL_CONFIG_META_KEY
+  }
+
+  private isEntryUserDefined(entry: IModelConfig | undefined): boolean {
+    if (!entry) return false
+    if (entry.source) {
+      return entry.source === 'user'
+    }
+    return entry.config?.isUserDefined === true
+  }
+
+  private updateUserConfigKeys(cacheKey: string, source: ModelConfigSource): void {
+    const meta = this.getOrCreateMeta()
+    const userKeys = new Set(meta.userConfigKeys || [])
+
+    if (source === 'user') {
+      userKeys.add(cacheKey)
+    } else {
+      userKeys.delete(cacheKey)
+    }
+
+    this.updateStoreMeta({
+      lastRefreshVersion: this.currentVersion,
+      userConfigKeys: Array.from(userKeys)
     })
   }
 
@@ -76,7 +212,8 @@ export class ModelConfigHelper {
 
     const allConfigs = this.modelConfigStore.store
     Object.entries(allConfigs).forEach(([key, value]) => {
-      this.memoryCache.set(key, value)
+      if (this.isMetaKey(key) || !value) return
+      this.memoryCache.set(key, value as IModelConfig)
     })
     this.cacheInitialized = true
   }
@@ -88,99 +225,98 @@ export class ModelConfigHelper {
    * @returns ModelConfig with isUserDefined flag
    */
   getModelConfig(modelId: string, providerId?: string): ModelConfig {
-    // Initialize cache if not already done
     this.initializeCache()
 
-    let hasUserConfig = false
-    let userConfig: ModelConfig | null = null
+    let storedConfig: ModelConfig | null = null
+    let storedSource: ModelConfigSource | undefined
 
-    // 1. First try to get user-defined config for this specific provider + model
     if (providerId) {
       const cacheKey = this.generateCacheKey(providerId, modelId)
-      let userConfigData = this.memoryCache.get(cacheKey)
+      let cachedEntry = this.memoryCache.get(cacheKey)
 
-      // If not in cache, try to load from store and cache it
-      if (!userConfigData) {
-        userConfigData = this.modelConfigStore.get(cacheKey)
-        if (userConfigData) {
-          this.memoryCache.set(cacheKey, userConfigData)
+      if (!cachedEntry) {
+        const entryFromStore = this.modelConfigStore.get(cacheKey) as IModelConfig | undefined
+        if (entryFromStore) {
+          cachedEntry = entryFromStore
+          this.memoryCache.set(cacheKey, entryFromStore)
         }
       }
 
-      if (userConfigData?.config) {
-        hasUserConfig = true
-        userConfig = userConfigData.config
+      if (cachedEntry?.config) {
+        storedConfig = cachedEntry.config
+        storedSource = cachedEntry.source ?? (cachedEntry.config.isUserDefined ? 'user' : undefined)
       }
     }
 
-    let finalConfig: ModelConfig
+    const isUserConfig = storedSource === 'user'
 
-    if (hasUserConfig && userConfig) {
-      // Use user config as base
-      finalConfig = { ...userConfig }
-    } else {
-      // 2. Try to get provider-specific default config
-      let providerConfig: ModelConfig | null = null
-      if (providerId) {
-        providerConfig = getProviderSpecificModelConfig(providerId, modelId) || null
-      }
+    if (storedConfig && isUserConfig) {
+      const finalUserConfig = { ...storedConfig }
+      finalUserConfig.isUserDefined = true
+      return finalUserConfig
+    }
 
+    if (storedConfig && storedSource) {
+      const finalStoredConfig = { ...storedConfig }
+      finalStoredConfig.isUserDefined = false
+      return finalStoredConfig
+    }
+
+    let finalConfig: ModelConfig | null = null
+
+    if (providerId) {
+      const providerConfig = getProviderSpecificModelConfig(providerId, modelId)
       if (providerConfig) {
         finalConfig = { ...providerConfig }
-      } else {
-        // 3. Try to get default model config by pattern matching
-        const lowerModelId = modelId.toLowerCase()
-        let defaultConfig: ModelConfig | null = null
+      }
+    }
 
-        for (const config of defaultModelsSettings) {
-          if (config.match.some((matchStr) => lowerModelId.includes(matchStr.toLowerCase()))) {
-            defaultConfig = {
-              maxTokens: config.maxTokens,
-              contextLength: config.contextLength,
-              temperature: config.temperature,
-              vision: config.vision,
-              functionCall: config.functionCall || false,
-              reasoning: config.reasoning || false,
-              type: config.type || ModelType.Chat,
-              thinkingBudget: config.thinkingBudget,
-              enableSearch: config.enableSearch || false,
-              forcedSearch: config.forcedSearch || false,
-              searchStrategy: config.searchStrategy || 'turbo',
-              reasoningEffort: config.reasoningEffort,
-              verbosity: config.verbosity,
-              maxCompletionTokens: config.maxCompletionTokens
-            }
-            break
-          }
-        }
+    if (!finalConfig) {
+      const lowerModelId = modelId.toLowerCase()
 
-        if (defaultConfig) {
-          finalConfig = defaultConfig
-        } else {
-          // 4. Return safe default config if nothing matches
+      for (const config of defaultModelsSettings) {
+        if (config.match.some((matchStr) => lowerModelId.includes(matchStr.toLowerCase()))) {
           finalConfig = {
-            maxTokens: 4096,
-            contextLength: 8192,
-            temperature: 0.6,
-            vision: false,
-            functionCall: false,
-            reasoning: false,
-            type: ModelType.Chat,
-            thinkingBudget: undefined,
-            enableSearch: false,
-            forcedSearch: false,
-            searchStrategy: 'turbo',
-            reasoningEffort: undefined,
-            verbosity: undefined,
-            maxCompletionTokens: undefined
+            maxTokens: config.maxTokens,
+            contextLength: config.contextLength,
+            temperature: config.temperature,
+            vision: config.vision,
+            functionCall: config.functionCall || false,
+            reasoning: config.reasoning || false,
+            type: config.type || ModelType.Chat,
+            thinkingBudget: config.thinkingBudget,
+            enableSearch: config.enableSearch || false,
+            forcedSearch: config.forcedSearch || false,
+            searchStrategy: config.searchStrategy || 'turbo',
+            reasoningEffort: config.reasoningEffort,
+            verbosity: config.verbosity,
+            maxCompletionTokens: config.maxCompletionTokens
           }
+          break
         }
       }
     }
 
-    // Add source information to the config
-    finalConfig.isUserDefined = hasUserConfig
+    if (!finalConfig) {
+      finalConfig = {
+        maxTokens: 4096,
+        contextLength: 8192,
+        temperature: 0.6,
+        vision: false,
+        functionCall: false,
+        reasoning: false,
+        type: ModelType.Chat,
+        thinkingBudget: undefined,
+        enableSearch: false,
+        forcedSearch: false,
+        searchStrategy: 'turbo',
+        reasoningEffort: undefined,
+        verbosity: undefined,
+        maxCompletionTokens: undefined
+      }
+    }
 
+    finalConfig.isUserDefined = false
     return finalConfig
   }
 
@@ -190,17 +326,31 @@ export class ModelConfigHelper {
    * @param providerId - The provider ID
    * @param config - The model configuration
    */
-  setModelConfig(modelId: string, providerId: string, config: ModelConfig): void {
+  setModelConfig(
+    modelId: string,
+    providerId: string,
+    config: ModelConfig,
+    options?: { source?: ModelConfigSource }
+  ): ModelConfig {
     const cacheKey = this.generateCacheKey(providerId, modelId)
+    const source: ModelConfigSource = options?.source ?? 'user'
+    const storedConfig: ModelConfig = {
+      ...config,
+      isUserDefined: source === 'user'
+    }
     const configData: IModelConfig = {
       id: modelId,
       providerId: providerId,
-      config: config
+      config: storedConfig,
+      source
     }
 
     // Update both store and cache
     this.modelConfigStore.set(cacheKey, configData)
     this.memoryCache.set(cacheKey, configData)
+    this.updateUserConfigKeys(cacheKey, source)
+
+    return storedConfig
   }
 
   /**
@@ -214,6 +364,7 @@ export class ModelConfigHelper {
     // Remove from both store and cache
     this.modelConfigStore.delete(cacheKey)
     this.memoryCache.delete(cacheKey)
+    this.updateUserConfigKeys(cacheKey, 'provider')
   }
 
   /**
@@ -227,6 +378,7 @@ export class ModelConfigHelper {
     // Return data from cache for better performance
     const result: Record<string, IModelConfig> = {}
     this.memoryCache.forEach((value, key) => {
+      if (this.isMetaKey(key)) return
       result[key] = value
     })
     return result
@@ -267,15 +419,20 @@ export class ModelConfigHelper {
     const cacheKey = this.generateCacheKey(providerId, modelId)
 
     // Check cache first
-    if (this.memoryCache.has(cacheKey)) {
-      return true
+    const cachedEntry = this.memoryCache.get(cacheKey)
+    if (cachedEntry) {
+      const source = cachedEntry.source ?? (cachedEntry.config.isUserDefined ? 'user' : undefined)
+      if (source === 'user') {
+        return true
+      }
     }
 
     // If not in cache, check store and update cache if found
-    const userConfig = this.modelConfigStore.get(cacheKey)
-    if (userConfig) {
-      this.memoryCache.set(cacheKey, userConfig)
-      return true
+    const storeEntry = this.modelConfigStore.get(cacheKey) as IModelConfig | undefined
+    if (storeEntry) {
+      this.memoryCache.set(cacheKey, storeEntry)
+      const source = storeEntry.source ?? (storeEntry.config.isUserDefined ? 'user' : undefined)
+      return source === 'user'
     }
 
     return false
@@ -291,17 +448,45 @@ export class ModelConfigHelper {
       // Clear existing configs from both store and cache
       this.modelConfigStore.clear()
       this.memoryCache.clear()
+      this.cacheInitialized = false
     }
 
-    // Import configs to both store and cache
+    const meta = this.getOrCreateMeta()
+    const userKeySet = overwrite ? new Set<string>() : new Set<string>(meta.userConfigKeys || [])
+
     Object.entries(configs).forEach(([key, value]) => {
-      if (overwrite || !this.modelConfigStore.has(key)) {
-        this.modelConfigStore.set(key, value)
-        this.memoryCache.set(key, value)
+      if (this.isMetaKey(key) || !value) return
+
+      if (!overwrite && this.modelConfigStore.has(key)) {
+        return
+      }
+
+      const entry = value as IModelConfig
+      const source = entry.source ?? (entry.config?.isUserDefined ? 'user' : 'provider')
+      const storedEntry: IModelConfig = {
+        ...entry,
+        source,
+        config: {
+          ...entry.config,
+          isUserDefined: source === 'user'
+        }
+      }
+
+      this.modelConfigStore.set(key, storedEntry)
+      this.memoryCache.set(key, storedEntry)
+
+      if (source === 'user') {
+        userKeySet.add(key)
+      } else {
+        userKeySet.delete(key)
       }
     })
 
-    this.cacheInitialized = true
+    this.cacheInitialized = false
+    this.updateStoreMeta({
+      lastRefreshVersion: this.currentVersion,
+      userConfigKeys: Array.from(userKeySet)
+    })
   }
 
   /**
@@ -318,6 +503,11 @@ export class ModelConfigHelper {
   clearAllConfigs(): void {
     this.modelConfigStore.clear()
     this.memoryCache.clear()
+    this.cacheInitialized = false
+    this.updateStoreMeta({
+      lastRefreshVersion: this.currentVersion,
+      userConfigKeys: []
+    })
   }
 
   /**

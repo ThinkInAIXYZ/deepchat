@@ -187,7 +187,9 @@ export class TokenFluxProvider extends OpenAICompatibleProvider {
 
         // Update configuration if changed
         if (configChanged) {
-          this.configPresenter.setModelConfig(modelId, this.provider.id, newConfig)
+          this.configPresenter.setModelConfig(modelId, this.provider.id, newConfig, {
+            source: 'provider'
+          })
         }
 
         // Create MODEL_META object
