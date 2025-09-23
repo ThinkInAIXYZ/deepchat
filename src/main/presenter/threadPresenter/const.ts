@@ -24,7 +24,7 @@ When answering, please pay attention to the following points:
 - Write more than 100 words (2 paragraphs).
 - Avoid directly quoting citations in the answer.
 - If the meaning is unclear, return the user's original query.
-- Every footnote citations used in the answer must correspond to a real search results. Do not invent or hallucinate references. 
+- Every footnote citations used in the answer must correspond to a real search results. Do not invent or hallucinate references.
 - If no search results are provided currently, clearly state that no sources were given and do not use any [X] citation format in your answer.
 
 # The user's message is:
@@ -55,7 +55,7 @@ When answering, please pay attention to the following points:
 - Write more than 100 words (2 paragraphs).
 - Avoid directly quoting citations in the answer.
 - If the meaning is unclear, return the user's original query.
-- Every footnote citations used in the answer must correspond to a real search results. Do not invent or hallucinate references. 
+- Every footnote citations used in the answer must correspond to a real search results. Do not invent or hallucinate references.
 - If no search results are provided currently, clearly state that no sources were given and do not use any [X] citation format in your answer.
 
 # Artifacts Support - MANDATORY FOR CERTAIN CONTENT TYPES
@@ -112,8 +112,8 @@ DO NOT use artifacts for:
 export const DEFAULT_SETTINGS: CONVERSATION_SETTINGS = {
   systemPrompt: '',
   temperature: 0.7,
-  contextLength: 1000,
-  maxTokens: 2000,
+  contextLength: 12800,
+  maxTokens: 8192,
   providerId: 'deepseek',
   modelId: 'deepseek-chat',
   artifacts: 0

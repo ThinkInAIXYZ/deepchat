@@ -4,6 +4,7 @@ import {
   LLM_PROVIDER,
   MODEL_META,
   ModelConfig,
+  ModelConfigSource,
   RENDERER_MODEL_META,
   MCPServerConfig,
   Prompt,
@@ -160,7 +161,7 @@ export class ConfigPresenter implements IConfigPresenter {
     this.mcpConfHelper = new McpConfHelper()
 
     // Initialize model configuration helper
-    this.modelConfigHelper = new ModelConfigHelper()
+    this.modelConfigHelper = new ModelConfigHelper(this.currentAppVersion)
 
     // Initialize knowledge configuration helper
     this.knowledgeConfHelper = new KnowledgeConfHelper()
@@ -1071,15 +1072,20 @@ export class ConfigPresenter implements IConfigPresenter {
    * @param providerId - The provider ID
    * @param config - The model configuration
    */
-  setModelConfig(modelId: string, providerId: string, config: ModelConfig): void {
-    this.modelConfigHelper.setModelConfig(modelId, providerId, config)
+  setModelConfig(
+    modelId: string,
+    providerId: string,
+    config: ModelConfig,
+    options?: { source?: ModelConfigSource }
+  ): void {
+    const storedConfig = this.modelConfigHelper.setModelConfig(modelId, providerId, config, options)
     // Trigger model configuration change event (need to notify all tabs)
     eventBus.sendToRenderer(
       CONFIG_EVENTS.MODEL_CONFIG_CHANGED,
       SendTarget.ALL_WINDOWS,
       providerId,
       modelId,
-      config
+      storedConfig
     )
   }
 

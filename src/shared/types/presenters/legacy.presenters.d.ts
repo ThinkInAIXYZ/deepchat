@@ -127,6 +127,8 @@ export interface ResourceListEntry {
   }
 }
 
+export type ModelConfigSource = 'user' | 'provider' | 'system'
+
 export interface ModelConfig {
   maxTokens: number
   contextLength: number
@@ -151,6 +153,7 @@ export interface IModelConfig {
   id: string
   providerId: string
   config: ModelConfig
+  source?: ModelConfigSource
 }
 export interface ProviderModelConfigs {
   [modelId: string]: ModelConfig
@@ -452,7 +455,14 @@ export interface IConfigPresenter {
   updateMcpServer(serverName: string, config: Partial<MCPServerConfig>): Promise<void>
   getMcpConfHelper(): any // Used to get MCP configuration helper
   getModelConfig(modelId: string, providerId?: string): ModelConfig
-  setModelConfig(modelId: string, providerId: string, config: ModelConfig): void
+  setModelConfig(
+    modelId: string,
+    providerId: string,
+    config: ModelConfig,
+    options?: {
+      source?: ModelConfigSource
+    }
+  ): void
   resetModelConfig(modelId: string, providerId: string): void
   getAllModelConfigs(): Record<string, IModelConfig>
   getProviderModelConfigs(providerId: string): Array<{ modelId: string; config: ModelConfig }>

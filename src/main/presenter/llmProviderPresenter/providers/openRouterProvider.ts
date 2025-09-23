@@ -259,7 +259,9 @@ export class OpenRouterProvider extends OpenAICompatibleProvider {
           //   new: newConfig
           // })
 
-          this.configPresenter.setModelConfig(modelId, this.provider.id, newConfig)
+          this.configPresenter.setModelConfig(modelId, this.provider.id, newConfig, {
+            source: 'provider'
+          })
         }
 
         // Create MODEL_META object
