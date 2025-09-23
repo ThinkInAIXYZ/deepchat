@@ -1,5 +1,5 @@
 <template>
-  <div class="flex flex-col overflow-hidden h-0 flex-1">
+  <div class="flex h-full flex-1 flex-col overflow-hidden">
     <!-- 消息列表区域 -->
     <MessageList
       :key="chatStore.getActiveThreadId() ?? 'default'"
@@ -9,8 +9,8 @@
     />
 
     <!-- 输入框区域 -->
-    <div class="flex-none px-2 pb-2">
-      <ChatInput
+    <div class="flex-none border-t border-border/60 px-4 pb-6 pt-6 sm:px-6">
+      <ChatComposer
         ref="chatInput"
         :disabled="!chatStore.getActiveThreadId() || isGenerating"
         @send="handleSend"
@@ -23,7 +23,7 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, watch, computed, nextTick } from 'vue'
 import MessageList from './message/MessageList.vue'
-import ChatInput from './ChatInput.vue'
+import ChatComposer from './ChatComposer.vue'
 import { useRoute } from 'vue-router'
 import { UserMessageContent } from '@shared/chat'
 import { STREAM_EVENTS } from '@/events'
@@ -32,8 +32,8 @@ import { useSettingsStore } from '@/stores/settings'
 const route = useRoute()
 const settingsStore = useSettingsStore()
 
-const messageList = ref()
-const chatInput = ref()
+const messageList = ref<InstanceType<typeof MessageList> | null>(null)
+const chatInput = ref<InstanceType<typeof ChatComposer> | null>(null)
 
 import { useChatStore } from '@/stores/chat'
 

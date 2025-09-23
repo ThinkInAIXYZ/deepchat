@@ -1,20 +1,18 @@
 <template>
   <div
     :data-message-id="message.id"
-    class="flex flex-row py-4 pl-4 pr-11 group gap-2 w-full justify-start assistant-message-item"
+    class="assistant-message-item group flex w-full items-start gap-4 px-6"
   >
-    <div
-      class="flex-shrink-0 w-5 h-5 flex items-center justify-center bg-base-900/5 dark:bg-base-100/10 border border-input rounded-md"
-    >
+    <div class="mt-1 flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-md bg-muted/40">
       <ModelIcon
         :model-id="currentMessage.model_provider"
-        custom-class="w-3 h-3"
+        custom-class="h-3 w-3"
         :is-dark="themeStore.isDark"
         :alt="currentMessage.role"
       />
     </div>
 
-    <div class="flex flex-col w-full space-y-1.5">
+    <div class="flex w-full flex-col space-y-3">
       <MessageInfo :name="currentMessage.model_name" :timestamp="currentMessage.timestamp" />
       <div
         v-if="currentContent.length === 0"
@@ -23,7 +21,7 @@
         <Icon icon="lucide:loader-circle" class="w-4 h-4 animate-spin" />
         {{ t('chat.messages.thinking') }}
       </div>
-      <div v-else class="flex flex-col w-full space-y-2">
+      <div v-else class="flex w-full flex-col space-y-3">
         <template v-for="(block, idx) in currentContent" :key="`${message.id}-${idx}`">
           <MessageBlockContent
             v-if="block.type === 'content'"

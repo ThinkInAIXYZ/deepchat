@@ -1,12 +1,12 @@
 <template>
-  <div class="w-full h-full relative min-h-0">
+  <div class="relative flex h-full w-full min-h-0 flex-col">
     <div
       ref="messagesContainer"
-      class="message-list-container relative flex-1 overflow-y-auto scroll-smooth w-full h-full"
+      class="message-list-container relative flex-1 h-full w-full overflow-y-auto scroll-smooth px-4 py-6 sm:px-6"
     >
       <div
         ref="messageList"
-        class="w-full break-all max-w-4xl mx-auto transition-opacity duration-300"
+        class="mx-auto flex w-full flex-col gap-8 break-words transition-opacity duration-300"
         :class="{ 'opacity-0': !visible }"
       >
         <template v-for="(msg, index) in messages" :key="msg.id">

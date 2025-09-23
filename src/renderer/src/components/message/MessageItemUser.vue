@@ -2,24 +2,24 @@
   <div
     v-show="!message.content.continue"
     :data-message-id="message.id"
-    class="flex flex-row-reverse group p-4 pl-11 gap-2 user-message-item"
+    class="user-message-item group flex w-full flex-row-reverse items-start gap-4 px-6"
   >
     <!-- 头像 -->
-    <div class="w-5 h-5 bg-muted rounded-md overflow-hidden">
+    <div class="mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-muted/40">
       <img v-if="message.avatar" :src="message.avatar" class="w-full h-full" :alt="message.role" />
       <div v-else class="w-full h-full flex items-center justify-center text-muted-foreground">
         <Icon icon="lucide:user" class="w-4 h-4" />
       </div>
     </div>
-    <div class="flex flex-col w-full space-y-1.5 items-end">
+    <div class="flex w-full flex-col items-end space-y-3">
       <MessageInfo
         class="flex-row-reverse"
         :name="message.name ?? 'user'"
         :timestamp="message.timestamp"
       />
       <!-- 消息内容 -->
-      <div class="text-sm bg-[#EFF6FF] dark:bg-muted rounded-lg p-2 border flex flex-col gap-1.5">
-        <div v-show="message.content.files.length > 0" class="flex flex-wrap gap-1.5">
+      <div class="flex w-full flex-col gap-3 text-sm leading-7">
+        <div v-show="message.content.files.length > 0" class="flex flex-wrap gap-2">
           <FileItem
             v-for="file in message.content.files"
             :key="file.name"
@@ -35,7 +35,7 @@
           <textarea
             ref="editTextarea"
             v-model="editedText"
-            class="text-sm bg-[#EFF6FF] dark:bg-muted rounded-lg p-2 border flex flex-col gap-1.5 resize-none overflow-y-auto overscroll-contain min-w-[40vw] w-full"
+            class="flex w-full min-w-[40vw] resize-none overflow-y-auto overscroll-contain rounded-lg border border-border/60 bg-transparent p-2 text-sm"
             :style="{
               width: originalContentWidth + 20 + 'px',
               maxHeight: editMaxHeight ? editMaxHeight + 'px' : undefined
