@@ -24,6 +24,7 @@ export class DashscopeProvider extends OpenAICompatibleProvider {
     'qwen3-1.7b',
     'qwen3-0.6b',
     // Commercial versions
+    'qwen3-vl-plus',
     'qwen-plus',
     'qwen-plus-latest',
     'qwen-plus-2025-04-28',
@@ -36,6 +37,7 @@ export class DashscopeProvider extends OpenAICompatibleProvider {
 
   // List of models that support enable_search parameter (internet search)
   private static readonly ENABLE_SEARCH_MODELS: string[] = [
+    'qwen3-max-2025-09-23',
     'qwen3-max-preview',
     'qwen-max',
     'qwen-plus',

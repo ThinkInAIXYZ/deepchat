@@ -141,6 +141,7 @@ const showThinkingBudget = computed(() => {
     'qwen3-1.7b',
     'qwen3-0.6b',
     // Commercial versions
+    'qwen3-vl-plus',
     'qwen-plus',
     'qwen-flash',
     'qwen-turbo'
@@ -161,6 +162,7 @@ const showDashscopeSearchConfig = computed(() => {
   // Dashscope - ENABLE_SEARCH_MODELS
   const enableSearchModels = [
     'qwen3-max-preview',
+    'qwen3-max-2025-09-23',
     'qwen3-max',
     'qwen-max',
     'qwen-plus',
@@ -242,7 +244,11 @@ const getQwen3MaxBudget = (): number => {
   const modelId = props.modelId?.toLowerCase() || ''
 
   // 根据不同的 Qwen3 模型返回不同的最大值
-  if (modelId.includes('qwen3-235b-a22b') || modelId.includes('qwen3-30b-a3b')) {
+  if (
+    modelId.includes('qwen3-235b-a22b') ||
+    modelId.includes('qwen3-30b-a3b') ||
+    modelId.includes('qwen3-vl-plus')
+  ) {
     return 81920
   } else if (
     modelId.includes('qwen3-32b') ||
@@ -257,6 +263,11 @@ const getQwen3MaxBudget = (): number => {
 
   // 默认值
   return 81920
+}
+
+// 获取 Qwen3 模型的最小思考预算（统一为 1）
+const getQwen3MinBudget = (): number => {
+  return 1
 }
 
 // 获取 Gemini 模型的思考预算配置范围
@@ -351,11 +362,12 @@ const qwen3ThinkingBudgetError = computed(() => {
 
   const value = props.thinkingBudget
   const maxBudget = getQwen3MaxBudget()
+  const minBudget = getQwen3MinBudget()
 
   if (value === undefined || value === null) {
     return ''
   }
-  if (value < 1) {
+  if (value < minBudget) {
     return t('settings.model.modelConfig.thinkingBudget.qwen3.validation.minValue')
   }
   if (value > maxBudget) {
@@ -579,7 +591,7 @@ const qwen3ThinkingBudgetError = computed(() => {
             <Input
               v-model.number="displayThinkingBudget"
               type="number"
-              :min="1"
+              :min="getQwen3MinBudget()"
               :max="getQwen3MaxBudget()"
               :step="128"
               :placeholder="t('settings.model.modelConfig.thinkingBudget.qwen3.placeholder')"
@@ -594,7 +606,7 @@ const qwen3ThinkingBudgetError = computed(() => {
                   displayThinkingBudget === undefined
                     ? t('settings.model.modelConfig.currentUsingModelDefault')
                     : t('settings.model.modelConfig.thinkingBudget.range', {
-                        min: 1,
+                        min: getQwen3MinBudget(),
                         max: getQwen3MaxBudget()
                       })
                 }}

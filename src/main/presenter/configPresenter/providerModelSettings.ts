@@ -2730,10 +2730,24 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
       },
       // Qwen3 series models
       {
+        id: 'qwen3-max-2025-09-23',
+        name: 'Qwen3 Max 20250923',
+        temperature: 0.7,
+        maxTokens: 65536,
+        contextLength: 262144,
+        match: ['qwen3-max-2025-09-23'],
+        vision: false,
+        functionCall: true,
+        reasoning: false,
+        enableSearch: true,
+        forcedSearch: false,
+        searchStrategy: 'turbo'
+      },
+      {
         id: 'qwen3-max-preview',
         name: 'Qwen3 Max Preview',
         temperature: 0.7,
-        maxTokens: 32768,
+        maxTokens: 65536,
         contextLength: 262144,
         match: ['qwen3-max-preview'],
         vision: false,
@@ -2862,6 +2876,18 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         functionCall: true,
         reasoning: true,
         thinkingBudget: 20000
+      },
+      {
+        id: 'qwen3-vl-plus',
+        name: 'Qwen3 VL Plus',
+        temperature: 0.6,
+        maxTokens: 32768,
+        contextLength: 262144,
+        match: ['qwen3-vl-plus', 'qwen3-vl-plus-2025-09-23'],
+        vision: true,
+        functionCall: false,
+        reasoning: true,
+        thinkingBudget: 81920
       },
       // QwQ series models
       {

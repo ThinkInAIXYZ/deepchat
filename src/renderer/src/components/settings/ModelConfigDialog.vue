@@ -706,6 +706,15 @@ const getThinkingBudgetConfig = (modelId: string) => {
     }
   }
 
+  if (modelId.includes('qwen3-vl-plus')) {
+    return {
+      min: 1,
+      max: 81920,
+      defaultValue: 81920,
+      canDisable: true
+    }
+  }
+
   if (
     modelId.includes('qwen3-32b') ||
     modelId.includes('qwen3-14b') ||
@@ -822,6 +831,7 @@ const showQwen3ThinkingBudget = computed(() => {
     'qwen3-1.7b',
     'qwen3-0.6b',
     // Commercial versions
+    'qwen3-vl-plus',
     'qwen-plus',
     'qwen-plus-latest',
     'qwen-plus-2025-04-28',
@@ -845,6 +855,7 @@ const showDashScopeSearch = computed(() => {
   const modelId = props.modelId.toLowerCase()
   // DashScope - ENABLE_SEARCH_MODELS
   const supportedSearchModels = [
+    'qwen3-max-2025-09-23',
     'qwen3-max-preview',
     'qwen3-max',
     'qwen-max',
