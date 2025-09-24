@@ -1,10 +1,6 @@
 @layer vrm, base;
 @import 'vue-renderer-markdown/index.css' layer(vrm);
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
-@plugin @tailwindcss/typography;
-
+@import "tailwindcss";
 @font-face {
   font-family: 'Geist';
   src: url('./geist.ttf') format('truetype');
