@@ -77,7 +77,7 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
-import { Button } from '@/components/ui/button'
+import { Button } from '@shadcn/components/ui/button'
 import { useChatStore } from '@/stores/chat'
 import { AssistantMessageBlock } from '@shared/chat'
 import { ref, onMounted, onUnmounted } from 'vue'

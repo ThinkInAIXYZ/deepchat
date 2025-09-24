@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Textarea as UiTextarea } from '@/components/ui/textarea'
+import { Textarea as UiTextarea } from '@shadcn/components/ui/textarea'
 </script>
 
 <template>

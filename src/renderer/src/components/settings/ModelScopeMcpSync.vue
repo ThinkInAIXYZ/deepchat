@@ -110,8 +110,8 @@
 <script setup lang="ts">
 import { ref, reactive } from 'vue'
 import { Icon } from '@iconify/vue'
-import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
+import { Button } from '@shadcn/components/ui/button'
+import { Badge } from '@shadcn/components/ui/badge'
 import type { LLM_PROVIDER } from '@shared/presenter'
 import { useI18n } from 'vue-i18n'
 import { usePresenter } from '@/composables/usePresenter'

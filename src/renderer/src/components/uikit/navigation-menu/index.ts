@@ -1,1 +1,1 @@
-export * from '../../ui/navigation-menu'
+export * from '@shadcn/components/ui/navigation-menu'

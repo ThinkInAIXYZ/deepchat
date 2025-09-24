@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Avatar as UiAvatar } from '@/components/ui/avatar'
+import { Avatar as UiAvatar } from '@shadcn/components/ui/avatar'
 </script>
 
 <template>

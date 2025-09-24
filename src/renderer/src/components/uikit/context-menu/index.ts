@@ -1,1 +1,1 @@
-export * from '../../ui/context-menu'
+export * from '@shadcn/components/ui/context-menu'

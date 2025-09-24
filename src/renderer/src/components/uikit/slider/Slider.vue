@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Slider as UiSlider } from '@/components/ui/slider'
+import { Slider as UiSlider } from '@shadcn/components/ui/slider'
 </script>
 
 <template>

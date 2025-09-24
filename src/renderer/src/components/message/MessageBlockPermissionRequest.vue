@@ -84,7 +84,7 @@
 import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
-import { Button } from '@/components/ui/button'
+import { Button } from '@shadcn/components/ui/button'
 import { usePresenter } from '@/composables/usePresenter'
 import { AssistantMessageBlock } from '@shared/chat'
 

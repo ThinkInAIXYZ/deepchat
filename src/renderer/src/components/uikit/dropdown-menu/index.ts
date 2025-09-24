@@ -1,1 +1,1 @@
-export * from '../../ui/dropdown-menu'
+export * from '@shadcn/components/ui/dropdown-menu'

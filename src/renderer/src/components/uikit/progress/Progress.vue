@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Progress as UiProgress } from '@/components/ui/progress'
+import { Progress as UiProgress } from '@shadcn/components/ui/progress'
 </script>
 
 <template>

@@ -1,1 +1,1 @@
-export * from '../../ui/collapsible'
+export * from '@shadcn/components/ui/collapsible'

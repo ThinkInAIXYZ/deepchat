@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { NumberField as UiNumberField } from '@/components/ui/number-field'
+import { NumberField as UiNumberField } from '@shadcn/components/ui/number-field'
 </script>
 
 <template>

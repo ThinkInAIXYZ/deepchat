@@ -157,7 +157,7 @@
 import { usePresenter } from '@/composables/usePresenter'
 import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { Button } from '@/components/ui/button'
+import { Button } from '@shadcn/components/ui/button'
 import { Icon } from '@iconify/vue'
 import {
   Dialog,
@@ -166,14 +166,14 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle
-} from '@/components/ui/dialog'
+} from '@shadcn/components/ui/dialog'
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue
-} from '@/components/ui/select'
+} from '@shadcn/components/ui/select'
 import { renderMarkdown, getCommonMarkdown } from 'vue-renderer-markdown'
 import { useUpgradeStore } from '@/stores/upgrade'
 import { useLanguageStore } from '@/stores/language'

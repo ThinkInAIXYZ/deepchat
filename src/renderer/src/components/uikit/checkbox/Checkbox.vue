@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Checkbox as UiCheckbox } from '@/components/ui/checkbox'
+import { Checkbox as UiCheckbox } from '@shadcn/components/ui/checkbox'
 </script>
 
 <template>

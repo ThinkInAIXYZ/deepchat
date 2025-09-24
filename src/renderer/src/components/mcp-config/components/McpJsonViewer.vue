@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { Button } from '@/components/ui/button'
+import { Button } from '@shadcn/components/ui/button'
 import { Icon } from '@iconify/vue'
 import { useI18n } from 'vue-i18n'
 

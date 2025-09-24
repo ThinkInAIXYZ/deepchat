@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Badge as UiBadge } from '@/components/ui/badge'
+import { Badge as UiBadge } from '@shadcn/components/ui/badge'
 </script>
 
 <template>

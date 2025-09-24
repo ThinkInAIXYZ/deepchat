@@ -64,7 +64,7 @@ import { ref } from 'vue'
 import { Icon } from '@iconify/vue'
 import { AssistantMessageBlock } from '@shared/chat'
 import { useI18n } from 'vue-i18n'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@shadcn/components/ui/dialog'
 
 // 创建一个安全的翻译函数
 const t = (() => {

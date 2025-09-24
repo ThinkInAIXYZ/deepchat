@@ -1,1 +1,1 @@
-export * from '../../ui/alert-dialog'
+export * from '@shadcn/components/ui/alert-dialog'

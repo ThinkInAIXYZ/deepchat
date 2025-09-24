@@ -93,7 +93,7 @@
 <script setup lang="ts">
 import { useChatStore } from '@/stores/chat'
 import { useI18n } from 'vue-i18n'
-import { Button } from '@/components/ui/button'
+import { Button } from '@shadcn/components/ui/button'
 import { Icon } from '@iconify/vue'
 import type { CONVERSATION } from '@shared/presenter'
 import type { WorkingStatus } from '@/stores/chat'
@@ -106,7 +106,7 @@ import {
   DropdownMenuSub,
   DropdownMenuSubTrigger,
   DropdownMenuSubContent
-} from '@/components/ui/dropdown-menu'
+} from '@shadcn/components/ui/dropdown-menu'
 import { useLanguageStore } from '@/stores/language'
 import { useToast } from '@/components/ui/toast/use-toast'
 

@@ -199,10 +199,10 @@
 import { useI18n } from 'vue-i18n'
 import { computed, ref, onMounted } from 'vue'
 import McpServers from '@/components/mcp-config/components/McpServers.vue'
-import { Switch } from '@/components/ui/switch'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Badge } from '@/components/ui/badge'
+import { Switch } from '@shadcn/components/ui/switch'
+import { Button } from '@shadcn/components/ui/button'
+import { Input } from '@shadcn/components/ui/input'
+import { Badge } from '@shadcn/components/ui/badge'
 import { Icon } from '@iconify/vue'
 import {
   Dialog,
@@ -211,7 +211,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger
-} from '@/components/ui/dialog'
+} from '@shadcn/components/ui/dialog'
 import { useMcpStore } from '@/stores/mcp'
 import { useLanguageStore } from '@/stores/language'
 import { useToast } from '@/components/ui/toast'

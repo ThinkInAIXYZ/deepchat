@@ -79,7 +79,7 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
-import { Button } from '@/components/ui/button'
+import { Button } from '@shadcn/components/ui/button'
 import { Icon } from '@iconify/vue'
 import { ModelType } from '@shared/model'
 import ModelConfigDialog from './ModelConfigDialog.vue'

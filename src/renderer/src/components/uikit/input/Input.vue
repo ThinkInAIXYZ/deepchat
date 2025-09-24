@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Input as UiInput } from '@/components/ui/input'
+import { Input as UiInput } from '@shadcn/components/ui/input'
 </script>
 
 <template>

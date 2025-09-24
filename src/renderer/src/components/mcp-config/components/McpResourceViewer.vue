@@ -1,23 +1,23 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
 import { Icon } from '@iconify/vue'
-import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
-import { ScrollArea } from '@/components/ui/scroll-area'
+import { Button } from '@shadcn/components/ui/button'
+import { Badge } from '@shadcn/components/ui/badge'
+import { ScrollArea } from '@shadcn/components/ui/scroll-area'
 import {
   Sheet,
   SheetContent,
   SheetHeader,
   SheetTitle,
   SheetDescription
-} from '@/components/ui/sheet'
+} from '@shadcn/components/ui/sheet'
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue
-} from '@/components/ui/select'
+} from '@shadcn/components/ui/select'
 import { useMcpStore } from '@/stores/mcp'
 import { useI18n } from 'vue-i18n'
 import McpJsonViewer from './McpJsonViewer.vue'

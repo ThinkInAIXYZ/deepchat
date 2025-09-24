@@ -1,1 +1,1 @@
-export * from '../../ui/sheet'
+export * from '@shadcn/components/ui/sheet'

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Separator as UiSeparator } from '@/components/ui/separator'
+import { Separator as UiSeparator } from '@shadcn/components/ui/separator'
 </script>
 
 <template>

@@ -1,1 +1,1 @@
-export * from '../../ui/tabs'
+export * from '@shadcn/components/ui/tabs'

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { RadioGroup as UiRadioGroup } from '@/components/ui/radio-group'
+import { RadioGroup as UiRadioGroup } from '@shadcn/components/ui/radio-group'
 </script>
 
 <template>

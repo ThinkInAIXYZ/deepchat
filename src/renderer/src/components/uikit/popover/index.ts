@@ -1,1 +1,1 @@
-export * from '../../ui/popover'
+export * from '@shadcn/components/ui/popover'

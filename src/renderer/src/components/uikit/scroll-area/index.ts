@@ -1,1 +1,1 @@
-export * from '../../ui/scroll-area'
+export * from '@shadcn/components/ui/scroll-area'

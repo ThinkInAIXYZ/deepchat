@@ -23,7 +23,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { Button } from '@/components/ui/button'
+import { Button } from '@shadcn/components/ui/button'
 import { Icon } from '@iconify/vue'
 import CodeArtifact from './CodeArtifact.vue'
 import MarkdownArtifact from './MarkdownArtifact.vue'

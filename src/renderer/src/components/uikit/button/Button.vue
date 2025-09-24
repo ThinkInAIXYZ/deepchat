@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Button as UiButton } from '@/components/ui/button'
+import { Button as UiButton } from '@shadcn/components/ui/button'
 </script>
 
 <template>

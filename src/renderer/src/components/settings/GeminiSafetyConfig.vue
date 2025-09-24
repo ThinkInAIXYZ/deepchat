@@ -44,9 +44,9 @@ import {
   AccordionContent,
   AccordionItem,
   AccordionTrigger
-} from '@/components/ui/accordion'
-import { Label } from '@/components/ui/label'
-import { Slider } from '@/components/ui/slider'
+} from '@shadcn/components/ui/accordion'
+import { Label } from '@shadcn/components/ui/label'
+import { Slider } from '@shadcn/components/ui/slider'
 import {
   levelLabels,
   levelToValueMap,

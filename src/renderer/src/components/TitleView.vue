@@ -105,6 +105,7 @@ import { useThemeStore } from '@/stores/theme'
 import { useSettingsStore } from '@/stores/settings'
 import { ModelType } from '@shared/model'
 import { RATE_LIMIT_EVENTS } from '@/events'
+import { IconButton } from '@/components/uikit/icon-button'
 
 const emit = defineEmits(['messageNavigationToggle'])
 

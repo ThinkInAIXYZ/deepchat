@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Label as UiLabel } from '@/components/ui/label'
+import { Label as UiLabel } from '@shadcn/components/ui/label'
 </script>
 
 <template>

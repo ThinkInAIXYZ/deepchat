@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Skeleton as UiSkeleton } from '@/components/ui/skeleton'
+import { Skeleton as UiSkeleton } from '@shadcn/components/ui/skeleton'
 </script>
 
 <template>

@@ -465,18 +465,18 @@ import {
   DialogHeader,
   DialogTitle,
   DialogFooter
-} from '@/components/ui/dialog'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Switch } from '@/components/ui/switch'
+} from '@shadcn/components/ui/dialog'
+import { Button } from '@shadcn/components/ui/button'
+import { Input } from '@shadcn/components/ui/input'
+import { Label } from '@shadcn/components/ui/label'
+import { Switch } from '@shadcn/components/ui/switch'
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue
-} from '@/components/ui/select'
+} from '@shadcn/components/ui/select'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -486,7 +486,7 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle
-} from '@/components/ui/alert-dialog'
+} from '@shadcn/components/ui/alert-dialog'
 
 interface Props {
   open: boolean

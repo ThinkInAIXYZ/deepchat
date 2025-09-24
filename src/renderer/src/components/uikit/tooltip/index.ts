@@ -1,1 +1,1 @@
-export * from '../../ui/tooltip'
+export * from '@shadcn/components/ui/tooltip'

@@ -1,5 +1,5 @@
 <template>
-  <div class="w-full h-full flex flex-row bg-white/80 dark:bg-black/80 mx-auto xl:max-w-6xl">
+  <div class="w-full h-full flex flex-row  mx-auto xl:max-w-6xl">
     <div class="w-52 h-full border-r border-border p-2 space-y-2 flex-shrink-0 overflow-y-auto">
       <div
         v-for="setting in settings"

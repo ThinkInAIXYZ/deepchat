@@ -55,7 +55,7 @@
 
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
-import { Button } from '@/components/ui/button'
+import { Button } from '@shadcn/components/ui/button'
 import {
   Dialog,
   DialogContent,
@@ -63,7 +63,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle
-} from '@/components/ui/dialog'
+} from '@shadcn/components/ui/dialog'
 import { useUpgradeStore } from '@/stores/upgrade'
 import { renderMarkdown, getCommonMarkdown } from 'vue-renderer-markdown'
 

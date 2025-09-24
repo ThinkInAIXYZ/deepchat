@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Card as UiCard } from '@/components/ui/card'
+import { Card as UiCard } from '@shadcn/components/ui/card'
 </script>
 
 <template>

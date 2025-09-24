@@ -46,11 +46,11 @@ import {
   DialogTitle,
   DialogDescription,
   DialogFooter
-} from '@/components/ui/dialog'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { ScrollArea } from '@/components/ui/scroll-area'
+} from '@shadcn/components/ui/dialog'
+import { Button } from '@shadcn/components/ui/button'
+import { Input } from '@shadcn/components/ui/input'
+import { Label } from '@shadcn/components/ui/label'
+import { ScrollArea } from '@shadcn/components/ui/scroll-area'
 
 interface PromptParam {
   name: string

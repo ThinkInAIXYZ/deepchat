@@ -51,7 +51,7 @@ import {
   SheetDescription,
   SheetHeader,
   SheetTitle
-} from '@/components/ui/sheet'
+} from '@shadcn/components/ui/sheet'
 import type { SearchResult } from '@shared/presenter'
 
 const { t } = useI18n()

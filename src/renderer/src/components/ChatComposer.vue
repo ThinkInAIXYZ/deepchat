@@ -186,15 +186,15 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
-import { Button } from '@/components/ui/button'
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { Button } from '@shadcn/components/ui/button'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@shadcn/components/ui/tooltip'
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue
-} from '@/components/ui/select'
+} from '@shadcn/components/ui/select'
 import { Icon } from '@iconify/vue'
 import { IconButton, Pill, PromptInput } from '@/components/uikit'
 import FileItem from './FileItem.vue'
@@ -849,7 +849,7 @@ const onWebSearchClick = async () => {
 //   await configPresenter.setSetting('input_deepThinking', settings.value.deepThinking)
 // }
 
-const onSearchEngineChange = async (engineName: string) => {
+const onSearchEngineChange = async (engineName: any) => {
   await settingsStore.setSearchEngine(engineName)
 }
 
@@ -1442,6 +1442,7 @@ defineExpose({
 }
 </style>
 <style>
+@reference '@/assets/style.css';
 .tiptap p.is-editor-empty:first-child::before {
   @apply text-muted-foreground;
   content: attr(data-placeholder);

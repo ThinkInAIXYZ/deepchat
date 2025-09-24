@@ -1,1 +1,1 @@
-export * from '../../ui/breadcrumb'
+export * from '@shadcn/components/ui/breadcrumb'

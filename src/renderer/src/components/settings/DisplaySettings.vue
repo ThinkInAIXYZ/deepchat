@@ -147,14 +147,14 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
-import { ScrollArea } from '@/components/ui/scroll-area'
+import { ScrollArea } from '@shadcn/components/ui/scroll-area'
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue
-} from '@/components/ui/select'
+} from '@shadcn/components/ui/select'
 import { ref, onMounted, watch, computed } from 'vue'
 
 import { useSettingsStore } from '@/stores/settings'
@@ -167,9 +167,9 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle
-} from '@/components/ui/dialog'
-import { Button } from '@/components/ui/button'
-import { Switch } from '@/components/ui/switch'
+} from '@shadcn/components/ui/dialog'
+import { Button } from '@shadcn/components/ui/button'
+import { Switch } from '@shadcn/components/ui/switch'
 
 const languageStore = useLanguageStore()
 const settingsStore = useSettingsStore()

@@ -56,6 +56,8 @@ defineEmits(['copy'])
 </script>
 
 <style lang="css">
+@reference "tailwindcss";
+
 .prose {
   pre {
     margin-top: 0;

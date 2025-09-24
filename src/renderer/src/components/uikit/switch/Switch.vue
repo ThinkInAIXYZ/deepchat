@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Switch as UiSwitch } from '@/components/ui/switch'
+import { Switch as UiSwitch } from '@shadcn/components/ui/switch'
 </script>
 
 <template>

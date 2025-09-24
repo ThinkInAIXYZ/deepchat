@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
 import { Icon } from '@iconify/vue'
-import { Button } from '@/components/ui/button'
-import { ScrollArea } from '@/components/ui/scroll-area'
+import { Button } from '@shadcn/components/ui/button'
+import { ScrollArea } from '@shadcn/components/ui/scroll-area'
 import {
   Dialog,
   DialogContent,
@@ -11,7 +11,7 @@ import {
   DialogTrigger,
   DialogFooter,
   DialogDescription
-} from '@/components/ui/dialog'
+} from '@shadcn/components/ui/dialog'
 import { useMcpStore } from '@/stores/mcp'
 import { useSettingsStore } from '@/stores/settings'
 import { useI18n } from 'vue-i18n'

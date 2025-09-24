@@ -79,7 +79,7 @@
 
 <script setup lang="ts">
 import { Icon } from '@iconify/vue'
-import { Button } from '@/components/ui/button'
+import { Button } from '@shadcn/components/ui/button'
 import { onMounted, watch } from 'vue'
 import { useUpgradeStore } from '@/stores/upgrade'
 import { useThemeStore } from '@/stores/theme'
