@@ -55,10 +55,9 @@ const nodeComponents = {
 defineEmits(['copy'])
 </script>
 
-<style>
+<style lang="css">
 .prose {
   pre {
-    background: transparent !important;
     margin-top: 0;
     margin-bottom: 0;
   }
