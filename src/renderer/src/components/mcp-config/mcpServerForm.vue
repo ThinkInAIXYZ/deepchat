@@ -153,8 +153,9 @@ const showNpmRegistryInput = computed(() => {
 })
 
 // 当选择 all 时，自动选中其他权限
-const handleAutoApproveAllChange = (checked: boolean): void => {
-  if (checked) {
+const handleAutoApproveAllChange = (checked: boolean | 'indeterminate'): void => {
+  const isChecked = checked === 'indeterminate' ? false : checked
+  if (isChecked) {
     autoApproveRead.value = true
     autoApproveWrite.value = true
   }

@@ -847,7 +847,8 @@ const onWebSearchClick = async () => {
 //   await configPresenter.setSetting('input_deepThinking', settings.value.deepThinking)
 // }
 
-const onSearchEngineChange = async (engineName: string) => {
+const onSearchEngineChange = async (engineName: unknown) => {
+  if (typeof engineName !== 'string' || engineName.length === 0) return
   await settingsStore.setSearchEngine(engineName)
 }
 

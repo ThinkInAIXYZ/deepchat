@@ -445,6 +445,7 @@ const clearShortcut = async (shortcutId: string) => {
 </script>
 
 <style scoped>
+@reference '@/assets/style.css';
 .tw-keycap {
   @apply inline-flex min-w-8 h-8 items-center justify-center px-2 py-0.5 mx-0.5 rounded-md text-sm align-middle border shadow-sm transition-colors select-none;
   @apply border-border bg-background;

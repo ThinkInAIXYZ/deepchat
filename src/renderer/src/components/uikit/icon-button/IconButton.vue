@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { Button } from '@/components/uikit/button'
+import type { HTMLAttributes } from 'vue'
+import { Button } from '@shadcn/components/ui/button'
 
 type Props = {
-  class?: string
+  class?: HTMLAttributes['class']
 }
 
 withDefaults(defineProps<Props>(), {})

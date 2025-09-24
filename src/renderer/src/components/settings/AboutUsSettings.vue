@@ -208,7 +208,8 @@ const openDisclaimerDialog = () => {
 }
 
 // 设置更新渠道
-const setUpdateChannel = async (channel: string) => {
+const setUpdateChannel = async (channel: unknown) => {
+  if (typeof channel !== 'string' || channel.length === 0) return
   try {
     await configPresenter.setUpdateChannel(channel)
     // v-model 会自动更新 updateChannel.value，不需要手动设置

@@ -11,12 +11,14 @@ import Toaster from './components/ui/toast/Toaster.vue'
 import { useToast } from './components/ui/toast/use-toast'
 import { useSettingsStore } from '@/stores/settings'
 import { useThemeStore } from '@/stores/theme'
+import type { ThemeMode } from '@/stores/theme'
 import { useLanguageStore } from '@/stores/language'
 import { useI18n } from 'vue-i18n'
 import TranslatePopup from '@/components/popup/TranslatePopup.vue'
 import ModelCheckDialog from '@/components/settings/ModelCheckDialog.vue'
 import { useModelCheckStore } from '@/stores/modelCheck'
 import MessageDialog from './components/ui/MessageDialog.vue'
+import { applyTheme, Themes } from '@/components/uikit/theme'
 
 const route = useRoute()
 const configPresenter = usePresenter('configPresenter')
@@ -35,25 +37,46 @@ const errorDisplayTimer = ref<number | null>(null)
 
 const isMacOS = ref(false)
 const devicePresenter = usePresenter('devicePresenter')
-// Watch theme and font size changes, update body class directly
+const resolveTheme = (mode: ThemeMode, isDark: boolean): 'light' | 'dark' =>
+  mode === 'system' ? (isDark ? 'dark' : 'light') : mode
+
+let appliedThemeClass: 'light' | 'dark' | null = null
+let appliedFontClass: string | null = null
+
+const syncTheme = (mode: ThemeMode, isDarkMode: boolean, fontClass: string) => {
+  const themeClass = resolveTheme(mode, isDarkMode)
+
+  if (appliedThemeClass && appliedThemeClass !== themeClass) {
+    document.documentElement.classList.remove(appliedThemeClass)
+    document.body.classList.remove(appliedThemeClass)
+  }
+  if (appliedThemeClass !== themeClass) {
+    document.documentElement.classList.add(themeClass)
+    document.body.classList.add(themeClass)
+    appliedThemeClass = themeClass
+  }
+
+  if (appliedFontClass && appliedFontClass !== fontClass) {
+    document.documentElement.classList.remove(appliedFontClass)
+    document.body.classList.remove(appliedFontClass)
+  }
+  if (appliedFontClass !== fontClass) {
+    document.documentElement.classList.add(fontClass)
+    document.body.classList.add(fontClass)
+    appliedFontClass = fontClass
+  }
+
+  applyTheme(Themes[themeClass], { dark: themeClass === 'dark', replace: true })
+  document.documentElement.style.colorScheme = themeClass
+  document.body.style.colorScheme = themeClass
+}
+
 watch(
-  [() => themeStore.themeMode, () => settingsStore.fontSizeClass],
-  ([newTheme, newFontSizeClass], [oldTheme, oldFontSizeClass]) => {
-    let newThemeName = newTheme
-    if (newTheme === 'system') {
-      newThemeName = themeStore.isDark ? 'dark' : 'light'
-    }
-    if (oldTheme) {
-      document.documentElement.classList.remove(oldTheme)
-    }
-    if (oldFontSizeClass) {
-      document.documentElement.classList.remove(oldFontSizeClass)
-    }
-    document.documentElement.classList.add(newThemeName)
-    document.documentElement.classList.add(newFontSizeClass)
-    console.log('newTheme', newThemeName)
+  () => [themeStore.themeMode, themeStore.isDark, settingsStore.fontSizeClass] as const,
+  ([mode, isDarkMode, fontClass]) => {
+    syncTheme(mode, isDarkMode, fontClass)
   },
-  { immediate: false } // Initialization is handled in onMounted
+  { immediate: true }
 )
 
 // Handle error notifications
@@ -179,10 +202,6 @@ onMounted(() => {
   devicePresenter.getDeviceInfo().then((deviceInfo) => {
     isMacOS.value = deviceInfo.platform === 'darwin'
   })
-  // Set initial body class
-  document.body.classList.add(themeStore.themeMode)
-  document.body.classList.add(settingsStore.fontSizeClass)
-
   window.addEventListener('keydown', handleEscKey)
 
   // Listen for global error notification events

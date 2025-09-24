@@ -1,5 +1,0 @@
-export { default as NumberField } from './NumberField.vue'
-export { default as NumberFieldContent } from '@shadcn/components/ui/number-field/NumberFieldContent.vue'
-export { default as NumberFieldDecrement } from '@shadcn/components/ui/number-field/NumberFieldDecrement.vue'
-export { default as NumberFieldIncrement } from '@shadcn/components/ui/number-field/NumberFieldIncrement.vue'
-export { default as NumberFieldInput } from '@shadcn/components/ui/number-field/NumberFieldInput.vue'

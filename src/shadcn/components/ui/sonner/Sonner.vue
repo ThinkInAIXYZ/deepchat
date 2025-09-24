@@ -10,10 +10,17 @@ const props = defineProps<ToasterProps>()
     class="toaster group"
     v-bind="props"
     :style="{
-      '--normal-bg': 'var(--popover)',
-      '--normal-text': 'var(--popover-foreground)',
-      '--normal-border': 'var(--border)',
-
+      '--normal-bg': 'hsl(var(--popover))',
+      '--normal-text': 'hsl(var(--popover-foreground))',
+      '--normal-border': 'hsl(var(--border))',
+      '--success-bg': 'hsl(var(--primary))',
+      '--success-text': 'hsl(var(--primary-foreground))',
+      '--error-bg': 'hsl(var(--destructive))',
+      '--error-text': 'hsl(var(--destructive-foreground))',
+      '--warning-bg': 'hsl(var(--accent))',
+      '--warning-text': 'hsl(var(--accent-foreground))',
+      '--info-bg': 'hsl(var(--muted))',
+      '--info-text': 'hsl(var(--muted-foreground))',
     }"
   />
 </template>
