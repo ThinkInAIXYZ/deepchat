@@ -18,11 +18,15 @@
         }}</span>
       </span>
     </div>
-    <div v-show="!collapse" ref="messageBlock" class="w-full relative">
-      <div
-        class="prose prose-sm dark:prose-invert w-full max-w-full leading-7 break-all"
-        v-html="renderedContent"
-      ></div>
+    <div
+      v-show="!collapse"
+      ref="messageBlock"
+      class="w-full relative prose prose-sm dark:prose-invert max-w-full leading-7 break-all"
+    >
+      <NodeRenderer
+        :renderCodeBlocksAsPre="true"
+        :content="props.block.content || ''"
+      ></NodeRenderer>
     </div>
 
     <Icon
@@ -39,7 +43,7 @@ import { Icon } from '@iconify/vue'
 import { Button } from '@/components/ui/button'
 import { computed, onMounted, ref, watch } from 'vue'
 import { usePresenter } from '@/composables/usePresenter'
-import { renderMarkdown, getCommonMarkdown } from 'vue-renderer-markdown'
+import NodeRenderer, { renderMarkdown, getCommonMarkdown } from 'vue-renderer-markdown'
 import { AssistantMessageBlock } from '@shared/chat'
 const props = defineProps<{
   block: AssistantMessageBlock
@@ -69,6 +73,10 @@ const reasoningDuration = computed(() => {
 const md = getCommonMarkdown()
 const renderedContent = computed(() => {
   return renderMarkdown(md, props.block.content || '')
+})
+console.log('renderedContent', renderedContent.value)
+console.log({
+  content: props.block.content
 })
 
 watch(

@@ -12,7 +12,7 @@ export default defineConfig({
   main: {
     plugins: [
       externalizeDepsPlugin({
-        exclude: ['mermaid', 'dompurify']
+        exclude: ['mermaid']
       }),
     ],
     resolve: {
