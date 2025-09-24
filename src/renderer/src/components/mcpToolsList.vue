@@ -140,8 +140,8 @@ onMounted(async () => {
           </div>
           <Switch
             aria-label="启用MCP"
-            :checked="mcpEnabled"
-            @update:checked="handleMcpEnabledChange"
+            :model-value="mcpEnabled"
+            @update:model-value="handleMcpEnabledChange"
           />
         </div>
 
@@ -194,8 +194,8 @@ onMounted(async () => {
                     >
                       <div class="font-medium text-sm">{{ tool.function.name }}</div>
                       <Switch
-                        :checked="isEnabled(tool.function.name)"
-                        @update:checked="
+                        :model-value="isEnabled(tool.function.name)"
+                        @update:model-value="
                           (isEnabled) => handleToolEnabledChange(isEnabled, tool.function.name)
                         "
                       />
@@ -209,7 +209,7 @@ onMounted(async () => {
                   </PopoverContent>
                 </Popover>
 
-                <Switch :checked="server.isRunning" @click="onServerToggle(server.name)">
+                <Switch :model-value="server.isRunning" @click="onServerToggle(server.name)">
                   <template #thumb>
                     <div class="flex items-center justify-center w-full h-full">
                       <Icon

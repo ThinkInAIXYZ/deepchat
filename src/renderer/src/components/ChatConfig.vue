@@ -530,8 +530,8 @@ const qwen3ThinkingBudgetError = computed(() => {
               }}</Label>
             </div>
             <Switch
-              :checked="(props.thinkingBudget ?? -1) === -1"
-              @update:checked="handleDynamicThinkingToggle"
+              :model-value="(props.thinkingBudget ?? -1) === -1"
+              @update:model-value="handleDynamicThinkingToggle"
             />
           </div>
 
@@ -632,8 +632,8 @@ const qwen3ThinkingBudgetError = computed(() => {
               }}</Label>
             </div>
             <Switch
-              :checked="props.enableSearch ?? false"
-              @update:checked="(value) => emit('update:enableSearch', value)"
+              :model-value="props.enableSearch ?? false"
+              @update:model-value="(value) => emit('update:enableSearch', value)"
             />
           </div>
 
@@ -674,8 +674,8 @@ const qwen3ThinkingBudgetError = computed(() => {
               }}</Label>
             </div>
             <Switch
-              :checked="props.enableSearch ?? false"
-              @update:checked="(value) => emit('update:enableSearch', value)"
+              :model-value="props.enableSearch ?? false"
+              @update:model-value="(value) => emit('update:enableSearch', value)"
             />
           </div>
 
@@ -687,8 +687,8 @@ const qwen3ThinkingBudgetError = computed(() => {
               }}</Label>
             </div>
             <Switch
-              :checked="props.forcedSearch ?? false"
-              @update:checked="(value) => emit('update:forcedSearch', value)"
+              :model-value="props.forcedSearch ?? false"
+              @update:model-value="(value) => emit('update:forcedSearch', value)"
             />
           </div>
 
@@ -827,7 +827,7 @@ const qwen3ThinkingBudgetError = computed(() => {
         <div class="flex items-center justify-between">
           <div class="flex items-center space-x-2">
             <Label for="artifacts-mode">Artifacts</Label>
-            <Switch id="artifacts-mode" v-model:checked="artifactsEnabled" />
+            <Switch id="artifacts-mode" v-model:model-value="artifactsEnabled" />
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger>

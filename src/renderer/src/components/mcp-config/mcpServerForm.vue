@@ -1013,7 +1013,7 @@ HTTP-Referer=deepchatai.cn`
               </div>
             </div>
             <div class="flex items-center space-x-2">
-              <Checkbox id="use-e2b" v-model:checked="useE2B" />
+              <Checkbox id="use-e2b" v-model:model-value="useE2B" />
             </div>
           </div>
 
@@ -1096,8 +1096,8 @@ HTTP-Referer=deepchatai.cn`
             <div class="flex items-center space-x-2">
               <Checkbox
                 id="auto-approve-all"
-                v-model:checked="autoApproveAll"
-                @update:checked="handleAutoApproveAllChange"
+                v-model:model-value="autoApproveAll"
+                @update:model-value="handleAutoApproveAllChange"
               />
               <label
                 for="auto-approve-all"
@@ -1110,7 +1110,7 @@ HTTP-Referer=deepchatai.cn`
             <div class="flex items-center space-x-2">
               <Checkbox
                 id="auto-approve-read"
-                v-model:checked="autoApproveRead"
+                v-model:model-value="autoApproveRead"
                 :disabled="autoApproveAll"
               />
               <label
@@ -1124,7 +1124,7 @@ HTTP-Referer=deepchatai.cn`
             <div class="flex items-center space-x-2">
               <Checkbox
                 id="auto-approve-write"
-                v-model:checked="autoApproveWrite"
+                v-model:model-value="autoApproveWrite"
                 :disabled="autoApproveAll"
               />
               <label

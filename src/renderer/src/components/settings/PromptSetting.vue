@@ -404,8 +404,8 @@
               <div class="flex items-center space-x-2 pt-2">
                 <Checkbox
                   id="prompt-enabled"
-                  :checked="form.enabled"
-                  @update:checked="(value) => (form.enabled = value)"
+                  :model-value="form.enabled"
+                  @update:model-value="(value) => (form.enabled = value)"
                 />
                 <Label for="prompt-enabled" class="text-sm">{{
                   t('promptSetting.enablePrompt')
@@ -483,8 +483,8 @@
                       <div class="flex items-center gap-2">
                         <Checkbox
                           :id="'required-' + index"
-                          :checked="param.required"
-                          @update:checked="(value) => (param.required = value)"
+                          :model-value="param.required"
+                          @update:model-value="(value) => (param.required = value)"
                         />
                         <Label :for="'required-' + index" class="text-sm whitespace-nowrap">
                           {{ t('promptSetting.required') }}

@@ -7,7 +7,7 @@
           {{ t('settings.rateLimit.description') }}
         </p>
       </div>
-      <Switch :checked="rateLimitEnabled" @update:checked="handleEnabledChange" />
+      <Switch :model-value="rateLimitEnabled" @update:model-value="handleEnabledChange" />
     </div>
 
     <div v-if="rateLimitEnabled" class="space-y-3">

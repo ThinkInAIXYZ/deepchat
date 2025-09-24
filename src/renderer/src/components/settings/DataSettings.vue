@@ -8,7 +8,7 @@
           <span class="text-sm font-medium">{{ t('settings.data.syncEnable') }}</span>
         </span>
         <div class="flex-shrink-0">
-          <Switch v-model:checked="syncEnabled" />
+          <Switch v-model:model-value="syncEnabled" />
         </div>
       </div>
 

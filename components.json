@@ -6,7 +6,7 @@
     "config": "",
     "css": "src/renderer/src/assets/style.css",
     "baseColor": "zinc",
-    "cssVariables": true,
+    "cssVariables": false,
     "prefix": ""
   },
   "aliases": {

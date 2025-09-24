@@ -63,7 +63,7 @@
                 <span class="text-sm font-medium flex-1" :dir="languageStore.dir">{{
                   t(provider.name)
                 }}</span>
-                <Switch :checked="provider.enable" @click.stop="toggleProviderStatus(provider)" />
+                <Switch :model-value="provider.enable" @click.stop="toggleProviderStatus(provider)" />
               </div>
             </template>
           </draggable>
@@ -106,7 +106,7 @@
                 <span class="text-sm font-medium flex-1" :dir="languageStore.dir">{{
                   t(provider.name)
                 }}</span>
-                <Switch :checked="provider.enable" @click.stop="toggleProviderStatus(provider)" />
+                <Switch :model-value="provider.enable" @click.stop="toggleProviderStatus(provider)" />
               </div>
             </template>
           </draggable>

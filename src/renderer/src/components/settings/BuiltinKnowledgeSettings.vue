@@ -18,9 +18,9 @@
           <Tooltip :delay-duration="200">
             <TooltipTrigger as-child>
               <Switch
-                :checked="isBuiltinMcpEnabled"
+                :model-value="isBuiltinMcpEnabled"
                 :disabled="!mcpStore.mcpEnabled"
-                @update:checked="toggleBuiltinMcpServer"
+                @update:model-value="toggleBuiltinMcpServer"
               />
             </TooltipTrigger>
             <TooltipContent v-if="!mcpStore.mcpEnabled">
@@ -53,9 +53,9 @@
             >
               <div class="absolute top-2 right-2 flex gap-2">
                 <Switch
-                  :checked="config.enabled === true"
+                  :model-value="config.enabled === true"
                   size="sm"
-                  @update:checked="toggleConfigEnabled(index, $event)"
+                  @update:model-value="toggleConfigEnabled(index, $event)"
                 />
                 <button
                   type="button"
@@ -289,7 +289,7 @@
                   </div>
                   <Switch
                     id="edit-builtin-config-auto-detect-switch"
-                    v-model:checked="autoDetectDimensionsSwitch"
+                    v-model:model-value="autoDetectDimensionsSwitch"
                   ></Switch>
                 </div>
               </div>
@@ -351,7 +351,7 @@
                   </div>
                   <Switch
                     id="edit-builtin-config-auto-detect-switch"
-                    v-model:checked="editingBuiltinConfig.normalized"
+                    v-model:model-value="editingBuiltinConfig.normalized"
                     :disabled="isEditing"
                   ></Switch>
                 </div>

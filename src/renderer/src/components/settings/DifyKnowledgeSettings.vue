@@ -16,9 +16,9 @@
           <Tooltip :delay-duration="200">
             <TooltipTrigger as-child>
               <Switch
-                :checked="isDifyMcpEnabled"
+                :model-value="isDifyMcpEnabled"
                 :disabled="!mcpStore.mcpEnabled"
-                @update:checked="toggleDifyMcpServer"
+                @update:model-value="toggleDifyMcpServer"
               />
             </TooltipTrigger>
             <TooltipContent v-if="!mcpStore.mcpEnabled">
@@ -54,9 +54,9 @@
             >
               <div class="absolute top-2 right-2 flex gap-2">
                 <Switch
-                  :checked="config.enabled === true"
+                  :model-value="config.enabled === true"
                   size="sm"
-                  @update:checked="toggleConfigEnabled(index, $event)"
+                  @update:model-value="toggleConfigEnabled(index, $event)"
                 />
                 <button
                   type="button"

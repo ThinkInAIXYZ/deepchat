@@ -75,8 +75,8 @@
                         </div>
                       </div>
                       <Switch
-                        :checked="npmRegistryStatus.autoDetectEnabled"
-                        @update:checked="setAutoDetectNpmRegistry"
+                        :model-value="npmRegistryStatus.autoDetectEnabled"
+                        @update:model-value="setAutoDetectNpmRegistry"
                       />
                     </div>
 
@@ -140,7 +140,7 @@
               {{ t('settings.mcp.enabledDescription') }}
             </p>
           </div>
-          <Switch dir="ltr" :checked="mcpEnabled" @update:checked="handleMcpEnabledChange" />
+          <Switch dir="ltr" :model-value="mcpEnabled" @update:model-value="handleMcpEnabledChange" />
         </div>
       </div>
 
