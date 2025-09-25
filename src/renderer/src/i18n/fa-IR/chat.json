@@ -64,5 +64,16 @@
     "userMessage": "پیام کاربر",
     "assistantMessage": "پاسخ دستیار",
     "unknownMessage": "پیام ناشناخته"
+  },
+  "composer": {
+    "footerHint": "پیام به DeepSeek V3.1 — از @ برای ابزار و منابع و از / برای دستورات استفاده کنید"
+  },
+  "workspace": {
+    "title": "فضای کار",
+    "todos": "فهرست کارها",
+    "todoList": "فهرست کارها",
+    "files": "فایل‌ها",
+    "processes": "فرآیندها",
+    "agents": "عامل‌ها"
   }
 }

@@ -1,4 +1,4 @@
-import { computed, defineComponent, isVNode } from 'vue'
+import { computed, createVNode, isVNode } from 'vue'
 import type { Component, VNode } from 'vue'
 import { toast as sonnerToast, useVueSonner } from 'vue-sonner'
 import type { ExternalToast } from 'vue-sonner'
@@ -29,18 +29,12 @@ const variantClasses: Record<'default' | 'destructive', string> = {
 const toRenderable = (content?: ToastContent) => {
   if (!content) return undefined
   if (typeof content === 'string') return content
-  if (typeof content === 'function') {
-    return defineComponent({
-      setup: () => () => content(),
-    })
-  }
+  if (typeof content === 'function') return content
   if (isVNode(content)) {
     const vnode = content
-    return defineComponent({
-      setup: () => () => vnode,
-    })
+    return () => vnode
   }
-  return content
+  return () => createVNode(content as Component)
 }
 
 const emitToast = (options: ToastOptions, existingId?: number | string) => {

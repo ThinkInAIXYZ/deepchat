@@ -405,7 +405,7 @@
                 <Checkbox
                   id="prompt-enabled"
                   :model-value="form.enabled"
-                  @update:model-value="(value) => (form.enabled = value)"
+                  @update:model-value="(value) => (form.enabled = Boolean(value))"
                 />
                 <Label for="prompt-enabled" class="text-sm">{{
                   t('promptSetting.enablePrompt')
@@ -484,7 +484,7 @@
                         <Checkbox
                           :id="'required-' + index"
                           :model-value="param.required"
-                          @update:model-value="(value) => (param.required = value)"
+                          @update:model-value="(value) => (param.required = Boolean(value))"
                         />
                         <Label :for="'required-' + index" class="text-sm whitespace-nowrap">
                           {{ t('promptSetting.required') }}
@@ -744,6 +744,23 @@ const form = reactive<PromptItem>({
   source: 'local'
 })
 
+const normalizePromptItem = (item: Partial<PromptItem>): PromptItem => ({
+  id: item.id ?? '',
+  name: item.name ?? '',
+  description: item.description ?? '',
+  content: item.content ?? '',
+  parameters: (item.parameters ?? []).map((param) => ({
+    name: param.name ?? '',
+    description: param.description ?? '',
+    required: Boolean(param.required)
+  })),
+  files: item.files ? [...item.files] : [],
+  enabled: item.enabled ?? true,
+  source: item.source ?? 'local',
+  createdAt: item.createdAt,
+  updatedAt: item.updatedAt
+})
+
 // 安全的深拷贝函数，避免克隆不可序列化的对象
 const safeClone = (obj: unknown): unknown => {
   if (obj === null || typeof obj !== 'object') {
@@ -777,37 +794,12 @@ const safeClone = (obj: unknown): unknown => {
 }
 
 const loadPrompts = async () => {
-  await promptsStore.loadPrompts()
-
-  // 检查是否需要迁移数据（为旧数据添加新字段）
-  let needsMigration = false
-  const migratedPrompts = promptsStore.prompts.map((prompt) => {
-    const hasNewFields = prompt.enabled !== undefined && prompt.source !== undefined
-    if (!hasNewFields) {
-      needsMigration = true
-    }
-
-    return {
-      ...prompt,
-      enabled: prompt.enabled ?? true, // 默认启用
-      source: prompt.source ?? 'local', // 默认本地
-      createdAt: prompt.createdAt ?? Date.now(),
-      updatedAt: prompt.updatedAt ?? Date.now()
-    }
-  }) as PromptItem[]
-
-  // 如果需要迁移，保存更新后的数据
-  if (needsMigration) {
-    try {
-      // 使用安全的深拷贝函数
-      const safePrompts = migratedPrompts.map((p) => safeClone(toRaw(p)) as PromptItem)
-      await promptsStore.savePrompts(safePrompts)
-    } catch (error) {
-      console.warn('Failed to migrate prompt data:', error)
-    }
+  try {
+    await promptsStore.loadPrompts()
+    prompts.value = promptsStore.prompts.map((item) => normalizePromptItem(item))
+  } catch (error) {
+    console.error('Failed to load prompts:', error)
   }
-
-  prompts.value = migratedPrompts
 }
 
 const loadSystemPrompts = async () => {
@@ -1026,21 +1018,21 @@ const savePrompt = async () => {
 
   if (editingIdx.value === null) {
     // 新增
-    const newPrompt = {
+    const newPrompt = normalizePromptItem({
       ...toRaw(form),
       id: timestamp.toString(),
       enabled: form.enabled ?? true,
       source: 'local' as const,
       createdAt: timestamp,
       updatedAt: timestamp
-    }
+    })
     await promptsStore.addPrompt(newPrompt)
   } else {
     // 编辑
-    const updatedPrompt = {
+    const updatedPrompt = normalizePromptItem({
       ...toRaw(form),
       updatedAt: timestamp
-    }
+    })
     await promptsStore.updatePrompt(form.id, updatedPrompt)
   }
   openAddDialog.value = false
@@ -1049,7 +1041,7 @@ const savePrompt = async () => {
 }
 
 const editPrompt = (idx: number) => {
-  const p = prompts.value[idx]
+  const p = normalizePromptItem(prompts.value[idx])
   form.id = p.id
   form.name = p.name
   form.description = p.description
@@ -1057,13 +1049,11 @@ const editPrompt = (idx: number) => {
   form.enabled = p.enabled ?? true
   form.source = p.source ?? 'local'
   if (p.parameters) {
-    form.parameters = p.parameters.map((param) => {
-      return {
-        name: param.name,
-        description: param.description,
-        required: !!param.required
-      }
-    })
+    form.parameters = p.parameters.map((param) => ({
+      name: param.name,
+      description: param.description,
+      required: Boolean(param.required)
+    }))
   } else {
     form.parameters = []
   }
@@ -1096,7 +1086,7 @@ const deletePrompt = async (idx: number) => {
 
 // 切换提示词启用状态
 const togglePromptEnabled = async (idx: number) => {
-  const prompt = prompts.value[idx]
+  const prompt = normalizePromptItem(prompts.value[idx])
   const newEnabled = !(prompt.enabled ?? true) // 处理 undefined 的情况
 
   try {

@@ -64,5 +64,16 @@
     "userMessage": "사용자 메시지",
     "assistantMessage": "어시스턴트 답변",
     "unknownMessage": "알 수 없는 메시지"
+  },
+  "composer": {
+    "footerHint": "메시지 DeepSeek V3.1 — 도구와 리소스는 @, 명령은 / 를 사용하세요"
+  },
+  "workspace": {
+    "title": "워크스페이스",
+    "todos": "할 일 목록",
+    "todoList": "할 일 목록",
+    "files": "파일",
+    "processes": "프로세스",
+    "agents": "에이전트"
   }
 }

@@ -17,7 +17,7 @@
         </div>
         <Select
           v-model="authMethod"
-          @update:model-value="(value: string) => switchAuthMethod(value as 'apikey' | 'oauth')"
+          @update:model-value="handleAuthMethodChange"
         >
           <SelectTrigger class="w-full">
             <SelectValue :placeholder="t('settings.provider.authMethodPlaceholder')" />
@@ -478,6 +478,14 @@ const switchAuthMethod = async (method: 'apikey' | 'oauth') => {
     hasOAuthToken.value = false
     waitingForCode.value = false
     showCodeDialog.value = false
+  }
+}
+
+const handleAuthMethodChange = (value: unknown) => {
+  const next = typeof value === 'string' ? value : null
+  if (next === 'apikey' || next === 'oauth') {
+    authMethod.value = next
+    switchAuthMethod(next)
   }
 }
 

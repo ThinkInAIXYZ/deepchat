@@ -92,7 +92,10 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
-import { Toolbar, Button, Badge, Popover, PopoverContent, PopoverTrigger } from '@/components/uikit'
+import { Toolbar } from '@/components/uikit'
+import { Button } from '@shadcn/components/ui/button'
+import { Badge } from '@shadcn/components/ui/badge'
+import { Popover, PopoverContent, PopoverTrigger } from '@shadcn/components/ui/popover'
 import ScrollablePopover from './ScrollablePopover.vue'
 import ChatConfig from './ChatConfig.vue'
 import ModelSelect from './ModelSelect.vue'

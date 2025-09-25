@@ -64,5 +64,16 @@
     "userMessage": "Сообщение пользователя",
     "assistantMessage": "Ответ ассистента",
     "unknownMessage": "Неизвестное сообщение"
+  },
+  "composer": {
+    "footerHint": "Сообщение DeepSeek V3.1 — используйте @ для инструментов и ресурсов, / для команд"
+  },
+  "workspace": {
+    "title": "Рабочая область",
+    "todos": "Список дел",
+    "todoList": "Список дел",
+    "files": "Файлы",
+    "processes": "Процессы",
+    "agents": "Агенты"
   }
 }

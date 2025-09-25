@@ -64,5 +64,16 @@
     "userMessage": "用户消息",
     "assistantMessage": "助手回复",
     "unknownMessage": "未知消息"
+  },
+  "composer": {
+    "footerHint": "消息 DeepSeek V3.1 — 使用 @ 引用工具与资源，使用 / 输入指令"
+  },
+  "workspace": {
+    "title": "工作区",
+    "todos": "待办列表",
+    "todoList": "待办列表",
+    "files": "文件",
+    "processes": "进程",
+    "agents": "代理"
   }
 }

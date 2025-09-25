@@ -64,5 +64,16 @@
     "userMessage": "User message",
     "assistantMessage": "Assistant reply",
     "unknownMessage": "Unknown message"
+  },
+  "composer": {
+    "footerHint": "Message DeepSeek V3.1 — use @ for tools and resources, / for commands"
+  },
+  "workspace": {
+    "title": "Workspace",
+    "todos": "todo list",
+    "todoList": "todo list",
+    "files": "Files",
+    "processes": "Processes",
+    "agents": "Agents"
   }
 }

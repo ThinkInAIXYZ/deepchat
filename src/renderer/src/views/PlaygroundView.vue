@@ -125,38 +125,32 @@
 </template>
 
 <script setup lang="ts">
+import { Toolbar, IconButton, Chip, Pill, TabStrip, TabItem, ThinkContent } from '@/components/uikit'
+import { Button } from '@shadcn/components/ui/button'
+import { Input } from '@shadcn/components/ui/input'
+import { Textarea } from '@shadcn/components/ui/textarea'
+import { Label } from '@shadcn/components/ui/label'
+import { Checkbox } from '@shadcn/components/ui/checkbox'
+import { Switch } from '@shadcn/components/ui/switch'
+import { Slider } from '@shadcn/components/ui/slider'
 import {
-  Toolbar,
-  IconButton,
-  Button,
-  Input,
-  Textarea,
-  Label,
-  Checkbox,
-  Switch,
-  Slider,
   NumberField,
-  NumberFieldInput,
-  NumberFieldIncrement,
   NumberFieldDecrement,
-  Separator,
-  Progress,
+  NumberFieldIncrement,
+  NumberFieldInput
+} from '@shadcn/components/ui/number-field'
+import { Separator } from '@shadcn/components/ui/separator'
+import { Progress } from '@shadcn/components/ui/progress'
+import {
   Card,
-  CardHeader,
-  CardTitle,
-  CardDescription,
   CardContent,
+  CardDescription,
   CardFooter,
-  Badge,
-  Avatar,
-  AvatarImage,
-  AvatarFallback,
-  Chip,
-  Pill,
-  TabStrip,
-  TabItem,
-  ThinkContent
-} from '@/components/uikit'
+  CardHeader,
+  CardTitle
+} from '@shadcn/components/ui/card'
+import { Badge } from '@shadcn/components/ui/badge'
+import { Avatar, AvatarFallback, AvatarImage } from '@shadcn/components/ui/avatar'
 
 const demoHtml = `
 <p>Apply an instance swap property to a component</p>

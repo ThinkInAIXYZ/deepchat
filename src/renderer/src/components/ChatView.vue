@@ -1,33 +1,162 @@
 <template>
   <div class="flex h-full flex-1 flex-col overflow-hidden">
-    <!-- 消息列表区域 -->
-    <MessageList
-      :key="chatStore.getActiveThreadId() ?? 'default'"
-      ref="messageList"
-      :messages="chatStore.getMessages()"
-      @scroll-bottom="scrollToBottom"
-    />
-
-    <!-- 输入框区域 -->
-    <div class="flex-none border-t border-border/60 px-4 pb-6 pt-6 sm:px-6">
-      <ChatComposer
-        ref="chatInput"
-        :disabled="!chatStore.getActiveThreadId() || isGenerating"
-        @send="handleSend"
-        @file-upload="handleFileUpload"
-      />
-    </div>
+    <Card class="flex h-full w-full flex-row bg-[color:var(--window-inner-border)]/0 border-none shadow-none">
+      <div class="flex h-full flex-1 flex-col gap-0 overflow-hidden rounded-[8px] bg-[color:var(--card)]/80 backdrop-blur-md">
+        <CardHeader class="flex items-center gap-3 border-b border-border/10 px-4 py-2">
+          <slot name="title" />
+        </CardHeader>
+        <Separator class="bg-border/10" />
+        <CardContent class="flex flex-1 flex-col gap-0 px-0 py-0">
+          <ScrollArea class="flex-1">
+            <MessageList
+              :key="chatStore.getActiveThreadId() ?? 'default'"
+              ref="messageList"
+              :messages="chatStore.getMessages()"
+              class="px-2 py-4 sm:px-4"
+              @scroll-bottom="scrollToBottom"
+            />
+          </ScrollArea>
+          <Separator class="bg-border/10" />
+          <div class="flex flex-col gap-3 px-4 py-4">
+            <p class="text-xs text-secondary-foreground">
+              {{ t('chat.composer.footerHint') }}
+            </p>
+            <ChatComposer
+              ref="chatInput"
+              :disabled="!chatStore.getActiveThreadId() || isGenerating"
+              @send="handleSend"
+              @file-upload="handleFileUpload"
+            />
+          </div>
+        </CardContent>
+      </div>
+      <Separator orientation="vertical" class="mx-2 hidden bg-border/10 lg:block" />
+      <aside class="hidden w-[228px] flex-none flex-col rounded-[8px] border border-border/10 bg-[color:var(--sidebar-background)]/60 backdrop-blur-md lg:flex">
+        <header class="flex items-center gap-2 border-b border-border/10 px-4 py-3">
+          <Button variant="ghost" size="icon" class="h-8 w-8 rounded-lg">
+            <Icon icon="lucide:panel-left-close" class="h-4 w-4" />
+          </Button>
+          <h2 class="text-sm font-medium text-foreground">{{ t('chat.workspace.title') }}</h2>
+          <Button variant="ghost" size="icon" class="ml-auto h-8 w-8 rounded-lg">
+            <Icon icon="lucide:logs" class="h-4 w-4" />
+          </Button>
+        </header>
+        <ScrollArea class="flex-1">
+          <div class="flex flex-col gap-4 px-4 py-4 text-xs">
+            <section class="space-y-2">
+              <header class="flex items-center justify-between text-secondary-foreground">
+                <span>{{ t('chat.workspace.todos') }}</span>
+                <span>1/2</span>
+              </header>
+              <ul class="space-y-2 text-foreground">
+                <li class="flex items-center gap-2">
+                  <Icon icon="lucide:list-todo" class="h-4 w-4" />
+                  <span>{{ t('chat.workspace.todoList') }}</span>
+                </li>
+              </ul>
+            </section>
+            <section class="space-y-2">
+              <header class="flex items-center justify-between text-secondary-foreground">
+                <span>{{ t('chat.workspace.files') }}</span>
+                <Button variant="ghost" size="icon" class="h-6 w-6 rounded-md">
+                  <Icon icon="lucide:plus" class="h-3 w-3" />
+                </Button>
+              </header>
+              <ul class="space-y-2 text-foreground">
+                <li class="flex items-center gap-2">
+                  <Icon icon="lucide:folder-closed" class="h-4 w-4" />
+                  <span>backup</span>
+                </li>
+                <li class="flex items-center gap-2">
+                  <Icon icon="lucide:folder-closed" class="h-4 w-4" />
+                  <span>todo</span>
+                </li>
+                <li class="flex items-center gap-2">
+                  <Icon icon="lucide:file-box" class="h-4 w-4" />
+                  <span>space.md</span>
+                </li>
+                <li class="flex items-center gap-2">
+                  <Icon icon="lucide:file-box" class="h-4 w-4" />
+                  <span>design.md</span>
+                </li>
+                <li class="flex items-center gap-2">
+                  <Icon icon="lucide:file-video" class="h-4 w-4" />
+                  <span>record.mp4</span>
+                </li>
+                <li class="flex items-center gap-2">
+                  <Icon icon="lucide:presentation" class="h-4 w-4" />
+                  <span>presentation.pptx</span>
+                </li>
+              </ul>
+            </section>
+            <section class="space-y-2">
+              <header class="text-secondary-foreground">
+                <span>{{ t('chat.workspace.processes') }}</span>
+              </header>
+              <ul class="space-y-2 text-foreground">
+                <li class="flex items-center gap-2">
+                  <Icon icon="lucide:terminal" class="h-4 w-4" />
+                  <span>curl -i ...</span>
+                  <Icon icon="lucide:circle" class="ml-auto h-2 w-2 text-green-500" />
+                </li>
+                <li class="flex items-center gap-2">
+                  <Icon icon="lucide:terminal" class="h-4 w-4" />
+                  <span>ls -la</span>
+                  <Icon icon="lucide:circle" class="ml-auto h-2 w-2 text-green-500" />
+                </li>
+                <li class="flex items-center gap-2">
+                  <Icon icon="lucide:compass" class="h-4 w-4" />
+                  <span>Browser</span>
+                  <Icon icon="lucide:circle" class="ml-auto h-2 w-2 text-green-500" />
+                </li>
+              </ul>
+            </section>
+            <section class="space-y-2">
+              <header class="text-secondary-foreground">
+                <span>{{ t('chat.workspace.agents') }}</span>
+              </header>
+              <ul class="space-y-2 text-foreground">
+                <li class="flex items-center gap-2">
+                  <Icon icon="lucide:bot" class="h-4 w-4" />
+                  <span>MiniCPM</span>
+                </li>
+                <li class="flex items-center gap-2">
+                  <Icon icon="lucide:bot" class="h-4 w-4" />
+                  <span>QwenSearcher</span>
+                </li>
+                <li class="flex items-center gap-2">
+                  <Icon icon="lucide:bot" class="h-4 w-4" />
+                  <span>ChatGPT</span>
+                </li>
+                <li class="flex items-center gap-2">
+                  <Icon icon="lucide:bot" class="h-4 w-4" />
+                  <span>GrokWriter</span>
+                </li>
+              </ul>
+            </section>
+          </div>
+        </ScrollArea>
+      </aside>
+    </Card>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, watch, computed, nextTick } from 'vue'
+import { Icon } from '@iconify/vue'
+import { Card, CardContent, CardHeader } from '@shadcn/components/ui/card'
+import { ScrollArea } from '@shadcn/components/ui/scroll-area'
+import { Separator } from '@shadcn/components/ui/separator'
+import { Button } from '@shadcn/components/ui/button'
 import MessageList from './message/MessageList.vue'
 import ChatComposer from './ChatComposer.vue'
 import { useRoute } from 'vue-router'
 import { UserMessageContent } from '@shared/chat'
 import { STREAM_EVENTS } from '@/events'
 import { useSettingsStore } from '@/stores/settings'
+import { useI18n } from 'vue-i18n'
+
+const { t } = useI18n()
 
 const route = useRoute()
 const settingsStore = useSettingsStore()
@@ -120,4 +249,5 @@ onUnmounted(async () => {
 defineExpose({
   messageList
 })
+
 </script>

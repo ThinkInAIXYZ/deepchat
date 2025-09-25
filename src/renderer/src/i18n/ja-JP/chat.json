@@ -64,5 +64,16 @@
     "userMessage": "ユーザーメッセージ",
     "assistantMessage": "アシスタントの返信",
     "unknownMessage": "不明なメッセージ"
+  },
+  "composer": {
+    "footerHint": "DeepSeek V3.1 にメッセージ — ツールとリソースには @、コマンドには / を使用"
+  },
+  "workspace": {
+    "title": "ワークスペース",
+    "todos": "ToDo リスト",
+    "todoList": "ToDo リスト",
+    "files": "ファイル",
+    "processes": "プロセス",
+    "agents": "エージェント"
   }
 }

@@ -1,5 +1,5 @@
 <template>
-  <div class="relative flex h-full w-full min-h-0 flex-col">
+  <div :class="['relative flex h-full w-full min-h-0 flex-col', props.class ?? '']">
     <div
       ref="messagesContainer"
       class="message-list-container relative flex-1 h-full w-full overflow-y-auto scroll-smooth px-4 py-6 sm:px-6"
@@ -112,6 +112,7 @@ import { usePresenter } from '@/composables/usePresenter'
 const { t } = useI18n()
 const props = defineProps<{
   messages: UserMessage[] | AssistantMessage[]
+  class?: string
 }>()
 const themeStore = useThemeStore()
 const referenceStore = useReferenceStore()
