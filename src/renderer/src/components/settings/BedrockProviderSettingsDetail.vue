@@ -319,6 +319,12 @@ const handleConfigChanged = async () => {
 
 <style scoped>
 .hint {
-  @apply text-xs text-red-700 dark:text-red-400;
+  font-size: 0.75rem;
+  line-height: 1rem;
+  color: #b91c1c;
+}
+
+:global(.dark) .hint {
+  color: #f87171;
 }
 </style>

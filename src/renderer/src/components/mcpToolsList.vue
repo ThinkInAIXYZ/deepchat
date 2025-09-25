@@ -169,11 +169,9 @@ onMounted(async () => {
               <div class="p-2 hover:bg-accent flex items-center w-full">
                 <div :dir="langStore.dir" class="w-full">
                   <span class="mr-2">{{ server.icons }}</span>
-                  <span
-                    v-if="server.type === 'inmemory'"
-                    class="grow truncate text-left text-sm"
-                    >{{ getLocalizedServerName(server.name) }}</span
-                  >
+                  <span v-if="server.type === 'inmemory'" class="grow truncate text-left text-sm">{{
+                    getLocalizedServerName(server.name)
+                  }}</span>
                   <span v-else class="grow truncate text-left text-sm">{{ server.name }}</span>
                 </div>
                 <Popover>

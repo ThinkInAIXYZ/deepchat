@@ -32,6 +32,9 @@
       ],
       "@shared/*": [
         "src/shared/*"
+      ],
+      "@shadcn/*": [
+        "src/shadcn/*"
       ]
     }
   }

@@ -22,10 +22,7 @@
             :key="shortcut.id"
             class="flex flex-row p-2 items-center gap-2 px-2"
           >
-            <span
-              class="flex flex-row items-center gap-2 grow w-full"
-              :dir="languageStore.dir"
-            >
+            <span class="flex flex-row items-center gap-2 grow w-full" :dir="languageStore.dir">
               <Icon :icon="shortcut.icon" class="w-4 h-4 text-muted-foreground" />
               <span class="text-sm font-medium">{{ t(shortcut.label) }}</span>
             </span>
@@ -446,7 +443,26 @@ const clearShortcut = async (shortcutId: string) => {
 
 <style scoped>
 .tw-keycap {
-  @apply inline-flex min-w-8 h-8 items-center justify-center px-2 py-0.5 mx-0.5 rounded-md text-sm align-middle border shadow-sm transition-colors select-none;
-  @apply border-border bg-background;
+  display: inline-flex;
+  min-width: 2rem;
+  height: 2rem;
+  align-items: center;
+  justify-content: center;
+  padding: 0.125rem 0.5rem;
+  margin: 0 0.125rem;
+  border-radius: 0.375rem;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  vertical-align: middle;
+  border-width: 1px;
+  border-style: solid;
+  box-shadow: 0 1px 2px rgb(15 23 42 / 0.08);
+  transition:
+    color 150ms ease,
+    background-color 150ms ease,
+    border-color 150ms ease;
+  user-select: none;
+  background-color: hsl(var(--background));
+  border-color: hsl(var(--border));
 }
 </style>

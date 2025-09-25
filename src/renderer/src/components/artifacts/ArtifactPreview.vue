@@ -15,9 +15,7 @@
         </h3>
         <p class="text-xs text-muted-foreground mt-0.5">{{ artifactDesc }}</p>
       </div>
-      <div
-        class="shrink-0 px-3 h-14 rounded-lg rounded-l-none flex justify-center items-center"
-      >
+      <div class="shrink-0 px-3 h-14 rounded-lg rounded-l-none flex justify-center items-center">
         <Icon
           v-if="props.loading"
           icon="lucide:loader-2"

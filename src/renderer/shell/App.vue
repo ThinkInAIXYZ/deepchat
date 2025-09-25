@@ -29,6 +29,6 @@ onMounted(() => {
 <style>
 html,
 body {
-  @apply bg-transparent;
+  background-color: transparent;
 }
 </style>

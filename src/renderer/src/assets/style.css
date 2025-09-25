@@ -1,7 +1,20 @@
 @layer vrm, base;
 @import 'vue-renderer-markdown/index.css' layer(vrm);
 @import 'tailwindcss';
+@import 'tw-animate-css';
+@import 'tailwind-scrollbar-hide/v4';
 
+@plugin "@tailwindcss/typography";
+@plugin "tailwindcss-animate";
+
+@custom-variant dark (&:is(.dark *));
+@source inline("dark");
+
+@theme {
+  --container-center: true;
+  --container-padding: 2rem;
+  --container-max-2xl: 1400px;
+}
 @layer utilities {
   @font-face {
     font-family: 'Geist';
@@ -75,6 +88,74 @@
     --sidebar-border: var(--base-200);
     --sidebar-ring: var(--primary-600);
 
+    --color-border: hsl(var(--border));
+    --color-input: hsl(var(--input));
+    --color-ring: hsl(var(--ring));
+    --color-background: hsl(var(--background));
+    --color-foreground: hsl(var(--foreground));
+    --color-container: hsl(var(--container));
+
+    --color-base-50: hsl(var(--base-50));
+    --color-base-100: hsl(var(--base-100));
+    --color-base-200: hsl(var(--base-200));
+    --color-base-300: hsl(var(--base-300));
+    --color-base-400: hsl(var(--base-400));
+    --color-base-500: hsl(var(--base-500));
+    --color-base-600: hsl(var(--base-600));
+    --color-base-700: hsl(var(--base-700));
+    --color-base-800: hsl(var(--base-800));
+    --color-base-900: hsl(var(--base-900));
+    --color-base-950: hsl(var(--base-950));
+    --color-base-1000: hsl(var(--base-1000));
+
+    --color-primary: hsl(var(--primary));
+    --color-primary-foreground: hsl(var(--primary-foreground));
+    --color-primary-50: hsl(var(--primary-50));
+    --color-primary-100: hsl(var(--primary-100));
+    --color-primary-200: hsl(var(--primary-200));
+    --color-primary-300: hsl(var(--primary-300));
+    --color-primary-400: hsl(var(--primary-400));
+    --color-primary-500: hsl(var(--primary-500));
+    --color-primary-600: hsl(var(--primary-600));
+    --color-primary-700: hsl(var(--primary-700));
+    --color-primary-800: hsl(var(--primary-800));
+    --color-primary-900: hsl(var(--primary-900));
+    --color-primary-950: hsl(var(--primary-950));
+    --color-primary-1000: hsl(var(--primary-1000));
+
+    --color-secondary: hsl(var(--secondary));
+    --color-secondary-foreground: hsl(var(--secondary-foreground));
+
+    --color-destructive: hsl(var(--destructive));
+    --color-destructive-foreground: hsl(var(--destructive-foreground));
+
+    --color-muted: hsl(var(--muted));
+    --color-muted-foreground: hsl(var(--muted-foreground));
+
+    --color-accent: hsl(var(--accent));
+    --color-accent-foreground: hsl(var(--accent-foreground));
+
+    --color-popover: hsl(var(--popover));
+    --color-popover-foreground: hsl(var(--popover-foreground));
+
+    --color-card: hsl(var(--card));
+    --color-card-foreground: hsl(var(--card-foreground));
+
+    --color-usage-low: hsl(var(--usage-low));
+    --color-usage-mid: hsl(var(--usage-mid));
+    --color-usage-high: hsl(var(--usage-high));
+
+    --radius-xl: calc(var(--radius) + 4px);
+    --radius-lg: var(--radius);
+    --radius-md: calc(var(--radius) - 2px);
+    --radius-sm: calc(var(--radius) - 4px);
+
+    --animation-accordion-down: accordion-down 0.2s ease-out;
+    --animation-accordion-up: accordion-up 0.2s ease-out;
+    --animation-collapsible-down: collapsible-down 0.2s ease-in-out;
+    --animation-collapsible-up: collapsible-up 0.2s ease-in-out;
+    --animation-pulse: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+
     --display-weight: 700;
     --text-weight: 400;
 
@@ -121,6 +202,74 @@
     --sidebar-border: var(--base-800);
     --sidebar-ring: var(--primary-600);
 
+    --color-border: hsl(var(--border));
+    --color-input: hsl(var(--input));
+    --color-ring: hsl(var(--ring));
+    --color-background: hsl(var(--background));
+    --color-foreground: hsl(var(--foreground));
+    --color-container: hsl(var(--container));
+
+    --color-base-50: hsl(var(--base-50));
+    --color-base-100: hsl(var(--base-100));
+    --color-base-200: hsl(var(--base-200));
+    --color-base-300: hsl(var(--base-300));
+    --color-base-400: hsl(var(--base-400));
+    --color-base-500: hsl(var(--base-500));
+    --color-base-600: hsl(var(--base-600));
+    --color-base-700: hsl(var(--base-700));
+    --color-base-800: hsl(var(--base-800));
+    --color-base-900: hsl(var(--base-900));
+    --color-base-950: hsl(var(--base-950));
+    --color-base-1000: hsl(var(--base-1000));
+
+    --color-primary: hsl(var(--primary));
+    --color-primary-foreground: hsl(var(--primary-foreground));
+    --color-primary-50: hsl(var(--primary-50));
+    --color-primary-100: hsl(var(--primary-100));
+    --color-primary-200: hsl(var(--primary-200));
+    --color-primary-300: hsl(var(--primary-300));
+    --color-primary-400: hsl(var(--primary-400));
+    --color-primary-500: hsl(var(--primary-500));
+    --color-primary-600: hsl(var(--primary-600));
+    --color-primary-700: hsl(var(--primary-700));
+    --color-primary-800: hsl(var(--primary-800));
+    --color-primary-900: hsl(var(--primary-900));
+    --color-primary-950: hsl(var(--primary-950));
+    --color-primary-1000: hsl(var(--primary-1000));
+
+    --color-secondary: hsl(var(--secondary));
+    --color-secondary-foreground: hsl(var(--secondary-foreground));
+
+    --color-destructive: hsl(var(--destructive));
+    --color-destructive-foreground: hsl(var(--destructive-foreground));
+
+    --color-muted: hsl(var(--muted));
+    --color-muted-foreground: hsl(var(--muted-foreground));
+
+    --color-accent: hsl(var(--accent));
+    --color-accent-foreground: hsl(var(--accent-foreground));
+
+    --color-popover: hsl(var(--popover));
+    --color-popover-foreground: hsl(var(--popover-foreground));
+
+    --color-card: hsl(var(--card));
+    --color-card-foreground: hsl(var(--card-foreground));
+
+    --color-usage-low: hsl(var(--usage-low));
+    --color-usage-mid: hsl(var(--usage-mid));
+    --color-usage-high: hsl(var(--usage-high));
+
+    --radius-xl: calc(var(--radius) + 4px);
+    --radius-lg: var(--radius);
+    --radius-md: calc(var(--radius) - 2px);
+    --radius-sm: calc(var(--radius) - 4px);
+
+    --animation-accordion-down: accordion-down 0.2s ease-out;
+    --animation-accordion-up: accordion-up 0.2s ease-out;
+    --animation-collapsible-down: collapsible-down 0.2s ease-in-out;
+    --animation-collapsible-up: collapsible-up 0.2s ease-in-out;
+    --animation-pulse: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+
     --usage-low: 142 40% 60%;
     /* 暗绿 */
     --usage-mid: 48 80% 60%;
@@ -129,6 +278,7 @@
     /* 暗红 */
   }
 }
+
 @layer base {
   .font-display {
     font-weight: var(--display-weight);
@@ -138,13 +288,16 @@
     font-weight: var(--text-weight);
   }
 }
+
 @layer base {
-  * {
-    @apply border-border;
+  ::backdrop {
+    border-color: var(--color-border);
   }
 
   body {
-    @apply bg-transparent text-foreground font-text;
+    color: var(--color-foreground);
+    font-weight: var(--text-weight);
+    background-color: transparent;
   }
 
   html {
@@ -161,4 +314,62 @@
   }
 }
 
+@keyframes accordion-up {
+  from {
+    height: var(--reka-accordion-content-height);
+  }
 
+  to {
+    height: 0;
+  }
+}
+
+@keyframes accordion-down {
+  from {
+    height: 0;
+  }
+
+  to {
+    height: var(--reka-accordion-content-height);
+  }
+}
+
+@keyframes accordion-up {
+  from {
+    height: var(--reka-accordion-content-height);
+  }
+
+  to {
+    height: 0;
+  }
+}
+
+@keyframes accordion-down {
+  from {
+    height: 0;
+  }
+
+  to {
+    height: var(--reka-accordion-content-height);
+  }
+}
+
+@keyframes accordion-up {
+  from {
+    height: var(--reka-accordion-content-height);
+  }
+
+  to {
+    height: 0;
+  }
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.3;
+  }
+}

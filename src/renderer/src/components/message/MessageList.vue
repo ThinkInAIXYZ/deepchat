@@ -7,7 +7,7 @@
       <div
         ref="messageList"
         class="w-full break-all max-w-4xl mx-auto transition-opacity duration-300"
-        :class="{ 'opacity-0': visible! }"
+        :class="{ 'opacity-0': !visible }"
       >
         <template v-for="(msg, index) in messages" :key="msg.id">
           <MessageItemAssistant

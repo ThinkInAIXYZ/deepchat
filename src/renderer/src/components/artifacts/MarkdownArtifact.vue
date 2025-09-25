@@ -32,7 +32,7 @@ const handleCopyClick = () => {
 <style>
 @reference '@/assets/style.css';
 .markdown-content-wrapper {
-  @apply leading-7;
+  line-height: 1.75rem;
   font-family:
     -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   -webkit-font-smoothing: antialiased;

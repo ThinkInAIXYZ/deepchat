@@ -50,10 +50,7 @@
 
       <!-- 字体大小设置 -->
       <div class="flex flex-col p-2 gap-2 px-2">
-        <span
-          class="flex flex-row items-center gap-2 grow w-full mb-1"
-          :dir="languageStore.dir"
-        >
+        <span class="flex flex-row items-center gap-2 grow w-full mb-1" :dir="languageStore.dir">
           <Icon icon="lucide:a-large-small" class="w-4 h-4 text-muted-foreground" />
           <span class="text-sm font-medium">{{ t('settings.display.fontSize') }}</span>
         </span>
