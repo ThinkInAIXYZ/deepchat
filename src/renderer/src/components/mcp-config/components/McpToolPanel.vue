@@ -166,7 +166,7 @@ const selectTool = (tool: MCPToolDefinition) => {
       side="right"
       class="w-4/5 min-w-[80vw] max-w-[80vw] p-0 bg-white dark:bg-black h-screen flex flex-col gap-0"
     >
-      <SheetHeader class="px-4 py-3 border-b bg-card flex-shrink-0">
+      <SheetHeader class="px-4 py-3 border-b bg-card shrink-0">
         <SheetTitle class="flex items-center space-x-2">
           <Icon icon="lucide:wrench" class="h-5 w-5 text-primary" />
           <span>{{ t('mcp.tools.title') }} - {{ serverName }}</span>
@@ -178,7 +178,7 @@ const selectTool = (tool: MCPToolDefinition) => {
 
       <div class="flex flex-col flex-1 overflow-hidden">
         <!-- 顶部工具选择下拉菜单：小屏显示；或大屏但左侧列表不可用时显示 -->
-        <div v-if="showTopSelector" class="flex-shrink-0 px-4 py-4">
+        <div v-if="showTopSelector" class="shrink-0 px-4 py-4">
           <Select v-model="selectedToolName">
             <SelectTrigger class="w-full">
               <SelectValue :placeholder="t('mcp.tools.selectToolToDebug')" />
@@ -202,7 +202,7 @@ const selectTool = (tool: MCPToolDefinition) => {
         <div class="flex-1 flex overflow-hidden min-h-0">
           <!-- 左侧工具列表 (仅大屏幕显示) -->
           <div v-if="!showTopSelector" class="flex w-1/3 border-r flex-col">
-            <div class="p-4 border-b flex-shrink-0">
+            <div class="p-4 border-b shrink-0">
               <h3 class="text-sm font-medium text-foreground">{{ t('mcp.tools.toolList') }}</h3>
             </div>
             <ScrollArea class="flex-1 min-h-0">
@@ -220,7 +220,7 @@ const selectTool = (tool: MCPToolDefinition) => {
                   <div class="flex items-start space-x-2 w-full">
                     <Icon
                       icon="lucide:function-square"
-                      class="h-4 w-4 text-primary mt-0.5 flex-shrink-0"
+                      class="h-4 w-4 text-primary mt-0.5 shrink-0"
                     />
                     <div class="flex-1 min-w-0">
                       <div class="font-medium text-sm truncate">{{ tool.function.name }}</div>

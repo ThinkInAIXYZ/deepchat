@@ -1,6 +1,6 @@
 <template>
   <Dialog :open="true" @update:open="$emit('close')">
-    <DialogContent class="sm:max-w-[425px] z-[100]">
+    <DialogContent class="sm:max-w-[425px] z-100">
       <DialogHeader>
         <DialogTitle>{{ promptName }} 参数设置</DialogTitle>
         <DialogDescription> 请填写以下参数，带 * 的为必填项 </DialogDescription>

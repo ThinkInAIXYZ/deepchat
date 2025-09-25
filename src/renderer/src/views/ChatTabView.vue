@@ -2,8 +2,8 @@
   <div class="w-full h-full flex-row flex">
     <div
       :class="[
-        'flex-1 w-0 h-full transition-all duration-200 max-lg:!mr-0',
-        artifactStore.isOpen && route.name === 'chat' ? 'mr-[calc(60%_-_104px)]' : '',
+        'flex-1 w-0 h-full transition-all duration-200 max-lg:mr-0!',
+        artifactStore.isOpen && route.name === 'chat' ? 'mr-[calc(60%-104px)]' : '',
         chatStore.isMessageNavigationOpen && !artifactStore.isOpen && isLargeScreen ? 'mr-80' : ''
       ]"
     >

@@ -9,13 +9,13 @@
   >
     <div
       v-if="artifactStore.isOpen"
-      class="absolute right-0 top-0 bottom-0 w-[calc(60%_-_104px)] border-l shadow-lg flex flex-col max-lg:!w-3/4 max-lg:bg-white max-lg:dark:!bg-black z-[60]"
+      class="absolute right-0 top-0 bottom-0 w-[calc(60%-104px)] border-l shadow-lg flex flex-col max-lg:w-3/4! max-lg:bg-white max-lg:dark:bg-black! z-60"
     >
       <!-- 顶部导航栏 -->
       <div
         class="flex items-center justify-between bg-card px-4 h-11 border-b w-full overflow-hidden"
       >
-        <div class="flex items-center gap-2 flex-grow w-0">
+        <div class="flex items-center gap-2 grow w-0">
           <button class="p-2 hover:bg-accent/50 rounded-md" @click="artifactStore.hideArtifact">
             <Icon icon="lucide:arrow-left" class="w-4 h-4" />
           </button>

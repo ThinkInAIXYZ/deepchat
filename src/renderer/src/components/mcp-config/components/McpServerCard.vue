@@ -142,7 +142,7 @@ watch(watchDescription, () => {
       <div class="flex items-center justify-between mb-3">
         <div class="flex items-center space-x-2 flex-1 min-w-0">
           <!-- 服务器图标 -->
-          <div class="text-lg flex-shrink-0">{{ server.icons }}</div>
+          <div class="text-lg shrink-0">{{ server.icons }}</div>
 
           <!-- 名称 -->
           <h3 class="text-sm font-bold truncate flex-1">
@@ -156,7 +156,7 @@ watch(watchDescription, () => {
             <Button
               variant="ghost"
               size="icon"
-              class="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
+              class="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
             >
               <Icon icon="lucide:more-horizontal" class="h-3 w-3" />
             </Button>

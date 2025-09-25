@@ -146,7 +146,7 @@
             <!-- 卡片头部 -->
             <div class="flex items-start justify-between mb-3">
               <div class="flex items-center gap-3 flex-1 min-w-0">
-                <div class="p-2 bg-primary/10 rounded-lg flex-shrink-0">
+                <div class="p-2 bg-primary/10 rounded-lg shrink-0">
                   <Icon icon="lucide:scroll-text" class="w-5 h-5 text-primary" />
                 </div>
                 <div class="flex-1 min-w-0">
@@ -178,7 +178,7 @@
               </div>
 
               <!-- 操作按钮 -->
-              <div class="flex items-center gap-1 flex-shrink-0 ml-2">
+              <div class="flex items-center gap-1 shrink-0 ml-2">
                 <Button
                   variant="ghost"
                   size="icon"
@@ -276,7 +276,7 @@
     <Sheet v-model:open="openSystemPromptDialog">
       <SheetContent
         side="right"
-        class="!w-[60vw] !max-w-[90vw] h-full flex flex-col p-0 bg-background"
+        class="w-[60vw]! max-w-[90vw]! h-full flex flex-col p-0 bg-background"
       >
         <SheetHeader class="px-6 py-4 border-b bg-card/50">
           <SheetTitle class="flex items-center gap-2">
@@ -350,7 +350,7 @@
     <Sheet v-model:open="openAddDialog">
       <SheetContent
         side="right"
-        class="!w-[75vw] !max-w-[95vw] h-full flex flex-col p-0 bg-background"
+        class="w-[75vw]! max-w-[95vw]! h-full flex flex-col p-0 bg-background"
       >
         <SheetHeader class="px-6 py-4 border-b bg-card/50">
           <SheetTitle class="flex items-center gap-2">
@@ -591,7 +591,7 @@
                           class="px-2 py-0.5 bg-muted rounded truncate text-ellipsis whitespace-nowrap flex-1"
                           >{{ file.type || 'unknown' }}</span
                         >
-                        <span class="flex-shrink-0">{{ formatFileSize(file.size) }}</span>
+                        <span class="shrink-0">{{ formatFileSize(file.size) }}</span>
                       </div>
 
                       <p

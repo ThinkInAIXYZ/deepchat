@@ -1,6 +1,6 @@
 <template>
   <div
-    class="w-full h-full overflow-hidden p-2 space-y-3 flex-shrink-0 border-r flex flex-col bg-background"
+    class="w-full h-full overflow-hidden p-2 space-y-3 shrink-0 border-r flex flex-col bg-background"
   >
     <!-- 固定在顶部的"新会话"按钮 -->
     <div class="flex-none flex flex-row gap-2">
@@ -8,7 +8,7 @@
         v-if="windowSize.width.value < 1024"
         variant="outline"
         size="icon"
-        class="flex-shrink-0 text-xs justify-center h-7 w-7"
+        class="shrink-0 text-xs justify-center h-7 w-7"
         @click="chatStore.isSidebarOpen = false"
       >
         <Icon icon="lucide:panel-left-close" class="h-4 w-4" />

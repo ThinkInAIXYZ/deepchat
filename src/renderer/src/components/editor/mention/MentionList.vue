@@ -10,7 +10,7 @@
         v-for="(item, index) in displayItems"
         :key="index"
         :ref="(el) => (itemElements[index] = el)"
-        class="relative flex cursor-default hover:bg-accent select-none items-center rounded-sm gap-2 px-2 py-1.5 text-sm outline-none transition-colors focus:bg-accent focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50 w-full text-left"
+        class="relative flex cursor-default hover:bg-accent select-none items-center rounded-sm gap-2 px-2 py-1.5 text-sm outline-none transition-colors focus:bg-accent focus:text-accent-foreground data-disabled:pointer-events-none data-disabled:opacity-50 w-full text-left"
         :class="[index === selectedIndex ? 'bg-accent' : '']"
         @click="selectItem(index)"
       >
@@ -28,7 +28,7 @@
     <div v-else class="p-1 text-sm text-muted-foreground">No result</div>
     <div
       v-if="displayItems[selectedIndex]?.description"
-      class="absolute text-muted-foreground shadow-sm top-[-1px] right-[-328px] w-[320px] max-h-64 bg-card rounded-md p-2 border text-xs overflow-y-auto"
+      class="absolute text-muted-foreground shadow-sm -top-px right-[-328px] w-[320px] max-h-64 bg-card rounded-md p-2 border text-xs overflow-y-auto"
     >
       <div class="font-medium pb-1 border-b border-dashed">Description</div>
       <div class="py-1">{{ displayItems[selectedIndex].description }}</div>

@@ -373,7 +373,7 @@ const handleViewResources = async (serverName: string) => {
               </Button>
             </DialogTrigger>
             <DialogContent class="w-[95vw] max-w-[500px] px-0 h-[85vh] max-h-[500px] flex flex-col">
-              <DialogHeader class="px-3 flex-shrink-0 pb-2">
+              <DialogHeader class="px-3 shrink-0 pb-2">
                 <DialogTitle class="text-base">{{
                   t('settings.mcp.addServerDialog.title')
                 }}</DialogTitle>
@@ -394,7 +394,7 @@ const handleViewResources = async (serverName: string) => {
     <!-- 编辑服务器对话框 -->
     <Dialog v-model:open="isEditServerDialogOpen">
       <DialogContent class="w-[95vw] max-w-[500px] px-0 h-[85vh] max-h-[500px] flex flex-col">
-        <DialogHeader class="px-3 flex-shrink-0 pb-2">
+        <DialogHeader class="px-3 shrink-0 pb-2">
           <DialogTitle class="text-base">{{
             t('settings.mcp.editServerDialog.title')
           }}</DialogTitle>

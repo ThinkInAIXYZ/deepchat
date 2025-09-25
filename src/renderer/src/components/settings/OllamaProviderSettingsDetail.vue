@@ -145,7 +145,7 @@
               </template>
               <template v-else>
                 <div class="flex flex-row items-center justify-between p-2 hover:bg-accent">
-                  <div class="flex flex-col flex-grow">
+                  <div class="flex flex-col grow">
                     <div class="flex flex-row items-center gap-1">
                       <span class="text-sm font-medium">{{ model.name }}</span>
                       <span class="text-xs text-primary-foreground bg-primary px-1 py-0.5 rounded">

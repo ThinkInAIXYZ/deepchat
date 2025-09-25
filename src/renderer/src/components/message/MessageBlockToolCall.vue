@@ -5,7 +5,7 @@
       @click="toggleExpanded"
     >
       <div class="flex flex-row items-center gap-2 w-full">
-        <div class="flex-grow w-0 pl-2">
+        <div class="grow w-0 pl-2">
           <h4
             class="text-xs font-medium leading-none text-accent-foreground flex flex-row gap-2 items-center"
           >
@@ -18,7 +18,7 @@
           </h4>
         </div>
         <div class="text-xs text-muted-foreground">{{ getToolCallStatus() }}</div>
-        <div class="flex-shrink-0 pr-2 rounded-lg rounded-l-none flex justify-center items-center">
+        <div class="shrink-0 pr-2 rounded-lg rounded-l-none flex justify-center items-center">
           <Icon
             v-if="block.status === 'loading'"
             icon="lucide:loader-2"
@@ -56,7 +56,7 @@
       >
         <div
           v-if="simpleIn"
-          class="flex-row w-full gap-1 bg-muted dark:bg-background text-muted-foreground transition-colors duration-200 inline-flex max-w-[33rem] items-center cursor-pointer select-none"
+          class="flex-row w-full gap-1 bg-muted dark:bg-background text-muted-foreground transition-colors duration-200 inline-flex max-w-132 items-center cursor-pointer select-none"
         >
           <div class="text-xs inline-flex px-2 py-1 flex-row gap-2 items-center max-w-64">
             <Icon icon="lucide:arrow-up-from-dot" class="w-3 h-3 text-muted-foreground shrink-0" />

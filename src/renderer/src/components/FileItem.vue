@@ -41,7 +41,7 @@
               class="w-8 h-8 text-muted-foreground p-1 bg-accent rounded-md border"
             />
 
-            <div class="flex-grow flex-1 max-w-28">
+            <div class="grow flex-1 max-w-28">
               <div class="text-xs leading-none pb-1 truncate text-ellipsis whitespace-nowrap">
                 {{ fileName }}
               </div>

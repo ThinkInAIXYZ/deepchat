@@ -1,13 +1,12 @@
 @layer vrm, base;
 @import 'vue-renderer-markdown/index.css' layer(vrm);
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
-@plugin @tailwindcss/typography;
+@import 'tailwindcss';
 
-@font-face {
-  font-family: 'Geist';
-  src: url('./geist.ttf') format('truetype');
+@layer utilities {
+  @font-face {
+    font-family: 'Geist';
+    src: url('./geist.ttf') format('truetype');
+  }
 }
 
 @layer base {
@@ -130,7 +129,15 @@
     /* 暗红 */
   }
 }
+@layer base {
+  .font-display {
+    font-weight: var(--display-weight);
+  }
 
+  .font-text {
+    font-weight: var(--text-weight);
+  }
+}
 @layer base {
   * {
     @apply border-border;
@@ -154,12 +161,4 @@
   }
 }
 
-@layer base {
-  .font-display {
-    font-weight: var(--display-weight);
-  }
 
-  .font-text {
-    font-weight: var(--text-weight);
-  }
-}

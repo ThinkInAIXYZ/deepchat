@@ -469,7 +469,7 @@ const selectEmoji = (emoji: string) => {
               v-for="(category, index) in categories"
               :key="category.id"
               :value="index"
-              class="w-0 flex-grow py-1 cursor-pointer border-b-2 hover:bg-gray-100 dark:hover:bg-gray-800"
+              class="w-0 grow py-1 cursor-pointer border-b-2 hover:bg-gray-100 dark:hover:bg-gray-800"
               :class="{ 'border-b-2 border-primary': selectedTab === index }"
               :title="category.name"
             >

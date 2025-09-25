@@ -30,6 +30,7 @@ const handleCopyClick = () => {
 </script>
 
 <style>
+@reference '@/assets/style.css';
 .markdown-content-wrapper {
   @apply leading-7;
   font-family:

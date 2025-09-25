@@ -15,7 +15,7 @@
         </span>
       </div>
       <!-- 操作按钮 -->
-      <div class="flex flex-row gap-2 flex-shrink-0">
+      <div class="flex flex-row gap-2 shrink-0">
         <Button
           v-if="ctrlBtn === 'paused'"
           variant="outline"
@@ -150,7 +150,7 @@
                       <Button
                         variant="ghost"
                         size="xs"
-                        class="absolute right-2 top-1 h-6 w-6 flex items-center justify-center rounded-sm hover:bg-primary/80 hover:text-white/100 transition-colors"
+                        class="absolute right-2 top-1 h-6 w-6 flex items-center justify-center rounded-sm hover:bg-primary/80 hover:text-white transition-colors"
                         @click="handleCopy(item.metadata.content, item.id)"
                       >
                         <Icon v-if="copyId === item.id" icon="lucide:check" />

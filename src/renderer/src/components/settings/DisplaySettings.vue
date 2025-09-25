@@ -3,11 +3,11 @@
     <div class="w-full h-full flex flex-col gap-1.5">
       <!-- 语言选择 -->
       <div class="flex flex-row p-2 items-center gap-2 px-2">
-        <span class="flex flex-row items-center gap-2 flex-grow w-full" :dir="languageStore.dir">
+        <span class="flex flex-row items-center gap-2 grow w-full" :dir="languageStore.dir">
           <Icon icon="lucide:languages" class="w-4 h-4 text-muted-foreground" />
           <span class="text-sm font-medium">{{ t('settings.common.language') }}</span>
         </span>
-        <div class="flex-shrink-0 min-w-64 max-w-96">
+        <div class="shrink-0 min-w-64 max-w-96">
           <Select v-model="selectedLanguage" class="">
             <SelectTrigger>
               <SelectValue :placeholder="t('settings.common.languageSelect')" />
@@ -29,13 +29,13 @@
       <!-- 系统通知设置 -->
       <div class="flex flex-col p-2 gap-2 px-2">
         <div class="flex flex-row items-center gap-2">
-          <span class="flex flex-row items-center gap-2 flex-grow w-full" :dir="languageStore.dir">
+          <span class="flex flex-row items-center gap-2 grow w-full" :dir="languageStore.dir">
             <Icon icon="lucide:bell" class="w-4 h-4 text-muted-foreground" />
             <span class="text-sm font-medium">{{
               t('settings.common.notifications') || '系统通知'
             }}</span>
           </span>
-          <div class="flex-shrink-0">
+          <div class="shrink-0">
             <Switch
               id="notifications-switch"
               :checked="notificationsEnabled"
@@ -51,7 +51,7 @@
       <!-- 字体大小设置 -->
       <div class="flex flex-col p-2 gap-2 px-2">
         <span
-          class="flex flex-row items-center gap-2 flex-grow w-full mb-1"
+          class="flex flex-row items-center gap-2 grow w-full mb-1"
           :dir="languageStore.dir"
         >
           <Icon icon="lucide:a-large-small" class="w-4 h-4 text-muted-foreground" />
@@ -63,7 +63,7 @@
             :key="index"
             :variant="fontSizeLevel === index ? 'default' : 'outline'"
             size="sm"
-            class="px-2 py-1.5 text-xs flex-shrink-0"
+            class="px-2 py-1.5 text-xs shrink-0"
             @click="fontSizeLevel = index"
           >
             {{ t('settings.display.' + sizeOption) }}
@@ -73,13 +73,13 @@
 
       <!-- 投屏保护开关 -->
       <div class="flex flex-row p-2 items-center gap-2 px-2">
-        <span class="flex flex-row items-center gap-2 flex-grow w-full" :dir="languageStore.dir">
+        <span class="flex flex-row items-center gap-2 grow w-full" :dir="languageStore.dir">
           <Icon icon="lucide:monitor" class="w-4 h-4 text-muted-foreground" />
           <span class="text-sm font-medium">{{
             t('settings.common.contentProtection') || '投屏保护'
           }}</span>
         </span>
-        <div class="flex-shrink-0">
+        <div class="shrink-0">
           <Switch
             id="content-protection-switch"
             :checked="contentProtectionEnabled"
@@ -91,11 +91,11 @@
       <!-- 悬浮按钮开关 -->
       <div class="flex flex-col p-2 gap-2 px-2">
         <div class="flex flex-row items-center gap-2">
-          <span class="flex flex-row items-center gap-2 flex-grow w-full" :dir="languageStore.dir">
+          <span class="flex flex-row items-center gap-2 grow w-full" :dir="languageStore.dir">
             <Icon icon="lucide:mouse-pointer-click" class="w-4 h-4 text-muted-foreground" />
             <span class="text-sm font-medium">{{ t('settings.display.floatingButton') }}</span>
           </span>
-          <div class="flex-shrink-0">
+          <div class="shrink-0">
             <Switch
               id="floating-button-switch"
               :checked="floatingButtonStore.enabled"

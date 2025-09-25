@@ -56,6 +56,7 @@ defineEmits(['copy'])
 </script>
 
 <style lang="css">
+@reference '@/assets/style.css';
 .prose {
   pre {
     margin-top: 0;

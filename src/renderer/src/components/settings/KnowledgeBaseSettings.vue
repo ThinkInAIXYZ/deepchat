@@ -3,11 +3,11 @@
     <div v-show="!showBuiltinKnowledgeDetail" class="w-full h-full flex flex-col gap-1.5">
       <!-- 知识库配置标题 -->
       <div class="flex flex-row p-2 items-center gap-2 px-2">
-        <span class="flex flex-row items-center gap-2 flex-grow w-full">
+        <span class="flex flex-row items-center gap-2 grow w-full">
           <Icon icon="lucide:book-marked" class="w-4 h-4 text-muted-foreground" />
           <span class="text-sm font-medium">{{ t('settings.knowledgeBase.title') }}</span>
         </span>
-        <div class="flex-shrink-0">
+        <div class="shrink-0">
           <Button
             variant="outline"
             size="sm"

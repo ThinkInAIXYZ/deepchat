@@ -266,7 +266,7 @@ const editor = new Editor({
   editorProps: {
     attributes: {
       class:
-        'outline-none focus:outline-none focus-within:outline-none min-h-[3rem] max-h-[7rem] overflow-y-auto'
+        'outline-none focus:outline-none focus-within:outline-none min-h-12 max-h-28 overflow-y-auto'
     }
   },
   autofocus: true,
@@ -278,7 +278,7 @@ const editor = new Editor({
     Mention.configure({
       HTMLAttributes: {
         class:
-          'mention px-1.5 py-0.5 text-xs rounded-md bg-secondary text-foreground inline-block max-w-64 align-sub !truncate'
+          'mention px-1.5 py-0.5 text-xs rounded-md bg-secondary text-foreground inline-block max-w-64 align-sub truncate!'
       },
       suggestion,
       deleteTriggerWithBackspace: true
@@ -1448,6 +1448,7 @@ defineExpose({
 }
 </style>
 <style>
+@reference '@/assets/style.css';
 .tiptap p.is-editor-empty:first-child::before {
   @apply text-muted-foreground;
   content: attr(data-placeholder);

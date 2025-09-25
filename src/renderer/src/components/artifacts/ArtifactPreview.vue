@@ -5,18 +5,18 @@
       @click="handleClick"
     >
       <div
-        class="flex-shrink-0 w-14 h-14 rounded-lg rounded-r-none inline-flex flex-row justify-center items-center bg-muted border-r"
+        class="shrink-0 w-14 h-14 rounded-lg rounded-r-none inline-flex flex-row justify-center items-center bg-muted border-r"
       >
         <Icon :icon="getArtifactIcon(block.artifact?.type)" class="w-5 h-5 text-muted-foreground" />
       </div>
-      <div class="flex-grow w-0">
+      <div class="grow w-0">
         <h3 class="text-sm font-medium leading-none tracking-tight truncate">
           {{ block.artifact.title || displayTitle }}
         </h3>
         <p class="text-xs text-muted-foreground mt-0.5">{{ artifactDesc }}</p>
       </div>
       <div
-        class="flex-shrink-0 px-3 h-14 rounded-lg rounded-l-none flex justify-center items-center"
+        class="shrink-0 px-3 h-14 rounded-lg rounded-l-none flex justify-center items-center"
       >
         <Icon
           v-if="props.loading"

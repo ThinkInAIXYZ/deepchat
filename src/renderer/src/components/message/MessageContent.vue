@@ -11,7 +11,7 @@
         :title="block.content"
         @click="handleMentionClick(block)"
       >
-        <Icon :icon="getMentionIcon(block.category)" class="w-3 h-3 flex-shrink-0" />
+        <Icon :icon="getMentionIcon(block.category)" class="w-3 h-3 shrink-0" />
         <span class="truncate">{{ block.category === 'prompts' ? block.id : block.content }}</span>
       </span>
 

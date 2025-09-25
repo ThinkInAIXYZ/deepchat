@@ -59,7 +59,7 @@
         >
           <div class="flex items-center justify-between mb-2">
             <div class="flex items-center gap-2">
-              <div class="flex-shrink-0">
+              <div class="shrink-0">
                 <div
                   v-if="message.role === 'assistant'"
                   class="w-4 h-4 flex items-center justify-center bg-base-900/5 dark:bg-base-100/10 border border-input rounded-sm"

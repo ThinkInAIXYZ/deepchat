@@ -177,7 +177,7 @@ const promptArgsDescription = computed(() => {
       side="right"
       class="w-4/5 min-w-[80vw] max-w-[80vw] p-0 bg-white dark:bg-black h-screen flex flex-col gap-0"
     >
-      <SheetHeader class="px-4 py-3 border-b bg-card flex-shrink-0">
+      <SheetHeader class="px-4 py-3 border-b bg-card shrink-0">
         <SheetTitle class="flex items-center space-x-2">
           <Icon icon="lucide:message-square-text" class="h-5 w-5 text-primary" />
           <span>{{ props.serverName ? `${props.serverName}` : '' }}</span>
@@ -189,7 +189,7 @@ const promptArgsDescription = computed(() => {
 
       <div class="flex flex-col flex-1 overflow-hidden">
         <!-- 小屏幕：提示模板选择下拉菜单 -->
-        <div class="flex-shrink-0 px-4 py-4 lg:hidden">
+        <div class="shrink-0 px-4 py-4 lg:hidden">
           <Select v-model="selectedPrompt">
             <SelectTrigger class="w-full">
               <SelectValue :placeholder="t('mcp.prompts.selectPrompt')" />
@@ -236,7 +236,7 @@ const promptArgsDescription = computed(() => {
                   <div class="flex items-start space-x-2 w-full">
                     <Icon
                       icon="lucide:message-square-text"
-                      class="h-4 w-4 text-primary mt-0.5 flex-shrink-0"
+                      class="h-4 w-4 text-primary mt-0.5 shrink-0"
                     />
                     <div class="flex-1 min-w-0">
                       <div class="font-medium text-sm truncate">{{ prompt.name }}</div>

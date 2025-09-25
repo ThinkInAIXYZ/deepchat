@@ -6,7 +6,7 @@
       class="flex flex-col h-min-[40px] hover:bg-muted select-none cursor-pointer pt-3 overflow-hidden w-[380px] break-all shadow-sm my-2 items-start gap-3 rounded-lg border bg-card text-card-foreground"
     >
       <div class="flex flex-row items-center gap-2 w-full">
-        <div class="flex-grow w-0 pl-2">
+        <div class="grow w-0 pl-2">
           <h4
             class="text-xs font-medium leading-none text-accent-foreground flex flex-row gap-2 items-center"
           >
@@ -19,7 +19,7 @@
           </h4>
         </div>
         <div class="text-xs text-muted-foreground">{{ getStatusText() }}</div>
-        <div class="flex-shrink-0 pr-2 rounded-lg rounded-l-none flex justify-center items-center">
+        <div class="shrink-0 pr-2 rounded-lg rounded-l-none flex justify-center items-center">
           <Icon :icon="getStatusIcon()" :class="['w-4 h-4', getStatusIconClass()]" />
         </div>
       </div>

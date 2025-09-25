@@ -171,10 +171,10 @@ onMounted(async () => {
                   <span class="mr-2">{{ server.icons }}</span>
                   <span
                     v-if="server.type === 'inmemory'"
-                    class="flex-grow truncate text-left text-sm"
+                    class="grow truncate text-left text-sm"
                     >{{ getLocalizedServerName(server.name) }}</span
                   >
-                  <span v-else class="flex-grow truncate text-left text-sm">{{ server.name }}</span>
+                  <span v-else class="grow truncate text-left text-sm">{{ server.name }}</span>
                 </div>
                 <Popover>
                   <PopoverTrigger>

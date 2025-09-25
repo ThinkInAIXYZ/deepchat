@@ -11,7 +11,7 @@
         <Icon v-else icon="lucide:panel-left-open" class="w-4 h-4" />
       </Button>
     </div>
-    <div class="h-0 w-full flex-grow flex flex-col items-center justify-center">
+    <div class="h-0 w-full grow flex flex-col items-center justify-center">
       <img src="@/assets/logo-dark.png" class="w-24 h-24" loading="lazy" />
       <h1 class="text-2xl font-bold px-8 pt-4">{{ t('newThread.greeting') }}</h1>
       <h3 class="text-lg px-8 pb-2">{{ t('newThread.prompt') }}</h3>
@@ -19,7 +19,7 @@
       <ChatInput
         ref="chatInputRef"
         key="newThread"
-        class="!max-w-2xl flex-shrink-0 px-4"
+        class="max-w-2xl! shrink-0 px-4"
         :rows="3"
         :max-rows="10"
         :context-length="contextLength"

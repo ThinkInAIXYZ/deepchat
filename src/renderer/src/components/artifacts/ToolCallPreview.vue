@@ -5,7 +5,7 @@
     <div
       class="flex w-[360px] h-[40px] max-w-full break-all shadow-sm my-2 items-center gap-2 rounded-lg border bg-card text-card-foreground"
     >
-      <div class="flex-grow w-0 pl-2">
+      <div class="grow w-0 pl-2">
         <h4
           class="text-xs font-medium leading-none text-accent-foreground flex flex-row gap-2 items-center"
         >
@@ -14,7 +14,7 @@
         </h4>
       </div>
       <div class="text-xs text-muted-foreground">{{ getToolCallStatus() }}</div>
-      <div class="flex-shrink-0 px-2 rounded-lg rounded-l-none flex justify-center items-center">
+      <div class="shrink-0 px-2 rounded-lg rounded-l-none flex justify-center items-center">
         <Icon
           v-if="block.loading && (blockStatus === 'loading' || !blockStatus)"
           icon="lucide:loader-2"

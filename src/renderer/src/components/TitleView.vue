@@ -45,7 +45,7 @@
     <div class="flex items-center gap-2">
       <!-- 消息导航按钮 -->
       <Button
-        class="w-7 h-7 rounded-md relative !p-0"
+        class="w-7 h-7 rounded-md relative p-0!"
         size="icon"
         variant="outline"
         :class="{ 'bg-accent': chatStore.isMessageNavigationOpen }"

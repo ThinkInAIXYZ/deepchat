@@ -23,14 +23,14 @@
             class="flex flex-row p-2 items-center gap-2 px-2"
           >
             <span
-              class="flex flex-row items-center gap-2 flex-grow w-full"
+              class="flex flex-row items-center gap-2 grow w-full"
               :dir="languageStore.dir"
             >
               <Icon :icon="shortcut.icon" class="w-4 h-4 text-muted-foreground" />
               <span class="text-sm font-medium">{{ t(shortcut.label) }}</span>
             </span>
 
-            <div class="flex-shrink-0 min-w-32">
+            <div class="shrink-0 min-w-32">
               <div class="relative w-full group">
                 <Button
                   variant="outline"

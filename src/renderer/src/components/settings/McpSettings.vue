@@ -1,7 +1,7 @@
 <template>
   <div class="w-full h-full flex flex-col">
     <!-- 固定部分 -->
-    <div class="flex-shrink-0 bg-background sticky top-0 z-10">
+    <div class="shrink-0 bg-background sticky top-0 z-10">
       <!-- NPM源配置区域 -->
       <div class="border-b bg-card">
         <div class="p-4">
@@ -132,7 +132,7 @@
       </div>
 
       <!-- MCP全局开关 -->
-      <div class="p-4 flex-shrink-0">
+      <div class="p-4 shrink-0">
         <div class="flex items-center justify-between">
           <div :dir="languageStore.dir">
             <h3 class="text-sm font-medium">{{ t('settings.mcp.enabledTitle') }}</h3>
@@ -145,7 +145,7 @@
       </div>
 
       <!-- MCP Marketplace 入口 -->
-      <div class="px-4 pb-4 flex-shrink-0">
+      <div class="px-4 pb-4 shrink-0">
         <div class="flex gap-2">
           <Button
             v-if="false"
@@ -184,7 +184,7 @@
 
     <!-- 可滚动部分 -->
     <!-- MCP配置 -->
-    <div class="flex-grow overflow-y-auto">
+    <div class="grow overflow-y-auto">
       <div v-if="mcpEnabled" class="border-t h-full">
         <McpServers />
       </div>

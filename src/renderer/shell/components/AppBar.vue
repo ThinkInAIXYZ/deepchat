@@ -1,14 +1,14 @@
 <template>
   <div class="flex flex-row h-10" :dir="langStore.dir">
     <div
-      class="h-10 flex-shrink-0 w-0 flex-1 flex select-none text-center text-sm font-medium flex-row items-center justify-start window-drag-region"
+      class="h-10 shrink-0 w-0 flex-1 flex select-none text-center text-sm font-medium flex-row items-center justify-start window-drag-region"
       :class="['', isMacOS ? (isFullscreened ? 'pl-2 pr-2' : 'pl-20 pr-2') : 'px-2']"
     >
       <!-- App title/content in center -->
       <Button
         v-if="isTabContainerOverflowingLeft"
         variant="ghost"
-        class="flex-shrink-0 text-xs font-medium px-2 h-6 mt-0.5 bg-transparent rounded-md flex items-center justify-center hover:bg-zinc-500/20 mr-1"
+        class="shrink-0 text-xs font-medium px-2 h-6 mt-0.5 bg-transparent rounded-md flex items-center justify-center hover:bg-zinc-500/20 mr-1"
         @click="scrollTabContainer('left')"
       >
         <Icon icon="lucide:chevron-left" class="w-4 h-4" />
@@ -16,7 +16,7 @@
       <Button
         v-if="isTabContainerOverflowingRight"
         variant="ghost"
-        class="flex-shrink-0 text-xs font-medium px-2 h-6 mt-0.5 bg-transparent rounded-md flex items-center justify-center hover:bg-zinc-500/20 mr-1"
+        class="shrink-0 text-xs font-medium px-2 h-6 mt-0.5 bg-transparent rounded-md flex items-center justify-center hover:bg-zinc-500/20 mr-1"
         @click="scrollTabContainer('right')"
       >
         <Icon icon="lucide:chevron-right" class="w-4 h-4" />
@@ -53,13 +53,13 @@
             class="absolute top-0 bottom-0 w-0.5 bg-blue-500 z-10 pointer-events-none"
             :style="{ left: dragInsertPosition + 'px' }"
           ></div>
-          <div ref="endOfTabs" class="w-0 flex-shrink-0 h-full"></div>
+          <div ref="endOfTabs" class="w-0 shrink-0 h-full"></div>
         </div>
       </div>
 
       <Button
         variant="ghost"
-        class="flex-shrink-0 text-xs ml-1 font-medium px-2 h-6 bg-transparent rounded-md flex items-center justify-center hover:bg-zinc-500/20"
+        class="shrink-0 text-xs ml-1 font-medium px-2 h-6 bg-transparent rounded-md flex items-center justify-center hover:bg-zinc-500/20"
         @click="openNewTab"
       >
         <Icon icon="lucide:plus" class="w-4 h-4" />

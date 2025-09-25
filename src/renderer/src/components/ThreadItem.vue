@@ -11,12 +11,12 @@
       <Icon
         v-if="thread.is_pinned === 1"
         icon="lucide:pin"
-        class="mr-1 h-3 w-3 flex-shrink-0 text-yellow-500"
+        class="mr-1 h-3 w-3 shrink-0 text-yellow-500"
       />
       <Icon
         v-if="workingStatus && !isActive"
         :icon="getStatusIcon(workingStatus)"
-        class="mr-1 h-3 w-3 flex-shrink-0"
+        class="mr-1 h-3 w-3 shrink-0"
         :class="{
           'text-blue-500 animate-spin': workingStatus === 'working',
           'text-red-500': workingStatus === 'error',

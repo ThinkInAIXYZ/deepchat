@@ -2,7 +2,7 @@
   <div
     ref="tabItem"
     draggable="true"
-    class="flex-shrink-0 text-xs font-medium pl-2 pr-1 h-7 mt-0.5 rounded-md flex items-center justify-between transition-all duration-200 group"
+    class="shrink-0 text-xs font-medium pl-2 pr-1 h-7 mt-0.5 rounded-md flex items-center justify-between transition-all duration-200 group"
     :class="[
       active
         ? 'bg-white dark:bg-white/10 shadow-sm dark:shadow-[inset_0_0px_1px_0_rgba(255,255,255,0.3)]'

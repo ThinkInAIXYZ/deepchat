@@ -307,7 +307,7 @@ onBeforeUnmount(() => {
 <template>
   <div class="flex flex-col h-screen bg-container">
     <div
-      class="flex flex-row h-0 flex-grow relative overflow-hidden px-[1px] py-[1px]"
+      class="flex flex-row h-0 grow relative overflow-hidden px-px py-px"
       :dir="langStore.dir"
     >
       <!-- Main content area -->
