@@ -23,3 +23,4 @@ src/renderer/src/components/ui/*
 electron.vite.config.ts
 *.md
 scripts/*
+src/shadcn/**/*

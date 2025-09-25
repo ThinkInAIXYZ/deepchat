@@ -12,6 +12,7 @@
     "scripts/**",
     "runtime/**",
     "docs/**",
-    "test/**"
+    "test/**",
+    "src/shared/**"
   ]
 }

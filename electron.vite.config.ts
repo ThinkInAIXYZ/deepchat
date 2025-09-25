@@ -2,7 +2,7 @@ import { resolve } from 'path'
 import { defineConfig, externalizeDepsPlugin } from 'electron-vite'
 import vue from '@vitejs/plugin-vue'
 import autoprefixer from 'autoprefixer'
-import tailwind from 'tailwindcss'
+import tailwindcss from '@tailwindcss/vite'
 import vueDevTools from 'vite-plugin-vue-devtools'
 import svgLoader from 'vite-svg-loader'
 import monacoEditorPlugin from 'vite-plugin-monaco-editor-esm'
@@ -59,13 +59,14 @@ export default defineConfig({
         '@': resolve('src/renderer/src'),
         '@shell': resolve('src/renderer/shell'),
         '@shared': resolve('src/shared'),
+        "@shadcn": resolve('src/shadcn'),
         vue: 'vue/dist/vue.esm-bundler.js'
       }
     },
     css: {
       postcss: {
         // @ts-ignore
-        plugins: [tailwind(), autoprefixer()]
+        plugins: [autoprefixer()]
       }
     },
     server: {
@@ -83,7 +84,8 @@ export default defineConfig({
       vueDevTools({
         // use export LAUNCH_EDITOR=cursor instead
         // launchEditor: 'cursor'
-      })
+      }),
+      tailwindcss(),
     ],
     build: {
       minify: 'esbuild',
