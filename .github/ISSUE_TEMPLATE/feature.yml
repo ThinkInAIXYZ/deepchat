@@ -1,0 +1,25 @@
+name: Enhancement
+description: Feature or change / 功能或改动
+title: "[Feature] "
+labels:
+  - enhancement
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Remember: DeepChat is an open source gift, not a product you bought from a vendor.
+
+        Use English or Chinese. You may keep only one language when filling.
+        可以只使用其中一种语言填写，保留一种语言即可。
+
+  - type: textarea
+    id: request
+    attributes:
+      label: What do you need? / 你需要什么？
+      description: Describe the feature or change you want / 描述你希望的功能或改动
+      placeholder: |
+        English: I need ... because ...
+        中文：我需要……，因为……
+    validations:
+      required: true
+

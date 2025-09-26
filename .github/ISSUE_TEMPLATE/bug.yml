@@ -1,0 +1,43 @@
+name: Bug
+description: Report a problem / 报告一个问题
+title: "[BUG] "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Remember: DeepChat is an open source gift, not a product you bought from a vendor.
+
+        Use English or Chinese. You may keep only one language when filling.
+        可以只使用其中一种语言填写，保留一种语言即可。
+
+  - type: input
+    id: system-details
+    attributes:
+      label: System details / 系统信息
+      description: CPU, GPU, OS and DeepChat version / CPU、GPU、操作系统与 DeepChat 版本
+      placeholder: e.g. M3 Max, macOS 15.0, DeepChat 0.10.0
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: What's wrong? / 出了什么问题？
+      description: |
+        Briefly describe the problem and how to reproduce it (steps, expected vs actual).
+        简要描述问题及其复现步骤（步骤、预期与实际结果）。
+      placeholder: |
+        1. Go to ...
+        2. Click ...
+        Expected: ...
+        Actual: ...
+
+        1. 前往 ...
+        2. 点击 ...
+        预期：...
+        实际：...
+    validations:
+      required: true
+
