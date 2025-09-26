@@ -1,20 +1,21 @@
 <!-- eslint-disable vue/no-v-html -->
 <template>
   <div class="prose prose-sm dark:prose-invert w-full max-w-none break-all">
-    <NodeRenderer
-      :content="content"
-      @copy="$emit('copy', $event)"
-    />
+    <NodeRenderer :content="content" @copy="$emit('copy', $event)" />
   </div>
 </template>
 
 <script setup lang="ts">
-import { usePresenter } from '@/composables/usePresenter';
-import { useArtifactStore } from '@/stores/artifact';
-import { useReferenceStore } from '@/stores/reference';
-import { nanoid } from 'nanoid';
-import { h, ref } from 'vue';
-import NodeRenderer, { CodeBlockNode, ReferenceNode, setCustomComponents } from 'vue-renderer-markdown';
+import { usePresenter } from '@/composables/usePresenter'
+import { useArtifactStore } from '@/stores/artifact'
+import { useReferenceStore } from '@/stores/reference'
+import { nanoid } from 'nanoid'
+import { h, ref } from 'vue'
+import NodeRenderer, {
+  CodeBlockNode,
+  ReferenceNode,
+  setCustomComponents
+} from 'vue-renderer-markdown'
 
 defineProps<{
   content: string
@@ -30,13 +31,13 @@ const referenceStore = useReferenceStore()
 const threadPresenter = usePresenter('threadPresenter')
 const referenceNode = ref<HTMLElement | null>(null)
 
-setCustomComponents( {
+setCustomComponents({
   reference: (_props) =>
     h(ReferenceNode, {
       ..._props,
       messageId,
       threadId,
-      onClick(){
+      onClick() {
         threadPresenter.getSearchResults(_props.messageId ?? '').then((results) => {
           const index = parseInt(_props.node.id)
           if (index < results.length) {
@@ -44,17 +45,20 @@ setCustomComponents( {
           }
         })
       },
-      onMouseEnter(){
+      onMouseEnter() {
         console.log('Mouse entered')
         referenceStore.hideReference()
         threadPresenter.getSearchResults(_props.messageId ?? '').then((results) => {
           const index = parseInt(_props.node.id)
           if (index - 1 < results.length && referenceNode.value) {
-            referenceStore.showReference(results[index - 1], referenceNode.value.getBoundingClientRect())
+            referenceStore.showReference(
+              results[index - 1],
+              referenceNode.value.getBoundingClientRect()
+            )
           }
         })
       },
-      onMouseLeave(){
+      onMouseLeave() {
         console.log('Mouse left')
         referenceStore.hideReference()
       }
