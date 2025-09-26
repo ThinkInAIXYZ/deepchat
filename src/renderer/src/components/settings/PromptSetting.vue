@@ -685,6 +685,7 @@ import { usePresenter } from '@/composables/usePresenter'
 import { nanoid } from 'nanoid'
 import { getMimeTypeIcon } from '@/lib/utils'
 import { FileItem } from '@shared/presenter'
+import type { AcceptableValue } from 'reka-ui'
 
 const { t } = useI18n()
 const { toast } = useToast()
@@ -825,10 +826,10 @@ const updateCurrentSystemPrompt = () => {
     systemPrompts.value.find((p) => p.id === selectedSystemPromptId.value) || null
 }
 
-const handleSystemPromptChange = async (promptId: string) => {
+const handleSystemPromptChange = async (promptId: AcceptableValue) => {
   try {
-    await settingsStore.setDefaultSystemPromptId(promptId)
-    selectedSystemPromptId.value = promptId
+    await settingsStore.setDefaultSystemPromptId(promptId as string)
+    selectedSystemPromptId.value = promptId as string
     updateCurrentSystemPrompt()
     toast({
       title: t('promptSetting.systemPromptChanged'),

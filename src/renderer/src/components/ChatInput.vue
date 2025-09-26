@@ -247,6 +247,7 @@ import { useToast } from '@/components/ui/toast/use-toast'
 import type { CategorizedData } from './editor/mention/suggestion'
 import type { PromptListEntry } from '@shared/presenter'
 import { sanitizeText } from '@/lib/sanitizeText'
+import type { AcceptableValue } from 'reka-ui'
 
 const langStore = useLanguageStore()
 const mcpStore = useMcpStore()
@@ -860,8 +861,8 @@ const onWebSearchClick = async () => {
 //   await configPresenter.setSetting('input_deepThinking', settings.value.deepThinking)
 // }
 
-const onSearchEngineChange = async (engineName: string) => {
-  await settingsStore.setSearchEngine(engineName)
+const onSearchEngineChange = async (engineName: AcceptableValue) => {
+  await settingsStore.setSearchEngine(engineName as string)
 }
 
 const initSettings = async () => {

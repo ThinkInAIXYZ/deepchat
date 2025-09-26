@@ -200,7 +200,7 @@ import {
   TooltipProvider,
   TooltipTrigger
 } from '@shadcn/components/ui/tooltip'
-import { toast } from '@shadcn/components/ui/toast'
+import { toast } from '@/components/ui/toast'
 import { ScrollArea } from '@shadcn/components/ui/scroll-area'
 import { Input } from '@shadcn/components/ui/input'
 import { usePresenter } from '@/composables/usePresenter'

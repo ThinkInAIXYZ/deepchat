@@ -17,7 +17,9 @@
         </div>
         <Select
           v-model="authMethod"
-          @update:model-value="(value: string) => switchAuthMethod(value as 'apikey' | 'oauth')"
+          @update:model-value="
+            (value: AcceptableValue) => switchAuthMethod(value as 'apikey' | 'oauth')
+          "
         >
           <SelectTrigger class="w-full">
             <SelectValue :placeholder="t('settings.provider.authMethodPlaceholder')" />
@@ -362,6 +364,7 @@ import { usePresenter } from '@/composables/usePresenter'
 import type { LLM_PROVIDER, RENDERER_MODEL_META } from '@shared/presenter'
 import ProviderModelManager from './ProviderModelManager.vue'
 import ProviderDialogContainer from './ProviderDialogContainer.vue'
+import type { AcceptableValue } from 'reka-ui'
 
 const { t } = useI18n()
 

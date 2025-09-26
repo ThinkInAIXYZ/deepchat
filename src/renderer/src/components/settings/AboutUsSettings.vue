@@ -177,6 +177,7 @@ import {
 import { renderMarkdown, getCommonMarkdown } from 'vue-renderer-markdown'
 import { useUpgradeStore } from '@/stores/upgrade'
 import { useLanguageStore } from '@/stores/language'
+import type { AcceptableValue } from 'reka-ui'
 
 const { t } = useI18n()
 const languageStore = useLanguageStore()
@@ -208,9 +209,9 @@ const openDisclaimerDialog = () => {
 }
 
 // 设置更新渠道
-const setUpdateChannel = async (channel: string) => {
+const setUpdateChannel = async (channel: AcceptableValue) => {
   try {
-    await configPresenter.setUpdateChannel(channel)
+    await configPresenter.setUpdateChannel(channel as string)
     // v-model 会自动更新 updateChannel.value，不需要手动设置
   } catch (error) {
     console.error('updateChannelSetError:', error)
