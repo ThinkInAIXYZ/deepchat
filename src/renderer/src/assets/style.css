@@ -134,7 +134,6 @@
   --sidebar-border: var(--base-800);
   --sidebar-ring: var(--primary-600);
 
-
   --radius-xl: calc(var(--radius) + 4px);
   --radius-lg: var(--radius);
   --radius-md: calc(var(--radius) - 2px);
@@ -321,10 +320,37 @@
   --color-usage-low: var(--usage-low);
   --color-usage-mid: var(--usage-mid);
   --color-usage-high: var(--usage-high);
+  --animate-accordion-down: accordion-down 0.2s ease-out;
+  --animate-accordion-up: accordion-up 0.2s ease-out;
+  @keyframes accordion-down {
+  from {
+    height: 0;
+    }
+  to {
+    height: var(--reka-accordion-content-height);
+    }
+  }
+  @keyframes accordion-up {
+  from {
+    height: var(--reka-accordion-content-height);
+    }
+  to {
+    height: 0;
+    }
+  }
 }
 @layer utilities {
   @font-face {
     font-family: 'Geist';
     src: url('./geist.ttf') format('truetype');
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
   }
 }
