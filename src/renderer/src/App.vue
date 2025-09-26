@@ -7,7 +7,7 @@ import SelectedTextContextMenu from './components/message/SelectedTextContextMen
 import { useArtifactStore } from './stores/artifact'
 import { useChatStore } from '@/stores/chat'
 import { NOTIFICATION_EVENTS, SHORTCUT_EVENTS } from './events'
-import Toaster from './components/ui/toast/Toaster.vue'
+import { Toaster } from '@shadcn/components/ui/sonner'
 import { useToast } from './components/ui/toast/use-toast'
 import { useSettingsStore } from '@/stores/settings'
 import { useThemeStore } from '@/stores/theme'

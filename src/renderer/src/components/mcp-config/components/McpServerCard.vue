@@ -1,19 +1,24 @@
 <script setup lang="ts">
 import { Icon } from '@iconify/vue'
 import { Button } from '@shadcn/components/ui/button'
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger
+} from '@shadcn/components/ui/tooltip'
 import { Badge } from '@shadcn/components/ui/badge'
-import { Switch } from '@/components/ui/switch'
+import { Switch } from '@shadcn/components/ui/switch'
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
   DropdownMenuSeparator
-} from '@/components/ui/dropdown-menu'
+} from '@shadcn/components/ui/dropdown-menu'
 import { useI18n } from 'vue-i18n'
 import { computed, ref, nextTick, onMounted, watch } from 'vue'
-import { Separator } from '@/components/ui/separator'
+import { Separator } from '@shadcn/components/ui/separator'
 
 interface ServerInfo {
   name: string

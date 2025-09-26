@@ -194,14 +194,19 @@
 import { useI18n } from 'vue-i18n'
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { Button } from '@shadcn/components/ui/button'
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger
+} from '@shadcn/components/ui/tooltip'
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue
-} from '@/components/ui/select'
+} from '@shadcn/components/ui/select'
 import { Icon } from '@iconify/vue'
 import FileItem from './FileItem.vue'
 import { useChatStore } from '@/stores/chat'

@@ -108,7 +108,7 @@
                 {{ t('settings.model.modelConfig.vision.description') }}
               </p>
             </div>
-            <Switch v-model:checked="config.vision" />
+            <Switch v-model:model-value="config.vision" />
           </div>
 
           <!-- 函数调用 -->
@@ -123,7 +123,10 @@
                 {{ t('dialog.mutualExclusive.warningText.functionCall') }}
               </p>
             </div>
-            <Switch :checked="config.functionCall" @update:checked="handleFunctionCallToggle" />
+            <Switch
+              :model-value="config.functionCall"
+              @update:model-value="handleFunctionCallToggle"
+            />
           </div>
 
           <!-- 推理能力 -->
@@ -138,7 +141,7 @@
                 {{ t('dialog.mutualExclusive.warningText.reasoning') }}
               </p>
             </div>
-            <Switch :checked="config.reasoning" @update:checked="handleReasoningToggle" />
+            <Switch :model-value="config.reasoning" @update:model-value="handleReasoningToggle" />
           </div>
 
           <!-- 推理努力程度 (支持推理努力程度的模型显示) -->
@@ -232,8 +235,8 @@
                   }}</Label>
                 </div>
                 <Switch
-                  :checked="config.thinkingBudget === -1"
-                  @update:checked="handleDynamicThinkingToggle"
+                  :model-value="config.thinkingBudget === -1"
+                  @update:model-value="handleDynamicThinkingToggle"
                 />
               </div>
 
@@ -281,7 +284,7 @@
                   {{ t('settings.model.modelConfig.enableSearch.description') }}
                 </p>
               </div>
-              <Switch v-model:checked="config.enableSearch" />
+              <Switch v-model:model-value="config.enableSearch" />
             </div>
           </div>
 
@@ -353,7 +356,7 @@
                     {{ t('settings.model.modelConfig.forcedSearch.description') }}
                   </p>
                 </div>
-                <Switch v-model:checked="config.forcedSearch" />
+                <Switch v-model:model-value="config.forcedSearch" />
               </div>
 
               <!-- 搜索策略 -->
@@ -392,7 +395,7 @@
                   {{ t('settings.model.modelConfig.enableSearch.description') }}
                 </p>
               </div>
-              <Switch v-model:checked="config.enableSearch" />
+              <Switch v-model:model-value="config.enableSearch" />
             </div>
           </div>
         </form>
@@ -465,18 +468,18 @@ import {
   DialogHeader,
   DialogTitle,
   DialogFooter
-} from '@/components/ui/dialog'
+} from '@shadcn/components/ui/dialog'
 import { Button } from '@shadcn/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Switch } from '@/components/ui/switch'
+import { Input } from '@shadcn/components/ui/input'
+import { Label } from '@shadcn/components/ui/label'
+import { Switch } from '@shadcn/components/ui/switch'
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue
-} from '@/components/ui/select'
+} from '@shadcn/components/ui/select'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -486,7 +489,7 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle
-} from '@/components/ui/alert-dialog'
+} from '@shadcn/components/ui/alert-dialog'
 
 interface Props {
   open: boolean

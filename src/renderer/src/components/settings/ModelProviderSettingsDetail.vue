@@ -73,7 +73,7 @@
 import { computed, ref, watch, reactive } from 'vue'
 import { useSettingsStore } from '@/stores/settings'
 import type { LLM_PROVIDER, RENDERER_MODEL_META } from '@shared/presenter'
-import { ScrollArea } from '@/components/ui/scroll-area'
+import { ScrollArea } from '@shadcn/components/ui/scroll-area'
 import ProviderApiConfig from './ProviderApiConfig.vue'
 import AzureProviderConfig from './AzureProviderConfig.vue'
 import GeminiSafetyConfig from './GeminiSafetyConfig.vue'

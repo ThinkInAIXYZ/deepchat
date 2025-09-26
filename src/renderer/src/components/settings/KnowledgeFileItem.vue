@@ -120,7 +120,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
   AlertDialogTrigger
-} from '@/components/ui/alert-dialog'
+} from '@shadcn/components/ui/alert-dialog'
 import { Button } from '@shadcn/components/ui/button'
 import dayjs from 'dayjs'
 

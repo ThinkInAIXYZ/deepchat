@@ -123,7 +123,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogFooter
-} from '@/components/ui/dialog'
+} from '@shadcn/components/ui/dialog'
 import ProviderModelList from './ProviderModelList.vue'
 import type { LLM_PROVIDER, RENDERER_MODEL_META } from '@shared/presenter'
 

@@ -107,15 +107,15 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle
-} from '@/components/ui/dialog'
-import { Label } from '@/components/ui/label'
+} from '@shadcn/components/ui/dialog'
+import { Label } from '@shadcn/components/ui/label'
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue
-} from '@/components/ui/select'
+} from '@shadcn/components/ui/select'
 import { useSettingsStore } from '@/stores/settings'
 import { Icon } from '@iconify/vue'
 import { computed, ref, watch } from 'vue'

@@ -238,7 +238,7 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
-import { ScrollArea } from '@/components/ui/scroll-area'
+import { ScrollArea } from '@shadcn/components/ui/scroll-area'
 import { ref, onMounted, computed } from 'vue'
 import {
   Dialog,
@@ -248,7 +248,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger
-} from '@/components/ui/dialog'
+} from '@shadcn/components/ui/dialog'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -259,13 +259,13 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
   AlertDialogTrigger
-} from '@/components/ui/alert-dialog'
+} from '@shadcn/components/ui/alert-dialog'
 import { Button } from '@shadcn/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Switch } from '@/components/ui/switch'
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
-import { Label } from '@/components/ui/label'
-import { Separator } from '@/components/ui/separator'
+import { Input } from '@shadcn/components/ui/input'
+import { Switch } from '@shadcn/components/ui/switch'
+import { RadioGroup, RadioGroupItem } from '@shadcn/components/ui/radio-group'
+import { Label } from '@shadcn/components/ui/label'
+import { Separator } from '@shadcn/components/ui/separator'
 import { useSyncStore } from '@/stores/sync'
 import { useLanguageStore } from '@/stores/language'
 import { usePresenter } from '@/composables/usePresenter'

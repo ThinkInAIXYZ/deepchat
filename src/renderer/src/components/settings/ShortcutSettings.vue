@@ -104,7 +104,7 @@ import { Loader2 } from 'lucide-vue-next'
 import { useShortcutKeyStore } from '@/stores/shortcutKey'
 import { useLanguageStore } from '@/stores/language'
 import { Button } from '@shadcn/components/ui/button'
-import { ScrollArea } from '@/components/ui/scroll-area'
+import { ScrollArea } from '@shadcn/components/ui/scroll-area'
 import type { ShortcutKey } from '@shared/presenter'
 
 const { t } = useI18n()

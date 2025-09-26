@@ -6,7 +6,6 @@
 @plugin "tailwindcss-animate";
 
 @custom-variant dark (&:is(.dark *));
-@source inline("dark");
 
 @layer components {
   @import 'vue-renderer-markdown/index.css';
@@ -188,37 +187,6 @@
   }
 }
 
-@keyframes accordion-down {
-  from {
-    height: 0;
-  }
-
-  to {
-    height: var(--reka-accordion-content-height);
-  }
-}
-
-@keyframes accordion-up {
-  from {
-    height: var(--reka-accordion-content-height);
-  }
-
-  to {
-    height: 0;
-  }
-}
-
-@keyframes pulse {
-  0%,
-  100% {
-    opacity: 1;
-  }
-
-  50% {
-    opacity: 0.3;
-  }
-}
-
 @theme inline {
   --container-center: true;
   --container-padding: 2rem;
@@ -351,11 +319,93 @@
       height: 0;
     }
   }
+
+  @keyframes pulse {
+
+    0%,
+    100% {
+      opacity: 1;
+    }
+
+    50% {
+      opacity: 0.3;
+    }
+  }
+
+  @keyframes accordion-down {
+    from {
+      height: 0;
+    }
+
+    to {
+      height: var(--reka-accordion-content-height);
+    }
+  }
+
+  @keyframes accordion-up {
+    from {
+      height: var(--reka-accordion-content-height);
+    }
+
+    to {
+      height: 0;
+    }
+  }
+
+  @keyframes accordion-down {
+    from {
+      height: 0;
+    }
+
+    to {
+      height: var(--reka-accordion-content-height);
+    }
+  }
+
+  @keyframes accordion-up {
+    from {
+      height: var(--reka-accordion-content-height);
+    }
+
+    to {
+      height: 0;
+    }
+  }
+
+  @keyframes accordion-down {
+    from {
+      height: 0;
+    }
+
+    to {
+      height: var(--reka-accordion-content-height);
+    }
+  }
+
+  @keyframes accordion-up {
+    from {
+      height: var(--reka-accordion-content-height);
+    }
+
+    to {
+      height: 0;
+    }
+  }
 }
 
 @layer utilities {
   @font-face {
     font-family: 'Geist';
     src: url('./geist.ttf') format('truetype');
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  body {
+    @apply bg-background text-foreground;
   }
 }

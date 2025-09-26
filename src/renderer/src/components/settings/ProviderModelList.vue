@@ -126,7 +126,7 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
 import { computed, ref } from 'vue'
-import { Input } from '@/components/ui/input'
+import { Input } from '@shadcn/components/ui/input'
 import { Button } from '@shadcn/components/ui/button'
 import {
   Select,
@@ -134,7 +134,7 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue
-} from '@/components/ui/select'
+} from '@shadcn/components/ui/select'
 import { Icon } from '@iconify/vue'
 import ModelConfigItem from './ModelConfigItem.vue'
 import { type RENDERER_MODEL_META } from '@shared/presenter'

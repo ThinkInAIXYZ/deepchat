@@ -128,8 +128,8 @@
 <script setup lang="ts">
 import { onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { Label } from '@/components/ui/label'
-import { Input } from '@/components/ui/input'
+import { Label } from '@shadcn/components/ui/label'
+import { Input } from '@shadcn/components/ui/input'
 import { Button } from '@shadcn/components/ui/button'
 import { Icon } from '@iconify/vue'
 import GitHubCopilotOAuth from './GitHubCopilotOAuth.vue'

@@ -115,7 +115,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { Label } from '@/components/ui/label'
+import { Label } from '@shadcn/components/ui/label'
 import { Button } from '@shadcn/components/ui/button'
 import { Icon } from '@iconify/vue'
 import { usePresenter } from '@/composables/usePresenter'

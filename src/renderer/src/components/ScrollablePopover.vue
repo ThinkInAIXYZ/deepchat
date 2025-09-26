@@ -18,7 +18,7 @@
 <script setup lang="ts">
 import type { HTMLAttributes } from 'vue'
 import { cn } from '@/lib/utils'
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { Popover, PopoverContent, PopoverTrigger } from '@shadcn/components/ui/popover'
 
 interface ScrollablePopoverProps {
   align?: 'start' | 'center' | 'end'

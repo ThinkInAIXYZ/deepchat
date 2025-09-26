@@ -3,21 +3,21 @@ import { ref, watch, computed } from 'vue'
 import { Icon } from '@iconify/vue'
 import { Button } from '@shadcn/components/ui/button'
 import { Badge } from '@shadcn/components/ui/badge'
-import { ScrollArea } from '@/components/ui/scroll-area'
+import { ScrollArea } from '@shadcn/components/ui/scroll-area'
 import {
   Sheet,
   SheetContent,
   SheetHeader,
   SheetTitle,
   SheetDescription
-} from '@/components/ui/sheet'
+} from '@shadcn/components/ui/sheet'
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue
-} from '@/components/ui/select'
+} from '@shadcn/components/ui/select'
 import { useMcpStore } from '@/stores/mcp'
 import { useMediaQuery } from '@vueuse/core'
 import { useI18n } from 'vue-i18n'

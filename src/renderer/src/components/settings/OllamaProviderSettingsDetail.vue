@@ -264,10 +264,10 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
 import { computed, onMounted, ref, watch } from 'vue'
-import { Label } from '@/components/ui/label'
-import { Input } from '@/components/ui/input'
+import { Label } from '@shadcn/components/ui/label'
+import { Input } from '@shadcn/components/ui/input'
 import { Button } from '@shadcn/components/ui/button'
-import { Progress } from '@/components/ui/progress'
+import { Progress } from '@shadcn/components/ui/progress'
 import { Icon } from '@iconify/vue'
 import {
   Dialog,
@@ -276,7 +276,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle
-} from '@/components/ui/dialog'
+} from '@shadcn/components/ui/dialog'
 import { useSettingsStore } from '@/stores/settings'
 import { useModelCheckStore } from '@/stores/modelCheck'
 import type { LLM_PROVIDER } from '@shared/presenter'

@@ -47,7 +47,9 @@ const components = [
   'form',
   'calendar',
   'drawer',
-  'combobox'
+  'combobox',
+  'slider',
+  'scroll-area'
 ]
 
 // 批量更新组件

@@ -137,7 +137,7 @@ import { Icon } from '@iconify/vue'
 import ThreadItem from './ThreadItem.vue'
 import { ref, onMounted, onBeforeUnmount, computed } from 'vue'
 import { usePresenter } from '@/composables/usePresenter'
-import { Input } from '@/components/ui/input'
+import { Input } from '@shadcn/components/ui/input'
 import { useChatStore } from '@/stores/chat'
 import { CONVERSATION } from '@shared/presenter'
 import {
@@ -147,7 +147,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle
-} from '@/components/ui/dialog'
+} from '@shadcn/components/ui/dialog'
 import { useWindowSize } from '@vueuse/core'
 import { SHORTCUT_EVENTS } from '@/events'
 import { DynamicScroller, DynamicScrollerItem } from 'vue-virtual-scroller'

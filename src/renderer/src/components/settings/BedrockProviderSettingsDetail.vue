@@ -134,11 +134,16 @@ import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { AWS_BEDROCK_PROVIDER, RENDERER_MODEL_META } from '@shared/presenter'
 import { useSettingsStore } from '@/stores/settings'
-import { ScrollArea } from '@/components/ui/scroll-area'
-import { Label } from '@/components/ui/label'
-import { Input } from '@/components/ui/input'
+import { ScrollArea } from '@shadcn/components/ui/scroll-area'
+import { Label } from '@shadcn/components/ui/label'
+import { Input } from '@shadcn/components/ui/input'
 import { Button } from '@shadcn/components/ui/button'
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger
+} from '@shadcn/components/ui/tooltip'
 import { Icon } from '@iconify/vue'
 import ProviderModelManager from './ProviderModelManager.vue'
 import ProviderDialogContainer from './ProviderDialogContainer.vue'

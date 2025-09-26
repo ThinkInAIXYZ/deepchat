@@ -110,18 +110,18 @@ import {
   DialogTitle,
   DialogFooter,
   DialogDescription
-} from '@/components/ui/dialog'
+} from '@shadcn/components/ui/dialog'
 import { Button } from '@shadcn/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Switch } from '@/components/ui/switch'
+import { Input } from '@shadcn/components/ui/input'
+import { Label } from '@shadcn/components/ui/label'
+import { Switch } from '@shadcn/components/ui/switch'
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue
-} from '@/components/ui/select'
+} from '@shadcn/components/ui/select'
 import type { LLM_PROVIDER } from '@shared/presenter'
 import { useSettingsStore } from '@/stores/settings'
 

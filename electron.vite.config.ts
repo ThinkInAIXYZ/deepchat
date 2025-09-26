@@ -1,12 +1,12 @@
 import { resolve } from 'path'
 import { defineConfig, externalizeDepsPlugin } from 'electron-vite'
 import vue from '@vitejs/plugin-vue'
-import autoprefixer from 'autoprefixer'
-import tailwindcss from '@tailwindcss/vite'
 import vueDevTools from 'vite-plugin-vue-devtools'
 import svgLoader from 'vite-svg-loader'
 import monacoEditorPlugin from 'vite-plugin-monaco-editor-esm'
 import path from 'node:path'
+import tailwind from '@tailwindcss/postcss'
+
 
 export default defineConfig({
   main: {
@@ -23,7 +23,7 @@ export default defineConfig({
     },
     build: {
       rollupOptions: {
-        external: ['sharp','@duckdb/node-api'],
+        external: ['sharp', '@duckdb/node-api'],
         output: {
           inlineDynamicImports: true,
           manualChunks: undefined,  // Disable automatic chunk splitting
@@ -66,7 +66,7 @@ export default defineConfig({
     css: {
       postcss: {
         // @ts-ignore
-        plugins: [autoprefixer()]
+        plugins: [tailwind()]
       }
     },
     server: {
@@ -84,8 +84,7 @@ export default defineConfig({
       vueDevTools({
         // use export LAUNCH_EDITOR=cursor instead
         // launchEditor: 'cursor'
-      }),
-      tailwindcss(),
+      })
     ],
     build: {
       minify: 'esbuild',

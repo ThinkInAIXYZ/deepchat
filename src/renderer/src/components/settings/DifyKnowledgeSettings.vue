@@ -190,9 +190,9 @@ import { ref, computed, onMounted, watch, toRaw, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
 import { Button } from '@shadcn/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Switch } from '@/components/ui/switch'
+import { Input } from '@shadcn/components/ui/input'
+import { Label } from '@shadcn/components/ui/label'
+import { Switch } from '@shadcn/components/ui/switch'
 import {
   Dialog,
   DialogContent,
@@ -200,11 +200,16 @@ import {
   DialogTitle,
   DialogFooter,
   DialogDescription
-} from '@/components/ui/dialog'
-import { Collapsible, CollapsibleContent } from '@/components/ui/collapsible'
+} from '@shadcn/components/ui/dialog'
+import { Collapsible, CollapsibleContent } from '@shadcn/components/ui/collapsible'
 import { useMcpStore } from '@/stores/mcp'
 import { useToast } from '@/components/ui/toast'
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger
+} from '@shadcn/components/ui/tooltip'
 
 // 对话框状态
 const isDifyConfigDialogOpen = ref(false)

@@ -337,8 +337,8 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
 import { onMounted, ref, watch, onUnmounted, computed } from 'vue'
-import { Label } from '@/components/ui/label'
-import { Input } from '@/components/ui/input'
+import { Label } from '@shadcn/components/ui/label'
+import { Input } from '@shadcn/components/ui/input'
 import { Button } from '@shadcn/components/ui/button'
 import { Icon } from '@iconify/vue'
 import {
@@ -348,14 +348,14 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle
-} from '@/components/ui/dialog'
+} from '@shadcn/components/ui/dialog'
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue
-} from '@/components/ui/select'
+} from '@shadcn/components/ui/select'
 import { useSettingsStore } from '@/stores/settings'
 import { useModelCheckStore } from '@/stores/modelCheck'
 import { usePresenter } from '@/composables/usePresenter'

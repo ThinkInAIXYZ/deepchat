@@ -2,21 +2,26 @@
 import { useI18n } from 'vue-i18n'
 import { computed, watch, ref } from 'vue'
 import { useSettingsStore } from '@/stores/settings'
-import { Label } from '@/components/ui/label'
-import { Slider } from '@/components/ui/slider'
+import { Label } from '@shadcn/components/ui/label'
+import { Slider } from '@shadcn/components/ui/slider'
 import { Icon } from '@iconify/vue'
-import { Textarea } from '@/components/ui/textarea'
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { Textarea } from '@shadcn/components/ui/textarea'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger
+} from '@shadcn/components/ui/tooltip'
 import { useLanguageStore } from '@/stores/language'
-import { Input } from '@/components/ui/input'
-import { Switch } from '@/components/ui/switch'
+import { Input } from '@shadcn/components/ui/input'
+import { Switch } from '@shadcn/components/ui/switch'
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue
-} from '@/components/ui/select'
+} from '@shadcn/components/ui/select'
 
 // Define props to receive config from parent
 const props = defineProps<{

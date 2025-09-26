@@ -63,7 +63,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle
-} from '@/components/ui/dialog'
+} from '@shadcn/components/ui/dialog'
 import { useUpgradeStore } from '@/stores/upgrade'
 import { renderMarkdown, getCommonMarkdown } from 'vue-renderer-markdown'
 

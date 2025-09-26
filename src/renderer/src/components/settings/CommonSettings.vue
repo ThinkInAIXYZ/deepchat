@@ -394,7 +394,7 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
-import { ScrollArea } from '@/components/ui/scroll-area'
+import { ScrollArea } from '@shadcn/components/ui/scroll-area'
 import { usePresenter } from '@/composables/usePresenter'
 import {
   Select,
@@ -402,7 +402,7 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue
-} from '@/components/ui/select'
+} from '@shadcn/components/ui/select'
 import { ref, onMounted, watch, computed, nextTick } from 'vue'
 import { useSettingsStore } from '@/stores/settings'
 import {
@@ -413,17 +413,17 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger
-} from '@/components/ui/dialog'
+} from '@shadcn/components/ui/dialog'
 import { Button } from '@shadcn/components/ui/button'
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { Popover, PopoverContent, PopoverTrigger } from '@shadcn/components/ui/popover'
 import { ChevronDown } from 'lucide-vue-next'
 import ModelSelect from '@/components/ModelSelect.vue'
 import ModelIcon from '@/components/icons/ModelIcon.vue'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
+import { Input } from '@shadcn/components/ui/input'
+import { Label } from '@shadcn/components/ui/label'
 import type { RENDERER_MODEL_META } from '@shared/presenter'
 import type { SearchEngineTemplate } from '@shared/chat'
-import { Switch } from '@/components/ui/switch'
+import { Switch } from '@shadcn/components/ui/switch'
 import { nanoid } from 'nanoid'
 import { useThemeStore } from '@/stores/theme'
 import { useSoundStore } from '@/stores/sound'

@@ -646,18 +646,18 @@
 import { ref, reactive, onMounted, toRaw } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
-import { ScrollArea } from '@/components/ui/scroll-area'
+import { ScrollArea } from '@shadcn/components/ui/scroll-area'
 import { Button } from '@shadcn/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Checkbox } from '@/components/ui/checkbox'
+import { Input } from '@shadcn/components/ui/input'
+import { Label } from '@shadcn/components/ui/label'
+import { Checkbox } from '@shadcn/components/ui/checkbox'
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue
-} from '@/components/ui/select'
+} from '@shadcn/components/ui/select'
 import {
   Sheet,
   SheetContent,
@@ -665,7 +665,7 @@ import {
   SheetTitle,
   SheetDescription,
   SheetFooter
-} from '@/components/ui/sheet'
+} from '@shadcn/components/ui/sheet'
 import {
   AlertDialog,
   AlertDialogTrigger,
@@ -676,7 +676,7 @@ import {
   AlertDialogFooter,
   AlertDialogCancel,
   AlertDialogAction
-} from '@/components/ui/alert-dialog'
+} from '@shadcn/components/ui/alert-dialog'
 import { useToast } from '@/components/ui/toast'
 import { usePromptsStore } from '@/stores/prompts'
 import { useSettingsStore } from '@/stores/settings'

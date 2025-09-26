@@ -114,7 +114,7 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
 import ChatInput from './ChatInput.vue'
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { Popover, PopoverContent, PopoverTrigger } from '@shadcn/components/ui/popover'
 import ScrollablePopover from './ScrollablePopover.vue'
 import { Button } from '@shadcn/components/ui/button'
 import ModelIcon from './icons/ModelIcon.vue'

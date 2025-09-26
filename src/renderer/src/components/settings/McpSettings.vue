@@ -75,8 +75,8 @@
                         </div>
                       </div>
                       <Switch
-                        :checked="npmRegistryStatus.autoDetectEnabled"
-                        @update:checked="setAutoDetectNpmRegistry"
+                        :model-value="npmRegistryStatus.autoDetectEnabled"
+                        @update:model-value="setAutoDetectNpmRegistry"
                       />
                     </div>
 
@@ -140,7 +140,11 @@
               {{ t('settings.mcp.enabledDescription') }}
             </p>
           </div>
-          <Switch dir="ltr" :checked="mcpEnabled" @update:checked="handleMcpEnabledChange" />
+          <Switch
+            dir="ltr"
+            :model-value="mcpEnabled"
+            @update:model-value="handleMcpEnabledChange"
+          />
         </div>
       </div>
 
@@ -199,9 +203,9 @@
 import { useI18n } from 'vue-i18n'
 import { computed, ref, onMounted } from 'vue'
 import McpServers from '@/components/mcp-config/components/McpServers.vue'
-import { Switch } from '@/components/ui/switch'
+import { Switch } from '@shadcn/components/ui/switch'
 import { Button } from '@shadcn/components/ui/button'
-import { Input } from '@/components/ui/input'
+import { Input } from '@shadcn/components/ui/input'
 import { Badge } from '@shadcn/components/ui/badge'
 import { Icon } from '@iconify/vue'
 import {
@@ -211,7 +215,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger
-} from '@/components/ui/dialog'
+} from '@shadcn/components/ui/dialog'
 import { useMcpStore } from '@/stores/mcp'
 import { useLanguageStore } from '@/stores/language'
 import { useToast } from '@/components/ui/toast'
@@ -245,7 +249,6 @@ const npmRegistryStatus = ref<{
 const refreshing = ref(false)
 const customRegistryInput = ref('')
 const advancedDialogOpen = ref(false)
-
 // 处理MCP开关状态变化
 const handleMcpEnabledChange = async (enabled: boolean) => {
   await mcpStore.setMcpEnabled(enabled)

@@ -2,15 +2,15 @@
 import { ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Button } from '@shadcn/components/ui/button'
-import { ScrollArea } from '@/components/ui/scroll-area'
+import { ScrollArea } from '@shadcn/components/ui/scroll-area'
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuTrigger
-} from '@/components/ui/dropdown-menu'
+} from '@shadcn/components/ui/dropdown-menu'
 
-// Import our custom tabs components
-import { TabGroup, TabList, Tab, TabPanels, TabPanel } from '@/components/ui/tabs'
+// Import new shadcn tabs components
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@shadcn/components/ui/tabs'
 
 const { t } = useI18n()
 
@@ -427,7 +427,7 @@ const emojiData = {
 
 const searchQuery = ref('')
 const isOpen = ref(false)
-const selectedTab = ref(0)
+const selectedTab = ref('smileys')
 
 // Filtered emojis based on search query
 const filteredEmojis = computed(() => {
@@ -463,42 +463,39 @@ const selectEmoji = (emoji: string) => {
     </DropdownMenuTrigger>
     <DropdownMenuContent align="start" class="w-80 p-0">
       <div class="p-2">
-        <TabGroup v-model="selectedTab">
-          <TabList class="flex overflow-x-auto w-full justify-between">
-            <Tab
-              v-for="(category, index) in categories"
+        <Tabs v-model="selectedTab">
+          <TabsList class="flex overflow-x-auto w-full justify-between">
+            <TabsTrigger
+              v-for="category in categories"
               :key="category.id"
-              :value="index"
-              class="w-0 grow py-1 cursor-pointer border-b-2 hover:bg-gray-100 dark:hover:bg-gray-800"
-              :class="{ 'border-b-2 border-primary': selectedTab === index }"
+              :value="category.id"
+              class="w-0 grow py-1 cursor-pointer"
               :title="category.name"
             >
               {{ category.icon }}
-            </Tab>
-          </TabList>
-          <TabPanels class="mt-2">
-            <TabPanel
-              v-for="(category, index) in categories"
-              :key="category.id"
-              :value="index"
-              class="focus:outline-none"
-            >
-              <ScrollArea class="h-40">
-                <div class="grid grid-cols-8 gap-1">
-                  <Button
-                    v-for="emoji in filteredEmojis[category.id]"
-                    :key="emoji"
-                    variant="ghost"
-                    class="p-1 h-8 w-8 flex items-center justify-center"
-                    @click="selectEmoji(emoji)"
-                  >
-                    {{ emoji }}
-                  </Button>
-                </div>
-              </ScrollArea>
-            </TabPanel>
-          </TabPanels>
-        </TabGroup>
+            </TabsTrigger>
+          </TabsList>
+          <TabsContent
+            v-for="category in categories"
+            :key="category.id"
+            :value="category.id"
+            class="mt-2 focus:outline-none"
+          >
+            <ScrollArea class="h-40">
+              <div class="grid grid-cols-8 gap-1">
+                <Button
+                  v-for="emoji in filteredEmojis[category.id]"
+                  :key="emoji"
+                  variant="ghost"
+                  class="p-1 h-8 w-8 flex items-center justify-center"
+                  @click="selectEmoji(emoji)"
+                >
+                  {{ emoji }}
+                </Button>
+              </div>
+            </ScrollArea>
+          </TabsContent>
+        </Tabs>
       </div>
     </DropdownMenuContent>
   </DropdownMenu>

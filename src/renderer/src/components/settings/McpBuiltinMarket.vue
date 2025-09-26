@@ -118,7 +118,7 @@ import { ref, onMounted } from 'vue'
 import { Icon } from '@iconify/vue'
 import { useI18n } from 'vue-i18n'
 import { Button } from '@shadcn/components/ui/button'
-import { Input } from '@/components/ui/input'
+import { Input } from '@shadcn/components/ui/input'
 import { usePresenter } from '@/composables/usePresenter'
 import { useToast } from '@/components/ui/toast'
 

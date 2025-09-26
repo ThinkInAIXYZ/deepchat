@@ -46,7 +46,7 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle
-} from '@/components/ui/alert-dialog'
+} from '@shadcn/components/ui/alert-dialog'
 import { useDialogStore } from '@/stores/dialog'
 import { Icon } from '@iconify/vue'
 import { DialogIcon } from '@shared/presenter'

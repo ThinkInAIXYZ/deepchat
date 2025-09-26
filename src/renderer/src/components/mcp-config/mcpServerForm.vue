@@ -2,23 +2,23 @@
 import { ref, computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Button } from '@shadcn/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Textarea } from '@/components/ui/textarea'
-import { Checkbox } from '@/components/ui/checkbox'
+import { Input } from '@shadcn/components/ui/input'
+import { Label } from '@shadcn/components/ui/label'
+import { Textarea } from '@shadcn/components/ui/textarea'
+import { Checkbox } from '@shadcn/components/ui/checkbox'
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue
-} from '@/components/ui/select'
-import { ScrollArea } from '@/components/ui/scroll-area'
+} from '@shadcn/components/ui/select'
+import { ScrollArea } from '@shadcn/components/ui/scroll-area'
 import { MCPServerConfig } from '@shared/presenter'
 import { EmojiPicker } from '@/components/emoji-picker'
 import { useToast } from '@/components/ui/toast'
 import { Icon } from '@iconify/vue'
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { Popover, PopoverContent, PopoverTrigger } from '@shadcn/components/ui/popover'
 import { ChevronDown, X } from 'lucide-vue-next'
 import { Badge } from '@shadcn/components/ui/badge'
 import ModelSelect from '@/components/ModelSelect.vue'

@@ -7,7 +7,7 @@
           {{ t('settings.rateLimit.description') }}
         </p>
       </div>
-      <Switch :checked="rateLimitEnabled" @update:checked="handleEnabledChange" />
+      <Switch :model-value="rateLimitEnabled" @update:model-value="handleEnabledChange" />
     </div>
 
     <div v-if="rateLimitEnabled" class="space-y-3">
@@ -77,9 +77,9 @@
 <script setup lang="ts">
 import { ref, watch, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { Switch } from '@/components/ui/switch'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
+import { Switch } from '@shadcn/components/ui/switch'
+import { Input } from '@shadcn/components/ui/input'
+import { Label } from '@shadcn/components/ui/label'
 import { usePresenter } from '@/composables/usePresenter'
 import { RATE_LIMIT_EVENTS } from '@/events'
 import type { LLM_PROVIDER } from '@shared/presenter'
@@ -93,7 +93,7 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle
-} from '@/components/ui/alert-dialog'
+} from '@shadcn/components/ui/alert-dialog'
 
 const props = defineProps<{
   provider: LLM_PROVIDER

@@ -552,8 +552,8 @@ import { ref, onMounted, toRaw, computed, watch, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
 import { Button } from '@shadcn/components/ui/button'
-import { Switch } from '@/components/ui/switch'
-import { Collapsible, CollapsibleContent } from '@/components/ui/collapsible'
+import { Switch } from '@shadcn/components/ui/switch'
+import { Collapsible, CollapsibleContent } from '@shadcn/components/ui/collapsible'
 import {
   Dialog,
   DialogContent,
@@ -561,8 +561,8 @@ import {
   DialogTitle,
   DialogFooter,
   DialogDescription
-} from '@/components/ui/dialog'
-import { Slider } from '@/components/ui/slider'
+} from '@shadcn/components/ui/dialog'
+import { Slider } from '@shadcn/components/ui/slider'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -573,25 +573,30 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
   AlertDialogTrigger
-} from '@/components/ui/alert-dialog'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+} from '@shadcn/components/ui/alert-dialog'
+import { Input } from '@shadcn/components/ui/input'
+import { Label } from '@shadcn/components/ui/label'
+import { Popover, PopoverContent, PopoverTrigger } from '@shadcn/components/ui/popover'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger
+} from '@shadcn/components/ui/tooltip'
 import {
   Accordion,
   AccordionContent,
   AccordionItem,
   AccordionTrigger
-} from '@/components/ui/accordion'
+} from '@shadcn/components/ui/accordion'
 import ModelSelect from '@/components/ModelSelect.vue'
 import ModelIcon from '@/components/icons/ModelIcon.vue'
-import { ScrollArea } from '@/components/ui/scroll-area'
+import { ScrollArea } from '@shadcn/components/ui/scroll-area'
 import { useMcpStore } from '@/stores/mcp'
 import { ModelType } from '@shared/model'
 import { useThemeStore } from '@/stores/theme'
 import { BuiltinKnowledgeConfig, RENDERER_MODEL_META } from '@shared/presenter'
-import { toast } from '../ui/toast'
+import { toast } from '@shadcn/components/ui/toast'
 import { useRoute } from 'vue-router'
 import { useSettingsStore } from '@/stores/settings'
 import { nanoid } from 'nanoid'

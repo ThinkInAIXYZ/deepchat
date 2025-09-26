@@ -193,11 +193,16 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
 import { Button } from '@shadcn/components/ui/button'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
-import { toast } from '../ui/toast'
-import { ScrollArea } from '@/components/ui/scroll-area'
-import { Input } from '@/components/ui/input'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@shadcn/components/ui/dialog'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger
+} from '@shadcn/components/ui/tooltip'
+import { toast } from '@shadcn/components/ui/toast'
+import { ScrollArea } from '@shadcn/components/ui/scroll-area'
+import { Input } from '@shadcn/components/ui/input'
 import { usePresenter } from '@/composables/usePresenter'
 import KnowledgeFileItem from './KnowledgeFileItem.vue'
 import { BuiltinKnowledgeConfig, KnowledgeFileMessage } from '@shared/presenter'

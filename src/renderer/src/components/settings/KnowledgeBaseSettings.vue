@@ -125,7 +125,7 @@
 import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
-import { ScrollArea } from '@/components/ui/scroll-area'
+import { ScrollArea } from '@shadcn/components/ui/scroll-area'
 import { Button } from '@shadcn/components/ui/button'
 import {
   Dialog,
@@ -134,7 +134,7 @@ import {
   DialogTitle,
   DialogFooter,
   DialogDescription
-} from '@/components/ui/dialog'
+} from '@shadcn/components/ui/dialog'
 import RagflowKnowledgeSettings from './RagflowKnowledgeSettings.vue'
 import DifyKnowledgeSettings from './DifyKnowledgeSettings.vue'
 import FastGptKnowledgeSettings from './FastGptKnowledgeSettings.vue'

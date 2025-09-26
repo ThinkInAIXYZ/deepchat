@@ -106,7 +106,7 @@ import {
   DropdownMenuSub,
   DropdownMenuSubTrigger,
   DropdownMenuSubContent
-} from '@/components/ui/dropdown-menu'
+} from '@shadcn/components/ui/dropdown-menu'
 import { useLanguageStore } from '@/stores/language'
 import { useToast } from '@/components/ui/toast/use-toast'
 

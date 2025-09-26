@@ -16,54 +16,60 @@ const themeStore = useThemeStore()
 const Button = defineAsyncComponent(() =>
   import('@shadcn/components/ui/button').then((mod) => mod.Button)
 )
-const Card = defineAsyncComponent(() => import('@/components/ui/card').then((mod) => mod.Card))
+const Card = defineAsyncComponent(() =>
+  import('@shadcn/components/ui/card').then((mod) => mod.Card)
+)
 const CardHeader = defineAsyncComponent(() =>
-  import('@/components/ui/card').then((mod) => mod.CardHeader)
+  import('@shadcn/components/ui/card').then((mod) => mod.CardHeader)
 )
 const CardContent = defineAsyncComponent(() =>
-  import('@/components/ui/card').then((mod) => mod.CardContent)
+  import('@shadcn/components/ui/card').then((mod) => mod.CardContent)
 )
 const CardFooter = defineAsyncComponent(() =>
-  import('@/components/ui/card').then((mod) => mod.CardFooter)
+  import('@shadcn/components/ui/card').then((mod) => mod.CardFooter)
 )
-const Label = defineAsyncComponent(() => import('@/components/ui/label').then((mod) => mod.Label))
+const Label = defineAsyncComponent(() =>
+  import('@shadcn/components/ui/label').then((mod) => mod.Label)
+)
 const ModelIcon = defineAsyncComponent(() => import('@/components/icons/ModelIcon.vue'))
-const Input = defineAsyncComponent(() => import('@/components/ui/input').then((mod) => mod.Input))
+const Input = defineAsyncComponent(() =>
+  import('@shadcn/components/ui/input').then((mod) => mod.Input)
+)
 const Select = defineAsyncComponent(() =>
-  import('@/components/ui/select').then((mod) => mod.Select)
+  import('@shadcn/components/ui/select').then((mod) => mod.Select)
 )
 const SelectContent = defineAsyncComponent(() =>
-  import('@/components/ui/select').then((mod) => mod.SelectContent)
+  import('@shadcn/components/ui/select').then((mod) => mod.SelectContent)
 )
 const SelectItem = defineAsyncComponent(() =>
-  import('@/components/ui/select').then((mod) => mod.SelectItem)
+  import('@shadcn/components/ui/select').then((mod) => mod.SelectItem)
 )
 const SelectTrigger = defineAsyncComponent(() =>
-  import('@/components/ui/select').then((mod) => mod.SelectTrigger)
+  import('@shadcn/components/ui/select').then((mod) => mod.SelectTrigger)
 )
 const SelectValue = defineAsyncComponent(() =>
-  import('@/components/ui/select').then((mod) => mod.SelectValue)
+  import('@shadcn/components/ui/select').then((mod) => mod.SelectValue)
 )
 const ModelConfigItem = defineAsyncComponent(
   () => import('@/components/settings/ModelConfigItem.vue')
 )
 const Dialog = defineAsyncComponent(() =>
-  import('@/components/ui/dialog').then((mod) => mod.Dialog)
+  import('@shadcn/components/ui/dialog').then((mod) => mod.Dialog)
 )
 const DialogContent = defineAsyncComponent(() =>
-  import('@/components/ui/dialog').then((mod) => mod.DialogContent)
+  import('@shadcn/components/ui/dialog').then((mod) => mod.DialogContent)
 )
 const DialogHeader = defineAsyncComponent(() =>
-  import('@/components/ui/dialog').then((mod) => mod.DialogHeader)
+  import('@shadcn/components/ui/dialog').then((mod) => mod.DialogHeader)
 )
 const DialogTitle = defineAsyncComponent(() =>
-  import('@/components/ui/dialog').then((mod) => mod.DialogTitle)
+  import('@shadcn/components/ui/dialog').then((mod) => mod.DialogTitle)
 )
 const DialogDescription = defineAsyncComponent(() =>
-  import('@/components/ui/dialog').then((mod) => mod.DialogDescription)
+  import('@shadcn/components/ui/dialog').then((mod) => mod.DialogDescription)
 )
 const DialogFooter = defineAsyncComponent(() =>
-  import('@/components/ui/dialog').then((mod) => mod.DialogFooter)
+  import('@shadcn/components/ui/dialog').then((mod) => mod.DialogFooter)
 )
 const ModelCheckDialog = defineAsyncComponent(
   () => import('@/components/settings/ModelCheckDialog.vue')

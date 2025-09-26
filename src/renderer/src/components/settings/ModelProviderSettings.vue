@@ -63,7 +63,10 @@
                 <span class="text-sm font-medium flex-1" :dir="languageStore.dir">{{
                   t(provider.name)
                 }}</span>
-                <Switch :checked="provider.enable" @click.stop="toggleProviderStatus(provider)" />
+                <Switch
+                  :model-value="provider.enable"
+                  @click.stop="toggleProviderStatus(provider)"
+                />
               </div>
             </template>
           </draggable>
@@ -106,7 +109,10 @@
                 <span class="text-sm font-medium flex-1" :dir="languageStore.dir">{{
                   t(provider.name)
                 }}</span>
-                <Switch :checked="provider.enable" @click.stop="toggleProviderStatus(provider)" />
+                <Switch
+                  :model-value="provider.enable"
+                  @click.stop="toggleProviderStatus(provider)"
+                />
               </div>
             </template>
           </draggable>
@@ -171,10 +177,10 @@ import { Icon } from '@iconify/vue'
 import AddCustomProviderDialog from './AddCustomProviderDialog.vue'
 import { useI18n } from 'vue-i18n'
 import type { AWS_BEDROCK_PROVIDER, LLM_PROVIDER } from '@shared/presenter'
-import { Switch } from '@/components/ui/switch'
-import { Input } from '@/components/ui/input'
+import { Switch } from '@shadcn/components/ui/switch'
+import { Input } from '@shadcn/components/ui/input'
 import draggable from 'vuedraggable'
-import { ScrollArea } from '@/components/ui/scroll-area'
+import { ScrollArea } from '@shadcn/components/ui/scroll-area'
 import { useThemeStore } from '@/stores/theme'
 import { useLanguageStore } from '@/stores/language'
 import AnthropicProviderSettingsDetail from './AnthropicProviderSettingsDetail.vue'
