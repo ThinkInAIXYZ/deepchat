@@ -15,7 +15,7 @@ import {
 } from '@/components/ui/select'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { MCPServerConfig } from '@shared/presenter'
-import { EmojiPicker } from '@/components/ui/emoji-picker'
+import { EmojiPicker } from '@/components/emoji-picker'
 import { useToast } from '@/components/ui/toast'
 import { Icon } from '@iconify/vue'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'

@@ -12,6 +12,11 @@
 - EmojiPicker 为自研组件，已上移至 `src/renderer/src/components/emoji-picker`
 - Toast、Switch 等组件调用方式与 shadcn 官方实现存在差异
 
+## 引用统计（2025-09-26）
+- **Toast**：12 处引用 `@/components/ui/toast` 或内部 hook（集中在聊天、MCP、设置模块）
+- **Switch**：14 处引用 `@/components/ui/switch`
+- **EmojiPicker**：已迁移，后续引用路径均更新为 `@/components/emoji-picker`
+
 ## 风险点
 - 需要确认所有使用路径与别名：`@shadcn/components`, `@/components/ui`
 - renderer 多处懒加载/defineAsyncComponent 引入路径需同步调整
@@ -20,7 +25,7 @@
 
 ## 改造步骤
 
-### 阶段 1：组件清单与差异分析
+##> 阶段 1：组件清单与差异分析
 - 枚举 `src/renderer/src/components/ui` 现有组件及其引用位置
 - 梳理公共样式、i18n、状态管理等耦合点，记录替换注意事项
 - 对照 `@shadcn/components` 实现，确认 Props、slot、事件差异

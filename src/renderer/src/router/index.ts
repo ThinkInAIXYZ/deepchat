@@ -26,6 +26,15 @@ const router = createRouter({
       }
     },
     {
+      path: '/playground',
+      name: 'playground',
+      component: () => import('@/views/PlaygroundTabView.vue'),
+      meta: {
+        title: 'Playground',
+        icon: 'lucide:flask-conical'
+      }
+    },
+    {
       path: '/settings',
       name: 'settings',
       component: () => import('@/views/SettingsTabView.vue'),

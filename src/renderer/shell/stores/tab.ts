@@ -11,13 +11,16 @@ export const useTabStore = defineStore('tab', () => {
   const currentTabId = ref<number | null>(null)
 
   const addTab = async (tab: { name: string; icon: string; viewType: string }) => {
-    // if (tabs.value.find((t) => t.viewType === tab.viewType)) {
-    //   return
-    // }
+    if (tab.viewType !== 'playground') {
+      const existing = tabs.value.find((t) => t.url === `local://${tab.viewType}`)
+      if (existing) {
+        setCurrentTabId(existing.id)
+        return existing
+      }
+    }
+
     const windowId = window.api.getWindowId()
-    console.log('windowId', windowId)
     const viewId = await tabPresenter.createTab(windowId ?? 1, `local://${tab.viewType}`)
-    console.log('viewId', viewId)
 
     let position = 0
     for (const tab of tabs.value) {

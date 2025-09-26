@@ -60,7 +60,7 @@
       <Button
         variant="ghost"
         class="shrink-0 text-xs ml-1 font-medium px-2 h-6 bg-transparent rounded-md flex items-center justify-center hover:bg-zinc-500/20"
-        @click="openNewTab"
+        @click="onNewTabClick"
       >
         <Icon icon="lucide:plus" class="w-4 h-4" />
       </Button>
@@ -461,12 +461,14 @@ onMounted(() => {
   window.addEventListener('dragend', handleDragEnd)
 })
 
-const openNewTab = () => {
-  tabStore.addTab({
-    name: 'New Tab',
-    icon: 'lucide:plus',
-    viewType: 'chat'
-  })
+const openNewTab = (event?: MouseEvent, forcePlayground = false) => {
+  const shouldOpenPlayground = forcePlayground || event?.shiftKey
+
+  const config = shouldOpenPlayground
+    ? { name: 'Playground', icon: 'lucide:flask-conical', viewType: 'playground' }
+    : { name: 'New Tab', icon: 'lucide:plus', viewType: 'chat' }
+
+  tabStore.addTab(config)
   setTimeout(() => {
     nextTick(() => {
       if (endOfTabs.value) {
@@ -475,6 +477,10 @@ const openNewTab = () => {
       }
     })
   }, 300)
+}
+
+const onNewTabClick = (event: MouseEvent) => {
+  openNewTab(event)
 }
 
 const scrollTabContainer = (direction: 'left' | 'right') => {

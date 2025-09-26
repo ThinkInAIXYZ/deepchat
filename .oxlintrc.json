@@ -13,6 +13,7 @@
     "runtime/**",
     "docs/**",
     "test/**",
-    "src/shared/**"
+    "src/shared/**",
+    "src/shadcn/**"
   ]
 }

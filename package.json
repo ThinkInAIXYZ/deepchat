@@ -53,7 +53,8 @@
     "i18n": "i18n-check -s zh-CN -f i18next --locales src/renderer/src/i18n",
     "i18n:en": "i18n-check -s en-US -f i18next --locales src/renderer/src/i18n",
     "i18n:types": "node scripts/generate-i18n-types.js",
-    "cleanRuntime": "rm -rf runtime/uv runtime/bun runtime/node"
+    "cleanRuntime": "rm -rf runtime/uv runtime/bun runtime/node",
+    "update-shadcn": "node scripts/update-shadcn.js"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.53.0",
@@ -107,6 +108,7 @@
     "@iconify-json/lucide": "^1.2.66",
     "@iconify-json/vscode-icons": "^1.2.30",
     "@iconify/vue": "^5.0.0",
+    "@internationalized/date": "^3.9.0",
     "@lingual/i18n-check": "^0.8.6",
     "@radix-icons/vue": "^1.0.0",
     "@tailwindcss/typography": "^0.5.19",
