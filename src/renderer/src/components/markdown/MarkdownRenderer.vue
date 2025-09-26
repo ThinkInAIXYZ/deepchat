@@ -2,20 +2,19 @@
 <template>
   <div class="prose prose-sm dark:prose-invert w-full max-w-none break-all">
     <NodeRenderer
-      :custom-components="nodeComponents"
       :content="content"
       @copy="$emit('copy', $event)"
-      :typewriterEffect="true"
     />
   </div>
 </template>
 
 <script setup lang="ts">
-import NodeRenderer, { CodeBlockNode } from 'vue-renderer-markdown'
-import ReferenceNode from './ReferenceNode.vue'
-import { h } from 'vue'
-import { useArtifactStore } from '@/stores/artifact'
-import { nanoid } from 'nanoid'
+import { usePresenter } from '@/composables/usePresenter';
+import { useArtifactStore } from '@/stores/artifact';
+import { useReferenceStore } from '@/stores/reference';
+import { nanoid } from 'nanoid';
+import { h, ref } from 'vue';
+import NodeRenderer, { CodeBlockNode, ReferenceNode, setCustomComponents } from 'vue-renderer-markdown';
 
 defineProps<{
   content: string
@@ -27,14 +26,42 @@ const artifactStore = useArtifactStore()
 // 生成唯一的 message ID 和 thread ID，用于 MarkdownRenderer
 const messageId = `artifact-msg-${nanoid()}`
 const threadId = `artifact-thread-${nanoid()}`
-const nodeComponents = {
-  reference: ReferenceNode,
+const referenceStore = useReferenceStore()
+const threadPresenter = usePresenter('threadPresenter')
+const referenceNode = ref<HTMLElement | null>(null)
+
+setCustomComponents( {
+  reference: (_props) =>
+    h(ReferenceNode, {
+      ..._props,
+      messageId,
+      threadId,
+      onClick(){
+        threadPresenter.getSearchResults(_props.messageId ?? '').then((results) => {
+          const index = parseInt(_props.node.id)
+          if (index < results.length) {
+            window.open(results[index - 1].url, '_blank', 'noopener,noreferrer')
+          }
+        })
+      },
+      onMouseEnter(){
+        console.log('Mouse entered')
+        referenceStore.hideReference()
+        threadPresenter.getSearchResults(_props.messageId ?? '').then((results) => {
+          const index = parseInt(_props.node.id)
+          if (index - 1 < results.length && referenceNode.value) {
+            referenceStore.showReference(results[index - 1], referenceNode.value.getBoundingClientRect())
+          }
+        })
+      },
+      onMouseLeave(){
+        console.log('Mouse left')
+        referenceStore.hideReference()
+      }
+    }),
   code_block: (_props) =>
     h(CodeBlockNode, {
       ..._props,
-      // todo: 配置 custom themes
-      // darkTheme
-      // lightTheme
       onPreviewCode(v) {
         artifactStore.showArtifact(
           {
@@ -50,7 +77,7 @@ const nodeComponents = {
         )
       }
     })
-}
+})
 
 defineEmits(['copy'])
 </script>
