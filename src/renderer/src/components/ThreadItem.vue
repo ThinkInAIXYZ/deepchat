@@ -93,7 +93,7 @@
 <script setup lang="ts">
 import { useChatStore } from '@/stores/chat'
 import { useI18n } from 'vue-i18n'
-import { Button } from '@/components/ui/button'
+import { Button } from '@shadcn/components/ui/button'
 import { Icon } from '@iconify/vue'
 import type { CONVERSATION } from '@shared/presenter'
 import type { WorkingStatus } from '@/stores/chat'

@@ -50,7 +50,7 @@
                     :key="tag"
                     variant="outline"
                     class="py-0 rounded-lg"
-                    size="xs"
+                    size="sm"
                   >
                     {{ t(`model.tags.${tag}`) }}</Badge
                   >
@@ -116,7 +116,7 @@ import { useI18n } from 'vue-i18n'
 import ChatInput from './ChatInput.vue'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import ScrollablePopover from './ScrollablePopover.vue'
-import { Button } from '@/components/ui/button'
+import { Button } from '@shadcn/components/ui/button'
 import ModelIcon from './icons/ModelIcon.vue'
 import { Badge } from '@/components/ui/badge'
 import { Icon } from '@iconify/vue'

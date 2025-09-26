@@ -15,7 +15,9 @@
       <p class="text-sm text-muted-foreground">Update your password regularly to stay secure.</p>
     </TabsContent>
     <TabsContent value="security">
-      <p class="text-sm text-muted-foreground">Set up two-factor authentication and review active sessions.</p>
+      <p class="text-sm text-muted-foreground">
+        Set up two-factor authentication and review active sessions.
+      </p>
     </TabsContent>
   </Tabs>
 </template>

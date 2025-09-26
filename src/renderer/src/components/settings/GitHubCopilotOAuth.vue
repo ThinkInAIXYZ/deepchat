@@ -17,7 +17,7 @@
       <div class="flex flex-row gap-2">
         <Button
           variant="outline"
-          size="xs"
+          size="sm"
           class="text-xs text-normal rounded-lg"
           @click="openModelCheckDialog"
         >
@@ -26,7 +26,7 @@
         </Button>
         <Button
           variant="outline"
-          size="xs"
+          size="sm"
           class="text-xs text-normal rounded-lg text-destructive"
           @click="disconnect"
         >
@@ -116,7 +116,7 @@
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Label } from '@/components/ui/label'
-import { Button } from '@/components/ui/button'
+import { Button } from '@shadcn/components/ui/button'
 import { Icon } from '@iconify/vue'
 import { usePresenter } from '@/composables/usePresenter'
 import { useSettingsStore } from '@/stores/settings'

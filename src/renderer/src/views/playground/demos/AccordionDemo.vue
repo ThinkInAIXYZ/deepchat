@@ -22,5 +22,10 @@
 </template>
 
 <script setup lang="ts">
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@shadcn/components/ui/accordion'
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger
+} from '@shadcn/components/ui/accordion'
 </script>

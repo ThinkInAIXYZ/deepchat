@@ -72,7 +72,7 @@
         <div class="flex flex-row gap-2">
           <Button
             variant="outline"
-            size="xs"
+            size="sm"
             class="text-xs text-normal rounded-lg"
             @click="
               handleVerifyCredential({ credential: { accessKeyId, secretAccessKey, region } })
@@ -137,7 +137,7 @@ import { useSettingsStore } from '@/stores/settings'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
-import { Button } from '@/components/ui/button'
+import { Button } from '@shadcn/components/ui/button'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { Icon } from '@iconify/vue'
 import ProviderModelManager from './ProviderModelManager.vue'

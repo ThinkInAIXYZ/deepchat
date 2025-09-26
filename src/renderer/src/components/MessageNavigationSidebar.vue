@@ -126,7 +126,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import { Icon } from '@iconify/vue'
-import { Button } from '@/components/ui/button'
+import { Button } from '@shadcn/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useI18n } from 'vue-i18n'
 import { useThemeStore } from '@/stores/theme'

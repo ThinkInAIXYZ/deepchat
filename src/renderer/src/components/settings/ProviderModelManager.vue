@@ -6,7 +6,7 @@
     <div class="flex flex-row gap-2 items-center">
       <Button
         variant="outline"
-        size="xs"
+        size="sm"
         class="text-xs text-normal rounded-lg"
         @click="$emit('show-model-list-dialog')"
       >
@@ -16,7 +16,7 @@
       </Button>
       <Button
         variant="outline"
-        size="xs"
+        size="sm"
         class="text-xs text-normal rounded-lg"
         :disabled="enabledModels.length === 0"
         @click="$emit('disable-all-models')"
@@ -73,7 +73,7 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
 import { Label } from '@/components/ui/label'
-import { Button } from '@/components/ui/button'
+import { Button } from '@shadcn/components/ui/button'
 import { Icon } from '@iconify/vue'
 import ModelConfigItem from './ModelConfigItem.vue'
 import type { LLM_PROVIDER, RENDERER_MODEL_META } from '@shared/presenter'

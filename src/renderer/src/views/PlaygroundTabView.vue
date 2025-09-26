@@ -4,7 +4,8 @@
       <header class="space-y-3">
         <h1 class="text-3xl font-semibold tracking-tight">Shadcn Playground</h1>
         <p class="text-muted-foreground">
-          Explore freshly installed @shadcn/ui components. These examples are for internal testing only.
+          Explore freshly installed @shadcn/ui components. These examples are for internal testing
+          only.
         </p>
       </header>
 
@@ -47,7 +48,8 @@ import SelectDemo from './playground/demos/SelectDemo.vue'
 const sections = computed(() => [
   {
     title: 'Forms & Inputs',
-    description: 'Combination of input primitives like buttons, inputs, textarea, checkbox, switch.',
+    description:
+      'Combination of input primitives like buttons, inputs, textarea, checkbox, switch.',
     columns: 2,
     component: DemoSection,
     demos: [
@@ -130,5 +132,4 @@ const sections = computed(() => [
 ])
 </script>
 
-<style scoped>
-</style>
+<style scoped></style>

@@ -137,7 +137,7 @@ import {
   DialogHeader,
   DialogTitle
 } from '@/components/ui/dialog'
-import { Button } from '@/components/ui/button'
+import { Button } from '@shadcn/components/ui/button'
 import { useThemeStore } from '@/stores/theme'
 const props = defineProps<{
   message: AssistantMessage

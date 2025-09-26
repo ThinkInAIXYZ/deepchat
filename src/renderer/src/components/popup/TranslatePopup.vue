@@ -40,7 +40,7 @@
 import { ref, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { usePresenter } from '@/composables/usePresenter'
-import { Button } from '@/components/ui/button'
+import { Button } from '@shadcn/components/ui/button'
 import { Icon } from '@iconify/vue'
 import type { IThreadPresenter } from '../../../../shared/presenter'
 

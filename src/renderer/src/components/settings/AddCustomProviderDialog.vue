@@ -111,7 +111,7 @@ import {
   DialogFooter,
   DialogDescription
 } from '@/components/ui/dialog'
-import { Button } from '@/components/ui/button'
+import { Button } from '@shadcn/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'

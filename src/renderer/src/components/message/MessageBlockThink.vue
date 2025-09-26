@@ -38,7 +38,7 @@
 </template>
 
 <script setup lang="ts">
-import { Button } from '@/components/ui/button'
+import { Button } from '@shadcn/components/ui/button'
 import { usePresenter } from '@/composables/usePresenter'
 import { Icon } from '@iconify/vue'
 import { AssistantMessageBlock } from '@shared/chat'

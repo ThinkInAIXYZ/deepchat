@@ -111,7 +111,7 @@
               :placeholder="t('settings.knowledgeBase.searchKnowledgePlaceholder')"
             />
             <Button
-              size="xs"
+              size="sm"
               variant="ghost"
               v-if="searchKey"
               class="absolute right-16 text-xs text-muted-foreground rounded-full w-6 h-6 flex items-center justify-center hover:bg-zinc-200"
@@ -149,7 +149,7 @@
                     <TooltipTrigger as-child>
                       <Button
                         variant="ghost"
-                        size="xs"
+                        size="sm"
                         class="absolute right-2 top-1 h-6 w-6 flex items-center justify-center rounded-sm hover:bg-primary/80 hover:text-white transition-colors"
                         @click="handleCopy(item.metadata.content, item.id)"
                       >
@@ -192,7 +192,7 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
-import { Button } from '@/components/ui/button'
+import { Button } from '@shadcn/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { toast } from '../ui/toast'

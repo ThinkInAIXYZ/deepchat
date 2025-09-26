@@ -14,7 +14,7 @@ import { useLanguageStore } from '@/stores/language'
 const themeStore = useThemeStore()
 
 const Button = defineAsyncComponent(() =>
-  import('@/components/ui/button').then((mod) => mod.Button)
+  import('@shadcn/components/ui/button').then((mod) => mod.Button)
 )
 const Card = defineAsyncComponent(() => import('@/components/ui/card').then((mod) => mod.Card))
 const CardHeader = defineAsyncComponent(() =>

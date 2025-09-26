@@ -165,7 +165,7 @@ import {
   DialogHeader,
   DialogTitle
 } from '@/components/ui/dialog'
-import { Button } from '@/components/ui/button'
+import { Button } from '@shadcn/components/ui/button'
 import { Switch } from '@/components/ui/switch'
 
 const languageStore = useLanguageStore()

@@ -67,7 +67,7 @@
       >
     </div>
     <div class="flex flex-row justify-start">
-      <Button variant="outline" size="xs" class="text-xs text-normal rounded-lg" @click="addEdit">
+      <Button variant="outline" size="sm" class="text-xs text-normal rounded-lg" @click="addEdit">
         <Icon icon="lucide:plus" class="w-4 h-4 text-muted-foreground" />
         {{ t('model.actions.add') }}
       </Button>
@@ -82,7 +82,7 @@
         <div class="flex gap-2">
           <Button
             variant="outline"
-            size="xs"
+            size="sm"
             class="text-xs text-normal rounded-lg"
             @click="enableAllModels(provider.providerId)"
           >
@@ -91,7 +91,7 @@
           </Button>
           <Button
             variant="outline"
-            size="xs"
+            size="sm"
             class="text-xs text-normal rounded-lg"
             @click="disableAllModels(provider.providerId)"
           >
@@ -127,7 +127,7 @@
 import { useI18n } from 'vue-i18n'
 import { computed, ref } from 'vue'
 import { Input } from '@/components/ui/input'
-import { Button } from '@/components/ui/button'
+import { Button } from '@shadcn/components/ui/button'
 import {
   Select,
   SelectContent,

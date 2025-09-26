@@ -6,9 +6,7 @@
     <PopoverContent class="w-64">
       <div class="space-y-2">
         <h4 class="font-semibold leading-none tracking-tight">Saved searches</h4>
-        <p class="text-sm text-muted-foreground">
-          Quick access to the segments you visit most.
-        </p>
+        <p class="text-sm text-muted-foreground">Quick access to the segments you visit most.</p>
       </div>
       <Separator class="my-2" />
       <div class="space-y-2">

@@ -22,6 +22,13 @@
 </template>
 
 <script setup lang="ts">
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@shadcn/components/ui/card'
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle
+} from '@shadcn/components/ui/card'
 import { Button } from '@shadcn/components/ui/button'
 </script>

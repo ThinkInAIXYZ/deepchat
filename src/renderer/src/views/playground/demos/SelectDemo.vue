@@ -17,5 +17,11 @@
 
 <script setup lang="ts">
 import { Label } from '@shadcn/components/ui/label'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@shadcn/components/ui/select'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from '@shadcn/components/ui/select'
 </script>

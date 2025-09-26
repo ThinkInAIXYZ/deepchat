@@ -198,7 +198,7 @@
                         }}</span>
                       </div>
                       <Button
-                        size="xs"
+                        size="sm"
                         variant="ghost"
                         class="text-xs text-muted-foreground rounded-full w-6 h-6 flex items-center justify-center"
                       >
@@ -238,7 +238,7 @@
                         </span>
                       </div>
                       <Button
-                        size="xs"
+                        size="sm"
                         variant="ghost"
                         v-if="selectRerankModel"
                         class="text-xs text-muted-foreground rounded-full w-6 h-6 flex items-center justify-center hover:bg-zinc-200"
@@ -247,7 +247,7 @@
                         <Icon icon="lucide:x" class="w-4 h-4 text-muted-foreground" />
                       </Button>
                       <Button
-                        size="xs"
+                        size="sm"
                         variant="ghost"
                         v-else
                         class="text-xs text-muted-foreground rounded-full w-6 h-6 flex items-center justify-center"
@@ -394,7 +394,7 @@
                         <Popover v-model:open="separatorsPopoverOpen">
                           <PopoverTrigger as-child>
                             <Button
-                              size="xs"
+                              size="sm"
                               variant="ghost"
                               class="whitespace-nowrap"
                               :title="t('settings.knowledgeBase.separatorsPreset')"
@@ -551,7 +551,7 @@
 import { ref, onMounted, toRaw, computed, watch, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
-import { Button } from '@/components/ui/button'
+import { Button } from '@shadcn/components/ui/button'
 import { Switch } from '@/components/ui/switch'
 import { Collapsible, CollapsibleContent } from '@/components/ui/collapsible'
 import {

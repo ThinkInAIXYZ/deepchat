@@ -231,7 +231,7 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { useArtifactStore } from '@/stores/artifact'
 import { Icon } from '@iconify/vue'
-import Button from '@/components/ui/button/Button.vue'
+import { Button } from '@shadcn/components/ui/button'
 import CodeArtifact from './CodeArtifact.vue'
 import MarkdownArtifact from './MarkdownArtifact.vue'
 import HTMLArtifact from './HTMLArtifact.vue'

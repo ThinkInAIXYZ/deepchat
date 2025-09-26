@@ -121,7 +121,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger
 } from '@/components/ui/alert-dialog'
-import { Button } from '@/components/ui/button'
+import { Button } from '@shadcn/components/ui/button'
 import dayjs from 'dayjs'
 
 dayjs.extend(utc)

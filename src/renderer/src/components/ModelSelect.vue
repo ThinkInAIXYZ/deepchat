@@ -27,7 +27,7 @@
               :key="tag"
               variant="outline"
               class="py-0 rounded-lg"
-              size="xs"
+              size="sm"
               >{{ tag }}</Badge
             > -->
           </div>

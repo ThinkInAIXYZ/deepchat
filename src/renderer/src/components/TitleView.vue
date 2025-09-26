@@ -20,7 +20,7 @@
               :key="tag"
               variant="outline"
               class="py-0 rounded-lg"
-              size="xs"
+              size="sm"
               >{{ t(`model.tags.${tag}`) }}</Badge
             >
             <div
@@ -99,7 +99,7 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
-import { Button } from '@/components/ui/button'
+import { Button } from '@shadcn/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import ScrollablePopover from './ScrollablePopover.vue'
