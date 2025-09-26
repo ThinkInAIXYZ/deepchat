@@ -202,7 +202,7 @@ import McpServers from '@/components/mcp-config/components/McpServers.vue'
 import { Switch } from '@/components/ui/switch'
 import { Button } from '@shadcn/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Badge } from '@/components/ui/badge'
+import { Badge } from '@shadcn/components/ui/badge'
 import { Icon } from '@iconify/vue'
 import {
   Dialog,

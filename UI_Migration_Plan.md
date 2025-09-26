@@ -33,6 +33,7 @@
 ### 阶段 2：组件迁移批次
 - **批次 A（基础控件）**：Button, Badge, Input, Label, Select, Checkbox, Switch
   - Button：✅ 引用了 `@shadcn/components/ui/button` 并同步调整 `size` 变体（xs -> sm）与动态导入，所有引用已更新
+  - Badge：✅ 全量切换为 `@shadcn/components/ui/badge`，移除旧版组件目录并验证 lint/build 通过
 - **批次 B（反馈）**：Alert, Dialog, Popover, Tooltip, Sonner(Toaster)
 - **批次 C（布局与导航）**：Tabs, NavigationMenu, DropdownMenu, Sheet, Sidebar
 - **批次 D（复杂组件）**：Table, Card, Accordion, Menubar, Progress 等

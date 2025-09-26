@@ -7,7 +7,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { useMcpStore } from '@/stores/mcp'
 import { Button } from '@shadcn/components/ui/button'
 import { Switch } from './ui/switch'
-import { Badge } from './ui/badge'
+import { Badge } from '@shadcn/components/ui/badge'
 import { useLanguageStore } from '@/stores/language'
 import { useChatStore } from '@/stores/chat'
 

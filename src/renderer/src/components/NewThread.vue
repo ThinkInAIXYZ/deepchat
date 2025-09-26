@@ -118,7 +118,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import ScrollablePopover from './ScrollablePopover.vue'
 import { Button } from '@shadcn/components/ui/button'
 import ModelIcon from './icons/ModelIcon.vue'
-import { Badge } from '@/components/ui/badge'
+import { Badge } from '@shadcn/components/ui/badge'
 import { Icon } from '@iconify/vue'
 import ModelSelect from './ModelSelect.vue'
 import { useChatStore } from '@/stores/chat'

@@ -100,7 +100,7 @@
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
 import { Button } from '@shadcn/components/ui/button'
-import { Badge } from '@/components/ui/badge'
+import { Badge } from '@shadcn/components/ui/badge'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import ScrollablePopover from './ScrollablePopover.vue'
 import ChatConfig from './ChatConfig.vue'
