@@ -74,5 +74,6 @@
   "delete": "Delete",
   "save": "Save",
   "clear": "Clear",
-  "saved": "Saved"
+  "saved": "Saved",
+  "newTab": "New Tab"
 }

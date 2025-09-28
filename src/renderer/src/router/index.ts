@@ -25,15 +25,19 @@ const router = createRouter({
         icon: 'lucide:message-square'
       }
     },
-    {
-      path: '/playground',
-      name: 'playground',
-      component: () => import('@/views/PlaygroundTabView.vue'),
-      meta: {
-        title: 'Playground',
-        icon: 'lucide:flask-conical'
-      }
-    },
+    ...(import.meta.env.VITE_ENABLE_PLAYGROUND === 'true'
+      ? [
+          {
+            path: '/playground',
+            name: 'playground',
+            component: () => import('@/views/PlaygroundTabView.vue'),
+            meta: {
+              titleKey: 'routes.playground',
+              icon: 'lucide:flask-conical'
+            }
+          }
+        ]
+      : []),
     {
       path: '/settings',
       name: 'settings',

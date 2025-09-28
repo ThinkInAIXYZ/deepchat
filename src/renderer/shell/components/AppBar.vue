@@ -128,12 +128,15 @@ import { useTabStore } from '@shell/stores/tab'
 import { useThemeStore } from '@/stores/theme'
 import { useElementSize } from '@vueuse/core'
 import { useLanguageStore } from '@/stores/language'
+import { useI18n } from 'vue-i18n'
 const tabStore = useTabStore()
 const langStore = useLanguageStore()
 const windowPresenter = usePresenter('windowPresenter')
 const devicePresenter = usePresenter('devicePresenter')
 const tabPresenter = usePresenter('tabPresenter')
 const endOfTabs = ref<HTMLElement | null>(null)
+
+const { t } = useI18n()
 
 const isMacOS = ref(false)
 const isMaximized = ref(false)
@@ -461,12 +464,22 @@ onMounted(() => {
   window.addEventListener('dragend', handleDragEnd)
 })
 
+const isPlaygroundEnabled = import.meta.env.VITE_ENABLE_PLAYGROUND === 'true'
+
 const openNewTab = (event?: MouseEvent, forcePlayground = false) => {
-  const shouldOpenPlayground = forcePlayground || event?.shiftKey
+  const shouldOpenPlayground = isPlaygroundEnabled && (forcePlayground || event?.shiftKey)
 
   const config = shouldOpenPlayground
-    ? { name: 'Playground', icon: 'lucide:flask-conical', viewType: 'playground' }
-    : { name: 'New Tab', icon: 'lucide:plus', viewType: 'chat' }
+    ? {
+        name: t('routes.playground'),
+        icon: 'lucide:flask-conical',
+        viewType: 'playground'
+      }
+    : {
+        name: t('common.newTab'),
+        icon: 'lucide:plus',
+        viewType: 'chat'
+      }
 
   tabStore.addTab(config)
   setTimeout(() => {

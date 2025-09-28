@@ -74,5 +74,6 @@
   "delete": "删除",
   "save": "保存",
   "clear": "清除",
-  "saved": "已保存"
+  "saved": "已保存",
+  "newTab": "新建标签页"
 }
