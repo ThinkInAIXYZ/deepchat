@@ -108,7 +108,10 @@
                 {{ t('settings.model.modelConfig.vision.description') }}
               </p>
             </div>
-            <Switch v-model:model-value="config.vision" />
+            <Switch
+              :model-value="config.vision"
+              @update:model-value="(value) => (config.vision = value)"
+            />
           </div>
 
           <!-- 函数调用 -->
@@ -341,7 +344,10 @@
                   {{ t('settings.model.modelConfig.enableSearch.description') }}
                 </p>
               </div>
-              <Switch v-model:checked="config.enableSearch" />
+              <Switch
+                :model-value="config.enableSearch"
+                @update:model-value="(value) => (config.enableSearch = value)"
+              />
             </div>
 
             <!-- 搜索配置子选项 -->

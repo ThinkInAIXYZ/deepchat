@@ -483,8 +483,8 @@
                       <div class="flex items-center gap-2">
                         <Checkbox
                           :id="'required-' + index"
-                          :checked="param.required"
-                          @update:checked="(value) => (param.required = value)"
+                          :model-value="param.required"
+                          @update:model-value="(value) => (param.required = value as boolean)"
                         />
                         <Label :for="'required-' + index" class="text-sm whitespace-nowrap">
                           {{ t('promptSetting.required') }}

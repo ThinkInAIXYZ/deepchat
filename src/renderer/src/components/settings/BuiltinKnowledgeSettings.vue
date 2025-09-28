@@ -18,9 +18,9 @@
           <Tooltip :delay-duration="200">
             <TooltipTrigger as-child>
               <Switch
-                :checked="isBuiltinMcpEnabled"
+                :model-value="isBuiltinMcpEnabled"
                 :disabled="!mcpStore.mcpEnabled"
-                @update:checked="toggleBuiltinMcpServer"
+                @update:model-value="toggleBuiltinMcpServer"
               />
             </TooltipTrigger>
             <TooltipContent v-if="!mcpStore.mcpEnabled">
@@ -53,9 +53,9 @@
             >
               <div class="absolute top-2 right-2 flex gap-2">
                 <Switch
-                  :checked="config.enabled === true"
+                  :model-value="config.enabled === true"
                   size="sm"
-                  @update:checked="toggleConfigEnabled(index, $event)"
+                  @update:model-value="(value) => toggleConfigEnabled(index, value)"
                 />
                 <button
                   type="button"
@@ -289,7 +289,8 @@
                   </div>
                   <Switch
                     id="edit-builtin-config-auto-detect-switch"
-                    v-model:checked="autoDetectDimensionsSwitch"
+                    :model-value="autoDetectDimensionsSwitch"
+                    @update:model-value="(value) => (autoDetectDimensionsSwitch = value)"
                   ></Switch>
                 </div>
               </div>
@@ -351,8 +352,9 @@
                   </div>
                   <Switch
                     id="edit-builtin-config-auto-detect-switch"
-                    v-model:checked="editingBuiltinConfig.normalized"
+                    :model-value="editingBuiltinConfig.normalized"
                     :disabled="isEditing"
+                    @update:model-value="(value) => (editingBuiltinConfig.normalized = value)"
                   ></Switch>
                 </div>
               </div>
@@ -900,7 +902,7 @@ const isBuiltinMcpEnabled = computed(() => {
 })
 
 // 切换BuitinKnowledge MCP服务器启用状态
-const toggleBuiltinMcpServer = async () => {
+const toggleBuiltinMcpServer = async (_value: boolean) => {
   if (!mcpStore.mcpEnabled) return
   await mcpStore.toggleServer('builtinKnowledge')
 }

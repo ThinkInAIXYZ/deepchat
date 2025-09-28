@@ -187,8 +187,8 @@
         <div class="shrink-0">
           <Switch
             id="search-preview-switch"
-            :checked="searchPreviewEnabled"
-            @update:checked="handleSearchPreviewChange"
+            :model-value="searchPreviewEnabled"
+            @update:model-value="handleSearchPreviewChange"
           />
         </div>
       </div>
@@ -202,8 +202,8 @@
         <div class="shrink-0">
           <Switch
             id="logging-switch"
-            :checked="loggingEnabled"
-            @update:checked="handleLoggingChange"
+            :model-value="loggingEnabled"
+            @update:model-value="handleLoggingChange"
           />
         </div>
       </div>
@@ -215,7 +215,11 @@
           <span class="text-sm font-medium">{{ t('settings.common.soundEnabled') }}</span>
         </span>
         <div class="shrink-0">
-          <Switch id="sound-switch" :checked="soundEnabled" @update:checked="handleSoundChange" />
+          <Switch
+            id="sound-switch"
+            :model-value="soundEnabled"
+            @update:model-value="handleSoundChange"
+          />
         </div>
       </div>
 
@@ -228,8 +232,8 @@
         <div class="shrink-0">
           <Switch
             id="copy-with-cot-switch"
-            :checked="copyWithCotEnabled"
-            @update:checked="handleCopyWithCotChange"
+            :model-value="copyWithCotEnabled"
+            @update:model-value="handleCopyWithCotChange"
           />
         </div>
       </div>

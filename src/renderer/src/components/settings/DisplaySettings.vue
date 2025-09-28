@@ -38,8 +38,8 @@
           <div class="shrink-0">
             <Switch
               id="notifications-switch"
-              :checked="notificationsEnabled"
-              @update:checked="handleNotificationsChange"
+              :model-value="notificationsEnabled"
+              @update:model-value="handleNotificationsChange"
             />
           </div>
         </div>
@@ -79,8 +79,8 @@
         <div class="shrink-0">
           <Switch
             id="content-protection-switch"
-            :checked="contentProtectionEnabled"
-            @update:checked="handleContentProtectionChange"
+            :model-value="contentProtectionEnabled"
+            @update:model-value="handleContentProtectionChange"
           />
         </div>
       </div>
@@ -95,8 +95,8 @@
           <div class="shrink-0">
             <Switch
               id="floating-button-switch"
-              :checked="floatingButtonStore.enabled"
-              @update:checked="handleFloatingButtonChange"
+              :model-value="floatingButtonStore.enabled"
+              @update:model-value="handleFloatingButtonChange"
             />
           </div>
         </div>
