@@ -1454,9 +1454,10 @@ defineExpose({
 }
 </style>
 <style>
-@reference '@/assets/style.css';
+@reference '../assets/style.css';
+
 .tiptap p.is-editor-empty:first-child::before {
-  color: hsl(var(--muted-foreground));
+  color: var(--muted-foreground);
   content: attr(data-placeholder);
   float: left;
   height: 0;

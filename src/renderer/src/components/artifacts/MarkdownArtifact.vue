@@ -30,7 +30,8 @@ const handleCopyClick = () => {
 </script>
 
 <style>
-@reference '@/assets/style.css';
+@reference '../../assets/style.css';
+
 .markdown-content-wrapper {
   line-height: 1.75rem;
   font-family:
