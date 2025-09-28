@@ -8,11 +8,11 @@ import {
   defaultShortcutKey,
   ShortcutKeySetting
 } from './configPresenter/shortcutKeySettings'
-import { ConfigPresenter } from './configPresenter'
+import { IConfigPresenter, IShortcutPresenter } from '@shared/presenter'
 
-export class ShortcutPresenter {
+export class ShortcutPresenter implements IShortcutPresenter {
   private isActive: boolean = false
-  private configPresenter: ConfigPresenter
+  private configPresenter: IConfigPresenter
   private shortcutKeys: ShortcutKeySetting = {
     ...defaultShortcutKey
   }
@@ -21,7 +21,7 @@ export class ShortcutPresenter {
    * 创建一个新的 ShortcutPresenter 实例
    * @param shortKey 可选的自定义快捷键设置
    */
-  constructor(configPresenter: ConfigPresenter) {
+  constructor(configPresenter: IConfigPresenter) {
     this.configPresenter = configPresenter
   }
 
@@ -80,7 +80,7 @@ export class ShortcutPresenter {
     // Command+Q 或 Ctrl+Q 退出程序
     if (this.shortcutKeys.Quit) {
       globalShortcut.register(this.shortcutKeys.Quit, () => {
-        app.quit()
+        app.quit() // Exit trigger: shortcut key
       })
     }
 
@@ -110,7 +110,7 @@ export class ShortcutPresenter {
       globalShortcut.register(this.shortcutKeys.GoSettings, () => {
         const focusedWindow = presenter.windowPresenter.getFocusedWindow()
         if (focusedWindow?.isFocused()) {
-          presenter.windowPresenter.sendToActiveTab(focusedWindow.id, SHORTCUT_EVENTS.GO_SETTINGS)
+          eventBus.sendToMain(SHORTCUT_EVENTS.GO_SETTINGS, focusedWindow.id)
         }
       })
     }
@@ -204,7 +204,7 @@ export class ShortcutPresenter {
       // 切换到下一个标签页
       await presenter.tabPresenter.switchTab(tabsData[nextTabIndex].id)
     } catch (error) {
-      console.error('切换到下一个标签页失败:', error)
+      console.error('Failed to switch to next tab:', error)
     }
   }
 
@@ -224,7 +224,7 @@ export class ShortcutPresenter {
       // 切换到上一个标签页
       await presenter.tabPresenter.switchTab(tabsData[previousTabIndex].id)
     } catch (error) {
-      console.error('切换到上一个标签页失败:', error)
+      console.error('Failed to switch to previous tab:', error)
     }
   }
 
@@ -237,7 +237,7 @@ export class ShortcutPresenter {
       // 切换到指定索引的标签页
       await presenter.tabPresenter.switchTab(tabsData[index].id)
     } catch (error) {
-      console.error(`切换到索引 ${index} 的标签页失败:`, error)
+      console.error(`Failed to switch to tab at index ${index}:`, error)
     }
   }
 
@@ -250,7 +250,7 @@ export class ShortcutPresenter {
       // 切换到最后一个标签页
       await presenter.tabPresenter.switchTab(tabsData[tabsData.length - 1].id)
     } catch (error) {
-      console.error('切换到最后一个标签页失败:', error)
+      console.error('Failed to switch to last tab:', error)
     }
   }
 

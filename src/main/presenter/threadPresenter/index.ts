@@ -30,6 +30,7 @@ import {
   UserMessageMentionBlock,
   UserMessageCodeBlock
 } from '@shared/chat'
+import { ModelType } from '@shared/model'
 import { approximateTokenSize } from 'tokenx'
 import { generateSearchPrompt, SearchManager } from './searchManager'
 import { getFileContext } from './fileContext'
@@ -54,6 +55,22 @@ interface GeneratingMessageState {
     total_tokens: number
     context_length: number
   }
+  // 统一的自适应内容处理
+  adaptiveBuffer?: {
+    content: string
+    lastUpdateTime: number
+    updateCount: number
+    totalSize: number
+    isLargeContent: boolean
+    chunks?: string[]
+    currentChunkIndex?: number
+    // 精确追踪已发送内容的位置
+    sentPosition: number // 已发送到渲染器的内容位置
+    isProcessing?: boolean
+  }
+  flushTimeout?: NodeJS.Timeout
+  throttleTimeout?: NodeJS.Timeout
+  lastRendererUpdateTime?: number
 }
 
 export class ThreadPresenter implements IThreadPresenter {
@@ -113,10 +130,32 @@ export class ThreadPresenter implements IThreadPresenter {
     return null
   }
 
+  private async getTabWindowType(tabId: number): Promise<'floating' | 'main' | 'unknown'> {
+    try {
+      const tabView = await presenter.tabPresenter.getTab(tabId)
+      if (!tabView) {
+        return 'unknown'
+      }
+      const windowId = presenter.tabPresenter['tabWindowMap'].get(tabId)
+      return windowId ? 'main' : 'floating'
+    } catch (error) {
+      console.error('Error determining tab window type:', error)
+      return 'unknown'
+    }
+  }
+
   async handleLLMAgentError(msg: LLMAgentEventData) {
     const { eventId, error } = msg
     const state = this.generatingMessages.get(eventId)
     if (state) {
+      // 刷新剩余缓冲内容
+      if (state.adaptiveBuffer) {
+        await this.flushAdaptiveBuffer(eventId)
+      }
+
+      // 清理缓冲相关资源
+      this.cleanupContentBuffer(state)
+
       await this.messageManager.handleMessageError(eventId, String(error))
       this.generatingMessages.delete(eventId)
     }
@@ -133,7 +172,10 @@ export class ThreadPresenter implements IThreadPresenter {
 
       // 检查是否有未处理的权限请求
       const hasPendingPermissions = state.message.content.some(
-        (block) => block.type === 'tool_call_permission' && block.status === 'pending'
+        (block) =>
+          block.type === 'action' &&
+          block.action_type === 'tool_call_permission' &&
+          block.status === 'pending'
       )
 
       if (hasPendingPermissions) {
@@ -143,7 +185,10 @@ export class ThreadPresenter implements IThreadPresenter {
         // 保持消息在generating状态，等待权限响应
         // 但是要更新非权限块为success状态
         state.message.content.forEach((block) => {
-          if (block.type !== 'tool_call_permission' && block.status === 'loading') {
+          if (
+            !(block.type === 'action' && block.action_type === 'tool_call_permission') &&
+            block.status === 'loading'
+          ) {
             block.status = 'success'
           }
         })
@@ -160,6 +205,20 @@ export class ThreadPresenter implements IThreadPresenter {
     eventBus.sendToRenderer(STREAM_EVENTS.END, SendTarget.ALL_WINDOWS, msg)
   }
 
+  // 清理所有缓冲相关资源
+  private cleanupContentBuffer(state: GeneratingMessageState): void {
+    if (state.flushTimeout) {
+      clearTimeout(state.flushTimeout)
+      state.flushTimeout = undefined
+    }
+    if (state.throttleTimeout) {
+      clearTimeout(state.throttleTimeout)
+      state.throttleTimeout = undefined
+    }
+    state.adaptiveBuffer = undefined
+    state.lastRendererUpdateTime = undefined
+  }
+
   // 完成消息的通用方法
   private async finalizeMessage(
     state: GeneratingMessageState,
@@ -168,7 +227,7 @@ export class ThreadPresenter implements IThreadPresenter {
   ): Promise<void> {
     // 将所有块设为success状态，但保留权限块的状态
     state.message.content.forEach((block) => {
-      if (block.type === 'tool_call_permission') {
+      if (block.type === 'action' && block.action_type === 'tool_call_permission') {
         // 权限块保持其当前状态（granted/denied/error）
         return
       }
@@ -233,6 +292,14 @@ export class ThreadPresenter implements IThreadPresenter {
       metadata.reasoningEndTime = state.lastReasoningTime - state.startTime
     }
 
+    // 刷新剩余缓冲内容
+    if (state.adaptiveBuffer) {
+      await this.flushAdaptiveBuffer(eventId)
+    }
+
+    // 清理缓冲相关资源
+    this.cleanupContentBuffer(state)
+
     // 更新消息的usage信息
     await this.messageManager.updateMessageMetadata(eventId, metadata)
     await this.messageManager.updateMessageStatus(eventId, 'sent')
@@ -283,6 +350,230 @@ export class ThreadPresenter implements IThreadPresenter {
     }
   }
 
+  // 释放缓冲的内容
+
+  // 统一的自适应内容刷新
+  private async flushAdaptiveBuffer(eventId: string): Promise<void> {
+    const state = this.generatingMessages.get(eventId)
+    if (!state?.adaptiveBuffer) return
+
+    const buffer = state.adaptiveBuffer
+    const now = Date.now()
+
+    // 清理超时
+    if (state.flushTimeout) {
+      clearTimeout(state.flushTimeout)
+      state.flushTimeout = undefined
+    }
+
+    // 处理缓冲的内容 - 只发送从 sentPosition 开始的新内容
+    if (buffer.content && buffer.sentPosition < buffer.content.length) {
+      const newContent = buffer.content.slice(buffer.sentPosition)
+      if (newContent) {
+        await this.processBufferedContent(eventId, newContent, now)
+        // 更新已发送位置
+        buffer.sentPosition = buffer.content.length
+      }
+    }
+
+    // 清理缓冲
+    state.adaptiveBuffer = undefined
+  }
+
+  // 优化的自适应内容处理 - 核心逻辑 (当前未使用)
+  // private async addToAdaptiveBuffer(eventId: string, content: string): Promise<void> {
+  //   // 方法保留以备将来使用
+  // }
+
+  // 分块大内容 - 使用更小的分块避免UI阻塞
+  private splitLargeContent(content: string): string[] {
+    const chunks: string[] = []
+    let maxChunkSize = 4096 // 默认4KB
+
+    // 对于图片base64内容，使用非常小的分块
+    if (content.includes('data:image/')) {
+      maxChunkSize = 512 // 图片内容使用512字节分块
+    }
+
+    // 对于超长内容，进一步减小分块
+    if (content.length > 50000) {
+      maxChunkSize = Math.min(maxChunkSize, 256)
+    }
+
+    for (let i = 0; i < content.length; i += maxChunkSize) {
+      chunks.push(content.slice(i, i + maxChunkSize))
+    }
+
+    return chunks
+  }
+
+  // 智能判断是否需要分块处理 - 优化阈值判断
+  private shouldSplitContent(content: string): boolean {
+    const sizeThreshold = 8192 // 8KB - 适中的阈值
+    const hasBase64Image = content.includes('data:image/') && content.includes('base64,')
+    const hasLargeBase64 = hasBase64Image && content.length > 5120 // 图片内容超过5KB才分块
+
+    return content.length > sizeThreshold || hasLargeBase64
+  }
+
+  // 处理缓冲的内容 - 优化异步处理
+  private async processBufferedContent(
+    eventId: string,
+    content: string,
+    currentTime: number
+  ): Promise<void> {
+    const state = this.generatingMessages.get(eventId)
+    if (!state) return
+
+    const buffer = state.adaptiveBuffer
+
+    // 如果是大内容，使用分块处理
+    if (buffer?.isLargeContent) {
+      await this.processLargeContentAsynchronously(eventId, content, currentTime)
+      return
+    }
+
+    // 正常内容处理
+    await this.processNormalContent(eventId, content, currentTime)
+  }
+
+  // 异步处理大内容 - 避免阻塞主进程
+  private async processLargeContentAsynchronously(
+    eventId: string,
+    content: string,
+    currentTime: number
+  ): Promise<void> {
+    const state = this.generatingMessages.get(eventId)
+    if (!state) return
+
+    const buffer = state.adaptiveBuffer
+    if (!buffer) return
+
+    // 设置处理状态
+    buffer.isProcessing = true
+
+    try {
+      // 动态分块 - 只处理传入的新增内容
+      const chunks = this.splitLargeContent(content)
+      const totalChunks = chunks.length
+
+      console.log(
+        `[ThreadPresenter] Processing ${totalChunks} chunks asynchronously for ${content.length} bytes`
+      )
+
+      // 初始化或获取内容块
+      const lastBlock = state.message.content[state.message.content.length - 1]
+      let contentBlock: any
+
+      if (lastBlock && lastBlock.type === 'content') {
+        contentBlock = lastBlock
+      } else {
+        this.finalizeLastBlock(state)
+        contentBlock = {
+          type: 'content',
+          content: '',
+          status: 'loading',
+          timestamp: currentTime
+        }
+        state.message.content.push(contentBlock)
+      }
+
+      // 批量处理分块，每次处琅5个
+      const batchSize = 5
+      for (let batchStart = 0; batchStart < chunks.length; batchStart += batchSize) {
+        const batchEnd = Math.min(batchStart + batchSize, chunks.length)
+        const batch = chunks.slice(batchStart, batchEnd)
+
+        // 合并当前批次的内容
+        const batchContent = batch.join('')
+        contentBlock.content += batchContent
+
+        // 更新数据库
+        await this.messageManager.editMessage(eventId, JSON.stringify(state.message.content))
+
+        // 发送渲染器事件
+        const eventData: any = {
+          eventId,
+          content: batchContent,
+          chunkInfo: {
+            current: batchEnd,
+            total: totalChunks,
+            isLargeContent: true,
+            batchSize: batch.length
+          }
+        }
+
+        eventBus.sendToRenderer(STREAM_EVENTS.RESPONSE, SendTarget.ALL_WINDOWS, eventData)
+
+        // 每批次之间的延迟，让出event loop
+        if (batchEnd < chunks.length) {
+          await new Promise((resolve) => setImmediate(resolve))
+        }
+      }
+
+      console.log(`[ThreadPresenter] Completed processing ${totalChunks} chunks`)
+    } catch (error) {
+      console.error('[ThreadPresenter] Error in processLargeContentAsynchronously:', error)
+    } finally {
+      // 清理处理状态
+      buffer.isProcessing = false
+    }
+  }
+
+  // 处理普通内容
+  private async processNormalContent(
+    eventId: string,
+    content: string,
+    currentTime: number
+  ): Promise<void> {
+    const state = this.generatingMessages.get(eventId)
+    if (!state) return
+
+    const lastBlock = state.message.content[state.message.content.length - 1]
+
+    if (lastBlock && lastBlock.type === 'content') {
+      lastBlock.content += content
+    } else {
+      this.finalizeLastBlock(state)
+      state.message.content.push({
+        type: 'content',
+        content: content,
+        status: 'loading',
+        timestamp: currentTime
+      })
+    }
+
+    // 只更新数据库，不额外发送到渲染器（避免重复发送）
+    await this.messageManager.editMessage(eventId, JSON.stringify(state.message.content))
+  }
+
+  // 完成最后一个块的状态
+  private finalizeLastBlock(state: GeneratingMessageState): void {
+    const lastBlock =
+      state.message.content.length > 0
+        ? state.message.content[state.message.content.length - 1]
+        : undefined
+
+    if (lastBlock) {
+      if (
+        lastBlock.type === 'action' &&
+        lastBlock.action_type === 'tool_call_permission' &&
+        lastBlock.status === 'pending'
+      ) {
+        lastBlock.status = 'granted'
+        return
+      }
+      if (!(lastBlock.type === 'tool_call' && lastBlock.status === 'loading')) {
+        lastBlock.status = 'success'
+      }
+    }
+  }
+
+  // 统一的数据库和渲染器更新 (当前未使用)
+  // private async updateMessageAndRenderer(eventId: string, content: string, currentTime: number, chunkInfo?: any): Promise<void> {
+  //   // 方法保留以备将来使用
+  // }
+
   async handleLLMAgentResponse(msg: LLMAgentEventData) {
     const currentTime = Date.now()
     const {
@@ -311,7 +602,11 @@ export class ThreadPresenter implements IThreadPresenter {
             ? state.message.content[state.message.content.length - 1]
             : undefined
         if (lastBlock) {
-          if (lastBlock.type === 'tool_call_permission' && lastBlock.status === 'pending') {
+          if (
+            lastBlock.type === 'action' &&
+            lastBlock.action_type === 'tool_call_permission' &&
+            lastBlock.status === 'pending'
+          ) {
             lastBlock.status = 'granted'
             return
           }
@@ -526,7 +821,8 @@ export class ThreadPresenter implements IThreadPresenter {
           const { permission_request } = msg
 
           state.message.content.push({
-            type: 'tool_call_permission',
+            type: 'action',
+            action_type: 'tool_call_permission',
             content:
               typeof tool_call_response === 'string'
                 ? tool_call_response
@@ -599,18 +895,8 @@ export class ThreadPresenter implements IThreadPresenter {
           image_data: image_data
         })
       } else if (content) {
-        // 处理普通内容
-        if (lastBlock && lastBlock.type === 'content') {
-          lastBlock.content += content
-        } else {
-          finalizeLastBlock() // 使用保护逻辑
-          state.message.content.push({
-            type: 'content',
-            content: content,
-            status: 'loading',
-            timestamp: currentTime
-          })
-        }
+        // 简化的直接内容处理
+        await this.processContentDirectly(state.message.id, content, currentTime)
       }
 
       // 处理推理内容
@@ -731,6 +1017,10 @@ export class ThreadPresenter implements IThreadPresenter {
     if (latestConversation?.settings) {
       defaultSettings = { ...latestConversation.settings }
       defaultSettings.systemPrompt = ''
+      defaultSettings.reasoningEffort = undefined
+      defaultSettings.enableSearch = undefined
+      defaultSettings.forcedSearch = undefined
+      defaultSettings.searchStrategy = undefined
     }
     Object.keys(settings).forEach((key) => {
       if (settings[key] === undefined || settings[key] === null || settings[key] === '') {
@@ -746,8 +1036,9 @@ export class ThreadPresenter implements IThreadPresenter {
       mergedSettings.maxTokens = defaultModelsSettings.maxTokens
       mergedSettings.contextLength = defaultModelsSettings.contextLength
       mergedSettings.temperature = defaultModelsSettings.temperature ?? 0.7
-      // 重置 thinkingBudget 为模型默认配置，如果模型配置中没有则设为 undefined
-      mergedSettings.thinkingBudget = defaultModelsSettings.thinkingBudget
+      if (settings.thinkingBudget === undefined) {
+        mergedSettings.thinkingBudget = defaultModelsSettings.thinkingBudget
+      }
     }
     if (settings.artifacts) {
       mergedSettings.artifacts = settings.artifacts
@@ -755,7 +1046,7 @@ export class ThreadPresenter implements IThreadPresenter {
     if (settings.maxTokens) {
       mergedSettings.maxTokens = settings.maxTokens
     }
-    if (settings.temperature) {
+    if (settings.temperature !== undefined && settings.temperature !== null) {
       mergedSettings.temperature = settings.temperature
     }
     if (settings.contextLength) {
@@ -876,11 +1167,26 @@ export class ThreadPresenter implements IThreadPresenter {
         `Conversation ${conversationId} is already open in tab ${existingTabId}. Switching to it.`
       )
       // 命令TabPresenter切换到已存在的Tab
-      await presenter.tabPresenter.switchTab(existingTabId)
-      // 注意：这里不应该再为 requesting tab (即 tabId) 设置 activeConversationId
-      // 也不需要发送ACTIVATED事件，因为tab-session的绑定关系没有改变。
-      // switchTab 自身会处理UI的激活。
-      return
+      const currentTabType = await this.getTabWindowType(tabId)
+      const existingTabType = await this.getTabWindowType(existingTabId)
+      if (currentTabType !== existingTabType) {
+        this.activeConversationIds.delete(existingTabId)
+        eventBus.sendToRenderer(CONVERSATION_EVENTS.DEACTIVATED, SendTarget.ALL_WINDOWS, {
+          tabId: existingTabId
+        })
+        this.activeConversationIds.set(tabId, conversationId)
+        eventBus.sendToRenderer(CONVERSATION_EVENTS.ACTIVATED, SendTarget.ALL_WINDOWS, {
+          conversationId,
+          tabId
+        })
+        return
+      } else {
+        await presenter.tabPresenter.switchTab(existingTabId)
+        // 注意：这里不应该再为 requesting tab (即 tabId) 设置 activeConversationId
+        // 也不需要发送ACTIVATED事件，因为tab-session的绑定关系没有改变。
+        // switchTab 自身会处理UI的激活。
+        return
+      }
     }
 
     // 如果会话未在其他Tab打开，或者是请求激活当前Tab已绑定的会话，则正常执行绑定
@@ -1475,7 +1781,10 @@ export class ThreadPresenter implements IThreadPresenter {
         enabledMcpTools: currentEnabledMcpTools,
         thinkingBudget: currentThinkingBudget,
         reasoningEffort: currentReasoningEffort,
-        verbosity: currentVerbosity
+        verbosity: currentVerbosity,
+        enableSearch: currentEnableSearch,
+        forcedSearch: currentForcedSearch,
+        searchStrategy: currentSearchStrategy
       } = currentConversation.settings
       const stream = this.llmProviderPresenter.startStreamCompletion(
         currentProviderId, // 使用最新的设置
@@ -1487,7 +1796,10 @@ export class ThreadPresenter implements IThreadPresenter {
         currentEnabledMcpTools,
         currentThinkingBudget,
         currentReasoningEffort,
-        currentVerbosity
+        currentVerbosity,
+        currentEnableSearch,
+        currentForcedSearch,
+        currentSearchStrategy
       )
       for await (const event of stream) {
         const msg = event.data
@@ -1593,7 +1905,10 @@ export class ThreadPresenter implements IThreadPresenter {
         enabledMcpTools,
         thinkingBudget,
         reasoningEffort,
-        verbosity
+        verbosity,
+        enableSearch,
+        forcedSearch,
+        searchStrategy
       } = conversation.settings
       const modelConfig = this.configPresenter.getModelConfig(modelId, providerId)
 
@@ -1665,7 +1980,10 @@ export class ThreadPresenter implements IThreadPresenter {
         enabledMcpTools,
         thinkingBudget,
         reasoningEffort,
-        verbosity
+        verbosity,
+        enableSearch,
+        forcedSearch,
+        searchStrategy
       )
       for await (const event of stream) {
         const msg = event.data
@@ -1808,24 +2126,37 @@ export class ThreadPresenter implements IThreadPresenter {
     userMessage: Message,
     vision: boolean,
     imageFiles: MessageFile[],
-    supportsFunctionCall: boolean
+    supportsFunctionCall: boolean,
+    modelType?: ModelType
   ): Promise<{
     finalContent: ChatMessage[]
     promptTokens: number
   }> {
     const { systemPrompt, contextLength, artifacts, enabledMcpTools } = conversation.settings
 
-    const searchPrompt = searchResults ? generateSearchPrompt(userContent, searchResults) : ''
+    // 判断是否为图片生成模型
+    const isImageGeneration = modelType === ModelType.ImageGeneration
+
+    // 图片生成模型不使用搜索、系统提示词和MCP工具
+    const searchPrompt =
+      !isImageGeneration && searchResults ? generateSearchPrompt(userContent, searchResults) : ''
     const enrichedUserMessage =
-      urlResults.length > 0
+      !isImageGeneration && urlResults.length > 0
         ? '\n\n' + ContentEnricher.enrichUserMessageWithUrlContent(userContent, urlResults)
         : ''
 
-    // 计算token数量
+    // 处理系统提示词，添加当前时间信息
+    const finalSystemPrompt = this.enhanceSystemPromptWithDateTime(systemPrompt, isImageGeneration)
+
+    // 计算token数量（使用处理后的系统提示词）
     const searchPromptTokens = searchPrompt ? approximateTokenSize(searchPrompt ?? '') : 0
-    const systemPromptTokens = systemPrompt ? approximateTokenSize(systemPrompt ?? '') : 0
+    const systemPromptTokens =
+      !isImageGeneration && finalSystemPrompt ? approximateTokenSize(finalSystemPrompt ?? '') : 0
     const userMessageTokens = approximateTokenSize(userContent + enrichedUserMessage)
-    const mcpTools = await presenter.mcpPresenter.getAllToolDefinitions(enabledMcpTools)
+    // 图片生成模型不使用MCP工具
+    const mcpTools = !isImageGeneration
+      ? await presenter.mcpPresenter.getAllToolDefinitions(enabledMcpTools)
+      : []
     const mcpToolsTokens = mcpTools.reduce(
       (acc, tool) => acc + approximateTokenSize(JSON.stringify(tool)),
       0
@@ -1845,7 +2176,7 @@ export class ThreadPresenter implements IThreadPresenter {
     // 格式化消息
     const formattedMessages = this.formatMessagesForCompletion(
       selectedContextMessages,
-      systemPrompt,
+      isImageGeneration ? '' : finalSystemPrompt, // 图片生成模型不使用系统提示词
       artifacts,
       searchPrompt,
       userContent,
@@ -2344,6 +2675,55 @@ export class ThreadPresenter implements IThreadPresenter {
     return assistantMessage as AssistantMessage
   }
 
+  async regenerateFromUserMessage(
+    conversationId: string,
+    userMessageId: string
+  ): Promise<AssistantMessage> {
+    const userMessage = await this.messageManager.getMessage(userMessageId)
+    if (!userMessage || userMessage.role !== 'user') {
+      throw new Error('Can only regenerate based on user messages.')
+    }
+
+    const conversation = await this.getConversation(conversationId)
+    const { providerId, modelId } = conversation.settings
+
+    const assistantMessage = (await this.messageManager.sendMessage(
+      conversationId,
+      JSON.stringify([]),
+      'assistant',
+      userMessageId,
+      false,
+      {
+        totalTokens: 0,
+        generationTime: 0,
+        firstTokenTime: 0,
+        tokensPerSecond: 0,
+        contextUsage: 0,
+        inputTokens: 0,
+        outputTokens: 0,
+        model: modelId,
+        provider: providerId
+      }
+    )) as AssistantMessage
+
+    this.generatingMessages.set(assistantMessage.id, {
+      message: assistantMessage,
+      conversationId,
+      startTime: Date.now(),
+      firstTokenTime: null,
+      promptTokens: 0,
+      reasoningStartTime: null,
+      reasoningEndTime: null,
+      lastReasoningTime: null
+    })
+
+    this.startStreamCompletion(conversationId, userMessageId).catch((e) => {
+      console.error('Failed to start regeneration from user message:', e)
+    })
+
+    return assistantMessage
+  }
+
   async getMessageVariants(messageId: string): Promise<Message[]> {
     return await this.messageManager.getMessageVariants(messageId)
   }
@@ -2387,6 +2767,14 @@ export class ThreadPresenter implements IThreadPresenter {
     if (state) {
       // 设置统一的取消标志
       state.isCancelled = true
+
+      // 刷新剩余缓冲内容
+      if (state.adaptiveBuffer) {
+        await this.flushAdaptiveBuffer(messageId)
+      }
+
+      // 清理缓冲相关资源
+      this.cleanupContentBuffer(state)
 
       // 标记消息不再处于搜索状态
       if (state.isSearching) {
@@ -2568,7 +2956,12 @@ export class ThreadPresenter implements IThreadPresenter {
       // 获取目标消息之前的所有消息（包括目标消息）
       const messageHistory = await this.getMessageHistory(targetMessageId, 100)
 
-      // 4. 直接操作数据库复制消息到新会话
+      // 4. 创建消息ID映射表，用于维护父子关系
+      const messageIdMap = new Map<string, string>() // 旧消息ID -> 新消息ID
+      const parentChildMap = new Map<string, string[]>() // 父消息ID -> 子消息ID列表
+      const messagesToProcess: Array<{ msg: any; orderSeq: number }> = []
+
+      // 首先收集所有需要复制的消息，并建立父子关系映射
       for (const msg of messageHistory) {
         // 只复制已发送成功的消息
         if (msg.status !== 'sent') {
@@ -2578,6 +2971,19 @@ export class ThreadPresenter implements IThreadPresenter {
         // 获取消息序号
         const orderSeq = (await this.databasePresenter.getMaxOrderSeq(newConversationId)) + 1
 
+        // 记录父子关系
+        if (msg.parentId && msg.parentId !== '') {
+          if (!parentChildMap.has(msg.parentId)) {
+            parentChildMap.set(msg.parentId, [])
+          }
+          parentChildMap.get(msg.parentId)!.push(msg.id)
+        }
+
+        messagesToProcess.push({ msg, orderSeq })
+      }
+
+      // 5. 按顺序插入所有消息，先不设置父ID
+      for (const { msg, orderSeq } of messagesToProcess) {
         // 解析元数据
         const metadata: MESSAGE_METADATA = {
           totalTokens: msg.usage?.total_tokens || 0,
@@ -2602,7 +3008,7 @@ export class ThreadPresenter implements IThreadPresenter {
           newConversationId, // 新会话ID
           content, // 内容
           msg.role, // 角色
-          '', // 无父消息ID
+          '', // 暂时无父消息ID，稍后更新
           JSON.stringify(metadata), // 元数据
           orderSeq, // 序号
           tokenCount, // token数
@@ -2610,12 +3016,27 @@ export class ThreadPresenter implements IThreadPresenter {
           0, // 不是上下文边界
           0 // 不是变体
         )
+
+        // 记录新旧消息ID的映射关系
+        messageIdMap.set(msg.id, newConversationId)
       }
 
-      // 在所有数据库操作完成后，调用广播方法
+      // 6. 更新所有消息的父ID，恢复正确的父子关系
+      for (const { msg } of messagesToProcess) {
+        if (msg.parentId && msg.parentId !== '') {
+          const newMessageId = messageIdMap.get(msg.id)
+          const newParentId = messageIdMap.get(msg.parentId)
+
+          if (newMessageId && newParentId) {
+            await this.databasePresenter.updateMessageParentId(newMessageId, newParentId)
+          }
+        }
+      }
+
+      // 7. 在所有数据库操作完成后，调用广播方法
       await this.broadcastThreadListUpdate()
 
-      // 5. 触发会话创建事件
+      // 8. 触发会话创建事件
       return newConversationId
     } catch (error) {
       console.error('分支会话失败:', error)
@@ -3408,7 +3829,10 @@ export class ThreadPresenter implements IThreadPresenter {
 
       const content = message.content as AssistantMessageBlock[]
       const permissionBlock = content.find(
-        (block) => block.type === 'tool_call_permission' && block.tool_call?.id === toolCallId
+        (block) =>
+          block.type === 'action' &&
+          block.action_type === 'tool_call_permission' &&
+          block.tool_call?.id === toolCallId
       )
 
       if (!permissionBlock) {
@@ -3526,7 +3950,10 @@ export class ThreadPresenter implements IThreadPresenter {
       // 验证权限是否生效 - 获取最新的服务器配置
       const content = message.content as AssistantMessageBlock[]
       const permissionBlock = content.find(
-        (block) => block.type === 'tool_call_permission' && block.status === 'granted'
+        (block) =>
+          block.type === 'action' &&
+          block.action_type === 'tool_call_permission' &&
+          block.status === 'granted'
       )
 
       if (!permissionBlock) {
@@ -3616,7 +4043,7 @@ export class ThreadPresenter implements IThreadPresenter {
 
       // 将所有loading状态的块设为success，但保留权限块的状态
       content.forEach((block) => {
-        if (block.type === 'tool_call_permission') {
+        if (block.type === 'action' && block.action_type === 'tool_call_permission') {
           // 权限块保持其当前状态（granted/denied/error）
           return
         }
@@ -3681,7 +4108,10 @@ export class ThreadPresenter implements IThreadPresenter {
         enabledMcpTools,
         thinkingBudget,
         reasoningEffort,
-        verbosity
+        verbosity,
+        enableSearch,
+        forcedSearch,
+        searchStrategy
       } = conversation.settings
       const modelConfig = this.configPresenter.getModelConfig(modelId, providerId)
 
@@ -3739,7 +4169,10 @@ export class ThreadPresenter implements IThreadPresenter {
         enabledMcpTools,
         thinkingBudget,
         reasoningEffort,
-        verbosity
+        verbosity,
+        enableSearch,
+        forcedSearch,
+        searchStrategy
       )
 
       for await (const event of stream) {
@@ -3820,7 +4253,10 @@ export class ThreadPresenter implements IThreadPresenter {
   ): { id: string; name: string; params: string } | null {
     // 查找已授权的权限块
     const grantedPermissionBlock = content.find(
-      (block) => block.type === 'tool_call_permission' && block.status === 'granted'
+      (block) =>
+        block.type === 'action' &&
+        block.action_type === 'tool_call_permission' &&
+        block.status === 'granted'
     )
 
     if (!grantedPermissionBlock?.tool_call) {
@@ -3850,11 +4286,12 @@ export class ThreadPresenter implements IThreadPresenter {
     const { systemPrompt } = conversation.settings
     const formattedMessages: ChatMessage[] = []
 
-    // 1. 添加系统提示
+    // 1. 添加系统提示（包含当前时间信息）
     if (systemPrompt) {
+      const finalSystemPrompt = this.enhanceSystemPromptWithDateTime(systemPrompt)
       formattedMessages.push({
         role: 'system',
-        content: systemPrompt
+        content: finalSystemPrompt
       })
     }
 
@@ -3915,5 +4352,90 @@ export class ThreadPresenter implements IThreadPresenter {
     }
 
     return formattedMessages
+  }
+
+  /**
+   * 为系统提示词添加当前时间信息
+   * @param systemPrompt 原始系统提示词
+   * @param isImageGeneration 是否为图片生成模型
+   * @returns 处理后的系统提示词
+   */
+  private enhanceSystemPromptWithDateTime(
+    systemPrompt: string,
+    isImageGeneration: boolean = false
+  ): string {
+    // 如果是图片生成模型或者系统提示词为空，则直接返回原值
+    if (isImageGeneration || !systemPrompt || !systemPrompt.trim()) {
+      return systemPrompt
+    }
+
+    // 生成当前时间字符串，包含完整的时区信息
+    const currentDateTime = new Date().toLocaleString('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      timeZoneName: 'short',
+      hour12: false
+    })
+
+    return `${systemPrompt}\nToday's date and time is ${currentDateTime}`
+  }
+
+  /**
+   * 直接处理内容的方法
+   */
+  private async processContentDirectly(
+    eventId: string,
+    content: string,
+    currentTime: number
+  ): Promise<void> {
+    const state = this.generatingMessages.get(eventId)
+    if (!state) return
+
+    // 检查是否需要分块处理
+    if (this.shouldSplitContent(content)) {
+      await this.processLargeContentInChunks(eventId, content, currentTime)
+    } else {
+      await this.processNormalContent(eventId, content, currentTime)
+    }
+  }
+
+  /**
+   * 分块处理大内容
+   */
+  private async processLargeContentInChunks(
+    eventId: string,
+    content: string,
+    currentTime: number
+  ): Promise<void> {
+    const state = this.generatingMessages.get(eventId)
+    if (!state) return
+
+    console.log(`[ThreadPresenter] Processing large content in chunks: ${content.length} bytes`)
+
+    const lastBlock = state.message.content[state.message.content.length - 1]
+    let contentBlock: any
+
+    if (lastBlock && lastBlock.type === 'content') {
+      contentBlock = lastBlock
+    } else {
+      this.finalizeLastBlock(state)
+      contentBlock = {
+        type: 'content',
+        content: '',
+        status: 'loading',
+        timestamp: currentTime
+      }
+      state.message.content.push(contentBlock)
+    }
+
+    // 直接添加内容，不做复杂分块
+    contentBlock.content += content
+
+    // 只更新数据库，不额外发送到渲染器（避免重复发送）
+    await this.messageManager.editMessage(eventId, JSON.stringify(state.message.content))
   }
 }

@@ -157,7 +157,9 @@
     "type": "类型",
     "annotations": "注解",
     "empty": "空",
-    "invalidJsonFormat": "JSON格式不正确"
+    "invalidJsonFormat": "JSON格式不正确",
+    "allowedValues": "允许的值",
+    "arrayItemValues": "数组元素值"
   },
   "inmemory": {
     "bochaSearch": {

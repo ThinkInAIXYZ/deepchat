@@ -1,3 +1,5 @@
+@layer vrm, base;
+@import 'vue-renderer-markdown/index.css' layer(vrm);
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -77,9 +79,12 @@
     --display-weight: 700;
     --text-weight: 400;
 
-    --usage-low: 142 71% 45%; /* 亮绿 */
-    --usage-mid: 48 96% 53%; /* 亮黄 */
-    --usage-high: 0 72% 51%; /* 亮红 */
+    --usage-low: 142 71% 45%;
+    /* 亮绿 */
+    --usage-mid: 48 96% 53%;
+    /* 亮黄 */
+    --usage-high: 0 72% 51%;
+    /* 亮红 */
   }
 
   .dark {
@@ -117,18 +122,24 @@
     --sidebar-border: var(--base-800);
     --sidebar-ring: var(--primary-600);
 
-    --usage-low: 142 40% 60%; /* 暗绿 */
-    --usage-mid: 48 80% 60%; /* 暗黄 */
-    --usage-high: 0 70% 65%; /* 暗红 */
+    --usage-low: 142 40% 60%;
+    /* 暗绿 */
+    --usage-mid: 48 80% 60%;
+    /* 暗黄 */
+    --usage-high: 0 70% 65%;
+    /* 暗红 */
   }
 }
+
 @layer base {
   * {
     @apply border-border;
   }
+
   body {
     @apply bg-transparent text-foreground font-text;
   }
+
   html {
     font-family:
       'Geist',
@@ -147,6 +158,7 @@
   .font-display {
     font-weight: var(--display-weight);
   }
+
   .font-text {
     font-weight: var(--text-weight);
   }

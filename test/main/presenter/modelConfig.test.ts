@@ -6,6 +6,8 @@ import { ModelConfig } from '../../../src/shared/presenter'
 // Mock electron-store with in-memory storage
 const mockStores = new Map<string, Record<string, any>>()
 
+const CURRENT_VERSION = '1.0.0'
+
 vi.mock('electron-store', () => {
   return {
     default: class MockElectronStore {
@@ -66,7 +68,7 @@ describe('Model Configuration Tests', () => {
     mockStores.clear()
 
     // Initialize test instances
-    modelConfigHelper = new ModelConfigHelper()
+    modelConfigHelper = new ModelConfigHelper(CURRENT_VERSION)
   })
 
   afterEach(() => {
@@ -99,7 +101,8 @@ describe('Model Configuration Tests', () => {
 
       // READ: Get configuration and verify it matches
       const retrievedConfig = modelConfigHelper.getModelConfig(testModelId, testProviderId)
-      expect(retrievedConfig).toEqual(testConfig)
+      expect(retrievedConfig).toMatchObject(testConfig)
+      expect(retrievedConfig.isUserDefined).toBe(true)
 
       // UPDATE: Modify configuration
       const updatedConfig = { ...testConfig, maxTokens: 12000 }
@@ -115,7 +118,7 @@ describe('Model Configuration Tests', () => {
     it('should return safe default configuration for unknown models', () => {
       const defaultConfig = modelConfigHelper.getModelConfig('unknown-model', 'unknown-provider')
 
-      expect(defaultConfig).toEqual({
+      expect(defaultConfig).toMatchObject({
         maxTokens: 4096,
         contextLength: 8192,
         temperature: 0.6,
@@ -124,6 +127,7 @@ describe('Model Configuration Tests', () => {
         reasoning: false,
         type: ModelType.Chat
       })
+      expect(defaultConfig.isUserDefined).toBe(false)
     })
 
     it('should handle multiple configurations and bulk operations', () => {
@@ -212,7 +216,8 @@ describe('Model Configuration Tests', () => {
 
       // Step 3: Verify user config takes priority
       const retrievedConfig = modelConfigHelper.getModelConfig(testModelId, testProviderId)
-      expect(retrievedConfig).toEqual(userConfig)
+      expect(retrievedConfig).toMatchObject(userConfig)
+      expect(retrievedConfig.isUserDefined).toBe(true)
       expect(retrievedConfig.maxTokens).toBe(99999) // Should be user config value
       expect(retrievedConfig.contextLength).toBe(88888) // Should be user config value
       expect(retrievedConfig.temperature).toBe(0.123) // Should be user config value
@@ -284,7 +289,8 @@ describe('Model Configuration Tests', () => {
       modelConfigHelper.setModelConfig(visionModelId, testProviderId, customVisionConfig)
       const retrievedVisionConfig = modelConfigHelper.getModelConfig(visionModelId, testProviderId)
 
-      expect(retrievedVisionConfig).toEqual(customVisionConfig)
+      expect(retrievedVisionConfig).toMatchObject(customVisionConfig)
+      expect(retrievedVisionConfig.isUserDefined).toBe(true)
       expect(retrievedVisionConfig.vision).toBe(true) // User setting should override
     })
 
@@ -321,8 +327,10 @@ describe('Model Configuration Tests', () => {
       const retrievedConfig1 = modelConfigHelper.getModelConfig(modelId, provider1)
       const retrievedConfig2 = modelConfigHelper.getModelConfig(modelId, provider2)
 
-      expect(retrievedConfig1).toEqual(config1)
-      expect(retrievedConfig2).toEqual(config2)
+      expect(retrievedConfig1).toMatchObject(config1)
+      expect(retrievedConfig1.isUserDefined).toBe(true)
+      expect(retrievedConfig2).toMatchObject(config2)
+      expect(retrievedConfig2.isUserDefined).toBe(true)
       expect(retrievedConfig1.maxTokens).toBe(1111)
       expect(retrievedConfig2.maxTokens).toBe(3333)
 
@@ -333,7 +341,87 @@ describe('Model Configuration Tests', () => {
       const configAfterReset2 = modelConfigHelper.getModelConfig(modelId, provider2)
 
       expect(configAfterReset1.maxTokens).not.toBe(1111) // Should be reset
-      expect(configAfterReset2).toEqual(config2) // Should remain unchanged
+      expect(configAfterReset2).toMatchObject(config2) // Should remain unchanged
+      expect(configAfterReset2.isUserDefined).toBe(true)
+    })
+  })
+
+  describe('Metadata synchronization and provider-managed configs', () => {
+    const providerId = 'openai'
+    const providerManagedModelId = 'gpt-5-mini'
+    const userManagedModelId = 'custom-user-model'
+
+    it('marks provider-managed configs as non-user entries', () => {
+      const providerConfig: ModelConfig = {
+        maxTokens: 5555,
+        contextLength: 9999,
+        temperature: 0.4,
+        vision: false,
+        functionCall: true,
+        reasoning: false,
+        type: ModelType.Chat
+      }
+
+      modelConfigHelper.setModelConfig(providerManagedModelId, providerId, providerConfig, {
+        source: 'provider'
+      })
+
+      expect(modelConfigHelper.hasUserConfig(providerManagedModelId, providerId)).toBe(false)
+
+      const storedConfig = modelConfigHelper.getModelConfig(providerManagedModelId, providerId)
+      expect(storedConfig.isUserDefined).toBe(false)
+      expect(storedConfig.maxTokens).toBe(providerConfig.maxTokens)
+    })
+
+    it('keeps user configs but drops provider configs when defaults change', () => {
+      const providerConfig: ModelConfig = {
+        maxTokens: 4321,
+        contextLength: 8765,
+        temperature: 0.3,
+        vision: false,
+        functionCall: false,
+        reasoning: false,
+        type: ModelType.Chat
+      }
+
+      const userConfig: ModelConfig = {
+        maxTokens: 9876,
+        contextLength: 5432,
+        temperature: 0.6,
+        vision: true,
+        functionCall: true,
+        reasoning: true,
+        type: ModelType.Chat
+      }
+
+      modelConfigHelper.setModelConfig(providerManagedModelId, providerId, providerConfig, {
+        source: 'provider'
+      })
+      modelConfigHelper.setModelConfig(userManagedModelId, providerId, userConfig)
+
+      const helperAny = modelConfigHelper as any
+      const providerKey = helperAny.generateCacheKey(providerId, providerManagedModelId)
+      const userKey = helperAny.generateCacheKey(providerId, userManagedModelId)
+
+      const refreshedHelper = new ModelConfigHelper('2.0.0')
+
+      expect(refreshedHelper.hasUserConfig(userManagedModelId, providerId)).toBe(true)
+      expect(refreshedHelper.getModelConfig(userManagedModelId, providerId).maxTokens).toBe(
+        userConfig.maxTokens
+      )
+
+      expect(refreshedHelper.hasUserConfig(providerManagedModelId, providerId)).toBe(false)
+
+      const refreshedProviderConfig = refreshedHelper.getModelConfig(
+        providerManagedModelId,
+        providerId
+      )
+      expect(refreshedProviderConfig.maxTokens).not.toBe(providerConfig.maxTokens)
+      expect(refreshedProviderConfig.isUserDefined).toBe(false)
+
+      const refreshedStore = (refreshedHelper as any).modelConfigStore
+      expect(refreshedStore.get(providerKey)).toBeUndefined()
+      expect(refreshedStore.get(userKey)).toBeDefined()
     })
   })
 

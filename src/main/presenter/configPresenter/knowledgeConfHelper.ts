@@ -13,18 +13,18 @@ export class KnowledgeConfHelper {
     })
   }
 
-  // 获取所有知识库配置
+  // Get all knowledge base configurations
   getKnowledgeConfigs(): BuiltinKnowledgeConfig[] {
     return this.store.get('knowledgeConfigs') || []
   }
 
-  // 设置所有知识库配置
+  // Set all knowledge base configurations
   setKnowledgeConfigs(configs: BuiltinKnowledgeConfig[]): void {
     this.store.set('knowledgeConfigs', configs)
   }
 
   /**
-   * diff 新旧配置，返回 { added, updated, deleted }
+   * Diff old and new configurations, returns { added, updated, deleted }
    * @param oldConfigs
    * @param newConfigs
    * @returns

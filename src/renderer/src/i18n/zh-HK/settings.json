@@ -45,6 +45,9 @@
     "loggingEnableDesc": "啟用日誌將幫助我們診斷問題並改進應用程式。日誌檔案可能包含敏感資訊。",
     "loggingDisableDesc": "停用日誌將停止收集應用程式日誌。",
     "loggingRestartNotice": "切換此設定將導致程序重啟，請確認是否繼續？",
+    "webContentLengthLimit": "網頁內容長度限制",
+    "webContentLengthLimitHint": "（設置為0表示不限制）",
+    "webContentLengthLimitTooltip": "設置從網頁提取的文本內容長度上限（字符數），範圍：0-50000。設置為0表示不限制長度，獲取完整網頁內容；較大的值可以獲取更完整的網頁內容，但可能增加處理時間和token消耗。",
     "openLogFolder": "打開日誌文件夾",
     "shortcut": {
       "newChat": "新建聊天",
@@ -135,31 +138,60 @@
         "description": "模型是否支持推理能力",
         "label": "推理能力"
       },
+      "enableSearch": {
+        "label": "聯網搜尋",
+        "description": "開啟後模型可以聯網搜尋獲取最新資訊"
+      },
+      "forcedSearch": {
+        "label": "強制搜尋",
+        "description": "開啟後強制模型進行聯網搜尋，關閉時由模型自行決定"
+      },
+      "searchStrategy": {
+        "label": "搜尋策略",
+        "description": "選擇搜尋性能模式：turbo 兼顧速度與效果，max 提供最優搜尋效果",
+        "placeholder": "選擇搜尋策略",
+        "options": {
+          "turbo": "Turbo - 兼顧回應速度與搜尋效果（推薦）",
+          "max": "Max - 高性能模式，提供最優搜尋效果"
+        }
+      },
       "thinkingBudget": {
         "label": "思考預算",
-        "description": "限制模型思考長度",
-        "dynamic": "動態思維",
         "range": "範圍: {min} - {max}",
-        "onlySupported": "僅在 Gemini 2.5 Flash、2.5 Pro 和 2.5 Flash-Lite 中受支援",
-        "valueLabel": "思考預算值",
-        "placeholder": "輸入思考預算值",
-        "forceEnabled": "Gemini 2.5 系列模型強制開啟思考預算",
-        "dynamicPrefix": "-1 = 動態思維",
-        "notice": "注意：",
-        "warnings": {
-          "proNoDisable": "此模型不支援停用思考，最小值 128",
-          "proCannotDisable": "Gemini 2.5 Pro 無法停用思考功能",
-          "flashLiteCannotSetZero": "Gemini 2.5 Flash-Lite 不能設定為 0，最小值為 512",
-          "modelCannotDisable": "此模型無法停用思考功能",
-          "flashLiteMinValue": "思考預算設定為具體數值時不能小於 512（或使用 0 停用思考，-1 啟用動態思維）",
-          "belowMin": "思考預算不能小於 {min}{hint}",
-          "aboveMax": "思考預算不能大於 {max}"
+        "gemini": {
+          "description": "限制模型思考長度",
+          "dynamic": "動態思維",
+          "onlySupported": "僅在 Gemini 2.5 Flash、2.5 Pro 和 2.5 Flash-Lite 中受支援",
+          "valueLabel": "思考預算值",
+          "placeholder": "輸入思考預算值",
+          "forceEnabled": "Gemini 2.5 系列模型強制開啟思考預算",
+          "dynamicPrefix": "-1 = 動態思維",
+          "notice": "注意：",
+          "warnings": {
+            "proNoDisable": "此模型不支援停用思考，最小值 128",
+            "proCannotDisable": "Gemini 2.5 Pro 無法停用思考功能",
+            "flashLiteCannotSetZero": "Gemini 2.5 Flash-Lite 不能設定為 0，最小值為 512",
+            "modelCannotDisable": "此模型無法停用思考功能",
+            "flashLiteMinValue": "思考預算設定為具體數值時不能小於 512（或使用 0 停用思考，-1 啟用動態思維）",
+            "belowMin": "思考預算不能小於 {min}{hint}",
+            "aboveMax": "思考預算不能大於 {max}"
+          },
+          "hints": {
+            "flashLiteDisable": "，0 = 停用思考，具體數值最小 512",
+            "normalDisable": "，0 = 停用思考",
+            "withZeroAndDynamic": "（或使用 0 停用思考，-1 啟用動態思維）",
+            "withDynamic": "（或使用 -1 啟用動態思維）"
+          }
         },
-        "hints": {
-          "flashLiteDisable": "，0 = 停用思考，具體數值最小 512",
-          "normalDisable": "，0 = 停用思考",
-          "withZeroAndDynamic": "（或使用 0 停用思考，-1 啟用動態思維）",
-          "withDynamic": "（或使用 -1 啟用動態思維）"
+        "qwen3": {
+          "description": "設定思考過程的最大標記長度，以控制模型推理的深度",
+          "valueLabel": "思考預算值",
+          "placeholder": "請輸入思考預算值",
+          "validation": {
+            "required": "請輸入思考預算值",
+            "minValue": "思考預算值必須大於等於 1",
+            "maxValue": "思考預算值不能超過 {max}"
+          }
         }
       },
       "resetConfirm": {
@@ -221,6 +253,10 @@
       "vision": {
         "description": "模型是否支持視覺能力",
         "label": "視覺能力"
+      },
+      "searchLimit": {
+        "label": "搜尋限制",
+        "description": "模型限制: 啟用網絡搜尋將使工具函數呼叫失效"
       }
     }
   },
@@ -737,11 +773,11 @@
   },
   "display": {
     "fontSize": "文字大小",
-    "text-2xl": "超大",
-    "text-base": "預設",
-    "text-lg": "大",
     "text-sm": "小",
+    "text-base": "標準",
+    "text-lg": "大",
     "text-xl": "特大",
+    "text-2xl": "超大",
     "floatingButton": "懸浮按鈕",
     "floatingButtonDesc": "在桌面顯示一個懸浮按鈕，可以快速喚起應用程式視窗"
   },
@@ -790,5 +826,13 @@
     "confirmDisable": "關閉限制",
     "disabled": "速率限制已關閉",
     "disabledDescription": "速率限制功能已關閉"
+  },
+  "promptSetting": {
+    "resetToDefault": "重置為默認提示詞",
+    "clear": "清空提示詞",
+    "resetToDefaultSuccess": "已重置為默認系統提示詞",
+    "resetToDefaultFailed": "重置失敗，請重試",
+    "clearSuccess": "已清空系統提示詞",
+    "clearFailed": "清空失敗，請重試"
   }
 }

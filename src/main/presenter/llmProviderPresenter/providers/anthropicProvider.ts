@@ -5,10 +5,11 @@ import {
   LLMCoreStreamEvent,
   ModelConfig,
   MCPToolDefinition,
-  ChatMessage
+  ChatMessage,
+  IConfigPresenter
 } from '@shared/presenter'
+import { createStreamEvent } from '@shared/types/core/llm-events'
 import { BaseLLMProvider, SUMMARY_TITLES_PROMPT } from '../baseProvider'
-import { ConfigPresenter } from '../../configPresenter'
 import Anthropic from '@anthropic-ai/sdk'
 import { presenter } from '@/presenter'
 import { Usage } from '@anthropic-ai/sdk/resources'
@@ -21,7 +22,7 @@ export class AnthropicProvider extends BaseLLMProvider {
   private isOAuthMode = false
   private defaultModel = 'claude-3-7-sonnet-20250219'
 
-  constructor(provider: LLM_PROVIDER, configPresenter: ConfigPresenter) {
+  constructor(provider: LLM_PROVIDER, configPresenter: IConfigPresenter) {
     super(provider, configPresenter)
     this.init()
   }
@@ -780,7 +781,7 @@ export class AnthropicProvider extends BaseLLMProvider {
         requestParams = {
           model: modelId,
           max_tokens: maxTokens || 1024,
-          temperature: temperature || 0.7,
+          temperature: temperature ?? 0.7,
           system: "You are Claude Code, Anthropic's official CLI for Claude.",
           messages: oauthMessages
         }
@@ -793,7 +794,7 @@ export class AnthropicProvider extends BaseLLMProvider {
         requestParams = {
           model: modelId,
           max_tokens: maxTokens || 1024,
-          temperature: temperature || 0.7,
+          temperature: temperature ?? 0.7,
           messages: formattedMessages.messages
         }
 
@@ -897,7 +898,7 @@ ${text}
         requestParams = {
           model: modelId,
           max_tokens: maxTokens || 1024,
-          temperature: temperature || 0.7,
+          temperature: temperature ?? 0.7,
           system: "You are Claude Code, Anthropic's official CLI for Claude.",
           messages: [{ role: 'user', content: finalPrompt }]
         }
@@ -908,7 +909,7 @@ ${text}
         requestParams = {
           model: modelId,
           max_tokens: maxTokens || 1024,
-          temperature: temperature || 0.7,
+          temperature: temperature ?? 0.7,
           messages: [{ role: 'user' as const, content: [{ type: 'text' as const, text: prompt }] }]
         }
 
@@ -966,7 +967,7 @@ ${context}
         requestParams = {
           model: modelId,
           max_tokens: maxTokens || 1024,
-          temperature: temperature || 0.7,
+          temperature: temperature ?? 0.7,
           system: "You are Claude Code, Anthropic's official CLI for Claude.",
           messages: [{ role: 'user', content: finalPrompt }]
         }
@@ -977,7 +978,7 @@ ${context}
         requestParams = {
           model: modelId,
           max_tokens: maxTokens || 1024,
-          temperature: temperature || 0.7,
+          temperature: temperature ?? 0.7,
           messages: [{ role: 'user' as const, content: [{ type: 'text' as const, text: prompt }] }]
         }
 
@@ -1041,7 +1042,7 @@ ${context}
       const streamParams = {
         model: modelId,
         max_tokens: maxTokens || 1024,
-        temperature: temperature || 0.7,
+        temperature: temperature ?? 0.7,
         messages: formattedMessagesObject.messages,
         stream: true
       } as Anthropic.Messages.MessageCreateParamsStreaming
@@ -1093,11 +1094,7 @@ ${context}
 
           // 发送工具调用开始事件
           if (currentToolName) {
-            yield {
-              type: 'tool_call_start',
-              tool_call_id: currentToolId,
-              tool_call_name: currentToolName
-            }
+            yield createStreamEvent.toolCallStart(currentToolId, currentToolName)
           }
           continue
         }
@@ -1111,11 +1108,7 @@ ${context}
             accumulatedJson += partialJson
 
             // 发送工具调用参数块事件
-            yield {
-              type: 'tool_call_chunk',
-              tool_call_id: currentToolId,
-              tool_call_arguments_chunk: partialJson
-            }
+            yield createStreamEvent.toolCallChunk(currentToolId, partialJson)
           }
           continue
         }
@@ -1127,11 +1120,7 @@ ${context}
           if (chunk.delta.name && !currentToolName) {
             // @ts-ignore - 访问delta.name
             currentToolName = chunk.delta.name
-            yield {
-              type: 'tool_call_start',
-              tool_call_id: currentToolId,
-              tool_call_name: currentToolName
-            }
+            yield createStreamEvent.toolCallStart(currentToolId, currentToolName)
           }
 
           // @ts-ignore - delta.input不在类型定义中
@@ -1168,11 +1157,7 @@ ${context}
 
             // 发送工具调用结束事件
             const argsString = JSON.stringify(currentToolInputs)
-            yield {
-              type: 'tool_call_end',
-              tool_call_id: currentToolId,
-              tool_call_arguments_complete: argsString
-            }
+            yield createStreamEvent.toolCallEnd(currentToolId, argsString)
 
             // 重置工具调用状态
             accumulatedJson = ''
@@ -1192,10 +1177,7 @@ ${context}
           // @ts-ignore - delta.thinking不在类型定义中
           const thinkingText = chunk.delta.thinking
           if (thinkingText) {
-            yield {
-              type: 'reasoning',
-              reasoning_content: thinkingText
-            }
+            yield createStreamEvent.reasoning(thinkingText)
           }
           continue
         }
@@ -1208,79 +1190,49 @@ ${context}
             if (text.includes('<think>')) {
               const parts = text.split('<think>')
               if (parts[0]) {
-                yield {
-                  type: 'text',
-                  content: parts[0]
-                }
+                yield createStreamEvent.text(parts[0])
               }
 
               if (parts[1]) {
                 // 检查是否包含</think>
                 const thinkParts = parts[1].split('</think>')
                 if (thinkParts.length > 1) {
-                  yield {
-                    type: 'reasoning',
-                    reasoning_content: thinkParts[0]
-                  }
+                  yield createStreamEvent.reasoning(thinkParts[0])
 
                   if (thinkParts[1]) {
-                    yield {
-                      type: 'text',
-                      content: thinkParts[1]
-                    }
+                    yield createStreamEvent.text(thinkParts[1])
                   }
                 } else {
-                  yield {
-                    type: 'reasoning',
-                    reasoning_content: parts[1]
-                  }
+                  yield createStreamEvent.reasoning(parts[1])
                 }
               }
             } else if (text.includes('</think>')) {
               const parts = text.split('</think>')
-              yield {
-                type: 'reasoning',
-                reasoning_content: parts[0]
-              }
+              yield createStreamEvent.reasoning(parts[0])
 
               if (parts[1]) {
-                yield {
-                  type: 'text',
-                  content: parts[1]
-                }
+                yield createStreamEvent.text(parts[1])
               }
             } else {
-              yield {
-                type: 'text',
-                content: text
-              }
+              yield createStreamEvent.text(text)
             }
           }
           continue
         }
       }
       if (usageMetadata) {
-        yield {
-          type: 'usage',
-          usage: {
-            prompt_tokens: usageMetadata.input_tokens,
-            completion_tokens: usageMetadata.output_tokens,
-            total_tokens: usageMetadata.input_tokens + usageMetadata.output_tokens
-          }
-        }
+        yield createStreamEvent.usage({
+          prompt_tokens: usageMetadata.input_tokens,
+          completion_tokens: usageMetadata.output_tokens,
+          total_tokens: usageMetadata.input_tokens + usageMetadata.output_tokens
+        })
       }
       // 发送停止事件
-      yield {
-        type: 'stop',
-        stop_reason: toolUseDetected ? 'tool_use' : 'complete'
-      }
+      yield createStreamEvent.stop(toolUseDetected ? 'tool_use' : 'complete')
     } catch (error) {
       console.error('Anthropic coreStream error:', error)
-      yield {
-        type: 'error',
-        error_message: error instanceof Error ? error.message : '未知错误'
-      }
-      yield { type: 'stop', stop_reason: 'error' }
+      yield createStreamEvent.error(error instanceof Error ? error.message : '未知错误')
+      yield createStreamEvent.stop('error')
     }
   }
 
@@ -1314,7 +1266,7 @@ ${context}
       const streamParams: any = {
         model: modelId,
         max_tokens: maxTokens || 1024,
-        temperature: temperature || 0.7,
+        temperature: temperature ?? 0.7,
         system: "You are Claude Code, Anthropic's official CLI for Claude.",
         messages: oauthMessages,
         stream: true
@@ -1446,15 +1398,11 @@ ${context}
                 } else if (chunk.type === 'message_start' && chunk.message?.usage) {
                   // Handle usage info if needed
                 } else if (chunk.type === 'message_delta' && chunk.usage) {
-                  yield {
-                    type: 'usage',
-                    usage: {
-                      prompt_tokens: chunk.usage.input_tokens || 0,
-                      completion_tokens: chunk.usage.output_tokens || 0,
-                      total_tokens:
-                        (chunk.usage.input_tokens || 0) + (chunk.usage.output_tokens || 0)
-                    }
-                  }
+                  yield createStreamEvent.usage({
+                    prompt_tokens: chunk.usage.input_tokens || 0,
+                    completion_tokens: chunk.usage.output_tokens || 0,
+                    total_tokens: (chunk.usage.input_tokens || 0) + (chunk.usage.output_tokens || 0)
+                  })
                 }
               } catch (parseError) {
                 console.error('Failed to parse chunk:', parseError, data)
@@ -1467,17 +1415,11 @@ ${context}
       }
 
       // Send stop event
-      yield {
-        type: 'stop',
-        stop_reason: toolUseDetected ? 'tool_use' : 'complete'
-      }
+      yield createStreamEvent.stop(toolUseDetected ? 'tool_use' : 'complete')
     } catch (error) {
       console.error('Anthropic OAuth coreStream error:', error)
-      yield {
-        type: 'error',
-        error_message: error instanceof Error ? error.message : 'Unknown error'
-      }
-      yield { type: 'stop', stop_reason: 'error' }
+      yield createStreamEvent.error(error instanceof Error ? error.message : 'Unknown error')
+      yield createStreamEvent.stop('error')
     }
   }
 }

@@ -9,10 +9,9 @@ import { PptFileAdapter } from './PptFileAdapter'
 import { CodeFileAdapter } from './CodeFileAdapter'
 import { AudioFileAdapter } from './AudioFileAdapter'
 import { UnsupportFileAdapter } from './UnsupportFileAdapter'
-import { fileTypeFromFile } from 'file-type'
 import fs from 'fs/promises'
 import path from 'path'
-import * as mime from 'mime-types'
+import { lookup } from 'es-mime-types'
 
 export const getMimeTypeAdapterMap = (): Map<string, FileAdapterConstructor> => {
   const map = new Map<string, FileAdapterConstructor>()
@@ -101,7 +100,7 @@ export const getMimeTypeAdapterMap = (): Map<string, FileAdapterConstructor> => 
   map.set('text/x-h', CodeFileAdapter)
   map.set('text/x-hpp', CodeFileAdapter)
 
-  // 其他格式
+  // Other formats
   map.set('*/*', UnsupportFileAdapter)
   map.set('', UnsupportFileAdapter)
 
@@ -110,32 +109,7 @@ export const getMimeTypeAdapterMap = (): Map<string, FileAdapterConstructor> => 
 
 export const detectMimeType = async (filePath: string): Promise<string> => {
   try {
-    // 1. Try file-type for binary detection
-    const fileTypeResult = await fileTypeFromFile(filePath)
-    console.log(
-      `[getMimeType] fileTypeFromFile result for ${path.basename(filePath)}:`,
-      fileTypeResult
-    )
-    if (fileTypeResult) {
-      // Special case: Correct potential misidentification for .ts/.tsx
-      // file-type might identify them based on magic numbers if they exist,
-      // but mime.lookup is often better for these based on extension.
-      // Let's prioritize mime.lookup for .ts/.tsx specifically.
-      const ext = path.extname(filePath).toLowerCase()
-      if (ext === '.ts' || ext === '.tsx') {
-        const mimeTypeFromExt = mime.lookup(filePath)
-        if (mimeTypeFromExt === 'application/typescript') {
-          console.log('Prioritizing mime.lookup for .ts/.tsx:', mimeTypeFromExt)
-          return mimeTypeFromExt
-        }
-      }
-
-      console.log('Detected by file-type:', fileTypeResult.mime)
-      return fileTypeResult.mime
-    }
-
-    // 2. Fallback to mime.lookup for extension-based detection
-    const mimeType = mime.lookup(filePath)
+    const mimeType = lookup(filePath)
     console.log(`[getMimeType] mime.lookup result for ${path.basename(filePath)}:`, mimeType)
     if (mimeType) {
       console.log('Detected by mime.lookup:', mimeType)

@@ -31,27 +31,35 @@
       <div ref="scrollAnchor" class="h-8" />
     </div>
     <template v-if="!isCapturingImage">
-      <div v-if="showCancelButton" class="absolute bottom-2 left-1/2 -translate-x-1/2">
-        <Button variant="outline" size="sm" class="rounded-lg" @click="handleCancel">
+      <div class="absolute bottom-2 left-1/2 -translate-x-1/2 flex items-center gap-2">
+        <!-- 取消按钮 -->
+        <Button
+          v-if="showCancelButton"
+          variant="outline"
+          size="sm"
+          class="rounded-lg"
+          @click="handleCancel"
+        >
           <Icon
             icon="lucide:square"
             class="w-6 h-6 bg-red-500 p-1 text-primary-foreground rounded-full"
           />
           <span class="">{{ t('common.cancel') }}</span>
         </Button>
-      </div>
-      <div
-        v-else
-        class="absolute bottom-2 left-1/2 -translate-x-1/2 flex items-center"
-        :class="[aboveThreshold ? 'w-36' : ' w-24']"
-        :style="{
-          transition: 'width 300ms ease-in-out'
-        }"
-      >
-        <Button variant="outline" size="sm" class="rounded-lg shrink-0" @click="createNewThread">
+
+        <!-- 新聊天按钮 (仅在非生成状态显示) -->
+        <Button
+          v-if="!showCancelButton"
+          variant="outline"
+          size="sm"
+          class="rounded-lg shrink-0"
+          @click="createNewThread"
+        >
           <Icon icon="lucide:plus" class="w-6 h-6 text-muted-foreground" />
           <span class="">{{ t('common.newChat') }}</span>
         </Button>
+
+        <!-- 滚动到底部按钮 -->
         <transition
           enter-active-class="transition-all duration-300 ease-out"
           enter-from-class="opacity-0 translate-y-2"
@@ -60,15 +68,19 @@
           leave-from-class="opacity-100 translate-y-0"
           leave-to-class="opacity-0 translate-y-2"
         >
-          <Button
-            v-if="aboveThreshold"
-            variant="outline"
-            size="icon"
-            class="w-8 h-8 ml-2 shrink-0 rounded-lg"
-            @click="scrollToBottom"
+          <div
+            v-if="aboveThreshold || showCancelButton"
+            :class="['relative', showCancelButton ? 'scroll-to-bottom-loading-container' : '']"
           >
-            <Icon icon="lucide:arrow-down" class="w-5 h-5 text-muted-foreground" />
-          </Button>
+            <Button
+              variant="outline"
+              size="icon"
+              class="w-8 h-8 shrink-0 rounded-lg relative z-10"
+              @click="() => scrollToBottom(true)"
+            >
+              <Icon icon="lucide:arrow-down" class="w-5 h-5 text-muted-foreground" />
+            </Button>
+          </div>
         </transition>
       </div>
     </template>
@@ -266,12 +278,35 @@ const handleCopyImage = async (
   }
 }
 
-const scrollToBottom = () => {
+const scrollToBottom = (smooth = false) => {
   nextTick(() => {
-    scrollAnchor.value?.scrollIntoView({
-      behavior: 'instant',
-      block: 'end'
-    })
+    if (scrollAnchor.value) {
+      scrollAnchor.value.scrollIntoView({
+        behavior: smooth ? 'smooth' : 'instant',
+        block: 'end'
+      })
+    }
+  })
+}
+
+/**
+ * 滚动到指定消息
+ */
+const scrollToMessage = (messageId: string) => {
+  nextTick(() => {
+    const messageElement = document.querySelector(`[data-message-id="${messageId}"]`)
+    if (messageElement) {
+      messageElement.scrollIntoView({
+        behavior: 'smooth',
+        block: 'start'
+      })
+
+      // 添加高亮效果
+      messageElement.classList.add('message-highlight')
+      setTimeout(() => {
+        messageElement.classList.remove('message-highlight')
+      }, 2000)
+    }
   })
 }
 
@@ -295,7 +330,9 @@ onMounted(() => {
     () => {
       const lastMessage = props.messages[props.messages.length - 1]
       if (lastMessage?.status === 'pending' && !aboveThreshold.value) {
-        scrollToBottom()
+        nextTick(() => {
+          scrollToBottom()
+        })
       }
     }
   )
@@ -343,19 +380,32 @@ const handleCancel = () => {
 }
 
 // Handle retry event from MessageItemUser
-const handleRetry = (index: number) => {
-  // Find the next assistant message after this user message
+const handleRetry = async (index: number) => {
+  let triggered = false
   for (let i = index + 1; i < props.messages.length; i++) {
     if (props.messages[i].role === 'assistant') {
       try {
         const assistantRef = assistantRefs[i]
         if (assistantRef && typeof assistantRef.handleAction === 'function') {
           assistantRef.handleAction('retry')
-          break
+          triggered = true
         }
       } catch (error) {
         console.error('Failed to trigger retry action:', error)
       }
+      break
+    }
+  }
+
+  if (!triggered) {
+    try {
+      const userMsg = props.messages[index]
+      if (userMsg && userMsg.role === 'user') {
+        await chatStore.regenerateFromUserMessage(userMsg.id)
+        scrollToBottom(true)
+      }
+    } catch (error) {
+      console.error('Failed to regenerate from user message:', error)
     }
   }
 }
@@ -369,6 +419,81 @@ const createNewThread = async () => {
 }
 defineExpose({
   scrollToBottom,
+  scrollToMessage,
   aboveThreshold
 })
 </script>
+
+<style scoped>
+.message-highlight {
+  background-color: rgba(59, 130, 246, 0.1);
+  border-left: 3px solid rgb(59, 130, 246);
+  transition: all 0.3s ease;
+}
+
+.dark .message-highlight {
+  background-color: rgba(59, 130, 246, 0.15);
+}
+
+.scroll-to-bottom-loading-container {
+  position: relative;
+  isolation: isolate;
+}
+
+/* 定义发光呼吸动画 */
+@keyframes glow-breathe {
+  0% {
+    opacity: 0.6;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.05);
+  }
+  100% {
+    opacity: 0.6;
+    transform: scale(1);
+  }
+}
+
+.scroll-to-bottom-loading-container::before {
+  content: '';
+  position: absolute;
+  top: -2px;
+  left: -2px;
+  right: -2px;
+  bottom: -2px;
+  border-radius: 0.5rem;
+  background: linear-gradient(135deg, #9b59b6, #84cdfa, #5ad1cd);
+  animation: glow-breathe 2s ease-in-out infinite;
+  pointer-events: none;
+  z-index: 1;
+  filter: blur(6px);
+}
+
+.scroll-to-bottom-loading-container::after {
+  content: '';
+  position: absolute;
+  top: -3px;
+  left: -3px;
+  right: -3px;
+  bottom: -3px;
+  border-radius: 0.5rem;
+  background: linear-gradient(135deg, #9b59b6, #84cdfa, #5ad1cd);
+  animation: glow-breathe 2s ease-in-out infinite;
+  pointer-events: none;
+  z-index: 0;
+  filter: blur(10px);
+  /* opacity: 0.6;  已被 animation 覆盖 */
+}
+
+/* 原始 rotate-glow 动画，不需要可删除 */
+@keyframes rotate-glow {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+</style>

@@ -32,6 +32,7 @@
               :mime-type="file.mimeType"
               :tokens="file.token"
               :thumbnail="file.thumbnail"
+              :context="'input'"
               @click="previewFile(file.path)"
               @delete="deleteFile(idx)"
             />
@@ -217,6 +218,7 @@ import { useSettingsStore } from '@/stores/settings'
 import McpToolsList from './mcpToolsList.vue'
 import { useEventListener } from '@vueuse/core'
 import { calculateImageTokens, getClipboardImageInfo, imageFileToBase64 } from '@/lib/image'
+import { RATE_LIMIT_EVENTS } from '@/events'
 import { Editor, EditorContent, JSONContent } from '@tiptap/vue-3'
 import Document from '@tiptap/extension-document'
 import Paragraph from '@tiptap/extension-paragraph'
@@ -239,6 +241,7 @@ import { useLanguageStore } from '@/stores/language'
 import { useToast } from '@/components/ui/toast/use-toast'
 import type { CategorizedData } from './editor/mention/suggestion'
 import type { PromptListEntry } from '@shared/presenter'
+import { sanitizeText } from '@/lib/sanitizeText'
 
 const langStore = useLanguageStore()
 const mcpStore = useMcpStore()
@@ -277,7 +280,8 @@ const editor = new Editor({
         class:
           'mention px-1.5 py-0.5 text-xs rounded-md bg-secondary text-foreground inline-block max-w-64 align-sub !truncate'
       },
-      suggestion
+      suggestion,
+      deleteTriggerWithBackspace: true
     }),
     Placeholder.configure({
       placeholder: () => {
@@ -375,6 +379,9 @@ const dragCounter = ref(0)
 let dragLeaveTimer: number | null = null
 
 const selectedFiles = ref<MessageFile[]>([])
+
+// capture-phase paste handler attached to the editor DOM
+let editorPasteHandler: ((e: ClipboardEvent) => void) | null = null
 
 const rateLimitStatus = ref<{
   config: { enabled: boolean; qpsLimit: number }
@@ -474,7 +481,11 @@ const previewFile = (filePath: string) => {
   windowPresenter.previewFile(filePath)
 }
 
-const handlePaste = async (e: ClipboardEvent) => {
+const handlePaste = async (e: ClipboardEvent, fromCapture = false) => {
+  // Avoid double-processing only for bubble-phase handler on wrapper.
+  // Allow processing when invoked from the capture-phase editor listener.
+  if (!fromCapture && (e as any)?._deepchatHandled) return
+
   const files = e.clipboardData?.files
   if (files && files.length > 0) {
     for (const file of files) {
@@ -502,7 +513,8 @@ const handlePaste = async (e: ClipboardEvent) => {
               fileModified: new Date()
             },
             token: calculateImageTokens(imageInfo.width, imageInfo.height),
-            path: tempFilePath
+            path: tempFilePath,
+            thumbnail: imageInfo.compressedBase64 // 添加缩略图
           }
           if (fileInfo) {
             selectedFiles.value.push(fileInfo)
@@ -950,6 +962,11 @@ const handleSearchMouseLeave = () => {
 const loadRateLimitStatus = async () => {
   const currentProviderId = chatStore.chatConfig.providerId
   if (currentProviderId) {
+    if (!isRateLimitEnabled()) {
+      rateLimitStatus.value = null
+      return
+    }
+
     try {
       const status = await llmPresenter.getProviderRateLimitStatus(currentProviderId)
       rateLimitStatus.value = status
@@ -959,13 +976,42 @@ const loadRateLimitStatus = async () => {
   }
 }
 
+const isRateLimitEnabled = () => {
+  const currentProviderId = chatStore.chatConfig.providerId
+  if (!currentProviderId) return false
+
+  const provider = settingsStore.providers.find((p) => p.id === currentProviderId)
+  return provider?.rateLimit?.enabled ?? false
+}
+
 const handleRateLimitEvent = (data: any) => {
   if (data.providerId === chatStore.chatConfig.providerId) {
-    loadRateLimitStatus()
+    if (data.config && !data.config.enabled) {
+      rateLimitStatus.value = null
+    } else {
+      loadRateLimitStatus()
+    }
+    startRateLimitPolling()
   }
 }
 
-let statusInterval: number | null = null
+let statusInterval: ReturnType<typeof setInterval> | null = null
+
+const startRateLimitPolling = () => {
+  if (statusInterval) {
+    clearInterval(statusInterval)
+  }
+  if (isRateLimitEnabled()) {
+    statusInterval = setInterval(loadRateLimitStatus, 1000)
+  }
+}
+
+const stopRateLimitPolling = () => {
+  if (statusInterval) {
+    clearInterval(statusInterval)
+    statusInterval = null
+  }
+}
 
 onMounted(() => {
   initSettings()
@@ -995,20 +1041,89 @@ onMounted(() => {
     }
   })
 
-  window.electron.ipcRenderer.on('rate-limit:config-updated', handleRateLimitEvent)
-  window.electron.ipcRenderer.on('rate-limit:request-executed', handleRateLimitEvent)
-  window.electron.ipcRenderer.on('rate-limit:request-queued', handleRateLimitEvent)
+  window.electron.ipcRenderer.on(RATE_LIMIT_EVENTS.CONFIG_UPDATED, handleRateLimitEvent)
+  window.electron.ipcRenderer.on(RATE_LIMIT_EVENTS.REQUEST_EXECUTED, handleRateLimitEvent)
+  window.electron.ipcRenderer.on(RATE_LIMIT_EVENTS.REQUEST_QUEUED, handleRateLimitEvent)
 
-  statusInterval = window.setInterval(loadRateLimitStatus, 1000)
+  // 只有在速率限制启用时才开始轮询
+  startRateLimitPolling()
+
+  // Attach a capture-phase paste listener directly to the editor DOM so we
+  // can sanitize/handle clipboard data before TipTap inserts it.
+  try {
+    if (editor && editor.view && editor.view.dom) {
+      editorPasteHandler = (e: ClipboardEvent) => {
+        try {
+          // mark event to avoid double-processing
+          ;(e as any)._deepchatHandled = true
+
+          const files = e.clipboardData?.files
+          if (files && files.length > 0) {
+            // Prevent TipTap from treating files as plain text
+            e.preventDefault()
+            e.stopPropagation()
+            void handlePaste(e, true)
+            return
+          }
+
+          const text = e.clipboardData?.getData('text/plain') || ''
+
+          if (text) {
+            e.preventDefault()
+            e.stopPropagation()
+
+            const clean = sanitizeText(text)
+
+            const sel = editor.state.selection
+            const from = sel.from
+            const to = sel.to
+
+            // Convert text with newlines to TipTap inline nodes (preserves blank lines, handles CRLF)
+            const convertTextToNodes = (txt: string): JSONContent[] => {
+              const lines = txt.replace(/\r/g, '').split('\n')
+              const content: JSONContent[] = []
+              for (let i = 0; i < lines.length; i++) {
+                if (i > 0) content.push({ type: 'hardBreak' })
+                const line = lines[i]
+                if (line.length > 0) content.push({ type: 'text', text: line })
+              }
+              return content
+            }
+            editor
+              .chain()
+              .insertContentAt({ from, to }, convertTextToNodes(clean), { updateSelection: true })
+              .scrollIntoView()
+              .run()
+            // keep the reactive inputText in sync
+            inputText.value = editor.getText()
+          }
+        } catch (err) {
+          console.error('editor paste handler error', err)
+        }
+      }
+
+      editor.view.dom.addEventListener('paste', editorPasteHandler as EventListener, true)
+    }
+  } catch (err) {
+    console.warn('Failed to attach editor paste handler', err)
+  }
 })
 
 onUnmounted(() => {
-  if (statusInterval) {
-    clearInterval(statusInterval)
+  stopRateLimitPolling()
+  window.electron.ipcRenderer.removeAllListeners(RATE_LIMIT_EVENTS.CONFIG_UPDATED)
+  window.electron.ipcRenderer.removeAllListeners(RATE_LIMIT_EVENTS.REQUEST_EXECUTED)
+  window.electron.ipcRenderer.removeAllListeners(RATE_LIMIT_EVENTS.REQUEST_QUEUED)
+
+  // Remove capture-phase paste listener
+  try {
+    if (editorPasteHandler && editor && editor.view && editor.view.dom) {
+      editor.view.dom.removeEventListener('paste', editorPasteHandler as EventListener, true)
+      editorPasteHandler = null
+    }
+  } catch (err) {
+    console.warn('Failed to remove editor paste handler', err)
   }
-  window.electron.ipcRenderer.removeListener('rate-limit:config-updated', handleRateLimitEvent)
-  window.electron.ipcRenderer.removeListener('rate-limit:request-executed', handleRateLimitEvent)
-  window.electron.ipcRenderer.removeListener('rate-limit:request-queued', handleRateLimitEvent)
 })
 
 watch(
@@ -1016,6 +1131,23 @@ watch(
   async () => {
     selectedSearchEngine.value = settingsStore.activeSearchEngine?.id ?? 'google'
   }
+)
+
+watch(
+  () => chatStore.chatConfig.providerId,
+  () => {
+    loadRateLimitStatus()
+    startRateLimitPolling()
+  }
+)
+
+watch(
+  () => settingsStore.providers,
+  () => {
+    loadRateLimitStatus()
+    startRateLimitPolling()
+  },
+  { deep: true }
 )
 
 watch(

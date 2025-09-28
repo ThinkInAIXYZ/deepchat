@@ -296,6 +296,11 @@ export class SQLitePresenter implements IDatabasePresenter {
     return this.messagesTable.update(messageId, data)
   }
 
+  // 更新消息父ID
+  public async updateMessageParentId(messageId: string, parentId: string): Promise<void> {
+    return this.messagesTable.updateParentId(messageId, parentId)
+  }
+
   // 删除消息
   public async deleteMessage(messageId: string): Promise<void> {
     return this.messagesTable.delete(messageId)

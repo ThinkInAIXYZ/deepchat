@@ -3,6 +3,7 @@ import { useDark, useToggle } from '@vueuse/core'
 import { defineStore } from 'pinia'
 import { ref, onMounted, onUnmounted } from 'vue'
 import type { IpcRendererEvent } from 'electron'
+import { CONFIG_EVENTS, SYSTEM_EVENTS } from '@/events'
 
 export type ThemeMode = 'dark' | 'light' | 'system'
 
@@ -19,67 +20,68 @@ export const useThemeStore = defineStore('theme', () => {
     const currentTheme = (await configPresenter.getTheme()) as ThemeMode
     themeMode.value = currentTheme
 
-    // 如果是系统主题模式，则根据系统实际深色/浅色设置来设置界面
-    if (currentTheme === 'system') {
-      const systemIsDark = await configPresenter.toggleTheme('system')
-      console.log('initTheme', systemIsDark)
-      toggleDark(systemIsDark)
-    } else {
-      toggleDark(currentTheme === 'dark')
-    }
+    // 获取当前实际的深色模式状态
+    const isDarkMode = await configPresenter.getCurrentThemeIsDark()
+    console.log('initTheme - theme:', currentTheme, 'isDark:', isDarkMode)
+    toggleDark(isDarkMode)
   }
 
   initTheme()
 
   // 监听系统主题变化事件
   const handleSystemThemeChange = (_event: IpcRendererEvent, isDarkMode: boolean) => {
+    console.log('handleSystemThemeChange', isDarkMode)
     // 只有在系统模式下才跟随系统主题变化
     if (themeMode.value === 'system') {
       toggleDark(isDarkMode)
     }
   }
+  // 监听用户主题变化事件
+  const handleUserThemeChange = (_event: IpcRendererEvent, theme: ThemeMode) => {
+    if (themeMode.value !== theme) {
+      configPresenter.getCurrentThemeIsDark().then((isDark) => {
+        console.log('handleUserThemeChange', theme, isDark)
+        themeMode.value = theme
+        toggleDark(isDark)
+      })
+    }
+  }
 
   // 注册和清理主题变化监听器
   onMounted(() => {
-    window.electron.ipcRenderer.on('system-theme-updated', handleSystemThemeChange)
+    window.electron.ipcRenderer.on(SYSTEM_EVENTS.SYSTEM_THEME_UPDATED, handleSystemThemeChange)
+    window.electron.ipcRenderer.on(CONFIG_EVENTS.THEME_CHANGED, handleUserThemeChange)
   })
 
   onUnmounted(() => {
-    window.electron.ipcRenderer.removeListener('system-theme-updated', handleSystemThemeChange)
+    window.electron.ipcRenderer.removeListener(
+      SYSTEM_EVENTS.SYSTEM_THEME_UPDATED,
+      handleSystemThemeChange
+    )
+    window.electron.ipcRenderer.removeListener(CONFIG_EVENTS.THEME_CHANGED, handleUserThemeChange)
   })
-
-  // 监听深色模式变化
-  // watch(isDark, (value) => {
-  //   // 只有在非系统模式下，才直接切换主题
-  //   if (themeMode.value !== 'system') {
-  //     windowPresenter.toggleTheme(value ? 'dark' : 'light')
-  //     themeMode.value = value ? 'dark' : 'light'
-  //   }
-  // })
 
   // 设置主题模式
   const setThemeMode = async (mode: ThemeMode) => {
     themeMode.value = mode
-    const isDarkMode = await configPresenter.toggleTheme(mode)
+    const isDarkMode = await configPresenter.setTheme(mode)
 
-    // 如果不是系统模式，直接设置深色/浅色状态
-    // 如果是系统模式，toggleTheme 会返回系统当前的深色状态
+    // 设置界面深色/浅色状态
     toggleDark(isDarkMode)
   }
 
   // 循环切换主题：light -> dark -> system -> light
-  const cycleTheme = () => {
+  const cycleTheme = async () => {
     console.log('cycleTheme', themeMode.value)
-    if (themeMode.value === 'light') setThemeMode('dark')
-    else if (themeMode.value === 'dark') setThemeMode('system')
-    else setThemeMode('light')
+    if (themeMode.value === 'light') await setThemeMode('dark')
+    else if (themeMode.value === 'dark') await setThemeMode('system')
+    else await setThemeMode('light')
   }
 
   return {
     isDark,
     toggleDark,
     themeMode,
-    setThemeMode,
     cycleTheme
   }
 })

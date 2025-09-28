@@ -7,8 +7,10 @@ import {
   LLMCoreStreamEvent,
   ModelConfig,
   ChatMessage,
-  LLM_EMBEDDING_ATTRS
+  LLM_EMBEDDING_ATTRS,
+  IConfigPresenter
 } from '@shared/presenter'
+import { createStreamEvent } from '@shared/types/core/llm-events'
 import { BaseLLMProvider, SUMMARY_TITLES_PROMPT } from '../baseProvider'
 import OpenAI, { AzureOpenAI } from 'openai'
 import {
@@ -19,7 +21,6 @@ import {
   ChatCompletionMessageParam,
   ChatCompletionToolMessageParam
 } from 'openai/resources'
-import { ConfigPresenter } from '../../configPresenter'
 import { presenter } from '@/presenter'
 import { eventBus, SendTarget } from '@/eventbus'
 import { NOTIFICATION_EVENTS } from '@/events'
@@ -55,23 +56,23 @@ const OPENAI_IMAGE_GENERATION_MODELS = [
   'dall-e-2'
 ]
 
-// 添加支持的图片尺寸常量
+// Add supported image size constants
 const SUPPORTED_IMAGE_SIZES = {
   SQUARE: '1024x1024',
   LANDSCAPE: '1536x1024',
   PORTRAIT: '1024x1536'
 } as const
 
-// 添加可设置尺寸的模型列表
+// Add list of models with configurable sizes
 const SIZE_CONFIGURABLE_MODELS = ['gpt-image-1', 'gpt-4o-image', 'gpt-4o-all']
 
 export class OpenAICompatibleProvider extends BaseLLMProvider {
   protected openai!: OpenAI
   protected isNoModelsApi: boolean = false
-  // 添加不支持 OpenAI 标准接口的供应商黑名单
+  // Add blacklist of providers that don't support OpenAI standard interface
   private static readonly NO_MODELS_API_LIST: string[] = []
 
-  constructor(provider: LLM_PROVIDER, configPresenter: ConfigPresenter) {
+  constructor(provider: LLM_PROVIDER, configPresenter: IConfigPresenter) {
     super(provider, configPresenter)
     this.createOpenAIClient()
     if (OpenAICompatibleProvider.NO_MODELS_API_LIST.includes(this.provider.id.toLowerCase())) {
@@ -91,30 +92,123 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
       fetchOptions.dispatcher = proxyAgent
     }
 
-    if (this.provider.id === 'azure-openai') {
+    // Check if this is official OpenAI or Azure OpenAI
+    const isOfficialOpenAI = this.isOfficialOpenAIService()
+    const isAzureOpenAI = this.provider.id === 'azure-openai'
+
+    // Only use custom fetch for third-party services to avoid triggering 403
+    // Keep original behavior for official OpenAI and Azure OpenAI for best compatibility
+    const shouldUseCleanFetch = !isOfficialOpenAI && !isAzureOpenAI
+    const customFetch = shouldUseCleanFetch ? this.createCleanFetch() : undefined
+
+    if (isAzureOpenAI) {
       try {
         const apiVersion = this.configPresenter.getSetting<string>('azureApiVersion')
-        this.openai = new AzureOpenAI({
+        const azureConfig: any = {
           apiKey: this.provider.apiKey,
           baseURL: this.provider.baseUrl,
           apiVersion: apiVersion || '2024-02-01',
           defaultHeaders: {
             ...this.defaultHeaders
-          },
-          fetchOptions
-        })
+          }
+        }
+
+        // Use fetchOptions for proxy (original behavior for Azure)
+        if (fetchOptions.dispatcher) {
+          azureConfig.fetchOptions = fetchOptions
+        }
+
+        this.openai = new AzureOpenAI(azureConfig)
       } catch (e) {
         console.warn('create azure openai failed', e)
       }
     } else {
-      this.openai = new OpenAI({
+      const openaiConfig: any = {
         apiKey: this.provider.apiKey,
         baseURL: this.provider.baseUrl,
         defaultHeaders: {
           ...this.defaultHeaders
-        },
-        fetchOptions
-      })
+        }
+      }
+
+      if (customFetch) {
+        // Third-party service: use custom fetch to avoid 403
+        openaiConfig.fetch = customFetch
+        // Also apply proxy via fetchOptions for third-party services
+        if (fetchOptions.dispatcher) {
+          openaiConfig.fetchOptions = fetchOptions
+        }
+        console.log(
+          `[OpenAI Compatible Provider] Using custom fetch for third-party service: ${this.provider.baseUrl}`
+        )
+      } else {
+        // Official OpenAI: use original behavior with fetchOptions
+        if (fetchOptions.dispatcher) {
+          openaiConfig.fetchOptions = fetchOptions
+        }
+        console.log(`[OpenAI Compatible Provider] Using original fetch for official OpenAI`)
+      }
+
+      this.openai = new OpenAI(openaiConfig)
+    }
+  }
+
+  /**
+   * Check if this is the official OpenAI service by provider ID
+   */
+  private isOfficialOpenAIService(): boolean {
+    return this.provider.id === 'openai'
+  }
+
+  /**
+   * Creates a custom fetch function that removes OpenAI SDK headers that may trigger 403
+   * This ensures all OpenAI SDK requests (including streaming) use clean headers
+   */
+  private createCleanFetch() {
+    return async (url: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+      // Create a copy of init to avoid modifying the original
+      const cleanInit = { ...init }
+
+      if (cleanInit.headers) {
+        // Convert headers to a plain object for easier manipulation
+        const headers = new Headers(cleanInit.headers)
+        const cleanHeaders: Record<string, string> = {}
+
+        // Only keep essential headers, remove SDK-specific ones that trigger 403
+        const allowedHeaders = [
+          'authorization',
+          'content-type',
+          'accept',
+          'http-referer',
+          'x-title'
+        ]
+
+        headers.forEach((value, key) => {
+          const lowerKey = key.toLowerCase()
+          // Keep only allowed headers and avoid X-Stainless-* headers
+          if (
+            allowedHeaders.includes(lowerKey) ||
+            (!lowerKey.startsWith('x-stainless-') &&
+              !lowerKey.includes('user-agent') &&
+              !lowerKey.includes('openai-'))
+          ) {
+            cleanHeaders[key] = value
+          }
+        })
+
+        // Ensure we have Authorization header
+        if (!cleanHeaders['Authorization'] && !cleanHeaders['authorization']) {
+          cleanHeaders['Authorization'] = `Bearer ${this.provider.apiKey}`
+        }
+
+        // Add our default headers
+        Object.assign(cleanHeaders, this.defaultHeaders)
+
+        cleanInit.headers = cleanHeaders
+      }
+
+      // Use regular fetch - proxy is already handled by OpenAI SDK's fetchOptions
+      return fetch(url, cleanInit)
     }
   }
 
@@ -122,9 +216,9 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
     this.createOpenAIClient()
   }
 
-  // 实现BaseLLMProvider中的抽象方法fetchProviderModels
+  // Implement abstract method fetchProviderModels from BaseLLMProvider
   protected async fetchProviderModels(options?: { timeout: number }): Promise<MODEL_META[]> {
-    // 检查供应商是否在黑名单中
+    // Check if provider is in blacklist
     if (this.isNoModelsApi) {
       // console.log(`Provider ${this.provider.name} does not support OpenAI models API`)
       return this.models
@@ -133,6 +227,7 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
   }
 
   protected async fetchOpenAIModels(options?: { timeout: number }): Promise<MODEL_META[]> {
+    // Now using the clean fetch function via OpenAI SDK
     const response = await this.openai.models.list(options)
     return response.data.map((model) => ({
       id: model.id,
@@ -146,24 +241,24 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
   }
 
   /**
-   * User消息，上层会根据是否存在 vision 去插入 image_url
-   * Ass 消息，需要判断一下，把图片转换成正确的上下文，因为模型可以切换
+   * User messages: Upper layer will insert image_url based on whether vision exists
+   * Assistant messages: Need to judge and convert images to correct context, as models can be switched
    * @param messages
    * @returns
    */
   protected formatMessages(messages: ChatMessage[]): ChatCompletionMessageParam[] {
     return messages.map((msg) => {
-      // 处理基本消息结构
+      // Handle basic message structure
       const baseMessage: Partial<ChatCompletionMessageParam> = {
         role: msg.role as 'system' | 'user' | 'assistant' | 'tool'
       }
 
-      // 处理content转换为字符串
+      // Handle content conversion to string
       if (msg.content !== undefined && msg.role !== 'user') {
         if (typeof msg.content === 'string') {
           baseMessage.content = msg.content
         } else if (Array.isArray(msg.content)) {
-          // 处理多模态内容数组
+          // Handle multimodal content arrays
           const textParts: string[] = []
           for (const part of msg.content) {
             if (part.type === 'text' && part.text) {
@@ -195,7 +290,7 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
     })
   }
 
-  // OpenAI完成方法
+  // OpenAI completion method
   protected async openAICompletion(
     messages: ChatMessage[],
     modelId?: string,
@@ -235,14 +330,14 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
       content: ''
     }
 
-    // 处理原生 reasoning_content
+    // Handle native reasoning_content
     if (message.reasoning_content) {
       resultResp.reasoning_content = message.reasoning_content
       resultResp.content = message.content || ''
       return resultResp
     }
 
-    // 处理 <think> 标签
+    // Handle <think> tags
     if (message.content) {
       const content = message.content.trimStart()
       if (content.includes('<think>')) {
@@ -319,8 +414,8 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
 
     if (!prompt) {
       console.error('[handleImgGeneration] Could not extract prompt for image generation.')
-      yield { type: 'error', error_message: 'Could not extract prompt for image generation.' }
-      yield { type: 'stop', stop_reason: 'error' }
+      yield createStreamEvent.error('Could not extract prompt for image generation.')
+      yield createStreamEvent.stop('error')
       return
     }
 
@@ -444,52 +539,40 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
           }
 
           // 返回缓存后的URL
-          yield {
-            type: 'image_data',
-            image_data: {
-              data: imageUrl,
-              mimeType: 'deepchat/image-url'
-            }
-          }
+          yield createStreamEvent.imageData({ data: imageUrl, mimeType: 'deepchat/image-url' })
 
           // 处理 usage 信息
           if (result.usage) {
-            yield {
-              type: 'usage',
-              usage: {
-                prompt_tokens: result.usage.input_tokens || 0,
-                completion_tokens: result.usage.output_tokens || 0,
-                total_tokens: result.usage.total_tokens || 0
-              }
-            }
+            yield createStreamEvent.usage({
+              prompt_tokens: result.usage.input_tokens || 0,
+              completion_tokens: result.usage.output_tokens || 0,
+              total_tokens: result.usage.total_tokens || 0
+            })
           }
 
-          yield { type: 'stop', stop_reason: 'complete' }
+          yield createStreamEvent.stop('complete')
         } catch (cacheError) {
           // 缓存失败时降级为使用原始URL
           console.warn(
             '[handleImgGeneration] Failed to cache image, using original data/URL:',
             cacheError
           )
-          yield {
-            type: 'image_data',
-            image_data: {
-              data: result.data[0]?.url || result.data[0]?.b64_json || '',
-              mimeType: result.data[0]?.url ? 'deepchat/image-url' : 'deepchat/image-base64'
-            }
-          }
-          yield { type: 'stop', stop_reason: 'complete' }
+          yield createStreamEvent.imageData({
+            data: result.data[0]?.url || result.data[0]?.b64_json || '',
+            mimeType: result.data[0]?.url ? 'deepchat/image-url' : 'deepchat/image-base64'
+          })
+          yield createStreamEvent.stop('complete')
         }
       } else {
         console.error('[handleImgGeneration] No image data received from API.', result)
-        yield { type: 'error', error_message: 'No image data received from API.' }
-        yield { type: 'stop', stop_reason: 'error' }
+        yield createStreamEvent.error('No image data received from API.')
+        yield createStreamEvent.stop('error')
       }
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : String(error)
       console.error('[handleImgGeneration] Error during image generation:', errorMessage)
-      yield { type: 'error', error_message: `Image generation failed: ${errorMessage}` }
-      yield { type: 'stop', stop_reason: 'error' }
+      yield createStreamEvent.error(`Image generation failed: ${errorMessage}`)
+      yield createStreamEvent.stop('error')
     }
   }
 
@@ -638,8 +721,89 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
 
       // 原生 reasoning 内容处理（直接产出）
       if (delta?.reasoning_content || delta?.reasoning) {
-        yield { type: 'reasoning', reasoning_content: delta.reasoning_content || delta.reasoning }
+        yield createStreamEvent.reasoning(delta.reasoning_content || delta.reasoning)
         continue
+      }
+
+      // 处理图片数据（OpenRouter Gemini 格式）
+      if (delta?.images && Array.isArray(delta.images)) {
+        for (const image of delta.images) {
+          if (image.type === 'image_url' && image.image_url?.url) {
+            try {
+              const cachedUrl = await presenter.devicePresenter.cacheImage(image.image_url.url)
+              yield createStreamEvent.imageData({ data: cachedUrl, mimeType: 'deepchat/image-url' })
+            } catch (cacheError) {
+              console.warn('[handleChatCompletion] Failed to cache image:', cacheError)
+              yield createStreamEvent.imageData({
+                data: image.image_url.url,
+                mimeType: 'deepchat/image-url'
+              })
+            }
+          }
+        }
+        continue
+      }
+
+      // 处理 Gemini 原生格式的图片数据（inlineData）
+      if (delta?.content?.parts && Array.isArray(delta.content.parts)) {
+        for (const part of delta.content.parts) {
+          if (part.inlineData && part.inlineData.data) {
+            yield createStreamEvent.imageData({
+              data: part.inlineData.data,
+              mimeType: part.inlineData.mimeType || 'image/png'
+            })
+          }
+        }
+        continue
+      }
+
+      // 处理 content 中直接包含 base64 图片的情况
+      let processedCurrentContent = currentContent
+      if (currentContent && currentContent.includes('![image](data:image/')) {
+        try {
+          // 使用正则表达式匹配 markdown 格式的 base64 图片
+          const base64ImageRegex = /!\[image\]\((data:image\/[^;]+;base64,[^)]+)\)/g
+          let hasImages = false
+
+          let match
+          while ((match = base64ImageRegex.exec(currentContent)) !== null) {
+            const base64Data = match[1] // 完整的 data:image/...;base64,... 格式
+
+            try {
+              // 缓存图片并获取URL
+              const cachedUrl = await presenter.devicePresenter.cacheImage(base64Data)
+
+              // 发送图片数据事件
+              yield createStreamEvent.imageData({ data: cachedUrl, mimeType: 'deepchat/image-url' })
+
+              // 从内容中完全移除图片部分，避免重复显示（image_data事件已经处理了图片显示）
+              processedCurrentContent = processedCurrentContent.replace(match[0], '')
+              hasImages = true
+
+              console.log(
+                `[handleChatCompletion] Successfully cached base64 image from content and removed from text`
+              )
+            } catch (cacheError) {
+              console.warn(
+                '[handleChatCompletion] Failed to cache base64 image from content:',
+                cacheError
+              )
+              // 缓存失败时保持原始内容不变
+            }
+          }
+
+          // 如果处理了图片，清理多余的空行并记录日志
+          if (hasImages) {
+            // 清理移除图片后可能留下的多余空行
+            processedCurrentContent = processedCurrentContent.replace(/\n\s*\n/g, '\n').trim()
+            console.log(
+              `[handleChatCompletion] Processed ${currentContent.length} chars -> ${processedCurrentContent.length} chars (images removed)`
+            )
+          }
+        } catch (error) {
+          console.error('[handleChatCompletion] Error processing base64 images in content:', error)
+          // 处理失败时继续正常流程
+        }
       }
 
       // 原生 tool_calls 处理
@@ -679,19 +843,11 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
             // console.log(`[handleChatCompletion] Handling incremental update for ${currentToolCallId}.`)
             if (functionName && !currentCallState.name) {
               currentCallState.name = functionName
-              yield {
-                type: 'tool_call_start',
-                tool_call_id: currentToolCallId,
-                tool_call_name: functionName
-              }
+              yield createStreamEvent.toolCallStart(currentToolCallId, functionName)
             }
             if (argumentChunk) {
               currentCallState.arguments += argumentChunk
-              yield {
-                type: 'tool_call_chunk',
-                tool_call_id: currentToolCallId,
-                tool_call_arguments_chunk: argumentChunk
-              }
+              yield createStreamEvent.toolCallChunk(currentToolCallId, argumentChunk)
             }
           }
         }
@@ -733,10 +889,10 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
       }
 
       // 如果没有内容，则继续下一个 chunk
-      if (!currentContent) continue
+      if (!processedCurrentContent) continue
 
       // 2. 字符级流式处理内容
-      for (const char of currentContent) {
+      for (const char of processedCurrentContent) {
         pendingBuffer += char
 
         // 循环处理 pendingBuffer 直到它为空，或者不足以继续匹配
@@ -749,7 +905,7 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
             ) {
               const content = pendingBuffer.slice(0, -thinkEndMarker.length)
               if (content) {
-                yield { type: 'reasoning', reasoning_content: content }
+                yield createStreamEvent.reasoning(content)
               }
               inThinkBlock = false
               pendingBuffer = '' // 清空 buffer，退出当前 while 循环
@@ -763,7 +919,7 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
               ) {
                 const charToYield = pendingBuffer[0]
                 pendingBuffer = pendingBuffer.slice(1)
-                yield { type: 'reasoning', reasoning_content: charToYield }
+                yield createStreamEvent.reasoning(charToYield)
               } else {
                 break // 跳出 while 循环，等待更多字符以形成完整的结束标签
               }
@@ -781,21 +937,9 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
                 `non-native-${this.provider.id}`
               )
               for (const parsedCall of parsedCalls) {
-                yield {
-                  type: 'tool_call_start',
-                  tool_call_id: parsedCall.id,
-                  tool_call_name: parsedCall.function.name
-                }
-                yield {
-                  type: 'tool_call_chunk',
-                  tool_call_id: parsedCall.id,
-                  tool_call_arguments_chunk: parsedCall.function.arguments // 这里一次性给出参数，因为是解析完成的
-                }
-                yield {
-                  type: 'tool_call_end',
-                  tool_call_id: parsedCall.id,
-                  tool_call_arguments_complete: parsedCall.function.arguments
-                }
+                yield createStreamEvent.toolCallStart(parsedCall.id, parsedCall.function.name)
+                yield createStreamEvent.toolCallChunk(parsedCall.id, parsedCall.function.arguments)
+                yield createStreamEvent.toolCallEnd(parsedCall.id, parsedCall.function.arguments)
               }
               toolUseDetected = true // 标记检测到工具使用
               inFunctionCallBlock = false
@@ -816,7 +960,7 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
               const textBeforeTag = pendingBuffer.slice(0, -thinkStartMarker.length)
               if (textBeforeTag) {
                 currentTextOutputBuffer += textBeforeTag
-                yield { type: 'text', content: currentTextOutputBuffer }
+                yield createStreamEvent.text(currentTextOutputBuffer)
                 currentTextOutputBuffer = ''
               }
               inThinkBlock = true
@@ -828,7 +972,7 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
               const textBeforeTag = pendingBuffer.slice(0, -funcStartMarker.length)
               if (textBeforeTag) {
                 currentTextOutputBuffer += textBeforeTag
-                yield { type: 'text', content: currentTextOutputBuffer }
+                yield createStreamEvent.text(currentTextOutputBuffer)
                 currentTextOutputBuffer = ''
               }
               inFunctionCallBlock = true
@@ -841,7 +985,7 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
                 const charToYield = pendingBuffer[0]
                 pendingBuffer = pendingBuffer.slice(1)
                 currentTextOutputBuffer += charToYield
-                yield { type: 'text', content: currentTextOutputBuffer }
+                yield createStreamEvent.text(currentTextOutputBuffer)
                 currentTextOutputBuffer = ''
               } else {
                 break // 跳出 while 循环，等待更多字符以形成完整的标签
@@ -861,7 +1005,7 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
         console.warn(
           `[handleChatCompletion] Stream ended while inside unclosed <think> tag. Remaining content: "${pendingBuffer}"`
         )
-        yield { type: 'reasoning', reasoning_content: pendingBuffer }
+        yield createStreamEvent.reasoning(pendingBuffer)
       } else if (inFunctionCallBlock) {
         // 如果流结束时非原生函数调用未闭合，尝试解析并作为工具调用事件（不发出 end 事件）
         console.warn(
@@ -873,23 +1017,21 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
         )
         if (parsedCalls.length > 0) {
           for (const parsedCall of parsedCalls) {
-            yield {
-              type: 'tool_call_start',
-              tool_call_id: parsedCall.id + '-incomplete', // 使用 '-incomplete' 后缀标记未完成的调用
-              tool_call_name: parsedCall.function.name
-            }
-            yield {
-              type: 'tool_call_chunk',
-              tool_call_id: parsedCall.id + '-incomplete', // 使用 '-incomplete' 后缀标记未完成的调用
-              tool_call_arguments_chunk: parsedCall.function.arguments || ''
-            }
+            yield createStreamEvent.toolCallStart(
+              parsedCall.id + '-incomplete',
+              parsedCall.function.name
+            )
+            yield createStreamEvent.toolCallChunk(
+              parsedCall.id + '-incomplete',
+              parsedCall.function.arguments || ''
+            )
             // 不会发出 tool_call_end，因为标签未闭合
             // 不发出 tool_call_end 的理由在于，提醒下游发现未完成的function调用
           }
           toolUseDetected = true
         } else {
           // 如果解析失败，则作为纯文本输出，并附带开始标签
-          yield { type: 'text', content: `${funcStartMarker}${pendingBuffer}` }
+          yield createStreamEvent.text(`${funcStartMarker}${pendingBuffer}`)
         }
       } else {
         // 否则，作为普通纯文本输出
@@ -900,7 +1042,7 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
 
     // 2. 处理 currentTextOutputBuffer 中剩余的任何纯文本
     if (currentTextOutputBuffer) {
-      yield { type: 'text', content: currentTextOutputBuffer }
+      yield createStreamEvent.text(currentTextOutputBuffer)
       currentTextOutputBuffer = ''
     }
 
@@ -913,11 +1055,7 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
         if (tool.name && tool.arguments && !tool.completed) {
           try {
             JSON.parse(tool.arguments) // 检查参数是否是有效的 JSON
-            yield {
-              type: 'tool_call_end',
-              tool_call_id: toolId,
-              tool_call_arguments_complete: tool.arguments
-            }
+            yield createStreamEvent.toolCallEnd(toolId, tool.arguments)
             tool.completed = true // 标记为已完成
           } catch (e) {
             console.error(
@@ -925,11 +1063,7 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
               e
             )
             // 即使解析失败，也尝试发送，以提供尽可能多的信息
-            yield {
-              type: 'tool_call_end',
-              tool_call_id: toolId,
-              tool_call_arguments_complete: tool.arguments
-            }
+            yield createStreamEvent.toolCallEnd(toolId, tool.arguments)
             tool.completed = true // 标记为已完成
           }
         } else if (!tool.completed) {
@@ -943,12 +1077,12 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
 
     // 4. 产出 usage 信息
     if (usage) {
-      yield { type: 'usage', usage: usage }
+      yield createStreamEvent.usage(usage)
     }
 
     // 5. 产出最终停止原因
     const finalStopReason = toolUseDetected ? 'tool_use' : stopReason
-    yield { type: 'stop', stop_reason: finalStopReason }
+    yield createStreamEvent.stop(finalStopReason)
   }
 
   ///////////////////////////////////////////////////////////////////////////////////////////////////////

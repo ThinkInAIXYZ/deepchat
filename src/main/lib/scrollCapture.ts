@@ -2,9 +2,9 @@ import { NativeImage, WebContentsView, nativeImage } from 'electron'
 import sharp from 'sharp'
 
 export interface ScrollCaptureOptions {
-  hideElements?: string[] // CSS选择器数组，用于隐藏特定元素
-  maxSegmentHeight?: number // 最大分段高度比例，默认0.8
-  segmentDelay?: number // 每段截图间的延迟，默认300ms
+  hideElements?: string[] // CSS selector array for hiding specific elements
+  maxSegmentHeight?: number // Maximum segment height ratio, default 0.8
+  segmentDelay?: number // Delay between segment captures, default 300ms
   isDark?: boolean
   version?: string
   texts?: {
@@ -40,7 +40,7 @@ export class ScrollCaptureManager {
   }
 
   /**
-   * 执行滚动截图
+   * Perform scrollable screenshot capture
    */
   async captureScrollableArea(
     rect: ScrollCaptureRect,
@@ -53,21 +53,21 @@ export class ScrollCaptureManager {
     try {
       console.log(`Starting scrollable capture for area:`, rect)
 
-      // 获取页面信息
+      // Get page information
       const pageInfo = await this.getPageInfo()
 
-      // 保存原始滚动位置
+      // Save original scroll position
       this.originalScrollPosition = {
         top: pageInfo.scrollTop,
         left: pageInfo.scrollLeft
       }
 
-      // 隐藏指定元素
+      // Hide specified elements
       if (options.hideElements && options.hideElements.length > 0) {
         await this.hideElements(options.hideElements)
       }
 
-      // 计算分段策略
+      // Calculate segmentation strategy
       const maxSegmentHeight = Math.floor(
         pageInfo.viewportHeight * (options.maxSegmentHeight || 0.8)
       )
@@ -75,12 +75,12 @@ export class ScrollCaptureManager {
 
       console.log(`Splitting into ${segments.length} segments`)
 
-      // 如果只有一段，直接截图
+      // If only one segment, capture directly
       if (segments.length === 1) {
         return await this.captureSingleSegment(segments[0], options.segmentDelay || 200)
       }
 
-      // 逐段截图
+      // Capture segments sequentially
       const segmentImages: Buffer[] = []
       for (const segment of segments) {
         console.log(
@@ -93,13 +93,13 @@ export class ScrollCaptureManager {
 
       return segmentImages
     } finally {
-      // 清理：恢复隐藏的元素和滚动位置
+      // Cleanup: restore hidden elements and scroll position
       await this.cleanup()
     }
   }
 
   /**
-   * 获取页面信息
+   * Get page information
    */
   private async getPageInfo(): Promise<{
     viewportWidth: number
@@ -122,7 +122,7 @@ export class ScrollCaptureManager {
   }
 
   /**
-   * 隐藏指定元素
+   * Hide specified elements
    */
   private async hideElements(selectors: string[]): Promise<void> {
     console.log(`Hiding elements:`, selectors)
@@ -149,7 +149,7 @@ export class ScrollCaptureManager {
   }
 
   /**
-   * 计算分段信息
+   * Calculate segment information
    */
   private calculateSegments(rect: ScrollCaptureRect, maxSegmentHeight: number): SegmentInfo[] {
     const segments: SegmentInfo[] = []
@@ -164,15 +164,15 @@ export class ScrollCaptureManager {
       const remainingHeight = rect.y + rect.height - currentY
       const segmentHeight = Math.min(maxSegmentHeight, remainingHeight)
 
-      // 确保分段不会超出原始区域
+      // Ensure segments don't exceed original area
       const actualSegmentHeight = Math.min(segmentHeight, rect.y + rect.height - currentY)
 
       segments.push({
         x: rect.x,
-        y: 0, // 截图时总是相对于视口顶部
+        y: 0, // Always relative to viewport top when capturing
         width: rect.width,
         height: actualSegmentHeight,
-        scrollY: currentY, // 需要滚动到的绝对位置
+        scrollY: currentY, // Absolute position to scroll to
         segmentIndex: segmentIndex++
       })
 
@@ -186,10 +186,10 @@ export class ScrollCaptureManager {
   }
 
   /**
-   * 截取单个分段
+   * Capture single segment
    */
   private async captureSingleSegment(segment: SegmentInfo, delay: number): Promise<Buffer[]> {
-    // 滚动到目标位置，保持原始的水平滚动位置
+    // Scroll to target position, maintain original horizontal scroll position
     await this.view.webContents.executeJavaScript(`
       window.scrollTo({
         top: ${segment.scrollY},
@@ -198,17 +198,17 @@ export class ScrollCaptureManager {
       })
     `)
 
-    // 等待滚动和渲染完成
+    // Wait for scrolling and rendering to complete
     await new Promise((resolve) => setTimeout(resolve, delay))
 
-    // 计算截图区域：滚动后需要重新计算相对于视口的位置
+    // Calculate capture area: recalculate position relative to viewport after scrolling
     const captureRect = await this.view.webContents.executeJavaScript(`
       (function() {
         const currentScrollTop = document.documentElement.scrollTop || document.body.scrollTop;
         const targetY = ${segment.scrollY};
-        const originalRectY = ${segment.scrollY}; // 这是绝对位置
+        const originalRectY = ${segment.scrollY}; // This is absolute position
 
-        // 截图区域相对于当前视口的位置
+        // Capture area position relative to current viewport
         const relativeY = Math.max(0, originalRectY - currentScrollTop);
 
         return {
@@ -222,7 +222,7 @@ export class ScrollCaptureManager {
 
     console.log(`Segment ${segment.segmentIndex + 1} capture rect:`, captureRect)
 
-    // 截取当前段
+    // Capture current segment
     const segmentImage = await this.view.webContents.capturePage(captureRect)
 
     if (!segmentImage.isEmpty()) {
@@ -234,7 +234,7 @@ export class ScrollCaptureManager {
   }
 
   /**
-   * 恢复隐藏的元素
+   * Restore hidden elements
    */
   private async restoreHiddenElements(): Promise<void> {
     if (this.hiddenElements.length === 0) return
@@ -258,7 +258,7 @@ export class ScrollCaptureManager {
   }
 
   /**
-   * 恢复原始滚动位置
+   * Restore original scroll position
    */
   private async restoreScrollPosition(): Promise<void> {
     await this.view.webContents.executeJavaScript(`
@@ -271,7 +271,7 @@ export class ScrollCaptureManager {
   }
 
   /**
-   * 清理资源
+   * Cleanup resources
    */
   private async cleanup(): Promise<void> {
     await this.restoreHiddenElements()
@@ -280,7 +280,7 @@ export class ScrollCaptureManager {
 }
 
 /**
- * 垂直拼接多个图片Buffer
+ * Vertically stitch multiple image buffers
  */
 export async function stitchImagesVertically(imageBuffers: Buffer[]): Promise<NativeImage> {
   if (imageBuffers.length === 0) {
@@ -293,7 +293,7 @@ export async function stitchImagesVertically(imageBuffers: Buffer[]): Promise<Na
 
   console.log(`Starting to stitch ${imageBuffers.length} images using Sharp`)
 
-  // 获取所有图片的元数据
+  // Get metadata for all images
   const imageInfos = await Promise.all(
     imageBuffers.map(async (buffer, index) => {
       try {
@@ -312,13 +312,13 @@ export async function stitchImagesVertically(imageBuffers: Buffer[]): Promise<Na
     })
   )
 
-  // 计算拼接后的尺寸
+  // Calculate stitched image dimensions
   const maxWidth = Math.max(...imageInfos.map((info) => info.width))
   const totalHeight = imageInfos.reduce((sum, info) => sum + info.height, 0)
 
   console.log(`Stitched image dimensions: ${maxWidth}x${totalHeight}`)
 
-  // 创建空白画布
+  // Create blank canvas
   const canvas = sharp({
     create: {
       width: maxWidth,
@@ -328,7 +328,7 @@ export async function stitchImagesVertically(imageBuffers: Buffer[]): Promise<Na
     }
   })
 
-  // 准备合成操作
+  // Prepare composite operation
   const composite: Array<{
     input: Buffer
     top: number
@@ -337,7 +337,7 @@ export async function stitchImagesVertically(imageBuffers: Buffer[]): Promise<Na
   let currentTop = 0
 
   for (const imageInfo of imageInfos) {
-    // 计算居中位置
+    // Calculate center position
     const left = Math.floor((maxWidth - imageInfo.width) / 2)
 
     composite.push({
@@ -350,10 +350,10 @@ export async function stitchImagesVertically(imageBuffers: Buffer[]): Promise<Na
     currentTop += imageInfo.height
   }
 
-  // 执行合成
+  // Execute composition
   const stitchedBuffer = await canvas.composite(composite).png().toBuffer()
 
-  // 创建NativeImage
+  // Create NativeImage
   const stitchedImage = nativeImage.createFromBuffer(stitchedBuffer)
 
   console.log(`Successfully stitched ${imageBuffers.length} images using Sharp`)

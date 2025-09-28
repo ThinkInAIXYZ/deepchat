@@ -29,11 +29,11 @@ export class CsvFileAdapter extends BaseFileAdapter {
     const headers = rows[0]
     const data = rows.slice(1)
 
-    // 生成表头
+    // Generate table headers
     let markdown = '| ' + headers.join(' | ') + ' |\n'
     markdown += '| ' + headers.map(() => '---').join(' | ') + ' |\n'
 
-    // 生成数据行
+    // Generate data rows
     data.forEach((row) => {
       markdown += '| ' + row.map((cell) => cell || '').join(' | ') + ' |\n'
     })

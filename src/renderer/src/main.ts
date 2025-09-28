@@ -1,4 +1,3 @@
-import 'vue-renderer-markdown/index.css'
 import './assets/main.css'
 import { addCollection } from '@iconify/vue'
 import lucideIcons from '@iconify-json/lucide/icons.json'
@@ -10,6 +9,7 @@ import router from './router'
 import { createI18n } from 'vue-i18n'
 import locales from './i18n'
 import 'vue-virtual-scroller/dist/vue-virtual-scroller.css'
+import 'katex/dist/katex.min.css'
 
 const i18n = createI18n({
   locale: 'zh-CN',
@@ -17,7 +17,7 @@ const i18n = createI18n({
   legacy: false,
   messages: locales
 })
-// 添加整个图标集合到本地
+// Add complete icon collections locally
 addCollection(lucideIcons)
 addCollection(vscodeIcons)
 const pinia = createPinia()

@@ -45,6 +45,9 @@
     "loggingEnableDesc": "L'activation de la journalisation nous aidera à diagnostiquer les problèmes et à améliorer l'application. Les fichiers journaux peuvent contenir des informations sensibles.",
     "loggingDisableDesc": "La désactivation de la journalisation arrêtera la collecte des journaux d'application.",
     "loggingRestartNotice": "La modification de ce paramètre redémarrera l'application. Voulez-vous continuer ?",
+    "webContentLengthLimit": "Limite de longueur du contenu Web",
+    "webContentLengthLimitHint": "(Définir à 0 pour aucune limite)",
+    "webContentLengthLimitTooltip": "Définir la longueur maximale du contenu textuel extrait des pages web (nombre de caractères), plage : 0-50000. Définir à 0 signifie aucune limite et récupère le contenu web complet ; des valeurs plus élevées fournissent un contenu web plus complet mais peuvent augmenter le temps de traitement et l'utilisation de jetons.",
     "openLogFolder": "Ouvrir le dossier des journaux",
     "shortcut": {
       "newChat": "Créer une nouvelle conversation",
@@ -135,31 +138,60 @@
         "description": "Le modèle prend-il en charge la capacité de raisonnement?",
         "label": "Capacité de raisonnement"
       },
+      "enableSearch": {
+        "label": "Recherche Web",
+        "description": "Permettre au modèle de rechercher sur le web pour obtenir les dernières informations"
+      },
+      "forcedSearch": {
+        "label": "Recherche Forcée",
+        "description": "Forcer le modèle à effectuer une recherche web, désactivé le modèle décide automatiquement"
+      },
+      "searchStrategy": {
+        "label": "Stratégie de Recherche",
+        "description": "Choisir le mode de performance de recherche : turbo équilibre vitesse et efficacité, max fournit des résultats optimaux",
+        "placeholder": "Sélectionner la stratégie de recherche",
+        "options": {
+          "turbo": "Turbo - Équilibre vitesse de réponse et efficacité de recherche (Recommandé)",
+          "max": "Max - Mode haute performance, fournit des résultats de recherche optimaux"
+        }
+      },
       "thinkingBudget": {
         "label": "Budget de Réflexion",
-        "description": "Limiter la longueur de réflexion du modèle",
-        "dynamic": "Réflexion Dynamique",
         "range": "Plage: {min} - {max}",
-        "onlySupported": "Pris en charge uniquement dans Gemini 2.5 Flash, 2.5 Pro et 2.5 Flash-Lite",
-        "valueLabel": "Valeur du Budget de Réflexion",
-        "placeholder": "Entrez la valeur du budget de réflexion",
-        "forceEnabled": "Les modèles de la série Gemini 2.5 activent de force le budget de réflexion",
-        "dynamicPrefix": "-1 = Réflexion Dynamique",
-        "notice": "Attention : ",
-        "warnings": {
-          "proNoDisable": "Ce modèle ne prend pas en charge la désactivation de la réflexion, valeur minimale 128",
-          "proCannotDisable": "Gemini 2.5 Pro ne peut pas désactiver la fonction de réflexion",
-          "flashLiteCannotSetZero": "Gemini 2.5 Flash-Lite ne peut pas être défini à 0, la valeur minimale est 512",
-          "modelCannotDisable": "Ce modèle ne peut pas désactiver la fonction de réflexion",
-          "flashLiteMinValue": "Le budget de réflexion ne peut pas être inférieur à 512 lorsqu'il est défini sur une valeur spécifique (ou utilisez 0 pour désactiver la réflexion, -1 pour activer la réflexion dynamique)",
-          "belowMin": "Le budget de réflexion ne peut pas être inférieur à {min}{hint}",
-          "aboveMax": "Le budget de réflexion ne peut pas être supérieur à {max}"
+        "gemini": {
+          "description": "Limiter la longueur de réflexion du modèle",
+          "dynamic": "Réflexion Dynamique",
+          "onlySupported": "Pris en charge uniquement dans Gemini 2.5 Flash, 2.5 Pro et 2.5 Flash-Lite",
+          "valueLabel": "Valeur du Budget de Réflexion",
+          "placeholder": "Entrez la valeur du budget de réflexion",
+          "forceEnabled": "Les modèles de la série Gemini 2.5 activent de force le budget de réflexion",
+          "dynamicPrefix": "-1 = Réflexion Dynamique",
+          "notice": "Attention : ",
+          "warnings": {
+            "proNoDisable": "Ce modèle ne prend pas en charge la désactivation de la réflexion, valeur minimale 128",
+            "proCannotDisable": "Gemini 2.5 Pro ne peut pas désactiver la fonction de réflexion",
+            "flashLiteCannotSetZero": "Gemini 2.5 Flash-Lite ne peut pas être défini à 0, la valeur minimale est 512",
+            "modelCannotDisable": "Ce modèle ne peut pas désactiver la fonction de réflexion",
+            "flashLiteMinValue": "Le budget de réflexion ne peut pas être inférieur à 512 lorsqu'il est défini sur une valeur spécifique (ou utilisez 0 pour désactiver la réflexion, -1 pour activer la réflexion dynamique)",
+            "belowMin": "Le budget de réflexion ne peut pas être inférieur à {min}{hint}",
+            "aboveMax": "Le budget de réflexion ne peut pas être supérieur à {max}"
+          },
+          "hints": {
+            "flashLiteDisable": ", 0 = désactiver la réflexion, valeur spécifique minimum 512",
+            "normalDisable": ", 0 = désactiver la réflexion",
+            "withZeroAndDynamic": "(ou utilisez 0 pour désactiver la réflexion, -1 pour activer la réflexion dynamique)",
+            "withDynamic": "(ou utilisez -1 pour activer la réflexion dynamique)"
+          }
         },
-        "hints": {
-          "flashLiteDisable": ", 0 = désactiver la réflexion, valeur spécifique minimum 512",
-          "normalDisable": ", 0 = désactiver la réflexion",
-          "withZeroAndDynamic": "(ou utilisez 0 pour désactiver la réflexion, -1 pour activer la réflexion dynamique)",
-          "withDynamic": "(ou utilisez -1 pour activer la réflexion dynamique)"
+        "qwen3": {
+          "description": "Définir la longueur maximale de jetons pour le processus de réflexion afin de contrôler la profondeur du raisonnement du modèle",
+          "valueLabel": "Valeur du Budget de Réflexion",
+          "placeholder": "Entrez la valeur du budget de réflexion",
+          "validation": {
+            "required": "Veuillez entrer la valeur du budget de réflexion",
+            "minValue": "La valeur du budget de réflexion doit être supérieure ou égale à 1",
+            "maxValue": "La valeur du budget de réflexion ne peut pas dépasser {max}"
+          }
         }
       },
       "resetConfirm": {
@@ -221,6 +253,10 @@
       "vision": {
         "description": "Le modèle soutient-il la capacité visuelle?",
         "label": "Capacité visuelle"
+      },
+      "searchLimit": {
+        "label": "Limitation de recherche",
+        "description": "Limitation du modèle : l'activation de la recherche web désactivera les appels de fonctions d'outils"
       }
     }
   },
@@ -737,11 +773,11 @@
   },
   "display": {
     "fontSize": "Taille de texte",
-    "text-2xl": "Extrêmement grand",
-    "text-base": "défaut",
-    "text-lg": "grand",
     "text-sm": "Petit",
-    "text-xl": "Extrêmement grand",
+    "text-base": "Moyen",
+    "text-lg": "Grand",
+    "text-xl": "XL",
+    "text-2xl": "XXL",
     "floatingButton": "Bouton flottant",
     "floatingButtonDesc": "Afficher un bouton flottant sur le bureau pour activer rapidement la fenêtre de l'application"
   },
@@ -790,5 +826,13 @@
     "confirmDisable": "Désactiver la limitation",
     "disabled": "Limitation de débit désactivée",
     "disabledDescription": "La limitation de débit a été désactivée"
+  },
+  "promptSetting": {
+    "resetToDefault": "Réinitialiser avec un mot rapide par défaut",
+    "clear": "Effacer les mots rapides",
+    "resetToDefaultSuccess": "Réinitialisé avec succès à l'invite système par défaut",
+    "resetToDefaultFailed": "Échec de la réinitialisation, veuillez réessayer",
+    "clearSuccess": "Invite système effacée avec succès",
+    "clearFailed": "Échec de l'effacement, veuillez réessayer"
   }
 }

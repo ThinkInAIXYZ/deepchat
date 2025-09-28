@@ -1,5 +1,5 @@
 // src/shared/presenter.ts
-// 实现 enum 及运行时需要的导出，避免 Vite 报错
+// Implement enum and runtime exports to avoid Vite errors
 
 export enum ModelType {
   Chat = 'chat',

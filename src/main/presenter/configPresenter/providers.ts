@@ -94,6 +94,22 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
   },
 
   {
+    id: 'tokenflux',
+    name: 'TokenFlux',
+    apiType: 'openai',
+    apiKey: '',
+    baseUrl: 'https://tokenflux.ai/v1',
+    enable: false,
+    websites: {
+      official: 'https://tokenflux.ai/',
+      apiKey: 'https://tokenflux.ai/dashboard/api-keys',
+      docs: 'https://docs.tokenflux.ai/',
+      models: 'https://docs.tokenflux.ai/api-reference',
+      defaultBaseUrl: 'https://tokenflux.ai/v1'
+    }
+  },
+
+  {
     id: 'openai-responses',
     name: 'OpenAI Responses',
     apiType: 'openai-responses',
@@ -367,7 +383,7 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
   {
     id: 'dashscope',
     name: 'DashScope',
-    apiType: 'openai',
+    apiType: 'dashscope',
     apiKey: '',
     baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1/',
     enable: false,

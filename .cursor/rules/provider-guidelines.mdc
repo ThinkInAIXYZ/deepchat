@@ -1,0 +1,40 @@
+---
+description: Provider Implementation Guidelines - Strong Typed CoreEvent, Tool Call Sequences, Usage and Rate Limit Specifications
+---
+
+## Provider Implementation Guidelines (Strong Typed)
+
+- Reference message specification: [LLM Agent Message Architecture](mdc:docs/agent/message-architecture.md)
+- Related implementation entry: [llmProviderPresenter](mdc:src/main/presenter/llmProviderPresenter/index.ts)
+
+### Strong Typed Events
+- Only output discriminated union `LLMCoreStreamEvent`, do not use "single interface + optional fields".
+- Use factory methods `createStreamEvent.*` to construct events, avoid field pollution.
+
+### Event Sequence Conventions
+- Text: Multiple `text` chunks emitted in arrival order.
+- Reasoning: `reasoning` is optional; if provided, suggest containing complete chain.
+- Tool calls: Strictly follow `tool_call_start → tool_call_chunk* → tool_call_end`, `tool_call_id` is required and stable.
+- Stop: Emit `stop` at stream end, `stop_reason ∈ { 'tool_use','max_tokens','stop_sequence','error','complete' }`.
+
+### Statistics and Rate Limiting
+- Usage: Send `usage` once before or at end (`prompt_tokens/completion_tokens/total_tokens`).
+- Rate limit: Send `rate_limit` when reaching limit threshold (`providerId/qpsLimit/currentQps/queueLength/estimatedWaitTime?`), do not block event channel.
+
+### Errors
+- Use `error` event uniformly to carry error messages, avoid mixing into other event fields.
+- Once fatal error occurs, emit `stop` as needed and terminate stream.
+
+### Images
+- `image_data` event must provide `data(Base64)` and `mimeType`; control single frame size and frequency to avoid blocking.
+
+### What Not to Do
+- Do not emit `AssistantMessageBlock` or any UI types to UI layer.
+- Do not introduce renderer dependencies inside Provider.
+
+### Quality Thresholds (Self-Check)
+- Every event construction uses factory functions.
+- Tool call IDs are globally unique and stable, chunks arrive strictly in order.
+- Error scenarios have corresponding stop_reason and error message.
+- At least one usage (if provider has statistics capability).
+- Provide rate limit events (if rate limiter is configured).

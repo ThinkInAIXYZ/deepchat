@@ -10,6 +10,8 @@
 // 配置相关事件
 export const CONFIG_EVENTS = {
   PROVIDER_CHANGED: 'config:provider-changed', // 替代 provider-setting-changed
+  PROVIDER_ATOMIC_UPDATE: 'config:provider-atomic-update', // 原子操作单个 provider 更新
+  PROVIDER_BATCH_UPDATE: 'config:provider-batch-update', // 批量 provider 更新
   MODEL_LIST_CHANGED: 'config:model-list-changed', // 替代 provider-models-updated（ConfigPresenter）
   MODEL_STATUS_CHANGED: 'config:model-status-changed', // 替代 model-status-changed（ConfigPresenter）
   SETTING_CHANGED: 'config:setting-changed', // 替代 setting-changed（ConfigPresenter）
@@ -20,7 +22,9 @@ export const CONFIG_EVENTS = {
   CONTENT_PROTECTION_CHANGED: 'config:content-protection-changed',
   LANGUAGE_CHANGED: 'config:language-changed', // 新增：语言变更事件
   SOUND_ENABLED_CHANGED: 'config:sound-enabled-changed', // 新增：声音启用状态变更事件
-  COPY_WITH_COT_CHANGED: 'config:copy-with-cot-enabled-changed'
+  COPY_WITH_COT_CHANGED: 'config:copy-with-cot-enabled-changed',
+  THEME_CHANGED: 'config:theme-changed',
+  FONT_SIZE_CHANGED: 'config:font-size-changed'
 }
 
 // 会话相关事件
@@ -142,4 +146,8 @@ export const DIALOG_EVENTS = {
 // 知识库事件
 export const RAG_EVENTS = {
   FILE_UPDATED: 'rag:file-updated' // 文件状态更新
+}
+// 系统相关事件
+export const SYSTEM_EVENTS = {
+  SYSTEM_THEME_UPDATED: 'system:theme-updated'
 }

@@ -335,7 +335,8 @@ export const defaultModelsSettings: DefaultModelSetting[] = [
     reasoning: false
   },
 
-  // Gemini 系列模型
+  // Gemini series models
+  // ref: https://ai.google.dev/gemini-api/docs/models
   {
     id: 'gemini-2.5-pro',
     name: 'Gemini 2.5 Pro',
@@ -346,7 +347,43 @@ export const defaultModelsSettings: DefaultModelSetting[] = [
     vision: true,
     functionCall: true,
     reasoning: true,
-    thinkingBudget: -1 // 动态思维
+    thinkingBudget: -1 // Dynamic thinking
+  },
+  {
+    id: 'google/gemini-2.5-flash-image-preview',
+    name: 'Gemini 2.5 Flash Image Preview',
+    temperature: 0.7,
+    maxTokens: 32768,
+    contextLength: 32768,
+    match: ['google/gemini-2.5-flash-image-preview', 'gemini-2.5-flash-image-preview'],
+    vision: true,
+    functionCall: false,
+    reasoning: false,
+    type: ModelType.ImageGeneration
+  },
+  {
+    id: 'models/gemini-2.5-flash-lite-preview-06-17',
+    name: 'Gemini 2.5 Flash-Lite Preview',
+    temperature: 0.7,
+    maxTokens: 65535,
+    contextLength: 1048576,
+    match: ['models/gemini-2.5-flash-lite-preview-06-17', 'gemini-2.5-flash-lite-preview'],
+    vision: true,
+    functionCall: true,
+    reasoning: true,
+    thinkingBudget: -1 // Dynamic thinking
+  },
+  {
+    id: 'models/gemini-2.5-flash-lite',
+    name: 'Gemini 2.5 Flash-Lite',
+    temperature: 0.7,
+    maxTokens: 65535,
+    contextLength: 1048576,
+    match: ['models/gemini-2.5-flash-lite', 'gemini-2.5-flash-lite'],
+    vision: true,
+    functionCall: true,
+    reasoning: true,
+    thinkingBudget: -1 // Dynamic thinking
   },
   {
     id: 'models/gemini-2.5-flash',
@@ -358,41 +395,7 @@ export const defaultModelsSettings: DefaultModelSetting[] = [
     vision: true,
     functionCall: true,
     reasoning: true,
-    thinkingBudget: -1 // 动态思维
-  },
-  {
-    id: 'models/gemini-2.5-flash-lite-preview-06-17',
-    name: 'Gemini 2.5 Flash-Lite Preview',
-    temperature: 0.7,
-    maxTokens: 65536,
-    contextLength: 1048576,
-    match: ['models/gemini-2.5-flash-lite-preview-06-17', 'gemini-2.5-flash-lite-preview'],
-    vision: true,
-    functionCall: true,
-    reasoning: true,
-    thinkingBudget: 0 // 默认不思考
-  },
-  {
-    id: 'models/gemini-2.0-flash',
-    name: 'Gemini 2.0 Flash',
-    temperature: 0.7,
-    maxTokens: 8192,
-    contextLength: 1048576,
-    match: ['models/gemini-2.0-flash', 'gemini-2.0-flash'],
-    vision: true,
-    functionCall: true,
-    reasoning: true
-  },
-  {
-    id: 'models/gemini-2.0-flash-lite',
-    name: 'Gemini 2.0 Flash Lite',
-    temperature: 0.7,
-    maxTokens: 8192,
-    contextLength: 1048576,
-    match: ['models/gemini-2.0-flash-lite', 'gemini-2.0-flash-lite'],
-    vision: true,
-    functionCall: true,
-    reasoning: false
+    thinkingBudget: -1 // Dynamic thinking
   },
   {
     id: 'models/gemini-2.0-flash-preview-image-generation',
@@ -405,15 +408,37 @@ export const defaultModelsSettings: DefaultModelSetting[] = [
       'gemini-2.0-flash-preview-image-generation'
     ],
     vision: true,
-    functionCall: true,
+    functionCall: false,
     reasoning: false,
     type: ModelType.ImageGeneration
+  },
+  {
+    id: 'models/gemini-2.0-flash-lite',
+    name: 'Gemini 2.0 Flash Lite',
+    temperature: 0.7,
+    maxTokens: 8191,
+    contextLength: 1048576,
+    match: ['models/gemini-2.0-flash-lite', 'gemini-2.0-flash-lite'],
+    vision: true,
+    functionCall: true,
+    reasoning: false
+  },
+  {
+    id: 'models/gemini-2.0-flash',
+    name: 'Gemini 2.0 Flash',
+    temperature: 0.7,
+    maxTokens: 8191,
+    contextLength: 1048576,
+    match: ['models/gemini-2.0-flash', 'gemini-2.0-flash'],
+    vision: true,
+    functionCall: true,
+    reasoning: true //Experimental
   },
   {
     id: 'models/gemini-1.5-flash',
     name: 'Gemini 1.5 Flash',
     temperature: 0.7,
-    maxTokens: 8192,
+    maxTokens: 8191,
     contextLength: 1048576,
     match: ['models/gemini-1.5-flash', 'gemini-1.5-flash'],
     vision: true,
@@ -524,8 +549,8 @@ export const defaultModelsSettings: DefaultModelSetting[] = [
     id: 'deepseek-reasoner',
     name: 'DeepSeek Reasoner',
     temperature: 0.6,
-    maxTokens: 16000,
-    contextLength: 65536,
+    maxTokens: 64000,
+    contextLength: 128000,
     match: ['deepseek-reasoner'],
     vision: false,
     functionCall: false,
@@ -558,7 +583,7 @@ export const defaultModelsSettings: DefaultModelSetting[] = [
     name: 'DeepSeek chat',
     temperature: 1,
     maxTokens: 8192,
-    contextLength: 65536,
+    contextLength: 128000,
     match: ['deepseek-chat'],
     vision: false,
     functionCall: true,
@@ -1224,6 +1249,18 @@ export const defaultModelsSettings: DefaultModelSetting[] = [
 
   // Qwen3系列模型
   {
+    id: 'qwen3-235b-a22b-thinking-2507',
+    name: 'Qwen3 235B A22B Thinking 2507',
+    temperature: 0.6,
+    maxTokens: 8192,
+    contextLength: 40960,
+    match: ['qwen3-235b-a22b-thinking-2507', 'qwen/qwen3-235b-a22b-thinking-2507'],
+    vision: false,
+    functionCall: true,
+    reasoning: true,
+    thinkingBudget: 81920
+  },
+  {
     id: 'qwen3-235b-a22b',
     name: 'Qwen3 235B A22B',
     temperature: 0.6,
@@ -1231,8 +1268,21 @@ export const defaultModelsSettings: DefaultModelSetting[] = [
     contextLength: 40960,
     match: ['qwen3-235b-a22b', 'qwen/qwen3-235b-a22b'],
     vision: false,
-    functionCall: false,
-    reasoning: true
+    functionCall: true,
+    reasoning: true,
+    thinkingBudget: 81920
+  },
+  {
+    id: 'qwen3-30b-a3b-thinking-2507',
+    name: 'Qwen3 30B A3B Thinking 2507',
+    temperature: 0.6,
+    maxTokens: 8192,
+    contextLength: 40960,
+    match: ['qwen3-30b-a3b-thinking-2507', 'qwen/qwen3-30b-a3b-thinking-2507'],
+    vision: false,
+    functionCall: true,
+    reasoning: true,
+    thinkingBudget: 81920
   },
   {
     id: 'qwen3-32b',
@@ -1242,8 +1292,9 @@ export const defaultModelsSettings: DefaultModelSetting[] = [
     contextLength: 40960,
     match: ['qwen3-32b', 'qwen/qwen3-32b'],
     vision: false,
-    functionCall: false,
-    reasoning: true
+    functionCall: true,
+    reasoning: true,
+    thinkingBudget: 38912
   },
   {
     id: 'qwen3-30b-a3b',
@@ -1253,8 +1304,9 @@ export const defaultModelsSettings: DefaultModelSetting[] = [
     contextLength: 40960,
     match: ['qwen3-30b-a3b', 'qwen/qwen3-30b-a3b'],
     vision: false,
-    functionCall: false,
-    reasoning: true
+    functionCall: true,
+    reasoning: true,
+    thinkingBudget: 38912
   },
   {
     id: 'qwen3-14b',
@@ -1264,8 +1316,9 @@ export const defaultModelsSettings: DefaultModelSetting[] = [
     contextLength: 40960,
     match: ['qwen3-14b', 'qwen/qwen3-14b'],
     vision: false,
-    functionCall: false,
-    reasoning: true
+    functionCall: true,
+    reasoning: true,
+    thinkingBudget: 38912
   },
   {
     id: 'qwen3-8b',
@@ -1275,8 +1328,9 @@ export const defaultModelsSettings: DefaultModelSetting[] = [
     contextLength: 40960,
     match: ['qwen3-8b', 'qwen/qwen3-8b'],
     vision: false,
-    functionCall: false,
-    reasoning: true
+    functionCall: true,
+    reasoning: true,
+    thinkingBudget: 38912
   },
   {
     id: 'qwen3-4b',
@@ -1286,8 +1340,9 @@ export const defaultModelsSettings: DefaultModelSetting[] = [
     contextLength: 40960,
     match: ['qwen3-4b', 'qwen/qwen3-4b'],
     vision: false,
-    functionCall: false,
-    reasoning: true
+    functionCall: true,
+    reasoning: true,
+    thinkingBudget: 38912
   },
   {
     id: 'qwen3-1.7b',
@@ -1297,8 +1352,9 @@ export const defaultModelsSettings: DefaultModelSetting[] = [
     contextLength: 40960,
     match: ['qwen3-1.7b', 'qwen/qwen3-1.7b'],
     vision: false,
-    functionCall: false,
-    reasoning: true
+    functionCall: true,
+    reasoning: true,
+    thinkingBudget: 20000
   },
   {
     id: 'qwen3-0.6b',
@@ -1308,8 +1364,9 @@ export const defaultModelsSettings: DefaultModelSetting[] = [
     contextLength: 40960,
     match: ['qwen3-0.6b', 'qwen/qwen3-0.6b'],
     vision: false,
-    functionCall: false,
-    reasoning: true
+    functionCall: true,
+    reasoning: true,
+    thinkingBudget: 20000
   },
 
   // Yi系列

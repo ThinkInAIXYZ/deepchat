@@ -33,7 +33,7 @@ onMounted(() => {
   mermaid.initialize({
     startOnLoad: true,
     theme: document.documentElement.classList.contains('dark') ? 'dark' : 'default',
-    securityLevel: 'loose',
+    securityLevel: 'strict',
     fontFamily: 'inherit'
   })
 
@@ -91,6 +91,9 @@ watch(
   display: flex;
   align-items: center;
   justify-content: center;
+}
+.mermaid-block-header img {
+  margin: 0 !important;
 }
 
 .mermaid :deep(svg) {

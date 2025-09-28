@@ -45,6 +45,9 @@
     "loggingEnableDesc": "로그를 활성화하면 문제 진단 및 애플리케이션 개선에 도움이 됩니다. 로그 파일에는 민감한 정보가 포함될 수 있습니다.",
     "loggingDisableDesc": "로그를 비활성화하면 애플리케이션 로그 수집이 중지됩니다.",
     "loggingRestartNotice": "이 설정을 변경하면 프로그램이 재시작됩니다. 계속하시겠습니까?",
+    "webContentLengthLimit": "웹 콘텐츠 길이 제한",
+    "webContentLengthLimitHint": "(0으로 설정하면 제한 없음)",
+    "webContentLengthLimitTooltip": "웹 페이지에서 추출할 텍스트 콘텐츠의 최대 길이(문자 수)를 설정합니다. 범위: 0-50000. 0으로 설정하면 제한 없이 전체 웹 콘텐츠를 가져옵니다. 큰 값을 설정하면 더 완전한 웹 콘텐츠를 가져올 수 있지만 처리 시간과 토큰 사용량이 증가할 수 있습니다.",
     "openLogFolder": "로그 폴더 열기",
     "shortcut": {
       "newChat": "새 채팅을 만듭니다",
@@ -135,31 +138,60 @@
         "description": "모델이 추론 능력을 지원합니까?",
         "label": "추론 능력"
       },
+      "enableSearch": {
+        "label": "웹 검색",
+        "description": "모델이 웹을 검색하여 최신 정보를 얻을 수 있도록 활성화"
+      },
+      "forcedSearch": {
+        "label": "강제 검색",
+        "description": "모델이 웹 검색을 강제 수행하도록, 비활성화시 모델이 자동으로 결정"
+      },
+      "searchStrategy": {
+        "label": "검색 전략",
+        "description": "검색 성능 모드 선택: turbo는 속도와 효과의 균형, max는 최적의 검색 결과 제공",
+        "placeholder": "검색 전략 선택",
+        "options": {
+          "turbo": "Turbo - 응답 속도와 검색 효과의 균형 (권장)",
+          "max": "Max - 고성능 모드, 최적의 검색 결과 제공"
+        }
+      },
       "thinkingBudget": {
         "label": "사고 예산",
-        "description": "모델 사고 길이 제한",
-        "dynamic": "동적 사고",
         "range": "범위: {min} - {max}",
-        "onlySupported": "Gemini 2.5 Flash, 2.5 Pro 및 2.5 Flash-Lite에서만 지원",
-        "valueLabel": "사고 예산 값",
-        "placeholder": "사고 예산 값 입력",
-        "forceEnabled": "Gemini 2.5 시리즈 모델은 사고 예산을 강제로 활성화합니다",
-        "dynamicPrefix": "-1 = 동적 사고",
-        "notice": "주의: ",
-        "warnings": {
-          "proNoDisable": "이 모델은 사고 비활성화를 지원하지 않습니다, 최소값 128",
-          "proCannotDisable": "Gemini 2.5 Pro는 사고 기능을 비활성화할 수 없습니다",
-          "flashLiteCannotSetZero": "Gemini 2.5 Flash-Lite는 0으로 설정할 수 없습니다, 최소값은 512",
-          "modelCannotDisable": "이 모델은 사고 기능을 비활성화할 수 없습니다",
-          "flashLiteMinValue": "사고 예산을 구체적인 값으로 설정할 때 512 미만일 수 없습니다 (또는 0으로 사고 비활성화, -1로 동적 사고 활성화)",
-          "belowMin": "사고 예산은 {min} 미만일 수 없습니다{hint}",
-          "aboveMax": "사고 예산은 {max}를 초과할 수 없습니다"
+        "gemini": {
+          "description": "모델 사고 길이 제한",
+          "dynamic": "동적 사고",
+          "onlySupported": "Gemini 2.5 Flash, 2.5 Pro 및 2.5 Flash-Lite에서만 지원",
+          "valueLabel": "사고 예산 값",
+          "placeholder": "사고 예산 값 입력",
+          "forceEnabled": "Gemini 2.5 시리즈 모델은 사고 예산을 강제로 활성화합니다",
+          "dynamicPrefix": "-1 = 동적 사고",
+          "notice": "주의: ",
+          "warnings": {
+            "proNoDisable": "이 모델은 사고 비활성화를 지원하지 않습니다, 최소값 128",
+            "proCannotDisable": "Gemini 2.5 Pro는 사고 기능을 비활성화할 수 없습니다",
+            "flashLiteCannotSetZero": "Gemini 2.5 Flash-Lite는 0으로 설정할 수 없습니다, 최소값은 512",
+            "modelCannotDisable": "이 모델은 사고 기능을 비활성화할 수 없습니다",
+            "flashLiteMinValue": "사고 예산을 구체적인 값으로 설정할 때 512 미만일 수 없습니다 (또는 0으로 사고 비활성화, -1로 동적 사고 활성화)",
+            "belowMin": "사고 예산은 {min} 미만일 수 없습니다{hint}",
+            "aboveMax": "사고 예산은 {max}를 초과할 수 없습니다"
+          },
+          "hints": {
+            "flashLiteDisable": ", 0 = 사고 비활성화, 구체적인 값 최소 512",
+            "normalDisable": ", 0 = 사고 비활성화",
+            "withZeroAndDynamic": "(또는 0으로 사고 비활성화, -1로 동적 사고 활성화)",
+            "withDynamic": "(또는 -1로 동적 사고 활성화)"
+          }
         },
-        "hints": {
-          "flashLiteDisable": ", 0 = 사고 비활성화, 구체적인 값 최소 512",
-          "normalDisable": ", 0 = 사고 비활성화",
-          "withZeroAndDynamic": "(또는 0으로 사고 비활성화, -1로 동적 사고 활성화)",
-          "withDynamic": "(또는 -1로 동적 사고 활성화)"
+        "qwen3": {
+          "description": "사고 과정의 최대 토큰 길이를 설정하여 모델 추론의 깊이를 제어합니다",
+          "valueLabel": "사고 예산 값",
+          "placeholder": "사고 예산 값을 입력하세요",
+          "validation": {
+            "required": "사고 예산 값을 입력하세요",
+            "minValue": "사고 예산 값은 1 이상이어야 합니다",
+            "maxValue": "사고 예산 값은 {max}를 초과할 수 없습니다"
+          }
         }
       },
       "resetConfirm": {
@@ -221,6 +253,10 @@
       "vision": {
         "description": "모델이 시각적 능력을 지원합니까?",
         "label": "시각적 능력"
+      },
+      "searchLimit": {
+        "label": "검색 제한",
+        "description": "모델 제한: 네트워크 검색을 활성화하면 도구 함수 호출이 비활성화됩니다"
       }
     }
   },
@@ -737,11 +773,11 @@
   },
   "display": {
     "fontSize": "텍스트 크기",
-    "text-2xl": "매우 큽니다",
-    "text-base": "기본",
-    "text-lg": "큰",
-    "text-sm": "작은",
-    "text-xl": "매우 큽니다",
+    "text-sm": "작음",
+    "text-base": "보통",
+    "text-lg": "큼",
+    "text-xl": "XL",
+    "text-2xl": "XXL",
     "floatingButton": "플로팅 버튼",
     "floatingButtonDesc": "데스크톱에 플로팅 버튼을 표시하여 애플리케이션 창을 빠르게 활성화할 수 있습니다"
   },
@@ -790,5 +826,13 @@
     "confirmDisable": "제한 비활성화",
     "disabled": "속도 제한이 비활성화됨",
     "disabledDescription": "속도 제한 기능이 비활성화되었습니다"
+  },
+  "promptSetting": {
+    "resetToDefault": "기본 프롬프트 단어로 재설정하십시오",
+    "clear": "명확한 신속한 단어",
+    "resetToDefaultSuccess": "기본 시스템 프롬프트로 성공적으로 재설정되었습니다",
+    "resetToDefaultFailed": "재설정에 실패했습니다. 다시 시도해 주세요",
+    "clearSuccess": "시스템 프롬프트가 성공적으로 지워졌습니다",
+    "clearFailed": "지우기에 실패했습니다. 다시 시도해 주세요"
   }
 }

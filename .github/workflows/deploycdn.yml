@@ -55,10 +55,10 @@ jobs:
           fi
 
           # Process Windows arm64 artifacts
-          if [ -d "artifacts/deepchat-win-arm64" ]; then
-            echo "Processing Windows arm64 artifacts..."
-            cp -r artifacts/deepchat-win-arm64/* cdn_upload/upgrade2/v${{ github.event.inputs.version }}/winarm/ 2>/dev/null || true
-          fi
+          #if [ -d "artifacts/deepchat-win-arm64" ]; then
+          #  echo "Processing Windows arm64 artifacts..."
+          #  cp -r artifacts/deepchat-win-arm64/* cdn_upload/upgrade2/v${{ github.event.inputs.version }}/winarm/ 2>/dev/null || true
+          #fi
 
           echo "CDN upload structure prepared:"
           find cdn_upload -type f | sort
@@ -93,10 +93,10 @@ jobs:
           fi
 
           # Process Windows arm64 artifacts - only exe
-          if [ -d "artifacts/deepchat-win-arm64" ]; then
-            echo "Processing Windows arm64 executables..."
-            cp artifacts/deepchat-win-arm64/*.exe cdn_upload/download2/v${{ github.event.inputs.version }}/ 2>/dev/null || true
-          fi
+          #if [ -d "artifacts/deepchat-win-arm64" ]; then
+          #  echo "Processing Windows arm64 executables..."
+          #  cp artifacts/deepchat-win-arm64/*.exe cdn_upload/download2/v${{ github.event.inputs.version }}/ 2>/dev/null || true
+          #fi
 
           echo "Download2 structure prepared (executables only):"
           find cdn_upload/download2 -type f | sort

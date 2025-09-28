@@ -142,20 +142,27 @@ graph TB
 sequenceDiagram
     participant App as Electron App
     participant Main as 主进程
-    participant Presenters as Presenter层
-    participant Window as 窗口管理
-    participant Shell as 窗口外壳
-    participant Content as 内容标签页
+    participant LifecycleManager as 生命周期管理器
+    participant Hooks as 生命周期钩子
+    participant SplashWindow as 闪屏窗口
+    participant MainWindow as 主窗口
 
     App->>Main: app.whenReady()
-    Main->>Presenters: 初始化所有Presenter
-    Presenters->>Presenters: 注册事件监听器
-    Main->>Window: createWindow()
-    Window->>Shell: 加载 shell/index.html
-    Shell->>Content: 创建首个标签页
-    Content->>Content: 加载主应用 src/index.html
-
-    Note over Main,Content: 应用就绪，开始处理用户交互
+    Main->>LifecycleManager: new LifecycleManager()
+    Main->>LifecycleManager: registerCoreHooks()
+    Main->>LifecycleManager: start()
+    LifecycleManager->>SplashWindow: create()
+    LifecycleManager->>Hooks: execute(INIT)
+    Hooks-->>LifecycleManager: done
+    LifecycleManager->>Hooks: execute(BEFORE_START)
+    Hooks-->>LifecycleManager: done
+    LifecycleManager->>Hooks: execute(READY)
+    Hooks->>MainWindow: createWindow()
+    Hooks-->>LifecycleManager: done
+    LifecycleManager->>Hooks: execute(AFTER_START)
+    Hooks-->>LifecycleManager: done
+    LifecycleManager->>SplashWindow: close()
+    Note over Main,MainWindow: 应用就绪，开始处理用户交互
 ```
 
 ### 2. 多窗口标签页管理

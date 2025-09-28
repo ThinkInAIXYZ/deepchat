@@ -54,5 +54,16 @@
   "notify": {
     "generationComplete": "Generation is complete",
     "generationError": "Generation failed"
+  },
+  "navigation": {
+    "title": "Message Navigation",
+    "searchPlaceholder": "Search messages...",
+    "noResults": "No matching messages found",
+    "noMessages": "No messages yet",
+    "totalMessages": "{count} messages total",
+    "searchResults": "Found {count} results in {total} messages",
+    "userMessage": "User message",
+    "assistantMessage": "Assistant reply",
+    "unknownMessage": "Unknown message"
   }
 }

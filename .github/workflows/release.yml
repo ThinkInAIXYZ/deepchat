@@ -52,11 +52,11 @@ jobs:
           fi
 
           # Process Windows arm64 artifacts
-          if [ -d "artifacts/deepchat-win-arm64" ]; then
-            cp artifacts/deepchat-win-arm64/*.exe release_assets/ 2>/dev/null || true
-            cp artifacts/deepchat-win-arm64/*.msi release_assets/ 2>/dev/null || true
-            cp artifacts/deepchat-win-arm64/*.zip release_assets/ 2>/dev/null || true
-          fi
+          #if [ -d "artifacts/deepchat-win-arm64" ]; then
+          #  cp artifacts/deepchat-win-arm64/*.exe release_assets/ 2>/dev/null || true
+          #  cp artifacts/deepchat-win-arm64/*.msi release_assets/ 2>/dev/null || true
+          #  cp artifacts/deepchat-win-arm64/*.zip release_assets/ 2>/dev/null || true
+          #fi
 
           # Process Linux x64 artifacts
           if [ -d "artifacts/deepchat-linux-x64" ]; then

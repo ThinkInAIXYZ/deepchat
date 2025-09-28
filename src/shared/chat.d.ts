@@ -13,7 +13,7 @@ export type Message = {
   model_provider: string
   status: 'sent' | 'pending' | 'error'
   error: string
-  // user只有prompt_tokens，其他数值可以留为0
+  // user messages only have prompt_tokens, other values can be left as 0
   usage: {
     context_usage: number
     tokens_per_second: number
@@ -89,7 +89,6 @@ export type AssistantMessageBlock = {
     | 'error'
     | 'tool_call'
     | 'action'
-    | 'tool_call_permission' // NEW: Dedicated permission request block type
     | 'image'
     | 'artifact-thinking'
   content?: string
@@ -136,7 +135,7 @@ export type AssistantMessageBlock = {
     end: number
   }
 }
-// 搜索相关的消息块类型
+// Search-related message block types
 export type SearchBlock = {
   type: 'search'
   status: 'loading' | 'success' | 'error'

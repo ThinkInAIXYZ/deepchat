@@ -15,7 +15,7 @@ export default defineConfig({
     },
     plugins: [
       externalizeDepsPlugin({
-        exclude: ['mermaid', 'dompurify']
+        exclude: ['mermaid']
       }),
     ],
     resolve: {
@@ -90,11 +90,16 @@ export default defineConfig({
     ],
     build: {
       minify: 'esbuild',
+      // Ensure CSS order in build matches import order in dev
+      // This prevents extracted CSS from async chunks from reordering
+      // and breaking cascade precedence (e.g. markdown renderer vs app styles)
+      cssCodeSplit: false,
       rollupOptions: {
         input: {
           shell: resolve('src/renderer/shell/index.html'),
           index: resolve('src/renderer/index.html'),
-          floating: resolve('src/renderer/floating/index.html')
+          floating: resolve('src/renderer/floating/index.html'),
+          splash: resolve('src/renderer/splash/index.html')
         }
       }
     }

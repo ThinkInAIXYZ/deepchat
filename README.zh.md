@@ -207,7 +207,10 @@ DeepChat是一个功能强大的开源AI聊天平台，为用户提供与多种�
       <img src="./src/renderer/src/assets/llm-icons/lmstudio.svg" width="50" height="50" alt="LM Studio图标"><br/>
       <a href="https://lmstudio.ai/">LM Studio</a>
     </td>
-    <td></td>
+    <td>
+      <img src="./src/renderer/src/assets/llm-icons/groq.svg" width="50" height="50" alt="Groq图标"><br/>
+      <a href="https://groq.com/">Groq</a>
+    </td>
     <td></td>
     <td></td>
   </tr>
@@ -314,8 +317,8 @@ DeepChat是一个活跃的开源社区项目，我们欢迎各种形式的贡献
 
 感谢您考虑为deepchat做出贡献！贡献指南可以在[贡献指南](./CONTRIBUTING.md)中找到。
 
-<a href="https://github.com/ThinkInAIXYZ/deepchat/graphs/contributors">
-  <img src="https://contrib.rocks/image?repo=ThinkInAIXYZ/deepchat" alt="DeepChat项目贡献者" />
+<a href="https://openomy.com/thinkinaixyz/deepchat" target="_blank" style="display: block; width: 100%;" align="center">
+  <img src="https://openomy.com/svg?repo=thinkinaixyz/deepchat&chart=bubble&latestMonth=3" target="_blank" alt="Contribution Leaderboard" style="display: block; width: 100%;" />
 </a>
 
 ## 🙏🏻 致谢

@@ -7,7 +7,6 @@ import { PowerpackServer } from './powerpackServer'
 import { DifyKnowledgeServer } from './difyKnowledgeServer'
 import { RagflowKnowledgeServer } from './ragflowKnowledgeServer'
 import { FastGptKnowledgeServer } from './fastGptKnowledgeServer'
-import { CustomPromptsServer } from './customPromptsServer'
 import { DeepResearchServer } from './deepResearchServer'
 import { AutoPromptingServer } from './autoPromptingServer'
 import { ConversationSearchServer } from './conversationSearchServer'
@@ -78,8 +77,6 @@ export function getInMemoryServer(
           configs: BuiltinKnowledgeConfig[]
         }
       )
-    case 'deepchat-inmemory/custom-prompts-server':
-      return new CustomPromptsServer()
     case 'deepchat-inmemory/deep-research-server':
       return new DeepResearchServer(env)
     case 'deepchat-inmemory/auto-prompting-server':

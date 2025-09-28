@@ -25,5 +25,20 @@
   },
   "error": {
     "title": "Error"
+  },
+  "mutualExclusive": {
+    "title": {
+      "reasoning": "Confirm Enable Reasoning",
+      "functionCall": "Confirm Enable Function Calling"
+    },
+    "message": {
+      "reasoning": "Enabling reasoning will automatically disable function calling. This is a limitation of DeepSeek-V3.1 models, and both features cannot be used simultaneously. Continue?",
+      "functionCall": "Enabling function calling will automatically disable reasoning. This is a limitation of DeepSeek-V3.1 models, and both features cannot be used simultaneously. Continue?"
+    },
+    "warningText": {
+      "reasoning": "Note: Enabling reasoning will automatically disable function calling, which is a requirement of DeepSeek-V3.1 models.",
+      "functionCall": "Note: Enabling function calling will automatically disable reasoning, which is a requirement of DeepSeek-V3.1 models."
+    },
+    "confirmEnable": "Confirm Enable"
   }
 }

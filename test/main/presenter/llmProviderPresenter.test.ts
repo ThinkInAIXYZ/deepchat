@@ -3,12 +3,48 @@ import { LLMProviderPresenter } from '../../../src/main/presenter/llmProviderPre
 import { ConfigPresenter } from '../../../src/main/presenter/configPresenter/index'
 import { LLM_PROVIDER, ChatMessage, LLMAgentEvent } from '../../../src/shared/presenter'
 
+// Ensure electron is mocked for this suite to avoid CJS named export issues
+vi.mock('electron', () => {
+  return {
+    app: {
+      getName: vi.fn(() => 'DeepChat'),
+      getVersion: vi.fn(() => '0.0.0-test'),
+      getPath: vi.fn(() => '/mock/path'),
+      isReady: vi.fn(() => true),
+      on: vi.fn()
+    },
+    session: {},
+    ipcMain: {
+      on: vi.fn(),
+      handle: vi.fn(),
+      removeHandler: vi.fn()
+    },
+    BrowserWindow: vi.fn(() => ({
+      loadURL: vi.fn(),
+      loadFile: vi.fn(),
+      on: vi.fn(),
+      webContents: { send: vi.fn(), on: vi.fn(), isDestroyed: vi.fn(() => false) },
+      isDestroyed: vi.fn(() => false),
+      close: vi.fn(),
+      show: vi.fn(),
+      hide: vi.fn()
+    })),
+    dialog: {
+      showOpenDialog: vi.fn()
+    },
+    shell: {
+      openExternal: vi.fn()
+    }
+  }
+})
+
 // Mock eventBus
 vi.mock('@/eventbus', () => ({
   eventBus: {
     on: vi.fn(),
     sendToRenderer: vi.fn(),
-    emit: vi.fn()
+    emit: vi.fn(),
+    send: vi.fn()
   },
   SendTarget: {
     ALL_WINDOWS: 'ALL_WINDOWS'
@@ -85,6 +121,15 @@ describe('LLMProviderPresenter Integration Tests', () => {
     // Reset mock implementations
     mockConfigPresenter.getProviders = vi.fn().mockReturnValue([mockProvider])
     mockConfigPresenter.getProviderById = vi.fn().mockReturnValue(mockProvider)
+    mockConfigPresenter.getModelConfig = vi.fn().mockReturnValue({
+      maxTokens: 4096,
+      contextLength: 4096,
+      temperature: 0.7,
+      vision: false,
+      functionCall: false,
+      reasoning: false,
+      type: 'chat'
+    })
     mockConfigPresenter.enableModel = vi.fn()
     mockConfigPresenter.setProviderModels = vi.fn()
     mockConfigPresenter.getCustomModels = vi.fn().mockReturnValue([])

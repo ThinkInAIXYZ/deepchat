@@ -5,6 +5,9 @@
   "disclaimerButton": "면책 조항",
   "disclaimerTitle": "이용 약관 면책 조항",
   "checkUpdateButton": "업데이트 확인",
+  "updateChannel": "업데이트 채널",
+  "stableChannel": "안정 버전",
+  "canaryChannel": "테스트 버전",
   "deviceInfo": {
     "title": "장치 정보",
     "platform": "플랫폼",

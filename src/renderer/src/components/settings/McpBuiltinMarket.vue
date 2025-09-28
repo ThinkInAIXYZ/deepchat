@@ -39,29 +39,42 @@
 
     <div class="flex-1 overflow-auto" ref="scrollContainer" @scroll="onScroll">
       <div
-        class="p-4 grid gap-3 grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5"
+        class="p-4 grid gap-3 grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 items-stretch"
       >
         <div
           v-for="item in items"
           :key="item.uuid"
-          class="border rounded-lg p-3 bg-card hover:bg-accent/30 transition-colors flex flex-col"
+          class="border rounded-lg p-3 bg-card hover:bg-accent/30 transition-colors flex flex-col h-full"
         >
           <div class="text-xs text-muted-foreground">{{ item.author_name }}</div>
           <div class="text-sm font-semibold mt-1 line-clamp-1" :title="item.title">
             {{ item.title }}
           </div>
-          <div class="text-xs mt-1 text-muted-foreground line-clamp-3" :title="item.description">
+          <div
+            class="text-xs mt-1 text-muted-foreground line-clamp-3 min-h-0 overflow-hidden"
+            :title="item.description"
+          >
             {{ item.description }}
           </div>
-          <div class="mt-2 flex items-center justify-between">
-            <span class="text-xs font-mono px-2 py-0.5 bg-muted rounded">{{
-              item.server_key
-            }}</span>
+          <div
+            class="mt-2 flex flex-col gap-2 md:flex-row md:items-center md:justify-between mt-auto"
+          >
+            <span
+              class="text-xs font-mono px-2 py-0.5 bg-muted rounded truncate"
+              :title="item.server_key"
+              >{{ item.server_key }}</span
+            >
             <Button
               size="sm"
               :variant="installedServers.has(item.server_key) ? 'secondary' : 'default'"
               :disabled="installedServers.has(item.server_key)"
               @click="install(item)"
+              :title="
+                installedServers.has(item.server_key)
+                  ? t('mcp.market.installed')
+                  : t('mcp.market.install')
+              "
+              class="w-full md:w-auto"
             >
               <Icon
                 :icon="installedServers.has(item.server_key) ? 'lucide:check' : 'lucide:download'"

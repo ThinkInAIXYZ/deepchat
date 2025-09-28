@@ -77,7 +77,26 @@ export default function contextMenu(options: ContextMenuOptions): () => void {
         click: async () => {
           try {
             // 获取文件名和URL
-            const url = params.srcURL || ''
+            let url = params.srcURL || ''
+            console.log('contextMenu: all params available:', Object.keys(params))
+            console.log('contextMenu: srcURL:', params.srcURL)
+            console.log('contextMenu: linkURL:', params.linkURL)
+            console.log('contextMenu: pageURL:', params.pageURL)
+
+            // 如果srcURL为空，尝试其他可能的URL来源
+            if (!url && params.linkURL) {
+              url = params.linkURL
+            }
+            if (!url && params.pageURL) {
+              url = params.pageURL
+            }
+
+            console.log('contextMenu: final url:', url)
+
+            if (!url) {
+              throw new Error('无法获取图片URL，请检查图片源')
+            }
+
             let fileName = 'image.png'
             let imageBuffer: Buffer | null = null
 
@@ -110,6 +129,7 @@ export default function contextMenu(options: ContextMenuOptions): () => void {
             }
 
             console.log('contextMenu: start saving pic', filePath)
+            console.log('contextMenu: source URL:', url)
 
             // 获取图片数据
             if (isBase64) {
@@ -121,11 +141,30 @@ export default function contextMenu(options: ContextMenuOptions): () => void {
               imageBuffer = Buffer.from(base64Data, 'base64')
             } else {
               // 处理普通URL
-              const response = await net.fetch(url)
-              if (!response.ok) {
-                throw new Error(`下载图片失败: ${response.status}`)
+              try {
+                const response = await net.fetch(url)
+                if (!response.ok) {
+                  throw new Error(`下载图片失败: ${response.status}`)
+                }
+                imageBuffer = Buffer.from(await response.arrayBuffer())
+              } catch (fetchError) {
+                console.error('contextMenu: fetch failed, trying alternative methods:', fetchError)
+
+                // 如果net.fetch失败，尝试其他方法
+                if (url.startsWith('file://')) {
+                  // 处理file:// URL
+                  const fs = require('fs').promises
+                  const filePath = url.substring(7) // 移除 file:// 前缀
+                  imageBuffer = await fs.readFile(filePath)
+                } else if (url.startsWith('/') || url.match(/^[A-Za-z]:\\/)) {
+                  // 处理本地文件路径（Unix或Windows格式）
+                  const fs = require('fs').promises
+                  imageBuffer = await fs.readFile(url)
+                } else {
+                  // 重新抛出原始错误
+                  throw fetchError
+                }
               }
-              imageBuffer = Buffer.from(await response.arrayBuffer())
             }
 
             if (!imageBuffer) {

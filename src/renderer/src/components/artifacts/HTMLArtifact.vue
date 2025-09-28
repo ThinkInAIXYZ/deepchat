@@ -186,7 +186,6 @@
 
 <script setup lang="ts">
 import { ref, onMounted, computed, watch, onUnmounted } from 'vue'
-// import DOMPurify from 'dompurify'
 
 const props = defineProps<{
   block: {
@@ -526,17 +525,6 @@ const handleCornerDragMove = (e: MouseEvent) => {
     }
   })
 }
-
-// const sanitizedContent = computed(() => {
-//   if (!props.block.content) return ''
-//   return DOMPurify.sanitize(props.block.content, {
-//     WHOLE_DOCUMENT: true,
-//     ADD_TAGS: ['script', 'style'],
-//     ADD_ATTR: ['src', 'style', 'onclick'],
-//     ALLOWED_URI_REGEXP:
-//       /^(?:(?:(?:f|ht)tps?|mailto|tel|callto|cid|xmpp|xxx):|[^a-z]|[a-z+.]+(?:[^a-z+.:]|$))/i
-//   })
-// })
 
 const setupIframe = () => {
   if (props.isPreview && iframeRef.value) {

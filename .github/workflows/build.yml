@@ -20,12 +20,10 @@ jobs:
     runs-on: windows-latest
     strategy:
       matrix:
-        arch: [x64, arm64]
+        arch: [x64]
         include:
           - arch: x64
             platform: win-x64
-          - arch: arm64
-            platform: win-arm64
     steps:
       - uses: actions/checkout@v4
 
@@ -108,8 +106,8 @@ jobs:
       - name: Install dependencies
         run: pnpm install
 
-      - name: Install Node Runtime
-        run: pnpm run installRuntime:linux:${{ matrix.arch }}
+      # - name: Install Node Runtime
+        # run: pnpm run installRuntime:linux:${{ matrix.arch }}
 
       - name: Build Linux
         run: pnpm run build:linux:${{ matrix.arch }}

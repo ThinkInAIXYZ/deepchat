@@ -21,6 +21,9 @@ type ConversationRow = {
   thinking_budget: number | null
   reasoning_effort: string | null
   verbosity: string | null
+  enable_search: number | null
+  forced_search: number | null
+  search_strategy: string | null
 }
 
 // 解析 JSON 字段
@@ -106,12 +109,20 @@ export class ConversationsTable extends BaseTable {
         ALTER TABLE conversations ADD COLUMN verbosity TEXT DEFAULT NULL;
       `
     }
+    if (version === 7) {
+      return `
+        -- 添加搜索相关字段
+        ALTER TABLE conversations ADD COLUMN enable_search INTEGER DEFAULT NULL;
+        ALTER TABLE conversations ADD COLUMN forced_search INTEGER DEFAULT NULL;
+        ALTER TABLE conversations ADD COLUMN search_strategy TEXT DEFAULT NULL;
+      `
+    }
 
     return null
   }
 
   getLatestVersion(): number {
-    return 6
+    return 7
   }
 
   async create(title: string, settings: Partial<CONVERSATION_SETTINGS> = {}): Promise<string> {
@@ -133,9 +144,12 @@ export class ConversationsTable extends BaseTable {
         enabled_mcp_tools,
         thinking_budget,
         reasoning_effort,
-        verbosity
+        verbosity,
+        enable_search,
+        forced_search,
+        search_strategy
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `)
     const conv_id = nanoid()
     const now = Date.now()
@@ -145,7 +159,7 @@ export class ConversationsTable extends BaseTable {
       now,
       now,
       settings.systemPrompt || '',
-      settings.temperature || 0.7,
+      settings.temperature ?? 0.7,
       settings.contextLength || 4000,
       settings.maxTokens || 2000,
       settings.providerId || 'openai',
@@ -156,7 +170,10 @@ export class ConversationsTable extends BaseTable {
       settings.enabledMcpTools ? JSON.stringify(settings.enabledMcpTools) : 'NULL',
       settings.thinkingBudget !== undefined ? settings.thinkingBudget : null,
       settings.reasoningEffort !== undefined ? settings.reasoningEffort : null,
-      settings.verbosity !== undefined ? settings.verbosity : null
+      settings.verbosity !== undefined ? settings.verbosity : null,
+      settings.enableSearch !== undefined ? (settings.enableSearch ? 1 : 0) : null,
+      settings.forcedSearch !== undefined ? (settings.forcedSearch ? 1 : 0) : null,
+      settings.searchStrategy !== undefined ? settings.searchStrategy : null
     )
     return conv_id
   }
@@ -182,7 +199,10 @@ export class ConversationsTable extends BaseTable {
         enabled_mcp_tools,
         thinking_budget,
         reasoning_effort,
-        verbosity
+        verbosity,
+        enable_search,
+        forced_search,
+        search_strategy
       FROM conversations
       WHERE conv_id = ?
     `
@@ -213,7 +233,12 @@ export class ConversationsTable extends BaseTable {
         reasoningEffort: result.reasoning_effort
           ? (result.reasoning_effort as 'minimal' | 'low' | 'medium' | 'high')
           : undefined,
-        verbosity: result.verbosity ? (result.verbosity as 'low' | 'medium' | 'high') : undefined
+        verbosity: result.verbosity ? (result.verbosity as 'low' | 'medium' | 'high') : undefined,
+        enableSearch: result.enable_search !== null ? Boolean(result.enable_search) : undefined,
+        forcedSearch: result.forced_search !== null ? Boolean(result.forced_search) : undefined,
+        searchStrategy: result.search_strategy
+          ? (result.search_strategy as 'turbo' | 'max')
+          : undefined
       }
     }
   }
@@ -282,6 +307,18 @@ export class ConversationsTable extends BaseTable {
         updates.push('verbosity = ?')
         params.push(data.settings.verbosity)
       }
+      if (data.settings.enableSearch !== undefined) {
+        updates.push('enable_search = ?')
+        params.push(data.settings.enableSearch ? 1 : 0)
+      }
+      if (data.settings.forcedSearch !== undefined) {
+        updates.push('forced_search = ?')
+        params.push(data.settings.forcedSearch ? 1 : 0)
+      }
+      if (data.settings.searchStrategy !== undefined) {
+        updates.push('search_strategy = ?')
+        params.push(data.settings.searchStrategy)
+      }
     }
     if (updates.length > 0 || data.updatedAt) {
       updates.push('updated_at = ?')
@@ -329,7 +366,10 @@ export class ConversationsTable extends BaseTable {
         enabled_mcp_tools,
         thinking_budget,
         reasoning_effort,
-        verbosity
+        verbosity,
+        enable_search,
+        forced_search,
+        search_strategy
       FROM conversations
       ORDER BY updated_at DESC
       LIMIT ? OFFSET ?
@@ -359,7 +399,10 @@ export class ConversationsTable extends BaseTable {
           reasoningEffort: row.reasoning_effort
             ? (row.reasoning_effort as 'minimal' | 'low' | 'medium' | 'high')
             : undefined,
-          verbosity: row.verbosity ? (row.verbosity as 'low' | 'medium' | 'high') : undefined
+          verbosity: row.verbosity ? (row.verbosity as 'low' | 'medium' | 'high') : undefined,
+          enableSearch: row.enable_search !== null ? Boolean(row.enable_search) : undefined,
+          forcedSearch: row.forced_search !== null ? Boolean(row.forced_search) : undefined,
+          searchStrategy: row.search_strategy ? (row.search_strategy as 'turbo' | 'max') : undefined
         }
       }))
     }

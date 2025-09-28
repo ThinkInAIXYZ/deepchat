@@ -235,100 +235,50 @@ export class FloatingChatWindow {
       logger.error('Failed to unregister virtual tab for floating window:', error)
     }
   }
+
   private calculatePosition(floatingButtonPosition?: FloatingButtonPosition): {
     x: number
     y: number
   } {
     const primaryDisplay = screen.getPrimaryDisplay()
     const { workArea } = primaryDisplay
-    let x: number, y: number
+    const windowWidth = this.window?.getBounds().width ?? this.config.size.width
+    const windowHeight = this.window?.getBounds().height ?? this.config.size.height
 
     if (!floatingButtonPosition) {
-      x = workArea.x + workArea.width - this.config.size.width - 20
-      y = workArea.y + workArea.height - this.config.size.height - 20
+      const x = workArea.x + workArea.width - windowWidth - 20
+      const y = workArea.y + workArea.height - windowHeight - 20
       return { x, y }
     }
 
-    const buttonX = floatingButtonPosition.x
-    const buttonY = floatingButtonPosition.y
-    const buttonWidth = floatingButtonPosition.width
-    const buttonHeight = floatingButtonPosition.height
-    const windowWidth = this.config.size.width
-    const windowHeight = this.config.size.height
     const gap = 15
-    const buttonCenterX = buttonX + buttonWidth / 2
-    const buttonCenterY = buttonY + buttonHeight / 2
-    const screenCenterX = workArea.x + workArea.width / 2
-    const screenCenterY = workArea.y + workArea.height / 2
+    const buttonBounds = floatingButtonPosition
 
-    let positions: Array<{ x: number; y: number; priority: number }> = []
-    if (buttonX + buttonWidth + gap + windowWidth <= workArea.x + workArea.width) {
-      positions.push({
-        x: buttonX + buttonWidth + gap,
-        y: Math.max(
-          workArea.y,
-          Math.min(
-            buttonY + (buttonHeight - windowHeight) / 2,
-            workArea.y + workArea.height - windowHeight
-          )
-        ),
-        priority: buttonCenterX < screenCenterX ? 1 : 3
-      })
-    }
+    let finalX: number
 
-    if (buttonX - gap - windowWidth >= workArea.x) {
-      positions.push({
-        x: buttonX - gap - windowWidth,
-        y: Math.max(
-          workArea.y,
-          Math.min(
-            buttonY + (buttonHeight - windowHeight) / 2,
-            workArea.y + workArea.height - windowHeight
-          )
-        ),
-        priority: buttonCenterX >= screenCenterX ? 1 : 3
-      })
-    }
-
-    if (buttonY + buttonHeight + gap + windowHeight <= workArea.y + workArea.height) {
-      positions.push({
-        x: Math.max(
-          workArea.x,
-          Math.min(
-            buttonX + (buttonWidth - windowWidth) / 2,
-            workArea.x + workArea.width - windowWidth
-          )
-        ),
-        y: buttonY + buttonHeight + gap,
-        priority: buttonCenterY < screenCenterY ? 2 : 4
-      })
-    }
-
-    if (buttonY - gap - windowHeight >= workArea.y) {
-      positions.push({
-        x: Math.max(
-          workArea.x,
-          Math.min(
-            buttonX + (buttonWidth - windowWidth) / 2,
-            workArea.x + workArea.width - windowWidth
-          )
-        ),
-        y: buttonY - gap - windowHeight,
-        priority: buttonCenterY >= screenCenterY ? 2 : 4
-      })
-    }
-
-    if (positions.length === 0) {
-      x = workArea.x + workArea.width - windowWidth - 20
-      y = workArea.y + workArea.height - windowHeight - 20
+    // 1. Prioritize placing the window on the right side of the button
+    const rightPositionX = buttonBounds.x + buttonBounds.width + gap
+    if (rightPositionX + windowWidth <= workArea.x + workArea.width) {
+      finalX = rightPositionX
     } else {
-      positions.sort((a, b) => a.priority - b.priority)
-      x = positions[0].x
-      y = positions[0].y
+      // 2. If right side has no space, try the left side
+      const leftPositionX = buttonBounds.x - windowWidth - gap
+      if (leftPositionX >= workArea.x) {
+        finalX = leftPositionX
+      } else {
+        // 3. Fallback: If both sides lack space, align window's right edge with screen's right edge.
+        finalX = workArea.x + workArea.width - windowWidth
+      }
     }
-    x = Math.max(workArea.x + 10, Math.min(x, workArea.x + workArea.width - windowWidth - 10))
-    y = Math.max(workArea.y + 10, Math.min(y, workArea.y + workArea.height - windowHeight - 10))
-    return { x, y }
+
+    // Calculate vertical position: try to center with the button, but stay within screen bounds.
+    const idealY = buttonBounds.y + (buttonBounds.height - windowHeight) / 2
+    const finalY = Math.max(
+      workArea.y,
+      Math.min(idealY, workArea.y + workArea.height - windowHeight)
+    )
+
+    return { x: Math.round(finalX), y: Math.round(finalY) }
   }
 
   private async loadPageContent(): Promise<void> {

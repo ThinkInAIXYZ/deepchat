@@ -40,6 +40,26 @@
           </div>
         </div>
 
+        <!-- 更新渠道选择 -->
+        <div class="flex items-center gap-4 mt-4">
+          <label class="text-sm font-medium">{{ t('about.updateChannel') }}:</label>
+          <div class="min-w-32 max-w-48">
+            <Select v-model="updateChannel" @update:model-value="setUpdateChannel">
+              <SelectTrigger>
+                <SelectValue :placeholder="t('about.updateChannel')" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="stable">
+                  {{ t('about.stableChannel') }}
+                </SelectItem>
+                <SelectItem value="canary">
+                  {{ t('about.canaryChannel') }}
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
         <!-- 操作按钮区域 -->
         <div class="flex gap-2 mt-2">
           <!-- 免责声明按钮 -->
@@ -147,6 +167,13 @@ import {
   DialogHeader,
   DialogTitle
 } from '@/components/ui/dialog'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from '@/components/ui/select'
 import { renderMarkdown, getCommonMarkdown } from 'vue-renderer-markdown'
 import { useUpgradeStore } from '@/stores/upgrade'
 import { useLanguageStore } from '@/stores/language'
@@ -154,6 +181,7 @@ import { useLanguageStore } from '@/stores/language'
 const { t } = useI18n()
 const languageStore = useLanguageStore()
 const devicePresenter = usePresenter('devicePresenter')
+const configPresenter = usePresenter('configPresenter')
 const deviceInfo = ref<{
   platform: string
   arch: string
@@ -169,6 +197,7 @@ const deviceInfo = ref<{
 })
 const appVersion = ref('')
 const upgrade = useUpgradeStore()
+const updateChannel = ref('stable')
 
 // 免责声明对话框状态
 const isDisclaimerOpen = ref(false)
@@ -176,6 +205,16 @@ const isDisclaimerOpen = ref(false)
 // 打开免责声明对话框
 const openDisclaimerDialog = () => {
   isDisclaimerOpen.value = true
+}
+
+// 设置更新渠道
+const setUpdateChannel = async (channel: string) => {
+  try {
+    await configPresenter.setUpdateChannel(channel)
+    // v-model 会自动更新 updateChannel.value，不需要手动设置
+  } catch (error) {
+    console.error('updateChannelSetError:', error)
+  }
 }
 
 // 检查更新
@@ -198,6 +237,7 @@ const disclaimerContent = computed(() => renderMarkdown(md, t('searchDisclaimer'
 onMounted(async () => {
   deviceInfo.value = await devicePresenter.getDeviceInfo()
   appVersion.value = await devicePresenter.getAppVersion()
+  updateChannel.value = await configPresenter.getUpdateChannel()
   console.log(deviceInfo.value)
 })
 </script>

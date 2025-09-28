@@ -39,7 +39,9 @@
     "invalidJson": "Неверный формат JSON",
     "inputHint": "Пожалуйста, введите параметры в формате JSON",
     "required": "Обязательно",
-    "noDescription": "Нет описания"
+    "noDescription": "Нет описания",
+    "allowedValues": "Разрешенные значения",
+    "arrayItemValues": "Значения элемента массива"
   },
   "addServer": "Добавить сервер",
   "addServerDialog": {

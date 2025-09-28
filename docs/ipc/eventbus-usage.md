@@ -1,81 +1,166 @@
-# EventBus 使用指南
+# EventBus 使用指南与最佳实践
 
 ## 概述
 
-EventBus 类提供了主进程和渲染进程之间精确的事件通信机制。它继承自 EventEmitter，专注于提供明确的事件发送控制，支持向主进程、渲染进程或特定窗口发送事件。
+EventBus 提供了主进程和渲染进程之间精确的事件通信机制，支持从基础广播到精确Tab路由的完整功能。本指南将帮助你充分利用已有的强大IPC架构。
 
 ## 核心理念
 
-- **精确控制**：使用具体的发送方法，明确事件的目标
-- **显式发送**：所有跨进程通信都需要明确指定
+- **精确路由优先**：尽可能使用精确路由而非广播
+- **明确事件作用域**：根据影响范围选择合适的发送方法  
 - **类型安全**：完整的 TypeScript 支持
-- **简洁架构**：无复杂的自动转发机制
+- **性能优化**：减少不必要的事件传播
 
-## 主要方法
+## 可用方法详解
 
-### 1. 仅发送到主进程
+### 🎯 精确路由方法（推荐优先使用）
+
+#### `sendToTab(tabId, eventName, ...args)` ✨
+**用途**: 向指定Tab发送事件  
+**场景**: Tab特定的操作结果、状态更新
+
 ```typescript
-import { eventBus } from '@/main/eventbus'
+// 示例：消息编辑完成，只通知相关Tab
+async editMessage(tabId: number, messageId: string, newContent: string) {
+  await this.updateMessageInDatabase(messageId, newContent)
+  
+  // 只通知当前Tab更新UI
+  eventBus.sendToTab(tabId, 'conversation:message-edited', {
+    messageId,
+    content: newContent,
+    timestamp: Date.now()
+  })
+}
+```
 
+#### `sendToActiveTab(windowId, eventName, ...args)` ✨
+**用途**: 向窗口的活跃Tab发送事件  
+**场景**: 快捷键操作、窗口级操作
+
+```typescript
+// 示例：快捷键创建新对话
+handleCreateNewConversation(windowId: number) {
+  const conversationId = this.createNewConversation()
+  
+  // 只通知当前活跃的Tab
+  eventBus.sendToActiveTab(windowId, 'conversation:new-created', {
+    conversationId,
+    switchTo: true
+  })
+}
+```
+
+#### `broadcastToTabs(tabIds, eventName, ...args)` ✨
+**用途**: 向多个指定Tab广播事件  
+**场景**: 批量操作、相关Tab的协调更新
+
+```typescript
+// 示例：删除线程，通知所有相关Tab
+async deleteThread(threadId: string) {
+  await this.deleteThreadFromDatabase(threadId)
+  
+  // 获取所有显示此线程的Tab
+  const relatedTabIds = this.getTabsByThreadId(threadId)
+  
+  // 只通知相关Tab更新
+  eventBus.broadcastToTabs(relatedTabIds, 'thread:deleted', {
+    threadId,
+    redirectTo: 'home'
+  })
+}
+```
+
+### 📡 基础通信方法
+
+#### `sendToMain(eventName, ...args)`
+**用途**: 仅发送到主进程
+**场景**: 窗口管理、内部状态记录
+
+```typescript
 // 窗口管理、标签页操作等主进程内部事件
 eventBus.sendToMain('window:created', windowId)
 eventBus.sendToMain('shortcut:create-new-tab', windowId)
 ```
 
-### 2. 发送到特定窗口
-```typescript
-import { eventBus } from '@/main/eventbus'
+#### `sendToWindow(eventName, windowId, ...args)`
+**用途**: 发送到特定窗口
+**场景**: 窗口特定操作
 
-// 发送到指定窗口ID的渲染进程
-eventBus.sendToWindow('custom-event', windowId, data)
+```typescript
+// 发送到指定窗口的渲染进程
+eventBus.sendToWindow('window:focus-changed', windowId, isFocused)
 ```
 
-### 3. 发送到渲染进程
-```typescript
-import { eventBus, SendTarget } from '@/main/eventbus'
+#### `sendToRenderer(eventName, target, ...args)`
+**用途**: 发送到渲染进程
+**场景**: 真正的全局UI更新
 
-// 发送到所有窗口（默认）
+```typescript
+// ✅ 适合广播的场景：全局配置变更
+eventBus.sendToRenderer('config:theme-changed', SendTarget.ALL_WINDOWS, theme)
 eventBus.sendToRenderer('config:language-changed', SendTarget.ALL_WINDOWS, language)
 
-// 发送到默认标签页
-eventBus.sendToRenderer('deeplink:mcp-install', SendTarget.DEFAULT_TAB, data)
+// ❌ 避免：Tab特定操作使用广播
+// eventBus.sendToRenderer('notification:show', SendTarget.ALL_WINDOWS, message)
 ```
 
-### 4. 同时发送到主进程和渲染进程（推荐）
+#### `send(eventName, target, ...args)`
+**用途**: 同时发送到主进程和渲染进程
+**场景**: 需要主进程和渲染进程同时响应的事件
+
 ```typescript
-// 最常用的方法：确保主进程和渲染进程都能收到事件
+// 配置变更需要主进程和渲染进程都知道
 eventBus.send('config:provider-changed', SendTarget.ALL_WINDOWS, providers)
 eventBus.send('sync:backup-completed', SendTarget.ALL_WINDOWS, timestamp)
 ```
 
-## 事件分类指南
+## 🎯 选择合适的方法
 
-### 仅主进程内部
-适用于窗口管理、标签页操作等不需要渲染进程知道的事件：
-```typescript
-eventBus.sendToMain('window:created', windowId)
-eventBus.sendToMain('window:focused', windowId)
-eventBus.sendToMain('shortcut:create-new-window')
+### 决策流程图
+```
+事件需要发送给谁？
+├── 特定Tab ────────────→ sendToTab(tabId, ...)
+├── 当前活跃Tab ────────→ sendToActiveTab(windowId, ...)  
+├── 多个相关Tab ───────→ broadcastToTabs(tabIds, ...)
+├── 特定窗口 ─────────→ sendToWindow(windowId, ...)
+├── 仅主进程 ─────────→ sendToMain(...)
+├── 全局配置/状态 ────→ send(..., ALL_WINDOWS, ...)
+└── 纯UI更新 ────────→ sendToRenderer(..., ALL_WINDOWS, ...)
 ```
 
-### 仅渲染进程
-适用于纯 UI 更新，主进程不需要处理的事件：
+### 事件作用域分类
+
+#### 🎯 Tab级别事件（优先使用精确路由）
 ```typescript
-eventBus.sendToRenderer('notification:show-error', SendTarget.ALL_WINDOWS, error)
-eventBus.sendToRenderer('ui:theme-changed', SendTarget.ALL_WINDOWS, theme)
+// ✅ 推荐：精确路由
+eventBus.sendToTab(tabId, 'conversation:message-updated', messageData)
+eventBus.sendToTab(tabId, 'stream:completed', streamData)
+eventBus.sendToTab(tabId, 'error:display', errorInfo)
+
+// ❌ 避免：不必要的广播
+// eventBus.sendToRenderer('notification:show', SendTarget.ALL_WINDOWS, message)
 ```
 
-### 主进程 + 渲染进程
-适用于配置变更、状态同步等需要两端都知道的事件：
+#### 🪟 窗口级别事件
 ```typescript
+// 快捷键操作：影响当前活跃Tab
+eventBus.sendToActiveTab(windowId, 'shortcut:new-conversation')
+eventBus.sendToActiveTab(windowId, 'shortcut:go-settings')
+
+// 窗口状态：影响整个窗口
+eventBus.sendToWindow('window:focus-changed', windowId, isFocused)
+```
+
+#### 🌍 全局事件（合理使用广播）
+```typescript
+// ✅ 适合广播：真正的全局配置
+eventBus.send('config:theme-changed', SendTarget.ALL_WINDOWS, theme)
 eventBus.send('config:language-changed', SendTarget.ALL_WINDOWS, language)
-eventBus.send('sync:backup-started', SendTarget.ALL_WINDOWS)
-```
+eventBus.send('system:update-available', SendTarget.ALL_WINDOWS, updateInfo)
 
-### 特定窗口通信
-适用于需要与特定窗口通信的场景：
-```typescript
-eventBus.sendToWindow('window:specific-action', targetWindowId, actionData)
+// 主进程内部事件
+eventBus.sendToMain('window:created', windowId)
+eventBus.sendToMain('app:will-quit')
 ```
 
 ## SendTarget 选项
@@ -138,24 +223,79 @@ onStreamError(error: Error) {
 }
 ```
 
-### 5. 流事件处理
-```typescript
-// 处理各种流事件，明确指定发送目标
-handleConversationEvents() {
-  // 会话激活 - 通知所有窗口更新UI
-  eventBus.send('conversation:activated', SendTarget.ALL_WINDOWS, conversationId)
+## 🚀 实际代码优化示例
 
-  // 消息编辑 - 通知所有窗口
-  eventBus.send('conversation:message-edited', SendTarget.ALL_WINDOWS, messageData)
+### 场景1: 流事件处理优化
+
+```typescript
+// ❌ 当前可能的实现（过度广播）
+class StreamEventHandler {
+  handleStreamComplete(data: StreamData) {
+    // 广播到所有窗口，但只有1个Tab需要
+    eventBus.sendToRenderer('stream:completed', SendTarget.ALL_WINDOWS, data)
+  }
 }
 
-// MCP 服务器事件
-handleMCPEvents() {
-  // MCP 服务器启动 - 通知主进程和所有窗口
-  eventBus.send('mcp:server-started', SendTarget.ALL_WINDOWS, serverInfo)
+// ✅ 优化后的实现
+class StreamEventHandler {
+  handleStreamComplete(tabId: number, data: StreamData) {
+    // 只通知发起流的Tab
+    eventBus.sendToTab(tabId, 'stream:completed', data)
+    
+    // 如果需要，可以通知主进程记录
+    eventBus.sendToMain('stream:completed-logged', { tabId, ...data })
+  }
+}
+```
 
-  // 配置变更 - 通知所有窗口
-  eventBus.send('mcp:config-changed', SendTarget.ALL_WINDOWS, newConfig)
+### 场景2: 配置更新优化
+
+```typescript
+// ❌ 过度广播
+updateProviderConfig(providerId: string, config: ProviderConfig) {
+  this.saveConfig(providerId, config)
+  
+  // 不必要的广播
+  eventBus.send('config:provider-changed', SendTarget.ALL_WINDOWS, { providerId, config })
+}
+
+// ✅ 精确通知
+updateProviderConfig(tabId: number, providerId: string, config: ProviderConfig) {
+  this.saveConfig(providerId, config)
+  
+  // 通知主进程更新内存中的配置
+  eventBus.sendToMain('config:provider-updated', { providerId, config })
+  
+  // 只通知操作的Tab配置已更新
+  eventBus.sendToTab(tabId, 'config:provider-update-success', { providerId })
+  
+  // 如果其他Tab也在使用此provider，才通知它们
+  const affectedTabs = this.getTabsUsingProvider(providerId)
+  if (affectedTabs.length > 0) {
+    eventBus.broadcastToTabs(affectedTabs, 'config:provider-config-changed', { providerId, config })
+  }
+}
+```
+
+### 场景3: 错误处理优化
+
+```typescript
+// ❌ 广播错误到所有Tab
+handleError(error: Error) {
+  eventBus.sendToRenderer('error:occurred', SendTarget.ALL_WINDOWS, error)
+}
+
+// ✅ 精确错误通知
+handleError(tabId: number, error: Error, context: ErrorContext) {
+  // 主进程记录错误
+  eventBus.sendToMain('error:logged', { tabId, error, context })
+  
+  // 只向出错的Tab显示错误
+  eventBus.sendToTab(tabId, 'error:display', {
+    message: error.message,
+    type: context.type,
+    recoverable: context.canRetry
+  })
 }
 ```
 
@@ -222,16 +362,82 @@ class ShortcutManager {
 }
 ```
 
-## 调试技巧
+## 🛠️ 性能优化技巧
+
+### 1. 减少不必要的事件传播
 
 ```typescript
-// 监听主进程事件进行调试
-eventBus.on('*', (eventName, ...args) => {
-  console.log(`Main process event: ${eventName}`, args)
-})
+// ❌ 性能浪费：100个Tab都收到事件，但只有1个需要
+function notifyAllTabs(data: any) {
+  eventBus.sendToRenderer('data:updated', SendTarget.ALL_WINDOWS, data)
+}
+
+// ✅ 精确通知：只通知相关Tab
+function notifyRelevantTabs(dataId: string, data: any) {
+  const relevantTabs = this.getTabsDisplayingData(dataId)
+  eventBus.broadcastToTabs(relevantTabs, 'data:updated', data)
+}
+```
+
+### 2. 批量操作优化
+
+```typescript
+// ❌ 多次调用
+function updateMultipleTabs(updates: Array<{tabId: number, data: any}>) {
+  updates.forEach(update => {
+    eventBus.sendToTab(update.tabId, 'data:updated', update.data)
+  })
+}
+
+// ✅ 批量通知
+function updateMultipleTabs(updates: Array<{tabId: number, data: any}>) {
+  const tabIds = updates.map(u => u.tabId)
+  const batchData = updates.reduce((acc, u) => {
+    acc[u.tabId] = u.data
+    return acc
+  }, {} as Record<number, any>)
+  
+  eventBus.broadcastToTabs(tabIds, 'data:batch-updated', batchData)
+}
+```
+
+## 🔧 调试技巧
+
+### 1. 启用IPC日志
+
+```bash
+# 在开发环境中启用详细的IPC调用日志
+VITE_LOG_IPC_CALL=1 pnpm run dev
+```
+
+这将显示：
+- `[IPC Call] Tab:123 Window:456 -> presenterName.methodName`
+- `[Renderer IPC] WebContents:789 -> presenterName.methodName`
+
+### 2. 检查事件路由
+
+```typescript
+// 在EventBus中添加调试日志
+sendToTab(tabId: number, eventName: string, ...args: unknown[]) {
+  if (import.meta.env.DEV) {
+    console.log(`[EventBus] Sending ${eventName} to Tab:${tabId}`)
+  }
+  // 实际发送逻辑...
+}
 
 // 检查 WindowPresenter 状态
 if (!eventBus.windowPresenter) {
   console.warn('WindowPresenter not set, renderer events will not work')
 }
+```
+
+### 3. 迁移现有代码
+
+```bash
+# 搜索可能过度广播的地方
+grep -r "SendTarget.ALL_WINDOWS" src/
+grep -r "sendToRenderer" src/
+
+# 分析：这个事件真的需要所有窗口都知道吗？
+# 替换：从广播改为精确路由
 ```

@@ -11,6 +11,8 @@
 // 配置相关事件
 export const CONFIG_EVENTS = {
   PROVIDER_CHANGED: 'config:provider-changed', // 替代 provider-setting-changed
+  PROVIDER_ATOMIC_UPDATE: 'config:provider-atomic-update', // 新增：原子操作单个 provider 更新
+  PROVIDER_BATCH_UPDATE: 'config:provider-batch-update', // 新增：批量 provider 更新
   MODEL_LIST_CHANGED: 'config:model-list-changed', // 替代 provider-models-updated（ConfigPresenter）
   MODEL_STATUS_CHANGED: 'config:model-status-changed', // 替代 model-status-changed（ConfigPresenter）
   SETTING_CHANGED: 'config:setting-changed', // 替代 setting-changed（ConfigPresenter）
@@ -23,7 +25,6 @@ export const CONFIG_EVENTS = {
   COPY_WITH_COT_CHANGED: 'config:copy-with-cot-enabled-changed',
   PROXY_RESOLVED: 'config:proxy-resolved',
   LANGUAGE_CHANGED: 'config:language-changed', // 新增：语言变更事件
-  CUSTOM_PROMPTS_SERVER_CHECK_REQUIRED: 'config:custom-prompts-server-check-required', // 新增：需要检查自定义提示词服务器事件
   // 模型配置相关事件
   MODEL_CONFIG_CHANGED: 'config:model-config-changed', // 模型配置变更事件
   MODEL_CONFIG_RESET: 'config:model-config-reset', // 模型配置重置事件
@@ -31,7 +32,9 @@ export const CONFIG_EVENTS = {
   // OAuth相关事件
   OAUTH_LOGIN_START: 'config:oauth-login-start', // OAuth登录开始
   OAUTH_LOGIN_SUCCESS: 'config:oauth-login-success', // OAuth登录成功
-  OAUTH_LOGIN_ERROR: 'config:oauth-login-error' // OAuth登录失败
+  OAUTH_LOGIN_ERROR: 'config:oauth-login-error', // OAuth登录失败
+  THEME_CHANGED: 'config:theme-changed', // 主题变更事件
+  FONT_SIZE_CHANGED: 'config:font-size-changed' // 字体大小变更事件
 }
 
 // 会话相关事件
@@ -62,13 +65,15 @@ export const UPDATE_EVENTS = {
   STATUS_CHANGED: 'update:status-changed', // 替代 update-status-changed
   ERROR: 'update:error', // 替代 update-error
   PROGRESS: 'update:progress', // 下载进度
-  WILL_RESTART: 'update:will-restart' // 准备重启
+  WILL_RESTART: 'update:will-restart', // 准备重启
+  STATE_CHANGED: 'update:state-changed' // 更新状态变化（用于生命周期管理通信）
 }
 
 // 窗口相关事件
 export const WINDOW_EVENTS = {
   READY_TO_SHOW: 'window:ready-to-show', // 替代 main-window-ready-to-show
   FORCE_QUIT_APP: 'window:force-quit-app', // 替代 force-quit-app
+  SET_APPLICATION_QUITTING: 'window:set-application-quitting', // 设置应用退出状态
   APP_FOCUS: 'app:focus',
   APP_BLUR: 'app:blur',
   WINDOW_MAXIMIZED: 'window:maximized',
@@ -180,7 +185,10 @@ export const FLOATING_BUTTON_EVENTS = {
   RIGHT_CLICKED: 'floating-button:right-clicked', // 悬浮按钮被右键点击
   VISIBILITY_CHANGED: 'floating-button:visibility-changed', // 悬浮按钮显示状态改变
   POSITION_CHANGED: 'floating-button:position-changed', // 悬浮按钮位置改变
-  ENABLED_CHANGED: 'floating-button:enabled-changed' // 悬浮按钮启用状态改变
+  ENABLED_CHANGED: 'floating-button:enabled-changed', // 悬浮按钮启用状态改变
+  DRAG_START: 'floating-button:drag-start', // 悬浮按钮开始拖拽
+  DRAG_MOVE: 'floating-button:drag-move', // 悬浮按钮拖拽移动
+  DRAG_END: 'floating-button:drag-end' // 悬浮按钮结束拖拽
 }
 
 // Dialog related events
@@ -193,4 +201,16 @@ export const DIALOG_EVENTS = {
 export const RAG_EVENTS = {
   FILE_UPDATED: 'rag:file-updated', // File status update
   FILE_PROGRESS: 'rag:file-progress' // File processing progress update
+}
+
+// Lifecycle management events
+export const LIFECYCLE_EVENTS = {
+  PHASE_STARTED: 'lifecycle:phase-started', // Lifecycle phase started
+  PHASE_COMPLETED: 'lifecycle:phase-completed', // Lifecycle phase completed
+  HOOK_EXECUTED: 'lifecycle:hook-executed', // Lifecycle hook executed start
+  HOOK_COMPLETED: 'lifecycle:hook-completed', // Lifecycle hook executed completed
+  HOOK_FAILED: 'lifecycle:hook-failed', // Lifecycle hook executed failed
+  ERROR_OCCURRED: 'lifecycle:error-occurred', // Lifecycle error occurred
+  PROGRESS_UPDATED: 'lifecycle:progress-updated', // Lifecycle progress updated
+  SHUTDOWN_REQUESTED: 'lifecycle:shutdown-requested' // Application shutdown requested
 }

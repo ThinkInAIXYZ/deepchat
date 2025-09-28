@@ -25,5 +25,20 @@
     "confirm": "創建分支",
     "description": "將從第一條消息到當前選中的消息複製到一個新會話中，您可以在新會話中繼續對話。",
     "title": "創建會話分支"
+  },
+  "mutualExclusive": {
+    "title": {
+      "reasoning": "確認開啟推理能力",
+      "functionCall": "確認開啟函數調用"
+    },
+    "message": {
+      "reasoning": "開啟推理能力將自動關閉函數調用功能。這是 DeepSeek-V3.1 模型的限制要求，兩個功能無法同時使用。是否繼續？",
+      "functionCall": "開啟函數調用將自動關閉推理能力功能。這是 DeepSeek-V3.1 模型的限制要求，兩個功能無法同時使用。是否繼續？"
+    },
+    "warningText": {
+      "reasoning": "注意：開啟推理能力將自動關閉函數調用功能，這是 DeepSeek-V3.1 模型的限制要求。",
+      "functionCall": "注意：開啟函數調用將自動關閉推理能力，這是 DeepSeek-V3.1 模型的限制要求。"
+    },
+    "confirmEnable": "確認開啟"
   }
 }

@@ -502,6 +502,14 @@ export class PglitePresenter implements IDatabasePresenter {
     }
   }
 
+  // 更新消息父ID
+  public async updateMessageParentId(messageId: string, parentId: string): Promise<void> {
+    await this.pgLite.query('UPDATE messages SET parent_id = $1 WHERE message_id = $2', [
+      parentId,
+      messageId
+    ])
+  }
+
   // 删除消息
   public async deleteMessage(messageId: string): Promise<void> {
     await this.runTransaction(async () => {

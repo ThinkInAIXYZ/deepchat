@@ -215,6 +215,7 @@ const createNewThread = async () => {
   try {
     await chatStore.createNewEmptyThread()
     chatStore.isSidebarOpen = false
+    chatStore.isMessageNavigationOpen = false
   } catch (error) {
     console.error(t('common.error.createChatFailed'), error)
   }
@@ -226,6 +227,7 @@ const handleThreadSelect = async (thread: CONVERSATION) => {
     await chatStore.setActiveThread(thread.id)
     if (windowSize.width.value < 1024) {
       chatStore.isSidebarOpen = false
+      chatStore.isMessageNavigationOpen = false
     }
   } catch (error) {
     console.error(t('common.error.selectChatFailed'), error)

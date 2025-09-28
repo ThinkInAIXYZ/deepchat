@@ -18,11 +18,15 @@
         }}</span>
       </span>
     </div>
-    <div v-show="!collapse" ref="messageBlock" class="w-full relative">
-      <div
-        class="prose prose-sm dark:prose-invert w-full max-w-full leading-7 break-all"
-        v-html="renderedContent"
-      ></div>
+    <div
+      v-show="!collapse"
+      ref="messageBlock"
+      class="w-full relative prose prose-sm dark:prose-invert max-w-full leading-7 break-all"
+    >
+      <NodeRenderer
+        :renderCodeBlocksAsPre="true"
+        :content="props.block.content || ''"
+      ></NodeRenderer>
     </div>
 
     <Icon
@@ -34,13 +38,13 @@
 </template>
 
 <script setup lang="ts">
-import { useI18n } from 'vue-i18n'
-import { Icon } from '@iconify/vue'
 import { Button } from '@/components/ui/button'
-import { computed, onMounted, ref, watch } from 'vue'
 import { usePresenter } from '@/composables/usePresenter'
-import { renderMarkdown, getCommonMarkdown } from 'vue-renderer-markdown'
+import { Icon } from '@iconify/vue'
 import { AssistantMessageBlock } from '@shared/chat'
+import { computed, onMounted, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
+import NodeRenderer from 'vue-renderer-markdown'
 const props = defineProps<{
   block: AssistantMessageBlock
   usage: {
@@ -64,11 +68,6 @@ const reasoningDuration = computed(() => {
   }
   // 保留小数点后最多两位，去除尾随的0
   return parseFloat(duration.toFixed(2))
-})
-
-const md = getCommonMarkdown()
-const renderedContent = computed(() => {
-  return renderMarkdown(md, props.block.content || '')
 })
 
 watch(

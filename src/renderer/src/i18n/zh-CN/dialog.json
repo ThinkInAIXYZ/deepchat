@@ -25,5 +25,20 @@
   },
   "error": {
     "title": "错误"
+  },
+  "mutualExclusive": {
+    "title": {
+      "reasoning": "确认开启推理能力",
+      "functionCall": "确认开启函数调用"
+    },
+    "message": {
+      "reasoning": "开启推理能力将自动关闭函数调用功能。这是 DeepSeek-V3.1 模型的限制要求，两个功能无法同时使用。是否继续？",
+      "functionCall": "开启函数调用将自动关闭推理能力功能。这是 DeepSeek-V3.1 模型的限制要求，两个功能无法同时使用。是否继续？"
+    },
+    "warningText": {
+      "reasoning": "注意：开启推理能力将自动关闭函数调用功能，这是 DeepSeek-V3.1 模型的限制要求。",
+      "functionCall": "注意：开启函数调用将自动关闭推理能力，这是 DeepSeek-V3.1 模型的限制要求。"
+    },
+    "confirmEnable": "确认开启"
   }
 }

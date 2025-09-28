@@ -43,7 +43,7 @@ export class ToolManager {
   public async getRunningClients(): Promise<McpClient[]> {
     return this.serverManager.getRunningClients()
   }
-  // 获取所有工具定义
+  // Get all tool definitions
   public async getAllToolDefinitions(enabledTools?: string[]): Promise<MCPToolDefinition[]> {
     if (this.cachedToolDefinitions !== null && this.cachedToolDefinitions.length > 0) {
       if (enabledTools) {
@@ -121,9 +121,9 @@ export class ToolManager {
           errorMessages.getMcpToolListErrorMessage
             ?.replace('{serverName}', serverName)
             .replace('{errorMessage}', errorMessage) ||
-          `无法从服务器 '${serverName}' 获取工具列表: ${errorMessage}`
+          `Failed to get tool list from server '${serverName}': ${errorMessage}`
         eventBus.sendToRenderer(NOTIFICATION_EVENTS.SHOW_ERROR, SendTarget.ALL_WINDOWS, {
-          title: errorMessages.getMcpToolListErrorTitle || '获取工具定义失败',
+          title: errorMessages.getMcpToolListErrorTitle || 'Failed to get tool definitions',
           message: formattedMessage,
           id: `mcp-error-pass1-${serverName}-${Date.now()}`,
           type: 'error'
@@ -154,7 +154,7 @@ export class ToolManager {
           const namePattern = /^[a-zA-Z0-9_-]+$/
           if (!namePattern.test(finalName)) {
             console.error(
-              `Generated tool name '${finalName}' is invalid. Skipping tool '${originalName}' from server '${client.serverName}'.`
+              `Generated tool name '${finalName}' is invalid. Skipping tool '${originalName}' from server '${client.serverName}'. Please ensure the tool name matches the allowed pattern: /^[a-zA-Z0-9_-]+$/`
             )
             continue // Skip adding this tool
           }
@@ -204,7 +204,7 @@ export class ToolManager {
       }
     }
 
-    // 缓存结果并返回
+    // Cache results and return
     this.cachedToolDefinitions = results
     console.info(`Cached ${results.length} final tool definitions and populated target map.`)
 
@@ -234,7 +234,8 @@ export class ToolManager {
       lowerToolName.includes('fetch') ||
       lowerToolName.includes('search') ||
       lowerToolName.includes('find') ||
-      lowerToolName.includes('query')
+      lowerToolName.includes('query') ||
+      lowerToolName.includes('tree')
     ) {
       return 'read'
     }
@@ -463,18 +464,18 @@ export class ToolManager {
       // 查找指定的客户端
       const client = clients.find((c) => c.serverName === clientName)
       if (!client) {
-        throw new Error(`未找到MCP客户端: ${clientName}`)
+        throw new Error(`MCP client not found: ${clientName}`)
       }
 
       if (typeof client.getPrompt !== 'function') {
-        throw new Error(`MCP客户端 ${clientName} 不支持获取提示模板`)
+        throw new Error(`MCP client ${clientName} does not support getting prompt templates`)
       }
 
       return await client.getPrompt(promptName, params)
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : String(error)
       console.error('Failed to get prompt template:', errorMessage)
-      throw new Error(`获取提示模板失败: ${errorMessage}`)
+      throw new Error(`Failed to get prompt template: ${errorMessage}`)
     }
   }
 
@@ -486,18 +487,18 @@ export class ToolManager {
       // 查找指定的客户端
       const client = clients.find((c) => c.serverName === clientName)
       if (!client) {
-        throw new Error(`未找到MCP客户端: ${clientName}`)
+        throw new Error(`MCP client not found: ${clientName}`)
       }
 
       if (typeof client.readResource !== 'function') {
-        throw new Error(`MCP客户端 ${clientName} 不支持读取资源`)
+        throw new Error(`MCP client ${clientName} does not support reading resources`)
       }
 
       return await client.readResource(resourceUri)
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : String(error)
       console.error('Failed to read resource:', errorMessage)
-      throw new Error(`读取资源失败: ${errorMessage}`)
+      throw new Error(`Failed to read resource: ${errorMessage}`)
     }
   }
 

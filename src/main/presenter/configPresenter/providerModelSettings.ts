@@ -1,27 +1,31 @@
 import { ModelType } from '@shared/model'
 import { ModelConfig } from '@shared/presenter'
 
-// 定义每个provider的模型匹配规则和配置的接口，与modelDefaultSettings保持一致的风格
+// Define the model matching rules and configuration interface for each provider, maintaining consistency with modelDefaultSettings
 export interface ProviderModelSetting {
-  id: string // 模型ID
-  name: string // 模型名称
-  match: string[] // 用于匹配模型ID的字符串数组
-  maxTokens: number // 最大生成token数
-  contextLength: number // 上下文长度
-  temperature?: number // 温度参数
-  vision?: boolean // 是否支持视觉
-  functionCall?: boolean // 是否支持函数调用
-  reasoning?: boolean // 是否支持推理能力
-  type?: ModelType // 模型类型，默认为Chat
-  // GPT-5 系列新参数
+  id: string // Model ID
+  name: string // Model name
+  match: string[] // String array used to match model IDs
+  maxTokens: number // Maximum generation token count
+  contextLength: number // Context length
+  temperature?: number // Temperature parameter
+  vision?: boolean // Whether vision is supported
+  functionCall?: boolean // Whether function calling is supported
+  reasoning?: boolean // Whether reasoning capability is supported
+  type?: ModelType // Model type, defaults to Chat
+  // GPT-5 series new parameters
   reasoningEffort?: 'minimal' | 'low' | 'medium' | 'high'
   verbosity?: 'low' | 'medium' | 'high'
-  maxCompletionTokens?: number // GPT-5 系列使用此参数替代 maxTokens
+  maxCompletionTokens?: number // GPT-5 series uses this parameter instead of maxTokens
+  thinkingBudget?: number // Thinking budget parameter
+  enableSearch?: boolean // Whether internet search is supported
+  forcedSearch?: boolean // Whether forced internet search is enabled
+  searchStrategy?: 'turbo' | 'max' // Search strategy
 }
 
-// 为每个提供商创建映射对象，使用models数组包装模型配置
+// Create mapping objects for each provider, wrapping model configurations with models array
 export const providerModelSettings: Record<string, { models: ProviderModelSetting[] }> = {
-  // OpenAI提供商特定模型配置
+  // OpenAI provider-specific model configurations
   openai: {
     models: [
       {
@@ -79,12 +83,136 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
     ]
   },
 
-  // 火山引擎(Doubao)提供商特定模型配置
+  // Volcengine (Doubao) provider-specific model configurations
   doubao: {
-    models: []
+    models: [
+      // DeepSeek models
+      {
+        id: 'deepseek-v3-1-250821',
+        name: 'DeepSeek V3.1',
+        temperature: 0.7,
+        maxTokens: 32000,
+        contextLength: 128000,
+        match: ['deepseek-v3-1-250821', 'deepseek-v3.1'],
+        vision: false,
+        functionCall: true,
+        reasoning: false
+      },
+      {
+        id: 'deepseek-r1-250120',
+        name: 'DeepSeek R1',
+        temperature: 0.7,
+        maxTokens: 4096,
+        contextLength: 64000,
+        match: ['deepseek-r1-250120', 'deepseek-r1'],
+        vision: false,
+        functionCall: false,
+        reasoning: true
+      },
+      {
+        id: 'deepseek-r1-distill-qwen-32b-250120',
+        name: 'DeepSeek R1 Distill Qwen 32B',
+        temperature: 0.7,
+        maxTokens: 4096,
+        contextLength: 32000,
+        match: ['deepseek-r1-distill-qwen-32b-250120', 'deepseek-r1-distill-qwen-32b'],
+        vision: false,
+        functionCall: false,
+        reasoning: true
+      },
+      {
+        id: 'deepseek-r1-distill-qwen-7b-250120',
+        name: 'DeepSeek R1 Distill Qwen 7B',
+        temperature: 0.7,
+        maxTokens: 4096,
+        contextLength: 32000,
+        match: ['deepseek-r1-distill-qwen-7b-250120', 'deepseek-r1-distill-qwen-7b'],
+        vision: false,
+        functionCall: false,
+        reasoning: true
+      },
+      {
+        id: 'deepseek-v3-250324',
+        name: 'DeepSeek V3',
+        temperature: 0.7,
+        maxTokens: 4096,
+        contextLength: 64000,
+        match: ['deepseek-v3-250324', 'deepseek-v3'],
+        vision: false,
+        functionCall: true,
+        reasoning: false
+      },
+      // Doubao native models
+      {
+        id: 'doubao-seed-1-6-vision-250815',
+        name: 'Doubao Seed 1.6 Vision',
+        temperature: 0.7,
+        maxTokens: 32000,
+        contextLength: 256000,
+        match: ['doubao-seed-1-6-vision-250815', 'doubao-seed-1.6-vision'],
+        vision: true,
+        functionCall: true,
+        reasoning: true
+      },
+      {
+        id: 'doubao-seed-1-6-250615',
+        name: 'Doubao Seed 1.6',
+        temperature: 0.7,
+        maxTokens: 32000,
+        contextLength: 256000,
+        match: ['doubao-seed-1-6-250615', 'doubao-seed-1.6'],
+        vision: true,
+        functionCall: true,
+        reasoning: true
+      },
+      {
+        id: 'doubao-seed-1-6-flash-250715',
+        name: 'Doubao Seed 1.6 Flash',
+        temperature: 0.7,
+        maxTokens: 32000,
+        contextLength: 256000,
+        match: ['doubao-seed-1-6-flash-250715', 'doubao-seed-1.6-flash'],
+        vision: true,
+        functionCall: true,
+        reasoning: true
+      },
+      {
+        id: 'doubao-seed-1-6-flash-250615',
+        name: 'Doubao Seed 1.6 Flash (250615)',
+        temperature: 0.7,
+        maxTokens: 32000,
+        contextLength: 256000,
+        match: ['doubao-seed-1-6-flash-250615'],
+        vision: true,
+        functionCall: true,
+        reasoning: true
+      },
+      {
+        id: 'doubao-seed-1-6-thinking-250715',
+        name: 'Doubao Seed 1.6 Thinking',
+        temperature: 0.7,
+        maxTokens: 32000,
+        contextLength: 256000,
+        match: ['doubao-seed-1-6-thinking-250715', 'doubao-seed-1.6-thinking'],
+        vision: true,
+        functionCall: true,
+        reasoning: true
+      },
+      {
+        id: 'doubao-seed-1-6-thinking-250615',
+        name: 'Doubao Seed 1.6 Thinking (250615)',
+        temperature: 0.7,
+        maxTokens: 32000,
+        contextLength: 256000,
+        match: ['doubao-seed-1-6-thinking-250615'],
+        vision: true,
+        functionCall: true,
+        reasoning: true
+      }
+    ]
   },
 
-  // Anthropic提供商特定模型配置
+  // Anthropic provider-specific model configurations
   anthropic: {
     models: [
       {
@@ -167,63 +295,68 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
     ]
   },
 
-  // Gemini提供商特定模型配置
+  // Gemini provider-specific model configurations
   gemini: {
     models: [
       {
         id: 'gemini-2.5-pro',
         name: 'Gemini 2.5 Pro',
         temperature: 0.7,
-        maxTokens: 65536,
+        maxTokens: 65535,
         contextLength: 1048576,
         match: ['gemini-2.5-pro'],
         vision: true,
         functionCall: true,
-        reasoning: true
+        reasoning: true,
+        enableSearch: false
       },
       {
-        id: 'models/gemini-2.5-flash',
-        name: 'Gemini 2.5 Flash',
+        id: 'google/gemini-2.5-flash-image-preview',
+        name: 'Gemini 2.5 Flash Image Preview',
         temperature: 0.7,
-        maxTokens: 65536,
-        contextLength: 1048576,
-        match: ['models/gemini-2.5-flash', 'gemini-2.5-flash'],
+        maxTokens: 32768,
+        contextLength: 32768,
+        match: ['google/gemini-2.5-flash-image-preview', 'gemini-2.5-flash-image-preview'],
         vision: true,
-        functionCall: true,
-        reasoning: true
+        functionCall: false,
+        reasoning: false,
+        type: ModelType.ImageGeneration
       },
       {
         id: 'models/gemini-2.5-flash-lite-preview-06-17',
         name: 'Gemini 2.5 Flash-Lite Preview',
         temperature: 0.7,
-        maxTokens: 64000,
-        contextLength: 1000000,
+        maxTokens: 65535,
+        contextLength: 1048576,
         match: ['models/gemini-2.5-flash-lite-preview-06-17', 'gemini-2.5-flash-lite-preview'],
         vision: true,
         functionCall: true,
-        reasoning: true
+        reasoning: true,
+        enableSearch: false
       },
       {
-        id: 'models/gemini-2.0-flash',
-        name: 'Gemini 2.0 Flash',
+        id: 'models/gemini-2.5-flash-lite',
+        name: 'Gemini 2.5 Flash Lite',
         temperature: 0.7,
-        maxTokens: 8192,
+        maxTokens: 65535,
         contextLength: 1048576,
-        match: ['models/gemini-2.0-flash', 'gemini-2.0-flash'],
+        match: ['models/gemini-2.5-flash-lite', 'gemini-2.5-flash-lite'],
         vision: true,
         functionCall: true,
-        reasoning: true
+        reasoning: true,
+        enableSearch: false
       },
       {
-        id: 'models/gemini-2.0-flash-lite',
-        name: 'Gemini 2.0 Flash Lite',
+        id: 'models/gemini-2.5-flash',
+        name: 'Gemini 2.5 Flash',
         temperature: 0.7,
-        maxTokens: 8192,
+        maxTokens: 65535,
         contextLength: 1048576,
-        match: ['models/gemini-2.0-flash-lite', 'gemini-2.0-flash-lite'],
+        match: ['models/gemini-2.5-flash', 'gemini-2.5-flash'],
         vision: true,
         functionCall: true,
-        reasoning: false
+        reasoning: true,
+        enableSearch: false
       },
       {
         id: 'models/gemini-2.0-flash-preview-image-generation',
@@ -236,41 +369,67 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
           'gemini-2.0-flash-preview-image-generation'
         ],
         vision: true,
-        functionCall: true,
+        functionCall: false,
         reasoning: false,
         type: ModelType.ImageGeneration
+      },
+      {
+        id: 'models/gemini-2.0-flash-lite',
+        name: 'Gemini 2.0 Flash Lite',
+        temperature: 0.7,
+        maxTokens: 8191,
+        contextLength: 1048576,
+        match: ['models/gemini-2.0-flash-lite', 'gemini-2.0-flash-lite'],
+        vision: true,
+        functionCall: true,
+        reasoning: false,
+        enableSearch: false
+      },
+      {
+        id: 'models/gemini-2.0-flash',
+        name: 'Gemini 2.0 Flash',
+        temperature: 0.7,
+        maxTokens: 8191,
+        contextLength: 1048576,
+        match: ['models/gemini-2.0-flash', 'gemini-2.0-flash'],
+        vision: true,
+        functionCall: true,
+        reasoning: true,
+        enableSearch: false
       },
       {
         id: 'models/gemini-1.5-flash',
         name: 'Gemini 1.5 Flash',
         temperature: 0.7,
-        maxTokens: 8192,
+        maxTokens: 8191,
         contextLength: 1048576,
         match: ['models/gemini-1.5-flash', 'gemini-1.5-flash'],
         vision: true,
         functionCall: true,
-        reasoning: false
+        reasoning: false,
+        enableSearch: false
       },
       {
         id: 'models/gemini-1.5-pro',
         name: 'Gemini 1.5 Pro',
         temperature: 0.7,
-        maxTokens: 8192,
+        maxTokens: 8191,
         contextLength: 2097152,
         match: ['models/gemini-1.5-pro', 'gemini-1.5-pro'],
         vision: true,
         functionCall: true,
-        reasoning: false
+        reasoning: false,
+        enableSearch: false
       }
     ]
   },
 
-  // 华为云Hunyuan提供商特定模型配置
+  // Huawei Cloud Hunyuan provider-specific model configurations
   hunyuan: {
     models: []
   },
 
-  // DeepSeek提供商特定模型配置
+  // DeepSeek provider-specific model configurations
   deepseek: {
     models: [
       {
@@ -278,7 +437,7 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         name: 'DeepSeek chat',
         temperature: 1,
         maxTokens: 8192,
-        contextLength: 65536,
+        contextLength: 128000,
         match: ['deepseek-chat'],
         vision: false,
         functionCall: true,
@@ -288,25 +447,25 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         id: 'deepseek-reasoner',
         name: 'DeepSeek Reasoner',
         temperature: 1,
-        maxTokens: 65536,
-        contextLength: 65536,
+        maxTokens: 64000,
+        contextLength: 128000,
         match: ['deepseek-reasoner'],
         vision: false,
-        functionCall: false, // 必须关闭，否则会自动调用3.1的非思考模式
+        functionCall: false, // Must be disabled, otherwise it will automatically call 3.1's non-thinking mode
         reasoning: true
       }
     ]
   },
 
-  // MiniMax提供商特定模型配置
+  // MiniMax provider-specific model configurations
   minimax: {
     models: []
   },
 
-  // 智谱AI提供商特定模型配置
+  // Zhipu AI provider-specific model configurations
   zhipu: {
     models: [
-      // GLM 4.5 系列模型
+      // GLM 4.5 series models
       {
         id: 'glm-4.5v',
         name: 'GLM-4.5V',
@@ -376,15 +535,170 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
     ]
   },
 
-  // Moonshot提供商特定模型配置
+  // Moonshot provider-specific model configurations
   moonshot: {
-    models: []
+    models: [
+      {
+        id: 'kimi-k2-0905-preview',
+        name: 'Kimi K2 0905 Preview',
+        temperature: 0.7,
+        maxTokens: 65536,
+        contextLength: 262144,
+        match: ['kimi-k2-0905-preview'],
+        vision: false,
+        functionCall: true,
+        reasoning: false
+      },
+      {
+        id: 'kimi-k2-0711-preview',
+        name: 'Kimi K2 0711 Preview',
+        temperature: 0.7,
+        maxTokens: 65536,
+        contextLength: 131072,
+        match: ['kimi-k2-0711-preview'],
+        vision: false,
+        functionCall: true,
+        reasoning: false
+      },
+      {
+        id: 'kimi-k2-turbo-preview',
+        name: 'Kimi K2 Turbo Preview',
+        temperature: 0.7,
+        maxTokens: 65536,
+        contextLength: 262144,
+        match: ['kimi-k2-turbo-preview'],
+        vision: false,
+        functionCall: true,
+        reasoning: false
+      },
+      {
+        id: 'kimi-latest',
+        name: 'Kimi Latest',
+        temperature: 0.7,
+        maxTokens: 65536,
+        contextLength: 131072,
+        match: ['kimi-latest'],
+        vision: true,
+        functionCall: true,
+        reasoning: false
+      },
+      {
+        id: 'kimi-latest-8k',
+        name: 'Kimi Latest 8K',
+        temperature: 0.7,
+        maxTokens: 4096,
+        contextLength: 8192,
+        match: ['kimi-latest-8k'],
+        vision: true,
+        functionCall: true,
+        reasoning: false
+      },
+      {
+        id: 'kimi-latest-32k',
+        name: 'Kimi Latest 32K',
+        temperature: 0.7,
+        maxTokens: 16384,
+        contextLength: 32768,
+        match: ['kimi-latest-32k'],
+        vision: true,
+        functionCall: true,
+        reasoning: false
+      },
+      {
+        id: 'kimi-latest-128k',
+        name: 'Kimi Latest 128K',
+        temperature: 0.7,
+        maxTokens: 65536,
+        contextLength: 131072,
+        match: ['kimi-latest-128k'],
+        vision: true,
+        functionCall: true,
+        reasoning: false
+      },
+      {
+        id: 'moonshot-v1-8k',
+        name: 'Moonshot V1 8K',
+        temperature: 0.7,
+        maxTokens: 4096,
+        contextLength: 8192,
+        match: ['moonshot-v1-8k'],
+        vision: false,
+        functionCall: true,
+        reasoning: false
+      },
+      {
+        id: 'moonshot-v1-32k',
+        name: 'Moonshot V1 32K',
+        temperature: 0.7,
+        maxTokens: 16384,
+        contextLength: 32768,
+        match: ['moonshot-v1-32k'],
+        vision: false,
+        functionCall: true,
+        reasoning: false
+      },
+      {
+        id: 'moonshot-v1-128k',
+        name: 'Moonshot V1 128K',
+        temperature: 0.7,
+        maxTokens: 65536,
+        contextLength: 131072,
+        match: ['moonshot-v1-128k'],
+        vision: false,
+        functionCall: true,
+        reasoning: false
+      },
+      {
+        id: 'moonshot-v1-8k-vision-preview',
+        name: 'Moonshot V1 8K Vision Preview',
+        temperature: 0.7,
+        maxTokens: 4096,
+        contextLength: 8192,
+        match: ['moonshot-v1-8k-vision-preview'],
+        vision: true,
+        functionCall: true,
+        reasoning: false
+      },
+      {
+        id: 'moonshot-v1-32k-vision-preview',
+        name: 'Moonshot V1 32K Vision Preview',
+        temperature: 0.7,
+        maxTokens: 16384,
+        contextLength: 32768,
+        match: ['moonshot-v1-32k-vision-preview'],
+        vision: true,
+        functionCall: true,
+        reasoning: false
+      },
+      {
+        id: 'moonshot-v1-128k-vision-preview',
+        name: 'Moonshot V1 128K Vision Preview',
+        temperature: 0.7,
+        maxTokens: 65536,
+        contextLength: 131072,
+        match: ['moonshot-v1-128k-vision-preview'],
+        vision: true,
+        functionCall: true,
+        reasoning: false
+      },
+      {
+        id: 'kimi-thinking-preview',
+        name: 'Kimi Thinking Preview',
+        temperature: 0.7,
+        maxTokens: 65536,
+        contextLength: 131072,
+        match: ['kimi-thinking-preview'],
+        vision: true,
+        functionCall: false,
+        reasoning: true
+      }
+    ]
   },
 
-  // Ollama提供商特定模型配置
+  // Ollama provider-specific model configurations
   ollama: {
     models: [
-      // OpenAI开源模型
+      // OpenAI open-source models
       {
         id: 'gpt-oss:20b',
         name: 'GPT-OSS 20B',
@@ -409,7 +723,7 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         reasoning: true,
         reasoningEffort: 'medium'
       },
-      // DeepSeek推理模型系列
+      // DeepSeek reasoning model series
       {
         id: 'deepseek-r1:1.5b',
         name: 'DeepSeek R1 1.5B',
@@ -487,7 +801,7 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         functionCall: false,
         reasoning: true
       },
-      // DeepSeek V3/V2.5系列
+      // DeepSeek V3/V2.5 series
       {
         id: 'deepseek-v3:671b',
         name: 'DeepSeek V3 671B',
@@ -510,7 +824,7 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         functionCall: true,
         reasoning: false
       },
-      // Gemma3系列
+      // Gemma3 series
       {
         id: 'gemma3:1b',
         name: 'Gemma3 1B',
@@ -555,7 +869,7 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         functionCall: true,
         reasoning: false
       },
-      // Gemma2系列
+      // Gemma2 series
       {
         id: 'gemma2:2b',
         name: 'Gemma2 2B',
@@ -589,7 +903,7 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         functionCall: true,
         reasoning: false
       },
-      // Gemma系列
+      // Gemma series
       {
         id: 'gemma:2b',
         name: 'Gemma 2B',
@@ -612,7 +926,7 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         functionCall: true,
         reasoning: false
       },
-      // Qwen3系列
+      // Qwen3 series
       {
         id: 'qwen3:0.6b',
         name: 'Qwen3 0.6B',
@@ -701,7 +1015,7 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         functionCall: true,
         reasoning: true
       },
-      // Qwen3编程模型
+      // Qwen3 programming models
       {
         id: 'qwen3-coder:30b',
         name: 'Qwen3 Coder 30B',
@@ -713,7 +1027,7 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         functionCall: true,
         reasoning: true
       },
-      // Qwen2.5系列
+      // Qwen2.5 series
       {
         id: 'qwen2.5:0.5b',
         name: 'Qwen2.5 0.5B',
@@ -791,7 +1105,7 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         functionCall: true,
         reasoning: false
       },
-      // Qwen2.5编程模型系列
+      // Qwen2.5 programming model series
       {
         id: 'qwen2.5-coder:0.5b',
         name: 'Qwen2.5 Coder 0.5B',
@@ -858,7 +1172,7 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         functionCall: true,
         reasoning: false
       },
-      // Qwen2系列
+      // Qwen2 series
       {
         id: 'qwen2:0.5b',
         name: 'Qwen2 0.5B',
@@ -903,7 +1217,7 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         functionCall: true,
         reasoning: false
       },
-      // Qwen第一代系列
+      // Qwen first generation series
       {
         id: 'qwen:0.5b',
         name: 'Qwen 0.5B',
@@ -992,7 +1306,7 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         functionCall: false,
         reasoning: false
       },
-      // QwQ推理模型
+      // QwQ reasoning models
       {
         id: 'qwq:32b',
         name: 'QwQ 32B',
@@ -1004,7 +1318,7 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         functionCall: false,
         reasoning: true
       },
-      // Llama3.3系列
+      // Llama3.3 series
       {
         id: 'llama3.3:70b',
         name: 'Llama 3.3 70B',
@@ -1016,7 +1330,7 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         functionCall: true,
         reasoning: false
       },
-      // Llama3.2系列
+      // Llama3.2 series
       {
         id: 'llama3.2:1b',
         name: 'Llama 3.2 1B',
@@ -1039,7 +1353,7 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         functionCall: true,
         reasoning: false
       },
-      // Llama3.2视觉模型
+      // Llama3.2 vision models
       {
         id: 'llama3.2-vision:11b',
         name: 'Llama 3.2 Vision 11B',
@@ -1062,7 +1376,7 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         functionCall: true,
         reasoning: false
       },
-      // Llama3.1系列
+      // Llama3.1 series
       {
         id: 'llama3.1:8b',
         name: 'Llama 3.1 8B',
@@ -1096,7 +1410,7 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         functionCall: true,
         reasoning: false
       },
-      // Llama3系列
+      // Llama3 series
       {
         id: 'llama3:8b',
         name: 'Llama 3 8B',
@@ -1119,7 +1433,7 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         functionCall: false,
         reasoning: false
       },
-      // Llama2系列
+      // Llama2 series
       {
         id: 'llama2:7b',
         name: 'Llama 2 7B',
@@ -1153,7 +1467,7 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         functionCall: false,
         reasoning: false
       },
-      // LLaVA视觉模型系列
+      // LLaVA vision model series
       {
         id: 'llava:7b',
         name: 'LLaVA 7B',
@@ -1187,7 +1501,7 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         functionCall: false,
         reasoning: false
       },
-      // LLaVA-Llama3模型
+      // LLaVA-Llama3 models
       {
         id: 'llava-llama3:8b',
         name: 'LLaVA Llama3 8B',
@@ -1199,7 +1513,7 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         functionCall: false,
         reasoning: false
       },
-      // Mistral系列
+      // Mistral series
       {
         id: 'mistral:7b',
         name: 'Mistral 7B',
@@ -1244,7 +1558,7 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         functionCall: true,
         reasoning: false
       },
-      // Phi系列
+      // Phi series
       {
         id: 'phi3:3.8b',
         name: 'Phi-3 3.8B',
@@ -1289,7 +1603,7 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         functionCall: false,
         reasoning: true
       },
-      // CodeLlama编程模型系列
+      // CodeLlama programming model series
       {
         id: 'codellama:7b',
         name: 'Code Llama 7B',
@@ -1334,7 +1648,7 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         functionCall: false,
         reasoning: false
       },
-      // MiniCPM视觉模型
+      // MiniCPM vision models
       {
         id: 'minicpm-v:8b',
         name: 'MiniCPM-V 8B',
@@ -1346,7 +1660,7 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         functionCall: false,
         reasoning: false
       },
-      // TinyLlama轻量模型
+      // TinyLlama lightweight models
       {
         id: 'tinyllama:1.1b',
         name: 'TinyLlama 1.1B',
@@ -1358,7 +1672,7 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         functionCall: false,
         reasoning: false
       },
-      // SmolLM2轻量模型系列
+      // SmolLM2 lightweight model series
       {
         id: 'smollm2:135m',
         name: 'SmolLM2 135M',
@@ -1392,7 +1706,7 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         functionCall: true,
         reasoning: false
       },
-      // Tulu3指令模型
+      // Tulu3 instruction models
       {
         id: 'tulu3:8b',
         name: 'Tulu3 8B',
@@ -1415,7 +1729,7 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         functionCall: true,
         reasoning: false
       },
-      // OLMo2开源模型
+      // OLMo2 open-source models
       {
         id: 'olmo2:7b',
         name: 'OLMo2 7B',
@@ -1438,7 +1752,7 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         functionCall: false,
         reasoning: false
       },
-      // Solar Pro模型
+      // Solar Pro models
       {
         id: 'solar-pro:22b',
         name: 'Solar Pro 22B',
@@ -1450,7 +1764,7 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         functionCall: true,
         reasoning: false
       },
-      // Dolphin指令模型
+      // Dolphin instruction models
       {
         id: 'dolphin3:8b',
         name: 'Dolphin3 8B',
@@ -1462,7 +1776,7 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         functionCall: true,
         reasoning: false
       },
-      // Command R模型系列
+      // Command R model series
       {
         id: 'command-r7b:7b',
         name: 'Command R7B 7B',
@@ -1496,7 +1810,7 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         functionCall: true,
         reasoning: false
       },
-      // Magicoder编程模型
+      // Magicoder programming models
       {
         id: 'magicoder:7b',
         name: 'Magicoder 7B',
@@ -1508,7 +1822,7 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         functionCall: false,
         reasoning: false
       },
-      // Mathstral数学模型
+      // Mathstral math models
       {
         id: 'mathstral:7b',
         name: 'Mathstral 7B',
@@ -1520,7 +1834,7 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         functionCall: false,
         reasoning: true
       },
-      // Falcon2模型
+      // Falcon2 models
       {
         id: 'falcon2:11b',
         name: 'Falcon2 11B',
@@ -1532,7 +1846,7 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         functionCall: false,
         reasoning: false
       },
-      // StableLM模型
+      // StableLM models
       {
         id: 'stablelm-zephyr:3b',
         name: 'StableLM Zephyr 3B',
@@ -1544,7 +1858,7 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         functionCall: false,
         reasoning: false
       },
-      // Granite Guardian安全模型
+      // Granite Guardian safety models
       {
         id: 'granite3-guardian:2b',
         name: 'Granite3 Guardian 2B',
@@ -1567,7 +1881,7 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         functionCall: false,
         reasoning: false
       },
-      // ShieldGemma安全模型
+      // ShieldGemma safety models
       {
         id: 'shieldgemma:2b',
         name: 'ShieldGemma 2B',
@@ -1601,7 +1915,7 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         functionCall: false,
         reasoning: false
       },
-      // 嵌入模型
+      // Embedding models
       {
         id: 'nomic-embed-text:335m',
         name: 'Nomic Embed Text 335M',
@@ -1641,12 +1955,12 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
     ]
   },
 
-  // 七牛云提供商特定模型配置
+  // Qiniu Cloud provider-specific model configurations
   qiniu: {
     models: []
   },
 
-  // SiliconFlow提供商特定模型配置
+  // SiliconFlow provider-specific model configurations
   silicon: {
     models: [
       {
@@ -1705,6 +2019,50 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         reasoning: true
       },
       {
+        id: 'tencent/Hunyuan-A13B-Instruct',
+        name: 'tencent/Hunyuan-A13B-Instruct',
+        temperature: 0.6,
+        maxTokens: 8192,
+        contextLength: 100_000,
+        match: ['tencent/hunyuan-a13b-instruct', 'hunyuan-a13b-instruct'],
+        vision: false,
+        functionCall: true,
+        reasoning: true
+      },
+      {
+        id: 'zai-org/GLM-4.5V',
+        name: 'zai-org/GLM-4.5V',
+        temperature: 0.6,
+        maxTokens: 8192,
+        contextLength: 100_000,
+        match: ['zai-org/glm-4.5v', 'glm-4.5v'],
+        vision: true,
+        functionCall: true,
+        reasoning: true
+      },
+      {
+        id: 'deepseek-ai/DeepSeek-V3.1',
+        name: 'deepseek-ai/DeepSeek-V3.1',
+        temperature: 0.6,
+        maxTokens: 7000,
+        contextLength: 62000,
+        match: ['deepseek-ai/deepseek-v3.1', 'deepseek-v3.1'],
+        vision: false,
+        functionCall: true,
+        reasoning: false
+      },
+      {
+        id: 'Pro/deepseek-ai/DeepSeek-V3.1',
+        name: 'DeepSeek V3.1 Pro',
+        temperature: 0.6,
+        maxTokens: 7000,
+        contextLength: 62000,
+        match: ['pro/deepseek-ai/deepseek-v3.1'],
+        vision: false,
+        functionCall: true,
+        reasoning: false
+      },
+      {
         id: 'Pro/deepseek-ai/DeepSeek-V3',
         name: 'DeepSeek V3 Pro',
         temperature: 0.6,
@@ -1751,12 +2109,12 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
     ]
   },
 
-  // Fireworks提供商特定模型配置
+  // Fireworks provider-specific model configurations
   fireworks: {
     models: []
   },
 
-  // PPIO提供商特定模型配置
+  // PPIO provider-specific model configurations
   ppio: {
     models: [
       {
@@ -1949,12 +2307,12 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
     ]
   },
 
-  // GitHub提供商特定模型配置
+  // GitHub provider-specific model configurations
   github: {
     models: []
   },
 
-  // GitHub Copilot提供商特定模型配置
+  // GitHub Copilot provider-specific model configurations
   'github-copilot': {
     models: [
       {
@@ -2015,7 +2373,7 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
     ]
   },
 
-  // 阿里云提供商特定模型配置, 注意匹配排序，only max/plus/turbo
+  // Alibaba Cloud provider-specific model configurations, note matching order: only max/plus/turbo
   dashscope: {
     models: [
       {
@@ -2027,7 +2385,10 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         match: ['qwen-turbo-latest'],
         vision: false,
         functionCall: true,
-        reasoning: false
+        reasoning: false,
+        enableSearch: false,
+        forcedSearch: false,
+        searchStrategy: 'turbo'
       },
       {
         id: 'qwen-turbo-2024-11-01',
@@ -2085,26 +2446,74 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         reasoning: false
       },
       {
+        id: 'qwen-turbo-2025-07-15',
+        name: 'Qwen Turbo 2025 07 15',
+        temperature: 0.7,
+        contextLength: 131072,
+        maxTokens: 16384,
+        match: ['qwen-turbo-2025-07-15'],
+        vision: false,
+        functionCall: true,
+        reasoning: false,
+        enableSearch: false,
+        forcedSearch: false,
+        searchStrategy: 'turbo'
+      },
+      {
         id: 'qwen-turbo',
         name: 'Qwen Turbo',
         temperature: 0.7,
-        contextLength: 1000000,
-        maxTokens: 8192,
+        contextLength: 131072,
+        maxTokens: 16384,
         match: ['qwen-turbo'],
         vision: false,
         functionCall: true,
-        reasoning: false
+        reasoning: false,
+        enableSearch: false,
+        forcedSearch: false,
+        searchStrategy: 'turbo'
+      },
+      {
+        id: 'qwen-flash',
+        name: 'Qwen Flash',
+        temperature: 0.7,
+        contextLength: 1000000,
+        maxTokens: 32768,
+        match: ['qwen-flash'],
+        vision: false,
+        functionCall: true,
+        reasoning: false,
+        enableSearch: false,
+        forcedSearch: false,
+        searchStrategy: 'turbo'
+      },
+      {
+        id: 'qwen-flash-2025-07-28',
+        name: 'Qwen Flash 2025 07 28',
+        temperature: 0.7,
+        contextLength: 1000000,
+        maxTokens: 32768,
+        match: ['qwen-flash-2025-07-28'],
+        vision: false,
+        functionCall: true,
+        reasoning: false,
+        enableSearch: false,
+        forcedSearch: false,
+        searchStrategy: 'turbo'
       },
       {
         id: 'qwen-plus-latest',
         name: 'Qwen Plus Latest',
         temperature: 0.7,
-        contextLength: 131072,
-        maxTokens: 16384,
+        contextLength: 1000000,
+        maxTokens: 32768,
         match: ['qwen-plus-latest'],
         vision: false,
         functionCall: true,
-        reasoning: false
+        reasoning: false,
+        enableSearch: false,
+        forcedSearch: false,
+        searchStrategy: 'turbo'
       },
       {
         id: 'qwen-plus-2024-12-20',
@@ -2206,15 +2615,46 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         reasoning: false
       },
       {
+        id: 'qwen-plus-2025-07-14',
+        name: 'Qwen Plus 2025 07 14',
+        temperature: 0.7,
+        contextLength: 131072,
+        maxTokens: 8192,
+        match: ['qwen-plus-2025-07-14'],
+        vision: false,
+        functionCall: true,
+        reasoning: false,
+        enableSearch: false,
+        forcedSearch: false,
+        searchStrategy: 'turbo'
+      },
+      {
+        id: 'qwen-plus-2025-07-28',
+        name: 'Qwen Plus 2025 07 28',
+        temperature: 0.7,
+        contextLength: 1000000,
+        maxTokens: 32768,
+        match: ['qwen-plus-2025-07-28'],
+        vision: false,
+        functionCall: true,
+        reasoning: false,
+        enableSearch: false,
+        forcedSearch: false,
+        searchStrategy: 'turbo'
+      },
+      {
         id: 'qwen-plus',
         name: 'Qwen Plus',
         temperature: 0.7,
         contextLength: 131072,
-        maxTokens: 8192,
+        maxTokens: 16384,
         match: ['qwen-plus'],
         vision: false,
         functionCall: true,
-        reasoning: false
+        reasoning: false,
+        enableSearch: false,
+        forcedSearch: false,
+        searchStrategy: 'turbo'
       },
       {
         id: 'qwen-max-latest',
@@ -2225,7 +2665,10 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         match: ['qwen-max-latest'],
         vision: false,
         functionCall: true,
-        reasoning: false
+        reasoning: false,
+        enableSearch: false,
+        forcedSearch: false,
+        searchStrategy: 'turbo'
       },
       {
         id: 'qwen-max-2024-09-19',
@@ -2280,6 +2723,221 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         match: ['qwen-max'],
         vision: false,
         functionCall: true,
+        reasoning: false,
+        enableSearch: false,
+        forcedSearch: false,
+        searchStrategy: 'turbo'
+      },
+      // Qwen3 series models
+      {
+        id: 'qwen3-max-2025-09-23',
+        name: 'Qwen3 Max 20250923',
+        temperature: 0.7,
+        maxTokens: 65536,
+        contextLength: 262144,
+        match: ['qwen3-max-2025-09-23'],
+        vision: false,
+        functionCall: true,
+        reasoning: false,
+        enableSearch: true,
+        forcedSearch: false,
+        searchStrategy: 'turbo'
+      },
+      {
+        id: 'qwen3-max-preview',
+        name: 'Qwen3 Max Preview',
+        temperature: 0.7,
+        maxTokens: 65536,
+        contextLength: 262144,
+        match: ['qwen3-max-preview'],
+        vision: false,
+        functionCall: true,
+        reasoning: false,
+        enableSearch: true,
+        forcedSearch: false,
+        searchStrategy: 'turbo'
+      },
+      {
+        id: 'qwen3-235b-a22b-thinking-2507',
+        name: 'Qwen3 235B A22B Thinking 2507',
+        temperature: 0.6,
+        maxTokens: 8192,
+        contextLength: 40960,
+        match: ['qwen3-235b-a22b-thinking-2507'],
+        vision: false,
+        functionCall: true,
+        reasoning: true,
+        thinkingBudget: 81920
+      },
+      {
+        id: 'qwen3-235b-a22b',
+        name: 'Qwen3 235B A22B',
+        temperature: 0.6,
+        maxTokens: 8192,
+        contextLength: 40960,
+        match: ['qwen3-235b-a22b'],
+        vision: false,
+        functionCall: true,
+        reasoning: true,
+        thinkingBudget: 81920
+      },
+      {
+        id: 'qwen3-30b-a3b-thinking-2507',
+        name: 'Qwen3 30B A3B Thinking 2507',
+        temperature: 0.6,
+        maxTokens: 8192,
+        contextLength: 40960,
+        match: ['qwen3-30b-a3b-thinking-2507'],
+        vision: false,
+        functionCall: true,
+        reasoning: true,
+        thinkingBudget: 81920
+      },
+      {
+        id: 'qwen3-32b',
+        name: 'Qwen3 32B',
+        temperature: 0.6,
+        maxTokens: 8192,
+        contextLength: 40960,
+        match: ['qwen3-32b'],
+        vision: false,
+        functionCall: true,
+        reasoning: true,
+        thinkingBudget: 38912
+      },
+      {
+        id: 'qwen3-30b-a3b',
+        name: 'Qwen3 30B A3B',
+        temperature: 0.6,
+        maxTokens: 8192,
+        contextLength: 40960,
+        match: ['qwen3-30b-a3b'],
+        vision: false,
+        functionCall: true,
+        reasoning: true,
+        thinkingBudget: 38912
+      },
+      {
+        id: 'qwen3-14b',
+        name: 'Qwen3 14B',
+        temperature: 0.6,
+        maxTokens: 8192,
+        contextLength: 40960,
+        match: ['qwen3-14b'],
+        vision: false,
+        functionCall: true,
+        reasoning: true,
+        thinkingBudget: 38912
+      },
+      {
+        id: 'qwen3-8b',
+        name: 'Qwen3 8B',
+        temperature: 0.6,
+        maxTokens: 8192,
+        contextLength: 40960,
+        match: ['qwen3-8b'],
+        vision: false,
+        functionCall: true,
+        reasoning: true,
+        thinkingBudget: 38912
+      },
+      {
+        id: 'qwen3-4b',
+        name: 'Qwen3 4B',
+        temperature: 0.6,
+        maxTokens: 8192,
+        contextLength: 40960,
+        match: ['qwen3-4b'],
+        vision: false,
+        functionCall: true,
+        reasoning: true,
+        thinkingBudget: 38912
+      },
+      {
+        id: 'qwen3-1.7b',
+        name: 'Qwen3 1.7B',
+        temperature: 0.6,
+        maxTokens: 8192,
+        contextLength: 40960,
+        match: ['qwen3-1.7b'],
+        vision: false,
+        functionCall: true,
+        reasoning: true,
+        thinkingBudget: 20000
+      },
+      {
+        id: 'qwen3-0.6b',
+        name: 'Qwen3 0.6B',
+        temperature: 0.6,
+        maxTokens: 8192,
+        contextLength: 40960,
+        match: ['qwen3-0.6b'],
+        vision: false,
+        functionCall: true,
+        reasoning: true,
+        thinkingBudget: 20000
+      },
+      {
+        id: 'qwen3-vl-plus',
+        name: 'Qwen3 VL Plus',
+        temperature: 0.6,
+        maxTokens: 32768,
+        contextLength: 262144,
+        match: ['qwen3-vl-plus', 'qwen3-vl-plus-2025-09-23'],
+        vision: true,
+        functionCall: false,
+        reasoning: true,
+        thinkingBudget: 81920
+      },
+      // QwQ series models
+      {
+        id: 'qwq-plus',
+        name: 'QwQ Plus',
+        temperature: 0.7,
+        maxTokens: 8192,
+        contextLength: 131072,
+        match: ['qwq-plus'],
+        vision: false,
+        functionCall: false,
+        reasoning: true,
+        enableSearch: false,
+        forcedSearch: false,
+        searchStrategy: 'turbo'
+      },
+      {
+        id: 'qwq-plus-latest',
+        name: 'QwQ Plus Latest',
+        temperature: 0.7,
+        maxTokens: 8192,
+        contextLength: 131072,
+        match: ['qwq-plus-latest'],
+        vision: false,
+        functionCall: false,
+        reasoning: true,
+        enableSearch: false
+      },
+      // Qwen3 Next 80B series models
+      {
+        id: 'qwen3-next-80b-a3b-thinking',
+        name: 'Qwen3 Next 80B A3B Thinking',
+        temperature: 0.7,
+        maxTokens: 32768,
+        contextLength: 131072,
+        match: ['qwen3-next-80b-a3b-thinking'],
+        vision: false,
+        functionCall: false,
+        reasoning: true,
+        thinkingBudget: 81920
+      },
+      {
+        id: 'qwen3-next-80b-a3b-instruct',
+        name: 'Qwen3 Next 80B A3B Instruct',
+        temperature: 0.7,
+        maxTokens: 32768,
+        contextLength: 131072,
+        match: ['qwen3-next-80b-a3b-instruct'],
+        vision: false,
+        functionCall: true,
         reasoning: false
       }
     ]
@@ -2311,9 +2969,21 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
       }
     ]
   },
-  // OpenRouter提供商特定模型配置
+  // OpenRouter provider-specific model configurations
   openrouter: {
     models: [
+      {
+        id: 'google/gemini-2.5-flash-image-preview',
+        name: 'Gemini 2.5 Flash Image Preview',
+        temperature: 0.7,
+        maxTokens: 32768,
+        contextLength: 32768,
+        match: ['google/gemini-2.5-flash-image-preview', 'gemini-2.5-flash-image-preview'],
+        vision: true,
+        functionCall: false,
+        reasoning: false,
+        type: ModelType.ImageGeneration
+      },
       {
         id: 'deepseek-r1-0528:free',
         name: 'DeepSeek R1-0528:free',
@@ -2326,7 +2996,7 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         reasoning: true
       },
       {
-        //对fc支持有问题，避免使用
+        // Has issues with fc support, avoid using
         id: 'deepseek-chat-v3-0324:free',
         name: 'DeepSeek v3-0324:free',
         temperature: 0.6,
@@ -2337,7 +3007,7 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         functionCall: false,
         reasoning: false
       },
-      // GPT-5 系列模型配置
+      // GPT-5 series model configurations
       {
         id: 'gpt-5-chat',
         name: 'OpenAI: GPT-5 Chat',
@@ -2398,7 +3068,7 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         maxCompletionTokens: 128000,
         type: ModelType.Chat
       },
-      // O1 系列模型配置
+      // O1 series model configurations
       {
         id: 'o1-mini',
         name: 'OpenAI: o1-mini',
@@ -2455,7 +3125,7 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         maxCompletionTokens: 32768,
         type: ModelType.Chat
       },
-      // O3 系列模型配置
+      // O3 series model configurations
       {
         id: 'o3',
         name: 'OpenAI: o3',
@@ -2515,7 +3185,7 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
     ]
   },
 
-  // Grok提供商特定模型配置
+  // Grok provider-specific model configurations
   grok: {
     models: [
       {
@@ -2527,7 +3197,9 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         match: ['grok-3-mini-fast', 'grok-3-mini-fast-latest', 'grok-3-mini-fast-beta'],
         vision: false,
         functionCall: true,
-        reasoning: true
+        reasoning: true,
+        reasoningEffort: 'low',
+        enableSearch: false
       },
       {
         id: 'grok-3-mini-beta',
@@ -2538,7 +3210,9 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         match: ['grok-3-mini', 'grok-3-mini-latest', 'grok-3-mini-beta'],
         vision: false,
         functionCall: true,
-        reasoning: true
+        reasoning: true,
+        reasoningEffort: 'low',
+        enableSearch: false
       },
       {
         id: 'grok-3-fast-beta',
@@ -2549,7 +3223,8 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         match: ['grok-3-fast', 'grok-3-fast-latest', 'grok-3-fast-beta'],
         vision: false,
         functionCall: true,
-        reasoning: false
+        reasoning: false,
+        enableSearch: false
       },
       {
         id: 'grok-2-vision-1212',
@@ -2560,7 +3235,8 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         match: ['grok-2-vision', 'grok-2-vision-latest', 'grok-2-vision-1212'],
         vision: true,
         functionCall: false,
-        reasoning: false
+        reasoning: false,
+        enableSearch: false
       },
       {
         id: 'grok-2-image-1212',
@@ -2571,7 +3247,8 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         match: ['grok-2-image', 'grok-2-image-latest', 'grok-2-image-1212'],
         vision: true,
         functionCall: false,
-        reasoning: false
+        reasoning: false,
+        enableSearch: false
       },
       {
         id: 'grok-3-beta',
@@ -2582,7 +3259,8 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         match: ['grok-3', 'grok-3-latest', 'grok-3-beta'],
         vision: false,
         functionCall: true,
-        reasoning: false
+        reasoning: false,
+        enableSearch: false
       },
       {
         id: 'grok-2-1212',
@@ -2593,17 +3271,18 @@ export const providerModelSettings: Record<string, { models: ProviderModelSettin
         match: ['grok-2', 'grok-2-latest', 'grok-2-1212'],
         vision: false,
         functionCall: true,
-        reasoning: false
+        reasoning: false,
+        enableSearch: false
       }
     ]
   },
 
-  // Azure OpenAI提供商特定模型配置
+  // Azure OpenAI provider-specific model configurations
   'azure-openai': {
     models: []
   },
 
-  // LM Studio提供商特定模型配置
+  // LM Studio provider-specific model configurations
   lmstudio: {
     models: []
   }
@@ -2619,34 +3298,37 @@ export function getProviderSpecificModelConfig(
   providerId: string,
   modelId: string
 ): ModelConfig | undefined {
-  // 将modelId转为小写以进行不区分大小写的匹配
+  // Convert modelId to lowercase for case-insensitive matching
   const lowerModelId = modelId.toLowerCase()
 
-  // 检查该提供商是否存在特定配置
+  // Check if the provider has specific configurations
   const providerSetting = providerModelSettings[providerId]
   if (!providerSetting || !providerSetting.models) {
     return undefined
   }
 
-  // 遍历该提供商的模型数组，查找匹配的模型配置
+  // Iterate through the provider's model array to find matching model configurations
   for (const config of providerSetting.models) {
-    // 检查是否有任何匹配条件符合
+    // Check if any matching conditions are met
     if (config.match.some((matchStr) => lowerModelId.includes(matchStr.toLowerCase()))) {
       return {
         maxTokens: config.maxTokens,
         contextLength: config.contextLength,
-        temperature: config.temperature, // 保持可选，某些模型不支持
+        temperature: config.temperature, // Keep optional, some models don't support it
         vision: config.vision || false,
         functionCall: config.functionCall || false,
         reasoning: config.reasoning || false,
         type: config.type || ModelType.Chat,
         reasoningEffort: config.reasoningEffort,
         verbosity: config.verbosity,
-        maxCompletionTokens: config.maxCompletionTokens
+        maxCompletionTokens: config.maxCompletionTokens,
+        thinkingBudget: config.thinkingBudget,
+        enableSearch: config.enableSearch ?? false,
+        forcedSearch: config.forcedSearch ?? false,
+        searchStrategy: config.searchStrategy || 'turbo'
       }
     }
   }
 
-  // 如果没有找到匹配的配置，返回undefined
   return undefined
 }

@@ -48,6 +48,9 @@
     "loggingDialogTitle": "确认日志设置更改",
     "loggingEnableDesc": "启用日志将帮助我们诊断问题并改进应用程序。日志文件可能包含敏感信息。",
     "loggingDisableDesc": "禁用日志将停止收集应用程序日志。",
+    "webContentLengthLimit": "网页内容长度限制",
+    "webContentLengthLimitHint": "（设置为0表示不限制）",
+    "webContentLengthLimitTooltip": "设置从网页提取的文本内容长度上限（字符数），范围：0-50000。设置为0表示不限制长度，获取完整网页内容；较大的值可以获取更完整的网页内容，但可能增加处理时间和token消耗。",
     "loggingRestartNotice": "切换此设置将导致程序重启，请确认是否继续？",
     "openLogFolder": "打开日志文件夹",
     "notifications": "系统通知",
@@ -143,31 +146,64 @@
         "label": "推理能力",
         "description": "模型是否支持推理能力"
       },
+      "enableSearch": {
+        "label": "联网搜索",
+        "description": "开启后模型可以联网搜索获取最新信息"
+      },
+      "forcedSearch": {
+        "label": "强制搜索",
+        "description": "开启后强制模型进行联网搜索，关闭时由模型自行决定"
+      },
+      "searchStrategy": {
+        "label": "搜索策略",
+        "description": "选择搜索性能模式：turbo 兼顾速度与效果，max 提供最优搜索效果",
+        "placeholder": "选择搜索策略",
+        "options": {
+          "turbo": "Turbo - 兼顾响应速度与搜索效果（推荐）",
+          "max": "Max - 高性能模式，提供最优搜索效果"
+        }
+      },
+      "searchLimit": {
+        "label": "搜索限制",
+        "description": "模型限制: 启用联网搜索将使工具函数调用失效"
+      },
       "thinkingBudget": {
         "label": "思考预算",
-        "description": "限制模型思考长度",
-        "dynamic": "动态思维",
         "range": "范围: {min} - {max}",
-        "onlySupported": "仅在 Gemini 2.5 Flash、2.5 Pro 和 2.5 Flash-Lite 中受支持",
-        "valueLabel": "思考预算值",
-        "placeholder": "输入思考预算值",
-        "forceEnabled": "Gemini 2.5 系列模型强制开启思考预算",
-        "dynamicPrefix": "-1 = 动态思维",
-        "notice": "注意：",
-        "warnings": {
-          "proNoDisable": "此模型不支持停用思考，最小值 128",
-          "proCannotDisable": "Gemini 2.5 Pro 无法停用思考功能",
-          "flashLiteCannotSetZero": "Gemini 2.5 Flash-Lite 不能设置为 0，最小值为 512",
-          "modelCannotDisable": "此模型无法停用思考功能",
-          "flashLiteMinValue": "思考预算设置为具体数值时不能小于 512（或使用 0 停用思考，-1 启用动态思维）",
-          "belowMin": "思考预算不能小于 {min}{hint}",
-          "aboveMax": "思考预算不能大于 {max}"
+        "gemini": {
+          "description": "限制模型思考长度",
+          "dynamic": "动态思维",
+          "onlySupported": "仅在 Gemini 2.5 Flash、2.5 Pro 和 2.5 Flash-Lite 中支持",
+          "valueLabel": "思考预算值",
+          "placeholder": "输入思考预算值",
+          "forceEnabled": "Gemini 2.5 系列模型强制开启思考预算",
+          "dynamicPrefix": "-1 = 动态思维",
+          "notice": "注意：",
+          "warnings": {
+            "proNoDisable": "此模型不支持停用思考，最小值 128",
+            "proCannotDisable": "Gemini 2.5 Pro 无法停用思考功能",
+            "flashLiteCannotSetZero": "Gemini 2.5 Flash-Lite 不能设置为 0，最小值为 512",
+            "modelCannotDisable": "此模型无法停用思考功能",
+            "flashLiteMinValue": "思考预算设置为具体数值时不能小于 512（或使用 0 停用思考，-1 启用动态思维）",
+            "belowMin": "思考预算不能小于 {min}{hint}",
+            "aboveMax": "思考预算不能大于 {max}"
+          },
+          "hints": {
+            "flashLiteDisable": "，0 = 停用思考，具体数值最小 512",
+            "normalDisable": "，0 = 停用思考",
+            "withZeroAndDynamic": "（或使用 0 停用思考，-1 启用动态思维）",
+            "withDynamic": "（或使用 -1 启用动态思维）"
+          }
         },
-        "hints": {
-          "flashLiteDisable": "，0 = 停用思考，具体数值最小 512",
-          "normalDisable": "，0 = 停用思考",
-          "withZeroAndDynamic": "（或使用 0 停用思考，-1 启用动态思维）",
-          "withDynamic": "（或使用 -1 启用动态思维）"
+        "qwen3": {
+          "description": "设置思考过程的最大token长度，用于控制模型推理时的思考深度",
+          "valueLabel": "思考预算值",
+          "placeholder": "输入思考预算值",
+          "validation": {
+            "required": "请输入思考预算值",
+            "minValue": "思考预算值必须大于等于1",
+            "maxValue": "思考预算值不能超过 {max}"
+          }
         }
       },
       "type": {
@@ -738,7 +774,7 @@
   "display": {
     "fontSize": "文字大小",
     "text-sm": "小",
-    "text-base": "默认",
+    "text-base": "标准",
     "text-lg": "大",
     "text-xl": "特大",
     "text-2xl": "超大",
@@ -790,5 +826,13 @@
     "confirmDisable": "关闭限制",
     "disabled": "速率限制已关闭",
     "disabledDescription": "速率限制功能已关闭"
+  },
+  "promptSetting": {
+    "clear": "清空提示词",
+    "resetToDefault": "重置为默认提示词",
+    "resetToDefaultSuccess": "已重置为默认系统提示词",
+    "resetToDefaultFailed": "重置失败，请重试",
+    "clearSuccess": "已清空系统提示词",
+    "clearFailed": "清空失败，请重试"
   }
 }

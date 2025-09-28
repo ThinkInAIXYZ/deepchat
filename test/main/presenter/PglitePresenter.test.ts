@@ -41,7 +41,7 @@ describe('PglitePresenter', () => {
   })
 
   describe('Interface Compatibility', () => {
-    it('should implement ISQLitePresenter interface', () => {
+    it('should implement IDatabasePresenter interface', () => {
       // Check that all required methods exist
       expect(typeof presenter.close).toBe('function')
       expect(typeof presenter.createConversation).toBe('function')

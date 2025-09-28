@@ -67,16 +67,63 @@ export class DataImporter {
    * @returns 导入的会话数量
    */
   public async importData(): Promise<number> {
-    // 获取所有会话
-    const conversations = this.sourceDb
-      .prepare(
-        `SELECT
-          conv_id, title, created_at, updated_at, system_prompt,
-          temperature, context_length, max_tokens, provider_id,
-          model_id, is_pinned, is_new, artifacts
-        FROM conversations`
-      )
-      .all() as any[]
+    // 获取所有会话 - 兼容不同版本的数据库schema
+    let conversations: any[]
+
+    try {
+      // 尝试使用包含所有新字段的查询
+      conversations = this.sourceDb
+        .prepare(
+          `SELECT
+            conv_id, title, created_at, updated_at, system_prompt,
+            temperature, context_length, max_tokens, provider_id,
+            model_id,
+            COALESCE(is_pinned, 0) as is_pinned,
+            COALESCE(is_new, 0) as is_new,
+            COALESCE(artifacts, 0) as artifacts,
+            enabled_mcp_tools,
+            thinking_budget,
+            reasoning_effort,
+            verbosity,
+            enable_search,
+            forced_search,
+            search_strategy
+          FROM conversations`
+        )
+        .all() as any[]
+    } catch {
+      // 如果失败，使用基础字段查询（兼容旧版本数据库）
+      try {
+        conversations = this.sourceDb
+          .prepare(
+            `SELECT
+              conv_id, title, created_at, updated_at, system_prompt,
+              temperature, context_length, max_tokens, provider_id,
+              model_id,
+              COALESCE(is_pinned, 0) as is_pinned,
+              COALESCE(is_new, 0) as is_new,
+              COALESCE(artifacts, 0) as artifacts
+            FROM conversations`
+          )
+          .all() as any[]
+
+        // 为缺失的字段设置默认值
+        conversations = conversations.map((conv) => ({
+          ...conv,
+          enabled_mcp_tools: null,
+          thinking_budget: null,
+          reasoning_effort: null,
+          verbosity: null,
+          enable_search: null,
+          forced_search: null,
+          search_strategy: null
+        }))
+      } catch (fallbackError) {
+        throw new Error(
+          `Failed to query conversations: ${fallbackError instanceof Error ? fallbackError.message : String(fallbackError)}`
+        )
+      }
+    }
 
     // 使用better-sqlite3的transaction API来处理事务
     const importTransaction = this.targetDb.transaction(() => {
@@ -99,9 +146,11 @@ export class DataImporter {
     try {
       // 执行事务并返回导入的会话数量
       return importTransaction()
-    } catch {
-      // 事务会自动回滚，直接抛出错误
-      throw new Error('Failed to import data')
+    } catch (transactionError) {
+      // 事务会自动回滚，抛出详细错误
+      throw new Error(
+        `Failed to import data: ${transactionError instanceof Error ? transactionError.message : String(transactionError)}`
+      )
     }
   }
 
@@ -114,34 +163,81 @@ export class DataImporter {
     // const newConvId = nanoid()
     // this.idMappings.conversations.set(conv.conv_id, newConvId)
 
-    // 插入会话
-    this.targetDb
-      .prepare(
-        `INSERT INTO conversations (
-          conv_id, title, created_at, updated_at, system_prompt,
-          temperature, context_length, max_tokens, provider_id,
-          model_id, is_pinned, is_new, artifacts, thinking_budget
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-      )
-      .run(
-        conv.conv_id,
-        conv.title,
-        conv.created_at,
-        conv.updated_at,
-        conv.system_prompt,
-        conv.temperature,
-        conv.context_length,
-        conv.max_tokens,
-        conv.provider_id,
-        conv.model_id,
-        conv.is_pinned || 0,
-        conv.is_new || 0,
-        conv.artifacts || 0,
-        conv.thinking_budget !== undefined ? conv.thinking_budget : null
-      )
+    try {
+      // 首先尝试使用包含所有新字段的INSERT语句
+      this.targetDb
+        .prepare(
+          `INSERT INTO conversations (
+            conv_id, title, created_at, updated_at, system_prompt,
+            temperature, context_length, max_tokens, provider_id,
+            model_id, is_pinned, is_new, artifacts, enabled_mcp_tools,
+            thinking_budget, reasoning_effort, verbosity,
+            enable_search, forced_search, search_strategy
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        )
+        .run(
+          conv.conv_id,
+          conv.title,
+          conv.created_at,
+          conv.updated_at,
+          conv.system_prompt,
+          conv.temperature,
+          conv.context_length,
+          conv.max_tokens,
+          conv.provider_id,
+          conv.model_id,
+          conv.is_pinned || 0,
+          conv.is_new || 0,
+          conv.artifacts || 0,
+          conv.enabled_mcp_tools || null,
+          conv.thinking_budget || null,
+          conv.reasoning_effort || null,
+          conv.verbosity || null,
+          conv.enable_search ?? null,
+          conv.forced_search ?? null,
+          conv.search_strategy ?? null
+        )
+    } catch {
+      // 如果失败，使用基础字段的INSERT语句（兼容旧版本目标数据库）
+      try {
+        this.targetDb
+          .prepare(
+            `INSERT INTO conversations (
+              conv_id, title, created_at, updated_at, system_prompt,
+              temperature, context_length, max_tokens, provider_id,
+              model_id, is_pinned, is_new, artifacts
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+          )
+          .run(
+            conv.conv_id,
+            conv.title,
+            conv.created_at,
+            conv.updated_at,
+            conv.system_prompt,
+            conv.temperature,
+            conv.context_length,
+            conv.max_tokens,
+            conv.provider_id,
+            conv.model_id,
+            conv.is_pinned || 0,
+            conv.is_new || 0,
+            conv.artifacts || 0
+          )
+      } catch (fallbackError) {
+        throw new Error(
+          `Failed to insert conversation ${conv.conv_id}: ${fallbackError instanceof Error ? fallbackError.message : String(fallbackError)}`
+        )
+      }
+    }
 
     // 导入该会话的所有消息
-    this.importMessages(conv.conv_id)
+    try {
+      this.importMessages(conv.conv_id)
+    } catch (messageError) {
+      throw new Error(
+        `Failed to import messages for conversation ${conv.conv_id}: ${messageError instanceof Error ? messageError.message : String(messageError)}`
+      )
+    }
   }
 
   /**
@@ -173,33 +269,39 @@ export class DataImporter {
         newParentId = this.idMappings.messages.get(msg.parent_id) || ''
       }
 
-      // 插入消息
-      this.targetDb
-        .prepare(
-          `INSERT INTO messages (
-            msg_id, conversation_id, parent_id, role, content,
-            created_at, order_seq, token_count, status, metadata,
-            is_context_edge, is_variant
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-        )
-        .run(
-          newMsgId,
-          oldConvId,
-          newParentId,
-          msg.role,
-          msg.content,
-          msg.created_at,
-          msg.order_seq,
-          msg.token_count || 0,
-          msg.status || 'sent',
-          msg.metadata || null,
-          msg.is_context_edge || 0,
-          msg.is_variant || 0
-        )
+      try {
+        // 插入消息
+        this.targetDb
+          .prepare(
+            `INSERT INTO messages (
+              msg_id, conversation_id, parent_id, role, content,
+              created_at, order_seq, token_count, status, metadata,
+              is_context_edge, is_variant
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+          )
+          .run(
+            newMsgId,
+            oldConvId,
+            newParentId,
+            msg.role,
+            msg.content,
+            msg.created_at,
+            msg.order_seq,
+            msg.token_count || 0,
+            msg.status || 'sent',
+            msg.metadata || null,
+            msg.is_context_edge || 0,
+            msg.is_variant || 0
+          )
 
-      // 导入消息的附件
-      this.importAttachments(msg.msg_id, newMsgId)
-      this.importMessageAttachments(msg.msg_id, newMsgId)
+        // 导入消息的附件
+        this.importAttachments(msg.msg_id, newMsgId)
+        this.importMessageAttachments(msg.msg_id, newMsgId)
+      } catch (msgError) {
+        throw new Error(
+          `Failed to insert message ${msg.msg_id}: ${msgError instanceof Error ? msgError.message : String(msgError)}`
+        )
+      }
     }
   }
 
@@ -266,35 +368,73 @@ export class DataImporter {
    * @param newMsgId 新消息ID
    */
   private importMessageAttachments(oldMsgId: string, newMsgId: string): void {
-    // 获取消息的所有message_attachments
-    const messageAttachments = this.sourceDb
-      .prepare(
-        `SELECT
-          attachment_id, type, content, created_at, metadata
-        FROM message_attachments
-        WHERE message_id = ?`
-      )
-      .all(oldMsgId) as any[]
+    // 获取消息的所有message_attachments - 兼容不同的schema版本
+    let messageAttachments: any[]
+
+    try {
+      // 首先尝试包含metadata字段的查询
+      messageAttachments = this.sourceDb
+        .prepare(
+          `SELECT
+            attachment_id, type, content, created_at, metadata
+          FROM message_attachments
+          WHERE message_id = ?`
+        )
+        .all(oldMsgId) as any[]
+    } catch {
+      // 如果失败，使用不包含metadata的查询（兼容新版本schema）
+      messageAttachments = this.sourceDb
+        .prepare(
+          `SELECT
+            attachment_id, type, content, created_at
+          FROM message_attachments
+          WHERE message_id = ?`
+        )
+        .all(oldMsgId) as any[]
+
+      // 为缺失的字段设置默认值
+      messageAttachments = messageAttachments.map((attachment) => ({
+        ...attachment,
+        metadata: null
+      }))
+    }
 
     // 逐个导入message_attachments
     for (const attachment of messageAttachments) {
       const newAttachmentId = nanoid()
 
-      // 插入message_attachment
-      this.targetDb
-        .prepare(
-          `INSERT INTO message_attachments (
-            attachment_id, message_id, type, content, created_at, metadata
-          ) VALUES (?, ?, ?, ?, ?, ?)`
-        )
-        .run(
-          newAttachmentId,
-          newMsgId,
-          attachment.type,
-          attachment.content,
-          attachment.created_at,
-          attachment.metadata
-        )
+      try {
+        // 首先尝试包含metadata字段的INSERT
+        this.targetDb
+          .prepare(
+            `INSERT INTO message_attachments (
+              attachment_id, message_id, type, content, created_at, metadata
+            ) VALUES (?, ?, ?, ?, ?, ?)`
+          )
+          .run(
+            newAttachmentId,
+            newMsgId,
+            attachment.type,
+            attachment.content,
+            attachment.created_at,
+            attachment.metadata
+          )
+      } catch {
+        // 如果失败，使用不包含metadata的INSERT（兼容新版本schema）
+        this.targetDb
+          .prepare(
+            `INSERT INTO message_attachments (
+              attachment_id, message_id, type, content, created_at
+            ) VALUES (?, ?, ?, ?, ?)`
+          )
+          .run(
+            newAttachmentId,
+            newMsgId,
+            attachment.type,
+            attachment.content,
+            attachment.created_at
+          )
+      }
     }
   }
 

@@ -54,12 +54,7 @@ export class TrayPresenter {
       {
         label: labels.quit || '退出',
         click: async () => {
-          // knowledgePresenter task manager must be destroyed before app quit
-          // ask user to confirm if there are still tasks running
-          const confirmed = await presenter.knowledgePresenter.beforeDestroy()
-          if (confirmed) {
-            app.quit()
-          }
+          app.quit() // Exit trigger: tray menu
         }
       }
     ])

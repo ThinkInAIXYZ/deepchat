@@ -8,8 +8,7 @@
     >
       <ModelIcon
         :model-id="currentMessage.model_provider"
-        custom-class=" block"
-        class="w-3 h-3"
+        custom-class="w-3 h-3"
         :is-dark="themeStore.isDark"
         :alt="currentMessage.role"
       />
@@ -49,17 +48,17 @@
             :message-id="currentMessage.id"
             :thread-id="currentThreadId"
           />
+          <MessageBlockPermissionRequest
+            v-else-if="block.type === 'action' && block.action_type === 'tool_call_permission'"
+            :block="block"
+            :message-id="currentMessage.id"
+            :conversation-id="currentThreadId"
+          />
           <MessageBlockAction
             v-else-if="block.type === 'action'"
             :message-id="currentMessage.id"
             :conversation-id="currentThreadId"
             :block="block"
-          />
-          <MessageBlockPermissionRequest
-            v-else-if="block.type === 'tool_call_permission'"
-            :block="block"
-            :message-id="currentMessage.id"
-            :conversation-id="currentThreadId"
           />
           <MessageBlockImage
             v-else-if="block.type === 'image'"
@@ -305,12 +304,14 @@ const handleAction = (action: HandleActionType) => {
 
     emit('scrollToBottom')
   } else if (action === 'copyImage') {
-    emit('copyImage', currentMessage.value.id, currentMessage.value.parentId, false, {
+    // 使用原始消息的ID，因为DOM中的data-message-id使用的是message.id
+    emit('copyImage', props.message.id, currentMessage.value.parentId, false, {
       model_name: currentMessage.value.model_name,
       model_provider: currentMessage.value.model_provider
     })
   } else if (action === 'copyImageFromTop') {
-    emit('copyImage', currentMessage.value.id, currentMessage.value.parentId, true, {
+    // 使用原始消息的ID，因为DOM中的data-message-id使用的是message.id
+    emit('copyImage', props.message.id, currentMessage.value.parentId, true, {
       model_name: currentMessage.value.model_name,
       model_provider: currentMessage.value.model_provider
     })

@@ -45,6 +45,7 @@
         :vision="model.vision ?? false"
         :function-call="model.functionCall ?? false"
         :reasoning="model.reasoning ?? false"
+        :enable-search="model.enableSearch ?? false"
         :type="model.type ?? ModelType.Chat"
         @enabled-change="$emit('model-enabled-change', model, $event)"
         @config-changed="$emit('config-changed')"

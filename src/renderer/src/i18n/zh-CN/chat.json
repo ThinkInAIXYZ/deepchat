@@ -54,5 +54,16 @@
   "notify": {
     "generationComplete": "生成完毕",
     "generationError": "生成失败"
+  },
+  "navigation": {
+    "title": "消息导航",
+    "searchPlaceholder": "搜索消息...",
+    "noResults": "没有找到匹配的消息",
+    "noMessages": "暂无消息",
+    "totalMessages": "共 {count} 条消息",
+    "searchResults": "找到 {count} 条结果，共 {total} 条消息",
+    "userMessage": "用户消息",
+    "assistantMessage": "助手回复",
+    "unknownMessage": "未知消息"
   }
 }

@@ -124,7 +124,7 @@ export class ImageServer {
         this.provider,
         messages,
         this.model,
-        modelConfig?.temperature || 0.6,
+        modelConfig?.temperature ?? 0.6,
         modelConfig?.maxTokens || 1000
       )
       console.log(`Model response received: ${response}`)
@@ -171,7 +171,7 @@ export class ImageServer {
         this.provider,
         messages,
         this.model,
-        modelConfig?.temperature || 0.6,
+        modelConfig?.temperature ?? 0.6,
         modelConfig?.maxTokens || 1000
       )
       console.log(`OCR text received: ${ocrText}`)

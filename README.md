@@ -209,7 +209,10 @@ For more details on how to use these features, see the [User Guide](./docs/user-
       <img src="./src/renderer/src/assets/llm-icons/lmstudio.svg" width="50" height="50" alt="LM Studio Icon"><br/>
       <a href="https://lmstudio.ai/">LM Studio</a>
     </td>
-    <td></td>
+    <td>
+      <img src="./src/renderer/src/assets/llm-icons/groq.svg" width="50" height="50" alt="Groq Icon"><br/>
+      <a href="https://groq.com/">Groq</a>
+    </td>
     <td></td>
     <td></td>
   </tr>
@@ -320,8 +323,8 @@ Check the [Contribution Guidelines](./CONTRIBUTING.md) to learn more about ways 
 
 Thank you for considering contributing to deepchat! The contribution guide can be found in the [Contribution Guidelines](./CONTRIBUTING.md).
 
-<a href="https://github.com/ThinkInAIXYZ/deepchat/graphs/contributors">
-  <img src="https://contrib.rocks/image?repo=ThinkInAIXYZ/deepchat" alt="DeepChat project contributors" />
+<a href="https://openomy.com/thinkinaixyz/deepchat" target="_blank" style="display: block; width: 100%;" align="center">
+  <img src="https://openomy.com/svg?repo=thinkinaixyz/deepchat&chart=bubble&latestMonth=3" target="_blank" alt="Contribution Leaderboard" style="display: block; width: 100%;" />
 </a>
 
 ## 🙏🏻 Thanks

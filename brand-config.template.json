@@ -1,0 +1,80 @@
+{
+  "_comment": "请修改以下配置为您的品牌信息",
+  "app": {
+    "name": "DeepChat",
+    "productName": "DeepChat",
+    "appId": "com.wefonk.deepchat",
+    "description": "DeepChat，一个简单易用的AI客户端",
+    "author": "ThinkInAIXYZ",
+    "website": "https://deepchatai.cn",
+    "copyright": "© 2025 ThinkInAIXYZ",
+    "executableName": "DeepChat"
+  },
+  "update": {
+    "baseUrl": "https://cdn.deepchatai.cn/upgrade/"
+  },
+  "i18n": {
+    "appTitle": {
+      "en-US": "DeepChat",
+      "zh-CN": "DeepChat",
+      "zh-TW": "DeepChat",
+      "zh-HK": "DeepChat",
+      "ja-JP": "DeepChat",
+      "ko-KR": "DeepChat",
+      "ru-RU": "DeepChat",
+      "fr-FR": "DeepChat",
+      "fa-IR": "DeepChat"
+    },
+    "appDescription": {
+      "en-US": "DeepChat is a cross-platform AI client, dedicated to making AI accessible to more people.",
+      "zh-CN": "DeepChat是一个跨平台AI客户端，致力于让更多人便捷地使用AI。",
+      "zh-TW": "DeepChat 是一款跨平台 AI 應用程式，致力於讓更多人輕鬆使用 AI。",
+      "zh-HK": "DeepChat是一個跨平台AI客戶端，致力於讓更多人便捷地使用AI。",
+      "ja-JP": "DeepChatは、より多くの人々にAIへのアクセスを提供することを目的としたクロスプラットフォームAIクライアントです。",
+      "ko-KR": "DeepChat은 더 많은 사람들이 AI에 접근할 수 있도록 하는 크로스 플랫폼 AI 클라이언트입니다。",
+      "ru-RU": "DeepChat - это кроссплатформенный AI-клиент, предназначенный для того, чтобы сделать AI доступным для большего количества людей.",
+      "fr-FR": "DeepChat est un client IA multiplateforme, dédié à rendre l'IA accessible à plus de personnes.",
+      "fa-IR": "دیپ چت یک کلاینت هوش مصنوعی چندپلتفرمه که هدفش در دسترس قرار دادن هوش مصنوعی برای افراد بیشتری است."
+    },
+    "websiteText": {
+      "en-US": "Visit Our Website",
+      "zh-CN": "访问我们的网站",
+      "zh-TW": "造訪我們的網站",
+      "zh-HK": "訪問我們的網站",
+      "ja-JP": "ウェブサイトを訪問",
+      "ko-KR": "웹사이트 방문",
+      "ru-RU": "Посетить наш сайт",
+      "fr-FR": "Visitez notre site web",
+      "fa-IR": "وبسایت ما را ببینید"
+    },
+    "welcomeTitle": {
+      "en-US": "Welcome to MyApp",
+      "zh-CN": "欢迎使用 MyApp",
+      "zh-TW": "歡迎使用 MyApp",
+      "zh-HK": "歡迎使用 MyApp",
+      "ja-JP": "MyAppへようこそ",
+      "ko-KR": "MyApp에 오신 것을 환영합니다",
+      "ru-RU": "Добро пожаловать в MyApp",
+      "fr-FR": "Bienvenue sur MyApp",
+      "fa-IR": "به MyApp خوش آمدید"
+    },
+    "welcomeSetupDescription": {
+      "en-US": "Let's start setting up MyApp",
+      "zh-CN": "让我们开始设置 MyApp",
+      "zh-TW": "讓我們開始設定 MyApp",
+      "zh-HK": "讓我們開始設置 MyApp",
+      "ja-JP": "MyAppの設定を始めましょう",
+      "ko-KR": "MyApp 설정을 시작합시다",
+      "ru-RU": "Начнем настройку MyApp",
+      "fr-FR": "Commençons la configuration de MyApp",
+      "fa-IR": "بیایید تنظیم MyApp را شروع کنیم"
+    }
+  },
+  "github": {
+    "repository": "ThinkInAIXYZ/deepchat"
+  },
+  "mcp": {
+    "serverDescriptionSuffix": "DeepChat内置",
+    "serverDescriptionSuffixEn": "DeepChat built-in"
+  }
+}

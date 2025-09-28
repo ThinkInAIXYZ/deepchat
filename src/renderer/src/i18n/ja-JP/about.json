@@ -5,6 +5,9 @@
   "disclaimerButton": "免責事項",
   "disclaimerTitle": "利用規約",
   "checkUpdateButton": "アップデートを確認",
+  "updateChannel": "アップデートチャンネル",
+  "stableChannel": "安定版",
+  "canaryChannel": "テスト版",
   "deviceInfo": {
     "title": "デバイス情報",
     "platform": "プラットフォーム",

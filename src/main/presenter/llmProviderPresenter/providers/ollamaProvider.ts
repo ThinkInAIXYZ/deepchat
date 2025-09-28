@@ -8,15 +8,16 @@ import {
   ModelConfig,
   LLMCoreStreamEvent,
   ChatMessage,
-  LLM_EMBEDDING_ATTRS
+  LLM_EMBEDDING_ATTRS,
+  IConfigPresenter
 } from '@shared/presenter'
+import { createStreamEvent } from '@shared/types/core/llm-events'
 import { BaseLLMProvider, SUMMARY_TITLES_PROMPT } from '../baseProvider'
-import { ConfigPresenter } from '../../configPresenter'
 import { Ollama, Message, ShowResponse } from 'ollama'
 import { presenter } from '@/presenter'
 import { EMBEDDING_TEST_KEY, isNormalized } from '@/utils/vector'
 
-// 定义 Ollama 工具类型
+// Define Ollama tool type
 interface OllamaTool {
   type: 'function'
   function: {
@@ -38,7 +39,7 @@ interface OllamaTool {
 
 export class OllamaProvider extends BaseLLMProvider {
   private ollama: Ollama
-  constructor(provider: LLM_PROVIDER, configPresenter: ConfigPresenter) {
+  constructor(provider: LLM_PROVIDER, configPresenter: IConfigPresenter) {
     super(provider, configPresenter)
     if (this.provider.apiKey) {
       this.ollama = new Ollama({
@@ -53,20 +54,20 @@ export class OllamaProvider extends BaseLLMProvider {
     this.init()
   }
 
-  // 基础 Provider 功能实现
+  // Basic Provider functionality implementation
   protected async fetchProviderModels(): Promise<MODEL_META[]> {
     try {
       console.log('Ollama service check', this.ollama, this.provider)
-      // 获取 Ollama 本地已安装的模型列表
+      // Get list of locally installed Ollama models
       const ollamaModels = await this.listModels()
 
-      // 将 Ollama 模型格式转换为应用程序的 MODEL_META 格式
+      // Convert Ollama model format to application's MODEL_META format
       return ollamaModels.map((model) => ({
         id: model.name,
         name: model.name,
         providerId: this.provider.id,
-        contextLength: 8192, // 默认值，可以根据实际模型信息调整
-        maxTokens: 2048, // 添加必需的 maxTokens 字段
+        contextLength: 8192, // Default value, can be adjusted based on actual model information
+        maxTokens: 2048, // Add required maxTokens field
         isCustom: false,
         group: model.details?.family || 'default',
         description: `${model.details?.parameter_size || ''} ${model.details?.family || ''} model`
@@ -77,7 +78,7 @@ export class OllamaProvider extends BaseLLMProvider {
     }
   }
 
-  // 辅助方法：格式化消息
+  // Helper method: format messages
   private formatMessages(messages: ChatMessage[]): Message[] {
     return messages.map((msg) => {
       if (typeof msg.content === 'string') {
@@ -86,7 +87,7 @@ export class OllamaProvider extends BaseLLMProvider {
           content: msg.content
         }
       } else {
-        // 分离文本和图片内容
+        // Separate text and image content
         const text =
           msg.content && Array.isArray(msg.content)
             ? msg.content
@@ -114,14 +115,14 @@ export class OllamaProvider extends BaseLLMProvider {
 
   public async check(): Promise<{ isOk: boolean; errorMsg: string | null }> {
     try {
-      // 尝试获取模型列表来检查 Ollama 服务是否可用
+      // Try to get model list to check if Ollama service is available
       await this.ollama.list()
       return { isOk: true, errorMsg: null }
     } catch (error) {
       console.error('Ollama service check failed:', error)
       return {
         isOk: false,
-        errorMsg: `无法连接到 Ollama 服务: ${(error as Error).message}`
+        errorMsg: `Unable to connect to Ollama service: ${(error as Error).message}`
       }
     }
   }
@@ -142,7 +143,7 @@ export class OllamaProvider extends BaseLLMProvider {
       return response.response.trim()
     } catch (error) {
       console.error('Failed to generate title with Ollama:', error)
-      return '新对话'
+      return 'New Conversation'
     }
   }
 
@@ -157,7 +158,7 @@ export class OllamaProvider extends BaseLLMProvider {
         model: modelId,
         messages: this.formatMessages(messages),
         options: {
-          temperature: temperature || 0.7,
+          temperature: temperature ?? 0.7,
           num_predict: maxTokens
         }
       })
@@ -166,7 +167,7 @@ export class OllamaProvider extends BaseLLMProvider {
         content: ''
       }
 
-      // Ollama可能不提供完整的token计数
+      // Ollama may not provide complete token counts
       if (response.prompt_eval_count !== undefined || response.eval_count !== undefined) {
         resultResp.totalUsage = {
           prompt_tokens: response.prompt_eval_count || 0,
@@ -219,13 +220,13 @@ export class OllamaProvider extends BaseLLMProvider {
     maxTokens?: number
   ): Promise<LLMResponse> {
     try {
-      const prompt = `请对以下内容进行总结：\n\n${text}`
+      const prompt = `Please summarize the following content:\n\n${text}`
 
       const response = await this.ollama.generate({
         model: modelId,
         prompt: prompt,
         options: {
-          temperature: temperature || 0.5,
+          temperature: temperature ?? 0.5,
           num_predict: maxTokens
         }
       })
@@ -251,7 +252,7 @@ export class OllamaProvider extends BaseLLMProvider {
         model: modelId,
         prompt: prompt,
         options: {
-          temperature: temperature || 0.7,
+          temperature: temperature ?? 0.7,
           num_predict: maxTokens
         }
       })
@@ -273,13 +274,13 @@ export class OllamaProvider extends BaseLLMProvider {
     maxTokens?: number
   ): Promise<string[]> {
     try {
-      const prompt = `基于以下上下文，生成5个可能的后续问题或建议：\n\n${context}`
+      const prompt = `Based on the following context, generate 5 possible follow-up questions or suggestions:\n\n${context}`
 
       const response = await this.ollama.generate({
         model: modelId,
         prompt: prompt,
         options: {
-          temperature: temperature || 0.8,
+          temperature: temperature ?? 0.8,
           num_predict: maxTokens || 200
         }
       })
@@ -498,7 +499,7 @@ export class OllamaProvider extends BaseLLMProvider {
         model: modelId,
         messages: processedMessages,
         options: {
-          temperature: temperature || 0.7,
+          temperature: temperature ?? 0.7,
           num_predict: maxTokens
         },
         stream: true as const,
@@ -581,25 +582,19 @@ export class OllamaProvider extends BaseLLMProvider {
               }
 
               // 发送工具调用开始事件
-              yield {
-                type: 'tool_call_start',
-                tool_call_id: toolId,
-                tool_call_name: toolCall.function?.name || ''
-              }
+              yield createStreamEvent.toolCallStart(toolId, toolCall.function?.name || '')
 
               // 发送工具调用参数块事件
-              yield {
-                type: 'tool_call_chunk',
-                tool_call_id: toolId,
-                tool_call_arguments_chunk: JSON.stringify(toolCall.function?.arguments || {})
-              }
+              yield createStreamEvent.toolCallChunk(
+                toolId,
+                JSON.stringify(toolCall.function?.arguments || {})
+              )
 
               // 发送工具调用结束事件
-              yield {
-                type: 'tool_call_end',
-                tool_call_id: toolId,
-                tool_call_arguments_complete: JSON.stringify(toolCall.function?.arguments || {})
-              }
+              yield createStreamEvent.toolCallEnd(
+                toolId,
+                JSON.stringify(toolCall.function?.arguments || {})
+              )
             }
           }
 
@@ -610,7 +605,7 @@ export class OllamaProvider extends BaseLLMProvider {
         // 处理 thinking 字段
         const currentThinking = chunk.message?.thinking || ''
         if (currentThinking) {
-          yield { type: 'reasoning', reasoning_content: currentThinking }
+          yield createStreamEvent.reasoning(currentThinking)
         }
 
         // 获取当前内容
@@ -668,7 +663,7 @@ export class OllamaProvider extends BaseLLMProvider {
                   functionName = parsedCall.function.name
                   functionArgs = parsedCall.function.arguments
                 } else {
-                  throw new Error('无法从代码块中识别函数调用格式')
+                  throw new Error('Unable to recognize function call format from code block')
                 }
 
                 // 确保参数是字符串
@@ -717,7 +712,7 @@ export class OllamaProvider extends BaseLLMProvider {
             continue
           }
           if (usage) {
-            yield { type: 'usage', usage }
+            yield createStreamEvent.usage(usage)
           }
 
           // --- 思考标签处理 ---
@@ -725,7 +720,7 @@ export class OllamaProvider extends BaseLLMProvider {
             if (pendingBuffer.endsWith(thinkEndMarker)) {
               thinkState = 'none'
               if (thinkBuffer) {
-                yield { type: 'reasoning', reasoning_content: thinkBuffer }
+                yield createStreamEvent.reasoning(thinkBuffer)
                 thinkBuffer = ''
               }
               pendingBuffer = ''
@@ -737,21 +732,21 @@ export class OllamaProvider extends BaseLLMProvider {
               const charsToYield = pendingBuffer.slice(0, -thinkEndMarker.length + 1)
               if (charsToYield) {
                 thinkBuffer += charsToYield
-                yield { type: 'reasoning', reasoning_content: charsToYield }
+                yield createStreamEvent.reasoning(charsToYield)
               }
               pendingBuffer = pendingBuffer.slice(-thinkEndMarker.length + 1)
               if (thinkEndMarker.startsWith(pendingBuffer)) {
                 thinkState = 'end'
               } else {
                 thinkBuffer += pendingBuffer
-                yield { type: 'reasoning', reasoning_content: pendingBuffer }
+                yield createStreamEvent.reasoning(pendingBuffer)
                 pendingBuffer = ''
                 thinkState = 'inside'
               }
               processedChar = true
             } else {
               thinkBuffer += char
-              yield { type: 'reasoning', reasoning_content: char }
+              yield createStreamEvent.reasoning(char)
               pendingBuffer = ''
               processedChar = true
             }
@@ -759,7 +754,7 @@ export class OllamaProvider extends BaseLLMProvider {
             if (pendingBuffer.endsWith(thinkEndMarker)) {
               thinkState = 'none'
               if (thinkBuffer) {
-                yield { type: 'reasoning', reasoning_content: thinkBuffer }
+                yield createStreamEvent.reasoning(thinkBuffer)
                 thinkBuffer = ''
               }
               pendingBuffer = ''
@@ -767,7 +762,7 @@ export class OllamaProvider extends BaseLLMProvider {
             } else if (!thinkEndMarker.startsWith(pendingBuffer)) {
               const failedTagChars = pendingBuffer
               thinkBuffer += failedTagChars
-              yield { type: 'reasoning', reasoning_content: failedTagChars }
+              yield createStreamEvent.reasoning(failedTagChars)
               pendingBuffer = ''
               thinkState = 'inside'
               processedChar = true
@@ -888,7 +883,7 @@ export class OllamaProvider extends BaseLLMProvider {
             if (matchedThink) {
               const textBefore = pendingBuffer.slice(0, -thinkStartMarker.length)
               if (textBefore) {
-                yield { type: 'text', content: textBefore }
+                yield createStreamEvent.text(textBefore)
               }
               thinkState = 'inside'
               funcState = 'none' // 重置其他状态
@@ -896,7 +891,7 @@ export class OllamaProvider extends BaseLLMProvider {
             } else if (matchedFunc) {
               const textBefore = pendingBuffer.slice(0, -funcStartMarker.length)
               if (textBefore) {
-                yield { type: 'text', content: textBefore }
+                yield createStreamEvent.text(textBefore)
               }
               funcState = 'inside'
               thinkState = 'none' // 重置其他状态
@@ -913,7 +908,7 @@ export class OllamaProvider extends BaseLLMProvider {
 
               const textBefore = pendingBuffer.slice(0, -markerText.length)
               if (textBefore) {
-                yield { type: 'text', content: textBefore }
+                yield createStreamEvent.text(textBefore)
               }
 
               isInCodeBlock = true
@@ -930,7 +925,7 @@ export class OllamaProvider extends BaseLLMProvider {
             else if (pendingBuffer.length > 0) {
               // 缓冲区不以'<'开头，或以'<'开头但不再匹配任何标签的开始
               const charToYield = pendingBuffer[0]
-              yield { type: 'text', content: charToYield }
+              yield createStreamEvent.text(charToYield)
               pendingBuffer = pendingBuffer.slice(1)
               // 使用缩短的缓冲区立即重新评估潜在匹配
               potentialThink =
@@ -959,7 +954,7 @@ export class OllamaProvider extends BaseLLMProvider {
           // 将剩余内容添加到函数缓冲区 - 稍后处理
           funcCallBuffer += pendingBuffer
         } else {
-          yield { type: 'text', content: pendingBuffer }
+          yield createStreamEvent.text(pendingBuffer)
         }
         pendingBuffer = ''
       }
@@ -993,10 +988,10 @@ export class OllamaProvider extends BaseLLMProvider {
             }
           } else {
             // 如果解析失败或没有结果，将缓冲区作为文本输出
-            yield { type: 'text', content: potentialContent }
+            yield createStreamEvent.text(potentialContent)
           }
         } catch (e) {
-          console.error('解析不完整的函数调用缓冲区时出错:', e)
+          console.error('Error parsing incomplete function call buffer:', e)
           yield { type: 'text', content: potentialContent }
         }
         funcCallBuffer = ''
@@ -1024,7 +1019,7 @@ export class OllamaProvider extends BaseLLMProvider {
               }
             } catch (e) {
               console.error(
-                `[handleChatCompletion] 工具 ${toolId} 参数解析错误: ${tool.arguments}`,
+                `[handleChatCompletion] Tool ${toolId} parameter parsing error: ${tool.arguments}`,
                 e
               )
               yield {
@@ -1038,23 +1033,20 @@ export class OllamaProvider extends BaseLLMProvider {
       }
 
       // 记录状态警告
-      if (thinkState !== 'none') console.warn(`流在thinkState: ${thinkState} 时结束`)
-      if (funcState !== 'none') console.warn(`流在funcState: ${funcState} 时结束`)
+      if (thinkState !== 'none') console.warn(`Stream ended in thinkState: ${thinkState}`)
+      if (funcState !== 'none') console.warn(`Stream ended in funcState: ${funcState}`)
 
       // 输出使用情况
       if (usage) {
-        yield { type: 'usage', usage: usage }
+        yield createStreamEvent.usage(usage)
       }
 
       // 如果检测到工具使用，则覆盖停止原因
       const finalStopReason = toolUseDetected ? 'tool_use' : stopReason
-      yield { type: 'stop', stop_reason: finalStopReason }
+      yield createStreamEvent.stop(finalStopReason)
     } catch (error: unknown) {
-      yield {
-        type: 'error',
-        error_message: error instanceof Error ? error.message : String(error)
-      }
-      yield { type: 'stop', stop_reason: 'error' }
+      yield createStreamEvent.error(error instanceof Error ? error.message : String(error))
+      yield createStreamEvent.stop('error')
     }
   }
 

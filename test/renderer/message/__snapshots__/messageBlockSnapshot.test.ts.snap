@@ -1,0 +1,190 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`Message Block Data Structure Snapshot Tests > Block Structure Validation > should create consistent content block structure 1`] = `
+{
+  "content": "Hello, this is a test message with **markdown** formatting.",
+  "status": "success",
+  "timestamp": 1704067200000,
+  "type": "content",
+}
+`;
+
+exports[`Message Block Data Structure Snapshot Tests > Block Structure Validation > should create consistent error block structure 1`] = `
+{
+  "content": "Network connection failed. Please check your internet connection and try again.",
+  "status": "error",
+  "timestamp": 1704067200000,
+  "type": "error",
+}
+`;
+
+exports[`Message Block Data Structure Snapshot Tests > Block Structure Validation > should create consistent image block structure 1`] = `
+{
+  "image_data": {
+    "data": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+    "mimeType": "image/png",
+  },
+  "status": "success",
+  "timestamp": 1704067200000,
+  "type": "image",
+}
+`;
+
+exports[`Message Block Data Structure Snapshot Tests > Block Structure Validation > should create consistent permission request block structure 1`] = `
+{
+  "action_type": "tool_call_permission",
+  "content": "Permission required to write file",
+  "status": "pending",
+  "timestamp": 1704067200000,
+  "tool_call": {
+    "id": "tool-123",
+    "name": "writeFile",
+    "server_description": "Local file system access",
+    "server_name": "filesystem",
+  },
+  "type": "action",
+}
+`;
+
+exports[`Message Block Data Structure Snapshot Tests > Block Structure Validation > should create consistent rate limit block structure 1`] = `
+{
+  "action_type": "rate_limit",
+  "extra": {
+    "currentQps": 15,
+    "estimatedWaitTime": 2000,
+    "providerId": "openai",
+    "qpsLimit": 10,
+    "queueLength": 3,
+  },
+  "status": "pending",
+  "timestamp": 1704067200000,
+  "type": "action",
+}
+`;
+
+exports[`Message Block Data Structure Snapshot Tests > Block Structure Validation > should create consistent reasoning block structure 1`] = `
+{
+  "content": "Let me think about this problem step by step...",
+  "reasoning_time": {
+    "end": 1704067205000,
+    "start": 1704067200000,
+  },
+  "status": "success",
+  "timestamp": 1704067200000,
+  "type": "reasoning_content",
+}
+`;
+
+exports[`Message Block Data Structure Snapshot Tests > Block Structure Validation > should create consistent tool call block structure 1`] = `
+{
+  "status": "loading",
+  "timestamp": 1704067200000,
+  "tool_call": {
+    "id": "tool-456",
+    "name": "searchWeb",
+    "params": "{"query": "Vue.js testing", "limit": 5}",
+  },
+  "type": "tool_call",
+}
+`;
+
+exports[`Message Block Data Structure Snapshot Tests > Event-to-Block Mapping Snapshots > should map error event consistently 1`] = `
+{
+  "content": "Network connection failed",
+  "status": "error",
+  "timestamp": 1704067200000,
+  "type": "error",
+}
+`;
+
+exports[`Message Block Data Structure Snapshot Tests > Event-to-Block Mapping Snapshots > should map permission required event consistently 1`] = `
+{
+  "action_type": "tool_call_permission",
+  "status": "pending",
+  "timestamp": 1704067200000,
+  "tool_call": {
+    "id": "tool-789",
+    "name": "writeFile",
+  },
+  "type": "action",
+}
+`;
+
+exports[`Message Block Data Structure Snapshot Tests > Event-to-Block Mapping Snapshots > should map rate limit event consistently 1`] = `
+{
+  "action_type": "rate_limit",
+  "extra": {
+    "currentQps": 15,
+    "estimatedWaitTime": 2000,
+    "providerId": "openai",
+    "qpsLimit": 10,
+    "queueLength": 3,
+  },
+  "status": "pending",
+  "timestamp": 1704067200000,
+  "type": "action",
+}
+`;
+
+exports[`Message Block Data Structure Snapshot Tests > Event-to-Block Mapping Snapshots > should map reasoning event to reasoning block consistently 1`] = `
+{
+  "content": "Let me analyze this...",
+  "status": "success",
+  "timestamp": 1704067200000,
+  "type": "reasoning_content",
+}
+`;
+
+exports[`Message Block Data Structure Snapshot Tests > Event-to-Block Mapping Snapshots > should map text event to content block consistently 1`] = `
+{
+  "content": "Hello world!",
+  "status": "success",
+  "timestamp": 1704067200000,
+  "type": "content",
+}
+`;
+
+exports[`Message Block Data Structure Snapshot Tests > Event-to-Block Mapping Snapshots > should map tool call start event consistently 1`] = `
+{
+  "status": "loading",
+  "timestamp": 1704067200000,
+  "tool_call": {
+    "id": "tool-456",
+    "name": "searchWeb",
+    "params": "{"query": "test"}",
+  },
+  "type": "tool_call",
+}
+`;
+
+exports[`Message Block Data Structure Snapshot Tests > Status Transition Snapshots > should create consistent status transition structures > transition-loading-to-error 1`] = `
+{
+  "from": "loading",
+  "isValid": true,
+  "to": "error",
+}
+`;
+
+exports[`Message Block Data Structure Snapshot Tests > Status Transition Snapshots > should create consistent status transition structures > transition-loading-to-success 1`] = `
+{
+  "from": "loading",
+  "isValid": true,
+  "to": "success",
+}
+`;
+
+exports[`Message Block Data Structure Snapshot Tests > Status Transition Snapshots > should create consistent status transition structures > transition-pending-to-denied 1`] = `
+{
+  "from": "pending",
+  "isValid": true,
+  "to": "denied",
+}
+`;
+
+exports[`Message Block Data Structure Snapshot Tests > Status Transition Snapshots > should create consistent status transition structures > transition-pending-to-granted 1`] = `
+{
+  "from": "pending",
+  "isValid": true,
+  "to": "granted",
+}
+`;

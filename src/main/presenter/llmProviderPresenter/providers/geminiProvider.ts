@@ -4,17 +4,20 @@ import {
   FunctionCallingConfigMode,
   GenerateContentParameters,
   GenerateContentResponseUsageMetadata,
-  GenerationConfig,
   GoogleGenAI,
   HarmBlockThreshold,
   HarmCategory,
   Modality,
   Part,
-  SafetySetting
+  SafetySetting,
+  Tool,
+  GoogleSearch,
+  GenerateContentConfig
 } from '@google/genai'
 import { ModelType } from '@shared/model'
 import {
   ChatMessage,
+  IConfigPresenter,
   LLM_PROVIDER,
   LLMCoreStreamEvent,
   LLMResponse,
@@ -22,7 +25,7 @@ import {
   MODEL_META,
   ModelConfig
 } from '@shared/presenter'
-import { ConfigPresenter } from '../../configPresenter'
+import { createStreamEvent } from '@shared/types/core/llm-events'
 import { BaseLLMProvider, SUMMARY_TITLES_PROMPT } from '../baseProvider'
 import { eventBus, SendTarget } from '@/eventbus'
 import { CONFIG_EVENTS } from '@/events'
@@ -49,7 +52,7 @@ const safetySettingKeys = Object.keys(keyToHarmCategoryMap)
 export class GeminiProvider extends BaseLLMProvider {
   private genAI: GoogleGenAI
 
-  // 定义静态的模型配置
+  // Define static model configuration
   private static readonly GEMINI_MODELS: MODEL_META[] = [
     {
       id: 'gemini-2.5-pro',
@@ -58,7 +61,31 @@ export class GeminiProvider extends BaseLLMProvider {
       providerId: 'gemini',
       isCustom: false,
       contextLength: 1048576,
-      maxTokens: 65536,
+      maxTokens: 65535,
+      vision: true,
+      functionCall: true,
+      reasoning: true
+    },
+    {
+      id: 'models/gemini-2.5-flash-lite-preview-06-17',
+      name: 'Gemini 2.5 Flash-Lite Preview',
+      group: 'default',
+      providerId: 'gemini',
+      isCustom: false,
+      contextLength: 1048576,
+      maxTokens: 65535,
+      vision: true,
+      functionCall: true,
+      reasoning: true
+    },
+    {
+      id: 'models/gemini-2.5-flash-lite',
+      name: 'Gemini 2.5 Flash-Lite',
+      group: 'default',
+      providerId: 'gemini',
+      isCustom: false,
+      contextLength: 1048576,
+      maxTokens: 65535,
       vision: true,
       functionCall: true,
       reasoning: true
@@ -70,46 +97,10 @@ export class GeminiProvider extends BaseLLMProvider {
       providerId: 'gemini',
       isCustom: false,
       contextLength: 1048576,
-      maxTokens: 65536,
+      maxTokens: 65535,
       vision: true,
       functionCall: true,
       reasoning: true
-    },
-    {
-      id: 'models/gemini-2.5-flash-lite-preview-06-17',
-      name: 'Gemini 2.5 Flash-Lite Preview',
-      group: 'default',
-      providerId: 'gemini',
-      isCustom: false,
-      contextLength: 1_000_000,
-      maxTokens: 64_000,
-      vision: true,
-      functionCall: true,
-      reasoning: true
-    },
-    {
-      id: 'models/gemini-2.0-flash',
-      name: 'Gemini 2.0 Flash',
-      group: 'default',
-      providerId: 'gemini',
-      isCustom: false,
-      contextLength: 1_048_576,
-      maxTokens: 8192,
-      vision: true,
-      functionCall: true,
-      reasoning: true
-    },
-    {
-      id: 'models/gemini-2.0-flash-lite',
-      name: 'Gemini 2.0 Flash Lite',
-      group: 'default',
-      providerId: 'gemini',
-      isCustom: false,
-      contextLength: 1_048_576,
-      maxTokens: 8192,
-      vision: true,
-      functionCall: true,
-      reasoning: false
     },
     {
       id: 'models/gemini-2.0-flash-preview-image-generation',
@@ -120,9 +111,33 @@ export class GeminiProvider extends BaseLLMProvider {
       contextLength: 32000,
       maxTokens: 8192,
       vision: true,
-      functionCall: true,
+      functionCall: false,
       reasoning: false,
       type: ModelType.ImageGeneration
+    },
+    {
+      id: 'models/gemini-2.0-flash-lite',
+      name: 'Gemini 2.0 Flash Lite',
+      group: 'default',
+      providerId: 'gemini',
+      isCustom: false,
+      contextLength: 1048576,
+      maxTokens: 8191,
+      vision: true,
+      functionCall: true,
+      reasoning: false
+    },
+    {
+      id: 'models/gemini-2.0-flash',
+      name: 'Gemini 2.0 Flash',
+      group: 'default',
+      providerId: 'gemini',
+      isCustom: false,
+      contextLength: 1048576,
+      maxTokens: 8191,
+      vision: true,
+      functionCall: true,
+      reasoning: true
     },
     {
       id: 'models/gemini-1.5-flash',
@@ -130,15 +145,15 @@ export class GeminiProvider extends BaseLLMProvider {
       group: 'default',
       providerId: 'gemini',
       isCustom: false,
-      contextLength: 1_048_576,
-      maxTokens: 8192,
+      contextLength: 1048576,
+      maxTokens: 8191,
       vision: true,
       functionCall: true,
       reasoning: false
     }
   ]
 
-  constructor(provider: LLM_PROVIDER, configPresenter: ConfigPresenter) {
+  constructor(provider: LLM_PROVIDER, configPresenter: IConfigPresenter) {
     super(provider, configPresenter)
     this.genAI = new GoogleGenAI({
       apiKey: this.provider.apiKey,
@@ -151,7 +166,7 @@ export class GeminiProvider extends BaseLLMProvider {
     this.init()
   }
 
-  // 实现BaseLLMProvider中的抽象方法fetchProviderModels
+  // Implement abstract method fetchProviderModels from BaseLLMProvider
   protected async fetchProviderModels(): Promise<MODEL_META[]> {
     try {
       const modelsResponse = await this.genAI.models.list()
@@ -174,39 +189,40 @@ export class GeminiProvider extends BaseLLMProvider {
       // 映射 API 返回的模型数据
       const apiModels: MODEL_META[] = models
         .filter((model: any) => {
-          // 过滤掉嵌入模型和其他非聊天模型
+          // Filter out embedding models and other non-chat models
           const name = model.name.toLowerCase()
           return (
             !name.includes('embedding') &&
             !name.includes('aqa') &&
             !name.includes('text-embedding') &&
             !name.includes('gemma-3n-e4b-it')
-          ) // 过滤掉特定的小模型
+          ) // Filter out specific small models
         })
         .map((model: any) => {
           const modelName = model.name
           const displayName = model.displayName
 
-          // 判断模型功能支持
+          // Determine model functionality support
           const isVisionModel =
-            displayName.toLowerCase().includes('vision') || modelName.includes('gemini-') // Gemini 系列一般都支持视觉
+            displayName.toLowerCase().includes('vision') || modelName.includes('gemini-') // Gemini series generally support vision
 
-          const isFunctionCallSupported = !modelName.includes('gemma-3') // Gemma 模型不支持函数调用
+          const isFunctionCallSupported =
+            !modelName.includes('gemma-3') && !modelName.includes('flash-image-preview') // Gemma models and flash-image-preview do not support function calls
 
-          // 判断是否支持推理（thinking）
+          // Determine if reasoning (thinking) is supported
           const isReasoningSupported =
             modelName.includes('thinking') ||
-            modelName.includes('2.5') ||
+            (modelName.includes('2.5') && !modelName.includes('flash-image-preview')) ||
             modelName.includes('2.0-flash') ||
             modelName.includes('exp-1206')
 
-          // 判断模型类型
+          // Determine model type
           let modelType = ModelType.Chat
           if (modelName.includes('image-generation')) {
             modelType = ModelType.ImageGeneration
           }
 
-          // 确定模型分组
+          // Determine model group
           let group = 'default'
           if (modelName.includes('exp') || modelName.includes('preview')) {
             group = 'experimental'
@@ -233,7 +249,7 @@ export class GeminiProvider extends BaseLLMProvider {
       return apiModels
     } catch (error) {
       console.warn('Failed to fetch models from Gemini API:', error)
-      // 如果 API 调用失败，回退到静态模型列表
+      // If API call fails, fallback to static model list
       return GeminiProvider.GEMINI_MODELS.map((model) => ({
         ...model,
         providerId: this.provider.id
@@ -241,13 +257,13 @@ export class GeminiProvider extends BaseLLMProvider {
     }
   }
 
-  // 实现BaseLLMProvider中的summaryTitles抽象方法
+  // Implement summaryTitles abstract method from BaseLLMProvider
   public async summaryTitles(
     messages: { role: 'system' | 'user' | 'assistant'; content: string }[],
     modelId: string
   ): Promise<string> {
     console.log('gemini ignore modelId', modelId)
-    // 使用Gemini API生成对话标题
+    // Use Gemini API to generate conversation titles
     try {
       const conversationText = messages.map((m) => `${m.role}: ${m.content}`).join('\n')
       const prompt = `${SUMMARY_TITLES_PROMPT}\n\n${conversationText}`
@@ -255,30 +271,30 @@ export class GeminiProvider extends BaseLLMProvider {
       const result = await this.genAI.models.generateContent({
         model: modelId,
         contents: [{ role: 'user', parts: [{ text: prompt }] }],
-        config: this.getGenerationConfig(0.4, undefined, modelId, false)
+        config: this.getGenerateContentConfig(0.4, undefined, modelId, false)
       })
 
-      return result.text?.trim() || '新对话'
+      return result.text?.trim() || 'New Conversation'
     } catch (error) {
-      console.error('生成对话标题失败:', error)
-      return '新对话'
+      console.error('Failed to generate conversation title:', error)
+      return 'New Conversation'
     }
   }
 
-  // 重载fetchModels方法，因为Gemini没有获取模型的API
+  // Override fetchModels method since Gemini doesn't have a model fetching API
   async fetchModels(): Promise<MODEL_META[]> {
     // Gemini没有获取模型的API，直接使用init方法中的硬编码模型列表
     return this.models
   }
 
-  // 重载check方法，使用第一个默认模型进行测试
+  // Override check method to use the first default model for testing
   async check(): Promise<{ isOk: boolean; errorMsg: string | null }> {
     try {
       if (!this.provider.apiKey) {
-        return { isOk: false, errorMsg: '缺少API密钥' }
+        return { isOk: false, errorMsg: 'Missing API key' }
       }
 
-      // 使用第一个模型进行简单测试
+      // Use the first model for simple testing
       const result = await this.genAI.models.generateContent({
         model: 'models/gemini-1.5-flash-8b',
         contents: [{ role: 'user', parts: [{ text: 'Hello' }] }]
@@ -294,10 +310,10 @@ export class GeminiProvider extends BaseLLMProvider {
     if (this.provider.enable) {
       try {
         this.isInitialized = true
-        // 使用API获取模型列表，如果失败则回退到静态列表
+        // Use API to get model list, fallback to static list if failed
         this.models = await this.fetchProviderModels()
         await this.autoEnableModelsIfNeeded()
-        // gemini 比较慢，特殊补偿一下
+        // Gemini is relatively slow, special compensation
         eventBus.sendToRenderer(
           CONFIG_EVENTS.MODEL_LIST_CHANGED,
           SendTarget.ALL_WINDOWS,
@@ -384,39 +400,40 @@ export class GeminiProvider extends BaseLLMProvider {
   }
 
   // 获取生成配置，不再创建模型实例
-  private getGenerationConfig(
+  private getGenerateContentConfig(
     temperature?: number,
     maxTokens?: number,
     modelId?: string,
     reasoning?: boolean,
     thinkingBudget?: number
-  ): GenerationConfig {
-    const generationConfig: GenerationConfig = {
+  ): GenerateContentConfig {
+    const config: GenerateContentConfig = {
       temperature,
-      maxOutputTokens: maxTokens
+      maxOutputTokens: maxTokens,
+      topP: 1 // topP默认为1.0
     }
 
     // 从当前模型列表中查找指定的模型
     if (modelId && this.models) {
       const model = this.models.find((m) => m.id === modelId)
       if (model && model.type === ModelType.ImageGeneration) {
-        generationConfig.responseModalities = [Modality.TEXT, Modality.IMAGE]
+        config.responseModalities = [Modality.TEXT, Modality.IMAGE]
       }
     }
 
     // 正确配置思考功能
     if (reasoning) {
-      generationConfig.thinkingConfig = {
+      config.thinkingConfig = {
         includeThoughts: true
       }
 
       // 仅对支持 thinkingBudget 的 Gemini 2.5 系列模型添加 thinkingBudget 参数
       if (modelId && this.supportsThinkingBudget(modelId) && thinkingBudget !== undefined) {
-        generationConfig.thinkingConfig.thinkingBudget = thinkingBudget
+        config.thinkingConfig.thinkingBudget = thinkingBudget
       }
     }
 
-    return generationConfig
+    return config
   }
 
   // 将 ChatMessage 转换为 Gemini 格式的消息
@@ -630,24 +647,23 @@ export class GeminiProvider extends BaseLLMProvider {
 
       const { systemInstruction, contents } = this.formatGeminiMessages(messages)
 
-      // 创建基本请求参数
-      const generationConfig: GenerationConfig = {
-        temperature: temperature || 0.7,
-        maxOutputTokens: maxTokens
+      // 创建 GenerateContentConfig
+      const generateContentConfig: GenerateContentConfig = this.getGenerateContentConfig(
+        temperature ?? 0.7,
+        maxTokens,
+        modelId,
+        false // completions 方法中不处理 reasoning
+      )
+
+      if (systemInstruction) {
+        generateContentConfig.systemInstruction = systemInstruction
       }
 
-      // 执行请求
+      // 一次性创建 requestParams
       const requestParams: GenerateContentParameters = {
         model: modelId,
         contents,
-        config: generationConfig
-      }
-
-      if (systemInstruction) {
-        requestParams.config = {
-          ...generationConfig,
-          systemInstruction
-        }
+        config: generateContentConfig
       }
 
       const result = await this.genAI.models.generateContent(requestParams)
@@ -752,12 +768,12 @@ export class GeminiProvider extends BaseLLMProvider {
     }
 
     try {
-      const prompt = `请为以下内容生成一个简洁的摘要：\n\n${text}`
+      const prompt = `Please generate a concise summary for the following content:\n\n${text}`
 
       const result = await this.genAI.models.generateContent({
         model: modelId,
         contents: [{ role: 'user', parts: [{ text: prompt }] }],
-        config: this.getGenerationConfig(temperature, maxTokens, modelId, false)
+        config: this.getGenerateContentConfig(temperature, maxTokens, modelId, false)
       })
 
       return this.processGeminiResponse(result)
@@ -785,7 +801,7 @@ export class GeminiProvider extends BaseLLMProvider {
       const result = await this.genAI.models.generateContent({
         model: modelId,
         contents: [{ role: 'user', parts: [{ text: prompt }] }],
-        config: this.getGenerationConfig(temperature, maxTokens, modelId, false)
+        config: this.getGenerateContentConfig(temperature, maxTokens, modelId, false)
       })
 
       return this.processGeminiResponse(result)
@@ -810,12 +826,12 @@ export class GeminiProvider extends BaseLLMProvider {
     }
 
     try {
-      const prompt = `根据以下上下文，请提供最多5个合理的建议选项，每个选项不超过100个字符。请以JSON数组格式返回，不要有其他说明：\n\n${context}`
+      const prompt = `Based on the following context, please provide up to 5 reasonable suggestion options, each not exceeding 100 characters. Please return in JSON array format without other explanations:\n\n${context}`
 
       const result = await this.genAI.models.generateContent({
         model: modelId,
         contents: [{ role: 'user', parts: [{ text: prompt }] }],
-        config: this.getGenerationConfig(temperature, maxTokens, modelId, false)
+        config: this.getGenerateContentConfig(temperature, maxTokens, modelId, false)
       })
 
       const responseText = result.text || ''
@@ -841,11 +857,11 @@ export class GeminiProvider extends BaseLLMProvider {
         }
       }
 
-      // 如果都失败了，返回一个默认提示
-      return ['无法生成建议']
+      // If all fail, return a default prompt
+      return ['Unable to generate suggestions']
     } catch (error) {
       console.error('Gemini suggestions error:', error)
-      return ['发生错误，无法获取建议']
+      return ['Error occurred, unable to get suggestions']
     }
   }
   /**
@@ -865,7 +881,7 @@ export class GeminiProvider extends BaseLLMProvider {
     console.log('modelConfig', modelConfig, modelId)
 
     // 检查是否是图片生成模型
-    const isImageGenerationModel = modelId === 'models/gemini-2.0-flash-preview-image-generation'
+    const isImageGenerationModel = modelConfig?.type === ModelType.ImageGeneration
 
     // 如果是图片生成模型，使用特殊处理
     if (isImageGenerationModel) {
@@ -876,55 +892,55 @@ export class GeminiProvider extends BaseLLMProvider {
     const safetySettings = await this.getFormattedSafetySettings()
     console.log('safetySettings', safetySettings)
 
-    // 将MCP工具转换为Gemini格式的工具（所有Gemini模型都支持原生工具调用）
-    const geminiTools =
-      mcpTools.length > 0
-        ? await presenter.mcpPresenter.mcpToolsToGeminiTools(mcpTools, this.provider.id)
-        : undefined
+    // 添加Gemini工具调用
+    let geminiTools: Tool[] = []
+
+    // 注意：googleSearch内置工具与外部工具是互斥的
+    if (modelConfig.enableSearch) {
+      geminiTools.push({ googleSearch: {} as GoogleSearch })
+    } else {
+      if (mcpTools.length > 0)
+        geminiTools = await presenter.mcpPresenter.mcpToolsToGeminiTools(mcpTools, this.provider.id)
+    }
 
     // 格式化消息为Gemini格式
     const formattedParts = this.formatGeminiMessages(messages)
 
-    // 创建请求参数
-    const requestParams: GenerateContentParameters = {
-      model: modelId,
-      contents: formattedParts.contents,
-      config: this.getGenerationConfig(
-        temperature,
-        maxTokens,
-        modelId,
-        modelConfig.reasoning,
-        modelConfig.thinkingBudget
-      )
-    }
-    console.log('requestParams', requestParams)
+    // 1. 获取基础 config
+    const generateContentConfig: GenerateContentConfig = this.getGenerateContentConfig(
+      temperature,
+      maxTokens,
+      modelId,
+      modelConfig.reasoning,
+      modelConfig.thinkingBudget
+    )
+
+    // 2. 在本地变量上添加其他属性
     if (formattedParts.systemInstruction) {
-      requestParams.config = {
-        ...requestParams.config,
-        systemInstruction: formattedParts.systemInstruction
-      }
+      generateContentConfig.systemInstruction = formattedParts.systemInstruction
     }
 
-    // 添加工具配置
-    if (geminiTools && geminiTools.length > 0) {
-      requestParams.config = {
-        ...requestParams.config,
-        tools: geminiTools,
-        toolConfig: {
-          functionCallingConfig: {
-            mode: FunctionCallingConfigMode.AUTO // 允许模型自动决定是否调用工具
-          }
+    if (geminiTools.length > 0) {
+      generateContentConfig.tools = geminiTools
+      generateContentConfig.toolConfig = {
+        functionCallingConfig: {
+          mode: FunctionCallingConfigMode.AUTO // 允许模型自动决定是否调用工具
         }
       }
     }
 
-    // 添加安全设置
     if (safetySettings) {
-      requestParams.config = {
-        ...requestParams.config,
-        safetySettings
-      }
+      generateContentConfig.safetySettings = safetySettings
     }
+
+    // 3. 一次性创建完整的 requestParams
+    const requestParams: GenerateContentParameters = {
+      model: modelId,
+      contents: formattedParts.contents,
+      config: generateContentConfig
+    }
+
+    console.log('requestParams', requestParams)
 
     // 发送流式请求
     const result = await this.genAI.models.generateContentStream(requestParams)
@@ -934,6 +950,7 @@ export class GeminiProvider extends BaseLLMProvider {
     let isInThinkTag = false
     let toolUseDetected = false
     let usageMetadata: GenerateContentResponseUsageMetadata | undefined
+    let isNewThoughtFormatDetected = modelConfig.reasoning === true
 
     // 流处理循环
     for await (const chunk of result) {
@@ -953,26 +970,14 @@ export class GeminiProvider extends BaseLLMProvider {
         toolUseDetected = true
 
         // 发送工具调用开始事件
-        yield {
-          type: 'tool_call_start',
-          tool_call_id: toolCallId,
-          tool_call_name: functionName
-        }
+        yield createStreamEvent.toolCallStart(toolCallId, functionName || '')
 
         // 发送工具调用参数
         const argsString = JSON.stringify(functionArgs)
-        yield {
-          type: 'tool_call_chunk',
-          tool_call_id: toolCallId,
-          tool_call_arguments_chunk: argsString
-        }
+        yield createStreamEvent.toolCallChunk(toolCallId, argsString)
 
         // 发送工具调用结束事件
-        yield {
-          type: 'tool_call_end',
-          tool_call_id: toolCallId,
-          tool_call_arguments_complete: argsString
-        }
+        yield createStreamEvent.toolCallEnd(toolCallId, argsString)
 
         // 设置停止原因为工具使用
         break
@@ -987,18 +992,16 @@ export class GeminiProvider extends BaseLLMProvider {
         for (const part of chunk.candidates[0].content.parts) {
           // 检查是否是思考内容 (新格式)
           if ((part as any).thought === true && part.text) {
+            isNewThoughtFormatDetected = true
             thoughtContent += part.text
           } else if (part.text) {
             content += part.text
           } else if (part.inlineData && part.inlineData.data && part.inlineData.mimeType) {
             // 处理图像数据
-            yield {
-              type: 'image_data',
-              image_data: {
-                data: part.inlineData.data,
-                mimeType: part.inlineData.mimeType
-              }
-            }
+            yield createStreamEvent.imageData({
+              data: part.inlineData.data,
+              mimeType: part.inlineData.mimeType
+            })
           }
         }
       } else {
@@ -1008,105 +1011,61 @@ export class GeminiProvider extends BaseLLMProvider {
 
       // 如果检测到思考内容，直接发送
       if (thoughtContent) {
-        yield {
-          type: 'reasoning',
-          reasoning_content: thoughtContent
-        }
-        thoughtContent = '' // 清空已发送的思考内容
+        yield createStreamEvent.reasoning(thoughtContent)
       }
 
       if (!content) continue
 
-      buffer += content
+      if (isNewThoughtFormatDetected) {
+        yield createStreamEvent.text(content)
+      } else {
+        buffer += content
 
-      // 处理思考标签
-      if (buffer.includes('<think>') && !isInThinkTag) {
-        const thinkStart = buffer.indexOf('<think>')
-
-        // 发送<think>标签前的文本
-        if (thinkStart > 0) {
-          yield {
-            type: 'text',
-            content: buffer.substring(0, thinkStart)
+        if (buffer.includes('<think>') && !isInThinkTag) {
+          const thinkStart = buffer.indexOf('<think>')
+          if (thinkStart > 0) {
+            yield createStreamEvent.text(buffer.substring(0, thinkStart))
           }
+          buffer = buffer.substring(thinkStart + 7)
+          isInThinkTag = true
         }
 
-        buffer = buffer.substring(thinkStart + 7)
-        isInThinkTag = true
-        continue
-      }
-
-      // 处理思考标签结束
-      if (isInThinkTag && buffer.includes('</think>')) {
-        const thinkEnd = buffer.indexOf('</think>')
-        const reasoningContent = buffer.substring(0, thinkEnd)
-
-        // 发送推理内容
-        if (reasoningContent) {
-          yield {
-            type: 'reasoning',
-            reasoning_content: reasoningContent
+        if (isInThinkTag && buffer.includes('</think>')) {
+          const thinkEnd = buffer.indexOf('</think>')
+          const reasoningContent = buffer.substring(0, thinkEnd)
+          if (reasoningContent) {
+            yield createStreamEvent.reasoning(reasoningContent)
           }
+          buffer = buffer.substring(thinkEnd + 8)
+          isInThinkTag = false
         }
 
-        buffer = buffer.substring(thinkEnd + 8)
-        isInThinkTag = false
-
-        // 如果还有剩余内容，继续处理
-        if (buffer) {
-          yield {
-            type: 'text',
-            content: buffer
-          }
+        if (!isInThinkTag && buffer) {
+          yield createStreamEvent.text(buffer)
           buffer = ''
         }
-
-        continue
       }
-
-      // 如果在思考标签内，不输出内容
-      if (isInThinkTag) {
-        continue
-      }
-
-      // 正常输出文本内容
-      yield {
-        type: 'text',
-        content: content
-      }
-
-      // 内容已经发送，清空buffer避免重复
-      buffer = ''
     }
 
     if (usageMetadata) {
-      yield {
-        type: 'usage',
-        usage: {
-          prompt_tokens: usageMetadata.promptTokenCount || 0,
-          completion_tokens: usageMetadata.candidatesTokenCount || 0,
-          total_tokens: usageMetadata.totalTokenCount || 0
-        }
-      }
+      yield createStreamEvent.usage({
+        prompt_tokens: usageMetadata.promptTokenCount || 0,
+        completion_tokens: usageMetadata.candidatesTokenCount || 0,
+        total_tokens: usageMetadata.totalTokenCount || 0
+      })
     }
 
     // 处理剩余缓冲区内容
-    if (buffer) {
+    if (!isNewThoughtFormatDetected && buffer) {
       if (isInThinkTag) {
-        yield {
-          type: 'reasoning',
-          reasoning_content: buffer
-        }
+        yield createStreamEvent.reasoning(buffer)
       } else {
-        yield {
-          type: 'text',
-          content: buffer
-        }
+        yield createStreamEvent.text(buffer)
       }
     }
 
     // 发送停止事件
-    yield { type: 'stop', stop_reason: toolUseDetected ? 'tool_use' : 'complete' }
+    yield createStreamEvent.stop(toolUseDetected ? 'tool_use' : 'complete')
   }
 
   /**
@@ -1119,27 +1078,55 @@ export class GeminiProvider extends BaseLLMProvider {
     maxTokens?: number
   ): AsyncGenerator<LLMCoreStreamEvent> {
     try {
-      // 提取用户提示词
+      // 提取用户消息并构建parts数组
       const userMessage = messages.findLast((msg) => msg.role === 'user')
       if (!userMessage) {
         throw new Error('No user message found for image generation')
       }
 
-      const prompt =
-        typeof userMessage.content === 'string'
-          ? userMessage.content
-          : userMessage.content && Array.isArray(userMessage.content)
-            ? userMessage.content
-                .filter((c) => c.type === 'text')
-                .map((c) => c.text)
-                .join('\n')
-            : ''
+      // 构建包含文本和图片的parts数组，参考formatGeminiMessages的逻辑
+      const parts: Part[] = []
+
+      if (typeof userMessage.content === 'string') {
+        // 处理纯文本消息
+        if (userMessage.content.trim() !== '') {
+          parts.push({ text: userMessage.content })
+        }
+      } else if (Array.isArray(userMessage.content)) {
+        // 处理多模态消息（带图片等）
+        for (const part of userMessage.content) {
+          if (part.type === 'text') {
+            // 只添加非空文本
+            if (part.text && part.text.trim() !== '') {
+              parts.push({ text: part.text })
+            }
+          } else if (part.type === 'image_url' && part.image_url) {
+            // 处理图片（假设是 base64 格式）
+            const matches = part.image_url.url.match(/^data:([^;]+);base64,(.+)$/)
+            if (matches && matches.length === 3) {
+              const mimeType = matches[1]
+              const base64Data = matches[2]
+              parts.push({
+                inlineData: {
+                  data: base64Data,
+                  mimeType: mimeType
+                }
+              })
+            }
+          }
+        }
+      }
+
+      // 如果没有有效的parts，抛出错误
+      if (parts.length === 0) {
+        throw new Error('No valid content found for image generation')
+      }
 
       // 发送生成请求
       const result = await this.genAI.models.generateContentStream({
         model: modelId,
-        contents: [{ role: 'user', parts: [{ text: prompt }] }],
-        config: this.getGenerationConfig(temperature, maxTokens, modelId, false) // 图像生成不需要reasoning
+        contents: [{ role: 'user', parts }],
+        config: this.getGenerateContentConfig(temperature, maxTokens, modelId, false) // 图像生成不需要reasoning
       })
 
       // 处理流式响应
@@ -1148,33 +1135,26 @@ export class GeminiProvider extends BaseLLMProvider {
           for (const part of chunk.candidates[0].content.parts) {
             if (part.text) {
               // 输出文本内容
-              yield {
-                type: 'text',
-                content: part.text
-              }
+              yield createStreamEvent.text(part.text)
             } else if (part.inlineData) {
               // 输出图像数据
-              yield {
-                type: 'image_data',
-                image_data: {
-                  data: part.inlineData.data || '',
-                  mimeType: part.inlineData.mimeType || ''
-                }
-              }
+              yield createStreamEvent.imageData({
+                data: part.inlineData.data || '',
+                mimeType: part.inlineData.mimeType || ''
+              })
             }
           }
         }
       }
 
       // 发送停止事件
-      yield { type: 'stop', stop_reason: 'complete' }
+      yield createStreamEvent.stop('complete')
     } catch (error) {
       console.error('Image generation stream error:', error)
-      yield {
-        type: 'error',
-        error_message: error instanceof Error ? error.message : '图像生成失败'
-      }
-      yield { type: 'stop', stop_reason: 'error' }
+      yield createStreamEvent.error(
+        error instanceof Error ? error.message : 'Image generation failed'
+      )
+      yield createStreamEvent.stop('error')
     }
   }
 

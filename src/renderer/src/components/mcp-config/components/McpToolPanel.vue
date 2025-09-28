@@ -141,9 +141,16 @@ const toolParametersDescription = computed(() => {
   return Object.entries(properties).map(([key, prop]) => ({
     name: key,
     description: prop.description || '',
-    type: prop.type || 'unknown',
+    type: prop.enum
+      ? 'enum'
+      : prop.type === 'array' && prop.items?.enum
+        ? 'array[enum]'
+        : prop.type || 'unknown',
+    originalType: prop.type || 'unknown',
     required: required.includes(key),
-    annotations: prop.annotations
+    annotations: prop.annotations,
+    enum: prop.enum || null,
+    items: prop.items || null
   }))
 })
 
@@ -289,13 +296,70 @@ const selectTool = (tool: MCPToolDefinition) => {
                           >
                             {{ t('mcp.tools.required') }}
                           </Badge>
-                          <Badge variant="outline" class="text-xs px-1 py-0">{{
-                            param.type
-                          }}</Badge>
+                          <Badge
+                            :variant="
+                              param.type === 'enum' || param.type === 'array[enum]'
+                                ? 'default'
+                                : 'outline'
+                            "
+                            class="text-xs px-1 py-0"
+                            :class="
+                              param.type === 'enum' || param.type === 'array[enum]'
+                                ? 'bg-blue-500 text-white'
+                                : ''
+                            "
+                          >
+                            {{
+                              param.type === 'enum'
+                                ? `enum(${param.originalType})`
+                                : param.type === 'array[enum]'
+                                  ? `array[enum(${param.items?.type || 'string'})]`
+                                  : param.type
+                            }}
+                          </Badge>
                         </div>
                         <p v-if="param.description" class="text-xs text-muted-foreground">
                           {{ param.description }}
                         </p>
+                        <!-- 显示枚举值 -->
+                        <div v-if="param.enum && param.enum.length > 0" class="mt-1">
+                          <p class="text-xs font-medium text-foreground mb-1">
+                            {{ t('mcp.tools.allowedValues') }}:
+                          </p>
+                          <div class="flex flex-wrap gap-1">
+                            <Badge
+                              v-for="enumValue in param.enum"
+                              :key="enumValue"
+                              variant="secondary"
+                              class="text-xs px-1.5 py-0.5 font-mono"
+                            >
+                              {{ enumValue }}
+                            </Badge>
+                          </div>
+                        </div>
+                        <!-- 显示数组元素类型的枚举值 -->
+                        <div
+                          v-if="
+                            param.type === 'array' &&
+                            param.items?.enum &&
+                            param.items.enum.length > 0
+                          "
+                          class="mt-1"
+                        >
+                          <p class="text-xs font-medium text-foreground mb-1">
+                            {{ t('mcp.tools.arrayItemValues') }}:
+                          </p>
+                          <div class="flex flex-wrap gap-1">
+                            <Badge
+                              v-for="enumValue in param.items.enum"
+                              :key="enumValue"
+                              variant="secondary"
+                              class="text-xs px-1.5 py-0.5 font-mono"
+                            >
+                              {{ enumValue }}
+                            </Badge>
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </div>

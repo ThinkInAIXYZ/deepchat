@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { HTMLAttributes } from 'vue'
+import { useTemplateRef, type HTMLAttributes } from 'vue'
 import { cn } from '@/lib/utils'
 import { useVModel } from '@vueuse/core'
 
@@ -17,6 +17,12 @@ const modelValue = useVModel(props, 'modelValue', emits, {
   passive: true,
   defaultValue: props.defaultValue
 })
+
+const domRef = useTemplateRef('inputRef')
+
+defineExpose({
+  dom: domRef
+})
 </script>
 
 <template>
@@ -28,5 +34,6 @@ const modelValue = useVModel(props, 'modelValue', emits, {
         props.class
       )
     "
+    ref="inputRef"
   />
 </template>

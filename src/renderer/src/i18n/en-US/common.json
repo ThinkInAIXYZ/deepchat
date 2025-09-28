@@ -10,6 +10,7 @@
   "copyFailedDesc": "Failed to copy content to clipboard",
   "copyCode": "Copy Code",
   "copy": "Copy",
+  "copied": "Copied",
   "paste": "Paste",
   "export": "Export",
   "newChat": "New Chat",

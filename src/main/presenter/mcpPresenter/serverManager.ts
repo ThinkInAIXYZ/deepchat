@@ -8,9 +8,9 @@ import { MCP_EVENTS } from '@/events'
 import { getErrorMessageLabels } from '@shared/i18n'
 
 const NPM_REGISTRY_LIST = [
+  'https://registry.npmmirror.com/',
   'https://registry.npmjs.org/',
-  'https://r.cnpmjs.org/',
-  'https://registry.npmmirror.com/'
+  'https://r.cnpmjs.org/'
 ]
 
 export class ServerManager {
@@ -40,7 +40,7 @@ export class ServerManager {
     }
   }
 
-  // 测试npm registry速度并返回最佳选择
+  // Test npm registry speed and return best choice
   async testNpmRegistrySpeed(useCache: boolean = true): Promise<string> {
     const customRegistry = this.configPresenter.getCustomNpmRegistry?.()
     if (customRegistry) {
@@ -68,14 +68,19 @@ export class ServerManager {
     }
 
     console.log('[NPM Registry] Testing registry speed...')
-    const timeout = 3000
+    const timeout = 10000
     const testPackage = 'tiny-runtime-injector'
 
-    // 获取代理配置
+    // Get proxy configuration
     const proxyUrl = proxyConfig.getProxyUrl()
-    const proxyOptions = proxyUrl
-      ? { proxy: { host: new URL(proxyUrl).hostname, port: parseInt(new URL(proxyUrl).port) } }
-      : {}
+    const proxyOptions = (() => {
+      if (!proxyUrl) return {}
+      const u = new URL(proxyUrl)
+      const host = u.hostname
+      const port = u.port ? parseInt(u.port, 10) : u.protocol === 'https:' ? 443 : 80
+      const auth = u.username ? { username: u.username, password: u.password ?? '' } : undefined
+      return { proxy: { host, port, ...(auth ? { auth } : {}) } }
+    })()
 
     const results = await Promise.all(
       NPM_REGISTRY_LIST.map(async (registry) => {
@@ -84,21 +89,22 @@ export class ServerManager {
         let isTimeout = false
         let time = 0
 
+        const controller = new AbortController()
+        const timeoutId = setTimeout(() => controller.abort(), timeout)
         try {
-          const controller = new AbortController()
-          const timeoutId = setTimeout(() => controller.abort(), timeout)
-
           const response = await axios.get(`${registry}${testPackage}`, {
             ...proxyOptions,
             signal: controller.signal
           })
-
-          clearTimeout(timeoutId)
           success = response.status >= 200 && response.status < 300
-          time = Date.now() - start
         } catch (error) {
+          isTimeout =
+            (error instanceof Error &&
+              (error.name === 'AbortError' || error.name === 'CanceledError')) ||
+            Date.now() - start >= timeout
+        } finally {
+          clearTimeout(timeoutId)
           time = Date.now() - start
-          isTimeout = (error instanceof Error && error.name === 'AbortError') || time >= timeout
         }
 
         return {
@@ -110,7 +116,7 @@ export class ServerManager {
       })
     )
 
-    // 过滤出成功的请求，并按响应时间排序
+    // Filter successful requests and sort by response time
     const successfulResults = results
       .filter((result) => result.success)
       .sort((a, b) => a.time - b.time)
@@ -140,19 +146,19 @@ export class ServerManager {
     return bestRegistry
   }
 
-  // 获取npm registry
+  // Get npm registry
   getNpmRegistry(): string | null {
     return this.npmRegistry
   }
 
   async refreshNpmRegistry(): Promise<string> {
     console.log('[NPM Registry] Manual refresh triggered')
-    return await this.testNpmRegistrySpeed(false) // 不使用缓存
+    return await this.testNpmRegistrySpeed(false) // Don't use cache
   }
 
   async updateNpmRegistryInBackground(): Promise<void> {
     try {
-      // 检查是否需要更新
+      // Check if update is needed
       if (this.configPresenter.isNpmRegistryCacheValid?.()) {
         console.log('[NPM Registry] Cache is still valid, skipping background update')
         return
@@ -165,22 +171,22 @@ export class ServerManager {
     }
   }
 
-  // 获取uv registry
+  // Get uv registry
   getUvRegistry(): string | null {
     return this.uvRegistry
   }
 
-  // 获取默认服务器名称列表
+  // Get default server name list
   async getDefaultServerNames(): Promise<string[]> {
     return this.configPresenter.getMcpDefaultServers()
   }
 
-  // 获取默认服务器名称（兼容旧版本，返回第一个默认服务器）
+  // Get default server name (compatible with old version, return first default server)
   async getDefaultServerName(): Promise<string | null> {
     const defaultServers = await this.configPresenter.getMcpDefaultServers()
     const servers = await this.configPresenter.getMcpServers()
 
-    // 如果没有默认服务器或者默认服务器不存在，返回 null
+    // If no default servers or default server doesn't exist, return null
     if (defaultServers.length === 0 || !servers[defaultServers[0]]) {
       return null
     }
@@ -188,7 +194,7 @@ export class ServerManager {
     return defaultServers[0]
   }
 
-  // 获取默认客户端（不自动启动服务，仅返回第一个默认服务器客户端）
+  // Get default client (don't auto-start service, only return first default server client)
   async getDefaultClient(): Promise<McpClient | null> {
     const defaultServerName = await this.getDefaultServerName()
 
@@ -196,11 +202,11 @@ export class ServerManager {
       return null
     }
 
-    // 返回已存在的客户端实例，无论是否运行
+    // Return existing client instance, regardless of whether it's running
     return this.getClient(defaultServerName) || null
   }
 
-  // 获取所有默认客户端
+  // Get all default clients
   async getDefaultClients(): Promise<McpClient[]> {
     const defaultServerNames = await this.getDefaultServerNames()
     const clients: McpClient[] = []
@@ -215,7 +221,7 @@ export class ServerManager {
     return clients
   }
 
-  // 获取正在运行的客户端
+  // Get running clients
   async getRunningClients(): Promise<McpClient[]> {
     const clients: McpClient[] = []
     for (const [name, client] of this.clients.entries()) {
@@ -227,7 +233,7 @@ export class ServerManager {
   }
 
   async startServer(name: string): Promise<void> {
-    // 如果服务器已经在运行，则不需要再次启动
+    // If server is already running, no need to start again
     if (this.clients.has(name)) {
       if (this.isServerRunning(name)) {
         console.info(`MCP server ${name} is already running`)
@@ -247,7 +253,7 @@ export class ServerManager {
     try {
       console.info(`Starting MCP server ${name}...`)
       const npmRegistry = serverConfig.customNpmRegistry || this.npmRegistry
-      // 创建并保存客户端实例，传入npm registry
+      // Create and save client instance, passing npm registry
       const client = new McpClient(
         name,
         serverConfig as unknown as Record<string, unknown>,
@@ -256,15 +262,15 @@ export class ServerManager {
       )
       this.clients.set(name, client)
 
-      // 连接到服务器，这将启动服务
+      // Connect to server, this will start the service
       await client.connect()
     } catch (error) {
       console.error(`Failed to start MCP server ${name}:`, error)
 
-      // 移除客户端引用
+      // Remove client reference
       this.clients.delete(name)
 
-      // 发送全局错误通知
+      // Send global error notification
       this.sendMcpConnectionError(name, error)
 
       throw error
@@ -273,24 +279,24 @@ export class ServerManager {
     }
   }
 
-  // 处理并发送MCP连接错误通知
+  // Handle and send MCP connection error notification
   private sendMcpConnectionError(serverName: string, error: unknown): void {
-    // 引入所需模块
+    // Import required modules
 
     try {
-      // 获取当前语言
+      // Get current language
       const locale = this.configPresenter.getLanguage?.() || 'zh-CN'
       const errorMessages = getErrorMessageLabels(locale)
 
-      // 格式化错误信息
-      const errorMsg = error instanceof Error ? error.message : '未知错误'
+      // Format error information
+      const errorMsg = error instanceof Error ? error.message : 'Unknown error'
       const formattedMessage = `${serverName}: ${errorMsg}`
 
-      // 发送全局错误通知
+      // Send global error notification
       eventBus.sendToRenderer(NOTIFICATION_EVENTS.SHOW_ERROR, SendTarget.ALL_WINDOWS, {
         title: errorMessages.mcpConnectionErrorTitle,
         message: formattedMessage,
-        id: `mcp-error-${serverName}-${Date.now()}`, // 添加时间戳和服务器名称确保每个错误有唯一ID
+        id: `mcp-error-${serverName}-${Date.now()}`, // Add timestamp and server name to ensure unique ID for each error
         type: 'error'
       })
     } catch (notifyError) {
@@ -306,10 +312,10 @@ export class ServerManager {
     }
 
     try {
-      // 断开连接，这将停止服务
+      // Disconnect, this will stop the service
       await client.disconnect()
 
-      // 从客户端列表中移除
+      // Remove from client list
       this.clients.delete(name)
 
       console.info(`MCP server ${name} has been stopped`)
@@ -329,7 +335,7 @@ export class ServerManager {
   }
 
   /**
-   * 获取客户端实例
+   * Get client instance
    */
   getClient(name: string): McpClient | undefined {
     return this.clients.get(name)

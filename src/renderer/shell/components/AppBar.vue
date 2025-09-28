@@ -516,19 +516,9 @@ const closeWindow = () => {
 }
 
 const openSettings = () => {
-  // 检查是否已经存在设置标签页
-  const existingSettingsTab = tabStore.tabs.find((tab) => tab.url.includes('#/settings'))
-
-  if (existingSettingsTab) {
-    // 如果已经存在设置标签页，切换到该标签页
-    tabStore.setCurrentTabId(existingSettingsTab.id)
-  } else {
-    // 如果不存在设置标签页，创建新的
-    tabStore.addTab({
-      name: 'Settings',
-      icon: 'lucide:settings',
-      viewType: 'settings'
-    })
+  const windowId = window.api.getWindowId()
+  if (windowId != null) {
+    windowPresenter.openOrFocusSettingsTab(windowId)
   }
 }
 </script>

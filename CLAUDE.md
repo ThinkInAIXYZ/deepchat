@@ -10,7 +10,7 @@ DeepChat is a feature-rich open-source AI chat platform built with Electron + Vu
 
 ### Package Management
 
-Use `pnpm` as the package manager (required Node.js >= 20.12.2, pnpm >= 10.11.0):
+Use `pnpm` as the package manager (required Node.js >= 20.19.0, pnpm >= 10.11.0):
 
 ```bash
 # Install dependencies
@@ -18,6 +18,9 @@ pnpm install
 
 # Install runtime dependencies for MCP and Python execution
 pnpm run installRuntime
+
+# Note: If you encounter "No module named 'distutils'" error on Windows:
+pip install setuptools
 ```
 
 ### Development
@@ -153,6 +156,7 @@ The LLM system follows a two-layer architecture:
 - **Tool Execution**: Seamless integration with LLM providers
 - **Format Conversion**: Bridges MCP tools with various LLM provider formats
 - **Built-in Services**: In-memory servers for code execution, web access, file operations
+- **Data Source Decoupling**: Custom prompts work independently of MCP through config data source
 
 ## Code Structure
 
@@ -178,11 +182,12 @@ The LLM system follows a two-layer architecture:
 
 ### Code Standards
 
-- **Language**: Use English for logs and comments
+- **Language**: Use English for logs and comments (Chinese text exists in legacy code)
 - **TypeScript**: Strict type checking enabled
 - **Vue 3**: Use Composition API for all components
 - **State Management**: Pinia for frontend state
 - **Styling**: Tailwind CSS with scoped styles
+- **Internationalization**: All user-facing strings must use i18n keys via vue-i18n
 
 ### IPC Communication
 
@@ -218,12 +223,45 @@ The LLM system follows a two-layer architecture:
 2. Register in `mcpPresenter/index.ts`
 3. Add tool configuration UI if needed
 
+### Managing Custom Prompts
+
+Custom prompts are managed independently of MCP through the config data source:
+
+1. **Config Storage**: Prompts stored via `configPresenter.getCustomPrompts()`
+2. **UI Management**: Use `promptsStore` for CRUD operations in settings
+3. **@ Operations**: Mention system loads from both config and MCP sources
+4. **MCP Independence**: @ prompt functionality works even when MCP is disabled
+
 ### Creating New UI Components
 
 1. Follow existing component patterns in `src/renderer/src/`
 2. Use Composition API with proper TypeScript typing
 3. Implement responsive design with Tailwind CSS
 4. Add proper error handling and loading states
+
+### UI Changes and Layout Documentation
+
+When making UI/layout changes that affect the visual structure or user interface:
+
+1. **Before Implementation**: Create ASCII diagrams to show the current layout
+2. **After Implementation**: Create ASCII diagrams to show the proposed/new layout
+3. **Visual Comparison**: Use BEFORE/AFTER format to clearly demonstrate changes
+4. **Seek Approval**: Present ASCII mockups to user before implementing changes
+
+Example format:
+```
+BEFORE:
+┌─────────────────────────────────────────────┐
+│ [Icon] Component Name    [Button] [Hidden]  │
+└─────────────────────────────────────────────┘
+
+AFTER:
+┌─────────────────────────────────────────────┐
+│ [Icon] Component Name    [Button] [Visible] │
+└─────────────────────────────────────────────┘
+```
+
+This ensures UI changes are clearly communicated and approved before implementation.
 
 ### Debugging
 
@@ -298,6 +336,8 @@ The LLM system follows a two-layer architecture:
 - AppImage and deb package support
 - Sandbox considerations for development
 
-## Git Commit
+## Git Commit Guidelines
 
-- Do not include author information other than human authors in the Commit, such as Co-Authored-By related information
+- Do not include AI co-authoring information (e.g., "Co-Authored-By: Claude") in commits
+- Follow conventional commit format where applicable
+- Keep commit messages concise and descriptive

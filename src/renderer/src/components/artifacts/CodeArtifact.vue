@@ -63,7 +63,10 @@ const props = defineProps<{
 }>()
 
 const { t } = useI18n()
-const { createEditor, updateCode } = useMonaco()
+const { createEditor, updateCode } = useMonaco({
+  wordWrap: 'on',
+  wrappingIndent: 'same'
+})
 const artifactStore = useArtifactStore()
 const copyText = ref(t('common.copy'))
 const codeEditor = ref<HTMLElement>()

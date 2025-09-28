@@ -57,19 +57,17 @@
           <Icon icon="lucide:a-large-small" class="w-4 h-4 text-muted-foreground" />
           <span class="text-sm font-medium">{{ t('settings.display.fontSize') }}</span>
         </span>
-        <div class="flex flex-row items-center gap-2 pl-6">
-          <Slider
-            :default-value="[fontSizeLevel]"
-            :model-value="[fontSizeLevel]"
-            :min="0"
-            :max="4"
-            :step="1"
-            class="w-full max-w-sm"
-            @update:model-value="(val) => (fontSizeLevel = val?.[0] ?? 1)"
-          />
-          <span class="text-xs w-16 text-center">{{
-            t('settings.display.' + fontSizeClass.toLowerCase())
-          }}</span>
+        <div class="flex flex-wrap items-center gap-1.5 pl-6">
+          <Button
+            v-for="(sizeOption, index) in fontSizeOptions"
+            :key="index"
+            :variant="fontSizeLevel === index ? 'default' : 'outline'"
+            size="sm"
+            class="px-2 py-1.5 text-xs flex-shrink-0"
+            @click="fontSizeLevel = index"
+          >
+            {{ t('settings.display.' + sizeOption) }}
+          </Button>
         </div>
       </div>
 
@@ -172,7 +170,6 @@ import {
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
-import { Slider } from '@/components/ui/slider'
 
 const languageStore = useLanguageStore()
 const settingsStore = useSettingsStore()
@@ -200,11 +197,12 @@ watch(selectedLanguage, async (newValue) => {
 })
 
 // --- Font Size Settings ---
+const fontSizeOptions = ['text-sm', 'text-base', 'text-lg', 'text-xl', 'text-2xl']
+
 const fontSizeLevel = computed({
   get: () => settingsStore.fontSizeLevel,
   set: (value) => settingsStore.updateFontSizeLevel(value)
 })
-const fontSizeClass = computed(() => settingsStore.fontSizeClass)
 
 // --- Content Protection Settings ---
 const contentProtectionEnabled = computed({

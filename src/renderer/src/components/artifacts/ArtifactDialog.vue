@@ -263,7 +263,11 @@ const appVersion = ref('')
 const codeLanguage = ref(
   artifactStore.currentArtifact?.language || artifactStore.currentArtifact?.type || ''
 )
-const { createEditor, updateCode } = useMonaco({ MAX_HEIGHT: '500px' })
+const { createEditor, updateCode } = useMonaco({
+  MAX_HEIGHT: '500px',
+  wordWrap: 'on',
+  wrappingIndent: 'same'
+})
 const codeEditor = ref<any>(null)
 
 // 创建节流版本的语言检测函数，1秒内最多执行一次
@@ -328,11 +332,12 @@ watch(
   }
 )
 
-watch(
+const { stop: stopWatch } = watch(
   () => codeEditor.value,
   () => {
     if (!codeEditor.value) return
     createEditor(codeEditor.value, artifactStore.currentArtifact?.content || '', codeLanguage.value)
+    stopWatch()
   }
 )
 

@@ -42,7 +42,6 @@
             <Icon icon="lucide:trash-2" class="w-4 h-4 text-destructive" />
           </Button>
           <Button
-            v-if="isCurrentEngineCustom"
             variant="outline"
             size="icon"
             :title="t('settings.common.testSearchEngine')"
@@ -50,6 +49,61 @@
           >
             <Icon icon="lucide:flask-conical" class="w-4 h-4" />
           </Button>
+        </div>
+      </div>
+
+      <!-- 网页内容长度限制 -->
+      <div class="flex flex-row p-2 items-center gap-2 px-2">
+        <span class="flex flex-row items-center gap-2 flex-grow w-full" :dir="langStore.dir">
+          <Icon icon="lucide:globe" class="w-4 h-4 text-muted-foreground" />
+          <span class="text-sm font-medium">{{ t('settings.common.webContentLengthLimit') }}</span>
+          <div class="text-xs text-muted-foreground ml-1">
+            {{ t('settings.common.webContentLengthLimitHint') }}
+          </div>
+        </span>
+        <div class="flex-shrink-0 flex items-center gap-1">
+          <Button
+            variant="outline"
+            size="icon"
+            class="h-8 w-8 rounded-full"
+            @click="decreaseWebContentLimit"
+            :disabled="webContentLengthLimit <= 0"
+          >
+            <Icon icon="lucide:minus" class="h-3 w-3" />
+          </Button>
+          <div class="relative">
+            <div
+              v-if="!isEditingLimit"
+              @click="startEditingLimit"
+              class="min-w-16 h-8 flex items-center justify-center text-sm font-semibold cursor-pointer hover:bg-accent rounded px-2"
+            >
+              {{ webContentLengthLimit }}
+            </div>
+            <Input
+              v-else
+              ref="limitInputRef"
+              type="number"
+              :min="0"
+              :max="10000"
+              :model-value="webContentLengthLimit"
+              @update:model-value="handleWebContentLengthLimitChange"
+              @blur="stopEditingLimit"
+              @keydown.enter="stopEditingLimit"
+              @keydown.escape="stopEditingLimit"
+              class="min-w-16 h-8 text-center text-sm font-semibold rounded px-2"
+              :class="{ 'bg-accent': isEditingLimit }"
+            />
+          </div>
+          <Button
+            variant="outline"
+            size="icon"
+            class="h-8 w-8 rounded-full"
+            @click="increaseWebContentLimit"
+            :disabled="webContentLengthLimit >= 10000"
+          >
+            <Icon icon="lucide:plus" class="h-3 w-3" />
+          </Button>
+          <span class="text-xs text-muted-foreground ml-1">字符</span>
         </div>
       </div>
 
@@ -349,7 +403,7 @@ import {
   SelectTrigger,
   SelectValue
 } from '@/components/ui/select'
-import { ref, onMounted, watch, computed } from 'vue'
+import { ref, onMounted, watch, computed, nextTick } from 'vue'
 import { useSettingsStore } from '@/stores/settings'
 import {
   Dialog,
@@ -389,6 +443,11 @@ const selectedSearchModel = computed(() => settingsStore.searchAssistantModel)
 const selectedProxyMode = ref('system')
 const customProxyUrl = ref('')
 const showUrlError = ref(false)
+
+// 网页内容长度限制
+const webContentLengthLimit = ref(3000)
+const isEditingLimit = ref(false)
+const limitInputRef = ref<{ dom: HTMLInputElement }>()
 
 // 新增搜索引擎相关
 const isAddSearchEngineDialogOpen = ref(false)
@@ -505,6 +564,16 @@ onMounted(async () => {
   if (selectedProxyMode.value === 'custom' && customProxyUrl.value) {
     validateProxyUrl()
   }
+
+  // 加载网页内容长度限制设置
+  try {
+    const savedLimit = await configPresenter.getSetting<number>('webContentLengthLimit')
+    if (savedLimit !== undefined && savedLimit !== null) {
+      webContentLengthLimit.value = savedLimit
+    }
+  } catch (error) {
+    console.error('加载网页内容长度限制设置失败:', error)
+  }
 })
 
 watch(selectedSearchEngine, async (newValue) => {
@@ -523,6 +592,16 @@ watch(customProxyUrl, () => {
     validateProxyUrl()
   }, 300)
 })
+
+watch(
+  () => isEditingLimit.value,
+  async (newValue) => {
+    if (newValue) {
+      await nextTick()
+      limitInputRef.value?.dom?.focus?.()
+    }
+  }
+)
 
 const isDialogOpen = ref(false)
 const modelSelectOpen = ref(false)
@@ -650,6 +729,45 @@ const handleLoggingChange = (value: boolean) => {
   isLoggingDialogOpen.value = true
 }
 
+// 处理网页内容长度限制变更
+const handleWebContentLengthLimitChange = async (value: string | number) => {
+  const numValue = typeof value === 'string' ? parseInt(value, 10) : value
+  if (numValue >= 0 && numValue <= 10000 && !isNaN(numValue)) {
+    try {
+      const displayText = numValue === 0 ? '无限制' : `${numValue}字符`
+      console.log('设置网页内容长度限制:', displayText)
+      // 直接调用presenter设置，不依赖store
+      await configPresenter.setSetting('webContentLengthLimit', numValue)
+      // 更新响应式变量
+      webContentLengthLimit.value = numValue
+    } catch (error) {
+      console.error('设置网页内容长度限制失败:', error)
+    }
+  }
+}
+
+// 增加网页内容长度限制
+const increaseWebContentLimit = () => {
+  const newValue = Math.min(webContentLengthLimit.value + 100, 20000)
+  handleWebContentLengthLimitChange(newValue)
+}
+
+// 减少网页内容长度限制
+const decreaseWebContentLimit = () => {
+  const newValue = Math.max(webContentLengthLimit.value - 100, 0)
+  handleWebContentLengthLimitChange(newValue)
+}
+
+// 开始编辑限制值
+const startEditingLimit = () => {
+  isEditingLimit.value = true
+}
+
+// 结束编辑限制值
+const stopEditingLimit = () => {
+  isEditingLimit.value = false
+}
+
 const cancelLoggingChange = () => {
   isLoggingDialogOpen.value = false
 }
@@ -711,3 +829,18 @@ const testSearchEngine = async () => {
   }
 }
 </script>
+
+<style scoped>
+input::-webkit-outer-spin-button,
+input::-webkit-inner-spin-button {
+  /* display: none; <- Crashes Chrome on hover */
+  -webkit-appearance: none;
+  margin: 0;
+  /* <-- Apparently some margin are still there even though it's hidden */
+}
+
+input[type='number'] {
+  -moz-appearance: textfield;
+  /* Firefox */
+}
+</style>

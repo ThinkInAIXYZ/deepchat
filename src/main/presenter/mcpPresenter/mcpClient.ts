@@ -3,6 +3,13 @@ import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js'
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js'
 import { type Transport } from '@modelcontextprotocol/sdk/shared/transport.js'
+import {
+  ToolListChangedNotificationSchema,
+  PromptListChangedNotificationSchema,
+  ResourceListChangedNotificationSchema,
+  ResourceUpdatedNotificationSchema,
+  LoggingMessageNotificationSchema
+} from '@modelcontextprotocol/sdk/types.js'
 import { eventBus, SendTarget } from '@/eventbus'
 import { MCP_EVENTS } from '@/events'
 import path from 'path'
@@ -20,14 +27,15 @@ import {
   ResourceListEntry,
   Resource
 } from '@shared/presenter'
+
 // TODO: resources 和 prompts 的类型,Notifactions 的类型 https://github.com/modelcontextprotocol/typescript-sdk/blob/main/src/examples/client/simpleStreamableHttp.ts
-// 简单的 OAuth 提供者，用于处理 Bearer Token
+// Simple OAuth provider for handling Bearer Token
 class SimpleOAuthProvider {
   private token: string | null = null
 
   constructor(authHeader: string | undefined) {
     if (authHeader && authHeader.toLowerCase().startsWith('bearer ')) {
-      this.token = authHeader.substring(7) // 移除 'Bearer ' 前缀
+      this.token = authHeader.substring(7) // Remove 'Bearer ' prefix
     }
   }
 
@@ -39,7 +47,7 @@ class SimpleOAuthProvider {
   }
 }
 
-// 确保 TypeScript 能够识别 SERVER_STATUS_CHANGED 属性
+// Ensure TypeScript can recognize SERVER_STATUS_CHANGED property
 type MCPEventsType = typeof MCP_EVENTS & {
   SERVER_STATUS_CHANGED: string
 }
@@ -83,7 +91,7 @@ function isSessionError(error: unknown): error is SessionError {
   return false
 }
 
-// MCP 客户端类
+// MCP client class
 export class McpClient {
   private client: Client | null = null
   private transport: Transport | null = null
@@ -101,39 +109,39 @@ export class McpClient {
   private isRecovering: boolean = false
   private hasRestarted: boolean = false
 
-  // 缓存
+  // Cache
   private cachedTools: Tool[] | null = null
   private cachedPrompts: PromptListEntry[] | null = null
   private cachedResources: ResourceListEntry[] | null = null
 
-  // 处理PATH环境变量的函数
+  // Function to handle PATH environment variables
   private normalizePathEnv(paths: string[]): { key: string; value: string } {
     const isWindows = process.platform === 'win32'
     const separator = isWindows ? ';' : ':'
     const pathKey = isWindows ? 'Path' : 'PATH'
 
-    // 合并所有路径
+    // Merge all paths
     const pathValue = paths.filter(Boolean).join(separator)
 
     return { key: pathKey, value: pathValue }
   }
 
-  // 展开路径中的各种符号和变量
+  // Expand various symbols and variables in paths
   private expandPath(inputPath: string): string {
     let expandedPath = inputPath
 
-    // 处理 ~ 符号 (用户主目录)
+    // Handle ~ symbol (user home directory)
     if (expandedPath.startsWith('~/') || expandedPath === '~') {
       const homeDir = app.getPath('home')
       expandedPath = expandedPath.replace('~', homeDir)
     }
 
-    // 处理环境变量展开
+    // Handle environment variable expansion
     expandedPath = expandedPath.replace(/\$\{([^}]+)\}/g, (match, varName) => {
       return process.env[varName] || match
     })
 
-    // 处理简单的 $VAR 格式 (不含花括号)
+    // Handle simple $VAR format (without braces)
     expandedPath = expandedPath.replace(/\$([A-Z_][A-Z0-9_]*)/g, (match, varName) => {
       return process.env[varName] || match
     })
@@ -141,45 +149,45 @@ export class McpClient {
     return expandedPath
   }
 
-  // 替换命令为 runtime 版本
+  // Replace command with runtime version
   private replaceWithRuntimeCommand(command: string): string {
-    // 获取命令的基本名称（去掉路径）
+    // Get command basename (remove path)
     const basename = path.basename(command)
 
-    // 根据命令类型选择对应的 runtime 路径
+    // Choose corresponding runtime path based on command type
     if (process.platform === 'win32') {
-      // Windows平台只替换Node.js相关命令，bun命令让系统自动处理
+      // Windows platform only replaces Node.js related commands, let system handle bun commands automatically
       if (this.nodeRuntimePath) {
         if (basename === 'node') {
           return path.join(this.nodeRuntimePath, 'node.exe')
         } else if (basename === 'npm') {
-          // Windows 下 npm 通常是 .cmd 文件
+          // Windows usually has npm as .cmd file
           const npmCmd = path.join(this.nodeRuntimePath, 'npm.cmd')
           if (fs.existsSync(npmCmd)) {
             return npmCmd
           }
-          // 如果不存在，返回默认路径
+          // If doesn't exist, return default path
           return path.join(this.nodeRuntimePath, 'npm')
         } else if (basename === 'npx') {
-          // Windows 下 npx 通常是 .cmd 文件
+          // On Windows, npx is typically a .cmd file
           const npxCmd = path.join(this.nodeRuntimePath, 'npx.cmd')
           if (fs.existsSync(npxCmd)) {
             return npxCmd
           }
-          // 如果不存在，返回默认路径
+          // If doesn't exist, return default path
           return path.join(this.nodeRuntimePath, 'npx')
         }
       }
     } else {
-      // 非Windows平台处理所有命令
+      // Non-Windows platforms handle all commands
       if (['node', 'npm', 'npx', 'bun'].includes(basename)) {
-        // 优先使用 Bun，如果不可用则使用 Node.js
+        // Prefer Bun if available, otherwise use Node.js
         if (this.bunRuntimePath) {
-          // 对于 node/npm/npx，统一替换为 bun
+          // For node/npm/npx, uniformly replace with bun
           const targetCommand = 'bun'
           return path.join(this.bunRuntimePath, targetCommand)
         } else if (this.nodeRuntimePath) {
-          // 使用 Node.js 运行时
+          // Use Node.js runtime
           let targetCommand: string
           if (basename === 'node') {
             targetCommand = 'node'
@@ -188,7 +196,7 @@ export class McpClient {
           } else if (basename === 'npx') {
             targetCommand = 'npx'
           } else if (basename === 'bun') {
-            targetCommand = 'node' // 将 bun 命令映射到 node
+            targetCommand = 'node' // Map bun command to node
           } else {
             targetCommand = basename
           }
@@ -197,13 +205,13 @@ export class McpClient {
       }
     }
 
-    // UV命令处理（所有平台）
+    // UV command handling (all platforms)
     if (['uv', 'uvx'].includes(basename)) {
       if (!this.uvRuntimePath) {
         return command
       }
 
-      // uv 和 uvx 都使用对应的命令
+      // Both uv and uvx use their corresponding commands
       const targetCommand = basename === 'uvx' ? 'uvx' : 'uv'
 
       if (process.platform === 'win32') {
@@ -216,30 +224,30 @@ export class McpClient {
     return command
   }
 
-  // 处理特殊参数替换（如 npx -> bun x）
+  // Handle special parameter replacement (e.g., npx -> bun x)
   private processCommandWithArgs(
     command: string,
     args: string[]
   ): { command: string; args: string[] } {
     const basename = path.basename(command)
 
-    // 处理 npx 命令
+    // Handle npx command
     if (basename === 'npx' || command.includes('npx')) {
       if (process.platform === 'win32') {
-        // Windows 平台使用 Node.js 的 npx，保持原有参数
+        // Windows platform uses Node.js npx, keep original arguments
         return {
           command: this.replaceWithRuntimeCommand(command),
           args: args.map((arg) => this.replaceWithRuntimeCommand(arg))
         }
       } else {
-        // 非Windows平台优先使用 Bun，需要在参数前添加 'x'
+        // Non-Windows platforms prefer Bun, need to add 'x' before arguments
         if (this.bunRuntimePath) {
           return {
             command: this.replaceWithRuntimeCommand(command),
             args: ['x', ...args]
           }
         } else if (this.nodeRuntimePath) {
-          // 如果没有Bun，使用Node.js，保持原有参数
+          // If no Bun available, use Node.js with original arguments
           return {
             command: this.replaceWithRuntimeCommand(command),
             args: args.map((arg) => this.replaceWithRuntimeCommand(arg))
@@ -254,7 +262,7 @@ export class McpClient {
     }
   }
 
-  // 获取系统特定的默认路径
+  // Get system-specific default paths
   private getDefaultPaths(homeDir: string): string[] {
     if (process.platform === 'darwin') {
       return [
@@ -292,7 +300,7 @@ export class McpClient {
       .replace('app.asar', 'app.asar.unpacked')
     console.info('runtimeBasePath', runtimeBasePath)
 
-    // 检查 bun 运行时文件是否存在
+    // Check if bun runtime file exists
     const bunRuntimePath = path.join(runtimeBasePath, 'bun')
     if (process.platform === 'win32') {
       const bunExe = path.join(bunRuntimePath, 'bun.exe')
@@ -310,7 +318,7 @@ export class McpClient {
       }
     }
 
-    // 检查 node 运行时文件是否存在
+    // Check if node runtime file exists
     const nodeRuntimePath = path.join(runtimeBasePath, 'node')
     if (process.platform === 'win32') {
       const nodeExe = path.join(nodeRuntimePath, 'node.exe')
@@ -328,7 +336,7 @@ export class McpClient {
       }
     }
 
-    // 检查 uv 运行时文件是否存在
+    // Check if uv runtime file exists
     const uvRuntimePath = path.join(runtimeBasePath, 'uv')
     if (process.platform === 'win32') {
       const uvExe = path.join(uvRuntimePath, 'uv.exe')
@@ -349,7 +357,7 @@ export class McpClient {
     }
   }
 
-  // 连接到 MCP 服务器
+  // Connect to MCP server
   async connect(): Promise<void> {
     if (this.isConnected && this.client) {
       console.info(`MCP server ${this.serverName} is already running`)
@@ -359,15 +367,15 @@ export class McpClient {
     try {
       console.info(`Starting MCP server ${this.serverName}...`, this.serverConfig)
 
-      // 处理 customHeaders 和 AuthProvider
+      // Handle customHeaders and AuthProvider
       let authProvider: SimpleOAuthProvider | null = null
       const customHeaders = this.serverConfig.customHeaders
-        ? { ...(this.serverConfig.customHeaders as Record<string, string>) } // 创建副本以进行修改
+        ? { ...(this.serverConfig.customHeaders as Record<string, string>) } // Create copy for modification
         : {}
 
       if (customHeaders.Authorization) {
         authProvider = new SimpleOAuthProvider(customHeaders.Authorization)
-        delete customHeaders.Authorization // 从 headers 中移除，因为它将由 AuthProvider 处理
+        delete customHeaders.Authorization // Remove from headers as it will be handled by AuthProvider
       }
 
       if (this.serverConfig.type === 'inmemory') {
@@ -378,17 +386,17 @@ export class McpClient {
         _server.startServer(serverTransport)
         this.transport = clientTransport
       } else if (this.serverConfig.type === 'stdio') {
-        // 创建合适的transport
+        // Create appropriate transport
         let command = this.serverConfig.command as string
         let args = this.serverConfig.args as string[]
 
-        // 处理路径展开 (包括 ~ 和环境变量)
+        // Handle path expansion (including ~ and environment variables)
         command = this.expandPath(command)
         args = args.map((arg) => this.expandPath(arg))
 
         const HOME_DIR = app.getPath('home')
 
-        // 定义允许的环境变量白名单
+        // Define allowed environment variables whitelist
         const allowedEnvVars = [
           'PATH',
           'path',
@@ -405,25 +413,25 @@ export class McpClient {
           // 'grpc_proxy'
         ]
 
-        // 修复env类型问题
+        // Fix env type issue
         const env: Record<string, string> = {}
 
-        // 处理命令和参数替换
+        // Handle command and argument replacement
         const processedCommand = this.processCommandWithArgs(command, args)
         command = processedCommand.command
         args = processedCommand.args
 
-        // 判断是否是 Node.js/Bun/UV 相关命令
+        // Determine if it's Node.js/Bun/UV related command
         const isNodeCommand = ['node', 'npm', 'npx', 'bun', 'uv', 'uvx'].some(
           (cmd) => command.includes(cmd) || args.some((arg) => arg.includes(cmd))
         )
 
         if (isNodeCommand) {
-          // Node.js/Bun/UV 命令使用白名单处理
+          // Node.js/Bun/UV commands use whitelist processing
           if (process.env) {
             const existingPaths: string[] = []
 
-            // 收集所有PATH相关的值
+            // Collect all PATH-related values
             Object.entries(process.env).forEach(([key, value]) => {
               if (value !== undefined) {
                 if (['PATH', 'Path', 'path'].includes(key)) {
@@ -437,7 +445,7 @@ export class McpClient {
               }
             })
 
-            // 获取默认路径
+            // Get default paths
             const defaultPaths = this.getDefaultPaths(HOME_DIR)
 
             // 合并所有路径
@@ -572,7 +580,7 @@ export class McpClient {
           }
         )
       } else {
-        throw new Error(`不支持的传输类型: ${this.serverConfig.type}`)
+        throw new Error(`Unsupported transport type: ${this.serverConfig.type}`)
       }
 
       // 创建 MCP 客户端
@@ -586,6 +594,9 @@ export class McpClient {
           }
         }
       )
+
+      // 设置通知处理器
+      this.registerNotificationHandlers()
 
       // 设置连接超时
       const timeoutPromise = new Promise<void>((_, reject) => {
@@ -693,6 +704,66 @@ export class McpClient {
     this.cachedResources = null
   }
 
+  // Register notification handlers
+  private registerNotificationHandlers(): void {
+    if (!this.client) {
+      return
+    }
+
+    // Tool list changed notification - clear tool cache and actively refresh
+    this.client.setNotificationHandler(ToolListChangedNotificationSchema, async () => {
+      console.info(`[MCP] Tools list changed for server: ${this.serverName}`)
+      this.cachedTools = null
+      // Actively refresh tool list
+      try {
+        await this.listTools()
+      } catch (error) {
+        console.warn(`[MCP] Failed to refresh tools after notification:`, error)
+      }
+    })
+
+    // Prompt list changed notification - clear prompt cache and actively refresh
+    this.client.setNotificationHandler(PromptListChangedNotificationSchema, async () => {
+      console.info(`[MCP] Prompts list changed for server: ${this.serverName}`)
+      this.cachedPrompts = null
+      // Actively refresh prompt list
+      try {
+        await this.listPrompts()
+      } catch (error) {
+        console.warn(`[MCP] Failed to refresh prompts after notification:`, error)
+      }
+    })
+
+    // Resource list changed notification - clear resource cache and actively refresh
+    this.client.setNotificationHandler(ResourceListChangedNotificationSchema, async () => {
+      console.info(`[MCP] Resources list changed for server: ${this.serverName}`)
+      this.cachedResources = null
+      // Actively refresh resource list
+      try {
+        await this.listResources()
+      } catch (error) {
+        console.warn(`[MCP] Failed to refresh resources after notification:`, error)
+      }
+    })
+
+    // Resource updated notification - clear resource cache and actively refresh
+    this.client.setNotificationHandler(ResourceUpdatedNotificationSchema, async (params) => {
+      console.info(`[MCP] Resource updated for server: ${this.serverName}`, params)
+      this.cachedResources = null
+      // Actively refresh resource list
+      try {
+        await this.listResources()
+      } catch (error) {
+        console.warn(`[MCP] Failed to refresh resources after update notification:`, error)
+      }
+    })
+
+    // Logging message notification - just log the message
+    this.client.setNotificationHandler(LoggingMessageNotificationSchema, async (params) => {
+      console.info(`[MCP] Log message from server ${this.serverName}:`, params)
+    })
+  }
+
   // 检查服务器是否正在运行
   isServerRunning(): boolean {
     return this.isConnected && !!this.client
@@ -708,7 +779,9 @@ export class McpClient {
           error
         )
         await this.stopService()
-        throw new Error(`MCP服务 ${this.serverName} 重启后仍然出现session错误，已停止服务`)
+        throw new Error(
+          `MCP service ${this.serverName} still has session errors after restart, service has been stopped`
+        )
       }
 
       console.warn(
@@ -775,7 +848,7 @@ export class McpClient {
       }
 
       if (!this.client) {
-        throw new Error(`MCP客户端 ${this.serverName} 未初始化`)
+        throw new Error(`MCP client ${this.serverName} not initialized`)
       }
 
       // 调用工具
@@ -789,7 +862,8 @@ export class McpClient {
 
       // 检查结果
       if (result.isError) {
-        const errorText = result.content && result.content[0] ? result.content[0].text : '未知错误'
+        const errorText =
+          result.content && result.content[0] ? result.content[0].text : 'Unknown error'
         // 如果调用失败，清空工具缓存，以便下次重新获取
         this.cachedTools = null
         return {
@@ -822,11 +896,10 @@ export class McpClient {
       }
 
       if (!this.client) {
-        throw new Error(`MCP客户端 ${this.serverName} 未初始化`)
+        throw new Error(`MCP client ${this.serverName} not initialized`)
       }
 
       const response = await this.client.listTools()
-
       // 成功调用后重置重启标志
       this.hasRestarted = false
 
@@ -839,7 +912,7 @@ export class McpClient {
           return this.cachedTools
         }
       }
-      throw new Error('无效的工具响应格式')
+      throw new Error('Invalid tool response format')
     } catch (error) {
       // 检查并处理session错误
       await this.checkAndHandleSessionError(error)
@@ -872,7 +945,7 @@ export class McpClient {
       }
 
       if (!this.client) {
-        throw new Error(`MCP客户端 ${this.serverName} 未初始化`)
+        throw new Error(`MCP client ${this.serverName} not initialized`)
       }
 
       // SDK可能没有 listPrompts 方法，需要使用通用的 request
@@ -902,7 +975,7 @@ export class McpClient {
           return this.cachedPrompts
         }
       }
-      throw new Error('无效的提示响应格式')
+      throw new Error('Invalid prompt response format')
     } catch (error) {
       // 检查并处理session错误
       await this.checkAndHandleSessionError(error)
@@ -930,7 +1003,7 @@ export class McpClient {
       }
 
       if (!this.client) {
-        throw new Error(`MCP客户端 ${this.serverName} 未初始化`)
+        throw new Error(`MCP client ${this.serverName} not initialized`)
       }
 
       const response = await this.client.getPrompt({
@@ -955,7 +1028,7 @@ export class McpClient {
           messages: response.messages as Array<{ role: string; content: { text: string } }>
         }
       }
-      throw new Error('无效的获取提示响应格式')
+      throw new Error('Invalid get prompt response format')
     } catch (error) {
       // 检查并处理session错误
       await this.checkAndHandleSessionError(error)
@@ -980,7 +1053,7 @@ export class McpClient {
       }
 
       if (!this.client) {
-        throw new Error(`MCP客户端 ${this.serverName} 未初始化`)
+        throw new Error(`MCP client ${this.serverName} not initialized`)
       }
 
       // SDK可能没有 listResources 方法，需要使用通用的 request
@@ -1003,7 +1076,7 @@ export class McpClient {
           return this.cachedResources
         }
       }
-      throw new Error('无效的资源列表响应格式')
+      throw new Error('Invalid resource list response format')
     } catch (error) {
       // 检查并处理session错误
       await this.checkAndHandleSessionError(error)
@@ -1031,7 +1104,7 @@ export class McpClient {
       }
 
       if (!this.client) {
-        throw new Error(`MCP客户端 ${this.serverName} 未初始化`)
+        throw new Error(`MCP client ${this.serverName} not initialized`)
       }
 
       // 使用 unknown 作为中间类型进行转换
