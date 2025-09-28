@@ -83,7 +83,7 @@ import { Label } from '@shadcn/components/ui/label'
 import { usePresenter } from '@/composables/usePresenter'
 import { RATE_LIMIT_EVENTS } from '@/events'
 import type { LLM_PROVIDER } from '@shared/presenter'
-import { useToast } from '@/components/ui/toast/use-toast'
+import { useToast } from '@/components/use-toast'
 import {
   AlertDialog,
   AlertDialogAction,

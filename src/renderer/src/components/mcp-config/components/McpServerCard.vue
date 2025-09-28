@@ -261,9 +261,9 @@ watch(watchDescription, () => {
 
         <div class="flex items-center space-x-2">
           <Switch
-            :checked="server.isRunning"
+            :model-value="server.isRunning"
             :disabled="disabled || isLoading"
-            @update:checked="$emit('toggle')"
+            @update:model-value="$emit('toggle')"
           />
         </div>
       </div>

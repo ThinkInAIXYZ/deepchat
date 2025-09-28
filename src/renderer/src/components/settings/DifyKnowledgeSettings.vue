@@ -203,7 +203,7 @@ import {
 } from '@shadcn/components/ui/dialog'
 import { Collapsible, CollapsibleContent } from '@shadcn/components/ui/collapsible'
 import { useMcpStore } from '@/stores/mcp'
-import { useToast } from '@/components/ui/toast'
+import { useToast } from '@/components/use-toast'
 import {
   Tooltip,
   TooltipContent,

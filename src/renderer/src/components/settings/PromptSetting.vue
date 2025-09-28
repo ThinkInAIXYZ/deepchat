@@ -677,7 +677,7 @@ import {
   AlertDialogCancel,
   AlertDialogAction
 } from '@shadcn/components/ui/alert-dialog'
-import { useToast } from '@/components/ui/toast'
+import { useToast } from '@/components/use-toast'
 import { usePromptsStore } from '@/stores/prompts'
 import { useSettingsStore } from '@/stores/settings'
 import { MessageFile } from '@shared/chat'

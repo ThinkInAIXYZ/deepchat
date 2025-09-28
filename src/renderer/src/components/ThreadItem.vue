@@ -108,7 +108,7 @@ import {
   DropdownMenuSubContent
 } from '@shadcn/components/ui/dropdown-menu'
 import { useLanguageStore } from '@/stores/language'
-import { useToast } from '@/components/ui/toast/use-toast'
+import { useToast } from '@/components/use-toast'
 
 const langStore = useLanguageStore()
 

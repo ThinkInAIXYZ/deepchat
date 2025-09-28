@@ -218,7 +218,7 @@ import {
 } from '@shadcn/components/ui/dialog'
 import { useMcpStore } from '@/stores/mcp'
 import { useLanguageStore } from '@/stores/language'
-import { useToast } from '@/components/ui/toast'
+import { useToast } from '@/components/use-toast'
 import { MCP_MARKETPLACE_URL, HIGRESS_MCP_MARKETPLACE_URL } from '../mcp-config/const'
 import { useRouter } from 'vue-router'
 

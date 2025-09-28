@@ -15,7 +15,7 @@ import {
 import { useMcpStore } from '@/stores/mcp'
 import { useSettingsStore } from '@/stores/settings'
 import { useI18n } from 'vue-i18n'
-import { useToast } from '@/components/ui/toast'
+import { useToast } from '@/components/use-toast'
 import { useRouter } from 'vue-router'
 import McpServerCard from './McpServerCard.vue'
 import McpServerForm from '../mcpServerForm.vue'

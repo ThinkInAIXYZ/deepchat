@@ -120,7 +120,7 @@ import { useI18n } from 'vue-i18n'
 import { Button } from '@shadcn/components/ui/button'
 import { Input } from '@shadcn/components/ui/input'
 import { usePresenter } from '@/composables/usePresenter'
-import { useToast } from '@/components/ui/toast'
+import { useToast } from '@/components/use-toast'
 
 const { t } = useI18n()
 const { toast } = useToast()

@@ -16,7 +16,7 @@ import {
 import { ScrollArea } from '@shadcn/components/ui/scroll-area'
 import { MCPServerConfig } from '@shared/presenter'
 import { EmojiPicker } from '@/components/emoji-picker'
-import { useToast } from '@/components/ui/toast'
+import { useToast } from '@/components/use-toast'
 import { Icon } from '@iconify/vue'
 import { Popover, PopoverContent, PopoverTrigger } from '@shadcn/components/ui/popover'
 import { ChevronDown, X } from 'lucide-vue-next'

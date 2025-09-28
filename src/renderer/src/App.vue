@@ -8,7 +8,7 @@ import { useArtifactStore } from './stores/artifact'
 import { useChatStore } from '@/stores/chat'
 import { NOTIFICATION_EVENTS, SHORTCUT_EVENTS } from './events'
 import { Toaster } from '@shadcn/components/ui/sonner'
-import { useToast } from './components/ui/toast/use-toast'
+import { useToast } from '@/components/use-toast'
 import { useSettingsStore } from '@/stores/settings'
 import { useThemeStore } from '@/stores/theme'
 import { useLanguageStore } from '@/stores/language'
@@ -17,6 +17,7 @@ import TranslatePopup from '@/components/popup/TranslatePopup.vue'
 import ModelCheckDialog from '@/components/settings/ModelCheckDialog.vue'
 import { useModelCheckStore } from '@/stores/modelCheck'
 import MessageDialog from './components/ui/MessageDialog.vue'
+import 'vue-sonner/style.css' // vue-sonner v2 requires this import
 
 const route = useRoute()
 const configPresenter = usePresenter('configPresenter')
