@@ -100,6 +100,8 @@ export class ConfigPresenter implements IConfigPresenter {
   private knowledgeConfHelper: KnowledgeConfHelper // Knowledge configuration helper
   // Model status memory cache for high-frequency read/write operations
   private modelStatusCache: Map<string, boolean> = new Map()
+  // Custom prompts cache for high-frequency read operations
+  private customPromptsCache: Prompt[] | null = null
 
   constructor() {
     this.userDataPath = app.getPath('userData')
@@ -1194,45 +1196,81 @@ export class ConfigPresenter implements IConfigPresenter {
     return nativeTheme.shouldUseDarkColors ? 'dark' : 'light'
   }
 
-  // 获取所有自定义 prompts
+  // 获取所有自定义 prompts (with cache)
   async getCustomPrompts(): Promise<Prompt[]> {
+    // Check cache first
+    if (this.customPromptsCache !== null) {
+      return this.customPromptsCache
+    }
+
+    // Load from store and cache it
     try {
-      return this.customPromptsStore.get('prompts') || []
-    } catch {
+      const prompts = this.customPromptsStore.get('prompts') || []
+      this.customPromptsCache = prompts
+      console.log(`[Config] Custom prompts cache loaded: ${prompts.length} prompts`)
+      return prompts
+    } catch (error) {
+      console.error('[Config] Failed to load custom prompts:', error)
+      this.customPromptsCache = []
       return []
     }
   }
 
-  // 保存自定义 prompts
+  // 保存自定义 prompts (with cache update)
   async setCustomPrompts(prompts: Prompt[]): Promise<void> {
     await this.customPromptsStore.set('prompts', prompts)
+    this.clearCustomPromptsCache()
+    console.log(`[Config] Custom prompts cache updated: ${prompts.length} prompts`)
   }
 
-  // 添加单个 prompt
+  // 添加单个 prompt (optimized with cache)
   async addCustomPrompt(prompt: Prompt): Promise<void> {
     const prompts = await this.getCustomPrompts()
-    prompts.push(prompt)
-    await this.setCustomPrompts(prompts)
-    // 事件会在 setCustomPrompts 中触发
+    const updatedPrompts = [...prompts, prompt] // Create new array
+    await this.setCustomPrompts(updatedPrompts)
+    this.clearCustomPromptsCache()
+    console.log(`[Config] Added custom prompt: ${prompt.name}`)
   }
 
-  // 更新单个 prompt
+  // 更新单个 prompt (optimized with cache)
   async updateCustomPrompt(promptId: string, updates: Partial<Prompt>): Promise<void> {
     const prompts = await this.getCustomPrompts()
     const index = prompts.findIndex((p) => p.id === promptId)
     if (index !== -1) {
-      prompts[index] = { ...prompts[index], ...updates }
-      await this.setCustomPrompts(prompts)
-      // 事件会在 setCustomPrompts 中触发
+      const updatedPrompts = [...prompts] // Create new array
+      updatedPrompts[index] = { ...updatedPrompts[index], ...updates }
+      await this.setCustomPrompts(updatedPrompts)
+      // remove cache
+      this.clearCustomPromptsCache()
+      console.log(`[Config] Updated custom prompt: ${promptId}`)
+    } else {
+      console.warn(`[Config] Custom prompt not found for update: ${promptId}`)
     }
   }
 
-  // 删除单个 prompt
+  // 删除单个 prompt (optimized with cache)
   async deleteCustomPrompt(promptId: string): Promise<void> {
     const prompts = await this.getCustomPrompts()
+    const initialCount = prompts.length
     const filteredPrompts = prompts.filter((p) => p.id !== promptId)
+
+    if (filteredPrompts.length === initialCount) {
+      console.warn(`[Config] Custom prompt not found for deletion: ${promptId}`)
+      return
+    }
+
     await this.setCustomPrompts(filteredPrompts)
-    // 事件会在 setCustomPrompts 中触发
+    this.clearCustomPromptsCache()
+    console.log(`[Config] Deleted custom prompt: ${promptId}`)
+  }
+
+  /**
+   * 清除自定义 prompts 缓存
+   * 这将强制下次访问时重新加载
+   */
+  clearCustomPromptsCache(): void {
+    console.log('[Config] Clearing custom prompts cache')
+    this.customPromptsCache = null
   }
 
   // 获取默认系统提示词

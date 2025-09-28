@@ -371,7 +371,7 @@ export const useMcpStore = defineStore('mcp', () => {
           arguments: prompt.parameters || [],
           files: prompt.files || [],
           client: {
-            name: 'config',
+            name: 'deepchat/custom-prompts-server',
             icon: '⚙️'
           }
         }))

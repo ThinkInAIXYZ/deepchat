@@ -106,8 +106,8 @@ jobs:
       - name: Install dependencies
         run: pnpm install
 
-      - name: Install Node Runtime
-        run: pnpm run installRuntime:linux:${{ matrix.arch }}
+      # - name: Install Node Runtime
+        # run: pnpm run installRuntime:linux:${{ matrix.arch }}
 
       - name: Build Linux
         run: pnpm run build:linux:${{ matrix.arch }}

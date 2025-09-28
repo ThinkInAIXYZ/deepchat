@@ -1092,6 +1092,32 @@ export class McpPresenter implements IMCPPresenter {
    * @returns Prompt template content
    */
   async getPrompt(prompt: PromptListEntry, args?: Record<string, unknown>): Promise<unknown> {
+    // Check if this is a custom prompt from deepchat/custom-prompts-server
+    if (prompt.client.name === 'deepchat/custom-prompts-server') {
+      console.log(`[MCP] Getting custom prompt: ${prompt.name}`)
+      try {
+        const customPrompts = await this.configPresenter.getCustomPrompts()
+        const foundPrompt = customPrompts.find((p) => p.name === prompt.name)
+
+        if (foundPrompt) {
+          // Return the prompt in the expected format
+          return {
+            name: foundPrompt.name,
+            description: foundPrompt.description,
+            content: foundPrompt.content || '',
+            messages: foundPrompt.messages || [],
+            arguments: foundPrompt.parameters || []
+          }
+        } else {
+          throw new Error(`Custom prompt "${prompt.name}" not found`)
+        }
+      } catch (error) {
+        console.error(`[MCP] Failed to get custom prompt "${prompt.name}":`, error)
+        throw error
+      }
+    }
+
+    // For MCP server prompts, check if MCP is enabled
     const enabled = await this.configPresenter.getMcpEnabled()
     if (!enabled) {
       throw new Error('MCP functionality is disabled')
