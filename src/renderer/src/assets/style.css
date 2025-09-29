@@ -5,15 +5,16 @@
 @plugin "@tailwindcss/typography";
 @plugin "tailwindcss-animate";
 
-@source '../**/*.{vue,ts,tsx,js,jsx}';
-@source '../../shell/**/*.{vue,ts,tsx,js,jsx}';
-@source '../../../shadcn/components/**/*.{vue,ts,tsx,js,jsx}';
-
-@custom-variant dark (&:where(.dark &, [data-theme='dark'] &));
-
 @layer base {
   @import 'vue-renderer-markdown/index.css';
 }
+
+@source '../**/*.{vue,ts,tsx,js,jsx}';
+@source '../../shell/**/*.{vue,ts,tsx,js,jsx}';
+@source '../../../shadcn/components/**/*.{vue,ts,tsx,js,jsx}';
+@source '../../../../node_modules/vue-renderer-markdown/dist/tailwind.ts';
+
+@custom-variant dark (&:where(.dark &, [data-theme='dark'] &));
 
 @layer components {
   :root {
