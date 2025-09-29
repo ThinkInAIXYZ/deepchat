@@ -109,6 +109,11 @@
     --usage-low: 142 71% 45%;
     --usage-mid: 48 96% 53%;
     --usage-high: 0 72% 51%;
+
+    --reasoning-surface: var(--primary-50);
+    --reasoning-border: var(--primary-200);
+    --reasoning-foreground: var(--primary-900);
+    --reasoning-icon: var(--primary-600);
   }
 
   .dark,
@@ -138,6 +143,11 @@
     --usage-low: 142 40% 60%;
     --usage-mid: 48 80% 60%;
     --usage-high: 0 70% 65%;
+
+    --reasoning-surface: var(--primary-1000);
+    --reasoning-border: var(--primary-900);
+    --reasoning-foreground: var(--primary-200);
+    --reasoning-icon: var(--primary-300);
   }
 
   @media (prefers-color-scheme: dark) {
@@ -178,6 +188,11 @@
       --color-zinc-800: var(--zinc-800);
       --color-zinc-900: var(--zinc-900);
       --color-zinc-950: var(--zinc-950);
+
+      --reasoning-surface: var(--primary-1000);
+      --reasoning-border: var(--primary-900);
+      --reasoning-foreground: var(--primary-200);
+      --reasoning-icon: var(--primary-300);
     }
   }
 
@@ -262,6 +277,10 @@
     --color-usage-low: var(--usage-low);
     --color-usage-mid: var(--usage-mid);
     --color-usage-high: var(--usage-high);
+    --color-reasoning-surface: var(--reasoning-surface);
+    --color-reasoning-border: var(--reasoning-border);
+    --color-reasoning-foreground: var(--reasoning-foreground);
+    --color-reasoning-icon: var(--reasoning-icon);
 
     --animate-accordion-down: var(--animation-accordion-down);
     --animate-accordion-up: var(--animation-accordion-up);
