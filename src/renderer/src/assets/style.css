@@ -5,10 +5,6 @@
 @plugin "@tailwindcss/typography";
 @plugin "tailwindcss-animate";
 
-@layer base {
-  @import 'vue-renderer-markdown/index.css';
-}
-
 @source '../**/*.{vue,ts,tsx,js,jsx}';
 @source '../../shell/**/*.{vue,ts,tsx,js,jsx}';
 @source '../../../shadcn/components/**/*.{vue,ts,tsx,js,jsx}';
@@ -16,7 +12,9 @@
 
 @custom-variant dark (&:where(.dark &, [data-theme='dark'] &));
 
-@layer components {
+@layer base {
+  @import 'vue-renderer-markdown/index.css';
+
   :root {
     --base-50: hsl(210 28% 100%);
     --base-100: hsl(210 28% 98.1%);
@@ -113,10 +111,6 @@
     --usage-high: 0 72% 51%;
   }
 
-}
-
-@layer components {
-
   .dark,
   [data-theme='dark'] {
     --container: var(--black);
@@ -183,6 +177,7 @@
       --color-zinc-700: var(--zinc-700);
       --color-zinc-800: var(--zinc-800);
       --color-zinc-900: var(--zinc-900);
+      --color-zinc-950: var(--zinc-950);
     }
   }
 
@@ -219,7 +214,6 @@
 
     --color-white: var(--white);
     --color-black: var(--black);
-
     --color-zinc-50: var(--zinc-50);
     --color-zinc-100: var(--zinc-100);
     --color-zinc-200: var(--zinc-200);
@@ -281,17 +275,31 @@
     --radius-sm: calc(var(--radius) - 4px);
   }
 
-  @theme dark {
-    --color-zinc-50: var(--zinc-50);
-    --color-zinc-100: var(--zinc-100);
-    --color-zinc-200: var(--zinc-200);
-    --color-zinc-300: var(--zinc-300);
-    --color-zinc-400: var(--zinc-400);
-    --color-zinc-500: var(--zinc-500);
-    --color-zinc-600: var(--zinc-600);
-    --color-zinc-700: var(--zinc-700);
-    --color-zinc-800: var(--zinc-800);
-    --color-zinc-900: var(--zinc-900);
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-weight: var(--text-weight);
+  }
+
+  html {
+    font-family:
+      'Geist',
+      Noto Sans,
+      ui-sans-serif,
+      system-ui,
+      sans-serif,
+      'Apple Color Emoji',
+      'Segoe UI Emoji',
+      'Segoe UI Symbol',
+      'Noto Color Emoji';
+  }
+
+  @font-face {
+    font-family: 'Geist';
+    src: url('./geist.ttf') format('truetype');
   }
 }
 
@@ -336,7 +344,6 @@
 }
 
 @keyframes pulse {
-
   0%,
   100% {
     opacity: 1;
@@ -354,32 +361,5 @@
 
   .font-text {
     font-weight: var(--text-weight);
-  }
-
-  * {
-    @apply border-border outline-ring/50;
-  }
-
-  body {
-    @apply bg-background text-foreground;
-    font-weight: var(--text-weight);
-  }
-
-  html {
-    font-family:
-      'Geist',
-      Noto Sans,
-      ui-sans-serif,
-      system-ui,
-      sans-serif,
-      'Apple Color Emoji',
-      'Segoe UI Emoji',
-      'Segoe UI Symbol',
-      'Noto Color Emoji';
-  }
-
-  @font-face {
-    font-family: 'Geist';
-    src: url('./geist.ttf') format('truetype');
   }
 }
