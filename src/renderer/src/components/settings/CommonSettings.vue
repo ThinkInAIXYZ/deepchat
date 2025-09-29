@@ -2,14 +2,17 @@
   <ScrollArea class="w-full h-full p-2">
     <div class="w-full h-full flex flex-col gap-1.5">
       <!-- 搜索引擎选择 -->
-      <div class="flex flex-row p-2 items-center gap-2 px-2">
-        <span class="flex flex-row items-center gap-2 grow w-full" :dir="langStore.dir">
+      <div class="flex items-center gap-3 px-2 py-2">
+        <span
+          class="flex items-center gap-2 text-sm font-medium shrink-0 min-w-[220px]"
+          :dir="langStore.dir"
+        >
           <Icon icon="lucide:search" class="w-4 h-4 text-muted-foreground" />
-          <span class="text-sm font-medium">{{ t('settings.common.searchEngine') }}</span>
+          <span class="truncate">{{ t('settings.common.searchEngine') }}</span>
         </span>
-        <div class="shrink-0 flex gap-2">
-          <div class="min-w-52 max-w-96">
-            <Select v-model="selectedSearchEngine" class="">
+        <div class="flex items-center gap-2 ml-auto flex-wrap justify-end">
+          <div class="w-auto">
+            <Select v-model="selectedSearchEngine">
               <SelectTrigger>
                 <SelectValue :placeholder="t('settings.common.searchEngineSelect')" />
               </SelectTrigger>
@@ -108,12 +111,15 @@
       </div>
 
       <!-- 搜索助手模型选择 -->
-      <div class="flex flex-row p-2 items-center gap-2 px-2">
-        <span class="flex flex-row items-center gap-2 grow w-full" :dir="langStore.dir">
+      <div class="flex items-center gap-3 px-2 py-2">
+        <span
+          class="flex items-center gap-2 text-sm font-medium shrink-0 min-w-[220px]"
+          :dir="langStore.dir"
+        >
           <Icon icon="lucide:bot" class="w-4 h-4 text-muted-foreground" />
-          <span class="text-sm font-medium">{{ t('settings.common.searchAssistantModel') }}</span>
+          <span class="truncate">{{ t('settings.common.searchAssistantModel') }}</span>
         </span>
-        <div class="shrink-0 min-w-64 max-w-96">
+        <div class="ml-auto">
           <Popover v-model:open="modelSelectOpen">
             <PopoverTrigger as-child>
               <Button variant="outline" class="w-full justify-between">
@@ -140,13 +146,16 @@
         </div>
       </div>
       <!-- 代理模式选择 -->
-      <div class="flex flex-row p-2 items-center gap-2 px-2">
-        <span class="flex flex-row items-center gap-2 grow w-full" :dir="langStore.dir">
+      <div class="flex items-center gap-3 px-2 py-2">
+        <span
+          class="flex items-center gap-2 text-sm font-medium shrink-0 min-w-[220px]"
+          :dir="langStore.dir"
+        >
           <Icon icon="lucide:globe" class="w-4 h-4 text-muted-foreground" />
-          <span class="text-sm font-medium">{{ t('settings.common.proxyMode') }}</span>
+          <span class="truncate">{{ t('settings.common.proxyMode') }}</span>
         </span>
-        <div class="shrink-0 min-w-64 max-w-96">
-          <Select v-model="selectedProxyMode" class="">
+        <div class="ml-auto w-auto">
+          <Select v-model="selectedProxyMode">
             <SelectTrigger>
               <SelectValue :placeholder="t('settings.common.proxyModeSelect')" />
             </SelectTrigger>
@@ -158,13 +167,16 @@
           </Select>
         </div>
       </div>
-      <div v-if="selectedProxyMode === 'custom'" class="flex flex-col p-2 gap-2 px-2">
-        <div class="flex flex-row items-center gap-2">
-          <span class="flex flex-row items-center gap-2 grow w-full" :dir="langStore.dir">
+      <div v-if="selectedProxyMode === 'custom'" class="flex flex-col gap-2 px-2 py-2">
+        <div class="flex items-center gap-3">
+          <span
+            class="flex items-center gap-2 text-sm font-medium shrink-0 min-w-[220px]"
+            :dir="langStore.dir"
+          >
             <Icon icon="lucide:link" class="w-4 h-4 text-muted-foreground" />
-            <span class="text-sm font-medium">{{ t('settings.common.customProxyUrl') }}</span>
+            <span class="truncate">{{ t('settings.common.customProxyUrl') }}</span>
           </span>
-          <div class="shrink-0 min-w-64 max-w-96">
+          <div class="ml-auto w-[320px]">
             <Input
               v-model="customProxyUrl"
               :placeholder="t('settings.common.customProxyUrlPlaceholder')"
@@ -174,17 +186,20 @@
             />
           </div>
         </div>
-        <div v-if="showUrlError" class="text-xs text-red-500 ml-6">
+        <div v-if="showUrlError" class="text-xs text-red-500 pt-1 lg:pl-[220px] pl-10">
           {{ t('settings.common.invalidProxyUrl') }}
         </div>
       </div>
       <!-- 搜索预览开关 -->
-      <div class="flex flex-row p-2 items-center gap-2 px-2">
-        <span class="flex flex-row items-center gap-2 grow w-full" :dir="langStore.dir">
+      <div class="flex items-center gap-3 px-2 py-2">
+        <span
+          class="flex items-center gap-2 text-sm font-medium shrink-0 min-w-[220px]"
+          :dir="langStore.dir"
+        >
           <Icon icon="lucide:eye" class="w-4 h-4 text-muted-foreground" />
-          <span class="text-sm font-medium">{{ t('settings.common.searchPreview') }}</span>
+          <span class="truncate">{{ t('settings.common.searchPreview') }}</span>
         </span>
-        <div class="shrink-0">
+        <div class="ml-auto">
           <Switch
             id="search-preview-switch"
             :model-value="searchPreviewEnabled"
@@ -194,12 +209,15 @@
       </div>
 
       <!-- 日志开关 -->
-      <div class="flex flex-row p-2 items-center gap-2 px-2">
-        <span class="flex flex-row items-center gap-2 grow w-full" :dir="langStore.dir">
+      <div class="flex items-center gap-3 px-2 py-2">
+        <span
+          class="flex items-center gap-2 text-sm font-medium shrink-0 min-w-[220px]"
+          :dir="langStore.dir"
+        >
           <Icon icon="lucide:file-text" class="w-4 h-4 text-muted-foreground" />
-          <span class="text-sm font-medium">{{ t('settings.common.loggingEnabled') }}</span>
+          <span class="truncate">{{ t('settings.common.loggingEnabled') }}</span>
         </span>
-        <div class="shrink-0">
+        <div class="ml-auto">
           <Switch
             id="logging-switch"
             :model-value="loggingEnabled"
@@ -209,12 +227,15 @@
       </div>
 
       <!-- 音效开关 -->
-      <div class="flex flex-row p-2 items-center gap-2 px-2">
-        <span class="flex flex-row items-center gap-2 grow w-full" :dir="langStore.dir">
+      <div class="flex items-center gap-3 px-2 py-2">
+        <span
+          class="flex items-center gap-2 text-sm font-medium shrink-0 min-w-[220px]"
+          :dir="langStore.dir"
+        >
           <Icon icon="lucide:volume-2" class="w-4 h-4 text-muted-foreground" />
-          <span class="text-sm font-medium">{{ t('settings.common.soundEnabled') }}</span>
+          <span class="truncate">{{ t('settings.common.soundEnabled') }}</span>
         </span>
-        <div class="shrink-0">
+        <div class="ml-auto">
           <Switch
             id="sound-switch"
             :model-value="soundEnabled"
@@ -224,12 +245,15 @@
       </div>
 
       <!-- 复制全部（含COT）开关 -->
-      <div class="flex flex-row p-2 items-center gap-2 px-2">
-        <span class="flex flex-row items-center gap-2 grow w-full" :dir="langStore.dir">
+      <div class="flex items-center gap-3 px-2 py-2">
+        <span
+          class="flex items-center gap-2 text-sm font-medium shrink-0 min-w-[220px]"
+          :dir="langStore.dir"
+        >
           <Icon icon="lucide:file-text" class="w-4 h-4 text-muted-foreground" />
-          <span class="text-sm font-medium">{{ t('settings.common.copyWithCotEnabled') }}</span>
+          <span class="truncate">{{ t('settings.common.copyWithCotEnabled') }}</span>
         </span>
-        <div class="shrink-0">
+        <div class="ml-auto">
           <Switch
             id="copy-with-cot-switch"
             :model-value="copyWithCotEnabled"
