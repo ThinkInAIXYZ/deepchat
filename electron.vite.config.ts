@@ -5,7 +5,6 @@ import vueDevTools from 'vite-plugin-vue-devtools'
 import svgLoader from 'vite-svg-loader'
 import monacoEditorPlugin from 'vite-plugin-monaco-editor-esm'
 import path from 'node:path'
-import tailwind from '@tailwindcss/postcss'
 import tailwindcss from '@tailwindcss/vite'
 
 
@@ -69,16 +68,11 @@ export default defineConfig({
         vue: 'vue/dist/vue.esm-bundler.js'
       }
     },
-    css: {
-      postcss: {
-        // @ts-ignore
-        plugins: [tailwind()]
-      }
-    },
     server: {
       host: '0.0.0.0' // 防止代理干扰，导致vite-electron之间ws://localhost:5713和http://localhost:5713通信失败、页面组件无法加载
     },
     plugins: [
+      tailwindcss(),
       monacoEditorPlugin({
         languageWorkers: ['editorWorkerService', 'typescript', 'css', 'html', 'json'],
         customDistPath(_root, buildOutDir, _base) {
@@ -87,8 +81,7 @@ export default defineConfig({
       }),
       vue(),
       svgLoader(),
-      vueDevTools(),
-      tailwindcss()
+      vueDevTools()
     ],
     build: {
       minify: 'esbuild',
