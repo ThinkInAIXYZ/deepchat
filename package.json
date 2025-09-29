@@ -67,8 +67,6 @@
     "@google/genai": "^1.16.0",
     "@jxa/run": "^1.4.0",
     "@modelcontextprotocol/sdk": "^1.17.5",
-    "@tanstack/vue-table": "^8.21.3",
-    "@vee-validate/zod": "^4.15.1",
     "axios": "^1.11.0",
     "better-sqlite3-multiple-ciphers": "12.2.0",
     "cheerio": "^1.1.2",
@@ -79,7 +77,6 @@
     "electron-store": "^8.2.0",
     "electron-updater": "^6.6.2",
     "electron-window-state": "^5.0.3",
-    "embla-carousel-vue": "^8.6.0",
     "es-mime-types": "^0.1.4",
     "fflate": "^0.8.2",
     "glob": "^11.0.3",
@@ -96,8 +93,6 @@
     "tokenx": "^0.4.1",
     "turndown": "^7.2.1",
     "undici": "^7.15.0",
-    "vaul-vue": "^0.4.1",
-    "vee-validate": "^4.15.1",
     "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz",
     "xml2js": "^0.6.2",
     "zod": "^3.25.76"
@@ -174,6 +169,11 @@
     "vue-virtual-scroller": "^2.0.0-beta.8",
     "vuedraggable": "^4.1.0",
     "yaml": "^2.8.1",
+    "@tanstack/vue-table": "^8.21.3",
+    "@vee-validate/zod": "^4.15.1",
+    "embla-carousel-vue": "^8.6.0",
+    "vaul-vue": "^0.4.1",
+    "vee-validate": "^4.15.1",
     "zod-to-json-schema": "^3.24.6"
   },
   "simple-git-hooks": {
