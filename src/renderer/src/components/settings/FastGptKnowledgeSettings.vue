@@ -16,9 +16,9 @@
           <Tooltip :delay-duration="200">
             <TooltipTrigger as-child>
               <Switch
-                :checked="isFastGptMcpEnabled"
+                :model-value="isFastGptMcpEnabled"
                 :disabled="!mcpStore.mcpEnabled"
-                @update:checked="toggleFastGptMcpServer"
+                @update:model-value="toggleFastGptMcpServer"
               />
             </TooltipTrigger>
             <TooltipContent v-if="!mcpStore.mcpEnabled">
