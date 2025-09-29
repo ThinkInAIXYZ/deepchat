@@ -6,6 +6,7 @@ import svgLoader from 'vite-svg-loader'
 import monacoEditorPlugin from 'vite-plugin-monaco-editor-esm'
 import path from 'node:path'
 import tailwind from '@tailwindcss/postcss'
+import tailwindcss from '@tailwindcss/vite'
 
 
 export default defineConfig({
@@ -89,7 +90,7 @@ export default defineConfig({
       vueDevTools({
         // use export LAUNCH_EDITOR=cursor instead
         // launchEditor: 'cursor'
-      })
+      }), tailwindcss()
     ],
     build: {
       minify: 'esbuild',

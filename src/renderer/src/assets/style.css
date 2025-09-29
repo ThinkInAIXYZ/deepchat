@@ -7,7 +7,7 @@
 
 @custom-variant dark (&:is(.dark *));
 
-@layer components {
+@layer theme {
   @import 'vue-renderer-markdown/index.css';
 }
 
@@ -168,9 +168,9 @@
   }
 
   body {
+    background-color: var(--color-background);
     color: var(--color-foreground);
     font-weight: var(--text-weight);
-    background-color: var(--color-background);
   }
 
   html {
