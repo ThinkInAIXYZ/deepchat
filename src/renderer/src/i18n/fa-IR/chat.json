@@ -19,11 +19,10 @@
     "rateLimitWaitingTooltip": "باید {seconds} ثانیه دیگر منتظر بمانید، فاصله {interval} ثانیه"
   },
   "features": {
-    "deepThinking": "تفکر عمیق",
     "webSearch": "جستجوی وب",
-    "deepThinkingProgress": "در حال تفکر عمیق...",
-    "thinkingDuration": "({0} ثانیه طول کشید)",
-    "artifactThinking": "تفکر مصنوعی"
+    "artifactThinking": "تفکر مصنوعی",
+    "thoughtForSeconds": "فکر کردن {ثانیه} ثانیه",
+    "thoughtForSecondsLoading": "تفکر ({ثانیه} ثانیه)"
   },
   "search": {
     "results": "{0} صفحه وب یافت شد",

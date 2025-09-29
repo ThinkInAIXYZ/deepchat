@@ -42,6 +42,7 @@ import DialogDemo from './playground/demos/DialogDemo.vue'
 import TabsDemo from './playground/demos/TabsDemo.vue'
 import AccordionDemo from './playground/demos/AccordionDemo.vue'
 import FormDemo from './playground/demos/FormDemo.vue'
+import ThinkContentDemo from './playground/demos/ThinkContentDemo.vue'
 import CardDemo from './playground/demos/CardDemo.vue'
 import SelectDemo from './playground/demos/SelectDemo.vue'
 
@@ -112,6 +113,12 @@ const sections = computed(() => [
         description: 'Card layout with header, content, and footer.',
         componentName: '@shadcn/components/ui/card',
         render: CardDemo
+      },
+      {
+        title: 'Think Content',
+        description: 'Collapsible reasoning block used for model thoughts.',
+        componentName: '@/components/think-content',
+        render: ThinkContentDemo
       }
     ]
   },

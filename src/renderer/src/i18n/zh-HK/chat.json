@@ -19,11 +19,10 @@
     "rateLimitWaitingTooltip": "還需等待 {seconds} 秒，間隔 {interval} 秒"
   },
   "features": {
-    "deepThinking": "深度思考",
     "webSearch": "網絡搜索",
-    "deepThinkingProgress": "深度思考中...",
-    "thinkingDuration": "（用時 {0} 秒）",
-    "artifactThinking": "artifact 思考"
+    "artifactThinking": "artifact 思考",
+    "thoughtForSeconds": "思考了 {seconds} 秒",
+    "thoughtForSecondsLoading": "正在思考（第 {seconds} 秒）"
   },
   "search": {
     "results": "已搜索到{0}個網頁",

@@ -72,10 +72,9 @@ declare module 'vue-i18n' {
       historyPlaceholder: string
     }
     features: {
-      deepThinking: string
       webSearch: string
-      deepThinkingProgress: string
-      thinkingDuration: string
+      thoughtForSeconds: string
+      thoughtForSecondsLoading: string
       artifactThinking: string
     }
     search: {

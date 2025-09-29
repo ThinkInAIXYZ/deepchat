@@ -19,10 +19,9 @@
     "rateLimitWaitingTooltip": "Wait {seconds}s more, {interval}s interval"
   },
   "features": {
-    "deepThinking": "Deep Thinking",
     "webSearch": "Web Search",
-    "deepThinkingProgress": "Deep Thinking in progress...",
-    "thinkingDuration": "(Took {0} seconds)",
+    "thoughtForSeconds": "Thought for {seconds}s",
+    "thoughtForSecondsLoading": "Thinking for {seconds}s...",
     "artifactThinking": "Artifact Thinking"
   },
   "search": {

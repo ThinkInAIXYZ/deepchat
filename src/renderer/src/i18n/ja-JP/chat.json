@@ -19,11 +19,10 @@
     "rateLimitWaitingTooltip": "あと{seconds}秒待機、間隔{interval}秒"
   },
   "features": {
-    "deepThinking": "深い思考",
     "webSearch": "ウェブ検索",
-    "deepThinkingProgress": "深い思考中...",
-    "thinkingDuration": "({0}秒かかりました)",
-    "artifactThinking": "アーティファクト思考"
+    "artifactThinking": "アーティファクト思考",
+    "thoughtForSeconds": "思考{秒}秒",
+    "thoughtForSecondsLoading": "思考（{秒}秒）"
   },
   "search": {
     "results": "{0}件のウェブページが見つかりました",
