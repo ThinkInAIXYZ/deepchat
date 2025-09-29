@@ -21,8 +21,8 @@
   "features": {
     "webSearch": "웹 검색",
     "artifactThinking": "아티팩트 추론",
-    "thoughtForSeconds": "생각 {초} 초",
-    "thoughtForSecondsLoading": "사고 ({초} 초)"
+    "thoughtForSeconds": "{seconds}초 동안 생각했습니다",
+    "thoughtForSecondsLoading": "{seconds}초째 생각 중..."
   },
   "search": {
     "results": "{0}개의 웹 페이지를 찾았습니다",

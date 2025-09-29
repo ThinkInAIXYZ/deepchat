@@ -21,8 +21,8 @@
   "features": {
     "webSearch": "ウェブ検索",
     "artifactThinking": "アーティファクト思考",
-    "thoughtForSeconds": "思考{秒}秒",
-    "thoughtForSecondsLoading": "思考（{秒}秒）"
+    "thoughtForSeconds": "{seconds}秒間思考しました",
+    "thoughtForSecondsLoading": "{seconds}秒間思考中..."
   },
   "search": {
     "results": "{0}件のウェブページが見つかりました",

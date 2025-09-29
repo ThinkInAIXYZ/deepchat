@@ -21,8 +21,8 @@
   "features": {
     "webSearch": "Recherche web",
     "artifactThinking": "Réflexion sur les artefacts",
-    "thoughtForSeconds": "Penser {secondes} secondes",
-    "thoughtForSecondsLoading": "Pensant ({secondes} secondes)"
+    "thoughtForSeconds": "Réflexion pendant {seconds}s",
+    "thoughtForSecondsLoading": "Réflexion en cours ({seconds}s)"
   },
   "search": {
     "results": "{0} pages web trouvées",

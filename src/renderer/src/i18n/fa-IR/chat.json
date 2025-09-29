@@ -21,8 +21,8 @@
   "features": {
     "webSearch": "جستجوی وب",
     "artifactThinking": "تفکر مصنوعی",
-    "thoughtForSeconds": "فکر کردن {ثانیه} ثانیه",
-    "thoughtForSecondsLoading": "تفکر ({ثانیه} ثانیه)"
+    "thoughtForSeconds": "تفکر به مدت {seconds} ثانیه",
+    "thoughtForSecondsLoading": "در حال تفکر ({seconds} ثانیه)"
   },
   "search": {
     "results": "{0} صفحه وب یافت شد",
