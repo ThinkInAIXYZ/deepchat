@@ -75,9 +75,11 @@ export class KnowledgeStorePresenter {
         }
       } as KnowledgeFileMessage
 
-      fileId
-        ? await this.vectorP.updateFile(fileMessage)
-        : await this.vectorP.insertFile(fileMessage)
+      if (fileId) {
+        await this.vectorP.updateFile(fileMessage)
+      } else {
+        await this.vectorP.insertFile(fileMessage)
+      }
 
       this.processFileAsync(fileMessage)
 

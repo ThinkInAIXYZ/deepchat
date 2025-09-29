@@ -295,10 +295,14 @@ const handleAction = (action: HandleActionType) => {
   } else if (action === 'prev' || action === 'next') {
     switch (action) {
       case 'prev':
-        currentVariantIndex.value > 0 && currentVariantIndex.value--
+        if (currentVariantIndex.value > 0) {
+          currentVariantIndex.value--
+        }
         break
       case 'next':
-        currentVariantIndex.value < totalVariants.value - 1 && currentVariantIndex.value++
+        if (currentVariantIndex.value < totalVariants.value - 1) {
+          currentVariantIndex.value++
+        }
         break
     }
 
