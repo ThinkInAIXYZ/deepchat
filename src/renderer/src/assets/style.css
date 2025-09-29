@@ -5,7 +5,11 @@
 @plugin "@tailwindcss/typography";
 @plugin "tailwindcss-animate";
 
-@custom-variant dark (&:is(.dark *));
+
+/* 支持 .dark class + [data-theme="dark"] + 系统 prefers-color-scheme */
+@custom-variant dark (&:where(.dark, .dark *, [data-theme="dark"], [data-theme="dark"] *));
+
+@source "./node_modules/vue-renderer-markdown/dist/tailwind.ts";
 
 @layer theme {
   @import 'vue-renderer-markdown/index.css';
@@ -321,6 +325,7 @@
   }
 
   @keyframes pulse {
+
     0%,
     100% {
       opacity: 1;

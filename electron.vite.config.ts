@@ -87,10 +87,8 @@ export default defineConfig({
       }),
       vue(),
       svgLoader(),
-      vueDevTools({
-        // use export LAUNCH_EDITOR=cursor instead
-        // launchEditor: 'cursor'
-      }), tailwindcss()
+      vueDevTools(),
+      tailwindcss()
     ],
     build: {
       minify: 'esbuild',
