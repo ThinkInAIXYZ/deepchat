@@ -3,7 +3,7 @@
   <div
     class="text-xs text-secondary-foreground bg-muted rounded-lg border border-input flex flex-col gap-2 px-2 py-2"
   >
-    <div class="flex flex-row gap-2 items-center cursor-pointer" @click="collapse = collapse!">
+    <div class="flex flex-row gap-2 items-center cursor-pointer" @click="collapse = !collapse">
       <Button variant="ghost" size="icon" class="w-4 h-4 text-muted-foreground">
         <Icon icon="lucide:chevrons-up-down" class="w-4 h-4" />
       </Button>
@@ -59,6 +59,7 @@ const configPresenter = usePresenter('configPresenter')
 const messageBlock = ref<HTMLDivElement | null>(null)
 
 const collapse = ref(false)
+
 const reasoningDuration = computed(() => {
   let duration: number
   if (props.block.reasoning_time) {
