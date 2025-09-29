@@ -32,5 +32,10 @@
       "write": "Allow '{toolName}' from '{serverName}' to perform write operations?",
       "all": "Allow '{toolName}' from '{serverName}' to perform read and write operations?"
     }
+  },
+  "promptParamsDialog": {
+    "title": "{name} Parameter Settings",
+    "description": "Please fill in the parameters below. Fields marked * are required.",
+    "required": "This field is required."
   }
 }

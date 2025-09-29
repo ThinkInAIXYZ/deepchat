@@ -32,5 +32,10 @@
       "write": "به '{toolName}' از '{serverName}' اجازه می‌دهید عملیات نوشتن انجام دهد؟",
       "all": "به '{toolName}' از '{serverName}' اجازه می‌دهید بخواند و بنویسد؟"
     }
+  },
+  "promptParamsDialog": {
+    "title": "{name} Parameter Settings",
+    "description": "Please fill in the parameters below. Fields marked * are required.",
+    "required": "This field is required."
   }
 }

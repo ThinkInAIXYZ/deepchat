@@ -32,5 +32,10 @@
       "write": "允许 '{serverName}' 的 '{toolName}' 执行写入操作？",
       "all": "允许 '{serverName}' 的 '{toolName}' 执行读取和写入操作？"
     }
+  },
+  "promptParamsDialog": {
+    "title": "{name} 参数设置",
+    "description": "请填写以下参数，带 * 的为必填项。",
+    "required": "此参数为必填项"
   }
 }

@@ -2,8 +2,12 @@
   <Dialog :open="true" @update:open="$emit('close')">
     <DialogContent class="sm:max-w-[425px] z-100">
       <DialogHeader>
-        <DialogTitle>{{ promptName }} 参数设置</DialogTitle>
-        <DialogDescription> 请填写以下参数，带 * 的为必填项 </DialogDescription>
+        <DialogTitle>{{
+          t('components.promptParamsDialog.title', { name: promptName })
+        }}</DialogTitle>
+        <DialogDescription>
+          {{ t('components.promptParamsDialog.description') }}
+        </DialogDescription>
       </DialogHeader>
 
       <ScrollArea class="h-96 w-full pr-3">
@@ -30,8 +34,12 @@
         </div>
       </ScrollArea>
       <DialogFooter>
-        <Button variant="outline" @click="$emit('close')"> 取消 </Button>
-        <Button :disabled="hasErrors" @click="handleSubmit"> 确认 </Button>
+        <Button variant="outline" @click="$emit('close')">
+          {{ t('common.cancel') }}
+        </Button>
+        <Button :disabled="hasErrors" @click="handleSubmit">
+          {{ t('common.confirm') }}
+        </Button>
       </DialogFooter>
     </DialogContent>
   </Dialog>
@@ -39,6 +47,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import {
   Dialog,
   DialogContent,
@@ -71,6 +80,8 @@ const emit = defineEmits<{
 const paramValues = ref<Record<string, string>>({})
 const errors = ref<Record<string, string>>({})
 
+const { t } = useI18n()
+
 // 初始化参数值
 onMounted(() => {
   props.params.forEach((param) => {
@@ -85,7 +96,7 @@ const validateParams = () => {
 
   props.params.forEach((param) => {
     if (param.required && !paramValues.value[param.name]) {
-      errors.value[param.name] = '此参数为必填项'
+      errors.value[param.name] = t('components.promptParamsDialog.required')
       hasError = true
     }
   })
