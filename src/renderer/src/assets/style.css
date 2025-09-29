@@ -5,18 +5,17 @@
 @plugin "@tailwindcss/typography";
 @plugin "tailwindcss-animate";
 
-/* Support toggling via the .dark class, data-theme attribute, and system preference */
-@custom-variant dark (&:is(.dark *));
-
 @source '../**/*.{vue,ts,tsx,js,jsx}';
+@source '../../shell/**/*.{vue,ts,tsx,js,jsx}';
 @source '../../../shadcn/components/**/*.{vue,ts,tsx,js,jsx}';
-@source "./node_modules/vue-renderer-markdown/dist/tailwind.ts";
+
+@custom-variant dark (&:where(.dark &, [data-theme='dark'] &));
 
 @layer base {
   @import 'vue-renderer-markdown/index.css';
 }
 
-@layer utilities {
+@layer components {
   :root {
     --base-50: hsl(210 28% 100%);
     --base-100: hsl(210 28% 98.1%);
@@ -58,8 +57,6 @@
     --zinc-800: hsl(240 3.7% 15.9%);
     --zinc-900: hsl(240 5.9% 10%);
     --zinc-950: hsl(240 10% 3.9%);
-
-
 
     --container: var(--white);
     --background: var(--white);
@@ -115,6 +112,10 @@
     --usage-high: 0 72% 51%;
   }
 
+}
+
+@layer components {
+
   .dark,
   [data-theme='dark'] {
     --container: var(--black);
@@ -142,7 +143,6 @@
     --usage-low: 142 40% 60%;
     --usage-mid: 48 80% 60%;
     --usage-high: 0 70% 65%;
-
   }
 
   @media (prefers-color-scheme: dark) {
@@ -172,6 +172,16 @@
       --usage-low: 142 40% 60%;
       --usage-mid: 48 80% 60%;
       --usage-high: 0 70% 65%;
+      --color-zinc-50: var(--zinc-50);
+      --color-zinc-100: var(--zinc-100);
+      --color-zinc-200: var(--zinc-200);
+      --color-zinc-300: var(--zinc-300);
+      --color-zinc-400: var(--zinc-400);
+      --color-zinc-500: var(--zinc-500);
+      --color-zinc-600: var(--zinc-600);
+      --color-zinc-700: var(--zinc-700);
+      --color-zinc-800: var(--zinc-800);
+      --color-zinc-900: var(--zinc-900);
     }
   }
 
@@ -269,9 +279,20 @@
     --radius-md: calc(var(--radius) - 2px);
     --radius-sm: calc(var(--radius) - 4px);
   }
+
+  @theme dark {
+    --color-zinc-50: var(--zinc-50);
+    --color-zinc-100: var(--zinc-100);
+    --color-zinc-200: var(--zinc-200);
+    --color-zinc-300: var(--zinc-300);
+    --color-zinc-400: var(--zinc-400);
+    --color-zinc-500: var(--zinc-500);
+    --color-zinc-600: var(--zinc-600);
+    --color-zinc-700: var(--zinc-700);
+    --color-zinc-800: var(--zinc-800);
+    --color-zinc-900: var(--zinc-900);
+  }
 }
-
-
 
 @keyframes accordion-down {
   from {
