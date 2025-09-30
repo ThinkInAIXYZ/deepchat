@@ -20,7 +20,7 @@ export class AnthropicProvider extends BaseLLMProvider {
   private anthropic!: Anthropic
   private oauthToken?: string
   private isOAuthMode = false
-  private defaultModel = 'claude-3-7-sonnet-20250219'
+  private defaultModel = 'claude-sonnet-4-5-20250929'
 
   constructor(provider: LLM_PROVIDER, configPresenter: IConfigPresenter) {
     super(provider, configPresenter)
@@ -170,13 +170,25 @@ export class AnthropicProvider extends BaseLLMProvider {
     // 默认的模型列表（如API调用失败或数据格式不正确）
     return [
       {
+        id: 'claude-sonnet-4-5-20250929',
+        name: 'Claude Sonnet 4.5',
+        providerId: this.provider.id,
+        maxTokens: 64000,
+        group: 'Claude 4.5',
+        isCustom: false,
+        contextLength: 204800,
+        vision: true,
+        functionCall: true,
+        reasoning: true
+      },
+      {
         id: 'claude-opus-4-1-20250805',
         name: 'Claude Opus 4.1',
         providerId: this.provider.id,
-        maxTokens: 32_000,
+        maxTokens: 32000,
         group: 'Claude 4.1',
         isCustom: false,
-        contextLength: 200000,
+        contextLength: 204800,
         vision: true,
         functionCall: true,
         reasoning: true
@@ -185,10 +197,10 @@ export class AnthropicProvider extends BaseLLMProvider {
         id: 'claude-opus-4-20250514',
         name: 'Claude Opus 4',
         providerId: this.provider.id,
-        maxTokens: 32_000,
+        maxTokens: 32000,
         group: 'Claude 4',
         isCustom: false,
-        contextLength: 200000,
+        contextLength: 204800,
         vision: true,
         functionCall: true,
         reasoning: true
@@ -197,10 +209,10 @@ export class AnthropicProvider extends BaseLLMProvider {
         id: 'claude-sonnet-4-20250514',
         name: 'Claude Sonnet 4',
         providerId: this.provider.id,
-        maxTokens: 64_000,
+        maxTokens: 64000,
         group: 'Claude 4',
         isCustom: false,
-        contextLength: 200000,
+        contextLength: 204800,
         vision: true,
         functionCall: true,
         reasoning: true
@@ -209,10 +221,10 @@ export class AnthropicProvider extends BaseLLMProvider {
         id: 'claude-3-7-sonnet-20250219',
         name: 'Claude 3.7 Sonnet',
         providerId: this.provider.id,
-        maxTokens: 64_000,
+        maxTokens: 64000,
         group: 'Claude 3.7',
         isCustom: false,
-        contextLength: 200000,
+        contextLength: 204800,
         vision: true,
         functionCall: true,
         reasoning: true
@@ -236,7 +248,7 @@ export class AnthropicProvider extends BaseLLMProvider {
         maxTokens: 8192,
         group: 'Claude 3.5',
         isCustom: false,
-        contextLength: 200000,
+        contextLength: 204800,
         vision: true,
         functionCall: true,
         reasoning: false
