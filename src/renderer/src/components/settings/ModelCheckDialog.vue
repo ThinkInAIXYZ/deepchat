@@ -138,9 +138,9 @@ const isChecking = ref(false)
 const selectedModelId = ref<string>('')
 const result = ref<{ isOk: boolean; errorMsg: string | null } | null>(null)
 
-// 计算可用的模型列表
+// 计算可用的模型列表 - 显示所有模型
 const availableModels = computed(() => {
-  const providerModels = settingsStore.enabledModels.find((p) => p.providerId === props.providerId)
+  const providerModels = settingsStore.allProviderModels.find((p) => p.providerId === props.providerId)
   return providerModels?.models || []
 })
 
