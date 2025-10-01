@@ -5,7 +5,7 @@ import type { ProviderChange, ProviderBatchUpdate } from '@shared/provider-opera
 import { ModelType } from '@shared/model'
 import { usePresenter } from '@/composables/usePresenter'
 import { SearchEngineTemplate } from '@shared/chat'
-import { CONFIG_EVENTS, OLLAMA_EVENTS, DEEPLINK_EVENTS } from '@/events'
+import { CONFIG_EVENTS, OLLAMA_EVENTS, DEEPLINK_EVENTS, PROVIDER_DB_EVENTS } from '@/events'
 import type { AWS_BEDROCK_PROVIDER, AwsBedrockCredential, OllamaModel } from '@shared/presenter'
 import { useRouter } from 'vue-router'
 import { useMcpStore } from '@/stores/mcp'
@@ -455,8 +455,10 @@ export const useSettingsStore = defineStore('settings', () => {
   // 刷新单个提供商的标准模型
   const refreshStandardModels = async (providerId: string): Promise<void> => {
     try {
-      // 获取在线模型
-      let models = await configP.getProviderModels(providerId)
+      // 优先使用聚合 Provider DB（统一由主进程映射）
+      let models: RENDERER_MODEL_META[] = await configP.getDbProviderModels(providerId)
+
+      // 若聚合 DB 为空，回退到 LLMProviderPresenter 的模型列表
       if (!models || models.length === 0) {
         try {
           const modelMetas = await llmP.getModelList(providerId)
@@ -467,7 +469,7 @@ export const useSettingsStore = defineStore('settings', () => {
               contextLength: meta.contextLength || 4096,
               maxTokens: meta.maxTokens || 2048,
               provider: providerId,
-              group: meta.group,
+              group: meta.group || 'default',
               enabled: false,
               isCustom: meta.isCustom || false,
               providerId,
@@ -479,18 +481,7 @@ export const useSettingsStore = defineStore('settings', () => {
           }
         } catch (error) {
           console.error(`Failed to fetch models for provider ${providerId}:`, error)
-          // 如果获取失败，使用空数组继续
           models = []
-          // 如果是 OpenAI provider，可能需要检查配置
-          if (providerId === 'openai') {
-            const provider = providers.value.find((p) => p.id === 'openai')
-            if (provider) {
-              // 禁用 provider
-              await updateProviderStatus('openai', false)
-              console.warn('Disabled OpenAI provider due to API error')
-            }
-          }
-          return
         }
       }
 
@@ -743,6 +734,14 @@ export const useSettingsStore = defineStore('settings', () => {
 
     // 设置字体大小事件监听器
     setupFontSizeListener()
+
+    // 监听 Provider DB 事件，更新模型列表
+    window.electron.ipcRenderer.on(PROVIDER_DB_EVENTS.UPDATED, async () => {
+      await refreshAllModels()
+    })
+    window.electron.ipcRenderer.on(PROVIDER_DB_EVENTS.LOADED, async () => {
+      await refreshAllModels()
+    })
   }
 
   // 更新本地模型状态，不触发后端请求

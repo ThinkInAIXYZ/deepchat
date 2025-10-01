@@ -37,6 +37,12 @@ export const CONFIG_EVENTS = {
   FONT_SIZE_CHANGED: 'config:font-size-changed' // 字体大小变更事件
 }
 
+// Provider DB（聚合 JSON）相关事件
+export const PROVIDER_DB_EVENTS = {
+  LOADED: 'provider-db:loaded', // 首次装载完毕（内置或缓存）
+  UPDATED: 'provider-db:updated' // 远端刷新成功
+}
+
 // 会话相关事件
 export const CONVERSATION_EVENTS = {
   LIST_UPDATED: 'conversation:list-updated', // 用于推送完整的会话列表

@@ -383,6 +383,7 @@ export interface IConfigPresenter {
   getProviderById(id: string): LLM_PROVIDER | undefined
   setProviderById(id: string, provider: LLM_PROVIDER): void
   getProviderModels(providerId: string): MODEL_META[]
+  getDbProviderModels(providerId: string): RENDERER_MODEL_META[]
   setProviderModels(providerId: string, models: MODEL_META[]): void
   getEnabledProviders(): LLM_PROVIDER[]
   getModelDefaultConfig(modelId: string, providerId?: string): ModelConfig
@@ -518,6 +519,7 @@ export interface IConfigPresenter {
   getAutoDetectNpmRegistry?(): boolean
   setAutoDetectNpmRegistry?(enabled: boolean): void
   clearNpmRegistryCache?(): void
+  getProviderDb(): { providers: Record<string, unknown> } | null
 
   // Atomic operation interfaces
   updateProviderAtomic(id: string, updates: Partial<LLM_PROVIDER>): boolean

@@ -31,6 +31,8 @@ import { compare } from 'compare-versions'
 import { defaultShortcutKey, ShortcutKeySetting } from './shortcutKeySettings'
 import { ModelConfigHelper } from './modelConfig'
 import { KnowledgeConfHelper } from './knowledgeConfHelper'
+import { providerDbLoader } from './providerDbLoader'
+import { ProviderAggregate } from '@shared/types/model-db'
 
 // Default system prompt constant
 const DEFAULT_SYSTEM_PROMPT = `You are DeepChat, a highly capable AI assistant. Your goal is to fully complete the user’s requested task before handing the conversation back to them. Keep working autonomously until the task is fully resolved.
@@ -171,6 +173,9 @@ export class ConfigPresenter implements IConfigPresenter {
     // Initialize provider models directory
     this.initProviderModelsDir()
 
+    // 初始化 Provider DB（外部聚合 JSON，本地内置为兜底）
+    providerDbLoader.initialize().catch(() => {})
+
     // If application version is updated, update appVersion
     if (this.store.get('appVersion') !== this.currentAppVersion) {
       const oldVersion = this.store.get('appVersion')
@@ -196,6 +201,11 @@ export class ConfigPresenter implements IConfigPresenter {
     if (!fs.existsSync(modelsDir)) {
       fs.mkdirSync(modelsDir, { recursive: true })
     }
+  }
+
+  // 提供聚合 Provider DB（只读）给渲染层/其他模块
+  getProviderDb(): ProviderAggregate | null {
+    return providerDbLoader.getDb()
   }
 
   private getProviderModelStore(providerId: string): ElectronStore<IModelStore> {
@@ -626,6 +636,28 @@ export class ConfigPresenter implements IConfigPresenter {
     return models
   }
 
+  // 基于聚合 Provider DB 的标准模型（只读映射，不落库）
+  getDbProviderModels(providerId: string): RENDERER_MODEL_META[] {
+    const db = providerDbLoader.getDb()
+    const provider = db?.providers?.[providerId.toLowerCase()]
+    if (!provider || !Array.isArray(provider.models)) return []
+    return provider.models.map((m) => ({
+      id: m.id,
+      name: (m as any).display_name || m.name || m.id,
+      contextLength: m.limit?.context ?? 8192,
+      maxTokens: m.limit?.output ?? 4096,
+      provider: providerId,
+      providerId,
+      group: 'default',
+      enabled: false,
+      isCustom: false,
+      vision: Array.isArray(m?.modalities?.input) ? m.modalities!.input!.includes('image') : false,
+      functionCall: Boolean((m as any).tool_call),
+      reasoning: Boolean((m as any).reasoning),
+      type: ModelType.Chat
+    }))
+  }
+
   getModelDefaultConfig(modelId: string, providerId?: string): ModelConfig {
     const model = this.getModelConfig(modelId, providerId)
     if (model) {
@@ -633,8 +665,8 @@ export class ConfigPresenter implements IConfigPresenter {
     }
     return {
       maxTokens: 4096,
-      contextLength: 4096,
-      temperature: 0.7,
+      contextLength: 8192,
+      temperature: 0.6,
       vision: false,
       functionCall: false,
       reasoning: false,
