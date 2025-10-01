@@ -74,7 +74,22 @@ export class OllamaProvider extends BaseLLMProvider {
       }))
     } catch (error) {
       console.error('Failed to fetch Ollama models:', error)
-      return []
+      // Fallback to aggregated Provider DB curated list for Ollama
+      const dbModels = this.configPresenter.getDbProviderModels(this.provider.id).map((m) => ({
+        id: m.id,
+        name: m.name,
+        providerId: this.provider.id,
+        contextLength: m.contextLength,
+        maxTokens: m.maxTokens,
+        isCustom: false,
+        group: m.group || 'default',
+        description: undefined,
+        vision: m.vision || false,
+        functionCall: m.functionCall || false,
+        reasoning: m.reasoning || false,
+        ...(m.type ? { type: m.type } : {})
+      }))
+      return dbModels
     }
   }
 
