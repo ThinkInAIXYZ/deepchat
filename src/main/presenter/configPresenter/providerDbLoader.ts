@@ -88,32 +88,17 @@ export class ProviderDbLoader {
     }
   }
 
-  private localCandidates(): string[] {
-    const candidates: string[] = []
-    // 1) Electron packaged resourcesPath
-    if (process.resourcesPath) {
-      candidates.push(path.join(process.resourcesPath, 'model-db', 'providers.json'))
-      candidates.push(path.join(process.resourcesPath, 'resources', 'model-db', 'providers.json'))
-    }
-    // 2) Dev: project resources folder
-    candidates.push(path.resolve(process.cwd(), 'resources', 'model-db', 'providers.json'))
-    return candidates
-  }
-
   private loadFromBuiltIn(): ProviderAggregate | null {
-    const candidates = this.localCandidates()
-    for (const p of candidates) {
-      try {
-        if (!fs.existsSync(p)) continue
-        const raw = fs.readFileSync(p, 'utf-8')
-        const parsed = JSON.parse(raw)
-        const sanitized = sanitizeAggregate(parsed)
-        if (sanitized) return sanitized
-      } catch {
-        continue
-      }
+    try {
+      const helperPath = path.join(app.getAppPath(), 'resources', 'model-db', 'providers.json')
+      if (!fs.existsSync(helperPath)) return null
+      const raw = fs.readFileSync(helperPath, 'utf-8')
+      const parsed = JSON.parse(raw)
+      const sanitized = sanitizeAggregate(parsed)
+      return sanitized ?? null
+    } catch {
+      return null
     }
-    return null
   }
 
   private readMeta(): MetaFile | null {
