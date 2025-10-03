@@ -26,7 +26,12 @@
     </div>
 
     <div v-show="expanded" class="w-full relative">
-      <div class="think-prose w-full max-w-full mt-[6px]" v-html="contentHtml"></div>
+      <NodeRenderer
+        v-if="content"
+        class="think-prose w-full max-w-full mt-[6px]"
+        :content="content"
+        :customId="customId"
+      />
     </div>
 
     <Icon
@@ -39,17 +44,43 @@
 
 <script setup lang="ts">
 import { Icon } from '@iconify/vue'
+import { h } from 'vue'
+import NodeRenderer, {
+  setCustomComponents,
+  CodeBlockNode,
+  PreCodeNode
+} from 'vue-renderer-markdown'
 
 defineProps<{
   label: string
   expanded: boolean
   thinking: boolean
-  contentHtml?: string
+  content?: string
 }>()
 
 defineEmits<{
   (e: 'toggle'): void
 }>()
+const customId = 'thinking-content'
+setCustomComponents(customId, {
+  code_block: (_props) =>
+    h(
+      CodeBlockNode,
+      {
+        ..._props,
+        isShowPreview: false,
+        showCopyButton: false,
+        showExpandButton: false,
+        showPreviewButton: false,
+        showFontSizeButtons: false
+      },
+      undefined
+    ),
+  mermaid: (_props) =>
+    h(PreCodeNode.vue, {
+      ..._props
+    })
+})
 </script>
 
 <style scoped>

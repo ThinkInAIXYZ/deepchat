@@ -3,7 +3,7 @@
     :label="headerText"
     :expanded="!collapse"
     :thinking="block.status === 'loading'"
-    :content-html="renderedContent"
+    :content="block.content"
     @toggle="collapse = !collapse"
   />
 </template>
@@ -13,7 +13,6 @@ import { useI18n } from 'vue-i18n'
 import { ThinkContent } from '@/components/think-content'
 import { computed, onMounted, ref, watch } from 'vue'
 import { usePresenter } from '@/composables/usePresenter'
-import { renderMarkdown, getCommonMarkdown } from 'vue-renderer-markdown'
 import { AssistantMessageBlock } from '@shared/chat'
 const props = defineProps<{
   block: AssistantMessageBlock
@@ -38,11 +37,6 @@ const reasoningDuration = computed(() => {
   }
   // 保留小数点后最多两位，去除尾随的0
   return parseFloat(duration.toFixed(2))
-})
-
-const md = getCommonMarkdown()
-const renderedContent = computed(() => {
-  return renderMarkdown(md, props.block.content || '')
 })
 
 const headerText = computed(() => {
