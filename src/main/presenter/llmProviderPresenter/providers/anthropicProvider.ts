@@ -161,135 +161,26 @@ export class AnthropicProvider extends BaseLLMProvider {
         }
       }
 
-      // 如果API请求失败或返回数据解析失败，返回默认模型列表
-      console.log('从API获取模型列表失败，使用默认模型配置')
+      // 如果API请求失败或返回数据解析失败，优先使用聚合 Provider DB 的模型列表
+      console.log('从API获取模型列表失败，使用 Provider DB 作为兜底')
     } catch (error) {
       console.error('获取Anthropic模型列表出错:', error)
     }
+    const dbModels = this.configPresenter.getDbProviderModels(this.provider.id).map((m) => ({
+      id: m.id,
+      name: m.name,
+      providerId: this.provider.id,
+      maxTokens: m.maxTokens,
+      group: m.group || 'default',
+      isCustom: false,
+      contextLength: m.contextLength,
+      vision: m.vision || false,
+      functionCall: m.functionCall || false,
+      reasoning: m.reasoning || false,
+      ...(m.type ? { type: m.type } : {})
+    }))
 
-    // 默认的模型列表（如API调用失败或数据格式不正确）
-    return [
-      {
-        id: 'claude-sonnet-4-5-20250929',
-        name: 'Claude Sonnet 4.5',
-        providerId: this.provider.id,
-        maxTokens: 64000,
-        group: 'Claude 4.5',
-        isCustom: false,
-        contextLength: 204800,
-        vision: true,
-        functionCall: true,
-        reasoning: true
-      },
-      {
-        id: 'claude-opus-4-1-20250805',
-        name: 'Claude Opus 4.1',
-        providerId: this.provider.id,
-        maxTokens: 32000,
-        group: 'Claude 4.1',
-        isCustom: false,
-        contextLength: 204800,
-        vision: true,
-        functionCall: true,
-        reasoning: true
-      },
-      {
-        id: 'claude-opus-4-20250514',
-        name: 'Claude Opus 4',
-        providerId: this.provider.id,
-        maxTokens: 32000,
-        group: 'Claude 4',
-        isCustom: false,
-        contextLength: 204800,
-        vision: true,
-        functionCall: true,
-        reasoning: true
-      },
-      {
-        id: 'claude-sonnet-4-20250514',
-        name: 'Claude Sonnet 4',
-        providerId: this.provider.id,
-        maxTokens: 64000,
-        group: 'Claude 4',
-        isCustom: false,
-        contextLength: 204800,
-        vision: true,
-        functionCall: true,
-        reasoning: true
-      },
-      {
-        id: 'claude-3-7-sonnet-20250219',
-        name: 'Claude 3.7 Sonnet',
-        providerId: this.provider.id,
-        maxTokens: 64000,
-        group: 'Claude 3.7',
-        isCustom: false,
-        contextLength: 204800,
-        vision: true,
-        functionCall: true,
-        reasoning: true
-      },
-      {
-        id: 'claude-3-5-sonnet-20241022',
-        name: 'Claude 3.5 Sonnet',
-        providerId: this.provider.id,
-        maxTokens: 8192,
-        group: 'Claude 3.5',
-        isCustom: false,
-        contextLength: 200000,
-        vision: true,
-        functionCall: true,
-        reasoning: false
-      },
-      {
-        id: 'claude-3-5-haiku-20241022',
-        name: 'Claude 3.5 Haiku',
-        providerId: this.provider.id,
-        maxTokens: 8192,
-        group: 'Claude 3.5',
-        isCustom: false,
-        contextLength: 204800,
-        vision: true,
-        functionCall: true,
-        reasoning: false
-      },
-      {
-        id: 'claude-3-5-sonnet-20240620',
-        name: 'Claude 3.5 Sonnet (Legacy)',
-        providerId: this.provider.id,
-        maxTokens: 8192,
-        group: 'Claude 3.5',
-        isCustom: false,
-        contextLength: 200000,
-        vision: true,
-        functionCall: true,
-        reasoning: false
-      },
-      {
-        id: 'claude-3-opus-20240229',
-        name: 'Claude 3 Opus',
-        providerId: this.provider.id,
-        maxTokens: 4096,
-        group: 'Claude 3',
-        isCustom: false,
-        contextLength: 200000,
-        vision: true,
-        functionCall: true,
-        reasoning: false
-      },
-      {
-        id: 'claude-3-haiku-20240307',
-        name: 'Claude 3 Haiku',
-        providerId: this.provider.id,
-        maxTokens: 8192,
-        group: 'Claude 3',
-        isCustom: false,
-        contextLength: 200000,
-        vision: true,
-        functionCall: true,
-        reasoning: false
-      }
-    ]
+    return dbModels
   }
 
   /**

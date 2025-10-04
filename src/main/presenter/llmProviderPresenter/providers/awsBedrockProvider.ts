@@ -94,70 +94,26 @@ export class AwsBedrockProvider extends BaseLLMProvider {
       console.error('获取AWS Bedrock Anthropic模型列表出错:', error)
     }
 
-    // 如果API请求失败或返回数据解析失败，返回默认模型列表
-    console.log('从API获取模型列表失败，使用默认模型配置')
-    return [
-      {
-        id: 'anthropic.claude-sonnet-4-20250514-v1:0',
-        name: 'AWS Bedrock Claude Sonnet 4',
+    // 如果API请求失败或返回数据解析失败，优先使用聚合 Provider DB 的模型列表（仅筛选 Bedrock 上的 Anthropic 模型）
+    console.log('从API获取模型列表失败，使用 Provider DB 作为兜底（筛选 anthropic.*）')
+    const dbModels = this.configPresenter
+      .getDbProviderModels('amazon-bedrock')
+      .filter((m) => m.id.startsWith('anthropic.'))
+      .map((m) => ({
+        id: m.id,
+        name: m.name,
         providerId: this.provider.id,
-        maxTokens: 64_000,
-        group: 'Bedrock Claude 4',
+        maxTokens: m.maxTokens,
+        group: m.group || 'Bedrock Claude',
         isCustom: false,
-        contextLength: 200000,
-        vision: true,
-        functionCall: true,
-        reasoning: true
-      },
-      {
-        id: 'anthropic.claude-3-7-sonnet-20250219-v1:0',
-        name: 'AWS Bedrock Claude 3.7 Sonnet',
-        providerId: this.provider.id,
-        maxTokens: 64_000,
-        group: 'Bedrock Claude 3.7',
-        isCustom: false,
-        contextLength: 200000,
-        vision: true,
-        functionCall: true,
-        reasoning: true
-      },
-      {
-        id: 'anthropic.claude-3-5-sonnet-20241022-v2:0',
-        name: 'AWS Bedrock Claude 3.5 Sonnet',
-        providerId: this.provider.id,
-        maxTokens: 8192,
-        group: 'Bedrock Claude 3.5',
-        isCustom: false,
-        contextLength: 200000,
-        vision: true,
-        functionCall: true,
-        reasoning: false
-      },
-      {
-        id: 'anthropic.claude-3-5-sonnet-20240620-v1:0',
-        name: 'AWS Bedrock Claude 3.5 Sonnet (Legacy)',
-        providerId: this.provider.id,
-        maxTokens: 8192,
-        group: 'Bedrock Claude 3.5',
-        isCustom: false,
-        contextLength: 200000,
-        vision: true,
-        functionCall: true,
-        reasoning: false
-      },
-      {
-        id: 'anthropic.claude-3-haiku-20240307-v1:0',
-        name: 'AWS Bedrock Claude 3 Haiku',
-        providerId: this.provider.id,
-        maxTokens: 8192,
-        group: 'Bedrock Claude 3',
-        isCustom: false,
-        contextLength: 200000,
-        vision: true,
-        functionCall: true,
-        reasoning: false
-      }
-    ]
+        contextLength: m.contextLength,
+        vision: m.vision || false,
+        functionCall: m.functionCall || false,
+        reasoning: m.reasoning || false,
+        ...(m.type ? { type: m.type } : {})
+      }))
+
+    return dbModels
   }
 
   public async check(): Promise<{ isOk: boolean; errorMsg: string | null }> {

@@ -249,11 +249,21 @@ export class GeminiProvider extends BaseLLMProvider {
       return apiModels
     } catch (error) {
       console.warn('Failed to fetch models from Gemini API:', error)
-      // If API call fails, fallback to static model list
-      return GeminiProvider.GEMINI_MODELS.map((model) => ({
-        ...model,
-        providerId: this.provider.id
+      // If API call fails, fallback to Provider DB mapping
+      const dbModels = this.configPresenter.getDbProviderModels(this.provider.id).map((m) => ({
+        id: m.id,
+        name: m.name,
+        group: m.group || 'default',
+        providerId: this.provider.id,
+        isCustom: false,
+        contextLength: m.contextLength,
+        maxTokens: m.maxTokens,
+        vision: m.vision || false,
+        functionCall: m.functionCall || false,
+        reasoning: m.reasoning || false,
+        ...(m.type ? { type: m.type } : {})
       }))
+      return dbModels
     }
   }
 

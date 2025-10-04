@@ -221,107 +221,22 @@ export class GithubCopilotProvider extends BaseLLMProvider {
   }
 
   protected async fetchProviderModels(): Promise<MODEL_META[]> {
-    // GitHub Copilot 支持的模型列表
-    const models: MODEL_META[] = [
-      {
-        id: 'gpt-4o',
-        name: 'GPT-4o',
-        group: 'GitHub Copilot',
-        providerId: this.provider.id,
-        isCustom: false,
-        contextLength: 128000,
-        maxTokens: 4096,
-        vision: true,
-        functionCall: true,
-        reasoning: false
-      },
-      {
-        id: 'gpt-4o-mini',
-        name: 'GPT-4o Mini',
-        group: 'GitHub Copilot',
-        providerId: this.provider.id,
-        isCustom: false,
-        contextLength: 128000,
-        maxTokens: 16384,
-        vision: true,
-        functionCall: true,
-        reasoning: false
-      },
-      {
-        id: 'gpt-4.1',
-        name: 'GPT-4.1',
-        group: 'GitHub Copilot',
-        providerId: this.provider.id,
-        isCustom: false,
-        contextLength: 200000,
-        maxTokens: 8192,
-        vision: true,
-        functionCall: true,
-        reasoning: false
-      },
-      {
-        id: 'claude-3.7-sonnet',
-        name: 'Claude 3.7 sonnet',
-        group: 'GitHub Copilot',
-        providerId: this.provider.id,
-        isCustom: false,
-        contextLength: 200000,
-        maxTokens: 8192,
-        vision: true,
-        functionCall: true,
-        reasoning: false
-      },
-      {
-        id: 'claude-sonnet-4',
-        name: 'Claude Sonnet 4',
-        group: 'GitHub Copilot',
-        providerId: this.provider.id,
-        isCustom: false,
-        contextLength: 200000,
-        maxTokens: 8192,
-        vision: true,
-        functionCall: true,
-        reasoning: false
-      },
-      {
-        id: 'gemini-2.5-pro',
-        name: 'Gemini 2.5 Pro',
-        group: 'GitHub Copilot',
-        providerId: this.provider.id,
-        isCustom: false,
-        contextLength: 200000,
-        maxTokens: 8192,
-        vision: true,
-        functionCall: true,
-        reasoning: false
-      },
-      {
-        id: 'o3-mini',
-        name: 'O3 Mini',
-        group: 'GitHub Copilot',
-        providerId: this.provider.id,
-        isCustom: false,
-        contextLength: 128000,
-        maxTokens: 4096,
-        vision: true,
-        functionCall: true,
-        reasoning: true
-      },
-      {
-        id: 'o3',
-        name: 'O3',
-        group: 'GitHub Copilot',
-        providerId: this.provider.id,
-        isCustom: false,
-        contextLength: 128000,
-        maxTokens: 4096,
-        vision: true,
-        functionCall: true,
-        reasoning: true
-      }
-    ]
+    // Use aggregated Provider DB as authoritative source for model list
+    const dbModels = this.configPresenter.getDbProviderModels(this.provider.id).map((m) => ({
+      id: m.id,
+      name: m.name,
+      group: m.group || 'GitHub Copilot',
+      providerId: this.provider.id,
+      isCustom: false,
+      contextLength: m.contextLength,
+      maxTokens: m.maxTokens,
+      vision: m.vision || false,
+      functionCall: m.functionCall || false,
+      reasoning: m.reasoning || false,
+      ...(m.type ? { type: m.type } : {})
+    }))
 
-    return models
+    return dbModels
   }
 
   private formatMessages(messages: ChatMessage[]): Array<{ role: string; content: string }> {

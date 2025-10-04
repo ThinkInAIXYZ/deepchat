@@ -109,6 +109,11 @@ export const NOTIFICATION_EVENTS = {
   SYS_NOTIFY_CLICKED: 'notification:sys-notify-clicked', // 系统通知点击事件
   DATA_RESET_COMPLETE_DEV: 'notification:data-reset-complete-dev' // 开发环境数据重置完成通知
 }
+
+export const PROVIDER_DB_EVENTS = {
+  LOADED: 'provider-db:loaded',
+  UPDATED: 'provider-db:updated'
+}
 export const SHORTCUT_EVENTS = {
   ZOOM_IN: 'shortcut:zoom-in',
   ZOOM_OUT: 'shortcut:zoom-out',
