@@ -111,7 +111,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { AssistantMessage, AssistantMessageBlock } from '@shared/chat'
 import MessageBlockContent from './MessageBlockContent.vue'
 import MessageBlockThink from './MessageBlockThink.vue'
@@ -147,7 +147,6 @@ const props = defineProps<{
 const themeStore = useThemeStore()
 const chatStore = useChatStore()
 const settingsStore = useSettingsStore()
-const currentVariantIndex = ref(0)
 const { t } = useI18n()
 
 // 定义事件
@@ -163,6 +162,28 @@ const emit = defineEmits<{
 
 // 获取当前会话ID
 const currentThreadId = computed(() => chatStore.getActiveThreadId() || '')
+
+// ============================= 核心修复：开始 =============================
+
+// 1. 将 currentVariantIndex 从 ref 改造为 computed 属性
+//    这确保了其值总是与 Pinia store 中的状态同步，从根本上消除了竞态条件。
+const currentVariantIndex = computed(() => {
+  const selectedVariantId = chatStore.selectedVariantsMap.get(props.message.id)
+
+  // 如果 store 中没有记录，则显示主消息 (索引 0)
+  if (!selectedVariantId) {
+    return 0
+  }
+
+  // 在所有变体中查找已选择的 ID
+  const variantIndex = allVariants.value.findIndex((v) => v.id === selectedVariantId)
+
+  // 如果找到了，返回其索引 + 1 (因为索引 0 是主消息)
+  // 如果没找到 (数据过时或已删除)，则安全地回退到主消息
+  return variantIndex !== -1 ? variantIndex + 1 : 0
+})
+
+// ============================= 核心修复：结束 =============================
 
 // 获取当前显示的消息（根据变体索引）
 const currentMessage = computed(() => {
@@ -202,18 +223,21 @@ const currentContent = computed(() => {
   return (variant?.content || props.message.content) as AssistantMessageBlock[]
 })
 
-// 监听变体变化
+// 监听 allVariants 长度变化，用于新变体生成时的自动切换和持久化
 watch(
   () => allVariants.value.length,
   (newLength, oldLength) => {
-    // 如果当前没有选中任何变体，或者当前选中的是最后一个变体
-    // 则自动跟随最新的变体
-    if (currentVariantIndex.value === 0 || newLength > oldLength) {
-      currentVariantIndex.value = newLength
-    }
-    // 如果当前选中的变体超出范围，调整到最后一个变体
-    else if (currentVariantIndex.value > newLength) {
-      currentVariantIndex.value = newLength
+    // 仅当新变体被添加时触发
+    // 并且当前会话不是正在生成中的消息，避免在生成过程中频繁切换
+    if (newLength > oldLength && !chatStore.generatingThreadIds.has(currentThreadId.value)) {
+      const newVariantIndex = newLength // 新变体的索引
+      
+      const mainMessageId = props.message.id
+      // newVariantIndex 此时至少为 1
+      const selectedVariant = allVariants.value[newVariantIndex - 1]
+
+      // 只有当 selectedVariant 存在时才调用 updateSelectedVariant，确保是有效的变体
+      chatStore.updateSelectedVariant(mainMessageId, selectedVariant ? selectedVariant.id : null)
     }
   }
 )
@@ -222,10 +246,6 @@ const isSearchResult = computed(() => {
   return Boolean(
     currentContent.value?.some((block) => block.type === 'search' && block.status === 'success')
   )
-})
-
-onMounted(async () => {
-  currentVariantIndex.value = allVariants.value.length
 })
 
 // 分支会话对话框
@@ -293,18 +313,29 @@ const handleAction = (action: HandleActionType) => {
         .trim()
     )
   } else if (action === 'prev' || action === 'next') {
+    // 修改 prev/next 逻辑以遵循单向数据流
+    let newIndex = currentVariantIndex.value // 获取当前计算出的索引
+
     switch (action) {
       case 'prev':
-        if (currentVariantIndex.value > 0) {
-          currentVariantIndex.value--
-        }
+        if (newIndex > 0) newIndex--
         break
       case 'next':
-        if (currentVariantIndex.value < totalVariants.value - 1) {
-          currentVariantIndex.value++
-        }
+        if (newIndex < totalVariants.value - 1) newIndex++
         break
     }
+    
+    // 如果计算出的新索引与当前索引相同，则不执行任何操作
+    if (newIndex === currentVariantIndex.value) return
+
+    const mainMessageId = props.message.id
+    // 如果 newIndex 是 0，则 selectedVariant 为 null，表示选择主消息
+    const selectedVariant = newIndex > 0 ? allVariants.value[newIndex - 1] : null
+    const selectedVariantId = selectedVariant ? selectedVariant.id : null
+    
+    // 不再直接修改本地 state，而是调用 store 的 action 来更新全局状态
+    // store 的更新会通过 computed 属性自动反馈到 UI
+    chatStore.updateSelectedVariant(mainMessageId, selectedVariantId)
 
     emit('scrollToBottom')
   } else if (action === 'copyImage') {

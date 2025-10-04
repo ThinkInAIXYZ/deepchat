@@ -24,6 +24,7 @@ type ConversationRow = {
   enable_search: number | null
   forced_search: number | null
   search_strategy: string | null
+  context_chain: string | null
 }
 
 // 解析 JSON 字段
@@ -147,9 +148,10 @@ export class ConversationsTable extends BaseTable {
         verbosity,
         enable_search,
         forced_search,
-        search_strategy
+        search_strategy,
+        context_chain
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `)
     const conv_id = nanoid()
     const now = Date.now()
@@ -173,7 +175,8 @@ export class ConversationsTable extends BaseTable {
       settings.verbosity !== undefined ? settings.verbosity : null,
       settings.enableSearch !== undefined ? (settings.enableSearch ? 1 : 0) : null,
       settings.forcedSearch !== undefined ? (settings.forcedSearch ? 1 : 0) : null,
-      settings.searchStrategy !== undefined ? settings.searchStrategy : null
+      settings.searchStrategy !== undefined ? settings.searchStrategy : null,
+      settings.selectedVariantsMap ? JSON.stringify(settings.selectedVariantsMap) : '{}'
     )
     return conv_id
   }
@@ -202,7 +205,8 @@ export class ConversationsTable extends BaseTable {
         verbosity,
         enable_search,
         forced_search,
-        search_strategy
+        search_strategy,
+        context_chain
       FROM conversations
       WHERE conv_id = ?
     `
@@ -238,7 +242,8 @@ export class ConversationsTable extends BaseTable {
         forcedSearch: result.forced_search !== null ? Boolean(result.forced_search) : undefined,
         searchStrategy: result.search_strategy
           ? (result.search_strategy as 'turbo' | 'max')
-          : undefined
+          : undefined,
+        selectedVariantsMap: getJsonField(result.context_chain, undefined)
       }
     }
   }
@@ -319,6 +324,10 @@ export class ConversationsTable extends BaseTable {
         updates.push('search_strategy = ?')
         params.push(data.settings.searchStrategy)
       }
+      if (data.settings.selectedVariantsMap !== undefined) {
+        updates.push('context_chain = ?')
+        params.push(JSON.stringify(data.settings.selectedVariantsMap))
+      }
     }
     if (updates.length > 0 || data.updatedAt) {
       updates.push('updated_at = ?')
@@ -369,7 +378,8 @@ export class ConversationsTable extends BaseTable {
         verbosity,
         enable_search,
         forced_search,
-        search_strategy
+        search_strategy,
+        context_chain
       FROM conversations
       ORDER BY updated_at DESC
       LIMIT ? OFFSET ?
@@ -402,7 +412,10 @@ export class ConversationsTable extends BaseTable {
           verbosity: row.verbosity ? (row.verbosity as 'low' | 'medium' | 'high') : undefined,
           enableSearch: row.enable_search !== null ? Boolean(row.enable_search) : undefined,
           forcedSearch: row.forced_search !== null ? Boolean(row.forced_search) : undefined,
-          searchStrategy: row.search_strategy ? (row.search_strategy as 'turbo' | 'max') : undefined
+          searchStrategy: row.search_strategy
+            ? (row.search_strategy as 'turbo' | 'max')
+            : undefined,
+          selectedVariantsMap: getJsonField(row.context_chain, undefined)
         }
       }))
     }
