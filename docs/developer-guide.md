@@ -47,7 +47,7 @@ DeepChat is an Electron application. This means it has:
 
 -   **Backend (Main Process)**: TypeScript
 -   **Frontend (Renderer Process)**: Vue.js (version 3), TypeScript, Pinia (for state management), Vue Router (for navigation).
--   **Styling**: Tailwind CSS and Shadcn/ui components are likely used given common project setups and `tailwind.config.js`, `components.json`.
+-   **Styling**: Tailwind CSS along with shadcn/ui components that consume primitives from `reka-ui`, replacing the earlier Radix Vue dependency.
 -   **Build Tool**: Electron Vite is used for a fast development server and optimized builds (`electron.vite.config.ts`).
 -   **Packaging**: Electron Builder (`electron-builder.yml`).
 

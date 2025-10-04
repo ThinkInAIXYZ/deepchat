@@ -144,7 +144,6 @@
     "picocolors": "^1.1.1",
     "pinia": "^3.0.3",
     "prettier": "^3.5.3",
-    "radix-vue": "^1.9.17",
     "reka-ui": "^2.5.0",
     "simple-git-hooks": "^2.13.1",
     "tailwind-merge": "^3.3.1",
