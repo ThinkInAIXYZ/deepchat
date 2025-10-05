@@ -1,0 +1,12 @@
+{
+  "calling": "Chamando...",
+  "response": "Executando...",
+  "end": "Concluído",
+  "error": "Erro",
+  "title": "Chamada de Ferramenta",
+  "clickToView": "Clique para ver detalhes",
+  "functionName": "Nome da Função",
+  "permission": "Solicitando permissão...",
+  "params": "Parâmetros da Função",
+  "responseData": "Resposta"
+}

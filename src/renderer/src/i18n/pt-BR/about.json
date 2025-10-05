@@ -1,0 +1,19 @@
+{
+  "title": "DeepChat",
+  "description": "DeepChat é um cliente de IA multiplataforma, dedicado a tornar a IA acessível a mais pessoas.",
+  "website": "Visite Nosso Site",
+  "deviceInfo": {
+    "title": "Informações do Dispositivo",
+    "platform": "Plataforma",
+    "arch": "Arquitetura",
+    "cpuModel": "Modelo da CPU",
+    "totalMemory": "Memória Total",
+    "osVersion": "Versão do Sistema"
+  },
+  "disclaimerButton": "Aviso Legal",
+  "disclaimerTitle": "Declaração de Termos de Uso",
+  "checkUpdateButton": "Verificar Atualizações",
+  "updateChannel": "Canal de Atualização",
+  "stableChannel": "Estável",
+  "canaryChannel": "Canary"
+}

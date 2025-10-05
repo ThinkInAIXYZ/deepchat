@@ -50,6 +50,8 @@ electronLanguages:
   - fr
   - fa-IR
   - fa
+  - pt-BR
+  - pt
 mac:
   entitlementsInherit: build/entitlements.mac.plist
   extendInfo:

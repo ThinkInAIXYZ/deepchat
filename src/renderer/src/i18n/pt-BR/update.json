@@ -1,0 +1,16 @@
+{
+  "newVersion": "Nova Versão Encontrada",
+  "version": "Versão",
+  "releaseDate": "Data de Lançamento",
+  "releaseNotes": "Notas da Versão",
+  "later": "Depois",
+  "githubDownload": "Download do GitHub",
+  "netdiskDownload": "Download na Nuvem",
+  "checkUpdate": "Verificar Atualizações",
+  "downloading": "Baixando",
+  "installNow": "Instalar Agora",
+  "autoUpdate": "Atualização Automática",
+  "restarting": "Reiniciando",
+  "alreadyUpToDate": "Já Atualizado",
+  "alreadyUpToDateDesc": "Seu DeepChat já está atualizado para a versão mais recente, nenhuma atualização é necessária."
+}

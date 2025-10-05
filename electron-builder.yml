@@ -49,6 +49,8 @@ electronLanguages:
   - fr
   - fa-IR
   - fa
+  - pt-BR
+  - pt
 win:
   executableName: DeepChat
 nsis:

@@ -1,0 +1,17 @@
+{
+  "success": {
+    "importComplete": "Importação concluída. O aplicativo será reiniciado agora."
+  },
+  "error": {
+    "notEnabled": "A sincronização não está ativada",
+    "folderNotExists": "A pasta de sincronização não existe",
+    "noValidBackup": "Nenhum arquivo de backup válido encontrado na pasta de sincronização.",
+    "dbNotExists": "O arquivo de banco de dados não existe",
+    "configNotExists": "O arquivo de configuração não existe",
+    "tempDbFailed": "Falha ao criar arquivo de backup temporário do banco de dados",
+    "tempConfigFailed": "Falha ao criar arquivo de backup temporário da configuração",
+    "importFailed": "Falha na importação, os dados originais foram restaurados",
+    "importProcess": "Ocorreu um erro durante o processo de importação",
+    "unknown": "Erro desconhecido"
+  }
+}

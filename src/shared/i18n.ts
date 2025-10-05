@@ -4,7 +4,7 @@ export interface TranslationMap {
 }
 
 // Define supported languages
-export const supportedLocales = ['zh-CN', 'zh-TW', 'en-US', 'ja', 'ko', 'fr', 'de', 'es']
+export const supportedLocales = ['zh-CN', 'zh-TW', 'en-US', 'ja', 'ko', 'fr', 'de', 'es', 'pt-BR']
 
 // Context menu translations
 export const contextMenuTranslations: Record<string, TranslationMap> = {
@@ -127,6 +127,21 @@ export const contextMenuTranslations: Record<string, TranslationMap> = {
     quit: 'Salir',
     translate: 'Traducir',
     askAI: 'Preguntar a la AI'
+  },
+  'pt-BR': {
+    copy: 'Copiar',
+    paste: 'Colar',
+    cut: 'Recortar',
+    selectAll: 'Selecionar Tudo',
+    undo: 'Desfazer',
+    redo: 'Refazer',
+    saveImage: 'Salvar Imagem...',
+    copyImage: 'Copiar Imagem',
+    open: 'Abrir/Esconder',
+    checkForUpdates: 'Verificar por atualizações',
+    quit: 'Sair',
+    translate: 'Traduzir',
+    askAI: 'Perguntar à IA'
   }
 }
 
@@ -322,6 +337,32 @@ export const errorMessageTranslations: Record<string, TranslationMap> = {
     needDifyEndpoint: 'Se debe proporcionar el punto de acceso de Dify',
     needKnowledgeBaseDescription:
       'Se debe proporcionar una descripción de esta base de conocimientos para ayudar a la IA a decidir si debe recuperar esta base de conocimientos'
+  },
+  'pt-BR': {
+    mcpConnectionErrorTitle: 'Erro de Conexão MCP',
+    mcpConnectionErrorMessage: 'Falha ao conectar ao servidor MCP',
+    addMcpServerErrorTitle: 'Falha ao Adicionar Servidor',
+    addMcpServerDuplicateMessage:
+      'O nome do servidor "{serverName}" já existe. Por favor, escolha um nome diferente.',
+    getMcpToolListErrorTitle: 'Falha ao Obter Definições de Ferramentas',
+    getMcpToolListErrorMessage:
+      "Não foi possível recuperar a lista de ferramentas do servidor '{serverName}': {errorMessage}",
+    genericErrorTitle: 'Erro',
+    genericErrorMessage: 'Ocorreu um erro',
+    needRagflowConfig: 'É necessário fornecer a configuração da base de conhecimento RAGFlow',
+    needDifyConfig: 'É necessário fornecer a configuração da base de conhecimento Dify',
+    needAtLeastOneRagflowConfig:
+      'É necessário fornecer pelo menos uma configuração da base de conhecimento RAGFlow',
+    needAtLeastOneDifyConfig:
+      'É necessário fornecer pelo menos uma configuração da base de conhecimento Dify',
+    needRagflowApiKey: 'É necessário fornecer a chave API do RAGFlow',
+    needDifyApiKey: 'É necessário fornecer a chave API do Dify',
+    needRagflowDatasetIds: 'É necessário fornecer pelo menos um ID de conjunto de dados do RAGFlow',
+    needDifyDatasetId: 'É necessário fornecer o ID do conjunto de dados do Dify',
+    needRagflowEndpoint: 'É necessário fornecer o endpoint do RAGFlow',
+    needDifyEndpoint: 'É necessário fornecer o endpoint do Dify',
+    needKnowledgeBaseDescription:
+      'É necessário fornecer uma descrição para esta base de conhecimento para ajudar a IA a decidir se deve recuperar esta base de conhecimento'
   }
 }
 

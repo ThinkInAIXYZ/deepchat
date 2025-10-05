@@ -23,7 +23,8 @@
       "ko-KR": "바나나 AI 어시스턴트",
       "ru-RU": "Банановый ИИ Помощник",
       "fr-FR": "Assistant IA Banane",
-      "fa-IR": "دستیار هوش مصنوعی موز"
+      "fa-IR": "دستیار هوش مصنوعی موز",
+      "pt-BR": "Assistente de IA Banana"
     },
     "appDescription": {
       "en-US": "Banana AI Assistant is your intelligent work partner",
@@ -34,7 +35,8 @@
       "ko-KR": "바나나 AI 어시스턴트는 당신의 지능형 업무 파트너입니다",
       "ru-RU": "Банановый ИИ Помощник - ваш умный рабочий партнер",
       "fr-FR": "L'Assistant IA Banane est votre partenaire de travail intelligent",
-      "fa-IR": "دستیار هوش مصنوعی موز شریک هوشمند کاری شماست"
+      "fa-IR": "دستیار هوش مصنوعی موز شریک هوشمند کاری شماست",
+      "pt-BR": "O Assistente de IA Banana é seu parceiro de trabalho inteligente"
     },
     "websiteText": {
       "en-US": "Visit Banana Website",
@@ -45,7 +47,8 @@
       "ko-KR": "바나나 웹사이트 방문",
       "ru-RU": "Посетить сайт Банана",
       "fr-FR": "Visitez le site Banane",
-      "fa-IR": "وبسایت موز را ببینید"
+      "fa-IR": "وبسایت موز را ببینید",
+      "pt-BR": "Visite o site da Banana"
     }
   },
   "github": {

@@ -1,0 +1,41 @@
+{
+  "emojiPicker": {
+    "search": "Buscar Emojis",
+    "smileys": "Sorrisos & Emoções",
+    "people": "Pessoas & Corpo",
+    "animals": "Animais & Natureza",
+    "food": "Comidas & Bebidas",
+    "travel": "Viagens & Lugares",
+    "activities": "Atividades",
+    "objects": "Objetos",
+    "symbols": "Símbolos",
+    "flags": "Bandeiras"
+  },
+  "messageBlockAction": {
+    "continue": "Continuar",
+    "continued": "Continuado"
+  },
+  "messageBlockPermissionRequest": {
+    "title": "Permissão Necessária",
+    "allow": "Permitir",
+    "deny": "Negar",
+    "rememberChoice": "Lembrar esta escolha",
+    "granted": "Permissão concedida",
+    "denied": "Permissão negada",
+    "type": {
+      "read": "Acesso de Leitura",
+      "write": "Acesso de Escrita",
+      "all": "Acesso Total"
+    },
+    "description": {
+      "read": "Permitir que '{toolName}' de '{serverName}' realize operações de leitura?",
+      "write": "Permitir que '{toolName}' de '{serverName}' realize operações de escrita?",
+      "all": "Permitir que '{toolName}' de '{serverName}' realize operações de leitura e escrita?"
+    }
+  },
+  "promptParamsDialog": {
+    "title": "Configurações de Parâmetros de {name}",
+    "description": "Por favor, preencha os parâmetros abaixo. Campos marcados com * são obrigatórios.",
+    "required": "Este campo é obrigatório."
+  }
+}

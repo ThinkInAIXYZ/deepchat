@@ -204,7 +204,7 @@ function updateI18nFiles(config) {
   }
 
   // 支持的语言
-  const locales = ['en-US', 'zh-CN', 'zh-TW', 'zh-HK', 'ja-JP', 'ko-KR', 'ru-RU', 'fr-FR', 'fa-IR']
+  const locales = ['en-US', 'zh-CN', 'zh-TW', 'zh-HK', 'ja-JP', 'ko-KR', 'ru-RU', 'fr-FR', 'fa-IR', 'pt-BR']
 
   for (const locale of locales) {
     // 更新 about.json
@@ -299,7 +299,7 @@ function updateAllI18nDeepChatReferences(config) {
   }
 
   // 支持的语言
-  const locales = ['en-US', 'zh-CN', 'zh-TW', 'zh-HK', 'ja-JP', 'ko-KR', 'ru-RU', 'fr-FR', 'fa-IR']
+  const locales = ['en-US', 'zh-CN', 'zh-TW', 'zh-HK', 'ja-JP', 'ko-KR', 'ru-RU', 'fr-FR', 'fa-IR', 'pt-BR']
   
   // 需要处理的文件列表
   const filesToProcess = [

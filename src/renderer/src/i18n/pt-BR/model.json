@@ -1,0 +1,30 @@
+{
+  "search": {
+    "placeholder": "Buscar modelos..."
+  },
+  "error": {
+    "loadFailed": "Falha ao carregar modelos"
+  },
+  "type": {
+    "custom": "Modelo Personalizado",
+    "official": "Modelo Oficial"
+  },
+  "add": {
+    "namePlaceholder": "Nome do Modelo",
+    "idPlaceholder": "ID do Modelo",
+    "contextLengthPlaceholder": "Comprimento do Contexto",
+    "maxTokensPlaceholder": "Máximo de Tokens"
+  },
+  "actions": {
+    "add": "Adicionar Modelo",
+    "enableAll": "Ativar Todos",
+    "disableAll": "Desativar Todos"
+  },
+  "tags": {
+    "reasoning": "Raciocínio",
+    "chat": "Chat",
+    "code": "Código",
+    "writing": "Escrita",
+    "analysis": "Análise"
+  }
+}

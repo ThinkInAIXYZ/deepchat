@@ -23,7 +23,8 @@
       "ko-KR": "DeepChat",
       "ru-RU": "DeepChat",
       "fr-FR": "DeepChat",
-      "fa-IR": "DeepChat"
+      "fa-IR": "DeepChat",
+      "pt-BR": "DeepChat"
     },
     "appDescription": {
       "en-US": "DeepChat is a cross-platform AI client, dedicated to making AI accessible to more people.",
@@ -34,7 +35,8 @@
       "ko-KR": "DeepChat은 더 많은 사람들이 AI에 접근할 수 있도록 하는 크로스 플랫폼 AI 클라이언트입니다。",
       "ru-RU": "DeepChat - это кроссплатформенный AI-клиент, предназначенный для того, чтобы сделать AI доступным для большего количества людей.",
       "fr-FR": "DeepChat est un client IA multiplateforme, dédié à rendre l'IA accessible à plus de personnes.",
-      "fa-IR": "دیپ چت یک کلاینت هوش مصنوعی چندپلتفرمه که هدفش در دسترس قرار دادن هوش مصنوعی برای افراد بیشتری است."
+      "fa-IR": "دیپ چت یک کلاینت هوش مصنوعی چندپلتفرمه که هدفش در دسترس قرار دادن هوش مصنوعی برای افراد بیشتری است.",
+      "pt-BR": "DeepChat é um cliente de IA multiplataforma, dedicado a tornar a IA acessível a mais pessoas."
     },
     "websiteText": {
       "en-US": "Visit Our Website",
@@ -45,7 +47,8 @@
       "ko-KR": "웹사이트 방문",
       "ru-RU": "Посетить наш сайт",
       "fr-FR": "Visitez notre site web",
-      "fa-IR": "وبسایت ما را ببینید"
+      "fa-IR": "وبسایت ما را ببینید",
+      "pt-BR": "Visite nosso site"
     },
     "welcomeTitle": {
       "en-US": "Welcome to MyApp",
@@ -56,7 +59,8 @@
       "ko-KR": "MyApp에 오신 것을 환영합니다",
       "ru-RU": "Добро пожаловать в MyApp",
       "fr-FR": "Bienvenue sur MyApp",
-      "fa-IR": "به MyApp خوش آمدید"
+      "fa-IR": "به MyApp خوش آمدید",
+      "pt-BR": "Bem-vindo ao MyApp"
     },
     "welcomeSetupDescription": {
       "en-US": "Let's start setting up MyApp",
@@ -67,7 +71,8 @@
       "ko-KR": "MyApp 설정을 시작합시다",
       "ru-RU": "Начнем настройку MyApp",
       "fr-FR": "Commençons la configuration de MyApp",
-      "fa-IR": "بیایید تنظیم MyApp را شروع کنیم"
+      "fa-IR": "بیایید تنظیم MyApp را شروع کنیم",
+      "pt-BR": "Vamos começar a configurar o MyApp"
     }
   },
   "github": {

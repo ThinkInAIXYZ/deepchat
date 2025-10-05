@@ -1,0 +1,44 @@
+{
+  "cancel": "Cancelar",
+  "confirm": "Confirmar",
+  "close": "Fechar",
+  "ok": "OK",
+  "delete": {
+    "title": "Tem certeza que deseja excluir esta conversa?",
+    "description": "Esta ação não pode ser desfeita.",
+    "confirm": "Excluir"
+  },
+  "rename": {
+    "title": "Renomear Conversa",
+    "description": "Por favor, insira um novo nome para a conversa."
+  },
+  "cleanMessages": {
+    "title": "Limpar Todas as Mensagens",
+    "description": "Isso excluirá todas as mensagens e arquivos desta conversa. Tem certeza que deseja continuar?",
+    "confirm": "Limpar"
+  },
+  "fork": {
+    "title": "Criar Ramificação",
+    "description": "Isso copiará todas as mensagens desde a primeira mensagem até a mensagem atual em uma nova conversa onde você pode continuar o diálogo.",
+    "confirm": "Criar Ramificação",
+    "tag": "Ramificação"
+  },
+  "error": {
+    "title": "Erro"
+  },
+  "mutualExclusive": {
+    "title": {
+      "reasoning": "Confirmar Ativação do Raciocínio",
+      "functionCall": "Confirmar Ativação de Chamadas de Função"
+    },
+    "message": {
+      "reasoning": "Ativar o raciocínio desativará automaticamente as chamadas de função. Esta é uma limitação dos modelos DeepSeek-V3.1, e ambos os recursos não podem ser usados simultaneamente. Continuar?",
+      "functionCall": "Ativar as chamadas de função desativará automaticamente o raciocínio. Esta é uma limitação dos modelos DeepSeek-V3.1, e ambos os recursos não podem ser usados simultaneamente. Continuar?"
+    },
+    "warningText": {
+      "reasoning": "Nota: Ativar o raciocínio desativará automaticamente as chamadas de função, o que é um requisito dos modelos DeepSeek-V3.1.",
+      "functionCall": "Nota: Ativar as chamadas de função desativará automaticamente o raciocínio, o que é um requisito dos modelos DeepSeek-V3.1."
+    },
+    "confirmEnable": "Confirmar Ativação"
+  }
+}
