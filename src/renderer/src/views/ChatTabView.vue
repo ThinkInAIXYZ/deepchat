@@ -56,7 +56,7 @@
       class="fixed right-0 top-0 w-80 max-w-80 h-full z-10 hidden lg:block"
     >
       <MessageNavigationSidebar
-        :messages="chatStore.getMessages()"
+        :messages="chatStore.variantAwareMessages"
         :is-open="chatStore.isMessageNavigationOpen"
         @close="chatStore.isMessageNavigationOpen = false"
         @scroll-to-message="handleScrollToMessage"
@@ -78,7 +78,7 @@
           <!-- 侧边栏 -->
           <div ref="messageNavigationRef" class="w-80 max-w-80">
             <MessageNavigationSidebar
-              :messages="chatStore.getMessages()"
+              :messages="chatStore.variantAwareMessages"
               :is-open="chatStore.isMessageNavigationOpen"
               @close="chatStore.isMessageNavigationOpen = false"
               @scroll-to-message="handleScrollToMessage"

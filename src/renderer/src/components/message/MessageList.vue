@@ -17,7 +17,7 @@
             :message="msg as AssistantMessage"
             :is-capturing-image="isCapturingImage"
             @copy-image="handleCopyImage"
-            @scroll-to-bottom="scrollToBottom"
+            @variant-changed="scrollToMessage"
           />
           <MessageItemUser
             v-if="msg.role === 'user'"
@@ -297,7 +297,7 @@ const scrollToMessage = (messageId: string) => {
     const messageElement = document.querySelector(`[data-message-id="${messageId}"]`)
     if (messageElement) {
       messageElement.scrollIntoView({
-        behavior: 'smooth',
+        behavior: 'instant',
         block: 'start'
       })
 

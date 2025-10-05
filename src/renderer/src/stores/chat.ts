@@ -112,6 +112,43 @@ export const useChatStore = defineStore('chat', () => {
     return threads.value.flatMap((t) => t.dtThreads).find((t) => t.id === getActiveThreadId())
   })
 
+  const variantAwareMessages = computed(() => {
+    const messages = getMessages()
+    const currentSelectedVariants = selectedVariantsMap.value
+
+    if (currentSelectedVariants.size === 0) {
+      return messages
+    }
+
+    return messages.map((msg) => {
+      if (msg.role === 'assistant' && currentSelectedVariants.has(msg.id)) {
+        const selectedVariantId = currentSelectedVariants.get(msg.id)
+
+        if (!selectedVariantId) {
+          return msg
+        }
+
+        const selectedVariant = (msg as AssistantMessage).variants?.find(
+          (v) => v.id === selectedVariantId
+        )
+
+        if (selectedVariant) {
+          const newMsg = JSON.parse(JSON.stringify(msg))
+
+          newMsg.content = selectedVariant.content
+          newMsg.usage = selectedVariant.usage
+          newMsg.model_id = selectedVariant.model_id
+          newMsg.model_provider = selectedVariant.model_provider
+          newMsg.model_name = selectedVariant.model_name
+
+          return newMsg
+        }
+      }
+
+      return msg
+    }) as AssistantMessage[] | UserMessage[]
+  })
+
   // Actions
   const createNewEmptyThread = async () => {
     try {
@@ -1320,6 +1357,7 @@ export const useChatStore = defineStore('chat', () => {
     selectedVariantsMap,
     // Getters
     activeThread,
+    variantAwareMessages,
     // Actions
     createThread,
     setActiveThread,

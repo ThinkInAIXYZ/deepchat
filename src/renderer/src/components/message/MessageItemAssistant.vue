@@ -157,7 +157,7 @@ const emit = defineEmits<{
     fromTop: boolean,
     modelInfo: { model_name: string; model_provider: string }
   ]
-  scrollToBottom: []
+  variantChanged: [messageId: string]
 }>()
 
 // 获取当前会话ID
@@ -337,7 +337,7 @@ const handleAction = (action: HandleActionType) => {
     // store 的更新会通过 computed 属性自动反馈到 UI
     chatStore.updateSelectedVariant(mainMessageId, selectedVariantId)
 
-    emit('scrollToBottom')
+    emit('variantChanged', props.message.id)
   } else if (action === 'copyImage') {
     // 使用原始消息的ID，因为DOM中的data-message-id使用的是message.id
     emit('copyImage', props.message.id, currentMessage.value.parentId, false, {
