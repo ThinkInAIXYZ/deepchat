@@ -197,7 +197,7 @@ const languageOptions = [
   { value: 'ja-JP', label: '日本語' },
   { value: 'fr-FR', label: 'Français' },
   { value: 'fa-IR', label: 'فارسی (ایران)' },
-  { value: 'pt-BR' , label: 'Português (Brasil)' }
+  { value: 'pt-BR', label: 'Português (Brasil)' }
 ]
 
 watch(selectedLanguage, async (newValue) => {
