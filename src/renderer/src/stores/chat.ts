@@ -77,7 +77,7 @@ export const useChatStore = defineStore('chat', () => {
     mentions?: string[]
   } | null>(null)
 
-  // 新增：用于管理当前激活会话的 selectedVariantsMap
+  // 用于管理当前激活会话的 selectedVariantsMap
   const selectedVariantsMap = ref<Map<string, string>>(new Map())
 
   // Getters
@@ -1057,7 +1057,7 @@ export const useChatStore = defineStore('chat', () => {
   }
 
   /////////////////////////////////////////////////////////////////////////////////////////////////////////
-  // 新增：更新和持久化变体选择
+  // 更新和持久化变体选择
   const updateSelectedVariant = async (mainMessageId: string, selectedVariantId: string | null) => {
     const activeThreadId = getActiveThreadId()
     if (!activeThreadId) return
@@ -1249,7 +1249,6 @@ export const useChatStore = defineStore('chat', () => {
         }
       }
 
-      // 竞态？
       await loadChatConfig() // 加载对话配置
       await loadMessages()
 

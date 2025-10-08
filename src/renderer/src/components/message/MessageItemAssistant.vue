@@ -163,10 +163,8 @@ const emit = defineEmits<{
 // 获取当前会话ID
 const currentThreadId = computed(() => chatStore.getActiveThreadId() || '')
 
-// ============================= 核心修复：开始 =============================
-
-// 1. 将 currentVariantIndex 从 ref 改造为 computed 属性
-//    这确保了其值总是与 Pinia store 中的状态同步，从根本上消除了竞态条件。
+// 将 currentVariantIndex 从 ref 改造为 computed 属性
+// 这确保了其值总是与 Pinia store 中的状态同步，从根本上消除了竞态条件。
 const currentVariantIndex = computed(() => {
   const selectedVariantId = chatStore.selectedVariantsMap.get(props.message.id)
 
@@ -182,8 +180,6 @@ const currentVariantIndex = computed(() => {
   // 如果没找到 (数据过时或已删除)，则安全地回退到主消息
   return variantIndex !== -1 ? variantIndex + 1 : 0
 })
-
-// ============================= 核心修复：结束 =============================
 
 // 获取当前显示的消息（根据变体索引）
 const currentMessage = computed(() => {

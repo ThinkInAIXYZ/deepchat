@@ -2078,7 +2078,6 @@ export class ThreadPresenter implements IThreadPresenter {
       contextMessages = await this.getContextMessages(conversationId)
     }
 
-    // ================= 阶段三核心修改：开始 =================
     // 在获取原始 contextMessages 列表之后，但在将其传递给 LLM 上下文筛选和格式化函数之前，
     // 插入核心“变体内容和元数据替换”逻辑。
     if (selectedVariantsMap && Object.keys(selectedVariantsMap).length > 0) {
@@ -2104,7 +2103,6 @@ export class ThreadPresenter implements IThreadPresenter {
         return msg
       })
     }
-    // ================= 阶段三核心修改：结束 =================
 
     // 处理 UserMessageMentionBlock
     if (userMessage.role === 'user') {
@@ -2986,7 +2984,6 @@ export class ThreadPresenter implements IThreadPresenter {
 
       await this.sqlitePresenter.updateConversation(newConversationId, { is_new: 0 })
 
-      // ================= 最终 BUG 修复：开始 =================
       // 3.1. 获取完整的、未截断的会话历史（只包含主消息）
       const { list: fullHistory } = await this.messageManager.getMessageThread(
         targetConversationId,
@@ -3029,7 +3026,6 @@ export class ThreadPresenter implements IThreadPresenter {
 
       // 3.5. 截取从开始到目标主消息（包括）的正确历史记录
       const messageHistory = fullHistory.slice(0, forkEndIndex + 1)
-      // ================= 最终 BUG 修复：结束 =================
 
       // 4. 创建消息ID映射表，用于维护父子关系
       const messageIdMap = new Map<string, string>() // 旧消息ID -> 新消息ID
