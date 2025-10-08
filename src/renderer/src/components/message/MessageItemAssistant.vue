@@ -231,7 +231,7 @@ watch(
     // 并且当前会话不是正在生成中的消息，避免在生成过程中频繁切换
     if (newLength > oldLength && !chatStore.generatingThreadIds.has(currentThreadId.value)) {
       const newVariantIndex = newLength // 新变体的索引
-      
+
       const mainMessageId = props.message.id
       // newVariantIndex 此时至少为 1
       const selectedVariant = allVariants.value[newVariantIndex - 1]
@@ -324,7 +324,7 @@ const handleAction = (action: HandleActionType) => {
         if (newIndex < totalVariants.value - 1) newIndex++
         break
     }
-    
+
     // 如果计算出的新索引与当前索引相同，则不执行任何操作
     if (newIndex === currentVariantIndex.value) return
 
@@ -332,7 +332,7 @@ const handleAction = (action: HandleActionType) => {
     // 如果 newIndex 是 0，则 selectedVariant 为 null，表示选择主消息
     const selectedVariant = newIndex > 0 ? allVariants.value[newIndex - 1] : null
     const selectedVariantId = selectedVariant ? selectedVariant.id : null
-    
+
     // 不再直接修改本地 state，而是调用 store 的 action 来更新全局状态
     // store 的更新会通过 computed 属性自动反馈到 UI
     chatStore.updateSelectedVariant(mainMessageId, selectedVariantId)
