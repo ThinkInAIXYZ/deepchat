@@ -2873,7 +2873,25 @@ export class ThreadPresenter implements IThreadPresenter {
     const modelId = this.searchAssistantModel?.id
     summaryProviderId = this.searchAssistantProviderId || conversation.settings.providerId
     const messages = await this.getContextMessages(conversation.id)
-    const messagesWithLength = messages
+    const selectedVariantsMap = conversation.settings.selectedVariantsMap || {}
+    const variantAwareMessages = messages.map((msg) => {
+      if (msg.role === 'assistant' && selectedVariantsMap[msg.id] && msg.variants) {
+        const selectedVariantId = selectedVariantsMap[msg.id]
+        const selectedVariant = msg.variants.find((v) => v.id === selectedVariantId)
+
+        if (selectedVariant) {
+          const newMsg = JSON.parse(JSON.stringify(msg))
+          newMsg.content = selectedVariant.content
+          newMsg.usage = selectedVariant.usage
+          newMsg.model_id = selectedVariant.model_id
+          newMsg.model_provider = selectedVariant.model_provider
+          newMsg.model_name = selectedVariant.model_name
+          return newMsg
+        }
+      }
+      return msg
+    })
+    const messagesWithLength = variantAwareMessages
       .map((msg) => {
         if (msg.role === 'user') {
           return {
@@ -3305,6 +3323,26 @@ export class ThreadPresenter implements IThreadPresenter {
       // 过滤掉未发送成功的消息
       const validMessages = messages.filter((msg) => msg.status === 'sent')
 
+      // 应用变体选择
+      const selectedVariantsMap = conversation.settings.selectedVariantsMap || {}
+      const variantAwareMessages = validMessages.map((msg) => {
+        if (msg.role === 'assistant' && selectedVariantsMap[msg.id] && msg.variants) {
+          const selectedVariantId = selectedVariantsMap[msg.id]
+          const selectedVariant = msg.variants.find((v) => v.id === selectedVariantId)
+
+          if (selectedVariant) {
+            const newMsg = JSON.parse(JSON.stringify(msg))
+            newMsg.content = selectedVariant.content
+            newMsg.usage = selectedVariant.usage
+            newMsg.model_id = selectedVariant.model_id
+            newMsg.model_provider = selectedVariant.model_provider
+            newMsg.model_name = selectedVariant.model_name
+            return newMsg
+          }
+        }
+        return msg
+      })
+
       // 生成文件名 - 使用简化的时间戳格式
       const timestamp = new Date()
         .toISOString()
@@ -3318,13 +3356,13 @@ export class ThreadPresenter implements IThreadPresenter {
       let content: string
       switch (format) {
         case 'markdown':
-          content = this.exportToMarkdown(conversation, validMessages)
+          content = this.exportToMarkdown(conversation, variantAwareMessages)
           break
         case 'html':
-          content = this.exportToHtml(conversation, validMessages)
+          content = this.exportToHtml(conversation, variantAwareMessages)
           break
         case 'txt':
-          content = this.exportToText(conversation, validMessages)
+          content = this.exportToText(conversation, variantAwareMessages)
           break
         default:
           throw new Error(`不支持的导出格式: ${format}`)
