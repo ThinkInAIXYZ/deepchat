@@ -37,14 +37,21 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import DemoSection from './playground/DemoSection.vue'
-import PopoverDemo from './playground/demos/PopoverDemo.vue'
-import DialogDemo from './playground/demos/DialogDemo.vue'
-import TabsDemo from './playground/demos/TabsDemo.vue'
 import AccordionDemo from './playground/demos/AccordionDemo.vue'
-import FormDemo from './playground/demos/FormDemo.vue'
-import ThinkContentDemo from './playground/demos/ThinkContentDemo.vue'
+import ButtonGroupDemo from './playground/demos/ButtonGroupDemo.vue'
 import CardDemo from './playground/demos/CardDemo.vue'
+import DialogDemo from './playground/demos/DialogDemo.vue'
+import EmptyDemo from './playground/demos/EmptyDemo.vue'
+import FieldDemo from './playground/demos/FieldDemo.vue'
+import FormDemo from './playground/demos/FormDemo.vue'
+import InputGroupDemo from './playground/demos/InputGroupDemo.vue'
+import ItemDemo from './playground/demos/ItemDemo.vue'
+import KbdDemo from './playground/demos/KbdDemo.vue'
+import PopoverDemo from './playground/demos/PopoverDemo.vue'
 import SelectDemo from './playground/demos/SelectDemo.vue'
+import SpinnerDemo from './playground/demos/SpinnerDemo.vue'
+import TabsDemo from './playground/demos/TabsDemo.vue'
+import ThinkContentDemo from './playground/demos/ThinkContentDemo.vue'
 
 const sections = computed(() => [
   {
@@ -59,6 +66,18 @@ const sections = computed(() => [
         description: 'Basic form layout using button, input, textarea, checkbox, and switch.',
         componentName: '@shadcn/components/ui',
         render: FormDemo
+      },
+      {
+        title: 'Field layouts',
+        description: 'Compose labels, descriptions, and validation with field primitives.',
+        componentName: '@shadcn/components/ui/field',
+        render: FieldDemo
+      },
+      {
+        title: 'Input group',
+        description: 'Addons, buttons, and helpers aligned with a single control.',
+        componentName: '@shadcn/components/ui/input-group',
+        render: InputGroupDemo
       }
     ]
   },
@@ -99,6 +118,12 @@ const sections = computed(() => [
         description: 'Popover anchored to trigger with focus management.',
         componentName: '@shadcn/components/ui/popover',
         render: PopoverDemo
+      },
+      {
+        title: 'Spinner',
+        description: 'Lightweight loading indicator available in multiple sizes.',
+        componentName: '@shadcn/components/ui/spinner',
+        render: SpinnerDemo
       }
     ]
   },
@@ -119,6 +144,12 @@ const sections = computed(() => [
         description: 'Collapsible reasoning block used for model thoughts.',
         componentName: '@/components/think-content',
         render: ThinkContentDemo
+      },
+      {
+        title: 'Item',
+        description: 'Flexible list row with media, actions, and metadata.',
+        componentName: '@shadcn/components/ui/item',
+        render: ItemDemo
       }
     ]
   },
@@ -133,6 +164,32 @@ const sections = computed(() => [
         description: 'Select dropdown with label and helper text.',
         componentName: '@shadcn/components/ui/select',
         render: SelectDemo
+      }
+    ]
+  },
+  {
+    title: 'Shortcuts & States',
+    description: 'Toolbar groups, keyboard hints, and empty states for application scaffolding.',
+    columns: 2,
+    component: DemoSection,
+    demos: [
+      {
+        title: 'Button group',
+        description: 'Organize related actions with toolbar-style groups.',
+        componentName: '@shadcn/components/ui/button-group',
+        render: ButtonGroupDemo
+      },
+      {
+        title: 'Keyboard shortcuts',
+        description: 'Display shortcut helpers with accessible keycaps.',
+        componentName: '@shadcn/components/ui/kbd',
+        render: KbdDemo
+      },
+      {
+        title: 'Empty state',
+        description: 'Pre-built layout for zero-data scenarios.',
+        componentName: '@shadcn/components/ui/empty',
+        render: EmptyDemo
       }
     ]
   }

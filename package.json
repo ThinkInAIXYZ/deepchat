@@ -148,7 +148,7 @@
     "picocolors": "^1.1.1",
     "pinia": "^3.0.3",
     "prettier": "^3.5.3",
-    "reka-ui": "^2.5.0",
+    "reka-ui": "^2.5.1",
     "simple-git-hooks": "^2.13.1",
     "tailwind-merge": "^3.3.1",
     "tailwind-scrollbar-hide": "^4.0.0",
