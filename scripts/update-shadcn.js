@@ -49,7 +49,14 @@ const components = [
   'drawer',
   'combobox',
   'slider',
-  'scroll-area'
+  'scroll-area',
+  'button-group',
+  'empty',
+  'field',
+  'input-group',
+  'item',
+  'kbd',
+  'spinner'
 ]
 
 // 批量更新组件
