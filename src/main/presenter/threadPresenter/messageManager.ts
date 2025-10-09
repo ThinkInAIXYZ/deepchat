@@ -6,7 +6,14 @@ import {
   ISQLitePresenter,
   SQLITE_MESSAGE
 } from '@shared/presenter'
-import { Message, AssistantMessageBlock } from '@shared/chat'
+import {
+  Message,
+  AssistantMessageBlock,
+  UserMessageContent,
+  UserMessageTextBlock,
+  UserMessageMentionBlock,
+  UserMessageCodeBlock
+} from '@shared/chat'
 import { eventBus, SendTarget } from '@/eventbus'
 import { CONVERSATION_EVENTS } from '@/events'
 
@@ -17,6 +24,13 @@ export class MessageManager implements IMessageManager {
     this.sqlitePresenter = sqlitePresenter
   }
 
+  private formatUserMessageContentForDisplay(
+    msgContentBlock: (UserMessageTextBlock | UserMessageMentionBlock | UserMessageCodeBlock)[]
+  ): string {
+    if (!Array.isArray(msgContentBlock)) return ''
+    return msgContentBlock.map((block) => block.content || '').join('')
+  }
+
   private convertToMessage(sqliteMessage: SQLITE_MESSAGE): Message {
     let metadata: MESSAGE_METADATA | null = null
     try {
@@ -24,12 +38,20 @@ export class MessageManager implements IMessageManager {
     } catch (e) {
       console.error('Failed to parse metadata', e)
     }
+    const messageContent = JSON.parse(sqliteMessage.content)
+
+    if (sqliteMessage.role === 'user') {
+      const userContent = messageContent as UserMessageContent
+      if (userContent.content && Array.isArray(userContent.content)) {
+        userContent.text = this.formatUserMessageContentForDisplay(userContent.content)
+      }
+    }
     return {
       id: sqliteMessage.id,
       conversationId: sqliteMessage.conversation_id,
       parentId: sqliteMessage.parent_id,
       role: sqliteMessage.role as MESSAGE_ROLE,
-      content: JSON.parse(sqliteMessage.content),
+      content: messageContent,
       timestamp: sqliteMessage.created_at,
       status: sqliteMessage.status as MESSAGE_STATUS,
       usage: {
