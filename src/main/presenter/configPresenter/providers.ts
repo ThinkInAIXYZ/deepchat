@@ -110,6 +110,22 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
   },
 
   {
+    id: 'straico',
+    name: 'Straico',
+    apiType: 'straico',
+    apiKey: '',
+    baseUrl: 'https://api.straico.com/v0',
+    enable: false,
+    websites: {
+      official: 'https://www.straico.com/',
+      apiKey: 'https://platform.straico.com/settings-api',
+      docs: 'https://documenter.getpostman.com/view/5900072/2s9YyzddrR',
+      models: 'https://straico.com/multimodel',
+      defaultBaseUrl: 'https://api.straico.com/v0'
+    }
+  },
+
+  {
     id: 'openai-responses',
     name: 'OpenAI Responses',
     apiType: 'openai-responses',

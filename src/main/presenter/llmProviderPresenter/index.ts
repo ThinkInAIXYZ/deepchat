@@ -46,6 +46,7 @@ import { AihubmixProvider } from './providers/aihubmixProvider'
 import { _302AIProvider } from './providers/_302AIProvider'
 import { ModelscopeProvider } from './providers/modelscopeProvider'
 import { VercelAIGatewayProvider } from './providers/vercelAIGatewayProvider'
+import { StraicoProvider } from './providers/straicoProvider'
 
 // Rate limit configuration interface
 interface RateLimitConfig {
@@ -172,6 +173,8 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
           return new PPIOProvider(provider, this.configPresenter)
         case 'tokenflux':
           return new TokenFluxProvider(provider, this.configPresenter)
+        case 'straico':
+          return new StraicoProvider(provider, this.configPresenter)
         case 'deepseek':
           return new DeepseekProvider(provider, this.configPresenter)
         case 'aihubmix':

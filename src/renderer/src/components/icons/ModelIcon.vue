@@ -54,6 +54,7 @@ import groqColorIcon from '@/assets/llm-icons/groq.svg?url'
 import hunyuanColorIcon from '@/assets/llm-icons/hunyuan-color.svg?url'
 import dashscopeColorIcon from '@/assets/llm-icons/alibabacloud-color.svg?url'
 import aihubmixColorIcon from '@/assets/llm-icons/aihubmix.png?url'
+import straicoIcon from '@/assets/llm-icons/straico.png?url'
 import defaultIcon from '@/assets/logo.png?url'
 import metaColorIcon from '@/assets/llm-icons/meta.svg?url'
 import lmstudioColorIcon from '@/assets/llm-icons/lmstudio.svg?url'
@@ -113,6 +114,7 @@ const icons = {
   stability: stabilityColorIcon,
   ppio: ppioColorIcon,
   tokenflux: tokenfluxColorIcon,
+  straico: straicoIcon,
   qingyan: qingyanColorIcon,
   qwen: qwenColorIcon,
   moonshot: moonshotColorIcon,
