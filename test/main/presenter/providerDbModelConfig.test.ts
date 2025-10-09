@@ -66,7 +66,8 @@ describe('Provider DB strict matching + user overrides', () => {
               limit: { context: 10000, output: 2000 },
               modalities: { input: ['text', 'image'] },
               tool_call: true,
-              reasoning: true
+              reasoning: { supported: true, budget: { default: 12345 } },
+              search: { supported: true, forced_search: false, search_strategy: 'turbo' }
             },
             {
               id: 'partial-limit',
@@ -90,6 +91,10 @@ describe('Provider DB strict matching + user overrides', () => {
     expect(cfg.vision).toBe(true)
     expect(cfg.functionCall).toBe(true)
     expect(cfg.reasoning).toBe(true)
+    expect(cfg.thinkingBudget).toBe(12345)
+    expect(cfg.enableSearch).toBe(true)
+    expect(cfg.forcedSearch).toBe(false)
+    expect(cfg.searchStrategy).toBe('turbo')
     expect(cfg.type).toBe(ModelType.Chat)
     expect(cfg.temperature).toBe(0.6)
   })
@@ -99,10 +104,16 @@ describe('Provider DB strict matching + user overrides', () => {
     const cfg1 = helper.getModelConfig('partial-limit', 'test-provider')
     expect(cfg1.contextLength).toBe(16000)
     expect(cfg1.maxTokens).toBe(4096)
+    expect(cfg1.enableSearch).toBe(false)
+    expect(cfg1.forcedSearch).toBe(false)
+    expect(cfg1.searchStrategy).toBe('turbo')
 
     const cfg2 = helper.getModelConfig('no-limit', 'test-provider')
     expect(cfg2.contextLength).toBe(8192)
     expect(cfg2.maxTokens).toBe(4096)
+    expect(cfg2.enableSearch).toBe(false)
+    expect(cfg2.forcedSearch).toBe(false)
+    expect(cfg2.searchStrategy).toBe('turbo')
   })
 
   it('falls back to safe defaults when providerId is not provided', () => {

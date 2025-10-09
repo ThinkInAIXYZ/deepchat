@@ -653,7 +653,8 @@ export class ConfigPresenter implements IConfigPresenter {
       isCustom: false,
       vision: Array.isArray(m?.modalities?.input) ? m.modalities!.input!.includes('image') : false,
       functionCall: Boolean((m as any).tool_call),
-      reasoning: Boolean((m as any).reasoning),
+      reasoning: Boolean((m as any).reasoning?.supported),
+      enableSearch: Boolean((m as any).search?.supported),
       type: ModelType.Chat
     }))
   }

@@ -2,6 +2,26 @@ import { z } from 'zod'
 
 // ---------- Zod Schemas ----------
 
+// Capability sub-schemas
+export const ReasoningSchema = z
+  .object({
+    supported: z.boolean().optional(),
+    budget: z
+      .object({
+        default: z.number().int().nonnegative().optional()
+      })
+      .optional()
+  })
+  .optional()
+
+export const SearchSchema = z
+  .object({
+    supported: z.boolean().optional(),
+    forced_search: z.boolean().optional(),
+    search_strategy: z.string().optional()
+  })
+  .optional()
+
 export const ModelSchema = z.object({
   id: z.string().min(1),
   name: z.string().optional(),
@@ -20,7 +40,8 @@ export const ModelSchema = z.object({
     .optional(),
   temperature: z.boolean().optional(),
   tool_call: z.boolean().optional(),
-  reasoning: z.boolean().optional(),
+  reasoning: ReasoningSchema,
+  search: SearchSchema,
   attachment: z.boolean().optional(),
   open_weights: z.boolean().optional(),
   knowledge: z.string().optional(),
@@ -101,6 +122,33 @@ function getStringNumberRecord(obj: unknown): Record<string, string | number> | 
   return Object.keys(out).length ? out : undefined
 }
 
+function getReasoning(obj: unknown): ProviderModel['reasoning'] {
+  if (typeof obj === 'boolean') {
+    return { supported: obj }
+  }
+  if (!isRecord(obj)) return undefined
+  const supported = getBoolean(obj, 'supported')
+  const budgetVal = (obj as Record<string, unknown>)['budget']
+  let budget: { default?: number } | undefined
+  if (isRecord(budgetVal)) {
+    const def = getNumber(budgetVal, 'default')
+    if (typeof def === 'number' && def >= 0) budget = { default: def }
+  }
+  if (supported !== undefined || budget !== undefined) return { supported, budget }
+  return undefined
+}
+
+function getSearch(obj: unknown): ProviderModel['search'] {
+  if (!isRecord(obj)) return undefined
+  const supported = getBoolean(obj, 'supported')
+  const forced_search = getBoolean(obj, 'forced_search')
+  const search_strategy = getString(obj, 'search_strategy')
+  if (supported !== undefined || forced_search !== undefined || search_strategy !== undefined) {
+    return { supported, forced_search, search_strategy }
+  }
+  return undefined
+}
+
 export function sanitizeAggregate(input: unknown): ProviderAggregate | null {
   if (!isRecord(input)) return null
   const providersRaw = (input as Record<string, unknown>)['providers']
@@ -155,7 +203,8 @@ export function sanitizeAggregate(input: unknown): ProviderAggregate | null {
         limit,
         temperature: getBoolean(rm, 'temperature'),
         tool_call: getBoolean(rm, 'tool_call'),
-        reasoning: getBoolean(rm, 'reasoning'),
+        reasoning: getReasoning(rm['reasoning']),
+        search: getSearch(rm['search']),
         attachment: getBoolean(rm, 'attachment'),
         open_weights: getBoolean(rm, 'open_weights'),
         knowledge: getString(rm, 'knowledge'),

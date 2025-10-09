@@ -57,6 +57,38 @@ function sanitizeAggregateJson(json) {
         const outArr = Array.isArray(rmods.output) ? rmods.output.filter((v) => typeof v === 'string') : undefined
         if (inp || outArr) modalities = { input: inp, output: outArr }
       }
+      // reasoning (object in new schema; boolean legacy)
+      let reasoning
+      const r = m.reasoning
+      if (typeof r === 'boolean') {
+        reasoning = { supported: r }
+      } else if (r && typeof r === 'object') {
+        const rs = {}
+        if (typeof r.supported === 'boolean') rs.supported = r.supported
+        if (r.budget && typeof r.budget === 'object') {
+          const bd = {}
+          if (
+            typeof r.budget.default === 'number' &&
+            Number.isFinite(r.budget.default) &&
+            r.budget.default >= 0
+          )
+            bd.default = r.budget.default
+          if (Object.keys(bd).length) rs.budget = bd
+        }
+        if (Object.keys(rs).length) reasoning = rs
+      }
+
+      // search (new schema)
+      let search
+      const s = m.search
+      if (s && typeof s === 'object') {
+        const so = {}
+        if (typeof s.supported === 'boolean') so.supported = s.supported
+        if (typeof s.forced_search === 'boolean') so.forced_search = s.forced_search
+        if (typeof s.search_strategy === 'string') so.search_strategy = s.search_strategy
+        if (Object.keys(so).length) search = so
+      }
+
       sanitizedModels.push({
         id: mid,
         name: typeof m.name === 'string' ? m.name : undefined,
@@ -65,7 +97,8 @@ function sanitizeAggregateJson(json) {
         limit,
         temperature: typeof m.temperature === 'boolean' ? m.temperature : undefined,
         tool_call: typeof m.tool_call === 'boolean' ? m.tool_call : undefined,
-        reasoning: typeof m.reasoning === 'boolean' ? m.reasoning : undefined,
+        reasoning,
+        search,
         attachment: typeof m.attachment === 'boolean' ? m.attachment : undefined,
         open_weights: typeof m.open_weights === 'boolean' ? m.open_weights : undefined,
         knowledge: typeof m.knowledge === 'string' ? m.knowledge : undefined,
