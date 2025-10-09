@@ -1,60 +1,33 @@
 <template>
-  <div class="h-9">
+  <div class="my-1 max-w-full">
     <div
-      class="inline-flex flex-row gap-2 items-center hover:bg-accent rounded-md h-full px-2 text-xs cursor-pointer"
-      @click="openSearchResults"
+      class="inline-block"
+      role="button"
+      :aria-disabled="!isInteractive"
+      :tabindex="isInteractive ? 0 : undefined"
+      @click="handleClick"
+      @keydown.enter.prevent="handleClick"
+      @keydown.space.prevent="handleClick"
     >
-      <template v-if="block.status === 'success'">
-        <div v-if="pages.length > 0" class="flex flex-row ml-1.5">
-          <template v-for="(page, index) in pages" :key="index">
-            <img
-              v-if="page.icon"
-              :src="page.icon"
-              :style="{
-                zIndex: pages.length - index
-              }"
-              class="w-6 h-6 -ml-1.5 border-card rounded-full bg-card border-2 box-border"
-            />
-            <Icon
-              v-else
-              icon="lucide:compass"
-              class="w-6 h-6 -ml-1.5 border-card rounded-full bg-card border-2 box-border"
-            />
-          </template>
-        </div>
-        <span>{{ t('chat.search.results', [extra.total]) }}</span>
-        <Icon icon="lucide:chevron-right" class="w-4 h-4 text-muted-foreground" />
-      </template>
-      <template v-else-if="block.status === 'loading'">
-        <Icon icon="lucide:loader-circle" class="w-4 h-4 text-muted-foreground animate-spin" />
-        <span>{{
-          extra.total > 0 ? t('chat.search.results', [extra.total]) : t('chat.search.searching')
-        }}</span>
-      </template>
-      <template v-else-if="block.status === 'optimizing'">
-        <Icon icon="lucide:loader-circle" class="w-4 h-4 text-muted-foreground animate-spin" />
-        <span>{{ t('chat.search.optimizing') }}</span>
-      </template>
-      <template v-else-if="block.status === 'reading'">
-        <Icon icon="lucide:loader-circle" class="w-4 h-4 text-muted-foreground animate-spin" />
-        <span>{{ t('chat.search.reading') }}</span>
-      </template>
-      <template v-else-if="block.status === 'error'">
-        <Icon icon="lucide:x" class="w-4 h-4 text-muted-foreground" />
-        <span>{{ t('chat.search.error') }}</span>
-      </template>
+      <SearchStatusIndicator
+        :status="block.status"
+        :label="searchLabel"
+        :description="statusDescription"
+        :favicons="favicons"
+        :interactive="isInteractive"
+      />
     </div>
+    <SearchResultsDrawer v-model:open="isDrawerOpen" :search-results="searchResults" />
   </div>
-  <SearchResultsDrawer v-model:open="isDrawerOpen" :search-results="searchResults" />
 </template>
 
 <script setup lang="ts">
+import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { Icon } from '@iconify/vue'
 import { usePresenter } from '@/composables/usePresenter'
 import { SearchResult } from '@shared/presenter'
-import { computed, ref } from 'vue'
 import SearchResultsDrawer from '../SearchResultsDrawer.vue'
+import SearchStatusIndicator from '@/components/SearchStatusIndicator.vue'
 import { AssistantMessageBlock } from '@shared/chat'
 
 const { t } = useI18n()
@@ -67,24 +40,82 @@ const props = defineProps<{
   block: AssistantMessageBlock
 }>()
 
-const extra = computed(() => {
-  return props.block.extra as {
-    total: number
-    pages?: Array<{
-      url: string
-      icon: string
-    }>
+type SearchExtra = {
+  total: number
+  pages: Array<{
+    url?: string
+    icon?: string
+  }>
+  label?: string
+  name?: string
+  engine?: string
+  provider?: string
+}
+
+const extra = computed<SearchExtra>(() => {
+  const raw = (props.block.extra || {}) as Record<string, unknown>
+  const totalValue = raw.total
+  const parsedTotal = typeof totalValue === 'number' ? totalValue : Number(totalValue ?? 0)
+  const total = Number.isFinite(parsedTotal) && parsedTotal >= 0 ? parsedTotal : 0
+
+  const rawPages = raw.pages
+  const pages = Array.isArray(rawPages)
+    ? (rawPages as Array<{ url?: string; icon?: string }>).slice(0, 10)
+    : []
+
+  const label = typeof raw.label === 'string' ? raw.label : undefined
+  const name = typeof raw.name === 'string' ? raw.name : undefined
+  const engine = typeof raw.engine === 'string' ? raw.engine : undefined
+  const provider = typeof raw.provider === 'string' ? raw.provider : undefined
+
+  return {
+    total: Number.isFinite(total) ? total : 0,
+    pages,
+    label,
+    name,
+    engine,
+    provider
   }
 })
 
-const pages = computed(() => {
-  return extra.value.pages?.slice(0, 10) || []
+const searchLabel = computed(() => {
+  const { label, name, engine, provider } = extra.value
+  return label || name || engine || provider || 'web_search'
 })
 
-const openSearchResults = async () => {
-  if (props.block.status === 'success') {
-    isDrawerOpen.value = true
-    searchResults.value = await threadPresenter.getSearchResults(props.messageId)
+const favicons = computed(() => {
+  return extra.value.pages
+    .map((page) => page.icon)
+    .filter((icon): icon is string => typeof icon === 'string' && icon.length > 0)
+    .slice(0, 6)
+})
+
+const statusDescription = computed(() => {
+  const total = extra.value.total
+  switch (props.block.status) {
+    case 'success':
+      return t('chat.search.results', [total])
+    case 'loading':
+      return total > 0 ? t('chat.search.results', [total]) : t('chat.search.searching')
+    case 'optimizing':
+      return t('chat.search.optimizing')
+    case 'reading':
+      return t('chat.search.reading')
+    case 'error':
+      return t('chat.search.error')
+    default:
+      return t('chat.search.searching')
   }
+})
+
+const isInteractive = computed(() => props.block.status === 'success' && extra.value.total > 0)
+
+const handleClick = async () => {
+  if (!isInteractive.value) {
+    return
+  }
+
+  isDrawerOpen.value = true
+  searchResults.value = await threadPresenter.getSearchResults(props.messageId)
 }
 </script>
