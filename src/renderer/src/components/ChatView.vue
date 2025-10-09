@@ -9,8 +9,8 @@
     />
 
     <!-- 输入框区域 -->
-    <div class="flex-none px-2 pb-2">
-      <ChatInput
+    <div class="flex-none px-0 pb-0">
+      <PromptInput
         ref="chatInput"
         :disabled="!chatStore.getActiveThreadId() || isGenerating"
         @send="handleSend"
@@ -23,7 +23,7 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, watch, computed, nextTick } from 'vue'
 import MessageList from './message/MessageList.vue'
-import ChatInput from './ChatInput.vue'
+import PromptInput from './prompt-input/PromptInput.vue'
 import { useRoute } from 'vue-router'
 import { UserMessageContent } from '@shared/chat'
 import { STREAM_EVENTS } from '@/events'

@@ -38,10 +38,7 @@
           <NewThread v-if="!chatStore.getActiveThreadId()" />
           <template v-else>
             <!-- 标题栏 -->
-            <TitleView
-              :model="activeModel"
-              @messageNavigationToggle="handleMessageNavigationToggle"
-            />
+            <TitleView @messageNavigationToggle="handleMessageNavigationToggle" />
 
             <!-- 聊天内容区域 -->
             <ChatView ref="chatViewRef" />
@@ -96,10 +93,8 @@
 <script setup lang="ts">
 import { defineAsyncComponent } from 'vue'
 import { useChatStore } from '@/stores/chat'
-import { computed, watch, ref } from 'vue'
+import { watch, ref } from 'vue'
 import { onClickOutside, useTitle, useMediaQuery } from '@vueuse/core'
-import { useSettingsStore } from '@/stores/settings'
-import { RENDERER_MODEL_META } from '@shared/presenter'
 import { useArtifactStore } from '@/stores/artifact'
 import ArtifactDialog from '@/components/artifacts/ArtifactDialog.vue'
 import MessageNavigationSidebar from '@/components/MessageNavigationSidebar.vue'
@@ -110,7 +105,6 @@ const TitleView = defineAsyncComponent(() => import('@/components/TitleView.vue'
 const ChatView = defineAsyncComponent(() => import('@/components/ChatView.vue'))
 const NewThread = defineAsyncComponent(() => import('@/components/NewThread.vue'))
 const artifactStore = useArtifactStore()
-const settingsStore = useSettingsStore()
 const route = useRoute()
 const chatStore = useChatStore()
 const title = useTitle()
@@ -159,57 +153,6 @@ onClickOutside(sidebarRef, (event) => {
   }
   if (chatStore.isMessageNavigationOpen && !isLargeScreen.value && !isClickInMessageNavigation) {
     chatStore.isMessageNavigationOpen = false
-  }
-})
-
-const activeModel = computed(() => {
-  let model: RENDERER_MODEL_META | undefined
-  const modelId = chatStore.activeThread?.settings.modelId
-  const providerId = chatStore.activeThread?.settings.providerId
-
-  if (modelId && providerId) {
-    // 首先在启用的模型中查找，同时匹配 modelId 和 providerId
-    for (const group of settingsStore.enabledModels) {
-      if (group.providerId === providerId) {
-        const foundModel = group.models.find((m) => m.id === modelId)
-        if (foundModel) {
-          model = foundModel
-          break
-        }
-      }
-    }
-
-    // 如果在启用的模型中没找到，再在自定义模型中查找
-    if (!model) {
-      for (const group of settingsStore.customModels) {
-        if (group.providerId === providerId) {
-          const foundModel = group.models.find((m) => m.id === modelId)
-          if (foundModel) {
-            model = foundModel
-            break
-          }
-        }
-      }
-    }
-  }
-
-  if (!model) {
-    model = {
-      name: chatStore.activeThread?.settings.modelId || '',
-      id: chatStore.activeThread?.settings.modelId || '',
-      group: '',
-      providerId: chatStore.activeThread?.settings.providerId || '',
-      enabled: false,
-      isCustom: false,
-      contextLength: 0,
-      maxTokens: 0
-    }
-  }
-  return {
-    name: model.name,
-    id: model.id,
-    providerId: model.providerId,
-    tags: []
   }
 })
 
