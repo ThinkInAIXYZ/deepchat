@@ -1655,8 +1655,9 @@ export class ThreadPresenter implements IThreadPresenter {
           url: item?.url || '',
           icon: item?.icon || item?.favicon || ''
         }))
+      const previousExtra = searchBlock.extra ?? {}
       searchBlock.extra = {
-        ...(searchBlock.extra || {}),
+        ...previousExtra,
         total: results.length,
         pages
       }
