@@ -10,7 +10,7 @@
     <TooltipProvider>
       <div
         :dir="langStore.dir"
-        class="prompt-input-card border border-border/60 bg-card/90 dark:bg-card/80 focus-within:border-primary rounded-b-lg px-4 py-3 flex flex-col gap-3 shadow-sm relative backdrop-blur-md"
+        class="prompt-input-card border border-border/60 bg-card/90 focus-within:border-primary rounded-b-lg px-4 py-3 flex flex-col gap-3 shadow-sm relative backdrop-blur-md dark:border-white/10 dark:bg-white/[0.04] dark:focus-within:border-white/20"
       >
         <!-- {{  t('chat.input.fileArea') }} -->
         <div v-if="selectedFiles.length > 0">
@@ -38,7 +38,11 @@
             />
           </TransitionGroup>
         </div>
-        <editor-content :editor="editor" class="prompt-input-editor text-sm" @keydown="onKeydown" />
+        <editor-content
+          :editor="editor"
+          class="prompt-input-editor text-sm dark:text-white/80"
+          @keydown="onKeydown"
+        />
 
         <div class="prompt-input-footer flex flex-wrap items-center justify-between gap-3">
           <div class="prompt-input-tools flex items-center gap-1.5 flex-wrap">
@@ -47,7 +51,7 @@
                 <Button
                   variant="outline"
                   size="icon"
-                  class="w-7 h-7 text-xs rounded-lg"
+                  class="w-7 h-7 text-xs rounded-lg dark:border-white/10 dark:bg-transparent dark:text-white/70 dark:hover:border-white/25 dark:hover:bg-white/10 dark:hover:text-white"
                   @click="openFilePicker"
                 >
                   <Icon icon="lucide:paperclip" class="w-4 h-4" />
@@ -66,7 +70,7 @@
             <Tooltip>
               <TooltipTrigger>
                 <span
-                  class="search-engine-select overflow-hidden flex items-center h-7 rounded-lg shadow-sm border border-input transition-all duration-300"
+                  class="search-engine-select overflow-hidden flex items-center h-7 rounded-lg shadow-sm border border-input transition-all duration-300 dark:border-white/10 dark:bg-white/[0.04] dark:hover:border-white/20"
                   :class="{
                     'border-primary': settings.webSearch
                   }"
@@ -75,10 +79,10 @@
                   <Button
                     variant="outline"
                     :class="[
-                      'flex w-7 border-none rounded-none shadow-none items-center gap-1.5 px-2 h-full',
+                      'flex w-7 border-none rounded-none shadow-none items-center gap-1.5 px-2 h-full text-foreground dark:hover:bg-white/10',
                       settings.webSearch
                         ? 'dark:!bg-primary bg-primary border-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground'
-                        : ''
+                        : 'dark:text-white/70'
                     ]"
                     :dir="langStore.dir"
                     size="icon"
@@ -92,7 +96,7 @@
                     @update:open="handleSelectOpen"
                   >
                     <SelectTrigger
-                      class="h-full rounded-none border-none shadow-none hover:bg-accent text-muted-foreground dark:hover:text-primary-foreground transition-all duration-300"
+                      class="h-full rounded-none border-none shadow-none hover:bg-accent text-muted-foreground dark:text-white/60 dark:hover:bg-white/10 dark:hover:text-white transition-all duration-300"
                       :class="{
                         'w-0 opacity-0 p-0 overflow-hidden':
                           !showSearchSettingsButton && !isSearchHovering && !isSelectOpen,
@@ -129,7 +133,7 @@
                 contextLength > 0 &&
                 currentContextLength / (contextLength ?? 1000) > 0.5
               "
-              class="text-xs text-muted-foreground"
+              class="text-xs text-muted-foreground dark:text-white/60"
               :class="[
                 currentContextLength / (contextLength ?? 1000) > 0.9 ? ' text-red-600' : '',
                 currentContextLength / (contextLength ?? 1000) > 0.8
@@ -142,7 +146,7 @@
 
             <div
               v-if="rateLimitStatus?.config.enabled"
-              class="flex items-center gap-1 text-xs"
+              class="flex items-center gap-1 text-xs dark:text-white/60"
               :class="getRateLimitStatusClass()"
               :title="getRateLimitStatusTooltip()"
             >
@@ -162,8 +166,8 @@
             <Popover v-model:open="modelSelectOpen">
               <PopoverTrigger as-child>
                 <Button
-                  variant="outline"
-                  class="prompt-input-model-button flex items-center gap-1.5 h-7 px-2 rounded-md"
+                  variant="ghost"
+                  class="prompt-input-model-button flex items-center gap-1.5 h-7 px-2 rounded-md text-xs font-semibold text-muted-foreground hover:bg-muted/60 hover:text-foreground dark:text-white/70 dark:hover:bg-white/10 dark:hover:text-white"
                   size="sm"
                 >
                   <ModelIcon
@@ -172,7 +176,7 @@
                     custom-class="w-4 h-4"
                   />
                   <span
-                    class="text-xs font-semibold truncate max-w-[140px]"
+                    class="text-xs font-semibold truncate max-w-[140px] text-foreground"
                     :title="modelDisplayName"
                   >
                     {{ modelDisplayName }}
@@ -188,8 +192,8 @@
                   <Icon icon="lucide:chevron-right" class="w-4 h-4 text-muted-foreground" />
                 </Button>
               </PopoverTrigger>
-              <PopoverContent align="end" class="p-0 w-80">
-                <ModelSelect
+              <PopoverContent align="end" class="w-80 border-none bg-transparent p-0 shadow-none">
+                <ModelChooser
                   :type="[ModelType.Chat, ModelType.ImageGeneration]"
                   @update:model="handleModelUpdate"
                 />
@@ -199,7 +203,7 @@
             <ScrollablePopover align="end" content-class="w-80" :enable-scrollable="true">
               <template #trigger>
                 <Button
-                  class="h-7 w-7 rounded-md border border-border/60 hover:border-border dark:hover:border-white/40"
+                  class="h-7 w-7 rounded-md border border-border/60 hover:border-border dark:border-white/10 dark:bg-white/[0.04] dark:text-white/70 dark:hover:border-white/25 dark:hover:bg-white/15 dark:hover:text-white"
                   size="icon"
                   variant="outline"
                 >
@@ -229,7 +233,7 @@
             <Button
               variant="default"
               size="icon"
-              class="w-7 h-7 text-xs rounded-lg"
+              class="w-7 h-7 text-xs rounded-lg dark:bg-[#006edc] dark:hover:bg-[#1c7fee] dark:text-white"
               :disabled="disabledSend"
               @click="emitSend"
             >
@@ -277,7 +281,7 @@ import { Icon } from '@iconify/vue'
 import FileItem from '../FileItem.vue'
 import ScrollablePopover from '../ScrollablePopover.vue'
 import ChatConfig from '../ChatConfig.vue'
-import ModelSelect from '../ModelSelect.vue'
+import ModelChooser from './ModelChooser.vue'
 import ModelIcon from '../icons/ModelIcon.vue'
 import { useChatStore } from '@/stores/chat'
 import {
@@ -1749,33 +1753,61 @@ defineExpose({
 </script>
 
 <style scoped>
+@reference '../../assets/style.css';
 .prompt-input-wrapper {
   width: 100%;
 }
 
 .prompt-input-card {
+  --prompt-border-color: color-mix(in srgb, var(--border) 80%, transparent);
+  --prompt-toolbar-bg: color-mix(in srgb, var(--muted) 85%, transparent);
+  --prompt-text-secondary: color-mix(in srgb, var(--muted-foreground) 95%, transparent);
+  --prompt-text-accent: var(--foreground);
+  --prompt-text-primary: var(--foreground);
   background-color: color-mix(in srgb, var(--card) 92%, transparent);
   border-radius: 0 0 var(--radius-lg) var(--radius-lg);
 }
 
-:global(.dark) .prompt-input-card,
-:global([data-theme='dark']) .prompt-input-card {
-  background-color: color-mix(in srgb, var(--card) 82%, transparent);
-  border-color: color-mix(in srgb, var(--border) 85%, transparent);
+.dark .prompt-input-card,
+[data-theme='dark'] .prompt-input-card {
+  --prompt-border-color: #ffffff0d;
+  --prompt-toolbar-bg: #ffffff0d;
+  --prompt-text-secondary: #ffffff80;
+  --prompt-text-accent: #ffffffcc;
+  --prompt-text-primary: #ffffff;
+  background-color: color-mix(in srgb, #0b0d10 88%, transparent);
+  border-color: #ffffff0d;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.05) inset;
 }
 
 .prompt-input-editor {
   padding: 0.75rem;
-  color: var(--foreground);
+  color: var(--prompt-text-accent, var(--foreground));
+}
+
+.dark .prompt-input-editor,
+[data-theme='dark'] .prompt-input-editor {
+  color: var(--prompt-text-accent);
 }
 
 .prompt-input-footer {
-  border-top: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+  /* border-top: 1px solid var(--prompt-border-color); */
   padding-top: 0.75rem;
 }
 
 .prompt-input-tools .search-engine-select {
-  background-color: color-mix(in srgb, var(--muted) 85%, transparent);
+  background-color: var(--prompt-toolbar-bg);
+  border-color: var(--prompt-border-color);
+  color: var(--prompt-text-secondary);
+}
+
+.dark .prompt-input-tools .search-engine-select,
+[data-theme='dark'] .prompt-input-tools .search-engine-select {
+  color: var(--prompt-text-accent);
+}
+
+.prompt-input-tools .search-engine-select:hover {
+  border-color: color-mix(in srgb, var(--prompt-border-color) 70%, var(--prompt-text-primary) 30%);
 }
 
 .prompt-input-model-button {
@@ -1800,5 +1832,10 @@ defineExpose({
   float: left;
   height: 0;
   pointer-events: none;
+}
+
+.dark .tiptap p.is-editor-empty:first-child::before,
+[data-theme='dark'] .tiptap p.is-editor-empty:first-child::before {
+  color: #ffffff80;
 }
 </style>
