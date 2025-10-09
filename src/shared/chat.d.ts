@@ -91,6 +91,7 @@ export type AssistantMessageBlock = {
     | 'action'
     | 'image'
     | 'artifact-thinking'
+  id?: string
   content?: string
   extra?: Record<string, string | number | object[] | boolean>
   status:
@@ -147,6 +148,7 @@ export type SearchBlock = {
       url: string
       content?: string
     }>
+    searchId?: string
   }
 }
 

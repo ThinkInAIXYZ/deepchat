@@ -50,6 +50,7 @@ type SearchExtra = {
   name?: string
   engine?: string
   provider?: string
+  searchId?: string
 }
 
 const extra = computed<SearchExtra>(() => {
@@ -67,6 +68,7 @@ const extra = computed<SearchExtra>(() => {
   const name = typeof raw.name === 'string' ? raw.name : undefined
   const engine = typeof raw.engine === 'string' ? raw.engine : undefined
   const provider = typeof raw.provider === 'string' ? raw.provider : undefined
+  const searchId = typeof raw.searchId === 'string' ? raw.searchId : undefined
 
   return {
     total: Number.isFinite(total) ? total : 0,
@@ -74,7 +76,8 @@ const extra = computed<SearchExtra>(() => {
     label,
     name,
     engine,
-    provider
+    provider,
+    searchId
   }
 })
 
@@ -110,12 +113,14 @@ const statusDescription = computed(() => {
 
 const isInteractive = computed(() => props.block.status === 'success' && extra.value.total > 0)
 
+const searchId = computed(() => extra.value.searchId)
+
 const handleClick = async () => {
   if (!isInteractive.value) {
     return
   }
 
   isDrawerOpen.value = true
-  searchResults.value = await threadPresenter.getSearchResults(props.messageId)
+  searchResults.value = await threadPresenter.getSearchResults(props.messageId, searchId.value)
 }
 </script>

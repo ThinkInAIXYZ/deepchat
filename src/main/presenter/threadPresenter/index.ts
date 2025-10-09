@@ -37,6 +37,7 @@ import { getFileContext } from './fileContext'
 import { ContentEnricher } from './contentEnricher'
 import { CONVERSATION_EVENTS, STREAM_EVENTS, TAB_EVENTS } from '@/events'
 import { DEFAULT_SETTINGS } from './const'
+import { nanoid } from 'nanoid'
 
 interface GeneratingMessageState {
   message: AssistantMessage
@@ -714,45 +715,48 @@ export class ThreadPresenter implements IThreadPresenter {
               .filter(Boolean)
 
             if (searchResults.length > 0) {
-              // 检查是否已经存在搜索块
-              const existingSearchBlock =
-                state.message.content.length > 0 && state.message.content[0].type === 'search'
-                  ? state.message.content[0]
-                  : null
+              const searchId = nanoid()
+              const pages = searchResults
+                .filter((item) => item && (item.icon || item.favicon))
+                .slice(0, 6)
+                .map((item) => ({
+                  url: item?.url ?? '',
+                  icon: item?.icon || item?.favicon || ''
+                }))
 
-              if (existingSearchBlock) {
-                // 如果已经存在搜索块，更新其状态和总数
-                existingSearchBlock.status = 'success'
-                existingSearchBlock.timestamp = currentTime
-                if (existingSearchBlock.extra) {
-                  // 累加搜索结果数量
-                  existingSearchBlock.extra.total =
-                    (existingSearchBlock.extra.total || 0) + searchResults.length
-                } else {
-                  existingSearchBlock.extra = {
-                    total: searchResults.length
-                  }
+              const searchBlock: AssistantMessageBlock = {
+                id: searchId,
+                type: 'search',
+                content: '',
+                status: 'success',
+                timestamp: currentTime,
+                extra: {
+                  total: searchResults.length,
+                  searchId,
+                  pages,
+                  label: tool_call_name || 'web_search',
+                  name: tool_call_name || 'web_search',
+                  engine: tool_call_server_name || undefined,
+                  provider: tool_call_server_name || undefined
                 }
-              } else {
-                // 如果不存在搜索块，创建新的并添加到内容的最前面
-                const searchBlock: AssistantMessageBlock = {
-                  type: 'search',
-                  content: '',
-                  status: 'success',
-                  timestamp: currentTime,
-                  extra: {
-                    total: searchResults.length
-                  }
-                }
-                state.message.content.unshift(searchBlock)
               }
 
-              // 保存搜索结果
+              finalizeLastBlock()
+              state.message.content.push(searchBlock)
+
               for (const result of searchResults) {
                 await this.sqlitePresenter.addMessageAttachment(
                   eventId,
                   'search_result',
-                  JSON.stringify(result)
+                  JSON.stringify({
+                    title: result?.title || '',
+                    url: result?.url || '',
+                    content: result?.content || '',
+                    description: result?.description || '',
+                    icon: result?.icon || result?.favicon || '',
+                    rank: typeof result?.rank === 'number' ? result.rank : undefined,
+                    searchId
+                  })
                 )
               }
 
@@ -1535,20 +1539,34 @@ export class ThreadPresenter implements IThreadPresenter {
       throw new Error('找不到生成状态')
     }
 
+    const activeEngine = this.searchManager.getActiveEngine()
+    const labelValue = 'web_search'
+    const engineId = activeEngine?.id ?? labelValue
+    const engineName = activeEngine?.name ?? engineId
+
     // 检查是否已被取消
     this.throwIfCancelled(messageId)
 
+    const searchId = nanoid()
     // 添加搜索加载状态
     const searchBlock: AssistantMessageBlock = {
+      id: searchId,
       type: 'search',
       content: '',
       status: 'loading',
       timestamp: Date.now(),
       extra: {
-        total: 0
+        total: 0,
+        searchId,
+        pages: [],
+        label: labelValue,
+        name: labelValue,
+        engine: engineName,
+        provider: engineName
       }
     }
-    state.message.content.unshift(searchBlock)
+    this.finalizeLastBlock(state)
+    state.message.content.push(searchBlock)
     await this.messageManager.editMessage(messageId, JSON.stringify(state.message.content))
     // 标记消息为搜索状态
     state.isSearching = true
@@ -1600,7 +1618,7 @@ export class ThreadPresenter implements IThreadPresenter {
         query,
         formattedContext,
         conversationId,
-        this.searchManager.getActiveEngine().name
+        engineName
       ).catch((err) => {
         console.error('重写搜索查询失败:', err)
         return query
@@ -1630,8 +1648,17 @@ export class ThreadPresenter implements IThreadPresenter {
       this.throwIfCancelled(messageId)
 
       searchBlock.status = 'loading'
+      const pages = results
+        .filter((item) => item && (item.icon || item.favicon))
+        .slice(0, 6)
+        .map((item) => ({
+          url: item?.url || '',
+          icon: item?.icon || item?.favicon || ''
+        }))
       searchBlock.extra = {
-        total: results.length
+        ...(searchBlock.extra || {}),
+        total: results.length,
+        pages
       }
       await this.messageManager.editMessage(messageId, JSON.stringify(state.message.content))
 
@@ -1648,7 +1675,9 @@ export class ThreadPresenter implements IThreadPresenter {
             url: result.url,
             content: result.content || '',
             description: result.description || '',
-            icon: result.icon || ''
+            icon: result.icon || result.favicon || '',
+            rank: typeof result.rank === 'number' ? result.rank : undefined,
+            searchId
           })
         )
       }
@@ -1689,9 +1718,33 @@ export class ThreadPresenter implements IThreadPresenter {
   }
 
   // 从数据库获取搜索结果
-  async getSearchResults(messageId: string): Promise<SearchResult[]> {
+  async getSearchResults(messageId: string, searchId?: string): Promise<SearchResult[]> {
     const results = await this.sqlitePresenter.getMessageAttachments(messageId, 'search_result')
-    return results.map((result) => JSON.parse(result.content) as SearchResult) ?? []
+    const parsed =
+      results
+        .map((result) => {
+          try {
+            return JSON.parse(result.content) as SearchResult
+          } catch (error) {
+            console.warn('解析搜索结果附件失败:', error)
+            return null
+          }
+        })
+        .filter((item): item is SearchResult => item !== null) ?? []
+
+    if (searchId) {
+      const filtered = parsed.filter((item) => item.searchId === searchId)
+      if (filtered.length > 0) {
+        return filtered
+      }
+      // 历史数据兼容：如果没有匹配的 searchId，则回退到没有 searchId 的结果
+      const legacyResults = parsed.filter((item) => !item.searchId)
+      if (legacyResults.length > 0) {
+        return legacyResults
+      }
+    }
+
+    return parsed
   }
 
   async startStreamCompletion(

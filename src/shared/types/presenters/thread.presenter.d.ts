@@ -89,6 +89,7 @@ export interface SearchResult {
   description?: string
   icon?: string
   rank?: number
+  searchId?: string
 }
 
 export interface IThreadPresenter {
@@ -130,7 +131,7 @@ export interface IThreadPresenter {
   getActiveConversationId(tabId: number): Promise<string | null>
   clearActiveThread(tabId: number): Promise<void>
 
-  getSearchResults(messageId: string): Promise<SearchResult[]>
+  getSearchResults(messageId: string, searchId?: string): Promise<SearchResult[]>
   clearAllMessages(conversationId: string): Promise<void>
 
   // Message operations

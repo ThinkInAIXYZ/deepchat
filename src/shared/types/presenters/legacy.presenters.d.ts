@@ -774,7 +774,7 @@ export interface IThreadPresenter {
   getActiveConversationId(tabId: number): Promise<string | null>
   clearActiveThread(tabId: number): Promise<void>
 
-  getSearchResults(messageId: string): Promise<SearchResult[]>
+  getSearchResults(messageId: string, searchId?: string): Promise<SearchResult[]>
   clearAllMessages(conversationId: string): Promise<void>
 
   // Message operations
@@ -1020,7 +1020,9 @@ export interface SearchResult {
   rank: number
   content?: string
   icon?: string
+  favicon?: string
   description?: string
+  searchId?: string
 }
 
 export interface ISearchPresenter {
