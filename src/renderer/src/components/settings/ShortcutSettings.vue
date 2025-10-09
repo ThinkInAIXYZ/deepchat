@@ -27,64 +27,74 @@
               <span class="text-sm font-medium">{{ t(shortcut.label) }}</span>
             </span>
 
-            <div class="shrink-0 min-w-32">
-              <div class="relative w-full group">
-                <Button
-                  variant="outline"
-                  class="h-10 min-w-[140px] justify-end relative px-2"
-                  :class="{
-                    'ring-2 ring-primary': recordingShortcutId === shortcut.id && !shortcutError,
-                    'ring-2 ring-destructive': recordingShortcutId === shortcut.id && shortcutError
-                  }"
-                  :disabled="shortcut.disabled"
-                  @click="startRecording(shortcut.id)"
-                >
-                  <span
-                    v-if="recordingShortcutId === shortcut.id"
-                    class="text-sm"
-                    :class="{ 'text-primary': !shortcutError, 'text-destructive': shortcutError }"
-                  >
-                    <span v-if="shortcutError">
-                      {{ shortcutError }}
-                    </span>
-                    <span v-else-if="tempShortcut">
-                      {{ tempShortcut }}
-                      <span class="text-xs text-muted-foreground">{{
-                        t('settings.shortcuts.pressEnterToSave')
-                      }}</span>
-                    </span>
-                    <span v-else>{{ t('settings.shortcuts.pressKeys') }}</span>
-                  </span>
-                  <span v-else class="text-sm">
-                    <span
-                      v-for="(key, idx) in shortcut.key"
-                      :key="idx"
-                      class="tw-keycap"
-                      :class="{
-                        'font-mono tracking-widest': key === '0'
-                      }"
-                    >
+            <div class="shrink-0 min-w-[240px]">
+              <div
+                class="group flex min-h-[44px] items-center gap-3 rounded-md border bg-background px-3 py-2 transition"
+                :class="{
+                  'border-primary ring-2 ring-primary/50':
+                    recordingShortcutId === shortcut.id && !shortcutError,
+                  'border-destructive ring-2 ring-destructive/50':
+                    recordingShortcutId === shortcut.id && shortcutError,
+                  'opacity-60': shortcut.disabled
+                }"
+              >
+                <KbdGroup class="flex flex-wrap items-center gap-1">
+                  <template v-if="recordingShortcutId === shortcut.id">
+                    <template v-if="formattedTempShortcut.length">
+                      <Kbd v-for="(key, idx) in formattedTempShortcut" :key="idx">
+                        {{ key }}
+                      </Kbd>
+                    </template>
+                    <Kbd v-else class="text-muted-foreground">...</Kbd>
+                  </template>
+                  <template v-else-if="shortcut.key.length">
+                    <Kbd v-for="(key, idx) in shortcut.key" :key="idx">
                       {{ key }}
-                    </span>
-                  </span>
-                  <Icon
-                    v-if="recordingShortcutId !== shortcut.id"
-                    icon="lucide:pencil"
-                    class="w-3.5 h-3.5 text-muted-foreground group-hover:opacity-0 transition-opacity"
-                  />
-                </Button>
+                    </Kbd>
+                  </template>
+                  <Kbd v-else class="text-muted-foreground">—</Kbd>
+                </KbdGroup>
 
-                <!-- 清理图标 - 只在hover时显示且不是禁用状态 -->
-                <Button
-                  v-if="!shortcut.disabled && recordingShortcutId !== shortcut.id"
-                  variant="ghost"
-                  size="sm"
-                  class="absolute right-1 top-1/2 -translate-y-1/2 h-8 w-8 p-0 opacity-0 group-hover:opacity-100 transition-opacity z-10 hover:bg-destructive/10"
-                  @click.stop="clearShortcut(shortcut.id)"
-                  :title="t('settings.shortcuts.clearShortcut')"
+                <div
+                  class="ml-auto flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100"
+                  :class="{ 'opacity-100': recordingShortcutId === shortcut.id }"
                 >
-                  <Icon icon="lucide:x" class="w-4 h-4 text-destructive" />
-                </Button>
+                  <Button
+                    v-if="!shortcut.disabled"
+                    variant="ghost"
+                    size="icon"
+                    class="h-8 w-8 text-muted-foreground hover:text-primary"
+                    :title="t('common.edit')"
+                    @click.stop="startRecording(shortcut.id)"
+                  >
+                    <Icon icon="lucide:pencil" class="h-4 w-4" />
+                  </Button>
+                  <Button
+                    v-if="!shortcut.disabled && shortcut.key.length"
+                    variant="ghost"
+                    size="icon"
+                    class="h-8 w-8 text-muted-foreground hover:text-destructive"
+                    :title="t('settings.shortcuts.clearShortcut')"
+                    @click.stop="clearShortcut(shortcut.id)"
+                  >
+                    <Icon icon="lucide:x" class="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+              <div
+                v-if="recordingShortcutId === shortcut.id"
+                class="mt-1 text-xs"
+                :class="shortcutError ? 'text-destructive' : 'text-muted-foreground'"
+              >
+                <span v-if="shortcutError">
+                  {{ shortcutError }}
+                </span>
+                <span v-else-if="formattedTempShortcut.length">
+                  {{ t('settings.shortcuts.pressEnterToSave') }}
+                </span>
+                <span v-else class="text-primary">
+                  {{ t('settings.shortcuts.pressKeys') }}
+                </span>
               </div>
             </div>
           </div>
@@ -105,6 +115,7 @@ import { useShortcutKeyStore } from '@/stores/shortcutKey'
 import { useLanguageStore } from '@/stores/language'
 import { Button } from '@shadcn/components/ui/button'
 import { ScrollArea } from '@shadcn/components/ui/scroll-area'
+import { Kbd, KbdGroup } from '@shadcn/components/ui/kbd'
 import type { ShortcutKey } from '@shared/presenter'
 
 const { t } = useI18n()
@@ -254,9 +265,9 @@ const shortcuts = computed(() => {
   }
 })
 
-const formatShortcut = (_shortcut: string | undefined | null) => {
-  // 如果 _shortcut 为空，返回空字符串或一个默认值
-  if (!_shortcut) return ''
+const formatShortcut = (_shortcut: string | undefined | null): string[] => {
+  // 如果 _shortcut 为空，返回空数组
+  if (!_shortcut) return []
 
   return _shortcut
     .replace(
@@ -270,7 +281,10 @@ const formatShortcut = (_shortcut: string | undefined | null) => {
     .replace(/\+/g, ' + ')
     .split('+')
     .map((k) => k.trim())
+    .filter(Boolean)
 }
+
+const formattedTempShortcut = computed(() => formatShortcut(tempShortcut.value))
 
 const resetShortcutKeys = async () => {
   resetLoading.value = true
@@ -440,34 +454,3 @@ const clearShortcut = async (shortcutId: string) => {
   }
 }
 </script>
-
-<style scoped>
-.tw-keycap {
-  display: inline-flex;
-  min-width: 1.6rem;
-  height: 1.6rem;
-  align-items: center;
-  justify-content: center;
-  padding: 0.125rem 0.375rem;
-  margin: 0 0.125rem;
-  border-radius: 0.3rem;
-  font-size: 0.75rem;
-  line-height: 1rem;
-  font-weight: 500;
-  letter-spacing: 0.01em;
-  vertical-align: middle;
-  border-width: 1px;
-  border-style: solid;
-  box-shadow:
-    inset 0 -1px 0 rgb(15 23 42 / 0.08),
-    0 1px 2px rgb(15 23 42 / 0.06);
-  transition:
-    color 150ms ease,
-    background-color 150ms ease,
-    border-color 150ms ease;
-  user-select: none;
-  background-color: hsl(var(--muted));
-  border-color: hsl(var(--border));
-  color: hsl(var(--foreground));
-}
-</style>
