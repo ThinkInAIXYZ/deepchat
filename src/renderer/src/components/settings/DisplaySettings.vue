@@ -61,7 +61,7 @@
           <Icon icon="lucide:a-large-small" class="w-4 h-4 text-muted-foreground" />
           <span class="truncate">{{ t('settings.display.fontSize') }}</span>
         </span>
-        <div class="flex flex-wrap items-center gap-1.5">
+        <ButtonGroup class="flex-wrap">
           <Button
             v-for="(sizeOption, index) in fontSizeOptions"
             :key="index"
@@ -72,7 +72,7 @@
           >
             {{ t('settings.display.' + sizeOption) }}
           </Button>
-        </div>
+        </ButtonGroup>
       </div>
 
       <!-- 投屏保护开关 -->
@@ -177,6 +177,7 @@ import {
   DialogTitle
 } from '@shadcn/components/ui/dialog'
 import { Button } from '@shadcn/components/ui/button'
+import { ButtonGroup } from '@shadcn/components/ui/button-group'
 import { Switch } from '@shadcn/components/ui/switch'
 
 const languageStore = useLanguageStore()
