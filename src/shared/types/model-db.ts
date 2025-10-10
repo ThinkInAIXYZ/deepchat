@@ -6,6 +6,7 @@ import { z } from 'zod'
 export const ReasoningSchema = z
   .object({
     supported: z.boolean().optional(),
+    default: z.boolean().optional(),
     budget: z
       .object({
         default: z.number().int().nonnegative().optional()
@@ -17,6 +18,7 @@ export const ReasoningSchema = z
 export const SearchSchema = z
   .object({
     supported: z.boolean().optional(),
+    default: z.boolean().optional(),
     forced_search: z.boolean().optional(),
     search_strategy: z.string().optional()
   })
@@ -128,23 +130,31 @@ function getReasoning(obj: unknown): ProviderModel['reasoning'] {
   }
   if (!isRecord(obj)) return undefined
   const supported = getBoolean(obj, 'supported')
+  const defEnabled = getBoolean(obj, 'default')
   const budgetVal = (obj as Record<string, unknown>)['budget']
   let budget: { default?: number } | undefined
   if (isRecord(budgetVal)) {
     const def = getNumber(budgetVal, 'default')
     if (typeof def === 'number' && def >= 0) budget = { default: def }
   }
-  if (supported !== undefined || budget !== undefined) return { supported, budget }
+  if (supported !== undefined || defEnabled !== undefined || budget !== undefined)
+    return { supported, default: defEnabled, budget }
   return undefined
 }
 
 function getSearch(obj: unknown): ProviderModel['search'] {
   if (!isRecord(obj)) return undefined
   const supported = getBoolean(obj, 'supported')
+  const defEnabled = getBoolean(obj, 'default')
   const forced_search = getBoolean(obj, 'forced_search')
   const search_strategy = getString(obj, 'search_strategy')
-  if (supported !== undefined || forced_search !== undefined || search_strategy !== undefined) {
-    return { supported, forced_search, search_strategy }
+  if (
+    supported !== undefined ||
+    defEnabled !== undefined ||
+    forced_search !== undefined ||
+    search_strategy !== undefined
+  ) {
+    return { supported, default: defEnabled, forced_search, search_strategy }
   }
   return undefined
 }

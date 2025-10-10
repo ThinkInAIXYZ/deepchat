@@ -643,7 +643,7 @@ export class ConfigPresenter implements IConfigPresenter {
     if (!provider || !Array.isArray(provider.models)) return []
     return provider.models.map((m) => ({
       id: m.id,
-      name: (m as any).display_name || m.name || m.id,
+      name: m.display_name || m.name || m.id,
       contextLength: m.limit?.context ?? 8192,
       maxTokens: m.limit?.output ?? 4096,
       provider: providerId,
@@ -652,9 +652,9 @@ export class ConfigPresenter implements IConfigPresenter {
       enabled: false,
       isCustom: false,
       vision: Array.isArray(m?.modalities?.input) ? m.modalities!.input!.includes('image') : false,
-      functionCall: Boolean((m as any).tool_call),
-      reasoning: Boolean((m as any).reasoning?.supported),
-      enableSearch: Boolean((m as any).search?.supported),
+      functionCall: Boolean(m.tool_call),
+      reasoning: Boolean(m.reasoning?.supported),
+      enableSearch: Boolean(m.search?.supported),
       type: ModelType.Chat
     }))
   }
