@@ -72,7 +72,6 @@
     "better-sqlite3-multiple-ciphers": "12.4.1",
     "cheerio": "^1.1.2",
     "compare-versions": "^6.1.1",
-    "dayjs": "^1.11.18",
     "diff": "^7.0.0",
     "electron-log": "^5.4.3",
     "electron-store": "^8.2.0",
@@ -174,6 +173,7 @@
     "vue-virtual-scroller": "^2.0.0-beta.8",
     "vuedraggable": "^4.1.0",
     "yaml": "^2.8.1",
+    "dayjs": "^1.11.18",
     "zod-to-json-schema": "^3.24.6"
   },
   "simple-git-hooks": {
