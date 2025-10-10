@@ -1,6 +1,6 @@
 <template>
   <div
-    class="w-full h-full overflow-hidden p-2 space-y-3 shrink-0 border-r flex flex-col bg-background"
+    class="w-full h-full overflow-hidden p-2 space-y-3 shrink-0 border-r flex flex-col bg-bg-card"
   >
     <!-- 固定在顶部的"新会话"按钮 -->
     <div class="flex-none flex flex-row gap-2">

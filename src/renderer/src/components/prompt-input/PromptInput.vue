@@ -10,7 +10,7 @@
     <TooltipProvider>
       <div
         :dir="langStore.dir"
-        class="prompt-input-card border border-border/60 bg-card/90 focus-within:border-primary rounded-b-lg px-4 py-3 flex flex-col gap-3 shadow-sm relative backdrop-blur-md dark:border-white/10 dark:bg-white/[0.04] dark:focus-within:border-white/20"
+        class="prompt-input-card border border-border/60 focus-within:border-primary rounded-b-lg px-4 py-3 flex flex-col gap-3 shadow-sm relative backdrop-blur-md dark:border-white/10 dark:focus-within:border-white/20"
       >
         <!-- {{  t('chat.input.fileArea') }} -->
         <div v-if="selectedFiles.length > 0">
@@ -1754,6 +1754,7 @@ defineExpose({
 
 <style scoped>
 @reference '../../assets/style.css';
+
 .prompt-input-wrapper {
   width: 100%;
 }
@@ -1764,7 +1765,7 @@ defineExpose({
   --prompt-text-secondary: color-mix(in srgb, var(--muted-foreground) 95%, transparent);
   --prompt-text-accent: var(--foreground);
   --prompt-text-primary: var(--foreground);
-  background-color: color-mix(in srgb, var(--card) 92%, transparent);
+  background-color: transparent;
   border-radius: 0 0 var(--radius-lg) var(--radius-lg);
 }
 
@@ -1775,7 +1776,7 @@ defineExpose({
   --prompt-text-secondary: #ffffff80;
   --prompt-text-accent: #ffffffcc;
   --prompt-text-primary: #ffffff;
-  background-color: color-mix(in srgb, #0b0d10 88%, transparent);
+  background-color: transparent;
   border-color: #ffffff0d;
   box-shadow: 0 1px 0 rgba(255, 255, 255, 0.05) inset;
 }

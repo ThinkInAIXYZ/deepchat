@@ -1,6 +1,6 @@
 <template>
   <div
-    class="message-navigation-sidebar h-full w-full bg-background border-l border-border flex flex-col"
+    class="message-navigation-sidebar h-full w-full bg-bg-card border-l border-border flex flex-col"
   >
     <!-- 头部 -->
     <div class="flex items-center justify-between p-4 border-b border-border">
