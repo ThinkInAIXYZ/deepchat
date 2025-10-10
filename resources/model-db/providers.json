@@ -131,7 +131,8 @@
           "temperature": false,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": true,
           "open_weights": false,
@@ -162,7 +163,8 @@
           "temperature": false,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": true,
           "open_weights": false,
@@ -307,7 +309,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": true,
@@ -340,7 +343,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": true,
@@ -373,7 +377,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": true,
@@ -408,7 +413,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": true,
           "open_weights": true,
@@ -439,7 +445,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": true,
@@ -516,6 +523,7 @@
           },
           "search": {
             "supported": true,
+            "default": false,
             "forced_search": false,
             "search_strategy": "turbo"
           },
@@ -659,6 +667,7 @@
           },
           "search": {
             "supported": true,
+            "default": false,
             "forced_search": false,
             "search_strategy": "turbo"
           },
@@ -687,6 +696,7 @@
           },
           "search": {
             "supported": true,
+            "default": false,
             "forced_search": false,
             "search_strategy": "turbo"
           },
@@ -715,6 +725,7 @@
           },
           "search": {
             "supported": true,
+            "default": false,
             "forced_search": false,
             "search_strategy": "turbo"
           },
@@ -743,6 +754,7 @@
           },
           "search": {
             "supported": true,
+            "default": false,
             "forced_search": false,
             "search_strategy": "turbo"
           },
@@ -771,6 +783,7 @@
           },
           "search": {
             "supported": true,
+            "default": false,
             "forced_search": false,
             "search_strategy": "turbo"
           },
@@ -1006,6 +1019,7 @@
           },
           "search": {
             "supported": true,
+            "default": false,
             "forced_search": false,
             "search_strategy": "turbo"
           },
@@ -1034,6 +1048,7 @@
           },
           "search": {
             "supported": true,
+            "default": false,
             "forced_search": false,
             "search_strategy": "turbo"
           },
@@ -1062,6 +1077,7 @@
           },
           "search": {
             "supported": true,
+            "default": false,
             "forced_search": false,
             "search_strategy": "turbo"
           },
@@ -1090,6 +1106,7 @@
           },
           "search": {
             "supported": true,
+            "default": false,
             "forced_search": false,
             "search_strategy": "turbo"
           },
@@ -1210,6 +1227,7 @@
           },
           "search": {
             "supported": true,
+            "default": false,
             "forced_search": false,
             "search_strategy": "turbo"
           },
@@ -1238,6 +1256,7 @@
           },
           "search": {
             "supported": true,
+            "default": true,
             "forced_search": false,
             "search_strategy": "turbo"
           },
@@ -1266,6 +1285,7 @@
           },
           "search": {
             "supported": true,
+            "default": true,
             "forced_search": false,
             "search_strategy": "turbo"
           },
@@ -1291,6 +1311,7 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
+            "default": true,
             "budget": {
               "default": 81920
             }
@@ -1317,6 +1338,7 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
+            "default": true,
             "budget": {
               "default": 81920
             }
@@ -1343,6 +1365,7 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
+            "default": true,
             "budget": {
               "default": 81920
             }
@@ -1369,6 +1392,7 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
+            "default": true,
             "budget": {
               "default": 38912
             }
@@ -1395,6 +1419,7 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
+            "default": true,
             "budget": {
               "default": 38912
             }
@@ -1421,6 +1446,7 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
+            "default": true,
             "budget": {
               "default": 38912
             }
@@ -1447,6 +1473,7 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
+            "default": true,
             "budget": {
               "default": 38912
             }
@@ -1473,6 +1500,7 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
+            "default": true,
             "budget": {
               "default": 38912
             }
@@ -1499,6 +1527,7 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
+            "default": true,
             "budget": {
               "default": 20000
             }
@@ -1525,6 +1554,7 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
+            "default": true,
             "budget": {
               "default": 20000
             }
@@ -1552,6 +1582,7 @@
           "tool_call": false,
           "reasoning": {
             "supported": true,
+            "default": true,
             "budget": {
               "default": 81920
             }
@@ -1577,10 +1608,12 @@
           "temperature": true,
           "tool_call": false,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "search": {
             "supported": true,
+            "default": false,
             "forced_search": false,
             "search_strategy": "turbo"
           },
@@ -1605,7 +1638,8 @@
           "temperature": true,
           "tool_call": false,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "search": {
             "supported": false
@@ -1632,6 +1666,7 @@
           "tool_call": false,
           "reasoning": {
             "supported": true,
+            "default": true,
             "budget": {
               "default": 81920
             }
@@ -1753,7 +1788,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": false,
@@ -1819,7 +1855,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": false,
@@ -1883,7 +1920,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": false,
@@ -1985,7 +2023,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": true,
           "open_weights": false,
@@ -2214,7 +2253,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": false,
@@ -2279,7 +2319,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": false,
@@ -2312,7 +2353,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": false,
@@ -2345,7 +2387,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "search": {
             "supported": false
@@ -2371,7 +2414,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "search": {
             "supported": false
@@ -2485,7 +2529,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": false,
@@ -2518,7 +2563,8 @@
           "temperature": true,
           "tool_call": false,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": false,
@@ -2611,7 +2657,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": false,
@@ -2643,7 +2690,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": true,
           "open_weights": false,
@@ -2676,7 +2724,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": true,
           "open_weights": false,
@@ -2738,7 +2787,8 @@
           "temperature": true,
           "tool_call": false,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": true,
           "open_weights": false,
@@ -2769,7 +2819,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": false,
@@ -2831,7 +2882,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": false,
@@ -2933,7 +2985,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": false,
@@ -3065,7 +3118,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": true,
@@ -3127,7 +3181,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": true,
@@ -3312,7 +3367,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": true,
@@ -3342,7 +3398,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": true,
@@ -3372,7 +3429,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": true,
@@ -3538,7 +3596,8 @@
           "temperature": false,
           "tool_call": false,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": true,
           "open_weights": false,
@@ -3565,7 +3624,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": false,
@@ -3620,7 +3680,8 @@
           "temperature": false,
           "tool_call": false,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": false,
@@ -3648,7 +3709,8 @@
           "temperature": false,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": false,
@@ -3731,7 +3793,8 @@
           "temperature": false,
           "tool_call": false,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": false,
@@ -3759,7 +3822,8 @@
           "temperature": true,
           "tool_call": false,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": true,
           "open_weights": false,
@@ -3787,7 +3851,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": true,
           "open_weights": false,
@@ -3873,7 +3938,8 @@
           "temperature": false,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": true,
           "open_weights": false,
@@ -3901,7 +3967,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": true,
           "open_weights": false,
@@ -3929,7 +3996,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": true,
           "open_weights": false,
@@ -3957,7 +4025,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": true,
           "open_weights": false,
@@ -3985,7 +4054,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": true,
           "open_weights": false,
@@ -4335,7 +4405,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": true,
@@ -4584,7 +4655,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": true,
@@ -4654,7 +4726,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": false,
@@ -4687,7 +4760,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": false,
@@ -4721,7 +4795,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": true,
           "open_weights": false,
@@ -4817,7 +4892,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": false,
@@ -4882,7 +4958,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": false,
@@ -5011,7 +5088,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": true,
@@ -5167,7 +5245,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": true,
@@ -5294,7 +5373,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": true,
           "open_weights": false,
@@ -5325,7 +5405,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": true,
           "open_weights": false,
@@ -5355,7 +5436,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": true,
@@ -5386,7 +5468,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": false,
@@ -5421,7 +5504,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": true,
           "open_weights": false,
@@ -5528,7 +5612,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": true,
           "open_weights": false,
@@ -5561,7 +5646,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": true,
@@ -5591,7 +5677,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": true,
@@ -5622,7 +5709,8 @@
           "temperature": false,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": true,
           "open_weights": false,
@@ -5688,7 +5776,8 @@
           "temperature": false,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": true,
           "open_weights": false,
@@ -5721,7 +5810,8 @@
           "temperature": false,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": true,
           "open_weights": false,
@@ -5754,7 +5844,8 @@
           "temperature": false,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": true,
           "open_weights": false,
@@ -5787,7 +5878,8 @@
           "temperature": false,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": true,
           "open_weights": false,
@@ -5886,7 +5978,8 @@
           "temperature": false,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": false,
@@ -5914,7 +6007,8 @@
           "temperature": false,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": true,
           "open_weights": false,
@@ -5946,7 +6040,8 @@
           "temperature": false,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": false,
@@ -6332,7 +6427,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": true,
           "open_weights": false,
@@ -6400,7 +6496,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": true,
           "open_weights": false,
@@ -6468,7 +6565,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": true,
           "open_weights": false,
@@ -6502,7 +6600,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": true,
           "open_weights": false,
@@ -6604,7 +6703,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": true,
           "open_weights": false,
@@ -6709,7 +6809,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": true,
           "open_weights": false,
@@ -6916,7 +7017,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": true,
@@ -6947,7 +7049,8 @@
           "temperature": true,
           "tool_call": false,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": true,
@@ -7009,7 +7112,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": true,
@@ -7102,7 +7206,8 @@
           "temperature": true,
           "tool_call": false,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": true,
@@ -7204,7 +7309,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": true,
@@ -7566,7 +7672,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": true,
@@ -7597,7 +7704,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": false,
@@ -7628,7 +7736,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": false,
@@ -7659,7 +7768,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": false,
@@ -7690,7 +7800,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": false,
@@ -7721,7 +7832,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": false,
@@ -7752,7 +7864,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": false,
@@ -7783,7 +7896,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": false,
@@ -7814,7 +7928,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": true,
@@ -7845,7 +7960,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": true,
@@ -7876,7 +7992,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": true,
@@ -7908,7 +8025,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": false,
@@ -7939,7 +8057,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": true,
@@ -7970,7 +8089,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": true,
@@ -8001,7 +8121,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": false,
@@ -8032,7 +8153,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": false,
@@ -8064,7 +8186,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": false,
@@ -8095,7 +8218,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": true,
@@ -8126,7 +8250,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": true,
@@ -8157,7 +8282,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": true,
@@ -8189,7 +8315,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": true,
@@ -8220,7 +8347,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": true,
@@ -8251,7 +8379,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": true,
@@ -8282,7 +8411,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": true,
@@ -8313,7 +8443,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": true,
@@ -8346,7 +8477,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": true,
@@ -8377,7 +8509,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": true,
@@ -8408,7 +8541,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": true,
@@ -8439,7 +8573,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": true,
@@ -8470,7 +8605,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": true,
@@ -8501,7 +8637,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": true,
@@ -8532,7 +8669,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": false,
@@ -8627,7 +8765,8 @@
           "temperature": false,
           "tool_call": false,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": false,
@@ -8658,7 +8797,8 @@
           "temperature": false,
           "tool_call": false,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": false,
@@ -8755,7 +8895,8 @@
           "temperature": false,
           "tool_call": false,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": false,
@@ -8787,7 +8928,8 @@
           "temperature": false,
           "tool_call": false,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": false,
@@ -8818,7 +8960,8 @@
           "temperature": false,
           "tool_call": false,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": false,
@@ -8850,7 +8993,8 @@
           "temperature": false,
           "tool_call": false,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": false,
@@ -8916,7 +9060,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": true,
@@ -8947,7 +9092,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": true,
@@ -8979,7 +9125,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": true,
@@ -9010,7 +9157,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": true,
@@ -9041,7 +9189,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": true,
@@ -9072,7 +9221,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": true,
@@ -9105,7 +9255,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": true,
@@ -9136,7 +9287,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": true,
@@ -9168,7 +9320,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": true,
@@ -9199,7 +9352,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": true,
@@ -9230,7 +9384,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": false,
@@ -9261,7 +9416,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": false,
@@ -9300,7 +9456,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": true,
@@ -9467,7 +9624,8 @@
           "temperature": false,
           "tool_call": false,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": true,
           "open_weights": false,
@@ -9593,7 +9751,8 @@
           "temperature": false,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": false,
@@ -9625,7 +9784,8 @@
           "temperature": false,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": false,
@@ -9658,7 +9818,8 @@
           "temperature": false,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": true,
           "open_weights": false,
@@ -9691,7 +9852,8 @@
           "temperature": false,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": false,
@@ -9816,7 +9978,8 @@
           "temperature": false,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": true,
           "open_weights": false,
@@ -9849,7 +10012,8 @@
           "temperature": false,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": false,
@@ -9882,7 +10046,8 @@
           "temperature": false,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": true,
           "open_weights": false,
@@ -9914,7 +10079,8 @@
           "temperature": false,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": false,
@@ -9978,7 +10144,8 @@
           "temperature": false,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": true,
           "open_weights": false,
@@ -10010,7 +10177,8 @@
           "temperature": false,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": true,
           "open_weights": false,
@@ -10108,7 +10276,8 @@
           "temperature": false,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": true,
           "open_weights": false,
@@ -10212,7 +10381,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": true,
           "open_weights": false,
@@ -10279,7 +10449,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": true,
           "open_weights": false,
@@ -10313,7 +10484,8 @@
           "temperature": false,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": true,
           "open_weights": false,
@@ -10380,7 +10552,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": true,
@@ -10411,7 +10584,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": true,
           "open_weights": false,
@@ -10444,7 +10618,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": true,
           "open_weights": false,
@@ -10477,7 +10652,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": true,
           "open_weights": false,
@@ -10511,7 +10687,8 @@
           "temperature": false,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": true,
           "open_weights": false,
@@ -10584,7 +10761,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": false,
@@ -10619,7 +10797,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": true,
           "open_weights": false,
@@ -10653,7 +10832,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": true,
           "open_weights": false,
@@ -10686,7 +10866,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": true,
           "open_weights": false,
@@ -10752,7 +10933,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": true,
           "open_weights": false,
@@ -10784,7 +10966,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": true,
@@ -10814,7 +10997,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": true,
@@ -10845,7 +11029,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": true,
           "open_weights": false,
@@ -10909,7 +11094,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": true,
           "open_weights": false,
@@ -10943,7 +11129,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": true,
           "open_weights": false,
@@ -10976,7 +11163,8 @@
           "temperature": true,
           "tool_call": false,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": true,
@@ -11019,7 +11207,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": true,
           "open_weights": false,
@@ -11055,7 +11244,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": true,
           "open_weights": false,
@@ -11091,7 +11281,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": true,
           "open_weights": false,
@@ -11128,7 +11319,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": true,
           "open_weights": false,
@@ -11164,7 +11356,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": true,
           "open_weights": false,
@@ -11234,7 +11427,8 @@
           "temperature": false,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": false,
@@ -11307,7 +11501,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": true,
           "open_weights": false,
@@ -11343,7 +11538,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": true,
           "open_weights": false,
@@ -11379,7 +11575,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": true,
           "open_weights": false,
@@ -11416,7 +11613,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": true,
           "open_weights": false,
@@ -11452,7 +11650,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": true,
           "open_weights": false,
@@ -11485,7 +11684,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "search": {
             "supported": false
@@ -11594,7 +11794,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": true,
           "open_weights": false,
@@ -11686,7 +11887,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "search": {
             "supported": false
@@ -11713,7 +11915,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "search": {
             "supported": false
@@ -11740,7 +11943,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "search": {
             "supported": false
@@ -11818,7 +12022,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "search": {
             "supported": false
@@ -11910,7 +12115,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": true,
           "open_weights": false,
@@ -11946,7 +12152,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": true,
           "open_weights": false,
@@ -11983,7 +12190,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": true,
           "open_weights": false,
@@ -12090,7 +12298,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": true,
           "open_weights": false,
@@ -12126,7 +12335,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": true,
           "open_weights": false,
@@ -12162,7 +12372,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": true,
           "open_weights": false,
@@ -12198,7 +12409,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": true,
           "open_weights": false,
@@ -12898,7 +13110,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": true,
@@ -14476,7 +14689,8 @@
           "temperature": false,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": true,
           "open_weights": false,
@@ -14606,7 +14820,8 @@
           "temperature": false,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": true,
           "open_weights": false,
@@ -14702,7 +14917,8 @@
           "temperature": true,
           "tool_call": false,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": false,
@@ -14734,7 +14950,8 @@
           "temperature": false,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": false,
@@ -14766,7 +14983,8 @@
           "temperature": false,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": true,
           "open_weights": false,
@@ -14799,7 +15017,8 @@
           "temperature": false,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": true,
           "open_weights": false,
@@ -14832,7 +15051,8 @@
           "temperature": false,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": false,
@@ -14926,7 +15146,8 @@
           "temperature": false,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": true,
           "open_weights": false,
@@ -14959,7 +15180,8 @@
           "temperature": false,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": true,
           "open_weights": false,
@@ -14992,7 +15214,8 @@
           "temperature": false,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": true,
           "open_weights": false,
@@ -15024,7 +15247,8 @@
           "temperature": false,
           "tool_call": false,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": false,
@@ -15057,7 +15281,8 @@
           "temperature": false,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": true,
           "open_weights": false,
@@ -15122,7 +15347,8 @@
           "temperature": false,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": true,
           "open_weights": false,
@@ -15155,7 +15381,8 @@
           "temperature": false,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": true,
           "open_weights": false,
@@ -15188,7 +15415,8 @@
           "temperature": true,
           "tool_call": false,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": true,
           "open_weights": false,
@@ -15253,7 +15481,8 @@
           "temperature": false,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": true,
           "open_weights": false,
@@ -15299,7 +15528,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": true,
@@ -15334,7 +15564,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": true,
           "open_weights": true,
@@ -15365,7 +15596,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": true,
@@ -15398,7 +15630,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": true,
@@ -15431,7 +15664,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": true,
@@ -15472,7 +15706,8 @@
           "temperature": true,
           "tool_call": false,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": false,
@@ -15567,7 +15802,8 @@
           "temperature": true,
           "tool_call": false,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": true,
           "open_weights": false,
@@ -15669,7 +15905,8 @@
           "temperature": false,
           "tool_call": false,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": true,
@@ -15731,7 +15968,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": true,
@@ -15762,7 +16000,8 @@
           "temperature": false,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": true,
@@ -15793,7 +16032,8 @@
           "temperature": false,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": true,
@@ -15856,7 +16096,8 @@
           "temperature": false,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": false,
@@ -15889,7 +16130,8 @@
           "temperature": false,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": false,
@@ -15922,7 +16164,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": false,
@@ -15989,7 +16232,8 @@
           "temperature": false,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": false,
@@ -16055,7 +16299,8 @@
           "temperature": false,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": false,
@@ -16088,7 +16333,8 @@
           "temperature": false,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": false,
@@ -16152,7 +16398,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": true,
@@ -16183,7 +16430,8 @@
           "temperature": false,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": true,
@@ -16214,7 +16462,8 @@
           "temperature": false,
           "tool_call": false,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": true,
@@ -16276,7 +16525,8 @@
           "temperature": false,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": true,
@@ -16307,7 +16557,8 @@
           "temperature": false,
           "tool_call": false,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": true,
@@ -16369,7 +16620,8 @@
           "temperature": false,
           "tool_call": false,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": true,
@@ -16400,7 +16652,8 @@
           "temperature": false,
           "tool_call": false,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": true,
@@ -16431,7 +16684,8 @@
           "temperature": false,
           "tool_call": false,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": true,
@@ -16493,7 +16747,8 @@
           "temperature": false,
           "tool_call": false,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": true,
@@ -16591,7 +16846,8 @@
           "temperature": false,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": true,
           "open_weights": false,
@@ -16625,7 +16881,8 @@
           "temperature": false,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": true,
           "open_weights": false,
@@ -16692,7 +16949,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": true,
           "open_weights": false,
@@ -16726,7 +16984,8 @@
           "temperature": false,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": true,
           "open_weights": false,
@@ -16885,7 +17144,8 @@
           "temperature": false,
           "tool_call": false,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": true,
@@ -16982,7 +17242,8 @@
           "temperature": false,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": true,
           "open_weights": false,
@@ -17014,7 +17275,8 @@
           "temperature": false,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": false,
@@ -17080,7 +17342,8 @@
           "temperature": false,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": true,
           "open_weights": false,
@@ -17113,7 +17376,8 @@
           "temperature": false,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": true,
           "open_weights": false,
@@ -17144,7 +17408,8 @@
           "temperature": false,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": true,
@@ -17174,7 +17439,8 @@
           "temperature": false,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": true,
@@ -17238,7 +17504,8 @@
           "temperature": false,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": true,
           "open_weights": false,
@@ -17426,7 +17693,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": true,
@@ -17457,7 +17725,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": true,
@@ -17489,7 +17758,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": true,
@@ -17520,7 +17790,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": true,
@@ -17552,7 +17823,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": true,
@@ -17614,7 +17886,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": true,
@@ -17707,7 +17980,8 @@
           "temperature": false,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": true,
@@ -17738,7 +18012,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": true,
@@ -17769,7 +18044,8 @@
           "temperature": false,
           "tool_call": false,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": true,
@@ -17832,7 +18108,8 @@
           "temperature": false,
           "tool_call": false,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": true,
@@ -17894,7 +18171,8 @@
           "temperature": false,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": true,
@@ -18082,7 +18360,8 @@
           "temperature": false,
           "tool_call": false,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": true,
@@ -18520,7 +18799,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": true,
@@ -18647,7 +18927,8 @@
           "temperature": false,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": true,
           "open_weights": false,
@@ -18681,7 +18962,8 @@
           "temperature": false,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": true,
           "open_weights": false,
@@ -18715,7 +18997,8 @@
           "temperature": false,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": true,
           "open_weights": false,
@@ -18783,7 +19066,8 @@
           "temperature": false,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": true,
           "open_weights": false,
@@ -18817,7 +19101,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": true,
           "open_weights": false,
@@ -18850,7 +19135,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": true,
@@ -18880,7 +19166,8 @@
           "temperature": false,
           "tool_call": false,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false
         },
@@ -18902,7 +19189,8 @@
           "temperature": false,
           "tool_call": false,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false
         },
@@ -18971,7 +19259,8 @@
           "temperature": false,
           "tool_call": false,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false
         },
@@ -18994,7 +19283,8 @@
           "temperature": false,
           "tool_call": false,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false
         },
@@ -19063,7 +19353,8 @@
           "temperature": false,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false
         },
@@ -19416,7 +19707,8 @@
           "temperature": false,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": true
         },
@@ -19553,7 +19845,8 @@
           "temperature": false,
           "tool_call": false,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false
         },
@@ -19575,7 +19868,8 @@
           "temperature": false,
           "tool_call": false,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false
         },
@@ -19621,7 +19915,8 @@
           "temperature": true,
           "tool_call": false,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false
         },
@@ -19668,7 +19963,8 @@
           "temperature": false,
           "tool_call": false,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false
         },
@@ -19692,7 +19988,8 @@
           "temperature": false,
           "tool_call": false,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false
         },
@@ -19874,7 +20171,8 @@
           "temperature": false,
           "tool_call": false,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false
         },
@@ -19897,7 +20195,8 @@
           "temperature": false,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false
         },
@@ -19964,7 +20263,8 @@
           "temperature": false,
           "tool_call": false,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false
         },
@@ -20009,7 +20309,8 @@
           "temperature": false,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false
         },
@@ -20032,7 +20333,8 @@
           "temperature": false,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false
         },
@@ -20055,7 +20357,8 @@
           "temperature": false,
           "tool_call": false,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false
         },
@@ -20078,7 +20381,8 @@
           "temperature": false,
           "tool_call": false,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false
         },
@@ -20101,7 +20405,8 @@
           "temperature": false,
           "tool_call": false,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false
         },
@@ -20123,7 +20428,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false
         },
@@ -20246,7 +20552,8 @@
           "temperature": false,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": true
         },
@@ -20271,7 +20578,8 @@
           "temperature": false,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": true
         },
@@ -20296,7 +20604,8 @@
           "temperature": false,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": true
         },
@@ -20320,7 +20629,8 @@
           "temperature": false,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": true
         },
@@ -20345,7 +20655,8 @@
           "temperature": false,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": true
         },
@@ -21173,7 +21484,8 @@
           "temperature": false,
           "tool_call": false,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false
         },
@@ -21306,7 +21618,8 @@
           "temperature": false,
           "tool_call": false,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false
         },
@@ -21376,7 +21689,8 @@
           "temperature": false,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false
         },
@@ -21465,7 +21779,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false
         },
@@ -21488,7 +21803,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false
         },
@@ -21511,7 +21827,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false
         },
@@ -21960,7 +22277,8 @@
           "temperature": false,
           "tool_call": false,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false
         },
@@ -22095,7 +22413,8 @@
           "temperature": false,
           "tool_call": false,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false
         },
@@ -22207,7 +22526,8 @@
           "temperature": false,
           "tool_call": false,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false
         },
@@ -22229,7 +22549,8 @@
           "temperature": false,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false
         },
@@ -22251,7 +22572,8 @@
           "temperature": false,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false
         },
@@ -22299,7 +22621,8 @@
           "temperature": false,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false
         },
@@ -22769,7 +23092,8 @@
           "temperature": false,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": true
         },
@@ -22792,7 +23116,8 @@
           "temperature": false,
           "tool_call": false,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false
         },
@@ -22886,7 +23211,8 @@
           "temperature": false,
           "tool_call": false,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": true
         },
@@ -22910,7 +23236,8 @@
           "temperature": false,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": true
         },
@@ -22980,7 +23307,8 @@
           "temperature": false,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": true
         },
@@ -23004,7 +23332,8 @@
           "temperature": false,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": true
         },
@@ -23069,7 +23398,8 @@
           "temperature": false,
           "tool_call": false,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false
         },
@@ -23114,7 +23444,8 @@
           "temperature": false,
           "tool_call": false,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false
         },
@@ -23160,7 +23491,8 @@
           "temperature": false,
           "tool_call": false,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false
         },
@@ -23183,7 +23515,8 @@
           "temperature": false,
           "tool_call": false,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false
         },
@@ -23387,7 +23720,8 @@
           "temperature": false,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false
         },
@@ -23527,7 +23861,8 @@
           "temperature": false,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false
         },
@@ -23550,7 +23885,8 @@
           "temperature": false,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false
         },
@@ -23596,7 +23932,8 @@
           "temperature": false,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false
         },
@@ -23619,7 +23956,8 @@
           "temperature": false,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false
         },
@@ -23642,7 +23980,8 @@
           "temperature": false,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false
         },
@@ -23664,7 +24003,8 @@
           "temperature": false,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false
         },
@@ -23687,7 +24027,8 @@
           "temperature": false,
           "tool_call": false,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false
         },
@@ -23778,7 +24119,8 @@
           "temperature": false,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false
         },
@@ -23801,7 +24143,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false
         },
@@ -23825,7 +24168,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false
         },
@@ -23873,7 +24217,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false
         },
@@ -23895,7 +24240,8 @@
           "temperature": false,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false
         },
@@ -24099,7 +24445,8 @@
           "temperature": false,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false
         },
@@ -24121,7 +24468,8 @@
           "temperature": false,
           "tool_call": false,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false
         },
@@ -24143,7 +24491,8 @@
           "temperature": false,
           "tool_call": false,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false
         },
@@ -24165,7 +24514,8 @@
           "temperature": false,
           "tool_call": false,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false
         },
@@ -24302,7 +24652,8 @@
           "temperature": false,
           "tool_call": false,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false
         },
@@ -24325,7 +24676,8 @@
           "temperature": false,
           "tool_call": false,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false
         },
@@ -24348,7 +24700,8 @@
           "temperature": false,
           "tool_call": false,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false
         },
@@ -24370,7 +24723,8 @@
           "temperature": false,
           "tool_call": false,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false
         },
@@ -24393,7 +24747,8 @@
           "temperature": false,
           "tool_call": false,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false
         },
@@ -24469,7 +24824,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": true,
           "open_weights": false,
@@ -24500,7 +24856,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": true,
           "open_weights": false,
@@ -24531,7 +24888,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": true,
           "open_weights": false,
@@ -24570,7 +24928,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": true,
@@ -24609,7 +24968,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": true,
@@ -24644,7 +25004,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": true,
           "open_weights": true,
@@ -24675,7 +25036,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": true,
@@ -24708,7 +25070,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": true,
@@ -24741,7 +25104,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": true,
@@ -24783,7 +25147,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": true,
@@ -24822,7 +25187,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": true,
@@ -24855,7 +25221,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": true,
@@ -24888,7 +25255,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": true,
@@ -24923,7 +25291,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": true,
           "open_weights": true,
@@ -24954,7 +25323,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": true,
@@ -25291,7 +25661,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": true,
           "open_weights": false,
@@ -25328,7 +25699,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": true,
           "open_weights": false,
@@ -25394,7 +25766,8 @@
           "temperature": false,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": true,
           "open_weights": false,
@@ -25460,7 +25833,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": true,
           "open_weights": false,
@@ -25493,7 +25867,8 @@
           "temperature": false,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": true,
           "open_weights": false,
@@ -25563,7 +25938,8 @@
           "temperature": false,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": true,
           "open_weights": false,
@@ -25596,7 +25972,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": true,
           "open_weights": false,
@@ -25630,7 +26007,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": true,
           "open_weights": false,
@@ -25664,7 +26042,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": true,
           "open_weights": false,
@@ -25698,7 +26077,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": true,
           "open_weights": false,
@@ -25839,7 +26219,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": true,
@@ -26042,7 +26423,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": true,
           "open_weights": false,
@@ -26076,7 +26458,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": true,
           "open_weights": false,
@@ -26110,7 +26493,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": true,
           "open_weights": false,
@@ -26212,7 +26596,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": true,
           "open_weights": false,
@@ -26246,7 +26631,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": true,
           "open_weights": false,
@@ -26322,7 +26708,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": true,
@@ -26353,7 +26740,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": true,
@@ -26446,7 +26834,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": true,
@@ -26477,7 +26866,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": true,
@@ -26507,7 +26897,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": true,
@@ -26537,7 +26928,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": true,
@@ -26598,7 +26990,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": true,
@@ -26962,7 +27355,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": true,
           "open_weights": false,
@@ -27502,7 +27896,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": false,
@@ -27599,7 +27994,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": true,
           "open_weights": false,
@@ -27633,7 +28029,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": true,
           "open_weights": false,
@@ -27730,7 +28127,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": true,
           "open_weights": false,
@@ -27762,7 +28160,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": true,
           "open_weights": false,
@@ -28090,7 +28489,8 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           },
           "attachment": false,
           "open_weights": true,
@@ -28380,7 +28780,8 @@
           },
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           }
         },
         {
@@ -28502,7 +28903,8 @@
           },
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           }
         },
         {
@@ -28521,7 +28923,8 @@
           },
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           }
         },
         {
@@ -28540,7 +28943,8 @@
           },
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           }
         },
         {
@@ -28824,7 +29228,8 @@
           },
           "tool_call": false,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           }
         },
         {
@@ -28941,7 +29346,8 @@
           },
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           }
         },
         {
@@ -28962,7 +29368,8 @@
           },
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           }
         },
         {
@@ -28983,7 +29390,8 @@
           },
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           }
         },
         {
@@ -29159,7 +29567,8 @@
           },
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           }
         },
         {
@@ -29402,7 +29811,8 @@
           },
           "tool_call": false,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           }
         },
         {
@@ -29696,7 +30106,8 @@
           },
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           }
         },
         {
@@ -29738,7 +30149,8 @@
           },
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           }
         },
         {
@@ -29761,7 +30173,8 @@
           },
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           }
         },
         {
@@ -29784,7 +30197,8 @@
           },
           "tool_call": false,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           }
         },
         {
@@ -29807,7 +30221,8 @@
           },
           "tool_call": false,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           }
         },
         {
@@ -29830,7 +30245,8 @@
           },
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           }
         },
         {
@@ -29853,7 +30269,8 @@
           },
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           }
         },
         {
@@ -29878,7 +30295,8 @@
           },
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           }
         },
         {
@@ -30179,7 +30597,8 @@
           },
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           }
         },
         {
@@ -30769,7 +31188,8 @@
           },
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           }
         },
         {
@@ -30807,7 +31227,8 @@
           },
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           }
         },
         {
@@ -30826,7 +31247,8 @@
           },
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           }
         },
         {
@@ -30845,7 +31267,8 @@
           },
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           }
         },
         {
@@ -30864,7 +31287,8 @@
           },
           "tool_call": false,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           }
         },
         {
@@ -30909,7 +31333,8 @@
           },
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           }
         },
         {
@@ -30926,7 +31351,8 @@
           },
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           }
         },
         {
@@ -31316,7 +31742,8 @@
           },
           "tool_call": false,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           }
         },
         {
@@ -31847,7 +32274,8 @@
           },
           "tool_call": false,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           }
         },
         {
@@ -31866,7 +32294,8 @@
           },
           "tool_call": false,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           }
         },
         {
@@ -31912,7 +32341,8 @@
           },
           "tool_call": false,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           }
         },
         {
@@ -31938,7 +32368,8 @@
           },
           "tool_call": false,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           }
         },
         {
@@ -31957,7 +32388,8 @@
           },
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           }
         },
         {
@@ -31985,7 +32417,8 @@
           },
           "tool_call": false,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           }
         },
         {
@@ -32013,7 +32446,8 @@
           },
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           }
         },
         {
@@ -32041,7 +32475,8 @@
           },
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           }
         },
         {
@@ -32493,7 +32928,8 @@
           },
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           }
         },
         {
@@ -32759,7 +33195,8 @@
           },
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           }
         },
         {
@@ -32806,7 +33243,8 @@
           },
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           }
         },
         {
@@ -33373,7 +33811,8 @@
           "display_name": "DeepSeek R1",
           "tool_call": false,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           }
         },
         {
@@ -33382,7 +33821,8 @@
           "display_name": "DeepSeek R1 Distill Qwen 32B",
           "tool_call": false,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           }
         },
         {
@@ -33391,7 +33831,8 @@
           "display_name": "DeepSeek R1 Distill Qwen 7B",
           "tool_call": false,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           }
         },
         {
@@ -33409,7 +33850,8 @@
           "display_name": "Doubao Seed 1.6 Vision",
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           }
         },
         {
@@ -33418,7 +33860,8 @@
           "display_name": "Doubao Seed 1.6",
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           }
         },
         {
@@ -33427,7 +33870,8 @@
           "display_name": "Doubao Seed 1.6 Flash",
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           }
         },
         {
@@ -33436,7 +33880,8 @@
           "display_name": "Doubao Seed 1.6 Flash (250615)",
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           }
         },
         {
@@ -33445,7 +33890,8 @@
           "display_name": "Doubao Seed 1.6 Thinking",
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           }
         },
         {
@@ -33454,7 +33900,8 @@
           "display_name": "Doubao Seed 1.6 Thinking (250615)",
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           }
         }
       ]
@@ -33470,7 +33917,8 @@
           "display_name": "GPT-OSS 20B",
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           }
         },
         {
@@ -33479,7 +33927,8 @@
           "display_name": "GPT-OSS 120B",
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           }
         },
         {
@@ -33488,7 +33937,8 @@
           "display_name": "DeepSeek R1 1.5B",
           "tool_call": false,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           }
         },
         {
@@ -33497,7 +33947,8 @@
           "display_name": "DeepSeek R1 7B",
           "tool_call": false,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           }
         },
         {
@@ -33506,7 +33957,8 @@
           "display_name": "DeepSeek R1 8B",
           "tool_call": false,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           }
         },
         {
@@ -33515,7 +33967,8 @@
           "display_name": "DeepSeek R1 14B",
           "tool_call": false,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           }
         },
         {
@@ -33524,7 +33977,8 @@
           "display_name": "DeepSeek R1 32B",
           "tool_call": false,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           }
         },
         {
@@ -33533,7 +33987,8 @@
           "display_name": "DeepSeek R1 70B",
           "tool_call": false,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           }
         },
         {
@@ -33542,7 +33997,8 @@
           "display_name": "DeepSeek R1 671B",
           "tool_call": false,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           }
         },
         {
@@ -33621,7 +34077,8 @@
           "name": "deepseek/deepseek-prover-v2-671b",
           "display_name": "deepseek/deepseek-prover-v2-671b",
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           }
         },
         {
@@ -33630,7 +34087,8 @@
           "display_name": "meta-llama/llama-3.3-70b-instruct",
           "tool_call": false,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           }
         }
       ]
@@ -33646,7 +34104,8 @@
           "display_name": "DeepSeek R1 32B",
           "tool_call": false,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           }
         },
         {
@@ -33664,7 +34123,8 @@
           "display_name": "DeepSeek R1 7B",
           "tool_call": false,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           }
         },
         {
@@ -33673,7 +34133,8 @@
           "display_name": "GPT-OSS 120B",
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           }
         },
         {
@@ -33691,7 +34152,8 @@
           "display_name": "DeepSeek R1 70B",
           "tool_call": false,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           }
         },
         {
@@ -33700,7 +34162,8 @@
           "display_name": "DeepSeek R1 14B",
           "tool_call": false,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           }
         },
         {
@@ -33727,7 +34190,8 @@
           "display_name": "GPT-OSS 20B",
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           }
         },
         {
@@ -33736,7 +34200,8 @@
           "display_name": "DeepSeek R1 671B",
           "tool_call": false,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           }
         },
         {
@@ -33754,7 +34219,8 @@
           "display_name": "DeepSeek R1 8B",
           "tool_call": false,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           }
         },
         {
@@ -33763,7 +34229,8 @@
           "display_name": "DeepSeek R1 1.5B",
           "tool_call": false,
           "reasoning": {
-            "supported": true
+            "supported": true,
+            "default": true
           }
         },
         {

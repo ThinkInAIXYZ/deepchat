@@ -65,6 +65,7 @@ function sanitizeAggregateJson(json) {
       } else if (r && typeof r === 'object') {
         const rs = {}
         if (typeof r.supported === 'boolean') rs.supported = r.supported
+        if (typeof r.default === 'boolean') rs.default = r.default
         if (r.budget && typeof r.budget === 'object') {
           const bd = {}
           if (
@@ -84,6 +85,7 @@ function sanitizeAggregateJson(json) {
       if (s && typeof s === 'object') {
         const so = {}
         if (typeof s.supported === 'boolean') so.supported = s.supported
+        if (typeof s.default === 'boolean') so.default = s.default
         if (typeof s.forced_search === 'boolean') so.forced_search = s.forced_search
         if (typeof s.search_strategy === 'string') so.search_strategy = s.search_strategy
         if (Object.keys(so).length) search = so
