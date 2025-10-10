@@ -7,7 +7,9 @@
       class="inline-flex items-center gap-[10px] cursor-pointer select-none self-start"
       @click="$emit('toggle')"
     >
-      <span class="whitespace-nowrap">{{ label }}</span>
+      <span class="whitespace-nowrap" :class="{ 'loading-shimmer': thinking }">
+        {{ label }}
+      </span>
       <Icon
         v-if="thinking && !expanded"
         icon="lucide:ellipsis"

@@ -816,6 +816,44 @@
   }
 }
 
+@layer components {
+  .loading-shimmer,
+  .loading-shimmer-pure-text {
+    --shimmer-text-secondary: var(--text-secondary-foreground, rgba(37, 37, 37, 0.5));
+    --shimmer-contrast: color-mix(
+      in srgb,
+      var(--text-primary-foreground, #ffffff) 70%,
+      transparent
+    );
+    color: transparent;
+    -webkit-text-fill-color: transparent;
+    text-fill-color: transparent;
+    background: var(--shimmer-text-secondary)
+      linear-gradient(
+        to right,
+        var(--shimmer-text-secondary) 0,
+        var(--shimmer-contrast) 40%,
+        var(--shimmer-contrast) 60%,
+        var(--shimmer-text-secondary) 100%
+      );
+    background-repeat: no-repeat;
+    background-size: 50% 200%;
+    -webkit-background-clip: text;
+    background-clip: text;
+    display: inline-block;
+    animation: loading-shimmer var(--cot-shimmer-duration, 1.6s) linear infinite;
+  }
+}
+
+@supports not (color: color-mix(in srgb, #fff 70%, transparent)) {
+  @layer components {
+    .loading-shimmer,
+    .loading-shimmer-pure-text {
+      --shimmer-contrast: rgba(255, 255, 255, 0.75);
+    }
+  }
+}
+
 @keyframes accordion-down {
   from {
     height: 0;
@@ -864,6 +902,15 @@
 
   50% {
     opacity: 0.3;
+  }
+}
+
+@keyframes loading-shimmer {
+  0% {
+    background-position: -100% 0;
+  }
+  100% {
+    background-position: 200% 0;
   }
 }
 
