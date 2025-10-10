@@ -35,7 +35,7 @@
         <!-- 取消按钮 -->
         <Button
           v-if="showCancelButton"
-          variant="outline"
+          variant="default"
           size="sm"
           class="rounded-lg"
           @click="handleCancel"
@@ -50,12 +50,12 @@
         <!-- 新聊天按钮 (仅在非生成状态显示) -->
         <Button
           v-if="!showCancelButton"
-          variant="outline"
+          variant="default"
           size="sm"
-          class="rounded-lg shrink-0"
+          class="rounded-lg shrink-0 opacity-100"
           @click="createNewThread"
         >
-          <Icon icon="lucide:plus" class="w-6 h-6 text-muted-foreground" />
+          <Icon icon="lucide:plus" class="w-6 h-6 text-foreground" />
           <span class="">{{ t('common.newChat') }}</span>
         </Button>
 
@@ -73,12 +73,12 @@
             :class="['relative', showCancelButton ? 'scroll-to-bottom-loading-container' : '']"
           >
             <Button
-              variant="outline"
+              variant="default"
               size="icon"
               class="w-8 h-8 shrink-0 rounded-lg relative z-10"
               @click="() => scrollToBottom(true)"
             >
-              <Icon icon="lucide:arrow-down" class="w-5 h-5 text-muted-foreground" />
+              <Icon icon="lucide:arrow-down" class="w-5 h-5 text-foreground" />
             </Button>
           </div>
         </transition>

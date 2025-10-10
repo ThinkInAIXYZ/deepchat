@@ -140,7 +140,7 @@ watch(watchDescription, () => {
 
 <template>
   <div
-    class="bg-card shadow-sm border rounded-lg overflow-hidden transition-all duration-200 hover:shadow-md hover:border-primary group"
+    class="bg-muted shadow-sm border rounded-lg overflow-hidden transition-all duration-200 hover:shadow-md hover:border-primary group"
   >
     <div class="px-4 py-2">
       <!-- 头部：图标、名称、状态、菜单 -->

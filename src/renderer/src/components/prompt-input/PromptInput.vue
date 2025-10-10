@@ -233,7 +233,7 @@
             <Button
               variant="default"
               size="icon"
-              class="w-7 h-7 text-xs rounded-lg dark:bg-[#006edc] dark:hover:bg-[#1c7fee] dark:text-white"
+              class="w-7 h-7 text-xs rounded-lg"
               :disabled="disabledSend"
               @click="emitSend"
             >

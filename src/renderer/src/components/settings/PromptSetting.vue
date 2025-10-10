@@ -20,7 +20,7 @@
       </div>
 
       <!-- 系统提示词设置区域 -->
-      <div class="bg-card border border-border rounded-lg p-4">
+      <div class="bg-muted border border-border rounded-lg p-4">
         <div class="flex items-center justify-between mb-3">
           <div class="flex items-center gap-2">
             <Icon icon="lucide:settings" class="w-5 h-5 text-primary" />
@@ -115,7 +115,7 @@
       </div>
 
       <!-- 自定义提示词区域 -->
-      <div class="bg-card border border-border rounded-lg p-4">
+      <div class="bg-bg-card border border-border rounded-lg p-4">
         <div class="flex items-center justify-between mb-3">
           <div class="flex items-center gap-2">
             <Icon icon="lucide:book-open-text" class="w-5 h-5 text-primary" />
@@ -141,7 +141,7 @@
           <div
             v-for="(prompt, index) in prompts"
             :key="prompt.id"
-            class="bg-card border border-border rounded-lg p-4 hover:border-primary/50 transition-colors duration-200"
+            class="bg-muted border border-border rounded-lg p-4 hover:border-primary/50 transition-colors duration-200"
           >
             <!-- 卡片头部 -->
             <div class="flex items-start justify-between mb-3">

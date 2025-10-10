@@ -1,6 +1,6 @@
 <template>
   <div class="border rounded-lg overflow-hidden">
-    <div class="flex items-center p-4 bg-card">
+    <div class="flex items-center p-4 bg-muted">
       <div class="flex-1">
         <div class="flex items-center">
           <Icon icon="lucide:book-open" class="h-5 mr-2 text-primary" />
@@ -16,7 +16,7 @@
         <!-- MCP开关 -->
         <TooltipProvider>
           <Tooltip :delay-duration="200">
-            <TooltipTrigger as-child>
+            <TooltipTrigger>
               <Switch
                 :model-value="isBuiltinMcpEnabled"
                 :disabled="!mcpStore.mcpEnabled"

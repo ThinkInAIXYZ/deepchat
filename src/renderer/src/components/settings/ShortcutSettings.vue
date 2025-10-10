@@ -29,7 +29,7 @@
 
             <div class="shrink-0 min-w-[240px]">
               <div
-                class="group flex min-h-[44px] items-center gap-3 rounded-md border bg-background px-3 py-2 transition"
+                class="group flex min-h-[44px] items-center gap-3 rounded-md border bg-background/60 px-3 py-2 transition"
                 :class="{
                   'border-primary ring-2 ring-primary/50':
                     recordingShortcutId === shortcut.id && !shortcutError,
