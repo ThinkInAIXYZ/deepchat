@@ -3,7 +3,7 @@
     ref="tabItem"
     draggable="true"
     class="shrink-0 text-xs font-medium px-3 h-9 flex items-center justify-between transition-all duration-200 group border-l border-r"
-    :class="[active ? 'bg-bg-card/60 dark:bg-black/60' : '']"
+    :class="[active ? 'bg-bg-card' : '']"
     @dragstart="onDragStart"
     @click="onClick"
   >

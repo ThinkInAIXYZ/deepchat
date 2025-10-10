@@ -1,5 +1,5 @@
 <template>
-  <div class="w-screen h-screen" :class="[isMacOS ? 'bg-transparent' : 'bg-bg-background-70']">
+  <div class="w-screen h-screen" :class="[isMacOS ? 'bg-transparent' : 'bg-card/50']">
     <AppBar />
     <main class="content-container">
       <!-- WebContentsView will be rendered here by the main process -->

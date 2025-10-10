@@ -1,6 +1,6 @@
 <template>
   <div class="w-full h-full flex flex-col">
-    <div class="p-4 border-b bg-card sticky top-0 z-10 flex items-center gap-2">
+    <div class="p-4 border-b bg-bg-card sticky top-0 z-10 flex items-center gap-2">
       <Icon icon="lucide:shopping-bag" class="w-4 h-4" />
       <h3 class="text-sm font-medium">{{ t('mcp.market.builtinTitle') }}</h3>
       <a

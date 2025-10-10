@@ -1,7 +1,7 @@
 <template>
   <div class="w-full h-full flex flex-col">
     <!-- 固定部分 -->
-    <div class="shrink-0 bg-background sticky top-0 z-10">
+    <div class="shrink-0 bg-bg-card sticky top-0 z-10">
       <!-- NPM源配置区域 -->
       <div class="border-b bg-card">
         <div class="p-4">
