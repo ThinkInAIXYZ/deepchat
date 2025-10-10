@@ -122,7 +122,7 @@ export class TabPresenter implements ITabPresenter {
       }
     })
 
-    view.setBorderRadius(8)
+    view.setBorderRadius(0)
     view.setBackgroundColor('#00ffffff')
 
     // 加载内容
@@ -637,11 +637,11 @@ export class TabPresenter implements ITabPresenter {
     const { width, height } = window.getContentBounds()
 
     // 设置视图位置大小（留出顶部标签栏空间）
-    const TAB_BAR_HEIGHT = 40 // 标签栏高度，需要根据实际UI调整
+    const TAB_BAR_HEIGHT = 36 // 标签栏高度，需要根据实际UI调整
     view.setBounds({
-      x: 4,
+      x: 0,
       y: TAB_BAR_HEIGHT,
-      width: width - 8,
+      width: width,
       height: height - TAB_BAR_HEIGHT - 4
     })
   }

@@ -1,8 +1,8 @@
 <template>
-  <div class="flex flex-row h-10" :dir="langStore.dir">
+  <div class="flex flex-row h-9" :dir="langStore.dir">
     <div
-      class="h-10 shrink-0 w-0 flex-1 flex select-none text-center text-sm font-medium flex-row items-center justify-start window-drag-region"
-      :class="['', isMacOS ? (isFullscreened ? 'pl-2 pr-2' : 'pl-20 pr-2') : 'px-2']"
+      class="h-9 shrink-0 w-0 flex-1 flex select-none text-center text-sm font-medium flex-row items-center justify-start window-drag-region"
+      :class="['', isMacOS ? (isFullscreened ? 'pr-2' : 'pl-18 pr-2') : '']"
     >
       <!-- App title/content in center -->
       <Button
@@ -23,12 +23,12 @@
       </Button>
       <div
         ref="tabContainerWrapper"
-        class="h-full flex flex-row items-center justify-start overflow-y-hidden overflow-x-auto scrollbar-hide"
+        class="h-full self-stretch inline-flex flex-row items-center justify-start overflow-y-hidden overflow-x-auto scrollbar-hide"
         @scroll="onTabContainerWrapperScroll"
       >
         <div
           ref="tabContainer"
-          class="h-full flex flex-row items-center justify-start gap-1 relative"
+          class="h-full flex flex-row items-center justify-start relative"
           @dragover="onTabContainerDragOver"
           @drop="onTabContainerDrop"
         >
@@ -91,7 +91,7 @@
       </Button> -->
     </div>
 
-    <div v-if="!isMacOS" class="flex h-10">
+    <div v-if="!isMacOS" class="flex h-9">
       <button
         class="inline-flex items-center justify-center h-full w-12 hover:bg-zinc-500/20"
         @click="minimizeWindow"
