@@ -55,7 +55,7 @@
           class="rounded-lg shrink-0 opacity-100"
           @click="createNewThread"
         >
-          <Icon icon="lucide:plus" class="w-6 h-6 text-foreground" />
+          <Icon icon="lucide:plus" class="w-6 h-6 text-primary-foreground" />
           <span class="">{{ t('common.newChat') }}</span>
         </Button>
 
@@ -78,7 +78,7 @@
               class="w-8 h-8 shrink-0 rounded-lg relative z-10"
               @click="() => scrollToBottom(true)"
             >
-              <Icon icon="lucide:arrow-down" class="w-5 h-5 text-foreground" />
+              <Icon icon="lucide:arrow-down" class="w-5 h-5 text-primary-foreground" />
             </Button>
           </div>
         </transition>
