@@ -2,7 +2,7 @@
   <div class="flex flex-row h-9" :dir="langStore.dir">
     <div
       class="h-9 shrink-0 w-0 flex-1 flex select-none text-center text-sm font-medium flex-row items-center justify-start window-drag-region"
-      :class="['', isMacOS ? (isFullscreened ? 'pr-2' : 'pl-18 pr-2') : '']"
+      :class="['', isMacOS ? (isFullscreened ? 'pr-2' : 'pl-20 pr-2') : '']"
     >
       <!-- App title/content in center -->
       <Button
