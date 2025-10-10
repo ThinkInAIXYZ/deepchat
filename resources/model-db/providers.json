@@ -515,7 +515,7 @@
             "supported": false
           },
           "search": {
-            "supported": false,
+            "supported": true,
             "forced_search": false,
             "search_strategy": "turbo"
           },
@@ -658,7 +658,7 @@
             "supported": false
           },
           "search": {
-            "supported": false,
+            "supported": true,
             "forced_search": false,
             "search_strategy": "turbo"
           },
@@ -686,7 +686,7 @@
             "supported": false
           },
           "search": {
-            "supported": false,
+            "supported": true,
             "forced_search": false,
             "search_strategy": "turbo"
           },
@@ -714,7 +714,7 @@
             "supported": false
           },
           "search": {
-            "supported": false,
+            "supported": true,
             "forced_search": false,
             "search_strategy": "turbo"
           },
@@ -742,7 +742,7 @@
             "supported": false
           },
           "search": {
-            "supported": false,
+            "supported": true,
             "forced_search": false,
             "search_strategy": "turbo"
           },
@@ -770,7 +770,7 @@
             "supported": false
           },
           "search": {
-            "supported": false,
+            "supported": true,
             "forced_search": false,
             "search_strategy": "turbo"
           },
@@ -1005,7 +1005,7 @@
             "supported": false
           },
           "search": {
-            "supported": false,
+            "supported": true,
             "forced_search": false,
             "search_strategy": "turbo"
           },
@@ -1033,7 +1033,7 @@
             "supported": false
           },
           "search": {
-            "supported": false,
+            "supported": true,
             "forced_search": false,
             "search_strategy": "turbo"
           },
@@ -1061,7 +1061,7 @@
             "supported": false
           },
           "search": {
-            "supported": false,
+            "supported": true,
             "forced_search": false,
             "search_strategy": "turbo"
           },
@@ -1089,7 +1089,7 @@
             "supported": false
           },
           "search": {
-            "supported": false,
+            "supported": true,
             "forced_search": false,
             "search_strategy": "turbo"
           },
@@ -1209,7 +1209,7 @@
             "supported": false
           },
           "search": {
-            "supported": false,
+            "supported": true,
             "forced_search": false,
             "search_strategy": "turbo"
           },
@@ -1580,7 +1580,7 @@
             "supported": true
           },
           "search": {
-            "supported": false,
+            "supported": true,
             "forced_search": false,
             "search_strategy": "turbo"
           },
@@ -10363,8 +10363,8 @@
         },
         {
           "id": "glm-4.6",
-          "name": "GLM-4.6",
-          "display_name": "GLM-4.6",
+          "name": "GLM-4.6 (beta)",
+          "display_name": "GLM-4.6 (beta)",
           "modalities": {
             "input": [
               "text"
@@ -10389,9 +10389,7 @@
           "last_updated": "2025-09-30",
           "cost": {
             "input": 0.6,
-            "output": 2.2,
-            "cache_read": 0.11,
-            "cache_write": 0
+            "output": 1.9
           }
         },
         {
@@ -10457,37 +10455,6 @@
             "output": 0,
             "cache_read": 0,
             "cache_write": 0
-          }
-        },
-        {
-          "id": "qwen3-max",
-          "name": "Qwen3 Max",
-          "display_name": "Qwen3 Max",
-          "modalities": {
-            "input": [
-              "text"
-            ],
-            "output": [
-              "text"
-            ]
-          },
-          "limit": {
-            "context": 262144,
-            "output": 65536
-          },
-          "temperature": true,
-          "tool_call": true,
-          "reasoning": {
-            "supported": true
-          },
-          "attachment": false,
-          "open_weights": true,
-          "knowledge": "2025-04",
-          "release_date": "2025-09-05",
-          "last_updated": "2025-09-05",
-          "cost": {
-            "input": 1.6,
-            "output": 6.4
           }
         },
         {
@@ -16431,7 +16398,7 @@
             "output": 131072
           },
           "temperature": false,
-          "tool_call": true,
+          "tool_call": false,
           "reasoning": {
             "supported": true
           },
@@ -17953,7 +17920,7 @@
             ]
           },
           "limit": {
-            "context": 8192,
+            "context": 16384,
             "output": 8192
           },
           "temperature": false,
@@ -19628,10 +19595,33 @@
             "context": 120000,
             "output": 8000
           },
-          "temperature": false,
+          "temperature": true,
           "tool_call": false,
           "reasoning": {
             "supported": false
+          },
+          "attachment": false
+        },
+        {
+          "id": "baidu/ernie-4.5-21b-a3b-thinking",
+          "name": "Baidu: ERNIE 4.5 21B A3B Thinking",
+          "display_name": "Baidu: ERNIE 4.5 21B A3B Thinking",
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 131072,
+            "output": 65536
+          },
+          "temperature": true,
+          "tool_call": false,
+          "reasoning": {
+            "supported": true
           },
           "attachment": false
         },
@@ -19771,28 +19761,6 @@
           "tool_call": false,
           "reasoning": {
             "supported": false
-          },
-          "attachment": false
-        },
-        {
-          "id": "cognitivecomputations/dolphin3.0-r1-mistral-24b:free",
-          "name": "Dolphin3.0 R1 Mistral 24B (free)",
-          "display_name": "Dolphin3.0 R1 Mistral 24B (free)",
-          "modalities": {
-            "input": [
-              "text"
-            ],
-            "output": [
-              "text"
-            ]
-          },
-          "limit": {
-            "context": 32768
-          },
-          "temperature": false,
-          "tool_call": false,
-          "reasoning": {
-            "supported": true
           },
           "attachment": false
         },
@@ -19994,7 +19962,7 @@
             "context": 163800
           },
           "temperature": false,
-          "tool_call": true,
+          "tool_call": false,
           "reasoning": {
             "supported": true
           },
@@ -20115,29 +20083,6 @@
           "attachment": false
         },
         {
-          "id": "deepseek/deepseek-r1-distill-llama-8b",
-          "name": "DeepSeek: R1 Distill Llama 8B",
-          "display_name": "DeepSeek: R1 Distill Llama 8B",
-          "modalities": {
-            "input": [
-              "text"
-            ],
-            "output": [
-              "text"
-            ]
-          },
-          "limit": {
-            "context": 32000,
-            "output": 32000
-          },
-          "temperature": false,
-          "tool_call": false,
-          "reasoning": {
-            "supported": true
-          },
-          "attachment": false
-        },
-        {
           "id": "deepseek/deepseek-r1-distill-qwen-32b",
           "name": "DeepSeek: R1 Distill Qwen 32B",
           "display_name": "DeepSeek: R1 Distill Qwen 32B",
@@ -20229,6 +20174,31 @@
             "supported": false
           },
           "attachment": true
+        },
+        {
+          "id": "google/gemini-2.5-flash-image",
+          "name": "Google: Gemini 2.5 Flash Image (Nano Banana)",
+          "display_name": "Google: Gemini 2.5 Flash Image (Nano Banana)",
+          "modalities": {
+            "input": [
+              "image",
+              "text"
+            ],
+            "output": [
+              "image",
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 32768,
+            "output": 8192
+          },
+          "temperature": false,
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "attachment": false
         },
         {
           "id": "google/gemini-2.5-flash-image-preview",
@@ -20829,7 +20799,8 @@
             ]
           },
           "limit": {
-            "context": 32768
+            "context": 32768,
+            "output": 32768
           },
           "temperature": false,
           "tool_call": false,
@@ -20896,7 +20867,7 @@
             ]
           },
           "limit": {
-            "context": 16384,
+            "context": 131072,
             "output": 16384
           },
           "temperature": false,
@@ -21012,7 +20983,7 @@
           },
           "limit": {
             "context": 131072,
-            "output": 131072
+            "output": 120000
           },
           "temperature": false,
           "tool_call": true,
@@ -21994,29 +21965,6 @@
           "attachment": false
         },
         {
-          "id": "moonshotai/kimi-vl-a3b-thinking:free",
-          "name": "MoonshotAI: Kimi VL A3B Thinking (free)",
-          "display_name": "MoonshotAI: Kimi VL A3B Thinking (free)",
-          "modalities": {
-            "input": [
-              "image",
-              "text"
-            ],
-            "output": [
-              "text"
-            ]
-          },
-          "limit": {
-            "context": 131072
-          },
-          "temperature": false,
-          "tool_call": false,
-          "reasoning": {
-            "supported": true
-          },
-          "attachment": false
-        },
-        {
           "id": "morph/morph-v3-fast",
           "name": "Morph: Morph V3 Fast",
           "display_name": "Morph: Morph V3 Fast",
@@ -22802,6 +22750,30 @@
           "attachment": true
         },
         {
+          "id": "openai/gpt-5-pro",
+          "name": "OpenAI: GPT-5 Pro",
+          "display_name": "OpenAI: GPT-5 Pro",
+          "modalities": {
+            "input": [
+              "image",
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 400000,
+            "output": 128000
+          },
+          "temperature": false,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true
+          },
+          "attachment": true
+        },
+        {
           "id": "openai/gpt-oss-20b:free",
           "name": "OpenAI: gpt-oss-20b (free)",
           "display_name": "OpenAI: gpt-oss-20b (free)",
@@ -23491,6 +23463,28 @@
           "attachment": false
         },
         {
+          "id": "qwen/qwen2.5-coder-7b-instruct",
+          "name": "Qwen: Qwen2.5 Coder 7B Instruct",
+          "display_name": "Qwen: Qwen2.5 Coder 7B Instruct",
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 32768
+          },
+          "temperature": false,
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "attachment": false
+        },
+        {
           "id": "qwen/qwen2.5-vl-32b-instruct",
           "name": "Qwen: Qwen2.5 VL 32B Instruct",
           "display_name": "Qwen: Qwen2.5 VL 32B Instruct",
@@ -23802,8 +23796,7 @@
             ]
           },
           "limit": {
-            "context": 131072,
-            "output": 32768
+            "context": 131072
           },
           "temperature": true,
           "tool_call": true,
@@ -23828,6 +23821,54 @@
           "limit": {
             "context": 65536,
             "output": 65536
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true
+          },
+          "attachment": false
+        },
+        {
+          "id": "qwen/qwen3-vl-30b-a3b-instruct",
+          "name": "Qwen: Qwen3 VL 30B A3B Instruct",
+          "display_name": "Qwen: Qwen3 VL 30B A3B Instruct",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 262144,
+            "output": 262144
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": false
+          },
+          "attachment": false
+        },
+        {
+          "id": "qwen/qwen3-vl-30b-a3b-thinking",
+          "name": "Qwen: Qwen3 VL 30B A3B Thinking",
+          "display_name": "Qwen: Qwen3 VL 30B A3B Thinking",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 262144,
+            "output": 262144
           },
           "temperature": true,
           "tool_call": true,
@@ -28069,9 +28110,43 @@
       "api": "https://aihubmix.com/call/mdl_info",
       "models": [
         {
+          "id": "aihubmix-command-r-08-2024",
+          "name": "command-r-08-2024",
+          "display_name": "command-r-08-2024",
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          }
+        },
+        {
           "id": "aihubmix-command-r-plus",
           "name": "command-r-plus",
           "display_name": "command-r-plus",
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          }
+        },
+        {
+          "id": "aihubmix-command-r-plus-08-2024",
+          "name": "command-r-plus-08-2024",
+          "display_name": "command-r-plus-08-2024",
           "modalities": {
             "input": [
               "text"
@@ -28105,57 +28180,18 @@
           }
         },
         {
-          "id": "anthropic-3-5-sonnet-20240620",
-          "name": "Claude 3.5 Sonnet",
-          "display_name": "Claude 3.5 Sonnet",
-          "modalities": {
-            "input": [
-              "text",
-              "image"
-            ],
-            "output": [
-              "text",
-              "image"
-            ]
-          },
+          "id": "aistudio_gemini-2.0-flash",
+          "name": "aistudio/gemini-2.0-flash",
+          "display_name": "aistudio/gemini-2.0-flash",
           "tool_call": false,
           "reasoning": {
             "supported": false
           }
         },
         {
-          "id": "anthropic-3-5-sonnet-20241022",
-          "name": "Claude 3.5 Sonnet",
-          "display_name": "Claude 3.5 Sonnet",
-          "modalities": {
-            "input": [
-              "text",
-              "image"
-            ],
-            "output": [
-              "text",
-              "image"
-            ]
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          }
-        },
-        {
-          "id": "anthropic-3-7-sonnet-20250219",
-          "name": "claude-3-7-sonnet",
-          "display_name": "claude-3-7-sonnet",
-          "modalities": {
-            "input": [
-              "text",
-              "image"
-            ],
-            "output": [
-              "text",
-              "image"
-            ]
-          },
+          "id": "aistudio_gpt-4.1-mini",
+          "name": "gpt-4.1-mini",
+          "display_name": "gpt-4.1-mini",
           "tool_call": false,
           "reasoning": {
             "supported": false
@@ -28165,7 +28201,17 @@
           "id": "bge-large-en",
           "name": "bge-large-en",
           "display_name": "bge-large-en",
-          "tool_call": false,
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text",
+              "image"
+            ]
+          },
+          "tool_call": true,
           "reasoning": {
             "supported": false
           }
@@ -28174,6 +28220,42 @@
           "id": "bge-large-zh",
           "name": "bge-large-zh",
           "display_name": "bge-large-zh",
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          }
+        },
+        {
+          "id": "chatglm_lite",
+          "name": "chatglm_lite",
+          "display_name": "chatglm_lite",
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          }
+        },
+        {
+          "id": "chatglm_pro",
+          "name": "chatglm_pro",
+          "display_name": "chatglm_pro",
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          }
+        },
+        {
+          "id": "chatglm_std",
+          "name": "chatglm_std",
+          "display_name": "chatglm_std",
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          }
+        },
+        {
+          "id": "chatglm_turbo",
+          "name": "chatglm_turbo",
+          "display_name": "chatglm_turbo",
           "tool_call": false,
           "reasoning": {
             "supported": false
@@ -28199,16 +28281,34 @@
           }
         },
         {
-          "id": "claude-3-5-haiku-20241022",
-          "name": "claude-3-5-haiku",
-          "display_name": "claude-3-5-haiku",
+          "id": "claude-2",
+          "name": "Claude 2.0",
+          "display_name": "Claude 2.0",
           "tool_call": false,
           "reasoning": {
             "supported": false
           }
         },
         {
-          "id": "claude-3-5-haiku-latest",
+          "id": "claude-2.0",
+          "name": "Claude 2.0",
+          "display_name": "Claude 2.0",
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          }
+        },
+        {
+          "id": "claude-2.1",
+          "name": "Claude 2.1",
+          "display_name": "Claude 2.1",
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          }
+        },
+        {
+          "id": "claude-3-5-haiku",
           "name": "claude-3-5-haiku",
           "display_name": "claude-3-5-haiku",
           "modalities": {
@@ -28221,7 +28321,26 @@
               "image"
             ]
           },
-          "tool_call": false,
+          "tool_call": true,
+          "reasoning": {
+            "supported": false
+          }
+        },
+        {
+          "id": "claude-3-5-sonnet",
+          "name": "Claude 3.5 Sonnet",
+          "display_name": "Claude 3.5 Sonnet",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text",
+              "image"
+            ]
+          },
+          "tool_call": true,
           "reasoning": {
             "supported": false
           }
@@ -28246,45 +28365,7 @@
           }
         },
         {
-          "id": "claude-3-5-sonnet-20241022",
-          "name": "Claude 3.5 Sonnet",
-          "display_name": "Claude 3.5 Sonnet",
-          "modalities": {
-            "input": [
-              "text",
-              "image"
-            ],
-            "output": [
-              "text",
-              "image"
-            ]
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          }
-        },
-        {
-          "id": "claude-3-5-sonnet-latest",
-          "name": "Claude 3.5 Sonnet",
-          "display_name": "Claude 3.5 Sonnet",
-          "modalities": {
-            "input": [
-              "text",
-              "image"
-            ],
-            "output": [
-              "text",
-              "image"
-            ]
-          },
-          "tool_call": true,
-          "reasoning": {
-            "supported": false
-          }
-        },
-        {
-          "id": "claude-3-7-sonnet-20250219",
+          "id": "claude-3-7-sonnet",
           "name": "Claude 3.7 Sonnet",
           "display_name": "Claude 3.7 Sonnet",
           "modalities": {
@@ -28297,15 +28378,44 @@
               "image"
             ]
           },
-          "tool_call": false,
+          "tool_call": true,
           "reasoning": {
             "supported": true
+          }
+        },
+        {
+          "id": "claude-3-haiku-20240229",
+          "name": "Claude 3 Haiku",
+          "display_name": "Claude 3 Haiku",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text",
+              "image"
+            ]
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
           }
         },
         {
           "id": "claude-3-haiku-20240307",
           "name": "Claude 3 Haiku",
           "display_name": "Claude 3 Haiku",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text",
+              "image"
+            ]
+          },
           "tool_call": false,
           "reasoning": {
             "supported": false
@@ -28340,27 +28450,46 @@
           }
         },
         {
+          "id": "claude-instant-1",
+          "name": "Claude Instant",
+          "display_name": "Claude Instant",
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          }
+        },
+        {
+          "id": "claude-instant-1.2",
+          "name": "Claude Instant",
+          "display_name": "Claude Instant",
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          }
+        },
+        {
           "id": "claude-opus-4-0",
           "name": "claude-opus-4-0",
           "display_name": "claude-opus-4-0",
-          "tool_call": false,
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text",
+              "image"
+            ]
+          },
+          "tool_call": true,
           "reasoning": {
             "supported": false
           }
         },
         {
-          "id": "claude-opus-4-1-20250805",
+          "id": "claude-opus-4-1",
           "name": "claude-opus-4-1-20250805",
           "display_name": "claude-opus-4-1-20250805",
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          }
-        },
-        {
-          "id": "claude-opus-4-20250514",
-          "name": "claude-opus-4-20250514",
-          "display_name": "claude-opus-4-20250514",
           "modalities": {
             "input": [
               "text",
@@ -28380,15 +28509,6 @@
           "id": "claude-sonnet-4-0",
           "name": "claude-sonnet-4-0",
           "display_name": "claude-sonnet-4-0",
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          }
-        },
-        {
-          "id": "claude-sonnet-4-20250514",
-          "name": "claude-sonnet-4-20250514",
-          "display_name": "claude-sonnet-4-20250514",
           "modalities": {
             "input": [
               "text",
@@ -28405,9 +28525,28 @@
           }
         },
         {
-          "id": "claude-sonnet-4-5-20250929",
-          "name": "claude-sonnet-4-5-20250929",
-          "display_name": "claude-sonnet-4-5-20250929",
+          "id": "claude-sonnet-4-5",
+          "name": "claude-sonnet-4-5",
+          "display_name": "claude-sonnet-4-5",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text",
+              "image"
+            ]
+          },
+          "tool_call": true,
+          "reasoning": {
+            "supported": true
+          }
+        },
+        {
+          "id": "code-davinci-edit-001",
+          "name": "code-davinci-edit-001",
+          "display_name": "code-davinci-edit-001",
           "tool_call": false,
           "reasoning": {
             "supported": false
@@ -28436,6 +28575,15 @@
               "image"
             ]
           },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          }
+        },
+        {
+          "id": "cogview-3",
+          "name": "cogview-3",
+          "display_name": "cogview-3",
           "tool_call": false,
           "reasoning": {
             "supported": false
@@ -28529,9 +28677,43 @@
           }
         },
         {
+          "id": "command-r-08-2024",
+          "name": "command-r-08-2024",
+          "display_name": "command-r-08-2024",
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          }
+        },
+        {
           "id": "command-r-plus",
           "name": "command-r-plus",
           "display_name": "command-r-plus",
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          }
+        },
+        {
+          "id": "command-r-plus-08-2024",
+          "name": "command-r-plus-08-2024",
+          "display_name": "command-r-plus-08-2024",
           "modalities": {
             "input": [
               "text"
@@ -28558,6 +28740,16 @@
           "id": "dall-e-2",
           "name": "dall-e-2",
           "display_name": "dall-e-2",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text",
+              "image"
+            ]
+          },
           "tool_call": false,
           "reasoning": {
             "supported": false
@@ -28583,6 +28775,15 @@
           }
         },
         {
+          "id": "davinci",
+          "name": "davinci",
+          "display_name": "davinci",
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          }
+        },
+        {
           "id": "davinci-002",
           "name": "davinci",
           "display_name": "davinci",
@@ -28592,36 +28793,18 @@
           }
         },
         {
+          "id": "deepseek-ai/deepseek-llm-67b-chat",
+          "name": "deepseek-llm-67b-chat",
+          "display_name": "deepseek-llm-67b-chat",
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          }
+        },
+        {
           "id": "deepseek-ai/deepseek-vl2",
           "name": "deepseek-ai/deepseek-vl2",
           "display_name": "deepseek-ai/deepseek-vl2",
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          }
-        },
-        {
-          "id": "deepseek-chat",
-          "name": "DeepSeek-V3.1",
-          "display_name": "DeepSeek-V3.1",
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          }
-        },
-        {
-          "id": "deepseek-r1-250120",
-          "name": "deepseek-r1-250120",
-          "display_name": "deepseek-r1-250120",
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          }
-        },
-        {
-          "id": "deepseek-r1-250528",
-          "name": "deepseek-r1-250528",
-          "display_name": "deepseek-r1-250528",
           "tool_call": false,
           "reasoning": {
             "supported": false
@@ -28654,44 +28837,9 @@
           }
         },
         {
-          "id": "deepseek-reasoner",
-          "name": "DeepSeek-R1",
-          "display_name": "DeepSeek-R1",
-          "modalities": {
-            "input": [
-              "text"
-            ],
-            "output": [
-              "text"
-            ]
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": true
-          }
-        },
-        {
-          "id": "deepseek-v3-250324",
-          "name": "deepseek-v3-250324",
-          "display_name": "deepseek-v3-250324",
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          }
-        },
-        {
-          "id": "deepseek-v3.1-250821",
-          "name": "deepseek-v3.1-250821",
-          "display_name": "deepseek-v3.1-250821",
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          }
-        },
-        {
-          "id": "deepseek-v3.1-think-250821",
-          "name": "deepseek-v3.1-think-250821",
-          "display_name": "deepseek-v3.1-think-250821",
+          "id": "deepseek-v3",
+          "name": "deepseek-v3",
+          "display_name": "deepseek-v3",
           "tool_call": false,
           "reasoning": {
             "supported": false
@@ -28715,9 +28863,44 @@
           }
         },
         {
+          "id": "doubao-1-5-pro-256k-250115",
+          "name": "Doubao-1.5-pro-256k",
+          "display_name": "Doubao-1.5-pro-256k",
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          }
+        },
+        {
+          "id": "doubao-1-5-pro-32k-250115",
+          "name": "Doubao-1.5-pro-32k",
+          "display_name": "Doubao-1.5-pro-32k",
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          }
+        },
+        {
+          "id": "doubao-1-5-thinking-vision-pro-250428",
+          "name": "doubao-1-5-thinking-vision-pro-250428",
+          "display_name": "doubao-1-5-thinking-vision-pro-250428",
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          }
+        },
+        {
           "id": "doubao-embedding-large-text-240915",
           "name": "doubao-embedding-large-text-240915",
           "display_name": "doubao-embedding-large-text-240915",
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
           "tool_call": false,
           "reasoning": {
             "supported": false
@@ -28727,36 +28910,80 @@
           "id": "doubao-embedding-text-240715",
           "name": "doubao-embedding-text-240715",
           "display_name": "doubao-embedding-text-240715",
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
           "tool_call": false,
           "reasoning": {
             "supported": false
           }
         },
         {
-          "id": "doubao-seed-1-6-250615",
-          "name": "doubao-seed-1-6-250615",
-          "display_name": "doubao-seed-1-6-250615",
-          "tool_call": false,
+          "id": "doubao-seed-1-6",
+          "name": "doubao-seed-1-6",
+          "display_name": "doubao-seed-1-6",
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "video"
+            ],
+            "output": [
+              "text",
+              "image",
+              "video"
+            ]
+          },
+          "tool_call": true,
           "reasoning": {
-            "supported": false
+            "supported": true
           }
         },
         {
-          "id": "doubao-seed-1-6-flash-250615",
-          "name": "doubao-seed-1-6-flash-250615",
-          "display_name": "doubao-seed-1-6-flash-250615",
-          "tool_call": false,
+          "id": "doubao-seed-1-6-flash",
+          "name": "doubao-seed-1-6-flash",
+          "display_name": "doubao-seed-1-6-flash",
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "video"
+            ],
+            "output": [
+              "text",
+              "image",
+              "video"
+            ]
+          },
+          "tool_call": true,
           "reasoning": {
-            "supported": false
+            "supported": true
           }
         },
         {
-          "id": "doubao-seed-1-6-thinking-250615",
-          "name": "doubao-seed-1-6-thinking-250615",
-          "display_name": "doubao-seed-1-6-thinking-250615",
-          "tool_call": false,
+          "id": "doubao-seed-1-6-thinking",
+          "name": "doubao-seed-1-6-thinking",
+          "display_name": "doubao-seed-1-6-thinking",
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "video"
+            ],
+            "output": [
+              "text",
+              "image",
+              "video"
+            ]
+          },
+          "tool_call": true,
           "reasoning": {
-            "supported": false
+            "supported": true
           }
         },
         {
@@ -28769,9 +28996,19 @@
           }
         },
         {
-          "id": "doubao-seedream-4-0-250828",
-          "name": "doubao-seedream-4-0-250828",
-          "display_name": "doubao-seedream-4-0-250828",
+          "id": "doubao-seedream-4-0",
+          "name": "doubao-seedream-4-0",
+          "display_name": "doubao-seedream-4-0",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text",
+              "image"
+            ]
+          },
           "tool_call": false,
           "reasoning": {
             "supported": false
@@ -28781,7 +29018,34 @@
           "id": "embedding-v1",
           "name": "embedding-v1",
           "display_name": "embedding-v1",
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
           "tool_call": false,
+          "reasoning": {
+            "supported": false
+          }
+        },
+        {
+          "id": "ernie-4.5",
+          "name": "ernie-4.5",
+          "display_name": "ernie-4.5",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text",
+              "image"
+            ]
+          },
+          "tool_call": true,
           "reasoning": {
             "supported": false
           }
@@ -28790,25 +29054,17 @@
           "id": "ernie-4.5-0.3b",
           "name": "ernie-4.5-0.3b",
           "display_name": "ernie-4.5-0.3b",
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          }
-        },
-        {
-          "id": "ernie-4.5-21b-a3b",
-          "name": "ernie-4.5-21b-a3b",
-          "display_name": "ernie-4.5-21b-a3b",
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          }
-        },
-        {
-          "id": "ernie-4.5-21b-a3b-thinking",
-          "name": "ernie-4.5-21b-a3b-thinking",
-          "display_name": "ernie-4.5-21b-a3b-thinking",
-          "tool_call": false,
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text",
+              "image"
+            ]
+          },
+          "tool_call": true,
           "reasoning": {
             "supported": false
           }
@@ -28817,7 +29073,17 @@
           "id": "ernie-4.5-turbo-128k-preview",
           "name": "ernie-4.5-turbo-128k-preview",
           "display_name": "ernie-4.5-turbo-128k-preview",
-          "tool_call": false,
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text",
+              "image"
+            ]
+          },
+          "tool_call": true,
           "reasoning": {
             "supported": false
           }
@@ -28826,7 +29092,17 @@
           "id": "ernie-4.5-turbo-latest",
           "name": "ernie-4.5-turbo-latest",
           "display_name": "ernie-4.5-turbo-latest",
-          "tool_call": false,
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text",
+              "image"
+            ]
+          },
+          "tool_call": true,
           "reasoning": {
             "supported": false
           }
@@ -28835,25 +29111,17 @@
           "id": "ernie-4.5-turbo-vl",
           "name": "ernie-4.5-turbo-vl",
           "display_name": "ernie-4.5-turbo-vl",
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          }
-        },
-        {
-          "id": "ernie-4.5-turbo-vl-32k-preview",
-          "name": "ernie-4.5-turbo-vl-32k-preview",
-          "display_name": "ernie-4.5-turbo-vl-32k-preview",
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          }
-        },
-        {
-          "id": "ernie-4.5-turbo-vl-latest",
-          "name": "ernie-4.5-turbo-vl-latest",
-          "display_name": "ernie-4.5-turbo-vl-latest",
-          "tool_call": false,
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text",
+              "image"
+            ]
+          },
+          "tool_call": true,
           "reasoning": {
             "supported": false
           }
@@ -28862,18 +29130,36 @@
           "id": "ernie-irag-edit",
           "name": "ernie-irag-edit",
           "display_name": "ernie-irag-edit",
-          "tool_call": false,
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text",
+              "image"
+            ]
+          },
+          "tool_call": true,
           "reasoning": {
             "supported": false
           }
         },
         {
-          "id": "ernie-x1-turbo-32k-preview",
+          "id": "ernie-x1-turbo",
           "name": "ernie-x1-turbo-32k-preview",
           "display_name": "ernie-x1-turbo-32k-preview",
-          "tool_call": false,
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "tool_call": true,
           "reasoning": {
-            "supported": false
+            "supported": true
           }
         },
         {
@@ -28910,129 +29196,10 @@
           "display_name": "flux-kontext-pro",
           "modalities": {
             "input": [
-              "text",
-              "image"
-            ],
-            "output": [
-              "text",
-              "image"
-            ]
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          }
-        },
-        {
-          "id": "gemini-1.5-flash",
-          "name": "gemini-1.5-flash",
-          "display_name": "gemini-1.5-flash",
-          "modalities": {
-            "input": [
               "text"
             ],
             "output": [
               "text"
-            ]
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          }
-        },
-        {
-          "id": "gemini-1.5-flash-002",
-          "name": "gemini-1.5-flash",
-          "display_name": "gemini-1.5-flash",
-          "modalities": {
-            "input": [
-              "text"
-            ],
-            "output": [
-              "text"
-            ]
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          }
-        },
-        {
-          "id": "gemini-1.5-flash-exp-0827",
-          "name": "gemini-1.5-flash",
-          "display_name": "gemini-1.5-flash",
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          }
-        },
-        {
-          "id": "gemini-1.5-pro",
-          "name": "Gemini 1.5 Pro",
-          "display_name": "Gemini 1.5 Pro",
-          "modalities": {
-            "input": [
-              "text",
-              "image"
-            ],
-            "output": [
-              "text",
-              "image"
-            ]
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          }
-        },
-        {
-          "id": "gemini-1.5-pro-002",
-          "name": "Gemini 1.5 Pro",
-          "display_name": "Gemini 1.5 Pro",
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          }
-        },
-        {
-          "id": "gemini-1.5-pro-exp-0801",
-          "name": "Gemini 1.5 Pro",
-          "display_name": "Gemini 1.5 Pro",
-          "modalities": {
-            "input": [
-              "text",
-              "image",
-              "audio",
-              "video"
-            ],
-            "output": [
-              "text",
-              "image",
-              "audio",
-              "video"
-            ]
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          }
-        },
-        {
-          "id": "gemini-1.5-pro-exp-0827",
-          "name": "Gemini 1.5 Pro",
-          "display_name": "Gemini 1.5 Pro",
-          "modalities": {
-            "input": [
-              "text",
-              "image",
-              "audio",
-              "video"
-            ],
-            "output": [
-              "text",
-              "image",
-              "audio",
-              "video"
             ]
           },
           "tool_call": false,
@@ -29100,6 +29267,25 @@
           "name": "gemini-2.0-flash-exp-image-generation",
           "display_name": "gemini-2.0-flash-exp-image-generation",
           "tool_call": false,
+          "reasoning": {
+            "supported": false
+          }
+        },
+        {
+          "id": "gemini-2.0-flash-exp-search",
+          "name": "Gemini 2.0 Flash",
+          "display_name": "Gemini 2.0 Flash",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text",
+              "image"
+            ]
+          },
+          "tool_call": true,
           "reasoning": {
             "supported": false
           }
@@ -29252,9 +29438,65 @@
           }
         },
         {
+          "id": "gemini-2.0-pro-exp-02-05-search",
+          "name": "gemini-2.0-pro",
+          "display_name": "gemini-2.0-pro",
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "audio",
+              "video"
+            ],
+            "output": [
+              "text",
+              "image",
+              "audio",
+              "video"
+            ]
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          }
+        },
+        {
           "id": "gemini-2.5-flash",
           "name": "gemini-2.5-flash",
           "display_name": "gemini-2.5-flash",
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "audio",
+              "video"
+            ],
+            "output": [
+              "text",
+              "image",
+              "audio",
+              "video"
+            ]
+          },
+          "tool_call": true,
+          "reasoning": {
+            "supported": false
+          }
+        },
+        {
+          "id": "gemini-2.5-flash-image",
+          "name": "gemini-2.5-flash-image",
+          "display_name": "gemini-2.5-flash-image",
+          "modalities": {
+            "input": [
+              "image",
+              "text"
+            ],
+            "output": [
+              "image",
+              "text"
+            ]
+          },
           "tool_call": false,
           "reasoning": {
             "supported": false
@@ -29283,16 +29525,21 @@
           "id": "gemini-2.5-flash-lite",
           "name": "gemini-2.5-flash-lite",
           "display_name": "gemini-2.5-flash-lite",
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          }
-        },
-        {
-          "id": "gemini-2.5-flash-lite-preview-06-17",
-          "name": "gemini-2.5-flash-lite-preview-06-17",
-          "display_name": "gemini-2.5-flash-lite-preview-06-17",
-          "tool_call": false,
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "audio",
+              "video"
+            ],
+            "output": [
+              "text",
+              "image",
+              "audio",
+              "video"
+            ]
+          },
+          "tool_call": true,
           "reasoning": {
             "supported": false
           }
@@ -29301,24 +29548,6 @@
           "id": "gemini-2.5-flash-lite-preview-09-2025",
           "name": "gemini-2.5-flash-lite-preview-09-2025",
           "display_name": "gemini-2.5-flash-lite-preview-09-2025",
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          }
-        },
-        {
-          "id": "gemini-2.5-flash-nothink",
-          "name": "gemini-2.5-flash-nothink",
-          "display_name": "gemini-2.5-flash-nothink",
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          }
-        },
-        {
-          "id": "gemini-2.5-flash-preview-04-17",
-          "name": "gemini-2.5-flash",
-          "display_name": "gemini-2.5-flash",
           "modalities": {
             "input": [
               "text",
@@ -29329,16 +29558,76 @@
               "image"
             ]
           },
-          "tool_call": false,
+          "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": false
           }
         },
         {
-          "id": "gemini-2.5-flash-preview-05-20",
-          "name": "gemini-2.5-flash-preview-05-20",
-          "display_name": "gemini-2.5-flash-preview-05-20",
-          "tool_call": false,
+          "id": "gemini-2.5-flash-nothink",
+          "name": "gemini-2.5-flash-nothink",
+          "display_name": "gemini-2.5-flash-nothink",
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "audio",
+              "video"
+            ],
+            "output": [
+              "text",
+              "image",
+              "audio",
+              "video"
+            ]
+          },
+          "tool_call": true,
+          "reasoning": {
+            "supported": false
+          }
+        },
+        {
+          "id": "gemini-2.5-flash-preview-05-20-nothink",
+          "name": "gemini-2.5-flash-preview-05-20-nothink",
+          "display_name": "gemini-2.5-flash-preview-05-20-nothink",
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "audio",
+              "video"
+            ],
+            "output": [
+              "text",
+              "image",
+              "audio",
+              "video"
+            ]
+          },
+          "tool_call": true,
+          "reasoning": {
+            "supported": false
+          }
+        },
+        {
+          "id": "gemini-2.5-flash-preview-05-20-search",
+          "name": "gemini-2.5-flash-preview-05-20-search",
+          "display_name": "gemini-2.5-flash-preview-05-20-search",
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "audio",
+              "video"
+            ],
+            "output": [
+              "text",
+              "image",
+              "audio",
+              "video"
+            ]
+          },
+          "tool_call": true,
           "reasoning": {
             "supported": false
           }
@@ -29347,7 +29636,17 @@
           "id": "gemini-2.5-flash-preview-09-2025",
           "name": "gemini-2.5-flash-preview-09-2025",
           "display_name": "gemini-2.5-flash-preview-09-2025",
-          "tool_call": false,
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text",
+              "image"
+            ]
+          },
+          "tool_call": true,
           "reasoning": {
             "supported": false
           }
@@ -29356,7 +29655,21 @@
           "id": "gemini-2.5-flash-search",
           "name": "gemini-2.5-flash-search",
           "display_name": "gemini-2.5-flash-search",
-          "tool_call": false,
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "audio",
+              "video"
+            ],
+            "output": [
+              "text",
+              "image",
+              "audio",
+              "video"
+            ]
+          },
+          "tool_call": true,
           "reasoning": {
             "supported": false
           }
@@ -29370,13 +29683,15 @@
               "text",
               "image",
               "audio",
-              "video"
+              "video",
+              "pdf"
             ],
             "output": [
               "text",
               "image",
               "audio",
-              "video"
+              "video",
+              "pdf"
             ]
           },
           "tool_call": true,
@@ -29421,7 +29736,7 @@
               "image"
             ]
           },
-          "tool_call": false,
+          "tool_call": true,
           "reasoning": {
             "supported": true
           }
@@ -29430,6 +29745,20 @@
           "id": "gemini-2.5-pro-preview-03-25-search",
           "name": "gemini-2.5-pro-preview-",
           "display_name": "gemini-2.5-pro-preview-",
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "audio",
+              "video"
+            ],
+            "output": [
+              "text",
+              "image",
+              "audio",
+              "video"
+            ]
+          },
           "tool_call": true,
           "reasoning": {
             "supported": true
@@ -29531,15 +29860,39 @@
           "id": "gemini-2.5-pro-search",
           "name": "gemini-2.5-pro-search",
           "display_name": "gemini-2.5-pro-search",
-          "tool_call": false,
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "audio",
+              "video",
+              "pdf"
+            ],
+            "output": [
+              "text",
+              "image",
+              "audio",
+              "video",
+              "pdf"
+            ]
+          },
+          "tool_call": true,
           "reasoning": {
-            "supported": false
+            "supported": true
           }
         },
         {
           "id": "gemini-embedding-001",
           "name": "gemini-embedding-001",
           "display_name": "gemini-embedding-001",
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
           "tool_call": false,
           "reasoning": {
             "supported": false
@@ -29590,18 +29943,18 @@
           }
         },
         {
-          "id": "gemini-flash-latest",
-          "name": "gemini-flash-latest",
-          "display_name": "gemini-flash-latest",
+          "id": "gemini-pro",
+          "name": "gemini-pro",
+          "display_name": "gemini-pro",
           "tool_call": false,
           "reasoning": {
             "supported": false
           }
         },
         {
-          "id": "gemini-flash-lite-latest",
-          "name": "gemini-flash-lite-latest",
-          "display_name": "gemini-flash-lite-latest",
+          "id": "gemini-pro-vision",
+          "name": "gemini-pro-vision",
+          "display_name": "gemini-pro-vision",
           "tool_call": false,
           "reasoning": {
             "supported": false
@@ -29647,6 +30000,15 @@
           "id": "gemma-3n-e4b-it",
           "name": "gemma-3n-e4b-it",
           "display_name": "gemma-3n-e4b-it",
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          }
+        },
+        {
+          "id": "gemma-7b-it",
+          "name": "gemma-7b",
+          "display_name": "gemma-7b",
           "tool_call": false,
           "reasoning": {
             "supported": false
@@ -29701,6 +30063,14 @@
           "id": "glm-4.5",
           "name": "glm-4.5",
           "display_name": "glm-4.5",
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
           "tool_call": false,
           "reasoning": {
             "supported": false
@@ -29710,6 +30080,14 @@
           "id": "glm-4.5-air",
           "name": "glm-4.5-air",
           "display_name": "glm-4.5-air",
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
           "tool_call": false,
           "reasoning": {
             "supported": false
@@ -29719,6 +30097,14 @@
           "id": "glm-4.5-airx",
           "name": "glm-4.5-airx",
           "display_name": "glm-4.5-airx",
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
           "tool_call": false,
           "reasoning": {
             "supported": false
@@ -29728,6 +30114,14 @@
           "id": "glm-4.5-flash",
           "name": "glm-4.5-flash",
           "display_name": "glm-4.5-flash",
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
           "tool_call": false,
           "reasoning": {
             "supported": false
@@ -29737,6 +30131,14 @@
           "id": "glm-4.5-x",
           "name": "glm-4.5-x",
           "display_name": "glm-4.5-x",
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
           "tool_call": false,
           "reasoning": {
             "supported": false
@@ -29746,6 +30148,18 @@
           "id": "glm-4.5v",
           "name": "glm-4.5v",
           "display_name": "glm-4.5v",
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "video"
+            ],
+            "output": [
+              "text",
+              "image",
+              "video"
+            ]
+          },
           "tool_call": false,
           "reasoning": {
             "supported": false
@@ -29755,6 +30169,32 @@
           "id": "glm-4.6",
           "name": "glm-4.6",
           "display_name": "glm-4.6",
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "tool_call": true,
+          "reasoning": {
+            "supported": true
+          }
+        },
+        {
+          "id": "glm-4v",
+          "name": "glm-4v",
+          "display_name": "glm-4v",
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          }
+        },
+        {
+          "id": "glm-4v-plus",
+          "name": "glm-4v-plus",
+          "display_name": "glm-4v-plus",
           "tool_call": false,
           "reasoning": {
             "supported": false
@@ -29779,9 +30219,27 @@
           }
         },
         {
+          "id": "google/gemini-exp-1114",
+          "name": "gemini",
+          "display_name": "gemini",
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          }
+        },
+        {
           "id": "google/gemma-2-27b-it",
           "name": "gemma-2-27b-it",
           "display_name": "gemma-2-27b-it",
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          }
+        },
+        {
+          "id": "google/gemma-2-9b-it:free",
+          "name": "gemma-2-9b",
+          "display_name": "gemma-2-9b",
           "tool_call": false,
           "reasoning": {
             "supported": false
@@ -29815,6 +30273,24 @@
           }
         },
         {
+          "id": "gpt-3.5-turbo-0301",
+          "name": "gpt-3.5-turbo",
+          "display_name": "gpt-3.5-turbo",
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          }
+        },
+        {
+          "id": "gpt-3.5-turbo-0613",
+          "name": "gpt-3.5-turbo",
+          "display_name": "gpt-3.5-turbo",
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          }
+        },
+        {
           "id": "gpt-3.5-turbo-1106",
           "name": "gpt-3.5-turbo",
           "display_name": "gpt-3.5-turbo",
@@ -29825,6 +30301,15 @@
         },
         {
           "id": "gpt-3.5-turbo-16k",
+          "name": "gpt-3.5-turbo",
+          "display_name": "gpt-3.5-turbo",
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          }
+        },
+        {
+          "id": "gpt-3.5-turbo-16k-0613",
           "name": "gpt-3.5-turbo",
           "display_name": "gpt-3.5-turbo",
           "tool_call": false,
@@ -29860,6 +30345,15 @@
           }
         },
         {
+          "id": "gpt-4-0314",
+          "name": "gpt-4",
+          "display_name": "gpt-4",
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          }
+        },
+        {
           "id": "gpt-4-0613",
           "name": "gpt-4",
           "display_name": "gpt-4",
@@ -29879,6 +30373,24 @@
         },
         {
           "id": "gpt-4-32k",
+          "name": "gpt-4-32k",
+          "display_name": "gpt-4-32k",
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          }
+        },
+        {
+          "id": "gpt-4-32k-0314",
+          "name": "gpt-4-32k",
+          "display_name": "gpt-4-32k",
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          }
+        },
+        {
+          "id": "gpt-4-32k-0613",
           "name": "gpt-4-32k",
           "display_name": "gpt-4-32k",
           "tool_call": false,
@@ -29908,6 +30420,15 @@
           "id": "gpt-4-turbo-preview",
           "name": "gpt-4-turbo",
           "display_name": "gpt-4-turbo",
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          }
+        },
+        {
+          "id": "gpt-4-vision-preview",
+          "name": "gpt-4-vision",
+          "display_name": "gpt-4-vision",
           "tool_call": false,
           "reasoning": {
             "supported": false
@@ -30008,6 +30529,15 @@
           }
         },
         {
+          "id": "gpt-4o-2024-08-06-global",
+          "name": "gpt-4o-2024-08-06-global",
+          "display_name": "gpt-4o-2024-08-06-global",
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          }
+        },
+        {
           "id": "gpt-4o-2024-11-20",
           "name": "gpt-4o",
           "display_name": "gpt-4o",
@@ -30040,15 +30570,6 @@
               "audio"
             ]
           },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          }
-        },
-        {
-          "id": "gpt-4o-audio-preview-2024-10-01",
-          "name": "gpt-4o-audio-preview",
-          "display_name": "gpt-4o-audio-preview",
           "tool_call": false,
           "reasoning": {
             "supported": false
@@ -30136,12 +30657,23 @@
           "display_name": "gpt-4o-mini-audio-preview",
           "modalities": {
             "input": [
+              "text",
               "audio"
             ],
             "output": [
+              "text",
               "audio"
             ]
           },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          }
+        },
+        {
+          "id": "gpt-4o-mini-global",
+          "name": "gpt-4o-mini-global",
+          "display_name": "gpt-4o-mini-global",
           "tool_call": false,
           "reasoning": {
             "supported": false
@@ -30203,18 +30735,57 @@
           }
         },
         {
-          "id": "gpt-5",
-          "name": "gpt-5",
-          "display_name": "gpt-5",
+          "id": "gpt-4o-zh",
+          "name": "gpt-4o",
+          "display_name": "gpt-4o",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text",
+              "image"
+            ]
+          },
           "tool_call": false,
           "reasoning": {
             "supported": false
           }
         },
         {
+          "id": "gpt-5",
+          "name": "gpt-5",
+          "display_name": "gpt-5",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text",
+              "image"
+            ]
+          },
+          "tool_call": true,
+          "reasoning": {
+            "supported": true
+          }
+        },
+        {
           "id": "gpt-5-chat-latest",
           "name": "gpt-5-chat-latest",
           "display_name": "gpt-5-chat-latest",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text",
+              "image"
+            ]
+          },
           "tool_call": false,
           "reasoning": {
             "supported": false
@@ -30224,7 +30795,17 @@
           "id": "gpt-5-codex",
           "name": "gpt-5-codex",
           "display_name": "gpt-5-codex",
-          "tool_call": false,
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text",
+              "image"
+            ]
+          },
+          "tool_call": true,
           "reasoning": {
             "supported": true
           }
@@ -30233,18 +30814,57 @@
           "id": "gpt-5-mini",
           "name": "gpt-5-mini",
           "display_name": "gpt-5-mini",
-          "tool_call": false,
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text",
+              "image"
+            ]
+          },
+          "tool_call": true,
           "reasoning": {
-            "supported": false
+            "supported": true
           }
         },
         {
           "id": "gpt-5-nano",
           "name": "gpt-5-nano",
           "display_name": "gpt-5-nano",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text",
+              "image"
+            ]
+          },
+          "tool_call": true,
+          "reasoning": {
+            "supported": true
+          }
+        },
+        {
+          "id": "gpt-5-pro",
+          "name": "gpt-5-pro",
+          "display_name": "gpt-5-pro",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text",
+              "image"
+            ]
+          },
           "tool_call": false,
           "reasoning": {
-            "supported": false
+            "supported": true
           }
         },
         {
@@ -30267,9 +30887,71 @@
           }
         },
         {
+          "id": "gpt-image-test",
+          "name": "gpt-image-test",
+          "display_name": "gpt-image-test",
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          }
+        },
+        {
           "id": "gpt-oss-120b",
           "name": "gpt-oss-120b",
           "display_name": "gpt-oss-120b",
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "tool_call": true,
+          "reasoning": {
+            "supported": true
+          }
+        },
+        {
+          "id": "gpt-oss-20b",
+          "name": "gpt-oss-20b",
+          "display_name": "gpt-oss-20b",
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "tool_call": true,
+          "reasoning": {
+            "supported": true
+          }
+        },
+        {
+          "id": "grok-2-1212",
+          "name": "grok-2",
+          "display_name": "grok-2",
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          }
+        },
+        {
+          "id": "grok-2-vision-1212",
+          "name": "grok-2",
+          "display_name": "grok-2",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text",
+              "image"
+            ]
+          },
           "tool_call": false,
           "reasoning": {
             "supported": false
@@ -30285,9 +30967,54 @@
           }
         },
         {
+          "id": "grok-3-beta",
+          "name": "grok-3",
+          "display_name": "grok-3",
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          }
+        },
+        {
+          "id": "grok-3-fast",
+          "name": "grok-3-fast",
+          "display_name": "grok-3-fast",
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          }
+        },
+        {
+          "id": "grok-3-fast-beta",
+          "name": "grok-3-fast-beta",
+          "display_name": "grok-3-fast-beta",
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          }
+        },
+        {
           "id": "grok-3-mini",
           "name": "grok-3-mini",
           "display_name": "grok-3-mini",
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          }
+        },
+        {
+          "id": "grok-3-mini-beta",
+          "name": "grok-3-mini-beta",
+          "display_name": "grok-3-mini-beta",
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          }
+        },
+        {
+          "id": "grok-3-mini-fast-beta",
+          "name": "grok-3-mini-fast-beta",
+          "display_name": "grok-3-mini-fast-beta",
           "tool_call": false,
           "reasoning": {
             "supported": false
@@ -30330,6 +31057,25 @@
           }
         },
         {
+          "id": "grok-vision-beta",
+          "name": "grok-beta",
+          "display_name": "grok-beta",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text",
+              "image"
+            ]
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          }
+        },
+        {
           "id": "gte-rerank-v2",
           "name": "gte-rerank-v2",
           "display_name": "gte-rerank-v2",
@@ -30358,9 +31104,47 @@
           }
         },
         {
+          "id": "imagen-4.0",
+          "name": "imagen-4.0-generate-preview-06-06",
+          "display_name": "imagen-4.0-generate-preview-06-06",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text",
+              "image"
+            ]
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          }
+        },
+        {
           "id": "imagen-4.0-fast-generate-001",
           "name": "imagen-4.0-fast-generate-001",
           "display_name": "imagen-4.0-fast-generate-001",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text",
+              "image"
+            ]
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          }
+        },
+        {
+          "id": "imagen-4.0-fast-generate-preview-06-06",
+          "name": "imagen-4.0-fast-generate-preview-06-06",
+          "display_name": "imagen-4.0-fast-generate-preview-06-06",
           "modalities": {
             "input": [
               "text",
@@ -30415,9 +31199,9 @@
           }
         },
         {
-          "id": "imagen-4.0-generate-preview-06-06",
-          "name": "imagen-4.0-generate-preview-06-06",
-          "display_name": "imagen-4.0-generate-preview-06-06",
+          "id": "imagen-4.0-ultra",
+          "name": "imagen-4.0-ultra-generate-preview-06-06",
+          "display_name": "imagen-4.0-ultra-generate-preview-06-06",
           "modalities": {
             "input": [
               "text",
@@ -30472,9 +31256,18 @@
           }
         },
         {
-          "id": "imagen-4.0-ultra-generate-preview-06-06",
-          "name": "imagen-4.0-ultra-generate-preview-06-06",
-          "display_name": "imagen-4.0-ultra-generate-preview-06-06",
+          "id": "irag-1.0",
+          "name": "irag-1.0",
+          "display_name": "irag-1.0",
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          }
+        },
+        {
+          "id": "jina-clip-v2",
+          "name": "jina-clip-v2",
+          "display_name": "jina-clip-v2",
           "modalities": {
             "input": [
               "text",
@@ -30485,15 +31278,6 @@
               "image"
             ]
           },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          }
-        },
-        {
-          "id": "irag-1.0",
-          "name": "irag-1.0",
-          "display_name": "irag-1.0",
           "tool_call": false,
           "reasoning": {
             "supported": false
@@ -30608,19 +31392,37 @@
           }
         },
         {
-          "id": "kimi-k2-0711-preview",
-          "name": "kimi-k2-0711-preview",
-          "display_name": "kimi-k2-0711-preview",
+          "id": "jina-reranker-v3",
+          "name": "jina-reranker-v3",
+          "display_name": "jina-reranker-v3",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text",
+              "image"
+            ]
+          },
           "tool_call": false,
           "reasoning": {
             "supported": false
           }
         },
         {
-          "id": "kimi-k2-0905-preview",
-          "name": "kimi-k2-0905-preview",
-          "display_name": "kimi-k2-0905-preview",
-          "tool_call": false,
+          "id": "kimi-k2-0711",
+          "name": "kimi-k2-0711",
+          "display_name": "kimi-k2-0711",
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "tool_call": true,
           "reasoning": {
             "supported": false
           }
@@ -30629,7 +31431,15 @@
           "id": "kimi-k2-turbo-preview",
           "name": "kimi-k2-turbo-preview",
           "display_name": "kimi-k2-turbo-preview",
-          "tool_call": false,
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "tool_call": true,
           "reasoning": {
             "supported": false
           }
@@ -30662,9 +31472,108 @@
           }
         },
         {
+          "id": "llama-3.1-405b-instruct",
+          "name": "llama-3.1-405b",
+          "display_name": "llama-3.1-405b",
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          }
+        },
+        {
+          "id": "llama-3.1-405b-reasoning",
+          "name": "llama-3.1-405b",
+          "display_name": "llama-3.1-405b",
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          }
+        },
+        {
+          "id": "llama-3.1-70b",
+          "name": "llama-3.1-70b",
+          "display_name": "llama-3.1-70b",
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          }
+        },
+        {
+          "id": "llama-3.1-70b-versatile",
+          "name": "llama-3.1-70b",
+          "display_name": "llama-3.1-70b",
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          }
+        },
+        {
           "id": "llama-3.1-8b-instant",
           "name": "llama-3.1-8b",
           "display_name": "llama-3.1-8b",
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          }
+        },
+        {
+          "id": "llama-3.1-sonar-huge-128k-online",
+          "name": "llama-3.1-sonar-huge-128k-online",
+          "display_name": "llama-3.1-sonar-huge-128k-online",
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          }
+        },
+        {
+          "id": "llama-3.1-sonar-large-128k-online",
+          "name": "llama-3.1-sonar-large-128k-online",
+          "display_name": "llama-3.1-sonar-large-128k-online",
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          }
+        },
+        {
+          "id": "llama-3.1-sonar-small-128k-online",
+          "name": "llama-3.1-sonar-small-128k-online",
+          "display_name": "llama-3.1-sonar-small-128k-online",
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          }
+        },
+        {
+          "id": "llama-3.2-11b-vision-preview",
+          "name": "Llama-3-2-11B",
+          "display_name": "Llama-3-2-11B",
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          }
+        },
+        {
+          "id": "llama-3.2-1b-preview",
+          "name": "llama-3.2-1b",
+          "display_name": "llama-3.2-1b",
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          }
+        },
+        {
+          "id": "llama-3.2-3b-preview",
+          "name": "llama-3.2-3b",
+          "display_name": "llama-3.2-3b",
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          }
+        },
+        {
+          "id": "llama-3.2-90b-vision-preview",
+          "name": "Llama-3.2-90B",
+          "display_name": "Llama-3.2-90B",
           "tool_call": false,
           "reasoning": {
             "supported": false
@@ -30680,27 +31589,56 @@
           }
         },
         {
-          "id": "llama-3.3-70b-versatile",
-          "name": "llama-3.3-70b",
-          "display_name": "llama-3.3-70b",
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          }
-        },
-        {
-          "id": "llama-4-maverick-17b-128e-instruct",
+          "id": "llama-4-maverick",
           "name": "llama-4-maverick-17b-128e-instruct",
           "display_name": "llama-4-maverick-17b-128e-instruct",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text",
+              "image"
+            ]
+          },
+          "tool_call": true,
+          "reasoning": {
+            "supported": false
+          }
+        },
+        {
+          "id": "llama-4-scout",
+          "name": "llama-4-scout-17b-16e-instruct",
+          "display_name": "llama-4-scout-17b-16e-instruct",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text",
+              "image"
+            ]
+          },
+          "tool_call": true,
+          "reasoning": {
+            "supported": false
+          }
+        },
+        {
+          "id": "llama2-70b-4096",
+          "name": "llama2-70b",
+          "display_name": "llama2-70b",
           "tool_call": false,
           "reasoning": {
             "supported": false
           }
         },
         {
-          "id": "llama-4-scout-17b-16e-instruct",
-          "name": "llama-4-scout-17b-16e-instruct",
-          "display_name": "llama-4-scout-17b-16e-instruct",
+          "id": "llama2-7b-2048",
+          "name": "llama2-7b",
+          "display_name": "llama2-7b",
           "tool_call": false,
           "reasoning": {
             "supported": false
@@ -30717,6 +31655,24 @@
         },
         {
           "id": "llama3-8b-8192",
+          "name": "llama3-8b",
+          "display_name": "llama3-8b",
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          }
+        },
+        {
+          "id": "llama3-groq-70b-8192-tool-use-preview",
+          "name": "llama3-70b",
+          "display_name": "llama3-70b",
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          }
+        },
+        {
+          "id": "llama3-groq-8b-8192-tool-use-preview",
           "name": "llama3-8b",
           "display_name": "llama3-8b",
           "tool_call": false,
@@ -30752,9 +31708,63 @@
           }
         },
         {
-          "id": "meta-llama/llama-4-scout-17b-16e-instruct",
-          "name": "llama-4-scout",
-          "display_name": "llama-4-scout",
+          "id": "meta-llama/llama-3.1-405b-instruct:free",
+          "name": "llama-3.1-405b",
+          "display_name": "llama-3.1-405b",
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          }
+        },
+        {
+          "id": "meta-llama/llama-3.1-70b-instruct:free",
+          "name": "mellama-3.1-70b",
+          "display_name": "mellama-3.1-70b",
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          }
+        },
+        {
+          "id": "meta-llama/llama-3.1-8b-instruct:free",
+          "name": "llama-3.1-8b",
+          "display_name": "llama-3.1-8b",
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          }
+        },
+        {
+          "id": "meta-llama/llama-3.2-11b-vision-instruct:free",
+          "name": "llama-3.2-11b-vision",
+          "display_name": "llama-3.2-11b-vision",
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          }
+        },
+        {
+          "id": "meta-llama/llama-3.2-3b-instruct:free",
+          "name": "llama-3.2-3b",
+          "display_name": "llama-3.2-3b",
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          }
+        },
+        {
+          "id": "meta/llama-3.1-405b-instruct",
+          "name": "Llama-3-1-405B",
+          "display_name": "Llama-3-1-405B",
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          }
+        },
+        {
+          "id": "mistralai/mistral-7b-instruct:free",
+          "name": "mistral-7b",
+          "display_name": "mistral-7b",
           "tool_call": false,
           "reasoning": {
             "supported": false
@@ -30815,15 +31825,6 @@
           }
         },
         {
-          "id": "moonshotai/kimi-k2-instruct",
-          "name": "moonshotai/kimi-k2-instruct",
-          "display_name": "moonshotai/kimi-k2-instruct",
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          }
-        },
-        {
           "id": "nvidia/llama-3.1-nemotron-70b-instruct",
           "name": "llama-3.1-nemotron-70b",
           "display_name": "llama-3.1-nemotron-70b",
@@ -30866,6 +31867,15 @@
           "tool_call": false,
           "reasoning": {
             "supported": true
+          }
+        },
+        {
+          "id": "o1-global",
+          "name": "o1-global",
+          "display_name": "o1-global",
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
           }
         },
         {
@@ -30951,6 +31961,15 @@
           }
         },
         {
+          "id": "o3-global",
+          "name": "o3-global",
+          "display_name": "o3-global",
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          }
+        },
+        {
           "id": "o3-mini",
           "name": "o3-mini",
           "display_name": "o3-mini",
@@ -30970,9 +31989,37 @@
           }
         },
         {
+          "id": "o3-mini-global",
+          "name": "o3-mini-global",
+          "display_name": "o3-mini-global",
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          }
+        },
+        {
           "id": "o3-pro",
           "name": "o3-pro",
           "display_name": "o3-pro",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text",
+              "image"
+            ]
+          },
+          "tool_call": true,
+          "reasoning": {
+            "supported": true
+          }
+        },
+        {
+          "id": "o3-pro-global",
+          "name": "o3-pro-global",
+          "display_name": "o3-pro-global",
           "tool_call": false,
           "reasoning": {
             "supported": false
@@ -30992,7 +32039,7 @@
               "image"
             ]
           },
-          "tool_call": false,
+          "tool_call": true,
           "reasoning": {
             "supported": true
           }
@@ -31001,24 +32048,6 @@
           "id": "omni-moderation-latest",
           "name": "omni-moderation",
           "display_name": "omni-moderation",
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          }
-        },
-        {
-          "id": "openai/gpt-oss-120b",
-          "name": "openai/gpt-oss-120b",
-          "display_name": "openai/gpt-oss-120b",
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          }
-        },
-        {
-          "id": "openai/gpt-oss-20b",
-          "name": "openai/gpt-oss-20b",
-          "display_name": "openai/gpt-oss-20b",
           "tool_call": false,
           "reasoning": {
             "supported": false
@@ -31079,15 +32108,6 @@
           }
         },
         {
-          "id": "qwen-3-coder-480b",
-          "name": "qwen-3-coder-480b",
-          "display_name": "qwen-3-coder-480b",
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          }
-        },
-        {
           "id": "qwen-flash",
           "name": "qwen-flash",
           "display_name": "qwen-flash",
@@ -31124,6 +32144,15 @@
           }
         },
         {
+          "id": "qwen-image-plus",
+          "name": "qwen-image-plus",
+          "display_name": "qwen-image-plus",
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          }
+        },
+        {
           "id": "qwen-long",
           "name": "qwen-long",
           "display_name": "qwen-long",
@@ -31154,6 +32183,24 @@
           "id": "qwen-max-longcontext",
           "name": "qwen-max-longcontext",
           "display_name": "qwen-max-longcontext",
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          }
+        },
+        {
+          "id": "qwen-mt-plus",
+          "name": "qwen-mt-plus",
+          "display_name": "qwen-mt-plus",
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          }
+        },
+        {
+          "id": "qwen-mt-turbo",
+          "name": "qwen-mt-turbo",
+          "display_name": "qwen-mt-turbo",
           "tool_call": false,
           "reasoning": {
             "supported": false
@@ -31320,6 +32367,15 @@
           }
         },
         {
+          "id": "qwen2.5-math-1.5b-instruct",
+          "name": "qwen2.5-math-1.5b",
+          "display_name": "qwen2.5-math-1.5b",
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          }
+        },
+        {
           "id": "qwen2.5-math-72b-instruct",
           "name": "qwen2.5-math-72b",
           "display_name": "qwen2.5-math-72b",
@@ -31387,7 +32443,17 @@
           "id": "qwen3-235b-a22b",
           "name": "qwen3-235b-a22b",
           "display_name": "qwen3-235b-a22b",
-          "tool_call": false,
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text",
+              "image"
+            ]
+          },
+          "tool_call": true,
           "reasoning": {
             "supported": false
           }
@@ -31396,7 +32462,17 @@
           "id": "qwen3-235b-a22b-instruct-2507",
           "name": "qwen3-235b-a22b-instruct-2507",
           "display_name": "qwen3-235b-a22b-instruct-2507",
-          "tool_call": false,
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text",
+              "image"
+            ]
+          },
+          "tool_call": true,
           "reasoning": {
             "supported": false
           }
@@ -31405,9 +32481,19 @@
           "id": "qwen3-235b-a22b-thinking-2507",
           "name": "qwen3-235b-a22b-thinking-2507",
           "display_name": "qwen3-235b-a22b-thinking-2507",
-          "tool_call": false,
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text",
+              "image"
+            ]
+          },
+          "tool_call": true,
           "reasoning": {
-            "supported": false
+            "supported": true
           }
         },
         {
@@ -31468,7 +32554,15 @@
           "id": "qwen3-coder-30b-a3b-instruct",
           "name": "qwen3-coder-30b-a3b-instruct",
           "display_name": "qwen3-coder-30b-a3b-instruct",
-          "tool_call": false,
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "tool_call": true,
           "reasoning": {
             "supported": false
           }
@@ -31477,7 +32571,15 @@
           "id": "qwen3-coder-480b-a35b-instruct",
           "name": "qwen3-coder-480b-a35b-instruct",
           "display_name": "qwen3-coder-480b-a35b-instruct",
-          "tool_call": false,
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "tool_call": true,
           "reasoning": {
             "supported": false
           }
@@ -31486,16 +32588,15 @@
           "id": "qwen3-coder-flash",
           "name": "qwen3-coder-flash",
           "display_name": "qwen3-coder-flash",
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          }
-        },
-        {
-          "id": "qwen3-coder-flash-2025-07-28",
-          "name": "qwen3-coder-flash-2025-07-28",
-          "display_name": "qwen3-coder-flash-2025-07-28",
-          "tool_call": false,
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "tool_call": true,
           "reasoning": {
             "supported": false
           }
@@ -31504,7 +32605,15 @@
           "id": "qwen3-coder-plus",
           "name": "qwen3-coder-plus",
           "display_name": "qwen3-coder-plus",
-          "tool_call": false,
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "tool_call": true,
           "reasoning": {
             "supported": false
           }
@@ -31513,7 +32622,15 @@
           "id": "qwen3-coder-plus-2025-07-22",
           "name": "qwen3-coder-plus-2025-07-22",
           "display_name": "qwen3-coder-plus-2025-07-22",
-          "tool_call": false,
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "tool_call": true,
           "reasoning": {
             "supported": false
           }
@@ -31522,6 +32639,14 @@
           "id": "qwen3-embedding-0.6b",
           "name": "qwen3-embedding-0.6b",
           "display_name": "qwen3-embedding-0.6b",
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
           "tool_call": false,
           "reasoning": {
             "supported": false
@@ -31531,6 +32656,14 @@
           "id": "qwen3-embedding-4b",
           "name": "qwen3-embedding-4b",
           "display_name": "qwen3-embedding-4b",
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
           "tool_call": false,
           "reasoning": {
             "supported": false
@@ -31540,6 +32673,14 @@
           "id": "qwen3-embedding-8b",
           "name": "qwen3-embedding-8b",
           "display_name": "qwen3-embedding-8b",
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
           "tool_call": false,
           "reasoning": {
             "supported": false
@@ -31547,9 +32688,19 @@
         },
         {
           "id": "qwen3-max",
-          "name": "qwen3-max",
-          "display_name": "qwen3-max",
-          "tool_call": false,
+          "name": "qwen3-max-preview",
+          "display_name": "qwen3-max-preview",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text",
+              "image"
+            ]
+          },
+          "tool_call": true,
           "reasoning": {
             "supported": false
           }
@@ -31558,6 +32709,63 @@
           "id": "qwen3-max-preview",
           "name": "qwen3-max-preview",
           "display_name": "qwen3-max-preview",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text",
+              "image"
+            ]
+          },
+          "tool_call": true,
+          "reasoning": {
+            "supported": false
+          }
+        },
+        {
+          "id": "qwen3-next-80b-a3b-instruct",
+          "name": "qwen3-next-80b-a3b-instruct",
+          "display_name": "qwen3-next-80b-a3b-instruct",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text",
+              "image"
+            ]
+          },
+          "tool_call": true,
+          "reasoning": {
+            "supported": false
+          }
+        },
+        {
+          "id": "qwen3-next-80b-a3b-thinking",
+          "name": "qwen3-next-80b-a3b-thinking",
+          "display_name": "qwen3-next-80b-a3b-thinking",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text",
+              "image"
+            ]
+          },
+          "tool_call": true,
+          "reasoning": {
+            "supported": true
+          }
+        },
+        {
+          "id": "qwen3-reranker-0.6b",
+          "name": "qwen3-reranker-0.6b",
+          "display_name": "qwen3-reranker-0.6b",
           "tool_call": false,
           "reasoning": {
             "supported": false
@@ -31567,7 +32775,17 @@
           "id": "qwen3-vl-235b-a22b-instruct",
           "name": "qwen3-vl-235b-a22b-instruct",
           "display_name": "qwen3-vl-235b-a22b-instruct",
-          "tool_call": false,
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text",
+              "image"
+            ]
+          },
+          "tool_call": true,
           "reasoning": {
             "supported": false
           }
@@ -31576,15 +32794,71 @@
           "id": "qwen3-vl-235b-a22b-thinking",
           "name": "qwen3-vl-235b-a22b-thinking",
           "display_name": "qwen3-vl-235b-a22b-thinking",
-          "tool_call": false,
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text",
+              "image"
+            ]
+          },
+          "tool_call": true,
           "reasoning": {
-            "supported": false
+            "supported": true
           }
         },
         {
           "id": "qwen3-vl-plus",
           "name": "qwen3-vl-plus",
           "display_name": "qwen3-vl-plus",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text",
+              "image"
+            ]
+          },
+          "tool_call": true,
+          "reasoning": {
+            "supported": false
+          }
+        },
+        {
+          "id": "sonar",
+          "name": "sonar",
+          "display_name": "sonar",
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          }
+        },
+        {
+          "id": "sonar-pro",
+          "name": "sonar-pro",
+          "display_name": "sonar-pro",
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          }
+        },
+        {
+          "id": "sonar-reasoning",
+          "name": "sonar-reasoning",
+          "display_name": "sonar-reasoning",
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          }
+        },
+        {
+          "id": "sonar-reasoning-pro",
+          "name": "sonar-reasoning-pro",
+          "display_name": "sonar-reasoning-pro",
           "tool_call": false,
           "reasoning": {
             "supported": false
@@ -31594,6 +32868,15 @@
           "id": "sora-2",
           "name": "sora-2",
           "display_name": "sora-2",
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          }
+        },
+        {
+          "id": "sora-2-hd",
+          "name": "sora-2-hd",
+          "display_name": "sora-2-hd",
           "tool_call": false,
           "reasoning": {
             "supported": false
@@ -31639,6 +32922,15 @@
           "id": "text-babbage-001",
           "name": "text-babbage-001",
           "display_name": "text-babbage-001",
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          }
+        },
+        {
+          "id": "text-curie-001",
+          "name": "text-curie-001",
+          "display_name": "text-curie-001",
           "tool_call": false,
           "reasoning": {
             "supported": false
@@ -31732,9 +33024,52 @@
           }
         },
         {
+          "id": "text-embedding-v1",
+          "name": "text-embedding-v1",
+          "display_name": "text-embedding-v1",
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          }
+        },
+        {
           "id": "text-embedding-v4",
           "name": "text-embedding-v4",
           "display_name": "text-embedding-v4",
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          }
+        },
+        {
+          "id": "text-moderation-007",
+          "name": "text-moderation",
+          "display_name": "text-moderation",
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          }
+        },
+        {
+          "id": "text-moderation-latest",
+          "name": "text-moderation",
+          "display_name": "text-moderation",
           "tool_call": false,
           "reasoning": {
             "supported": false
@@ -31744,6 +33079,15 @@
           "id": "text-moderation-stable",
           "name": "text-moderation",
           "display_name": "text-moderation",
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          }
+        },
+        {
+          "id": "text-search-ada-doc-001",
+          "name": "text-search-ada-doc-001",
+          "display_name": "text-search-ada-doc-001",
           "tool_call": false,
           "reasoning": {
             "supported": false
@@ -31767,7 +33111,41 @@
           }
         },
         {
+          "id": "tts-1-1106",
+          "name": "tts-1",
+          "display_name": "tts-1",
+          "modalities": {
+            "input": [
+              "audio"
+            ],
+            "output": [
+              "audio"
+            ]
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          }
+        },
+        {
           "id": "tts-1-hd",
+          "name": "tts-1-hd",
+          "display_name": "tts-1-hd",
+          "modalities": {
+            "input": [
+              "audio"
+            ],
+            "output": [
+              "audio"
+            ]
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          }
+        },
+        {
+          "id": "tts-1-hd-1106",
           "name": "tts-1-hd",
           "display_name": "tts-1-hd",
           "modalities": {
@@ -31863,9 +33241,40 @@
           }
         },
         {
+          "id": "veo3",
+          "name": "veo3",
+          "display_name": "veo3",
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "audio",
+              "video"
+            ],
+            "output": [
+              "text",
+              "image",
+              "audio",
+              "video"
+            ]
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          }
+        },
+        {
           "id": "whisper-1",
           "name": "whisper-1",
           "display_name": "whisper-1",
+          "modalities": {
+            "input": [
+              "audio"
+            ],
+            "output": [
+              "audio"
+            ]
+          },
           "tool_call": false,
           "reasoning": {
             "supported": false
@@ -31875,6 +33284,14 @@
           "id": "whisper-large-v3",
           "name": "whisper-large",
           "display_name": "whisper-large",
+          "modalities": {
+            "input": [
+              "audio"
+            ],
+            "output": [
+              "audio"
+            ]
+          },
           "tool_call": false,
           "reasoning": {
             "supported": false
@@ -32573,6 +33990,15 @@
           }
         },
         {
+          "id": "anthropic/claude-sonnet-4.5",
+          "name": "Anthropic: Claude Sonnet 4.5",
+          "display_name": "Anthropic: Claude Sonnet 4.5",
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          }
+        },
+        {
           "id": "arcee-ai/afm-4.5b",
           "name": "Arcee AI: AFM 4.5B",
           "display_name": "Arcee AI: AFM 4.5B",
@@ -32870,6 +34296,15 @@
           }
         },
         {
+          "id": "deepseek/deepseek-v3.2-exp",
+          "name": "DeepSeek: DeepSeek V3.2 Exp",
+          "display_name": "DeepSeek: DeepSeek V3.2 Exp",
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          }
+        },
+        {
           "id": "deepseek/deepseek-r1",
           "name": "DeepSeek: R1",
           "display_name": "DeepSeek: R1",
@@ -32963,15 +34398,6 @@
           "id": "alpindale/goliath-120b",
           "name": "Goliath 120B",
           "display_name": "Goliath 120B",
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          }
-        },
-        {
-          "id": "google/gemini-flash-1.5-8b",
-          "name": "Google: Gemini 1.5 Flash 8B",
-          "display_name": "Google: Gemini 1.5 Flash 8B",
           "tool_call": false,
           "reasoning": {
             "supported": false
@@ -34625,6 +36051,15 @@
           }
         },
         {
+          "id": "relace/relace-apply-3",
+          "name": "Relace: Relace Apply 3",
+          "display_name": "Relace: Relace Apply 3",
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          }
+        },
+        {
           "id": "undi95/remm-slerp-l2-13b",
           "name": "ReMM SLERP 13B",
           "display_name": "ReMM SLERP 13B",
@@ -34724,9 +36159,9 @@
           }
         },
         {
-          "id": "thedrummer/anubis-pro-105b-v1",
-          "name": "TheDrummer: Anubis Pro 105B V1",
-          "display_name": "TheDrummer: Anubis Pro 105B V1",
+          "id": "thedrummer/cydonia-24b-v4.1",
+          "name": "TheDrummer: Cydonia 24B V4.1",
+          "display_name": "TheDrummer: Cydonia 24B V4.1",
           "tool_call": false,
           "reasoning": {
             "supported": false
