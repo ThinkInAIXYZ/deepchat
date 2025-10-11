@@ -20,6 +20,9 @@ export class ModelConfigHelper {
   private memoryCache: Map<string, IModelConfig> = new Map()
   private cacheInitialized: boolean = false
   private currentVersion: string
+  private static readonly PROVIDER_ID_ALIASES: Record<string, string> = {
+    dashscope: 'alibaba-cn'
+  }
 
   constructor(appVersion: string = '0.0.0') {
     this.modelConfigStore = new ElectronStore<ModelConfigStoreSchema>({
@@ -39,6 +42,12 @@ export class ModelConfigHelper {
     if (meta.lastRefreshVersion !== this.currentVersion) {
       this.refreshDerivedConfigs(meta)
     }
+  }
+
+  private resolveProviderId(providerId: string | undefined): string | undefined {
+    if (!providerId) return undefined
+    const alias = ModelConfigHelper.PROVIDER_ID_ALIASES[providerId]
+    return alias || providerId
   }
 
   private initializeMetaFromLegacyStore(): void {
@@ -284,7 +293,8 @@ export class ModelConfigHelper {
     // 严格匹配：仅当提供 providerId 时从 Provider DB 查找
     if (normProviderId) {
       const db = providerDbLoader.getDb()
-      const provider = db?.providers?.[normProviderId]
+      const resolvedProviderId = this.resolveProviderId(normProviderId)
+      const provider = db?.providers?.[resolvedProviderId!]
       const model = provider?.models.find((m) => m.id === normModelId)
       if (model) {
         finalConfig = {

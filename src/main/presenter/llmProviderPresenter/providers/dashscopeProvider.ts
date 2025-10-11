@@ -9,74 +9,19 @@ import {
   MCPToolDefinition
 } from '@shared/presenter'
 import { OpenAICompatibleProvider } from './openAICompatibleProvider'
+import { modelCapabilities } from '../../configPresenter/modelCapabilities'
 
 export class DashscopeProvider extends OpenAICompatibleProvider {
-  // List of models that support enable_thinking parameter (dual-mode models)
-  private static readonly ENABLE_THINKING_MODELS: string[] = [
-    // Open source versions
-    'qwen3-next-80b-a3b-thinking',
-    'qwen3-235b-a22b',
-    'qwen3-32b',
-    'qwen3-30b-a3b',
-    'qwen3-14b',
-    'qwen3-8b',
-    'qwen3-4b',
-    'qwen3-1.7b',
-    'qwen3-0.6b',
-    // Commercial versions
-    'qwen3-vl-plus',
-    'qwen-plus',
-    'qwen-plus-latest',
-    'qwen-plus-2025-04-28',
-    'qwen-flash',
-    'qwen-flash-2025-07-28',
-    'qwen-turbo',
-    'qwen-turbo-latest',
-    'qwen-turbo-2025-04-28'
-  ]
-
-  // List of models that support enable_search parameter (internet search)
-  private static readonly ENABLE_SEARCH_MODELS: string[] = [
-    'qwen3-max-2025-09-23',
-    'qwen3-max-preview',
-    'qwen-max',
-    'qwen-plus',
-    'qwen-plus-latest',
-    'qwen-plus-2025-07-14',
-    'qwen-flash',
-    'qwen-flash-2025-07-28',
-    'qwen-turbo',
-    'qwen-turbo-latest',
-    'qwen-turbo-2025-07-15',
-    'qwq-plus'
-  ]
-
   constructor(provider: LLM_PROVIDER, configPresenter: IConfigPresenter) {
     super(provider, configPresenter)
   }
 
-  /**
-   * Check if model supports enable_thinking parameter
-   * @param modelId Model ID
-   * @returns boolean Whether enable_thinking is supported
-   */
   private supportsEnableThinking(modelId: string): boolean {
-    const normalizedModelId = modelId.toLowerCase()
-    return DashscopeProvider.ENABLE_THINKING_MODELS.some((supportedModel) =>
-      normalizedModelId.includes(supportedModel)
-    )
+    return modelCapabilities.supportsReasoning(this.provider.id, modelId)
   }
 
-  /**
-   * Check if model supports enable_search parameter
-   * @param modelId Model ID
-   * @returns boolean Whether enable_search is supported
-   */
   private supportsEnableSearch(modelId: string): boolean {
-    const normalizedModelId = modelId.toLowerCase()
-    return DashscopeProvider.ENABLE_SEARCH_MODELS.some((supportedModel) =>
-      normalizedModelId.includes(supportedModel)
-    )
+    return modelCapabilities.supportsSearch(this.provider.id, modelId)
   }
 
   /**
@@ -105,18 +50,25 @@ export class DashscopeProvider extends OpenAICompatibleProvider {
 
         if (shouldAddEnableThinking) {
           modifiedParams.enable_thinking = true
-          if (modelConfig?.thinkingBudget) {
-            modifiedParams.thinking_budget = modelConfig.thinkingBudget
+          const dbBudget = modelCapabilities.getThinkingBudgetRange(
+            this.provider.id,
+            modelId
+          ).default
+          const budget = modelConfig?.thinkingBudget ?? dbBudget
+          if (typeof budget === 'number') {
+            modifiedParams.thinking_budget = budget
           }
         }
 
         if (shouldAddEnableSearch) {
           modifiedParams.enable_search = true
-          if (modelConfig?.forcedSearch) {
+          const dbSearch = modelCapabilities.getSearchDefaults(this.provider.id, modelId)
+          if (modelConfig?.forcedSearch ?? dbSearch.forced) {
             modifiedParams.forced_search = true
           }
-          if (modelConfig?.searchStrategy) {
-            modifiedParams.search_strategy = modelConfig.searchStrategy
+          const strategy = modelConfig?.searchStrategy ?? dbSearch.strategy
+          if (strategy) {
+            modifiedParams.search_strategy = strategy
           }
         }
 
