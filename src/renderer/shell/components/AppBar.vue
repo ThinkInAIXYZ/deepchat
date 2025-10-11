@@ -1,13 +1,14 @@
 <template>
   <div
     class="flex flex-row h-9 min-h-9 bg-window-background border border-b-0 border-window-inner-border box-border rounded-t-[10px] relative overflow-hidden"
+    :class="[!isFullscreened && isMacOS ? '' : ' rounded-t-none']"
     :dir="langStore.dir"
   >
     <div class="absolute bottom-0 left-0 w-full h-[1px] bg-border"></div>
     <div
       class="h-full shrink-0 w-0 flex-1 flex select-none text-center text-sm font-medium flex-row items-center justify-start window-drag-region"
     >
-      <div v-if="!isFullscreened" class="shrink-0 w-20 h-full window-drag-region"></div>
+      <div v-if="!isFullscreened && isMacOS" class="shrink-0 w-20 h-full window-drag-region"></div>
       <!-- App title/content in center -->
       <Button
         v-if="isTabContainerOverflowingLeft"
