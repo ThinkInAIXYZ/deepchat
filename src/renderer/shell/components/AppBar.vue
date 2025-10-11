@@ -128,7 +128,6 @@ import { Button } from '@shadcn/components/ui/button'
 import { Icon } from '@iconify/vue'
 import AppBarTabItem from './app-bar/AppBarTabItem.vue'
 import { useTabStore } from '@shell/stores/tab'
-import { useThemeStore } from '@/stores/theme'
 import { useElementSize } from '@vueuse/core'
 import { useLanguageStore } from '@/stores/language'
 import { useI18n } from 'vue-i18n'
@@ -150,7 +149,6 @@ const isFullscreened = ref(false)
 
 const { ipcRenderer } = window.electron
 
-const themeStore = useThemeStore()
 const tabContainerWrapper = ref<HTMLElement | null>(null)
 const tabContainer = ref<HTMLElement | null>(null)
 
