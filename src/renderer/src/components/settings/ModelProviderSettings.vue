@@ -3,7 +3,7 @@
     <ScrollArea class="w-64 border-r h-full px-2">
       <div class="space-y-4">
         <!-- 搜索框 -->
-        <div class="p-2 sticky top-0 z-10 bg-bg-card">
+        <div class="p-2 sticky top-0 z-10 bg-card">
           <div class="relative">
             <Input
               v-model="searchQueryBase"
@@ -118,9 +118,9 @@
           </draggable>
         </div>
 
-        <div class="sticky bottom-0 z-10 p-2 bg-bg-card" :dir="languageStore.dir">
+        <div class="sticky bottom-0 z-10 p-2 bg-card" :dir="languageStore.dir">
           <button
-            class="w-full flex flex-row items-center gap-2 rounded-lg p-2 bg-bg-card cursor-pointer hover:bg-accent"
+            class="w-full flex flex-row items-center gap-2 rounded-lg p-2 bg-card cursor-pointer hover:bg-accent"
             @click="openAddProviderDialog"
           >
             <Icon icon="lucide:plus" class="w-4 h-4 text-muted-foreground" />

@@ -1,5 +1,5 @@
 <template>
-  <div class="w-screen h-screen" :class="['bg-card']">
+  <div class="w-screen h-screen">
     <AppBar />
     <main class="content-container">
       <!-- WebContentsView will be rendered here by the main process -->

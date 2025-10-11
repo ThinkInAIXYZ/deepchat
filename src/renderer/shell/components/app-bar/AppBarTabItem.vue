@@ -2,8 +2,8 @@
   <div
     ref="tabItem"
     draggable="true"
-    class="shrink-0 hover:bg-bg-card/80 text-xs font-medium text-foreground px-3 h-full flex items-center justify-between transition-all duration-200 group border-r first:border-l border-border"
-    :class="[active ? 'bg-bg-card/60' : '']"
+    class="shrink-0 hover:bg-card/80 text-xs font-medium text-foreground px-3 h-full flex items-center justify-between group border-r first:border-l border-border"
+    :class="[active ? 'bg-card' : '']"
     @dragstart="onDragStart"
     @click="onClick"
   >

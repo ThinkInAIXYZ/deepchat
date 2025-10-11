@@ -322,7 +322,9 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="flex flex-col h-screen border border-window-inner-border rounded-b-[10px] bg-card">
+  <div
+    class="flex flex-col h-screen border-x border-b border-window-inner-border rounded-b-[10px] bg-background"
+  >
     <div class="flex flex-row h-0 grow relative overflow-hidden px-px py-px" :dir="langStore.dir">
       <!-- Main content area -->
 

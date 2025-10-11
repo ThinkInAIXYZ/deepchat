@@ -4,7 +4,7 @@
       'search-status-indicator flex items-center gap-2 px-2 rounded-lg border text-xs leading-4 transition-colors duration-150',
       containerClasses,
       interactive
-        ? 'cursor-pointer hover:bg-accent/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent'
+        ? 'cursor-pointer hover:bg-accent/40 focus-visible:outline focus-visible:outline-offset-2 focus-visible:outline-accent'
         : 'cursor-default'
     ]"
   >
@@ -71,11 +71,11 @@ const containerClasses = computed(() => {
     case 'error':
       return 'border-destructive/40 bg-destructive/5 text-destructive'
     case 'success':
-      return 'border-border/50 bg-muted/40 text-muted-foreground'
+      return 'border-border/50 bg-muted  text-muted-foreground'
     case 'neutral':
-      return 'border-border/40 bg-muted/30 text-muted-foreground'
+      return 'border-border/40 bg-muted text-muted-foreground'
     default:
-      return 'border-border/40 bg-background/40 text-foreground'
+      return 'border-border/40 bg-muted text-foreground'
   }
 })
 

@@ -115,7 +115,7 @@
       </div>
 
       <!-- 自定义提示词区域 -->
-      <div class="bg-bg-card border border-border rounded-lg p-4">
+      <div class="bg-card border border-border rounded-lg p-4">
         <div class="flex items-center justify-between mb-3">
           <div class="flex items-center gap-2">
             <Icon icon="lucide:book-open-text" class="w-5 h-5 text-primary" />

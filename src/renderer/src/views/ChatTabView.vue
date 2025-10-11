@@ -14,7 +14,7 @@
           <NewThread v-if="!chatStore.getActiveThreadId()" />
           <template v-else>
             <!-- 标题栏 -->
-            <TitleView @messageNavigationToggle="handleMessageNavigationToggle" />
+            <!-- <TitleView @messageNavigationToggle="handleMessageNavigationToggle" /> -->
 
             <!-- 聊天内容区域 -->
             <ChatView ref="chatViewRef" />
@@ -75,7 +75,6 @@ import { useArtifactStore } from '@/stores/artifact'
 import ArtifactDialog from '@/components/artifacts/ArtifactDialog.vue'
 import MessageNavigationSidebar from '@/components/MessageNavigationSidebar.vue'
 import { useRoute } from 'vue-router'
-const TitleView = defineAsyncComponent(() => import('@/components/TitleView.vue'))
 const ChatView = defineAsyncComponent(() => import('@/components/ChatView.vue'))
 const NewThread = defineAsyncComponent(() => import('@/components/NewThread.vue'))
 const artifactStore = useArtifactStore()
@@ -116,15 +115,6 @@ watch(
 // 点击外部区域关闭侧边栏
 const isLargeScreen = useMediaQuery('(min-width: 1024px)')
 
-const handleMessageNavigationToggle = () => {
-  if (artifactStore.isOpen) {
-    artifactStore.isOpen = false
-    chatStore.isMessageNavigationOpen = true
-  } else {
-    chatStore.isMessageNavigationOpen = !chatStore.isMessageNavigationOpen
-  }
-}
-
 /**
  * 处理滚动到指定消息
  */
@@ -134,9 +124,7 @@ const handleScrollToMessage = (messageId: string) => {
 
     // 在小屏幕模式下，滚动完成后延迟关闭导航
     if (!isLargeScreen.value && chatStore.isMessageNavigationOpen) {
-      setTimeout(() => {
-        chatStore.isMessageNavigationOpen = false
-      }, 1000) // 延迟1秒关闭，让用户看到滚动效果
+      chatStore.isMessageNavigationOpen = false
     }
   }
 }
