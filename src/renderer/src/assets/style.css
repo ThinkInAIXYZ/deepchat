@@ -317,9 +317,9 @@
 
     --color-container: var(--container);
     --color-background: var(--background);
-    --color-bg-card: var(--bg-card);
+    --color-card: var(--bg-card);
     --color-foreground: var(--foreground);
-    --color-card: var(--card);
+    /* --color-card: var(--card); */
     --color-card-foreground: var(--card-foreground);
     --color-popover: var(--popover);
     --color-popover-foreground: var(--popover-foreground);
@@ -797,7 +797,7 @@
   }
 
   body {
-    background-color: var(--background);
+    /* background-color: var(--background); */
     color: var(--foreground);
     font-weight: var(--text-weight);
   }

@@ -4,7 +4,7 @@
     :class="[!isFullscreened && isMacOS ? '' : ' rounded-t-none']"
     :dir="langStore.dir"
   >
-    <div class="absolute bottom-0 left-0 w-full h-[1px] bg-border"></div>
+    <!-- <div class="absolute bottom-0 left-0 w-full h-[1px] bg-border"></div> -->
     <div
       class="h-full shrink-0 w-0 flex-1 flex select-none text-center text-sm font-medium flex-row items-center justify-start window-drag-region"
     >
@@ -73,21 +73,21 @@
 
       <Button
         size="icon"
-        class="window-no-drag-region shrink-0 w-10 bg-transparent shadow-none rounded-none hover:bg-bg-card/80 text-xs font-medium text-foreground flex items-center justify-center transition-all duration-200 group"
+        class="window-no-drag-region shrink-0 w-10 bg-transparent shadow-none rounded-none hover:bg-bg-card/80 text-xs font-medium text-foreground flex items-center justify-center transition-all duration-200 group border-l"
         @click="onHistoryClick"
       >
         <Icon icon="lucide:history" class="w-4 h-4" />
       </Button>
       <Button
         variant="ghost"
-        class="window-no-drag-region shrink-0 w-10 bg-transparent shadow-none rounded-none hover:bg-bg-card/80 text-xs font-medium text-foreground flex items-center justify-center transition-all duration-200 group"
+        class="window-no-drag-region shrink-0 w-10 bg-transparent shadow-none rounded-none hover:bg-bg-card/80 text-xs font-medium text-foreground flex items-center justify-center transition-all duration-200 group border-l"
         @click="openSettings"
       >
         <Icon icon="lucide:ellipsis" class="w-4 h-4" />
       </Button>
       <Button
         v-if="!isMacOS"
-        class="window-no-drag-region shrink-0 w-12 bg-transparent shadow-none rounded-none hover:bg-bg-card/80 text-xs font-medium text-foreground flex items-center justify-center transition-all duration-200 group"
+        class="window-no-drag-region shrink-0 w-12 bg-transparent shadow-none rounded-none hover:bg-bg-card/80 text-xs font-medium text-foreground flex items-center justify-center transition-all duration-200 group border-l"
         @click="minimizeWindow"
       >
         <MinimizeIcon class="h-3! w-3!" />
