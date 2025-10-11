@@ -3,12 +3,10 @@
     :data-message-id="message.id"
     class="flex flex-row py-4 pl-4 pr-11 group gap-2 w-full justify-start assistant-message-item"
   >
-    <div
-      class="shrink-0 w-5 h-5 flex items-center justify-center bg-base-900/5 dark:bg-base-100/10 border border-input rounded-md"
-    >
+    <div class="shrink-0 w-5 h-5 flex items-center justify-center">
       <ModelIcon
         :model-id="currentMessage.model_provider"
-        custom-class="w-3 h-3"
+        custom-class="w-[18px] h-[18px]"
         :is-dark="themeStore.isDark"
         :alt="currentMessage.role"
       />
@@ -16,13 +14,7 @@
 
     <div class="flex flex-col w-full space-y-1.5">
       <MessageInfo :name="currentMessage.model_name" :timestamp="currentMessage.timestamp" />
-      <div
-        v-if="currentContent.length === 0"
-        class="flex flex-row items-center gap-2 text-xs text-muted-foreground"
-      >
-        <Icon icon="lucide:loader-circle" class="w-4 h-4 animate-spin" />
-        {{ t('chat.messages.thinking') }}
-      </div>
+      <Spinner v-if="currentContent.length === 0" class="size-3 text-muted-foreground" />
       <div v-else class="flex flex-col w-full space-y-2">
         <template v-for="(block, idx) in currentContent" :key="`${message.id}-${idx}`">
           <MessageBlockContent
@@ -124,7 +116,7 @@ import MessageInfo from './MessageInfo.vue'
 import { useChatStore } from '@/stores/chat'
 import { useSettingsStore } from '@/stores/settings'
 import ModelIcon from '@/components/icons/ModelIcon.vue'
-import { Icon } from '@iconify/vue'
+import { Spinner } from '@shadcn/components/ui/spinner'
 import MessageBlockAction from './MessageBlockAction.vue'
 import { useI18n } from 'vue-i18n'
 import MessageBlockImage from './MessageBlockImage.vue'

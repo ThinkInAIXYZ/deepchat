@@ -36,7 +36,7 @@ export const useChatStore = defineStore('chat', () => {
       dtThreads: CONVERSATION[]
     }[]
   >([])
-  const messagesMap = ref<Map<number, AssistantMessage[] | UserMessage[]>>(new Map())
+  const messagesMap = ref<Map<number, Array<AssistantMessage | UserMessage>>>(new Map())
   const generatingThreadIds = ref(new Set<string>())
   const isSidebarOpen = ref(false)
   const isMessageNavigationOpen = ref(false)
@@ -87,7 +87,7 @@ export const useChatStore = defineStore('chat', () => {
     activeThreadIdMap.value.set(getTabId(), threadId)
   }
   const getMessages = () => messagesMap.value.get(getTabId()) ?? []
-  const setMessages = (msgs: AssistantMessage[] | UserMessage[]) => {
+  const setMessages = (msgs: Array<AssistantMessage | UserMessage>) => {
     messagesMap.value.set(getTabId(), msgs)
   }
   const getCurrentThreadMessages = () => {
@@ -112,7 +112,7 @@ export const useChatStore = defineStore('chat', () => {
     return threads.value.flatMap((t) => t.dtThreads).find((t) => t.id === getActiveThreadId())
   })
 
-  const variantAwareMessages = computed(() => {
+  const variantAwareMessages = computed((): Array<AssistantMessage | UserMessage> => {
     const messages = getMessages()
     const currentSelectedVariants = selectedVariantsMap.value
 
@@ -146,7 +146,7 @@ export const useChatStore = defineStore('chat', () => {
       }
 
       return msg
-    }) as AssistantMessage[] | UserMessage[]
+    }) as Array<AssistantMessage | UserMessage>
   })
 
   // Actions
@@ -592,34 +592,32 @@ export const useChatStore = defineStore('chat', () => {
         // 处理普通内容
         else if (msg.content) {
           const lastContentBlock = curMsg.content[curMsg.content.length - 1]
-          if (lastContentBlock && lastContentBlock.type === 'content') {
-            lastContentBlock.content += msg.content
-            // 打字机音效，与实际数据流同步
-            playTypewriterSound()
-          } else {
-            if (lastContentBlock) {
-              lastContentBlock.status = 'success'
+          if (lastContentBlock) {
+            lastContentBlock.status = 'success'
+            if (lastContentBlock.type === 'content') {
+              lastContentBlock.content += msg.content
             }
+          } else {
             curMsg.content.push({
               type: 'content',
               content: msg.content,
               status: 'loading',
               timestamp: Date.now()
             })
-            // 如果是新块的第一个字符，也播放声音
-            playTypewriterSound()
           }
+          // 打字机音效，与实际数据流同步
+          playTypewriterSound()
         }
 
         // 处理推理内容
         if (msg.reasoning_content) {
           const lastReasoningBlock = curMsg.content[curMsg.content.length - 1]
-          if (lastReasoningBlock && lastReasoningBlock.type === 'reasoning_content') {
-            lastReasoningBlock.content += msg.reasoning_content
-          } else {
-            if (lastReasoningBlock) {
-              lastReasoningBlock.status = 'success'
+          if (lastReasoningBlock) {
+            lastReasoningBlock.status = 'success'
+            if (lastReasoningBlock.type === 'reasoning_content') {
+              lastReasoningBlock.content += msg.reasoning_content
             }
+          } else {
             curMsg.content.push({
               type: 'reasoning_content',
               content: msg.reasoning_content,
@@ -727,63 +725,62 @@ export const useChatStore = defineStore('chat', () => {
     // 从缓存中获取消息
     const cached = getGeneratingMessagesCache().get(msg.eventId)
     if (cached) {
-      if (getActiveThreadId() === getActiveThreadId()) {
-        try {
-          const updatedMessage = await threadP.getMessage(msg.eventId)
-          const enrichedMessage = await enrichMessageWithExtra(updatedMessage)
+      try {
+        const updatedMessage = await threadP.getMessage(msg.eventId)
+        const enrichedMessage = await enrichMessageWithExtra(updatedMessage)
 
-          if (enrichedMessage.is_variant && enrichedMessage.parentId) {
-            // 处理变体消息的错误状态
-            const parentMsgIndex = getMessages().findIndex((m) => m.id === enrichedMessage.parentId)
-            if (parentMsgIndex !== -1) {
-              const parentMsg = getMessages()[parentMsgIndex] as AssistantMessage
-              if (!parentMsg.variants) {
-                parentMsg.variants = []
-              }
-              const variantIndex = parentMsg.variants.findIndex((v) => v.id === enrichedMessage.id)
-              if (variantIndex !== -1) {
-                parentMsg.variants[variantIndex] = enrichedMessage
-              } else {
-                parentMsg.variants.push(enrichedMessage)
-              }
-              getMessages()[parentMsgIndex] = { ...parentMsg }
+        if (enrichedMessage.is_variant && enrichedMessage.parentId) {
+          // 处理变体消息的错误状态
+          const parentMsgIndex = getMessages().findIndex((m) => m.id === enrichedMessage.parentId)
+          if (parentMsgIndex !== -1) {
+            const parentMsg = getMessages()[parentMsgIndex] as AssistantMessage
+            if (!parentMsg.variants) {
+              parentMsg.variants = []
             }
-          } else {
-            // 非变体消息的原有错误处理逻辑
-            const messageIndex = getMessages().findIndex((m) => m.id === msg.eventId)
-            if (messageIndex !== -1) {
-              getMessages()[messageIndex] = enrichedMessage as AssistantMessage | UserMessage
+            const variantIndex = parentMsg.variants.findIndex((v) => v.id === enrichedMessage.id)
+            if (variantIndex !== -1) {
+              parentMsg.variants[variantIndex] = enrichedMessage
+            } else {
+              parentMsg.variants.push(enrichedMessage)
             }
+            getMessages()[parentMsgIndex] = { ...parentMsg }
           }
-          const wid = window.api.getWindowId() || 0
-          // 检查窗口是否聚焦，如果未聚焦则发送错误通知
-          const isFocused = await windowP.isMainWindowFocused(wid)
-          if (!isFocused) {
-            // 获取错误信息
-            let errorMessage = t('chat.notify.generationError')
-            if (enrichedMessage && (enrichedMessage as AssistantMessage).content) {
-              const assistantMsg = enrichedMessage as AssistantMessage
-              // 查找错误信息块
-              for (const block of assistantMsg.content) {
-                if (block.status === 'error' && block.content) {
-                  errorMessage = block.content.substring(0, 20)
-                  if (block.content.length > 20) errorMessage += '...'
-                  break
-                }
-              }
-            }
-
-            // 发送错误通知
-            await notificationP.showNotification({
-              id: `error-${msg.eventId}`,
-              title: t('chat.notify.generationError'),
-              body: errorMessage
-            })
+        } else {
+          // 非变体消息的原有错误处理逻辑
+          const messageIndex = getMessages().findIndex((m) => m.id === msg.eventId)
+          if (messageIndex !== -1) {
+            getMessages()[messageIndex] = enrichedMessage as AssistantMessage | UserMessage
           }
-        } catch (error) {
-          console.error('Failed to load error message:', error)
         }
+        const wid = window.api.getWindowId() || 0
+        // 检查窗口是否聚焦，如果未聚焦则发送错误通知
+        const isFocused = await windowP.isMainWindowFocused(wid)
+        if (!isFocused) {
+          // 获取错误信息
+          let errorMessage = t('chat.notify.generationError')
+          if (enrichedMessage && (enrichedMessage as AssistantMessage).content) {
+            const assistantMsg = enrichedMessage as AssistantMessage
+            // 查找错误信息块
+            for (const block of assistantMsg.content) {
+              if (block.status === 'error' && block.content) {
+                errorMessage = block.content.substring(0, 20)
+                if (block.content.length > 20) errorMessage += '...'
+                break
+              }
+            }
+          }
+
+          // 发送错误通知
+          await notificationP.showNotification({
+            id: `error-${msg.eventId}`,
+            title: t('chat.notify.generationError'),
+            body: errorMessage
+          })
+        }
+      } catch (error) {
+        console.error('Failed to load error message:', error)
       }
+
       getGeneratingMessagesCache().delete(msg.eventId)
       generatingThreadIds.value.delete(cached.threadId)
       // 设置会话的workingStatus为error
@@ -921,7 +918,7 @@ export const useChatStore = defineStore('chat', () => {
       const cache = getGeneratingMessagesCache()
       const generatingMessage = Array.from(cache.entries()).find(
         ([, cached]) => cached.threadId === threadId
-      )
+      ) as string[]
       if (generatingMessage) {
         const [messageId] = generatingMessage
         await threadP.stopMessageGeneration(messageId)

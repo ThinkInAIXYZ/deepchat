@@ -8,30 +8,6 @@
       ]"
     >
       <div class="flex h-full">
-        <!-- 会话列表 (根据语言方向自适应位置) -->
-        <Transition
-          enter-active-class="transition-all duration-300 ease-out"
-          leave-active-class="transition-all duration-300 ease-in"
-          :enter-from-class="
-            langStore.dir === 'rtl' ? 'translate-x-full opacity-0' : '-translate-x-full opacity-0'
-          "
-          :leave-to-class="
-            langStore.dir === 'rtl' ? 'translate-x-full opacity-0' : '-translate-x-full opacity-0'
-          "
-        >
-          <div
-            v-show="chatStore.isSidebarOpen"
-            ref="sidebarRef"
-            :class="[
-              'w-60 max-w-60 h-full fixed z-20 lg:relative',
-              langStore.dir === 'rtl' ? 'right-0' : 'left-0'
-            ]"
-            :dir="langStore.dir"
-          >
-            <ThreadsView class="transform" />
-          </div>
-        </Transition>
-
         <!-- 主聊天区域 -->
         <div class="flex-1 flex flex-col w-0">
           <!-- 新会话 -->
@@ -73,7 +49,7 @@
           <div class="flex-1" @click="chatStore.isMessageNavigationOpen = false"></div>
 
           <!-- 侧边栏 -->
-          <div ref="messageNavigationRef" class="w-80 max-w-80">
+          <div class="w-80 max-w-80">
             <MessageNavigationSidebar
               :messages="chatStore.variantAwareMessages"
               :is-open="chatStore.isMessageNavigationOpen"
@@ -94,13 +70,11 @@
 import { defineAsyncComponent } from 'vue'
 import { useChatStore } from '@/stores/chat'
 import { watch, ref } from 'vue'
-import { onClickOutside, useTitle, useMediaQuery } from '@vueuse/core'
+import { useTitle, useMediaQuery } from '@vueuse/core'
 import { useArtifactStore } from '@/stores/artifact'
 import ArtifactDialog from '@/components/artifacts/ArtifactDialog.vue'
 import MessageNavigationSidebar from '@/components/MessageNavigationSidebar.vue'
 import { useRoute } from 'vue-router'
-import { useLanguageStore } from '@/stores/language'
-const ThreadsView = defineAsyncComponent(() => import('@/components/ThreadsView.vue'))
 const TitleView = defineAsyncComponent(() => import('@/components/TitleView.vue'))
 const ChatView = defineAsyncComponent(() => import('@/components/ChatView.vue'))
 const NewThread = defineAsyncComponent(() => import('@/components/NewThread.vue'))
@@ -108,7 +82,6 @@ const artifactStore = useArtifactStore()
 const route = useRoute()
 const chatStore = useChatStore()
 const title = useTitle()
-const langStore = useLanguageStore()
 const chatViewRef = ref()
 // 添加标题更新逻辑
 const updateTitle = () => {
@@ -141,20 +114,7 @@ watch(
 )
 
 // 点击外部区域关闭侧边栏
-const sidebarRef = ref<HTMLElement>()
-const messageNavigationRef = ref<HTMLElement>()
 const isLargeScreen = useMediaQuery('(min-width: 1024px)')
-
-onClickOutside(sidebarRef, (event) => {
-  const isClickInMessageNavigation = messageNavigationRef.value?.contains(event.target as Node)
-
-  if (chatStore.isSidebarOpen && !isLargeScreen.value) {
-    chatStore.isSidebarOpen = false
-  }
-  if (chatStore.isMessageNavigationOpen && !isLargeScreen.value && !isClickInMessageNavigation) {
-    chatStore.isMessageNavigationOpen = false
-  }
-})
 
 const handleMessageNavigationToggle = () => {
   if (artifactStore.isOpen) {

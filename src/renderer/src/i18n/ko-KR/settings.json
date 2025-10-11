@@ -157,41 +157,13 @@
       },
       "thinkingBudget": {
         "label": "사고 예산",
+        "description": "사고 과정의 최대 토큰 길이를 설정하여 추론 깊이를 제어",
+        "placeholder": "사고 예산 값을 입력",
         "range": "범위: {min} - {max}",
-        "gemini": {
-          "description": "모델 사고 길이 제한",
-          "dynamic": "동적 사고",
-          "onlySupported": "Gemini 2.5 Flash, 2.5 Pro 및 2.5 Flash-Lite에서만 지원",
-          "valueLabel": "사고 예산 값",
-          "placeholder": "사고 예산 값 입력",
-          "forceEnabled": "Gemini 2.5 시리즈 모델은 사고 예산을 강제로 활성화합니다",
-          "dynamicPrefix": "-1 = 동적 사고",
-          "notice": "주의: ",
-          "warnings": {
-            "proNoDisable": "이 모델은 사고 비활성화를 지원하지 않습니다, 최소값 128",
-            "proCannotDisable": "Gemini 2.5 Pro는 사고 기능을 비활성화할 수 없습니다",
-            "flashLiteCannotSetZero": "Gemini 2.5 Flash-Lite는 0으로 설정할 수 없습니다, 최소값은 512",
-            "modelCannotDisable": "이 모델은 사고 기능을 비활성화할 수 없습니다",
-            "flashLiteMinValue": "사고 예산을 구체적인 값으로 설정할 때 512 미만일 수 없습니다 (또는 0으로 사고 비활성화, -1로 동적 사고 활성화)",
-            "belowMin": "사고 예산은 {min} 미만일 수 없습니다{hint}",
-            "aboveMax": "사고 예산은 {max}를 초과할 수 없습니다"
-          },
-          "hints": {
-            "flashLiteDisable": ", 0 = 사고 비활성화, 구체적인 값 최소 512",
-            "normalDisable": ", 0 = 사고 비활성화",
-            "withZeroAndDynamic": "(또는 0으로 사고 비활성화, -1로 동적 사고 활성화)",
-            "withDynamic": "(또는 -1로 동적 사고 활성화)"
-          }
-        },
-        "qwen3": {
-          "description": "사고 과정의 최대 토큰 길이를 설정하여 모델 추론의 깊이를 제어합니다",
-          "valueLabel": "사고 예산 값",
-          "placeholder": "사고 예산 값을 입력하세요",
-          "validation": {
-            "required": "사고 예산 값을 입력하세요",
-            "minValue": "사고 예산 값은 1 이상이어야 합니다",
-            "maxValue": "사고 예산 값은 {max}를 초과할 수 없습니다"
-          }
+        "validation": {
+          "required": "사고 예산 값을 입력하세요",
+          "minValue": "값이 최소값보다 작습니다",
+          "maxValue": "값은 {max}를 초과할 수 없습니다"
         }
       },
       "resetConfirm": {

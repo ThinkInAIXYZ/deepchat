@@ -1,10 +1,7 @@
 <template>
-  <div class="flex flex-row items-center gap-2 min-h-5">
+  <div class="flex flex-row items-center gap-2 h-4">
     <span class="text-xs font-bold text-foreground">{{ name }}</span>
-    <span
-      class="text-xs text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity"
-      >{{ formattedTime }}</span
-    >
+    <span class="text-xs text-text-secondary-foreground">{{ formattedTime }}</span>
   </div>
 </template>
 

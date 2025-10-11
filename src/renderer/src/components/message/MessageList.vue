@@ -2,17 +2,22 @@
   <div class="w-full h-full relative min-h-0">
     <div
       ref="messagesContainer"
-      class="message-list-container relative flex-1 overflow-y-auto scroll-smooth w-full h-full"
+      class="message-list-container relative flex-1 overflow-y-auto scroll-smooth w-full h-full pr-16 lg:pr-24"
+      @scroll="handleScroll"
     >
       <div
         ref="messageList"
-        class="w-full break-all transition-opacity duration-300 px-4"
+        class="w-full break-all transition-opacity duration-300"
         :class="{ 'opacity-0': !visible }"
       >
-        <template v-for="(msg, index) in messages" :key="msg.id">
+        <div
+          v-for="(msg, index) in messages"
+          :key="msg.id"
+          @mouseenter="handleMessageHover(msg.id)"
+          @mouseleave="handleMessageHover(null)"
+        >
           <MessageItemAssistant
             v-if="msg.role === 'assistant'"
-            :key="index"
             :ref="setAssistantRef(index)"
             :message="msg as AssistantMessage"
             :is-capturing-image="isCapturingImage"
@@ -20,13 +25,12 @@
             @variant-changed="scrollToMessage"
           />
           <MessageItemUser
-            v-if="msg.role === 'user'"
-            :key="index"
+            v-else-if="msg.role === 'user'"
             :message="msg as UserMessage"
             @retry="handleRetry(index)"
             @scroll-to-bottom="scrollToBottom"
           />
-        </template>
+        </div>
       </div>
       <div ref="scrollAnchor" class="h-8" />
     </div>
@@ -90,6 +94,14 @@
       :content="referenceStore.currentReference"
       :rect="referenceStore.previewRect"
     />
+    <MessageMinimap
+      v-if="messages.length > 0"
+      :messages="messages"
+      :hovered-message-id="hoveredMessageId"
+      :scroll-info="scrollInfo"
+      @bar-hover="handleMinimapHover"
+      @bar-click="handleMinimapClick"
+    />
   </div>
 </template>
 
@@ -108,10 +120,11 @@ import ReferencePreview from './ReferencePreview.vue'
 import { useThemeStore } from '@/stores/theme'
 import { usePageCapture } from '@/composables/usePageCapture'
 import { usePresenter } from '@/composables/usePresenter'
+import MessageMinimap from './MessageMinimap.vue'
 
 const { t } = useI18n()
 const props = defineProps<{
-  messages: UserMessage[] | AssistantMessage[]
+  messages: Array<UserMessage | AssistantMessage>
 }>()
 const themeStore = useThemeStore()
 const referenceStore = useReferenceStore()
@@ -127,6 +140,12 @@ const messagesContainer = ref<HTMLDivElement>()
 const messageList = ref<HTMLDivElement>()
 const scrollAnchor = ref<HTMLDivElement>()
 const visible = ref(false)
+const hoveredMessageId = ref<string | null>(null)
+const scrollInfo = reactive({
+  viewportHeight: 0,
+  contentHeight: 0,
+  scrollTop: 0
+})
 
 // Store refs as Record to avoid type checking issues
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -138,6 +157,30 @@ const setAssistantRef = (index: number) => (el: any) => {
   if (el) {
     assistantRefs[index] = el
   }
+}
+
+const handleMessageHover = (messageId: string | null) => {
+  hoveredMessageId.value = messageId
+}
+
+const handleMinimapHover = (messageId: string | null) => {
+  hoveredMessageId.value = messageId
+}
+
+const handleMinimapClick = (messageId: string) => {
+  scrollToMessage(messageId)
+}
+
+const updateScrollInfo = () => {
+  const container = messagesContainer.value
+  if (!container) return
+  scrollInfo.viewportHeight = container.clientHeight
+  scrollInfo.contentHeight = container.scrollHeight
+  scrollInfo.scrollTop = container.scrollTop
+}
+
+const handleScroll = () => {
+  updateScrollInfo()
 }
 
 /**
@@ -286,6 +329,7 @@ const scrollToBottom = (smooth = false) => {
         block: 'end'
       })
     }
+    updateScrollInfo()
   })
 }
 
@@ -307,6 +351,7 @@ const scrollToMessage = (messageId: string) => {
         messageElement.classList.remove('message-highlight')
       }, 2000)
     }
+    updateScrollInfo()
   })
 }
 
@@ -321,6 +366,7 @@ onMounted(() => {
     nextTick(() => {
       visible.value = true
       setupScrollObserver()
+      updateScrollInfo()
     })
   }, 100)
 
@@ -332,8 +378,18 @@ onMounted(() => {
       if (lastMessage?.status === 'pending' && !aboveThreshold.value) {
         nextTick(() => {
           scrollToBottom()
+          updateScrollInfo()
         })
       }
+    }
+  )
+
+  watch(
+    () => props.messages.length,
+    () => {
+      nextTick(() => {
+        updateScrollInfo()
+      })
     }
   )
 })
@@ -357,6 +413,7 @@ const setupScrollObserver = () => {
     (entries) => {
       const entry = entries[0]
       aboveThreshold.value = !entry.isIntersecting
+      updateScrollInfo()
     },
     {
       root: messagesContainer.value,
@@ -368,6 +425,8 @@ const setupScrollObserver = () => {
   if (scrollAnchor.value) {
     intersectionObserver.observe(scrollAnchor.value)
   }
+
+  updateScrollInfo()
 }
 
 const showCancelButton = computed(() => {

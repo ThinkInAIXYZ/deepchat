@@ -72,40 +72,39 @@
 
       <Button
         size="icon"
-        class="window-no-drag-region shrink-0 w-10 bg-transparent shadow-none rounded-none hover:bg-bg-card/80 text-xs font-medium text-foreground flex items-center justify-center transition-all duration-200 group border-r border-l border-border"
+        class="window-no-drag-region shrink-0 w-10 bg-transparent shadow-none rounded-none hover:bg-bg-card/80 text-xs font-medium text-foreground flex items-center justify-center transition-all duration-200 group"
         @click="onHistoryClick"
       >
-        <!-- TODO: add history click event -->
         <Icon icon="lucide:history" class="w-4 h-4" />
       </Button>
       <Button
-        size="icon"
-        class="window-no-drag-region shrink-0 w-10 bg-transparent shadow-none rounded-none hover:bg-bg-card/80 text-xs font-medium text-foreground flex items-center justify-center transition-all duration-200 group not-last:border-r border-border"
+        variant="ghost"
+        class="window-no-drag-region shrink-0 w-10 bg-transparent shadow-none rounded-none hover:bg-bg-card/80 text-xs font-medium text-foreground flex items-center justify-center transition-all duration-200 group"
         @click="openSettings"
       >
         <Icon icon="lucide:ellipsis" class="w-4 h-4" />
       </Button>
       <Button
         v-if="!isMacOS"
-        class="window-no-drag-region shrink-0 inline-flex items-center justify-center h-full w-12 hover:bg-zinc-500/20"
+        class="window-no-drag-region shrink-0 w-12 bg-transparent shadow-none rounded-none hover:bg-bg-card/80 text-xs font-medium text-foreground flex items-center justify-center transition-all duration-200 group"
         @click="minimizeWindow"
       >
-        <MinimizeIcon class="h-3 w-3" />
+        <MinimizeIcon class="h-3! w-3!" />
       </Button>
       <Button
         v-if="!isMacOS"
-        class="window-no-drag-region shrink-0 inline-flex items-center justify-center h-full w-12 hover:bg-zinc-500/20"
+        class="window-no-drag-region shrink-0 w-12 bg-transparent shadow-none rounded-none hover:bg-bg-card/80 text-xs font-medium text-foreground flex items-center justify-center transition-all duration-200 group"
         @click="toggleMaximize"
       >
-        <MaximizeIcon v-if="!isMaximized" class="h-3 w-3" />
-        <RestoreIcon v-else class="h-3 w-3" />
+        <MaximizeIcon v-if="!isMaximized" class="h-3! w-3!" />
+        <RestoreIcon v-else class="h-3! w-3!" />
       </Button>
       <Button
         v-if="!isMacOS"
-        class="window-no-drag-region shrink-0 inline-flex items-center justify-center h-full w-12 hover:bg-destructive hover:text-destructive-foreground"
+        class="window-no-drag-region shrink-0 w-12 bg-transparent shadow-none rounded-none hover:bg-bg-card/80 text-xs font-medium text-foreground flex items-center justify-center transition-all duration-200 group"
         @click="closeWindow"
       >
-        <CloseIcon class="h-3 w-3" />
+        <CloseIcon class="h-3! w-3!" />
       </Button>
 
       <!-- <Button
@@ -134,6 +133,7 @@ import { useI18n } from 'vue-i18n'
 import { WINDOW_EVENTS } from '../lib/events'
 import CloseIcon from './icons/CloseIcon.vue'
 import MinimizeIcon from './icons/MinimizeIcon.vue'
+import { THREAD_VIEW_EVENTS } from '@/events'
 const tabStore = useTabStore()
 const langStore = useLanguageStore()
 const windowPresenter = usePresenter('windowPresenter')
@@ -164,6 +164,22 @@ const onTabContainerWrapperScroll = () => {
   requestAnimationFrame(() => {
     tabContainerWrapperScrollLeft.value = tabContainerWrapper.value?.scrollLeft ?? 0
   })
+}
+
+const onHistoryClick = async () => {
+  try {
+    const windowId = window.api.getWindowId()
+    if (windowId == null) {
+      console.warn('Failed to toggle thread view: unable to determine window id.')
+      return
+    }
+    const success = await windowPresenter.sendToActiveTab(windowId, THREAD_VIEW_EVENTS.TOGGLE)
+    if (!success) {
+      console.warn('Failed to toggle thread view: no active tab found.')
+    }
+  } catch (error) {
+    console.warn('Failed to toggle thread view via windowPresenter.', error)
+  }
 }
 
 const isTabContainerOverflowingLeft = computed(() => {
@@ -444,11 +460,6 @@ const handleDragEnd = async (event: DragEvent) => {
 //   console.log('onThemeClick')
 //   themeStore.cycleTheme()
 // }
-
-const onHistoryClick = () => {
-  console.log('onHistoryClick')
-  // Open history panel or tab
-}
 
 onMounted(() => {
   console.log('onMounted', tabStore.tabs)

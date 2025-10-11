@@ -354,6 +354,8 @@
     --color-usage-high: var(--usage-high);
     --color-window-background: var(--bg-window-background);
     --color-window-inner-border: var(--window-inner-border);
+    --color-bg-background-70: var(--bg-background-70);
+    --color-text-secondary-foreground: var(--text-secondary-foreground);
 
     --animate-accordion-down: var(--animation-accordion-down);
     --animate-accordion-up: var(--animation-accordion-up);

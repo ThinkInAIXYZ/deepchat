@@ -124,6 +124,11 @@ export const SHORTCUT_EVENTS = {
   DELETE_CONVERSATION: 'shortcut:delete-conversation'
 }
 
+// Thread view related events
+export const THREAD_VIEW_EVENTS = {
+  TOGGLE: 'thread-view:toggle'
+}
+
 // 标签页相关事件
 export const TAB_EVENTS = {
   TITLE_UPDATED: 'tab:title-updated', // 标签页标题更新
