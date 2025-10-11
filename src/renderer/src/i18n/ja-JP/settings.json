@@ -157,41 +157,13 @@
       },
       "thinkingBudget": {
         "label": "思考予算",
+        "description": "思考プロセスの最大トークン長を設定し、推論の深さを制御します",
+        "placeholder": "思考予算値を入力",
         "range": "範囲: {min} - {max}",
-        "gemini": {
-          "description": "モデルの思考長を制限する",
-          "dynamic": "動的思考",
-          "onlySupported": "Gemini 2.5 Flash、2.5 Pro、2.5 Flash-Liteでのみサポート",
-          "valueLabel": "思考予算値",
-          "placeholder": "思考予算値を入力",
-          "forceEnabled": "Gemini 2.5 シリーズモデルは思考予算を強制的に有効にします",
-          "dynamicPrefix": "-1 = 動的思考",
-          "notice": "注意：",
-          "warnings": {
-            "proNoDisable": "このモデルは思考の無効化をサポートしていません、最小値 128",
-            "proCannotDisable": "Gemini 2.5 Pro は思考機能を無効にできません",
-            "flashLiteCannotSetZero": "Gemini 2.5 Flash-Lite は 0 に設定できません、最小値は 512",
-            "modelCannotDisable": "このモデルは思考機能を無効にできません",
-            "flashLiteMinValue": "思考予算を具体的な値に設定する場合、512 未満にはできません（または 0 で思考を無効、-1 で動的思考を有効）",
-            "belowMin": "思考予算は {min} 未満にはできません{hint}",
-            "aboveMax": "思考予算は {max} を超えることはできません"
-          },
-          "hints": {
-            "flashLiteDisable": "、0 = 思考を無効、具体的な値の最小値 512",
-            "normalDisable": "、0 = 思考を無効",
-            "withZeroAndDynamic": "（または 0 で思考を無効、-1 で動的思考を有効）",
-            "withDynamic": "（または -1 で動的思考を有効）"
-          }
-        },
-        "qwen3": {
-          "description": "モデルの推論プロセスの最大トークン長を設定し、推論の深さを制御する",
-          "valueLabel": "思考予算値",
-          "placeholder": "思考予算値を入力してください",
-          "validation": {
-            "required": "思考予算値を入力してください",
-            "minValue": "思考予算値は1以上である必要があります",
-            "maxValue": "思考予算値は{max}を超えることができません"
-          }
+        "validation": {
+          "required": "思考予算値を入力してください",
+          "minValue": "値が最小値を下回っています",
+          "maxValue": "値は {max} を超えることはできません"
         }
       },
       "resetConfirm": {

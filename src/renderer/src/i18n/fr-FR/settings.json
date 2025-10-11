@@ -156,42 +156,14 @@
         }
       },
       "thinkingBudget": {
-        "label": "Budget de Réflexion",
+        "label": "Budget de réflexion",
+        "description": "Définir la longueur maximale de jeton du processus de réflexion pour contrôler la profondeur du raisonnement",
+        "placeholder": "Entrez la valeur du budget de réflexion",
         "range": "Plage: {min} - {max}",
-        "gemini": {
-          "description": "Limiter la longueur de réflexion du modèle",
-          "dynamic": "Réflexion Dynamique",
-          "onlySupported": "Pris en charge uniquement dans Gemini 2.5 Flash, 2.5 Pro et 2.5 Flash-Lite",
-          "valueLabel": "Valeur du Budget de Réflexion",
-          "placeholder": "Entrez la valeur du budget de réflexion",
-          "forceEnabled": "Les modèles de la série Gemini 2.5 activent de force le budget de réflexion",
-          "dynamicPrefix": "-1 = Réflexion Dynamique",
-          "notice": "Attention : ",
-          "warnings": {
-            "proNoDisable": "Ce modèle ne prend pas en charge la désactivation de la réflexion, valeur minimale 128",
-            "proCannotDisable": "Gemini 2.5 Pro ne peut pas désactiver la fonction de réflexion",
-            "flashLiteCannotSetZero": "Gemini 2.5 Flash-Lite ne peut pas être défini à 0, la valeur minimale est 512",
-            "modelCannotDisable": "Ce modèle ne peut pas désactiver la fonction de réflexion",
-            "flashLiteMinValue": "Le budget de réflexion ne peut pas être inférieur à 512 lorsqu'il est défini sur une valeur spécifique (ou utilisez 0 pour désactiver la réflexion, -1 pour activer la réflexion dynamique)",
-            "belowMin": "Le budget de réflexion ne peut pas être inférieur à {min}{hint}",
-            "aboveMax": "Le budget de réflexion ne peut pas être supérieur à {max}"
-          },
-          "hints": {
-            "flashLiteDisable": ", 0 = désactiver la réflexion, valeur spécifique minimum 512",
-            "normalDisable": ", 0 = désactiver la réflexion",
-            "withZeroAndDynamic": "(ou utilisez 0 pour désactiver la réflexion, -1 pour activer la réflexion dynamique)",
-            "withDynamic": "(ou utilisez -1 pour activer la réflexion dynamique)"
-          }
-        },
-        "qwen3": {
-          "description": "Définir la longueur maximale de jetons pour le processus de réflexion afin de contrôler la profondeur du raisonnement du modèle",
-          "valueLabel": "Valeur du Budget de Réflexion",
-          "placeholder": "Entrez la valeur du budget de réflexion",
-          "validation": {
-            "required": "Veuillez entrer la valeur du budget de réflexion",
-            "minValue": "La valeur du budget de réflexion doit être supérieure ou égale à 1",
-            "maxValue": "La valeur du budget de réflexion ne peut pas dépasser {max}"
-          }
+        "validation": {
+          "required": "Veuillez entrer la valeur du budget de réflexion",
+          "minValue": "La valeur est inférieure au minimum",
+          "maxValue": "La valeur ne peut pas dépasser {max}"
         }
       },
       "resetConfirm": {

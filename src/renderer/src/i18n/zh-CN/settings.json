@@ -169,41 +169,13 @@
       },
       "thinkingBudget": {
         "label": "思考预算",
+        "description": "设置思考过程的最大 token 长度，用于控制模型推理时的思考深度",
+        "placeholder": "输入思考预算值",
         "range": "范围: {min} - {max}",
-        "gemini": {
-          "description": "限制模型思考长度",
-          "dynamic": "动态思维",
-          "onlySupported": "仅在 Gemini 2.5 Flash、2.5 Pro 和 2.5 Flash-Lite 中支持",
-          "valueLabel": "思考预算值",
-          "placeholder": "输入思考预算值",
-          "forceEnabled": "Gemini 2.5 系列模型强制开启思考预算",
-          "dynamicPrefix": "-1 = 动态思维",
-          "notice": "注意：",
-          "warnings": {
-            "proNoDisable": "此模型不支持停用思考，最小值 128",
-            "proCannotDisable": "Gemini 2.5 Pro 无法停用思考功能",
-            "flashLiteCannotSetZero": "Gemini 2.5 Flash-Lite 不能设置为 0，最小值为 512",
-            "modelCannotDisable": "此模型无法停用思考功能",
-            "flashLiteMinValue": "思考预算设置为具体数值时不能小于 512（或使用 0 停用思考，-1 启用动态思维）",
-            "belowMin": "思考预算不能小于 {min}{hint}",
-            "aboveMax": "思考预算不能大于 {max}"
-          },
-          "hints": {
-            "flashLiteDisable": "，0 = 停用思考，具体数值最小 512",
-            "normalDisable": "，0 = 停用思考",
-            "withZeroAndDynamic": "（或使用 0 停用思考，-1 启用动态思维）",
-            "withDynamic": "（或使用 -1 启用动态思维）"
-          }
-        },
-        "qwen3": {
-          "description": "设置思考过程的最大token长度，用于控制模型推理时的思考深度",
-          "valueLabel": "思考预算值",
-          "placeholder": "输入思考预算值",
-          "validation": {
-            "required": "请输入思考预算值",
-            "minValue": "思考预算值必须大于等于1",
-            "maxValue": "思考预算值不能超过 {max}"
-          }
+        "validation": {
+          "required": "请输入思考预算值",
+          "minValue": "思考预算值小于最小值",
+          "maxValue": "思考预算值不能超过 {max}"
         }
       },
       "type": {

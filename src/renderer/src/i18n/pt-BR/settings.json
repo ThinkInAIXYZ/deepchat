@@ -157,41 +157,13 @@
       },
       "thinkingBudget": {
         "label": "Orçamento de Pensamento",
+        "description": "Defina o comprimento máximo de tokens do processo de pensamento para controlar a profundidade do raciocínio",
+        "placeholder": "Insira o valor do orçamento de pensamento",
         "range": "Intervalo: {min} - {max}",
-        "gemini": {
-          "description": "Limitar o comprimento do pensamento do modelo",
-          "dynamic": "Pensamento Dinâmico",
-          "onlySupported": "Suportado apenas em Gemini 2.5 Flash, 2.5 Pro e 2.5 Flash-Lite",
-          "valueLabel": "Valor do Orçamento de Pensamento",
-          "placeholder": "Insira o valor do orçamento de pensamento",
-          "forceEnabled": "Modelos da série Gemini 2.5 forçam a ativação do orçamento de pensamento",
-          "dynamicPrefix": "-1 = Pensamento Dinâmico",
-          "notice": "Aviso: ",
-          "warnings": {
-            "proNoDisable": "Este modelo não suporta desativar o pensamento, valor mínimo 128",
-            "proCannotDisable": "Gemini 2.5 Pro não pode desativar a função de pensamento",
-            "flashLiteCannotSetZero": "Gemini 2.5 Flash-Lite não pode ser definido como 0, o valor mínimo é 512",
-            "modelCannotDisable": "Este modelo não pode desativar a função de pensamento",
-            "flashLiteMinValue": "O orçamento de pensamento não pode ser inferior a 512 quando definido para um valor específico (ou use 0 para desativar o pensamento, -1 para habilitar o pensamento dinâmico)",
-            "belowMin": "O orçamento de pensamento não pode ser inferior a {min}{hint}",
-            "aboveMax": "O orçamento de pensamento não pode ser maior que {max}"
-          },
-          "hints": {
-            "flashLiteDisable": ", 0 = desativar pensamento, valor específico mínimo 512",
-            "normalDisable": ", 0 = desativar pensamento",
-            "withZeroAndDynamic": "(ou use 0 para desativar o pensamento, -1 para habilitar o pensamento dinâmico)",
-            "withDynamic": "(ou use -1 para habilitar o pensamento dinâmico)"
-          }
-        },
-        "qwen3": {
-          "description": "Defina o comprimento máximo de tokens para o processo de pensamento para controlar a profundidade do raciocínio do modelo",
-          "valueLabel": "Valor do Orçamento de Pensamento",
-          "placeholder": "Insira o valor do orçamento de pensamento",
-          "validation": {
-            "required": "Por favor, insira o valor do orçamento de pensamento",
-            "minValue": "O valor do orçamento de pensamento deve ser maior ou igual a 1",
-            "maxValue": "O valor do orçamento de pensamento não pode exceder {max}"
-          }
+        "validation": {
+          "required": "Por favor, insira o valor do orçamento de pensamento",
+          "minValue": "O valor está abaixo do mínimo",
+          "maxValue": "O valor não pode exceder {max}"
         }
       },
       "resetConfirm": {

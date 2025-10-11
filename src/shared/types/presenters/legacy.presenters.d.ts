@@ -384,6 +384,16 @@ export interface IConfigPresenter {
   setProviderById(id: string, provider: LLM_PROVIDER): void
   getProviderModels(providerId: string): MODEL_META[]
   getDbProviderModels(providerId: string): RENDERER_MODEL_META[]
+  supportsReasoningCapability?(providerId: string, modelId: string): boolean
+  getThinkingBudgetRange?(
+    providerId: string,
+    modelId: string
+  ): { min?: number; max?: number; default?: number }
+  supportsSearchCapability?(providerId: string, modelId: string): boolean
+  getSearchDefaults?(
+    providerId: string,
+    modelId: string
+  ): { default?: boolean; forced?: boolean; strategy?: 'turbo' | 'max' }
   setProviderModels(providerId: string, models: MODEL_META[]): void
   getEnabledProviders(): LLM_PROVIDER[]
   getModelDefaultConfig(modelId: string, providerId?: string): ModelConfig

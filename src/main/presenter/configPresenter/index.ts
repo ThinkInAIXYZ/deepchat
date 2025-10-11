@@ -33,6 +33,7 @@ import { ModelConfigHelper } from './modelConfig'
 import { KnowledgeConfHelper } from './knowledgeConfHelper'
 import { providerDbLoader } from './providerDbLoader'
 import { ProviderAggregate } from '@shared/types/model-db'
+import { modelCapabilities } from './modelCapabilities'
 
 // Default system prompt constant
 const DEFAULT_SYSTEM_PROMPT = `You are DeepChat, a highly capable AI assistant. Your goal is to fully complete the user’s requested task before handing the conversation back to them. Keep working autonomously until the task is fully resolved.
@@ -206,6 +207,28 @@ export class ConfigPresenter implements IConfigPresenter {
   // 提供聚合 Provider DB（只读）给渲染层/其他模块
   getProviderDb(): ProviderAggregate | null {
     return providerDbLoader.getDb()
+  }
+
+  supportsReasoningCapability(providerId: string, modelId: string): boolean {
+    return modelCapabilities.supportsReasoning(providerId, modelId)
+  }
+
+  getThinkingBudgetRange(
+    providerId: string,
+    modelId: string
+  ): { min?: number; max?: number; default?: number } {
+    return modelCapabilities.getThinkingBudgetRange(providerId, modelId)
+  }
+
+  supportsSearchCapability(providerId: string, modelId: string): boolean {
+    return modelCapabilities.supportsSearch(providerId, modelId)
+  }
+
+  getSearchDefaults(
+    providerId: string,
+    modelId: string
+  ): { default?: boolean; forced?: boolean; strategy?: 'turbo' | 'max' } {
+    return modelCapabilities.getSearchDefaults(providerId, modelId)
   }
 
   private getProviderModelStore(providerId: string): ElectronStore<IModelStore> {
