@@ -5,7 +5,6 @@
     <!-- 固定在顶部的"新会话"按钮 -->
     <div class="flex-none flex flex-row gap-2">
       <Button
-        v-if="windowSize.width.value < 1024"
         variant="outline"
         size="icon"
         class="shrink-0 text-xs justify-center h-7 w-7"

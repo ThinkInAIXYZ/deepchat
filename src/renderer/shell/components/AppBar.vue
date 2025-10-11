@@ -78,6 +78,13 @@
       <Button
         variant="ghost"
         class="text-xs font-medium px-2 h-7 bg-transparent rounded-md flex items-center justify-center hover:bg-zinc-500/20"
+        @click="toggleThreadView"
+      >
+        <Icon icon="lucide:history" class="w-4 h-4" />
+      </Button>
+      <Button
+        variant="ghost"
+        class="text-xs font-medium px-2 h-7 bg-transparent rounded-md flex items-center justify-center hover:bg-zinc-500/20"
         @click="openSettings"
       >
         <Icon icon="lucide:settings" class="w-4 h-4" />
@@ -129,6 +136,7 @@ import { useThemeStore } from '@/stores/theme'
 import { useElementSize } from '@vueuse/core'
 import { useLanguageStore } from '@/stores/language'
 import { useI18n } from 'vue-i18n'
+import { THREAD_VIEW_EVENTS } from '@/events'
 const tabStore = useTabStore()
 const langStore = useLanguageStore()
 const windowPresenter = usePresenter('windowPresenter')
@@ -160,6 +168,22 @@ const onTabContainerWrapperScroll = () => {
   requestAnimationFrame(() => {
     tabContainerWrapperScrollLeft.value = tabContainerWrapper.value?.scrollLeft ?? 0
   })
+}
+
+const toggleThreadView = async () => {
+  try {
+    const windowId = window.api.getWindowId()
+    if (windowId == null) {
+      console.warn('Failed to toggle thread view: unable to determine window id.')
+      return
+    }
+    const success = await windowPresenter.sendToActiveTab(windowId, THREAD_VIEW_EVENTS.TOGGLE)
+    if (!success) {
+      console.warn('Failed to toggle thread view: no active tab found.')
+    }
+  } catch (error) {
+    console.warn('Failed to toggle thread view via windowPresenter.', error)
+  }
 }
 
 const isTabContainerOverflowingLeft = computed(() => {
