@@ -10,7 +10,7 @@
     <TooltipProvider>
       <div
         :dir="langStore.dir"
-        class="prompt-input-card border border-border/60 focus-within:border-primary rounded-b-lg px-4 py-3 flex flex-col gap-3 shadow-sm relative backdrop-blur-md dark:border-white/10 dark:focus-within:border-white/20"
+        class="prompt-input-card border border-border/60 focus-within:border-primary px-4 py-3 flex flex-col gap-3 shadow-sm relative backdrop-blur-md dark:border-white/10 dark:focus-within:border-white/20"
       >
         <!-- {{  t('chat.input.fileArea') }} -->
         <div v-if="selectedFiles.length > 0">
@@ -1766,7 +1766,7 @@ defineExpose({
   --prompt-text-accent: var(--foreground);
   --prompt-text-primary: var(--foreground);
   background-color: transparent;
-  border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+  /* border-radius: 0 0 var(--radius-lg) var(--radius-lg); */
 }
 
 .dark .prompt-input-card,

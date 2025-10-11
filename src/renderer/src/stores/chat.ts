@@ -36,7 +36,7 @@ export const useChatStore = defineStore('chat', () => {
       dtThreads: CONVERSATION[]
     }[]
   >([])
-  const messagesMap = ref<Map<number, AssistantMessage[] | UserMessage[]>>(new Map())
+  const messagesMap = ref<Map<number, Array<AssistantMessage | UserMessage>>>(new Map())
   const generatingThreadIds = ref(new Set<string>())
   const isSidebarOpen = ref(false)
   const isMessageNavigationOpen = ref(false)
@@ -87,7 +87,7 @@ export const useChatStore = defineStore('chat', () => {
     activeThreadIdMap.value.set(getTabId(), threadId)
   }
   const getMessages = () => messagesMap.value.get(getTabId()) ?? []
-  const setMessages = (msgs: AssistantMessage[] | UserMessage[]) => {
+  const setMessages = (msgs: Array<AssistantMessage | UserMessage>) => {
     messagesMap.value.set(getTabId(), msgs)
   }
   const getCurrentThreadMessages = () => {
@@ -112,7 +112,7 @@ export const useChatStore = defineStore('chat', () => {
     return threads.value.flatMap((t) => t.dtThreads).find((t) => t.id === getActiveThreadId())
   })
 
-  const variantAwareMessages = computed(() => {
+  const variantAwareMessages = computed((): Array<AssistantMessage | UserMessage> => {
     const messages = getMessages()
     const currentSelectedVariants = selectedVariantsMap.value
 
@@ -146,7 +146,7 @@ export const useChatStore = defineStore('chat', () => {
       }
 
       return msg
-    }) as AssistantMessage[] | UserMessage[]
+    }) as Array<AssistantMessage | UserMessage>
   })
 
   // Actions
