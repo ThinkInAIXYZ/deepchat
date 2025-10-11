@@ -226,7 +226,9 @@
             <div class="space-y-3 pl-4 border-l-2 border-muted">
               <!-- 数值输入 -->
               <div class="space-y-2">
-                <Label class="text-sm">{{ t('settings.model.modelConfig.thinkingBudget.label') }}</Label>
+                <Label class="text-sm">{{
+                  t('settings.model.modelConfig.thinkingBudget.label')
+                }}</Label>
                 <Input
                   v-model.number="config.thinkingBudget"
                   type="number"
@@ -241,10 +243,12 @@
                     {{ genericThinkingBudgetError }}
                   </span>
                   <span v-else>
-                    {{ t('settings.model.modelConfig.thinkingBudget.range', {
-                      min: thinkingBudgetRange?.min,
-                      max: thinkingBudgetRange?.max
-                    }) }}
+                    {{
+                      t('settings.model.modelConfig.thinkingBudget.range', {
+                        min: thinkingBudgetRange?.min,
+                        max: thinkingBudgetRange?.max
+                      })
+                    }}
                   </span>
                 </p>
               </div>
@@ -488,7 +492,8 @@ const loadConfig = async () => {
         const def = capabilitySearchDefaults.value
         if (typeof def.default === 'boolean') config.value.enableSearch = def.default
         if (typeof def.forced === 'boolean') config.value.forcedSearch = def.forced
-        if (def.strategy === 'turbo' || def.strategy === 'max') config.value.searchStrategy = def.strategy
+        if (def.strategy === 'turbo' || def.strategy === 'max')
+          config.value.searchStrategy = def.strategy
       }
     }
   }
@@ -498,7 +503,8 @@ const loadConfig = async () => {
       const def = capabilitySearchDefaults.value
       if (typeof def.default === 'boolean') config.value.enableSearch = def.default
       if (typeof def.forced === 'boolean') config.value.forcedSearch = def.forced
-      if (def.strategy === 'turbo' || def.strategy === 'max') config.value.searchStrategy = def.strategy
+      if (def.strategy === 'turbo' || def.strategy === 'max')
+        config.value.searchStrategy = def.strategy
     }
   }
 }
@@ -578,7 +584,6 @@ watch(
   { immediate: true }
 )
 
-
 const isGPT5Model = computed(() => {
   const modelId = props.modelId.toLowerCase()
   return modelId.includes('gpt-5')
@@ -603,7 +608,11 @@ const showThinkingBudget = computed(() => {
 const capabilitySupportsReasoning = ref<boolean | null>(null)
 const capabilityBudgetRange = ref<{ min?: number; max?: number; default?: number } | null>(null)
 const capabilitySupportsSearch = ref<boolean | null>(null)
-const capabilitySearchDefaults = ref<{ default?: boolean; forced?: boolean; strategy?: 'turbo' | 'max' } | null>(null)
+const capabilitySearchDefaults = ref<{
+  default?: boolean
+  forced?: boolean
+  strategy?: 'turbo' | 'max'
+} | null>(null)
 
 const fetchCapabilities = async () => {
   if (!props.providerId || !props.modelId) {
@@ -645,7 +654,6 @@ const hasForcedSearchOption = computed(() => capabilitySearchDefaults.value?.for
 const hasSearchStrategyOption = computed(
   () => capabilitySearchDefaults.value?.strategy !== undefined
 )
-
 
 // 思考预算范围（完全由能力提供，上游保证存在）
 const thinkingBudgetRange = computed(() => capabilityBudgetRange.value)

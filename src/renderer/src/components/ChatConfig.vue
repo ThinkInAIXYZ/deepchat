@@ -131,7 +131,11 @@ const formatSize = (size: number): string => {
 const capabilitySupportsReasoning = ref<boolean | null>(null)
 const capabilityBudgetRange = ref<{ min?: number; max?: number; default?: number } | null>(null)
 const capabilitySupportsSearch = ref<boolean | null>(null)
-const capabilitySearchDefaults = ref<{ default?: boolean; forced?: boolean; strategy?: 'turbo' | 'max' } | null>(null)
+const capabilitySearchDefaults = ref<{
+  default?: boolean
+  forced?: boolean
+  strategy?: 'turbo' | 'max'
+} | null>(null)
 
 const fetchCapabilities = async () => {
   if (!props.providerId || !props.modelId) {
@@ -185,7 +189,6 @@ const hasForcedSearchOption = computed(() => capabilitySearchDefaults.value?.for
 const hasSearchStrategyOption = computed(
   () => capabilitySearchDefaults.value?.strategy !== undefined
 )
-
 
 const isGPT5Model = computed(() => {
   const modelId = props.modelId?.toLowerCase() || ''
@@ -375,7 +378,9 @@ const genericThinkingBudgetError = computed(() => {
         <!-- 通用思考预算配置（基于能力） -->
         <div class="space-y-3 pl-4 border-l-2 border-muted">
           <div class="space-y-2">
-            <Label class="text-sm">{{ t('settings.model.modelConfig.thinkingBudget.label') }}</Label>
+            <Label class="text-sm">{{
+              t('settings.model.modelConfig.thinkingBudget.label')
+            }}</Label>
             <Input
               v-model.number="displayThinkingBudget"
               type="number"
@@ -438,25 +443,46 @@ const genericThinkingBudgetError = computed(() => {
           </div>
 
           <!-- 强制搜索（若能力提供默认项，则视为支持该配置） -->
-          <div v-if="props.enableSearch && hasForcedSearchOption" class="flex items-center justify-between">
+          <div
+            v-if="props.enableSearch && hasForcedSearchOption"
+            class="flex items-center justify-between"
+          >
             <div class="space-y-0.5">
-              <Label class="text-sm">{{ t('settings.model.modelConfig.forcedSearch.label') }}</Label>
+              <Label class="text-sm">{{
+                t('settings.model.modelConfig.forcedSearch.label')
+              }}</Label>
             </div>
-            <Switch :model-value="props.forcedSearch ?? false" @update:model-value="(value) => emit('update:forcedSearch', value)" />
+            <Switch
+              :model-value="props.forcedSearch ?? false"
+              @update:model-value="(value) => emit('update:forcedSearch', value)"
+            />
           </div>
           <!-- 搜索策略（若能力提供默认项，则视为支持该配置） -->
           <div v-if="props.enableSearch && hasSearchStrategyOption" class="space-y-2">
-            <Label class="text-sm">{{ t('settings.model.modelConfig.searchStrategy.label') }}</Label>
-            <Select :model-value="props.searchStrategy ?? 'turbo'" @update:model-value="(value) => emit('update:searchStrategy', value as 'turbo' | 'max')">
+            <Label class="text-sm">{{
+              t('settings.model.modelConfig.searchStrategy.label')
+            }}</Label>
+            <Select
+              :model-value="props.searchStrategy ?? 'turbo'"
+              @update:model-value="
+                (value) => emit('update:searchStrategy', value as 'turbo' | 'max')
+              "
+            >
               <SelectTrigger class="text-xs">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="turbo">{{ t('settings.model.modelConfig.searchStrategy.options.turbo') }}</SelectItem>
-                <SelectItem value="max">{{ t('settings.model.modelConfig.searchStrategy.options.max') }}</SelectItem>
+                <SelectItem value="turbo">{{
+                  t('settings.model.modelConfig.searchStrategy.options.turbo')
+                }}</SelectItem>
+                <SelectItem value="max">{{
+                  t('settings.model.modelConfig.searchStrategy.options.max')
+                }}</SelectItem>
               </SelectContent>
             </Select>
-            <p class="text-xs text-muted-foreground">{{ t('settings.model.modelConfig.searchStrategy.description') }}</p>
+            <p class="text-xs text-muted-foreground">
+              {{ t('settings.model.modelConfig.searchStrategy.description') }}
+            </p>
           </div>
         </div>
       </div>
