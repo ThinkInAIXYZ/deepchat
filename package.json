@@ -134,6 +134,7 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cross-env": "^10.1.0",
+    "dayjs": "^1.11.18",
     "electron": "^37.6.1",
     "electron-builder": "26.0.12",
     "electron-vite": "^4.0.0",
@@ -173,7 +174,6 @@
     "vue-virtual-scroller": "^2.0.0-beta.8",
     "vuedraggable": "^4.1.0",
     "yaml": "^2.8.1",
-    "dayjs": "^1.11.18",
     "zod-to-json-schema": "^3.24.6"
   },
   "simple-git-hooks": {

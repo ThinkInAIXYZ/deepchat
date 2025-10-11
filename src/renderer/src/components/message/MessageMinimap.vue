@@ -1,16 +1,26 @@
 <template>
-  <div class="message-minimap-container" :style="containerStyle">
-    <div class="message-minimap-track" :style="trackStyle">
-      <div class="message-minimap-bars" role="list" :style="barsWrapperStyle">
+  <div
+    class="absolute top-0 right-0 w-14 min-h-[148px] box-border rounded-[6px] py-4 px-3 flex flex-col items-stretch gap-0 pointer-events-auto z-[5] overflow-hidden"
+    :style="containerStyle"
+  >
+    <div class="relative flex-none flex justify-end overflow-hidden w-full" :style="trackStyle">
+      <div
+        class="flex flex-col items-end gap-1 w-full relative z-[2]"
+        role="list"
+        :style="barsWrapperStyle"
+      >
         <button
           v-for="bar in bars"
           :key="bar.id"
           type="button"
-          class="message-minimap-bar"
+          class="h-1.5 rounded-xs transition-[transform,opacity,background-color] duration-200 ease-out opacity-30 outline-none border-0 cursor-pointer focus-visible:outline-none"
           :class="[
-            bar.role === 'assistant' ? 'assistant-bar' : 'user-bar',
-            hoveredMessageId === bar.id ? 'is-hovered' : '',
-            activeMessageId === bar.id ? 'is-active' : ''
+            bar.role === 'assistant'
+              ? 'bg-[rgba(37,37,37,0.65)] dark:bg-[rgba(255,255,255,0.9)]'
+              : 'bg-[rgba(37,37,37,0.25)] dark:bg-[rgba(255,255,255,0.6)]',
+            hoveredMessageId === bar.id || activeMessageId === bar.id
+              ? 'opacity-100 scale-x-110 -translate-x-0.5'
+              : ''
           ]"
           :style="{ width: `${bar.width}px` }"
           :aria-label="bar.ariaLabel"
@@ -23,7 +33,10 @@
         />
       </div>
     </div>
-    <div v-if="overallContextUsage !== null" class="message-minimap-usage">
+    <div
+      v-if="overallContextUsage !== null"
+      class="font-['Geist\\ Mono',ui-monospace,SFMono-Regular,SFMono,Menlo,Monaco,Consolas,'Liberation\\ Mono','Courier\\ New',monospace] text-[11px] leading-none text-[rgba(37,37,37,0.6)] mt-[6px] self-end dark:text-[rgba(255,255,255,0.6)]"
+    >
       {{ overallContextUsage.toFixed(0) }}%
     </div>
   </div>
@@ -56,7 +69,7 @@ const emit = defineEmits<{
 const localHoveredId = ref<string | null>(null)
 
 const MIN_WIDTH = 8
-const MAX_WIDTH = 24
+const MAX_WIDTH = 20
 const DEFAULT_VIEWPORT_HEIGHT = 220
 const BAR_HEIGHT = 6
 const BAR_GAP = 4
@@ -210,100 +223,3 @@ const handleBarClick = (messageId: string) => {
   emit('bar-click', messageId)
 }
 </script>
-
-<style scoped>
-.message-minimap-container {
-  box-sizing: border-box;
-  position: absolute;
-  top: 8px;
-  right: 4px;
-  width: 56px;
-  min-height: 148px;
-  border-radius: 6px;
-  padding: 16px 12px;
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  gap: 0;
-  pointer-events: auto;
-  z-index: 5;
-  overflow: hidden;
-}
-
-.message-minimap-track {
-  position: relative;
-  flex: 0 0 auto;
-  display: flex;
-  justify-content: flex-end;
-  overflow: hidden;
-  width: 100%;
-}
-
-.message-minimap-bars {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 4px;
-  width: 100%;
-  position: relative;
-  z-index: 2;
-}
-
-.message-minimap-bar {
-  height: 6px;
-  border-radius: 2px;
-  transition:
-    transform 0.2s ease,
-    opacity 0.2s ease,
-    background-color 0.2s ease;
-  opacity: 0.55;
-  outline: none;
-  border: none;
-  cursor: pointer;
-}
-
-.message-minimap-bar:focus-visible {
-  box-shadow: 0 0 0 2px rgba(151, 71, 255, 0.35);
-}
-
-.assistant-bar {
-  background: rgba(37, 37, 37, 0.65);
-}
-
-.dark .assistant-bar {
-  background: rgba(255, 255, 255, 0.85);
-}
-
-.user-bar {
-  background: rgba(37, 37, 37, 0.25);
-}
-
-.dark .user-bar {
-  background: rgba(255, 255, 255, 0.4);
-}
-
-.message-minimap-bar.is-hovered,
-.message-minimap-bar.is-active {
-  opacity: 1;
-  transform: scaleX(1.05);
-}
-
-.message-minimap-bar.is-active {
-  box-shadow: 0 0 0 1px rgba(151, 71, 255, 0.4);
-}
-
-.message-minimap-usage {
-  font-family:
-    'Geist Mono', ui-monospace, SFMono-Regular, SFMono, Menlo, Monaco, Consolas, 'Liberation Mono',
-    'Courier New', monospace;
-  font-size: 11px;
-  line-height: 1;
-  color: rgba(37, 37, 37, 0.6);
-  margin-top: 6px;
-  align-self: flex-end;
-}
-
-.dark .message-minimap-usage {
-  color: rgba(255, 255, 255, 0.6);
-}
-</style>

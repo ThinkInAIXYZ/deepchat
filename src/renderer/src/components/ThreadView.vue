@@ -20,7 +20,7 @@
           >
             <div
               v-if="chatStore.isSidebarOpen"
-              class="h-full w-60 max-w-60 shadow-lg border-r border-border bg-bg-card"
+              class="h-full w-60 max-w-60 shadow-lg border-r border-border bg-card"
             >
               <ThreadsView class="h-full" />
             </div>

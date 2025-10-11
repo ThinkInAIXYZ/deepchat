@@ -10,7 +10,7 @@
     <TooltipProvider>
       <div
         :dir="langStore.dir"
-        class="bg-bg-card border border-border rounded-lg focus-within:border-primary p-2 flex flex-col gap-2 shadow-sm relative"
+        class="bg-card rounded-lg border p-2 flex flex-col gap-2 shadow-sm relative"
       >
         <!-- {{  t('chat.input.fileArea') }} -->
         <div v-if="selectedFiles.length > 0">
