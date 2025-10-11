@@ -68,12 +68,12 @@ function sanitizeAggregateJson(json) {
         if (typeof r.default === 'boolean') rs.default = r.default
         if (r.budget && typeof r.budget === 'object') {
           const bd = {}
-          if (
-            typeof r.budget.default === 'number' &&
-            Number.isFinite(r.budget.default) &&
-            r.budget.default >= 0
-          )
+          if (typeof r.budget.default === 'number' && Number.isFinite(r.budget.default))
             bd.default = r.budget.default
+          if (typeof r.budget.min === 'number' && Number.isFinite(r.budget.min))
+            bd.min = r.budget.min
+          if (typeof r.budget.max === 'number' && Number.isFinite(r.budget.max))
+            bd.max = r.budget.max
           if (Object.keys(bd).length) rs.budget = bd
         }
         if (Object.keys(rs).length) reasoning = rs

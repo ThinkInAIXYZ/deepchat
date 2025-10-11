@@ -9,7 +9,9 @@ export const ReasoningSchema = z
     default: z.boolean().optional(),
     budget: z
       .object({
-        default: z.number().int().nonnegative().optional()
+        default: z.number().int().optional(),
+        min: z.number().int().optional(),
+        max: z.number().int().optional()
       })
       .optional()
   })
@@ -132,10 +134,16 @@ function getReasoning(obj: unknown): ProviderModel['reasoning'] {
   const supported = getBoolean(obj, 'supported')
   const defEnabled = getBoolean(obj, 'default')
   const budgetVal = (obj as Record<string, unknown>)['budget']
-  let budget: { default?: number } | undefined
+  let budget: { default?: number; min?: number; max?: number } | undefined
   if (isRecord(budgetVal)) {
     const def = getNumber(budgetVal, 'default')
-    if (typeof def === 'number' && def >= 0) budget = { default: def }
+    const min = getNumber(budgetVal, 'min')
+    const max = getNumber(budgetVal, 'max')
+    const out: { default?: number; min?: number; max?: number } = {}
+    if (typeof def === 'number') out.default = def
+    if (typeof min === 'number') out.min = min
+    if (typeof max === 'number') out.max = max
+    if (out.default !== undefined || out.min !== undefined || out.max !== undefined) budget = out
   }
   if (supported !== undefined || defEnabled !== undefined || budget !== undefined)
     return { supported, default: defEnabled, budget }
