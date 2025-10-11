@@ -1,14 +1,18 @@
 <template>
-  <div class="flex flex-row h-9" :dir="langStore.dir">
+  <div
+    class="flex flex-row h-9 min-h-9 bg-window-background border border-b-0 border-window-inner-border box-border rounded-t-[10px] relative overflow-hidden"
+    :dir="langStore.dir"
+  >
+    <div class="absolute bottom-0 left-0 w-full h-[1px] bg-border"></div>
     <div
-      class="h-9 shrink-0 w-0 flex-1 flex select-none text-center text-sm font-medium flex-row items-center justify-start window-drag-region"
-      :class="['', isMacOS ? (isFullscreened ? 'pr-2' : 'pl-20 pr-2') : '']"
+      class="h-full shrink-0 w-0 flex-1 flex select-none text-center text-sm font-medium flex-row items-center justify-start window-drag-region"
     >
+      <div v-if="!isFullscreened" class="shrink-0 w-20 h-full window-drag-region"></div>
       <!-- App title/content in center -->
       <Button
         v-if="isTabContainerOverflowingLeft"
         variant="ghost"
-        class="shrink-0 text-xs font-medium px-2 h-6 mt-0.5 bg-transparent rounded-md flex items-center justify-center hover:bg-zinc-500/20 mr-1"
+        class="window-no-drag-region shrink-0 w-10 bg-transparent shadow-none rounded-none hover:bg-bg-card/80 text-xs font-medium text-foreground flex items-center justify-center transition-all duration-200 group border-r border-border"
         @click="scrollTabContainer('left')"
       >
         <Icon icon="lucide:chevron-left" class="w-4 h-4" />
@@ -16,7 +20,7 @@
       <Button
         v-if="isTabContainerOverflowingRight"
         variant="ghost"
-        class="shrink-0 text-xs font-medium px-2 h-6 mt-0.5 bg-transparent rounded-md flex items-center justify-center hover:bg-zinc-500/20 mr-1"
+        class="window-no-drag-region shrink-0 w-10 bg-transparent shadow-none rounded-none hover:bg-bg-card/80 text-xs font-medium text-foreground flex items-center justify-center transition-all duration-200 group border-border"
         @click="scrollTabContainer('right')"
       >
         <Icon icon="lucide:chevron-right" class="w-4 h-4" />
@@ -58,8 +62,8 @@
       </div>
 
       <Button
-        variant="ghost"
-        class="shrink-0 text-xs ml-1 font-medium px-2 h-6 bg-transparent rounded-md flex items-center justify-center hover:bg-zinc-500/20"
+        size="icon"
+        class="window-no-drag-region shrink-0 w-10 bg-transparent shadow-none rounded-none hover:bg-bg-card/80 text-xs font-medium text-foreground flex items-center justify-center transition-all duration-200 group"
         @click="onNewTabClick"
       >
         <Icon icon="lucide:plus" class="w-4 h-4" />
@@ -67,21 +71,43 @@
       <div class="flex-1"></div>
 
       <Button
-        variant="ghost"
-        class="text-xs font-medium px-2 h-7 bg-transparent rounded-md flex items-center justify-center hover:bg-zinc-500/20"
-        @click="onThemeClick"
+        size="icon"
+        class="window-no-drag-region shrink-0 w-10 bg-transparent shadow-none rounded-none hover:bg-bg-card/80 text-xs font-medium text-foreground flex items-center justify-center transition-all duration-200 group border-r border-l border-border"
+        @click="onHistoryClick"
       >
-        <Icon v-if="themeStore.themeMode === 'dark'" icon="lucide:moon" class="w-4 h-4" />
-        <Icon v-else-if="themeStore.themeMode === 'light'" icon="lucide:sun" class="w-4 h-4" />
-        <Icon v-else icon="lucide:monitor" class="w-4 h-4" />
+        <!-- TODO: add history click event -->
+        <Icon icon="lucide:history" class="w-4 h-4" />
       </Button>
       <Button
-        variant="ghost"
-        class="text-xs font-medium px-2 h-7 bg-transparent rounded-md flex items-center justify-center hover:bg-zinc-500/20"
+        size="icon"
+        class="window-no-drag-region shrink-0 w-10 bg-transparent shadow-none rounded-none hover:bg-bg-card/80 text-xs font-medium text-foreground flex items-center justify-center transition-all duration-200 group not-last:border-r border-border"
         @click="openSettings"
       >
-        <Icon icon="lucide:settings" class="w-4 h-4" />
+        <Icon icon="lucide:ellipsis" class="w-4 h-4" />
       </Button>
+      <Button
+        v-if="!isMacOS"
+        class="window-no-drag-region shrink-0 inline-flex items-center justify-center h-full w-12 hover:bg-zinc-500/20"
+        @click="minimizeWindow"
+      >
+        <MinimizeIcon class="h-3 w-3" />
+      </Button>
+      <Button
+        v-if="!isMacOS"
+        class="window-no-drag-region shrink-0 inline-flex items-center justify-center h-full w-12 hover:bg-zinc-500/20"
+        @click="toggleMaximize"
+      >
+        <MaximizeIcon v-if="!isMaximized" class="h-3 w-3" />
+        <RestoreIcon v-else class="h-3 w-3" />
+      </Button>
+      <Button
+        v-if="!isMacOS"
+        class="window-no-drag-region shrink-0 inline-flex items-center justify-center h-full w-12 hover:bg-destructive hover:text-destructive-foreground"
+        @click="closeWindow"
+      >
+        <CloseIcon class="h-3 w-3" />
+      </Button>
+
       <!-- <Button
         class="text-xs font-medium px-2 h-7 bg-transparent rounded-md flex items-center justify-center"
         @click="openNewWindow"
@@ -90,34 +116,11 @@
         <Icon v-else icon="lucide:app-window" class="w-4 h-4" />
       </Button> -->
     </div>
-
-    <div v-if="!isMacOS" class="flex h-9">
-      <button
-        class="inline-flex items-center justify-center h-full w-12 hover:bg-zinc-500/20"
-        @click="minimizeWindow"
-      >
-        <MinusIcon class="h-4 w-4" />
-      </button>
-      <button
-        class="inline-flex items-center justify-center h-full w-12 hover:bg-zinc-500/20"
-        @click="toggleMaximize"
-      >
-        <MaximizeIcon v-if="!isMaximized" class="h-4 w-4" />
-        <RestoreIcon v-else class="h-4 w-4" />
-      </button>
-      <button
-        class="inline-flex items-center justify-center h-full w-12 hover:bg-destructive hover:text-destructive-foreground"
-        @click="closeWindow"
-      >
-        <XIcon class="h-4 w-4" />
-      </button>
-    </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted, nextTick, computed } from 'vue'
-import { MinusIcon, XIcon } from 'lucide-vue-next'
 import MaximizeIcon from './icons/MaximizeIcon.vue'
 import RestoreIcon from './icons/RestoreIcon.vue'
 import { usePresenter } from '@/composables/usePresenter'
@@ -129,6 +132,9 @@ import { useThemeStore } from '@/stores/theme'
 import { useElementSize } from '@vueuse/core'
 import { useLanguageStore } from '@/stores/language'
 import { useI18n } from 'vue-i18n'
+import { WINDOW_EVENTS } from '../lib/events'
+import CloseIcon from './icons/CloseIcon.vue'
+import MinimizeIcon from './icons/MinimizeIcon.vue'
 const tabStore = useTabStore()
 const langStore = useLanguageStore()
 const windowPresenter = usePresenter('windowPresenter')
@@ -436,9 +442,14 @@ const handleDragEnd = async (event: DragEvent) => {
   draggedTabId = null
 }
 
-const onThemeClick = () => {
-  console.log('onThemeClick')
-  themeStore.cycleTheme()
+// const onThemeClick = () => {
+//   console.log('onThemeClick')
+//   themeStore.cycleTheme()
+// }
+
+const onHistoryClick = () => {
+  console.log('onHistoryClick')
+  // Open history panel or tab
 }
 
 onMounted(() => {
@@ -447,16 +458,16 @@ onMounted(() => {
   devicePresenter.getDeviceInfo().then((deviceInfo) => {
     isMacOS.value = deviceInfo.platform === 'darwin'
   })
-  ipcRenderer?.on('window:maximized', () => {
+  ipcRenderer?.on(WINDOW_EVENTS.WINDOW_MAXIMIZED, () => {
     isMaximized.value = true
   })
-  ipcRenderer?.on('window-fullscreened', () => {
+  ipcRenderer?.on(WINDOW_EVENTS.WINDOW_ENTER_FULL_SCREEN, () => {
     isFullscreened.value = true
   })
-  ipcRenderer?.on('window:unmaximized', () => {
+  ipcRenderer?.on(WINDOW_EVENTS.WINDOW_UNMAXIMIZED, () => {
     isMaximized.value = false
   })
-  ipcRenderer?.on('window-unfullscreened', () => {
+  ipcRenderer?.on(WINDOW_EVENTS.WINDOW_LEAVE_FULL_SCREEN, () => {
     isFullscreened.value = false
   })
 

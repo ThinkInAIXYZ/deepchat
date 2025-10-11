@@ -113,6 +113,7 @@
     /* light */
     /* color */
     --bg-accent: hsl(0 0 15% / 0.05);
+    --bg-window-background: hsl(0 0 100% / 0.1);
     --bg-background-70: hsl(0 0 100% / 0.7);
     --bg-card: hsl(0 0 100%);
     --bg-muted: hsl(0 0 0% / 0.03);
@@ -129,7 +130,7 @@
     --syntax-symbol: hsl(0 0 15%);
     --syntax-variable: var(--color-blue-800);
     --text-accent-foreground: hsl(0 0 15% / 0.8);
-    --text-foreground: hsl(0 0 15%);
+    --text-foreground: hsl(0 0% 14%);
     --text-green: hsl(142 71% 45%);
     --text-muted-foreground: hsl(0 0 15% / 0.2);
     --text-primary: hsl(210 100% 43%);
@@ -171,6 +172,7 @@
     /* dark */
     /* color */
     --bg-accent: hsl(0 0 100% / 0.05);
+    --bg-window-background: hsl(0 0 15% / 0.5);
     --bg-background-70: hsl(0 0 15% / 0.7);
     --bg-card: hsl(217 6% 15%);
     --bg-muted: hsl(0 0 100% / 0.03);
@@ -350,7 +352,8 @@
     --color-usage-low: var(--usage-low);
     --color-usage-mid: var(--usage-mid);
     --color-usage-high: var(--usage-high);
-    --color-bg-background-70: var(--bg-background-70);
+    --color-window-background: var(--bg-window-background);
+    --color-window-inner-border: var(--window-inner-border);
 
     --animate-accordion-down: var(--animation-accordion-down);
     --animate-accordion-up: var(--animation-accordion-up);
