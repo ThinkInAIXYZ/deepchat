@@ -12577,10 +12577,7 @@
           "modalities": {
             "input": [
               "text",
-              "image",
-              "audio",
-              "video",
-              "pdf"
+              "image"
             ],
             "output": [
               "text"
@@ -12594,7 +12591,16 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": true
+            "default": true,
+            "budget": {
+              "default": -1,
+              "min": 0,
+              "max": 24576
+            }
+          },
+          "search": {
+            "supported": true,
+            "default": false
           },
           "attachment": true,
           "open_weights": false,
@@ -12689,10 +12695,7 @@
           "modalities": {
             "input": [
               "text",
-              "image",
-              "audio",
-              "video",
-              "pdf"
+              "image"
             ],
             "output": [
               "text"
@@ -12705,6 +12708,9 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
+            "supported": false
+          },
+          "search": {
             "supported": false
           },
           "attachment": true,
@@ -12761,10 +12767,7 @@
           "modalities": {
             "input": [
               "text",
-              "image",
-              "audio",
-              "video",
-              "pdf"
+              "image"
             ],
             "output": [
               "text"
@@ -12777,7 +12780,12 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": false
+            "supported": true,
+            "default": false
+          },
+          "search": {
+            "supported": true,
+            "default": false
           },
           "attachment": true,
           "open_weights": false,
@@ -12797,10 +12805,7 @@
           "modalities": {
             "input": [
               "text",
-              "image",
-              "audio",
-              "video",
-              "pdf"
+              "image"
             ],
             "output": [
               "text"
@@ -12814,7 +12819,16 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": true
+            "default": false,
+            "budget": {
+              "default": -1,
+              "min": 512,
+              "max": 24576
+            }
+          },
+          "search": {
+            "supported": true,
+            "default": false
           },
           "attachment": true,
           "open_weights": false,
@@ -12904,15 +12918,12 @@
         },
         {
           "id": "gemini-2.5-flash-preview-09-2025",
-          "name": "Gemini 2.5 Flash Preview 09-25",
-          "display_name": "Gemini 2.5 Flash Preview 09-25",
+          "name": "Gemini 2.5 Flash Preview 09 2025",
+          "display_name": "Gemini 2.5 Flash Preview 09 2025",
           "modalities": {
             "input": [
               "text",
-              "image",
-              "audio",
-              "video",
-              "pdf"
+              "image"
             ],
             "output": [
               "text"
@@ -12926,7 +12937,16 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": true
+            "default": true,
+            "budget": {
+              "default": -1,
+              "min": 0,
+              "max": 24576
+            }
+          },
+          "search": {
+            "supported": true,
+            "default": false
           },
           "attachment": true,
           "open_weights": false,
@@ -12991,18 +13011,24 @@
           },
           "limit": {
             "context": 1048576,
-            "output": 65535
+            "output": 65536
           },
           "temperature": true,
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": true
+            "default": true,
+            "budget": {
+              "default": -1,
+              "min": 128,
+              "max": 32768
+            }
           },
           "search": {
-            "supported": false
+            "supported": true,
+            "default": false
           },
-          "attachment": false,
+          "attachment": true,
           "open_weights": false,
           "knowledge": "2025-01",
           "release_date": "2025-03-20",
@@ -13085,15 +13111,12 @@
         },
         {
           "id": "gemini-2.5-flash-lite-preview-09-2025",
-          "name": "Gemini 2.5 Flash Lite Preview 09-25",
-          "display_name": "Gemini 2.5 Flash Lite Preview 09-25",
+          "name": "Gemini 2.5 Flash Lite Preview 09 2025",
+          "display_name": "Gemini 2.5 Flash Lite Preview 09 2025",
           "modalities": {
             "input": [
               "text",
-              "image",
-              "audio",
-              "video",
-              "pdf"
+              "image"
             ],
             "output": [
               "text"
@@ -13107,7 +13130,16 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": true
+            "default": false,
+            "budget": {
+              "default": -1,
+              "min": 512,
+              "max": 24576
+            }
+          },
+          "search": {
+            "supported": true,
+            "default": false
           },
           "attachment": true,
           "open_weights": false,
@@ -13156,16 +13188,17 @@
           }
         },
         {
-          "id": "google/gemini-2.5-flash-image-preview",
-          "name": "Gemini 2.5 Flash Image Preview",
-          "display_name": "Gemini 2.5 Flash Image Preview",
+          "id": "gemini-2.5-flash-image",
+          "name": "Gemini 2.5 Flash Image",
+          "display_name": "Gemini 2.5 Flash Image",
           "modalities": {
             "input": [
               "text",
               "image"
             ],
             "output": [
-              "text"
+              "text",
+              "image"
             ]
           },
           "limit": {
@@ -13180,91 +13213,32 @@
           "attachment": false
         },
         {
-          "id": "models/gemini-2.5-flash-lite-preview-06-17",
-          "name": "Gemini 2.5 Flash-Lite Preview",
-          "display_name": "Gemini 2.5 Flash-Lite Preview",
+          "id": "gemini-2.5-flash-image-preview",
+          "name": "Gemini 2.5 Flash Image Preview",
+          "display_name": "Gemini 2.5 Flash Image Preview",
           "modalities": {
             "input": [
               "text",
               "image"
             ],
             "output": [
-              "text"
-            ]
-          },
-          "limit": {
-            "context": 1048576,
-            "output": 65535
-          },
-          "temperature": true,
-          "tool_call": true,
-          "reasoning": {
-            "supported": true,
-            "default": true
-          },
-          "search": {
-            "supported": false
-          },
-          "attachment": false
-        },
-        {
-          "id": "models/gemini-2.5-flash-lite",
-          "name": "Gemini 2.5 Flash Lite",
-          "display_name": "Gemini 2.5 Flash Lite",
-          "modalities": {
-            "input": [
               "text",
               "image"
-            ],
-            "output": [
-              "text"
             ]
           },
           "limit": {
-            "context": 1048576,
-            "output": 65535
+            "context": 32768,
+            "output": 32768
           },
           "temperature": true,
-          "tool_call": true,
+          "tool_call": false,
           "reasoning": {
-            "supported": true,
-            "default": true
-          },
-          "search": {
             "supported": false
           },
           "attachment": false
         },
         {
-          "id": "models/gemini-2.5-flash",
-          "name": "Gemini 2.5 Flash",
-          "display_name": "Gemini 2.5 Flash",
-          "modalities": {
-            "input": [
-              "text",
-              "image"
-            ],
-            "output": [
-              "text"
-            ]
-          },
-          "limit": {
-            "context": 1048576,
-            "output": 65535
-          },
-          "temperature": true,
-          "tool_call": true,
-          "reasoning": {
-            "supported": true,
-            "default": true
-          },
-          "search": {
-            "supported": false
-          },
-          "attachment": false
-        },
-        {
-          "id": "models/gemini-2.0-flash-preview-image-generation",
+          "id": "gemini-2.0-flash-preview-image-generation",
           "name": "Gemini 2.0 Flash Preview Image Generation",
           "display_name": "Gemini 2.0 Flash Preview Image Generation",
           "modalities": {
@@ -13273,7 +13247,8 @@
               "image"
             ],
             "output": [
-              "text"
+              "text",
+              "image"
             ]
           },
           "limit": {
@@ -13285,116 +13260,10 @@
           "reasoning": {
             "supported": false
           },
-          "attachment": false
-        },
-        {
-          "id": "models/gemini-2.0-flash-lite",
-          "name": "Gemini 2.0 Flash Lite",
-          "display_name": "Gemini 2.0 Flash Lite",
-          "modalities": {
-            "input": [
-              "text",
-              "image"
-            ],
-            "output": [
-              "text"
-            ]
-          },
-          "limit": {
-            "context": 1048576,
-            "output": 8191
-          },
-          "temperature": true,
-          "tool_call": true,
-          "reasoning": {
-            "supported": false
-          },
           "search": {
             "supported": false
           },
-          "attachment": false
-        },
-        {
-          "id": "models/gemini-2.0-flash",
-          "name": "Gemini 2.0 Flash",
-          "display_name": "Gemini 2.0 Flash",
-          "modalities": {
-            "input": [
-              "text",
-              "image"
-            ],
-            "output": [
-              "text"
-            ]
-          },
-          "limit": {
-            "context": 1048576,
-            "output": 8191
-          },
-          "temperature": true,
-          "tool_call": true,
-          "reasoning": {
-            "supported": true,
-            "default": true
-          },
-          "search": {
-            "supported": false
-          },
-          "attachment": false
-        },
-        {
-          "id": "models/gemini-1.5-flash",
-          "name": "Gemini 1.5 Flash",
-          "display_name": "Gemini 1.5 Flash",
-          "modalities": {
-            "input": [
-              "text",
-              "image"
-            ],
-            "output": [
-              "text"
-            ]
-          },
-          "limit": {
-            "context": 1048576,
-            "output": 8191
-          },
-          "temperature": true,
-          "tool_call": true,
-          "reasoning": {
-            "supported": false
-          },
-          "search": {
-            "supported": false
-          },
-          "attachment": false
-        },
-        {
-          "id": "models/gemini-1.5-pro",
-          "name": "Gemini 1.5 Pro",
-          "display_name": "Gemini 1.5 Pro",
-          "modalities": {
-            "input": [
-              "text",
-              "image"
-            ],
-            "output": [
-              "text"
-            ]
-          },
-          "limit": {
-            "context": 2097152,
-            "output": 8191
-          },
-          "temperature": true,
-          "tool_call": true,
-          "reasoning": {
-            "supported": false
-          },
-          "search": {
-            "supported": false
-          },
-          "attachment": false
+          "attachment": true
         }
       ]
     },
@@ -32698,7 +32567,7 @@
               "image"
             ]
           },
-          "tool_call": false,
+          "tool_call": true,
           "reasoning": {
             "supported": true,
             "default": true
@@ -34745,15 +34614,6 @@
           "id": "sonar",
           "name": "sonar",
           "display_name": "sonar",
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          }
-        },
-        {
-          "id": "sonar-pro",
-          "name": "sonar-pro",
-          "display_name": "sonar-pro",
           "tool_call": false,
           "reasoning": {
             "supported": false

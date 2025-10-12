@@ -27,6 +27,7 @@ import {
 } from '@shared/presenter'
 import { createStreamEvent } from '@shared/types/core/llm-events'
 import { BaseLLMProvider, SUMMARY_TITLES_PROMPT } from '../baseProvider'
+import { modelCapabilities } from '../../configPresenter/modelCapabilities'
 import { eventBus, SendTarget } from '@/eventbus'
 import { CONFIG_EVENTS } from '@/events'
 
@@ -52,107 +53,6 @@ const safetySettingKeys = Object.keys(keyToHarmCategoryMap)
 export class GeminiProvider extends BaseLLMProvider {
   private genAI: GoogleGenAI
 
-  // Define static model configuration
-  private static readonly GEMINI_MODELS: MODEL_META[] = [
-    {
-      id: 'gemini-2.5-pro',
-      name: 'Gemini 2.5 Pro',
-      group: 'default',
-      providerId: 'gemini',
-      isCustom: false,
-      contextLength: 1048576,
-      maxTokens: 65535,
-      vision: true,
-      functionCall: true,
-      reasoning: true
-    },
-    {
-      id: 'models/gemini-2.5-flash-lite-preview-06-17',
-      name: 'Gemini 2.5 Flash-Lite Preview',
-      group: 'default',
-      providerId: 'gemini',
-      isCustom: false,
-      contextLength: 1048576,
-      maxTokens: 65535,
-      vision: true,
-      functionCall: true,
-      reasoning: true
-    },
-    {
-      id: 'models/gemini-2.5-flash-lite',
-      name: 'Gemini 2.5 Flash-Lite',
-      group: 'default',
-      providerId: 'gemini',
-      isCustom: false,
-      contextLength: 1048576,
-      maxTokens: 65535,
-      vision: true,
-      functionCall: true,
-      reasoning: true
-    },
-    {
-      id: 'models/gemini-2.5-flash',
-      name: 'Gemini 2.5 Flash',
-      group: 'default',
-      providerId: 'gemini',
-      isCustom: false,
-      contextLength: 1048576,
-      maxTokens: 65535,
-      vision: true,
-      functionCall: true,
-      reasoning: true
-    },
-    {
-      id: 'models/gemini-2.0-flash-preview-image-generation',
-      name: 'Gemini 2.0 Flash Preview Image Generation',
-      group: 'default',
-      providerId: 'gemini',
-      isCustom: false,
-      contextLength: 32000,
-      maxTokens: 8192,
-      vision: true,
-      functionCall: false,
-      reasoning: false,
-      type: ModelType.ImageGeneration
-    },
-    {
-      id: 'models/gemini-2.0-flash-lite',
-      name: 'Gemini 2.0 Flash Lite',
-      group: 'default',
-      providerId: 'gemini',
-      isCustom: false,
-      contextLength: 1048576,
-      maxTokens: 8191,
-      vision: true,
-      functionCall: true,
-      reasoning: false
-    },
-    {
-      id: 'models/gemini-2.0-flash',
-      name: 'Gemini 2.0 Flash',
-      group: 'default',
-      providerId: 'gemini',
-      isCustom: false,
-      contextLength: 1048576,
-      maxTokens: 8191,
-      vision: true,
-      functionCall: true,
-      reasoning: true
-    },
-    {
-      id: 'models/gemini-1.5-flash',
-      name: 'Gemini 1.5 Flash',
-      group: 'default',
-      providerId: 'gemini',
-      isCustom: false,
-      contextLength: 1048576,
-      maxTokens: 8191,
-      vision: true,
-      functionCall: true,
-      reasoning: false
-    }
-  ]
-
   constructor(provider: LLM_PROVIDER, configPresenter: IConfigPresenter) {
     super(provider, configPresenter)
     this.genAI = new GoogleGenAI({
@@ -164,6 +64,11 @@ export class GeminiProvider extends BaseLLMProvider {
 
   public onProxyResolved(): void {
     this.init()
+  }
+
+  // 确保带有 models/ 前缀
+  private ensureGoogleModelName(modelId: string): string {
+    return modelId?.startsWith('models/') ? modelId : `models/${modelId}`
   }
 
   // Implement abstract method fetchProviderModels from BaseLLMProvider
@@ -179,68 +84,65 @@ export class GeminiProvider extends BaseLLMProvider {
       }
 
       if (models.length === 0) {
-        console.warn('No models found in Gemini API response, using static models')
-        return GeminiProvider.GEMINI_MODELS.map((model) => ({
-          ...model,
-          providerId: this.provider.id
+        console.warn('No models found in Gemini API response, using Provider DB models')
+        const dbModels = this.configPresenter.getDbProviderModels(this.provider.id).map((m) => ({
+          id: m.id,
+          name: m.name,
+          group: m.group || 'default',
+          providerId: this.provider.id,
+          isCustom: false,
+          contextLength: m.contextLength,
+          maxTokens: m.maxTokens,
+          vision: m.vision || false,
+          functionCall: m.functionCall || false,
+          reasoning: m.reasoning || false,
+          ...(m.type ? { type: m.type } : {})
         }))
+        return dbModels
       }
 
-      // 映射 API 返回的模型数据
+      // 映射 API 返回的模型数据（能力统一读 Provider DB）
+      const normalizeModelId = (mid: string): string => String(mid || '').replace(/^models\//i, '')
       const apiModels: MODEL_META[] = models
         .filter((model: any) => {
-          // Filter out embedding models and other non-chat models
-          const name = model.name.toLowerCase()
+          const name = String(model.name || '').toLowerCase()
           return (
             !name.includes('embedding') &&
             !name.includes('aqa') &&
             !name.includes('text-embedding') &&
             !name.includes('gemma-3n-e4b-it')
-          ) // Filter out specific small models
+          )
         })
         .map((model: any) => {
-          const modelName = model.name
-          const displayName = model.displayName
+          const apiModelId: string = model.name
+          const displayName: string = model.displayName || apiModelId
 
-          // Determine model functionality support
-          const isVisionModel =
-            displayName.toLowerCase().includes('vision') || modelName.includes('gemini-') // Gemini series generally support vision
+          const normalizedId = normalizeModelId(apiModelId)
 
-          const isFunctionCallSupported =
-            !modelName.includes('gemma-3') && !modelName.includes('flash-image-preview') // Gemma models and flash-image-preview do not support function calls
+          const vision = modelCapabilities.supportsVision(this.provider.id, normalizedId)
+          const functionCall = modelCapabilities.supportsToolCall(this.provider.id, normalizedId)
+          const reasoning = modelCapabilities.supportsReasoning(this.provider.id, normalizedId)
+          const isImageOutput = modelCapabilities.supportsImageOutput(
+            this.provider.id,
+            normalizedId
+          )
+          const modelType = isImageOutput ? ModelType.ImageGeneration : ModelType.Chat
 
-          // Determine if reasoning (thinking) is supported
-          const isReasoningSupported =
-            modelName.includes('thinking') ||
-            (modelName.includes('2.5') && !modelName.includes('flash-image-preview')) ||
-            modelName.includes('2.0-flash') ||
-            modelName.includes('exp-1206')
-
-          // Determine model type
-          let modelType = ModelType.Chat
-          if (modelName.includes('image-generation')) {
-            modelType = ModelType.ImageGeneration
-          }
-
-          // Determine model group
           let group = 'default'
-          if (modelName.includes('exp') || modelName.includes('preview')) {
-            group = 'experimental'
-          } else if (modelName.includes('gemma')) {
-            group = 'gemma'
-          }
+          if (/\b(exp|preview)\b/i.test(apiModelId)) group = 'experimental'
+          else if (/\bgemma\b/i.test(apiModelId)) group = 'gemma'
 
           return {
-            id: modelName,
+            id: apiModelId,
             name: displayName,
             group,
             providerId: this.provider.id,
             isCustom: false,
             contextLength: model.inputTokenLimit,
             maxTokens: model.outputTokenLimit,
-            vision: isVisionModel,
-            functionCall: isFunctionCallSupported,
-            reasoning: isReasoningSupported,
+            vision,
+            functionCall,
+            reasoning,
             ...(modelType !== ModelType.Chat && { type: modelType })
           } as MODEL_META
         })
@@ -279,7 +181,7 @@ export class GeminiProvider extends BaseLLMProvider {
       const prompt = `${SUMMARY_TITLES_PROMPT}\n\n${conversationText}`
 
       const result = await this.genAI.models.generateContent({
-        model: modelId,
+        model: this.ensureGoogleModelName(modelId),
         contents: [{ role: 'user', parts: [{ text: prompt }] }],
         config: this.getGenerateContentConfig(0.4, undefined, modelId, false)
       })
@@ -305,8 +207,13 @@ export class GeminiProvider extends BaseLLMProvider {
       }
 
       // Use the first model for simple testing
+      const testModelId =
+        this.models.find((m) => m.type !== ModelType.ImageGeneration)?.id ||
+        this.models[0]?.id ||
+        'gemini-2.0-flash'
+
       const result = await this.genAI.models.generateContent({
-        model: 'models/gemini-1.5-flash-8b',
+        model: this.ensureGoogleModelName(testModelId),
         contents: [{ role: 'user', parts: [{ text: 'Hello' }] }]
       })
       return { isOk: result && result.text ? true : false, errorMsg: null }
@@ -338,7 +245,7 @@ export class GeminiProvider extends BaseLLMProvider {
 
   /**
    * 重写 autoEnableModelsIfNeeded 方法
-   * 只自动启用与 GEMINI_MODELS 中定义的推荐模型相匹配的模型
+   * 不自动启用模型，交由用户手动选择。
    */
   protected async autoEnableModelsIfNeeded() {
     if (!this.models || this.models.length === 0) return
@@ -402,10 +309,12 @@ export class GeminiProvider extends BaseLLMProvider {
 
   // 判断模型是否支持 thinkingBudget
   private supportsThinkingBudget(modelId: string): boolean {
+    const normalized = modelId.replace(/^models\//i, '')
+    const range = modelCapabilities.getThinkingBudgetRange(this.provider.id, normalized)
     return (
-      modelId.includes('gemini-2.5-pro') ||
-      modelId.includes('gemini-2.5-flash') ||
-      modelId.includes('gemini-2.5-flash-lite')
+      typeof range.default === 'number' ||
+      typeof range.min === 'number' ||
+      typeof range.max === 'number'
     )
   }
 
@@ -676,7 +585,10 @@ export class GeminiProvider extends BaseLLMProvider {
         config: generateContentConfig
       }
 
-      const result = await this.genAI.models.generateContent(requestParams)
+      const result = await this.genAI.models.generateContent({
+        ...requestParams,
+        model: this.ensureGoogleModelName(requestParams.model as string)
+      })
 
       const resultResp: LLMResponse = {
         content: ''
@@ -781,7 +693,7 @@ export class GeminiProvider extends BaseLLMProvider {
       const prompt = `Please generate a concise summary for the following content:\n\n${text}`
 
       const result = await this.genAI.models.generateContent({
-        model: modelId,
+        model: this.ensureGoogleModelName(modelId),
         contents: [{ role: 'user', parts: [{ text: prompt }] }],
         config: this.getGenerateContentConfig(temperature, maxTokens, modelId, false)
       })
@@ -809,7 +721,7 @@ export class GeminiProvider extends BaseLLMProvider {
 
     try {
       const result = await this.genAI.models.generateContent({
-        model: modelId,
+        model: this.ensureGoogleModelName(modelId),
         contents: [{ role: 'user', parts: [{ text: prompt }] }],
         config: this.getGenerateContentConfig(temperature, maxTokens, modelId, false)
       })
@@ -839,7 +751,7 @@ export class GeminiProvider extends BaseLLMProvider {
       const prompt = `Based on the following context, please provide up to 5 reasonable suggestion options, each not exceeding 100 characters. Please return in JSON array format without other explanations:\n\n${context}`
 
       const result = await this.genAI.models.generateContent({
-        model: modelId,
+        model: this.ensureGoogleModelName(modelId),
         contents: [{ role: 'user', parts: [{ text: prompt }] }],
         config: this.getGenerateContentConfig(temperature, maxTokens, modelId, false)
       })
@@ -932,9 +844,16 @@ export class GeminiProvider extends BaseLLMProvider {
 
     if (geminiTools.length > 0) {
       generateContentConfig.tools = geminiTools
-      generateContentConfig.toolConfig = {
-        functionCallingConfig: {
-          mode: FunctionCallingConfigMode.AUTO // 允许模型自动决定是否调用工具
+      // 仅当存在 functionDeclarations 时才配置 functionCallingConfig
+      const hasFunctionDeclarations = geminiTools.some((t: any) => {
+        const fns = t?.functionDeclarations
+        return Array.isArray(fns) && fns.length > 0
+      })
+      if (hasFunctionDeclarations) {
+        generateContentConfig.toolConfig = {
+          functionCallingConfig: {
+            mode: FunctionCallingConfigMode.AUTO // 允许模型自动决定是否调用工具
+          }
         }
       }
     }
@@ -953,7 +872,10 @@ export class GeminiProvider extends BaseLLMProvider {
     console.log('requestParams', requestParams)
 
     // 发送流式请求
-    const result = await this.genAI.models.generateContentStream(requestParams)
+    const result = await this.genAI.models.generateContentStream({
+      ...requestParams,
+      model: this.ensureGoogleModelName(requestParams.model as string)
+    })
 
     // 状态变量
     let buffer = ''
@@ -1134,7 +1056,7 @@ export class GeminiProvider extends BaseLLMProvider {
 
       // 发送生成请求
       const result = await this.genAI.models.generateContentStream({
-        model: modelId,
+        model: this.ensureGoogleModelName(modelId),
         contents: [{ role: 'user', parts }],
         config: this.getGenerateContentConfig(temperature, maxTokens, modelId, false) // 图像生成不需要reasoning
       })
@@ -1172,7 +1094,7 @@ export class GeminiProvider extends BaseLLMProvider {
     if (!this.genAI) throw new Error('Google Generative AI client is not initialized')
     // Gemini embedContent 支持批量输入
     const resp = await this.genAI.models.embedContent({
-      model: modelId,
+      model: this.ensureGoogleModelName(modelId),
       contents: texts.map((text) => ({
         parts: [{ text }]
       }))

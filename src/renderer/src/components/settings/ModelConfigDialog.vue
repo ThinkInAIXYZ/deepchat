@@ -594,6 +594,8 @@ const isDeepSeekV31Model = computed(() => {
   return modelId.includes('deepseek-v3.1') || modelId.includes('deepseek-v3-1')
 })
 
+const isGeminiProvider = computed(() => props.providerId?.toLowerCase() === 'gemini')
+
 const supportsReasoningEffort = computed(() => {
   return config.value.reasoningEffort !== undefined && config.value.reasoningEffort !== null
 })
@@ -666,6 +668,9 @@ const genericThinkingBudgetError = computed(() => {
     return t('settings.model.modelConfig.thinkingBudget.validation.required')
   }
   if (!range) return ''
+  if (isGeminiProvider.value && value === -1) {
+    return ''
+  }
   if (range.min !== undefined && value < range.min) {
     return t('settings.model.modelConfig.thinkingBudget.validation.minValue')
   }

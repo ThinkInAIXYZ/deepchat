@@ -18,7 +18,8 @@ export type SearchDefaults = {
 export class ModelCapabilities {
   private index: Map<string, Map<string, ProviderModel>> = new Map()
   private static readonly PROVIDER_ID_ALIASES: Record<string, string> = {
-    dashscope: 'alibaba-cn'
+    dashscope: 'alibaba-cn',
+    gemini: 'google'
   }
 
   constructor() {
@@ -57,7 +58,7 @@ export class ModelCapabilities {
     return p.get(mid)
   }
 
-  private resolveProviderId(providerId: string | undefined): string | undefined {
+  resolveProviderId(providerId: string | undefined): string | undefined {
     if (!providerId) return undefined
     const alias = ModelCapabilities.PROVIDER_ID_ALIASES[providerId]
     return alias || providerId
@@ -97,6 +98,25 @@ export class ModelCapabilities {
       }
     }
     return out
+  }
+
+  supportsVision(providerId: string, modelId: string): boolean {
+    const m = this.getModel(providerId, modelId)
+    const inputs = m?.modalities?.input
+    if (!Array.isArray(inputs)) return false
+    return inputs.includes('image')
+  }
+
+  supportsToolCall(providerId: string, modelId: string): boolean {
+    const m = this.getModel(providerId, modelId)
+    return m?.tool_call === true
+  }
+
+  supportsImageOutput(providerId: string, modelId: string): boolean {
+    const m = this.getModel(providerId, modelId)
+    const outputs = m?.modalities?.output
+    if (!Array.isArray(outputs)) return false
+    return outputs.includes('image')
   }
 }
 

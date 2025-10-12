@@ -21,7 +21,8 @@ export class ModelConfigHelper {
   private cacheInitialized: boolean = false
   private currentVersion: string
   private static readonly PROVIDER_ID_ALIASES: Record<string, string> = {
-    dashscope: 'alibaba-cn'
+    dashscope: 'alibaba-cn',
+    gemini: 'google'
   }
 
   constructor(appVersion: string = '0.0.0') {
@@ -238,7 +239,9 @@ export class ModelConfigHelper {
     let storedSource: ModelConfigSource | undefined
 
     // 统一小写用于 DB 严格匹配；用户配置读取先原样，再尝试小写键
-    const normModelId = modelId ? modelId.toLowerCase() : modelId
+    const normModelIdRaw = modelId ? modelId.toLowerCase() : modelId
+    // 兼容 Google Gemini SDK 返回的 `models/` 前缀模型ID
+    const normModelId = normModelIdRaw ? normModelIdRaw.replace(/^models\//, '') : normModelIdRaw
     const normProviderId = providerId ? providerId.toLowerCase() : providerId
 
     if (providerId) {

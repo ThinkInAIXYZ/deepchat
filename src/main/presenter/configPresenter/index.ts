@@ -662,7 +662,9 @@ export class ConfigPresenter implements IConfigPresenter {
   // 基于聚合 Provider DB 的标准模型（只读映射，不落库）
   getDbProviderModels(providerId: string): RENDERER_MODEL_META[] {
     const db = providerDbLoader.getDb()
-    const provider = db?.providers?.[providerId.toLowerCase()]
+    const resolvedId =
+      modelCapabilities.resolveProviderId(providerId.toLowerCase()) || providerId.toLowerCase()
+    const provider = db?.providers?.[resolvedId]
     if (!provider || !Array.isArray(provider.models)) return []
     return provider.models.map((m) => ({
       id: m.id,
@@ -678,7 +680,10 @@ export class ConfigPresenter implements IConfigPresenter {
       functionCall: Boolean(m.tool_call),
       reasoning: Boolean(m.reasoning?.supported),
       enableSearch: Boolean(m.search?.supported),
-      type: ModelType.Chat
+      type:
+        Array.isArray(m?.modalities?.output) && m.modalities!.output!.includes('image')
+          ? ModelType.ImageGeneration
+          : ModelType.Chat
     }))
   }
 
