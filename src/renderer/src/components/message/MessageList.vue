@@ -54,15 +54,14 @@
           v-if="showCancelButton"
           key="cancel"
           variant="outline"
-          size="sm"
-          class="rounded-lg"
+          size="icon"
+          class="w-8 h-8 shrink-0 opacity-100 bg-card backdrop-blur-lg z-20"
           @click="handleCancel"
         >
           <Icon
             icon="lucide:square"
             class="w-6 h-6 bg-red-500 p-1 text-primary-foreground rounded-full"
           />
-          <span class="">{{ t('common.cancel') }}</span>
         </Button>
 
         <!-- 新聊天按钮 (仅在非生成状态显示) -->
@@ -74,7 +73,7 @@
           class="w-8 h-8 shrink-0 opacity-100 bg-card backdrop-blur-lg z-20"
           @click="createNewThread"
         >
-          <Icon icon="lucide:brush-cleaning" class="w-6 h-6 text-primary-foreground" />
+          <Icon icon="lucide:brush-cleaning" class="w-6 h-6 text-foreground" />
           <!-- <span class="">{{ t('common.newChat') }}</span> -->
         </Button>
 
@@ -87,7 +86,7 @@
           class="w-8 h-8 shrink-0 relative z-10 backdrop-blur-lg"
           @click="scrollToBottom(true)"
         >
-          <Icon icon="lucide:arrow-down" class="w-5 h-5 text-primary-foreground" />
+          <Icon icon="lucide:arrow-down" class="w-5 h-5 text-foreground" />
         </Button>
       </TransitionGroup>
     </template>

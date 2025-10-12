@@ -59,19 +59,19 @@
 
     --container: var(--white);
     --background: var(--white);
-    --foreground: var(--base-800);
+    --foreground: hsl(0 0 15% / 1);
     --card: hsl(0 0% 100%);
-    --card-foreground: var(--base-800);
+    --card-foreground: hsl(0 0 15% / 1);
     --popover: hsl(0 0% 100%);
-    --popover-foreground: var(--base-800);
+    --popover-foreground: hsl(0 0 15% / 1);
     --primary: hsl(210 100% 43%);
     --primary-foreground: hsl(0 0% 100%);
-    --secondary: var(--base-200);
-    --secondary-foreground: var(--base-700);
+    --secondary: hsl(0 0 0% / 0.05);
+    --secondary-foreground: hsl(0 0 15% / 0.5);
     --muted: hsl(0 0 0% / 0.03);
-    --muted-foreground: var(--base-400);
+    --muted-foreground: hsl(0 0 15% / 0.5);
     --accent: hsl(0 0 15% / 0.05);
-    --accent-foreground: hsl(0 0 15% / 0.05);
+    --accent-foreground: hsl(0 0 15% / 0.8);
     --destructive: hsl(0 84.2% 60.2%);
     --destructive-foreground: hsl(0 0% 98%);
     /* --border: var(--base-200); */
@@ -152,7 +152,7 @@
     --secondary: hsl(0 0 15% / 0.8);
     --secondary-foreground: var(--base-50);
     --muted: hsl(0 0 100% / 0.03);
-    --muted-foreground: var(--base-500);
+    --muted-foreground: hsl(0 0 100% / 0.2);
     --accent: hsl(0 0 100% / 0.05);
     --accent-foreground: hsl(0 0 100% / 0.8);
     --destructive: hsl(0 62.8% 30.6%);
@@ -210,7 +210,7 @@
       --secondary: hsl(0 0 15% / 0.8);
       --secondary-foreground: hsl(0 0 100%);
       --muted: hsl(0 0 100% / 0.03);
-      --muted-foreground: var(--base-500);
+      --muted-foreground: hsl(0 0 100% / 0.2);
       --accent: hsl(0 0 100% / 0.05);
       --accent-foreground: hsl(0 0 100% / 0.8);
       --destructive: hsl(0 62.8% 30.6%);

@@ -77,7 +77,7 @@
                     :class="[
                       'flex w-7 border-none rounded-none shadow-none items-center gap-1.5 px-2 h-full text-foreground ',
                       settings.webSearch
-                        ? 'dark:!bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground'
+                        ? 'dark:!bg-primary hover:bg-primary/90 hover:text-primary-foreground'
                         : 'dark:text-white/70'
                     ]"
                     :dir="langStore.dir"
