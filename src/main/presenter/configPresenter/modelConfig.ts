@@ -243,15 +243,9 @@ export class ModelConfigHelper {
 
     if (providerId) {
       const cacheKey = this.generateCacheKey(providerId, modelId)
-      let cachedEntry = this.memoryCache.get(cacheKey)
-
-      if (!cachedEntry) {
-        const entryFromStore = this.modelConfigStore.get(cacheKey) as IModelConfig | undefined
-        if (entryFromStore) {
-          cachedEntry = entryFromStore
-          this.memoryCache.set(cacheKey, entryFromStore)
-        }
-      }
+      const cachedEntry = this.memoryCache.has(cacheKey)
+        ? (this.memoryCache.get(cacheKey) as IModelConfig | undefined)
+        : undefined
 
       if (cachedEntry?.config) {
         storedConfig = cachedEntry.config
@@ -259,14 +253,9 @@ export class ModelConfigHelper {
       } else if (normProviderId && normModelId) {
         // 二次尝试：小写键（兼容历史大小写不一致的存储键）
         const normKey = this.generateCacheKey(normProviderId, normModelId)
-        let normCached = this.memoryCache.get(normKey)
-        if (!normCached) {
-          const fromStore = this.modelConfigStore.get(normKey) as IModelConfig | undefined
-          if (fromStore) {
-            normCached = fromStore
-            this.memoryCache.set(normKey, fromStore)
-          }
-        }
+        const normCached = this.memoryCache.has(normKey)
+          ? (this.memoryCache.get(normKey) as IModelConfig | undefined)
+          : undefined
         if (normCached?.config) {
           storedConfig = normCached.config
           storedSource = normCached.source ?? (normCached.config.isUserDefined ? 'user' : undefined)

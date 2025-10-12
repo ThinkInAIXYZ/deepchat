@@ -133,10 +133,20 @@ export class ProviderDbLoader {
     return Number.isFinite(v) && v > 0 ? v : 24
   }
 
+  private getProviderDbUrl(): string {
+    const value = import.meta.env.VITE_PROVIDER_DB_URL
+    if (typeof value === 'string') {
+      const trimmed = value.trim()
+      if (trimmed.length > 0) return trimmed
+    }
+
+    return DEFAULT_PROVIDER_DB_URL
+  }
+
   async refreshIfNeeded(force = false): Promise<void> {
     const meta = this.readMeta()
     const ttlHours = this.getTtlHours()
-    const url = process.env.PROVIDER_DB_URL || DEFAULT_PROVIDER_DB_URL
+    const url = this.getProviderDbUrl()
 
     const needFirstFetch = !meta || !fs.existsSync(this.cacheFilePath)
     const expired = meta ? this.now() - meta.lastUpdated > ttlHours * 3600 * 1000 : true

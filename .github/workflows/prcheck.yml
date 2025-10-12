@@ -47,3 +47,5 @@ jobs:
 
       - name: Build
         run: pnpm run build
+        env:
+          VITE_PROVIDER_DB_URL: ${{ secrets.CDN_PROVIDER_DB_URL }}
