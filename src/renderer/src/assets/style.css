@@ -16,31 +16,31 @@
   @import 'vue-renderer-markdown/index.css';
 
   :root {
-    --base-50: hsl(210 28% 100%);
-    --base-100: hsl(210 28% 98.1%);
-    --base-200: hsl(214.3 21.44% 93.4%);
-    --base-300: hsl(212.7 17.44% 85.9%);
-    --base-400: hsl(215 12.16% 67.1%);
-    --base-500: hsl(215.4 9.04% 48.9%);
-    --base-600: hsl(215.3 11.44% 36.5%);
-    --base-700: hsl(215.3 16% 28.7%);
-    --base-800: hsl(217.2 22.08% 19.5%);
-    --base-900: hsl(222.2 33.92% 13.2%);
-    --base-950: hsl(222.2 33.92% 13.2%);
+    --base-50: hsl(0 0% 100%);
+    --base-100: hsl(0 0% 98.1%);
+    --base-200: hsl(0 0% 93.4%);
+    --base-300: hsl(0 0% 85.9%);
+    --base-400: hsl(0 0% 67.1%);
+    --base-500: hsl(0 0% 48.9%);
+    --base-600: hsl(0 0% 36.5%);
+    --base-700: hsl(0 0% 28.7%);
+    --base-800: hsl(0 0% 19.5%);
+    --base-900: hsl(0 0% 13.2%);
+    --base-950: hsl(0 0% 12.2%);
     --base-1000: hsl(0 0% 1.2%);
 
-    --primary-50: hsl(225.9 100% 96.7%);
-    --primary-100: hsl(226.5 100% 93.9%);
-    --primary-200: hsl(228 96.5% 88.8%);
-    --primary-300: hsl(229.7 93.5% 81.8%);
-    --primary-400: hsl(234.5 89.5% 73.9%);
-    --primary-500: hsl(238.7 83.5% 66.7%);
-    --primary-600: hsl(243.4 75.4% 58.6%);
-    --primary-700: hsl(244.5 57.9% 50.6%);
-    --primary-800: hsl(243.7 54.5% 41.4%);
-    --primary-900: hsl(242.2 47.4% 34.3%);
-    --primary-950: hsl(242.2 47.4% 34.3%);
-    --primary-1000: hsl(249 55.9% 13.3%);
+    --primary-50: hsl(208.6 72.4% 94.3%);
+    --primary-100: hsl(210 75.9% 88.6%);
+    --primary-200: hsl(210 74.5% 80%);
+    --primary-300: hsl(209.7 75.2% 71.6%);
+    --primary-400: hsl(209.8 75.7% 62.9%);
+    --primary-500: hsl(209.8 75.1% 54.3%);
+    --primary-600: hsl(209.9 100% 42.9%);
+    --primary-700: hsl(209.8 100% 34.3%);
+    --primary-800: hsl(209.6 100% 27.8%);
+    --primary-900: hsl(210 100% 21.6%);
+    --primary-950: hsl(209.6 100% 15.1%);
+    --primary-1000: hsl(210 100% 8.6%);
 
     --white: hsl(0 0% 100%);
     --black: hsl(0 0% 0%);
@@ -59,19 +59,26 @@
 
     --container: var(--white);
     --background: var(--white);
-    --foreground: var(--base-800);
+    --foreground: hsl(0 0 15% / 1);
+    --foreground: hsl(0 0 15% / 1);
     --card: hsl(0 0% 100%);
-    --card-foreground: var(--base-800);
+    --card-foreground: hsl(0 0 15% / 1);
+    --card-foreground: hsl(0 0 15% / 1);
     --popover: hsl(0 0% 100%);
-    --popover-foreground: var(--base-800);
-    --primary: var(--primary-600);
+    --popover-foreground: hsl(0 0 15% / 1);
+    --popover-foreground: hsl(0 0 15% / 1);
+    --primary: hsl(210 100% 43%);
     --primary-foreground: hsl(0 0% 100%);
-    --secondary: var(--base-200);
-    --secondary-foreground: var(--base-700);
-    --muted: var(--base-100);
-    --muted-foreground: var(--base-400);
-    --accent: var(--base-100);
-    --accent-foreground: var(--base-800);
+    --secondary: hsl(0 0 0% / 0.05);
+    --secondary-foreground: hsl(0 0 15% / 0.5);
+    --secondary: hsl(0 0 0% / 0.05);
+    --secondary-foreground: hsl(0 0 15% / 0.5);
+    --muted: hsl(0 0 0% / 0.03);
+    --muted-foreground: hsl(0 0 15% / 0.5);
+    --muted-foreground: hsl(0 0 15% / 0.5);
+    --accent: hsl(0 0 15% / 0.05);
+    --accent-foreground: hsl(0 0 15% / 0.8);
+    --accent-foreground: hsl(0 0 15% / 0.8);
     --destructive: hsl(0 84.2% 60.2%);
     --destructive-foreground: hsl(0 0% 98%);
     /* --border: var(--base-200); */
@@ -113,9 +120,9 @@
     /* light */
     /* color */
     --bg-accent: hsl(0 0 15% / 0.05);
+    --bg-window-background: hsl(0 0 100% / 0.1);
     --bg-background-70: hsl(0 0 100% / 0.7);
     --bg-card: hsl(0 0 100%);
-    --bg-muted: hsl(0 0 0% / 0.03);
     --bg-primary: hsl(210 100% 43%);
     --bg-primary-70: hsl(210 100% 43% / 0.7);
     --bg-primary-700: hsl(210 100% 37%);
@@ -129,7 +136,7 @@
     --syntax-symbol: hsl(0 0 15%);
     --syntax-variable: var(--color-blue-800);
     --text-accent-foreground: hsl(0 0 15% / 0.8);
-    --text-foreground: hsl(0 0 15%);
+    --text-foreground: hsl(0 0% 14%);
     --text-green: hsl(142 71% 45%);
     --text-muted-foreground: hsl(0 0 15% / 0.2);
     --text-primary: hsl(210 100% 43%);
@@ -143,18 +150,18 @@
   .dark,
   [data-theme='dark'] {
     --container: var(--black);
-    --background: var(--base-950);
+    --background: hsl(0 0 15% / 1);
     --foreground: var(--base-200);
-    --card: var(--base-900);
+    --card: hsl(0 0 20% / 1);
     --card-foreground: var(--base-200);
-    --popover: var(--base-900);
+    --popover: hsl(0 0 20% / 1);
     --popover-foreground: var(--base-200);
-    --secondary: var(--base-700);
+    --secondary: hsl(0 0 15% / 0.8);
     --secondary-foreground: var(--base-50);
-    --muted: var(--base-800);
-    --muted-foreground: var(--base-500);
-    --accent: var(--base-800);
-    --accent-foreground: var(--base-200);
+    --muted: hsl(0 0 100% / 0.03);
+    --muted-foreground: hsl(0 0 100% / 0.5);
+    --accent: hsl(0 0 100% / 0.05);
+    --accent-foreground: hsl(0 0 100% / 0.8);
     --destructive: hsl(0 62.8% 30.6%);
     --border: var(--base-800);
     --input: var(--base-700);
@@ -171,8 +178,9 @@
     /* dark */
     /* color */
     --bg-accent: hsl(0 0 100% / 0.05);
+    --bg-window-background: hsl(0 0 0% / 1);
     --bg-background-70: hsl(0 0 15% / 0.7);
-    --bg-card: hsl(217 6% 15%);
+
     --bg-muted: hsl(0 0 100% / 0.03);
     --bg-primary: hsl(210 100% 43%);
     --bg-primary-70: hsl(210 100% 43% / 0.7);
@@ -186,7 +194,6 @@
     --syntax-property: var(--color-blue-100);
     --syntax-symbol: hsl(0 0 100% / 0.8);
     --syntax-variable: var(--color-blue-300);
-    --text-accent-foreground: hsl(0 0 100% / 0.8);
     --text-foreground: hsl(0 0 100%);
     --text-green: hsl(142 71% 45%);
     --text-muted-foreground: hsl(0 0 100% / 0.2);
@@ -201,20 +208,21 @@
   @media (prefers-color-scheme: dark) {
     :root:not(.dark):not([data-theme='light']):not([data-theme='dark']) {
       --container: var(--black);
-      --background: var(--base-950);
-      --foreground: var(--base-200);
-      --card: var(--base-900);
-      --card-foreground: var(--base-200);
-      --popover: var(--base-900);
-      --popover-foreground: var(--base-200);
-      --secondary: var(--base-700);
-      --secondary-foreground: var(--base-50);
-      --muted: var(--base-800);
-      --muted-foreground: var(--base-500);
-      --accent: var(--base-800);
-      --accent-foreground: var(--base-200);
+      --background: hsl(0 0 15% / 1);
+      --foreground: hsl(0 0 100%);
+      --card: hsl(0 0 20% / 1);
+      --card-foreground: hsl(0 0 100%);
+      --popover: hsl(0 0 20% / 1);
+      --popover-foreground: hsl(0 0 100%);
+      --secondary: hsl(0 0 15% / 0.8);
+      --secondary-foreground: hsl(0 0 100%);
+      --muted: hsl(0 0 100% / 0.03);
+      --muted-foreground: hsl(0 0 100% / 0.5);
+      --accent: hsl(0 0 100% / 0.05);
+      --accent-foreground: hsl(0 0 100% / 0.8);
       --destructive: hsl(0 62.8% 30.6%);
-      --border: var(--base-800);
+
+      --border: hsl(0 0 100% / 0.05);
       --input: var(--base-700);
       --sidebar: var(--base-900);
       --sidebar-foreground: var(--base-200);
@@ -246,7 +254,7 @@
       --bg-primary: hsl(210 100% 43%);
       --bg-primary-70: hsl(210 100% 43% / 0.7);
       --bg-primary-700: hsl(210 100% 37%);
-      --border: hsl(0 0 100% / 0.05);
+      --bg-window-background: hsl(0 0 10% / 0.7);
       --border-window-outside: hsl(0 0 0% / 0.4);
       --shadow-card: hsl(0 0 0% / 0.4);
       --syntax-bold: var(--color-blue-500);
@@ -315,9 +323,9 @@
 
     --color-container: var(--container);
     --color-background: var(--background);
-    --color-bg-card: var(--bg-card);
-    --color-foreground: var(--foreground);
     --color-card: var(--card);
+    --color-foreground: var(--foreground);
+    /* --color-card: var(--card); */
     --color-card-foreground: var(--card-foreground);
     --color-popover: var(--popover);
     --color-popover-foreground: var(--popover-foreground);
@@ -350,6 +358,8 @@
     --color-usage-low: var(--usage-low);
     --color-usage-mid: var(--usage-mid);
     --color-usage-high: var(--usage-high);
+    --color-window-background: var(--bg-window-background);
+    --color-window-inner-border: var(--window-inner-border);
     --color-bg-background-70: var(--bg-background-70);
     --color-text-secondary-foreground: var(--text-secondary-foreground);
 
@@ -793,7 +803,7 @@
   }
 
   body {
-    background-color: var(--background);
+    /* background-color: var(--background); */
     color: var(--foreground);
     font-weight: var(--text-weight);
   }

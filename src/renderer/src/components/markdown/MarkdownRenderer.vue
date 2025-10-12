@@ -1,6 +1,6 @@
 <!-- eslint-disable vue/no-v-html -->
 <template>
-  <div class="prose prose-sm dark:prose-invert w-full max-w-none break-all">
+  <div class="prose prose-zinc prose-sm dark:prose-invert w-full max-w-none break-all">
     <NodeRenderer :content="content" @copy="$emit('copy', $event)" />
   </div>
 </template>

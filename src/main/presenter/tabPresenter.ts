@@ -642,7 +642,7 @@ export class TabPresenter implements ITabPresenter {
       x: 0,
       y: TAB_BAR_HEIGHT,
       width: width,
-      height: height - TAB_BAR_HEIGHT - 4
+      height: height - TAB_BAR_HEIGHT
     })
   }
 

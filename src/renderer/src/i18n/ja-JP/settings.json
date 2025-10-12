@@ -47,6 +47,9 @@
     "testSearchEngineNote": "検索ページにログインやその他の操作が必要な場合は、テストウィンドウで実行できます。テスト完了後はテストウィンドウを閉じてください。",
     "theme": "テーマ",
     "themeSelect": "テーマを選択",
+    "themeLight": "ライト",
+    "themeDark": "ダーク",
+    "themeSystem": "システムに従う",
     "closeToQuit": "閉じるボタンでアプリを終了",
     "openLogFolder": "ログフォルダを開く",
     "shortcut": {

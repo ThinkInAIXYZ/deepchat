@@ -653,12 +653,12 @@ export class WindowPresenter implements IWindowPresenter {
       icon: iconFile, // 设置图标
       titleBarStyle: 'hiddenInset', // macOS 风格标题栏
       transparent: process.platform === 'darwin', // macOS 标题栏透明
-      vibrancy: process.platform === 'darwin' ? 'under-window' : undefined, // macOS 磨砂效果
-      backgroundColor: '#00000000', // 透明背景色
+      vibrancy: process.platform === 'darwin' ? 'hud' : undefined, // macOS 磨砂效果
+      backgroundColor: '#00ffffff', // 透明背景色
       maximizable: true, // 允许最大化
       frame: process.platform === 'darwin', // macOS 无边框
       hasShadow: true, // macOS 阴影
-      trafficLightPosition: process.platform === 'darwin' ? { x: 12, y: 12 } : undefined, // macOS 红绿灯按钮位置
+      trafficLightPosition: process.platform === 'darwin' ? { x: 12, y: 10 } : undefined, // macOS 红绿灯按钮位置
       webPreferences: {
         preload: join(__dirname, '../preload/index.mjs'), // Preload 脚本路径
         sandbox: false, // 禁用沙箱，允许 preload 访问 Node.js API
@@ -728,6 +728,7 @@ export class WindowPresenter implements IWindowPresenter {
     shellWindow.on('maximize', () => {
       console.log(`Window ${windowId} maximized.`)
       if (!shellWindow.isDestroyed()) {
+        shellWindow.webContents.send(WINDOW_EVENTS.WINDOW_MAXIMIZED)
         eventBus.sendToMain(WINDOW_EVENTS.WINDOW_MAXIMIZED, windowId)
         // 触发恢复逻辑更新标签页 bounds
         this.handleWindowRestore(windowId).catch((error) => {
@@ -740,6 +741,7 @@ export class WindowPresenter implements IWindowPresenter {
     shellWindow.on('unmaximize', () => {
       console.log(`Window ${windowId} unmaximized.`)
       if (!shellWindow.isDestroyed()) {
+        shellWindow.webContents.send(WINDOW_EVENTS.WINDOW_UNMAXIMIZED)
         eventBus.sendToMain(WINDOW_EVENTS.WINDOW_UNMAXIMIZED, windowId)
         // 触发恢复逻辑更新标签页 bounds
         this.handleWindowRestore(windowId).catch((error) => {
@@ -758,6 +760,7 @@ export class WindowPresenter implements IWindowPresenter {
         console.error(`Error handling restore logic for window ${windowId}:`, error)
       })
       this.focusActiveTab(windowId, 'restore')
+      shellWindow.webContents.send(WINDOW_EVENTS.WINDOW_UNMAXIMIZED)
       eventBus.sendToMain(WINDOW_EVENTS.WINDOW_RESTORED, windowId)
     }
     shellWindow.on('restore', handleRestore)
@@ -766,6 +769,7 @@ export class WindowPresenter implements IWindowPresenter {
     shellWindow.on('enter-full-screen', () => {
       console.log(`Window ${windowId} entered fullscreen.`)
       if (!shellWindow.isDestroyed()) {
+        shellWindow.webContents.send(WINDOW_EVENTS.WINDOW_ENTER_FULL_SCREEN)
         eventBus.sendToMain(WINDOW_EVENTS.WINDOW_ENTER_FULL_SCREEN, windowId)
         // 触发恢复逻辑更新标签页 bounds
         this.handleWindowRestore(windowId).catch((error) => {
@@ -781,6 +785,7 @@ export class WindowPresenter implements IWindowPresenter {
     shellWindow.on('leave-full-screen', () => {
       console.log(`Window ${windowId} left fullscreen.`)
       if (!shellWindow.isDestroyed()) {
+        shellWindow.webContents.send(WINDOW_EVENTS.WINDOW_LEAVE_FULL_SCREEN)
         eventBus.sendToMain(WINDOW_EVENTS.WINDOW_LEAVE_FULL_SCREEN, windowId)
         // 触发恢复逻辑更新标签页 bounds
         this.handleWindowRestore(windowId).catch((error) => {

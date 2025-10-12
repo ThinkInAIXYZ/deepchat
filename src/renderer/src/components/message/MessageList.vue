@@ -2,7 +2,7 @@
   <div class="w-full h-full relative min-h-0">
     <div
       ref="messagesContainer"
-      class="message-list-container relative flex-1 overflow-y-auto scroll-smooth w-full h-full pr-16 lg:pr-24"
+      class="message-list-container relative flex-1 scrollbar-hide overflow-y-auto scroll-smooth w-full h-full pr-12 lg:pr-12"
       @scroll="handleScroll"
     >
       <div
@@ -35,58 +35,60 @@
       <div ref="scrollAnchor" class="h-8" />
     </div>
     <template v-if="!isCapturingImage">
-      <div class="absolute bottom-2 left-1/2 -translate-x-1/2 flex items-center gap-2">
+      <TransitionGroup
+        tag="div"
+        class="absolute bottom-3 right-3 flex items-center gap-2"
+        enter-active-class="transition-all duration-300 ease-out"
+        enter-from-class="opacity-0 translate-y-2"
+        enter-to-class="opacity-100 translate-y-0"
+        leave-active-class="transition-all duration-300 ease-in"
+        leave-from-class="opacity-100 translate-y-0"
+        leave-to-class="opacity-0 translate-y-2"
+        move-class="message-actions-move"
+        @before-leave="handleActionBeforeLeave"
+        @after-leave="handleActionAfterLeave"
+        @leave-cancelled="handleActionAfterLeave"
+      >
         <!-- 取消按钮 -->
         <Button
           v-if="showCancelButton"
-          variant="default"
-          size="sm"
-          class="rounded-lg"
+          key="cancel"
+          variant="outline"
+          size="icon"
+          class="w-8 h-8 shrink-0 opacity-100 bg-card backdrop-blur-lg z-20"
           @click="handleCancel"
         >
           <Icon
             icon="lucide:square"
             class="w-6 h-6 bg-red-500 p-1 text-primary-foreground rounded-full"
           />
-          <span class="">{{ t('common.cancel') }}</span>
         </Button>
 
         <!-- 新聊天按钮 (仅在非生成状态显示) -->
         <Button
-          v-if="!showCancelButton"
-          variant="default"
-          size="sm"
-          class="rounded-lg shrink-0 opacity-100"
+          v-else
+          key="new-chat"
+          variant="outline"
+          size="icon"
+          class="w-8 h-8 shrink-0 opacity-100 bg-card backdrop-blur-lg z-20"
           @click="createNewThread"
         >
-          <Icon icon="lucide:plus" class="w-6 h-6 text-primary-foreground" />
-          <span class="">{{ t('common.newChat') }}</span>
+          <Icon icon="lucide:brush-cleaning" class="w-6 h-6 text-foreground" />
+          <!-- <span class="">{{ t('common.newChat') }}</span> -->
         </Button>
 
         <!-- 滚动到底部按钮 -->
-        <transition
-          enter-active-class="transition-all duration-300 ease-out"
-          enter-from-class="opacity-0 translate-y-2"
-          enter-to-class="opacity-100 translate-y-0"
-          leave-active-class="transition-all duration-300 ease-in"
-          leave-from-class="opacity-100 translate-y-0"
-          leave-to-class="opacity-0 translate-y-2"
+        <Button
+          v-if="aboveThreshold"
+          key="scroll-bottom"
+          variant="outline"
+          size="icon"
+          class="w-8 h-8 shrink-0 relative z-10 backdrop-blur-lg"
+          @click="scrollToBottom(true)"
         >
-          <div
-            v-if="aboveThreshold || showCancelButton"
-            :class="['relative', showCancelButton ? 'scroll-to-bottom-loading-container' : '']"
-          >
-            <Button
-              variant="default"
-              size="icon"
-              class="w-8 h-8 shrink-0 rounded-lg relative z-10"
-              @click="() => scrollToBottom(true)"
-            >
-              <Icon icon="lucide:arrow-down" class="w-5 h-5 text-primary-foreground" />
-            </Button>
-          </div>
-        </transition>
-      </div>
+          <Icon icon="lucide:arrow-down" class="w-5 h-5 text-foreground" />
+        </Button>
+      </TransitionGroup>
     </template>
     <ReferencePreview
       class="pointer-events-none"
@@ -121,6 +123,7 @@ import { useThemeStore } from '@/stores/theme'
 import { usePageCapture } from '@/composables/usePageCapture'
 import { usePresenter } from '@/composables/usePresenter'
 import MessageMinimap from './MessageMinimap.vue'
+import { useArtifactStore } from '@/stores/artifact'
 
 const { t } = useI18n()
 const props = defineProps<{
@@ -147,6 +150,8 @@ const scrollInfo = reactive({
   scrollTop: 0
 })
 
+const artifactStore = useArtifactStore()
+
 // Store refs as Record to avoid type checking issues
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const assistantRefs = reactive<Record<number, any>>({})
@@ -167,8 +172,15 @@ const handleMinimapHover = (messageId: string | null) => {
   hoveredMessageId.value = messageId
 }
 
-const handleMinimapClick = (messageId: string) => {
-  scrollToMessage(messageId)
+const handleMinimapClick = () => {
+  // 点击迷你地图改为打开消息导航侧边栏
+  if (artifactStore.isOpen) {
+    artifactStore.isOpen = false
+    chatStore.isMessageNavigationOpen = true
+  } else {
+    chatStore.isMessageNavigationOpen = !chatStore.isMessageNavigationOpen
+  }
+  // scrollToMessage(messageId)
 }
 
 const updateScrollInfo = () => {
@@ -181,6 +193,27 @@ const updateScrollInfo = () => {
 
 const handleScroll = () => {
   updateScrollInfo()
+}
+
+const handleActionBeforeLeave = (el: Element) => {
+  const element = el as HTMLElement
+  const { offsetWidth, offsetHeight, offsetLeft, offsetTop } = element
+  element.style.width = `${offsetWidth}px`
+  element.style.height = `${offsetHeight}px`
+  element.style.left = `${offsetLeft}px`
+  element.style.top = `${offsetTop}px`
+  element.style.position = 'absolute'
+  element.style.pointerEvents = 'none'
+}
+
+const handleActionAfterLeave = (el: Element) => {
+  const element = el as HTMLElement
+  element.style.width = ''
+  element.style.height = ''
+  element.style.left = ''
+  element.style.top = ''
+  element.style.position = ''
+  element.style.pointerEvents = ''
 }
 
 /**
@@ -341,7 +374,7 @@ const scrollToMessage = (messageId: string) => {
     const messageElement = document.querySelector(`[data-message-id="${messageId}"]`)
     if (messageElement) {
       messageElement.scrollIntoView({
-        behavior: 'instant',
+        behavior: 'smooth',
         block: 'start'
       })
 
@@ -492,6 +525,10 @@ defineExpose({
 
 .dark .message-highlight {
   background-color: rgba(59, 130, 246, 0.15);
+}
+
+.message-actions-move {
+  transition: transform 0.3s ease;
 }
 
 .scroll-to-bottom-loading-container {

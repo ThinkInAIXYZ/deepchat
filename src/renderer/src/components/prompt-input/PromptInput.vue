@@ -1,6 +1,6 @@
 <template>
   <div
-    class="prompt-input-wrapper w-full"
+    class="w-full border-t"
     @dragenter.prevent="handleDragEnter"
     @dragover.prevent="handleDragOver"
     @drop.prevent="handleDrop"
@@ -10,7 +10,7 @@
     <TooltipProvider>
       <div
         :dir="langStore.dir"
-        class="prompt-input-card border border-border/60 focus-within:border-primary px-4 py-3 flex flex-col gap-3 shadow-sm relative backdrop-blur-md dark:border-white/10 dark:focus-within:border-white/20"
+        class="focus-within:border-primary px-4 py-3 flex flex-col gap-3 relative"
       >
         <!-- {{  t('chat.input.fileArea') }} -->
         <div v-if="selectedFiles.length > 0">
@@ -38,11 +38,7 @@
             />
           </TransitionGroup>
         </div>
-        <editor-content
-          :editor="editor"
-          class="prompt-input-editor text-sm dark:text-white/80"
-          @keydown="onKeydown"
-        />
+        <editor-content :editor="editor" class="text-sm dark:text-white/80" @keydown="onKeydown" />
 
         <div class="prompt-input-footer flex flex-wrap items-center justify-between gap-3">
           <div class="prompt-input-tools flex items-center gap-1.5 flex-wrap">
@@ -70,7 +66,7 @@
             <Tooltip>
               <TooltipTrigger>
                 <span
-                  class="search-engine-select overflow-hidden flex items-center h-7 rounded-lg shadow-sm border border-input transition-all duration-300 dark:border-white/10 dark:bg-white/[0.04] dark:hover:border-white/20"
+                  class="overflow-hidden border-white/10 flex items-center h-7 rounded-lg shadow-sm border transition-all duration-300"
                   :class="{
                     'border-primary': settings.webSearch
                   }"
@@ -79,9 +75,9 @@
                   <Button
                     variant="outline"
                     :class="[
-                      'flex w-7 border-none rounded-none shadow-none items-center gap-1.5 px-2 h-full text-foreground dark:hover:bg-white/10',
+                      'flex w-7 border-none rounded-none shadow-none items-center gap-1.5 px-2 h-full text-foreground ',
                       settings.webSearch
-                        ? 'dark:!bg-primary bg-primary border-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground'
+                        ? 'dark:!bg-primary hover:bg-primary/90 hover:text-primary-foreground'
                         : 'dark:text-white/70'
                     ]"
                     :dir="langStore.dir"
@@ -1755,32 +1751,6 @@ defineExpose({
 <style scoped>
 @reference '../../assets/style.css';
 
-.prompt-input-wrapper {
-  width: 100%;
-}
-
-.prompt-input-card {
-  --prompt-border-color: color-mix(in srgb, var(--border) 80%, transparent);
-  --prompt-toolbar-bg: color-mix(in srgb, var(--muted) 85%, transparent);
-  --prompt-text-secondary: color-mix(in srgb, var(--muted-foreground) 95%, transparent);
-  --prompt-text-accent: var(--foreground);
-  --prompt-text-primary: var(--foreground);
-  background-color: transparent;
-  /* border-radius: 0 0 var(--radius-lg) var(--radius-lg); */
-}
-
-.dark .prompt-input-card,
-[data-theme='dark'] .prompt-input-card {
-  --prompt-border-color: #ffffff0d;
-  --prompt-toolbar-bg: #ffffff0d;
-  --prompt-text-secondary: #ffffff80;
-  --prompt-text-accent: #ffffffcc;
-  --prompt-text-primary: #ffffff;
-  background-color: transparent;
-  border-color: #ffffff0d;
-  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.05) inset;
-}
-
 .prompt-input-editor {
   padding: 0.75rem;
   color: var(--prompt-text-accent, var(--foreground));
@@ -1794,12 +1764,6 @@ defineExpose({
 .prompt-input-footer {
   /* border-top: 1px solid var(--prompt-border-color); */
   padding-top: 0.75rem;
-}
-
-.prompt-input-tools .search-engine-select {
-  background-color: var(--prompt-toolbar-bg);
-  border-color: var(--prompt-border-color);
-  color: var(--prompt-text-secondary);
 }
 
 .dark .prompt-input-tools .search-engine-select,

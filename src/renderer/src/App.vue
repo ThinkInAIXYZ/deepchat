@@ -6,7 +6,7 @@ import { usePresenter } from './composables/usePresenter'
 import SelectedTextContextMenu from './components/message/SelectedTextContextMenu.vue'
 import { useArtifactStore } from './stores/artifact'
 import { useChatStore } from '@/stores/chat'
-import { NOTIFICATION_EVENTS, SHORTCUT_EVENTS } from './events'
+import { NOTIFICATION_EVENTS, SHORTCUT_EVENTS, THREAD_VIEW_EVENTS } from './events'
 import { Toaster } from '@shadcn/components/ui/sonner'
 import { useToast } from '@/components/use-toast'
 import { useSettingsStore } from '@/stores/settings'
@@ -14,6 +14,7 @@ import { useThemeStore } from '@/stores/theme'
 import { useLanguageStore } from '@/stores/language'
 import { useI18n } from 'vue-i18n'
 import TranslatePopup from '@/components/popup/TranslatePopup.vue'
+import ThreadView from '@/components/ThreadView.vue'
 import ModelCheckDialog from '@/components/settings/ModelCheckDialog.vue'
 import { useModelCheckStore } from '@/stores/modelCheck'
 import MessageDialog from './components/ui/MessageDialog.vue'
@@ -165,6 +166,15 @@ const handleCreateNewConversation = () => {
   }
 }
 
+const handleThreadViewToggle = () => {
+  if (router.currentRoute.value.name !== 'chat') {
+    void router.push({ name: 'chat' })
+    chatStore.isSidebarOpen = true
+    return
+  }
+  chatStore.isSidebarOpen = !chatStore.isSidebarOpen
+}
+
 // Removed GO_SETTINGS handler; now handled in main via tab logic
 
 // Handle ESC key - close floating chat window
@@ -224,6 +234,8 @@ onMounted(() => {
     })
   })
 
+  window.electron.ipcRenderer.on(THREAD_VIEW_EVENTS.TOGGLE, handleThreadViewToggle)
+
   window.electron.ipcRenderer.on(NOTIFICATION_EVENTS.SYS_NOTIFY_CLICKED, (_, msg) => {
     let threadId: string | null = null
 
@@ -265,6 +277,9 @@ onMounted(() => {
       }
       // Close artifacts page when route changes
       artifactStore.hideArtifact()
+      if (route.name !== 'chat') {
+        chatStore.isSidebarOpen = false
+      }
     }
   )
 
@@ -302,11 +317,15 @@ onBeforeUnmount(() => {
   // GO_SETTINGS listener removed; handled in main
   window.electron.ipcRenderer.removeAllListeners(NOTIFICATION_EVENTS.SYS_NOTIFY_CLICKED)
   window.electron.ipcRenderer.removeAllListeners(NOTIFICATION_EVENTS.DATA_RESET_COMPLETE_DEV)
+  window.electron.ipcRenderer.removeListener(THREAD_VIEW_EVENTS.TOGGLE, handleThreadViewToggle)
 })
 </script>
 
 <template>
-  <div class="flex flex-col h-screen bg-bg-card">
+  <div class="flex flex-col h-screen bg-background">
+    <div
+      class="border-x border-b border-window-inner-border rounded-b-[10px] fixed z-10 top-0 left-0 bottom-0 right-0 pointer-events-none"
+    ></div>
     <div class="flex flex-row h-0 grow relative overflow-hidden px-px py-px" :dir="langStore.dir">
       <!-- Main content area -->
 
@@ -320,6 +339,7 @@ onBeforeUnmount(() => {
     <Toaster />
     <SelectedTextContextMenu />
     <TranslatePopup />
+    <ThreadView />
     <!-- Global model check dialog -->
     <ModelCheckDialog
       :open="modelCheckStore.isDialogOpen"

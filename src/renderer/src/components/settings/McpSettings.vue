@@ -1,9 +1,9 @@
 <template>
   <div class="w-full h-full flex flex-col">
     <!-- 固定部分 -->
-    <div class="shrink-0 bg-bg-card sticky top-0 z-10">
+    <div class="shrink-0 bg-card sticky top-0 z-10">
       <!-- NPM源配置区域 -->
-      <div class="border-b bg-bg-card">
+      <div class="border-b bg-card">
         <div class="p-4">
           <h4 class="text-sm font-medium mb-3">{{ t('settings.mcp.npmRegistry.title') }}</h4>
           <div class="space-y-3">
