@@ -32,6 +32,9 @@
     "testSearchEngineNote": "如果搜索页面需要登录或其他操作，您可以在测试窗口中进行。完成测试后请关闭测试窗口。",
     "theme": "主题",
     "themeSelect": "选择主题",
+    "themeLight": "浅色",
+    "themeDark": "深色",
+    "themeSystem": "跟随系统",
     "closeToQuit": "点击关闭按钮时退出程序",
     "shortcut": {
       "title": "快捷键设置",
