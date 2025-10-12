@@ -147,7 +147,6 @@ export class ProviderDbLoader {
     const meta = this.readMeta()
     const ttlHours = this.getTtlHours()
     const url = this.getProviderDbUrl()
-    console.log('load provider url', url)
 
     const needFirstFetch = !meta || !fs.existsSync(this.cacheFilePath)
     const expired = meta ? this.now() - meta.lastUpdated > ttlHours * 3600 * 1000 : true
