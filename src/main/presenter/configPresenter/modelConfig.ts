@@ -277,6 +277,17 @@ export class ModelConfigHelper {
     if (storedConfig && storedSource) {
       const finalStoredConfig = { ...storedConfig }
       finalStoredConfig.isUserDefined = false
+
+      if (storedSource !== 'user' && normProviderId && normModelId) {
+        const db = providerDbLoader.getDb()
+        const resolvedProviderId = this.resolveProviderId(normProviderId)
+        const provider = resolvedProviderId ? db?.providers?.[resolvedProviderId] : undefined
+        const model = provider?.models.find((m) => m.id === normModelId)
+        if (typeof model?.tool_call === 'boolean') {
+          finalStoredConfig.functionCall = model.tool_call
+        }
+      }
+
       return finalStoredConfig
     }
 

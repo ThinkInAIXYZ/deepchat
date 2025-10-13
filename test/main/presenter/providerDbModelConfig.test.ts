@@ -66,8 +66,13 @@ describe('Provider DB strict matching + user overrides', () => {
               limit: { context: 10000, output: 2000 },
               modalities: { input: ['text', 'image'] },
               tool_call: true,
-              reasoning: { supported: true, budget: { default: 12345 } },
-              search: { supported: true, forced_search: false, search_strategy: 'turbo' }
+              reasoning: { supported: true, default: true, budget: { default: 12345 } },
+              search: {
+                supported: true,
+                default: true,
+                forced_search: false,
+                search_strategy: 'turbo'
+              }
             },
             {
               id: 'partial-limit',
@@ -156,5 +161,41 @@ describe('Provider DB strict matching + user overrides', () => {
     // DB lookup lowercases internally
     expect(cfg.contextLength).toBe(10000)
     expect(cfg.maxTokens).toBe(2000)
+  })
+
+  it('overlays provider-managed tool_call settings from Provider DB updates', () => {
+    const helper = new ModelConfigHelper('1.0.0')
+    const baseConfig = helper.getModelConfig('test-model', 'test-provider')
+
+    helper.setModelConfig(
+      'test-model',
+      'test-provider',
+      {
+        ...baseConfig,
+        functionCall: false
+      },
+      { source: 'provider' }
+    )
+
+    const syncedConfig = helper.getModelConfig('test-model', 'test-provider')
+    expect(syncedConfig.functionCall).toBe(true)
+
+    mockDb.providers['test-provider'].models[0].tool_call = false
+    const toggledConfig = helper.getModelConfig('test-model', 'test-provider')
+    expect(toggledConfig.functionCall).toBe(false)
+  })
+
+  it('does not override user-managed tool_call settings', () => {
+    const helper = new ModelConfigHelper('1.0.0')
+    const baseConfig = helper.getModelConfig('test-model', 'test-provider')
+
+    helper.setModelConfig('test-model', 'test-provider', {
+      ...baseConfig,
+      functionCall: false
+    })
+
+    mockDb.providers['test-provider'].models[0].tool_call = true
+    const userConfig = helper.getModelConfig('test-model', 'test-provider')
+    expect(userConfig.functionCall).toBe(false)
   })
 })
