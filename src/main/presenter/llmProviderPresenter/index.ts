@@ -202,7 +202,7 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
           return new OpenAIProvider(provider, this.configPresenter)
         case 'openai-responses':
           return new OpenAIResponsesProvider(provider, this.configPresenter)
-        case 'cherryInProvider':
+        case 'cherryin':
           return new CherryInProvider(provider, this.configPresenter)
         case 'lmstudio':
           return new LMStudioProvider(provider, this.configPresenter)

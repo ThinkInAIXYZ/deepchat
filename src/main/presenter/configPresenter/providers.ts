@@ -125,9 +125,9 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
     }
   },
   {
-    id: 'cherryInProvider',
+    id: 'cherryin',
     name: 'CherryIn',
-    apiType: 'cherryin-responses',
+    apiType: 'cherryin',
     apiKey: '',
     baseUrl: 'https://open.cherryin.ai/v1',
     enable: false,
