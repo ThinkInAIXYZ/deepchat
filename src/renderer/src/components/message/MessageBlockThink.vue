@@ -11,7 +11,7 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
 import { ThinkContent } from '@/components/think-content'
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { usePresenter } from '@/composables/usePresenter'
 import { AssistantMessageBlock } from '@shared/chat'
 const props = defineProps<{
@@ -28,8 +28,13 @@ const configPresenter = usePresenter('configPresenter')
 // kept for potential future scroll anchoring; currently unused
 
 const collapse = ref(false)
+const displayedSeconds = ref(0)
+const UPDATE_INTERVAL = 1000
+const UPDATE_OFFSET = 80
+let updateTimer: ReturnType<typeof setTimeout> | null = null
+
 const reasoningDuration = computed(() => {
-  let duration: number
+  let duration = 0
   if (props.block.reasoning_time) {
     duration = (props.block.reasoning_time.end - props.block.reasoning_time.start) / 1000
   } else {
@@ -39,9 +44,43 @@ const reasoningDuration = computed(() => {
   return parseFloat(duration.toFixed(2))
 })
 
+const updateDisplayedSeconds = () => {
+  const normalized = Number.isFinite(reasoningDuration.value)
+    ? reasoningDuration.value
+    : 0
+  const value = Math.max(0, Math.floor(normalized))
+  displayedSeconds.value = value
+}
+
+const stopTimer = () => {
+  if (updateTimer !== null) {
+    clearTimeout(updateTimer)
+    updateTimer = null
+  }
+}
+
+const scheduleNextUpdate = () => {
+  stopTimer()
+  if (props.block.status !== 'loading') return
+
+  const fallbackDuration = Number.isFinite(reasoningDuration.value)
+    ? reasoningDuration.value * 1000
+    : 0
+  const startTimestamp =
+    props.block.reasoning_time?.start ?? Date.now() - fallbackDuration
+  const now = Date.now()
+  const elapsed = Math.max(0, now - startTimestamp)
+  const remainder = elapsed % UPDATE_INTERVAL
+  const delay = Math.max(UPDATE_INTERVAL - remainder, 0) + UPDATE_OFFSET
+
+  updateTimer = setTimeout(() => {
+    updateDisplayedSeconds()
+    scheduleNextUpdate()
+  }, delay)
+}
+
 const headerText = computed(() => {
-  // Format: "Thought for 20s" (localized)
-  const seconds = Math.max(0, Math.floor(reasoningDuration.value))
+  const seconds = displayedSeconds.value
   return props.block.status === 'loading'
     ? t('chat.features.thoughtForSecondsLoading', { seconds })
     : t('chat.features.thoughtForSeconds', { seconds })
@@ -54,7 +93,33 @@ watch(
   }
 )
 
+watch(
+  () => [props.block.status, props.block.reasoning_time?.start],
+  () => {
+    updateDisplayedSeconds()
+    if (props.block.status === 'loading') {
+      scheduleNextUpdate()
+    } else {
+      stopTimer()
+    }
+  },
+  { immediate: true }
+)
+
+watch(
+  () => reasoningDuration.value,
+  () => {
+    if (props.block.status !== 'loading') {
+      updateDisplayedSeconds()
+    }
+  }
+)
+
 onMounted(async () => {
   collapse.value = Boolean(await configPresenter.getSetting('think_collapse'))
+})
+
+onBeforeUnmount(() => {
+  stopTimer()
 })
 </script>
