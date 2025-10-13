@@ -2,7 +2,7 @@
   <template v-if="!isCapturingImage">
     <TooltipProvider>
       <div
-        class="w-full h-8 text-xs text-muted-foreground items-center justify-between flex flex-row opacity-0 group-hover:opacity-100 transition-opacity"
+        class="w-full h-7 text-xs text-muted-foreground items-center justify-between flex flex-row opacity-0 group-hover:opacity-100 transition-opacity"
         :class="[isAssistant ? '' : 'flex-row-reverse']"
       >
         <span v-show="!loading" class="flex flex-row gap-3">

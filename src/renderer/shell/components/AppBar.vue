@@ -4,7 +4,7 @@
     :class="[!isFullscreened && isMacOS ? '' : ' rounded-t-none']"
     :dir="langStore.dir"
   >
-    <div class="absolute bottom-0 left-0 w-full h-[1px] bg-border"></div>
+    <div class="absolute bottom-0 left-0 w-full h-[1px] bg-border z-10"></div>
     <div
       class="h-full shrink-0 w-0 flex-1 flex select-none text-center text-sm font-medium flex-row items-center justify-start window-drag-region"
     >

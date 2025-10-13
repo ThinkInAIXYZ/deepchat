@@ -47,7 +47,7 @@
                 <Button
                   variant="outline"
                   size="icon"
-                  class="w-7 h-7 text-xs rounded-lg dark:border-white/10 dark:bg-transparent dark:text-white/70 dark:hover:border-white/25 dark:hover:bg-white/10 dark:hover:text-white"
+                  class="w-7 h-7 text-xs rounded-lg text-accent-foreground"
                   @click="openFilePicker"
                 >
                   <Icon icon="lucide:paperclip" class="w-4 h-4" />
@@ -65,56 +65,18 @@
             </Tooltip>
             <Tooltip>
               <TooltipTrigger>
-                <span
-                  class="overflow-hidden border-white/10 flex items-center h-7 rounded-lg shadow-sm border transition-all duration-300"
-                  :class="{
-                    'border-primary': settings.webSearch
-                  }"
+                <Button
+                  variant="outline"
+                  :class="[
+                    'w-7 h-7  text-accent-foreground rounded-lg',
+                    settings.webSearch ? 'text-primary' : ''
+                  ]"
                   :dir="langStore.dir"
+                  size="icon"
+                  @click="onWebSearchClick"
                 >
-                  <Button
-                    variant="outline"
-                    :class="[
-                      'flex w-7 border-none rounded-none shadow-none items-center gap-1.5 px-2 h-full text-foreground ',
-                      settings.webSearch
-                        ? 'dark:!bg-primary hover:bg-primary/90 hover:text-primary-foreground'
-                        : 'dark:text-white/70'
-                    ]"
-                    :dir="langStore.dir"
-                    size="icon"
-                    @click="onWebSearchClick"
-                  >
-                    <Icon icon="lucide:globe" class="w-4 h-4" />
-                  </Button>
-                  <Select
-                    v-model="selectedSearchEngine"
-                    @update:model-value="onSearchEngineChange"
-                    @update:open="handleSelectOpen"
-                  >
-                    <SelectTrigger
-                      class="h-full rounded-none border-none shadow-none hover:bg-accent text-muted-foreground dark:text-white/60 dark:hover:bg-white/10 dark:hover:text-white transition-all duration-300"
-                      :class="{
-                        'w-0 opacity-0 p-0 overflow-hidden':
-                          !showSearchSettingsButton && !isSearchHovering && !isSelectOpen,
-                        'w-24 max-w-28 px-2 opacity-100':
-                          showSearchSettingsButton || isSearchHovering || isSelectOpen
-                      }"
-                    >
-                      <div class="flex items-center gap-1">
-                        <SelectValue class="text-xs font-bold truncate" />
-                      </div>
-                    </SelectTrigger>
-                    <SelectContent align="start" class="w-64">
-                      <SelectItem
-                        v-for="engine in searchEngines"
-                        :key="engine.id"
-                        :value="engine.id"
-                      >
-                        {{ engine.name }}
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
-                </span>
+                  <Icon icon="lucide:globe" class="w-4 h-4" />
+                </Button>
               </TooltipTrigger>
               <TooltipContent>{{ t('chat.features.webSearch') }}</TooltipContent>
             </Tooltip>
@@ -265,13 +227,6 @@ import {
   TooltipProvider,
   TooltipTrigger
 } from '@shadcn/components/ui/tooltip'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue
-} from '@shadcn/components/ui/select'
 import { Popover, PopoverContent, PopoverTrigger } from '@shadcn/components/ui/popover'
 import { Icon } from '@iconify/vue'
 import FileItem from '../FileItem.vue'
@@ -317,7 +272,6 @@ import { useToast } from '@/components/use-toast'
 import type { CategorizedData } from '../editor/mention/suggestion'
 import type { PromptListEntry } from '@shared/presenter'
 import { sanitizeText } from '@/lib/sanitizeText'
-import type { AcceptableValue } from 'reka-ui'
 import { ModelType } from '@shared/model'
 import { useThemeStore } from '@/stores/theme'
 
@@ -384,40 +338,6 @@ const editor = new Editor({
         class: 'line-break'
       }
     })
-    // CodeBlock.extend({
-    //   addStorage() {
-    //     return {
-    //       lastShiftEnterTime: 0
-    //     }
-    //   },
-    //   addKeyboardShortcuts() {
-    //     return {
-    //       'Shift-Enter': () => {
-    //         if (this.editor.isActive('codeBlock')) {
-    //           const now = Date.now()
-    //           const timeDiff = now - this.storage.lastShiftEnterTime
-
-    //           // If Shift+Enter was pressed within 800ms, exit the code block
-    //           if (timeDiff < 800) {
-    //             this.editor.commands.exitCode()
-    //             this.storage.lastShiftEnterTime = 0
-    //             return true
-    //           }
-
-    //           // Otherwise, insert a newline and record the time
-    //           this.editor.commands.insertContent('\n')
-    //           this.storage.lastShiftEnterTime = now
-    //           return true
-    //         }
-    //         return false
-    //       }
-    //     }
-    //   }
-    // }).configure({
-    //   HTMLAttributes: {
-    //     class: 'rounded-md bg-secondary dark:bg-zinc-800 p-2'
-    //   }
-    // })
   ],
   onUpdate: ({ editor }) => {
     inputText.value = editor.getText()
@@ -443,7 +363,7 @@ const settings = ref({
   webSearch: false
 })
 const selectedSearchEngine = ref('')
-const searchEngines = computed(() => settingsStore.searchEngines)
+
 const currentContextLength = computed(() => {
   return (
     approximateTokenSize(inputText.value) +
@@ -1165,10 +1085,6 @@ const onWebSearchClick = async () => {
 //   await configPresenter.setSetting('input_deepThinking', settings.value.deepThinking)
 // }
 
-const onSearchEngineChange = async (engineName: AcceptableValue) => {
-  await settingsStore.setSearchEngine(engineName as string)
-}
-
 const initSettings = async () => {
   settings.value.deepThinking = Boolean(await configPresenter.getSetting('input_deepThinking'))
   settings.value.webSearch = Boolean(await configPresenter.getSetting('input_webSearch'))
@@ -1251,14 +1167,7 @@ const handleDrop = async (e: DragEvent) => {
 }
 
 // Search engine selector variables
-const showSearchSettingsButton = ref(false)
 const isSearchHovering = ref(false)
-const isSelectOpen = ref(false)
-
-// Handle select open state
-const handleSelectOpen = (isOpen: boolean) => {
-  isSelectOpen.value = isOpen
-}
 
 // Mouse hover handlers for search engine selector
 const handleSearchMouseEnter = () => {

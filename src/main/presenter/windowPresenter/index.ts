@@ -654,6 +654,7 @@ export class WindowPresenter implements IWindowPresenter {
       titleBarStyle: 'hiddenInset', // macOS 风格标题栏
       transparent: process.platform === 'darwin', // macOS 标题栏透明
       vibrancy: process.platform === 'darwin' ? 'hud' : undefined, // macOS 磨砂效果
+      backgroundMaterial: process.platform === 'win32' ? 'mica' : undefined, // Windows 11 材质效果
       backgroundColor: '#00ffffff', // 透明背景色
       maximizable: true, // 允许最大化
       frame: process.platform === 'darwin', // macOS 无边框

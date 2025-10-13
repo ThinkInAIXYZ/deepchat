@@ -120,7 +120,7 @@
     /* light */
     /* color */
     --bg-accent: hsl(0 0 15% / 0.05);
-    --bg-window-background: hsl(0 0 100% / 0.1);
+    --bg-window-background: hsl(0 0 100% / 0.5);
     --bg-background-70: hsl(0 0 100% / 0.7);
     --bg-card: hsl(0 0 100%);
     --bg-primary: hsl(210 100% 43%);
@@ -178,7 +178,7 @@
     /* dark */
     /* color */
     --bg-accent: hsl(0 0 100% / 0.05);
-    --bg-window-background: hsl(0 0 0% / 1);
+    --bg-window-background: hsl(0 0 10% / 0.5);
     --bg-background-70: hsl(0 0 15% / 0.7);
 
     --bg-muted: hsl(0 0 100% / 0.03);
@@ -254,7 +254,7 @@
       --bg-primary: hsl(210 100% 43%);
       --bg-primary-70: hsl(210 100% 43% / 0.7);
       --bg-primary-700: hsl(210 100% 37%);
-      --bg-window-background: hsl(0 0 10% / 0.7);
+      --bg-window-background: hsl(0 0 10% / 0.5);
       --border-window-outside: hsl(0 0 0% / 0.4);
       --shadow-card: hsl(0 0 0% / 0.4);
       --syntax-bold: var(--color-blue-500);

@@ -2,7 +2,7 @@
   <div
     v-show="!message.content.continue"
     :data-message-id="message.id"
-    class="flex flex-row-reverse group py-4 pl-11 gap-2 user-message-item"
+    class="flex flex-row-reverse group pl-11 gap-2 user-message-item"
   >
     <!-- 头像 -->
     <div class="w-5 h-5 bg-muted rounded-md overflow-hidden">
@@ -18,7 +18,7 @@
         :timestamp="message.timestamp"
       />
       <!-- 消息内容 -->
-      <div class="text-sm bg-[#EFF6FF] dark:bg-muted rounded-lg p-2 border flex flex-col gap-1.5">
+      <div class="text-sm bg-muted dark:bg-muted rounded-lg p-2 border flex flex-col gap-1.5">
         <div v-show="message.content.files.length > 0" class="flex flex-wrap gap-1.5">
           <FileItem
             v-for="file in message.content.files"
@@ -35,7 +35,7 @@
           <textarea
             ref="editTextarea"
             v-model="editedText"
-            class="text-sm bg-[#EFF6FF] dark:bg-muted rounded-lg p-2 border flex flex-col gap-1.5 resize-none overflow-y-auto overscroll-contain min-w-[40vw] w-full"
+            class="text-sm bg-muted dark:bg-muted rounded-lg p-2 border flex flex-col gap-1.5 resize-none overflow-y-auto overscroll-contain min-w-[40vw] w-full"
             :style="{
               width: originalContentWidth + 20 + 'px',
               maxHeight: editMaxHeight ? editMaxHeight + 'px' : undefined

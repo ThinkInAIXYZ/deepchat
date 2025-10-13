@@ -1,16 +1,5 @@
 <template>
   <div class="h-full w-full flex flex-col items-center justify-start">
-    <div class="w-full p-2 flex flex-row gap-2 items-center">
-      <Button
-        class="w-7 h-7 rounded-md"
-        size="icon"
-        variant="outline"
-        @click="onSidebarButtonClick"
-      >
-        <Icon v-if="chatStore.isSidebarOpen" icon="lucide:panel-left-close" class="w-4 h-4" />
-        <Icon v-else icon="lucide:panel-left-open" class="w-4 h-4" />
-      </Button>
-    </div>
     <div class="h-0 w-full grow flex flex-col items-center justify-center">
       <img src="@/assets/logo-dark.png" class="w-24 h-24" loading="lazy" />
       <h1 class="text-2xl font-bold px-8 pt-4">{{ t('newThread.greeting') }}</h1>
@@ -326,10 +315,6 @@ const handleMouseEnter = () => {
 
 const handleMouseLeave = () => {
   isHovering.value = false
-}
-
-const onSidebarButtonClick = () => {
-  chatStore.isSidebarOpen = !chatStore.isSidebarOpen
 }
 
 const handleModelUpdate = (model: MODEL_META, providerId: string) => {

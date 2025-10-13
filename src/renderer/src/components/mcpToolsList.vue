@@ -99,10 +99,8 @@ onMounted(async () => {
               id="mcp-btn"
               variant="outline"
               :class="[
-                'flex border border-input rounded-lg shadow-sm items-center gap-1.5 h-7 text-xs px-1.5 w-auto',
-                mcpEnabled
-                  ? 'dark:!bg-primary bg-primary border-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground'
-                  : ''
+                'flex text-accent-foreground rounded-lg shadow-sm items-center gap-1.5 h-7 text-xs px-1.5 w-auto',
+                mcpEnabled ? 'text-primary' : ''
               ]"
               size="icon"
             >
@@ -114,12 +112,9 @@ onMounted(async () => {
               />
               <Icon v-else icon="lucide:hammer" class="w-4 h-4" />
 
-              <span
-                v-if="hasTools && !isLoading && !isError"
-                :class="{ 'text-muted-foreground': !mcpEnabled, 'text-white': mcpEnabled }"
-                class="text-sm"
-                >{{ getTotalEnabledToolCount() }}</span
-              >
+              <span v-if="hasTools && !isLoading && !isError" class="text-sm">{{
+                getTotalEnabledToolCount()
+              }}</span>
             </Button>
           </TooltipTrigger>
           <TooltipContent>

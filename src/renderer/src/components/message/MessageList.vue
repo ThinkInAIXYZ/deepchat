@@ -7,7 +7,7 @@
     >
       <div
         ref="messageList"
-        class="w-full break-all transition-opacity duration-300"
+        class="w-full break-all transition-opacity duration-300 pt-4"
         :class="{ 'opacity-0': !visible }"
       >
         <div
