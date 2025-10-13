@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import cherryinColorIcon from '@/assets/llm-icons/cherryin-color.png?url'
 import adobeColorIcon from '@/assets/llm-icons/adobe-color.svg?url'
 import zeaburColorIcon from '@/assets/llm-icons/zeabur-color.svg?url'
 import zhipuColorIcon from '@/assets/llm-icons/zhipu-color.svg?url'
@@ -62,6 +63,7 @@ import modelscopeColorIcon from '@/assets/llm-icons/modelscope-color.svg?url'
 import awsBedrockIcon from '@/assets/llm-icons/aws-bedrock.svg?url'
 // 导入所有图标
 const icons = {
+  cherryin: cherryinColorIcon,
   modelscope: modelscopeColorIcon,
   '302ai': _302aiIcon,
   aihubmix: aihubmixColorIcon,

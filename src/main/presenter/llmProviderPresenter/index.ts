@@ -40,6 +40,7 @@ import { presenter } from '@/presenter'
 import { ZhipuProvider } from './providers/zhipuProvider'
 import { LMStudioProvider } from './providers/lmstudioProvider'
 import { OpenAIResponsesProvider } from './providers/openAIResponsesProvider'
+import { CherryInProvider } from './providers/cherryInProvider'
 import { OpenRouterProvider } from './providers/openRouterProvider'
 import { MinimaxProvider } from './providers/minimaxProvider'
 import { AihubmixProvider } from './providers/aihubmixProvider'
@@ -201,6 +202,8 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
           return new OpenAIProvider(provider, this.configPresenter)
         case 'openai-responses':
           return new OpenAIResponsesProvider(provider, this.configPresenter)
+        case 'cherryInProvider':
+          return new CherryInProvider(provider, this.configPresenter)
         case 'lmstudio':
           return new LMStudioProvider(provider, this.configPresenter)
         case 'together':
@@ -251,6 +254,8 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
           return new OpenAICompatibleProvider(provider, this.configPresenter)
         case 'openai-responses':
           return new OpenAIResponsesProvider(provider, this.configPresenter)
+        case 'cherryin-responses':
+          return new CherryInProvider(provider, this.configPresenter)
         case 'lmstudio':
           return new LMStudioProvider(provider, this.configPresenter)
         case 'together':

@@ -125,6 +125,21 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
     }
   },
   {
+    id: 'cherryInProvider',
+    name: 'CherryIn',
+    apiType: 'cherryin-responses',
+    apiKey: '',
+    baseUrl: 'https://open.cherryin.ai/v1',
+    enable: false,
+    websites: {
+      official: 'https://open.cherryin.ai/console',
+      apiKey: 'https://open.cherryin.ai/console',
+      docs: 'https://docs.newapi.pro/api/openai-responses/',
+      models: 'https://docs.newapi.pro/api/openai-responses/',
+      defaultBaseUrl: 'https://open.cherryin.ai/v1'
+    }
+  },
+  {
     id: 'openai',
     name: 'OpenAI',
     apiType: 'openai',
