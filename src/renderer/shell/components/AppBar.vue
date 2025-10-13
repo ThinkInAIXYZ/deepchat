@@ -3,7 +3,7 @@
     class="flex flex-row h-9 min-h-9 border border-b-0 border-window-inner-border box-border rounded-t-[10px] relative overflow-hidden"
     :class="[
       !isFullscreened && isMacOS ? '' : ' rounded-t-none',
-      isMacOS ? 'bg-window-background' : ''
+      isMacOS ? 'bg-window-background' : 'bg-window-background/10'
     ]"
     :dir="langStore.dir"
   >
