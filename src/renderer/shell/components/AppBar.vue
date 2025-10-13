@@ -102,7 +102,7 @@
       </Button>
       <Button
         v-if="!isMacOS"
-        class="window-no-drag-region shrink-0 w-12 bg-transparent shadow-none rounded-none hover:bg-card/80 text-xs font-medium text-foreground flex items-center justify-center transition-all duration-200 group"
+        class="window-no-drag-region shrink-0 w-12 bg-transparent shadow-none rounded-none hover:bg-red-700/80 text-xs font-medium text-foreground flex items-center justify-center transition-all duration-200 group"
         @click="closeWindow"
       >
         <CloseIcon class="h-3! w-3!" />
