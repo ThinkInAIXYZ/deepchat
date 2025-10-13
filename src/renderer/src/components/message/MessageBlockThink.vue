@@ -45,9 +45,7 @@ const reasoningDuration = computed(() => {
 })
 
 const updateDisplayedSeconds = () => {
-  const normalized = Number.isFinite(reasoningDuration.value)
-    ? reasoningDuration.value
-    : 0
+  const normalized = Number.isFinite(reasoningDuration.value) ? reasoningDuration.value : 0
   const value = Math.max(0, Math.floor(normalized))
   displayedSeconds.value = value
 }
@@ -66,8 +64,7 @@ const scheduleNextUpdate = () => {
   const fallbackDuration = Number.isFinite(reasoningDuration.value)
     ? reasoningDuration.value * 1000
     : 0
-  const startTimestamp =
-    props.block.reasoning_time?.start ?? Date.now() - fallbackDuration
+  const startTimestamp = props.block.reasoning_time?.start ?? Date.now() - fallbackDuration
   const now = Date.now()
   const elapsed = Math.max(0, now - startTimestamp)
   const remainder = elapsed % UPDATE_INTERVAL
