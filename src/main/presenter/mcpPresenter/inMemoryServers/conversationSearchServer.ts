@@ -46,7 +46,7 @@ const GetConversationStatsArgsSchema = z.object({
 
 const CreateNewTabArgsSchema = z.object({
   url: z
-    .enum(['local://chat', 'local://settings'])
+    .enum(['local://chat'])
     .default('local://chat') // 默认 URL 为 local://chat
     .describe('URL for the new tab. Defaults to local://chat.'),
   active: z

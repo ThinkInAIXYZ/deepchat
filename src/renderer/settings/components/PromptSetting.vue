@@ -263,7 +263,7 @@
         side="right"
         class="w-[60vw]! max-w-[90vw]! h-screen flex flex-col p-0 bg-background window-no-drag-region"
       >
-        <SheetHeader class="px-6 py-4 border-b bg-card/50">
+        <SheetHeader class="px-6 py-4 border-b bg-card/50 shrink-0">
           <SheetTitle class="flex items-center gap-2">
             <Icon icon="lucide:settings" class="w-5 h-5 text-primary" />
             <span>
@@ -283,18 +283,19 @@
           </SheetDescription>
         </SheetHeader>
 
-        <div class="flex-1 overflow-y-auto px-6 py-4 space-y-4">
-          <!-- 名称 -->
-          <div class="space-y-2">
-            <Label for="system-prompt-name" class="text-sm font-medium">{{
-              t('promptSetting.name')
-            }}</Label>
-            <Input
-              id="system-prompt-name"
-              v-model="systemPromptForm.name"
-              :placeholder="t('promptSetting.namePlaceholder')"
-            />
-          </div>
+        <ScrollArea class="flex-1 overflow-hidden">
+          <div class="px-6 py-4 space-y-4">
+            <!-- 名称 -->
+            <div class="space-y-2">
+              <Label for="system-prompt-name" class="text-sm font-medium">{{
+                t('promptSetting.name')
+              }}</Label>
+              <Input
+                id="system-prompt-name"
+                v-model="systemPromptForm.name"
+                :placeholder="t('promptSetting.namePlaceholder')"
+              />
+            </div>
 
           <!-- 内容 -->
           <div class="space-y-2">
@@ -308,7 +309,7 @@
               :placeholder="t('promptSetting.contentPlaceholder')"
             ></Textarea>
           </div>
-        </div>
+        </ScrollArea>
 
         <SheetFooter class="px-6 py-4 border-t bg-card/50">
           <div class="flex items-center justify-between w-full">
@@ -337,7 +338,7 @@
         side="right"
         class="w-[75vw]! max-w-[95vw]! h-screen flex flex-col p-0 bg-background window-no-drag-region"
       >
-        <SheetHeader class="px-6 py-4 border-b bg-card/50">
+        <SheetHeader class="px-6 py-4 border-b bg-card/50 shrink-0">
           <SheetTitle class="flex items-center gap-2">
             <Icon
               :icon="editingIdx === null ? 'lucide:plus-circle' : 'lucide:edit-3'"
