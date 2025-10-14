@@ -276,9 +276,9 @@
     <Sheet v-model:open="openSystemPromptDialog">
       <SheetContent
         side="right"
-        class="w-[60vw]! max-w-[90vw]! h-full flex flex-col p-0 bg-background"
+        class="w-[60vw]! max-w-[90vw]! h-full flex flex-col p-0 bg-background overflow-hidden"
       >
-        <SheetHeader class="px-6 py-4 border-b bg-card/50">
+        <SheetHeader class="px-6 py-4 border-b bg-card/50 shrink-0">
           <SheetTitle class="flex items-center gap-2">
             <Icon icon="lucide:settings" class="w-5 h-5 text-primary" />
             <span>
@@ -298,32 +298,34 @@
           </SheetDescription>
         </SheetHeader>
 
-        <div class="flex-1 overflow-y-auto px-6 py-4 space-y-4">
-          <!-- 名称 -->
-          <div class="space-y-2">
-            <Label for="system-prompt-name" class="text-sm font-medium">{{
-              t('promptSetting.name')
-            }}</Label>
-            <Input
-              id="system-prompt-name"
-              v-model="systemPromptForm.name"
-              :placeholder="t('promptSetting.namePlaceholder')"
-            />
-          </div>
+        <ScrollArea class="flex-1 overflow-hidden">
+          <div class="px-6 py-4 space-y-4">
+            <!-- 名称 -->
+            <div class="space-y-2">
+              <Label for="system-prompt-name" class="text-sm font-medium">{{
+                t('promptSetting.name')
+              }}</Label>
+              <Input
+                id="system-prompt-name"
+                v-model="systemPromptForm.name"
+                :placeholder="t('promptSetting.namePlaceholder')"
+              />
+            </div>
 
-          <!-- 内容 -->
-          <div class="space-y-2">
-            <Label for="system-prompt-content" class="text-sm font-medium">{{
-              t('promptSetting.promptContent')
-            }}</Label>
-            <textarea
-              id="system-prompt-content"
-              v-model="systemPromptForm.content"
-              class="w-full h-64 rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 resize-none overflow-y-auto"
-              :placeholder="t('promptSetting.contentPlaceholder')"
-            ></textarea>
+            <!-- 内容 -->
+            <div class="space-y-2">
+              <Label for="system-prompt-content" class="text-sm font-medium">{{
+                t('promptSetting.promptContent')
+              }}</Label>
+              <textarea
+                id="system-prompt-content"
+                v-model="systemPromptForm.content"
+                class="w-full h-64 rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 resize-none overflow-y-auto"
+                :placeholder="t('promptSetting.contentPlaceholder')"
+              ></textarea>
+            </div>
           </div>
-        </div>
+        </ScrollArea>
 
         <SheetFooter class="px-6 py-4 border-t bg-card/50">
           <div class="flex items-center justify-between w-full">
@@ -350,9 +352,9 @@
     <Sheet v-model:open="openAddDialog">
       <SheetContent
         side="right"
-        class="w-[75vw]! max-w-[95vw]! h-full flex flex-col p-0 bg-background"
+        class="w-[75vw]! max-w-[95vw]! h-full flex flex-col p-0 bg-background overflow-hidden"
       >
-        <SheetHeader class="px-6 py-4 border-b bg-card/50">
+        <SheetHeader class="px-6 py-4 border-b bg-card/50 shrink-0">
           <SheetTitle class="flex items-center gap-2">
             <Icon
               :icon="editingIdx === null ? 'lucide:plus-circle' : 'lucide:edit-3'"
@@ -371,8 +373,8 @@
           </SheetDescription>
         </SheetHeader>
 
-        <ScrollArea class="flex-1 px-6">
-          <div class="py-6 space-y-6">
+        <ScrollArea class="flex-1 overflow-hidden">
+          <div class="px-6 py-6 space-y-6">
             <!-- 基本信息区域 -->
             <div class="space-y-4">
               <div class="flex items-center gap-2 pb-2 border-b border-border">
