@@ -1,5 +1,5 @@
 <template>
-  <div class="w-full h-screen flex flex-col">
+  <div class="w-full h-screen flex flex-col" :class="isWinMacOS ? '' : 'bg-background'">
     <div
       class="w-full h-9 window-drag-region shrink-0 justify-end flex flex-row relative border border-b-0 border-window-inner-border box-border rounded-t-[10px]"
       :class="[
@@ -49,7 +49,6 @@ import { usePresenter } from '../src/composables/usePresenter'
 import CloseIcon from './icons/CloseIcon.vue'
 import { useSettingsStore } from '../src/stores/settings'
 import { useLanguageStore } from '../src/stores/language'
-import { useThemeStore } from '../src/stores/theme'
 import { Button } from '@shadcn/components/ui/button'
 
 const devicePresenter = usePresenter('devicePresenter')
@@ -59,9 +58,9 @@ const configPresenter = usePresenter('configPresenter')
 // Initialize stores
 const settingsStore = useSettingsStore()
 const languageStore = useLanguageStore()
-const themeStore = useThemeStore()
 
 const isMacOS = ref(false)
+const isWinMacOS = ref(false)
 const { t, locale } = useI18n()
 const router = useRouter()
 const route = useRoute()
@@ -78,6 +77,9 @@ const settings: Ref<
 // Get all routes and build settings navigation
 const routes = router.getRoutes()
 onMounted(() => {
+  devicePresenter.getDeviceInfo().then((deviceInfo) => {
+    isWinMacOS.value = deviceInfo.platform === 'darwin' || deviceInfo.platform === 'win32'
+  })
   const tempArray: {
     title: string
     name: string
@@ -133,7 +135,7 @@ const handleClick = (path: string) => {
 // Watch language changes and update i18n + HTML dir
 watch(
   () => languageStore.language,
-  async (newLang) => {
+  async () => {
     locale.value = await configPresenter.getLanguage()
     document.documentElement.dir = languageStore.dir
   }
