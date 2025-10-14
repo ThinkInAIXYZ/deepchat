@@ -136,7 +136,7 @@ import {
   SelectValue
 } from '@shadcn/components/ui/select'
 import { Icon } from '@iconify/vue'
-import ModelConfigItem from './ModelConfigItem.vue'
+import ModelConfigItem from '@/components/settings/ModelConfigItem.vue'
 import { type RENDERER_MODEL_META } from '@shared/presenter'
 import { ModelType } from '@shared/model'
 import { useSettingsStore } from '@/stores/settings'

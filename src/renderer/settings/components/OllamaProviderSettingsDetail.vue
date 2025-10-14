@@ -280,7 +280,7 @@ import {
 import { useSettingsStore } from '@/stores/settings'
 import { useModelCheckStore } from '@/stores/modelCheck'
 import type { LLM_PROVIDER } from '@shared/presenter'
-import ModelConfigItem from './ModelConfigItem.vue'
+import ModelConfigItem from '@/components/settings/ModelConfigItem.vue'
 import { useToast } from '@/components/use-toast'
 import { ModelType } from '@shared/model'
 

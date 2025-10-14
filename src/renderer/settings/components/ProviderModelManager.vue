@@ -79,7 +79,7 @@ import { useI18n } from 'vue-i18n'
 import { Label } from '@shadcn/components/ui/label'
 import { Button } from '@shadcn/components/ui/button'
 import { Icon } from '@iconify/vue'
-import ModelConfigItem from './ModelConfigItem.vue'
+import ModelConfigItem from '@/components/settings/ModelConfigItem.vue'
 import type { LLM_PROVIDER, RENDERER_MODEL_META } from '@shared/presenter'
 import { ModelType } from '@shared/model'
 
