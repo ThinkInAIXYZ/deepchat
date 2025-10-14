@@ -16,6 +16,7 @@
   @import 'vue-renderer-markdown/index.css';
 
   :root {
+    --dc-font-scale: 1;
     --base-50: hsl(0 0% 100%);
     --base-100: hsl(0 0% 98.1%);
     --base-200: hsl(0 0% 93.4%);
@@ -145,6 +146,30 @@
     --text-secondary-foreground: hsl(0 0 15% / 0.5);
     --text-skeleton-primary: hsl(0 0 15% / 0.05);
     --window-inner-border: hsl(0 0 100% / 0.5);
+  }
+
+  html {
+    --dc-font-scale: 1;
+  }
+
+  html.text-sm {
+    --dc-font-scale: 0.875;
+  }
+
+  html.text-base {
+    --dc-font-scale: 1;
+  }
+
+  html.text-lg {
+    --dc-font-scale: 1.125;
+  }
+
+  html.text-xl {
+    --dc-font-scale: 1.25;
+  }
+
+  html.text-2xl {
+    --dc-font-scale: 1.5;
   }
 
   .dark,
@@ -824,6 +849,26 @@
   @font-face {
     font-family: 'Geist';
     src: url('./geist.ttf') format('truetype');
+  }
+}
+
+@layer utilities {
+  [data-slot='switch'] {
+    inline-size: calc(2rem / var(--dc-font-scale));
+    block-size: calc(1.15rem / var(--dc-font-scale));
+    min-inline-size: calc(2rem / var(--dc-font-scale));
+    min-block-size: calc(1.15rem / var(--dc-font-scale));
+    width: calc(2rem / var(--dc-font-scale));
+    height: calc(1.15rem / var(--dc-font-scale));
+    min-width: calc(2rem / var(--dc-font-scale));
+    min-height: calc(1.15rem / var(--dc-font-scale));
+  }
+
+  [data-slot='switch-thumb'] {
+    inline-size: calc(1rem / var(--dc-font-scale));
+    block-size: calc(1rem / var(--dc-font-scale));
+    width: calc(1rem / var(--dc-font-scale));
+    height: calc(1rem / var(--dc-font-scale));
   }
 }
 
