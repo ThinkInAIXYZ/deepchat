@@ -205,15 +205,9 @@ const openModelCheckDialog = () => {
 
 const getKeyStatus = async () => {
   if (
-    [
-      'ppio',
-      'openrouter',
-      'siliconcloud',
-      'silicon',
-      'deepseek',
-      '302ai',
-      'cherryin'
-    ].includes(props.provider.id) &&
+    ['ppio', 'openrouter', 'siliconcloud', 'silicon', 'deepseek', '302ai', 'cherryin'].includes(
+      props.provider.id
+    ) &&
     props.provider.apiKey
   ) {
     try {
