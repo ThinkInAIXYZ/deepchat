@@ -262,9 +262,50 @@ const { toast } = useToast()
 const themeStore = useThemeStore()
 const devicePresenter = usePresenter('devicePresenter')
 const appVersion = ref('')
-const codeLanguage = ref(
-  artifactStore.currentArtifact?.language || artifactStore.currentArtifact?.type || ''
-)
+const sanitizeLanguage = (language: string | undefined | null) => {
+  if (!language) return ''
+  const normalized = language.trim().toLowerCase()
+
+  switch (normalized) {
+    case 'md':
+      return 'markdown'
+    case 'plain':
+    case 'text':
+      return 'plaintext'
+    case 'htm':
+      return 'html'
+    default:
+      return normalized
+  }
+}
+
+const normalizeLanguage = (artifact: ArtifactState | null) => {
+  if (!artifact) return ''
+
+  const explicit = sanitizeLanguage(artifact.language)
+  if (explicit) {
+    return explicit
+  }
+
+  switch (artifact.type) {
+    case 'application/vnd.ant.code':
+      return 'plaintext'
+    case 'text/markdown':
+      return 'markdown'
+    case 'text/html':
+      return 'html'
+    case 'image/svg+xml':
+      return 'svg'
+    case 'application/vnd.ant.mermaid':
+      return 'mermaid'
+    case 'application/vnd.ant.react':
+      return 'jsx'
+    default:
+      return sanitizeLanguage(artifact.type)
+  }
+}
+
+const codeLanguage = ref(normalizeLanguage(artifactStore.currentArtifact))
 const { createEditor, updateCode } = useMonaco({
   MAX_HEIGHT: '500px',
   wordWrap: 'on',
@@ -275,19 +316,48 @@ const codeEditor = ref<any>(null)
 // 创建节流版本的语言检测函数，1秒内最多执行一次
 const throttledDetectLanguage = useThrottleFn(
   (code: string) => {
-    codeLanguage.value = detectLanguage(code)
+    codeLanguage.value = sanitizeLanguage(detectLanguage(code))
   },
   1000,
   true
 )
 
+const getArtifactContextKey = (artifact: ArtifactState | null) => {
+  if (!artifact) return null
+  if (artifactStore.currentMessageId && artifactStore.currentThreadId) {
+    return `${artifactStore.currentThreadId}:${artifactStore.currentMessageId}:${artifact.id}`
+  }
+  return artifact.id
+}
+
+const activeArtifactContext = ref<string | null>(null)
+
 watch(
   () => artifactStore.currentArtifact,
-  (newArtifact) => {
-    if (!newArtifact) return
+  (newArtifact, prevArtifact) => {
+    componentKey.value++
 
-    // Update language detection
-    codeLanguage.value = newArtifact.language || getFileExtension(newArtifact.type || '')
+    if (!newArtifact) {
+      activeArtifactContext.value = null
+      isPreview.value = false
+      userHasSetPreview.value = false
+      return
+    }
+
+    const normalizedLanguage = normalizeLanguage(newArtifact)
+    if (normalizedLanguage !== codeLanguage.value) {
+      codeLanguage.value = normalizedLanguage
+    }
+
+    const newContextKey = getArtifactContextKey(newArtifact)
+    const prevContextKey = getArtifactContextKey(prevArtifact ?? null)
+    const isNewArtifact = newContextKey !== prevContextKey || newContextKey !== activeArtifactContext.value
+
+    if (isNewArtifact) {
+      activeArtifactContext.value = newContextKey
+      userHasSetPreview.value = false
+      isPreview.value = getDefaultPreviewState(newArtifact)
+    }
 
     if (codeLanguage.value === 'mermaid') {
       return
@@ -295,12 +365,10 @@ watch(
 
     const newCode = newArtifact.content || ''
 
-    // Check if we need to detect language
-    if (!codeLanguage.value || codeLanguage.value === '') {
+    if (!codeLanguage.value) {
       throttledDetectLanguage(newCode)
     }
 
-    // Always update Monaco editor content
     updateCode(newCode, codeLanguage.value)
   },
   {
@@ -366,26 +434,6 @@ const setPreview = (value: boolean) => {
 const setViewportSize = (size: 'desktop' | 'tablet' | 'mobile') => {
   viewportSize.value = size
 }
-
-// 监听 artifact 变化，强制重新渲染组件
-watch(
-  () => artifactStore.currentArtifact,
-  (artifact) => {
-    componentKey.value++
-
-    if (!artifact) {
-      isPreview.value = false
-      userHasSetPreview.value = false
-      return
-    }
-
-    userHasSetPreview.value = false
-    isPreview.value = getDefaultPreviewState(artifact)
-  },
-  {
-    immediate: true
-  }
-)
 
 watch(
   () => artifactStore.currentArtifact?.status,
