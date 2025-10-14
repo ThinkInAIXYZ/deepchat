@@ -1,5 +1,5 @@
 <template>
-  <div class="space-y-4 p-4 border rounded-lg bg-muted/30">
+  <div class="space-y-4">
     <div class="flex items-center justify-between">
       <div class="space-y-1">
         <h4 class="text-sm font-medium">{{ t('settings.rateLimit.title') }}</h4>

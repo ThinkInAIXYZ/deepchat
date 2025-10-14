@@ -5,7 +5,7 @@ import { toRaw } from 'vue'
 let cachedWebContentsId: number | null = null
 
 // 获取当前webContentsId
-function getWebContentsId(): number | null {
+export function getWebContentsId(): number | null {
   if (cachedWebContentsId !== null) {
     return cachedWebContentsId
   }

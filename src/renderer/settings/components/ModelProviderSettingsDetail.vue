@@ -1,7 +1,7 @@
 <template>
   <section class="w-full h-full">
-    <ScrollArea class="w-full h-full p-2 flex flex-col gap-2">
-      <div class="flex flex-col gap-4 p-2">
+    <ScrollArea class="w-full h-full px-4 flex flex-col gap-2">
+      <div class="flex flex-col gap-4 px-2 py-4">
         <!-- 基础API配置 -->
         <ProviderApiConfig
           :provider="provider"
@@ -14,6 +14,8 @@
           @oauth-error="handleOAuthError"
         />
 
+        <Separator />
+
         <!-- Azure特殊配置 -->
         <AzureProviderConfig
           v-if="provider.id === 'azure-openai'"
@@ -21,6 +23,8 @@
           :initial-value="azureApiVersion"
           @api-version-change="handleAzureApiVersionChange"
         />
+
+        <Separator v-if="provider.id === 'azure-openai'" />
 
         <!-- Gemini安全设置 -->
         <GeminiSafetyConfig
@@ -30,8 +34,12 @@
           @safety-setting-change="handleSafetySettingChange"
         />
 
+        <Separator v-if="provider.id === 'gemini'" />
+
         <!-- 速率限制配置 -->
         <ProviderRateLimitConfig :provider="provider" @config-changed="handleConfigChanged" />
+
+        <Separator />
 
         <!-- ModelScope MCP 同步 -->
         <ModelScopeMcpSync v-if="provider.id === 'modelscope'" :provider="provider" />
@@ -83,6 +91,7 @@ import ProviderModelManager from './ProviderModelManager.vue'
 import ProviderDialogContainer from './ProviderDialogContainer.vue'
 import { useModelCheckStore } from '@/stores/modelCheck'
 import { levelToValueMap, safetyCategories } from '@/lib/gemini'
+import { Separator } from '@shadcn/components/ui/separator'
 import type { SafetyCategoryKey, SafetySettingValue } from '@/lib/gemini'
 import { useThrottleFn } from '@vueuse/core'
 

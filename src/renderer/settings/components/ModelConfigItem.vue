@@ -1,5 +1,5 @@
 <template>
-  <div class="flex flex-row items-center gap-2 p-2 border-b last:border-none">
+  <div class="flex flex-row items-center gap-2 px-3 py-2 border-b last:border-none">
     <div class="flex gap-1">
       <span class="text-xs">
         {{ modelName }}
@@ -21,7 +21,9 @@
     </div>
     <div class="grow"></div>
     <div class="flex flex-row items-center gap-2">
-      <span v-if="group" class="text-xs text-muted-foreground">{{ group }}</span>
+      <span v-if="group && group !== 'default'" class="text-xs text-muted-foreground">{{
+        group
+      }}</span>
       <span
         class="px-2 py-0.5 rounded-full bg-muted text-xs text-muted-foreground border border-muted-foreground/20 select-none"
       >

@@ -18,7 +18,9 @@
     "src/renderer/splash/assets/**/*",
     "src/preload/*.d.ts",
     "src/shared/**/*",
-    "src/shadcn/**/*"
+    "src/shadcn/**/*",
+    "src/renderer/settings/**/*",
+    "src/renderer/settings/**/*.vue"
   ],
   "compilerOptions": {
     "composite": true,

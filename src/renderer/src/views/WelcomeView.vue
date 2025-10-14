@@ -163,18 +163,13 @@ const nextStep = async () => {
     }
   } else {
     configPresenter.setSetting('init_complete', true)
-    if (!providerModels.value || providerModels.value.length === 0) {
-      router.push({ name: 'settings' })
-      return
-    } else {
-      router.push({
-        name: 'chat',
-        query: {
-          modelId: providerModels.value[0].id,
-          providerId: selectedProvider.value
-        }
-      })
-    }
+    router.push({
+      name: 'chat',
+      query: {
+        modelId: providerModels.value[0].id,
+        providerId: selectedProvider.value
+      }
+    })
   }
 }
 

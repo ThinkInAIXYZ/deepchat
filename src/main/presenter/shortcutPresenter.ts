@@ -72,6 +72,11 @@ export class ShortcutPresenter implements IShortcutPresenter {
       globalShortcut.register(this.shortcutKeys.CloseTab, () => {
         const focusedWindow = presenter.windowPresenter.getFocusedWindow()
         if (focusedWindow?.isFocused()) {
+          if (focusedWindow.id === presenter.windowPresenter.getSettingsWindowId()) {
+            // 如果是设置窗口，直接关闭
+            presenter.windowPresenter.closeSettingsWindow()
+            return
+          }
           eventBus.sendToMain(SHORTCUT_EVENTS.CLOSE_CURRENT_TAB, focusedWindow.id)
         }
       })

@@ -1,8 +1,15 @@
 <template>
-  <div class="flex flex-col items-start gap-2">
-    <Label :for="`${provider.id}-model`" class="flex-1 cursor-pointer">{{
-      t('settings.provider.modelList')
-    }}</Label>
+  <div class="flex flex-col items-start gap-4">
+    <div class="flex flex-col w-full gap-2">
+      <Label :for="`${provider.id}-model`" class="flex-1 cursor-pointer">{{
+        t('settings.provider.modelList')
+      }}</Label>
+      <div class="text-xs text-muted-foreground">
+        {{ enabledModels.length }}/{{ totalModelsCount }}
+        {{ t('settings.provider.modelsEnabled') }}
+      </div>
+    </div>
+
     <div class="flex flex-row gap-2 items-center">
       <Button
         variant="outline"
@@ -25,14 +32,11 @@
           t('settings.provider.disableAllModels')
         }}
       </Button>
-      <span class="text-xs text-muted-foreground">
-        {{ enabledModels.length }}/{{ totalModelsCount }}
-        {{ t('settings.provider.modelsEnabled') }}
-      </span>
     </div>
+
     <div
       v-if="enabledModels.length > 0"
-      class="flex flex-col w-full border overflow-hidden rounded-lg"
+      class="flex flex-col w-full border overflow-hidden rounded-lg bg-card"
     >
       <ModelConfigItem
         v-for="model in enabledModels"

@@ -186,6 +186,8 @@ export interface IWindowPresenter {
   minimize(windowId: number): void
   maximize(windowId: number): void
   close(windowId: number): void
+  closeSettingsWindow(): void
+  getSettingsWindowId(): number | null
   hide(windowId: number): void
   show(windowId?: number): void
   isMaximized(windowId: number): boolean

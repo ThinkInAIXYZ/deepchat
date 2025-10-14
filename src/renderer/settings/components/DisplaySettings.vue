@@ -1,5 +1,5 @@
 <template>
-  <ScrollArea class="w-full h-full p-2">
+  <ScrollArea class="w-full h-full p-4">
     <div class="w-full h-full flex flex-col gap-1.5">
       <!-- 语言选择 -->
       <div class="flex items-center gap-3 px-2 py-2">

@@ -18,7 +18,10 @@
         :id="`${provider.id}-url`"
         :model-value="apiHost"
         :placeholder="t('settings.provider.urlPlaceholder')"
-        @blur="handleApiHostChange(String($event.target.value))"
+        @blur="
+          String($event.target.value) !== apiHost &&
+          handleApiHostChange(String($event.target.value))
+        "
         @keyup.enter="handleApiHostChange(apiHost)"
         @update:model-value="apiHost = String($event)"
       />
@@ -40,30 +43,50 @@
     />
 
     <!-- API Key 配置 (GitHub Copilot 时隐藏手动输入) -->
-    <div v-if="provider.id !== 'github-copilot'" class="flex flex-col items-start gap-2">
-      <Label :for="`${provider.id}-apikey`" class="flex-1 cursor-pointer">API Key</Label>
-      <div class="relative w-full">
-        <Input
-          :id="`${provider.id}-apikey`"
-          :model-value="apiKey"
-          :type="showApiKey ? 'text' : 'password'"
-          :placeholder="t('settings.provider.keyPlaceholder')"
-          style="padding-right: 2.5rem !important"
-          @blur="handleApiKeyChange($event.target.value)"
-          @keyup.enter="$emit('validate-key', apiKey)"
-          @update:model-value="apiKey = String($event)"
-        />
-        <Button
-          variant="ghost"
-          size="sm"
-          class="absolute right-2 top-1/2 transform -translate-y-1/2 h-7 w-7 p-0 hover:bg-transparent"
-          @click="showApiKey = !showApiKey"
-        >
-          <Icon
-            :icon="showApiKey ? 'lucide:eye-off' : 'lucide:eye'"
-            class="w-4 h-4 text-muted-foreground hover:text-foreground"
+    <div v-else class="flex flex-col items-start gap-4">
+      <div class="flex flex-col gap-2 w-full">
+        <Label :for="`${provider.id}-apikey`" class="w-full cursor-pointer">API Key</Label>
+        <div class="relative w-full">
+          <Input
+            :id="`${provider.id}-apikey`"
+            :model-value="apiKey"
+            :type="showApiKey ? 'text' : 'password'"
+            :placeholder="t('settings.provider.keyPlaceholder')"
+            style="padding-right: 2.5rem !important"
+            @blur="$event.target.value !== apiKey && handleApiKeyChange($event.target.value)"
+            @keyup.enter="$emit('validate-key', apiKey)"
+            @update:model-value="apiKey = String($event)"
           />
-        </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            class="absolute right-2 top-1/2 transform -translate-y-1/2 h-7 w-7 p-0 hover:bg-transparent"
+            @click="showApiKey = !showApiKey"
+          >
+            <Icon
+              :icon="showApiKey ? 'lucide:eye-off' : 'lucide:eye'"
+              class="w-4 h-4 text-muted-foreground hover:text-foreground"
+            />
+          </Button>
+        </div>
+        <div
+          v-if="
+            keyStatus && (keyStatus.usage !== undefined || keyStatus.limit_remaining !== undefined)
+          "
+          class="flex items-center gap-2 text-xs text-muted-foreground"
+        >
+          <div v-if="keyStatus.usage !== undefined" class="flex items-center gap-1">
+            <Icon icon="lucide:activity" class="w-3 h-3" />
+            <span>{{ t('settings.provider.keyStatus.usage') }}: {{ keyStatus.usage }}</span>
+          </div>
+          <div v-if="keyStatus.limit_remaining !== undefined" class="flex items-center gap-1">
+            <Icon icon="lucide:coins" class="w-3 h-3" />
+            <span
+              >{{ t('settings.provider.keyStatus.remaining') }}:
+              {{ keyStatus.limit_remaining }}</span
+            >
+          </div>
+        </div>
       </div>
       <div class="flex flex-row gap-2">
         <Button
@@ -95,24 +118,6 @@
           }}
         </Button>
         <!-- Key Status Display -->
-        <div
-          v-if="
-            keyStatus && (keyStatus.usage !== undefined || keyStatus.limit_remaining !== undefined)
-          "
-          class="flex items-center gap-2 text-xs text-muted-foreground"
-        >
-          <div v-if="keyStatus.usage !== undefined" class="flex items-center gap-1">
-            <Icon icon="lucide:activity" class="w-3 h-3" />
-            <span>{{ t('settings.provider.keyStatus.usage') }}: {{ keyStatus.usage }}</span>
-          </div>
-          <div v-if="keyStatus.limit_remaining !== undefined" class="flex items-center gap-1">
-            <Icon icon="lucide:coins" class="w-3 h-3" />
-            <span
-              >{{ t('settings.provider.keyStatus.remaining') }}:
-              {{ keyStatus.limit_remaining }}</span
-            >
-          </div>
-        </div>
       </div>
       <div v-if="!provider.custom" class="text-xs text-muted-foreground">
         {{ t('settings.provider.howToGet') }}: {{ t('settings.provider.getKeyTip') }}

@@ -39,6 +39,7 @@ export class WindowPresenter implements IWindowPresenter {
     }
   >()
   private floatingChatWindow: FloatingChatWindow | null = null
+  private settingsWindow: BrowserWindow | null = null
 
   constructor(configPresenter: IConfigPresenter) {
     this.windows = new Map()
@@ -124,26 +125,21 @@ export class WindowPresenter implements IWindowPresenter {
       }
     })
 
-    // Listen for shortcut event: go settings (from main shortcut or renderer IPC bridge)
-    eventBus.on(SHORTCUT_EVENTS.GO_SETTINGS, async (windowId?: number) => {
+    // Listen for shortcut event: go settings (now opens independent Settings Window)
+    eventBus.on(SHORTCUT_EVENTS.GO_SETTINGS, async () => {
       try {
-        const targetWindowId = windowId ?? this.getFocusedWindow()?.id ?? this.mainWindow?.id
-        if (!targetWindowId) return
-        await this.openOrFocusSettingsTab(targetWindowId)
+        await this.openOrFocusSettingsWindow()
       } catch (err) {
-        console.error('Failed to open/focus settings tab via eventBus:', err)
+        console.error('Failed to open/focus settings window via eventBus:', err)
       }
     })
 
     // Allow renderer to request opening/focusing settings via IPC
-    ipcMain.on(SHORTCUT_EVENTS.GO_SETTINGS, async (event, maybeWindowId?: number) => {
+    ipcMain.on(SHORTCUT_EVENTS.GO_SETTINGS, async () => {
       try {
-        const senderWindow = BrowserWindow.fromWebContents(event.sender)
-        const targetWindowId = maybeWindowId ?? senderWindow?.id ?? this.mainWindow?.id
-        if (!targetWindowId) return
-        await this.openOrFocusSettingsTab(targetWindowId)
+        await this.openOrFocusSettingsWindow()
       } catch (err) {
-        console.error('Failed to open/focus settings tab via IPC:', err)
+        console.error('Failed to open/focus settings window via IPC:', err)
       }
     })
 
@@ -183,22 +179,14 @@ export class WindowPresenter implements IWindowPresenter {
   }
 
   /**
+   * @deprecated Use openOrFocusSettingsWindow() instead. Settings is now an independent window.
    * Open Settings tab if not exists, otherwise focus existing one in the given window.
+   * This method is kept for backward compatibility.
    */
-  public async openOrFocusSettingsTab(windowId: number): Promise<void> {
-    const window = this.windows.get(windowId)
-    if (!window || window.isDestroyed()) return
-    const tabPresenterInstance = presenter.tabPresenter as TabPresenter
-    const tabsData = await tabPresenterInstance.getWindowTabsData(windowId)
-    const settingsTab = tabsData.find((t) => {
-      const url = t.url || ''
-      return url.startsWith('local://settings') || url.includes('#/settings')
-    })
-    if (settingsTab) {
-      await tabPresenterInstance.switchTab(settingsTab.id)
-    } else {
-      await tabPresenterInstance.createTab(windowId, 'local://settings', { active: true })
-    }
+  public async openOrFocusSettingsTab(_windowId: number): Promise<void> {
+    console.warn('openOrFocusSettingsTab is deprecated. Use openOrFocusSettingsWindow() instead.')
+    // Redirect to new Settings Window
+    await this.openOrFocusSettingsWindow()
   }
 
   /**
@@ -1008,12 +996,19 @@ export class WindowPresenter implements IWindowPresenter {
 
     if (electronFocusedWindow) {
       const windowId = electronFocusedWindow.id
+      console.log(this.windows)
       const ourWindow = this.windows.get(windowId)
 
       // 验证 Electron 报告的窗口是否在我们管理范围内且有效
       if (ourWindow && !ourWindow.isDestroyed()) {
         this.focusedWindowId = windowId // 更新内部记录
         return ourWindow
+      } else if (this.settingsWindow) {
+        if (windowId === this.settingsWindow.id) {
+          return this.settingsWindow
+        } else {
+          return
+        }
       } else {
         // Electron 报告的窗口不在 Map 中或已销毁
         console.warn(
@@ -1239,6 +1234,131 @@ export class WindowPresenter implements IWindowPresenter {
 
   public getFloatingChatWindow(): FloatingChatWindow | null {
     return this.floatingChatWindow
+  }
+
+  /**
+   * Create or show Settings Window (singleton pattern)
+   */
+  public async createSettingsWindow(): Promise<number | null> {
+    // If settings window already exists, just show and focus it
+    if (this.settingsWindow && !this.settingsWindow.isDestroyed()) {
+      console.log('Settings window already exists, showing and focusing.')
+      this.settingsWindow.show()
+      this.settingsWindow.focus()
+      return this.settingsWindow.id
+    }
+
+    console.log('Creating new settings window.')
+
+    // Choose icon based on platform
+    const iconFile = nativeImage.createFromPath(process.platform === 'win32' ? iconWin : icon)
+
+    // Create Settings Window with fixed size (no state persistence)
+    const settingsWindow = new BrowserWindow({
+      width: 900,
+      height: 600,
+      show: false,
+      autoHideMenuBar: true,
+      fullscreenable: false,
+
+      icon: iconFile,
+      title: 'DeepChat - Settings',
+      titleBarStyle: 'hiddenInset',
+      transparent: process.platform === 'darwin',
+      vibrancy: process.platform === 'darwin' ? 'hud' : undefined,
+      backgroundMaterial: process.platform === 'win32' ? 'mica' : undefined,
+      backgroundColor: '#00ffffff',
+      maximizable: true,
+      minimizable: true,
+      frame: process.platform === 'darwin',
+      hasShadow: true,
+      trafficLightPosition: process.platform === 'darwin' ? { x: 12, y: 10 } : undefined,
+      webPreferences: {
+        preload: join(__dirname, '../preload/index.mjs'),
+        sandbox: false,
+        devTools: is.dev
+      },
+      roundedCorners: true
+    })
+
+    if (!settingsWindow) {
+      console.error('Failed to create settings window.')
+      return null
+    }
+
+    this.settingsWindow = settingsWindow
+    const windowId = settingsWindow.id
+
+    // Apply content protection settings
+    const contentProtectionEnabled = this.configPresenter.getContentProtectionEnabled()
+    this.updateContentProtection(settingsWindow, contentProtectionEnabled)
+
+    // Window event listeners
+    settingsWindow.on('ready-to-show', () => {
+      console.log(`Settings window ${windowId} is ready to show.`)
+      if (!settingsWindow.isDestroyed()) {
+        settingsWindow.show()
+      }
+    })
+
+    settingsWindow.on('closed', () => {
+      console.log(`Settings window ${windowId} closed.`)
+      this.settingsWindow = null
+    })
+
+    // Load settings renderer HTML
+    if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
+      console.log(
+        `Loading settings renderer URL in dev mode: ${process.env['ELECTRON_RENDERER_URL']}/settings/index.html`
+      )
+      await settingsWindow.loadURL(process.env['ELECTRON_RENDERER_URL'] + '/settings/index.html')
+    } else {
+      console.log(
+        `Loading packaged settings renderer file: ${join(__dirname, '../renderer/settings/index.html')}`
+      )
+      await settingsWindow.loadFile(join(__dirname, '../renderer/settings/index.html'))
+    }
+
+    // Open DevTools in development mode
+    if (is.dev) {
+      settingsWindow.webContents.openDevTools({ mode: 'detach' })
+    }
+
+    console.log(`Settings window ${windowId} created successfully.`)
+    return windowId
+  }
+
+  /**
+   * Open or focus Settings Window (replaces openOrFocusSettingsTab)
+   */
+  public async openOrFocusSettingsWindow(): Promise<void> {
+    await this.createSettingsWindow()
+  }
+
+  public getSettingsWindowId(): number | null {
+    if (this.settingsWindow && !this.settingsWindow.isDestroyed()) {
+      return this.settingsWindow.id
+    }
+    return null
+  }
+
+  /**
+   * Close Settings Window if it exists
+   */
+  public closeSettingsWindow(): void {
+    if (this.settingsWindow && !this.settingsWindow.isDestroyed()) {
+      console.log('Closing settings window.')
+      const windowId = this.settingsWindow.id
+      this.windows.delete(windowId)
+      this.settingsWindow.close()
+    }
+  }
+
+  /**
+   * Check if Settings Window is open
+   */
+  public isSettingsWindowOpen(): boolean {
+    return this.settingsWindow !== null && !this.settingsWindow.isDestroyed()
   }
 
   public isApplicationQuitting(): boolean {

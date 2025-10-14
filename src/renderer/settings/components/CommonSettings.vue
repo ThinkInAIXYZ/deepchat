@@ -1,8 +1,8 @@
 <template>
-  <ScrollArea class="w-full h-full p-2">
-    <div class="w-full h-full flex flex-col gap-1.5">
+  <ScrollArea class="w-full h-full p-4">
+    <div class="w-full h-full flex flex-col gap-3">
       <!-- 搜索引擎选择 -->
-      <div class="flex items-center gap-3 px-2 py-2">
+      <div class="flex items-center gap-3 px-2 h-10">
         <span
           class="flex items-center gap-2 text-sm font-medium shrink-0 min-w-[220px]"
           :dir="langStore.dir"
@@ -13,7 +13,7 @@
         <div class="flex items-center gap-2 ml-auto flex-wrap justify-end">
           <div class="w-auto">
             <Select v-model="selectedSearchEngine">
-              <SelectTrigger>
+              <SelectTrigger class="px-3 h-8! text-sm border-border hover:bg-accent">
                 <SelectValue :placeholder="t('settings.common.searchEngineSelect')" />
               </SelectTrigger>
               <SelectContent>
@@ -29,7 +29,8 @@
           </div>
           <Button
             variant="outline"
-            size="icon"
+            size="icon-sm"
+            class="w-8 h-8"
             :title="t('settings.common.addCustomSearchEngine')"
             @click="openAddSearchEngineDialog"
           >
@@ -38,7 +39,8 @@
           <Button
             v-if="isCurrentEngineCustom"
             variant="outline"
-            size="icon"
+            size="icon-sm"
+            class="w-7 h-7"
             :title="t('settings.common.deleteCustomSearchEngine')"
             @click="currentEngine && openDeleteSearchEngineDialog(currentEngine)"
           >
@@ -46,7 +48,8 @@
           </Button>
           <Button
             variant="outline"
-            size="icon"
+            size="icon-sm"
+            class="w-8 h-8"
             :title="t('settings.common.testSearchEngine')"
             @click="openTestSearchEngineDialog"
           >
@@ -56,7 +59,7 @@
       </div>
 
       <!-- 网页内容长度限制 -->
-      <div class="flex flex-row p-2 items-center gap-2 px-2">
+      <div class="flex flex-row items-center gap-2 px-2 h-10">
         <span class="flex flex-row items-center gap-2 grow w-full" :dir="langStore.dir">
           <Icon icon="lucide:globe" class="w-4 h-4 text-muted-foreground" />
           <span class="text-sm font-medium">{{ t('settings.common.webContentLengthLimit') }}</span>
@@ -68,7 +71,7 @@
           <Button
             variant="outline"
             size="icon"
-            class="h-8 w-8 rounded-full"
+            class="h-8 w-8"
             @click="decreaseWebContentLimit"
             :disabled="webContentLengthLimit <= 0"
           >
@@ -100,7 +103,7 @@
           <Button
             variant="outline"
             size="icon"
-            class="h-8 w-8 rounded-full"
+            class="h-7 w-7"
             @click="increaseWebContentLimit"
             :disabled="webContentLengthLimit >= 10000"
           >
@@ -111,7 +114,7 @@
       </div>
 
       <!-- 搜索助手模型选择 -->
-      <div class="flex items-center gap-3 px-2 py-2">
+      <div class="flex items-center gap-3 px-2 h-10">
         <span
           class="flex items-center gap-2 text-sm font-medium shrink-0 min-w-[220px]"
           :dir="langStore.dir"
@@ -122,7 +125,7 @@
         <div class="ml-auto">
           <Popover v-model:open="modelSelectOpen">
             <PopoverTrigger as-child>
-              <Button variant="outline" class="w-full justify-between">
+              <Button variant="outline" class="w-full justify-between h-8 text-sm">
                 <div class="flex items-center gap-2">
                   <ModelIcon
                     :model-id="selectedSearchModel?.id || ''"
@@ -133,10 +136,13 @@
                     selectedSearchModel?.name || t('settings.common.selectModel')
                   }}</span>
                 </div>
-                <ChevronDown class="h-4 w-4 opacity-50" />
+                <Icon
+                  icon="lucide:chevron-down"
+                  class="h-4 w-4 ml-2 shrink-0 text-muted-foreground/50"
+                />
               </Button>
             </PopoverTrigger>
-            <PopoverContent class="w-80 p-0">
+            <PopoverContent class="w-80 p-0" align="end">
               <ModelSelect
                 :type="[ModelType.Chat, ModelType.ImageGeneration]"
                 @update:model="handleSearchModelSelect"
@@ -146,7 +152,7 @@
         </div>
       </div>
       <!-- 代理模式选择 -->
-      <div class="flex items-center gap-3 px-2 py-2">
+      <div class="flex items-center gap-3 px-2 h-10">
         <span
           class="flex items-center gap-2 text-sm font-medium shrink-0 min-w-[220px]"
           :dir="langStore.dir"
@@ -156,10 +162,10 @@
         </span>
         <div class="ml-auto w-auto">
           <Select v-model="selectedProxyMode">
-            <SelectTrigger>
+            <SelectTrigger class="h-8! text-sm border-border hover:bg-accent">
               <SelectValue :placeholder="t('settings.common.proxyModeSelect')" />
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent align="end">
               <SelectItem v-for="mode in proxyModes" :key="mode.value" :value="mode.value">
                 {{ mode.label }}
               </SelectItem>
@@ -167,7 +173,7 @@
           </Select>
         </div>
       </div>
-      <div v-if="selectedProxyMode === 'custom'" class="flex flex-col gap-2 px-2 py-2">
+      <div v-if="selectedProxyMode === 'custom'" class="flex flex-col gap-2 px-2 h-10">
         <div class="flex items-center gap-3">
           <span
             class="flex items-center gap-2 text-sm font-medium shrink-0 min-w-[220px]"
@@ -191,7 +197,7 @@
         </div>
       </div>
       <!-- 搜索预览开关 -->
-      <div class="flex items-center gap-3 px-2 py-2">
+      <div class="flex items-center gap-3 px-2 h-10">
         <span
           class="flex items-center gap-2 text-sm font-medium shrink-0 min-w-[220px]"
           :dir="langStore.dir"
@@ -209,7 +215,7 @@
       </div>
 
       <!-- 日志开关 -->
-      <div class="flex items-center gap-3 px-2 py-2">
+      <div class="flex items-center gap-3 px-2 h-10">
         <span
           class="flex items-center gap-2 text-sm font-medium shrink-0 min-w-[220px]"
           :dir="langStore.dir"
@@ -227,7 +233,7 @@
       </div>
 
       <!-- 音效开关 -->
-      <div class="flex items-center gap-3 px-2 py-2">
+      <div class="flex items-center gap-3 px-2 h-10">
         <span
           class="flex items-center gap-2 text-sm font-medium shrink-0 min-w-[220px]"
           :dir="langStore.dir"
@@ -245,7 +251,7 @@
       </div>
 
       <!-- 复制全部（含COT）开关 -->
-      <div class="flex items-center gap-3 px-2 py-2">
+      <div class="flex items-center gap-3 px-2 h-10">
         <span
           class="flex items-center gap-2 text-sm font-medium shrink-0 min-w-[220px]"
           :dir="langStore.dir"
@@ -261,7 +267,6 @@
           />
         </div>
       </div>
-
       <!-- 日志开关确认对话框 -->
       <Dialog :open="isLoggingDialogOpen" @update:open="cancelLoggingChange">
         <DialogContent>
@@ -287,18 +292,19 @@
         </DialogContent>
       </Dialog>
       <div
-        class="p-2 flex flex-row items-center gap-2 hover:bg-accent rounded-lg cursor-pointer"
+        class="p-2 h-10 flex flex-row items-center gap-2 hover:bg-accent rounded-lg cursor-pointer"
         @click="openLogFolder"
         :dir="langStore.dir"
       >
         <Icon icon="lucide:external-link" class="w-4 h-4 text-muted-foreground" />
         <span class="text-sm font-medium">{{ t('settings.common.openLogFolder') }}</span>
       </div>
+
       <!-- 重置数据 -->
       <Dialog v-model:open="isDialogOpen">
         <DialogTrigger as-child>
           <div
-            class="p-2 flex flex-row items-center gap-2 hover:bg-accent rounded-lg cursor-pointer"
+            class="p-2 h-10 flex flex-row items-center gap-2 hover:bg-accent rounded-lg cursor-pointer"
             :dir="langStore.dir"
           >
             <Icon icon="lucide:trash" class="w-4 h-4 text-muted-foreground" />

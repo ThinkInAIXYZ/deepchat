@@ -219,7 +219,10 @@ import {
 import { useMcpStore } from '@/stores/mcp'
 import { useLanguageStore } from '@/stores/language'
 import { useToast } from '@/components/use-toast'
-import { MCP_MARKETPLACE_URL, HIGRESS_MCP_MARKETPLACE_URL } from '../mcp-config/const'
+import {
+  MCP_MARKETPLACE_URL,
+  HIGRESS_MCP_MARKETPLACE_URL
+} from '../../src/components/mcp-config/const'
 import { useRouter } from 'vue-router'
 
 const { t } = useI18n()

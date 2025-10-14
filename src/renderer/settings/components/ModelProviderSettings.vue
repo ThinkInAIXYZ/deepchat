@@ -1,14 +1,14 @@
 <template>
   <div class="w-full h-full flex flex-row">
-    <ScrollArea class="w-64 border-r h-full px-2">
-      <div class="space-y-4">
+    <ScrollArea class="w-64 border-r h-full">
+      <div class="space-y-4 p-4">
         <!-- 搜索框 -->
-        <div class="p-2 sticky top-0 z-10 bg-card">
+        <div class="sticky top-4 z-10">
           <div class="relative">
             <Input
               v-model="searchQueryBase"
               :placeholder="t('settings.provider.search')"
-              class="h-8 pr-8"
+              class="h-9 pr-8 text-sm backdrop-blur-lg border-border"
               @keydown.esc="clearSearch"
             />
             <!-- 搜索图标：在无内容时显示 -->
@@ -45,9 +45,7 @@
                 :data-provider-id="provider.id"
                 :class="[
                   'flex flex-row hover:bg-accent items-center gap-2 rounded-lg p-2 cursor-pointer group',
-                  route.params?.providerId === provider.id
-                    ? 'bg-secondary text-secondary-foreground'
-                    : ''
+                  route.params?.providerId === provider.id ? 'bg-accent text-accent-foreground' : ''
                 ]"
                 @click="setActiveProvider(provider.id)"
               >
@@ -91,9 +89,7 @@
                 :data-provider-id="provider.id"
                 :class="[
                   'flex flex-row hover:bg-accent items-center gap-2 rounded-lg p-2 cursor-pointer group opacity-60',
-                  route.params?.providerId === provider.id
-                    ? 'bg-secondary text-secondary-foreground'
-                    : ''
+                  route.params?.providerId === provider.id ? 'bg-accent text-accent-foreground' : ''
                 ]"
                 @click="setActiveProvider(provider.id)"
               >
@@ -118,14 +114,15 @@
           </draggable>
         </div>
 
-        <div class="sticky bottom-0 z-10 p-2 bg-card" :dir="languageStore.dir">
-          <button
-            class="w-full flex flex-row items-center gap-2 rounded-lg p-2 bg-card cursor-pointer hover:bg-accent"
+        <div class="sticky bottom-4 z-10" :dir="languageStore.dir">
+          <Button
+            variant="outline"
+            class="w-full flex flex-row items-center gap-2 rounded-lg p-2 backdrop-blur-lg cursor-pointer hover:bg-accent"
             @click="openAddProviderDialog"
           >
             <Icon icon="lucide:plus" class="w-4 h-4 text-muted-foreground" />
             <span class="text-sm font-medium">{{ t('settings.provider.addCustomProvider') }}</span>
-          </button>
+          </Button>
         </div>
       </div>
     </ScrollArea>
@@ -179,6 +176,7 @@ import { useI18n } from 'vue-i18n'
 import type { AWS_BEDROCK_PROVIDER, LLM_PROVIDER } from '@shared/presenter'
 import { Switch } from '@shadcn/components/ui/switch'
 import { Input } from '@shadcn/components/ui/input'
+import { Button } from '@shadcn/components/ui/button'
 import draggable from 'vuedraggable'
 import { ScrollArea } from '@shadcn/components/ui/scroll-area'
 import { useThemeStore } from '@/stores/theme'

@@ -2,7 +2,7 @@
   <div
     ref="tabItem"
     draggable="true"
-    class="shrink-0 hover:bg-card/80 text-xs font-medium text-foreground px-3 h-full flex items-center justify-between group border-r first:border-l border-border"
+    class="shrink-0 hover:bg-card/80 text-xs font-medium text-foreground px-2 h-full flex items-center justify-between group border-r first:border-l border-border"
     :class="[active ? 'bg-card' : '']"
     @dragstart="onDragStart"
     @click="onClick"
@@ -13,7 +13,7 @@
 
     <Icon
       icon="lucide:x"
-      class="w-5 h-5 ml-2 text-muted-foreground opacity-0 transition-opacity duration-200 rounded-full hover:text-foreground p-0.5"
+      class="w-5 h-5 ml-2 text-muted-foreground opacity-0 transition-opacity duration-200 rounded hover:text-foreground p-0.5 hover:bg-accent-foreground/10"
       :class="[size > 1 ? 'group-hover:opacity-100' : 'pointer-events-none cursor-default']"
       @click.stop="onClose"
     />
