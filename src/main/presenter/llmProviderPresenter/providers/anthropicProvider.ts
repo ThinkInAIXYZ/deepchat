@@ -16,6 +16,56 @@ import { Usage } from '@anthropic-ai/sdk/resources'
 import { proxyConfig } from '../../proxyConfig'
 import { ProxyAgent } from 'undici'
 
+const OAUTH_MODEL_LIST = {
+  data: [
+    {
+      created_at: '2025-09-29T00:00:00Z',
+      display_name: 'Claude Sonnet 4.5',
+      id: 'claude-sonnet-4-5-20250929',
+      type: 'model'
+    },
+    {
+      created_at: '2025-05-14T00:00:00Z',
+      display_name: 'Claude Sonnet 4',
+      id: 'claude-sonnet-4-20250514',
+      type: 'model'
+    },
+    {
+      created_at: '2025-05-14T00:00:00Z',
+      display_name: 'Claude Opus 4',
+      id: 'claude-opus-4-20250514',
+      type: 'model'
+    },
+    {
+      created_at: '2025-02-19T00:00:00Z',
+      display_name: 'Claude 3.7 Sonnet',
+      id: 'claude-3-7-sonnet-20250219',
+      type: 'model'
+    },
+    {
+      created_at: '2024-10-22T00:00:00Z',
+      display_name: 'Claude 3.5 Sonnet',
+      id: 'claude-3-5-sonnet-20241022',
+      type: 'model'
+    },
+    {
+      created_at: '2024-10-22T00:00:00Z',
+      display_name: 'Claude 3.5 Haiku',
+      id: 'claude-3-5-haiku-20241022',
+      type: 'model'
+    },
+    {
+      created_at: '2024-06-20T00:00:00Z',
+      display_name: 'Claude 3.5 Sonnet (Legacy)',
+      id: 'claude-3-5-sonnet-20240620',
+      type: 'model'
+    }
+  ],
+  first_id: 'claude-sonnet-4-5-20250929',
+  has_more: false,
+  last_id: 'claude-3-5-sonnet-20240620'
+}
+
 export class AnthropicProvider extends BaseLLMProvider {
   private anthropic!: Anthropic
   private oauthToken?: string
@@ -121,8 +171,8 @@ export class AnthropicProvider extends BaseLLMProvider {
       let models: any
 
       if (this.isOAuthMode) {
-        // OAuth mode: use direct HTTP request
-        models = await this.makeOAuthRequest('/v1/models', 'GET')
+        // OAuth mode: use predefined model list to avoid API calls
+        models = OAUTH_MODEL_LIST
       } else {
         // API Key mode: use SDK
         models = await this.anthropic.models.list()

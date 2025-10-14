@@ -7,7 +7,6 @@ import {
   TooltipProvider,
   TooltipTrigger
 } from '@shadcn/components/ui/tooltip'
-import { Badge } from '@shadcn/components/ui/badge'
 import { Switch } from '@shadcn/components/ui/switch'
 import {
   DropdownMenu,
@@ -140,14 +139,14 @@ watch(watchDescription, () => {
 
 <template>
   <div
-    class="bg-muted shadow-sm border rounded-lg overflow-hidden transition-all duration-200 hover:shadow-md hover:border-primary group"
+    class="bg-card flex flex-col shadow-sm border rounded-lg overflow-hidden transition-all duration-200 hover:shadow-md group"
   >
-    <div class="px-4 py-2">
+    <div class="px-4 py-2 flex-1">
       <!-- 头部：图标、名称、状态、菜单 -->
-      <div class="flex items-center justify-between mb-3">
-        <div class="flex items-center space-x-2 flex-1 min-w-0">
+      <div class="flex items-center justify-between mb-1">
+        <div class="flex items-center gap-1.5 flex-1 min-w-0">
           <!-- 服务器图标 -->
-          <div class="text-lg shrink-0">{{ server.icons }}</div>
+          <span class="shrink-0">{{ server.icons }}</span>
 
           <!-- 名称 -->
           <h3 class="text-sm font-bold truncate flex-1">
@@ -195,47 +194,19 @@ watch(watchDescription, () => {
         </DropdownMenu>
       </div>
 
-      <!-- 类型和标识 -->
-      <div class="flex items-center space-x-2 mb-2">
-        <!-- 服务器类型 -->
-        <Badge variant="outline" class="text-xs h-4 px-1.5">
-          {{ server.type === 'http' ? 'HTTP' : 'Local' }}
-        </Badge>
-
-        <!-- 默认启动标识 -->
-        <Badge v-if="server.isDefault" variant="default" class="text-xs h-4 px-1.5">
-          {{ t('settings.mcp.default') }}
-        </Badge>
-      </div>
-
       <!-- 描述 -->
-      <div class="mb-2">
-        <p
-          ref="descriptionRef"
-          class="text-xs text-secondary-foreground cursor-pointer overflow-hidden leading-5 break-all"
-          :class="[
-            !isDescriptionExpanded ? 'line-clamp-1' : '',
-            needsExpansion ? 'hover:text-foreground transition-colors' : ''
-          ]"
-          style="min-height: 1rem"
-          @click="needsExpansion && (isDescriptionExpanded = !isDescriptionExpanded)"
-        >
-          {{ fullDescription }}
-        </p>
-        <Button
-          variant="link"
-          size="sm"
-          class="h-auto p-0 text-xs mt-1 hover:no-underline gap-1"
-          :class="[needsExpansion ? 'opacity-100' : 'opacity-0 pointer-events-none']"
-          @click="isDescriptionExpanded = !isDescriptionExpanded"
-        >
-          <Icon
-            :icon="isDescriptionExpanded ? 'lucide:chevron-up' : 'lucide:chevron-down'"
-            class="h-3 w-3"
-          />
-          {{ isDescriptionExpanded ? t('common.collapse') : t('common.expand') }}
-        </Button>
-      </div>
+      <p
+        ref="descriptionRef"
+        class="text-xs text-secondary-foreground cursor-pointer overflow-hidden leading-5 break-all mb-2"
+        :class="[
+          !isDescriptionExpanded ? 'line-clamp-1' : '',
+          needsExpansion ? 'hover:text-foreground transition-colors' : ''
+        ]"
+        style="min-height: 1rem"
+        @click="needsExpansion && (isDescriptionExpanded = !isDescriptionExpanded)"
+      >
+        {{ fullDescription }}
+      </p>
 
       <!-- 底部控制 -->
       <div class="flex items-center justify-between">
@@ -259,16 +230,15 @@ watch(watchDescription, () => {
           </TooltipProvider>
         </div>
 
-        <div class="flex items-center space-x-2">
-          <Switch
-            :model-value="server.isRunning"
-            :disabled="disabled || isLoading"
-            @update:model-value="$emit('toggle')"
-          />
-        </div>
+        <!-- 开关 -->
+        <Switch
+          :model-value="server.isRunning"
+          :disabled="disabled || isLoading"
+          @update:model-value="$emit('toggle')"
+        />
       </div>
     </div>
-    <div class="flex flex-row bg-muted h-9 items-center">
+    <div class="flex flex-row border-t h-9 items-center">
       <!-- 工具按钮 -->
       <Button
         v-if="toolsCount !== undefined"

@@ -1,8 +1,8 @@
 <template>
-  <ScrollArea class="w-full h-full p-4">
-    <div class="w-full h-full flex flex-col gap-3">
+  <ScrollArea class="w-full h-full">
+    <div class="w-full h-full flex flex-col gap-3 p-4">
       <!-- 搜索引擎选择 -->
-      <div class="flex items-center gap-3 px-2 h-10">
+      <div class="flex items-center gap-3 h-10">
         <span
           class="flex items-center gap-2 text-sm font-medium shrink-0 min-w-[220px]"
           :dir="langStore.dir"
@@ -59,7 +59,7 @@
       </div>
 
       <!-- 网页内容长度限制 -->
-      <div class="flex flex-row items-center gap-2 px-2 h-10">
+      <div class="flex flex-row items-center gap-2 h-10">
         <span class="flex flex-row items-center gap-2 grow w-full" :dir="langStore.dir">
           <Icon icon="lucide:globe" class="w-4 h-4 text-muted-foreground" />
           <span class="text-sm font-medium">{{ t('settings.common.webContentLengthLimit') }}</span>
@@ -114,7 +114,7 @@
       </div>
 
       <!-- 搜索助手模型选择 -->
-      <div class="flex items-center gap-3 px-2 h-10">
+      <div class="flex items-center gap-3 h-10">
         <span
           class="flex items-center gap-2 text-sm font-medium shrink-0 min-w-[220px]"
           :dir="langStore.dir"
@@ -152,7 +152,7 @@
         </div>
       </div>
       <!-- 代理模式选择 -->
-      <div class="flex items-center gap-3 px-2 h-10">
+      <div class="flex items-center gap-3 h-10">
         <span
           class="flex items-center gap-2 text-sm font-medium shrink-0 min-w-[220px]"
           :dir="langStore.dir"
@@ -173,7 +173,7 @@
           </Select>
         </div>
       </div>
-      <div v-if="selectedProxyMode === 'custom'" class="flex flex-col gap-2 px-2 h-10">
+      <div v-if="selectedProxyMode === 'custom'" class="flex flex-col gap-2 h-10">
         <div class="flex items-center gap-3">
           <span
             class="flex items-center gap-2 text-sm font-medium shrink-0 min-w-[220px]"
@@ -197,7 +197,7 @@
         </div>
       </div>
       <!-- 搜索预览开关 -->
-      <div class="flex items-center gap-3 px-2 h-10">
+      <div class="flex items-center gap-3 h-10">
         <span
           class="flex items-center gap-2 text-sm font-medium shrink-0 min-w-[220px]"
           :dir="langStore.dir"
@@ -215,7 +215,7 @@
       </div>
 
       <!-- 日志开关 -->
-      <div class="flex items-center gap-3 px-2 h-10">
+      <div class="flex items-center gap-3 h-10">
         <span
           class="flex items-center gap-2 text-sm font-medium shrink-0 min-w-[220px]"
           :dir="langStore.dir"
@@ -233,7 +233,7 @@
       </div>
 
       <!-- 音效开关 -->
-      <div class="flex items-center gap-3 px-2 h-10">
+      <div class="flex items-center gap-3 h-10">
         <span
           class="flex items-center gap-2 text-sm font-medium shrink-0 min-w-[220px]"
           :dir="langStore.dir"
@@ -251,7 +251,7 @@
       </div>
 
       <!-- 复制全部（含COT）开关 -->
-      <div class="flex items-center gap-3 px-2 h-10">
+      <div class="flex items-center gap-3 h-10">
         <span
           class="flex items-center gap-2 text-sm font-medium shrink-0 min-w-[220px]"
           :dir="langStore.dir"
@@ -267,67 +267,40 @@
           />
         </div>
       </div>
-      <!-- 日志开关确认对话框 -->
-      <Dialog :open="isLoggingDialogOpen" @update:open="cancelLoggingChange">
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{{ t('settings.common.loggingDialogTitle') }}</DialogTitle>
-            <DialogDescription>
-              <div class="space-y-2">
-                <p>
-                  {{
-                    newLoggingValue
-                      ? t('settings.common.loggingEnableDesc')
-                      : t('settings.common.loggingDisableDesc')
-                  }}
-                </p>
-                <p>{{ t('settings.common.loggingRestartNotice') }}</p>
-              </div>
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" @click="cancelLoggingChange">{{ t('common.cancel') }}</Button>
-            <Button @click="confirmLoggingChange">{{ t('common.confirm') }}</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-      <div
-        class="p-2 h-10 flex flex-row items-center gap-2 hover:bg-accent rounded-lg cursor-pointer"
-        @click="openLogFolder"
-        :dir="langStore.dir"
-      >
-        <Icon icon="lucide:external-link" class="w-4 h-4 text-muted-foreground" />
-        <span class="text-sm font-medium">{{ t('settings.common.openLogFolder') }}</span>
+      <div class="flex flex-row gap-3">
+        <!-- 日志开关确认对话框 -->
+        <Dialog v-model:open="isLoggingDialogOpen" @update:open="cancelLoggingChange">
+          <DialogTrigger as-child>
+            <Button class="w-36" variant="outline" :dir="langStore.dir" @click="openLogFolder">
+              <Icon icon="lucide:external-link" class="w-4 h-4 text-muted-foreground" />
+              <span class="text-sm font-medium">{{ t('settings.common.openLogFolder') }}</span>
+            </Button>
+          </DialogTrigger>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>{{ t('settings.common.loggingDialogTitle') }}</DialogTitle>
+              <DialogDescription>
+                <div class="space-y-2">
+                  <p>
+                    {{
+                      newLoggingValue
+                        ? t('settings.common.loggingEnableDesc')
+                        : t('settings.common.loggingDisableDesc')
+                    }}
+                  </p>
+                  <p>{{ t('settings.common.loggingRestartNotice') }}</p>
+                </div>
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button variant="outline" @click="cancelLoggingChange">{{
+                t('common.cancel')
+              }}</Button>
+              <Button @click="confirmLoggingChange">{{ t('common.confirm') }}</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
-
-      <!-- 重置数据 -->
-      <Dialog v-model:open="isDialogOpen">
-        <DialogTrigger as-child>
-          <div
-            class="p-2 h-10 flex flex-row items-center gap-2 hover:bg-accent rounded-lg cursor-pointer"
-            :dir="langStore.dir"
-          >
-            <Icon icon="lucide:trash" class="w-4 h-4 text-muted-foreground" />
-            <span class="text-sm font-medium">{{ t('settings.common.resetData') }}</span>
-          </div>
-        </DialogTrigger>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{{ t('common.resetDataConfirmTitle') }}</DialogTitle>
-            <DialogDescription>
-              {{ t('common.resetDataConfirmDescription') }}
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" @click="closeDialog">
-              {{ t('dialog.cancel') }}
-            </Button>
-            <Button variant="destructive" @click="handleResetData">
-              {{ t('dialog.confirm') }}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   </ScrollArea>
 
@@ -463,7 +436,6 @@ import { useSoundStore } from '@/stores/sound'
 import { useLanguageStore } from '@/stores/language'
 import { ModelType } from '@shared/model'
 
-const devicePresenter = usePresenter('devicePresenter')
 const configPresenter = usePresenter('configPresenter')
 const settingsStore = useSettingsStore()
 const soundStore = useSoundStore()
@@ -636,17 +608,7 @@ watch(
   }
 )
 
-const isDialogOpen = ref(false)
 const modelSelectOpen = ref(false)
-
-const closeDialog = () => {
-  isDialogOpen.value = false
-}
-
-const handleResetData = () => {
-  devicePresenter.resetData()
-  closeDialog()
-}
 
 const handleSearchModelSelect = (model: RENDERER_MODEL_META, providerId: string) => {
   console.log('update search model', model, providerId)

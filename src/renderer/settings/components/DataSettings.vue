@@ -1,8 +1,8 @@
 <template>
-  <ScrollArea class="w-full h-full p-2">
-    <div class="w-full h-full flex flex-col gap-1.5">
+  <ScrollArea class="w-full h-full">
+    <div class="w-full h-full flex flex-col gap-1.5 p-4">
       <!-- 同步功能开关 -->
-      <div class="flex flex-row p-2 items-center gap-2 px-2">
+      <div class="flex flex-row items-center gap-2 h-10">
         <span class="flex flex-row items-center gap-2 grow w-full" :dir="languageStore.dir">
           <Icon icon="lucide:refresh-cw" class="w-4 h-4 text-muted-foreground" />
           <span class="text-sm font-medium">{{ t('settings.data.syncEnable') }}</span>
@@ -16,34 +16,32 @@
       </div>
 
       <!-- 同步文件夹设置 -->
-      <div class="flex flex-col p-2 gap-2 px-2">
-        <div class="flex flex-row items-center gap-2">
-          <span class="flex flex-row items-center gap-2 grow w-full" :dir="languageStore.dir">
-            <Icon icon="lucide:folder" class="w-4 h-4 text-muted-foreground" />
-            <span class="text-sm font-medium">{{ t('settings.data.syncFolder') }}</span>
-          </span>
-          <div class="shrink-0 w-96 flex gap-2">
-            <Input
-              v-model="syncFolderPath"
-              :disabled="!syncStore.syncEnabled"
-              class="cursor-pointer"
-              @click="syncStore.selectSyncFolder"
-            />
-            <Button
-              size="icon"
-              variant="outline"
-              :disabled="!syncStore.syncEnabled"
-              title="打开同步文件夹"
-              @click="syncStore.openSyncFolder"
-            >
-              <Icon icon="lucide:external-link" class="w-4 h-4" />
-            </Button>
-          </div>
+      <div class="flex flex-row items-center gap-2 h-10">
+        <span class="flex flex-row items-center gap-2 grow w-full" :dir="languageStore.dir">
+          <Icon icon="lucide:folder" class="w-4 h-4 text-muted-foreground" />
+          <span class="text-sm font-medium">{{ t('settings.data.syncFolder') }}</span>
+        </span>
+        <div class="shrink-0 w-96 flex gap-2">
+          <Input
+            v-model="syncFolderPath"
+            :disabled="!syncStore.syncEnabled"
+            class="cursor-pointer h-8!"
+            @click="syncStore.selectSyncFolder"
+          />
+          <Button
+            size="icon-sm"
+            variant="outline"
+            :disabled="!syncStore.syncEnabled"
+            title="打开同步文件夹"
+            @click="syncStore.openSyncFolder"
+          >
+            <Icon icon="lucide:external-link" class="w-4 h-4" />
+          </Button>
         </div>
       </div>
 
       <!-- 上次同步时间 -->
-      <div class="p-2 flex flex-row items-center gap-2" :dir="languageStore.dir">
+      <div class="flex flex-row items-center gap-2 h-10" :dir="languageStore.dir">
         <Icon icon="lucide:clock" class="w-4 h-4 text-muted-foreground" />
         <span class="text-sm font-medium">{{ t('settings.data.lastSyncTime') }}:</span>
         <span class="text-sm text-muted-foreground">
@@ -55,67 +53,67 @@
         </span>
       </div>
 
-      <!-- 手动备份 -->
-      <div
-        class="p-2 flex flex-row items-center gap-2 hover:bg-accent rounded-lg cursor-pointer"
-        :class="{
-          'opacity-50 cursor-not-allowed': !syncStore.syncEnabled || syncStore.isBackingUp
-        }"
-        :dir="languageStore.dir"
-        @click="syncStore.startBackup"
-      >
-        <Icon icon="lucide:save" class="w-4 h-4 text-muted-foreground" />
-        <span class="text-sm font-medium">{{ t('settings.data.startBackup') }}</span>
-        <span v-if="syncStore.isBackingUp" class="text-xs text-muted-foreground ml-2">
-          ({{ t('settings.data.backingUp') }})
-        </span>
-      </div>
+      <div class="flex flex-row gap-2">
+        <Button
+          variant="outline"
+          @click="syncStore.startBackup"
+          :disabled="!syncStore.syncEnabled || syncStore.isBackingUp"
+          :dir="languageStore.dir"
+        >
+          <Icon icon="lucide:save" class="w-4 h-4 text-muted-foreground" />
+          <span class="text-sm font-medium">{{ t('settings.data.startBackup') }}</span>
+          <span v-if="syncStore.isBackingUp" class="text-xs text-muted-foreground ml-2">
+            ({{ t('settings.data.backingUp') }})
+          </span>
+        </Button>
 
-      <!-- 导入数据 -->
-      <Dialog v-model:open="isImportDialogOpen">
-        <DialogTrigger as-child>
-          <div
-            class="p-2 flex flex-row items-center gap-2 hover:bg-accent rounded-lg cursor-pointer"
-            :class="{ 'opacity-50 cursor-not-allowed': !syncStore.syncEnabled }"
-            :dir="languageStore.dir"
-          >
-            <Icon icon="lucide:download" class="w-4 h-4 text-muted-foreground" />
-            <span class="text-sm font-medium">{{ t('settings.data.importData') }}</span>
-          </div>
-        </DialogTrigger>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{{ t('settings.data.importConfirmTitle') }}</DialogTitle>
-            <DialogDescription>
-              {{ t('settings.data.importConfirmDescription') }}
-            </DialogDescription>
-          </DialogHeader>
-          <div class="p-4">
-            <RadioGroup v-model="importMode" class="flex flex-col gap-2">
-              <div class="flex items-center space-x-2">
-                <RadioGroupItem value="increment" />
-                <Label>{{ t('settings.data.incrementImport') }}</Label>
-              </div>
-              <div class="flex items-center space-x-2">
-                <RadioGroupItem value="overwrite" />
-                <Label>{{ t('settings.data.overwriteImport') }}</Label>
-              </div>
-            </RadioGroup>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" @click="closeImportDialog">
-              {{ t('dialog.cancel') }}
+        <!-- 导入数据 -->
+        <Dialog v-model:open="isImportDialogOpen">
+          <DialogTrigger as-child>
+            <Button
+              variant="outline"
+              @click="syncStore.startBackup"
+              :disabled="!syncStore.syncEnabled"
+              :dir="languageStore.dir"
+            >
+              <Icon icon="lucide:download" class="w-4 h-4 text-muted-foreground" />
+              <span class="text-sm font-medium">{{ t('settings.data.importData') }}</span>
             </Button>
-            <Button variant="default" :disabled="syncStore.isImporting" @click="handleImport">
-              {{
-                syncStore.isImporting
-                  ? t('settings.data.importing')
-                  : t('settings.data.confirmImport')
-              }}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </DialogTrigger>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>{{ t('settings.data.importConfirmTitle') }}</DialogTitle>
+              <DialogDescription>
+                {{ t('settings.data.importConfirmDescription') }}
+              </DialogDescription>
+            </DialogHeader>
+            <div class="p-4">
+              <RadioGroup v-model="importMode" class="flex flex-col gap-2">
+                <div class="flex items-center space-x-2">
+                  <RadioGroupItem value="increment" />
+                  <Label>{{ t('settings.data.incrementImport') }}</Label>
+                </div>
+                <div class="flex items-center space-x-2">
+                  <RadioGroupItem value="overwrite" />
+                  <Label>{{ t('settings.data.overwriteImport') }}</Label>
+                </div>
+              </RadioGroup>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" @click="closeImportDialog">
+                {{ t('dialog.cancel') }}
+              </Button>
+              <Button variant="default" :disabled="syncStore.isImporting" @click="handleImport">
+                {{
+                  syncStore.isImporting
+                    ? t('settings.data.importing')
+                    : t('settings.data.confirmImport')
+                }}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </div>
 
       <!-- 分割线 -->
       <Separator class="my-4" />
@@ -123,15 +121,15 @@
       <!-- 数据重置选项 -->
       <AlertDialog v-model:open="isResetDialogOpen">
         <AlertDialogTrigger as-child>
-          <div
-            class="p-2 flex flex-row items-center gap-2 hover:bg-accent rounded-lg cursor-pointer"
+          <Button
+            variant="destructive"
+            class="w-48"
+            :disabled="!syncStore.syncEnabled || syncStore.isBackingUp"
             :dir="languageStore.dir"
           >
-            <Icon icon="lucide:rotate-ccw" class="w-4 h-4 text-destructive" />
-            <span class="text-sm font-medium text-destructive">{{
-              t('settings.data.resetData')
-            }}</span>
-          </div>
+            <Icon icon="lucide:rotate-ccw" class="w-4 h-4" />
+            <span class="text-sm font-medium">{{ t('settings.data.resetData') }}</span>
+          </Button>
         </AlertDialogTrigger>
         <AlertDialogContent>
           <AlertDialogHeader>

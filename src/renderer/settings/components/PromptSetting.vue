@@ -3,10 +3,7 @@
     <div class="w-full flex flex-col gap-4 p-4">
       <!-- 页面标题和操作按钮 -->
       <div class="flex flex-row items-center justify-between">
-        <div class="flex items-center gap-2">
-          <Icon icon="lucide:book-open-text" class="w-5 h-5 text-primary" />
-          <span class="text-lg font-semibold">{{ t('promptSetting.title') }}</span>
-        </div>
+        <span class="font-medium">{{ t('promptSetting.title') }}</span>
         <div class="flex items-center gap-2">
           <Button variant="outline" size="sm" @click="exportPrompts">
             <Icon icon="lucide:download" class="w-4 h-4 mr-1" />
@@ -19,100 +16,88 @@
         </div>
       </div>
 
-      <!-- 系统提示词设置区域 -->
-      <div class="bg-muted border border-border rounded-lg p-4">
-        <div class="flex items-center justify-between mb-3">
-          <div class="flex items-center gap-2">
-            <Icon icon="lucide:settings" class="w-5 h-5 text-primary" />
-            <Label class="text-base font-medium">{{ t('promptSetting.systemPrompts') }}</Label>
-          </div>
-          <div class="flex items-center gap-2">
-            <Button variant="default" size="sm" @click="openSystemPromptDialog = true">
-              <Icon icon="lucide:plus" class="w-4 h-4 mr-1" />
-              {{ t('promptSetting.addSystemPrompt') }}
-            </Button>
-          </div>
-        </div>
+      <Separator />
 
-        <div class="space-y-3">
-          <!-- 默认系统提示词选择 -->
-          <div class="space-y-2">
-            <Label class="text-sm font-medium">{{ t('promptSetting.defaultSystemPrompt') }}</Label>
-            <Select v-model="selectedSystemPromptId" @update:model-value="handleSystemPromptChange">
-              <SelectTrigger class="w-full">
-                <SelectValue :placeholder="t('promptSetting.selectSystemPrompt')" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem v-for="prompt in systemPrompts" :key="prompt.id" :value="prompt.id">
-                  {{ prompt.name }}
-                </SelectItem>
-              </SelectContent>
-            </Select>
+      <div class="space-y-3">
+        <!-- 默认系统提示词选择 -->
+        <div class="flex flex-row items-center gap-2">
+          <div class="flex-1">
+            <Label class="text-sm font-medium flex-1">{{
+              t('promptSetting.defaultSystemPrompt')
+            }}</Label>
             <p class="text-xs text-muted-foreground">
               {{ t('promptSetting.systemPromptDescription') }}
             </p>
           </div>
 
-          <!-- 当前选中的系统提示词编辑 -->
-          <div v-if="currentSystemPrompt" class="space-y-2">
-            <div class="flex items-center justify-between">
-              <Label class="text-sm font-medium">{{ t('promptSetting.promptContent') }}</Label>
-              <div class="flex items-center gap-2">
-                <!-- DeepChat 的恢复按钮 -->
-                <Button
-                  v-if="currentSystemPrompt.id === 'default'"
-                  variant="outline"
-                  size="sm"
-                  @click="resetDefaultSystemPrompt"
-                >
-                  <Icon icon="lucide:rotate-ccw" class="w-3.5 h-3.5 mr-1" />
-                  {{ t('promptSetting.resetToDefault') }}
-                </Button>
-                <!-- 非默认系统提示词的删除按钮 -->
-                <AlertDialog v-else>
-                  <AlertDialogTrigger asChild>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      class="text-destructive hover:bg-destructive hover:text-destructive-foreground"
-                    >
-                      <Icon icon="lucide:trash-2" class="w-3.5 h-3.5 mr-1" />
-                      {{ t('common.delete') }}
-                    </Button>
-                  </AlertDialogTrigger>
-                  <AlertDialogContent>
-                    <AlertDialogHeader>
-                      <AlertDialogTitle>{{
-                        t('promptSetting.confirmDeleteSystemPrompt', {
-                          name: currentSystemPrompt.name
-                        })
-                      }}</AlertDialogTitle>
-                      <AlertDialogDescription>{{
-                        t('promptSetting.confirmDeleteSystemPromptDescription')
-                      }}</AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                      <AlertDialogCancel>{{ t('common.cancel') }}</AlertDialogCancel>
-                      <AlertDialogAction @click="deleteSystemPrompt(currentSystemPrompt.id)">{{
-                        t('common.confirm')
-                      }}</AlertDialogAction>
-                    </AlertDialogFooter>
-                  </AlertDialogContent>
-                </AlertDialog>
-              </div>
-            </div>
-            <textarea
-              v-model="currentSystemPrompt.content"
-              class="w-full h-32 rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 resize-none overflow-y-auto"
-              :placeholder="t('promptSetting.contentPlaceholder')"
-              @blur="saveCurrentSystemPrompt"
-            ></textarea>
-            <p class="text-xs text-muted-foreground">
-              {{ t('promptSetting.systemPromptEditTip') }}
-            </p>
-          </div>
+          <Select v-model="selectedSystemPromptId" @update:model-value="handleSystemPromptChange">
+            <SelectTrigger class="w-32 border-border hover:bg-accent h-8!">
+              <SelectValue :placeholder="t('promptSetting.selectSystemPrompt')" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem v-for="prompt in systemPrompts" :key="prompt.id" :value="prompt.id">
+                {{ prompt.name }}
+              </SelectItem>
+            </SelectContent>
+          </Select>
+          <Button variant="outline" size="icon-sm" @click="openSystemPromptDialog = true">
+            <Icon icon="lucide:plus" class="w-4 h-4" />
+          </Button>
+        </div>
+
+        <!-- 当前选中的系统提示词编辑 -->
+        <div v-if="currentSystemPrompt" class="space-y-2">
+          <Textarea
+            v-model="currentSystemPrompt.content"
+            class="w-full h-48"
+            :placeholder="t('promptSetting.contentPlaceholder')"
+            @blur="saveCurrentSystemPrompt"
+          ></Textarea>
+          <!-- DeepChat 的恢复按钮 -->
+          <Button
+            v-if="currentSystemPrompt.id === 'default'"
+            variant="outline"
+            size="sm"
+            @click="resetDefaultSystemPrompt"
+          >
+            <Icon icon="lucide:rotate-ccw" class="w-3.5 h-3.5 mr-1" />
+            {{ t('promptSetting.resetToDefault') }}
+          </Button>
+          <!-- 非默认系统提示词的删除按钮 -->
+          <AlertDialog v-else>
+            <AlertDialogTrigger asChild>
+              <Button
+                variant="outline"
+                size="sm"
+                class="text-destructive hover:bg-destructive hover:text-destructive-foreground"
+              >
+                <Icon icon="lucide:trash-2" class="w-3.5 h-3.5 mr-1" />
+                {{ t('common.delete') }}
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>{{
+                  t('promptSetting.confirmDeleteSystemPrompt', {
+                    name: currentSystemPrompt.name
+                  })
+                }}</AlertDialogTitle>
+                <AlertDialogDescription>{{
+                  t('promptSetting.confirmDeleteSystemPromptDescription')
+                }}</AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>{{ t('common.cancel') }}</AlertDialogCancel>
+                <AlertDialogAction @click="deleteSystemPrompt(currentSystemPrompt.id)">{{
+                  t('common.confirm')
+                }}</AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </div>
       </div>
+
+      <Separator />
 
       <!-- 自定义提示词区域 -->
       <div class="bg-card border border-border rounded-lg p-4">
@@ -276,7 +261,7 @@
     <Sheet v-model:open="openSystemPromptDialog">
       <SheetContent
         side="right"
-        class="w-[60vw]! max-w-[90vw]! h-full flex flex-col p-0 bg-background overflow-hidden"
+        class="w-[60vw]! max-w-[90vw]! h-screen flex flex-col p-0 bg-background window-no-drag-region"
       >
         <SheetHeader class="px-6 py-4 border-b bg-card/50 shrink-0">
           <SheetTitle class="flex items-center gap-2">
@@ -317,12 +302,12 @@
               <Label for="system-prompt-content" class="text-sm font-medium">{{
                 t('promptSetting.promptContent')
               }}</Label>
-              <textarea
+              <Textarea
                 id="system-prompt-content"
                 v-model="systemPromptForm.content"
-                class="w-full h-64 rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 resize-none overflow-y-auto"
+                class="w-full h-64"
                 :placeholder="t('promptSetting.contentPlaceholder')"
-              ></textarea>
+              ></Textarea>
             </div>
           </div>
         </ScrollArea>
@@ -352,7 +337,7 @@
     <Sheet v-model:open="openAddDialog">
       <SheetContent
         side="right"
-        class="w-[75vw]! max-w-[95vw]! h-full flex flex-col p-0 bg-background overflow-hidden"
+        class="w-[75vw]! max-w-[95vw]! h-screen flex flex-col p-0 bg-background window-no-drag-region"
       >
         <SheetHeader class="px-6 py-4 border-b bg-card/50 shrink-0">
           <SheetTitle class="flex items-center gap-2">
@@ -373,12 +358,11 @@
           </SheetDescription>
         </SheetHeader>
 
-        <ScrollArea class="flex-1 overflow-hidden">
-          <div class="px-6 py-6 space-y-6">
+        <ScrollArea class="flex-1 h-0 px-6">
+          <div class="py-6 space-y-6">
             <!-- 基本信息区域 -->
             <div class="space-y-4">
               <div class="flex items-center gap-2 pb-2 border-b border-border">
-                <Icon icon="lucide:info" class="w-4 h-4 text-primary" />
                 <Label class="text-sm font-medium text-muted-foreground">{{
                   t('promptSetting.basicInfo')
                 }}</Label>
@@ -688,6 +672,8 @@ import { nanoid } from 'nanoid'
 import { getMimeTypeIcon } from '@/lib/utils'
 import { FileItem } from '@shared/presenter'
 import type { AcceptableValue } from 'reka-ui'
+import { Textarea } from '@shadcn/components/ui/textarea'
+import { Separator } from '@shadcn/components/ui/separator'
 
 const { t } = useI18n()
 const { toast } = useToast()
@@ -1355,6 +1341,13 @@ onMounted(async () => {
 </script>
 
 <style scoped>
+.window-drag-region {
+  -webkit-app-region: drag;
+}
+
+.window-no-drag-region {
+  -webkit-app-region: no-drag;
+}
 .line-clamp-2 {
   display: -webkit-box;
   -webkit-line-clamp: 2;

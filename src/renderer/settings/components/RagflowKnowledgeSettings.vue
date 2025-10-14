@@ -1,6 +1,9 @@
 <template>
   <div class="border rounded-lg overflow-hidden">
-    <div class="flex items-center p-4 bg-muted">
+    <div
+      class="flex items-center p-4 hover:bg-accent cursor-default"
+      @click="toggleRagflowConfigPanel"
+    >
       <div class="flex-1">
         <div class="flex items-center">
           <img src="@/assets/images/ragflow.png" class="h-5 mr-2" />
@@ -26,18 +29,10 @@
             </TooltipContent>
           </Tooltip>
         </TooltipProvider>
-        <Button
-          variant="outline"
-          size="sm"
-          class="flex items-center gap-1"
-          @click="toggleRagflowConfigPanel"
-        >
-          <Icon
-            :icon="isRagflowConfigPanelOpen ? 'lucide:chevron-up' : 'lucide:chevron-down'"
-            class="w-4 h-4"
-          />
-          {{ isRagflowConfigPanelOpen ? t('common.collapse') : t('common.expand') }}
-        </Button>
+        <Icon
+          :icon="isRagflowConfigPanelOpen ? 'lucide:chevron-up' : 'lucide:chevron-down'"
+          class="w-4 h-4"
+        />
       </div>
     </div>
 
