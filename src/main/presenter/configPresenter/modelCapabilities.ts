@@ -50,12 +50,41 @@ export class ModelCapabilities {
   }
 
   private getModel(providerId: string, modelId: string): ProviderModel | undefined {
-    const pid = this.resolveProviderId(providerId?.toLowerCase())
     const mid = modelId?.toLowerCase()
-    if (!pid || !mid) return undefined
-    const p = this.index.get(pid)
-    if (!p) return undefined
-    return p.get(mid)
+    if (!mid) return undefined
+
+    const normalizedProviderId = providerId ? providerId.toLowerCase() : ''
+    const hasProviderId = normalizedProviderId.length > 0
+    const pid = hasProviderId ? this.resolveProviderId(normalizedProviderId) : undefined
+
+    if (pid) {
+      const providerModels = this.index.get(pid)
+      if (providerModels) {
+        const providerMatch = providerModels.get(mid)
+        if (providerMatch) {
+          return providerMatch
+        }
+        return undefined
+      }
+
+      return this.findModelAcrossProviders(mid)
+    }
+
+    if (!hasProviderId) {
+      return undefined
+    }
+
+    return this.findModelAcrossProviders(mid)
+  }
+
+  private findModelAcrossProviders(modelId: string): ProviderModel | undefined {
+    for (const models of this.index.values()) {
+      const fallbackModel = models.get(modelId)
+      if (fallbackModel) {
+        return fallbackModel
+      }
+    }
+    return undefined
   }
 
   resolveProviderId(providerId: string | undefined): string | undefined {
