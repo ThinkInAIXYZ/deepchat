@@ -37,7 +37,7 @@
     <template v-if="!isCapturingImage">
       <TransitionGroup
         tag="div"
-        class="absolute bottom-3 right-3 flex items-center gap-2"
+        class="absolute bottom-3 right-3 flex flex-col items-center gap-2"
         enter-active-class="transition-all duration-300 ease-out"
         enter-from-class="opacity-0 translate-y-2"
         enter-to-class="opacity-100 translate-y-0"
@@ -49,29 +49,14 @@
         @after-leave="handleActionAfterLeave"
         @leave-cancelled="handleActionAfterLeave"
       >
-        <!-- 取消按钮 -->
-        <Button
-          v-if="showCancelButton"
-          key="cancel"
-          variant="outline"
-          size="icon"
-          class="w-8 h-8 shrink-0 opacity-100 bg-card backdrop-blur-lg z-20"
-          @click="handleCancel"
-        >
-          <Icon
-            icon="lucide:square"
-            class="w-6 h-6 bg-red-500 p-1 text-primary-foreground rounded-full"
-          />
-        </Button>
-
         <!-- 新聊天按钮 (仅在非生成状态显示) -->
         <Button
-          v-else
+          v-if="!showCancelButton"
           key="new-chat"
           variant="outline"
           size="icon"
           class="w-8 h-8 shrink-0 opacity-100 bg-card backdrop-blur-lg z-20"
-          @click="createNewThread"
+          @click="openCleanDialog"
         >
           <Icon icon="lucide:brush-cleaning" class="w-6 h-6 text-foreground" />
           <!-- <span class="">{{ t('common.newChat') }}</span> -->
@@ -105,6 +90,24 @@
       @bar-click="handleMinimapClick"
     />
   </div>
+  <Dialog v-model:open="cleanMessagesDialog">
+    <DialogContent>
+      <DialogHeader>
+        <DialogTitle>{{ t('dialog.cleanMessages.title') }}</DialogTitle>
+        <DialogDescription>
+          {{ t('dialog.cleanMessages.description') }}
+        </DialogDescription>
+      </DialogHeader>
+      <DialogFooter>
+        <Button variant="outline" @click="handleCleanMessagesDialogCancel">{{
+          t('dialog.cancel')
+        }}</Button>
+        <Button variant="destructive" @click="handleThreadCleanMessages">{{
+          t('dialog.cleanMessages.confirm')
+        }}</Button>
+      </DialogFooter>
+    </DialogContent>
+  </Dialog>
 </template>
 
 <script setup lang="ts">
@@ -124,6 +127,16 @@ import { usePageCapture } from '@/composables/usePageCapture'
 import { usePresenter } from '@/composables/usePresenter'
 import MessageMinimap from './MessageMinimap.vue'
 import { useArtifactStore } from '@/stores/artifact'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter
+} from '@shadcn/components/ui/dialog'
+
+const cleanMessagesDialog = ref(false)
 
 const { t } = useI18n()
 const props = defineProps<{
@@ -170,6 +183,26 @@ const handleMessageHover = (messageId: string | null) => {
 
 const handleMinimapHover = (messageId: string | null) => {
   hoveredMessageId.value = messageId
+}
+
+// 取消清空消息对话框
+const handleCleanMessagesDialogCancel = () => {
+  cleanMessagesDialog.value = false
+}
+
+// 清空会话消息
+const handleThreadCleanMessages = async () => {
+  try {
+    const threadId = chatStore.getActiveThreadId()
+    if (!threadId) {
+      return
+    }
+    await chatStore.clearAllMessages(threadId)
+  } catch (error) {
+    console.error(t('common.error.cleanMessagesFailed'), error)
+  }
+
+  cleanMessagesDialog.value = false
 }
 
 const handleMinimapClick = () => {
@@ -466,11 +499,6 @@ const showCancelButton = computed(() => {
   return chatStore.generatingThreadIds.has(chatStore.getActiveThreadId() ?? '')
 })
 
-const handleCancel = () => {
-  if (!chatStore.getActiveThreadId()) return
-  chatStore.cancelGenerating(chatStore.getActiveThreadId()!)
-}
-
 // Handle retry event from MessageItemUser
 const handleRetry = async (index: number) => {
   let triggered = false
@@ -502,12 +530,8 @@ const handleRetry = async (index: number) => {
   }
 }
 // 创建新会话
-const createNewThread = async () => {
-  try {
-    await chatStore.clearActiveThread()
-  } catch (error) {
-    console.error(t('common.error.createChatFailed'), error)
-  }
+const openCleanDialog = async () => {
+  cleanMessagesDialog.value = true
 }
 defineExpose({
   scrollToBottom,

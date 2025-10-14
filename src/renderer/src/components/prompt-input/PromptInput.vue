@@ -193,9 +193,24 @@
               size="icon"
               class="w-7 h-7 text-xs rounded-lg"
               :disabled="disabledSend"
+              v-if="!isStreaming"
               @click="emitSend"
             >
               <Icon icon="lucide:arrow-up" class="w-4 h-4" />
+            </Button>
+            <!-- 取消按钮 -->
+            <Button
+              v-if="isStreaming"
+              key="cancel"
+              variant="outline"
+              size="icon"
+              class="w-7 h-7 text-xs rounded-lg bg-card backdrop-blur-lg"
+              @click="handleCancel"
+            >
+              <Icon
+                icon="lucide:square"
+                class="w-6 h-6 bg-red-500 p-1 text-primary-foreground rounded-full"
+              />
             </Button>
           </div>
         </div>
@@ -711,6 +726,11 @@ const previewFile = (filePath: string) => {
   windowPresenter.previewFile(filePath)
 }
 
+const handleCancel = () => {
+  if (!chatStore.getActiveThreadId()) return
+  chatStore.cancelGenerating(chatStore.getActiveThreadId()!)
+}
+
 const handlePaste = async (e: ClipboardEvent, fromCapture = false) => {
   // Avoid double-processing only for bubble-phase handler on wrapper.
   // Allow processing when invoked from the capture-phase editor listener.
@@ -1046,6 +1066,14 @@ const disabledSend = computed(() => {
       inputText.value.length <= 0 ||
       currentContextLength.value > (props.contextLength ?? chatStore.chatConfig.contextLength)
     )
+  }
+  return false
+})
+
+const isStreaming = computed(() => {
+  const activeThreadId = chatStore.getActiveThreadId()
+  if (activeThreadId) {
+    return chatStore.generatingThreadIds.has(activeThreadId)
   }
   return false
 })
