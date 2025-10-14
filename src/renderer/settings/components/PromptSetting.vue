@@ -627,7 +627,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, toRaw, Text } from 'vue'
+import { ref, reactive, onMounted, toRaw } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
 import { ScrollArea } from '@shadcn/components/ui/scroll-area'

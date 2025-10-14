@@ -7,7 +7,6 @@ import {
   TooltipProvider,
   TooltipTrigger
 } from '@shadcn/components/ui/tooltip'
-import { Badge } from '@shadcn/components/ui/badge'
 import { Switch } from '@shadcn/components/ui/switch'
 import {
   DropdownMenu,
