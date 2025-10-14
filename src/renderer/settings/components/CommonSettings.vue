@@ -450,7 +450,6 @@ import {
 } from '@shadcn/components/ui/dialog'
 import { Button } from '@shadcn/components/ui/button'
 import { Popover, PopoverContent, PopoverTrigger } from '@shadcn/components/ui/popover'
-import { ChevronDown } from 'lucide-vue-next'
 import ModelSelect from '@/components/ModelSelect.vue'
 import ModelIcon from '@/components/icons/ModelIcon.vue'
 import { Input } from '@shadcn/components/ui/input'
