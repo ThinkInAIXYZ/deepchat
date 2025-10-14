@@ -124,7 +124,6 @@
           <Button
             variant="destructive"
             class="w-48"
-            @click="syncStore.startBackup"
             :disabled="!syncStore.syncEnabled || syncStore.isBackingUp"
             :dir="languageStore.dir"
           >
