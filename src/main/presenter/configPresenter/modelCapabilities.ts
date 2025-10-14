@@ -50,12 +50,28 @@ export class ModelCapabilities {
   }
 
   private getModel(providerId: string, modelId: string): ProviderModel | undefined {
-    const pid = this.resolveProviderId(providerId?.toLowerCase())
     const mid = modelId?.toLowerCase()
-    if (!pid || !mid) return undefined
-    const p = this.index.get(pid)
-    if (!p) return undefined
-    return p.get(mid)
+    if (!mid) return undefined
+
+    const pid = providerId ? this.resolveProviderId(providerId.toLowerCase()) : undefined
+    if (pid) {
+      const providerModels = this.index.get(pid)
+      if (providerModels) {
+        return providerModels.get(mid)
+      }
+
+      for (const models of this.index.values()) {
+        if (!models) continue
+        if (models.has(mid)) {
+          const match = models.get(mid)
+          if (match) return match
+          break
+        }
+      }
+      return undefined
+    }
+
+    return undefined
   }
 
   resolveProviderId(providerId: string | undefined): string | undefined {
