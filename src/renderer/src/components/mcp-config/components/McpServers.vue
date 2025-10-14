@@ -259,7 +259,7 @@ const handleViewResources = async (serverName: string) => {
               {{ inMemoryServers.length }}
             </div>
           </div>
-          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          <div class="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-4 gap-3">
             <McpServerCard
               v-for="server in inMemoryServers"
               :key="server.name"
@@ -291,7 +291,7 @@ const handleViewResources = async (serverName: string) => {
               {{ regularServers.length }}
             </div>
           </div>
-          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          <div class="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-4 gap-3">
             <McpServerCard
               v-for="server in regularServers"
               :key="server.name"

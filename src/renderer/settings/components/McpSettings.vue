@@ -1,198 +1,144 @@
 <template>
   <div class="w-full h-full flex flex-col">
-    <!-- 固定部分 -->
-    <div class="shrink-0 bg-card sticky top-0 z-10">
-      <!-- NPM源配置区域 -->
-      <div class="border-b bg-card">
-        <div class="p-4">
-          <h4 class="text-sm font-medium mb-3">{{ t('settings.mcp.npmRegistry.title') }}</h4>
-          <div class="space-y-3">
-            <!-- 当前源状态 -->
+    <!-- MCP 总开关 - 卡片样式 -->
+    <div class="shrink-0 px-4 pt-4">
+      <div class="flex items-center justify-between">
+        <div :dir="languageStore.dir" class="flex-1">
+          <div class="font-medium">
+            {{ t('settings.mcp.enabledTitle') }}
+          </div>
+          <p class="text-xs text-muted-foreground">
+            {{ t('settings.mcp.enabledDescription') }}
+          </p>
+        </div>
+        <Switch
+          dir="ltr"
+          :model-value="mcpEnabled"
+          @update:model-value="handleMcpEnabledChange"
+          class="scale-125"
+        />
+      </div>
+      <!-- NPM 源折叠区域 -->
+      <Collapsible v-model:open="npmSourceExpanded" class="mt-3">
+        <CollapsibleTrigger as-child>
+          <Button variant="ghost" size="sm" class="w-full text-xs h-8 px-2">
+            <Icon
+              :icon="npmSourceExpanded ? 'lucide:chevron-up' : 'lucide:chevron-down'"
+              class="w-3 h-3 text-muted-foreground"
+            />
+            <span class="text-muted-foreground flex items-center gap-1">
+              {{ t('settings.mcp.npmRegistry.advancedSettings') }}
+            </span>
+          </Button>
+        </CollapsibleTrigger>
+        <CollapsibleContent class="mt-2">
+          <div class="border rounded-lg bg-card/50 p-3 space-y-3">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-medium">{{ t('settings.mcp.npmRegistry.title') }}</span>
+            </div>
+
+            <!-- 当前源 -->
             <div class="flex items-center justify-between text-xs">
-              <span class="text-muted-foreground"
-                >{{ t('settings.mcp.npmRegistry.currentSource') }}:</span
-              >
+              <span class="text-muted-foreground">{{
+                t('settings.mcp.npmRegistry.currentSource')
+              }}</span>
               <div class="flex items-center gap-2">
-                <span class="font-mono">{{ npmRegistryStatus.currentRegistry || 'Default' }}</span>
-                <Badge v-if="npmRegistryStatus.isFromCache" variant="secondary" class="text-xs">
-                  {{ t('settings.mcp.npmRegistry.cached') }}
-                </Badge>
+                <span class="font-mono text-xs">{{
+                  npmRegistryStatus.currentRegistry || 'Default'
+                }}</span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  :disabled="refreshing"
+                  @click="refreshNpmRegistry"
+                  class="h-6 w-6 p-0"
+                >
+                  <Icon
+                    :icon="refreshing ? 'lucide:loader-2' : 'lucide:refresh-cw'"
+                    :class="['w-3 h-3', refreshing && 'animate-spin']"
+                  />
+                </Button>
               </div>
             </div>
 
-            <!-- 上次检测时间 -->
-            <div
-              v-if="npmRegistryStatus.lastChecked"
-              class="flex items-center justify-between text-xs"
-            >
-              <span class="text-muted-foreground"
-                >{{ t('settings.mcp.npmRegistry.lastChecked') }}:</span
-              >
-              <span>{{ formatLastChecked(npmRegistryStatus.lastChecked) }}</span>
+            <!-- 自动检测 -->
+            <div class="flex items-center justify-between">
+              <span class="text-xs text-muted-foreground">{{
+                t('settings.mcp.npmRegistry.autoDetect')
+              }}</span>
+              <Switch
+                :model-value="npmRegistryStatus.autoDetectEnabled"
+                @update:model-value="setAutoDetectNpmRegistry"
+              />
             </div>
 
-            <!-- 控制按钮 -->
-            <div class="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                :disabled="refreshing"
-                @click="refreshNpmRegistry"
-                class="text-xs h-7"
-              >
-                <Icon
-                  :icon="refreshing ? 'lucide:loader-2' : 'lucide:refresh-cw'"
-                  :class="['w-3 h-3 mr-1', refreshing && 'animate-spin']"
-                />
-                {{ t('settings.mcp.npmRegistry.refresh') }}
-              </Button>
-
-              <!-- 高级设置弹窗 -->
-              <Dialog v-model:open="advancedDialogOpen">
+            <!-- 自定义源 -->
+            <div class="space-y-2">
+              <Dialog v-model:open="customSourceDialogOpen">
                 <DialogTrigger asChild>
-                  <Button variant="ghost" size="sm" class="text-xs h-7">
-                    <Icon icon="lucide:settings" class="w-3 h-3 mr-1" />
-                    {{ t('settings.mcp.npmRegistry.advanced') }}
+                  <Button variant="outline" size="sm" class="w-full h-7 text-xs">
+                    <Icon icon="lucide:link" class="w-3 h-3 mr-1" />
+                    {{ t('settings.mcp.npmRegistry.customSource') }}
                   </Button>
                 </DialogTrigger>
                 <DialogContent class="sm:max-w-md">
                   <DialogHeader>
-                    <DialogTitle>{{ t('settings.mcp.npmRegistry.advancedSettings') }}</DialogTitle>
+                    <DialogTitle>{{ t('settings.mcp.npmRegistry.customSource') }}</DialogTitle>
                     <DialogDescription>
-                      {{ t('settings.mcp.npmRegistry.advancedSettingsDesc') }}
+                      {{ t('settings.mcp.npmRegistry.customSourcePlaceholder') }}
                     </DialogDescription>
                   </DialogHeader>
 
                   <div class="space-y-4">
-                    <!-- 自动检测开关 -->
-                    <div class="flex items-center justify-between">
-                      <div class="space-y-1">
-                        <div class="text-sm font-medium">
-                          {{ t('settings.mcp.npmRegistry.autoDetect') }}
-                        </div>
-                        <div class="text-xs text-muted-foreground">
-                          {{ t('settings.mcp.npmRegistry.autoDetectDesc') }}
-                        </div>
-                      </div>
-                      <Switch
-                        :model-value="npmRegistryStatus.autoDetectEnabled"
-                        @update:model-value="setAutoDetectNpmRegistry"
-                      />
+                    <Input
+                      v-model="customRegistryInput"
+                      :placeholder="t('settings.mcp.npmRegistry.customSourcePlaceholder')"
+                      class="font-mono"
+                    />
+                    <div
+                      v-if="npmRegistryStatus.customRegistry"
+                      class="text-xs text-muted-foreground"
+                    >
+                      {{ t('settings.mcp.npmRegistry.currentCustom') }}:
+                      {{ npmRegistryStatus.customRegistry }}
                     </div>
-
-                    <!-- 自定义源输入 -->
-                    <div class="space-y-2">
-                      <label class="text-sm font-medium">{{
-                        t('settings.mcp.npmRegistry.customSource')
-                      }}</label>
-                      <div class="space-y-2">
-                        <Input
-                          v-model="customRegistryInput"
-                          :placeholder="t('settings.mcp.npmRegistry.customSourcePlaceholder')"
-                          class="font-mono"
-                        />
-                        <div class="flex gap-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            @click="saveCustomNpmRegistry"
-                            :disabled="
-                              !customRegistryInput.trim() ||
-                              customRegistryInput.trim() === npmRegistryStatus.customRegistry
-                            "
-                            class="flex-1"
-                          >
-                            {{ t('common.save') }}
-                          </Button>
-                          <Button
-                            v-if="npmRegistryStatus.customRegistry"
-                            variant="outline"
-                            size="sm"
-                            @click="clearCustomNpmRegistry"
-                            class="flex-1"
-                          >
-                            {{ t('common.clear') }}
-                          </Button>
-                        </div>
-                        <div
-                          v-if="npmRegistryStatus.customRegistry"
-                          class="text-xs text-muted-foreground"
-                        >
-                          {{ t('settings.mcp.npmRegistry.currentCustom') }}:
-                          {{ npmRegistryStatus.customRegistry }}
-                        </div>
-                      </div>
+                    <div class="flex gap-2">
+                      <Button
+                        variant="outline"
+                        @click="saveCustomNpmRegistry"
+                        :disabled="
+                          !customRegistryInput.trim() ||
+                          customRegistryInput.trim() === npmRegistryStatus.customRegistry
+                        "
+                        class="flex-1"
+                      >
+                        {{ t('common.save') }}
+                      </Button>
+                      <Button
+                        v-if="npmRegistryStatus.customRegistry"
+                        variant="outline"
+                        @click="clearCustomNpmRegistry"
+                        class="flex-1"
+                      >
+                        {{ t('common.clear') }}
+                      </Button>
                     </div>
                   </div>
                 </DialogContent>
               </Dialog>
             </div>
           </div>
-        </div>
-      </div>
-
-      <!-- MCP全局开关 -->
-      <div class="p-4 shrink-0">
-        <div class="flex items-center justify-between">
-          <div :dir="languageStore.dir">
-            <h3 class="text-sm font-medium">{{ t('settings.mcp.enabledTitle') }}</h3>
-            <p class="text-xs text-muted-foreground mt-1">
-              {{ t('settings.mcp.enabledDescription') }}
-            </p>
-          </div>
-          <Switch
-            dir="ltr"
-            :model-value="mcpEnabled"
-            @update:model-value="handleMcpEnabledChange"
-          />
-        </div>
-      </div>
-
-      <!-- MCP Marketplace 入口 -->
-      <div class="px-4 pb-4 shrink-0">
-        <div class="flex gap-2">
-          <Button
-            v-if="false"
-            variant="outline"
-            class="flex-1 flex items-center justify-center gap-2"
-            @click="openMcpMarketplace"
-          >
-            <Icon icon="lucide:shopping-bag" class="w-4 h-4" />
-            <span>{{ t('settings.mcp.marketplace') }}</span>
-            <Icon icon="lucide:external-link" class="w-3.5 h-3.5 text-muted-foreground" />
-          </Button>
-
-          <!-- Higress MCP Marketplace 入口 -->
-          <Button
-            variant="outline"
-            class="flex-1 flex items-center justify-center gap-2"
-            @click="openHigressMcpMarketplace"
-          >
-            <img src="@/assets/mcp-icons/higress.avif" class="w-4 h-4" />
-            <span>{{ $t('settings.mcp.higressMarket') }}</span>
-            <Icon icon="lucide:external-link" class="w-3.5 h-3.5 text-muted-foreground" />
-          </Button>
-
-          <Button
-            variant="outline"
-            class="flex-1 flex items-center justify-center gap-2"
-            @click="openBuiltinMarket"
-          >
-            <Icon icon="lucide:gallery-vertical-end" class="w-4 h-4" />
-            <span>{{ t('mcp.market.browseBuiltin') }}</span>
-            <Icon icon="lucide:arrow-right" class="w-3.5 h-3.5 text-muted-foreground" />
-          </Button>
-        </div>
-      </div>
+        </CollapsibleContent>
+      </Collapsible>
+      <Separator class="mt-2" />
     </div>
 
-    <!-- 可滚动部分 -->
-    <!-- MCP配置 -->
-    <div class="grow overflow-y-auto">
-      <div v-if="mcpEnabled" class="border-t h-full">
+    <!-- 服务器列表 -->
+    <div class="flex-1 overflow-y-auto">
+      <div v-if="mcpEnabled" class="h-full">
         <McpServers />
       </div>
-      <div v-else class="p-4 text-center text-muted-foreground text-sm">
+      <div v-else class="p-8 text-center text-muted-foreground text-sm">
         {{ t('settings.mcp.enableToAccess') }}
       </div>
     </div>
@@ -206,8 +152,13 @@ import McpServers from '@/components/mcp-config/components/McpServers.vue'
 import { Switch } from '@shadcn/components/ui/switch'
 import { Button } from '@shadcn/components/ui/button'
 import { Input } from '@shadcn/components/ui/input'
-import { Badge } from '@shadcn/components/ui/badge'
 import { Icon } from '@iconify/vue'
+import { Separator } from '@shadcn/components/ui/separator'
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger
+} from '@shadcn/components/ui/collapsible'
 import {
   Dialog,
   DialogContent,
@@ -219,15 +170,9 @@ import {
 import { useMcpStore } from '@/stores/mcp'
 import { useLanguageStore } from '@/stores/language'
 import { useToast } from '@/components/use-toast'
-import {
-  MCP_MARKETPLACE_URL,
-  HIGRESS_MCP_MARKETPLACE_URL
-} from '../../src/components/mcp-config/const'
-import { useRouter } from 'vue-router'
 
 const { t } = useI18n()
 const languageStore = useLanguageStore()
-const router = useRouter()
 const mcpStore = useMcpStore()
 const { toast } = useToast()
 
@@ -251,7 +196,8 @@ const npmRegistryStatus = ref<{
 
 const refreshing = ref(false)
 const customRegistryInput = ref('')
-const advancedDialogOpen = ref(false)
+const npmSourceExpanded = ref(false)
+const customSourceDialogOpen = ref(false)
 // 处理MCP开关状态变化
 const handleMcpEnabledChange = async (enabled: boolean) => {
   await mcpStore.setMcpEnabled(enabled)
@@ -405,7 +351,7 @@ const clearCustomNpmRegistry = async () => {
         title: t('settings.mcp.npmRegistry.redetectComplete'),
         description: t('settings.mcp.npmRegistry.redetectCompleteDesc')
       })
-      advancedDialogOpen.value = false
+      customSourceDialogOpen.value = false
     } catch (detectError) {
       console.error('Failed to re-detect optimal registry:', detectError)
       await loadNpmRegistryStatus()
@@ -414,7 +360,7 @@ const clearCustomNpmRegistry = async () => {
         description: t('settings.mcp.npmRegistry.redetectFailedDesc'),
         variant: 'destructive'
       })
-      advancedDialogOpen.value = false
+      customSourceDialogOpen.value = false
     }
   } catch (error) {
     console.error('Failed to clear custom npm registry:', error)
@@ -426,39 +372,7 @@ const clearCustomNpmRegistry = async () => {
   }
 }
 
-const formatLastChecked = (timestamp: number) => {
-  const now = Date.now()
-  const diff = now - timestamp
-  const minutes = Math.floor(diff / (1000 * 60))
-  const hours = Math.floor(diff / (1000 * 60 * 60))
-  const days = Math.floor(diff / (1000 * 60 * 60 * 24))
-  if (minutes < 1) {
-    return t('settings.mcp.npmRegistry.justNow')
-  } else if (minutes < 60) {
-    return t('settings.mcp.npmRegistry.minutesAgo', { minutes })
-  } else if (hours < 24) {
-    return t('settings.mcp.npmRegistry.hoursAgo', { hours })
-  } else {
-    return t('settings.mcp.npmRegistry.daysAgo', { days })
-  }
-}
-
 onMounted(() => {
   loadNpmRegistryStatus()
 })
-
-// 打开MCP Marketplace
-const openMcpMarketplace = () => {
-  window.open(MCP_MARKETPLACE_URL, '_blank')
-}
-
-// 打开Higress MCP Marketplace
-const openHigressMcpMarketplace = () => {
-  window.open(HIGRESS_MCP_MARKETPLACE_URL, '_blank')
-}
-
-// 打开内置 MCP 市场
-const openBuiltinMarket = () => {
-  router.push('/settings/mcp-market')
-}
 </script>

@@ -1,15 +1,17 @@
 <template>
   <div class="w-full h-full flex flex-col">
-    <div class="p-4 border-b bg-card sticky top-0 z-10 flex items-center gap-2">
-      <Icon icon="lucide:shopping-bag" class="w-4 h-4" />
-      <h3 class="text-sm font-medium">{{ t('mcp.market.builtinTitle') }}</h3>
-      <a
-        href="https://mcprouter.co/"
-        target="_blank"
-        class="text-xs text-muted-foreground hover:text-foreground transition-colors"
-      >
-        {{ t('mcp.market.poweredBy') }}
-      </a>
+    <div class="p-4 sticky top-0 z-10 flex items-center gap-2">
+      <div class="flex flex-col">
+        <div class="font-medium">{{ t('mcp.market.builtinTitle') }}</div>
+        <a
+          href="https://mcprouter.co/"
+          target="_blank"
+          class="text-xs text-muted-foreground hover:text-foreground transition-colors"
+        >
+          {{ t('mcp.market.poweredBy') }}
+        </a>
+      </div>
+
       <div class="ml-auto flex items-center gap-2">
         <div class="flex items-center gap-2">
           <Input
@@ -24,7 +26,7 @@
     </div>
 
     <!-- API Key 获取提示 -->
-    <div class="px-4 py-2 bg-muted/30 border-b text-xs text-muted-foreground">
+    <div class="px-4 text-xs text-muted-foreground">
       {{ t('mcp.market.keyHelpText') }}
       <Button
         variant="link"
@@ -35,6 +37,7 @@
         {{ t('mcp.market.keyGuide') }}
       </Button>
       {{ t('mcp.market.keyHelpEnd') }}
+      <Separator class="mt-4" />
     </div>
 
     <div class="flex-1 overflow-auto" ref="scrollContainer" @scroll="onScroll">
@@ -66,7 +69,7 @@
             >
             <Button
               size="sm"
-              :variant="installedServers.has(item.server_key) ? 'secondary' : 'default'"
+              :variant="installedServers.has(item.server_key) ? 'secondary' : 'outline'"
               :disabled="installedServers.has(item.server_key)"
               @click="install(item)"
               :title="
@@ -121,6 +124,7 @@ import { Button } from '@shadcn/components/ui/button'
 import { Input } from '@shadcn/components/ui/input'
 import { usePresenter } from '@/composables/usePresenter'
 import { useToast } from '@/components/use-toast'
+import { Separator } from '@shadcn/components/ui/separator'
 
 const { t } = useI18n()
 const { toast } = useToast()
