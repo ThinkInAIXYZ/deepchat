@@ -77,7 +77,8 @@ setCustomComponents({
             status: 'loaded'
           },
           messageId,
-          threadId
+          threadId,
+          { force: true }
         )
       }
     })

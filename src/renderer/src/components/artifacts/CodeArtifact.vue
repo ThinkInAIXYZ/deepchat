@@ -187,7 +187,8 @@ const previewCode = () => {
       status: 'loaded'
     },
     props.messageId,
-    props.threadId
+    props.threadId,
+    { force: true }
   )
 }
 

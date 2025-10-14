@@ -16,7 +16,7 @@
         class="flex items-center justify-between bg-card px-4 h-11 border-b w-full overflow-hidden"
       >
         <div class="flex items-center gap-2 grow w-0">
-          <button class="p-2 hover:bg-accent/50 rounded-md" @click="artifactStore.hideArtifact">
+          <button class="p-2 hover:bg-accent/50 rounded-md" @click="artifactStore.dismissArtifact">
             <Icon icon="lucide:arrow-left" class="w-4 h-4" />
           </button>
           <h2 class="text-sm font-medium truncate">{{ artifactStore.currentArtifact?.title }}</h2>
@@ -230,6 +230,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { useArtifactStore } from '@/stores/artifact'
+import type { ArtifactState } from '@/stores/artifact'
 import { Icon } from '@iconify/vue'
 import { Button } from '@shadcn/components/ui/button'
 import CodeArtifact from './CodeArtifact.vue'
@@ -250,6 +251,7 @@ import { useMonaco, detectLanguage } from 'vue-use-monaco'
 const artifactStore = useArtifactStore()
 const componentKey = ref(0)
 const isPreview = ref(false)
+const userHasSetPreview = ref(false)
 const viewportSize = ref<'desktop' | 'tablet' | 'mobile'>('desktop')
 const tabletWidth = ref(768)
 const mobileWidth = ref(375)
@@ -344,7 +346,20 @@ const { stop: stopWatch } = watch(
 // 截图相关功能
 const { captureAndCopy } = usePageCapture()
 
+const AUTO_PREVIEW_TYPES = new Set([
+  'image/svg+xml',
+  'application/vnd.ant.mermaid',
+  'application/vnd.ant.react'
+])
+
+const getDefaultPreviewState = (artifact: ArtifactState | null) => {
+  if (!artifact) return false
+  if (artifact.status !== 'loaded') return false
+  return AUTO_PREVIEW_TYPES.has(artifact.type)
+}
+
 const setPreview = (value: boolean) => {
+  userHasSetPreview.value = true
   isPreview.value = value
 }
 
@@ -355,8 +370,17 @@ const setViewportSize = (size: 'desktop' | 'tablet' | 'mobile') => {
 // 监听 artifact 变化，强制重新渲染组件
 watch(
   () => artifactStore.currentArtifact,
-  () => {
+  (artifact) => {
     componentKey.value++
+
+    if (!artifact) {
+      isPreview.value = false
+      userHasSetPreview.value = false
+      return
+    }
+
+    userHasSetPreview.value = false
+    isPreview.value = getDefaultPreviewState(artifact)
   },
   {
     immediate: true
@@ -366,25 +390,19 @@ watch(
 watch(
   () => artifactStore.currentArtifact?.status,
   () => {
-    if (artifactStore.currentArtifact?.status === 'loaded') {
-      isPreview.value = true
+    if (!artifactStore.currentArtifact) {
+      isPreview.value = false
+      return
     }
+
+    if (userHasSetPreview.value) {
+      return
+    }
+
+    isPreview.value = getDefaultPreviewState(artifactStore.currentArtifact)
   },
   {
     immediate: true
-  }
-)
-
-watch(
-  () => artifactStore.isOpen,
-  () => {
-    if (artifactStore.isOpen) {
-      if (artifactStore.currentArtifact?.status === 'loaded') {
-        isPreview.value = true
-      } else {
-        isPreview.value = false
-      }
-    }
   }
 )
 
