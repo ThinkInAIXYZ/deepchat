@@ -228,7 +228,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useArtifactStore } from '@/stores/artifact'
 import type { ArtifactState } from '@/stores/artifact'
 import { Icon } from '@iconify/vue'
@@ -306,7 +306,7 @@ const normalizeLanguage = (artifact: ArtifactState | null) => {
 }
 
 const codeLanguage = ref(normalizeLanguage(artifactStore.currentArtifact))
-const { createEditor, updateCode } = useMonaco({
+const { createEditor, updateCode, cleanupEditor } = useMonaco({
   MAX_HEIGHT: '500px',
   wordWrap: 'on',
   wrappingIndent: 'same'
@@ -402,12 +402,32 @@ watch(
   }
 )
 
-const { stop: stopWatch } = watch(
-  () => codeEditor.value,
-  () => {
-    if (!codeEditor.value) return
-    createEditor(codeEditor.value, artifactStore.currentArtifact?.content || '', codeLanguage.value)
-    stopWatch()
+watch(
+  [
+    () => codeEditor.value,
+    () => isPreview.value,
+    () => artifactStore.isOpen
+  ],
+  ([editorEl, previewActive, open]) => {
+    if (!open || previewActive || !editorEl) return
+    void createEditor(
+      editorEl,
+      artifactStore.currentArtifact?.content || '',
+      codeLanguage.value
+    )
+  },
+  {
+    flush: 'post',
+    immediate: true
+  }
+)
+
+watch(
+  () => artifactStore.isOpen,
+  (open) => {
+    if (!open) {
+      cleanupEditor()
+    }
   }
 )
 
@@ -457,6 +477,10 @@ watch(
 onMounted(async () => {
   // 获取应用版本
   appVersion.value = await devicePresenter.getAppVersion()
+})
+
+onBeforeUnmount(() => {
+  cleanupEditor()
 })
 
 const artifactComponent = computed(() => {
