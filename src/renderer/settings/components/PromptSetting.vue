@@ -297,17 +297,18 @@
               />
             </div>
 
-          <!-- 内容 -->
-          <div class="space-y-2">
-            <Label for="system-prompt-content" class="text-sm font-medium">{{
-              t('promptSetting.promptContent')
-            }}</Label>
-            <Textarea
-              id="system-prompt-content"
-              v-model="systemPromptForm.content"
-              class="w-full h-64"
-              :placeholder="t('promptSetting.contentPlaceholder')"
-            ></Textarea>
+            <!-- 内容 -->
+            <div class="space-y-2">
+              <Label for="system-prompt-content" class="text-sm font-medium">{{
+                t('promptSetting.promptContent')
+              }}</Label>
+              <Textarea
+                id="system-prompt-content"
+                v-model="systemPromptForm.content"
+                class="w-full h-64"
+                :placeholder="t('promptSetting.contentPlaceholder')"
+              ></Textarea>
+            </div>
           </div>
         </ScrollArea>
 
