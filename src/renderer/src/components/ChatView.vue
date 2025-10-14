@@ -5,7 +5,6 @@
       :key="chatStore.getActiveThreadId() ?? 'default'"
       ref="messageList"
       :messages="chatStore.getMessages()"
-      @scroll-bottom="scrollToBottom"
     />
 
     <!-- 输入框区域 -->
