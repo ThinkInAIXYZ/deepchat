@@ -15,6 +15,7 @@
 - Preview: `pnpm start`.
 - Type check: `pnpm run typecheck` (or `typecheck:node` / `typecheck:web`).
 - Lint/format: `pnpm run lint`, `pnpm run format`, `pnpm run format:check`.
+- After completing a feature, always run `pnpm run format` and `pnpm run lint` to keep formatting and lint status clean.
 - Test: `pnpm test`, `test:main`, `test:renderer`, `test:coverage`, `test:watch`, `test:ui`.
 - Build: `pnpm run build` then `build:win|mac|linux` (add `:x64|:arm64`).
 
