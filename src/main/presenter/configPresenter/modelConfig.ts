@@ -2,7 +2,7 @@ import { ModelType } from '@shared/model'
 import { IModelConfig, ModelConfig, ModelConfigSource } from '@shared/presenter'
 import ElectronStore from 'electron-store'
 import { providerDbLoader } from './providerDbLoader'
-import { isImageInputSupported } from '@shared/types/model-db'
+import { isImageInputSupported, ProviderModel } from '@shared/types/model-db'
 
 const SPECIAL_CONCAT_CHAR = '-_-'
 
@@ -49,6 +49,25 @@ export class ModelConfigHelper {
     if (!providerId) return undefined
     const alias = ModelConfigHelper.PROVIDER_ID_ALIASES[providerId]
     return alias || providerId
+  }
+
+  private buildConfigFromProviderModel(model: ProviderModel): ModelConfig {
+    return {
+      maxTokens: model.limit?.output ?? 4096,
+      contextLength: model.limit?.context ?? 8192,
+      temperature: 0.6,
+      vision: isImageInputSupported(model),
+      functionCall: model.tool_call ?? false,
+      reasoning: Boolean(model.reasoning?.default ?? false),
+      type: ModelType.Chat,
+      thinkingBudget: model.reasoning?.budget?.default ?? undefined,
+      enableSearch: Boolean(model.search?.default ?? false),
+      forcedSearch: Boolean(model.search?.forced_search),
+      searchStrategy: model.search?.search_strategy === 'max' ? 'max' : 'turbo',
+      reasoningEffort: undefined,
+      verbosity: undefined,
+      maxCompletionTokens: undefined
+    }
   }
 
   private initializeMetaFromLegacyStore(): void {
@@ -283,69 +302,40 @@ export class ModelConfigHelper {
     let finalConfig: ModelConfig | null = null
 
     // 严格匹配：仅当提供 providerId 时从 Provider DB 查找
-    if (normProviderId) {
-      const db = providerDbLoader.getDb()
-      const resolvedProviderId = this.resolveProviderId(normProviderId)
-      const providers = db?.providers
-      const provider = resolvedProviderId ? providers?.[resolvedProviderId] : undefined
+    const db = providerDbLoader.getDb()
+    const providers = db?.providers
+    const resolvedProviderId = normProviderId ? this.resolveProviderId(normProviderId) : undefined
+    const providerEntry = resolvedProviderId ? providers?.[resolvedProviderId] : undefined
+    const providerFound = Boolean(providerEntry)
 
-      if (provider && Array.isArray(provider.models)) {
-        for (let i = 0; i < provider.models.length; i += 1) {
-          const candidate = provider.models[i]
-          if (candidate && candidate.id === normModelId) {
-            finalConfig = {
-              maxTokens: candidate.limit?.output ?? 4096,
-              contextLength: candidate.limit?.context ?? 8192,
-              temperature: 0.6,
-              vision: isImageInputSupported(candidate),
-              functionCall: candidate.tool_call ?? false,
-              reasoning: Boolean(candidate.reasoning?.default ?? false),
-              type: ModelType.Chat,
-              thinkingBudget: candidate.reasoning?.budget?.default ?? undefined,
-              enableSearch: Boolean(candidate.search?.default ?? false),
-              forcedSearch: Boolean(candidate.search?.forced_search),
-              searchStrategy: candidate.search?.search_strategy === 'max' ? 'max' : 'turbo',
-              reasoningEffort: undefined,
-              verbosity: undefined,
-              maxCompletionTokens: undefined
-            }
+    if (normProviderId && providerEntry && Array.isArray(providerEntry.models)) {
+      for (let i = 0; i < providerEntry.models.length; i += 1) {
+        const candidate = providerEntry.models[i]
+        if (candidate && candidate.id === normModelId) {
+          finalConfig = this.buildConfigFromProviderModel(candidate)
+          break
+        }
+      }
+    }
+
+    if (!finalConfig && normProviderId && !providerFound && providers && normModelId) {
+      for (const key in providers) {
+        if (!Object.prototype.hasOwnProperty.call(providers, key)) continue
+        const candidateProvider = providers[key]
+        if (!candidateProvider || !Array.isArray(candidateProvider.models)) {
+          continue
+        }
+
+        for (let j = 0; j < candidateProvider.models.length; j += 1) {
+          const candidateModel = candidateProvider.models[j]
+          if (candidateModel && candidateModel.id === normModelId) {
+            finalConfig = this.buildConfigFromProviderModel(candidateModel)
             break
           }
         }
-      } else if (!provider && providers && normModelId) {
-        const providerKeys = Object.keys(providers)
-        for (let i = 0; i < providerKeys.length; i += 1) {
-          const candidateProvider = providers[providerKeys[i]]
-          if (!candidateProvider || !Array.isArray(candidateProvider.models)) {
-            continue
-          }
 
-          for (let j = 0; j < candidateProvider.models.length; j += 1) {
-            const candidateModel = candidateProvider.models[j]
-            if (candidateModel && candidateModel.id === normModelId) {
-              finalConfig = {
-                maxTokens: candidateModel.limit?.output ?? 4096,
-                contextLength: candidateModel.limit?.context ?? 8192,
-                temperature: 0.6,
-                vision: isImageInputSupported(candidateModel),
-                functionCall: candidateModel.tool_call ?? false,
-                reasoning: Boolean(candidateModel.reasoning?.default ?? false),
-                type: ModelType.Chat,
-                thinkingBudget: candidateModel.reasoning?.budget?.default ?? undefined,
-                enableSearch: Boolean(candidateModel.search?.default ?? false),
-                forcedSearch: Boolean(candidateModel.search?.forced_search),
-                searchStrategy: candidateModel.search?.search_strategy === 'max' ? 'max' : 'turbo',
-                reasoningEffort: undefined,
-                verbosity: undefined,
-                maxCompletionTokens: undefined
-              }
-              break
-            }
-          }
-
-          if (finalConfig) {
-            break
-          }
+        if (finalConfig) {
+          break
         }
       }
     }
