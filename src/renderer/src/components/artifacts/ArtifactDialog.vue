@@ -351,7 +351,8 @@ watch(
 
     const newContextKey = getArtifactContextKey(newArtifact)
     const prevContextKey = getArtifactContextKey(prevArtifact ?? null)
-    const isNewArtifact = newContextKey !== prevContextKey || newContextKey !== activeArtifactContext.value
+    const isNewArtifact =
+      newContextKey !== prevContextKey || newContextKey !== activeArtifactContext.value
 
     if (isNewArtifact) {
       activeArtifactContext.value = newContextKey
@@ -403,18 +404,10 @@ watch(
 )
 
 watch(
-  [
-    () => codeEditor.value,
-    () => isPreview.value,
-    () => artifactStore.isOpen
-  ],
+  [() => codeEditor.value, () => isPreview.value, () => artifactStore.isOpen],
   ([editorEl, previewActive, open]) => {
     if (!open || previewActive || !editorEl) return
-    void createEditor(
-      editorEl,
-      artifactStore.currentArtifact?.content || '',
-      codeLanguage.value
-    )
+    void createEditor(editorEl, artifactStore.currentArtifact?.content || '', codeLanguage.value)
   },
   {
     flush: 'post',
