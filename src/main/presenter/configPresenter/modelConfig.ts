@@ -286,24 +286,66 @@ export class ModelConfigHelper {
     if (normProviderId) {
       const db = providerDbLoader.getDb()
       const resolvedProviderId = this.resolveProviderId(normProviderId)
-      const provider = db?.providers?.[resolvedProviderId!]
-      const model = provider?.models.find((m) => m.id === normModelId)
-      if (model) {
-        finalConfig = {
-          maxTokens: model.limit?.output ?? 4096,
-          contextLength: model.limit?.context ?? 8192,
-          temperature: 0.6,
-          vision: isImageInputSupported(model),
-          functionCall: model.tool_call ?? false,
-          reasoning: Boolean(model.reasoning?.default ?? false),
-          type: ModelType.Chat,
-          thinkingBudget: model.reasoning?.budget?.default ?? undefined,
-          enableSearch: Boolean(model.search?.default ?? false),
-          forcedSearch: Boolean(model.search?.forced_search),
-          searchStrategy: model.search?.search_strategy === 'max' ? 'max' : 'turbo',
-          reasoningEffort: undefined,
-          verbosity: undefined,
-          maxCompletionTokens: undefined
+      const providers = db?.providers
+      const provider = resolvedProviderId ? providers?.[resolvedProviderId] : undefined
+
+      if (provider && Array.isArray(provider.models)) {
+        for (let i = 0; i < provider.models.length; i += 1) {
+          const candidate = provider.models[i]
+          if (candidate && candidate.id === normModelId) {
+            finalConfig = {
+              maxTokens: candidate.limit?.output ?? 4096,
+              contextLength: candidate.limit?.context ?? 8192,
+              temperature: 0.6,
+              vision: isImageInputSupported(candidate),
+              functionCall: candidate.tool_call ?? false,
+              reasoning: Boolean(candidate.reasoning?.default ?? false),
+              type: ModelType.Chat,
+              thinkingBudget: candidate.reasoning?.budget?.default ?? undefined,
+              enableSearch: Boolean(candidate.search?.default ?? false),
+              forcedSearch: Boolean(candidate.search?.forced_search),
+              searchStrategy: candidate.search?.search_strategy === 'max' ? 'max' : 'turbo',
+              reasoningEffort: undefined,
+              verbosity: undefined,
+              maxCompletionTokens: undefined
+            }
+            break
+          }
+        }
+      } else if (!provider && providers && normModelId) {
+        const providerKeys = Object.keys(providers)
+        for (let i = 0; i < providerKeys.length; i += 1) {
+          const candidateProvider = providers[providerKeys[i]]
+          if (!candidateProvider || !Array.isArray(candidateProvider.models)) {
+            continue
+          }
+
+          for (let j = 0; j < candidateProvider.models.length; j += 1) {
+            const candidateModel = candidateProvider.models[j]
+            if (candidateModel && candidateModel.id === normModelId) {
+              finalConfig = {
+                maxTokens: candidateModel.limit?.output ?? 4096,
+                contextLength: candidateModel.limit?.context ?? 8192,
+                temperature: 0.6,
+                vision: isImageInputSupported(candidateModel),
+                functionCall: candidateModel.tool_call ?? false,
+                reasoning: Boolean(candidateModel.reasoning?.default ?? false),
+                type: ModelType.Chat,
+                thinkingBudget: candidateModel.reasoning?.budget?.default ?? undefined,
+                enableSearch: Boolean(candidateModel.search?.default ?? false),
+                forcedSearch: Boolean(candidateModel.search?.forced_search),
+                searchStrategy: candidateModel.search?.search_strategy === 'max' ? 'max' : 'turbo',
+                reasoningEffort: undefined,
+                verbosity: undefined,
+                maxCompletionTokens: undefined
+              }
+              break
+            }
+          }
+
+          if (finalConfig) {
+            break
+          }
         }
       }
     }
