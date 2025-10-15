@@ -1197,30 +1197,89 @@ export const useSettingsStore = defineStore('settings', () => {
     const existingOllamaModels =
       allProviderModels.value.find((item) => item.providerId === 'ollama')?.models || []
 
-    // 将 Ollama 本地模型转换为全局模型格式
-    const ollamaModelsAsGlobal = ollamaLocalModels.value.map((model) => {
-      // 检查是否已存在相同ID的模型，如果存在，保留其现有的配置
-      const existingModel = existingOllamaModels.find((m) => m.id === model.name)
+    const existingModelMap = new Map<string, RENDERER_MODEL_META & { ollamaModel?: OllamaModel }>(
+      existingOllamaModels.map((model) => [
+        model.id,
+        model as RENDERER_MODEL_META & { ollamaModel?: OllamaModel }
+      ])
+    )
 
-      return {
-        id: model.name,
-        name: model.name,
-        contextLength: model.model_info.context_length || 4096, // 使用模型定义值或默认值
-        maxTokens: existingModel?.maxTokens || 2048, // 使用现有值或默认值
-        provider: 'ollama',
-        group: existingModel?.group || 'local',
-        enabled: true,
-        isCustom: existingModel?.isCustom || false,
-        providerId: 'ollama',
-        vision: model.capabilities.indexOf('vision') > -1,
-        functionCall: model.capabilities.indexOf('tools') > -1,
-        reasoning: model.capabilities.indexOf('thinking') > -1,
-        type: model.capabilities.indexOf('embedding') > -1 ? ModelType.Embedding : ModelType.Chat,
-        // 保留现有的其他配置，但确保更新 Ollama 特有数据
-        ...(existingModel ? { ...existingModel } : {}),
-        ollamaModel: model
-      } as RENDERER_MODEL_META & { ollamaModel: OllamaModel }
-    })
+    const modelNames = ollamaLocalModels.value.map((model) => model.name)
+    const modelStatusMap =
+      modelNames.length > 0 ? await configP.getBatchModelStatus('ollama', modelNames) : {}
+
+    // 将 Ollama 本地模型转换为全局模型格式
+    const ollamaModelsAsGlobal = await Promise.all(
+      ollamaLocalModels.value.map(async (model) => {
+        const existingModel = existingModelMap.get(model.name)
+        const existingModelExtra = existingModel as
+          | (RENDERER_MODEL_META & {
+              temperature?: number
+              reasoningEffort?: string
+              verbosity?: string
+              thinkingBudget?: number
+              forcedSearch?: boolean
+              searchStrategy?: string
+            })
+          | undefined
+        const modelConfig = await configP.getModelConfig(model.name, 'ollama')
+
+        const capabilitySources: string[] = []
+        if (Array.isArray((model as any)?.capabilities)) {
+          capabilitySources.push(...((model as any).capabilities as string[]))
+        }
+        if (
+          existingModel?.ollamaModel &&
+          Array.isArray((existingModel.ollamaModel as any)?.capabilities)
+        ) {
+          capabilitySources.push(...((existingModel.ollamaModel as any).capabilities as string[]))
+        }
+        const capabilitySet = new Set(capabilitySources)
+
+        const contextLength =
+          modelConfig?.contextLength ??
+          existingModel?.contextLength ??
+          (model as any)?.model_info?.context_length ??
+          4096
+
+        const maxTokens = modelConfig?.maxTokens ?? existingModel?.maxTokens ?? 2048
+
+        const statusFromStore = modelStatusMap[model.name]
+        const enabled = statusFromStore ?? existingModel?.enabled ?? true
+
+        const type =
+          modelConfig?.type ??
+          existingModel?.type ??
+          (capabilitySet.has('embedding') ? ModelType.Embedding : ModelType.Chat)
+
+        return {
+          ...existingModel,
+          id: model.name,
+          name: model.name,
+          contextLength,
+          maxTokens,
+          provider: 'ollama',
+          group: existingModel?.group || 'local',
+          enabled,
+          isCustom: existingModel?.isCustom || false,
+          providerId: 'ollama',
+          vision: modelConfig?.vision ?? existingModel?.vision ?? capabilitySet.has('vision'),
+          functionCall:
+            modelConfig?.functionCall ?? existingModel?.functionCall ?? capabilitySet.has('tools'),
+          reasoning:
+            modelConfig?.reasoning ?? existingModel?.reasoning ?? capabilitySet.has('thinking'),
+          enableSearch: modelConfig?.enableSearch ?? existingModel?.enableSearch ?? false,
+          temperature: modelConfig?.temperature ?? existingModelExtra?.temperature,
+          reasoningEffort: modelConfig?.reasoningEffort ?? existingModelExtra?.reasoningEffort,
+          verbosity: modelConfig?.verbosity ?? existingModelExtra?.verbosity,
+          thinkingBudget: modelConfig?.thinkingBudget ?? existingModelExtra?.thinkingBudget,
+          forcedSearch: modelConfig?.forcedSearch ?? existingModelExtra?.forcedSearch,
+          searchStrategy: modelConfig?.searchStrategy ?? existingModelExtra?.searchStrategy,
+          type,
+          ollamaModel: model
+        } as RENDERER_MODEL_META & { ollamaModel: OllamaModel }
+      })
+    )
 
     // 更新全局模型列表
     const existingIndex = allProviderModels.value.findIndex((item) => item.providerId === 'ollama')

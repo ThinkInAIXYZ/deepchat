@@ -129,18 +129,18 @@
               <template v-if="!model.pulling">
                 <ModelConfigItem
                   :model-name="model.name"
-                  :model-id="model.name"
+                  :model-id="model.meta?.id ?? model.name"
                   :provider-id="provider.id"
                   :is-custom-model="true"
-                  :type="
-                    model.capabilities.indexOf('embedding') > -1
-                      ? ModelType.Embedding
-                      : ModelType.Chat
-                  "
-                  :enabled="true"
-                  :changeable="false"
-                  @configChanged="refreshModels"
-                  @deleteModel="showDeleteModelConfirm(model.name)"
+                  :type="model.type"
+                  :enabled="model.enabled"
+                  :vision="model.vision"
+                  :function-call="model.functionCall"
+                  :reasoning="model.reasoning"
+                  :enable-search="model.enableSearch"
+                  @enabled-change="handleModelEnabledChange(model.name, $event)"
+                  @config-changed="refreshModels"
+                  @delete-model="showDeleteModelConfirm(model.name)"
                 />
               </template>
               <template v-else>
@@ -279,7 +279,7 @@ import {
 } from '@shadcn/components/ui/dialog'
 import { useSettingsStore } from '@/stores/settings'
 import { useModelCheckStore } from '@/stores/modelCheck'
-import type { LLM_PROVIDER } from '@shared/presenter'
+import type { LLM_PROVIDER, RENDERER_MODEL_META } from '@shared/presenter'
 import ModelConfigItem from '@/components/settings/ModelConfigItem.vue'
 import { useToast } from '@/components/use-toast'
 import { ModelType } from '@shared/model'
@@ -306,6 +306,12 @@ const checkResult = ref<boolean>(false)
 const runningModels = computed(() => settingsStore.ollamaRunningModels)
 const localModels = computed(() => settingsStore.ollamaLocalModels)
 const pullingModels = computed(() => settingsStore.ollamaPullingModels)
+const providerModelMetas = computed<RENDERER_MODEL_META[]>(() => {
+  const providerEntry = settingsStore.allProviderModels.find(
+    (item) => item.providerId === props.provider.id
+  )
+  return providerEntry?.models ?? []
+})
 
 // 预设可拉取的模型列表
 const presetModels = [
@@ -740,24 +746,60 @@ const availableModels = computed(() => {
 
 // 显示的本地模型（包括正在拉取的）
 const displayLocalModels = computed(() => {
-  // 创建带有pulling状态和进度的模型列表
-  const models = localModels.value.map((model) => ({
-    ...model,
-    pulling: pullingModels.value.has(model.name),
-    progress: pullingModels.value.get(model.name) || 0
-  }))
+  const metaMap = new Map<string, RENDERER_MODEL_META & { ollamaModel?: any }>(
+    providerModelMetas.value.map((meta) => [
+      meta.id,
+      meta as RENDERER_MODEL_META & { ollamaModel?: any }
+    ])
+  )
 
-  // 添加正在拉取但尚未出现在本地列表中的模型
+  const models = localModels.value.map((model: any) => {
+    const meta = metaMap.get(model.name)
+    const capabilitySources: string[] = []
+    if (Array.isArray(model?.capabilities)) {
+      capabilitySources.push(...model.capabilities)
+    }
+    if (meta?.ollamaModel && Array.isArray(meta.ollamaModel?.capabilities)) {
+      capabilitySources.push(...(meta.ollamaModel.capabilities as string[]))
+    }
+    const capabilitySet = new Set(capabilitySources)
+
+    const resolvedType =
+      meta?.type ?? (capabilitySet.has('embedding') ? ModelType.Embedding : ModelType.Chat)
+
+    return {
+      ...model,
+      meta,
+      pulling: pullingModels.value.has(model.name),
+      progress: pullingModels.value.get(model.name) || 0,
+      enabled: meta?.enabled ?? true,
+      vision: meta?.vision ?? capabilitySet.has('vision'),
+      functionCall: meta?.functionCall ?? capabilitySet.has('tools'),
+      reasoning: meta?.reasoning ?? capabilitySet.has('thinking'),
+      enableSearch: meta?.enableSearch ?? false,
+      type: resolvedType
+    }
+  })
+
   for (const [modelName, progress] of pullingModels.value.entries()) {
-    if (!models.some((m) => m.name === modelName)) {
+    if (!models.some((m: any) => m.name === modelName)) {
+      const meta = metaMap.get(modelName)
+      const capabilitySources: string[] = []
+      if (meta?.ollamaModel && Array.isArray(meta.ollamaModel?.capabilities)) {
+        capabilitySources.push(...(meta.ollamaModel.capabilities as string[]))
+      }
+      const capabilitySet = new Set(capabilitySources)
+
+      const resolvedType =
+        meta?.type ?? (capabilitySet.has('embedding') ? ModelType.Embedding : ModelType.Chat)
+
       models.unshift({
         name: modelName,
-        model: modelName, // 添加必需的字段
-        modified_at: new Date(), // 添加必需的字段
+        model: modelName,
+        modified_at: new Date(),
         size: 0,
-        digest: '', // 添加必需的字段
+        digest: '',
         details: {
-          // 添加必需的字段
           format: '',
           family: '',
           families: [],
@@ -765,18 +807,24 @@ const displayLocalModels = computed(() => {
           quantization_level: ''
         },
         model_info: {
-          context_length: 0,
+          context_length: meta?.contextLength ?? 0,
           embedding_length: 0
         },
         capabilities: [],
         pulling: true,
-        progress
+        progress,
+        meta,
+        enabled: meta?.enabled ?? true,
+        vision: meta?.vision ?? capabilitySet.has('vision'),
+        functionCall: meta?.functionCall ?? capabilitySet.has('tools'),
+        reasoning: meta?.reasoning ?? capabilitySet.has('thinking'),
+        enableSearch: meta?.enableSearch ?? false,
+        type: resolvedType
       })
     }
   }
 
-  // 排序: 正在拉取的放前面，其余按名称排序
-  return models.sort((a, b) => {
+  return models.sort((a: any, b: any) => {
     if (a.pulling && !b.pulling) return -1
     if (!a.pulling && b.pulling) return 1
     return a.name.localeCompare(b.name)
@@ -821,6 +869,14 @@ const showDeleteModelConfirm = (modelName: string) => {
   }
   modelToDelete.value = modelName
   showDeleteModelDialog.value = true
+}
+
+const handleModelEnabledChange = async (modelName: string, enabled: boolean) => {
+  try {
+    await settingsStore.updateModelStatus(props.provider.id, modelName, enabled)
+  } catch (error) {
+    console.error(`Failed to update model status for ${modelName}:`, error)
+  }
 }
 
 // 确认删除模型 - 使用 settings store
