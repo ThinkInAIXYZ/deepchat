@@ -70,13 +70,30 @@ const { createEditor, updateCode } = useMonaco({
 const artifactStore = useArtifactStore()
 const copyText = ref(t('common.copy'))
 const codeEditor = ref<HTMLElement>()
-const codeLanguage = ref(props.block.artifact?.language?.trim().toLowerCase() || '')
+
+const sanitizeLanguage = (language?: string | null) => {
+  if (!language) return ''
+  const normalized = language.trim().toLowerCase()
+
+  switch (normalized) {
+    case 'md':
+      return 'markdown'
+    case 'plain':
+    case 'text':
+      return 'plaintext'
+    case 'htm':
+      return 'html'
+    default:
+      return normalized
+  }
+}
+
+const codeLanguage = ref(sanitizeLanguage(props.block.artifact?.language))
 
 // 创建节流版本的语言检测函数，1秒内最多执行一次
 const throttledDetectLanguage = useThrottleFn(
   (code: string) => {
-    codeLanguage.value = detectLanguage(code)
-    console.log('Detected language:', codeLanguage.value)
+    codeLanguage.value = sanitizeLanguage(detectLanguage(code))
   },
   1000,
   true
@@ -187,7 +204,8 @@ const previewCode = () => {
       status: 'loaded'
     },
     props.messageId,
-    props.threadId
+    props.threadId,
+    { force: true }
   )
 }
 
@@ -216,7 +234,7 @@ watch(
 watch(
   () => props.block.artifact?.language,
   (newLanguage) => {
-    const normalizedLang = newLanguage?.trim().toLowerCase() || ''
+    const normalizedLang = sanitizeLanguage(newLanguage)
     if (normalizedLang === '') {
       throttledDetectLanguage(props.block.content)
     } else {

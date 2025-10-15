@@ -48,6 +48,7 @@
     "loggingDisableDesc": "Desabilitar o registro interromperá a coleta de logs do aplicativo.",
     "webContentLengthLimit": "Limite de Comprimento do Conteúdo Web",
     "webContentLengthLimitHint": "(Defina para 0 para sem limite)",
+    "charactersUnit": "caracteres",
     "webContentLengthLimitTooltip": "Defina o comprimento máximo do conteúdo de texto extraído de páginas web (contagem de caracteres), intervalo: 0-50000. Definir como 0 significa sem limite e recupera o conteúdo web completo; valores mais altos fornecem conteúdo web mais completo, mas podem aumentar o tempo de processamento e o uso de tokens.",
     "loggingRestartNotice": "Alterar esta configuração reiniciará o aplicativo. Deseja continuar?",
     "openLogFolder": "Abrir Pasta de Log",

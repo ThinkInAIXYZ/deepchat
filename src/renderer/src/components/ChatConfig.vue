@@ -195,6 +195,8 @@ const isGPT5Model = computed(() => {
   return modelId.includes('gpt-5')
 })
 
+const isGeminiProvider = computed(() => props.providerId?.toLowerCase() === 'gemini')
+
 // 判断模型是否支持 reasoningEffort 参数
 const supportsReasoningEffort = computed(() => {
   return props.reasoningEffort !== undefined
@@ -219,6 +221,7 @@ const genericThinkingBudgetError = computed(() => {
   const value = props.thinkingBudget
   const range = capabilityBudgetRange.value
   if (value === undefined || value === null || !range) return ''
+  if (isGeminiProvider.value && value === -1) return ''
   if (range.min !== undefined && value < range.min)
     return t('settings.model.modelConfig.thinkingBudget.validation.minValue')
   if (range.max !== undefined && value > range.max)

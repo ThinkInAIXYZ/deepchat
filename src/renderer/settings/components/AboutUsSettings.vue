@@ -15,6 +15,7 @@
               href="https://deepchat.thinkinai.xyz/"
               target="_blank"
               rel="noopener noreferrer"
+              @click.prevent="openExternalLink('https://deepchat.thinkinai.xyz/')"
             >
               <Icon icon="lucide:globe" class="mr-1 h-3 w-3" />
               {{ t('about.website') }}</a
@@ -24,6 +25,7 @@
               href="https://github.com/ThinkInAIXYZ/deepchat"
               target="_blank"
               rel="noopener noreferrer"
+              @click.prevent="openExternalLink('https://github.com/ThinkInAIXYZ/deepchat')"
             >
               <Icon icon="lucide:github" class="mr-1 h-3 w-3" />
               GitHub
@@ -33,6 +35,9 @@
               href="https://github.com/ThinkInAIXYZ/deepchat/blob/dev/LICENSE"
               target="_blank"
               rel="noopener noreferrer"
+              @click.prevent="
+                openExternalLink('https://github.com/ThinkInAIXYZ/deepchat/blob/dev/LICENSE')
+              "
             >
               <Icon icon="lucide:scale" class="mr-1 h-3 w-3" />
               Apache License 2.0
@@ -234,6 +239,14 @@ const handleCheckUpdate = async () => {
 
 const md = getCommonMarkdown()
 const disclaimerContent = computed(() => renderMarkdown(md, t('searchDisclaimer')))
+
+const openExternalLink = (url: string) => {
+  if (window.api?.openExternal) {
+    window.api.openExternal(url)
+  } else {
+    window.open(url, '_blank', 'noopener,noreferrer')
+  }
+}
 
 onMounted(async () => {
   deviceInfo.value = await devicePresenter.getDeviceInfo()

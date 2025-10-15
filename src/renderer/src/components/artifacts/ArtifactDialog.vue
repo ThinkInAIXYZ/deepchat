@@ -16,7 +16,7 @@
         class="flex items-center justify-between bg-card px-4 h-11 border-b w-full overflow-hidden"
       >
         <div class="flex items-center gap-2 grow w-0">
-          <button class="p-2 hover:bg-accent/50 rounded-md" @click="artifactStore.hideArtifact">
+          <button class="p-2 hover:bg-accent/50 rounded-md" @click="artifactStore.dismissArtifact">
             <Icon icon="lucide:arrow-left" class="w-4 h-4" />
           </button>
           <h2 class="text-sm font-medium truncate">{{ artifactStore.currentArtifact?.title }}</h2>
@@ -228,8 +228,9 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useArtifactStore } from '@/stores/artifact'
+import type { ArtifactState } from '@/stores/artifact'
 import { Icon } from '@iconify/vue'
 import { Button } from '@shadcn/components/ui/button'
 import CodeArtifact from './CodeArtifact.vue'
@@ -250,6 +251,7 @@ import { useMonaco, detectLanguage } from 'vue-use-monaco'
 const artifactStore = useArtifactStore()
 const componentKey = ref(0)
 const isPreview = ref(false)
+const userHasSetPreview = ref(false)
 const viewportSize = ref<'desktop' | 'tablet' | 'mobile'>('desktop')
 const tabletWidth = ref(768)
 const mobileWidth = ref(375)
@@ -260,10 +262,51 @@ const { toast } = useToast()
 const themeStore = useThemeStore()
 const devicePresenter = usePresenter('devicePresenter')
 const appVersion = ref('')
-const codeLanguage = ref(
-  artifactStore.currentArtifact?.language || artifactStore.currentArtifact?.type || ''
-)
-const { createEditor, updateCode } = useMonaco({
+const sanitizeLanguage = (language: string | undefined | null) => {
+  if (!language) return ''
+  const normalized = language.trim().toLowerCase()
+
+  switch (normalized) {
+    case 'md':
+      return 'markdown'
+    case 'plain':
+    case 'text':
+      return 'plaintext'
+    case 'htm':
+      return 'html'
+    default:
+      return normalized
+  }
+}
+
+const normalizeLanguage = (artifact: ArtifactState | null) => {
+  if (!artifact) return ''
+
+  const explicit = sanitizeLanguage(artifact.language)
+  if (explicit) {
+    return explicit
+  }
+
+  switch (artifact.type) {
+    case 'application/vnd.ant.code':
+      return 'plaintext'
+    case 'text/markdown':
+      return 'markdown'
+    case 'text/html':
+      return 'html'
+    case 'image/svg+xml':
+      return 'svg'
+    case 'application/vnd.ant.mermaid':
+      return 'mermaid'
+    case 'application/vnd.ant.react':
+      return 'jsx'
+    default:
+      return sanitizeLanguage(artifact.type)
+  }
+}
+
+const codeLanguage = ref(normalizeLanguage(artifactStore.currentArtifact))
+const { createEditor, updateCode, cleanupEditor } = useMonaco({
   MAX_HEIGHT: '500px',
   wordWrap: 'on',
   wrappingIndent: 'same'
@@ -273,19 +316,49 @@ const codeEditor = ref<any>(null)
 // 创建节流版本的语言检测函数，1秒内最多执行一次
 const throttledDetectLanguage = useThrottleFn(
   (code: string) => {
-    codeLanguage.value = detectLanguage(code)
+    codeLanguage.value = sanitizeLanguage(detectLanguage(code))
   },
   1000,
   true
 )
 
+const getArtifactContextKey = (artifact: ArtifactState | null) => {
+  if (!artifact) return null
+  if (artifactStore.currentMessageId && artifactStore.currentThreadId) {
+    return `${artifactStore.currentThreadId}:${artifactStore.currentMessageId}:${artifact.id}`
+  }
+  return artifact.id
+}
+
+const activeArtifactContext = ref<string | null>(null)
+
 watch(
   () => artifactStore.currentArtifact,
-  (newArtifact) => {
-    if (!newArtifact) return
+  (newArtifact, prevArtifact) => {
+    componentKey.value++
 
-    // Update language detection
-    codeLanguage.value = newArtifact.language || getFileExtension(newArtifact.type || '')
+    if (!newArtifact) {
+      activeArtifactContext.value = null
+      isPreview.value = false
+      userHasSetPreview.value = false
+      return
+    }
+
+    const normalizedLanguage = normalizeLanguage(newArtifact)
+    if (normalizedLanguage !== codeLanguage.value) {
+      codeLanguage.value = normalizedLanguage
+    }
+
+    const newContextKey = getArtifactContextKey(newArtifact)
+    const prevContextKey = getArtifactContextKey(prevArtifact ?? null)
+    const isNewArtifact =
+      newContextKey !== prevContextKey || newContextKey !== activeArtifactContext.value
+
+    if (isNewArtifact) {
+      activeArtifactContext.value = newContextKey
+      userHasSetPreview.value = false
+      isPreview.value = getDefaultPreviewState(newArtifact)
+    }
 
     if (codeLanguage.value === 'mermaid') {
       return
@@ -293,12 +366,10 @@ watch(
 
     const newCode = newArtifact.content || ''
 
-    // Check if we need to detect language
-    if (!codeLanguage.value || codeLanguage.value === '') {
+    if (!codeLanguage.value) {
       throttledDetectLanguage(newCode)
     }
 
-    // Always update Monaco editor content
     updateCode(newCode, codeLanguage.value)
   },
   {
@@ -332,19 +403,44 @@ watch(
   }
 )
 
-const { stop: stopWatch } = watch(
-  () => codeEditor.value,
-  () => {
-    if (!codeEditor.value) return
-    createEditor(codeEditor.value, artifactStore.currentArtifact?.content || '', codeLanguage.value)
-    stopWatch()
+watch(
+  [() => codeEditor.value, () => isPreview.value, () => artifactStore.isOpen],
+  ([editorEl, previewActive, open]) => {
+    if (!open || previewActive || !editorEl) return
+    void createEditor(editorEl, artifactStore.currentArtifact?.content || '', codeLanguage.value)
+  },
+  {
+    flush: 'post',
+    immediate: true
+  }
+)
+
+watch(
+  () => artifactStore.isOpen,
+  (open) => {
+    if (!open) {
+      cleanupEditor()
+    }
   }
 )
 
 // 截图相关功能
 const { captureAndCopy } = usePageCapture()
 
+const AUTO_PREVIEW_TYPES = new Set([
+  'image/svg+xml',
+  'application/vnd.ant.mermaid',
+  'application/vnd.ant.react'
+])
+
+const getDefaultPreviewState = (artifact: ArtifactState | null) => {
+  if (!artifact) return false
+  if (artifact.status !== 'loaded') return false
+  return AUTO_PREVIEW_TYPES.has(artifact.type)
+}
+
 const setPreview = (value: boolean) => {
+  userHasSetPreview.value = true
   isPreview.value = value
 }
 
@@ -352,45 +448,32 @@ const setViewportSize = (size: 'desktop' | 'tablet' | 'mobile') => {
   viewportSize.value = size
 }
 
-// 监听 artifact 变化，强制重新渲染组件
-watch(
-  () => artifactStore.currentArtifact,
-  () => {
-    componentKey.value++
-  },
-  {
-    immediate: true
-  }
-)
-
 watch(
   () => artifactStore.currentArtifact?.status,
   () => {
-    if (artifactStore.currentArtifact?.status === 'loaded') {
-      isPreview.value = true
+    if (!artifactStore.currentArtifact) {
+      isPreview.value = false
+      return
     }
+
+    if (userHasSetPreview.value) {
+      return
+    }
+
+    isPreview.value = getDefaultPreviewState(artifactStore.currentArtifact)
   },
   {
     immediate: true
-  }
-)
-
-watch(
-  () => artifactStore.isOpen,
-  () => {
-    if (artifactStore.isOpen) {
-      if (artifactStore.currentArtifact?.status === 'loaded') {
-        isPreview.value = true
-      } else {
-        isPreview.value = false
-      }
-    }
   }
 )
 
 onMounted(async () => {
   // 获取应用版本
   appVersion.value = await devicePresenter.getAppVersion()
+})
+
+onBeforeUnmount(() => {
+  cleanupEditor()
 })
 
 const artifactComponent = computed(() => {

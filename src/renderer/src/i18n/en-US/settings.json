@@ -48,6 +48,7 @@
     "loggingDisableDesc": "Disabling logging will stop collecting application logs.",
     "webContentLengthLimit": "Web Content Length Limit",
     "webContentLengthLimitHint": "(Set to 0 for no limit)",
+    "charactersUnit": "characters",
     "webContentLengthLimitTooltip": "Set the maximum length of text content extracted from web pages (character count), range: 0-50000. Setting to 0 means no limit and retrieves complete web content; higher values provide more complete web content but may increase processing time and token usage.",
     "loggingRestartNotice": "Changing this setting will restart the application. Do you want to continue?",
     "openLogFolder": "Open Log Folder",
