@@ -151,7 +151,7 @@
             <div class="flex items-center gap-2 pb-2 border-b border-border">
               <Icon icon="lucide:paperclip" class="w-4 h-4 text-primary" />
               <Label class="text-sm font-medium text-muted-foreground">
-                {{ t('promptSetting.attachments') }}
+                {{ t('promptSetting.fileManagement') }}
               </Label>
             </div>
 
