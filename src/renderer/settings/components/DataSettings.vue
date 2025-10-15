@@ -8,10 +8,7 @@
           <span class="text-sm font-medium">{{ t('settings.data.syncEnable') }}</span>
         </span>
         <div class="shrink-0">
-          <Switch
-            :model-value="syncEnabled"
-            @update:model-value="handleSyncEnabledChange"
-          />
+          <Switch :model-value="syncEnabled" @update:model-value="handleSyncEnabledChange" />
         </div>
       </div>
 
