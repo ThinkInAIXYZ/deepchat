@@ -70,6 +70,7 @@ vi.mock('@iconify/vue', () => ({
 // Mock window.api (preload exposed APIs)
 Object.defineProperty(window, 'api', {
   value: {
+    openExternal: vi.fn(),
     devicePresenter: {
       getDeviceInfo: vi.fn(() =>
         Promise.resolve({

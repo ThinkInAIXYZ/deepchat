@@ -9,6 +9,7 @@ declare global {
       getPathForFile(file: File): string
       getWindowId(): number | null
       getWebContentsId(): number
+      openExternal?(url: string): Promise<void>
     }
     floatingButtonAPI: typeof floatingButtonAPI
   }

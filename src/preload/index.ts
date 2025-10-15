@@ -1,4 +1,12 @@
-import { clipboard, contextBridge, nativeImage, webUtils, webFrame, ipcRenderer } from 'electron'
+import {
+  clipboard,
+  contextBridge,
+  nativeImage,
+  webUtils,
+  webFrame,
+  ipcRenderer,
+  shell
+} from 'electron'
 import { exposeElectronAPI } from '@electron-toolkit/preload'
 
 // Cache variables
@@ -30,6 +38,9 @@ const api = {
     }
     cachedWebContentsId = ipcRenderer.sendSync('get-web-contents-id')
     return cachedWebContentsId
+  },
+  openExternal: (url: string) => {
+    return shell.openExternal(url)
   }
 }
 exposeElectronAPI()
