@@ -1,24 +1,28 @@
 <template>
   <section class="flex flex-col gap-3">
     <div class="flex items-center gap-3 h-10">
-      <span
+      <div
         class="flex items-center gap-2 text-sm font-medium shrink-0 min-w-[220px]"
         :dir="langStore.dir"
       >
         <Icon icon="lucide:file-text" class="w-4 h-4 text-muted-foreground" />
         <span class="truncate">{{ t('settings.common.loggingEnabled') }}</span>
-      </span>
-      <div class="ml-auto flex items-center gap-2">
-        <Button variant="outline" :dir="langStore.dir" @click="openLogFolder">
+        <Button
+          variant="outline"
+          class="shrink-0 ltr:ml-2 rtl:mr-2"
+          :dir="langStore.dir"
+          @click="openLogFolder"
+        >
           <Icon icon="lucide:external-link" class="w-4 h-4 text-muted-foreground" />
           <span class="text-sm font-medium">{{ t('settings.common.openLogFolder') }}</span>
         </Button>
-        <Switch
-          id="logging-switch"
-          :model-value="loggingEnabled"
-          @update:model-value="handleLoggingChange"
-        />
       </div>
+      <Switch
+        id="logging-switch"
+        class="ml-auto"
+        :model-value="loggingEnabled"
+        @update:model-value="handleLoggingChange"
+      />
     </div>
 
     <Dialog v-model:open="isLoggingDialogOpen" @update:open="cancelLoggingChange">
