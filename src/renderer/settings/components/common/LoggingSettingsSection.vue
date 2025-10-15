@@ -8,20 +8,17 @@
         <Icon icon="lucide:file-text" class="w-4 h-4 text-muted-foreground" />
         <span class="truncate">{{ t('settings.common.loggingEnabled') }}</span>
       </span>
-      <div class="ml-auto">
+      <div class="ml-auto flex items-center gap-2">
+        <Button variant="outline" :dir="langStore.dir" @click="openLogFolder">
+          <Icon icon="lucide:external-link" class="w-4 h-4 text-muted-foreground" />
+          <span class="text-sm font-medium">{{ t('settings.common.openLogFolder') }}</span>
+        </Button>
         <Switch
           id="logging-switch"
           :model-value="loggingEnabled"
           @update:model-value="handleLoggingChange"
         />
       </div>
-    </div>
-
-    <div class="flex flex-row gap-3">
-      <Button class="w-36" variant="outline" :dir="langStore.dir" @click="openLogFolder">
-        <Icon icon="lucide:external-link" class="w-4 h-4 text-muted-foreground" />
-        <span class="text-sm font-medium">{{ t('settings.common.openLogFolder') }}</span>
-      </Button>
     </div>
 
     <Dialog v-model:open="isLoggingDialogOpen" @update:open="cancelLoggingChange">

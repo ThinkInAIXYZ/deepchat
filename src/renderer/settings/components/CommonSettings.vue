@@ -12,7 +12,6 @@
         :model-value="searchPreviewEnabled"
         @update:model-value="handleSearchPreviewChange"
       />
-      <LoggingSettingsSection />
       <SettingToggleRow
         id="sound-switch"
         icon="lucide:volume-2"
@@ -27,6 +26,7 @@
         :model-value="copyWithCotEnabled"
         @update:model-value="handleCopyWithCotChange"
       />
+      <LoggingSettingsSection />
     </div>
   </ScrollArea>
 </template>
