@@ -1,7 +1,10 @@
 <template>
   <section class="flex flex-col gap-2">
     <div class="flex items-center gap-3 h-10">
-      <span class="flex items-center gap-2 text-sm font-medium shrink-0 min-w-[220px]" :dir="langStore.dir">
+      <span
+        class="flex items-center gap-2 text-sm font-medium shrink-0 min-w-[220px]"
+        :dir="langStore.dir"
+      >
         <Icon icon="lucide:globe" class="w-4 h-4 text-muted-foreground" />
         <span class="truncate">{{ t('settings.common.proxyMode') }}</span>
       </span>
@@ -21,7 +24,10 @@
 
     <div v-if="selectedProxyMode === 'custom'" class="flex flex-col gap-2 h-10">
       <div class="flex items-center gap-3">
-        <span class="flex items-center gap-2 text-sm font-medium shrink-0 min-w-[220px]" :dir="langStore.dir">
+        <span
+          class="flex items-center gap-2 text-sm font-medium shrink-0 min-w-[220px]"
+          :dir="langStore.dir"
+        >
           <Icon icon="lucide:link" class="w-4 h-4 text-muted-foreground" />
           <span class="truncate">{{ t('settings.common.customProxyUrl') }}</span>
         </span>

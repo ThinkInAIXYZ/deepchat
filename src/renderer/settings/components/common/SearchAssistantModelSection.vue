@@ -1,6 +1,9 @@
 <template>
   <div class="flex items-center gap-3 h-10">
-    <span class="flex items-center gap-2 text-sm font-medium shrink-0 min-w-[220px]" :dir="langStore.dir">
+    <span
+      class="flex items-center gap-2 text-sm font-medium shrink-0 min-w-[220px]"
+      :dir="langStore.dir"
+    >
       <Icon icon="lucide:bot" class="w-4 h-4 text-muted-foreground" />
       <span class="truncate">{{ t('settings.common.searchAssistantModel') }}</span>
     </span>
@@ -18,11 +21,17 @@
                 {{ selectedSearchModel?.name || t('settings.common.selectModel') }}
               </span>
             </div>
-            <Icon icon="lucide:chevron-down" class="h-4 w-4 ml-2 shrink-0 text-muted-foreground/50" />
+            <Icon
+              icon="lucide:chevron-down"
+              class="h-4 w-4 ml-2 shrink-0 text-muted-foreground/50"
+            />
           </Button>
         </PopoverTrigger>
         <PopoverContent class="w-80 p-0" align="end">
-          <ModelSelect :type="[ModelType.Chat, ModelType.ImageGeneration]" @update:model="handleSearchModelSelect" />
+          <ModelSelect
+            :type="[ModelType.Chat, ModelType.ImageGeneration]"
+            @update:model="handleSearchModelSelect"
+          />
         </PopoverContent>
       </Popover>
     </div>

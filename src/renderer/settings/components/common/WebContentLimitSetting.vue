@@ -49,7 +49,9 @@
       >
         <Icon icon="lucide:plus" class="h-3 w-3" />
       </Button>
-      <span class="text-xs text-muted-foreground ml-1">{{ t('settings.common.charactersUnit') || '字符' }}</span>
+      <span class="text-xs text-muted-foreground ml-1">{{
+        t('settings.common.charactersUnit') || '字符'
+      }}</span>
     </div>
   </div>
 </template>
