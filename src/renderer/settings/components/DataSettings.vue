@@ -10,7 +10,7 @@
         <div class="shrink-0">
           <Switch
             :model-value="syncEnabled"
-            @update:model-value="(value) => (syncEnabled = value)"
+            @update:model-value="handleSyncEnabledChange"
           />
         </div>
       </div>
@@ -294,6 +294,10 @@ const syncFolderPath = computed({
   get: () => syncStore.syncFolderPath,
   set: (value) => syncStore.setSyncFolderPath(value)
 })
+
+const handleSyncEnabledChange = (value: boolean) => {
+  syncEnabled.value = value
+}
 
 // 初始化
 onMounted(async () => {

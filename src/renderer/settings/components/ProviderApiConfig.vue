@@ -18,10 +18,7 @@
         :id="`${provider.id}-url`"
         :model-value="apiHost"
         :placeholder="t('settings.provider.urlPlaceholder')"
-        @blur="
-          String($event.target.value) !== apiHost &&
-          handleApiHostChange(String($event.target.value))
-        "
+        @blur="handleApiHostBlur"
         @keyup.enter="handleApiHostChange(apiHost)"
         @update:model-value="apiHost = String($event)"
       />
@@ -53,7 +50,7 @@
             :type="showApiKey ? 'text' : 'password'"
             :placeholder="t('settings.provider.keyPlaceholder')"
             style="padding-right: 2.5rem !important"
-            @blur="$event.target.value !== apiKey && handleApiKeyChange($event.target.value)"
+            @blur="handleApiKeyBlur"
             @keyup.enter="$emit('validate-key', apiKey)"
             @update:model-value="apiKey = String($event)"
           />
@@ -187,8 +184,20 @@ const handleApiKeyChange = (value: string) => {
   emit('api-key-change', value)
 }
 
+const handleApiKeyBlur = (event: FocusEvent) => {
+  const target = event.target as HTMLInputElement | null
+  if (!target) return
+  handleApiKeyChange(target.value)
+}
+
 const handleApiHostChange = (value: string) => {
   emit('api-host-change', value)
+}
+
+const handleApiHostBlur = (event: FocusEvent) => {
+  const target = event.target as HTMLInputElement | null
+  if (!target) return
+  handleApiHostChange(target.value)
 }
 
 const handleOAuthSuccess = () => {
