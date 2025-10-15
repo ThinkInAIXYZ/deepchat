@@ -13,14 +13,14 @@
         <div
           v-for="(msg, index) in messages"
           :key="msg.id"
-          @mouseenter="handleMessageHover(msg.id)"
-          @mouseleave="handleMessageHover(null)"
+          @mouseenter="minimap.handleHover(msg.id)"
+          @mouseleave="minimap.handleHover(null)"
         >
           <MessageItemAssistant
             v-if="msg.role === 'assistant'"
-            :ref="setAssistantRef(index)"
+            :ref="retry.setAssistantRef(index)"
             :message="msg as AssistantMessage"
-            :is-capturing-image="isCapturingImage"
+            :is-capturing-image="capture.isCapturing.value"
             @copy-image="handleCopyImage"
             @variant-changed="scrollToMessage"
           />
@@ -34,46 +34,13 @@
       </div>
       <div ref="scrollAnchor" class="h-8" />
     </div>
-    <template v-if="!isCapturingImage">
-      <TransitionGroup
-        tag="div"
-        class="absolute bottom-3 right-3 flex flex-col items-center gap-2"
-        enter-active-class="transition-all duration-300 ease-out"
-        enter-from-class="opacity-0 translate-y-2"
-        enter-to-class="opacity-100 translate-y-0"
-        leave-active-class="transition-all duration-300 ease-in"
-        leave-from-class="opacity-100 translate-y-0"
-        leave-to-class="opacity-0 translate-y-2"
-        move-class="message-actions-move"
-        @before-leave="handleActionBeforeLeave"
-        @after-leave="handleActionAfterLeave"
-        @leave-cancelled="handleActionAfterLeave"
-      >
-        <!-- 新聊天按钮 (仅在非生成状态显示) -->
-        <Button
-          v-if="!showCancelButton"
-          key="new-chat"
-          variant="outline"
-          size="icon"
-          class="w-8 h-8 shrink-0 opacity-100 bg-card backdrop-blur-lg z-20"
-          @click="openCleanDialog"
-        >
-          <Icon icon="lucide:brush-cleaning" class="w-6 h-6 text-foreground" />
-          <!-- <span class="">{{ t('common.newChat') }}</span> -->
-        </Button>
-
-        <!-- 滚动到底部按钮 -->
-        <Button
-          v-if="aboveThreshold"
-          key="scroll-bottom"
-          variant="outline"
-          size="icon"
-          class="w-8 h-8 shrink-0 relative z-10 backdrop-blur-lg"
-          @click="scrollToBottom(true)"
-        >
-          <Icon icon="lucide:arrow-down" class="w-5 h-5 text-foreground" />
-        </Button>
-      </TransitionGroup>
+    <template v-if="!capture.isCapturing.value">
+      <MessageActionButtons
+        :show-clean-button="!showCancelButton"
+        :show-scroll-button="aboveThreshold"
+        @clean="cleanDialog.open"
+        @scroll-to-bottom="scrollToBottom(true)"
+      />
     </template>
     <ReferencePreview
       class="pointer-events-none"
@@ -84,13 +51,13 @@
     <MessageMinimap
       v-if="messages.length > 0"
       :messages="messages"
-      :hovered-message-id="hoveredMessageId"
-      :scroll-info="scrollInfo"
-      @bar-hover="handleMinimapHover"
-      @bar-click="handleMinimapClick"
+      :hovered-message-id="minimap.hoveredMessageId.value"
+      :scroll-info="minimap.scrollInfo"
+      @bar-hover="minimap.handleHover"
+      @bar-click="minimap.handleClick"
     />
   </div>
-  <Dialog v-model:open="cleanMessagesDialog">
+  <Dialog v-model:open="cleanDialog.isOpen.value">
     <DialogContent>
       <DialogHeader>
         <DialogTitle>{{ t('dialog.cleanMessages.title') }}</DialogTitle>
@@ -99,10 +66,8 @@
         </DialogDescription>
       </DialogHeader>
       <DialogFooter>
-        <Button variant="outline" @click="handleCleanMessagesDialogCancel">{{
-          t('dialog.cancel')
-        }}</Button>
-        <Button variant="destructive" @click="handleThreadCleanMessages">{{
+        <Button variant="outline" @click="cleanDialog.cancel">{{ t('dialog.cancel') }}</Button>
+        <Button variant="destructive" @click="cleanDialog.confirm">{{
           t('dialog.cleanMessages.confirm')
         }}</Button>
       </DialogFooter>
@@ -111,22 +76,18 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, nextTick, watch, computed, reactive } from 'vue'
+// === Vue Core ===
+import { ref, onMounted, nextTick, watch, computed, toRef } from 'vue'
+
+// === Types ===
+import { AssistantMessage, UserMessage } from '@shared/chat'
+
+// === Components ===
 import MessageItemAssistant from './MessageItemAssistant.vue'
 import MessageItemUser from './MessageItemUser.vue'
-import { AssistantMessage, UserMessage } from '@shared/chat'
-import { useElementBounding } from '@vueuse/core'
-import { Button } from '@shadcn/components/ui/button'
-import { Icon } from '@iconify/vue'
-import { useChatStore } from '@/stores/chat'
-import { useI18n } from 'vue-i18n'
-import { useReferenceStore } from '@/stores/reference'
+import MessageActionButtons from './MessageActionButtons.vue'
 import ReferencePreview from './ReferencePreview.vue'
-import { useThemeStore } from '@/stores/theme'
-import { usePageCapture } from '@/composables/usePageCapture'
-import { usePresenter } from '@/composables/usePresenter'
 import MessageMinimap from './MessageMinimap.vue'
-import { useArtifactStore } from '@/stores/artifact'
 import {
   Dialog,
   DialogContent,
@@ -135,298 +96,86 @@ import {
   DialogDescription,
   DialogFooter
 } from '@shadcn/components/ui/dialog'
+import { Button } from '@shadcn/components/ui/button'
 
-const cleanMessagesDialog = ref(false)
+// === Composables ===
+import { useElementBounding, useDebounceFn } from '@vueuse/core'
+import { useI18n } from 'vue-i18n'
+import { useMessageScroll } from '@/composables/message/useMessageScroll'
+import { useCleanDialog } from '@/composables/message/useCleanDialog'
+import { useMessageMinimap } from '@/composables/message/useMessageMinimap'
+import { useMessageCapture } from '@/composables/message/useMessageCapture'
+import { useMessageRetry } from '@/composables/message/useMessageRetry'
 
+// === Stores ===
+import { useChatStore } from '@/stores/chat'
+import { useReferenceStore } from '@/stores/reference'
+
+// === Props & Emits ===
 const { t } = useI18n()
 const props = defineProps<{
   messages: Array<UserMessage | AssistantMessage>
 }>()
-const themeStore = useThemeStore()
-const referenceStore = useReferenceStore()
+
+// === Stores ===
 const chatStore = useChatStore()
+const referenceStore = useReferenceStore()
 
-const devicePresenter = usePresenter('devicePresenter')
-const appVersion = ref('')
+// === Composable Integrations ===
+// Scroll management
+const scroll = useMessageScroll()
+const {
+  messagesContainer,
+  scrollAnchor,
+  aboveThreshold,
+  scrollToBottom,
+  scrollToMessage,
+  handleScroll,
+  updateScrollInfo,
+  setupScrollObserver
+} = scroll
 
-// 截图相关功能
-const { isCapturing: isCapturingImage, captureAndCopy } = usePageCapture()
+// Clean dialog
+const cleanDialog = useCleanDialog()
 
-const messagesContainer = ref<HTMLDivElement>()
+// Minimap (needs scrollInfo from scroll composable)
+const minimap = useMessageMinimap(scroll.scrollInfo)
+
+// Screenshot capture
+const capture = useMessageCapture()
+
+// Message retry
+const retry = useMessageRetry(toRef(props, 'messages'))
+
+// === Local State ===
 const messageList = ref<HTMLDivElement>()
-const scrollAnchor = ref<HTMLDivElement>()
 const visible = ref(false)
-const hoveredMessageId = ref<string | null>(null)
-const scrollInfo = reactive({
-  viewportHeight: 0,
-  contentHeight: 0,
-  scrollTop: 0
-})
 
-const artifactStore = useArtifactStore()
-
-// Store refs as Record to avoid type checking issues
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const assistantRefs = reactive<Record<number, any>>({})
-
-// Helper function to set refs
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const setAssistantRef = (index: number) => (el: any) => {
-  if (el) {
-    assistantRefs[index] = el
-  }
-}
-
-const handleMessageHover = (messageId: string | null) => {
-  hoveredMessageId.value = messageId
-}
-
-const handleMinimapHover = (messageId: string | null) => {
-  hoveredMessageId.value = messageId
-}
-
-// 取消清空消息对话框
-const handleCleanMessagesDialogCancel = () => {
-  cleanMessagesDialog.value = false
-}
-
-// 清空会话消息
-const handleThreadCleanMessages = async () => {
-  try {
-    const threadId = chatStore.getActiveThreadId()
-    if (!threadId) {
-      return
-    }
-    await chatStore.clearAllMessages(threadId)
-  } catch (error) {
-    console.error(t('common.error.cleanMessagesFailed'), error)
-  }
-
-  cleanMessagesDialog.value = false
-}
-
-const handleMinimapClick = () => {
-  // 点击迷你地图改为打开消息导航侧边栏
-  if (artifactStore.isOpen) {
-    artifactStore.isOpen = false
-    chatStore.isMessageNavigationOpen = true
-  } else {
-    chatStore.isMessageNavigationOpen = !chatStore.isMessageNavigationOpen
-  }
-  // scrollToMessage(messageId)
-}
-
-const updateScrollInfo = () => {
-  const container = messagesContainer.value
-  if (!container) return
-  scrollInfo.viewportHeight = container.clientHeight
-  scrollInfo.contentHeight = container.scrollHeight
-  scrollInfo.scrollTop = container.scrollTop
-}
-
-const handleScroll = () => {
-  updateScrollInfo()
-}
-
-const handleActionBeforeLeave = (el: Element) => {
-  const element = el as HTMLElement
-  const { offsetWidth, offsetHeight, offsetLeft, offsetTop } = element
-  element.style.width = `${offsetWidth}px`
-  element.style.height = `${offsetHeight}px`
-  element.style.left = `${offsetLeft}px`
-  element.style.top = `${offsetTop}px`
-  element.style.position = 'absolute'
-  element.style.pointerEvents = 'none'
-}
-
-const handleActionAfterLeave = (el: Element) => {
-  const element = el as HTMLElement
-  element.style.width = ''
-  element.style.height = ''
-  element.style.left = ''
-  element.style.top = ''
-  element.style.position = ''
-  element.style.pointerEvents = ''
-}
-
-/**
- * 查找用户消息DOM元素
- * 通过parentId查找对应的用户消息
- */
-const findUserMessageElement = (parentId: string): HTMLElement | null => {
-  if (!parentId) return null
-
-  // 在DOM中查找包含用户消息ID的元素
-  const userMessageSelector = `[data-message-id="${parentId}"]`
-  return document.querySelector(userMessageSelector) as HTMLElement
-}
-
-/**
- * 计算包含用户消息和助手消息的整体范围
- */
-const calculateMessageGroupRect = (
-  messageId: string,
-  parentId?: string
-): {
-  x: number
-  y: number
-  width: number
-  height: number
-} | null => {
-  const userMessageElement = parentId ? findUserMessageElement(parentId) : null
-  const assistantMessageElement = document.querySelector(
-    `[data-message-id="${messageId}"]`
-  ) as HTMLElement
-
-  if (!userMessageElement || !assistantMessageElement) {
-    // 如果找不到用户消息，只截取当前助手消息
-    if (assistantMessageElement) {
-      const rect = assistantMessageElement.getBoundingClientRect()
-      return {
-        x: Math.round(rect.x),
-        y: Math.round(rect.y),
-        width: Math.round(rect.width),
-        height: Math.round(rect.height)
-      }
-    }
-    return null
-  }
-
-  const userRect = userMessageElement.getBoundingClientRect()
-  const assistantRect = assistantMessageElement.getBoundingClientRect()
-
-  const left = Math.min(userRect.left, assistantRect.left)
-  const top = Math.min(userRect.top, assistantRect.top)
-  const right = Math.max(userRect.right, assistantRect.right)
-  const bottom = Math.max(userRect.bottom, assistantRect.bottom)
-
-  return {
-    x: Math.round(left),
-    y: Math.round(top),
-    width: Math.round(right - left),
-    height: Math.round(bottom - top)
-  }
-}
-
-/**
- * 计算从会话顶部到当前消息的整体范围
- */
-const calculateFromTopToCurrentRect = (
-  messageId: string
-): {
-  x: number
-  y: number
-  width: number
-  height: number
-} | null => {
-  const currentMessageElement = document.querySelector(
-    `[data-message-id="${messageId}"]`
-  ) as HTMLElement
-  if (!currentMessageElement) return null
-
-  const container = document.querySelector('.message-list-container')
-  if (!container) return null
-
-  // 获取容器内的所有消息元素
-  const allMessages = container.querySelectorAll('[data-message-id]')
-  if (allMessages.length === 0) return null
-
-  // 找到第一条消息和当前消息
-  const firstMessage = allMessages[0] as HTMLElement
-  const currentRect = currentMessageElement.getBoundingClientRect()
-  const firstRect = firstMessage.getBoundingClientRect()
-
-  // 计算范围
-  const left = Math.min(firstRect.left, currentRect.left)
-  const top = Math.min(firstRect.top, currentRect.top)
-  const right = Math.max(firstRect.right, currentRect.right)
-  const bottom = Math.max(firstRect.bottom, currentRect.bottom)
-
-  return {
-    x: Math.round(left),
-    y: Math.round(top),
-    width: Math.round(right - left),
-    height: Math.round(bottom - top)
-  }
-}
-
-/**
- * 处理复制图片操作
- * @param messageId 消息ID
- * @param parentId 父消息ID（用户消息ID）
- * @param fromTop 是否从会话顶部开始截取到当前消息，默认为 false
- * @param modelInfo 模型信息
- */
+// === Event Handlers ===
 const handleCopyImage = async (
   messageId: string,
   parentId?: string,
   fromTop: boolean = false,
   modelInfo?: { model_name: string; model_provider: string }
 ) => {
-  const getTargetRect = fromTop
-    ? () => calculateFromTopToCurrentRect(messageId)
-    : () => calculateMessageGroupRect(messageId, parentId)
+  await capture.captureMessage({ messageId, parentId, fromTop, modelInfo })
+}
 
-  const success = await captureAndCopy({
-    container: '.message-list-container',
-    getTargetRect,
-    watermark: {
-      isDark: themeStore.isDark,
-      version: appVersion.value,
-      texts: {
-        brand: 'DeepChat',
-        tip: t('common.watermarkTip'),
-        model: modelInfo?.model_name,
-        provider: modelInfo?.model_provider
-      }
-    }
-  })
-
-  if (!success) {
-    console.error('截图复制失败')
+const handleRetry = async (index: number) => {
+  const triggered = await retry.retryFromUserMessage(index)
+  if (triggered) {
+    scrollToBottom(true)
   }
 }
 
-const scrollToBottom = (smooth = false) => {
-  nextTick(() => {
-    if (scrollAnchor.value) {
-      scrollAnchor.value.scrollIntoView({
-        behavior: smooth ? 'smooth' : 'instant',
-        block: 'end'
-      })
-    }
-    updateScrollInfo()
-  })
-}
+// === Computed ===
+const showCancelButton = computed(() => {
+  return chatStore.generatingThreadIds.has(chatStore.getActiveThreadId() ?? '')
+})
 
-/**
- * 滚动到指定消息
- */
-const scrollToMessage = (messageId: string) => {
-  nextTick(() => {
-    const messageElement = document.querySelector(`[data-message-id="${messageId}"]`)
-    if (messageElement) {
-      messageElement.scrollIntoView({
-        behavior: 'smooth',
-        block: 'start'
-      })
-
-      // 添加高亮效果
-      messageElement.classList.add('message-highlight')
-      setTimeout(() => {
-        messageElement.classList.remove('message-highlight')
-      }, 2000)
-    }
-    updateScrollInfo()
-  })
-}
-
+// === Lifecycle Hooks ===
 onMounted(() => {
-  // 获取应用版本
-  devicePresenter.getAppVersion().then((version) => {
-    appVersion.value = version
-  })
-
+  // Initialize scroll and visibility
   setTimeout(() => {
     scrollToBottom()
     nextTick(() => {
@@ -436,103 +185,33 @@ onMounted(() => {
     })
   }, 100)
 
+  // Auto-scroll on content height change (for pending messages)
   const { height } = useElementBounding(messageList.value)
-  watch(
-    () => height.value,
-    () => {
-      const lastMessage = props.messages[props.messages.length - 1]
-      if (lastMessage?.status === 'pending' && !aboveThreshold.value) {
-        nextTick(() => {
-          scrollToBottom()
-          updateScrollInfo()
-        })
-      }
+  const debouncedHeightHandler = useDebounceFn(() => {
+    const lastMessage = props.messages[props.messages.length - 1]
+    if (lastMessage?.status === 'pending' && !aboveThreshold.value) {
+      nextTick(() => {
+        scrollToBottom()
+        updateScrollInfo()
+      })
     }
-  )
+  }, 100)
 
+  watch(() => height.value, debouncedHeightHandler, { flush: 'post' })
+
+  // Update scroll info when message count changes
   watch(
     () => props.messages.length,
     () => {
       nextTick(() => {
         updateScrollInfo()
       })
-    }
-  )
-})
-
-onUnmounted(() => {
-  if (intersectionObserver) {
-    intersectionObserver.disconnect()
-    intersectionObserver = null
-  }
-})
-
-const aboveThreshold = ref(false)
-let intersectionObserver: IntersectionObserver | null = null
-
-const setupScrollObserver = () => {
-  if (intersectionObserver) {
-    intersectionObserver.disconnect()
-  }
-
-  intersectionObserver = new IntersectionObserver(
-    (entries) => {
-      const entry = entries[0]
-      aboveThreshold.value = !entry.isIntersecting
-      updateScrollInfo()
     },
-    {
-      root: messagesContainer.value,
-      rootMargin: '0px 0px 20px 0px', // 20px 的缓冲区
-      threshold: 0
-    }
+    { flush: 'post' }
   )
-
-  if (scrollAnchor.value) {
-    intersectionObserver.observe(scrollAnchor.value)
-  }
-
-  updateScrollInfo()
-}
-
-const showCancelButton = computed(() => {
-  return chatStore.generatingThreadIds.has(chatStore.getActiveThreadId() ?? '')
 })
 
-// Handle retry event from MessageItemUser
-const handleRetry = async (index: number) => {
-  let triggered = false
-  for (let i = index + 1; i < props.messages.length; i++) {
-    if (props.messages[i].role === 'assistant') {
-      try {
-        const assistantRef = assistantRefs[i]
-        if (assistantRef && typeof assistantRef.handleAction === 'function') {
-          assistantRef.handleAction('retry')
-          triggered = true
-        }
-      } catch (error) {
-        console.error('Failed to trigger retry action:', error)
-      }
-      break
-    }
-  }
-
-  if (!triggered) {
-    try {
-      const userMsg = props.messages[index]
-      if (userMsg && userMsg.role === 'user') {
-        await chatStore.regenerateFromUserMessage(userMsg.id)
-        scrollToBottom(true)
-      }
-    } catch (error) {
-      console.error('Failed to regenerate from user message:', error)
-    }
-  }
-}
-// 创建新会话
-const openCleanDialog = async () => {
-  cleanMessagesDialog.value = true
-}
+// === Expose ===
 defineExpose({
   scrollToBottom,
   scrollToMessage,
@@ -549,71 +228,5 @@ defineExpose({
 
 .dark .message-highlight {
   background-color: rgba(59, 130, 246, 0.15);
-}
-
-.message-actions-move {
-  transition: transform 0.3s ease;
-}
-
-.scroll-to-bottom-loading-container {
-  position: relative;
-  isolation: isolate;
-}
-
-/* 定义发光呼吸动画 */
-@keyframes glow-breathe {
-  0% {
-    opacity: 0.6;
-    transform: scale(1);
-  }
-  50% {
-    opacity: 1;
-    transform: scale(1.05);
-  }
-  100% {
-    opacity: 0.6;
-    transform: scale(1);
-  }
-}
-
-.scroll-to-bottom-loading-container::before {
-  content: '';
-  position: absolute;
-  top: -2px;
-  left: -2px;
-  right: -2px;
-  bottom: -2px;
-  border-radius: 0.5rem;
-  background: linear-gradient(135deg, #9b59b6, #84cdfa, #5ad1cd);
-  animation: glow-breathe 2s ease-in-out infinite;
-  pointer-events: none;
-  z-index: 1;
-  filter: blur(6px);
-}
-
-.scroll-to-bottom-loading-container::after {
-  content: '';
-  position: absolute;
-  top: -3px;
-  left: -3px;
-  right: -3px;
-  bottom: -3px;
-  border-radius: 0.5rem;
-  background: linear-gradient(135deg, #9b59b6, #84cdfa, #5ad1cd);
-  animation: glow-breathe 2s ease-in-out infinite;
-  pointer-events: none;
-  z-index: 0;
-  filter: blur(10px);
-  /* opacity: 0.6;  已被 animation 覆盖 */
-}
-
-/* 原始 rotate-glow 动画，不需要可删除 */
-@keyframes rotate-glow {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
 }
 </style>
