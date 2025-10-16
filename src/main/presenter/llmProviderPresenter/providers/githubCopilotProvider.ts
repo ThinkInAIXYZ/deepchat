@@ -10,6 +10,7 @@ import {
 import { BaseLLMProvider, SUMMARY_TITLES_PROMPT } from '../baseProvider'
 import { ConfigPresenter } from '../../configPresenter'
 import { HttpsProxyAgent } from 'https-proxy-agent'
+import { getGlobalGitHubCopilotDeviceFlow, GitHubCopilotDeviceFlow } from '../../githubCopilotDeviceFlow'
 
 // 扩展RequestInit类型以支持agent属性
 interface RequestInitWithAgent extends RequestInit {
@@ -26,64 +27,40 @@ interface CopilotTokenResponse {
 export class GithubCopilotProvider extends BaseLLMProvider {
   private copilotToken: string | null = null
   private tokenExpiresAt: number = 0
-  private baseApiUrl = 'https://copilot-proxy.githubusercontent.com'
+  private baseApiUrl = 'https://api.githubcopilot.com'
   private tokenUrl = 'https://api.github.com/copilot_internal/v2/token'
+  private deviceFlow: GitHubCopilotDeviceFlow | null = null
 
   constructor(provider: LLM_PROVIDER, configPresenter: ConfigPresenter) {
     super(provider, configPresenter)
-
-    console.log('🎯 [GitHub Copilot] Constructor called')
-    console.log(`   Base API URL: ${this.baseApiUrl}`)
-    console.log(`   Token URL: ${this.tokenUrl}`)
-    console.log(`   Provider config:`, {
-      id: provider.id,
-      name: provider.name,
-      enable: provider.enable,
-      hasApiKey: !!provider.apiKey,
-      apiKeyLength: provider.apiKey?.length || 0
-    })
-
     this.init()
   }
 
   protected async init() {
-    console.log('🚀 [GitHub Copilot] Starting provider initialization...')
-    console.log(`   Provider enabled: ${this.provider.enable}`)
-    console.log(`   Provider name: ${this.provider.name}`)
-    console.log(`   Provider ID: ${this.provider.id}`)
-
     if (this.provider.enable) {
       try {
-        console.log('📋 [GitHub Copilot] Setting initialized flag...')
         this.isInitialized = true
+        this.deviceFlow = getGlobalGitHubCopilotDeviceFlow()
 
-        console.log('📚 [GitHub Copilot] Fetching models list...')
-        // 始终加载模型列表，不依赖于token状态
+        // 检查现有认证状态
+        if (this.provider.apiKey) {
+          const existingToken = await this.deviceFlow.checkExistingAuth(this.provider.apiKey)
+          if (!existingToken) {
+            this.provider.apiKey = ''
+          }
+        }
+
         await this.fetchModels()
-
-        console.log('🔧 [GitHub Copilot] Auto-enabling models if needed...')
         await this.autoEnableModelsIfNeeded()
-
-        console.info('✅ [GitHub Copilot] Provider initialized successfully:', this.provider.name)
+        console.log(`[GitHub Copilot] Initialized successfully`)
       } catch (error) {
-        console.warn(
-          '❌ [GitHub Copilot] Provider initialization failed:',
-          this.provider.name,
-          error
-        )
-        console.error('   Initialization error details:', error)
-
-        // 即使初始化失败，也要确保模型列表可用
+        console.warn(`[GitHub Copilot] Initialization failed:`, error)
         try {
-          console.log('🔄 [GitHub Copilot] Trying to fetch models after init error...')
           await this.fetchModels()
-          console.log('✅ [GitHub Copilot] Models fetched successfully after init error')
         } catch (modelError) {
-          console.warn('❌ [GitHub Copilot] Failed to fetch models after init error:', modelError)
+          console.warn(`[GitHub Copilot] Failed to fetch models:`, modelError)
         }
       }
-    } else {
-      console.log('⏸️ [GitHub Copilot] Provider is disabled, skipping initialization')
     }
   }
 
@@ -92,21 +69,23 @@ export class GithubCopilotProvider extends BaseLLMProvider {
   }
 
   private async getCopilotToken(): Promise<string> {
-    console.log('🔍 [GitHub Copilot] Starting getCopilotToken process...')
+    // 优先使用设备流获取 token
+    if (this.deviceFlow) {
+      try {
+        return await this.deviceFlow.getApiToken()
+      } catch (error) {
+        console.warn('[GitHub Copilot] Device flow failed, using provider API key')
+      }
+    }
 
     // 检查token是否过期
     if (this.copilotToken && Date.now() < this.tokenExpiresAt) {
-      console.log('✅ [GitHub Copilot] Using cached token (not expired)')
-      console.log(`   Token expires at: ${new Date(this.tokenExpiresAt).toISOString()}`)
-      console.log(`   Current time: ${new Date().toISOString()}`)
       return this.copilotToken
     }
 
-    console.log('🔄 [GitHub Copilot] Need to fetch new Copilot token')
-    console.log(
-      `   Provider API Key: ${this.provider.apiKey ? 'EXISTS (length: ' + this.provider.apiKey.length + ')' : 'NOT SET'}`
-    )
-    console.log(`   Token URL: ${this.tokenUrl}`)
+    if (!this.provider.apiKey) {
+      throw new Error('No GitHub OAuth token available. Please use device flow authentication.')
+    }
 
     // 获取新的token
     const headers: Record<string, string> = {
@@ -116,15 +95,6 @@ export class GithubCopilotProvider extends BaseLLMProvider {
       'X-GitHub-Api-Version': '2022-11-28'
     }
 
-    console.log('📋 [GitHub Copilot] Request headers:')
-    console.log(
-      '   Authorization:',
-      headers.Authorization ? `Bearer ${this.provider.apiKey?.substring(0, 10)}...` : 'NOT SET'
-    )
-    console.log('   Accept:', headers.Accept)
-    console.log('   User-Agent:', headers['User-Agent'])
-    console.log('   X-GitHub-Api-Version:', headers['X-GitHub-Api-Version'])
-
     const requestOptions: RequestInitWithAgent = {
       method: 'GET',
       headers
@@ -133,42 +103,15 @@ export class GithubCopilotProvider extends BaseLLMProvider {
     // 添加代理支持
     const proxyUrl = proxyConfig.getProxyUrl()
     if (proxyUrl) {
-      console.log('🌐 [GitHub Copilot] Using proxy:', proxyUrl)
       const agent = new HttpsProxyAgent(proxyUrl)
       requestOptions.agent = agent
-    } else {
-      console.log('🌐 [GitHub Copilot] No proxy configured')
     }
-
-    console.log('📤 [GitHub Copilot] Making request to GitHub Copilot API...')
-    console.log(`   Method: ${requestOptions.method}`)
-    console.log(`   URL: ${this.tokenUrl}`)
 
     try {
       const response = await fetch(this.tokenUrl, requestOptions)
 
-      console.log('📥 [GitHub Copilot] Received response:')
-      console.log(`   Status: ${response.status} ${response.statusText}`)
-      console.log(`   OK: ${response.ok}`)
-      console.log('   Response headers:')
-      response.headers.forEach((value, key) => {
-        console.log(`     ${key}: ${value}`)
-      })
-
       if (!response.ok) {
         let errorMessage = `Failed to get Copilot token: ${response.status} ${response.statusText}`
-
-        console.log('❌ [GitHub Copilot] Request failed!')
-        console.log(`   Error status: ${response.status}`)
-        console.log(`   Error text: ${response.statusText}`)
-
-        // 尝试读取响应体以获得更多错误信息
-        try {
-          const errorBody = await response.text()
-          console.log(`   Error body: ${errorBody}`)
-        } catch (bodyError) {
-          console.log(`   Could not read error body: ${bodyError}`)
-        }
 
         // 提供更具体的错误信息和解决建议
         if (response.status === 404) {
@@ -176,9 +119,7 @@ export class GithubCopilotProvider extends BaseLLMProvider {
 1. 您的 GitHub 账户是否有有效的 GitHub Copilot 订阅
 2. OAuth token 权限不足 - 需要 'read:org' 权限访问 Copilot API
 3. 请重新进行 OAuth 登录以获取正确的权限范围
-4. 访问 https://github.com/features/copilot 检查订阅状态
-
-注意：DeepChat 现在需要 'read:user' 和 'read:org' 权限才能访问 GitHub Copilot API。`
+4. 访问 https://github.com/features/copilot 检查订阅状态`
         } else if (response.status === 401) {
           errorMessage = `GitHub OAuth token 无效或已过期 (401)。请重新登录授权并确保获取了正确的权限范围。`
         } else if (response.status === 403) {
@@ -192,31 +133,13 @@ export class GithubCopilotProvider extends BaseLLMProvider {
         throw new Error(errorMessage)
       }
 
-      console.log('✅ [GitHub Copilot] Successfully received response, parsing JSON...')
       const data: CopilotTokenResponse = await response.json()
-
-      console.log('📊 [GitHub Copilot] Token response data:')
-      console.log(`   Token: ${data.token ? data.token.substring(0, 20) + '...' : 'NOT PRESENT'}`)
-      console.log(
-        `   Expires at: ${data.expires_at} (${new Date(data.expires_at * 1000).toISOString()})`
-      )
-      console.log(`   Refresh in: ${data.refresh_in || 'N/A'}`)
-
       this.copilotToken = data.token
       this.tokenExpiresAt = data.expires_at * 1000 // 转换为毫秒
 
-      console.log('💾 [GitHub Copilot] Token cached successfully')
       return this.copilotToken
     } catch (error) {
-      console.error('💥 [GitHub Copilot] Error getting Copilot token:', error)
-      console.error(
-        '   Error type:',
-        error instanceof Error ? error.constructor.name : typeof error
-      )
-      console.error('   Error message:', error instanceof Error ? error.message : error)
-      if (error instanceof Error && error.stack) {
-        console.error('   Stack trace:', error.stack)
-      }
+      console.error('[GitHub Copilot] Error getting Copilot token:', error)
       throw error
     }
   }
@@ -225,20 +148,20 @@ export class GithubCopilotProvider extends BaseLLMProvider {
     // GitHub Copilot 支持的模型列表
     const models: MODEL_META[] = [
       {
-        id: 'gpt-4o',
-        name: 'GPT-4o',
+        id: 'gpt-5',
+        name: 'GPT-5',
         group: 'GitHub Copilot',
         providerId: this.provider.id,
         isCustom: false,
         contextLength: 128000,
-        maxTokens: 4096,
+        maxTokens: 8192,
         vision: true,
         functionCall: true,
         reasoning: false
       },
       {
-        id: 'gpt-4o-mini',
-        name: 'GPT-4o Mini',
+        id: 'gpt-5-mini',
+        name: 'GPT-5 mini',
         group: 'GitHub Copilot',
         providerId: this.provider.id,
         isCustom: false,
@@ -249,36 +172,192 @@ export class GithubCopilotProvider extends BaseLLMProvider {
         reasoning: false
       },
       {
-        id: 'o1-preview',
-        name: 'o1 Preview',
+        id: 'gpt-4.1',
+        name: 'GPT-4.1',
         group: 'GitHub Copilot',
         providerId: this.provider.id,
         isCustom: false,
-        contextLength: 128000,
+        contextLength: 64000,
+        maxTokens: 4096,
+        vision: true,
+        functionCall: true,
+        reasoning: false
+      },
+      // {
+      //   id: 'gpt-5-codex-preview',
+      //   name: 'GPT-5-Codex (Preview)',
+      //   group: 'GitHub Copilot',
+      //   providerId: this.provider.id,
+      //   isCustom: false,
+      //   contextLength: 128000,
+      //   maxTokens: 8192,
+      //   vision: false,
+      //   functionCall: true,
+      //   reasoning: false
+      // },
+      // {
+      //   id: 'grok-code-fast-1-preview',
+      //   name: 'Grok Code Fast 1 (Preview)',
+      //   group: 'GitHub Copilot',
+      //   providerId: this.provider.id,
+      //   isCustom: false,
+      //   contextLength: 64000,
+      //   maxTokens: 4096,
+      //   vision: false,
+      //   functionCall: true,
+      //   reasoning: false
+      // },
+      // {
+      //   id: 'o4-mini-preview',
+      //   name: 'o4-mini (Preview)',
+      //   group: 'GitHub Copilot',
+      //   providerId: this.provider.id,
+      //   isCustom: false,
+      //   contextLength: 128000,
+      //   maxTokens: 65536,
+      //   vision: false,
+      //   functionCall: false,
+      //   reasoning: true
+      // },
+      {
+        id: 'gpt-4o-2024-05-13',
+        name: 'GPT-4o',
+        group: 'GitHub Copilot',
+        providerId: this.provider.id,
+        isCustom: false,
+        contextLength: 64000,
+        maxTokens: 4096,
+        vision: true,
+        functionCall: true,
+        reasoning: false
+      },
+      {
+        id: 'gpt-4',
+        name: 'GPT-4',
+        group: 'GitHub Copilot',
+        providerId: this.provider.id,
+        isCustom: false,
+        contextLength: 32768,
+        maxTokens: 4096,
+        vision: false,
+        functionCall: true,
+        reasoning: false
+      },
+      {
+        id: 'gpt-3.5-turbo',
+        name: 'GPT-3.5 Turbo',
+        group: 'GitHub Copilot',
+        providerId: this.provider.id,
+        isCustom: false,
+        contextLength: 12288,
+        maxTokens: 4096,
+        vision: false,
+        functionCall: true,
+        reasoning: false
+      },
+      {
+        id: 'o1',
+        name: 'o1',
+        group: 'GitHub Copilot',
+        providerId: this.provider.id,
+        isCustom: false,
+        contextLength: 20000,
         maxTokens: 32768,
         vision: false,
         functionCall: false,
         reasoning: true
       },
       {
-        id: 'o1-mini',
-        name: 'o1 Mini',
+        id: 'o3-mini',
+        name: 'o3-mini',
         group: 'GitHub Copilot',
         providerId: this.provider.id,
         isCustom: false,
-        contextLength: 128000,
+        contextLength: 64000,
         maxTokens: 65536,
         vision: false,
         functionCall: false,
         reasoning: true
       },
       {
-        id: 'claude-3-5-sonnet',
-        name: 'Claude 3.5 Sonnet',
+        id: 'claude-sonnet-4',
+        name: 'Claude Sonnet 4',
         group: 'GitHub Copilot',
         providerId: this.provider.id,
         isCustom: false,
         contextLength: 200000,
+        maxTokens: 8192,
+        vision: true,
+        functionCall: true,
+        reasoning: false
+      },
+      {
+        id: 'claude-sonnet-4.5',
+        name: 'Claude Sonnet 4.5',
+        group: 'GitHub Copilot',
+        providerId: this.provider.id,
+        isCustom: false,
+        contextLength: 200000,
+        maxTokens: 8192,
+        vision: true,
+        functionCall: true,
+        reasoning: false
+      },
+      {
+        id: 'claude-3.5-sonnet',
+        name: 'Claude Sonnet 3.5',
+        group: 'GitHub Copilot',
+        providerId: this.provider.id,
+        isCustom: false,
+        contextLength: 200000,
+        maxTokens: 8192,
+        vision: true,
+        functionCall: true,
+        reasoning: false
+      },
+      {
+        id: 'claude-3.7-sonnet',
+        name: 'Claude Sonnet 3.7',
+        group: 'GitHub Copilot',
+        providerId: this.provider.id,
+        isCustom: false,
+        contextLength: 90000,
+        maxTokens: 8192,
+        vision: true,
+        functionCall: true,
+        reasoning: false
+      },
+      {
+        id: 'claude-3.7-sonnet-thought',
+        name: 'Claude Sonnet 3.7 Thinking',
+        group: 'GitHub Copilot',
+        providerId: this.provider.id,
+        isCustom: false,
+        contextLength: 90000,
+        maxTokens: 8192,
+        vision: true,
+        functionCall: true,
+        reasoning: false
+      },
+      {
+        id: 'gemini-2.5-pro',
+        name: 'Gemini 2.5 Pro',
+        group: 'GitHub Copilot',
+        providerId: this.provider.id,
+        isCustom: false,
+        contextLength: 128000,
+        maxTokens: 8192,
+        vision: true,
+        functionCall: true,
+        reasoning: false
+      },
+      {
+        id: 'gemini-2.0-flash-001',
+        name: 'Gemini 2.0 Flash',
+        group: 'GitHub Copilot',
+        providerId: this.provider.id,
+        isCustom: false,
+        contextLength: 128000,
         maxTokens: 8192,
         vision: true,
         functionCall: true,
@@ -301,7 +380,7 @@ export class GithubCopilotProvider extends BaseLLMProvider {
     modelId: string,
     _modelConfig: ModelConfig,
     temperature: number,
-    maxTokens: number,
+    _maxTokens: number,
     tools: MCPToolDefinition[]
   ): AsyncGenerator<LLMCoreStreamEvent, void, unknown> {
     try {
@@ -309,11 +388,12 @@ export class GithubCopilotProvider extends BaseLLMProvider {
       const formattedMessages = this.formatMessages(messages)
 
       const requestBody = {
+        intent: true,
+        n: 1,
+        stream: true,
+        temperature: temperature || 0.7,
         model: modelId,
         messages: formattedMessages,
-        temperature: temperature || 0.7,
-        max_tokens: maxTokens || 4096,
-        stream: true,
         ...(tools && tools.length > 0 && { tools })
       }
 
@@ -322,7 +402,8 @@ export class GithubCopilotProvider extends BaseLLMProvider {
         'Content-Type': 'application/json',
         Accept: 'text/event-stream',
         'User-Agent': 'DeepChat/1.0.0',
-        'X-GitHub-Api-Version': '2022-11-28'
+        'Editor-Version': 'DeepChat/1.0.0',
+        'Copilot-Integration-Id': 'vscode-chat'
       }
 
       const requestOptions: RequestInitWithAgent = {
@@ -341,7 +422,13 @@ export class GithubCopilotProvider extends BaseLLMProvider {
       const response = await fetch(`${this.baseApiUrl}/chat/completions`, requestOptions)
 
       if (!response.ok) {
-        throw new Error(`GitHub Copilot API error: ${response.status} ${response.statusText}`)
+        let errorBody = ''
+        try {
+          errorBody = await response.text()
+        } catch (e) {
+          // ignore
+        }
+        throw new Error(`GitHub Copilot API error: ${response.status} ${response.statusText} - ${errorBody}`)
       }
 
       if (!response.body) {
@@ -426,18 +513,19 @@ export class GithubCopilotProvider extends BaseLLMProvider {
     messages: ChatMessage[],
     modelId: string,
     temperature?: number,
-    maxTokens?: number
+    _maxTokens?: number
   ): Promise<LLMResponse> {
     try {
       const token = await this.getCopilotToken()
       const formattedMessages = this.formatMessages(messages)
 
       const requestBody = {
-        model: modelId,
-        messages: formattedMessages,
+        intent: true,
+        n: 1,
+        stream: false,
         temperature: temperature || 0.7,
-        max_tokens: maxTokens || 4096,
-        stream: false
+        model: modelId,
+        messages: formattedMessages
       }
 
       const headers: Record<string, string> = {
@@ -445,7 +533,8 @@ export class GithubCopilotProvider extends BaseLLMProvider {
         'Content-Type': 'application/json',
         Accept: 'application/json',
         'User-Agent': 'DeepChat/1.0.0',
-        'X-GitHub-Api-Version': '2022-11-28'
+        'Editor-Version': 'DeepChat/1.0.0',
+        'Copilot-Integration-Id': 'vscode-chat'
       }
 
       const requestOptions: RequestInitWithAgent = {
@@ -464,7 +553,13 @@ export class GithubCopilotProvider extends BaseLLMProvider {
       const response = await fetch(`${this.baseApiUrl}/chat/completions`, requestOptions)
 
       if (!response.ok) {
-        throw new Error(`GitHub Copilot API error: ${response.status} ${response.statusText}`)
+        let errorBody = ''
+        try {
+          errorBody = await response.text()
+        } catch (e) {
+          // ignore
+        }
+        throw new Error(`GitHub Copilot API error: ${response.status} ${response.statusText} - ${errorBody}`)
       }
 
       const data = await response.json()
@@ -529,47 +624,40 @@ export class GithubCopilotProvider extends BaseLLMProvider {
   }
 
   async check(): Promise<{ isOk: boolean; errorMsg: string | null }> {
-    console.log('🔍 [GitHub Copilot] Starting provider check...')
-    console.log(`   Provider ID: ${this.provider.id}`)
-    console.log(`   Provider Name: ${this.provider.name}`)
-    console.log(`   Provider Enabled: ${this.provider.enable}`)
-
     try {
       // 检查是否有 API Key
-      console.log('🔑 [GitHub Copilot] Checking API Key...')
       if (!this.provider.apiKey || !this.provider.apiKey.trim()) {
-        console.log('❌ [GitHub Copilot] No API Key found')
         return {
           isOk: false,
           errorMsg: '请先使用 GitHub OAuth 登录以获取访问令牌'
         }
       }
 
-      console.log(`✅ [GitHub Copilot] API Key exists (length: ${this.provider.apiKey.length})`)
-      console.log(`   API Key preview: ${this.provider.apiKey.substring(0, 20)}...`)
-
-      console.log(
-        '🎯 [GitHub Copilot] Attempting to get Copilot token (this will test the connection)...'
-      )
       await this.getCopilotToken()
-
-      console.log('✅ [GitHub Copilot] Provider check successful!')
       return { isOk: true, errorMsg: null }
     } catch (error) {
-      console.log('❌ [GitHub Copilot] Provider check failed!')
-      console.error('   Error details:', error)
-
       let errorMsg = error instanceof Error ? error.message : 'Unknown error'
 
-      // 如果是网络错误，提供更友好的提示
-      if (errorMsg.includes('fetch failed') || errorMsg.includes('network')) {
+      // 分析错误类型并提供更具体的建议
+      if (errorMsg.includes('404')) {
+        errorMsg = `GitHub Copilot 访问被拒绝 (404)。请检查：
+1. 您的 GitHub 账户是否有有效的 GitHub Copilot 订阅
+2. 访问 https://github.com/features/copilot 检查订阅状态
+3. 如果是组织账户，请确保组织已启用 Copilot 并且您有访问权限`
+      } else if (errorMsg.includes('401')) {
+        errorMsg = `GitHub OAuth token 无效或已过期 (401)。请重新登录授权并确保获取了正确的权限范围。`
+      } else if (errorMsg.includes('403')) {
+        errorMsg = `GitHub Copilot 访问被禁止 (403)。请检查：
+1. 您的 GitHub Copilot 订阅是否有效且处于活跃状态
+2. 是否达到了 API 使用限制
+3. OAuth token 是否包含 'read:org' 权限范围
+4. 如果是组织账户，请确保组织已启用 Copilot 并且您有访问权限`
+      } else if (errorMsg.includes('fetch failed') || errorMsg.includes('network')) {
         errorMsg = `网络连接失败。请检查：
 1. 网络连接是否正常
 2. 代理设置是否正确
 3. 防火墙是否阻止了 GitHub API 访问`
       }
-
-      console.log(`   Final error message: ${errorMsg}`)
 
       return {
         isOk: false,

@@ -3,6 +3,7 @@ import { exec } from 'child_process'
 import { presenter } from '@/presenter'
 
 const GITHUB_DEVICE_URL = 'https://github.com/login/device'
+const COPILOT_CHAT_AUTH_URL = 'https://api.github.com/copilot_internal/v2/token'
 
 export interface DeviceFlowConfig {
   clientId: string
@@ -25,12 +26,111 @@ export interface AccessTokenResponse {
   error_description?: string
 }
 
+export interface CopilotTokenResponse {
+  token: string
+  expires_at: number
+  refresh_in?: number
+}
+
+export interface ApiToken {
+  apiKey: string
+  expiresAt: Date
+}
+
+export interface CopilotConfig {
+  oauthToken?: string
+  apiToken?: ApiToken
+}
+
 export class GitHubCopilotDeviceFlow {
   private config: DeviceFlowConfig
   private pollingInterval: NodeJS.Timeout | null = null
+  private oauthToken: string | null = null
+  private apiToken: ApiToken | null = null
 
   constructor(config: DeviceFlowConfig) {
     this.config = config
+  }
+
+
+  /**
+   * 检查是否已认证
+   */
+  public isAuthenticated(): boolean {
+    return this.oauthToken !== null
+  }
+
+  /**
+   * 获取 OAuth token
+   */
+  public getOAuthToken(): string | null {
+    return this.oauthToken
+  }
+
+  /**
+   * 设置 OAuth token（用于从外部配置获取）
+   */
+  public setOAuthToken(token: string): void {
+    this.oauthToken = token
+  }
+
+  /**
+   * 获取或刷新 API token
+   */
+  public async getApiToken(): Promise<string> {
+    if (!this.oauthToken) {
+      throw new Error('No OAuth token available')
+    }
+
+    // 检查缓存的 API token 是否仍然有效
+    if (this.apiToken && this.apiToken.expiresAt > new Date()) {
+      const remainingSeconds = Math.floor((this.apiToken.expiresAt.getTime() - Date.now()) / 1000)
+      if (remainingSeconds > 300) { // 5分钟缓冲时间
+        return this.apiToken.apiKey
+      }
+    }
+
+    // 请求新的 API token
+    const token = await this.requestApiToken(this.oauthToken)
+    
+    this.apiToken = {
+      apiKey: token.token,
+      expiresAt: new Date(token.expires_at * 1000)
+    }
+
+    return token.token
+  }
+
+  /**
+   * 请求 API token，参考 Rust 实现
+   */
+  private async requestApiToken(oauthToken: string): Promise<CopilotTokenResponse> {
+    const response = await fetch(COPILOT_CHAT_AUTH_URL, {
+      method: 'GET',
+      headers: {
+        'Authorization': `token ${oauthToken}`,
+        'Accept': 'application/json',
+        'User-Agent': 'DeepChat/1.0.0'
+      }
+    })
+
+    if (!response.ok) {
+      const errorBody = await response.text().catch(() => '')
+      throw new Error(`Failed to request API token: ${response.status} ${response.statusText} ${errorBody}`)
+    }
+
+    const data = await response.json() as CopilotTokenResponse
+    return data
+  }
+
+  /**
+   * 清理资源
+   */
+  public dispose(): void {
+    if (this.pollingInterval) {
+      clearInterval(this.pollingInterval)
+      this.pollingInterval = null
+    }
   }
 
   /**
@@ -49,8 +149,47 @@ export class GitHubCopilotDeviceFlow {
 
       return accessToken
     } catch (error) {
-      console.error('Failed to start device flow', error)
-      throw new Error('Failed to start device flow')
+      console.error('[GitHub Copilot] Device flow failed:', error)
+      throw new Error(`Device flow authentication failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    }
+  }
+
+  /**
+   * 检查是否已经有有效的认证状态
+   */
+  public async checkExistingAuth(externalToken?: string): Promise<string | null> {
+    try {
+      // 如果提供了外部 token，使用它
+      if (externalToken) {
+        this.oauthToken = externalToken
+        
+        // 尝试获取 API token 来验证认证状态
+        try {
+          await this.getApiToken()
+          return this.oauthToken
+        } catch (error) {
+          this.oauthToken = null
+          this.apiToken = null
+          return null
+        }
+      }
+
+      // 检查内部存储的 token
+      if (this.isAuthenticated()) {
+        // 尝试获取 API token 来验证认证状态
+        try {
+          await this.getApiToken()
+          return this.oauthToken!
+        } catch (error) {
+          this.oauthToken = null
+          this.apiToken = null
+        }
+      }
+      
+      return null
+    } catch (error) {
+      console.warn('[GitHub Copilot][DeviceFlow] Error checking existing auth:', error)
+      return null
     }
   }
 
@@ -64,23 +203,27 @@ export class GitHubCopilotDeviceFlow {
       scope: this.config.scope
     }
 
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        Accept: 'application/json',
-        'Content-Type': 'application/json',
-        'User-Agent': 'DeepChat/1.0.0'
-      },
-      body: JSON.stringify(body)
-    })
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          Accept: 'application/json',
+          'Content-Type': 'application/json',
+          'User-Agent': 'DeepChat/1.0.0'
+        },
+        body: JSON.stringify(body)
+      })
 
-    if (!response.ok) {
-      throw new Error(`Failed to request device code: ${response.status} ${response.statusText}`)
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => '')
+        throw new Error(`Failed to request device code: ${response.status} ${response.statusText} - ${errorText}`)
+      }
+
+      const data = (await response.json()) as DeviceCodeResponse
+      return data
+    } catch (error) {
+      throw error
     }
-
-    const data = (await response.json()) as DeviceCodeResponse
-
-    return data
   }
 
   /**
@@ -364,11 +507,17 @@ export class GitHubCopilotDeviceFlow {
       const startTime = Date.now()
       const expiresAt = startTime + deviceCodeResponse.expires_in * 1000
       let pollCount = 0
+      let currentInterval = deviceCodeResponse.interval
 
       const poll = async () => {
         pollCount++
-        if (pollCount > 50) {
-          reject(new Error('Poll count exceeded'))
+
+        if (pollCount > 100) { // 增加最大轮询次数
+          if (this.pollingInterval) {
+            clearInterval(this.pollingInterval)
+            this.pollingInterval = null
+          }
+          reject(new Error('Maximum polling attempts exceeded'))
           return
         }
 
@@ -410,9 +559,10 @@ export class GitHubCopilotDeviceFlow {
 
               case 'slow_down':
                 // 增加轮询间隔
+                currentInterval = Math.min(currentInterval + 5, 60) // 最大60秒间隔
                 if (this.pollingInterval) {
                   clearInterval(this.pollingInterval)
-                  this.pollingInterval = setInterval(poll, (deviceCodeResponse.interval + 5) * 1000)
+                  this.pollingInterval = setInterval(poll, currentInterval * 1000)
                 }
                 return
 
@@ -421,7 +571,7 @@ export class GitHubCopilotDeviceFlow {
                   clearInterval(this.pollingInterval)
                   this.pollingInterval = null
                 }
-                reject(new Error('Device code expired'))
+                reject(new Error('Device code expired during polling'))
                 return
 
               case 'access_denied':
@@ -429,10 +579,14 @@ export class GitHubCopilotDeviceFlow {
                   clearInterval(this.pollingInterval)
                   this.pollingInterval = null
                 }
-                reject(new Error('User denied access'))
+                reject(new Error('User denied access to GitHub Copilot'))
                 return
 
               default:
+                if (this.pollingInterval) {
+                  clearInterval(this.pollingInterval)
+                  this.pollingInterval = null
+                }
                 reject(new Error(`OAuth error: ${data.error_description || data.error}`))
                 return
             }
@@ -446,13 +600,13 @@ export class GitHubCopilotDeviceFlow {
             resolve(data.access_token)
             return
           }
-        } catch {
-          // ignore
+        } catch (error) {
+          // 继续轮询，网络错误可能是暂时的
         }
       }
 
       // 开始轮询
-      this.pollingInterval = setInterval(poll, deviceCodeResponse.interval * 1000)
+      this.pollingInterval = setInterval(poll, currentInterval * 1000)
 
       // 立即执行第一次轮询
       poll()
@@ -486,5 +640,29 @@ export function createGitHubCopilotDeviceFlow(): GitHubCopilotDeviceFlow {
     scope: 'read:user read:org'
   }
 
+  console.log('[GitHub Copilot][DeviceFlow] Creating device flow with config:', {
+    clientId: clientId.substring(0, 10) + '...',
+    scope: config.scope
+  })
+
   return new GitHubCopilotDeviceFlow(config)
+}
+
+/**
+ * 创建一个全局的 GitHub Copilot Device Flow 实例
+ */
+let globalDeviceFlowInstance: GitHubCopilotDeviceFlow | null = null
+
+export function getGlobalGitHubCopilotDeviceFlow(): GitHubCopilotDeviceFlow {
+  if (!globalDeviceFlowInstance) {
+    globalDeviceFlowInstance = createGitHubCopilotDeviceFlow()
+  }
+  return globalDeviceFlowInstance
+}
+
+export function disposeGlobalGitHubCopilotDeviceFlow(): void {
+  if (globalDeviceFlowInstance) {
+    globalDeviceFlowInstance.dispose()
+    globalDeviceFlowInstance = null
+  }
 }

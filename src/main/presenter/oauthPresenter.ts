@@ -3,7 +3,7 @@ import { presenter } from '.'
 import * as http from 'http'
 import { URL } from 'url'
 import { createGitHubCopilotOAuth } from './githubCopilotOAuth'
-import { createGitHubCopilotDeviceFlow } from './githubCopilotDeviceFlow'
+import { getGlobalGitHubCopilotDeviceFlow } from './githubCopilotDeviceFlow'
 
 export interface OAuthConfig {
   authUrl: string
@@ -43,40 +43,38 @@ export class OAuthPresenter {
    */
   async startGitHubCopilotDeviceFlowLogin(providerId: string): Promise<boolean> {
     try {
-      console.log('Starting GitHub Copilot Device Flow login for provider:', providerId)
+      const githubDeviceFlow = getGlobalGitHubCopilotDeviceFlow()
+      const provider = presenter.configPresenter.getProviderById(providerId)
 
-      // 使用专门的GitHub Copilot Device Flow实现
-      console.log('Creating GitHub Device Flow instance...')
-      const githubDeviceFlow = createGitHubCopilotDeviceFlow()
+      // 首先检查现有认证状态
+      if (provider && provider.apiKey) {
+        const existingToken = await githubDeviceFlow.checkExistingAuth(provider.apiKey)
+        if (existingToken) {
+          return true
+        }
+      }
 
       // 开始Device Flow登录
-      console.log('Starting Device Flow login...')
       const accessToken = await githubDeviceFlow.startDeviceFlow()
-      console.log('Received access token:', accessToken ? 'SUCCESS' : 'FAILED')
 
       // 验证令牌
-      console.log('Validating access token...')
       const isValid = await this.validateGitHubAccessToken(accessToken)
-      console.log('Token validation result:', isValid)
-
       if (!isValid) {
         throw new Error('获取的访问令牌无效')
       }
 
       // 保存访问令牌到provider配置
-      console.log('Saving access token to provider configuration...')
-      const provider = presenter.configPresenter.getProviderById(providerId)
       if (provider) {
         provider.apiKey = accessToken
         presenter.configPresenter.setProviderById(providerId, provider)
-        console.log('Access token saved successfully')
+        console.log('[GitHub Copilot] Device Flow login completed successfully')
       } else {
-        console.warn('Provider not found:', providerId)
+        throw new Error(`Provider ${providerId} not found`)
       }
 
       return true
     } catch (error) {
-      console.error('GitHub Copilot Device Flow login failed:', error)
+      console.error('[GitHub Copilot] Device Flow login failed:', error)
       return false
     }
   }
@@ -86,49 +84,61 @@ export class OAuthPresenter {
    */
   async startGitHubCopilotLogin(providerId: string): Promise<boolean> {
     try {
-      console.log('Starting GitHub Copilot OAuth login for provider:', providerId)
+      console.log('[GitHub Copilot][OAuth] Starting traditional OAuth login for provider:', providerId)
 
       // 使用专门的GitHub Copilot OAuth实现
-      console.log('Creating GitHub OAuth instance...')
+      console.log('[GitHub Copilot][OAuth] Creating GitHub OAuth instance...')
       const githubOAuth = createGitHubCopilotOAuth()
 
       // 开始OAuth登录
-      console.log('Starting OAuth login flow...')
+      console.log('[GitHub Copilot][OAuth] Starting OAuth login flow...')
       const authCode = await githubOAuth.startLogin()
-      console.log('Received auth code:', authCode ? 'SUCCESS' : 'FAILED')
+      console.log('[GitHub Copilot][OAuth] OAuth login completed, auth code received:', authCode ? 'SUCCESS' : 'FAILED')
+
+      if (authCode) {
+        console.log(`[GitHub Copilot][OAuth] Auth code preview: ${authCode.substring(0, 10)}...`)
+      }
 
       // 用授权码交换访问令牌
-      console.log('Exchanging auth code for access token...')
+      console.log('[GitHub Copilot][OAuth] Exchanging auth code for access token...')
       const accessToken = await githubOAuth.exchangeCodeForToken(authCode)
-      console.log('Received access token:', accessToken ? 'SUCCESS' : 'FAILED')
+      console.log('[GitHub Copilot][OAuth] Token exchange completed, access token received:', accessToken ? 'SUCCESS' : 'FAILED')
+
+      if (accessToken) {
+        console.log(`[GitHub Copilot][OAuth] Access token preview: ${accessToken.substring(0, 10)}...`)
+      }
 
       // 验证令牌
-      console.log('Validating access token...')
+      console.log('[GitHub Copilot][OAuth] Validating access token...')
       const isValid = await githubOAuth.validateToken(accessToken)
-      console.log('Token validation result:', isValid)
+      console.log('[GitHub Copilot][OAuth] Token validation result:', isValid)
 
       if (!isValid) {
+        console.error('[GitHub Copilot][OAuth] Token validation failed - token is invalid')
         throw new Error('获取的访问令牌无效')
       }
 
       // 保存访问令牌到provider配置
-      console.log('Saving access token to provider configuration...')
+      console.log('[GitHub Copilot][OAuth] Saving access token to provider configuration...')
       const provider = presenter.configPresenter.getProviderById(providerId)
       if (provider) {
         provider.apiKey = accessToken
         presenter.configPresenter.setProviderById(providerId, provider)
-        console.log('Access token saved successfully')
+        console.log('[GitHub Copilot][OAuth] Access token saved successfully to provider:', providerId)
+        console.log('[GitHub Copilot][OAuth] Traditional OAuth login completed successfully')
       } else {
-        console.warn('Provider not found:', providerId)
+        console.error('[GitHub Copilot][OAuth] Provider not found:', providerId)
+        throw new Error(`Provider ${providerId} not found`)
       }
 
-      console.log('GitHub Copilot OAuth login completed successfully')
       return true
     } catch (error) {
-      console.error('GitHub Copilot OAuth login failed:')
-      console.error('Error type:', error instanceof Error ? error.constructor.name : typeof error)
-      console.error('Error message:', error instanceof Error ? error.message : error)
-      console.error('Error stack:', error instanceof Error ? error.stack : 'No stack trace')
+      console.error('[GitHub Copilot][OAuth][ERROR] Traditional OAuth login failed:')
+      console.error('[GitHub Copilot][OAuth][ERROR] Error type:', error instanceof Error ? error.constructor.name : typeof error)
+      console.error('[GitHub Copilot][OAuth][ERROR] Error message:', error instanceof Error ? error.message : error)
+      if (error instanceof Error && error.stack) {
+        console.error('[GitHub Copilot][OAuth][ERROR] Stack trace:', error.stack)
+      }
       return false
     }
   }
