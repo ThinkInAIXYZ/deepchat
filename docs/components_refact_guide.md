@@ -150,6 +150,84 @@ export function useComponentRefs(items: Ref<Item[]>) {
 
 **优势**：类型安全、自动清理、清晰的 API
 
+### 重复结构的配置化模式
+
+**适用场景**：模板里出现 3 个以上结构相同但数据不同的代码块
+
+**核心思想**：拆分结构与数据，用配置数组 + 循环渲染代替复制粘贴
+
+**识别信号**：
+- 改动只影响变量名、文案或绑定参数
+- 新增同类功能靠复制整段模板
+- 差异能用数据描述（字符串、数值、回调等）
+
+**反模式示例**：
+```vue
+<template>
+  <div class="field">
+    <label>字段 A</label>
+    <input v-model="fieldA" />
+    <span>提示 A</span>
+  </div>
+
+  <div class="field">
+    <label>字段 B</label>
+    <input v-model="fieldB" />
+    <span>提示 B</span>
+  </div>
+</template>
+```
+
+**配置化重构**：
+
+步骤 1：找出不变结构与可变数据
+- 不变：`div.field > label + input + span`
+- 可变：标签文案、绑定的字段、提示信息
+
+步骤 2：收敛状态与配置
+```typescript
+const form = reactive({
+  fieldA: '',
+  fieldB: ''
+})
+
+const fields = [
+  { key: 'fieldA', label: '字段 A', hint: '提示 A' },
+  { key: 'fieldB', label: '字段 B', hint: '提示 B' }
+]
+```
+
+步骤 3：用循环渲染结构
+```vue
+<template>
+  <div v-for="field in fields" :key="field.key" class="field">
+    <label>{{ field.label }}</label>
+    <input v-model="form[field.key]" />
+    <span>{{ field.hint }}</span>
+  </div>
+</template>
+```
+
+**何时抽成子组件**：
+- 区块超过 10 行或含复杂条件
+- 需要跨页面复用
+- 逻辑独立，单独测试更划算
+
+**配置组织方式**：
+- 简单场景：组件内直接声明数组
+- 响应式依赖：用 `computed` 生成
+- 多处使用：提取到 composable（如 `useFieldConfigs`）
+
+**注意事项**：
+- 特殊逻辑可保留单独处理
+- 为配置对象声明类型，保障 IDE 提示
+- 配置驱动不等于无脑统一，保留必要差异
+
+**收益**：
+- 模板体积可降 50%+
+- 新增项只需补配置
+- UI 结构统一，方便国际化、主题、批量校验
+
 ### 状态协调 → Composable
 
 **模式**：需要多个 Store 交互的功能
@@ -309,11 +387,13 @@ export function useFeature(
 
 ### ❌ 避免
 
-1. **过度提取**：不要为了“分层”而将 20 多行的简单逻辑强行拆成 composable
+1. **过度提取**：不要为了"分层"而将 20 多行的简单逻辑强行拆成 composable
 2. **紧耦合**：Composables 不应依赖特定组件结构
 3. **共享可变状态**：对共享响应式状态使用 readonly()
 4. **缺少清理**：始终在 onUnmounted 中清理
 5. **性能倒退**：对滚动/调整大小处理器进行前后测量
+6. **UI 细节丢失**：重构时丢失原有的提示文本、验证信息、辅助说明等 UI 元素
+7. **过度统一**：为了使用配置化模式而牺牲特殊字段的合理需求
 
 ### ✅ 应该做
 
@@ -322,6 +402,8 @@ export function useFeature(
 3. **类型安全**：严格类型，避免 `any`
 4. **文档化复杂逻辑**：为非显而易见的行为添加 JSDoc
 5. **测试 composables**：它们比完整组件更容易测试
+6. **重构前对比检查**：使用 `git diff` 仔细检查所有 UI 变化，确保不丢失原有功能
+7. **渐进式抽象**：先重构主流程，复杂的特殊情况可以保留直接处理
 
 ## 重构活动建议
 
