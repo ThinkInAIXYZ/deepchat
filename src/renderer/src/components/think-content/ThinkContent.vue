@@ -7,11 +7,7 @@
       class="inline-flex items-center gap-[10px] cursor-pointer select-none self-start"
       @click="$emit('toggle')"
     >
-      <span
-        class="whitespace-nowrap"
-        :class="{ 'loading-shimmer': thinking }"
-        :style="shimmerStyle"
-      >
+      <span class="whitespace-nowrap">
         {{ label }}
       </span>
       <Icon
@@ -50,23 +46,19 @@
 
 <script setup lang="ts">
 import { Icon } from '@iconify/vue'
-import { computed, h, type CSSProperties } from 'vue'
+import { h } from 'vue'
 import NodeRenderer, {
   setCustomComponents,
   CodeBlockNode,
   PreCodeNode
 } from 'vue-renderer-markdown'
 
-const props = defineProps<{
+defineProps<{
   label: string
   expanded: boolean
   thinking: boolean
   content?: string
 }>()
-
-const shimmerStyle = computed<CSSProperties | undefined>(() =>
-  props.thinking ? { '--cot-shimmer-duration': '1s' } : undefined
-)
 
 defineEmits<{
   (e: 'toggle'): void
