@@ -50,11 +50,11 @@ As a cross-platform AI assistant application, DeepChat not only supports basic c
 <table align="center">
   <tr>
     <td align="center" style="padding: 10px;">
-      <img src='https://github.com/user-attachments/assets/5df4ed93-e4b5-4430-a1e3-bd9beba79e64' alt="DeepChat Light Mode" width="400"/>
+      <img src='https://github.com/user-attachments/assets/6e932a65-78e0-4d2e-9654-ccc010f78bf7' alt="DeepChat Light Mode" width="400"/>
       <br/>
     </td>
     <td align="center" style="padding: 10px;">
-      <img src='https://github.com/user-attachments/assets/79be4873-f80e-43a9-bfac-e1efb246ea99' alt="DeepChat Dark Mode" width="400"/>
+      <img src='https://github.com/user-attachments/assets/ea6ccf60-32af-4bc1-91cc-e72703bdc1ff' alt="DeepChat Dark Mode" width="400"/>
       <br/>
     </td>
   </tr>

@@ -50,11 +50,11 @@ DeepChat是一个功能强大的开源AI聊天平台，为用户提供与多种�
 <table align="center">
   <tr>
     <td align="center" style="padding: 10px;">
-      <img src='https://github.com/user-attachments/assets/086c4545-6d07-497d-9655-106d00e82ae6' alt="DeepChat Light" width="400"/>
+      <img src='https://github.com/user-attachments/assets/6e932a65-78e0-4d2e-9654-ccc010f78bf7' alt="DeepChat Light Mode" width="400"/>
       <br/>
     </td>
     <td align="center" style="padding: 10px;">
-      <img src='https://github.com/user-attachments/assets/5c3a5e7a-ebe6-4833-8809-9982d8541190' alt="DeepChat Dark" width="400"/>
+      <img src='https://github.com/user-attachments/assets/ea6ccf60-32af-4bc1-91cc-e72703bdc1ff' alt="DeepChat Dark Mode" width="400"/>
       <br/>
     </td>
   </tr>

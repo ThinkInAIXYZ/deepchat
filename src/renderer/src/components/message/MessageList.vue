@@ -389,12 +389,22 @@ const handleCopyImage = async (
 
 const scrollToBottom = (smooth = false) => {
   nextTick(() => {
-    if (scrollAnchor.value) {
-      scrollAnchor.value.scrollIntoView({
-        behavior: smooth ? 'smooth' : 'instant',
-        block: 'end'
-      })
+    const container = messagesContainer.value
+    if (!container) {
+      return
     }
+
+    const targetTop = Math.max(container.scrollHeight - container.clientHeight, 0)
+
+    if (smooth) {
+      container.scrollTo({
+        top: targetTop,
+        behavior: 'smooth'
+      })
+    } else {
+      container.scrollTop = targetTop
+    }
+
     updateScrollInfo()
   })
 }
