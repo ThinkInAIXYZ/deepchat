@@ -26,6 +26,7 @@
             :title="demo.title"
             :description="demo.description"
             :component-name="demo.componentName"
+            :full-width="demo.fullWidth ?? false"
             :demo="demo.render"
           />
         </div>
@@ -52,6 +53,7 @@ import SelectDemo from './playground/demos/SelectDemo.vue'
 import SpinnerDemo from './playground/demos/SpinnerDemo.vue'
 import TabsDemo from './playground/demos/TabsDemo.vue'
 import ThinkContentDemo from './playground/demos/ThinkContentDemo.vue'
+import MessageListDemo from './playground/demos/MessageListDemo.vue'
 
 const sections = computed(() => [
   {
@@ -144,6 +146,14 @@ const sections = computed(() => [
         description: 'Collapsible reasoning block used for model thoughts.',
         componentName: '@/components/think-content',
         render: ThinkContentDemo
+      },
+      {
+        title: 'Message List Simulator',
+        description:
+          'Stream long reasoning output with adjustable typing speed and viewport to study auto-scroll.',
+        componentName: '@/components/message/MessageList.vue',
+        render: MessageListDemo,
+        fullWidth: true
       },
       {
         title: 'Item',

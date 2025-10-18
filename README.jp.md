@@ -50,11 +50,11 @@ DeepChatは、様々な大規模言語モデルと対話するための統一さ
 <table align="center">
   <tr>
     <td align="center" style="padding: 10px;">
-      <img src='https://github.com/user-attachments/assets/49b32cf8-f114-485f-886e-27e4ac273afa' alt="DeepChat ライトモード" width="400"/>
+      <img src='https://github.com/user-attachments/assets/6e932a65-78e0-4d2e-9654-ccc010f78bf7' alt="DeepChat Light Mode" width="400"/>
       <br/>
     </td>
     <td align="center" style="padding: 10px;">
-      <img src='https://github.com/user-attachments/assets/1a540ef5-7598-4476-ab32-36cbad306484' alt="DeepChat ダークモード" width="400"/>
+      <img src='https://github.com/user-attachments/assets/ea6ccf60-32af-4bc1-91cc-e72703bdc1ff' alt="DeepChat Dark Mode" width="400"/>
       <br/>
     </td>
   </tr>

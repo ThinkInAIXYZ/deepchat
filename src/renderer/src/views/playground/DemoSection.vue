@@ -1,5 +1,8 @@
 <template>
-  <section class="rounded-xl border border-border bg-background/80 shadow-sm overflow-hidden">
+  <section
+    class="rounded-xl border border-border bg-background/80 shadow-sm overflow-hidden"
+    :class="fullWidth ? 'md:col-span-2' : ''"
+  >
     <header class="border-b border-border bg-muted/40 px-4 py-3 flex items-center justify-between">
       <div>
         <h3 class="text-base font-semibold leading-none">{{ title }}</h3>
@@ -24,5 +27,6 @@ defineProps<{
   description?: string
   componentName?: string
   demo: any
+  fullWidth?: boolean
 }>()
 </script>

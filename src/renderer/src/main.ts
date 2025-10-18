@@ -9,6 +9,7 @@ import router from './router'
 import { createI18n } from 'vue-i18n'
 import locales from './i18n'
 import 'vue-virtual-scroller/dist/vue-virtual-scroller.css'
+import 'katex/dist/katex.min.css'
 
 const i18n = createI18n({
   locale: 'zh-CN',

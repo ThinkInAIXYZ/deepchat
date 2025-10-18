@@ -32,16 +32,29 @@ export function useMessageScroll() {
 
   const scrollToBottom = (smooth = false) => {
     nextTick(() => {
-      if (scrollAnchor.value) {
-        scrollAnchor.value.scrollIntoView({
-          behavior: smooth ? 'smooth' : 'instant',
-          block: 'end'
-        })
+      const container = messagesContainer.value
+      if (!container) {
+        return
       }
-      updateScrollInfoImmediate()
+
+      const targetTop = Math.max(container.scrollHeight - container.clientHeight, 0)
+
+      if (smooth) {
+        container.scrollTo({
+          top: targetTop,
+          behavior: 'smooth'
+        })
+      } else {
+        container.scrollTop = targetTop
+      }
+
+      updateScrollInfo()
     })
   }
 
+  /**
+   * 滚动到指定消息
+   */
   const scrollToMessage = (messageId: string) => {
     nextTick(() => {
       const messageElement = document.querySelector(`[data-message-id="${messageId}"]`)
@@ -51,13 +64,13 @@ export function useMessageScroll() {
           block: 'start'
         })
 
-        // Add highlight effect
+        // 添加高亮效果
         messageElement.classList.add('message-highlight')
         setTimeout(() => {
           messageElement.classList.remove('message-highlight')
         }, 2000)
       }
-      updateScrollInfoImmediate()
+      updateScrollInfo()
     })
   }
 
