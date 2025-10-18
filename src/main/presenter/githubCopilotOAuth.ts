@@ -131,7 +131,7 @@ export class GitHubCopilotOAuth {
           this.closeWindow()
           reject(new Error(`GitHub authorization failed: ${error}`))
         } else if (code) {
-          console.log('OAuth success, received code:', code)
+          console.log('OAuth success, received authorization code')
           this.closeWindow()
           resolve(code)
         } else {
@@ -266,13 +266,10 @@ export function createGitHubCopilotOAuth(): GitHubCopilotOAuth {
   }
   if (is.dev) {
     console.log('Final OAuth config:', {
-      clientId:
-        config.clientId.substring(0, 4) +
-        '****' +
-        config.clientId.substring(config.clientId.length - 4),
+      clientIdConfigured: !!config.clientId,
       redirectUri: config.redirectUri,
       scope: config.scope,
-      clientSecretLength: config.clientSecret.length
+      clientSecretConfigured: !!config.clientSecret
     })
   }
 

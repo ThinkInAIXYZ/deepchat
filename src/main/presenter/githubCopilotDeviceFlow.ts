@@ -604,7 +604,7 @@ export function createGitHubCopilotDeviceFlow(): GitHubCopilotDeviceFlow {
   }
 
   console.log('[GitHub Copilot][DeviceFlow] Creating device flow with config:', {
-    clientId: clientId.substring(0, 10) + '...',
+    clientIdConfigured: !!clientId,
     scope: config.scope
   })
 

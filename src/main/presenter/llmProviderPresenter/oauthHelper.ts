@@ -102,7 +102,7 @@ export class OAuthHelper {
           eventBus.send(CONFIG_EVENTS.OAUTH_LOGIN_ERROR, SendTarget.ALL_WINDOWS, error)
           reject(new Error(`OAuth授权失败: ${error}`))
         } else if (code) {
-          console.log('OAuth success, received code:', code)
+          console.log('OAuth success, received authorization code')
           eventBus.send(CONFIG_EVENTS.OAUTH_LOGIN_SUCCESS, SendTarget.ALL_WINDOWS, code)
           resolve(code)
         } else {

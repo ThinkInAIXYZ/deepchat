@@ -378,7 +378,7 @@ export class GithubCopilotProvider extends BaseLLMProvider {
       console.log('📤 [GitHub Copilot] Sending stream request:')
       console.log(`   URL: ${this.baseApiUrl}/chat/completions`)
       console.log(`   Model: ${modelId}`)
-      console.log(`   Headers:`, headers)
+      console.log(`   Headers: ${Object.keys(headers).join(', ')}`)
       console.log(`   Request Body:`, JSON.stringify(requestBody, null, 2))
 
       const requestOptions: RequestInitWithAgent = {
@@ -541,7 +541,7 @@ export class GithubCopilotProvider extends BaseLLMProvider {
       console.log('📤 [GitHub Copilot] Sending completion request:')
       console.log(`   URL: ${this.baseApiUrl}/chat/completions`)
       console.log(`   Model: ${modelId}`)
-      console.log(`   Headers:`, headers)
+      console.log(`   Headers: ${Object.keys(headers).join(', ')}`)
       console.log(`   Request Body:`, JSON.stringify(requestBody, null, 2))
 
       const requestOptions: RequestInitWithAgent = {

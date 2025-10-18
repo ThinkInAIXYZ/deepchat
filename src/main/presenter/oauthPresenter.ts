@@ -108,7 +108,7 @@ export class OAuthPresenter {
       )
 
       if (authCode) {
-        console.log(`[GitHub Copilot][OAuth] Auth code preview: ${authCode.substring(0, 10)}...`)
+        console.log('[GitHub Copilot][OAuth] Auth code received successfully')
       }
 
       // 用授权码交换访问令牌
@@ -120,9 +120,7 @@ export class OAuthPresenter {
       )
 
       if (accessToken) {
-        console.log(
-          `[GitHub Copilot][OAuth] Access token preview: ${accessToken.substring(0, 10)}...`
-        )
+        console.log('[GitHub Copilot][OAuth] Access token received successfully')
       }
 
       // Validate token
@@ -412,7 +410,7 @@ export class OAuthPresenter {
       console.error('OAuth server callback error:', error)
       this.callbackReject?.(new Error(`OAuth authorization failed: ${error}`))
     } else if (code) {
-      console.log('OAuth server callback success, received code:', code)
+      console.log('OAuth server callback success, received authorization code')
       this.callbackResolve?.(code)
     }
 
