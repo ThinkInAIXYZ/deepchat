@@ -515,7 +515,8 @@ export class GitHubCopilotDeviceFlow {
                 return // Continue polling
 
               case 'slow_down':
-                // Increase polling interval
+                // Increase polling interval by at least 5 seconds as per OAuth 2.0 spec
+                currentInterval += 5
                 if (this.pollingInterval) {
                   clearInterval(this.pollingInterval)
                   this.pollingInterval = setInterval(poll, currentInterval * 1000)
