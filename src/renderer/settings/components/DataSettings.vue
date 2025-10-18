@@ -67,11 +67,7 @@
         <!-- 导入数据 -->
         <Dialog v-model:open="isImportDialogOpen">
           <DialogTrigger as-child>
-            <Button
-              variant="outline"
-              :disabled="!syncStore.syncEnabled"
-              :dir="languageStore.dir"
-            >
+            <Button variant="outline" :disabled="!syncStore.syncEnabled" :dir="languageStore.dir">
               <Icon icon="lucide:download" class="w-4 h-4 text-muted-foreground" />
               <span class="text-sm font-medium">{{ t('settings.data.importData') }}</span>
             </Button>
@@ -218,7 +214,11 @@
                 : t('settings.data.importErrorTitle')
             }}</AlertDialogTitle>
             <AlertDialogDescription>
-              {{ syncStore.importResult?.message ? t(syncStore.importResult.message, { count: syncStore.importResult.count || 0 }) : '' }}
+              {{
+                syncStore.importResult?.message
+                  ? t(syncStore.importResult.message, { count: syncStore.importResult.count || 0 })
+                  : ''
+              }}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
