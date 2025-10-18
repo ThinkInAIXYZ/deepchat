@@ -40,7 +40,7 @@
   "desktop": "桌面",
   "tablet": "平板",
   "mobile": "手機",
-  "width": "寬度",
+  "responsive": "Responsive",  "width": "寬度",
   "height": "高度",
   "noSvgContent": "沒有可用的SVG內容",
   "sanitizingSvg": "正在淨化SVG內容...",

@@ -40,7 +40,7 @@
   "desktop": "데스크톱",
   "tablet": "태블릿",
   "mobile": "모바일",
-  "width": "너비",
+  "responsive": "Responsive",  "width": "너비",
   "height": "높이",
   "noSvgContent": "사용 가능한 SVG 컨텐츠가 없습니다",
   "sanitizingSvg": "SVG 컨텐츠 정화 ...",

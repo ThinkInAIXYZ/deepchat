@@ -40,6 +40,7 @@
   "desktop": "桌面",
   "tablet": "平板",
   "mobile": "手机",
+  "responsive": "响应式",
   "width": "宽度",
   "height": "高度",
   "sanitizingSvg": "正在净化SVG内容...",

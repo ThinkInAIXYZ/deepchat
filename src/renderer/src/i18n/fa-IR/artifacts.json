@@ -40,7 +40,7 @@
   "desktop": "رایانه رومیزی",
   "tablet": "تبلت",
   "mobile": "موبایل",
-  "width": "عرض",
+  "responsive": "Responsive",  "width": "عرض",
   "height": "ارتفاع",
   "copyImageFailedDesc": "رونویسی تصویر به بریده‌دان انجام نشد",
   "noSvgContent": "بدون محتوای SVG در دسترس نیست",

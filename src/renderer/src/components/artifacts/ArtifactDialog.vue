@@ -23,182 +23,76 @@
         </div>
 
         <div class="flex items-center gap-2">
+          <!-- 设备选择下拉菜单 (仅在HTML预览时显示) -->
+          <DropdownMenu v-if="shouldShowViewportControls">
+            <DropdownMenuTrigger as-child>
+              <Button
+                variant="outline"
+                size="sm"
+                class="h-7 gap-1 text-xs px-2"
+                :title="currentDevice.title"
+              >
+                <Icon :icon="currentDevice.icon" class="w-3.5 h-3.5" />
+                <Icon icon="lucide:chevron-down" class="w-3 h-3 opacity-50" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent class="w-56 z-[70]" align="start">
+              <DropdownMenuItem
+                v-for="device in deviceSizes"
+                :key="device.value"
+                class="flex items-center justify-between cursor-pointer"
+                @click="device.onClick"
+              >
+                <div class="flex items-center gap-2">
+                  <Icon :icon="device.icon" class="w-4 h-4" />
+                  <span>{{ device.title }}</span>
+                </div>
+                <span class="text-xs text-muted-foreground ml-2">{{ device.dimensions }}</span>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
           <!-- 预览/代码切换按钮组 -->
           <div class="bg-border p-0.5 rounded-lg flex items-center">
             <button
+              v-for="mode in viewModes"
+              :key="mode.value"
               class="px-2 py-1 text-xs rounded-md transition-colors"
               :class="
-                isPreview
+                mode.isActive()
                   ? 'bg-background shadow-sm'
                   : 'text-muted-foreground hover:bg-background/50'
               "
-              @click="setPreview(true)"
+              @click="mode.onClick"
             >
-              {{ t('artifacts.preview') }}
+              {{ mode.label }}
             </button>
-            <button
-              class="px-2 py-1 text-xs rounded-md transition-colors"
-              :class="
-                !isPreview
-                  ? 'bg-background shadow-sm'
-                  : 'text-muted-foreground hover:bg-background/50'
-              "
-              @click="setPreview(false)"
-            >
-              {{ t('artifacts.code') }}
-            </button>
-          </div>
-
-          <!-- 设备尺寸切换按钮组 (仅在HTML预览时显示) -->
-          <div
-            v-if="isPreview && artifactStore.currentArtifact?.type === 'text/html'"
-            class="bg-border p-0.5 rounded-lg flex items-center"
-          >
-            <button
-              class="px-2 py-1 text-xs rounded-md transition-colors"
-              :class="
-                viewportSize === 'desktop'
-                  ? 'bg-background shadow-sm'
-                  : 'text-muted-foreground hover:bg-background/50'
-              "
-              @click="setViewportSize('desktop')"
-              :title="t('artifacts.desktop')"
-            >
-              <Icon icon="lucide:monitor" class="w-3 h-3" />
-            </button>
-            <button
-              class="px-2 py-1 text-xs rounded-md transition-colors"
-              :class="
-                viewportSize === 'tablet'
-                  ? 'bg-background shadow-sm'
-                  : 'text-muted-foreground hover:bg-background/50'
-              "
-              @click="setViewportSize('tablet')"
-              :title="t('artifacts.tablet')"
-            >
-              <Icon icon="lucide:tablet" class="w-3 h-3" />
-            </button>
-            <button
-              class="px-2 py-1 text-xs rounded-md transition-colors"
-              :class="
-                viewportSize === 'mobile'
-                  ? 'bg-background shadow-sm'
-                  : 'text-muted-foreground hover:bg-background/50'
-              "
-              @click="setViewportSize('mobile')"
-              :title="t('artifacts.mobile')"
-            >
-              <Icon icon="lucide:smartphone" class="w-3 h-3" />
-            </button>
-          </div>
-
-          <!-- 尺寸微调输入框 (仅在平板和手机模式下显示) -->
-          <div
-            v-if="
-              isPreview &&
-              artifactStore.currentArtifact?.type === 'text/html' &&
-              viewportSize !== 'desktop'
-            "
-            class="flex items-center gap-2 bg-border p-1 rounded-lg"
-          >
-            <span class="text-xs text-muted-foreground whitespace-nowrap"
-              >{{ t('artifacts.width') }}:</span
-            >
-            <input
-              v-if="viewportSize === 'tablet'"
-              v-model.number="tabletWidth"
-              type="number"
-              min="320"
-              max="1200"
-              class="w-16 px-2 py-1 text-xs rounded border-0 bg-background focus:ring-1 focus:ring-blue-500 focus:outline-none text-center"
-            />
-            <input
-              v-else-if="viewportSize === 'mobile'"
-              v-model.number="mobileWidth"
-              type="number"
-              min="320"
-              max="480"
-              class="w-16 px-2 py-1 text-xs rounded border-0 bg-background focus:ring-1 focus:ring-blue-500 focus:outline-none text-center"
-            />
-            <span class="text-xs text-muted-foreground">×</span>
-            <input
-              v-if="viewportSize === 'tablet'"
-              v-model.number="tabletHeight"
-              type="number"
-              min="426"
-              max="1400"
-              class="w-16 px-2 py-1 text-xs rounded border-0 bg-background focus:ring-1 focus:ring-blue-500 focus:outline-none text-center"
-            />
-            <input
-              v-else-if="viewportSize === 'mobile'"
-              v-model.number="mobileHeight"
-              type="number"
-              min="426"
-              max="1000"
-              class="w-16 px-2 py-1 text-xs rounded border-0 bg-background focus:ring-1 focus:ring-blue-500 focus:outline-none text-center"
-            />
-            <span class="text-xs text-muted-foreground">px</span>
           </div>
 
           <!-- 导出按钮 -->
           <div class="flex items-center gap-1">
             <Button
-              v-if="
-                artifactStore.currentArtifact?.type === 'image/svg+xml' ||
-                artifactStore.currentArtifact?.type === 'application/vnd.ant.mermaid'
-              "
+              v-for="action in visibleActions"
+              :key="action.key"
               variant="outline"
               size="sm"
-              :title="t('artifacts.export')"
+              :title="action.title"
               class="text-xs h-7"
-              @click="exportSVG"
+              @click="action.onClick"
             >
-              <Icon icon="lucide:download" class="w-4 h-4" />
-            </Button>
-            <Button
-              v-if="isPreview && artifactStore.currentArtifact?.content"
-              variant="outline"
-              size="sm"
-              class="text-xs h-7"
-              :title="t('artifacts.copy')"
-              @click="copyContent"
-            >
-              <Icon icon="lucide:copy" class="w-4 h-4" />
-            </Button>
-            <Button
-              v-if="
-                isPreview &&
-                artifactStore.currentArtifact?.type !== 'text/html' &&
-                artifactStore.currentArtifact?.type !== 'application/vnd.ant.react'
-              "
-              variant="outline"
-              size="sm"
-              class="text-xs h-7"
-              :title="t('artifacts.copyAsImage')"
-              @click="handleCopyAsImage"
-            >
-              <Icon icon="lucide:image" class="w-4 h-4" />
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              class="text-xs h-7"
-              :title="t('artifacts.export')"
-              @click="exportCode"
-            >
-              <Icon icon="lucide:download" class="w-4 h-4" />
+              <Icon :icon="action.icon" class="w-4 h-4" />
             </Button>
           </div>
         </div>
       </div>
 
       <!-- 内容区域 -->
-      <div class="flex-1 overflow-auto h-0 artifact-scroll-container">
+      <div class="flex-1 overflow-auto h-0 artifact-scroll-container bg-black">
         <template v-if="isPreview">
           <component
             :is="artifactComponent"
             v-if="artifactComponent && artifactStore.currentArtifact"
-            :key="componentKey"
+            :key="context.componentKey.value"
             :block="{
               content: artifactStore.currentArtifact.content,
               artifact: {
@@ -208,18 +102,14 @@
             }"
             :is-preview="isPreview"
             :viewport-size="viewportSize"
-            v-model:tablet-width="tabletWidth"
-            v-model:mobile-width="mobileWidth"
-            v-model:tablet-height="tabletHeight"
-            v-model:mobile-height="mobileHeight"
             class="artifact-dialog-content"
           />
         </template>
         <template v-else>
           <div
-            ref="codeEditor"
-            class="min-h-[30px] max-h-[500px] text-xs overflow-auto bg-background font-mono leading-relaxed"
-            :data-language="codeLanguage"
+            ref="codeEditorRef"
+            class="min-h-[30px] h-full! text-xs overflow-auto bg-background font-mono leading-relaxed"
+            :data-language="codeEditor.codeLanguage.value"
           ></div>
         </template>
       </div>
@@ -228,254 +118,71 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+// === Vue Core ===
+import { computed, onMounted, ref, toRef } from 'vue'
+
+// === Stores ===
 import { useArtifactStore } from '@/stores/artifact'
-import type { ArtifactState } from '@/stores/artifact'
+import { useThemeStore } from '@/stores/theme'
+
+// === Components ===
 import { Icon } from '@iconify/vue'
 import { Button } from '@shadcn/components/ui/button'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger
+} from '@shadcn/components/ui/dropdown-menu'
 import CodeArtifact from './CodeArtifact.vue'
 import MarkdownArtifact from './MarkdownArtifact.vue'
 import HTMLArtifact from './HTMLArtifact.vue'
 import SvgArtifact from './SvgArtifact.vue'
 import MermaidArtifact from './MermaidArtifact.vue'
-import mermaid from 'mermaid'
-import { useI18n } from 'vue-i18n'
 import ReactArtifact from './ReactArtifact.vue'
+
+// === Composables ===
+import { useI18n } from 'vue-i18n'
 import { useToast } from '@/components/use-toast'
 import { usePageCapture } from '@/composables/usePageCapture'
-import { useThemeStore } from '@/stores/theme'
 import { usePresenter } from '@/composables/usePresenter'
-import { useThrottleFn } from '@vueuse/core'
-import { useMonaco, detectLanguage } from 'vue-use-monaco'
+import { useArtifactViewMode } from '@/composables/useArtifactViewMode'
+import { useViewportSize } from '@/composables/useViewportSize'
+import { useArtifactCodeEditor } from '@/composables/useArtifactCodeEditor'
+import { useArtifactExport } from '@/composables/useArtifactExport'
+import { useArtifactContext } from '@/composables/useArtifactContext'
 
+// === Stores ===
 const artifactStore = useArtifactStore()
-const componentKey = ref(0)
-const isPreview = ref(false)
-const userHasSetPreview = ref(false)
-const viewportSize = ref<'desktop' | 'tablet' | 'mobile'>('desktop')
-const tabletWidth = ref(768)
-const mobileWidth = ref(375)
-const tabletHeight = ref(1024) // 4:3 比例
-const mobileHeight = ref(667) // 16:9 比例
-const t = useI18n().t
-const { toast } = useToast()
 const themeStore = useThemeStore()
-const devicePresenter = usePresenter('devicePresenter')
-const appVersion = ref('')
-const sanitizeLanguage = (language: string | undefined | null) => {
-  if (!language) return ''
-  const normalized = language.trim().toLowerCase()
 
-  switch (normalized) {
-    case 'md':
-      return 'markdown'
-    case 'plain':
-    case 'text':
-      return 'plaintext'
-    case 'htm':
-      return 'html'
-    default:
-      return normalized
-  }
-}
-
-const normalizeLanguage = (artifact: ArtifactState | null) => {
-  if (!artifact) return ''
-
-  const explicit = sanitizeLanguage(artifact.language)
-  if (explicit) {
-    return explicit
-  }
-
-  switch (artifact.type) {
-    case 'application/vnd.ant.code':
-      return 'plaintext'
-    case 'text/markdown':
-      return 'markdown'
-    case 'text/html':
-      return 'html'
-    case 'image/svg+xml':
-      return 'svg'
-    case 'application/vnd.ant.mermaid':
-      return 'mermaid'
-    case 'application/vnd.ant.react':
-      return 'jsx'
-    default:
-      return sanitizeLanguage(artifact.type)
-  }
-}
-
-const codeLanguage = ref(normalizeLanguage(artifactStore.currentArtifact))
-const { createEditor, updateCode, cleanupEditor } = useMonaco({
-  MAX_HEIGHT: '500px',
-  wordWrap: 'on',
-  wrappingIndent: 'same'
-})
-const codeEditor = ref<any>(null)
-
-// 创建节流版本的语言检测函数，1秒内最多执行一次
-const throttledDetectLanguage = useThrottleFn(
-  (code: string) => {
-    codeLanguage.value = sanitizeLanguage(detectLanguage(code))
-  },
-  1000,
-  true
-)
-
-const getArtifactContextKey = (artifact: ArtifactState | null) => {
-  if (!artifact) return null
-  if (artifactStore.currentMessageId && artifactStore.currentThreadId) {
-    return `${artifactStore.currentThreadId}:${artifactStore.currentMessageId}:${artifact.id}`
-  }
-  return artifact.id
-}
-
-const activeArtifactContext = ref<string | null>(null)
-
-watch(
-  () => artifactStore.currentArtifact,
-  (newArtifact, prevArtifact) => {
-    componentKey.value++
-
-    if (!newArtifact) {
-      activeArtifactContext.value = null
-      isPreview.value = false
-      userHasSetPreview.value = false
-      return
-    }
-
-    const normalizedLanguage = normalizeLanguage(newArtifact)
-    if (normalizedLanguage !== codeLanguage.value) {
-      codeLanguage.value = normalizedLanguage
-    }
-
-    const newContextKey = getArtifactContextKey(newArtifact)
-    const prevContextKey = getArtifactContextKey(prevArtifact ?? null)
-    const isNewArtifact =
-      newContextKey !== prevContextKey || newContextKey !== activeArtifactContext.value
-
-    if (isNewArtifact) {
-      activeArtifactContext.value = newContextKey
-      userHasSetPreview.value = false
-      isPreview.value = getDefaultPreviewState(newArtifact)
-    }
-
-    if (codeLanguage.value === 'mermaid') {
-      return
-    }
-
-    const newCode = newArtifact.content || ''
-
-    if (!codeLanguage.value) {
-      throttledDetectLanguage(newCode)
-    }
-
-    updateCode(newCode, codeLanguage.value)
-  },
-  {
-    immediate: true,
-    deep: true // Add deep watching to catch property changes
-  }
-)
-
-// Initialize language detection if needed
-if (!codeLanguage.value || codeLanguage.value === '') {
-  throttledDetectLanguage(artifactStore.currentArtifact?.content || '')
-}
-
-watch(
-  () => codeLanguage.value,
-  () => {
-    updateCode(artifactStore.currentArtifact?.content || '', codeLanguage.value)
-  }
-)
-
-// Add a specific watcher for content changes to ensure real-time updates
-watch(
-  () => artifactStore.currentArtifact?.content,
-  (newContent) => {
-    if (newContent !== undefined) {
-      updateCode(newContent, codeLanguage.value)
-    }
-  },
-  {
-    immediate: true
-  }
-)
-
-watch(
-  [() => codeEditor.value, () => isPreview.value, () => artifactStore.isOpen],
-  ([editorEl, previewActive, open]) => {
-    if (!open || previewActive || !editorEl) return
-    void createEditor(editorEl, artifactStore.currentArtifact?.content || '', codeLanguage.value)
-  },
-  {
-    flush: 'post',
-    immediate: true
-  }
-)
-
-watch(
-  () => artifactStore.isOpen,
-  (open) => {
-    if (!open) {
-      cleanupEditor()
-    }
-  }
-)
-
-// 截图相关功能
+// === Composable Integrations ===
+const { t } = useI18n()
+const { toast } = useToast()
 const { captureAndCopy } = usePageCapture()
+const devicePresenter = usePresenter('devicePresenter')
 
-const AUTO_PREVIEW_TYPES = new Set([
-  'image/svg+xml',
-  'application/vnd.ant.mermaid',
-  'application/vnd.ant.react'
-])
+const currentArtifact = toRef(() => artifactStore.currentArtifact)
+const isOpen = toRef(() => artifactStore.isOpen)
 
-const getDefaultPreviewState = (artifact: ArtifactState | null) => {
-  if (!artifact) return false
-  if (artifact.status !== 'loaded') return false
-  return AUTO_PREVIEW_TYPES.has(artifact.type)
-}
-
-const setPreview = (value: boolean) => {
-  userHasSetPreview.value = true
-  isPreview.value = value
-}
-
-const setViewportSize = (size: 'desktop' | 'tablet' | 'mobile') => {
-  viewportSize.value = size
-}
-
-watch(
-  () => artifactStore.currentArtifact?.status,
-  () => {
-    if (!artifactStore.currentArtifact) {
-      isPreview.value = false
-      return
-    }
-
-    if (userHasSetPreview.value) {
-      return
-    }
-
-    isPreview.value = getDefaultPreviewState(artifactStore.currentArtifact)
-  },
-  {
-    immediate: true
-  }
+const { isPreview, setPreview } = useArtifactViewMode(currentArtifact)
+const { viewportSize, setViewportSize, TABLET_WIDTH, TABLET_HEIGHT, MOBILE_WIDTH, MOBILE_HEIGHT } =
+  useViewportSize()
+const context = useArtifactContext(
+  currentArtifact,
+  toRef(() => artifactStore.currentThreadId),
+  toRef(() => artifactStore.currentMessageId)
 )
 
-onMounted(async () => {
-  // 获取应用版本
-  appVersion.value = await devicePresenter.getAppVersion()
-})
+const codeEditorRef = ref<HTMLElement | null>(null)
+const codeEditor = useArtifactCodeEditor(currentArtifact, codeEditorRef, isPreview, isOpen)
 
-onBeforeUnmount(() => {
-  cleanupEditor()
-})
+const artifactExport = useArtifactExport(captureAndCopy)
 
+// === Local State ===
+const appVersion = ref('')
+
+// === Computed ===
 const artifactComponent = computed(() => {
   if (!artifactStore.currentArtifact) return null
   switch (artifactStore.currentArtifact.type) {
@@ -496,131 +203,93 @@ const artifactComponent = computed(() => {
   }
 })
 
-function getFileExtension(type: string) {
-  switch (type) {
-    case 'application/vnd.ant.code':
-      return 'txt'
-    case 'text/markdown':
-      return 'md'
-    case 'text/html':
-      return 'html'
-    case 'image/svg+xml':
-      return 'svg'
-    case 'application/vnd.ant.mermaid':
-      return 'mdm'
-    case 'application/vnd.ant.react':
-      return 'jsx'
-    default:
-      return 'txt'
+const shouldShowViewportControls = computed(() => {
+  return isPreview.value && artifactStore.currentArtifact?.type === 'text/html'
+})
+
+// === Configuration Objects ===
+const viewModes = computed(() => [
+  {
+    value: 'preview',
+    label: t('artifacts.preview'),
+    isActive: () => isPreview.value,
+    onClick: () => setPreview(true)
+  },
+  {
+    value: 'code',
+    label: t('artifacts.code'),
+    isActive: () => !isPreview.value,
+    onClick: () => setPreview(false)
   }
-}
+])
 
-const exportSVG = async () => {
-  if (!artifactStore.currentArtifact?.content) return
+const deviceSizes = computed(() => [
+  {
+    value: 'desktop',
+    icon: 'lucide:monitor',
+    title: t('artifacts.desktop'),
+    dimensions: t('artifacts.responsive'),
+    isActive: () => viewportSize.value === 'desktop',
+    onClick: () => setViewportSize('desktop')
+  },
+  {
+    value: 'tablet',
+    icon: 'lucide:tablet',
+    title: t('artifacts.tablet'),
+    dimensions: `${TABLET_WIDTH}×${TABLET_HEIGHT}`,
+    isActive: () => viewportSize.value === 'tablet',
+    onClick: () => setViewportSize('tablet')
+  },
+  {
+    value: 'mobile',
+    icon: 'lucide:smartphone',
+    title: t('artifacts.mobile'),
+    dimensions: `${MOBILE_WIDTH}×${MOBILE_HEIGHT}`,
+    isActive: () => viewportSize.value === 'mobile',
+    onClick: () => setViewportSize('mobile')
+  }
+])
 
+const currentDevice = computed(() => {
+  return deviceSizes.value.find((d) => d.isActive()) || deviceSizes.value[0]
+})
+
+// === Event Handlers ===
+const handleExportSVG = async () => {
   try {
-    let svgContent = artifactStore.currentArtifact.content
-
-    // 如果是 Mermaid 图表，需要先渲染成 SVG
-    if (artifactStore.currentArtifact.type === 'application/vnd.ant.mermaid') {
-      const { svg } = await mermaid.render('export-diagram', artifactStore.currentArtifact.content)
-      svgContent = svg
-    }
-
-    // 确保 SVG 内容是有效的
-    if (!svgContent.trim().startsWith('<svg')) {
-      throw new Error('Invalid SVG content')
-    }
-
-    const blob = new Blob([svgContent], { type: 'image/svg+xml' })
-    const url = URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.href = url
-    link.download = `${artifactStore.currentArtifact.title || 'artifact'}.svg`
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-    URL.revokeObjectURL(url)
+    await artifactExport.exportSVG(artifactStore.currentArtifact)
   } catch (error) {
-    console.error('Failed to export SVG:', error)
+    console.error('Export SVG failed:', error)
   }
 }
 
-const exportCode = () => {
-  if (artifactStore.currentArtifact?.content) {
-    const extension = getFileExtension(artifactStore.currentArtifact.type)
-    const blob = new Blob([artifactStore.currentArtifact.content], { type: 'text/plain' })
-    const url = URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.href = url
-    link.download = `${artifactStore.currentArtifact.title || 'artifact'}.${extension}`
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-    URL.revokeObjectURL(url)
-  }
+const handleExportCode = () => {
+  artifactExport.exportCode(artifactStore.currentArtifact)
 }
-const copyContent = async () => {
-  if (artifactStore.currentArtifact?.content) {
-    try {
-      await navigator.clipboard.writeText(artifactStore.currentArtifact.content)
-      toast({
-        title: t('artifacts.copySuccess'),
-        description: t('artifacts.copySuccessDesc')
-      })
-    } catch (e) {
-      console.error('复制失败', e)
-      toast({
-        title: t('artifacts.copyFailed'),
-        description: t('artifacts.copyFailedDesc'),
-        variant: 'destructive'
-      })
-    }
+
+const handleCopyContent = async () => {
+  try {
+    await artifactExport.copyContent(artifactStore.currentArtifact)
+    toast({
+      title: t('artifacts.copySuccess'),
+      description: t('artifacts.copySuccessDesc')
+    })
+  } catch (error) {
+    toast({
+      title: t('artifacts.copyFailed'),
+      description: t('artifacts.copyFailedDesc'),
+      variant: 'destructive'
+    })
   }
 }
 
 const handleCopyAsImage = async () => {
-  if (!artifactStore.currentArtifact) return
-
-  // 检查是否是 iframe 类型的 artifact (HTML 或 React)
-  const isIframeArtifact =
-    artifactStore.currentArtifact.type === 'text/html' ||
-    artifactStore.currentArtifact.type === 'application/vnd.ant.react'
-
-  let containerSelector: string
-  let targetSelector: string
-
-  if (isIframeArtifact) {
-    // 对于 iframe 类型，我们使用 iframe 元素作为滚动容器
-    containerSelector = '.html-iframe-wrapper'
-    targetSelector = '.html-iframe-wrapper'
-  } else {
-    // 非 iframe 类型使用默认配置
-    containerSelector = '.artifact-scroll-container'
-    targetSelector = '.artifact-dialog-content'
-  }
-
-  const success = await captureAndCopy({
-    container: containerSelector,
-    getTargetRect: () => {
-      const element = document.querySelector(targetSelector)
-      if (!element) return null
-      const rect = element.getBoundingClientRect()
-      return {
-        x: Math.round(rect.x),
-        y: Math.round(rect.y),
-        width: Math.round(rect.width),
-        height: Math.round(rect.height)
-      }
-    },
-    isHTMLIframe: isIframeArtifact,
-    watermark: {
-      isDark: themeStore.isDark,
-      version: appVersion.value,
-      texts: {
-        brand: 'DeepChat',
-        tip: t('common.watermarkTip')
-      }
+  const success = await artifactExport.copyAsImage(artifactStore.currentArtifact, {
+    isDark: themeStore.isDark,
+    version: appVersion.value,
+    texts: {
+      brand: 'DeepChat',
+      tip: t('common.watermarkTip')
     }
   })
 
@@ -637,13 +306,67 @@ const handleCopyAsImage = async () => {
     })
   }
 }
-</script>
 
-<style>
-.mermaid-artifact {
-  width: 100%;
-  height: 100%;
-  display: flex;
-  flex-direction: column;
+// Action buttons configuration
+interface ActionButton {
+  key: string
+  icon: string
+  title: string
+  onClick: () => void | Promise<void>
+  visible: boolean
 }
-</style>
+
+const actionButtons = computed<ActionButton[]>(() => {
+  const artifact = artifactStore.currentArtifact
+  if (!artifact) return []
+
+  const actions: ActionButton[] = []
+
+  // SVG/Mermaid export button
+  if (artifact.type === 'image/svg+xml' || artifact.type === 'application/vnd.ant.mermaid') {
+    actions.push({
+      key: 'exportSVG',
+      icon: 'lucide:download',
+      title: t('artifacts.export'),
+      onClick: handleExportSVG,
+      visible: true
+    })
+  }
+
+  // Copy content button (text)
+  actions.push({
+    key: 'copyContent',
+    icon: 'lucide:copy',
+    title: t('artifacts.copy'),
+    onClick: handleCopyContent,
+    visible: !!artifact.content
+  })
+
+  // Copy as image button
+  actions.push({
+    key: 'copyAsImage',
+    icon: 'lucide:image',
+    title: t('artifacts.copyAsImage'),
+    onClick: handleCopyAsImage,
+    visible: artifact.type !== 'text/html' && artifact.type !== 'application/vnd.ant.react'
+  })
+
+  // Export code button
+  actions.push({
+    key: 'exportCode',
+    icon: 'lucide:download',
+    title: t('artifacts.export'),
+    onClick: handleExportCode,
+    visible: true
+  })
+
+  return actions
+})
+
+const visibleActions = computed(() => actionButtons.value.filter((action) => action.visible))
+
+// === Lifecycle Hooks ===
+onMounted(async () => {
+  appVersion.value = await devicePresenter.getAppVersion()
+})
+</script>
