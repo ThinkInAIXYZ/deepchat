@@ -335,6 +335,9 @@ const settings = ref({
 
 // === Composable Integrations ===
 
+// Initialize history composable first (needed for editor placeholder)
+const history = useInputHistory(null as any, t)
+
 // Create editor instance (needs to be created before composables that depend on it)
 const editor = new Editor({
   editorProps: {
@@ -382,8 +385,8 @@ const editor = new Editor({
   ]
 })
 
-// Initialize composables
-const history = useInputHistory(editor, t)
+// Set the editor instance in history after editor is created
+history.setEditor(editor)
 const rateLimit = useRateLimitStatus(computed(() => chatStore.chatConfig), t)
 const drag = useDragAndDrop()
 const files = usePromptInputFiles(fileInput, emit, t)

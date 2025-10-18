@@ -40,7 +40,7 @@
   "desktop": "Desktop",
   "tablet": "Tablet",
   "mobile": "Celular",
-  "width": "Largura",
+  "responsive": "Responsive",  "width": "Largura",
   "height": "Altura",
   "sanitizingSvg": "Sanitizando conteúdo SVG...",
   "svgSanitizationFailed": "O conteúdo SVG falhou na validação de segurança",

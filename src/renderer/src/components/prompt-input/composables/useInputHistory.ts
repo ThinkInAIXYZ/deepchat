@@ -11,10 +11,11 @@ import { searchHistory } from '@/lib/searchHistory'
  * Composable for managing input history placeholder and navigation
  * Handles arrow key navigation through previous inputs and placeholder display
  */
-export function useInputHistory(editor: Editor, t: (key: string) => string) {
+export function useInputHistory(editor: Editor | null, t: (key: string) => string) {
   // === Local State ===
   const currentHistoryPlaceholder = ref('')
   const showHistoryPlaceholder = ref(false)
+  let editorInstance: Editor | null = editor
 
   // === Computed ===
   const dynamicPlaceholder = computed(() => {
@@ -29,8 +30,16 @@ export function useInputHistory(editor: Editor, t: (key: string) => string) {
    * Force update TipTap editor's placeholder display
    */
   const updatePlaceholder = () => {
-    const { state } = editor
-    editor.view.updateState(state)
+    if (!editorInstance) return
+    const { state } = editorInstance
+    editorInstance.view.updateState(state)
+  }
+
+  /**
+   * Set editor instance (for delayed initialization)
+   */
+  const setEditor = (newEditor: Editor) => {
+    editorInstance = newEditor
   }
 
   // === Public Methods ===
@@ -83,8 +92,8 @@ export function useInputHistory(editor: Editor, t: (key: string) => string) {
    * Confirm and fill history placeholder content
    */
   const confirmHistoryPlaceholder = () => {
-    if (currentHistoryPlaceholder.value) {
-      editor.commands.setContent(currentHistoryPlaceholder.value)
+    if (currentHistoryPlaceholder.value && editorInstance) {
+      editorInstance.commands.setContent(currentHistoryPlaceholder.value)
       clearHistoryPlaceholder()
       return true
     }
@@ -113,6 +122,7 @@ export function useInputHistory(editor: Editor, t: (key: string) => string) {
     dynamicPlaceholder,
 
     // Methods
+    setEditor,
     setHistoryPlaceholder,
     clearHistoryPlaceholder,
     handleArrowKey,

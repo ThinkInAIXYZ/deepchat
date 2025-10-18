@@ -40,7 +40,7 @@
   "desktop": "Рабочий стол",
   "tablet": "Планшет",
   "mobile": "Мобильный",
-  "width": "Ширина",
+  "responsive": "Responsive",  "width": "Ширина",
   "height": "Высота",
   "copyImageFailedDesc": "Не удалось скопировать изображение в буфер обмена",
   "noSvgContent": "Недоступного контента SVG",

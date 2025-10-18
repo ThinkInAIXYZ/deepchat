@@ -40,7 +40,7 @@
   "desktop": "Bureau",
   "tablet": "Tablette",
   "mobile": "Mobile",
-  "width": "Largeur",
+  "responsive": "Responsive",  "width": "Largeur",
   "height": "Hauteur",
   "copyImageFailedDesc": "Impossible de copier l'image dans le presse-papiers",
   "noSvgContent": "Aucun contenu SVG disponible",

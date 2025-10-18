@@ -8,7 +8,7 @@
 
 ## 概述
 
-本指南基于 MessageList.vue 重构实践的总结，抽象出可推广至 DeepChat 其它复杂 Vue 3 组件的模式与检查项。数字示例仅作参考，重点在于识别信号、选择合适的拆分方式，并兼顾可维护性和性能。
+本指南总结了复杂 Vue 3 组件重构的通用模式与检查项，适用于 DeepChat 及其他 Vue 3 项目。数字示例（如行数、百分比）仅作参考，重点在于识别重构信号、选择合适的拆分方式，并兼顾可维护性和性能。
 
 ## 重构的主要目标
 
@@ -69,6 +69,43 @@ export function useFeatureName(dependencies: Deps) {
 - 可跨视图复用
 - 功能自包含
 
+### 4. 样式处理规范
+
+**重构过程中的样式要求**：
+- 优先使用 Tailwind CSS 工具类直接在模板中编写样式（inline 方式）
+- 充分利用 Tailwind 的响应式、状态变体等功能（如 `hover:`, `dark:`, `md:` 等）
+- 复杂或重复的样式组合可考虑提取为 Tailwind 的 `@apply` 指令
+- 特殊场景（动画关键帧、复杂伪元素等）才使用传统 CSS
+
+**基础写法**（优先使用）：
+```vue
+<div class="flex items-center gap-2 rounded-lg bg-gray-100 p-4 hover:bg-gray-200 dark:bg-gray-800">
+  <span class="text-sm font-medium text-gray-700 dark:text-gray-300">内容</span>
+</div>
+```
+
+**复杂场景**（使用 @apply）：
+```vue
+<template>
+  <div class="custom-card">
+    <span class="card-title">内容</span>
+  </div>
+</template>
+
+<style scoped>
+.custom-card {
+  @apply flex items-center gap-2 rounded-lg bg-gray-100 p-4;
+  @apply hover:bg-gray-200 dark:bg-gray-800;
+}
+
+.card-title {
+  @apply text-sm font-medium text-gray-700 dark:text-gray-300;
+}
+</style>
+```
+
+**优势**：样式可见性高、无命名负担、利用设计系统约束、方便主题适配
+
 ## 架构模式
 
 ### DOM 操作 → Composable
@@ -77,19 +114,24 @@ export function useFeatureName(dependencies: Deps) {
 
 **重构前**：组件中散落的 DOM 查询
 ```typescript
-// MessageList.vue (130 行)
+// ComplexComponent.vue - DOM 操作分散在组件内
 const findElement = () => document.querySelector(...)
-const calculateRect = () => { /* 复杂逻辑 */ }
+const calculateBounds = () => { /* 复杂计算逻辑 */ }
+const handleCapture = () => { /* 截图/导出逻辑 */ }
 ```
 
 **重构后**：封装在专用 Composable 中
 ```typescript
-// useMessageCapture.ts (154 行)
-export function useMessageCapture() {
+// useElementCapture.ts - 集中管理 DOM 操作
+export function useElementCapture() {
   // 所有 DOM 操作逻辑
   // 缓存策略
   // 卸载时清理
-  return { captureMessage, isCapturing }
+  return {
+    capture,      // 执行捕获操作
+    isCapturing,  // 捕获状态
+    reset         // 重置缓存
+  }
 }
 ```
 
@@ -104,11 +146,14 @@ export function useMessageCapture() {
 
 **常见模式**：滚动逻辑 + IntersectionObserver + 自动滚动
 
-**提取为**：`useComponentScroll.ts`
+**提取为**：`useScrollBehavior.ts` 或 `use[Feature]Scroll.ts`
+
+**典型职责**：
 - 滚动位置跟踪（防抖）
-- IntersectionObserver 生命周期
-- 滚动方法
-- 阈值检测
+- IntersectionObserver 生命周期管理
+- 滚动方法（scrollToTop, scrollToBottom, scrollToElement）
+- 阈值检测（是否接近顶部/底部）
+- 滚动状态（isScrolling, direction）
 
 **性能提示**：将滚动更新防抖至 ~60fps (16ms)
 
@@ -230,9 +275,9 @@ const fields = [
 
 ### 状态协调 → Composable
 
-**模式**：需要多个 Store 交互的功能
+**适用场景**：需要协调多个 Store 或跨组件状态同步的复杂交互
 
-**示例**：Minimap 悬停 + Artifact 侧边栏协调
+**示例**：
 ```typescript
 export function useFeatureCoordination(sharedState: Ref<State>) {
   const store1 = useStore1()
@@ -255,7 +300,7 @@ export function useFeatureCoordination(sharedState: Ref<State>) {
 import { ref, computed, onMounted } from 'vue'
 
 // === Types ===
-import type { Message } from '@shared/types'
+import type { Item, Config } from '@shared/types'
 
 // === Components ===
 import ChildComponent from './ChildComponent.vue'
@@ -285,11 +330,11 @@ const feature2 = useFeature2(feature1.sharedState)
 // === Local State ===
 const localRef = ref()
 
+// === Computed ===
+const computedValue = computed(() => {})
+
 // === Event Handlers ===
 const handleEvent = () => {}
-
-// === Computed ===
-const computed = computed(() => {})
 
 // === Lifecycle Hooks ===
 onMounted(() => {})
@@ -361,9 +406,9 @@ return {
 **将共享状态作为类型化参数传递**：
 ```typescript
 export function useFeature(
-  scrollInfo: DeepReadonly<ScrollInfo>
+  sharedState: DeepReadonly<SharedState>
 ) {
-  // 安全使用 scrollInfo
+  // 安全使用 sharedState
 }
 ```
 
@@ -484,12 +529,13 @@ export function useFeature() {
 - 多步骤工作流
 - 大量 DOM 操作
 
-**提取模式**：
-- `useFeatureScroll` - 滚动管理
-- `useFeatureCapture` - 导出/截图
-- `useFeatureState` - 复杂状态机
-- `useFeatureValidation` - 表单验证
-- `useFeaturePolling` - 异步操作
+**典型提取模式**（用实际功能名替换 `[Feature]`）：
+- `use[Feature]Scroll` - 滚动管理（如 `useMessageListScroll`, `useDataTableScroll`）
+- `use[Feature]Capture` - 导出/截图（如 `useScreenCapture`, `useChartExport`）
+- `use[Feature]State` - 复杂状态机（如 `useWorkflowState`, `useFormState`）
+- `use[Feature]Validation` - 表单验证（如 `useFormValidation`, `useInputValidation`）
+- `use[Feature]Polling` - 异步操作（如 `useDataPolling`, `useStatusPolling`）
+- `use[Feature]Interaction` - 交互逻辑（如 `useDragAndDrop`, `useKeyboardNav`）
 
 ## 快速检查清单
 

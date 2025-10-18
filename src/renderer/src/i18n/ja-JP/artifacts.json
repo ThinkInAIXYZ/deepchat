@@ -40,6 +40,7 @@
   "desktop": "デスクトップ",
   "tablet": "タブレット",
   "mobile": "モバイル",
+  "responsive": "レスポンシブ",
   "width": "幅",
   "height": "高さ",
   "copyImageFailedDesc": "画像をコピーできませんでした",
