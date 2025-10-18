@@ -76,8 +76,11 @@ export class GithubCopilotProvider extends BaseLLMProvider {
     if (this.deviceFlow) {
       try {
         return await this.deviceFlow.getCopilotToken()
-      } catch {
-        console.warn('[GitHub Copilot] Device flow failed, using provider API key')
+      } catch (error) {
+        console.warn(
+          '[GitHub Copilot] Device flow failed, falling back to provider API key:',
+          error
+        )
       }
     }
 
@@ -683,14 +686,7 @@ export class GithubCopilotProvider extends BaseLLMProvider {
 
   async check(): Promise<{ isOk: boolean; errorMsg: string | null }> {
     try {
-      // 检查是否有 API Key
-      if (!this.provider.apiKey || !this.provider.apiKey.trim()) {
-        return {
-          isOk: false,
-          errorMsg: '请先使用 GitHub OAuth 登录以获取访问令牌'
-        }
-      }
-
+      // Device flow may be active without apiKey; proceed to token retrieval
       await this.getCopilotToken()
       return { isOk: true, errorMsg: null }
     } catch (error) {
