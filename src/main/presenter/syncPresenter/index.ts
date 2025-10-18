@@ -1,6 +1,7 @@
 import { app, shell } from 'electron'
 import path from 'path'
 import fs from 'fs'
+import Database from 'better-sqlite3-multiple-ciphers'
 import { ISyncPresenter, IConfigPresenter, ISQLitePresenter } from '@shared/presenter'
 import { eventBus, SendTarget } from '@/eventbus'
 import { SYNC_EVENTS } from '@/events'
@@ -121,7 +122,13 @@ export class SyncPresenter implements ISyncPresenter {
    */
   public async importFromSync(
     importMode: ImportMode = ImportMode.INCREMENT
-  ): Promise<{ success: boolean; message: string }> {
+  ): Promise<{ success: boolean; message: string; count?: number }> {
+    // Cancel any pending backup to prevent overwriting the backup files during import
+    if (this.backupTimer) {
+      clearTimeout(this.backupTimer)
+      this.backupTimer = null
+    }
+
     // 检查同步文件夹是否存在
     const { exists, path: syncFolderPath } = await this.checkSyncFolder()
     if (!exists) {
@@ -174,14 +181,24 @@ export class SyncPresenter implements ISyncPresenter {
         this.copyDirectory(this.PROVIDER_MODELS_DIR_PATH, tempProviderModelsPath)
       }
 
+      let importedCount = 0
       try {
+        // Count conversations in backup db first (before any modifications)
+        const backupDb = new Database(dbBackupPath)
+        backupDb.pragma('journal_mode = WAL')
+        const totalInBackup = backupDb
+          .prepare('SELECT COUNT(*) as count FROM conversations')
+          .get() as { count: number }
+        backupDb.close()
+
         if (importMode === ImportMode.OVERWRITE) {
           fs.copyFileSync(dbBackupPath, this.DB_PATH)
+          importedCount = totalInBackup.count
         } else {
           // 使用 DataImporter 导入数据
           const importer = new DataImporter(dbBackupPath, this.DB_PATH)
-          const importedCount = await importer.importData()
-          console.log(`成功导入 ${importedCount} 个会话`)
+          importedCount = await importer.importData()
+          console.log(`成功导入 ${importedCount} 个会话 (备份中共有 ${totalInBackup.count} 个会话)`)
           importer.close()
         }
         // 合并 app-settings.json 文件 (排除同步相关的设置)
@@ -229,7 +246,7 @@ export class SyncPresenter implements ISyncPresenter {
         }
 
         eventBus.send(SYNC_EVENTS.IMPORT_COMPLETED, SendTarget.ALL_WINDOWS)
-        return { success: true, message: 'sync.success.importComplete' }
+        return { success: true, message: 'sync.success.importComplete', count: importedCount }
       } catch (error: unknown) {
         console.error('导入文件失败，恢复备份:', error)
 

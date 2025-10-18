@@ -1,6 +1,6 @@
 {
   "success": {
-    "importComplete": "資料匯入成功，點選「確定」後將重新啟動應用程式"
+    "importComplete": "成功匯入 {count} 個對話，點選「確定」後將重新啟動應用程式"
   },
   "error": {
     "notEnabled": "同步功能未啟用",

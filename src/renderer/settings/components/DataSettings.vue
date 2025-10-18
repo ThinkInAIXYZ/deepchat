@@ -69,7 +69,6 @@
           <DialogTrigger as-child>
             <Button
               variant="outline"
-              @click="syncStore.startBackup"
               :disabled="!syncStore.syncEnabled"
               :dir="languageStore.dir"
             >
@@ -219,7 +218,7 @@
                 : t('settings.data.importErrorTitle')
             }}</AlertDialogTitle>
             <AlertDialogDescription>
-              {{ syncStore.importResult?.message ? t(syncStore.importResult.message) : '' }}
+              {{ syncStore.importResult?.message ? t(syncStore.importResult.message, { count: syncStore.importResult.count || 0 }) : '' }}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
