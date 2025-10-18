@@ -147,7 +147,30 @@ export class GithubCopilotProvider extends BaseLLMProvider {
   }
 
   protected async fetchProviderModels(): Promise<MODEL_META[]> {
-    // GitHub Copilot 支持的模型列表
+    // Try to get models from publicdb first
+    const dbModels = this.configPresenter.getDbProviderModels(this.provider.id)
+    if (dbModels.length > 0) {
+      // Convert RENDERER_MODEL_META to MODEL_META format
+      return dbModels.map((m) => ({
+        id: m.id,
+        name: m.name,
+        group: m.group,
+        providerId: m.providerId,
+        isCustom: m.isCustom,
+        contextLength: m.contextLength,
+        maxTokens: m.maxTokens,
+        vision: m.vision,
+        functionCall: m.functionCall,
+        reasoning: m.reasoning,
+        enableSearch: m.enableSearch
+      }))
+    }
+
+    // Fallback to hardcoded models if publicdb doesn't have copilot models yet
+    console.warn(
+      `[GitHub Copilot] No models found in publicdb for provider ${this.provider.id}, using fallback models`
+    )
+
     const models: MODEL_META[] = [
       {
         id: 'gpt-5',
