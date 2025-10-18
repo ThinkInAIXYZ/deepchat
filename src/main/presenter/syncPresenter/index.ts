@@ -183,22 +183,21 @@ export class SyncPresenter implements ISyncPresenter {
 
       let importedCount = 0
       try {
-        // Count conversations in backup db first (before any modifications)
-        const backupDb = new Database(dbBackupPath)
-        backupDb.pragma('journal_mode = WAL')
-        const totalInBackup = backupDb
-          .prepare('SELECT COUNT(*) as count FROM conversations')
-          .get() as { count: number }
-        backupDb.close()
-
         if (importMode === ImportMode.OVERWRITE) {
+          // For overwrite mode, count conversations from backup db in read-only mode
+          const backupDb = new Database(dbBackupPath, { readonly: true })
+          const result = backupDb.prepare('SELECT COUNT(*) as count FROM conversations').get() as {
+            count: number
+          }
+          importedCount = result.count
+          backupDb.close()
+
           fs.copyFileSync(dbBackupPath, this.DB_PATH)
-          importedCount = totalInBackup.count
         } else {
-          // 使用 DataImporter 导入数据
+          // For incremental mode, DataImporter returns the actual imported count
           const importer = new DataImporter(dbBackupPath, this.DB_PATH)
           importedCount = await importer.importData()
-          console.log(`成功导入 ${importedCount} 个会话 (备份中共有 ${totalInBackup.count} 个会话)`)
+          console.log(`成功导入 ${importedCount} 个会话`)
           importer.close()
         }
         // 合并 app-settings.json 文件 (排除同步相关的设置)
