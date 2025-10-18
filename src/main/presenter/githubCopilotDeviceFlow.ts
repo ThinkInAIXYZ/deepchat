@@ -123,7 +123,7 @@ export class GitHubCopilotDeviceFlow {
         try {
           await this.getCopilotToken()
           return this.oauthToken
-        } catch (error) {
+        } catch {
           this.oauthToken = null
           return null
         }
@@ -135,7 +135,7 @@ export class GitHubCopilotDeviceFlow {
         try {
           await this.getCopilotToken()
           return this.oauthToken!
-        } catch (error) {
+        } catch {
           this.oauthToken = null
         }
       }
@@ -557,8 +557,9 @@ export class GitHubCopilotDeviceFlow {
             resolve(data.access_token)
             return
           }
-        } catch (error) {
-          // 继续轮询，网络错误可能是暂时的
+        } catch {
+          // Continue polling, network errors may be temporary
+          return
         }
       }
 

@@ -107,9 +107,11 @@ export class OAuthPresenter {
         authCode ? 'SUCCESS' : 'FAILED'
       )
 
-      if (authCode) {
-        console.log('[GitHub Copilot][OAuth] Auth code received successfully')
+      if (!authCode) {
+        throw new Error('Failed to obtain authorization code')
       }
+
+      console.log('[GitHub Copilot][OAuth] Auth code received successfully')
 
       // 用授权码交换访问令牌
       console.log('[GitHub Copilot][OAuth] Exchanging auth code for access token...')

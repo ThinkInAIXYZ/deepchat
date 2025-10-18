@@ -76,7 +76,7 @@ export class GithubCopilotProvider extends BaseLLMProvider {
     if (this.deviceFlow) {
       try {
         return await this.deviceFlow.getCopilotToken()
-      } catch (error) {
+      } catch {
         console.warn('[GitHub Copilot] Device flow failed, using provider API key')
       }
     }
@@ -404,7 +404,7 @@ export class GithubCopilotProvider extends BaseLLMProvider {
         let errorBody = ''
         try {
           errorBody = await response.text()
-        } catch (e) {
+        } catch {
           // ignore
         }
 
@@ -567,7 +567,7 @@ export class GithubCopilotProvider extends BaseLLMProvider {
         let errorBody = ''
         try {
           errorBody = await response.text()
-        } catch (e) {
+        } catch {
           // ignore
         }
 
