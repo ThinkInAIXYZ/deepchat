@@ -1531,8 +1531,17 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
           return { isOk: false, errorMsg: `Model test failed: ${errorMessage}` }
         }
       } else {
-        // 如果没有提供modelId，使用provider的check方法进行基础验证
-        return await provider.check()
+        // 如果没有提供modelId，使用provider自己的check方法进行基本验证
+        console.log(
+          `[LLMProviderPresenter] No modelId provided, using provider's own check method for ${providerId}`
+        )
+        try {
+          return await provider.check()
+        } catch (error) {
+          console.error(`Provider ${providerId} check failed:`, error)
+          const errorMessage = error instanceof Error ? error.message : String(error)
+          return { isOk: false, errorMsg: `Provider check failed: ${errorMessage}` }
+        }
       }
     } catch (error) {
       console.error(`Provider ${providerId} check failed:`, error)
