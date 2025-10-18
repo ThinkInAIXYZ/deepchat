@@ -402,7 +402,9 @@ export class GithubCopilotProvider extends BaseLLMProvider {
       console.log(`   URL: ${this.baseApiUrl}/chat/completions`)
       console.log(`   Model: ${modelId}`)
       console.log(`   Headers: ${Object.keys(headers).join(', ')}`)
-      console.log(`   Request Body:`, JSON.stringify(requestBody, null, 2))
+      console.log(
+        `   Request Body: { messages: ${formattedMessages.length}, model: "${modelId}", temperature: ${temperature}, max_tokens: ${_maxTokens} }`
+      )
 
       const requestOptions: RequestInitWithAgent = {
         method: 'POST',
@@ -565,7 +567,9 @@ export class GithubCopilotProvider extends BaseLLMProvider {
       console.log(`   URL: ${this.baseApiUrl}/chat/completions`)
       console.log(`   Model: ${modelId}`)
       console.log(`   Headers: ${Object.keys(headers).join(', ')}`)
-      console.log(`   Request Body:`, JSON.stringify(requestBody, null, 2))
+      console.log(
+        `   Request Body: { messages: ${formattedMessages.length}, model: "${modelId}", temperature: ${temperature}, max_tokens: ${_maxTokens} }`
+      )
 
       const requestOptions: RequestInitWithAgent = {
         method: 'POST',
