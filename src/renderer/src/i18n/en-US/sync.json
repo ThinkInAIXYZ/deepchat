@@ -1,6 +1,6 @@
 {
   "success": {
-    "importComplete": "Import complete. The application will now restart."
+    "importComplete": "Successfully imported {count} conversation(s). The application will now restart."
   },
   "error": {
     "notEnabled": "Sync is not enabled",

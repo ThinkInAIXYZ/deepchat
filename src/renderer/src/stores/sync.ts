@@ -10,7 +10,7 @@ export const useSyncStore = defineStore('sync', () => {
   const lastSyncTime = ref(0)
   const isBackingUp = ref(false)
   const isImporting = ref(false)
-  const importResult = ref<{ success: boolean; message: string } | null>(null)
+  const importResult = ref<{ success: boolean; message: string; count?: number } | null>(null)
 
   // 获取 presenter 实例
   const configPresenter = usePresenter('configPresenter')

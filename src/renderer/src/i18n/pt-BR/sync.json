@@ -1,6 +1,6 @@
 {
   "success": {
-    "importComplete": "Importação concluída. O aplicativo será reiniciado agora."
+    "importComplete": "{count} conversa(s) importada(s) com sucesso. O aplicativo será reiniciado agora."
   },
   "error": {
     "notEnabled": "A sincronização não está ativada",

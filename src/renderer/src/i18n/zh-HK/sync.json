@@ -1,6 +1,6 @@
 {
   "success": {
-    "importComplete": "數據導入成功，點擊確定後將重新啟動應用"
+    "importComplete": "成功導入 {count} 個對話，點擊確定後將重新啟動應用"
   },
   "error": {
     "notEnabled": "同步功能未啟用",
