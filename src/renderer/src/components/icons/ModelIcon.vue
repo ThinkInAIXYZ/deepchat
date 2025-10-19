@@ -44,6 +44,7 @@ import ppioColorIcon from '@/assets/llm-icons/ppio-color.svg?url'
 import tokenfluxColorIcon from '@/assets/llm-icons/tokenflux-color.svg?url'
 import moonshotColorIcon from '@/assets/llm-icons/moonshot.svg?url'
 import openrouterColorIcon from '@/assets/llm-icons/openrouter.svg?url'
+import poeColorIcon from '@/assets/llm-icons/poe-color.svg?url'
 import geminiColorIcon from '@/assets/llm-icons/gemini-color.svg?url'
 import githubColorIcon from '@/assets/llm-icons/github.svg?url'
 import azureOpenaiColorIcon from '@/assets/llm-icons/azure-color.svg?url'
@@ -119,6 +120,7 @@ const icons = {
   qwen: qwenColorIcon,
   moonshot: moonshotColorIcon,
   openrouter: openrouterColorIcon,
+  poe: poeColorIcon,
   gemini: geminiColorIcon,
   github: githubColorIcon,
   anthropic: claudeColorIcon,
