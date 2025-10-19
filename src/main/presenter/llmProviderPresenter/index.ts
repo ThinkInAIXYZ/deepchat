@@ -47,6 +47,7 @@ import { AihubmixProvider } from './providers/aihubmixProvider'
 import { _302AIProvider } from './providers/_302AIProvider'
 import { ModelscopeProvider } from './providers/modelscopeProvider'
 import { VercelAIGatewayProvider } from './providers/vercelAIGatewayProvider'
+import { PoeProvider } from './providers/poeProvider'
 
 // Rate limit configuration interface
 interface RateLimitConfig {
@@ -212,6 +213,8 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
           return new GroqProvider(provider, this.configPresenter)
         case 'vercel-ai-gateway':
           return new VercelAIGatewayProvider(provider, this.configPresenter)
+        case 'poe':
+          return new PoeProvider(provider, this.configPresenter)
         case 'aws-bedrock':
           return new AwsBedrockProvider(provider, this.configPresenter)
         default:
@@ -264,6 +267,8 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
           return new GrokProvider(provider, this.configPresenter)
         case 'vercel-ai-gateway':
           return new VercelAIGatewayProvider(provider, this.configPresenter)
+        case 'poe':
+          return new PoeProvider(provider, this.configPresenter)
         case 'aws-bedrock':
           return new AwsBedrockProvider(provider, this.configPresenter)
         default:

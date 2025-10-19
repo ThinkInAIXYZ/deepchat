@@ -200,6 +200,21 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
     }
   },
   {
+    id: 'poe',
+    name: 'Poe',
+    apiType: 'poe',
+    apiKey: '',
+    baseUrl: 'https://api.poe.com/v1',
+    enable: false,
+    websites: {
+      official: 'https://poe.com/',
+      apiKey: 'https://poe.com/api_key',
+      docs: 'https://creator.poe.com/docs/external-applications/openai-compatible-api',
+      models: 'https://api.poe.com/v1/models',
+      defaultBaseUrl: 'https://api.poe.com/v1'
+    }
+  },
+  {
     id: '302ai',
     name: '302.AI',
     apiType: 'openai',
