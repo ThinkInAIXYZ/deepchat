@@ -1289,6 +1289,12 @@ export class WindowPresenter implements IWindowPresenter {
     this.settingsWindow = settingsWindow
     const windowId = settingsWindow.id
 
+    // Ensure links with target="_blank" open in the user's default browser
+    settingsWindow.webContents.setWindowOpenHandler(({ url }) => {
+      shell.openExternal(url)
+      return { action: 'deny' }
+    })
+
     // Apply content protection settings
     const contentProtectionEnabled = this.configPresenter.getContentProtectionEnabled()
     this.updateContentProtection(settingsWindow, contentProtectionEnabled)
