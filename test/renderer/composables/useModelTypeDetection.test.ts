@@ -10,9 +10,11 @@ vi.mock('@/stores/settings', () => ({
 
 describe('useModelTypeDetection', () => {
   it('detects provider/model type and loads reasoning flag', async () => {
-    const modelId = ref<string|undefined>('gpt-5-pro')
-    const providerId = ref<string|undefined>('gemini')
-    const modelType = ref<'chat'|'imageGeneration'|'embedding'|'rerank'|undefined>('imageGeneration')
+    const modelId = ref<string | undefined>('gpt-5-pro')
+    const providerId = ref<string | undefined>('gemini')
+    const modelType = ref<'chat' | 'imageGeneration' | 'embedding' | 'rerank' | undefined>(
+      'imageGeneration'
+    )
 
     const api = useModelTypeDetection({ modelId, providerId, modelType })
     expect(api.isImageGenerationModel.value).toBe(true)

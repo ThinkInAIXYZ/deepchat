@@ -140,12 +140,15 @@ describe('LLMProviderPresenter Integration Tests', () => {
     llmProviderPresenter = new LLMProviderPresenter(mockConfigPresenter)
   })
 
-  afterEach(() => {
+  afterEach(async () => {
     // Stop all active streams after each test
     const activeStreams = (llmProviderPresenter as any).activeStreams as Map<string, any>
     for (const [eventId] of activeStreams) {
-      llmProviderPresenter.stopStream(eventId)
+      await llmProviderPresenter.stopStream(eventId)
     }
+
+    // Wait for any pending async operations to complete
+    await new Promise((resolve) => setTimeout(resolve, 100))
   })
 
   describe('Basic Provider Management', () => {
@@ -512,9 +515,36 @@ describe('LLMProviderPresenter Integration Tests', () => {
         enable: true
       }
 
-      llmProviderPresenter.setProviders([invalidProvider])
+      // 创建一个新的 LLMProviderPresenter 实例来测试无效配置
+      // 避免污染其他测试的 provider 状态
+      const invalidMockConfig = {
+        getProviders: vi.fn().mockReturnValue([invalidProvider]),
+        getProviderById: vi.fn().mockReturnValue(invalidProvider),
+        getModelConfig: vi.fn().mockReturnValue({
+          maxTokens: 4096,
+          contextLength: 4096,
+          temperature: 0.7,
+          vision: false,
+          functionCall: false,
+          reasoning: false,
+          type: 'chat'
+        }),
+        getSetting: vi.fn(),
+        setModelStatus: vi.fn(),
+        updateCustomModel: vi.fn(),
+        setProviderModels: vi.fn(),
+        getCustomModels: vi.fn().mockReturnValue([]),
+        getProviderModels: vi.fn().mockReturnValue([]),
+        getModelStatus: vi.fn().mockReturnValue(true),
+        enableModel: vi.fn(),
+        setCustomModels: vi.fn(),
+        addCustomModel: vi.fn(),
+        removeCustomModel: vi.fn()
+      } as unknown as ConfigPresenter
 
-      const result = await llmProviderPresenter.check('invalid-test')
+      const invalidLlmProvider = new LLMProviderPresenter(invalidMockConfig)
+
+      const result = await invalidLlmProvider.check('invalid-test')
       expect(result.isOk).toBe(false)
       expect(result.errorMsg).toBeDefined()
     }, 10000)

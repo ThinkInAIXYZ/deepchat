@@ -3,8 +3,12 @@ import { useMessageScroll } from '@/composables/message/useMessageScroll'
 
 class IO {
   cb: any
-  constructor(cb: any) { this.cb = cb }
-  observe() { this.cb([{ isIntersecting: false }]) }
+  constructor(cb: any) {
+    this.cb = cb
+  }
+  observe() {
+    this.cb([{ isIntersecting: false }])
+  }
   unobserve() {}
   disconnect() {}
 }
@@ -21,8 +25,12 @@ describe('useMessageScroll', () => {
     Object.defineProperty(container, 'clientHeight', { value: 500 })
     Object.defineProperty(container, 'scrollHeight', { value: 2000, configurable: true })
     Object.defineProperty(container, 'scrollTop', {
-      get() { return this._st || 0 },
-      set(v) { this._st = v }
+      get() {
+        return this._st || 0
+      },
+      set(v) {
+        this._st = v
+      }
     })
 
     api.messagesContainer.value = container as any
@@ -38,7 +46,11 @@ describe('useMessageScroll', () => {
 
     // add a target to scroll to
     const msg = document.createElement('div')
-    msg.setAttribute('data-message-id','m-1')
+    msg.setAttribute('data-message-id', 'm-1')
+
+    // Mock scrollIntoView method
+    msg.scrollIntoView = () => {}
+
     document.body.appendChild(msg)
     api.scrollToMessage('m-1')
     await Promise.resolve()

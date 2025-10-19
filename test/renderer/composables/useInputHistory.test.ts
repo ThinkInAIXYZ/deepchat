@@ -1,26 +1,44 @@
 import { describe, it, expect, vi } from 'vitest'
-import { useInputHistory } from '@/components/prompt-input/composables/useInputHistory'
+import { useInputHistory } from '@/components/chat-input/composables/useInputHistory'
 
 // mock search history module with a simple ring buffer
-let entries = ['alpha','beta','gamma']
+let entries = ['alpha', 'beta', 'gamma']
 let idx = entries.length
 vi.mock('@/lib/searchHistory', () => ({
   searchHistory: {
-    addSearch: (v: string) => { entries.push(v); idx = entries.length },
-    resetIndex: () => { idx = entries.length },
-    getPrevious: () => { if (idx>0) { idx--; return entries[idx] } return null },
-    getNext: () => { if (idx<entries.length-1) { idx++; return entries[idx] } return null }
+    addSearch: (v: string) => {
+      entries.push(v)
+      idx = entries.length
+    },
+    resetIndex: () => {
+      idx = entries.length
+    },
+    getPrevious: () => {
+      if (idx > 0) {
+        idx--
+        return entries[idx]
+      }
+      return null
+    },
+    getNext: () => {
+      if (idx < entries.length - 1) {
+        idx++
+        return entries[idx]
+      }
+      return null
+    }
   }
 }))
 
-const fakeEditor = () => ({
-  commands: {
-    setContent: vi.fn()
-  },
-  view: {
-    updateState: vi.fn()
-  }
-}) as any
+const fakeEditor = () =>
+  ({
+    commands: {
+      setContent: vi.fn()
+    },
+    view: {
+      updateState: vi.fn()
+    }
+  }) as any
 
 describe('useInputHistory', () => {
   it('manages placeholder and confirms fill', () => {
@@ -42,12 +60,12 @@ describe('useInputHistory', () => {
     const ed = fakeEditor()
     const api = useInputHistory(ed, t)
 
-    let handled = api.handleArrowKey('up','')
+    let handled = api.handleArrowKey('up', '')
     expect(handled).toBe(true)
-    handled = api.handleArrowKey('down','')
+    handled = api.handleArrowKey('down', '')
     expect(handled).toBe(true)
 
     // content not empty -> do nothing
-    expect(api.handleArrowKey('up','has text')).toBe(false)
+    expect(api.handleArrowKey('up', 'has text')).toBe(false)
   })
 })

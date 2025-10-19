@@ -3,7 +3,7 @@ import type { Ref } from 'vue'
 import type { ArtifactState } from '@/stores/artifact'
 
 // === Vue Core ===
-import { ref, watch } from 'vue'
+import { ref, computed, watch } from 'vue'
 
 /**
  * Generate context key for artifact tracking
@@ -37,38 +37,26 @@ export function useArtifactContext(
   messageId: Ref<string | null>
 ) {
   // === Local State ===
-  const activeArtifactContext = ref<string | null>(null)
   const componentKey = ref(0)
 
-  // === Lifecycle Hooks ===
-  // Watch artifact changes to update context and detect new artifacts
-  watch(
-    artifact,
-    (newArtifact, prevArtifact) => {
-      // Increment component key to force re-render
-      componentKey.value++
+  // Computed context key that automatically updates when any dependency changes
+  const activeArtifactContext = computed(() =>
+    getArtifactContextKey(artifact.value, threadId.value, messageId.value)
+  )
 
-      if (!newArtifact) {
-        activeArtifactContext.value = null
+  // === Lifecycle Hooks ===
+  // Watch context changes to increment component key for re-rendering
+  let isFirstRun = true
+  watch(
+    activeArtifactContext,
+    () => {
+      if (isFirstRun) {
+        isFirstRun = false
         return
       }
-
-      const newContextKey = getArtifactContextKey(newArtifact, threadId.value, messageId.value)
-      const prevContextKey = getArtifactContextKey(
-        prevArtifact ?? null,
-        threadId.value,
-        messageId.value
-      )
-
-      // Check if this is a new artifact (different context)
-      const isNewArtifact =
-        newContextKey !== prevContextKey || newContextKey !== activeArtifactContext.value
-
-      if (isNewArtifact) {
-        activeArtifactContext.value = newContextKey
-      }
+      componentKey.value++
     },
-    { immediate: true }
+    { immediate: true, flush: 'sync' } // Sync to ensure componentKey updates immediately
   )
 
   // === Return API ===

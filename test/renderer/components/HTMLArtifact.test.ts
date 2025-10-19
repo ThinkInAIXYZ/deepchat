@@ -6,7 +6,10 @@ describe('HTMLArtifact', () => {
   it('applies correct classes and styles for mobile viewport', () => {
     const wrapper = mount(HTMLArtifact, {
       props: {
-        block: { content: '<html><body>Hello</body></html>', artifact: { type: 'text/html', title: 'doc' } },
+        block: {
+          content: '<html><body>Hello</body></html>',
+          artifact: { type: 'text/html', title: 'doc' }
+        },
         isPreview: true,
         viewportSize: 'mobile'
       },

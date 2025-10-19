@@ -26,6 +26,7 @@ export function useArtifactViewMode(artifact: Ref<ArtifactState | null>) {
   // === Local State ===
   const isPreview = ref(false)
   const userHasSetPreview = ref(false)
+  let lastArtifactId: string | null = null
 
   // === Internal Helpers ===
   /**
@@ -52,44 +53,35 @@ export function useArtifactViewMode(artifact: Ref<ArtifactState | null>) {
   const reset = () => {
     isPreview.value = false
     userHasSetPreview.value = false
+    lastArtifactId = null
   }
 
   // === Lifecycle Hooks ===
-  // Watch artifact changes to reset or update preview state
+  // Watch artifact and status changes to manage preview state
+  // Use 'sync' flush to ensure immediate updates for testing
   watch(
-    artifact,
-    (newArtifact, prevArtifact) => {
+    () => [artifact.value, artifact.value?.status] as const,
+    ([newArtifact]) => {
       if (!newArtifact) {
         reset()
         return
       }
 
-      // Only reset user preference if it's a different artifact
-      const isNewArtifact = !prevArtifact || newArtifact.id !== prevArtifact.id
+      // Check if this is a different artifact
+      const isNewArtifact = lastArtifactId !== newArtifact.id
+
       if (isNewArtifact) {
+        // New artifact: reset user preference and update last ID
+        lastArtifactId = newArtifact.id
         userHasSetPreview.value = false
         isPreview.value = getDefaultPreviewState(newArtifact)
+      } else if (!userHasSetPreview.value) {
+        // Same artifact, but user hasn't set preference: update based on status
+        isPreview.value = getDefaultPreviewState(newArtifact)
       }
+      // If user has set preference and it's the same artifact, keep their preference
     },
-    { immediate: true }
-  )
-
-  // Watch status changes to update preview mode if user hasn't set preference
-  watch(
-    () => artifact.value?.status,
-    () => {
-      if (!artifact.value) {
-        isPreview.value = false
-        return
-      }
-
-      if (userHasSetPreview.value) {
-        return
-      }
-
-      isPreview.value = getDefaultPreviewState(artifact.value)
-    },
-    { immediate: true }
+    { immediate: true, flush: 'sync' }
   )
 
   // === Return API ===

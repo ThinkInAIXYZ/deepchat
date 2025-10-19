@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { useDragAndDrop } from '@/components/prompt-input/composables/useDragAndDrop'
+import { useDragAndDrop } from '@/components/chat-input/composables/useDragAndDrop'
 
 describe('useDragAndDrop', () => {
   it('tracks drag state with proper counters and timers', () => {

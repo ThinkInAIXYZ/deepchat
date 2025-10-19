@@ -82,6 +82,14 @@ export function useInputHistory(editor: Editor | null, t: (key: string) => strin
       if (nextSearch !== null) {
         setHistoryPlaceholder(nextSearch)
         return true
+      } else {
+        // At the end of history, clear placeholder and reset index to end
+        // so that next up arrow starts from the latest entry
+        currentHistoryPlaceholder.value = ''
+        showHistoryPlaceholder.value = false
+        updatePlaceholder()
+        searchHistory.resetIndex()
+        return true
       }
     }
 

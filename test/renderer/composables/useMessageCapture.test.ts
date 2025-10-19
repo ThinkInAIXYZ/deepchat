@@ -18,6 +18,11 @@ vi.mock('@/composables/usePresenter', () => ({
 vi.mock('vue-i18n', () => ({
   useI18n: () => ({ t: (k: string) => k })
 }))
+vi.mock('@/stores/theme', () => ({
+  useThemeStore: () => ({
+    isDark: false
+  })
+}))
 
 describe('useMessageCapture', () => {
   beforeEach(() => {
@@ -32,9 +37,9 @@ describe('useMessageCapture', () => {
 
     // prepare elements
     const user = document.createElement('div')
-    user.setAttribute('data-message-id','u1')
+    user.setAttribute('data-message-id', 'u1')
     const asst = document.createElement('div')
-    asst.setAttribute('data-message-id','a1')
+    asst.setAttribute('data-message-id', 'a1')
     document.body.appendChild(user)
     document.body.appendChild(asst)
 
@@ -52,9 +57,9 @@ describe('useMessageCapture', () => {
   it('captures from top to current', async () => {
     const api = useMessageCapture()
     const first = document.createElement('div')
-    first.setAttribute('data-message-id','x-first')
+    first.setAttribute('data-message-id', 'x-first')
     const current = document.createElement('div')
-    current.setAttribute('data-message-id','x-current')
+    current.setAttribute('data-message-id', 'x-current')
     document.body.appendChild(first)
     document.body.appendChild(current)
 

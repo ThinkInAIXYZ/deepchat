@@ -322,7 +322,6 @@ import { Mention } from '../editor/mention/mention'
 import suggestion, { setPromptFilesHandler } from '../editor/mention/suggestion'
 import { mentionData } from '../editor/mention/suggestion'
 
-
 // === Props & Emits ===
 const props = withDefaults(
   defineProps<{

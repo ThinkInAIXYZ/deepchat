@@ -114,6 +114,10 @@ export abstract class BaseLLMProvider {
           .then(() => {
             console.info('Provider initialized successfully:', this.provider.name)
           })
+          .catch((error) => {
+            // Handle errors from fetchModels() and autoEnableModelsIfNeeded()
+            console.warn('Provider initialization failed:', this.provider.name, error)
+          })
         // Check if we need to automatically enable all models
       } catch (error) {
         console.warn('Provider initialization failed:', this.provider.name, error)
