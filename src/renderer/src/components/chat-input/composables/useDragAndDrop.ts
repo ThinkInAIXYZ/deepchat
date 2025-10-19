@@ -27,7 +27,11 @@ export function useDragAndDrop() {
   /**
    * Handle drag over event (prevent default to allow drop)
    */
-  const handleDragOver = () => {
+  const handleDragOver = (e: DragEvent) => {
+    // Prevent default to allow drop events
+    e.preventDefault()
+    e.stopPropagation()
+
     // Clear any pending leave timer to prevent flickering
     if (dragLeaveTimer) {
       clearTimeout(dragLeaveTimer)

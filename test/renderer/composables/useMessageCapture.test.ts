@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { useMessageCapture } from '@/composables/message/useMessageCapture'
 
 vi.mock('@/composables/usePageCapture', () => ({
@@ -30,6 +30,14 @@ describe('useMessageCapture', () => {
     const container = document.createElement('div')
     container.className = 'message-list-container'
     document.body.appendChild(container)
+  })
+
+  afterEach(() => {
+    // clean up container to avoid DOM accumulation
+    const container = document.querySelector('.message-list-container')
+    if (container) {
+      document.body.removeChild(container)
+    }
   })
 
   it('captures assistant and user block area', async () => {

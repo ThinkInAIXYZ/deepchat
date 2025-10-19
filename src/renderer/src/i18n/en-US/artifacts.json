@@ -45,5 +45,8 @@
   "height": "Height",
   "sanitizingSvg": "Sanitizing SVG content...",
   "svgSanitizationFailed": "SVG content failed security validation",
-  "noSvgContent": "No SVG content available"
+  "noSvgContent": "No SVG content available",
+  "mermaid": {
+    "renderError": "Render failed: {message}"
+  }
 }

@@ -19,23 +19,52 @@ export function useInputSettings() {
 
   // === Public Methods ===
   const toggleWebSearch = async () => {
+    const previousValue = settings.value.webSearch
     settings.value.webSearch = !settings.value.webSearch
-    await configPresenter.setSetting('input_webSearch', settings.value.webSearch)
+
+    try {
+      await configPresenter.setSetting('input_webSearch', settings.value.webSearch)
+    } catch (error) {
+      // Revert to previous value on error
+      settings.value.webSearch = previousValue
+      console.error('Failed to save web search setting:', error)
+      // TODO: Show user-facing notification when toast system is available
+    }
   }
 
   const toggleDeepThinking = async () => {
+    const previousValue = settings.value.deepThinking
     settings.value.deepThinking = !settings.value.deepThinking
-    await configPresenter.setSetting('input_deepThinking', settings.value.deepThinking)
+
+    try {
+      await configPresenter.setSetting('input_deepThinking', settings.value.deepThinking)
+    } catch (error) {
+      // Revert to previous value on error
+      settings.value.deepThinking = previousValue
+      console.error('Failed to save deep thinking setting:', error)
+      // TODO: Show user-facing notification when toast system is available
+    }
   }
 
   const loadSettings = async () => {
-    settings.value.deepThinking = Boolean(await configPresenter.getSetting('input_deepThinking'))
-    settings.value.webSearch = Boolean(await configPresenter.getSetting('input_webSearch'))
+    try {
+      settings.value.deepThinking = Boolean(await configPresenter.getSetting('input_deepThinking'))
+      settings.value.webSearch = Boolean(await configPresenter.getSetting('input_webSearch'))
+    } catch (error) {
+      // Fall back to safe defaults on error
+      settings.value.deepThinking = false
+      settings.value.webSearch = false
+      console.error('Failed to load input settings, using defaults:', error)
+    }
   }
 
   // === Lifecycle Hooks ===
   onMounted(async () => {
-    await loadSettings()
+    try {
+      await loadSettings()
+    } catch (error) {
+      console.error('Failed to initialize input settings:', error)
+    }
   })
 
   return {

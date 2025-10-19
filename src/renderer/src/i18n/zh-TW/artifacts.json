@@ -45,5 +45,8 @@
   "height": "高度",
   "noSvgContent": "沒有可用的SVG內容",
   "sanitizingSvg": "正在淨化SVG內容...",
-  "svgSanitizationFailed": "SVG內容未通過安全驗證"
+  "svgSanitizationFailed": "SVG內容未通過安全驗證",
+  "mermaid": {
+    "renderError": "渲染失敗: {message}"
+  }
 }

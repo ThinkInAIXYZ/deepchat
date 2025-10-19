@@ -87,7 +87,7 @@
       </div>
 
       <!-- 内容区域 -->
-      <div class="flex-1 overflow-auto h-0 artifact-scroll-container bg-black">
+      <div class="flex-1 overflow-auto h-0 artifact-scroll-container">
         <template v-if="isPreview">
           <component
             :is="artifactComponent"
@@ -119,7 +119,8 @@
 
 <script setup lang="ts">
 // === Vue Core ===
-import { computed, onMounted, ref, toRef } from 'vue'
+import { computed, onMounted, ref } from 'vue'
+import { storeToRefs } from 'pinia'
 
 // === Stores ===
 import { useArtifactStore } from '@/stores/artifact'
@@ -156,23 +157,19 @@ import { useArtifactContext } from '@/composables/useArtifactContext'
 const artifactStore = useArtifactStore()
 const themeStore = useThemeStore()
 
+// === Extract reactive refs from store ===
+const { currentArtifact, isOpen, currentThreadId, currentMessageId } = storeToRefs(artifactStore)
+
 // === Composable Integrations ===
 const { t } = useI18n()
 const { toast } = useToast()
 const { captureAndCopy } = usePageCapture()
 const devicePresenter = usePresenter('devicePresenter')
 
-const currentArtifact = toRef(() => artifactStore.currentArtifact)
-const isOpen = toRef(() => artifactStore.isOpen)
-
 const { isPreview, setPreview } = useArtifactViewMode(currentArtifact)
 const { viewportSize, setViewportSize, TABLET_WIDTH, TABLET_HEIGHT, MOBILE_WIDTH, MOBILE_HEIGHT } =
   useViewportSize()
-const context = useArtifactContext(
-  currentArtifact,
-  toRef(() => artifactStore.currentThreadId),
-  toRef(() => artifactStore.currentMessageId)
-)
+const context = useArtifactContext(currentArtifact, currentThreadId, currentMessageId)
 
 const codeEditorRef = ref<HTMLElement | null>(null)
 const codeEditor = useArtifactCodeEditor(currentArtifact, codeEditorRef, isPreview, isOpen)

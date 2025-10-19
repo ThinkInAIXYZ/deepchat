@@ -3,29 +3,51 @@ import { resolve } from 'path'
 import vue from '@vitejs/plugin-vue'
 
 export default defineConfig({
-  plugins: [vue()],
-  resolve: {
-    alias: [
-      // Renderer-specific lib files (must come before generic @/ rules)
-      { find: '@/lib/searchHistory', replacement: resolve('src/renderer/src/lib/searchHistory') },
-      // Renderer process aliases (match @/components/*, @/composables/*, @/stores/*, @/assets/*)
-      { find: /^@\/(components|composables|stores|assets|i18n|views)\//, replacement: resolve('src/renderer/src/') + '/$1/' },
-      // Main process aliases (everything else: @/eventbus, @/events, @/presenter, @/utils, @/lib, etc.)
-      { find: '@/', replacement: resolve('src/main/') + '/' },
-      // Other aliases
-      { find: '@shadcn', replacement: resolve('src/shadcn') },
-      { find: '@shell', replacement: resolve('src/renderer/shell/') },
-      { find: '@shared', replacement: resolve('src/shared') },
-      { find: 'electron', replacement: resolve('test/mocks/electron.ts') },
-      { find: '@electron-toolkit/utils', replacement: resolve('test/mocks/electron-toolkit-utils.ts') }
-    ]
-  },
   test: {
     globals: true,
-    // Use environmentMatchGlobs to assign different environments based on test file path
-    environmentMatchGlobs: [
-      ['test/renderer/**', 'jsdom'],  // Renderer tests need DOM
-      ['test/main/**', 'node']         // Main process tests use Node
+    // Use projects to define different configurations for main and renderer tests
+    // This allows each test suite to use the correct alias resolution
+    projects: [
+      {
+        plugins: [vue()],
+        test: {
+          name: 'renderer',
+          environment: 'jsdom',
+          include: ['test/renderer/**/*.{test,spec}.{js,ts}'],
+          setupFiles: ['./test/setup.ts'],
+          globals: true
+        },
+        resolve: {
+          alias: [
+            // Renderer process aliases (match electron.vite.config.ts renderer config)
+            { find: '@/', replacement: resolve('src/renderer/src/') + '/' },
+            { find: '@shell', replacement: resolve('src/renderer/shell/') },
+            { find: '@shared', replacement: resolve('src/shared') },
+            { find: '@shadcn', replacement: resolve('src/shadcn') },
+            { find: 'electron', replacement: resolve('test/mocks/electron.ts') },
+            { find: '@electron-toolkit/utils', replacement: resolve('test/mocks/electron-toolkit-utils.ts') }
+          ]
+        }
+      },
+      {
+        plugins: [vue()],
+        test: {
+          name: 'main',
+          environment: 'node',
+          include: ['test/main/**/*.{test,spec}.{js,ts}'],
+          setupFiles: ['./test/setup.ts'],
+          globals: true
+        },
+        resolve: {
+          alias: [
+            // Main process aliases (match electron.vite.config.ts main config)
+            { find: '@/', replacement: resolve('src/main/') + '/' },
+            { find: '@shared', replacement: resolve('src/shared') },
+            { find: 'electron', replacement: resolve('test/mocks/electron.ts') },
+            { find: '@electron-toolkit/utils', replacement: resolve('test/mocks/electron-toolkit-utils.ts') }
+          ]
+        }
+      }
     ],
     coverage: {
       provider: 'v8',
@@ -51,14 +73,7 @@ export default defineConfig({
         }
       }
     },
-    include: ['test/**/*.{test,spec}.{js,ts}'],
-    exclude: [
-      'node_modules/**',
-      'dist/**',
-      'out/**'
-    ],
     testTimeout: 10000,
-    hookTimeout: 10000,
-    setupFiles: ['./test/setup.ts']
+    hookTimeout: 10000
   }
 })

@@ -34,7 +34,7 @@ const getFileExtension = (type: string): string => {
     case 'image/svg+xml':
       return 'svg'
     case 'application/vnd.ant.mermaid':
-      return 'mdm'
+      return 'mmd'
     case 'application/vnd.ant.react':
       return 'jsx'
     default:

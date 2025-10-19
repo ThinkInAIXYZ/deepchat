@@ -46,5 +46,8 @@
   "copyImageFailedDesc": "画像をコピーできませんでした",
   "noSvgContent": "SVGコンテンツは利用できません",
   "sanitizingSvg": "SVGコンテンツの浄化...",
-  "svgSanitizationFailed": "SVGコンテンツにセキュリティ検証に失敗しました"
+  "svgSanitizationFailed": "SVGコンテンツにセキュリティ検証に失敗しました",
+  "mermaid": {
+    "renderError": "レンダリングに失敗しました: {message}"
+  }
 }

@@ -166,6 +166,20 @@ export function useArtifactCodeEditor(
     }
   )
 
+  // Cleanup editor when preview is toggled on
+  watch(isPreview, (previewActive) => {
+    if (previewActive) {
+      cleanupEditor()
+    }
+  })
+
+  // Cleanup editor when editor element is unmounted
+  watch(editorElement, (editorEl) => {
+    if (!editorEl) {
+      cleanupEditor()
+    }
+  })
+
   // Cleanup editor when dialog closes
   watch(isOpen, (open) => {
     if (!open) {

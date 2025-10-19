@@ -297,7 +297,7 @@ import ScrollablePopover from '../ScrollablePopover.vue'
 import ChatConfig from '../ChatConfig.vue'
 import ModelChooser from '../ModelChooser.vue'
 import ModelIcon from '../icons/ModelIcon.vue'
-import McpToolsList from '../mcpToolsList.vue'
+import McpToolsList from '../McpToolsList.vue'
 
 // === Composables ===
 import { usePresenter } from '@/composables/usePresenter'
@@ -560,6 +560,23 @@ const restoreFocus = () => {
   editorComposable.restoreFocus()
 }
 
+// === Event Handler Functions ===
+// Context menu handler
+const handleContextMenuAskAI = (e: any) => {
+  editorComposable.inputText.value = e.detail
+  editor.commands.setContent(e.detail)
+  editor.commands.focus()
+}
+
+// Visibility change handler
+const handleVisibilityChange = () => {
+  if (!document.hidden) {
+    setTimeout(() => {
+      restoreFocus()
+    }, 100)
+  }
+}
+
 // === Lifecycle Hooks ===
 onMounted(async () => {
   // Settings are auto-initialized by useInputSettings composable
@@ -578,25 +595,28 @@ onMounted(async () => {
   // Setup editor paste handler
   editorComposable.setupEditorPasteHandler(files.handlePaste)
 
-  // Context menu handler
-  window.addEventListener('context-menu-ask-ai', (e: any) => {
-    editorComposable.inputText.value = e.detail
-    editor.commands.setContent(e.detail)
-    editor.commands.focus()
-  })
+  // Register context menu handler
+  window.addEventListener('context-menu-ask-ai', handleContextMenuAskAI)
 
-  // Visibility change handler
-  document.addEventListener('visibilitychange', () => {
-    if (!document.hidden) {
-      setTimeout(() => {
-        restoreFocus()
-      }, 100)
-    }
-  })
+  // Register visibility change handler
+  document.addEventListener('visibilitychange', handleVisibilityChange)
 })
 
 onUnmounted(() => {
+  // Cleanup paste handler
   editorComposable.cleanupEditorPasteHandler()
+
+  // Remove context menu event listener
+  window.removeEventListener('context-menu-ask-ai', handleContextMenuAskAI)
+
+  // Remove visibility change event listener
+  document.removeEventListener('visibilitychange', handleVisibilityChange)
+
+  // Remove editor update listener
+  editor.off('update', editorComposable.onEditorUpdate)
+
+  // Destroy editor instance
+  editor.destroy()
 })
 
 // === Watchers ===

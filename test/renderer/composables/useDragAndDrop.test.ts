@@ -4,10 +4,14 @@ import { useDragAndDrop } from '@/components/chat-input/composables/useDragAndDr
 describe('useDragAndDrop', () => {
   it('tracks drag state with proper counters and timers', () => {
     const api = useDragAndDrop()
-    const evt = { dataTransfer: { types: ['Files'] } } as any as DragEvent
+    const evt = {
+      dataTransfer: { types: ['Files'] },
+      preventDefault: () => {},
+      stopPropagation: () => {}
+    } as any as DragEvent
     api.handleDragEnter(evt)
     expect(api.isDragging.value).toBe(true)
-    api.handleDragOver()
+    api.handleDragOver(evt)
     api.handleDragLeave()
     // we cannot await timer here; call reset directly
     api.resetDragState()

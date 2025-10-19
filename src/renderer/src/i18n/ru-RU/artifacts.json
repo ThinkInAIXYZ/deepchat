@@ -46,5 +46,8 @@
   "copyImageFailedDesc": "Не удалось скопировать изображение в буфер обмена",
   "noSvgContent": "Недоступного контента SVG",
   "sanitizingSvg": "Очистить содержание SVG ...",
-  "svgSanitizationFailed": "Содержание SVG не удалась проверка безопасности"
+  "svgSanitizationFailed": "Содержание SVG не удалась проверка безопасности",
+  "mermaid": {
+    "renderError": "Не удалось отобразить: {message}"
+  }
 }

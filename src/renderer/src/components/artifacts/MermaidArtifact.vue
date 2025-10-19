@@ -16,6 +16,9 @@
 <script setup lang="ts">
 import { ref, onMounted, watch, nextTick } from 'vue'
 import mermaid from 'mermaid'
+import { useI18n } from 'vue-i18n'
+
+const { t } = useI18n()
 
 const props = defineProps<{
   block: {
@@ -49,17 +52,29 @@ const renderDiagram = async () => {
   if (!mermaidRef.value || !props.block.content) return
 
   try {
-    // 清空之前的内容
+    // Clear previous content
     mermaidRef.value.innerHTML = props.block.content
 
-    // 使用 mermaid API 重新渲染
+    // Re-render using mermaid API
     await mermaid.run({
       nodes: [mermaidRef.value]
     })
   } catch (error) {
     console.error('Failed to render mermaid diagram:', error)
     if (mermaidRef.value) {
-      mermaidRef.value.innerHTML = `<div class="text-destructive p-4 m-0">渲染失败: ${error instanceof Error ? error.message : '未知错误'}</div>`
+      // Create localized error message safely without innerHTML
+      const msg = error instanceof Error ? error.message : t('common.unknownError')
+      const text = t('artifacts.mermaid.renderError', { message: msg })
+
+      // Clear existing content
+      mermaidRef.value.innerHTML = ''
+
+      // Create error element and set text safely
+      const errorDiv = document.createElement('div')
+      errorDiv.classList.add('text-destructive', 'p-4', 'm-0')
+      errorDiv.textContent = text
+
+      mermaidRef.value.appendChild(errorDiv)
     }
   }
 }
