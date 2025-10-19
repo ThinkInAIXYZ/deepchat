@@ -39,7 +39,9 @@ const emit = defineEmits<{
           :step="step"
           :placeholder="placeholder"
           :class="{ 'border-destructive': error }"
-          @update:model-value="(val) => emit('update:modelValue', type === 'number' ? Number(val) : val)"
+          @update:model-value="
+            (val) => emit('update:modelValue', type === 'number' ? Number(val) : val)
+          "
         />
         <p class="text-xs text-muted-foreground">
           <span v-if="error" class="text-red-600 font-medium">

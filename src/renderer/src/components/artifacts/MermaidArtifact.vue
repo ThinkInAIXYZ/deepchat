@@ -6,7 +6,9 @@
       class="w-full h-full p-4 overflow-auto flex items-center justify-center [&_svg]:!w-full [&_svg]:!h-full [&_svg]:max-h-[calc(100vh-120px)] [&_svg]:object-contain"
     ></div>
     <div v-else class="h-full p-4">
-      <pre class="rounded-lg bg-muted p-4 h-full m-0 overflow-auto"><code class="font-mono text-sm leading-6 h-full block">{{ props.block.content }}</code></pre>
+      <pre
+        class="rounded-lg bg-muted p-4 h-full m-0 overflow-auto"
+      ><code class="font-mono text-sm leading-6 h-full block">{{ props.block.content }}</code></pre>
     </div>
   </div>
 </template>

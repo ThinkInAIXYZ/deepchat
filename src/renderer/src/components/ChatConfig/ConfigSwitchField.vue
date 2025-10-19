@@ -19,6 +19,9 @@ const emit = defineEmits<{
     <div class="space-y-0.5">
       <Label class="text-sm">{{ label }}</Label>
     </div>
-    <Switch :model-value="modelValue" @update:model-value="(val) => emit('update:modelValue', val)" />
+    <Switch
+      :model-value="modelValue"
+      @update:model-value="(val) => emit('update:modelValue', val)"
+    />
   </div>
 </template>

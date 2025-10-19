@@ -119,7 +119,11 @@
                 :class="{ 'animate-pulse': rateLimit.rateLimitStatus.value.queueLength > 0 }"
               />
               <span v-if="rateLimit.rateLimitStatus.value.queueLength > 0">
-                {{ t('chat.input.rateLimitQueue', { count: rateLimit.rateLimitStatus.value.queueLength }) }}
+                {{
+                  t('chat.input.rateLimitQueue', {
+                    count: rateLimit.rateLimitStatus.value.queueLength
+                  })
+                }}
               </span>
               <span v-else-if="!rateLimit.canSendImmediately.value">
                 {{ rateLimit.formatWaitTime() }}
@@ -243,9 +247,7 @@ import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 // === Types ===
-import {
-  UserMessageContent
-} from '@shared/chat'
+import { UserMessageContent } from '@shared/chat'
 import { ModelType } from '@shared/model'
 
 // === Components ===
@@ -387,12 +389,19 @@ const editor = new Editor({
 
 // Set the editor instance in history after editor is created
 history.setEditor(editor)
-const rateLimit = useRateLimitStatus(computed(() => chatStore.chatConfig), t)
+const rateLimit = useRateLimitStatus(
+  computed(() => chatStore.chatConfig),
+  t
+)
 const drag = useDragAndDrop()
 const files = usePromptInputFiles(fileInput, emit, t)
 useMentionData(files.selectedFiles) // Setup mention data watchers
 const config = usePromptInputConfig()
-const editorComposable = usePromptInputEditor(editor, files.selectedFiles, history.clearHistoryPlaceholder)
+const editorComposable = usePromptInputEditor(
+  editor,
+  files.selectedFiles,
+  history.clearHistoryPlaceholder
+)
 
 // Setup editor update handler
 editor.on('update', editorComposable.onEditorUpdate)
