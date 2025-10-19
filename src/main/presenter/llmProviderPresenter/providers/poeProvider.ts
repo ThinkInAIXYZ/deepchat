@@ -1,8 +1,4 @@
-import {
-  LLM_PROVIDER,
-  MODEL_META,
-  IConfigPresenter
-} from '@shared/presenter'
+import { LLM_PROVIDER, MODEL_META, IConfigPresenter } from '@shared/presenter'
 import { OpenAICompatibleProvider } from './openAICompatibleProvider'
 
 /**
