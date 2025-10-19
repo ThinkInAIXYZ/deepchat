@@ -1,6 +1,6 @@
 <template>
   <div
-    class="w-full border-t"
+    :class="['w-full', variant === 'newThread' ? 'max-w-4xl mx-auto' : '']"
     @dragenter.prevent="drag.handleDragEnter"
     @dragover.prevent="drag.handleDragOver"
     @drop.prevent="handleDrop"
@@ -10,7 +10,12 @@
     <TooltipProvider>
       <div
         :dir="langStore.dir"
-        class="focus-within:border-primary px-4 py-3 flex flex-col gap-3 relative"
+        :class="[
+          'flex flex-col gap-2 relative',
+          variant === 'newThread'
+            ? 'bg-card rounded-lg border p-2 shadow-sm'
+            : 'border-t px-4 py-3 gap-3'
+        ]"
       >
         <!-- File Area -->
         <div v-if="files.selectedFiles.value.length > 0">
@@ -40,18 +45,25 @@
         </div>
 
         <!-- Editor -->
-        <editor-content :editor="editor" class="text-sm dark:text-white/80" @keydown="onKeydown" />
+        <editor-content
+          :editor="editor"
+          :class="['text-sm', variant === 'chat' ? 'dark:text-white/80' : 'p-2']"
+          @keydown="onKeydown"
+        />
 
         <!-- Footer -->
-        <div class="prompt-input-footer flex flex-wrap items-center justify-between gap-3">
+        <div class="flex items-center justify-between">
           <!-- Tools -->
-          <div class="prompt-input-tools flex items-center gap-1.5 flex-wrap">
+          <div class="flex gap-1.5">
             <Tooltip>
               <TooltipTrigger>
                 <Button
                   variant="outline"
                   size="icon"
-                  class="w-7 h-7 text-xs rounded-lg text-accent-foreground"
+                  :class="[
+                    'w-7 h-7 text-xs rounded-lg',
+                    variant === 'chat' ? 'text-accent-foreground' : ''
+                  ]"
                   @click="files.openFilePicker"
                 >
                   <Icon icon="lucide:paperclip" class="w-4 h-4" />
@@ -67,12 +79,14 @@
               </TooltipTrigger>
               <TooltipContent>{{ t('chat.input.fileSelect') }}</TooltipContent>
             </Tooltip>
+
             <Tooltip>
               <TooltipTrigger>
                 <Button
                   variant="outline"
                   :class="[
-                    'w-7 h-7  text-accent-foreground rounded-lg',
+                    'w-7 h-7 text-xs rounded-lg',
+                    variant === 'chat' ? 'text-accent-foreground' : '',
                     settings.webSearch ? 'text-primary' : ''
                   ]"
                   :dir="langStore.dir"
@@ -86,21 +100,27 @@
             </Tooltip>
 
             <McpToolsList />
+
+            <!-- Slot for NewThread model selector -->
+            <slot name="addon-buttons"></slot>
           </div>
 
           <!-- Actions -->
-          <div class="prompt-input-actions flex items-center gap-2 flex-wrap">
+          <div class="flex items-center gap-2 flex-wrap">
             <div
               v-if="
                 contextLength &&
                 contextLength > 0 &&
                 currentContextLength / (contextLength ?? 1000) > 0.5
               "
-              class="text-xs text-muted-foreground dark:text-white/60"
               :class="[
-                currentContextLength / (contextLength ?? 1000) > 0.9 ? ' text-red-600' : '',
+                'text-xs',
+                variant === 'chat'
+                  ? 'text-muted-foreground dark:text-white/60'
+                  : 'text-muted-foreground',
+                currentContextLength / (contextLength ?? 1000) > 0.9 ? 'text-red-600' : '',
                 currentContextLength / (contextLength ?? 1000) > 0.8
-                  ? ' text-yellow-600'
+                  ? 'text-yellow-600'
                   : 'text-muted-foreground'
               ]"
             >
@@ -109,8 +129,11 @@
 
             <div
               v-if="rateLimit.rateLimitStatus.value?.config.enabled"
-              class="flex items-center gap-1 text-xs dark:text-white/60"
-              :class="rateLimit.getRateLimitStatusClass()"
+              :class="[
+                'flex items-center gap-1 text-xs',
+                variant === 'chat' ? 'dark:text-white/60' : '',
+                rateLimit.getRateLimitStatusClass()
+              ]"
               :title="rateLimit.getRateLimitStatusTooltip()"
             >
               <Icon
@@ -130,11 +153,12 @@
               </span>
             </div>
 
-            <Popover v-model:open="modelSelectOpen">
+            <!-- Model Selector (only in chat mode) -->
+            <Popover v-if="variant === 'chat'" v-model:open="modelSelectOpen">
               <PopoverTrigger as-child>
                 <Button
                   variant="ghost"
-                  class="prompt-input-model-button flex items-center gap-1.5 h-7 px-2 rounded-md text-xs font-semibold text-muted-foreground hover:bg-muted/60 hover:text-foreground dark:text-white/70 dark:hover:bg-white/10 dark:hover:text-white"
+                  class="flex items-center gap-1.5 h-7 px-2 rounded-md text-xs font-semibold text-muted-foreground hover:bg-muted/60 hover:text-foreground dark:text-white/70 dark:hover:bg-white/10 dark:hover:text-white"
                   size="sm"
                 >
                   <ModelIcon
@@ -167,7 +191,13 @@
               </PopoverContent>
             </Popover>
 
-            <ScrollablePopover align="end" content-class="w-80" :enable-scrollable="true">
+            <!-- Config Button (only in chat mode) -->
+            <ScrollablePopover
+              v-if="variant === 'chat'"
+              align="end"
+              content-class="w-80"
+              :enable-scrollable="true"
+            >
               <template #trigger>
                 <Button
                   class="h-7 w-7 rounded-md border border-border/60 hover:border-border dark:border-white/10 dark:bg-white/[0.04] dark:text-white/70 dark:hover:border-white/25 dark:hover:bg-white/15 dark:hover:text-white"
@@ -197,18 +227,19 @@
               />
             </ScrollablePopover>
 
+            <!-- Send/Stop Button -->
             <Button
+              v-if="!isStreaming || variant === 'newThread'"
               variant="default"
               size="icon"
               class="w-7 h-7 text-xs rounded-lg"
               :disabled="disabledSend"
-              v-if="!isStreaming"
               @click="emitSend"
             >
               <Icon icon="lucide:arrow-up" class="w-4 h-4" />
             </Button>
             <Button
-              v-if="isStreaming"
+              v-else-if="isStreaming && variant === 'chat'"
               key="cancel"
               variant="outline"
               size="icon"
@@ -271,7 +302,7 @@ import HardBreak from '@tiptap/extension-hard-break'
 import FileItem from '../FileItem.vue'
 import ScrollablePopover from '../ScrollablePopover.vue'
 import ChatConfig from '../ChatConfig.vue'
-import ModelChooser from './ModelChooser.vue'
+import ModelChooser from '../ModelChooser.vue'
 import ModelIcon from '../icons/ModelIcon.vue'
 import McpToolsList from '../mcpToolsList.vue'
 
@@ -301,12 +332,14 @@ import { approximateTokenSize } from 'tokenx'
 // === Props & Emits ===
 const props = withDefaults(
   defineProps<{
+    variant: 'chat' | 'newThread'
     contextLength?: number
     maxRows?: number
     rows?: number
     disabled?: boolean
   }>(),
   {
+    variant: 'chat',
     maxRows: 10,
     rows: 1,
     disabled: false
@@ -389,6 +422,7 @@ const editor = new Editor({
 
 // Set the editor instance in history after editor is created
 history.setEditor(editor)
+
 const rateLimit = useRateLimitStatus(
   computed(() => chatStore.chatConfig),
   t
@@ -396,7 +430,32 @@ const rateLimit = useRateLimitStatus(
 const drag = useDragAndDrop()
 const files = usePromptInputFiles(fileInput, emit, t)
 useMentionData(files.selectedFiles) // Setup mention data watchers
-const config = usePromptInputConfig()
+
+// Only initialize config for chat variant
+const config =
+  props.variant === 'chat'
+    ? usePromptInputConfig()
+    : ({
+        activeModel: ref({ providerId: '', tags: [] }),
+        modelDisplayName: ref(''),
+        configSystemPrompt: ref(''),
+        configTemperature: ref(0.7),
+        configContextLength: ref(0),
+        configMaxTokens: ref(0),
+        configArtifacts: ref(0),
+        configThinkingBudget: ref(''),
+        configEnableSearch: ref(false),
+        configForcedSearch: ref(false),
+        configSearchStrategy: ref(''),
+        configReasoningEffort: ref(''),
+        configVerbosity: ref(''),
+        configContextLengthLimit: ref(0),
+        configMaxTokensLimit: ref(0),
+        configModelType: ref(ModelType.Chat),
+        handleModelUpdate: () => {},
+        loadModelConfig: async () => {}
+      } as any)
+
 const editorComposable = usePromptInputEditor(
   editor,
   files.selectedFiles,
@@ -421,6 +480,14 @@ const currentContextLengthText = computed(() => {
 })
 
 const disabledSend = computed(() => {
+  if (props.variant === 'newThread') {
+    return (
+      editorComposable.inputText.value.length <= 0 ||
+      currentContextLength.value > (props.contextLength ?? 200000)
+    )
+  }
+
+  // chat variant
   const activeThreadId = chatStore.getActiveThreadId()
   if (activeThreadId) {
     return (
@@ -433,6 +500,8 @@ const disabledSend = computed(() => {
 })
 
 const isStreaming = computed(() => {
+  if (props.variant === 'newThread') return false
+
   const activeThreadId = chatStore.getActiveThreadId()
   if (activeThreadId) {
     return chatStore.generatingThreadIds.has(activeThreadId)
@@ -534,8 +603,10 @@ onMounted(async () => {
   // Setup prompt files handler
   setPromptFilesHandler(files.handlePromptFiles)
 
-  // Load model config
-  await config.loadModelConfig()
+  // Load model config (only for chat variant)
+  if (props.variant === 'chat') {
+    await config.loadModelConfig()
+  }
 
   // Setup editor paste handler
   editorComposable.setupEditorPasteHandler(files.handlePaste)
@@ -596,33 +667,6 @@ defineExpose({
 <style scoped>
 @reference '../../assets/style.css';
 
-.prompt-input-editor {
-  padding: 0.75rem;
-  color: var(--prompt-text-accent, var(--foreground));
-}
-
-.dark .prompt-input-editor,
-[data-theme='dark'] .prompt-input-editor {
-  color: var(--prompt-text-accent);
-}
-
-.prompt-input-footer {
-  padding-top: 0.75rem;
-}
-
-.dark .prompt-input-tools .search-engine-select,
-[data-theme='dark'] .prompt-input-tools .search-engine-select {
-  color: var(--prompt-text-accent);
-}
-
-.prompt-input-tools .search-engine-select:hover {
-  border-color: color-mix(in srgb, var(--prompt-border-color) 70%, var(--prompt-text-primary) 30%);
-}
-
-.prompt-input-model-button {
-  min-width: 0;
-}
-
 .transition-all {
   transition-property: all;
   transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
@@ -632,6 +676,7 @@ defineExpose({
   transition-duration: 300ms;
 }
 </style>
+
 <style>
 @reference '../../assets/style.css';
 

@@ -9,8 +9,9 @@
 
     <!-- 输入框区域 -->
     <div class="flex-none px-0 pb-0">
-      <PromptInput
+      <ChatInput
         ref="chatInput"
+        variant="chat"
         :disabled="!chatStore.getActiveThreadId() || isGenerating"
         @send="handleSend"
         @file-upload="handleFileUpload"
@@ -22,7 +23,7 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, watch, computed, nextTick } from 'vue'
 import MessageList from './message/MessageList.vue'
-import PromptInput from './prompt-input/PromptInput.vue'
+import ChatInput from './chat-input/ChatInput.vue'
 import { useRoute } from 'vue-router'
 import { UserMessageContent } from '@shared/chat'
 import { STREAM_EVENTS } from '@/events'

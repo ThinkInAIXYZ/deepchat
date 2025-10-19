@@ -8,7 +8,8 @@
       <ChatInput
         ref="chatInputRef"
         key="newThread"
-        class="max-w-2xl! shrink-0 px-4"
+        variant="newThread"
+        class="shrink-0 px-4"
         :rows="3"
         :max-rows="10"
         :context-length="contextLength"
@@ -102,7 +103,7 @@
 
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
-import ChatInput from './ChatInput.vue'
+import ChatInput from './chat-input/ChatInput.vue'
 import { Popover, PopoverContent, PopoverTrigger } from '@shadcn/components/ui/popover'
 import ScrollablePopover from './ScrollablePopover.vue'
 import { Button } from '@shadcn/components/ui/button'
