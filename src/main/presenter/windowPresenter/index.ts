@@ -1291,7 +1291,20 @@ export class WindowPresenter implements IWindowPresenter {
 
     // Ensure links with target="_blank" open in the user's default browser
     settingsWindow.webContents.setWindowOpenHandler(({ url }) => {
-      shell.openExternal(url)
+      try {
+        // Validate URL protocol - only allow http/https
+        const parsedUrl = new URL(url)
+        if (parsedUrl.protocol === 'http:' || parsedUrl.protocol === 'https:') {
+          console.log(`Opening external URL from settings window: ${url}`)
+          shell.openExternal(url).catch((error) => {
+            console.error(`Failed to open external URL: ${url}`, error)
+          })
+        } else {
+          console.warn(`Blocked attempt to open non-http(s) URL: ${url}`)
+        }
+      } catch (error) {
+        console.error(`Invalid URL format: ${url}`, error)
+      }
       return { action: 'deny' }
     })
 
