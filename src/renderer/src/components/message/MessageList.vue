@@ -150,6 +150,7 @@ const retry = useMessageRetry(toRef(props, 'messages'))
 // === Local State ===
 const messageList = ref<HTMLDivElement>()
 const visible = ref(false)
+const AUTO_SCROLL_DISTANCE_PX = 240
 
 // === Event Handlers ===
 const handleCopyImage = async (
@@ -186,15 +187,27 @@ onMounted(() => {
   }, 100)
 
   // Auto-scroll on content height change (for pending messages)
-  const { height } = useElementBounding(messageList.value)
+  const { height } = useElementBounding(messageList)
   const debouncedHeightHandler = useDebounceFn(() => {
     const lastMessage = props.messages[props.messages.length - 1]
-    if (lastMessage?.status === 'pending' && !aboveThreshold.value) {
-      nextTick(() => {
-        scrollToBottom()
-        updateScrollInfo()
-      })
+    const container = messagesContainer.value
+    const distanceToBottom =
+      container == null
+        ? null
+        : container.scrollHeight - (container.scrollTop + container.clientHeight)
+
+    if (lastMessage?.status !== 'pending') {
+      return
     }
+
+    if (distanceToBottom != null && distanceToBottom > AUTO_SCROLL_DISTANCE_PX) {
+      return
+    }
+
+    nextTick(() => {
+      scrollToBottom()
+      updateScrollInfo()
+    })
   }, 100)
 
   watch(() => height.value, debouncedHeightHandler, { flush: 'post' })
@@ -202,8 +215,21 @@ onMounted(() => {
   // Update scroll info when message count changes
   watch(
     () => props.messages.length,
-    () => {
+    (length, prevLength) => {
       nextTick(() => {
+        const container = messagesContainer.value
+        const distanceToBottom =
+          container == null
+            ? null
+            : container.scrollHeight - (container.scrollTop + container.clientHeight)
+        const isGrowing = length > prevLength
+        const isReset = prevLength > 0 && length < prevLength
+        const nearBottom = distanceToBottom == null || distanceToBottom <= AUTO_SCROLL_DISTANCE_PX
+
+        if ((isGrowing && nearBottom) || isReset) {
+          scrollToBottom()
+        }
+
         updateScrollInfo()
       })
     },
