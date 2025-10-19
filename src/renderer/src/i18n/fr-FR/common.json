@@ -75,5 +75,6 @@
   "save": "Enregistrer",
   "clear": "Effacer",
   "saved": "Sauvé",
-  "newTab": "Nouvel onglet"
+  "newTab": "Nouvel onglet",
+  "unknownError": "Erreur inconnue"
 }

@@ -75,5 +75,6 @@
   "save": "저장",
   "clear": "지우기",
   "saved": "저장",
-  "newTab": "새 탭"
+  "newTab": "새 탭",
+  "unknownError": "알 수 없는 오류"
 }

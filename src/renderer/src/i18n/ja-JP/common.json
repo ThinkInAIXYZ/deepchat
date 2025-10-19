@@ -75,5 +75,6 @@
   "save": "保存",
   "clear": "クリア",
   "saved": "保存",
-  "newTab": "新しいタブ"
+  "newTab": "新しいタブ",
+  "unknownError": "不明なエラー"
 }

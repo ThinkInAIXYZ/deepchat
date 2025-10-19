@@ -75,5 +75,6 @@
   "save": "Salvar",
   "clear": "Limpar",
   "saved": "Salvo",
-  "newTab": "Nova Aba"
+  "newTab": "Nova Aba",
+  "unknownError": "Erro desconhecido"
 }
