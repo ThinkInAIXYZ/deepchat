@@ -1,15 +1,16 @@
 # Vue Components Analysis Report
 
-**Generated:** 2025-10-16
+**Generated:** 2025-10-19
 **Analysis Scope:** All `.vue` files in the project
 **Threshold:** Files with template or script sections exceeding 200 lines
 
 ## Summary
 
-- **Total files exceeding threshold:** 37
-- **Files with template > 200 lines:** 11
-- **Files with script > 200 lines:** 36
-- **Files exceeding both thresholds:** 10
+- **Total files analyzed:** 400
+- **Total files exceeding threshold:** 36
+- **Files with template > 200 lines:** 9
+- **Files with script > 200 lines:** 33
+- **Files exceeding both thresholds:** 6
 
 ## Analysis Results
 
@@ -22,7 +23,7 @@ These files have both large templates and large scripts, indicating high complex
 | [src/renderer/src/components/mcp-config/mcpServerForm.vue](../src/renderer/src/components/mcp-config/mcpServerForm.vue) | 470 | 722 | 1,194 |
 | [src/renderer/settings/components/BuiltinKnowledgeSettings.vue](../src/renderer/settings/components/BuiltinKnowledgeSettings.vue) | 545 | 527 | 1,074 |
 | [src/renderer/settings/components/AnthropicProviderSettingsDetail.vue](../src/renderer/settings/components/AnthropicProviderSettingsDetail.vue) | 337 | 417 | 756 |
-| [src/renderer/src/components/artifacts/ArtifactDialog.vue](../src/renderer/src/components/artifacts/ArtifactDialog.vue) | 217 | 411 | 650 |
+| [src/renderer/src/components/chat-input/ChatInput.vue](../src/renderer/src/components/chat-input/ChatInput.vue) | 202 | 366 | 664 |
 | [src/renderer/settings/components/prompt/PromptEditorSheet.vue](../src/renderer/settings/components/prompt/PromptEditorSheet.vue) | 262 | 210 | 487 |
 | [src/renderer/src/components/mcp-config/components/McpServers.vue](../src/renderer/src/components/mcp-config/components/McpServers.vue) | 228 | 220 | 450 |
 
@@ -32,14 +33,12 @@ Files with complex logic in script sections:
 
 | File | Template Lines | Script Lines | Total Lines |
 |------|----------------|--------------|-------------|
-| [src/renderer/src/components/prompt-input/PromptInput.vue](../src/renderer/src/components/prompt-input/PromptInput.vue) | 170 | 1,453 | 1,744 |
-| [src/renderer/src/components/ChatInput.vue](../src/renderer/src/components/ChatInput.vue) | 191 | 1,252 | 1,467 |
-| [src/renderer/settings/components/OllamaProviderSettingsDetail.vue](../src/renderer/settings/components/OllamaProviderSettingsDetail.vue) | 145 | 660 | 924 |
+| [src/renderer/settings/components/OllamaProviderSettingsDetail.vue](../src/renderer/settings/components/OllamaProviderSettingsDetail.vue) | 145 | 716 | 980 |
 | [src/renderer/src/components/emoji-picker/EmojiPicker.vue](../src/renderer/src/components/emoji-picker/EmojiPicker.vue) | 46 | 455 | 503 |
 | [src/renderer/shell/components/AppBar.vue](../src/renderer/shell/components/AppBar.vue) | 123 | 443 | 613 |
-| [src/renderer/src/components/artifacts/HTMLArtifact.vue](../src/renderer/src/components/artifacts/HTMLArtifact.vue) | 185 | 442 | 629 |
+| [src/renderer/src/views/playground/demos/MessageListDemo.vue](../src/renderer/src/views/playground/demos/MessageListDemo.vue) | 86 | 385 | 473 |
 | [src/renderer/src/components/settings/ModelConfigDialog.vue](../src/renderer/src/components/settings/ModelConfigDialog.vue) | 170 | 373 | 745 |
-| [src/renderer/src/components/NewThread.vue](../src/renderer/src/components/NewThread.vue) | 75 | 360 | 474 |
+| [src/renderer/src/components/NewThread.vue](../src/renderer/src/components/NewThread.vue) | 76 | 360 | 475 |
 | [src/renderer/settings/components/ShortcutSettings.vue](../src/renderer/settings/components/ShortcutSettings.vue) | 40 | 350 | 455 |
 | [src/renderer/settings/components/prompt/CustomPromptSettingsSection.vue](../src/renderer/settings/components/prompt/CustomPromptSettingsSection.vue) | 152 | 349 | 512 |
 | [src/renderer/src/components/artifacts/ArtifactPreview.vue](../src/renderer/src/components/artifacts/ArtifactPreview.vue) | 28 | 332 | 362 |
@@ -50,14 +49,15 @@ Files with complex logic in script sections:
 | [src/renderer/settings/components/KnowledgeFile.vue](../src/renderer/settings/components/KnowledgeFile.vue) | 189 | 257 | 448 |
 | [src/renderer/settings/components/DifyKnowledgeSettings.vue](../src/renderer/settings/components/DifyKnowledgeSettings.vue) | 181 | 257 | 440 |
 | [src/renderer/settings/components/FastGptKnowledgeSettings.vue](../src/renderer/settings/components/FastGptKnowledgeSettings.vue) | 181 | 256 | 439 |
+| [src/renderer/src/components/artifacts/ArtifactDialog.vue](../src/renderer/src/components/artifacts/ArtifactDialog.vue) | 107 | 253 | 373 |
 | [src/renderer/src/components/message/MessageItemAssistant.vue](../src/renderer/src/components/message/MessageItemAssistant.vue) | 62 | 246 | 351 |
 | [src/renderer/src/components/ThreadsView.vue](../src/renderer/src/components/ThreadsView.vue) | 56 | 231 | 356 |
 | [src/renderer/settings/components/McpSettings.vue](../src/renderer/settings/components/McpSettings.vue) | 146 | 231 | 379 |
 | [src/renderer/src/views/WelcomeView.vue](../src/renderer/src/views/WelcomeView.vue) | 27 | 229 | 449 |
 | [src/renderer/settings/components/prompt/SystemPromptSettingsSection.vue](../src/renderer/settings/components/prompt/SystemPromptSettingsSection.vue) | 87 | 227 | 316 |
 | [src/renderer/src/components/artifacts/CodeArtifact.vue](../src/renderer/src/components/artifacts/CodeArtifact.vue) | 39 | 222 | 275 |
-| [src/renderer/src/components/MessageNavigationSidebar.vue](../src/renderer/src/components/MessageNavigationSidebar.vue) | 124 | 214 | 358 |
 | [src/renderer/floating/FloatingButton.vue](../src/renderer/floating/FloatingButton.vue) | 26 | 218 | 349 |
+| [src/renderer/src/components/MessageNavigationSidebar.vue](../src/renderer/src/components/MessageNavigationSidebar.vue) | 124 | 214 | 358 |
 | [src/renderer/settings/components/ProviderRateLimitConfig.vue](../src/renderer/settings/components/ProviderRateLimitConfig.vue) | 75 | 207 | 284 |
 | [src/renderer/settings/components/common/SearchEngineSettingsSection.vue](../src/renderer/settings/components/common/SearchEngineSettingsSection.vue) | 150 | 202 | 354 |
 
@@ -75,25 +75,30 @@ Files with complex UI structures:
 
 ### High Priority Refactoring Targets
 
-1. **PromptInput.vue** (1,744 lines total, 1,453 script lines)
-   - Largest script section in the project
-   - Consider extracting composables for logic reuse
-   - Break down into smaller sub-components
+1. **mcpServerForm.vue** (1,194 lines total, 722 script lines, 470 template lines)
+   - Consider refactoring to reduce complexity
+   - Extract reusable logic into composables
+   - Break down into smaller components
 
-2. **ChatInput.vue** (1,467 lines total, 1,252 script lines)
-   - Second largest file
-   - Likely shares functionality with PromptInput.vue
-   - Extract common input handling logic
+2. **BuiltinKnowledgeSettings.vue** (1,074 lines total, 527 script lines, 545 template lines)
+   - Consider refactoring to reduce complexity
+   - Extract reusable logic into composables
+   - Break down into smaller components
 
-3. **mcpServerForm.vue** (1,194 lines total, 470 template, 722 script)
-   - Complex form with large template and script
-   - Split into multiple form sections
-   - Extract validation logic into composables
+3. **OllamaProviderSettingsDetail.vue** (980 lines total, 716 script lines, 145 template lines)
+   - Consider refactoring to reduce complexity
+   - Extract reusable logic into composables
+   - Break down into smaller components
 
-4. **BuiltinKnowledgeSettings.vue** (1,074 lines total, 545 template, 527 script)
-   - Settings page with complex UI and logic
-   - Break down into smaller settings sections
-   - Use composition API to organize related logic
+4. **AnthropicProviderSettingsDetail.vue** (756 lines total, 417 script lines, 337 template lines)
+   - Consider refactoring to reduce complexity
+   - Extract reusable logic into composables
+   - Break down into smaller components
+
+5. **ModelConfigDialog.vue** (745 lines total, 373 script lines, 170 template lines)
+   - Consider refactoring to reduce complexity
+   - Extract reusable logic into composables
+   - Break down into smaller components
 
 ### Refactoring Strategies
 
@@ -117,29 +122,25 @@ Files with complex UI structures:
 
 ### Pattern Observations
 
-1. **Settings Components**: Many settings pages exceed thresholds
+1. **Settings Components**: 17 settings files exceed thresholds
    - Consider a generic settings layout component
    - Extract common form patterns
 
-2. **Knowledge Integration Files**: Multiple similar knowledge settings files
-   - High code duplication (RagflowKnowledgeSettings, DifyKnowledgeSettings, FastGptKnowledgeSettings)
-   - Create a generic knowledge settings component with provider-specific configurations
+2. **Knowledge Integration Files**: 5 knowledge-related files are large
+   - Potential code duplication
+   - Create a generic knowledge settings component
 
-3. **MCP Configuration**: MCP-related components are consistently large
+3. **MCP Configuration**: 5 MCP-related components are consistently large
    - Complex domain requiring detailed UI
    - Consider a dedicated MCP configuration module
-
-4. **Input Components**: PromptInput and ChatInput are extremely large
-   - Core user interaction components
-   - High priority for refactoring to improve maintainability
 
 ## Component Complexity Distribution
 
 ```
 Files by size category:
-- 1000+ lines:  4 files
-- 500-999 lines: 6 files
-- 300-499 lines: 27 files
+- 1000+ lines:  2 files
+- 500-999 lines: 7 files
+- 300-499 lines: 31 files
 ```
 
 ## Next Steps

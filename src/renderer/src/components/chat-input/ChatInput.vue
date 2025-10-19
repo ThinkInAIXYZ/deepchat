@@ -108,20 +108,13 @@
           <!-- Actions -->
           <div class="flex items-center gap-2 flex-wrap">
             <div
-              v-if="
-                contextLength &&
-                contextLength > 0 &&
-                currentContextLength / (contextLength ?? 1000) > 0.5
-              "
+              v-if="shouldShowContextLength"
               :class="[
                 'text-xs',
                 variant === 'chat'
                   ? 'text-muted-foreground dark:text-white/60'
                   : 'text-muted-foreground',
-                currentContextLength / (contextLength ?? 1000) > 0.9 ? 'text-red-600' : '',
-                currentContextLength / (contextLength ?? 1000) > 0.8
-                  ? 'text-yellow-600'
-                  : 'text-muted-foreground'
+                contextLengthStatusClass
               ]"
             >
               {{ currentContextLengthText }}
@@ -315,6 +308,9 @@ import { usePromptInputFiles } from './composables/usePromptInputFiles'
 import { useMentionData } from './composables/useMentionData'
 import { usePromptInputConfig } from './composables/usePromptInputConfig'
 import { usePromptInputEditor } from './composables/usePromptInputEditor'
+import { useInputSettings } from './composables/useInputSettings'
+import { useContextLength } from './composables/useContextLength'
+import { useSendButtonState } from './composables/useSendButtonState'
 
 // === Stores ===
 import { useChatStore } from '@/stores/chat'
@@ -326,8 +322,6 @@ import { Mention } from '../editor/mention/mention'
 import suggestion, { setPromptFilesHandler } from '../editor/mention/suggestion'
 import { mentionData } from '../editor/mention/suggestion'
 
-// === Utils ===
-import { approximateTokenSize } from 'tokenx'
 
 // === Props & Emits ===
 const props = withDefaults(
@@ -354,7 +348,6 @@ const langStore = useLanguageStore()
 const themeStore = useThemeStore()
 
 // === Presenters ===
-const configPresenter = usePresenter('configPresenter')
 const windowPresenter = usePresenter('windowPresenter')
 
 // === i18n ===
@@ -363,12 +356,11 @@ const { t } = useI18n()
 // === Local State ===
 const fileInput = ref<HTMLInputElement>()
 const modelSelectOpen = ref(false)
-const settings = ref({
-  deepThinking: false,
-  webSearch: false
-})
 
 // === Composable Integrations ===
+
+// Initialize settings management
+const { settings, toggleWebSearch } = useInputSettings()
 
 // Initialize history composable first (needed for editor placeholder)
 const history = useInputHistory(null as any, t)
@@ -431,6 +423,31 @@ const drag = useDragAndDrop()
 const files = usePromptInputFiles(fileInput, emit, t)
 useMentionData(files.selectedFiles) // Setup mention data watchers
 
+// Initialize editor composable
+const editorComposable = usePromptInputEditor(
+  editor,
+  files.selectedFiles,
+  history.clearHistoryPlaceholder
+)
+
+// Setup editor update handler
+editor.on('update', editorComposable.onEditorUpdate)
+
+// Initialize context length tracking
+const contextLengthTracker = useContextLength({
+  inputText: editorComposable.inputText,
+  selectedFiles: files.selectedFiles,
+  contextLength: props.contextLength
+})
+
+// Initialize send button state
+const sendButtonState = useSendButtonState({
+  variant: props.variant,
+  inputText: editorComposable.inputText,
+  currentContextLength: contextLengthTracker.currentContextLength,
+  contextLength: props.contextLength
+})
+
 // Only initialize config for chat variant
 const config =
   props.variant === 'chat'
@@ -456,58 +473,12 @@ const config =
         loadModelConfig: async () => {}
       } as any)
 
-const editorComposable = usePromptInputEditor(
-  editor,
-  files.selectedFiles,
-  history.clearHistoryPlaceholder
-)
-
-// Setup editor update handler
-editor.on('update', editorComposable.onEditorUpdate)
-
 // === Computed ===
-const currentContextLength = computed(() => {
-  return (
-    approximateTokenSize(editorComposable.inputText.value) +
-    files.selectedFiles.value.reduce((acc, file) => {
-      return acc + file.token
-    }, 0)
-  )
-})
+// Use composable values
+const { currentContextLengthText, shouldShowContextLength, contextLengthStatusClass } =
+  contextLengthTracker
 
-const currentContextLengthText = computed(() => {
-  return `${Math.round((currentContextLength.value / (props.contextLength ?? 1000)) * 100)}%`
-})
-
-const disabledSend = computed(() => {
-  if (props.variant === 'newThread') {
-    return (
-      editorComposable.inputText.value.length <= 0 ||
-      currentContextLength.value > (props.contextLength ?? 200000)
-    )
-  }
-
-  // chat variant
-  const activeThreadId = chatStore.getActiveThreadId()
-  if (activeThreadId) {
-    return (
-      chatStore.generatingThreadIds.has(activeThreadId) ||
-      editorComposable.inputText.value.length <= 0 ||
-      currentContextLength.value > (props.contextLength ?? chatStore.chatConfig.contextLength)
-    )
-  }
-  return false
-})
-
-const isStreaming = computed(() => {
-  if (props.variant === 'newThread') return false
-
-  const activeThreadId = chatStore.getActiveThreadId()
-  if (activeThreadId) {
-    return chatStore.generatingThreadIds.has(activeThreadId)
-  }
-  return false
-})
+const { disabledSend, isStreaming } = sendButtonState
 
 // === Event Handlers ===
 const handleDrop = async (e: DragEvent) => {
@@ -555,8 +526,7 @@ const emitSend = async () => {
 }
 
 const onWebSearchClick = async () => {
-  settings.value.webSearch = !settings.value.webSearch
-  await configPresenter.setSetting('input_webSearch', settings.value.webSearch)
+  await toggleWebSearch()
 }
 
 const onKeydown = (e: KeyboardEvent) => {
@@ -593,9 +563,7 @@ const restoreFocus = () => {
 
 // === Lifecycle Hooks ===
 onMounted(async () => {
-  // Initialize settings
-  settings.value.deepThinking = Boolean(await configPresenter.getSetting('input_deepThinking'))
-  settings.value.webSearch = Boolean(await configPresenter.getSetting('input_webSearch'))
+  // Settings are auto-initialized by useInputSettings composable
 
   // Initialize history
   history.initHistory()
