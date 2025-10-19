@@ -1,7 +1,7 @@
 <template>
   <div
     :class="[
-      'search-status-indicator flex items-center gap-2 px-2 rounded-lg border text-xs leading-4 transition-colors duration-150',
+      'min-h-7 py-1.5 flex items-center gap-2 px-2 rounded-lg border text-xs leading-4 transition-colors duration-150',
       containerClasses,
       interactive
         ? 'cursor-pointer hover:bg-accent/40 focus-visible:outline focus-visible:outline-offset-2 focus-visible:outline-accent'
@@ -107,11 +107,3 @@ const iconClass = computed(() => {
 const faviconList = computed(() => props.favicons.slice(0, 6))
 const showFavicons = computed(() => faviconList.value.length > 0)
 </script>
-
-<style scoped>
-.search-status-indicator {
-  min-height: 28px;
-  padding-top: 6px;
-  padding-bottom: 6px;
-}
-</style>

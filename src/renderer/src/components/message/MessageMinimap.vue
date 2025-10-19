@@ -1,9 +1,12 @@
 <template>
   <div
-    class="absolute top-0 right-0 w-14 min-h-[148px] box-border rounded-[6px] py-4 px-3 flex flex-col items-stretch gap-0 pointer-events-auto z-[5] overflow-hidden"
+    class="absolute top-0 right-0 w-14 min-h-[148px] box-border rounded-[6px] py-4 px-3 flex flex-col items-stretch gap-0 pointer-events-none z-[5] overflow-hidden"
     :style="containerStyle"
   >
-    <div class="relative flex-none flex justify-end overflow-hidden w-full" :style="trackStyle">
+    <div
+      class="relative flex-none flex justify-end overflow-hidden w-full pointer-events-auto"
+      :style="trackStyle"
+    >
       <div
         class="flex flex-col items-end gap-1 w-full relative z-[2]"
         role="list"

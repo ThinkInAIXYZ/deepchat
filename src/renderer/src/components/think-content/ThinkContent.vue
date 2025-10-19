@@ -30,7 +30,7 @@
     <div v-show="expanded" class="w-full relative">
       <NodeRenderer
         v-if="content"
-        class="think-prose w-full max-w-full mt-[6px]"
+        class="think-prose w-full max-w-full"
         :content="content"
         :customId="customId"
       />
@@ -86,6 +86,16 @@ setCustomComponents(customId, {
 </script>
 
 <style scoped>
+@reference '../../assets/style.css';
+.think-prose :where(p, ul, li) {
+  @apply mb-1 mt-0;
+}
+.think-prose :where(ul) {
+  @apply my-1.5;
+}
+.think-prose :where(li) {
+  @apply my-1.5;
+}
 .think-prose :where(p, li, ol, ul) {
   font-size: 12px;
   line-height: 16px;

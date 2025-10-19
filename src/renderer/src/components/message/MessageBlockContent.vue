@@ -1,31 +1,25 @@
 <!-- eslint-disable @typescript-eslint/no-explicit-any -->
 <template>
-  <div ref="messageBlock" class="markdown-content-wrapper relative w-full">
-    <template v-for="(part, index) in processedContent" :key="index">
-      <!-- 使用结构化渲染器替代 v-html -->
-      <MarkdownRenderer
-        v-if="part.type === 'text'"
-        :content="part.content"
+  <template v-for="(part, index) in processedContent" :key="index">
+    <!-- 使用结构化渲染器替代 v-html -->
+    <MarkdownRenderer v-if="part.type === 'text'" :content="part.content" :loading="part.loading" />
+
+    <ArtifactThinking v-else-if="part.type === 'thinking' && part.loading" />
+    <div v-else-if="part.type === 'artifact' && part.artifact" class="my-1">
+      <ArtifactPreview
+        :block="{
+          content: part.content,
+          artifact: part.artifact
+        }"
+        :message-id="messageId"
+        :thread-id="threadId"
         :loading="part.loading"
       />
-
-      <ArtifactThinking v-else-if="part.type === 'thinking' && part.loading" />
-      <div v-else-if="part.type === 'artifact' && part.artifact" class="my-1">
-        <ArtifactPreview
-          :block="{
-            content: part.content,
-            artifact: part.artifact
-          }"
-          :message-id="messageId"
-          :thread-id="threadId"
-          :loading="part.loading"
-        />
-      </div>
-      <div v-else-if="part.type === 'tool_call' && part.tool_call" class="my-1">
-        <ToolCallPreview :block="part" :block-status="props.block.status" />
-      </div>
-    </template>
-  </div>
+    </div>
+    <div v-else-if="part.type === 'tool_call' && part.tool_call" class="my-1">
+      <ToolCallPreview :block="part" :block-status="props.block.status" />
+    </div>
+  </template>
 </template>
 
 <script setup lang="ts">
@@ -51,8 +45,6 @@ const props = defineProps<{
   threadId: string
   isSearchResult?: boolean
 }>()
-
-const messageBlock = ref<HTMLDivElement>()
 
 const { processedContent } = useBlockContent(props)
 

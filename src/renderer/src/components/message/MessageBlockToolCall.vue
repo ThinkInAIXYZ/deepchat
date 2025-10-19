@@ -1,71 +1,15 @@
 <template>
-  <div class="">
+  <div class="flex flex-col w-full">
     <div
-      class="flex flex-col h-min-[40px] hover:bg-accent/40 select-none cursor-pointer pt-3 overflow-hidden w-[380px] break-all shadow-sm items-start gap-3 rounded-lg border bg-accent text-card-foreground"
+      class="w-fit min-h-7 py-1.5 flex bg-accent hover:bg-accent/40 border rounded-lg flex-wrap items-center gap-2 px-2 text-xs leading-4 transition-colors duration-150 select-none cursor-pointer"
       @click="toggleExpanded"
     >
-      <div class="flex flex-row items-center gap-2 w-full">
-        <div class="grow w-0 pl-2">
-          <h4
-            class="text-xs font-medium leading-none text-accent-foreground flex flex-row gap-2 items-center"
-          >
-            <span v-if="block.tool_call?.server_icons" class="text-base leading-none">{{
-              `${block.tool_call?.server_icons}  `
-            }}</span>
-            <Icon v-else icon="lucide:hammer" class="w-4 h-4 text-muted-foreground" />
-            {{ block.tool_call?.server_name ? `${block.tool_call?.server_name} · ` : ''
-            }}{{ block.tool_call?.name ?? '' }}
-          </h4>
-        </div>
-        <div class="text-xs text-muted-foreground">{{ getToolCallStatus() }}</div>
-        <div class="shrink-0 pr-2 rounded-lg rounded-l-none flex justify-center items-center">
-          <Icon
-            v-if="block.status === 'loading'"
-            icon="lucide:loader-2"
-            class="w-4 h-4 animate-spin text-muted-foreground"
-          />
-          <Icon
-            v-else-if="block.status === 'success'"
-            icon="lucide:check"
-            class="w-4 h-4 bg-green-500 rounded-full text-white p-0.5 dark:bg-green-800"
-          />
-          <Icon
-            v-else-if="block.status === 'error'"
-            icon="lucide:x"
-            class="w-4 h-4 text-white p-0.5 bg-red-500 rounded-full dark:bg-red-800"
-          />
-          <Icon
-            v-else-if="showPermissionIcon()"
-            icon="lucide:hand"
-            class="w-4 h-4 p-0.5 bg-yellow-500 text-white rounded-full dark:bg-yellow-800"
-          />
-          <Icon
-            v-else
-            :icon="isExpanded ? 'lucide:chevron-up' : 'lucide:chevron-down'"
-            class="w-4 h-4 text-muted-foreground"
-          />
-        </div>
-      </div>
-      <!-- <transition
-        enter-active-class="transition-all duration-200"
-        enter-from-class="opacity-0 -translate-y-2"
-        enter-to-class="opacity-100 translate-y-0"
-        leave-active-class="transition-all duration-200"
-        leave-from-class="opacity-100 translate-y-0"
-        leave-to-class="opacity-0 -translate-y-2"
+      <Icon :icon="statusIconName" :class="['w-3.5 h-3.5 shrink-0', statusIconClass]" />
+      <div
+        class="flex items-center gap-2 font-mono font-medium tracking-tight text-foreground/80 truncate leading-none"
       >
-        <div
-          v-if="simpleIn"
-          class="flex-row w-full gap-1 bg-muted dark:bg-background text-muted-foreground transition-colors duration-200 inline-flex max-w-132 items-center cursor-pointer select-none"
-        >
-          <div class="text-xs inline-flex px-2 py-1 flex-row gap-2 items-center max-w-64">
-            <Icon icon="lucide:arrow-up-from-dot" class="w-3 h-3 text-muted-foreground shrink-0" />
-            <span class="truncate">{{ simpleIn }}</span>
-          </div>
-        </div>
-        <div v-else class="h-0"></div>
-      </transition> -->
-      <div class="h-0"></div>
+        <span class="truncate text-xs">{{ primaryLabel }}.{{ functionLabel }}</span>
+      </div>
     </div>
 
     <!-- 详细内容区域 -->
@@ -115,7 +59,7 @@
 import { Icon } from '@iconify/vue'
 import { useI18n } from 'vue-i18n'
 import { AssistantMessageBlock } from '@shared/chat'
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { JsonObject } from '@/components/json-viewer'
 
 // 创建一个安全的翻译函数
@@ -148,33 +92,56 @@ const props = defineProps<{
 
 const isExpanded = ref(false)
 
+const statusVariant = computed(() => {
+  if (props.block.status === 'error') return 'error'
+  if (props.block.status === 'success') return 'success'
+  if (props.block.status === 'loading') return 'running'
+  return 'neutral'
+})
+
+const primaryLabel = computed(() => {
+  if (!props.block.tool_call) return t('toolCall.title')
+  let serverName = props.block.tool_call.server_name
+  if (props.block.tool_call.server_name?.includes('/')) {
+    serverName = props.block.tool_call.server_name.split('/').pop()
+  }
+  return serverName || props.block.tool_call.name || t('toolCall.title')
+})
+
+const functionLabel = computed(() => {
+  const toolCall = props.block.tool_call
+  return toolCall?.name ?? ''
+})
+
 const toggleExpanded = () => {
   isExpanded.value = !isExpanded.value
 }
 
-const getToolCallStatus = () => {
-  if (!props.block.tool_call) return ''
-
-  if (props.block.status === 'error') {
-    return t('toolCall.error')
+const statusIconName = computed(() => {
+  if (!props.block.tool_call) return 'lucide:circle-small'
+  switch (statusVariant.value) {
+    case 'error':
+      return 'lucide:x'
+    case 'success':
+    case 'neutral':
+      return 'lucide:circle-small'
+    default:
+      return 'lucide:circle-small'
   }
+})
 
-  if (props.block.status === 'loading') {
-    return props.block.tool_call.response ? t('toolCall.response') : t('toolCall.calling')
+const statusIconClass = computed(() => {
+  switch (statusVariant.value) {
+    case 'error':
+      return 'text-destructive'
+    case 'success':
+      return 'text-emerald-500'
+    case 'running':
+      return 'text-muted-foreground animate-pulse'
+    default:
+      return 'text-muted-foreground'
   }
-
-  if (props.block.status === 'success') {
-    return t('toolCall.end')
-  }
-
-  return t('toolCall.title')
-}
-
-// 辅助函数，用于判断是否显示权限图标
-const showPermissionIcon = () => {
-  // 这里保留原有逻辑，暂时默认不显示
-  return false
-}
+})
 
 // 解析JSON为对象
 const parseJson = (jsonStr: string) => {
@@ -208,6 +175,12 @@ const parseJson = (jsonStr: string) => {
 </script>
 
 <style scoped>
+.message-tool-call {
+  min-height: 28px;
+  padding-top: 6px;
+  padding-bottom: 6px;
+}
+
 pre {
   font-family:
     ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New',

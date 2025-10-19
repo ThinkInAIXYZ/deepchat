@@ -98,6 +98,9 @@ defineEmits(['copy'])
   .mermaid-block-header img {
     margin: 0 !important;
   }
+  p {
+    @apply my-0;
+  }
   li p {
     padding-top: 0;
     padding-bottom: 0;
