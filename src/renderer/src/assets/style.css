@@ -150,6 +150,7 @@
 
   html {
     --dc-font-scale: 1;
+    --dc-code-font-size: 14px;
   }
 
   html.text-sm {
@@ -978,4 +979,13 @@
   .font-text {
     font-weight: var(--text-weight);
   }
+}
+
+/* Code font size customization */
+.prose pre,
+.prose code,
+.prose pre code,
+.cm-editor .cm-content,
+.cm-editor .cm-line {
+  font-size: var(--dc-code-font-size) !important;
 }

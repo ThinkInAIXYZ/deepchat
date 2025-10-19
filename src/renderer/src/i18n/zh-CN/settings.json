@@ -754,6 +754,7 @@
     "text-lg": "大",
     "text-xl": "特大",
     "text-2xl": "超大",
+    "codeFontSize": "代码字体大小",
     "floatingButton": "悬浮按钮",
     "floatingButtonDesc": "在桌面显示一个悬浮按钮，可以快速唤起应用窗口"
   },

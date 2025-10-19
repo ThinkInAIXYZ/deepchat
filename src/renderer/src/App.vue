@@ -18,6 +18,7 @@ import ThreadView from '@/components/ThreadView.vue'
 import ModelCheckDialog from '@/components/settings/ModelCheckDialog.vue'
 import { useModelCheckStore } from '@/stores/modelCheck'
 import MessageDialog from './components/ui/MessageDialog.vue'
+import { useCodeFontSize } from '@/composables/useCodeFontSize'
 import 'vue-sonner/style.css' // vue-sonner v2 requires this import
 
 const route = useRoute()
@@ -30,6 +31,9 @@ const themeStore = useThemeStore()
 const langStore = useLanguageStore()
 const modelCheckStore = useModelCheckStore()
 const { t } = useI18n()
+
+// Initialize code font size
+useCodeFontSize()
 // Error notification queue and currently displayed error
 const errorQueue = ref<Array<{ id: string; title: string; message: string; type: string }>>([])
 const currentErrorId = ref<string | null>(null)

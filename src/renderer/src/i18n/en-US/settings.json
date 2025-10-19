@@ -754,6 +754,7 @@
     "text-lg": "Large",
     "text-xl": "X-Large",
     "text-2xl": "XX-Large",
+    "codeFontSize": "Code font size",
     "floatingButton": "Floating Button",
     "floatingButtonDesc": "Display a floating button on the desktop to quickly activate the application window"
   },

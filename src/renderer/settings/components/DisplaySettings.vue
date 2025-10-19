@@ -212,6 +212,29 @@
         </ButtonGroup>
       </div>
 
+      <!-- 代码字体大小设置 -->
+      <div class="flex flex-col gap-2 px-2 py-2">
+        <span
+          class="flex items-center gap-2 text-sm font-medium shrink-0 min-w-[220px]"
+          :dir="languageStore.dir"
+        >
+          <Icon icon="lucide:code" class="w-4 h-4 text-muted-foreground" />
+          <span class="truncate">{{ t('settings.display.codeFontSize') }}</span>
+        </span>
+        <ButtonGroup class="flex-wrap">
+          <Button
+            v-for="(sizeOption, index) in codeFontSizeOptions"
+            :key="index"
+            :variant="codeFontSizeLevel === index ? 'default' : 'outline'"
+            size="sm"
+            class="px-2 py-1.5 text-xs shrink-0"
+            @click="codeFontSizeLevel = index"
+          >
+            {{ sizeOption }}
+          </Button>
+        </ButtonGroup>
+      </div>
+
       <!-- 投屏保护开关 -->
       <div class="flex items-center gap-3 px-2 py-2">
         <span
@@ -408,6 +431,14 @@ const fontSizeOptions = ['text-sm', 'text-base', 'text-lg', 'text-xl', 'text-2xl
 const fontSizeLevel = computed({
   get: () => settingsStore.fontSizeLevel,
   set: (value) => settingsStore.updateFontSizeLevel(value)
+})
+
+// --- Code Font Size Settings ---
+const codeFontSizeOptions = ['12px', '14px', '16px', '18px', '20px']
+
+const codeFontSizeLevel = computed({
+  get: () => settingsStore.codeFontSizeLevel,
+  set: (value) => settingsStore.updateCodeFontSizeLevel(value)
 })
 
 // --- Content Protection Settings ---

@@ -16,6 +16,10 @@ import { useThrottleFn } from '@vueuse/core'
 const FONT_SIZE_CLASSES = ['text-sm', 'text-base', 'text-lg', 'text-xl', 'text-2xl']
 const DEFAULT_FONT_SIZE_LEVEL = 1 // 对应 'text-base'
 
+// 定义代码字体大小级别对应的 CSS 值
+const CODE_FONT_SIZE_VALUES = ['12px', '14px', '16px', '18px', '20px']
+const DEFAULT_CODE_FONT_SIZE_LEVEL = 1 // 对应 '14px'
+
 export const useSettingsStore = defineStore('settings', () => {
   const configP = usePresenter('configPresenter')
   const llmP = usePresenter('llmproviderPresenter')
@@ -35,6 +39,7 @@ export const useSettingsStore = defineStore('settings', () => {
   const copyWithCotEnabled = ref<boolean>(true)
   const notificationsEnabled = ref<boolean>(true) // 系统通知是否启用，默认启用
   const fontSizeLevel = ref<number>(DEFAULT_FONT_SIZE_LEVEL) // 字体大小级别，默认为 1
+  const codeFontSizeLevel = ref<number>(DEFAULT_CODE_FONT_SIZE_LEVEL) // 代码字体大小级别，默认为 1
   // Ollama 相关状态
   const ollamaRunningModels = ref<OllamaModel[]>([])
   const ollamaLocalModels = ref<OllamaModel[]>([])
@@ -231,6 +236,11 @@ export const useSettingsStore = defineStore('settings', () => {
     () => FONT_SIZE_CLASSES[fontSizeLevel.value] || FONT_SIZE_CLASSES[DEFAULT_FONT_SIZE_LEVEL]
   )
 
+  // 代码字体大小对应的 CSS 值
+  const codeFontSizeValue = computed(
+    () => CODE_FONT_SIZE_VALUES[codeFontSizeLevel.value] || CODE_FONT_SIZE_VALUES[DEFAULT_CODE_FONT_SIZE_LEVEL]
+  )
+
   // 维护 provider 状态变更时间戳的映射
   const providerTimestamps = ref<Record<string, number>>({})
 
@@ -310,6 +320,14 @@ export const useSettingsStore = defineStore('settings', () => {
       // 确保级别在有效范围内
       if (fontSizeLevel.value < 0 || fontSizeLevel.value >= FONT_SIZE_CLASSES.length) {
         fontSizeLevel.value = DEFAULT_FONT_SIZE_LEVEL
+      }
+
+      // 获取代码字体大小级别
+      codeFontSizeLevel.value =
+        (await configP.getSetting<number>('codeFontSizeLevel')) ?? DEFAULT_CODE_FONT_SIZE_LEVEL
+      // 确保级别在有效范围内
+      if (codeFontSizeLevel.value < 0 || codeFontSizeLevel.value >= CODE_FONT_SIZE_VALUES.length) {
+        codeFontSizeLevel.value = DEFAULT_CODE_FONT_SIZE_LEVEL
       }
 
       // 获取搜索预览设置
@@ -639,6 +657,15 @@ export const useSettingsStore = defineStore('settings', () => {
     if (fontSizeLevel.value !== validLevel) {
       fontSizeLevel.value = validLevel
       await configP.setSetting('fontSizeLevel', validLevel)
+    }
+  }
+
+  // 更新代码字体大小级别
+  const updateCodeFontSizeLevel = async (level: number) => {
+    const validLevel = Math.max(0, Math.min(level, CODE_FONT_SIZE_VALUES.length - 1))
+    if (codeFontSizeLevel.value !== validLevel) {
+      codeFontSizeLevel.value = validLevel
+      await configP.setSetting('codeFontSizeLevel', validLevel)
     }
   }
 
@@ -1750,6 +1777,8 @@ export const useSettingsStore = defineStore('settings', () => {
     providers,
     fontSizeLevel, // Expose font size level
     fontSizeClass, // Expose font size class
+    codeFontSizeLevel, // Expose code font size level
+    codeFontSizeValue, // Expose code font size CSS value
     enabledModels,
     allProviderModels,
     customModels,
@@ -1763,6 +1792,7 @@ export const useSettingsStore = defineStore('settings', () => {
     loggingEnabled,
     updateProvider,
     updateFontSizeLevel, // Expose update function
+    updateCodeFontSizeLevel, // Expose code font size update function
     initSettings,
     searchModels,
     refreshAllModels,
