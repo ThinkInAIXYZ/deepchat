@@ -67,6 +67,7 @@ export function useModelTypeDetection(
       modelReasoning.value = modelConfig.reasoning || false
     } catch (error) {
       modelReasoning.value = false
+      console.error(error)
     }
   }
 

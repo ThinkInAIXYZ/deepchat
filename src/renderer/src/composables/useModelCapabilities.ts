@@ -79,6 +79,7 @@ export function useModelCapabilities(options: UseModelCapabilitiesOptions) {
       capabilitySearchDefaults.value = sd || null
     } catch (error) {
       resetCapabilities()
+      console.error(error)
     } finally {
       isLoading.value = false
     }
