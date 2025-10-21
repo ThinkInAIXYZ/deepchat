@@ -6,7 +6,7 @@ import type { ArtifactState } from '@/stores/artifact'
 import { ref, watch, onBeforeUnmount } from 'vue'
 
 // === Composables ===
-import { useMonaco, detectLanguage } from 'vue-use-monaco'
+import { useMonaco, detectLanguage } from 'stream-monaco'
 import { useThrottleFn } from '@vueuse/core'
 
 /**

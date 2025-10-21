@@ -17,7 +17,8 @@ import NodeRenderer, {
   ReferenceNode,
   setCustomComponents,
   setKaTeXWorker,
-  setMermaidWorker
+  setMermaidWorker,
+  getUseMonaco
 } from 'vue-renderer-markdown'
 import KatexWorker from 'vue-renderer-markdown/workers/katexRenderer.worker?worker&inline'
 import MermaidWorker from 'vue-renderer-markdown/workers/mermaidParser.worker?worker&inline'
@@ -26,6 +27,7 @@ const props = defineProps<{
   content: string
   debug?: boolean
 }>()
+getUseMonaco()
 setKaTeXWorker(new KatexWorker())
 setMermaidWorker(new MermaidWorker())
 // 组件映射表
