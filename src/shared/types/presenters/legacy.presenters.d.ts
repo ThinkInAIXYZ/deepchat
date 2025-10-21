@@ -682,7 +682,6 @@ export interface ILlmProviderPresenter {
   showOllamaModelInfo(modelName: string): Promise<ShowResponse>
   listOllamaRunningModels(): Promise<OllamaModel[]>
   pullOllamaModels(modelName: string): Promise<boolean>
-  deleteOllamaModel(modelName: string): Promise<boolean>
   getEmbeddings(providerId: string, modelId: string, texts: string[]): Promise<number[][]>
   getDimensions(
     providerId: string,

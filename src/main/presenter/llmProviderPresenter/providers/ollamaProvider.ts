@@ -380,18 +380,6 @@ export class OllamaProvider extends BaseLLMProvider {
     }
   }
 
-  public async deleteModel(modelName: string): Promise<boolean> {
-    try {
-      await this.ollama.delete({
-        model: modelName
-      })
-      return true
-    } catch (error) {
-      console.error(`Failed to delete Ollama model ${modelName}:`, (error as Error).message)
-      return false
-    }
-  }
-
   public async showModelInfo(modelName: string): Promise<ShowResponse> {
     try {
       const response = await this.ollama.show({
