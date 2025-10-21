@@ -83,6 +83,9 @@ export default defineConfig({
       svgLoader(),
       vueDevTools()
     ],
+    worker: {
+      format: 'es'
+    },
     build: {
       minify: 'esbuild',
       // Ensure CSS order in build matches import order in dev
