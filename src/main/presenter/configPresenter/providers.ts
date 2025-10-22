@@ -96,7 +96,7 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
   {
     id: 'jiekou',
     name: 'JieKou.AI',
-    apiType: 'openai',
+    apiType: 'jiekou',
     apiKey: '',
     baseUrl: 'https://api.jiekou.ai/openai',
     enable: false,
