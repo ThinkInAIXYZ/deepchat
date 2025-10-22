@@ -2,7 +2,7 @@
   <div class="space-y-2" :dir="langStore.dir">
     <Input
       v-model="keyword"
-      class="w-full border-none border-b ring-0 focus-visible:ring-0 rounded-b-none"
+      class="w-full text-sm border-none border-b ring-0 focus-visible:ring-0 rounded-b-none"
       :placeholder="t('model.search.placeholder')"
     />
     <div class="flex flex-col max-h-64 overflow-y-auto">

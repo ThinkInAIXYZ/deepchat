@@ -1,7 +1,7 @@
 <!-- eslint-disable vue/no-v-html -->
 <template>
   <div class="prose prose-zinc prose-sm dark:prose-invert w-full max-w-none break-all">
-    <NodeRenderer :content="content" @copy="$emit('copy', $event)" />
+    <NodeRenderer v-if="content" :content="content" @copy="$emit('copy', $event)" />
   </div>
 </template>
 
@@ -17,7 +17,7 @@ import NodeRenderer, {
   setCustomComponents
 } from 'vue-renderer-markdown'
 
-defineProps<{
+const props = defineProps<{
   content: string
   debug?: boolean
 }>()
@@ -99,7 +99,7 @@ defineEmits(['copy'])
     margin: 0 !important;
   }
   p {
-    @apply my-0;
+    @apply my-2;
   }
   li p {
     padding-top: 0;
@@ -107,12 +107,32 @@ defineEmits(['copy'])
     margin-top: 0;
     margin-bottom: 0;
   }
+  h1 {
+    @apply text-2xl font-bold my-3 py-0;
+  }
+  h2 {
+    @apply text-xl font-medium my-3 py-0;
+  }
+  h3 {
+    @apply text-base font-medium my-2 py-0;
+  }
+  h4 {
+    @apply text-sm font-medium my-2 py-0;
+  }
+  h5 {
+    @apply text-sm my-1.5 py-0;
+  }
+  h6 {
+    @apply text-sm my-1.5 py-0;
+  }
+
+  ul,
+  ol {
+    @apply my-1.5;
+  }
 
   hr {
-    margin-block-start: 0.5em;
-    margin-block-end: 0.5em;
-    margin-inline-start: auto;
-    margin-inline-end: auto;
+    @apply my-8;
   }
 
   /*
@@ -122,6 +142,31 @@ defineEmits(['copy'])
   */
   a .markdown-renderer {
     display: inline;
+  }
+
+  .table-node-wrapper {
+    @apply border border-border rounded-lg py-0 my-0 overflow-hidden shadow-sm;
+  }
+
+  table {
+    @apply py-0 my-0;
+    /* @apply bg-card border block rounded-lg my-0 py-0 overflow-hidden; */
+    border-collapse: collapse;
+  }
+
+  thead,
+  thead tr,
+  thead th {
+    @apply bg-muted;
+  }
+
+  th,
+  td {
+    @apply border-b not-last:border-r border-border;
+  }
+
+  tbody tr:last-child td {
+    @apply border-b-0;
   }
 }
 </style>

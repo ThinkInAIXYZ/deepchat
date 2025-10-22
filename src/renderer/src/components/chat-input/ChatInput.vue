@@ -100,13 +100,12 @@
             </Tooltip>
 
             <McpToolsList />
-
-            <!-- Slot for NewThread model selector -->
-            <slot name="addon-buttons"></slot>
           </div>
 
           <!-- Actions -->
           <div class="flex items-center gap-2 flex-wrap">
+            <!-- NewThread model selector and settings (right-aligned) -->
+            <slot name="addon-actions"></slot>
             <div
               v-if="shouldShowContextLength"
               :class="[
