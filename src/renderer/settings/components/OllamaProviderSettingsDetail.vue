@@ -131,7 +131,6 @@
                   :model-name="model.name"
                   :model-id="model.meta?.id ?? model.name"
                   :provider-id="provider.id"
-                  :is-custom-model="true"
                   :type="model.type"
                   :enabled="model.enabled"
                   :vision="model.vision"
@@ -140,7 +139,6 @@
                   :enable-search="model.enableSearch"
                   @enabled-change="handleModelEnabledChange(model.name, $event)"
                   @config-changed="refreshModels"
-                  @delete-model="showDeleteModelConfirm(model.name)"
                 />
               </template>
               <template v-else>
@@ -208,26 +206,6 @@
       </DialogContent>
     </Dialog>
 
-    <!-- 删除模型确认对话框 -->
-    <Dialog v-model:open="showDeleteModelDialog">
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>{{ t('settings.provider.dialog.deleteModel.title') }}</DialogTitle>
-          <DialogDescription>
-            {{ t('settings.provider.dialog.deleteModel.content', { name: modelToDelete }) }}
-          </DialogDescription>
-        </DialogHeader>
-        <DialogFooter>
-          <Button variant="outline" @click="showDeleteModelDialog = false">
-            {{ t('dialog.cancel') }}
-          </Button>
-          <Button variant="destructive" @click="confirmDeleteModel">
-            {{ t('settings.provider.dialog.deleteModel.confirm') }}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-
     <!-- 检查模型对话框 -->
     <Dialog v-model:open="showCheckModelDialog">
       <DialogContent>
@@ -281,11 +259,9 @@ import { useSettingsStore } from '@/stores/settings'
 import { useModelCheckStore } from '@/stores/modelCheck'
 import type { LLM_PROVIDER, RENDERER_MODEL_META } from '@shared/presenter'
 import ModelConfigItem from '@/components/settings/ModelConfigItem.vue'
-import { useToast } from '@/components/use-toast'
 import { ModelType } from '@shared/model'
 
 const { t } = useI18n()
-const { toast } = useToast()
 
 const props = defineProps<{
   provider: LLM_PROVIDER
@@ -297,8 +273,6 @@ const apiHost = ref(props.provider.baseUrl || '')
 const apiKey = ref(props.provider.apiKey || '')
 const showApiKey = ref(false)
 const showPullModelDialog = ref(false)
-const showDeleteModelDialog = ref(false)
-const modelToDelete = ref('')
 const showCheckModelDialog = ref(false)
 const checkResult = ref<boolean>(false)
 
@@ -856,42 +830,11 @@ const pullModel = async (modelName: string) => {
   }
 }
 
-// 显示删除模型确认对话框
-const showDeleteModelConfirm = (modelName: string) => {
-  if (isModelRunning(modelName)) {
-    toast({
-      title: t('settings.provider.toast.modelRunning'),
-      description: t('settings.provider.toast.modelRunningDesc', { model: modelName }),
-      variant: 'destructive',
-      duration: 3000
-    })
-    return
-  }
-  modelToDelete.value = modelName
-  showDeleteModelDialog.value = true
-}
-
 const handleModelEnabledChange = async (modelName: string, enabled: boolean) => {
   try {
     await settingsStore.updateModelStatus(props.provider.id, modelName, enabled)
   } catch (error) {
     console.error(`Failed to update model status for ${modelName}:`, error)
-  }
-}
-
-// 确认删除模型 - 使用 settings store
-const confirmDeleteModel = async () => {
-  if (!modelToDelete.value) return
-
-  try {
-    const success = await settingsStore.deleteOllamaModel(modelToDelete.value)
-    if (success) {
-      // 删除成功后模型列表会自动刷新，无需额外调用 refreshModels
-    }
-    showDeleteModelDialog.value = false
-    modelToDelete.value = ''
-  } catch (error) {
-    console.error(`Failed to delete model ${modelToDelete.value}:`, error)
   }
 }
 
@@ -914,10 +857,6 @@ const formatModelSize = (sizeInBytes: number): string => {
 }
 
 // 使用 settings store 的辅助函数
-const isModelRunning = (modelName: string): boolean => {
-  return settingsStore.isOllamaModelRunning(modelName)
-}
-
 const isModelLocal = (modelName: string): boolean => {
   return settingsStore.isOllamaModelLocal(modelName)
 }

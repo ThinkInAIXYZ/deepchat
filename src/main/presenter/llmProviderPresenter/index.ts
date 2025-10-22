@@ -1674,14 +1674,6 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
       })
     })
   }
-  deleteOllamaModel(modelName: string): Promise<boolean> {
-    const provider = this.getOllamaProviderInstance()
-    if (!provider) {
-      throw new Error('Ollama provider not found')
-    }
-    return provider.deleteModel(modelName)
-  }
-
   /**
    * 获取文本的 embedding 表示
    * @param providerId 提供商ID

@@ -178,6 +178,7 @@ export class GitHubCopilotDeviceFlow {
       const data = (await response.json()) as DeviceCodeResponse
       return data
     } catch (error) {
+      console.warn(error)
       throw error
     }
   }

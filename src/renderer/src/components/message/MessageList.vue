@@ -2,7 +2,7 @@
   <div class="w-full h-full relative min-h-0">
     <div
       ref="messagesContainer"
-      class="message-list-container relative flex-1 scrollbar-hide overflow-y-auto scroll-smooth w-full h-full pr-12 lg:pr-12"
+      class="message-list-container relative flex-1 scrollbar-hide overflow-y-auto w-full h-full pr-12 lg:pr-12"
       @scroll="handleScroll"
     >
       <div
@@ -99,7 +99,7 @@ import {
 import { Button } from '@shadcn/components/ui/button'
 
 // === Composables ===
-import { useElementBounding, useDebounceFn } from '@vueuse/core'
+import { useResizeObserver } from '@vueuse/core'
 import { useI18n } from 'vue-i18n'
 import { useMessageScroll } from '@/composables/message/useMessageScroll'
 import { useCleanDialog } from '@/composables/message/useCleanDialog'
@@ -128,7 +128,7 @@ const {
   messagesContainer,
   scrollAnchor,
   aboveThreshold,
-  scrollToBottom,
+  scrollToBottom: scrollToBottomImmediate,
   scrollToMessage,
   handleScroll,
   updateScrollInfo,
@@ -150,7 +150,37 @@ const retry = useMessageRetry(toRef(props, 'messages'))
 // === Local State ===
 const messageList = ref<HTMLDivElement>()
 const visible = ref(false)
-const AUTO_SCROLL_DISTANCE_PX = 240
+const shouldAutoFollow = ref(true)
+
+const scheduleScrollToBottom = (force = false) => {
+  nextTick(() => {
+    const container = messagesContainer.value
+    if (!container) {
+      scrollToBottomImmediate()
+      shouldAutoFollow.value = true
+      return
+    }
+
+    const shouldScroll = force || shouldAutoFollow.value
+
+    if (!shouldScroll) {
+      updateScrollInfo()
+      return
+    }
+
+    scrollToBottomImmediate()
+    if (force) {
+      shouldAutoFollow.value = true
+    }
+  })
+}
+
+const scrollToBottom = (force = false) => {
+  if (force) {
+    shouldAutoFollow.value = true
+  }
+  scheduleScrollToBottom(force)
+}
 
 // === Event Handlers ===
 const handleCopyImage = async (
@@ -177,61 +207,36 @@ const showCancelButton = computed(() => {
 // === Lifecycle Hooks ===
 onMounted(() => {
   // Initialize scroll and visibility
-  setTimeout(() => {
-    scrollToBottom()
-    nextTick(() => {
-      visible.value = true
-      setupScrollObserver()
-      updateScrollInfo()
-    })
-  }, 100)
+  scheduleScrollToBottom(true)
+  nextTick(() => {
+    visible.value = true
+    setupScrollObserver()
+    updateScrollInfo()
+  })
 
-  // Auto-scroll on content height change (for pending messages)
-  const { height } = useElementBounding(messageList)
-  const debouncedHeightHandler = useDebounceFn(() => {
-    const lastMessage = props.messages[props.messages.length - 1]
-    const container = messagesContainer.value
-    const distanceToBottom =
-      container == null
-        ? null
-        : container.scrollHeight - (container.scrollTop + container.clientHeight)
+  useResizeObserver(messageList, () => {
+    scheduleScrollToBottom()
+  })
 
-    if (lastMessage?.status !== 'pending') {
-      return
+  watch(
+    () => aboveThreshold.value,
+    (isAbove) => {
+      shouldAutoFollow.value = !isAbove
     }
-
-    if (distanceToBottom != null && distanceToBottom > AUTO_SCROLL_DISTANCE_PX) {
-      return
-    }
-
-    nextTick(() => {
-      scrollToBottom()
-      updateScrollInfo()
-    })
-  }, 100)
-
-  watch(() => height.value, debouncedHeightHandler, { flush: 'post' })
+  )
 
   // Update scroll info when message count changes
   watch(
     () => props.messages.length,
     (length, prevLength) => {
-      nextTick(() => {
-        const container = messagesContainer.value
-        const distanceToBottom =
-          container == null
-            ? null
-            : container.scrollHeight - (container.scrollTop + container.clientHeight)
-        const isGrowing = length > prevLength
-        const isReset = prevLength > 0 && length < prevLength
-        const nearBottom = distanceToBottom == null || distanceToBottom <= AUTO_SCROLL_DISTANCE_PX
+      const isGrowing = length > prevLength
+      const isReset = prevLength > 0 && length < prevLength
 
-        if ((isGrowing && nearBottom) || isReset) {
-          scrollToBottom()
-        }
+      if (!isGrowing && !isReset) {
+        return
+      }
 
-        updateScrollInfo()
-      })
+      scheduleScrollToBottom(isReset)
     },
     { flush: 'post' }
   )

@@ -1336,22 +1336,6 @@ export const useSettingsStore = defineStore('settings', () => {
   }
 
   /**
-   * 删除 Ollama 模型
-   */
-  const deleteOllamaModel = async (modelName: string): Promise<boolean> => {
-    try {
-      const success = await llmP.deleteOllamaModel(modelName)
-      if (success) {
-        await refreshOllamaModels()
-      }
-      return success
-    } catch (error) {
-      console.error(`Failed to delete Ollama model ${modelName}:`, error)
-      return false
-    }
-  }
-
-  /**
    * 处理 Ollama 模型拉取事件
    */
   const handleOllamaModelPullEvent = (event: Record<string, unknown>) => {
@@ -1792,7 +1776,6 @@ export const useSettingsStore = defineStore('settings', () => {
     ollamaPullingModels,
     refreshOllamaModels,
     pullOllamaModel,
-    deleteOllamaModel,
     isOllamaModelRunning,
     isOllamaModelLocal,
     getOllamaPullingModels,

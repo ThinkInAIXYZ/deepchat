@@ -1,7 +1,7 @@
 <!-- eslint-disable vue/no-v-html -->
 <template>
   <div class="prose prose-zinc prose-sm dark:prose-invert w-full max-w-none break-all">
-    <NodeRenderer v-if="content" :content="content" @copy="$emit('copy', $event)" />
+    <NodeRenderer :content="debouncedContent" @copy="$emit('copy', $event)" />
   </div>
 </template>
 
@@ -10,18 +10,26 @@ import { usePresenter } from '@/composables/usePresenter'
 import { useArtifactStore } from '@/stores/artifact'
 import { useReferenceStore } from '@/stores/reference'
 import { nanoid } from 'nanoid'
-import { h, ref } from 'vue'
+import { useDebounceFn } from '@vueuse/core'
+import { h, ref, watch } from 'vue'
 import NodeRenderer, {
   CodeBlockNode,
   ReferenceNode,
-  setCustomComponents
+  setCustomComponents,
+  setKaTeXWorker,
+  setMermaidWorker,
+  getUseMonaco
 } from 'vue-renderer-markdown'
+import KatexWorker from 'vue-renderer-markdown/workers/katexRenderer.worker?worker&inline'
+import MermaidWorker from 'vue-renderer-markdown/workers/mermaidParser.worker?worker&inline'
 
-defineProps<{
+const props = defineProps<{
   content: string
   debug?: boolean
 }>()
-
+getUseMonaco()
+setKaTeXWorker(new KatexWorker())
+setMermaidWorker(new MermaidWorker())
 // 组件映射表
 const artifactStore = useArtifactStore()
 // 生成唯一的 message ID 和 thread ID，用于 MarkdownRenderer
@@ -30,6 +38,22 @@ const threadId = `artifact-thread-${nanoid()}`
 const referenceStore = useReferenceStore()
 const threadPresenter = usePresenter('threadPresenter')
 const referenceNode = ref<HTMLElement | null>(null)
+const debouncedContent = ref(props.content)
+
+const updateContent = useDebounceFn(
+  (value: string) => {
+    debouncedContent.value = value
+  },
+  32,
+  { maxWait: 64 }
+)
+
+watch(
+  () => props.content,
+  (value) => {
+    updateContent(value)
+  }
+)
 
 setCustomComponents({
   reference: (_props) =>
@@ -95,12 +119,15 @@ defineEmits(['copy'])
     margin-top: 0;
     margin-bottom: 0;
   }
+
   .mermaid-block-header img {
     margin: 0 !important;
   }
+
   p {
     @apply my-2;
   }
+
   li p {
     padding-top: 0;
     padding-bottom: 0;
