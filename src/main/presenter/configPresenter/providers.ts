@@ -94,6 +94,22 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
   },
 
   {
+    id: 'jiekou',
+    name: 'JieKou.AI',
+    apiType: 'openai',
+    apiKey: '',
+    baseUrl: 'https://api.jiekou.ai/openai',
+    enable: false,
+    websites: {
+      official: 'https://jiekou.ai?utm_source=github_deepchat',
+      apiKey: 'https://jiekou.ai/settings/key-management?utm_source=github_deepchat',
+      docs: 'https://docs.jiekou.ai/docs/support/quickstart?utm_source=github_deepchat',
+      models: 'https://jiekou.ai/?utm_source=github_deepchat',
+      defaultBaseUrl: 'https://api.jiekou.ai/openai'
+    }
+  },
+
+  {
     id: 'tokenflux',
     name: 'TokenFlux',
     apiType: 'openai',
