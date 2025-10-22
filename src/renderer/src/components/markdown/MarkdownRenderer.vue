@@ -17,7 +17,7 @@ import NodeRenderer, {
   setCustomComponents
 } from 'vue-renderer-markdown'
 
-const props = defineProps<{
+defineProps<{
   content: string
   debug?: boolean
 }>()
