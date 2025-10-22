@@ -114,6 +114,31 @@ export class ModelCapabilities {
     return m?.search?.supported === true
   }
 
+  supportsReasoningEffort(providerId: string, modelId: string): boolean {
+    const m = this.getModel(providerId, modelId)
+    return typeof m?.reasoning?.effort === 'string'
+  }
+
+  supportsVerbosity(providerId: string, modelId: string): boolean {
+    const m = this.getModel(providerId, modelId)
+    return typeof m?.reasoning?.verbosity === 'string'
+  }
+
+  getReasoningEffortDefault(
+    providerId: string,
+    modelId: string
+  ): 'minimal' | 'low' | 'medium' | 'high' | undefined {
+    const m = this.getModel(providerId, modelId)
+    const v = m?.reasoning?.effort
+    return v === 'minimal' || v === 'low' || v === 'medium' || v === 'high' ? v : undefined
+  }
+
+  getVerbosityDefault(providerId: string, modelId: string): 'low' | 'medium' | 'high' | undefined {
+    const m = this.getModel(providerId, modelId)
+    const v = m?.reasoning?.verbosity
+    return v === 'low' || v === 'medium' || v === 'high' ? v : undefined
+  }
+
   getSearchDefaults(providerId: string, modelId: string): SearchDefaults {
     const m = this.getModel(providerId, modelId)
     const s = m?.search

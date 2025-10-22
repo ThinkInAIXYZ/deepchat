@@ -66,7 +66,12 @@ describe('Provider DB strict matching + user overrides', () => {
               limit: { context: 10000, output: 2000 },
               modalities: { input: ['text', 'image'] },
               tool_call: true,
-              reasoning: { supported: true, budget: { default: 12345 } },
+              reasoning: {
+                supported: true,
+                budget: { default: 12345 },
+                effort: 'low',
+                verbosity: 'high'
+              },
               search: { supported: true, forced_search: false, search_strategy: 'turbo' }
             },
             {
@@ -92,6 +97,8 @@ describe('Provider DB strict matching + user overrides', () => {
     expect(cfg.functionCall).toBe(true)
     expect(cfg.reasoning).toBe(true)
     expect(cfg.thinkingBudget).toBe(12345)
+    expect(cfg.reasoningEffort).toBe('low')
+    expect(cfg.verbosity).toBe('high')
     expect(cfg.enableSearch).toBe(true)
     expect(cfg.forcedSearch).toBe(false)
     expect(cfg.searchStrategy).toBe('turbo')

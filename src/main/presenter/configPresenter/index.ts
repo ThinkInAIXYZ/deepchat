@@ -231,6 +231,25 @@ export class ConfigPresenter implements IConfigPresenter {
     return modelCapabilities.getSearchDefaults(providerId, modelId)
   }
 
+  supportsReasoningEffortCapability(providerId: string, modelId: string): boolean {
+    return modelCapabilities.supportsReasoningEffort(providerId, modelId)
+  }
+
+  getReasoningEffortDefault(
+    providerId: string,
+    modelId: string
+  ): 'minimal' | 'low' | 'medium' | 'high' | undefined {
+    return modelCapabilities.getReasoningEffortDefault(providerId, modelId)
+  }
+
+  supportsVerbosityCapability(providerId: string, modelId: string): boolean {
+    return modelCapabilities.supportsVerbosity(providerId, modelId)
+  }
+
+  getVerbosityDefault(providerId: string, modelId: string): 'low' | 'medium' | 'high' | undefined {
+    return modelCapabilities.getVerbosityDefault(providerId, modelId)
+  }
+
   private getProviderModelStore(providerId: string): ElectronStore<IModelStore> {
     if (!this.providersModelStores.has(providerId)) {
       const store = new ElectronStore<IModelStore>({

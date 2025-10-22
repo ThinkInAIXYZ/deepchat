@@ -76,6 +76,15 @@ function sanitizeAggregateJson(json) {
             bd.max = r.budget.max
           if (Object.keys(bd).length) rs.budget = bd
         }
+        // effort / verbosity are nested under reasoning in upstream schema
+        const effort = r.effort
+        if (typeof effort === 'string' && ['minimal', 'low', 'medium', 'high'].includes(effort)) {
+          rs.effort = effort
+        }
+        const verbosity = r.verbosity
+        if (typeof verbosity === 'string' && ['low', 'medium', 'high'].includes(verbosity)) {
+          rs.verbosity = verbosity
+        }
         if (Object.keys(rs).length) reasoning = rs
       }
 

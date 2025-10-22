@@ -208,8 +208,8 @@ export function useChatConfigFields(options: UseChatConfigFieldsOptions) {
       })
     }
 
-    // Verbosity (GPT-5 only)
-    if (options.isGPT5Model.value && options.verbosity.value !== undefined) {
+    // Verbosity（存在该参数即显示）
+    if (options.verbosity.value !== undefined) {
       fields.push({
         key: 'verbosity',
         type: 'select',

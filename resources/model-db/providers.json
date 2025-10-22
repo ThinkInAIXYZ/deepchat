@@ -3333,7 +3333,8 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": true
+            "default": true,
+            "effort": "low"
           },
           "search": {
             "supported": false
@@ -3360,7 +3361,8 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": true
+            "default": true,
+            "effort": "low"
           },
           "search": {
             "supported": false
@@ -69385,7 +69387,9 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": true
+            "default": true,
+            "effort": "medium",
+            "verbosity": "medium"
           },
           "attachment": true
         },
@@ -69432,7 +69436,9 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": true
+            "default": true,
+            "effort": "medium",
+            "verbosity": "medium"
           }
         },
         {
@@ -69505,7 +69511,9 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": true
+            "default": true,
+            "effort": "medium",
+            "verbosity": "medium"
           },
           "attachment": true
         },
@@ -69529,7 +69537,9 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": true
+            "default": true,
+            "effort": "medium",
+            "verbosity": "medium"
           },
           "attachment": true
         },
@@ -69553,7 +69563,9 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": true
+            "default": true,
+            "effort": "medium",
+            "verbosity": "medium"
           },
           "attachment": true
         },
@@ -69707,7 +69719,8 @@
           "tool_call": false,
           "reasoning": {
             "supported": true,
-            "default": true
+            "default": true,
+            "effort": "medium"
           },
           "attachment": true
         },
@@ -69731,7 +69744,8 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": true
+            "default": true,
+            "effort": "medium"
           },
           "attachment": true
         },
@@ -69823,7 +69837,8 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": true
+            "default": true,
+            "effort": "medium"
           },
           "attachment": true
         },
@@ -69847,7 +69862,8 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": true
+            "default": true,
+            "effort": "medium"
           },
           "attachment": true
         },

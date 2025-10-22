@@ -30,6 +30,7 @@ import path from 'path'
 import fs from 'fs'
 import sharp from 'sharp'
 import { proxyConfig } from '../../proxyConfig'
+import { modelCapabilities } from '../../configPresenter/modelCapabilities'
 import { ProxyAgent } from 'undici'
 
 const OPENAI_REASONING_MODELS = [
@@ -79,6 +80,14 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
       this.isNoModelsApi = true
     }
     this.init()
+  }
+
+  private supportsEffortParameter(modelId: string): boolean {
+    return modelCapabilities.supportsReasoningEffort(this.provider.id, modelId)
+  }
+
+  private supportsVerbosityParameter(modelId: string): boolean {
+    return modelCapabilities.supportsVerbosity(this.provider.id, modelId)
   }
 
   protected createOpenAIClient(): void {
@@ -646,12 +655,12 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
       }
     }
 
-    if (modelConfig.reasoningEffort) {
+    if (modelConfig.reasoningEffort && this.supportsEffortParameter(modelId)) {
       ;(requestParams as any).reasoning_effort = modelConfig.reasoningEffort
     }
 
-    // verbosity 仅支持 GPT-5 系列模型
-    if (modelId.includes('gpt-5') && modelConfig.verbosity) {
+    // 仅当模型能力集声明支持时，才添加 verbosity
+    if (modelConfig.verbosity && this.supportsVerbosityParameter(modelId)) {
       ;(requestParams as any).verbosity = modelConfig.verbosity
     }
 

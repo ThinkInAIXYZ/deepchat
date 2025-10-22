@@ -64,8 +64,13 @@ export class ModelConfigHelper {
       enableSearch: Boolean(model.search?.supported ?? false),
       forcedSearch: Boolean(model.search?.forced_search),
       searchStrategy: model.search?.search_strategy === 'max' ? 'max' : 'turbo',
-      reasoningEffort: undefined,
-      verbosity: undefined,
+      reasoningEffort: (model.reasoning?.effort ?? undefined) as
+        | 'minimal'
+        | 'low'
+        | 'medium'
+        | 'high'
+        | undefined,
+      verbosity: (model.reasoning?.verbosity ?? undefined) as 'low' | 'medium' | 'high' | undefined,
       maxCompletionTokens: undefined
     }
   }

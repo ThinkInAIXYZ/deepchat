@@ -21,6 +21,7 @@ import fs from 'fs'
 import sharp from 'sharp'
 import { proxyConfig } from '../../proxyConfig'
 import { ProxyAgent } from 'undici'
+import { modelCapabilities } from '../../configPresenter/modelCapabilities'
 
 const OPENAI_REASONING_MODELS = [
   'o4-mini',
@@ -69,6 +70,14 @@ export class OpenAIResponsesProvider extends BaseLLMProvider {
       this.isNoModelsApi = true
     }
     this.init()
+  }
+
+  private supportsEffortParameter(modelId: string): boolean {
+    return modelCapabilities.supportsReasoningEffort(this.provider.id, modelId)
+  }
+
+  private supportsVerbosityParameter(modelId: string): boolean {
+    return modelCapabilities.supportsVerbosity(this.provider.id, modelId)
   }
 
   private createOpenAIClient(): void {
@@ -230,14 +239,14 @@ export class OpenAIResponsesProvider extends BaseLLMProvider {
     }
 
     const modelConfig = this.configPresenter.getModelConfig(modelId, this.provider.id)
-    if (modelConfig.reasoningEffort) {
+    if (modelConfig.reasoningEffort && this.supportsEffortParameter(modelId)) {
       ;(requestParams as any).reasoning = {
         effort: modelConfig.reasoningEffort
       }
     }
 
-    // verbosity 仅支持 GPT-5 系列模型
-    if (modelId.includes('gpt-5') && modelConfig.verbosity) {
+    // 仅当模型能力集声明支持时，才添加 verbosity
+    if (modelConfig.verbosity && this.supportsVerbosityParameter(modelId)) {
       ;(requestParams as any).text = {
         verbosity: modelConfig.verbosity
       }
@@ -563,14 +572,14 @@ export class OpenAIResponsesProvider extends BaseLLMProvider {
     if (tools.length > 0 && supportsFunctionCall && apiTools) {
       requestParams.tools = apiTools
     }
-    if (modelConfig.reasoningEffort) {
+    if (modelConfig.reasoningEffort && this.supportsEffortParameter(modelId)) {
       ;(requestParams as any).reasoning = {
         effort: modelConfig.reasoningEffort
       }
     }
 
-    // verbosity 仅支持 GPT-5 系列模型
-    if (modelId.includes('gpt-5') && modelConfig.verbosity) {
+    // 仅当模型能力集声明支持时，才添加 verbosity
+    if (modelConfig.verbosity && this.supportsVerbosityParameter(modelId)) {
       ;(requestParams as any).text = {
         verbosity: modelConfig.verbosity
       }

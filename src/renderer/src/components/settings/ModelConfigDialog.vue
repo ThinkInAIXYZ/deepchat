@@ -190,8 +190,8 @@
             </p>
           </div>
 
-          <!-- GPT-5 系列模型的详细程度 -->
-          <div v-if="isGPT5Model" class="space-y-2">
+          <!-- 详细程度（存在该参数即显示） -->
+          <div v-if="supportsVerbosity" class="space-y-2">
             <Label for="verbosity">{{ t('settings.model.modelConfig.verbosity.label') }}</Label>
             <Select v-model="config.verbosity">
               <SelectTrigger>
@@ -482,6 +482,20 @@ const loadConfig = async () => {
 
   await fetchCapabilities()
 
+  if (config.value.isUserDefined !== true) {
+    if (capabilitySupportsEffort.value === true && config.value.reasoningEffort === undefined) {
+      if (capabilityEffortDefault.value) {
+        config.value.reasoningEffort = capabilityEffortDefault.value
+      }
+    }
+
+    if (capabilitySupportsVerbosity.value === true && config.value.verbosity === undefined) {
+      if (capabilityVerbosityDefault.value) {
+        config.value.verbosity = capabilityVerbosityDefault.value
+      }
+    }
+  }
+
   if (config.value.thinkingBudget === undefined) {
     const range = capabilityBudgetRange.value
     if (range && typeof range.default === 'number') {
@@ -584,10 +598,7 @@ watch(
   { immediate: true }
 )
 
-const isGPT5Model = computed(() => {
-  const modelId = props.modelId.toLowerCase()
-  return modelId.includes('gpt-5')
-})
+const supportsVerbosity = computed(() => capabilitySupportsVerbosity.value === true)
 
 const isDeepSeekV31Model = computed(() => {
   const modelId = props.modelId.toLowerCase()
@@ -596,9 +607,7 @@ const isDeepSeekV31Model = computed(() => {
 
 const isGeminiProvider = computed(() => props.providerId?.toLowerCase() === 'gemini')
 
-const supportsReasoningEffort = computed(() => {
-  return config.value.reasoningEffort !== undefined && config.value.reasoningEffort !== null
-})
+const supportsReasoningEffort = computed(() => capabilitySupportsEffort.value === true)
 
 const showThinkingBudget = computed(() => {
   const hasReasoning = config.value.reasoning
@@ -615,6 +624,10 @@ const capabilitySearchDefaults = ref<{
   forced?: boolean
   strategy?: 'turbo' | 'max'
 } | null>(null)
+const capabilitySupportsEffort = ref<boolean | null>(null)
+const capabilityEffortDefault = ref<'minimal' | 'low' | 'medium' | 'high' | undefined>(undefined)
+const capabilitySupportsVerbosity = ref<boolean | null>(null)
+const capabilityVerbosityDefault = ref<'low' | 'medium' | 'high' | undefined>(undefined)
 
 const fetchCapabilities = async () => {
   if (!props.providerId || !props.modelId) {
@@ -624,21 +637,33 @@ const fetchCapabilities = async () => {
     return
   }
   try {
-    const [sr, br, ss, sd] = await Promise.all([
+    const [sr, br, ss, sd, se, ed, sv, vd] = await Promise.all([
       configPresenter.supportsReasoningCapability?.(props.providerId, props.modelId),
       configPresenter.getThinkingBudgetRange?.(props.providerId, props.modelId),
       configPresenter.supportsSearchCapability?.(props.providerId, props.modelId),
-      configPresenter.getSearchDefaults?.(props.providerId, props.modelId)
+      configPresenter.getSearchDefaults?.(props.providerId, props.modelId),
+      configPresenter.supportsReasoningEffortCapability?.(props.providerId, props.modelId),
+      configPresenter.getReasoningEffortDefault?.(props.providerId, props.modelId),
+      configPresenter.supportsVerbosityCapability?.(props.providerId, props.modelId),
+      configPresenter.getVerbosityDefault?.(props.providerId, props.modelId)
     ])
     capabilitySupportsReasoning.value = typeof sr === 'boolean' ? sr : null
     capabilityBudgetRange.value = br || {}
     capabilitySupportsSearch.value = typeof ss === 'boolean' ? ss : null
     capabilitySearchDefaults.value = sd || null
+    capabilitySupportsEffort.value = typeof se === 'boolean' ? se : null
+    capabilityEffortDefault.value = ed
+    capabilitySupportsVerbosity.value = typeof sv === 'boolean' ? sv : null
+    capabilityVerbosityDefault.value = vd
   } catch {
     capabilitySupportsReasoning.value = null
     capabilityBudgetRange.value = null
     capabilitySupportsSearch.value = null
     capabilitySearchDefaults.value = null
+    capabilitySupportsEffort.value = null
+    capabilityEffortDefault.value = undefined
+    capabilitySupportsVerbosity.value = null
+    capabilityVerbosityDefault.value = undefined
   }
 }
 

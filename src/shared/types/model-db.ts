@@ -13,7 +13,9 @@ export const ReasoningSchema = z
         min: z.number().int().optional(),
         max: z.number().int().optional()
       })
-      .optional()
+      .optional(),
+    effort: z.enum(['minimal', 'low', 'medium', 'high']).optional(),
+    verbosity: z.enum(['low', 'medium', 'high']).optional()
   })
   .optional()
 
@@ -126,6 +128,34 @@ function getStringNumberRecord(obj: unknown): Record<string, string | number> | 
   return Object.keys(out).length ? out : undefined
 }
 
+type ReasoningEffort = 'minimal' | 'low' | 'medium' | 'high'
+type Verbosity = 'low' | 'medium' | 'high'
+
+function getEffortValue(v: unknown): ReasoningEffort | undefined {
+  if (typeof v !== 'string') return undefined
+  switch (v) {
+    case 'minimal':
+    case 'low':
+    case 'medium':
+    case 'high':
+      return v
+    default:
+      return undefined
+  }
+}
+
+function getVerbosityValue(v: unknown): Verbosity | undefined {
+  if (typeof v !== 'string') return undefined
+  switch (v) {
+    case 'low':
+    case 'medium':
+    case 'high':
+      return v
+    default:
+      return undefined
+  }
+}
+
 function getReasoning(obj: unknown): ProviderModel['reasoning'] {
   if (typeof obj === 'boolean') {
     return { supported: obj }
@@ -145,8 +175,17 @@ function getReasoning(obj: unknown): ProviderModel['reasoning'] {
     if (typeof max === 'number') out.max = max
     if (out.default !== undefined || out.min !== undefined || out.max !== undefined) budget = out
   }
-  if (supported !== undefined || defEnabled !== undefined || budget !== undefined)
-    return { supported, default: defEnabled, budget }
+  const effort = getEffortValue((obj as any)['effort'])
+  const verbosity = getVerbosityValue((obj as any)['verbosity'])
+
+  if (
+    supported !== undefined ||
+    defEnabled !== undefined ||
+    budget !== undefined ||
+    effort !== undefined ||
+    verbosity !== undefined
+  )
+    return { supported, default: defEnabled, budget, effort, verbosity }
   return undefined
 }
 

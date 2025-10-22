@@ -396,6 +396,13 @@ export interface IConfigPresenter {
     providerId: string,
     modelId: string
   ): { default?: boolean; forced?: boolean; strategy?: 'turbo' | 'max' }
+  supportsReasoningEffortCapability?(providerId: string, modelId: string): boolean
+  getReasoningEffortDefault?(
+    providerId: string,
+    modelId: string
+  ): 'minimal' | 'low' | 'medium' | 'high' | undefined
+  supportsVerbosityCapability?(providerId: string, modelId: string): boolean
+  getVerbosityDefault?(providerId: string, modelId: string): 'low' | 'medium' | 'high' | undefined
   setProviderModels(providerId: string, models: MODEL_META[]): void
   getEnabledProviders(): LLM_PROVIDER[]
   getModelDefaultConfig(modelId: string, providerId?: string): ModelConfig
