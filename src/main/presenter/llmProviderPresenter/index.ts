@@ -49,6 +49,7 @@ import { ModelscopeProvider } from './providers/modelscopeProvider'
 import { VercelAIGatewayProvider } from './providers/vercelAIGatewayProvider'
 import { PoeProvider } from './providers/poeProvider'
 import { JiekouProvider } from './providers/jiekouProvider'
+import { ZenmuxProvider } from './providers/zenmuxProvider'
 
 // Rate limit configuration interface
 interface RateLimitConfig {
@@ -220,6 +221,8 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
           return new AwsBedrockProvider(provider, this.configPresenter)
         case 'jiekou':
           return new JiekouProvider(provider, this.configPresenter)
+        case 'zenmux':
+          return new ZenmuxProvider(provider, this.configPresenter)
         default:
           console.log(
             `No specific provider found for id: ${provider.id}, falling back to apiType: ${provider.apiType}`
@@ -276,6 +279,8 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
           return new AwsBedrockProvider(provider, this.configPresenter)
         case 'jiekou':
           return new JiekouProvider(provider, this.configPresenter)
+        case 'zenmux':
+          return new ZenmuxProvider(provider, this.configPresenter)
         default:
           console.warn(`Unknown provider type: ${provider.apiType} for provider id: ${provider.id}`)
           return undefined

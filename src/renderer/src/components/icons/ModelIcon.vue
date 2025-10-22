@@ -63,6 +63,7 @@ import _302aiIcon from '@/assets/llm-icons/302ai.svg?url'
 import modelscopeColorIcon from '@/assets/llm-icons/modelscope-color.svg?url'
 import awsBedrockIcon from '@/assets/llm-icons/aws-bedrock.svg?url'
 import jiekouColorIcon from '@/assets/llm-icons/jiekou-color.svg?url'
+import zenmuxColorIcon from '@/assets/llm-icons/zenmux-color.svg?url'
 
 // 导入所有图标
 const icons = {
@@ -135,6 +136,7 @@ const icons = {
   meta: metaColorIcon,
   'aws-bedrock': awsBedrockIcon,
   jiekou: jiekouColorIcon,
+  zenmux: zenmuxColorIcon,
   default: defaultIcon
 }
 

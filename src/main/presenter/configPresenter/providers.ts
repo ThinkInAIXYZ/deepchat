@@ -110,6 +110,22 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
   },
 
   {
+    id: 'zenmux',
+    name: 'ZenMux',
+    apiType: 'zenmux',
+    apiKey: '',
+    baseUrl: 'https://zenmux.ai/api/v1/',
+    enable: false,
+    websites: {
+      official: 'https://zenmux.ai/',
+      apiKey: 'https://zenmux.ai/settings/keys',
+      docs: 'https://docs.zenmux.ai/api/openai/create-chat-completion.html',
+      models: 'https://docs.zenmux.ai/api/openai/create-chat-completion.html',
+      defaultBaseUrl: 'https://zenmux.ai/api/v1/'
+    }
+  },
+
+  {
     id: 'tokenflux',
     name: 'TokenFlux',
     apiType: 'openai',
