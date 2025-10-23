@@ -36,6 +36,13 @@
       </div>
       <RouterView />
     </div>
+    <ModelCheckDialog
+      :open="modelCheckStore.isDialogOpen"
+      :provider-id="modelCheckStore.currentProviderId"
+      @update:open="(open) => {
+        if (!open) modelCheckStore.closeDialog()
+      }"
+    />
   </div>
 </template>
 
@@ -49,7 +56,9 @@ import { usePresenter } from '../src/composables/usePresenter'
 import CloseIcon from './icons/CloseIcon.vue'
 import { useSettingsStore } from '../src/stores/settings'
 import { useLanguageStore } from '../src/stores/language'
+import { useModelCheckStore } from '../src/stores/modelCheck'
 import { Button } from '@shadcn/components/ui/button'
+import ModelCheckDialog from '@/components/settings/ModelCheckDialog.vue'
 
 const devicePresenter = usePresenter('devicePresenter')
 const windowPresenter = usePresenter('windowPresenter')
@@ -58,6 +67,7 @@ const configPresenter = usePresenter('configPresenter')
 // Initialize stores
 const settingsStore = useSettingsStore()
 const languageStore = useLanguageStore()
+const modelCheckStore = useModelCheckStore()
 
 const isMacOS = ref(false)
 const isWinMacOS = ref(false)
