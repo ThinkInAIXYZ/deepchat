@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useSettingsStore } from '@/stores/settings'
 import cherryinColorIcon from '@/assets/llm-icons/cherryin-color.png?url'
 import adobeColorIcon from '@/assets/llm-icons/adobe-color.svg?url'
 import zeaburColorIcon from '@/assets/llm-icons/zeabur-color.svg?url'
@@ -151,6 +152,13 @@ const props = withDefaults(defineProps<Props>(), {
   isDark: false
 })
 
+const settingsStore = useSettingsStore()
+
+const provider = computed(() => {
+  if (!props.modelId) return undefined
+  return settingsStore.providers.find((item) => item.id === props.modelId)
+})
+
 const iconKey = computed(() => {
   const modelIdLower = props.modelId.toLowerCase()
   const iconEntries = Object.keys(icons)
@@ -159,28 +167,43 @@ const iconKey = computed(() => {
   const matchedIcon = iconEntries.find((key) => {
     return modelIdLower.includes(key)
   })
-  return matchedIcon ? matchedIcon : 'default'
+  if (matchedIcon) {
+    return matchedIcon
+  }
+
+  const apiType = provider.value?.apiType?.toLowerCase()
+  if (apiType) {
+    const apiMatchedIcon = iconEntries.find((key) => apiType.includes(key))
+    if (apiMatchedIcon) {
+      return apiMatchedIcon
+    }
+  }
+
+  return 'default'
 })
 
 const invert = computed(() => {
   if (!props.isDark) {
     return false
   }
-  if (
-    props.modelId.toLowerCase() === 'openai' ||
-    props.modelId.toLowerCase().includes('openai-responses') ||
-    props.modelId.toLowerCase().includes('openrouter') ||
-    props.modelId.toLowerCase().includes('ollama') ||
-    props.modelId.toLowerCase().includes('grok') ||
-    props.modelId.toLowerCase().includes('groq') ||
-    props.modelId.toLowerCase().includes('github') ||
-    props.modelId.toLowerCase().includes('moonshot') ||
-    props.modelId.toLowerCase().includes('lmstudio') ||
-    props.modelId.toLowerCase().includes('aws-bedrock')
-  ) {
-    return true
+  const checkTargets = [props.modelId.toLowerCase()]
+  if (provider.value?.apiType) {
+    checkTargets.push(provider.value.apiType.toLowerCase())
   }
-  return false
+  const invertKeywords = [
+    'openai',
+    'openai-responses',
+    'openrouter',
+    'ollama',
+    'grok',
+    'groq',
+    'github',
+    'moonshot',
+    'lmstudio',
+    'aws-bedrock'
+  ]
+
+  return checkTargets.some((target) => invertKeywords.some((keyword) => target.includes(keyword)))
 })
 </script>
 
