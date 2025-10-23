@@ -139,7 +139,9 @@ const showModelCheckDialog = ref(false)
 const nextStep = async () => {
   if (currentStep.value < steps.length - 1) {
     if (currentStep.value === 1) {
-      if ((!apiKey.value || !baseUrl.value) && selectedProvider.value !== 'ollama') {
+      const provider = settingsStore.providers.find((p) => p.id === selectedProvider.value)
+      const isOllamaApi = provider?.apiType === 'ollama'
+      if ((!apiKey.value || !baseUrl.value) && !isOllamaApi) {
         showErrorDialog.value = true
         dialogMessage.value = t('settings.provider.dialog.verify.missingFields')
         return

@@ -174,10 +174,10 @@ export interface ILlmProviderPresenter {
     providerId: string,
     modelId: string
   ): Promise<string>
-  listOllamaModels(): Promise<OllamaModel[]>
-  showOllamaModelInfo(modelName: string): Promise<ShowResponse>
-  listOllamaRunningModels(): Promise<OllamaModel[]>
-  pullOllamaModels(modelName: string): Promise<boolean>
+  listOllamaModels(providerId: string): Promise<OllamaModel[]>
+  showOllamaModelInfo(providerId: string, modelName: string): Promise<ShowResponse>
+  listOllamaRunningModels(providerId: string): Promise<OllamaModel[]>
+  pullOllamaModels(providerId: string, modelName: string): Promise<boolean>
   getEmbeddings(providerId: string, modelId: string, texts: string[]): Promise<number[][]>
   getDimensions(
     providerId: string,

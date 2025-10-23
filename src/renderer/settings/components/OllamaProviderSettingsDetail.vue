@@ -4,6 +4,16 @@
       <div class="flex flex-col items-start p-2 gap-2">
         <div class="flex justify-between items-center w-full">
           <Label :for="`${provider.id}-url`" class="flex-1 cursor-pointer">API URL</Label>
+          <Button
+            v-if="provider.custom"
+            variant="destructive"
+            size="sm"
+            class="text-xs rounded-lg"
+            @click="showDeleteProviderDialog = true"
+          >
+            <Icon icon="lucide:trash-2" class="w-4 h-4 mr-1" />
+            {{ t('settings.provider.delete') }}
+          </Button>
         </div>
         <Input
           :id="`${provider.id}-url`"
@@ -236,6 +246,25 @@
         </DialogFooter>
       </DialogContent>
     </Dialog>
+
+    <Dialog v-model:open="showDeleteProviderDialog">
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{{ t('settings.provider.dialog.deleteProvider.title') }}</DialogTitle>
+          <DialogDescription>
+            {{ t('settings.provider.dialog.deleteProvider.content', { name: provider.name }) }}
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter>
+          <Button variant="outline" @click="showDeleteProviderDialog = false">
+            {{ t('dialog.cancel') }}
+          </Button>
+          <Button variant="destructive" @click="confirmDeleteProvider">
+            {{ t('settings.provider.dialog.deleteProvider.confirm') }}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   </section>
 </template>
 
@@ -275,11 +304,14 @@ const showApiKey = ref(false)
 const showPullModelDialog = ref(false)
 const showCheckModelDialog = ref(false)
 const checkResult = ref<boolean>(false)
+const showDeleteProviderDialog = ref(false)
 
 // 模型列表 - 从 settings store 获取
-const runningModels = computed(() => settingsStore.ollamaRunningModels)
-const localModels = computed(() => settingsStore.ollamaLocalModels)
-const pullingModels = computed(() => settingsStore.ollamaPullingModels)
+const runningModels = computed(() => settingsStore.getOllamaRunningModels(props.provider.id))
+const localModels = computed(() => settingsStore.getOllamaLocalModels(props.provider.id))
+const pullingModels = computed(
+  () => new Map(Object.entries(settingsStore.getOllamaPullingModels(props.provider.id)))
+)
 const providerModelMetas = computed<RENDERER_MODEL_META[]>(() => {
   const providerEntry = settingsStore.allProviderModels.find(
     (item) => item.providerId === props.provider.id
@@ -812,14 +844,14 @@ onMounted(() => {
 
 // 刷新模型列表 - 使用 settings store
 const refreshModels = async () => {
-  await settingsStore.refreshOllamaModels()
+  await settingsStore.refreshOllamaModels(props.provider.id)
 }
 
 // 拉取模型 - 使用 settings store
 const pullModel = async (modelName: string) => {
   try {
     // 开始拉取
-    const success = await settingsStore.pullOllamaModel(modelName)
+    const success = await settingsStore.pullOllamaModel(props.provider.id, modelName)
 
     // 成功开始拉取后关闭对话框
     if (success) {
@@ -858,7 +890,7 @@ const formatModelSize = (sizeInBytes: number): string => {
 
 // 使用 settings store 的辅助函数
 const isModelLocal = (modelName: string): boolean => {
-  return settingsStore.isOllamaModelLocal(modelName)
+  return settingsStore.isOllamaModelLocal(props.provider.id, modelName)
 }
 
 // API URL 处理
@@ -903,6 +935,15 @@ const validateApiKey = async () => {
 
 const openModelCheckDialog = () => {
   modelCheckStore.openDialog(props.provider.id)
+}
+
+const confirmDeleteProvider = async () => {
+  try {
+    await settingsStore.removeProvider(props.provider.id)
+    showDeleteProviderDialog.value = false
+  } catch (error) {
+    console.error('Failed to delete provider:', error)
+  }
 }
 
 // 监听 provider 变化

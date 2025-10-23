@@ -36,8 +36,8 @@
                 <SelectItem value="openai-responses">OpenAI Responses</SelectItem>
                 <SelectItem value="gemini">Gemini</SelectItem>
                 <SelectItem value="anthropic">Anthropic</SelectItem>
-                <!-- <SelectItem value="ollama">Ollama</SelectItem>
-                <SelectItem value="groq">Groq</SelectItem>
+                <SelectItem value="ollama">Ollama</SelectItem>
+                <!-- <SelectItem value="groq">Groq</SelectItem>
                 <SelectItem value="mistral">Mistral AI</SelectItem>
                 <SelectItem value="cohere">Cohere</SelectItem>
                 <SelectItem value="zhinao">智脑</SelectItem>
@@ -54,7 +54,7 @@
               v-model="formData.apiKey"
               class="col-span-3"
               :placeholder="t('settings.provider.dialog.addCustomProvider.apiKeyPlaceholder')"
-              required
+              :required="formData.apiType !== 'ollama'"
             />
           </div>
           <div class="grid grid-cols-4 items-center gap-4">
@@ -172,6 +172,20 @@ watch(
   () => isOpen.value,
   (newVal) => {
     emit('update:open', newVal)
+  }
+)
+
+watch(
+  () => formData.value.apiType,
+  (newType, oldType) => {
+    if (newType === 'ollama') {
+      if (!formData.value.baseUrl) {
+        formData.value.baseUrl = 'http://localhost:11434'
+      }
+      formData.value.apiKey = ''
+    } else if (oldType === 'ollama' && formData.value.baseUrl === 'http://localhost:11434') {
+      formData.value.baseUrl = ''
+    }
   }
 )
 

@@ -1630,44 +1630,43 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
   }
 
   // 获取 OllamaProvider 实例
-  getOllamaProviderInstance(): OllamaProvider | null {
-    // 从所有 provider 中找到已经启用的 ollama provider
-    for (const provider of this.providers.values()) {
-      if (provider.id === 'ollama' && provider.enable) {
-        const providerInstance = this.providerInstances.get(provider.id)
-        if (providerInstance instanceof OllamaProvider) {
-          return providerInstance
-        }
+  getOllamaProviderInstance(providerId: string): OllamaProvider | null {
+    try {
+      const instance = this.getProviderInstance(providerId)
+      if (instance instanceof OllamaProvider) {
+        return instance
       }
+      console.warn(`Provider ${providerId} is not an Ollama provider instance`)
+      return null
+    } catch (error) {
+      console.warn(`Failed to get Ollama provider instance for ${providerId}:`, error)
+      return null
     }
-    return null
   }
   // ollama api
-  listOllamaModels(): Promise<OllamaModel[]> {
-    const provider = this.getOllamaProviderInstance()
+  listOllamaModels(providerId: string): Promise<OllamaModel[]> {
+    const provider = this.getOllamaProviderInstance(providerId)
     if (!provider) {
-      // console.error('Ollama provider not found')
       return Promise.resolve([])
     }
     return provider.listModels()
   }
-  showOllamaModelInfo(modelName: string): Promise<ShowResponse> {
-    const provider = this.getOllamaProviderInstance()
+  showOllamaModelInfo(providerId: string, modelName: string): Promise<ShowResponse> {
+    const provider = this.getOllamaProviderInstance(providerId)
     if (!provider) {
       throw new Error('Ollama provider not found')
     }
     return provider.showModelInfo(modelName)
   }
-  listOllamaRunningModels(): Promise<OllamaModel[]> {
-    const provider = this.getOllamaProviderInstance()
+  listOllamaRunningModels(providerId: string): Promise<OllamaModel[]> {
+    const provider = this.getOllamaProviderInstance(providerId)
     if (!provider) {
-      // console.error('Ollama provider not found')
       return Promise.resolve([])
     }
     return provider.listRunningModels()
   }
-  pullOllamaModels(modelName: string): Promise<boolean> {
-    const provider = this.getOllamaProviderInstance()
+  pullOllamaModels(providerId: string, modelName: string): Promise<boolean> {
+    const provider = this.getOllamaProviderInstance(providerId)
     if (!provider) {
       throw new Error('Ollama provider not found')
     }
@@ -1679,6 +1678,7 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
       // })
       eventBus.sendToRenderer(OLLAMA_EVENTS.PULL_MODEL_PROGRESS, SendTarget.ALL_WINDOWS, {
         eventId: 'pullOllamaModels',
+        providerId,
         modelName: modelName,
         ...progress
       })
