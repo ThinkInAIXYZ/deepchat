@@ -39,9 +39,11 @@
     <ModelCheckDialog
       :open="modelCheckStore.isDialogOpen"
       :provider-id="modelCheckStore.currentProviderId"
-      @update:open="(open) => {
-        if (!open) modelCheckStore.closeDialog()
-      }"
+      @update:open="
+        (open) => {
+          if (!open) modelCheckStore.closeDialog()
+        }
+      "
     />
   </div>
 </template>
