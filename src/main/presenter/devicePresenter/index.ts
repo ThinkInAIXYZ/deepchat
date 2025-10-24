@@ -25,12 +25,37 @@ export class DevicePresenter implements IDevicePresenter {
   }
 
   async getDeviceInfo(): Promise<DeviceInfo> {
+    const platform = process.platform
+    const osVersion = os.release()
+
+    // Build version metadata based on current platform
+    let osVersionMetadata: Array<{ name: string; build: number }> = []
+
+    if (platform === 'win32') {
+      osVersionMetadata = [
+        { name: 'Windows 11', build: 22000 },
+        { name: 'Windows 10', build: 10240 },
+        { name: 'Windows 8.1', build: 9600 },
+        { name: 'Windows 8', build: 9200 }
+      ]
+    } else if (platform === 'darwin') {
+      osVersionMetadata = [
+        { name: 'macOS Tahoe', build: 25 },
+        { name: 'macOS Sequoia', build: 24 },
+        { name: 'macOS Sonoma', build: 23 },
+        { name: 'macOS Ventura', build: 22 },
+        { name: 'macOS Monterey', build: 21 },
+        { name: 'macOS Big Sur', build: 20 }
+      ]
+    }
+
     return {
-      platform: process.platform,
+      platform,
       arch: process.arch,
       cpuModel: os.cpus()[0].model,
       totalMemory: os.totalmem(),
-      osVersion: os.release()
+      osVersion,
+      osVersionMetadata
     }
   }
 

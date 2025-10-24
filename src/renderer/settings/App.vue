@@ -61,6 +61,7 @@ import { useLanguageStore } from '../src/stores/language'
 import { useModelCheckStore } from '../src/stores/modelCheck'
 import { Button } from '@shadcn/components/ui/button'
 import ModelCheckDialog from '@/components/settings/ModelCheckDialog.vue'
+import { useDeviceVersion } from '../src/composables/useDeviceVersion'
 
 const devicePresenter = usePresenter('devicePresenter')
 const windowPresenter = usePresenter('windowPresenter')
@@ -71,8 +72,8 @@ const settingsStore = useSettingsStore()
 const languageStore = useLanguageStore()
 const modelCheckStore = useModelCheckStore()
 
-const isMacOS = ref(false)
-const isWinMacOS = ref(false)
+// Detect platform to apply proper styling
+const { isMacOS, isWinMacOS } = useDeviceVersion()
 const { t, locale } = useI18n()
 const router = useRouter()
 const route = useRoute()
@@ -89,9 +90,6 @@ const settings: Ref<
 // Get all routes and build settings navigation
 const routes = router.getRoutes()
 onMounted(() => {
-  devicePresenter.getDeviceInfo().then((deviceInfo) => {
-    isWinMacOS.value = deviceInfo.platform === 'darwin' || deviceInfo.platform === 'win32'
-  })
   const tempArray: {
     title: string
     name: string
