@@ -941,6 +941,10 @@ export type DeviceInfo = {
   cpuModel: string
   totalMemory: number
   osVersion: string
+  osVersionMetadata: Array<{
+    name: string
+    build: number
+  }>
 }
 
 export type MemoryInfo = {

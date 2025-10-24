@@ -9,16 +9,10 @@
 
 <script setup lang="ts">
 import AppBar from './components/AppBar.vue'
-import { ref, onMounted } from 'vue'
-import { usePresenter } from '@/composables/usePresenter'
-const isWinMacOS = ref(false)
-const devicePresenter = usePresenter('devicePresenter')
-// Shell component setup
-onMounted(() => {
-  devicePresenter.getDeviceInfo().then((deviceInfo) => {
-    isWinMacOS.value = deviceInfo.platform === 'darwin' || deviceInfo.platform === 'win32'
-  })
-})
+import { useDeviceVersion } from '@/composables/useDeviceVersion'
+
+// Detect platform to apply proper styling
+const { isWinMacOS } = useDeviceVersion()
 </script>
 
 <style>
