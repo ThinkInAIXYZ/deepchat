@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, onMounted, toRaw, computed } from 'vue'
-import { type LLM_PROVIDER, type RENDERER_MODEL_META } from '@shared/presenter'
+import { type LLM_PROVIDER, type MODEL_META, type RENDERER_MODEL_META } from '@shared/presenter'
 import type { ProviderChange, ProviderBatchUpdate } from '@shared/provider-operations'
 import { ModelType } from '@shared/model'
 import { usePresenter } from '@/composables/usePresenter'
@@ -459,7 +459,58 @@ export const useSettingsStore = defineStore('settings', () => {
       // 优先使用聚合 Provider DB（统一由主进程映射）
       let models: RENDERER_MODEL_META[] = await configP.getDbProviderModels(providerId)
 
-      // 若聚合 DB 为空，回退到 LLMProviderPresenter 的模型列表
+      const storedModels = configP.getProviderModels(providerId)
+
+      if (storedModels && storedModels.length > 0) {
+        const dbModelMap = new Map(models.map((model) => [model.id, model]))
+        const storedModelMap = new Map<string, RENDERER_MODEL_META>()
+
+        const normalizeStoredModel = (
+          model: MODEL_META,
+          fallback?: RENDERER_MODEL_META
+        ): RENDERER_MODEL_META => {
+          return {
+            id: model.id,
+            name: model.name || fallback?.name || model.id,
+            group: model.group || fallback?.group || 'default',
+            providerId,
+            enabled: false,
+            isCustom: model.isCustom ?? fallback?.isCustom ?? false,
+            contextLength: model.contextLength ?? fallback?.contextLength ?? 4096,
+            maxTokens: model.maxTokens ?? fallback?.maxTokens ?? 2048,
+            vision: model.vision ?? fallback?.vision ?? false,
+            functionCall: model.functionCall ?? fallback?.functionCall ?? false,
+            reasoning: model.reasoning ?? fallback?.reasoning ?? false,
+            enableSearch: model.enableSearch ?? fallback?.enableSearch ?? false,
+            type: model.type ?? fallback?.type ?? ModelType.Chat
+          }
+        }
+
+        for (const storedModel of storedModels) {
+          const normalized = normalizeStoredModel(storedModel, dbModelMap.get(storedModel.id))
+          storedModelMap.set(storedModel.id, normalized)
+        }
+
+        const mergedModels: RENDERER_MODEL_META[] = []
+
+        for (const model of models) {
+          const override = storedModelMap.get(model.id)
+          if (override) {
+            storedModelMap.delete(model.id)
+            mergedModels.push({ ...model, ...override, providerId })
+          } else {
+            mergedModels.push({ ...model, providerId })
+          }
+        }
+
+        for (const model of storedModelMap.values()) {
+          mergedModels.push(model)
+        }
+
+        models = mergedModels
+      }
+
+      // 若聚合 DB 为空且没有持久化模型，回退到 LLMProviderPresenter 的模型列表
       if (!models || models.length === 0) {
         try {
           const modelMetas = await llmP.getModelList(providerId)
