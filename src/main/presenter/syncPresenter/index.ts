@@ -216,7 +216,7 @@ export class SyncPresenter implements ISyncPresenter {
         backupDb.close()
 
         this.copyFile(backupDbPath, this.DB_PATH)
-        this.copyFile(backupAppSettingsPath, this.APP_SETTINGS_PATH)
+        this.mergeAppSettingsPreservingSync(backupAppSettingsPath, this.APP_SETTINGS_PATH)
 
         if (fs.existsSync(backupCustomPromptsPath)) {
           this.copyFile(backupCustomPromptsPath, this.CUSTOM_PROMPTS_PATH)
@@ -235,7 +235,7 @@ export class SyncPresenter implements ISyncPresenter {
         importer.close()
         importedConversationCount = summary.tableCounts.conversations || 0
 
-        this.copyFile(backupAppSettingsPath, this.APP_SETTINGS_PATH)
+        this.mergeAppSettingsPreservingSync(backupAppSettingsPath, this.APP_SETTINGS_PATH)
         if (fs.existsSync(backupCustomPromptsPath)) {
           this.mergePromptStore(backupCustomPromptsPath, this.CUSTOM_PROMPTS_PATH)
         }
@@ -367,15 +367,103 @@ export class SyncPresenter implements ISyncPresenter {
   private extractBackupArchive(zipPath: string, targetDir: string): void {
     const zipContent = new Uint8Array(fs.readFileSync(zipPath))
     const extracted = unzipSync(zipContent)
-    for (const relativePath of Object.keys(extracted)) {
-      const fileContent = extracted[relativePath]
+    const resolvedTargetDir = path.resolve(targetDir)
+
+    for (const entryName of Object.keys(extracted)) {
+      const fileContent = extracted[entryName]
       if (!fileContent) {
         continue
       }
-      const destination = path.join(targetDir, relativePath)
+
+      const normalizedEntry = entryName.replace(/\\/g, '/')
+      if (!normalizedEntry) {
+        continue
+      }
+
+      if (/^[A-Za-z]:/.test(normalizedEntry) || normalizedEntry.startsWith('/')) {
+        throw new Error('sync.error.noValidBackup')
+      }
+
+      const segments = normalizedEntry.split('/')
+      const safeSegments: string[] = []
+      for (const segment of segments) {
+        if (!segment || segment === '.') {
+          continue
+        }
+        if (segment === '..') {
+          throw new Error('sync.error.noValidBackup')
+        }
+        safeSegments.push(segment)
+      }
+
+      if (safeSegments.length === 0) {
+        continue
+      }
+
+      const isDirectoryEntry = normalizedEntry.endsWith('/')
+      const destination = path.resolve(resolvedTargetDir, ...safeSegments)
+      const relativeToTarget = path.relative(resolvedTargetDir, destination)
+      if (relativeToTarget.startsWith('..') || path.isAbsolute(relativeToTarget)) {
+        throw new Error('sync.error.noValidBackup')
+      }
+
+      if (isDirectoryEntry) {
+        fs.mkdirSync(destination, { recursive: true })
+        continue
+      }
+
       fs.mkdirSync(path.dirname(destination), { recursive: true })
       fs.writeFileSync(destination, Buffer.from(fileContent))
     }
+  }
+
+  private mergeAppSettingsPreservingSync(backupPath: string, targetPath: string): void {
+    if (!fs.existsSync(backupPath)) {
+      return
+    }
+
+    let backupSettingsRaw: string
+    try {
+      backupSettingsRaw = fs.readFileSync(backupPath, 'utf-8')
+    } catch (error) {
+      throw new Error('sync.error.noValidBackup')
+    }
+
+    let backupSettings: Record<string, unknown>
+    try {
+      const parsed = JSON.parse(backupSettingsRaw)
+      if (!parsed || typeof parsed !== 'object') {
+        throw new Error('sync.error.noValidBackup')
+      }
+      backupSettings = parsed as Record<string, unknown>
+    } catch (error) {
+      throw new Error('sync.error.noValidBackup')
+    }
+
+    let currentSettings: Record<string, unknown> = {}
+    if (fs.existsSync(targetPath)) {
+      try {
+        const currentContent = fs.readFileSync(targetPath, 'utf-8')
+        const parsedCurrent = JSON.parse(currentContent)
+        if (parsedCurrent && typeof parsedCurrent === 'object') {
+          currentSettings = parsedCurrent as Record<string, unknown>
+        }
+      } catch (error) {
+        console.warn('Failed to read existing app settings, preserving defaults')
+      }
+    }
+
+    const preservedKeys = ['syncEnabled', 'syncFolderPath', 'lastSyncTime'] as const
+    const preservedSettings: Record<string, unknown> = {}
+    for (const key of preservedKeys) {
+      if (Object.prototype.hasOwnProperty.call(currentSettings, key)) {
+        preservedSettings[key] = currentSettings[key]
+      }
+    }
+
+    const mergedSettings = { ...backupSettings, ...preservedSettings }
+    fs.mkdirSync(path.dirname(targetPath), { recursive: true })
+    fs.writeFileSync(targetPath, JSON.stringify(mergedSettings, null, 2), 'utf-8')
   }
 
   private createTempBackup(originalPath: string, name: string): string | null {
