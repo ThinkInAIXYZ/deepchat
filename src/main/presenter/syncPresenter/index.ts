@@ -2,31 +2,53 @@ import { app, shell } from 'electron'
 import path from 'path'
 import fs from 'fs'
 import Database from 'better-sqlite3-multiple-ciphers'
-import { ISyncPresenter, IConfigPresenter, ISQLitePresenter } from '@shared/presenter'
+import { zipSync, unzipSync } from 'fflate'
+import {
+  ISyncPresenter,
+  IConfigPresenter,
+  ISQLitePresenter,
+  SyncBackupInfo,
+  MCPServerConfig
+} from '@shared/presenter'
 import { eventBus, SendTarget } from '@/eventbus'
 import { SYNC_EVENTS } from '@/events'
 import { DataImporter } from '../sqlitePresenter/importData'
-import { ImportMode } from '../sqlitePresenter/index'
+import { ImportMode } from '../sqlitePresenter'
 
-// 为配置文件定义接口
-interface AppSettings {
-  syncEnabled?: boolean
-  syncFolderPath?: string
-  lastSyncTime?: number
+interface PromptStore {
+  prompts: Array<{ id?: string; [key: string]: unknown }>
+}
+
+interface McpSettings {
+  mcpServers?: Record<string, MCPServerConfig>
+  defaultServers?: string[]
   [key: string]: unknown
+}
+
+const BACKUP_DIR_NAME = 'backups'
+const BACKUP_PREFIX = 'backup-'
+const BACKUP_EXTENSION = '.zip'
+
+const ZIP_PATHS = {
+  db: 'database/chat.db',
+  appSettings: 'configs/app-settings.json',
+  customPrompts: 'configs/custom_prompts.json',
+  systemPrompts: 'configs/system_prompts.json',
+  mcpSettings: 'configs/mcp-settings.json',
+  manifest: 'manifest.json'
 }
 
 export class SyncPresenter implements ISyncPresenter {
   private configPresenter: IConfigPresenter
   private sqlitePresenter: ISQLitePresenter
-  private isBackingUp: boolean = false
+  private isBackingUp = false
   private backupTimer: NodeJS.Timeout | null = null
-  private readonly BACKUP_DELAY = 60 * 1000 // 60秒无变更后触发备份
+  private readonly BACKUP_DELAY = 60 * 1000
   private readonly APP_SETTINGS_PATH = path.join(app.getPath('userData'), 'app-settings.json')
+  private readonly CUSTOM_PROMPTS_PATH = path.join(app.getPath('userData'), 'custom_prompts.json')
+  private readonly SYSTEM_PROMPTS_PATH = path.join(app.getPath('userData'), 'system_prompts.json')
   private readonly MCP_SETTINGS_PATH = path.join(app.getPath('userData'), 'mcp-settings.json')
-  private readonly PROVIDER_MODELS_DIR_PATH = path.join(app.getPath('userData'), 'provider_models')
   private readonly DB_PATH = path.join(app.getPath('userData'), 'app_db', 'chat.db')
-  private readonly MODEL_CONFIG_PATH = path.join(app.getPath('userData'), 'model-config.json')
 
   constructor(configPresenter: IConfigPresenter, sqlitePresenter: ISQLitePresenter) {
     this.configPresenter = configPresenter
@@ -35,67 +57,70 @@ export class SyncPresenter implements ISyncPresenter {
   }
 
   public init(): void {
-    // 监听数据变更事件，触发备份计划
     this.listenForChanges()
   }
 
   public destroy(): void {
-    // 清理定时器
     if (this.backupTimer) {
       clearTimeout(this.backupTimer)
       this.backupTimer = null
     }
   }
 
-  /**
-   * 检查同步文件夹状态
-   */
   public async checkSyncFolder(): Promise<{ exists: boolean; path: string }> {
     const syncFolderPath = this.configPresenter.getSyncFolderPath()
     const exists = fs.existsSync(syncFolderPath)
-
     return { exists, path: syncFolderPath }
   }
 
-  /**
-   * 打开同步文件夹
-   */
   public async openSyncFolder(): Promise<void> {
     const { exists, path: syncFolderPath } = await this.checkSyncFolder()
-
-    // 如果文件夹不存在，先创建它
     if (!exists) {
       fs.mkdirSync(syncFolderPath, { recursive: true })
     }
-
-    // 打开文件夹
     shell.openPath(syncFolderPath)
   }
 
-  /**
-   * 获取备份状态
-   */
   public async getBackupStatus(): Promise<{ isBackingUp: boolean; lastBackupTime: number }> {
     const lastBackupTime = this.configPresenter.getLastSyncTime()
     return { isBackingUp: this.isBackingUp, lastBackupTime }
   }
 
-  /**
-   * 手动触发备份
-   */
-  public async startBackup(): Promise<void> {
-    if (this.isBackingUp) {
-      return
+  public async listBackups(): Promise<SyncBackupInfo[]> {
+    const { path: syncFolderPath } = await this.checkSyncFolder()
+    const backupsDir = this.getBackupsDirectory(syncFolderPath)
+    if (!fs.existsSync(backupsDir)) {
+      return []
     }
 
-    // 检查同步功能是否启用
+    const entries = fs
+      .readdirSync(backupsDir)
+      .filter((file) => file.endsWith(BACKUP_EXTENSION))
+      .map((fileName) => {
+        const match = fileName.match(/backup-(\d+)\.zip$/)
+        const createdAt = match
+          ? Number(match[1])
+          : fs.statSync(path.join(backupsDir, fileName)).mtimeMs
+        const stats = fs.statSync(path.join(backupsDir, fileName))
+        return { fileName, createdAt, size: stats.size }
+      })
+      .sort((a, b) => b.createdAt - a.createdAt)
+
+    return entries
+  }
+
+  public async startBackup(): Promise<SyncBackupInfo | null> {
+    if (this.isBackingUp) {
+      return null
+    }
+
     if (!this.configPresenter.getSyncEnabled()) {
       throw new Error('sync.error.notEnabled')
     }
 
     try {
-      await this.performBackup()
-    } catch (error: unknown) {
+      return await this.performBackup()
+    } catch (error) {
       console.error('备份失败:', error)
       eventBus.send(
         SYNC_EVENTS.BACKUP_ERROR,
@@ -106,9 +131,6 @@ export class SyncPresenter implements ISyncPresenter {
     }
   }
 
-  /**
-   * 取消备份操作
-   */
   public async cancelBackup(): Promise<void> {
     if (this.backupTimer) {
       clearTimeout(this.backupTimer)
@@ -117,384 +139,203 @@ export class SyncPresenter implements ISyncPresenter {
     this.isBackingUp = false
   }
 
-  /**
-   * 从同步文件夹导入数据
-   */
   public async importFromSync(
+    backupFileName: string,
     importMode: ImportMode = ImportMode.INCREMENT
   ): Promise<{ success: boolean; message: string; count?: number }> {
-    // Cancel any pending backup to prevent overwriting the backup files during import
     if (this.backupTimer) {
       clearTimeout(this.backupTimer)
       this.backupTimer = null
     }
 
-    // 检查同步文件夹是否存在
     const { exists, path: syncFolderPath } = await this.checkSyncFolder()
     if (!exists) {
       return { success: false, message: 'sync.error.folderNotExists' }
     }
 
-    // 检查是否有备份文件
-    const dbBackupPath = path.join(syncFolderPath, 'chat.db')
-    const appSettingsBackupPath = path.join(syncFolderPath, 'app-settings.json')
-    const providerModelsBackupPath = path.join(syncFolderPath, 'provider_models')
-    const modelConfigBackupPath = path.join(syncFolderPath, 'model-config.json')
-
-    if (!fs.existsSync(dbBackupPath) || !fs.existsSync(appSettingsBackupPath)) {
+    const backupsDir = this.getBackupsDirectory(syncFolderPath)
+    const backupZipPath = path.join(backupsDir, backupFileName)
+    if (!fs.existsSync(backupZipPath)) {
       return { success: false, message: 'sync.error.noValidBackup' }
     }
 
-    // 发出导入开始事件
     eventBus.send(SYNC_EVENTS.IMPORT_STARTED, SendTarget.ALL_WINDOWS)
 
+    const extractionDir = path.join(app.getPath('temp'), `deepchat-backup-${Date.now()}`)
+    fs.mkdirSync(extractionDir, { recursive: true })
+
+    const tempCurrentFiles: Record<string, string | null> = {
+      db: null,
+      appSettings: null,
+      customPrompts: null,
+      systemPrompts: null,
+      mcpSettings: null
+    }
+
     try {
-      // 关闭数据库连接
+      this.extractBackupArchive(backupZipPath, extractionDir)
+
+      const backupDbPath = path.join(extractionDir, ZIP_PATHS.db)
+      const backupAppSettingsPath = path.join(extractionDir, ZIP_PATHS.appSettings)
+      const backupCustomPromptsPath = path.join(extractionDir, ZIP_PATHS.customPrompts)
+      const backupSystemPromptsPath = path.join(extractionDir, ZIP_PATHS.systemPrompts)
+      const backupMcpSettingsPath = path.join(extractionDir, ZIP_PATHS.mcpSettings)
+
+      if (!fs.existsSync(backupDbPath) || !fs.existsSync(backupAppSettingsPath)) {
+        throw new Error('sync.error.noValidBackup')
+      }
+
       this.sqlitePresenter.close()
 
-      // 备份当前文件
-      const tempDbPath = path.join(app.getPath('temp'), `chat_${Date.now()}.db`)
-      const tempAppSettingsPath = path.join(app.getPath('temp'), `app_settings_${Date.now()}.json`)
-      const tempProviderModelsPath = path.join(app.getPath('temp'), `provider_models_${Date.now()}`)
-      const tempMcpSettingsPath = path.join(app.getPath('temp'), `mcp_settings_${Date.now()}.json`)
-      const tempModelConfigPath = path.join(app.getPath('temp'), `model_config_${Date.now()}.json`)
-      // 创建临时备份
-      if (fs.existsSync(this.DB_PATH)) {
-        fs.copyFileSync(this.DB_PATH, tempDbPath)
-      }
+      tempCurrentFiles.db = this.createTempBackup(this.DB_PATH, 'chat.db')
+      tempCurrentFiles.appSettings = this.createTempBackup(
+        this.APP_SETTINGS_PATH,
+        'app-settings.json'
+      )
+      tempCurrentFiles.customPrompts = this.createTempBackup(
+        this.CUSTOM_PROMPTS_PATH,
+        'custom_prompts.json'
+      )
+      tempCurrentFiles.systemPrompts = this.createTempBackup(
+        this.SYSTEM_PROMPTS_PATH,
+        'system_prompts.json'
+      )
+      tempCurrentFiles.mcpSettings = this.createTempBackup(
+        this.MCP_SETTINGS_PATH,
+        'mcp-settings.json'
+      )
 
-      if (fs.existsSync(this.APP_SETTINGS_PATH)) {
-        fs.copyFileSync(this.APP_SETTINGS_PATH, tempAppSettingsPath)
-      }
+      let importedConversationCount = 0
 
-      if (fs.existsSync(this.MCP_SETTINGS_PATH)) {
-        fs.copyFileSync(this.MCP_SETTINGS_PATH, tempMcpSettingsPath)
-      }
-
-      // 备份模型配置文件
-      if (fs.existsSync(this.MODEL_CONFIG_PATH)) {
-        fs.copyFileSync(this.MODEL_CONFIG_PATH, tempModelConfigPath)
-      }
-
-      // 如果 provider_models 目录存在，备份整个目录
-      if (fs.existsSync(this.PROVIDER_MODELS_DIR_PATH)) {
-        this.copyDirectory(this.PROVIDER_MODELS_DIR_PATH, tempProviderModelsPath)
-      }
-
-      let importedCount = 0
-      try {
-        if (importMode === ImportMode.OVERWRITE) {
-          // For overwrite mode, count conversations from backup db in read-only mode
-          const backupDb = new Database(dbBackupPath, { readonly: true })
-          const result = backupDb.prepare('SELECT COUNT(*) as count FROM conversations').get() as {
-            count: number
-          }
-          importedCount = result.count
-          backupDb.close()
-
-          fs.copyFileSync(dbBackupPath, this.DB_PATH)
-        } else {
-          // For incremental mode, DataImporter returns the actual imported count
-          const importer = new DataImporter(dbBackupPath, this.DB_PATH)
-          importedCount = await importer.importData()
-          console.log(`成功导入 ${importedCount} 个会话`)
-          importer.close()
+      if (importMode === ImportMode.OVERWRITE) {
+        const backupDb = new Database(backupDbPath, { readonly: true })
+        const result = backupDb.prepare('SELECT COUNT(*) as count FROM conversations').get() as {
+          count: number
         }
-        // 合并 app-settings.json 文件 (排除同步相关的设置)
-        if (fs.existsSync(appSettingsBackupPath)) {
-          // 读取当前的 app-settings
-          let currentSettings: AppSettings = {}
-          if (fs.existsSync(this.APP_SETTINGS_PATH)) {
-            const currentContent = fs.readFileSync(this.APP_SETTINGS_PATH, 'utf-8')
-            currentSettings = JSON.parse(currentContent)
-          }
+        importedConversationCount = result?.count || 0
+        backupDb.close()
 
-          // 读取备份的 app-settings
-          const backupContent = fs.readFileSync(appSettingsBackupPath, 'utf-8')
-          const backupSettings = JSON.parse(backupContent)
+        this.copyFile(backupDbPath, this.DB_PATH)
+        this.copyFile(backupAppSettingsPath, this.APP_SETTINGS_PATH)
 
-          // 保留当前的同步相关设置
-          const syncSettings: AppSettings = {
-            syncEnabled: currentSettings.syncEnabled,
-            syncFolderPath: currentSettings.syncFolderPath,
-            lastSyncTime: currentSettings.lastSyncTime
-          }
-
-          // 合并设置: 使用备份的设置，但保留同步相关设置
-          const mergedSettings = { ...backupSettings, ...syncSettings }
-
-          // 保存合并后的设置
-          fs.writeFileSync(this.APP_SETTINGS_PATH, JSON.stringify(mergedSettings, null, 2), 'utf-8')
+        if (fs.existsSync(backupCustomPromptsPath)) {
+          this.copyFile(backupCustomPromptsPath, this.CUSTOM_PROMPTS_PATH)
         }
 
-        // 如果存在 provider_models 备份，复制整个目录（直接覆盖）
-        if (fs.existsSync(providerModelsBackupPath)) {
-          // 清空当前 provider_models 目录
-          if (fs.existsSync(this.PROVIDER_MODELS_DIR_PATH)) {
-            this.removeDirectory(this.PROVIDER_MODELS_DIR_PATH)
-          }
-          // 确保目标目录存在
-          fs.mkdirSync(this.PROVIDER_MODELS_DIR_PATH, { recursive: true })
-          // 复制备份目录到应用目录
-          this.copyDirectory(providerModelsBackupPath, this.PROVIDER_MODELS_DIR_PATH)
+        if (fs.existsSync(backupSystemPromptsPath)) {
+          this.copyFile(backupSystemPromptsPath, this.SYSTEM_PROMPTS_PATH)
         }
 
-        // 导入模型配置文件
-        if (fs.existsSync(modelConfigBackupPath)) {
-          fs.copyFileSync(modelConfigBackupPath, this.MODEL_CONFIG_PATH)
+        if (fs.existsSync(backupMcpSettingsPath)) {
+          this.copyFile(backupMcpSettingsPath, this.MCP_SETTINGS_PATH)
         }
+      } else {
+        const importer = new DataImporter(backupDbPath, this.DB_PATH)
+        const summary = await importer.importData()
+        importer.close()
+        importedConversationCount = summary.tableCounts.conversations || 0
 
-        eventBus.send(SYNC_EVENTS.IMPORT_COMPLETED, SendTarget.ALL_WINDOWS)
-        return { success: true, message: 'sync.success.importComplete', count: importedCount }
-      } catch (error: unknown) {
-        console.error('导入文件失败，恢复备份:', error)
-
-        // 恢复备份
-        if (fs.existsSync(tempDbPath)) {
-          fs.copyFileSync(tempDbPath, this.DB_PATH)
+        this.copyFile(backupAppSettingsPath, this.APP_SETTINGS_PATH)
+        if (fs.existsSync(backupCustomPromptsPath)) {
+          this.mergePromptStore(backupCustomPromptsPath, this.CUSTOM_PROMPTS_PATH)
         }
-
-        if (fs.existsSync(tempAppSettingsPath)) {
-          fs.copyFileSync(tempAppSettingsPath, this.APP_SETTINGS_PATH)
+        if (fs.existsSync(backupSystemPromptsPath)) {
+          this.mergePromptStore(backupSystemPromptsPath, this.SYSTEM_PROMPTS_PATH)
         }
-
-        if (fs.existsSync(tempMcpSettingsPath)) {
-          fs.copyFileSync(tempMcpSettingsPath, this.MCP_SETTINGS_PATH)
-        }
-
-        if (fs.existsSync(tempProviderModelsPath)) {
-          if (fs.existsSync(this.PROVIDER_MODELS_DIR_PATH)) {
-            this.removeDirectory(this.PROVIDER_MODELS_DIR_PATH)
-          }
-          this.copyDirectory(tempProviderModelsPath, this.PROVIDER_MODELS_DIR_PATH)
-        }
-
-        // 恢复模型配置文件
-        if (fs.existsSync(tempModelConfigPath)) {
-          fs.copyFileSync(tempModelConfigPath, this.MODEL_CONFIG_PATH)
-        }
-
-        eventBus.send(
-          SYNC_EVENTS.IMPORT_ERROR,
-          SendTarget.ALL_WINDOWS,
-          (error as Error).message || 'sync.error.unknown'
-        )
-        return { success: false, message: 'sync.error.importFailed' }
-      } finally {
-        // 清理临时文件
-        if (fs.existsSync(tempDbPath)) {
-          fs.unlinkSync(tempDbPath)
-        }
-
-        if (fs.existsSync(tempAppSettingsPath)) {
-          fs.unlinkSync(tempAppSettingsPath)
-        }
-
-        if (fs.existsSync(tempMcpSettingsPath)) {
-          fs.unlinkSync(tempMcpSettingsPath)
-        }
-
-        if (fs.existsSync(tempProviderModelsPath)) {
-          this.removeDirectory(tempProviderModelsPath)
-        }
-
-        // 清理模型配置临时文件
-        if (fs.existsSync(tempModelConfigPath)) {
-          fs.unlinkSync(tempModelConfigPath)
+        if (fs.existsSync(backupMcpSettingsPath)) {
+          this.mergeMcpSettings(backupMcpSettingsPath, this.MCP_SETTINGS_PATH)
         }
       }
-    } catch (error: unknown) {
-      console.error('导入过程出错:', error)
+
+      eventBus.send(SYNC_EVENTS.IMPORT_COMPLETED, SendTarget.ALL_WINDOWS)
+      return { success: true, message: 'sync.importComplete', count: importedConversationCount }
+    } catch (error) {
+      console.error('导入文件失败，恢复备份:', error)
+      this.restoreFromTempBackup(tempCurrentFiles)
       eventBus.send(
         SYNC_EVENTS.IMPORT_ERROR,
         SendTarget.ALL_WINDOWS,
         (error as Error).message || 'sync.error.unknown'
       )
-      return { success: false, message: 'sync.error.importProcess' }
+      return { success: false, message: 'sync.error.importFailed' }
+    } finally {
+      this.cleanupTempFiles(Object.values(tempCurrentFiles))
+      this.removeDirectory(extractionDir)
     }
   }
 
-  /**
-   * 执行实际的备份操作
-   */
-  private async performBackup(): Promise<void> {
-    // 标记备份开始
+  private async performBackup(): Promise<SyncBackupInfo> {
     this.isBackingUp = true
     eventBus.send(SYNC_EVENTS.BACKUP_STARTED, SendTarget.ALL_WINDOWS)
 
+    const syncFolderPath = this.configPresenter.getSyncFolderPath()
+    if (!fs.existsSync(syncFolderPath)) {
+      fs.mkdirSync(syncFolderPath, { recursive: true })
+    }
+    const backupsDir = this.getBackupsDirectory(syncFolderPath)
+    fs.mkdirSync(backupsDir, { recursive: true })
+
+    if (!fs.existsSync(this.DB_PATH)) {
+      throw new Error('sync.error.dbNotExists')
+    }
+
+    if (!fs.existsSync(this.APP_SETTINGS_PATH)) {
+      throw new Error('sync.error.configNotExists')
+    }
+
+    const timestamp = Date.now()
+    const backupFileName = `${BACKUP_PREFIX}${timestamp}${BACKUP_EXTENSION}`
+    const tempZipPath = path.join(backupsDir, `${backupFileName}.tmp`)
+    const finalZipPath = path.join(backupsDir, backupFileName)
+
     try {
-      const syncFolderPath = this.configPresenter.getSyncFolderPath()
+      const files: Record<string, Uint8Array> = {}
+      files[ZIP_PATHS.db] = new Uint8Array(fs.readFileSync(this.DB_PATH))
+      files[ZIP_PATHS.appSettings] = new Uint8Array(fs.readFileSync(this.APP_SETTINGS_PATH))
+      this.addOptionalFile(files, ZIP_PATHS.customPrompts, this.CUSTOM_PROMPTS_PATH)
+      this.addOptionalFile(files, ZIP_PATHS.systemPrompts, this.SYSTEM_PROMPTS_PATH)
+      this.addOptionalFile(files, ZIP_PATHS.mcpSettings, this.MCP_SETTINGS_PATH)
 
-      // 确保同步文件夹存在
-      if (!fs.existsSync(syncFolderPath)) {
-        fs.mkdirSync(syncFolderPath, { recursive: true })
+      const manifest = {
+        version: 1,
+        createdAt: timestamp,
+        files: Object.keys(files)
       }
-
-      // 生成临时备份文件路径（防止导入过程中的文件冲突）
-      const tempDbBackupPath = path.join(syncFolderPath, `chat_${Date.now()}.db.tmp`)
-      const tempAppSettingsBackupPath = path.join(
-        syncFolderPath,
-        `app_settings_${Date.now()}.json.tmp`
-      )
-      const tempProviderModelsBackupPath = path.join(
-        syncFolderPath,
-        `provider_models_${Date.now()}.tmp`
-      )
-      const tempMcpSettingsBackupPath = path.join(
-        syncFolderPath,
-        `mcp_settings_${Date.now()}.json.tmp`
-      )
-      const tempModelConfigBackupPath = path.join(
-        syncFolderPath,
-        `model_config_${Date.now()}.json.tmp`
+      files[ZIP_PATHS.manifest] = new Uint8Array(
+        Buffer.from(JSON.stringify(manifest, null, 2), 'utf-8')
       )
 
-      const finalDbBackupPath = path.join(syncFolderPath, 'chat.db')
-      const finalAppSettingsBackupPath = path.join(syncFolderPath, 'app-settings.json')
-      const finalProviderModelsBackupPath = path.join(syncFolderPath, 'provider_models')
-      const finalMcpSettingsBackupPath = path.join(syncFolderPath, 'mcp-settings.json')
-      const finalModelConfigBackupPath = path.join(syncFolderPath, 'model-config.json')
+      const zipData = zipSync(files, { level: 6 })
+      fs.writeFileSync(tempZipPath, Buffer.from(zipData))
 
-      // 确保数据库文件存在
-      if (!fs.existsSync(this.DB_PATH)) {
-        console.warn('数据库文件不存在:', this.DB_PATH)
-        throw new Error('sync.error.dbNotExists')
+      if (fs.existsSync(finalZipPath)) {
+        fs.unlinkSync(finalZipPath)
       }
+      fs.renameSync(tempZipPath, finalZipPath)
 
-      // 确保配置文件存在
-      if (!fs.existsSync(this.APP_SETTINGS_PATH)) {
-        console.warn('配置文件不存在:', this.APP_SETTINGS_PATH)
-        throw new Error('sync.error.configNotExists')
+      const backupStats = fs.statSync(finalZipPath)
+      this.configPresenter.setLastSyncTime(timestamp)
+      eventBus.send(SYNC_EVENTS.BACKUP_COMPLETED, SendTarget.ALL_WINDOWS, timestamp)
+
+      return { fileName: backupFileName, createdAt: timestamp, size: backupStats.size }
+    } catch (error) {
+      if (fs.existsSync(tempZipPath)) {
+        fs.unlinkSync(tempZipPath)
       }
-
-      // 备份数据库
-      fs.copyFileSync(this.DB_PATH, tempDbBackupPath)
-
-      // 备份配置文件（过滤掉同步相关的设置）
-      if (fs.existsSync(this.APP_SETTINGS_PATH)) {
-        const appSettingsContent = fs.readFileSync(this.APP_SETTINGS_PATH, 'utf-8')
-        const appSettings = JSON.parse(appSettingsContent)
-
-        // 创建配置副本，不包含同步相关的设置
-        const filteredSettings = { ...appSettings }
-        // 删除同步相关的设置
-        delete filteredSettings.syncEnabled
-        delete filteredSettings.syncFolderPath
-        delete filteredSettings.lastSyncTime
-
-        fs.writeFileSync(
-          tempAppSettingsBackupPath,
-          JSON.stringify(filteredSettings, null, 2),
-          'utf-8'
-        )
-      }
-
-      // 备份 MCP 设置
-      if (fs.existsSync(this.MCP_SETTINGS_PATH)) {
-        fs.copyFileSync(this.MCP_SETTINGS_PATH, tempMcpSettingsBackupPath)
-      }
-
-      // 备份模型配置文件
-      if (fs.existsSync(this.MODEL_CONFIG_PATH)) {
-        fs.copyFileSync(this.MODEL_CONFIG_PATH, tempModelConfigBackupPath)
-      }
-
-      // 备份 provider_models 目录
-      if (fs.existsSync(this.PROVIDER_MODELS_DIR_PATH)) {
-        // 确保临时目录存在
-        fs.mkdirSync(tempProviderModelsBackupPath, { recursive: true })
-        // 复制整个 provider_models 目录
-        this.copyDirectory(this.PROVIDER_MODELS_DIR_PATH, tempProviderModelsBackupPath)
-      }
-
-      // 检查临时文件是否成功创建
-      if (!fs.existsSync(tempDbBackupPath)) {
-        throw new Error('sync.error.tempDbFailed')
-      }
-
-      if (!fs.existsSync(tempAppSettingsBackupPath)) {
-        throw new Error('sync.error.tempConfigFailed')
-      }
-
-      if (!fs.existsSync(tempMcpSettingsBackupPath)) {
-        throw new Error('sync.error.tempMcpSettingsFailed')
-      }
-
-      // 重命名临时文件为最终文件
-      if (fs.existsSync(finalDbBackupPath)) {
-        fs.unlinkSync(finalDbBackupPath)
-      }
-
-      if (fs.existsSync(finalAppSettingsBackupPath)) {
-        fs.unlinkSync(finalAppSettingsBackupPath)
-      }
-
-      // 如果存在之前的 provider_models 备份目录，删除它
-      if (fs.existsSync(finalProviderModelsBackupPath)) {
-        this.removeDirectory(finalProviderModelsBackupPath)
-      }
-
-      if (fs.existsSync(finalMcpSettingsBackupPath)) {
-        fs.unlinkSync(finalMcpSettingsBackupPath)
-      }
-
-      // 清理之前的模型配置文件备份
-      if (fs.existsSync(finalModelConfigBackupPath)) {
-        fs.unlinkSync(finalModelConfigBackupPath)
-      }
-
-      // 确保临时文件存在后再执行重命名
-      fs.renameSync(tempDbBackupPath, finalDbBackupPath)
-      fs.renameSync(tempAppSettingsBackupPath, finalAppSettingsBackupPath)
-      fs.renameSync(tempMcpSettingsBackupPath, finalMcpSettingsBackupPath)
-
-      // 重命名模型配置文件
-      if (fs.existsSync(tempModelConfigBackupPath)) {
-        fs.renameSync(tempModelConfigBackupPath, finalModelConfigBackupPath)
-      }
-
-      // 重命名 provider_models 临时目录
-      if (fs.existsSync(tempProviderModelsBackupPath)) {
-        fs.renameSync(tempProviderModelsBackupPath, finalProviderModelsBackupPath)
-      }
-
-      // 更新最后备份时间
-      const now = Date.now()
-      this.configPresenter.setLastSyncTime(now)
-
-      // 发送备份完成事件
-      eventBus.send(SYNC_EVENTS.BACKUP_COMPLETED, SendTarget.ALL_WINDOWS, now)
-    } catch (error: unknown) {
-      console.error('备份过程出错:', error)
-      eventBus.send(
-        SYNC_EVENTS.BACKUP_ERROR,
-        SendTarget.ALL_WINDOWS,
-        (error as Error).message || 'sync.error.unknown'
-      )
       throw error
     } finally {
-      // 标记备份结束
       this.isBackingUp = false
     }
   }
 
-  /**
-   * 监听数据变更事件，触发备份计划
-   */
   private listenForChanges(): void {
-    // 监听多种数据变更事件，使用防抖逻辑触发备份
     const scheduleBackup = () => {
-      // 如果同步功能未启用，不执行备份
       if (!this.configPresenter.getSyncEnabled()) {
         return
       }
-
-      // 清除现有定时器
       if (this.backupTimer) {
         clearTimeout(this.backupTimer)
       }
-
-      // 设置新的定时器，延迟执行备份
       this.backupTimer = setTimeout(async () => {
         if (!this.isBackingUp) {
           try {
@@ -506,54 +347,219 @@ export class SyncPresenter implements ISyncPresenter {
       }, this.BACKUP_DELAY)
     }
 
-    // 监听消息相关变更
     eventBus.on(SYNC_EVENTS.DATA_CHANGED, scheduleBackup)
   }
 
-  /**
-   * 辅助方法：复制目录
-   */
-  private copyDirectory(source: string, target: string): void {
-    // 确保目标目录存在
-    if (!fs.existsSync(target)) {
-      fs.mkdirSync(target, { recursive: true })
+  private getBackupsDirectory(syncFolderPath: string): string {
+    return path.join(syncFolderPath, BACKUP_DIR_NAME)
+  }
+
+  private addOptionalFile(
+    files: Record<string, Uint8Array>,
+    zipPath: string,
+    filePath: string
+  ): void {
+    if (fs.existsSync(filePath)) {
+      files[zipPath] = new Uint8Array(fs.readFileSync(filePath))
     }
+  }
 
-    // 读取源目录
-    const entries = fs.readdirSync(source, { withFileTypes: true })
+  private extractBackupArchive(zipPath: string, targetDir: string): void {
+    const zipContent = new Uint8Array(fs.readFileSync(zipPath))
+    const extracted = unzipSync(zipContent)
+    for (const relativePath of Object.keys(extracted)) {
+      const fileContent = extracted[relativePath]
+      if (!fileContent) {
+        continue
+      }
+      const destination = path.join(targetDir, relativePath)
+      fs.mkdirSync(path.dirname(destination), { recursive: true })
+      fs.writeFileSync(destination, Buffer.from(fileContent))
+    }
+  }
 
-    // 复制每个文件和子目录
-    for (const entry of entries) {
-      const srcPath = path.join(source, entry.name)
-      const destPath = path.join(target, entry.name)
+  private createTempBackup(originalPath: string, name: string): string | null {
+    if (!fs.existsSync(originalPath)) {
+      return null
+    }
+    const tempPath = path.join(app.getPath('temp'), `${name}.${Date.now()}.bak`)
+    this.copyFile(originalPath, tempPath)
+    return tempPath
+  }
 
-      if (entry.isDirectory()) {
-        // 递归复制子目录
-        this.copyDirectory(srcPath, destPath)
-      } else {
-        // 复制文件
-        fs.copyFileSync(srcPath, destPath)
+  private copyFile(source: string, target: string): void {
+    fs.mkdirSync(path.dirname(target), { recursive: true })
+    fs.copyFileSync(source, target)
+  }
+
+  private restoreFromTempBackup(tempFiles: Record<string, string | null>): void {
+    if (tempFiles.db) {
+      this.copyFile(tempFiles.db, this.DB_PATH)
+    }
+    if (tempFiles.appSettings) {
+      this.copyFile(tempFiles.appSettings, this.APP_SETTINGS_PATH)
+    }
+    if (tempFiles.customPrompts) {
+      this.copyFile(tempFiles.customPrompts, this.CUSTOM_PROMPTS_PATH)
+    }
+    if (tempFiles.systemPrompts) {
+      this.copyFile(tempFiles.systemPrompts, this.SYSTEM_PROMPTS_PATH)
+    }
+    if (tempFiles.mcpSettings) {
+      this.copyFile(tempFiles.mcpSettings, this.MCP_SETTINGS_PATH)
+    }
+  }
+
+  private cleanupTempFiles(paths: Array<string | null>): void {
+    for (const filePath of paths) {
+      if (filePath && fs.existsSync(filePath)) {
+        try {
+          fs.unlinkSync(filePath)
+        } catch (error) {
+          console.warn('Failed to remove temp file:', filePath, error)
+        }
       }
     }
   }
 
-  /**
-   * 辅助方法：删除目录及其内容
-   */
   private removeDirectory(dirPath: string): void {
-    if (fs.existsSync(dirPath)) {
-      const entries = fs.readdirSync(dirPath, { withFileTypes: true })
+    if (!fs.existsSync(dirPath)) {
+      return
+    }
+    const entries = fs.readdirSync(dirPath, { withFileTypes: true })
+    for (const entry of entries) {
+      const entryPath = path.join(dirPath, entry.name)
+      if (entry.isDirectory()) {
+        this.removeDirectory(entryPath)
+      } else {
+        fs.unlinkSync(entryPath)
+      }
+    }
+    fs.rmdirSync(dirPath)
+  }
 
-      for (const entry of entries) {
-        const fullPath = path.join(dirPath, entry.name)
-        if (entry.isDirectory()) {
-          this.removeDirectory(fullPath)
-        } else {
-          fs.unlinkSync(fullPath)
+  private mergePromptStore(backupPath: string, targetPath: string): number {
+    const backupData = this.readPromptStore(backupPath)
+    if (!backupData) {
+      return 0
+    }
+    const targetData = this.readPromptStore(targetPath) || { prompts: [] }
+
+    const existingIds = new Set(targetData.prompts.map((prompt) => prompt.id).filter(Boolean))
+    let added = 0
+
+    for (const prompt of backupData.prompts) {
+      const id = prompt.id
+      if (!id || existingIds.has(id)) {
+        continue
+      }
+      targetData.prompts.push(prompt)
+      existingIds.add(id)
+      added++
+    }
+
+    if (added > 0) {
+      fs.writeFileSync(targetPath, JSON.stringify(targetData, null, 2), 'utf-8')
+    }
+    return added
+  }
+
+  private readPromptStore(filePath: string): PromptStore | null {
+    if (!fs.existsSync(filePath)) {
+      return null
+    }
+    try {
+      const content = fs.readFileSync(filePath, 'utf-8')
+      const parsed = JSON.parse(content)
+      if (!parsed || typeof parsed !== 'object' || !Array.isArray(parsed.prompts)) {
+        return { prompts: [] }
+      }
+      return parsed as PromptStore
+    } catch (error) {
+      console.warn('Failed to read prompt store:', filePath, error)
+      return { prompts: [] }
+    }
+  }
+
+  private mergeMcpSettings(backupPath: string, targetPath: string): void {
+    const backupSettings = this.readMcpSettings(backupPath)
+    if (!backupSettings) {
+      return
+    }
+
+    const currentSettings = this.readMcpSettings(targetPath) || {}
+    const mergedServers: Record<string, MCPServerConfig> = currentSettings.mcpServers
+      ? { ...currentSettings.mcpServers }
+      : {}
+
+    let addedServers = false
+    for (const [name, config] of Object.entries(backupSettings.mcpServers || {})) {
+      if (this.isKnowledgeMcp(name, config)) {
+        continue
+      }
+      if (!mergedServers[name]) {
+        mergedServers[name] = config
+        addedServers = true
+      }
+    }
+
+    const currentDefaults = new Set(currentSettings.defaultServers || [])
+    let defaultsChanged = false
+    for (const serverName of backupSettings.defaultServers || []) {
+      const serverConfig = backupSettings.mcpServers?.[serverName]
+      if (serverConfig && !this.isKnowledgeMcp(serverName, serverConfig)) {
+        const beforeSize = currentDefaults.size
+        currentDefaults.add(serverName)
+        if (currentDefaults.size !== beforeSize) {
+          defaultsChanged = true
         }
       }
-
-      fs.rmdirSync(dirPath)
     }
+
+    const mergedSettings: McpSettings = { ...currentSettings }
+    mergedSettings.mcpServers = mergedServers
+    mergedSettings.defaultServers = Array.from(currentDefaults)
+
+    let settingsChanged = false
+    for (const [key, value] of Object.entries(backupSettings)) {
+      if (key === 'mcpServers' || key === 'defaultServers') {
+        continue
+      }
+      if (mergedSettings[key] === undefined) {
+        mergedSettings[key] = value
+        settingsChanged = true
+      }
+    }
+
+    if (addedServers || defaultsChanged || settingsChanged) {
+      fs.writeFileSync(targetPath, JSON.stringify(mergedSettings, null, 2), 'utf-8')
+      return
+    }
+
+    if (!fs.existsSync(targetPath)) {
+      fs.writeFileSync(targetPath, JSON.stringify(mergedSettings, null, 2), 'utf-8')
+    }
+  }
+
+  private readMcpSettings(filePath: string): McpSettings | null {
+    if (!fs.existsSync(filePath)) {
+      return null
+    }
+    try {
+      const content = fs.readFileSync(filePath, 'utf-8')
+      return JSON.parse(content) as McpSettings
+    } catch (error) {
+      console.warn('Failed to read MCP settings:', filePath, error)
+      return null
+    }
+  }
+
+  private isKnowledgeMcp(name: string, config: MCPServerConfig | undefined): boolean {
+    const normalizedName = name.toLowerCase()
+    if (normalizedName.includes('knowledge')) {
+      return true
+    }
+    const command = typeof config?.command === 'string' ? config.command.toLowerCase() : ''
+    return command.includes('knowledge')
   }
 }

@@ -79,7 +79,35 @@
                 {{ t('settings.data.importConfirmDescription') }}
               </DialogDescription>
             </DialogHeader>
-            <div class="p-4">
+            <div class="px-4 pb-4 flex flex-col gap-4">
+              <div class="flex flex-col gap-2">
+                <Label class="text-sm font-medium" :dir="languageStore.dir">
+                  {{ t('settings.data.backupSelectLabel') }}
+                </Label>
+                <Select v-model="selectedBackup" :disabled="!availableBackups.length">
+                  <SelectTrigger class="h-8!" :dir="languageStore.dir">
+                    <SelectValue :placeholder="t('settings.data.selectBackupPlaceholder')" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem
+                      v-for="backup in availableBackups"
+                      :key="backup.fileName"
+                      :value="backup.fileName"
+                      :dir="languageStore.dir"
+                    >
+                      {{ formatBackupLabel(backup.fileName, backup.createdAt, backup.size) }}
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+                <p class="text-xs text-muted-foreground" :dir="languageStore.dir">
+                  {{
+                    availableBackups.length
+                      ? t('settings.data.backupSelectDescription')
+                      : t('settings.data.noBackupsAvailable')
+                  }}
+                </p>
+              </div>
+
               <RadioGroup v-model="importMode" class="flex flex-col gap-2">
                 <div class="flex items-center space-x-2">
                   <RadioGroupItem value="increment" />
@@ -95,7 +123,11 @@
               <Button variant="outline" @click="closeImportDialog">
                 {{ t('dialog.cancel') }}
               </Button>
-              <Button variant="default" :disabled="syncStore.isImporting" @click="handleImport">
+              <Button
+                variant="default"
+                :disabled="syncStore.isImporting || !selectedBackup"
+                @click="handleImport"
+              >
                 {{
                   syncStore.isImporting
                     ? t('settings.data.importing')
@@ -236,7 +268,8 @@
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
 import { ScrollArea } from '@shadcn/components/ui/scroll-area'
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, computed, watch } from 'vue'
+import { storeToRefs } from 'pinia'
 import {
   Dialog,
   DialogContent,
@@ -263,6 +296,13 @@ import { Switch } from '@shadcn/components/ui/switch'
 import { RadioGroup, RadioGroupItem } from '@shadcn/components/ui/radio-group'
 import { Label } from '@shadcn/components/ui/label'
 import { Separator } from '@shadcn/components/ui/separator'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from '@shadcn/components/ui/select'
 import { useSyncStore } from '@/stores/sync'
 import { useLanguageStore } from '@/stores/language'
 import { usePresenter } from '@/composables/usePresenter'
@@ -272,9 +312,11 @@ const { t } = useI18n()
 const languageStore = useLanguageStore()
 const syncStore = useSyncStore()
 const devicePresenter = usePresenter('devicePresenter')
+const { backups: backupsRef } = storeToRefs(syncStore)
 
 const isImportDialogOpen = ref(false)
 const importMode = ref('increment')
+const selectedBackup = ref('')
 
 const isResetDialogOpen = ref(false)
 const resetType = ref<'chat' | 'knowledge' | 'config' | 'all'>('chat')
@@ -300,6 +342,47 @@ onMounted(async () => {
   await syncStore.initialize()
 })
 
+const availableBackups = computed(() => backupsRef.value || [])
+
+watch(availableBackups, (backups) => {
+  if (!backups.length) {
+    selectedBackup.value = ''
+    return
+  }
+  if (!selectedBackup.value || !backups.find((item) => item.fileName === selectedBackup.value)) {
+    selectedBackup.value = backups[0].fileName
+  }
+})
+
+watch(isImportDialogOpen, async (open) => {
+  if (open) {
+    await syncStore.refreshBackups()
+    if (availableBackups.value.length > 0) {
+      selectedBackup.value = availableBackups.value[0].fileName
+    } else {
+      selectedBackup.value = ''
+    }
+  }
+})
+
+const formatBytes = (bytes: number) => {
+  if (!Number.isFinite(bytes) || bytes <= 0) {
+    return '0 B'
+  }
+  const units = ['B', 'KB', 'MB', 'GB', 'TB']
+  const exponent = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1)
+  const value = bytes / Math.pow(1024, exponent)
+  return `${value.toFixed(value >= 100 || exponent === 0 ? 0 : 1)} ${units[exponent]}`
+}
+
+const formatBackupLabel = (fileName: string, createdAt: number, size: number) => {
+  const date = new Date(createdAt)
+  const formatted = Number.isFinite(createdAt)
+    ? `${date.toLocaleString()} (${formatBytes(size)})`
+    : `${fileName} (${formatBytes(size)})`
+  return formatted
+}
+
 // 关闭导入对话框
 const closeImportDialog = () => {
   isImportDialogOpen.value = false
@@ -308,7 +391,10 @@ const closeImportDialog = () => {
 
 // 处理导入
 const handleImport = async () => {
-  await syncStore.importData(importMode.value as 'increment' | 'overwrite')
+  if (!selectedBackup.value) {
+    return
+  }
+  await syncStore.importData(selectedBackup.value, importMode.value as 'increment' | 'overwrite')
   closeImportDialog()
 }
 

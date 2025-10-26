@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { usePresenter } from '@/composables/usePresenter'
 import { SYNC_EVENTS } from '@/events'
+import type { SyncBackupInfo } from '@shared/presenter'
 
 export const useSyncStore = defineStore('sync', () => {
   // 状态
@@ -11,6 +12,7 @@ export const useSyncStore = defineStore('sync', () => {
   const isBackingUp = ref(false)
   const isImporting = ref(false)
   const importResult = ref<{ success: boolean; message: string; count?: number } | null>(null)
+  const backups = ref<SyncBackupInfo[]>([])
 
   // 获取 presenter 实例
   const configPresenter = usePresenter('configPresenter')
@@ -27,6 +29,8 @@ export const useSyncStore = defineStore('sync', () => {
     const status = await syncPresenter.getBackupStatus()
     lastSyncTime.value = status.lastBackupTime
     isBackingUp.value = status.isBackingUp
+
+    await refreshBackups()
 
     // 监听备份状态变化事件
     window.electron.ipcRenderer.on(SYNC_EVENTS.BACKUP_STARTED, () => {
@@ -66,6 +70,7 @@ export const useSyncStore = defineStore('sync', () => {
   const setSyncFolderPath = async (path: string) => {
     syncFolderPath.value = path
     await configPresenter.setSyncFolderPath(path)
+    await refreshBackups()
   }
 
   // 选择同步文件夹
@@ -87,20 +92,24 @@ export const useSyncStore = defineStore('sync', () => {
     if (!syncEnabled.value || isBackingUp.value) return
 
     try {
-      await syncPresenter.startBackup()
+      const backupInfo = await syncPresenter.startBackup()
+      if (backupInfo) {
+        await refreshBackups()
+      }
     } catch (error) {
       console.error('备份失败:', error)
     }
   }
 
   // 导入数据
-  const importData = async (mode: 'increment' | 'overwrite' = 'increment') => {
-    if (!syncEnabled.value || isImporting.value) return
+  const importData = async (backupFile: string, mode: 'increment' | 'overwrite' = 'increment') => {
+    if (!syncEnabled.value || isImporting.value || !backupFile) return
 
     isImporting.value = true
-    const result = await syncPresenter.importFromSync(mode)
+    const result = await syncPresenter.importFromSync(backupFile, mode)
     importResult.value = result
     isImporting.value = false
+    await refreshBackups()
   }
 
   // 重启应用
@@ -113,6 +122,11 @@ export const useSyncStore = defineStore('sync', () => {
     importResult.value = null
   }
 
+  const refreshBackups = async () => {
+    const list = await syncPresenter.listBackups()
+    backups.value = Array.isArray(list) ? list.sort((a, b) => b.createdAt - a.createdAt) : []
+  }
+
   return {
     // 状态
     syncEnabled,
@@ -121,6 +135,7 @@ export const useSyncStore = defineStore('sync', () => {
     isBackingUp,
     isImporting,
     importResult,
+    backups,
 
     // 方法
     initialize,
@@ -131,6 +146,7 @@ export const useSyncStore = defineStore('sync', () => {
     startBackup,
     importData,
     restartApp,
-    clearImportResult
+    clearImportResult,
+    refreshBackups
   }
 })

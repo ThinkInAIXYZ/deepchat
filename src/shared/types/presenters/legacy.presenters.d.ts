@@ -1344,12 +1344,14 @@ export interface IDeeplinkPresenter {
 
 export interface ISyncPresenter {
   // Backup related operations
-  startBackup(): Promise<void>
+  startBackup(): Promise<SyncBackupInfo | null>
   cancelBackup(): Promise<void>
   getBackupStatus(): Promise<{ isBackingUp: boolean; lastBackupTime: number }>
+  listBackups(): Promise<SyncBackupInfo[]>
 
   // Import related operations
   importFromSync(
+    backupFileName: string,
     importMode?: ImportMode
   ): Promise<{ success: boolean; message: string; count?: number }>
   checkSyncFolder(): Promise<{ exists: boolean; path: string }>
@@ -1358,6 +1360,12 @@ export interface ISyncPresenter {
   // Initialization and destruction
   init(): void
   destroy(): void
+}
+
+export interface SyncBackupInfo {
+  fileName: string
+  createdAt: number
+  size: number
 }
 
 // Standardized events returned from LLM Provider's coreStream
