@@ -22,6 +22,7 @@ interface IMcpSettings {
   npmRegistryCache?: INpmRegistryCache // NPM registry cache
   customNpmRegistry?: string // User custom NPM registry
   autoDetectNpmRegistry?: boolean // Whether to enable auto detection
+  removedBuiltInServers?: string[] // Track built-in servers removed by user
   [key: string]: unknown // Allow arbitrary keys
 }
 export type MCPServerType = 'stdio' | 'sse' | 'inmemory' | 'http'
@@ -294,15 +295,19 @@ const DEFAULT_MCP_SERVERS = {
     // First define built-in MCP servers
     ...DEFAULT_INMEMORY_SERVERS,
     // Then default third-party MCP servers
-    memory: {
-      command: 'npx',
-      args: ['-y', '@modelcontextprotocol/server-memory'],
+    'nowledge-mem': {
+      command: '',
+      args: [],
       env: {},
       descriptions: '内存存储服务',
       icons: '🧠',
       autoApprove: ['all'],
       disable: true,
-      type: 'stdio' as MCPServerType
+      type: 'http' as MCPServerType,
+      baseUrl: 'http://localhost:14242/mcp',
+      customHeaders: {
+        APP: 'DeepChat'
+      }
     }
   },
   defaultServers: [
@@ -312,6 +317,7 @@ const DEFAULT_MCP_SERVERS = {
   ],
   mcpEnabled: false // MCP functionality is disabled by default
 }
+const BUILT_IN_SERVER_NAMES = new Set<string>(Object.keys(DEFAULT_MCP_SERVERS.mcpServers))
 // This part of MCP has system logic to determine whether to enable, not controlled by user configuration, but by software environment
 export const SYSTEM_INMEM_MCP_SERVERS: Record<string, MCPServerConfig> = {
   // custom-prompts-server has been removed, now provides prompt functionality through config data source
@@ -330,9 +336,39 @@ export class McpConfHelper {
         mcpEnabled: DEFAULT_MCP_SERVERS.mcpEnabled,
         autoDetectNpmRegistry: true,
         npmRegistryCache: undefined,
-        customNpmRegistry: undefined
+        customNpmRegistry: undefined,
+        removedBuiltInServers: []
       }
     })
+  }
+
+  private getRemovedBuiltInServers(): string[] {
+    return this.mcpStore.get('removedBuiltInServers') || []
+  }
+
+  private setRemovedBuiltInServers(servers: string[]): void {
+    this.mcpStore.set('removedBuiltInServers', Array.from(new Set(servers)))
+  }
+
+  private clearRemovedBuiltInServers(): void {
+    this.mcpStore.set('removedBuiltInServers', [])
+  }
+
+  private isBuiltInServer(name: string): boolean {
+    return BUILT_IN_SERVER_NAMES.has(name)
+  }
+
+  private markBuiltInServerRemoved(name: string): void {
+    if (!this.isBuiltInServer(name)) return
+    const removed = new Set(this.getRemovedBuiltInServers())
+    removed.add(name)
+    this.setRemovedBuiltInServers(Array.from(removed))
+  }
+
+  private unmarkBuiltInServerRemoved(name: string): void {
+    if (!this.isBuiltInServer(name)) return
+    const removed = this.getRemovedBuiltInServers().filter((server) => server !== name)
+    this.setRemovedBuiltInServers(removed)
   }
 
   // Get MCP server configuration
@@ -341,13 +377,26 @@ export class McpConfHelper {
 
     // 检查并补充缺少的inmemory服务
     const updatedServers = { ...storedServers }
+    const removedBuiltInServers = new Set(this.getRemovedBuiltInServers())
+
+    const ensureBuiltInServerExists = (serverName: string, serverConfig: MCPServerConfig): void => {
+      if (removedBuiltInServers.has(serverName)) {
+        return
+      }
+      if (!updatedServers[serverName]) {
+        console.log(`Adding missing built-in MCP service: ${serverName}`)
+        updatedServers[serverName] = serverConfig
+      }
+    }
 
     // 遍历所有默认的inmemory服务，确保它们都存在
     for (const [serverName, serverConfig] of Object.entries(DEFAULT_INMEMORY_SERVERS)) {
-      if (!updatedServers[serverName]) {
-        console.log(`Adding missing inmemory service: ${serverName}`)
-        updatedServers[serverName] = serverConfig
-      }
+      ensureBuiltInServerExists(serverName, serverConfig)
+    }
+
+    // 确保 DEFAULT_MCP_SERVERS 中定义的服务存在
+    for (const [serverName, serverConfig] of Object.entries(DEFAULT_MCP_SERVERS.mcpServers)) {
+      ensureBuiltInServerExists(serverName, serverConfig)
     }
 
     // 移除不支持当前平台的服务
@@ -491,6 +540,9 @@ export class McpConfHelper {
   async addMcpServer(name: string, config: MCPServerConfig): Promise<boolean> {
     const mcpServers = await this.getMcpServers()
     mcpServers[name] = config
+    if (this.isBuiltInServer(name)) {
+      this.unmarkBuiltInServerRemoved(name)
+    }
     await this.setMcpServers(mcpServers)
     return true
   }
@@ -579,6 +631,9 @@ export class McpConfHelper {
   async removeMcpServer(name: string): Promise<void> {
     const mcpServers = await this.getMcpServers()
     delete mcpServers[name]
+    if (this.isBuiltInServer(name)) {
+      this.markBuiltInServerRemoved(name)
+    }
     await this.setMcpServers(mcpServers)
 
     // 如果删除的服务器在默认服务器列表中，则从列表中移除
@@ -629,6 +684,7 @@ export class McpConfHelper {
     ]
 
     this.mcpStore.set('defaultServers', platformAwareDefaultServers)
+    this.clearRemovedBuiltInServers()
     eventBus.send(MCP_EVENTS.CONFIG_CHANGED, SendTarget.ALL_WINDOWS, {
       mcpServers: updatedServers,
       defaultServers: platformAwareDefaultServers,

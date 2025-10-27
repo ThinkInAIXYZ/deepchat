@@ -52,8 +52,12 @@ const command = ref(props.initialConfig?.command || 'npx')
 const args = ref(props.initialConfig?.args?.join(' ') || '')
 const env = ref(JSON.stringify(props.initialConfig?.env || {}, null, 2))
 const descriptions = ref(props.initialConfig?.descriptions || '')
+type MCPServerTypeOption = 'sse' | 'stdio' | 'inmemory' | 'http'
+const VALID_MCP_TYPES: MCPServerTypeOption[] = ['stdio', 'sse', 'http', 'inmemory']
 const icons = ref(props.initialConfig?.icons || '📁')
-const type = ref<'sse' | 'stdio' | 'inmemory' | 'http'>(props.initialConfig?.type || 'stdio')
+const type = ref<MCPServerTypeOption>(
+  (props.initialConfig?.type as MCPServerTypeOption | undefined) || 'stdio'
+)
 const baseUrl = ref(props.initialConfig?.baseUrl || '')
 const customHeaders = ref('')
 const customHeadersFocused = ref(false)
@@ -79,6 +83,8 @@ const isBuildInFileSystem = computed(
 )
 // 判断是否是powerpack服务器
 const isPowerpackServer = computed(() => isInMemoryType.value && name.value === 'powerpack')
+const isHttpTransportType = computed(() => type.value === 'http')
+const isRemoteType = computed(() => type.value === 'sse' || isHttpTransportType.value)
 // 判断字段是否只读(inmemory类型除了args和env外都是只读的)
 const isFieldReadOnly = computed(() => props.editMode && isInMemoryType.value)
 
@@ -131,7 +137,7 @@ const currentStep = ref(props.editMode ? 'detailed' : 'simple')
 const jsonConfig = ref('')
 
 // 当type变更时处理baseUrl的显示逻辑
-const showBaseUrl = computed(() => type.value === 'sse' || type.value === 'http')
+const showBaseUrl = computed(() => isRemoteType.value)
 // 添加计算属性来控制命令相关字段的显示
 const showCommandFields = computed(() => type.value === 'stdio')
 // 控制参数输入框的显示 (stdio 或 非imageServer且非buildInFileSystem且非powerpack的inmemory)
@@ -184,20 +190,19 @@ const parseJsonConfig = (): void => {
     env.value = JSON.stringify(serverConfig.env || {}, null, 2)
     descriptions.value = serverConfig.descriptions || ''
     icons.value = serverConfig.icons || '📁'
-    type.value = serverConfig.type || ''
+    const incomingType = serverConfig.type as MCPServerTypeOption | undefined
     baseUrl.value = serverConfig.url || serverConfig.baseUrl || ''
+    const fallbackType: MCPServerTypeOption = baseUrl.value ? 'http' : 'stdio'
+    type.value =
+      incomingType && VALID_MCP_TYPES.includes(incomingType) ? incomingType : fallbackType
     console.log('type', type.value, baseUrl.value)
-    if (type.value !== 'stdio' && type.value !== 'sse' && type.value !== 'http') {
-      if (baseUrl.value) {
-        type.value = 'http'
-      } else {
-        type.value = 'stdio'
-      }
-    }
 
     // 填充 customHeaders (如果存在)
-    if (serverConfig.customHeaders) {
-      customHeaders.value = formatJsonHeaders(serverConfig.customHeaders) // 加载时格式化为 Key=Value
+    const headersFromConfig =
+      (serverConfig.customHeaders as Record<string, string> | undefined) ||
+      (serverConfig.headers as Record<string, string> | undefined)
+    if (headersFromConfig) {
+      customHeaders.value = formatJsonHeaders(headersFromConfig) // 加载时格式化为 Key=Value
     } else {
       customHeaders.value = '' // 默认空字符串
     }
@@ -239,7 +244,7 @@ const goToDetailedForm = (): void => {
 const isNameValid = computed(() => name.value.trim().length > 0)
 const isCommandValid = computed(() => {
   // 对于SSE类型，命令不是必需的
-  if (type.value === 'sse' || type.value === 'http') return true
+  if (isRemoteType.value) return true
   // 对于STDIO 或 inmemory 类型，命令是必需的 (排除内置 server)
   if (type.value === 'stdio' || (isInMemoryType.value && !isImageServer.value)) {
     return command.value.trim().length > 0
@@ -256,7 +261,7 @@ const isEnvValid = computed(() => {
   }
 })
 const isBaseUrlValid = computed(() => {
-  if (type.value !== 'sse' && type.value !== 'http') return true
+  if (!isRemoteType.value) return true
   return baseUrl.value.trim().length > 0
 })
 
@@ -297,7 +302,7 @@ const isFormValid = computed(() => {
   if (!isE2BConfigValid.value) return false
 
   // 对于SSE类型，只需要名称和baseUrl有效
-  if (type.value === 'sse' || type.value === 'http') {
+  if (isRemoteType.value) {
     return isNameValid.value && isBaseUrlValid.value && isCustomHeadersFormatValid.value
   }
 
@@ -473,7 +478,7 @@ const handleSubmit = (): void => {
   // 解析 customHeaders
   let parsedCustomHeaders = {}
   try {
-    if ((type.value === 'sse' || type.value === 'http') && customHeaders.value.trim()) {
+    if (isRemoteType.value && customHeaders.value.trim()) {
       parsedCustomHeaders = parseKeyValueHeaders(customHeaders.value)
     }
   } catch (error) {
@@ -485,7 +490,7 @@ const handleSubmit = (): void => {
     return
   }
 
-  if (type.value === 'sse' || type.value === 'http') {
+  if (isRemoteType.value) {
     // SSE 或 HTTP 类型的服务器
     serverConfig = {
       ...baseConfig,
