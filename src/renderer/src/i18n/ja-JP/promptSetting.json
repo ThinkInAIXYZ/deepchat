@@ -73,6 +73,8 @@
   "editSystemPromptDesc": "選択したシステムプロンプトを変更",
   "selectSystemPrompt": "システムプロンプトを選択",
   "systemPromptDescription": "選択したシステムプロンプトが新しい会話のデフォルトとして使用されます",
+  "emptySystemPromptOption": "システムプロンプトなし",
+  "emptySystemPromptDescription": "このオプションを選択すると、新しい会話はシステムプロンプトなしで開始されます。",
   "preview": "プレビュー",
   "promptContent": "プロンプト",
   "systemPromptChanged": "システムプロンプトが変更されました",

@@ -15,17 +15,39 @@
           <SelectValue :placeholder="t('promptSetting.selectSystemPrompt')" />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem v-for="prompt in systemPrompts" :key="prompt.id" :value="prompt.id">
+          <SelectItem
+            v-for="prompt in selectableSystemPrompts"
+            :key="prompt.id"
+            :value="prompt.id"
+          >
             {{ prompt.name }}
           </SelectItem>
         </SelectContent>
       </Select>
+      <Button variant="outline" size="sm" class="hidden sm:flex" @click="handleClearSystemPrompt">
+        <Icon icon="lucide:eraser" class="w-3.5 h-3.5 mr-1" />
+        {{ t('settings.promptSetting.clear') }}
+      </Button>
+      <Button
+        variant="outline"
+        size="icon-sm"
+        class="sm:hidden"
+        @click="handleClearSystemPrompt"
+      >
+        <Icon icon="lucide:eraser" class="w-4 h-4" />
+      </Button>
       <Button variant="outline" size="icon-sm" @click="openCreatePrompt">
         <Icon icon="lucide:plus" class="w-4 h-4" />
       </Button>
     </div>
 
-    <div v-if="currentSystemPrompt" class="space-y-2">
+    <div v-if="isEmptyPromptSelected" class="rounded-md border border-dashed border-border p-3">
+      <p class="text-xs text-muted-foreground">
+        {{ t('promptSetting.emptySystemPromptDescription') }}
+      </p>
+    </div>
+
+    <div v-else-if="currentSystemPrompt" class="space-y-2">
       <Textarea
         v-model="currentSystemPrompt.content"
         class="w-full h-48"
@@ -87,7 +109,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
 import { useToast } from '@/components/use-toast'
@@ -129,11 +151,28 @@ const { t } = useI18n()
 const { toast } = useToast()
 const settingsStore = useSettingsStore()
 
+const EMPTY_SYSTEM_PROMPT_ID = 'empty'
+
 const systemPrompts = ref<SystemPromptItem[]>([])
 const selectedSystemPromptId = ref('')
 const currentSystemPrompt = ref<SystemPromptItem | null>(null)
 const systemPromptEditorOpen = ref(false)
 const editingSystemPrompt = ref<SystemPromptItem | null>(null)
+
+const emptySystemPromptOption = computed<SystemPromptItem>(() => ({
+  id: EMPTY_SYSTEM_PROMPT_ID,
+  name: t('promptSetting.emptySystemPromptOption'),
+  content: ''
+}))
+
+const selectableSystemPrompts = computed(() => [
+  emptySystemPromptOption.value,
+  ...systemPrompts.value
+])
+
+const isEmptyPromptSelected = computed(
+  () => selectedSystemPromptId.value === EMPTY_SYSTEM_PROMPT_ID
+)
 
 const loadSystemPrompts = async () => {
   try {
@@ -146,12 +185,22 @@ const loadSystemPrompts = async () => {
 }
 
 const updateCurrentSystemPrompt = () => {
+  if (isEmptyPromptSelected.value) {
+    currentSystemPrompt.value = null
+    return
+  }
+
   currentSystemPrompt.value =
     systemPrompts.value.find((prompt) => prompt.id === selectedSystemPromptId.value) || null
 }
 
 const handleSystemPromptChange = async (promptId: AcceptableValue) => {
   try {
+    if ((promptId as string) === EMPTY_SYSTEM_PROMPT_ID) {
+      await applyEmptySystemPrompt(false)
+      return
+    }
+
     await settingsStore.setDefaultSystemPromptId(promptId as string)
     selectedSystemPromptId.value = promptId as string
     updateCurrentSystemPrompt()
@@ -162,6 +211,32 @@ const handleSystemPromptChange = async (promptId: AcceptableValue) => {
       variant: 'destructive'
     })
   }
+}
+
+const applyEmptySystemPrompt = async (showToast: boolean) => {
+  try {
+    await settingsStore.setDefaultSystemPromptId(EMPTY_SYSTEM_PROMPT_ID)
+    await loadSystemPrompts()
+
+    if (showToast) {
+      toast({
+        title: t('settings.promptSetting.clearSuccess'),
+        variant: 'default'
+      })
+    }
+  } catch (error) {
+    console.error('Failed to clear system prompt:', error)
+    toast({
+      title: t('settings.promptSetting.clearFailed'),
+      variant: 'destructive'
+    })
+  }
+}
+
+const handleClearSystemPrompt = async () => {
+  await applyEmptySystemPrompt(true)
+  selectedSystemPromptId.value = EMPTY_SYSTEM_PROMPT_ID
+  currentSystemPrompt.value = null
 }
 
 const saveCurrentSystemPrompt = async () => {

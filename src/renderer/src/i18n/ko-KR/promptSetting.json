@@ -73,6 +73,8 @@
   "editSystemPromptDesc": "선택한 시스템 프롬프트 수정",
   "selectSystemPrompt": "시스템 프롬프트 선택",
   "systemPromptDescription": "선택한 시스템 프롬프트가 새 대화의 기본값으로 사용됩니다",
+  "emptySystemPromptOption": "시스템 프롬프트 없음",
+  "emptySystemPromptDescription": "이 옵션을 선택하면 새 대화가 시스템 프롬프트 없이 시작됩니다.",
   "preview": "미리보기",
   "promptContent": "프롬프트",
   "systemPromptChanged": "시스템 프롬프트가 변경되었습니다",

@@ -76,6 +76,8 @@
   "editSystemPromptDesc": "Modify the selected system prompt",
   "selectSystemPrompt": "Select System Prompt",
   "systemPromptDescription": "The selected system prompt will be used as the default for new conversations",
+  "emptySystemPromptOption": "No System Prompt",
+  "emptySystemPromptDescription": "When this option is selected, new conversations will start without a system prompt.",
   "preview": "Preview",
   "systemPromptChanged": "System prompt changed successfully",
   "systemPromptChangeFailed": "Failed to change system prompt",

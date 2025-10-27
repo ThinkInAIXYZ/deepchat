@@ -73,6 +73,8 @@
   "editSystemPromptDesc": "Изменить выбранный системный промпт",
   "selectSystemPrompt": "Выбрать системный промпт",
   "systemPromptDescription": "Выбранный системный промпт будет использоваться по умолчанию для новых разговоров",
+  "emptySystemPromptOption": "Без системного промпта",
+  "emptySystemPromptDescription": "При выборе этого варианта новые беседы будут начинаться без системного промпта.",
   "preview": "Предварительный просмотр",
   "promptContent": "Промпт",
   "systemPromptChanged": "Системный промпт успешно изменен",

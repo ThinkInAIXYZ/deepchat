@@ -73,6 +73,8 @@
   "editSystemPromptDesc": "تغییر دستورکار سامانه انتخاب شده",
   "selectSystemPrompt": "انتخاب دستورکار سامانه",
   "systemPromptDescription": "دستورکار سامانه انتخاب شده به عنوان پیش‌فرض برای گفت‌وگوهای جدید استفاده خواهد شد",
+  "emptySystemPromptOption": "بدون دستورکار سامانه",
+  "emptySystemPromptDescription": "با انتخاب این گزینه، گفتگوهای جدید بدون دستورکار سامانه آغاز می‌شوند.",
   "preview": "پیش‌نمایش",
   "promptContent": "دستورکار",
   "systemPromptChanged": "دستورکار سامانه با موفقیت تغییر کرد",

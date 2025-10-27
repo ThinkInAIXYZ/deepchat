@@ -76,6 +76,8 @@
   "editSystemPromptDesc": "Modificar o prompt do sistema selecionado",
   "selectSystemPrompt": "Selecionar Prompt do Sistema",
   "systemPromptDescription": "O prompt do sistema selecionado será usado como padrão para novas conversas",
+  "emptySystemPromptOption": "Sem prompt do sistema",
+  "emptySystemPromptDescription": "Ao selecionar esta opção, as novas conversas começam sem prompt do sistema.",
   "preview": "Visualização",
   "systemPromptChanged": "Prompt do sistema alterado com sucesso",
   "systemPromptChangeFailed": "Falha ao alterar prompt do sistema",

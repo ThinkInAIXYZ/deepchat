@@ -73,6 +73,8 @@
   "editSystemPromptDesc": "修改選中的系統提示詞",
   "selectSystemPrompt": "選擇系統提示詞",
   "systemPromptDescription": "選擇的系統提示詞將作為新對話的預設系統提示詞",
+  "emptySystemPromptOption": "空系統提示詞",
+  "emptySystemPromptDescription": "選擇此項後，新會話將不包含系統提示詞。",
   "preview": "預覽",
   "promptContent": "提示詞",
   "systemPromptChanged": "系統提示詞已更改",
