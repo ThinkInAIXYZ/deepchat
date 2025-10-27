@@ -15,11 +15,7 @@
           <SelectValue :placeholder="t('promptSetting.selectSystemPrompt')" />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem
-            v-for="prompt in selectableSystemPrompts"
-            :key="prompt.id"
-            :value="prompt.id"
-          >
+          <SelectItem v-for="prompt in selectableSystemPrompts" :key="prompt.id" :value="prompt.id">
             {{ prompt.name }}
           </SelectItem>
         </SelectContent>
@@ -28,12 +24,7 @@
         <Icon icon="lucide:eraser" class="w-3.5 h-3.5 mr-1" />
         {{ t('settings.promptSetting.clear') }}
       </Button>
-      <Button
-        variant="outline"
-        size="icon-sm"
-        class="sm:hidden"
-        @click="handleClearSystemPrompt"
-      >
+      <Button variant="outline" size="icon-sm" class="sm:hidden" @click="handleClearSystemPrompt">
         <Icon icon="lucide:eraser" class="w-4 h-4" />
       </Button>
       <Button variant="outline" size="icon-sm" @click="openCreatePrompt">
