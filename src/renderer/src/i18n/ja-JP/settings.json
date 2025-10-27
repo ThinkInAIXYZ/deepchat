@@ -96,7 +96,11 @@
     "resetting": "リセット中...",
     "confirmReset": "リセットを確認",
     "resetCompleteDevTitle": "データリセット完了",
-    "resetCompleteDevMessage": "開発環境では手動でアプリケーションを再起動してください。現在のプロセスを停止して pnpm run dev を再実行してください"
+    "resetCompleteDevMessage": "開発環境では手動でアプリケーションを再起動してください。現在のプロセスを停止して pnpm run dev を再実行してください",
+    "toast": {
+      "backupSuccessTitle": "バックアップ成功",
+      "backupSuccessMessage": "データは正常にバックアップされました"
+    }
   },
   "model": {
     "title": "モデル設定",

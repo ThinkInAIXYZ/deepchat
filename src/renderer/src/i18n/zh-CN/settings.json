@@ -96,7 +96,11 @@
     "resetting": "重置中...",
     "confirmReset": "确认重置",
     "resetCompleteDevTitle": "数据重置完成",
-    "resetCompleteDevMessage": "开发环境下请手动重启应用以查看效果。请停止当前进程并重新运行 pnpm run dev"
+    "resetCompleteDevMessage": "开发环境下请手动重启应用以查看效果。请停止当前进程并重新运行 pnpm run dev",
+    "toast": {
+      "backupSuccessTitle": "备份成功",
+      "backupSuccessMessage": "成功备份了数据"
+    }
   },
   "model": {
     "title": "模型设置",

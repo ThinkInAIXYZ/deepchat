@@ -96,7 +96,11 @@
     "resetting": "Resetting...",
     "confirmReset": "Confirm Reset",
     "resetCompleteDevTitle": "Data Reset Complete",
-    "resetCompleteDevMessage": "Please manually restart the application in development mode. Stop the current process and run pnpm run dev again"
+    "resetCompleteDevMessage": "Please manually restart the application in development mode. Stop the current process and run pnpm run dev again",
+    "toast": {
+      "backupSuccessTitle": "Backup successful",
+      "backupSuccessMessage": "Data backed up successfully"
+    }
   },
   "model": {
     "title": "Model Settings",

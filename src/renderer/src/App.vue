@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref, watch, onBeforeUnmount } from 'vue'
+import { onMounted, ref, watch, onBeforeUnmount, computed } from 'vue'
 import { RouterView, useRoute, useRouter } from 'vue-router'
 import UpdateDialog from './components/ui/UpdateDialog.vue'
 import { usePresenter } from './composables/usePresenter'
@@ -30,6 +30,9 @@ const themeStore = useThemeStore()
 const langStore = useLanguageStore()
 const modelCheckStore = useModelCheckStore()
 const { t } = useI18n()
+const toasterTheme = computed(() =>
+  themeStore.themeMode === 'system' ? (themeStore.isDark ? 'dark' : 'light') : themeStore.themeMode
+)
 // Error notification queue and currently displayed error
 const errorQueue = ref<Array<{ id: string; title: string; message: string; type: string }>>([])
 const currentErrorId = ref<string | null>(null)
@@ -336,7 +339,7 @@ onBeforeUnmount(() => {
     <!-- Global message dialog -->
     <MessageDialog />
     <!-- Global Toast notifications -->
-    <Toaster />
+    <Toaster :theme="toasterTheme" />
     <SelectedTextContextMenu />
     <TranslatePopup />
     <ThreadView />

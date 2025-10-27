@@ -257,7 +257,11 @@ export class SyncPresenter implements ISyncPresenter {
       }
 
       eventBus.send(SYNC_EVENTS.IMPORT_COMPLETED, SendTarget.ALL_WINDOWS)
-      return { success: true, message: 'sync.importComplete', count: importedConversationCount }
+      return {
+        success: true,
+        message: 'sync.success.importComplete',
+        count: importedConversationCount
+      }
     } catch (error) {
       console.error('导入文件失败，恢复备份:', error)
       this.restoreFromTempBackup(tempCurrentFiles)

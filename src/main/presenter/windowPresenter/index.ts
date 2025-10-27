@@ -533,6 +533,14 @@ export class WindowPresenter implements IWindowPresenter {
       }
     }
 
+    if (this.settingsWindow && !this.settingsWindow.isDestroyed()) {
+      try {
+        this.settingsWindow.webContents.send(channel, ...args)
+      } catch (error) {
+        console.error(`Error sending message "${channel}" to settings window:`, error)
+      }
+    }
+
     if (this.floatingChatWindow && this.floatingChatWindow.isShowing()) {
       const floatingWindow = this.floatingChatWindow.getWindow()
       if (floatingWindow && !floatingWindow.isDestroyed()) {
@@ -554,6 +562,21 @@ export class WindowPresenter implements IWindowPresenter {
    */
   sendToWindow(windowId: number, channel: string, ...args: unknown[]): boolean {
     console.log(`Sending message "${channel}" to window ${windowId}.`)
+
+    if (
+      this.settingsWindow &&
+      !this.settingsWindow.isDestroyed() &&
+      this.settingsWindow.id === windowId
+    ) {
+      try {
+        this.settingsWindow.webContents.send(channel, ...args)
+        return true
+      } catch (error) {
+        console.error(`Error sending message "${channel}" to settings window ${windowId}:`, error)
+        return false
+      }
+    }
+
     const window = this.windows.get(windowId)
     if (window && !window.isDestroyed()) {
       // 向窗口主 WebContents 发送

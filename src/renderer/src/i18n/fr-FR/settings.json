@@ -96,7 +96,11 @@
     "resetting": "Réinitialisation en cours...",
     "confirmReset": "Confirmer la réinitialisation",
     "resetCompleteDevTitle": "Réinitialisation des données terminée",
-    "resetCompleteDevMessage": "En environnement de développement, veuillez redémarrer l'application manuellement. Arrêtez le processus actuel et exécutez à nouveau pnpm run dev"
+    "resetCompleteDevMessage": "En environnement de développement, veuillez redémarrer l'application manuellement. Arrêtez le processus actuel et exécutez à nouveau pnpm run dev",
+    "toast": {
+      "backupSuccessTitle": "Sauvegarde réussie",
+      "backupSuccessMessage": "Données sauvegardées avec succès"
+    }
   },
   "model": {
     "title": "Paramètres du modèle",

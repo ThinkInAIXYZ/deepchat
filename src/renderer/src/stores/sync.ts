@@ -91,6 +91,7 @@ export const useSyncStore = defineStore('sync', () => {
   const startBackup = async (): Promise<SyncBackupInfo | null> => {
     if (!syncEnabled.value || isBackingUp.value) return null
 
+    isBackingUp.value = true
     try {
       const backupInfo = await syncPresenter.startBackup()
       if (backupInfo) {
@@ -100,6 +101,8 @@ export const useSyncStore = defineStore('sync', () => {
     } catch (error) {
       console.error('备份失败:', error)
       return null
+    } finally {
+      isBackingUp.value = false
     }
   }
 

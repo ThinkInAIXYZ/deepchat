@@ -45,13 +45,14 @@
         }
       "
     />
+    <Toaster :theme="toasterTheme" />
   </div>
 </template>
 
 <script setup lang="ts">
 import { Icon } from '@iconify/vue'
 import { useRouter, useRoute, RouterView } from 'vue-router'
-import { onMounted, Ref, ref, watch } from 'vue'
+import { onMounted, onBeforeUnmount, Ref, ref, watch, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useTitle } from '@vueuse/core'
 import { usePresenter } from '../src/composables/usePresenter'
@@ -62,6 +63,11 @@ import { useModelCheckStore } from '../src/stores/modelCheck'
 import { Button } from '@shadcn/components/ui/button'
 import ModelCheckDialog from '@/components/settings/ModelCheckDialog.vue'
 import { useDeviceVersion } from '../src/composables/useDeviceVersion'
+import { Toaster } from '@shadcn/components/ui/sonner'
+import 'vue-sonner/style.css'
+import { NOTIFICATION_EVENTS } from '@/events'
+import { useToast } from '@/components/use-toast'
+import { useThemeStore } from '@/stores/theme'
 
 const devicePresenter = usePresenter('devicePresenter')
 const windowPresenter = usePresenter('windowPresenter')
@@ -71,6 +77,15 @@ const configPresenter = usePresenter('configPresenter')
 const settingsStore = useSettingsStore()
 const languageStore = useLanguageStore()
 const modelCheckStore = useModelCheckStore()
+const { toast } = useToast()
+const themeStore = useThemeStore()
+
+const errorQueue = ref<Array<{ id: string; title: string; message: string; type: string }>>([])
+const currentErrorId = ref<string | null>(null)
+const errorDisplayTimer = ref<number | null>(null)
+const toasterTheme = computed(() =>
+  themeStore.themeMode === 'system' ? (themeStore.isDark ? 'dark' : 'light') : themeStore.themeMode
+)
 
 // Detect platform to apply proper styling
 const { isMacOS, isWinMacOS } = useDeviceVersion()
@@ -160,16 +175,84 @@ watch(
   }
 )
 
+const handleErrorClosed = () => {
+  currentErrorId.value = null
+
+  if (errorQueue.value.length > 0) {
+    const nextError = errorQueue.value.shift()
+    if (nextError) {
+      displayError(nextError)
+    }
+  } else if (errorDisplayTimer.value) {
+    clearTimeout(errorDisplayTimer.value)
+    errorDisplayTimer.value = null
+  }
+}
+
+const displayError = (error: { id: string; title: string; message: string; type: string }) => {
+  currentErrorId.value = error.id
+
+  const { dismiss } = toast({
+    title: error.title,
+    description: error.message,
+    variant: 'destructive',
+    onOpenChange: (open) => {
+      if (!open) {
+        handleErrorClosed()
+      }
+    }
+  })
+
+  if (errorDisplayTimer.value) {
+    clearTimeout(errorDisplayTimer.value)
+  }
+
+  errorDisplayTimer.value = window.setTimeout(() => {
+    dismiss()
+    handleErrorClosed()
+  }, 3000)
+}
+
+const showErrorToast = (error: { id: string; title: string; message: string; type: string }) => {
+  const exists = errorQueue.value.findIndex((item) => item.id === error.id)
+  if (exists !== -1) {
+    return
+  }
+
+  if (currentErrorId.value) {
+    if (errorQueue.value.length > 5) {
+      errorQueue.value.shift()
+    }
+    errorQueue.value.push(error)
+    return
+  }
+
+  displayError(error)
+}
+
 onMounted(() => {
   // Listen for window maximize/unmaximize events
   devicePresenter.getDeviceInfo().then((deviceInfo: any) => {
     isMacOS.value = deviceInfo.platform === 'darwin'
+  })
+
+  window.electron.ipcRenderer.on(NOTIFICATION_EVENTS.SHOW_ERROR, (_event, error) => {
+    showErrorToast(error)
   })
 })
 
 const closeWindow = () => {
   windowPresenter.closeSettingsWindow()
 }
+
+onBeforeUnmount(() => {
+  if (errorDisplayTimer.value) {
+    clearTimeout(errorDisplayTimer.value)
+    errorDisplayTimer.value = null
+  }
+
+  window.electron.ipcRenderer.removeAllListeners(NOTIFICATION_EVENTS.SHOW_ERROR)
+})
 </script>
 
 <style>

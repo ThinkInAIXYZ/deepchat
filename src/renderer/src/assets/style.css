@@ -180,7 +180,7 @@
     --card: hsl(0 0 20% / 1);
     --card-foreground: var(--base-200);
     --popover: hsl(0 0 20% / 1);
-    --popover-foreground: var(--base-200);
+    --popover-foreground: hsl(0 0 100%);
     --secondary: hsl(0 0 15% / 0.8);
     --secondary-foreground: var(--base-50);
     --muted: hsl(0 0 100% / 0.03);

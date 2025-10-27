@@ -57,10 +57,15 @@
           :disabled="!syncStore.syncEnabled || syncStore.isBackingUp"
           :dir="languageStore.dir"
         >
-          <Icon icon="lucide:save" class="w-4 h-4 text-muted-foreground" />
-          <span class="text-sm font-medium">{{ t('settings.data.startBackup') }}</span>
-          <span v-if="syncStore.isBackingUp" class="text-xs text-muted-foreground ml-2">
-            ({{ t('settings.data.backingUp') }})
+          <Icon
+            :icon="syncStore.isBackingUp ? 'lucide:loader-2' : 'lucide:save'"
+            class="w-4 h-4 text-muted-foreground"
+            :class="syncStore.isBackingUp ? 'animate-spin' : ''"
+          />
+          <span class="text-sm font-medium">
+            {{
+              syncStore.isBackingUp ? t('settings.data.backingUp') : t('settings.data.startBackup')
+            }}
           </span>
         </Button>
 

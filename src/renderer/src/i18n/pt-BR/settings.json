@@ -96,7 +96,11 @@
     "resetting": "Redefinindo...",
     "confirmReset": "Confirmar Redefinição",
     "resetCompleteDevTitle": "Redefinição de Dados Concluída",
-    "resetCompleteDevMessage": "Por favor, reinicie manualmente o aplicativo no modo de desenvolvimento. Pare o processo atual e execute pnpm run dev novamente"
+    "resetCompleteDevMessage": "Por favor, reinicie manualmente o aplicativo no modo de desenvolvimento. Pare o processo atual e execute pnpm run dev novamente",
+    "toast": {
+      "backupSuccessTitle": "Backup bem-sucedido",
+      "backupSuccessMessage": "Dados salvos em backup com sucesso"
+    }
   },
   "model": {
     "title": "Configurações do Modelo",

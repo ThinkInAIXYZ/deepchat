@@ -96,7 +96,11 @@
     "resetting": "초기화 중...",
     "confirmReset": "초기화 확인",
     "resetCompleteDevTitle": "데이터 초기화 완료",
-    "resetCompleteDevMessage": "개발 환경에서는 수동으로 애플리케이션을 재시작하세요. 현재 프로세스를 중지하고 pnpm run dev를 다시 실행하세요"
+    "resetCompleteDevMessage": "개발 환경에서는 수동으로 애플리케이션을 재시작하세요. 현재 프로세스를 중지하고 pnpm run dev를 다시 실행하세요",
+    "toast": {
+      "backupSuccessTitle": "백업 성공",
+      "backupSuccessMessage": "데이터가 성공적으로 백업되었습니다."
+    }
   },
   "model": {
     "title": "모델 설정",
