@@ -28,6 +28,7 @@ interface McpSettings {
 const BACKUP_DIR_NAME = 'backups'
 const BACKUP_PREFIX = 'backup-'
 const BACKUP_EXTENSION = '.zip'
+const BACKUP_FILE_NAME_REGEX = /^backup-\d+\.zip$/
 
 const ZIP_PATHS = {
   db: 'database/chat.db',
@@ -154,7 +155,13 @@ export class SyncPresenter implements ISyncPresenter {
     }
 
     const backupsDir = this.getBackupsDirectory(syncFolderPath)
-    const backupZipPath = path.join(backupsDir, backupFileName)
+    let backupZipPath: string
+    try {
+      const safeFileName = this.ensureSafeBackupFileName(backupFileName)
+      backupZipPath = path.join(backupsDir, safeFileName)
+    } catch (error) {
+      return { success: false, message: 'sync.error.noValidBackup' }
+    }
     if (!fs.existsSync(backupZipPath)) {
       return { success: false, message: 'sync.error.noValidBackup' }
     }
@@ -352,6 +359,24 @@ export class SyncPresenter implements ISyncPresenter {
 
   private getBackupsDirectory(syncFolderPath: string): string {
     return path.join(syncFolderPath, BACKUP_DIR_NAME)
+  }
+
+  private ensureSafeBackupFileName(fileName: string): string {
+    const normalized = fileName.replace(/\\/g, '/').trim()
+    if (!normalized) {
+      throw new Error('sync.error.noValidBackup')
+    }
+
+    const baseName = path.posix.basename(normalized)
+    if (baseName !== normalized) {
+      throw new Error('sync.error.noValidBackup')
+    }
+
+    if (!BACKUP_FILE_NAME_REGEX.test(baseName)) {
+      throw new Error('sync.error.noValidBackup')
+    }
+
+    return baseName
   }
 
   private addOptionalFile(

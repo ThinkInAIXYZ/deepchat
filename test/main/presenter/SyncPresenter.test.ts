@@ -168,6 +168,14 @@ describe('SyncPresenter backup import', () => {
     expect(mcpSettings.additional).toBe(true)
   })
 
+  it('rejects backup file names containing directory traversal', async () => {
+    const result = await presenter.importFromSync('../backup-1.zip', ImportMode.INCREMENT)
+
+    expect(result.success).toBe(false)
+    expect(result.message).toBe('sync.error.noValidBackup')
+    expect(sqlitePresenter.close).not.toHaveBeenCalled()
+  })
+
   it('overwrites existing data when import mode is OVERWRITE', async () => {
     createLocalState(userDataDir, {
       conversations: [{ id: 'conv-1', title: 'Local conversation' }],
