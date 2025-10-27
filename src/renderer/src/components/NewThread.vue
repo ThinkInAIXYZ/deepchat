@@ -104,12 +104,14 @@ import ModelSelect from './ModelSelect.vue'
 import { useChatStore } from '@/stores/chat'
 import { MODEL_META } from '@shared/presenter'
 import { useSettingsStore } from '@/stores/settings'
-import { computed, nextTick, ref, watch, onMounted } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { UserMessageContent } from '@shared/chat'
 import ChatConfig from './ChatConfig.vue'
 import { usePresenter } from '@/composables/usePresenter'
 import { useThemeStore } from '@/stores/theme'
 import { ModelType } from '@shared/model'
+import type { IpcRendererEvent } from 'electron'
+import { CONFIG_EVENTS } from '@/events'
 
 const configPresenter = usePresenter('configPresenter')
 const themeStore = useThemeStore()
@@ -149,6 +151,19 @@ const forcedSearch = ref<boolean | undefined>(undefined)
 const searchStrategy = ref<'turbo' | 'max' | undefined>(undefined)
 const reasoningEffort = ref<'minimal' | 'low' | 'medium' | 'high' | undefined>(undefined)
 const verbosity = ref<'low' | 'medium' | 'high' | undefined>(undefined)
+
+const handleDefaultSystemPromptChange = async (
+  _event: IpcRendererEvent,
+  payload: { promptId?: string; content?: string }
+) => {
+  if (typeof payload?.content === 'string') {
+    systemPrompt.value = payload.content
+    return
+  }
+
+  const prompt = await configPresenter.getDefaultSystemPrompt()
+  systemPrompt.value = prompt
+}
 
 const name = computed(() => {
   return activeModel.value?.name ? activeModel.value.name.split('/').pop() : ''
@@ -382,11 +397,25 @@ watch(
 )
 
 onMounted(async () => {
+  if (window.electron?.ipcRenderer) {
+    window.electron.ipcRenderer.on(
+      CONFIG_EVENTS.DEFAULT_SYSTEM_PROMPT_CHANGED,
+      handleDefaultSystemPromptChange
+    )
+  }
+
   configPresenter.getDefaultSystemPrompt().then((prompt) => {
     systemPrompt.value = prompt
   })
   // 组件激活时初始化一次默认模型
   await initActiveModel()
+})
+
+onBeforeUnmount(() => {
+  window.electron?.ipcRenderer?.removeListener(
+    CONFIG_EVENTS.DEFAULT_SYSTEM_PROMPT_CHANGED,
+    handleDefaultSystemPromptChange
+  )
 })
 
 const handleSend = async (content: UserMessageContent) => {

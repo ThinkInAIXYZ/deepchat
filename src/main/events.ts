@@ -34,7 +34,8 @@ export const CONFIG_EVENTS = {
   OAUTH_LOGIN_SUCCESS: 'config:oauth-login-success', // OAuth登录成功
   OAUTH_LOGIN_ERROR: 'config:oauth-login-error', // OAuth登录失败
   THEME_CHANGED: 'config:theme-changed', // 主题变更事件
-  FONT_SIZE_CHANGED: 'config:font-size-changed' // 字体大小变更事件
+  FONT_SIZE_CHANGED: 'config:font-size-changed', // 字体大小变更事件
+  DEFAULT_SYSTEM_PROMPT_CHANGED: 'config:default-system-prompt-changed' // 默认系统提示词变更事件
 }
 
 // Provider DB（聚合 JSON）相关事件

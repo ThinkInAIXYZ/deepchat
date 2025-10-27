@@ -1419,6 +1419,10 @@ export class ConfigPresenter implements IConfigPresenter {
     if (promptId === 'empty') {
       await this.setSystemPrompts(updatedPrompts)
       await this.clearSystemPrompt()
+      eventBus.sendToRenderer(CONFIG_EVENTS.DEFAULT_SYSTEM_PROMPT_CHANGED, SendTarget.ALL_WINDOWS, {
+        promptId: 'empty',
+        content: ''
+      })
       return
     }
 
@@ -1427,6 +1431,10 @@ export class ConfigPresenter implements IConfigPresenter {
       updatedPrompts[targetIndex].isDefault = true
       await this.setSystemPrompts(updatedPrompts)
       await this.setDefaultSystemPrompt(updatedPrompts[targetIndex].content)
+      eventBus.sendToRenderer(CONFIG_EVENTS.DEFAULT_SYSTEM_PROMPT_CHANGED, SendTarget.ALL_WINDOWS, {
+        promptId,
+        content: updatedPrompts[targetIndex].content
+      })
     } else {
       await this.setSystemPrompts(updatedPrompts)
     }
