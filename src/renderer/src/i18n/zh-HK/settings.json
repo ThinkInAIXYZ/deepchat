@@ -376,7 +376,11 @@
     "refreshingModels": "刷新中...",
     "toast": {
       "modelRunning": "模型正在運行",
-      "modelRunningDesc": "請先停止模型 {model}，然後再刪除。"
+      "modelRunningDesc": "請先停止模型 {model}，然後再刪除。",
+      "backupSuccessTitle": "備份完成",
+      "backupSuccessMessage": "備份已儲存（時間：{time}，大小：{size}）",
+      "importSuccessTitle": "匯入完成",
+      "importSuccessMessage": "成功匯入 {count} 個對話"
     },
     "anthropicApiKeyTip": "請前往 Anthropic Console 獲取您的 API Key",
     "anthropicConnected": "Anthropic 已連接",

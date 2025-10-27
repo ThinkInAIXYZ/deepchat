@@ -376,7 +376,11 @@
     "refreshingModels": "상쾌한 ...",
     "toast": {
       "modelRunning": "모델이 실행 중입니다",
-      "modelRunningDesc": "먼저 모델 {model}을 중지 한 다음 삭제하십시오."
+      "modelRunningDesc": "먼저 모델 {model}을 중지 한 다음 삭제하십시오.",
+      "backupSuccessTitle": "백업이 완료되었습니다",
+      "backupSuccessMessage": "백업이 저장되었습니다 (시간: {time}, 크기: {size})",
+      "importSuccessTitle": "가져오기가 완료되었습니다",
+      "importSuccessMessage": "{count}개의 대화를 성공적으로 가져왔습니다"
     },
     "anthropicApiKeyTip": "API 키를 얻으려면 Anthropic Console으로 이동하십시오.",
     "anthropicConnected": "인류 연결",

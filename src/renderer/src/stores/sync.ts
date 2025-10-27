@@ -88,28 +88,44 @@ export const useSyncStore = defineStore('sync', () => {
   }
 
   // 开始备份
-  const startBackup = async () => {
-    if (!syncEnabled.value || isBackingUp.value) return
+  const startBackup = async (): Promise<SyncBackupInfo | null> => {
+    if (!syncEnabled.value || isBackingUp.value) return null
 
     try {
       const backupInfo = await syncPresenter.startBackup()
       if (backupInfo) {
         await refreshBackups()
       }
+      return backupInfo ?? null
     } catch (error) {
       console.error('备份失败:', error)
+      return null
     }
   }
 
   // 导入数据
-  const importData = async (backupFile: string, mode: 'increment' | 'overwrite' = 'increment') => {
-    if (!syncEnabled.value || isImporting.value || !backupFile) return
+  const importData = async (
+    backupFile: string,
+    mode: 'increment' | 'overwrite' = 'increment'
+  ): Promise<{ success: boolean; message: string; count?: number } | null> => {
+    if (!syncEnabled.value || isImporting.value || !backupFile) return null
 
     isImporting.value = true
-    const result = await syncPresenter.importFromSync(backupFile, mode)
-    importResult.value = result
-    isImporting.value = false
-    await refreshBackups()
+    try {
+      const result = await syncPresenter.importFromSync(backupFile, mode)
+      importResult.value = result
+      return result
+    } catch (error) {
+      console.error('导入失败:', error)
+      importResult.value = {
+        success: false,
+        message: 'sync.error.importFailed'
+      }
+      return importResult.value
+    } finally {
+      isImporting.value = false
+      await refreshBackups()
+    }
   }
 
   // 重启应用

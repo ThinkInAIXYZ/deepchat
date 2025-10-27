@@ -376,7 +376,11 @@
     "refreshingModels": "Refreshing...",
     "toast": {
       "modelRunning": "The model is running",
-      "modelRunningDesc": "Please stop the model {model} first and then delete it."
+      "modelRunningDesc": "Please stop the model {model} first and then delete it.",
+      "backupSuccessTitle": "Backup completed",
+      "backupSuccessMessage": "Backup saved at {time} ({size})",
+      "importSuccessTitle": "Import completed",
+      "importSuccessMessage": "Successfully imported {count} conversations"
     },
     "modelscope": {
       "mcpSync": {

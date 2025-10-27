@@ -376,7 +376,11 @@
     "refreshingModels": "طراوت ...",
     "toast": {
       "modelRunning": "مدل در حال اجرا است",
-      "modelRunningDesc": "لطفاً ابتدا مدل {مدل را متوقف کرده و سپس آن را حذف کنید."
+      "modelRunningDesc": "لطفاً ابتدا مدل {model} را متوقف کرده و سپس آن را حذف کنید.",
+      "backupSuccessTitle": "پشتیبان‌گیری کامل شد",
+      "backupSuccessMessage": "فایل پشتیبان در {time} ذخیره شد (حجم: {size})",
+      "importSuccessTitle": "درون‌ریزی با موفقیت انجام شد",
+      "importSuccessMessage": "{count} گفتگو با موفقیت درون‌ریزی شد"
     },
     "anthropicApiKeyTip": "لطفاً برای دریافت کلید API خود به کنسول انسان شناسی بروید",
     "anthropicConnected": "انسان شناسی متصل",

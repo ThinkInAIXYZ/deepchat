@@ -376,7 +376,11 @@
     "refreshingModels": "Rafraîchissant...",
     "toast": {
       "modelRunning": "Le modèle est en cours d'exécution",
-      "modelRunningDesc": "Veuillez d'abord arrêter le modèle {model}, puis le supprimer."
+      "modelRunningDesc": "Veuillez d'abord arrêter le modèle {model}, puis le supprimer.",
+      "backupSuccessTitle": "Sauvegarde terminée",
+      "backupSuccessMessage": "Sauvegarde enregistrée à {time} ({size})",
+      "importSuccessTitle": "Importation terminée",
+      "importSuccessMessage": "{count} conversations importées avec succès"
     },
     "anthropicApiKeyTip": "Veuillez aller à la console anthropique pour obtenir votre clé API",
     "anthropicConnected": "Connecté anthropique",

@@ -376,7 +376,11 @@
     "refreshingModels": "Освежает ...",
     "toast": {
       "modelRunning": "Модель работает",
-      "modelRunningDesc": "Пожалуйста, остановите модель {model} сначала, а затем удалите ее."
+      "modelRunningDesc": "Пожалуйста, остановите модель {model} сначала, а затем удалите ее.",
+      "backupSuccessTitle": "Резервное копирование завершено",
+      "backupSuccessMessage": "Резервная копия сохранена (время: {time}, размер: {size})",
+      "importSuccessTitle": "Импорт завершён",
+      "importSuccessMessage": "Успешно импортировано {count} бесед"
     },
     "anthropicApiKeyTip": "Пожалуйста, перейдите на антропную консоль, чтобы получить ключ API",
     "anthropicConnected": "Антропическая связь",

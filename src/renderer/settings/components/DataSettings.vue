@@ -53,7 +53,7 @@
       <div class="flex flex-row gap-2">
         <Button
           variant="outline"
-          @click="syncStore.startBackup"
+          @click="handleBackup"
           :disabled="!syncStore.syncEnabled || syncStore.isBackingUp"
           :dir="languageStore.dir"
         >
@@ -307,12 +307,14 @@ import { useSyncStore } from '@/stores/sync'
 import { useLanguageStore } from '@/stores/language'
 import { usePresenter } from '@/composables/usePresenter'
 import { cn } from '@/lib/utils'
+import { useToast } from '@/components/use-toast'
 
 const { t } = useI18n()
 const languageStore = useLanguageStore()
 const syncStore = useSyncStore()
 const devicePresenter = usePresenter('devicePresenter')
 const { backups: backupsRef } = storeToRefs(syncStore)
+const { toast } = useToast()
 
 const isImportDialogOpen = ref(false)
 const importMode = ref('increment')
@@ -383,6 +385,22 @@ const formatBackupLabel = (fileName: string, createdAt: number, size: number) =>
   return formatted
 }
 
+const handleBackup = async () => {
+  const backupInfo = await syncStore.startBackup()
+  if (!backupInfo) {
+    return
+  }
+
+  toast({
+    title: t('settings.data.toast.backupSuccessTitle'),
+    description: t('settings.data.toast.backupSuccessMessage', {
+      time: new Date(backupInfo.createdAt).toLocaleString(),
+      size: formatBytes(backupInfo.size)
+    }),
+    duration: 4000
+  })
+}
+
 // 关闭导入对话框
 const closeImportDialog = () => {
   isImportDialogOpen.value = false
@@ -394,7 +412,19 @@ const handleImport = async () => {
   if (!selectedBackup.value) {
     return
   }
-  await syncStore.importData(selectedBackup.value, importMode.value as 'increment' | 'overwrite')
+  const result = await syncStore.importData(
+    selectedBackup.value,
+    importMode.value as 'increment' | 'overwrite'
+  )
+  if (result?.success) {
+    toast({
+      title: t('settings.data.toast.importSuccessTitle'),
+      description: t('settings.data.toast.importSuccessMessage', {
+        count: result.count ?? 0
+      }),
+      duration: 4000
+    })
+  }
   closeImportDialog()
 }
 

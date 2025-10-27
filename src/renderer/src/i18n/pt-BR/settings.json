@@ -376,7 +376,11 @@
     "refreshingModels": "Atualizando...",
     "toast": {
       "modelRunning": "O modelo está em execução",
-      "modelRunningDesc": "Por favor, pare o modelo {model} primeiro e depois o exclua."
+      "modelRunningDesc": "Por favor, pare o modelo {model} primeiro e depois o exclua.",
+      "backupSuccessTitle": "Backup concluído",
+      "backupSuccessMessage": "Backup salvo em {time} ({size})",
+      "importSuccessTitle": "Importação concluída",
+      "importSuccessMessage": "{count} conversas importadas com sucesso"
     },
     "modelscope": {
       "mcpSync": {

@@ -279,7 +279,11 @@
     "settingsApplied": "设置已应用",
     "toast": {
       "modelRunning": "模型正在运行",
-      "modelRunningDesc": "请先停止模型 {model}，然后再删除。"
+      "modelRunningDesc": "请先停止模型 {model}，然后再删除。",
+      "backupSuccessTitle": "备份完成",
+      "backupSuccessMessage": "备份已保存（时间：{time}，大小：{size}）",
+      "importSuccessTitle": "导入完成",
+      "importSuccessMessage": "成功导入 {count} 条会话"
     },
     "modelscope": {
       "name": "ModelScope",

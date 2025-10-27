@@ -376,7 +376,11 @@
     "refreshingModels": "更新中...",
     "toast": {
       "modelRunning": "モデルが実行されています",
-      "modelRunningDesc": "最初にモデル{model}を停止してから削除してください。"
+      "modelRunningDesc": "最初にモデル{model}を停止してから削除してください。",
+      "backupSuccessTitle": "バックアップが完了しました",
+      "backupSuccessMessage": "バックアップを保存しました（時刻：{time}、サイズ：{size}）",
+      "importSuccessTitle": "インポートが完了しました",
+      "importSuccessMessage": "{count} 件の会話を正常にインポートしました"
     },
     "anthropicApiKeyTip": "APIキーを取得するには、人類コンソールにアクセスしてください",
     "anthropicConnected": "人類接続",
