@@ -459,7 +459,7 @@ export const useSettingsStore = defineStore('settings', () => {
       // 优先使用聚合 Provider DB（统一由主进程映射）
       let models: RENDERER_MODEL_META[] = await configP.getDbProviderModels(providerId)
 
-      const storedModels = configP.getProviderModels(providerId)
+      const storedModels = await configP.getProviderModels(providerId)
 
       if (storedModels && storedModels.length > 0) {
         const dbModelMap = new Map(models.map((model) => [model.id, model]))
