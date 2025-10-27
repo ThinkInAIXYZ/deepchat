@@ -817,10 +817,7 @@
   },
   "promptSetting": {
     "resetToDefault": "기본 프롬프트 단어로 재설정하십시오",
-    "clear": "명확한 신속한 단어",
     "resetToDefaultSuccess": "기본 시스템 프롬프트로 성공적으로 재설정되었습니다",
-    "resetToDefaultFailed": "재설정에 실패했습니다. 다시 시도해 주세요",
-    "clearSuccess": "시스템 프롬프트가 성공적으로 지워졌습니다",
-    "clearFailed": "지우기에 실패했습니다. 다시 시도해 주세요"
+    "resetToDefaultFailed": "재설정에 실패했습니다. 다시 시도해 주세요"
   }
 }

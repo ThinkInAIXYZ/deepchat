@@ -817,10 +817,7 @@
   },
   "promptSetting": {
     "resetToDefault": "Redefinir para o prompt padrão",
-    "clear": "Limpar palavras do prompt",
     "resetToDefaultSuccess": "Redefinido para o prompt do sistema padrão com sucesso",
-    "resetToDefaultFailed": "Falha ao redefinir, tente novamente",
-    "clearSuccess": "Prompt do sistema limpo com sucesso",
-    "clearFailed": "Falha ao limpar, tente novamente"
+    "resetToDefaultFailed": "Falha ao redefinir, tente novamente"
   }
 }

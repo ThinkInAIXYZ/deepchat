@@ -816,11 +816,8 @@
     "disabledDescription": "速率限制功能已关闭"
   },
   "promptSetting": {
-    "clear": "清空提示词",
     "resetToDefault": "重置为默认提示词",
     "resetToDefaultSuccess": "已重置为默认系统提示词",
-    "resetToDefaultFailed": "重置失败，请重试",
-    "clearSuccess": "已清空系统提示词",
-    "clearFailed": "清空失败，请重试"
+    "resetToDefaultFailed": "重置失败，请重试"
   }
 }

@@ -817,10 +817,7 @@
   },
   "promptSetting": {
     "resetToDefault": "Réinitialiser avec un mot rapide par défaut",
-    "clear": "Effacer les mots rapides",
     "resetToDefaultSuccess": "Réinitialisé avec succès à l'invite système par défaut",
-    "resetToDefaultFailed": "Échec de la réinitialisation, veuillez réessayer",
-    "clearSuccess": "Invite système effacée avec succès",
-    "clearFailed": "Échec de l'effacement, veuillez réessayer"
+    "resetToDefaultFailed": "Échec de la réinitialisation, veuillez réessayer"
   }
 }

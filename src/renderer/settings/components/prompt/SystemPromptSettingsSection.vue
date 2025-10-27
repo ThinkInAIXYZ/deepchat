@@ -20,13 +20,6 @@
           </SelectItem>
         </SelectContent>
       </Select>
-      <Button variant="outline" size="sm" class="hidden sm:flex" @click="handleClearSystemPrompt">
-        <Icon icon="lucide:eraser" class="w-3.5 h-3.5 mr-1" />
-        {{ t('settings.promptSetting.clear') }}
-      </Button>
-      <Button variant="outline" size="icon-sm" class="sm:hidden" @click="handleClearSystemPrompt">
-        <Icon icon="lucide:eraser" class="w-4 h-4" />
-      </Button>
       <Button variant="outline" size="icon-sm" @click="openCreatePrompt">
         <Icon icon="lucide:plus" class="w-4 h-4" />
       </Button>
@@ -187,13 +180,23 @@ const updateCurrentSystemPrompt = () => {
 
 const handleSystemPromptChange = async (promptId: AcceptableValue) => {
   try {
-    if ((promptId as string) === EMPTY_SYSTEM_PROMPT_ID) {
-      await applyEmptySystemPrompt(false)
+    const id = promptId as string
+    await settingsStore.setDefaultSystemPromptId(id)
+    selectedSystemPromptId.value = id
+
+    if (id === EMPTY_SYSTEM_PROMPT_ID) {
+      systemPrompts.value = systemPrompts.value.map((prompt) => ({
+        ...prompt,
+        isDefault: false
+      }))
+      currentSystemPrompt.value = null
       return
     }
 
-    await settingsStore.setDefaultSystemPromptId(promptId as string)
-    selectedSystemPromptId.value = promptId as string
+    systemPrompts.value = systemPrompts.value.map((prompt) => ({
+      ...prompt,
+      isDefault: prompt.id === id
+    }))
     updateCurrentSystemPrompt()
   } catch (error) {
     console.error('Failed to change default system prompt:', error)
@@ -202,32 +205,6 @@ const handleSystemPromptChange = async (promptId: AcceptableValue) => {
       variant: 'destructive'
     })
   }
-}
-
-const applyEmptySystemPrompt = async (showToast: boolean) => {
-  try {
-    await settingsStore.setDefaultSystemPromptId(EMPTY_SYSTEM_PROMPT_ID)
-    await loadSystemPrompts()
-
-    if (showToast) {
-      toast({
-        title: t('settings.promptSetting.clearSuccess'),
-        variant: 'default'
-      })
-    }
-  } catch (error) {
-    console.error('Failed to clear system prompt:', error)
-    toast({
-      title: t('settings.promptSetting.clearFailed'),
-      variant: 'destructive'
-    })
-  }
-}
-
-const handleClearSystemPrompt = async () => {
-  await applyEmptySystemPrompt(true)
-  selectedSystemPromptId.value = EMPTY_SYSTEM_PROMPT_ID
-  currentSystemPrompt.value = null
 }
 
 const saveCurrentSystemPrompt = async () => {

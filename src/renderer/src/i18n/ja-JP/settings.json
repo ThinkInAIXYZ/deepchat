@@ -817,10 +817,7 @@
   },
   "promptSetting": {
     "resetToDefault": "デフォルトのプロンプトワードにリセットします",
-    "clear": "迅速な単語を明確にします",
     "resetToDefaultSuccess": "デフォルトのシステムプロンプトに正常にリセットしました",
-    "resetToDefaultFailed": "リセットに失敗しました。もう一度お試しください",
-    "clearSuccess": "システムプロンプトが正常にクリアされました",
-    "clearFailed": "クリアに失敗しました。もう一度お試しください"
+    "resetToDefaultFailed": "リセットに失敗しました。もう一度お試しください"
   }
 }
