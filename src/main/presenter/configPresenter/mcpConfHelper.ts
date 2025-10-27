@@ -299,7 +299,7 @@ const DEFAULT_MCP_SERVERS = {
       command: '',
       args: [],
       env: {},
-      descriptions: '内存存储服务',
+      descriptions: 'Nowledge Mem MCP',
       icons: '🧠',
       autoApprove: ['all'],
       disable: true,
@@ -371,6 +371,20 @@ export class McpConfHelper {
     this.setRemovedBuiltInServers(removed)
   }
 
+  private cloneServerConfig(config: MCPServerConfig): MCPServerConfig {
+    const cloneFn = (
+      globalThis as typeof globalThis & {
+        structuredClone?: (value: MCPServerConfig) => MCPServerConfig
+      }
+    ).structuredClone
+
+    if (typeof cloneFn === 'function') {
+      return cloneFn(config)
+    }
+
+    return JSON.parse(JSON.stringify(config)) as MCPServerConfig
+  }
+
   // Get MCP server configuration
   async getMcpServers(): Promise<Record<string, MCPServerConfig>> {
     const storedServers = this.mcpStore.get('mcpServers') || DEFAULT_MCP_SERVERS.mcpServers
@@ -385,7 +399,7 @@ export class McpConfHelper {
       }
       if (!updatedServers[serverName]) {
         console.log(`Adding missing built-in MCP service: ${serverName}`)
-        updatedServers[serverName] = serverConfig
+        updatedServers[serverName] = this.cloneServerConfig(serverConfig)
       }
     }
 
