@@ -99,7 +99,7 @@ export const useSyncStore = defineStore('sync', () => {
       }
       return backupInfo ?? null
     } catch (error) {
-      console.error('备份失败:', error)
+      console.error('backup failed:', error)
       return null
     } finally {
       isBackingUp.value = false
@@ -119,7 +119,7 @@ export const useSyncStore = defineStore('sync', () => {
       importResult.value = result
       return result
     } catch (error) {
-      console.error('导入失败:', error)
+      console.error('import failed:', error)
       importResult.value = {
         success: false,
         message: 'sync.error.importFailed'

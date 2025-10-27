@@ -209,7 +209,6 @@ const displayError = (error: { id: string; title: string; message: string; type:
 
   errorDisplayTimer.value = window.setTimeout(() => {
     dismiss()
-    handleErrorClosed()
   }, 3000)
 }
 

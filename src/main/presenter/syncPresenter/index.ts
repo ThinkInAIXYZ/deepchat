@@ -124,7 +124,7 @@ export class SyncPresenter implements ISyncPresenter {
     try {
       return await this.performBackup()
     } catch (error) {
-      console.error('备份失败:', error)
+      console.error('Backup failed:', error)
       eventBus.send(
         SYNC_EVENTS.BACKUP_ERROR,
         SendTarget.ALL_WINDOWS,
@@ -162,6 +162,7 @@ export class SyncPresenter implements ISyncPresenter {
       const safeFileName = this.ensureSafeBackupFileName(backupFileName)
       backupZipPath = path.join(backupsDir, safeFileName)
     } catch (error) {
+      console.warn('Failed to validate backup file name', error)
       return { success: false, message: 'sync.error.noValidBackup' }
     }
     if (!fs.existsSync(backupZipPath)) {
@@ -263,7 +264,7 @@ export class SyncPresenter implements ISyncPresenter {
         count: importedConversationCount
       }
     } catch (error) {
-      console.error('导入文件失败，恢复备份:', error)
+      console.error('import failed,reverting:', error)
       this.restoreFromTempBackup(tempCurrentFiles)
       eventBus.send(
         SYNC_EVENTS.IMPORT_ERROR,
@@ -374,7 +375,7 @@ export class SyncPresenter implements ISyncPresenter {
           try {
             await this.performBackup()
           } catch (error) {
-            console.error('自动备份失败:', error)
+            console.error('auto backup failed:', error)
           }
         }
       }, this.BACKUP_DELAY)
@@ -486,6 +487,7 @@ export class SyncPresenter implements ISyncPresenter {
     try {
       backupSettingsRaw = fs.readFileSync(backupPath, 'utf-8')
     } catch (error) {
+      console.error('Failed to read backup app settings file:', error)
       throw new Error('sync.error.noValidBackup')
     }
 
@@ -497,6 +499,7 @@ export class SyncPresenter implements ISyncPresenter {
       }
       backupSettings = parsed as Record<string, unknown>
     } catch (error) {
+      console.error('Failed to parse backup app settings JSON:', error)
       throw new Error('sync.error.noValidBackup')
     }
 
@@ -509,7 +512,7 @@ export class SyncPresenter implements ISyncPresenter {
           currentSettings = parsedCurrent as Record<string, unknown>
         }
       } catch (error) {
-        console.warn('Failed to read existing app settings, preserving defaults')
+        console.warn('Failed to read existing app settings, preserving defaults', error)
       }
     }
 
