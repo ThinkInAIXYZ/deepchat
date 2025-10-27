@@ -503,28 +503,20 @@ export class SyncPresenter implements ISyncPresenter {
       throw new Error('sync.error.noValidBackup')
     }
 
-    let currentSettings: Record<string, unknown> = {}
-    if (fs.existsSync(targetPath)) {
-      try {
-        const currentContent = fs.readFileSync(targetPath, 'utf-8')
-        const parsedCurrent = JSON.parse(currentContent)
-        if (parsedCurrent && typeof parsedCurrent === 'object') {
-          currentSettings = parsedCurrent as Record<string, unknown>
-        }
-      } catch (error) {
-        console.warn('Failed to read existing app settings, preserving defaults', error)
-      }
-    }
-
-    const preservedKeys = ['syncEnabled', 'syncFolderPath', 'lastSyncTime'] as const
     const preservedSettings: Record<string, unknown> = {}
-    for (const key of preservedKeys) {
-      if (Object.prototype.hasOwnProperty.call(currentSettings, key)) {
-        preservedSettings[key] = currentSettings[key]
-      }
+    preservedSettings.syncEnabled = this.configPresenter.getSyncEnabled()
+    preservedSettings.syncFolderPath = this.configPresenter.getSyncFolderPath()
+    preservedSettings.lastSyncTime = this.configPresenter.getLastSyncTime()
+
+    const mergedSettings = {
+      ...backupSettings,
+      ...Object.fromEntries(
+        Object.entries(preservedSettings).filter(
+          ([, value]) => value !== undefined && value !== null
+        )
+      )
     }
 
-    const mergedSettings = { ...backupSettings, ...preservedSettings }
     fs.mkdirSync(path.dirname(targetPath), { recursive: true })
     fs.writeFileSync(targetPath, JSON.stringify(mergedSettings, null, 2), 'utf-8')
   }
