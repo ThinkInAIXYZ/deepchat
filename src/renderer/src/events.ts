@@ -82,6 +82,7 @@ export const SYNC_EVENTS = {
   BACKUP_STARTED: 'sync:backup-started',
   BACKUP_COMPLETED: 'sync:backup-completed',
   BACKUP_ERROR: 'sync:backup-error',
+  BACKUP_STATUS_CHANGED: 'sync:backup-status-changed',
   IMPORT_STARTED: 'sync:import-started',
   IMPORT_COMPLETED: 'sync:import-completed',
   IMPORT_ERROR: 'sync:import-error',

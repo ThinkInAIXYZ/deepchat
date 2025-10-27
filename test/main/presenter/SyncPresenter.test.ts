@@ -27,7 +27,6 @@ describe('SyncPresenter backup import', () => {
   let userDataDir: string
   let tempDir: string
   let syncDir: string
-  let backupsDir: string
   let presenter: InstanceType<typeof SyncPresenter>
   let configPresenter: any
   let sqlitePresenter: any
@@ -37,8 +36,6 @@ describe('SyncPresenter backup import', () => {
     userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'deepchat-user-'))
     tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'deepchat-temp-'))
     syncDir = fs.mkdtempSync(path.join(os.tmpdir(), 'deepchat-sync-'))
-    backupsDir = path.join(syncDir, 'backups')
-    fs.mkdirSync(backupsDir, { recursive: true })
 
     getPathSpy = vi.spyOn(app, 'getPath').mockImplementation((type: string) => {
       if (type === 'userData') {
@@ -67,7 +64,6 @@ describe('SyncPresenter backup import', () => {
   afterEach(() => {
     presenter.destroy()
     getPathSpy.mockRestore()
-    removeDir(backupsDir)
     removeDir(syncDir)
     removeDir(tempDir)
     removeDir(userDataDir)
@@ -92,7 +88,7 @@ describe('SyncPresenter backup import', () => {
       }
     })
 
-    const backupFile = createBackupArchive(backupsDir, Date.now(), {
+    const backupFile = createBackupArchive(syncDir, Date.now(), {
       conversations: [
         { id: 'conv-1', title: 'Local conversation' },
         { id: 'conv-2', title: 'Imported conversation' }
@@ -194,7 +190,7 @@ describe('SyncPresenter backup import', () => {
       }
     })
 
-    const backupFile = createBackupArchive(backupsDir, Date.now(), {
+    const backupFile = createBackupArchive(syncDir, Date.now(), {
       conversations: [{ id: 'conv-2', title: 'Imported conversation only' }],
       appSettings: { theme: 'dark', locale: 'zh' },
       customPrompts: {

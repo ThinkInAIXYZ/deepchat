@@ -25,7 +25,8 @@ interface McpSettings {
   [key: string]: unknown
 }
 
-const BACKUP_DIR_NAME = 'backups'
+type BackupStatus = 'idle' | 'preparing' | 'collecting' | 'compressing' | 'finalizing' | 'error'
+
 const BACKUP_PREFIX = 'backup-'
 const BACKUP_EXTENSION = '.zip'
 const BACKUP_FILE_NAME_REGEX = /^backup-\d+\.zip$/
@@ -43,6 +44,7 @@ export class SyncPresenter implements ISyncPresenter {
   private configPresenter: IConfigPresenter
   private sqlitePresenter: ISQLitePresenter
   private isBackingUp = false
+  private currentBackupStatus: BackupStatus = 'idle'
   private backupTimer: NodeJS.Timeout | null = null
   private readonly BACKUP_DELAY = 60 * 1000
   private readonly APP_SETTINGS_PATH = path.join(app.getPath('userData'), 'app-settings.json')
@@ -273,6 +275,7 @@ export class SyncPresenter implements ISyncPresenter {
 
   private async performBackup(): Promise<SyncBackupInfo> {
     this.isBackingUp = true
+    this.emitBackupStatus('preparing')
     eventBus.send(SYNC_EVENTS.BACKUP_STARTED, SendTarget.ALL_WINDOWS)
 
     const syncFolderPath = this.configPresenter.getSyncFolderPath()
@@ -282,20 +285,24 @@ export class SyncPresenter implements ISyncPresenter {
     const backupsDir = this.getBackupsDirectory(syncFolderPath)
     fs.mkdirSync(backupsDir, { recursive: true })
 
-    if (!fs.existsSync(this.DB_PATH)) {
-      throw new Error('sync.error.dbNotExists')
-    }
-
-    if (!fs.existsSync(this.APP_SETTINGS_PATH)) {
-      throw new Error('sync.error.configNotExists')
-    }
-
     const timestamp = Date.now()
     const backupFileName = `${BACKUP_PREFIX}${timestamp}${BACKUP_EXTENSION}`
     const tempZipPath = path.join(backupsDir, `${backupFileName}.tmp`)
     const finalZipPath = path.join(backupsDir, backupFileName)
 
+    let completedTimestamp: number | null = null
+    let encounteredError = false
+
     try {
+      if (!fs.existsSync(this.DB_PATH)) {
+        throw new Error('sync.error.dbNotExists')
+      }
+
+      if (!fs.existsSync(this.APP_SETTINGS_PATH)) {
+        throw new Error('sync.error.configNotExists')
+      }
+
+      this.emitBackupStatus('collecting')
       const files: Record<string, Uint8Array> = {}
       files[ZIP_PATHS.db] = new Uint8Array(fs.readFileSync(this.DB_PATH))
       files[ZIP_PATHS.appSettings] = new Uint8Array(fs.readFileSync(this.APP_SETTINGS_PATH))
@@ -312,26 +319,41 @@ export class SyncPresenter implements ISyncPresenter {
         Buffer.from(JSON.stringify(manifest, null, 2), 'utf-8')
       )
 
+      this.emitBackupStatus('compressing')
       const zipData = zipSync(files, { level: 6 })
       fs.writeFileSync(tempZipPath, Buffer.from(zipData))
 
       if (fs.existsSync(finalZipPath)) {
         fs.unlinkSync(finalZipPath)
       }
+      this.emitBackupStatus('finalizing')
       fs.renameSync(tempZipPath, finalZipPath)
 
       const backupStats = fs.statSync(finalZipPath)
       this.configPresenter.setLastSyncTime(timestamp)
       eventBus.send(SYNC_EVENTS.BACKUP_COMPLETED, SendTarget.ALL_WINDOWS, timestamp)
+      completedTimestamp = timestamp
 
       return { fileName: backupFileName, createdAt: timestamp, size: backupStats.size }
     } catch (error) {
       if (fs.existsSync(tempZipPath)) {
         fs.unlinkSync(tempZipPath)
       }
+      encounteredError = true
+      this.emitBackupStatus('error', {
+        message: (error as Error)?.message || 'sync.error.unknown'
+      })
       throw error
     } finally {
       this.isBackingUp = false
+      const extra: Record<string, unknown> = {}
+      if (completedTimestamp) {
+        extra.lastSuccessfulBackupTime = completedTimestamp
+      }
+      if (encounteredError) {
+        extra.failed = true
+      }
+      this.emitBackupStatus('idle', extra)
     }
   }
 
@@ -358,7 +380,16 @@ export class SyncPresenter implements ISyncPresenter {
   }
 
   private getBackupsDirectory(syncFolderPath: string): string {
-    return path.join(syncFolderPath, BACKUP_DIR_NAME)
+    return syncFolderPath
+  }
+
+  private emitBackupStatus(status: BackupStatus, extra: Record<string, unknown> = {}): void {
+    eventBus.send(SYNC_EVENTS.BACKUP_STATUS_CHANGED, SendTarget.ALL_WINDOWS, {
+      status,
+      previousStatus: this.currentBackupStatus,
+      ...extra
+    })
+    this.currentBackupStatus = status
   }
 
   private ensureSafeBackupFileName(fileName: string): string {

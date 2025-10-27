@@ -28,7 +28,8 @@ export class DataImporter {
 
     if (sourcePassword) {
       this.sourceDb.pragma("cipher='sqlcipher'")
-      this.sourceDb.pragma(`key='${sourcePassword}'`)
+      const hex = Buffer.from(sourcePassword, 'utf8').toString('hex')
+      this.sourceDb.pragma(`key = "x'${hex}'"`)
     }
 
     if (typeof targetDbOrPath === 'string') {
@@ -37,7 +38,8 @@ export class DataImporter {
 
       if (targetPassword) {
         this.targetDb.pragma("cipher='sqlcipher'")
-        this.targetDb.pragma(`key='${targetPassword}'`)
+        const hex = Buffer.from(targetPassword, 'utf8').toString('hex')
+        this.targetDb.pragma(`key = "x'${hex}'"`)
       }
     } else {
       this.targetDb = targetDbOrPath
@@ -135,31 +137,19 @@ export class DataImporter {
     }
 
     const insertPlaceholders = Array.from({ length: commonColumns.length }, () => '?').join(', ')
-    const insertSql = `INSERT INTO ${wrappedTableName} (${selectColumnsSql}) VALUES (${insertPlaceholders})`
+    const insertSql =
+      pkColumns.length > 0
+        ? `INSERT OR IGNORE INTO ${wrappedTableName} (${selectColumnsSql}) VALUES (${insertPlaceholders})`
+        : `INSERT INTO ${wrappedTableName} (${selectColumnsSql}) VALUES (${insertPlaceholders})`
     const insertStmt = this.targetDb.prepare(insertSql)
-
-    let existsStmt: Database.Statement | null = null
-    if (pkColumns.length > 0) {
-      const whereClause = pkColumns
-        .map((column) => `${this.wrapIdentifier(column.name)} = ?`)
-        .join(' AND ')
-      existsStmt = this.targetDb.prepare(
-        `SELECT 1 FROM ${wrappedTableName} WHERE ${whereClause} LIMIT 1`
-      )
-    }
 
     let inserted = 0
     for (const row of rows) {
-      if (existsStmt) {
-        const pkValues = pkColumns.map((column) => row[column.name])
-        if (existsStmt.get(...pkValues)) {
-          continue
-        }
-      }
-
       const values = commonColumns.map((column) => row[column.name])
-      insertStmt.run(...values)
-      inserted++
+      const info = insertStmt.run(...values)
+      if (pkColumns.length === 0 || info.changes > 0) {
+        inserted++
+      }
     }
 
     return inserted
