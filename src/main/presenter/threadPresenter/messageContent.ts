@@ -68,11 +68,12 @@ export function getFileContext(files?: MessageFile[]): string {
     ${files
       .map(
         (file) => `<file>
-      <name>${file.name}</name>
-      <mimeType>${file.mimeType}</mimeType>
-      <size>${file.metadata.fileSize}</size>
-      <path>${file.path}</path>
-      <content>${!file.mimeType.startsWith('image') ? file.content : ''}</content>
+      <name>${file.name ?? ''}</name>
+      <mimeType>${file.mimeType ?? ''}</mimeType>
+      <size>${file.metadata?.fileSize ?? 0}</size>
+      <content>${
+        file.mimeType && !file.mimeType.startsWith('image') ? (file.content ?? '') : ''
+      }</content>
     </file>`
       )
       .join('\n')}

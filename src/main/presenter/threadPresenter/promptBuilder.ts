@@ -10,7 +10,7 @@ import {
   ChatMessageContent
 } from '../../../shared/presenter'
 import { ContentEnricher } from './contentEnricher'
-import { buildUserMessageContext, getNormalizedUserMessageText } from './messageContent'
+import { buildUserMessageContext } from './messageContent'
 import { generateSearchPrompt } from './searchManager'
 
 type PendingToolCall = { id: string; name: string; params: string }
@@ -103,13 +103,33 @@ export async function preparePromptContent({
   const mergedMessages = mergeConsecutiveMessages(formattedMessages)
 
   let promptTokens = 0
-  for (const msg of mergedMessages) {
-    if (typeof msg.content === 'string') {
-      promptTokens += approximateTokenSize(msg.content)
-    } else {
-      const textContent = msg.content?.map((item) => item.text).join('') || ''
-      promptTokens +=
-        approximateTokenSize(textContent) + imageFiles.reduce((acc, file) => acc + file.token, 0)
+  const imageTokenCost = imageFiles.reduce((acc, file) => acc + (file.token ?? 0), 0)
+  for (let i = 0; i < mergedMessages.length; i++) {
+    const msg = mergedMessages[i]
+
+    if (typeof msg.content === 'string' || msg.content === undefined) {
+      promptTokens += approximateTokenSize(msg.content || '')
+      continue
+    }
+
+    const textContent =
+      msg.content?.reduce((acc, item) => {
+        if (item.type === 'text' && typeof item.text === 'string') {
+          return acc + item.text
+        }
+        return acc
+      }, '') ?? ''
+
+    promptTokens += approximateTokenSize(textContent)
+
+    const isFinalUserWithImages =
+      i === mergedMessages.length - 1 &&
+      msg.role === 'user' &&
+      Array.isArray(msg.content) &&
+      msg.content.some((block) => block.type === 'image_url')
+
+    if (isFinalUserWithImages && imageTokenCost > 0) {
+      promptTokens += imageTokenCost
     }
   }
 
@@ -161,9 +181,8 @@ export async function buildContinueToolCallContext({
     })
 
     formattedMessages.push({
-      role: 'tool',
-      tool_call_id: pendingToolCall.id,
-      content: `Permission granted. Please proceed with executing the ${pendingToolCall.name} function.`
+      role: 'user',
+      content: `Permission granted to call ${pendingToolCall.name}. Proceed with execution.`
     })
   } else {
     formattedMessages.push({
@@ -205,13 +224,6 @@ function selectContextMessages(
     )
 
     if (currentLength + msgTokens <= remainingContextLength) {
-      if (msg.role === 'user') {
-        const userMsgContent = msg.content as UserMessageContent
-        if (userMsgContent.content && !userMsgContent.text) {
-          userMsgContent.text = getNormalizedUserMessageText(userMsgContent)
-        }
-      }
-
       selectedMessages.unshift(msg)
       currentLength += msgTokens
     } else {

@@ -203,11 +203,11 @@ export class ConversationLifecycleManager {
       }
     }
 
-    if (settings.artifacts) {
+    if (settings.artifacts !== undefined) {
       mergedSettings.artifacts = settings.artifacts
     }
 
-    if (settings.maxTokens) {
+    if (settings.maxTokens !== undefined) {
       mergedSettings.maxTokens = settings.maxTokens
     }
 
@@ -215,7 +215,7 @@ export class ConversationLifecycleManager {
       mergedSettings.temperature = settings.temperature
     }
 
-    if (settings.contextLength) {
+    if (settings.contextLength !== undefined) {
       mergedSettings.contextLength = settings.contextLength
     }
 

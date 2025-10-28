@@ -45,15 +45,23 @@ export class ContentBufferManager {
       state.flushTimeout = undefined
     }
 
-    if (buffer.content && buffer.sentPosition < buffer.content.length) {
-      const newContent = buffer.content.slice(buffer.sentPosition)
-      if (newContent) {
-        await this.processBufferedContent(state, eventId, newContent, now)
-        buffer.sentPosition = buffer.content.length
+    try {
+      if (buffer.content && buffer.sentPosition < buffer.content.length) {
+        const newContent = buffer.content.slice(buffer.sentPosition)
+        if (newContent) {
+          await this.processBufferedContent(state, eventId, newContent, now)
+          buffer.sentPosition = buffer.content.length
+        }
       }
+    } catch (error) {
+      console.error('[ContentBuffer] ERROR flushing adaptive buffer', {
+        eventId,
+        err: error
+      })
+      throw error
+    } finally {
+      state.adaptiveBuffer = undefined
     }
-
-    state.adaptiveBuffer = undefined
   }
 
   finalizeLastBlock(state: GeneratingMessageState): void {
@@ -68,10 +76,19 @@ export class ContentBufferManager {
     const state = this.generatingMessages.get(eventId)
     if (!state) return
 
-    if (this.shouldSplitContent(content)) {
-      await this.processLargeContentInChunks(state, eventId, content, currentTime)
-    } else {
-      await this.processNormalContent(state, eventId, content, currentTime)
+    try {
+      if (this.shouldSplitContent(content)) {
+        await this.processLargeContentInChunks(state, eventId, content, currentTime)
+      } else {
+        await this.processNormalContent(state, eventId, content, currentTime)
+      }
+    } catch (error) {
+      console.error('[ContentBuffer] ERROR processing content', {
+        eventId,
+        size: content.length,
+        err: error
+      })
+      throw error
     }
   }
 

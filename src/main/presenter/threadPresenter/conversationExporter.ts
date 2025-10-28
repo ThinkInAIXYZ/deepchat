@@ -272,9 +272,9 @@ function exportToHtml(conversation: CONVERSATION, messages: Message[]): string {
         lines.push('      <div class="section-title">附件</div>')
         lines.push('      <ul>')
         for (const file of userContent.files) {
-          lines.push(
-            `        <li><strong>${escapeHtml(file.name || '')}</strong> <span>(${escapeHtml(file.mimeType)})</span></li>`
-          )
+          const name = escapeHtml(file.name ?? '')
+          const mime = file.mimeType ? escapeHtml(file.mimeType) : 'unknown'
+          lines.push(`        <li><strong>${name}</strong> <span>(${mime})</span></li>`)
         }
         lines.push('      </ul>')
         lines.push('    </div>')
