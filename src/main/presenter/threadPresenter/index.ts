@@ -26,10 +26,9 @@ import {
   MessageFile,
   UserMessageContent
 } from '@shared/chat'
-import { approximateTokenSize } from 'tokenx'
 import { SearchManager } from './searchManager'
 import { ContentEnricher } from './contentEnricher'
-import { CONVERSATION_EVENTS, STREAM_EVENTS, TAB_EVENTS } from '@/events'
+import { STREAM_EVENTS, TAB_EVENTS } from '@/events'
 import { nanoid } from 'nanoid'
 import { ContentBufferManager } from './contentBufferManager'
 import {
@@ -48,6 +47,7 @@ import {
   CreateConversationOptions
 } from './conversationLifecycleManager'
 import type { GeneratingMessageState } from './types'
+import { LLMGenerationManager } from './llmGenerationManager'
 
 export class ThreadPresenter implements IThreadPresenter {
   private sqlitePresenter: ISQLitePresenter
@@ -58,6 +58,7 @@ export class ThreadPresenter implements IThreadPresenter {
   private generatingMessages: Map<string, GeneratingMessageState> = new Map()
   private contentBufferManager: ContentBufferManager
   private conversationLifecycle: ConversationLifecycleManager
+  private llmGenerationManager: LLMGenerationManager
   public searchAssistantModel: MODEL_META | null = null
   public searchAssistantProviderId: string | null = null
   private searchingMessages: Set<string> = new Set()
@@ -81,6 +82,22 @@ export class ThreadPresenter implements IThreadPresenter {
       configPresenter,
       messageManager: this.messageManager
     })
+    this.llmGenerationManager = new LLMGenerationManager({
+      sqlitePresenter,
+      messageManager: this.messageManager,
+      contentBufferManager: this.contentBufferManager,
+      conversationLifecycle: this.conversationLifecycle,
+      generatingMessages: this.generatingMessages,
+      searchingMessages: this.searchingMessages,
+      summarizeConversationTitle: async (conversationId: string) => {
+        try {
+          return await this.summaryTitles(undefined, conversationId)
+        } catch (error) {
+          console.error('Failed to summarize title in main process:', error)
+          return undefined
+        }
+      }
+    })
 
     // 监听Tab关闭事件，清理绑定关系
     eventBus.on(TAB_EVENTS.CLOSED, (tabId: number) => {
@@ -98,6 +115,11 @@ export class ThreadPresenter implements IThreadPresenter {
     this.messageManager.initializeUnfinishedMessages()
   }
 
+  setSearchAssistantModel(model: MODEL_META, providerId: string): void {
+    this.searchAssistantModel = model
+    this.searchAssistantProviderId = providerId
+  }
+
   /**
    * 新增：查找指定会话ID所在的Tab ID
    * @param conversationId 会话ID
@@ -108,539 +130,17 @@ export class ThreadPresenter implements IThreadPresenter {
   }
 
   async handleLLMAgentError(msg: LLMAgentEventData) {
-    const { eventId, error } = msg
-    const state = this.generatingMessages.get(eventId)
-    if (state) {
-      // 刷新剩余缓冲内容
-      if (state.adaptiveBuffer) {
-        await this.contentBufferManager.flushAdaptiveBuffer(eventId)
-      }
-
-      // 清理缓冲相关资源
-      this.contentBufferManager.cleanupContentBuffer(state)
-
-      await this.messageManager.handleMessageError(eventId, String(error))
-      this.generatingMessages.delete(eventId)
-    }
-    eventBus.sendToRenderer(STREAM_EVENTS.ERROR, SendTarget.ALL_WINDOWS, msg)
+    await this.llmGenerationManager.handleLLMAgentError(msg)
   }
 
   async handleLLMAgentEnd(msg: LLMAgentEventData) {
-    const { eventId, userStop } = msg
-    const state = this.generatingMessages.get(eventId)
-    if (state) {
-      console.log(
-        `[ThreadPresenter] Handling LLM agent end for message: ${eventId}, userStop: ${userStop}`
-      )
-
-      // 检查是否有未处理的权限请求
-      const hasPendingPermissions = state.message.content.some(
-        (block) =>
-          block.type === 'action' &&
-          block.action_type === 'tool_call_permission' &&
-          block.status === 'pending'
-      )
-
-      if (hasPendingPermissions) {
-        console.log(
-          `[ThreadPresenter] Message ${eventId} has pending permissions, keeping in generating state`
-        )
-        // 保持消息在generating状态，等待权限响应
-        // 但是要更新非权限块为success状态
-        state.message.content.forEach((block) => {
-          if (
-            !(block.type === 'action' && block.action_type === 'tool_call_permission') &&
-            block.status === 'loading'
-          ) {
-            block.status = 'success'
-          }
-        })
-        await this.messageManager.editMessage(eventId, JSON.stringify(state.message.content))
-        return
-      }
-
-      console.log(`[ThreadPresenter] Finalizing message ${eventId} - no pending permissions`)
-
-      // 正常完成流程
-      await this.finalizeMessage(state, eventId, userStop || false)
-    }
-
-    eventBus.sendToRenderer(STREAM_EVENTS.END, SendTarget.ALL_WINDOWS, msg)
-  }
-
-  // 完成消息的通用方法
-  private async finalizeMessage(
-    state: GeneratingMessageState,
-    eventId: string,
-    userStop: boolean
-  ): Promise<void> {
-    // 将所有块设为success状态，但保留权限块的状态
-    state.message.content.forEach((block) => {
-      if (block.type === 'action' && block.action_type === 'tool_call_permission') {
-        // 权限块保持其当前状态（granted/denied/error）
-        return
-      }
-      block.status = 'success'
-    })
-
-    // 计算completion tokens
-    let completionTokens = 0
-    if (state.totalUsage) {
-      completionTokens = state.totalUsage.completion_tokens
-    } else {
-      for (const block of state.message.content) {
-        if (
-          block.type === 'content' ||
-          block.type === 'reasoning_content' ||
-          block.type === 'tool_call'
-        ) {
-          completionTokens += approximateTokenSize(block.content)
-        }
-      }
-    }
-
-    // 检查是否有内容块
-    const hasContentBlock = state.message.content.some(
-      (block) =>
-        block.type === 'content' ||
-        block.type === 'reasoning_content' ||
-        block.type === 'tool_call' ||
-        block.type === 'image'
-    )
-
-    // 如果没有内容块，添加错误信息
-    if (!hasContentBlock && !userStop) {
-      state.message.content.push({
-        type: 'error',
-        content: 'common.error.noModelResponse',
-        status: 'error',
-        timestamp: Date.now()
-      })
-    }
-
-    const totalTokens = state.promptTokens + completionTokens
-    const generationTime = Date.now() - (state.firstTokenTime ?? state.startTime)
-    const tokensPerSecond = completionTokens / (generationTime / 1000)
-    const contextUsage = state?.totalUsage?.context_length
-      ? (totalTokens / state.totalUsage.context_length) * 100
-      : 0
-
-    // 如果有reasoning_content，记录结束时间
-    const metadata: Partial<MESSAGE_METADATA> = {
-      totalTokens,
-      inputTokens: state.promptTokens,
-      outputTokens: completionTokens,
-      generationTime,
-      firstTokenTime: state.firstTokenTime ? state.firstTokenTime - state.startTime : 0,
-      tokensPerSecond,
-      contextUsage
-    }
-
-    if (state.reasoningStartTime !== null && state.lastReasoningTime !== null) {
-      metadata.reasoningStartTime = state.reasoningStartTime - state.startTime
-      metadata.reasoningEndTime = state.lastReasoningTime - state.startTime
-    }
-
-    // 刷新剩余缓冲内容
-    if (state.adaptiveBuffer) {
-      await this.contentBufferManager.flushAdaptiveBuffer(eventId)
-    }
-
-    // 清理缓冲相关资源
-    this.contentBufferManager.cleanupContentBuffer(state)
-
-    // 更新消息的usage信息
-    await this.messageManager.updateMessageMetadata(eventId, metadata)
-    await this.messageManager.updateMessageStatus(eventId, 'sent')
-    await this.messageManager.editMessage(eventId, JSON.stringify(state.message.content))
-    this.generatingMessages.delete(eventId)
-
-    // 处理标题更新和会话更新
-    await this.handleConversationUpdates(state)
-
-    // 广播消息生成完成事件
-    const finalMessage = await this.messageManager.getMessage(eventId)
-    if (finalMessage) {
-      eventBus.sendToMain(CONVERSATION_EVENTS.MESSAGE_GENERATED, {
-        conversationId: finalMessage.conversationId,
-        message: finalMessage
-      })
-    }
-  }
-
-  // 处理会话更新和标题生成
-  private async handleConversationUpdates(state: GeneratingMessageState): Promise<void> {
-    const conversation = await this.conversationLifecycle.getConversation(state.conversationId)
-    let titleUpdated = false
-
-    if (conversation.is_new === 1) {
-      try {
-        this.summaryTitles(undefined, state.conversationId).then((title) => {
-          if (title) {
-            this.renameConversation(state.conversationId, title).then(() => {
-              titleUpdated = true
-            })
-          }
-        })
-      } catch (e) {
-        console.error('Failed to summarize title in main process:', e)
-      }
-    }
-
-    if (!titleUpdated) {
-      this.sqlitePresenter
-        .updateConversation(state.conversationId, {
-          updatedAt: Date.now()
-        })
-        .then(() => {
-          console.log('updated conv time', state.conversationId)
-        })
-      await this.conversationLifecycle.broadcastThreadListUpdate()
-    }
+    await this.llmGenerationManager.handleLLMAgentEnd(msg)
   }
 
   async handleLLMAgentResponse(msg: LLMAgentEventData) {
-    const currentTime = Date.now()
-    const {
-      eventId,
-      content,
-      reasoning_content,
-      tool_call_id,
-      tool_call_name,
-      tool_call_params,
-      tool_call_response,
-      maximum_tool_calls_reached,
-      tool_call_server_name,
-      tool_call_server_icons,
-      tool_call_server_description,
-      tool_call_response_raw,
-      tool_call,
-      totalUsage,
-      image_data
-    } = msg
-    const state = this.generatingMessages.get(eventId)
-    if (state) {
-      // 记录第一个token的时间
-      if (state.firstTokenTime === null && (content || reasoning_content)) {
-        state.firstTokenTime = currentTime
-        await this.messageManager.updateMessageMetadata(eventId, {
-          firstTokenTime: currentTime - state.startTime
-        })
-      }
-      if (totalUsage) {
-        state.totalUsage = totalUsage
-        state.promptTokens = totalUsage.prompt_tokens
-      }
-
-      // 处理工具调用达到最大次数的情况
-      if (maximum_tool_calls_reached) {
-        this.contentBufferManager.finalizeLastBlock(state) // 使用保护逻辑
-        state.message.content.push({
-          type: 'action',
-          content: 'common.error.maximumToolCallsReached',
-          status: 'success',
-          timestamp: currentTime,
-          action_type: 'maximum_tool_calls_reached',
-          tool_call: {
-            id: tool_call_id,
-            name: tool_call_name,
-            params: tool_call_params,
-            server_name: tool_call_server_name,
-            server_icons: tool_call_server_icons,
-            server_description: tool_call_server_description
-          },
-          extra: {
-            needContinue: true
-          }
-        })
-        await this.messageManager.editMessage(eventId, JSON.stringify(state.message.content))
-        return
-      }
-
-      // 处理reasoning_content的时间戳
-      if (reasoning_content) {
-        if (state.reasoningStartTime === null) {
-          state.reasoningStartTime = currentTime
-          await this.messageManager.updateMessageMetadata(eventId, {
-            reasoningStartTime: currentTime - state.startTime
-          })
-        }
-        state.lastReasoningTime = currentTime
-      }
-
-      const lastBlock = state.message.content[state.message.content.length - 1]
-
-      // 检查tool_call_response_raw中是否包含搜索结果
-      if (tool_call_response_raw && tool_call === 'end') {
-        try {
-          // 检查返回的内容中是否有deepchat-webpage类型的资源
-          // 确保content是数组才调用some方法
-          const hasSearchResults =
-            Array.isArray(tool_call_response_raw.content) &&
-            tool_call_response_raw.content.some(
-              (item: { type: string; resource?: { mimeType: string } }) =>
-                item?.type === 'resource' &&
-                item?.resource?.mimeType === 'application/deepchat-webpage'
-            )
-
-          if (hasSearchResults && Array.isArray(tool_call_response_raw.content)) {
-            // 解析搜索结果
-            const searchResults = tool_call_response_raw.content
-              .filter(
-                (item: {
-                  type: string
-                  resource?: { mimeType: string; text: string; uri?: string }
-                }) =>
-                  item.type === 'resource' &&
-                  item.resource?.mimeType === 'application/deepchat-webpage'
-              )
-              .map((item: { resource: { text: string; uri?: string } }) => {
-                try {
-                  const blobContent = JSON.parse(item.resource.text) as {
-                    title?: string
-                    url?: string
-                    content?: string
-                    icon?: string
-                  }
-                  return {
-                    title: blobContent.title || '',
-                    url: blobContent.url || item.resource.uri || '',
-                    content: blobContent.content || '',
-                    description: blobContent.content || '',
-                    icon: blobContent.icon || ''
-                  }
-                } catch (e) {
-                  console.error('解析搜索结果失败:', e)
-                  return null
-                }
-              })
-              .filter(Boolean)
-
-            if (searchResults.length > 0) {
-              const searchId = nanoid()
-              const pages = searchResults
-                .filter((item) => item && (item.icon || item.favicon))
-                .slice(0, 6)
-                .map((item) => ({
-                  url: item?.url ?? '',
-                  icon: item?.icon || item?.favicon || ''
-                }))
-
-              const searchBlock: AssistantMessageBlock = {
-                id: searchId,
-                type: 'search',
-                content: '',
-                status: 'success',
-                timestamp: currentTime,
-                extra: {
-                  total: searchResults.length,
-                  searchId,
-                  pages,
-                  label: tool_call_name || 'web_search',
-                  name: tool_call_name || 'web_search',
-                  engine: tool_call_server_name || undefined,
-                  provider: tool_call_server_name || undefined
-                }
-              }
-
-              this.contentBufferManager.finalizeLastBlock(state)
-              state.message.content.push(searchBlock)
-
-              for (const result of searchResults) {
-                await this.sqlitePresenter.addMessageAttachment(
-                  eventId,
-                  'search_result',
-                  JSON.stringify({
-                    title: result?.title || '',
-                    url: result?.url || '',
-                    content: result?.content || '',
-                    description: result?.description || '',
-                    icon: result?.icon || result?.favicon || '',
-                    rank: typeof result?.rank === 'number' ? result.rank : undefined,
-                    searchId
-                  })
-                )
-              }
-
-              await this.messageManager.editMessage(eventId, JSON.stringify(state.message.content))
-            }
-          }
-        } catch (error) {
-          console.error('处理搜索结果时出错:', error)
-        }
-      }
-
-      // 处理工具调用
-      if (tool_call) {
-        if (tool_call === 'start') {
-          // 创建新的工具调用块
-          this.contentBufferManager.finalizeLastBlock(state) // 使用保护逻辑
-          state.message.content.push({
-            type: 'tool_call',
-            content: '',
-            status: 'loading',
-            timestamp: currentTime,
-            tool_call: {
-              id: tool_call_id,
-              name: tool_call_name,
-              params: tool_call_params || '',
-              server_name: tool_call_server_name,
-              server_icons: tool_call_server_icons,
-              server_description: tool_call_server_description
-            }
-          })
-        } else if (tool_call === 'update') {
-          // 更新工具调用参数
-          const toolCallBlock = state.message.content.find(
-            (block) =>
-              block.type === 'tool_call' &&
-              block.tool_call?.id === tool_call_id &&
-              block.status === 'loading'
-          )
-
-          if (toolCallBlock && toolCallBlock.type === 'tool_call' && toolCallBlock.tool_call) {
-            toolCallBlock.tool_call.params = tool_call_params || ''
-          }
-        } else if (tool_call === 'running') {
-          // 工具调用正在执行
-          const toolCallBlock = state.message.content.find(
-            (block) =>
-              block.type === 'tool_call' &&
-              block.tool_call?.id === tool_call_id &&
-              block.status === 'loading'
-          )
-
-          if (toolCallBlock && toolCallBlock.type === 'tool_call') {
-            // 保持 loading 状态，但更新工具信息
-            if (toolCallBlock.tool_call) {
-              toolCallBlock.tool_call.params = tool_call_params || ''
-              toolCallBlock.tool_call.server_name = tool_call_server_name
-              toolCallBlock.tool_call.server_icons = tool_call_server_icons
-              toolCallBlock.tool_call.server_description = tool_call_server_description
-            }
-          }
-        } else if (tool_call === 'permission-required') {
-          // 处理权限请求：创建权限请求块
-          // 注意：不调用finalizeLastBlock，因为工具调用还没有完成，在等待权限
-
-          // 从 msg 中获取权限请求信息
-          const { permission_request } = msg
-
-          state.message.content.push({
-            type: 'action',
-            action_type: 'tool_call_permission',
-            content:
-              typeof tool_call_response === 'string'
-                ? tool_call_response
-                : 'Permission required for this operation',
-            status: 'pending',
-            timestamp: currentTime,
-            tool_call: {
-              id: tool_call_id,
-              name: tool_call_name,
-              params: tool_call_params || '',
-              server_name: tool_call_server_name,
-              server_icons: tool_call_server_icons,
-              server_description: tool_call_server_description
-            },
-            extra: {
-              permissionType: permission_request?.permissionType || 'write',
-              serverName: permission_request?.serverName || tool_call_server_name || '',
-              toolName: permission_request?.toolName || tool_call_name || '',
-              needsUserAction: true,
-              permissionRequest: JSON.stringify(
-                permission_request || {
-                  toolName: tool_call_name || '',
-                  serverName: tool_call_server_name || '',
-                  permissionType: 'write' as const,
-                  description: 'Permission required for this operation'
-                }
-              )
-            }
-          })
-        } else if (tool_call === 'end' || tool_call === 'error') {
-          // 查找对应的工具调用块
-          const toolCallBlock = state.message.content.find(
-            (block) =>
-              block.type === 'tool_call' &&
-              ((tool_call_id && block.tool_call?.id === tool_call_id) ||
-                block.tool_call?.name === tool_call_name) &&
-              block.status === 'loading'
-          )
-
-          if (toolCallBlock && toolCallBlock.type === 'tool_call') {
-            if (tool_call === 'error') {
-              toolCallBlock.status = 'error'
-              if (toolCallBlock.tool_call) {
-                if (typeof tool_call_response === 'string') {
-                  toolCallBlock.tool_call.response = tool_call_response || '执行失败'
-                } else {
-                  toolCallBlock.tool_call.response = JSON.stringify(tool_call_response)
-                }
-              }
-            } else {
-              toolCallBlock.status = 'success'
-              if (toolCallBlock.tool_call) {
-                if (typeof tool_call_response === 'string') {
-                  toolCallBlock.tool_call.response = tool_call_response
-                } else {
-                  toolCallBlock.tool_call.response = JSON.stringify(tool_call_response)
-                }
-              }
-            }
-          }
-        }
-      } else if (image_data) {
-        // 处理图像数据
-        this.contentBufferManager.finalizeLastBlock(state) // 使用保护逻辑
-        state.message.content.push({
-          type: 'image',
-          content: 'image',
-          status: 'success',
-          timestamp: currentTime,
-          image_data: image_data
-        })
-      } else if (content) {
-        // 简化的直接内容处理
-        await this.contentBufferManager.processContentDirectly(
-          state.message.id,
-          content,
-          currentTime
-        )
-      }
-
-      // 处理推理内容
-      if (reasoning_content) {
-        if (lastBlock && lastBlock.type === 'reasoning_content') {
-          lastBlock.content += reasoning_content
-          if (lastBlock.reasoning_time) {
-            lastBlock.reasoning_time.end = currentTime
-          }
-        } else {
-          this.contentBufferManager.finalizeLastBlock(state) // 使用保护逻辑
-          state.message.content.push({
-            type: 'reasoning_content',
-            content: reasoning_content,
-            status: 'loading',
-            reasoning_time: {
-              start: currentTime,
-              end: currentTime
-            },
-            timestamp: currentTime
-          })
-        }
-      }
-
-      // 更新消息内容
-      await this.messageManager.editMessage(eventId, JSON.stringify(state.message.content))
-    }
-    eventBus.sendToRenderer(STREAM_EVENTS.RESPONSE, SendTarget.ALL_WINDOWS, msg)
+    await this.llmGenerationManager.handleLLMAgentResponse(msg)
   }
 
-  setSearchAssistantModel(model: MODEL_META, providerId: string) {
-    this.searchAssistantModel = model
-    this.searchAssistantProviderId = providerId
-  }
   async getSearchEngines(): Promise<SearchEngineTemplate[]> {
     return this.searchManager.getEngines()
   }
@@ -739,32 +239,11 @@ export class ThreadPresenter implements IThreadPresenter {
 
   async getContextMessages(conversationId: string): Promise<Message[]> {
     const conversation = await this.getConversation(conversationId)
-    // 计算需要获取的消息数量（假设每条消息平均300字）
     let messageCount = Math.ceil(conversation.settings.contextLength / 300)
     if (messageCount < 2) {
       messageCount = 2
     }
-    const messages = await this.messageManager.getContextMessages(conversationId, messageCount)
-
-    // 确保消息列表以用户消息开始
-    while (messages.length > 0 && messages[0].role !== 'user') {
-      messages.shift()
-    }
-
-    return messages.map((msg) => {
-      if (msg.role === 'user') {
-        const newMsg = { ...msg }
-        const msgContent = newMsg.content as UserMessageContent
-        if (msgContent.content) {
-          ;(newMsg.content as UserMessageContent).text = formatUserMessageContent(
-            msgContent.content
-          )
-        }
-        return newMsg
-      } else {
-        return msg
-      }
-    })
+    return this.messageManager.getContextMessages(conversationId, messageCount)
   }
 
   async clearContext(conversationId: string): Promise<void> {
@@ -892,25 +371,7 @@ export class ThreadPresenter implements IThreadPresenter {
    * @returns 历史消息列表，按时间正序排列
    */
   private async getMessageHistory(messageId: string, limit: number = 100): Promise<Message[]> {
-    const message = await this.messageManager.getMessage(messageId)
-    if (!message) {
-      throw new Error('找不到指定的消息')
-    }
-
-    const { list: messages } = await this.messageManager.getMessageThread(
-      message.conversationId,
-      1,
-      limit * 2
-    )
-
-    // 找到目标消息在列表中的位置
-    const targetIndex = messages.findIndex((msg) => msg.id === messageId)
-    if (targetIndex === -1) {
-      return [message]
-    }
-
-    // 返回目标消息之前的消息（包括目标消息）
-    return messages.slice(Math.max(0, targetIndex - limit + 1), targetIndex + 1)
+    return this.messageManager.getMessageHistory(messageId, limit)
   }
 
   private async rewriteUserSearchQuery(

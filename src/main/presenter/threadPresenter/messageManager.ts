@@ -14,6 +14,7 @@ import {
   UserMessageMentionBlock,
   UserMessageCodeBlock
 } from '@shared/chat'
+import { formatUserMessageContent } from './messageContent'
 import { eventBus, SendTarget } from '@/eventbus'
 import { CONVERSATION_EVENTS } from '@/events'
 
@@ -227,28 +228,60 @@ export class MessageManager implements IMessageManager {
     })
   }
 
-  async getContextMessages(conversationId: string, messageCount: number): Promise<Message[]> {
+  async getContextMessages(
+    conversationId: string,
+    messageCount: number,
+    { ensureUserStart = true, normalizeUserText = true } = {}
+  ): Promise<Message[]> {
     const sqliteMessages = await this.sqlitePresenter.queryMessages(conversationId)
 
-    // 按创建时间和序号倒序排序
     const messages = sqliteMessages
       .sort((a, b) => {
-        // 首先按创建时间倒序排序
         const timeCompare = b.created_at - a.created_at
         if (timeCompare !== 0) return timeCompare
-        // 如果创建时间相同，按序号倒序排序
         return b.order_seq - a.order_seq
       })
-      .slice(0, messageCount) // 只取需要的消息数量
+      .slice(0, messageCount)
       .sort((a, b) => {
-        // 再次按正序排序以保持对话顺序
         const timeCompare = a.created_at - b.created_at
         if (timeCompare !== 0) return timeCompare
         return a.order_seq - b.order_seq
       })
       .map((msg) => this.convertToMessage(msg))
 
+    if (ensureUserStart) {
+      while (messages.length > 0 && messages[0].role !== 'user') {
+        messages.shift()
+      }
+    }
+
+    if (normalizeUserText) {
+      return messages.map((msg) => {
+        if (msg.role !== 'user') {
+          return msg
+        }
+        const normalized = { ...msg }
+        const userContent = normalized.content as UserMessageContent
+        if (userContent?.content) {
+          ;(normalized.content as UserMessageContent).text = formatUserMessageContent(
+            userContent.content
+          )
+        }
+        return normalized
+      })
+    }
+
     return messages
+  }
+
+  async getMessageHistory(messageId: string, limit: number = 100): Promise<Message[]> {
+    const message = await this.getMessage(messageId)
+    const { list: messages } = await this.getMessageThread(message.conversationId, 1, limit * 2)
+    const targetIndex = messages.findIndex((msg) => msg.id === messageId)
+    if (targetIndex === -1) {
+      return [message]
+    }
+    return messages.slice(Math.max(0, targetIndex - limit + 1), targetIndex + 1)
   }
 
   async getLastUserMessage(conversationId: string): Promise<Message | null> {
