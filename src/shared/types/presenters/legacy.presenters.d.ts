@@ -227,6 +227,7 @@ export interface ITabPresenter {
   getActiveTabId(windowId: number): Promise<number | undefined>
   getTabIdByWebContentsId(webContentsId: number): number | undefined
   getWindowIdByWebContentsId(webContentsId: number): number | undefined
+  getTabWindowId(tabId: number): number | undefined
   reorderTabs(windowId: number, tabIds: number[]): Promise<boolean>
   moveTabToNewWindow(tabId: number, screenX?: number, screenY?: number): Promise<boolean>
   captureTabArea(

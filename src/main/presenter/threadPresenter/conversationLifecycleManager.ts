@@ -86,7 +86,7 @@ export class ConversationLifecycleManager {
       if (!tabView) {
         return 'unknown'
       }
-      const windowId = presenter.tabPresenter['tabWindowMap'].get(tabId)
+      const windowId = presenter.tabPresenter.getTabWindowId(tabId)
       return windowId ? 'main' : 'floating'
     } catch (error) {
       console.error('Error determining tab window type:', error)
@@ -264,7 +264,7 @@ export class ConversationLifecycleManager {
     }
 
     if (tabId !== undefined) {
-      const windowId = presenter.tabPresenter['tabWindowMap'].get(tabId)
+      const windowId = presenter.tabPresenter.getTabWindowId(tabId)
       eventBus.sendToRenderer(TAB_EVENTS.TITLE_UPDATED, SendTarget.ALL_WINDOWS, {
         tabId,
         conversationId,

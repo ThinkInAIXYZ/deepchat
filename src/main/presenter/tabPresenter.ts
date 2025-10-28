@@ -484,6 +484,10 @@ export class TabPresenter implements ITabPresenter {
     return tabId ? this.tabWindowMap.get(tabId) : undefined
   }
 
+  getTabWindowId(tabId: number): number | undefined {
+    return this.tabWindowMap.get(tabId)
+  }
+
   /**
    * 通知渲染进程更新标签列表
    */
