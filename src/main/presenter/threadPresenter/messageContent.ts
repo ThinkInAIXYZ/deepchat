@@ -47,6 +47,27 @@ function truncateFileContent(content: string): string {
   return `${content.slice(0, FILE_CONTENT_MAX_CHARS)}${FILE_CONTENT_TRUNCATION_SUFFIX}`
 }
 
+function escapeTagContent(value: string): string {
+  return String(value).replace(/[&<>\u0000-\u001F]/g, (ch) => {
+    switch (ch) {
+      case '&':
+        return '&amp;'
+      case '<':
+        return '&lt;'
+      case '>':
+        return '&gt;'
+      case '\n':
+        return '&#10;'
+      case '\r':
+        return '&#13;'
+      case '\t':
+        return '&#9;'
+      default:
+        return ''
+    }
+  })
+}
+
 export type UserMessageRichBlock =
   | UserMessageTextBlock
   | UserMessageMentionBlock
@@ -73,13 +94,15 @@ export function formatUserMessageContent(msgContentBlock: UserMessageRichBlock[]
               const messageTexts = promptData.messages
                 .map(extractPromptMessageText)
                 .filter((text) => text)
-                .join('\n')
-              return `@${block.id} <prompts>${messageTexts || block.content}</prompts>`
+              const escapedContent = messageTexts.length
+                ? messageTexts.map(escapeTagContent).join('\n')
+                : escapeTagContent(block.content ?? '')
+              return `@${block.id} <prompts>${escapedContent}</prompts>`
             }
           } catch (e) {
             console.warn('Failed to parse prompt content:', e)
           }
-          return `@${block.id} <prompts>${block.content}</prompts>`
+          return `@${block.id} <prompts>${escapeTagContent(block.content ?? '')}</prompts>`
         }
         return `@${block.id}`
       } else if (block.type === 'text') {

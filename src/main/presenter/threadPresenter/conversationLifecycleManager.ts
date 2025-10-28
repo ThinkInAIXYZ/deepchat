@@ -191,40 +191,35 @@ export class ConversationLifecycleManager {
         }
       })
 
-      const mergedSettings = { ...defaultSettings, ...sanitizedSettings }
+      const mergedSettings = { ...defaultSettings }
+
+      const previewSettings = { ...mergedSettings, ...sanitizedSettings }
 
       const defaultModelsSettings = this.configPresenter.getModelConfig(
-        mergedSettings.modelId,
-        mergedSettings.providerId
+        previewSettings.modelId,
+        previewSettings.providerId
       )
 
       if (defaultModelsSettings) {
-        mergedSettings.maxTokens = defaultModelsSettings.maxTokens
-        mergedSettings.contextLength = defaultModelsSettings.contextLength
+        if (defaultModelsSettings.maxTokens !== undefined) {
+          mergedSettings.maxTokens = defaultModelsSettings.maxTokens
+        }
+        if (defaultModelsSettings.contextLength !== undefined) {
+          mergedSettings.contextLength = defaultModelsSettings.contextLength
+        }
         mergedSettings.temperature = defaultModelsSettings.temperature ?? 0.7
-        if (sanitizedSettings.thinkingBudget === undefined) {
+        if (
+          sanitizedSettings.thinkingBudget === undefined &&
+          defaultModelsSettings.thinkingBudget !== undefined
+        ) {
           mergedSettings.thinkingBudget = defaultModelsSettings.thinkingBudget
         }
       }
 
-      if (sanitizedSettings.artifacts !== undefined) {
-        mergedSettings.artifacts = sanitizedSettings.artifacts
-      }
+      Object.assign(mergedSettings, sanitizedSettings)
 
-      if (sanitizedSettings.maxTokens !== undefined) {
-        mergedSettings.maxTokens = sanitizedSettings.maxTokens
-      }
-
-      if (sanitizedSettings.temperature !== undefined && sanitizedSettings.temperature !== null) {
-        mergedSettings.temperature = sanitizedSettings.temperature
-      }
-
-      if (sanitizedSettings.contextLength !== undefined) {
-        mergedSettings.contextLength = sanitizedSettings.contextLength
-      }
-
-      if (sanitizedSettings.systemPrompt) {
-        mergedSettings.systemPrompt = sanitizedSettings.systemPrompt
+      if (mergedSettings.temperature === undefined || mergedSettings.temperature === null) {
+        mergedSettings.temperature = defaultModelsSettings?.temperature ?? 0.7
       }
 
       const conversationId = await this.sqlitePresenter.createConversation(title, mergedSettings)

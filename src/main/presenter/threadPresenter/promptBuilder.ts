@@ -9,6 +9,7 @@ import {
   ChatMessage,
   ChatMessageContent
 } from '../../../shared/presenter'
+import type { MCPToolDefinition } from '../../../shared/presenter'
 import { ContentEnricher } from './contentEnricher'
 import { buildUserMessageContext, getNormalizedUserMessageText } from './messageContent'
 import { generateSearchPrompt } from './searchManager'
@@ -70,9 +71,18 @@ export async function preparePromptContent({
     !isImageGeneration && finalSystemPrompt ? approximateTokenSize(finalSystemPrompt) : 0
   const userMessageTokens = approximateTokenSize(userContent + enrichedUserMessage)
 
-  const mcpTools = !isImageGeneration
-    ? await presenter.mcpPresenter.getAllToolDefinitions(enabledMcpTools)
-    : []
+  let mcpTools: MCPToolDefinition[] = []
+  if (!isImageGeneration) {
+    try {
+      const toolDefinitions = await presenter.mcpPresenter.getAllToolDefinitions(enabledMcpTools)
+      if (Array.isArray(toolDefinitions)) {
+        mcpTools = toolDefinitions
+      }
+    } catch (error) {
+      console.warn('ThreadPresenter: Failed to load MCP tool definitions', error)
+      mcpTools = []
+    }
+  }
   const mcpToolsTokens = mcpTools.reduce(
     (acc, tool) => acc + approximateTokenSize(JSON.stringify(tool)),
     0
@@ -305,7 +315,7 @@ function addContextMessages(
     contextMessages.forEach((msg) => {
       if (msg.role === 'user') {
         const msgContent = msg.content as VisionUserMessageContent
-        const userContext = buildUserMessageContext(msgContent)
+        const normalizedText = getNormalizedUserMessageText(msgContent)
         if (vision && msgContent.images && msgContent.images.length > 0) {
           resultMessages.push({
             role: 'user',
@@ -314,13 +324,13 @@ function addContextMessages(
                 type: 'image_url' as const,
                 image_url: { url: image, detail: 'auto' as const }
               })),
-              { type: 'text' as const, text: userContext }
+              { type: 'text' as const, text: normalizedText }
             ]
           })
         } else {
           resultMessages.push({
             role: 'user',
-            content: userContext
+            content: normalizedText
           })
         }
       } else if (msg.role === 'assistant') {
@@ -372,7 +382,7 @@ function addContextMessages(
   contextMessages.forEach((msg) => {
     if (msg.role === 'user') {
       const msgContent = msg.content as VisionUserMessageContent
-      const userContext = buildUserMessageContext(msgContent)
+      const normalizedText = getNormalizedUserMessageText(msgContent)
       if (vision && msgContent.images && msgContent.images.length > 0) {
         resultMessages.push({
           role: 'user',
@@ -381,13 +391,13 @@ function addContextMessages(
               type: 'image_url' as const,
               image_url: { url: image, detail: 'auto' as const }
             })),
-            { type: 'text' as const, text: userContext }
+            { type: 'text' as const, text: normalizedText }
           ]
         })
       } else {
         resultMessages.push({
           role: 'user',
-          content: userContext
+          content: normalizedText
         })
       }
     } else if (msg.role === 'assistant') {
