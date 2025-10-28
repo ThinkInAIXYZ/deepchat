@@ -10,7 +10,7 @@ import {
   ChatMessageContent
 } from '../../../shared/presenter'
 import { ContentEnricher } from './contentEnricher'
-import { buildUserMessageContext } from './messageContent'
+import { buildUserMessageContext, getNormalizedUserMessageText } from './messageContent'
 import { generateSearchPrompt } from './searchManager'
 
 type PendingToolCall = { id: string; name: string; params: string }
@@ -220,7 +220,7 @@ function selectContextMessages(
 
     const msgContent = msg.role === 'user' ? (msg.content as UserMessageContent) : null
     const msgTokens = approximateTokenSize(
-      msgContent ? buildUserMessageContext(msgContent) : JSON.stringify(msg.content)
+      msgContent ? getNormalizedUserMessageText(msgContent) : JSON.stringify(msg.content)
     )
 
     if (currentLength + msgTokens <= remainingContextLength) {
@@ -266,7 +266,7 @@ function formatMessagesForCompletion(
   }
 
   if (artifacts === 1) {
-    console.log('artifacts目前由mcp提供，此处为兼容性保留')
+    console.debug('Artifacts are provided by MCP; this is a backward-compatibility placeholder')
   }
 
   if (vision && imageFiles.length > 0) {

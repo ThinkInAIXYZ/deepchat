@@ -6,6 +6,47 @@ import type {
   UserMessageTextBlock
 } from '@shared/chat'
 
+const FILE_CONTENT_MAX_CHARS = 8000
+const FILE_CONTENT_TRUNCATION_SUFFIX = '…(truncated)'
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null
+}
+
+function isTextBlock(content: unknown): content is { type: 'text'; text: string } {
+  return isRecord(content) && content.type === 'text' && typeof content.text === 'string'
+}
+
+function extractPromptMessageText(message: unknown): string {
+  if (!isRecord(message)) {
+    return ''
+  }
+
+  const content = message.content
+
+  if (typeof content === 'string') {
+    return content
+  }
+
+  if (isTextBlock(content)) {
+    return content.text
+  }
+
+  if (isRecord(content) && typeof content.type === 'string') {
+    return `[${content.type}]`
+  }
+
+  return '[content]'
+}
+
+function truncateFileContent(content: string): string {
+  if (content.length <= FILE_CONTENT_MAX_CHARS) {
+    return content
+  }
+
+  return `${content.slice(0, FILE_CONTENT_MAX_CHARS)}${FILE_CONTENT_TRUNCATION_SUFFIX}`
+}
+
 export type UserMessageRichBlock =
   | UserMessageTextBlock
   | UserMessageMentionBlock
@@ -28,22 +69,15 @@ export function formatUserMessageContent(msgContentBlock: UserMessageRichBlock[]
         } else if (block.category === 'prompts') {
           try {
             const promptData = JSON.parse(block.content)
-            if (promptData && Array.isArray(promptData.messages)) {
+            if (isRecord(promptData) && Array.isArray(promptData.messages)) {
               const messageTexts = promptData.messages
-                .map((msg: any) => {
-                  if (typeof msg.content === 'string') {
-                    return msg.content
-                  } else if (msg.content && msg.content.type === 'text') {
-                    return msg.content.text
-                  }
-                  return `[${msg.content?.type || 'content'}]`
-                })
-                .filter(Boolean)
+                .map(extractPromptMessageText)
+                .filter((text) => text)
                 .join('\n')
               return `@${block.id} <prompts>${messageTexts || block.content}</prompts>`
             }
           } catch (e) {
-            console.log('解析prompt内容失败:', e)
+            console.warn('Failed to parse prompt content:', e)
           }
           return `@${block.id} <prompts>${block.content}</prompts>`
         }
@@ -72,7 +106,9 @@ export function getFileContext(files?: MessageFile[]): string {
       <mimeType>${file.mimeType ?? ''}</mimeType>
       <size>${file.metadata?.fileSize ?? 0}</size>
       <content>${
-        file.mimeType && !file.mimeType.startsWith('image') ? (file.content ?? '') : ''
+        file.mimeType && !file.mimeType.startsWith('image')
+          ? truncateFileContent(String(file.content ?? ''))
+          : ''
       }</content>
     </file>`
       )

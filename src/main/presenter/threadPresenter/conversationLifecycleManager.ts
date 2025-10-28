@@ -155,10 +155,12 @@ export class ConversationLifecycleManager {
     tabId: number,
     options: CreateConversationOptions = {}
   ): Promise<string> {
-    const latestConversation = await this.getLatestConversation()
+    let latestConversation: CONVERSATION | null = null
 
-    if (!options.forceNewAndActivate) {
-      if (latestConversation) {
+    try {
+      latestConversation = await this.getLatestConversation()
+
+      if (!options.forceNewAndActivate && latestConversation) {
         const { list: messages } = await this.messageManager.getMessageThread(
           latestConversation.id,
           1,
@@ -169,74 +171,87 @@ export class ConversationLifecycleManager {
           return latestConversation.id
         }
       }
-    }
 
-    let defaultSettings = DEFAULT_SETTINGS
-    if (latestConversation?.settings) {
-      defaultSettings = { ...latestConversation.settings }
-      defaultSettings.systemPrompt = ''
-      defaultSettings.reasoningEffort = undefined
-      defaultSettings.enableSearch = undefined
-      defaultSettings.forcedSearch = undefined
-      defaultSettings.searchStrategy = undefined
-    }
-
-    Object.keys(settings).forEach((key) => {
-      if (settings[key] === undefined || settings[key] === null || settings[key] === '') {
-        delete settings[key]
+      let defaultSettings = DEFAULT_SETTINGS
+      if (latestConversation?.settings) {
+        defaultSettings = { ...latestConversation.settings }
+        defaultSettings.systemPrompt = ''
+        defaultSettings.reasoningEffort = undefined
+        defaultSettings.enableSearch = undefined
+        defaultSettings.forcedSearch = undefined
+        defaultSettings.searchStrategy = undefined
       }
-    })
 
-    const mergedSettings = { ...defaultSettings, ...settings }
-
-    const defaultModelsSettings = this.configPresenter.getModelConfig(
-      mergedSettings.modelId,
-      mergedSettings.providerId
-    )
-
-    if (defaultModelsSettings) {
-      mergedSettings.maxTokens = defaultModelsSettings.maxTokens
-      mergedSettings.contextLength = defaultModelsSettings.contextLength
-      mergedSettings.temperature = defaultModelsSettings.temperature ?? 0.7
-      if (settings.thinkingBudget === undefined) {
-        mergedSettings.thinkingBudget = defaultModelsSettings.thinkingBudget
-      }
-    }
-
-    if (settings.artifacts !== undefined) {
-      mergedSettings.artifacts = settings.artifacts
-    }
-
-    if (settings.maxTokens !== undefined) {
-      mergedSettings.maxTokens = settings.maxTokens
-    }
-
-    if (settings.temperature !== undefined && settings.temperature !== null) {
-      mergedSettings.temperature = settings.temperature
-    }
-
-    if (settings.contextLength !== undefined) {
-      mergedSettings.contextLength = settings.contextLength
-    }
-
-    if (settings.systemPrompt) {
-      mergedSettings.systemPrompt = settings.systemPrompt
-    }
-
-    const conversationId = await this.sqlitePresenter.createConversation(title, mergedSettings)
-
-    if (options.forceNewAndActivate) {
-      this.activeConversationIds.set(tabId, conversationId)
-      eventBus.sendToRenderer(CONVERSATION_EVENTS.ACTIVATED, SendTarget.ALL_WINDOWS, {
-        conversationId,
-        tabId
+      const sanitizedSettings: Partial<CONVERSATION_SETTINGS> = { ...settings }
+      Object.keys(sanitizedSettings).forEach((key) => {
+        const typedKey = key as keyof CONVERSATION_SETTINGS
+        const value = sanitizedSettings[typedKey]
+        if (value === undefined || value === null || value === '') {
+          delete sanitizedSettings[typedKey]
+        }
       })
-    } else {
-      await this.setActiveConversation(conversationId, tabId)
-    }
 
-    await this.broadcastThreadListUpdate()
-    return conversationId
+      const mergedSettings = { ...defaultSettings, ...sanitizedSettings }
+
+      const defaultModelsSettings = this.configPresenter.getModelConfig(
+        mergedSettings.modelId,
+        mergedSettings.providerId
+      )
+
+      if (defaultModelsSettings) {
+        mergedSettings.maxTokens = defaultModelsSettings.maxTokens
+        mergedSettings.contextLength = defaultModelsSettings.contextLength
+        mergedSettings.temperature = defaultModelsSettings.temperature ?? 0.7
+        if (sanitizedSettings.thinkingBudget === undefined) {
+          mergedSettings.thinkingBudget = defaultModelsSettings.thinkingBudget
+        }
+      }
+
+      if (sanitizedSettings.artifacts !== undefined) {
+        mergedSettings.artifacts = sanitizedSettings.artifacts
+      }
+
+      if (sanitizedSettings.maxTokens !== undefined) {
+        mergedSettings.maxTokens = sanitizedSettings.maxTokens
+      }
+
+      if (sanitizedSettings.temperature !== undefined && sanitizedSettings.temperature !== null) {
+        mergedSettings.temperature = sanitizedSettings.temperature
+      }
+
+      if (sanitizedSettings.contextLength !== undefined) {
+        mergedSettings.contextLength = sanitizedSettings.contextLength
+      }
+
+      if (sanitizedSettings.systemPrompt) {
+        mergedSettings.systemPrompt = sanitizedSettings.systemPrompt
+      }
+
+      const conversationId = await this.sqlitePresenter.createConversation(title, mergedSettings)
+
+      if (options.forceNewAndActivate) {
+        this.activeConversationIds.set(tabId, conversationId)
+        eventBus.sendToRenderer(CONVERSATION_EVENTS.ACTIVATED, SendTarget.ALL_WINDOWS, {
+          conversationId,
+          tabId
+        })
+      } else {
+        await this.setActiveConversation(conversationId, tabId)
+      }
+
+      await this.broadcastThreadListUpdate()
+      return conversationId
+    } catch (error) {
+      console.error('ThreadPresenter: Failed to create conversation', {
+        title,
+        tabId,
+        options,
+        latestConversationId: latestConversation?.id,
+        errorMessage: error instanceof Error ? error.message : String(error),
+        errorStack: error instanceof Error ? error.stack : undefined
+      })
+      throw error
+    }
   }
 
   async renameConversation(conversationId: string, title: string): Promise<CONVERSATION> {
