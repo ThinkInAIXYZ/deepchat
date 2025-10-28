@@ -320,28 +320,6 @@ export class ThreadPresenter implements IThreadPresenter {
     } = msg
     const state = this.generatingMessages.get(eventId)
     if (state) {
-      // 使用保护逻辑
-      const finalizeLastBlock = () => {
-        const lastBlock =
-          state.message.content.length > 0
-            ? state.message.content[state.message.content.length - 1]
-            : undefined
-        if (lastBlock) {
-          if (
-            lastBlock.type === 'action' &&
-            lastBlock.action_type === 'tool_call_permission' &&
-            lastBlock.status === 'pending'
-          ) {
-            lastBlock.status = 'granted'
-            return
-          }
-          // 只有当上一个块不是一个正在等待结果的工具调用时，才将其标记为成功
-          if (!(lastBlock.type === 'tool_call' && lastBlock.status === 'loading')) {
-            lastBlock.status = 'success'
-          }
-        }
-      }
-
       // 记录第一个token的时间
       if (state.firstTokenTime === null && (content || reasoning_content)) {
         state.firstTokenTime = currentTime
@@ -356,7 +334,7 @@ export class ThreadPresenter implements IThreadPresenter {
 
       // 处理工具调用达到最大次数的情况
       if (maximum_tool_calls_reached) {
-        finalizeLastBlock() // 使用保护逻辑
+        this.contentBufferManager.finalizeLastBlock(state) // 使用保护逻辑
         state.message.content.push({
           type: 'action',
           content: 'common.error.maximumToolCallsReached',
@@ -465,7 +443,7 @@ export class ThreadPresenter implements IThreadPresenter {
                 }
               }
 
-              finalizeLastBlock()
+              this.contentBufferManager.finalizeLastBlock(state)
               state.message.content.push(searchBlock)
 
               for (const result of searchResults) {
@@ -496,7 +474,7 @@ export class ThreadPresenter implements IThreadPresenter {
       if (tool_call) {
         if (tool_call === 'start') {
           // 创建新的工具调用块
-          finalizeLastBlock() // 使用保护逻辑
+          this.contentBufferManager.finalizeLastBlock(state) // 使用保护逻辑
           state.message.content.push({
             type: 'tool_call',
             content: '',
@@ -614,7 +592,7 @@ export class ThreadPresenter implements IThreadPresenter {
         }
       } else if (image_data) {
         // 处理图像数据
-        finalizeLastBlock() // 使用保护逻辑
+        this.contentBufferManager.finalizeLastBlock(state) // 使用保护逻辑
         state.message.content.push({
           type: 'image',
           content: 'image',
@@ -639,7 +617,7 @@ export class ThreadPresenter implements IThreadPresenter {
             lastBlock.reasoning_time.end = currentTime
           }
         } else {
-          finalizeLastBlock() // 使用保护逻辑
+          this.contentBufferManager.finalizeLastBlock(state) // 使用保护逻辑
           state.message.content.push({
             type: 'reasoning_content',
             content: reasoning_content,

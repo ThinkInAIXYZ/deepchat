@@ -1,6 +1,8 @@
 import { eventBus, SendTarget } from '@/eventbus'
 import { STREAM_EVENTS } from '@/events'
 
+import { finalizeAssistantMessageBlocks } from '@shared/chat/messageBlocks'
+
 import type { MessageManager } from './messageManager'
 import type { GeneratingMessageState } from './types'
 
@@ -55,27 +57,7 @@ export class ContentBufferManager {
   }
 
   finalizeLastBlock(state: GeneratingMessageState): void {
-    const lastBlock =
-      state.message.content.length > 0
-        ? state.message.content[state.message.content.length - 1]
-        : undefined
-
-    if (!lastBlock) {
-      return
-    }
-
-    if (
-      lastBlock.type === 'action' &&
-      lastBlock.action_type === 'tool_call_permission' &&
-      lastBlock.status === 'pending'
-    ) {
-      lastBlock.status = 'granted'
-      return
-    }
-
-    if (!(lastBlock.type === 'tool_call' && lastBlock.status === 'loading')) {
-      lastBlock.status = 'success'
-    }
+    finalizeAssistantMessageBlocks(state.message.content)
   }
 
   async processContentDirectly(
