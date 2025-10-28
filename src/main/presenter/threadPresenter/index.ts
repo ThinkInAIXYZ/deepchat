@@ -12,7 +12,6 @@ import {
   ILlmProviderPresenter,
   MCPToolResponse,
   ChatMessage,
-  ChatMessageContent,
   LLMAgentEventData
 } from '../../../shared/presenter'
 import { presenter } from '@/presenter'
@@ -25,54 +24,30 @@ import {
   SearchEngineTemplate,
   UserMessage,
   MessageFile,
-  UserMessageContent,
-  UserMessageTextBlock,
-  UserMessageMentionBlock,
-  UserMessageCodeBlock
+  UserMessageContent
 } from '@shared/chat'
-import { ModelType } from '@shared/model'
 import { approximateTokenSize } from 'tokenx'
-import { generateSearchPrompt, SearchManager } from './searchManager'
-import { getFileContext } from './fileContext'
+import { SearchManager } from './searchManager'
 import { ContentEnricher } from './contentEnricher'
 import { CONVERSATION_EVENTS, STREAM_EVENTS, TAB_EVENTS } from '@/events'
-import { DEFAULT_SETTINGS } from './const'
 import { nanoid } from 'nanoid'
-
-interface GeneratingMessageState {
-  message: AssistantMessage
-  conversationId: string
-  startTime: number
-  firstTokenTime: number | null
-  promptTokens: number
-  reasoningStartTime: number | null
-  reasoningEndTime: number | null
-  lastReasoningTime: number | null
-  isSearching?: boolean
-  isCancelled?: boolean
-  totalUsage?: {
-    prompt_tokens: number
-    completion_tokens: number
-    total_tokens: number
-    context_length: number
-  }
-  // 统一的自适应内容处理
-  adaptiveBuffer?: {
-    content: string
-    lastUpdateTime: number
-    updateCount: number
-    totalSize: number
-    isLargeContent: boolean
-    chunks?: string[]
-    currentChunkIndex?: number
-    // 精确追踪已发送内容的位置
-    sentPosition: number // 已发送到渲染器的内容位置
-    isProcessing?: boolean
-  }
-  flushTimeout?: NodeJS.Timeout
-  throttleTimeout?: NodeJS.Timeout
-  lastRendererUpdateTime?: number
-}
+import { ContentBufferManager } from './contentBufferManager'
+import {
+  buildUserMessageContext,
+  formatUserMessageContent,
+  getNormalizedUserMessageText
+} from './messageContent'
+import { preparePromptContent, buildContinueToolCallContext } from './promptBuilder'
+import {
+  buildConversationExportContent,
+  generateExportFilename,
+  ConversationExportFormat
+} from './conversationExporter'
+import {
+  ConversationLifecycleManager,
+  CreateConversationOptions
+} from './conversationLifecycleManager'
+import type { GeneratingMessageState } from './types'
 
 export class ThreadPresenter implements IThreadPresenter {
   private sqlitePresenter: ISQLitePresenter
@@ -81,11 +56,11 @@ export class ThreadPresenter implements IThreadPresenter {
   private configPresenter: IConfigPresenter
   private searchManager: SearchManager
   private generatingMessages: Map<string, GeneratingMessageState> = new Map()
+  private contentBufferManager: ContentBufferManager
+  private conversationLifecycle: ConversationLifecycleManager
   public searchAssistantModel: MODEL_META | null = null
   public searchAssistantProviderId: string | null = null
   private searchingMessages: Set<string> = new Set()
-  private activeConversationIds: Map<number, string> = new Map()
-  private fetchThreadLength: number = 300
 
   constructor(
     sqlitePresenter: ISQLitePresenter,
@@ -97,16 +72,26 @@ export class ThreadPresenter implements IThreadPresenter {
     this.llmProviderPresenter = llmProviderPresenter
     this.searchManager = new SearchManager()
     this.configPresenter = configPresenter
+    this.contentBufferManager = new ContentBufferManager({
+      messageManager: this.messageManager,
+      generatingMessages: this.generatingMessages
+    })
+    this.conversationLifecycle = new ConversationLifecycleManager({
+      sqlitePresenter,
+      configPresenter,
+      messageManager: this.messageManager
+    })
 
     // 监听Tab关闭事件，清理绑定关系
     eventBus.on(TAB_EVENTS.CLOSED, (tabId: number) => {
-      if (this.activeConversationIds.has(tabId)) {
-        this.activeConversationIds.delete(tabId)
+      const activeConversationId = this.conversationLifecycle.getActiveConversationId(tabId)
+      if (activeConversationId) {
+        this.conversationLifecycle.clearActiveConversation(tabId, { notify: true })
         console.log(`ThreadPresenter: Cleaned up conversation binding for closed tab ${tabId}.`)
       }
     })
     eventBus.on(TAB_EVENTS.RENDERER_TAB_READY, () => {
-      this.broadcastThreadListUpdate()
+      this.conversationLifecycle.broadcastThreadListUpdate()
     })
 
     // 初始化时处理所有未完成的消息
@@ -119,30 +104,7 @@ export class ThreadPresenter implements IThreadPresenter {
    * @returns 如果找到，返回tabId，否则返回null
    */
   async findTabForConversation(conversationId: string): Promise<number | null> {
-    for (const [tabId, activeId] of this.activeConversationIds.entries()) {
-      if (activeId === conversationId) {
-        // 验证该tab是否还真实存在
-        const tabView = await presenter.tabPresenter.getTab(tabId)
-        if (tabView && !tabView.webContents.isDestroyed()) {
-          return tabId
-        }
-      }
-    }
-    return null
-  }
-
-  private async getTabWindowType(tabId: number): Promise<'floating' | 'main' | 'unknown'> {
-    try {
-      const tabView = await presenter.tabPresenter.getTab(tabId)
-      if (!tabView) {
-        return 'unknown'
-      }
-      const windowId = presenter.tabPresenter['tabWindowMap'].get(tabId)
-      return windowId ? 'main' : 'floating'
-    } catch (error) {
-      console.error('Error determining tab window type:', error)
-      return 'unknown'
-    }
+    return this.conversationLifecycle.findTabForConversation(conversationId)
   }
 
   async handleLLMAgentError(msg: LLMAgentEventData) {
@@ -151,11 +113,11 @@ export class ThreadPresenter implements IThreadPresenter {
     if (state) {
       // 刷新剩余缓冲内容
       if (state.adaptiveBuffer) {
-        await this.flushAdaptiveBuffer(eventId)
+        await this.contentBufferManager.flushAdaptiveBuffer(eventId)
       }
 
       // 清理缓冲相关资源
-      this.cleanupContentBuffer(state)
+      this.contentBufferManager.cleanupContentBuffer(state)
 
       await this.messageManager.handleMessageError(eventId, String(error))
       this.generatingMessages.delete(eventId)
@@ -204,20 +166,6 @@ export class ThreadPresenter implements IThreadPresenter {
     }
 
     eventBus.sendToRenderer(STREAM_EVENTS.END, SendTarget.ALL_WINDOWS, msg)
-  }
-
-  // 清理所有缓冲相关资源
-  private cleanupContentBuffer(state: GeneratingMessageState): void {
-    if (state.flushTimeout) {
-      clearTimeout(state.flushTimeout)
-      state.flushTimeout = undefined
-    }
-    if (state.throttleTimeout) {
-      clearTimeout(state.throttleTimeout)
-      state.throttleTimeout = undefined
-    }
-    state.adaptiveBuffer = undefined
-    state.lastRendererUpdateTime = undefined
   }
 
   // 完成消息的通用方法
@@ -295,11 +243,11 @@ export class ThreadPresenter implements IThreadPresenter {
 
     // 刷新剩余缓冲内容
     if (state.adaptiveBuffer) {
-      await this.flushAdaptiveBuffer(eventId)
+      await this.contentBufferManager.flushAdaptiveBuffer(eventId)
     }
 
     // 清理缓冲相关资源
-    this.cleanupContentBuffer(state)
+    this.contentBufferManager.cleanupContentBuffer(state)
 
     // 更新消息的usage信息
     await this.messageManager.updateMessageMetadata(eventId, metadata)
@@ -322,7 +270,7 @@ export class ThreadPresenter implements IThreadPresenter {
 
   // 处理会话更新和标题生成
   private async handleConversationUpdates(state: GeneratingMessageState): Promise<void> {
-    const conversation = await this.sqlitePresenter.getConversation(state.conversationId)
+    const conversation = await this.conversationLifecycle.getConversation(state.conversationId)
     let titleUpdated = false
 
     if (conversation.is_new === 1) {
@@ -347,233 +295,9 @@ export class ThreadPresenter implements IThreadPresenter {
         .then(() => {
           console.log('updated conv time', state.conversationId)
         })
-      await this.broadcastThreadListUpdate()
+      await this.conversationLifecycle.broadcastThreadListUpdate()
     }
   }
-
-  // 释放缓冲的内容
-
-  // 统一的自适应内容刷新
-  private async flushAdaptiveBuffer(eventId: string): Promise<void> {
-    const state = this.generatingMessages.get(eventId)
-    if (!state?.adaptiveBuffer) return
-
-    const buffer = state.adaptiveBuffer
-    const now = Date.now()
-
-    // 清理超时
-    if (state.flushTimeout) {
-      clearTimeout(state.flushTimeout)
-      state.flushTimeout = undefined
-    }
-
-    // 处理缓冲的内容 - 只发送从 sentPosition 开始的新内容
-    if (buffer.content && buffer.sentPosition < buffer.content.length) {
-      const newContent = buffer.content.slice(buffer.sentPosition)
-      if (newContent) {
-        await this.processBufferedContent(eventId, newContent, now)
-        // 更新已发送位置
-        buffer.sentPosition = buffer.content.length
-      }
-    }
-
-    // 清理缓冲
-    state.adaptiveBuffer = undefined
-  }
-
-  // 优化的自适应内容处理 - 核心逻辑 (当前未使用)
-  // private async addToAdaptiveBuffer(eventId: string, content: string): Promise<void> {
-  //   // 方法保留以备将来使用
-  // }
-
-  // 分块大内容 - 使用更小的分块避免UI阻塞
-  private splitLargeContent(content: string): string[] {
-    const chunks: string[] = []
-    let maxChunkSize = 4096 // 默认4KB
-
-    // 对于图片base64内容，使用非常小的分块
-    if (content.includes('data:image/')) {
-      maxChunkSize = 512 // 图片内容使用512字节分块
-    }
-
-    // 对于超长内容，进一步减小分块
-    if (content.length > 50000) {
-      maxChunkSize = Math.min(maxChunkSize, 256)
-    }
-
-    for (let i = 0; i < content.length; i += maxChunkSize) {
-      chunks.push(content.slice(i, i + maxChunkSize))
-    }
-
-    return chunks
-  }
-
-  // 智能判断是否需要分块处理 - 优化阈值判断
-  private shouldSplitContent(content: string): boolean {
-    const sizeThreshold = 8192 // 8KB - 适中的阈值
-    const hasBase64Image = content.includes('data:image/') && content.includes('base64,')
-    const hasLargeBase64 = hasBase64Image && content.length > 5120 // 图片内容超过5KB才分块
-
-    return content.length > sizeThreshold || hasLargeBase64
-  }
-
-  // 处理缓冲的内容 - 优化异步处理
-  private async processBufferedContent(
-    eventId: string,
-    content: string,
-    currentTime: number
-  ): Promise<void> {
-    const state = this.generatingMessages.get(eventId)
-    if (!state) return
-
-    const buffer = state.adaptiveBuffer
-
-    // 如果是大内容，使用分块处理
-    if (buffer?.isLargeContent) {
-      await this.processLargeContentAsynchronously(eventId, content, currentTime)
-      return
-    }
-
-    // 正常内容处理
-    await this.processNormalContent(eventId, content, currentTime)
-  }
-
-  // 异步处理大内容 - 避免阻塞主进程
-  private async processLargeContentAsynchronously(
-    eventId: string,
-    content: string,
-    currentTime: number
-  ): Promise<void> {
-    const state = this.generatingMessages.get(eventId)
-    if (!state) return
-
-    const buffer = state.adaptiveBuffer
-    if (!buffer) return
-
-    // 设置处理状态
-    buffer.isProcessing = true
-
-    try {
-      // 动态分块 - 只处理传入的新增内容
-      const chunks = this.splitLargeContent(content)
-      const totalChunks = chunks.length
-
-      console.log(
-        `[ThreadPresenter] Processing ${totalChunks} chunks asynchronously for ${content.length} bytes`
-      )
-
-      // 初始化或获取内容块
-      const lastBlock = state.message.content[state.message.content.length - 1]
-      let contentBlock: any
-
-      if (lastBlock && lastBlock.type === 'content') {
-        contentBlock = lastBlock
-      } else {
-        this.finalizeLastBlock(state)
-        contentBlock = {
-          type: 'content',
-          content: '',
-          status: 'loading',
-          timestamp: currentTime
-        }
-        state.message.content.push(contentBlock)
-      }
-
-      // 批量处理分块，每次处琅5个
-      const batchSize = 5
-      for (let batchStart = 0; batchStart < chunks.length; batchStart += batchSize) {
-        const batchEnd = Math.min(batchStart + batchSize, chunks.length)
-        const batch = chunks.slice(batchStart, batchEnd)
-
-        // 合并当前批次的内容
-        const batchContent = batch.join('')
-        contentBlock.content += batchContent
-
-        // 更新数据库
-        await this.messageManager.editMessage(eventId, JSON.stringify(state.message.content))
-
-        // 发送渲染器事件
-        const eventData: any = {
-          eventId,
-          content: batchContent,
-          chunkInfo: {
-            current: batchEnd,
-            total: totalChunks,
-            isLargeContent: true,
-            batchSize: batch.length
-          }
-        }
-
-        eventBus.sendToRenderer(STREAM_EVENTS.RESPONSE, SendTarget.ALL_WINDOWS, eventData)
-
-        // 每批次之间的延迟，让出event loop
-        if (batchEnd < chunks.length) {
-          await new Promise((resolve) => setImmediate(resolve))
-        }
-      }
-
-      console.log(`[ThreadPresenter] Completed processing ${totalChunks} chunks`)
-    } catch (error) {
-      console.error('[ThreadPresenter] Error in processLargeContentAsynchronously:', error)
-    } finally {
-      // 清理处理状态
-      buffer.isProcessing = false
-    }
-  }
-
-  // 处理普通内容
-  private async processNormalContent(
-    eventId: string,
-    content: string,
-    currentTime: number
-  ): Promise<void> {
-    const state = this.generatingMessages.get(eventId)
-    if (!state) return
-
-    const lastBlock = state.message.content[state.message.content.length - 1]
-
-    if (lastBlock && lastBlock.type === 'content') {
-      lastBlock.content += content
-    } else {
-      this.finalizeLastBlock(state)
-      state.message.content.push({
-        type: 'content',
-        content: content,
-        status: 'loading',
-        timestamp: currentTime
-      })
-    }
-
-    // 只更新数据库，不额外发送到渲染器（避免重复发送）
-    await this.messageManager.editMessage(eventId, JSON.stringify(state.message.content))
-  }
-
-  // 完成最后一个块的状态
-  private finalizeLastBlock(state: GeneratingMessageState): void {
-    const lastBlock =
-      state.message.content.length > 0
-        ? state.message.content[state.message.content.length - 1]
-        : undefined
-
-    if (lastBlock) {
-      if (
-        lastBlock.type === 'action' &&
-        lastBlock.action_type === 'tool_call_permission' &&
-        lastBlock.status === 'pending'
-      ) {
-        lastBlock.status = 'granted'
-        return
-      }
-      if (!(lastBlock.type === 'tool_call' && lastBlock.status === 'loading')) {
-        lastBlock.status = 'success'
-      }
-    }
-  }
-
-  // 统一的数据库和渲染器更新 (当前未使用)
-  // private async updateMessageAndRenderer(eventId: string, content: string, currentTime: number, chunkInfo?: any): Promise<void> {
-  //   // 方法保留以备将来使用
-  // }
 
   async handleLLMAgentResponse(msg: LLMAgentEventData) {
     const currentTime = Date.now()
@@ -900,7 +624,11 @@ export class ThreadPresenter implements IThreadPresenter {
         })
       } else if (content) {
         // 简化的直接内容处理
-        await this.processContentDirectly(state.message.id, content, currentTime)
+        await this.contentBufferManager.processContentDirectly(
+          state.message.id,
+          content,
+          currentTime
+        )
       }
 
       // 处理推理内容
@@ -969,255 +697,58 @@ export class ThreadPresenter implements IThreadPresenter {
   }
 
   async renameConversation(conversationId: string, title: string): Promise<CONVERSATION> {
-    await this.sqlitePresenter.renameConversation(conversationId, title)
-    await this.broadcastThreadListUpdate() // 必须广播
-
-    const conversation = await this.getConversation(conversationId)
-
-    // 新增：找到与此 conversationId 关联的 tabId
-    let tabId: number | undefined
-    for (const [key, value] of this.activeConversationIds.entries()) {
-      if (value === conversationId) {
-        tabId = key
-        break
-      }
-    }
-
-    // 新增：发出事件通知UI更新标题
-    if (tabId !== undefined) {
-      const windowId = presenter.tabPresenter['tabWindowMap'].get(tabId)
-      eventBus.sendToRenderer(TAB_EVENTS.TITLE_UPDATED, SendTarget.ALL_WINDOWS, {
-        tabId,
-        conversationId,
-        title: conversation.title,
-        windowId // 附带 windowId
-      })
-    }
-
-    return conversation
+    return this.conversationLifecycle.renameConversation(conversationId, title)
   }
   async createConversation(
     title: string,
     settings: Partial<CONVERSATION_SETTINGS> = {},
     tabId: number,
-    options: { forceNewAndActivate?: boolean } = {} // 新增参数，允许强制创建新会话
+    options: CreateConversationOptions = {} // 新增参数，允许强制创建新会话
   ): Promise<string> {
     console.log('createConversation', title, settings)
-
-    const latestConversation = await this.getLatestConversation()
-
-    // 只有在非强制模式下，才执行空会话的单例检查
-    if (!options.forceNewAndActivate) {
-      if (latestConversation) {
-        const { list: messages } = await this.getMessages(latestConversation.id, 1, 1)
-        if (messages.length === 0) {
-          await this.setActiveConversation(latestConversation.id, tabId)
-          return latestConversation.id
-        }
-      }
-    }
-
-    let defaultSettings = DEFAULT_SETTINGS
-    if (latestConversation?.settings) {
-      defaultSettings = { ...latestConversation.settings }
-      defaultSettings.systemPrompt = ''
-      defaultSettings.reasoningEffort = undefined
-      defaultSettings.enableSearch = undefined
-      defaultSettings.forcedSearch = undefined
-      defaultSettings.searchStrategy = undefined
-    }
-    Object.keys(settings).forEach((key) => {
-      if (settings[key] === undefined || settings[key] === null || settings[key] === '') {
-        delete settings[key]
-      }
-    })
-    const mergedSettings = { ...defaultSettings, ...settings }
-    const defaultModelsSettings = this.configPresenter.getModelConfig(
-      mergedSettings.modelId,
-      mergedSettings.providerId
-    )
-    if (defaultModelsSettings) {
-      mergedSettings.maxTokens = defaultModelsSettings.maxTokens
-      mergedSettings.contextLength = defaultModelsSettings.contextLength
-      mergedSettings.temperature = defaultModelsSettings.temperature ?? 0.7
-      if (settings.thinkingBudget === undefined) {
-        mergedSettings.thinkingBudget = defaultModelsSettings.thinkingBudget
-      }
-    }
-    if (settings.artifacts) {
-      mergedSettings.artifacts = settings.artifacts
-    }
-    if (settings.maxTokens) {
-      mergedSettings.maxTokens = settings.maxTokens
-    }
-    if (settings.temperature !== undefined && settings.temperature !== null) {
-      mergedSettings.temperature = settings.temperature
-    }
-    if (settings.contextLength) {
-      mergedSettings.contextLength = settings.contextLength
-    }
-    if (settings.systemPrompt) {
-      mergedSettings.systemPrompt = settings.systemPrompt
-    }
-    const conversationId = await this.sqlitePresenter.createConversation(title, mergedSettings)
-
-    // 根据 forceNewAndActivate 标志决定激活行为
-    if (options.forceNewAndActivate) {
-      // 强制模式：直接为当前 tabId 激活新会话，不进行任何检查
-      this.activeConversationIds.set(tabId, conversationId)
-      eventBus.sendToRenderer(CONVERSATION_EVENTS.ACTIVATED, SendTarget.ALL_WINDOWS, {
-        conversationId,
-        tabId
-      })
-    } else {
-      // 默认模式：保持原有的、防止重复打开的激活逻辑
-      await this.setActiveConversation(conversationId, tabId)
-    }
-
-    await this.broadcastThreadListUpdate() // 必须广播
-    return conversationId
+    return this.conversationLifecycle.createConversation(title, settings, tabId, options)
   }
 
   async deleteConversation(conversationId: string): Promise<void> {
-    await this.sqlitePresenter.deleteConversation(conversationId)
-
-    // 作为兜底，确保所有与此会话相关的绑定都被移除
-    for (const [tabId, activeId] of this.activeConversationIds.entries()) {
-      if (activeId === conversationId) {
-        this.activeConversationIds.delete(tabId)
-      }
-    }
-
-    await this.broadcastThreadListUpdate() // 必须广播
+    await this.conversationLifecycle.deleteConversation(conversationId)
   }
 
   async getConversation(conversationId: string): Promise<CONVERSATION> {
-    return await this.sqlitePresenter.getConversation(conversationId)
+    return this.conversationLifecycle.getConversation(conversationId)
   }
 
   async toggleConversationPinned(conversationId: string, pinned: boolean): Promise<void> {
-    await this.sqlitePresenter.updateConversation(conversationId, { is_pinned: pinned ? 1 : 0 })
-    await this.broadcastThreadListUpdate() // 必须广播
+    await this.conversationLifecycle.toggleConversationPinned(conversationId, pinned)
   }
 
   async updateConversationTitle(conversationId: string, title: string): Promise<void> {
-    await this.sqlitePresenter.updateConversation(conversationId, { title })
-    await this.broadcastThreadListUpdate() // 必须广播
+    await this.conversationLifecycle.updateConversationTitle(conversationId, title)
   }
 
   async updateConversationSettings(
     conversationId: string,
     settings: Partial<CONVERSATION_SETTINGS>
   ): Promise<void> {
-    const conversation = await this.getConversation(conversationId)
-    const mergedSettings = { ...conversation.settings }
-    for (const key in settings) {
-      if (settings[key] !== undefined) {
-        mergedSettings[key] = settings[key]
-      }
-    }
-    console.log('updateConversationSettings', mergedSettings)
-    // 检查是否有 modelId 的变化
-    if (settings.modelId && settings.modelId !== conversation.settings.modelId) {
-      // 获取模型配置
-      const modelConfig = this.configPresenter.getModelConfig(
-        mergedSettings.modelId,
-        mergedSettings.providerId
-      )
-      console.log('check model default config', modelConfig)
-      if (modelConfig) {
-        // 如果当前设置小于推荐值，则使用推荐值
-        mergedSettings.maxTokens = modelConfig.maxTokens
-        mergedSettings.contextLength = modelConfig.contextLength
-      }
-    }
-
-    await this.sqlitePresenter.updateConversation(conversationId, { settings: mergedSettings })
-    await this.broadcastThreadListUpdate() // 必须广播
+    await this.conversationLifecycle.updateConversationSettings(conversationId, settings)
   }
 
   async getConversationList(
     page: number,
     pageSize: number
   ): Promise<{ total: number; list: CONVERSATION[] }> {
-    return await this.sqlitePresenter.getConversationList(page, pageSize)
+    return this.conversationLifecycle.getConversationList(page, pageSize)
   }
 
   async loadMoreThreads(): Promise<{ hasMore: boolean; total: number }> {
-    // 获取会话总数
-    const total = await this.sqlitePresenter.getConversationCount()
-
-    // 检查是否还有更多会话可以加载
-    const hasMore = this.fetchThreadLength < total
-
-    if (hasMore) {
-      // 增加 fetchThreadLength，每次增加 500
-      this.fetchThreadLength = Math.min(this.fetchThreadLength + 300, total)
-
-      // 广播更新的会话列表
-      await this.broadcastThreadListUpdate()
-    }
-
-    return { hasMore: this.fetchThreadLength < total, total }
+    return this.conversationLifecycle.loadMoreThreads()
   }
 
   async setActiveConversation(conversationId: string, tabId: number): Promise<void> {
-    // 【核心修正】由主进程负责全部决策（防重和自动切换逻辑）
-    const existingTabId = await this.findTabForConversation(conversationId)
-
-    // 如果会话已在其他Tab打开，并且不是当前Tab，则切换到那个Tab
-    if (existingTabId !== null && existingTabId !== tabId) {
-      console.log(
-        `Conversation ${conversationId} is already open in tab ${existingTabId}. Switching to it.`
-      )
-      // 命令TabPresenter切换到已存在的Tab
-      const currentTabType = await this.getTabWindowType(tabId)
-      const existingTabType = await this.getTabWindowType(existingTabId)
-      if (currentTabType !== existingTabType) {
-        this.activeConversationIds.delete(existingTabId)
-        eventBus.sendToRenderer(CONVERSATION_EVENTS.DEACTIVATED, SendTarget.ALL_WINDOWS, {
-          tabId: existingTabId
-        })
-        this.activeConversationIds.set(tabId, conversationId)
-        eventBus.sendToRenderer(CONVERSATION_EVENTS.ACTIVATED, SendTarget.ALL_WINDOWS, {
-          conversationId,
-          tabId
-        })
-        return
-      } else {
-        await presenter.tabPresenter.switchTab(existingTabId)
-        // 注意：这里不应该再为 requesting tab (即 tabId) 设置 activeConversationId
-        // 也不需要发送ACTIVATED事件，因为tab-session的绑定关系没有改变。
-        // switchTab 自身会处理UI的激活。
-        return
-      }
-    }
-
-    // 如果会话未在其他Tab打开，或者是请求激活当前Tab已绑定的会话，则正常执行绑定
-    const conversation = await this.getConversation(conversationId)
-    if (conversation) {
-      // 检查当前Tab是否已经绑定了这个会话，避免不必要的事件广播
-      if (this.activeConversationIds.get(tabId) === conversationId) {
-        return // 状态未改变，无需操作
-      }
-
-      this.activeConversationIds.set(tabId, conversationId)
-      // 广播事件，通知所有渲染进程UI更新
-      eventBus.sendToRenderer(CONVERSATION_EVENTS.ACTIVATED, SendTarget.ALL_WINDOWS, {
-        conversationId,
-        tabId
-      })
-    } else {
-      throw new Error(`Conversation ${conversationId} not found`)
-    }
+    await this.conversationLifecycle.setActiveConversation(conversationId, tabId)
   }
 
   async getActiveConversation(tabId: number): Promise<CONVERSATION | null> {
-    const conversationId = this.activeConversationIds.get(tabId)
-    if (!conversationId) {
-      return null
-    }
-    return this.getConversation(conversationId)
+    return this.conversationLifecycle.getActiveConversation(tabId)
   }
 
   async getMessages(
@@ -1247,7 +778,7 @@ export class ThreadPresenter implements IThreadPresenter {
         const newMsg = { ...msg }
         const msgContent = newMsg.content as UserMessageContent
         if (msgContent.content) {
-          ;(newMsg.content as UserMessageContent).text = this.formatUserMessageContent(
+          ;(newMsg.content as UserMessageContent).text = formatUserMessageContent(
             msgContent.content
           )
         }
@@ -1256,57 +787,6 @@ export class ThreadPresenter implements IThreadPresenter {
         return msg
       }
     })
-  }
-
-  private formatUserMessageContent(
-    msgContentBlock: (UserMessageTextBlock | UserMessageMentionBlock | UserMessageCodeBlock)[]
-  ) {
-    return msgContentBlock
-      .map((block) => {
-        if (block.type === 'mention') {
-          if (block.category === 'resources') {
-            return `@${block.content}`
-          } else if (block.category === 'tools') {
-            return `@${block.id}`
-          } else if (block.category === 'files') {
-            return `@${block.id}`
-          } else if (block.category === 'prompts') {
-            try {
-              // 尝试解析prompt内容
-              const promptData = JSON.parse(block.content)
-              // 如果包含messages数组，尝试提取其中的文本内容
-              if (promptData && Array.isArray(promptData.messages)) {
-                const messageTexts = promptData.messages
-                  .map((msg) => {
-                    if (typeof msg.content === 'string') {
-                      return msg.content
-                    } else if (msg.content && msg.content.type === 'text') {
-                      return msg.content.text
-                    } else {
-                      // 对于其他类型的内容（如图片等），返回空字符串或特定标记
-                      return `[${msg.content?.type || 'content'}]`
-                    }
-                  })
-                  .filter(Boolean)
-                  .join('\n')
-                return `@${block.id} <prompts>${messageTexts || block.content}</prompts>`
-              }
-            } catch (e) {
-              // 如果解析失败，直接返回原始内容
-              console.log('解析prompt内容失败:', e)
-            }
-            // 默认返回原内容
-            return `@${block.id} <prompts>${block.content}</prompts>`
-          }
-          return `@${block.id}`
-        } else if (block.type === 'text') {
-          return block.content
-        } else if (block.type === 'code') {
-          return `\`\`\`${block.content}\`\`\``
-        }
-        return ''
-      })
-      .join('')
   }
 
   async clearContext(conversationId: string): Promise<void> {
@@ -1565,7 +1045,7 @@ export class ThreadPresenter implements IThreadPresenter {
         provider: engineName
       }
     }
-    this.finalizeLastBlock(state)
+    this.contentBufferManager.finalizeLastBlock(state)
     state.message.content.push(searchBlock)
     await this.messageManager.editMessage(messageId, JSON.stringify(state.message.content))
     // 标记消息为搜索状态
@@ -1581,7 +1061,8 @@ export class ThreadPresenter implements IThreadPresenter {
         .map((msg) => {
           if (msg.role === 'user') {
             const content = msg.content as UserMessageContent
-            return `user: ${content.text}${getFileContext(content.files)}`
+            const userContext = buildUserMessageContext(content)
+            return `user: ${userContext}`
           } else if (msg.role === 'assistant') {
             let finalContent = 'assistant: '
             const content = msg.content as AssistantMessageBlock[]
@@ -1808,17 +1289,18 @@ export class ThreadPresenter implements IThreadPresenter {
       this.throwIfCancelled(state.message.id)
 
       // 4. 准备提示内容
-      const { finalContent, promptTokens } = await this.preparePromptContent(
+      const { finalContent, promptTokens } = await preparePromptContent({
         conversation,
         userContent,
         contextMessages,
         searchResults,
         urlResults,
         userMessage,
-        vision,
-        vision ? imageFiles : [],
-        modelConfig.functionCall
-      )
+        vision: Boolean(vision),
+        imageFiles: vision ? imageFiles : [],
+        supportsFunctionCall: modelConfig.functionCall,
+        modelType: modelConfig.type
+      })
 
       // 检查是否已被取消
       this.throwIfCancelled(state.message.id)
@@ -1976,17 +1458,18 @@ export class ThreadPresenter implements IThreadPresenter {
       } = conversation.settings
       const modelConfig = this.configPresenter.getModelConfig(modelId, providerId)
 
-      const { finalContent, promptTokens } = await this.preparePromptContent(
+      const { finalContent, promptTokens } = await preparePromptContent({
         conversation,
-        'continue',
+        userContent: 'continue',
         contextMessages,
-        null, // 不进行搜索
-        [], // 没有 URL 结果
+        searchResults: null, // 不进行搜索
+        urlResults: [], // 没有 URL 结果
         userMessage,
-        false,
-        [], // 没有图片文件
-        modelConfig.functionCall
-      )
+        vision: false,
+        imageFiles: [], // 没有图片文件
+        supportsFunctionCall: modelConfig.functionCall,
+        modelType: modelConfig.type
+      })
 
       // 8. 更新生成状态
       await this.updateGenerationState(state, promptTokens)
@@ -2162,7 +1645,7 @@ export class ThreadPresenter implements IThreadPresenter {
     if (userMessage.role === 'user') {
       const msgContent = userMessage.content as UserMessageContent
       if (msgContent.content && !msgContent.text) {
-        msgContent.text = this.formatUserMessageContent(msgContent.content)
+        msgContent.text = formatUserMessageContent(msgContent.content)
       }
     }
 
@@ -2181,17 +1664,11 @@ export class ThreadPresenter implements IThreadPresenter {
     imageFiles: MessageFile[] // 图片文件列表
   }> {
     // 处理文本内容
-    const userContent = `
-      ${
-        userMessage.content.content
-          ? this.formatUserMessageContent(userMessage.content.content)
-          : userMessage.content.text
-      }
-      ${getFileContext(userMessage.content.files)}
-    `
+    const userContent = buildUserMessageContext(userMessage.content)
 
     // 从用户消息中提取并丰富URL内容
-    const urlResults = await ContentEnricher.extractAndEnrichUrls(userMessage.content.text)
+    const normalizedText = getNormalizedUserMessageText(userMessage.content)
+    const urlResults = await ContentEnricher.extractAndEnrichUrls(normalizedText)
 
     // 提取图片文件
 
@@ -2205,496 +1682,6 @@ export class ThreadPresenter implements IThreadPresenter {
       }) || []
 
     return { userContent, urlResults, imageFiles }
-  }
-
-  // 准备提示内容
-  private async preparePromptContent(
-    conversation: CONVERSATION,
-    userContent: string,
-    contextMessages: Message[],
-    searchResults: SearchResult[] | null,
-    urlResults: SearchResult[],
-    userMessage: Message,
-    vision: boolean,
-    imageFiles: MessageFile[],
-    supportsFunctionCall: boolean,
-    modelType?: ModelType
-  ): Promise<{
-    finalContent: ChatMessage[]
-    promptTokens: number
-  }> {
-    const { systemPrompt, contextLength, artifacts, enabledMcpTools } = conversation.settings
-
-    // 判断是否为图片生成模型
-    const isImageGeneration = modelType === ModelType.ImageGeneration
-
-    // 图片生成模型不使用搜索、系统提示词和MCP工具
-    const searchPrompt =
-      !isImageGeneration && searchResults ? generateSearchPrompt(userContent, searchResults) : ''
-    const enrichedUserMessage =
-      !isImageGeneration && urlResults.length > 0
-        ? '\n\n' + ContentEnricher.enrichUserMessageWithUrlContent(userContent, urlResults)
-        : ''
-
-    // 处理系统提示词，添加当前时间信息
-    const finalSystemPrompt = this.enhanceSystemPromptWithDateTime(systemPrompt, isImageGeneration)
-
-    // 计算token数量（使用处理后的系统提示词）
-    const searchPromptTokens = searchPrompt ? approximateTokenSize(searchPrompt ?? '') : 0
-    const systemPromptTokens =
-      !isImageGeneration && finalSystemPrompt ? approximateTokenSize(finalSystemPrompt ?? '') : 0
-    const userMessageTokens = approximateTokenSize(userContent + enrichedUserMessage)
-    // 图片生成模型不使用MCP工具
-    const mcpTools = !isImageGeneration
-      ? await presenter.mcpPresenter.getAllToolDefinitions(enabledMcpTools)
-      : []
-    const mcpToolsTokens = mcpTools.reduce(
-      (acc, tool) => acc + approximateTokenSize(JSON.stringify(tool)),
-      0
-    )
-    // 计算剩余可用的上下文长度
-    const reservedTokens =
-      searchPromptTokens + systemPromptTokens + userMessageTokens + mcpToolsTokens
-    const remainingContextLength = contextLength - reservedTokens
-
-    // 选择合适的上下文消息
-    const selectedContextMessages = this.selectContextMessages(
-      contextMessages,
-      userMessage,
-      remainingContextLength
-    )
-
-    // 格式化消息
-    const formattedMessages = this.formatMessagesForCompletion(
-      selectedContextMessages,
-      isImageGeneration ? '' : finalSystemPrompt, // 图片生成模型不使用系统提示词
-      artifacts,
-      searchPrompt,
-      userContent,
-      enrichedUserMessage,
-      imageFiles,
-      vision,
-      supportsFunctionCall
-    )
-
-    // 合并连续的相同角色消息
-    const mergedMessages = this.mergeConsecutiveMessages(formattedMessages)
-
-    // 计算prompt tokens
-    let promptTokens = 0
-    for (const msg of mergedMessages) {
-      if (typeof msg.content === 'string') {
-        promptTokens += approximateTokenSize(msg.content)
-      } else {
-        promptTokens +=
-          approximateTokenSize(msg.content?.map((item) => item.text).join('') || '') +
-          imageFiles.reduce((acc, file) => acc + file.token, 0)
-      }
-    }
-    // console.log('preparePromptContent', mergedMessages, promptTokens)
-
-    return { finalContent: mergedMessages, promptTokens }
-  }
-
-  // 选择上下文消息
-  private selectContextMessages(
-    contextMessages: Message[],
-    userMessage: Message,
-    remainingContextLength: number
-  ): Message[] {
-    if (remainingContextLength <= 0) {
-      return []
-    }
-
-    const messages = contextMessages.filter((msg) => msg.id !== userMessage?.id).reverse()
-
-    let currentLength = 0
-    const selectedMessages: Message[] = []
-
-    for (const msg of messages) {
-      if (msg.status !== 'sent') {
-        continue
-      }
-      const msgContent = msg.role === 'user' ? (msg.content as UserMessageContent) : null
-      const msgText = msgContent
-        ? msgContent.text ||
-          (msgContent.content ? this.formatUserMessageContent(msgContent.content) : '')
-        : ''
-
-      const msgTokens = approximateTokenSize(
-        msg.role === 'user'
-          ? `${msgText}${getFileContext(msgContent?.files || [])}`
-          : JSON.stringify(msg.content)
-      )
-
-      if (currentLength + msgTokens <= remainingContextLength) {
-        // 如果是用户消息且有 content 但没有 text，添加 text
-        if (msg.role === 'user') {
-          const userMsgContent = msg.content as UserMessageContent
-          if (userMsgContent.content && !userMsgContent.text) {
-            userMsgContent.text = this.formatUserMessageContent(userMsgContent.content)
-          }
-        }
-
-        selectedMessages.unshift(msg)
-        currentLength += msgTokens
-      } else {
-        break
-      }
-    }
-    while (selectedMessages.length > 0 && selectedMessages[0].role !== 'user') {
-      selectedMessages.shift()
-    }
-    return selectedMessages
-  }
-
-  // 格式化消息用于完成
-  private formatMessagesForCompletion(
-    contextMessages: Message[],
-    systemPrompt: string,
-    artifacts: number,
-    searchPrompt: string,
-    userContent: string,
-    enrichedUserMessage: string,
-    imageFiles: MessageFile[],
-    vision: boolean,
-    supportsFunctionCall: boolean
-  ): ChatMessage[] {
-    const formattedMessages: ChatMessage[] = []
-
-    // 添加上下文消息
-    formattedMessages.push(
-      ...this.addContextMessages(contextMessages, vision, supportsFunctionCall)
-    )
-
-    // 添加系统提示
-    if (systemPrompt) {
-      // formattedMessages.push(...this.addSystemPrompt(formattedMessages, systemPrompt, artifacts))
-      formattedMessages.unshift({
-        role: 'system',
-        content: systemPrompt
-      })
-      // console.log('-------------> system prompt \n', systemPrompt, artifacts, formattedMessages)
-    }
-
-    // 添加当前用户消息
-    let finalContent = searchPrompt || userContent
-
-    if (enrichedUserMessage) {
-      finalContent += enrichedUserMessage
-    }
-
-    if (artifacts === 1) {
-      // formattedMessages.push({
-      //   role: 'user',
-      //   content: ARTIFACTS_PROMPT
-      // })
-      console.log('artifacts目前由mcp提供，此处为兼容性保留')
-    }
-    // 没有 vision 就不用塞进去了
-    if (vision && imageFiles.length > 0) {
-      formattedMessages.push(this.addImageFiles(finalContent, imageFiles))
-    } else {
-      formattedMessages.push({
-        role: 'user',
-        content: finalContent.trim()
-      })
-    }
-
-    return formattedMessages
-  }
-
-  private addImageFiles(finalContent: string, imageFiles: MessageFile[]): ChatMessage {
-    return {
-      role: 'user',
-      content: [
-        ...imageFiles.map((file) => ({
-          type: 'image_url' as const,
-          image_url: { url: file.content, detail: 'auto' as const }
-        })),
-        { type: 'text' as const, text: finalContent.trim() }
-      ]
-    }
-  }
-
-  // 添加上下文消息
-  private addContextMessages(
-    contextMessages: Message[],
-    vision: boolean,
-    supportsFunctionCall: boolean
-  ): ChatMessage[] {
-    const resultMessages = [] as ChatMessage[]
-
-    // 对于原生fc模型，支持正确的tool_call response history插入
-    if (supportsFunctionCall) {
-      contextMessages.forEach((msg) => {
-        if (msg.role === 'user') {
-          // 处理用户消息
-          const msgContent = msg.content as UserMessageContent
-          const msgText = msgContent.content
-            ? this.formatUserMessageContent(msgContent.content)
-            : msgContent.text
-          const userContent = `${msgText}${getFileContext(msgContent.files)}`
-          resultMessages.push({
-            role: 'user',
-            content: userContent
-          })
-        } else if (msg.role === 'assistant') {
-          // 处理助手消息
-          let afterSearch = false
-          const assistantBlocks = msg.content as AssistantMessageBlock[]
-          for (const subMsg of assistantBlocks) {
-            if (
-              subMsg.type === 'tool_call' &&
-              subMsg?.tool_call?.id?.trim() &&
-              subMsg?.tool_call?.name?.trim() &&
-              subMsg?.tool_call?.params?.trim() &&
-              subMsg?.tool_call?.response?.trim()
-            ) {
-              resultMessages.push({
-                role: 'assistant',
-                tool_calls: [
-                  {
-                    id: subMsg.tool_call.id,
-                    type: 'function',
-                    function: {
-                      name: subMsg.tool_call.name,
-                      arguments: subMsg.tool_call.params
-                    }
-                  }
-                ]
-              })
-              resultMessages.push({
-                role: 'tool',
-                tool_call_id: subMsg.tool_call.id,
-                content: subMsg.tool_call.response
-              })
-            } else if (subMsg.type === 'search') {
-              // 删除强制搜索结果中遗留的[x]引文标记
-              afterSearch = true
-            } else if (subMsg.type === 'content') {
-              // 删除强制搜索结果中遗留的[x]引文标记
-              let content = subMsg.content ?? ''
-              if (afterSearch) content = content.replace(/\[\d+\]/g, '')
-              resultMessages.push({
-                role: 'assistant',
-                content: content
-              })
-              afterSearch = false
-            }
-          }
-        }
-      })
-      return resultMessages
-    } else {
-      // 对于非原生fc模型，支持规范化prompt实现
-      contextMessages.forEach((msg) => {
-        if (msg.role === 'user') {
-          // 处理用户消息
-          const msgContent = msg.content as UserMessageContent
-          const msgText = msgContent.content
-            ? this.formatUserMessageContent(msgContent.content)
-            : msgContent.text
-          const userContent = `${msgText}${getFileContext(msgContent.files)}`
-          resultMessages.push({
-            role: 'user',
-            content: userContent
-          })
-        } else if (msg.role === 'assistant') {
-          // 处理助手消息
-          const assistantBlocks = msg.content as AssistantMessageBlock[]
-          // 提取文本内容块，同时将工具调用的响应内容提取出来
-          let afterSearch = false
-          const textContent = assistantBlocks
-            .filter(
-              (block) =>
-                block.type === 'content' || block.type === 'search' || block.type === 'tool_call'
-            )
-            .map((block) => {
-              if (block.type === 'search') {
-                // 删除强制搜索结果中遗留的[x]引文标记
-                afterSearch = true
-                return ''
-              } else if (block.type === 'content') {
-                // 删除强制搜索结果中遗留的[x]引文标记
-                let content = block.content ?? ''
-                if (afterSearch) content = content.replace(/\[\d+\]/g, '')
-                afterSearch = false
-                return content
-              } else if (
-                block.type === 'tool_call' &&
-                block.tool_call?.response &&
-                block.tool_call?.params
-              ) {
-                let parsedParams
-                let parsedResponse
-
-                try {
-                  parsedParams = JSON.parse(block.tool_call.params)
-                } catch {
-                  parsedParams = block.tool_call.params // 保留原字符串
-                }
-
-                try {
-                  parsedResponse = JSON.parse(block.tool_call.response)
-                } catch {
-                  parsedResponse = block.tool_call.response // 保留原字符串
-                }
-
-                return (
-                  '<function_call>' +
-                  JSON.stringify({
-                    function_call_record: {
-                      name: block.tool_call.name,
-                      arguments: parsedParams,
-                      response: parsedResponse
-                    }
-                  }) +
-                  '</function_call>'
-                )
-              } else {
-                return '' // 若 tool_call 或 response、params 是 undefined 返回。只是便于调试而已，可以为空。
-              }
-            })
-            .join('\n')
-
-          // 查找图像块
-          const imageBlocks = assistantBlocks.filter(
-            (block) => block.type === 'image' && block.image_data
-          )
-
-          // 如果没有任何内容，则跳过此消息
-          if (!textContent && imageBlocks.length === 0) {
-            return
-          }
-
-          // 如果有图像，则使用复合内容格式
-          if (vision && imageBlocks.length > 0) {
-            const content: ChatMessageContent[] = []
-
-            // 添加图像内容
-            imageBlocks.forEach((block) => {
-              if (block.image_data) {
-                content.push({
-                  type: 'image_url',
-                  image_url: {
-                    url: block.image_data.data,
-                    detail: 'auto'
-                  }
-                })
-              }
-            })
-
-            // 添加文本内容
-            if (textContent) {
-              content.push({
-                type: 'text',
-                text: textContent
-              })
-            }
-
-            resultMessages.push({
-              role: 'assistant',
-              content: content
-            })
-          } else {
-            // 仅有文本内容
-            resultMessages.push({
-              role: 'assistant',
-              content: textContent
-            })
-          }
-        }
-      })
-
-      return resultMessages
-    }
-  }
-
-  // 合并连续的相同角色的content，但注意assistant下content不能跟tool_calls合并
-  private mergeConsecutiveMessages(messages: ChatMessage[]): ChatMessage[] {
-    if (!messages || messages.length === 0) {
-      return []
-    }
-
-    const mergedResult: ChatMessage[] = []
-    // 为第一条消息创建一个深拷贝并添加到结果数组
-    mergedResult.push(JSON.parse(JSON.stringify(messages[0])))
-
-    for (let i = 1; i < messages.length; i++) {
-      // 为当前消息创建一个深拷贝
-      const currentMessage = JSON.parse(JSON.stringify(messages[i])) as ChatMessage
-      const lastPushedMessage = mergedResult[mergedResult.length - 1]
-
-      let allowMessagePropertiesMerge = false // 标志是否允许消息属性（如content）合并
-
-      // 步骤 1: 判断消息本身是否允许合并（基于role和tool_calls）
-      if (lastPushedMessage.role === currentMessage.role) {
-        if (currentMessage.role === 'assistant') {
-          // Assistant消息: 仅当两条消息都【不】包含tool_calls时，才允许合并
-          if (!lastPushedMessage.tool_calls && !currentMessage.tool_calls) {
-            allowMessagePropertiesMerge = true
-          }
-        } else {
-          // 其他角色 (user, system): 如果role相同，则允许合并
-          allowMessagePropertiesMerge = true
-        }
-      }
-
-      if (allowMessagePropertiesMerge) {
-        // 步骤 2: 如果消息允许合并，尝试合并其 content 字段
-        const LMC = lastPushedMessage.content // 上一条已推送消息的内容
-        const CMC = currentMessage.content // 当前待处理消息的内容
-
-        let newCombinedContent: string | ChatMessageContent[] | undefined = undefined
-        let contentTypesCompatibleForMerging = false
-
-        if (LMC === undefined && CMC === undefined) {
-          newCombinedContent = undefined
-          contentTypesCompatibleForMerging = true
-        } else if (typeof LMC === 'string' && (typeof CMC === 'string' || CMC === undefined)) {
-          // LMC是string, CMC是string或undefined
-          const sLMC = LMC || ''
-          const sCMC = CMC || ''
-          if (sLMC && sCMC) newCombinedContent = `${sLMC}\n${sCMC}`
-          else newCombinedContent = sLMC || sCMC // 保留有内容的一方
-          if (newCombinedContent === '') newCombinedContent = undefined // 空字符串视为undefined
-          contentTypesCompatibleForMerging = true
-        } else if (Array.isArray(LMC) && (Array.isArray(CMC) || CMC === undefined)) {
-          // LMC是数组, CMC是数组或undefined
-          const arrLMC = LMC
-          const arrCMC = CMC || [] // 如果CMC是undefined, 视为空数组进行合并
-          newCombinedContent = [...arrLMC, ...arrCMC]
-          if (newCombinedContent.length === 0) newCombinedContent = undefined // 空数组视为undefined
-          contentTypesCompatibleForMerging = true
-        } else if (LMC === undefined && CMC !== undefined) {
-          // LMC是undefined, CMC有值 (string或array)
-          newCombinedContent = CMC
-          contentTypesCompatibleForMerging = true
-        } else if (LMC !== undefined && CMC === undefined) {
-          // LMC有值, CMC是undefined -> content保持LMC的值，无需改变
-          newCombinedContent = LMC
-          contentTypesCompatibleForMerging = true // 视为成功合并（当前消息内容被"吸收"）
-        }
-        // 如果LMC和CMC的类型不兼容 (例如一个是string, 另一个是array)，
-        // contentTypesCompatibleForMerging 将保持 false
-
-        if (contentTypesCompatibleForMerging) {
-          lastPushedMessage.content = newCombinedContent
-          // currentMessage 被成功合并，不需单独push
-        } else {
-          // 角色和tool_calls条件允许合并，但内容类型不兼容
-          // 因此，不合并消息，将 currentMessage 作为新消息加入
-          mergedResult.push(currentMessage)
-        }
-      } else {
-        // 角色不同，或者 assistant 消息因 tool_calls 而不允许合并
-        // 将 currentMessage 作为新消息加入
-        mergedResult.push(currentMessage)
-      }
-    }
-
-    return mergedResult
   }
 
   // 更新生成状态
@@ -2836,12 +1823,7 @@ export class ThreadPresenter implements IThreadPresenter {
   }
 
   async getActiveConversationId(tabId: number): Promise<string | null> {
-    return this.activeConversationIds.get(tabId) || null
-  }
-
-  private async getLatestConversation(): Promise<CONVERSATION | null> {
-    const result = await this.getConversationList(1, 1)
-    return result.list[0] || null
+    return this.conversationLifecycle.getActiveConversationId(tabId)
   }
 
   getGeneratingMessageState(messageId: string): GeneratingMessageState | null {
@@ -2862,11 +1844,11 @@ export class ThreadPresenter implements IThreadPresenter {
 
       // 刷新剩余缓冲内容
       if (state.adaptiveBuffer) {
-        await this.flushAdaptiveBuffer(messageId)
+        await this.contentBufferManager.flushAdaptiveBuffer(messageId)
       }
 
       // 清理缓冲相关资源
-      this.cleanupContentBuffer(state)
+      this.contentBufferManager.cleanupContentBuffer(state)
 
       // 标记消息不再处于搜索状态
       if (state.isSearching) {
@@ -2914,8 +1896,9 @@ export class ThreadPresenter implements IThreadPresenter {
   }
 
   async summaryTitles(tabId?: number, conversationId?: string): Promise<string> {
-    const targetConversationId =
-      conversationId ?? (tabId !== undefined ? this.activeConversationIds.get(tabId) : undefined)
+    const activeId =
+      tabId !== undefined ? this.conversationLifecycle.getActiveConversationId(tabId) : null
+    const targetConversationId = conversationId ?? activeId ?? undefined
     if (!targetConversationId) {
       throw new Error('找不到当前对话')
     }
@@ -2948,16 +1931,14 @@ export class ThreadPresenter implements IThreadPresenter {
     const messagesWithLength = variantAwareMessages
       .map((msg) => {
         if (msg.role === 'user') {
+          const userContent = msg.content as UserMessageContent
+          const serializedContent = buildUserMessageContext(userContent)
           return {
             message: msg,
-            length: `${(msg.content as UserMessageContent).text}${getFileContext(
-              (msg.content as UserMessageContent).files
-            )}`.length,
+            length: serializedContent.length,
             formattedMessage: {
               role: 'user' as const,
-              content: `${(msg.content as UserMessageContent).text}${getFileContext(
-                (msg.content as UserMessageContent).files
-              )}`
+              content: serializedContent
             }
           }
         } else {
@@ -2989,18 +1970,15 @@ export class ThreadPresenter implements IThreadPresenter {
   }
 
   async clearActiveThread(tabId: number): Promise<void> {
-    this.activeConversationIds.delete(tabId)
-    eventBus.sendToRenderer(CONVERSATION_EVENTS.DEACTIVATED, SendTarget.ALL_WINDOWS, { tabId })
+    this.conversationLifecycle.clearActiveConversation(tabId, { notify: true })
   }
 
   async clearAllMessages(conversationId: string): Promise<void> {
     await this.messageManager.clearAllMessages(conversationId)
     // 检查所有 tab 中的活跃会话
-    for (const [, activeId] of this.activeConversationIds.entries()) {
-      if (activeId === conversationId) {
-        // 停止所有正在生成的消息
-        await this.stopConversationGeneration(conversationId)
-      }
+    const tabs = this.conversationLifecycle.getTabsByConversation(conversationId)
+    if (tabs.length > 0) {
+      await this.stopConversationGeneration(conversationId)
     }
   }
 
@@ -3166,7 +2144,7 @@ export class ThreadPresenter implements IThreadPresenter {
       }
 
       // 7. 在所有数据库操作完成后，调用广播方法
-      await this.broadcastThreadListUpdate()
+      await this.conversationLifecycle.broadcastThreadListUpdate()
 
       // 8. 触发会话创建事件
       return newConversationId
@@ -3299,58 +2277,6 @@ export class ThreadPresenter implements IThreadPresenter {
     }
   }
 
-  private async broadcastThreadListUpdate(): Promise<void> {
-    // 1. 获取所有会话 (假设9999足够大)
-    const result = await this.sqlitePresenter.getConversationList(1, this.fetchThreadLength)
-
-    // 2. 分离置顶和非置顶会话
-    const pinnedConversations: CONVERSATION[] = []
-    const normalConversations: CONVERSATION[] = []
-
-    result.list.forEach((conv) => {
-      if (conv.is_pinned === 1) {
-        pinnedConversations.push(conv)
-      } else {
-        normalConversations.push(conv)
-      }
-    })
-
-    // 3. 对置顶会话按更新时间排序
-    pinnedConversations.sort((a, b) => b.updatedAt - a.updatedAt)
-
-    // 4. 对普通会话按更新时间排序
-    normalConversations.sort((a, b) => b.updatedAt - a.updatedAt)
-
-    // 5. 按日期分组
-    const groupedThreads: Map<string, CONVERSATION[]> = new Map()
-
-    // 先添加置顶分组（如果有置顶会话）
-    if (pinnedConversations.length > 0) {
-      groupedThreads.set('Pinned', pinnedConversations)
-    }
-
-    // 再添加普通会话的日期分组
-    normalConversations.forEach((conv) => {
-      const date = new Date(conv.updatedAt).toISOString().split('T')[0]
-      if (!groupedThreads.has(date)) {
-        groupedThreads.set(date, [])
-      }
-      groupedThreads.get(date)!.push(conv)
-    })
-
-    const finalGroupedList = Array.from(groupedThreads.entries()).map(([dt, dtThreads]) => ({
-      dt,
-      dtThreads
-    }))
-
-    // 6. 广播这个格式化好的完整列表
-    eventBus.sendToRenderer(
-      CONVERSATION_EVENTS.LIST_UPDATED,
-      SendTarget.ALL_WINDOWS,
-      finalGroupedList
-    )
-  }
-
   /**
    * 导出会话内容
    * @param conversationId 会话ID
@@ -3359,7 +2285,7 @@ export class ThreadPresenter implements IThreadPresenter {
    */
   async exportConversation(
     conversationId: string,
-    format: 'markdown' | 'html' | 'txt' = 'markdown'
+    format: ConversationExportFormat = 'markdown'
   ): Promise<{
     filename: string
     content: string
@@ -3397,561 +2323,15 @@ export class ThreadPresenter implements IThreadPresenter {
         return msg
       })
 
-      // 生成文件名 - 使用简化的时间戳格式
-      const timestamp = new Date()
-        .toISOString()
-        .replace(/[:.]/g, '-')
-        .replace('T', '_')
-        .substring(0, 19)
-      const extension = format === 'markdown' ? 'md' : format
-      const filename = `export_deepchat_${timestamp}.${extension}`
-
-      // 生成内容（在主进程中直接处理，避免Worker的复杂性）
-      let content: string
-      switch (format) {
-        case 'markdown':
-          content = this.exportToMarkdown(conversation, variantAwareMessages)
-          break
-        case 'html':
-          content = this.exportToHtml(conversation, variantAwareMessages)
-          break
-        case 'txt':
-          content = this.exportToText(conversation, variantAwareMessages)
-          break
-        default:
-          throw new Error(`不支持的导出格式: ${format}`)
-      }
+      // 生成文件名
+      const filename = generateExportFilename(format)
+      const content = buildConversationExportContent(conversation, variantAwareMessages, format)
 
       return { filename, content }
     } catch (error) {
       console.error('Failed to export conversation:', error)
       throw error
     }
-  }
-
-  /**
-   * 导出为 Markdown 格式
-   */
-  private exportToMarkdown(conversation: CONVERSATION, messages: Message[]): string {
-    const lines: string[] = []
-
-    // 标题和元信息
-    lines.push(`# ${conversation.title}`)
-    lines.push('')
-    lines.push(`**Export Time:** ${new Date().toLocaleString()}`)
-    lines.push(`**Conversation ID:** ${conversation.id}`)
-    lines.push(`**Message Count:** ${messages.length}`)
-    if (conversation.settings.modelId) {
-      lines.push(`**Model:** ${conversation.settings.modelId}`)
-    }
-    if (conversation.settings.providerId) {
-      lines.push(`**Provider:** ${conversation.settings.providerId}`)
-    }
-    lines.push('')
-    lines.push('---')
-    lines.push('')
-
-    // 处理每条消息
-    for (const message of messages) {
-      const messageTime = new Date(message.timestamp).toLocaleString()
-
-      if (message.role === 'user') {
-        lines.push(`## 👤 用户 (${messageTime})`)
-        lines.push('')
-
-        const userContent = message.content as UserMessageContent
-        const messageText = userContent.content
-          ? this.formatUserMessageContent(userContent.content)
-          : userContent.text
-
-        lines.push(messageText)
-
-        // 处理文件附件
-        if (userContent.files && userContent.files.length > 0) {
-          lines.push('')
-          lines.push('**附件:**')
-          for (const file of userContent.files) {
-            lines.push(`- ${file.name} (${file.mimeType})`)
-          }
-        }
-
-        // 处理链接
-        if (userContent.links && userContent.links.length > 0) {
-          lines.push('')
-          lines.push('**链接:**')
-          for (const link of userContent.links) {
-            lines.push(`- ${link}`)
-          }
-        }
-      } else if (message.role === 'assistant') {
-        lines.push(`## 🤖 助手 (${messageTime})`)
-        lines.push('')
-
-        const assistantBlocks = message.content as AssistantMessageBlock[]
-
-        for (const block of assistantBlocks) {
-          switch (block.type) {
-            case 'content':
-              if (block.content) {
-                lines.push(block.content)
-                lines.push('')
-              }
-              break
-
-            case 'reasoning_content':
-              if (block.content) {
-                lines.push('### 🤔 思考过程')
-                lines.push('')
-                lines.push('```')
-                lines.push(block.content)
-                lines.push('```')
-                lines.push('')
-              }
-              break
-
-            case 'tool_call':
-              if (block.tool_call) {
-                lines.push(`### 🔧 工具调用: ${block.tool_call.name}`)
-                lines.push('')
-                if (block.tool_call.params) {
-                  lines.push('**参数:**')
-                  lines.push('```json')
-                  try {
-                    const params = JSON.parse(block.tool_call.params)
-                    lines.push(JSON.stringify(params, null, 2))
-                  } catch {
-                    lines.push(block.tool_call.params)
-                  }
-                  lines.push('```')
-                  lines.push('')
-                }
-                if (block.tool_call.response) {
-                  lines.push('**响应:**')
-                  lines.push('```')
-                  lines.push(block.tool_call.response)
-                  lines.push('```')
-                  lines.push('')
-                }
-              }
-              break
-
-            case 'search':
-              lines.push('### 🔍 网络搜索')
-              if (block.extra?.total) {
-                lines.push(`找到 ${block.extra.total} 个搜索结果`)
-              }
-              lines.push('')
-              break
-
-            case 'image':
-              lines.push('### 🖼️ 图片')
-              lines.push('*[图片内容]*')
-              lines.push('')
-              break
-
-            case 'error':
-              if (block.content) {
-                lines.push(`### ❌ 错误`)
-                lines.push('')
-                lines.push(`\`${block.content}\``)
-                lines.push('')
-              }
-              break
-
-            case 'artifact-thinking':
-              if (block.content) {
-                lines.push('### 💭 创作思考')
-                lines.push('')
-                lines.push('```')
-                lines.push(block.content)
-                lines.push('```')
-                lines.push('')
-              }
-              break
-          }
-        }
-      }
-
-      lines.push('---')
-      lines.push('')
-    }
-
-    return lines.join('\n')
-  }
-
-  /**
-   * 导出为 HTML 格式
-   */
-  private exportToHtml(conversation: CONVERSATION, messages: Message[]): string {
-    const lines: string[] = []
-
-    // HTML 头部
-    lines.push('<!DOCTYPE html>')
-    lines.push('<html lang="zh-CN">')
-    lines.push('<head>')
-    lines.push('  <meta charset="UTF-8">')
-    lines.push('  <meta name="viewport" content="width=device-width, initial-scale=1.0">')
-    lines.push(`  <title>${this.escapeHtml(conversation.title)}</title>`)
-    lines.push('  <style>')
-    lines.push('    @media (prefers-color-scheme: dark) {')
-    lines.push('      body { background: #0f0f23; color: #e4e4e7; }')
-    lines.push('      .header { border-bottom-color: #27272a; }')
-    lines.push('      .message { border-left-color: #3f3f46; }')
-    lines.push('      .user-message { border-left-color: #3b82f6; background: #1e293b; }')
-    lines.push('      .assistant-message { border-left-color: #10b981; background: #064e3b; }')
-    lines.push('      .tool-call { background: #1f2937; border-color: #374151; }')
-    lines.push('      .search-block { background: #1e3a8a; border-color: #1d4ed8; }')
-    lines.push('      .error-block { background: #7f1d1d; border-color: #dc2626; }')
-    lines.push('      .reasoning-block { background: #581c87; border-color: #7c3aed; }')
-    lines.push('      .code { background: #1f2937; border-color: #374151; color: #f3f4f6; }')
-    lines.push('      .attachments { background: #78350f; border-color: #d97706; }')
-    lines.push('    }')
-    lines.push(
-      '    body { font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; line-height: 1.7; max-width: 900px; margin: 0 auto; padding: 32px 24px; background: #ffffff; color: #1f2937; }'
-    )
-    lines.push(
-      '    .header { border-bottom: 1px solid #e5e7eb; padding-bottom: 24px; margin-bottom: 32px; }'
-    )
-    lines.push(
-      '    .header h1 { margin: 0 0 16px 0; font-size: 2rem; font-weight: 700; color: #111827; }'
-    )
-    lines.push('    .header p { margin: 4px 0; font-size: 0.875rem; color: #6b7280; }')
-    lines.push(
-      '    .message { margin-bottom: 32px; border-radius: 12px; padding: 20px; box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1); }'
-    )
-    lines.push('    .user-message { background: #f8fafc; border-left: 4px solid #3b82f6; }')
-    lines.push('    .assistant-message { background: #f0fdf4; border-left: 4px solid #10b981; }')
-    lines.push(
-      '    .message-header { font-weight: 600; margin-bottom: 12px; color: #374151; font-size: 1rem; }'
-    )
-    lines.push('    .message-time { font-size: 0.75rem; color: #9ca3af; font-weight: 400; }')
-    lines.push(
-      '    .tool-call { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 16px; margin: 12px 0; }'
-    )
-    lines.push(
-      '    .search-block { background: #eff6ff; border: 1px solid #dbeafe; border-radius: 8px; padding: 16px; margin: 12px 0; }'
-    )
-    lines.push(
-      '    .error-block { background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; padding: 16px; margin: 12px 0; color: #dc2626; }'
-    )
-    lines.push(
-      '    .reasoning-block { background: #faf5ff; border: 1px solid #e9d5ff; border-radius: 8px; padding: 16px; margin: 12px 0; }'
-    )
-    lines.push(
-      '    .code { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 12px; font-family: ui-monospace, SFMono-Regular, "SF Mono", Consolas, "Liberation Mono", Menlo, monospace; font-size: 0.875rem; white-space: pre-wrap; overflow-x: auto; color: #1e293b; }'
-    )
-    lines.push(
-      '    .attachments { background: #fffbeb; border: 1px solid #fed7aa; border-radius: 8px; padding: 16px; margin: 12px 0; }'
-    )
-    lines.push('    .attachments ul { margin: 8px 0 0 0; padding-left: 20px; }')
-    lines.push('    .attachments li { margin: 4px 0; }')
-    lines.push('    a { color: #2563eb; text-decoration: none; }')
-    lines.push('    a:hover { text-decoration: underline; }')
-    lines.push('  </style>')
-    lines.push('</head>')
-    lines.push('<body>')
-
-    // 标题和元信息
-    lines.push('  <div class="header">')
-    lines.push(`    <h1>${this.escapeHtml(conversation.title)}</h1>`)
-    lines.push(`    <p><strong>导出时间:</strong> ${new Date().toLocaleString()}</p>`)
-    lines.push(`    <p><strong>会话ID:</strong> ${conversation.id}</p>`)
-    lines.push(`    <p><strong>消息数量:</strong> ${messages.length}</p>`)
-    if (conversation.settings.modelId) {
-      lines.push(
-        `    <p><strong>模型:</strong> ${this.escapeHtml(conversation.settings.modelId)}</p>`
-      )
-    }
-    if (conversation.settings.providerId) {
-      lines.push(
-        `    <p><strong>提供商:</strong> ${this.escapeHtml(conversation.settings.providerId)}</p>`
-      )
-    }
-    lines.push('  </div>')
-
-    // 处理每条消息
-    for (const message of messages) {
-      const messageTime = new Date(message.timestamp).toLocaleString()
-
-      if (message.role === 'user') {
-        lines.push(`  <div class="message user-message">`)
-        lines.push(
-          `    <div class="message-header">👤 用户 <span class="message-time">(${messageTime})</span></div>`
-        )
-
-        const userContent = message.content as UserMessageContent
-        const messageText = userContent.content
-          ? this.formatUserMessageContent(userContent.content)
-          : userContent.text
-
-        lines.push(`    <div>${this.escapeHtml(messageText).replace(/\n/g, '<br>')}</div>`)
-
-        // 处理文件附件
-        if (userContent.files && userContent.files.length > 0) {
-          lines.push('    <div class="attachments">')
-          lines.push('      <strong>附件:</strong>')
-          lines.push('      <ul>')
-          for (const file of userContent.files) {
-            lines.push(
-              `        <li>${this.escapeHtml(file.name)} (${this.escapeHtml(file.mimeType)})</li>`
-            )
-          }
-          lines.push('      </ul>')
-          lines.push('    </div>')
-        }
-
-        // 处理链接
-        if (userContent.links && userContent.links.length > 0) {
-          lines.push('    <div class="attachments">')
-          lines.push('      <strong>链接:</strong>')
-          lines.push('      <ul>')
-          for (const link of userContent.links) {
-            lines.push(
-              `        <li><a href="${this.escapeHtml(link)}" target="_blank">${this.escapeHtml(link)}</a></li>`
-            )
-          }
-          lines.push('      </ul>')
-          lines.push('    </div>')
-        }
-
-        lines.push('  </div>')
-      } else if (message.role === 'assistant') {
-        lines.push(`  <div class="message assistant-message">`)
-        lines.push(
-          `    <div class="message-header">🤖 助手 <span class="message-time">(${messageTime})</span></div>`
-        )
-
-        const assistantBlocks = message.content as AssistantMessageBlock[]
-
-        for (const block of assistantBlocks) {
-          switch (block.type) {
-            case 'content':
-              if (block.content) {
-                lines.push(
-                  `    <div>${this.escapeHtml(block.content).replace(/\n/g, '<br>')}</div>`
-                )
-              }
-              break
-
-            case 'reasoning_content':
-              if (block.content) {
-                lines.push('    <div class="reasoning-block">')
-                lines.push('      <strong>🤔 思考过程:</strong>')
-                lines.push(`      <div class="code">${this.escapeHtml(block.content)}</div>`)
-                lines.push('    </div>')
-              }
-              break
-
-            case 'tool_call':
-              if (block.tool_call) {
-                lines.push('    <div class="tool-call">')
-                lines.push(
-                  `      <strong>🔧 工具调用: ${this.escapeHtml(block.tool_call.name || '')}</strong>`
-                )
-                if (block.tool_call.params) {
-                  lines.push('      <div><strong>参数:</strong></div>')
-                  lines.push(
-                    `      <div class="code">${this.escapeHtml(block.tool_call.params)}</div>`
-                  )
-                }
-                if (block.tool_call.response) {
-                  lines.push('      <div><strong>响应:</strong></div>')
-                  lines.push(
-                    `      <div class="code">${this.escapeHtml(block.tool_call.response)}</div>`
-                  )
-                }
-                lines.push('    </div>')
-              }
-              break
-
-            case 'search':
-              lines.push('    <div class="search-block">')
-              lines.push('      <strong>🔍 网络搜索</strong>')
-              if (block.extra?.total) {
-                lines.push(`      <p>找到 ${block.extra.total} 个搜索结果</p>`)
-              }
-              lines.push('    </div>')
-              break
-
-            case 'image':
-              lines.push('    <div class="tool-call">')
-              lines.push('      <strong>🖼️ 图片</strong>')
-              lines.push('      <p><em>[图片内容]</em></p>')
-              lines.push('    </div>')
-              break
-
-            case 'error':
-              if (block.content) {
-                lines.push('    <div class="error-block">')
-                lines.push('      <strong>❌ 错误</strong>')
-                lines.push(`      <p><code>${this.escapeHtml(block.content)}</code></p>`)
-                lines.push('    </div>')
-              }
-              break
-
-            case 'artifact-thinking':
-              if (block.content) {
-                lines.push('    <div class="reasoning-block">')
-                lines.push('      <strong>💭 创作思考:</strong>')
-                lines.push(`      <div class="code">${this.escapeHtml(block.content)}</div>`)
-                lines.push('    </div>')
-              }
-              break
-          }
-        }
-
-        lines.push('  </div>')
-      }
-    }
-
-    // HTML 尾部
-    lines.push('</body>')
-    lines.push('</html>')
-
-    return lines.join('\n')
-  }
-
-  /**
-   * 导出为纯文本格式
-   */
-  private exportToText(conversation: CONVERSATION, messages: Message[]): string {
-    const lines: string[] = []
-
-    // 标题和元信息
-    lines.push(`${conversation.title}`)
-    lines.push(''.padEnd(conversation.title.length, '='))
-    lines.push('')
-    lines.push(`导出时间: ${new Date().toLocaleString()}`)
-    lines.push(`会话ID: ${conversation.id}`)
-    lines.push(`消息数量: ${messages.length}`)
-    if (conversation.settings.modelId) {
-      lines.push(`模型: ${conversation.settings.modelId}`)
-    }
-    if (conversation.settings.providerId) {
-      lines.push(`提供商: ${conversation.settings.providerId}`)
-    }
-    lines.push('')
-    lines.push(''.padEnd(80, '-'))
-    lines.push('')
-
-    // 处理每条消息
-    for (const message of messages) {
-      const messageTime = new Date(message.timestamp).toLocaleString()
-
-      if (message.role === 'user') {
-        lines.push(`[用户] ${messageTime}`)
-        lines.push('')
-
-        const userContent = message.content as UserMessageContent
-        const messageText = userContent.content
-          ? this.formatUserMessageContent(userContent.content)
-          : userContent.text
-
-        lines.push(messageText)
-
-        // 处理文件附件
-        if (userContent.files && userContent.files.length > 0) {
-          lines.push('')
-          lines.push('附件:')
-          for (const file of userContent.files) {
-            lines.push(`- ${file.name} (${file.mimeType})`)
-          }
-        }
-
-        // 处理链接
-        if (userContent.links && userContent.links.length > 0) {
-          lines.push('')
-          lines.push('链接:')
-          for (const link of userContent.links) {
-            lines.push(`- ${link}`)
-          }
-        }
-      } else if (message.role === 'assistant') {
-        lines.push(`[助手] ${messageTime}`)
-        lines.push('')
-
-        const assistantBlocks = message.content as AssistantMessageBlock[]
-
-        for (const block of assistantBlocks) {
-          switch (block.type) {
-            case 'content':
-              if (block.content) {
-                lines.push(block.content)
-                lines.push('')
-              }
-              break
-
-            case 'reasoning_content':
-              if (block.content) {
-                lines.push('[思考过程]')
-                lines.push(block.content)
-                lines.push('')
-              }
-              break
-
-            case 'tool_call':
-              if (block.tool_call) {
-                lines.push(`[工具调用] ${block.tool_call.name}`)
-                if (block.tool_call.params) {
-                  lines.push('参数:')
-                  lines.push(block.tool_call.params)
-                }
-                if (block.tool_call.response) {
-                  lines.push('响应:')
-                  lines.push(block.tool_call.response)
-                }
-                lines.push('')
-              }
-              break
-
-            case 'search':
-              lines.push('[网络搜索]')
-              if (block.extra?.total) {
-                lines.push(`找到 ${block.extra.total} 个搜索结果`)
-              }
-              lines.push('')
-              break
-
-            case 'image':
-              lines.push('[图片内容]')
-              lines.push('')
-              break
-
-            case 'error':
-              if (block.content) {
-                lines.push(`[错误] ${block.content}`)
-                lines.push('')
-              }
-              break
-
-            case 'artifact-thinking':
-              if (block.content) {
-                lines.push('[创作思考]')
-                lines.push(block.content)
-                lines.push('')
-              }
-              break
-          }
-        }
-      }
-
-      lines.push(''.padEnd(80, '-'))
-      lines.push('')
-    }
-
-    return lines.join('\n')
-  }
-
-  /**
-   * HTML 转义辅助函数
-   */
-  private escapeHtml(text: string): string {
-    return text
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#039;')
   }
 
   // 权限响应处理方法 - 重新设计为基于消息数据的流程
@@ -4300,13 +2680,13 @@ export class ThreadPresenter implements IThreadPresenter {
       )
 
       // 构建专门的继续执行上下文
-      const finalContent = await this.buildContinueToolCallContext(
+      const finalContent = await buildContinueToolCallContext({
         conversation,
         contextMessages,
         userMessage,
         pendingToolCall,
         modelConfig
-      )
+      })
 
       console.log(`[ThreadPresenter] Built continue context for tool: ${pendingToolCall.name}`)
 
@@ -4425,169 +2805,5 @@ export class ThreadPresenter implements IThreadPresenter {
     }
 
     return { id, name, params }
-  }
-
-  // 构建继续工具调用执行的上下文
-  private async buildContinueToolCallContext(
-    conversation: any,
-    contextMessages: any[],
-    userMessage: any,
-    pendingToolCall: { id: string; name: string; params: string },
-    modelConfig: any
-  ): Promise<ChatMessage[]> {
-    const { systemPrompt } = conversation.settings
-    const formattedMessages: ChatMessage[] = []
-
-    // 1. 添加系统提示（包含当前时间信息）
-    if (systemPrompt) {
-      const finalSystemPrompt = this.enhanceSystemPromptWithDateTime(systemPrompt)
-      formattedMessages.push({
-        role: 'system',
-        content: finalSystemPrompt
-      })
-    }
-
-    // 2. 添加上下文消息
-    const contextChatMessages = this.addContextMessages(
-      contextMessages,
-      false,
-      modelConfig.functionCall
-    )
-    formattedMessages.push(...contextChatMessages)
-
-    // 3. 添加当前用户消息
-    const userContent = userMessage.content
-    const msgText = userContent.content
-      ? this.formatUserMessageContent(userContent.content)
-      : userContent.text
-    const finalUserContent = `${msgText}${getFileContext(userContent.files || [])}`
-
-    formattedMessages.push({
-      role: 'user',
-      content: finalUserContent
-    })
-
-    // 4. 添加助手消息，说明需要执行工具调用
-    if (modelConfig.functionCall) {
-      // 对于原生支持函数调用的模型，添加tool_calls
-      formattedMessages.push({
-        role: 'assistant',
-        tool_calls: [
-          {
-            id: pendingToolCall.id,
-            type: 'function',
-            function: {
-              name: pendingToolCall.name,
-              arguments: pendingToolCall.params
-            }
-          }
-        ]
-      })
-
-      // 添加一个虚拟的工具响应，说明权限已经授予
-      formattedMessages.push({
-        role: 'tool',
-        tool_call_id: pendingToolCall.id,
-        content: `Permission granted. Please proceed with executing the ${pendingToolCall.name} function.`
-      })
-    } else {
-      // 对于非原生支持的模型，使用文本提示
-      formattedMessages.push({
-        role: 'assistant',
-        content: `I need to call the ${pendingToolCall.name} function with the following parameters: ${pendingToolCall.params}`
-      })
-
-      formattedMessages.push({
-        role: 'user',
-        content: `Permission has been granted for the ${pendingToolCall.name} function. Please proceed with the execution.`
-      })
-    }
-
-    return formattedMessages
-  }
-
-  /**
-   * 为系统提示词添加当前时间信息
-   * @param systemPrompt 原始系统提示词
-   * @param isImageGeneration 是否为图片生成模型
-   * @returns 处理后的系统提示词
-   */
-  private enhanceSystemPromptWithDateTime(
-    systemPrompt: string,
-    isImageGeneration: boolean = false
-  ): string {
-    // 如果是图片生成模型或者系统提示词为空，则直接返回原值
-    if (isImageGeneration || !systemPrompt || !systemPrompt.trim()) {
-      return systemPrompt
-    }
-
-    // 生成当前时间字符串，包含完整的时区信息
-    const currentDateTime = new Date().toLocaleString('en-US', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-      timeZoneName: 'short',
-      hour12: false
-    })
-
-    return `${systemPrompt}\nToday's date and time is ${currentDateTime}`
-  }
-
-  /**
-   * 直接处理内容的方法
-   */
-  private async processContentDirectly(
-    eventId: string,
-    content: string,
-    currentTime: number
-  ): Promise<void> {
-    const state = this.generatingMessages.get(eventId)
-    if (!state) return
-
-    // 检查是否需要分块处理
-    if (this.shouldSplitContent(content)) {
-      await this.processLargeContentInChunks(eventId, content, currentTime)
-    } else {
-      await this.processNormalContent(eventId, content, currentTime)
-    }
-  }
-
-  /**
-   * 分块处理大内容
-   */
-  private async processLargeContentInChunks(
-    eventId: string,
-    content: string,
-    currentTime: number
-  ): Promise<void> {
-    const state = this.generatingMessages.get(eventId)
-    if (!state) return
-
-    console.log(`[ThreadPresenter] Processing large content in chunks: ${content.length} bytes`)
-
-    const lastBlock = state.message.content[state.message.content.length - 1]
-    let contentBlock: any
-
-    if (lastBlock && lastBlock.type === 'content') {
-      contentBlock = lastBlock
-    } else {
-      this.finalizeLastBlock(state)
-      contentBlock = {
-        type: 'content',
-        content: '',
-        status: 'loading',
-        timestamp: currentTime
-      }
-      state.message.content.push(contentBlock)
-    }
-
-    // 直接添加内容，不做复杂分块
-    contentBlock.content += content
-
-    // 只更新数据库，不额外发送到渲染器（避免重复发送）
-    await this.messageManager.editMessage(eventId, JSON.stringify(state.message.content))
   }
 }
