@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { McpClient } from '../../../src/main/presenter/mcpPresenter/mcpClient'
 import path from 'path'
 import fs from 'fs'
+import { ErrorCode } from '@modelcontextprotocol/sdk/types.js'
 
 // Mock electron modules
 vi.mock('electron', () => ({
@@ -33,13 +34,36 @@ vi.mock('../../../src/main/eventbus', () => ({
 }))
 
 // Mock presenter
+const presenterMocks = vi.hoisted(() => ({
+  handleSamplingRequest: vi.fn(),
+  cancelSamplingRequest: vi.fn(),
+  generateCompletionStandalone: vi.fn(),
+  getProviderModels: vi.fn(),
+  getCustomModels: vi.fn()
+}))
+
 vi.mock('../../../src/main/presenter', () => ({
   presenter: {
     configPresenter: {
-      getMcpServers: vi.fn()
+      getMcpServers: vi.fn(),
+      getProviderModels: presenterMocks.getProviderModels,
+      getCustomModels: presenterMocks.getCustomModels
+    },
+    mcpPresenter: {
+      handleSamplingRequest: presenterMocks.handleSamplingRequest,
+      cancelSamplingRequest: presenterMocks.cancelSamplingRequest
+    },
+    llmproviderPresenter: {
+      generateCompletionStandalone: presenterMocks.generateCompletionStandalone
     }
   }
 }))
+
+const mockHandleSamplingRequest = presenterMocks.handleSamplingRequest
+const mockCancelSamplingRequest = presenterMocks.cancelSamplingRequest
+const mockGenerateCompletionStandalone = presenterMocks.generateCompletionStandalone
+const mockGetProviderModels = presenterMocks.getProviderModels
+const mockGetCustomModels = presenterMocks.getCustomModels
 
 // Mock other dependencies that might be imported by mcpClient
 vi.mock('../../../src/main/events', () => ({
@@ -89,6 +113,12 @@ describe('McpClient Runtime Command Processing Tests', () => {
   beforeEach(() => {
     mockFsExistsSync = vi.mocked(fs.existsSync)
     vi.clearAllMocks()
+
+    mockHandleSamplingRequest.mockReset()
+    mockCancelSamplingRequest.mockReset()
+    mockGenerateCompletionStandalone.mockReset()
+    mockGetProviderModels.mockReset()
+    mockGetCustomModels.mockReset()
 
     // Mock runtime paths to exist
     mockFsExistsSync.mockImplementation((filePath: string | Buffer | URL) => {
@@ -388,6 +418,150 @@ describe('McpClient Runtime Command Processing Tests', () => {
 
       // Clean up
       delete process.env.TEST_PATH
+    })
+  })
+
+  describe('Sampling support', () => {
+    it('should prepare sampling payload and chat messages from request params', () => {
+      const client = new McpClient('server-one', {
+        type: 'stdio',
+        description: 'Sample server'
+      })
+
+      const params = {
+        systemPrompt: 'You are a helpful assistant.',
+        maxTokens: 128,
+        modelPreferences: {
+          costPriority: 0.5,
+          hints: [{ name: 'fast' }, { name: null }]
+        },
+        messages: [
+          { role: 'user', content: { type: 'text', text: 'hello' } },
+          {
+            role: 'assistant',
+            content: { type: 'image', mimeType: 'image/jpeg', data: 'aGVsbG8=' }
+          }
+        ]
+      }
+
+      const { payload, chatMessages } = (client as any).prepareSamplingContext('req-123', params)
+
+      expect(payload).toEqual({
+        requestId: 'req-123',
+        serverName: 'server-one',
+        serverLabel: 'Sample server',
+        systemPrompt: 'You are a helpful assistant.',
+        maxTokens: 128,
+        modelPreferences: {
+          costPriority: 0.5,
+          hints: [{ name: 'fast' }, { name: undefined }]
+        },
+        requiresVision: true,
+        messages: [
+          { role: 'user', type: 'text', text: 'hello' },
+          {
+            role: 'assistant',
+            type: 'image',
+            dataUrl: 'data:image/jpeg;base64,aGVsbG8=',
+            mimeType: 'image/jpeg'
+          }
+        ]
+      })
+
+      expect(chatMessages).toEqual([
+        { role: 'system', content: 'You are a helpful assistant.' },
+        { role: 'user', content: 'hello' },
+        {
+          role: 'assistant',
+          content: [
+            {
+              type: 'image_url',
+              image_url: { url: 'data:image/jpeg;base64,aGVsbG8=', detail: 'auto' }
+            }
+          ]
+        }
+      ])
+    })
+
+    it('should return assistant response when sampling decision is approved', async () => {
+      const client = new McpClient('code-reviewer', {
+        type: 'stdio',
+        description: 'Code Reviewer Server'
+      })
+
+      mockHandleSamplingRequest.mockResolvedValue({
+        requestId: 'rpc-001',
+        approved: true,
+        providerId: 'provider-1',
+        modelId: 'model-42'
+      })
+      mockGenerateCompletionStandalone.mockResolvedValue('Generated response')
+      mockGetProviderModels.mockReturnValue([{ id: 'model-42', name: 'Model Forty Two' }])
+      mockGetCustomModels.mockReturnValue([])
+
+      const request = {
+        params: {
+          maxTokens: 256,
+          systemPrompt: 'System context',
+          messages: [{ role: 'user', content: { type: 'text', text: 'Explain this change.' } }]
+        }
+      }
+
+      const result = await (client as any).handleSamplingCreateMessage(request, {
+        requestId: 'rpc-001'
+      })
+
+      expect(mockHandleSamplingRequest).toHaveBeenCalledWith(
+        expect.objectContaining({
+          requestId: 'rpc-001',
+          serverName: 'code-reviewer'
+        })
+      )
+      expect(mockGenerateCompletionStandalone).toHaveBeenCalledWith(
+        'provider-1',
+        [
+          { role: 'system', content: 'System context' },
+          { role: 'user', content: 'Explain this change.' }
+        ],
+        'model-42',
+        undefined,
+        256
+      )
+
+      expect(result).toEqual({
+        role: 'assistant',
+        model: 'Model Forty Two',
+        stopReason: 'endTurn',
+        content: { type: 'text', text: 'Generated response' }
+      })
+    })
+
+    it('should throw when sampling decision is rejected by the user', async () => {
+      const client = new McpClient('code-reviewer', { type: 'stdio' })
+
+      mockHandleSamplingRequest.mockResolvedValue({
+        requestId: 'rpc-002',
+        approved: false
+      })
+
+      const request = {
+        params: {
+          messages: [{ role: 'user', content: { type: 'text', text: 'hello' } }]
+        }
+      }
+
+      let caughtError: unknown
+      try {
+        await (client as any).handleSamplingCreateMessage(request, { requestId: 'rpc-002' })
+      } catch (error) {
+        caughtError = error
+      }
+
+      expect(caughtError).toBeInstanceOf(Error)
+      expect((caughtError as Error).message).toContain('User rejected sampling request')
+      expect(caughtError).toHaveProperty('code', ErrorCode.InvalidRequest)
+
+      expect(mockGenerateCompletionStandalone).not.toHaveBeenCalled()
     })
   })
 })
