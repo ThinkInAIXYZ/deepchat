@@ -35,6 +35,13 @@ import {
   McpSamplingDecision
 } from '@shared/presenter'
 
+const ALLOWED_SAMPLING_IMAGE_MIME_TYPES = new Set([
+  'image/png',
+  'image/jpeg',
+  'image/gif',
+  'image/webp'
+])
+
 // TODO: resources 和 prompts 的类型,Notifactions 的类型 https://github.com/modelcontextprotocol/typescript-sdk/blob/main/src/examples/client/simpleStreamableHttp.ts
 // Simple OAuth provider for handling Bearer Token
 class SimpleOAuthProvider {
@@ -917,8 +924,18 @@ export class McpClient {
         payload.messages.push({ role: message.role, type: 'text', text })
         chatMessages.push({ role: message.role, content: text })
       } else if (content.type === 'image') {
-        const mimeType = typeof content.mimeType === 'string' ? content.mimeType : 'image/png'
-        const data = typeof content.data === 'string' ? content.data : ''
+        const rawMimeType = typeof content.mimeType === 'string' ? content.mimeType : undefined
+        const normalizedMimeType = rawMimeType?.toLowerCase()
+
+        if (normalizedMimeType && !ALLOWED_SAMPLING_IMAGE_MIME_TYPES.has(normalizedMimeType)) {
+          throw new McpError(
+            ErrorCode.InvalidParams,
+            `Unsupported sampling image mime type: ${rawMimeType}`
+          )
+        }
+
+        const mimeType = normalizedMimeType ?? 'image/png'
+        const data = this.sanitizeSamplingImageData(content.data)
         const dataUrl = `data:${mimeType};base64,${data}`
         payload.messages.push({
           role: message.role,
@@ -950,6 +967,42 @@ export class McpClient {
     }
 
     return { payload, chatMessages }
+  }
+
+  private sanitizeSamplingImageData(rawData: unknown): string {
+    if (typeof rawData !== 'string') {
+      throw new McpError(ErrorCode.InvalidParams, 'Invalid sampling image payload received')
+    }
+
+    const sanitized = rawData.replace(/\s+/g, '')
+
+    if (!sanitized) {
+      throw new McpError(ErrorCode.InvalidParams, 'Invalid sampling image payload received')
+    }
+
+    if (sanitized.length % 4 !== 0 || /[^A-Za-z0-9+/=]/.test(sanitized)) {
+      throw new McpError(ErrorCode.InvalidParams, 'Invalid sampling image payload received')
+    }
+
+    let decoded: Buffer
+
+    try {
+      decoded = Buffer.from(sanitized, 'base64')
+    } catch {
+      throw new McpError(ErrorCode.InvalidParams, 'Invalid sampling image payload received')
+    }
+
+    if (!decoded.length) {
+      throw new McpError(ErrorCode.InvalidParams, 'Invalid sampling image payload received')
+    }
+
+    const reencoded = decoded.toString('base64')
+
+    if (reencoded.replace(/=+$/, '') !== sanitized.replace(/=+$/, '')) {
+      throw new McpError(ErrorCode.InvalidParams, 'Invalid sampling image payload received')
+    }
+
+    return sanitized
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

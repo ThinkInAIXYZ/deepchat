@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { McpClient } from '../../../src/main/presenter/mcpPresenter/mcpClient'
 import path from 'path'
 import fs from 'fs'
-import { ErrorCode } from '@modelcontextprotocol/sdk/types.js'
+import { ErrorCode, McpError } from '@modelcontextprotocol/sdk/types.js'
 
 // Mock electron modules
 vi.mock('electron', () => ({
@@ -481,6 +481,77 @@ describe('McpClient Runtime Command Processing Tests', () => {
           ]
         }
       ])
+    })
+
+    it('should default sampling image mime type to png when not provided', () => {
+      const client = new McpClient('server-two', {
+        type: 'stdio'
+      })
+
+      const { payload } = (client as any).prepareSamplingContext('req-vision', {
+        messages: [
+          {
+            role: 'user',
+            content: { type: 'image', data: 'aGVsbG8=' }
+          }
+        ]
+      })
+
+      expect(payload.requiresVision).toBe(true)
+      expect(payload.messages).toEqual([
+        {
+          role: 'user',
+          type: 'image',
+          dataUrl: 'data:image/png;base64,aGVsbG8=',
+          mimeType: 'image/png'
+        }
+      ])
+    })
+
+    it('should throw when sampling image mime type is not allowed', () => {
+      const client = new McpClient('server-three', {
+        type: 'stdio'
+      })
+
+      try {
+        ;(client as any).prepareSamplingContext('req-bad-mime', {
+          messages: [
+            {
+              role: 'user',
+              content: { type: 'image', mimeType: 'image/svg+xml', data: 'aGVsbG8=' }
+            }
+          ]
+        })
+        throw new Error('Expected prepareSamplingContext to throw for disallowed mime type')
+      } catch (error) {
+        expect(error).toBeInstanceOf(McpError)
+        expect((error as McpError).code).toBe(ErrorCode.InvalidParams)
+        expect((error as Error).message).toContain(
+          'Unsupported sampling image mime type: image/svg+xml'
+        )
+      }
+    })
+
+    it('should throw when sampling image data is not valid base64', () => {
+      const client = new McpClient('server-four', {
+        type: 'stdio'
+      })
+
+      try {
+        ;(client as any).prepareSamplingContext('req-bad-data', {
+          messages: [
+            {
+              role: 'assistant',
+              content: { type: 'image', data: 'not_base64!!' }
+            }
+          ]
+        })
+        throw new Error('Expected prepareSamplingContext to throw for invalid image data')
+      } catch (error) {
+        expect(error).toBeInstanceOf(McpError)
+        expect((error as McpError).code).toBe(ErrorCode.InvalidParams)
+        expect((error as Error).message).toContain('Invalid sampling image payload received')
+      }
     })
 
     it('should return assistant response when sampling decision is approved', async () => {
