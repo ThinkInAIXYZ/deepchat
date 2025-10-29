@@ -1,8 +1,5 @@
 <template>
-  <Card
-    class="w-full border-border/60 bg-card/95 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-card/80"
-    :dir="langStore.dir"
-  >
+  <Card class="w-full border-border bg-card shadow-sm" :dir="langStore.dir">
     <CardContent class="flex flex-col gap-4 p-4">
       <Input
         v-model="keyword"

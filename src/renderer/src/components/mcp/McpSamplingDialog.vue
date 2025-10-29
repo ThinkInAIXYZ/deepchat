@@ -1,6 +1,6 @@
 <template>
   <Dialog :open="store.isOpen" @update:open="onDialogToggle">
-    <DialogContent class="max-w-3xl">
+    <DialogContent class="max-w-3xl max-h-[85vh] overflow-y-auto">
       <DialogHeader>
         <DialogTitle>
           {{
@@ -15,7 +15,10 @@
       </DialogHeader>
 
       <div v-if="store.request" class="space-y-4">
-        <div v-if="store.request.systemPrompt" class="rounded-md border bg-muted/40 p-3">
+        <div
+          v-if="store.request.systemPrompt"
+          class="max-h-48 overflow-y-auto rounded-md border bg-muted/40 p-3 pr-2"
+        >
           <h4 class="mb-2 text-sm font-semibold text-muted-foreground">
             {{ t('mcp.sampling.systemPrompt') }}
           </h4>
@@ -28,7 +31,7 @@
           <h4 class="text-sm font-semibold text-muted-foreground">
             {{ t('mcp.sampling.messagesTitle') }}
           </h4>
-          <ScrollArea class="max-h-64 pr-2">
+          <ScrollArea class="max-h-[50vh] pr-2">
             <div class="space-y-3">
               <div
                 v-for="(message, index) in store.request.messages"
