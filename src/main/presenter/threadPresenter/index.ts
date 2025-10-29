@@ -41,13 +41,14 @@ import {
   generateExportFilename,
   ConversationExportFormat
 } from './conversationExporter'
-import {
-  ConversationLifecycleManager,
-  CreateConversationOptions
-} from './conversationLifecycleManager'
 import type { GeneratingMessageState } from './types'
 import { finalizeAssistantMessageBlocks } from '@shared/chat/messageBlocks'
 import { approximateTokenSize } from 'tokenx'
+import { DEFAULT_SETTINGS } from './const'
+
+export interface CreateConversationOptions {
+  forceNewAndActivate?: boolean
+}
 
 export class ThreadPresenter implements IThreadPresenter {
   private sqlitePresenter: ISQLitePresenter
@@ -56,7 +57,8 @@ export class ThreadPresenter implements IThreadPresenter {
   private configPresenter: IConfigPresenter
   private searchManager: SearchManager
   private generatingMessages: Map<string, GeneratingMessageState> = new Map()
-  private conversationLifecycle: ConversationLifecycleManager
+  private activeConversationIds: Map<number, string> = new Map()
+  private fetchThreadLength = 300
   public searchAssistantModel: MODEL_META | null = null
   public searchAssistantProviderId: string | null = null
   private searchingMessages: Set<string> = new Set()
@@ -71,22 +73,17 @@ export class ThreadPresenter implements IThreadPresenter {
     this.llmProviderPresenter = llmProviderPresenter
     this.searchManager = new SearchManager()
     this.configPresenter = configPresenter
-    this.conversationLifecycle = new ConversationLifecycleManager({
-      sqlitePresenter,
-      configPresenter,
-      messageManager: this.messageManager
-    })
 
     // 监听Tab关闭事件，清理绑定关系
     eventBus.on(TAB_EVENTS.CLOSED, (tabId: number) => {
-      const activeConversationId = this.conversationLifecycle.getActiveConversationId(tabId)
+      const activeConversationId = this.getActiveConversationIdSync(tabId)
       if (activeConversationId) {
-        this.conversationLifecycle.clearActiveConversation(tabId, { notify: true })
+        this.clearActiveConversation(tabId, { notify: true })
         console.log(`ThreadPresenter: Cleaned up conversation binding for closed tab ${tabId}.`)
       }
     })
     eventBus.on(TAB_EVENTS.RENDERER_TAB_READY, () => {
-      this.conversationLifecycle.broadcastThreadListUpdate()
+      this.broadcastThreadListUpdate()
     })
 
     // 初始化时处理所有未完成的消息
@@ -104,7 +101,19 @@ export class ThreadPresenter implements IThreadPresenter {
    * @returns 如果找到，返回tabId，否则返回null
    */
   async findTabForConversation(conversationId: string): Promise<number | null> {
-    return this.conversationLifecycle.findTabForConversation(conversationId)
+    for (const [tabId, activeId] of this.activeConversationIds.entries()) {
+      if (activeId === conversationId) {
+        try {
+          const tabView = await presenter.tabPresenter.getTab(tabId)
+          if (tabView && !tabView.webContents.isDestroyed()) {
+            return tabId
+          }
+        } catch (error) {
+          console.error('Error finding tab for conversation:', error)
+        }
+      }
+    }
+    return null
   }
 
   async handleLLMAgentError(msg: LLMAgentEventData) {
@@ -573,7 +582,7 @@ export class ThreadPresenter implements IThreadPresenter {
   }
 
   private async handleConversationUpdates(state: GeneratingMessageState): Promise<void> {
-    const conversation = await this.conversationLifecycle.getConversation(state.conversationId)
+    const conversation = await this.getConversation(state.conversationId)
     let titleUpdated = false
 
     if (conversation.is_new === 1) {
@@ -581,11 +590,9 @@ export class ThreadPresenter implements IThreadPresenter {
         this.summaryTitles(undefined, state.conversationId)
           .then((title) => {
             if (title) {
-              this.conversationLifecycle
-                .renameConversation(state.conversationId, title)
-                .then(() => {
-                  titleUpdated = true
-                })
+              this.renameConversation(state.conversationId, title).then(() => {
+                titleUpdated = true
+              })
             }
           })
           .catch((error) => {
@@ -604,7 +611,7 @@ export class ThreadPresenter implements IThreadPresenter {
         .then(() => {
           console.log('updated conv time', state.conversationId)
         })
-      await this.conversationLifecycle.broadcastThreadListUpdate()
+      await this.broadcastThreadListUpdate()
     }
   }
 
@@ -814,59 +821,341 @@ export class ThreadPresenter implements IThreadPresenter {
     }
   }
 
-  async renameConversation(conversationId: string, title: string): Promise<CONVERSATION> {
-    return this.conversationLifecycle.renameConversation(conversationId, title)
+  getActiveConversationIdSync(tabId: number): string | null {
+    return this.activeConversationIds.get(tabId) || null
   }
+
+  getTabsByConversation(conversationId: string): number[] {
+    return Array.from(this.activeConversationIds.entries())
+      .filter(([, id]) => id === conversationId)
+      .map(([tabId]) => tabId)
+  }
+
+  clearActiveConversation(tabId: number, options: { notify?: boolean } = {}): void {
+    if (!this.activeConversationIds.has(tabId)) {
+      return
+    }
+    this.activeConversationIds.delete(tabId)
+    if (options.notify) {
+      eventBus.sendToRenderer(CONVERSATION_EVENTS.DEACTIVATED, SendTarget.ALL_WINDOWS, { tabId })
+    }
+  }
+
+  clearConversationBindings(conversationId: string): void {
+    for (const [tabId, activeId] of this.activeConversationIds.entries()) {
+      if (activeId === conversationId) {
+        this.activeConversationIds.delete(tabId)
+        eventBus.sendToRenderer(CONVERSATION_EVENTS.DEACTIVATED, SendTarget.ALL_WINDOWS, {
+          tabId
+        })
+      }
+    }
+  }
+
+  private async getTabWindowType(tabId: number): Promise<'floating' | 'main' | 'unknown'> {
+    try {
+      const tabView = await presenter.tabPresenter.getTab(tabId)
+      if (!tabView) {
+        return 'unknown'
+      }
+      const windowId = presenter.tabPresenter.getTabWindowId(tabId)
+      return windowId ? 'main' : 'floating'
+    } catch (error) {
+      console.error('Error determining tab window type:', error)
+      return 'unknown'
+    }
+  }
+
+  async setActiveConversation(conversationId: string, tabId: number): Promise<void> {
+    const existingTabId = await this.findTabForConversation(conversationId)
+
+    if (existingTabId !== null && existingTabId !== tabId) {
+      console.log(
+        `Conversation ${conversationId} is already open in tab ${existingTabId}. Switching to it.`
+      )
+      const currentTabType = await this.getTabWindowType(tabId)
+      const existingTabType = await this.getTabWindowType(existingTabId)
+
+      if (currentTabType !== existingTabType) {
+        this.activeConversationIds.delete(existingTabId)
+        eventBus.sendToRenderer(CONVERSATION_EVENTS.DEACTIVATED, SendTarget.ALL_WINDOWS, {
+          tabId: existingTabId
+        })
+        this.activeConversationIds.set(tabId, conversationId)
+        eventBus.sendToRenderer(CONVERSATION_EVENTS.ACTIVATED, SendTarget.ALL_WINDOWS, {
+          conversationId,
+          tabId
+        })
+        return
+      }
+
+      await presenter.tabPresenter.switchTab(existingTabId)
+      return
+    }
+
+    const conversation = await this.getConversation(conversationId)
+    if (!conversation) {
+      throw new Error(`Conversation ${conversationId} not found`)
+    }
+
+    if (this.activeConversationIds.get(tabId) === conversationId) {
+      return
+    }
+
+    this.activeConversationIds.set(tabId, conversationId)
+    eventBus.sendToRenderer(CONVERSATION_EVENTS.ACTIVATED, SendTarget.ALL_WINDOWS, {
+      conversationId,
+      tabId
+    })
+  }
+
+  async getActiveConversation(tabId: number): Promise<CONVERSATION | null> {
+    const conversationId = this.activeConversationIds.get(tabId)
+    if (!conversationId) {
+      return null
+    }
+    return this.getConversation(conversationId)
+  }
+
+  async getConversation(conversationId: string): Promise<CONVERSATION> {
+    return await this.sqlitePresenter.getConversation(conversationId)
+  }
+
   async createConversation(
     title: string,
     settings: Partial<CONVERSATION_SETTINGS> = {},
     tabId: number,
-    options: CreateConversationOptions = {} // 新增参数，允许强制创建新会话
+    options: CreateConversationOptions = {}
   ): Promise<string> {
-    console.log('createConversation', title, settings)
-    return this.conversationLifecycle.createConversation(title, settings, tabId, options)
+    let latestConversation: CONVERSATION | null = null
+
+    try {
+      latestConversation = await this.getLatestConversation()
+
+      if (!options.forceNewAndActivate && latestConversation) {
+        const { list: messages } = await this.messageManager.getMessageThread(
+          latestConversation.id,
+          1,
+          1
+        )
+        if (messages.length === 0) {
+          await this.setActiveConversation(latestConversation.id, tabId)
+          return latestConversation.id
+        }
+      }
+
+      let defaultSettings = DEFAULT_SETTINGS
+      if (latestConversation?.settings) {
+        defaultSettings = { ...latestConversation.settings }
+        defaultSettings.systemPrompt = ''
+        defaultSettings.reasoningEffort = undefined
+        defaultSettings.enableSearch = undefined
+        defaultSettings.forcedSearch = undefined
+        defaultSettings.searchStrategy = undefined
+      }
+
+      const sanitizedSettings: Partial<CONVERSATION_SETTINGS> = { ...settings }
+      Object.keys(sanitizedSettings).forEach((key) => {
+        const typedKey = key as keyof CONVERSATION_SETTINGS
+        const value = sanitizedSettings[typedKey]
+        if (value === undefined || value === null || value === '') {
+          delete sanitizedSettings[typedKey]
+        }
+      })
+
+      const mergedSettings = { ...defaultSettings }
+      const previewSettings = { ...mergedSettings, ...sanitizedSettings }
+
+      const defaultModelsSettings = this.configPresenter.getModelConfig(
+        previewSettings.modelId,
+        previewSettings.providerId
+      )
+
+      if (defaultModelsSettings) {
+        if (defaultModelsSettings.maxTokens !== undefined) {
+          mergedSettings.maxTokens = defaultModelsSettings.maxTokens
+        }
+        if (defaultModelsSettings.contextLength !== undefined) {
+          mergedSettings.contextLength = defaultModelsSettings.contextLength
+        }
+        mergedSettings.temperature = defaultModelsSettings.temperature ?? 0.7
+        if (
+          sanitizedSettings.thinkingBudget === undefined &&
+          defaultModelsSettings.thinkingBudget !== undefined
+        ) {
+          mergedSettings.thinkingBudget = defaultModelsSettings.thinkingBudget
+        }
+      }
+
+      Object.assign(mergedSettings, sanitizedSettings)
+
+      if (mergedSettings.temperature === undefined || mergedSettings.temperature === null) {
+        mergedSettings.temperature = defaultModelsSettings?.temperature ?? 0.7
+      }
+
+      const conversationId = await this.sqlitePresenter.createConversation(title, mergedSettings)
+
+      if (options.forceNewAndActivate) {
+        this.activeConversationIds.set(tabId, conversationId)
+        eventBus.sendToRenderer(CONVERSATION_EVENTS.ACTIVATED, SendTarget.ALL_WINDOWS, {
+          conversationId,
+          tabId
+        })
+      } else {
+        await this.setActiveConversation(conversationId, tabId)
+      }
+
+      await this.broadcastThreadListUpdate()
+      return conversationId
+    } catch (error) {
+      console.error('ThreadPresenter: Failed to create conversation', {
+        title,
+        tabId,
+        options,
+        latestConversationId: latestConversation?.id,
+        errorMessage: error instanceof Error ? error.message : String(error),
+        errorStack: error instanceof Error ? error.stack : undefined
+      })
+      throw error
+    }
+  }
+
+  async renameConversation(conversationId: string, title: string): Promise<CONVERSATION> {
+    await this.sqlitePresenter.renameConversation(conversationId, title)
+    await this.broadcastThreadListUpdate()
+
+    const conversation = await this.getConversation(conversationId)
+
+    let tabId: number | undefined
+    for (const [key, value] of this.activeConversationIds.entries()) {
+      if (value === conversationId) {
+        tabId = key
+        break
+      }
+    }
+
+    if (tabId !== undefined) {
+      const windowId = presenter.tabPresenter.getTabWindowId(tabId)
+      eventBus.sendToRenderer(TAB_EVENTS.TITLE_UPDATED, SendTarget.ALL_WINDOWS, {
+        tabId,
+        conversationId,
+        title: conversation.title,
+        windowId
+      })
+    }
+
+    return conversation
   }
 
   async deleteConversation(conversationId: string): Promise<void> {
-    await this.conversationLifecycle.deleteConversation(conversationId)
-  }
-
-  async getConversation(conversationId: string): Promise<CONVERSATION> {
-    return this.conversationLifecycle.getConversation(conversationId)
+    await this.sqlitePresenter.deleteConversation(conversationId)
+    this.clearConversationBindings(conversationId)
+    await this.broadcastThreadListUpdate()
   }
 
   async toggleConversationPinned(conversationId: string, pinned: boolean): Promise<void> {
-    await this.conversationLifecycle.toggleConversationPinned(conversationId, pinned)
+    await this.sqlitePresenter.updateConversation(conversationId, { is_pinned: pinned ? 1 : 0 })
+    await this.broadcastThreadListUpdate()
   }
 
   async updateConversationTitle(conversationId: string, title: string): Promise<void> {
-    await this.conversationLifecycle.updateConversationTitle(conversationId, title)
+    await this.sqlitePresenter.updateConversation(conversationId, { title })
+    await this.broadcastThreadListUpdate()
   }
 
   async updateConversationSettings(
     conversationId: string,
     settings: Partial<CONVERSATION_SETTINGS>
   ): Promise<void> {
-    await this.conversationLifecycle.updateConversationSettings(conversationId, settings)
+    const conversation = await this.getConversation(conversationId)
+    const mergedSettings = { ...conversation.settings }
+
+    for (const key in settings) {
+      if (settings[key] !== undefined) {
+        mergedSettings[key] = settings[key]
+      }
+    }
+
+    if (settings.modelId && settings.modelId !== conversation.settings.modelId) {
+      const modelConfig = this.configPresenter.getModelConfig(
+        mergedSettings.modelId,
+        mergedSettings.providerId
+      )
+      if (modelConfig) {
+        mergedSettings.maxTokens = modelConfig.maxTokens
+        mergedSettings.contextLength = modelConfig.contextLength
+      }
+    }
+
+    await this.sqlitePresenter.updateConversation(conversationId, { settings: mergedSettings })
+    await this.broadcastThreadListUpdate()
   }
 
   async getConversationList(
     page: number,
     pageSize: number
   ): Promise<{ total: number; list: CONVERSATION[] }> {
-    return this.conversationLifecycle.getConversationList(page, pageSize)
+    return await this.sqlitePresenter.getConversationList(page, pageSize)
   }
 
   async loadMoreThreads(): Promise<{ hasMore: boolean; total: number }> {
-    return this.conversationLifecycle.loadMoreThreads()
+    const total = await this.sqlitePresenter.getConversationCount()
+    const hasMore = this.fetchThreadLength < total
+
+    if (hasMore) {
+      this.fetchThreadLength = Math.min(this.fetchThreadLength + 300, total)
+      await this.broadcastThreadListUpdate()
+    }
+
+    return { hasMore: this.fetchThreadLength < total, total }
   }
 
-  async setActiveConversation(conversationId: string, tabId: number): Promise<void> {
-    await this.conversationLifecycle.setActiveConversation(conversationId, tabId)
+  async broadcastThreadListUpdate(): Promise<void> {
+    const result = await this.sqlitePresenter.getConversationList(1, this.fetchThreadLength)
+
+    const pinnedConversations: CONVERSATION[] = []
+    const normalConversations: CONVERSATION[] = []
+
+    result.list.forEach((conv) => {
+      if (conv.is_pinned === 1) {
+        pinnedConversations.push(conv)
+      } else {
+        normalConversations.push(conv)
+      }
+    })
+
+    pinnedConversations.sort((a, b) => b.updatedAt - a.updatedAt)
+    normalConversations.sort((a, b) => b.updatedAt - a.updatedAt)
+
+    const groupedThreads: Map<string, CONVERSATION[]> = new Map()
+
+    if (pinnedConversations.length > 0) {
+      groupedThreads.set('Pinned', pinnedConversations)
+    }
+
+    normalConversations.forEach((conv) => {
+      const date = new Date(conv.updatedAt).toISOString().split('T')[0]
+      if (!groupedThreads.has(date)) {
+        groupedThreads.set(date, [])
+      }
+      groupedThreads.get(date)!.push(conv)
+    })
+
+    const finalGroupedList = Array.from(groupedThreads.entries()).map(([dt, dtThreads]) => ({
+      dt,
+      dtThreads
+    }))
+
+    eventBus.sendToRenderer(
+      CONVERSATION_EVENTS.LIST_UPDATED,
+      SendTarget.ALL_WINDOWS,
+      finalGroupedList
+    )
   }
 
-  async getActiveConversation(tabId: number): Promise<CONVERSATION | null> {
-    return this.conversationLifecycle.getActiveConversation(tabId)
+  private async getLatestConversation(): Promise<CONVERSATION | null> {
+    const result = await this.getConversationList(1, 1)
+    return result.list[0] || null
   }
 
   async getMessages(
@@ -1902,7 +2191,7 @@ export class ThreadPresenter implements IThreadPresenter {
   }
 
   async getActiveConversationId(tabId: number): Promise<string | null> {
-    return this.conversationLifecycle.getActiveConversationId(tabId)
+    return this.getActiveConversationIdSync(tabId)
   }
 
   getGeneratingMessageState(messageId: string): GeneratingMessageState | null {
@@ -1975,8 +2264,7 @@ export class ThreadPresenter implements IThreadPresenter {
   }
 
   async summaryTitles(tabId?: number, conversationId?: string): Promise<string> {
-    const activeId =
-      tabId !== undefined ? this.conversationLifecycle.getActiveConversationId(tabId) : null
+    const activeId = tabId !== undefined ? this.getActiveConversationIdSync(tabId) : null
     const targetConversationId = conversationId ?? activeId ?? undefined
     if (!targetConversationId) {
       throw new Error('找不到当前对话')
@@ -2049,13 +2337,13 @@ export class ThreadPresenter implements IThreadPresenter {
   }
 
   async clearActiveThread(tabId: number): Promise<void> {
-    this.conversationLifecycle.clearActiveConversation(tabId, { notify: true })
+    this.clearActiveConversation(tabId, { notify: true })
   }
 
   async clearAllMessages(conversationId: string): Promise<void> {
     await this.messageManager.clearAllMessages(conversationId)
     // 检查所有 tab 中的活跃会话
-    const tabs = this.conversationLifecycle.getTabsByConversation(conversationId)
+    const tabs = this.getTabsByConversation(conversationId)
     if (tabs.length > 0) {
       await this.stopConversationGeneration(conversationId)
     }
@@ -2223,7 +2511,7 @@ export class ThreadPresenter implements IThreadPresenter {
       }
 
       // 7. 在所有数据库操作完成后，调用广播方法
-      await this.conversationLifecycle.broadcastThreadListUpdate()
+      await this.broadcastThreadListUpdate()
 
       // 8. 触发会话创建事件
       return newConversationId
