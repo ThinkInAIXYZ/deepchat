@@ -6,7 +6,10 @@
           <DialogTitle>
             {{
               t('mcp.sampling.title', {
-                server: store.request?.serverLabel || store.request?.serverName || t('mcp.sampling.unknownServer')
+                server:
+                  store.request?.serverLabel ||
+                  store.request?.serverName ||
+                  t('mcp.sampling.unknownServer')
               })
             }}
           </DialogTitle>
@@ -15,10 +18,7 @@
           </DialogDescription>
         </DialogHeader>
 
-        <div
-          v-if="store.request"
-          class="flex flex-1 flex-col gap-4 overflow-hidden px-6 pb-4"
-        >
+        <div v-if="store.request" class="flex flex-1 flex-col gap-4 overflow-hidden px-6 pb-4">
           <div
             v-if="store.request.systemPrompt"
             class="max-h-48 overflow-y-auto rounded-md border bg-muted/40 p-3 pr-2"
@@ -48,7 +48,10 @@
                       {{ t(`mcp.sampling.contentType.${message.type}`) }}
                     </span>
                   </div>
-                  <p v-if="message.type === 'text'" class="whitespace-pre-wrap text-sm leading-relaxed">
+                  <p
+                    v-if="message.type === 'text'"
+                    class="whitespace-pre-wrap text-sm leading-relaxed"
+                  >
                     {{ message.text }}
                   </p>
                   <div v-else-if="message.type === 'image'" class="flex flex-col items-start gap-2">
@@ -101,9 +104,7 @@
           </div>
         </div>
 
-        <DialogFooter
-          class="border-t border-border/60 bg-card/60 px-6 py-4"
-        >
+        <DialogFooter class="border-t border-border/60 bg-card/60 px-6 py-4">
           <div class="flex w-full flex-col gap-2 sm:flex-row sm:justify-end">
             <Button
               variant="outline"
@@ -127,7 +128,11 @@
               :disabled="store.isSubmitting || !store.selectedModel"
               @click="onConfirm"
             >
-              <Icon v-if="store.isSubmitting" icon="lucide:loader-2" class="mr-2 h-4 w-4 animate-spin" />
+              <Icon
+                v-if="store.isSubmitting"
+                icon="lucide:loader-2"
+                class="mr-2 h-4 w-4 animate-spin"
+              />
               {{ store.isSubmitting ? t('mcp.sampling.confirming') : t('mcp.sampling.confirm') }}
             </Button>
           </div>
