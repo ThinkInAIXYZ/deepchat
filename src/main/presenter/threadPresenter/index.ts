@@ -187,6 +187,7 @@ export class ThreadPresenter implements IThreadPresenter {
       tool_call_server_description,
       tool_call_response_raw,
       tool_call,
+      permission_request,
       totalUsage,
       image_data
     } = msg
@@ -383,6 +384,26 @@ export class ThreadPresenter implements IThreadPresenter {
           }
         }
       } else if (tool_call === 'permission-required') {
+        const permissionType = permission_request?.permissionType ?? 'write'
+        const extra: Record<string, string | number | object[] | boolean> = {
+          needsUserAction: true,
+          permissionType
+        }
+
+        const serverName = permission_request?.serverName || tool_call_server_name
+        if (serverName) {
+          extra.serverName = serverName
+        }
+
+        const toolName = permission_request?.toolName || tool_call_name
+        if (toolName) {
+          extra.toolName = toolName
+        }
+
+        if (permission_request) {
+          extra.permissionRequest = JSON.stringify(permission_request)
+        }
+
         if (lastBlock && lastBlock.type === 'tool_call' && lastBlock.tool_call) {
           lastBlock.status = 'success'
         }
@@ -401,7 +422,8 @@ export class ThreadPresenter implements IThreadPresenter {
             server_name: tool_call_server_name,
             server_icons: tool_call_server_icons,
             server_description: tool_call_server_description
-          }
+          },
+          extra
         })
 
         this.searchingMessages.add(eventId)
@@ -412,8 +434,17 @@ export class ThreadPresenter implements IThreadPresenter {
           lastBlock.type === 'action' &&
           lastBlock.action_type === 'tool_call_permission'
         ) {
-          lastBlock.status = 'success'
+          lastBlock.status = 'granted'
           lastBlock.content = tool_call_response || ''
+          if (lastBlock.extra) {
+            lastBlock.extra.needsUserAction = false
+            if (
+              !lastBlock.extra.grantedPermissions &&
+              typeof lastBlock.extra.permissionType === 'string'
+            ) {
+              lastBlock.extra.grantedPermissions = lastBlock.extra.permissionType
+            }
+          }
         }
         this.searchingMessages.delete(eventId)
         state.isSearching = false
@@ -423,8 +454,11 @@ export class ThreadPresenter implements IThreadPresenter {
           lastBlock.type === 'action' &&
           lastBlock.action_type === 'tool_call_permission'
         ) {
-          lastBlock.status = 'error'
+          lastBlock.status = 'denied'
           lastBlock.content = tool_call_response || ''
+          if (lastBlock.extra) {
+            lastBlock.extra.needsUserAction = false
+          }
         }
         this.searchingMessages.delete(eventId)
         state.isSearching = false
