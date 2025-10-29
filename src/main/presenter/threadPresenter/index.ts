@@ -11,6 +11,7 @@ import {
   IConfigPresenter,
   ILlmProviderPresenter,
   MCPToolResponse,
+  MCPToolDefinition,
   ChatMessage,
   LLMAgentEventData
 } from '@shared/presenter'
@@ -35,7 +36,11 @@ import {
   formatUserMessageContent,
   getNormalizedUserMessageText
 } from './messageContent'
-import { preparePromptContent, buildContinueToolCallContext } from './promptBuilder'
+import {
+  preparePromptContent,
+  buildContinueToolCallContext,
+  buildPostToolExecutionContext
+} from './promptBuilder'
 import {
   buildConversationExportContent,
   generateExportFilename,
@@ -426,6 +431,17 @@ export class ThreadPresenter implements IThreadPresenter {
           extra
         })
 
+        if (state) {
+          state.pendingToolCall = {
+            id: tool_call_id || '',
+            name: tool_call_name || '',
+            params: tool_call_params || '',
+            serverName: tool_call_server_name,
+            serverIcons: tool_call_server_icons,
+            serverDescription: tool_call_server_description
+          }
+        }
+
         this.searchingMessages.add(eventId)
         state.isSearching = true
       } else if (tool_call === 'permission-granted') {
@@ -448,6 +464,16 @@ export class ThreadPresenter implements IThreadPresenter {
         }
         this.searchingMessages.delete(eventId)
         state.isSearching = false
+        if (state) {
+          state.pendingToolCall = {
+            id: tool_call_id || '',
+            name: tool_call_name || '',
+            params: tool_call_params || '',
+            serverName: tool_call_server_name,
+            serverIcons: tool_call_server_icons,
+            serverDescription: tool_call_server_description
+          }
+        }
       } else if (tool_call === 'permission-denied') {
         if (
           lastBlock &&
@@ -462,6 +488,9 @@ export class ThreadPresenter implements IThreadPresenter {
         }
         this.searchingMessages.delete(eventId)
         state.isSearching = false
+        if (state) {
+          state.pendingToolCall = undefined
+        }
       } else if (tool_call === 'continue') {
         if (
           lastBlock &&
@@ -494,6 +523,9 @@ export class ThreadPresenter implements IThreadPresenter {
         }
         this.searchingMessages.delete(eventId)
         state.isSearching = false
+        if (state) {
+          state.pendingToolCall = undefined
+        }
       }
     }
 
@@ -2799,6 +2831,52 @@ export class ThreadPresenter implements IThreadPresenter {
         }
       }
 
+      // 2.1 同步内存中的生成状态，避免后续覆盖数据库中的授权结果
+      const generatingState = this.generatingMessages.get(messageId)
+      if (generatingState) {
+        const statePermissionBlockIndex = generatingState.message.content.findIndex(
+          (block) =>
+            block.type === 'action' &&
+            block.action_type === 'tool_call_permission' &&
+            block.tool_call?.id === toolCallId
+        )
+
+        if (statePermissionBlockIndex !== -1) {
+          const statePermissionBlock = generatingState.message.content[statePermissionBlockIndex]
+          generatingState.message.content[statePermissionBlockIndex] = {
+            ...statePermissionBlock,
+            ...permissionBlock,
+            extra: permissionBlock.extra
+              ? {
+                  ...permissionBlock.extra
+                }
+              : undefined,
+            tool_call: permissionBlock.tool_call
+              ? {
+                  ...permissionBlock.tool_call
+                }
+              : undefined
+          }
+        } else {
+          console.warn(
+            `[ThreadPresenter] Permission block not found in generating state, synchronizing snapshot`
+          )
+          generatingState.message.content = content.map((block) => ({
+            ...block,
+            extra: block.extra
+              ? {
+                  ...block.extra
+                }
+              : undefined,
+            tool_call: block.tool_call
+              ? {
+                  ...block.tool_call
+                }
+              : undefined
+          }))
+        }
+      }
+
       // 3. 保存消息更新
       await this.messageManager.editMessage(messageId, JSON.stringify(content))
       console.log(`[ThreadPresenter] Updated permission block status to: ${permissionBlock.status}`)
@@ -2845,10 +2923,10 @@ export class ThreadPresenter implements IThreadPresenter {
         await this.restartAgentLoopAfterPermission(messageId)
       } else {
         console.log(
-          `[ThreadPresenter] Permission denied, ending generation for message: ${messageId}`
+          `[ThreadPresenter] Permission denied, continuing generation with error context for message: ${messageId}`
         )
-        // 6. 权限被拒绝 - 正常结束消息
-        await this.finalizeMessageAfterPermissionDenied(messageId)
+        // 6. 权限被拒绝 - 继续agent loop，将拒绝信息作为工具调用失败结果
+        await this.continueAfterPermissionDenied(messageId)
       }
     } catch (error) {
       console.error(`[ThreadPresenter] Failed to handle permission response:`, error)
@@ -2928,7 +3006,18 @@ export class ThreadPresenter implements IThreadPresenter {
       const state = this.generatingMessages.get(messageId)
       if (state) {
         console.log(`[ThreadPresenter] Message still in generating state, resuming from memory`)
-        await this.resumeStreamCompletion(conversationId, messageId)
+        if (state.pendingToolCall) {
+          console.log(
+            `[ThreadPresenter] Pending tool call detected after permission grant, executing tool before resuming`
+          )
+          await this.resumeAfterPermissionWithPendingToolCall(
+            state,
+            message as AssistantMessage,
+            conversationId
+          )
+        } else {
+          await this.resumeStreamCompletion(conversationId, messageId)
+        }
         return
       }
 
@@ -2946,7 +3035,8 @@ export class ThreadPresenter implements IThreadPresenter {
         promptTokens: 0,
         reasoningStartTime: null,
         reasoningEndTime: null,
-        lastReasoningTime: null
+        lastReasoningTime: null,
+        pendingToolCall: this.findPendingToolCallAfterPermission(content) || undefined
       })
 
       console.log(`[ThreadPresenter] Created new generating state for message: ${messageId}`)
@@ -2969,50 +3059,164 @@ export class ThreadPresenter implements IThreadPresenter {
     }
   }
 
-  // 权限被拒绝后完成消息
-  private async finalizeMessageAfterPermissionDenied(messageId: string): Promise<void> {
-    console.log(`[ThreadPresenter] Finalizing message after permission denied: ${messageId}`)
+  // 权限被拒绝后继续生成，将拒绝信息作为工具调用失败告知LLM
+  private async continueAfterPermissionDenied(messageId: string): Promise<void> {
+    console.log(`[ThreadPresenter] Continuing generation after permission denied: ${messageId}`)
 
     try {
       const message = await this.messageManager.getMessage(messageId)
-      if (!message) return
+      if (!message || message.role !== 'assistant') {
+        const errorMsg = `Message not found or not an assistant message (messageId: ${messageId})`
+        console.error(`[ThreadPresenter] ${errorMsg}`)
+        throw new Error(errorMsg)
+      }
 
+      const conversationId = message.conversationId
       const content = message.content as AssistantMessageBlock[]
 
-      // 将所有loading状态的块设为success，但保留权限块的状态
-      content.forEach((block) => {
-        if (block.type === 'action' && block.action_type === 'tool_call_permission') {
-          // 权限块保持其当前状态（granted/denied/error）
-          return
-        }
-        if (block.status === 'loading') {
-          block.status = 'success'
-        }
+      // 查找被拒绝的权限块
+      const deniedPermissionBlock = content.find(
+        (block) =>
+          block.type === 'action' &&
+          block.action_type === 'tool_call_permission' &&
+          block.status === 'denied'
+      )
+
+      if (!deniedPermissionBlock?.tool_call) {
+        console.warn(`[ThreadPresenter] No denied permission block found for message: ${messageId}`)
+        return
+      }
+
+      const toolCall = deniedPermissionBlock.tool_call
+
+      // 构建工具调用失败的响应消息
+      const errorMessage = `Tool execution failed: Permission denied by user for ${toolCall.name || 'this tool'}`
+
+      console.log(`[ThreadPresenter] Notifying LLM about permission denial: ${errorMessage}`)
+
+      // 发送工具调用失败事件给renderer
+      eventBus.sendToRenderer(STREAM_EVENTS.RESPONSE, SendTarget.ALL_WINDOWS, {
+        eventId: messageId,
+        tool_call: 'end',
+        tool_call_id: toolCall.id,
+        tool_call_name: toolCall.name,
+        tool_call_params: toolCall.params,
+        tool_call_response: errorMessage,
+        tool_call_server_name: toolCall.server_name,
+        tool_call_server_icons: toolCall.server_icons,
+        tool_call_server_description: toolCall.server_description
       })
 
-      // 添加权限被拒绝的提示
-      content.push({
-        type: 'error',
-        content: 'Permission denied by user',
-        status: 'error',
-        timestamp: Date.now()
+      // 获取或创建生成状态
+      let state = this.generatingMessages.get(messageId)
+      if (!state) {
+        // 重新创建生成状态
+        const assistantMessage = message as AssistantMessage
+        state = {
+          message: assistantMessage,
+          conversationId,
+          startTime: Date.now(),
+          firstTokenTime: null,
+          promptTokens: 0,
+          reasoningStartTime: null,
+          reasoningEndTime: null,
+          lastReasoningTime: null
+        }
+        this.generatingMessages.set(messageId, state)
+      }
+
+      // 清除pending tool call（如果有）
+      state.pendingToolCall = undefined
+
+      // 获取会话和上下文
+      const { conversation, contextMessages, userMessage } = await this.prepareConversationContext(
+        conversationId,
+        messageId
+      )
+
+      const {
+        providerId,
+        modelId,
+        temperature,
+        maxTokens,
+        enabledMcpTools,
+        thinkingBudget,
+        reasoningEffort,
+        verbosity,
+        enableSearch,
+        forcedSearch,
+        searchStrategy
+      } = conversation.settings
+
+      const modelConfig = this.configPresenter.getModelConfig(modelId, providerId)
+
+      // 将 snake_case 转换为 camelCase 并构建包含工具调用失败信息的上下文
+      const completedToolCall = {
+        id: toolCall.id || '',
+        name: toolCall.name || '',
+        params: toolCall.params || '',
+        response: errorMessage,
+        // 注意：从 snake_case 转换为 camelCase
+        serverName: toolCall.server_name,
+        serverIcons: toolCall.server_icons,
+        serverDescription: toolCall.server_description
+      }
+
+      const finalContent = await buildPostToolExecutionContext({
+        conversation,
+        contextMessages,
+        userMessage,
+        currentAssistantMessage: state.message,
+        completedToolCall,
+        modelConfig
       })
 
-      await this.messageManager.editMessage(messageId, JSON.stringify(content))
-      await this.messageManager.updateMessageStatus(messageId, 'sent')
+      console.log(
+        `[ThreadPresenter] Restarting agent loop with tool failure context for message: ${messageId}`
+      )
+
+      // 继续agent loop
+      const stream = this.llmProviderPresenter.startStreamCompletion(
+        providerId,
+        finalContent,
+        modelId,
+        messageId,
+        temperature,
+        maxTokens,
+        enabledMcpTools,
+        thinkingBudget,
+        reasoningEffort,
+        verbosity,
+        enableSearch,
+        forcedSearch,
+        searchStrategy
+      )
+
+      for await (const event of stream) {
+        const msg = event.data
+        if (event.type === 'response') {
+          await this.handleLLMAgentResponse(msg)
+        } else if (event.type === 'error') {
+          await this.handleLLMAgentError(msg)
+        } else if (event.type === 'end') {
+          await this.handleLLMAgentEnd(msg)
+        }
+      }
+
+      console.log(`[ThreadPresenter] Successfully continued after permission denial: ${messageId}`)
+    } catch (error) {
+      console.error(`[ThreadPresenter] Failed to continue after permission denial:`, error)
 
       // 清理生成状态
       this.generatingMessages.delete(messageId)
 
-      // 发送结束事件
-      eventBus.sendToRenderer(STREAM_EVENTS.END, SendTarget.ALL_WINDOWS, {
-        eventId: messageId,
-        userStop: false
-      })
+      try {
+        await this.messageManager.handleMessageError(messageId, String(error))
+      } catch (updateError) {
+        console.error(`[ThreadPresenter] Failed to update message error status:`, updateError)
+      }
 
-      console.log(`[ThreadPresenter] Message finalized after permission denial: ${messageId}`)
-    } catch (error) {
-      console.error(`[ThreadPresenter] Failed to finalize message after permission denial:`, error)
+      throw error
     }
   }
 
@@ -3131,6 +3335,210 @@ export class ThreadPresenter implements IThreadPresenter {
 
       try {
         await this.messageManager.handleMessageError(messageId, String(error))
+      } catch (updateError) {
+        console.error(`[ThreadPresenter] Failed to update message error status:`, updateError)
+      }
+
+      throw error
+    }
+  }
+
+  private async resumeAfterPermissionWithPendingToolCall(
+    state: GeneratingMessageState,
+    message: AssistantMessage,
+    conversationId: string
+  ): Promise<void> {
+    const pendingToolCall = state.pendingToolCall
+    if (!pendingToolCall || !pendingToolCall.id || !pendingToolCall.name) {
+      console.warn(
+        `[ThreadPresenter] Pending tool call data missing, falling back to standard resume`
+      )
+      await this.resumeStreamCompletion(conversationId, message.id)
+      return
+    }
+
+    try {
+      const { conversation, contextMessages, userMessage } = await this.prepareConversationContext(
+        conversationId,
+        message.id
+      )
+
+      const {
+        providerId,
+        modelId,
+        temperature,
+        maxTokens,
+        enabledMcpTools,
+        thinkingBudget,
+        reasoningEffort,
+        verbosity,
+        enableSearch,
+        forcedSearch,
+        searchStrategy
+      } = conversation.settings
+
+      const modelConfig = this.configPresenter.getModelConfig(modelId, providerId)
+      if (!modelConfig) {
+        console.warn(
+          `[ThreadPresenter] Model config not found for ${modelId} (${providerId}), falling back to standard resume`
+        )
+        await this.resumeStreamCompletion(conversationId, message.id)
+        return
+      }
+
+      let toolDef: MCPToolDefinition | undefined
+      try {
+        const toolDefinitions = await presenter.mcpPresenter.getAllToolDefinitions(enabledMcpTools)
+        toolDef = toolDefinitions.find((definition) => {
+          if (definition.function.name !== pendingToolCall.name) {
+            return false
+          }
+          if (pendingToolCall.serverName) {
+            return definition.server.name === pendingToolCall.serverName
+          }
+          return true
+        })
+      } catch (error) {
+        console.error('[ThreadPresenter] Failed to load tool definitions:', error)
+      }
+
+      if (!toolDef) {
+        console.warn(
+          `[ThreadPresenter] Tool definition not found for ${pendingToolCall.name}, falling back to standard resume`
+        )
+        await this.resumeStreamCompletion(conversationId, message.id)
+        return
+      }
+
+      const resolvedToolDef = toolDef as MCPToolDefinition
+
+      await this.handleLLMAgentResponse({
+        eventId: message.id,
+        tool_call: 'running',
+        tool_call_id: pendingToolCall.id,
+        tool_call_name: pendingToolCall.name,
+        tool_call_params: pendingToolCall.params,
+        tool_call_server_name: resolvedToolDef.server.name,
+        tool_call_server_icons: resolvedToolDef.server.icons,
+        tool_call_server_description: resolvedToolDef.server.description
+      })
+
+      let toolContent = ''
+      let toolRawData: MCPToolResponse | null = null
+      try {
+        const toolCallResult = await presenter.mcpPresenter.callTool({
+          id: pendingToolCall.id,
+          type: 'function',
+          function: {
+            name: pendingToolCall.name,
+            arguments: pendingToolCall.params
+          },
+          server: resolvedToolDef.server
+        })
+        toolContent = toolCallResult.content
+        toolRawData = toolCallResult.rawData
+      } catch (toolError) {
+        console.error('[ThreadPresenter] Failed to execute pending tool call:', toolError)
+        await this.handleLLMAgentResponse({
+          eventId: message.id,
+          tool_call: 'error',
+          tool_call_id: pendingToolCall.id,
+          tool_call_name: pendingToolCall.name,
+          tool_call_params: pendingToolCall.params,
+          tool_call_response: toolError instanceof Error ? toolError.message : String(toolError),
+          tool_call_server_name: resolvedToolDef.server.name,
+          tool_call_server_icons: resolvedToolDef.server.icons,
+          tool_call_server_description: resolvedToolDef.server.description
+        })
+        throw toolError
+      }
+
+      if (toolRawData?.requiresPermission) {
+        console.warn(
+          `[ThreadPresenter] Tool ${pendingToolCall.name} still requires permission after grant`
+        )
+        await this.handleLLMAgentResponse({
+          eventId: message.id,
+          tool_call: 'permission-required',
+          tool_call_id: pendingToolCall.id,
+          tool_call_name: pendingToolCall.name,
+          tool_call_params: pendingToolCall.params,
+          tool_call_server_name:
+            toolRawData.permissionRequest?.serverName || resolvedToolDef.server.name,
+          tool_call_server_icons: resolvedToolDef.server.icons,
+          tool_call_server_description: resolvedToolDef.server.description,
+          tool_call_response: toolContent,
+          permission_request: toolRawData.permissionRequest
+        })
+        // 新的权限请求会触发新的处理流程
+        return
+      }
+
+      const serializedResponse = toolContent
+
+      await this.handleLLMAgentResponse({
+        eventId: message.id,
+        tool_call: 'end',
+        tool_call_id: pendingToolCall.id,
+        tool_call_name: pendingToolCall.name,
+        tool_call_params: pendingToolCall.params,
+        tool_call_response: serializedResponse,
+        tool_call_server_name: resolvedToolDef.server.name,
+        tool_call_server_icons: resolvedToolDef.server.icons,
+        tool_call_server_description: resolvedToolDef.server.description,
+        tool_call_response_raw: toolRawData ?? undefined
+      })
+
+      state.pendingToolCall = undefined
+
+      const finalContent = await buildPostToolExecutionContext({
+        conversation,
+        contextMessages,
+        userMessage,
+        currentAssistantMessage: state.message,
+        completedToolCall: {
+          ...pendingToolCall,
+          response: serializedResponse
+        },
+        modelConfig
+      })
+
+      const stream = this.llmProviderPresenter.startStreamCompletion(
+        providerId,
+        finalContent,
+        modelId,
+        message.id,
+        temperature,
+        maxTokens,
+        enabledMcpTools,
+        thinkingBudget,
+        reasoningEffort,
+        verbosity,
+        enableSearch,
+        forcedSearch,
+        searchStrategy
+      )
+
+      for await (const event of stream) {
+        const msg = event.data
+        if (event.type === 'response') {
+          await this.handleLLMAgentResponse(msg)
+        } else if (event.type === 'error') {
+          await this.handleLLMAgentError(msg)
+        } else if (event.type === 'end') {
+          await this.handleLLMAgentEnd(msg)
+        }
+      }
+    } catch (error) {
+      console.error(
+        '[ThreadPresenter] Failed to resume after permission with pending tool call:',
+        error
+      )
+
+      this.generatingMessages.delete(message.id)
+
+      try {
+        await this.messageManager.handleMessageError(message.id, String(error))
       } catch (updateError) {
         console.error(`[ThreadPresenter] Failed to update message error status:`, updateError)
       }

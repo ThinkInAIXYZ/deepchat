@@ -1,6 +1,12 @@
 import { approximateTokenSize } from 'tokenx'
 import { presenter } from '@/presenter'
-import { AssistantMessageBlock, Message, MessageFile, UserMessageContent } from '@shared/chat'
+import {
+  AssistantMessage,
+  AssistantMessageBlock,
+  Message,
+  MessageFile,
+  UserMessageContent
+} from '@shared/chat'
 import { ModelType } from '@shared/model'
 import {
   CONVERSATION,
@@ -14,7 +20,14 @@ import { ContentEnricher } from './contentEnricher'
 import { buildUserMessageContext, getNormalizedUserMessageText } from './messageContent'
 import { generateSearchPrompt } from './searchManager'
 
-type PendingToolCall = { id: string; name: string; params: string }
+export type PendingToolCall = {
+  id: string
+  name: string
+  params: string
+  serverName?: string
+  serverIcons?: string
+  serverDescription?: string
+}
 type VisionUserMessageContent = UserMessageContent & { images?: string[] }
 
 export interface PreparePromptContentParams {
@@ -35,6 +48,15 @@ export interface ContinueToolCallContextParams {
   contextMessages: Message[]
   userMessage: Message
   pendingToolCall: PendingToolCall
+  modelConfig: ModelConfig
+}
+
+export interface PostToolExecutionContextParams {
+  conversation: CONVERSATION
+  contextMessages: Message[]
+  userMessage: Message
+  currentAssistantMessage: AssistantMessage
+  completedToolCall: PendingToolCall & { response: string }
   modelConfig: ModelConfig
 }
 
@@ -207,6 +229,113 @@ export async function buildContinueToolCallContext({
   }
 
   return formattedMessages
+}
+
+export async function buildPostToolExecutionContext({
+  conversation,
+  contextMessages,
+  userMessage,
+  currentAssistantMessage,
+  completedToolCall,
+  modelConfig
+}: PostToolExecutionContextParams): Promise<ChatMessage[]> {
+  const { systemPrompt } = conversation.settings
+  const formattedMessages: ChatMessage[] = []
+
+  if (systemPrompt) {
+    const finalSystemPrompt = enhanceSystemPromptWithDateTime(systemPrompt)
+    formattedMessages.push({
+      role: 'system',
+      content: finalSystemPrompt
+    })
+  }
+
+  const contextChatMessages = addContextMessages(contextMessages, false, modelConfig.functionCall)
+  formattedMessages.push(...contextChatMessages)
+
+  const userContent = userMessage.content as UserMessageContent
+  const finalUserContent = buildUserMessageContext(userContent)
+
+  formattedMessages.push({
+    role: 'user',
+    content: finalUserContent
+  })
+
+  const assistantPreface = collectAssistantTextBeforePermission(currentAssistantMessage?.content)
+  if (assistantPreface.trim().length > 0) {
+    formattedMessages.push({
+      role: 'assistant',
+      content: assistantPreface
+    })
+  }
+
+  if (modelConfig.functionCall) {
+    formattedMessages.push({
+      role: 'assistant',
+      tool_calls: [
+        {
+          id: completedToolCall.id,
+          type: 'function',
+          function: {
+            name: completedToolCall.name,
+            arguments: completedToolCall.params
+          }
+        }
+      ]
+    })
+
+    formattedMessages.push({
+      role: 'tool',
+      tool_call_id: completedToolCall.id,
+      content: completedToolCall.response
+    })
+  } else {
+    const formattedRecord = `<function_call>${JSON.stringify({
+      function_call_record: {
+        name: completedToolCall.name,
+        arguments: completedToolCall.params,
+        response: completedToolCall.response
+      }
+    })}</function_call>`
+
+    formattedMessages.push({
+      role: 'assistant',
+      content: formattedRecord + '\n'
+    })
+
+    const userPromptText =
+      '以上是你刚执行的工具调用及其响应信息，已帮你插入，请仔细阅读工具响应，并继续你的回答。'
+    formattedMessages.push({
+      role: 'user',
+      content: [{ type: 'text', text: userPromptText }]
+    })
+  }
+
+  return formattedMessages
+}
+
+function collectAssistantTextBeforePermission(blocks: AssistantMessageBlock[] | undefined): string {
+  if (!blocks?.length) {
+    return ''
+  }
+
+  const parts: string[] = []
+
+  for (const block of blocks) {
+    if (block.type === 'action' && block.action_type === 'tool_call_permission') {
+      break
+    }
+
+    if (block.type === 'content' && typeof block.content === 'string') {
+      parts.push(block.content)
+    }
+
+    if (block.type === 'reasoning_content' && typeof block.content === 'string') {
+      parts.push(block.content)
+    }
+  }
+
+  return parts.join('')
 }
 
 function selectContextMessages(

@@ -208,6 +208,7 @@ const getStatusIconClass = () => {
 const getStatusText = () => {
   switch (props.block.status) {
     case 'granted':
+    case 'success':
       return t('components.messageBlockPermissionRequest.granted')
     case 'denied':
       return t('components.messageBlockPermissionRequest.denied')

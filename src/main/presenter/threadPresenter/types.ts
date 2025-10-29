@@ -1,4 +1,5 @@
 import type { AssistantMessage } from '@shared/chat'
+import type { PendingToolCall } from './promptBuilder'
 
 export interface GeneratingMessageState {
   message: AssistantMessage
@@ -11,6 +12,7 @@ export interface GeneratingMessageState {
   lastReasoningTime: number | null
   isSearching?: boolean
   isCancelled?: boolean
+  pendingToolCall?: PendingToolCall
   totalUsage?: {
     prompt_tokens: number
     completion_tokens: number
