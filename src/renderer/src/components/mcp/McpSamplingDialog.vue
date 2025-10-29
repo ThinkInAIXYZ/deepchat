@@ -86,9 +86,14 @@
           </div>
 
           <div v-if="store.isChoosingModel" class="space-y-3">
-            <ModelChooser @update:model="onModelUpdate" />
+            <ModelChooser :requires-vision="store.requiresVision" @update:model="onModelUpdate" />
+            <p v-if="!store.hasEligibleModel" class="text-sm text-muted-foreground">
+              {{
+                store.requiresVision ? t('mcp.sampling.noVisionModels') : t('mcp.sampling.noModels')
+              }}
+            </p>
             <p
-              v-if="store.requiresVision && !store.selectedModelSupportsVision"
+              v-else-if="store.requiresVision && !store.selectedModelSupportsVision"
               class="text-sm text-destructive"
             >
               {{ t('mcp.sampling.visionWarning') }}
@@ -97,7 +102,7 @@
               {{
                 t('mcp.sampling.selectedModelLabel', {
                   model: store.selectedModel?.name,
-                  provider: store.selectedProviderId
+                  provider: store.selectedProviderLabel || store.selectedProviderId
                 })
               }}
             </p>
@@ -125,7 +130,7 @@
             <Button
               v-else
               class="sm:min-w-[120px]"
-              :disabled="store.isSubmitting || !store.selectedModel"
+              :disabled="store.isSubmitting || !store.selectedModel || !store.hasEligibleModel"
               @click="onConfirm"
             >
               <Icon

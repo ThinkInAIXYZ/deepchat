@@ -24,28 +24,93 @@ export const useMcpSamplingStore = defineStore('mcpSampling', () => {
 
   const requiresVision = computed(() => request.value?.requiresVision ?? false)
   const selectedModelSupportsVision = computed(() => selectedModel.value?.vision ?? false)
+  const selectedProviderLabel = computed(() => {
+    if (!selectedProviderId.value) {
+      return null
+    }
+
+    const provider = settingsStore.sortedProviders.find(
+      (entry) => entry.id === selectedProviderId.value
+    )
+
+    return provider?.name ?? selectedProviderId.value
+  })
 
   const resetSelection = () => {
-    selectedProviderId.value = chatStore.chatConfig.providerId || null
-    const providerId = selectedProviderId.value
-    if (!providerId) {
-      selectedModel.value = null
-      return
+    const requiresVisionValue = requiresVision.value
+
+    const pickEligibleModel = (
+      providerEntry: { providerId: string; models: RENDERER_MODEL_META[] } | undefined,
+      preferredModelId?: string | null
+    ): { providerId: string | null; model: RENDERER_MODEL_META | null } => {
+      if (!providerEntry) {
+        return { providerId: null, model: null }
+      }
+
+      const models = requiresVisionValue
+        ? providerEntry.models.filter((model) => model.vision)
+        : providerEntry.models
+
+      if (models.length === 0) {
+        return { providerId: null, model: null }
+      }
+
+      if (preferredModelId) {
+        const preferredModel = models.find((model) => model.id === preferredModelId)
+        if (preferredModel) {
+          return { providerId: providerEntry.providerId, model: preferredModel }
+        }
+      }
+
+      return { providerId: providerEntry.providerId, model: models[0] }
     }
 
-    const providerEntry = settingsStore.enabledModels.find(
-      (entry) => entry.providerId === providerId
-    )
-    const activeModelId = chatStore.chatConfig.modelId
-    const activeModel = providerEntry?.models.find((model) => model.id === activeModelId)
+    const activeProviderId = chatStore.chatConfig.providerId || null
+    const activeModelId = chatStore.chatConfig.modelId || null
 
-    if (activeModel) {
-      selectedModel.value = activeModel
-      return
+    if (activeProviderId) {
+      const providerEntry = settingsStore.enabledModels.find(
+        (entry) => entry.providerId === activeProviderId
+      )
+      const selection = pickEligibleModel(providerEntry, activeModelId)
+      if (selection.model && selection.providerId) {
+        selectedProviderId.value = selection.providerId
+        selectedModel.value = selection.model
+        return
+      }
     }
 
-    selectedModel.value = providerEntry?.models?.[0] ?? null
+    for (const provider of settingsStore.sortedProviders) {
+      if (!provider.enable) {
+        continue
+      }
+
+      const providerEntry = settingsStore.enabledModels.find(
+        (entry) => entry.providerId === provider.id
+      )
+
+      const selection = pickEligibleModel(providerEntry)
+      if (selection.model && selection.providerId) {
+        selectedProviderId.value = selection.providerId
+        selectedModel.value = selection.model
+        return
+      }
+    }
+
+    selectedProviderId.value = null
+    selectedModel.value = null
   }
+
+  const hasEligibleModel = computed(() => {
+    if (!request.value) {
+      return false
+    }
+
+    const requiresVisionValue = requiresVision.value
+    return settingsStore.enabledModels.some((entry) =>
+      entry.models.some((model) => !requiresVisionValue || model.vision)
+    )
+  })
 
   const openRequest = (payload: McpSamplingRequestPayload) => {
     request.value = payload
@@ -69,6 +134,10 @@ export const useMcpSamplingStore = defineStore('mcpSampling', () => {
   }
 
   const selectModel = (model: RENDERER_MODEL_META, providerId: string) => {
+    if (requiresVision.value && !model.vision) {
+      return
+    }
+
     selectedModel.value = model
     selectedProviderId.value = providerId
   }
@@ -151,8 +220,10 @@ export const useMcpSamplingStore = defineStore('mcpSampling', () => {
     isChoosingModel,
     requiresVision,
     selectedModelSupportsVision,
+    selectedProviderLabel,
     selectedProviderId,
     selectedModel,
+    hasEligibleModel,
     beginApprove,
     selectModel,
     confirmApproval,

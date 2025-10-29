@@ -150,6 +150,8 @@
     "visionWarning": "The selected model does not support vision input. Please pick a vision-capable model before continuing.",
     "selectedModelLabel": "Responding with {model} ({provider})",
     "unsupportedMessage": "This content type is not supported.",
+    "noVisionModels": "No vision-capable models are enabled. Enable a vision model in Settings to continue.",
+    "noModels": "No eligible models are enabled. Enable an applicable model in Settings to continue.",
     "imageAlt": "Image {index}",
     "unknownMime": "Unknown MIME type",
     "unknownHint": "Unnamed hint",
