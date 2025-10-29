@@ -438,7 +438,7 @@ function sanitizeHref(link: string): string {
   }
 
   // Allow relative URLs (no scheme)
-  if (!/^[a-z][\w+.-]*:/.test(trimmed)) {
+  if (!/^[a-z][\w+.-]*:/i.test(trimmed)) {
     return trimmed
   }
 
