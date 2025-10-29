@@ -220,7 +220,7 @@ const onConfirm = () => {
 
 const onDialogToggle = (open: boolean) => {
   if (!open && !store.isSubmitting) {
-    store.closeRequest()
+    void store.dismissRequest()
   }
 }
 </script>

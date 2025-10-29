@@ -182,6 +182,19 @@ export const useMcpSamplingStore = defineStore('mcpSampling', () => {
     })
   }
 
+  const dismissRequest = async () => {
+    if (!request.value) {
+      closeRequest()
+      return
+    }
+
+    await submitDecision({
+      requestId: request.value.requestId,
+      approved: false,
+      reason: 'User dismissed sampling request'
+    })
+  }
+
   const handleSamplingRequest = (_event: unknown, payload: McpSamplingRequestPayload) => {
     openRequest(payload)
   }
@@ -228,6 +241,7 @@ export const useMcpSamplingStore = defineStore('mcpSampling', () => {
     selectModel,
     confirmApproval,
     rejectRequest,
+    dismissRequest,
     closeRequest
   }
 })
