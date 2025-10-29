@@ -1,126 +1,138 @@
 <template>
   <Dialog :open="store.isOpen" @update:open="onDialogToggle">
-    <DialogContent class="max-w-3xl max-h-[85vh] overflow-y-auto">
-      <DialogHeader>
-        <DialogTitle>
-          {{
-            t('mcp.sampling.title', {
-              server: store.request?.serverLabel || store.request?.serverName || t('mcp.sampling.unknownServer')
-            })
-          }}
-        </DialogTitle>
-        <DialogDescription>
-          {{ t('mcp.sampling.description') }}
-        </DialogDescription>
-      </DialogHeader>
-
-      <div v-if="store.request" class="space-y-4">
-        <div
-          v-if="store.request.systemPrompt"
-          class="max-h-48 overflow-y-auto rounded-md border bg-muted/40 p-3 pr-2"
-        >
-          <h4 class="mb-2 text-sm font-semibold text-muted-foreground">
-            {{ t('mcp.sampling.systemPrompt') }}
-          </h4>
-          <p class="whitespace-pre-wrap text-sm leading-relaxed">
-            {{ store.request.systemPrompt }}
-          </p>
-        </div>
-
-        <div class="space-y-3">
-          <h4 class="text-sm font-semibold text-muted-foreground">
-            {{ t('mcp.sampling.messagesTitle') }}
-          </h4>
-          <ScrollArea class="max-h-[50vh] pr-2">
-            <div class="space-y-3">
-              <div
-                v-for="(message, index) in store.request.messages"
-                :key="`${message.role}-${index}`"
-                class="rounded-md border p-3"
-              >
-                <div class="mb-2 flex items-center justify-between">
-                  <Badge variant="outline" class="capitalize">{{ message.role }}</Badge>
-                  <span class="text-xs text-muted-foreground">
-                    {{ t(`mcp.sampling.contentType.${message.type}`) }}
-                  </span>
-                </div>
-                <p v-if="message.type === 'text'" class="whitespace-pre-wrap text-sm leading-relaxed">
-                  {{ message.text }}
-                </p>
-                <div v-else-if="message.type === 'image'" class="flex flex-col items-start gap-2">
-                  <img
-                    v-if="message.dataUrl"
-                    :src="message.dataUrl"
-                    class="max-h-40 rounded-md border object-contain"
-                    :alt="t('mcp.sampling.imageAlt', { index: index + 1 })"
-                  />
-                  <span class="text-xs text-muted-foreground">
-                    {{ message.mimeType || t('mcp.sampling.unknownMime') }}
-                  </span>
-                </div>
-                <p v-else class="text-sm text-muted-foreground">
-                  {{ t('mcp.sampling.unsupportedMessage') }}
-                </p>
-              </div>
-            </div>
-          </ScrollArea>
-        </div>
-
-        <div v-if="preferenceSummary.length > 0" class="rounded-md border bg-muted/30 p-3">
-          <h4 class="mb-2 text-sm font-semibold text-muted-foreground">
-            {{ t('mcp.sampling.preferencesTitle') }}
-          </h4>
-          <ul class="space-y-1 text-sm">
-            <li v-for="item in preferenceSummary" :key="item.key" class="flex items-center gap-2">
-              <span class="font-medium text-muted-foreground">{{ item.label }}</span>
-              <span>{{ item.value }}</span>
-            </li>
-          </ul>
-        </div>
-
-        <div v-if="store.isChoosingModel" class="space-y-3">
-          <ModelChooser @update:model="onModelUpdate" />
-          <p
-            v-if="store.requiresVision && !store.selectedModelSupportsVision"
-            class="text-sm text-destructive"
-          >
-            {{ t('mcp.sampling.visionWarning') }}
-          </p>
-          <p v-else-if="store.selectedModel" class="text-xs text-muted-foreground">
+    <DialogContent class="max-w-3xl max-h-[85vh] p-0">
+      <div class="flex h-full max-h-[85vh] flex-col">
+        <DialogHeader class="px-6 pt-6">
+          <DialogTitle>
             {{
-              t('mcp.sampling.selectedModelLabel', {
-                model: store.selectedModel?.name,
-                provider: store.selectedProviderId
+              t('mcp.sampling.title', {
+                server: store.request?.serverLabel || store.request?.serverName || t('mcp.sampling.unknownServer')
               })
             }}
-          </p>
-        </div>
-      </div>
+          </DialogTitle>
+          <DialogDescription>
+            {{ t('mcp.sampling.description') }}
+          </DialogDescription>
+        </DialogHeader>
 
-      <DialogFooter class="flex flex-col gap-2 sm:flex-row sm:justify-end">
-        <Button
-          variant="outline"
-          :disabled="store.isSubmitting"
-          @click="onReject"
+        <div
+          v-if="store.request"
+          class="flex flex-1 flex-col gap-4 overflow-hidden px-6 pb-4"
         >
-          {{ t('mcp.sampling.reject') }}
-        </Button>
-        <Button
-          v-if="!store.isChoosingModel"
-          :disabled="store.isSubmitting"
-          @click="store.beginApprove"
+          <div
+            v-if="store.request.systemPrompt"
+            class="max-h-48 overflow-y-auto rounded-md border bg-muted/40 p-3 pr-2"
+          >
+            <h4 class="mb-2 text-sm font-semibold text-muted-foreground">
+              {{ t('mcp.sampling.systemPrompt') }}
+            </h4>
+            <p class="whitespace-pre-wrap text-sm leading-relaxed">
+              {{ store.request.systemPrompt }}
+            </p>
+          </div>
+
+          <div class="flex min-h-0 flex-1 flex-col space-y-3 overflow-hidden">
+            <h4 class="text-sm font-semibold text-muted-foreground">
+              {{ t('mcp.sampling.messagesTitle') }}
+            </h4>
+            <ScrollArea class="flex-1 overflow-y-auto pr-2">
+              <div class="space-y-3">
+                <div
+                  v-for="(message, index) in store.request.messages"
+                  :key="`${message.role}-${index}`"
+                  class="rounded-md border p-3"
+                >
+                  <div class="mb-2 flex items-center justify-between">
+                    <Badge variant="outline" class="capitalize">{{ message.role }}</Badge>
+                    <span class="text-xs text-muted-foreground">
+                      {{ t(`mcp.sampling.contentType.${message.type}`) }}
+                    </span>
+                  </div>
+                  <p v-if="message.type === 'text'" class="whitespace-pre-wrap text-sm leading-relaxed">
+                    {{ message.text }}
+                  </p>
+                  <div v-else-if="message.type === 'image'" class="flex flex-col items-start gap-2">
+                    <img
+                      v-if="message.dataUrl"
+                      :src="message.dataUrl"
+                      class="max-h-40 rounded-md border object-contain"
+                      :alt="t('mcp.sampling.imageAlt', { index: index + 1 })"
+                    />
+                    <span class="text-xs text-muted-foreground">
+                      {{ message.mimeType || t('mcp.sampling.unknownMime') }}
+                    </span>
+                  </div>
+                  <p v-else class="text-sm text-muted-foreground">
+                    {{ t('mcp.sampling.unsupportedMessage') }}
+                  </p>
+                </div>
+              </div>
+            </ScrollArea>
+          </div>
+
+          <div v-if="preferenceSummary.length > 0" class="rounded-md border bg-muted/30 p-3">
+            <h4 class="mb-2 text-sm font-semibold text-muted-foreground">
+              {{ t('mcp.sampling.preferencesTitle') }}
+            </h4>
+            <ul class="space-y-1 text-sm">
+              <li v-for="item in preferenceSummary" :key="item.key" class="flex items-center gap-2">
+                <span class="font-medium text-muted-foreground">{{ item.label }}</span>
+                <span>{{ item.value }}</span>
+              </li>
+            </ul>
+          </div>
+
+          <div v-if="store.isChoosingModel" class="space-y-3">
+            <ModelChooser @update:model="onModelUpdate" />
+            <p
+              v-if="store.requiresVision && !store.selectedModelSupportsVision"
+              class="text-sm text-destructive"
+            >
+              {{ t('mcp.sampling.visionWarning') }}
+            </p>
+            <p v-else-if="store.selectedModel" class="text-xs text-muted-foreground">
+              {{
+                t('mcp.sampling.selectedModelLabel', {
+                  model: store.selectedModel?.name,
+                  provider: store.selectedProviderId
+                })
+              }}
+            </p>
+          </div>
+        </div>
+
+        <DialogFooter
+          class="border-t border-border/60 bg-card/60 px-6 py-4"
         >
-          {{ t('mcp.sampling.approve') }}
-        </Button>
-        <Button
-          v-else
-          :disabled="store.isSubmitting || !store.selectedModel"
-          @click="onConfirm"
-        >
-          <Icon v-if="store.isSubmitting" icon="lucide:loader-2" class="mr-2 h-4 w-4 animate-spin" />
-          {{ store.isSubmitting ? t('mcp.sampling.confirming') : t('mcp.sampling.confirm') }}
-        </Button>
-      </DialogFooter>
+          <div class="flex w-full flex-col gap-2 sm:flex-row sm:justify-end">
+            <Button
+              variant="outline"
+              class="sm:min-w-[96px]"
+              :disabled="store.isSubmitting"
+              @click="onReject"
+            >
+              {{ t('mcp.sampling.reject') }}
+            </Button>
+            <Button
+              v-if="!store.isChoosingModel"
+              class="sm:min-w-[120px]"
+              :disabled="store.isSubmitting"
+              @click="store.beginApprove"
+            >
+              {{ t('mcp.sampling.approve') }}
+            </Button>
+            <Button
+              v-else
+              class="sm:min-w-[120px]"
+              :disabled="store.isSubmitting || !store.selectedModel"
+              @click="onConfirm"
+            >
+              <Icon v-if="store.isSubmitting" icon="lucide:loader-2" class="mr-2 h-4 w-4 animate-spin" />
+              {{ store.isSubmitting ? t('mcp.sampling.confirming') : t('mcp.sampling.confirm') }}
+            </Button>
+          </div>
+        </DialogFooter>
+      </div>
     </DialogContent>
   </Dialog>
 </template>
