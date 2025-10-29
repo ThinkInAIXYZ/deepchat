@@ -26,7 +26,7 @@ export const conversationExportTemplates: ExportTemplates = {
     documentEnd: ['  </div>', '</body>', '</html>']
   },
   styles: [
-    ':root { color-scheme: only light; }',
+    ':root { color-scheme: light; }',
     '* { box-sizing: border-box; }',
     'body { margin: 0; padding: 40px 16px 48px; background: #f1f4f9; color: #1f2933; font-family: "Inter", "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif; line-height: 1.7; }',
     '.page { max-width: 840px; margin: 0 auto; display: flex; flex-direction: column; gap: 24px; }',
@@ -48,6 +48,7 @@ export const conversationExportTemplates: ExportTemplates = {
     '.section-label { font-size: 0.75rem; font-weight: 600; color: #475569; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 10px; }',
     '.section-caption { font-size: 0.85rem; color: #475569; margin-bottom: 4px; }',
     '.attachments, .search-block, .tool-call, .error-block, .reasoning-block { border-radius: 12px; padding: 18px 20px; border: 1px solid rgba(203, 213, 225, 0.7); background: #f8fafc; }',
+    '.links { border-radius: 12px; padding: 18px 20px; border: 1px solid rgba(203, 213, 225, 0.7); background: #f8fafc; }',
     '.attachments { background: #fef3c7; border-color: #fcd34d; }',
     '.attachments ul { margin: 8px 0 0; padding-left: 20px; }',
     '.attachments li { margin: 4px 0; }',
@@ -107,7 +108,7 @@ export const conversationExportTemplates: ExportTemplates = {
     ],
     attachmentItem: '          <li><strong>{{name}}</strong> <span>({{mime}})</span></li>',
     linksSection: [
-      '      <div class="section attachments">',
+      '      <div class="section links">',
       '        <div class="section-title">🔗 链接</div>',
       '        <ul>',
       '{{items}}',

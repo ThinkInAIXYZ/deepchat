@@ -32,7 +32,7 @@ export function buildConversationExportContent(
     case 'txt':
       return exportToText(conversation, messages)
     default:
-      throw new Error(`不支持的导出格式: ${format}`)
+      throw new Error(`Unsupported export format: ${format}`)
   }
 }
 
@@ -70,7 +70,7 @@ function exportToMarkdown(conversation: CONVERSATION, messages: Message[]): stri
       if (userContent.files && userContent.files.length > 0) {
         lines.push('**附件:**')
         for (const file of userContent.files) {
-          lines.push(`- ${file.name} (${file.mimeType})`)
+          lines.push(`- ${file.name ?? ''} (${file.mimeType ?? 'unknown'})`)
         }
         lines.push('')
       }
@@ -133,7 +133,7 @@ function exportToMarkdown(conversation: CONVERSATION, messages: Message[]): stri
             break
           case 'search':
             lines.push('### 🔍 网络搜索')
-            if (block.extra?.total) {
+            if (block.extra?.total !== undefined) {
               lines.push(`找到 ${block.extra.total} 个搜索结果`)
             }
             lines.push('')
@@ -244,12 +244,13 @@ function exportToHtml(conversation: CONVERSATION, messages: Message[]): string {
         ) ?? []
 
       const linkItems =
-        userContent.links?.map((link) =>
-          renderTemplate(templates.linkItem, {
-            href: escapeHtml(link),
+        userContent.links?.map((link) => {
+          const safeHref = sanitizeHref(link)
+          return renderTemplate(templates.linkItem, {
+            href: escapeHtml(safeHref),
             label: escapeHtml(link)
           })
-        ) ?? []
+        }) ?? []
 
       const attachmentsSection =
         attachmentItems.length > 0
@@ -403,8 +404,10 @@ function renderTemplate(
     let rendered = line
 
     for (const [key, value] of Object.entries(replacements)) {
-      const pattern = new RegExp(`\\{\\{${key}\\}\\}`, 'g')
-      rendered = rendered.replace(pattern, value)
+      const token = `{{${key}}}`
+      if (rendered.includes(token)) {
+        rendered = rendered.split(token).join(value)
+      }
     }
 
     rendered = rendered.replace(/{{\w+}}/g, '')
@@ -416,6 +419,30 @@ function renderTemplate(
 
 function formatInlineHtml(content: string): string {
   return escapeHtml(content).replace(/\n/g, '<br>')
+}
+
+function sanitizeHref(link: string): string {
+  const trimmed = link?.trim()
+  if (!trimmed) {
+    return '#'
+  }
+
+  const lower = trimmed.toLowerCase()
+  if (
+    lower.startsWith('http://') ||
+    lower.startsWith('https://') ||
+    lower.startsWith('mailto:') ||
+    lower.startsWith('#')
+  ) {
+    return trimmed
+  }
+
+  // Allow relative URLs (no scheme)
+  if (!/^[a-z][\w+.-]*:/.test(trimmed)) {
+    return trimmed
+  }
+
+  return '#'
 }
 
 function exportToText(conversation: CONVERSATION, messages: Message[]): string {
@@ -502,7 +529,7 @@ function exportToText(conversation: CONVERSATION, messages: Message[]): string {
             break
           case 'search':
             lines.push('[网络搜索]')
-            if (block.extra?.total) {
+            if (block.extra?.total !== undefined) {
               lines.push(`找到 ${block.extra.total} 个搜索结果`)
             }
             lines.push('')

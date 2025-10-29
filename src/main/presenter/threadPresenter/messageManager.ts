@@ -260,14 +260,17 @@ export class MessageManager implements IMessageManager {
         if (msg.role !== 'user') {
           return msg
         }
-        const normalized = { ...msg }
-        const userContent = normalized.content as UserMessageContent
+        const userContent = msg.content as UserMessageContent
         if (userContent?.content) {
-          ;(normalized.content as UserMessageContent).text = formatUserMessageContent(
-            userContent.content
-          )
+          return {
+            ...msg,
+            content: {
+              ...userContent,
+              text: formatUserMessageContent(userContent.content)
+            }
+          }
         }
-        return normalized
+        return msg
       })
     }
 
