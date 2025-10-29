@@ -120,7 +120,7 @@ export const useMcpSamplingStore = defineStore('mcpSampling', () => {
     resetSelection()
   }
 
-  const closeRequest = () => {
+  const clearRequest = () => {
     isOpen.value = false
     isChoosingModel.value = false
     isSubmitting.value = false
@@ -150,7 +150,7 @@ export const useMcpSamplingStore = defineStore('mcpSampling', () => {
     isSubmitting.value = true
     try {
       await mcpPresenter.submitSamplingDecision(decision)
-      closeRequest()
+      clearRequest()
     } catch (error) {
       console.error('[MCP Sampling] Failed to submit decision:', error)
       isSubmitting.value = false
@@ -182,9 +182,9 @@ export const useMcpSamplingStore = defineStore('mcpSampling', () => {
     })
   }
 
-  const dismissRequest = async () => {
+  const dismiss = async () => {
     if (!request.value) {
-      closeRequest()
+      clearRequest()
       return
     }
 
@@ -201,13 +201,13 @@ export const useMcpSamplingStore = defineStore('mcpSampling', () => {
 
   const handleSamplingCancelled = (_event: unknown, payload: { requestId: string }) => {
     if (request.value && payload.requestId === request.value.requestId) {
-      closeRequest()
+      clearRequest()
     }
   }
 
   const handleSamplingDecision = (_event: unknown, payload: McpSamplingDecision) => {
     if (request.value && payload.requestId === request.value.requestId) {
-      closeRequest()
+      clearRequest()
     }
   }
 
@@ -241,7 +241,6 @@ export const useMcpSamplingStore = defineStore('mcpSampling', () => {
     selectModel,
     confirmApproval,
     rejectRequest,
-    dismissRequest,
-    closeRequest
+    dismiss
   }
 })
