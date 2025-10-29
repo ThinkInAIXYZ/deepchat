@@ -70,7 +70,10 @@ export const MCP_EVENTS = {
   SERVER_STOPPED: 'mcp:server-stopped',
   CONFIG_CHANGED: 'mcp:config-changed',
   TOOL_CALL_RESULT: 'mcp:tool-call-result',
-  SERVER_STATUS_CHANGED: 'mcp:server-status-changed'
+  SERVER_STATUS_CHANGED: 'mcp:server-status-changed',
+  SAMPLING_REQUEST: 'mcp:sampling-request',
+  SAMPLING_DECISION: 'mcp:sampling-decision',
+  SAMPLING_CANCELLED: 'mcp:sampling-cancelled'
 }
 
 // 新增会议相关事件

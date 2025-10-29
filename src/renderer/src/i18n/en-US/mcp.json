@@ -136,6 +136,35 @@
   "startServer": "Start the server",
   "stopServer": "Stop the server",
   "stopped": "Stopped",
+  "sampling": {
+    "title": "Sampling request from {server}",
+    "unknownServer": "Unknown server",
+    "description": "Review the context shared by the MCP server and choose whether to generate a response.",
+    "systemPrompt": "System prompt",
+    "messagesTitle": "Conversation context",
+    "preferencesTitle": "Model preferences",
+    "approve": "Approve",
+    "reject": "Reject",
+    "confirm": "Send response",
+    "confirming": "Sending…",
+    "visionWarning": "The selected model does not support vision input. Please pick a vision-capable model before continuing.",
+    "selectedModelLabel": "Responding with {model} ({provider})",
+    "unsupportedMessage": "This content type is not supported.",
+    "imageAlt": "Image {index}",
+    "unknownMime": "Unknown MIME type",
+    "unknownHint": "Unnamed hint",
+    "contentType": {
+      "text": "Text",
+      "image": "Image",
+      "audio": "Audio"
+    },
+    "preference": {
+      "cost": "Cost priority",
+      "speed": "Speed priority",
+      "intelligence": "Intelligence priority",
+      "hints": "Model hints"
+    }
+  },
   "tabs": {
     "servers": "Servers",
     "tools": "Tools"

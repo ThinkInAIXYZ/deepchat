@@ -8,8 +8,12 @@ import {
   PromptListChangedNotificationSchema,
   ResourceListChangedNotificationSchema,
   ResourceUpdatedNotificationSchema,
-  LoggingMessageNotificationSchema
+  LoggingMessageNotificationSchema,
+  CreateMessageRequestSchema,
+  ErrorCode,
+  McpError
 } from '@modelcontextprotocol/sdk/types.js'
+import type { CreateMessageRequest, CreateMessageResult } from '@modelcontextprotocol/sdk/types.js'
 import { eventBus, SendTarget } from '@/eventbus'
 import { MCP_EVENTS } from '@/events'
 import path from 'path'
@@ -25,7 +29,10 @@ import {
   Tool,
   Prompt,
   ResourceListEntry,
-  Resource
+  Resource,
+  ChatMessage,
+  McpSamplingRequestPayload,
+  McpSamplingDecision
 } from '@shared/presenter'
 
 // TODO: resources 和 prompts 的类型,Notifactions 的类型 https://github.com/modelcontextprotocol/typescript-sdk/blob/main/src/examples/client/simpleStreamableHttp.ts
@@ -56,6 +63,12 @@ type MCPEventsType = typeof MCP_EVENTS & {
 interface SessionError extends Error {
   httpStatus?: number
   isSessionExpired?: boolean
+}
+
+interface RequestHandlerContext {
+  signal?: AbortSignal
+  requestId?: string | number
+  [key: string]: unknown
 }
 
 // Helper function to check if error is session-related
@@ -590,13 +603,19 @@ export class McpClient {
           capabilities: {
             resources: {},
             tools: {},
-            prompts: {}
+            prompts: {},
+            sampling: {}
           }
         }
       )
 
       // 设置通知处理器
       this.registerNotificationHandlers()
+
+      // 注册采样请求处理器
+      this.client.setRequestHandler(CreateMessageRequestSchema, async (request, extra) => {
+        return this.handleSamplingCreateMessage(request, extra)
+      })
 
       // 设置连接超时
       const timeoutPromise = new Promise<void>((_, reject) => {
@@ -762,6 +781,250 @@ export class McpClient {
     this.client.setNotificationHandler(LoggingMessageNotificationSchema, async (params) => {
       console.info(`[MCP] Log message from server ${this.serverName}:`, params)
     })
+  }
+
+  private async handleSamplingCreateMessage(
+    request: CreateMessageRequest,
+    extra: RequestHandlerContext
+  ): Promise<CreateMessageResult> {
+    const params = request.params ?? {}
+    const requestId = this.resolveSamplingRequestId(extra)
+    const { payload, chatMessages } = this.prepareSamplingContext(requestId, params)
+
+    const decisionPromise = presenter.mcpPresenter.handleSamplingRequest(payload)
+    const signal = extra?.signal as AbortSignal | undefined
+
+    let decision: McpSamplingDecision
+    if (signal) {
+      decision = await new Promise<McpSamplingDecision>((resolve, reject) => {
+        const onAbort = () => {
+          signal.removeEventListener('abort', onAbort)
+          void presenter.mcpPresenter
+            .cancelSamplingRequest(payload.requestId, 'cancelled by server')
+            .catch((error) => {
+              console.warn(`[MCP] Failed to cancel sampling request ${payload.requestId}:`, error)
+            })
+          reject(new McpError(ErrorCode.RequestTimeout, 'Sampling request cancelled'))
+        }
+
+        if (signal.aborted) {
+          onAbort()
+          return
+        }
+
+        signal.addEventListener('abort', onAbort, { once: true })
+        decisionPromise
+          .then((value) => {
+            signal.removeEventListener('abort', onAbort)
+            resolve(value)
+          })
+          .catch((error) => {
+            signal.removeEventListener('abort', onAbort)
+            reject(error)
+          })
+      })
+    } else {
+      decision = await decisionPromise
+    }
+
+    if (!decision.approved) {
+      throw new McpError(ErrorCode.InvalidRequest, 'User rejected sampling request')
+    }
+
+    if (!decision.providerId || !decision.modelId) {
+      throw new McpError(ErrorCode.InvalidParams, 'No model selected for sampling request')
+    }
+
+    let assistantText = ''
+    try {
+      assistantText = await presenter.llmproviderPresenter.generateCompletionStandalone(
+        decision.providerId,
+        chatMessages,
+        decision.modelId,
+        undefined,
+        params.maxTokens
+      )
+    } catch (error) {
+      console.error(`[MCP] Sampling request failed for server ${this.serverName}:`, error)
+      throw new McpError(
+        ErrorCode.InternalError,
+        error instanceof Error ? error.message : 'Sampling request failed'
+      )
+    }
+
+    const modelName =
+      this.resolveModelDisplayName(decision.providerId, decision.modelId) ?? decision.modelId
+
+    const result: CreateMessageResult = {
+      role: 'assistant',
+      model: modelName,
+      stopReason: 'endTurn',
+      content: {
+        type: 'text',
+        text: assistantText ?? ''
+      }
+    }
+
+    return result
+  }
+
+  private resolveSamplingRequestId(extra: RequestHandlerContext): string {
+    const rawId = extra?.requestId
+    if (typeof rawId === 'string' || typeof rawId === 'number') {
+      return String(rawId)
+    }
+
+    return `${this.serverName}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
+  }
+
+  private prepareSamplingContext(
+    requestId: string,
+    params: CreateMessageRequest['params']
+  ): { payload: McpSamplingRequestPayload; chatMessages: ChatMessage[] } {
+    const payload: McpSamplingRequestPayload = {
+      requestId,
+      serverName: this.serverName,
+      serverLabel: this.getServerLabel(),
+      systemPrompt: typeof params?.systemPrompt === 'string' ? params.systemPrompt : undefined,
+      maxTokens: typeof params?.maxTokens === 'number' ? params.maxTokens : undefined,
+      modelPreferences: this.normalizeModelPreferences(params?.modelPreferences),
+      requiresVision: false,
+      messages: []
+    }
+
+    const chatMessages: ChatMessage[] = []
+
+    if (payload.systemPrompt) {
+      chatMessages.push({ role: 'system', content: payload.systemPrompt })
+    }
+
+    const messageList = Array.isArray(params?.messages) ? params.messages : []
+
+    for (const message of messageList) {
+      if (!message || (message.role !== 'user' && message.role !== 'assistant')) {
+        continue
+      }
+
+      const rawContent = message.content
+      if (!rawContent || typeof rawContent !== 'object' || !('type' in rawContent)) {
+        throw new McpError(ErrorCode.InvalidParams, 'Invalid sampling message content received')
+      }
+
+      const content = rawContent as { type: string } & Record<string, unknown>
+
+      if (content.type === 'text') {
+        const text = typeof content.text === 'string' ? content.text : ''
+        payload.messages.push({ role: message.role, type: 'text', text })
+        chatMessages.push({ role: message.role, content: text })
+      } else if (content.type === 'image') {
+        const mimeType = typeof content.mimeType === 'string' ? content.mimeType : 'image/png'
+        const data = typeof content.data === 'string' ? content.data : ''
+        const dataUrl = `data:${mimeType};base64,${data}`
+        payload.messages.push({
+          role: message.role,
+          type: 'image',
+          dataUrl,
+          mimeType
+        })
+        payload.requiresVision = true
+        chatMessages.push({
+          role: message.role,
+          content: [
+            {
+              type: 'image_url',
+              image_url: { url: dataUrl, detail: 'auto' as const }
+            }
+          ]
+        })
+      } else if (content.type === 'audio') {
+        throw new McpError(
+          ErrorCode.InvalidParams,
+          'Audio sampling content is not supported by this client'
+        )
+      } else {
+        throw new McpError(
+          ErrorCode.InvalidParams,
+          `Unsupported sampling content type: ${String((content as { type?: unknown }).type)}`
+        )
+      }
+    }
+
+    return { payload, chatMessages }
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private normalizeModelPreferences(
+    preferences: any
+  ): McpSamplingRequestPayload['modelPreferences'] {
+    if (!preferences || typeof preferences !== 'object') {
+      return undefined
+    }
+
+    const normalized: McpSamplingRequestPayload['modelPreferences'] = {}
+
+    if (typeof preferences.costPriority === 'number') {
+      normalized.costPriority = preferences.costPriority
+    }
+    if (typeof preferences.speedPriority === 'number') {
+      normalized.speedPriority = preferences.speedPriority
+    }
+    if (typeof preferences.intelligencePriority === 'number') {
+      normalized.intelligencePriority = preferences.intelligencePriority
+    }
+    if (Array.isArray(preferences.hints)) {
+      normalized.hints = preferences.hints.map((hint: { name?: unknown }) => ({
+        name: typeof hint?.name === 'string' ? hint.name : undefined
+      }))
+    }
+
+    if (
+      normalized.costPriority === undefined &&
+      normalized.speedPriority === undefined &&
+      normalized.intelligencePriority === undefined &&
+      (!normalized.hints || normalized.hints.length === 0)
+    ) {
+      return undefined
+    }
+
+    return normalized
+  }
+
+  private getServerLabel(): string | undefined {
+    const config = this.serverConfig
+    if (!config) {
+      return undefined
+    }
+
+    const candidates: Array<string | undefined> = [
+      typeof config['descriptions'] === 'string' ? (config['descriptions'] as string) : undefined,
+      typeof config['description'] === 'string' ? (config['description'] as string) : undefined,
+      typeof config['name'] === 'string' ? (config['name'] as string) : undefined
+    ]
+
+    return candidates.find((label) => label && label.trim().length > 0)
+  }
+
+  private resolveModelDisplayName(providerId: string, modelId: string): string | undefined {
+    try {
+      const models = presenter.configPresenter.getProviderModels(providerId) || []
+      const match = models.find((model) => model.id === modelId)
+      if (match?.name) {
+        return match.name
+      }
+
+      const customModels = presenter.configPresenter.getCustomModels?.(providerId) || []
+      const customMatch = customModels.find((model) => model.id === modelId)
+      if (customMatch?.name) {
+        return customMatch.name
+      }
+    } catch (error) {
+      console.warn(
+        `[MCP] Failed to resolve model display name for ${providerId}/${modelId}:`,
+        error
+      )
+    }
+
+    return undefined
   }
 
   // 检查服务器是否正在运行

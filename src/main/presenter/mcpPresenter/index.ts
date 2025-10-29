@@ -8,7 +8,9 @@ import {
   Prompt,
   ResourceListEntry,
   Resource,
-  PromptListEntry
+  PromptListEntry,
+  McpSamplingRequestPayload,
+  McpSamplingDecision
 } from '@shared/presenter'
 import { ServerManager } from './serverManager'
 import { ToolManager } from './toolManager'
@@ -85,6 +87,10 @@ export class McpPresenter implements IMCPPresenter {
   private isInitialized: boolean = false
   // McpRouter
   private mcprouter?: McpRouterManager
+  private pendingSamplingRequests = new Map<
+    string,
+    { resolve: (decision: McpSamplingDecision) => void; reject: (error: Error) => void }
+  >()
 
   constructor(configPresenter?: IConfigPresenter) {
     console.log('Initializing MCP Presenter')
@@ -578,6 +584,60 @@ export class McpPresenter implements IMCPPresenter {
     }
 
     return { content: formattedContent, rawData: toolCallResult }
+  }
+
+  async handleSamplingRequest(request: McpSamplingRequestPayload): Promise<McpSamplingDecision> {
+    if (!request || !request.requestId) {
+      throw new Error('Invalid sampling request: missing requestId')
+    }
+
+    return new Promise<McpSamplingDecision>((resolve, reject) => {
+      try {
+        this.pendingSamplingRequests.set(request.requestId, { resolve, reject })
+        eventBus.sendToRenderer(MCP_EVENTS.SAMPLING_REQUEST, SendTarget.DEFAULT_TAB, request)
+      } catch (error) {
+        this.pendingSamplingRequests.delete(request.requestId)
+        reject(error instanceof Error ? error : new Error(String(error)))
+      }
+    })
+  }
+
+  async submitSamplingDecision(decision: McpSamplingDecision): Promise<void> {
+    if (!decision || !decision.requestId) {
+      throw new Error('Invalid sampling decision: missing requestId')
+    }
+
+    const pending = this.pendingSamplingRequests.get(decision.requestId)
+    if (!pending) {
+      console.warn(
+        `[MCP] Sampling request ${decision.requestId} not found when submitting decision`
+      )
+      return
+    }
+
+    this.pendingSamplingRequests.delete(decision.requestId)
+    pending.resolve(decision)
+
+    eventBus.sendToRenderer(MCP_EVENTS.SAMPLING_DECISION, SendTarget.ALL_WINDOWS, decision)
+  }
+
+  async cancelSamplingRequest(requestId: string, reason?: string): Promise<void> {
+    if (!requestId) {
+      return
+    }
+
+    const pending = this.pendingSamplingRequests.get(requestId)
+    if (!pending) {
+      return
+    }
+
+    this.pendingSamplingRequests.delete(requestId)
+    pending.reject(new Error(reason ?? 'Sampling request cancelled'))
+
+    eventBus.sendToRenderer(MCP_EVENTS.SAMPLING_CANCELLED, SendTarget.ALL_WINDOWS, {
+      requestId,
+      reason: reason ?? 'cancelled'
+    })
   }
 
   // Convert MCPToolDefinition to MCPTool

@@ -1206,6 +1206,11 @@ export interface MCPToolResponse {
   }
 }
 
+export type McpSamplingMessage = import('../../core/mcp').McpSamplingMessage
+export type McpSamplingRequestPayload = import('../../core/mcp').McpSamplingRequestPayload
+export type McpSamplingDecision = import('../../core/mcp').McpSamplingDecision
+export type McpSamplingModelPreferences = import('../../core/mcp').McpSamplingModelPreferences
+
 /** Content item type */
 export type MCPContentItem = MCPTextContent | MCPImageContent | MCPResourceContent
 
@@ -1255,6 +1260,9 @@ export interface IMCPPresenter {
   getPrompt(prompt: PromptListEntry, args?: Record<string, unknown>): Promise<unknown>
   readResource(resource: ResourceListEntry): Promise<Resource>
   callTool(request: MCPToolCall): Promise<{ content: string; rawData: MCPToolResponse }>
+  handleSamplingRequest(request: McpSamplingRequestPayload): Promise<McpSamplingDecision>
+  submitSamplingDecision(decision: McpSamplingDecision): Promise<void>
+  cancelSamplingRequest(requestId: string, reason?: string): Promise<void>
   setMcpEnabled(enabled: boolean): Promise<void>
   getMcpEnabled(): Promise<boolean>
   resetToDefaultServers(): Promise<void>

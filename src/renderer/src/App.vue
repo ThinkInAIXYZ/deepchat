@@ -18,6 +18,7 @@ import ThreadView from '@/components/ThreadView.vue'
 import ModelCheckDialog from '@/components/settings/ModelCheckDialog.vue'
 import { useModelCheckStore } from '@/stores/modelCheck'
 import MessageDialog from './components/ui/MessageDialog.vue'
+import McpSamplingDialog from '@/components/mcp/McpSamplingDialog.vue'
 import 'vue-sonner/style.css' // vue-sonner v2 requires this import
 
 const route = useRoute()
@@ -338,6 +339,7 @@ onBeforeUnmount(() => {
     <UpdateDialog />
     <!-- Global message dialog -->
     <MessageDialog />
+    <McpSamplingDialog />
     <!-- Global Toast notifications -->
     <Toaster :theme="toasterTheme" />
     <SelectedTextContextMenu />
