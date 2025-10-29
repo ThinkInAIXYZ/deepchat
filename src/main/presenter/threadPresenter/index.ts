@@ -13,7 +13,7 @@ import {
   MCPToolResponse,
   ChatMessage,
   LLMAgentEventData
-} from '../../../shared/presenter'
+} from '@shared/presenter'
 import { presenter } from '@/presenter'
 import { MessageManager } from './messageManager'
 import { eventBus, SendTarget } from '@/eventbus'
@@ -129,6 +129,7 @@ export class ThreadPresenter implements IThreadPresenter {
       await this.messageManager.handleMessageError(eventId, String(error))
       this.generatingMessages.delete(eventId)
     }
+    this.searchingMessages.delete(eventId)
     eventBus.sendToRenderer(STREAM_EVENTS.ERROR, SendTarget.ALL_WINDOWS, msg)
   }
 
@@ -159,12 +160,14 @@ export class ThreadPresenter implements IThreadPresenter {
           }
         })
         await this.messageManager.editMessage(eventId, JSON.stringify(state.message.content))
+        this.searchingMessages.delete(eventId)
         return
       }
 
       await this.finalizeMessage(state, eventId, Boolean(userStop))
     }
 
+    this.searchingMessages.delete(eventId)
     eventBus.sendToRenderer(STREAM_EVENTS.END, SendTarget.ALL_WINDOWS, msg)
   }
 
@@ -412,6 +415,8 @@ export class ThreadPresenter implements IThreadPresenter {
           lastBlock.status = 'success'
           lastBlock.content = tool_call_response || ''
         }
+        this.searchingMessages.delete(eventId)
+        state.isSearching = false
       } else if (tool_call === 'permission-denied') {
         if (
           lastBlock &&
@@ -421,6 +426,8 @@ export class ThreadPresenter implements IThreadPresenter {
           lastBlock.status = 'error'
           lastBlock.content = tool_call_response || ''
         }
+        this.searchingMessages.delete(eventId)
+        state.isSearching = false
       } else if (tool_call === 'continue') {
         if (
           lastBlock &&
@@ -451,6 +458,8 @@ export class ThreadPresenter implements IThreadPresenter {
         ) {
           lastBlock.status = 'success'
         }
+        this.searchingMessages.delete(eventId)
+        state.isSearching = false
       }
     }
 
@@ -545,7 +554,8 @@ export class ThreadPresenter implements IThreadPresenter {
 
     const totalTokens = state.promptTokens + completionTokens
     const generationTime = Date.now() - (state.firstTokenTime ?? state.startTime)
-    const tokensPerSecond = completionTokens / (generationTime / 1000)
+    const safeMs = Math.max(1, generationTime)
+    const tokensPerSecond = completionTokens / (safeMs / 1000)
     const contextUsage = state?.totalUsage?.context_length
       ? (totalTokens / state.totalUsage.context_length) * 100
       : 0
@@ -569,6 +579,7 @@ export class ThreadPresenter implements IThreadPresenter {
     await this.messageManager.updateMessageStatus(eventId, 'sent')
     await this.messageManager.editMessage(eventId, JSON.stringify(state.message.content))
     this.generatingMessages.delete(eventId)
+    this.searchingMessages.delete(eventId)
 
     await this.handleConversationUpdates(state)
 
@@ -583,36 +594,26 @@ export class ThreadPresenter implements IThreadPresenter {
 
   private async handleConversationUpdates(state: GeneratingMessageState): Promise<void> {
     const conversation = await this.getConversation(state.conversationId)
-    let titleUpdated = false
 
     if (conversation.is_new === 1) {
       try {
-        this.summaryTitles(undefined, state.conversationId)
-          .then((title) => {
-            if (title) {
-              this.renameConversation(state.conversationId, title).then(() => {
-                titleUpdated = true
-              })
-            }
-          })
-          .catch((error) => {
-            console.error('Failed to summarize title in main process:', error)
-          })
-      } catch (e) {
-        console.error('Failed to summarize title in main process:', e)
+        const title = await this.summaryTitles(undefined, state.conversationId)
+        if (title) {
+          await this.renameConversation(state.conversationId, title)
+          return
+        }
+      } catch (error) {
+        console.error('[ThreadPresenter] Failed to summarize title', {
+          conversationId: state.conversationId,
+          err: error
+        })
       }
     }
 
-    if (!titleUpdated) {
-      await this.sqlitePresenter
-        .updateConversation(state.conversationId, {
-          updatedAt: Date.now()
-        })
-        .then(() => {
-          console.log('updated conv time', state.conversationId)
-        })
-      await this.broadcastThreadListUpdate()
-    }
+    await this.sqlitePresenter.updateConversation(state.conversationId, {
+      updatedAt: Date.now()
+    })
+    await this.broadcastThreadListUpdate()
   }
 
   private cleanupContentBuffer(state: GeneratingMessageState): void {
@@ -1070,13 +1071,17 @@ export class ThreadPresenter implements IThreadPresenter {
     const conversation = await this.getConversation(conversationId)
     const mergedSettings = { ...conversation.settings }
 
-    for (const key in settings) {
-      if (settings[key] !== undefined) {
-        mergedSettings[key] = settings[key]
-      }
-    }
+    const sanitizedOverrides = Object.fromEntries(
+      Object.entries(settings).filter(([, value]) => value !== undefined)
+    ) as Partial<CONVERSATION_SETTINGS>
+    Object.assign(mergedSettings, sanitizedOverrides)
 
-    if (settings.modelId && settings.modelId !== conversation.settings.modelId) {
+    const modelChanged =
+      (settings.modelId !== undefined && settings.modelId !== conversation.settings.modelId) ||
+      (settings.providerId !== undefined &&
+        settings.providerId !== conversation.settings.providerId)
+
+    if (modelChanged) {
       const modelConfig = this.configPresenter.getModelConfig(
         mergedSettings.modelId,
         mergedSettings.providerId

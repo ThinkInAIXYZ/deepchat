@@ -275,13 +275,25 @@ export class MessageManager implements IMessageManager {
   }
 
   async getMessageHistory(messageId: string, limit: number = 100): Promise<Message[]> {
+    if (limit <= 0) {
+      return []
+    }
+
     const message = await this.getMessage(messageId)
-    const { list: messages } = await this.getMessageThread(message.conversationId, 1, limit * 2)
-    const targetIndex = messages.findIndex((msg) => msg.id === messageId)
+    const sqliteMessages = await this.sqlitePresenter.queryMessages(message.conversationId)
+    const orderedMessages = sqliteMessages
+      .sort((a, b) => {
+        const timeDiff = a.created_at - b.created_at
+        return timeDiff !== 0 ? timeDiff : a.order_seq - b.order_seq
+      })
+      .map((sqliteMessage) => this.convertToMessage(sqliteMessage))
+
+    const targetIndex = orderedMessages.findIndex((msg) => msg.id === messageId)
     if (targetIndex === -1) {
       return [message]
     }
-    return messages.slice(Math.max(0, targetIndex - limit + 1), targetIndex + 1)
+
+    return orderedMessages.slice(Math.max(0, targetIndex - limit + 1), targetIndex + 1)
   }
 
   async getLastUserMessage(conversationId: string): Promise<Message | null> {
