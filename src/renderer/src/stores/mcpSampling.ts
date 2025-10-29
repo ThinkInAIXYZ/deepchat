@@ -147,13 +147,25 @@ export const useMcpSamplingStore = defineStore('mcpSampling', () => {
       return
     }
 
+    const activeRequestId = request.value.requestId
+
     isSubmitting.value = true
     try {
       await mcpPresenter.submitSamplingDecision(decision)
       clearRequest()
     } catch (error) {
       console.error('[MCP Sampling] Failed to submit decision:', error)
-      isSubmitting.value = false
+
+      try {
+        await mcpPresenter.cancelSamplingRequest?.(
+          activeRequestId,
+          'Sampling decision submission failed'
+        )
+      } catch (cancelError) {
+        console.error('[MCP Sampling] Failed to cancel sampling request:', cancelError)
+      }
+
+      clearRequest()
     }
   }
 
