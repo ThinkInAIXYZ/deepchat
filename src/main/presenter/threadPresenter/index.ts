@@ -389,7 +389,29 @@ export class ThreadPresenter implements IThreadPresenter {
           }
         }
       } else if (tool_call === 'permission-required') {
-        const permissionType = permission_request?.permissionType ?? 'write'
+        // Define allowed permission types
+        const ALLOWED_PERMISSION_TYPES = ['read', 'write', 'all'] as const
+        type PermissionType = (typeof ALLOWED_PERMISSION_TYPES)[number]
+
+        // Validate and sanitize permission type
+        let permissionType: PermissionType = 'read' // Default to 'read' for safety
+        const requestedType = permission_request?.permissionType
+
+        if (typeof requestedType === 'string') {
+          const normalizedType = requestedType.toLowerCase()
+          if (ALLOWED_PERMISSION_TYPES.includes(normalizedType as PermissionType)) {
+            permissionType = normalizedType as PermissionType
+          } else {
+            console.warn(
+              `[ThreadPresenter] Invalid permission type received: "${requestedType}". Defaulting to "read". Allowed types: ${ALLOWED_PERMISSION_TYPES.join(', ')}`
+            )
+          }
+        } else if (requestedType !== undefined) {
+          console.warn(
+            `[ThreadPresenter] Permission type is not a string: ${typeof requestedType}. Defaulting to "read".`
+          )
+        }
+
         const extra: Record<string, string | number | object[] | boolean> = {
           needsUserAction: true,
           permissionType
