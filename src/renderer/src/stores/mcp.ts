@@ -468,11 +468,36 @@ export const useMcpStore = defineStore('mcp', () => {
     prompt: PromptListEntry,
     args?: Record<string, unknown>
   ): Promise<unknown> => {
-    if (!config.value.mcpEnabled) {
-      throw new Error(t('mcp.errors.mcpDisabled'))
-    }
-
     try {
+      // 检查是否是自定义 prompt（来自 config）
+      const isCustomPrompt = prompt.client?.name === 'deepchat/custom-prompts-server'
+
+      if (isCustomPrompt) {
+        // 自定义 prompt 从 config 获取，不需要 MCP 启用
+        const customPrompts: Prompt[] = await configPresenter.getCustomPrompts()
+        const matchedPrompt = customPrompts.find((p) => p.name === prompt.name)
+
+        if (!matchedPrompt) {
+          throw new Error(t('mcp.errors.promptNotFound', { name: prompt.name }))
+        }
+
+        // 返回 prompt 的内容，如果有参数则进行简单的替换
+        let content = matchedPrompt.content
+        if (args && matchedPrompt.parameters) {
+          // 简单的参数替换逻辑
+          for (const [key, value] of Object.entries(args)) {
+            content = content?.replace(new RegExp(`{{${key}}}`, 'g'), String(value)) || ''
+          }
+        }
+
+        return { messages: [{ role: 'user', content: { type: 'text', text: content } }] }
+      }
+
+      // MCP prompt 需要检查 MCP 是否启用
+      if (!config.value.mcpEnabled) {
+        throw new Error(t('mcp.errors.mcpDisabled'))
+      }
+
       // 传递完整对象给mcpPresenter
       return await mcpPresenter.getPrompt(prompt, args)
     } catch (error) {
@@ -531,6 +556,12 @@ export const useMcpStore = defineStore('mcp', () => {
         }
       }
     )
+
+    // Listen for custom prompts changes
+    window.electron.ipcRenderer.on('config:custom-prompts-changed', () => {
+      console.log('Custom prompts changed, reloading prompts list')
+      loadPrompts()
+    })
   }
 
   // 初始化

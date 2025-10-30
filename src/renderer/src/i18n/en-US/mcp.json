@@ -247,7 +247,8 @@
     "toolCallError": "Tool call error: {error}",
     "mcpDisabled": "MCP is disabled",
     "getPromptFailed": "Failed to get prompt",
-    "readResourceFailed": "Failed to read resource"
+    "readResourceFailed": "Failed to read resource",
+    "promptNotFound": "Prompt '{name}' not found"
   },
   "market": {
     "browseBuiltin": "Browse Built-in MCP Market",

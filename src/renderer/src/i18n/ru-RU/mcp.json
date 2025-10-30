@@ -247,7 +247,8 @@
     "toolCallError": "Ошибка вызова инструмента: {error}",
     "mcpDisabled": "MCP отключен",
     "getPromptFailed": "Не удалось получить промпт",
-    "readResourceFailed": "Не удалось прочитать ресурс"
+    "readResourceFailed": "Не удалось прочитать ресурс",
+    "promptNotFound": "Промпт '{name}' не найден"
   },
   "market": {
     "apiKeyPlaceholder": "Введите ключ McProuter API",

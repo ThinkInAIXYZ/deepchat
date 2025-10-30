@@ -247,7 +247,8 @@
     "toolCallError": "Erreur d'appel d'outil : {error}",
     "mcpDisabled": "MCP est désactivé",
     "getPromptFailed": "Échec de l'obtention du prompt",
-    "readResourceFailed": "Échec de la lecture de la ressource"
+    "readResourceFailed": "Échec de la lecture de la ressource",
+    "promptNotFound": "Prompt '{name}' introuvable"
   },
   "market": {
     "apiKeyPlaceholder": "Entrez la clé de l'API McProuter",

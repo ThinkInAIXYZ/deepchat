@@ -22,7 +22,8 @@
     "toolCallError": "工具调用错误: {error}",
     "mcpDisabled": "MCP功能已禁用",
     "getPromptFailed": "获取提示模板失败",
-    "readResourceFailed": "读取资源失败"
+    "readResourceFailed": "读取资源失败",
+    "promptNotFound": "未找到提示模板 '{name}'"
   },
   "tabs": {
     "servers": "服务器",

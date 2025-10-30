@@ -247,7 +247,8 @@
     "toolCallError": "ツール呼び出しエラー: {error}",
     "mcpDisabled": "MCPは無効になっています",
     "getPromptFailed": "プロンプトの取得に失敗しました",
-    "readResourceFailed": "リソースの読み込みに失敗しました"
+    "readResourceFailed": "リソースの読み込みに失敗しました",
+    "promptNotFound": "プロンプト '{name}' が見つかりませんでした"
   },
   "market": {
     "browseBuiltin": "内蔵MCPマーケットを閲覧",

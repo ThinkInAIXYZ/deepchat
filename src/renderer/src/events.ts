@@ -25,7 +25,8 @@ export const CONFIG_EVENTS = {
   COPY_WITH_COT_CHANGED: 'config:copy-with-cot-enabled-changed',
   THEME_CHANGED: 'config:theme-changed',
   FONT_SIZE_CHANGED: 'config:font-size-changed',
-  DEFAULT_SYSTEM_PROMPT_CHANGED: 'config:default-system-prompt-changed'
+  DEFAULT_SYSTEM_PROMPT_CHANGED: 'config:default-system-prompt-changed',
+  CUSTOM_PROMPTS_CHANGED: 'config:custom-prompts-changed'
 }
 
 // 会话相关事件

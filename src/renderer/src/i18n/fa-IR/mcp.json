@@ -247,7 +247,8 @@
     "toolCallError": "خطای فراخوانی ابزار: {error}",
     "mcpDisabled": "MCP خاموش است",
     "getPromptFailed": "دریافت دستورکار ناموفق بود",
-    "readResourceFailed": "خواندن منبع ناموفق بود"
+    "readResourceFailed": "خواندن منبع ناموفق بود",
+    "promptNotFound": "دستورکار '{name}' یافت نشد"
   },
   "market": {
     "apiKeyPlaceholder": "کلید API MCPROUTER را وارد کنید",
