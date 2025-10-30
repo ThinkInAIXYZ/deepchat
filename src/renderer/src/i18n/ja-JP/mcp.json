@@ -271,5 +271,36 @@
     "empty": "サービスがありません",
     "loadMore": "さらに読み込み",
     "pullDownToLoad": "下にスクロールしてさらに読み込み"
+  },
+  "sampling": {
+    "approve": "同意する",
+    "confirming": "確認中...",
+    "confirm": "モデル応答を送信する",
+    "contentType": {
+      "audio": "オーディオ",
+      "image": "写真",
+      "text": "文章"
+    },
+    "description": "MCP サーバーによって共有されるコンテキストを表示し、応答を生成するかどうかを選択します。",
+    "imageAlt": "写真{インデックス}",
+    "messagesTitle": "会話のコンテキスト",
+    "noModels": "一致するモデルが有効になっていません。\n続行するには、設定で該当するモデルを有効にしてください。",
+    "noVisionModels": "視覚的に有効なモデルは有効になりません。\n続行するには、[設定] でビジュアル モデルを有効にします。",
+    "preference": {
+      "cost": "コスト優先",
+      "hints": "モデルのヒント",
+      "intelligence": "インテリジェンスを第一に",
+      "speed": "速度優先"
+    },
+    "preferencesTitle": "モデルの好み",
+    "reject": "拒否する",
+    "selectedModelLabel": "{model} ({provider}) を使用して応答する",
+    "systemPrompt": "システムプロンプト",
+    "title": "{server} からのサンプリング リクエスト",
+    "unknownHint": "名前のないプロンプト",
+    "unknownMime": "不明な MIME タイプ",
+    "unknownServer": "不明なサーバー",
+    "unsupportedMessage": "このコンテンツ タイプはサポートされていません。",
+    "visionWarning": "選択したモデルは視覚入力をサポートしていません。\n続行する前に、視覚的に対応したモデルを選択してください。"
   }
 }

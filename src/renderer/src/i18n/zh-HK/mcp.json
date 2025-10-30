@@ -271,5 +271,36 @@
     "noMore": "沒有更多了",
     "poweredBy": "Powered by MCPRouter",
     "pullDownToLoad": "繼續下拉加載更多"
+  },
+  "sampling": {
+    "approve": "同意",
+    "confirming": "確認中...",
+    "confirm": "發送模型響應",
+    "contentType": {
+      "audio": "音頻",
+      "image": "圖片",
+      "text": "文字"
+    },
+    "description": "查看 MCP 伺服器共享的上下文並選擇是否生成回應。",
+    "imageAlt": "圖片{索引}",
+    "messagesTitle": "對話上下文",
+    "noModels": "未啟用符合條件的模型。\n請在「設定」中啟用適用的模型以繼續。",
+    "noVisionModels": "未啟用任何具有視覺功能的模型。\n請於「設定」中啟用視覺模型以繼續。",
+    "preference": {
+      "cost": "成本優先",
+      "hints": "模型提示",
+      "intelligence": "情報優先",
+      "speed": "速度優先"
+    },
+    "preferencesTitle": "模型偏好",
+    "reject": "拒絕",
+    "selectedModelLabel": "使用 {model} ({provider}) 進行回應",
+    "systemPrompt": "系統提示",
+    "title": "來自 {server} 的取樣請求",
+    "unknownHint": "未命名提示",
+    "unknownMime": "未知的 MIME 類型",
+    "unknownServer": "未知伺服器",
+    "unsupportedMessage": "不支援此內容類型。",
+    "visionWarning": "所選模型不支援視覺輸入。\n\n請先選擇一個具備視覺功能的模型，然後再繼續。"
   }
 }

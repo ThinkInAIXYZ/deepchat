@@ -271,5 +271,19 @@
     "noMore": "Pas plus",
     "poweredBy": "Propulsé par McProuter",
     "pullDownToLoad": "Continuez à tomber pour charger plus"
+  },
+  "sampling": {
+    "approve": "accepter",
+    "confirming": "Confirmation...",
+    "confirm": "Envoyer la réponse du modèle",
+    "contentType": {
+      "audio": "Audio",
+      "image": "image",
+      "text": "texte"
+    },
+    "description": "Consulter le contexte partagé par le serveur MCP et choisir de générer ou non une réponse.",
+    "imageAlt": "Image {index}",
+    "messagesTitle": "Contexte de la conversation",
+    "noModels": "Aucun modèle éligible n'est activé.\nActivez un modèle applicable dans les \"Paramètres\" pour continuer."
   }
 }

@@ -271,5 +271,36 @@
     "empty": "Sem serviços",
     "loadMore": "Carregar Mais",
     "pullDownToLoad": "Continue puxando para baixo para carregar mais"
+  },
+  "sampling": {
+    "approve": "concordar",
+    "confirming": "Confirmando...",
+    "confirm": "Enviar resposta do modelo",
+    "contentType": {
+      "audio": "Áudio",
+      "image": "foto",
+      "text": "texto"
+    },
+    "description": "Verifique o contexto compartilhado pelo servidor MCP e decida se gera uma resposta.",
+    "imageAlt": "Imagem {índice}",
+    "messagesTitle": "Contexto do Diálogo",
+    "noModels": "Nenhum modelo qualificado foi ativado.\nAtive um modelo aplicável nas \"Configurações\" para continuar.",
+    "noVisionModels": "Nenhum modelo com recursos visuais está ativado.\nAtive um modelo visual nas \"Configurações\" para continuar.",
+    "preference": {
+      "cost": "Prioridade de custo",
+      "hints": "Prompt do modelo",
+      "intelligence": "Prioridade de Inteligência",
+      "speed": "Velocidade prioritária"
+    },
+    "preferencesTitle": "Preferência do modelo",
+    "reject": "Recusar",
+    "selectedModelLabel": "Responder usando {model} ({provider})",
+    "systemPrompt": "Prompt do sistema",
+    "title": "Solicitação de amostra de {server}",
+    "unknownHint": "Prompt sem nome",
+    "unknownMime": "Tipo MIME desconhecido",
+    "unknownServer": "Servidor desconhecido",
+    "unsupportedMessage": "Não é suportado este tipo de conteúdo.",
+    "visionWarning": "O modelo selecionado não suporta entrada visual.\nPor favor, selecione primeiro um modelo com funcionalidade visual antes de continuar."
   }
 }

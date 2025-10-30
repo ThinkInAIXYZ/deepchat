@@ -271,5 +271,36 @@
     "empty": "暂无服务",
     "loadMore": "加载更多",
     "pullDownToLoad": "继续下拉加载更多"
+  },
+  "sampling": {
+    "approve": "同意",
+    "confirming": "确认中...",
+    "confirm": "发送模型响应",
+    "contentType": {
+      "audio": "音频",
+      "image": "图片",
+      "text": "文本"
+    },
+    "description": "查看 MCP 服务器共享的上下文并选择是否生成响应。",
+    "imageAlt": "图片{索引}",
+    "messagesTitle": "对话上下文",
+    "noModels": "没有启用符合条件的模型。\n在“设置”中启用适用的模型以继续。",
+    "noVisionModels": "未启用任何具有视觉功能的模型。\n在“设置”中启用视觉模型以继续。",
+    "preference": {
+      "cost": "成本优先",
+      "hints": "模型提示",
+      "intelligence": "情报优先",
+      "speed": "速度优先"
+    },
+    "preferencesTitle": "模型偏好",
+    "reject": "拒绝",
+    "selectedModelLabel": "使用 {model} ({provider}) 进行响应",
+    "systemPrompt": "系统提示",
+    "title": "来自 {server} 的采样请求",
+    "unknownHint": "未命名提示",
+    "unknownMime": "未知的 MIME 类型",
+    "unknownServer": "未知服务器",
+    "unsupportedMessage": "不支持此内容类型。",
+    "visionWarning": "所选模型不支持视觉输入。\n请先选择一个具有视觉功能的模型，然后再继续。"
   }
 }

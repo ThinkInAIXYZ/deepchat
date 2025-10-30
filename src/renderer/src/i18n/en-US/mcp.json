@@ -146,7 +146,7 @@
     "approve": "Approve",
     "reject": "Reject",
     "confirm": "Send response",
-    "confirming": "Sending…",
+    "confirming": "confirming…",
     "visionWarning": "The selected model does not support vision input. Please pick a vision-capable model before continuing.",
     "selectedModelLabel": "Responding with {model} ({provider})",
     "unsupportedMessage": "This content type is not supported.",
