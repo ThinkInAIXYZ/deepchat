@@ -1,8 +1,9 @@
 // === Vue Core ===
-import { computed, Ref } from 'vue'
+import { computed, Ref, unref } from 'vue'
 
 // === Types ===
 import type { MessageFile } from '@shared/chat'
+import type { MaybeRef } from 'vue'
 
 // === Utils ===
 import { approximateTokenSize } from 'tokenx'
@@ -10,7 +11,7 @@ import { approximateTokenSize } from 'tokenx'
 interface ContextLengthOptions {
   inputText: Ref<string>
   selectedFiles: Ref<MessageFile[]>
-  contextLength?: number
+  contextLength?: MaybeRef<number | undefined>
 }
 
 /**
@@ -30,7 +31,8 @@ export function useContextLength(options: ContextLengthOptions) {
   })
 
   const currentContextLengthPercentage = computed(() => {
-    return currentContextLength.value / (contextLength ?? 1000)
+    const length = unref(contextLength)
+    return currentContextLength.value / (length ?? 1000)
   })
 
   const currentContextLengthText = computed(() => {
@@ -38,7 +40,8 @@ export function useContextLength(options: ContextLengthOptions) {
   })
 
   const shouldShowContextLength = computed(() => {
-    return contextLength && contextLength > 0 && currentContextLengthPercentage.value > 0.5
+    const length = unref(contextLength)
+    return length && length > 0 && currentContextLengthPercentage.value > 0.5
   })
 
   const contextLengthStatusClass = computed(() => {

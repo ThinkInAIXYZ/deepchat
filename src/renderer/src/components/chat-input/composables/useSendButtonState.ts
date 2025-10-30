@@ -1,5 +1,6 @@
 // === Vue Core ===
-import { computed, Ref } from 'vue'
+import { computed, Ref, unref } from 'vue'
+import type { MaybeRef } from 'vue'
 
 // === Stores ===
 import { useChatStore } from '@/stores/chat'
@@ -8,7 +9,7 @@ interface SendButtonStateOptions {
   variant: 'chat' | 'newThread'
   inputText: Ref<string>
   currentContextLength: Ref<number>
-  contextLength?: number
+  contextLength?: MaybeRef<number | undefined>
 }
 
 /**
@@ -16,14 +17,15 @@ interface SendButtonStateOptions {
  */
 export function useSendButtonState(options: SendButtonStateOptions) {
   const { variant, inputText, currentContextLength, contextLength } = options
-
   // === Stores ===
   const chatStore = useChatStore()
 
   // === Computed ===
   const disabledSend = computed(() => {
+    const length = unref(contextLength)
+
     if (variant === 'newThread') {
-      return inputText.value.length <= 0 || currentContextLength.value > (contextLength ?? 200000)
+      return inputText.value.length <= 0 || currentContextLength.value > (length ?? 200000)
     }
 
     // chat variant
@@ -32,7 +34,7 @@ export function useSendButtonState(options: SendButtonStateOptions) {
       return (
         chatStore.generatingThreadIds.has(activeThreadId) ||
         inputText.value.length <= 0 ||
-        currentContextLength.value > (contextLength ?? chatStore.chatConfig.contextLength)
+        currentContextLength.value > (length ?? chatStore.chatConfig.contextLength)
       )
     }
     return false
