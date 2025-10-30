@@ -284,6 +284,31 @@
     "description": "Consulter le contexte partagé par le serveur MCP et choisir de générer ou non une réponse.",
     "imageAlt": "Image {index}",
     "messagesTitle": "Contexte de la conversation",
-    "noModels": "Aucun modèle éligible n'est activé.\nActivez un modèle applicable dans les \"Paramètres\" pour continuer."
+    "noModels": "Aucun modèle éligible n'est activé.\nActivez un modèle applicable dans les \"Paramètres\" pour continuer.",
+    "autoApproveIn": "Approuver automatiquement à l'aide de {model} après {seconds} secondes",
+    "autoApproving": "Exemple de requête MCP de {serveur}",
+    "maxTokensInfo": "Longueur de réponse maximale : {maxTokens} jetons",
+    "noVisionModels": "Aucun modèle visuellement activé n’est activé.\nActivez le modèle visuel dans Paramètres pour continuer.",
+    "preference": {
+      "cost": "Priorité aux coûts",
+      "hints": "Conseils pour les modèles",
+      "intelligence": "Le renseignement d’abord",
+      "speed": "Priorité vitesse"
+    },
+    "preferencesTitle": "Préférence de modèle",
+    "reject": "rejeter",
+    "respondWith": "Modèle de réponse :",
+    "reviewRequest": "vérifier les détails",
+    "selectModel": "Sélectionnez le modèle",
+    "selectedModelLabel": "Répondez en utilisant {model} ({provider})",
+    "sendResponse": "Envoyer la réponse",
+    "sessionActive": "Session active - la demande sera automatiquement approuvée",
+    "systemPrompt": "Invite système",
+    "title": "Demande d'échantillonnage de {serveur}",
+    "unknownHint": "invite sans nom",
+    "unknownMime": "Type MIME inconnu",
+    "unknownServer": "serveur inconnu",
+    "unsupportedMessage": "Ce type de contenu n'est pas pris en charge.",
+    "visionWarning": "Le modèle sélectionné ne prend pas en charge la saisie visuelle.\nVeuillez sélectionner un modèle visuellement capable avant de continuer."
   }
 }

@@ -301,6 +301,14 @@
     "unknownMime": "未知的 MIME 類型",
     "unknownServer": "未知伺服器",
     "unsupportedMessage": "不支援此內容類型。",
-    "visionWarning": "所選模型不支援視覺輸入。\n\n請先選擇一個具備視覺功能的模型，然後再繼續。"
+    "visionWarning": "所選模型不支援視覺輸入。\n\n請先選擇一個具備視覺功能的模型，然後再繼續。",
+    "autoApproveIn": "{seconds}秒後自動使用 {model} 批准",
+    "autoApproving": "來自 {server} 的 MCP 採樣請求",
+    "maxTokensInfo": "最大響應長度：{maxTokens} tokens",
+    "respondWith": "響應模型：",
+    "reviewRequest": "查看詳情",
+    "selectModel": "選擇模型",
+    "sendResponse": "發送響應",
+    "sessionActive": "會話活躍 - 請求將被自動批准"
   }
 }

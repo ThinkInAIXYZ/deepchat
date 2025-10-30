@@ -301,6 +301,14 @@
     "unknownMime": "Tipo MIME desconhecido",
     "unknownServer": "Servidor desconhecido",
     "unsupportedMessage": "Não é suportado este tipo de conteúdo.",
-    "visionWarning": "O modelo selecionado não suporta entrada visual.\nPor favor, selecione primeiro um modelo com funcionalidade visual antes de continuar."
+    "visionWarning": "O modelo selecionado não suporta entrada visual.\nPor favor, selecione primeiro um modelo com funcionalidade visual antes de continuar.",
+    "autoApproveIn": "Aprovar automaticamente usando {model} após {seconds} segundos",
+    "autoApproving": "Solicitação de amostra MCP de {server}",
+    "maxTokensInfo": "Comprimento máximo da resposta: tokens {maxTokens}",
+    "respondWith": "Modelo de resposta:",
+    "reviewRequest": "verifique os detalhes",
+    "selectModel": "Selecione o modelo",
+    "sendResponse": "Enviar resposta",
+    "sessionActive": "Sessão ativa - a solicitação será aprovada automaticamente"
   }
 }

@@ -301,6 +301,14 @@
     "unknownMime": "不明な MIME タイプ",
     "unknownServer": "不明なサーバー",
     "unsupportedMessage": "このコンテンツ タイプはサポートされていません。",
-    "visionWarning": "選択したモデルは視覚入力をサポートしていません。\n続行する前に、視覚的に対応したモデルを選択してください。"
+    "visionWarning": "選択したモデルは視覚入力をサポートしていません。\n続行する前に、視覚的に対応したモデルを選択してください。",
+    "autoApproveIn": "{秒} 秒後に {model} を使用して自動的に承認します",
+    "autoApproving": "{server} からの MCP サンプル リクエスト",
+    "maxTokensInfo": "最大応答長: {maxTokens} トークン",
+    "respondWith": "応答モデル:",
+    "reviewRequest": "詳細を確認する",
+    "selectModel": "モデルを選択してください",
+    "sendResponse": "応答を送信する",
+    "sessionActive": "セッションがアクティブです - リクエストは自動的に承認されます"
   }
 }
