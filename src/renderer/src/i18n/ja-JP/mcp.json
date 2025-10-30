@@ -248,7 +248,10 @@
     "mcpDisabled": "MCPは無効になっています",
     "getPromptFailed": "プロンプトの取得に失敗しました",
     "readResourceFailed": "リソースの読み込みに失敗しました",
-    "promptNotFound": "プロンプト '{name}' が見つかりませんでした"
+    "promptNotFound": "プロンプト '{name}' が見つかりませんでした",
+    "emptyPromptContent": "'{name}' プロンプトが空です",
+    "missingParameters": "パラメータがありません: {params}",
+    "invalidParameters": "無効なパラメータ: {params}"
   },
   "market": {
     "browseBuiltin": "内蔵MCPマーケットを閲覧",

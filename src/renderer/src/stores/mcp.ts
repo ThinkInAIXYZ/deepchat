@@ -481,12 +481,47 @@ export const useMcpStore = defineStore('mcp', () => {
           throw new Error(t('mcp.errors.promptNotFound', { name: prompt.name }))
         }
 
-        // 返回 prompt 的内容，如果有参数则进行简单的替换
+        // 验证 prompt 内容
+        if (!matchedPrompt.content || matchedPrompt.content.trim() === '') {
+          throw new Error(t('mcp.errors.emptyPromptContent', { name: prompt.name }))
+        }
+
         let content = matchedPrompt.content
+
+        // 验证参数
         if (args && matchedPrompt.parameters) {
-          // 简单的参数替换逻辑
+          // 检查必需参数
+          const requiredParams = matchedPrompt.parameters
+            .filter((param) => param.required)
+            .map((param) => param.name)
+
+          const missingParams = requiredParams.filter((paramName) => !(paramName in args))
+          if (missingParams.length > 0) {
+            throw new Error(t('mcp.errors.missingParameters', { params: missingParams.join(', ') }))
+          }
+
+          // 验证提供的参数都是有效的
+          const validParamNames = matchedPrompt.parameters.map((param) => param.name)
+          const invalidParams = Object.keys(args).filter((key) => !validParamNames.includes(key))
+          if (invalidParams.length > 0) {
+            throw new Error(t('mcp.errors.invalidParameters', { params: invalidParams.join(', ') }))
+          }
+
+          // 安全的参数替换，使用字符串方法而非正则表达式
           for (const [key, value] of Object.entries(args)) {
-            content = content?.replace(new RegExp(`{{${key}}}`, 'g'), String(value)) || ''
+            if (value !== null && value !== undefined) {
+              const placeholder = `{{${key}}}`
+              let startPos = 0
+              let pos
+
+              while ((pos = content.indexOf(placeholder, startPos)) !== -1) {
+                content =
+                  content.substring(0, pos) +
+                  String(value) +
+                  content.substring(pos + placeholder.length)
+                startPos = pos + String(value).length
+              }
+            }
           }
         }
 

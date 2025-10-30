@@ -23,7 +23,10 @@
     "mcpDisabled": "MCP功能已禁用",
     "getPromptFailed": "获取提示模板失败",
     "readResourceFailed": "读取资源失败",
-    "promptNotFound": "未找到提示模板 '{name}'"
+    "promptNotFound": "未找到提示模板 '{name}'",
+    "emptyPromptContent": "'{name}' Prompt 是空的",
+    "missingParameters": "缺少参数: {params}",
+    "invalidParameters": "无效参数: {params}"
   },
   "tabs": {
     "servers": "服务器",

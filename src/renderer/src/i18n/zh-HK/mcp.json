@@ -248,7 +248,10 @@
     "mcpDisabled": "MCP功能已禁用",
     "getPromptFailed": "獲取提示模板失敗",
     "readResourceFailed": "讀取資源失敗",
-    "promptNotFound": "未找到提示模板 '{name}'"
+    "promptNotFound": "未找到提示模板 '{name}'",
+    "emptyPromptContent": "'{name}' Prompt 是空的",
+    "missingParameters": "缺少參數: {params}",
+    "invalidParameters": "無效參數: {params}"
   },
   "market": {
     "apiKeyPlaceholder": "輸入 MCPRouter API Key",

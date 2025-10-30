@@ -248,7 +248,10 @@
     "mcpDisabled": "MCP가 비활성화되어 있습니다",
     "getPromptFailed": "프롬프트 가져오기 실패",
     "readResourceFailed": "리소스 읽기 실패",
-    "promptNotFound": "프롬프트 '{name}'을(를) 찾을 수 없습니다"
+    "promptNotFound": "프롬프트 '{name}'을(를) 찾을 수 없습니다",
+    "emptyPromptContent": "'{name}' 프롬프트가 비어 있습니다.",
+    "missingParameters": "누락된 매개변수: {params}",
+    "invalidParameters": "잘못된 매개변수: {params}"
   },
   "market": {
     "apiKeyPlaceholder": "McProuter API 키를 입력하십시오",

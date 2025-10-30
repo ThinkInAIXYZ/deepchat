@@ -248,7 +248,10 @@
     "mcpDisabled": "MCP خاموش است",
     "getPromptFailed": "دریافت دستورکار ناموفق بود",
     "readResourceFailed": "خواندن منبع ناموفق بود",
-    "promptNotFound": "دستورکار '{name}' یافت نشد"
+    "promptNotFound": "دستورکار '{name}' یافت نشد",
+    "emptyPromptContent": "درخواست '{name}' خالی است",
+    "missingParameters": "پارامترهای از دست رفته: {params}",
+    "invalidParameters": "پارامترهای نامعتبر: {params}"
   },
   "market": {
     "apiKeyPlaceholder": "کلید API MCPROUTER را وارد کنید",

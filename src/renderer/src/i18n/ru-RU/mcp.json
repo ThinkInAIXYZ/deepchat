@@ -248,7 +248,10 @@
     "mcpDisabled": "MCP отключен",
     "getPromptFailed": "Не удалось получить промпт",
     "readResourceFailed": "Не удалось прочитать ресурс",
-    "promptNotFound": "Промпт '{name}' не найден"
+    "promptNotFound": "Промпт '{name}' не найден",
+    "emptyPromptContent": "Приглашение '{name}' пусто.",
+    "missingParameters": "Отсутствующие параметры: {params}",
+    "invalidParameters": "Неверные параметры: {params}"
   },
   "market": {
     "apiKeyPlaceholder": "Введите ключ McProuter API",
