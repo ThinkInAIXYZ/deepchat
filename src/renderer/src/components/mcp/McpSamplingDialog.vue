@@ -19,18 +19,31 @@
         </DialogHeader>
 
         <div v-if="store.request" class="flex flex-1 flex-col gap-4 overflow-hidden px-6 pb-4">
-          <div
-            v-if="store.request.systemPrompt"
-            class="max-h-48 overflow-y-auto rounded-md border bg-muted/40 p-3 pr-2"
-          >
-            <h4 class="mb-2 text-sm font-semibold text-muted-foreground">
-              {{ t('mcp.sampling.systemPrompt') }}
-            </h4>
-            <p class="whitespace-pre-wrap text-sm leading-relaxed">
-              {{ store.request.systemPrompt }}
-            </p>
-          </div>
+          <!-- System Prompt (Collapsible) -->
+          <Collapsible v-if="store.request.systemPrompt" :default-open="false">
+            <CollapsibleTrigger as-child>
+              <div
+                class="flex items-center justify-between py-2 cursor-pointer hover:bg-muted/20 rounded-md px-3 -mx-3"
+              >
+                <h4 class="text-sm font-semibold text-muted-foreground">
+                  {{ t('mcp.sampling.systemPrompt') }}
+                </h4>
+                <Icon
+                  icon="lucide:chevron-right"
+                  class="w-4 h-4 text-muted-foreground transition-transform duration-200"
+                />
+              </div>
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              <div class="max-h-48 overflow-y-auto rounded-md border bg-muted/40 p-3 pr-2">
+                <p class="whitespace-pre-wrap text-sm leading-relaxed">
+                  {{ store.request.systemPrompt }}
+                </p>
+              </div>
+            </CollapsibleContent>
+          </Collapsible>
 
+          <!-- Conversation Context (Always expanded) -->
           <div class="flex min-h-0 flex-1 flex-col space-y-3 overflow-hidden">
             <h4 class="text-sm font-semibold text-muted-foreground">
               {{ t('mcp.sampling.messagesTitle') }}
@@ -65,6 +78,15 @@
                       {{ message.mimeType || t('mcp.sampling.unknownMime') }}
                     </span>
                   </div>
+                  <div v-else-if="message.type === 'audio'" class="flex flex-col items-start gap-2">
+                    <div class="flex items-center gap-2 text-sm text-muted-foreground">
+                      <Icon icon="lucide:music" class="w-4 h-4" />
+                      <span>Audio content</span>
+                    </div>
+                    <span class="text-xs text-muted-foreground">
+                      {{ message.mimeType || t('mcp.sampling.unknownMime') }}
+                    </span>
+                  </div>
                   <p v-else class="text-sm text-muted-foreground">
                     {{ t('mcp.sampling.unsupportedMessage') }}
                   </p>
@@ -73,39 +95,90 @@
             </ScrollArea>
           </div>
 
-          <div v-if="preferenceSummary.length > 0" class="rounded-md border bg-muted/30 p-3">
-            <h4 class="mb-2 text-sm font-semibold text-muted-foreground">
-              {{ t('mcp.sampling.preferencesTitle') }}
-            </h4>
-            <ul class="space-y-1 text-sm">
-              <li v-for="item in preferenceSummary" :key="item.key" class="flex items-center gap-2">
-                <span class="font-medium text-muted-foreground">{{ item.label }}</span>
-                <span>{{ item.value }}</span>
-              </li>
-            </ul>
+          <!-- Model Preferences (Collapsible) -->
+          <Collapsible v-if="preferenceSummary.length > 0" :default-open="false">
+            <CollapsibleTrigger as-child>
+              <div
+                class="flex items-center justify-between py-2 cursor-pointer hover:bg-muted/20 rounded-md px-3 -mx-3"
+              >
+                <h4 class="text-sm font-semibold text-muted-foreground">
+                  {{ t('mcp.sampling.preferencesTitle') }}
+                </h4>
+                <Icon
+                  icon="lucide:chevron-right"
+                  class="w-4 h-4 text-muted-foreground transition-transform duration-200"
+                />
+              </div>
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              <div class="rounded-md border bg-muted/30 p-3">
+                <ul class="space-y-1 text-sm">
+                  <li
+                    v-for="item in preferenceSummary"
+                    :key="item.key"
+                    class="flex items-center gap-2"
+                  >
+                    <span class="font-medium text-muted-foreground">{{ item.label }}</span>
+                    <span>{{ item.value }}</span>
+                  </li>
+                </ul>
+              </div>
+            </CollapsibleContent>
+          </Collapsible>
+
+          <!-- Max Tokens Info -->
+          <div
+            v-if="store.request.maxTokens"
+            class="text-xs text-muted-foreground bg-muted/20 rounded-md p-2"
+          >
+            {{ t('mcp.sampling.maxTokensInfo', { maxTokens: store.request.maxTokens }) }}
           </div>
 
-          <div v-if="store.isChoosingModel" class="space-y-3">
-            <ModelChooser :requires-vision="store.requiresVision" @update:model="onModelUpdate" />
-            <p v-if="!store.hasEligibleModel" class="text-sm text-muted-foreground">
-              {{
-                store.requiresVision ? t('mcp.sampling.noVisionModels') : t('mcp.sampling.noModels')
-              }}
-            </p>
-            <p
-              v-else-if="store.requiresVision && !store.selectedModelSupportsVision"
-              class="text-sm text-destructive"
-            >
-              {{ t('mcp.sampling.visionWarning') }}
-            </p>
-            <p v-else-if="store.selectedModel" class="text-xs text-muted-foreground">
-              {{
-                t('mcp.sampling.selectedModelLabel', {
-                  model: store.selectedModel?.name,
-                  provider: store.selectedProviderLabel || store.selectedProviderId
-                })
-              }}
-            </p>
+          <!-- Model Selection (Compact Popover) -->
+          <div class="flex items-center gap-3">
+            <span class="text-sm font-medium text-muted-foreground">{{
+              t('mcp.sampling.respondWith')
+            }}</span>
+            <Popover v-model:open="modelSelectOpen">
+              <PopoverTrigger as-child>
+                <Button
+                  variant="ghost"
+                  class="flex items-center gap-1.5 h-7 px-2 rounded-md text-xs font-semibold text-muted-foreground hover:bg-muted/60 hover:text-foreground"
+                  size="sm"
+                  :disabled="!store.hasEligibleModel"
+                >
+                  <ModelIcon
+                    v-if="store.selectedModel"
+                    :model-id="store.selectedProviderId"
+                    :is-dark="true"
+                    custom-class="w-4 h-4"
+                  />
+                  <span class="text-xs font-semibold truncate max-w-[140px] text-foreground">
+                    {{ store.selectedModel?.name || t('mcp.sampling.selectModel') }}
+                  </span>
+                  <Icon icon="lucide:chevron-right" class="w-4 h-4 text-muted-foreground" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent align="start" class="w-80 border-none bg-transparent p-0 shadow-none">
+                <ModelChooser
+                  :requires-vision="store.requiresVision"
+                  @update:model="onModelUpdate"
+                />
+              </PopoverContent>
+            </Popover>
+          </div>
+
+          <!-- Model Status Messages -->
+          <div v-if="!store.hasEligibleModel" class="text-sm text-destructive">
+            {{
+              store.requiresVision ? t('mcp.sampling.noVisionModels') : t('mcp.sampling.noModels')
+            }}
+          </div>
+          <div
+            v-else-if="store.requiresVision && !store.selectedModelSupportsVision"
+            class="text-sm text-destructive"
+          >
+            {{ t('mcp.sampling.visionWarning') }}
           </div>
         </div>
 
@@ -120,15 +193,6 @@
               {{ t('mcp.sampling.reject') }}
             </Button>
             <Button
-              v-if="!store.isChoosingModel"
-              class="sm:min-w-[120px]"
-              :disabled="store.isSubmitting"
-              @click="store.beginApprove"
-            >
-              {{ t('mcp.sampling.approve') }}
-            </Button>
-            <Button
-              v-else
               class="sm:min-w-[120px]"
               :disabled="store.isSubmitting || !store.selectedModel || !store.hasEligibleModel"
               @click="onConfirm"
@@ -138,7 +202,9 @@
                 icon="lucide:loader-2"
                 class="mr-2 h-4 w-4 animate-spin"
               />
-              {{ store.isSubmitting ? t('mcp.sampling.confirming') : t('mcp.sampling.confirm') }}
+              {{
+                store.isSubmitting ? t('mcp.sampling.confirming') : t('mcp.sampling.sendResponse')
+              }}
             </Button>
           </div>
         </DialogFooter>
@@ -159,14 +225,22 @@ import {
 import { ScrollArea } from '@shadcn/components/ui/scroll-area'
 import { Button } from '@shadcn/components/ui/button'
 import { Badge } from '@shadcn/components/ui/badge'
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger
+} from '@shadcn/components/ui/collapsible'
+import { Popover, PopoverContent, PopoverTrigger } from '@shadcn/components/ui/popover'
 import ModelChooser from '@/components/ModelChooser.vue'
+import ModelIcon from '@/components/icons/ModelIcon.vue'
 import { useMcpSamplingStore } from '@/stores/mcpSampling'
 import { useI18n } from 'vue-i18n'
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { Icon } from '@iconify/vue'
 
 const store = useMcpSamplingStore()
 const { t } = useI18n()
+const modelSelectOpen = ref(false)
 
 const preferenceSummary = computed(() => {
   const prefs = store.request?.modelPreferences
@@ -208,6 +282,7 @@ const preferenceSummary = computed(() => {
 
 const onModelUpdate = (model, providerId: string) => {
   store.selectModel(model, providerId)
+  modelSelectOpen.value = false
 }
 
 const onReject = () => {
@@ -220,7 +295,7 @@ const onConfirm = () => {
 
 const onDialogToggle = (open: boolean) => {
   if (!open && !store.isSubmitting) {
-    void store.dismiss()
+    void store.dismissRequest()
   }
 }
 </script>

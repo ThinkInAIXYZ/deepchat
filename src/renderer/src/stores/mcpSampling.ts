@@ -10,6 +10,15 @@ import type {
 import { useChatStore } from '@/stores/chat'
 import { useSettingsStore } from '@/stores/settings'
 
+interface ApprovedServerInfo {
+  providerId: string
+  modelId: string
+  timestamp: number
+}
+
+// Session timeout: 30 minutes
+const SESSION_TIMEOUT = 30 * 60 * 1000
+
 export const useMcpSamplingStore = defineStore('mcpSampling', () => {
   const mcpPresenter = usePresenter('mcpPresenter')
   const chatStore = useChatStore()
@@ -18,9 +27,11 @@ export const useMcpSamplingStore = defineStore('mcpSampling', () => {
   const request = ref<McpSamplingRequestPayload | null>(null)
   const isOpen = ref(false)
   const isSubmitting = ref(false)
-  const isChoosingModel = ref(false)
   const selectedProviderId = ref<string | null>(null)
   const selectedModel = ref<RENDERER_MODEL_META | null>(null)
+
+  // Session tracking for auto-approval
+  const approvedServers = ref<Map<string, ApprovedServerInfo>>(new Map())
 
   const requiresVision = computed(() => request.value?.requiresVision ?? false)
   const selectedModelSupportsVision = computed(() => selectedModel.value?.vision ?? false)
@@ -112,25 +123,130 @@ export const useMcpSamplingStore = defineStore('mcpSampling', () => {
     )
   })
 
+  // Check if current server has an active session
+  const isActiveSession = computed(() => {
+    if (!request.value) return false
+
+    const serverName = request.value.serverName
+    const approvedInfo = approvedServers.value.get(serverName)
+
+    if (!approvedInfo) return false
+
+    // Check if session is still valid
+    const now = Date.now()
+    return now - approvedInfo.timestamp < SESSION_TIMEOUT
+  })
+
+  // Get active session info for current server
+  const activeSessionInfo = computed(() => {
+    if (!request.value) return null
+
+    const serverName = request.value.serverName
+    return approvedServers.value.get(serverName) || null
+  })
+
+  // Session management methods
+  const cleanExpiredSessions = () => {
+    const now = Date.now()
+    for (const [serverName, info] of approvedServers.value.entries()) {
+      if (now - info.timestamp >= SESSION_TIMEOUT) {
+        approvedServers.value.delete(serverName)
+      }
+    }
+  }
+
+  const recordServerApproval = (serverName: string, providerId: string, modelId: string) => {
+    approvedServers.value.set(serverName, {
+      providerId,
+      modelId,
+      timestamp: Date.now()
+    })
+    cleanExpiredSessions()
+  }
+
+  const applySessionSelection = (): boolean => {
+    if (!request.value) {
+      return false
+    }
+
+    const sessionInfo = activeSessionInfo.value
+    if (!sessionInfo) {
+      return false
+    }
+
+    const providerEntry = settingsStore.enabledModels.find(
+      (entry) => entry.providerId === sessionInfo.providerId
+    )
+
+    if (!providerEntry) {
+      approvedServers.value.delete(request.value.serverName)
+      return false
+    }
+
+    const model = providerEntry.models.find((m) => m.id === sessionInfo.modelId) || null
+
+    if (!model) {
+      approvedServers.value.delete(request.value.serverName)
+      return false
+    }
+
+    if (requiresVision.value && !model.vision) {
+      approvedServers.value.delete(request.value.serverName)
+      return false
+    }
+
+    selectedProviderId.value = sessionInfo.providerId
+    selectedModel.value = model
+    return true
+  }
+
+  const autoApproveRequest = async (): Promise<boolean> => {
+    if (!request.value) {
+      return false
+    }
+
+    const applied = applySessionSelection()
+    if (!applied || !selectedProviderId.value || !selectedModel.value) {
+      return false
+    }
+
+    recordServerApproval(request.value.serverName, selectedProviderId.value, selectedModel.value.id)
+
+    await submitDecision({
+      requestId: request.value.requestId,
+      approved: true,
+      providerId: selectedProviderId.value,
+      modelId: selectedModel.value.id
+    })
+
+    return true
+  }
+
   const openRequest = (payload: McpSamplingRequestPayload) => {
+    cleanExpiredSessions()
     request.value = payload
-    isOpen.value = true
-    isChoosingModel.value = false
     isSubmitting.value = false
+
+    if (isActiveSession.value) {
+      void autoApproveRequest().then((success) => {
+        if (!success) {
+          resetSelection()
+          isOpen.value = true
+        }
+      })
+      return
+    }
+
     resetSelection()
+    isOpen.value = true
   }
 
   const clearRequest = () => {
     isOpen.value = false
-    isChoosingModel.value = false
     isSubmitting.value = false
     request.value = null
     selectedProviderId.value = null
     selectedModel.value = null
-  }
-
-  const beginApprove = () => {
-    isChoosingModel.value = true
   }
 
   const selectModel = (model: RENDERER_MODEL_META, providerId: string) => {
@@ -174,6 +290,9 @@ export const useMcpSamplingStore = defineStore('mcpSampling', () => {
       return
     }
 
+    // Record this server approval for future auto-approval
+    recordServerApproval(request.value.serverName, selectedProviderId.value, selectedModel.value.id)
+
     await submitDecision({
       requestId: request.value.requestId,
       approved: true,
@@ -194,7 +313,7 @@ export const useMcpSamplingStore = defineStore('mcpSampling', () => {
     })
   }
 
-  const dismiss = async () => {
+  const dismissRequest = async () => {
     if (!request.value) {
       clearRequest()
       return
@@ -242,17 +361,15 @@ export const useMcpSamplingStore = defineStore('mcpSampling', () => {
     request,
     isOpen,
     isSubmitting,
-    isChoosingModel,
     requiresVision,
     selectedModelSupportsVision,
     selectedProviderLabel,
     selectedProviderId,
     selectedModel,
     hasEligibleModel,
-    beginApprove,
     selectModel,
     confirmApproval,
     rejectRequest,
-    dismiss
+    dismissRequest
   }
 })
