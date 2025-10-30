@@ -90,5 +90,6 @@
   "resetToDefaultSuccess": "기본 내용으로 복원되었습니다",
   "resetToDefaultFailed": "기본값 복원에 실패했습니다",
   "confirmDeleteSystemPrompt": "시스템 프롬프트 \"{name}\"을(를) 삭제하시겠습니까?",
-  "confirmDeleteSystemPromptDescription": "이 작업은 되돌릴 수 없습니다. 시스템 프롬프트가 영구적으로 삭제됩니다."
+  "confirmDeleteSystemPromptDescription": "이 작업은 되돌릴 수 없습니다. 시스템 프롬프트가 영구적으로 삭제됩니다.",
+  "parameterRequired": "필수 매개변수"
 }

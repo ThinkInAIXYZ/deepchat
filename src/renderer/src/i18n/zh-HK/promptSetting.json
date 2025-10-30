@@ -90,5 +90,6 @@
   "resetToDefaultSuccess": "已恢復為預設內容",
   "resetToDefaultFailed": "恢復預設失敗",
   "confirmDeleteSystemPrompt": "確定要刪除系統提示詞「{name}」嗎？",
-  "confirmDeleteSystemPromptDescription": "此操作不可撤銷，刪除後將無法恢復該系統提示詞。"
+  "confirmDeleteSystemPromptDescription": "此操作不可撤銷，刪除後將無法恢復該系統提示詞。",
+  "parameterRequired": "必填參數"
 }

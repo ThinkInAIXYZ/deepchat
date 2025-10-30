@@ -205,6 +205,7 @@ const getContent = (prompt: PromptItem) => prompt.content ?? ''
 const loadPrompts = async () => {
   await promptsStore.loadPrompts()
   prompts.value = promptsStore.prompts.map((prompt) => ({ ...prompt }))
+  // Note: Main window will be notified via CONFIG_EVENTS.CUSTOM_PROMPTS_CHANGED event
 }
 
 const isExpanded = (id: string) => expandedPrompts.value.has(id)

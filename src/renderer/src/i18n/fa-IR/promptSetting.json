@@ -90,5 +90,6 @@
   "resetToDefaultSuccess": "محتوای پیش‌فرض بازیابی شد",
   "resetToDefaultFailed": "بازگشت به پیش‌فرض ناموفق بود",
   "confirmDeleteSystemPrompt": "آیا مطمئن هستید که می‌خواهید دستورکار سامانه \"{name}\" را حذف کنید؟",
-  "confirmDeleteSystemPromptDescription": "این عمل قابل بازگشت نیست. دستورکار سامانه به طور دائم حذف خواهد شد."
+  "confirmDeleteSystemPromptDescription": "این عمل قابل بازگشت نیست. دستورکار سامانه به طور دائم حذف خواهد شد.",
+  "parameterRequired": "پارامترهای مورد نیاز"
 }

@@ -90,5 +90,6 @@
   "systemPromptEditTip": "Sauvegarde automatique lorsque le focus est perdu après modification",
   "resetToDefault": "Rétablir par défaut",
   "resetToDefaultSuccess": "Rétabli au contenu par défaut avec succès",
-  "resetToDefaultFailed": "Échec de la réinitialisation par défaut"
+  "resetToDefaultFailed": "Échec de la réinitialisation par défaut",
+  "parameterRequired": "Paramètres requis"
 }

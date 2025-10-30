@@ -247,7 +247,11 @@
     "toolCallError": "Erro na chamada da ferramenta: {error}",
     "mcpDisabled": "MCP está desativado",
     "getPromptFailed": "Falha ao obter prompt",
-    "readResourceFailed": "Falha ao ler recurso"
+    "readResourceFailed": "Falha ao ler recurso",
+    "promptNotFound": "Prompt '{name}' não encontrado",
+    "emptyPromptContent": "O prompt '{name}' está vazio",
+    "missingParameters": "Parâmetros ausentes: {params}",
+    "invalidParameters": "Parâmetros inválidos: {params}"
   },
   "market": {
     "browseBuiltin": "Navegar no Mercado MCP Integrado",

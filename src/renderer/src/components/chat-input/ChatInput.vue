@@ -266,7 +266,7 @@
 
 <script setup lang="ts">
 // === Vue Core ===
-import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref, toRef, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 // === Types ===
@@ -435,7 +435,7 @@ editor.on('update', editorComposable.onEditorUpdate)
 const contextLengthTracker = useContextLength({
   inputText: editorComposable.inputText,
   selectedFiles: files.selectedFiles,
-  contextLength: props.contextLength
+  contextLength: toRef(props, 'contextLength')
 })
 
 // Initialize send button state
@@ -443,7 +443,7 @@ const sendButtonState = useSendButtonState({
   variant: props.variant,
   inputText: editorComposable.inputText,
   currentContextLength: contextLengthTracker.currentContextLength,
-  contextLength: props.contextLength
+  contextLength: toRef(props, 'contextLength')
 })
 
 // Only initialize config for chat variant

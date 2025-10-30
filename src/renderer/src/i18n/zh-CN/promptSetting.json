@@ -90,5 +90,6 @@
   "systemPromptEditTip": "修改后失去焦点时自动保存",
   "resetToDefault": "恢复默认",
   "resetToDefaultSuccess": "已恢复为默认内容",
-  "resetToDefaultFailed": "恢复默认失败"
+  "resetToDefaultFailed": "恢复默认失败",
+  "parameterRequired": "必填参数"
 }

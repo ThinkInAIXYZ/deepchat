@@ -278,7 +278,11 @@
     "toolCallError": "Tool call error: {error}",
     "mcpDisabled": "MCP is disabled",
     "getPromptFailed": "Failed to get prompt",
-    "readResourceFailed": "Failed to read resource"
+    "readResourceFailed": "Failed to read resource",
+    "promptNotFound": "Prompt '{name}' not found",
+    "emptyPromptContent": "Prompt '{name}' has no content",
+    "missingParameters": "Missing required parameters: {params}",
+    "invalidParameters": "Invalid parameters for: {params}"
   },
   "market": {
     "browseBuiltin": "Browse Built-in MCP Market",

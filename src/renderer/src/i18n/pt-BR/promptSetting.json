@@ -90,5 +90,6 @@
   "systemPromptEditTip": "Salva automaticamente quando o foco é perdido após a edição",
   "resetToDefault": "Redefinir para Padrão",
   "resetToDefaultSuccess": "Redefinido para o conteúdo padrão com sucesso",
-  "resetToDefaultFailed": "Falha ao redefinir para o padrão"
+  "resetToDefaultFailed": "Falha ao redefinir para o padrão",
+  "parameterRequired": "Parâmetros obrigatórios"
 }

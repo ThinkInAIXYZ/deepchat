@@ -1276,10 +1276,19 @@ export class WindowPresenter implements IWindowPresenter {
     // Choose icon based on platform
     const iconFile = nativeImage.createFromPath(process.platform === 'win32' ? iconWin : icon)
 
-    // Create Settings Window with fixed size (no state persistence)
+    // Initialize window state manager to remember position and size
+    const settingsWindowState = windowStateManager({
+      file: 'settings-window-state.json',
+      defaultWidth: 900,
+      defaultHeight: 600
+    })
+
+    // Create Settings Window with state persistence
     const settingsWindow = new BrowserWindow({
-      width: 900,
-      height: 600,
+      x: settingsWindowState.x,
+      y: settingsWindowState.y,
+      width: settingsWindowState.width,
+      height: settingsWindowState.height,
       show: false,
       autoHideMenuBar: true,
       fullscreenable: false,
@@ -1311,6 +1320,9 @@ export class WindowPresenter implements IWindowPresenter {
 
     this.settingsWindow = settingsWindow
     const windowId = settingsWindow.id
+
+    // Manage window state to track position and size changes
+    settingsWindowState.manage(settingsWindow)
 
     // Ensure links with target="_blank" open in the user's default browser
     settingsWindow.webContents.setWindowOpenHandler(({ url }) => {
@@ -1345,6 +1357,8 @@ export class WindowPresenter implements IWindowPresenter {
 
     settingsWindow.on('closed', () => {
       console.log(`Settings window ${windowId} closed.`)
+      // Unmanage window state when window is closed
+      settingsWindowState.unmanage()
       this.settingsWindow = null
     })
 

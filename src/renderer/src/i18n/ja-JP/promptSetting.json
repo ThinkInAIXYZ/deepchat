@@ -90,5 +90,6 @@
   "resetToDefaultSuccess": "デフォルトの内容に復元されました",
   "resetToDefaultFailed": "デフォルトへの復元に失敗しました",
   "confirmDeleteSystemPrompt": "システムプロンプト「{name}」を削除してもよろしいですか？",
-  "confirmDeleteSystemPromptDescription": "この操作は元に戻せません。システムプロンプトは完全に削除されます。"
+  "confirmDeleteSystemPromptDescription": "この操作は元に戻せません。システムプロンプトは完全に削除されます。",
+  "parameterRequired": "必須パラメータ"
 }

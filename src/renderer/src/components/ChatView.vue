@@ -12,6 +12,7 @@
       <ChatInput
         ref="chatInput"
         variant="chat"
+        :context-length="chatStore.chatConfig.contextLength"
         :disabled="!chatStore.getActiveThreadId() || isGenerating"
         @send="handleSend"
         @file-upload="handleFileUpload"

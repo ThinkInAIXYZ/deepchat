@@ -468,11 +468,71 @@ export const useMcpStore = defineStore('mcp', () => {
     prompt: PromptListEntry,
     args?: Record<string, unknown>
   ): Promise<unknown> => {
-    if (!config.value.mcpEnabled) {
-      throw new Error(t('mcp.errors.mcpDisabled'))
-    }
-
     try {
+      // 检查是否是自定义 prompt（来自 config）
+      const isCustomPrompt = prompt.client?.name === 'deepchat/custom-prompts-server'
+
+      if (isCustomPrompt) {
+        // 自定义 prompt 从 config 获取，不需要 MCP 启用
+        const customPrompts: Prompt[] = await configPresenter.getCustomPrompts()
+        const matchedPrompt = customPrompts.find((p) => p.name === prompt.name)
+
+        if (!matchedPrompt) {
+          throw new Error(t('mcp.errors.promptNotFound', { name: prompt.name }))
+        }
+
+        // 验证 prompt 内容
+        if (!matchedPrompt.content || matchedPrompt.content.trim() === '') {
+          throw new Error(t('mcp.errors.emptyPromptContent', { name: prompt.name }))
+        }
+
+        let content = matchedPrompt.content
+
+        // 验证参数
+        if (args && matchedPrompt.parameters) {
+          // 检查必需参数
+          const requiredParams = matchedPrompt.parameters
+            .filter((param) => param.required)
+            .map((param) => param.name)
+
+          const missingParams = requiredParams.filter((paramName) => !(paramName in args))
+          if (missingParams.length > 0) {
+            throw new Error(t('mcp.errors.missingParameters', { params: missingParams.join(', ') }))
+          }
+
+          // 验证提供的参数都是有效的
+          const validParamNames = matchedPrompt.parameters.map((param) => param.name)
+          const invalidParams = Object.keys(args).filter((key) => !validParamNames.includes(key))
+          if (invalidParams.length > 0) {
+            throw new Error(t('mcp.errors.invalidParameters', { params: invalidParams.join(', ') }))
+          }
+
+          // 安全的参数替换，使用字符串方法而非正则表达式
+          for (const [key, value] of Object.entries(args)) {
+            if (value !== null && value !== undefined) {
+              const placeholder = `{{${key}}}`
+              let startPos = 0
+              let pos
+
+              while ((pos = content.indexOf(placeholder, startPos)) !== -1) {
+                content =
+                  content.substring(0, pos) +
+                  String(value) +
+                  content.substring(pos + placeholder.length)
+                startPos = pos + String(value).length
+              }
+            }
+          }
+        }
+
+        return { messages: [{ role: 'user', content: { type: 'text', text: content } }] }
+      }
+
+      // MCP prompt 需要检查 MCP 是否启用
+      if (!config.value.mcpEnabled) {
+        throw new Error(t('mcp.errors.mcpDisabled'))
+      }
+
       // 传递完整对象给mcpPresenter
       return await mcpPresenter.getPrompt(prompt, args)
     } catch (error) {
@@ -531,6 +591,12 @@ export const useMcpStore = defineStore('mcp', () => {
         }
       }
     )
+
+    // Listen for custom prompts changes
+    window.electron.ipcRenderer.on('config:custom-prompts-changed', () => {
+      console.log('Custom prompts changed, reloading prompts list')
+      loadPrompts()
+    })
   }
 
   // 初始化

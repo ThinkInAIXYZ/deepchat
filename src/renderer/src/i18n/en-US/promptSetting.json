@@ -90,5 +90,6 @@
   "systemPromptEditTip": "Auto-save when focus is lost after editing",
   "resetToDefault": "Reset to Default",
   "resetToDefaultSuccess": "Reset to default content successfully",
-  "resetToDefaultFailed": "Failed to reset to default"
+  "resetToDefaultFailed": "Failed to reset to default",
+  "parameterRequired": "Required parameters"
 }

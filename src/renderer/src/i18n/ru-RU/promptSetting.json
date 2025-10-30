@@ -90,5 +90,6 @@
   "resetToDefaultSuccess": "Восстановлено содержимое по умолчанию",
   "resetToDefaultFailed": "Не удалось сбросить к значению по умолчанию",
   "confirmDeleteSystemPrompt": "Вы уверены, что хотите удалить системный промпт \"{name}\"?",
-  "confirmDeleteSystemPromptDescription": "Это действие нельзя отменить. Системный промпт будет удален навсегда."
+  "confirmDeleteSystemPromptDescription": "Это действие нельзя отменить. Системный промпт будет удален навсегда.",
+  "parameterRequired": "Обязательные параметры"
 }
