@@ -9,7 +9,7 @@
       <button
         v-for="(item, index) in displayItems"
         :key="index"
-        :ref="(el) => (itemElements[index] = el)"
+        :ref="(el) => (itemElements[index] = el as HTMLButtonElement)"
         class="relative flex cursor-default hover:bg-accent select-none items-center rounded-sm gap-2 px-2 py-1.5 text-sm outline-none transition-colors focus:bg-accent focus:text-accent-foreground data-disabled:pointer-events-none data-disabled:opacity-50 w-full text-left"
         :class="[index === selectedIndex ? 'bg-accent' : '']"
         @click="selectItem(index)"
@@ -66,9 +66,9 @@ const props = defineProps<{
 const selectedIndex = ref(props.initialIndex ?? 0)
 const currentCategory = ref<string | null>(null)
 const isCategoryView = computed(() => currentCategory.value != null)
-const itemElements = ref<HTMLButtonElement | null[]>([])
+const itemElements = ref<(HTMLButtonElement | null)[]>([])
 
-// 内存中保存每个 category（以及 root）最后一次的 selectedIndex（不持久化）
+// ref holds the last selectedIndex for each category (including root) in memory, not persisted
 const lastIndexMap = ref<Map<string | null, number>>(new Map([[null, props.initialIndex ?? 0]]))
 
 const saveCurrentIndexForCategory = (cat: string | null, idx?: number) => {
@@ -118,7 +118,7 @@ const displayItems = computed<CategorizedData[]>(() => {
 watch(
   () => props.items,
   () => {
-    // 清理不再存在的 category 记录，保留 root (null)
+    // clean up category entries that no longer exist, keep root (null)
     const validCats = new Set<string | null>([null])
     props.items.forEach((it) => {
       if (it.category) validCats.add(it.category)
@@ -129,7 +129,7 @@ watch(
       }
     }
 
-    // 不重置为 initialIndex，只将当前 selectedIndex 裁切到合法范围内
+    // do not reset to initialIndex; clamp the current selectedIndex to the valid range
     const max = Math.max(0, displayItems.value.length - 1)
     selectedIndex.value = Math.max(0, Math.min(selectedIndex.value, max))
   },
