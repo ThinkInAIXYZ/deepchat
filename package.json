@@ -164,7 +164,7 @@
     "vitest": "^3.2.4",
     "vue": "^3.5.22",
     "vue-i18n": "^11.1.12",
-    "vue-renderer-markdown": "0.0.61-beta.4",
+    "vue-renderer-markdown": "0.0.61-beta.5",
     "vue-router": "4",
     "vue-sonner": "^2.0.9",
     "vue-tsc": "^2.2.12",
