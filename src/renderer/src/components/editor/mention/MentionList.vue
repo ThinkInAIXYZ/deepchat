@@ -77,7 +77,7 @@ const saveCurrentIndexForCategory = (cat: string | null, idx?: number) => {
 
 const getLastIndexForCategory = (cat: string | null) => {
   const v = lastIndexMap.value.get(cat)
-  return v === undefined ? props.initialIndex ?? 0 : v
+  return v === undefined ? (props.initialIndex ?? 0) : v
 }
 
 // 检测 prompt 是否有关联文件
