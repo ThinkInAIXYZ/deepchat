@@ -119,11 +119,12 @@ export class ShortcutPresenter implements IShortcutPresenter {
         }
       })
     }
-
+    console.log('clean chat history shortcut', this.shortcutKeys.CleanChatHistory)
     // Command+L 或 Ctrl+L 清除聊天历史
     if (this.shortcutKeys.CleanChatHistory) {
       globalShortcut.register(this.shortcutKeys.CleanChatHistory, () => {
         const focusedWindow = presenter.windowPresenter.getFocusedWindow()
+        console.log('clean chat history')
         if (focusedWindow?.isFocused()) {
           presenter.windowPresenter.sendToActiveTab(
             focusedWindow.id,
@@ -137,6 +138,7 @@ export class ShortcutPresenter implements IShortcutPresenter {
     if (this.shortcutKeys.DeleteConversation) {
       globalShortcut.register(this.shortcutKeys.DeleteConversation, () => {
         const focusedWindow = presenter.windowPresenter.getFocusedWindow()
+        console.log('delete conversation')
         if (focusedWindow?.isFocused()) {
           presenter.windowPresenter.sendToActiveTab(
             focusedWindow.id,

@@ -46,7 +46,7 @@
                 @select="handleThreadSelect"
                 @rename="showRenameDialog(item.data)"
                 @delete="showDeleteDialog(item.data)"
-                @cleanmsgs="showCleanMessagesDialog(item.data)"
+                @cleanmsgs="handleThreadCleanMessages(item.data)"
               />
             </div>
 
@@ -97,24 +97,6 @@
         </DialogFooter>
       </DialogContent>
     </Dialog>
-    <Dialog v-model:open="cleanMessagesDialog">
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>{{ t('dialog.cleanMessages.title') }}</DialogTitle>
-          <DialogDescription>
-            {{ t('dialog.cleanMessages.description') }}
-          </DialogDescription>
-        </DialogHeader>
-        <DialogFooter>
-          <Button variant="outline" @click="handleCleanMessagesDialogCancel">{{
-            t('dialog.cancel')
-          }}</Button>
-          <Button variant="destructive" @click="handleThreadCleanMessages">{{
-            t('dialog.cleanMessages.confirm')
-          }}</Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
   </div>
 </template>
 
@@ -138,6 +120,7 @@ import {
 } from '@shadcn/components/ui/dialog'
 import { useWindowSize } from '@vueuse/core'
 import { SHORTCUT_EVENTS } from '@/events'
+import { useCleanDialog } from '@/composables/message/useCleanDialog'
 import { DynamicScroller, DynamicScrollerItem } from 'vue-virtual-scroller'
 
 const { t } = useI18n()
@@ -148,8 +131,7 @@ const deleteDialog = ref(false)
 const deleteThread = ref<CONVERSATION | null>(null)
 const renameDialog = ref(false)
 const renameThread = ref<CONVERSATION | null>(null)
-const cleanMessagesDialog = ref(false)
-const cleanMessagesThread = ref<CONVERSATION | null>(null)
+const cleanDialog = useCleanDialog()
 
 // 加载更多状态 - 只用于防重复触发
 let isLoadingMore = false
@@ -253,31 +235,8 @@ const handleThreadDelete = async () => {
   deleteThread.value = null
 }
 
-// 显示清空消息对话框
-const showCleanMessagesDialog = (thread: CONVERSATION) => {
-  cleanMessagesDialog.value = true
-  cleanMessagesThread.value = thread
-}
-
-// 取消清空消息对话框
-const handleCleanMessagesDialogCancel = () => {
-  cleanMessagesDialog.value = false
-  cleanMessagesThread.value = null
-}
-
-// 清空会话消息
-const handleThreadCleanMessages = async () => {
-  try {
-    if (!cleanMessagesThread.value) {
-      return
-    }
-    await chatStore.clearAllMessages(cleanMessagesThread.value.id)
-  } catch (error) {
-    console.error(t('common.error.cleanMessagesFailed'), error)
-  }
-
-  cleanMessagesDialog.value = false
-  cleanMessagesThread.value = null
+const handleThreadCleanMessages = (thread: CONVERSATION) => {
+  cleanDialog.open(thread.id)
 }
 
 const showRenameDialog = (thread: CONVERSATION) => {
@@ -290,22 +249,10 @@ const handleRenameDialogCancel = () => {
   renameThread.value = null
 }
 
-// 处理清除聊天历史
-const handleCleanChatHistory = () => {
-  if (chatStore.activeThread) {
-    showCleanMessagesDialog(chatStore.activeThread)
-  }
-}
-
 // 在组件挂载时加载会话列表
 onMounted(async () => {
   // 初始化hasMoreThreads状态，默认为true，让用户可以尝试加载更多
   hasMoreThreads.value = true
-
-  // 监听快捷键事件
-  window.electron.ipcRenderer.on(SHORTCUT_EVENTS.CLEAN_CHAT_HISTORY, () => {
-    handleCleanChatHistory()
-  })
 
   // 快捷键删除时弹出确认框
   window.electron.ipcRenderer.on(SHORTCUT_EVENTS.DELETE_CONVERSATION, () => {
@@ -317,8 +264,6 @@ onMounted(async () => {
 
 // 在组件卸载前移除事件监听
 onBeforeUnmount(() => {
-  // 移除清除聊天历史的事件监听
-  window.electron.ipcRenderer.removeAllListeners(SHORTCUT_EVENTS.CLEAN_CHAT_HISTORY)
   // 确保快捷键监听被移除
   window.electron.ipcRenderer.removeAllListeners(SHORTCUT_EVENTS.DELETE_CONVERSATION)
 })

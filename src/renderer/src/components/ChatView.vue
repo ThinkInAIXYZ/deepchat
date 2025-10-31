@@ -27,18 +27,18 @@ import MessageList from './message/MessageList.vue'
 import ChatInput from './chat-input/ChatInput.vue'
 import { useRoute } from 'vue-router'
 import { UserMessageContent } from '@shared/chat'
-import { STREAM_EVENTS } from '@/events'
+import { STREAM_EVENTS, SHORTCUT_EVENTS } from '@/events'
 import { useSettingsStore } from '@/stores/settings'
+import { useChatStore } from '@/stores/chat'
+import { useCleanDialog } from '@/composables/message/useCleanDialog'
 
 const route = useRoute()
 const settingsStore = useSettingsStore()
+const chatStore = useChatStore()
+const cleanDialog = useCleanDialog()
 
 const messageList = ref()
 const chatInput = ref()
-
-import { useChatStore } from '@/stores/chat'
-
-const chatStore = useChatStore()
 
 const scrollToBottom = (smooth = true) => {
   messageList.value?.scrollToBottom(smooth)
@@ -86,6 +86,10 @@ onMounted(async () => {
     }, 200)
   })
 
+  window.electron.ipcRenderer.on(SHORTCUT_EVENTS.CLEAN_CHAT_HISTORY, () => {
+    cleanDialog.open()
+  })
+
   if (route.query.modelId && route.query.providerId) {
     const threadId = await chatStore.createThread('新会话', {
       modelId: route.query.modelId as string,
@@ -116,6 +120,7 @@ onUnmounted(async () => {
   window.electron.ipcRenderer.removeAllListeners(STREAM_EVENTS.RESPONSE)
   window.electron.ipcRenderer.removeAllListeners(STREAM_EVENTS.END)
   window.electron.ipcRenderer.removeAllListeners(STREAM_EVENTS.ERROR)
+  window.electron.ipcRenderer.removeAllListeners(SHORTCUT_EVENTS.CLEAN_CHAT_HISTORY)
 })
 
 defineExpose({
