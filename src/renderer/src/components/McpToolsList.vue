@@ -15,11 +15,13 @@ import { Switch } from '@shadcn/components/ui/switch'
 import { Badge } from '@shadcn/components/ui/badge'
 import { useLanguageStore } from '@/stores/language'
 import { useChatStore } from '@/stores/chat'
+import { useToast } from '@/components/use-toast'
 
 const { t } = useI18n()
 const mcpStore = useMcpStore()
 const langStore = useLanguageStore()
 const chatStore = useChatStore()
+const { toast } = useToast()
 
 // 计算属性
 const isLoading = computed(() => mcpStore.toolsLoading)
@@ -58,8 +60,21 @@ const getTotalEnabledToolCount = () => {
 }
 
 // 处理单个服务开关状态变化
-const onServerToggle = (serverName: string) => {
-  mcpStore.toggleServer(serverName)
+const onServerToggle = async (serverName: string) => {
+  // 如果正在加载，不处理
+  if (mcpStore.serverLoadingStates[serverName]) {
+    return
+  }
+
+  const success = await mcpStore.toggleServer(serverName)
+  if (!success) {
+    // 显示错误提示
+    toast({
+      title: t('common.error.operationFailed'),
+      description: t('mcp.errors.toggleServerFailed', { serverName }),
+      variant: 'destructive'
+    })
+  }
 }
 
 // 处理单个工具开关状态变化
@@ -207,17 +222,11 @@ onMounted(async () => {
                   </PopoverContent>
                 </Popover>
 
-                <Switch :model-value="server.isRunning" @click="onServerToggle(server.name)">
-                  <template #thumb>
-                    <div class="flex items-center justify-center w-full h-full">
-                      <Icon
-                        v-if="server.isLoading"
-                        icon="lucide:loader-2"
-                        class="w-3 h-3 text-muted-foreground animate-spin"
-                      />
-                    </div>
-                  </template>
-                </Switch>
+                <Switch
+                  :model-value="server.isRunning"
+                  :disabled="server.isLoading"
+                  @update:model-value="() => onServerToggle(server.name)"
+                />
               </div>
             </div>
           </div>

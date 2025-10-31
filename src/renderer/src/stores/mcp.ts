@@ -263,19 +263,31 @@ export const useMcpStore = defineStore('mcp', () => {
 
   // 启动/停止服务器
   const toggleServer = async (serverName: string) => {
-    try {
-      serverLoadingStates.value[serverName] = true
-      const isRunning = serverStatuses.value[serverName] || false
+    // 如果正在加载，避免重复操作
+    if (serverLoadingStates.value[serverName]) {
+      return false
+    }
 
-      if (isRunning) {
+    // 乐观更新：立即更新状态
+    const currentStatus = serverStatuses.value[serverName] || false
+    const targetStatus = !currentStatus
+    serverStatuses.value[serverName] = targetStatus
+    serverLoadingStates.value[serverName] = true
+
+    try {
+      // 执行实际操作
+      if (currentStatus) {
         await mcpPresenter.stopServer(serverName)
       } else {
         await mcpPresenter.startServer(serverName)
       }
 
+      // 同步实际状态（可能因网络延迟等原因状态不一致）
       await updateServerStatus(serverName)
       return true
     } catch (error) {
+      // 失败时回滚状态
+      serverStatuses.value[serverName] = currentStatus
       console.error(t('mcp.errors.toggleServerFailed', { serverName }), error)
       return false
     } finally {
