@@ -60,11 +60,25 @@ const props = defineProps<{
     content?: string | null
   }) => void
   query: string // Declare the query prop
+  initialIndex?: number
 }>()
-const selectedIndex = ref(0)
+
+const selectedIndex = ref(props.initialIndex ?? 0)
 const currentCategory = ref<string | null>(null)
 const isCategoryView = computed(() => currentCategory.value != null)
 const itemElements = ref<HTMLButtonElement | null[]>([])
+
+// 内存中保存每个 category（以及 root）最后一次的 selectedIndex（不持久化）
+const lastIndexMap = ref<Map<string | null, number>>(new Map([[null, props.initialIndex ?? 0]]))
+
+const saveCurrentIndexForCategory = (cat: string | null, idx?: number) => {
+  lastIndexMap.value.set(cat, idx ?? selectedIndex.value)
+}
+
+const getLastIndexForCategory = (cat: string | null) => {
+  const v = lastIndexMap.value.get(cat)
+  return v === undefined ? props.initialIndex ?? 0 : v
+}
 
 // 检测 prompt 是否有关联文件
 const hasFiles = (item: CategorizedData): boolean => {
@@ -104,8 +118,20 @@ const displayItems = computed<CategorizedData[]>(() => {
 watch(
   () => props.items,
   () => {
-    // Reset selection state when items change
-    selectedIndex.value = 0
+    // 清理不再存在的 category 记录，保留 root (null)
+    const validCats = new Set<string | null>([null])
+    props.items.forEach((it) => {
+      if (it.category) validCats.add(it.category)
+    })
+    for (const key of Array.from(lastIndexMap.value.keys())) {
+      if (!validCats.has(key)) {
+        lastIndexMap.value.delete(key)
+      }
+    }
+
+    // 不重置为 initialIndex，只将当前 selectedIndex 裁切到合法范围内
+    const max = Math.max(0, displayItems.value.length - 1)
+    selectedIndex.value = Math.max(0, Math.min(selectedIndex.value, max))
   },
   { immediate: true } // Run watcher immediately to set initial state
 )
@@ -124,6 +150,9 @@ const downHandler = () => {
 watch(
   () => selectedIndex.value,
   () => {
+    // 在内存 map 中记录当前 category 的索引
+    lastIndexMap.value.set(currentCategory.value, selectedIndex.value)
+
     if (itemElements.value[selectedIndex.value]) {
       itemElements.value[selectedIndex.value]?.scrollIntoView({
         behavior: 'smooth',
@@ -181,8 +210,13 @@ const selectItem = (index: number) => {
   const selectedDisplayItem = displayItems.value[index]
   if (!selectedDisplayItem) return
   if (selectedDisplayItem.type === 'category') {
+    // 进入 category 前先保存当前视图的索引
+    saveCurrentIndexForCategory(currentCategory.value)
+
+    // 切换到新 category，并从内存恢复最后一次的索引（做边界裁切）
     currentCategory.value = selectedDisplayItem.label
-    selectedIndex.value = 0
+    const max = Math.max(0, displayItems.value.length - 1)
+    selectedIndex.value = Math.max(0, Math.min(getLastIndexForCategory(currentCategory.value), max))
   } else {
     if (selectedDisplayItem.category === 'prompts') {
       const mcpEntry = selectedDisplayItem.mcpEntry
@@ -254,8 +288,13 @@ const enterHandler = () => {
 
 const backHandler = () => {
   if (currentCategory.value !== null) {
+    // 返回前保存当前 category 的索引
+    saveCurrentIndexForCategory(currentCategory.value)
+
+    // 回到 root 并恢复 root 的索引（裁切）
     currentCategory.value = null
-    selectedIndex.value = 0
+    const max = Math.max(0, displayItems.value.length - 1)
+    selectedIndex.value = Math.max(0, Math.min(getLastIndexForCategory(null), max))
     return true
   } else {
     return false
