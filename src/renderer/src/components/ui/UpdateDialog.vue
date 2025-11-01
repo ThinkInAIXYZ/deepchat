@@ -9,9 +9,9 @@
               <p>{{ t('update.version') }}: {{ upgrade.updateInfo?.version }}</p>
               <p>{{ t('update.releaseDate') }}: {{ upgrade.updateInfo?.releaseDate }}</p>
               <p>{{ t('update.releaseNotes') }}:</p>
-              <p class="whitespace-pre-line"
-                v-html="renderMarkdown(getCommonMarkdown(), upgrade.updateInfo?.releaseNotes || '')" />
-
+              <p class="whitespace-pre-line">
+                <NodeRenderer :content="upgrade.updateInfo?.releaseNotes"></NodeRenderer>
+              </p>
               <!-- 显示下载进度 -->
               <div v-if="upgrade.isDownloading && upgrade.updateProgress" class="mt-4">
                 <p class="mb-2">
@@ -65,7 +65,7 @@ import {
   DialogTitle
 } from '@shadcn/components/ui/dialog'
 import { useUpgradeStore } from '@/stores/upgrade'
-import { renderMarkdown, getCommonMarkdown } from 'vue-renderer-markdown'
+import NodeRenderer from 'vue-renderer-markdown'
 
 const { t } = useI18n()
 const upgrade = useUpgradeStore()
