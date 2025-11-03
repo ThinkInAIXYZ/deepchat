@@ -19,6 +19,23 @@
       />
     </div>
   </div>
+  <!-- Clean messages dialog -->
+  <Dialog v-model:open="cleanDialog.isOpen.value">
+    <DialogContent>
+      <DialogHeader>
+        <DialogTitle>{{ t('dialog.cleanMessages.title') }}</DialogTitle>
+        <DialogDescription>
+          {{ t('dialog.cleanMessages.description') }}
+        </DialogDescription>
+      </DialogHeader>
+      <DialogFooter>
+        <Button variant="outline" @click="cleanDialog.cancel">{{ t('dialog.cancel') }}</Button>
+        <Button variant="destructive" @click="cleanDialog.confirm">{{
+          t('dialog.cleanMessages.confirm')
+        }}</Button>
+      </DialogFooter>
+    </DialogContent>
+  </Dialog>
 </template>
 
 <script setup lang="ts">
@@ -31,7 +48,18 @@ import { STREAM_EVENTS, SHORTCUT_EVENTS } from '@/events'
 import { useSettingsStore } from '@/stores/settings'
 import { useChatStore } from '@/stores/chat'
 import { useCleanDialog } from '@/composables/message/useCleanDialog'
+import { useI18n } from 'vue-i18n'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter
+} from '@shadcn/components/ui/dialog'
+import { Button } from '@shadcn/components/ui/button'
 
+const { t } = useI18n()
 const route = useRoute()
 const settingsStore = useSettingsStore()
 const chatStore = useChatStore()

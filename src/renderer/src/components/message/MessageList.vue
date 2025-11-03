@@ -57,22 +57,6 @@
       @bar-click="minimap.handleClick"
     />
   </div>
-  <Dialog v-model:open="cleanDialog.isOpen.value">
-    <DialogContent>
-      <DialogHeader>
-        <DialogTitle>{{ t('dialog.cleanMessages.title') }}</DialogTitle>
-        <DialogDescription>
-          {{ t('dialog.cleanMessages.description') }}
-        </DialogDescription>
-      </DialogHeader>
-      <DialogFooter>
-        <Button variant="outline" @click="cleanDialog.cancel">{{ t('dialog.cancel') }}</Button>
-        <Button variant="destructive" @click="cleanDialog.confirm">{{
-          t('dialog.cleanMessages.confirm')
-        }}</Button>
-      </DialogFooter>
-    </DialogContent>
-  </Dialog>
 </template>
 
 <script setup lang="ts">
@@ -88,19 +72,9 @@ import MessageItemUser from './MessageItemUser.vue'
 import MessageActionButtons from './MessageActionButtons.vue'
 import ReferencePreview from './ReferencePreview.vue'
 import MessageMinimap from './MessageMinimap.vue'
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter
-} from '@shadcn/components/ui/dialog'
-import { Button } from '@shadcn/components/ui/button'
 
 // === Composables ===
 import { useResizeObserver } from '@vueuse/core'
-import { useI18n } from 'vue-i18n'
 import { useMessageScroll } from '@/composables/message/useMessageScroll'
 import { useCleanDialog } from '@/composables/message/useCleanDialog'
 import { useMessageMinimap } from '@/composables/message/useMessageMinimap'
@@ -112,7 +86,6 @@ import { useChatStore } from '@/stores/chat'
 import { useReferenceStore } from '@/stores/reference'
 
 // === Props & Emits ===
-const { t } = useI18n()
 const props = defineProps<{
   messages: Array<UserMessage | AssistantMessage>
 }>()
