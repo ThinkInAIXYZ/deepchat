@@ -19,6 +19,7 @@ import type { MCPToolDefinition } from '../../../shared/presenter'
 import { ContentEnricher } from './contentEnricher'
 import { buildUserMessageContext, getNormalizedUserMessageText } from './messageContent'
 import { generateSearchPrompt } from './searchManager'
+import { nanoid } from 'nanoid'
 
 export type PendingToolCall = {
   id: string
@@ -466,30 +467,46 @@ function addContextMessages(
         const content = msg.content as AssistantMessageBlock[]
         const messageContent: ChatMessageContent[] = []
         const toolCalls: ChatMessage['tool_calls'] = []
+        const toolResponses: { id: string; response: string }[] = []
 
         content.forEach((block) => {
           if (block.type === 'tool_call' && block.tool_call) {
+            let toolCallId = block.tool_call.id || nanoid(8)
             toolCalls.push({
-              id: block.tool_call.id,
+              id: toolCallId,
               type: 'function',
               function: {
                 name: block.tool_call.name,
                 arguments: block.tool_call.params || ''
               }
             })
+            // Store tool response separately to create role:tool messages
             if (block.tool_call.response) {
-              messageContent.push({ type: 'text', text: block.tool_call.response })
+              toolResponses.push({
+                id: toolCallId,
+                response: block.tool_call.response
+              })
             }
           } else if (block.type === 'content' && block.content) {
             messageContent.push({ type: 'text', text: block.content })
           }
         })
 
+        // Add assistant message with tool_calls (without responses in content)
         if (toolCalls.length > 0) {
           resultMessages.push({
             role: 'assistant',
             content: messageContent.length > 0 ? messageContent : undefined,
             tool_calls: toolCalls
+          })
+
+          // Add separate role:tool messages for each tool response
+          toolResponses.forEach((toolResp) => {
+            resultMessages.push({
+              role: 'tool',
+              content: toolResp.response,
+              tool_call_id: toolResp.id
+            })
           })
         } else if (messageContent.length > 0) {
           resultMessages.push({

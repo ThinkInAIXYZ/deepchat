@@ -250,14 +250,27 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
   /**
    * User messages: Upper layer will insert image_url based on whether vision exists
    * Assistant messages: Need to judge and convert images to correct context, as models can be switched
-   * Tool calls and tool responses: Convert to plain text and merge into assistant messages to avoid API validation errors
-   * @param messages
-   * @returns
+   * Tool calls and tool responses:
+   *   - If supportsFunctionCall=true: Use standard OpenAI format (tool_calls + role:tool)
+   *   - If supportsFunctionCall=false: Convert to mock user messages with function_call_record format
+   * @param messages - Chat messages array
+   * @param supportsFunctionCall - Whether the model supports native function calling
+   * @returns Formatted messages for OpenAI API
    */
-  protected formatMessages(messages: ChatMessage[]): ChatCompletionMessageParam[] {
+  protected formatMessages(
+    messages: ChatMessage[],
+    supportsFunctionCall: boolean = false
+  ): ChatCompletionMessageParam[] {
     const result: ChatCompletionMessageParam[] = []
+    // Track pending tool calls for non-FC models (to pair with tool responses)
+    const pendingToolCalls: Map<
+      string,
+      { name: string; arguments: string; assistantContent?: string }
+    > = new Map()
 
-    for (const msg of messages) {
+    for (let i = 0; i < messages.length; i++) {
+      const msg = messages[i]
+
       // Handle basic message structure
       const baseMessage: Partial<ChatCompletionMessageParam> = {
         role: msg.role as 'system' | 'user' | 'assistant' | 'tool'
@@ -293,66 +306,99 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
         continue
       }
 
-      // Handle assistant messages with tool_calls - convert to plain text
+      // Handle assistant messages with tool_calls
       if (msg.role === 'assistant' && msg.tool_calls && msg.tool_calls.length > 0) {
-        const contentParts: string[] = []
-
-        // Add original assistant content if exists (ensure it's a string)
-        if (baseMessage.content) {
-          const contentStr =
-            typeof baseMessage.content === 'string'
-              ? baseMessage.content
-              : JSON.stringify(baseMessage.content)
-          contentParts.push(contentStr)
-        }
-
-        // Convert tool_calls to text format
-        for (const toolCall of msg.tool_calls) {
-          const toolCallText = `[Tool Call: ${toolCall.function?.name || 'unknown'}]`
-          let argsText = ''
-          try {
-            const args =
-              typeof toolCall.function?.arguments === 'string'
-                ? JSON.parse(toolCall.function.arguments)
-                : toolCall.function?.arguments
-            argsText = JSON.stringify(args, null, 2)
-          } catch {
-            argsText = String(toolCall.function?.arguments || '{}')
+        if (supportsFunctionCall) {
+          // Standard OpenAI format - preserve tool_calls structure
+          result.push({
+            role: 'assistant',
+            content: baseMessage.content || null,
+            tool_calls: msg.tool_calls
+          } as ChatCompletionMessageParam)
+        } else {
+          // Mock format: Store tool calls and assistant content, wait for tool responses
+          // First add the assistant message if it has content
+          if (baseMessage.content) {
+            result.push({
+              role: 'assistant',
+              content: baseMessage.content
+            } as ChatCompletionMessageParam)
           }
-          contentParts.push(`${toolCallText}\nArguments:\n\`\`\`json\n${argsText}\n\`\`\``)
-        }
 
-        // Create merged assistant message
-        result.push({
-          role: 'assistant',
-          content: contentParts.join('\n\n')
-        } as ChatCompletionMessageParam)
+          // Store tool calls for pairing with responses
+          for (const toolCall of msg.tool_calls) {
+            const toolCallId = toolCall.id || `tool-${Date.now()}-${Math.random()}`
+            pendingToolCalls.set(toolCallId, {
+              name: toolCall.function?.name || 'unknown',
+              arguments:
+                typeof toolCall.function?.arguments === 'string'
+                  ? toolCall.function.arguments
+                  : JSON.stringify(toolCall.function?.arguments || {}),
+              assistantContent: baseMessage.content as string | undefined
+            })
+          }
+        }
         continue
       }
 
-      // Handle tool messages - append to previous message (should be assistant)
+      // Handle tool messages
       if (msg.role === 'tool') {
-        const toolContent =
-          typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content)
-        const toolResultText = `[Tool Result]\n${toolContent}`
-
-        // Find the last message in result and append
-        if (result.length > 0) {
-          const lastMessage = result[result.length - 1]
-          // Ensure lastMessage.content is a string before appending
-          const currentContent =
-            typeof lastMessage.content === 'string'
-              ? lastMessage.content
-              : JSON.stringify(lastMessage.content || '')
-          lastMessage.content = currentContent
-            ? `${currentContent}\n\n${toolResultText}`
-            : toolResultText
-        } else {
-          // If no previous message, create a new assistant message
+        if (supportsFunctionCall) {
+          // Standard OpenAI format - preserve role:tool with tool_call_id
           result.push({
-            role: 'assistant',
-            content: toolResultText
+            role: 'tool',
+            content: typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content),
+            tool_call_id: msg.tool_call_id || ''
           } as ChatCompletionMessageParam)
+        } else {
+          // Mock format: Create user message with function_call_record
+          const toolCallId = msg.tool_call_id || ''
+          const pendingCall = pendingToolCalls.get(toolCallId)
+
+          if (pendingCall) {
+            // Parse arguments to JSON if it's a string
+            let argsObj
+            try {
+              argsObj =
+                typeof pendingCall.arguments === 'string'
+                  ? JSON.parse(pendingCall.arguments)
+                  : pendingCall.arguments
+            } catch {
+              argsObj = {}
+            }
+
+            // Format as function_call_record in user message
+            const mockRecord = {
+              function_call_record: {
+                name: pendingCall.name,
+                arguments: argsObj,
+                response:
+                  typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content)
+              }
+            }
+
+            result.push({
+              role: 'user',
+              content: `<function_call>${JSON.stringify(mockRecord)}</function_call>`
+            } as ChatCompletionMessageParam)
+
+            pendingToolCalls.delete(toolCallId)
+          } else {
+            // Fallback: tool response without matching call, still format as user message
+            const mockRecord = {
+              function_call_record: {
+                name: 'unknown',
+                arguments: {},
+                response:
+                  typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content)
+              }
+            }
+
+            result.push({
+              role: 'user',
+              content: `<function_call>${JSON.stringify(mockRecord)}</function_call>`
+            } as ChatCompletionMessageParam)
+          }
         }
         continue
       }
@@ -378,8 +424,13 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
     if (!modelId) {
       throw new Error('Model ID is required')
     }
+
+    // Check if model supports function calling
+    const modelConfig = this.configPresenter.getModelConfig(modelId, this.provider.id)
+    const supportsFunctionCall = modelConfig?.functionCall || false
+
     const requestParams: OpenAI.Chat.ChatCompletionCreateParams = {
-      messages: this.formatMessages(messages),
+      messages: this.formatMessages(messages, supportsFunctionCall),
       model: modelId,
       stream: false,
       temperature: temperature,
@@ -673,7 +724,9 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
     // 为 OpenAI 聊天补全准备消息和工具
     const tools = mcpTools || []
     const supportsFunctionCall = modelConfig?.functionCall || false // 判断是否支持原生函数调用
-    let processedMessages = [...this.formatMessages(messages)] as ChatCompletionMessageParam[]
+    let processedMessages = [
+      ...this.formatMessages(messages, supportsFunctionCall)
+    ] as ChatCompletionMessageParam[]
 
     // 如果不支持原生函数调用但存在工具，则准备非原生函数调用提示
     if (tools.length > 0 && !supportsFunctionCall) {
