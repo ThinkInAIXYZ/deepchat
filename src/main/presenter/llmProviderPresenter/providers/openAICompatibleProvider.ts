@@ -14,12 +14,10 @@ import { createStreamEvent } from '@shared/types/core/llm-events'
 import { BaseLLMProvider, SUMMARY_TITLES_PROMPT } from '../baseProvider'
 import OpenAI, { AzureOpenAI } from 'openai'
 import {
-  ChatCompletionAssistantMessageParam,
   ChatCompletionContentPart,
   ChatCompletionContentPartText,
   ChatCompletionMessage,
-  ChatCompletionMessageParam,
-  ChatCompletionToolMessageParam
+  ChatCompletionMessageParam
 } from 'openai/resources'
 import { presenter } from '@/presenter'
 import { eventBus, SendTarget } from '@/eventbus'
@@ -252,17 +250,20 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
   /**
    * User messages: Upper layer will insert image_url based on whether vision exists
    * Assistant messages: Need to judge and convert images to correct context, as models can be switched
+   * Tool calls and tool responses: Convert to plain text and merge into assistant messages to avoid API validation errors
    * @param messages
    * @returns
    */
   protected formatMessages(messages: ChatMessage[]): ChatCompletionMessageParam[] {
-    return messages.map((msg) => {
+    const result: ChatCompletionMessageParam[] = []
+
+    for (const msg of messages) {
       // Handle basic message structure
       const baseMessage: Partial<ChatCompletionMessageParam> = {
         role: msg.role as 'system' | 'user' | 'assistant' | 'tool'
       }
 
-      // Handle content conversion to string
+      // Handle content conversion to string for non-user messages
       if (msg.content !== undefined && msg.role !== 'user') {
         if (typeof msg.content === 'string') {
           baseMessage.content = msg.content
@@ -280,23 +281,87 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
           baseMessage.content = textParts.join('\n')
         }
       }
+
+      // Handle user messages (keep multimodal content structure)
       if (msg.role === 'user') {
         if (typeof msg.content === 'string') {
           baseMessage.content = msg.content
         } else if (Array.isArray(msg.content)) {
           baseMessage.content = msg.content as ChatCompletionContentPart[]
         }
+        result.push(baseMessage as ChatCompletionMessageParam)
+        continue
       }
 
-      if (msg.role === 'assistant' && msg.tool_calls) {
-        ;(baseMessage as ChatCompletionAssistantMessageParam).tool_calls = msg.tool_calls
+      // Handle assistant messages with tool_calls - convert to plain text
+      if (msg.role === 'assistant' && msg.tool_calls && msg.tool_calls.length > 0) {
+        const contentParts: string[] = []
+
+        // Add original assistant content if exists (ensure it's a string)
+        if (baseMessage.content) {
+          const contentStr =
+            typeof baseMessage.content === 'string'
+              ? baseMessage.content
+              : JSON.stringify(baseMessage.content)
+          contentParts.push(contentStr)
+        }
+
+        // Convert tool_calls to text format
+        for (const toolCall of msg.tool_calls) {
+          const toolCallText = `[Tool Call: ${toolCall.function?.name || 'unknown'}]`
+          let argsText = ''
+          try {
+            const args =
+              typeof toolCall.function?.arguments === 'string'
+                ? JSON.parse(toolCall.function.arguments)
+                : toolCall.function?.arguments
+            argsText = JSON.stringify(args, null, 2)
+          } catch {
+            argsText = String(toolCall.function?.arguments || '{}')
+          }
+          contentParts.push(`${toolCallText}\nArguments:\n\`\`\`json\n${argsText}\n\`\`\``)
+        }
+
+        // Create merged assistant message
+        result.push({
+          role: 'assistant',
+          content: contentParts.join('\n\n')
+        } as ChatCompletionMessageParam)
+        continue
       }
+
+      // Handle tool messages - append to previous message (should be assistant)
       if (msg.role === 'tool') {
-        ;(baseMessage as ChatCompletionToolMessageParam).tool_call_id = msg.tool_call_id || ''
+        const toolContent =
+          typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content)
+        const toolResultText = `[Tool Result]\n${toolContent}`
+
+        // Find the last message in result and append
+        if (result.length > 0) {
+          const lastMessage = result[result.length - 1]
+          // Ensure lastMessage.content is a string before appending
+          const currentContent =
+            typeof lastMessage.content === 'string'
+              ? lastMessage.content
+              : JSON.stringify(lastMessage.content || '')
+          lastMessage.content = currentContent
+            ? `${currentContent}\n\n${toolResultText}`
+            : toolResultText
+        } else {
+          // If no previous message, create a new assistant message
+          result.push({
+            role: 'assistant',
+            content: toolResultText
+          } as ChatCompletionMessageParam)
+        }
+        continue
       }
 
-      return baseMessage as ChatCompletionMessageParam
-    })
+      // Handle other messages (system, assistant without tool_calls)
+      result.push(baseMessage as ChatCompletionMessageParam)
+    }
+
+    return result
   }
 
   // OpenAI completion method
@@ -672,6 +737,7 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
     // 如果存在 API 工具且支持函数调用，则添加到请求参数中
     if (apiTools && apiTools.length > 0 && supportsFunctionCall) requestParams.tools = apiTools
 
+    // console.log('[handleChatCompletion] requestParams', JSON.stringify(requestParams))
     // 发起 OpenAI 聊天补全请求
     const stream = await this.openai.chat.completions.create(requestParams)
 
