@@ -155,6 +155,19 @@
               </TooltipTrigger>
               <TooltipContent>{{ t('thread.toolbar.retry') }}</TooltipContent>
             </Tooltip>
+            <Tooltip v-if="isAssistant && isDev">
+              <TooltipTrigger as-child>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  class="w-4 h-4 text-muted-foreground hover:text-primary hover:bg-transparent"
+                  @click="emit('trace')"
+                >
+                  <Icon icon="lucide:bug" class="w-3 h-3" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>{{ t('thread.toolbar.trace') }}</TooltipContent>
+            </Tooltip>
             <Tooltip>
               <TooltipTrigger as-child>
                 <Button
@@ -227,6 +240,8 @@ import {
 import { useI18n } from 'vue-i18n'
 
 const { t } = useI18n()
+
+const isDev = import.meta.env.DEV
 
 const showCopyTip = ref(false)
 const showCopyImageTip = ref(false)
@@ -305,6 +320,7 @@ const emit = defineEmits<{
   (e: 'cancel'): void
   (e: 'fork'): void
   (e: 'copyImageFromTop'): void
+  (e: 'trace'): void
 }>()
 
 const hasTokensPerSecond = computed(() => props.usage.tokens_per_second > 0)

@@ -1737,6 +1737,9 @@ export class ThreadPresenter implements IThreadPresenter {
 
       const { providerId, modelId } = conversation.settings
       const modelConfig = this.configPresenter.getModelConfig(modelId, providerId)
+      if (!modelConfig) {
+        throw new Error(`Model config not found for provider ${providerId} and model ${modelId}`)
+      }
       const { vision } = modelConfig || {}
       // 检查是否已被取消
       this.throwIfCancelled(state.message.id)
@@ -3665,5 +3668,127 @@ export class ThreadPresenter implements IThreadPresenter {
     }
 
     return { id, name, params }
+  }
+
+  /**
+   * Get request preview for debugging (DEV mode only)
+   * Reconstructs the request parameters that would be sent to the provider
+   */
+  async getMessageRequestPreview(messageId: string): Promise<unknown> {
+    try {
+      // Get message and conversation
+      const message = await this.sqlitePresenter.getMessage(messageId)
+      if (!message || message.role !== 'assistant') {
+        throw new Error('Message not found or not an assistant message')
+      }
+
+      const conversation = await this.sqlitePresenter.getConversation(message.conversation_id)
+      const {
+        providerId: defaultProviderId,
+        modelId: defaultModelId,
+        temperature,
+        maxTokens,
+        enabledMcpTools
+      } = conversation.settings
+
+      const effectiveProviderId = message.model_provider || defaultProviderId
+      const effectiveModelId = message.model_id || defaultModelId
+
+      // Get user message (parent of assistant message)
+      const userMessage = await this.sqlitePresenter.getMessage(message.parent_id || '')
+      if (!userMessage) {
+        throw new Error('User message not found')
+      }
+
+      // Get context messages using getMessageHistory
+      const contextMessages = await this.getMessageHistory(
+        userMessage.id,
+        conversation.settings.contextLength
+      )
+
+      // Prepare prompt content (reconstruct what was sent)
+      let modelConfig = this.configPresenter.getModelConfig(effectiveModelId, effectiveProviderId)
+      if (!modelConfig) {
+        modelConfig = this.configPresenter.getModelConfig(defaultModelId, defaultProviderId)
+      }
+
+      if (!modelConfig) {
+        throw new Error(
+          `Model config not found for provider ${effectiveProviderId} and model ${effectiveModelId}`
+        )
+      }
+
+      const supportsFunctionCall = modelConfig?.functionCall ?? false
+      const visionEnabled = modelConfig?.vision ?? false
+
+      const { finalContent } = await preparePromptContent({
+        conversation,
+        userContent: typeof userMessage.content === 'string' ? userMessage.content : '',
+        contextMessages,
+        searchResults: null,
+        urlResults: [],
+        userMessage,
+        vision: visionEnabled,
+        imageFiles: [],
+        supportsFunctionCall,
+        modelType: 'chat'
+      })
+
+      // Get MCP tools
+      let mcpTools: MCPToolDefinition[] = []
+      try {
+        const toolDefinitions = await presenter.mcpPresenter.getAllToolDefinitions(enabledMcpTools)
+        if (Array.isArray(toolDefinitions)) {
+          mcpTools = toolDefinitions
+        }
+      } catch (error) {
+        console.warn('Failed to load MCP tool definitions for preview', error)
+      }
+
+      // Get provider and request preview
+      const provider = this.llmProviderPresenter.getProviderInstance(effectiveProviderId)
+      if (!provider) {
+        throw new Error(`Provider ${effectiveProviderId} not found`)
+      }
+
+      try {
+        const preview = await provider.getRequestPreview(
+          finalContent,
+          effectiveModelId,
+          modelConfig,
+          temperature,
+          maxTokens,
+          mcpTools
+        )
+
+        // Redact sensitive information
+        const { redactRequestPreview } = await import('@/lib/redact')
+        const redacted = redactRequestPreview({
+          headers: preview.headers,
+          body: preview.body
+        })
+
+        return {
+          providerId: effectiveProviderId,
+          modelId: effectiveModelId,
+          endpoint: preview.endpoint,
+          headers: redacted.headers,
+          body: redacted.body,
+          mayNotMatch: true // Always mark as potentially inconsistent since we're reconstructing
+        }
+      } catch (error) {
+        if (error instanceof Error && error.message.includes('not implemented')) {
+          return {
+            notImplemented: true,
+            providerId: effectiveProviderId,
+            modelId: effectiveModelId
+          }
+        }
+        throw error
+      }
+    } catch (error) {
+      console.error('[ThreadPresenter] getMessageRequestPreview failed:', error)
+      throw error
+    }
   }
 }

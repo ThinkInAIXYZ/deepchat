@@ -16,6 +16,7 @@ import newThread from './newThread.json'
 import about from './about.json'
 import contextMenu from './contextMenu.json'
 import promptSetting from './promptSetting.json'
+import traceDialog from './traceDialog.json'
 
 // 单独的顶层键
 const others = {
@@ -51,5 +52,6 @@ export default {
   about,
   contextMenu,
   promptSetting,
+  traceDialog,
   ...others
 }

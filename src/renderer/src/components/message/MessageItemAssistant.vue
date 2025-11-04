@@ -77,6 +77,7 @@
         @prev="handleAction('prev')"
         @next="handleAction('next')"
         @fork="handleAction('fork')"
+        @trace="handleAction('trace')"
       />
     </div>
   </div>
@@ -150,6 +151,7 @@ const emit = defineEmits<{
     modelInfo: { model_name: string; model_provider: string }
   ]
   variantChanged: [messageId: string]
+  trace: [messageId: string]
 }>()
 
 // 获取当前会话ID
@@ -269,6 +271,7 @@ type HandleActionType =
   | 'copyImage'
   | 'copyImageFromTop'
   | 'fork'
+  | 'trace'
 
 const handleAction = (action: HandleActionType) => {
   if (action === 'retry') {
@@ -340,6 +343,8 @@ const handleAction = (action: HandleActionType) => {
     })
   } else if (action === 'fork') {
     showForkDialog()
+  } else if (action === 'trace') {
+    emit('trace', currentMessage.value.id)
   }
 }
 

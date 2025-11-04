@@ -1324,4 +1324,72 @@ export class OpenAIResponsesProvider extends BaseLLMProvider {
       return []
     }
   }
+
+  /**
+   * Get request preview for debugging (DEV mode only)
+   */
+  public async getRequestPreview(
+    messages: ChatMessage[],
+    modelId: string,
+    modelConfig: ModelConfig,
+    temperature: number,
+    maxTokens: number,
+    mcpTools: MCPToolDefinition[]
+  ): Promise<{
+    endpoint: string
+    headers: Record<string, string>
+    body: unknown
+  }> {
+    const tools = mcpTools || []
+    const supportsFunctionCall = modelConfig?.functionCall || false
+    let processedMessages = this.formatMessages(messages)
+
+    if (tools.length > 0 && !supportsFunctionCall) {
+      processedMessages = this.prepareFunctionCallPrompt(processedMessages, tools)
+    }
+
+    const apiTools =
+      tools.length > 0 && supportsFunctionCall
+        ? await presenter.mcpPresenter.mcpToolsToOpenAIResponsesTools(tools, this.provider.id)
+        : undefined
+
+    const requestParams: OpenAI.Responses.ResponseCreateParams = {
+      model: modelId,
+      input: processedMessages,
+      temperature,
+      max_output_tokens: maxTokens,
+      stream: true
+    }
+
+    if (tools.length > 0 && supportsFunctionCall && apiTools) {
+      requestParams.tools = apiTools
+    }
+
+    if (modelConfig.reasoningEffort && this.supportsEffortParameter(modelId)) {
+      ;(requestParams as any).reasoning = {
+        effort: modelConfig.reasoningEffort
+      }
+    }
+
+    if (modelConfig.verbosity && this.supportsVerbosityParameter(modelId)) {
+      ;(requestParams as any).text = {
+        verbosity: modelConfig.verbosity
+      }
+    }
+
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${this.provider.apiKey || 'MISSING_API_KEY'}`,
+      ...this.defaultHeaders
+    }
+
+    const baseUrl = this.provider.baseUrl || 'https://api.openai.com/v1'
+    const endpoint = `${baseUrl}/responses`
+
+    return {
+      endpoint,
+      headers,
+      body: requestParams
+    }
+  }
 }

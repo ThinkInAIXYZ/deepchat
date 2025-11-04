@@ -556,7 +556,7 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
     }
   }
 
-  private getProviderInstance(providerId: string): BaseLLMProvider {
+  public getProviderInstance(providerId: string): BaseLLMProvider {
     let instance = this.providerInstances.get(providerId)
     if (!instance) {
       const provider = this.getProviderById(providerId)

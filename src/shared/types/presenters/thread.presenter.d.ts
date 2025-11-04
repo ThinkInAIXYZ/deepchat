@@ -185,6 +185,9 @@ export interface IThreadPresenter {
     conversationId: string,
     format: 'markdown' | 'html' | 'txt'
   ): Promise<{ filename: string; content: string }>
+
+  // Dev tools
+  getMessageRequestPreview(messageId: string): Promise<unknown>
 }
 
 export interface IMessageManager {

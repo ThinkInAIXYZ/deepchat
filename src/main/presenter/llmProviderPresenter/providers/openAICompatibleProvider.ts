@@ -1624,4 +1624,99 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
         }
     }
   }
+
+  /**
+   * Get request preview for debugging (DEV mode only)
+   * Builds the actual request parameters without sending the request
+   */
+  public async getRequestPreview(
+    messages: ChatMessage[],
+    modelId: string,
+    modelConfig: ModelConfig,
+    temperature: number,
+    maxTokens: number,
+    mcpTools: MCPToolDefinition[]
+  ): Promise<{
+    endpoint: string
+    headers: Record<string, string>
+    body: unknown
+  }> {
+    const tools = mcpTools || []
+    const supportsFunctionCall = modelConfig?.functionCall || false
+    let processedMessages = [
+      ...this.formatMessages(messages, supportsFunctionCall)
+    ] as ChatCompletionMessageParam[]
+
+    // Prepare non-native function call prompt if needed
+    if (tools.length > 0 && !supportsFunctionCall) {
+      processedMessages = this.prepareFunctionCallPrompt(processedMessages, tools)
+    }
+
+    // Convert tools to OpenAI format if native support
+    const apiTools =
+      tools.length > 0 && supportsFunctionCall
+        ? await presenter.mcpPresenter.mcpToolsToOpenAITools(tools, this.provider.id)
+        : undefined
+
+    // Build request params (same logic as handleChatCompletion)
+    const requestParams: OpenAI.Chat.ChatCompletionCreateParams = {
+      messages: processedMessages,
+      model: modelId,
+      stream: true,
+      temperature,
+      ...(modelId.startsWith('o1') ||
+      modelId.startsWith('o3') ||
+      modelId.startsWith('o4') ||
+      modelId.includes('gpt-5')
+        ? { max_completion_tokens: maxTokens }
+        : { max_tokens: maxTokens })
+    }
+
+    requestParams.stream_options = { include_usage: true }
+
+    if (this.provider.id.toLowerCase().includes('dashscope')) {
+      requestParams.response_format = { type: 'text' }
+    }
+
+    if (
+      this.provider.id.toLowerCase().includes('openrouter') &&
+      modelId.startsWith('deepseek/deepseek-chat-v3-0324:free')
+    ) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      ;(requestParams as any).provider = {
+        only: ['chutes']
+      }
+    }
+
+    if (modelConfig.reasoningEffort && this.supportsEffortParameter(modelId)) {
+      ;(requestParams as any).reasoning_effort = modelConfig.reasoningEffort
+    }
+
+    if (modelConfig.verbosity && this.supportsVerbosityParameter(modelId)) {
+      ;(requestParams as any).verbosity = modelConfig.verbosity
+    }
+
+    OPENAI_REASONING_MODELS.forEach((noTempId) => {
+      if (modelId.startsWith(noTempId)) delete requestParams.temperature
+    })
+
+    if (apiTools && apiTools.length > 0 && supportsFunctionCall) requestParams.tools = apiTools
+
+    // Build headers
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${this.provider.apiKey || 'MISSING_API_KEY'}`,
+      ...this.defaultHeaders
+    }
+
+    // Determine endpoint
+    const baseUrl = this.provider.baseUrl || 'https://api.openai.com/v1'
+    const endpoint = `${baseUrl}/chat/completions`
+
+    return {
+      endpoint,
+      headers,
+      body: requestParams
+    }
+  }
 }

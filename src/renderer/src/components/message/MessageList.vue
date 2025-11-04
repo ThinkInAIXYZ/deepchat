@@ -23,6 +23,7 @@
             :is-capturing-image="capture.isCapturing.value"
             @copy-image="handleCopyImage"
             @variant-changed="scrollToMessage"
+            @trace="handleTrace"
           />
           <MessageItemUser
             v-else-if="msg.role === 'user'"
@@ -56,6 +57,7 @@
       @bar-hover="minimap.handleHover"
       @bar-click="minimap.handleClick"
     />
+    <TraceDialog :message-id="traceMessageId" @close="traceMessageId = null" />
   </div>
 </template>
 
@@ -72,6 +74,7 @@ import MessageItemUser from './MessageItemUser.vue'
 import MessageActionButtons from './MessageActionButtons.vue'
 import ReferencePreview from './ReferencePreview.vue'
 import MessageMinimap from './MessageMinimap.vue'
+import TraceDialog from '../trace/TraceDialog.vue'
 
 // === Composables ===
 import { useResizeObserver } from '@vueuse/core'
@@ -124,6 +127,7 @@ const retry = useMessageRetry(toRef(props, 'messages'))
 const messageList = ref<HTMLDivElement>()
 const visible = ref(false)
 const shouldAutoFollow = ref(true)
+const traceMessageId = ref<string | null>(null)
 
 const scheduleScrollToBottom = (force = false) => {
   nextTick(() => {
@@ -176,6 +180,10 @@ const handleRetry = async (index: number) => {
 const showCancelButton = computed(() => {
   return chatStore.generatingThreadIds.has(chatStore.getActiveThreadId() ?? '')
 })
+
+const handleTrace = (messageId: string) => {
+  traceMessageId.value = messageId
+}
 
 // === Lifecycle Hooks ===
 onMounted(() => {

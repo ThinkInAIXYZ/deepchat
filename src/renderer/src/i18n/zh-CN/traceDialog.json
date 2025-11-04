@@ -1,0 +1,17 @@
+{
+  "title": "请求参数预览",
+  "provider": "供应商",
+  "model": "模型",
+  "endpoint": "API端点",
+  "headers": "请求头",
+  "body": "请求体",
+  "copyJson": "复制JSON",
+  "copySuccess": "已复制到剪贴板",
+  "close": "关闭",
+  "loading": "加载中...",
+  "error": "加载失败",
+  "errorDesc": "无法获取请求预览信息，请重试",
+  "notImplemented": "暂不支持",
+  "notImplementedDesc": "此供应商尚未实现请求预览功能",
+  "mayNotMatch": "注意：此预览基于当前会话设置重建，可能与实际发送时的参数不完全一致"
+}

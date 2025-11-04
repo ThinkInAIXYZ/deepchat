@@ -65,3 +65,23 @@ export interface ProviderBatchUpdate {
   /** New complete provider list (for ordering) */
   providers: LLM_PROVIDER[]
 }
+
+/**
+ * Provider request preview data
+ */
+export interface ProviderRequestPreview {
+  /** Provider ID */
+  providerId: string
+  /** Model ID */
+  modelId: string
+  /** API endpoint */
+  endpoint: string
+  /** Request headers (redacted) */
+  headers: Record<string, string>
+  /** Request body */
+  body: unknown
+  /** Whether this preview may not match the actual request */
+  mayNotMatch?: boolean
+  /** Whether the provider has not implemented preview */
+  notImplemented?: boolean
+}

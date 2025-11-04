@@ -1,0 +1,17 @@
+{
+  "title": "Request Preview",
+  "provider": "Provider",
+  "model": "Model",
+  "endpoint": "API Endpoint",
+  "headers": "Headers",
+  "body": "Request Body",
+  "copyJson": "Copy JSON",
+  "copySuccess": "Copied to clipboard",
+  "close": "Close",
+  "loading": "Loading...",
+  "error": "Failed to load",
+  "errorDesc": "Unable to fetch request preview, please try again",
+  "notImplemented": "Not supported",
+  "notImplementedDesc": "This provider has not implemented request preview yet",
+  "mayNotMatch": "Note: This preview is reconstructed from current conversation settings and may not exactly match the actual request parameters"
+}

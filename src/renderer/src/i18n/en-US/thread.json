@@ -21,7 +21,8 @@
     "retry": "Regenerate",
     "fork": "Branch to New Chat",
     "edit": "Edit message",
-    "delete": "Delete message"
+    "delete": "Delete message",
+    "trace": "Trace Request"
   },
   "message": {
     "toolbar": {

@@ -650,6 +650,39 @@ ${this.convertToolsToXml(tools)}
   }
 
   /**
+   * Get request preview for debugging (DEV mode only)
+   * Build the actual request parameters that would be sent to the provider API
+   * @param messages Conversation messages
+   * @param modelId Model ID
+   * @param modelConfig Model configuration
+   * @param temperature Temperature parameter
+   * @param maxTokens Max tokens parameter
+   * @param mcpTools MCP tools definitions
+   * @returns Preview data including endpoint, headers, and body (all redacted)
+   */
+  public async getRequestPreview(
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    _messages: ChatMessage[],
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    _modelId: string,
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    _modelConfig: ModelConfig,
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    _temperature: number,
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    _maxTokens: number,
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    _mcpTools: MCPToolDefinition[]
+  ): Promise<{
+    endpoint: string
+    headers: Record<string, string>
+    body: unknown
+  }> {
+    // Default implementation returns not implemented marker
+    throw new Error('Provider has not implemented getRequestPreview')
+  }
+
+  /**
    * 将 MCPToolDefinition 转换为 XML 格式
    * @param tools MCPToolDefinition 数组
    * @returns XML 格式的工具定义字符串
