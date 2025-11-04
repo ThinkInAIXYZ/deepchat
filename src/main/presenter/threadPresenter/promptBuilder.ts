@@ -465,40 +465,33 @@ function addContextMessages(
       } else if (msg.role === 'assistant') {
         const content = msg.content as AssistantMessageBlock[]
         const messageContent: ChatMessageContent[] = []
+        const toolCalls: ChatMessage['tool_calls'] = []
 
         content.forEach((block) => {
           if (block.type === 'tool_call' && block.tool_call) {
-            // Skip tool calls without id or name - they are incomplete
-            if (!block.tool_call.id || !block.tool_call.name) {
-              console.warn(
-                '[promptBuilder] Skipping incomplete tool call without id or name',
-                block.tool_call
-              )
-              return
-            }
-
-            // Format historical tool call and response as plain text for better compatibility
-            // This avoids the "tool_calls must be followed by tool messages" error
-            const toolCallText: string[] = []
-            toolCallText.push(`[Tool Call: ${block.tool_call.name}]`)
-            if (block.tool_call.params) {
-              toolCallText.push(`Parameters: ${block.tool_call.params}`)
-            }
+            toolCalls.push({
+              id: block.tool_call.id,
+              type: 'function',
+              function: {
+                name: block.tool_call.name,
+                arguments: block.tool_call.params || ''
+              }
+            })
             if (block.tool_call.response) {
-              const responseText =
-                typeof block.tool_call.response === 'string'
-                  ? block.tool_call.response
-                  : JSON.stringify(block.tool_call.response)
-              toolCallText.push(`Response: ${responseText}`)
+              messageContent.push({ type: 'text', text: block.tool_call.response })
             }
-            messageContent.push({ type: 'text', text: toolCallText.join('\n') })
           } else if (block.type === 'content' && block.content) {
             messageContent.push({ type: 'text', text: block.content })
           }
         })
 
-        if (messageContent.length > 0) {
-          // All historical content (including tool calls) are formatted as plain text
+        if (toolCalls.length > 0) {
+          resultMessages.push({
+            role: 'assistant',
+            content: messageContent.length > 0 ? messageContent : undefined,
+            tool_calls: toolCalls
+          })
+        } else if (messageContent.length > 0) {
           resultMessages.push({
             role: 'assistant',
             content: messageContent
