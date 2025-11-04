@@ -97,7 +97,7 @@
           }}
         </Button>
         <Button
-          v-if="!provider.custom && provider.id !== 'doubao'"
+          v-if="provider.id !== 'doubao'"
           variant="outline"
           size="sm"
           class="text-xs text-normal rounded-lg"
