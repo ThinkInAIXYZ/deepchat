@@ -575,17 +575,35 @@ export class ThreadPresenter implements IThreadPresenter {
       }
     }
 
-    if (image_data) {
+    if (image_data?.data) {
+      const rawData = image_data.data ?? ''
+      let normalizedData = rawData
+      let normalizedMimeType = image_data.mimeType?.trim() ?? ''
+
+      // Handle URLs (imgcache://, http://, https://)
+      if (
+        rawData.startsWith('imgcache://') ||
+        rawData.startsWith('http://') ||
+        rawData.startsWith('https://')
+      ) {
+        normalizedMimeType = 'deepchat/image-url'
+      }
+      // Handle data URIs: extract base64 content and mime type
+      else if (rawData.startsWith('data:image/')) {
+        const match = rawData.match(/^data:([^;]+);base64,(.*)$/)
+        if (match?.[1] && match?.[2]) {
+          normalizedMimeType = match[1]
+          normalizedData = match[2]
+        }
+      }
+      // Fallback to image/png if no mime type is provided
+      else if (!normalizedMimeType) {
+        normalizedMimeType = 'image/png'
+      }
+
       const normalizedImageData = {
-        data: image_data.data,
-        mimeType:
-          image_data.mimeType && image_data.mimeType.trim().length > 0
-            ? image_data.mimeType
-            : image_data.data?.startsWith('imgcache://') ||
-                image_data.data?.startsWith('http://') ||
-                image_data.data?.startsWith('https://')
-              ? 'deepchat/image-url'
-              : 'image/png'
+        data: normalizedData,
+        mimeType: normalizedMimeType
       }
       const imageBlock: AssistantMessageBlock = {
         type: 'image',
