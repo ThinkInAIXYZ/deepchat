@@ -118,18 +118,75 @@ const inferMimeType = (data: string, mimeType?: string): string => {
 }
 
 const resolvedImageData = computed(() => {
+  // Handle new format with image_data field
   if (props.block.image_data?.data) {
-    return props.block.image_data
+    const rawData = props.block.image_data.data
+
+    // Handle URLs
+    if (
+      rawData.startsWith('imgcache://') ||
+      rawData.startsWith('http://') ||
+      rawData.startsWith('https://')
+    ) {
+      return {
+        data: rawData,
+        mimeType: 'deepchat/image-url'
+      }
+    }
+
+    let normalizedData = rawData
+    let normalizedMimeType = inferMimeType(rawData, props.block.image_data.mimeType)
+
+    // Handle legacy data URIs that may still exist in persisted data
+    if (rawData.startsWith('data:image/')) {
+      const match = rawData.match(/^data:([^;]+);base64,(.*)$/)
+      if (match?.[1] && match?.[2]) {
+        normalizedMimeType = match[1]
+        normalizedData = match[2]
+      }
+    }
+
+    return {
+      data: normalizedData,
+      mimeType: normalizedMimeType
+    }
   }
 
+  // Handle legacy formats (for backward compatibility)
   const content = props.block.content
 
   if (content && typeof content === 'object' && 'data' in (content as LegacyImageBlockContent)) {
     const legacyContent = content as LegacyImageBlockContent
     if (legacyContent.data) {
+      const rawData = legacyContent.data
+
+      // Handle URLs
+      if (
+        rawData.startsWith('imgcache://') ||
+        rawData.startsWith('http://') ||
+        rawData.startsWith('https://')
+      ) {
+        return {
+          data: rawData,
+          mimeType: 'deepchat/image-url'
+        }
+      }
+
+      let normalizedData = rawData
+      let normalizedMimeType = inferMimeType(rawData, legacyContent.mimeType)
+
+      // Handle data URIs
+      if (rawData.startsWith('data:image/')) {
+        const match = rawData.match(/^data:([^;]+);base64,(.*)$/)
+        if (match?.[1] && match?.[2]) {
+          normalizedMimeType = match[1]
+          normalizedData = match[2]
+        }
+      }
+
       return {
-        data: legacyContent.data,
-        mimeType: inferMimeType(legacyContent.data, legacyContent.mimeType)
+        data: normalizedData,
+        mimeType: normalizedMimeType
       }
     }
   }
