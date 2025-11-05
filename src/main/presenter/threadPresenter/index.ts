@@ -576,11 +576,23 @@ export class ThreadPresenter implements IThreadPresenter {
     }
 
     if (image_data) {
+      const normalizedImageData = {
+        data: image_data.data,
+        mimeType:
+          image_data.mimeType && image_data.mimeType.trim().length > 0
+            ? image_data.mimeType
+            : image_data.data?.startsWith('imgcache://') ||
+                image_data.data?.startsWith('http://') ||
+                image_data.data?.startsWith('https://')
+              ? 'deepchat/image-url'
+              : 'image/png'
+      }
       const imageBlock: AssistantMessageBlock = {
         type: 'image',
         status: 'success',
         timestamp: currentTime,
-        content: image_data
+        content: 'image',
+        image_data: normalizedImageData
       }
       state.message.content.push(imageBlock)
     }

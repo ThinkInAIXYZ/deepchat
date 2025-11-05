@@ -20,9 +20,10 @@ exports[`Message Block Data Structure Snapshot Tests > Block Structure Validatio
 
 exports[`Message Block Data Structure Snapshot Tests > Block Structure Validation > should create consistent image block structure 1`] = `
 {
+  "content": "image",
   "image_data": {
-    "data": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
-    "mimeType": "image/png",
+    "data": "imgcache://test-image.png",
+    "mimeType": "deepchat/image-url",
   },
   "status": "success",
   "timestamp": 1704067200000,

@@ -101,9 +101,10 @@ describe('Message Block Data Structure Snapshot Tests', () => {
         type: 'image',
         status: 'success',
         timestamp: 1704067200000,
+        content: 'image',
         image_data: {
-          data: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
-          mimeType: 'image/png'
+          data: 'imgcache://test-image.png',
+          mimeType: 'deepchat/image-url'
         }
       }
 
