@@ -83,7 +83,7 @@ jobs:
       - name: Create Draft Release
         uses: softprops/action-gh-release@v1
         with:
-          tag_name: workflow-${{ github.event.inputs.workflow_id }}
+          tag_name: v${{ steps.get_version.outputs.version }}
           name: DeepChat V${{ steps.get_version.outputs.version }}
           draft: true
           prerelease: ${{ github.event.inputs.prerelease }}
