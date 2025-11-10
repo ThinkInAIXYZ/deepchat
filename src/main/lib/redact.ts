@@ -20,8 +20,23 @@ const SENSITIVE_HEADER_KEYS = [
 
 /**
  * Sensitive body keys that should be redacted
+ * Note: We use exact match to avoid filtering legitimate keys like 'max_tokens'
  */
 const SENSITIVE_BODY_KEYS = ['api_key', 'apiKey', 'apikey', 'secret', 'password', 'token']
+
+/**
+ * Body keys that should never be redacted (even if they contain sensitive keywords)
+ */
+const ALLOWED_BODY_KEYS = [
+  'max_tokens',
+  'max_completion_tokens',
+  'max_output_tokens',
+  'temperature',
+  'stream',
+  'model',
+  'messages',
+  'tools'
+]
 
 /**
  * Redact sensitive values in headers
@@ -65,10 +80,32 @@ export function redactBody(body: unknown): unknown {
     const redacted: Record<string, unknown> = {}
 
     for (const [key, value] of Object.entries(body)) {
+      // Skip redaction for allowed keys (like max_tokens, max_completion_tokens, etc.)
+      if (ALLOWED_BODY_KEYS.includes(key)) {
+        if (typeof value === 'object' && value !== null) {
+          redacted[key] = redactBody(value)
+        } else {
+          redacted[key] = value
+        }
+        continue
+      }
+
+      // Check if key matches sensitive patterns (exact match or ends with sensitive keyword)
       const keyLower = key.toLowerCase()
-      const shouldRedact = SENSITIVE_BODY_KEYS.some((sensitiveKey) =>
-        keyLower.includes(sensitiveKey)
-      )
+      const shouldRedact = SENSITIVE_BODY_KEYS.some((sensitiveKey) => {
+        const sensitiveKeyLower = sensitiveKey.toLowerCase()
+        // Exact match
+        if (keyLower === sensitiveKeyLower) {
+          return true
+        }
+        // Key ends with sensitive keyword (e.g., 'api_token', 'access_token')
+        // But exclude keys that contain allowed patterns (e.g., 'max_tokens')
+        if (keyLower.endsWith(`_${sensitiveKeyLower}`) || keyLower.endsWith(sensitiveKeyLower)) {
+          // Double check: make sure it's not a false positive
+          return !ALLOWED_BODY_KEYS.some((allowed) => keyLower.includes(allowed.toLowerCase()))
+        }
+        return false
+      })
 
       if (shouldRedact) {
         redacted[key] = '***REDACTED***'

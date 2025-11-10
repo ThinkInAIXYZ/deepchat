@@ -38,18 +38,22 @@
           </div>
         </div>
 
-        <div class="grid grid-cols-3 gap-4 text-sm">
-          <div>
-            <span class="font-semibold">{{ t('traceDialog.provider') }}:</span>
-            <span class="ml-2">{{ previewData.providerId }}</span>
-          </div>
-          <div>
-            <span class="font-semibold">{{ t('traceDialog.model') }}:</span>
-            <span class="ml-2">{{ previewData.modelId }}</span>
-          </div>
+        <div class="space-y-3 text-sm">
           <div>
             <span class="font-semibold">{{ t('traceDialog.endpoint') }}:</span>
-            <span class="ml-2 text-xs truncate">{{ previewData.endpoint }}</span>
+            <div class="mt-1 px-2 py-1 bg-muted rounded break-all">
+              <span class="text-xs">{{ previewData.endpoint }}</span>
+            </div>
+          </div>
+          <div class="grid grid-cols-2 gap-4">
+            <div class="min-w-0">
+              <span class="font-semibold">{{ t('traceDialog.provider') }}:</span>
+              <span class="ml-2 break-words">{{ previewData.providerId }}</span>
+            </div>
+            <div class="min-w-0">
+              <span class="font-semibold">{{ t('traceDialog.model') }}:</span>
+              <span class="ml-2 break-words">{{ previewData.modelId }}</span>
+            </div>
           </div>
         </div>
 
@@ -61,8 +65,21 @@
               {{ copySuccess ? t('traceDialog.copySuccess') : t('traceDialog.copyJson') }}
             </Button>
           </div>
-          <div class="flex-1 overflow-auto p-4 bg-muted/30">
-            <pre class="text-xs"><code>{{ formattedJson }}</code></pre>
+          <div class="flex-1 min-h-0 overflow-hidden bg-muted/30 relative">
+            <div
+              ref="jsonEditor"
+              class="h-full w-full min-h-[200px]"
+              :class="{ 'opacity-0': !editorInitialized }"
+            ></div>
+            <!-- Fallback: show raw JSON while Monaco Editor is initializing -->
+            <div
+              v-if="formattedJson && !editorInitialized"
+              class="absolute inset-0 p-4 overflow-auto"
+            >
+              <pre
+                class="text-xs whitespace-pre-wrap break-words"
+              ><code>{{ formattedJson }}</code></pre>
+            </div>
           </div>
         </div>
       </div>
@@ -75,7 +92,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onBeforeUnmount, onMounted, nextTick } from 'vue'
 import {
   Dialog,
   DialogContent,
@@ -88,9 +105,24 @@ import { Spinner } from '@shadcn/components/ui/spinner'
 import { Icon } from '@iconify/vue'
 import { useI18n } from 'vue-i18n'
 import { usePresenter } from '@/composables/usePresenter'
+import { useMonaco } from 'stream-monaco'
 
 const { t } = useI18n()
 const threadPresenter = usePresenter('threadPresenter')
+
+// Monaco Editor setup
+const jsonEditor = ref<HTMLElement | null>(null)
+const { createEditor, updateCode, cleanupEditor } = useMonaco({
+  readOnly: true,
+  wordWrap: 'on',
+  wrappingIndent: 'same',
+  minimap: { enabled: false },
+  scrollBeyondLastLine: false,
+  fontSize: 12,
+  lineNumbers: 'on',
+  folding: true,
+  automaticLayout: true
+})
 
 type PreviewData = {
   providerId: string
@@ -133,9 +165,70 @@ watch(
     if (newMessageId) {
       isOpen.value = true
       await loadPreview(newMessageId)
+    } else {
+      // Reset state when messageId becomes null
+      isOpen.value = false
+      resetState()
     }
   }
 )
+
+// Watch isOpen to handle external close (click outside)
+watch(isOpen, (newValue) => {
+  if (!newValue) {
+    // Dialog was closed (by clicking outside or ESC)
+    resetState()
+    emit('close')
+  }
+})
+
+// Track if editor is initialized
+const editorInitialized = ref(false)
+
+// Initialize Monaco Editor when dialog opens and data is ready
+watch(
+  [isOpen, () => previewData.value, formattedJson, jsonEditor],
+  async ([open, data, json, editorEl]) => {
+    if (open && data && json && editorEl) {
+      await nextTick()
+      // Wait for DOM to be ready
+      await nextTick()
+      const hasEditor = editorEl.querySelector('.monaco-editor')
+      if (!hasEditor && !editorInitialized.value) {
+        try {
+          createEditor(editorEl, json, 'json')
+          editorInitialized.value = true
+        } catch (err) {
+          console.error('Failed to create Monaco Editor:', err)
+        }
+      } else if (hasEditor && editorInitialized.value) {
+        updateCode(json, 'json')
+      }
+    }
+  },
+  { flush: 'post' }
+)
+
+// Also try to initialize on mount if data is already available
+onMounted(async () => {
+  if (isOpen.value && previewData.value && formattedJson.value && jsonEditor.value) {
+    await nextTick()
+    await nextTick()
+    if (!jsonEditor.value.querySelector('.monaco-editor') && !editorInitialized.value) {
+      try {
+        createEditor(jsonEditor.value, formattedJson.value, 'json')
+        editorInitialized.value = true
+      } catch (err) {
+        console.error('Failed to create Monaco Editor on mount:', err)
+      }
+    }
+  }
+})
+
+onBeforeUnmount(() => {
+  cleanupEditor()
+  editorInitialized.value = false
+})
 
 const loadPreview = async (messageId: string) => {
   loading.value = true
@@ -178,8 +271,20 @@ const copyJson = async () => {
   }
 }
 
+const resetState = () => {
+  loading.value = false
+  error.value = false
+  notImplemented.value = false
+  previewData.value = null
+  copySuccess.value = false
+  // Clean up Monaco Editor when resetting state
+  cleanupEditor()
+  editorInitialized.value = false
+}
+
 const close = () => {
   isOpen.value = false
+  resetState()
   emit('close')
 }
 </script>

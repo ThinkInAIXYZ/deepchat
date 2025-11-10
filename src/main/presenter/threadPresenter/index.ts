@@ -15,6 +15,7 @@ import {
   ChatMessage,
   LLMAgentEventData
 } from '@shared/presenter'
+import { ModelType } from '@shared/model'
 import { presenter } from '@/presenter'
 import { MessageManager } from './messageManager'
 import { eventBus, SendTarget } from '@/eventbus'
@@ -3691,14 +3692,25 @@ export class ThreadPresenter implements IThreadPresenter {
         enabledMcpTools
       } = conversation.settings
 
-      const effectiveProviderId = message.model_provider || defaultProviderId
-      const effectiveModelId = message.model_id || defaultModelId
+      // Parse metadata to get model_provider and model_id
+      let messageMetadata: MESSAGE_METADATA | null = null
+      try {
+        messageMetadata = JSON.parse(message.metadata) as MESSAGE_METADATA
+      } catch (e) {
+        console.warn('Failed to parse message metadata:', e)
+      }
+
+      const effectiveProviderId = messageMetadata?.provider || defaultProviderId
+      const effectiveModelId = messageMetadata?.model || defaultModelId
 
       // Get user message (parent of assistant message)
-      const userMessage = await this.sqlitePresenter.getMessage(message.parent_id || '')
-      if (!userMessage) {
+      const userMessageSqlite = await this.sqlitePresenter.getMessage(message.parent_id || '')
+      if (!userMessageSqlite) {
         throw new Error('User message not found')
       }
+
+      // Convert SQLITE_MESSAGE to Message type
+      const userMessage = this.messageManager['convertToMessage'](userMessageSqlite)
 
       // Get context messages using getMessageHistory
       const contextMessages = await this.getMessageHistory(
@@ -3721,9 +3733,21 @@ export class ThreadPresenter implements IThreadPresenter {
       const supportsFunctionCall = modelConfig?.functionCall ?? false
       const visionEnabled = modelConfig?.vision ?? false
 
+      // Extract user content from userMessage
+      let userContent = ''
+      if (typeof userMessage.content === 'string') {
+        userContent = userMessage.content
+      } else if (
+        userMessage.content &&
+        typeof userMessage.content === 'object' &&
+        'text' in userMessage.content
+      ) {
+        userContent = userMessage.content.text || ''
+      }
+
       const { finalContent } = await preparePromptContent({
         conversation,
-        userContent: typeof userMessage.content === 'string' ? userMessage.content : '',
+        userContent,
         contextMessages,
         searchResults: null,
         urlResults: [],
@@ -3731,7 +3755,7 @@ export class ThreadPresenter implements IThreadPresenter {
         vision: visionEnabled,
         imageFiles: [],
         supportsFunctionCall,
-        modelType: 'chat'
+        modelType: ModelType.Chat
       })
 
       // Get MCP tools
@@ -3751,8 +3775,24 @@ export class ThreadPresenter implements IThreadPresenter {
         throw new Error(`Provider ${effectiveProviderId} not found`)
       }
 
+      // Type assertion for provider instance
+      const providerInstance = provider as {
+        getRequestPreview: (
+          messages: ChatMessage[],
+          modelId: string,
+          modelConfig: unknown,
+          temperature: number,
+          maxTokens: number,
+          mcpTools: MCPToolDefinition[]
+        ) => Promise<{
+          endpoint: string
+          headers: Record<string, string>
+          body: unknown
+        }>
+      }
+
       try {
-        const preview = await provider.getRequestPreview(
+        const preview = await providerInstance.getRequestPreview(
           finalContent,
           effectiveModelId,
           modelConfig,

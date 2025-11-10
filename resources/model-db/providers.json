@@ -3846,6 +3846,38 @@
           }
         },
         {
+          "id": "minimaxai/minimax-m2",
+          "name": "MiniMax-M2",
+          "display_name": "MiniMax-M2",
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 128000,
+            "output": 16384
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "attachment": false,
+          "open_weights": true,
+          "knowledge": "2024-07",
+          "release_date": "2025-10-27",
+          "last_updated": "2025-10-31",
+          "cost": {
+            "input": 0,
+            "output": 0
+          }
+        },
+        {
           "id": "google/gemma-3-27b-it",
           "name": "Gemma-3-27B-IT",
           "display_name": "Gemma-3-27B-IT",
@@ -23038,6 +23070,547 @@
         }
       ]
     },
+    "iflowcn": {
+      "id": "iflowcn",
+      "name": "iFlow",
+      "display_name": "iFlow",
+      "api": "https://apis.iflow.cn/v1",
+      "doc": "https://platform.iflow.cn/en/docs",
+      "models": [
+        {
+          "id": "qwen3-coder",
+          "name": "Qwen3-Coder-480B-A35B",
+          "display_name": "Qwen3-Coder-480B-A35B",
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 256000,
+            "output": 64000
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": false
+          },
+          "attachment": false,
+          "open_weights": true,
+          "knowledge": "2025-04",
+          "release_date": "2025-07-01",
+          "last_updated": "2025-07-01",
+          "cost": {
+            "input": 0,
+            "output": 0
+          }
+        },
+        {
+          "id": "deepseek-v3",
+          "name": "DeepSeek-V3-671B",
+          "display_name": "DeepSeek-V3-671B",
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 128000,
+            "output": 32000
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": false
+          },
+          "attachment": false,
+          "open_weights": true,
+          "knowledge": "2024-10",
+          "release_date": "2024-12-26",
+          "last_updated": "2024-12-26",
+          "cost": {
+            "input": 0,
+            "output": 0
+          }
+        },
+        {
+          "id": "kimi-k2",
+          "name": "Kimi-K2",
+          "display_name": "Kimi-K2",
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 128000,
+            "output": 64000
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": false
+          },
+          "attachment": false,
+          "open_weights": false,
+          "knowledge": "2024-10",
+          "release_date": "2024-12-01",
+          "last_updated": "2024-12-01",
+          "cost": {
+            "input": 0,
+            "output": 0
+          }
+        },
+        {
+          "id": "deepseek-r1",
+          "name": "DeepSeek-R1",
+          "display_name": "DeepSeek-R1",
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 128000,
+            "output": 32000
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "attachment": false,
+          "open_weights": true,
+          "knowledge": "2024-12",
+          "release_date": "2025-01-20",
+          "last_updated": "2025-01-20",
+          "cost": {
+            "input": 0,
+            "output": 0
+          }
+        },
+        {
+          "id": "deepseek-v3.1",
+          "name": "DeepSeek-V3.1-Terminus",
+          "display_name": "DeepSeek-V3.1-Terminus",
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 128000,
+            "output": 64000
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "attachment": false,
+          "open_weights": true,
+          "knowledge": "2024-12",
+          "release_date": "2025-01-01",
+          "last_updated": "2025-01-01",
+          "cost": {
+            "input": 0,
+            "output": 0
+          }
+        },
+        {
+          "id": "qwen3-235b",
+          "name": "Qwen3-235B-A22B",
+          "display_name": "Qwen3-235B-A22B",
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 128000,
+            "output": 32000
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "attachment": false,
+          "open_weights": true,
+          "knowledge": "2024-10",
+          "release_date": "2024-12-01",
+          "last_updated": "2024-12-01",
+          "cost": {
+            "input": 0,
+            "output": 0
+          }
+        },
+        {
+          "id": "kimi-k2-0905",
+          "name": "Kimi-K2-Instruct-0905",
+          "display_name": "Kimi-K2-Instruct-0905",
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 256000,
+            "output": 64000
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": false
+          },
+          "attachment": false,
+          "open_weights": false,
+          "knowledge": "2024-12",
+          "release_date": "2025-09-05",
+          "last_updated": "2025-09-05",
+          "cost": {
+            "input": 0,
+            "output": 0
+          }
+        },
+        {
+          "id": "qwen3-235b-a22b-thinking-2507",
+          "name": "Qwen3-235B-A22B-Thinking",
+          "display_name": "Qwen3-235B-A22B-Thinking",
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 256000,
+            "output": 64000
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "attachment": false,
+          "open_weights": true,
+          "knowledge": "2025-04",
+          "release_date": "2025-07-01",
+          "last_updated": "2025-07-01",
+          "cost": {
+            "input": 0,
+            "output": 0
+          }
+        },
+        {
+          "id": "qwen3-vl-plus",
+          "name": "Qwen3-VL-Plus",
+          "display_name": "Qwen3-VL-Plus",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 256000,
+            "output": 32000
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": false
+          },
+          "attachment": true,
+          "open_weights": false,
+          "knowledge": "2024-12",
+          "release_date": "2025-01-01",
+          "last_updated": "2025-01-01",
+          "cost": {
+            "input": 0,
+            "output": 0
+          }
+        },
+        {
+          "id": "glm-4.6",
+          "name": "GLM-4.6",
+          "display_name": "GLM-4.6",
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 200000,
+            "output": 128000
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": false
+          },
+          "attachment": false,
+          "open_weights": false,
+          "knowledge": "2024-10",
+          "release_date": "2024-12-01",
+          "last_updated": "2024-12-01",
+          "cost": {
+            "input": 0,
+            "output": 0
+          }
+        },
+        {
+          "id": "tstars2.0",
+          "name": "TStars-2.0",
+          "display_name": "TStars-2.0",
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 128000,
+            "output": 64000
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": false
+          },
+          "attachment": false,
+          "open_weights": false,
+          "knowledge": "2024-01",
+          "release_date": "2024-01-01",
+          "last_updated": "2025-01-01",
+          "cost": {
+            "input": 0,
+            "output": 0
+          }
+        },
+        {
+          "id": "qwen3-235b-a22b-instruct",
+          "name": "Qwen3-235B-A22B-Instruct",
+          "display_name": "Qwen3-235B-A22B-Instruct",
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 256000,
+            "output": 64000
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": false
+          },
+          "attachment": false,
+          "open_weights": true,
+          "knowledge": "2025-04",
+          "release_date": "2025-07-01",
+          "last_updated": "2025-07-01",
+          "cost": {
+            "input": 0,
+            "output": 0
+          }
+        },
+        {
+          "id": "qwen3-max",
+          "name": "Qwen3-Max",
+          "display_name": "Qwen3-Max",
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 256000,
+            "output": 32000
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": false
+          },
+          "attachment": false,
+          "open_weights": false,
+          "knowledge": "2024-12",
+          "release_date": "2025-01-01",
+          "last_updated": "2025-01-01",
+          "cost": {
+            "input": 0,
+            "output": 0
+          }
+        },
+        {
+          "id": "deepseek-v3.2",
+          "name": "DeepSeek-V3.2-Exp",
+          "display_name": "DeepSeek-V3.2-Exp",
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 128000,
+            "output": 64000
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": false
+          },
+          "attachment": false,
+          "open_weights": true,
+          "knowledge": "2024-12",
+          "release_date": "2025-01-01",
+          "last_updated": "2025-01-01",
+          "cost": {
+            "input": 0,
+            "output": 0
+          }
+        },
+        {
+          "id": "qwen3-max-preview",
+          "name": "Qwen3-Max-Preview",
+          "display_name": "Qwen3-Max-Preview",
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 256000,
+            "output": 32000
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": false
+          },
+          "attachment": false,
+          "open_weights": false,
+          "knowledge": "2024-12",
+          "release_date": "2025-01-01",
+          "last_updated": "2025-01-01",
+          "cost": {
+            "input": 0,
+            "output": 0
+          }
+        },
+        {
+          "id": "qwen3-coder-plus",
+          "name": "Qwen3-Coder-Plus",
+          "display_name": "Qwen3-Coder-Plus",
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 256000,
+            "output": 64000
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": false
+          },
+          "attachment": false,
+          "open_weights": true,
+          "knowledge": "2025-04",
+          "release_date": "2025-07-01",
+          "last_updated": "2025-07-01",
+          "cost": {
+            "input": 0,
+            "output": 0
+          }
+        },
+        {
+          "id": "qwen3-32b",
+          "name": "Qwen3-32B",
+          "display_name": "Qwen3-32B",
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 128000,
+            "output": 32000
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": false
+          },
+          "attachment": false,
+          "open_weights": true,
+          "knowledge": "2024-10",
+          "release_date": "2024-12-01",
+          "last_updated": "2024-12-01",
+          "cost": {
+            "input": 0,
+            "output": 0
+          }
+        }
+      ]
+    },
     "synthetic": {
       "id": "synthetic",
       "name": "Synthetic",
@@ -25244,6 +25817,15 @@
             ]
           },
           "tool_call": true,
+          "reasoning": {
+            "supported": false
+          }
+        },
+        {
+          "id": "cc-glm-4.6",
+          "name": "cc-glm-4.6",
+          "display_name": "cc-glm-4.6",
+          "tool_call": false,
           "reasoning": {
             "supported": false
           }
@@ -30583,6 +31165,27 @@
           }
         },
         {
+          "id": "veo-3.1-generate-preview",
+          "name": "veo-3.1-generate-preview",
+          "display_name": "veo-3.1-generate-preview",
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "video"
+            ],
+            "output": [
+              "text",
+              "image",
+              "video"
+            ]
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          }
+        },
+        {
           "id": "veo3",
           "name": "veo3",
           "display_name": "veo3",
@@ -30808,6 +31411,38 @@
           "cost": {
             "input": 0.56,
             "output": 1.68
+          }
+        },
+        {
+          "id": "accounts/fireworks/models/minimax-m2",
+          "name": "MiniMax-M2",
+          "display_name": "MiniMax-M2",
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 128000,
+            "output": 16384
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "attachment": false,
+          "open_weights": true,
+          "knowledge": "2024-11",
+          "release_date": "2025-10-27",
+          "last_updated": "2025-10-27",
+          "cost": {
+            "input": 0.3,
+            "output": 1.2
           }
         },
         {
@@ -33097,6 +33732,38 @@
           "cost": {
             "input": 0.6,
             "output": 1.2
+          }
+        },
+        {
+          "id": "zai-glm-4.6",
+          "name": "Z.AI GLM-4.6",
+          "display_name": "Z.AI GLM-4.6",
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 131072,
+            "output": 40960
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": false
+          },
+          "attachment": false,
+          "open_weights": true,
+          "release_date": "2025-11-05",
+          "last_updated": "2025-11-05",
+          "cost": {
+            "input": 0,
+            "output": 0,
+            "cache_read": 0,
+            "cache_write": 0
           }
         },
         {
@@ -64603,15 +65270,6 @@
           }
         },
         {
-          "id": "openrouter/andromeda-alpha",
-          "name": "Andromeda Alpha",
-          "display_name": "Andromeda Alpha",
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          }
-        },
-        {
           "id": "anthropic/claude-3-haiku",
           "name": "Anthropic: Claude 3 Haiku",
           "display_name": "Anthropic: Claude 3 Haiku",
@@ -65620,6 +66278,15 @@
           }
         },
         {
+          "id": "minimax/minimax-m2",
+          "name": "MiniMax: MiniMax M2",
+          "display_name": "MiniMax: MiniMax M2",
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          }
+        },
+        {
           "id": "minimax/minimax-01",
           "name": "MiniMax: MiniMax-01",
           "display_name": "MiniMax: MiniMax-01",
@@ -65899,6 +66566,15 @@
           }
         },
         {
+          "id": "mistralai/voxtral-small-24b-2507",
+          "name": "Mistral: Voxtral Small 24B 2507",
+          "display_name": "Mistral: Voxtral Small 24B 2507",
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          }
+        },
+        {
           "id": "moonshotai/kimi-dev-72b",
           "name": "MoonshotAI: Kimi Dev 72B",
           "display_name": "MoonshotAI: Kimi Dev 72B",
@@ -66064,6 +66740,15 @@
           "id": "nvidia/llama-3.3-nemotron-super-49b-v1.5",
           "name": "NVIDIA: Llama 3.3 Nemotron Super 49B V1.5",
           "display_name": "NVIDIA: Llama 3.3 Nemotron Super 49B V1.5",
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          }
+        },
+        {
+          "id": "nvidia/nemotron-nano-12b-v2-vl",
+          "name": "NVIDIA: Nemotron Nano 12B 2 VL",
+          "display_name": "NVIDIA: Nemotron Nano 12B 2 VL",
           "tool_call": false,
           "reasoning": {
             "supported": false
@@ -66394,6 +67079,15 @@
           }
         },
         {
+          "id": "openai/gpt-oss-safeguard-20b",
+          "name": "OpenAI: gpt-oss-safeguard-20b",
+          "display_name": "OpenAI: gpt-oss-safeguard-20b",
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          }
+        },
+        {
           "id": "openai/o1",
           "name": "OpenAI: o1",
           "display_name": "OpenAI: o1",
@@ -66493,6 +67187,15 @@
           }
         },
         {
+          "id": "openai/text-embedding-3-large",
+          "name": "OpenAI: Text Embedding 3 Large",
+          "display_name": "OpenAI: Text Embedding 3 Large",
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          }
+        },
+        {
           "id": "opengvlab/internvl3-78b",
           "name": "OpenGVLab: InternVL3 78B",
           "display_name": "OpenGVLab: InternVL3 78B",
@@ -66523,6 +67226,15 @@
           "id": "perplexity/sonar-pro",
           "name": "Perplexity: Sonar Pro",
           "display_name": "Perplexity: Sonar Pro",
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          }
+        },
+        {
+          "id": "perplexity/sonar-pro-search",
+          "name": "Perplexity: Sonar Pro Search",
+          "display_name": "Perplexity: Sonar Pro Search",
           "tool_call": false,
           "reasoning": {
             "supported": false
@@ -67555,6 +68267,28 @@
           }
         },
         {
+          "id": "amazon/nova-premier-v1",
+          "name": "Amazon: Nova Premier 1.0",
+          "display_name": "Amazon: Nova Premier 1.0",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 1000000,
+            "output": 32000
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          }
+        },
+        {
           "id": "amazon/nova-pro-v1",
           "name": "Amazon: Nova Pro 1.0",
           "display_name": "Amazon: Nova Pro 1.0",
@@ -68205,47 +68939,6 @@
           "id": "cognitivecomputations/dolphin-mistral-24b-venice-edition:free",
           "name": "Venice: Uncensored (free)",
           "display_name": "Venice: Uncensored (free)",
-          "modalities": {
-            "input": [
-              "text"
-            ],
-            "output": [
-              "text"
-            ]
-          },
-          "limit": {
-            "context": 32768
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          }
-        },
-        {
-          "id": "cognitivecomputations/dolphin3.0-mistral-24b",
-          "name": "Dolphin3.0 Mistral 24B",
-          "display_name": "Dolphin3.0 Mistral 24B",
-          "modalities": {
-            "input": [
-              "text"
-            ],
-            "output": [
-              "text"
-            ]
-          },
-          "limit": {
-            "context": 32768,
-            "output": 32768
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          }
-        },
-        {
-          "id": "cognitivecomputations/dolphin3.0-mistral-24b:free",
-          "name": "Dolphin3.0 Mistral 24B (free)",
-          "display_name": "Dolphin3.0 Mistral 24B (free)",
           "modalities": {
             "input": [
               "text"
@@ -69208,29 +69901,7 @@
             ]
           },
           "limit": {
-            "context": 8192,
-            "output": 8192
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          }
-        },
-        {
-          "id": "google/gemma-2-9b-it:free",
-          "name": "Google: Gemma 2 9B (free)",
-          "display_name": "Google: Gemma 2 9B (free)",
-          "modalities": {
-            "input": [
-              "text"
-            ],
-            "output": [
-              "text"
-            ]
-          },
-          "limit": {
-            "context": 8192,
-            "output": 8192
+            "context": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -70517,29 +71188,7 @@
             ]
           },
           "limit": {
-            "context": 131072,
-            "output": 131072
-          },
-          "temperature": true,
-          "tool_call": true,
-          "reasoning": {
-            "supported": false
-          }
-        },
-        {
-          "id": "mistralai/devstral-small-2505:free",
-          "name": "Mistral: Devstral Small 2505 (free)",
-          "display_name": "Mistral: Devstral Small 2505 (free)",
-          "modalities": {
-            "input": [
-              "text"
-            ],
-            "output": [
-              "text"
-            ]
-          },
-          "limit": {
-            "context": 32768
+            "context": 128000
           },
           "temperature": true,
           "tool_call": true,
@@ -71201,6 +71850,28 @@
           }
         },
         {
+          "id": "mistralai/voxtral-small-24b-2507",
+          "name": "Mistral: Voxtral Small 24B 2507",
+          "display_name": "Mistral: Voxtral Small 24B 2507",
+          "modalities": {
+            "input": [
+              "text",
+              "audio"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 32000
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": false
+          }
+        },
+        {
           "id": "moonshotai/kimi-dev-72b",
           "name": "MoonshotAI: Kimi Dev 72B",
           "display_name": "MoonshotAI: Kimi Dev 72B",
@@ -71215,27 +71886,6 @@
           "limit": {
             "context": 131072,
             "output": 131072
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": true,
-            "default": true
-          }
-        },
-        {
-          "id": "moonshotai/kimi-dev-72b:free",
-          "name": "MoonshotAI: Kimi Dev 72B (free)",
-          "display_name": "MoonshotAI: Kimi Dev 72B (free)",
-          "modalities": {
-            "input": [
-              "text"
-            ],
-            "output": [
-              "text"
-            ]
-          },
-          "limit": {
-            "context": 131072
           },
           "tool_call": false,
           "reasoning": {
@@ -71401,47 +72051,6 @@
           },
           "limit": {
             "context": 4096
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          }
-        },
-        {
-          "id": "nousresearch/deephermes-3-llama-3-8b-preview",
-          "name": "Nous: DeepHermes 3 Llama 3 8B Preview",
-          "display_name": "Nous: DeepHermes 3 Llama 3 8B Preview",
-          "modalities": {
-            "input": [
-              "text"
-            ],
-            "output": [
-              "text"
-            ]
-          },
-          "limit": {
-            "context": 131072,
-            "output": 131072
-          },
-          "tool_call": true,
-          "reasoning": {
-            "supported": false
-          }
-        },
-        {
-          "id": "nousresearch/deephermes-3-llama-3-8b-preview:free",
-          "name": "Nous: DeepHermes 3 Llama 3 8B Preview (free)",
-          "display_name": "Nous: DeepHermes 3 Llama 3 8B Preview (free)",
-          "modalities": {
-            "input": [
-              "text"
-            ],
-            "output": [
-              "text"
-            ]
-          },
-          "limit": {
-            "context": 131072
           },
           "tool_call": false,
           "reasoning": {
@@ -72824,6 +73433,27 @@
           "attachment": true
         },
         {
+          "id": "openai/text-embedding-3-large",
+          "name": "OpenAI: Text Embedding 3 Large",
+          "display_name": "OpenAI: Text Embedding 3 Large",
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text",
+              "embeddings"
+            ]
+          },
+          "limit": {
+            "context": 8192
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          }
+        },
+        {
           "id": "opengvlab/internvl3-78b",
           "name": "OpenGVLab: InternVL3 78B",
           "display_name": "OpenGVLab: InternVL3 78B",
@@ -72924,6 +73554,29 @@
           "tool_call": false,
           "reasoning": {
             "supported": false
+          }
+        },
+        {
+          "id": "perplexity/sonar-pro-search",
+          "name": "Perplexity: Sonar Pro Search",
+          "display_name": "Perplexity: Sonar Pro Search",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 200000,
+            "output": 8000
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": true,
+            "default": true
           }
         },
         {
@@ -73514,7 +74167,7 @@
           },
           "limit": {
             "context": 262144,
-            "output": 262144
+            "output": 131072
           },
           "tool_call": true,
           "reasoning": {
@@ -73603,28 +74256,6 @@
             "output": 20000
           },
           "tool_call": true,
-          "reasoning": {
-            "supported": true,
-            "default": true
-          }
-        },
-        {
-          "id": "qwen/qwen3-8b:free",
-          "name": "Qwen: Qwen3 8B (free)",
-          "display_name": "Qwen: Qwen3 8B (free)",
-          "modalities": {
-            "input": [
-              "text"
-            ],
-            "output": [
-              "text"
-            ]
-          },
-          "limit": {
-            "context": 40960,
-            "output": 40960
-          },
-          "tool_call": false,
           "reasoning": {
             "supported": true,
             "default": true
@@ -73774,6 +74405,7 @@
             "context": 256000,
             "output": 32768
           },
+          "temperature": true,
           "tool_call": true,
           "reasoning": {
             "supported": false
@@ -74375,28 +75007,6 @@
           "limit": {
             "context": 65536,
             "output": 8000
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": true,
-            "default": true
-          }
-        },
-        {
-          "id": "thudm/glm-z1-32b",
-          "name": "THUDM: GLM Z1 32B",
-          "display_name": "THUDM: GLM Z1 32B",
-          "modalities": {
-            "input": [
-              "text"
-            ],
-            "output": [
-              "text"
-            ]
-          },
-          "limit": {
-            "context": 32768,
-            "output": 32768
           },
           "tool_call": false,
           "reasoning": {
@@ -75055,6 +75665,23 @@
           "id": "doubao-1.5-pro-32k",
           "name": "doubao-1.5-pro-32k",
           "display_name": "doubao-1.5-pro-32k",
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "tool_call": true,
+          "reasoning": {
+            "supported": false
+          }
+        },
+        {
+          "id": "doubao-1.5-pro-32k-character-250715",
+          "name": "doubao-1.5-pro-32k-character-250715",
+          "display_name": "doubao-1.5-pro-32k-character-250715",
           "modalities": {
             "input": [
               "text"
