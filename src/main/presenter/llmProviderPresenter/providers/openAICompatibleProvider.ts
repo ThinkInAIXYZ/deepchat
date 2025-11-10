@@ -267,6 +267,98 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
       string,
       { name: string; arguments: string; assistantContent?: string }
     > = new Map()
+    const pendingToolCallOrder: string[] = []
+
+    // Track expected tool_call_ids for native function calling models
+    const pendingNativeToolCallIds: string[] = []
+    const pendingNativeToolCallSet: Set<string> = new Set()
+
+    const serializeContent = (content: unknown): string => {
+      if (content === undefined) return ''
+      if (typeof content === 'string') return content
+      return JSON.stringify(content)
+    }
+
+    const enqueueNativeToolCallId = (toolCallId?: string) => {
+      if (!toolCallId) return
+      pendingNativeToolCallIds.push(toolCallId)
+      pendingNativeToolCallSet.add(toolCallId)
+    }
+
+    const consumeNativeToolCallId = (preferredId?: string): string | undefined => {
+      if (preferredId && pendingNativeToolCallSet.has(preferredId)) {
+        pendingNativeToolCallSet.delete(preferredId)
+        const idx = pendingNativeToolCallIds.indexOf(preferredId)
+        if (idx !== -1) pendingNativeToolCallIds.splice(idx, 1)
+        return preferredId
+      }
+
+      while (pendingNativeToolCallIds.length > 0) {
+        const candidate = pendingNativeToolCallIds.shift()
+        if (!candidate) continue
+        if (!pendingNativeToolCallSet.has(candidate)) continue
+        pendingNativeToolCallSet.delete(candidate)
+        return candidate
+      }
+
+      return preferredId
+    }
+
+    const snapshotPendingNativeToolCallIds = () =>
+      pendingNativeToolCallIds.filter((id) => pendingNativeToolCallSet.has(id))
+
+    const removePendingMockToolCallId = (toolCallId: string) => {
+      pendingToolCalls.delete(toolCallId)
+      const idx = pendingToolCallOrder.indexOf(toolCallId)
+      if (idx !== -1) pendingToolCallOrder.splice(idx, 1)
+    }
+
+    const getPendingMockToolCallEntries = () =>
+      pendingToolCallOrder
+        .map((id) => {
+          const meta = pendingToolCalls.get(id)
+          if (!meta) return undefined
+          return { id, meta }
+        })
+        .filter(
+          (
+            entry
+          ): entry is {
+            id: string
+            meta: { name: string; arguments: string; assistantContent?: string }
+          } => Boolean(entry)
+        )
+
+    const pushMockToolResponse = (
+      toolCallId: string,
+      pendingCall: { name: string; arguments: string; assistantContent?: string },
+      responseContent: string
+    ) => {
+      let argsObj
+      try {
+        argsObj =
+          typeof pendingCall.arguments === 'string'
+            ? JSON.parse(pendingCall.arguments)
+            : pendingCall.arguments
+      } catch {
+        argsObj = {}
+      }
+
+      const mockRecord = {
+        function_call_record: {
+          name: pendingCall.name,
+          arguments: argsObj,
+          response: responseContent
+        }
+      }
+
+      result.push({
+        role: 'user',
+        content: `<function_call>${JSON.stringify(mockRecord)}</function_call>`
+      } as ChatCompletionMessageParam)
+
+      removePendingMockToolCallId(toolCallId)
+    }
 
     for (let i = 0; i < messages.length; i++) {
       const msg = messages[i]
@@ -310,10 +402,19 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
       if (msg.role === 'assistant' && msg.tool_calls && msg.tool_calls.length > 0) {
         if (supportsFunctionCall) {
           // Standard OpenAI format - preserve tool_calls structure
+          const normalizedToolCalls = msg.tool_calls.map((toolCall) => {
+            const toolCallId = toolCall.id || `tool-${Date.now()}-${Math.random()}`
+            enqueueNativeToolCallId(toolCallId)
+            return {
+              ...toolCall,
+              id: toolCallId
+            }
+          })
+
           result.push({
             role: 'assistant',
             content: baseMessage.content || null,
-            tool_calls: msg.tool_calls
+            tool_calls: normalizedToolCalls
           } as ChatCompletionMessageParam)
         } else {
           // Mock format: Store tool calls and assistant content, wait for tool responses
@@ -336,6 +437,7 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
                   : JSON.stringify(toolCall.function?.arguments || {}),
               assistantContent: baseMessage.content as string | undefined
             })
+            pendingToolCallOrder.push(toolCallId)
           }
         }
         continue
@@ -344,53 +446,70 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
       // Handle tool messages
       if (msg.role === 'tool') {
         if (supportsFunctionCall) {
-          // Standard OpenAI format - preserve role:tool with tool_call_id
+          const serializedContent = serializeContent(msg.content)
+          const pendingIds = snapshotPendingNativeToolCallIds()
+
+          if (pendingIds.length > 1 && serializedContent) {
+            const splitParts = this.splitMergedToolContent(serializedContent, pendingIds.length)
+            if (splitParts && splitParts.length === pendingIds.length) {
+              splitParts.forEach((part, index) => {
+                const toolCallId = pendingIds[index]
+                if (!toolCallId) return
+                consumeNativeToolCallId(toolCallId)
+                result.push({
+                  role: 'tool',
+                  content: part,
+                  tool_call_id: toolCallId
+                } as ChatCompletionMessageParam)
+              })
+              continue
+            }
+          }
+
+          let resolvedToolCallId = msg.tool_call_id
+          if (resolvedToolCallId && pendingNativeToolCallSet.has(resolvedToolCallId)) {
+            consumeNativeToolCallId(resolvedToolCallId)
+          } else if (!resolvedToolCallId) {
+            resolvedToolCallId = consumeNativeToolCallId()
+          }
+
           result.push({
             role: 'tool',
-            content: typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content),
-            tool_call_id: msg.tool_call_id || ''
+            content: serializedContent,
+            tool_call_id: resolvedToolCallId || msg.tool_call_id || ''
           } as ChatCompletionMessageParam)
         } else {
           // Mock format: Create user message with function_call_record
-          const toolCallId = msg.tool_call_id || ''
-          const pendingCall = pendingToolCalls.get(toolCallId)
+          const serializedContent = serializeContent(msg.content)
+          const pendingEntries = getPendingMockToolCallEntries()
 
-          if (pendingCall) {
-            // Parse arguments to JSON if it's a string
-            let argsObj
-            try {
-              argsObj =
-                typeof pendingCall.arguments === 'string'
-                  ? JSON.parse(pendingCall.arguments)
-                  : pendingCall.arguments
-            } catch {
-              argsObj = {}
+          if (pendingEntries.length > 1 && serializedContent) {
+            const splitParts = this.splitMergedToolContent(serializedContent, pendingEntries.length)
+            if (splitParts && splitParts.length === pendingEntries.length) {
+              splitParts.forEach((part, index) => {
+                const entry = pendingEntries[index]
+                pushMockToolResponse(entry.id, entry.meta, part)
+              })
+              continue
             }
+          }
 
-            // Format as function_call_record in user message
-            const mockRecord = {
-              function_call_record: {
-                name: pendingCall.name,
-                arguments: argsObj,
-                response:
-                  typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content)
-              }
-            }
+          let toolCallId = msg.tool_call_id || ''
+          if (!toolCallId && pendingEntries.length > 0) {
+            toolCallId = pendingEntries[0].id
+          }
 
-            result.push({
-              role: 'user',
-              content: `<function_call>${JSON.stringify(mockRecord)}</function_call>`
-            } as ChatCompletionMessageParam)
+          const pendingCall = toolCallId ? pendingToolCalls.get(toolCallId) : undefined
 
-            pendingToolCalls.delete(toolCallId)
+          if (toolCallId && pendingCall) {
+            pushMockToolResponse(toolCallId, pendingCall, serializedContent)
           } else {
             // Fallback: tool response without matching call, still format as user message
             const mockRecord = {
               function_call_record: {
                 name: 'unknown',
                 arguments: {},
-                response:
-                  typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content)
+                response: serializedContent
               }
             }
 
@@ -408,6 +527,123 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
     }
 
     return result
+  }
+
+  private splitMergedToolContent(content: string, expectedParts: number): string[] | null {
+    if (!content || expectedParts <= 1) return null
+    const trimmed = content.trim()
+    if (!trimmed) return null
+
+    const strategies: Array<() => string[] | null> = [
+      () => this.trySplitJsonArray(trimmed, expectedParts),
+      () => this.trySplitByDelimiter(trimmed, /\n-{3,}\n+/g, expectedParts),
+      () => this.trySplitByDelimiter(trimmed, /\n={3,}\n+/g, expectedParts),
+      () => this.trySplitByDelimiter(trimmed, /\n\*{3,}\n+/g, expectedParts),
+      () => this.trySplitByDelimiter(trimmed, /\n\s*\n+/g, expectedParts),
+      () => this.trySplitByHeaderRepeats(trimmed, expectedParts)
+    ]
+
+    for (const strategy of strategies) {
+      const parts = strategy()
+      if (parts) {
+        return parts
+      }
+    }
+
+    return null
+  }
+
+  private trySplitJsonArray(content: string, expectedParts: number): string[] | null {
+    if (!content.startsWith('[')) return null
+
+    try {
+      const parsed = JSON.parse(content)
+      if (Array.isArray(parsed) && parsed.length === expectedParts) {
+        return parsed.map((entry) => (typeof entry === 'string' ? entry : JSON.stringify(entry)))
+      }
+    } catch {
+      return null
+    }
+
+    return null
+  }
+
+  private trySplitByDelimiter(
+    content: string,
+    delimiter: RegExp,
+    expectedParts: number
+  ): string[] | null {
+    const parts = content
+      .split(delimiter)
+      .map((part) => part.trim())
+      .filter((part) => part.length > 0)
+
+    if (parts.length === expectedParts) {
+      return parts
+    }
+
+    return null
+  }
+
+  private trySplitByHeaderRepeats(content: string, expectedParts: number): string[] | null {
+    const headerRegex = /(?:^|\n)([-*]?\s*[A-Za-z][A-Za-z0-9\s,'"-]{0,80}?:)/g
+    const matches = [...content.matchAll(headerRegex)]
+    if (matches.length === 0) {
+      return null
+    }
+
+    const grouped = new Map<string, number[]>()
+    for (const match of matches) {
+      const rawHeader = match[1]
+      if (!rawHeader) continue
+      const normalized = rawHeader.replace(/\d+/g, '').trim().toLowerCase()
+      if (!normalized || normalized.length < 3) continue
+      const startIndex = (match.index ?? 0) + (match[0].startsWith('\n') ? 1 : 0)
+      if (!grouped.has(normalized)) {
+        grouped.set(normalized, [])
+      }
+      grouped.get(normalized)!.push(startIndex)
+    }
+
+    for (const [, indices] of grouped) {
+      if (indices.length === expectedParts) {
+        const segments: string[] = []
+        for (let i = 0; i < indices.length; i++) {
+          const start = indices[i]
+          const end = i + 1 < indices.length ? indices[i + 1] : content.length
+          const segment = content.slice(start, end).trim()
+          if (!segment) {
+            return null
+          }
+          segments.push(segment)
+        }
+
+        if (segments.length === expectedParts) {
+          return segments
+        }
+      }
+    }
+
+    if (matches.length === expectedParts) {
+      const segments: string[] = []
+      for (let i = 0; i < matches.length; i++) {
+        const match = matches[i]
+        const start = (match.index ?? 0) + (match[0].startsWith('\n') ? 1 : 0)
+        const end =
+          i + 1 < matches.length ? (matches[i + 1].index ?? content.length) : content.length
+        const segment = content.slice(start, end).trim()
+        if (!segment) {
+          return null
+        }
+        segments.push(segment)
+      }
+
+      if (segments.length === expectedParts) {
+        return segments
+      }
+    }
+
+    return null
   }
 
   // OpenAI completion method
@@ -437,6 +673,7 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
       ...(modelId.startsWith('o1') ||
       modelId.startsWith('o3') ||
       modelId.startsWith('o4') ||
+      modelId.includes('gpt-4.1') ||
       modelId.includes('gpt-5')
         ? { max_completion_tokens: maxTokens }
         : { max_tokens: maxTokens })
@@ -748,6 +985,7 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
       ...(modelId.startsWith('o1') ||
       modelId.startsWith('o3') ||
       modelId.startsWith('o4') ||
+      modelId.includes('gpt-4.1') ||
       modelId.includes('gpt-5')
         ? { max_completion_tokens: maxTokens }
         : { max_tokens: maxTokens })
@@ -1667,6 +1905,7 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
       ...(modelId.startsWith('o1') ||
       modelId.startsWith('o3') ||
       modelId.startsWith('o4') ||
+      modelId.includes('gpt-4.1') ||
       modelId.includes('gpt-5')
         ? { max_completion_tokens: maxTokens }
         : { max_tokens: maxTokens })
