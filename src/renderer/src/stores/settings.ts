@@ -1,6 +1,11 @@
 import { defineStore } from 'pinia'
 import { ref, onMounted, toRaw, computed } from 'vue'
-import { type LLM_PROVIDER, type MODEL_META, type RENDERER_MODEL_META } from '@shared/presenter'
+import {
+  type LLM_PROVIDER,
+  type MODEL_META,
+  type RENDERER_MODEL_META,
+  type ModelConfig
+} from '@shared/presenter'
 import type { ProviderChange, ProviderBatchUpdate } from '@shared/provider-operations'
 import { ModelType } from '@shared/model'
 import { usePresenter } from '@/composables/usePresenter'
@@ -387,6 +392,43 @@ export const useSettingsStore = defineStore('settings', () => {
     }
   }
 
+  const applyUserDefinedModelConfig = async (
+    model: RENDERER_MODEL_META,
+    providerId: string
+  ): Promise<RENDERER_MODEL_META> => {
+    const normalizedModel: RENDERER_MODEL_META = {
+      ...model,
+      vision: model.vision ?? false,
+      functionCall: model.functionCall ?? false,
+      reasoning: model.reasoning ?? false,
+      enableSearch: model.enableSearch ?? false,
+      type: model.type ?? ModelType.Chat
+    }
+
+    try {
+      const config: ModelConfig | null = await configP.getModelConfig(model.id, providerId)
+      if (config?.isUserDefined) {
+        const resolvedMaxTokens =
+          config.maxTokens ?? config.maxCompletionTokens ?? normalizedModel.maxTokens
+
+        return {
+          ...normalizedModel,
+          contextLength: config.contextLength ?? normalizedModel.contextLength,
+          maxTokens: resolvedMaxTokens,
+          vision: config.vision ?? normalizedModel.vision ?? false,
+          functionCall: config.functionCall ?? normalizedModel.functionCall ?? false,
+          reasoning: config.reasoning ?? normalizedModel.reasoning ?? false,
+          enableSearch: config.enableSearch ?? normalizedModel.enableSearch ?? false,
+          type: config.type ?? normalizedModel.type ?? ModelType.Chat
+        }
+      }
+    } catch (error) {
+      console.error(`读取模型配置失败: ${providerId}/${model.id}`, error)
+    }
+
+    return normalizedModel
+  }
+
   // 刷新单个提供商的自定义模型
   const refreshCustomModels = async (providerId: string): Promise<void> => {
     try {
@@ -401,15 +443,18 @@ export const useSettingsStore = defineStore('settings', () => {
       const modelStatusMap =
         modelIds.length > 0 ? await configP.getBatchModelStatus(providerId, modelIds) : {}
 
-      const customModelsWithStatus = safeCustomModelsList.map((model) => {
-        return {
-          ...model,
-          enabled: modelStatusMap[model.id] ?? true,
-          providerId,
-          isCustom: true,
-          type: model.type || ModelType.Chat
-        } as RENDERER_MODEL_META
-      })
+      const customModelsWithStatus = await Promise.all(
+        safeCustomModelsList.map(async (model) => {
+          const baseModel: RENDERER_MODEL_META = {
+            ...model,
+            enabled: modelStatusMap[model.id] ?? true,
+            providerId,
+            isCustom: true,
+            type: model.type || ModelType.Chat
+          }
+          return await applyUserDefinedModelConfig(baseModel, providerId)
+        })
+      )
 
       // 更新自定义模型列表
       const customIndex = customModels.value.findIndex((item) => item.providerId === providerId)
@@ -549,14 +594,22 @@ export const useSettingsStore = defineStore('settings', () => {
       const modelStatusMap =
         modelIds.length > 0 ? await configP.getBatchModelStatus(providerId, modelIds) : {}
 
-      const modelsWithStatus = models.map((model) => {
-        return {
-          ...model,
-          enabled: modelStatusMap[model.id] ?? true,
-          providerId,
-          isCustom: model.isCustom || false
-        }
-      })
+      const modelsWithStatus = await Promise.all(
+        models.map(async (model) => {
+          const baseModel: RENDERER_MODEL_META = {
+            ...model,
+            enabled: modelStatusMap[model.id] ?? true,
+            providerId,
+            isCustom: model.isCustom || false,
+            vision: model.vision ?? false,
+            functionCall: model.functionCall ?? false,
+            reasoning: model.reasoning ?? false,
+            enableSearch: model.enableSearch ?? false,
+            type: model.type || ModelType.Chat
+          }
+          return await applyUserDefinedModelConfig(baseModel, providerId)
+        })
+      )
 
       // 更新全局模型列表中的标准模型
       const allProviderIndex = allProviderModels.value.findIndex(
@@ -1910,20 +1963,26 @@ export const useSettingsStore = defineStore('settings', () => {
     return await configP.getModelDefaultConfig(modelId, providerId)
   }
 
+  const scheduleProviderRefresh = (providerId: string) => {
+    refreshProviderModels(providerId).catch((error) => {
+      console.error(`后台刷新模型失败: ${providerId}`, error)
+    })
+  }
+
   const setModelConfig = async (
     modelId: string,
     providerId: string,
     config: any
   ): Promise<void> => {
     await configP.setModelConfig(modelId, providerId, config)
-    // 配置变更后刷新相关模型数据
-    await refreshProviderModels(providerId)
+    // 配置写入成功后触发后台刷新，避免阻塞 UI
+    scheduleProviderRefresh(providerId)
   }
 
   const resetModelConfig = async (modelId: string, providerId: string): Promise<void> => {
     await configP.resetModelConfig(modelId, providerId)
-    // 配置重置后刷新相关模型数据
-    await refreshProviderModels(providerId)
+    // 配置重置成功后触发后台刷新
+    scheduleProviderRefresh(providerId)
   }
 
   return {
