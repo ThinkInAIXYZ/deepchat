@@ -21,7 +21,8 @@
     "delete": "メッセージを削除",
     "capturing": "キャプチャ中...",
     "copyFromTopSuccess": "完全なセッション画像がコピーされました",
-    "copyImageWithLongPress": "画像としてコピー（長押しで上部からキャプチャ）"
+    "copyImageWithLongPress": "画像としてコピー（長押しで上部からキャプチャ）",
+    "trace": "リクエストパラメータを表示"
   },
   "message": {
     "toolbar": {

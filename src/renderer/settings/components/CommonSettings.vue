@@ -26,6 +26,13 @@
         :model-value="copyWithCotEnabled"
         @update:model-value="handleCopyWithCotChange"
       />
+      <SettingToggleRow
+        id="trace-debug-switch"
+        icon="lucide:bug"
+        :label="t('settings.common.traceDebugEnabled')"
+        :model-value="traceDebugEnabled"
+        @update:model-value="handleTraceDebugChange"
+      />
       <LoggingSettingsSection />
     </div>
   </ScrollArea>
@@ -51,6 +58,7 @@ const soundStore = useSoundStore()
 const searchPreviewEnabled = computed(() => settingsStore.searchPreviewEnabled)
 const soundEnabled = computed(() => soundStore.soundEnabled)
 const copyWithCotEnabled = computed(() => settingsStore.copyWithCotEnabled)
+const traceDebugEnabled = computed(() => settingsStore.traceDebugEnabled)
 
 const handleSearchPreviewChange = (value: boolean) => {
   settingsStore.setSearchPreviewEnabled(value)
@@ -62,5 +70,9 @@ const handleSoundChange = (value: boolean) => {
 
 const handleCopyWithCotChange = (value: boolean) => {
   settingsStore.setCopyWithCotEnabled(value)
+}
+
+const handleTraceDebugChange = (value: boolean) => {
+  settingsStore.setTraceDebugEnabled(value)
 }
 </script>

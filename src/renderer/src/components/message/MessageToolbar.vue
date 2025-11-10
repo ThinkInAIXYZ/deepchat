@@ -155,7 +155,7 @@
               </TooltipTrigger>
               <TooltipContent>{{ t('thread.toolbar.retry') }}</TooltipContent>
             </Tooltip>
-            <Tooltip v-if="isAssistant && isDev">
+            <Tooltip v-if="isAssistant && traceDebugEnabled">
               <TooltipTrigger as-child>
                 <Button
                   variant="ghost"
@@ -238,10 +238,12 @@ import {
   TooltipTrigger
 } from '@shadcn/components/ui/tooltip'
 import { useI18n } from 'vue-i18n'
+import { useSettingsStore } from '@/stores/settings'
 
 const { t } = useI18n()
+const settingsStore = useSettingsStore()
 
-const isDev = import.meta.env.DEV
+const traceDebugEnabled = computed(() => settingsStore.traceDebugEnabled)
 
 const showCopyTip = ref(false)
 const showCopyImageTip = ref(false)

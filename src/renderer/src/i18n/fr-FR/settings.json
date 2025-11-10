@@ -58,7 +58,8 @@
       "title": "Paramètres des raccourcis clavier"
     },
     "notifications": "Notifications système",
-    "notificationsDesc": "Quand DeepChat est en arrière‑plan, envoyer une notification à la fin d’une réponse"
+    "notificationsDesc": "Quand DeepChat est en arrière‑plan, envoyer une notification à la fin d’une réponse",
+    "traceDebugEnabled": "Suivi des appels"
   },
   "data": {
     "title": "Paramètres des données",

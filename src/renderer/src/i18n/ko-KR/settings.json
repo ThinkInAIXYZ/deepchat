@@ -58,7 +58,8 @@
       "title": "바로 가기 키 설정"
     },
     "notifications": "시스템 알림",
-    "notificationsDesc": "DeepChat이 전경에 있지 않으면 세션이 생성되면 시스템 알림이 전송됩니다."
+    "notificationsDesc": "DeepChat이 전경에 있지 않으면 세션이 생성되면 시스템 알림이 전송됩니다.",
+    "traceDebugEnabled": "추적 호출"
   },
   "data": {
     "title": "데이터 설정",

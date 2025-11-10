@@ -21,7 +21,8 @@
     "delete": "刪除消息",
     "capturing": "正在截圖...",
     "copyFromTopSuccess": "已復製完整會話圖片",
-    "copyImageWithLongPress": "複製為圖片（長按可從頂部開始截取）"
+    "copyImageWithLongPress": "複製為圖片（長按可從頂部開始截取）",
+    "trace": "查看請求參數"
   },
   "message": {
     "toolbar": {

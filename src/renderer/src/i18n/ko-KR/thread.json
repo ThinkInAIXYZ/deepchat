@@ -21,7 +21,8 @@
     "delete": "메시지 삭제",
     "capturing": "스크린샷 캡처 중...",
     "copyFromTopSuccess": "전체 채팅 이미지가 복사되었습니다",
-    "copyImageWithLongPress": "이미지로 복사 (상단부터 캡처하려면 길게 누르세요)"
+    "copyImageWithLongPress": "이미지로 복사 (상단부터 캡처하려면 길게 누르세요)",
+    "trace": "요청 매개변수 확인"
   },
   "message": {
     "toolbar": {

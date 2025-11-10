@@ -58,7 +58,8 @@
     },
     "notifications": "Notificações do Sistema",
     "notificationsDesc": "Quando o DeepChat não estiver em primeiro plano, se uma sessão for gerada, uma notificação do sistema será enviada",
-    "contentProtection": "Proteção contra captura de tela"
+    "contentProtection": "Proteção contra captura de tela",
+    "traceDebugEnabled": "Rastreamento de Chamadas"
   },
   "data": {
     "title": "Configurações de Dados",

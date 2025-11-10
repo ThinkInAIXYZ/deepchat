@@ -1,0 +1,17 @@
+{
+  "body": "請求體",
+  "close": "關閉",
+  "copyJson": "複製JSON",
+  "copySuccess": "已複製到剪貼簿",
+  "endpoint": "API 端點",
+  "error": "載入失敗",
+  "errorDesc": "無法取得請求預覽資訊，請重試",
+  "headers": "請求標頭",
+  "loading": "載入中...",
+  "mayNotMatch": "注意：此預覽基於目前會話設定重建，可能與實際發送時的參數不完全一致",
+  "notImplemented": "暫不支援",
+  "notImplementedDesc": "此供應商暫時無法預覽",
+  "provider": "供應商",
+  "title": "請求參數預覽",
+  "model": "Model"
+}

@@ -42,6 +42,7 @@
     "contentProtectionRestartNotice": "Changing this setting will restart the application. Do you want to continue?",
     "soundEnabled": "Enable Sound Effects",
     "copyWithCotEnabled": "Copy COT Details",
+    "traceDebugEnabled": "Trace Call",
     "loggingEnabled": "Enable Logging",
     "loggingDialogTitle": "Confirm Logging Setting Change",
     "loggingEnableDesc": "Enabling logging will help us diagnose issues and improve the application. Log files may contain sensitive information.",

@@ -21,7 +21,8 @@
     "retry": "Regenerar",
     "fork": "Ramificar para Novo Chat",
     "edit": "Editar mensagem",
-    "delete": "Excluir mensagem"
+    "delete": "Excluir mensagem",
+    "trace": "Ver parâmetros da solicitação"
   },
   "message": {
     "toolbar": {

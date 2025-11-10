@@ -58,7 +58,8 @@
       "title": "ショートカットキー設定"
     },
     "notifications": "システム通知",
-    "notificationsDesc": "DeepChatがバックグラウンドのとき、応答が完了すると通知を送信します"
+    "notificationsDesc": "DeepChatがバックグラウンドのとき、応答が完了すると通知を送信します",
+    "traceDebugEnabled": "追跡呼び出し"
   },
   "data": {
     "title": "データ設定",

@@ -1,0 +1,17 @@
+{
+  "body": "Corpo da solicitação",
+  "close": "Fechar",
+  "copyJson": "Copiar JSON",
+  "copySuccess": "Copiado para a área de transferência",
+  "endpoint": "Endpoint da API",
+  "error": "Falha ao carregar",
+  "errorDesc": "Não foi possível obter as informações de pré-visualização da solicitação. Tente novamente.",
+  "headers": "Cabeçalho da solicitação",
+  "loading": "Carregando...",
+  "mayNotMatch": "Atenção: Esta pré-visualização é reconstruída com base nas configurações atuais da sessão e pode não corresponder exatamente aos parâmetros no momento do envio.",
+  "notImplemented": "Ainda não suportado",
+  "notImplementedDesc": "Este fornecedor ainda não está disponível para visualização.",
+  "provider": "Fornecedor",
+  "model": "Modelo",
+  "title": "Prévia dos parâmetros da solicitação"
+}

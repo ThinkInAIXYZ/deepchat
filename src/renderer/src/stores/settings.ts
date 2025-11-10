@@ -34,6 +34,7 @@ export const useSettingsStore = defineStore('settings', () => {
   const contentProtectionEnabled = ref<boolean>(true) // 投屏保护是否启用，默认启用
   const copyWithCotEnabled = ref<boolean>(true)
   const notificationsEnabled = ref<boolean>(true) // 系统通知是否启用，默认启用
+  const traceDebugEnabled = ref<boolean>(false) // Trace 调试功能是否启用，默认关闭
   const fontSizeLevel = ref<number>(DEFAULT_FONT_SIZE_LEVEL) // 字体大小级别，默认为 1
   // Ollama 相关状态
   const ollamaRunningModels = ref<Record<string, OllamaModel[]>>({})
@@ -321,6 +322,9 @@ export const useSettingsStore = defineStore('settings', () => {
       // 获取系统通知设置
       notificationsEnabled.value =
         (await configP.getSetting<boolean>('notificationsEnabled')) ?? true
+
+      // 获取 Trace 调试功能设置
+      traceDebugEnabled.value = (await configP.getSetting<boolean>('traceDebugEnabled')) ?? false
 
       // 获取搜索引擎
       searchEngines.value = await threadP.getSearchEngines()
@@ -1687,6 +1691,16 @@ export const useSettingsStore = defineStore('settings', () => {
     return await configP.getCopyWithCotEnabled()
   }
 
+  ///////////////////////////////////////////////////////////////////////////////////////
+  const setTraceDebugEnabled = async (enabled: boolean) => {
+    traceDebugEnabled.value = Boolean(enabled)
+    await configP.setSetting('traceDebugEnabled', enabled)
+  }
+
+  const getTraceDebugEnabled = async (): Promise<boolean> => {
+    return (await configP.getSetting<boolean>('traceDebugEnabled')) ?? false
+  }
+
   const setupCopyWithCotEnabledListener = () => {
     window.electron.ipcRenderer.on(
       CONFIG_EVENTS.COPY_WITH_COT_CHANGED,
@@ -1959,6 +1973,9 @@ export const useSettingsStore = defineStore('settings', () => {
     getCopyWithCotEnabled,
     setCopyWithCotEnabled,
     setupCopyWithCotEnabledListener,
+    traceDebugEnabled,
+    getTraceDebugEnabled,
+    setTraceDebugEnabled,
     testSearchEngine,
     refreshSearchEngines,
     findModelByIdOrName,

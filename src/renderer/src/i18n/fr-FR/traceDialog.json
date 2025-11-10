@@ -1,0 +1,17 @@
+{
+  "body": "Corps de la requête",
+  "close": "Fermer",
+  "copyJson": "Copier JSON",
+  "copySuccess": "Copié dans le presse-papiers",
+  "endpoint": "Point de terminaison de l'API",
+  "error": "Échec du chargement",
+  "errorDesc": "Impossible d'obtenir les informations de prévisualisation de la requête, veuillez réessayer.",
+  "headers": "En-tête de requête",
+  "loading": "Chargement en cours...",
+  "mayNotMatch": "Note : Cette prévisualisation est reconstruite sur la base des paramètres de session actuels et peut ne pas correspondre exactement aux paramètres réels lors de l'envoi.",
+  "notImplemented": "Non pris en charge pour le moment",
+  "notImplementedDesc": "Ce fournisseur n'est pas encore disponible en aperçu.",
+  "provider": "Fournisseur",
+  "model": "Modèle",
+  "title": "Aperçu des paramètres de requête"
+}

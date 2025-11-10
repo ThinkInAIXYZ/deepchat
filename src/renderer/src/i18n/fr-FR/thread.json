@@ -21,7 +21,8 @@
     "delete": "Supprimer le message",
     "capturing": "Capture en cours...",
     "copyFromTopSuccess": "Image de session complète copiée",
-    "copyImageWithLongPress": "Copier en image (appui long pour capturer depuis le haut)"
+    "copyImageWithLongPress": "Copier en image (appui long pour capturer depuis le haut)",
+    "trace": "Voir les paramètres de la demande"
   },
   "message": {
     "toolbar": {
