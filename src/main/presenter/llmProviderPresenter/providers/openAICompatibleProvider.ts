@@ -301,7 +301,7 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
         return candidate
       }
 
-      return preferredId
+      return undefined
     }
 
     const snapshotPendingNativeToolCallIds = () =>
@@ -529,6 +529,15 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
     return result
   }
 
+  /**
+   * Some upstream MCP layers merge multiple tool responses into a single assistant message when
+   * `pendingIds.length > 1`; this is outside of the standard OpenAI tool_call flow, so we attempt
+   * to recover individual payloads by trying several splitting heuristics. Supported formats
+   * include JSON arrays of strings, delimiter blocks formed by lines of three or more hyphens/equals/asterisks,
+   * blank-line separation, and repeated header markers. Each strategy is attempted in order so we
+   * favor structured formats first and fall back to progressively looser parsing when strict
+   * patterns fail.
+   */
   private splitMergedToolContent(content: string, expectedParts: number): string[] | null {
     if (!content || expectedParts <= 1) return null
     const trimmed = content.trim()
