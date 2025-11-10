@@ -148,6 +148,7 @@ const error = ref(false)
 const notImplemented = ref(false)
 const previewData = ref<PreviewData | null>(null)
 const copySuccess = ref(false)
+const requestId = ref(0)
 
 const formattedJson = computed(() => {
   if (!previewData.value) return ''
@@ -231,6 +232,10 @@ onBeforeUnmount(() => {
 })
 
 const loadPreview = async (messageId: string) => {
+  // Increment request ID and capture it for this request
+  requestId.value += 1
+  const currentRequestId = requestId.value
+
   loading.value = true
   error.value = false
   notImplemented.value = false
@@ -238,6 +243,10 @@ const loadPreview = async (messageId: string) => {
 
   try {
     const result = await threadPresenter.getMessageRequestPreview(messageId)
+    // Only update state if this is still the latest request
+    if (currentRequestId !== requestId.value) {
+      return
+    }
     // Check if result is null or undefined
     if (!result) {
       console.error('getMessageRequestPreview returned null or undefined')
@@ -251,9 +260,17 @@ const loadPreview = async (messageId: string) => {
       previewData.value = result as PreviewData
     }
   } catch (err) {
+    // Only update state if this is still the latest request
+    if (currentRequestId !== requestId.value) {
+      return
+    }
     console.error('Failed to load request preview:', err)
     error.value = true
   } finally {
+    // Only update state if this is still the latest request
+    if (currentRequestId !== requestId.value) {
+      return
+    }
     loading.value = false
   }
 }
