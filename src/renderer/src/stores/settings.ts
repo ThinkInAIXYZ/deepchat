@@ -367,6 +367,9 @@ export const useSettingsStore = defineStore('settings', () => {
       // 设置拷贝事件监听器
       setupCopyWithCotEnabledListener()
 
+      // 设置 Trace 调试功能事件监听器
+      setupTraceDebugEnabledListener()
+
       // 单独刷新一次 Ollama 模型，确保即使没有启用 Ollama provider 也能获取模型列表
       const ollamaProviders = providers.value.filter((p) => p.apiType === 'ollama')
       for (const provider of ollamaProviders) {
@@ -802,6 +805,9 @@ export const useSettingsStore = defineStore('settings', () => {
 
     // 设置拷贝事件监听器
     setupCopyWithCotEnabledListener()
+
+    // 设置 Trace 调试功能事件监听器
+    setupTraceDebugEnabledListener()
 
     // 设置字体大小事件监听器
     setupFontSizeListener()
@@ -1694,11 +1700,20 @@ export const useSettingsStore = defineStore('settings', () => {
   ///////////////////////////////////////////////////////////////////////////////////////
   const setTraceDebugEnabled = async (enabled: boolean) => {
     traceDebugEnabled.value = Boolean(enabled)
-    await configP.setSetting('traceDebugEnabled', enabled)
+    await configP.setTraceDebugEnabled(enabled)
   }
 
   const getTraceDebugEnabled = async (): Promise<boolean> => {
     return (await configP.getSetting<boolean>('traceDebugEnabled')) ?? false
+  }
+
+  const setupTraceDebugEnabledListener = () => {
+    window.electron.ipcRenderer.on(
+      CONFIG_EVENTS.TRACE_DEBUG_CHANGED,
+      (_event, enabled: boolean) => {
+        traceDebugEnabled.value = enabled
+      }
+    )
   }
 
   const setupCopyWithCotEnabledListener = () => {
@@ -1976,6 +1991,7 @@ export const useSettingsStore = defineStore('settings', () => {
     traceDebugEnabled,
     getTraceDebugEnabled,
     setTraceDebugEnabled,
+    setupTraceDebugEnabledListener,
     testSearchEngine,
     refreshSearchEngines,
     findModelByIdOrName,

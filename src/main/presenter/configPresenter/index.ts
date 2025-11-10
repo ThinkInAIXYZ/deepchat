@@ -1061,6 +1061,11 @@ export class ConfigPresenter implements IConfigPresenter {
     eventBus.sendToRenderer(CONFIG_EVENTS.COPY_WITH_COT_CHANGED, SendTarget.ALL_WINDOWS, enabled)
   }
 
+  setTraceDebugEnabled(enabled: boolean): void {
+    this.setSetting('traceDebugEnabled', enabled)
+    eventBus.sendToRenderer(CONFIG_EVENTS.TRACE_DEBUG_CHANGED, SendTarget.ALL_WINDOWS, enabled)
+  }
+
   // Get floating button switch status
   getFloatingButtonEnabled(): boolean {
     const value = this.getSetting<boolean>('floatingButtonEnabled') ?? false
