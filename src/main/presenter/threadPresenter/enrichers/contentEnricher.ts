@@ -1,6 +1,6 @@
 import axios from 'axios'
 import * as cheerio from 'cheerio'
-import { SearchResult } from '../../../shared/presenter'
+import { SearchResult } from '@shared/presenter'
 import { HttpsProxyAgent } from 'https-proxy-agent'
 import { proxyConfig } from '@/presenter/proxyConfig'
 import { presenter } from '@/presenter'

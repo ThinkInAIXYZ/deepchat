@@ -14,7 +14,7 @@ import {
   UserMessageMentionBlock,
   UserMessageCodeBlock
 } from '@shared/chat'
-import { formatUserMessageContent } from './messageContent'
+import { formatUserMessageContent } from '../utils/messageContent'
 import { eventBus, SendTarget } from '@/eventbus'
 import { CONVERSATION_EVENTS } from '@/events'
 

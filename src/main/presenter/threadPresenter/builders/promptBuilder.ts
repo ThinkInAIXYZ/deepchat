@@ -14,11 +14,11 @@ import {
   SearchResult,
   ChatMessage,
   ChatMessageContent
-} from '../../../shared/presenter'
-import type { MCPToolDefinition } from '../../../shared/presenter'
-import { ContentEnricher } from './contentEnricher'
-import { buildUserMessageContext, getNormalizedUserMessageText } from './messageContent'
-import { generateSearchPrompt } from './searchManager'
+} from '@shared/presenter'
+import type { MCPToolDefinition } from '@shared/presenter'
+import { ContentEnricher } from '../enrichers/contentEnricher'
+import { buildUserMessageContext, getNormalizedUserMessageText } from '../utils/messageContent'
+import { generateSearchPrompt } from '../managers/searchManager'
 import { nanoid } from 'nanoid'
 
 export type PendingToolCall = {

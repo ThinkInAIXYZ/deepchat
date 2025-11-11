@@ -16,7 +16,7 @@ import {
 } from '@shared/presenter'
 import { ModelType } from '@shared/model'
 import { presenter } from '@/presenter'
-import { MessageManager } from './messageManager'
+import { MessageManager } from './managers/messageManager'
 import { eventBus } from '@/eventbus'
 import {
   AssistantMessage,
@@ -25,15 +25,15 @@ import {
   SearchEngineTemplate,
   UserMessageContent
 } from '@shared/chat'
-import { SearchManager } from './searchManager'
+import { SearchManager } from './managers/searchManager'
 import { TAB_EVENTS } from '@/events'
-import { buildUserMessageContext } from './messageContent'
-import { preparePromptContent } from './promptBuilder'
+import { buildUserMessageContext } from './utils/messageContent'
+import { preparePromptContent } from './builders/promptBuilder'
 import {
   buildConversationExportContent,
   generateExportFilename,
   ConversationExportFormat
-} from './conversationExporter'
+} from './exporters/conversationExporter'
 import type { GeneratingMessageState } from './types'
 import { ContentBufferHandler } from './handlers/contentBufferHandler'
 import { ToolCallHandler } from './handlers/toolCallHandler'

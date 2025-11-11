@@ -1,7 +1,7 @@
 import { AssistantMessageBlock, Message, UserMessageContent } from '@shared/chat'
-import { CONVERSATION } from '../../../shared/presenter'
-import { getNormalizedUserMessageText } from './messageContent'
-import { conversationExportTemplates } from './templates/conversationExportTemplates'
+import { CONVERSATION } from '@shared/presenter'
+import { getNormalizedUserMessageText } from '../utils/messageContent'
+import { conversationExportTemplates } from '../templates/conversationExportTemplates'
 
 export type ConversationExportFormat = 'markdown' | 'html' | 'txt'
 

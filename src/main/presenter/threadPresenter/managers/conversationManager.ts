@@ -10,7 +10,7 @@ import { presenter } from '@/presenter'
 import { eventBus, SendTarget } from '@/eventbus'
 import { CONVERSATION_EVENTS, TAB_EVENTS } from '@/events'
 import { DEFAULT_SETTINGS } from '../const'
-import type { MessageManager } from '../messageManager'
+import type { MessageManager } from './messageManager'
 
 export interface CreateConversationOptions {
   forceNewAndActivate?: boolean

@@ -8,7 +8,7 @@ import type {
   MCPResourceContent
 } from '@shared/presenter'
 import { nanoid } from 'nanoid'
-import type { MessageManager } from '../messageManager'
+import type { MessageManager } from '../managers/messageManager'
 import type { GeneratingMessageState } from '../types'
 
 interface PermissionRequestPayload {

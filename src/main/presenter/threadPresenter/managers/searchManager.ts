@@ -1,14 +1,14 @@
 import { app, BrowserWindow, screen } from 'electron'
 import path from 'path'
 import { SearchEngineTemplate } from '@shared/chat'
-import { ContentEnricher } from './contentEnricher'
+import { ContentEnricher } from '../enrichers/contentEnricher'
 import { SearchResult } from '@shared/presenter'
 import { is } from '@electron-toolkit/utils'
 import { presenter } from '@/presenter'
 import { eventBus } from '@/eventbus'
 import { CONFIG_EVENTS } from '@/events'
 import { jsonrepair } from 'jsonrepair'
-import { SEARCH_PROMPT_TEMPLATE } from './const'
+import { SEARCH_PROMPT_TEMPLATE } from '../const'
 
 const helperPage = path.join(app.getAppPath(), 'resources', 'blankSearch.html')
 

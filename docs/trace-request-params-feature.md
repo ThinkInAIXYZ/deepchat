@@ -353,5 +353,4 @@ The `redactRequestPreview()` function:
 - [IPC Architecture](./ipc/ipc-architecture-complete.md)
 - [Provider Architecture](./provider-optimization-summary.md)
 - [MCP Tool System](./mcp-architecture.md)
-- [Prompt Builder](../src/main/presenter/threadPresenter/promptBuilder.ts)
-
+- [Prompt Builder](../src/main/presenter/threadPresenter/builders/promptBuilder.ts)

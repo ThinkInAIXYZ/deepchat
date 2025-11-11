@@ -11,7 +11,7 @@ import {
   buildContinueToolCallContext,
   buildPostToolExecutionContext,
   type PendingToolCall
-} from '../promptBuilder'
+} from '../builders/promptBuilder'
 import type { GeneratingMessageState } from '../types'
 import type { StreamGenerationHandler } from './streamGenerationHandler'
 import type { LLMEventHandler } from './llmEventHandler'
