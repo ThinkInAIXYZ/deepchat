@@ -19,6 +19,10 @@ import { preparePromptContent } from '../builders/promptBuilder'
 import type { ConversationManager } from '../managers/conversationManager'
 import type { StreamGenerationHandler } from './streamGenerationHandler'
 
+// Translation constants
+const TRANSLATION_TEMPERATURE = 0.3
+const TRANSLATION_TIMEOUT_MS = 1000
+
 export interface UtilityHandlerOptions {
   conversationManager: ConversationManager
   streamGenerationHandler: StreamGenerationHandler
@@ -49,7 +53,7 @@ export class UtilityHandler extends BaseHandler {
         const models = await this.ctx.llmProviderPresenter.getModelList(defaultProvider.id)
         const defaultModel = models[0]
         const conversationId = await this.conversationManager.createConversation(
-          '临时翻译对话',
+          'Temporary translation conversation',
           {
             modelId: defaultModel.id,
             providerId: defaultProvider.id
@@ -64,7 +68,7 @@ export class UtilityHandler extends BaseHandler {
         {
           role: 'system',
           content:
-            '你是一个翻译助手。请将用户输入的文本翻译成中文。只返回翻译结果，不要添加任何其他内容。'
+            'You are a translation assistant. Translate the user input to Chinese and return only the translated text without any additional content.'
         },
         {
           role: 'user',
@@ -78,8 +82,8 @@ export class UtilityHandler extends BaseHandler {
         messages,
         modelId,
         'translate-' + Date.now(),
-        0.3,
-        1000
+        TRANSLATION_TEMPERATURE,
+        TRANSLATION_TIMEOUT_MS
       )
 
       for await (const event of stream) {
@@ -90,14 +94,18 @@ export class UtilityHandler extends BaseHandler {
           }
         } else if (event.type === 'error') {
           const msg = event.data as { eventId: string; error: string }
-          throw new Error(msg.error || '翻译失败')
+          throw new Error(msg.error || 'Translation failed')
         }
       }
 
       return translatedText.trim()
     } catch (error) {
       console.error('Translation failed:', error)
-      throw error
+      if (error instanceof Error) {
+        error.message = 'Translation failed'
+        throw error
+      }
+      throw new Error('Translation failed')
     }
   }
 
