@@ -21,7 +21,7 @@
     "test:ui": "vitest --ui",
     "format:check": "prettier --check .",
     "format": "prettier --cache --write .",
-    "lint": "npx -y oxlint .",
+    "lint": "oxlint .",
     "typecheck:node": "tsc --noEmit -p tsconfig.node.json --composite false",
     "typecheck:web": "vue-tsc --noEmit -p tsconfig.app.json --composite false",
     "typecheck": "pnpm run typecheck:node && pnpm run typecheck:web",
