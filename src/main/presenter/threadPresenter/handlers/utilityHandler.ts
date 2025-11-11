@@ -15,7 +15,7 @@ import {
   generateExportFilename,
   type ConversationExportFormat
 } from '../exporters/conversationExporter'
-import { preparePromptContent } from '../builders/promptBuilder'
+import { preparePromptContent } from '../utils/promptBuilder'
 import type { ConversationManager } from '../managers/conversationManager'
 import type { StreamGenerationHandler } from './streamGenerationHandler'
 

@@ -9,13 +9,13 @@ import type {
   UserMessageContent
 } from '@shared/chat'
 import type { CONVERSATION, MCPToolResponse, SearchResult } from '@shared/presenter'
-import { ContentEnricher } from '../enrichers/contentEnricher'
+import { ContentEnricher } from '../utils/contentEnricher'
 import {
   buildUserMessageContext,
   formatUserMessageContent,
   getNormalizedUserMessageText
 } from '../utils/messageContent'
-import { preparePromptContent } from '../builders/promptBuilder'
+import { preparePromptContent } from '../utils/promptBuilder'
 import type { GeneratingMessageState } from '../types'
 import { presenter } from '@/presenter'
 import type { SearchHandler } from './searchHandler'

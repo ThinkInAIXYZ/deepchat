@@ -1,5 +1,5 @@
 import type { AssistantMessage } from '@shared/chat'
-import type { PendingToolCall } from './builders/promptBuilder'
+import type { PendingToolCall } from './utils/promptBuilder'
 
 export interface GeneratingMessageState {
   message: AssistantMessage

@@ -1,7 +1,7 @@
 import { app, BrowserWindow, screen } from 'electron'
 import path from 'path'
 import { SearchEngineTemplate } from '@shared/chat'
-import { ContentEnricher } from '../enrichers/contentEnricher'
+import { ContentEnricher } from '../utils/contentEnricher'
 import { SearchResult } from '@shared/presenter'
 import { is } from '@electron-toolkit/utils'
 import { presenter } from '@/presenter'
