@@ -10,30 +10,15 @@ import {
   ISQLitePresenter,
   IConfigPresenter,
   ILlmProviderPresenter,
-  MCPToolDefinition,
-  ChatMessage,
   LLMAgentEventData
 } from '@shared/presenter'
-import { ModelType } from '@shared/model'
 import { presenter } from '@/presenter'
 import { MessageManager } from './managers/messageManager'
 import { eventBus } from '@/eventbus'
-import {
-  AssistantMessage,
-  Message,
-  AssistantMessageBlock,
-  SearchEngineTemplate,
-  UserMessageContent
-} from '@shared/chat'
+import { AssistantMessage, Message, SearchEngineTemplate } from '@shared/chat'
 import { SearchManager } from './managers/searchManager'
 import { TAB_EVENTS } from '@/events'
-import { buildUserMessageContext } from './utils/messageContent'
-import { preparePromptContent } from './builders/promptBuilder'
-import {
-  buildConversationExportContent,
-  generateExportFilename,
-  ConversationExportFormat
-} from './exporters/conversationExporter'
+import { ConversationExportFormat } from './exporters/conversationExporter'
 import type { GeneratingMessageState } from './types'
 import { ContentBufferHandler } from './handlers/contentBufferHandler'
 import { ToolCallHandler } from './handlers/toolCallHandler'
@@ -41,6 +26,7 @@ import { LLMEventHandler } from './handlers/llmEventHandler'
 import { SearchHandler } from './handlers/searchHandler'
 import { StreamGenerationHandler } from './handlers/streamGenerationHandler'
 import { PermissionHandler } from './handlers/permissionHandler'
+import { UtilityHandler } from './handlers/utilityHandler'
 import type { ThreadHandlerContext } from './handlers/baseHandler'
 import { ConversationManager, type CreateConversationOptions } from './managers/conversationManager'
 
@@ -57,6 +43,7 @@ export class ThreadPresenter implements IThreadPresenter {
   private searchHandler: SearchHandler
   private streamGenerationHandler: StreamGenerationHandler
   private permissionHandler: PermissionHandler
+  private utilityHandler: UtilityHandler
   private generatingMessages: Map<string, GeneratingMessageState> = new Map()
   private activeConversationIds: Map<number, string> = new Map()
   public searchAssistantModel: MODEL_META | null = null
@@ -124,6 +111,13 @@ export class ThreadPresenter implements IThreadPresenter {
       getMcpPresenter: () => presenter.mcpPresenter,
       streamGenerationHandler: this.streamGenerationHandler,
       llmEventHandler: this.llmEventHandler
+    })
+
+    this.utilityHandler = new UtilityHandler(handlerContext, {
+      conversationManager: this.conversationManager,
+      streamGenerationHandler: this.streamGenerationHandler,
+      getSearchAssistantModel: () => this.searchAssistantModel,
+      getSearchAssistantProviderId: () => this.searchAssistantProviderId
     })
 
     // 监听Tab关闭事件，清理绑定关系
@@ -606,76 +600,7 @@ export class ThreadPresenter implements IThreadPresenter {
   }
 
   async summaryTitles(tabId?: number, conversationId?: string): Promise<string> {
-    const activeId = tabId !== undefined ? this.getActiveConversationIdSync(tabId) : null
-    const targetConversationId = conversationId ?? activeId ?? undefined
-    if (!targetConversationId) {
-      throw new Error('找不到当前对话')
-    }
-    const conversation = await this.getConversation(targetConversationId)
-    if (!conversation) {
-      throw new Error('找不到当前对话')
-    }
-    let summaryProviderId = conversation.settings.providerId
-    const modelId = this.searchAssistantModel?.id
-    summaryProviderId = this.searchAssistantProviderId || conversation.settings.providerId
-    const messages = await this.getContextMessages(conversation.id)
-    const selectedVariantsMap = conversation.settings.selectedVariantsMap || {}
-    const variantAwareMessages = messages.map((msg) => {
-      if (msg.role === 'assistant' && selectedVariantsMap[msg.id] && msg.variants) {
-        const selectedVariantId = selectedVariantsMap[msg.id]
-        const selectedVariant = msg.variants.find((v) => v.id === selectedVariantId)
-
-        if (selectedVariant) {
-          const newMsg = JSON.parse(JSON.stringify(msg))
-          newMsg.content = selectedVariant.content
-          newMsg.usage = selectedVariant.usage
-          newMsg.model_id = selectedVariant.model_id
-          newMsg.model_provider = selectedVariant.model_provider
-          newMsg.model_name = selectedVariant.model_name
-          return newMsg
-        }
-      }
-      return msg
-    })
-    const messagesWithLength = variantAwareMessages
-      .map((msg) => {
-        if (msg.role === 'user') {
-          const userContent = msg.content as UserMessageContent
-          const serializedContent = buildUserMessageContext(userContent)
-          return {
-            message: msg,
-            length: serializedContent.length,
-            formattedMessage: {
-              role: 'user' as const,
-              content: serializedContent
-            }
-          }
-        } else {
-          const content = (msg.content as AssistantMessageBlock[])
-            .filter((block) => block.type === 'content')
-            .map((block) => block.content)
-            .join('\n')
-          return {
-            message: msg,
-            length: content.length,
-            formattedMessage: {
-              role: 'assistant' as const,
-              content: content
-            }
-          }
-        }
-      })
-      .filter((item) => item.formattedMessage.content.length > 0)
-    const title = await this.llmProviderPresenter.summaryTitles(
-      messagesWithLength.map((item) => item.formattedMessage),
-      summaryProviderId || conversation.settings.providerId,
-      modelId || conversation.settings.modelId
-    )
-    console.log('-------------> title \n', title)
-    let cleanedTitle = title.replace(/<think>.*?<\/think>/g, '').trim()
-    cleanedTitle = cleanedTitle.replace(/^<think>/, '').trim()
-    console.log('-------------> cleanedTitle \n', cleanedTitle)
-    return cleanedTitle
+    return this.utilityHandler.summaryTitles(tabId, conversationId)
   }
 
   async clearActiveThread(tabId: number): Promise<void> {
@@ -738,125 +663,12 @@ export class ThreadPresenter implements IThreadPresenter {
 
   // 翻译文本
   async translateText(text: string, tabId: number): Promise<string> {
-    try {
-      let conversation = await this.getActiveConversation(tabId)
-      if (!conversation) {
-        // 创建一个临时对话用于翻译
-        const defaultProvider = this.configPresenter.getDefaultProviders()[0]
-        const models = await this.llmProviderPresenter.getModelList(defaultProvider.id)
-        const defaultModel = models[0]
-        const conversationId = await this.createConversation(
-          '临时翻译对话',
-          {
-            modelId: defaultModel.id,
-            providerId: defaultProvider.id
-          },
-          tabId
-        )
-        conversation = await this.getConversation(conversationId)
-      }
-
-      const { providerId, modelId } = conversation.settings
-      const messages: ChatMessage[] = [
-        {
-          role: 'system',
-          content:
-            '你是一个翻译助手。请将用户输入的文本翻译成中文。只返回翻译结果，不要添加任何其他内容。'
-        },
-        {
-          role: 'user',
-          content: text
-        }
-      ]
-
-      let translatedText = ''
-      const stream = this.llmProviderPresenter.startStreamCompletion(
-        providerId,
-        messages,
-        modelId,
-        'translate-' + Date.now(),
-        0.3,
-        1000
-      )
-
-      for await (const event of stream) {
-        if (event.type === 'response') {
-          const msg = event.data as LLMAgentEventData
-          if (msg.content) {
-            translatedText += msg.content
-          }
-        } else if (event.type === 'error') {
-          const msg = event.data as { eventId: string; error: string }
-          throw new Error(msg.error || '翻译失败')
-        }
-      }
-
-      return translatedText.trim()
-    } catch (error) {
-      console.error('翻译失败:', error)
-      throw error
-    }
+    return this.utilityHandler.translateText(text, tabId)
   }
 
   // AI询问
   async askAI(text: string, tabId: number): Promise<string> {
-    try {
-      let conversation = await this.getActiveConversation(tabId)
-      if (!conversation) {
-        // 创建一个临时对话用于AI询问
-        const defaultProvider = this.configPresenter.getDefaultProviders()[0]
-        const models = await this.llmProviderPresenter.getModelList(defaultProvider.id)
-        const defaultModel = models[0]
-        const conversationId = await this.createConversation(
-          '临时AI对话',
-          {
-            modelId: defaultModel.id,
-            providerId: defaultProvider.id
-          },
-          tabId
-        )
-        conversation = await this.getConversation(conversationId)
-      }
-
-      const { providerId, modelId } = conversation.settings
-      const messages: ChatMessage[] = [
-        {
-          role: 'system',
-          content: '你是一个AI助手。请简洁地回答用户的问题。'
-        },
-        {
-          role: 'user',
-          content: text
-        }
-      ]
-
-      let aiAnswer = ''
-      const stream = this.llmProviderPresenter.startStreamCompletion(
-        providerId,
-        messages,
-        modelId,
-        'ask-ai-' + Date.now(),
-        0.7,
-        1000
-      )
-
-      for await (const event of stream) {
-        if (event.type === 'response') {
-          const msg = event.data as LLMAgentEventData
-          if (msg.content) {
-            aiAnswer += msg.content
-          }
-        } else if (event.type === 'error') {
-          const msg = event.data as { eventId: string; error: string }
-          throw new Error(msg.error || 'AI回答失败')
-        }
-      }
-
-      return aiAnswer.trim()
-    } catch (error) {
-      console.error('AI询问失败:', error)
-      throw error
-    }
+    return this.utilityHandler.askAI(text, tabId)
   }
 
   /**
@@ -872,48 +684,7 @@ export class ThreadPresenter implements IThreadPresenter {
     filename: string
     content: string
   }> {
-    try {
-      // 获取会话信息
-      const conversation = await this.getConversation(conversationId)
-      if (!conversation) {
-        throw new Error('会话不存在')
-      }
-
-      // 获取所有消息
-      const { list: messages } = await this.getMessages(conversationId, 1, 10000)
-
-      // 过滤掉未发送成功的消息
-      const validMessages = messages.filter((msg) => msg.status === 'sent')
-
-      // 应用变体选择
-      const selectedVariantsMap = conversation.settings.selectedVariantsMap || {}
-      const variantAwareMessages = validMessages.map((msg) => {
-        if (msg.role === 'assistant' && selectedVariantsMap[msg.id] && msg.variants) {
-          const selectedVariantId = selectedVariantsMap[msg.id]
-          const selectedVariant = msg.variants.find((v) => v.id === selectedVariantId)
-
-          if (selectedVariant) {
-            const newMsg = JSON.parse(JSON.stringify(msg))
-            newMsg.content = selectedVariant.content
-            newMsg.usage = selectedVariant.usage
-            newMsg.model_id = selectedVariant.model_id
-            newMsg.model_provider = selectedVariant.model_provider
-            newMsg.model_name = selectedVariant.model_name
-            return newMsg
-          }
-        }
-        return msg
-      })
-
-      // 生成文件名
-      const filename = generateExportFilename(format)
-      const content = buildConversationExportContent(conversation, variantAwareMessages, format)
-
-      return { filename, content }
-    } catch (error) {
-      console.error('Failed to export conversation:', error)
-      throw error
-    }
+    return this.utilityHandler.exportConversation(conversationId, format)
   }
 
   async handlePermissionResponse(
@@ -941,159 +712,6 @@ export class ThreadPresenter implements IThreadPresenter {
    * Reconstructs the request parameters that would be sent to the provider
    */
   async getMessageRequestPreview(messageId: string): Promise<unknown> {
-    try {
-      // Get message and conversation
-      const message = await this.sqlitePresenter.getMessage(messageId)
-      if (!message || message.role !== 'assistant') {
-        throw new Error('Message not found or not an assistant message')
-      }
-
-      const conversation = await this.sqlitePresenter.getConversation(message.conversation_id)
-      const {
-        providerId: defaultProviderId,
-        modelId: defaultModelId,
-        temperature,
-        maxTokens,
-        enabledMcpTools
-      } = conversation.settings
-
-      // Parse metadata to get model_provider and model_id
-      let messageMetadata: MESSAGE_METADATA | null = null
-      try {
-        messageMetadata = JSON.parse(message.metadata) as MESSAGE_METADATA
-      } catch (e) {
-        console.warn('Failed to parse message metadata:', e)
-      }
-
-      const effectiveProviderId = messageMetadata?.provider || defaultProviderId
-      const effectiveModelId = messageMetadata?.model || defaultModelId
-
-      // Get user message (parent of assistant message)
-      const userMessageSqlite = await this.sqlitePresenter.getMessage(message.parent_id || '')
-      if (!userMessageSqlite) {
-        throw new Error('User message not found')
-      }
-
-      // Convert SQLITE_MESSAGE to Message type
-      const userMessage = this.messageManager['convertToMessage'](userMessageSqlite)
-
-      // Get context messages using getMessageHistory
-      const contextMessages = await this.streamGenerationHandler.getMessageHistory(
-        userMessage.id,
-        conversation.settings.contextLength
-      )
-
-      // Prepare prompt content (reconstruct what was sent)
-      let modelConfig = this.configPresenter.getModelConfig(effectiveModelId, effectiveProviderId)
-      if (!modelConfig) {
-        modelConfig = this.configPresenter.getModelConfig(defaultModelId, defaultProviderId)
-      }
-
-      if (!modelConfig) {
-        throw new Error(
-          `Model config not found for provider ${effectiveProviderId} and model ${effectiveModelId}`
-        )
-      }
-
-      const supportsFunctionCall = modelConfig?.functionCall ?? false
-      const visionEnabled = modelConfig?.vision ?? false
-
-      // Extract user content from userMessage
-      let userContent = ''
-      if (typeof userMessage.content === 'string') {
-        userContent = userMessage.content
-      } else if (
-        userMessage.content &&
-        typeof userMessage.content === 'object' &&
-        'text' in userMessage.content
-      ) {
-        userContent = userMessage.content.text || ''
-      }
-
-      const { finalContent } = await preparePromptContent({
-        conversation,
-        userContent,
-        contextMessages,
-        searchResults: null,
-        urlResults: [],
-        userMessage,
-        vision: visionEnabled,
-        imageFiles: [],
-        supportsFunctionCall,
-        modelType: ModelType.Chat
-      })
-
-      // Get MCP tools
-      let mcpTools: MCPToolDefinition[] = []
-      try {
-        const toolDefinitions = await presenter.mcpPresenter.getAllToolDefinitions(enabledMcpTools)
-        if (Array.isArray(toolDefinitions)) {
-          mcpTools = toolDefinitions
-        }
-      } catch (error) {
-        console.warn('Failed to load MCP tool definitions for preview', error)
-      }
-
-      // Get provider and request preview
-      const provider = this.llmProviderPresenter.getProviderInstance(effectiveProviderId)
-      if (!provider) {
-        throw new Error(`Provider ${effectiveProviderId} not found`)
-      }
-
-      // Type assertion for provider instance
-      const providerInstance = provider as {
-        getRequestPreview: (
-          messages: ChatMessage[],
-          modelId: string,
-          modelConfig: unknown,
-          temperature: number,
-          maxTokens: number,
-          mcpTools: MCPToolDefinition[]
-        ) => Promise<{
-          endpoint: string
-          headers: Record<string, string>
-          body: unknown
-        }>
-      }
-
-      try {
-        const preview = await providerInstance.getRequestPreview(
-          finalContent,
-          effectiveModelId,
-          modelConfig,
-          temperature,
-          maxTokens,
-          mcpTools
-        )
-
-        // Redact sensitive information
-        const { redactRequestPreview } = await import('@/lib/redact')
-        const redacted = redactRequestPreview({
-          headers: preview.headers,
-          body: preview.body
-        })
-
-        return {
-          providerId: effectiveProviderId,
-          modelId: effectiveModelId,
-          endpoint: preview.endpoint,
-          headers: redacted.headers,
-          body: redacted.body,
-          mayNotMatch: true // Always mark as potentially inconsistent since we're reconstructing
-        }
-      } catch (error) {
-        if (error instanceof Error && error.message.includes('not implemented')) {
-          return {
-            notImplemented: true,
-            providerId: effectiveProviderId,
-            modelId: effectiveModelId
-          }
-        }
-        throw error
-      }
-    } catch (error) {
-      console.error('[ThreadPresenter] getMessageRequestPreview failed:', error)
-      throw error
-    }
+    return this.utilityHandler.getMessageRequestPreview(messageId)
   }
 }
