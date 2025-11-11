@@ -54,7 +54,7 @@ export class StreamGenerationHandler extends BaseHandler {
   ): Promise<void> {
     const state = this.findGeneratingState(conversationId)
     if (!state) {
-      console.warn('[StreamGenerationHandler] 未找到状态, conversationId:', conversationId)
+      console.warn('[StreamGenerationHandler] State not found, conversationId:', conversationId)
       return
     }
 
@@ -94,7 +94,7 @@ export class StreamGenerationHandler extends BaseHandler {
           if (String(error).includes('userCanceledGeneration')) {
             return
           }
-          console.error('[StreamGenerationHandler] 搜索过程中出错:', error)
+          console.error('[StreamGenerationHandler] Error during search:', error)
         }
       }
 
@@ -162,11 +162,11 @@ export class StreamGenerationHandler extends BaseHandler {
       }
     } catch (error) {
       if (String(error).includes('userCanceledGeneration')) {
-        console.log('[StreamGenerationHandler] 消息生成已被用户取消')
+        console.log('[StreamGenerationHandler] Message generation cancelled by user')
         return
       }
 
-      console.error('[StreamGenerationHandler] 流式生成过程中出错:', error)
+      console.error('[StreamGenerationHandler] Error during streaming generation:', error)
       await this.ctx.messageManager.handleMessageError(state.message.id, String(error))
       throw error
     }
@@ -179,7 +179,7 @@ export class StreamGenerationHandler extends BaseHandler {
   ): Promise<void> {
     const state = this.findGeneratingState(conversationId)
     if (!state) {
-      console.warn('[StreamGenerationHandler] 未找到状态, conversationId:', conversationId)
+      console.warn('[StreamGenerationHandler] State not found, conversationId:', conversationId)
       return
     }
 
@@ -188,14 +188,14 @@ export class StreamGenerationHandler extends BaseHandler {
 
       const queryMessage = await this.ctx.messageManager.getMessage(queryMsgId)
       if (!queryMessage) {
-        throw new Error('找不到指定的消息')
+        throw new Error('Message not found')
       }
 
       const content = queryMessage.content as AssistantMessageBlock[]
       const lastActionBlock = content.filter((block) => block.type === 'action').pop()
 
       if (!lastActionBlock || lastActionBlock.type !== 'action') {
-        throw new Error('找不到最后的 action block')
+        throw new Error('Last action block not found')
       }
 
       let toolCallResponse: { content: string; rawData: MCPToolResponse } | null = null
@@ -211,7 +211,7 @@ export class StreamGenerationHandler extends BaseHandler {
         await this.ctx.messageManager.editMessage(queryMsgId, JSON.stringify(content))
 
         if (!toolCall.id || !toolCall.name || !toolCall.params) {
-          console.warn('[StreamGenerationHandler] 工具调用参数不完整')
+          console.warn('[StreamGenerationHandler] Tool call parameters incomplete')
         } else {
           toolCallResponse = await presenter.mcpPresenter.callTool({
             id: toolCall.id,
@@ -340,11 +340,11 @@ export class StreamGenerationHandler extends BaseHandler {
       }
     } catch (error) {
       if (String(error).includes('userCanceledGeneration')) {
-        console.log('[StreamGenerationHandler] 消息生成已被用户取消')
+        console.log('[StreamGenerationHandler] Message generation cancelled by user')
         return
       }
 
-      console.error('[StreamGenerationHandler] 继续生成过程中出错:', error)
+      console.error('[StreamGenerationHandler] Error during continue generation:', error)
       await this.ctx.messageManager.handleMessageError(state.message.id, String(error))
       throw error
     }
@@ -366,21 +366,21 @@ export class StreamGenerationHandler extends BaseHandler {
     if (queryMsgId) {
       const queryMessage = await this.ctx.messageManager.getMessage(queryMsgId)
       if (!queryMessage) {
-        throw new Error('找不到指定的消息')
+        throw new Error('Message not found')
       }
 
       if (queryMessage.role === 'user') {
         userMessage = queryMessage
       } else if (queryMessage.role === 'assistant') {
         if (!queryMessage.parentId) {
-          throw new Error('助手消息缺少 parentId')
+          throw new Error('Assistant message missing parentId')
         }
         userMessage = await this.ctx.messageManager.getMessage(queryMessage.parentId)
         if (!userMessage) {
-          throw new Error('找不到触发消息')
+          throw new Error('Trigger message not found')
         }
       } else {
-        throw new Error('不支持的消息类型')
+        throw new Error('Unsupported message type')
       }
 
       contextMessages = await this.ctx.messageManager.getMessageHistory(
@@ -390,7 +390,7 @@ export class StreamGenerationHandler extends BaseHandler {
     } else {
       userMessage = await this.ctx.messageManager.getLastUserMessage(conversationId)
       if (!userMessage) {
-        throw new Error('找不到用户消息')
+        throw new Error('User message not found')
       }
       contextMessages = await this.getContextMessages(conversation)
     }
@@ -533,7 +533,7 @@ export class StreamGenerationHandler extends BaseHandler {
     try {
       const triggerMessage = await this.ctx.messageManager.getMessage(userMessageId)
       if (!triggerMessage) {
-        throw new Error('找不到触发消息')
+        throw new Error('Trigger message not found')
       }
 
       await this.ctx.messageManager.updateMessageStatus(userMessageId, 'sent')
@@ -562,7 +562,7 @@ export class StreamGenerationHandler extends BaseHandler {
       return assistantMessage
     } catch (error) {
       await this.ctx.messageManager.updateMessageStatus(userMessageId, 'error')
-      console.error('[StreamGenerationHandler] 生成 AI 响应失败:', error)
+      console.error('[StreamGenerationHandler] Failed to generate AI response:', error)
       throw error
     }
   }

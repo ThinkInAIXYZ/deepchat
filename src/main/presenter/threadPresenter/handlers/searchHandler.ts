@@ -42,7 +42,7 @@ export class SearchHandler extends BaseHandler {
   ): Promise<SearchResult[]> {
     const state = this.generatingMessages.get(messageId)
     if (!state) {
-      throw new Error('找不到生成状态')
+      throw new Error('Generation state not found')
     }
 
     const activeEngine = this.ctx.searchManager.getActiveEngine()
@@ -92,7 +92,7 @@ export class SearchHandler extends BaseHandler {
         conversationId,
         engineName
       ).catch((error) => {
-        console.error('重写搜索查询失败:', error)
+        console.error('Failed to rewrite search query:', error)
         return query
       })
 
@@ -209,7 +209,7 @@ export class SearchHandler extends BaseHandler {
       )
       return rewrittenQuery.trim() || query
     } catch (error) {
-      console.error('重写搜索查询失败:', error)
+      console.error('Failed to rewrite search query:', error)
       return query
     }
   }
@@ -265,7 +265,7 @@ export class SearchHandler extends BaseHandler {
   private async getContextMessages(conversationId: string): Promise<Message[]> {
     const conversation = await this.ctx.sqlitePresenter.getConversation(conversationId)
     if (!conversation) {
-      throw new Error('会话不存在')
+      throw new Error('Conversation not found')
     }
 
     let messageCount = Math.ceil(conversation.settings.contextLength / 300)

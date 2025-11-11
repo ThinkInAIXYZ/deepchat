@@ -5,7 +5,7 @@ import type {
   MESSAGE_METADATA,
   MODEL_META
 } from '@shared/presenter'
-import type { AssistantMessageBlock, UserMessageContent } from '@shared/chat'
+import type { AssistantMessageBlock, Message, UserMessageContent } from '@shared/chat'
 import { ModelType } from '@shared/model'
 import { presenter } from '@/presenter'
 import { BaseHandler, type ThreadHandlerContext } from './baseHandler'
@@ -22,6 +22,9 @@ import type { StreamGenerationHandler } from './streamGenerationHandler'
 // Translation constants
 const TRANSLATION_TEMPERATURE = 0.3
 const TRANSLATION_TIMEOUT_MS = 1000
+
+// Message length constant for context calculation
+const DEFAULT_MESSAGE_LENGTH = 300
 
 export interface UtilityHandlerOptions {
   conversationManager: ConversationManager
@@ -177,7 +180,7 @@ export class UtilityHandler extends BaseHandler {
       // Get conversation
       const conversation = await this.conversationManager.getConversation(conversationId)
       if (!conversation) {
-        throw new Error('会话不存在')
+        throw new Error('Conversation not found')
       }
 
       // Get all messages
@@ -192,23 +195,7 @@ export class UtilityHandler extends BaseHandler {
 
       // Apply variant selection
       const selectedVariantsMap = conversation.settings.selectedVariantsMap || {}
-      const variantAwareMessages = validMessages.map((msg) => {
-        if (msg.role === 'assistant' && selectedVariantsMap[msg.id] && msg.variants) {
-          const selectedVariantId = selectedVariantsMap[msg.id]
-          const selectedVariant = msg.variants.find((v) => v.id === selectedVariantId)
-
-          if (selectedVariant) {
-            const newMsg = JSON.parse(JSON.stringify(msg))
-            newMsg.content = selectedVariant.content
-            newMsg.usage = selectedVariant.usage
-            newMsg.model_id = selectedVariant.model_id
-            newMsg.model_provider = selectedVariant.model_provider
-            newMsg.model_name = selectedVariant.model_name
-            return newMsg
-          }
-        }
-        return msg
-      })
+      const variantAwareMessages = this.applyVariantSelection(validMessages, selectedVariantsMap)
 
       // Generate filename
       const filename = generateExportFilename(format)
@@ -226,41 +213,25 @@ export class UtilityHandler extends BaseHandler {
       tabId !== undefined ? this.conversationManager.getActiveConversationIdSync(tabId) : null
     const targetConversationId = conversationId ?? activeId ?? undefined
     if (!targetConversationId) {
-      throw new Error('找不到当前对话')
+      throw new Error('Conversation not found')
     }
     const conversation = await this.conversationManager.getConversation(targetConversationId)
     if (!conversation) {
-      throw new Error('找不到当前对话')
+      throw new Error('Conversation not found')
     }
     let summaryProviderId = conversation.settings.providerId
     const modelId = this.getSearchAssistantModel()?.id
     summaryProviderId = this.getSearchAssistantProviderId() || conversation.settings.providerId
 
     // Get context messages
-    let messageCount = Math.ceil(conversation.settings.contextLength / 300)
+    let messageCount = Math.ceil(conversation.settings.contextLength / DEFAULT_MESSAGE_LENGTH)
     if (messageCount < 2) {
       messageCount = 2
     }
     const messages = await this.ctx.messageManager.getContextMessages(conversation.id, messageCount)
 
     const selectedVariantsMap = conversation.settings.selectedVariantsMap || {}
-    const variantAwareMessages = messages.map((msg) => {
-      if (msg.role === 'assistant' && selectedVariantsMap[msg.id] && msg.variants) {
-        const selectedVariantId = selectedVariantsMap[msg.id]
-        const selectedVariant = msg.variants.find((v) => v.id === selectedVariantId)
-
-        if (selectedVariant) {
-          const newMsg = JSON.parse(JSON.stringify(msg))
-          newMsg.content = selectedVariant.content
-          newMsg.usage = selectedVariant.usage
-          newMsg.model_id = selectedVariant.model_id
-          newMsg.model_provider = selectedVariant.model_provider
-          newMsg.model_name = selectedVariant.model_name
-          return newMsg
-        }
-      }
-      return msg
-    })
+    const variantAwareMessages = this.applyVariantSelection(messages, selectedVariantsMap)
     const messagesWithLength = variantAwareMessages
       .map((msg) => {
         if (msg.role === 'user') {
@@ -295,10 +266,8 @@ export class UtilityHandler extends BaseHandler {
       summaryProviderId || conversation.settings.providerId,
       modelId || conversation.settings.modelId
     )
-    console.log('-------------> title \n', title)
     let cleanedTitle = title.replace(/<think>.*?<\/think>/g, '').trim()
     cleanedTitle = cleanedTitle.replace(/^<think>/, '').trim()
-    console.log('-------------> cleanedTitle \n', cleanedTitle)
     return cleanedTitle
   }
 
@@ -460,5 +429,32 @@ export class UtilityHandler extends BaseHandler {
       console.error('[UtilityHandler] getMessageRequestPreview failed:', error)
       throw error
     }
+  }
+
+  /**
+   * Applies variant selection to messages based on selectedVariantsMap.
+   * Returns messages with selected variant fields applied when a variant is selected.
+   */
+  private applyVariantSelection(
+    messages: Message[],
+    selectedVariantsMap: Record<string, string>
+  ): Message[] {
+    return messages.map((msg) => {
+      if (msg.role === 'assistant' && selectedVariantsMap[msg.id] && msg.variants) {
+        const selectedVariantId = selectedVariantsMap[msg.id]
+        const selectedVariant = msg.variants.find((v) => v.id === selectedVariantId)
+
+        if (selectedVariant) {
+          const newMsg = JSON.parse(JSON.stringify(msg))
+          newMsg.content = selectedVariant.content
+          newMsg.usage = selectedVariant.usage
+          newMsg.model_id = selectedVariant.model_id
+          newMsg.model_provider = selectedVariant.model_provider
+          newMsg.model_name = selectedVariant.model_name
+          return newMsg
+        }
+      }
+      return msg
+    })
   }
 }
