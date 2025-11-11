@@ -48,6 +48,7 @@ function truncateFileContent(content: string): string {
 }
 
 function escapeTagContent(value: string): string {
+  /* eslint-disable no-control-regex */
   return String(value).replace(/[&<>\u0000-\u001F]/g, (ch) => {
     switch (ch) {
       case '&':

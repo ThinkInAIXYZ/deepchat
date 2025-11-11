@@ -30,7 +30,7 @@ import {
 } from '@shared/chat'
 import { SearchManager } from './searchManager'
 import { ContentEnricher } from './contentEnricher'
-import { CONVERSATION_EVENTS, STREAM_EVENTS, TAB_EVENTS } from '@/events'
+import { STREAM_EVENTS, TAB_EVENTS } from '@/events'
 import { nanoid } from 'nanoid'
 import {
   buildUserMessageContext,
@@ -48,13 +48,10 @@ import {
   ConversationExportFormat
 } from './conversationExporter'
 import type { GeneratingMessageState } from './types'
-import { finalizeAssistantMessageBlocks } from '@shared/chat/messageBlocks'
-import { approximateTokenSize } from 'tokenx'
-import { DEFAULT_SETTINGS } from './const'
-
-export interface CreateConversationOptions {
-  forceNewAndActivate?: boolean
-}
+import { ContentBufferHandler } from './handlers/contentBufferHandler'
+import { ToolCallHandler } from './handlers/toolCallHandler'
+import { LLMEventHandler } from './handlers/llmEventHandler'
+import { ConversationManager, type CreateConversationOptions } from './managers/conversationManager'
 
 export class ThreadPresenter implements IThreadPresenter {
   private sqlitePresenter: ISQLitePresenter
@@ -62,9 +59,12 @@ export class ThreadPresenter implements IThreadPresenter {
   private llmProviderPresenter: ILlmProviderPresenter
   private configPresenter: IConfigPresenter
   private searchManager: SearchManager
+  private conversationManager: ConversationManager
+  private contentBufferHandler: ContentBufferHandler
+  private toolCallHandler: ToolCallHandler
+  private llmEventHandler: LLMEventHandler
   private generatingMessages: Map<string, GeneratingMessageState> = new Map()
   private activeConversationIds: Map<number, string> = new Map()
-  private fetchThreadLength = 300
   public searchAssistantModel: MODEL_META | null = null
   public searchAssistantProviderId: string | null = null
   private searchingMessages: Set<string> = new Set()
@@ -79,6 +79,29 @@ export class ThreadPresenter implements IThreadPresenter {
     this.llmProviderPresenter = llmProviderPresenter
     this.searchManager = new SearchManager()
     this.configPresenter = configPresenter
+    this.conversationManager = new ConversationManager({
+      sqlitePresenter,
+      configPresenter,
+      messageManager: this.messageManager,
+      activeConversationIds: this.activeConversationIds
+    })
+    this.contentBufferHandler = new ContentBufferHandler({
+      generatingMessages: this.generatingMessages,
+      messageManager: this.messageManager
+    })
+    this.toolCallHandler = new ToolCallHandler({
+      messageManager: this.messageManager,
+      sqlitePresenter,
+      searchingMessages: this.searchingMessages
+    })
+    this.llmEventHandler = new LLMEventHandler({
+      generatingMessages: this.generatingMessages,
+      searchingMessages: this.searchingMessages,
+      messageManager: this.messageManager,
+      contentBufferHandler: this.contentBufferHandler,
+      toolCallHandler: this.toolCallHandler,
+      onConversationUpdated: (state) => this.handleConversationUpdates(state)
+    })
 
     // 监听Tab关闭事件，清理绑定关系
     eventBus.on(TAB_EVENTS.CLOSED, (tabId: number) => {
@@ -107,632 +130,19 @@ export class ThreadPresenter implements IThreadPresenter {
    * @returns 如果找到，返回tabId，否则返回null
    */
   async findTabForConversation(conversationId: string): Promise<number | null> {
-    for (const [tabId, activeId] of this.activeConversationIds.entries()) {
-      if (activeId === conversationId) {
-        try {
-          const tabView = await presenter.tabPresenter.getTab(tabId)
-          if (tabView && !tabView.webContents.isDestroyed()) {
-            return tabId
-          }
-        } catch (error) {
-          console.error('Error finding tab for conversation:', error)
-        }
-      }
-    }
-    return null
+    return this.conversationManager.findTabForConversation(conversationId)
   }
 
   async handleLLMAgentError(msg: LLMAgentEventData) {
-    const { eventId, error } = msg
-    const state = this.generatingMessages.get(eventId)
-    if (state) {
-      if (state.adaptiveBuffer) {
-        await this.flushAdaptiveBuffer(eventId)
-      }
-
-      this.cleanupContentBuffer(state)
-
-      await this.messageManager.handleMessageError(eventId, String(error))
-      this.generatingMessages.delete(eventId)
-    }
-    this.searchingMessages.delete(eventId)
-    eventBus.sendToRenderer(STREAM_EVENTS.ERROR, SendTarget.ALL_WINDOWS, msg)
+    await this.llmEventHandler.handleLLMAgentError(msg)
   }
 
   async handleLLMAgentEnd(msg: LLMAgentEventData) {
-    const { eventId, userStop } = msg
-    const state = this.generatingMessages.get(eventId)
-    if (state) {
-      if (state.adaptiveBuffer) {
-        await this.flushAdaptiveBuffer(eventId)
-      }
-
-      this.cleanupContentBuffer(state)
-
-      const hasPendingPermissions = state.message.content.some(
-        (block) =>
-          block.type === 'action' &&
-          block.action_type === 'tool_call_permission' &&
-          block.status === 'pending'
-      )
-
-      if (hasPendingPermissions) {
-        state.message.content.forEach((block) => {
-          if (
-            !(block.type === 'action' && block.action_type === 'tool_call_permission') &&
-            block.status === 'loading'
-          ) {
-            block.status = 'success'
-          }
-        })
-        await this.messageManager.editMessage(eventId, JSON.stringify(state.message.content))
-        this.searchingMessages.delete(eventId)
-        return
-      }
-
-      await this.finalizeMessage(state, eventId, Boolean(userStop))
-    }
-
-    this.searchingMessages.delete(eventId)
-    eventBus.sendToRenderer(STREAM_EVENTS.END, SendTarget.ALL_WINDOWS, msg)
+    await this.llmEventHandler.handleLLMAgentEnd(msg)
   }
 
   async handleLLMAgentResponse(msg: LLMAgentEventData) {
-    const currentTime = Date.now()
-    const {
-      eventId,
-      content,
-      reasoning_content,
-      tool_call_id,
-      tool_call_name,
-      tool_call_params,
-      tool_call_response,
-      maximum_tool_calls_reached,
-      tool_call_server_name,
-      tool_call_server_icons,
-      tool_call_server_description,
-      tool_call_response_raw,
-      tool_call,
-      permission_request,
-      totalUsage,
-      image_data
-    } = msg
-    const state = this.generatingMessages.get(eventId)
-    if (!state) {
-      return
-    }
-
-    if (state.firstTokenTime === null && (content || reasoning_content)) {
-      state.firstTokenTime = currentTime
-      await this.messageManager.updateMessageMetadata(eventId, {
-        firstTokenTime: currentTime - state.startTime
-      })
-    }
-    if (totalUsage) {
-      state.totalUsage = totalUsage
-      state.promptTokens = totalUsage.prompt_tokens
-    }
-
-    if (maximum_tool_calls_reached) {
-      this.finalizeLastBlock(state)
-      state.message.content.push({
-        type: 'action',
-        content: 'common.error.maximumToolCallsReached',
-        status: 'success',
-        timestamp: currentTime,
-        action_type: 'maximum_tool_calls_reached',
-        tool_call: {
-          id: tool_call_id,
-          name: tool_call_name,
-          params: tool_call_params,
-          server_name: tool_call_server_name,
-          server_icons: tool_call_server_icons,
-          server_description: tool_call_server_description
-        },
-        extra: {
-          needContinue: true
-        }
-      })
-      await this.messageManager.editMessage(eventId, JSON.stringify(state.message.content))
-      return
-    }
-
-    if (reasoning_content) {
-      if (state.reasoningStartTime === null) {
-        state.reasoningStartTime = currentTime
-        await this.messageManager.updateMessageMetadata(eventId, {
-          reasoningStartTime: currentTime - state.startTime
-        })
-      }
-      state.lastReasoningTime = currentTime
-    }
-
-    const lastBlock = state.message.content[state.message.content.length - 1]
-
-    if (tool_call_response_raw && tool_call === 'end') {
-      try {
-        const hasSearchResults =
-          Array.isArray(tool_call_response_raw.content) &&
-          tool_call_response_raw.content.some(
-            (item: { type: string; resource?: { mimeType: string } }) =>
-              item?.type === 'resource' &&
-              item?.resource?.mimeType === 'application/deepchat-webpage'
-          )
-
-        if (hasSearchResults && Array.isArray(tool_call_response_raw.content)) {
-          const searchResults = tool_call_response_raw.content
-            .filter(
-              (item: {
-                type: string
-                resource?: { mimeType: string; text: string; uri?: string }
-              }) =>
-                item.type === 'resource' &&
-                item.resource?.mimeType === 'application/deepchat-webpage'
-            )
-            .map((item: { resource: { text: string; uri?: string } }) => {
-              try {
-                const blobContent = JSON.parse(item.resource.text) as {
-                  title?: string
-                  url?: string
-                  content?: string
-                  icon?: string
-                }
-                return {
-                  title: blobContent.title || '',
-                  url: blobContent.url || item.resource.uri || '',
-                  content: blobContent.content || '',
-                  description: blobContent.content || '',
-                  icon: blobContent.icon || ''
-                }
-              } catch (e) {
-                console.error('解析搜索结果失败:', e)
-                return null
-              }
-            })
-            .filter(Boolean)
-
-          if (searchResults.length > 0) {
-            const searchId = nanoid()
-            const pages = searchResults
-              .filter((item) => item && (item.icon || item.favicon))
-              .slice(0, 6)
-              .map((item) => ({
-                url: item?.url ?? '',
-                icon: item?.icon || item?.favicon || ''
-              }))
-
-            const searchBlock: AssistantMessageBlock = {
-              id: searchId,
-              type: 'search',
-              content: '',
-              status: 'success',
-              timestamp: currentTime,
-              extra: {
-                total: searchResults.length,
-                searchId,
-                pages,
-                label: tool_call_name || 'web_search',
-                name: tool_call_name || 'web_search',
-                engine: tool_call_server_name || undefined,
-                provider: tool_call_server_name || undefined
-              }
-            }
-
-            this.finalizeLastBlock(state)
-            state.message.content.push(searchBlock)
-
-            for (const result of searchResults) {
-              await this.sqlitePresenter.addMessageAttachment(
-                eventId,
-                'search_result',
-                JSON.stringify({
-                  title: result?.title || '',
-                  url: result?.url || '',
-                  content: result?.content || '',
-                  description: result?.description || '',
-                  icon: result?.icon || result?.favicon || '',
-                  rank: typeof result?.rank === 'number' ? result.rank : undefined,
-                  searchId
-                })
-              )
-            }
-
-            await this.messageManager.editMessage(eventId, JSON.stringify(state.message.content))
-          }
-        }
-      } catch (error) {
-        console.error('处理搜索结果时出错:', error)
-      }
-    }
-
-    if (tool_call) {
-      if (tool_call === 'start') {
-        this.finalizeLastBlock(state)
-        state.message.content.push({
-          type: 'tool_call',
-          content: '',
-          status: 'loading',
-          timestamp: currentTime,
-          tool_call: {
-            id: tool_call_id,
-            name: tool_call_name,
-            params: tool_call_params || '',
-            server_name: tool_call_server_name,
-            server_icons: tool_call_server_icons,
-            server_description: tool_call_server_description
-          }
-        })
-      } else if (tool_call === 'update') {
-        const toolCallBlock = state.message.content.find(
-          (block) =>
-            block.type === 'tool_call' &&
-            block.tool_call?.id === tool_call_id &&
-            block.status === 'loading'
-        )
-
-        if (toolCallBlock && toolCallBlock.type === 'tool_call' && toolCallBlock.tool_call) {
-          toolCallBlock.tool_call.params = tool_call_params || ''
-        }
-      } else if (tool_call === 'running') {
-        const toolCallBlock = state.message.content.find(
-          (block) =>
-            block.type === 'tool_call' &&
-            block.tool_call?.id === tool_call_id &&
-            block.status === 'loading'
-        )
-
-        if (toolCallBlock && toolCallBlock.type === 'tool_call') {
-          if (toolCallBlock.tool_call) {
-            toolCallBlock.tool_call.params = tool_call_params || ''
-            toolCallBlock.tool_call.server_name = tool_call_server_name
-            toolCallBlock.tool_call.server_icons = tool_call_server_icons
-            toolCallBlock.tool_call.server_description = tool_call_server_description
-          }
-        }
-      } else if (tool_call === 'permission-required') {
-        // Define allowed permission types
-        const ALLOWED_PERMISSION_TYPES = ['read', 'write', 'all'] as const
-        type PermissionType = (typeof ALLOWED_PERMISSION_TYPES)[number]
-
-        // Validate and sanitize permission type
-        let permissionType: PermissionType = 'read' // Default to 'read' for safety
-        const requestedType = permission_request?.permissionType
-
-        if (typeof requestedType === 'string') {
-          const normalizedType = requestedType.toLowerCase()
-          if (ALLOWED_PERMISSION_TYPES.includes(normalizedType as PermissionType)) {
-            permissionType = normalizedType as PermissionType
-          } else {
-            console.warn(
-              `[ThreadPresenter] Invalid permission type received: "${requestedType}". Defaulting to "read". Allowed types: ${ALLOWED_PERMISSION_TYPES.join(', ')}`
-            )
-          }
-        } else if (requestedType !== undefined) {
-          console.warn(
-            `[ThreadPresenter] Permission type is not a string: ${typeof requestedType}. Defaulting to "read".`
-          )
-        }
-
-        const extra: Record<string, string | number | object[] | boolean> = {
-          needsUserAction: true,
-          permissionType
-        }
-
-        const serverName = permission_request?.serverName || tool_call_server_name
-        if (serverName) {
-          extra.serverName = serverName
-        }
-
-        const toolName = permission_request?.toolName || tool_call_name
-        if (toolName) {
-          extra.toolName = toolName
-        }
-
-        if (permission_request) {
-          extra.permissionRequest = JSON.stringify(permission_request)
-        }
-
-        if (lastBlock && lastBlock.type === 'tool_call' && lastBlock.tool_call) {
-          lastBlock.status = 'success'
-        }
-
-        this.finalizeLastBlock(state)
-        const permissionExtra: Record<string, string | boolean> = {
-          needsUserAction: true
-        }
-
-        if (permission_request?.permissionType) {
-          permissionExtra.permissionType = permission_request.permissionType
-        }
-        if (permission_request) {
-          permissionExtra.permissionRequest = JSON.stringify(permission_request)
-          if (permission_request.toolName) {
-            permissionExtra.toolName = permission_request.toolName
-          }
-          if (permission_request.serverName) {
-            permissionExtra.serverName = permission_request.serverName
-          }
-        } else {
-          if (tool_call_name) {
-            permissionExtra.toolName = tool_call_name
-          }
-          if (tool_call_server_name) {
-            permissionExtra.serverName = tool_call_server_name
-          }
-        }
-
-        state.message.content.push({
-          type: 'action',
-          content: tool_call_response || '',
-          status: 'pending',
-          timestamp: currentTime,
-          action_type: 'tool_call_permission',
-          tool_call: {
-            id: tool_call_id,
-            name: tool_call_name,
-            params: tool_call_params || '',
-            server_name: tool_call_server_name,
-            server_icons: tool_call_server_icons,
-            server_description: tool_call_server_description
-          },
-          extra: permissionExtra
-        })
-
-        if (state) {
-          state.pendingToolCall = {
-            id: tool_call_id || '',
-            name: tool_call_name || '',
-            params: tool_call_params || '',
-            serverName: tool_call_server_name,
-            serverIcons: tool_call_server_icons,
-            serverDescription: tool_call_server_description
-          }
-        }
-
-        this.searchingMessages.add(eventId)
-        state.isSearching = true
-      } else if (tool_call === 'permission-granted') {
-        if (
-          lastBlock &&
-          lastBlock.type === 'action' &&
-          lastBlock.action_type === 'tool_call_permission'
-        ) {
-          lastBlock.status = 'granted'
-          lastBlock.content = tool_call_response || ''
-          if (lastBlock.extra) {
-            lastBlock.extra.needsUserAction = false
-            if (
-              !lastBlock.extra.grantedPermissions &&
-              typeof lastBlock.extra.permissionType === 'string'
-            ) {
-              lastBlock.extra.grantedPermissions = lastBlock.extra.permissionType
-            }
-          }
-        }
-        this.searchingMessages.delete(eventId)
-        state.isSearching = false
-        if (state) {
-          state.pendingToolCall = {
-            id: tool_call_id || '',
-            name: tool_call_name || '',
-            params: tool_call_params || '',
-            serverName: tool_call_server_name,
-            serverIcons: tool_call_server_icons,
-            serverDescription: tool_call_server_description
-          }
-        }
-      } else if (tool_call === 'permission-denied') {
-        if (
-          lastBlock &&
-          lastBlock.type === 'action' &&
-          lastBlock.action_type === 'tool_call_permission'
-        ) {
-          lastBlock.status = 'denied'
-          lastBlock.content = tool_call_response || ''
-          if (lastBlock.extra) {
-            lastBlock.extra.needsUserAction = false
-          }
-        }
-        this.searchingMessages.delete(eventId)
-        state.isSearching = false
-        if (state) {
-          state.pendingToolCall = undefined
-        }
-      } else if (tool_call === 'continue') {
-        if (
-          lastBlock &&
-          lastBlock.type === 'action' &&
-          lastBlock.action_type === 'tool_call_permission'
-        ) {
-          lastBlock.status = 'success'
-        }
-      } else if (tool_call === 'end') {
-        const toolCallBlock = state.message.content.find(
-          (block) =>
-            block.type === 'tool_call' &&
-            block.tool_call?.id === tool_call_id &&
-            block.status === 'loading'
-        )
-
-        if (toolCallBlock && toolCallBlock.type === 'tool_call') {
-          toolCallBlock.status = 'success'
-          if (toolCallBlock.tool_call) {
-            toolCallBlock.tool_call.response = tool_call_response || ''
-          }
-        }
-
-        if (
-          lastBlock &&
-          lastBlock.type === 'action' &&
-          lastBlock.action_type === 'tool_call_permission'
-        ) {
-          lastBlock.status = 'success'
-        }
-        this.searchingMessages.delete(eventId)
-        state.isSearching = false
-        if (state) {
-          state.pendingToolCall = undefined
-        }
-      }
-    }
-
-    if (image_data?.data) {
-      const rawData = image_data.data ?? ''
-      let normalizedData = rawData
-      let normalizedMimeType = image_data.mimeType?.trim() ?? ''
-
-      // Handle URLs (imgcache://, http://, https://)
-      if (
-        rawData.startsWith('imgcache://') ||
-        rawData.startsWith('http://') ||
-        rawData.startsWith('https://')
-      ) {
-        normalizedMimeType = 'deepchat/image-url'
-      }
-      // Handle data URIs: extract base64 content and mime type
-      else if (rawData.startsWith('data:image/')) {
-        const match = rawData.match(/^data:([^;]+);base64,(.*)$/)
-        if (match?.[1] && match?.[2]) {
-          normalizedMimeType = match[1]
-          normalizedData = match[2]
-        }
-      }
-      // Fallback to image/png if no mime type is provided
-      else if (!normalizedMimeType) {
-        normalizedMimeType = 'image/png'
-      }
-
-      const normalizedImageData = {
-        data: normalizedData,
-        mimeType: normalizedMimeType
-      }
-      const imageBlock: AssistantMessageBlock = {
-        type: 'image',
-        status: 'success',
-        timestamp: currentTime,
-        content: 'image',
-        image_data: normalizedImageData
-      }
-      state.message.content.push(imageBlock)
-    }
-
-    if (content) {
-      if (!lastBlock || lastBlock.type !== 'content' || lastBlock.status !== 'loading') {
-        this.finalizeLastBlock(state)
-        state.message.content.push({
-          type: 'content',
-          content: content || '',
-          status: 'loading',
-          timestamp: currentTime
-        })
-      } else if (lastBlock.type === 'content') {
-        lastBlock.content += content
-      }
-    }
-
-    if (reasoning_content) {
-      if (!lastBlock || lastBlock.type !== 'reasoning_content') {
-        this.finalizeLastBlock(state)
-        state.message.content.push({
-          type: 'reasoning_content',
-          content: reasoning_content || '',
-          status: 'loading',
-          timestamp: currentTime
-        })
-      } else if (lastBlock.type === 'reasoning_content') {
-        lastBlock.content += reasoning_content
-      }
-    }
-
-    await this.messageManager.editMessage(eventId, JSON.stringify(state.message.content))
-  }
-
-  private finalizeLastBlock(state: GeneratingMessageState): void {
-    finalizeAssistantMessageBlocks(state.message.content)
-  }
-
-  private async finalizeMessage(
-    state: GeneratingMessageState,
-    eventId: string,
-    userStop: boolean
-  ): Promise<void> {
-    state.message.content.forEach((block) => {
-      if (block.type === 'action' && block.action_type === 'tool_call_permission') {
-        return
-      }
-      block.status = 'success'
-    })
-
-    let completionTokens = 0
-    if (state.totalUsage) {
-      completionTokens = state.totalUsage.completion_tokens
-    } else {
-      for (const block of state.message.content) {
-        if (
-          block.type === 'content' ||
-          block.type === 'reasoning_content' ||
-          block.type === 'tool_call'
-        ) {
-          completionTokens += approximateTokenSize(block.content)
-        }
-      }
-    }
-
-    const hasContentBlock = state.message.content.some(
-      (block) =>
-        block.type === 'content' ||
-        block.type === 'reasoning_content' ||
-        block.type === 'tool_call' ||
-        block.type === 'image'
-    )
-
-    if (!hasContentBlock && !userStop) {
-      state.message.content.push({
-        type: 'error',
-        content: 'common.error.noModelResponse',
-        status: 'error',
-        timestamp: Date.now()
-      })
-    }
-
-    const totalTokens = state.promptTokens + completionTokens
-    const generationTime = Date.now() - (state.firstTokenTime ?? state.startTime)
-    const safeMs = Math.max(1, generationTime)
-    const tokensPerSecond = completionTokens / (safeMs / 1000)
-    const contextUsage = state?.totalUsage?.context_length
-      ? (totalTokens / state.totalUsage.context_length) * 100
-      : 0
-
-    const metadata: Partial<MESSAGE_METADATA> = {
-      totalTokens,
-      inputTokens: state.promptTokens,
-      outputTokens: completionTokens,
-      generationTime,
-      firstTokenTime: state.firstTokenTime ? state.firstTokenTime - state.startTime : 0,
-      tokensPerSecond,
-      contextUsage
-    }
-
-    if (state.reasoningStartTime !== null && state.lastReasoningTime !== null) {
-      metadata.reasoningStartTime = state.reasoningStartTime - state.startTime
-      metadata.reasoningEndTime = state.lastReasoningTime - state.startTime
-    }
-
-    await this.messageManager.updateMessageMetadata(eventId, metadata)
-    await this.messageManager.updateMessageStatus(eventId, 'sent')
-    await this.messageManager.editMessage(eventId, JSON.stringify(state.message.content))
-    this.generatingMessages.delete(eventId)
-    this.searchingMessages.delete(eventId)
-
-    await this.handleConversationUpdates(state)
-
-    const finalMessage = await this.messageManager.getMessage(eventId)
-    if (finalMessage) {
-      eventBus.sendToMain(CONVERSATION_EVENTS.MESSAGE_GENERATED, {
-        conversationId: finalMessage.conversationId,
-        message: finalMessage
-      })
-    }
+    await this.llmEventHandler.handleLLMAgentResponse(msg)
   }
 
   private async handleConversationUpdates(state: GeneratingMessageState): Promise<void> {
@@ -757,179 +167,6 @@ export class ThreadPresenter implements IThreadPresenter {
       updatedAt: Date.now()
     })
     await this.broadcastThreadListUpdate()
-  }
-
-  private cleanupContentBuffer(state: GeneratingMessageState): void {
-    if (state.flushTimeout) {
-      clearTimeout(state.flushTimeout)
-      state.flushTimeout = undefined
-    }
-    if (state.throttleTimeout) {
-      clearTimeout(state.throttleTimeout)
-      state.throttleTimeout = undefined
-    }
-    state.adaptiveBuffer = undefined
-    state.lastRendererUpdateTime = undefined
-  }
-
-  private async flushAdaptiveBuffer(eventId: string): Promise<void> {
-    const state = this.generatingMessages.get(eventId)
-    if (!state?.adaptiveBuffer) return
-
-    const buffer = state.adaptiveBuffer
-    const now = Date.now()
-
-    if (state.flushTimeout) {
-      clearTimeout(state.flushTimeout)
-      state.flushTimeout = undefined
-    }
-
-    try {
-      if (buffer.content && buffer.sentPosition < buffer.content.length) {
-        const newContent = buffer.content.slice(buffer.sentPosition)
-        if (newContent) {
-          await this.processBufferedContent(state, eventId, newContent, now)
-          buffer.sentPosition = buffer.content.length
-        }
-      }
-    } catch (error) {
-      console.error('[ContentBuffer] ERROR flushing adaptive buffer', {
-        eventId,
-        err: error
-      })
-      throw error
-    } finally {
-      state.adaptiveBuffer = undefined
-    }
-  }
-
-  private async processBufferedContent(
-    state: GeneratingMessageState,
-    eventId: string,
-    content: string,
-    currentTime: number
-  ): Promise<void> {
-    const buffer = state.adaptiveBuffer
-
-    if (buffer?.isLargeContent) {
-      await this.processLargeContentAsynchronously(state, eventId, content, currentTime)
-      return
-    }
-
-    await this.processNormalContent(state, eventId, content, currentTime)
-  }
-
-  private async processLargeContentAsynchronously(
-    state: GeneratingMessageState,
-    eventId: string,
-    content: string,
-    currentTime: number
-  ): Promise<void> {
-    const buffer = state.adaptiveBuffer
-    if (!buffer) return
-
-    buffer.isProcessing = true
-
-    try {
-      const chunks = this.splitLargeContent(content)
-      const totalChunks = chunks.length
-
-      console.log(
-        `[ThreadPresenter] Processing ${totalChunks} chunks asynchronously for ${content.length} bytes`
-      )
-
-      const lastBlock = state.message.content[state.message.content.length - 1]
-      let contentBlock: any
-
-      if (lastBlock && lastBlock.type === 'content') {
-        contentBlock = lastBlock
-      } else {
-        this.finalizeLastBlock(state)
-        contentBlock = {
-          type: 'content',
-          content: '',
-          status: 'loading',
-          timestamp: currentTime
-        }
-        state.message.content.push(contentBlock)
-      }
-
-      const batchSize = 5
-      for (let batchStart = 0; batchStart < chunks.length; batchStart += batchSize) {
-        const batchEnd = Math.min(batchStart + batchSize, chunks.length)
-        const batch = chunks.slice(batchStart, batchEnd)
-
-        const batchContent = batch.join('')
-        contentBlock.content += batchContent
-
-        await this.messageManager.editMessage(eventId, JSON.stringify(state.message.content))
-
-        const eventData: any = {
-          eventId,
-          content: batchContent,
-          chunkInfo: {
-            current: batchEnd,
-            total: totalChunks,
-            isLargeContent: true,
-            batchSize: batch.length
-          }
-        }
-
-        eventBus.sendToRenderer(STREAM_EVENTS.RESPONSE, SendTarget.ALL_WINDOWS, eventData)
-
-        if (batchEnd < chunks.length) {
-          await new Promise((resolve) => setImmediate(resolve))
-        }
-      }
-
-      console.log(`[ThreadPresenter] Completed processing ${totalChunks} chunks`)
-    } catch (error) {
-      console.error('[ThreadPresenter] Error in processLargeContentAsynchronously:', error)
-    } finally {
-      buffer.isProcessing = false
-    }
-  }
-
-  private async processNormalContent(
-    state: GeneratingMessageState,
-    eventId: string,
-    content: string,
-    currentTime: number
-  ): Promise<void> {
-    const lastBlock = state.message.content[state.message.content.length - 1]
-
-    if (lastBlock && lastBlock.type === 'content') {
-      lastBlock.content += content
-    } else {
-      this.finalizeLastBlock(state)
-      state.message.content.push({
-        type: 'content',
-        content: content,
-        status: 'loading',
-        timestamp: currentTime
-      })
-    }
-
-    await this.messageManager.editMessage(eventId, JSON.stringify(state.message.content))
-  }
-
-  private splitLargeContent(content: string): string[] {
-    const chunks: string[] = []
-    let maxChunkSize = 4096
-
-    if (content.includes('data:image/')) {
-      maxChunkSize = 512
-    }
-
-    if (content.length > 50000) {
-      maxChunkSize = Math.min(maxChunkSize, 256)
-    }
-
-    for (let i = 0; i < content.length; i += maxChunkSize) {
-      chunks.push(content.slice(i, i + maxChunkSize))
-    }
-
-    return chunks
   }
 
   async getSearchEngines(): Promise<SearchEngineTemplate[]> {
@@ -966,103 +203,31 @@ export class ThreadPresenter implements IThreadPresenter {
   }
 
   getActiveConversationIdSync(tabId: number): string | null {
-    return this.activeConversationIds.get(tabId) || null
+    return this.conversationManager.getActiveConversationIdSync(tabId)
   }
 
   getTabsByConversation(conversationId: string): number[] {
-    return Array.from(this.activeConversationIds.entries())
-      .filter(([, id]) => id === conversationId)
-      .map(([tabId]) => tabId)
+    return this.conversationManager.getTabsByConversation(conversationId)
   }
 
   clearActiveConversation(tabId: number, options: { notify?: boolean } = {}): void {
-    if (!this.activeConversationIds.has(tabId)) {
-      return
-    }
-    this.activeConversationIds.delete(tabId)
-    if (options.notify) {
-      eventBus.sendToRenderer(CONVERSATION_EVENTS.DEACTIVATED, SendTarget.ALL_WINDOWS, { tabId })
-    }
+    this.conversationManager.clearActiveConversation(tabId, options)
   }
 
   clearConversationBindings(conversationId: string): void {
-    for (const [tabId, activeId] of this.activeConversationIds.entries()) {
-      if (activeId === conversationId) {
-        this.activeConversationIds.delete(tabId)
-        eventBus.sendToRenderer(CONVERSATION_EVENTS.DEACTIVATED, SendTarget.ALL_WINDOWS, {
-          tabId
-        })
-      }
-    }
-  }
-
-  private async getTabWindowType(tabId: number): Promise<'floating' | 'main' | 'unknown'> {
-    try {
-      const tabView = await presenter.tabPresenter.getTab(tabId)
-      if (!tabView) {
-        return 'unknown'
-      }
-      const windowId = presenter.tabPresenter.getTabWindowId(tabId)
-      return windowId ? 'main' : 'floating'
-    } catch (error) {
-      console.error('Error determining tab window type:', error)
-      return 'unknown'
-    }
+    this.conversationManager.clearConversationBindings(conversationId)
   }
 
   async setActiveConversation(conversationId: string, tabId: number): Promise<void> {
-    const existingTabId = await this.findTabForConversation(conversationId)
-
-    if (existingTabId !== null && existingTabId !== tabId) {
-      console.log(
-        `Conversation ${conversationId} is already open in tab ${existingTabId}. Switching to it.`
-      )
-      const currentTabType = await this.getTabWindowType(tabId)
-      const existingTabType = await this.getTabWindowType(existingTabId)
-
-      if (currentTabType !== existingTabType) {
-        this.activeConversationIds.delete(existingTabId)
-        eventBus.sendToRenderer(CONVERSATION_EVENTS.DEACTIVATED, SendTarget.ALL_WINDOWS, {
-          tabId: existingTabId
-        })
-        this.activeConversationIds.set(tabId, conversationId)
-        eventBus.sendToRenderer(CONVERSATION_EVENTS.ACTIVATED, SendTarget.ALL_WINDOWS, {
-          conversationId,
-          tabId
-        })
-        return
-      }
-
-      await presenter.tabPresenter.switchTab(existingTabId)
-      return
-    }
-
-    const conversation = await this.getConversation(conversationId)
-    if (!conversation) {
-      throw new Error(`Conversation ${conversationId} not found`)
-    }
-
-    if (this.activeConversationIds.get(tabId) === conversationId) {
-      return
-    }
-
-    this.activeConversationIds.set(tabId, conversationId)
-    eventBus.sendToRenderer(CONVERSATION_EVENTS.ACTIVATED, SendTarget.ALL_WINDOWS, {
-      conversationId,
-      tabId
-    })
+    await this.conversationManager.setActiveConversation(conversationId, tabId)
   }
 
   async getActiveConversation(tabId: number): Promise<CONVERSATION | null> {
-    const conversationId = this.activeConversationIds.get(tabId)
-    if (!conversationId) {
-      return null
-    }
-    return this.getConversation(conversationId)
+    return this.conversationManager.getActiveConversation(tabId)
   }
 
   async getConversation(conversationId: string): Promise<CONVERSATION> {
-    return await this.sqlitePresenter.getConversation(conversationId)
+    return this.conversationManager.getConversation(conversationId)
   }
 
   async createConversation(
@@ -1071,239 +236,45 @@ export class ThreadPresenter implements IThreadPresenter {
     tabId: number,
     options: CreateConversationOptions = {}
   ): Promise<string> {
-    let latestConversation: CONVERSATION | null = null
-
-    try {
-      latestConversation = await this.getLatestConversation()
-
-      if (!options.forceNewAndActivate && latestConversation) {
-        const { list: messages } = await this.messageManager.getMessageThread(
-          latestConversation.id,
-          1,
-          1
-        )
-        if (messages.length === 0) {
-          await this.setActiveConversation(latestConversation.id, tabId)
-          return latestConversation.id
-        }
-      }
-
-      let defaultSettings = DEFAULT_SETTINGS
-      if (latestConversation?.settings) {
-        defaultSettings = { ...latestConversation.settings }
-        defaultSettings.systemPrompt = ''
-        defaultSettings.reasoningEffort = undefined
-        defaultSettings.enableSearch = undefined
-        defaultSettings.forcedSearch = undefined
-        defaultSettings.searchStrategy = undefined
-      }
-
-      const sanitizedSettings: Partial<CONVERSATION_SETTINGS> = { ...settings }
-      Object.keys(sanitizedSettings).forEach((key) => {
-        const typedKey = key as keyof CONVERSATION_SETTINGS
-        const value = sanitizedSettings[typedKey]
-        if (value === undefined || value === null || value === '') {
-          delete sanitizedSettings[typedKey]
-        }
-      })
-
-      const mergedSettings = { ...defaultSettings }
-      const previewSettings = { ...mergedSettings, ...sanitizedSettings }
-
-      const defaultModelsSettings = this.configPresenter.getModelConfig(
-        previewSettings.modelId,
-        previewSettings.providerId
-      )
-
-      if (defaultModelsSettings) {
-        if (defaultModelsSettings.maxTokens !== undefined) {
-          mergedSettings.maxTokens = defaultModelsSettings.maxTokens
-        }
-        if (defaultModelsSettings.contextLength !== undefined) {
-          mergedSettings.contextLength = defaultModelsSettings.contextLength
-        }
-        mergedSettings.temperature = defaultModelsSettings.temperature ?? 0.7
-        if (
-          sanitizedSettings.thinkingBudget === undefined &&
-          defaultModelsSettings.thinkingBudget !== undefined
-        ) {
-          mergedSettings.thinkingBudget = defaultModelsSettings.thinkingBudget
-        }
-      }
-
-      Object.assign(mergedSettings, sanitizedSettings)
-
-      if (mergedSettings.temperature === undefined || mergedSettings.temperature === null) {
-        mergedSettings.temperature = defaultModelsSettings?.temperature ?? 0.7
-      }
-
-      const conversationId = await this.sqlitePresenter.createConversation(title, mergedSettings)
-
-      if (options.forceNewAndActivate) {
-        this.activeConversationIds.set(tabId, conversationId)
-        eventBus.sendToRenderer(CONVERSATION_EVENTS.ACTIVATED, SendTarget.ALL_WINDOWS, {
-          conversationId,
-          tabId
-        })
-      } else {
-        await this.setActiveConversation(conversationId, tabId)
-      }
-
-      await this.broadcastThreadListUpdate()
-      return conversationId
-    } catch (error) {
-      console.error('ThreadPresenter: Failed to create conversation', {
-        title,
-        tabId,
-        options,
-        latestConversationId: latestConversation?.id,
-        errorMessage: error instanceof Error ? error.message : String(error),
-        errorStack: error instanceof Error ? error.stack : undefined
-      })
-      throw error
-    }
+    return this.conversationManager.createConversation(title, settings, tabId, options)
   }
 
   async renameConversation(conversationId: string, title: string): Promise<CONVERSATION> {
-    await this.sqlitePresenter.renameConversation(conversationId, title)
-    await this.broadcastThreadListUpdate()
-
-    const conversation = await this.getConversation(conversationId)
-
-    let tabId: number | undefined
-    for (const [key, value] of this.activeConversationIds.entries()) {
-      if (value === conversationId) {
-        tabId = key
-        break
-      }
-    }
-
-    if (tabId !== undefined) {
-      const windowId = presenter.tabPresenter.getTabWindowId(tabId)
-      eventBus.sendToRenderer(TAB_EVENTS.TITLE_UPDATED, SendTarget.ALL_WINDOWS, {
-        tabId,
-        conversationId,
-        title: conversation.title,
-        windowId
-      })
-    }
-
-    return conversation
+    return this.conversationManager.renameConversation(conversationId, title)
   }
 
   async deleteConversation(conversationId: string): Promise<void> {
-    await this.sqlitePresenter.deleteConversation(conversationId)
-    this.clearConversationBindings(conversationId)
-    await this.broadcastThreadListUpdate()
+    await this.conversationManager.deleteConversation(conversationId)
   }
 
   async toggleConversationPinned(conversationId: string, pinned: boolean): Promise<void> {
-    await this.sqlitePresenter.updateConversation(conversationId, { is_pinned: pinned ? 1 : 0 })
-    await this.broadcastThreadListUpdate()
+    await this.conversationManager.toggleConversationPinned(conversationId, pinned)
   }
 
   async updateConversationTitle(conversationId: string, title: string): Promise<void> {
-    await this.sqlitePresenter.updateConversation(conversationId, { title })
-    await this.broadcastThreadListUpdate()
+    await this.conversationManager.updateConversationTitle(conversationId, title)
   }
 
   async updateConversationSettings(
     conversationId: string,
     settings: Partial<CONVERSATION_SETTINGS>
   ): Promise<void> {
-    const conversation = await this.getConversation(conversationId)
-    const mergedSettings = { ...conversation.settings }
-
-    const sanitizedOverrides = Object.fromEntries(
-      Object.entries(settings).filter(([, value]) => value !== undefined)
-    ) as Partial<CONVERSATION_SETTINGS>
-    Object.assign(mergedSettings, sanitizedOverrides)
-
-    const modelChanged =
-      (settings.modelId !== undefined && settings.modelId !== conversation.settings.modelId) ||
-      (settings.providerId !== undefined &&
-        settings.providerId !== conversation.settings.providerId)
-
-    if (modelChanged) {
-      const modelConfig = this.configPresenter.getModelConfig(
-        mergedSettings.modelId,
-        mergedSettings.providerId
-      )
-      if (modelConfig) {
-        mergedSettings.maxTokens = modelConfig.maxTokens
-        mergedSettings.contextLength = modelConfig.contextLength
-      }
-    }
-
-    await this.sqlitePresenter.updateConversation(conversationId, { settings: mergedSettings })
-    await this.broadcastThreadListUpdate()
+    await this.conversationManager.updateConversationSettings(conversationId, settings)
   }
 
   async getConversationList(
     page: number,
     pageSize: number
   ): Promise<{ total: number; list: CONVERSATION[] }> {
-    return await this.sqlitePresenter.getConversationList(page, pageSize)
+    return this.conversationManager.getConversationList(page, pageSize)
   }
 
   async loadMoreThreads(): Promise<{ hasMore: boolean; total: number }> {
-    const total = await this.sqlitePresenter.getConversationCount()
-    const hasMore = this.fetchThreadLength < total
-
-    if (hasMore) {
-      this.fetchThreadLength = Math.min(this.fetchThreadLength + 300, total)
-      await this.broadcastThreadListUpdate()
-    }
-
-    return { hasMore: this.fetchThreadLength < total, total }
+    return this.conversationManager.loadMoreThreads()
   }
 
   async broadcastThreadListUpdate(): Promise<void> {
-    const result = await this.sqlitePresenter.getConversationList(1, this.fetchThreadLength)
-
-    const pinnedConversations: CONVERSATION[] = []
-    const normalConversations: CONVERSATION[] = []
-
-    result.list.forEach((conv) => {
-      if (conv.is_pinned === 1) {
-        pinnedConversations.push(conv)
-      } else {
-        normalConversations.push(conv)
-      }
-    })
-
-    pinnedConversations.sort((a, b) => b.updatedAt - a.updatedAt)
-    normalConversations.sort((a, b) => b.updatedAt - a.updatedAt)
-
-    const groupedThreads: Map<string, CONVERSATION[]> = new Map()
-
-    if (pinnedConversations.length > 0) {
-      groupedThreads.set('Pinned', pinnedConversations)
-    }
-
-    normalConversations.forEach((conv) => {
-      const date = new Date(conv.updatedAt).toISOString().split('T')[0]
-      if (!groupedThreads.has(date)) {
-        groupedThreads.set(date, [])
-      }
-      groupedThreads.get(date)!.push(conv)
-    })
-
-    const finalGroupedList = Array.from(groupedThreads.entries()).map(([dt, dtThreads]) => ({
-      dt,
-      dtThreads
-    }))
-
-    eventBus.sendToRenderer(
-      CONVERSATION_EVENTS.LIST_UPDATED,
-      SendTarget.ALL_WINDOWS,
-      finalGroupedList
-    )
-  }
-
-  private async getLatestConversation(): Promise<CONVERSATION | null> {
-    const result = await this.getConversationList(1, 1)
-    return result.list[0] || null
+    await this.conversationManager.broadcastThreadListUpdate()
   }
 
   async getMessages(
@@ -1561,7 +532,7 @@ export class ThreadPresenter implements IThreadPresenter {
         provider: engineName
       }
     }
-    this.finalizeLastBlock(state)
+    this.llmEventHandler.finalizeLastBlock(state)
     state.message.content.push(searchBlock)
     await this.messageManager.editMessage(messageId, JSON.stringify(state.message.content))
     // 标记消息为搜索状态
@@ -2342,7 +1313,7 @@ export class ThreadPresenter implements IThreadPresenter {
   }
 
   async getActiveConversationId(tabId: number): Promise<string | null> {
-    return this.getActiveConversationIdSync(tabId)
+    return this.conversationManager.getActiveConversationIdSync(tabId)
   }
 
   getGeneratingMessageState(messageId: string): GeneratingMessageState | null {
@@ -2363,11 +1334,11 @@ export class ThreadPresenter implements IThreadPresenter {
 
       // 刷新剩余缓冲内容
       if (state.adaptiveBuffer) {
-        await this.flushAdaptiveBuffer(messageId)
+        await this.contentBufferHandler.flushAdaptiveBuffer(messageId)
       }
 
       // 清理缓冲相关资源
-      this.cleanupContentBuffer(state)
+      this.contentBufferHandler.cleanupContentBuffer(state)
 
       // 标记消息不再处于搜索状态
       if (state.isSearching) {
@@ -2536,140 +1507,13 @@ export class ThreadPresenter implements IThreadPresenter {
     settings?: Partial<CONVERSATION_SETTINGS>,
     selectedVariantsMap?: Record<string, string>
   ): Promise<string> {
-    try {
-      // 1. 获取源会话信息
-      const sourceConversation = await this.sqlitePresenter.getConversation(targetConversationId)
-      if (!sourceConversation) {
-        throw new Error('源会话不存在')
-      }
-
-      // 2. 创建新会话
-      const newConversationId = await this.sqlitePresenter.createConversation(newTitle)
-
-      const newSettings = { ...(settings || sourceConversation.settings) }
-      newSettings.selectedVariantsMap = {} // 确保新会话不继承变体选择
-      await this.updateConversationSettings(newConversationId, newSettings)
-
-      await this.sqlitePresenter.updateConversation(newConversationId, { is_new: 0 })
-
-      // 3.1. 获取完整的、未截断的会话历史（只包含主消息）
-      const { list: fullHistory } = await this.messageManager.getMessageThread(
-        targetConversationId,
-        1,
-        99999 // 使用一个足够大的数字确保获取全部历史
-      )
-
-      // 3.2. 获取用户点击的目标消息对象
-      const targetMessage = await this.messageManager.getMessage(targetMessageId)
-      if (!targetMessage) {
-        throw new Error('目标消息不存在')
-      }
-
-      // 3.3. 确定目标消息所属的“主消息”ID
-      let mainTargetId: string | null = null
-      if (targetMessage.is_variant) {
-        // 如果是变体，则通过其 parentId（指向用户消息）找到其主消息
-        if (!targetMessage.parentId) {
-          throw new Error('变体消息缺少 parentId，无法定位主消息')
-        }
-        const mainMessage = await this.messageManager.getMainMessageByParentId(
-          targetConversationId,
-          targetMessage.parentId
-        )
-        mainTargetId = mainMessage ? mainMessage.id : null
-      } else {
-        // 如果本身就是主消息
-        mainTargetId = targetMessage.id
-      }
-
-      if (!mainTargetId) {
-        throw new Error('无法确定用于分叉的历史记录目标主消息ID')
-      }
-
-      // 3.4. 在完整历史中找到主消息的索引
-      const forkEndIndex = fullHistory.findIndex((msg) => msg.id === mainTargetId)
-      if (forkEndIndex === -1) {
-        throw new Error('目标主消息在会话历史中未找到，无法分叉。')
-      }
-
-      // 3.5. 截取从开始到目标主消息（包括）的正确历史记录
-      const messageHistory = fullHistory.slice(0, forkEndIndex + 1)
-
-      // 4. 创建消息ID映射表，用于维护父子关系
-      const messageIdMap = new Map<string, string>() // 旧消息ID -> 新消息ID
-      const messagesToProcess: Array<{ msg: any; orderSeq: number }> = []
-
-      for (const msg of messageHistory) {
-        if (msg.status !== 'sent') {
-          continue
-        }
-        const orderSeq = (await this.sqlitePresenter.getMaxOrderSeq(newConversationId)) + 1
-        messagesToProcess.push({ msg, orderSeq })
-      }
-
-      // 5. 按顺序插入所有消息，先不设置父ID
-      for (const { msg, orderSeq } of messagesToProcess) {
-        let finalMsg = msg
-        // 当循环到我们关心的主消息时，检查 selectedVariantsMap
-        if (msg.role === 'assistant' && selectedVariantsMap && selectedVariantsMap[msg.id]) {
-          const selectedVariantId = selectedVariantsMap[msg.id]
-          const variant = msg.variants?.find((v) => v.id === selectedVariantId)
-          if (variant) {
-            finalMsg = variant // 使用选定的变体对象进行复制
-          }
-        }
-
-        const metadata: MESSAGE_METADATA = {
-          totalTokens: finalMsg.usage?.total_tokens || 0,
-          generationTime: 0,
-          firstTokenTime: 0,
-          tokensPerSecond: 0,
-          contextUsage: 0,
-          inputTokens: finalMsg.usage?.input_tokens || 0,
-          outputTokens: finalMsg.usage?.output_tokens || 0,
-          ...(finalMsg.model_id ? { model: finalMsg.model_id } : {}),
-          ...(finalMsg.model_provider ? { provider: finalMsg.model_provider } : {})
-        }
-
-        const tokenCount = finalMsg.usage?.total_tokens || 0
-        const content =
-          typeof finalMsg.content === 'string' ? finalMsg.content : JSON.stringify(finalMsg.content)
-
-        const newMessageId = await this.sqlitePresenter.insertMessage(
-          newConversationId,
-          content,
-          finalMsg.role,
-          '',
-          JSON.stringify(metadata),
-          orderSeq,
-          tokenCount,
-          'sent',
-          0,
-          0
-        )
-        messageIdMap.set(msg.id, newMessageId)
-      }
-
-      // 6. 更新所有消息的父ID，恢复正确的父子关系
-      for (const { msg } of messagesToProcess) {
-        if (msg.parentId && msg.parentId !== '') {
-          const newMessageId = messageIdMap.get(msg.id)
-          const newParentId = messageIdMap.get(msg.parentId)
-          if (newMessageId && newParentId) {
-            await this.sqlitePresenter.updateMessageParentId(newMessageId, newParentId)
-          }
-        }
-      }
-
-      // 7. 在所有数据库操作完成后，调用广播方法
-      await this.broadcastThreadListUpdate()
-
-      // 8. 触发会话创建事件
-      return newConversationId
-    } catch (error) {
-      console.error('分支会话失败:', error)
-      throw error
-    }
+    return this.conversationManager.forkConversation(
+      targetConversationId,
+      targetMessageId,
+      newTitle,
+      settings,
+      selectedVariantsMap
+    )
   }
 
   // 翻译文本

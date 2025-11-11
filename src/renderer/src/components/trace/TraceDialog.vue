@@ -261,17 +261,15 @@ const loadPreview = async (messageId: string) => {
     }
   } catch (err) {
     // Only update state if this is still the latest request
-    if (currentRequestId !== requestId.value) {
-      return
+    if (currentRequestId === requestId.value) {
+      console.error('Failed to load request preview:', err)
+      error.value = true
     }
-    console.error('Failed to load request preview:', err)
-    error.value = true
   } finally {
     // Only update state if this is still the latest request
-    if (currentRequestId !== requestId.value) {
-      return
+    if (currentRequestId === requestId.value) {
+      loading.value = false
     }
-    loading.value = false
   }
 }
 
