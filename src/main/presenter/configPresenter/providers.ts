@@ -142,6 +142,22 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
   },
 
   {
+    id: 'burncloud',
+    name: 'BurnCloud',
+    apiType: 'openai',
+    apiKey: '',
+    baseUrl: 'https://ai.burncloud.com',
+    enable: false,
+    websites: {
+      official: 'https://www.burncloud.com/',
+      apiKey: 'https://ai.burncloud.com/api/usage/token/',
+      docs: 'https://docs.burncloud.com',
+      models: 'https://ai.burncloud.com/v1/models',
+      defaultBaseUrl: 'https://ai.burncloud.com'
+    }
+  },
+
+  {
     id: 'openai-responses',
     name: 'OpenAI Responses',
     apiType: 'openai-responses',
