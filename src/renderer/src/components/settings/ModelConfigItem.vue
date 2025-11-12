@@ -30,7 +30,7 @@
         {{ type }}
       </span>
       <Button
-        v-if="!enabled"
+        v-if="!hideEnableToggle && !enabled"
         variant="link"
         size="icon"
         class="w-7 h-7 text-xs text-normal rounded-lg"
@@ -39,7 +39,7 @@
         <Icon icon="lucide:circle-minus" class="w-4 h-4 text-destructive" />
       </Button>
       <Button
-        v-if="enabled"
+        v-if="!hideEnableToggle && enabled"
         variant="link"
         size="icon"
         class="w-7 h-7 text-xs text-normal rounded-lg"
@@ -100,10 +100,12 @@ withDefaults(
     enableSearch?: boolean
     type?: ModelType
     changeable?: boolean
+    hideEnableToggle?: boolean
   }>(),
   {
     type: ModelType.Chat,
-    changeable: true
+    changeable: true,
+    hideEnableToggle: false
   }
 )
 

@@ -965,6 +965,11 @@ export const useSettingsStore = defineStore('settings', () => {
     const previousState = getLocalModelEnabledState(providerId, modelId)
     updateLocalModelStatus(providerId, modelId, enabled)
 
+    const provider = providers.value.find((p) => p.id === providerId)
+    if (provider?.apiType === 'ollama') {
+      return
+    }
+
     try {
       await llmP.updateModelStatus(providerId, modelId, enabled)
       // 调用成功后，刷新该 provider 的模型列表
@@ -1463,9 +1468,6 @@ export const useSettingsStore = defineStore('settings', () => {
     )
 
     const localModels = getOllamaLocalModels(providerId)
-    const modelNames = localModels.map((model) => model.name)
-    const modelStatusMap =
-      modelNames.length > 0 ? await configP.getBatchModelStatus(providerId, modelNames) : {}
 
     const ollamaModelsAsGlobal = await Promise.all(
       localModels.map(async (model) => {
@@ -1502,8 +1504,7 @@ export const useSettingsStore = defineStore('settings', () => {
 
         const maxTokens = modelConfig?.maxTokens ?? existingModel?.maxTokens ?? 2048
 
-        const statusFromStore = modelStatusMap[model.name]
-        const enabled = statusFromStore ?? existingModel?.enabled ?? true
+        const enabled = true
 
         const resolvedType =
           modelConfig?.type ??
@@ -1556,13 +1557,19 @@ export const useSettingsStore = defineStore('settings', () => {
     const enabledOllamaModels = ollamaModelsAsGlobal.filter((model) => model.enabled)
 
     if (enabledIndex !== -1) {
-      enabledModels.value[enabledIndex].models = enabledOllamaModels
+      if (enabledOllamaModels.length > 0) {
+        enabledModels.value[enabledIndex].models = enabledOllamaModels
+      } else {
+        enabledModels.value.splice(enabledIndex, 1)
+      }
     } else if (enabledOllamaModels.length > 0) {
       enabledModels.value.push({
         providerId,
         models: enabledOllamaModels
       })
     }
+
+    enabledModels.value = [...enabledModels.value]
 
     await initOrUpdateSearchAssistantModel()
   }

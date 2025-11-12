@@ -147,6 +147,7 @@
                   :function-call="model.functionCall"
                   :reasoning="model.reasoning"
                   :enable-search="model.enableSearch"
+                  :hide-enable-toggle="true"
                   @enabled-change="handleModelEnabledChange(model.name, $event)"
                   @config-changed="refreshModels"
                 />
