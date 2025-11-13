@@ -375,8 +375,8 @@ export const useSettingsStore = defineStore('settings', () => {
       // 设置 Trace 调试功能事件监听器
       setupTraceDebugEnabledListener()
 
-      // 单独刷新一次 Ollama 模型，确保即使没有启用 Ollama provider 也能获取模型列表
-      const ollamaProviders = providers.value.filter((p) => p.apiType === 'ollama')
+      // 仅对已经启用的 Ollama provider 刷新模型，避免未启用时触发本地服务调用
+      const ollamaProviders = providers.value.filter((p) => p.apiType === 'ollama' && p.enable)
       for (const provider of ollamaProviders) {
         await refreshOllamaModels(provider.id)
       }
@@ -788,7 +788,11 @@ export const useSettingsStore = defineStore('settings', () => {
         } else {
           const changedProvider = providers.value.find((p) => p.id === change.providerId)
           if (changedProvider?.apiType === 'ollama') {
-            await refreshOllamaModels(change.providerId)
+            if (changedProvider.enable) {
+              await refreshOllamaModels(change.providerId)
+            } else {
+              clearOllamaProviderData(change.providerId)
+            }
             refreshCustomModels(change.providerId)
           } else {
             // add 或 update 操作，刷新该provider的模型
@@ -817,7 +821,11 @@ export const useSettingsStore = defineStore('settings', () => {
           } else if (change.operation !== 'reorder') {
             const changedProvider = providers.value.find((p) => p.id === change.providerId)
             if (changedProvider?.apiType === 'ollama') {
-              await refreshOllamaModels(change.providerId)
+              if (changedProvider.enable) {
+                await refreshOllamaModels(change.providerId)
+              } else {
+                clearOllamaProviderData(change.providerId)
+              }
               refreshCustomModels(change.providerId)
             } else {
               await refreshProviderModels(change.providerId)
@@ -1616,7 +1624,13 @@ export const useSettingsStore = defineStore('settings', () => {
     if (status === 'success' || status === 'completed') {
       setTimeout(() => {
         updateOllamaPullingProgress(providerId, modelName)
-        refreshOllamaModels(providerId)
+        const shouldRefresh = providers.value.some(
+          (provider) =>
+            provider.id === providerId && provider.enable && provider.apiType === 'ollama'
+        )
+        if (shouldRefresh) {
+          refreshOllamaModels(providerId)
+        }
       }, 1000)
     }
   }
