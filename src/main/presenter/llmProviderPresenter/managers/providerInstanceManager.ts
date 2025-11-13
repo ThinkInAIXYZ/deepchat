@@ -34,6 +34,11 @@ import { ZenmuxProvider } from '../providers/zenmuxProvider'
 import { RateLimitManager } from './rateLimitManager'
 import { StreamState } from '../types'
 
+type ProviderConstructor = new (
+  provider: LLM_PROVIDER,
+  configPresenter: IConfigPresenter
+) => BaseLLMProvider
+
 interface ProviderInstanceManagerOptions {
   configPresenter: IConfigPresenter
   activeStreams: Map<string, StreamState>
@@ -43,10 +48,78 @@ interface ProviderInstanceManagerOptions {
 }
 
 export class ProviderInstanceManager {
+  private static readonly PROVIDER_ID_MAP = ProviderInstanceManager.buildProviderIdMap()
+  private static readonly PROVIDER_TYPE_MAP = ProviderInstanceManager.buildProviderTypeMap()
+
   private readonly providers: Map<string, LLM_PROVIDER> = new Map()
   private readonly providerInstances: Map<string, BaseLLMProvider> = new Map()
 
   constructor(private readonly options: ProviderInstanceManagerOptions) {}
+
+  private static buildProviderIdMap(): Map<string, ProviderConstructor> {
+    return new Map<string, ProviderConstructor>([
+      ['302ai', _302AIProvider],
+      ['minimax', MinimaxProvider],
+      ['grok', GrokProvider],
+      ['openrouter', OpenRouterProvider],
+      ['ppio', PPIOProvider],
+      ['tokenflux', TokenFluxProvider],
+      ['deepseek', DeepseekProvider],
+      ['aihubmix', AihubmixProvider],
+      ['modelscope', ModelscopeProvider],
+      ['silicon', SiliconcloudProvider],
+      ['siliconcloud', SiliconcloudProvider],
+      ['dashscope', DashscopeProvider],
+      ['gemini', GeminiProvider],
+      ['zhipu', ZhipuProvider],
+      ['github', GithubProvider],
+      ['github-copilot', GithubCopilotProvider],
+      ['ollama', OllamaProvider],
+      ['anthropic', AnthropicProvider],
+      ['doubao', DoubaoProvider],
+      ['openai', OpenAIProvider],
+      ['openai-responses', OpenAIResponsesProvider],
+      ['cherryin', CherryInProvider],
+      ['lmstudio', LMStudioProvider],
+      ['together', TogetherProvider],
+      ['groq', GroqProvider],
+      ['vercel-ai-gateway', VercelAIGatewayProvider],
+      ['poe', PoeProvider],
+      ['aws-bedrock', AwsBedrockProvider],
+      ['jiekou', JiekouProvider],
+      ['zenmux', ZenmuxProvider]
+    ])
+  }
+
+  private static buildProviderTypeMap(): Map<string, ProviderConstructor> {
+    return new Map<string, ProviderConstructor>([
+      ['minimax', OpenAIProvider],
+      ['deepseek', DeepseekProvider],
+      ['silicon', SiliconcloudProvider],
+      ['siliconcloud', SiliconcloudProvider],
+      ['dashscope', DashscopeProvider],
+      ['ppio', PPIOProvider],
+      ['gemini', GeminiProvider],
+      ['zhipu', ZhipuProvider],
+      ['github', GithubProvider],
+      ['github-copilot', GithubCopilotProvider],
+      ['ollama', OllamaProvider],
+      ['anthropic', AnthropicProvider],
+      ['doubao', DoubaoProvider],
+      ['openai', OpenAIProvider],
+      ['openai-compatible', OpenAICompatibleProvider],
+      ['openai-responses', OpenAIResponsesProvider],
+      ['lmstudio', LMStudioProvider],
+      ['together', TogetherProvider],
+      ['groq', GroqProvider],
+      ['grok', GrokProvider],
+      ['vercel-ai-gateway', VercelAIGatewayProvider],
+      ['poe', PoeProvider],
+      ['aws-bedrock', AwsBedrockProvider],
+      ['jiekou', JiekouProvider],
+      ['zenmux', ZenmuxProvider]
+    ])
+  }
 
   init(): void {
     const providers = this.options.configPresenter.getProviders()
@@ -277,129 +350,29 @@ export class ProviderInstanceManager {
     this.options.rateLimitManager.syncProviders(providers)
   }
 
+  /**
+   * Creates a provider instance while preserving backward compatibility.
+   * Lookup order MUST remain id -> apiType so that legacy configs lacking ids continue to work.
+   */
   private createProviderInstance(provider: LLM_PROVIDER): BaseLLMProvider | undefined {
     try {
-      switch (provider.id) {
-        case '302ai':
-          return new _302AIProvider(provider, this.options.configPresenter)
-        case 'minimax':
-          return new MinimaxProvider(provider, this.options.configPresenter)
-        case 'grok':
-          return new GrokProvider(provider, this.options.configPresenter)
-        case 'openrouter':
-          return new OpenRouterProvider(provider, this.options.configPresenter)
-        case 'ppio':
-          return new PPIOProvider(provider, this.options.configPresenter)
-        case 'tokenflux':
-          return new TokenFluxProvider(provider, this.options.configPresenter)
-        case 'deepseek':
-          return new DeepseekProvider(provider, this.options.configPresenter)
-        case 'aihubmix':
-          return new AihubmixProvider(provider, this.options.configPresenter)
-        case 'modelscope':
-          return new ModelscopeProvider(provider, this.options.configPresenter)
-        case 'silicon':
-        case 'siliconcloud':
-          return new SiliconcloudProvider(provider, this.options.configPresenter)
-        case 'dashscope':
-          return new DashscopeProvider(provider, this.options.configPresenter)
-        case 'gemini':
-          return new GeminiProvider(provider, this.options.configPresenter)
-        case 'zhipu':
-          return new ZhipuProvider(provider, this.options.configPresenter)
-        case 'github':
-          return new GithubProvider(provider, this.options.configPresenter)
-        case 'github-copilot':
-          return new GithubCopilotProvider(provider, this.options.configPresenter)
-        case 'ollama':
-          return new OllamaProvider(provider, this.options.configPresenter)
-        case 'anthropic':
-          return new AnthropicProvider(provider, this.options.configPresenter)
-        case 'doubao':
-          return new DoubaoProvider(provider, this.options.configPresenter)
-        case 'openai':
-          return new OpenAIProvider(provider, this.options.configPresenter)
-        case 'openai-responses':
-          return new OpenAIResponsesProvider(provider, this.options.configPresenter)
-        case 'cherryin':
-          return new CherryInProvider(provider, this.options.configPresenter)
-        case 'lmstudio':
-          return new LMStudioProvider(provider, this.options.configPresenter)
-        case 'together':
-          return new TogetherProvider(provider, this.options.configPresenter)
-        case 'groq':
-          return new GroqProvider(provider, this.options.configPresenter)
-        case 'vercel-ai-gateway':
-          return new VercelAIGatewayProvider(provider, this.options.configPresenter)
-        case 'poe':
-          return new PoeProvider(provider, this.options.configPresenter)
-        case 'aws-bedrock':
-          return new AwsBedrockProvider(provider, this.options.configPresenter)
-        case 'jiekou':
-          return new JiekouProvider(provider, this.options.configPresenter)
-        case 'zenmux':
-          return new ZenmuxProvider(provider, this.options.configPresenter)
-        default:
+      let ProviderClass = ProviderInstanceManager.PROVIDER_ID_MAP.get(provider.id)
+
+      if (!ProviderClass) {
+        ProviderClass = ProviderInstanceManager.PROVIDER_TYPE_MAP.get(provider.apiType)
+        if (ProviderClass) {
           console.log(
             `No specific provider found for id: ${provider.id}, falling back to apiType: ${provider.apiType}`
           )
-          break
+        }
       }
 
-      switch (provider.apiType) {
-        case 'minimax':
-          return new OpenAIProvider(provider, this.options.configPresenter)
-        case 'deepseek':
-          return new DeepseekProvider(provider, this.options.configPresenter)
-        case 'silicon':
-        case 'siliconcloud':
-          return new SiliconcloudProvider(provider, this.options.configPresenter)
-        case 'dashscope':
-          return new DashscopeProvider(provider, this.options.configPresenter)
-        case 'ppio':
-          return new PPIOProvider(provider, this.options.configPresenter)
-        case 'gemini':
-          return new GeminiProvider(provider, this.options.configPresenter)
-        case 'zhipu':
-          return new ZhipuProvider(provider, this.options.configPresenter)
-        case 'github':
-          return new GithubProvider(provider, this.options.configPresenter)
-        case 'github-copilot':
-          return new GithubCopilotProvider(provider, this.options.configPresenter)
-        case 'ollama':
-          return new OllamaProvider(provider, this.options.configPresenter)
-        case 'anthropic':
-          return new AnthropicProvider(provider, this.options.configPresenter)
-        case 'doubao':
-          return new DoubaoProvider(provider, this.options.configPresenter)
-        case 'openai':
-          return new OpenAIProvider(provider, this.options.configPresenter)
-        case 'openai-compatible':
-          return new OpenAICompatibleProvider(provider, this.options.configPresenter)
-        case 'openai-responses':
-          return new OpenAIResponsesProvider(provider, this.options.configPresenter)
-        case 'lmstudio':
-          return new LMStudioProvider(provider, this.options.configPresenter)
-        case 'together':
-          return new TogetherProvider(provider, this.options.configPresenter)
-        case 'groq':
-          return new GroqProvider(provider, this.options.configPresenter)
-        case 'grok':
-          return new GrokProvider(provider, this.options.configPresenter)
-        case 'vercel-ai-gateway':
-          return new VercelAIGatewayProvider(provider, this.options.configPresenter)
-        case 'poe':
-          return new PoeProvider(provider, this.options.configPresenter)
-        case 'aws-bedrock':
-          return new AwsBedrockProvider(provider, this.options.configPresenter)
-        case 'jiekou':
-          return new JiekouProvider(provider, this.options.configPresenter)
-        case 'zenmux':
-          return new ZenmuxProvider(provider, this.options.configPresenter)
-        default:
-          console.warn(`Unknown provider type: ${provider.apiType} for provider id: ${provider.id}`)
-          return undefined
+      if (!ProviderClass) {
+        console.warn(`Unknown provider type: ${provider.apiType} for provider id: ${provider.id}`)
+        return undefined
       }
+
+      return new ProviderClass(provider, this.options.configPresenter)
     } catch (error) {
       console.error(`Failed to create provider instance for ${provider.id}:`, error)
       return undefined

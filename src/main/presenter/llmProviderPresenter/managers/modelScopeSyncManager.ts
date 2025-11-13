@@ -1,9 +1,11 @@
 import {
   IConfigPresenter,
+  MCPServerConfig,
   ModelScopeMcpSyncOptions,
   ModelScopeMcpSyncResult
 } from '@shared/presenter'
 import { BaseLLMProvider } from '../baseProvider'
+import { ModelscopeProvider, ModelScopeMcpServer } from '../providers/modelscopeProvider'
 
 interface ModelScopeSyncManagerOptions {
   configPresenter: IConfigPresenter
@@ -12,6 +14,13 @@ interface ModelScopeSyncManagerOptions {
 
 export class ModelScopeSyncManager {
   constructor(private readonly options: ModelScopeSyncManagerOptions) {}
+
+  private isModelscopeProvider(provider: BaseLLMProvider): provider is ModelscopeProvider {
+    return (
+      typeof (provider as Partial<ModelscopeProvider>).syncMcpServers === 'function' &&
+      typeof (provider as Partial<ModelscopeProvider>).convertMcpServerToConfig === 'function'
+    )
+  }
 
   async syncModelScopeMcpServers(
     providerId: string,
@@ -28,7 +37,7 @@ export class ModelScopeSyncManager {
 
     const provider = this.options.getProviderInstance(providerId)
 
-    if (provider.constructor.name !== 'ModelscopeProvider') {
+    if (!this.isModelscopeProvider(provider)) {
       const error = 'Provider is not a ModelScope provider instance'
       console.error(`[ModelScope MCP Sync] Error: ${error}`)
       throw new Error(error)
@@ -44,8 +53,7 @@ export class ModelScopeSyncManager {
       const syncTask = async () => {
         console.log(`[ModelScope MCP Sync] Fetching MCP servers from ModelScope API...`)
 
-        const modelscopeProvider = provider as any
-        const mcpResponse = await modelscopeProvider.syncMcpServers(syncOptions)
+        const mcpResponse = await provider.syncMcpServers(syncOptions)
 
         if (!mcpResponse || !mcpResponse.success || !mcpResponse.data?.mcp_server_list) {
           const errorMsg = 'Invalid response from ModelScope MCP API'
@@ -54,11 +62,17 @@ export class ModelScopeSyncManager {
           return result
         }
 
-        const mcpServers = mcpResponse.data.mcp_server_list
+        const mcpServers = mcpResponse.data.mcp_server_list as ModelScopeMcpServer[]
         console.log(`[ModelScope MCP Sync] Fetched ${mcpServers.length} MCP servers from API`)
 
+        interface ConvertedServer {
+          name: string
+          displayName: string
+          config: MCPServerConfig
+        }
+
         const convertedServers = mcpServers
-          .map((server: any) => {
+          .map<ConvertedServer | null>((server) => {
             try {
               if (!server.operational_urls || server.operational_urls.length === 0) {
                 const errorMsg = `No operational URLs found for server ${server.id}`
@@ -67,13 +81,15 @@ export class ModelScopeSyncManager {
                 return null
               }
 
-              const modelscopeProviderInstance = provider as any
-              const converted = modelscopeProviderInstance.convertMcpServerToConfig(server)
+              const config = provider.convertMcpServerToConfig(server)
+
+              const name = server.name || server.id
+              const displayName = server.chinese_name || server.name || server.id
 
               console.log(
-                `[ModelScope MCP Sync] Converted operational server: ${converted.displayName} (${converted.name})`
+                `[ModelScope MCP Sync] Converted operational server: ${displayName} (${name})`
               )
-              return converted
+              return { name, displayName, config }
             } catch (conversionError) {
               const errorMsg = `Failed to convert server ${server.name || server.id}: ${conversionError instanceof Error ? conversionError.message : String(conversionError)}`
               console.error(`[ModelScope MCP Sync] ${errorMsg}`)
@@ -81,40 +97,39 @@ export class ModelScopeSyncManager {
               return null
             }
           })
-          .filter((server: any) => server !== null) as any[]
+          .filter((entry): entry is ConvertedServer => entry !== null)
 
         console.log(
           `[ModelScope MCP Sync] Successfully converted ${convertedServers.length} servers`
         )
 
-        for (const serverConfig of convertedServers) {
+        for (const serverEntry of convertedServers) {
           try {
             const existingServers = await this.options.configPresenter.getMcpServers()
+            const serverName = serverEntry.name
 
-            if (existingServers[serverConfig.name]) {
-              console.log(
-                `[ModelScope MCP Sync] Server ${serverConfig.name} already exists, skipping`
-              )
+            if (existingServers[serverName]) {
+              console.log(`[ModelScope MCP Sync] Server ${serverName} already exists, skipping`)
               result.skipped++
               continue
             }
 
             const success = await this.options.configPresenter.addMcpServer(
-              serverConfig.name,
-              serverConfig
+              serverName,
+              serverEntry.config
             )
             if (success) {
               console.log(
-                `[ModelScope MCP Sync] Successfully imported server: ${serverConfig.name}`
+                `[ModelScope MCP Sync] Successfully imported server: ${serverEntry.displayName}`
               )
               result.imported++
             } else {
-              const errorMsg = `Failed to add server ${serverConfig.name} to configuration`
+              const errorMsg = `Failed to add server ${serverName} to configuration`
               console.error(`[ModelScope MCP Sync] ${errorMsg}`)
               result.errors.push(errorMsg)
             }
           } catch (importError) {
-            const errorMsg = `Failed to import server ${serverConfig.name}: ${importError instanceof Error ? importError.message : String(importError)}`
+            const errorMsg = `Failed to import server ${serverEntry.name}: ${importError instanceof Error ? importError.message : String(importError)}`
             console.error(`[ModelScope MCP Sync] ${errorMsg}`)
             result.errors.push(errorMsg)
           }

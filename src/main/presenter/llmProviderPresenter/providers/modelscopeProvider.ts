@@ -3,12 +3,14 @@ import {
   LLMResponse,
   ChatMessage,
   KeyStatus,
-  IConfigPresenter
+  IConfigPresenter,
+  MCPServerConfig,
+  ModelScopeMcpSyncOptions
 } from '@shared/presenter'
 import { OpenAICompatibleProvider } from './openAICompatibleProvider'
 
 // Define interface for ModelScope MCP API response
-interface ModelScopeMcpServerResponse {
+export interface ModelScopeMcpServerResponse {
   code: number
   data: {
     mcp_server_list: ModelScopeMcpServer[]
@@ -20,7 +22,7 @@ interface ModelScopeMcpServerResponse {
 }
 
 // Define interface for ModelScope MCP server (updated for operational API)
-interface ModelScopeMcpServer {
+export interface ModelScopeMcpServer {
   name: string
   description: string
   id: string
@@ -146,10 +148,9 @@ export class ModelscopeProvider extends OpenAICompatibleProvider {
    * @param _options - Sync options including filters (currently not used by operational API)
    * @returns Promise<ModelScopeMcpServerResponse> MCP servers response
    */
-  public async syncMcpServers(_options?: {
-    page_number?: number
-    page_size?: number
-  }): Promise<ModelScopeMcpServerResponse> {
+  public async syncMcpServers(
+    _syncOptions?: ModelScopeMcpSyncOptions
+  ): Promise<ModelScopeMcpServerResponse> {
     if (!this.provider.apiKey) {
       throw new Error('API key is required for MCP sync')
     }
@@ -199,7 +200,7 @@ export class ModelscopeProvider extends OpenAICompatibleProvider {
    * @param mcpServer - ModelScope MCP server data
    * @returns Internal MCP server config
    */
-  public convertMcpServerToConfig(mcpServer: ModelScopeMcpServer) {
+  public convertMcpServerToConfig(mcpServer: ModelScopeMcpServer): MCPServerConfig {
     // Check if operational URLs are available
     if (!mcpServer.operational_urls || mcpServer.operational_urls.length === 0) {
       throw new Error(`No operational URLs found for server ${mcpServer.id}`)

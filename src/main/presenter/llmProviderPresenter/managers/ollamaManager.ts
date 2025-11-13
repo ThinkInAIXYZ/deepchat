@@ -12,10 +12,20 @@ interface OllamaManagerOptions {
 export class OllamaManager {
   constructor(private readonly options: OllamaManagerOptions) {}
 
+  private isOllamaProvider(instance: BaseLLMProvider): instance is OllamaProvider {
+    const candidate = instance as Partial<OllamaProvider>
+    return (
+      typeof candidate.listModels === 'function' &&
+      typeof candidate.listRunningModels === 'function' &&
+      typeof candidate.showModelInfo === 'function' &&
+      typeof candidate.pullModel === 'function'
+    )
+  }
+
   getOllamaProviderInstance(providerId: string): OllamaProvider | null {
     try {
       const instance = this.options.getProviderInstance(providerId)
-      if (instance instanceof OllamaProvider) {
+      if (this.isOllamaProvider(instance)) {
         return instance
       }
       console.warn(`Provider ${providerId} is not an Ollama provider instance`)
