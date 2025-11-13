@@ -101,6 +101,10 @@ export class LLMEventHandler {
         })
       }
       state.lastReasoningTime = currentTime
+      // Update reasoningEndTime in metadata for real-time display
+      await this.messageManager.updateMessageMetadata(eventId, {
+        reasoningEndTime: currentTime - state.startTime
+      })
     }
 
     const lastBlock = state.message.content[state.message.content.length - 1]
@@ -181,16 +185,33 @@ export class LLMEventHandler {
     }
 
     if (reasoning_content) {
-      if (!lastBlock || lastBlock.type !== 'reasoning_content') {
+      // Re-get lastBlock in case new blocks were added above
+      const currentLastBlock = state.message.content[state.message.content.length - 1]
+      if (!currentLastBlock || currentLastBlock.type !== 'reasoning_content') {
         this.finalizeLastBlock(state)
+        const reasoningStartTime = state.reasoningStartTime ?? currentTime
         state.message.content.push({
           type: 'reasoning_content',
           content: reasoning_content || '',
           status: 'loading',
-          timestamp: currentTime
+          timestamp: currentTime,
+          reasoning_time: {
+            start: reasoningStartTime,
+            end: currentTime
+          }
         })
-      } else if (lastBlock.type === 'reasoning_content') {
-        lastBlock.content += reasoning_content
+      } else if (currentLastBlock.type === 'reasoning_content') {
+        currentLastBlock.content += reasoning_content
+        // Update reasoning_time.end in real-time during streaming
+        if (currentLastBlock.reasoning_time) {
+          currentLastBlock.reasoning_time.end = currentTime
+        } else {
+          const reasoningStartTime = state.reasoningStartTime ?? currentLastBlock.timestamp
+          currentLastBlock.reasoning_time = {
+            start: reasoningStartTime,
+            end: currentTime
+          }
+        }
       }
     }
 
