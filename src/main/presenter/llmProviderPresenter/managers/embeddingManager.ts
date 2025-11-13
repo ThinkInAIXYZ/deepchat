@@ -13,8 +13,16 @@ export class EmbeddingManager {
       const provider = this.options.getProviderInstance(providerId)
       return await provider.getEmbeddings(modelId, texts)
     } catch (error) {
-      console.error(`${modelId} embedding failed:`, error)
-      throw new Error('Current LLM provider does not implement embedding capability')
+      console.error(`Embedding failed for providerId: ${providerId}, modelId: ${modelId}:`, error)
+
+      // Re-throw the original error to preserve the real failure reason
+      if (error instanceof Error) {
+        throw error
+      } else {
+        throw new Error(
+          `Embedding failed for provider ${providerId}, model ${modelId}: ${String(error)}`
+        )
+      }
     }
   }
 

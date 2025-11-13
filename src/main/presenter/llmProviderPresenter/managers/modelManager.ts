@@ -59,10 +59,22 @@ export class ModelManager {
     modelId: string,
     updates: Partial<MODEL_META>
   ): Promise<boolean> {
-    const provider = this.options.getProviderInstance(providerId)
-    const res = provider.updateCustomModel(modelId, updates)
-    this.options.configPresenter.updateCustomModel(providerId, modelId, updates)
-    return res
+    try {
+      const provider = this.options.getProviderInstance(providerId)
+      const providerResult = await provider.updateCustomModel(modelId, updates)
+
+      // Only update persisted config if provider update was successful
+      if (providerResult) {
+        await this.options.configPresenter.updateCustomModel(providerId, modelId, updates)
+        return true
+      } else {
+        console.warn(`Provider ${providerId} failed to update model ${modelId}`)
+        return false
+      }
+    } catch (error) {
+      console.error(`Failed to update custom model ${modelId} for provider ${providerId}:`, error)
+      return false
+    }
   }
 
   async getCustomModels(providerId: string): Promise<MODEL_META[]> {
