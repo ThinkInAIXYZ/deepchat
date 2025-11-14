@@ -2,6 +2,7 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { defineStore } from 'pinia'
 import { usePresenter } from '@/composables/usePresenter'
 import { useIpcQuery } from '@/composables/useIpcQuery'
+import { useIpcMutation } from '@/composables/useIpcMutation'
 import { MCP_EVENTS } from '@/events'
 import { useI18n } from 'vue-i18n'
 import { useChatStore } from './chat'
@@ -98,7 +99,7 @@ export const useMcpStore = defineStore('mcp', () => {
     method: 'getAllToolDefinitions',
     key: () => ['mcp', 'tools'],
     enabled: () => config.value.ready && config.value.mcpEnabled,
-    staleTime: 60_000
+    staleTime: 30_000
   }) as UseQueryReturn<MCPToolDefinition[]>
 
   const clientsQuery = useIpcQuery({
@@ -287,6 +288,65 @@ export const useMcpStore = defineStore('mcp', () => {
   const toolCount = computed(() => tools.value.length)
   const hasTools = computed(() => toolCount.value > 0)
 
+  // ==================== Mutations ====================
+  // Mutations for write operations with automatic cache invalidation
+  const addServerMutation = useIpcMutation({
+    presenter: 'mcpPresenter',
+    method: 'addMcpServer',
+    invalidateQueries: () => [
+      ['mcp', 'config'],
+      ['mcp', 'tools'],
+      ['mcp', 'clients'],
+      ['mcp', 'resources']
+    ]
+  })
+
+  const updateServerMutation = useIpcMutation({
+    presenter: 'mcpPresenter',
+    method: 'updateMcpServer',
+    invalidateQueries: () => [
+      ['mcp', 'config'],
+      ['mcp', 'tools'],
+      ['mcp', 'clients'],
+      ['mcp', 'resources']
+    ]
+  })
+
+  const removeServerMutation = useIpcMutation({
+    presenter: 'mcpPresenter',
+    method: 'removeMcpServer',
+    invalidateQueries: () => [
+      ['mcp', 'config'],
+      ['mcp', 'tools'],
+      ['mcp', 'clients'],
+      ['mcp', 'resources']
+    ]
+  })
+
+  const addDefaultServerMutation = useIpcMutation({
+    presenter: 'mcpPresenter',
+    method: 'addMcpDefaultServer',
+    invalidateQueries: () => [['mcp', 'config']]
+  })
+
+  const removeDefaultServerMutation = useIpcMutation({
+    presenter: 'mcpPresenter',
+    method: 'removeMcpDefaultServer',
+    invalidateQueries: () => [['mcp', 'config']]
+  })
+
+  const resetToDefaultServersMutation = useIpcMutation({
+    presenter: 'mcpPresenter',
+    method: 'resetToDefaultServers',
+    invalidateQueries: () => [['mcp', 'config']]
+  })
+
+  const setMcpEnabledMutation = useIpcMutation({
+    presenter: 'mcpPresenter',
+    method: 'setMcpEnabled',
+    invalidateQueries: () => [['mcp', 'config']]
+  })
+
   // ==================== 方法 ====================
   // 加载MCP配置
   const loadConfig = async (options?: QueryExecuteOptions) => {
@@ -307,17 +367,9 @@ export const useMcpStore = defineStore('mcp', () => {
   // 设置MCP启用状态
   const setMcpEnabled = async (enabled: boolean) => {
     try {
-      await mcpPresenter.setMcpEnabled(enabled)
-      config.value.mcpEnabled = enabled
-
-      // 如果启用MCP，自动加载工具
-      if (enabled) {
-        await loadTools()
-        await loadClients()
-      } else {
-        await loadPrompts()
-      }
-
+      await setMcpEnabledMutation.mutateAsync([enabled])
+      // Cache invalidation and query refresh will happen automatically
+      // Related queries will refresh due to enabled condition changes
       return true
     } catch (error) {
       console.error(t('mcp.errors.setEnabledFailed'), error)
@@ -363,19 +415,26 @@ export const useMcpStore = defineStore('mcp', () => {
 
   // 添加服务器
   const addServer = async (serverName: string, serverConfig: MCPServerConfig) => {
-    const success = await mcpPresenter.addMcpServer(serverName, serverConfig)
-    if (success) {
-      await loadConfig()
-      return { success: true, message: '' }
+    try {
+      const success = await addServerMutation.mutateAsync([serverName, serverConfig])
+      if (success) {
+        // Cache invalidation happens automatically, trigger config refresh
+        await runQuery(configQuery, { force: true })
+        return { success: true, message: '' }
+      }
+      return { success: false, message: t('mcp.errors.addServerFailed') }
+    } catch (error) {
+      console.error(t('mcp.errors.addServerFailed'), error)
+      return { success: false, message: t('mcp.errors.addServerFailed') }
     }
-    return { success: false, message: t('mcp.errors.addServerFailed') }
   }
 
   // 更新服务器
   const updateServer = async (serverName: string, serverConfig: Partial<MCPServerConfig>) => {
     try {
-      await mcpPresenter.updateMcpServer(serverName, serverConfig)
-      await loadConfig()
+      await updateServerMutation.mutateAsync([serverName, serverConfig])
+      // Cache invalidation happens automatically, trigger config refresh
+      await runQuery(configQuery, { force: true })
       return true
     } catch (error) {
       console.error(t('mcp.errors.updateServerFailed'), error)
@@ -386,8 +445,9 @@ export const useMcpStore = defineStore('mcp', () => {
   // 删除服务器
   const removeServer = async (serverName: string) => {
     try {
-      await mcpPresenter.removeMcpServer(serverName)
-      await loadConfig()
+      await removeServerMutation.mutateAsync([serverName])
+      // Cache invalidation happens automatically, trigger config refresh
+      await runQuery(configQuery, { force: true })
       return true
     } catch (error) {
       console.error(t('mcp.errors.removeServerFailed'), error)
@@ -400,16 +460,17 @@ export const useMcpStore = defineStore('mcp', () => {
     try {
       // 如果服务器已经是默认服务器，移除
       if (config.value.defaultServers.includes(serverName)) {
-        await mcpPresenter.removeMcpDefaultServer(serverName)
+        await removeDefaultServerMutation.mutateAsync([serverName])
       } else {
         // 检查是否已达到最大默认服务器数量
         if (hasMaxDefaultServers.value) {
           // 如果已达到最大数量，返回错误
           return { success: false, message: t('mcp.errors.maxDefaultServersReached') }
         }
-        await mcpPresenter.addMcpDefaultServer(serverName)
+        await addDefaultServerMutation.mutateAsync([serverName])
       }
-      await loadConfig()
+      // Cache invalidation happens automatically, trigger config refresh
+      await runQuery(configQuery, { force: true })
       return { success: true, message: '' }
     } catch (error) {
       console.error(t('mcp.errors.toggleDefaultServerFailed'), error)
@@ -420,8 +481,9 @@ export const useMcpStore = defineStore('mcp', () => {
   // 恢复默认服务配置
   const resetToDefaultServers = async () => {
     try {
-      await mcpPresenter.resetToDefaultServers()
-      await loadConfig()
+      await resetToDefaultServersMutation.mutateAsync([])
+      // Cache invalidation happens automatically, trigger config refresh
+      await runQuery(configQuery, { force: true })
       return true
     } catch (error) {
       console.error(t('mcp.errors.resetToDefaultFailed'), error)
