@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, computed } from 'vue'
+import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
 import {
@@ -95,13 +95,6 @@ const isEnabled = (functionName: string): boolean => {
 const getLocalizedServerName = (serverName: string) => {
   return t(`mcp.inmemory.${serverName}.name`, serverName)
 }
-// 生命周期钩子
-onMounted(async () => {
-  if (mcpEnabled.value) {
-    await mcpStore.loadTools()
-    await mcpStore.loadClients()
-  }
-})
 </script>
 
 <template>

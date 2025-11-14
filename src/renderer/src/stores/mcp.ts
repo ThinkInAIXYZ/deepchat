@@ -55,18 +55,11 @@ export const useMcpStore = defineStore('mcp', () => {
   const serverStatuses = ref<Record<string, boolean>>({})
   const serverLoadingStates = ref<Record<string, boolean>>({})
   const configLoading = ref(false)
-  const clients = ref<McpClient[]>([])
 
   // 工具相关状态
-  const tools = ref<MCPToolDefinition[]>([])
-  const toolsLoading = ref(false)
-  const toolsError = ref(false)
-  const toolsErrorMessage = ref('')
   const toolLoadingStates = ref<Record<string, boolean>>({})
   const toolInputs = ref<Record<string, Record<string, string>>>({})
   const toolResults = ref<Record<string, string | { type: string; text: string }[]>>({})
-  const prompts = ref<PromptListEntry[]>([])
-  const resources = ref<ResourceListEntry[]>([])
 
   type QueryExecuteOptions = { force?: boolean }
 
@@ -167,6 +160,31 @@ export const useMcpStore = defineStore('mcp', () => {
     }
   })
 
+  const tools = computed(() => (config.value.mcpEnabled ? (toolsQuery.data.value ?? []) : []))
+
+  const clients = computed(() => (config.value.mcpEnabled ? (clientsQuery.data.value ?? []) : []))
+
+  const resources = computed(() =>
+    config.value.mcpEnabled ? (resourcesQuery.data.value ?? []) : []
+  )
+
+  const prompts = computed(() => promptsQuery.data.value ?? [])
+
+  const toolsLoading = computed(() =>
+    config.value.mcpEnabled ? toolsQuery.isLoading.value : false
+  )
+
+  const toolsError = computed(() => Boolean(toolsQuery.error.value))
+
+  const toolsErrorMessage = computed(() => {
+    const error = toolsQuery.error.value
+    if (!error) {
+      return ''
+    }
+
+    return error instanceof Error ? error.message : String(error)
+  })
+
   const syncConfigFromQuery = (data?: ConfigQueryResult | null) => {
     if (!data) {
       return
@@ -181,8 +199,6 @@ export const useMcpStore = defineStore('mcp', () => {
   }
 
   const applyToolsSnapshot = (toolDefs: MCPToolDefinition[] = []) => {
-    tools.value = toolDefs
-
     toolDefs.forEach((tool) => {
       if (!toolInputs.value[tool.function.name]) {
         toolInputs.value[tool.function.name] = {}
@@ -211,10 +227,9 @@ export const useMcpStore = defineStore('mcp', () => {
   )
 
   watch(
-    () => [toolsQuery.data.value, config.value.mcpEnabled] as const,
-    ([toolDefs, enabled]) => {
-      if (!enabled) {
-        tools.value = []
+    () => toolsQuery.data.value,
+    (toolDefs) => {
+      if (!config.value.mcpEnabled) {
         return
       }
 
@@ -226,60 +241,13 @@ export const useMcpStore = defineStore('mcp', () => {
   )
 
   watch(
-    () => (config.value.mcpEnabled ? toolsQuery.isLoading.value : false),
-    (loading) => {
-      toolsLoading.value = loading
-    },
-    { immediate: true }
-  )
-
-  watch(
-    () => toolsQuery.error.value,
-    (error) => {
-      if (!error) {
-        toolsError.value = false
-        toolsErrorMessage.value = ''
-        return
-      }
-
-      toolsError.value = true
-      toolsErrorMessage.value = error instanceof Error ? error.message : String(error)
-    },
-    { immediate: true }
-  )
-
-  watch(
-    () => [clientsQuery.data.value, config.value.mcpEnabled] as const,
-    ([list, enabled]) => {
+    () => config.value.mcpEnabled,
+    (enabled) => {
       if (!enabled) {
-        clients.value = []
-        return
+        toolInputs.value = {}
+        toolResults.value = {}
       }
-
-      clients.value = (list as McpClient[]) ?? []
-    },
-    { immediate: true }
-  )
-
-  watch(
-    () => [resourcesQuery.data.value, config.value.mcpEnabled] as const,
-    ([list, enabled]) => {
-      if (!enabled) {
-        resources.value = []
-        return
-      }
-
-      resources.value = (list as ResourceListEntry[]) ?? []
-    },
-    { immediate: true }
-  )
-
-  watch(
-    () => promptsQuery.data.value,
-    (list) => {
-      prompts.value = list ?? []
-    },
-    { immediate: true }
+    }
   )
   // ==================== 计算属性 ====================
   // 服务器列表
@@ -347,10 +315,6 @@ export const useMcpStore = defineStore('mcp', () => {
         await loadTools()
         await loadClients()
       } else {
-        // 如果禁用MCP，清空工具列表和资源，但保留prompts（包含config数据）
-        tools.value = []
-        resources.value = []
-        // 重新加载prompts以确保config数据仍然可用
         await loadPrompts()
       }
 
@@ -501,14 +465,12 @@ export const useMcpStore = defineStore('mcp', () => {
 
   const loadClients = async (options?: QueryExecuteOptions) => {
     if (!config.value.mcpEnabled) {
-      clients.value = []
       return
     }
 
     try {
       const state = await runQuery(clientsQuery, options)
       if (state.status === 'success') {
-        clients.value = (state.data as McpClient[]) ?? []
         await Promise.all([loadPrompts(options), loadResources(options)])
       }
     } catch (error) {
@@ -518,19 +480,13 @@ export const useMcpStore = defineStore('mcp', () => {
 
   const loadTools = async (options?: QueryExecuteOptions) => {
     if (!config.value.mcpEnabled) {
-      tools.value = []
       return
     }
 
     try {
-      const state = await runQuery(toolsQuery, options)
-      if (state.status === 'success' && Array.isArray(state.data)) {
-        applyToolsSnapshot(state.data as MCPToolDefinition[])
-      }
+      await runQuery(toolsQuery, options)
     } catch (error) {
       console.error(t('mcp.errors.loadToolsFailed'), error)
-      toolsError.value = true
-      toolsErrorMessage.value = error instanceof Error ? error.message : String(error)
     }
   }
 
@@ -540,23 +496,17 @@ export const useMcpStore = defineStore('mcp', () => {
       await runQuery(promptsQuery, options)
     } catch (error) {
       console.error(t('mcp.errors.loadPromptsFailed'), error)
-      prompts.value = []
     }
   }
 
   // 加载资源列表
   const loadResources = async (options?: QueryExecuteOptions) => {
-    // 如果MCP未启用，则不加载资源
     if (!config.value.mcpEnabled) {
-      resources.value = []
       return
     }
 
     try {
-      const state = await runQuery(resourcesQuery, options)
-      if (state.status === 'success') {
-        resources.value = (state.data as ResourceListEntry[]) ?? []
-      }
+      await runQuery(resourcesQuery, options)
     } catch (error) {
       console.error(t('mcp.errors.loadResourcesFailed'), error)
     }
