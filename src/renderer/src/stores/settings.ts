@@ -1,4 +1,4 @@
-import { defineStore } from 'pinia'
+import { defineStore, storeToRefs } from 'pinia'
 import { ref, onMounted, toRaw, computed } from 'vue'
 import {
   type LLM_PROVIDER,
@@ -9,13 +9,13 @@ import {
 import type { ProviderChange, ProviderBatchUpdate } from '@shared/provider-operations'
 import { ModelType } from '@shared/model'
 import { usePresenter } from '@/composables/usePresenter'
-import { SearchEngineTemplate } from '@shared/chat'
 import { CONFIG_EVENTS, OLLAMA_EVENTS, DEEPLINK_EVENTS, PROVIDER_DB_EVENTS } from '@/events'
 import type { AWS_BEDROCK_PROVIDER, AwsBedrockCredential, OllamaModel } from '@shared/presenter'
 import { useRouter } from 'vue-router'
 import { useMcpStore } from '@/stores/mcp'
 import { useUpgradeStore } from '@/stores/upgrade'
 import { useThrottleFn } from '@vueuse/core'
+import { useSearchEngineStore } from '@/stores/searchEngineStore'
 
 // 定义字体大小级别对应的 Tailwind 类
 const FONT_SIZE_CLASSES = ['text-sm', 'text-base', 'text-lg', 'text-xl', 'text-2xl']
@@ -27,13 +27,13 @@ export const useSettingsStore = defineStore('settings', () => {
   const threadP = usePresenter('threadPresenter')
   const router = useRouter()
   const upgradeStore = useUpgradeStore()
+  const searchEngineStore = useSearchEngineStore()
+  const { searchEngines, activeSearchEngine } = storeToRefs(searchEngineStore)
   const providers = ref<LLM_PROVIDER[]>([])
   const providerOrder = ref<string[]>([])
   const enabledModels = ref<{ providerId: string; models: RENDERER_MODEL_META[] }[]>([])
   const allProviderModels = ref<{ providerId: string; models: RENDERER_MODEL_META[] }[]>([])
   const customModels = ref<{ providerId: string; models: RENDERER_MODEL_META[] }[]>([])
-  const searchEngines = ref<SearchEngineTemplate[]>([])
-  const activeSearchEngine = ref<SearchEngineTemplate | null>(null)
   const artifactsEffectEnabled = ref<boolean>(false) // 默认值与配置文件一致
   const searchPreviewEnabled = ref<boolean>(true) // 搜索预览是否启用，默认启用
   const contentProtectionEnabled = ref<boolean>(true) // 投屏保护是否启用，默认启用
@@ -331,32 +331,7 @@ export const useSettingsStore = defineStore('settings', () => {
       // 获取 Trace 调试功能设置
       traceDebugEnabled.value = (await configP.getSetting<boolean>('traceDebugEnabled')) ?? false
 
-      // 获取搜索引擎
-      searchEngines.value = await threadP.getSearchEngines()
-
-      // 加载自定义搜索引擎并合并
-      try {
-        const customEngines = await configP.getCustomSearchEngines()
-        if (customEngines && customEngines.length > 0) {
-          // 移除已有的自定义搜索引擎（避免重复）
-          searchEngines.value = searchEngines.value.filter((e) => !e.isCustom)
-          // 添加自定义搜索引擎
-          searchEngines.value.push(...customEngines)
-        }
-      } catch (error) {
-        console.error('加载自定义搜索引擎失败:', error)
-      }
-
-      // 设置当前活跃的搜索引擎
-      const activeEngineId = (await configP.getSetting<string>('searchEngine')) || 'google'
-      const engine = searchEngines.value.find((e) => e.id === activeEngineId)
-      if (engine) {
-        activeSearchEngine.value = engine
-      } else {
-        // 如果找不到指定的引擎，使用第一个
-        activeSearchEngine.value = searchEngines.value[0]
-      }
-      await threadP.setActiveSearchEngine(activeEngineId)
+      await searchEngineStore.initialize()
       // 获取全部模型
       await refreshAllModels()
 
@@ -366,15 +341,6 @@ export const useSettingsStore = defineStore('settings', () => {
       // 设置 artifacts 效果事件监听器
       // setupArtifactsEffectListener()
 
-      // 设置投屏保护事件监听器
-      setupContentProtectionListener()
-
-      // 设置拷贝事件监听器
-      setupCopyWithCotEnabledListener()
-
-      // 设置 Trace 调试功能事件监听器
-      setupTraceDebugEnabledListener()
-
       // 仅对已经启用的 Ollama provider 刷新模型，避免未启用时触发本地服务调用
       const ollamaProviders = providers.value.filter((p) => p.apiType === 'ollama' && p.enable)
       for (const provider of ollamaProviders) {
@@ -382,11 +348,16 @@ export const useSettingsStore = defineStore('settings', () => {
       }
       // 初始化搜索助手模型
       await initOrUpdateSearchAssistantModel()
-      // 设置事件监听
-      setupProviderListener()
+      // 设置配置类事件监听器（确保实时同步状态）
+      setupContentProtectionListener()
+      setupCopyWithCotEnabledListener()
+      setupTraceDebugEnabledListener()
+      setupFontSizeListener()
+      setupSearchPreviewListener()
+      setupNotificationsListener()
 
-      // 设置搜索引擎事件监听
-      setupSearchEnginesListener()
+      // 设置 provider 相关事件监听
+      setupProviderListener()
     } catch (error) {
       console.error('初始化设置失败:', error)
     }
@@ -861,18 +832,6 @@ export const useSettingsStore = defineStore('settings', () => {
     // 在setupProviderListener方法或其他初始化方法附近添加对artifacts效果变更的监听
     // setupArtifactsEffectListener()
 
-    // 添加对投屏保护变更的监听
-    setupContentProtectionListener()
-
-    // 设置拷贝事件监听器
-    setupCopyWithCotEnabledListener()
-
-    // 设置 Trace 调试功能事件监听器
-    setupTraceDebugEnabledListener()
-
-    // 设置字体大小事件监听器
-    setupFontSizeListener()
-
     // 监听 Provider DB 事件，更新模型列表
     window.electron.ipcRenderer.on(PROVIDER_DB_EVENTS.UPDATED, async () => {
       await refreshAllModels()
@@ -1196,74 +1155,6 @@ export const useSettingsStore = defineStore('settings', () => {
       await configP.setSetting('providerOrder', finalOrder)
     } catch (error) {
       console.error('Failed to optimize provider order:', error)
-    }
-  }
-
-  const setSearchEngine = async (engineId: string) => {
-    try {
-      let success = await threadP.setSearchEngine(engineId)
-
-      // 如果第一次设置失败，可能是后端搜索引擎列表还没更新，强制刷新后重试
-      if (!success) {
-        console.log('第一次设置搜索引擎失败，尝试刷新搜索引擎列表后重试')
-        await refreshSearchEngines()
-        success = await threadP.setSearchEngine(engineId)
-      }
-
-      if (success) {
-        // 先尝试从当前列表中查找
-        let engine = searchEngines.value.find((e) => e.id === engineId)
-
-        // 如果找不到，可能是新添加的自定义引擎，从后端重新获取
-        if (!engine) {
-          try {
-            const customEngines = await configP.getCustomSearchEngines()
-            if (customEngines) {
-              engine = customEngines.find((e) => e.id === engineId)
-            }
-          } catch (error) {
-            console.warn('获取自定义搜索引擎失败:', error)
-          }
-        }
-
-        activeSearchEngine.value = engine || null
-
-        // 同时保存到配置中
-        await configP.setSetting('searchEngine', engineId)
-      } else {
-        console.error('设置搜索引擎失败，engineId:', engineId)
-      }
-    } catch (error) {
-      console.error('设置搜索引擎失败', error)
-    }
-  }
-
-  /**
-   * 刷新搜索引擎列表
-   */
-  const refreshSearchEngines = async () => {
-    try {
-      const engines = await threadP.getSearchEngines()
-      const activeEngine = await threadP.getActiveSearchEngine()
-
-      searchEngines.value = engines
-      activeSearchEngine.value = activeEngine
-    } catch (error) {
-      console.error('刷新搜索引擎列表失败', error)
-    }
-  }
-
-  /**
-   * 测试当前选中的搜索引擎
-   * @param query 测试搜索的关键词，默认为"天气"
-   * @returns 测试是否成功
-   */
-  const testSearchEngine = async (query: string = '天气'): Promise<boolean> => {
-    try {
-      return await threadP.testSearchEngine(query)
-    } catch (error) {
-      console.error('测试搜索引擎失败', error)
-      return false
     }
   }
 
@@ -1671,6 +1562,12 @@ export const useSettingsStore = defineStore('settings', () => {
     window.electron?.ipcRenderer?.removeAllListeners(CONFIG_EVENTS.PROVIDER_CHANGED)
     window.electron?.ipcRenderer?.removeAllListeners(CONFIG_EVENTS.PROVIDER_ATOMIC_UPDATE)
     window.electron?.ipcRenderer?.removeAllListeners(CONFIG_EVENTS.PROVIDER_BATCH_UPDATE)
+    window.electron?.ipcRenderer?.removeAllListeners(CONFIG_EVENTS.CONTENT_PROTECTION_CHANGED)
+    window.electron?.ipcRenderer?.removeAllListeners(CONFIG_EVENTS.COPY_WITH_COT_CHANGED)
+    window.electron?.ipcRenderer?.removeAllListeners(CONFIG_EVENTS.TRACE_DEBUG_CHANGED)
+    window.electron?.ipcRenderer?.removeAllListeners(CONFIG_EVENTS.FONT_SIZE_CHANGED)
+    window.electron?.ipcRenderer?.removeAllListeners(CONFIG_EVENTS.SEARCH_PREVIEW_CHANGED)
+    window.electron?.ipcRenderer?.removeAllListeners(CONFIG_EVENTS.NOTIFICATIONS_CHANGED)
   }
 
   // 添加设置notificationsEnabled的方法
@@ -1699,34 +1596,6 @@ export const useSettingsStore = defineStore('settings', () => {
   // 搜索预览设置 - 直接从configPresenter获取
   const getSearchPreviewEnabled = async (): Promise<boolean> => {
     return await configP.getSearchPreviewEnabled()
-  }
-
-  // 添加监听搜索引擎更新的事件
-  const setupSearchEnginesListener = () => {
-    // 使用IPC监听事件
-    window.electron.ipcRenderer.on(CONFIG_EVENTS.SEARCH_ENGINES_UPDATED, async () => {
-      try {
-        const customEngines = await configP.getCustomSearchEngines()
-        // 移除已有的自定义搜索引擎（避免重复）
-        searchEngines.value = searchEngines.value.filter((e) => !e.isCustom)
-        // 添加自定义搜索引擎（如果存在的话）
-        if (customEngines && customEngines.length > 0) {
-          searchEngines.value.push(...customEngines)
-        }
-
-        // 刷新活跃搜索引擎状态，确保后端和前端状态同步
-        const currentActiveEngineId = await configP.getSetting<string>('searchEngine')
-        if (currentActiveEngineId) {
-          const engine = searchEngines.value.find((e) => e.id === currentActiveEngineId)
-          if (engine) {
-            activeSearchEngine.value = engine
-            await threadP.setActiveSearchEngine(currentActiveEngineId)
-          }
-        }
-      } catch (error) {
-        console.error('更新自定义搜索引擎失败:', error)
-      }
-    })
   }
 
   // 添加设置contentProtectionEnabled的方法
@@ -1804,6 +1673,24 @@ export const useSettingsStore = defineStore('settings', () => {
       CONFIG_EVENTS.FONT_SIZE_CHANGED,
       (_event, newFontSizeLevel: number) => {
         fontSizeLevel.value = newFontSizeLevel
+      }
+    )
+  }
+
+  const setupSearchPreviewListener = () => {
+    window.electron.ipcRenderer.on(
+      CONFIG_EVENTS.SEARCH_PREVIEW_CHANGED,
+      (_event, enabled: boolean) => {
+        searchPreviewEnabled.value = enabled
+      }
+    )
+  }
+
+  const setupNotificationsListener = () => {
+    window.electron.ipcRenderer.on(
+      CONFIG_EVENTS.NOTIFICATIONS_CHANGED,
+      (_event, enabled: boolean) => {
+        notificationsEnabled.value = enabled
       }
     )
   }
@@ -2037,7 +1924,6 @@ export const useSettingsStore = defineStore('settings', () => {
     updateProviderStatus,
     updateAwsBedrockProviderConfig,
     refreshProviderModels,
-    setSearchEngine,
     addCustomProvider,
     removeProvider,
     disableAllModels,
@@ -2061,7 +1947,7 @@ export const useSettingsStore = defineStore('settings', () => {
     setSearchPreviewEnabled,
     setNotificationsEnabled, // 暴露设置系统通知的方法
     getNotificationsEnabled, // 暴露获取系统通知状态的方法
-    setupSearchEnginesListener,
+    setSearchEngine: searchEngineStore.setSearchEngine,
     setContentProtectionEnabled,
     setupContentProtectionListener,
     setLoggingEnabled,
@@ -2072,8 +1958,9 @@ export const useSettingsStore = defineStore('settings', () => {
     getTraceDebugEnabled,
     setTraceDebugEnabled,
     setupTraceDebugEnabledListener,
-    testSearchEngine,
-    refreshSearchEngines,
+    testSearchEngine: searchEngineStore.testSearchEngine,
+    refreshSearchEngines: searchEngineStore.refreshSearchEngines,
+    setupSearchEnginesListener: searchEngineStore.setupSearchEnginesListener,
     findModelByIdOrName,
     mcpInstallCache,
     clearMcpInstallCache,

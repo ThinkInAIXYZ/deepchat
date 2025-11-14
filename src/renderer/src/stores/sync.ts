@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { usePresenter } from '@/composables/usePresenter'
-import { SYNC_EVENTS } from '@/events'
+import { CONFIG_EVENTS, SYNC_EVENTS } from '@/events'
 import type { SyncBackupInfo } from '@shared/presenter'
 
 export const useSyncStore = defineStore('sync', () => {
@@ -58,6 +58,8 @@ export const useSyncStore = defineStore('sync', () => {
     window.electron.ipcRenderer.on(SYNC_EVENTS.IMPORT_ERROR, () => {
       isImporting.value = false
     })
+
+    setupSyncSettingsListener()
   }
 
   // 更新同步启用状态
@@ -144,6 +146,23 @@ export const useSyncStore = defineStore('sync', () => {
   const refreshBackups = async () => {
     const list = await syncPresenter.listBackups()
     backups.value = Array.isArray(list) ? list.sort((a, b) => b.createdAt - a.createdAt) : []
+  }
+
+  const setupSyncSettingsListener = () => {
+    window.electron.ipcRenderer.on(
+      CONFIG_EVENTS.SYNC_SETTINGS_CHANGED,
+      async (_event, payload: { enabled?: boolean; folderPath?: string }) => {
+        if (typeof payload.enabled === 'boolean') {
+          syncEnabled.value = payload.enabled
+        }
+        if (typeof payload.folderPath === 'string' && payload.folderPath !== syncFolderPath.value) {
+          syncFolderPath.value = payload.folderPath
+          await refreshBackups()
+        } else if (typeof payload.folderPath === 'string') {
+          syncFolderPath.value = payload.folderPath
+        }
+      }
+    )
   }
 
   return {

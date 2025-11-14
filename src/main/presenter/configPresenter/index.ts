@@ -1013,6 +1013,7 @@ export class ConfigPresenter implements IConfigPresenter {
     const boolValue = Boolean(enabled)
 
     this.setSetting('searchPreviewEnabled', boolValue)
+    eventBus.sendToRenderer(CONFIG_EVENTS.SEARCH_PREVIEW_CHANGED, SendTarget.ALL_WINDOWS, boolValue)
   }
 
   // Get content protection setting status
@@ -1076,6 +1077,7 @@ export class ConfigPresenter implements IConfigPresenter {
   setFloatingButtonEnabled(enabled: boolean): void {
     this.setSetting('floatingButtonEnabled', enabled)
     eventBus.sendToMain(FLOATING_BUTTON_EVENTS.ENABLED_CHANGED, enabled)
+    eventBus.sendToRenderer(FLOATING_BUTTON_EVENTS.ENABLED_CHANGED, SendTarget.ALL_WINDOWS, enabled)
 
     try {
       presenter.floatingButtonPresenter.setEnabled(enabled)
@@ -1246,6 +1248,11 @@ export class ConfigPresenter implements IConfigPresenter {
 
   setNotificationsEnabled(enabled: boolean): void {
     this.setSetting('notificationsEnabled', enabled)
+    eventBus.sendToRenderer(
+      CONFIG_EVENTS.NOTIFICATIONS_CHANGED,
+      SendTarget.ALL_WINDOWS,
+      Boolean(enabled)
+    )
   }
 
   async initTheme() {
