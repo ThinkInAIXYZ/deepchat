@@ -1,59 +1,87 @@
+import { computed } from 'vue'
 import { defineStore } from 'pinia'
-import { ref } from 'vue'
-import { usePresenter } from '@/composables/usePresenter'
-import { Prompt } from '@shared/presenter'
+import { useIpcQuery } from '@/composables/useIpcQuery'
+import { useIpcMutation } from '@/composables/useIpcMutation'
+import { type EntryKey, type UseQueryReturn } from '@pinia/colada'
+import type { Prompt } from '@shared/presenter'
 
 export const usePromptsStore = defineStore('prompts', () => {
-  const configP = usePresenter('configPresenter')
-  const prompts = ref<Prompt[]>([])
+  const customPromptsKey: EntryKey = ['config', 'customPrompts'] as const
 
-  // 加载自定义 prompts
+  const promptsQuery = useIpcQuery({
+    presenter: 'configPresenter',
+    method: 'getCustomPrompts',
+    key: () => customPromptsKey,
+    staleTime: 60_000,
+    gcTime: 300_000
+  }) as UseQueryReturn<Prompt[]>
+
+  const prompts = computed(() => promptsQuery.data.value ?? [])
+
   const loadPrompts = async () => {
     try {
-      prompts.value = await configP.getCustomPrompts()
+      await promptsQuery.refetch()
     } catch (error) {
       console.error('Failed to load custom prompts:', error)
     }
   }
 
-  // 保存自定义 prompts
+  const invalidateCustomPrompts = (): EntryKey[] => [customPromptsKey]
+
+  const savePromptsMutation = useIpcMutation({
+    presenter: 'configPresenter',
+    method: 'setCustomPrompts',
+    invalidateQueries: () => invalidateCustomPrompts()
+  })
+
   const savePrompts = async (newPrompts: Prompt[]) => {
     try {
-      await configP.setCustomPrompts(newPrompts)
-      prompts.value = newPrompts
+      await savePromptsMutation.mutateAsync([newPrompts])
     } catch (error) {
       console.error('Failed to save custom prompts:', error)
       throw error
     }
   }
 
-  // 添加单个 prompt
+  const addPromptMutation = useIpcMutation({
+    presenter: 'configPresenter',
+    method: 'addCustomPrompt',
+    invalidateQueries: () => invalidateCustomPrompts()
+  })
+
   const addPrompt = async (prompt: Prompt) => {
     try {
-      await configP.addCustomPrompt(prompt)
-      await loadPrompts()
+      await addPromptMutation.mutateAsync([prompt])
     } catch (error) {
       console.error('Failed to add custom prompt:', error)
       throw error
     }
   }
 
-  // 更新单个 prompt
+  const updatePromptMutation = useIpcMutation({
+    presenter: 'configPresenter',
+    method: 'updateCustomPrompt',
+    invalidateQueries: () => invalidateCustomPrompts()
+  })
+
   const updatePrompt = async (promptId: string, updates: Partial<Prompt>) => {
     try {
-      await configP.updateCustomPrompt(promptId, updates)
-      await loadPrompts()
+      await updatePromptMutation.mutateAsync([promptId, updates])
     } catch (error) {
       console.error('Failed to update custom prompt:', error)
       throw error
     }
   }
 
-  // 删除单个 prompt
+  const deletePromptMutation = useIpcMutation({
+    presenter: 'configPresenter',
+    method: 'deleteCustomPrompt',
+    invalidateQueries: () => invalidateCustomPrompts()
+  })
+
   const deletePrompt = async (promptId: string) => {
     try {
-      await configP.deleteCustomPrompt(promptId)
-      await loadPrompts()
+      await deletePromptMutation.mutateAsync([promptId])
     } catch (error) {
       console.error('Failed to delete custom prompt:', error)
       throw error

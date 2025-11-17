@@ -6,7 +6,7 @@ import { useIpcMutation } from '@/composables/useIpcMutation'
 import { MCP_EVENTS } from '@/events'
 import { useI18n } from 'vue-i18n'
 import { useChatStore } from './chat'
-import { useQuery, type UseQueryReturn } from '@pinia/colada'
+import { useQuery, type UseMutationReturn, type UseQueryReturn } from '@pinia/colada'
 import type {
   McpClient,
   MCPConfig,
@@ -17,21 +17,11 @@ import type {
   ResourceListEntry,
   Prompt
 } from '@shared/presenter'
-// 自定义类型定义
-interface MCPToolCallRequest {
-  id: string
-  type: string
-  function: {
-    name: string
-    arguments: string
-  }
-}
 
-interface MCPToolCallResult {
+interface MCPToolCallEventResult {
   function_name?: string
   content: string | { type: string; text: string }[]
 }
-
 export const useMcpStore = defineStore('mcp', () => {
   const chatStore = useChatStore()
   const { t } = useI18n()
@@ -170,6 +160,30 @@ export const useMcpStore = defineStore('mcp', () => {
   )
 
   const prompts = computed(() => promptsQuery.data.value ?? [])
+
+  type CallToolRequest = Parameters<(typeof mcpPresenter)['callTool']>[0]
+  type CallToolResult = Awaited<ReturnType<(typeof mcpPresenter)['callTool']>>
+  type CallToolMutationVars = Parameters<(typeof mcpPresenter)['callTool']>
+
+  const callToolMutation = useIpcMutation({
+    presenter: 'mcpPresenter',
+    method: 'callTool',
+    onSuccess(result, variables) {
+      const request = variables?.[0]
+      const toolName = request?.function?.name
+      if (toolName) {
+        toolResults.value[toolName] = result.content
+      }
+    },
+    onError(error, variables) {
+      const request = variables?.[0]
+      const toolName = request?.function?.name
+      console.error(t('mcp.errors.callToolFailed', { toolName }), error)
+      if (toolName) {
+        toolResults.value[toolName] = t('mcp.errors.toolCallError', { error: String(error) })
+      }
+    }
+  }) as UseMutationReturn<CallToolResult, CallToolMutationVars, Error>
 
   const toolsLoading = computed(() =>
     config.value.mcpEnabled ? toolsQuery.isLoading.value : false
@@ -583,10 +597,9 @@ export const useMcpStore = defineStore('mcp', () => {
   }
 
   // 调用工具
-  const callTool = async (toolName: string) => {
+  const callTool = async (toolName: string): Promise<CallToolResult> => {
+    toolLoadingStates.value[toolName] = true
     try {
-      toolLoadingStates.value[toolName] = true
-
       // 准备工具参数
       const params = toolInputs.value[toolName] || {}
 
@@ -603,7 +616,7 @@ export const useMcpStore = defineStore('mcp', () => {
       }
 
       // 创建工具调用请求
-      const request: MCPToolCallRequest = {
+      const request: CallToolRequest = {
         id: Date.now().toString(),
         type: 'function',
         function: {
@@ -612,14 +625,7 @@ export const useMcpStore = defineStore('mcp', () => {
         }
       }
 
-      // 调用工具
-      const result = await mcpPresenter.callTool(request)
-      toolResults.value[toolName] = result.content
-      return result
-    } catch (error) {
-      console.error(t('mcp.errors.callToolFailed', { toolName }), error)
-      toolResults.value[toolName] = t('mcp.errors.toolCallError', { error: String(error) })
-      throw error
+      return await callToolMutation.mutateAsync([request])
     } finally {
       toolLoadingStates.value[toolName] = false
     }
@@ -746,7 +752,7 @@ export const useMcpStore = defineStore('mcp', () => {
 
     window.electron.ipcRenderer.on(
       MCP_EVENTS.TOOL_CALL_RESULT,
-      (_event, result: MCPToolCallResult) => {
+      (_event, result: MCPToolCallEventResult) => {
         console.log(`MCP tool call result:`, result.function_name)
         if (result && result.function_name) {
           toolResults.value[result.function_name] = result.content
