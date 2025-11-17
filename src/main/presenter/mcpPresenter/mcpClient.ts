@@ -608,9 +608,6 @@ export class McpClient {
         { name: 'DeepChat', version: app.getVersion() },
         {
           capabilities: {
-            resources: {},
-            tools: {},
-            prompts: {},
             sampling: {}
           }
         }
