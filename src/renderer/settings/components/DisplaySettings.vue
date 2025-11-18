@@ -303,7 +303,7 @@ import {
 import { ref, onMounted, watch, computed } from 'vue'
 import { storeToRefs } from 'pinia'
 
-import { useSettingsStore } from '@/stores/settings'
+import { useUiSettingsStore } from '@/stores/uiSettingsStore'
 import { useLanguageStore } from '@/stores/language'
 import { useFloatingButtonStore } from '@/stores/floatingButton'
 import { useThemeStore, type ThemeMode } from '@/stores/theme'
@@ -320,7 +320,7 @@ import { ButtonGroup } from '@shadcn/components/ui/button-group'
 import { Switch } from '@shadcn/components/ui/switch'
 
 const languageStore = useLanguageStore()
-const settingsStore = useSettingsStore()
+const uiSettingsStore = useUiSettingsStore()
 const floatingButtonStore = useFloatingButtonStore()
 const themeStore = useThemeStore()
 const { t } = useI18n()
@@ -406,14 +406,14 @@ const selectThemeMode = async (mode: ThemeMode) => {
 const fontSizeOptions = ['text-sm', 'text-base', 'text-lg', 'text-xl', 'text-2xl']
 
 const fontSizeLevel = computed({
-  get: () => settingsStore.fontSizeLevel,
-  set: (value) => settingsStore.updateFontSizeLevel(value)
+  get: () => uiSettingsStore.fontSizeLevel,
+  set: (value) => uiSettingsStore.updateFontSizeLevel(value)
 })
 
 // --- Content Protection Settings ---
 const contentProtectionEnabled = computed({
   get: () => {
-    return settingsStore.contentProtectionEnabled
+    return uiSettingsStore.contentProtectionEnabled
   },
   set: () => {
     // Setter handled by handleContentProtectionChange
@@ -433,18 +433,18 @@ const cancelContentProtectionChange = () => {
 }
 
 const confirmContentProtectionChange = () => {
-  settingsStore.setContentProtectionEnabled(newContentProtectionValue.value)
+  uiSettingsStore.setContentProtectionEnabled(newContentProtectionValue.value)
   isContentProtectionDialogOpen.value = false
 }
 
 // --- Notifications Settings ---
 const notificationsEnabled = computed({
-  get: () => settingsStore.notificationsEnabled,
-  set: (value) => settingsStore.setNotificationsEnabled(value)
+  get: () => uiSettingsStore.notificationsEnabled,
+  set: (value) => uiSettingsStore.setNotificationsEnabled(value)
 })
 
 const handleNotificationsChange = (value: boolean) => {
-  settingsStore.setNotificationsEnabled(value)
+  uiSettingsStore.setNotificationsEnabled(value)
 }
 
 const handleFloatingButtonChange = (value: boolean) => {
