@@ -12,11 +12,7 @@ import {
   IModelConfig,
   BuiltinKnowledgeConfig
 } from '@shared/presenter'
-import {
-  ProviderChange,
-  ProviderBatchUpdate,
-  checkRequiresRebuild
-} from '@shared/provider-operations'
+import { ProviderBatchUpdate } from '@shared/provider-operations'
 import { SearchEngineTemplate } from '@shared/chat'
 import { ModelType } from '@shared/model'
 import ElectronStore from 'electron-store'
@@ -34,12 +30,11 @@ import { KnowledgeConfHelper } from './knowledgeConfHelper'
 import { providerDbLoader } from './providerDbLoader'
 import { ProviderAggregate } from '@shared/types/model-db'
 import { modelCapabilities } from './modelCapabilities'
-
-// Default system prompt constant
-const DEFAULT_SYSTEM_PROMPT = `You are DeepChat, a highly capable AI assistant. Your goal is to fully complete the user’s requested task before handing the conversation back to them. Keep working autonomously until the task is fully resolved.
-Be thorough in gathering information. Before replying, make sure you have all the details necessary to provide a complete solution. Use additional tools or ask clarifying questions when needed, but if you can find the answer on your own, avoid asking the user for help.
-When using tools, briefly describe your intended steps first—for example, which tool you’ll use and for what purpose.
-Adhere to this in all languages.Always respond in the same language as the user's query.`
+import { ProviderHelper } from './providerHelper'
+import { ModelStatusHelper } from './modelStatusHelper'
+import { ProviderModelHelper, PROVIDER_MODELS_DIR } from './providerModelHelper'
+import { SystemPromptHelper, DEFAULT_SYSTEM_PROMPT } from './systemPromptHelper'
+import { UiSettingsHelper } from './uiSettingsHelper'
 
 // Define application settings interface
 interface IAppSettings {
@@ -69,11 +64,6 @@ interface IAppSettings {
 }
 
 // Create interface for model storage
-interface IModelStore {
-  models: MODEL_META[]
-  custom_models: MODEL_META[]
-}
-
 const defaultProviders = DEFAULT_PROVIDERS.map((provider) => ({
   id: provider.id,
   name: provider.name,
@@ -84,16 +74,10 @@ const defaultProviders = DEFAULT_PROVIDERS.map((provider) => ({
   websites: provider.websites
 }))
 
-// Define storeKey constants
 const PROVIDERS_STORE_KEY = 'providers'
-
-const PROVIDER_MODELS_DIR = 'provider_models'
-// Model state key prefix
-const MODEL_STATUS_KEY_PREFIX = 'model_status_'
 
 export class ConfigPresenter implements IConfigPresenter {
   private store: ElectronStore<IAppSettings>
-  private providersModelStores: Map<string, ElectronStore<IModelStore>> = new Map()
   private customPromptsStore: ElectronStore<{ prompts: Prompt[] }>
   private systemPromptsStore: ElectronStore<{ prompts: SystemPrompt[] }>
   private userDataPath: string
@@ -101,8 +85,11 @@ export class ConfigPresenter implements IConfigPresenter {
   private mcpConfHelper: McpConfHelper // Use MCP configuration helper
   private modelConfigHelper: ModelConfigHelper // Model configuration helper
   private knowledgeConfHelper: KnowledgeConfHelper // Knowledge configuration helper
-  // Model status memory cache for high-frequency read/write operations
-  private modelStatusCache: Map<string, boolean> = new Map()
+  private providerHelper: ProviderHelper
+  private modelStatusHelper: ModelStatusHelper
+  private providerModelHelper: ProviderModelHelper
+  private systemPromptHelper: SystemPromptHelper
+  private uiSettingsHelper: UiSettingsHelper
   // Custom prompts cache for high-frequency read operations
   private customPromptsCache: Prompt[] | null = null
 
@@ -136,6 +123,17 @@ export class ConfigPresenter implements IConfigPresenter {
       }
     })
 
+    this.providerHelper = new ProviderHelper({
+      store: this.store,
+      setSetting: this.setSetting.bind(this),
+      defaultProviders
+    })
+
+    this.modelStatusHelper = new ModelStatusHelper({
+      store: this.store,
+      setSetting: this.setSetting.bind(this)
+    })
+
     this.initTheme()
 
     // Initialize custom prompts storage
@@ -162,6 +160,17 @@ export class ConfigPresenter implements IConfigPresenter {
       }
     })
 
+    this.systemPromptHelper = new SystemPromptHelper({
+      systemPromptsStore: this.systemPromptsStore,
+      getSetting: this.getSetting.bind(this),
+      setSetting: this.setSetting.bind(this)
+    })
+
+    this.uiSettingsHelper = new UiSettingsHelper({
+      getSetting: this.getSetting.bind(this),
+      setSetting: this.setSetting.bind(this)
+    })
+
     // Initialize MCP configuration helper
     this.mcpConfHelper = new McpConfHelper()
 
@@ -170,6 +179,14 @@ export class ConfigPresenter implements IConfigPresenter {
 
     // Initialize knowledge configuration helper
     this.knowledgeConfHelper = new KnowledgeConfHelper()
+
+    this.providerModelHelper = new ProviderModelHelper({
+      userDataPath: this.userDataPath,
+      getModelConfig: (modelId: string, providerId?: string) =>
+        this.getModelConfig(modelId, providerId),
+      setModelStatus: this.modelStatusHelper.setModelStatus.bind(this.modelStatusHelper),
+      deleteModelStatus: this.modelStatusHelper.deleteModelStatus.bind(this.modelStatusHelper)
+    })
 
     // Initialize provider models directory
     this.initProviderModelsDir()
@@ -250,21 +267,6 @@ export class ConfigPresenter implements IConfigPresenter {
     return modelCapabilities.getVerbosityDefault(providerId, modelId)
   }
 
-  private getProviderModelStore(providerId: string): ElectronStore<IModelStore> {
-    if (!this.providersModelStores.has(providerId)) {
-      const store = new ElectronStore<IModelStore>({
-        name: `models_${providerId}`,
-        cwd: path.join(this.userDataPath, PROVIDER_MODELS_DIR),
-        defaults: {
-          models: [],
-          custom_models: []
-        }
-      })
-      this.providersModelStores.set(providerId, store)
-    }
-    return this.providersModelStores.get(providerId)!
-  }
-
   private migrateConfigData(oldVersion: string | undefined): void {
     // Before version 0.2.4, minimax's baseUrl was incorrect and needs to be fixed
     if (oldVersion && compare(oldVersion, '0.2.4', '<')) {
@@ -297,7 +299,7 @@ export class ConfigPresenter implements IConfigPresenter {
           this.getSetting<(MODEL_META & { enabled: boolean })[]>(oldProviderModelsKey)
 
         if (oldModels && oldModels.length > 0) {
-          const store = this.getProviderModelStore(provider.id)
+          const store = this.providerModelHelper.getProviderModelStore(provider.id)
           // Iterate through old models, save enabled state
           oldModels.forEach((model) => {
             if (model.enabled) {
@@ -318,7 +320,7 @@ export class ConfigPresenter implements IConfigPresenter {
           this.getSetting<(MODEL_META & { enabled: boolean })[]>(oldCustomModelsKey)
 
         if (oldCustomModels && oldCustomModels.length > 0) {
-          const store = this.getProviderModelStore(provider.id)
+          const store = this.providerModelHelper.getProviderModelStore(provider.id)
           // Iterate through old custom models, save enabled state
           oldCustomModels.forEach((model) => {
             if (model.enabled) {
@@ -415,35 +417,19 @@ export class ConfigPresenter implements IConfigPresenter {
   }
 
   getProviders(): LLM_PROVIDER[] {
-    const providers = this.getSetting<LLM_PROVIDER[]>(PROVIDERS_STORE_KEY)
-    if (Array.isArray(providers) && providers.length > 0) {
-      return providers
-    } else {
-      this.setSetting(PROVIDERS_STORE_KEY, defaultProviders)
-      return defaultProviders
-    }
+    return this.providerHelper.getProviders()
   }
 
   setProviders(providers: LLM_PROVIDER[]): void {
-    this.setSetting<LLM_PROVIDER[]>(PROVIDERS_STORE_KEY, providers)
-    // Trigger new event (need to notify all tabs)
-    eventBus.send(CONFIG_EVENTS.PROVIDER_CHANGED, SendTarget.ALL_WINDOWS)
+    this.providerHelper.setProviders(providers)
   }
 
   getProviderById(id: string): LLM_PROVIDER | undefined {
-    const providers = this.getProviders()
-    return providers.find((provider) => provider.id === id)
+    return this.providerHelper.getProviderById(id)
   }
 
   setProviderById(id: string, provider: LLM_PROVIDER): void {
-    const providers = this.getProviders()
-    const index = providers.findIndex((p) => p.id === id)
-    if (index !== -1) {
-      providers[index] = provider
-      this.setProviders(providers)
-    } else {
-      console.error(`[Config] Provider ${id} not found`)
-    }
+    this.providerHelper.setProviderById(id, provider)
   }
 
   /**
@@ -453,31 +439,7 @@ export class ConfigPresenter implements IConfigPresenter {
    * @returns 是否需要重建实例
    */
   updateProviderAtomic(id: string, updates: Partial<LLM_PROVIDER>): boolean {
-    const providers = this.getProviders()
-    const index = providers.findIndex((p) => p.id === id)
-
-    if (index === -1) {
-      console.error(`[Config] Provider ${id} not found`)
-      return false
-    }
-
-    // Check if instance rebuild is needed
-    const requiresRebuild = checkRequiresRebuild(updates)
-
-    // Update configuration
-    providers[index] = { ...providers[index], ...updates }
-    this.setSetting<LLM_PROVIDER[]>(PROVIDERS_STORE_KEY, providers)
-
-    // Trigger precise change event
-    const change: ProviderChange = {
-      operation: 'update',
-      providerId: id,
-      requiresRebuild,
-      updates
-    }
-    eventBus.send(CONFIG_EVENTS.PROVIDER_ATOMIC_UPDATE, SendTarget.ALL_WINDOWS, change)
-
-    return requiresRebuild
+    return this.providerHelper.updateProviderAtomic(id, updates)
   }
 
   /**
@@ -485,11 +447,7 @@ export class ConfigPresenter implements IConfigPresenter {
    * @param batchUpdate 批量更新请求
    */
   updateProvidersBatch(batchUpdate: ProviderBatchUpdate): void {
-    // Update complete provider list (used for order changes)
-    this.setSetting<LLM_PROVIDER[]>(PROVIDERS_STORE_KEY, batchUpdate.providers)
-
-    // Trigger batch change event
-    eventBus.send(CONFIG_EVENTS.PROVIDER_BATCH_UPDATE, SendTarget.ALL_WINDOWS, batchUpdate)
+    this.providerHelper.updateProvidersBatch(batchUpdate)
   }
 
   /**
@@ -497,17 +455,7 @@ export class ConfigPresenter implements IConfigPresenter {
    * @param provider 新的 provider
    */
   addProviderAtomic(provider: LLM_PROVIDER): void {
-    const providers = this.getProviders()
-    providers.push(provider)
-    this.setSetting<LLM_PROVIDER[]>(PROVIDERS_STORE_KEY, providers)
-
-    const change: ProviderChange = {
-      operation: 'add',
-      providerId: provider.id,
-      requiresRebuild: true, // Adding new provider always requires creating instance
-      provider
-    }
-    eventBus.send(CONFIG_EVENTS.PROVIDER_ATOMIC_UPDATE, SendTarget.ALL_WINDOWS, change)
+    this.providerHelper.addProviderAtomic(provider)
   }
 
   /**
@@ -515,16 +463,7 @@ export class ConfigPresenter implements IConfigPresenter {
    * @param providerId Provider ID
    */
   removeProviderAtomic(providerId: string): void {
-    const providers = this.getProviders()
-    const filteredProviders = providers.filter((p) => p.id !== providerId)
-    this.setSetting<LLM_PROVIDER[]>(PROVIDERS_STORE_KEY, filteredProviders)
-
-    const change: ProviderChange = {
-      operation: 'remove',
-      providerId,
-      requiresRebuild: true // Deleting provider requires cleaning up instances
-    }
-    eventBus.send(CONFIG_EVENTS.PROVIDER_ATOMIC_UPDATE, SendTarget.ALL_WINDOWS, change)
+    this.providerHelper.removeProviderAtomic(providerId)
   }
 
   /**
@@ -532,150 +471,43 @@ export class ConfigPresenter implements IConfigPresenter {
    * @param providers 新的 provider 排序
    */
   reorderProvidersAtomic(providers: LLM_PROVIDER[]): void {
-    this.setSetting<LLM_PROVIDER[]>(PROVIDERS_STORE_KEY, providers)
-
-    const change: ProviderChange = {
-      operation: 'reorder',
-      providerId: '', // Reordering affects all providers
-      requiresRebuild: false // Only reordering doesn't require rebuilding instances
-    }
-    eventBus.send(CONFIG_EVENTS.PROVIDER_ATOMIC_UPDATE, SendTarget.ALL_WINDOWS, change)
+    this.providerHelper.reorderProvidersAtomic(providers)
   }
 
-  // Construct storage key for model state
-  private getModelStatusKey(providerId: string, modelId: string): string {
-    // Replace dots in modelId with hyphens
-    const formattedModelId = modelId.replace(/\./g, '-')
-    return `${MODEL_STATUS_KEY_PREFIX}${providerId}_${formattedModelId}`
-  }
-
-  // Get model enabled state (with memory cache optimization)
   getModelStatus(providerId: string, modelId: string): boolean {
-    const statusKey = this.getModelStatusKey(providerId, modelId)
-
-    // First check memory cache
-    if (this.modelStatusCache.has(statusKey)) {
-      return this.modelStatusCache.get(statusKey)!
-    }
-
-    // Cache miss: read from settings and cache the result
-    const status = this.getSetting<boolean>(statusKey)
-    const finalStatus = typeof status === 'boolean' ? status : false
-    this.modelStatusCache.set(statusKey, finalStatus)
-
-    return finalStatus
+    return this.modelStatusHelper.getModelStatus(providerId, modelId)
   }
 
-  // Batch get model enabled states (with memory cache optimization)
   getBatchModelStatus(providerId: string, modelIds: string[]): Record<string, boolean> {
-    const result: Record<string, boolean> = {}
-    const uncachedKeys: string[] = []
-    const uncachedModelIds: string[] = []
-
-    // First pass: check cache for all models
-    for (const modelId of modelIds) {
-      const statusKey = this.getModelStatusKey(providerId, modelId)
-      if (this.modelStatusCache.has(statusKey)) {
-        result[modelId] = this.modelStatusCache.get(statusKey)!
-      } else {
-        uncachedKeys.push(statusKey)
-        uncachedModelIds.push(modelId)
-      }
-    }
-
-    // Second pass: fetch uncached values from settings and cache them
-    for (let i = 0; i < uncachedModelIds.length; i++) {
-      const modelId = uncachedModelIds[i]
-      const statusKey = uncachedKeys[i]
-      const status = this.getSetting<boolean>(statusKey)
-      const finalStatus = typeof status === 'boolean' ? status : false
-
-      // Cache the result and add to return object
-      this.modelStatusCache.set(statusKey, finalStatus)
-      result[modelId] = finalStatus
-    }
-
-    return result
+    return this.modelStatusHelper.getBatchModelStatus(providerId, modelIds)
   }
 
-  // Set model enabled state (synchronously update memory cache)
   setModelStatus(providerId: string, modelId: string, enabled: boolean): void {
-    const statusKey = this.getModelStatusKey(providerId, modelId)
-
-    // Update both settings and memory cache synchronously
-    this.setSetting(statusKey, enabled)
-    this.modelStatusCache.set(statusKey, enabled)
-
-    // Trigger model state change event (need to notify all tabs)
-    eventBus.sendToRenderer(CONFIG_EVENTS.MODEL_STATUS_CHANGED, SendTarget.ALL_WINDOWS, {
-      providerId,
-      modelId,
-      enabled
-    })
+    this.modelStatusHelper.setModelStatus(providerId, modelId, enabled)
   }
 
-  // Enable model
   enableModel(providerId: string, modelId: string): void {
-    this.setModelStatus(providerId, modelId, true)
+    this.modelStatusHelper.enableModel(providerId, modelId)
   }
 
-  // Disable model
   disableModel(providerId: string, modelId: string): void {
-    this.setModelStatus(providerId, modelId, false)
+    this.modelStatusHelper.disableModel(providerId, modelId)
   }
 
-  // Clear model state cache (for configuration reload or reset scenarios)
   clearModelStatusCache(): void {
-    this.modelStatusCache.clear()
+    this.modelStatusHelper.clearModelStatusCache()
   }
 
-  // Clear model state cache for specific provider
   clearProviderModelStatusCache(providerId: string): void {
-    const keysToDelete: string[] = []
-    for (const key of this.modelStatusCache.keys()) {
-      if (key.startsWith(`${MODEL_STATUS_KEY_PREFIX}${providerId}_`)) {
-        keysToDelete.push(key)
-      }
-    }
-    keysToDelete.forEach((key) => this.modelStatusCache.delete(key))
+    this.modelStatusHelper.clearProviderModelStatusCache(providerId)
   }
 
-  // Batch set model states
   batchSetModelStatus(providerId: string, modelStatusMap: Record<string, boolean>): void {
-    for (const [modelId, enabled] of Object.entries(modelStatusMap)) {
-      this.setModelStatus(providerId, modelId, enabled)
-    }
+    this.modelStatusHelper.batchSetModelStatus(providerId, modelStatusMap)
   }
 
   getProviderModels(providerId: string): MODEL_META[] {
-    const store = this.getProviderModelStore(providerId)
-    let models = store.get('models') || []
-
-    models = models.map((model) => {
-      const config = this.getModelConfig(model.id, providerId)
-      if (config) {
-        model.maxTokens = config.maxTokens
-        model.contextLength = config.contextLength
-        // If model already has these properties, keep them, otherwise use values from config or default to false
-        model.vision = model.vision !== undefined ? model.vision : config.vision || false
-        model.functionCall =
-          model.functionCall !== undefined ? model.functionCall : config.functionCall || false
-        model.reasoning =
-          model.reasoning !== undefined ? model.reasoning : config.reasoning || false
-        model.enableSearch =
-          model.enableSearch !== undefined ? model.enableSearch : config.enableSearch || false
-        model.type = model.type !== undefined ? model.type : config.type || ModelType.Chat
-      } else {
-        // Ensure model has these properties, default to false if not configured
-        model.vision = model.vision || false
-        model.functionCall = model.functionCall || false
-        model.reasoning = model.reasoning || false
-        model.enableSearch = model.enableSearch || false
-        model.type = model.type || ModelType.Chat
-      }
-      return model
-    })
-    return models
+    return this.providerModelHelper.getProviderModels(providerId)
   }
 
   // 基于聚合 Provider DB 的标准模型（只读映射，不落库）
@@ -723,13 +555,11 @@ export class ConfigPresenter implements IConfigPresenter {
   }
 
   setProviderModels(providerId: string, models: MODEL_META[]): void {
-    const store = this.getProviderModelStore(providerId)
-    store.set('models', models)
+    this.providerModelHelper.setProviderModels(providerId, models)
   }
 
   getEnabledProviders(): LLM_PROVIDER[] {
-    const providers = this.getProviders()
-    return providers.filter((provider) => provider.enable)
+    return this.providerHelper.getEnabledProviders()
   }
 
   getAllEnabledModels(): Promise<{ providerId: string; models: RENDERER_MODEL_META[] }[]> {
@@ -768,71 +598,23 @@ export class ConfigPresenter implements IConfigPresenter {
   }
 
   getCustomModels(providerId: string): MODEL_META[] {
-    const store = this.getProviderModelStore(providerId)
-    let customModels = store.get('custom_models') || []
-
-    // Ensure custom models also have capability properties
-    customModels = customModels.map((model) => {
-      // If model already has these properties, keep them, otherwise default to false
-      model.vision = model.vision !== undefined ? model.vision : false
-      model.functionCall = model.functionCall !== undefined ? model.functionCall : false
-      model.reasoning = model.reasoning !== undefined ? model.reasoning : false
-      model.enableSearch = model.enableSearch !== undefined ? model.enableSearch : false
-      return model
-    })
-
-    return customModels
+    return this.providerModelHelper.getCustomModels(providerId)
   }
 
   setCustomModels(providerId: string, models: MODEL_META[]): void {
-    const store = this.getProviderModelStore(providerId)
-    store.set('custom_models', models)
+    this.providerModelHelper.setCustomModels(providerId, models)
   }
 
   addCustomModel(providerId: string, model: MODEL_META): void {
-    const models = this.getCustomModels(providerId)
-    const existingIndex = models.findIndex((m) => m.id === model.id)
-
-    // Create model copy without enabled property
-    const modelWithoutStatus: MODEL_META = { ...model }
-    // @ts-ignore - Need to delete enabled property for independent state storage
-    delete modelWithoutStatus.enabled
-
-    if (existingIndex !== -1) {
-      models[existingIndex] = modelWithoutStatus as MODEL_META
-    } else {
-      models.push(modelWithoutStatus as MODEL_META)
-    }
-
-    this.setCustomModels(providerId, models)
-    // Set individual model state
-    this.setModelStatus(providerId, model.id, true)
-    // Trigger model list change event (need to notify all tabs)
-    eventBus.sendToRenderer(CONFIG_EVENTS.MODEL_LIST_CHANGED, SendTarget.ALL_WINDOWS, providerId)
+    this.providerModelHelper.addCustomModel(providerId, model)
   }
 
   removeCustomModel(providerId: string, modelId: string): void {
-    const models = this.getCustomModels(providerId)
-    const filteredModels = models.filter((model) => model.id !== modelId)
-    this.setCustomModels(providerId, filteredModels)
-
-    // Delete model state
-    const statusKey = this.getModelStatusKey(providerId, modelId)
-    this.store.delete(statusKey)
-
-    // Trigger model list change event (need to notify all tabs)
-    eventBus.sendToRenderer(CONFIG_EVENTS.MODEL_LIST_CHANGED, SendTarget.ALL_WINDOWS, providerId)
+    this.providerModelHelper.removeCustomModel(providerId, modelId)
   }
 
   updateCustomModel(providerId: string, modelId: string, updates: Partial<MODEL_META>): void {
-    const models = this.getCustomModels(providerId)
-    const index = models.findIndex((model) => model.id === modelId)
-
-    if (index !== -1) {
-      Object.assign(models[index], updates)
-      this.setCustomModels(providerId, models)
-      eventBus.sendToRenderer(CONFIG_EVENTS.MODEL_LIST_CHANGED, SendTarget.ALL_WINDOWS, providerId)
-    }
+    this.providerModelHelper.updateCustomModel(providerId, modelId, updates)
   }
 
   getCloseToQuit(): boolean {
@@ -894,7 +676,7 @@ export class ConfigPresenter implements IConfigPresenter {
   }
 
   public getDefaultProviders(): LLM_PROVIDER[] {
-    return DEFAULT_PROVIDERS
+    return this.providerHelper.getDefaultProviders()
   }
 
   // Get proxy mode
@@ -1000,33 +782,19 @@ export class ConfigPresenter implements IConfigPresenter {
 
   // Get search preview setting status
   getSearchPreviewEnabled(): Promise<boolean> {
-    const value = this.getSetting<boolean>('searchPreviewEnabled')
-    // Default search preview is off
-    return Promise.resolve(value === undefined || value === null ? false : value)
+    return this.uiSettingsHelper.getSearchPreviewEnabled()
   }
 
-  // Set search preview status
   setSearchPreviewEnabled(enabled: boolean): void {
-    console.log('ConfigPresenter.setSearchPreviewEnabled:', enabled, typeof enabled)
-
-    // Ensure the input is a boolean value
-    const boolValue = Boolean(enabled)
-
-    this.setSetting('searchPreviewEnabled', boolValue)
-    eventBus.sendToRenderer(CONFIG_EVENTS.SEARCH_PREVIEW_CHANGED, SendTarget.ALL_WINDOWS, boolValue)
+    this.uiSettingsHelper.setSearchPreviewEnabled(enabled)
   }
 
-  // Get content protection setting status
   getContentProtectionEnabled(): boolean {
-    const value = this.getSetting<boolean>('contentProtectionEnabled')
-    // Default content protection is off
-    return value === undefined || value === null ? false : value
+    return this.uiSettingsHelper.getContentProtectionEnabled()
   }
 
-  // Set content protection status
   setContentProtectionEnabled(enabled: boolean): void {
-    this.setSetting('contentProtectionEnabled', enabled)
-    eventBus.send(CONFIG_EVENTS.CONTENT_PROTECTION_CHANGED, SendTarget.ALL_WINDOWS, enabled)
+    this.uiSettingsHelper.setContentProtectionEnabled(enabled)
   }
 
   getLoggingEnabled(): boolean {
@@ -1053,18 +821,15 @@ export class ConfigPresenter implements IConfigPresenter {
   }
 
   getCopyWithCotEnabled(): boolean {
-    const value = this.getSetting<boolean>('copyWithCotEnabled') ?? true
-    return value === undefined || value === null ? false : value
+    return this.uiSettingsHelper.getCopyWithCotEnabled()
   }
 
   setCopyWithCotEnabled(enabled: boolean): void {
-    this.setSetting('copyWithCotEnabled', enabled)
-    eventBus.sendToRenderer(CONFIG_EVENTS.COPY_WITH_COT_CHANGED, SendTarget.ALL_WINDOWS, enabled)
+    this.uiSettingsHelper.setCopyWithCotEnabled(enabled)
   }
 
   setTraceDebugEnabled(enabled: boolean): void {
-    this.setSetting('traceDebugEnabled', enabled)
-    eventBus.sendToRenderer(CONFIG_EVENTS.TRACE_DEBUG_CHANGED, SendTarget.ALL_WINDOWS, enabled)
+    this.uiSettingsHelper.setTraceDebugEnabled(enabled)
   }
 
   // Get floating button switch status
@@ -1238,21 +1003,11 @@ export class ConfigPresenter implements IConfigPresenter {
   }
 
   getNotificationsEnabled(): boolean {
-    const value = this.getSetting<boolean>('notificationsEnabled')
-    if (value === undefined) {
-      return true
-    } else {
-      return value
-    }
+    return this.uiSettingsHelper.getNotificationsEnabled()
   }
 
   setNotificationsEnabled(enabled: boolean): void {
-    this.setSetting('notificationsEnabled', enabled)
-    eventBus.sendToRenderer(
-      CONFIG_EVENTS.NOTIFICATIONS_CHANGED,
-      SendTarget.ALL_WINDOWS,
-      Boolean(enabled)
-    )
+    this.uiSettingsHelper.setNotificationsEnabled(enabled)
   }
 
   async initTheme() {
@@ -1368,103 +1123,47 @@ export class ConfigPresenter implements IConfigPresenter {
 
   // 获取默认系统提示词
   async getDefaultSystemPrompt(): Promise<string> {
-    const prompts = await this.getSystemPrompts()
-    const defaultPrompt = prompts.find((p) => p.isDefault)
-    if (defaultPrompt) {
-      return defaultPrompt.content
-    }
-    return this.getSetting<string>('default_system_prompt') || ''
+    return this.systemPromptHelper.getDefaultSystemPrompt()
   }
 
-  // 设置默认系统提示词
   async setDefaultSystemPrompt(prompt: string): Promise<void> {
-    this.setSetting('default_system_prompt', prompt)
+    return this.systemPromptHelper.setDefaultSystemPrompt(prompt)
   }
 
-  // 重置为默认系统提示词
   async resetToDefaultPrompt(): Promise<void> {
-    this.setSetting('default_system_prompt', DEFAULT_SYSTEM_PROMPT)
+    return this.systemPromptHelper.resetToDefaultPrompt()
   }
 
-  // 清空系统提示词
   async clearSystemPrompt(): Promise<void> {
-    this.setSetting('default_system_prompt', '')
+    return this.systemPromptHelper.clearSystemPrompt()
   }
 
   async getSystemPrompts(): Promise<SystemPrompt[]> {
-    try {
-      return this.systemPromptsStore.get('prompts') || []
-    } catch {
-      return []
-    }
+    return this.systemPromptHelper.getSystemPrompts()
   }
 
   async setSystemPrompts(prompts: SystemPrompt[]): Promise<void> {
-    await this.systemPromptsStore.set('prompts', prompts)
+    return this.systemPromptHelper.setSystemPrompts(prompts)
   }
 
   async addSystemPrompt(prompt: SystemPrompt): Promise<void> {
-    const prompts = await this.getSystemPrompts()
-    prompts.push(prompt)
-    await this.setSystemPrompts(prompts)
+    return this.systemPromptHelper.addSystemPrompt(prompt)
   }
 
   async updateSystemPrompt(promptId: string, updates: Partial<SystemPrompt>): Promise<void> {
-    const prompts = await this.getSystemPrompts()
-    const index = prompts.findIndex((p) => p.id === promptId)
-    if (index !== -1) {
-      prompts[index] = { ...prompts[index], ...updates }
-      await this.setSystemPrompts(prompts)
-    }
+    return this.systemPromptHelper.updateSystemPrompt(promptId, updates)
   }
 
   async deleteSystemPrompt(promptId: string): Promise<void> {
-    const prompts = await this.getSystemPrompts()
-    const filteredPrompts = prompts.filter((p) => p.id !== promptId)
-    await this.setSystemPrompts(filteredPrompts)
+    return this.systemPromptHelper.deleteSystemPrompt(promptId)
   }
 
   async setDefaultSystemPromptId(promptId: string): Promise<void> {
-    const prompts = await this.getSystemPrompts()
-    const updatedPrompts = prompts.map((p) => ({ ...p, isDefault: false }))
-
-    if (promptId === 'empty') {
-      await this.setSystemPrompts(updatedPrompts)
-      await this.clearSystemPrompt()
-      eventBus.sendToRenderer(CONFIG_EVENTS.DEFAULT_SYSTEM_PROMPT_CHANGED, SendTarget.ALL_WINDOWS, {
-        promptId: 'empty',
-        content: ''
-      })
-      return
-    }
-
-    const targetIndex = updatedPrompts.findIndex((p) => p.id === promptId)
-    if (targetIndex !== -1) {
-      updatedPrompts[targetIndex].isDefault = true
-      await this.setSystemPrompts(updatedPrompts)
-      await this.setDefaultSystemPrompt(updatedPrompts[targetIndex].content)
-      eventBus.sendToRenderer(CONFIG_EVENTS.DEFAULT_SYSTEM_PROMPT_CHANGED, SendTarget.ALL_WINDOWS, {
-        promptId,
-        content: updatedPrompts[targetIndex].content
-      })
-    } else {
-      await this.setSystemPrompts(updatedPrompts)
-    }
+    return this.systemPromptHelper.setDefaultSystemPromptId(promptId)
   }
 
   async getDefaultSystemPromptId(): Promise<string> {
-    const prompts = await this.getSystemPrompts()
-    const defaultPrompt = prompts.find((p) => p.isDefault)
-    if (defaultPrompt) {
-      return defaultPrompt.id
-    }
-
-    const storedPrompt = this.getSetting<string>('default_system_prompt')
-    if (!storedPrompt || storedPrompt.trim() === '') {
-      return 'empty'
-    }
-
-    return prompts.find((p) => p.id === 'default')?.id || 'default'
+    return this.systemPromptHelper.getDefaultSystemPromptId()
   }
 
   // 获取更新渠道
