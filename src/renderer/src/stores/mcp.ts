@@ -205,11 +205,41 @@ export const useMcpStore = defineStore('mcp', () => {
       return
     }
 
+    const previousMcpEnabled = config.value.mcpEnabled
+    const previousReady = config.value.ready
+
     config.value = {
       mcpServers: data.mcpServers,
       defaultServers: data.defaultServers,
       mcpEnabled: data.mcpEnabled,
       ready: true
+    }
+
+    // If mcpEnabled state changed, trigger query refreshes
+    if (previousReady && previousMcpEnabled !== data.mcpEnabled) {
+      if (data.mcpEnabled) {
+        // MCP enabled: refresh tools, clients, resources
+        Promise.all([
+          loadTools({ force: true }),
+          loadClients({ force: true }),
+          loadPrompts({ force: true })
+        ]).catch((error) => {
+          console.error('Failed to refresh MCP queries after enabling:', error)
+        })
+      } else {
+        // MCP disabled: clear state and refresh queries to get empty results
+        serverStatuses.value = {}
+        toolInputs.value = {}
+        toolResults.value = {}
+        Promise.all([
+          toolsQuery.refetch(),
+          clientsQuery.refetch(),
+          resourcesQuery.refetch(),
+          promptsQuery.refetch()
+        ]).catch((error) => {
+          console.error('Failed to refresh MCP queries after disabling:', error)
+        })
+      }
     }
   }
 
@@ -395,27 +425,56 @@ export const useMcpStore = defineStore('mcp', () => {
 
   const setMcpEnabled = async (enabled: boolean) => {
     try {
+      const previousEnabled = config.value.mcpEnabled
+
       // Optimistically set local state so toggle updates immediately
       config.value.mcpEnabled = enabled
+      // Ensure config is ready so queries can execute
+      if (!config.value.ready) {
+        config.value.ready = true
+      }
 
       await setMcpEnabledMutation.mutateAsync([enabled])
       // Force refresh config to keep presenter query state in sync
       await runQuery(configQuery, { force: true })
 
+      // Wait a bit for config to sync, then refresh queries
       if (enabled) {
         await startDefaultServers()
+        // Update server statuses first, then refresh tools
         await updateAllServerStatuses()
+        // Wait a bit for servers to fully start and register tools
+        await new Promise((resolve) => setTimeout(resolve, 300))
+        // Ensure queries are refreshed after enabling - force refresh multiple times to ensure tools are loaded
+        await Promise.all([
+          loadTools({ force: true }),
+          loadClients({ force: true }),
+          loadPrompts({ force: true })
+        ])
+        // Refresh again after a short delay to ensure all tools are loaded
+        setTimeout(async () => {
+          if (config.value.mcpEnabled) {
+            await Promise.all([loadTools({ force: true }), loadClients({ force: true })])
+          }
+        }, 1000)
       } else {
         // clearing server/tool state when disabling
         serverStatuses.value = {}
         toolInputs.value = {}
         toolResults.value = {}
-        await Promise.all([toolsQuery.refetch(), clientsQuery.refetch(), resourcesQuery.refetch()])
+        // Force refresh queries to get empty results
+        await Promise.all([
+          toolsQuery.refetch(),
+          clientsQuery.refetch(),
+          resourcesQuery.refetch(),
+          promptsQuery.refetch()
+        ])
       }
 
       return true
     } catch (error) {
       console.error(t('mcp.errors.setEnabledFailed'), error)
+      // Rollback on error
       config.value.mcpEnabled = !enabled
       return false
     }
@@ -423,17 +482,30 @@ export const useMcpStore = defineStore('mcp', () => {
 
   // 更新所有服务器状态
   const updateAllServerStatuses = async () => {
+    if (!config.value.mcpEnabled) {
+      return
+    }
+
     for (const serverName of Object.keys(config.value.mcpServers)) {
       await updateServerStatus(serverName, true)
     }
-    await Promise.all([loadTools(), loadClients()])
+    // Wait a bit for servers to register their tools
+    await new Promise((resolve) => setTimeout(resolve, 100))
+    // Force refresh tools and clients after updating all server statuses
+    await Promise.all([loadTools({ force: true }), loadClients({ force: true })])
   }
 
   // 更新单个服务器状态
   const updateServerStatus = async (serverName: string, noRefresh: boolean = false) => {
     try {
+      if (!config.value.mcpEnabled) {
+        serverStatuses.value[serverName] = false
+        return
+      }
+
       serverStatuses.value[serverName] = await mcpPresenter.isServerRunning(serverName)
-      if (config.value.mcpEnabled && !noRefresh) {
+      if (!noRefresh) {
+        // Refresh tools and clients when server status changes
         await Promise.all([loadTools({ force: true }), loadClients({ force: true })])
       }
       // 根据服务器的状态，关闭或者开启该服务器的所有工具
@@ -441,11 +513,14 @@ export const useMcpStore = defineStore('mcp', () => {
       const currentTools =
         chatStore.chatConfig.enabledMcpTools || [...tools.value].map((tool) => tool.function.name)
       if (isRunning) {
+        // Get server tools after refresh
         const serverTools = tools.value
           .filter((tool) => tool.server.name === serverName)
           .map((tool) => tool.function.name)
-        const mergedTools = Array.from(new Set([...currentTools, ...serverTools]))
-        chatStore.updateChatConfig({ enabledMcpTools: mergedTools })
+        if (serverTools.length > 0) {
+          const mergedTools = Array.from(new Set([...currentTools, ...serverTools]))
+          chatStore.updateChatConfig({ enabledMcpTools: mergedTools })
+        }
       } else {
         const allServerToolNames = tools.value.map((tool) => tool.function.name)
         const filteredTools = currentTools.filter((name) => allServerToolNames.includes(name))
@@ -590,7 +665,17 @@ export const useMcpStore = defineStore('mcp', () => {
     }
 
     try {
-      await runQuery(toolsQuery, options)
+      const state = await runQuery(toolsQuery, options)
+      // 当用户没有显式选择启用的工具时，默认启用全部可用工具，避免重启后出现0个工具的情况
+      if (
+        state.status === 'success' &&
+        (!chatStore.chatConfig.enabledMcpTools || chatStore.chatConfig.enabledMcpTools.length === 0)
+      ) {
+        const allToolNames = (state.data ?? []).map((tool) => tool.function.name)
+        if (allToolNames.length > 0) {
+          await chatStore.updateChatConfig({ enabledMcpTools: allToolNames })
+        }
+      }
     } catch (error) {
       console.error(t('mcp.errors.loadToolsFailed'), error)
     }
@@ -759,18 +844,45 @@ export const useMcpStore = defineStore('mcp', () => {
   const initEvents = () => {
     window.electron.ipcRenderer.on(MCP_EVENTS.SERVER_STARTED, (_event, serverName: string) => {
       console.log(`MCP server started: ${serverName}`)
-      updateServerStatus(serverName)
+      updateServerStatus(serverName).then(() => {
+        // Force refresh tools after server starts to ensure tool count is updated
+        if (config.value.mcpEnabled) {
+          loadTools({ force: true }).catch((error) => {
+            console.error('Failed to refresh tools after server started:', error)
+          })
+        }
+      })
     })
 
     window.electron.ipcRenderer.on(MCP_EVENTS.SERVER_STOPPED, (_event, serverName: string) => {
       console.log(`MCP server stopped: ${serverName}`)
-      updateServerStatus(serverName)
+      updateServerStatus(serverName).then(() => {
+        // Force refresh tools after server stops to ensure tool count is updated
+        if (config.value.mcpEnabled) {
+          loadTools({ force: true }).catch((error) => {
+            console.error('Failed to refresh tools after server stopped:', error)
+          })
+        }
+      })
     })
 
-    window.electron.ipcRenderer.on(MCP_EVENTS.CONFIG_CHANGED, () => {
-      console.log('MCP config changed')
-      loadConfig()
-    })
+    window.electron.ipcRenderer.on(
+      MCP_EVENTS.CONFIG_CHANGED,
+      (_event, payload?: ConfigQueryResult) => {
+        console.log('MCP config changed', payload)
+        if (payload) {
+          // Directly sync from event payload to avoid unnecessary query
+          syncConfigFromQuery(payload)
+          // Update server statuses after config sync
+          updateAllServerStatuses().catch((error) => {
+            console.error('Failed to update server statuses after config change:', error)
+          })
+        } else {
+          // Fallback to query if payload is missing
+          loadConfig()
+        }
+      }
+    )
 
     window.electron.ipcRenderer.on(
       MCP_EVENTS.SERVER_STATUS_CHANGED,

@@ -4,7 +4,8 @@ import {
   type LLM_PROVIDER,
   type MODEL_META,
   type RENDERER_MODEL_META,
-  type ModelConfig
+  type ModelConfig,
+  type SystemPrompt
 } from '@shared/presenter'
 import type { ProviderChange, ProviderBatchUpdate } from '@shared/provider-operations'
 import { ModelType } from '@shared/model'
@@ -17,10 +18,12 @@ import { useUpgradeStore } from '@/stores/upgrade'
 import { useThrottleFn } from '@vueuse/core'
 import { useSearchEngineStore } from '@/stores/searchEngineStore'
 import { useProviderStore } from '@/stores/providerStore'
-
-// 定义字体大小级别对应的 Tailwind 类
-const FONT_SIZE_CLASSES = ['text-sm', 'text-base', 'text-lg', 'text-xl', 'text-2xl']
-const DEFAULT_FONT_SIZE_LEVEL = 1 // 对应 'text-base'
+import { useModelStore } from '@/stores/modelStore'
+import { useOllamaStore } from '@/stores/ollamaStore'
+import { useSearchAssistantStore } from '@/stores/searchAssistantStore'
+import { useUiSettingsStore } from '@/stores/uiSettingsStore'
+import { useSystemPromptStore } from '@/stores/systemPromptStore'
+import { useModelConfigStore } from '@/stores/modelConfigStore'
 
 export const useSettingsStore = defineStore('settings', () => {
   const configP = usePresenter('configPresenter')
@@ -33,20 +36,50 @@ export const useSettingsStore = defineStore('settings', () => {
   const providerStore = useProviderStore()
   const { providers, defaultProviders, sortedProviders, providerOrder, providerTimestamps } =
     storeToRefs(providerStore)
+  const modelStore = useModelStore()
+  const ollamaStore = useOllamaStore()
+  const searchAssistantStore = useSearchAssistantStore()
+  const uiSettingsStore = useUiSettingsStore()
+  const {
+    fontSizeLevel,
+    searchPreviewEnabled,
+    contentProtectionEnabled,
+    copyWithCotEnabled,
+    notificationsEnabled,
+    traceDebugEnabled,
+    fontSizeClass
+  } = storeToRefs(uiSettingsStore)
+  const systemPromptStore = useSystemPromptStore()
+  const modelConfigStore = useModelConfigStore()
+  const providerModelQueries = new Map<
+    string,
+    ReturnType<typeof modelStore.getProviderModelsQuery>
+  >()
+  const customModelQueries = new Map<string, ReturnType<typeof modelStore.getCustomModelsQuery>>()
+
+  const getProviderModelsQuery = (providerId: string) => {
+    if (!providerModelQueries.has(providerId)) {
+      providerModelQueries.set(providerId, modelStore.getProviderModelsQuery(providerId))
+    }
+    return providerModelQueries.get(providerId)!
+  }
+
+  const getCustomModelsQuery = (providerId: string) => {
+    if (!customModelQueries.has(providerId)) {
+      customModelQueries.set(providerId, modelStore.getCustomModelsQuery(providerId))
+    }
+    return customModelQueries.get(providerId)!
+  }
+
   const enabledModels = ref<{ providerId: string; models: RENDERER_MODEL_META[] }[]>([])
   const allProviderModels = ref<{ providerId: string; models: RENDERER_MODEL_META[] }[]>([])
   const customModels = ref<{ providerId: string; models: RENDERER_MODEL_META[] }[]>([])
   const artifactsEffectEnabled = ref<boolean>(false) // 默认值与配置文件一致
-  const searchPreviewEnabled = ref<boolean>(true) // 搜索预览是否启用，默认启用
-  const contentProtectionEnabled = ref<boolean>(true) // 投屏保护是否启用，默认启用
-  const copyWithCotEnabled = ref<boolean>(true)
-  const notificationsEnabled = ref<boolean>(true) // 系统通知是否启用，默认启用
-  const traceDebugEnabled = ref<boolean>(false) // Trace 调试功能是否启用，默认关闭
-  const fontSizeLevel = ref<number>(DEFAULT_FONT_SIZE_LEVEL) // 字体大小级别，默认为 1
-  // Ollama 相关状态
-  const ollamaRunningModels = ref<Record<string, OllamaModel[]>>({})
-  const ollamaLocalModels = ref<Record<string, OllamaModel[]>>({})
-  const ollamaPullingModels = ref<Record<string, Record<string, number>>>({})
+  const {
+    runningModels: ollamaRunningModels,
+    localModels: ollamaLocalModels,
+    pullingProgress: ollamaPullingModels
+  } = storeToRefs(ollamaStore)
 
   // 搜索助手模型相关
   const searchAssistantModelRef = ref<RENDERER_MODEL_META | null>(null)
@@ -111,12 +144,7 @@ export const useSettingsStore = defineStore('settings', () => {
     const _model = toRaw(model)
     searchAssistantModelRef.value = _model
     searchAssistantProviderRef.value = providerId
-
-    await configP.setSetting('searchAssistantModel', {
-      model: _model,
-      providerId
-    })
-
+    await searchAssistantStore.setSearchAssistantModel(_model, providerId)
     // 通知更新搜索助手模型
     threadP.setSearchAssistantModel(_model, providerId)
   }
@@ -138,6 +166,7 @@ export const useSettingsStore = defineStore('settings', () => {
       searchAssistantProviderRef.value = savedModel.providerId
       // 通知线程处理器更新搜索助手模型
       threadP.setSearchAssistantModel(savedModel.model, savedModel.providerId)
+      await searchAssistantStore.setSearchAssistantModel(savedModel.model, savedModel.providerId)
       return
       // }
     }
@@ -168,22 +197,22 @@ export const useSettingsStore = defineStore('settings', () => {
       })
 
       // 通知线程处理器更新搜索助手模型
-      threadP.setSearchAssistantModel(
-        {
-          id: priorityModel.model.id,
-          name: priorityModel.model.name,
-          contextLength: priorityModel.model.contextLength,
-          maxTokens: priorityModel.model.maxTokens,
-          providerId: priorityModel.providerId,
-          group: priorityModel.model.group,
-          isCustom: priorityModel.model.isCustom,
-          vision: priorityModel.model.vision || false,
-          functionCall: priorityModel.model.functionCall || false,
-          reasoning: priorityModel.model.reasoning || false,
-          type: priorityModel.model.type || ModelType.Chat
-        },
-        toRaw(priorityModel.providerId)
-      )
+      const normalized = {
+        id: priorityModel.model.id,
+        name: priorityModel.model.name,
+        contextLength: priorityModel.model.contextLength,
+        maxTokens: priorityModel.model.maxTokens,
+        providerId: priorityModel.providerId,
+        group: priorityModel.model.group,
+        isCustom: priorityModel.model.isCustom,
+        vision: priorityModel.model.vision || false,
+        functionCall: priorityModel.model.functionCall || false,
+        reasoning: priorityModel.model.reasoning || false,
+        type: priorityModel.model.type || ModelType.Chat
+      }
+
+      threadP.setSearchAssistantModel(normalized, toRaw(priorityModel.providerId))
+      await searchAssistantStore.setSearchAssistantModel(normalized, priorityModel.providerId)
     }
   }
 
@@ -233,11 +262,6 @@ export const useSettingsStore = defineStore('settings', () => {
     }
   })
 
-  // 字体大小对应的 CSS 类
-  const fontSizeClass = computed(
-    () => FONT_SIZE_CLASSES[fontSizeLevel.value] || FONT_SIZE_CLASSES[DEFAULT_FONT_SIZE_LEVEL]
-  )
-
   const loadProviderTimestamps = async () => {
     await providerStore.loadProviderTimestamps()
   }
@@ -249,34 +273,13 @@ export const useSettingsStore = defineStore('settings', () => {
   // 初始化设置
   const initSettings = async () => {
     try {
+      await uiSettingsStore.loadSettings()
       loggingEnabled.value = await configP.getLoggingEnabled()
-      copyWithCotEnabled.value = await configP.getCopyWithCotEnabled()
 
       await providerStore.initialize()
       await providerStore.refreshProviders()
       await loadSavedOrder()
       await loadProviderTimestamps()
-
-      // 获取字体大小级别
-      fontSizeLevel.value =
-        (await configP.getSetting<number>('fontSizeLevel')) ?? DEFAULT_FONT_SIZE_LEVEL
-      // 确保级别在有效范围内
-      if (fontSizeLevel.value < 0 || fontSizeLevel.value >= FONT_SIZE_CLASSES.length) {
-        fontSizeLevel.value = DEFAULT_FONT_SIZE_LEVEL
-      }
-
-      // 获取搜索预览设置
-      searchPreviewEnabled.value = await configP.getSearchPreviewEnabled()
-
-      // 获取投屏保护设置
-      contentProtectionEnabled.value = await configP.getContentProtectionEnabled()
-
-      // 获取系统通知设置
-      notificationsEnabled.value =
-        (await configP.getSetting<boolean>('notificationsEnabled')) ?? true
-
-      // 获取 Trace 调试功能设置
-      traceDebugEnabled.value = (await configP.getSetting<boolean>('traceDebugEnabled')) ?? false
 
       await searchEngineStore.initialize()
       // 获取全部模型
@@ -296,12 +299,6 @@ export const useSettingsStore = defineStore('settings', () => {
       // 初始化搜索助手模型
       await initOrUpdateSearchAssistantModel()
       // 设置配置类事件监听器（确保实时同步状态）
-      setupContentProtectionListener()
-      setupCopyWithCotEnabledListener()
-      setupTraceDebugEnabledListener()
-      setupFontSizeListener()
-      setupSearchPreviewListener()
-      setupNotificationsListener()
 
       // 设置 provider 相关事件监听
       setupProviderListener()
@@ -324,7 +321,7 @@ export const useSettingsStore = defineStore('settings', () => {
     }
 
     try {
-      const config: ModelConfig | null = await configP.getModelConfig(model.id, providerId)
+      const config: ModelConfig | null = await modelConfigStore.getModelConfig(model.id, providerId)
       if (config?.isUserDefined) {
         const resolvedMaxTokens =
           config.maxTokens ?? config.maxCompletionTokens ?? normalizedModel.maxTokens
@@ -350,13 +347,11 @@ export const useSettingsStore = defineStore('settings', () => {
   // 刷新单个提供商的自定义模型
   const refreshCustomModels = async (providerId: string): Promise<void> => {
     try {
-      // 直接从配置存储获取自定义模型列表，不依赖provider实例
-      const customModelsList = await configP.getCustomModels(providerId)
+      const query = getCustomModelsQuery(providerId)
+      await query.refetch()
+      const customModelsList = query.data.value ?? []
+      const safeCustomModelsList = customModelsList
 
-      // 如果customModelsList为null或undefined，使用空数组
-      const safeCustomModelsList = customModelsList || []
-
-      // 批量获取自定义模型状态并合并
       const modelIds = safeCustomModelsList.map((model) => model.id)
       const modelStatusMap =
         modelIds.length > 0 ? await configP.getBatchModelStatus(providerId, modelIds) : {}
@@ -429,7 +424,9 @@ export const useSettingsStore = defineStore('settings', () => {
       // 优先使用聚合 Provider DB（统一由主进程映射）
       let models: RENDERER_MODEL_META[] = await configP.getDbProviderModels(providerId)
 
-      const storedModels = await configP.getProviderModels(providerId)
+      const providerModelsQuery = getProviderModelsQuery(providerId)
+      await providerModelsQuery.refetch()
+      const storedModels = providerModelsQuery.data.value ?? []
 
       if (storedModels && storedModels.length > 0) {
         const dbModelMap = new Map(models.map((model) => [model.id, model]))
@@ -667,10 +664,7 @@ export const useSettingsStore = defineStore('settings', () => {
   // 更新字体大小级别
   const updateFontSizeLevel = async (level: number) => {
     const validLevel = Math.max(0, Math.min(level, FONT_SIZE_CLASSES.length - 1))
-    if (fontSizeLevel.value !== validLevel) {
-      fontSizeLevel.value = validLevel
-      await configP.setSetting('fontSizeLevel', validLevel)
-    }
+    await uiSettingsStore.updateFontSizeLevel(validLevel)
   }
 
   // 监听 provider 设置变化
@@ -1162,41 +1156,12 @@ export const useSettingsStore = defineStore('settings', () => {
   const getOllamaPullingModels = (providerId: string): Record<string, number> =>
     ollamaPullingModels.value[providerId] || {}
 
-  const setOllamaRunningModels = (providerId: string, models: OllamaModel[]) => {
-    ollamaRunningModels.value = {
-      ...ollamaRunningModels.value,
-      [providerId]: models
-    }
-  }
-
-  const setOllamaLocalModels = (providerId: string, models: OllamaModel[]) => {
-    ollamaLocalModels.value = {
-      ...ollamaLocalModels.value,
-      [providerId]: models
-    }
-  }
-
   const updateOllamaPullingProgress = (
     providerId: string,
     modelName: string,
     progress?: number
   ) => {
-    const existingProgress = ollamaPullingModels.value[providerId]
-    const providerProgress = existingProgress ? { ...existingProgress } : {}
-    if (progress === undefined) {
-      delete providerProgress[modelName]
-    } else {
-      providerProgress[modelName] = progress
-    }
-
-    const next = { ...ollamaPullingModels.value }
-    if (Object.keys(providerProgress).length > 0) {
-      next[providerId] = providerProgress
-    } else {
-      delete next[providerId]
-    }
-
-    ollamaPullingModels.value = next
+    ollamaStore.updatePullingProgress(providerId, modelName, progress)
   }
 
   const clearOllamaProviderData = (providerId: string) => {
@@ -1219,14 +1184,7 @@ export const useSettingsStore = defineStore('settings', () => {
 
   const refreshOllamaModels = async (providerId: string): Promise<void> => {
     try {
-      const [running, local] = await Promise.all([
-        llmP.listOllamaRunningModels(providerId),
-        llmP.listOllamaModels(providerId)
-      ])
-
-      setOllamaRunningModels(providerId, running)
-      setOllamaLocalModels(providerId, local)
-
+      await ollamaStore.refreshOllamaModels(providerId)
       await syncOllamaModelsToGlobal(providerId)
     } catch (error) {
       console.error(`Failed to refresh Ollama models for provider ${providerId}:`, error)
@@ -1358,7 +1316,7 @@ export const useSettingsStore = defineStore('settings', () => {
     try {
       updateOllamaPullingProgress(providerId, modelName, 0)
 
-      const success = await llmP.pullOllamaModels(providerId, modelName)
+      const success = await ollamaStore.pullOllamaModel(providerId, modelName)
 
       if (!success) {
         updateOllamaPullingProgress(providerId, modelName)
@@ -1443,60 +1401,27 @@ export const useSettingsStore = defineStore('settings', () => {
     window.electron?.ipcRenderer?.removeAllListeners(CONFIG_EVENTS.PROVIDER_CHANGED)
     window.electron?.ipcRenderer?.removeAllListeners(CONFIG_EVENTS.PROVIDER_ATOMIC_UPDATE)
     window.electron?.ipcRenderer?.removeAllListeners(CONFIG_EVENTS.PROVIDER_BATCH_UPDATE)
-    window.electron?.ipcRenderer?.removeAllListeners(CONFIG_EVENTS.CONTENT_PROTECTION_CHANGED)
-    window.electron?.ipcRenderer?.removeAllListeners(CONFIG_EVENTS.COPY_WITH_COT_CHANGED)
-    window.electron?.ipcRenderer?.removeAllListeners(CONFIG_EVENTS.TRACE_DEBUG_CHANGED)
-    window.electron?.ipcRenderer?.removeAllListeners(CONFIG_EVENTS.FONT_SIZE_CHANGED)
-    window.electron?.ipcRenderer?.removeAllListeners(CONFIG_EVENTS.SEARCH_PREVIEW_CHANGED)
-    window.electron?.ipcRenderer?.removeAllListeners(CONFIG_EVENTS.NOTIFICATIONS_CHANGED)
   }
 
   // 添加设置notificationsEnabled的方法
   const setNotificationsEnabled = async (enabled: boolean) => {
-    // 更新本地状态
-    notificationsEnabled.value = Boolean(enabled)
-
-    // 调用ConfigPresenter设置值，确保等待Promise完成
-    await configP.setNotificationsEnabled(enabled)
+    await uiSettingsStore.setNotificationsEnabled(enabled)
   }
 
-  // 获取系统通知设置
   const getNotificationsEnabled = async (): Promise<boolean> => {
-    return await configP.getNotificationsEnabled()
+    return notificationsEnabled.value
   }
 
-  // 添加设置searchPreviewEnabled的方法
   const setSearchPreviewEnabled = async (enabled: boolean) => {
-    // 更新本地状态
-    searchPreviewEnabled.value = Boolean(enabled)
-
-    // 调用ConfigPresenter设置值，确保等待Promise完成
-    await configP.setSearchPreviewEnabled(enabled)
+    await uiSettingsStore.setSearchPreviewEnabled(enabled)
   }
 
-  // 搜索预览设置 - 直接从configPresenter获取
   const getSearchPreviewEnabled = async (): Promise<boolean> => {
-    return await configP.getSearchPreviewEnabled()
+    return searchPreviewEnabled.value
   }
 
-  // 添加设置contentProtectionEnabled的方法
   const setContentProtectionEnabled = async (enabled: boolean) => {
-    // 更新本地状态
-    contentProtectionEnabled.value = Boolean(enabled)
-
-    // 调用ConfigPresenter设置值，确保等待Promise完成
-    await configP.setContentProtectionEnabled(enabled)
-  }
-
-  // 设置投屏保护监听器
-  const setupContentProtectionListener = () => {
-    // 监听投屏保护变更事件
-    window.electron.ipcRenderer.on(
-      CONFIG_EVENTS.CONTENT_PROTECTION_CHANGED,
-      (_event, enabled: boolean) => {
-        contentProtectionEnabled.value = enabled
-      }
-    )
+    await uiSettingsStore.setContentProtectionEnabled(enabled)
   }
 
   // 日志开关状态
@@ -1513,67 +1438,20 @@ export const useSettingsStore = defineStore('settings', () => {
 
   ///////////////////////////////////////////////////////////////////////////////////////
   const setCopyWithCotEnabled = async (enabled: boolean) => {
-    copyWithCotEnabled.value = Boolean(enabled)
-    await configP.setCopyWithCotEnabled(enabled)
+    await uiSettingsStore.setCopyWithCotEnabled(enabled)
   }
 
   const getCopyWithCotEnabled = async (): Promise<boolean> => {
-    return await configP.getCopyWithCotEnabled()
+    return copyWithCotEnabled.value
   }
 
   ///////////////////////////////////////////////////////////////////////////////////////
   const setTraceDebugEnabled = async (enabled: boolean) => {
-    traceDebugEnabled.value = Boolean(enabled)
-    await configP.setTraceDebugEnabled(enabled)
+    await uiSettingsStore.setTraceDebugEnabled(enabled)
   }
 
   const getTraceDebugEnabled = async (): Promise<boolean> => {
-    return (await configP.getSetting<boolean>('traceDebugEnabled')) ?? false
-  }
-
-  const setupTraceDebugEnabledListener = () => {
-    window.electron.ipcRenderer.on(
-      CONFIG_EVENTS.TRACE_DEBUG_CHANGED,
-      (_event, enabled: boolean) => {
-        traceDebugEnabled.value = enabled
-      }
-    )
-  }
-
-  const setupCopyWithCotEnabledListener = () => {
-    window.electron.ipcRenderer.on(
-      CONFIG_EVENTS.COPY_WITH_COT_CHANGED,
-      (_event, enabled: boolean) => {
-        copyWithCotEnabled.value = enabled
-      }
-    )
-  }
-
-  const setupFontSizeListener = () => {
-    window.electron.ipcRenderer.on(
-      CONFIG_EVENTS.FONT_SIZE_CHANGED,
-      (_event, newFontSizeLevel: number) => {
-        fontSizeLevel.value = newFontSizeLevel
-      }
-    )
-  }
-
-  const setupSearchPreviewListener = () => {
-    window.electron.ipcRenderer.on(
-      CONFIG_EVENTS.SEARCH_PREVIEW_CHANGED,
-      (_event, enabled: boolean) => {
-        searchPreviewEnabled.value = enabled
-      }
-    )
-  }
-
-  const setupNotificationsListener = () => {
-    window.electron.ipcRenderer.on(
-      CONFIG_EVENTS.NOTIFICATIONS_CHANGED,
-      (_event, enabled: boolean) => {
-        notificationsEnabled.value = enabled
-      }
-    )
+    return traceDebugEnabled.value
   }
 
   ///////////////////////////////////////////////////////////////////////////////////////
@@ -1673,50 +1551,49 @@ export const useSettingsStore = defineStore('settings', () => {
   }
 
   const setDefaultSystemPrompt = async (prompt: string): Promise<void> => {
-    await configP.setDefaultSystemPrompt(prompt)
+    await systemPromptStore.setDefaultSystemPrompt(prompt)
   }
 
-  // 重置为默认系统提示词
   const resetToDefaultPrompt = async (): Promise<void> => {
-    await configP.resetToDefaultPrompt()
+    await systemPromptStore.resetToDefaultPrompt()
   }
 
-  // 清空系统提示词
   const clearSystemPrompt = async (): Promise<void> => {
-    await configP.clearSystemPrompt()
+    await systemPromptStore.clearSystemPrompt()
   }
 
   const getSystemPrompts = async () => {
-    return await configP.getSystemPrompts()
+    await systemPromptStore.loadPrompts()
+    return systemPromptStore.prompts
   }
 
-  const setSystemPrompts = async (prompts: any[]) => {
-    await configP.setSystemPrompts(prompts)
+  const setSystemPrompts = async (prompts: SystemPrompt[]) => {
+    await systemPromptStore.savePrompts(prompts)
   }
 
-  const addSystemPrompt = async (prompt: any) => {
-    await configP.addSystemPrompt(prompt)
+  const addSystemPrompt = async (prompt: SystemPrompt) => {
+    await systemPromptStore.addSystemPrompt(prompt)
   }
 
-  const updateSystemPrompt = async (promptId: string, updates: any) => {
-    await configP.updateSystemPrompt(promptId, updates)
+  const updateSystemPrompt = async (promptId: string, updates: Partial<SystemPrompt>) => {
+    await systemPromptStore.updateSystemPrompt(promptId, updates)
   }
 
   const deleteSystemPrompt = async (promptId: string) => {
-    await configP.deleteSystemPrompt(promptId)
+    await systemPromptStore.deleteSystemPrompt(promptId)
   }
 
   const setDefaultSystemPromptId = async (promptId: string) => {
-    await configP.setDefaultSystemPromptId(promptId)
+    await systemPromptStore.setDefaultSystemPromptId(promptId)
   }
 
   const getDefaultSystemPromptId = async () => {
-    return await configP.getDefaultSystemPromptId()
+    await systemPromptStore.loadPrompts()
+    return systemPromptStore.defaultPromptId
   }
 
-  // 模型配置相关方法
   const getModelConfig = async (modelId: string, providerId: string): Promise<any> => {
-    return await configP.getModelDefaultConfig(modelId, providerId)
+    return await modelConfigStore.getModelConfig(modelId, providerId)
   }
 
   const scheduleProviderRefresh = (providerId: string) => {
@@ -1730,14 +1607,12 @@ export const useSettingsStore = defineStore('settings', () => {
     providerId: string,
     config: any
   ): Promise<void> => {
-    await configP.setModelConfig(modelId, providerId, config)
-    // 配置写入成功后触发后台刷新，避免阻塞 UI
+    await modelConfigStore.setModelConfig(modelId, providerId, config)
     scheduleProviderRefresh(providerId)
   }
 
   const resetModelConfig = async (modelId: string, providerId: string): Promise<void> => {
-    await configP.resetModelConfig(modelId, providerId)
-    // 配置重置成功后触发后台刷新
+    await modelConfigStore.resetModelConfig(modelId, providerId)
     scheduleProviderRefresh(providerId)
   }
 
@@ -1797,15 +1672,12 @@ export const useSettingsStore = defineStore('settings', () => {
     getNotificationsEnabled, // 暴露获取系统通知状态的方法
     setSearchEngine: searchEngineStore.setSearchEngine,
     setContentProtectionEnabled,
-    setupContentProtectionListener,
     setLoggingEnabled,
     getCopyWithCotEnabled,
     setCopyWithCotEnabled,
-    setupCopyWithCotEnabledListener,
     traceDebugEnabled,
     getTraceDebugEnabled,
     setTraceDebugEnabled,
-    setupTraceDebugEnabledListener,
     testSearchEngine: searchEngineStore.testSearchEngine,
     refreshSearchEngines: searchEngineStore.refreshSearchEngines,
     setupSearchEnginesListener: searchEngineStore.setupSearchEnginesListener,
