@@ -123,10 +123,10 @@ import {
   SelectValue
 } from '@shadcn/components/ui/select'
 import type { LLM_PROVIDER } from '@shared/presenter'
-import { useSettingsStore } from '@/stores/settings'
+import { useProviderStore } from '@/stores/providerStore'
 
 const { t } = useI18n()
-const settingsStore = useSettingsStore()
+const providerStore = useProviderStore()
 
 const props = defineProps<{
   open: boolean
@@ -220,8 +220,7 @@ const handleSubmit = async () => {
     formData.value.id = nanoid()
 
     closeDialog()
-    // 使用 settingsStore 添加新的提供商
-    await settingsStore.addCustomProvider(formData.value)
+    await providerStore.addCustomProvider(formData.value)
 
     // 通知父组件添加成功
     emit('provider-added', formData.value)

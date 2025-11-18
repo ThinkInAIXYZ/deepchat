@@ -97,7 +97,6 @@ import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
 import { useToast } from '@/components/use-toast'
-import { useSettingsStore } from '@/stores/settings'
 import { Button } from '@shadcn/components/ui/button'
 import { Textarea } from '@shadcn/components/ui/textarea'
 import { Label } from '@shadcn/components/ui/label'
@@ -121,6 +120,7 @@ import {
 } from '@shadcn/components/ui/alert-dialog'
 import type { AcceptableValue } from 'reka-ui'
 import SystemPromptEditorSheet from './SystemPromptEditorSheet.vue'
+import { useSystemPromptStore } from '@/stores/systemPromptStore'
 
 interface SystemPromptItem {
   id: string
@@ -133,7 +133,7 @@ interface SystemPromptItem {
 
 const { t } = useI18n()
 const { toast } = useToast()
-const settingsStore = useSettingsStore()
+const systemPromptStore = useSystemPromptStore()
 
 const EMPTY_SYSTEM_PROMPT_ID = 'empty'
 
@@ -160,8 +160,9 @@ const isEmptyPromptSelected = computed(
 
 const loadSystemPrompts = async () => {
   try {
-    systemPrompts.value = await settingsStore.getSystemPrompts()
-    selectedSystemPromptId.value = await settingsStore.getDefaultSystemPromptId()
+    await systemPromptStore.loadPrompts()
+    systemPrompts.value = [...systemPromptStore.prompts]
+    selectedSystemPromptId.value = systemPromptStore.defaultPromptId
     updateCurrentSystemPrompt()
   } catch (error) {
     console.error('Failed to load system prompts:', error)
@@ -181,7 +182,7 @@ const updateCurrentSystemPrompt = () => {
 const handleSystemPromptChange = async (promptId: AcceptableValue) => {
   try {
     const id = promptId as string
-    await settingsStore.setDefaultSystemPromptId(id)
+    await systemPromptStore.setDefaultSystemPromptId(id)
     selectedSystemPromptId.value = id
 
     if (id === EMPTY_SYSTEM_PROMPT_ID) {
@@ -211,7 +212,7 @@ const saveCurrentSystemPrompt = async () => {
   if (!currentSystemPrompt.value) return
 
   try {
-    await settingsStore.updateSystemPrompt(currentSystemPrompt.value.id, {
+    await systemPromptStore.updateSystemPrompt(currentSystemPrompt.value.id, {
       content: currentSystemPrompt.value.content,
       updatedAt: Date.now()
     })
@@ -244,7 +245,7 @@ Be thorough in gathering information. Before replying, make sure you have all th
 When using tools, briefly describe your intended steps first—for example, which tool you'll use and for what purpose.
 Adhere to this in all languages.Always respond in the same language as the user's query.`
 
-    await settingsStore.updateSystemPrompt('default', {
+    await systemPromptStore.updateSystemPrompt('default', {
       content: originalContent,
       updatedAt: Date.now()
     })
@@ -274,7 +275,7 @@ Adhere to this in all languages.Always respond in the same language as the user'
 
 const deleteSystemPrompt = async (promptId: string) => {
   try {
-    await settingsStore.deleteSystemPrompt(promptId)
+    await systemPromptStore.deleteSystemPrompt(promptId)
     await loadSystemPrompts()
     toast({
       title: t('promptSetting.systemPromptDeleted'),
@@ -314,7 +315,7 @@ const handleSaveSystemPrompt = async ({
 
   try {
     if (id) {
-      await settingsStore.updateSystemPrompt(id, {
+      await systemPromptStore.updateSystemPrompt(id, {
         name,
         content,
         updatedAt: timestamp
@@ -329,8 +330,8 @@ const handleSaveSystemPrompt = async ({
         createdAt: timestamp,
         updatedAt: timestamp
       }
-      await settingsStore.addSystemPrompt(newPrompt)
-      await settingsStore.setDefaultSystemPromptId(newId)
+      await systemPromptStore.addSystemPrompt(newPrompt)
+      await systemPromptStore.setDefaultSystemPromptId(newId)
     }
 
     await loadSystemPrompts()
