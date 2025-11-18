@@ -285,7 +285,9 @@ import {
   DialogHeader,
   DialogTitle
 } from '@shadcn/components/ui/dialog'
-import { useSettingsStore } from '@/stores/settings'
+import { useModelStore } from '@/stores/modelStore'
+import { useOllamaStore } from '@/stores/ollamaStore'
+import { useProviderStore } from '@/stores/providerStore'
 import { useModelCheckStore } from '@/stores/modelCheck'
 import type { LLM_PROVIDER, RENDERER_MODEL_META } from '@shared/presenter'
 import ModelConfigItem from '@/components/settings/ModelConfigItem.vue'
@@ -297,7 +299,9 @@ const props = defineProps<{
   provider: LLM_PROVIDER
 }>()
 
-const settingsStore = useSettingsStore()
+const modelStore = useModelStore()
+const ollamaStore = useOllamaStore()
+const providerStore = useProviderStore()
 const modelCheckStore = useModelCheckStore()
 const apiHost = ref(props.provider.baseUrl || '')
 const apiKey = ref(props.provider.apiKey || '')
@@ -308,15 +312,13 @@ const checkResult = ref<boolean>(false)
 const showDeleteProviderDialog = ref(false)
 
 // 模型列表 - 从 settings store 获取
-const runningModels = computed(() => settingsStore.getOllamaRunningModels(props.provider.id))
-const localModels = computed(() => settingsStore.getOllamaLocalModels(props.provider.id))
+const runningModels = computed(() => ollamaStore.getOllamaRunningModels(props.provider.id))
+const localModels = computed(() => ollamaStore.getOllamaLocalModels(props.provider.id))
 const pullingModels = computed(
-  () => new Map(Object.entries(settingsStore.getOllamaPullingModels(props.provider.id)))
+  () => new Map(Object.entries(ollamaStore.getOllamaPullingModels(props.provider.id)))
 )
 const providerModelMetas = computed<RENDERER_MODEL_META[]>(() => {
-  const providerEntry = settingsStore.allProviderModels.find(
-    (item) => item.providerId === props.provider.id
-  )
+  const providerEntry = modelStore.allProviderModels.find((item) => item.providerId === props.provider.id)
   return providerEntry?.models ?? []
 })
 
@@ -845,14 +847,14 @@ onMounted(() => {
 
 // 刷新模型列表 - 使用 settings store
 const refreshModels = async () => {
-  await settingsStore.refreshOllamaModels(props.provider.id)
+  await ollamaStore.refreshOllamaModels(props.provider.id)
 }
 
 // 拉取模型 - 使用 settings store
 const pullModel = async (modelName: string) => {
   try {
     // 开始拉取
-    const success = await settingsStore.pullOllamaModel(props.provider.id, modelName)
+    const success = await ollamaStore.pullOllamaModel(props.provider.id, modelName)
 
     // 成功开始拉取后关闭对话框
     if (success) {
@@ -865,7 +867,7 @@ const pullModel = async (modelName: string) => {
 
 const handleModelEnabledChange = async (modelName: string, enabled: boolean) => {
   try {
-    await settingsStore.updateModelStatus(props.provider.id, modelName, enabled)
+    await modelStore.updateModelStatus(props.provider.id, modelName, enabled)
   } catch (error) {
     console.error(`Failed to update model status for ${modelName}:`, error)
   }
@@ -891,17 +893,17 @@ const formatModelSize = (sizeInBytes: number): string => {
 
 // 使用 settings store 的辅助函数
 const isModelLocal = (modelName: string): boolean => {
-  return settingsStore.isOllamaModelLocal(props.provider.id, modelName)
+  return ollamaStore.isOllamaModelLocal(props.provider.id, modelName)
 }
 
 // API URL 处理
 const handleApiHostChange = async (value: string) => {
-  await settingsStore.updateProviderApi(props.provider.id, undefined, value)
+  await providerStore.updateProviderApi(props.provider.id, undefined, value)
 }
 
 // API Key 处理
 const handleApiKeyChange = async (value: string) => {
-  await settingsStore.updateProviderApi(props.provider.id, value, undefined)
+  await providerStore.updateProviderApi(props.provider.id, value, undefined)
 }
 
 const handleApiKeyEnter = async (value: string) => {
@@ -909,13 +911,13 @@ const handleApiKeyEnter = async (value: string) => {
   if (inputElement) {
     inputElement.blur()
   }
-  await settingsStore.updateProviderApi(props.provider.id, value, undefined)
+  await providerStore.updateProviderApi(props.provider.id, value, undefined)
   await validateApiKey()
 }
 
 const validateApiKey = async () => {
   try {
-    const resp = await settingsStore.checkProvider(props.provider.id)
+    const resp = await providerStore.checkProvider(props.provider.id)
     if (resp.isOk) {
       console.log('验证成功')
       checkResult.value = true
@@ -940,7 +942,7 @@ const openModelCheckDialog = () => {
 
 const confirmDeleteProvider = async () => {
   try {
-    await settingsStore.removeProvider(props.provider.id)
+    await providerStore.removeProvider(props.provider.id)
     showDeleteProviderDialog.value = false
   } catch (error) {
     console.error('Failed to delete provider:', error)
