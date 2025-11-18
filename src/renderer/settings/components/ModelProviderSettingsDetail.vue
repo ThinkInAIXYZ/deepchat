@@ -223,7 +223,7 @@ const _initData = async () => {
     for (const key in safetyCategories) {
       const categoryKey = key as string
       try {
-    const savedValue = (await providerStore.getGeminiSafety(categoryKey)) as
+        const savedValue = (await providerStore.getGeminiSafety(categoryKey)) as
           | string
           | 'HARM_BLOCK_THRESHOLD_UNSPECIFIED'
         console.log(`Fetched Gemini safety for ${categoryKey}:`, savedValue)

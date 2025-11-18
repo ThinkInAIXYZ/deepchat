@@ -318,7 +318,9 @@ const pullingModels = computed(
   () => new Map(Object.entries(ollamaStore.getOllamaPullingModels(props.provider.id)))
 )
 const providerModelMetas = computed<RENDERER_MODEL_META[]>(() => {
-  const providerEntry = modelStore.allProviderModels.find((item) => item.providerId === props.provider.id)
+  const providerEntry = modelStore.allProviderModels.find(
+    (item) => item.providerId === props.provider.id
+  )
   return providerEntry?.models ?? []
 })
 

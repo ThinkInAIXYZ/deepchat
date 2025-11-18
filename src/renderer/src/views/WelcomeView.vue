@@ -125,8 +125,7 @@ const showApiKey = ref(false)
 
 const providerModels = computed(() => {
   return (
-    modelStore.allProviderModels.find((p) => p.providerId === selectedProvider.value)?.models ??
-    []
+    modelStore.allProviderModels.find((p) => p.providerId === selectedProvider.value)?.models ?? []
   )
 })
 
