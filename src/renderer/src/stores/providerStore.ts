@@ -313,6 +313,7 @@ export const useProviderStore = defineStore('provider', () => {
     await loadProviderTimestamps()
     await loadProviderOrder()
     setupProviderListeners()
+    await refreshProviders()
   }
 
   watch(

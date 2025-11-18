@@ -183,6 +183,7 @@ import { ScrollArea } from '@shadcn/components/ui/scroll-area'
 import { useThemeStore } from '@/stores/theme'
 import { useLanguageStore } from '@/stores/language'
 import AnthropicProviderSettingsDetail from './AnthropicProviderSettingsDetail.vue'
+import { onMounted } from 'vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -315,6 +316,18 @@ const handleAnthropicAuthError = (error: string) => {
   console.error('Anthropic auth error:', error)
   // 可以在这里添加用户友好的错误提示
 }
+
+onMounted(async () => {
+  if (!providerStore.providers.length) {
+    await providerStore.refreshProviders()
+  }
+  if (!modelStore.allProviderModels.length) {
+    await modelStore.refreshAllModels()
+  }
+  if (!route.params.providerId && providerStore.sortedProviders.length > 0) {
+    setActiveProvider(providerStore.sortedProviders[0].id)
+  }
+})
 
 // 处理拖拽结束事件
 const handleDragEnd = () => {
