@@ -381,12 +381,27 @@ export const useMcpStore = defineStore('mcp', () => {
   // 设置MCP启用状态
   const setMcpEnabled = async (enabled: boolean) => {
     try {
+      // Optimistically set local state so toggle updates immediately
+      config.value.mcpEnabled = enabled
+
       await setMcpEnabledMutation.mutateAsync([enabled])
-      // Cache invalidation and query refresh will happen automatically
-      // Related queries will refresh due to enabled condition changes
+      // Force refresh config to keep presenter query state in sync
+      await runQuery(configQuery, { force: true })
+
+      if (enabled) {
+        await updateAllServerStatuses()
+      } else {
+        // clearing server/tool state when disabling
+        serverStatuses.value = {}
+        toolInputs.value = {}
+        toolResults.value = {}
+        await Promise.all([toolsQuery.refetch(), clientsQuery.refetch(), resourcesQuery.refetch()])
+      }
+
       return true
     } catch (error) {
       console.error(t('mcp.errors.setEnabledFailed'), error)
+      config.value.mcpEnabled = !enabled
       return false
     }
   }
