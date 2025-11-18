@@ -267,6 +267,16 @@ export const useOllamaStore = defineStore('ollama', () => {
     setupOllamaEventListeners()
   })
 
+  const initialize = async () => {
+    setupOllamaEventListeners()
+    const ollamaProviders = providerStore.providers.filter(
+      (p) => p.apiType === 'ollama' && p.enable
+    )
+    for (const provider of ollamaProviders) {
+      await refreshOllamaModels(provider.id)
+    }
+  }
+
   onBeforeUnmount(() => {
     removeOllamaEventListeners()
   })
@@ -289,6 +299,7 @@ export const useOllamaStore = defineStore('ollama', () => {
     removeOllamaEventListeners,
     clearOllamaProviderData,
     isOllamaModelRunning,
-    isOllamaModelLocal
+    isOllamaModelLocal,
+    initialize
   }
 })

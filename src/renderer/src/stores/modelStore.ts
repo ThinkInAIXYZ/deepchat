@@ -8,6 +8,7 @@ import { useIpcMutation } from '@/composables/useIpcMutation'
 import { usePresenter } from '@/composables/usePresenter'
 import { useModelConfigStore } from '@/stores/modelConfigStore'
 import { useProviderStore } from '@/stores/providerStore'
+import { CONFIG_EVENTS, PROVIDER_DB_EVENTS } from '@/events'
 
 const PROVIDER_MODELS_KEY = (providerId: string) => ['model-store', 'provider-models', providerId]
 const CUSTOM_MODELS_KEY = (providerId: string) => ['model-store', 'custom-models', providerId]
@@ -22,6 +23,7 @@ export const useModelStore = defineStore('model', () => {
   const enabledModels = ref<{ providerId: string; models: RENDERER_MODEL_META[] }[]>([])
   const allProviderModels = ref<{ providerId: string; models: RENDERER_MODEL_META[] }[]>([])
   const customModels = ref<{ providerId: string; models: RENDERER_MODEL_META[] }[]>([])
+  const listenersRegistered = ref(false)
 
   const providerModelQueries = new Map<string, ReturnType<typeof getProviderModelsQuery>>()
   const customModelQueries = new Map<string, ReturnType<typeof getCustomModelsQuery>>()
@@ -561,6 +563,49 @@ export const useModelStore = defineStore('model', () => {
     return null
   }
 
+  const setupModelListeners = () => {
+    if (listenersRegistered.value) return
+    listenersRegistered.value = true
+
+    window.electron?.ipcRenderer?.on(
+      CONFIG_EVENTS.MODEL_LIST_CHANGED,
+      async (_event, providerId: string) => {
+        if (providerId) {
+          await refreshProviderModels(providerId)
+        } else {
+          await refreshAllModels()
+        }
+      }
+    )
+
+    window.electron?.ipcRenderer?.on(
+      CONFIG_EVENTS.MODEL_STATUS_CHANGED,
+      async (_event, msg: { providerId: string; modelId: string; enabled: boolean }) => {
+        updateLocalModelStatus(msg.providerId, msg.modelId, msg.enabled)
+      }
+    )
+
+    window.electron?.ipcRenderer?.on(PROVIDER_DB_EVENTS.UPDATED, async () => {
+      await refreshAllModels()
+    })
+    window.electron?.ipcRenderer?.on(PROVIDER_DB_EVENTS.LOADED, async () => {
+      await refreshAllModels()
+    })
+  }
+
+  const cleanup = () => {
+    window.electron?.ipcRenderer?.removeAllListeners(CONFIG_EVENTS.MODEL_LIST_CHANGED)
+    window.electron?.ipcRenderer?.removeAllListeners(CONFIG_EVENTS.MODEL_STATUS_CHANGED)
+    window.electron?.ipcRenderer?.removeAllListeners(PROVIDER_DB_EVENTS.UPDATED)
+    window.electron?.ipcRenderer?.removeAllListeners(PROVIDER_DB_EVENTS.LOADED)
+    listenersRegistered.value = false
+  }
+
+  const initialize = async () => {
+    setupModelListeners()
+    await refreshAllModels()
+  }
+
   const addCustomModelMutation = useIpcMutation({
     presenter: 'configPresenter',
     method: 'addCustomModel',
@@ -609,6 +654,9 @@ export const useModelStore = defineStore('model', () => {
     applyUserDefinedModelConfig,
     addCustomModelMutation,
     removeCustomModelMutation,
-    updateCustomModelMutation
+    updateCustomModelMutation,
+    setupModelListeners,
+    cleanup,
+    initialize
   }
 })

@@ -115,6 +115,31 @@ export const useProviderStore = defineStore('provider', () => {
     await loadProviderOrder()
   }
 
+  const setupProviderListeners = () => {
+    if (listenersRegistered.value) return
+    listenersRegistered.value = true
+
+    window.electron.ipcRenderer.on(CONFIG_EVENTS.PROVIDER_CHANGED, async () => {
+      await refreshProviders()
+    })
+
+    window.electron.ipcRenderer.on(CONFIG_EVENTS.PROVIDER_ATOMIC_UPDATE, async () => {
+      await refreshProviders()
+    })
+
+    window.electron.ipcRenderer.on(CONFIG_EVENTS.PROVIDER_BATCH_UPDATE, async () => {
+      await refreshProviders()
+    })
+
+    window.electron.ipcRenderer.on(PROVIDER_DB_EVENTS.UPDATED, async () => {
+      await refreshProviders()
+    })
+
+    window.electron.ipcRenderer.on(PROVIDER_DB_EVENTS.LOADED, async () => {
+      await refreshProviders()
+    })
+  }
+
   const updateProvider = async (id: string, provider: LLM_PROVIDER) => {
     const current = providers.value.find((item) => item.id === id)
     const previousEnable = current?.enable
@@ -282,31 +307,6 @@ export const useProviderStore = defineStore('provider', () => {
   const updateProviderTimestamp = async (providerId: string) => {
     providerTimestamps.value[providerId] = Date.now()
     await saveProviderTimestamps()
-  }
-
-  const setupProviderListeners = () => {
-    if (listenersRegistered.value) return
-    listenersRegistered.value = true
-
-    window.electron.ipcRenderer.on(CONFIG_EVENTS.PROVIDER_CHANGED, async () => {
-      await refreshProviders()
-    })
-
-    window.electron.ipcRenderer.on(CONFIG_EVENTS.PROVIDER_ATOMIC_UPDATE, async () => {
-      await refreshProviders()
-    })
-
-    window.electron.ipcRenderer.on(CONFIG_EVENTS.PROVIDER_BATCH_UPDATE, async () => {
-      await refreshProviders()
-    })
-
-    window.electron.ipcRenderer.on(PROVIDER_DB_EVENTS.UPDATED, async () => {
-      await refreshProviders()
-    })
-
-    window.electron.ipcRenderer.on(PROVIDER_DB_EVENTS.LOADED, async () => {
-      await refreshProviders()
-    })
   }
 
   const initialize = async () => {

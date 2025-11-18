@@ -39,6 +39,9 @@ export const useMcpStore = defineStore('mcp', () => {
     ready: false // if init finished, the ready will be true
   })
 
+  // 深链安装缓存
+  const mcpInstallCache = ref<string | null>(null)
+
   // MCP全局启用状态
   const mcpEnabled = computed(() => config.value.mcpEnabled)
 
@@ -986,6 +989,15 @@ export const useMcpStore = defineStore('mcp', () => {
     await mcpPresenter.clearNpmRegistryCache()
   }
 
+  // MCP 安装缓存管理（用于 deeplink）
+  const setMcpInstallCache = (value: string | null) => {
+    mcpInstallCache.value = value
+  }
+
+  const clearMcpInstallCache = () => {
+    mcpInstallCache.value = null
+  }
+
   return {
     // 状态
     config,
@@ -1002,6 +1014,7 @@ export const useMcpStore = defineStore('mcp', () => {
     prompts,
     resources,
     mcpEnabled,
+    mcpInstallCache,
 
     // 计算属性
     serverList,
@@ -1036,6 +1049,8 @@ export const useMcpStore = defineStore('mcp', () => {
     refreshNpmRegistry,
     setCustomNpmRegistry,
     setAutoDetectNpmRegistry,
-    clearNpmRegistryCache
+    clearNpmRegistryCache,
+    setMcpInstallCache,
+    clearMcpInstallCache
   }
 })
