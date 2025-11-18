@@ -16,6 +16,7 @@ import { useMcpStore } from '@/stores/mcp'
 import { useUpgradeStore } from '@/stores/upgrade'
 import { useThrottleFn } from '@vueuse/core'
 import { useSearchEngineStore } from '@/stores/searchEngineStore'
+import { useProviderStore } from '@/stores/providerStore'
 
 // 定义字体大小级别对应的 Tailwind 类
 const FONT_SIZE_CLASSES = ['text-sm', 'text-base', 'text-lg', 'text-xl', 'text-2xl']
@@ -29,8 +30,9 @@ export const useSettingsStore = defineStore('settings', () => {
   const upgradeStore = useUpgradeStore()
   const searchEngineStore = useSearchEngineStore()
   const { searchEngines, activeSearchEngine } = storeToRefs(searchEngineStore)
-  const providers = ref<LLM_PROVIDER[]>([])
-  const providerOrder = ref<string[]>([])
+  const providerStore = useProviderStore()
+  const { providers, defaultProviders, sortedProviders, providerOrder, providerTimestamps } =
+    storeToRefs(providerStore)
   const enabledModels = ref<{ providerId: string; models: RENDERER_MODEL_META[] }[]>([])
   const allProviderModels = ref<{ providerId: string; models: RENDERER_MODEL_META[] }[]>([])
   const customModels = ref<{ providerId: string; models: RENDERER_MODEL_META[] }[]>([])
@@ -64,7 +66,6 @@ export const useSettingsStore = defineStore('settings', () => {
     '32B',
     'deepseek-chat'
   ]
-  const defaultProviders = ref<LLM_PROVIDER[]>([])
   // 查找符合优先级的模型
   const findPriorityModel = (): { model: RENDERER_MODEL_META; providerId: string } | null => {
     if (!enabledModels.value || enabledModels.value.length === 0) {
@@ -237,65 +238,13 @@ export const useSettingsStore = defineStore('settings', () => {
     () => FONT_SIZE_CLASSES[fontSizeLevel.value] || FONT_SIZE_CLASSES[DEFAULT_FONT_SIZE_LEVEL]
   )
 
-  // 维护 provider 状态变更时间戳的映射
-  const providerTimestamps = ref<Record<string, number>>({})
-
   const loadProviderTimestamps = async () => {
-    try {
-      const savedTimestamps = await configP.getSetting<Record<string, number>>('providerTimestamps')
-      if (savedTimestamps) {
-        providerTimestamps.value = savedTimestamps
-      }
-    } catch (error) {
-      console.error('Failed to load provider timestamps:', error)
-    }
+    await providerStore.loadProviderTimestamps()
   }
 
   const saveProviderTimestamps = async () => {
-    try {
-      await configP.setSetting('providerTimestamps', providerTimestamps.value)
-    } catch (error) {
-      console.error('Failed to save provider timestamps:', error)
-    }
+    await providerStore.saveProviderTimestamps()
   }
-
-  // 计算排序后的 providers
-  const sortedProviders = computed(() => {
-    const enabledProviders: LLM_PROVIDER[] = []
-    const disabledProviders: LLM_PROVIDER[] = []
-
-    providers.value.forEach((provider) => {
-      if (provider.enable) {
-        enabledProviders.push(provider)
-      } else {
-        disabledProviders.push(provider)
-      }
-    })
-
-    // 排序函数：优先使用拖拽顺序，其次使用时间戳
-    const sortProviders = (providerList: LLM_PROVIDER[], useAscendingTime: boolean) => {
-      return providerList.sort((a, b) => {
-        const aOrderIndex = providerOrder.value.indexOf(a.id)
-        const bOrderIndex = providerOrder.value.indexOf(b.id)
-        if (aOrderIndex !== -1 && bOrderIndex !== -1) {
-          return aOrderIndex - bOrderIndex
-        }
-        if (aOrderIndex !== -1 && bOrderIndex === -1) {
-          return -1
-        }
-        if (aOrderIndex === -1 && bOrderIndex !== -1) {
-          return 1
-        }
-        const aTime = providerTimestamps.value[a.id] || 0
-        const bTime = providerTimestamps.value[b.id] || 0
-        return useAscendingTime ? aTime - bTime : bTime - aTime
-      })
-    }
-    const sortedEnabled = sortProviders(enabledProviders, true)
-    const sortedDisabled = sortProviders(disabledProviders, false)
-
-    return [...sortedEnabled, ...sortedDisabled]
-  })
 
   // 初始化设置
   const initSettings = async () => {
@@ -303,10 +252,8 @@ export const useSettingsStore = defineStore('settings', () => {
       loggingEnabled.value = await configP.getLoggingEnabled()
       copyWithCotEnabled.value = await configP.getCopyWithCotEnabled()
 
-      // 获取全部 provider
-      providers.value = await configP.getProviders()
-      defaultProviders.value = await configP.getDefaultProviders()
-      // 加载保存的 provider 顺序
+      await providerStore.initialize()
+      await providerStore.refreshProviders()
       await loadSavedOrder()
       await loadProviderTimestamps()
 
@@ -710,7 +657,7 @@ export const useSettingsStore = defineStore('settings', () => {
     // 删除 provider 的 websites 字段
     delete provider.websites
     await configP.setProviderById(id, provider)
-    providers.value = await configP.getProviders()
+    await providerStore.refreshProviders()
     // 如果 provider 的启用状态发生变化，刷新模型列表
     if (provider.enable !== providers.value.find((p) => p.id === id)?.enable) {
       await refreshAllModels()
@@ -731,8 +678,7 @@ export const useSettingsStore = defineStore('settings', () => {
     // 监听配置变更事件
     window.electron.ipcRenderer.on(CONFIG_EVENTS.PROVIDER_CHANGED, async () => {
       console.log('Provider changed - updating providers and order')
-      providers.value = await configP.getProviders()
-      await loadSavedOrder()
+      await providerStore.refreshProviders()
       await refreshAllModels()
     })
     // 监听原子provider更新事件
@@ -742,8 +688,7 @@ export const useSettingsStore = defineStore('settings', () => {
         console.log(
           `Provider atomic update - operation: ${change.operation}, providerId: ${change.providerId}`
         )
-        providers.value = await configP.getProviders()
-        await loadSavedOrder()
+        await providerStore.refreshProviders()
         if (change.operation === 'reorder') {
           // 重排序不需要刷新模型，只需要更新顺序
           return
@@ -777,8 +722,7 @@ export const useSettingsStore = defineStore('settings', () => {
       CONFIG_EVENTS.PROVIDER_BATCH_UPDATE,
       async (_event, batchUpdate: ProviderBatchUpdate) => {
         console.log('Provider batch update - changes:', batchUpdate.changes)
-        providers.value = await configP.getProviders()
-        await loadSavedOrder()
+        await providerStore.refreshProviders()
         // 处理批量变更
         for (const change of batchUpdate.changes) {
           if (change.operation === 'remove') {
@@ -1022,18 +966,7 @@ export const useSettingsStore = defineStore('settings', () => {
 
     // 使用新的原子操作接口
     const requiresRebuild = await configP.updateProviderAtomic(providerId, updates)
-
-    // 只在特定字段变化时刷新providers
-    const needRefreshProviders = ['name', 'enable'].some((key) => key in updates)
-    if (needRefreshProviders) {
-      providers.value = await configP.getProviders()
-    } else {
-      // 只更新当前provider
-      const index = providers.value.findIndex((p) => p.id === providerId)
-      if (index !== -1) {
-        providers.value[index] = updatedProvider
-      }
-    }
+    await providerStore.refreshProviders()
 
     // 只在需要重建实例且模型可能受影响时刷新模型列表
     const needRefreshModels =
@@ -1086,32 +1019,14 @@ export const useSettingsStore = defineStore('settings', () => {
 
   // 更新provider的启用状态
   const updateProviderStatus = async (providerId: string, enable: boolean): Promise<void> => {
-    const providerIndex = providers.value.findIndex((p) => p.id === providerId)
-    const previousProvider = providerIndex !== -1 ? { ...providers.value[providerIndex] } : null
-
-    if (providerIndex !== -1) {
-      const nextProviders = [...providers.value]
-      nextProviders[providerIndex] = {
-        ...nextProviders[providerIndex],
-        enable
-      }
-      providers.value = nextProviders
-    }
-
     const previousTimestamp = providerTimestamps.value[providerId]
     providerTimestamps.value[providerId] = Date.now()
 
     try {
       await saveProviderTimestamps()
       await updateProviderConfig(providerId, { enable })
-      await optimizeProviderOrder(providerId, enable)
+      await providerStore.optimizeProviderOrder(providerId, enable)
     } catch (error) {
-      if (providerIndex !== -1 && previousProvider) {
-        const revertedProviders = [...providers.value]
-        revertedProviders[providerIndex] = previousProvider
-        providers.value = revertedProviders
-      }
-
       if (previousTimestamp === undefined) {
         delete providerTimestamps.value[providerId]
       } else {
@@ -1121,40 +1036,6 @@ export const useSettingsStore = defineStore('settings', () => {
       await saveProviderTimestamps()
       console.error('Failed to update provider status:', error)
       throw error
-    }
-  }
-
-  const optimizeProviderOrder = async (providerId: string, enable: boolean): Promise<void> => {
-    try {
-      const currentOrder = [...providerOrder.value]
-      const providerIndex = currentOrder.indexOf(providerId)
-      if (providerIndex === -1) return
-      currentOrder.splice(providerIndex, 1)
-      const allProviders = providers.value
-      const enabledInOrder: string[] = []
-      const disabledInOrder: string[] = []
-      currentOrder.forEach((id) => {
-        const provider = allProviders.find((p) => p.id === id)
-        if (!provider || provider.id === providerId) return
-        if (provider.enable) {
-          enabledInOrder.push(id)
-        } else {
-          disabledInOrder.push(id)
-        }
-      })
-      let newOrder: string[]
-      if (enable) {
-        newOrder = [...enabledInOrder, providerId, ...disabledInOrder]
-      } else {
-        newOrder = [...enabledInOrder, providerId, ...disabledInOrder]
-      }
-      const existingIds = providers.value.map((p) => p.id)
-      const missingIds = existingIds.filter((id) => !newOrder.includes(id))
-      const finalOrder = [...newOrder, ...missingIds]
-      providerOrder.value = finalOrder
-      await configP.setSetting('providerOrder', finalOrder)
-    } catch (error) {
-      console.error('Failed to optimize provider order:', error)
     }
   }
 
@@ -1171,7 +1052,7 @@ export const useSettingsStore = defineStore('settings', () => {
       await configP.addProviderAtomic(newProvider)
 
       // 更新本地状态
-      providers.value = await configP.getProviders()
+      await providerStore.refreshProviders()
 
       // 如果新provider启用了，刷新模型列表
       if (provider.enable) {
@@ -1191,11 +1072,11 @@ export const useSettingsStore = defineStore('settings', () => {
       await configP.removeProviderAtomic(providerId)
 
       // 更新本地状态
-      providers.value = await configP.getProviders()
+      await providerStore.refreshProviders()
 
       // 从保存的顺序中移除此 provider
       providerOrder.value = providerOrder.value.filter((id) => id !== providerId)
-      await configP.setSetting('providerOrder', providerOrder.value)
+      await providerStore.saveProviderOrder()
 
       await refreshAllModels()
 
@@ -1735,52 +1616,19 @@ export const useSettingsStore = defineStore('settings', () => {
   // 初始化或加载保存的顺序
   const loadSavedOrder = async () => {
     try {
-      // 从配置中获取保存的顺序
-      const savedOrder = await configP.getSetting<string[]>('providerOrder')
-      if (savedOrder && Array.isArray(savedOrder)) {
-        providerOrder.value = savedOrder
-      } else {
-        // 如果没有保存的顺序，使用当前 providers 的顺序
-        providerOrder.value = providers.value.map((provider) => provider.id)
-      }
+      await providerStore.loadProviderOrder()
     } catch (error) {
       console.error('Failed to load saved provider order:', error)
-      // 出错时使用当前 providers 的顺序
-      providerOrder.value = providers.value.map((provider) => provider.id)
     }
   }
 
   // 更新 provider 顺序 - 支持分区域拖拽
   const updateProvidersOrder = async (newProviders: LLM_PROVIDER[]) => {
     try {
-      const enabledProviders: LLM_PROVIDER[] = []
-      const disabledProviders: LLM_PROVIDER[] = []
-      newProviders.forEach((provider) => {
-        if (provider.enable) {
-          enabledProviders.push(provider)
-        } else {
-          disabledProviders.push(provider)
-        }
-      })
-      const newOrder = [...enabledProviders.map((p) => p.id), ...disabledProviders.map((p) => p.id)]
-
-      // 确保所有现有的 provider 都在顺序中
-      const existingIds = providers.value.map((p) => p.id)
-      const missingIds = existingIds.filter((id) => !newOrder.includes(id))
-      const finalOrder = [...newOrder, ...missingIds]
-
-      // 更新顺序
-      providerOrder.value = finalOrder
-      // 保存新的顺序到配置中
-      await configP.setSetting('providerOrder', finalOrder)
-
-      // 使用新的原子操作接口 - 重新排序不需要重建实例
-      await configP.reorderProvidersAtomic(newProviders)
-
-      // 强制更新 providers 以触发视图更新
-      providers.value = [...newProviders]
+      await providerStore.updateProvidersOrder(newProviders)
     } catch (error) {
       console.error('Failed to update provider order:', error)
+      throw error
     }
   }
 

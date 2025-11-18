@@ -220,6 +220,10 @@ export const useProviderStore = defineStore('provider', () => {
     refreshProviders,
     updateProvidersOrder,
     optimizeProviderOrder,
-    updateProviderTimestamp
+    updateProviderTimestamp,
+    loadProviderOrder,
+    saveProviderOrder,
+    loadProviderTimestamps,
+    saveProviderTimestamps
   }
 })
