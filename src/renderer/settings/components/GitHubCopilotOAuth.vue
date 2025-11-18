@@ -119,7 +119,7 @@ import { Label } from '@shadcn/components/ui/label'
 import { Button } from '@shadcn/components/ui/button'
 import { Icon } from '@iconify/vue'
 import { usePresenter } from '@/composables/usePresenter'
-import { useSettingsStore } from '@/stores/settings'
+import { useProviderStore } from '@/stores/providerStore'
 import type { LLM_PROVIDER } from '@shared/presenter'
 import { useModelCheckStore } from '@/stores/modelCheck'
 
@@ -135,7 +135,7 @@ const emit = defineEmits<{
 }>()
 
 const oauthPresenter = usePresenter('oauthPresenter')
-const settingsStore = useSettingsStore()
+const providerStore = useProviderStore()
 const modelCheckStore = useModelCheckStore()
 
 const isLoggingIn = ref(false)
@@ -227,7 +227,7 @@ const openModelCheckDialog = () => {
 const disconnect = async () => {
   try {
     // 清除API Key
-    await settingsStore.updateProviderApi(props.provider.id, '', undefined)
+    await providerStore.updateProviderApi(props.provider.id, '', undefined)
     validationResult.value = {
       success: true,
       message: t('settings.provider.disconnected')

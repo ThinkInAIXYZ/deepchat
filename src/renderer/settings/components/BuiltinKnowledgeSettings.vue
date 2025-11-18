@@ -595,13 +595,13 @@ import { useThemeStore } from '@/stores/theme'
 import { BuiltinKnowledgeConfig, RENDERER_MODEL_META } from '@shared/presenter'
 import { toast } from '@/components/use-toast'
 import { useRoute } from 'vue-router'
-import { useSettingsStore } from '@/stores/settings'
 import { nanoid } from 'nanoid'
 import { usePresenter } from '@/composables/usePresenter'
+import { useModelStore } from '@/stores/modelStore'
 // 全局对象
 const { t } = useI18n()
 const mcpStore = useMcpStore()
-const settingsStore = useSettingsStore()
+const modelStore = useModelStore()
 const themeStore = useThemeStore()
 const llmP = usePresenter('llmproviderPresenter')
 const knowledgeP = usePresenter('knowledgePresenter')
@@ -695,7 +695,7 @@ const isEditingBuiltinConfigValid = computed(() => {
 
 // 获取已启用的模型配置
 const getEnableModelConfig = (modelId: string, providerId: string): RENDERER_MODEL_META | null => {
-  const provider = settingsStore.enabledModels.find((p) => p.providerId === providerId)
+  const provider = modelStore.enabledModels.find((p) => p.providerId === providerId)
   if (!provider || !Array.isArray(provider.models)) return null
   const model = provider.models.find((m) => m.id === modelId && m.enabled)
   return model || null

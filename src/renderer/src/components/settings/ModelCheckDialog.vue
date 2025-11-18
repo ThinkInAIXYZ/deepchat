@@ -116,13 +116,15 @@ import {
   SelectTrigger,
   SelectValue
 } from '@shadcn/components/ui/select'
-import { useSettingsStore } from '@/stores/settings'
 import { Icon } from '@iconify/vue'
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useModelStore } from '@/stores/modelStore'
+import { useProviderStore } from '@/stores/providerStore'
 
 const { t } = useI18n()
-const settingsStore = useSettingsStore()
+const modelStore = useModelStore()
+const providerStore = useProviderStore()
 
 const props = defineProps<{
   open: boolean
@@ -140,9 +142,7 @@ const result = ref<{ isOk: boolean; errorMsg: string | null } | null>(null)
 
 // 计算可用的模型列表 - 显示所有模型
 const availableModels = computed(() => {
-  const providerModels = settingsStore.allProviderModels.find(
-    (p) => p.providerId === props.providerId
-  )
+  const providerModels = modelStore.allProviderModels.find((p) => p.providerId === props.providerId)
   return providerModels?.models || []
 })
 
@@ -193,7 +193,7 @@ const handleCheck = async () => {
     result.value = null
 
     // 调用设置store的检查方法
-    const checkResult = await settingsStore.checkProvider(props.providerId, selectedModelId.value)
+    const checkResult = await providerStore.checkProvider(props.providerId, selectedModelId.value)
     result.value = checkResult
   } catch (error) {
     console.error('Model check failed:', error)

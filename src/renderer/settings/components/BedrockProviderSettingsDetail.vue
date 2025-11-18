@@ -133,7 +133,8 @@
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { AWS_BEDROCK_PROVIDER, RENDERER_MODEL_META } from '@shared/presenter'
-import { useSettingsStore } from '@/stores/settings'
+import { useProviderStore } from '@/stores/providerStore'
+import { useModelStore } from '@/stores/modelStore'
 import { ScrollArea } from '@shadcn/components/ui/scroll-area'
 import { Label } from '@shadcn/components/ui/label'
 import { Input } from '@shadcn/components/ui/input'
@@ -158,7 +159,8 @@ const props = defineProps<{
 // }>()
 
 const { t } = useI18n()
-const settingsStore = useSettingsStore()
+const providerStore = useProviderStore()
+const modelStore = useModelStore()
 
 const accessKeyId = ref(props.provider.credential?.accessKeyId || '')
 const secretAccessKey = ref(props.provider.credential?.secretAccessKey || '')
@@ -182,9 +184,7 @@ const enabledModels = computed(() => {
 
 const initData = async () => {
   console.log('initData for provider:', props.provider.id)
-  const providerData = settingsStore.allProviderModels.find(
-    (p) => p.providerId === props.provider.id
-  )
+  const providerData = modelStore.allProviderModels.find((p) => p.providerId === props.provider.id)
 
   if (providerData) {
     providerModels.value = providerData.models.sort(
@@ -210,7 +210,7 @@ watch(
 )
 
 watch(
-  () => settingsStore.allProviderModels,
+  () => modelStore.allProviderModels,
   () => {
     initData()
   },
@@ -218,7 +218,7 @@ watch(
 )
 
 const handleAccessKeyIdChange = (value: string) => {
-  settingsStore.updateAwsBedrockProviderConfig(props.provider.id, {
+  providerStore.updateAwsBedrockProviderConfig(props.provider.id, {
     credential: {
       accessKeyId: value,
       secretAccessKey: secretAccessKey.value,
@@ -228,7 +228,7 @@ const handleAccessKeyIdChange = (value: string) => {
 }
 
 const handleSecretAccessKeyChange = (value: string) => {
-  settingsStore.updateAwsBedrockProviderConfig(props.provider.id, {
+  providerStore.updateAwsBedrockProviderConfig(props.provider.id, {
     credential: {
       accessKeyId: accessKeyId.value,
       secretAccessKey: value,
@@ -238,7 +238,7 @@ const handleSecretAccessKeyChange = (value: string) => {
 }
 
 const handleRegionChange = (value: string) => {
-  settingsStore.updateAwsBedrockProviderConfig(props.provider.id, {
+  providerStore.updateAwsBedrockProviderConfig(props.provider.id, {
     credential: {
       accessKeyId: accessKeyId.value,
       secretAccessKey: secretAccessKey.value,
@@ -249,13 +249,13 @@ const handleRegionChange = (value: string) => {
 
 const validateCredential = async () => {
   try {
-    const resp = await settingsStore.checkProvider(props.provider.id)
+    const resp = await providerStore.checkProvider(props.provider.id)
     if (resp.isOk) {
       console.log('验证成功')
       checkResult.value = true
       showCheckModelDialog.value = true
       // 验证成功后刷新当前provider的模型列表
-      await settingsStore.refreshProviderModels(props.provider.id)
+      await modelStore.refreshProviderModels(props.provider.id)
     } else {
       console.log('验证失败', resp.errorMsg)
       checkResult.value = false
@@ -269,14 +269,14 @@ const validateCredential = async () => {
 }
 
 const handleVerifyCredential = async (updates: Partial<AWS_BEDROCK_PROVIDER>) => {
-  await settingsStore.updateAwsBedrockProviderConfig(props.provider.id, updates)
+  await providerStore.updateAwsBedrockProviderConfig(props.provider.id, updates)
   await validateCredential()
 }
 
 const confirmDisable = async () => {
   if (modelToDisable.value) {
     try {
-      await settingsStore.updateModelStatus(props.provider.id, modelToDisable.value.id, false)
+      await modelStore.updateModelStatus(props.provider.id, modelToDisable.value.id, false)
     } catch (error) {
       console.error('Failed to disable model:', error)
     }
@@ -298,7 +298,7 @@ const handleModelEnabledChange = async (
   if (!enabled && comfirm) {
     disableModel(model)
   } else {
-    await settingsStore.updateModelStatus(props.provider.id, model.id, enabled)
+    await modelStore.updateModelStatus(props.provider.id, model.id, enabled)
   }
 }
 
@@ -308,7 +308,7 @@ const disableAllModelsConfirm = () => {
 
 const confirmDisableAll = async () => {
   try {
-    await settingsStore.disableAllModels(props.provider.id)
+    await modelStore.disableAllModels(props.provider.id)
     showDisableAllConfirmDialog.value = false
   } catch (error) {
     console.error('Failed to disable all models:', error)

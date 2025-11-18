@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { useSettingsStore } from '@/stores/settings'
+import { useProviderStore } from '@/stores/providerStore'
 import cherryinColorIcon from '@/assets/llm-icons/cherryin-color.png?url'
 import adobeColorIcon from '@/assets/llm-icons/adobe-color.svg?url'
 import zeaburColorIcon from '@/assets/llm-icons/zeabur-color.svg?url'
@@ -154,11 +154,11 @@ const props = withDefaults(defineProps<Props>(), {
   isDark: false
 })
 
-const settingsStore = useSettingsStore()
+const providerStore = useProviderStore()
 
 const provider = computed(() => {
   if (!props.modelId) return undefined
-  return settingsStore.providers.find((item) => item.id === props.modelId)
+  return providerStore.providers.find((item) => item.id === props.modelId)
 })
 
 const iconKey = computed(() => {

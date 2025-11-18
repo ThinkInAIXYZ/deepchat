@@ -358,13 +358,14 @@ import {
   SelectTrigger,
   SelectValue
 } from '@shadcn/components/ui/select'
-import { useSettingsStore } from '@/stores/settings'
 import { useModelCheckStore } from '@/stores/modelCheck'
 import { usePresenter } from '@/composables/usePresenter'
 import type { LLM_PROVIDER, RENDERER_MODEL_META } from '@shared/presenter'
 import ProviderModelManager from './ProviderModelManager.vue'
 import ProviderDialogContainer from './ProviderDialogContainer.vue'
 import type { AcceptableValue } from 'reka-ui'
+import { useProviderStore } from '@/stores/providerStore'
+import { useModelStore } from '@/stores/modelStore'
 
 const { t } = useI18n()
 
@@ -377,7 +378,8 @@ const emit = defineEmits<{
   'auth-error': [error: string]
 }>()
 
-const settingsStore = useSettingsStore()
+const providerStore = useProviderStore()
+const modelStore = useModelStore()
 const modelCheckStore = useModelCheckStore()
 const oauthPresenter = usePresenter('oauthPresenter')
 
@@ -401,26 +403,26 @@ const showDeleteProviderDialog = ref(false)
 // Computed
 const hasOAuthToken = ref(false)
 const enabledModels = computed(() => {
-  const providerModels = settingsStore.enabledModels.find(
+  const providerModels = modelStore.enabledModels.find(
     (provider) => provider.providerId === props.provider.id
   )
   return providerModels?.models.filter((model) => model.enabled) || []
 })
 
 const totalModelsCount = computed(() => {
-  const providerModels = settingsStore.allProviderModels.find(
+  const providerModels = modelStore.allProviderModels.find(
     (provider) => provider.providerId === props.provider.id
   )
   return providerModels?.models.length || 0
 })
 
 const providerModels = computed((): RENDERER_MODEL_META[] => {
-  const provider = settingsStore.allProviderModels.find((p) => p.providerId === props.provider.id)
+  const provider = modelStore.allProviderModels.find((p) => p.providerId === props.provider.id)
   return provider?.models || []
 })
 
 const customModels = computed((): RENDERER_MODEL_META[] => {
-  const providerCustomModels = settingsStore.customModels.find(
+  const providerCustomModels = modelStore.customModels.find(
     (p) => p.providerId === props.provider.id
   )
   return providerCustomModels?.models || []
@@ -445,13 +447,13 @@ const detectAuthMethod = async () => {
         authMethod.value = 'oauth'
         hasOAuthToken.value = true
         // 保存检测到的认证模式
-        await settingsStore.updateProviderAuth(props.provider.id, 'oauth', undefined)
+        await providerStore.updateProviderAuth(props.provider.id, 'oauth', undefined)
       } else if (hasApiKey) {
         authMethod.value = 'apikey'
-        await settingsStore.updateProviderAuth(props.provider.id, 'apikey', undefined)
+        await providerStore.updateProviderAuth(props.provider.id, 'apikey', undefined)
       } else {
         authMethod.value = 'apikey' // 默认为API Key方式
-        await settingsStore.updateProviderAuth(props.provider.id, 'apikey', undefined)
+        await providerStore.updateProviderAuth(props.provider.id, 'apikey', undefined)
       }
     }
 
@@ -466,7 +468,7 @@ const detectAuthMethod = async () => {
 // 切换认证方式
 const switchAuthMethod = async (method: 'apikey' | 'oauth') => {
   // 保存选择的认证模式
-  await settingsStore.updateProviderAuth(props.provider.id, method, undefined)
+  await providerStore.updateProviderAuth(props.provider.id, method, undefined)
 
   if (method === 'oauth') {
     // 检查OAuth凭据状态
@@ -546,7 +548,7 @@ const submitOAuthCode = async () => {
 
     if (success) {
       // 更新认证模式为OAuth
-      await settingsStore.updateProviderAuth(props.provider.id, 'oauth', undefined)
+      await providerStore.updateProviderAuth(props.provider.id, 'oauth', undefined)
       hasOAuthToken.value = true
       waitingForCode.value = false
       showCodeDialog.value = false
@@ -587,8 +589,8 @@ const disconnectOAuth = async () => {
   try {
     await oauthPresenter.clearAnthropicCredentials()
     // 清除provider中的OAuth相关状态，切换回API Key模式
-    await settingsStore.updateProviderAuth(props.provider.id, 'apikey', '')
-    await settingsStore.updateProviderApi(props.provider.id, '', undefined)
+    await providerStore.updateProviderAuth(props.provider.id, 'apikey', '')
+    await providerStore.updateProviderApi(props.provider.id, '', undefined)
     hasOAuthToken.value = false
     waitingForCode.value = false
     showCodeDialog.value = false
@@ -607,12 +609,12 @@ const disconnectOAuth = async () => {
 
 // API URL 处理
 const handleApiHostChange = async (value: string) => {
-  await settingsStore.updateProviderApi(props.provider.id, undefined, value)
+  await providerStore.updateProviderApi(props.provider.id, undefined, value)
 }
 
 // API Key 处理
 const handleApiKeyChange = async (value: string) => {
-  await settingsStore.updateProviderApi(props.provider.id, value, undefined)
+  await providerStore.updateProviderApi(props.provider.id, value, undefined)
 }
 
 const handleApiKeyEnter = async (value: string) => {
@@ -620,13 +622,13 @@ const handleApiKeyEnter = async (value: string) => {
   if (inputElement) {
     inputElement.blur()
   }
-  await settingsStore.updateProviderApi(props.provider.id, value, undefined)
+  await providerStore.updateProviderApi(props.provider.id, value, undefined)
   await validateApiKey()
 }
 
 const validateApiKey = async () => {
   try {
-    const resp = await settingsStore.checkProvider(props.provider.id)
+    const resp = await providerStore.checkProvider(props.provider.id)
     if (resp.isOk) {
       console.log('验证成功')
       checkResult.value = true
@@ -646,7 +648,7 @@ const validateApiKey = async () => {
 const validateOAuthConnection = async () => {
   try {
     // 验证 OAuth 连接状态
-    const resp = await settingsStore.checkProvider(props.provider.id)
+    const resp = await providerStore.checkProvider(props.provider.id)
     if (resp.isOk) {
       console.log('OAuth connection verified successfully')
       checkResult.value = true
@@ -684,7 +686,7 @@ const openModelCheckDialog = () => {
 // 模型管理事件处理
 const handleDisableAllModels = async () => {
   try {
-    await settingsStore.disableAllModels(props.provider.id)
+    await modelStore.disableAllModels(props.provider.id)
   } catch (error) {
     console.error('Failed to disable all models:', error)
   }
@@ -692,7 +694,7 @@ const handleDisableAllModels = async () => {
 
 const handleModelEnabledChange = async (model: RENDERER_MODEL_META, enabled: boolean) => {
   try {
-    await settingsStore.updateModelStatus(props.provider.id, model.id, enabled)
+    await modelStore.updateModelStatus(props.provider.id, model.id, enabled)
   } catch (error) {
     console.error('Failed to update model enabled state:', error)
   }
@@ -706,7 +708,7 @@ const handleConfigChanged = () => {
 // delete service provider related
 const confirmDeleteProvider = async () => {
   try {
-    await settingsStore.removeProvider(props.provider.id)
+    await providerStore.removeProvider(props.provider.id)
     showDeleteProviderDialog.value = false
   } catch (error) {
     console.error('Failed to delete supplier:', error)
