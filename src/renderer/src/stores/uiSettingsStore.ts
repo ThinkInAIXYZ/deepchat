@@ -34,7 +34,7 @@ export const useUiSettingsStore = defineStore('uiSettings', () => {
     contentProtectionEnabled.value = await configP.getContentProtectionEnabled()
     notificationsEnabled.value = (await configP.getSetting<boolean>('notificationsEnabled')) ?? true
     traceDebugEnabled.value = (await configP.getSetting<boolean>('traceDebugEnabled')) ?? false
-    copyWithCotEnabled.value = configP.getCopyWithCotEnabled()
+    copyWithCotEnabled.value = await configP.getCopyWithCotEnabled()
     loggingEnabled.value = await configP.getLoggingEnabled()
   }
 

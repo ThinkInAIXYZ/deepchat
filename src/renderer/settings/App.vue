@@ -68,6 +68,11 @@ import 'vue-sonner/style.css'
 import { NOTIFICATION_EVENTS } from '@/events'
 import { useToast } from '@/components/use-toast'
 import { useThemeStore } from '@/stores/theme'
+import { useProviderStore } from '@/stores/providerStore'
+import { useModelStore } from '@/stores/modelStore'
+import { useOllamaStore } from '@/stores/ollamaStore'
+import { useSearchAssistantStore } from '@/stores/searchAssistantStore'
+import { useSearchEngineStore } from '@/stores/searchEngineStore'
 
 const devicePresenter = usePresenter('devicePresenter')
 const windowPresenter = usePresenter('windowPresenter')
@@ -79,6 +84,11 @@ const languageStore = useLanguageStore()
 const modelCheckStore = useModelCheckStore()
 const { toast } = useToast()
 const themeStore = useThemeStore()
+const providerStore = useProviderStore()
+const modelStore = useModelStore()
+const ollamaStore = useOllamaStore()
+const searchAssistantStore = useSearchAssistantStore()
+const searchEngineStore = useSearchEngineStore()
 
 const errorQueue = ref<Array<{ id: string; title: string; message: string; type: string }>>([])
 const currentErrorId = ref<string | null>(null)
@@ -105,6 +115,7 @@ const settings: Ref<
 // Get all routes and build settings navigation
 const routes = router.getRoutes()
 onMounted(() => {
+  void initializeSettingsStores()
   const tempArray: {
     title: string
     name: string
@@ -132,6 +143,19 @@ onMounted(() => {
     console.log('Final sorted settings routes:', settings.value)
   })
 })
+
+const initializeSettingsStores = async () => {
+  try {
+    await providerStore.initialize()
+    await modelStore.initialize()
+    await ollamaStore.initialize?.()
+    await searchAssistantStore.initOrUpdateSearchAssistantModel()
+    await searchEngineStore.refreshSearchEngines()
+    searchEngineStore.setupSearchEnginesListener()
+  } catch (error) {
+    console.error('Failed to initialize settings stores', error)
+  }
+}
 
 // Update title function
 const updateTitle = () => {
