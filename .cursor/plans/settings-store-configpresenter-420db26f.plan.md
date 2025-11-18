@@ -219,8 +219,8 @@
 - [x] 完善 uiSettingsStore.ts：迁移 artifactsEffectEnabled、loggingEnabled、setLoggingEnabled
 - [x] 拆分 setupProviderListener 到各个 store，各 store 负责监听自己相关的事件
 - [x] 创建初始化协调器，确保各 store 按正确顺序初始化
-- [ ] 更新所有 35 个文件中的 useSettingsStore 调用为对应的新 store
-- [ ] 处理特殊调用：initSettings、cleanAllMessages、mcpInstallCache
+- [ ] 更新所有剩余文件中的 useSettingsStore 调用为对应的新 store（剩余：BedrockProviderSettingsDetail.vue、AnthropicProviderSettingsDetail.vue、GitHubCopilotOAuth.vue、BuiltinKnowledgeSettings.vue、ModelConfigDialog.vue、ModelCheckDialog.vue、ModelIcon.vue、MessageToolbar.vue、MessageItemAssistant.vue、mcp-config/mcpServerForm.vue、mcp-config/components/McpServers.vue、useRateLimitStatus.ts、usePromptInputConfig.ts、useModelTypeDetection.ts）
+- [ ] 处理特殊调用：initSettings、cleanAllMessages、mcpInstallCache（迁移/清理后删除 settings.ts）
 - [ ] 删除旧的 settings.ts 文件，清理未使用的 import
 - [ ] 验证所有功能正常工作：Provider、Model、Ollama、搜索助手、UI 设置、系统提示词、模型配置
 - [ ] 代码质量检查：确保没有循环依赖、事件监听器正确清理、初始化顺序正确、运行 lint 和 typecheck
