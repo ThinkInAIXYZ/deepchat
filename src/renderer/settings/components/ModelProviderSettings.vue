@@ -163,7 +163,8 @@
 
 <script setup lang="ts">
 import { computed, ref, nextTick } from 'vue'
-import { useSettingsStore } from '@/stores/settings'
+import { useProviderStore } from '@/stores/providerStore'
+import { useModelStore } from '@/stores/modelStore'
 import { useRoute, useRouter } from 'vue-router'
 import { refDebounced } from '@vueuse/core'
 import ModelProviderSettingsDetail from './ModelProviderSettingsDetail.vue'
@@ -187,7 +188,8 @@ const route = useRoute()
 const router = useRouter()
 const { t } = useI18n()
 const languageStore = useLanguageStore()
-const settingsStore = useSettingsStore()
+const providerStore = useProviderStore()
+const modelStore = useModelStore()
 const themeStore = useThemeStore()
 const isAddProviderDialogOpen = ref(false)
 const searchQueryBase = ref('')
@@ -211,8 +213,8 @@ const filterProviders = (providers: LLM_PROVIDER[]) => {
   )
 }
 
-const allEnabledProviders = computed(() => settingsStore.sortedProviders.filter((p) => p.enable))
-const allDisabledProviders = computed(() => settingsStore.sortedProviders.filter((p) => !p.enable))
+const allEnabledProviders = computed(() => providerStore.sortedProviders.filter((p) => p.enable))
+const allDisabledProviders = computed(() => providerStore.sortedProviders.filter((p) => !p.enable))
 
 // 分别处理启用和禁用的 providers
 const enabledProviders = computed({
@@ -227,10 +229,10 @@ const enabledProviders = computed({
         return orderA - orderB
       })
       const allProviders = [...reorderedEnabled, ...allDisabledProviders.value]
-      settingsStore.updateProvidersOrder(allProviders)
+      providerStore.updateProvidersOrder(allProviders)
     } else {
       const allProviders = [...newProviders, ...allDisabledProviders.value]
-      settingsStore.updateProvidersOrder(allProviders)
+      providerStore.updateProvidersOrder(allProviders)
     }
   }
 })
@@ -247,10 +249,10 @@ const disabledProviders = computed({
         return orderA - orderB
       })
       const allProviders = [...allEnabledProviders.value, ...reorderedDisabled]
-      settingsStore.updateProvidersOrder(allProviders)
+      providerStore.updateProvidersOrder(allProviders)
     } else {
       const allProviders = [...allEnabledProviders.value, ...newProviders]
-      settingsStore.updateProvidersOrder(allProviders)
+      providerStore.updateProvidersOrder(allProviders)
     }
   }
 })
@@ -277,7 +279,7 @@ const scrollToProvider = (providerId: string) => {
 
 const toggleProviderStatus = async (provider: LLM_PROVIDER) => {
   const willEnable = !provider.enable
-  await settingsStore.updateProviderStatus(provider.id, willEnable)
+  await providerStore.updateProviderStatus(provider.id, willEnable)
   // 切换状态后，同时打开该服务商的详情页面
   setActiveProvider(provider.id)
 
@@ -289,7 +291,7 @@ const toggleProviderStatus = async (provider: LLM_PROVIDER) => {
 }
 
 const activeProvider = computed(() => {
-  return settingsStore.providers.find((p) => p.id === route.params.providerId)
+  return providerStore.providers.find((p) => p.id === route.params.providerId)
 })
 
 const openAddProviderDialog = () => {
@@ -305,7 +307,7 @@ const handleAnthropicAuthSuccess = async () => {
   // 处理 Anthropic 认证成功后的逻辑
   console.log('Anthropic auth success')
   // 刷新模型列表以获取最新的授权状态
-  await settingsStore.refreshAllModels()
+  await modelStore.refreshAllModels()
 }
 
 const handleAnthropicAuthError = (error: string) => {
