@@ -379,10 +379,10 @@ src/main/presenter/configPresenter/
 5. **ConfigPresenter 接口**：保证方法签名不变，内部实现委托给 Helper
 6. **测试验证**：每个阶段完成后验证功能正常，最后添加单元测试
 
-### To-dos
+-### To-dos
 
 - [x] 阶段一：拆分 Main 层 ConfigPresenter 为多个 Helper 类（providerHelper, modelStatusHelper, providerModelHelper, systemPromptHelper, uiSettingsHelper）
-- [ ] 阶段二：拆分 Renderer 层 settings.ts 为多个 Store（providerStore, modelStore, ollamaStore, searchAssistantStore, uiSettingsStore, systemPromptStore, modelConfigStore）
+- [x] 阶段二：拆分 Renderer 层 settings.ts 为多个 Store（providerStore, modelStore, ollamaStore, searchAssistantStore, uiSettingsStore, systemPromptStore, modelConfigStore）
 - [ ] 为所有新 Store 集成 Colada Query + Mutation 模式，优化数据流和缓存
 - [ ] 阶段三：在旧 settings.ts 中保留代理方法，确保现有组件无需立即修改
 - [ ] 逐步迁移组件使用新 Store，更新所有引用
