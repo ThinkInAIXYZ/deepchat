@@ -379,6 +379,20 @@ export const useMcpStore = defineStore('mcp', () => {
   }
 
   // 设置MCP启用状态
+  const startDefaultServers = async () => {
+    const defaultServers = config.value.defaultServers
+    for (const serverName of defaultServers) {
+      try {
+        const running = await mcpPresenter.isServerRunning(serverName)
+        if (!running) {
+          await mcpPresenter.startServer(serverName)
+        }
+      } catch (error) {
+        console.error('Failed to auto-start MCP server', serverName, error)
+      }
+    }
+  }
+
   const setMcpEnabled = async (enabled: boolean) => {
     try {
       // Optimistically set local state so toggle updates immediately
@@ -389,6 +403,7 @@ export const useMcpStore = defineStore('mcp', () => {
       await runQuery(configQuery, { force: true })
 
       if (enabled) {
+        await startDefaultServers()
         await updateAllServerStatuses()
       } else {
         // clearing server/tool state when disabling
