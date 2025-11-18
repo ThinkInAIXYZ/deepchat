@@ -57,7 +57,7 @@ import { useI18n } from 'vue-i18n'
 import { useTitle } from '@vueuse/core'
 import { usePresenter } from '../src/composables/usePresenter'
 import CloseIcon from './icons/CloseIcon.vue'
-import { useSettingsStore } from '../src/stores/settings'
+import { useUiSettingsStore } from '../src/stores/uiSettingsStore'
 import { useLanguageStore } from '../src/stores/language'
 import { useModelCheckStore } from '../src/stores/modelCheck'
 import { Button } from '@shadcn/components/ui/button'
@@ -74,7 +74,7 @@ const windowPresenter = usePresenter('windowPresenter')
 const configPresenter = usePresenter('configPresenter')
 
 // Initialize stores
-const settingsStore = useSettingsStore()
+const uiSettingsStore = useUiSettingsStore()
 const languageStore = useLanguageStore()
 const modelCheckStore = useModelCheckStore()
 const { toast } = useToast()
@@ -168,7 +168,7 @@ watch(
 
 // Watch font size changes and update classes
 watch(
-  () => settingsStore.fontSizeClass,
+  () => uiSettingsStore.fontSizeClass,
   (newClass, oldClass) => {
     if (oldClass) document.documentElement.classList.remove(oldClass)
     document.documentElement.classList.add(newClass)
@@ -238,6 +238,8 @@ onMounted(() => {
   window.electron.ipcRenderer.on(NOTIFICATION_EVENTS.SHOW_ERROR, (_event, error) => {
     showErrorToast(error)
   })
+
+  void uiSettingsStore.loadSettings()
 })
 
 const closeWindow = () => {

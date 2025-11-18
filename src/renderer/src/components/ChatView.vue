@@ -45,7 +45,7 @@ import ChatInput from './chat-input/ChatInput.vue'
 import { useRoute } from 'vue-router'
 import { UserMessageContent } from '@shared/chat'
 import { STREAM_EVENTS, SHORTCUT_EVENTS } from '@/events'
-import { useSettingsStore } from '@/stores/settings'
+import { useUiSettingsStore } from '@/stores/uiSettingsStore'
 import { useChatStore } from '@/stores/chat'
 import { useCleanDialog } from '@/composables/message/useCleanDialog'
 import { useI18n } from 'vue-i18n'
@@ -61,7 +61,7 @@ import { Button } from '@shadcn/components/ui/button'
 
 const { t } = useI18n()
 const route = useRoute()
-const settingsStore = useSettingsStore()
+const uiSettingsStore = useUiSettingsStore()
 const chatStore = useChatStore()
 const cleanDialog = useCleanDialog()
 
@@ -122,7 +122,7 @@ onMounted(async () => {
     const threadId = await chatStore.createThread('新会话', {
       modelId: route.query.modelId as string,
       providerId: route.query.providerId as string,
-      artifacts: settingsStore.artifactsEffectEnabled ? 1 : 0
+      artifacts: uiSettingsStore.artifactsEffectEnabled ? 1 : 0
     })
     chatStore.setActiveThread(threadId)
   }
@@ -136,7 +136,7 @@ watch(
       const threadId = await chatStore.createThread('新会话', {
         modelId: route.query.modelId as string,
         providerId: route.query.providerId as string,
-        artifacts: settingsStore.artifactsEffectEnabled ? 1 : 0
+        artifacts: uiSettingsStore.artifactsEffectEnabled ? 1 : 0
       })
       chatStore.setActiveThread(threadId)
     }

@@ -8,7 +8,8 @@ import type {
   RENDERER_MODEL_META
 } from '@shared/presenter'
 import { useChatStore } from '@/stores/chat'
-import { useSettingsStore } from '@/stores/settings'
+import { useModelStore } from '@/stores/modelStore'
+import { useProviderStore } from '@/stores/providerStore'
 
 interface ApprovedServerInfo {
   providerId: string
@@ -22,7 +23,8 @@ const SESSION_TIMEOUT = 30 * 60 * 1000
 export const useMcpSamplingStore = defineStore('mcpSampling', () => {
   const mcpPresenter = usePresenter('mcpPresenter')
   const chatStore = useChatStore()
-  const settingsStore = useSettingsStore()
+  const modelStore = useModelStore()
+  const providerStore = useProviderStore()
 
   const request = ref<McpSamplingRequestPayload | null>(null)
   const isOpen = ref(false)
@@ -40,7 +42,7 @@ export const useMcpSamplingStore = defineStore('mcpSampling', () => {
       return null
     }
 
-    const provider = settingsStore.sortedProviders.find(
+    const provider = providerStore.sortedProviders.find(
       (entry) => entry.id === selectedProviderId.value
     )
 
@@ -80,7 +82,7 @@ export const useMcpSamplingStore = defineStore('mcpSampling', () => {
     const activeModelId = chatStore.chatConfig.modelId || null
 
     if (activeProviderId) {
-      const providerEntry = settingsStore.enabledModels.find(
+      const providerEntry = modelStore.enabledModels.find(
         (entry) => entry.providerId === activeProviderId
       )
       const selection = pickEligibleModel(providerEntry, activeModelId)
@@ -91,12 +93,12 @@ export const useMcpSamplingStore = defineStore('mcpSampling', () => {
       }
     }
 
-    for (const provider of settingsStore.sortedProviders) {
+    for (const provider of providerStore.sortedProviders) {
       if (!provider.enable) {
         continue
       }
 
-      const providerEntry = settingsStore.enabledModels.find(
+      const providerEntry = modelStore.enabledModels.find(
         (entry) => entry.providerId === provider.id
       )
 
@@ -118,7 +120,7 @@ export const useMcpSamplingStore = defineStore('mcpSampling', () => {
     }
 
     const requiresVisionValue = requiresVision.value
-    return settingsStore.enabledModels.some((entry) =>
+    return modelStore.enabledModels.some((entry) =>
       entry.models.some((model) => !requiresVisionValue || model.vision)
     )
   })
@@ -174,7 +176,7 @@ export const useMcpSamplingStore = defineStore('mcpSampling', () => {
       return false
     }
 
-    const providerEntry = settingsStore.enabledModels.find(
+    const providerEntry = modelStore.enabledModels.find(
       (entry) => entry.providerId === sessionInfo.providerId
     )
 
