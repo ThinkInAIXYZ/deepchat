@@ -2,7 +2,8 @@
 import { ref, computed, watch, nextTick, onMounted, defineAsyncComponent } from 'vue'
 import { Icon } from '@iconify/vue'
 import logo from '@/assets/logo.png'
-import { useSettingsStore } from '@/stores/settings'
+import { useProviderStore } from '@/stores/providerStore'
+import { useModelStore } from '@/stores/modelStore'
 import { usePresenter } from '@/composables/usePresenter'
 import { useRouter } from 'vue-router'
 import { MODEL_META } from '@shared/presenter'
@@ -10,6 +11,7 @@ import { ModelType } from '@shared/model'
 import { useI18n } from 'vue-i18n'
 import { useThemeStore } from '@/stores/theme'
 import { useLanguageStore } from '@/stores/language'
+import { initAppStores } from '@/lib/storeInitializer'
 
 const themeStore = useThemeStore()
 
@@ -75,7 +77,8 @@ const ModelCheckDialog = defineAsyncComponent(
   () => import('@/components/settings/ModelCheckDialog.vue')
 )
 
-const settingsStore = useSettingsStore()
+const providerStore = useProviderStore()
+const modelStore = useModelStore()
 const languageStore = useLanguageStore()
 const configPresenter = usePresenter('configPresenter')
 const router = useRouter()
@@ -122,7 +125,7 @@ const showApiKey = ref(false)
 
 const providerModels = computed(() => {
   return (
-    settingsStore.allProviderModels.find((p) => p.providerId === selectedProvider.value)?.models ??
+    modelStore.allProviderModels.find((p) => p.providerId === selectedProvider.value)?.models ??
     []
   )
 })
@@ -139,7 +142,7 @@ const showModelCheckDialog = ref(false)
 const nextStep = async () => {
   if (currentStep.value < steps.length - 1) {
     if (currentStep.value === 1) {
-      const provider = settingsStore.providers.find((p) => p.id === selectedProvider.value)
+      const provider = providerStore.providers.find((p) => p.id === selectedProvider.value)
       const isOllamaApi = provider?.apiType === 'ollama'
       if ((!apiKey.value || !baseUrl.value) && !isOllamaApi) {
         showErrorDialog.value = true
@@ -147,14 +150,12 @@ const nextStep = async () => {
         return
       }
       providerModelLoading.value = true
-      await settingsStore.updateProvider(selectedProvider.value, {
+      await providerStore.updateProviderConfig(selectedProvider.value, {
         apiKey: apiKey.value,
         baseUrl: baseUrl.value,
-        id: settingsStore.providers.find((p) => p.id === selectedProvider.value)!.id,
-        name: settingsStore.providers.find((p) => p.id === selectedProvider.value)!.name,
-        apiType: settingsStore.providers.find((p) => p.id === selectedProvider.value)!.apiType,
         enable: true
       })
+      await modelStore.refreshProviderModels(selectedProvider.value)
 
       currentStep.value++
       setTimeout(() => {
@@ -184,7 +185,7 @@ watch(
   () => selectedProvider.value,
   (newVal) => {
     // console.log('selectedProvider', newVal)
-    const provider = settingsStore.providers.find((p) => p.id === newVal)
+    const provider = providerStore.providers.find((p) => p.id === newVal)
     if (provider) {
       baseUrl.value = provider.baseUrl
       apiKey.value = provider.apiKey
@@ -193,7 +194,7 @@ watch(
 )
 
 const cancelWatch = watch(
-  () => settingsStore.providers,
+  () => providerStore.providers,
   (newVal) => {
     if (newVal.length > 0) {
       console.log('newVal', newVal)
@@ -208,14 +209,14 @@ const cancelWatch = watch(
   { immediate: true }
 )
 
-onMounted(() => {
-  settingsStore.initSettings()
+onMounted(async () => {
+  await initAppStores()
   languageStore.initLanguage()
 })
 
 const handleModelEnabledChange = async (model: MODEL_META, enabled: boolean) => {
   try {
-    await settingsStore.updateModelStatus(selectedProvider.value, model.id, enabled)
+    await modelStore.updateModelStatus(selectedProvider.value, model.id, enabled)
   } catch (error) {
     console.error('Failed to update model status:', error)
   }
@@ -268,7 +269,7 @@ const isFirstStep = computed(() => currentStep.value === 0)
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem
-                      v-for="provider in settingsStore.providers"
+                      v-for="provider in providerStore.providers"
                       :key="provider.id"
                       :value="provider.id"
                     >
@@ -321,13 +322,13 @@ const isFirstStep = computed(() => currentStep.value === 0)
                     {{ t('settings.provider.getKeyTip') }}
                     <a
                       :href="
-                        settingsStore.providers.find((p) => p.id === selectedProvider)?.websites
+                        providerStore.providers.find((p) => p.id === selectedProvider)?.websites
                           ?.apiKey || '#'
                       "
                       target="_blank"
                       class="text-primary"
                     >
-                      {{ settingsStore.providers.find((p) => p.id === selectedProvider)?.name }}
+                      {{ providerStore.providers.find((p) => p.id === selectedProvider)?.name }}
                     </a>
                     {{ t('settings.provider.getKeyTipEnd') }}
                   </div>
@@ -360,7 +361,7 @@ const isFirstStep = computed(() => currentStep.value === 0)
                 class="flex flex-col w-full border rounded-lg max-h-80 overflow-y-auto"
               >
                 <ModelConfigItem
-                  v-for="model in settingsStore.allProviderModels.find(
+                  v-for="model in modelStore.allProviderModels.find(
                     (p) => p.providerId === selectedProvider
                   )?.models"
                   :key="model.id"

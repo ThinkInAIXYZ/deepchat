@@ -9,7 +9,7 @@ import { useChatStore } from '@/stores/chat'
 import { NOTIFICATION_EVENTS, SHORTCUT_EVENTS, THREAD_VIEW_EVENTS } from './events'
 import { Toaster } from '@shadcn/components/ui/sonner'
 import { useToast } from '@/components/use-toast'
-import { useSettingsStore } from '@/stores/settings'
+import { useUiSettingsStore } from '@/stores/uiSettingsStore'
 import { useThemeStore } from '@/stores/theme'
 import { useLanguageStore } from '@/stores/language'
 import { useI18n } from 'vue-i18n'
@@ -19,6 +19,7 @@ import ModelCheckDialog from '@/components/settings/ModelCheckDialog.vue'
 import { useModelCheckStore } from '@/stores/modelCheck'
 import MessageDialog from './components/ui/MessageDialog.vue'
 import McpSamplingDialog from '@/components/mcp/McpSamplingDialog.vue'
+import { initAppStores, useMcpInstallDeeplinkHandler } from '@/lib/storeInitializer'
 import 'vue-sonner/style.css' // vue-sonner v2 requires this import
 
 const route = useRoute()
@@ -26,7 +27,7 @@ const configPresenter = usePresenter('configPresenter')
 const artifactStore = useArtifactStore()
 const chatStore = useChatStore()
 const { toast } = useToast()
-const settingsStore = useSettingsStore()
+const uiSettingsStore = useUiSettingsStore()
 const themeStore = useThemeStore()
 const langStore = useLanguageStore()
 const modelCheckStore = useModelCheckStore()
@@ -41,9 +42,10 @@ const errorDisplayTimer = ref<number | null>(null)
 
 const isMacOS = ref(false)
 const devicePresenter = usePresenter('devicePresenter')
+const { setup: setupMcpDeeplink, cleanup: cleanupMcpDeeplink } = useMcpInstallDeeplinkHandler()
 // Watch theme and font size changes, update body class directly
 watch(
-  [() => themeStore.themeMode, () => settingsStore.fontSizeClass],
+  [() => themeStore.themeMode, () => uiSettingsStore.fontSizeClass],
   ([newTheme, newFontSizeClass], [oldTheme, oldFontSizeClass]) => {
     let newThemeName = newTheme
     if (newTheme === 'system') {
@@ -145,19 +147,19 @@ const getInitComplete = async () => {
 // Handle font scaling
 const handleZoomIn = () => {
   // Font size increase logic
-  const currentLevel = settingsStore.fontSizeLevel
-  settingsStore.updateFontSizeLevel(currentLevel + 1)
+  const currentLevel = uiSettingsStore.fontSizeLevel
+  uiSettingsStore.updateFontSizeLevel(currentLevel + 1)
 }
 
 const handleZoomOut = () => {
   // Font size decrease logic
-  const currentLevel = settingsStore.fontSizeLevel
-  settingsStore.updateFontSizeLevel(currentLevel - 1)
+  const currentLevel = uiSettingsStore.fontSizeLevel
+  uiSettingsStore.updateFontSizeLevel(currentLevel - 1)
 }
 
 const handleZoomResume = () => {
   // Reset font size
-  settingsStore.updateFontSizeLevel(1) // 1 corresponds to 'text-base', default font size
+  uiSettingsStore.updateFontSizeLevel(1) // 1 corresponds to 'text-base', default font size
 }
 
 // Handle creating new conversation
@@ -196,9 +198,13 @@ onMounted(() => {
   })
   // Set initial body class
   document.body.classList.add(themeStore.themeMode)
-  document.body.classList.add(settingsStore.fontSizeClass)
+  document.body.classList.add(uiSettingsStore.fontSizeClass)
 
   window.addEventListener('keydown', handleEscKey)
+
+  // initialize store data
+  void initAppStores()
+  setupMcpDeeplink()
 
   // Listen for global error notification events
   window.electron.ipcRenderer.on(NOTIFICATION_EVENTS.SHOW_ERROR, (_event, error) => {
@@ -322,6 +328,7 @@ onBeforeUnmount(() => {
   window.electron.ipcRenderer.removeAllListeners(NOTIFICATION_EVENTS.SYS_NOTIFY_CLICKED)
   window.electron.ipcRenderer.removeAllListeners(NOTIFICATION_EVENTS.DATA_RESET_COMPLETE_DEV)
   window.electron.ipcRenderer.removeListener(THREAD_VIEW_EVENTS.TOGGLE, handleThreadViewToggle)
+  cleanupMcpDeeplink()
 })
 </script>
 
