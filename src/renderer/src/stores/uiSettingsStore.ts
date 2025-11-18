@@ -10,11 +10,13 @@ export const useUiSettingsStore = defineStore('uiSettings', () => {
   const configP = usePresenter('configPresenter')
 
   const fontSizeLevel = ref(DEFAULT_FONT_SIZE_LEVEL)
+  const artifactsEffectEnabled = ref(false)
   const searchPreviewEnabled = ref(true)
   const contentProtectionEnabled = ref(false)
   const copyWithCotEnabled = ref(true)
   const traceDebugEnabled = ref(false)
   const notificationsEnabled = ref(true)
+  const loggingEnabled = ref(false)
 
   const fontSizeClass = computed(
     () => FONT_SIZE_CLASSES[fontSizeLevel.value] || FONT_SIZE_CLASSES[DEFAULT_FONT_SIZE_LEVEL]
@@ -26,11 +28,14 @@ export const useUiSettingsStore = defineStore('uiSettings', () => {
     if (fontSizeLevel.value < 0 || fontSizeLevel.value >= FONT_SIZE_CLASSES.length) {
       fontSizeLevel.value = DEFAULT_FONT_SIZE_LEVEL
     }
+    artifactsEffectEnabled.value =
+      (await configP.getSetting<boolean>('artifactsEffectEnabled')) ?? false
     searchPreviewEnabled.value = await configP.getSearchPreviewEnabled()
     contentProtectionEnabled.value = await configP.getContentProtectionEnabled()
     notificationsEnabled.value = (await configP.getSetting<boolean>('notificationsEnabled')) ?? true
     traceDebugEnabled.value = (await configP.getSetting<boolean>('traceDebugEnabled')) ?? false
     copyWithCotEnabled.value = configP.getCopyWithCotEnabled()
+    loggingEnabled.value = await configP.getLoggingEnabled()
   }
 
   const updateFontSizeLevel = async (level: number) => {
@@ -42,6 +47,11 @@ export const useUiSettingsStore = defineStore('uiSettings', () => {
   const setSearchPreviewEnabled = async (enabled: boolean) => {
     searchPreviewEnabled.value = enabled
     await configP.setSearchPreviewEnabled(enabled)
+  }
+
+  const setArtifactsEffectEnabled = async (enabled: boolean) => {
+    artifactsEffectEnabled.value = enabled
+    await configP.setSetting('artifactsEffectEnabled', enabled)
   }
 
   const setContentProtectionEnabled = async (enabled: boolean) => {
@@ -62,6 +72,11 @@ export const useUiSettingsStore = defineStore('uiSettings', () => {
   const setNotificationsEnabled = async (enabled: boolean) => {
     notificationsEnabled.value = enabled
     await configP.setNotificationsEnabled(enabled)
+  }
+
+  const setLoggingEnabled = async (enabled: boolean) => {
+    loggingEnabled.value = Boolean(enabled)
+    await configP.setLoggingEnabled(enabled)
   }
 
   const setupListeners = () => {
@@ -104,17 +119,21 @@ export const useUiSettingsStore = defineStore('uiSettings', () => {
   return {
     fontSizeLevel,
     fontSizeClass,
+    artifactsEffectEnabled,
     searchPreviewEnabled,
     contentProtectionEnabled,
     copyWithCotEnabled,
     traceDebugEnabled,
     notificationsEnabled,
+    loggingEnabled,
     updateFontSizeLevel,
     setSearchPreviewEnabled,
+    setArtifactsEffectEnabled,
     setContentProtectionEnabled,
     setCopyWithCotEnabled,
     setTraceDebugEnabled,
     setNotificationsEnabled,
+    setLoggingEnabled,
     loadSettings
   }
 })

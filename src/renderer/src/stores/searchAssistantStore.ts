@@ -1,12 +1,15 @@
-import { ref, computed, toRaw } from 'vue'
-import { defineStore } from 'pinia'
+import { computed, ref, toRaw, watch } from 'vue'
+import { defineStore, storeToRefs } from 'pinia'
 import { ModelType } from '@shared/model'
 import type { RENDERER_MODEL_META } from '@shared/presenter'
 import { usePresenter } from '@/composables/usePresenter'
+import { useModelStore } from '@/stores/modelStore'
 
 export const useSearchAssistantStore = defineStore('searchAssistant', () => {
   const configP = usePresenter('configPresenter')
   const threadP = usePresenter('threadPresenter')
+  const modelStore = useModelStore()
+  const { enabledModels } = storeToRefs(modelStore)
 
   const modelRef = ref<RENDERER_MODEL_META | null>(null)
   const providerRef = ref<string>('')
@@ -24,15 +27,13 @@ export const useSearchAssistantStore = defineStore('searchAssistant', () => {
   const searchAssistantModel = computed(() => modelRef.value)
   const searchAssistantProvider = computed(() => providerRef.value)
 
-  const findPriorityModel = (
-    enabled: { providerId: string; models: RENDERER_MODEL_META[] }[]
-  ): { model: RENDERER_MODEL_META; providerId: string } | null => {
-    if (!enabled || enabled.length === 0) {
+  const findPriorityModel = (): { model: RENDERER_MODEL_META; providerId: string } | null => {
+    if (!enabledModels.value || enabledModels.value.length === 0) {
       return null
     }
 
     for (const keyword of priorities) {
-      for (const providerModels of enabled) {
+      for (const providerModels of enabledModels.value) {
         for (const model of providerModels.models) {
           if (
             model.id.toLowerCase().includes(keyword.toLowerCase()) ||
@@ -47,7 +48,7 @@ export const useSearchAssistantStore = defineStore('searchAssistant', () => {
       }
     }
 
-    const fallback = enabled
+    const fallback = enabledModels.value
       .flatMap((provider) =>
         provider.models.map((model) => ({ ...model, providerId: provider.providerId }))
       )
@@ -76,9 +77,7 @@ export const useSearchAssistantStore = defineStore('searchAssistant', () => {
     threadP.setSearchAssistantModel(rawModel, providerId)
   }
 
-  const initOrUpdateSearchAssistantModel = async (
-    enabled: { providerId: string; models: RENDERER_MODEL_META[] }[]
-  ) => {
+  const initOrUpdateSearchAssistantModel = async () => {
     let savedModel = await configP.getSetting<{ model: RENDERER_MODEL_META; providerId: string }>(
       'searchAssistantModel'
     )
@@ -90,7 +89,7 @@ export const useSearchAssistantStore = defineStore('searchAssistant', () => {
       return
     }
 
-    const priorityEntry = findPriorityModel(enabled)
+    const priorityEntry = findPriorityModel()
     if (priorityEntry) {
       await setSearchAssistantModel(
         {
@@ -107,23 +106,29 @@ export const useSearchAssistantStore = defineStore('searchAssistant', () => {
     }
   }
 
-  const checkAndUpdateSearchAssistantModel = async (
-    enabled: { providerId: string; models: RENDERER_MODEL_META[] }[]
-  ) => {
+  const checkAndUpdateSearchAssistantModel = async () => {
     const currentModel = modelRef.value
     if (!currentModel) {
-      await initOrUpdateSearchAssistantModel(enabled)
+      await initOrUpdateSearchAssistantModel()
       return
     }
 
-    const stillAvailable = enabled.some((provider) =>
+    const stillAvailable = enabledModels.value.some((provider) =>
       provider.models.some((model) => model.id === currentModel.id)
     )
 
     if (!stillAvailable) {
-      await initOrUpdateSearchAssistantModel(enabled)
+      await initOrUpdateSearchAssistantModel()
     }
   }
+
+  watch(
+    () => enabledModels.value,
+    () => {
+      void checkAndUpdateSearchAssistantModel()
+    },
+    { deep: true }
+  )
 
   return {
     searchAssistantModel,
@@ -131,6 +136,7 @@ export const useSearchAssistantStore = defineStore('searchAssistant', () => {
     setSearchAssistantModel,
     initOrUpdateSearchAssistantModel,
     checkAndUpdateSearchAssistantModel,
+    findPriorityModel,
     priorities
   }
 })

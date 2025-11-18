@@ -204,6 +204,7 @@ export const useSettingsStore = defineStore('settings', () => {
         maxTokens: priorityModel.model.maxTokens,
         providerId: priorityModel.providerId,
         group: priorityModel.model.group,
+        enabled: true,
         isCustom: priorityModel.model.isCustom,
         vision: priorityModel.model.vision || false,
         functionCall: priorityModel.model.functionCall || false,
@@ -663,8 +664,7 @@ export const useSettingsStore = defineStore('settings', () => {
 
   // 更新字体大小级别
   const updateFontSizeLevel = async (level: number) => {
-    const validLevel = Math.max(0, Math.min(level, FONT_SIZE_CLASSES.length - 1))
-    await uiSettingsStore.updateFontSizeLevel(validLevel)
+    await uiSettingsStore.updateFontSizeLevel(level)
   }
 
   // 监听 provider 设置变化

@@ -3,13 +3,14 @@ import { defineStore } from 'pinia'
 import { usePresenter } from '@/composables/usePresenter'
 import { useIpcQuery } from '@/composables/useIpcQuery'
 import { CONFIG_EVENTS, PROVIDER_DB_EVENTS } from '@/events'
-import type { LLM_PROVIDER } from '@shared/presenter'
+import type { AWS_BEDROCK_PROVIDER, LLM_PROVIDER } from '@shared/presenter'
 
 const PROVIDER_ORDER_KEY = 'providerOrder'
 const PROVIDER_TIMESTAMP_KEY = 'providerTimestamps'
 
 export const useProviderStore = defineStore('provider', () => {
   const configP = usePresenter('configPresenter')
+  const llmP = usePresenter('llmproviderPresenter')
 
   const providersQuery = useIpcQuery({
     presenter: 'configPresenter',
@@ -114,6 +115,45 @@ export const useProviderStore = defineStore('provider', () => {
     await loadProviderOrder()
   }
 
+  const updateProvider = async (id: string, provider: LLM_PROVIDER) => {
+    const current = providers.value.find((item) => item.id === id)
+    const previousEnable = current?.enable
+    const next = { ...provider }
+    delete (next as any).websites
+    await configP.setProviderById(id, next)
+    await refreshProviders()
+    return { previousEnable, next }
+  }
+
+  const updateProviderConfig = async (providerId: string, updates: Partial<LLM_PROVIDER>) => {
+    const currentProvider = providers.value.find((p) => p.id === providerId)
+    if (!currentProvider) {
+      throw new Error(`Provider ${providerId} not found`)
+    }
+
+    const requiresRebuild = await configP.updateProviderAtomic(providerId, updates)
+    await refreshProviders()
+    return { requiresRebuild, updated: { ...currentProvider, ...updates } }
+  }
+
+  const updateProviderApi = async (providerId: string, apiKey?: string, baseUrl?: string) => {
+    const updates: Partial<LLM_PROVIDER> = {}
+    if (apiKey !== undefined) updates.apiKey = apiKey
+    if (baseUrl !== undefined) updates.baseUrl = baseUrl
+    return updateProviderConfig(providerId, updates)
+  }
+
+  const updateProviderAuth = async (
+    providerId: string,
+    authMode?: 'apikey' | 'oauth',
+    oauthToken?: string
+  ) => {
+    const updates: Partial<LLM_PROVIDER> = {}
+    if (authMode !== undefined) updates.authMode = authMode
+    if (oauthToken !== undefined) updates.oauthToken = oauthToken
+    return updateProviderConfig(providerId, updates)
+  }
+
   const updateProvidersOrder = async (newProviders: LLM_PROVIDER[]) => {
     try {
       const enabledList = newProviders.filter((provider) => provider.enable)
@@ -159,6 +199,84 @@ export const useProviderStore = defineStore('provider', () => {
     } catch (error) {
       console.error('Failed to optimize provider order:', error)
     }
+  }
+
+  const updateProviderStatus = async (providerId: string, enable: boolean) => {
+    const previousTimestamp = providerTimestamps.value[providerId]
+    providerTimestamps.value[providerId] = Date.now()
+    try {
+      await saveProviderTimestamps()
+      await updateProviderConfig(providerId, { enable })
+      await optimizeProviderOrder(providerId, enable)
+    } catch (error) {
+      if (previousTimestamp === undefined) {
+        delete providerTimestamps.value[providerId]
+      } else {
+        providerTimestamps.value[providerId] = previousTimestamp
+      }
+      await saveProviderTimestamps()
+      throw error
+    }
+  }
+
+  const addCustomProvider = async (provider: LLM_PROVIDER) => {
+    const newProvider = { ...provider, custom: true }
+    delete (newProvider as any).websites
+    await configP.addProviderAtomic(newProvider)
+    await refreshProviders()
+  }
+
+  const removeProvider = async (providerId: string) => {
+    await configP.removeProviderAtomic(providerId)
+    providerOrder.value = providerOrder.value.filter((id) => id !== providerId)
+    await saveProviderOrder()
+    await refreshProviders()
+  }
+
+  const updateAwsBedrockProviderConfig = async (
+    providerId: string,
+    updates: Partial<AWS_BEDROCK_PROVIDER>
+  ) => {
+    return updateProviderConfig(providerId, updates)
+  }
+
+  const checkProvider = async (providerId: string, modelId?: string) => {
+    return llmP.check(providerId, modelId)
+  }
+
+  const setAzureApiVersion = async (version: string) => {
+    await configP.setSetting('azureApiVersion', version)
+  }
+
+  const getAzureApiVersion = async (): Promise<string> => {
+    return (await configP.getSetting<string>('azureApiVersion')) || '2024-02-01'
+  }
+
+  const setGeminiSafety = async (
+    key: string,
+    value:
+      | 'BLOCK_NONE'
+      | 'BLOCK_ONLY_HIGH'
+      | 'BLOCK_MEDIUM_AND_ABOVE'
+      | 'BLOCK_LOW_AND_ABOVE'
+      | 'HARM_BLOCK_THRESHOLD_UNSPECIFIED'
+  ) => {
+    await configP.setSetting(`geminiSafety_${key}`, value)
+  }
+
+  const getGeminiSafety = async (key: string): Promise<string> => {
+    return (
+      (await configP.getSetting<string>(`geminiSafety_${key}`)) ||
+      'HARM_BLOCK_THRESHOLD_UNSPECIFIED'
+    )
+  }
+
+  const setAwsBedrockCredential = async (credential: unknown) => {
+    await configP.setSetting('awsBedrockCredential', JSON.stringify({ credential }))
+  }
+
+  const getAwsBedrockCredential = async () => {
+    return await configP.getSetting('awsBedrockCredential')
   }
 
   const updateProviderTimestamp = async (providerId: string) => {
@@ -218,12 +336,27 @@ export const useProviderStore = defineStore('provider', () => {
     providerTimestamps,
     initialize,
     refreshProviders,
+    updateProvider,
+    updateProviderConfig,
+    updateProviderApi,
+    updateProviderAuth,
+    updateProviderStatus,
     updateProvidersOrder,
     optimizeProviderOrder,
     updateProviderTimestamp,
     loadProviderOrder,
     saveProviderOrder,
     loadProviderTimestamps,
-    saveProviderTimestamps
+    saveProviderTimestamps,
+    addCustomProvider,
+    removeProvider,
+    updateAwsBedrockProviderConfig,
+    checkProvider,
+    setAzureApiVersion,
+    getAzureApiVersion,
+    setGeminiSafety,
+    getGeminiSafety,
+    setAwsBedrockCredential,
+    getAwsBedrockCredential
   }
 })

@@ -425,8 +425,6 @@ export const useMcpStore = defineStore('mcp', () => {
 
   const setMcpEnabled = async (enabled: boolean) => {
     try {
-      const previousEnabled = config.value.mcpEnabled
-
       // Optimistically set local state so toggle updates immediately
       config.value.mcpEnabled = enabled
       // Ensure config is ready so queries can execute
