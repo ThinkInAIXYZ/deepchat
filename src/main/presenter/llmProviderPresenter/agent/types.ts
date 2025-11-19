@@ -25,8 +25,11 @@ export interface AgentSessionManager<TSession extends AgentSessionState = AgentS
   clearAllSessions(): void
 }
 
-export interface AgentProcessManager<THandle extends AgentProcessHandle = AgentProcessHandle> {
-  getConnection(agentId: string): Promise<THandle>
+export interface AgentProcessManager<
+  THandle extends AgentProcessHandle = AgentProcessHandle,
+  TDescriptor = string
+> {
+  getConnection(agent: TDescriptor): Promise<THandle>
   getProcess(agentId: string): THandle | null
   listProcesses(): THandle[]
   release(agentId: string): Promise<void>
