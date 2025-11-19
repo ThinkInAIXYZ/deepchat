@@ -7,11 +7,22 @@ export interface MappedContent {
   blocks: AssistantMessageBlock[]
 }
 
+interface ToolCallState {
+  sessionId: string
+  toolCallId: string
+  toolName: string
+  argumentsBuffer: string
+  status?: schema.ToolCallStatus | null
+  started: boolean
+}
+
 const now = () => Date.now()
 
 export class AcpContentMapper {
+  private readonly toolCallStates = new Map<string, ToolCallState>()
+
   map(notification: schema.SessionNotification): MappedContent {
-    const { update } = notification
+    const { update, sessionId } = notification
     const payload: MappedContent = { events: [], blocks: [] }
 
     switch (update.sessionUpdate) {
@@ -23,7 +34,7 @@ export class AcpContentMapper {
         break
       case 'tool_call':
       case 'tool_call_update':
-        this.handleToolCallUpdate(update, payload)
+        this.handleToolCallUpdate(sessionId, update, payload)
         break
       case 'plan':
         this.handlePlanUpdate(update, payload)
@@ -98,28 +109,52 @@ export class AcpContentMapper {
   }
 
   private handleToolCallUpdate(
+    sessionId: string,
     update: Extract<
       schema.SessionNotification['update'],
       { sessionUpdate: 'tool_call' | 'tool_call_update' }
     >,
     payload: MappedContent
   ) {
-    const title = 'title' in update ? update.title : null
-    const status = 'status' in update ? update.status : null
-    const reasoningText = ['Tool call', title, status].filter(Boolean).join(' - ')
-    if (reasoningText) {
-      payload.events.push(createStreamEvent.reasoning(reasoningText))
-      payload.blocks.push(
-        this.createBlock('action', reasoningText, { action_type: 'tool_call_permission' })
-      )
+    const toolCallId = update.toolCallId
+    if (!toolCallId) return
+
+    const rawTitle = 'title' in update ? (update.title ?? undefined) : undefined
+    const title = typeof rawTitle === 'string' ? rawTitle.trim() || undefined : undefined
+    const status = 'status' in update ? (update.status ?? undefined) : undefined
+
+    const state = this.getOrCreateToolCallState(sessionId, toolCallId, title)
+    if (title && state.toolName !== title) {
+      state.toolName = title
     }
 
-    if ('content' in update && update.content) {
-      const serialized = this.formatToolCallContent(update.content)
-      if (serialized) {
-        payload.events.push(createStreamEvent.text(serialized))
-        payload.blocks.push(this.createBlock('tool_call', serialized))
+    const previousStatus = state.status
+    if (status) {
+      state.status = status
+    }
+
+    this.emitToolCallStartIfNeeded(state, payload)
+
+    const shouldEmitReasoning =
+      update.sessionUpdate === 'tool_call' || (status && status !== previousStatus)
+    if (shouldEmitReasoning) {
+      const reasoningText = this.buildToolCallReasoning(state.toolName, status)
+      if (reasoningText) {
+        payload.events.push(createStreamEvent.reasoning(reasoningText))
+        payload.blocks.push(
+          this.createBlock('action', reasoningText, { action_type: 'tool_call_permission' })
+        )
       }
+    }
+
+    const content = 'content' in update ? (update.content ?? undefined) : undefined
+    const chunk = this.formatToolCallContent(content, '')
+    if (chunk) {
+      this.emitToolCallChunk(state, chunk, payload)
+    }
+
+    if (status === 'completed' || status === 'failed') {
+      this.emitToolCallEnd(state, payload, status === 'failed')
     }
   }
 
@@ -136,7 +171,14 @@ export class AcpContentMapper {
     payload.blocks.push(this.createBlock('reasoning_content', text))
   }
 
-  private formatToolCallContent(contents: schema.ToolCallContent[]): string {
+  private formatToolCallContent(
+    contents?: schema.ToolCallContent[] | null,
+    joiner: string = '\n'
+  ): string {
+    if (!contents?.length) {
+      return ''
+    }
+
     return contents
       .map((item) => {
         if (item.type === 'content') {
@@ -167,7 +209,107 @@ export class AcpContentMapper {
         return JSON.stringify(item)
       })
       .filter(Boolean)
-      .join('\n')
+      .join(joiner)
+  }
+
+  private tryParseJsonArguments(buffer: string, toolCallId: string): string | undefined {
+    const trimmed = buffer.trim()
+    if (!trimmed) {
+      return undefined
+    }
+
+    if (!trimmed.startsWith('{') && !trimmed.startsWith('[')) {
+      return trimmed
+    }
+
+    try {
+      JSON.parse(trimmed)
+      return trimmed
+    } catch (error) {
+      const preview = trimmed.length > 120 ? `${trimmed.slice(0, 120)}…` : trimmed
+      console.warn(
+        `[ACP] Tool call arguments appear incomplete (toolCallId=${toolCallId}): ${preview}`,
+        error
+      )
+      return trimmed
+    }
+  }
+
+  private buildToolCallReasoning(
+    title?: string,
+    status?: schema.ToolCallStatus | null
+  ): string | null {
+    const statusText = status ? status.replace(/_/g, ' ') : undefined
+    const segments = ['Tool call', title, statusText].filter(Boolean)
+    return segments.length ? segments.join(' - ') : null
+  }
+
+  private emitToolCallStartIfNeeded(state: ToolCallState, payload: MappedContent) {
+    if (state.started) return
+    state.started = true
+    payload.events.push(createStreamEvent.toolCallStart(state.toolCallId, state.toolName))
+  }
+
+  private emitToolCallChunk(state: ToolCallState, chunk: string, payload: MappedContent) {
+    state.argumentsBuffer += chunk
+    payload.events.push(createStreamEvent.toolCallChunk(state.toolCallId, chunk))
+    payload.blocks.push(
+      this.createBlock('tool_call', state.argumentsBuffer, {
+        status: 'loading',
+        tool_call: {
+          id: state.toolCallId,
+          name: state.toolName,
+          params: state.argumentsBuffer
+        }
+      })
+    )
+  }
+
+  private emitToolCallEnd(state: ToolCallState, payload: MappedContent, isError: boolean) {
+    const toolCallId = state.toolCallId
+    const finalArgs = this.tryParseJsonArguments(state.argumentsBuffer, toolCallId)
+    payload.events.push(createStreamEvent.toolCallEnd(toolCallId, finalArgs))
+    payload.blocks.push(
+      this.createBlock('tool_call', finalArgs, {
+        status: isError ? 'error' : 'success',
+        tool_call: {
+          id: toolCallId,
+          name: state.toolName,
+          params: finalArgs
+        }
+      })
+    )
+    this.toolCallStates.delete(this.getToolCallStateKey(state.sessionId, toolCallId))
+  }
+
+  private getOrCreateToolCallState(
+    sessionId: string,
+    toolCallId: string,
+    toolName?: string
+  ): ToolCallState {
+    const key = this.getToolCallStateKey(sessionId, toolCallId)
+    const existing = this.toolCallStates.get(key)
+    if (existing) {
+      if (toolName && existing.toolName !== toolName) {
+        existing.toolName = toolName
+      }
+      return existing
+    }
+
+    const state: ToolCallState = {
+      sessionId,
+      toolCallId,
+      toolName: toolName ?? toolCallId,
+      argumentsBuffer: '',
+      status: undefined,
+      started: false
+    }
+    this.toolCallStates.set(key, state)
+    return state
+  }
+
+  private getToolCallStateKey(sessionId: string, toolCallId: string): string {
+    return `${sessionId}:${toolCallId}`
   }
 
   private createBlock(
