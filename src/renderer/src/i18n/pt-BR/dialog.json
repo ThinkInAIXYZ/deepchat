@@ -40,5 +40,15 @@
       "functionCall": "Nota: Ativar as chamadas de função desativará automaticamente o raciocínio, o que é um requisito dos modelos DeepSeek-V3.1."
     },
     "confirmEnable": "Confirmar Ativação"
+  },
+  "acp": {
+    "permission": {
+      "allowAlways": "sempre permitido",
+      "allowOnce": "Permitido apenas desta vez",
+      "description": "Ferramenta de execução de solicitação de proxy ACP, selecione se deseja permiti-la.",
+      "rejectAlways": "sempre recuse",
+      "rejectOnce": "Somente esta rejeição",
+      "title": "Autorização necessária"
+    }
   }
 }

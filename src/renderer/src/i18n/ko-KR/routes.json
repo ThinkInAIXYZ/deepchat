@@ -12,5 +12,6 @@
   "settings-display": "디스플레이 설정",
   "settings-knowledge-base": "지식 기반",
   "settings-prompt": "프롬프트 관리",
-  "settings-mcp-market": "MCP 시장"
+  "settings-mcp-market": "MCP 시장",
+  "settings-acp": "ACP 프록시"
 }

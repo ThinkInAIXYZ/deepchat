@@ -12,5 +12,6 @@
   "settings-knowledge-base": "知識庫",
   "settings-prompt": "Prompt管理",
   "settings-mcp-market": "MCP市場",
-  "playground": "Playground 實驗室"
+  "playground": "Playground 實驗室",
+  "settings-acp": "ACP代理"
 }

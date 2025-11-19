@@ -45,7 +45,10 @@
     "permission": {
       "allowAlways": "始終允許",
       "description": "ACP 代理請求執行工具，請選擇是否允許。",
-      "rejectOnce": "僅此次拒絕"
+      "rejectOnce": "僅此次拒絕",
+      "allowOnce": "僅此次允許",
+      "rejectAlways": "始終拒絕",
+      "title": "需要授權"
     }
   }
 }

@@ -12,5 +12,6 @@
   "settings-display": "表示設定",
   "settings-knowledge-base": "ナレッジベース",
   "settings-prompt": "プロンプト管理",
-  "settings-mcp-market": "MCP市場"
+  "settings-mcp-market": "MCP市場",
+  "settings-acp": "ACPエージェント"
 }

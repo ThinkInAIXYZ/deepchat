@@ -40,5 +40,15 @@
       "functionCall": "注意：関数呼び出し機能を有効にすると推論機能が自動的に無効になります。これはDeepSeek-V3.1モデルの制限要件です。"
     },
     "confirmEnable": "有効化を確認"
+  },
+  "acp": {
+    "permission": {
+      "allowAlways": "常に許可",
+      "allowOnce": "今回のみ許可",
+      "description": "ACPプロキシリクエスト実行ツール、許可するかどうかを選択してください。",
+      "rejectAlways": "常に拒否",
+      "rejectOnce": "今回のみ拒否",
+      "title": "権限が必要です"
+    }
   }
 }

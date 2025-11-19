@@ -47,6 +47,17 @@ export class AcpSessionManager {
   ): Promise<AcpSessionRecord> {
     const existing = this.sessionsByConversation.get(conversationId)
     if (existing && existing.agentId === agent.id) {
+      // Reuse existing session, but update hooks for new conversation turn
+      // Clean up old handlers
+      existing.detachHandlers.forEach((dispose) => {
+        try {
+          dispose()
+        } catch (error) {
+          console.warn('[ACP] Failed to dispose old session handler:', error)
+        }
+      })
+      // Register new handlers
+      existing.detachHandlers = this.attachSessionHooks(agent.id, existing.sessionId, hooks)
       return existing
     }
     if (existing && existing.agentId !== agent.id) {

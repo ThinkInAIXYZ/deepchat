@@ -820,5 +820,61 @@
     "resetToDefault": "重置為默認提示詞",
     "resetToDefaultSuccess": "已重置為默認系統提示詞",
     "resetToDefaultFailed": "重置失敗，請重試"
+  },
+  "acp": {
+    "addAgent": "添加代理",
+    "addEnv": "添加變數",
+    "args": "參數",
+    "argsPlaceholder": "可選，用空格分隔。使用引號將參數組合埋一齊。",
+    "builtin": {
+      "claudeCode": {
+        "description": "需要先安裝 claude-code-acp，並填寫環境變數 ANTHROPIC_API_KEY。"
+      },
+      "codex": {
+        "description": "需要先安裝 codex-acp，並提供環境變數 OPENAI_API_KEY。"
+      },
+      "kimi": {
+        "description": "推薦，開箱即用：直接運行 `kimi --acp`。"
+      }
+    },
+    "command": "指令",
+    "commandPlaceholder": "可執行檔案或指令碼路徑",
+    "deleteConfirm": "刪除代理「{name}」？",
+    "deleteSuccess": "代理已刪除",
+    "description": "管理由 DeepChat 啟動嘅本地 Agent Client Protocol 代理。",
+    "editAgent": "編輯代理",
+    "editAll": "編輯全部",
+    "editAllDescription": "直接編輯 JSON 設定，修改所有代理設定。",
+    "editAllInvalidJson": "無效的 JSON 格式",
+    "editAllPlaceholder": "在此輸入 JSON 配置...",
+    "editAllSaveFailed": "儲存設定失敗",
+    "editAllSaveSuccess": "設定已儲存",
+    "editAllTitle": "批量編輯 ACP 代理",
+    "empty": "尚未配置任何 ACP 代理。",
+    "enableToAccess": "請先啟用 ACP 以存取代理配置",
+    "enabledDescription": "啟用後，已設定的 ACP 代理將會在模型選擇器中顯示為模型。",
+    "enabledTitle": "啟用 ACP",
+    "env": "環境變數",
+    "envKeyPlaceholder": "鍵",
+    "envValuePlaceholder": "VALUE",
+    "formHint": "提供命令、參數和環境變數以啟動您的 ACP 代理。",
+    "missingFieldsDesc": "儲存前請填寫名稱同指令。",
+    "missingFieldsTitle": "名稱和指令為必填項",
+    "name": "代理名稱",
+    "namePlaceholder": "例如：Claude Code ACP",
+    "quickAdd": {
+      "add": "添加 {name}",
+      "args": "參數",
+      "command": "指令",
+      "confirm": "要添加預設「{name}」嗎？",
+      "description": "使用預設一鍵添加常用 ACP 代理，唔會覆蓋現有設定。",
+      "env": "環境變數",
+      "exists": "「{name}」已存在",
+      "recommended": "推薦",
+      "title": "快速加入"
+    },
+    "saveFailed": "儲存代理失敗",
+    "saveSuccess": "代理已儲存",
+    "title": "ACP 代理"
   }
 }

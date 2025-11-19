@@ -820,5 +820,61 @@
     "resetToDefault": "기본 프롬프트 단어로 재설정하십시오",
     "resetToDefaultSuccess": "기본 시스템 프롬프트로 성공적으로 재설정되었습니다",
     "resetToDefaultFailed": "재설정에 실패했습니다. 다시 시도해 주세요"
+  },
+  "acp": {
+    "addEnv": "변수 추가",
+    "args": "매개변수",
+    "argsPlaceholder": "선택 사항이며 공백으로 구분됩니다. 매개변수를 그룹화하려면 따옴표를 사용하세요.",
+    "builtin": {
+      "claudeCode": {
+        "description": "먼저 clude-code-acp를 설치하고 환경 변수 ANTHROPIC_API_KEY를 입력해야 합니다."
+      },
+      "codex": {
+        "description": "먼저 codex-acp를 설치하고 OPENAI_API_KEY 환경 변수를 제공해야 합니다."
+      },
+      "kimi": {
+        "description": "권장사항: 즉시 사용 가능: `kimi --acp`를 직접 실행하세요."
+      }
+    },
+    "command": "주문하다",
+    "commandPlaceholder": "실행 파일 또는 스크립트 경로",
+    "deleteConfirm": "\"{name}\" 에이전트를 삭제하시겠습니까?",
+    "deleteSuccess": "에이전트가 삭제되었습니다.",
+    "description": "DeepChat에서 시작된 로컬 에이전트 클라이언트 프로토콜 프록시를 관리합니다.",
+    "editAgent": "에이전트 편집",
+    "editAll": "모두 편집",
+    "editAllDescription": "모든 프록시 설정을 수정하려면 JSON 구성을 직접 편집하세요.",
+    "editAllInvalidJson": "잘못된 JSON 형식",
+    "editAllPlaceholder": "여기에 JSON 구성을 입력하세요...",
+    "editAllSaveFailed": "구성을 저장하지 못했습니다.",
+    "editAllSaveSuccess": "구성이 저장되었습니다.",
+    "editAllTitle": "ACP 에이전트 일괄 편집",
+    "empty": "ACP 프록시가 구성되지 않았습니다.",
+    "enableToAccess": "프록시 구성에 액세스하려면 먼저 ACP를 활성화하세요.",
+    "enabledDescription": "활성화되면 구성된 ACP 에이전트가 모델 선택기에서 모델로 나타납니다.",
+    "enabledTitle": "ACP 활성화",
+    "env": "환경 변수",
+    "envKeyPlaceholder": "열쇠",
+    "envValuePlaceholder": "값",
+    "formHint": "ACP 에이전트를 시작하려면 명령, 매개변수 및 환경 변수를 제공하십시오.",
+    "missingFieldsDesc": "저장하기 전에 이름과 명령을 입력하세요.",
+    "missingFieldsTitle": "이름과 명령이 필요합니다",
+    "name": "대리인 이름",
+    "namePlaceholder": "예: 클로드 코드 ACP",
+    "quickAdd": {
+      "add": "{이름} 추가",
+      "args": "매개변수",
+      "command": "주문하다",
+      "confirm": "'{name}' 사전 설정을 추가하시겠습니까?",
+      "description": "사전 설정을 사용하면 기존 구성을 덮어쓰지 않고 한 번의 클릭으로 일반적으로 사용되는 ACP 에이전트를 추가할 수 있습니다.",
+      "env": "환경 변수",
+      "exists": "\"{name}\"이(가) 이미 존재합니다.",
+      "recommended": "추천하다",
+      "title": "빠른 추가"
+    },
+    "addAgent": "프록시 추가",
+    "saveFailed": "프록시를 저장하지 못했습니다.",
+    "saveSuccess": "에이전트가 저장되었습니다.",
+    "title": "ACP 프록시"
   }
 }

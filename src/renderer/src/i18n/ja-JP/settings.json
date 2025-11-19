@@ -820,5 +820,61 @@
     "resetToDefault": "デフォルトのプロンプトワードにリセットします",
     "resetToDefaultSuccess": "デフォルトのシステムプロンプトに正常にリセットしました",
     "resetToDefaultFailed": "リセットに失敗しました。もう一度お試しください"
+  },
+  "acp": {
+    "addAgent": "プロキシを追加",
+    "addEnv": "変数を追加",
+    "args": "パラメータ",
+    "argsPlaceholder": "オプション、スペースで区切る。引用符を使用してパラメータをグループ化します。",
+    "builtin": {
+      "claudeCode": {
+        "description": "まず、claude-code-acpをインストールし、環境変数ANTHROPIC_API_KEYを設定する必要があります。"
+      },
+      "codex": {
+        "description": "まずcodex-acpをインストールし、環境変数OPENAI_API_KEYを設定する必要があります。"
+      },
+      "kimi": {
+        "description": "おすすめ、すぐに使える：`kimi --acp` を直接実行してください。"
+      }
+    },
+    "command": "コマンド",
+    "commandPlaceholder": "実行可能ファイルまたはスクリプトのパス",
+    "deleteConfirm": "プロキシ「{name}」を削除しますか？",
+    "deleteSuccess": "代理が削除されました",
+    "description": "DeepChatによって起動されたローカルAgent Client Protocolプロキシを管理します。",
+    "editAgent": "編集エージェント",
+    "editAll": "すべて編集",
+    "editAllDescription": "JSON設定を直接編集し、すべてのプロキシ設定を変更します。",
+    "editAllInvalidJson": "無効なJSON形式",
+    "editAllPlaceholder": "JSON設定をここに入力...",
+    "editAllSaveFailed": "設定の保存に失敗しました",
+    "editAllSaveSuccess": "設定が保存されました",
+    "editAllTitle": "一括編集 ACP エージェント",
+    "empty": "ACPプロキシがまだ設定されていません。",
+    "enableToAccess": "まずACPを有効にしてプロキシ設定にアクセスしてください",
+    "enabledDescription": "有効にすると、設定されたACPプロキシがモデルセレクターにモデルとして表示されます。",
+    "enabledTitle": "ACPを有効にする",
+    "env": "環境変数",
+    "envKeyPlaceholder": "キー",
+    "envValuePlaceholder": "価値",
+    "formHint": "ACPエージェントを起動するためのコマンド、パラメータ、および環境変数を提供します。",
+    "missingFieldsDesc": "保存する前に名前とコマンドを入力してください。",
+    "missingFieldsTitle": "名称とコマンドは必須項目です。",
+    "name": "代理名",
+    "namePlaceholder": "例えば：Claude Code ACP",
+    "quickAdd": {
+      "add": "{name}を追加",
+      "args": "パラメータ",
+      "command": "コマンド",
+      "confirm": "プリセット「{name}」を追加しますか？",
+      "description": "プリセットを使用して一般的なACPプロキシをワンクリックで追加、既存の設定は上書きされません。",
+      "env": "環境変数",
+      "exists": "「{name}」は既に存在します",
+      "recommended": "おすすめ",
+      "title": "クイック追加"
+    },
+    "saveFailed": "エージェントの保存に失敗しました",
+    "saveSuccess": "プロキシが保存されました",
+    "title": "ACP プロキシ"
   }
 }

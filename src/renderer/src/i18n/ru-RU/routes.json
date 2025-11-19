@@ -12,5 +12,6 @@
   "settings-display": "Настройки отображения",
   "settings-knowledge-base": "База знаний",
   "settings-prompt": "Управление промптами",
-  "settings-mcp-market": "MCP Market"
+  "settings-mcp-market": "MCP Market",
+  "settings-acp": "ACP-агент"
 }
