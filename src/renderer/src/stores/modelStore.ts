@@ -6,6 +6,7 @@ import type { MODEL_META, RENDERER_MODEL_META, ModelConfig } from '@shared/prese
 import { ModelType } from '@shared/model'
 import { useIpcMutation } from '@/composables/useIpcMutation'
 import { usePresenter } from '@/composables/usePresenter'
+import { useAgentModelStore } from '@/stores/agentModelStore'
 import { useModelConfigStore } from '@/stores/modelConfigStore'
 import { useProviderStore } from '@/stores/providerStore'
 import { CONFIG_EVENTS, PROVIDER_DB_EVENTS } from '@/events'
@@ -14,14 +15,12 @@ const PROVIDER_MODELS_KEY = (providerId: string) => ['model-store', 'provider-mo
 const CUSTOM_MODELS_KEY = (providerId: string) => ['model-store', 'custom-models', providerId]
 const ENABLED_MODELS_KEY = (providerId: string) => ['model-store', 'enabled-models', providerId]
 
-// Agent providers that use a different refresh logic
-const AGENT_PROVIDER_IDS = ['acp'] as const
-
 export const useModelStore = defineStore('model', () => {
   const configP = usePresenter('configPresenter')
   const llmP = usePresenter('llmproviderPresenter')
   const providerStore = useProviderStore()
   const modelConfigStore = useModelConfigStore()
+  const agentModelStore = useAgentModelStore()
 
   const enabledModels = ref<{ providerId: string; models: RENDERER_MODEL_META[] }[]>([])
   const allProviderModels = ref<{ providerId: string; models: RENDERER_MODEL_META[] }[]>([])
@@ -31,6 +30,14 @@ export const useModelStore = defineStore('model', () => {
   const providerModelQueries = new Map<string, ReturnType<typeof getProviderModelsQuery>>()
   const customModelQueries = new Map<string, ReturnType<typeof getCustomModelsQuery>>()
   const queryCache = useQueryCache()
+  const isAgentProvider = async (providerId: string): Promise<boolean> => {
+    try {
+      return Boolean(await llmP.isAgentProvider(providerId))
+    } catch (error) {
+      console.warn(`[ModelStore] Failed to determine provider type: ${providerId}`, error)
+      return false
+    }
+  }
 
   const matchesProviderModelsEntry = (
     entry: { key: readonly unknown[] },
@@ -227,78 +234,6 @@ export const useModelStore = defineStore('model', () => {
     enabledModels.value = [...enabledModels.value]
   }
 
-  const refreshAgentModels = async (providerId: string): Promise<void> => {
-    try {
-      console.log(
-        `[ModelStore] refreshAgentModels: refreshing agent models for provider "${providerId}"`
-      )
-
-      // Check if ACP is enabled
-      const acpEnabled = await configP.getAcpEnabled()
-      if (!acpEnabled) {
-        console.log(
-          `[ModelStore] refreshAgentModels: ACP is disabled, clearing models for provider "${providerId}"`
-        )
-        // Clear models when ACP is disabled
-        updateAllProviderState(providerId, [])
-        updateEnabledState(providerId, [])
-        updateProviderModelsCache(providerId, [])
-        return
-      }
-
-      // Get agents directly from configPresenter
-      const agents = await configP.getAcpAgents()
-      console.log(
-        `[ModelStore] refreshAgentModels: found ${agents.length} agents for provider "${providerId}"`
-      )
-
-      // Convert agents to RENDERER_MODEL_META following acpProvider logic
-      const models: RENDERER_MODEL_META[] = agents.map((agent) => {
-        return {
-          id: agent.id,
-          name: agent.name,
-          group: 'ACP',
-          providerId,
-          enabled: true, // All agent models are enabled by default
-          isCustom: true,
-          contextLength: 8192,
-          maxTokens: 4096,
-          vision: false,
-          functionCall: true,
-          reasoning: false,
-          enableSearch: false,
-          type: ModelType.Chat
-        }
-      })
-
-      // Update cache with MODEL_META format
-      const modelMetas: MODEL_META[] = models.map((model) => ({
-        id: model.id,
-        name: model.name,
-        group: model.group,
-        providerId: model.providerId,
-        isCustom: model.isCustom,
-        contextLength: model.contextLength,
-        maxTokens: model.maxTokens,
-        functionCall: model.functionCall,
-        reasoning: model.reasoning,
-        enableSearch: model.enableSearch,
-        type: model.type
-      }))
-      updateProviderModelsCache(providerId, modelMetas)
-
-      // Update state - agent models don't need custom model config, so skip applyUserDefinedModelConfig
-      updateAllProviderState(providerId, models)
-      updateEnabledState(providerId, models)
-
-      console.log(
-        `[ModelStore] refreshAgentModels: updated ${models.length} agent models for provider "${providerId}"`
-      )
-    } catch (error) {
-      console.error(`刷新代理模型失败: ${providerId}`, error)
-    }
-  }
-
   const refreshCustomModels = async (providerId: string): Promise<void> => {
     try {
       const query = getCustomModelsQuery(providerId)
@@ -472,14 +407,20 @@ export const useModelStore = defineStore('model', () => {
   }
 
   const refreshProviderModels = async (providerId: string) => {
-    // Check if this is an agent provider (e.g., ACP)
-    const isAgentProvider = (AGENT_PROVIDER_IDS as readonly string[]).includes(providerId)
-    if (isAgentProvider) {
-      await refreshAgentModels(providerId)
-    } else {
-      await refreshStandardModels(providerId)
-      await refreshCustomModels(providerId)
+    if (await isAgentProvider(providerId)) {
+      try {
+        const { rendererModels, modelMetas } = await agentModelStore.refreshAgentModels(providerId)
+        updateProviderModelsCache(providerId, modelMetas)
+        updateAllProviderState(providerId, rendererModels)
+        updateEnabledState(providerId, rendererModels)
+      } catch (error) {
+        console.error(`[ModelStore] Failed to refresh agent models for ${providerId}:`, error)
+      }
+      return
     }
+
+    await refreshStandardModels(providerId)
+    await refreshCustomModels(providerId)
   }
 
   const _refreshAllModelsInternal = async () => {
