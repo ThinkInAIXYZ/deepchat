@@ -1,11 +1,11 @@
 import { spawn, type ChildProcessWithoutNullStreams } from 'child_process'
 import { Readable, Writable } from 'node:stream'
-import {
-  ClientSideConnection,
-  PROTOCOL_VERSION,
-  ndJsonStream,
-  type schema
+import { ClientSideConnection, PROTOCOL_VERSION, ndJsonStream } from '@agentclientprotocol/sdk'
+import type {
+  Client,
+  ClientSideConnection as ClientSideConnectionType
 } from '@agentclientprotocol/sdk'
+import type * as schema from '@agentclientprotocol/sdk/dist/schema.js'
 import type { Stream } from '@agentclientprotocol/sdk/dist/stream.js'
 import { BaseLLMProvider, SUMMARY_TITLES_PROMPT } from '../baseProvider'
 import type {
@@ -33,11 +33,16 @@ type EventQueue = {
 export class AcpProvider extends BaseLLMProvider {
   constructor(provider: LLM_PROVIDER, configPresenter: IConfigPresenter) {
     super(provider, configPresenter)
-    this.init()
+    void this.initWhenEnabled()
   }
 
   protected async fetchProviderModels(): Promise<MODEL_META[]> {
     try {
+      const acpEnabled = await this.configPresenter.getAcpEnabled()
+      if (!acpEnabled) {
+        this.configPresenter.setProviderModels(this.provider.id, [])
+        return []
+      }
       const agents = await this.configPresenter.getAcpAgents()
       const models: MODEL_META[] = agents.map((agent) => ({
         id: agent.id,
@@ -67,6 +72,13 @@ export class AcpProvider extends BaseLLMProvider {
   }
 
   public async check(): Promise<{ isOk: boolean; errorMsg: string | null }> {
+    const enabled = await this.configPresenter.getAcpEnabled()
+    if (!enabled) {
+      return {
+        isOk: false,
+        errorMsg: 'ACP is disabled'
+      }
+    }
     const agents = await this.configPresenter.getAcpAgents()
     if (!agents.length) {
       return {
@@ -133,6 +145,11 @@ export class AcpProvider extends BaseLLMProvider {
     _maxTokens: number,
     _tools: MCPToolDefinition[]
   ): AsyncGenerator<LLMCoreStreamEvent> {
+    const acpEnabled = await this.configPresenter.getAcpEnabled()
+    if (!acpEnabled) {
+      yield { type: 'error', error_message: 'ACP is disabled' }
+      return
+    }
     const agent = await this.getAgentById(modelId)
     if (!agent) {
       yield { type: 'error', error_message: `ACP agent not found: ${modelId}` }
@@ -140,7 +157,7 @@ export class AcpProvider extends BaseLLMProvider {
     }
 
     const queue = this.createEventQueue()
-    let connection: ClientSideConnection | null = null
+    let connection: ClientSideConnectionType | null = null
     let sessionId: string | null = null
     let child: ChildProcessWithoutNullStreams | null = null
 
@@ -150,7 +167,7 @@ export class AcpProvider extends BaseLLMProvider {
       queue.push({ type: 'error', error_message: `ACP: ${message}` })
     }
 
-    const client: schema.Client = {
+    const client: Client = {
       requestPermission: async (params) => {
         queue.push({
           type: 'reasoning',
@@ -242,15 +259,17 @@ export class AcpProvider extends BaseLLMProvider {
       }
     } finally {
       try {
-        if (connection && sessionId) {
-          await connection.cancel({ sessionId })
+        const activeConnection = connection as ClientSideConnectionType | null
+        if (activeConnection && sessionId) {
+          await activeConnection.cancel({ sessionId })
         }
       } catch (error) {
         console.warn('ACP cancel failed:', error)
       }
 
-      if (child && !child.killed) {
-        child.kill()
+      const childProcess = child as ChildProcessWithoutNullStreams | null
+      if (childProcess && !childProcess.killed) {
+        childProcess.kill()
       }
     }
   }
@@ -405,12 +424,31 @@ export class AcpProvider extends BaseLLMProvider {
   private formatToolCallContent(contents: schema.ToolCallContent[]): string {
     return contents
       .map((item) => {
-        if (item.type === 'text') return item.text
-        if (item.type === 'image') return '[image content]'
-        if (item.type === 'resource') return '[resource]'
-        if (item.type === 'audio') return '[audio]'
-        if (item.type === 'resource_link') return item.uri
-        if (item.type === 'terminal') return item.output ?? ''
+        if (item.type === 'content') {
+          const block = item.content
+          switch (block.type) {
+            case 'text':
+              return block.text
+            case 'image':
+              return '[image content]'
+            case 'audio':
+              return '[audio]'
+            case 'resource':
+              return '[resource]'
+            case 'resource_link':
+              return block.uri
+            default:
+              return JSON.stringify(block)
+          }
+        }
+        if (item.type === 'terminal') {
+          return 'output' in item && typeof item.output === 'string'
+            ? item.output
+            : `[terminal:${item.terminalId}]`
+        }
+        if (item.type === 'diff') {
+          return item.path ? `diff: ${item.path}` : '[diff]'
+        }
         return JSON.stringify(item)
       })
       .filter(Boolean)
@@ -497,5 +535,11 @@ export class AcpProvider extends BaseLLMProvider {
   private async getAgentById(agentId: string): Promise<AcpAgentConfig | null> {
     const agents = await this.configPresenter.getAcpAgents()
     return agents.find((agent) => agent.id === agentId) ?? null
+  }
+
+  private async initWhenEnabled(): Promise<void> {
+    const enabled = await this.configPresenter.getAcpEnabled()
+    if (!enabled) return
+    await super.init()
   }
 }

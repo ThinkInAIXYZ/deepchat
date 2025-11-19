@@ -82,7 +82,11 @@ export class ConfigPresenter implements IConfigPresenter {
   private store: ElectronStore<IAppSettings>
   private customPromptsStore: ElectronStore<{ prompts: Prompt[] }>
   private systemPromptsStore: ElectronStore<{ prompts: SystemPrompt[] }>
-  private acpStore: ElectronStore<{ agents: AcpAgentConfig[]; builtinsVersion?: string }>
+  private acpStore: ElectronStore<{
+    agents: AcpAgentConfig[]
+    builtinsVersion?: string
+    enabled?: boolean
+  }>
   private userDataPath: string
   private currentAppVersion: string
   private mcpConfHelper: McpConfHelper // Use MCP configuration helper
@@ -174,12 +178,19 @@ export class ConfigPresenter implements IConfigPresenter {
       setSetting: this.setSetting.bind(this)
     })
 
-    this.acpStore = new ElectronStore<{ agents: AcpAgentConfig[]; builtinsVersion?: string }>({
+    this.acpStore = new ElectronStore<{
+      agents: AcpAgentConfig[]
+      builtinsVersion?: string
+      enabled?: boolean
+    }>({
       name: 'acp_agents',
       defaults: {
-        agents: []
+        agents: [],
+        enabled: false
       }
     })
+
+    this.syncAcpProviderEnabled(this.acpStore.get('enabled') ?? false)
 
     // Initialize MCP configuration helper
     this.mcpConfHelper = new McpConfHelper()
@@ -919,6 +930,33 @@ export class ConfigPresenter implements IConfigPresenter {
     await this.mcpConfHelper.updateMcpServer(name, config)
   }
 
+  private syncAcpProviderEnabled(enabled: boolean): void {
+    const provider = this.getProviderById('acp')
+    if (!provider || provider.enable === enabled) {
+      return
+    }
+    this.updateProviderAtomic('acp', { enable: enabled })
+  }
+
+  async getAcpEnabled(): Promise<boolean> {
+    return this.acpStore.get('enabled') ?? false
+  }
+
+  async setAcpEnabled(enabled: boolean): Promise<void> {
+    const current = this.acpStore.get('enabled') ?? false
+    if (current === enabled) return
+
+    this.acpStore.set('enabled', enabled)
+    this.syncAcpProviderEnabled(enabled)
+
+    if (!enabled) {
+      this.providerModelHelper.setProviderModels('acp', [])
+      this.clearProviderModelStatusCache('acp')
+    }
+
+    this.notifyAcpAgentsChanged()
+  }
+
   // Initialize built-in ACP agents on first install or version upgrade
   private initBuiltinAcpAgents(): void {
     const builtins: AcpAgentConfig[] = [
@@ -977,6 +1015,38 @@ export class ConfigPresenter implements IConfigPresenter {
   // ===================== ACP configuration methods =====================
   async getAcpAgents(): Promise<AcpAgentConfig[]> {
     return this.acpStore.get('agents') || []
+  }
+
+  async setAcpAgents(agents: AcpAgentConfig[]): Promise<AcpAgentConfig[]> {
+    const sanitizedAgents = agents
+      .map((agent) => {
+        const cleanedEnv =
+          agent.env && Object.keys(agent.env).length > 0
+            ? Object.fromEntries(
+                Object.entries(agent.env).filter(
+                  ([key]) => key && typeof key === 'string' && key.trim().length > 0
+                )
+              )
+            : undefined
+
+        const trimmedName = agent.name?.trim()
+        const trimmedCommand = agent.command?.trim()
+        if (!trimmedName || !trimmedCommand) return null
+
+        return {
+          id: agent.id || nanoid(8),
+          name: trimmedName,
+          command: trimmedCommand,
+          args: agent.args?.filter((arg) => arg.trim().length > 0) ?? undefined,
+          env: cleanedEnv
+        } as AcpAgentConfig | null
+      })
+      .filter((agent): agent is AcpAgentConfig => Boolean(agent))
+
+    this.acpStore.set('agents', sanitizedAgents)
+    this.clearProviderModelStatusCache('acp')
+    this.notifyAcpAgentsChanged()
+    return sanitizedAgents
   }
 
   async addAcpAgent(agent: Omit<AcpAgentConfig, 'id'> & { id?: string }): Promise<AcpAgentConfig> {

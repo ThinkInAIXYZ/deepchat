@@ -476,6 +476,9 @@ export interface IConfigPresenter {
   removeMcpServer(serverName: string): Promise<void>
   updateMcpServer(serverName: string, config: Partial<MCPServerConfig>): Promise<void>
   // ACP configuration methods
+  getAcpEnabled(): Promise<boolean>
+  setAcpEnabled(enabled: boolean): Promise<void>
+  setAcpAgents(agents: AcpAgentConfig[]): Promise<AcpAgentConfig[]>
   getAcpAgents(): Promise<AcpAgentConfig[]>
   addAcpAgent(agent: Omit<AcpAgentConfig, 'id'> & { id?: string }): Promise<AcpAgentConfig>
   updateAcpAgent(

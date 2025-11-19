@@ -214,8 +214,7 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
     verbosity?: 'low' | 'medium' | 'high',
     enableSearch?: boolean,
     forcedSearch?: boolean,
-    searchStrategy?: 'turbo' | 'max',
-    conversationId?: string
+    searchStrategy?: 'turbo' | 'max'
   ): AsyncGenerator<LLMAgentEvent, void, unknown> {
     yield* this.agentLoopHandler.startStreamCompletion(
       providerId,
@@ -230,8 +229,7 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
       verbosity,
       enableSearch,
       forcedSearch,
-      searchStrategy,
-      conversationId
+      searchStrategy
     )
   }
 
