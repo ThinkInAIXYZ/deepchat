@@ -22,7 +22,7 @@ interface AcpProcessManagerOptions {
   providerId: string
 }
 
-type SessionNotificationHandler = (notification: schema.SessionNotification) => void
+export type SessionNotificationHandler = (notification: schema.SessionNotification) => void
 
 export type PermissionResolver = (
   request: schema.RequestPermissionRequest

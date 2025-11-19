@@ -142,7 +142,7 @@ LLMProviderPresenter → Renderer: STREAM_EVENTS.RESPONSE
 4. [x] step-4-agent-store
 5. [x] step-5-model-store
 6. [x] step-6-process-manager
-7. [ ] step-7-session-manager
+7. [x] step-7-session-manager
 8. [ ] step-8-content-mapper
 9. [ ] step-9-message-formatter
 10. [ ] step-10-acp-provider
