@@ -145,14 +145,14 @@ LLMProviderPresenter → Renderer: STREAM_EVENTS.RESPONSE
 7. [x] step-7-session-manager
 8. [x] step-8-content-mapper
 9. [x] step-9-message-formatter
-10. [ ] step-10-acp-provider
+10. [x] step-10-acp-provider
 11. [ ] step-11-testing
 
 ### To-dos
 
-- [ ] 实现 AcpSessionManager，管理 session 生命周期和与 conversationId 的映射
-- [ ] 实现 AcpProcessManager，管理 ACP agent 进程和连接复用
-- [ ] 实现 AcpContentMapper，完整映射 ACP ContentBlock 到 DeepChat AssistantMessageBlock
-- [ ] 实现 AcpMessageFormatter，将 DeepChat 消息格式化为 ACP prompt 格式
-- [ ] 重构 AcpProvider，整合所有组件，支持 session/load 和完整的内容映射
+- [x] 实现 AcpSessionManager，管理 session 生命周期和与 conversationId 的映射
+- [x] 实现 AcpProcessManager，管理 ACP agent 进程和连接复用
+- [x] 实现 AcpContentMapper，完整映射 ACP ContentBlock 到 DeepChat AssistantMessageBlock
+- [x] 实现 AcpMessageFormatter，将 DeepChat 消息格式化为 ACP prompt 格式
+- [x] 重构 AcpProvider，整合所有组件，支持 session/load 和完整的内容映射
 - [ ] 测试 session 持久化、内容映射、工具调用等所有功能

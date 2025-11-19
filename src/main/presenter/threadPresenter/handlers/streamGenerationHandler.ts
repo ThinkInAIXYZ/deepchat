@@ -147,7 +147,8 @@ export class StreamGenerationHandler extends BaseHandler {
         currentVerbosity,
         currentEnableSearch,
         currentForcedSearch,
-        currentSearchStrategy
+        currentSearchStrategy,
+        conversationId
       )
 
       for await (const event of stream) {
@@ -325,7 +326,8 @@ export class StreamGenerationHandler extends BaseHandler {
         verbosity,
         enableSearch,
         forcedSearch,
-        searchStrategy
+        searchStrategy,
+        conversationId
       )
 
       for await (const event of stream) {

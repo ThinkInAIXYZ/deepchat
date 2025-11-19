@@ -12,10 +12,10 @@ import type {
  * while allowing subclasses to supply concrete managers.
  */
 export abstract class BaseAgentProvider<
-  TSessionManager extends AgentSessionManager = AgentSessionManager,
-  TProcessManager extends AgentProcessManager = AgentProcessManager,
-  TPermissionRequest extends AgentPermissionRequest = AgentPermissionRequest,
-  TPermissionResult extends AgentPermissionResult = AgentPermissionResult
+  TSessionManager extends AgentSessionManager<any, any, any> = AgentSessionManager,
+  TProcessManager extends AgentProcessManager<any, any> = AgentProcessManager,
+  TPermissionRequest = AgentPermissionRequest,
+  TPermissionResult = AgentPermissionResult
 > extends BaseLLMProvider {
   protected abstract getSessionManager(): TSessionManager
   protected abstract getProcessManager(): TProcessManager
@@ -26,14 +26,14 @@ export abstract class BaseAgentProvider<
    * Clears in-memory sessions and tears down any running agent processes.
    */
   public cleanup(): void {
-    try {
-      this.getSessionManager().clearAllSessions()
-    } catch (error) {
-      console.warn(
-        `[AgentProvider] Failed to clear sessions for provider "${this.provider.id}":`,
-        error
-      )
-    }
+    void this.getSessionManager()
+      .clearAllSessions()
+      .catch((error) => {
+        console.warn(
+          `[AgentProvider] Failed to clear sessions for provider "${this.provider.id}":`,
+          error
+        )
+      })
 
     void this.getProcessManager()
       .shutdown()

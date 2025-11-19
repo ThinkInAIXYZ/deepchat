@@ -12,17 +12,21 @@ export type {
   AgentSessionState
 }
 
-export interface AgentSessionManager<TSession extends AgentSessionState = AgentSessionState> {
+export interface AgentSessionManager<
+  TSession extends AgentSessionState = AgentSessionState,
+  TAgentDescriptor = string,
+  TSessionOptions = unknown
+> {
   getOrCreateSession(
     conversationId: string,
-    agentId: string,
-    factory: () => Promise<TSession>
+    agent: TAgentDescriptor,
+    options: TSessionOptions
   ): Promise<TSession>
   getSession(conversationId: string): TSession | null
   listSessions(): TSession[]
-  clearSession(conversationId: string): void
-  clearSessionsByAgent(agentId: string): void
-  clearAllSessions(): void
+  clearSession(conversationId: string): Promise<void>
+  clearSessionsByAgent(agentId: string): Promise<void>
+  clearAllSessions(): Promise<void>
 }
 
 export interface AgentProcessManager<

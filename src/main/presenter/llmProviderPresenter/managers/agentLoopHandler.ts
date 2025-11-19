@@ -37,7 +37,8 @@ export class AgentLoopHandler {
     verbosity?: 'low' | 'medium' | 'high',
     enableSearch?: boolean,
     forcedSearch?: boolean,
-    searchStrategy?: 'turbo' | 'max'
+    searchStrategy?: 'turbo' | 'max',
+    conversationId?: string
   ): AsyncGenerator<LLMAgentEvent, void, unknown> {
     console.log(`[Agent Loop] Starting agent loop for event: ${eventId} with model: ${modelId}`)
     if (!this.options.canStartNewStream()) {
@@ -50,6 +51,10 @@ export class AgentLoopHandler {
     const provider = this.options.getProviderInstance(providerId)
     const abortController = new AbortController()
     const modelConfig = this.options.configPresenter.getModelConfig(modelId, providerId)
+
+    if (conversationId) {
+      modelConfig.conversationId = conversationId
+    }
 
     if (thinkingBudget !== undefined) {
       modelConfig.thinkingBudget = thinkingBudget

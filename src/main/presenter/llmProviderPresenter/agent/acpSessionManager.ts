@@ -19,7 +19,7 @@ interface SessionHooks {
   onPermission: PermissionResolver
 }
 
-interface ManagedSession extends AgentSessionState {
+export interface AcpSessionRecord extends AgentSessionState {
   connection: ClientSideConnectionType
   detachHandlers: Array<() => void>
 }
@@ -27,16 +27,16 @@ interface ManagedSession extends AgentSessionState {
 export class AcpSessionManager {
   private readonly providerId: string
   private readonly processManager: AcpProcessManager
-  private readonly sessionsByConversation = new Map<string, ManagedSession>()
-  private readonly sessionsById = new Map<string, ManagedSession>()
-  private readonly pendingSessions = new Map<string, Promise<ManagedSession>>()
+  private readonly sessionsByConversation = new Map<string, AcpSessionRecord>()
+  private readonly sessionsById = new Map<string, AcpSessionRecord>()
+  private readonly pendingSessions = new Map<string, Promise<AcpSessionRecord>>()
 
   constructor(options: AcpSessionManagerOptions) {
     this.providerId = options.providerId
     this.processManager = options.processManager
 
     app.on('before-quit', () => {
-      void this.clearAll()
+      void this.clearAllSessions()
     })
   }
 
@@ -44,7 +44,7 @@ export class AcpSessionManager {
     conversationId: string,
     agent: AcpAgentConfig,
     hooks: SessionHooks
-  ): Promise<ManagedSession> {
+  ): Promise<AcpSessionRecord> {
     const existing = this.sessionsByConversation.get(conversationId)
     if (existing && existing.agentId === agent.id) {
       return existing
@@ -70,12 +70,23 @@ export class AcpSessionManager {
     }
   }
 
-  getSession(conversationId: string): ManagedSession | null {
+  getSession(conversationId: string): AcpSessionRecord | null {
     return this.sessionsByConversation.get(conversationId) ?? null
   }
 
-  getSessionById(sessionId: string): ManagedSession | null {
+  getSessionById(sessionId: string): AcpSessionRecord | null {
     return this.sessionsById.get(sessionId) ?? null
+  }
+
+  listSessions(): AcpSessionRecord[] {
+    return Array.from(this.sessionsByConversation.values())
+  }
+
+  async clearSessionsByAgent(agentId: string): Promise<void> {
+    const targets = Array.from(this.sessionsByConversation.entries()).filter(
+      ([, session]) => session.agentId === agentId
+    )
+    await Promise.allSettled(targets.map(([conversationId]) => this.clearSession(conversationId)))
   }
 
   async clearSession(conversationId: string): Promise<void> {
@@ -101,7 +112,7 @@ export class AcpSessionManager {
     }
   }
 
-  async clearAll(): Promise<void> {
+  async clearAllSessions(): Promise<void> {
     const clears = Array.from(this.sessionsByConversation.keys()).map((conversationId) =>
       this.clearSession(conversationId)
     )
@@ -115,7 +126,7 @@ export class AcpSessionManager {
     conversationId: string,
     agent: AcpAgentConfig,
     hooks: SessionHooks
-  ): Promise<ManagedSession> {
+  ): Promise<AcpSessionRecord> {
     const handle = await this.processManager.getConnection(agent)
     const session = await this.initializeSession(handle, agent)
     const detachListeners = this.attachSessionHooks(agent.id, session.sessionId, hooks)

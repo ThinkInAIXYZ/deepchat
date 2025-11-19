@@ -346,7 +346,8 @@ export class PermissionHandler extends BaseHandler {
         verbosity,
         enableSearch,
         forcedSearch,
-        searchStrategy
+        searchStrategy,
+        conversation.id
       )
 
       for await (const event of stream) {
@@ -421,7 +422,8 @@ export class PermissionHandler extends BaseHandler {
         conversation.settings.verbosity,
         conversation.settings.enableSearch,
         conversation.settings.forcedSearch,
-        conversation.settings.searchStrategy
+        conversation.settings.searchStrategy,
+        conversationId
       )
 
       for await (const event of stream) {
@@ -601,7 +603,8 @@ export class PermissionHandler extends BaseHandler {
         verbosity,
         enableSearch,
         forcedSearch,
-        searchStrategy
+        searchStrategy,
+        conversation.id
       )
 
       for await (const event of stream) {
