@@ -33,5 +33,7 @@ export type {
   SearchResult
 } from './thread.presenter'
 
+export type * from './agent-provider'
+
 // Re-export legacy types temporarily for compatibility
 export * from './legacy.presenters'

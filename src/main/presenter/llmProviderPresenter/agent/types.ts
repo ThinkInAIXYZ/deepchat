@@ -1,14 +1,15 @@
-export type AgentSessionLifecycleStatus = 'idle' | 'active' | 'error'
+import type {
+  AgentProcessHandle,
+  AgentProcessStatus,
+  AgentSessionLifecycleStatus,
+  AgentSessionState
+} from '@shared/presenter'
 
-export interface AgentSessionState {
-  providerId: string
-  agentId: string
-  conversationId: string
-  sessionId: string
-  status: AgentSessionLifecycleStatus
-  createdAt: number
-  updatedAt: number
-  metadata?: Record<string, unknown>
+export type {
+  AgentProcessHandle,
+  AgentProcessStatus,
+  AgentSessionLifecycleStatus,
+  AgentSessionState
 }
 
 export interface AgentSessionManager<TSession extends AgentSessionState = AgentSessionState> {
@@ -22,18 +23,6 @@ export interface AgentSessionManager<TSession extends AgentSessionState = AgentS
   clearSession(conversationId: string): void
   clearSessionsByAgent(agentId: string): void
   clearAllSessions(): void
-}
-
-export type AgentProcessStatus = 'spawning' | 'ready' | 'error'
-
-export interface AgentProcessHandle {
-  providerId: string
-  agentId: string
-  status: AgentProcessStatus
-  pid?: number
-  restarts?: number
-  lastHeartbeatAt?: number
-  metadata?: Record<string, unknown>
 }
 
 export interface AgentProcessManager<THandle extends AgentProcessHandle = AgentProcessHandle> {

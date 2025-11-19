@@ -137,7 +137,7 @@ LLMProviderPresenter → Renderer: STREAM_EVENTS.RESPONSE
 ## Todo 顺序
 
 1. [x] step-1-base-agent
-2. [ ] step-2-instance-manager
+2. [x] step-2-instance-manager
 3. [ ] step-3-agent-types
 4. [ ] step-4-agent-store
 5. [ ] step-5-model-store
