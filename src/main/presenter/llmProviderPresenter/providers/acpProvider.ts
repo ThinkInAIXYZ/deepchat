@@ -290,6 +290,7 @@ export class AcpProvider extends BaseAgentProvider<
           const conversationKey = modelConfig.conversationId ?? modelId
           session = await this.sessionManager.getOrCreateSession(conversationKey, agent, {
             onSessionUpdate: (notification) => {
+              // console.log('[ACP] onSessionUpdate: notification:', JSON.stringify(notification))
               const mapped = this.contentMapper.map(notification)
               mapped.events.forEach((event) => queue.push(event))
             },
@@ -334,6 +335,7 @@ export class AcpProvider extends BaseAgentProvider<
         sessionId: session.sessionId,
         prompt
       })
+      console.log('[ACP] runPrompt: response:', response)
       queue.push(createStreamEvent.stop(this.mapStopReason(response.stopReason)))
     } catch (error) {
       const message =
@@ -378,6 +380,7 @@ export class AcpProvider extends BaseAgentProvider<
       maxTokens,
       []
     )) {
+      console.log('[ACP] collectFromStream: chunk:', chunk)
       if (chunk.type === 'text' && chunk.content) {
         content += chunk.content
       } else if (chunk.type === 'reasoning' && chunk.reasoning_content) {
