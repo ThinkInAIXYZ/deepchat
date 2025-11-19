@@ -27,6 +27,7 @@ import { MinimaxProvider } from '../providers/minimaxProvider'
 import { AihubmixProvider } from '../providers/aihubmixProvider'
 import { _302AIProvider } from '../providers/_302AIProvider'
 import { ModelscopeProvider } from '../providers/modelscopeProvider'
+import { AcpProvider } from '../providers/acpProvider'
 import { VercelAIGatewayProvider } from '../providers/vercelAIGatewayProvider'
 import { PoeProvider } from '../providers/poeProvider'
 import { JiekouProvider } from '../providers/jiekouProvider'
@@ -87,7 +88,8 @@ export class ProviderInstanceManager {
       ['poe', PoeProvider],
       ['aws-bedrock', AwsBedrockProvider],
       ['jiekou', JiekouProvider],
-      ['zenmux', ZenmuxProvider]
+      ['zenmux', ZenmuxProvider],
+      ['acp', AcpProvider]
     ])
   }
 
@@ -117,7 +119,8 @@ export class ProviderInstanceManager {
       ['poe', PoeProvider],
       ['aws-bedrock', AwsBedrockProvider],
       ['jiekou', JiekouProvider],
-      ['zenmux', ZenmuxProvider]
+      ['zenmux', ZenmuxProvider],
+      ['acp', AcpProvider]
     ])
   }
 

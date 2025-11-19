@@ -795,6 +795,52 @@
     "specificTab": "Switch to specific tab (1-8)",
     "lastTab": "Switch to last tab"
   },
+  "acp": {
+    "title": "ACP Agents",
+    "description": "Manage local Agent Client Protocol agents started by DeepChat.",
+    "addAgent": "Add Agent",
+    "editAgent": "Edit Agent",
+    "formHint": "Provide the command, arguments, and environment variables to launch your ACP agent.",
+    "name": "Agent Name",
+    "namePlaceholder": "e.g. Claude Code ACP",
+    "command": "Command",
+    "commandPlaceholder": "Executable or script path",
+    "args": "Arguments",
+    "argsPlaceholder": "Optional, separated by spaces. Use quotes to keep arguments together.",
+    "env": "Environment Variables",
+    "addEnv": "Add Variable",
+    "envKeyPlaceholder": "KEY",
+    "envValuePlaceholder": "VALUE",
+    "missingFieldsTitle": "Name and command are required",
+    "missingFieldsDesc": "Please fill in both name and command before saving.",
+    "saveSuccess": "Agent saved",
+    "saveFailed": "Failed to save agent",
+    "deleteConfirm": "Delete agent \"{name}\"?",
+    "deleteSuccess": "Agent deleted",
+    "empty": "No ACP agents configured yet.",
+    "quickAdd": {
+      "title": "Quick Add",
+      "description": "Use presets to add common ACP agents in one click. Existing agents won't be overwritten.",
+      "recommended": "Recommended",
+      "command": "Command",
+      "args": "Args",
+      "env": "Env",
+      "add": "Add {name}",
+      "exists": "\"{name}\" is already added",
+      "confirm": "Add preset \"{name}\"?"
+    },
+    "builtin": {
+      "kimi": {
+        "description": "Recommended. Works out of the box with `kimi --acp`."
+      },
+      "claudeCode": {
+        "description": "Install claude-code-acp first and provide ANTHROPIC_API_KEY."
+      },
+      "codex": {
+        "description": "Install codex-acp first and provide OPENAI_API_KEY."
+      }
+    }
+  },
   "rateLimit": {
     "title": "Rate Limit",
     "description": "Control request interval to prevent exceeding API limits",

@@ -12,5 +12,6 @@
   "settings-display": "显示设置",
   "settings-knowledge-base": "知识库",
   "settings-prompt": "Prompt管理",
-  "settings-mcp-market": "MCP市场"
+  "settings-mcp-market": "MCP市场",
+  "settings-acp": "ACP代理"
 }

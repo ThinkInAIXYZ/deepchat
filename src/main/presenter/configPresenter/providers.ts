@@ -173,6 +173,21 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
     }
   },
   {
+    id: 'acp',
+    name: 'ACP',
+    apiType: 'acp',
+    apiKey: '',
+    baseUrl: '',
+    enable: false,
+    websites: {
+      official: 'https://agentclientprotocol.com',
+      apiKey: '',
+      docs: 'https://agentclientprotocol.com',
+      models: 'https://agentclientprotocol.com',
+      defaultBaseUrl: ''
+    }
+  },
+  {
     id: 'cherryin',
     name: 'CherryIn',
     apiType: 'cherryin',

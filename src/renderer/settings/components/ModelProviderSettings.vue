@@ -211,8 +211,12 @@ const filterProviders = (providers: LLM_PROVIDER[]) => {
   )
 }
 
-const allEnabledProviders = computed(() => settingsStore.sortedProviders.filter((p) => p.enable))
-const allDisabledProviders = computed(() => settingsStore.sortedProviders.filter((p) => !p.enable))
+const visibleProviders = computed(() =>
+  settingsStore.sortedProviders.filter((provider) => provider.id !== 'acp')
+)
+
+const allEnabledProviders = computed(() => visibleProviders.value.filter((p) => p.enable))
+const allDisabledProviders = computed(() => visibleProviders.value.filter((p) => !p.enable))
 
 // 分别处理启用和禁用的 providers
 const enabledProviders = computed({
@@ -289,7 +293,12 @@ const toggleProviderStatus = async (provider: LLM_PROVIDER) => {
 }
 
 const activeProvider = computed(() => {
-  return settingsStore.providers.find((p) => p.id === route.params.providerId)
+  const provider = settingsStore.providers.find((p) => p.id === route.params.providerId)
+  if (provider?.id === 'acp') {
+    router.replace({ name: 'settings-acp' })
+    return null
+  }
+  return provider
 })
 
 const openAddProviderDialog = () => {

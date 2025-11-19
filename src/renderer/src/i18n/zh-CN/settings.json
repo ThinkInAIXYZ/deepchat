@@ -795,6 +795,52 @@
     "specificTab": "切换到指定标签页 (1-8)",
     "lastTab": "切换到最后一个标签页"
   },
+  "acp": {
+    "title": "ACP 代理",
+    "description": "管理由 DeepChat 启动的本地 Agent Client Protocol 代理。",
+    "addAgent": "添加代理",
+    "editAgent": "编辑代理",
+    "formHint": "提供命令、参数和环境变量以启动您的 ACP 代理。",
+    "name": "代理名称",
+    "namePlaceholder": "例如：Claude Code ACP",
+    "command": "命令",
+    "commandPlaceholder": "可执行文件或脚本路径",
+    "args": "参数",
+    "argsPlaceholder": "可选，用空格分隔。使用引号将参数组合在一起。",
+    "env": "环境变量",
+    "addEnv": "添加变量",
+    "envKeyPlaceholder": "KEY",
+    "envValuePlaceholder": "VALUE",
+    "missingFieldsTitle": "名称和命令为必填项",
+    "missingFieldsDesc": "保存前请填写名称和命令。",
+    "saveSuccess": "代理已保存",
+    "saveFailed": "保存代理失败",
+    "deleteConfirm": "删除代理 \"{name}\"？",
+    "deleteSuccess": "代理已删除",
+    "empty": "尚未配置任何 ACP 代理。",
+    "quickAdd": {
+      "title": "快速添加",
+      "description": "使用预设一键添加常用 ACP 代理，不会覆盖已有配置。",
+      "recommended": "推荐",
+      "command": "命令",
+      "args": "参数",
+      "env": "环境变量",
+      "add": "添加 {name}",
+      "exists": "“{name}” 已存在",
+      "confirm": "要添加预设“{name}”吗？"
+    },
+    "builtin": {
+      "kimi": {
+        "description": "推荐，开箱即用：直接运行 `kimi --acp`。"
+      },
+      "claudeCode": {
+        "description": "需要先安装 claude-code-acp，并填写环境变量 ANTHROPIC_API_KEY。"
+      },
+      "codex": {
+        "description": "需要先安装 codex-acp，并提供环境变量 OPENAI_API_KEY。"
+      }
+    }
+  },
   "rateLimit": {
     "title": "速率限制",
     "description": "控制请求间隔时间，防止超出API限制",

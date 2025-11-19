@@ -40,5 +40,15 @@
       "functionCall": "注意：开启函数调用将自动关闭推理能力，这是 DeepSeek-V3.1 模型的限制要求。"
     },
     "confirmEnable": "确认开启"
+  },
+  "acp": {
+    "permission": {
+      "title": "需要授权",
+      "description": "ACP 代理请求执行工具，请选择是否允许。",
+      "allowOnce": "仅此次允许",
+      "allowAlways": "始终允许",
+      "rejectOnce": "仅此次拒绝",
+      "rejectAlways": "始终拒绝"
+    }
   }
 }

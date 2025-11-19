@@ -147,6 +147,7 @@ export interface ModelConfig {
   reasoningEffort?: 'minimal' | 'low' | 'medium' | 'high'
   verbosity?: 'low' | 'medium' | 'high'
   maxCompletionTokens?: number // GPT-5 series uses this parameter to replace maxTokens
+  conversationId?: string
 }
 
 export interface IModelConfig {
@@ -474,6 +475,14 @@ export interface IConfigPresenter {
   addMcpServer(serverName: string, config: MCPServerConfig): Promise<boolean>
   removeMcpServer(serverName: string): Promise<void>
   updateMcpServer(serverName: string, config: Partial<MCPServerConfig>): Promise<void>
+  // ACP configuration methods
+  getAcpAgents(): Promise<AcpAgentConfig[]>
+  addAcpAgent(agent: Omit<AcpAgentConfig, 'id'> & { id?: string }): Promise<AcpAgentConfig>
+  updateAcpAgent(
+    agentId: string,
+    updates: Partial<Omit<AcpAgentConfig, 'id'>>
+  ): Promise<AcpAgentConfig | null>
+  removeAcpAgent(agentId: string): Promise<boolean>
   getMcpConfHelper(): any // Used to get MCP configuration helper
   getModelConfig(modelId: string, providerId?: string): ModelConfig
   setModelConfig(
@@ -614,6 +623,14 @@ export type LLM_PROVIDER_BASE = {
 export type LLM_EMBEDDING_ATTRS = {
   dimensions: number
   normalized: boolean
+}
+
+export interface AcpAgentConfig {
+  id: string
+  name: string
+  command: string
+  args?: string[]
+  env?: Record<string, string>
 }
 
 // Simplified ModelScope MCP sync options

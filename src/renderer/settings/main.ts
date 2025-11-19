@@ -73,13 +73,23 @@ const router = createRouter({
       }
     },
     {
+      path: '/acp',
+      name: 'settings-acp',
+      component: () => import('./components/AcpSettings.vue'),
+      meta: {
+        titleKey: 'routes.settings-acp',
+        icon: 'lucide:shield-check',
+        position: 6
+      }
+    },
+    {
       path: '/prompt',
       name: 'settings-prompt',
       component: () => import('./components/PromptSetting.vue'),
       meta: {
         titleKey: 'routes.settings-prompt',
         icon: 'lucide:book-open-text',
-        position: 6
+        position: 7
       }
     },
     {
@@ -89,7 +99,7 @@ const router = createRouter({
       meta: {
         titleKey: 'routes.settings-knowledge-base',
         icon: 'lucide:book-marked',
-        position: 7
+        position: 8
       }
     },
     {
@@ -99,7 +109,7 @@ const router = createRouter({
       meta: {
         titleKey: 'routes.settings-database',
         icon: 'lucide:database',
-        position: 8
+        position: 9
       }
     },
     {
@@ -109,7 +119,7 @@ const router = createRouter({
       meta: {
         titleKey: 'routes.settings-shortcut',
         icon: 'lucide:keyboard',
-        position: 9
+        position: 10
       }
     },
     {
@@ -119,7 +129,7 @@ const router = createRouter({
       meta: {
         titleKey: 'routes.settings-about',
         icon: 'lucide:info',
-        position: 10
+        position: 11
       }
     },
     {

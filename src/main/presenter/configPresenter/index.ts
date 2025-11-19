@@ -10,7 +10,8 @@ import {
   Prompt,
   SystemPrompt,
   IModelConfig,
-  BuiltinKnowledgeConfig
+  BuiltinKnowledgeConfig,
+  AcpAgentConfig
 } from '@shared/presenter'
 import {
   ProviderChange,
@@ -34,6 +35,7 @@ import { KnowledgeConfHelper } from './knowledgeConfHelper'
 import { providerDbLoader } from './providerDbLoader'
 import { ProviderAggregate } from '@shared/types/model-db'
 import { modelCapabilities } from './modelCapabilities'
+import { nanoid } from 'nanoid'
 
 // Default system prompt constant
 const DEFAULT_SYSTEM_PROMPT = `You are DeepChat, a highly capable AI assistant. Your goal is to fully complete the user’s requested task before handing the conversation back to them. Keep working autonomously until the task is fully resolved.
@@ -96,6 +98,7 @@ export class ConfigPresenter implements IConfigPresenter {
   private providersModelStores: Map<string, ElectronStore<IModelStore>> = new Map()
   private customPromptsStore: ElectronStore<{ prompts: Prompt[] }>
   private systemPromptsStore: ElectronStore<{ prompts: SystemPrompt[] }>
+  private acpStore: ElectronStore<{ agents: AcpAgentConfig[]; builtinsVersion?: string }>
   private userDataPath: string
   private currentAppVersion: string
   private mcpConfHelper: McpConfHelper // Use MCP configuration helper
@@ -162,6 +165,13 @@ export class ConfigPresenter implements IConfigPresenter {
       }
     })
 
+    this.acpStore = new ElectronStore<{ agents: AcpAgentConfig[]; builtinsVersion?: string }>({
+      name: 'acp_agents',
+      defaults: {
+        agents: []
+      }
+    })
+
     // Initialize MCP configuration helper
     this.mcpConfHelper = new McpConfHelper()
 
@@ -170,6 +180,9 @@ export class ConfigPresenter implements IConfigPresenter {
 
     // Initialize knowledge configuration helper
     this.knowledgeConfHelper = new KnowledgeConfHelper()
+
+    // Initialize built-in ACP agents on first run or version upgrade
+    this.initBuiltinAcpAgents()
 
     // Initialize provider models directory
     this.initProviderModelsDir()
@@ -1139,6 +1152,143 @@ export class ConfigPresenter implements IConfigPresenter {
   // Update MCP server configuration
   async updateMcpServer(name: string, config: Partial<MCPServerConfig>): Promise<void> {
     await this.mcpConfHelper.updateMcpServer(name, config)
+  }
+
+  // Initialize built-in ACP agents on first install or version upgrade
+  private initBuiltinAcpAgents(): void {
+    const builtins: AcpAgentConfig[] = [
+      {
+        id: 'kimi-cli',
+        name: 'Kimi CLI',
+        command: 'kimi',
+        args: ['--acp'],
+        env: {}
+      },
+      {
+        id: 'claude-code-acp',
+        name: 'Claude Code ACP',
+        command: 'claude-code-acp',
+        args: [],
+        env: {
+          ANTHROPIC_API_KEY: ''
+        }
+      },
+      {
+        id: 'codex-acp',
+        name: 'Codex CLI ACP',
+        command: 'codex-acp',
+        args: [],
+        env: {
+          OPENAI_API_KEY: ''
+        }
+      }
+    ]
+
+    const storedVersion = this.acpStore.get('builtinsVersion')
+    const existingAgents = this.acpStore.get('agents') || []
+
+    // Only run when first initialized or after an upgrade
+    if (storedVersion === this.currentAppVersion && existingAgents.length > 0) {
+      return
+    }
+
+    let changed = false
+    for (const builtin of builtins) {
+      if (!existingAgents.some((agent) => agent.id === builtin.id)) {
+        existingAgents.push(builtin)
+        changed = true
+      }
+    }
+
+    if (changed) {
+      this.acpStore.set('agents', existingAgents)
+      this.clearProviderModelStatusCache('acp')
+      this.notifyAcpAgentsChanged()
+    }
+
+    this.acpStore.set('builtinsVersion', this.currentAppVersion)
+  }
+
+  // ===================== ACP configuration methods =====================
+  async getAcpAgents(): Promise<AcpAgentConfig[]> {
+    return this.acpStore.get('agents') || []
+  }
+
+  async addAcpAgent(agent: Omit<AcpAgentConfig, 'id'> & { id?: string }): Promise<AcpAgentConfig> {
+    const agents = this.acpStore.get('agents') || []
+    const cleanedEnv =
+      agent.env && Object.keys(agent.env).length > 0
+        ? Object.fromEntries(
+            Object.entries(agent.env).filter(
+              ([key]) => key && typeof key === 'string' && key.trim().length > 0
+            )
+          )
+        : undefined
+
+    const newAgent: AcpAgentConfig = {
+      id: agent.id || nanoid(8),
+      name: agent.name.trim(),
+      command: agent.command.trim(),
+      args: agent.args?.filter((arg) => arg.trim().length > 0),
+      env: cleanedEnv
+    }
+
+    this.acpStore.set('agents', [...agents, newAgent])
+    this.clearProviderModelStatusCache('acp')
+    this.notifyAcpAgentsChanged()
+    return newAgent
+  }
+
+  async updateAcpAgent(
+    agentId: string,
+    updates: Partial<Omit<AcpAgentConfig, 'id'>>
+  ): Promise<AcpAgentConfig | null> {
+    const agents = this.acpStore.get('agents') || []
+    const index = agents.findIndex((agent) => agent.id === agentId)
+    if (index === -1) {
+      return null
+    }
+
+    const cleanedEnv =
+      updates.env && Object.keys(updates.env).length > 0
+        ? Object.fromEntries(
+            Object.entries(updates.env).filter(
+              ([key]) => key && typeof key === 'string' && key.trim().length > 0
+            )
+          )
+        : updates.env
+
+    const updated: AcpAgentConfig = {
+      ...agents[index],
+      ...updates,
+      name: updates.name?.trim() ?? agents[index].name.trim(),
+      command: updates.command?.trim() ?? agents[index].command.trim(),
+      args: updates.args?.filter((arg) => arg.trim().length > 0) ?? agents[index].args,
+      env: cleanedEnv ?? agents[index].env
+    }
+
+    agents[index] = updated
+    this.acpStore.set('agents', agents)
+    this.clearProviderModelStatusCache('acp')
+    this.notifyAcpAgentsChanged()
+    return updated
+  }
+
+  async removeAcpAgent(agentId: string): Promise<boolean> {
+    const agents = this.acpStore.get('agents') || []
+    const filtered = agents.filter((agent) => agent.id !== agentId)
+    if (filtered.length === agents.length) {
+      return false
+    }
+
+    this.acpStore.set('agents', filtered)
+    this.clearProviderModelStatusCache('acp')
+    this.notifyAcpAgentsChanged()
+    return true
+  }
+
+  private notifyAcpAgentsChanged() {
+    eventBus.sendToRenderer(CONFIG_EVENTS.MODEL_LIST_CHANGED, SendTarget.ALL_WINDOWS, 'acp')
   }
 
   // Provide getMcpConfHelper method to get MCP configuration helper
