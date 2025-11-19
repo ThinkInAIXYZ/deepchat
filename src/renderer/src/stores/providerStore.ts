@@ -43,9 +43,24 @@ export const useProviderStore = defineStore('provider', () => {
   const disabledProviders = computed(() => providers.value.filter((provider) => !provider.enable))
 
   const ensureOrderIncludesProviders = (order: string[], list: LLM_PROVIDER[]) => {
-    const validOrder = order.filter((id) => list.some((provider) => provider.id === id))
-    const missingIds = list.map((provider) => provider.id).filter((id) => !validOrder.includes(id))
-    return [...validOrder, ...missingIds]
+    const seen = new Set<string>()
+    // Keep existing order (including ids that may be temporarily missing from the current list)
+    const cleanedOrder: string[] = []
+    order.forEach((id) => {
+      if (!id || seen.has(id)) return
+      seen.add(id)
+      cleanedOrder.push(id)
+    })
+
+    // Append any providers that are not yet in the order
+    list.forEach((provider) => {
+      if (!seen.has(provider.id)) {
+        seen.add(provider.id)
+        cleanedOrder.push(provider.id)
+      }
+    })
+
+    return cleanedOrder
   }
 
   const sortProviders = (providerList: LLM_PROVIDER[], useAscendingTime: boolean) => {
@@ -76,16 +91,28 @@ export const useProviderStore = defineStore('provider', () => {
   const loadProviderOrder = async () => {
     try {
       const savedOrder = await configP.getSetting<string[]>(PROVIDER_ORDER_KEY)
-      providerOrder.value = ensureOrderIncludesProviders(savedOrder ?? [], providers.value)
+      // Only use ensureOrderIncludesProviders if we have a valid savedOrder or if providerOrder is empty
+      if (savedOrder && savedOrder.length > 0) {
+        // If we have a saved order, valid or not, we trust it as the base and append missing ones
+        // This prevents resetting to default list order when provider list is temporarily incomplete
+        providerOrder.value = ensureOrderIncludesProviders(savedOrder, providers.value)
+      } else if (providerOrder.value.length === 0 && providers.value.length > 0) {
+        // Only if we have no saved order AND no current order, we initialize from current list
+        providerOrder.value = providers.value.map((provider) => provider.id)
+      }
     } catch (error) {
       console.error('Failed to load provider order:', error)
-      providerOrder.value = providers.value.map((provider) => provider.id)
+      if (providerOrder.value.length === 0) {
+        providerOrder.value = providers.value.map((provider) => provider.id)
+      }
     }
   }
 
   const saveProviderOrder = async () => {
     try {
-      await configP.setSetting(PROVIDER_ORDER_KEY, providerOrder.value)
+      if (providerOrder.value.length > 0) {
+        await configP.setSetting(PROVIDER_ORDER_KEY, providerOrder.value)
+      }
     } catch (error) {
       console.error('Failed to save provider order:', error)
     }
@@ -111,8 +138,9 @@ export const useProviderStore = defineStore('provider', () => {
   }
 
   const refreshProviders = async () => {
-    await providersQuery.refetch()
+    // Load order first to ensure we have the latest saved order before processing provider list updates
     await loadProviderOrder()
+    await providersQuery.refetch()
   }
 
   const setupProviderListeners = () => {
@@ -316,15 +344,35 @@ export const useProviderStore = defineStore('provider', () => {
     await refreshProviders()
   }
 
+  let providerOrderSyncTimer: ReturnType<typeof setTimeout> | null = null
+
   watch(
     providers,
     (list) => {
       if (!list || list.length === 0) return
-      const ensured = ensureOrderIncludesProviders(providerOrder.value, list)
-      if (JSON.stringify(ensured) !== JSON.stringify(providerOrder.value)) {
-        providerOrder.value = ensured
-        void saveProviderOrder()
+      // Only update order if we already have an order established
+      if (providerOrder.value.length === 0) {
+        // If no order yet, try to load it first (or init from list if load fails/empty)
+        void loadProviderOrder()
+        return
       }
+
+      if (providerOrderSyncTimer) {
+        clearTimeout(providerOrderSyncTimer)
+      }
+
+      providerOrderSyncTimer = setTimeout(() => {
+        const ensured = ensureOrderIncludesProviders(providerOrder.value, list)
+
+        const isSameLength = ensured.length === providerOrder.value.length
+        const isSameOrder =
+          isSameLength && ensured.every((id, idx) => id === providerOrder.value[idx])
+
+        if (!isSameOrder) {
+          providerOrder.value = ensured
+          void saveProviderOrder()
+        }
+      }, 80)
     },
     { immediate: true }
   )

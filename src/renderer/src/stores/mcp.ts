@@ -211,6 +211,27 @@ export const useMcpStore = defineStore('mcp', () => {
     const previousMcpEnabled = config.value.mcpEnabled
     const previousReady = config.value.ready
 
+    // Avoid overriding an already-enabled state with a transient disabled value while queries refresh
+    const maybeQuery = configQuery as unknown as {
+      isFetching?: { value: boolean }
+      isLoading?: { value: boolean }
+      isRefreshing?: { value: boolean }
+    }
+    const queryInFlight = Boolean(
+      maybeQuery.isFetching?.value || maybeQuery.isLoading?.value || maybeQuery.isRefreshing?.value
+    )
+
+    if (previousReady && previousMcpEnabled && queryInFlight && data.mcpEnabled === false) {
+      return
+    }
+
+    // Check if mcpEnabled status really changed
+    const mcpEnabledChanged = previousMcpEnabled !== data.mcpEnabled
+
+    if (mcpEnabledChanged) {
+      console.log(`MCP enabled state changing from ${previousMcpEnabled} to ${data.mcpEnabled}`)
+    }
+
     config.value = {
       mcpServers: data.mcpServers ?? {},
       defaultServers: data.defaultServers,
@@ -219,7 +240,7 @@ export const useMcpStore = defineStore('mcp', () => {
     }
 
     // If mcpEnabled state changed, trigger query refreshes
-    if (previousReady && previousMcpEnabled !== data.mcpEnabled) {
+    if (previousReady && mcpEnabledChanged) {
       if (data.mcpEnabled) {
         // MCP enabled: refresh tools, clients, resources
         Promise.all([

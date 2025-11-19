@@ -11,9 +11,27 @@ export class ModelManager {
   constructor(private readonly options: ModelManagerOptions) {}
 
   async getModelList(providerId: string): Promise<MODEL_META[]> {
+    console.log(`[ModelManager] getModelList: fetching models for provider "${providerId}"`)
     const provider = this.options.getProviderInstance(providerId)
     let models = await provider.fetchModels()
+
+    console.log(
+      `[ModelManager] getModelList: received ${models.length} models from provider "${providerId}"`
+    )
+
     models = models.map((model) => {
+      // Validate and fix providerId
+      if (model.providerId && model.providerId !== providerId) {
+        console.warn(
+          `[ModelManager] getModelList: Model ${model.id} has incorrect providerId: expected "${providerId}", got "${model.providerId}". Fixing it.`
+        )
+        model.providerId = providerId
+      } else if (!model.providerId) {
+        console.warn(
+          `[ModelManager] getModelList: Model ${model.id} missing providerId, setting to "${providerId}"`
+        )
+        model.providerId = providerId
+      }
       const config = this.options.configPresenter.getModelConfig(model.id, providerId)
 
       model.maxTokens = config.maxTokens
@@ -34,6 +52,19 @@ export class ModelManager {
 
       return model
     })
+
+    // Final validation
+    const incorrectProviderIds = models.filter((m) => m.providerId !== providerId)
+    if (incorrectProviderIds.length > 0) {
+      console.error(
+        `[ModelManager] getModelList: Found ${incorrectProviderIds.length} models with incorrect providerId for provider "${providerId}" after processing`
+      )
+    } else {
+      console.log(
+        `[ModelManager] getModelList: returning ${models.length} validated models for provider "${providerId}"`
+      )
+    }
+
     return models
   }
 

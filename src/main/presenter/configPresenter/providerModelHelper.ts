@@ -41,15 +41,23 @@ export class ProviderModelHelper {
 
   getProviderModelStore(providerId: string): ElectronStore<IModelStore> {
     if (!this.stores.has(providerId)) {
+      const storeName = `models_${providerId}`
+      const storePath = path.join(this.userDataPath, PROVIDER_MODELS_DIR)
+      console.log(
+        `[ProviderModelHelper] getProviderModelStore: creating isolated store "${storeName}" at "${storePath}" for provider "${providerId}"`
+      )
       const store = new ElectronStore<IModelStore>({
-        name: `models_${providerId}`,
-        cwd: path.join(this.userDataPath, PROVIDER_MODELS_DIR),
+        name: storeName,
+        cwd: storePath,
         defaults: {
           models: [],
           custom_models: []
         }
       })
       this.stores.set(providerId, store)
+      console.log(
+        `[ProviderModelHelper] getProviderModelStore: store "${storeName}" created and cached for provider "${providerId}"`
+      )
     }
     return this.stores.get(providerId)!
   }
@@ -57,7 +65,24 @@ export class ProviderModelHelper {
   getProviderModels(providerId: string): MODEL_META[] {
     const store = this.getProviderModelStore(providerId)
     let models = store.get('models') || []
-    return models.map((model) => {
+    console.log(
+      `[ProviderModelHelper] getProviderModels: reading ${models.length} models for provider "${providerId}"`
+    )
+
+    const result = models.map((model) => {
+      // Validate and fix providerId if incorrect
+      if (model.providerId && model.providerId !== providerId) {
+        console.warn(
+          `[ProviderModelHelper] getProviderModels: Model ${model.id} has incorrect providerId: expected "${providerId}", got "${model.providerId}". Fixing it.`
+        )
+        model.providerId = providerId
+      } else if (!model.providerId) {
+        console.warn(
+          `[ProviderModelHelper] getProviderModels: Model ${model.id} missing providerId, setting to "${providerId}"`
+        )
+        model.providerId = providerId
+      }
+
       const config = this.getModelConfig(model.id, providerId)
       if (config) {
         model.maxTokens = config.maxTokens
@@ -79,11 +104,52 @@ export class ProviderModelHelper {
       }
       return model
     })
+
+    // Log validation results
+    const incorrectProviderIds = result.filter((m) => m.providerId !== providerId)
+    if (incorrectProviderIds.length > 0) {
+      console.error(
+        `[ProviderModelHelper] getProviderModels: Found ${incorrectProviderIds.length} models with incorrect providerId for provider "${providerId}"`
+      )
+    }
+
+    return result
   }
 
   setProviderModels(providerId: string, models: MODEL_META[]): void {
+    console.log(
+      `[ProviderModelHelper] setProviderModels: storing ${models.length} models for provider "${providerId}"`
+    )
+
+    // Validate and fix providerId for all models before storing
+    const validatedModels = models.map((model) => {
+      if (model.providerId && model.providerId !== providerId) {
+        console.warn(
+          `[ProviderModelHelper] setProviderModels: Model ${model.id} has incorrect providerId: expected "${providerId}", got "${model.providerId}". Fixing it.`
+        )
+        model.providerId = providerId
+      } else if (!model.providerId) {
+        console.warn(
+          `[ProviderModelHelper] setProviderModels: Model ${model.id} missing providerId, setting to "${providerId}"`
+        )
+        model.providerId = providerId
+      }
+      return model
+    })
+
+    // Log validation results
+    const incorrectProviderIds = validatedModels.filter((m) => m.providerId !== providerId)
+    if (incorrectProviderIds.length > 0) {
+      console.error(
+        `[ProviderModelHelper] setProviderModels: Found ${incorrectProviderIds.length} models with incorrect providerId for provider "${providerId}" after validation`
+      )
+    }
+
     const store = this.getProviderModelStore(providerId)
-    store.set('models', models)
+    store.set('models', validatedModels)
+    console.log(
+      `[ProviderModelHelper] setProviderModels: stored ${validatedModels.length} models for provider "${providerId}"`
+    )
   }
 
   getCustomModels(providerId: string): MODEL_META[] {

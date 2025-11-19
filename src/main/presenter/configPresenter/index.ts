@@ -935,6 +935,7 @@ export class ConfigPresenter implements IConfigPresenter {
     if (!provider || provider.enable === enabled) {
       return
     }
+    console.log(`[ACP] syncAcpProviderEnabled: updating provider enable state to ${enabled}`)
     this.updateProviderAtomic('acp', { enable: enabled })
   }
 
@@ -946,10 +947,12 @@ export class ConfigPresenter implements IConfigPresenter {
     const current = this.acpStore.get('enabled') ?? false
     if (current === enabled) return
 
+    console.log(`[ACP] setAcpEnabled: ${current} -> ${enabled}`)
     this.acpStore.set('enabled', enabled)
     this.syncAcpProviderEnabled(enabled)
 
     if (!enabled) {
+      console.log('[ACP] Disabling: clearing provider models and status cache')
       this.providerModelHelper.setProviderModels('acp', [])
       this.clearProviderModelStatusCache('acp')
     }
@@ -1043,6 +1046,7 @@ export class ConfigPresenter implements IConfigPresenter {
       })
       .filter((agent): agent is AcpAgentConfig => Boolean(agent))
 
+    console.log(`[ACP] setAcpAgents: setting ${sanitizedAgents.length} agents`)
     this.acpStore.set('agents', sanitizedAgents)
     this.clearProviderModelStatusCache('acp')
     this.notifyAcpAgentsChanged()
@@ -1068,6 +1072,7 @@ export class ConfigPresenter implements IConfigPresenter {
       env: cleanedEnv
     }
 
+    console.log(`[ACP] addAcpAgent: adding agent "${newAgent.id}" (${newAgent.name})`)
     this.acpStore.set('agents', [...agents, newAgent])
     this.clearProviderModelStatusCache('acp')
     this.notifyAcpAgentsChanged()
@@ -1116,6 +1121,7 @@ export class ConfigPresenter implements IConfigPresenter {
       return false
     }
 
+    console.log(`[ACP] removeAcpAgent: removing agent "${agentId}"`)
     this.acpStore.set('agents', filtered)
     this.clearProviderModelStatusCache('acp')
     this.notifyAcpAgentsChanged()
@@ -1123,6 +1129,7 @@ export class ConfigPresenter implements IConfigPresenter {
   }
 
   private notifyAcpAgentsChanged() {
+    console.log('[ACP] notifyAcpAgentsChanged: sending MODEL_LIST_CHANGED event for provider "acp"')
     eventBus.sendToRenderer(CONFIG_EVENTS.MODEL_LIST_CHANGED, SendTarget.ALL_WINDOWS, 'acp')
   }
 

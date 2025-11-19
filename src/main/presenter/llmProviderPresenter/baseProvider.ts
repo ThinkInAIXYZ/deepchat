@@ -162,13 +162,28 @@ export abstract class BaseLLMProvider {
   public async fetchModels(): Promise<MODEL_META[]> {
     try {
       return this.fetchProviderModels().then((models) => {
-        console.log('Fetched models:', models?.length, this.provider.id)
-        this.models = models
-        this.configPresenter.setProviderModels(this.provider.id, models)
-        return models
+        console.log(
+          `[Provider] fetchModels: fetched ${models?.length || 0} models for provider "${this.provider.id}"`
+        )
+        // Validate that all models have correct providerId
+        const validatedModels = models.map((model) => {
+          if (model.providerId !== this.provider.id) {
+            console.warn(
+              `[Provider] fetchModels: Model ${model.id} has incorrect providerId: expected "${this.provider.id}", got "${model.providerId}". Fixing it.`
+            )
+            model.providerId = this.provider.id
+          }
+          return model
+        })
+        this.models = validatedModels
+        this.configPresenter.setProviderModels(this.provider.id, validatedModels)
+        return validatedModels
       })
     } catch (e) {
-      console.error('Failed to fetch models:', e)
+      console.error(
+        `[Provider] fetchModels: Failed to fetch models for provider "${this.provider.id}":`,
+        e
+      )
       if (!this.models) {
         this.models = []
       }
@@ -182,9 +197,14 @@ export abstract class BaseLLMProvider {
    * @returns 模型列表
    */
   public async refreshModels(): Promise<void> {
-    console.info(`Force refreshing models for provider: ${this.provider.name}`)
+    console.log(
+      `[Provider] refreshModels: force refreshing models for provider "${this.provider.id}" (${this.provider.name})`
+    )
     await this.fetchModels()
     await this.autoEnableModelsIfNeeded()
+    console.log(
+      `[Provider] refreshModels: sending MODEL_LIST_CHANGED event for provider "${this.provider.id}"`
+    )
     eventBus.sendToRenderer(
       CONFIG_EVENTS.MODEL_LIST_CHANGED,
       SendTarget.ALL_WINDOWS,

@@ -31,16 +31,105 @@ export class ProviderHelper {
 
   getProviders(): LLM_PROVIDER[] {
     const providers = this.store.get(PROVIDERS_STORE_KEY) as LLM_PROVIDER[] | undefined
+
+    // Guard and self-heal if data is corrupted (e.g. ACP agents/models mistakenly stored here)
     if (Array.isArray(providers) && providers.length > 0) {
-      return providers
+      const defaultMap = new Map(this.defaultProviders.map((p) => [p.id, p]))
+
+      const repairedProviders: LLM_PROVIDER[] = []
+      let hasValidProvider = false
+
+      for (const item of providers) {
+        if (!item || typeof item.id !== 'string') continue
+
+        // Check if this is a valid provider entry (must have apiType)
+        if ((item as any).apiType) {
+          repairedProviders.push(item as LLM_PROVIDER)
+          hasValidProvider = true
+          continue
+        }
+
+        // Check if this looks like a MODEL_META (has providerId but no apiType) - skip it
+        if ((item as any).providerId && !(item as any).apiType) {
+          console.warn(
+            `[Config] Ignoring MODEL_META entry in providers store (likely ACP model): ${item.id}`
+          )
+          continue
+        }
+
+        // Try to fill missing fields from default provider with the same id
+        const template = defaultMap.get(item.id)
+        if (template) {
+          repairedProviders.push({ ...template, ...item })
+          hasValidProvider = true
+          continue
+        }
+
+        // Unknown item without apiType — likely an ACP agent or corrupted data; skip to avoid polluting provider list
+        console.warn(
+          `[Config] Ignoring non-provider entry in providers store: ${JSON.stringify(item)}`
+        )
+      }
+
+      // If no valid providers were found, the store is completely corrupted - restore from defaults
+      if (!hasValidProvider) {
+        console.error(
+          `[Config] Providers store is corrupted (no valid providers found), restoring from defaults`
+        )
+        this.setSetting<LLM_PROVIDER[]>(PROVIDERS_STORE_KEY, this.defaultProviders)
+        return this.defaultProviders
+      }
+
+      // Add back any defaults that are still missing
+      for (const def of this.defaultProviders) {
+        if (!repairedProviders.some((p) => p.id === def.id)) {
+          repairedProviders.push(def)
+        }
+      }
+
+      // If repaired list matches original valid shape, return; otherwise persist the healed data
+      const listChanged =
+        repairedProviders.length !== providers.length ||
+        repairedProviders.some((p) => !(p as any).apiType)
+
+      if (listChanged) {
+        console.log(
+          `[Config] Repaired providers store: ${providers.length} entries -> ${repairedProviders.length} valid providers`
+        )
+        this.setSetting<LLM_PROVIDER[]>(PROVIDERS_STORE_KEY, repairedProviders)
+        eventBus.send(CONFIG_EVENTS.PROVIDER_CHANGED, SendTarget.ALL_WINDOWS)
+      }
+      return repairedProviders
     }
 
-    this.setSetting<LLM_PROVIDER[]>(PROVIDERS_STORE_KEY, this.defaultProviders)
+    // If providers is empty or not an array, initialize with defaults
+    if (!Array.isArray(providers) || providers.length === 0) {
+      this.setSetting<LLM_PROVIDER[]>(PROVIDERS_STORE_KEY, this.defaultProviders)
+      return this.defaultProviders
+    }
+
     return this.defaultProviders
   }
 
   setProviders(providers: LLM_PROVIDER[]): void {
-    this.setSetting<LLM_PROVIDER[]>(PROVIDERS_STORE_KEY, providers)
+    // Validate that all entries are valid providers (have apiType)
+    const validProviders = providers.filter((p) => {
+      if (!p || typeof p.id !== 'string' || !(p as any).apiType) {
+        console.warn(
+          `[Config] Skipping invalid provider entry in setProviders: ${JSON.stringify(p)}`
+        )
+        return false
+      }
+      return true
+    })
+
+    if (validProviders.length !== providers.length) {
+      console.error(
+        `[Config] setProviders: ${providers.length - validProviders.length} invalid entries filtered out`
+      )
+    }
+
+    this.setSetting<LLM_PROVIDER[]>(PROVIDERS_STORE_KEY, validProviders)
     eventBus.send(CONFIG_EVENTS.PROVIDER_CHANGED, SendTarget.ALL_WINDOWS)
   }
 

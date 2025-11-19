@@ -40,29 +40,49 @@ export class AcpProvider extends BaseLLMProvider {
     try {
       const acpEnabled = await this.configPresenter.getAcpEnabled()
       if (!acpEnabled) {
+        console.log('[ACP] fetchProviderModels: ACP is disabled, returning empty models')
         this.configPresenter.setProviderModels(this.provider.id, [])
         return []
       }
       const agents = await this.configPresenter.getAcpAgents()
-      const models: MODEL_META[] = agents.map((agent) => ({
-        id: agent.id,
-        name: agent.name,
-        group: 'ACP',
-        providerId: this.provider.id,
-        isCustom: true,
-        contextLength: 8192,
-        maxTokens: 4096,
-        description: agent.command,
-        functionCall: false,
-        reasoning: false,
-        enableSearch: false,
-        type: ModelType.Chat
-      }))
+      console.log(
+        `[ACP] fetchProviderModels: found ${agents.length} agents, creating models for provider "${this.provider.id}"`
+      )
 
+      const models: MODEL_META[] = agents.map((agent) => {
+        const model: MODEL_META = {
+          id: agent.id,
+          name: agent.name,
+          group: 'ACP',
+          providerId: this.provider.id, // Ensure providerId is explicitly set
+          isCustom: true,
+          contextLength: 8192,
+          maxTokens: 4096,
+          description: agent.command,
+          functionCall: false,
+          reasoning: false,
+          enableSearch: false,
+          type: ModelType.Chat
+        }
+
+        // Validate that providerId is correctly set
+        if (model.providerId !== this.provider.id) {
+          console.error(
+            `[ACP] fetchProviderModels: Model ${model.id} has incorrect providerId: expected "${this.provider.id}", got "${model.providerId}"`
+          )
+          model.providerId = this.provider.id // Fix it
+        }
+
+        return model
+      })
+
+      console.log(
+        `[ACP] fetchProviderModels: returning ${models.length} models, all with providerId="${this.provider.id}"`
+      )
       this.configPresenter.setProviderModels(this.provider.id, models)
       return models
     } catch (error) {
-      console.error('Failed to load ACP agents:', error)
+      console.error('[ACP] fetchProviderModels: Failed to load ACP agents:', error)
       return []
     }
   }

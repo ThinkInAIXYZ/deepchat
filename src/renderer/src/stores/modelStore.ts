@@ -38,17 +38,54 @@ export const useModelStore = defineStore('model', () => {
     const [namespace, scope, providerId] = key
     if (namespace !== 'model-store' || scope !== 'provider-models') return false
     if (!targetProviderId) return true
-    return providerId === targetProviderId
+
+    // Strict matching: providerId must be a string and exactly match
+    const matches = typeof providerId === 'string' && providerId === targetProviderId
+    if (!matches && targetProviderId) {
+      console.warn(
+        `[ModelStore] matchesProviderModelsEntry: Cache key providerId "${providerId}" does not match target "${targetProviderId}"`
+      )
+    }
+    return matches
   }
 
   const invalidateProviderModelsCache = async (providerId?: string) => {
-    await queryCache.invalidateQueries((entry) => matchesProviderModelsEntry(entry, providerId))
+    await queryCache.invalidateQueries({
+      predicate: (entry) => matchesProviderModelsEntry(entry, providerId)
+    })
   }
 
   const updateProviderModelsCache = (providerId: string, data: MODEL_META[]) => {
+    console.log(
+      `[ModelStore] updateProviderModelsCache: updating cache for provider "${providerId}" with ${data.length} models`
+    )
+
+    // Validate that all models have the correct providerId
+    const validatedData = data.filter((model) => {
+      if (model.providerId !== providerId) {
+        console.warn(
+          `[ModelStore] updateProviderModelsCache: Model ${model.id} has mismatched providerId: expected "${providerId}", got "${model.providerId}". Filtering out.`
+        )
+        return false
+      }
+      return true
+    })
+
+    if (validatedData.length !== data.length) {
+      console.error(
+        `[ModelStore] updateProviderModelsCache: Filtered out ${data.length - validatedData.length} models with incorrect providerId for provider "${providerId}"`
+      )
+    }
+
+    console.log(
+      `[ModelStore] updateProviderModelsCache: updating cache with ${validatedData.length} validated models for provider "${providerId}"`
+    )
+
     queryCache.setQueriesData(
-      (entry) => matchesProviderModelsEntry(entry, providerId),
-      () => data
+      {
+        predicate: (entry) => matchesProviderModelsEntry(entry, providerId)
+      },
+      () => validatedData
     )
   }
 
@@ -220,31 +257,68 @@ export const useModelStore = defineStore('model', () => {
 
   const refreshStandardModels = async (providerId: string): Promise<void> => {
     try {
+      console.log(
+        `[ModelStore] refreshStandardModels: refreshing models for provider "${providerId}"`
+      )
       await invalidateProviderModelsCache(providerId)
       let models: RENDERER_MODEL_META[] = await configP.getDbProviderModels(providerId)
+      console.log(
+        `[ModelStore] refreshStandardModels: got ${models.length} models from DB for provider "${providerId}"`
+      )
+
       const providerModelsQuery = getProviderModelsQuery(providerId)
       await providerModelsQuery.refetch()
       let storedModels = providerModelsQuery.data.value ?? []
+      console.log(
+        `[ModelStore] refreshStandardModels: got ${storedModels.length} stored models for provider "${providerId}"`
+      )
 
       // For ACP provider, if storedModels is empty, try to trigger initialization
       if (storedModels.length === 0 && providerId === 'acp') {
+        console.log(
+          `[ModelStore] refreshStandardModels: ACP provider has no stored models, triggering initialization`
+        )
         try {
           // Trigger provider initialization by calling getModelList
           const modelMetas = await llmP.getModelList(providerId)
+          console.log(
+            `[ModelStore] refreshStandardModels: getModelList returned ${modelMetas?.length || 0} models for ACP`
+          )
+
           if (modelMetas && modelMetas.length > 0) {
+            // Validate providerId before updating cache
+            const validatedMetas = modelMetas.filter((m) => {
+              if (m.providerId !== providerId) {
+                console.warn(
+                  `[ModelStore] refreshStandardModels: ACP model ${m.id} has incorrect providerId: expected "${providerId}", got "${m.providerId}"`
+                )
+                return false
+              }
+              return true
+            })
+
             // Update cache with the fetched models
-            updateProviderModelsCache(providerId, modelMetas)
-            storedModels = modelMetas
+            updateProviderModelsCache(providerId, validatedMetas)
+            storedModels = validatedMetas
+            console.log(
+              `[ModelStore] refreshStandardModels: updated cache with ${validatedMetas.length} validated ACP models`
+            )
           } else {
             // Fallback: try to get models directly from config
             const fallbackProviderModels = (await configP.getProviderModels(providerId)) ?? []
+            console.log(
+              `[ModelStore] refreshStandardModels: fallback to getProviderModels returned ${fallbackProviderModels.length} models`
+            )
             if (fallbackProviderModels.length > 0) {
               storedModels = fallbackProviderModels
               updateProviderModelsCache(providerId, fallbackProviderModels)
             }
           }
         } catch (error) {
-          console.warn(`Failed to initialize ACP provider models:`, error)
+          console.warn(
+            `[ModelStore] refreshStandardModels: Failed to initialize ACP provider models:`,
+            error
+          )
           // Fallback: try to get models directly from config
           const fallbackProviderModels = (await configP.getProviderModels(providerId)) ?? []
           if (fallbackProviderModels.length > 0) {
