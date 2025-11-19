@@ -23,6 +23,8 @@ import { ModelType } from '@shared/model'
 import { presenter } from '@/presenter'
 import { DIALOG_WARN } from '@shared/dialog'
 import { app } from 'electron'
+import { eventBus, SendTarget } from '@/eventbus'
+import { CONFIG_EVENTS } from '@/events'
 
 type EventQueue = {
   push: (event: LLMCoreStreamEvent | null) => void
@@ -59,7 +61,7 @@ export class AcpProvider extends BaseLLMProvider {
           contextLength: 8192,
           maxTokens: 4096,
           description: agent.command,
-          functionCall: false,
+          functionCall: true,
           reasoning: false,
           enableSearch: false,
           type: ModelType.Chat
@@ -89,6 +91,54 @@ export class AcpProvider extends BaseLLMProvider {
 
   public onProxyResolved(): void {
     // ACP agents run locally; no proxy handling needed
+    // When provider is enabled, trigger model loading
+    void this.initWhenEnabled()
+  }
+
+  /**
+   * Override init to send MODEL_LIST_CHANGED event after initialization
+   * This ensures renderer is notified when ACP provider is initialized on startup
+   */
+  protected async init(): Promise<void> {
+    const acpEnabled = await this.configPresenter.getAcpEnabled()
+    if (!acpEnabled || !this.provider.enable) return
+
+    try {
+      this.isInitialized = true
+      await this.fetchModels()
+      await this.autoEnableModelsIfNeeded()
+      // Send MODEL_LIST_CHANGED event to notify renderer to refresh model list
+      console.log(`[ACP] init: sending MODEL_LIST_CHANGED event for provider "${this.provider.id}"`)
+      eventBus.sendToRenderer(
+        CONFIG_EVENTS.MODEL_LIST_CHANGED,
+        SendTarget.ALL_WINDOWS,
+        this.provider.id
+      )
+      console.info('Provider initialized successfully:', this.provider.name)
+    } catch (error) {
+      console.warn('Provider initialization failed:', this.provider.name, error)
+    }
+  }
+
+  /**
+   * Handle provider enable state changes
+   * Called when the provider's enable state changes to true
+   */
+  public async handleEnableStateChange(): Promise<void> {
+    const acpEnabled = await this.configPresenter.getAcpEnabled()
+    if (acpEnabled && this.provider.enable) {
+      console.log('[ACP] handleEnableStateChange: ACP enabled, triggering model fetch')
+      await this.fetchModels()
+      // Send MODEL_LIST_CHANGED event to notify renderer to refresh model list
+      console.log(
+        `[ACP] handleEnableStateChange: sending MODEL_LIST_CHANGED event for provider "${this.provider.id}"`
+      )
+      eventBus.sendToRenderer(
+        CONFIG_EVENTS.MODEL_LIST_CHANGED,
+        SendTarget.ALL_WINDOWS,
+        this.provider.id
+      )
+    }
   }
 
   public async check(): Promise<{ isOk: boolean; errorMsg: string | null }> {
@@ -483,6 +533,7 @@ export class AcpProvider extends BaseLLMProvider {
 
   private spawnAgentProcess(agent: AcpAgentConfig): ChildProcessWithoutNullStreams {
     const mergedEnv = agent.env ? { ...process.env, ...agent.env } : { ...process.env }
+    console.log('spawnAgentProcess', agent.command, agent.args, mergedEnv)
     return spawn(agent.command, agent.args ?? [], {
       env: mergedEnv,
       stdio: ['pipe', 'pipe', 'pipe']
@@ -560,6 +611,7 @@ export class AcpProvider extends BaseLLMProvider {
   private async initWhenEnabled(): Promise<void> {
     const enabled = await this.configPresenter.getAcpEnabled()
     if (!enabled) return
-    await super.init()
+    // Call this.init() instead of super.init() to use the overridden method
+    await this.init()
   }
 }

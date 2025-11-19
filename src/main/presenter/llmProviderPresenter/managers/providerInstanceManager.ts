@@ -273,7 +273,12 @@ export class ProviderInstanceManager {
 
       if (updatedProvider.enable) {
         try {
-          this.getProviderInstance(change.providerId)
+          const instance = this.getProviderInstance(change.providerId)
+          // For ACP provider, trigger model loading when enabled
+          if (change.providerId === 'acp' && instance && 'handleEnableStateChange' in instance) {
+            console.log(`[ACP] Provider rebuilt and enabled, triggering model loading`)
+            void (instance as any).handleEnableStateChange()
+          }
         } catch (error) {
           console.error(`Failed to rebuild provider instance ${change.providerId}:`, error)
         }
@@ -289,7 +294,12 @@ export class ProviderInstanceManager {
         } else {
           try {
             console.log(`Provider ${change.providerId} enabled, creating instance`)
-            this.getProviderInstance(change.providerId)
+            const instance = this.getProviderInstance(change.providerId)
+            // For ACP provider, trigger model loading when enabled
+            if (change.providerId === 'acp' && instance && 'handleEnableStateChange' in instance) {
+              console.log(`[ACP] Provider enabled, triggering model loading`)
+              void (instance as any).handleEnableStateChange()
+            }
           } catch (error) {
             console.error(`Failed to create provider instance ${change.providerId}:`, error)
           }

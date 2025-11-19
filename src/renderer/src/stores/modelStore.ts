@@ -14,6 +14,9 @@ const PROVIDER_MODELS_KEY = (providerId: string) => ['model-store', 'provider-mo
 const CUSTOM_MODELS_KEY = (providerId: string) => ['model-store', 'custom-models', providerId]
 const ENABLED_MODELS_KEY = (providerId: string) => ['model-store', 'enabled-models', providerId]
 
+// Agent providers that use a different refresh logic
+const AGENT_PROVIDER_IDS = ['acp'] as const
+
 export const useModelStore = defineStore('model', () => {
   const configP = usePresenter('configPresenter')
   const llmP = usePresenter('llmproviderPresenter')
@@ -206,6 +209,9 @@ export const useModelStore = defineStore('model', () => {
   }
 
   const updateEnabledState = (providerId: string, models: RENDERER_MODEL_META[]) => {
+    console.log(
+      `[ModelStore] updateEnabledState: updating enabled state for provider "${providerId}" with ${models.length} models`
+    )
     const enabledModelsList = models.filter((model) => model.enabled)
     const idx = enabledModels.value.findIndex((item) => item.providerId === providerId)
     if (idx !== -1) {
@@ -219,6 +225,78 @@ export const useModelStore = defineStore('model', () => {
     }
 
     enabledModels.value = [...enabledModels.value]
+  }
+
+  const refreshAgentModels = async (providerId: string): Promise<void> => {
+    try {
+      console.log(
+        `[ModelStore] refreshAgentModels: refreshing agent models for provider "${providerId}"`
+      )
+
+      // Check if ACP is enabled
+      const acpEnabled = await configP.getAcpEnabled()
+      if (!acpEnabled) {
+        console.log(
+          `[ModelStore] refreshAgentModels: ACP is disabled, clearing models for provider "${providerId}"`
+        )
+        // Clear models when ACP is disabled
+        updateAllProviderState(providerId, [])
+        updateEnabledState(providerId, [])
+        updateProviderModelsCache(providerId, [])
+        return
+      }
+
+      // Get agents directly from configPresenter
+      const agents = await configP.getAcpAgents()
+      console.log(
+        `[ModelStore] refreshAgentModels: found ${agents.length} agents for provider "${providerId}"`
+      )
+
+      // Convert agents to RENDERER_MODEL_META following acpProvider logic
+      const models: RENDERER_MODEL_META[] = agents.map((agent) => {
+        return {
+          id: agent.id,
+          name: agent.name,
+          group: 'ACP',
+          providerId,
+          enabled: true, // All agent models are enabled by default
+          isCustom: true,
+          contextLength: 8192,
+          maxTokens: 4096,
+          vision: false,
+          functionCall: true,
+          reasoning: false,
+          enableSearch: false,
+          type: ModelType.Chat
+        }
+      })
+
+      // Update cache with MODEL_META format
+      const modelMetas: MODEL_META[] = models.map((model) => ({
+        id: model.id,
+        name: model.name,
+        group: model.group,
+        providerId: model.providerId,
+        isCustom: model.isCustom,
+        contextLength: model.contextLength,
+        maxTokens: model.maxTokens,
+        functionCall: model.functionCall,
+        reasoning: model.reasoning,
+        enableSearch: model.enableSearch,
+        type: model.type
+      }))
+      updateProviderModelsCache(providerId, modelMetas)
+
+      // Update state - agent models don't need custom model config, so skip applyUserDefinedModelConfig
+      updateAllProviderState(providerId, models)
+      updateEnabledState(providerId, models)
+
+      console.log(
+        `[ModelStore] refreshAgentModels: updated ${models.length} agent models for provider "${providerId}"`
+      )
+    } catch (error) {
+      console.error(`刷新代理模型失败: ${providerId}`, error)
+    }
   }
 
   const refreshCustomModels = async (providerId: string): Promise<void> => {
@@ -273,61 +351,8 @@ export const useModelStore = defineStore('model', () => {
         `[ModelStore] refreshStandardModels: got ${storedModels.length} stored models for provider "${providerId}"`
       )
 
-      // For ACP provider, if storedModels is empty, try to trigger initialization
-      if (storedModels.length === 0 && providerId === 'acp') {
-        console.log(
-          `[ModelStore] refreshStandardModels: ACP provider has no stored models, triggering initialization`
-        )
-        try {
-          // Trigger provider initialization by calling getModelList
-          const modelMetas = await llmP.getModelList(providerId)
-          console.log(
-            `[ModelStore] refreshStandardModels: getModelList returned ${modelMetas?.length || 0} models for ACP`
-          )
-
-          if (modelMetas && modelMetas.length > 0) {
-            // Validate providerId before updating cache
-            const validatedMetas = modelMetas.filter((m) => {
-              if (m.providerId !== providerId) {
-                console.warn(
-                  `[ModelStore] refreshStandardModels: ACP model ${m.id} has incorrect providerId: expected "${providerId}", got "${m.providerId}"`
-                )
-                return false
-              }
-              return true
-            })
-
-            // Update cache with the fetched models
-            updateProviderModelsCache(providerId, validatedMetas)
-            storedModels = validatedMetas
-            console.log(
-              `[ModelStore] refreshStandardModels: updated cache with ${validatedMetas.length} validated ACP models`
-            )
-          } else {
-            // Fallback: try to get models directly from config
-            const fallbackProviderModels = (await configP.getProviderModels(providerId)) ?? []
-            console.log(
-              `[ModelStore] refreshStandardModels: fallback to getProviderModels returned ${fallbackProviderModels.length} models`
-            )
-            if (fallbackProviderModels.length > 0) {
-              storedModels = fallbackProviderModels
-              updateProviderModelsCache(providerId, fallbackProviderModels)
-            }
-          }
-        } catch (error) {
-          console.warn(
-            `[ModelStore] refreshStandardModels: Failed to initialize ACP provider models:`,
-            error
-          )
-          // Fallback: try to get models directly from config
-          const fallbackProviderModels = (await configP.getProviderModels(providerId)) ?? []
-          if (fallbackProviderModels.length > 0) {
-            storedModels = fallbackProviderModels
-            updateProviderModelsCache(providerId, fallbackProviderModels)
-          }
-        }
-      } else if (storedModels.length === 0) {
-        // For other providers, use fallback
+      if (storedModels.length === 0) {
+        // Fallback: try to get models directly from config
         const fallbackProviderModels = (await configP.getProviderModels(providerId)) ?? []
         if (fallbackProviderModels.length > 0) {
           storedModels = fallbackProviderModels
@@ -370,7 +395,7 @@ export const useModelStore = defineStore('model', () => {
 
         const mergedModels: RENDERER_MODEL_META[] = []
 
-        // If models array is empty (like for ACP), use storedModels directly
+        // If models array is empty, use storedModels directly
         if (models.length === 0) {
           for (const model of storedModelMap.values()) {
             mergedModels.push(model)
@@ -447,8 +472,14 @@ export const useModelStore = defineStore('model', () => {
   }
 
   const refreshProviderModels = async (providerId: string) => {
-    await refreshStandardModels(providerId)
-    await refreshCustomModels(providerId)
+    // Check if this is an agent provider (e.g., ACP)
+    const isAgentProvider = (AGENT_PROVIDER_IDS as readonly string[]).includes(providerId)
+    if (isAgentProvider) {
+      await refreshAgentModels(providerId)
+    } else {
+      await refreshStandardModels(providerId)
+      await refreshCustomModels(providerId)
+    }
   }
 
   const _refreshAllModelsInternal = async () => {
