@@ -238,12 +238,12 @@ import {
   TooltipTrigger
 } from '@shadcn/components/ui/tooltip'
 import { useI18n } from 'vue-i18n'
-import { useSettingsStore } from '@/stores/settings'
+import { useUiSettingsStore } from '@/stores/uiSettingsStore'
 
 const { t } = useI18n()
-const settingsStore = useSettingsStore()
+const uiSettingsStore = useUiSettingsStore()
 
-const traceDebugEnabled = computed(() => settingsStore.traceDebugEnabled)
+const traceDebugEnabled = computed(() => uiSettingsStore.traceDebugEnabled)
 
 const showCopyTip = ref(false)
 const showCopyImageTip = ref(false)

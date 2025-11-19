@@ -8,7 +8,7 @@ import type { CONVERSATION_SETTINGS } from '@shared/presenter'
 import { usePresenter } from '@/composables/usePresenter'
 
 // === Stores ===
-import { useSettingsStore } from '@/stores/settings'
+import { useProviderStore } from '@/stores/providerStore'
 
 // === Events ===
 import { RATE_LIMIT_EVENTS } from '@/events'
@@ -38,7 +38,7 @@ export function useRateLimitStatus(
   const llmPresenter = usePresenter('llmproviderPresenter')
 
   // === Stores ===
-  const settingsStore = useSettingsStore()
+  const providerStore = useProviderStore()
 
   // === Local State ===
   const rateLimitStatus = ref<RateLimitStatus | null>(null)
@@ -63,7 +63,7 @@ export function useRateLimitStatus(
     const currentProviderId = chatConfig.value.providerId
     if (!currentProviderId) return false
 
-    const provider = settingsStore.providers.find((p) => p.id === currentProviderId)
+    const provider = providerStore.providers.find((p) => p.id === currentProviderId)
     return provider?.rateLimit?.enabled ?? false
   }
 

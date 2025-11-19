@@ -115,7 +115,7 @@ import MessageBlockPermissionRequest from './MessageBlockPermissionRequest.vue'
 import MessageToolbar from './MessageToolbar.vue'
 import MessageInfo from './MessageInfo.vue'
 import { useChatStore } from '@/stores/chat'
-import { useSettingsStore } from '@/stores/settings'
+import { useUiSettingsStore } from '@/stores/uiSettingsStore'
 import ModelIcon from '@/components/icons/ModelIcon.vue'
 import { Spinner } from '@shadcn/components/ui/spinner'
 import MessageBlockAction from './MessageBlockAction.vue'
@@ -139,7 +139,7 @@ const props = defineProps<{
 
 const themeStore = useThemeStore()
 const chatStore = useChatStore()
-const settingsStore = useSettingsStore()
+const uiSettingsStore = useUiSettingsStore()
 const { t } = useI18n()
 
 // 定义事件
@@ -284,7 +284,7 @@ const handleAction = (action: HandleActionType) => {
         .filter((block) => {
           if (
             (block.type === 'reasoning_content' || block.type === 'artifact-thinking') &&
-            !settingsStore.copyWithCotEnabled
+            !uiSettingsStore.copyWithCotEnabled
           ) {
             return false
           }
@@ -294,7 +294,7 @@ const handleAction = (action: HandleActionType) => {
           const trimmedContent = (block.content ?? '').trim()
           if (
             (block.type === 'reasoning_content' || block.type === 'artifact-thinking') &&
-            settingsStore.copyWithCotEnabled
+            uiSettingsStore.copyWithCotEnabled
           ) {
             return `<think>\n${trimmedContent}\n</think>`
           }

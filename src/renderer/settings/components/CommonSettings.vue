@@ -42,7 +42,7 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ScrollArea } from '@shadcn/components/ui/scroll-area'
-import { useSettingsStore } from '@/stores/settings'
+import { useUiSettingsStore } from '@/stores/uiSettingsStore'
 import { useSoundStore } from '@/stores/sound'
 import SearchEngineSettingsSection from './common/SearchEngineSettingsSection.vue'
 import WebContentLimitSetting from './common/WebContentLimitSetting.vue'
@@ -52,16 +52,16 @@ import LoggingSettingsSection from './common/LoggingSettingsSection.vue'
 import SettingToggleRow from './common/SettingToggleRow.vue'
 
 const { t } = useI18n()
-const settingsStore = useSettingsStore()
+const uiSettingsStore = useUiSettingsStore()
 const soundStore = useSoundStore()
 
-const searchPreviewEnabled = computed(() => settingsStore.searchPreviewEnabled)
+const searchPreviewEnabled = computed(() => uiSettingsStore.searchPreviewEnabled)
 const soundEnabled = computed(() => soundStore.soundEnabled)
-const copyWithCotEnabled = computed(() => settingsStore.copyWithCotEnabled)
-const traceDebugEnabled = computed(() => settingsStore.traceDebugEnabled)
+const copyWithCotEnabled = computed(() => uiSettingsStore.copyWithCotEnabled)
+const traceDebugEnabled = computed(() => uiSettingsStore.traceDebugEnabled)
 
 const handleSearchPreviewChange = (value: boolean) => {
-  settingsStore.setSearchPreviewEnabled(value)
+  uiSettingsStore.setSearchPreviewEnabled(value)
 }
 
 const handleSoundChange = (value: boolean) => {
@@ -69,10 +69,10 @@ const handleSoundChange = (value: boolean) => {
 }
 
 const handleCopyWithCotChange = (value: boolean) => {
-  settingsStore.setCopyWithCotEnabled(value)
+  uiSettingsStore.setCopyWithCotEnabled(value)
 }
 
 const handleTraceDebugChange = (value: boolean) => {
-  settingsStore.setTraceDebugEnabled(value)
+  uiSettingsStore.setTraceDebugEnabled(value)
 }
 </script>

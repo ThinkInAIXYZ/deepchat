@@ -57,7 +57,7 @@ import { useI18n } from 'vue-i18n'
 import { useTitle } from '@vueuse/core'
 import { usePresenter } from '../src/composables/usePresenter'
 import CloseIcon from './icons/CloseIcon.vue'
-import { useSettingsStore } from '../src/stores/settings'
+import { useUiSettingsStore } from '../src/stores/uiSettingsStore'
 import { useLanguageStore } from '../src/stores/language'
 import { useModelCheckStore } from '../src/stores/modelCheck'
 import { Button } from '@shadcn/components/ui/button'
@@ -68,17 +68,27 @@ import 'vue-sonner/style.css'
 import { NOTIFICATION_EVENTS } from '@/events'
 import { useToast } from '@/components/use-toast'
 import { useThemeStore } from '@/stores/theme'
+import { useProviderStore } from '@/stores/providerStore'
+import { useModelStore } from '@/stores/modelStore'
+import { useOllamaStore } from '@/stores/ollamaStore'
+import { useSearchAssistantStore } from '@/stores/searchAssistantStore'
+import { useSearchEngineStore } from '@/stores/searchEngineStore'
 
 const devicePresenter = usePresenter('devicePresenter')
 const windowPresenter = usePresenter('windowPresenter')
 const configPresenter = usePresenter('configPresenter')
 
 // Initialize stores
-const settingsStore = useSettingsStore()
+const uiSettingsStore = useUiSettingsStore()
 const languageStore = useLanguageStore()
 const modelCheckStore = useModelCheckStore()
 const { toast } = useToast()
 const themeStore = useThemeStore()
+const providerStore = useProviderStore()
+const modelStore = useModelStore()
+const ollamaStore = useOllamaStore()
+const searchAssistantStore = useSearchAssistantStore()
+const searchEngineStore = useSearchEngineStore()
 
 const errorQueue = ref<Array<{ id: string; title: string; message: string; type: string }>>([])
 const currentErrorId = ref<string | null>(null)
@@ -105,6 +115,7 @@ const settings: Ref<
 // Get all routes and build settings navigation
 const routes = router.getRoutes()
 onMounted(() => {
+  void initializeSettingsStores()
   const tempArray: {
     title: string
     name: string
@@ -132,6 +143,19 @@ onMounted(() => {
     console.log('Final sorted settings routes:', settings.value)
   })
 })
+
+const initializeSettingsStores = async () => {
+  try {
+    await providerStore.initialize()
+    await modelStore.initialize()
+    await ollamaStore.initialize?.()
+    await searchAssistantStore.initOrUpdateSearchAssistantModel()
+    await searchEngineStore.refreshSearchEngines()
+    searchEngineStore.setupSearchEnginesListener()
+  } catch (error) {
+    console.error('Failed to initialize settings stores', error)
+  }
+}
 
 // Update title function
 const updateTitle = () => {
@@ -168,7 +192,7 @@ watch(
 
 // Watch font size changes and update classes
 watch(
-  () => settingsStore.fontSizeClass,
+  () => uiSettingsStore.fontSizeClass,
   (newClass, oldClass) => {
     if (oldClass) document.documentElement.classList.remove(oldClass)
     document.documentElement.classList.add(newClass)
@@ -238,6 +262,8 @@ onMounted(() => {
   window.electron.ipcRenderer.on(NOTIFICATION_EVENTS.SHOW_ERROR, (_event, error) => {
     showErrorToast(error)
   })
+
+  void uiSettingsStore.loadSettings()
 })
 
 const closeWindow = () => {

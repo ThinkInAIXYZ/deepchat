@@ -16,7 +16,7 @@
             </SelectTrigger>
             <SelectContent>
               <SelectItem
-                v-for="engine in settingsStore.searchEngines"
+                v-for="engine in searchEngineStore.searchEngines"
                 :key="engine.id"
                 :value="engine.id"
               >
@@ -154,7 +154,7 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
 import { usePresenter } from '@/composables/usePresenter'
-import { useSettingsStore } from '@/stores/settings'
+import { useSearchEngineStore } from '@/stores/searchEngineStore'
 import { useLanguageStore } from '@/stores/language'
 import { Button } from '@shadcn/components/ui/button'
 import { Input } from '@shadcn/components/ui/input'
@@ -179,10 +179,10 @@ import { nanoid } from 'nanoid'
 
 const { t } = useI18n()
 const configPresenter = usePresenter('configPresenter')
-const settingsStore = useSettingsStore()
+const searchEngineStore = useSearchEngineStore()
 const langStore = useLanguageStore()
 
-const selectedSearchEngine = ref(settingsStore.activeSearchEngine?.id ?? 'google')
+const selectedSearchEngine = ref(searchEngineStore.activeSearchEngine?.id ?? 'google')
 
 const isAddSearchEngineDialogOpen = ref(false)
 const newSearchEngine = ref({
@@ -206,7 +206,8 @@ const isValidNewSearchEngine = computed(() => {
 
 const currentEngine = computed(() => {
   return (
-    settingsStore.searchEngines.find((engine) => engine.id === selectedSearchEngine.value) || null
+    searchEngineStore.searchEngines.find((engine) => engine.id === selectedSearchEngine.value) ||
+    null
   )
 })
 
@@ -255,14 +256,9 @@ const addCustomSearchEngine = async () => {
 
     await configPresenter.setCustomSearchEngines(customSearchEngines)
 
-    const allEngines = [
-      ...settingsStore.searchEngines.filter((e) => !e.isCustom),
-      ...customSearchEngines
-    ]
-    settingsStore.searchEngines.splice(0, settingsStore.searchEngines.length, ...allEngines)
-
     selectedSearchEngine.value = customEngine.id
-    await settingsStore.setSearchEngine(customEngine.id)
+    await searchEngineStore.refreshSearchEngines()
+    await searchEngineStore.setSearchEngine(customEngine.id)
 
     closeAddSearchEngineDialog()
   } catch (error) {
@@ -297,17 +293,13 @@ const deleteCustomSearchEngine = async () => {
 
     await configPresenter.setCustomSearchEngines(customSearchEngines)
 
-    const allEngines = [
-      ...settingsStore.searchEngines.filter((e) => !e.isCustom),
-      ...customSearchEngines
-    ]
-    settingsStore.searchEngines.splice(0, settingsStore.searchEngines.length, ...allEngines)
+    await searchEngineStore.refreshSearchEngines()
 
     if (isDeletingActiveEngine) {
-      const firstDefaultEngine = settingsStore.searchEngines.find((e) => !e.isCustom)
+      const firstDefaultEngine = searchEngineStore.searchEngines.find((e) => !e.isCustom)
       if (firstDefaultEngine) {
         selectedSearchEngine.value = firstDefaultEngine.id
-        await settingsStore.setSearchEngine(firstDefaultEngine.id)
+        await searchEngineStore.setSearchEngine(firstDefaultEngine.id)
       }
     }
 
@@ -327,7 +319,7 @@ const closeTestSearchEngineDialog = () => {
 
 const testSearchEngine = async () => {
   try {
-    await settingsStore.testSearchEngine('天气')
+    await searchEngineStore.testSearchEngine('天气')
     closeTestSearchEngineDialog()
   } catch (error) {
     console.error('测试搜索引擎失败:', error)
@@ -335,11 +327,11 @@ const testSearchEngine = async () => {
 }
 
 watch(selectedSearchEngine, async (newValue) => {
-  await settingsStore.setSearchEngine(newValue)
+  await searchEngineStore.setSearchEngine(newValue)
 })
 
 watch(
-  () => settingsStore.activeSearchEngine?.id,
+  () => searchEngineStore.activeSearchEngine?.id,
   (newValue) => {
     if (newValue && newValue !== selectedSearchEngine.value) {
       selectedSearchEngine.value = newValue
@@ -348,6 +340,6 @@ watch(
 )
 
 onMounted(async () => {
-  selectedSearchEngine.value = settingsStore.activeSearchEngine?.id ?? 'google'
+  selectedSearchEngine.value = searchEngineStore.activeSearchEngine?.id ?? 'google'
 })
 </script>

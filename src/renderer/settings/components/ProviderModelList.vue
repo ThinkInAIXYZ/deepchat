@@ -139,7 +139,7 @@ import { Icon } from '@iconify/vue'
 import ModelConfigItem from '@/components/settings/ModelConfigItem.vue'
 import { type RENDERER_MODEL_META } from '@shared/presenter'
 import { ModelType } from '@shared/model'
-import { useSettingsStore } from '@/stores/settings'
+import { useModelStore } from '@/stores/modelStore'
 
 const { t } = useI18n()
 interface ModelEdit {
@@ -152,7 +152,7 @@ interface ModelEdit {
 
 const addModelList = ref<ModelEdit[]>([])
 const modelSearchQuery = ref('')
-const settingsStore = useSettingsStore()
+const modelStore = useModelStore()
 
 const props = defineProps<{
   providerModels: { providerId: string; models: RENDERER_MODEL_META[] }[]
@@ -231,7 +231,7 @@ const confirmAdd = async (idx: number) => {
   }
 
   try {
-    await settingsStore.addCustomModel(props.providers[0].id, {
+    await modelStore.addCustomModel(props.providers[0].id, {
       id: model.modelId,
       name: model.modelName,
       enabled: true,
@@ -248,13 +248,14 @@ const confirmAdd = async (idx: number) => {
   }
 }
 
-const handleModelEnabledChange = (model: RENDERER_MODEL_META, enabled: boolean) => {
+const handleModelEnabledChange = async (model: RENDERER_MODEL_META, enabled: boolean) => {
   emit('enabledChange', model, enabled)
+  await modelStore.updateModelStatus(model.providerId, model.id, enabled)
 }
 
 const handleDeleteCustomModel = async (model: RENDERER_MODEL_META) => {
   try {
-    await settingsStore.removeCustomModel(model.providerId, model.id)
+    await modelStore.removeCustomModel(model.providerId, model.id)
   } catch (error) {
     console.error('Failed to delete custom model:', error)
   }
@@ -262,11 +263,11 @@ const handleDeleteCustomModel = async (model: RENDERER_MODEL_META) => {
 
 // 启用提供商下所有模型
 const enableAllModels = (providerId: string) => {
-  settingsStore.enableAllModels(providerId)
+  modelStore.enableAllModels(providerId)
 }
 
 // 禁用提供商下所有模型
 const disableAllModels = (providerId: string) => {
-  settingsStore.disableAllModels(providerId)
+  modelStore.disableAllModels(providerId)
 }
 </script>

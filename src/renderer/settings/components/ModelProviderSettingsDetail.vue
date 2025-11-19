@@ -79,7 +79,8 @@
 
 <script setup lang="ts">
 import { computed, ref, watch, reactive } from 'vue'
-import { useSettingsStore } from '@/stores/settings'
+import { useProviderStore } from '@/stores/providerStore'
+import { useModelStore } from '@/stores/modelStore'
 import type { LLM_PROVIDER, RENDERER_MODEL_META } from '@shared/presenter'
 import { ScrollArea } from '@shadcn/components/ui/scroll-area'
 import ProviderApiConfig from './ProviderApiConfig.vue'
@@ -118,7 +119,8 @@ const props = defineProps<{
   provider: LLM_PROVIDER
 }>()
 
-const settingsStore = useSettingsStore()
+const providerStore = useProviderStore()
+const modelStore = useModelStore()
 const modelCheckStore = useModelCheckStore()
 const apiKey = ref(props.provider.apiKey || '')
 const apiHost = ref(props.provider.baseUrl || '')
@@ -152,7 +154,7 @@ const checkResult = ref<boolean>(false)
 const showCheckModelDialog = ref(false)
 
 const providerWebsites = computed<ProviderWebsites | undefined>(() => {
-  const providerConfig = settingsStore.defaultProviders.find((provider) => {
+  const providerConfig = providerStore.defaultProviders.find((provider) => {
     return provider.id === props.provider.id
   })
   if (providerConfig && providerConfig.websites) {
@@ -163,13 +165,13 @@ const providerWebsites = computed<ProviderWebsites | undefined>(() => {
 
 const validateApiKey = async () => {
   try {
-    const resp = await settingsStore.checkProvider(props.provider.id)
+    const resp = await providerStore.checkProvider(props.provider.id)
     if (resp.isOk) {
       console.log('验证成功')
       checkResult.value = true
       showCheckModelDialog.value = true
       // 验证成功后刷新当前provider的模型列表
-      await settingsStore.refreshProviderModels(props.provider.id)
+      await modelStore.refreshProviderModels(props.provider.id)
     } else {
       console.log('验证失败', resp.errorMsg)
       checkResult.value = false
@@ -185,15 +187,13 @@ const validateApiKey = async () => {
 // Original initData implementation without debouncing
 const _initData = async () => {
   console.log('initData for provider:', props.provider.id)
-  const providerData = settingsStore.allProviderModels.find(
-    (p) => p.providerId === props.provider.id
-  )
+  const providerData = modelStore.allProviderModels.find((p) => p.providerId === props.provider.id)
   if (providerData) {
     providerModels.value = providerData.models
   } else {
     providerModels.value = [] // Reset if provider data not found
   }
-  const customModelData = settingsStore.customModels.find((p) => p.providerId === props.provider.id)
+  const customModelData = modelStore.customModels.find((p) => p.providerId === props.provider.id)
   if (customModelData) {
     customModels.value = customModelData.models
   } else {
@@ -203,7 +203,7 @@ const _initData = async () => {
   // Fetch Azure API Version if applicable
   if (props.provider.id === 'azure-openai') {
     try {
-      azureApiVersion.value = await settingsStore.getAzureApiVersion()
+      azureApiVersion.value = await providerStore.getAzureApiVersion()
       console.log('Azure API Version fetched:', azureApiVersion.value)
     } catch (error) {
       console.error('Failed to fetch Azure API Version:', error)
@@ -223,7 +223,7 @@ const _initData = async () => {
     for (const key in safetyCategories) {
       const categoryKey = key as string
       try {
-        const savedValue = (await settingsStore.getGeminiSafety(categoryKey)) as
+        const savedValue = (await providerStore.getGeminiSafety(categoryKey)) as
           | string
           | 'HARM_BLOCK_THRESHOLD_UNSPECIFIED'
         console.log(`Fetched Gemini safety for ${categoryKey}:`, savedValue)
@@ -270,11 +270,11 @@ watch(
 )
 
 const handleApiKeyChange = async (value: string) => {
-  await settingsStore.updateProviderApi(props.provider.id, value, undefined)
+  await providerStore.updateProviderApi(props.provider.id, value, undefined)
 }
 
 const handleApiHostChange = async (value: string) => {
-  await settingsStore.updateProviderApi(props.provider.id, undefined, value)
+  await providerStore.updateProviderApi(props.provider.id, undefined, value)
 }
 
 const handleModelEnabledChange = async (
@@ -285,7 +285,7 @@ const handleModelEnabledChange = async (
   if (!enabled && comfirm) {
     disableModel(model)
   } else {
-    await settingsStore.updateModelStatus(props.provider.id, model.id, enabled)
+    await modelStore.updateModelStatus(props.provider.id, model.id, enabled)
   }
 }
 
@@ -297,7 +297,7 @@ const disableModel = (model: RENDERER_MODEL_META) => {
 const confirmDisable = async () => {
   if (modelToDisable.value) {
     try {
-      await settingsStore.updateModelStatus(props.provider.id, modelToDisable.value.id, false)
+      await modelStore.updateModelStatus(props.provider.id, modelToDisable.value.id, false)
     } catch (error) {
       console.error('Failed to disable model:', error)
     }
@@ -312,7 +312,7 @@ const disableAllModelsConfirm = () => {
 
 const confirmDisableAll = async () => {
   try {
-    await settingsStore.disableAllModels(props.provider.id)
+    await modelStore.disableAllModels(props.provider.id)
     showDisableAllConfirmDialog.value = false
   } catch (error) {
     console.error('Failed to disable all models:', error)
@@ -321,7 +321,7 @@ const confirmDisableAll = async () => {
 
 const confirmDeleteProvider = async () => {
   try {
-    await settingsStore.removeProvider(props.provider.id)
+    await providerStore.removeProvider(props.provider.id)
     showDeleteProviderDialog.value = false
   } catch (error) {
     console.error('删除供应商失败:', error)
@@ -329,7 +329,7 @@ const confirmDeleteProvider = async () => {
 }
 
 watch(
-  () => settingsStore.allProviderModels,
+  () => modelStore.allProviderModels,
   () => {
     initData()
   },
@@ -337,7 +337,7 @@ watch(
 )
 
 watch(
-  () => settingsStore.customModels,
+  () => modelStore.customModels,
   () => {
     initData()
   },
@@ -349,7 +349,7 @@ const handleAzureApiVersionChange = async (value: string) => {
   const trimmedValue = value.trim()
   if (trimmedValue) {
     azureApiVersion.value = trimmedValue // Update local ref immediately
-    await settingsStore.setAzureApiVersion(trimmedValue)
+    await providerStore.setAzureApiVersion(trimmedValue)
     console.log('Azure API Version updated:', trimmedValue)
   }
 }
@@ -359,7 +359,7 @@ const handleSafetySettingChange = async (key: SafetyCategoryKey, level: number) 
   const value = levelToValueMap[level]
   if (value) {
     geminiSafetyLevels[key] = level // Update local state immediately when slider changes
-    await settingsStore.setGeminiSafety(key, value)
+    await providerStore.setGeminiSafety(key, value)
     console.log(`Gemini safety setting for ${key} updated to level ${level} (${value})`)
   }
 }

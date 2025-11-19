@@ -11,7 +11,7 @@ import { usePresenter } from '@/composables/usePresenter'
 
 // === Stores ===
 import { useChatStore } from '@/stores/chat'
-import { useSettingsStore } from '@/stores/settings'
+import { useModelStore } from '@/stores/modelStore'
 
 /**
  * Composable for managing model configuration and synchronization with store
@@ -23,7 +23,7 @@ export function usePromptInputConfig() {
 
   // === Stores ===
   const chatStore = useChatStore()
-  const settingsStore = useSettingsStore()
+  const modelStore = useModelStore()
 
   // === Local State ===
   const configTemperature = ref(chatStore.chatConfig.temperature)
@@ -55,7 +55,7 @@ export function usePromptInputConfig() {
       }
     }
 
-    const allGroups = [...settingsStore.enabledModels, ...settingsStore.customModels]
+    const allGroups = [...modelStore.enabledModels, ...modelStore.customModels]
     for (const group of allGroups) {
       if (group.providerId !== providerId) continue
       const found = group.models.find((item: RENDERER_MODEL_META) => item.id === modelId)

@@ -48,20 +48,27 @@ import ModelSelect from '@/components/ModelSelect.vue'
 import ModelIcon from '@/components/icons/ModelIcon.vue'
 import { ModelType } from '@shared/model'
 import type { RENDERER_MODEL_META } from '@shared/presenter'
-import { useSettingsStore } from '@/stores/settings'
+import { useSearchAssistantStore } from '@/stores/searchAssistantStore'
+import { useModelStore } from '@/stores/modelStore'
 import { useThemeStore } from '@/stores/theme'
 import { useLanguageStore } from '@/stores/language'
 
 const { t } = useI18n()
-const settingsStore = useSettingsStore()
+const searchAssistantStore = useSearchAssistantStore()
+const modelStore = useModelStore()
 const themeStore = useThemeStore()
 const langStore = useLanguageStore()
 
-const selectedSearchModel = computed(() => settingsStore.searchAssistantModel)
+const selectedSearchModel = computed(() => searchAssistantStore.searchAssistantModel)
 const modelSelectOpen = ref(false)
 
 const handleSearchModelSelect = (model: RENDERER_MODEL_META, providerId: string) => {
-  settingsStore.setSearchAssistantModel(model, providerId)
+  searchAssistantStore.setSearchAssistantModel(model, providerId)
   modelSelectOpen.value = false
 }
+
+// keep the search assistant model valid when enabled models change
+modelStore.$subscribe(() => {
+  void searchAssistantStore.checkAndUpdateSearchAssistantModel()
+})
 </script>

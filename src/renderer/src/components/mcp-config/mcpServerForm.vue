@@ -23,7 +23,7 @@ import { ChevronDown, X } from 'lucide-vue-next'
 import { Badge } from '@shadcn/components/ui/badge'
 import ModelSelect from '@/components/ModelSelect.vue'
 import ModelIcon from '@/components/icons/ModelIcon.vue'
-import { useSettingsStore } from '@/stores/settings'
+import { useModelStore } from '@/stores/modelStore'
 import type { RENDERER_MODEL_META } from '@shared/presenter'
 import { MCP_MARKETPLACE_URL, HIGRESS_MCP_MARKETPLACE_URL } from './const'
 import { usePresenter } from '@/composables/usePresenter'
@@ -32,7 +32,7 @@ import { ModelType } from '@shared/model'
 
 const { t } = useI18n()
 const { toast } = useToast()
-const settingsStore = useSettingsStore()
+const modelStore = useModelStore()
 const devicePresenter = usePresenter('devicePresenter')
 const themeStore = useThemeStore()
 const props = defineProps<{
@@ -628,7 +628,7 @@ watch(
         const providerId = argsParts[0]
         const modelId = argsParts[1]
         // 查找对应的模型
-        const foundModel = settingsStore.findModelByIdOrName(modelId)
+        const foundModel = modelStore.findModelByIdOrName(modelId)
         if (foundModel && foundModel.providerId === providerId) {
           selectedImageModel.value = foundModel.model
           selectedImageModelProvider.value = providerId

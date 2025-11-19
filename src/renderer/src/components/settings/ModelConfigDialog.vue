@@ -374,7 +374,7 @@ import { ref, computed, watch, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ModelType } from '@shared/model'
 import type { ModelConfig } from '@shared/presenter'
-import { useSettingsStore } from '@/stores/settings'
+import { useModelConfigStore } from '@/stores/modelConfigStore'
 import { usePresenter } from '@/composables/usePresenter'
 import {
   Dialog,
@@ -420,7 +420,7 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
-const settingsStore = useSettingsStore()
+const modelConfigStore = useModelConfigStore()
 const configPresenter = usePresenter('configPresenter')
 
 // 配置数据
@@ -457,7 +457,7 @@ const loadConfig = async () => {
   if (!props.modelId || !props.providerId) return
 
   try {
-    const modelConfig = await settingsStore.getModelConfig(props.modelId, props.providerId)
+    const modelConfig = await modelConfigStore.getModelConfig(props.modelId, props.providerId)
     config.value = { ...modelConfig }
   } catch (error) {
     console.error('Failed to load model config:', error)
@@ -562,7 +562,7 @@ const handleSave = async () => {
   if (!isValid.value) return
 
   try {
-    await settingsStore.setModelConfig(props.modelId, props.providerId, config.value)
+    await modelConfigStore.setModelConfig(props.modelId, props.providerId, config.value)
     emit('saved')
     emit('update:open', false)
   } catch (error) {
@@ -578,7 +578,7 @@ const handleReset = () => {
 // 确认重置
 const confirmReset = async () => {
   try {
-    await settingsStore.resetModelConfig(props.modelId, props.providerId)
+    await modelConfigStore.resetModelConfig(props.modelId, props.providerId)
     await loadConfig() // 重新加载默认配置
     showResetConfirm.value = false
     emit('saved')

@@ -63,7 +63,8 @@ import { Card, CardContent } from '@shadcn/components/ui/card'
 import { Input } from '@shadcn/components/ui/input'
 import { ScrollArea } from '@shadcn/components/ui/scroll-area'
 import { useChatStore } from '@/stores/chat'
-import { useSettingsStore } from '@/stores/settings'
+import { useProviderStore } from '@/stores/providerStore'
+import { useModelStore } from '@/stores/modelStore'
 import { useThemeStore } from '@/stores/theme'
 import { useLanguageStore } from '@/stores/language'
 import ModelIcon from '@/components/icons/ModelIcon.vue'
@@ -74,7 +75,8 @@ import { Icon } from '@iconify/vue'
 const { t } = useI18n()
 const keyword = ref('')
 const chatStore = useChatStore()
-const settingsStore = useSettingsStore()
+const providerStore = useProviderStore()
+const modelStore = useModelStore()
 const themeStore = useThemeStore()
 const langStore = useLanguageStore()
 
@@ -94,8 +96,8 @@ const props = defineProps({
 })
 
 const providers = computed(() => {
-  const sortedProviders = settingsStore.sortedProviders
-  const enabledModels = settingsStore.enabledModels
+  const sortedProviders = providerStore.sortedProviders
+  const enabledModels = modelStore.enabledModels
 
   const orderedProviders = sortedProviders
     .filter((provider) => provider.enable)

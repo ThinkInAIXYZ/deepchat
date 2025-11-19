@@ -2,8 +2,8 @@ import { ref } from 'vue'
 import { describe, it, expect } from 'vitest'
 import { useModelTypeDetection } from '@/composables/useModelTypeDetection'
 
-vi.mock('@/stores/settings', () => ({
-  useSettingsStore: () => ({
+vi.mock('@/stores/modelConfigStore', () => ({
+  useModelConfigStore: () => ({
     getModelConfig: vi.fn().mockResolvedValue({ reasoning: true })
   })
 }))

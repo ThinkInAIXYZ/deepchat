@@ -67,15 +67,15 @@ import {
   DialogTitle
 } from '@shadcn/components/ui/dialog'
 import { usePresenter } from '@/composables/usePresenter'
-import { useSettingsStore } from '@/stores/settings'
+import { useUiSettingsStore } from '@/stores/uiSettingsStore'
 import { useLanguageStore } from '@/stores/language'
 
 const { t } = useI18n()
 const configPresenter = usePresenter('configPresenter')
-const settingsStore = useSettingsStore()
+const uiSettingsStore = useUiSettingsStore()
 const langStore = useLanguageStore()
 
-const loggingEnabled = computed(() => settingsStore.loggingEnabled)
+const loggingEnabled = computed(() => uiSettingsStore.loggingEnabled)
 const isLoggingDialogOpen = ref(false)
 const newLoggingValue = ref(false)
 
@@ -89,7 +89,7 @@ const cancelLoggingChange = () => {
 }
 
 const confirmLoggingChange = () => {
-  settingsStore.setLoggingEnabled(newLoggingValue.value)
+  uiSettingsStore.setLoggingEnabled(newLoggingValue.value)
   isLoggingDialogOpen.value = false
 }
 

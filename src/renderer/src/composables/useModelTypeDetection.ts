@@ -2,7 +2,7 @@
 import { computed, watch, ref, type ComputedRef, type Ref } from 'vue'
 
 // === Stores ===
-import { useSettingsStore } from '@/stores/settings'
+import { useModelConfigStore } from '@/stores/modelConfigStore'
 
 // === Interfaces ===
 export interface UseModelTypeDetectionOptions {
@@ -26,7 +26,7 @@ export function useModelTypeDetection(
   options: UseModelTypeDetectionOptions
 ): UseModelTypeDetectionReturn {
   const { modelId, providerId, modelType } = options
-  const settingsStore = useSettingsStore()
+  const modelConfigStore = useModelConfigStore()
 
   // === Local State ===
   const modelReasoning = ref(false)
@@ -63,7 +63,7 @@ export function useModelTypeDetection(
     }
 
     try {
-      const modelConfig = await settingsStore.getModelConfig(modelId.value, providerId.value)
+      const modelConfig = await modelConfigStore.getModelConfig(modelId.value, providerId.value)
       modelReasoning.value = modelConfig.reasoning || false
     } catch (error) {
       modelReasoning.value = false
