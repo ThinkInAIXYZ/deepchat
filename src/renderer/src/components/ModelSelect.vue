@@ -17,6 +17,13 @@
             @click="handleModelSelect(provider.id, model)"
           >
             <ModelIcon
+              v-if="provider.id === 'acp'"
+              class="w-4 h-4"
+              :model-id="model.id"
+              :is-dark="themeStore.isDark"
+            ></ModelIcon>
+            <ModelIcon
+              v-else
               class="w-4 h-4"
               :model-id="provider.id"
               :is-dark="themeStore.isDark"

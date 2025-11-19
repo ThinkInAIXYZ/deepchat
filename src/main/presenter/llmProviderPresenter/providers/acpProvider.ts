@@ -290,7 +290,7 @@ export class AcpProvider extends BaseAgentProvider<
           const conversationKey = modelConfig.conversationId ?? modelId
           session = await this.sessionManager.getOrCreateSession(conversationKey, agent, {
             onSessionUpdate: (notification) => {
-              // console.log('[ACP] onSessionUpdate: notification:', JSON.stringify(notification))
+              console.log('[ACP] onSessionUpdate: notification:', JSON.stringify(notification))
               const mapped = this.contentMapper.map(notification)
               mapped.events.forEach((event) => queue.push(event))
             },

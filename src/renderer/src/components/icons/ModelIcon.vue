@@ -69,6 +69,9 @@ import burncloudColorIcon from '@/assets/llm-icons/burncloud-color.svg?url'
 
 // 导入所有图标
 const icons = {
+  'kimi-cli': moonshotColorIcon,
+  'claude-code-acp': claudeColorIcon,
+  'codex-acp': openaiColorIcon,
   cherryin: cherryinColorIcon,
   modelscope: modelscopeColorIcon,
   '302ai': _302aiIcon,

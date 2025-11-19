@@ -5,6 +5,13 @@
   >
     <div class="shrink-0 w-5 h-5 flex items-center justify-center">
       <ModelIcon
+        v-if="currentMessage.model_provider === 'acp'"
+        :model-id="currentMessage.model_id"
+        :is-dark="themeStore.isDark"
+        custom-class="w-[18px] h-[18px]"
+      />
+      <ModelIcon
+        v-else
         :model-id="currentMessage.model_provider"
         custom-class="w-[18px] h-[18px]"
         :is-dark="themeStore.isDark"

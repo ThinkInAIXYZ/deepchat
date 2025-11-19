@@ -40,5 +40,12 @@
       "functionCall": "注意：開啟函數調用將自動關閉推理能力，這是 DeepSeek-V3.1 模型的限制要求。"
     },
     "confirmEnable": "確認開啟"
+  },
+  "acp": {
+    "permission": {
+      "allowAlways": "始終允許",
+      "description": "ACP 代理請求執行工具，請選擇是否允許。",
+      "rejectOnce": "僅此次拒絕"
+    }
   }
 }

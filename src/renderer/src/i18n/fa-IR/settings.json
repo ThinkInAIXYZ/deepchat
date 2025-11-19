@@ -820,5 +820,61 @@
     "resetToDefault": "تنظیم مجدد به پیش فرض کلمه سریع",
     "resetToDefaultSuccess": "تنظیم مجدد به اعلان سیستم پیش‌فرض با موفقیت انجام شد",
     "resetToDefaultFailed": "تنظیم مجدد ناموفق، لطفا دوباره تلاش کنید"
+  },
+  "acp": {
+    "addAgent": "افزودن پروکسی",
+    "addEnv": "افزودن متغیر",
+    "args": "پارامتر",
+    "argsPlaceholder": "اختیاری، با فاصله جدا کنید. از علامت نقل قول برای گروه‌بندی پارامترها استفاده کنید.",
+    "builtin": {
+      "claudeCode": {
+        "description": "ابتدا باید claude-code-acp را نصب کنید و متغیر محیطی ANTHROPIC_API_KEY را پر کنید."
+      },
+      "codex": {
+        "description": "ابتدا باید codex-acp را نصب کنید و متغیر محیطی OPENAI_API_KEY را ارائه دهید."
+      },
+      "kimi": {
+        "description": "توصیه شده، آماده استفاده: مستقیماً `kimi --acp` را اجرا کنید."
+      }
+    },
+    "command": "فرمان",
+    "commandPlaceholder": "مسیر فایل اجرایی یا اسکریپت",
+    "deleteConfirm": "حذف نماینده \"{name}\"؟",
+    "deleteSuccess": "نماینده حذف شد",
+    "description": "مدیریت پروکسی پروتکل کلاینت نماینده محلی که توسط DeepChat راه‌اندازی شده است.",
+    "editAgent": "ویراستار نماینده",
+    "editAll": "ویرایش همه",
+    "editAllDescription": "ویرایش مستقیم پیکربندی JSON، تغییر تمام تنظیمات پروکسی.",
+    "editAllInvalidJson": "قالب JSON نامعتبر",
+    "editAllPlaceholder": "در اینجا پیکربندی JSON را وارد کنید...",
+    "editAllSaveFailed": "ذخیره پیکربندی ناموفق بود",
+    "editAllSaveSuccess": "پیکربندی ذخیره شد",
+    "editAllTitle": "ویرایش دسته‌جمعی نماینده ACP",
+    "empty": "هنوز هیچ نماینده ACP پیکربندی نشده است.",
+    "enableToAccess": "لطفاً ابتدا ACP را فعال کنید تا به پیکربندی پروکسی دسترسی پیدا کنید",
+    "enabledDescription": "پس از فعال‌سازی، پروکسی ACP پیکربندی شده به عنوان یک مدل در انتخاب‌گر مدل ظاهر خواهد شد.",
+    "enabledTitle": "فعال کردن ACP",
+    "env": "متغیر محیطی",
+    "envKeyPlaceholder": "کلید",
+    "envValuePlaceholder": "مقدار",
+    "formHint": "ارائه دستورات، پارامترها و متغیرهای محیطی برای راه‌اندازی نماینده ACP شما.",
+    "missingFieldsDesc": "لطفاً قبل از ذخیره کردن، نام و دستور را پر کنید.",
+    "missingFieldsTitle": "نام و دستور اجباری هستند",
+    "name": "نام نماینده",
+    "namePlaceholder": "مثلاً: کد کلود ACP",
+    "quickAdd": {
+      "add": "افزودن {name}",
+      "args": "پارامتر",
+      "command": "فرمان",
+      "confirm": "آیا می‌خواهید پیش‌تنظیم \"{name}\" را اضافه کنید؟",
+      "description": "استفاده از پیش‌تنظیمات برای افزودن سریع پروکسی‌های رایج ACP، پیکربندی موجود را بازنویسی نمی‌کند.",
+      "env": "متغیر محیطی",
+      "exists": "\"{name}\" از قبل وجود دارد",
+      "recommended": "توصیه",
+      "title": "سریع اضافه کنید"
+    },
+    "saveFailed": "ذخیره عامل ناموفق بود",
+    "saveSuccess": "نماینده ذخیره شد",
+    "title": "نماینده ACP"
   }
 }

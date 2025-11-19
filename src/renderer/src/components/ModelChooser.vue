@@ -31,6 +31,13 @@
                   class="flex h-7 w-7 items-center justify-center rounded-md border border-border bg-muted/40 text-[11px] font-semibold uppercase text-muted-foreground transition group-data-[selected=true]:border-primary group-data-[selected=true]:bg-primary/20 group-data-[selected=true]:text-primary"
                 >
                   <ModelIcon
+                    v-if="provider.id === 'acp'"
+                    class="h-4 w-4 shrink-0 opacity-80 transition group-hover:opacity-100 group-data-[selected=true]:opacity-100"
+                    :model-id="model.id"
+                    :is-dark="themeStore.isDark"
+                  />
+                  <ModelIcon
+                    v-else
                     class="h-4 w-4 shrink-0 opacity-80 transition group-hover:opacity-100 group-data-[selected=true]:opacity-100"
                     :model-id="provider.id"
                     :is-dark="themeStore.isDark"

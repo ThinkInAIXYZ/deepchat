@@ -154,6 +154,13 @@
                   size="sm"
                 >
                   <ModelIcon
+                    v-if="config.activeModel.value.providerId === 'acp'"
+                    :model-id="config.activeModel.value.id"
+                    :is-dark="themeStore.isDark"
+                    custom-class="w-4 h-4"
+                  />
+                  <ModelIcon
+                    v-else
                     :model-id="config.activeModel.value.providerId"
                     :is-dark="themeStore.isDark"
                     custom-class="w-4 h-4"

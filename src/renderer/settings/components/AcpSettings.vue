@@ -237,8 +237,8 @@ const builtinAgents: BuiltinAgent[] = [
   {
     id: 'kimi-cli',
     name: 'Kimi CLI',
-    command: 'kimi',
-    args: ['--acp'],
+    command: 'uv',
+    args: ['tool', 'run', '--from', 'kimi-cli', 'kimi', '--acp'],
     env: {},
     descriptionKey: 'settings.acp.builtin.kimi.description',
     recommended: true
@@ -246,16 +246,16 @@ const builtinAgents: BuiltinAgent[] = [
   {
     id: 'claude-code-acp',
     name: 'Claude Code ACP',
-    command: 'claude-code-acp',
-    args: [],
+    command: 'npx',
+    args: ['-y', '@zed-industries/claude-code-acp'],
     env: { ANTHROPIC_API_KEY: '' },
     descriptionKey: 'settings.acp.builtin.claudeCode.description'
   },
   {
     id: 'codex-acp',
     name: 'Codex CLI ACP',
-    command: 'codex-acp',
-    args: [],
+    command: 'npx',
+    args: ['-y', '@zed-industries/codex-acp'],
     env: { OPENAI_API_KEY: '' },
     descriptionKey: 'settings.acp.builtin.codex.description'
   }
