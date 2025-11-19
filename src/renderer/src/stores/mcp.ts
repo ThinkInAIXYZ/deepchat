@@ -212,7 +212,7 @@ export const useMcpStore = defineStore('mcp', () => {
     const previousReady = config.value.ready
 
     config.value = {
-      mcpServers: data.mcpServers,
+      mcpServers: data.mcpServers ?? {},
       defaultServers: data.defaultServers,
       mcpEnabled: data.mcpEnabled,
       ready: true
@@ -300,7 +300,7 @@ export const useMcpStore = defineStore('mcp', () => {
   // ==================== 计算属性 ====================
   // 服务器列表
   const serverList = computed(() => {
-    const servers = Object.entries(config.value.mcpServers).map(([name, serverConfig]) => ({
+    const servers = Object.entries(config.value.mcpServers ?? {}).map(([name, serverConfig]) => ({
       name,
       ...serverConfig,
       isRunning: serverStatuses.value[name] || false,

@@ -1,6 +1,6 @@
 import { ref } from 'vue'
 import { defineStore } from 'pinia'
-import { useQuery } from '@pinia/colada'
+import { useQuery, useQueryCache } from '@pinia/colada'
 import { useThrottleFn } from '@vueuse/core'
 import type { MODEL_META, RENDERER_MODEL_META, ModelConfig } from '@shared/presenter'
 import { ModelType } from '@shared/model'
@@ -27,6 +27,30 @@ export const useModelStore = defineStore('model', () => {
 
   const providerModelQueries = new Map<string, ReturnType<typeof getProviderModelsQuery>>()
   const customModelQueries = new Map<string, ReturnType<typeof getCustomModelsQuery>>()
+  const queryCache = useQueryCache()
+
+  const matchesProviderModelsEntry = (
+    entry: { key: readonly unknown[] },
+    targetProviderId?: string
+  ) => {
+    const key = entry.key
+    if (!Array.isArray(key) || key.length < 3) return false
+    const [namespace, scope, providerId] = key
+    if (namespace !== 'model-store' || scope !== 'provider-models') return false
+    if (!targetProviderId) return true
+    return providerId === targetProviderId
+  }
+
+  const invalidateProviderModelsCache = async (providerId?: string) => {
+    await queryCache.invalidateQueries((entry) => matchesProviderModelsEntry(entry, providerId))
+  }
+
+  const updateProviderModelsCache = (providerId: string, data: MODEL_META[]) => {
+    queryCache.setQueriesData(
+      (entry) => matchesProviderModelsEntry(entry, providerId),
+      () => data
+    )
+  }
 
   const normalizeRendererModel = (model: MODEL_META, providerId: string): RENDERER_MODEL_META => ({
     id: model.id,
@@ -41,7 +65,7 @@ export const useModelStore = defineStore('model', () => {
     functionCall: model.functionCall ?? false,
     reasoning: model.reasoning ?? false,
     enableSearch: (model as RENDERER_MODEL_META).enableSearch ?? false,
-    type: model.type ?? ModelType.Chat
+    type: (model.type ?? ModelType.Chat) as ModelType
   })
 
   const getProviderModelsQuery = (providerId: string) => {
@@ -196,10 +220,46 @@ export const useModelStore = defineStore('model', () => {
 
   const refreshStandardModels = async (providerId: string): Promise<void> => {
     try {
+      await invalidateProviderModelsCache(providerId)
       let models: RENDERER_MODEL_META[] = await configP.getDbProviderModels(providerId)
       const providerModelsQuery = getProviderModelsQuery(providerId)
       await providerModelsQuery.refetch()
-      const storedModels = providerModelsQuery.data.value ?? []
+      let storedModels = providerModelsQuery.data.value ?? []
+
+      // For ACP provider, if storedModels is empty, try to trigger initialization
+      if (storedModels.length === 0 && providerId === 'acp') {
+        try {
+          // Trigger provider initialization by calling getModelList
+          const modelMetas = await llmP.getModelList(providerId)
+          if (modelMetas && modelMetas.length > 0) {
+            // Update cache with the fetched models
+            updateProviderModelsCache(providerId, modelMetas)
+            storedModels = modelMetas
+          } else {
+            // Fallback: try to get models directly from config
+            const fallbackProviderModels = (await configP.getProviderModels(providerId)) ?? []
+            if (fallbackProviderModels.length > 0) {
+              storedModels = fallbackProviderModels
+              updateProviderModelsCache(providerId, fallbackProviderModels)
+            }
+          }
+        } catch (error) {
+          console.warn(`Failed to initialize ACP provider models:`, error)
+          // Fallback: try to get models directly from config
+          const fallbackProviderModels = (await configP.getProviderModels(providerId)) ?? []
+          if (fallbackProviderModels.length > 0) {
+            storedModels = fallbackProviderModels
+            updateProviderModelsCache(providerId, fallbackProviderModels)
+          }
+        }
+      } else if (storedModels.length === 0) {
+        // For other providers, use fallback
+        const fallbackProviderModels = (await configP.getProviderModels(providerId)) ?? []
+        if (fallbackProviderModels.length > 0) {
+          storedModels = fallbackProviderModels
+          updateProviderModelsCache(providerId, fallbackProviderModels)
+        }
+      }
 
       if (storedModels.length > 0) {
         const dbModelMap = new Map(models.map((model) => [model.id, model]))
@@ -225,7 +285,7 @@ export const useModelStore = defineStore('model', () => {
               (model as RENDERER_MODEL_META).enableSearch ??
               (fallback as RENDERER_MODEL_META | undefined)?.enableSearch ??
               false,
-            type: model.type ?? fallback?.type ?? ModelType.Chat
+            type: (model.type ?? fallback?.type ?? ModelType.Chat) as ModelType
           }
         }
 
@@ -236,18 +296,27 @@ export const useModelStore = defineStore('model', () => {
 
         const mergedModels: RENDERER_MODEL_META[] = []
 
-        for (const model of models) {
-          const override = storedModelMap.get(model.id)
-          if (override) {
-            storedModelMap.delete(model.id)
-            mergedModels.push({ ...model, ...override, providerId })
-          } else {
-            mergedModels.push({ ...model, providerId })
+        // If models array is empty (like for ACP), use storedModels directly
+        if (models.length === 0) {
+          for (const model of storedModelMap.values()) {
+            mergedModels.push(model)
           }
-        }
+        } else {
+          // Otherwise, merge db models with stored models
+          for (const model of models) {
+            const override = storedModelMap.get(model.id)
+            if (override) {
+              storedModelMap.delete(model.id)
+              mergedModels.push({ ...model, ...override, providerId })
+            } else {
+              mergedModels.push({ ...model, providerId })
+            }
+          }
 
-        for (const model of storedModelMap.values()) {
-          mergedModels.push(model)
+          // Add remaining stored models that are not in db
+          for (const model of storedModelMap.values()) {
+            mergedModels.push(model)
+          }
         }
 
         models = mergedModels
@@ -270,7 +339,7 @@ export const useModelStore = defineStore('model', () => {
               vision: meta.vision || false,
               functionCall: meta.functionCall || false,
               reasoning: meta.reasoning || false,
-              type: meta.type || ModelType.Chat
+              type: (meta.type || ModelType.Chat) as ModelType
             }))
           }
         } catch (error) {
