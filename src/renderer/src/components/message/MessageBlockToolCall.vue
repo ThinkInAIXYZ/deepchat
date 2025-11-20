@@ -1,20 +1,14 @@
 <template>
   <div class="flex flex-col w-full">
     <div
-      class="inline-flex max-w-full sm:max-w-2xl min-h-7 py-1.5 bg-accent hover:bg-accent/40 border rounded-lg items-center gap-2 px-2 text-xs leading-4 transition-colors duration-150 select-none cursor-pointer overflow-hidden"
+      class="inline-flex w-fit max-w-full sm:max-w-2xl min-h-7 py-1.5 bg-accent hover:bg-accent/40 border rounded-lg items-center gap-2 px-2 text-xs leading-4 transition-colors duration-150 select-none cursor-pointer overflow-hidden"
       @click="toggleExpanded"
     >
       <Icon :icon="statusIconName" :class="['w-3.5 h-3.5 shrink-0', statusIconClass]" />
       <div
-        class="flex items-center gap-1 font-mono font-medium text-foreground/80 leading-none min-w-0"
+        class="flex items-center gap-2 font-mono font-medium tracking-tight text-foreground/80 truncate leading-none min-w-0"
       >
-        <span class="truncate text-xs" :title="primaryLabel">
-          {{ primaryLabelDisplay }}
-        </span>
-        <span v-if="functionLabel" class="text-muted-foreground">.</span>
-        <span v-if="functionLabel" class="truncate text-xs" :title="functionLabel">
-          {{ functionLabelDisplay }}
-        </span>
+        <span class="truncate text-xs">{{ primaryLabel }}.{{ functionLabel }}</span>
       </div>
     </div>
 
@@ -68,7 +62,27 @@ import { AssistantMessageBlock } from '@shared/chat'
 import { computed, ref } from 'vue'
 import { JsonObject } from '@/components/json-viewer'
 
-const { t } = useI18n()
+const keyMap = {
+  'toolCall.calling': '工具调用中',
+  'toolCall.response': '工具响应',
+  'toolCall.end': '工具调用完成',
+  'toolCall.error': '工具调用错误',
+  'toolCall.title': '工具调用',
+  'toolCall.clickToView': '点击查看详情',
+  'toolCall.functionName': '函数名称',
+  'toolCall.params': '参数',
+  'toolCall.responseData': '响应数据'
+}
+// 创建一个安全的翻译函数
+const t = (() => {
+  try {
+    const { t } = useI18n()
+    return t
+  } catch (e) {
+    // 如果 i18n 未初始化，提供默认翻译
+    return (key: string) => keyMap[key] || key
+  }
+})()
 
 const props = defineProps<{
   block: AssistantMessageBlock
@@ -96,16 +110,8 @@ const primaryLabel = computed(() => {
 
 const functionLabel = computed(() => {
   const toolCall = props.block.tool_call
-  return toolCall?.name ?? t('toolCall.functionName')
+  return toolCall?.name ?? ''
 })
-
-const truncateLabel = (value: string, maxLength = 60) => {
-  if (!value) return ''
-  return value.length <= maxLength ? value : `${value.slice(0, maxLength - 1)}…`
-}
-
-const primaryLabelDisplay = computed(() => truncateLabel(primaryLabel.value))
-const functionLabelDisplay = computed(() => truncateLabel(functionLabel.value))
 
 const toggleExpanded = () => {
   isExpanded.value = !isExpanded.value
