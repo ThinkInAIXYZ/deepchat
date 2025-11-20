@@ -13,7 +13,7 @@
 @custom-variant dark (&:where(.dark &, [data-theme='dark'] &));
 
 @layer base {
-  @import 'vue-renderer-markdown/index.css';
+  @import 'vue-renderer-markdown/index.tailwind.css';
 
   :root {
     --dc-font-scale: 1;
