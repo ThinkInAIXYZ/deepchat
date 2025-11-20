@@ -1132,6 +1132,38 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
         continue
       }
 
+      // 处理 Gemini multi_mod_content 格式的图片数据
+      if (delta?.multi_mod_content && Array.isArray(delta.multi_mod_content)) {
+        for (const item of delta.multi_mod_content) {
+          if (item.inline_data && item.inline_data.data) {
+            const base64Data = item.inline_data.data
+            const mimeType = item.inline_data.mime_type || 'image/png'
+
+            // 将纯 base64 数据转换为 data:image/...;base64,xxx 格式
+            const dataUri = base64Data.startsWith('data:image/')
+              ? base64Data
+              : `data:${mimeType};base64,${base64Data}`
+
+            try {
+              // 缓存图片并获取URL
+              const cachedUrl = await presenter.devicePresenter.cacheImage(dataUri)
+              yield createStreamEvent.imageData({ data: cachedUrl, mimeType: 'deepchat/image-url' })
+            } catch (cacheError) {
+              console.warn(
+                '[handleChatCompletion] Failed to cache image from multi_mod_content:',
+                cacheError
+              )
+              // 缓存失败时，直接使用原始 base64 数据
+              yield createStreamEvent.imageData({
+                data: dataUri,
+                mimeType: mimeType
+              })
+            }
+          }
+        }
+        continue
+      }
+
       // 处理 content 中直接包含 base64 图片的情况
       let processedCurrentContent = currentContent
       if (currentContent && currentContent.includes('![image](data:image/')) {
