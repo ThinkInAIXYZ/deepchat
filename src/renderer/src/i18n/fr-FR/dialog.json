@@ -40,15 +40,5 @@
       "functionCall": "Attention : L'activation des appels de fonction désactivera automatiquement le raisonnement, ce qui est une exigence des modèles DeepSeek-V3.1."
     },
     "confirmEnable": "Confirmer l'activation"
-  },
-  "acp": {
-    "permission": {
-      "allowAlways": "Toujours autoriser",
-      "allowOnce": "Seulement cette fois autorisé",
-      "description": "Agent de requête ACP, veuillez choisir d'autoriser ou non l'exécution.",
-      "rejectAlways": "Toujours refuser",
-      "rejectOnce": "Refus uniquement cette fois",
-      "title": "Autorisation requise"
-    }
   }
 }

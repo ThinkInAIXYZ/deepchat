@@ -850,6 +850,7 @@ export interface ILlmProviderPresenter {
   ): Promise<string>
   getAcpWorkdir(conversationId: string, agentId: string): Promise<AcpWorkdirInfo>
   setAcpWorkdir(conversationId: string, agentId: string, workdir: string | null): Promise<void>
+  resolveAgentPermission(requestId: string, granted: boolean): Promise<void>
   getProviderInstance(providerId: string): unknown
 }
 

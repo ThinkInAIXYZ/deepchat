@@ -81,7 +81,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
 import { Button } from '@shadcn/components/ui/button'
@@ -98,6 +98,7 @@ const props = defineProps<{
 }>()
 
 const isProcessing = ref(false)
+const rememberable = computed(() => props.block.extra?.rememberable !== false)
 
 const getPermissionIcon = () => {
   const permissionType = props.block.extra?.permissionType as string
@@ -229,7 +230,7 @@ const grantPermission = async () => {
       props.block.tool_call.id,
       true,
       (props.block.extra?.permissionType as 'read' | 'write' | 'all') || 'write',
-      true
+      rememberable.value
     )
   } catch (error) {
     console.error('Failed to grant permission:', error)

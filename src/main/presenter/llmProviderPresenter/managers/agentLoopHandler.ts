@@ -271,6 +271,45 @@ export class AgentLoopHandler {
                   delete currentToolChunks[chunk.tool_call_id]
                 }
                 break
+              case 'permission': {
+                const permission = chunk.permission
+                const permissionType = permission.permissionType ?? 'read'
+                const description = permission.description ?? ''
+                const toolName = permission.tool_call_name ?? permission.tool_call_id
+                const serverName =
+                  permission.server_name ?? permission.agentName ?? permission.providerName ?? ''
+
+                yield {
+                  type: 'response',
+                  data: {
+                    eventId,
+                    tool_call: 'permission-required',
+                    tool_call_id: permission.tool_call_id,
+                    tool_call_name: toolName,
+                    tool_call_params: permission.tool_call_params,
+                    tool_call_server_name: serverName,
+                    tool_call_server_icons: permission.server_icons,
+                    tool_call_server_description:
+                      permission.server_description ?? permission.agentName,
+                    tool_call_response: description,
+                    permission_request: {
+                      toolName,
+                      serverName,
+                      permissionType,
+                      description,
+                      providerId: permission.providerId,
+                      requestId: permission.requestId,
+                      sessionId: permission.sessionId,
+                      agentId: permission.agentId,
+                      agentName: permission.agentName,
+                      conversationId: permission.conversationId,
+                      options: permission.options,
+                      rememberable: permission.metadata?.rememberable === false ? false : true
+                    }
+                  }
+                }
+                break
+              }
               case 'usage':
                 if (chunk.usage) {
                   // console.log('usage', chunk.usage, totalUsage)

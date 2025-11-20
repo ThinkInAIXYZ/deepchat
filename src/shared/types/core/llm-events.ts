@@ -6,6 +6,7 @@ export type StreamEventType =
   | 'tool_call_start'
   | 'tool_call_chunk'
   | 'tool_call_end'
+  | 'permission'
   | 'error'
   | 'usage'
   | 'stop'
@@ -38,6 +39,11 @@ export interface ToolCallEndEvent {
   type: 'tool_call_end'
   tool_call_id: string
   tool_call_arguments_complete?: string
+}
+
+export interface PermissionRequestEvent {
+  type: 'permission'
+  permission: PermissionRequestPayload
 }
 
 export interface ErrorStreamEvent {
@@ -84,6 +90,7 @@ export type LLMCoreStreamEvent =
   | ToolCallStartEvent
   | ToolCallChunkEvent
   | ToolCallEndEvent
+  | PermissionRequestEvent
   | ErrorStreamEvent
   | UsageStreamEvent
   | StopStreamEvent
@@ -110,6 +117,10 @@ export const createStreamEvent = {
     type: 'tool_call_end',
     tool_call_id,
     tool_call_arguments_complete
+  }),
+  permission: (permission: PermissionRequestPayload): PermissionRequestEvent => ({
+    type: 'permission',
+    permission
   }),
   error: (error_message: string): ErrorStreamEvent => ({ type: 'error', error_message }),
   usage: (usage: {
@@ -146,3 +157,29 @@ export const isTextEvent = (e: LLMCoreStreamEvent): e is TextStreamEvent => e.ty
 export const isToolCallStartEvent = (e: LLMCoreStreamEvent): e is ToolCallStartEvent =>
   e.type === 'tool_call_start'
 export const isErrorEvent = (e: LLMCoreStreamEvent): e is ErrorStreamEvent => e.type === 'error'
+
+export interface PermissionRequestOption {
+  optionId: string
+  kind: 'allow_once' | 'allow_always' | 'reject_once' | 'reject_always'
+  name?: string
+}
+
+export interface PermissionRequestPayload {
+  providerId: string
+  providerName?: string
+  requestId: string
+  sessionId?: string
+  conversationId?: string
+  agentId?: string
+  agentName?: string
+  tool_call_id: string
+  tool_call_name?: string
+  tool_call_params?: string
+  description?: string
+  permissionType?: 'read' | 'write' | 'all'
+  server_name?: string
+  server_description?: string
+  server_icons?: string
+  options?: PermissionRequestOption[]
+  metadata?: Record<string, unknown>
+}

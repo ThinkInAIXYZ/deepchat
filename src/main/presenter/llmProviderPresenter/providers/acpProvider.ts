@@ -11,10 +11,13 @@ import type {
   LLM_PROVIDER,
   IConfigPresenter
 } from '@shared/presenter'
-import { createStreamEvent, type LLMCoreStreamEvent } from '@shared/types/core/llm-events'
+import {
+  createStreamEvent,
+  type LLMCoreStreamEvent,
+  type PermissionRequestPayload,
+  type PermissionRequestOption
+} from '@shared/types/core/llm-events'
 import { ModelType } from '@shared/model'
-import { presenter } from '@/presenter'
-import { DIALOG_WARN } from '@shared/dialog'
 import { eventBus, SendTarget } from '@/eventbus'
 import { CONFIG_EVENTS } from '@/events'
 import { AcpProcessManager } from '../agent/acpProcessManager'
@@ -23,11 +26,26 @@ import type { AcpSessionRecord } from '../agent/acpSessionManager'
 import { AcpContentMapper } from '../agent/acpContentMapper'
 import { AcpMessageFormatter } from '../agent/acpMessageFormatter'
 import { AcpSessionPersistence } from '../agent/acpSessionPersistence'
+import { nanoid } from 'nanoid'
 
 type EventQueue = {
   push: (event: LLMCoreStreamEvent | null) => void
   next: () => Promise<LLMCoreStreamEvent | null>
   done: () => void
+}
+
+type PermissionRequestContext = {
+  agent: AcpAgentConfig
+  conversationId: string
+}
+
+type PendingPermissionState = {
+  requestId: string
+  sessionId: string
+  params: schema.RequestPermissionRequest
+  context: PermissionRequestContext
+  resolve: (response: schema.RequestPermissionResponse) => void
+  reject: (error: Error) => void
 }
 
 export class AcpProvider extends BaseAgentProvider<
@@ -41,6 +59,7 @@ export class AcpProvider extends BaseAgentProvider<
   private readonly sessionPersistence: AcpSessionPersistence
   private readonly contentMapper = new AcpContentMapper()
   private readonly messageFormatter = new AcpMessageFormatter()
+  private readonly pendingPermissions = new Map<string, PendingPermissionState>()
 
   constructor(
     provider: LLM_PROVIDER,
@@ -70,38 +89,8 @@ export class AcpProvider extends BaseAgentProvider<
   protected async requestPermission(
     params: schema.RequestPermissionRequest
   ): Promise<schema.RequestPermissionResponse> {
-    const optionButtons = params.options.map((option, index) => ({
-      key: option.optionId,
-      label: this.mapPermissionLabel(option.kind),
-      default: index === 0
-    }))
-
-    const response = await presenter.dialogPresenter
-      .showDialog({
-        title: 'acp.permission.title',
-        description: 'acp.permission.description',
-        i18n: true,
-        icon: DIALOG_WARN,
-        buttons: [
-          ...optionButtons,
-          { key: 'cancel', label: 'dialog.cancel', default: optionButtons.length === 0 }
-        ]
-      })
-      .catch(() => 'cancel')
-
-    const selected =
-      typeof response === 'string' && params.options.find((option) => option.optionId === response)
-
-    if (!selected || response === 'cancel') {
-      return { outcome: { outcome: 'cancelled' } }
-    }
-
-    return {
-      outcome: {
-        outcome: 'selected',
-        optionId: selected.optionId
-      }
-    }
+    void params
+    return { outcome: { outcome: 'cancelled' } }
   }
 
   protected async fetchProviderModels(): Promise<MODEL_META[]> {
@@ -328,7 +317,11 @@ export class AcpProvider extends BaseAgentProvider<
                 const mapped = this.contentMapper.map(notification)
                 mapped.events.forEach((event) => queue.push(event))
               },
-              onPermission: (request) => this.handlePermissionRequest(queue, request)
+              onPermission: (request) =>
+                this.handlePermissionRequest(queue, request, {
+                  agent,
+                  conversationId: conversationKey
+                })
             },
             workdir
           )
@@ -357,6 +350,7 @@ export class AcpProvider extends BaseAgentProvider<
         } catch (error) {
           console.warn('[ACP] cancel failed:', error)
         }
+        this.clearPendingPermissionsForSession(session.sessionId)
       }
     }
   }
@@ -408,13 +402,150 @@ export class AcpProvider extends BaseAgentProvider<
 
   private async handlePermissionRequest(
     queue: EventQueue,
-    params: schema.RequestPermissionRequest
+    params: schema.RequestPermissionRequest,
+    context: PermissionRequestContext
   ): Promise<schema.RequestPermissionResponse> {
-    queue.push({
-      type: 'reasoning',
-      reasoning_content: `ACP agent requests permission: ${params.toolCall.title ?? params.toolCall.toolCallId}`
+    const { requestId, promise } = this.registerPendingPermission(params, context)
+
+    const toolLabel = params.toolCall.title ?? params.toolCall.toolCallId
+    queue.push(
+      createStreamEvent.reasoning(
+        `ACP agent "${context.agent.name}" requests permission: ${toolLabel}`
+      )
+    )
+    queue.push(
+      createStreamEvent.permission(this.buildPermissionPayload(params, context, requestId))
+    )
+
+    return await promise
+  }
+
+  private registerPendingPermission(
+    params: schema.RequestPermissionRequest,
+    context: PermissionRequestContext
+  ): { requestId: string; promise: Promise<schema.RequestPermissionResponse> } {
+    const requestId = nanoid()
+
+    const promise = new Promise<schema.RequestPermissionResponse>((resolve, reject) => {
+      this.pendingPermissions.set(requestId, {
+        requestId,
+        sessionId: params.sessionId,
+        params,
+        context,
+        resolve,
+        reject
+      })
     })
-    return await this.requestPermission(params)
+
+    return { requestId, promise }
+  }
+
+  private buildPermissionPayload(
+    params: schema.RequestPermissionRequest,
+    context: PermissionRequestContext,
+    requestId: string
+  ): PermissionRequestPayload {
+    const permissionType = this.mapPermissionType(params.toolCall.kind)
+    const toolName = params.toolCall.title?.trim() || params.toolCall.toolCallId
+    const options: PermissionRequestOption[] = params.options.map((option) => ({
+      optionId: option.optionId,
+      kind: option.kind,
+      name: option.name
+    }))
+
+    return {
+      providerId: this.provider.id,
+      providerName: this.provider.name,
+      requestId,
+      sessionId: params.sessionId,
+      conversationId: context.conversationId,
+      agentId: context.agent.id,
+      agentName: context.agent.name,
+      tool_call_id: params.toolCall.toolCallId,
+      tool_call_name: toolName,
+      tool_call_params: this.summarizeToolCallParams(params.toolCall),
+      description: `components.messageBlockPermissionRequest.description.${permissionType}`,
+      permissionType,
+      server_name: context.agent.name,
+      server_description: context.agent.command,
+      options,
+      metadata: { rememberable: false }
+    }
+  }
+
+  private summarizeToolCallParams(toolCall: schema.RequestPermissionRequest['toolCall']): string {
+    if (toolCall.locations?.length) {
+      const uniquePaths = Array.from(new Set(toolCall.locations.map((location) => location.path)))
+      return uniquePaths.slice(0, 3).join(', ')
+    }
+    if (toolCall.rawInput && Object.keys(toolCall.rawInput).length > 0) {
+      try {
+        return JSON.stringify(toolCall.rawInput)
+      } catch (error) {
+        console.warn('[ACP] Failed to stringify rawInput for permission request:', error)
+      }
+    }
+    return toolCall.toolCallId
+  }
+
+  private mapPermissionType(kind?: schema.ToolKind | null): 'read' | 'write' | 'all' {
+    switch (kind) {
+      case 'read':
+      case 'fetch':
+      case 'search':
+        return 'read'
+      case 'edit':
+      case 'delete':
+      case 'move':
+      case 'execute':
+        return 'write'
+      default:
+        return 'all'
+    }
+  }
+
+  private pickPermissionOption(
+    options: schema.PermissionOption[],
+    decision: 'allow' | 'deny'
+  ): schema.PermissionOption | null {
+    const allowOrder: schema.PermissionOption['kind'][] = ['allow_once', 'allow_always']
+    const denyOrder: schema.PermissionOption['kind'][] = ['reject_once', 'reject_always']
+    const order = decision === 'allow' ? allowOrder : denyOrder
+    for (const kind of order) {
+      const match = options.find((option) => option.kind === kind)
+      if (match) {
+        return match
+      }
+    }
+    return null
+  }
+
+  public async resolvePermissionRequest(requestId: string, granted: boolean): Promise<void> {
+    const state = this.pendingPermissions.get(requestId)
+    if (!state) {
+      throw new Error(`Unknown ACP permission request: ${requestId}`)
+    }
+
+    this.pendingPermissions.delete(requestId)
+
+    const option = this.pickPermissionOption(state.params.options, granted ? 'allow' : 'deny')
+    if (option) {
+      state.resolve({ outcome: { outcome: 'selected', optionId: option.optionId } })
+    } else if (granted) {
+      console.warn('[ACP] No matching permission option for grant, defaulting to cancel')
+      state.resolve({ outcome: { outcome: 'cancelled' } })
+    } else {
+      state.resolve({ outcome: { outcome: 'cancelled' } })
+    }
+  }
+
+  private clearPendingPermissionsForSession(sessionId: string): void {
+    for (const [requestId, state] of this.pendingPermissions.entries()) {
+      if (state.sessionId === sessionId) {
+        this.pendingPermissions.delete(requestId)
+        state.resolve({ outcome: { outcome: 'cancelled' } })
+      }
+    }
   }
 
   private async collectFromStream(
@@ -448,20 +579,6 @@ export class AcpProvider extends BaseAgentProvider<
       }
     }
     return { content, reasoning }
-  }
-
-  private mapPermissionLabel(kind: schema.PermissionOption['kind']): string {
-    switch (kind) {
-      case 'allow_once':
-        return 'acp.permission.allowOnce'
-      case 'allow_always':
-        return 'acp.permission.allowAlways'
-      case 'reject_always':
-        return 'acp.permission.rejectAlways'
-      case 'reject_once':
-      default:
-        return 'acp.permission.rejectOnce'
-    }
   }
 
   private mapStopReason(

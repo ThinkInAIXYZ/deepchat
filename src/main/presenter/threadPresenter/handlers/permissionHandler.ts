@@ -86,6 +86,9 @@ export class PermissionHandler extends BaseHandler {
         )
       }
 
+      const parsedPermissionRequest = this.parsePermissionRequest(permissionBlock)
+      const isAcpPermission = this.isAcpPermissionBlock(permissionBlock, parsedPermissionRequest)
+
       permissionBlock.status = granted ? 'granted' : 'denied'
       if (permissionBlock.extra) {
         permissionBlock.extra.needsUserAction = false
@@ -129,6 +132,16 @@ export class PermissionHandler extends BaseHandler {
       }
 
       await this.ctx.messageManager.editMessage(messageId, JSON.stringify(content))
+
+      if (isAcpPermission) {
+        await this.handleAcpPermissionFlow(
+          messageId,
+          permissionBlock,
+          parsedPermissionRequest,
+          granted
+        )
+        return
+      }
 
       if (granted) {
         const serverName = permissionBlock?.extra?.serverName as string
@@ -692,5 +705,60 @@ export class PermissionHandler extends BaseHandler {
       serverIcons: grantedPermissionBlock.tool_call.server_icons,
       serverDescription: grantedPermissionBlock.tool_call.server_description
     }
+  }
+
+  private parsePermissionRequest(block: AssistantMessageBlock): Record<string, unknown> | null {
+    const raw = this.getExtraString(block, 'permissionRequest')
+    if (!raw) {
+      return null
+    }
+    try {
+      return JSON.parse(raw) as Record<string, unknown>
+    } catch (error) {
+      console.warn('[PermissionHandler] Failed to parse permissionRequest payload:', error)
+      return null
+    }
+  }
+
+  private isAcpPermissionBlock(
+    block: AssistantMessageBlock,
+    permissionRequest: Record<string, unknown> | null
+  ): boolean {
+    const providerIdFromExtra = this.getExtraString(block, 'providerId')
+    const providerIdFromPayload = this.getStringFromObject(permissionRequest, 'providerId')
+    return providerIdFromExtra === 'acp' || providerIdFromPayload === 'acp'
+  }
+
+  private async handleAcpPermissionFlow(
+    messageId: string,
+    block: AssistantMessageBlock,
+    permissionRequest: Record<string, unknown> | null,
+    granted: boolean
+  ): Promise<void> {
+    const requestId =
+      this.getExtraString(block, 'permissionRequestId') ||
+      this.getStringFromObject(permissionRequest, 'requestId')
+
+    if (!requestId) {
+      throw new Error(`Missing ACP permission request identifier for message ${messageId}`)
+    }
+
+    await this.ctx.llmProviderPresenter.resolveAgentPermission(requestId, granted)
+  }
+
+  private getExtraString(block: AssistantMessageBlock, key: string): string | undefined {
+    const extraValue = block.extra?.[key]
+    return typeof extraValue === 'string' ? extraValue : undefined
+  }
+
+  private getStringFromObject(
+    source: Record<string, unknown> | null,
+    key: string
+  ): string | undefined {
+    if (!source) {
+      return undefined
+    }
+    const value = source[key]
+    return typeof value === 'string' ? value : undefined
   }
 }

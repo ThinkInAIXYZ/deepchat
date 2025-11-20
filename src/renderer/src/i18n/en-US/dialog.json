@@ -40,15 +40,5 @@
       "functionCall": "Note: Enabling function calling will automatically disable reasoning, which is a requirement of DeepSeek-V3.1 models."
     },
     "confirmEnable": "Confirm Enable"
-  },
-  "acp": {
-    "permission": {
-      "title": "Permission Required",
-      "description": "An ACP agent wants to run a tool. Choose an option to continue.",
-      "allowOnce": "Allow once",
-      "allowAlways": "Always allow",
-      "rejectOnce": "Deny once",
-      "rejectAlways": "Always deny"
-    }
   }
 }

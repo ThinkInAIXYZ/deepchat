@@ -40,15 +40,5 @@
       "functionCall": "주의: 함수 호출 기능을 활성화하면 추론 기능이 자동으로 비활성화됩니다. 이는 DeepSeek-V3.1 모델의 제한 요구사항입니다."
     },
     "confirmEnable": "활성화 확인"
-  },
-  "acp": {
-    "permission": {
-      "allowAlways": "항상 허용됨",
-      "allowOnce": "이번에만 허용됨",
-      "description": "ACP 프록시 요청 실행 도구의 허용 여부를 선택하세요.",
-      "rejectAlways": "항상 거절하다",
-      "rejectOnce": "이번 거절은",
-      "title": "승인이 필요합니다"
-    }
   }
 }

@@ -15,6 +15,13 @@ interface PermissionRequestPayload {
   permissionType?: string
   toolName?: string
   serverName?: string
+  providerId?: string
+  requestId?: string
+  sessionId?: string
+  agentId?: string
+  agentName?: string
+  conversationId?: string
+  rememberable?: boolean
   [key: string]: unknown
 }
 
@@ -305,24 +312,6 @@ export class ToolCallHandler {
       )
     }
 
-    const extra: Record<string, string | number | object[] | boolean> = {
-      needsUserAction: true,
-      permissionType
-    }
-
-    const permissionRequest = event.permission_request as PermissionRequestPayload | undefined
-    const serverName = permissionRequest?.serverName || event.tool_call_server_name
-    if (serverName) {
-      extra.serverName = serverName
-    }
-    const toolName = permissionRequest?.toolName || event.tool_call_name
-    if (toolName) {
-      extra.toolName = toolName
-    }
-    if (permissionRequest) {
-      extra.permissionRequest = JSON.stringify(permissionRequest)
-    }
-
     const lastBlock = state.message.content[state.message.content.length - 1]
     if (lastBlock && lastBlock.type === 'tool_call' && lastBlock.tool_call) {
       lastBlock.status = 'success'
@@ -333,9 +322,8 @@ export class ToolCallHandler {
       needsUserAction: true
     }
 
-    if (permissionRequest?.permissionType) {
-      permissionExtra.permissionType = permissionRequest.permissionType
-    }
+    const permissionRequest = event.permission_request as PermissionRequestPayload | undefined
+    permissionExtra.permissionType = permissionRequest?.permissionType ?? permissionType
     if (permissionRequest) {
       permissionExtra.permissionRequest = JSON.stringify(permissionRequest)
       if (permissionRequest.toolName) {
@@ -343,6 +331,24 @@ export class ToolCallHandler {
       }
       if (permissionRequest.serverName) {
         permissionExtra.serverName = permissionRequest.serverName
+      }
+      if (permissionRequest.providerId) {
+        permissionExtra.providerId = permissionRequest.providerId
+      }
+      if (permissionRequest.requestId) {
+        permissionExtra.permissionRequestId = permissionRequest.requestId
+      }
+      if (permissionRequest.rememberable === false) {
+        permissionExtra.rememberable = false
+      }
+      if (permissionRequest.agentId) {
+        permissionExtra.agentId = permissionRequest.agentId
+      }
+      if (permissionRequest.agentName) {
+        permissionExtra.agentName = permissionRequest.agentName
+      }
+      if (permissionRequest.sessionId) {
+        permissionExtra.sessionId = permissionRequest.sessionId
       }
     } else {
       if (event.tool_call_name) {

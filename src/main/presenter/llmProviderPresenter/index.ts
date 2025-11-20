@@ -479,6 +479,14 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
     await this.acpSessionPersistence.updateWorkdir(conversationId, agentId, trimmed)
   }
 
+  async resolveAgentPermission(requestId: string, granted: boolean): Promise<void> {
+    const provider = this.getAcpProviderInstance()
+    if (!provider) {
+      throw new Error('ACP provider unavailable')
+    }
+    await provider.resolvePermissionRequest(requestId, granted)
+  }
+
   private getAcpProviderInstance(): AcpProvider | null {
     try {
       const instance = this.getProviderInstance('acp')

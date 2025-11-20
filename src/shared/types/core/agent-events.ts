@@ -1,3 +1,4 @@
+import type { PermissionRequestOption } from './llm-events'
 import type { UsageStats, RateLimitInfo } from './usage'
 
 export interface LLMAgentEventData {
@@ -19,6 +20,14 @@ export interface LLMAgentEventData {
     serverName: string
     permissionType: 'read' | 'write' | 'all'
     description: string
+    providerId?: string
+    requestId?: string
+    sessionId?: string
+    agentId?: string
+    agentName?: string
+    conversationId?: string
+    options?: PermissionRequestOption[]
+    rememberable?: boolean
   }
   totalUsage?: UsageStats
   image_data?: { data: string; mimeType: string }
