@@ -8,10 +8,12 @@ import type {
   SessionNotificationHandler
 } from './acpProcessManager'
 import type { ClientSideConnection as ClientSideConnectionType } from '@agentclientprotocol/sdk'
+import { AcpSessionPersistence } from './acpSessionPersistence'
 
 interface AcpSessionManagerOptions {
   providerId: string
   processManager: AcpProcessManager
+  sessionPersistence: AcpSessionPersistence
 }
 
 interface SessionHooks {
@@ -22,11 +24,13 @@ interface SessionHooks {
 export interface AcpSessionRecord extends AgentSessionState {
   connection: ClientSideConnectionType
   detachHandlers: Array<() => void>
+  workdir: string
 }
 
 export class AcpSessionManager {
   private readonly providerId: string
   private readonly processManager: AcpProcessManager
+  private readonly sessionPersistence: AcpSessionPersistence
   private readonly sessionsByConversation = new Map<string, AcpSessionRecord>()
   private readonly sessionsById = new Map<string, AcpSessionRecord>()
   private readonly pendingSessions = new Map<string, Promise<AcpSessionRecord>>()
@@ -34,6 +38,7 @@ export class AcpSessionManager {
   constructor(options: AcpSessionManagerOptions) {
     this.providerId = options.providerId
     this.processManager = options.processManager
+    this.sessionPersistence = options.sessionPersistence
 
     app.on('before-quit', () => {
       void this.clearAllSessions()
@@ -43,10 +48,12 @@ export class AcpSessionManager {
   async getOrCreateSession(
     conversationId: string,
     agent: AcpAgentConfig,
-    hooks: SessionHooks
+    hooks: SessionHooks,
+    workdir?: string | null
   ): Promise<AcpSessionRecord> {
+    const resolvedWorkdir = this.sessionPersistence.resolveWorkdir(workdir)
     const existing = this.sessionsByConversation.get(conversationId)
-    if (existing && existing.agentId === agent.id) {
+    if (existing && existing.agentId === agent.id && existing.workdir === resolvedWorkdir) {
       // Reuse existing session, but update hooks for new conversation turn
       // Clean up old handlers
       existing.detachHandlers.forEach((dispose) => {
@@ -58,9 +65,10 @@ export class AcpSessionManager {
       })
       // Register new handlers
       existing.detachHandlers = this.attachSessionHooks(agent.id, existing.sessionId, hooks)
+      existing.workdir = resolvedWorkdir
       return existing
     }
-    if (existing && existing.agentId !== agent.id) {
+    if (existing) {
       await this.clearSession(conversationId)
     }
 
@@ -69,7 +77,7 @@ export class AcpSessionManager {
       return inflight
     }
 
-    const createPromise = this.createSession(conversationId, agent, hooks)
+    const createPromise = this.createSession(conversationId, agent, hooks, resolvedWorkdir)
     this.pendingSessions.set(conversationId, createPromise)
     try {
       const session = await createPromise
@@ -121,6 +129,8 @@ export class AcpSessionManager {
     } catch (error) {
       console.warn(`[ACP] Failed to cancel session ${session.sessionId}:`, error)
     }
+
+    await this.sessionPersistence.clearSession(conversationId, session.agentId)
   }
 
   async clearAllSessions(): Promise<void> {
@@ -136,11 +146,20 @@ export class AcpSessionManager {
   private async createSession(
     conversationId: string,
     agent: AcpAgentConfig,
-    hooks: SessionHooks
+    hooks: SessionHooks,
+    workdir: string
   ): Promise<AcpSessionRecord> {
     const handle = await this.processManager.getConnection(agent)
-    const session = await this.initializeSession(handle, agent)
+    const session = await this.initializeSession(handle, agent, workdir)
     const detachListeners = this.attachSessionHooks(agent.id, session.sessionId, hooks)
+
+    void this.sessionPersistence
+      .saveSessionData(conversationId, agent.id, session.sessionId, workdir, 'active', {
+        agentName: agent.name
+      })
+      .catch((error) => {
+        console.warn('[ACP] Failed to persist session metadata:', error)
+      })
 
     return {
       ...session,
@@ -152,7 +171,8 @@ export class AcpSessionManager {
       updatedAt: Date.now(),
       metadata: { agentName: agent.name },
       connection: handle.connection,
-      detachHandlers: detachListeners
+      detachHandlers: detachListeners,
+      workdir
     }
   }
 
@@ -176,11 +196,12 @@ export class AcpSessionManager {
 
   private async initializeSession(
     handle: AcpProcessHandle,
-    agent: AcpAgentConfig
+    agent: AcpAgentConfig,
+    workdir: string
   ): Promise<{ sessionId: string }> {
     try {
       const response = await handle.connection.newSession({
-        cwd: process.cwd(),
+        cwd: workdir,
         mcpServers: []
       })
       return { sessionId: response.sessionId }

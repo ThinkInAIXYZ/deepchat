@@ -13,6 +13,7 @@
         :rows="3"
         :max-rows="10"
         :context-length="contextLength"
+        :model-info="{ id: activeModel.id, providerId: activeModel.providerId }"
         @send="handleSend"
       >
         <template #addon-actions>

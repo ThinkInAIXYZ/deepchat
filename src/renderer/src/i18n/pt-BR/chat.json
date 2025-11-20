@@ -16,7 +16,12 @@
     "rateLimitWait": "Aguarde {seconds}s",
     "rateLimitQueueTooltip": "{count} requisições na fila, intervalo de {interval}s",
     "rateLimitReadyTooltip": "Pronto para enviar, intervalo de {interval}s",
-    "rateLimitWaitingTooltip": "Aguarde mais {seconds}s, intervalo de {interval}s"
+    "rateLimitWaitingTooltip": "Aguarde mais {seconds}s, intervalo de {interval}s",
+    "acpWorkdir": "ACP Workdir",
+    "acpWorkdirTooltip": "Set ACP working directory",
+    "acpWorkdirSelect": "Select a folder to use as the ACP workdir",
+    "acpWorkdirChange": "Reset to default workdir",
+    "acpWorkdirCurrent": "Current workdir: {path}"
   },
   "features": {
     "webSearch": "Busca na Web",

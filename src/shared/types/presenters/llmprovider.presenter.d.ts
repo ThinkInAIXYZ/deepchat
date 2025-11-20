@@ -1,6 +1,7 @@
 import { ShowResponse } from 'ollama'
 import { ChatMessage, LLMAgentEvent } from '../core/chat'
 import { ModelType } from '../core/model'
+import type { AcpWorkdirInfo } from './legacy.presenters'
 
 /**
  * LLM Provider Presenter Interface
@@ -214,4 +215,7 @@ export interface ILlmProviderPresenter {
     temperature?: number,
     maxTokens?: number
   ): Promise<string>
+
+  getAcpWorkdir(conversationId: string, agentId: string): Promise<AcpWorkdirInfo>
+  setAcpWorkdir(conversationId: string, agentId: string, workdir: string | null): Promise<void>
 }

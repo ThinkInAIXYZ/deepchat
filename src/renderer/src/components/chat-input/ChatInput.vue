@@ -99,6 +99,55 @@
               <TooltipContent>{{ t('chat.features.webSearch') }}</TooltipContent>
             </Tooltip>
 
+            <Tooltip v-if="acpWorkdir.isAcpModel.value">
+              <TooltipTrigger>
+                <Button
+                  :class="[
+                    'w-7 h-7 text-xs rounded-lg',
+                    variant === 'chat' ? 'text-accent-foreground' : '',
+                    acpWorkdir.hasWorkdir.value
+                      ? 'bg-primary text-primary-foreground hover:bg-primary/90'
+                      : ''
+                  ]"
+                  :variant="acpWorkdir.hasWorkdir.value ? 'default' : 'outline'"
+                  size="icon"
+                  :disabled="acpWorkdir.loading.value"
+                  @click="acpWorkdir.selectWorkdir"
+                >
+                  <Icon
+                    :icon="acpWorkdir.hasWorkdir.value ? 'lucide:folder-open' : 'lucide:folder'"
+                    class="w-4 h-4"
+                  />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent class="max-w-xs">
+                <p class="text-xs font-semibold">
+                  {{ t('chat.input.acpWorkdirTooltip') }}
+                </p>
+                <p v-if="acpWorkdir.hasWorkdir.value" class="text-xs text-muted-foreground mt-1">
+                  {{ t('chat.input.acpWorkdirCurrent', { path: acpWorkdir.workdir.value }) }}
+                </p>
+                <p v-else class="text-xs text-muted-foreground mt-1">
+                  {{ t('chat.input.acpWorkdirSelect') }}
+                </p>
+              </TooltipContent>
+            </Tooltip>
+
+            <Tooltip v-if="acpWorkdir.isAcpModel.value && acpWorkdir.hasWorkdir.value">
+              <TooltipTrigger>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  class="w-7 h-7 text-xs rounded-lg"
+                  :disabled="acpWorkdir.loading.value"
+                  @click="acpWorkdir.clearWorkdir"
+                >
+                  <Icon icon="lucide:folder-minus" class="w-4 h-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>{{ t('chat.input.acpWorkdirChange') }}</TooltipContent>
+            </Tooltip>
+
             <McpToolsList />
           </div>
 
@@ -317,6 +366,7 @@ import { usePromptInputEditor } from './composables/usePromptInputEditor'
 import { useInputSettings } from './composables/useInputSettings'
 import { useContextLength } from './composables/useContextLength'
 import { useSendButtonState } from './composables/useSendButtonState'
+import { useAcpWorkdir } from './composables/useAcpWorkdir'
 
 // === Stores ===
 import { useChatStore } from '@/stores/chat'
@@ -336,12 +386,14 @@ const props = withDefaults(
     maxRows?: number
     rows?: number
     disabled?: boolean
+    modelInfo?: { id: string; providerId: string } | null
   }>(),
   {
     variant: 'chat',
     maxRows: 10,
     rows: 1,
-    disabled: false
+    disabled: false,
+    modelInfo: null
   }
 )
 
@@ -477,6 +529,19 @@ const config =
         handleModelUpdate: () => {},
         loadModelConfig: async () => {}
       } as any)
+
+const conversationId = computed(() => chatStore.activeThread?.id ?? null)
+const activeModelSource = computed(() => {
+  if (props.modelInfo?.id && props.modelInfo.providerId) {
+    return props.modelInfo
+  }
+  return config.activeModel.value
+})
+
+const acpWorkdir = useAcpWorkdir({
+  activeModel: activeModelSource,
+  conversationId
+})
 
 // === Computed ===
 // Use composable values

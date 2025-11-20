@@ -10,7 +10,8 @@ import {
   ISQLitePresenter,
   IConfigPresenter,
   ILlmProviderPresenter,
-  LLMAgentEventData
+  LLMAgentEventData,
+  AcpWorkdirInfo
 } from '@shared/presenter'
 import { presenter } from '@/presenter'
 import { MessageManager } from './managers/messageManager'
@@ -713,5 +714,17 @@ export class ThreadPresenter implements IThreadPresenter {
    */
   async getMessageRequestPreview(messageId: string): Promise<unknown> {
     return this.utilityHandler.getMessageRequestPreview(messageId)
+  }
+
+  async getAcpWorkdir(conversationId: string, agentId: string): Promise<AcpWorkdirInfo> {
+    return this.llmProviderPresenter.getAcpWorkdir(conversationId, agentId)
+  }
+
+  async setAcpWorkdir(
+    conversationId: string,
+    agentId: string,
+    workdir: string | null
+  ): Promise<void> {
+    await this.llmProviderPresenter.setAcpWorkdir(conversationId, agentId, workdir)
   }
 }

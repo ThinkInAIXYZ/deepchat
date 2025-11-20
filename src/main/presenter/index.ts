@@ -92,7 +92,7 @@ export class Presenter implements IPresenter {
     // 初始化各个 Presenter 实例及其依赖
     this.windowPresenter = new WindowPresenter(this.configPresenter)
     this.tabPresenter = new TabPresenter(this.windowPresenter)
-    this.llmproviderPresenter = new LLMProviderPresenter(this.configPresenter)
+    this.llmproviderPresenter = new LLMProviderPresenter(this.configPresenter, this.sqlitePresenter)
     this.devicePresenter = new DevicePresenter()
     this.threadPresenter = new ThreadPresenter(
       this.sqlitePresenter,

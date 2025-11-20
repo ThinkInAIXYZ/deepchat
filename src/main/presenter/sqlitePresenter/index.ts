@@ -8,9 +8,12 @@ import {
   ISQLitePresenter,
   SQLITE_MESSAGE,
   CONVERSATION,
-  CONVERSATION_SETTINGS
+  CONVERSATION_SETTINGS,
+  AcpSessionEntity,
+  AgentSessionLifecycleStatus
 } from '@shared/presenter'
 import { MessageAttachmentsTable } from './tables/messageAttachments'
+import { AcpSessionsTable, type AcpSessionUpsertData } from './tables/acpSessions'
 
 /**
  * 导入模式枚举
@@ -26,6 +29,7 @@ export class SQLitePresenter implements ISQLitePresenter {
   private messagesTable!: MessagesTable
   private attachmentsTable!: AttachmentsTable
   private messageAttachmentsTable!: MessageAttachmentsTable
+  private acpSessionsTable!: AcpSessionsTable
   private currentVersion: number = 0
   private dbPath: string
 
@@ -134,12 +138,14 @@ export class SQLitePresenter implements ISQLitePresenter {
     this.messagesTable = new MessagesTable(this.db)
     this.attachmentsTable = new AttachmentsTable(this.db)
     this.messageAttachmentsTable = new MessageAttachmentsTable(this.db)
+    this.acpSessionsTable = new AcpSessionsTable(this.db)
 
     // 创建所有表
     this.conversationsTable.createTable()
     this.messagesTable.createTable()
     this.attachmentsTable.createTable()
     this.messageAttachmentsTable.createTable()
+    this.acpSessionsTable.createTable()
   }
 
   private initVersionTable() {
@@ -164,7 +170,8 @@ export class SQLitePresenter implements ISQLitePresenter {
       this.conversationsTable,
       this.messagesTable,
       this.attachmentsTable,
-      this.messageAttachmentsTable
+      this.messageAttachmentsTable,
+      this.acpSessionsTable
     ]
 
     // 获取最新的迁移版本
@@ -247,7 +254,8 @@ export class SQLitePresenter implements ISQLitePresenter {
 
   // 删除对话
   public async deleteConversation(conversationId: string): Promise<void> {
-    return this.conversationsTable.delete(conversationId)
+    await this.conversationsTable.delete(conversationId)
+    await this.acpSessionsTable.deleteByConversation(conversationId)
   }
 
   // 插入消息
@@ -357,5 +365,54 @@ export class SQLitePresenter implements ISQLitePresenter {
     type: string
   ): Promise<{ content: string }[]> {
     return this.messageAttachmentsTable.get(messageId, type)
+  }
+
+  // ACP session helpers
+  public async getAcpSession(
+    conversationId: string,
+    agentId: string
+  ): Promise<AcpSessionEntity | null> {
+    const row = await this.acpSessionsTable.getByConversationAndAgent(conversationId, agentId)
+    return row ? (row as AcpSessionEntity) : null
+  }
+
+  public async upsertAcpSession(
+    conversationId: string,
+    agentId: string,
+    data: AcpSessionUpsertData
+  ): Promise<void> {
+    await this.acpSessionsTable.upsert(conversationId, agentId, data)
+  }
+
+  public async updateAcpSessionId(
+    conversationId: string,
+    agentId: string,
+    sessionId: string | null
+  ): Promise<void> {
+    await this.acpSessionsTable.updateSessionId(conversationId, agentId, sessionId)
+  }
+
+  public async updateAcpWorkdir(
+    conversationId: string,
+    agentId: string,
+    workdir: string | null
+  ): Promise<void> {
+    await this.acpSessionsTable.updateWorkdir(conversationId, agentId, workdir)
+  }
+
+  public async updateAcpSessionStatus(
+    conversationId: string,
+    agentId: string,
+    status: AgentSessionLifecycleStatus
+  ): Promise<void> {
+    await this.acpSessionsTable.updateStatus(conversationId, agentId, status)
+  }
+
+  public async deleteAcpSessions(conversationId: string): Promise<void> {
+    await this.acpSessionsTable.deleteByConversation(conversationId)
+  }
+
+  public async deleteAcpSession(conversationId: string, agentId: string): Promise<void> {
+    await this.acpSessionsTable.deleteByConversationAndAgent(conversationId, agentId)
   }
 }

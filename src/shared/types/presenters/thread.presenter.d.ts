@@ -5,7 +5,7 @@ import {
   AssistantMessage,
   UserMessage
 } from '../core/chat'
-import { MODEL_META } from './llmprovider.presenter'
+import { MODEL_META, AcpWorkdirInfo } from './llmprovider.presenter'
 
 /**
  * Thread/Conversation Presenter Interface
@@ -172,6 +172,10 @@ export interface IThreadPresenter {
   continueStreamCompletion(conversationId: string, queryMsgId: string): Promise<AssistantMessage>
   toggleConversationPinned(conversationId: string, isPinned: boolean): Promise<void>
   findTabForConversation(conversationId: string): Promise<number | null>
+
+  // ACP workdir controls
+  getAcpWorkdir(conversationId: string, agentId: string): Promise<AcpWorkdirInfo>
+  setAcpWorkdir(conversationId: string, agentId: string, workdir: string | null): Promise<void>
 
   // Permission handling
   handlePermissionResponse(

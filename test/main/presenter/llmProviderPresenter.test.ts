@@ -1,7 +1,12 @@
 import { describe, it, expect, beforeEach, vi, beforeAll, afterEach } from 'vitest'
 import { LLMProviderPresenter } from '../../../src/main/presenter/llmProviderPresenter/index'
 import { ConfigPresenter } from '../../../src/main/presenter/configPresenter/index'
-import { LLM_PROVIDER, ChatMessage, LLMAgentEvent } from '../../../src/shared/presenter'
+import {
+  LLM_PROVIDER,
+  ChatMessage,
+  LLMAgentEvent,
+  ISQLitePresenter
+} from '../../../src/shared/presenter'
 
 // Ensure electron is mocked for this suite to avoid CJS named export issues
 vi.mock('electron', () => {
@@ -71,6 +76,38 @@ vi.mock('@/presenter/proxyConfig', () => ({
 describe('LLMProviderPresenter Integration Tests', () => {
   let llmProviderPresenter: LLMProviderPresenter
   let mockConfigPresenter: ConfigPresenter
+  const mockSqlitePresenter: ISQLitePresenter = {
+    getAcpSession: vi.fn().mockResolvedValue(null),
+    upsertAcpSession: vi.fn().mockResolvedValue(undefined),
+    updateAcpSessionId: vi.fn().mockResolvedValue(undefined),
+    updateAcpWorkdir: vi.fn().mockResolvedValue(undefined),
+    updateAcpSessionStatus: vi.fn().mockResolvedValue(undefined),
+    deleteAcpSession: vi.fn().mockResolvedValue(undefined),
+    deleteAcpSessions: vi.fn().mockResolvedValue(undefined),
+    close: vi.fn(),
+    createConversation: vi.fn(),
+    deleteConversation: vi.fn(),
+    renameConversation: vi.fn(),
+    getConversation: vi.fn(),
+    updateConversation: vi.fn(),
+    getConversationList: vi.fn(),
+    getConversationCount: vi.fn(),
+    insertMessage: vi.fn(),
+    queryMessages: vi.fn(),
+    deleteAllMessages: vi.fn(),
+    runTransaction: vi.fn(),
+    getMessage: vi.fn(),
+    getMessageVariants: vi.fn(),
+    updateMessage: vi.fn(),
+    updateMessageParentId: vi.fn(),
+    deleteMessage: vi.fn(),
+    getMaxOrderSeq: vi.fn(),
+    addMessageAttachment: vi.fn(),
+    getMessageAttachments: vi.fn(),
+    getLastUserMessage: vi.fn(),
+    getMainMessageByParentId: vi.fn(),
+    deleteAllMessagesInConversation: vi.fn()
+  } as unknown as ISQLitePresenter
 
   // Mock OpenAI Compatible Provider配置
   const mockProvider: LLM_PROVIDER = {
@@ -137,7 +174,7 @@ describe('LLMProviderPresenter Integration Tests', () => {
     mockConfigPresenter.getModelStatus = vi.fn().mockReturnValue(true)
 
     // Create new instance for each test
-    llmProviderPresenter = new LLMProviderPresenter(mockConfigPresenter)
+    llmProviderPresenter = new LLMProviderPresenter(mockConfigPresenter, mockSqlitePresenter)
   })
 
   afterEach(async () => {
@@ -542,7 +579,7 @@ describe('LLMProviderPresenter Integration Tests', () => {
         removeCustomModel: vi.fn()
       } as unknown as ConfigPresenter
 
-      const invalidLlmProvider = new LLMProviderPresenter(invalidMockConfig)
+      const invalidLlmProvider = new LLMProviderPresenter(invalidMockConfig, mockSqlitePresenter)
 
       const result = await invalidLlmProvider.check('invalid-test')
       expect(result.isOk).toBe(false)

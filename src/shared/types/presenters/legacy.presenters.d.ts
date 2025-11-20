@@ -5,6 +5,7 @@ import { ShowResponse } from 'ollama'
 import { ShortcutKeySetting } from '@/presenter/configPresenter/shortcutKeySettings'
 import { ModelType } from '@shared/model'
 import { ProviderChange, ProviderBatchUpdate } from './provider-operations'
+import type { AgentSessionLifecycleStatus } from './agent-provider'
 
 export type SQLITE_MESSAGE = {
   id: string
@@ -328,6 +329,25 @@ export interface ISQLitePresenter {
   getLastUserMessage(conversationId: string): Promise<SQLITE_MESSAGE | null>
   getMainMessageByParentId(conversationId: string, parentId: string): Promise<SQLITE_MESSAGE | null>
   deleteAllMessagesInConversation(conversationId: string): Promise<void>
+  getAcpSession(conversationId: string, agentId: string): Promise<AcpSessionEntity | null>
+  upsertAcpSession(
+    conversationId: string,
+    agentId: string,
+    data: AcpSessionUpsertPayload
+  ): Promise<void>
+  updateAcpSessionId(
+    conversationId: string,
+    agentId: string,
+    sessionId: string | null
+  ): Promise<void>
+  updateAcpWorkdir(conversationId: string, agentId: string, workdir: string | null): Promise<void>
+  updateAcpSessionStatus(
+    conversationId: string,
+    agentId: string,
+    status: AgentSessionLifecycleStatus
+  ): Promise<void>
+  deleteAcpSessions(conversationId: string): Promise<void>
+  deleteAcpSession(conversationId: string, agentId: string): Promise<void>
 }
 
 export interface IOAuthPresenter {
@@ -694,6 +714,30 @@ export interface AcpAgentConfig {
   env?: Record<string, string>
 }
 
+export interface AcpSessionEntity {
+  id: number
+  conversationId: string
+  agentId: string
+  sessionId: string | null
+  workdir: string | null
+  status: AgentSessionLifecycleStatus
+  createdAt: number
+  updatedAt: number
+  metadata: Record<string, unknown> | null
+}
+
+export interface AcpSessionUpsertPayload {
+  sessionId?: string | null
+  workdir?: string | null
+  status?: AgentSessionLifecycleStatus
+  metadata?: Record<string, unknown> | null
+}
+
+export interface AcpWorkdirInfo {
+  path: string
+  isCustom: boolean
+}
+
 // Simplified ModelScope MCP sync options
 export interface ModelScopeMcpSyncOptions {
   page_number?: number
@@ -804,6 +848,8 @@ export interface ILlmProviderPresenter {
     temperature?: number,
     maxTokens?: number
   ): Promise<string>
+  getAcpWorkdir(conversationId: string, agentId: string): Promise<AcpWorkdirInfo>
+  setAcpWorkdir(conversationId: string, agentId: string, workdir: string | null): Promise<void>
   getProviderInstance(providerId: string): unknown
 }
 
@@ -924,6 +970,8 @@ export interface IThreadPresenter {
   setSearchAssistantModel(model: MODEL_META, providerId: string): void
   getMainMessageByParentId(conversationId: string, parentId: string): Promise<Message | null>
   destroy(): void
+  getAcpWorkdir(conversationId: string, agentId: string): Promise<AcpWorkdirInfo>
+  setAcpWorkdir(conversationId: string, agentId: string, workdir: string | null): Promise<void>
   continueStreamCompletion(
     conversationId: string,
     queryMsgId: string,

@@ -16,7 +16,12 @@
     "rateLimitWait": "대기 {seconds}초",
     "rateLimitQueueTooltip": "대기열에 {count}개 요청, 간격 {interval}초",
     "rateLimitReadyTooltip": "전송 준비 완료, 간격 {interval}초",
-    "rateLimitWaitingTooltip": "{seconds}초 더 대기, 간격 {interval}초"
+    "rateLimitWaitingTooltip": "{seconds}초 더 대기, 간격 {interval}초",
+    "acpWorkdir": "ACP Workdir",
+    "acpWorkdirTooltip": "Set ACP working directory",
+    "acpWorkdirSelect": "Select a folder to use as the ACP workdir",
+    "acpWorkdirChange": "Reset to default workdir",
+    "acpWorkdirCurrent": "Current workdir: {path}"
   },
   "features": {
     "webSearch": "웹 검색",

@@ -16,7 +16,12 @@
     "rateLimitWait": "انتظار {seconds}ث",
     "rateLimitQueueTooltip": "{count} درخواست در صف، فاصله {interval} ثانیه",
     "rateLimitReadyTooltip": "آماده ارسال، فاصله {interval} ثانیه",
-    "rateLimitWaitingTooltip": "باید {seconds} ثانیه دیگر منتظر بمانید، فاصله {interval} ثانیه"
+    "rateLimitWaitingTooltip": "باید {seconds} ثانیه دیگر منتظر بمانید، فاصله {interval} ثانیه",
+    "acpWorkdir": "ACP Workdir",
+    "acpWorkdirTooltip": "Set ACP working directory",
+    "acpWorkdirSelect": "Select a folder to use as the ACP workdir",
+    "acpWorkdirChange": "Reset to default workdir",
+    "acpWorkdirCurrent": "Current workdir: {path}"
   },
   "features": {
     "webSearch": "جستجوی وب",

@@ -35,10 +35,12 @@ import { JiekouProvider } from '../providers/jiekouProvider'
 import { ZenmuxProvider } from '../providers/zenmuxProvider'
 import { RateLimitManager } from './rateLimitManager'
 import { StreamState } from '../types'
+import { AcpSessionPersistence } from '../agent/acpSessionPersistence'
 
 type ProviderConstructor = new (
   provider: LLM_PROVIDER,
-  configPresenter: IConfigPresenter
+  configPresenter: IConfigPresenter,
+  ...rest: any[]
 ) => BaseLLMProvider
 
 interface ProviderInstanceManagerOptions {
@@ -47,6 +49,7 @@ interface ProviderInstanceManagerOptions {
   rateLimitManager: RateLimitManager
   getCurrentProviderId: () => string | null
   setCurrentProviderId: (providerId: string | null) => void
+  acpSessionPersistence?: AcpSessionPersistence
 }
 
 export class ProviderInstanceManager {
@@ -407,6 +410,17 @@ export class ProviderInstanceManager {
       if (!ProviderClass) {
         console.warn(`Unknown provider type: ${provider.apiType} for provider id: ${provider.id}`)
         return undefined
+      }
+
+      if (provider.id === 'acp') {
+        if (!this.options.acpSessionPersistence) {
+          throw new Error('ACP session persistence is not configured')
+        }
+        return new AcpProvider(
+          provider,
+          this.options.configPresenter,
+          this.options.acpSessionPersistence
+        )
       }
 
       return new ProviderClass(provider, this.options.configPresenter)

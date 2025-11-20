@@ -10,7 +10,9 @@ import {
   LLM_EMBEDDING_ATTRS,
   ModelScopeMcpSyncOptions,
   ModelScopeMcpSyncResult,
-  IConfigPresenter
+  IConfigPresenter,
+  ISQLitePresenter,
+  AcpWorkdirInfo
 } from '@shared/presenter'
 import { ProviderChange, ProviderBatchUpdate } from '@shared/provider-operations'
 import { eventBus } from '@/eventbus'
@@ -26,6 +28,8 @@ import { AgentLoopHandler } from './managers/agentLoopHandler'
 import { ModelScopeSyncManager } from './managers/modelScopeSyncManager'
 import type { OllamaProvider } from './providers/ollamaProvider'
 import { ShowResponse } from 'ollama'
+import { AcpSessionPersistence } from './agent/acpSessionPersistence'
+import { AcpProvider } from './providers/acpProvider'
 
 export class LLMProviderPresenter implements ILlmProviderPresenter {
   private currentProviderId: string | null = null
@@ -40,9 +44,11 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
   private readonly embeddingManager: EmbeddingManager
   private readonly agentLoopHandler: AgentLoopHandler
   private readonly modelScopeSyncManager: ModelScopeSyncManager
+  private readonly acpSessionPersistence: AcpSessionPersistence
 
-  constructor(configPresenter: IConfigPresenter) {
+  constructor(configPresenter: IConfigPresenter, sqlitePresenter: ISQLitePresenter) {
     this.rateLimitManager = new RateLimitManager(configPresenter)
+    this.acpSessionPersistence = new AcpSessionPersistence(sqlitePresenter)
     this.providerInstanceManager = new ProviderInstanceManager({
       configPresenter,
       activeStreams: this.activeStreams,
@@ -50,7 +56,8 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
       getCurrentProviderId: () => this.currentProviderId,
       setCurrentProviderId: (providerId) => {
         this.currentProviderId = providerId
-      }
+      },
+      acpSessionPersistence: this.acpSessionPersistence
     })
     this.modelManager = new ModelManager({
       configPresenter,
@@ -448,5 +455,37 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
     syncOptions?: ModelScopeMcpSyncOptions
   ): Promise<ModelScopeMcpSyncResult> {
     return this.modelScopeSyncManager.syncModelScopeMcpServers(providerId, syncOptions)
+  }
+
+  async getAcpWorkdir(conversationId: string, agentId: string): Promise<AcpWorkdirInfo> {
+    const record = await this.acpSessionPersistence.getSessionData(conversationId, agentId)
+    const path = this.acpSessionPersistence.resolveWorkdir(record?.workdir)
+    const isCustom = Boolean(record?.workdir && record.workdir.trim().length > 0)
+    return { path, isCustom }
+  }
+
+  async setAcpWorkdir(
+    conversationId: string,
+    agentId: string,
+    workdir: string | null
+  ): Promise<void> {
+    const provider = this.getAcpProviderInstance()
+    if (provider) {
+      await provider.updateAcpWorkdir(conversationId, agentId, workdir)
+      return
+    }
+
+    const trimmed = workdir?.trim() ? workdir : null
+    await this.acpSessionPersistence.updateWorkdir(conversationId, agentId, trimmed)
+  }
+
+  private getAcpProviderInstance(): AcpProvider | null {
+    try {
+      const instance = this.getProviderInstance('acp')
+      return instance instanceof AcpProvider ? (instance as AcpProvider) : null
+    } catch (error) {
+      console.warn('[LLMProviderPresenter] ACP provider unavailable:', error)
+      return null
+    }
   }
 }

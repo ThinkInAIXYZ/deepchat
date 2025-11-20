@@ -22,6 +22,7 @@ import { AcpSessionManager } from '../agent/acpSessionManager'
 import type { AcpSessionRecord } from '../agent/acpSessionManager'
 import { AcpContentMapper } from '../agent/acpContentMapper'
 import { AcpMessageFormatter } from '../agent/acpMessageFormatter'
+import { AcpSessionPersistence } from '../agent/acpSessionPersistence'
 
 type EventQueue = {
   push: (event: LLMCoreStreamEvent | null) => void
@@ -37,15 +38,22 @@ export class AcpProvider extends BaseAgentProvider<
 > {
   private readonly processManager: AcpProcessManager
   private readonly sessionManager: AcpSessionManager
+  private readonly sessionPersistence: AcpSessionPersistence
   private readonly contentMapper = new AcpContentMapper()
   private readonly messageFormatter = new AcpMessageFormatter()
 
-  constructor(provider: LLM_PROVIDER, configPresenter: IConfigPresenter) {
+  constructor(
+    provider: LLM_PROVIDER,
+    configPresenter: IConfigPresenter,
+    sessionPersistence: AcpSessionPersistence
+  ) {
     super(provider, configPresenter)
+    this.sessionPersistence = sessionPersistence
     this.processManager = new AcpProcessManager({ providerId: provider.id })
     this.sessionManager = new AcpSessionManager({
       providerId: provider.id,
-      processManager: this.processManager
+      processManager: this.processManager,
+      sessionPersistence: this.sessionPersistence
     })
 
     void this.initWhenEnabled()
@@ -310,14 +318,20 @@ export class AcpProvider extends BaseAgentProvider<
           queue.done()
         } else {
           const conversationKey = modelConfig.conversationId ?? modelId
-          session = await this.sessionManager.getOrCreateSession(conversationKey, agent, {
-            onSessionUpdate: (notification) => {
-              console.log('[ACP] onSessionUpdate: notification:', JSON.stringify(notification))
-              const mapped = this.contentMapper.map(notification)
-              mapped.events.forEach((event) => queue.push(event))
+          const workdir = await this.sessionPersistence.getWorkdir(conversationKey, agent.id)
+          session = await this.sessionManager.getOrCreateSession(
+            conversationKey,
+            agent,
+            {
+              onSessionUpdate: (notification) => {
+                console.log('[ACP] onSessionUpdate: notification:', JSON.stringify(notification))
+                const mapped = this.contentMapper.map(notification)
+                mapped.events.forEach((event) => queue.push(event))
+              },
+              onPermission: (request) => this.handlePermissionRequest(queue, request)
             },
-            onPermission: (request) => this.handlePermissionRequest(queue, request)
-          })
+            workdir
+          )
 
           const promptBlocks = this.messageFormatter.format(messages, modelConfig)
           void this.runPrompt(session, promptBlocks, queue)
@@ -343,6 +357,30 @@ export class AcpProvider extends BaseAgentProvider<
         } catch (error) {
           console.warn('[ACP] cancel failed:', error)
         }
+      }
+    }
+  }
+
+  public async getAcpWorkdir(conversationId: string, agentId: string): Promise<string> {
+    return this.sessionPersistence.getWorkdir(conversationId, agentId)
+  }
+
+  public async updateAcpWorkdir(
+    conversationId: string,
+    agentId: string,
+    workdir: string | null
+  ): Promise<void> {
+    const trimmed = workdir?.trim() ? workdir : null
+    const existing = await this.sessionPersistence.getSessionData(conversationId, agentId)
+    const previous = existing?.workdir ?? null
+    await this.sessionPersistence.updateWorkdir(conversationId, agentId, trimmed)
+    const previousResolved = this.sessionPersistence.resolveWorkdir(previous)
+    const nextResolved = this.sessionPersistence.resolveWorkdir(trimmed)
+    if (previousResolved !== nextResolved) {
+      try {
+        await this.sessionManager.clearSession(conversationId)
+      } catch (error) {
+        console.warn('[ACP] Failed to clear session after workdir update:', error)
       }
     }
   }

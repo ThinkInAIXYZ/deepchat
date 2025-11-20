@@ -16,7 +16,12 @@
     "rateLimitWait": "等待 {seconds}s",
     "rateLimitQueueTooltip": "队列中有 {count} 个请求，间隔 {interval} 秒",
     "rateLimitReadyTooltip": "可以发送请求，间隔 {interval} 秒",
-    "rateLimitWaitingTooltip": "还需等待 {seconds} 秒，间隔 {interval} 秒"
+    "rateLimitWaitingTooltip": "还需等待 {seconds} 秒，间隔 {interval} 秒",
+    "acpWorkdir": "工作目录",
+    "acpWorkdirTooltip": "设置 ACP 工作目录",
+    "acpWorkdirSelect": "选择工作目录",
+    "acpWorkdirChange": "恢复默认工作目录",
+    "acpWorkdirCurrent": "当前工作目录：{path}"
   },
   "features": {
     "webSearch": "联网搜索",

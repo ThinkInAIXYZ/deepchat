@@ -16,7 +16,12 @@
     "rateLimitWait": "等待 {seconds}秒",
     "rateLimitQueueTooltip": "佇列中有 {count} 個請求，間隔 {interval} 秒",
     "rateLimitReadyTooltip": "可以發送請求，間隔 {interval} 秒",
-    "rateLimitWaitingTooltip": "還需等待 {seconds} 秒，間隔 {interval} 秒"
+    "rateLimitWaitingTooltip": "還需等待 {seconds} 秒，間隔 {interval} 秒",
+    "acpWorkdir": "工作目錄",
+    "acpWorkdirTooltip": "設定 ACP 工作目錄",
+    "acpWorkdirSelect": "選擇工作目錄",
+    "acpWorkdirChange": "還原預設工作目錄",
+    "acpWorkdirCurrent": "目前工作目錄：{path}"
   },
   "features": {
     "webSearch": "網絡搜索",
