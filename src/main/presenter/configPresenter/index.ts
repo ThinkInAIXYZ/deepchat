@@ -11,7 +11,11 @@ import {
   SystemPrompt,
   IModelConfig,
   BuiltinKnowledgeConfig,
-  AcpAgentConfig
+  AcpAgentConfig,
+  AcpAgentProfile,
+  AcpBuiltinAgent,
+  AcpBuiltinAgentId,
+  AcpCustomAgent
 } from '@shared/presenter'
 import { ProviderBatchUpdate } from '@shared/provider-operations'
 import { SearchEngineTemplate } from '@shared/chat'
@@ -36,7 +40,7 @@ import { ModelStatusHelper } from './modelStatusHelper'
 import { ProviderModelHelper, PROVIDER_MODELS_DIR } from './providerModelHelper'
 import { SystemPromptHelper, DEFAULT_SYSTEM_PROMPT } from './systemPromptHelper'
 import { UiSettingsHelper } from './uiSettingsHelper'
-import { nanoid } from 'nanoid'
+import { AcpConfHelper } from './acpConfHelper'
 
 // Define application settings interface
 interface IAppSettings {
@@ -82,14 +86,10 @@ export class ConfigPresenter implements IConfigPresenter {
   private store: ElectronStore<IAppSettings>
   private customPromptsStore: ElectronStore<{ prompts: Prompt[] }>
   private systemPromptsStore: ElectronStore<{ prompts: SystemPrompt[] }>
-  private acpStore: ElectronStore<{
-    agents: AcpAgentConfig[]
-    builtinsVersion?: string
-    enabled?: boolean
-  }>
   private userDataPath: string
   private currentAppVersion: string
   private mcpConfHelper: McpConfHelper // Use MCP configuration helper
+  private acpConfHelper: AcpConfHelper
   private modelConfigHelper: ModelConfigHelper // Model configuration helper
   private knowledgeConfHelper: KnowledgeConfHelper // Knowledge configuration helper
   private providerHelper: ProviderHelper
@@ -178,19 +178,8 @@ export class ConfigPresenter implements IConfigPresenter {
       setSetting: this.setSetting.bind(this)
     })
 
-    this.acpStore = new ElectronStore<{
-      agents: AcpAgentConfig[]
-      builtinsVersion?: string
-      enabled?: boolean
-    }>({
-      name: 'acp_agents',
-      defaults: {
-        agents: [],
-        enabled: false
-      }
-    })
-
-    this.syncAcpProviderEnabled(this.acpStore.get('enabled') ?? false)
+    this.acpConfHelper = new AcpConfHelper()
+    this.syncAcpProviderEnabled(this.acpConfHelper.getGlobalEnabled())
 
     // Initialize MCP configuration helper
     this.mcpConfHelper = new McpConfHelper()
@@ -210,8 +199,6 @@ export class ConfigPresenter implements IConfigPresenter {
     })
 
     // Initialize built-in ACP agents on first run or version upgrade
-    this.initBuiltinAcpAgents()
-
     // Initialize provider models directory
     this.initProviderModelsDir()
 
@@ -940,15 +927,14 @@ export class ConfigPresenter implements IConfigPresenter {
   }
 
   async getAcpEnabled(): Promise<boolean> {
-    return this.acpStore.get('enabled') ?? false
+    return this.acpConfHelper.getGlobalEnabled()
   }
 
   async setAcpEnabled(enabled: boolean): Promise<void> {
-    const current = this.acpStore.get('enabled') ?? false
-    if (current === enabled) return
+    const changed = this.acpConfHelper.setGlobalEnabled(enabled)
+    if (!changed) return
 
-    console.log(`[ACP] setAcpEnabled: ${current} -> ${enabled}`)
-    this.acpStore.set('enabled', enabled)
+    console.log('[ACP] setAcpEnabled: updating global toggle to', enabled)
     this.syncAcpProviderEnabled(enabled)
 
     if (!enabled) {
@@ -960,172 +946,125 @@ export class ConfigPresenter implements IConfigPresenter {
     this.notifyAcpAgentsChanged()
   }
 
-  // Initialize built-in ACP agents on first install or version upgrade
-  private initBuiltinAcpAgents(): void {
-    const builtins: AcpAgentConfig[] = [
-      {
-        id: 'kimi-cli',
-        name: 'Kimi CLI',
-        command: 'kimi',
-        args: ['--acp'],
-        env: {}
-      },
-      {
-        id: 'claude-code-acp',
-        name: 'Claude Code ACP',
-        command: 'claude-code-acp',
-        args: [],
-        env: {
-          ANTHROPIC_API_KEY: ''
-        }
-      },
-      {
-        id: 'codex-acp',
-        name: 'Codex CLI ACP',
-        command: 'codex-acp',
-        args: [],
-        env: {
-          OPENAI_API_KEY: ''
-        }
-      }
-    ]
-
-    const storedVersion = this.acpStore.get('builtinsVersion')
-    const existingAgents = this.acpStore.get('agents') || []
-
-    // Only run when first initialized or after an upgrade
-    if (storedVersion === this.currentAppVersion && existingAgents.length > 0) {
-      return
-    }
-
-    let changed = false
-    for (const builtin of builtins) {
-      if (!existingAgents.some((agent) => agent.id === builtin.id)) {
-        existingAgents.push(builtin)
-        changed = true
-      }
-    }
-
-    if (changed) {
-      this.acpStore.set('agents', existingAgents)
-      this.clearProviderModelStatusCache('acp')
-      this.notifyAcpAgentsChanged()
-    }
-
-    this.acpStore.set('builtinsVersion', this.currentAppVersion)
-  }
-
   // ===================== ACP configuration methods =====================
   async getAcpAgents(): Promise<AcpAgentConfig[]> {
-    return this.acpStore.get('agents') || []
+    return this.acpConfHelper.getEnabledAgents()
   }
 
   async setAcpAgents(agents: AcpAgentConfig[]): Promise<AcpAgentConfig[]> {
-    const sanitizedAgents = agents
-      .map((agent) => {
-        const cleanedEnv =
-          agent.env && Object.keys(agent.env).length > 0
-            ? Object.fromEntries(
-                Object.entries(agent.env).filter(
-                  ([key]) => key && typeof key === 'string' && key.trim().length > 0
-                )
-              )
-            : undefined
-
-        const trimmedName = agent.name?.trim()
-        const trimmedCommand = agent.command?.trim()
-        if (!trimmedName || !trimmedCommand) return null
-
-        return {
-          id: agent.id || nanoid(8),
-          name: trimmedName,
-          command: trimmedCommand,
-          args: agent.args?.filter((arg) => arg.trim().length > 0) ?? undefined,
-          env: cleanedEnv
-        } as AcpAgentConfig | null
-      })
-      .filter((agent): agent is AcpAgentConfig => Boolean(agent))
-
-    console.log(`[ACP] setAcpAgents: setting ${sanitizedAgents.length} agents`)
-    this.acpStore.set('agents', sanitizedAgents)
-    this.clearProviderModelStatusCache('acp')
-    this.notifyAcpAgentsChanged()
+    const sanitizedAgents = this.acpConfHelper.replaceWithLegacyAgents(agents)
+    this.handleAcpAgentsMutated()
     return sanitizedAgents
   }
 
   async addAcpAgent(agent: Omit<AcpAgentConfig, 'id'> & { id?: string }): Promise<AcpAgentConfig> {
-    const agents = this.acpStore.get('agents') || []
-    const cleanedEnv =
-      agent.env && Object.keys(agent.env).length > 0
-        ? Object.fromEntries(
-            Object.entries(agent.env).filter(
-              ([key]) => key && typeof key === 'string' && key.trim().length > 0
-            )
-          )
-        : undefined
-
-    const newAgent: AcpAgentConfig = {
-      id: agent.id || nanoid(8),
-      name: agent.name.trim(),
-      command: agent.command.trim(),
-      args: agent.args?.filter((arg) => arg.trim().length > 0),
-      env: cleanedEnv
-    }
-
-    console.log(`[ACP] addAcpAgent: adding agent "${newAgent.id}" (${newAgent.name})`)
-    this.acpStore.set('agents', [...agents, newAgent])
-    this.clearProviderModelStatusCache('acp')
-    this.notifyAcpAgentsChanged()
-    return newAgent
+    const created = this.acpConfHelper.addLegacyAgent(agent)
+    this.handleAcpAgentsMutated()
+    return created
   }
 
   async updateAcpAgent(
     agentId: string,
     updates: Partial<Omit<AcpAgentConfig, 'id'>>
   ): Promise<AcpAgentConfig | null> {
-    const agents = this.acpStore.get('agents') || []
-    const index = agents.findIndex((agent) => agent.id === agentId)
-    if (index === -1) {
-      return null
+    const updated = this.acpConfHelper.updateLegacyAgent(agentId, updates)
+    if (updated) {
+      this.handleAcpAgentsMutated()
     }
-
-    const cleanedEnv =
-      updates.env && Object.keys(updates.env).length > 0
-        ? Object.fromEntries(
-            Object.entries(updates.env).filter(
-              ([key]) => key && typeof key === 'string' && key.trim().length > 0
-            )
-          )
-        : updates.env
-
-    const updated: AcpAgentConfig = {
-      ...agents[index],
-      ...updates,
-      name: updates.name?.trim() ?? agents[index].name.trim(),
-      command: updates.command?.trim() ?? agents[index].command.trim(),
-      args: updates.args?.filter((arg) => arg.trim().length > 0) ?? agents[index].args,
-      env: cleanedEnv ?? agents[index].env
-    }
-
-    agents[index] = updated
-    this.acpStore.set('agents', agents)
-    this.clearProviderModelStatusCache('acp')
-    this.notifyAcpAgentsChanged()
     return updated
   }
 
   async removeAcpAgent(agentId: string): Promise<boolean> {
-    const agents = this.acpStore.get('agents') || []
-    const filtered = agents.filter((agent) => agent.id !== agentId)
-    if (filtered.length === agents.length) {
-      return false
+    const removed = this.acpConfHelper.removeLegacyAgent(agentId)
+    if (removed) {
+      this.handleAcpAgentsMutated()
     }
+    return removed
+  }
 
-    console.log(`[ACP] removeAcpAgent: removing agent "${agentId}"`)
-    this.acpStore.set('agents', filtered)
+  async getAcpBuiltinAgents(): Promise<AcpBuiltinAgent[]> {
+    return this.acpConfHelper.getBuiltins()
+  }
+
+  async getAcpCustomAgents(): Promise<AcpCustomAgent[]> {
+    return this.acpConfHelper.getCustoms()
+  }
+
+  async addAcpBuiltinProfile(
+    agentId: AcpBuiltinAgentId,
+    profile: Omit<AcpAgentProfile, 'id'>,
+    options?: { activate?: boolean }
+  ): Promise<AcpAgentProfile> {
+    const created = this.acpConfHelper.addBuiltinProfile(agentId, profile, options)
+    this.handleAcpAgentsMutated()
+    return created
+  }
+
+  async updateAcpBuiltinProfile(
+    agentId: AcpBuiltinAgentId,
+    profileId: string,
+    updates: Partial<Omit<AcpAgentProfile, 'id'>>
+  ): Promise<AcpAgentProfile | null> {
+    const updated = this.acpConfHelper.updateBuiltinProfile(agentId, profileId, updates)
+    if (updated) {
+      this.handleAcpAgentsMutated()
+    }
+    return updated
+  }
+
+  async removeAcpBuiltinProfile(agentId: AcpBuiltinAgentId, profileId: string): Promise<boolean> {
+    const removed = this.acpConfHelper.removeBuiltinProfile(agentId, profileId)
+    if (removed) {
+      this.handleAcpAgentsMutated()
+    }
+    return removed
+  }
+
+  async setAcpBuiltinActiveProfile(agentId: AcpBuiltinAgentId, profileId: string): Promise<void> {
+    this.acpConfHelper.setBuiltinActiveProfile(agentId, profileId)
+    this.handleAcpAgentsMutated()
+  }
+
+  async setAcpBuiltinEnabled(agentId: AcpBuiltinAgentId, enabled: boolean): Promise<void> {
+    this.acpConfHelper.setBuiltinEnabled(agentId, enabled)
+    this.handleAcpAgentsMutated()
+  }
+
+  async addCustomAcpAgent(
+    agent: Omit<AcpCustomAgent, 'id' | 'enabled'> & { id?: string; enabled?: boolean }
+  ): Promise<AcpCustomAgent> {
+    const created = this.acpConfHelper.addCustomAgent(agent)
+    this.handleAcpAgentsMutated()
+    return created
+  }
+
+  async updateCustomAcpAgent(
+    agentId: string,
+    updates: Partial<Omit<AcpCustomAgent, 'id'>>
+  ): Promise<AcpCustomAgent | null> {
+    const updated = this.acpConfHelper.updateCustomAgent(agentId, updates)
+    if (updated) {
+      this.handleAcpAgentsMutated()
+    }
+    return updated
+  }
+
+  async removeCustomAcpAgent(agentId: string): Promise<boolean> {
+    const removed = this.acpConfHelper.removeCustomAgent(agentId)
+    if (removed) {
+      this.handleAcpAgentsMutated()
+    }
+    return removed
+  }
+
+  async setCustomAcpAgentEnabled(agentId: string, enabled: boolean): Promise<void> {
+    this.acpConfHelper.setCustomAgentEnabled(agentId, enabled)
+    this.handleAcpAgentsMutated()
+  }
+
+  private handleAcpAgentsMutated() {
     this.clearProviderModelStatusCache('acp')
     this.notifyAcpAgentsChanged()
-    return true
   }
 
   private notifyAcpAgentsChanged() {

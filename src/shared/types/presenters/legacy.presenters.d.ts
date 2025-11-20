@@ -486,6 +486,30 @@ export interface IConfigPresenter {
     updates: Partial<Omit<AcpAgentConfig, 'id'>>
   ): Promise<AcpAgentConfig | null>
   removeAcpAgent(agentId: string): Promise<boolean>
+  getAcpBuiltinAgents(): Promise<AcpBuiltinAgent[]>
+  getAcpCustomAgents(): Promise<AcpCustomAgent[]>
+  addAcpBuiltinProfile(
+    agentId: AcpBuiltinAgentId,
+    profile: Omit<AcpAgentProfile, 'id'>,
+    options?: { activate?: boolean }
+  ): Promise<AcpAgentProfile>
+  updateAcpBuiltinProfile(
+    agentId: AcpBuiltinAgentId,
+    profileId: string,
+    updates: Partial<Omit<AcpAgentProfile, 'id'>>
+  ): Promise<AcpAgentProfile | null>
+  removeAcpBuiltinProfile(agentId: AcpBuiltinAgentId, profileId: string): Promise<boolean>
+  setAcpBuiltinActiveProfile(agentId: AcpBuiltinAgentId, profileId: string): Promise<void>
+  setAcpBuiltinEnabled(agentId: AcpBuiltinAgentId, enabled: boolean): Promise<void>
+  addCustomAcpAgent(
+    agent: Omit<AcpCustomAgent, 'id' | 'enabled'> & { id?: string; enabled?: boolean }
+  ): Promise<AcpCustomAgent>
+  updateCustomAcpAgent(
+    agentId: string,
+    updates: Partial<Omit<AcpCustomAgent, 'id'>>
+  ): Promise<AcpCustomAgent | null>
+  removeCustomAcpAgent(agentId: string): Promise<boolean>
+  setCustomAcpAgentEnabled(agentId: string, enabled: boolean): Promise<void>
   getMcpConfHelper(): any // Used to get MCP configuration helper
   getModelConfig(modelId: string, providerId?: string): ModelConfig
   setModelConfig(
@@ -626,6 +650,40 @@ export type LLM_PROVIDER_BASE = {
 export type LLM_EMBEDDING_ATTRS = {
   dimensions: number
   normalized: boolean
+}
+
+export type AcpBuiltinAgentId = 'kimi-cli' | 'claude-code-acp' | 'codex-acp'
+
+export interface AcpAgentProfile {
+  id: string
+  name: string
+  command: string
+  args?: string[]
+  env?: Record<string, string>
+}
+
+export interface AcpBuiltinAgent {
+  id: AcpBuiltinAgentId
+  name: string
+  enabled: boolean
+  activeProfileId: string | null
+  profiles: AcpAgentProfile[]
+}
+
+export interface AcpCustomAgent {
+  id: string
+  name: string
+  command: string
+  args?: string[]
+  env?: Record<string, string>
+  enabled: boolean
+}
+
+export interface AcpStoreData {
+  builtins: AcpBuiltinAgent[]
+  customs: AcpCustomAgent[]
+  enabled: boolean
+  version?: string
 }
 
 export interface AcpAgentConfig {

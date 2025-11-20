@@ -2,18 +2,16 @@
   <Dialog :open="open" @update:open="emit('update:open', $event)">
     <DialogContent class="sm:max-w-lg">
       <DialogHeader>
-        <DialogTitle>
-          {{ agent ? t('settings.acp.editAgent') : t('settings.acp.addAgent') }}
-        </DialogTitle>
+        <DialogTitle>{{ title }}</DialogTitle>
         <DialogDescription>
-          {{ t('settings.acp.formHint') }}
+          {{ resolvedDescription }}
         </DialogDescription>
       </DialogHeader>
 
       <div class="space-y-4">
         <div class="space-y-2">
-          <Label>{{ t('settings.acp.name') }}</Label>
-          <Input v-model="form.name" :placeholder="t('settings.acp.namePlaceholder')" />
+          <Label>{{ nameLabel }}</Label>
+          <Input v-model="form.name" :placeholder="namePlaceholder" />
         </div>
         <div class="space-y-2">
           <Label>{{ t('settings.acp.command') }}</Label>
@@ -59,7 +57,7 @@
           {{ t('common.cancel') }}
         </Button>
         <Button :disabled="saving" @click="handleSave">
-          {{ saving ? t('common.loading') : t('common.save') }}
+          {{ saving ? t('common.loading') : confirmText }}
         </Button>
       </DialogFooter>
     </DialogContent>
@@ -67,9 +65,9 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, watch } from 'vue'
+import { computed, reactive, watch } from 'vue'
 import { nanoid } from 'nanoid'
-import type { AcpAgentConfig } from '@shared/presenter'
+import type { AcpAgentProfile } from '@shared/presenter'
 import { useI18n } from 'vue-i18n'
 import { useToast } from '@/components/use-toast'
 import {
@@ -84,17 +82,25 @@ import { Input } from '@shadcn/components/ui/input'
 import { Label } from '@shadcn/components/ui/label'
 import { Button } from '@shadcn/components/ui/button'
 
+export type AcpProfilePayload = Omit<AcpAgentProfile, 'id'>
+
 type EnvRow = { id: string; key: string; value: string }
+
+type ProfileKind = 'builtin' | 'custom'
 
 const props = defineProps<{
   open: boolean
-  agent?: AcpAgentConfig | null
+  title: string
+  description?: string
+  kind: ProfileKind
+  profile?: AcpProfilePayload | null
   saving?: boolean
+  confirmLabel?: string
 }>()
 
 const emit = defineEmits<{
   (e: 'update:open', value: boolean): void
-  (e: 'save', payload: Omit<AcpAgentConfig, 'id'> & { id?: string }): void
+  (e: 'save', payload: AcpProfilePayload): void
 }>()
 
 const { t } = useI18n()
@@ -112,35 +118,59 @@ const form = reactive<{
   envRows: []
 })
 
+const defaultDescription = computed(() =>
+  props.kind === 'custom'
+    ? t('settings.acp.profileDialog.customHint')
+    : t('settings.acp.profileDialog.builtinHint')
+)
+
+const resolvedDescription = computed(() => props.description ?? defaultDescription.value)
+
+const nameLabel = computed(() =>
+  props.kind === 'custom'
+    ? t('settings.acp.profileDialog.agentName')
+    : t('settings.acp.profileDialog.profileName')
+)
+
+const namePlaceholder = computed(() =>
+  props.kind === 'custom'
+    ? t('settings.acp.profileDialog.agentNamePlaceholder')
+    : t('settings.acp.profileDialog.profileNamePlaceholder')
+)
+
+const confirmText = computed(() => props.confirmLabel ?? t('common.save'))
+
 const resetForm = () => {
   form.name = ''
   form.command = ''
   form.argsInput = ''
   form.envRows = []
+  addEnvRow()
 }
 
 const initForm = () => {
-  if (!props.agent) {
+  if (!props.profile) {
     resetForm()
-    addEnvRow()
     return
   }
 
-  form.name = props.agent.name
-  form.command = props.agent.command
-  form.argsInput = (props.agent.args ?? []).join(' ')
-  form.envRows =
-    props.agent.env && Object.keys(props.agent.env).length
-      ? Object.entries(props.agent.env).map(([key, value]) => ({
-          id: nanoid(6),
-          key,
-          value
-        }))
-      : [{ id: nanoid(6), key: '', value: '' }]
+  form.name = props.profile.name
+  form.command = props.profile.command
+  form.argsInput = props.profile.args?.join(' ') ?? ''
+  form.envRows = props.profile.env
+    ? Object.entries(props.profile.env).map(([key, value]) => ({
+        id: nanoid(6),
+        key,
+        value
+      }))
+    : []
+  if (!form.envRows.length) {
+    addEnvRow()
+  }
 }
 
 watch(
-  () => props.agent,
+  () => props.profile,
   () => {
     if (props.open) {
       initForm()
@@ -175,14 +205,14 @@ const parseArgs = (input: string): string[] => {
   return matches.map((arg) => arg.replace(/^"(.*)"$/, '$1')).filter((arg) => arg.trim().length > 0)
 }
 
-const buildEnv = (): Record<string, string> => {
+const buildEnv = (): Record<string, string> | undefined => {
   const env: Record<string, string> = {}
   form.envRows.forEach((row) => {
     if (row.key.trim()) {
       env[row.key.trim()] = row.value
     }
   })
-  return env
+  return Object.keys(env).length ? env : undefined
 }
 
 const handleSave = () => {
@@ -196,7 +226,6 @@ const handleSave = () => {
   }
 
   emit('save', {
-    id: props.agent?.id,
     name: form.name.trim(),
     command: form.command.trim(),
     args: parseArgs(form.argsInput),
