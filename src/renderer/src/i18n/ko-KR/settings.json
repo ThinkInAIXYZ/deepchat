@@ -825,56 +825,60 @@
     "addEnv": "변수 추가",
     "args": "매개변수",
     "argsPlaceholder": "선택 사항이며 공백으로 구분됩니다. 매개변수를 그룹화하려면 따옴표를 사용하세요.",
-    "builtin": {
-      "claudeCode": {
-        "description": "먼저 clude-code-acp를 설치하고 환경 변수 ANTHROPIC_API_KEY를 입력해야 합니다."
-      },
-      "codex": {
-        "description": "먼저 codex-acp를 설치하고 OPENAI_API_KEY 환경 변수를 제공해야 합니다."
-      },
-      "kimi": {
-        "description": "권장사항: 즉시 사용 가능: `kimi --acp`를 직접 실행하세요."
-      }
-    },
     "command": "주문하다",
     "commandPlaceholder": "실행 파일 또는 스크립트 경로",
-    "deleteConfirm": "\"{name}\" 에이전트를 삭제하시겠습니까?",
     "deleteSuccess": "에이전트가 삭제되었습니다.",
     "description": "DeepChat에서 시작된 로컬 에이전트 클라이언트 프로토콜 프록시를 관리합니다.",
-    "editAgent": "에이전트 편집",
-    "editAll": "모두 편집",
-    "editAllDescription": "모든 프록시 설정을 수정하려면 JSON 구성을 직접 편집하세요.",
-    "editAllInvalidJson": "잘못된 JSON 형식",
-    "editAllPlaceholder": "여기에 JSON 구성을 입력하세요...",
-    "editAllSaveFailed": "구성을 저장하지 못했습니다.",
-    "editAllSaveSuccess": "구성이 저장되었습니다.",
-    "editAllTitle": "ACP 에이전트 일괄 편집",
-    "empty": "ACP 프록시가 구성되지 않았습니다.",
     "enableToAccess": "프록시 구성에 액세스하려면 먼저 ACP를 활성화하세요.",
     "enabledDescription": "활성화되면 구성된 ACP 에이전트가 모델 선택기에서 모델로 나타납니다.",
     "enabledTitle": "ACP 활성화",
     "env": "환경 변수",
     "envKeyPlaceholder": "열쇠",
     "envValuePlaceholder": "값",
-    "formHint": "ACP 에이전트를 시작하려면 명령, 매개변수 및 환경 변수를 제공하십시오.",
     "missingFieldsDesc": "저장하기 전에 이름과 명령을 입력하세요.",
     "missingFieldsTitle": "이름과 명령이 필요합니다",
-    "name": "대리인 이름",
-    "namePlaceholder": "예: 클로드 코드 ACP",
-    "quickAdd": {
-      "add": "{이름} 추가",
-      "args": "매개변수",
-      "command": "주문하다",
-      "confirm": "'{name}' 사전 설정을 추가하시겠습니까?",
-      "description": "사전 설정을 사용하면 기존 구성을 덮어쓰지 않고 한 번의 클릭으로 일반적으로 사용되는 ACP 에이전트를 추가할 수 있습니다.",
-      "env": "환경 변수",
-      "exists": "\"{name}\"이(가) 이미 존재합니다.",
-      "recommended": "추천하다",
-      "title": "빠른 추가"
-    },
-    "addAgent": "프록시 추가",
     "saveFailed": "프록시를 저장하지 못했습니다.",
     "saveSuccess": "에이전트가 저장되었습니다.",
-    "title": "ACP 프록시"
+    "title": "ACP 프록시",
+    "activeProfile": "활성화 구성",
+    "addCustomAgent": "사용자 정의 에이전트 추가",
+    "addProfile": "신규 구성 추가",
+    "builtinHint": "다음 설정을 사용하여 {name}을(를) 시작합니다.",
+    "builtinSectionDescription": "각 내장 에이전트는 여러 개의 시작 구성을 저장할 수 있습니다. 활성화되어 있고 활성 구성된 에이전트만 모델 목록에 표시됩니다.",
+    "builtinSectionTitle": "내장 ACP 에이전트",
+    "customDeleteConfirm": "사용자 지정 에이전트 \"{name}\"를 삭제하시겠습니까?",
+    "customEmpty": "아직 사용자 정의 에이전트가 없습니다.",
+    "customSectionDescription": "모든 ACP 호환 명령줄을 재사용 가능한 에이전트로 패키징하세요.",
+    "customSectionTitle": "사용자 정의 에이전트",
+    "disabledBadge": "사용 안 함",
+    "loading": "ACP 데이터를 로드하는 중...",
+    "manageProfiles": "관리 구성",
+    "none": "없음",
+    "profileDialog": {
+      "addBuiltinTitle": "{name} 구성 추가",
+      "addCustomTitle": "사용자 정의 에이전트 추가",
+      "agentName": "에이전트 이름",
+      "agentNamePlaceholder": "예: My ACP Agent",
+      "customHint": "Agent를 시작하는 데 필요한 명령어, 매개변수 및 환경 변수를 입력하세요.",
+      "editBuiltinTitle": "{name} 구성 편집",
+      "editCustomTitle": "사용자 지정 에이전트 편집",
+      "profileName": "구성 이름",
+      "profileNamePlaceholder": "예: 워크스테이션",
+      "builtinHint": "다양한 상황에 맞춘 여러 세트의 프리셋을 준비하고 모델 선택기에서 빠르게 전환하세요."
+    },
+    "profileManager": {
+      "active": "현재 활성화됨",
+      "cannotDeleteDesc": "내장 에이전트는 최소한 한 세트의 구성이 필요합니다.",
+      "cannotDeleteTitle": "최소한 하나의 구성을 유지하세요",
+      "count": "{count} 개 구성",
+      "deleteConfirm": "구성 \"{name}\"을(를) 삭제하시겠습니까?",
+      "description": "저장된 부팅 구성을 전환, 편집 또는 삭제합니다.",
+      "empty": "구성이 없습니다.",
+      "noAgent": "관리할 에이전트를 선택하세요.",
+      "setActive": "활성화로 설정",
+      "title": "구성 목록"
+    },
+    "profilePlaceholder": "구성을 선택하세요",
+    "profileSwitched": "구성이 전환되었습니다"
   }
 }

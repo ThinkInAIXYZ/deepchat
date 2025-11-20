@@ -822,59 +822,63 @@
     "resetToDefaultFailed": "リセットに失敗しました。もう一度お試しください"
   },
   "acp": {
-    "addAgent": "プロキシを追加",
     "addEnv": "変数を追加",
     "args": "パラメータ",
     "argsPlaceholder": "オプション、スペースで区切る。引用符を使用してパラメータをグループ化します。",
-    "builtin": {
-      "claudeCode": {
-        "description": "まず、claude-code-acpをインストールし、環境変数ANTHROPIC_API_KEYを設定する必要があります。"
-      },
-      "codex": {
-        "description": "まずcodex-acpをインストールし、環境変数OPENAI_API_KEYを設定する必要があります。"
-      },
-      "kimi": {
-        "description": "おすすめ、すぐに使える：`kimi --acp` を直接実行してください。"
-      }
-    },
     "command": "コマンド",
     "commandPlaceholder": "実行可能ファイルまたはスクリプトのパス",
-    "deleteConfirm": "プロキシ「{name}」を削除しますか？",
     "deleteSuccess": "代理が削除されました",
     "description": "DeepChatによって起動されたローカルAgent Client Protocolプロキシを管理します。",
-    "editAgent": "編集エージェント",
-    "editAll": "すべて編集",
-    "editAllDescription": "JSON設定を直接編集し、すべてのプロキシ設定を変更します。",
-    "editAllInvalidJson": "無効なJSON形式",
-    "editAllPlaceholder": "JSON設定をここに入力...",
-    "editAllSaveFailed": "設定の保存に失敗しました",
-    "editAllSaveSuccess": "設定が保存されました",
-    "editAllTitle": "一括編集 ACP エージェント",
-    "empty": "ACPプロキシがまだ設定されていません。",
     "enableToAccess": "まずACPを有効にしてプロキシ設定にアクセスしてください",
     "enabledDescription": "有効にすると、設定されたACPプロキシがモデルセレクターにモデルとして表示されます。",
     "enabledTitle": "ACPを有効にする",
     "env": "環境変数",
     "envKeyPlaceholder": "キー",
     "envValuePlaceholder": "価値",
-    "formHint": "ACPエージェントを起動するためのコマンド、パラメータ、および環境変数を提供します。",
     "missingFieldsDesc": "保存する前に名前とコマンドを入力してください。",
     "missingFieldsTitle": "名称とコマンドは必須項目です。",
-    "name": "代理名",
-    "namePlaceholder": "例えば：Claude Code ACP",
-    "quickAdd": {
-      "add": "{name}を追加",
-      "args": "パラメータ",
-      "command": "コマンド",
-      "confirm": "プリセット「{name}」を追加しますか？",
-      "description": "プリセットを使用して一般的なACPプロキシをワンクリックで追加、既存の設定は上書きされません。",
-      "env": "環境変数",
-      "exists": "「{name}」は既に存在します",
-      "recommended": "おすすめ",
-      "title": "クイック追加"
-    },
     "saveFailed": "エージェントの保存に失敗しました",
     "saveSuccess": "プロキシが保存されました",
-    "title": "ACP プロキシ"
+    "title": "ACP プロキシ",
+    "activeProfile": "構成を有効化する",
+    "addCustomAgent": "カスタムエージェントを追加する",
+    "addProfile": "新しい設定を追加する",
+    "builtinHint": "以下の設定で {name} を起動します。",
+    "builtinSectionDescription": "各内蔵エージェントは複数の起動設定を保存できます。有効でかつアクティブな設定があるエージェントのみがモデルリストに表示されます。",
+    "builtinSectionTitle": "内蔵ACPエージェント",
+    "customDeleteConfirm": "カスタムエージェント「{name}」を削除しますか？",
+    "customEmpty": "まだカスタムエージェントがありません。",
+    "customSectionDescription": "任意のACP互換コマンドラインを再利用可能なエージェントとしてラップします。",
+    "customSectionTitle": "カスタムエージェント",
+    "disabledBadge": "未有効化",
+    "loading": "ACPデータを読み込み中...",
+    "manageProfiles": "管理設定",
+    "none": "なし",
+    "profileDialog": {
+      "addBuiltinTitle": "{name} 設定を追加しました",
+      "addCustomTitle": "カスタムエージェントを追加する",
+      "agentName": "エージェント名",
+      "agentNamePlaceholder": "例：My ACP Agent",
+      "builtinHint": "異なるシーンに合わせた複数のプリセットを用意し、モデルセレクターで素早く切り替えられます。",
+      "customHint": "Agentを起動するために必要なコマンド、パラメータ、および環境変数を入力してください。",
+      "editBuiltinTitle": "{name} の設定を編集する",
+      "editCustomTitle": "カスタムエージェントを編集する",
+      "profileName": "構成名",
+      "profileNamePlaceholder": "例：ワークステーション"
+    },
+    "profileManager": {
+      "active": "現在アクティブ",
+      "cannotDeleteDesc": "内蔵エージェントには少なくとも一つの設定が必要です。",
+      "cannotDeleteTitle": "少なくとも1つの設定を保持する",
+      "count": "{count} 個の設定",
+      "deleteConfirm": "設定「{name}」を削除しますか？",
+      "description": "保存された起動構成を切り替え、編集、または削除します。",
+      "noAgent": "管理するエージェントを選択してください。",
+      "title": "設定リスト",
+      "empty": "設定がありません。",
+      "setActive": "アクティブに設定する"
+    },
+    "profilePlaceholder": "設定を選択してください",
+    "profileSwitched": "設定が切り替えられました"
   }
 }

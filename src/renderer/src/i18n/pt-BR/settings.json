@@ -822,59 +822,63 @@
     "resetToDefaultFailed": "Falha ao redefinir, tente novamente"
   },
   "acp": {
-    "addAgent": "Adicionar proxy",
     "addEnv": "Adicionar variáveis",
     "args": "parâmetro",
     "argsPlaceholder": "Opcional, separado por espaços. Use aspas para agrupar parâmetros.",
-    "builtin": {
-      "claudeCode": {
-        "description": "Você precisa instalar claude-code-acp primeiro e preencher a variável de ambiente ANTHROPIC_API_KEY."
-      },
-      "codex": {
-        "description": "Você precisa instalar o codex-acp primeiro e fornecer a variável de ambiente OPENAI_API_KEY."
-      },
-      "kimi": {
-        "description": "Recomendado imediatamente: execute `kimi --acp` diretamente."
-      }
-    },
     "command": "Ordem",
     "commandPlaceholder": "Arquivo executável ou caminho de script",
-    "deleteConfirm": "Excluir agente \"{name}\"?",
     "deleteSuccess": "Agente excluído",
     "description": "Gerencie proxies locais do Agent Client Protocol lançados pelo DeepChat.",
-    "editAgent": "Editar agente",
-    "editAll": "Editar tudo",
-    "editAllDescription": "Edite a configuração JSON diretamente para modificar todas as configurações de proxy.",
-    "editAllInvalidJson": "Formato JSON inválido",
-    "editAllPlaceholder": "Insira a configuração JSON aqui...",
-    "editAllSaveFailed": "Falha ao salvar a configuração",
-    "editAllSaveSuccess": "Configuração salva",
-    "editAllTitle": "Edição em lote de agentes ACP",
-    "empty": "Nenhum proxy ACP foi configurado.",
     "enableToAccess": "Ative primeiro o ACP para acessar a configuração do proxy",
     "enabledDescription": "Quando habilitado, o agente ACP configurado aparecerá como modelo no seletor de modelo.",
     "enabledTitle": "Habilitar ACP",
     "env": "variáveis ​​de ambiente",
     "envKeyPlaceholder": "CHAVE",
     "envValuePlaceholder": "VALOR",
-    "formHint": "Forneça comandos, parâmetros e variáveis ​​de ambiente para iniciar seu agente ACP.",
     "missingFieldsDesc": "Preencha o nome e o comando antes de salvar.",
     "missingFieldsTitle": "Nome e comando são obrigatórios",
-    "name": "Nome do agente",
-    "namePlaceholder": "Por exemplo: Código Claude ACP",
-    "quickAdd": {
-      "add": "Adicionar {nome}",
-      "args": "parâmetro",
-      "command": "Ordem",
-      "confirm": "Adicionar predefinição '{name}'?",
-      "description": "Use predefinições para adicionar agentes ACP comumente usados ​​com um clique, sem substituir as configurações existentes.",
-      "env": "variáveis ​​de ambiente",
-      "exists": "\"{nome}\" já existe",
-      "recommended": "recomendar",
-      "title": "Adição rápida"
-    },
     "saveFailed": "Falha ao salvar proxy",
     "saveSuccess": "Agente salvo",
-    "title": "Proxy ACP"
+    "title": "Proxy ACP",
+    "activeProfile": "Ativar configuração",
+    "addCustomAgent": "Adicionar Agente Personalizado",
+    "addProfile": "Nova configuração",
+    "builtinHint": "Inicie {name} usando as seguintes configurações.",
+    "builtinSectionDescription": "Cada Agente embutido pode salvar várias configurações de inicialização. Apenas os Agentes ativados e com configurações ativas aparecerão na lista de modelos.",
+    "builtinSectionTitle": "Agente ACP embutido",
+    "customDeleteConfirm": "Excluir o Agente personalizado \"{name}\"?",
+    "customEmpty": "Ainda não há Agente personalizado.",
+    "customSectionDescription": "Empacote qualquer linha de comando compatível com ACP em um Agente reutilizável.",
+    "customSectionTitle": "Agente Personalizado",
+    "disabledBadge": "Não ativado",
+    "loading": "Carregando dados ACP...",
+    "manageProfiles": "Configuração de gerenciamento",
+    "profileDialog": {
+      "addBuiltinTitle": "Adicionar nova configuração {name}",
+      "addCustomTitle": "Adicionar Agente Personalizado",
+      "agentName": "Nome do Agente",
+      "agentNamePlaceholder": "Exemplo: Meu Agente ACP",
+      "builtinHint": "Prepare multiple sets of presets for different scenarios and switch quickly in the model selector.",
+      "customHint": "Preencha os comandos, parâmetros e variáveis de ambiente necessários para iniciar o Agent.",
+      "editBuiltinTitle": "Editar configuração {name}",
+      "editCustomTitle": "Editar Agente Personalizado",
+      "profileName": "Nome da configuração",
+      "profileNamePlaceholder": "Exemplo: estação de trabalho"
+    },
+    "none": "Nenhum",
+    "profileManager": {
+      "active": "Ativado atualmente",
+      "cannotDeleteDesc": "O agente embutido requer pelo menos uma configuração.",
+      "cannotDeleteTitle": "Pelo menos mantenha uma configuração.",
+      "count": "{count} configurações",
+      "deleteConfirm": "Excluir a configuração \"{name}\"?",
+      "description": "Alternar, editar ou excluir configurações de inicialização salvas.",
+      "empty": "Nenhuma configuração disponível.",
+      "noAgent": "Por favor, selecione o Agente que deseja gerenciar.",
+      "setActive": "Definir como ativo",
+      "title": "Lista de Configurações"
+    },
+    "profilePlaceholder": "Por favor, selecione a configuração",
+    "profileSwitched": "Configuração alterada"
   }
 }

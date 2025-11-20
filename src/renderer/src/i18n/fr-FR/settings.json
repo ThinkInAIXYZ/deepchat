@@ -822,59 +822,63 @@
     "resetToDefaultFailed": "Échec de la réinitialisation, veuillez réessayer"
   },
   "acp": {
-    "addAgent": "Ajouter un proxy",
     "addEnv": "Ajouter une variable",
     "args": "Paramètre",
     "argsPlaceholder": "Optionnel, séparez par des espaces. Utilisez des guillemets pour regrouper les paramètres.",
-    "builtin": {
-      "claudeCode": {
-        "description": "Il faut d'abord installer claude-code-acp et renseigner la variable d'environnement ANTHROPIC_API_KEY."
-      },
-      "codex": {
-        "description": "Il faut d'abord installer codex-acp et fournir la variable d'environnement OPENAI_API_KEY."
-      },
-      "kimi": {
-        "description": "Recommandé, prêt à l'emploi : exécutez directement `kimi --acp`."
-      }
-    },
     "command": "Commande",
     "commandPlaceholder": "Chemin du fichier exécutable ou du script",
-    "deleteConfirm": "Supprimer l'agent \"{name}\" ?",
     "deleteSuccess": "Agent supprimé",
     "description": "Gérer l'agent local du protocole client Agent lancé par DeepChat.",
-    "editAgent": "Agent d'édition",
-    "editAll": "Modifier tout",
-    "editAllDescription": "Modifier directement la configuration JSON pour changer tous les paramètres de proxy.",
-    "editAllInvalidJson": "Format JSON non valide",
-    "editAllPlaceholder": "Entrez la configuration JSON ici...",
-    "editAllSaveFailed": "Échec de la sauvegarde de la configuration",
-    "editAllSaveSuccess": "Configuration sauvegardée",
-    "editAllTitle": "Modification par lot de l'agent ACP",
-    "empty": "Aucun agent ACP n'est configuré.",
     "enableToAccess": "Veuillez d'abord activer l'ACP pour accéder à la configuration du proxy.",
     "enabledDescription": "Une fois activé, le proxy ACP configuré apparaîtra comme modèle dans le sélecteur de modèles.",
     "enabledTitle": "Activer ACP",
     "env": "Variable d'environnement",
     "envKeyPlaceholder": "CLÉ",
     "envValuePlaceholder": "VALEUR",
-    "formHint": "Fournissez la commande, les paramètres et les variables d'environnement pour démarrer votre agent ACP.",
     "missingFieldsDesc": "Veuillez remplir le nom et la commande avant de sauvegarder.",
     "missingFieldsTitle": "Le nom et la commande sont obligatoires.",
-    "name": "Nom de l'agent",
-    "namePlaceholder": "Par exemple : Code Claude ACP",
-    "quickAdd": {
-      "add": "Ajouter {name}",
-      "args": "Paramètre",
-      "command": "Commande",
-      "confirm": "Voulez-vous ajouter le préréglage « {name} » ?",
-      "description": "Utiliser les paramètres prédéfinis pour ajouter rapidement des proxys ACP courants, sans écraser les configurations existantes.",
-      "env": "Variable d'environnement",
-      "exists": "« {name} » existe déjà",
-      "recommended": "Recommandation",
-      "title": "Ajout rapide"
-    },
     "saveFailed": "Échec de la sauvegarde de l'agent",
     "saveSuccess": "Agent sauvegardé",
-    "title": "Agent mandataire ACP"
+    "title": "Agent mandataire ACP",
+    "activeProfile": "Activer la configuration",
+    "addCustomAgent": "Ajouter un agent personnalisé",
+    "addProfile": "Nouvelle configuration",
+    "builtinHint": "Démarrez {name} avec les paramètres suivants.",
+    "builtinSectionDescription": "Chaque agent intégré peut enregistrer plusieurs ensembles de configurations de démarrage. Seuls les agents activés et ayant une configuration active apparaîtront dans la liste des modèles.",
+    "builtinSectionTitle": "Agent ACP intégré",
+    "customDeleteConfirm": "Supprimer l'agent personnalisé \"{name}\" ?",
+    "customEmpty": "Il n’existe pas encore d’agent personnalisé.",
+    "customSectionDescription": "Encapsulez toute ligne de commande compatible ACP dans un agent réutilisable.",
+    "customSectionTitle": "Agent personnalisé",
+    "loading": "Chargement des données ACP...",
+    "none": "aucun",
+    "profileDialog": {
+      "addBuiltinTitle": "Ajouter la configuration {name}",
+      "addCustomTitle": "Ajouter un agent personnalisé",
+      "agentName": "Nom de l'agent",
+      "agentNamePlaceholder": "Tels que : Mon agent ACP",
+      "builtinHint": "Préparez plusieurs ensembles de préréglages pour différents scénarios et basculez rapidement entre eux dans le sélecteur de modèle.",
+      "customHint": "Remplissez les commandes, paramètres et variables d'environnement requis pour démarrer l'agent.",
+      "editBuiltinTitle": "Modifier la configuration de {name}",
+      "editCustomTitle": "Modifier un agent personnalisé",
+      "profileName": "Nom de la configuration",
+      "profileNamePlaceholder": "Tels que : poste de travail"
+    },
+    "profileManager": {
+      "active": "Actuellement actif",
+      "cannotDeleteDesc": "L'agent intégré nécessite au moins un ensemble de configurations.",
+      "cannotDeleteTitle": "Conserver au moins une configuration",
+      "count": "{count} configurations",
+      "deleteConfirm": "Supprimer la configuration \"{name}\" ?",
+      "description": "Changez, modifiez ou supprimez les configurations de lancement enregistrées.",
+      "empty": "Aucune configuration pour l'instant.",
+      "noAgent": "Veuillez sélectionner l'agent à gérer.",
+      "setActive": "Définir comme actif",
+      "title": "Liste de configuration"
+    },
+    "profilePlaceholder": "Veuillez sélectionner la configuration",
+    "profileSwitched": "Configuration commutée",
+    "disabledBadge": "Non activé",
+    "manageProfiles": "Gestion de la configuration"
   }
 }
