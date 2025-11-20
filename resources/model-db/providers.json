@@ -33839,8 +33839,8 @@
             ]
           },
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -33860,8 +33860,8 @@
             ]
           },
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -33881,8 +33881,8 @@
             ]
           },
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -33993,8 +33993,8 @@
           "name": "qwen/qwen3-reranker-0.6b",
           "display_name": "qwen/qwen3-reranker-0.6b",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -34006,8 +34006,8 @@
           "name": "qwen/qwen3-reranker-4b",
           "display_name": "qwen/qwen3-reranker-4b",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -34019,8 +34019,8 @@
           "name": "qwen/qwen3-reranker-8b",
           "display_name": "qwen/qwen3-reranker-8b",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -34163,8 +34163,8 @@
             ]
           },
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -34350,8 +34350,8 @@
             ]
           },
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -34581,6 +34581,36 @@
       "name": "Ollama",
       "display_name": "Ollama",
       "models": [
+        {
+          "id": "gemini-3-pro-preview:latest",
+          "name": "gemini-3-pro-preview",
+          "display_name": "gemini-3-pro-preview",
+          "modalities": {
+            "input": [
+              "image",
+              "text",
+              "audio",
+              "video"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 1048576,
+            "output": 65536
+          },
+          "temperature": false,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "open_weights": false,
+          "knowledge": "2025-10",
+          "release_date": "2025-11-19",
+          "last_updated": "2025-11-19"
+        },
         {
           "id": "gpt-oss:latest",
           "name": "GPT-OSS Latest",
@@ -42480,8 +42510,8 @@
             ]
           },
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -42506,8 +42536,8 @@
             ]
           },
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": true,
           "reasoning": {
@@ -42558,8 +42588,8 @@
             ]
           },
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": true,
           "reasoning": {
@@ -42921,8 +42951,8 @@
           "name": "sora-2-pro",
           "display_name": "sora-2-pro",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -42938,8 +42968,8 @@
           "name": "sora-2",
           "display_name": "sora-2",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -42984,8 +43014,8 @@
             ]
           },
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -43084,8 +43114,8 @@
             ]
           },
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -43107,8 +43137,8 @@
             ]
           },
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -43124,8 +43154,8 @@
           "name": "web-sora-2",
           "display_name": "web-sora-2",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -43141,8 +43171,8 @@
           "name": "web-sora-2-pro",
           "display_name": "web-sora-2-pro",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -43163,8 +43193,8 @@
             ]
           },
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -43186,8 +43216,8 @@
             ]
           },
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -43203,8 +43233,8 @@
           "name": "cc-glm-4.6",
           "display_name": "cc-glm-4.6",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -43225,8 +43255,8 @@
             ]
           },
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": true,
           "reasoning": {
@@ -43552,8 +43582,8 @@
             ]
           },
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -43570,8 +43600,8 @@
           "name": "veo3.1",
           "display_name": "veo3.1",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -43593,8 +43623,8 @@
             ]
           },
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -43617,8 +43647,8 @@
             ]
           },
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -43640,8 +43670,8 @@
             ]
           },
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -43663,8 +43693,8 @@
             ]
           },
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -43686,8 +43716,8 @@
             ]
           },
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -43709,8 +43739,8 @@
             ]
           },
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -43733,8 +43763,8 @@
             ]
           },
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -43757,8 +43787,8 @@
             ]
           },
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -43952,8 +43982,8 @@
             ]
           },
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -43977,8 +44007,8 @@
             ]
           },
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -44001,8 +44031,8 @@
             ]
           },
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -44147,8 +44177,8 @@
             ]
           },
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -44271,8 +44301,8 @@
             ]
           },
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": true,
           "reasoning": {
@@ -44298,8 +44328,8 @@
             ]
           },
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -44325,8 +44355,8 @@
             ]
           },
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": true,
           "reasoning": {
@@ -44350,8 +44380,8 @@
             ]
           },
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": true,
           "reasoning": {
@@ -44609,8 +44639,8 @@
             ]
           },
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": true,
           "reasoning": {
@@ -44634,8 +44664,8 @@
             ]
           },
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -44703,8 +44733,8 @@
             ]
           },
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -44728,8 +44758,8 @@
             ]
           },
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -44751,8 +44781,8 @@
             ]
           },
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -44768,8 +44798,8 @@
           "name": "irag-1.0",
           "display_name": "irag-1.0",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -44816,8 +44846,8 @@
             ]
           },
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -44908,8 +44938,8 @@
             ]
           },
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -44932,8 +44962,8 @@
             ]
           },
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -44956,8 +44986,8 @@
             ]
           },
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -45024,8 +45054,8 @@
             ]
           },
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -45047,8 +45077,8 @@
             ]
           },
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -45069,8 +45099,8 @@
             ]
           },
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -45091,8 +45121,8 @@
             ]
           },
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -45113,8 +45143,8 @@
             ]
           },
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -45130,8 +45160,8 @@
           "name": "tao-8k",
           "display_name": "tao-8k",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -45176,8 +45206,8 @@
             ]
           },
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -45199,8 +45229,8 @@
             ]
           },
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -45223,8 +45253,8 @@
             ]
           },
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -45246,8 +45276,8 @@
             ]
           },
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -45292,8 +45322,8 @@
             ]
           },
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": true,
           "reasoning": {
@@ -45316,8 +45346,8 @@
             ]
           },
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -45339,8 +45369,8 @@
             ]
           },
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -45361,8 +45391,8 @@
             ]
           },
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -45431,8 +45461,8 @@
             ]
           },
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -45551,8 +45581,8 @@
             ]
           },
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -45698,8 +45728,8 @@
           "name": "qwen3-30b-a3b-instruct-2507",
           "display_name": "qwen3-30b-a3b-instruct-2507",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -45715,8 +45745,8 @@
           "name": "qwen3-30b-a3b-thinking-2507",
           "display_name": "qwen3-30b-a3b-thinking-2507",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -45737,8 +45767,8 @@
             ]
           },
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -45777,8 +45807,8 @@
           "name": "qwen-3-235b-a22b-thinking-2507",
           "display_name": "qwen-3-235b-a22b-thinking-2507",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -45794,8 +45824,8 @@
           "name": "cc-kimi-for-coding",
           "display_name": "cc-kimi-for-coding",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -45812,8 +45842,8 @@
           "name": "coding-minimax-m2",
           "display_name": "coding-minimax-m2",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -45837,8 +45867,8 @@
             ]
           },
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -45906,8 +45936,8 @@
             ]
           },
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -45956,8 +45986,8 @@
             ]
           },
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -45980,8 +46010,8 @@
             ]
           },
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -45999,8 +46029,8 @@
           "name": "doubao-seed-1-6-250615",
           "display_name": "doubao-seed-1-6-250615",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -46017,8 +46047,8 @@
           "name": "doubao-seed-1-6-flash-250615",
           "display_name": "doubao-seed-1-6-flash-250615",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -46035,8 +46065,8 @@
           "name": "doubao-seed-1-6-thinking-250615",
           "display_name": "doubao-seed-1-6-thinking-250615",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -46053,8 +46083,8 @@
           "name": "doubao-seed-1-6-vision-250815",
           "display_name": "doubao-seed-1-6-vision-250815",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -46071,8 +46101,8 @@
           "name": "gemma-3-12b-it",
           "display_name": "gemma-3-12b-it",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -46089,8 +46119,8 @@
           "name": "gemma-3-1b-it",
           "display_name": "gemma-3-1b-it",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -46107,8 +46137,8 @@
           "name": "gemma-3-27b-it",
           "display_name": "gemma-3-27b-it",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -46125,8 +46155,8 @@
           "name": "gemma-3-4b-it",
           "display_name": "gemma-3-4b-it",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -46143,8 +46173,8 @@
           "name": "gemma-3n-e4b-it",
           "display_name": "gemma-3n-e4b-it",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -46167,8 +46197,8 @@
             ]
           },
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -46191,8 +46221,8 @@
             ]
           },
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -46214,8 +46244,8 @@
             ]
           },
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -46237,8 +46267,8 @@
             ]
           },
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -46262,8 +46292,8 @@
             ]
           },
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -46308,8 +46338,8 @@
             ]
           },
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -46327,8 +46357,8 @@
           "name": "o1-mini",
           "display_name": "o1-mini",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -46377,8 +46407,8 @@
             ]
           },
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -46425,8 +46455,8 @@
             ]
           },
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -46474,8 +46504,8 @@
             ]
           },
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -46491,8 +46521,8 @@
           "name": "ernie-x1.1-preview",
           "display_name": "ernie-x1.1-preview",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -46569,8 +46599,8 @@
           "name": "o1-global",
           "display_name": "o1-global",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -46587,8 +46617,8 @@
           "name": "qianfan-qi-vl",
           "display_name": "qianfan-qi-vl",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -46610,8 +46640,8 @@
             ]
           },
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -46633,8 +46663,8 @@
             ]
           },
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": true,
           "reasoning": {
@@ -46656,8 +46686,8 @@
             ]
           },
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": true,
           "reasoning": {
@@ -46721,8 +46751,8 @@
           "name": "codestral-latest",
           "display_name": "codestral-latest",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -46744,8 +46774,8 @@
             ]
           },
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": true,
           "reasoning": {
@@ -46767,8 +46797,8 @@
             ]
           },
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": true,
           "reasoning": {
@@ -46813,8 +46843,8 @@
             ]
           },
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": true,
           "reasoning": {
@@ -46830,8 +46860,8 @@
           "name": "unsloth/gemma-3-27b-it",
           "display_name": "unsloth/gemma-3-27b-it",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -46848,8 +46878,8 @@
           "name": "unsloth/gemma-3-12b-it",
           "display_name": "unsloth/gemma-3-12b-it",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -46866,8 +46896,8 @@
           "name": "gemini-exp-1206",
           "display_name": "gemini-exp-1206",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -46889,8 +46919,8 @@
             ]
           },
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -46906,8 +46936,8 @@
           "name": "qwen-qwq-32b",
           "display_name": "qwen-qwq-32b",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -46923,8 +46953,8 @@
           "name": "qwen-max-0125",
           "display_name": "qwen-max-0125",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -46963,8 +46993,8 @@
           "name": "gemini-2.0-flash-lite-preview-02-05",
           "display_name": "gemini-2.0-flash-lite-preview-02-05",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -46981,8 +47011,8 @@
           "name": "sonar-reasoning",
           "display_name": "sonar-reasoning",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -47003,8 +47033,8 @@
             ]
           },
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -47020,8 +47050,8 @@
           "name": "google/gemma-3-27b-it",
           "display_name": "google/gemma-3-27b-it",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -47038,8 +47068,8 @@
           "name": "kimi-thinking-preview",
           "display_name": "kimi-thinking-preview",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -47055,8 +47085,8 @@
           "name": "gpt-4o-2024-08-06",
           "display_name": "gpt-4o-2024-08-06",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -47073,8 +47103,8 @@
           "name": "qwen-plus-2025-07-28",
           "display_name": "qwen-plus-2025-07-28",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -47091,8 +47121,8 @@
           "name": "qwen-plus-latest",
           "display_name": "qwen-plus-latest",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -47109,8 +47139,8 @@
           "name": "stepfun-ai/step3",
           "display_name": "stepfun-ai/step3",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -47126,8 +47156,8 @@
           "name": "sonar",
           "display_name": "sonar",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -47148,8 +47178,8 @@
             ]
           },
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -47165,8 +47195,8 @@
           "name": "qwen-turbo-latest",
           "display_name": "qwen-turbo-latest",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -47183,8 +47213,8 @@
           "name": "qwen3-30b-a3b",
           "display_name": "qwen3-30b-a3b",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -47201,8 +47231,8 @@
           "name": "qwen3-32b",
           "display_name": "qwen3-32b",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -47219,8 +47249,8 @@
           "name": "grok-3",
           "display_name": "grok-3",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -47236,8 +47266,8 @@
           "name": "claude-3-opus-20240229",
           "display_name": "claude-3-opus-20240229",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -47259,8 +47289,8 @@
             ]
           },
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -47281,8 +47311,8 @@
             ]
           },
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -47298,8 +47328,8 @@
           "name": "grok-3-beta",
           "display_name": "grok-3-beta",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -47316,8 +47346,8 @@
           "name": "qwen3-14b",
           "display_name": "qwen3-14b",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -47334,8 +47364,8 @@
           "name": "grok-3-fast",
           "display_name": "grok-3-fast",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -47352,8 +47382,8 @@
           "name": "qwen3-8b",
           "display_name": "qwen3-8b",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -47370,8 +47400,8 @@
           "name": "qwen3-4b",
           "display_name": "qwen3-4b",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -47388,8 +47418,8 @@
           "name": "grok-3-fast-beta",
           "display_name": "grok-3-fast-beta",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -47406,8 +47436,8 @@
           "name": "grok-3-mini",
           "display_name": "grok-3-mini",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -47424,8 +47454,8 @@
           "name": "grok-3-mini-beta",
           "display_name": "grok-3-mini-beta",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -47442,8 +47472,8 @@
           "name": "qwen3-1.7b",
           "display_name": "qwen3-1.7b",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -47460,8 +47490,8 @@
           "name": "qwen3-0.6b",
           "display_name": "qwen3-0.6b",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -47478,8 +47508,8 @@
           "name": "grok-3-mini-fast-beta",
           "display_name": "grok-3-mini-fast-beta",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -47495,8 +47525,8 @@
           "name": "qwen-3-32b",
           "display_name": "qwen-3-32b",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -47512,8 +47542,8 @@
           "name": "qwen-turbo-2025-04-28",
           "display_name": "qwen-turbo-2025-04-28",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -47535,8 +47565,8 @@
             ]
           },
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -47553,8 +47583,8 @@
           "name": "qwen-plus-2025-04-28",
           "display_name": "qwen-plus-2025-04-28",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -47571,8 +47601,8 @@
           "name": "text-embedding-004",
           "display_name": "text-embedding-004",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -47588,8 +47618,8 @@
           "name": "cc-doubao-seed-code-preview-latest",
           "display_name": "cc-doubao-seed-code-preview-latest",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -47605,8 +47635,8 @@
           "name": "doubao-seed-code-preview-latest",
           "display_name": "doubao-seed-code-preview-latest",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -47622,8 +47652,8 @@
           "name": "glm-zero-preview",
           "display_name": "glm-zero-preview",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -47639,8 +47669,8 @@
           "name": "qwen-3-235b-a22b-instruct-2507",
           "display_name": "qwen-3-235b-a22b-instruct-2507",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -47656,8 +47686,8 @@
           "name": "gemini-2.0-flash-thinking-exp-1219",
           "display_name": "gemini-2.0-flash-thinking-exp-1219",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -47678,8 +47708,8 @@
             ]
           },
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -47717,8 +47747,8 @@
           "name": "gpt-4-32k",
           "display_name": "gpt-4-32k",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -47734,8 +47764,8 @@
           "name": "o1-preview-2024-09-12",
           "display_name": "o1-preview-2024-09-12",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -47752,8 +47782,8 @@
           "name": "llama-3.1-sonar-huge-128k-online",
           "display_name": "llama-3.1-sonar-huge-128k-online",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -47769,8 +47799,8 @@
           "name": "llama-3.1-sonar-large-128k-online",
           "display_name": "llama-3.1-sonar-large-128k-online",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -47786,8 +47816,8 @@
           "name": "grok-2-1212",
           "display_name": "grok-2-1212",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -47808,8 +47838,8 @@
             ]
           },
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -47825,8 +47855,8 @@
           "name": "gpt-image-test",
           "display_name": "gpt-image-test",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -47849,8 +47879,8 @@
             ]
           },
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -47867,8 +47897,8 @@
           "name": "llama3.1-8b",
           "display_name": "llama3.1-8b",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -47890,8 +47920,8 @@
             ]
           },
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -47909,8 +47939,8 @@
           "name": "sf-kimi-k2-thinking",
           "display_name": "sf-kimi-k2-thinking",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -47926,8 +47956,8 @@
           "name": "bai-qwen3-vl-235b-a22b-instruct",
           "display_name": "bai-qwen3-vl-235b-a22b-instruct",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -47943,8 +47973,8 @@
           "name": "cc-deepseek-v3",
           "display_name": "cc-deepseek-v3",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -47965,8 +47995,8 @@
             ]
           },
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": true,
           "reasoning": {
@@ -47988,8 +48018,8 @@
             ]
           },
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": true,
           "reasoning": {
@@ -48006,8 +48036,8 @@
           "name": "cc-kimi-dev-72b",
           "display_name": "cc-kimi-dev-72b",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -48024,8 +48054,8 @@
           "name": "cc-kimi-k2-thinking",
           "display_name": "cc-kimi-k2-thinking",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -48041,8 +48071,8 @@
           "name": "computer-use-preview",
           "display_name": "computer-use-preview",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -48058,8 +48088,8 @@
           "name": "gemini-2.0-flash-thinking-exp",
           "display_name": "gemini-2.0-flash-thinking-exp",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -48080,8 +48110,8 @@
             ]
           },
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -48102,8 +48132,8 @@
             ]
           },
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -48124,8 +48154,8 @@
             ]
           },
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -48141,8 +48171,8 @@
           "name": "chatglm_lite",
           "display_name": "chatglm_lite",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -48158,8 +48188,8 @@
           "name": "chatglm_pro",
           "display_name": "chatglm_pro",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -48175,8 +48205,8 @@
           "name": "chatglm_std",
           "display_name": "chatglm_std",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -48192,8 +48222,8 @@
           "name": "chatglm_turbo",
           "display_name": "chatglm_turbo",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -48209,8 +48239,8 @@
           "name": "claude-2",
           "display_name": "claude-2",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -48226,8 +48256,8 @@
           "name": "claude-2.0",
           "display_name": "claude-2.0",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -48243,8 +48273,8 @@
           "name": "claude-2.1",
           "display_name": "claude-2.1",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -48289,8 +48319,8 @@
             ]
           },
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -48312,8 +48342,8 @@
             ]
           },
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -48335,8 +48365,8 @@
             ]
           },
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -48352,8 +48382,8 @@
           "name": "claude-instant-1",
           "display_name": "claude-instant-1",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -48369,8 +48399,8 @@
           "name": "claude-instant-1.2",
           "display_name": "claude-instant-1.2",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -48386,8 +48416,8 @@
           "name": "code-davinci-edit-001",
           "display_name": "code-davinci-edit-001",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -48403,8 +48433,8 @@
           "name": "cogview-3",
           "display_name": "cogview-3",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -48420,8 +48450,8 @@
           "name": "cogview-3-plus",
           "display_name": "cogview-3-plus",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -48442,8 +48472,8 @@
             ]
           },
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -48459,8 +48489,8 @@
           "name": "command-light",
           "display_name": "command-light",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -48476,8 +48506,8 @@
           "name": "command-light-nightly",
           "display_name": "command-light-nightly",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -48493,8 +48523,8 @@
           "name": "command-nightly",
           "display_name": "command-nightly",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -48515,8 +48545,8 @@
             ]
           },
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -48537,8 +48567,8 @@
             ]
           },
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -48559,8 +48589,8 @@
             ]
           },
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -48581,8 +48611,8 @@
             ]
           },
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -48604,8 +48634,8 @@
             ]
           },
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -48621,8 +48651,8 @@
           "name": "davinci",
           "display_name": "davinci",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -48638,8 +48668,8 @@
           "name": "davinci-002",
           "display_name": "davinci-002",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -48655,8 +48685,8 @@
           "name": "deepseek-ai/deepseek-llm-67b-chat",
           "display_name": "deepseek-ai/deepseek-llm-67b-chat",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -48672,8 +48702,8 @@
           "name": "deepseek-ai/deepseek-vl2",
           "display_name": "deepseek-ai/deepseek-vl2",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -48689,8 +48719,8 @@
           "name": "deepseek-v3",
           "display_name": "deepseek-v3",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -48712,8 +48742,8 @@
             ]
           },
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -48729,8 +48759,8 @@
           "name": "doubao-1-5-thinking-vision-pro-250428",
           "display_name": "doubao-1-5-thinking-vision-pro-250428",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -48753,8 +48783,8 @@
             ]
           },
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -48776,8 +48806,8 @@
             ]
           },
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -48794,8 +48824,8 @@
           "name": "gemini-2.0-flash-001",
           "display_name": "gemini-2.0-flash-001",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -48812,8 +48842,8 @@
           "name": "gemini-2.0-flash-exp-image-generation",
           "display_name": "gemini-2.0-flash-exp-image-generation",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -48837,8 +48867,8 @@
             ]
           },
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -48855,8 +48885,8 @@
           "name": "gemini-2.0-flash-lite-001",
           "display_name": "gemini-2.0-flash-lite-001",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -48881,8 +48911,8 @@
             ]
           },
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": true,
           "reasoning": {
@@ -48904,8 +48934,8 @@
             ]
           },
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -48921,8 +48951,8 @@
           "name": "gemini-exp-1114",
           "display_name": "gemini-exp-1114",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -48938,8 +48968,8 @@
           "name": "gemini-exp-1121",
           "display_name": "gemini-exp-1121",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -48955,8 +48985,8 @@
           "name": "gemini-pro",
           "display_name": "gemini-pro",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -48972,8 +49002,8 @@
           "name": "gemini-pro-vision",
           "display_name": "gemini-pro-vision",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -48989,8 +49019,8 @@
           "name": "gemma-7b-it",
           "display_name": "gemma-7b-it",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -49006,8 +49036,8 @@
           "name": "gemma2-9b-it",
           "display_name": "gemma2-9b-it",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -49023,8 +49053,8 @@
           "name": "glm-3-turbo",
           "display_name": "glm-3-turbo",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -49040,8 +49070,8 @@
           "name": "glm-4",
           "display_name": "glm-4",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -49057,8 +49087,8 @@
           "name": "glm-4-flash",
           "display_name": "glm-4-flash",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -49074,8 +49104,8 @@
           "name": "glm-4-plus",
           "display_name": "glm-4-plus",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -49096,8 +49126,8 @@
             ]
           },
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -49114,8 +49144,8 @@
           "name": "glm-4v",
           "display_name": "glm-4v",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -49131,8 +49161,8 @@
           "name": "glm-4v-plus",
           "display_name": "glm-4v-plus",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -49148,8 +49178,8 @@
           "name": "google/gemini-exp-1114",
           "display_name": "google/gemini-exp-1114",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -49165,8 +49195,8 @@
           "name": "google/gemma-2-27b-it",
           "display_name": "google/gemma-2-27b-it",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -49182,8 +49212,8 @@
           "name": "google/gemma-2-9b-it:free",
           "display_name": "google/gemma-2-9b-it:free",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -49199,8 +49229,8 @@
           "name": "gpt-3.5-turbo",
           "display_name": "gpt-3.5-turbo",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -49216,8 +49246,8 @@
           "name": "gpt-3.5-turbo-0125",
           "display_name": "gpt-3.5-turbo-0125",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -49233,8 +49263,8 @@
           "name": "gpt-3.5-turbo-0301",
           "display_name": "gpt-3.5-turbo-0301",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -49250,8 +49280,8 @@
           "name": "gpt-3.5-turbo-0613",
           "display_name": "gpt-3.5-turbo-0613",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -49267,8 +49297,8 @@
           "name": "gpt-3.5-turbo-1106",
           "display_name": "gpt-3.5-turbo-1106",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -49284,8 +49314,8 @@
           "name": "gpt-3.5-turbo-16k",
           "display_name": "gpt-3.5-turbo-16k",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -49301,8 +49331,8 @@
           "name": "gpt-3.5-turbo-16k-0613",
           "display_name": "gpt-3.5-turbo-16k-0613",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -49318,8 +49348,8 @@
           "name": "gpt-3.5-turbo-instruct",
           "display_name": "gpt-3.5-turbo-instruct",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -49335,8 +49365,8 @@
           "name": "gpt-4",
           "display_name": "gpt-4",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -49352,8 +49382,8 @@
           "name": "gpt-4-0125-preview",
           "display_name": "gpt-4-0125-preview",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -49369,8 +49399,8 @@
           "name": "gpt-4-0314",
           "display_name": "gpt-4-0314",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -49386,8 +49416,8 @@
           "name": "gpt-4-0613",
           "display_name": "gpt-4-0613",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -49403,8 +49433,8 @@
           "name": "gpt-4-1106-preview",
           "display_name": "gpt-4-1106-preview",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -49420,8 +49450,8 @@
           "name": "gpt-4-32k-0314",
           "display_name": "gpt-4-32k-0314",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -49437,8 +49467,8 @@
           "name": "gpt-4-32k-0613",
           "display_name": "gpt-4-32k-0613",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -49454,8 +49484,8 @@
           "name": "gpt-4-turbo",
           "display_name": "gpt-4-turbo",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -49471,8 +49501,8 @@
           "name": "gpt-4-turbo-2024-04-09",
           "display_name": "gpt-4-turbo-2024-04-09",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -49488,8 +49518,8 @@
           "name": "gpt-4-turbo-preview",
           "display_name": "gpt-4-turbo-preview",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -49505,8 +49535,8 @@
           "name": "gpt-4-vision-preview",
           "display_name": "gpt-4-vision-preview",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -49546,8 +49576,8 @@
             ]
           },
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -49593,8 +49623,8 @@
             ]
           },
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -49616,8 +49646,8 @@
             ]
           },
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -49639,8 +49669,8 @@
             ]
           },
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -49662,8 +49692,8 @@
             ]
           },
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -49679,8 +49709,8 @@
           "name": "learnlm-1.5-pro-experimental",
           "display_name": "learnlm-1.5-pro-experimental",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -49696,8 +49726,8 @@
           "name": "llama-3.1-405b-instruct",
           "display_name": "llama-3.1-405b-instruct",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -49713,8 +49743,8 @@
           "name": "llama-3.1-405b-reasoning",
           "display_name": "llama-3.1-405b-reasoning",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -49730,8 +49760,8 @@
           "name": "llama-3.1-70b",
           "display_name": "llama-3.1-70b",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -49747,8 +49777,8 @@
           "name": "llama-3.1-70b-versatile",
           "display_name": "llama-3.1-70b-versatile",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -49764,8 +49794,8 @@
           "name": "llama-3.1-8b-instant",
           "display_name": "llama-3.1-8b-instant",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -49781,8 +49811,8 @@
           "name": "llama-3.1-sonar-small-128k-online",
           "display_name": "llama-3.1-sonar-small-128k-online",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -49798,8 +49828,8 @@
           "name": "llama-3.2-11b-vision-preview",
           "display_name": "llama-3.2-11b-vision-preview",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -49815,8 +49845,8 @@
           "name": "llama-3.2-1b-preview",
           "display_name": "llama-3.2-1b-preview",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -49832,8 +49862,8 @@
           "name": "llama-3.2-3b-preview",
           "display_name": "llama-3.2-3b-preview",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -49849,8 +49879,8 @@
           "name": "llama-3.2-90b-vision-preview",
           "display_name": "llama-3.2-90b-vision-preview",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -49866,8 +49896,8 @@
           "name": "llama2-70b-4096",
           "display_name": "llama2-70b-4096",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -49883,8 +49913,8 @@
           "name": "llama2-7b-2048",
           "display_name": "llama2-7b-2048",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -49900,8 +49930,8 @@
           "name": "llama3-70b-8192",
           "display_name": "llama3-70b-8192",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -49917,8 +49947,8 @@
           "name": "llama3-8b-8192",
           "display_name": "llama3-8b-8192",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -49934,8 +49964,8 @@
           "name": "llama3-groq-70b-8192-tool-use-preview",
           "display_name": "llama3-groq-70b-8192-tool-use-preview",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -49951,8 +49981,8 @@
           "name": "llama3-groq-8b-8192-tool-use-preview",
           "display_name": "llama3-groq-8b-8192-tool-use-preview",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -49968,8 +49998,8 @@
           "name": "meta-llama/llama-3.1-405b-instruct:free",
           "display_name": "meta-llama/llama-3.1-405b-instruct:free",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -49985,8 +50015,8 @@
           "name": "meta-llama/llama-3.1-70b-instruct:free",
           "display_name": "meta-llama/llama-3.1-70b-instruct:free",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -50002,8 +50032,8 @@
           "name": "meta-llama/llama-3.1-8b-instruct:free",
           "display_name": "meta-llama/llama-3.1-8b-instruct:free",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -50019,8 +50049,8 @@
           "name": "meta-llama/llama-3.2-11b-vision-instruct:free",
           "display_name": "meta-llama/llama-3.2-11b-vision-instruct:free",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -50036,8 +50066,8 @@
           "name": "meta-llama/llama-3.2-3b-instruct:free",
           "display_name": "meta-llama/llama-3.2-3b-instruct:free",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -50053,8 +50083,8 @@
           "name": "meta/llama-3.1-405b-instruct",
           "display_name": "meta/llama-3.1-405b-instruct",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -50070,8 +50100,8 @@
           "name": "mistralai/mistral-7b-instruct:free",
           "display_name": "mistralai/mistral-7b-instruct:free",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -50087,8 +50117,8 @@
           "name": "moonshot-v1-128k",
           "display_name": "moonshot-v1-128k",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -50104,8 +50134,8 @@
           "name": "moonshot-v1-128k-vision-preview",
           "display_name": "moonshot-v1-128k-vision-preview",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -50121,8 +50151,8 @@
           "name": "moonshot-v1-32k",
           "display_name": "moonshot-v1-32k",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -50138,8 +50168,8 @@
           "name": "moonshot-v1-32k-vision-preview",
           "display_name": "moonshot-v1-32k-vision-preview",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -50155,8 +50185,8 @@
           "name": "moonshot-v1-8k",
           "display_name": "moonshot-v1-8k",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -50172,8 +50202,8 @@
           "name": "moonshot-v1-8k-vision-preview",
           "display_name": "moonshot-v1-8k-vision-preview",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -50189,8 +50219,8 @@
           "name": "nvidia/llama-3.1-nemotron-70b-instruct",
           "display_name": "nvidia/llama-3.1-nemotron-70b-instruct",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -50206,8 +50236,8 @@
           "name": "o1-mini-2024-09-12",
           "display_name": "o1-mini-2024-09-12",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -50224,8 +50254,8 @@
           "name": "omni-moderation-latest",
           "display_name": "omni-moderation-latest",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -50241,8 +50271,8 @@
           "name": "qwen-flash",
           "display_name": "qwen-flash",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -50259,8 +50289,8 @@
           "name": "qwen-flash-2025-07-28",
           "display_name": "qwen-flash-2025-07-28",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -50277,8 +50307,8 @@
           "name": "qwen-long",
           "display_name": "qwen-long",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -50294,8 +50324,8 @@
           "name": "qwen-max",
           "display_name": "qwen-max",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -50311,8 +50341,8 @@
           "name": "qwen-max-longcontext",
           "display_name": "qwen-max-longcontext",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -50328,8 +50358,8 @@
           "name": "qwen-plus",
           "display_name": "qwen-plus",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -50350,8 +50380,8 @@
             ]
           },
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -50372,8 +50402,8 @@
             ]
           },
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -50389,8 +50419,8 @@
           "name": "qwen2.5-14b-instruct",
           "display_name": "qwen2.5-14b-instruct",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -50406,8 +50436,8 @@
           "name": "qwen2.5-32b-instruct",
           "display_name": "qwen2.5-32b-instruct",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -50423,8 +50453,8 @@
           "name": "qwen2.5-3b-instruct",
           "display_name": "qwen2.5-3b-instruct",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -50440,8 +50470,8 @@
           "name": "qwen2.5-72b-instruct",
           "display_name": "qwen2.5-72b-instruct",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -50457,8 +50487,8 @@
           "name": "qwen2.5-7b-instruct",
           "display_name": "qwen2.5-7b-instruct",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -50474,8 +50504,8 @@
           "name": "qwen2.5-coder-1.5b-instruct",
           "display_name": "qwen2.5-coder-1.5b-instruct",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -50491,8 +50521,8 @@
           "name": "qwen2.5-coder-7b-instruct",
           "display_name": "qwen2.5-coder-7b-instruct",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -50508,8 +50538,8 @@
           "name": "qwen2.5-math-1.5b-instruct",
           "display_name": "qwen2.5-math-1.5b-instruct",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -50525,8 +50555,8 @@
           "name": "qwen2.5-math-72b-instruct",
           "display_name": "qwen2.5-math-72b-instruct",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -50542,8 +50572,8 @@
           "name": "qwen2.5-math-7b-instruct",
           "display_name": "qwen2.5-math-7b-instruct",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -50559,8 +50589,8 @@
           "name": "text-moderation-stable",
           "display_name": "text-moderation-stable",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -50576,8 +50606,8 @@
           "name": "text-search-ada-doc-001",
           "display_name": "text-search-ada-doc-001",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -50593,8 +50623,8 @@
           "name": "text-moderation-latest",
           "display_name": "text-moderation-latest",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -50615,8 +50645,8 @@
             ]
           },
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -50637,8 +50667,8 @@
             ]
           },
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -50659,8 +50689,8 @@
             ]
           },
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -50681,8 +50711,8 @@
             ]
           },
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -50698,8 +50728,8 @@
           "name": "text-moderation-007",
           "display_name": "text-moderation-007",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -50720,8 +50750,8 @@
             ]
           },
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -50742,8 +50772,8 @@
             ]
           },
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -50767,8 +50797,8 @@
             ]
           },
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -50790,8 +50820,8 @@
             ]
           },
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -50812,8 +50842,8 @@
             ]
           },
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -50829,8 +50859,8 @@
           "name": "text-davinci-edit-001",
           "display_name": "text-davinci-edit-001",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -50854,8 +50884,8 @@
             ]
           },
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -50872,8 +50902,8 @@
           "name": "text-davinci-003",
           "display_name": "text-davinci-003",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -50889,8 +50919,8 @@
           "name": "text-davinci-002",
           "display_name": "text-davinci-002",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -50906,8 +50936,8 @@
           "name": "text-curie-001",
           "display_name": "text-curie-001",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -50923,8 +50953,8 @@
           "name": "text-babbage-001",
           "display_name": "text-babbage-001",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -50940,8 +50970,8 @@
           "name": "text-ada-001",
           "display_name": "text-ada-001",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -50957,8 +50987,8 @@
           "name": "step-2-16k",
           "display_name": "step-2-16k",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -50974,8 +51004,8 @@
           "name": "sonar-reasoning-pro",
           "display_name": "sonar-reasoning-pro",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -50996,8 +51026,8 @@
             ]
           },
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -51018,8 +51048,8 @@
             ]
           },
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -51040,8 +51070,8 @@
             ]
           },
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -51057,8 +51087,8 @@
           "name": "yi-large",
           "display_name": "yi-large",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -51074,8 +51104,8 @@
           "name": "yi-large-rag",
           "display_name": "yi-large-rag",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -51091,8 +51121,8 @@
           "name": "yi-large-turbo",
           "display_name": "yi-large-turbo",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -51108,8 +51138,8 @@
           "name": "yi-lightning",
           "display_name": "yi-lightning",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -51125,8 +51155,8 @@
           "name": "yi-medium",
           "display_name": "yi-medium",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -51142,8 +51172,8 @@
           "name": "yi-vl-plus",
           "display_name": "yi-vl-plus",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -51159,8 +51189,8 @@
           "name": "gpt-4o-2024-08-06-global",
           "display_name": "gpt-4o-2024-08-06-global",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -51177,8 +51207,8 @@
           "name": "gpt-4o-mini-global",
           "display_name": "gpt-4o-mini-global",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -51195,8 +51225,8 @@
           "name": "meta-llama-3-70b",
           "display_name": "meta-llama-3-70b",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -51212,8 +51242,8 @@
           "name": "meta-llama-3-8b",
           "display_name": "meta-llama-3-8b",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -51229,8 +51259,8 @@
           "name": "o3-global",
           "display_name": "o3-global",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -51247,8 +51277,8 @@
           "name": "o3-mini-global",
           "display_name": "o3-mini-global",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -51265,8 +51295,8 @@
           "name": "o3-pro-global",
           "display_name": "o3-pro-global",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -51282,8 +51312,8 @@
           "name": "qianfan-chinese-llama-2-13b",
           "display_name": "qianfan-chinese-llama-2-13b",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -51299,8 +51329,8 @@
           "name": "qianfan-llama-vl-8b",
           "display_name": "qianfan-llama-vl-8b",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -51316,8 +51346,8 @@
           "name": "aistudio_gemini-2.0-flash",
           "display_name": "aistudio_gemini-2.0-flash",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -51334,8 +51364,8 @@
           "name": "aistudio_gpt-4.1-mini",
           "display_name": "aistudio_gpt-4.1-mini",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -51352,8 +51382,8 @@
           "name": "deepseek-r1-distill-qianfan-llama-8b",
           "display_name": "deepseek-r1-distill-qianfan-llama-8b",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -51369,8 +51399,8 @@
           "name": "doubao-1-5-pro-256k-250115",
           "display_name": "doubao-1-5-pro-256k-250115",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -51386,8 +51416,8 @@
           "name": "doubao-1-5-pro-32k-250115",
           "display_name": "doubao-1-5-pro-32k-250115",
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -56933,8 +56963,8 @@
             ]
           },
           "limit": {
-            "context": 0,
-            "output": 0
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
