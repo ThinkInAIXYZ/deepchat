@@ -796,16 +796,16 @@
     "lastTab": "切换到最后一个标签页"
   },
   "acp": {
-    "title": "ACP 代理",
-    "description": "管理由 DeepChat 启动的本地 Agent Client Protocol 代理。",
+    "title": "ACP Agent",
+    "description": "管理由 DeepChat 启动的本地 ACP Agent。",
     "enabledTitle": "启用 ACP",
-    "enabledDescription": "启用后，配置好的 ACP 代理会出现在模型列表中。",
-    "enableToAccess": "启用 ACP 后才能配置代理。",
-    "addCustomAgent": "新增自定义代理",
-    "customEmpty": "还没有自定义代理。",
-    "customDeleteConfirm": "删除自定义代理“{name}”？",
-    "builtinSectionTitle": "内置代理",
-    "builtinSectionDescription": "每个内置代理都可以保存多套启动配置。只有启用且有激活配置的代理才会出现在模型列表。",
+    "enabledDescription": "启用后，配置好的 ACP Agent 会出现在模型列表中。",
+    "enableToAccess": "启用 ACP 后才能配置 Agent。",
+    "addCustomAgent": "新增自定义 Agent",
+    "customEmpty": "还没有自定义 Agent。",
+    "customDeleteConfirm": "删除自定义 Agent“{name}”？",
+    "builtinSectionTitle": "内置 ACP Agent",
+    "builtinSectionDescription": "每个内置 Agent 都可以保存多套启动配置。只有启用且有激活配置的 Agent 才会出现在模型列表。",
     "builtinHint": "使用以下设置启动 {name}。",
     "disabledBadge": "未启用",
     "manageProfiles": "管理配置",
@@ -813,8 +813,8 @@
     "activeProfile": "激活配置",
     "profilePlaceholder": "请选择配置",
     "profileSwitched": "已切换配置",
-    "customSectionTitle": "自定义代理",
-    "customSectionDescription": "把任何兼容 ACP 的命令行封装为可复用的模型项。",
+    "customSectionTitle": "自定义 Agent",
+    "customSectionDescription": "把任何兼容 ACP 的命令行封装成可复用的 Agent。",
     "loading": "正在加载 ACP 数据...",
     "none": "无",
     "saveSuccess": "已保存配置",
@@ -833,14 +833,14 @@
     "profileDialog": {
       "addBuiltinTitle": "新增 {name} 配置",
       "editBuiltinTitle": "编辑 {name} 配置",
-      "addCustomTitle": "新增自定义代理",
-      "editCustomTitle": "编辑自定义代理",
+      "addCustomTitle": "新增自定义 Agent",
+      "editCustomTitle": "编辑自定义 Agent",
       "builtinHint": "为不同场景准备多套预设，并在模型选择器中快速切换。",
-      "customHint": "填写启动代理所需的命令、参数和环境变量。",
+      "customHint": "填写启动 Agent 所需的命令、参数和环境变量。",
       "profileName": "配置名称",
       "profileNamePlaceholder": "如：工作站",
-      "agentName": "代理名称",
-      "agentNamePlaceholder": "如：我的本地 ACP"
+      "agentName": "Agent 名称",
+      "agentNamePlaceholder": "如：My ACP Agent"
     },
     "profileManager": {
       "title": "配置列表",
@@ -851,8 +851,8 @@
       "setActive": "设为激活",
       "deleteConfirm": "删除配置“{name}”？",
       "cannotDeleteTitle": "至少保留一个配置",
-      "cannotDeleteDesc": "内置代理至少需要一套配置。",
-      "noAgent": "请选择要管理的代理。"
+      "cannotDeleteDesc": "内置 Agent 至少需要一套配置。",
+      "noAgent": "请选择要管理的 Agent。"
     }
   },
   "rateLimit": {

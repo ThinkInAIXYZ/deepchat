@@ -199,6 +199,28 @@ export class AcpProvider extends BaseAgentProvider<
     }
   }
 
+  public async refreshAgents(agentIds?: string[]): Promise<void> {
+    const ids = agentIds?.length
+      ? Array.from(new Set(agentIds))
+      : (await this.configPresenter.getAcpAgents()).map((agent) => agent.id)
+
+    const tasks = ids.map(async (agentId) => {
+      try {
+        await this.sessionManager.clearSessionsByAgent(agentId)
+      } catch (error) {
+        console.warn(`[ACP] Failed to clear sessions for agent ${agentId}:`, error)
+      }
+
+      try {
+        await this.processManager.release(agentId)
+      } catch (error) {
+        console.warn(`[ACP] Failed to release process for agent ${agentId}:`, error)
+      }
+    })
+
+    await Promise.allSettled(tasks)
+  }
+
   public async check(): Promise<{ isOk: boolean; errorMsg: string | null }> {
     const enabled = await this.configPresenter.getAcpEnabled()
     if (!enabled) {

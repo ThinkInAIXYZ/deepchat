@@ -70,8 +70,9 @@
                   <Select
                     :model-value="agent.activeProfileId || undefined"
                     :disabled="!agent.enabled || isBuiltinPending(agent.id)"
-                    @update:model-value="(value) =>
-                      typeof value === 'string' && handleActiveProfileChange(agent, value)
+                    @update:model-value="
+                      (value) =>
+                        typeof value === 'string' && handleActiveProfileChange(agent, value)
                     "
                   >
                     <SelectTrigger class="w-full">
@@ -88,18 +89,18 @@
                     </SelectContent>
                   </Select>
                 </div>
-                <div class="text-xs text-muted-foreground space-y-1">
-                  <div>
+                <div class="text-xs text-muted-foreground space-y-1 overflow-hidden">
+                  <div class="flex items-start gap-1 overflow-hidden">
                     <span class="font-semibold">CMD:</span>
-                    <span>{{ getActiveProfile(agent)?.command ?? '—' }}</span>
+                    <span class="truncate" :title="getActiveProfile(agent)?.command || undefined">
+                      {{ getActiveProfile(agent)?.command ?? '—' }}
+                    </span>
                   </div>
-                  <div>
+                  <div class="flex items-start gap-1 overflow-hidden">
                     <span class="font-semibold">ARGS:</span>
-                    <span>{{ formatArgs(getActiveProfile(agent)?.args) }}</span>
-                  </div>
-                  <div>
-                    <span class="font-semibold">ENV:</span>
-                    <span>{{ formatEnv(getActiveProfile(agent)?.env) }}</span>
+                    <span class="truncate" :title="formatArgs(getActiveProfile(agent)?.args)">
+                      {{ formatArgs(getActiveProfile(agent)?.args) }}
+                    </span>
                   </div>
                 </div>
                 <div class="flex flex-wrap gap-2">
@@ -148,10 +149,15 @@
             <Card v-for="agent in customAgents" :key="agent.id">
               <CardHeader class="pb-2">
                 <div class="flex items-start justify-between gap-3">
-                  <div>
-                    <CardTitle class="text-base">{{ agent.name }}</CardTitle>
-                    <CardDescription class="text-xs break-words">
-                      {{ agent.command }} {{ formatArgs(agent.args) }}
+                  <div class="min-w-0">
+                    <CardTitle class="text-base truncate" :title="agent.name">
+                      {{ agent.name }}
+                    </CardTitle>
+                    <CardDescription
+                      class="text-xs text-muted-foreground truncate"
+                      :title="agent.command"
+                    >
+                      {{ agent.command }}
                     </CardDescription>
                   </div>
                   <Switch
@@ -161,10 +167,16 @@
                   />
                 </div>
               </CardHeader>
-              <CardContent class="text-xs space-y-1 text-muted-foreground">
-                <div>
-                  <span class="font-semibold">ENV:</span>
-                  <span>{{ formatEnv(agent.env) }}</span>
+              <CardContent class="text-xs space-y-1 text-muted-foreground overflow-hidden">
+                <div class="flex items-start gap-1 overflow-hidden">
+                  <span class="font-semibold">CMD:</span>
+                  <span class="truncate" :title="agent.command">{{ agent.command }}</span>
+                </div>
+                <div class="flex items-start gap-1 overflow-hidden">
+                  <span class="font-semibold">ARGS:</span>
+                  <span class="truncate" :title="formatArgs(agent.args)">
+                    {{ formatArgs(agent.args) }}
+                  </span>
                 </div>
                 <div class="flex gap-2 pt-2">
                   <Button size="sm" variant="ghost" @click="openCustomAgentDialog(agent)">
@@ -184,6 +196,16 @@
       </div>
     </div>
 
+    <AcpProfileManagerDialog
+      :open="profileManagerState.open"
+      :agent="profileManagerAgent"
+      @update:open="(value) => (profileManagerState.open = value)"
+      @add-profile="handleManagerAdd"
+      @edit-profile="handleManagerEdit"
+      @delete-profile="handleManagerDelete"
+      @set-active="handleManagerActivate"
+    />
+
     <AcpProfileDialog
       :open="profileDialogState.open"
       :title="profileDialogState.title"
@@ -194,16 +216,6 @@
       :confirm-label="profileDialogState.confirmLabel"
       @update:open="(value) => (profileDialogState.open = value)"
       @save="handleProfileSave"
-    />
-
-    <AcpProfileManagerDialog
-      :open="profileManagerState.open"
-      :agent="profileManagerAgent"
-      @update:open="(value) => (profileManagerState.open = value)"
-      @add-profile="handleManagerAdd"
-      @edit-profile="handleManagerEdit"
-      @delete-profile="handleManagerDelete"
-      @set-active="handleManagerActivate"
     />
   </div>
 </template>
@@ -309,15 +321,17 @@ type ProfilePayload = Omit<AcpAgentProfile, 'id'>
 
 const getActiveProfile = (agent: AcpBuiltinAgent) => activeProfileMap.value[agent.id]
 
-const formatArgs = (args?: string[] | null) =>
-  args && args.length ? args.join(' ') : t('settings.acp.none')
-const formatEnv = (env?: Record<string, string> | null) => {
-  if (!env || !Object.keys(env).length) {
+const formatArgs = (args?: string[] | null) => {
+  if (!args || !args.length) {
     return t('settings.acp.none')
   }
-  return Object.entries(env)
-    .map(([key, value]) => `${key}=${value ?? ''}`)
-    .join(', ')
+  const filtered = args
+    .map((arg) => arg?.trim())
+    .filter((arg): arg is string => Boolean(arg && arg.length))
+  if (!filtered.length) {
+    return t('settings.acp.none')
+  }
+  return filtered.join(' ')
 }
 
 const handleError = (error: unknown, descriptionKey?: string) => {

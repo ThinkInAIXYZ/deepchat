@@ -41,6 +41,7 @@ import { ProviderModelHelper, PROVIDER_MODELS_DIR } from './providerModelHelper'
 import { SystemPromptHelper, DEFAULT_SYSTEM_PROMPT } from './systemPromptHelper'
 import { UiSettingsHelper } from './uiSettingsHelper'
 import { AcpConfHelper } from './acpConfHelper'
+import { AcpProvider } from '../llmProviderPresenter/providers/acpProvider'
 
 // Define application settings interface
 interface IAppSettings {
@@ -953,13 +954,13 @@ export class ConfigPresenter implements IConfigPresenter {
 
   async setAcpAgents(agents: AcpAgentConfig[]): Promise<AcpAgentConfig[]> {
     const sanitizedAgents = this.acpConfHelper.replaceWithLegacyAgents(agents)
-    this.handleAcpAgentsMutated()
+    this.handleAcpAgentsMutated(sanitizedAgents.map((agent) => agent.id))
     return sanitizedAgents
   }
 
   async addAcpAgent(agent: Omit<AcpAgentConfig, 'id'> & { id?: string }): Promise<AcpAgentConfig> {
     const created = this.acpConfHelper.addLegacyAgent(agent)
-    this.handleAcpAgentsMutated()
+    this.handleAcpAgentsMutated([created.id])
     return created
   }
 
@@ -969,7 +970,7 @@ export class ConfigPresenter implements IConfigPresenter {
   ): Promise<AcpAgentConfig | null> {
     const updated = this.acpConfHelper.updateLegacyAgent(agentId, updates)
     if (updated) {
-      this.handleAcpAgentsMutated()
+      this.handleAcpAgentsMutated([agentId])
     }
     return updated
   }
@@ -977,7 +978,7 @@ export class ConfigPresenter implements IConfigPresenter {
   async removeAcpAgent(agentId: string): Promise<boolean> {
     const removed = this.acpConfHelper.removeLegacyAgent(agentId)
     if (removed) {
-      this.handleAcpAgentsMutated()
+      this.handleAcpAgentsMutated([agentId])
     }
     return removed
   }
@@ -996,7 +997,7 @@ export class ConfigPresenter implements IConfigPresenter {
     options?: { activate?: boolean }
   ): Promise<AcpAgentProfile> {
     const created = this.acpConfHelper.addBuiltinProfile(agentId, profile, options)
-    this.handleAcpAgentsMutated()
+    this.handleAcpAgentsMutated([agentId])
     return created
   }
 
@@ -1007,7 +1008,7 @@ export class ConfigPresenter implements IConfigPresenter {
   ): Promise<AcpAgentProfile | null> {
     const updated = this.acpConfHelper.updateBuiltinProfile(agentId, profileId, updates)
     if (updated) {
-      this.handleAcpAgentsMutated()
+      this.handleAcpAgentsMutated([agentId])
     }
     return updated
   }
@@ -1015,26 +1016,26 @@ export class ConfigPresenter implements IConfigPresenter {
   async removeAcpBuiltinProfile(agentId: AcpBuiltinAgentId, profileId: string): Promise<boolean> {
     const removed = this.acpConfHelper.removeBuiltinProfile(agentId, profileId)
     if (removed) {
-      this.handleAcpAgentsMutated()
+      this.handleAcpAgentsMutated([agentId])
     }
     return removed
   }
 
   async setAcpBuiltinActiveProfile(agentId: AcpBuiltinAgentId, profileId: string): Promise<void> {
     this.acpConfHelper.setBuiltinActiveProfile(agentId, profileId)
-    this.handleAcpAgentsMutated()
+    this.handleAcpAgentsMutated([agentId])
   }
 
   async setAcpBuiltinEnabled(agentId: AcpBuiltinAgentId, enabled: boolean): Promise<void> {
     this.acpConfHelper.setBuiltinEnabled(agentId, enabled)
-    this.handleAcpAgentsMutated()
+    this.handleAcpAgentsMutated([agentId])
   }
 
   async addCustomAcpAgent(
     agent: Omit<AcpCustomAgent, 'id' | 'enabled'> & { id?: string; enabled?: boolean }
   ): Promise<AcpCustomAgent> {
     const created = this.acpConfHelper.addCustomAgent(agent)
-    this.handleAcpAgentsMutated()
+    this.handleAcpAgentsMutated([created.id])
     return created
   }
 
@@ -1044,7 +1045,7 @@ export class ConfigPresenter implements IConfigPresenter {
   ): Promise<AcpCustomAgent | null> {
     const updated = this.acpConfHelper.updateCustomAgent(agentId, updates)
     if (updated) {
-      this.handleAcpAgentsMutated()
+      this.handleAcpAgentsMutated([agentId])
     }
     return updated
   }
@@ -1052,19 +1053,38 @@ export class ConfigPresenter implements IConfigPresenter {
   async removeCustomAcpAgent(agentId: string): Promise<boolean> {
     const removed = this.acpConfHelper.removeCustomAgent(agentId)
     if (removed) {
-      this.handleAcpAgentsMutated()
+      this.handleAcpAgentsMutated([agentId])
     }
     return removed
   }
 
   async setCustomAcpAgentEnabled(agentId: string, enabled: boolean): Promise<void> {
     this.acpConfHelper.setCustomAgentEnabled(agentId, enabled)
-    this.handleAcpAgentsMutated()
+    this.handleAcpAgentsMutated([agentId])
   }
 
-  private handleAcpAgentsMutated() {
+  private handleAcpAgentsMutated(agentIds?: string[]) {
     this.clearProviderModelStatusCache('acp')
     this.notifyAcpAgentsChanged()
+    this.refreshAcpProviderAgents(agentIds)
+  }
+
+  private refreshAcpProviderAgents(agentIds?: string[]): void {
+    try {
+      const providerInstance = presenter?.llmproviderPresenter?.getProviderInstance('acp')
+      if (!providerInstance) {
+        return
+      }
+
+      const acpProvider = providerInstance as AcpProvider
+      if (typeof acpProvider.refreshAgents !== 'function') {
+        return
+      }
+
+      void acpProvider.refreshAgents(agentIds)
+    } catch (error) {
+      console.warn('[ACP] Failed to refresh agent processes after config change:', error)
+    }
   }
 
   private notifyAcpAgentsChanged() {
