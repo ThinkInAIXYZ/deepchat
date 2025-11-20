@@ -254,7 +254,32 @@ export class ThreadPresenter implements IThreadPresenter {
     tabId: number,
     options: CreateConversationOptions = {}
   ): Promise<string> {
-    return this.conversationManager.createConversation(title, settings, tabId, options)
+    const conversationId = await this.conversationManager.createConversation(
+      title,
+      settings,
+      tabId,
+      options
+    )
+
+    if (settings?.acpWorkdirMap) {
+      const tasks = Object.entries(settings.acpWorkdirMap)
+        .filter(([, path]) => typeof path === 'string' && path.trim().length > 0)
+        .map(([agentId, path]) =>
+          this.llmProviderPresenter
+            .setAcpWorkdir(conversationId, agentId, path as string)
+            .catch((error) =>
+              console.warn('[ThreadPresenter] Failed to set ACP workdir during creation', {
+                conversationId,
+                agentId,
+                error
+              })
+            )
+        )
+
+      await Promise.all(tasks)
+    }
+
+    return conversationId
   }
 
   async renameConversation(conversationId: string, title: string): Promise<CONVERSATION> {

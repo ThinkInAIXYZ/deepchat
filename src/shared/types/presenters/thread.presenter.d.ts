@@ -27,6 +27,7 @@ export type CONVERSATION_SETTINGS = {
   searchStrategy?: 'turbo' | 'max'
   reasoningEffort?: 'minimal' | 'low' | 'medium' | 'high'
   verbosity?: 'low' | 'medium' | 'high'
+  acpWorkdirMap?: Record<string, string | null>
 }
 
 export type CONVERSATION = {

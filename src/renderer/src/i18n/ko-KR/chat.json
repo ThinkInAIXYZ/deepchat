@@ -69,5 +69,16 @@
     "userMessage": "사용자 메시지",
     "assistantMessage": "어시스턴트 답변",
     "unknownMessage": "알 수 없는 메시지"
+  },
+  "toolCall": {
+    "title": "도구 호출",
+    "calling": "도구 호출 중",
+    "response": "도구 응답",
+    "end": "도구 호출 완료",
+    "error": "도구 호출 오류",
+    "clickToView": "자세히 보려면 클릭하세요",
+    "functionName": "함수 이름",
+    "params": "매개변수",
+    "responseData": "응답 데이터"
   }
 }

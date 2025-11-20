@@ -69,5 +69,16 @@
     "userMessage": "使用者訊息",
     "assistantMessage": "助手回覆",
     "unknownMessage": "未知訊息"
+  },
+  "toolCall": {
+    "title": "工具呼叫",
+    "calling": "工具呼叫中",
+    "response": "工具回應",
+    "end": "工具呼叫完成",
+    "error": "工具呼叫錯誤",
+    "clickToView": "點擊查看詳情",
+    "functionName": "函式名稱",
+    "params": "參數",
+    "responseData": "回應資料"
   }
 }

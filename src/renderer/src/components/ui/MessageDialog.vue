@@ -1,24 +1,33 @@
 <template>
   <AlertDialog :open="showDialog">
-    <AlertDialogContent>
+    <AlertDialogContent class="w-[calc(100vw-2rem)] max-w-lg sm:max-w-md">
       <AlertDialogHeader>
         <AlertDialogTitle>
           <div class="flex items-center space-x-2">
             <template v-if="dialogRequest?.icon">
               <Icon v-bind="getIconProps(dialogRequest?.icon)" class="h-6 w-6" />
             </template>
-            <span>{{ dialogRequest?.i18n ? t(dialogRequest?.title) : dialogRequest?.title }}</span>
+            <span class="break-words text-base font-semibold">
+              {{ dialogRequest?.i18n ? t(dialogRequest?.title) : dialogRequest?.title }}
+            </span>
           </div>
         </AlertDialogTitle>
-        <AlertDialogDescription v-if="dialogRequest?.description">
-          <div class="space-y-2">
+        <AlertDialogDescription
+          v-if="dialogRequest?.description"
+          class="text-sm text-muted-foreground break-words"
+        >
+          <div class="space-y-2 whitespace-pre-line">
             {{ dialogRequest.i18n ? t(dialogRequest.description) : dialogRequest.description }}
           </div>
         </AlertDialogDescription>
       </AlertDialogHeader>
-      <AlertDialogFooter>
+      <AlertDialogFooter class="flex flex-wrap gap-2 sm:justify-end">
         <template v-for="(button) in dialogRequest?.buttons" :key="button.key">
-          <AlertDialogAction v-if="button.default" @click="handleClick(button.key)">
+          <AlertDialogAction
+            v-if="button.default"
+            class="flex-1 sm:flex-none"
+            @click="handleClick(button.key)"
+          >
             {{ dialogRequest?.i18n ? t(button.label) : button.label }}
             <span
               v-if="timeoutSeconds && button.default"
@@ -27,7 +36,11 @@
               [{{ timeoutSeconds }}]
             </span>
           </AlertDialogAction>
-          <AlertDialogCancel v-else @click="handleClick(button.key)">
+          <AlertDialogCancel
+            v-else
+            class="flex-1 sm:flex-none"
+            @click="handleClick(button.key)"
+          >
             {{ dialogRequest?.i18n ? t(button.label) : button.label }}
           </AlertDialogCancel>
         </template>

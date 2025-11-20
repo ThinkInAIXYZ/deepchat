@@ -69,5 +69,16 @@
     "userMessage": "User message",
     "assistantMessage": "Assistant reply",
     "unknownMessage": "Unknown message"
+  },
+  "toolCall": {
+    "title": "Tool Call",
+    "calling": "Tool call in progress",
+    "response": "Tool response",
+    "end": "Tool call finished",
+    "error": "Tool call error",
+    "clickToView": "Click to view details",
+    "functionName": "Function",
+    "params": "Parameters",
+    "responseData": "Response data"
   }
 }

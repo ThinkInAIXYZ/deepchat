@@ -67,7 +67,8 @@ export const useChatStore = defineStore('chat', () => {
     searchStrategy: undefined,
     reasoningEffort: undefined,
     verbosity: undefined,
-    selectedVariantsMap: {}
+    selectedVariantsMap: {},
+    acpWorkdirMap: {}
   })
 
   // Deeplink 消息缓存
@@ -163,7 +164,24 @@ export const useChatStore = defineStore('chat', () => {
 
   const createThread = async (title: string, settings: Partial<CONVERSATION_SETTINGS>) => {
     try {
-      const threadId = await threadP.createConversation(title, settings, getTabId())
+      const normalizedSettings: Partial<CONVERSATION_SETTINGS> = { ...settings }
+      const shouldAttachAcpWorkdir =
+        (!normalizedSettings.acpWorkdirMap ||
+          Object.keys(normalizedSettings.acpWorkdirMap).length === 0) &&
+        normalizedSettings.providerId === 'acp' &&
+        typeof normalizedSettings.modelId === 'string'
+
+      if (shouldAttachAcpWorkdir && normalizedSettings.modelId) {
+        const currentMap = chatConfig.value.acpWorkdirMap || {}
+        const pendingWorkdir = currentMap[normalizedSettings.modelId]
+        if (pendingWorkdir) {
+          normalizedSettings.acpWorkdirMap = {
+            [normalizedSettings.modelId]: pendingWorkdir
+          }
+        }
+      }
+
+      const threadId = await threadP.createConversation(title, normalizedSettings, getTabId())
       // 因为 createConversation 内部已经调用了 setActiveConversation
       // 并且可以确定是为当前tab激活，所以在这里可以直接、安全地更新本地状态
       // 以确保后续的 sendMessage 能正确获取 activeThreadId。
@@ -189,6 +207,18 @@ export const useChatStore = defineStore('chat', () => {
     await threadP.clearActiveThread(tabId)
     setActiveThreadId(null)
     selectedVariantsMap.value.clear()
+  }
+
+  const setAcpWorkdirPreference = (agentId: string, workdir: string | null) => {
+    if (!agentId) return
+    const currentMap = chatConfig.value.acpWorkdirMap ?? {}
+    const nextMap = { ...currentMap }
+    if (workdir && workdir.trim().length > 0) {
+      nextMap[agentId] = workdir
+    } else {
+      delete nextMap[agentId]
+    }
+    chatConfig.value = { ...chatConfig.value, acpWorkdirMap: nextMap }
   }
 
   // 处理消息的 extra 信息
@@ -807,7 +837,10 @@ export const useChatStore = defineStore('chat', () => {
         Object.assign(threadToUpdate, conversation)
       }
       if (conversation) {
-        chatConfig.value = { ...conversation.settings }
+        chatConfig.value = {
+          ...conversation.settings,
+          acpWorkdirMap: conversation.settings.acpWorkdirMap ?? {}
+        }
         // Populate the in-memory map from the loaded settings
         if (conversation.settings.selectedVariantsMap) {
           selectedVariantsMap.value = new Map(
@@ -1354,6 +1387,7 @@ export const useChatStore = defineStore('chat', () => {
     // 导出配置相关的状态和方法
     chatConfig,
     updateChatConfig,
+    setAcpWorkdirPreference,
     retryMessage,
     deleteMessage,
     clearActiveThread,

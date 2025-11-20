@@ -869,6 +869,7 @@ export type CONVERSATION_SETTINGS = {
   reasoningEffort?: 'minimal' | 'low' | 'medium' | 'high'
   verbosity?: 'low' | 'medium' | 'high'
   selectedVariantsMap?: Record<string, string>
+  acpWorkdirMap?: Record<string, string | null>
 }
 
 export type CONVERSATION = {

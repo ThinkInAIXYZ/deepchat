@@ -179,6 +179,13 @@ const name = computed(() => {
   return activeModel.value?.name ? activeModel.value.name.split('/').pop() : ''
 })
 
+const acpWorkdirMap = computed(() => chatStore.chatConfig.acpWorkdirMap ?? {})
+
+const pendingAcpWorkdir = computed(() => {
+  if (activeModel.value.providerId !== 'acp') return null
+  return acpWorkdirMap.value?.[activeModel.value.id] ?? null
+})
+
 watch(
   () => activeModel.value,
   async () => {
@@ -443,7 +450,11 @@ const handleSend = async (content: UserMessageContent) => {
     searchStrategy: searchStrategy.value,
     reasoningEffort: reasoningEffort.value,
     verbosity: verbosity.value,
-    enabledMcpTools: chatStore.chatConfig.enabledMcpTools
+    enabledMcpTools: chatStore.chatConfig.enabledMcpTools,
+    acpWorkdirMap:
+      pendingAcpWorkdir.value && activeModel.value.providerId === 'acp'
+        ? { [activeModel.value.id]: pendingAcpWorkdir.value }
+        : undefined
   } as any)
   console.log('threadId', threadId, activeModel.value)
   chatStore.sendMessage(content)

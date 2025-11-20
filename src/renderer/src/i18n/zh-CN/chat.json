@@ -69,5 +69,16 @@
     "userMessage": "用户消息",
     "assistantMessage": "助手回复",
     "unknownMessage": "未知消息"
+  },
+  "toolCall": {
+    "title": "工具调用",
+    "calling": "工具调用中",
+    "response": "工具响应",
+    "end": "工具调用完成",
+    "error": "工具调用错误",
+    "clickToView": "点击查看详情",
+    "functionName": "函数名称",
+    "params": "参数",
+    "responseData": "响应数据"
   }
 }

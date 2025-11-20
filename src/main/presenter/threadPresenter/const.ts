@@ -116,5 +116,6 @@ export const DEFAULT_SETTINGS: CONVERSATION_SETTINGS = {
   maxTokens: 8192,
   providerId: 'deepseek',
   modelId: 'deepseek-chat',
-  artifacts: 0
+  artifacts: 0,
+  acpWorkdirMap: {}
 }

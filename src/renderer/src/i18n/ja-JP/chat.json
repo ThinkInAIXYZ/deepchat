@@ -69,5 +69,16 @@
     "userMessage": "ユーザーメッセージ",
     "assistantMessage": "アシスタントの返信",
     "unknownMessage": "不明なメッセージ"
+  },
+  "toolCall": {
+    "title": "ツール呼び出し",
+    "calling": "ツール呼び出し中",
+    "response": "ツール応答",
+    "end": "ツール呼び出し完了",
+    "error": "ツール呼び出しエラー",
+    "clickToView": "詳細を表示",
+    "functionName": "関数名",
+    "params": "パラメータ",
+    "responseData": "レスポンスデータ"
   }
 }

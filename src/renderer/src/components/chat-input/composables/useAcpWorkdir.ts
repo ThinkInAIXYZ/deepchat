@@ -1,6 +1,7 @@
 import { computed, ref, watch } from 'vue'
 import { usePresenter } from '@/composables/usePresenter'
 import type { Ref } from 'vue'
+import { useChatStore } from '@/stores/chat'
 
 type ActiveModelRef = Ref<{ id?: string; providerId?: string } | null>
 
@@ -12,6 +13,7 @@ interface UseAcpWorkdirOptions {
 export function useAcpWorkdir(options: UseAcpWorkdirOptions) {
   const threadPresenter = usePresenter('threadPresenter')
   const devicePresenter = usePresenter('devicePresenter')
+  const chatStore = useChatStore()
 
   const workdir = ref('')
   const isCustom = ref(false)
@@ -25,6 +27,10 @@ export function useAcpWorkdir(options: UseAcpWorkdirOptions) {
   )
 
   const agentId = computed(() => options.activeModel.value?.id ?? '')
+  const syncPreference = (value: string | null) => {
+    if (!agentId.value) return
+    chatStore.setAcpWorkdirPreference(agentId.value, value)
+  }
 
   const resetToDefault = () => {
     workdir.value = ''
@@ -54,9 +60,11 @@ export function useAcpWorkdir(options: UseAcpWorkdirOptions) {
       workdir.value = result?.path ?? ''
       isCustom.value = Boolean(result?.isCustom)
       pendingWorkdir.value = null
+      syncPreference(workdir.value || null)
     } catch (error) {
       console.warn('[useAcpWorkdir] Failed to load workdir', error)
       resetToDefault()
+      syncPreference(null)
     } finally {
       loading.value = false
     }
@@ -81,6 +89,7 @@ export function useAcpWorkdir(options: UseAcpWorkdirOptions) {
       )
       workdir.value = pendingWorkdir.value
       isCustom.value = Boolean(pendingWorkdir.value)
+      syncPreference(workdir.value || null)
       pendingWorkdir.value = null
     } catch (error) {
       console.warn('[useAcpWorkdir] Failed to apply pending workdir', error)
@@ -125,6 +134,7 @@ export function useAcpWorkdir(options: UseAcpWorkdirOptions) {
         workdir.value = selectedPath
         isCustom.value = true
       }
+      syncPreference(selectedPath)
     } catch (error) {
       console.warn('[useAcpWorkdir] Failed to set workdir', error)
     } finally {
@@ -145,6 +155,7 @@ export function useAcpWorkdir(options: UseAcpWorkdirOptions) {
         pendingWorkdir.value = null
         resetToDefault()
       }
+      syncPreference(null)
     } catch (error) {
       console.warn('[useAcpWorkdir] Failed to clear workdir', error)
     } finally {

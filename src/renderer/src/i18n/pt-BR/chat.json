@@ -69,5 +69,16 @@
     "userMessage": "Mensagem do usuário",
     "assistantMessage": "Resposta do assistente",
     "unknownMessage": "Mensagem desconhecida"
+  },
+  "toolCall": {
+    "title": "Chamada de ferramenta",
+    "calling": "Chamada de ferramenta em andamento",
+    "response": "Resposta da ferramenta",
+    "end": "Chamada de ferramenta concluída",
+    "error": "Erro na chamada de ferramenta",
+    "clickToView": "Clique para ver detalhes",
+    "functionName": "Nome da função",
+    "params": "Parâmetros",
+    "responseData": "Dados de resposta"
   }
 }

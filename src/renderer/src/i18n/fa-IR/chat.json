@@ -69,5 +69,16 @@
     "userMessage": "پیام کاربر",
     "assistantMessage": "پاسخ دستیار",
     "unknownMessage": "پیام ناشناخته"
+  },
+  "toolCall": {
+    "title": "فراخوانی ابزار",
+    "calling": "فراخوانی ابزار در حال انجام است",
+    "response": "پاسخ ابزار",
+    "end": "فراخوانی ابزار پایان یافت",
+    "error": "خطای فراخوانی ابزار",
+    "clickToView": "برای مشاهده جزئیات کلیک کنید",
+    "functionName": "نام تابع",
+    "params": "پارامترها",
+    "responseData": "داده‌های پاسخ"
   }
 }
