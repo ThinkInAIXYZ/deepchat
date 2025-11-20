@@ -1,6 +1,8 @@
-import { spawn, type ChildProcessWithoutNullStreams } from 'child_process'
+import { spawn, type ChildProcessWithoutNullStreams, execSync } from 'child_process'
 import { Readable, Writable } from 'node:stream'
 import { app } from 'electron'
+import * as fs from 'fs'
+import * as path from 'path'
 import { ClientSideConnection, PROTOCOL_VERSION, ndJsonStream } from '@agentclientprotocol/sdk'
 import type {
   ClientSideConnection as ClientSideConnectionType,
@@ -44,6 +46,10 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
   private readonly pendingHandles = new Map<string, Promise<AcpProcessHandle>>()
   private readonly sessionListeners = new Map<string, SessionListenerEntry>()
   private readonly permissionResolvers = new Map<string, PermissionResolverEntry>()
+  private bunRuntimePath: string | null = null
+  private nodeRuntimePath: string | null = null
+  private uvRuntimePath: string | null = null
+  private runtimesInitialized: boolean = false
 
   constructor(options: AcpProcessManagerOptions) {
     this.providerId = options.providerId
@@ -188,9 +194,211 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
     return handle
   }
 
+  private setupRuntimes(): void {
+    if (this.runtimesInitialized) {
+      return
+    }
+
+    const runtimeBasePath = path
+      .join(app.getAppPath(), 'runtime')
+      .replace('app.asar', 'app.asar.unpacked')
+
+    // Check if bun runtime file exists
+    const bunRuntimePath = path.join(runtimeBasePath, 'bun')
+    if (process.platform === 'win32') {
+      const bunExe = path.join(bunRuntimePath, 'bun.exe')
+      if (fs.existsSync(bunExe)) {
+        this.bunRuntimePath = bunRuntimePath
+      } else {
+        this.bunRuntimePath = null
+      }
+    } else {
+      const bunBin = path.join(bunRuntimePath, 'bun')
+      if (fs.existsSync(bunBin)) {
+        this.bunRuntimePath = bunRuntimePath
+      } else {
+        this.bunRuntimePath = null
+      }
+    }
+
+    // Check if node runtime file exists
+    const nodeRuntimePath = path.join(runtimeBasePath, 'node')
+    if (process.platform === 'win32') {
+      const nodeExe = path.join(nodeRuntimePath, 'node.exe')
+      if (fs.existsSync(nodeExe)) {
+        this.nodeRuntimePath = nodeRuntimePath
+      } else {
+        this.nodeRuntimePath = null
+      }
+    } else {
+      const nodeBin = path.join(nodeRuntimePath, 'bin', 'node')
+      if (fs.existsSync(nodeBin)) {
+        this.nodeRuntimePath = nodeRuntimePath
+      } else {
+        this.nodeRuntimePath = null
+      }
+    }
+
+    // Check if uv runtime file exists
+    const uvRuntimePath = path.join(runtimeBasePath, 'uv')
+    if (process.platform === 'win32') {
+      const uvExe = path.join(uvRuntimePath, 'uv.exe')
+      const uvxExe = path.join(uvRuntimePath, 'uvx.exe')
+      if (fs.existsSync(uvExe) && fs.existsSync(uvxExe)) {
+        this.uvRuntimePath = uvRuntimePath
+      } else {
+        this.uvRuntimePath = null
+      }
+    } else {
+      const uvBin = path.join(uvRuntimePath, 'uv')
+      const uvxBin = path.join(uvRuntimePath, 'uvx')
+      if (fs.existsSync(uvBin) && fs.existsSync(uvxBin)) {
+        this.uvRuntimePath = uvRuntimePath
+      } else {
+        this.uvRuntimePath = null
+      }
+    }
+
+    this.runtimesInitialized = true
+  }
+
+  private isCommandAvailable(command: string): boolean {
+    try {
+      if (process.platform === 'win32') {
+        execSync(`where ${command}`, { stdio: 'ignore' })
+      } else {
+        execSync(`which ${command}`, { stdio: 'ignore' })
+      }
+      return true
+    } catch {
+      return false
+    }
+  }
+
+  private replaceWithRuntimeCommand(command: string): string {
+    const basename = path.basename(command)
+
+    // UV command handling (all platforms)
+    // Only replace if system command is not available
+    if (['uv', 'uvx'].includes(basename)) {
+      // Check if system command is available first
+      if (this.isCommandAvailable(basename)) {
+        return command
+      }
+
+      // Use runtime path if system command is not available
+      if (this.uvRuntimePath) {
+        const targetCommand = basename === 'uvx' ? 'uvx' : 'uv'
+        if (process.platform === 'win32') {
+          return path.join(this.uvRuntimePath, `${targetCommand}.exe`)
+        } else {
+          return path.join(this.uvRuntimePath, targetCommand)
+        }
+      }
+    }
+
+    // For other commands (node, npm, npx, bun), check system first
+    if (['node', 'npm', 'npx', 'bun'].includes(basename)) {
+      // Check if system command is available first
+      if (this.isCommandAvailable(basename)) {
+        return command
+      }
+
+      // Use runtime path if system command is not available
+      if (process.platform === 'win32') {
+        if (this.nodeRuntimePath) {
+          if (basename === 'node') {
+            return path.join(this.nodeRuntimePath, 'node.exe')
+          } else if (basename === 'npm') {
+            const npmCmd = path.join(this.nodeRuntimePath, 'npm.cmd')
+            if (fs.existsSync(npmCmd)) {
+              return npmCmd
+            }
+            return path.join(this.nodeRuntimePath, 'npm')
+          } else if (basename === 'npx') {
+            const npxCmd = path.join(this.nodeRuntimePath, 'npx.cmd')
+            if (fs.existsSync(npxCmd)) {
+              return npxCmd
+            }
+            return path.join(this.nodeRuntimePath, 'npx')
+          }
+        }
+      } else {
+        // Non-Windows platforms
+        if (this.bunRuntimePath && ['node', 'npm', 'npx', 'bun'].includes(basename)) {
+          return path.join(this.bunRuntimePath, 'bun')
+        } else if (this.nodeRuntimePath) {
+          let targetCommand: string
+          if (basename === 'node') {
+            targetCommand = 'node'
+          } else if (basename === 'npm') {
+            targetCommand = 'npm'
+          } else if (basename === 'npx') {
+            targetCommand = 'npx'
+          } else if (basename === 'bun') {
+            targetCommand = 'node'
+          } else {
+            targetCommand = basename
+          }
+          return path.join(this.nodeRuntimePath, 'bin', targetCommand)
+        }
+      }
+    }
+
+    return command
+  }
+
+  private normalizePathEnv(paths: string[]): { key: string; value: string } {
+    const isWindows = process.platform === 'win32'
+    const separator = isWindows ? ';' : ':'
+    const pathKey = isWindows ? 'Path' : 'PATH'
+    const pathValue = paths.filter(Boolean).join(separator)
+    return { key: pathKey, value: pathValue }
+  }
+
   private spawnAgentProcess(agent: AcpAgentConfig): ChildProcessWithoutNullStreams {
+    // Initialize runtime paths if not already done
+    this.setupRuntimes()
+
+    // Replace command with runtime version if needed
+    const processedCommand = this.replaceWithRuntimeCommand(agent.command)
+    const processedArgs = (agent.args ?? []).map((arg) => this.replaceWithRuntimeCommand(arg))
+
+    // Prepare environment variables
     const mergedEnv = agent.env ? { ...process.env, ...agent.env } : { ...process.env }
-    return spawn(agent.command, agent.args ?? [], {
+
+    // Add runtime paths to PATH for fallback
+    const existingPaths: string[] = []
+    Object.entries(mergedEnv).forEach(([key, value]) => {
+      if (value !== undefined && ['PATH', 'Path', 'path'].includes(key)) {
+        existingPaths.push(value)
+      }
+    })
+
+    const allPaths = [...existingPaths]
+    if (process.platform === 'win32') {
+      if (this.uvRuntimePath) {
+        allPaths.unshift(this.uvRuntimePath)
+      }
+      if (this.nodeRuntimePath) {
+        allPaths.unshift(this.nodeRuntimePath)
+      }
+    } else {
+      if (this.uvRuntimePath) {
+        allPaths.unshift(this.uvRuntimePath)
+      }
+      if (this.nodeRuntimePath) {
+        allPaths.unshift(path.join(this.nodeRuntimePath, 'bin'))
+      }
+      if (this.bunRuntimePath) {
+        allPaths.unshift(this.bunRuntimePath)
+      }
+    }
+
+    const { key, value } = this.normalizePathEnv(allPaths)
+    mergedEnv[key] = value
+
+    return spawn(processedCommand, processedArgs, {
       env: mergedEnv,
       stdio: ['pipe', 'pipe', 'pipe']
     })
