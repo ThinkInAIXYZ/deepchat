@@ -69,8 +69,6 @@
     "@google/genai": "^1.29.0",
     "@jxa/run": "^1.4.0",
     "@modelcontextprotocol/sdk": "^1.22.0",
-    "@xterm/addon-fit": "^0.10.0",
-    "@xterm/xterm": "^5.5.0",
     "axios": "^1.13.2",
     "better-sqlite3-multiple-ciphers": "12.4.1",
     "cheerio": "^1.1.2",
@@ -178,7 +176,9 @@
     "vue-virtual-scroller": "^2.0.0-beta.8",
     "vuedraggable": "^4.1.0",
     "yaml": "^2.8.1",
-    "zod-to-json-schema": "^3.24.6"
+    "zod-to-json-schema": "^3.24.6",
+    "@xterm/addon-fit": "^0.10.0",
+    "@xterm/xterm": "^5.5.0"
   },
   "simple-git-hooks": {
     "pre-commit": "pnpm lint-staged && pnpm typecheck",
