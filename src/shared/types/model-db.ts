@@ -160,12 +160,28 @@ function getVerbosityValue(v: unknown): Verbosity | undefined {
 
 function getModelTypeValue(v: unknown): ModelTypeValue | undefined {
   if (typeof v !== 'string') return undefined
+
+  // First try exact match (for standard format)
   switch (v) {
     case 'chat':
     case 'embedding':
     case 'rerank':
     case 'imageGeneration':
       return v
+  }
+
+  // Normalize and handle variants (like image_generation, image-generation, etc.)
+  const normalized = v.toLowerCase().replace(/[_-]/g, '')
+  switch (normalized) {
+    case 'chat':
+      return 'chat'
+    case 'embedding':
+      return 'embedding'
+    case 'rerank':
+      return 'rerank'
+    case 'imagegeneration':
+    case 'imagegen':
+      return 'imageGeneration'
     default:
       return undefined
   }
