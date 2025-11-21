@@ -832,6 +832,8 @@
     "enableToAccess": "프록시 구성에 액세스하려면 먼저 ACP를 활성화하세요.",
     "enabledDescription": "활성화되면 구성된 ACP 에이전트가 모델 선택기에서 모델로 나타납니다.",
     "enabledTitle": "ACP 활성화",
+    "useBuiltinRuntimeTitle": "DeepChat 내장 런타임 사용",
+    "useBuiltinRuntimeDescription": "활성화하면 시스템의 node 및 uv 명령을 우회하여 DeepChat에 번들로 제공되는 버전을 사용합니다.",
     "env": "환경 변수",
     "envKeyPlaceholder": "열쇠",
     "envValuePlaceholder": "값",

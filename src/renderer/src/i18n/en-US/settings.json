@@ -800,6 +800,8 @@
     "description": "Manage local Agent Client Protocol agents started by DeepChat.",
     "enabledTitle": "Enable ACP",
     "enabledDescription": "When enabled, configured ACP agents will appear as models in the selector.",
+    "useBuiltinRuntimeTitle": "Use DeepChat Built-in Runtime",
+    "useBuiltinRuntimeDescription": "When enabled, bypasses system node and uv commands, using DeepChat's bundled versions.",
     "enableToAccess": "Enable ACP to configure agents.",
     "addCustomAgent": "Add Custom Agent",
     "customEmpty": "No custom agents yet.",

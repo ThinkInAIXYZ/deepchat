@@ -35,7 +35,7 @@ const BUILTIN_TEMPLATES: Record<AcpBuiltinAgentId, BuiltinTemplate> = {
       name: DEFAULT_PROFILE_NAME,
       command: 'npx',
       args: ['-y', '@zed-industries/claude-code-acp'],
-      env: { ANTHROPIC_API_KEY: '' }
+      env: {}
     })
   },
   'codex-acp': {
@@ -44,7 +44,7 @@ const BUILTIN_TEMPLATES: Record<AcpBuiltinAgentId, BuiltinTemplate> = {
       name: DEFAULT_PROFILE_NAME,
       command: 'npx',
       args: ['-y', '@zed-industries/codex-acp'],
-      env: { OPENAI_API_KEY: '' }
+      env: {}
     })
   }
 }
@@ -52,6 +52,7 @@ const BUILTIN_TEMPLATES: Record<AcpBuiltinAgentId, BuiltinTemplate> = {
 type InternalStore = Partial<AcpStoreData> & {
   agents?: AcpAgentConfig[]
   builtinsVersion?: string
+  useBuiltinRuntime?: boolean
 }
 
 const deepClone = <T>(value: T): T => {
@@ -71,6 +72,7 @@ export class AcpConfHelper {
         builtins: [],
         customs: [],
         enabled: false,
+        useBuiltinRuntime: false,
         version: ACP_STORE_VERSION
       }
     })
@@ -90,6 +92,14 @@ export class AcpConfHelper {
     }
     this.store.set('enabled', enabled)
     return true
+  }
+
+  getUseBuiltinRuntime(): boolean {
+    return Boolean(this.store.get('useBuiltinRuntime'))
+  }
+
+  setUseBuiltinRuntime(enabled: boolean): void {
+    this.store.set('useBuiltinRuntime', enabled)
   }
 
   getEnabledAgents(): AcpAgentConfig[] {

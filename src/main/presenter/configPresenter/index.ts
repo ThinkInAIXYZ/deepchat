@@ -947,6 +947,14 @@ export class ConfigPresenter implements IConfigPresenter {
     this.notifyAcpAgentsChanged()
   }
 
+  async getAcpUseBuiltinRuntime(): Promise<boolean> {
+    return this.acpConfHelper.getUseBuiltinRuntime()
+  }
+
+  async setAcpUseBuiltinRuntime(enabled: boolean): Promise<void> {
+    this.acpConfHelper.setUseBuiltinRuntime(enabled)
+  }
+
   // ===================== ACP configuration methods =====================
   async getAcpAgents(): Promise<AcpAgentConfig[]> {
     return this.acpConfHelper.getEnabledAgents()

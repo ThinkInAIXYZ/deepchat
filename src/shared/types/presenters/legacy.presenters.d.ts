@@ -498,6 +498,8 @@ export interface IConfigPresenter {
   // ACP configuration methods
   getAcpEnabled(): Promise<boolean>
   setAcpEnabled(enabled: boolean): Promise<void>
+  getAcpUseBuiltinRuntime(): Promise<boolean>
+  setAcpUseBuiltinRuntime(enabled: boolean): Promise<void>
   setAcpAgents(agents: AcpAgentConfig[]): Promise<AcpAgentConfig[]>
   getAcpAgents(): Promise<AcpAgentConfig[]>
   addAcpAgent(agent: Omit<AcpAgentConfig, 'id'> & { id?: string }): Promise<AcpAgentConfig>

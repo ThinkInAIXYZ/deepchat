@@ -826,6 +826,8 @@
     "description": "管理由 DeepChat 啟動嘅本地 ACP Agent。",
     "enabledTitle": "啟用 ACP",
     "enabledDescription": "啟用後，設定好嘅 ACP Agent 會出現在模型清單。",
+    "useBuiltinRuntimeTitle": "使用 DeepChat 內建環境",
+    "useBuiltinRuntimeDescription": "勾選後會繞過系統嘅 node 同 uv 命令，使用 DeepChat 自帶嘅版本。",
     "enableToAccess": "啟用 ACP 後先可以設定 Agent。",
     "addCustomAgent": "新增自訂 Agent",
     "customEmpty": "仲未有自訂 Agent。",

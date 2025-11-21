@@ -68,7 +68,10 @@ export class AcpProvider extends BaseAgentProvider<
   ) {
     super(provider, configPresenter)
     this.sessionPersistence = sessionPersistence
-    this.processManager = new AcpProcessManager({ providerId: provider.id })
+    this.processManager = new AcpProcessManager({
+      providerId: provider.id,
+      getUseBuiltinRuntime: () => this.configPresenter.getAcpUseBuiltinRuntime()
+    })
     this.sessionManager = new AcpSessionManager({
       providerId: provider.id,
       processManager: this.processManager,

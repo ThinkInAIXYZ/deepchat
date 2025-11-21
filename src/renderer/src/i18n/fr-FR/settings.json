@@ -832,6 +832,8 @@
     "enableToAccess": "Veuillez d'abord activer l'ACP pour accéder à la configuration du proxy.",
     "enabledDescription": "Une fois activé, le proxy ACP configuré apparaîtra comme modèle dans le sélecteur de modèles.",
     "enabledTitle": "Activer ACP",
+    "useBuiltinRuntimeTitle": "Utiliser l'environnement d'exécution intégré de DeepChat",
+    "useBuiltinRuntimeDescription": "Lorsqu'il est activé, contourne les commandes node et uv du système, en utilisant les versions fournies avec DeepChat.",
     "env": "Variable d'environnement",
     "envKeyPlaceholder": "CLÉ",
     "envValuePlaceholder": "VALEUR",

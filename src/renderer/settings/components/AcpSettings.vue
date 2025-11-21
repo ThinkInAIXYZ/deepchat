@@ -16,6 +16,21 @@
           @update:model-value="handleToggle"
         />
       </div>
+      <div v-if="acpEnabled" class="flex items-center justify-between mt-4">
+        <div>
+          <div class="font-medium">{{ t('settings.acp.useBuiltinRuntimeTitle') }}</div>
+          <p class="text-xs text-muted-foreground">
+            {{ t('settings.acp.useBuiltinRuntimeDescription') }}
+          </p>
+        </div>
+        <Switch
+          dir="ltr"
+          :model-value="useBuiltinRuntime"
+          class="scale-125"
+          :disabled="togglingUseBuiltinRuntime"
+          @update:model-value="handleUseBuiltinRuntimeToggle"
+        />
+      </div>
       <Separator class="mt-3" />
     </div>
 
@@ -260,6 +275,8 @@ const llmProviderPresenter = usePresenter('llmproviderPresenter')
 
 const acpEnabled = ref(false)
 const toggling = ref(false)
+const useBuiltinRuntime = ref(false)
+const togglingUseBuiltinRuntime = ref(false)
 const loading = ref(false)
 const builtins = ref<AcpBuiltinAgent[]>([])
 const customAgents = ref<AcpCustomAgent[]>([])
@@ -352,6 +369,28 @@ const loadAcpEnabled = async () => {
     acpEnabled.value = await configPresenter.getAcpEnabled()
   } catch (error) {
     handleError(error)
+  }
+}
+
+const loadAcpUseBuiltinRuntime = async () => {
+  try {
+    useBuiltinRuntime.value = await configPresenter.getAcpUseBuiltinRuntime()
+  } catch (error) {
+    handleError(error)
+  }
+}
+
+const handleUseBuiltinRuntimeToggle = async (enabled: boolean) => {
+  if (togglingUseBuiltinRuntime.value) return
+  togglingUseBuiltinRuntime.value = true
+  try {
+    await configPresenter.setAcpUseBuiltinRuntime(enabled)
+    useBuiltinRuntime.value = enabled
+  } catch (error) {
+    handleError(error)
+    useBuiltinRuntime.value = !enabled
+  } finally {
+    togglingUseBuiltinRuntime.value = false
   }
 }
 
@@ -617,6 +656,7 @@ watch(
 
 onMounted(async () => {
   await loadAcpEnabled()
+  await loadAcpUseBuiltinRuntime()
   await loadAcpData()
 })
 </script>

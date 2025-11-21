@@ -832,6 +832,8 @@
     "enableToAccess": "لطفاً ابتدا ACP را فعال کنید تا به پیکربندی پروکسی دسترسی پیدا کنید",
     "enabledDescription": "پس از فعال‌سازی، پروکسی ACP پیکربندی شده به عنوان یک مدل در انتخاب‌گر مدل ظاهر خواهد شد.",
     "enabledTitle": "فعال کردن ACP",
+    "useBuiltinRuntimeTitle": "استفاده از محیط اجرای داخلی DeepChat",
+    "useBuiltinRuntimeDescription": "هنگام فعال‌سازی، دستورات node و uv سیستم را دور می‌زند و از نسخه‌های همراه DeepChat استفاده می‌کند.",
     "env": "متغیر محیطی",
     "envKeyPlaceholder": "کلید",
     "envValuePlaceholder": "مقدار",

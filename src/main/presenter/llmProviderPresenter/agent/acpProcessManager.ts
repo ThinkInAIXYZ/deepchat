@@ -23,6 +23,7 @@ export interface AcpProcessHandle extends AgentProcessHandle {
 
 interface AcpProcessManagerOptions {
   providerId: string
+  getUseBuiltinRuntime: () => Promise<boolean>
 }
 
 export type SessionNotificationHandler = (notification: schema.SessionNotification) => void
@@ -34,53 +35,6 @@ export type PermissionResolver = (
 interface SessionListenerEntry {
   agentId: string
   handlers: Set<SessionNotificationHandler>
-}
-
-/**
- * Environment variables to inherit by default, if an environment is not explicitly given.
- * Reference: @modelcontextprotocol/sdk/client/stdio.js
- */
-const DEFAULT_INHERITED_ENV_VARS =
-  process.platform === 'win32'
-    ? [
-        'APPDATA',
-        'HOMEDRIVE',
-        'HOMEPATH',
-        'LOCALAPPDATA',
-        'PATH',
-        'PROCESSOR_ARCHITECTURE',
-        'SYSTEMDRIVE',
-        'SYSTEMROOT',
-        'TEMP',
-        'USERNAME',
-        'USERPROFILE',
-        'PROGRAMFILES'
-      ]
-    : /* list inspired by the default env inheritance of sudo */
-      ['HOME', 'LOGNAME', 'PATH', 'SHELL', 'TERM', 'USER']
-
-/**
- * Returns a default environment object including only environment variables deemed safe to inherit.
- * Reference: @modelcontextprotocol/sdk/client/stdio.js
- */
-function getDefaultEnvironment(): Record<string, string> {
-  const env: Record<string, string> = {}
-
-  for (const key of DEFAULT_INHERITED_ENV_VARS) {
-    const value = process.env[key]
-    if (value === undefined) {
-      continue
-    }
-
-    if (value.startsWith('()')) {
-      // Skip functions, which are a security risk.
-      continue
-    }
-
-    env[key] = value
-  }
-
-  return env
 }
 
 /**
@@ -98,6 +52,7 @@ interface PermissionResolverEntry {
 
 export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, AcpAgentConfig> {
   private readonly providerId: string
+  private readonly getUseBuiltinRuntime: () => Promise<boolean>
   private readonly handles = new Map<string, AcpProcessHandle>()
   private readonly pendingHandles = new Map<string, Promise<AcpProcessHandle>>()
   private readonly sessionListeners = new Map<string, SessionListenerEntry>()
@@ -109,6 +64,7 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
 
   constructor(options: AcpProcessManagerOptions) {
     this.providerId = options.providerId
+    this.getUseBuiltinRuntime = options.getUseBuiltinRuntime
   }
 
   async getConnection(agent: AcpAgentConfig): Promise<AcpProcessHandle> {
@@ -208,7 +164,7 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
   }
 
   private async spawnProcess(agent: AcpAgentConfig): Promise<AcpProcessHandle> {
-    const child = this.spawnAgentProcess(agent)
+    const child = await this.spawnAgentProcess(agent)
     const stream = this.createAgentStream(child)
     const client = this.createClientProxy()
     const connection = new ClientSideConnection(() => client, stream)
@@ -318,7 +274,12 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
     this.runtimesInitialized = true
   }
 
-  private replaceWithRuntimeCommand(command: string): string {
+  private replaceWithRuntimeCommand(command: string, useBuiltinRuntime: boolean): string {
+    // If useBuiltinRuntime is false, return original command
+    if (!useBuiltinRuntime) {
+      return command
+    }
+
     // Get command basename (remove path)
     const basename = path.basename(command)
 
@@ -434,9 +395,33 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
     return { key: pathKey, value: pathValue }
   }
 
-  private spawnAgentProcess(agent: AcpAgentConfig): ChildProcessWithoutNullStreams {
+  private getDefaultPaths(homeDir: string): string[] {
+    if (process.platform === 'darwin') {
+      return [
+        '/bin',
+        '/usr/bin',
+        '/usr/local/bin',
+        '/usr/local/sbin',
+        '/opt/homebrew/bin',
+        '/opt/homebrew/sbin',
+        '/usr/local/opt/node/bin',
+        '/opt/local/bin',
+        `${homeDir}/.cargo/bin`
+      ]
+    } else if (process.platform === 'linux') {
+      return ['/bin', '/usr/bin', '/usr/local/bin', `${homeDir}/.cargo/bin`]
+    } else {
+      // Windows
+      return [`${homeDir}\\.cargo\\bin`, `${homeDir}\\.local\\bin`]
+    }
+  }
+
+  private async spawnAgentProcess(agent: AcpAgentConfig): Promise<ChildProcessWithoutNullStreams> {
     // Initialize runtime paths if not already done
     this.setupRuntimes()
+
+    // Get useBuiltinRuntime configuration
+    const useBuiltinRuntime = await this.getUseBuiltinRuntime()
 
     // Validate command
     if (!agent.command || agent.command.trim().length === 0) {
@@ -444,7 +429,7 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
     }
 
     // Replace command with runtime version if needed
-    const processedCommand = this.replaceWithRuntimeCommand(agent.command)
+    const processedCommand = this.replaceWithRuntimeCommand(agent.command, useBuiltinRuntime)
 
     // Validate processed command
     if (!processedCommand || processedCommand.trim().length === 0) {
@@ -469,55 +454,168 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
     // Keep args as-is, do not replace them
     const processedArgs = agent.args ?? []
 
-    // Get default environment (only safe variables)
-    const defaultEnv = getDefaultEnvironment()
+    // Determine if it's Node.js/Bun/UV related command
+    const isNodeCommand = ['node', 'npm', 'npx', 'bun', 'uv', 'uvx'].some(
+      (cmd) =>
+        processedCommand.includes(cmd) ||
+        processedArgs.some((arg) => typeof arg === 'string' && arg.includes(cmd))
+    )
 
-    // Add runtime paths to PATH for fallback
-    const existingPaths: string[] = []
-    const pathKey = process.platform === 'win32' ? 'Path' : 'PATH'
-    if (defaultEnv[pathKey]) {
-      existingPaths.push(defaultEnv[pathKey])
-    }
+    // Define allowed environment variables whitelist for Node.js/Bun/UV commands
+    const allowedEnvVars = [
+      'PATH',
+      'path',
+      'Path',
+      'npm_config_registry',
+      'npm_config_cache',
+      'npm_config_prefix',
+      'npm_config_tmp',
+      'NPM_CONFIG_REGISTRY',
+      'NPM_CONFIG_CACHE',
+      'NPM_CONFIG_PREFIX',
+      'NPM_CONFIG_TMP'
+    ]
 
-    const allPaths = [...existingPaths]
-    if (process.platform === 'win32') {
-      if (this.uvRuntimePath) {
-        allPaths.unshift(this.uvRuntimePath)
-        console.info(`[ACP] Added UV runtime path to PATH: ${this.uvRuntimePath}`)
-      }
-      if (this.nodeRuntimePath) {
-        allPaths.unshift(this.nodeRuntimePath)
-        console.info(`[ACP] Added Node runtime path to PATH: ${this.nodeRuntimePath}`)
+    const HOME_DIR = app.getPath('home')
+    const env: Record<string, string> = {}
+    let pathKey = process.platform === 'win32' ? 'Path' : 'PATH'
+    let pathValue = ''
+
+    if (isNodeCommand) {
+      // Node.js/Bun/UV commands use whitelist processing
+      if (process.env) {
+        const existingPaths: string[] = []
+
+        // Collect all PATH-related values
+        Object.entries(process.env).forEach(([key, value]) => {
+          if (value !== undefined) {
+            if (['PATH', 'Path', 'path'].includes(key)) {
+              existingPaths.push(value)
+            } else if (allowedEnvVars.includes(key) && !['PATH', 'Path', 'path'].includes(key)) {
+              env[key] = value
+            }
+          }
+        })
+
+        // Get default paths
+        const defaultPaths = this.getDefaultPaths(HOME_DIR)
+
+        // Merge all paths
+        const allPaths = [...existingPaths, ...defaultPaths]
+        // Add runtime paths
+        if (process.platform === 'win32') {
+          // Windows platform only adds node and uv paths
+          if (this.uvRuntimePath) {
+            allPaths.unshift(this.uvRuntimePath)
+            console.info(`[ACP] Added UV runtime path to PATH: ${this.uvRuntimePath}`)
+          }
+          if (this.nodeRuntimePath) {
+            allPaths.unshift(this.nodeRuntimePath)
+            console.info(`[ACP] Added Node runtime path to PATH: ${this.nodeRuntimePath}`)
+          }
+        } else {
+          // Other platforms priority: bun > node > uv
+          if (this.uvRuntimePath) {
+            allPaths.unshift(this.uvRuntimePath)
+            console.info(`[ACP] Added UV runtime path to PATH: ${this.uvRuntimePath}`)
+          }
+          if (this.nodeRuntimePath) {
+            const nodeBinPath = path.join(this.nodeRuntimePath, 'bin')
+            allPaths.unshift(nodeBinPath)
+            console.info(`[ACP] Added Node bin path to PATH: ${nodeBinPath}`)
+          }
+          if (this.bunRuntimePath) {
+            allPaths.unshift(this.bunRuntimePath)
+            console.info(`[ACP] Added Bun runtime path to PATH: ${this.bunRuntimePath}`)
+          }
+        }
+
+        // Normalize and set PATH
+        const normalized = this.normalizePathEnv(allPaths)
+        pathKey = normalized.key
+        pathValue = normalized.value
+        env[pathKey] = pathValue
       }
     } else {
-      if (this.uvRuntimePath) {
-        allPaths.unshift(this.uvRuntimePath)
-        console.info(`[ACP] Added UV runtime path to PATH: ${this.uvRuntimePath}`)
+      // Non Node.js/Bun/UV commands, preserve all system environment variables, only supplement PATH
+      Object.entries(process.env).forEach(([key, value]) => {
+        if (value !== undefined) {
+          env[key] = value
+        }
+      })
+
+      // Supplement PATH
+      const existingPaths: string[] = []
+      if (env.PATH) {
+        existingPaths.push(env.PATH)
       }
-      if (this.nodeRuntimePath) {
-        const nodeBinPath = path.join(this.nodeRuntimePath, 'bin')
-        allPaths.unshift(nodeBinPath)
-        console.info(`[ACP] Added Node bin path to PATH: ${nodeBinPath}`)
+      if (env.Path) {
+        existingPaths.push(env.Path)
       }
-      if (this.bunRuntimePath) {
-        allPaths.unshift(this.bunRuntimePath)
-        console.info(`[ACP] Added Bun runtime path to PATH: ${this.bunRuntimePath}`)
+
+      // Get default paths
+      const defaultPaths = this.getDefaultPaths(HOME_DIR)
+
+      // Merge all paths
+      const allPaths = [...existingPaths, ...defaultPaths]
+      // Add runtime paths
+      if (process.platform === 'win32') {
+        // Windows platform only adds node and uv paths
+        if (this.uvRuntimePath) {
+          allPaths.unshift(this.uvRuntimePath)
+          console.info(`[ACP] Added UV runtime path to PATH: ${this.uvRuntimePath}`)
+        }
+        if (this.nodeRuntimePath) {
+          allPaths.unshift(this.nodeRuntimePath)
+          console.info(`[ACP] Added Node runtime path to PATH: ${this.nodeRuntimePath}`)
+        }
+      } else {
+        // Other platforms priority: bun > node > uv
+        if (this.uvRuntimePath) {
+          allPaths.unshift(this.uvRuntimePath)
+          console.info(`[ACP] Added UV runtime path to PATH: ${this.uvRuntimePath}`)
+        }
+        if (this.nodeRuntimePath) {
+          const nodeBinPath = path.join(this.nodeRuntimePath, 'bin')
+          allPaths.unshift(nodeBinPath)
+          console.info(`[ACP] Added Node bin path to PATH: ${nodeBinPath}`)
+        }
+        if (this.bunRuntimePath) {
+          allPaths.unshift(this.bunRuntimePath)
+          console.info(`[ACP] Added Bun runtime path to PATH: ${this.bunRuntimePath}`)
+        }
       }
+
+      // Normalize and set PATH
+      const normalized = this.normalizePathEnv(allPaths)
+      pathKey = normalized.key
+      pathValue = normalized.value
+      env[pathKey] = pathValue
     }
 
-    const { key, value } = this.normalizePathEnv(allPaths)
-    defaultEnv[key] = value
-
-    // Merge default env with agent env (agent env takes precedence)
-    // Reference: @modelcontextprotocol/sdk/client/stdio.js
-    const mergedEnv = {
-      ...defaultEnv,
-      ...agent.env
+    // Add custom environment variables
+    if (agent.env) {
+      Object.entries(agent.env).forEach(([key, value]) => {
+        if (value !== undefined) {
+          // If it's a PATH-related variable, merge into main PATH
+          if (['PATH', 'Path', 'path'].includes(key)) {
+            const currentPathKey = process.platform === 'win32' ? 'Path' : 'PATH'
+            const separator = process.platform === 'win32' ? ';' : ':'
+            env[currentPathKey] = env[currentPathKey]
+              ? `${value}${separator}${env[currentPathKey]}`
+              : value
+          } else {
+            env[key] = value
+          }
+        }
+      })
     }
+
+    const mergedEnv = env
 
     console.info(`[ACP] Environment variables for agent ${agent.id}:`, {
-      pathKey: key,
-      pathValue: value,
+      pathKey,
+      pathValue,
       hasCustomEnv: !!agent.env,
       customEnvKeys: agent.env ? Object.keys(agent.env) : []
     })

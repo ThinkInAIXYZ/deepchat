@@ -832,6 +832,8 @@
     "enableToAccess": "まずACPを有効にしてプロキシ設定にアクセスしてください",
     "enabledDescription": "有効にすると、設定されたACPプロキシがモデルセレクターにモデルとして表示されます。",
     "enabledTitle": "ACPを有効にする",
+    "useBuiltinRuntimeTitle": "DeepChat内蔵ランタイムを使用",
+    "useBuiltinRuntimeDescription": "有効にすると、システムのnodeとuvコマンドをバイパスし、DeepChatにバンドルされたバージョンを使用します。",
     "env": "環境変数",
     "envKeyPlaceholder": "キー",
     "envValuePlaceholder": "価値",

@@ -832,6 +832,8 @@
     "enableToAccess": "Пожалуйста, сначала включите ACP для доступа к настройкам прокси.",
     "enabledDescription": "После включения настроенный прокси ACP будет отображаться в селекторе моделей как модель.",
     "enabledTitle": "Включить ACP",
+    "useBuiltinRuntimeTitle": "Использовать встроенную среду выполнения DeepChat",
+    "useBuiltinRuntimeDescription": "При включении обходит системные команды node и uv, используя версии, входящие в состав DeepChat.",
     "env": "Переменная окружения",
     "envKeyPlaceholder": "КЛЮЧ",
     "envValuePlaceholder": "ЗНАЧЕНИЕ",
