@@ -59,7 +59,9 @@
     "notifications": "Notificações do Sistema",
     "notificationsDesc": "Quando o DeepChat não estiver em primeiro plano, se uma sessão for gerada, uma notificação do sistema será enviada",
     "contentProtection": "Proteção contra captura de tela",
-    "traceDebugEnabled": "Rastreamento de Chamadas"
+    "traceDebugEnabled": "Rastreamento de Chamadas",
+    "fileMaxSize": "Tamanho máximo do arquivo",
+    "fileMaxSizeHint": "Limita o tamanho máximo de um arquivo enviado"
   },
   "data": {
     "title": "Configurações de Dados",

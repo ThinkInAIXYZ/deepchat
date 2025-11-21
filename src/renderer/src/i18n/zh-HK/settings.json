@@ -59,7 +59,9 @@
     },
     "notifications": "系統通知",
     "notificationsDesc": "當 DeepChat 不在前台時，如有會話生成完畢會發送系統通知",
-    "traceDebugEnabled": "Trace 除錯功能"
+    "traceDebugEnabled": "Trace 除錯功能",
+    "fileMaxSize": "檔案最大大小",
+    "fileMaxSizeHint": "限制單個檔案的最大上傳大小"
   },
   "data": {
     "title": "數據設置",

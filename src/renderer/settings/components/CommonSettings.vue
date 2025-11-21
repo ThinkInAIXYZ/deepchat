@@ -3,6 +3,7 @@
     <div class="w-full h-full flex flex-col gap-3 p-4">
       <SearchEngineSettingsSection />
       <WebContentLimitSetting />
+      <UploadFileSettingsSection />
       <SearchAssistantModelSection />
       <ProxySettingsSection />
       <SettingToggleRow
@@ -50,6 +51,7 @@ import SearchAssistantModelSection from './common/SearchAssistantModelSection.vu
 import ProxySettingsSection from './common/ProxySettingsSection.vue'
 import LoggingSettingsSection from './common/LoggingSettingsSection.vue'
 import SettingToggleRow from './common/SettingToggleRow.vue'
+import UploadFileSettingsSection from './common/UploadFileSettingsSection.vue'
 
 const { t } = useI18n()
 const uiSettingsStore = useUiSettingsStore()

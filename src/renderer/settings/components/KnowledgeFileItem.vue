@@ -32,11 +32,21 @@
           icon="lucide:circle-check-big"
           class="text-base text-green-500"
         />
-        <Icon
+        <div
           v-else-if="file.status === 'processing'"
-          icon="lucide:loader"
-          class="text-base text-blue-500 animate-spin"
-        />
+          class="relative group w-6 h-6 flex items-center justify-center"
+        >
+          <Icon icon="lucide:loader" class="text-base text-blue-500 animate-spin" />
+          <!-- Tooltip -->
+          <div
+            class="absolute bottom-full mb-1 w-max px-2 py-0.5 rounded-md bg-card text-muted-foreground text-xs opacity-0 group-hover:opacity-100 transition-opacity shadow-md pointer-events-none whitespace-nowrap"
+          >
+            {{ Math.floor(progressPercent) }}% {{ progress.completed + progress.error }}/{{
+              progress.total
+            }}
+          </div>
+        </div>
+
         <Icon
           v-else-if="file.status === 'error'"
           icon="lucide:circle-alert"
@@ -108,7 +118,7 @@ import { Icon } from '@iconify/vue'
 import { useI18n } from 'vue-i18n'
 import utc from 'dayjs/plugin/utc'
 import timezone from 'dayjs/plugin/timezone'
-import { computed } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { KnowledgeFileMessage } from '@shared/presenter'
 import {
   AlertDialog,
@@ -123,6 +133,7 @@ import {
 } from '@shadcn/components/ui/alert-dialog'
 import { Button } from '@shadcn/components/ui/button'
 import dayjs from 'dayjs'
+import { RAG_EVENTS } from '@/events'
 
 dayjs.extend(utc)
 dayjs.extend(timezone)
@@ -179,4 +190,29 @@ const getStatusTitle = (status: string): string => {
       return t(`settings.knowledgeBase.unknown`)
   }
 }
+
+const progress = ref({ completed: 0, error: 0, total: 0 })
+const progressPercent = computed(() => {
+  if (!progress.value.total) return 0
+  return ((progress.value.completed + progress.value.error) / progress.value.total) * 100
+})
+
+onMounted(async () => {
+  window.electron.ipcRenderer.on(
+    RAG_EVENTS.FILE_PROGRESS,
+    (_, data: { fileId: string; completed: number; error: number; total: number }) => {
+      if (props.file.id === data.fileId) {
+        progress.value = {
+          completed: data.completed,
+          error: data.error,
+          total: data.total
+        }
+      }
+    }
+  )
+})
+
+onBeforeUnmount(() => {
+  window.electron.ipcRenderer.removeAllListeners(RAG_EVENTS.FILE_PROGRESS)
+})
 </script>

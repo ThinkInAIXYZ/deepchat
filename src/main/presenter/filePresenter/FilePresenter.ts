@@ -4,7 +4,7 @@ import path from 'path'
 
 import { BaseFileAdapter } from './BaseFileAdapter'
 import { FileAdapterConstructor } from './FileAdapterConstructor'
-import { FileOperation } from '../../../shared/presenter'
+import { FileOperation, IConfigPresenter } from '../../../shared/presenter'
 import { detectMimeType, getMimeTypeAdapterMap } from './mime'
 import { IFilePresenter } from '../../../shared/presenter'
 import { MessageFile } from '@shared/chat'
@@ -21,13 +21,18 @@ import {
 
 export class FilePresenter implements IFilePresenter {
   private userDataPath: string
-  private maxFileSize: number = 1024 * 1024 * 30 // 30 MB
+  private configPresenter: IConfigPresenter
   private tempDir: string
   private fileValidationService: IFileValidationService
 
-  constructor(fileValidationService?: IFileValidationService) {
+  get maxFileSize(): number {
+    return this.configPresenter.getSetting<number>('maxFileSize') || 1024 * 1024 * 30
+  }
+
+  constructor(configPresenter: IConfigPresenter, fileValidationService?: IFileValidationService) {
     this.userDataPath = app.getPath('userData')
     this.tempDir = path.join(this.userDataPath, 'temp')
+    this.configPresenter = configPresenter
     this.fileValidationService = fileValidationService || new FileValidationService()
     // Ensure temp directory exists
     try {

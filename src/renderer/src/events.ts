@@ -164,7 +164,8 @@ export const DIALOG_EVENTS = {
 
 // 知识库事件
 export const RAG_EVENTS = {
-  FILE_UPDATED: 'rag:file-updated' // 文件状态更新
+  FILE_UPDATED: 'rag:file-updated', // 文件状态更新
+  FILE_PROGRESS: 'rag:file-progress' // 文件进度更新
 }
 // 系统相关事件
 export const SYSTEM_EVENTS = {

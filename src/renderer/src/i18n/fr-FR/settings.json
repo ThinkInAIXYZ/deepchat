@@ -59,7 +59,9 @@
     },
     "notifications": "Notifications système",
     "notificationsDesc": "Quand DeepChat est en arrière‑plan, envoyer une notification à la fin d’une réponse",
-    "traceDebugEnabled": "Suivi des appels"
+    "traceDebugEnabled": "Suivi des appels",
+    "fileMaxSize": "Taille maximale du fichier",
+    "fileMaxSizeHint": "Limite la taille maximale d'un fichier à télécharger"
   },
   "data": {
     "title": "Paramètres des données",

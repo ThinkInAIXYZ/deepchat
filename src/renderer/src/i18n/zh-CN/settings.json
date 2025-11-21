@@ -59,7 +59,9 @@
     "loggingRestartNotice": "切换此设置将导致程序重启，请确认是否继续？",
     "openLogFolder": "打开日志文件夹",
     "notifications": "系统通知",
-    "notificationsDesc": "当 DeepChat 不在前台时，如有会话生成完毕会发送系统通知"
+    "notificationsDesc": "当 DeepChat 不在前台时，如有会话生成完毕会发送系统通知",
+    "fileMaxSize": "文件最大大小",
+    "fileMaxSizeHint": "限制单个文件的最大上传大小"
   },
   "data": {
     "title": "数据设置",
