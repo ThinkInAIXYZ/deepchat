@@ -528,7 +528,7 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
 
         // Collect all PATH-related values
         Object.entries(process.env).forEach(([key, value]) => {
-          if (value !== undefined) {
+          if (value !== undefined && value !== '') {
             if (['PATH', 'Path', 'path'].includes(key)) {
               existingPaths.push(value)
             } else if (allowedEnvVars.includes(key) && !['PATH', 'Path', 'path'].includes(key)) {
@@ -542,7 +542,66 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
 
         // Merge all paths
         const allPaths = [...existingPaths, ...defaultPaths]
-        // Add runtime paths
+        // Add runtime paths only when using builtin runtime
+        if (useBuiltinRuntime) {
+          if (process.platform === 'win32') {
+            // Windows platform only adds node and uv paths
+            if (this.uvRuntimePath) {
+              allPaths.unshift(this.uvRuntimePath)
+              console.info(`[ACP] Added UV runtime path to PATH: ${this.uvRuntimePath}`)
+            }
+            if (this.nodeRuntimePath) {
+              allPaths.unshift(this.nodeRuntimePath)
+              console.info(`[ACP] Added Node runtime path to PATH: ${this.nodeRuntimePath}`)
+            }
+          } else {
+            // Other platforms priority: bun > node > uv
+            if (this.uvRuntimePath) {
+              allPaths.unshift(this.uvRuntimePath)
+              console.info(`[ACP] Added UV runtime path to PATH: ${this.uvRuntimePath}`)
+            }
+            if (this.nodeRuntimePath) {
+              const nodeBinPath = path.join(this.nodeRuntimePath, 'bin')
+              allPaths.unshift(nodeBinPath)
+              console.info(`[ACP] Added Node bin path to PATH: ${nodeBinPath}`)
+            }
+            if (this.bunRuntimePath) {
+              allPaths.unshift(this.bunRuntimePath)
+              console.info(`[ACP] Added Bun runtime path to PATH: ${this.bunRuntimePath}`)
+            }
+          }
+        }
+
+        // Normalize and set PATH
+        const normalized = this.normalizePathEnv(allPaths)
+        pathKey = normalized.key
+        pathValue = normalized.value
+        env[pathKey] = pathValue
+      }
+    } else {
+      // Non Node.js/Bun/UV commands, preserve all system environment variables, only supplement PATH
+      Object.entries(process.env).forEach(([key, value]) => {
+        if (value !== undefined && value !== '') {
+          env[key] = value
+        }
+      })
+
+      // Supplement PATH
+      const existingPaths: string[] = []
+      if (env.PATH) {
+        existingPaths.push(env.PATH)
+      }
+      if (env.Path) {
+        existingPaths.push(env.Path)
+      }
+
+      // Get default paths
+      const defaultPaths = this.getDefaultPaths(HOME_DIR)
+
+      // Merge all paths
+      const allPaths = [...existingPaths, ...defaultPaths]
+      // Add runtime paths only when using builtin runtime
+      if (useBuiltinRuntime) {
         if (process.platform === 'win32') {
           // Windows platform only adds node and uv paths
           if (this.uvRuntimePath) {
@@ -569,61 +628,6 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
             console.info(`[ACP] Added Bun runtime path to PATH: ${this.bunRuntimePath}`)
           }
         }
-
-        // Normalize and set PATH
-        const normalized = this.normalizePathEnv(allPaths)
-        pathKey = normalized.key
-        pathValue = normalized.value
-        env[pathKey] = pathValue
-      }
-    } else {
-      // Non Node.js/Bun/UV commands, preserve all system environment variables, only supplement PATH
-      Object.entries(process.env).forEach(([key, value]) => {
-        if (value !== undefined) {
-          env[key] = value
-        }
-      })
-
-      // Supplement PATH
-      const existingPaths: string[] = []
-      if (env.PATH) {
-        existingPaths.push(env.PATH)
-      }
-      if (env.Path) {
-        existingPaths.push(env.Path)
-      }
-
-      // Get default paths
-      const defaultPaths = this.getDefaultPaths(HOME_DIR)
-
-      // Merge all paths
-      const allPaths = [...existingPaths, ...defaultPaths]
-      // Add runtime paths
-      if (process.platform === 'win32') {
-        // Windows platform only adds node and uv paths
-        if (this.uvRuntimePath) {
-          allPaths.unshift(this.uvRuntimePath)
-          console.info(`[ACP] Added UV runtime path to PATH: ${this.uvRuntimePath}`)
-        }
-        if (this.nodeRuntimePath) {
-          allPaths.unshift(this.nodeRuntimePath)
-          console.info(`[ACP] Added Node runtime path to PATH: ${this.nodeRuntimePath}`)
-        }
-      } else {
-        // Other platforms priority: bun > node > uv
-        if (this.uvRuntimePath) {
-          allPaths.unshift(this.uvRuntimePath)
-          console.info(`[ACP] Added UV runtime path to PATH: ${this.uvRuntimePath}`)
-        }
-        if (this.nodeRuntimePath) {
-          const nodeBinPath = path.join(this.nodeRuntimePath, 'bin')
-          allPaths.unshift(nodeBinPath)
-          console.info(`[ACP] Added Node bin path to PATH: ${nodeBinPath}`)
-        }
-        if (this.bunRuntimePath) {
-          allPaths.unshift(this.bunRuntimePath)
-          console.info(`[ACP] Added Bun runtime path to PATH: ${this.bunRuntimePath}`)
-        }
       }
 
       // Normalize and set PATH
@@ -636,7 +640,7 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
     // Add custom environment variables
     if (agent.env) {
       Object.entries(agent.env).forEach(([key, value]) => {
-        if (value !== undefined) {
+        if (value !== undefined && value !== '') {
           // If it's a PATH-related variable, merge into main PATH
           if (['PATH', 'Path', 'path'].includes(key)) {
             const currentPathKey = process.platform === 'win32' ? 'Path' : 'PATH'
@@ -655,14 +659,14 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
     if (useBuiltinRuntime) {
       if (this.getNpmRegistry) {
         const npmRegistry = await this.getNpmRegistry()
-        if (npmRegistry) {
+        if (npmRegistry && npmRegistry !== '') {
           env.npm_config_registry = npmRegistry
         }
       }
 
       if (this.getUvRegistry) {
         const uvRegistry = await this.getUvRegistry()
-        if (uvRegistry) {
+        if (uvRegistry && uvRegistry !== '') {
           env.UV_DEFAULT_INDEX = uvRegistry
           env.PIP_INDEX_URL = uvRegistry
         }
@@ -707,6 +711,15 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
   }
 
   private createAgentStream(child: ChildProcessWithoutNullStreams): Stream {
+    // Add error handler for stdin to prevent EPIPE errors when process exits
+    child.stdin.on('error', (error: NodeJS.ErrnoException) => {
+      // EPIPE errors occur when trying to write to a closed pipe (process already exited)
+      // This is expected behavior and should be silently handled
+      if (error.code !== 'EPIPE') {
+        console.error('[ACP] write error:', error)
+      }
+    })
+
     const writable = Writable.toWeb(child.stdin) as unknown as WritableStream<Uint8Array>
     const readable = Readable.toWeb(child.stdout) as unknown as ReadableStream<Uint8Array>
     return ndJsonStream(writable, readable)
