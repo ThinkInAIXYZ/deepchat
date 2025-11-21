@@ -229,16 +229,12 @@ export class KnowledgeStorePresenter {
   }
 
   // 处理chunk完成事件（线程安全的进度管理）
-  private async handleChunkCompletion(chunkId: string, fileId: string): Promise<void> {
+  private async handleChunkCompletion(_chunkId: string, fileId: string): Promise<void> {
     const progress = this.fileProgressMap.get(fileId)
     if (!progress) {
       console.warn(`[RAG] No progress tracker found for file ${fileId}`)
       return
     }
-
-    await this.enqueueFileTask(chunkId, async () =>
-      this.vectorP.updateChunkStatus(chunkId, 'completed')
-    )
     progress.completed++
 
     // 更新文件进度
