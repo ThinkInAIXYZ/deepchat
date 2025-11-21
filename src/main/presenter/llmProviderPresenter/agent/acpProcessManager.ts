@@ -1,4 +1,5 @@
-import { spawn, type ChildProcessWithoutNullStreams } from 'child_process'
+import spawn from 'cross-spawn'
+import type { ChildProcessWithoutNullStreams } from 'child_process'
 import { Readable, Writable } from 'node:stream'
 import { app } from 'electron'
 import * as fs from 'fs'
@@ -33,6 +34,61 @@ export type PermissionResolver = (
 interface SessionListenerEntry {
   agentId: string
   handlers: Set<SessionNotificationHandler>
+}
+
+/**
+ * Environment variables to inherit by default, if an environment is not explicitly given.
+ * Reference: @modelcontextprotocol/sdk/client/stdio.js
+ */
+const DEFAULT_INHERITED_ENV_VARS =
+  process.platform === 'win32'
+    ? [
+        'APPDATA',
+        'HOMEDRIVE',
+        'HOMEPATH',
+        'LOCALAPPDATA',
+        'PATH',
+        'PROCESSOR_ARCHITECTURE',
+        'SYSTEMDRIVE',
+        'SYSTEMROOT',
+        'TEMP',
+        'USERNAME',
+        'USERPROFILE',
+        'PROGRAMFILES'
+      ]
+    : /* list inspired by the default env inheritance of sudo */
+      ['HOME', 'LOGNAME', 'PATH', 'SHELL', 'TERM', 'USER']
+
+/**
+ * Returns a default environment object including only environment variables deemed safe to inherit.
+ * Reference: @modelcontextprotocol/sdk/client/stdio.js
+ */
+function getDefaultEnvironment(): Record<string, string> {
+  const env: Record<string, string> = {}
+
+  for (const key of DEFAULT_INHERITED_ENV_VARS) {
+    const value = process.env[key]
+    if (value === undefined) {
+      continue
+    }
+
+    if (value.startsWith('()')) {
+      // Skip functions, which are a security risk.
+      continue
+    }
+
+    env[key] = value
+  }
+
+  return env
+}
+
+/**
+ * Check if running in Electron environment.
+ * Reference: @modelcontextprotocol/sdk/client/stdio.js
+ */
+function isElectron(): boolean {
+  return 'type' in process
 }
 
 interface PermissionResolverEntry {
@@ -398,6 +454,12 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
     }
 
     // Log command processing for debugging
+    console.info(`[ACP] Spawning process for agent ${agent.id}:`, {
+      originalCommand: agent.command,
+      processedCommand,
+      args: agent.args ?? []
+    })
+
     if (processedCommand !== agent.command) {
       console.info(
         `[ACP] Command replaced for agent ${agent.id}: "${agent.command}" -> "${processedCommand}"`
@@ -407,57 +469,85 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
     // Keep args as-is, do not replace them
     const processedArgs = agent.args ?? []
 
-    // Prepare environment variables
-    const mergedEnv = agent.env ? { ...process.env, ...agent.env } : { ...process.env }
+    // Get default environment (only safe variables)
+    const defaultEnv = getDefaultEnvironment()
 
     // Add runtime paths to PATH for fallback
     const existingPaths: string[] = []
-    Object.entries(mergedEnv).forEach(([key, value]) => {
-      if (value !== undefined && ['PATH', 'Path', 'path'].includes(key)) {
-        existingPaths.push(value)
-      }
-    })
+    const pathKey = process.platform === 'win32' ? 'Path' : 'PATH'
+    if (defaultEnv[pathKey]) {
+      existingPaths.push(defaultEnv[pathKey])
+    }
 
     const allPaths = [...existingPaths]
     if (process.platform === 'win32') {
       if (this.uvRuntimePath) {
         allPaths.unshift(this.uvRuntimePath)
+        console.info(`[ACP] Added UV runtime path to PATH: ${this.uvRuntimePath}`)
       }
       if (this.nodeRuntimePath) {
         allPaths.unshift(this.nodeRuntimePath)
+        console.info(`[ACP] Added Node runtime path to PATH: ${this.nodeRuntimePath}`)
       }
     } else {
       if (this.uvRuntimePath) {
         allPaths.unshift(this.uvRuntimePath)
+        console.info(`[ACP] Added UV runtime path to PATH: ${this.uvRuntimePath}`)
       }
       if (this.nodeRuntimePath) {
-        allPaths.unshift(path.join(this.nodeRuntimePath, 'bin'))
+        const nodeBinPath = path.join(this.nodeRuntimePath, 'bin')
+        allPaths.unshift(nodeBinPath)
+        console.info(`[ACP] Added Node bin path to PATH: ${nodeBinPath}`)
       }
       if (this.bunRuntimePath) {
         allPaths.unshift(this.bunRuntimePath)
+        console.info(`[ACP] Added Bun runtime path to PATH: ${this.bunRuntimePath}`)
       }
     }
 
     const { key, value } = this.normalizePathEnv(allPaths)
-    mergedEnv[key] = value
+    defaultEnv[key] = value
+
+    // Merge default env with agent env (agent env takes precedence)
+    // Reference: @modelcontextprotocol/sdk/client/stdio.js
+    const mergedEnv = {
+      ...defaultEnv,
+      ...agent.env
+    }
+
+    console.info(`[ACP] Environment variables for agent ${agent.id}:`, {
+      pathKey: key,
+      pathValue: value,
+      hasCustomEnv: !!agent.env,
+      customEnvKeys: agent.env ? Object.keys(agent.env) : []
+    })
 
     // Determine working directory (default to current working directory)
     let cwd = process.cwd()
     // Validate cwd exists
     if (!fs.existsSync(cwd)) {
-      console.warn(`[ACP] Working directory does not exist: ${cwd}, using process.cwd()`)
-      cwd = process.cwd()
-      // If still doesn't exist, use a safe fallback
-      if (!fs.existsSync(cwd)) {
-        cwd = process.platform === 'win32' ? 'C:\\' : '/'
-      }
+      console.warn(`[ACP] Working directory does not exist: ${cwd}, using fallback`)
+      cwd = process.platform === 'win32' ? 'C:\\' : '/'
     }
 
-    return spawn(processedCommand, processedArgs, {
+    console.info(`[ACP] Spawning process with options:`, {
+      command: processedCommand,
+      args: processedArgs,
+      cwd,
+      platform: process.platform
+    })
+
+    const child = spawn(processedCommand, processedArgs, {
       env: mergedEnv,
       cwd,
-      stdio: ['pipe', 'pipe', 'pipe']
-    })
+      stdio: ['pipe', 'pipe', 'pipe'],
+      shell: false,
+      windowsHide: process.platform === 'win32' && isElectron()
+    }) as ChildProcessWithoutNullStreams
+
+    console.info(`[ACP] Process spawned successfully for agent ${agent.id}, PID: ${child.pid}`)
+
+    return child
   }
 
   private createAgentStream(child: ChildProcessWithoutNullStreams): Stream {

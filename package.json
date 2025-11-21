@@ -73,6 +73,7 @@
     "better-sqlite3-multiple-ciphers": "12.4.1",
     "cheerio": "^1.1.2",
     "compare-versions": "^6.1.1",
+    "cross-spawn": "^7.0.6",
     "diff": "^7.0.0",
     "electron-log": "^5.4.3",
     "electron-store": "^8.2.0",
