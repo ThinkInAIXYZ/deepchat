@@ -143,7 +143,6 @@ export class KnowledgeTaskPresenter implements IKnowledgeTaskPresenter {
       const task = this.queue.shift()!
       const controller = this.controllers.get(task.id)!
       this.runningTasks.set(task.id, task)
-
       ;(async () => {
         try {
           await task.run({ signal: controller.signal })
