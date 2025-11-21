@@ -87,7 +87,7 @@ const handleChange = async (value: string | number) => {
       await configPresenter.setSetting('maxFileSize', numValue * 1024 * 1024)
       fileMaxSize.value = numValue
     } catch (error) {
-      console.error('设置文件最大值失败:', error)
+      console.error('Failed to set max file size:', error)
     }
   }
 }
@@ -127,7 +127,7 @@ onMounted(async () => {
       fileMaxSize.value = saved / 1024 / 1024
     }
   } catch (error) {
-    console.error('加载文件最大值失败:', error)
+    console.error('Failed to load max file size:', error)
   }
 })
 </script>
