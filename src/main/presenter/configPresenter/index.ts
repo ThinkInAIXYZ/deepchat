@@ -48,6 +48,7 @@ import {
   writeToTerminal,
   killTerminal
 } from './acpInitHelper'
+import { clearShellEnvironmentCache } from '../llmProviderPresenter/agent/shellEnvHelper'
 
 // Define application settings interface
 interface IAppSettings {
@@ -969,6 +970,9 @@ export class ConfigPresenter implements IConfigPresenter {
 
   async setAcpUseBuiltinRuntime(enabled: boolean): Promise<void> {
     this.acpConfHelper.setUseBuiltinRuntime(enabled)
+    // Clear shell environment cache when useBuiltinRuntime changes
+    // This ensures fresh environment variables are fetched if user switches back to system runtime
+    clearShellEnvironmentCache()
   }
 
   // ===================== ACP configuration methods =====================

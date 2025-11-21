@@ -13,6 +13,8 @@ import type * as schema from '@agentclientprotocol/sdk/dist/schema.js'
 import type { Stream } from '@agentclientprotocol/sdk/dist/stream.js'
 import type { AcpAgentConfig } from '@shared/presenter'
 import type { AgentProcessHandle, AgentProcessManager } from './types'
+import { getShellEnvironment } from './shellEnvHelper'
+import { RuntimeHelper } from '@/lib/runtimeHelper'
 
 export interface AcpProcessHandle extends AgentProcessHandle {
   child: ChildProcessWithoutNullStreams
@@ -61,9 +63,7 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
   private readonly pendingHandles = new Map<string, Promise<AcpProcessHandle>>()
   private readonly sessionListeners = new Map<string, SessionListenerEntry>()
   private readonly permissionResolvers = new Map<string, PermissionResolverEntry>()
-  private nodeRuntimePath: string | null = null
-  private uvRuntimePath: string | null = null
-  private runtimesInitialized: boolean = false
+  private readonly runtimeHelper = RuntimeHelper.getInstance()
 
   constructor(options: AcpProcessManagerOptions) {
     this.providerId = options.providerId
@@ -211,205 +211,9 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
     return handle
   }
 
-  private setupRuntimes(): void {
-    if (this.runtimesInitialized) {
-      return
-    }
-
-    const runtimeBasePath = path
-      .join(app.getAppPath(), 'runtime')
-      .replace('app.asar', 'app.asar.unpacked')
-
-    // Check if node runtime file exists
-    const nodeRuntimePath = path.join(runtimeBasePath, 'node')
-    if (process.platform === 'win32') {
-      const nodeExe = path.join(nodeRuntimePath, 'node.exe')
-      if (fs.existsSync(nodeExe)) {
-        this.nodeRuntimePath = nodeRuntimePath
-      } else {
-        this.nodeRuntimePath = null
-      }
-    } else {
-      const nodeBin = path.join(nodeRuntimePath, 'bin', 'node')
-      if (fs.existsSync(nodeBin)) {
-        this.nodeRuntimePath = nodeRuntimePath
-      } else {
-        this.nodeRuntimePath = null
-      }
-    }
-
-    // Check if uv runtime file exists
-    const uvRuntimePath = path.join(runtimeBasePath, 'uv')
-    if (process.platform === 'win32') {
-      const uvExe = path.join(uvRuntimePath, 'uv.exe')
-      const uvxExe = path.join(uvRuntimePath, 'uvx.exe')
-      if (fs.existsSync(uvExe) && fs.existsSync(uvxExe)) {
-        this.uvRuntimePath = uvRuntimePath
-      } else {
-        this.uvRuntimePath = null
-      }
-    } else {
-      const uvBin = path.join(uvRuntimePath, 'uv')
-      const uvxBin = path.join(uvRuntimePath, 'uvx')
-      if (fs.existsSync(uvBin) && fs.existsSync(uvxBin)) {
-        this.uvRuntimePath = uvRuntimePath
-      } else {
-        this.uvRuntimePath = null
-      }
-    }
-
-    this.runtimesInitialized = true
-  }
-
-  private replaceWithRuntimeCommand(command: string, useBuiltinRuntime: boolean): string {
-    // If useBuiltinRuntime is false, return original command
-    if (!useBuiltinRuntime) {
-      return command
-    }
-
-    // Get command basename (remove path)
-    const basename = path.basename(command)
-
-    // Handle Node.js related commands (all platforms use same logic)
-    if (['node', 'npm', 'npx'].includes(basename)) {
-      if (this.nodeRuntimePath) {
-        if (process.platform === 'win32') {
-          if (basename === 'node') {
-            const nodeExe = path.join(this.nodeRuntimePath, 'node.exe')
-            if (fs.existsSync(nodeExe)) {
-              return nodeExe
-            }
-          } else if (basename === 'npm') {
-            // Windows usually has npm as .cmd file
-            const npmCmd = path.join(this.nodeRuntimePath, 'npm.cmd')
-            if (fs.existsSync(npmCmd)) {
-              return npmCmd
-            }
-            // Check if npm exists without .cmd extension
-            const npmPath = path.join(this.nodeRuntimePath, 'npm')
-            if (fs.existsSync(npmPath)) {
-              return npmPath
-            }
-          } else if (basename === 'npx') {
-            // On Windows, npx is typically a .cmd file
-            const npxCmd = path.join(this.nodeRuntimePath, 'npx.cmd')
-            if (fs.existsSync(npxCmd)) {
-              return npxCmd
-            }
-            // Check if npx exists without .cmd extension
-            const npxPath = path.join(this.nodeRuntimePath, 'npx')
-            if (fs.existsSync(npxPath)) {
-              return npxPath
-            }
-          }
-          // If doesn't exist, return original command to let system find it via PATH
-          return command
-        } else {
-          // Non-Windows platforms
-          let targetCommand: string
-          if (basename === 'node') {
-            targetCommand = 'node'
-          } else if (basename === 'npm') {
-            targetCommand = 'npm'
-          } else if (basename === 'npx') {
-            targetCommand = 'npx'
-          } else {
-            targetCommand = basename
-          }
-          const nodePath = path.join(this.nodeRuntimePath, 'bin', targetCommand)
-          if (fs.existsSync(nodePath)) {
-            return nodePath
-          }
-          // If doesn't exist, return original command to let system find it via PATH
-          return command
-        }
-      }
-    }
-
-    // UV command handling (all platforms)
-    if (['uv', 'uvx'].includes(basename)) {
-      if (!this.uvRuntimePath) {
-        return command
-      }
-
-      // Both uv and uvx use their corresponding commands
-      const targetCommand = basename === 'uvx' ? 'uvx' : 'uv'
-
-      if (process.platform === 'win32') {
-        const uvPath = path.join(this.uvRuntimePath, `${targetCommand}.exe`)
-        if (fs.existsSync(uvPath)) {
-          return uvPath
-        }
-        // If doesn't exist, return original command to let system find it via PATH
-        return command
-      } else {
-        const uvPath = path.join(this.uvRuntimePath, targetCommand)
-        if (fs.existsSync(uvPath)) {
-          return uvPath
-        }
-        // If doesn't exist, return original command to let system find it via PATH
-        return command
-      }
-    }
-
-    return command
-  }
-
-  private normalizePathEnv(paths: string[]): { key: string; value: string } {
-    const isWindows = process.platform === 'win32'
-    const separator = isWindows ? ';' : ':'
-    const pathKey = isWindows ? 'Path' : 'PATH'
-    const pathValue = paths.filter(Boolean).join(separator)
-    return { key: pathKey, value: pathValue }
-  }
-
-  private getDefaultPaths(homeDir: string): string[] {
-    if (process.platform === 'darwin') {
-      return [
-        '/bin',
-        '/usr/bin',
-        '/usr/local/bin',
-        '/usr/local/sbin',
-        '/opt/homebrew/bin',
-        '/opt/homebrew/sbin',
-        '/usr/local/opt/node/bin',
-        '/opt/local/bin',
-        `${homeDir}/.cargo/bin`
-      ]
-    } else if (process.platform === 'linux') {
-      return ['/bin', '/usr/bin', '/usr/local/bin', `${homeDir}/.cargo/bin`]
-    } else {
-      // Windows
-      return [`${homeDir}\\.cargo\\bin`, `${homeDir}\\.local\\bin`]
-    }
-  }
-
-  // Expand various symbols and variables in paths
-  private expandPath(inputPath: string): string {
-    let expandedPath = inputPath
-
-    // Handle ~ symbol (user home directory)
-    if (expandedPath.startsWith('~/') || expandedPath === '~') {
-      const homeDir = app.getPath('home')
-      expandedPath = expandedPath.replace('~', homeDir)
-    }
-
-    // Handle environment variable expansion
-    expandedPath = expandedPath.replace(/\$\{([^}]+)\}/g, (match, varName) => {
-      return process.env[varName] || match
-    })
-
-    // Handle simple $VAR format (without braces)
-    expandedPath = expandedPath.replace(/\$([A-Z_][A-Z0-9_]*)/g, (match, varName) => {
-      return process.env[varName] || match
-    })
-
-    return expandedPath
-  }
-
   private async spawnAgentProcess(agent: AcpAgentConfig): Promise<ChildProcessWithoutNullStreams> {
     // Initialize runtime paths if not already done
-    this.setupRuntimes()
+    this.runtimeHelper.initializeRuntimes()
 
     // Get useBuiltinRuntime configuration
     const useBuiltinRuntime = await this.getUseBuiltinRuntime()
@@ -420,13 +224,17 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
     }
 
     // Handle path expansion (including ~ and environment variables)
-    let expandedCommand = this.expandPath(agent.command)
+    let expandedCommand = this.runtimeHelper.expandPath(agent.command)
     let expandedArgs = (agent.args ?? []).map((arg) =>
-      typeof arg === 'string' ? this.expandPath(arg) : arg
+      typeof arg === 'string' ? this.runtimeHelper.expandPath(arg) : arg
     )
 
     // Replace command with runtime version if needed
-    const processedCommand = this.replaceWithRuntimeCommand(expandedCommand, useBuiltinRuntime)
+    const processedCommand = this.runtimeHelper.replaceWithRuntimeCommand(
+      expandedCommand,
+      useBuiltinRuntime,
+      true
+    )
 
     // Validate processed command
     if (!processedCommand || processedCommand.trim().length === 0) {
@@ -499,31 +307,64 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
           }
         })
 
-        // Get default paths
-        const defaultPaths = this.getDefaultPaths(HOME_DIR)
+        // Get shell environment variables when not using builtin runtime
+        // This ensures nvm/n/fnm/volta paths are available
+        let shellEnv: Record<string, string> = {}
+        if (!useBuiltinRuntime) {
+          try {
+            shellEnv = await getShellEnvironment()
+            console.info(`[ACP] Retrieved shell environment variables for agent ${agent.id}`)
 
-        // Merge all paths
+            // Merge shell environment variables (except PATH which we handle separately)
+            Object.entries(shellEnv).forEach(([key, value]) => {
+              if (!['PATH', 'Path', 'path'].includes(key) && value) {
+                env[key] = value
+              }
+            })
+          } catch (error) {
+            console.warn(
+              `[ACP] Failed to get shell environment variables for agent ${agent.id}, using fallback:`,
+              error
+            )
+          }
+        }
+
+        // Get shell PATH if available (priority: shell PATH > existing PATH)
+        const shellPath = shellEnv.PATH || shellEnv.Path
+        if (shellPath) {
+          // Use shell PATH as base, then merge existing paths
+          const shellPaths = shellPath.split(process.platform === 'win32' ? ';' : ':')
+          existingPaths.unshift(...shellPaths)
+          console.info(`[ACP] Using shell PATH for agent ${agent.id} (length: ${shellPath.length})`)
+        }
+
+        // Get default paths
+        const defaultPaths = this.runtimeHelper.getDefaultPaths(HOME_DIR)
+
+        // Merge all paths (priority: shell PATH > existing PATH > default paths)
         const allPaths = [...existingPaths, ...defaultPaths]
         // Add runtime paths only when using builtin runtime
         if (useBuiltinRuntime) {
+          const uvRuntimePath = this.runtimeHelper.getUvRuntimePath()
+          const nodeRuntimePath = this.runtimeHelper.getNodeRuntimePath()
           if (process.platform === 'win32') {
             // Windows platform only adds node and uv paths
-            if (this.uvRuntimePath) {
-              allPaths.unshift(this.uvRuntimePath)
-              console.info(`[ACP] Added UV runtime path to PATH: ${this.uvRuntimePath}`)
+            if (uvRuntimePath) {
+              allPaths.unshift(uvRuntimePath)
+              console.info(`[ACP] Added UV runtime path to PATH: ${uvRuntimePath}`)
             }
-            if (this.nodeRuntimePath) {
-              allPaths.unshift(this.nodeRuntimePath)
-              console.info(`[ACP] Added Node runtime path to PATH: ${this.nodeRuntimePath}`)
+            if (nodeRuntimePath) {
+              allPaths.unshift(nodeRuntimePath)
+              console.info(`[ACP] Added Node runtime path to PATH: ${nodeRuntimePath}`)
             }
           } else {
             // Other platforms priority: node > uv
-            if (this.uvRuntimePath) {
-              allPaths.unshift(this.uvRuntimePath)
-              console.info(`[ACP] Added UV runtime path to PATH: ${this.uvRuntimePath}`)
+            if (uvRuntimePath) {
+              allPaths.unshift(uvRuntimePath)
+              console.info(`[ACP] Added UV runtime path to PATH: ${uvRuntimePath}`)
             }
-            if (this.nodeRuntimePath) {
-              const nodeBinPath = path.join(this.nodeRuntimePath, 'bin')
+            if (nodeRuntimePath) {
+              const nodeBinPath = path.join(nodeRuntimePath, 'bin')
               allPaths.unshift(nodeBinPath)
               console.info(`[ACP] Added Node bin path to PATH: ${nodeBinPath}`)
             }
@@ -531,7 +372,7 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
         }
 
         // Normalize and set PATH
-        const normalized = this.normalizePathEnv(allPaths)
+        const normalized = this.runtimeHelper.normalizePathEnv(allPaths)
         pathKey = normalized.key
         pathValue = normalized.value
         env[pathKey] = pathValue
@@ -554,30 +395,32 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
       }
 
       // Get default paths
-      const defaultPaths = this.getDefaultPaths(HOME_DIR)
+      const defaultPaths = this.runtimeHelper.getDefaultPaths(HOME_DIR)
 
       // Merge all paths
       const allPaths = [...existingPaths, ...defaultPaths]
       // Add runtime paths only when using builtin runtime
       if (useBuiltinRuntime) {
+        const uvRuntimePath = this.runtimeHelper.getUvRuntimePath()
+        const nodeRuntimePath = this.runtimeHelper.getNodeRuntimePath()
         if (process.platform === 'win32') {
           // Windows platform only adds node and uv paths
-          if (this.uvRuntimePath) {
-            allPaths.unshift(this.uvRuntimePath)
-            console.info(`[ACP] Added UV runtime path to PATH: ${this.uvRuntimePath}`)
+          if (uvRuntimePath) {
+            allPaths.unshift(uvRuntimePath)
+            console.info(`[ACP] Added UV runtime path to PATH: ${uvRuntimePath}`)
           }
-          if (this.nodeRuntimePath) {
-            allPaths.unshift(this.nodeRuntimePath)
-            console.info(`[ACP] Added Node runtime path to PATH: ${this.nodeRuntimePath}`)
+          if (nodeRuntimePath) {
+            allPaths.unshift(nodeRuntimePath)
+            console.info(`[ACP] Added Node runtime path to PATH: ${nodeRuntimePath}`)
           }
         } else {
           // Other platforms priority: node > uv
-          if (this.uvRuntimePath) {
-            allPaths.unshift(this.uvRuntimePath)
-            console.info(`[ACP] Added UV runtime path to PATH: ${this.uvRuntimePath}`)
+          if (uvRuntimePath) {
+            allPaths.unshift(uvRuntimePath)
+            console.info(`[ACP] Added UV runtime path to PATH: ${uvRuntimePath}`)
           }
-          if (this.nodeRuntimePath) {
-            const nodeBinPath = path.join(this.nodeRuntimePath, 'bin')
+          if (nodeRuntimePath) {
+            const nodeBinPath = path.join(nodeRuntimePath, 'bin')
             allPaths.unshift(nodeBinPath)
             console.info(`[ACP] Added Node bin path to PATH: ${nodeBinPath}`)
           }
@@ -585,7 +428,7 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
       }
 
       // Normalize and set PATH
-      const normalized = this.normalizePathEnv(allPaths)
+      const normalized = this.runtimeHelper.normalizePathEnv(allPaths)
       pathKey = normalized.key
       pathValue = normalized.value
       env[pathKey] = pathValue

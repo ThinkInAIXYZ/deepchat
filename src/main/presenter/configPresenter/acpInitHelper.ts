@@ -1,9 +1,9 @@
 import * as path from 'path'
-import * as fs from 'fs'
-import { app, type WebContents } from 'electron'
+import { type WebContents } from 'electron'
 import type { AcpBuiltinAgentId, AcpAgentConfig, AcpAgentProfile } from '@shared/presenter'
 import { spawn } from 'node-pty'
 import type { IPty } from 'node-pty'
+import { RuntimeHelper } from '@/lib/runtimeHelper'
 
 interface InitCommandConfig {
   commands: string[]
@@ -31,12 +31,10 @@ const BUILTIN_INIT_COMMANDS: Record<AcpBuiltinAgentId, InitCommandConfig> = {
 
 class AcpInitHelper {
   private activeShell: IPty | null = null
-  private nodeRuntimePath: string | null = null
-  private uvRuntimePath: string | null = null
-  private runtimesInitialized: boolean = false
+  private readonly runtimeHelper = RuntimeHelper.getInstance()
 
   constructor() {
-    this.setupRuntimes()
+    this.runtimeHelper.initializeRuntimes()
   }
 
   /**
@@ -351,19 +349,22 @@ class AcpInitHelper {
       const separator = process.platform === 'win32' ? ';' : ':'
       const runtimePaths: string[] = []
 
-      if (this.uvRuntimePath) {
-        runtimePaths.push(this.uvRuntimePath)
-        console.log('[ACP Init] Added UV runtime path:', this.uvRuntimePath)
+      const uvRuntimePath = this.runtimeHelper.getUvRuntimePath()
+      const nodeRuntimePath = this.runtimeHelper.getNodeRuntimePath()
+
+      if (uvRuntimePath) {
+        runtimePaths.push(uvRuntimePath)
+        console.log('[ACP Init] Added UV runtime path:', uvRuntimePath)
       }
 
       if (process.platform === 'win32') {
-        if (this.nodeRuntimePath) {
-          runtimePaths.push(this.nodeRuntimePath)
-          console.log('[ACP Init] Added Node runtime path (Windows):', this.nodeRuntimePath)
+        if (nodeRuntimePath) {
+          runtimePaths.push(nodeRuntimePath)
+          console.log('[ACP Init] Added Node runtime path (Windows):', nodeRuntimePath)
         }
       } else {
-        if (this.nodeRuntimePath) {
-          const nodeBinPath = path.join(this.nodeRuntimePath, 'bin')
+        if (nodeRuntimePath) {
+          const nodeBinPath = path.join(nodeRuntimePath, 'bin')
           runtimePaths.push(nodeBinPath)
           console.log('[ACP Init] Added Node runtime path (Unix):', nodeBinPath)
         }
@@ -427,78 +428,6 @@ class AcpInitHelper {
     })
 
     return env
-  }
-
-  /**
-   * Setup runtime paths
-   */
-  private setupRuntimes(): void {
-    if (this.runtimesInitialized) {
-      console.log('[ACP Init] Runtimes already initialized, skipping setup')
-      return
-    }
-
-    console.log('[ACP Init] Setting up runtime paths...')
-    const runtimeBasePath = path
-      .join(app.getAppPath(), 'runtime')
-      .replace('app.asar', 'app.asar.unpacked')
-
-    console.log('[ACP Init] Runtime base path:', runtimeBasePath)
-
-    // Check if node runtime file exists
-    const nodeRuntimePath = path.join(runtimeBasePath, 'node')
-    if (process.platform === 'win32') {
-      const nodeExe = path.join(nodeRuntimePath, 'node.exe')
-      if (fs.existsSync(nodeExe)) {
-        this.nodeRuntimePath = nodeRuntimePath
-        console.log('[ACP Init] Found Node runtime (Windows):', nodeExe)
-      } else {
-        console.log('[ACP Init] Node runtime not found (Windows):', nodeExe)
-      }
-    } else {
-      const nodeBin = path.join(nodeRuntimePath, 'bin', 'node')
-      if (fs.existsSync(nodeBin)) {
-        this.nodeRuntimePath = nodeRuntimePath
-        console.log('[ACP Init] Found Node runtime (Unix):', nodeBin)
-      } else {
-        console.log('[ACP Init] Node runtime not found (Unix):', nodeBin)
-      }
-    }
-
-    // Check if uv runtime file exists
-    const uvRuntimePath = path.join(runtimeBasePath, 'uv')
-    if (process.platform === 'win32') {
-      const uvExe = path.join(uvRuntimePath, 'uv.exe')
-      const uvxExe = path.join(uvRuntimePath, 'uvx.exe')
-      if (fs.existsSync(uvExe) && fs.existsSync(uvxExe)) {
-        this.uvRuntimePath = uvRuntimePath
-        console.log('[ACP Init] Found UV runtime (Windows):', { uvExe, uvxExe })
-      } else {
-        console.log('[ACP Init] UV runtime not found (Windows):', {
-          uvExe: fs.existsSync(uvExe),
-          uvxExe: fs.existsSync(uvxExe)
-        })
-      }
-    } else {
-      const uvBin = path.join(uvRuntimePath, 'uv')
-      const uvxBin = path.join(uvRuntimePath, 'uvx')
-      if (fs.existsSync(uvBin) && fs.existsSync(uvxBin)) {
-        this.uvRuntimePath = uvRuntimePath
-        console.log('[ACP Init] Found UV runtime (Unix):', { uvBin, uvxBin })
-      } else {
-        console.log('[ACP Init] UV runtime not found (Unix):', {
-          uvBin: fs.existsSync(uvBin),
-          uvxBin: fs.existsSync(uvxBin)
-        })
-      }
-    }
-
-    console.log('[ACP Init] Runtime setup completed:', {
-      nodeRuntimePath: this.nodeRuntimePath,
-      uvRuntimePath: this.uvRuntimePath
-    })
-
-    this.runtimesInitialized = true
   }
 }
 

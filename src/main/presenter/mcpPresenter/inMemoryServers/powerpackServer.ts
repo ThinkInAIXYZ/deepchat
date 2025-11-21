@@ -11,6 +11,7 @@ import { execFile } from 'child_process'
 import { promisify } from 'util'
 import { nanoid } from 'nanoid'
 import { Sandbox } from '@e2b/code-interpreter'
+import { RuntimeHelper } from '@/lib/runtimeHelper'
 
 // Schema 定义
 const GetTimeArgsSchema = z.object({
@@ -73,16 +74,16 @@ const CODE_EXECUTION_FORBIDDEN_PATTERNS = [
 
 export class PowerpackServer {
   private server: Server
-  private nodeRuntimePath: string | null = null
   private useE2B: boolean = false
   private e2bApiKey: string = ''
+  private readonly runtimeHelper = RuntimeHelper.getInstance()
 
   constructor(env?: Record<string, any>) {
     // 从环境变量中获取 E2B 配置
     this.parseE2BConfig(env)
 
     // 查找内置的运行时路径
-    this.setupRuntimes()
+    this.runtimeHelper.initializeRuntimes()
 
     // 创建服务器实例
     this.server = new Server(
@@ -115,35 +116,6 @@ export class PowerpackServer {
     }
   }
 
-  // 设置运行时路径
-  private setupRuntimes(): void {
-    const runtimeBasePath = path
-      .join(app.getAppPath(), 'runtime')
-      .replace('app.asar', 'app.asar.unpacked')
-
-    // 设置 Node.js 运行时路径
-    const nodeRuntimePath = path.join(runtimeBasePath, 'node')
-    if (process.platform === 'win32') {
-      const nodeExe = path.join(nodeRuntimePath, 'node.exe')
-      if (fs.existsSync(nodeExe)) {
-        this.nodeRuntimePath = nodeRuntimePath
-      }
-    } else {
-      const nodeBin = path.join(nodeRuntimePath, 'bin', 'node')
-      if (fs.existsSync(nodeBin)) {
-        this.nodeRuntimePath = nodeRuntimePath
-      }
-    }
-
-    if (!this.nodeRuntimePath && !this.useE2B) {
-      console.warn('No runtime found (Node.js or E2B), code execution will be unavailable')
-    } else if (this.useE2B) {
-      console.info('Using E2B for code execution')
-    } else if (this.nodeRuntimePath) {
-      console.info('Using built-in Node.js runtime')
-    }
-  }
-
   // 启动服务器
   public async startServer(transport: Transport): Promise<void> {
     this.server.connect(transport)
@@ -167,7 +139,8 @@ export class PowerpackServer {
   // 执行JavaScript代码
   private async executeJavaScriptCode(code: string, timeout: number): Promise<string> {
     // 所有平台都使用 Node.js
-    if (!this.nodeRuntimePath) {
+    const nodeRuntimePath = this.runtimeHelper.getNodeRuntimePath()
+    if (!nodeRuntimePath) {
       throw new Error('运行时未找到，无法执行代码')
     }
 
@@ -189,10 +162,10 @@ export class PowerpackServer {
 
       // 所有平台都使用 Node.js
       if (process.platform === 'win32') {
-        executable = path.join(this.nodeRuntimePath, 'node.exe')
+        executable = path.join(nodeRuntimePath, 'node.exe')
         args = [tempFile]
       } else {
-        executable = path.join(this.nodeRuntimePath, 'bin', 'node')
+        executable = path.join(nodeRuntimePath, 'bin', 'node')
         args = [tempFile]
       }
 
@@ -323,7 +296,8 @@ export class PowerpackServer {
         })
       } else {
         // 使用本地运行时执行代码
-        if (this.nodeRuntimePath) {
+        const nodeRuntimePath = this.runtimeHelper.getNodeRuntimePath()
+        if (nodeRuntimePath) {
           const runtimeDescription =
             'Execute simple JavaScript/TypeScript code in a secure sandbox environment using Node.js runtime. '
 
@@ -439,7 +413,8 @@ export class PowerpackServer {
               throw new Error('Local code execution is disabled when E2B is enabled')
             }
 
-            if (!this.nodeRuntimePath) {
+            const nodeRuntimePath = this.runtimeHelper.getNodeRuntimePath()
+            if (!nodeRuntimePath) {
               throw new Error('JavaScript runtime is not available, cannot execute code')
             }
 
