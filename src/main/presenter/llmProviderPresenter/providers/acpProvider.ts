@@ -27,6 +27,7 @@ import { AcpContentMapper } from '../agent/acpContentMapper'
 import { AcpMessageFormatter } from '../agent/acpMessageFormatter'
 import { AcpSessionPersistence } from '../agent/acpSessionPersistence'
 import { nanoid } from 'nanoid'
+import { presenter } from '@/presenter'
 
 type EventQueue = {
   push: (event: LLMCoreStreamEvent | null) => void
@@ -70,7 +71,17 @@ export class AcpProvider extends BaseAgentProvider<
     this.sessionPersistence = sessionPersistence
     this.processManager = new AcpProcessManager({
       providerId: provider.id,
-      getUseBuiltinRuntime: () => this.configPresenter.getAcpUseBuiltinRuntime()
+      getUseBuiltinRuntime: () => this.configPresenter.getAcpUseBuiltinRuntime(),
+      getNpmRegistry: async () => {
+        // Get npm registry from MCP presenter's server manager
+        // This will use the fastest registry from speed test
+        return presenter.mcpPresenter.getNpmRegistry?.() ?? null
+      },
+      getUvRegistry: async () => {
+        // Get uv registry from MCP presenter's server manager
+        // This will use the fastest registry from speed test
+        return presenter.mcpPresenter.getUvRegistry?.() ?? null
+      }
     })
     this.sessionManager = new AcpSessionManager({
       providerId: provider.id,

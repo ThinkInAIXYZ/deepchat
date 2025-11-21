@@ -1422,6 +1422,9 @@ export interface IMCPPresenter {
   setCustomNpmRegistry?(registry: string | undefined): Promise<void>
   setAutoDetectNpmRegistry?(enabled: boolean): Promise<void>
   clearNpmRegistryCache?(): Promise<void>
+  // Get npm/uv registry for internal use (ACP, etc.)
+  getNpmRegistry?(): string | null
+  getUvRegistry?(): string | null
 
   // McpRouter marketplace
   listMcpRouterServers?(

@@ -24,6 +24,8 @@ export interface AcpProcessHandle extends AgentProcessHandle {
 interface AcpProcessManagerOptions {
   providerId: string
   getUseBuiltinRuntime: () => Promise<boolean>
+  getNpmRegistry?: () => Promise<string | null>
+  getUvRegistry?: () => Promise<string | null>
 }
 
 export type SessionNotificationHandler = (notification: schema.SessionNotification) => void
@@ -53,6 +55,8 @@ interface PermissionResolverEntry {
 export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, AcpAgentConfig> {
   private readonly providerId: string
   private readonly getUseBuiltinRuntime: () => Promise<boolean>
+  private readonly getNpmRegistry?: () => Promise<string | null>
+  private readonly getUvRegistry?: () => Promise<string | null>
   private readonly handles = new Map<string, AcpProcessHandle>()
   private readonly pendingHandles = new Map<string, Promise<AcpProcessHandle>>()
   private readonly sessionListeners = new Map<string, SessionListenerEntry>()
@@ -65,6 +69,8 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
   constructor(options: AcpProcessManagerOptions) {
     this.providerId = options.providerId
     this.getUseBuiltinRuntime = options.getUseBuiltinRuntime
+    this.getNpmRegistry = options.getNpmRegistry
+    this.getUvRegistry = options.getUvRegistry
   }
 
   async getConnection(agent: AcpAgentConfig): Promise<AcpProcessHandle> {
@@ -416,6 +422,29 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
     }
   }
 
+  // Expand various symbols and variables in paths
+  private expandPath(inputPath: string): string {
+    let expandedPath = inputPath
+
+    // Handle ~ symbol (user home directory)
+    if (expandedPath.startsWith('~/') || expandedPath === '~') {
+      const homeDir = app.getPath('home')
+      expandedPath = expandedPath.replace('~', homeDir)
+    }
+
+    // Handle environment variable expansion
+    expandedPath = expandedPath.replace(/\$\{([^}]+)\}/g, (match, varName) => {
+      return process.env[varName] || match
+    })
+
+    // Handle simple $VAR format (without braces)
+    expandedPath = expandedPath.replace(/\$([A-Z_][A-Z0-9_]*)/g, (match, varName) => {
+      return process.env[varName] || match
+    })
+
+    return expandedPath
+  }
+
   private async spawnAgentProcess(agent: AcpAgentConfig): Promise<ChildProcessWithoutNullStreams> {
     // Initialize runtime paths if not already done
     this.setupRuntimes()
@@ -428,8 +457,14 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
       throw new Error(`[ACP] Invalid command for agent ${agent.id}: command is empty`)
     }
 
+    // Handle path expansion (including ~ and environment variables)
+    let expandedCommand = this.expandPath(agent.command)
+    let expandedArgs = (agent.args ?? []).map((arg) =>
+      typeof arg === 'string' ? this.expandPath(arg) : arg
+    )
+
     // Replace command with runtime version if needed
-    const processedCommand = this.replaceWithRuntimeCommand(agent.command, useBuiltinRuntime)
+    const processedCommand = this.replaceWithRuntimeCommand(expandedCommand, useBuiltinRuntime)
 
     // Validate processed command
     if (!processedCommand || processedCommand.trim().length === 0) {
@@ -451,8 +486,8 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
       )
     }
 
-    // Keep args as-is, do not replace them
-    const processedArgs = agent.args ?? []
+    // Use expanded args
+    const processedArgs = expandedArgs
 
     // Determine if it's Node.js/Bun/UV related command
     const isNodeCommand = ['node', 'npm', 'npx', 'bun', 'uv', 'uvx'].some(
@@ -473,7 +508,12 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
       'NPM_CONFIG_REGISTRY',
       'NPM_CONFIG_CACHE',
       'NPM_CONFIG_PREFIX',
-      'NPM_CONFIG_TMP'
+      'NPM_CONFIG_TMP',
+      'ANTHROPIC_BASE_URL',
+      'ANTHROPIC_AUTH_TOKEN',
+      'ANTHROPIC_MODEL',
+      'OPENAI_BASE_URL',
+      'OPENAI_API_KEY'
     ]
 
     const HOME_DIR = app.getPath('home')
@@ -609,6 +649,24 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
           }
         }
       })
+    }
+
+    // Add registry environment variables when using builtin runtime
+    if (useBuiltinRuntime) {
+      if (this.getNpmRegistry) {
+        const npmRegistry = await this.getNpmRegistry()
+        if (npmRegistry) {
+          env.npm_config_registry = npmRegistry
+        }
+      }
+
+      if (this.getUvRegistry) {
+        const uvRegistry = await this.getUvRegistry()
+        if (uvRegistry) {
+          env.UV_DEFAULT_INDEX = uvRegistry
+          env.PIP_INDEX_URL = uvRegistry
+        }
+      }
     }
 
     const mergedEnv = env

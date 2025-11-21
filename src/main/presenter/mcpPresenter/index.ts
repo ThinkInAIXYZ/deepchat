@@ -1301,4 +1301,14 @@ export class McpPresenter implements IMCPPresenter {
     this.configPresenter.clearNpmRegistryCache?.()
     console.log('[MCP] NPM Registry cache cleared')
   }
+
+  // Get npm registry (for ACP and other internal use)
+  getNpmRegistry(): string | null {
+    return this.serverManager.getNpmRegistry()
+  }
+
+  // Get uv registry (for ACP and other internal use)
+  getUvRegistry(): string | null {
+    return this.serverManager.getUvRegistry()
+  }
 }
