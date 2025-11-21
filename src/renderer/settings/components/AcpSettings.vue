@@ -125,6 +125,18 @@
                   <Button size="sm" variant="ghost" @click="openProfileManager(agent)">
                     {{ t('settings.acp.manageProfiles') }}
                   </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    :disabled="isInitializing(agent.id, true)"
+                    @click="handleInitializeAgent(agent.id, true)"
+                  >
+                    {{
+                      isInitializing(agent.id, true)
+                        ? t('settings.acp.initializing')
+                        : t('settings.acp.initialize')
+                    }}
+                  </Button>
                 </div>
               </CardContent>
             </Card>
@@ -200,6 +212,18 @@
                   <Button size="sm" variant="ghost" @click="deleteCustomAgent(agent)">
                     {{ t('common.delete') }}
                   </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    :disabled="isInitializing(agent.id, false)"
+                    @click="handleInitializeAgent(agent.id, false)"
+                  >
+                    {{
+                      isInitializing(agent.id, false)
+                        ? t('settings.acp.initializing')
+                        : t('settings.acp.initialize')
+                    }}
+                  </Button>
                 </div>
               </CardContent>
             </Card>
@@ -231,6 +255,11 @@
       :confirm-label="profileDialogState.confirmLabel"
       @update:open="(value) => (profileDialogState.open = value)"
       @save="handleProfileSave"
+    />
+
+    <AcpTerminalDialog
+      :open="terminalDialogOpen"
+      @update:open="(value) => (terminalDialogOpen = value)"
     />
   </div>
 </template>
@@ -266,6 +295,7 @@ import {
 } from '@shadcn/components/ui/select'
 import AcpProfileDialog from './AcpProfileDialog.vue'
 import AcpProfileManagerDialog from './AcpProfileManagerDialog.vue'
+import AcpTerminalDialog from './AcpTerminalDialog.vue'
 
 const { t } = useI18n()
 const { toast } = useToast()
@@ -284,6 +314,8 @@ const savingProfile = ref(false)
 
 const builtinPending = reactive<Record<string, boolean>>({})
 const customPending = reactive<Record<string, boolean>>({})
+const initializing = reactive<Record<string, boolean>>({})
+const terminalDialogOpen = ref(false)
 
 const profileDialogState = reactive({
   open: false,
@@ -630,6 +662,49 @@ const deleteCustomAgent = async (agent: AcpCustomAgent) => {
     toast({ title: t('settings.acp.deleteSuccess') })
   } catch (error) {
     handleError(error)
+  }
+}
+
+const isInitializing = (agentId: string, isBuiltin: boolean): boolean => {
+  const key = `${isBuiltin ? 'builtin' : 'custom'}-${agentId}`
+  return Boolean(initializing[key])
+}
+
+const setInitializing = (agentId: string, isBuiltin: boolean, state: boolean) => {
+  const key = `${isBuiltin ? 'builtin' : 'custom'}-${agentId}`
+  if (state) {
+    initializing[key] = true
+  } else {
+    delete initializing[key]
+  }
+}
+
+const handleInitializeAgent = async (agentId: string, isBuiltin: boolean) => {
+  if (isInitializing(agentId, isBuiltin)) return
+
+  setInitializing(agentId, isBuiltin, true)
+  try {
+    // Open terminal dialog first
+    console.log('[AcpSettings] Opening terminal dialog for agent initialization')
+    terminalDialogOpen.value = true
+
+    // Wait for dialog to open, terminal to initialize, and IPC listeners to be set up
+    // The terminal initialization takes ~150ms + fitting attempts
+    // The main process delays start event by 500ms to ensure listeners are ready
+    // So we wait a bit longer to ensure everything is ready
+    await new Promise((resolve) => setTimeout(resolve, 600))
+
+    console.log('[AcpSettings] Starting agent initialization')
+    // Start initialization (output will be streamed to terminal)
+    await configPresenter.initializeAcpAgent(agentId, isBuiltin)
+
+    // Note: Success/error will be shown in terminal, not via toast
+  } catch (error) {
+    console.error('[AcpSettings] Agent initialization failed:', error)
+    handleError(error, 'settings.acp.initializeFailed')
+    terminalDialogOpen.value = false
+  } finally {
+    setInitializing(agentId, isBuiltin, false)
   }
 }
 

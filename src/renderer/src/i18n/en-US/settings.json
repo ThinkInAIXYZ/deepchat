@@ -824,6 +824,11 @@
     "saveSuccess": "Configuration saved",
     "saveFailed": "Failed to save agent",
     "deleteSuccess": "Deleted successfully",
+    "initialize": "Initialize",
+    "initializing": "Initializing...",
+    "initializeDescription": "Terminal opened with initialization commands",
+    "initializeSuccess": "Initialization started",
+    "initializeFailed": "Initialization failed",
     "missingFieldsTitle": "Name and command are required",
     "missingFieldsDesc": "Please fill in both name and command before saving.",
     "command": "Command",
@@ -857,6 +862,23 @@
       "cannotDeleteTitle": "Keep at least one profile",
       "cannotDeleteDesc": "Built-in agents require at least one configuration.",
       "noAgent": "Select an agent to manage its profiles."
+    },
+    "terminal": {
+      "title": "Initialization Terminal",
+      "description": "Watch the initialization process in real-time.",
+      "waiting": "Waiting for initialization to start...",
+      "starting": "Starting initialization...",
+      "close": "Close",
+      "closing": "Closing...",
+      "exitSuccess": "Process completed successfully (exit code: {code})",
+      "exitError": "Process exited with error (exit code: {code})",
+      "processError": "Process error",
+      "status": {
+        "idle": "Idle",
+        "running": "Running",
+        "completed": "Completed",
+        "error": "Error"
+      }
     }
   },
   "rateLimit": {

@@ -532,6 +532,7 @@ export interface IConfigPresenter {
   ): Promise<AcpCustomAgent | null>
   removeCustomAcpAgent(agentId: string): Promise<boolean>
   setCustomAcpAgentEnabled(agentId: string, enabled: boolean): Promise<void>
+  initializeAcpAgent(agentId: string, isBuiltin: boolean): Promise<void>
   getMcpConfHelper(): any // Used to get MCP configuration helper
   getModelConfig(modelId: string, providerId?: string): ModelConfig
   setModelConfig(

@@ -23,7 +23,7 @@ import { ModelType } from '@shared/model'
 import ElectronStore from 'electron-store'
 import { DEFAULT_PROVIDERS } from './providers'
 import path from 'path'
-import { app, nativeTheme, shell } from 'electron'
+import { app, nativeTheme, shell, ipcMain } from 'electron'
 import fs from 'fs'
 import { CONFIG_EVENTS, SYSTEM_EVENTS, FLOATING_BUTTON_EVENTS } from '@/events'
 import { McpConfHelper } from './mcpConfHelper'
@@ -42,6 +42,12 @@ import { SystemPromptHelper, DEFAULT_SYSTEM_PROMPT } from './systemPromptHelper'
 import { UiSettingsHelper } from './uiSettingsHelper'
 import { AcpConfHelper } from './acpConfHelper'
 import { AcpProvider } from '../llmProviderPresenter/providers/acpProvider'
+import {
+  initializeBuiltinAgent,
+  initializeCustomAgent,
+  writeToTerminal,
+  killTerminal
+} from './acpInitHelper'
 
 // Define application settings interface
 interface IAppSettings {
@@ -181,6 +187,7 @@ export class ConfigPresenter implements IConfigPresenter {
 
     this.acpConfHelper = new AcpConfHelper()
     this.syncAcpProviderEnabled(this.acpConfHelper.getGlobalEnabled())
+    this.setupIpcHandlers()
 
     // Initialize MCP configuration helper
     this.mcpConfHelper = new McpConfHelper()
@@ -224,6 +231,15 @@ export class ConfigPresenter implements IConfigPresenter {
     if (newProviders.length > 0) {
       this.setProviders([...existingProviders, ...newProviders])
     }
+  }
+
+  private setupIpcHandlers() {
+    ipcMain.on('acp-terminal:input', (_event, data: string) => {
+      writeToTerminal(data)
+    })
+    ipcMain.on('acp-terminal:kill', () => {
+      killTerminal()
+    })
   }
 
   private initProviderModelsDir(): void {
@@ -997,6 +1013,64 @@ export class ConfigPresenter implements IConfigPresenter {
 
   async getAcpCustomAgents(): Promise<AcpCustomAgent[]> {
     return this.acpConfHelper.getCustoms()
+  }
+
+  /**
+   * Initialize an ACP agent with terminal output streaming
+   */
+  async initializeAcpAgent(agentId: string, isBuiltin: boolean): Promise<void> {
+    const useBuiltinRuntime = await this.getAcpUseBuiltinRuntime()
+
+    // Get npm and uv registry from MCP presenter
+    let npmRegistry: string | null = null
+    let uvRegistry: string | null = null
+    try {
+      const mcpPresenter = presenter.mcpPresenter
+      if (mcpPresenter) {
+        npmRegistry = mcpPresenter.getNpmRegistry?.() ?? null
+        uvRegistry = mcpPresenter.getUvRegistry?.() ?? null
+      }
+    } catch (error) {
+      console.warn('[ACP Init] Failed to get registry from MCP presenter:', error)
+    }
+
+    // Get settings window webContents for streaming output
+    const windowPresenter = presenter.windowPresenter as any
+    const settingsWindow = windowPresenter?.settingsWindow
+    const webContents =
+      settingsWindow && !settingsWindow.isDestroyed() ? settingsWindow.webContents : undefined
+
+    if (isBuiltin) {
+      // Get builtin agent and its active profile
+      const builtins = await this.getAcpBuiltinAgents()
+      const agent = builtins.find((a) => a.id === agentId)
+      if (!agent) {
+        throw new Error(`Built-in agent not found: ${agentId}`)
+      }
+
+      const activeProfile = agent.profiles.find((p) => p.id === agent.activeProfileId)
+      if (!activeProfile) {
+        throw new Error(`No active profile found for agent: ${agentId}`)
+      }
+
+      await initializeBuiltinAgent(
+        agentId as AcpBuiltinAgentId,
+        activeProfile,
+        useBuiltinRuntime,
+        npmRegistry,
+        uvRegistry,
+        webContents
+      )
+    } else {
+      // Get custom agent
+      const customs = await this.getAcpCustomAgents()
+      const agent = customs.find((a) => a.id === agentId)
+      if (!agent) {
+        throw new Error(`Custom agent not found: ${agentId}`)
+      }
+
+      await initializeCustomAgent(agent, useBuiltinRuntime, npmRegistry, uvRegistry, webContents)
+    }
   }
 
   async addAcpBuiltinProfile(

@@ -824,6 +824,11 @@
     "saveSuccess": "已保存配置",
     "saveFailed": "保存失败",
     "deleteSuccess": "删除成功",
+    "initialize": "初始化",
+    "initializing": "正在初始化...",
+    "initializeDescription": "已在终端中打开并执行初始化命令",
+    "initializeSuccess": "初始化已启动",
+    "initializeFailed": "初始化失败",
     "missingFieldsTitle": "名称和命令必填",
     "missingFieldsDesc": "请先填写名称和命令。",
     "command": "命令",
@@ -857,6 +862,23 @@
       "cannotDeleteTitle": "至少保留一个配置",
       "cannotDeleteDesc": "内置 Agent 至少需要一套配置。",
       "noAgent": "请选择要管理的 Agent。"
+    },
+    "terminal": {
+      "title": "初始化终端",
+      "description": "实时查看初始化过程。",
+      "waiting": "等待初始化开始...",
+      "starting": "正在启动初始化...",
+      "close": "关闭",
+      "closing": "正在关闭...",
+      "exitSuccess": "进程成功完成（退出码：{code}）",
+      "exitError": "进程退出时出错（退出码：{code}）",
+      "processError": "进程错误",
+      "status": {
+        "idle": "空闲",
+        "running": "运行中",
+        "completed": "已完成",
+        "error": "错误"
+      }
     }
   },
   "rateLimit": {
