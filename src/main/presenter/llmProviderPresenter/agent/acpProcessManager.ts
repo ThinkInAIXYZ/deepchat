@@ -382,8 +382,28 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
     // Initialize runtime paths if not already done
     this.setupRuntimes()
 
+    // Validate command
+    if (!agent.command || agent.command.trim().length === 0) {
+      throw new Error(`[ACP] Invalid command for agent ${agent.id}: command is empty`)
+    }
+
     // Replace command with runtime version if needed
     const processedCommand = this.replaceWithRuntimeCommand(agent.command)
+
+    // Validate processed command
+    if (!processedCommand || processedCommand.trim().length === 0) {
+      throw new Error(
+        `[ACP] Invalid processed command for agent ${agent.id}: "${agent.command}" -> empty`
+      )
+    }
+
+    // Log command processing for debugging
+    if (processedCommand !== agent.command) {
+      console.info(
+        `[ACP] Command replaced for agent ${agent.id}: "${agent.command}" -> "${processedCommand}"`
+      )
+    }
+
     // Keep args as-is, do not replace them
     const processedArgs = agent.args ?? []
 
@@ -422,7 +442,16 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
     mergedEnv[key] = value
 
     // Determine working directory (default to current working directory)
-    const cwd = process.cwd()
+    let cwd = process.cwd()
+    // Validate cwd exists
+    if (!fs.existsSync(cwd)) {
+      console.warn(`[ACP] Working directory does not exist: ${cwd}, using process.cwd()`)
+      cwd = process.cwd()
+      // If still doesn't exist, use a safe fallback
+      if (!fs.existsSync(cwd)) {
+        cwd = process.platform === 'win32' ? 'C:\\' : '/'
+      }
+    }
 
     return spawn(processedCommand, processedArgs, {
       env: mergedEnv,
