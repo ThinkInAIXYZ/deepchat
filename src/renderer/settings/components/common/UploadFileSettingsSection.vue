@@ -74,7 +74,7 @@ const { t } = useI18n()
 const configPresenter = usePresenter('configPresenter')
 
 const minSize = 1
-const maxSize = 1024 // 30MB
+const maxSize = 1024 // 1024MB
 
 const fileMaxSize = ref(30) // 默认值
 const isEditing = ref(false)

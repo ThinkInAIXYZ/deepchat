@@ -26,7 +26,7 @@ export class FilePresenter implements IFilePresenter {
   private fileValidationService: IFileValidationService
 
   get maxFileSize(): number {
-    return this.configPresenter.getSetting<number>('maxFileSize') || 1024 * 1024 * 30
+    return this.configPresenter.getSetting<number>('maxFileSize') || 1024 * 1024 * 30 //30MB
   }
 
   constructor(configPresenter: IConfigPresenter, fileValidationService?: IFileValidationService) {
