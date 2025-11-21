@@ -3,8 +3,7 @@ import { FilePresenter } from '../../../src/main/presenter/filePresenter/FilePre
 import {
   FileValidationResult,
   IFileValidationService
-} from '../../../src/main/presenter/configPresenter/IConfigPresenter'
-
+} from '../../../src/main/presenter/filePresenter/FileValidationService'
 import { IConfigPresenter } from '../../../src/shared/presenter'
 
 // Mock all external dependencies
