@@ -51,6 +51,37 @@ export class ModelConfigHelper {
     return alias || providerId
   }
 
+  /**
+   * Infer model type from provider model data
+   * Priority: 1. model.type (from provider.json) 2. modalities.output inference 3. default Chat
+   */
+  private inferModelType(model: ProviderModel): ModelType {
+    // Priority 1: Use type from provider.json if present and valid
+    if (model.type) {
+      switch (model.type) {
+        case 'chat':
+          return ModelType.Chat
+        case 'embedding':
+          return ModelType.Embedding
+        case 'rerank':
+          return ModelType.Rerank
+        case 'imageGeneration':
+          return ModelType.ImageGeneration
+        default:
+          // Invalid type, fall through to inference
+          break
+      }
+    }
+
+    // Priority 2: Infer from modalities.output
+    if (Array.isArray(model.modalities?.output) && model.modalities.output.includes('image')) {
+      return ModelType.ImageGeneration
+    }
+
+    // Priority 3: Default to Chat
+    return ModelType.Chat
+  }
+
   private buildConfigFromProviderModel(model: ProviderModel): ModelConfig {
     return {
       maxTokens: model.limit?.output ?? 4096,
@@ -59,7 +90,7 @@ export class ModelConfigHelper {
       vision: isImageInputSupported(model),
       functionCall: model.tool_call ?? false,
       reasoning: Boolean(model.reasoning?.supported ?? false),
-      type: ModelType.Chat,
+      type: this.inferModelType(model),
       thinkingBudget: model.reasoning?.budget?.default ?? undefined,
       enableSearch: Boolean(model.search?.supported ?? false),
       forcedSearch: Boolean(model.search?.forced_search),

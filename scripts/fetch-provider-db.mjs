@@ -100,6 +100,24 @@ function sanitizeAggregateJson(json) {
         if (Object.keys(so).length) search = so
       }
 
+      // type (model type: chat, embedding, rerank, imageGeneration)
+      // Normalize type values to handle variants like image_generation, image-generation, etc.
+      let modelType
+      const t = m.type
+      if (typeof t === 'string') {
+        const normalized = t.toLowerCase().replace(/[_-]/g, '')
+        // Map normalized variants to standard format
+        if (normalized === 'chat') {
+          modelType = 'chat'
+        } else if (normalized === 'embedding') {
+          modelType = 'embedding'
+        } else if (normalized === 'rerank') {
+          modelType = 'rerank'
+        } else if (normalized === 'imagegeneration' || normalized === 'imagegen') {
+          modelType = 'imageGeneration'
+        }
+      }
+
       sanitizedModels.push({
         id: mid,
         name: typeof m.name === 'string' ? m.name : undefined,
@@ -115,7 +133,8 @@ function sanitizeAggregateJson(json) {
         knowledge: typeof m.knowledge === 'string' ? m.knowledge : undefined,
         release_date: typeof m.release_date === 'string' ? m.release_date : undefined,
         last_updated: typeof m.last_updated === 'string' ? m.last_updated : undefined,
-        cost: typeof m.cost === 'object' ? m.cost : undefined
+        cost: typeof m.cost === 'object' ? m.cost : undefined,
+        type: modelType
       })
     }
     if (!sanitizedModels.length) continue
