@@ -24,6 +24,17 @@ export class KnowledgeStorePresenter {
   private taskP: IKnowledgeTaskPresenter
   // 文件处理进度跟踪器
   private fileProgressMap = new Map<string, { completed: number; error: number; total: number }>()
+  // --- 新增：按文件队列保证 vectorP 线程安全 ---
+  private fileQueueMap = new Map<string, Promise<void>>()
+
+  private async enqueueFileTask(fileId: string, task: () => Promise<void>): Promise<void> {
+    const last = this.fileQueueMap.get(fileId) ?? Promise.resolve()
+    const next = last.then(task).catch((err) => {
+      console.error(`[RAG] Error in queued task for file ${fileId}:`, err)
+    })
+    this.fileQueueMap.set(fileId, next)
+    await next
+  }
 
   constructor(
     vectorP: IVectorDatabasePresenter,
@@ -76,9 +87,9 @@ export class KnowledgeStorePresenter {
       } as KnowledgeFileMessage
 
       if (fileId) {
-        await this.vectorP.updateFile(fileMessage)
+        await this.enqueueFileTask(fileMessage.id, async () => this.vectorP.updateFile(fileMessage))
       } else {
-        await this.vectorP.insertFile(fileMessage)
+        await this.enqueueFileTask(fileMessage.id, async () => this.vectorP.insertFile(fileMessage))
       }
 
       this.processFileAsync(fileMessage)
@@ -113,7 +124,7 @@ export class KnowledgeStorePresenter {
         fileMessage.status = 'error'
         fileMessage.metadata.errorReason =
           '无法读取文件或文件内容为空，请检查文件是否损坏或格式是否受支持'
-        await this.vectorP.updateFile(fileMessage)
+        await this.enqueueFileTask(fileMessage.id, async () => this.vectorP.updateFile(fileMessage))
         eventBus.sendToRenderer(RAG_EVENTS.FILE_UPDATED, SendTarget.ALL_WINDOWS, fileMessage)
         return
       }
@@ -128,7 +139,7 @@ export class KnowledgeStorePresenter {
 
       // 4. 更新文件信息中的分片数量
       fileMessage.metadata.totalChunks = chunks.length
-      await this.vectorP.updateFile(fileMessage)
+      await this.enqueueFileTask(fileMessage.id, async () => this.vectorP.updateFile(fileMessage))
 
       // 5. 发送文件更新事件
       eventBus.sendToRenderer(RAG_EVENTS.FILE_UPDATED, SendTarget.ALL_WINDOWS, fileMessage)
@@ -142,7 +153,9 @@ export class KnowledgeStorePresenter {
         status: 'processing'
       })) as KnowledgeChunkMessage[]
 
-      await this.vectorP.insertChunks(chunkMessages)
+      await this.enqueueFileTask(fileMessage.id, async () =>
+        this.vectorP.insertChunks(chunkMessages)
+      )
 
       // 7. 初始化文件进度跟踪
       this.fileProgressMap.set(fileMessage.id, { completed: 0, error: 0, total: chunks.length })
@@ -198,11 +211,13 @@ export class KnowledgeStorePresenter {
       }
 
       // 事务化更新chunk和向量
-      await this.vectorP.updateChunkStatus(chunkMsg.id, 'completed')
-      await this.vectorP.insertVector({
-        vector: vectors[0],
-        fileId: chunkMsg.fileId,
-        chunkId: chunkMsg.id
+      await this.enqueueFileTask(chunkMsg.fileId, async () => {
+        await this.vectorP.updateChunkStatus(chunkMsg.id, 'completed')
+        await this.vectorP.insertVector({
+          vector: vectors[0],
+          fileId: chunkMsg.fileId,
+          chunkId: chunkMsg.id
+        })
       })
     } catch (error) {
       if (error instanceof DOMException && error.name === 'AbortError') {
@@ -221,7 +236,9 @@ export class KnowledgeStorePresenter {
       return
     }
 
-    await this.vectorP.updateChunkStatus(chunkId, 'completed')
+    await this.enqueueFileTask(chunkId, async () =>
+      this.vectorP.updateChunkStatus(chunkId, 'completed')
+    )
     progress.completed++
 
     // 更新文件进度
@@ -251,7 +268,9 @@ export class KnowledgeStorePresenter {
       return
     }
 
-    await this.vectorP.updateChunkStatus(chunkId, 'error', errorMessage)
+    await this.enqueueFileTask(fileId, async () =>
+      this.vectorP.updateChunkStatus(chunkId, 'error', errorMessage)
+    )
     progress.error++
 
     // 更新文件进度
@@ -277,7 +296,7 @@ export class KnowledgeStorePresenter {
       const fileMessage = await this.vectorP.queryFile(fileId)
       if (fileMessage) {
         fileMessage.status = 'completed'
-        await this.vectorP.updateFile(fileMessage)
+        await this.enqueueFileTask(fileId, async () => this.vectorP.updateFile(fileMessage))
         eventBus.sendToRenderer(RAG_EVENTS.FILE_UPDATED, SendTarget.ALL_WINDOWS, fileMessage)
         console.log(`[RAG] File processing completed for ${fileId}`)
       }
@@ -295,7 +314,7 @@ export class KnowledgeStorePresenter {
         if (fileMessage.metadata) {
           fileMessage.metadata.errorReason = errorMessage
         }
-        await this.vectorP.updateFile(fileMessage)
+        await this.enqueueFileTask(fileId, async () => this.vectorP.updateFile(fileMessage))
         eventBus.sendToRenderer(RAG_EVENTS.FILE_UPDATED, SendTarget.ALL_WINDOWS, fileMessage)
       }
     } catch (error) {
@@ -312,7 +331,7 @@ export class KnowledgeStorePresenter {
       this.fileProgressMap.delete(fileId)
 
       // 3. 删除文件
-      await this.vectorP.deleteFile(fileId)
+      await this.enqueueFileTask(fileId, async () => this.vectorP.deleteFile(fileId))
     } catch (err) {
       console.error(
         `[RAG] Failed to delete file ${fileId} in knowledge base ${this.config.id}:`,
@@ -348,8 +367,8 @@ export class KnowledgeStorePresenter {
     if (file == null) {
       throw new Error('文件不存在，请重新打开知识库后再试')
     }
-    await this.vectorP.deleteChunksByFile(fileId)
-    await this.vectorP.deleteVectorsByFile(fileId)
+    await this.enqueueFileTask(fileId, async () => this.vectorP.deleteChunksByFile(fileId))
+    await this.enqueueFileTask(fileId, async () => this.vectorP.deleteVectorsByFile(fileId))
     return this.addFile(file.path, fileId)
   }
 
