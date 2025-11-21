@@ -883,6 +883,28 @@
       "title": "لیست پیکربندی"
     },
     "profilePlaceholder": "لطفا پیکربندی را انتخاب کنید",
-    "profileSwitched": "پیکربندی تغییر کرد"
+    "profileSwitched": "پیکربندی تغییر کرد",
+    "initialize": "مقداردهی اولیه",
+    "initializeDescription": "در ترمینال باز شد و دستور مقداردهی اولیه اجرا شد",
+    "initializeFailed": "اولیه سازی انجام نشد",
+    "initializeSuccess": "راه اندازی آغاز شد",
+    "initializing": "در حال شروع...",
+    "terminal": {
+      "close": "بسته شدن",
+      "closing": "بسته شدن...",
+      "description": "روند اولیه سازی را در زمان واقعی مشاهده کنید.",
+      "exitError": "هنگام خروج از فرآیند خطایی روی داد (کد خروج: {code})",
+      "exitSuccess": "فرآیند با موفقیت انجام شد (کد خروج: {code})",
+      "processError": "خطای فرآیند",
+      "starting": "شروع اولیه سازی...",
+      "status": {
+        "completed": "تکمیل شد",
+        "error": "اشتباه",
+        "idle": "بیکار",
+        "running": "در حال دویدن"
+      },
+      "title": "ترمینال را راه اندازی کنید",
+      "waiting": "در انتظار شروع اولیه سازی..."
+    }
   }
 }

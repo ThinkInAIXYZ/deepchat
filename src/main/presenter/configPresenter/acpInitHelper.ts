@@ -31,7 +31,6 @@ const BUILTIN_INIT_COMMANDS: Record<AcpBuiltinAgentId, InitCommandConfig> = {
 
 class AcpInitHelper {
   private activeShell: IPty | null = null
-  private bunRuntimePath: string | null = null
   private nodeRuntimePath: string | null = null
   private uvRuntimePath: string | null = null
   private runtimesInitialized: boolean = false
@@ -368,10 +367,6 @@ class AcpInitHelper {
           runtimePaths.push(nodeBinPath)
           console.log('[ACP Init] Added Node runtime path (Unix):', nodeBinPath)
         }
-        if (this.bunRuntimePath) {
-          runtimePaths.push(this.bunRuntimePath)
-          console.log('[ACP Init] Added Bun runtime path:', this.bunRuntimePath)
-        }
       }
 
       if (runtimePaths.length > 0) {
@@ -450,26 +445,6 @@ class AcpInitHelper {
 
     console.log('[ACP Init] Runtime base path:', runtimeBasePath)
 
-    // Check if bun runtime file exists
-    const bunRuntimePath = path.join(runtimeBasePath, 'bun')
-    if (process.platform === 'win32') {
-      const bunExe = path.join(bunRuntimePath, 'bun.exe')
-      if (fs.existsSync(bunExe)) {
-        this.bunRuntimePath = bunRuntimePath
-        console.log('[ACP Init] Found Bun runtime (Windows):', bunExe)
-      } else {
-        console.log('[ACP Init] Bun runtime not found (Windows):', bunExe)
-      }
-    } else {
-      const bunBin = path.join(bunRuntimePath, 'bun')
-      if (fs.existsSync(bunBin)) {
-        this.bunRuntimePath = bunRuntimePath
-        console.log('[ACP Init] Found Bun runtime (Unix):', bunBin)
-      } else {
-        console.log('[ACP Init] Bun runtime not found (Unix):', bunBin)
-      }
-    }
-
     // Check if node runtime file exists
     const nodeRuntimePath = path.join(runtimeBasePath, 'node')
     if (process.platform === 'win32') {
@@ -519,7 +494,6 @@ class AcpInitHelper {
     }
 
     console.log('[ACP Init] Runtime setup completed:', {
-      bunRuntimePath: this.bunRuntimePath,
       nodeRuntimePath: this.nodeRuntimePath,
       uvRuntimePath: this.uvRuntimePath
     })

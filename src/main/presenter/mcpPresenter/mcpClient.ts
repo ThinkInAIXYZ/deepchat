@@ -119,7 +119,6 @@ export class McpClient {
   public serverConfig: Record<string, unknown>
   private isConnected: boolean = false
   private connectionTimeout: NodeJS.Timeout | null = null
-  private bunRuntimePath: string | null = null
   private nodeRuntimePath: string | null = null
   private uvRuntimePath: string | null = null
   private npmRegistry: string | null = null
@@ -174,40 +173,31 @@ export class McpClient {
     // Get command basename (remove path)
     const basename = path.basename(command)
 
-    // Choose corresponding runtime path based on command type
-    if (process.platform === 'win32') {
-      // Windows platform only replaces Node.js related commands, let system handle bun commands automatically
+    // Handle Node.js related commands (all platforms use same logic)
+    if (['node', 'npm', 'npx'].includes(basename)) {
       if (this.nodeRuntimePath) {
-        if (basename === 'node') {
-          return path.join(this.nodeRuntimePath, 'node.exe')
-        } else if (basename === 'npm') {
-          // Windows usually has npm as .cmd file
-          const npmCmd = path.join(this.nodeRuntimePath, 'npm.cmd')
-          if (fs.existsSync(npmCmd)) {
-            return npmCmd
+        if (process.platform === 'win32') {
+          if (basename === 'node') {
+            return path.join(this.nodeRuntimePath, 'node.exe')
+          } else if (basename === 'npm') {
+            // Windows usually has npm as .cmd file
+            const npmCmd = path.join(this.nodeRuntimePath, 'npm.cmd')
+            if (fs.existsSync(npmCmd)) {
+              return npmCmd
+            }
+            // If doesn't exist, return default path
+            return path.join(this.nodeRuntimePath, 'npm')
+          } else if (basename === 'npx') {
+            // On Windows, npx is typically a .cmd file
+            const npxCmd = path.join(this.nodeRuntimePath, 'npx.cmd')
+            if (fs.existsSync(npxCmd)) {
+              return npxCmd
+            }
+            // If doesn't exist, return default path
+            return path.join(this.nodeRuntimePath, 'npx')
           }
-          // If doesn't exist, return default path
-          return path.join(this.nodeRuntimePath, 'npm')
-        } else if (basename === 'npx') {
-          // On Windows, npx is typically a .cmd file
-          const npxCmd = path.join(this.nodeRuntimePath, 'npx.cmd')
-          if (fs.existsSync(npxCmd)) {
-            return npxCmd
-          }
-          // If doesn't exist, return default path
-          return path.join(this.nodeRuntimePath, 'npx')
-        }
-      }
-    } else {
-      // Non-Windows platforms handle all commands
-      if (['node', 'npm', 'npx', 'bun'].includes(basename)) {
-        // Prefer Bun if available, otherwise use Node.js
-        if (this.bunRuntimePath) {
-          // For node/npm/npx, uniformly replace with bun
-          const targetCommand = 'bun'
-          return path.join(this.bunRuntimePath, targetCommand)
-        } else if (this.nodeRuntimePath) {
-          // Use Node.js runtime
+        } else {
+          // Non-Windows platforms
           let targetCommand: string
           if (basename === 'node') {
             targetCommand = 'node'
@@ -215,8 +205,6 @@ export class McpClient {
             targetCommand = 'npm'
           } else if (basename === 'npx') {
             targetCommand = 'npx'
-          } else if (basename === 'bun') {
-            targetCommand = 'node' // Map bun command to node
           } else {
             targetCommand = basename
           }
@@ -244,38 +232,12 @@ export class McpClient {
     return command
   }
 
-  // Handle special parameter replacement (e.g., npx -> bun x)
+  // Handle special parameter replacement
   private processCommandWithArgs(
     command: string,
     args: string[]
   ): { command: string; args: string[] } {
-    const basename = path.basename(command)
-
-    // Handle npx command
-    if (basename === 'npx' || command.includes('npx')) {
-      if (process.platform === 'win32') {
-        // Windows platform uses Node.js npx, keep original arguments
-        return {
-          command: this.replaceWithRuntimeCommand(command),
-          args: args.map((arg) => this.replaceWithRuntimeCommand(arg))
-        }
-      } else {
-        // Non-Windows platforms prefer Bun, need to add 'x' before arguments
-        if (this.bunRuntimePath) {
-          return {
-            command: this.replaceWithRuntimeCommand(command),
-            args: ['x', ...args]
-          }
-        } else if (this.nodeRuntimePath) {
-          // If no Bun available, use Node.js with original arguments
-          return {
-            command: this.replaceWithRuntimeCommand(command),
-            args: args.map((arg) => this.replaceWithRuntimeCommand(arg))
-          }
-        }
-      }
-    }
-
+    // All platforms use Node.js, keep original arguments
     return {
       command: this.replaceWithRuntimeCommand(command),
       args: args.map((arg) => this.replaceWithRuntimeCommand(arg))
@@ -319,24 +281,6 @@ export class McpClient {
       .join(app.getAppPath(), 'runtime')
       .replace('app.asar', 'app.asar.unpacked')
     console.info('runtimeBasePath', runtimeBasePath)
-
-    // Check if bun runtime file exists
-    const bunRuntimePath = path.join(runtimeBasePath, 'bun')
-    if (process.platform === 'win32') {
-      const bunExe = path.join(bunRuntimePath, 'bun.exe')
-      if (fs.existsSync(bunExe)) {
-        this.bunRuntimePath = bunRuntimePath
-      } else {
-        this.bunRuntimePath = null
-      }
-    } else {
-      const bunBin = path.join(bunRuntimePath, 'bun')
-      if (fs.existsSync(bunBin)) {
-        this.bunRuntimePath = bunRuntimePath
-      } else {
-        this.bunRuntimePath = null
-      }
-    }
 
     // Check if node runtime file exists
     const nodeRuntimePath = path.join(runtimeBasePath, 'node')
@@ -441,13 +385,13 @@ export class McpClient {
         command = processedCommand.command
         args = processedCommand.args
 
-        // Determine if it's Node.js/Bun/UV related command
-        const isNodeCommand = ['node', 'npm', 'npx', 'bun', 'uv', 'uvx'].some(
+        // Determine if it's Node.js/UV related command
+        const isNodeCommand = ['node', 'npm', 'npx', 'uv', 'uvx'].some(
           (cmd) => command.includes(cmd) || args.some((arg) => arg.includes(cmd))
         )
 
         if (isNodeCommand) {
-          // Node.js/Bun/UV commands use whitelist processing
+          // Node.js/UV commands use whitelist processing
           if (process.env) {
             const existingPaths: string[] = []
 
@@ -480,15 +424,12 @@ export class McpClient {
                 allPaths.unshift(this.nodeRuntimePath)
               }
             } else {
-              // 其他平台优先级：bun > node > uv
+              // 其他平台优先级：node > uv
               if (this.uvRuntimePath) {
                 allPaths.unshift(this.uvRuntimePath)
               }
               if (this.nodeRuntimePath) {
                 allPaths.unshift(path.join(this.nodeRuntimePath, 'bin'))
-              }
-              if (this.bunRuntimePath) {
-                allPaths.unshift(this.bunRuntimePath)
               }
             }
 
@@ -497,7 +438,7 @@ export class McpClient {
             env[key] = value
           }
         } else {
-          // 非 Node.js/Bun/UV 命令，保留所有系统环境变量，只补充 PATH
+          // 非 Node.js/UV 命令，保留所有系统环境变量，只补充 PATH
           Object.entries(process.env).forEach(([key, value]) => {
             if (value !== undefined) {
               env[key] = value
@@ -528,15 +469,12 @@ export class McpClient {
               allPaths.unshift(this.nodeRuntimePath)
             }
           } else {
-            // 其他平台优先级：bun > node > uv
+            // 其他平台优先级：node > uv
             if (this.uvRuntimePath) {
               allPaths.unshift(this.uvRuntimePath)
             }
             if (this.nodeRuntimePath) {
               allPaths.unshift(path.join(this.nodeRuntimePath, 'bin'))
-            }
-            if (this.bunRuntimePath) {
-              allPaths.unshift(this.bunRuntimePath)
             }
           }
 

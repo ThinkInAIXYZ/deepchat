@@ -73,7 +73,6 @@ const CODE_EXECUTION_FORBIDDEN_PATTERNS = [
 
 export class PowerpackServer {
   private server: Server
-  private bunRuntimePath: string | null = null
   private nodeRuntimePath: string | null = null
   private useE2B: boolean = false
   private e2bApiKey: string = ''
@@ -122,20 +121,6 @@ export class PowerpackServer {
       .join(app.getAppPath(), 'runtime')
       .replace('app.asar', 'app.asar.unpacked')
 
-    // 设置 Bun 运行时路径
-    const bunRuntimePath = path.join(runtimeBasePath, 'bun')
-    if (process.platform === 'win32') {
-      const bunExe = path.join(bunRuntimePath, 'bun.exe')
-      if (fs.existsSync(bunExe)) {
-        this.bunRuntimePath = bunRuntimePath
-      }
-    } else {
-      const bunBin = path.join(bunRuntimePath, 'bun')
-      if (fs.existsSync(bunBin)) {
-        this.bunRuntimePath = bunRuntimePath
-      }
-    }
-
     // 设置 Node.js 运行时路径
     const nodeRuntimePath = path.join(runtimeBasePath, 'node')
     if (process.platform === 'win32') {
@@ -150,12 +135,10 @@ export class PowerpackServer {
       }
     }
 
-    if (!this.bunRuntimePath && !this.nodeRuntimePath && !this.useE2B) {
-      console.warn('No runtime found (Bun, Node.js, or E2B), code execution will be unavailable')
+    if (!this.nodeRuntimePath && !this.useE2B) {
+      console.warn('No runtime found (Node.js or E2B), code execution will be unavailable')
     } else if (this.useE2B) {
       console.info('Using E2B for code execution')
-    } else if (this.bunRuntimePath) {
-      console.info('Using built-in Bun runtime')
     } else if (this.nodeRuntimePath) {
       console.info('Using built-in Node.js runtime')
     }
@@ -183,13 +166,8 @@ export class PowerpackServer {
 
   // 执行JavaScript代码
   private async executeJavaScriptCode(code: string, timeout: number): Promise<string> {
-    // Windows平台只检查Node.js，其他平台检查Bun和Node.js
-    const hasRuntime =
-      process.platform === 'win32'
-        ? this.nodeRuntimePath
-        : this.bunRuntimePath || this.nodeRuntimePath
-
-    if (!hasRuntime) {
+    // 所有平台都使用 Node.js
+    if (!this.nodeRuntimePath) {
       throw new Error('运行时未找到，无法执行代码')
     }
 
@@ -209,20 +187,13 @@ export class PowerpackServer {
       let executable: string
       let args: string[]
 
-      // Windows平台使用Node.js，其他平台优先使用Bun
+      // 所有平台都使用 Node.js
       if (process.platform === 'win32') {
-        // Windows只使用Node.js
-        executable = path.join(this.nodeRuntimePath!, 'node.exe')
+        executable = path.join(this.nodeRuntimePath, 'node.exe')
         args = [tempFile]
       } else {
-        // 其他平台优先使用Bun
-        if (this.bunRuntimePath) {
-          executable = path.join(this.bunRuntimePath, 'bun')
-          args = [tempFile]
-        } else {
-          executable = path.join(this.nodeRuntimePath!, 'bin', 'node')
-          args = [tempFile]
-        }
+        executable = path.join(this.nodeRuntimePath, 'bin', 'node')
+        args = [tempFile]
       }
 
       // 执行代码并添加超时控制
@@ -352,16 +323,9 @@ export class PowerpackServer {
         })
       } else {
         // 使用本地运行时执行代码
-        const hasLocalRuntime =
-          process.platform === 'win32'
-            ? this.nodeRuntimePath
-            : this.bunRuntimePath || this.nodeRuntimePath
-
-        if (hasLocalRuntime) {
+        if (this.nodeRuntimePath) {
           const runtimeDescription =
-            process.platform === 'win32'
-              ? 'Execute simple JavaScript/TypeScript code in a secure sandbox environment using Node.js runtime on Windows platform. '
-              : 'Execute simple JavaScript/TypeScript code in a secure sandbox environment (Bun or Node.js). Non-Windows platforms prioritize Bun runtime. '
+            'Execute simple JavaScript/TypeScript code in a secure sandbox environment using Node.js runtime. '
 
           tools.push({
             name: 'run_node_code',
@@ -475,7 +439,7 @@ export class PowerpackServer {
               throw new Error('Local code execution is disabled when E2B is enabled')
             }
 
-            if (!this.bunRuntimePath && !this.nodeRuntimePath) {
+            if (!this.nodeRuntimePath) {
               throw new Error('JavaScript runtime is not available, cannot execute code')
             }
 

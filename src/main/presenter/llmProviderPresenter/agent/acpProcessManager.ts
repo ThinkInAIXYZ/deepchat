@@ -61,7 +61,6 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
   private readonly pendingHandles = new Map<string, Promise<AcpProcessHandle>>()
   private readonly sessionListeners = new Map<string, SessionListenerEntry>()
   private readonly permissionResolvers = new Map<string, PermissionResolverEntry>()
-  private bunRuntimePath: string | null = null
   private nodeRuntimePath: string | null = null
   private uvRuntimePath: string | null = null
   private runtimesInitialized: boolean = false
@@ -221,24 +220,6 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
       .join(app.getAppPath(), 'runtime')
       .replace('app.asar', 'app.asar.unpacked')
 
-    // Check if bun runtime file exists
-    const bunRuntimePath = path.join(runtimeBasePath, 'bun')
-    if (process.platform === 'win32') {
-      const bunExe = path.join(bunRuntimePath, 'bun.exe')
-      if (fs.existsSync(bunExe)) {
-        this.bunRuntimePath = bunRuntimePath
-      } else {
-        this.bunRuntimePath = null
-      }
-    } else {
-      const bunBin = path.join(bunRuntimePath, 'bun')
-      if (fs.existsSync(bunBin)) {
-        this.bunRuntimePath = bunRuntimePath
-      } else {
-        this.bunRuntimePath = null
-      }
-    }
-
     // Check if node runtime file exists
     const nodeRuntimePath = path.join(runtimeBasePath, 'node')
     if (process.platform === 'win32') {
@@ -289,59 +270,42 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
     // Get command basename (remove path)
     const basename = path.basename(command)
 
-    // Choose corresponding runtime path based on command type
-    if (process.platform === 'win32') {
-      // Windows platform only replaces Node.js related commands, let system handle bun commands automatically
+    // Handle Node.js related commands (all platforms use same logic)
+    if (['node', 'npm', 'npx'].includes(basename)) {
       if (this.nodeRuntimePath) {
-        if (basename === 'node') {
-          const nodeExe = path.join(this.nodeRuntimePath, 'node.exe')
-          if (fs.existsSync(nodeExe)) {
-            return nodeExe
+        if (process.platform === 'win32') {
+          if (basename === 'node') {
+            const nodeExe = path.join(this.nodeRuntimePath, 'node.exe')
+            if (fs.existsSync(nodeExe)) {
+              return nodeExe
+            }
+          } else if (basename === 'npm') {
+            // Windows usually has npm as .cmd file
+            const npmCmd = path.join(this.nodeRuntimePath, 'npm.cmd')
+            if (fs.existsSync(npmCmd)) {
+              return npmCmd
+            }
+            // Check if npm exists without .cmd extension
+            const npmPath = path.join(this.nodeRuntimePath, 'npm')
+            if (fs.existsSync(npmPath)) {
+              return npmPath
+            }
+          } else if (basename === 'npx') {
+            // On Windows, npx is typically a .cmd file
+            const npxCmd = path.join(this.nodeRuntimePath, 'npx.cmd')
+            if (fs.existsSync(npxCmd)) {
+              return npxCmd
+            }
+            // Check if npx exists without .cmd extension
+            const npxPath = path.join(this.nodeRuntimePath, 'npx')
+            if (fs.existsSync(npxPath)) {
+              return npxPath
+            }
           }
           // If doesn't exist, return original command to let system find it via PATH
           return command
-        } else if (basename === 'npm') {
-          // Windows usually has npm as .cmd file
-          const npmCmd = path.join(this.nodeRuntimePath, 'npm.cmd')
-          if (fs.existsSync(npmCmd)) {
-            return npmCmd
-          }
-          // Check if npm exists without .cmd extension
-          const npmPath = path.join(this.nodeRuntimePath, 'npm')
-          if (fs.existsSync(npmPath)) {
-            return npmPath
-          }
-          // If doesn't exist, return original command to let system find it via PATH
-          return command
-        } else if (basename === 'npx') {
-          // On Windows, npx is typically a .cmd file
-          const npxCmd = path.join(this.nodeRuntimePath, 'npx.cmd')
-          if (fs.existsSync(npxCmd)) {
-            return npxCmd
-          }
-          // Check if npx exists without .cmd extension
-          const npxPath = path.join(this.nodeRuntimePath, 'npx')
-          if (fs.existsSync(npxPath)) {
-            return npxPath
-          }
-          // If doesn't exist, return original command to let system find it via PATH
-          return command
-        }
-      }
-    } else {
-      // Non-Windows platforms handle all commands
-      if (['node', 'npm', 'npx', 'bun'].includes(basename)) {
-        // Prefer Bun if available, otherwise use Node.js
-        if (this.bunRuntimePath) {
-          // For node/npm/npx, uniformly replace with bun
-          const bunPath = path.join(this.bunRuntimePath, 'bun')
-          if (fs.existsSync(bunPath)) {
-            return bunPath
-          }
-          // If doesn't exist, return original command to let system find it via PATH
-          return command
-        } else if (this.nodeRuntimePath) {
-          // Use Node.js runtime
+        } else {
+          // Non-Windows platforms
           let targetCommand: string
           if (basename === 'node') {
             targetCommand = 'node'
@@ -349,8 +313,6 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
             targetCommand = 'npm'
           } else if (basename === 'npx') {
             targetCommand = 'npx'
-          } else if (basename === 'bun') {
-            targetCommand = 'node' // Map bun command to node
           } else {
             targetCommand = basename
           }
@@ -489,14 +451,14 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
     // Use expanded args
     const processedArgs = expandedArgs
 
-    // Determine if it's Node.js/Bun/UV related command
-    const isNodeCommand = ['node', 'npm', 'npx', 'bun', 'uv', 'uvx'].some(
+    // Determine if it's Node.js/UV related command
+    const isNodeCommand = ['node', 'npm', 'npx', 'uv', 'uvx'].some(
       (cmd) =>
         processedCommand.includes(cmd) ||
         processedArgs.some((arg) => typeof arg === 'string' && arg.includes(cmd))
     )
 
-    // Define allowed environment variables whitelist for Node.js/Bun/UV commands
+    // Define allowed environment variables whitelist for Node.js/UV commands
     const allowedEnvVars = [
       'PATH',
       'path',
@@ -522,7 +484,7 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
     let pathValue = ''
 
     if (isNodeCommand) {
-      // Node.js/Bun/UV commands use whitelist processing
+      // Node.js/UV commands use whitelist processing
       if (process.env) {
         const existingPaths: string[] = []
 
@@ -555,7 +517,7 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
               console.info(`[ACP] Added Node runtime path to PATH: ${this.nodeRuntimePath}`)
             }
           } else {
-            // Other platforms priority: bun > node > uv
+            // Other platforms priority: node > uv
             if (this.uvRuntimePath) {
               allPaths.unshift(this.uvRuntimePath)
               console.info(`[ACP] Added UV runtime path to PATH: ${this.uvRuntimePath}`)
@@ -564,10 +526,6 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
               const nodeBinPath = path.join(this.nodeRuntimePath, 'bin')
               allPaths.unshift(nodeBinPath)
               console.info(`[ACP] Added Node bin path to PATH: ${nodeBinPath}`)
-            }
-            if (this.bunRuntimePath) {
-              allPaths.unshift(this.bunRuntimePath)
-              console.info(`[ACP] Added Bun runtime path to PATH: ${this.bunRuntimePath}`)
             }
           }
         }
@@ -579,7 +537,7 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
         env[pathKey] = pathValue
       }
     } else {
-      // Non Node.js/Bun/UV commands, preserve all system environment variables, only supplement PATH
+      // Non Node.js/UV commands, preserve all system environment variables, only supplement PATH
       Object.entries(process.env).forEach(([key, value]) => {
         if (value !== undefined && value !== '') {
           env[key] = value
@@ -613,7 +571,7 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
             console.info(`[ACP] Added Node runtime path to PATH: ${this.nodeRuntimePath}`)
           }
         } else {
-          // Other platforms priority: bun > node > uv
+          // Other platforms priority: node > uv
           if (this.uvRuntimePath) {
             allPaths.unshift(this.uvRuntimePath)
             console.info(`[ACP] Added UV runtime path to PATH: ${this.uvRuntimePath}`)
@@ -622,10 +580,6 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
             const nodeBinPath = path.join(this.nodeRuntimePath, 'bin')
             allPaths.unshift(nodeBinPath)
             console.info(`[ACP] Added Node bin path to PATH: ${nodeBinPath}`)
-          }
-          if (this.bunRuntimePath) {
-            allPaths.unshift(this.bunRuntimePath)
-            console.info(`[ACP] Added Bun runtime path to PATH: ${this.bunRuntimePath}`)
           }
         }
       }

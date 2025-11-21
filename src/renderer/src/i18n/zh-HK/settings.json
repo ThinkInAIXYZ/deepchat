@@ -883,6 +883,28 @@
       "cannotDeleteTitle": "至少保留一組設定",
       "cannotDeleteDesc": "內建 Agent 最少要有一組設定。",
       "noAgent": "請揀一個要管理嘅 Agent。"
+    },
+    "initialize": "初始化",
+    "initializeDescription": "已在終端中打開並執行初始化命令",
+    "initializeFailed": "初始化失敗",
+    "initializeSuccess": "初始化已啟動",
+    "initializing": "正在初始化...",
+    "terminal": {
+      "close": "關閉",
+      "closing": "正在關閉...",
+      "description": "實時查看初始化過程。",
+      "exitError": "進程退出時出錯（退出碼：{code}）",
+      "exitSuccess": "進程成功完成（退出碼：{code}）",
+      "processError": "進程錯誤",
+      "starting": "正在啟動初始化...",
+      "status": {
+        "completed": "已完成",
+        "error": "錯誤",
+        "idle": "空閒",
+        "running": "運行中"
+      },
+      "title": "初始化終端",
+      "waiting": "等待初始化開始..."
     }
   }
 }

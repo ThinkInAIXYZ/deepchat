@@ -883,6 +883,28 @@
       "title": "구성 목록"
     },
     "profilePlaceholder": "구성을 선택하세요",
-    "profileSwitched": "구성이 전환되었습니다"
+    "profileSwitched": "구성이 전환되었습니다",
+    "initialize": "초기화",
+    "initializeDescription": "터미널에서 열고 초기화 명령을 실행했습니다.",
+    "initializeFailed": "초기화 실패",
+    "initializeSuccess": "초기화가 시작되었습니다",
+    "initializing": "초기화 중...",
+    "terminal": {
+      "close": "폐쇄",
+      "closing": "폐쇄...",
+      "description": "초기화 과정을 실시간으로 확인하세요.",
+      "exitError": "프로세스가 종료되는 동안 오류가 발생했습니다(종료 코드: {code})",
+      "exitSuccess": "프로세스가 성공적으로 완료되었습니다(종료 코드: {code})",
+      "processError": "프로세스 오류",
+      "starting": "초기화 시작 중...",
+      "status": {
+        "completed": "완전한",
+        "error": "실수",
+        "idle": "게으른",
+        "running": "달리기"
+      },
+      "title": "터미널 초기화",
+      "waiting": "초기화가 시작되기를 기다리는 중..."
+    }
   }
 }

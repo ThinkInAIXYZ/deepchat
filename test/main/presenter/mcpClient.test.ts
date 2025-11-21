@@ -119,12 +119,6 @@ describe('McpClient Runtime Command Processing Tests', () => {
     mockGenerateCompletionStandalone.mockReset()
     mockGetProviderModels.mockReset()
     mockGetCustomModels.mockReset()
-
-    // Mock runtime paths to exist
-    mockFsExistsSync.mockImplementation((filePath: string | Buffer | URL) => {
-      const pathStr = String(filePath)
-      return pathStr.includes('runtime/bun') || pathStr.includes('runtime/uv')
-    })
   })
 
   afterEach(() => {
@@ -149,36 +143,6 @@ describe('McpClient Runtime Command Processing Tests', () => {
 
       // Should convert npx to bun and add 'x' as first argument
       expect(processedCommand.command).toContain('bun')
-      expect(processedCommand.args).toEqual(['x', '-y', '@modelcontextprotocol/server-everything'])
-    })
-
-    it('should handle npx command with runtime path replacement', () => {
-      const serverConfig = {
-        type: 'stdio',
-        command: 'npx',
-        args: ['-y', '@modelcontextprotocol/server-everything']
-      }
-
-      const client = new McpClient('everything', serverConfig)
-
-      // Mock the runtime path for testing
-      const bunRuntimePath = path
-        .join('/mock/app/runtime/bun')
-        .replace('app.asar', 'app.asar.unpacked')
-      ;(client as any).bunRuntimePath = bunRuntimePath
-
-      const processedCommand = (client as any).processCommandWithArgs('npx', [
-        '-y',
-        '@modelcontextprotocol/server-everything'
-      ])
-
-      // Should use the runtime path
-      const expectedBunPath =
-        process.platform === 'win32'
-          ? path.join(bunRuntimePath, 'bun.exe')
-          : path.join(bunRuntimePath, 'bun')
-
-      expect(processedCommand.command).toBe(expectedBunPath)
       expect(processedCommand.args).toEqual(['x', '-y', '@modelcontextprotocol/server-everything'])
     })
 
@@ -332,18 +296,6 @@ describe('McpClient Runtime Command Processing Tests', () => {
   })
 
   describe('Runtime Path Detection', () => {
-    it('should detect bun runtime when files exist', () => {
-      mockFsExistsSync.mockImplementation((filePath: string | Buffer | URL) => {
-        const pathStr = String(filePath)
-        return pathStr.includes('runtime/bun/bun')
-      })
-
-      const client = new McpClient('test', { type: 'stdio' })
-
-      // Check if bun runtime path is set
-      expect((client as any).bunRuntimePath).toBeTruthy()
-    })
-
     it('should detect uv runtime when files exist', () => {
       mockFsExistsSync.mockImplementation((filePath: string | Buffer | URL) => {
         const pathStr = String(filePath)

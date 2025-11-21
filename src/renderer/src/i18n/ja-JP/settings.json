@@ -883,6 +883,28 @@
       "setActive": "アクティブに設定する"
     },
     "profilePlaceholder": "設定を選択してください",
-    "profileSwitched": "設定が切り替えられました"
+    "profileSwitched": "設定が切り替えられました",
+    "initialize": "初期化",
+    "initializeDescription": "ターミナルで開いて初期化コマンドを実行",
+    "initializeFailed": "初期化に失敗しました",
+    "initializeSuccess": "初期化を開始しました",
+    "initializing": "初期化中...",
+    "terminal": {
+      "close": "閉鎖",
+      "closing": "閉会中...",
+      "description": "初期化プロセスをリアルタイムで表示します。",
+      "exitError": "プロセスの終了中にエラーが発生しました (終了コード: {code})",
+      "exitSuccess": "プロセスは正常に完了しました (終了コード: {code})",
+      "processError": "プロセスエラー",
+      "starting": "初期化を開始しています...",
+      "status": {
+        "completed": "完了しました",
+        "error": "間違い",
+        "idle": "アイドル状態",
+        "running": "ランニング"
+      },
+      "title": "端末の初期化",
+      "waiting": "初期化が始まるのを待っています..."
+    }
   }
 }
