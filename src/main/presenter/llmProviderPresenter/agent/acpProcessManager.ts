@@ -1,4 +1,4 @@
-import { spawn, type ChildProcessWithoutNullStreams, execSync } from 'child_process'
+import { spawn, type ChildProcessWithoutNullStreams } from 'child_process'
 import { Readable, Writable } from 'node:stream'
 import { app } from 'electron'
 import * as fs from 'fs'
@@ -262,72 +262,63 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
     this.runtimesInitialized = true
   }
 
-  private isCommandAvailable(command: string): boolean {
-    try {
-      if (process.platform === 'win32') {
-        execSync(`where ${command}`, { stdio: 'ignore' })
-      } else {
-        execSync(`which ${command}`, { stdio: 'ignore' })
-      }
-      return true
-    } catch {
-      return false
-    }
-  }
-
   private replaceWithRuntimeCommand(command: string): string {
+    // Get command basename (remove path)
     const basename = path.basename(command)
 
-    // UV command handling (all platforms)
-    // Only replace if system command is not available
-    if (['uv', 'uvx'].includes(basename)) {
-      // Check if system command is available first
-      if (this.isCommandAvailable(basename)) {
-        return command
-      }
-
-      // Use runtime path if system command is not available
-      if (this.uvRuntimePath) {
-        const targetCommand = basename === 'uvx' ? 'uvx' : 'uv'
-        if (process.platform === 'win32') {
-          return path.join(this.uvRuntimePath, `${targetCommand}.exe`)
-        } else {
-          return path.join(this.uvRuntimePath, targetCommand)
-        }
-      }
-    }
-
-    // For other commands (node, npm, npx, bun), check system first
-    if (['node', 'npm', 'npx', 'bun'].includes(basename)) {
-      // Check if system command is available first
-      if (this.isCommandAvailable(basename)) {
-        return command
-      }
-
-      // Use runtime path if system command is not available
-      if (process.platform === 'win32') {
-        if (this.nodeRuntimePath) {
-          if (basename === 'node') {
-            return path.join(this.nodeRuntimePath, 'node.exe')
-          } else if (basename === 'npm') {
-            const npmCmd = path.join(this.nodeRuntimePath, 'npm.cmd')
-            if (fs.existsSync(npmCmd)) {
-              return npmCmd
-            }
-            return path.join(this.nodeRuntimePath, 'npm')
-          } else if (basename === 'npx') {
-            const npxCmd = path.join(this.nodeRuntimePath, 'npx.cmd')
-            if (fs.existsSync(npxCmd)) {
-              return npxCmd
-            }
-            return path.join(this.nodeRuntimePath, 'npx')
+    // Choose corresponding runtime path based on command type
+    if (process.platform === 'win32') {
+      // Windows platform only replaces Node.js related commands, let system handle bun commands automatically
+      if (this.nodeRuntimePath) {
+        if (basename === 'node') {
+          const nodeExe = path.join(this.nodeRuntimePath, 'node.exe')
+          if (fs.existsSync(nodeExe)) {
+            return nodeExe
           }
+          // If doesn't exist, return original command to let system find it via PATH
+          return command
+        } else if (basename === 'npm') {
+          // Windows usually has npm as .cmd file
+          const npmCmd = path.join(this.nodeRuntimePath, 'npm.cmd')
+          if (fs.existsSync(npmCmd)) {
+            return npmCmd
+          }
+          // Check if npm exists without .cmd extension
+          const npmPath = path.join(this.nodeRuntimePath, 'npm')
+          if (fs.existsSync(npmPath)) {
+            return npmPath
+          }
+          // If doesn't exist, return original command to let system find it via PATH
+          return command
+        } else if (basename === 'npx') {
+          // On Windows, npx is typically a .cmd file
+          const npxCmd = path.join(this.nodeRuntimePath, 'npx.cmd')
+          if (fs.existsSync(npxCmd)) {
+            return npxCmd
+          }
+          // Check if npx exists without .cmd extension
+          const npxPath = path.join(this.nodeRuntimePath, 'npx')
+          if (fs.existsSync(npxPath)) {
+            return npxPath
+          }
+          // If doesn't exist, return original command to let system find it via PATH
+          return command
         }
-      } else {
-        // Non-Windows platforms
-        if (this.bunRuntimePath && ['node', 'npm', 'npx', 'bun'].includes(basename)) {
-          return path.join(this.bunRuntimePath, 'bun')
+      }
+    } else {
+      // Non-Windows platforms handle all commands
+      if (['node', 'npm', 'npx', 'bun'].includes(basename)) {
+        // Prefer Bun if available, otherwise use Node.js
+        if (this.bunRuntimePath) {
+          // For node/npm/npx, uniformly replace with bun
+          const bunPath = path.join(this.bunRuntimePath, 'bun')
+          if (fs.existsSync(bunPath)) {
+            return bunPath
+          }
+          // If doesn't exist, return original command to let system find it via PATH
+          return command
         } else if (this.nodeRuntimePath) {
+          // Use Node.js runtime
           let targetCommand: string
           if (basename === 'node') {
             targetCommand = 'node'
@@ -336,12 +327,43 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
           } else if (basename === 'npx') {
             targetCommand = 'npx'
           } else if (basename === 'bun') {
-            targetCommand = 'node'
+            targetCommand = 'node' // Map bun command to node
           } else {
             targetCommand = basename
           }
-          return path.join(this.nodeRuntimePath, 'bin', targetCommand)
+          const nodePath = path.join(this.nodeRuntimePath, 'bin', targetCommand)
+          if (fs.existsSync(nodePath)) {
+            return nodePath
+          }
+          // If doesn't exist, return original command to let system find it via PATH
+          return command
         }
+      }
+    }
+
+    // UV command handling (all platforms)
+    if (['uv', 'uvx'].includes(basename)) {
+      if (!this.uvRuntimePath) {
+        return command
+      }
+
+      // Both uv and uvx use their corresponding commands
+      const targetCommand = basename === 'uvx' ? 'uvx' : 'uv'
+
+      if (process.platform === 'win32') {
+        const uvPath = path.join(this.uvRuntimePath, `${targetCommand}.exe`)
+        if (fs.existsSync(uvPath)) {
+          return uvPath
+        }
+        // If doesn't exist, return original command to let system find it via PATH
+        return command
+      } else {
+        const uvPath = path.join(this.uvRuntimePath, targetCommand)
+        if (fs.existsSync(uvPath)) {
+          return uvPath
+        }
+        // If doesn't exist, return original command to let system find it via PATH
+        return command
       }
     }
 
@@ -362,7 +384,8 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
 
     // Replace command with runtime version if needed
     const processedCommand = this.replaceWithRuntimeCommand(agent.command)
-    const processedArgs = (agent.args ?? []).map((arg) => this.replaceWithRuntimeCommand(arg))
+    // Keep args as-is, do not replace them
+    const processedArgs = agent.args ?? []
 
     // Prepare environment variables
     const mergedEnv = agent.env ? { ...process.env, ...agent.env } : { ...process.env }
@@ -398,8 +421,12 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
     const { key, value } = this.normalizePathEnv(allPaths)
     mergedEnv[key] = value
 
+    // Determine working directory (default to current working directory)
+    const cwd = process.cwd()
+
     return spawn(processedCommand, processedArgs, {
       env: mergedEnv,
+      cwd,
       stdio: ['pipe', 'pipe', 'pipe']
     })
   }
