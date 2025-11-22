@@ -545,6 +545,36 @@ class AcpInitHelper {
         env.PIP_INDEX_URL = uvRegistry
         console.log('[ACP Init] Set UV registry:', uvRegistry)
       }
+
+      // On Windows, if app is installed in system directory, set npm prefix to user directory
+      // to avoid permission issues when installing global packages
+      if (process.platform === 'win32' && this.runtimeHelper.isInstalledInSystemDirectory()) {
+        const userNpmPrefix = this.runtimeHelper.getUserNpmPrefix()
+
+        if (userNpmPrefix) {
+          env.npm_config_prefix = userNpmPrefix
+          env.NPM_CONFIG_PREFIX = userNpmPrefix
+          console.log(
+            '[ACP Init] Set NPM prefix to user directory (system install detected):',
+            userNpmPrefix
+          )
+
+          // Add user npm bin directory to PATH
+          const pathKey = 'Path'
+          const separator = ';'
+          const existingPath = env[pathKey] || ''
+          const userNpmBinPath = userNpmPrefix
+
+          // Ensure the user npm bin path is at the beginning of PATH
+          if (existingPath) {
+            env[pathKey] = [userNpmBinPath, existingPath].filter(Boolean).join(separator)
+          } else {
+            env[pathKey] = userNpmBinPath
+          }
+
+          console.log('[ACP Init] Added user npm bin directory to PATH:', userNpmBinPath)
+        }
+      }
     }
 
     // Add custom environment variables from profile
