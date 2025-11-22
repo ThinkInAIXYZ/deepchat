@@ -130,7 +130,7 @@
     inetc::get /CAPTION " " /BANNER "Downloading Microsoft Visual C++ Redistributable ($2)..." "$5" "$6"
     ExecWait "$6 /install /norestart"
     ; vc_redist exit code is unreliable, so we re-check registry
-    
+
     Push $2 ; Pass arch to checkVCRedist again
     Call checkVCRedist
     Pop $2
