@@ -177,7 +177,7 @@ class AcpInitHelper {
 
     if (platform === 'win32') {
       shell = 'powershell.exe'
-      shellArgs = ['-NoLogo']
+      shellArgs = ['-NoLogo', '-ExecutionPolicy', 'Bypass']
     } else {
       // Use user's default shell or bash/zsh
       shell = process.env.SHELL || '/bin/bash'
