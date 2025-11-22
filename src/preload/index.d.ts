@@ -6,6 +6,7 @@ declare global {
     api: {
       copyText(text: string): void
       copyImage(image: string): void
+      readClipboardText(): string
       getPathForFile(file: File): string
       getWindowId(): number | null
       getWebContentsId(): number

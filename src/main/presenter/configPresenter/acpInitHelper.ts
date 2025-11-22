@@ -1,14 +1,54 @@
 import * as path from 'path'
+import * as fs from 'fs'
+import { exec } from 'child_process'
+import { promisify } from 'util'
 import { type WebContents } from 'electron'
 import type { AcpBuiltinAgentId, AcpAgentConfig, AcpAgentProfile } from '@shared/presenter'
 import { spawn } from '@homebridge/node-pty-prebuilt-multiarch'
 import type { IPty } from '@homebridge/node-pty-prebuilt-multiarch'
 import { RuntimeHelper } from '@/lib/runtimeHelper'
 
+const execAsync = promisify(exec)
+
 interface InitCommandConfig {
   commands: string[]
   description: string
 }
+
+interface ExternalDependency {
+  name: string
+  description: string
+  platform?: string[]
+  checkCommand?: string
+  checkPaths?: string[]
+  installCommands?: {
+    winget?: string
+    chocolatey?: string
+    scoop?: string
+  }
+  downloadUrl?: string
+  requiredFor?: string[]
+}
+
+const EXTERNAL_DEPENDENCIES: ExternalDependency[] = [
+  {
+    name: 'Git Bash',
+    description: 'Git for Windows includes Git Bash',
+    platform: ['win32'],
+    checkCommand: 'git --version',
+    checkPaths: [
+      'C:\\Program Files\\Git\\bin\\bash.exe',
+      'C:\\Program Files (x86)\\Git\\bin\\bash.exe'
+    ],
+    installCommands: {
+      winget: 'winget install Git.Git',
+      chocolatey: 'choco install git',
+      scoop: 'scoop install git'
+    },
+    downloadUrl: 'https://git-scm.com/download/win',
+    requiredFor: ['claude-code-acp']
+  }
+]
 
 const BUILTIN_INIT_COMMANDS: Record<AcpBuiltinAgentId, InitCommandConfig> = {
   'kimi-cli': {
@@ -38,6 +78,100 @@ class AcpInitHelper {
   }
 
   /**
+   * Check if an external dependency is available
+   */
+  private async checkExternalDependency(dep: ExternalDependency): Promise<boolean> {
+    const platform = process.platform
+
+    // Check if dependency supports current platform
+    if (dep.platform && !dep.platform.includes(platform)) {
+      console.log(`[ACP Init] Dependency ${dep.name} not required on platform ${platform}`)
+      return true // Not required on this platform, consider it available
+    }
+
+    // Method 1: Check via command
+    if (dep.checkCommand) {
+      try {
+        const { stdout } = await execAsync(dep.checkCommand, { timeout: 5000 })
+        if (stdout && stdout.trim().length > 0) {
+          console.log(`[ACP Init] Dependency ${dep.name} found via command: ${dep.checkCommand}`)
+          return true
+        }
+      } catch {
+        console.log(`[ACP Init] Dependency ${dep.name} not found via command: ${dep.checkCommand}`)
+      }
+    }
+
+    // Method 2: Check via paths
+    if (dep.checkPaths && dep.checkPaths.length > 0) {
+      for (const checkPath of dep.checkPaths) {
+        try {
+          if (fs.existsSync(checkPath)) {
+            console.log(`[ACP Init] Dependency ${dep.name} found at path: ${checkPath}`)
+            return true
+          }
+        } catch {
+          // Continue checking other paths
+        }
+      }
+    }
+
+    // Method 3: Use system tools to find command
+    if (dep.checkCommand) {
+      try {
+        const commandName = dep.checkCommand.split(' ')[0]
+        let findCommand: string
+
+        if (platform === 'win32') {
+          findCommand = `where.exe ${commandName}`
+        } else {
+          findCommand = `which ${commandName}`
+        }
+
+        const { stdout } = await execAsync(findCommand, { timeout: 5000 })
+        if (stdout && stdout.trim().length > 0) {
+          console.log(`[ACP Init] Dependency ${dep.name} found via system tool: ${findCommand}`)
+          return true
+        }
+      } catch {
+        // Command not found
+      }
+    }
+
+    console.log(`[ACP Init] Dependency ${dep.name} not found`)
+    return false
+  }
+
+  /**
+   * Check required dependencies for an agent
+   */
+  private async checkRequiredDependencies(agentId: string): Promise<ExternalDependency[]> {
+    const platform = process.platform
+    const missingDeps: ExternalDependency[] = []
+
+    // Find dependencies required for this agent
+    const requiredDeps = EXTERNAL_DEPENDENCIES.filter(
+      (dep) => dep.requiredFor && dep.requiredFor.includes(agentId)
+    )
+
+    console.log(`[ACP Init] Checking dependencies for agent ${agentId}:`, {
+      totalDeps: requiredDeps.length,
+      platform
+    })
+
+    // Check each dependency
+    for (const dep of requiredDeps) {
+      const isAvailable = await this.checkExternalDependency(dep)
+      if (!isAvailable) {
+        missingDeps.push(dep)
+        console.log(`[ACP Init] Missing dependency: ${dep.name}`)
+      }
+    }
+
+    return missingDeps
+  }
+
+  /**
    * Initialize a builtin ACP agent with terminal output streaming
    */
   async initializeBuiltinAgent(
@@ -56,6 +190,20 @@ class AcpInitHelper {
       hasWebContents: !!webContents,
       profileName: profile.name
     })
+
+    // Check external dependencies before initialization
+    const missingDeps = await this.checkRequiredDependencies(agentId)
+    if (missingDeps.length > 0 && webContents && !webContents.isDestroyed()) {
+      console.log('[ACP Init] Missing dependencies detected, sending notification:', {
+        agentId,
+        missingCount: missingDeps.length
+      })
+      webContents.send('external-deps-required', {
+        agentId,
+        missingDeps
+      })
+      // Continue with initialization anyway - user can install dependencies manually
+    }
 
     const initConfig = BUILTIN_INIT_COMMANDS[agentId]
     if (!initConfig) {

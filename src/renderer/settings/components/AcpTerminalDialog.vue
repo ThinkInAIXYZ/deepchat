@@ -23,14 +23,26 @@
             {{ statusText }}
           </div>
         </div>
-        <Button
-          variant="ghost"
-          size="icon"
-          class="h-8 w-8 text-zinc-400 hover:text-white hover:bg-zinc-800"
-          @click="handleManualClose"
-        >
-          <X class="h-4 w-4" />
-        </Button>
+        <div class="flex items-center gap-2">
+          <Button
+            variant="ghost"
+            size="icon"
+            class="h-8 w-8 text-zinc-400 hover:text-white hover:bg-zinc-800"
+            :disabled="!isRunning"
+            @click="handlePaste"
+            :title="t('settings.acp.terminal.paste')"
+          >
+            <Icon icon="lucide:clipboard" class="h-4 w-4" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            class="h-8 w-8 text-zinc-400 hover:text-white hover:bg-zinc-800"
+            @click="handleManualClose"
+          >
+            <X class="h-4 w-4" />
+          </Button>
+        </div>
       </div>
 
       <div class="flex-1 relative w-full h-full bg-black p-0 overflow-hidden">
@@ -54,6 +66,8 @@ import {
 } from '@shadcn/components/ui/dialog'
 import { Button } from '@shadcn/components/ui/button'
 import { X } from 'lucide-vue-next'
+import { Icon } from '@iconify/vue'
+import { useToast } from '@/components/use-toast'
 
 const props = defineProps<{
   open: boolean
@@ -65,12 +79,28 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
+const { toast } = useToast()
 
 const terminalContainer = ref<HTMLElement | null>(null)
 let terminal: Terminal | null = null
 
 const isRunning = ref(false)
 const status = ref<'idle' | 'running' | 'completed' | 'error'>('idle')
+
+interface ExternalDependency {
+  name: string
+  description: string
+  platform?: string[]
+  checkCommand?: string
+  checkPaths?: string[]
+  installCommands?: {
+    winget?: string
+    chocolatey?: string
+    scoop?: string
+  }
+  downloadUrl?: string
+  requiredFor?: string[]
+}
 
 const statusColor = computed(() => {
   switch (status.value) {
@@ -248,6 +278,92 @@ const handleError = (_event: unknown, data: { message: string }) => {
   }
 }
 
+const handlePaste = async () => {
+  try {
+    if (!window.api || typeof window.api.readClipboardText !== 'function') {
+      console.warn('[AcpTerminal] readClipboardText API not available')
+      return
+    }
+
+    const text = window.api.readClipboardText()
+    if (text && window.electron) {
+      window.electron.ipcRenderer.send('acp-terminal:input', text)
+      console.log('[AcpTerminal] Pasted text to terminal:', text.length, 'characters')
+    }
+  } catch (error) {
+    console.error('[AcpTerminal] Failed to paste from clipboard:', error)
+    toast({
+      title: t('settings.acp.terminal.pasteError'),
+      description: error instanceof Error ? error.message : String(error),
+      variant: 'destructive'
+    })
+  }
+}
+
+const handleExternalDepsRequired = (
+  _event: unknown,
+  data: { agentId: string; missingDeps: ExternalDependency[] }
+) => {
+  console.log('[AcpTerminal] External dependencies required:', data)
+
+  if (!data.missingDeps || data.missingDeps.length === 0) {
+    return
+  }
+
+  // Build dependency information message
+  const depMessages = data.missingDeps.map((dep) => {
+    let message = `${dep.name}: ${dep.description}\n`
+
+    // Add installation commands
+    if (dep.installCommands) {
+      const commands: string[] = []
+      if (dep.installCommands.winget) {
+        commands.push(`winget: ${dep.installCommands.winget}`)
+      }
+      if (dep.installCommands.chocolatey) {
+        commands.push(`chocolatey: ${dep.installCommands.chocolatey}`)
+      }
+      if (dep.installCommands.scoop) {
+        commands.push(`scoop: ${dep.installCommands.scoop}`)
+      }
+      if (commands.length > 0) {
+        message += `\nInstall commands:\n${commands.join('\n')}`
+      }
+    }
+
+    // Add download URL
+    if (dep.downloadUrl) {
+      message += `\nDownload: ${dep.downloadUrl}`
+    }
+
+    return message
+  })
+
+  const fullMessage = `Missing external dependencies:\n\n${depMessages.join('\n\n')}`
+
+  // Show toast notification with dependency information
+  toast({
+    title: t('settings.acp.terminal.missingDependencies'),
+    description: fullMessage,
+    duration: 10000, // Show for 10 seconds
+    variant: 'default'
+  })
+
+  // Also write to terminal
+  if (terminal) {
+    terminal.writeln(`\r\n\x1b[33m⚠ Missing external dependencies detected:\x1b[0m`)
+    data.missingDeps.forEach((dep) => {
+      terminal?.writeln(`\r\n\x1b[33m${dep.name}\x1b[0m: ${dep.description}`)
+      if (dep.installCommands?.winget) {
+        terminal?.writeln(`  Install: ${dep.installCommands.winget}`)
+      }
+      if (dep.downloadUrl) {
+        terminal?.writeln(`  Download: ${dep.downloadUrl}`)
+      }
+    })
+  }
+}
+
 const setupIpcListeners = () => {
   if (typeof window === 'undefined' || !window.electron) {
     console.warn('[AcpTerminal] Cannot setup IPC listeners - window.electron not available')
@@ -259,6 +375,7 @@ const setupIpcListeners = () => {
   window.electron.ipcRenderer.on('acp-init:output', handleOutput)
   window.electron.ipcRenderer.on('acp-init:exit', handleExit)
   window.electron.ipcRenderer.on('acp-init:error', handleError)
+  window.electron.ipcRenderer.on('external-deps-required', handleExternalDepsRequired)
   console.log('[AcpTerminal] IPC listeners set up successfully')
 }
 
@@ -271,6 +388,7 @@ const removeIpcListeners = () => {
   window.electron.ipcRenderer.removeAllListeners('acp-init:output')
   window.electron.ipcRenderer.removeAllListeners('acp-init:exit')
   window.electron.ipcRenderer.removeAllListeners('acp-init:error')
+  window.electron.ipcRenderer.removeAllListeners('external-deps-required')
 }
 
 watch(

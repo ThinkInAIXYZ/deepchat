@@ -873,6 +873,9 @@
       "exitSuccess": "Process completed successfully (exit code: {code})",
       "exitError": "Process exited with error (exit code: {code})",
       "processError": "Process error",
+      "paste": "Paste",
+      "pasteError": "Failed to paste from clipboard",
+      "missingDependencies": "Missing External Dependencies",
       "status": {
         "idle": "Idle",
         "running": "Running",

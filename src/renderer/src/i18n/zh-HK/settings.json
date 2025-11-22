@@ -897,6 +897,9 @@
       "exitSuccess": "進程成功完成（退出碼：{code}）",
       "processError": "進程錯誤",
       "starting": "正在啟動初始化...",
+      "paste": "貼上",
+      "pasteError": "從剪貼簿貼上失敗",
+      "missingDependencies": "缺少外部依賴",
       "status": {
         "completed": "已完成",
         "error": "錯誤",

@@ -873,6 +873,9 @@
       "exitSuccess": "进程成功完成（退出码：{code}）",
       "exitError": "进程退出时出错（退出码：{code}）",
       "processError": "进程错误",
+      "paste": "粘贴",
+      "pasteError": "从剪贴板粘贴失败",
+      "missingDependencies": "缺少外部依赖",
       "status": {
         "idle": "空闲",
         "running": "运行中",
