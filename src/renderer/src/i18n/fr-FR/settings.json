@@ -905,9 +905,17 @@
       },
       "title": "Initialiser le terminal",
       "waiting": "En attente du début de l'initialisation...",
-      "missingDependencies": "Dépendances externes manquantes",
       "paste": "Coller",
       "pasteError": "Le collage depuis le presse-papiers a échoué"
+    },
+    "dependency": {
+      "copied": "Copié dans le presse-papiers",
+      "copy": "copie",
+      "copyFailed": "Échec de la copie",
+      "description": "Les dépendances suivantes doivent être installées avant l'initialisation.",
+      "downloadUrl": "Lien de téléchargement",
+      "installCommands": "Commande d'installation",
+      "title": "Dépendances externes manquantes"
     }
   }
 }

@@ -905,9 +905,17 @@
       },
       "title": "터미널 초기화",
       "waiting": "초기화가 시작되기를 기다리는 중...",
-      "missingDependencies": "외부 종속성 누락",
       "paste": "반죽",
       "pasteError": "클립보드에서 붙여넣기 실패"
+    },
+    "dependency": {
+      "copied": "클립보드에 복사됨",
+      "copy": "복사",
+      "copyFailed": "복사 실패",
+      "description": "초기화하기 전에 다음 종속성을 설치해야 합니다.",
+      "downloadUrl": "다운로드 링크",
+      "installCommands": "설치 명령",
+      "title": "외부 종속성 누락"
     }
   }
 }

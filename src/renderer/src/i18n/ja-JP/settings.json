@@ -905,9 +905,17 @@
       },
       "title": "端末の初期化",
       "waiting": "初期化が始まるのを待っています...",
-      "missingDependencies": "外部依存関係が欠落している",
       "paste": "ペースト",
       "pasteError": "クリップボードからの貼り付けに失敗しました"
+    },
+    "dependency": {
+      "copied": "クリップボードにコピーされました",
+      "copy": "コピー",
+      "copyFailed": "コピーに失敗しました",
+      "description": "初期化の前に、次の依存関係をインストールする必要があります。",
+      "downloadUrl": "ダウンロードリンク",
+      "installCommands": "インストールコマンド",
+      "title": "外部依存関係が欠落している"
     }
   }
 }

@@ -260,6 +260,13 @@
     <AcpTerminalDialog
       :open="terminalDialogOpen"
       @update:open="(value) => (terminalDialogOpen = value)"
+      @dependencies-required="handleDependenciesRequired"
+    />
+
+    <AcpDependencyDialog
+      :open="dependencyDialogOpen"
+      :dependencies="missingDependencies"
+      @update:open="(value) => (dependencyDialogOpen = value)"
     />
   </div>
 </template>
@@ -296,6 +303,7 @@ import {
 import AcpProfileDialog from './AcpProfileDialog.vue'
 import AcpProfileManagerDialog from './AcpProfileManagerDialog.vue'
 import AcpTerminalDialog from './AcpTerminalDialog.vue'
+import AcpDependencyDialog from './AcpDependencyDialog.vue'
 
 const { t } = useI18n()
 const { toast } = useToast()
@@ -316,6 +324,23 @@ const builtinPending = reactive<Record<string, boolean>>({})
 const customPending = reactive<Record<string, boolean>>({})
 const initializing = reactive<Record<string, boolean>>({})
 const terminalDialogOpen = ref(false)
+const dependencyDialogOpen = ref(false)
+const missingDependencies = ref<
+  Array<{
+    name: string
+    description: string
+    platform?: string[]
+    checkCommand?: string
+    checkPaths?: string[]
+    installCommands?: {
+      winget?: string
+      chocolatey?: string
+      scoop?: string
+    }
+    downloadUrl?: string
+    requiredFor?: string[]
+  }>
+>([])
 
 const profileDialogState = reactive({
   open: false,
@@ -677,6 +702,13 @@ const setInitializing = (agentId: string, isBuiltin: boolean, state: boolean) =>
   } else {
     delete initializing[key]
   }
+}
+
+const handleDependenciesRequired = (dependencies: typeof missingDependencies.value) => {
+  console.log('[AcpSettings] Dependencies required:', dependencies)
+  missingDependencies.value = dependencies
+  dependencyDialogOpen.value = true
+  terminalDialogOpen.value = false
 }
 
 const handleInitializeAgent = async (agentId: string, isBuiltin: boolean) => {

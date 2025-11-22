@@ -875,13 +875,21 @@
       "processError": "Process error",
       "paste": "Paste",
       "pasteError": "Failed to paste from clipboard",
-      "missingDependencies": "Missing External Dependencies",
       "status": {
         "idle": "Idle",
         "running": "Running",
         "completed": "Completed",
         "error": "Error"
       }
+    },
+    "dependency": {
+      "title": "Missing External Dependencies",
+      "description": "The following dependencies need to be installed before initialization.",
+      "installCommands": "Installation Commands",
+      "downloadUrl": "Download Link",
+      "copy": "Copy",
+      "copied": "Copied to clipboard",
+      "copyFailed": "Failed to copy"
     }
   },
   "rateLimit": {

@@ -899,7 +899,6 @@
       "starting": "正在啟動初始化...",
       "paste": "貼上",
       "pasteError": "從剪貼簿貼上失敗",
-      "missingDependencies": "缺少外部依賴",
       "status": {
         "completed": "已完成",
         "error": "錯誤",
@@ -908,6 +907,15 @@
       },
       "title": "初始化終端",
       "waiting": "等待初始化開始..."
+    },
+    "dependency": {
+      "copied": "已復製到剪貼板",
+      "copy": "複製",
+      "copyFailed": "複製失敗",
+      "description": "初始化前需要安裝以下依賴項。",
+      "downloadUrl": "下載鏈接",
+      "installCommands": "安裝命令",
+      "title": "缺少外部依賴"
     }
   }
 }

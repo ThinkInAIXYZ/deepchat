@@ -875,13 +875,21 @@
       "processError": "进程错误",
       "paste": "粘贴",
       "pasteError": "从剪贴板粘贴失败",
-      "missingDependencies": "缺少外部依赖",
       "status": {
         "idle": "空闲",
         "running": "运行中",
         "completed": "已完成",
         "error": "错误"
       }
+    },
+    "dependency": {
+      "title": "缺少外部依赖",
+      "description": "初始化前需要安装以下依赖项。",
+      "installCommands": "安装命令",
+      "downloadUrl": "下载链接",
+      "copy": "复制",
+      "copied": "已复制到剪贴板",
+      "copyFailed": "复制失败"
     }
   },
   "rateLimit": {

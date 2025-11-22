@@ -76,6 +76,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: 'update:open', value: boolean): void
   (e: 'close'): void
+  (e: 'dependencies-required', dependencies: ExternalDependency[]): void
 }>()
 
 const { t } = useI18n()
@@ -310,58 +311,12 @@ const handleExternalDepsRequired = (
     return
   }
 
-  // Build dependency information message
-  const depMessages = data.missingDeps.map((dep) => {
-    let message = `${dep.name}: ${dep.description}\n`
+  // Emit event to parent to show dependency dialog
+  emit('dependencies-required', data.missingDeps)
 
-    // Add installation commands
-    if (dep.installCommands) {
-      const commands: string[] = []
-      if (dep.installCommands.winget) {
-        commands.push(`winget: ${dep.installCommands.winget}`)
-      }
-      if (dep.installCommands.chocolatey) {
-        commands.push(`chocolatey: ${dep.installCommands.chocolatey}`)
-      }
-      if (dep.installCommands.scoop) {
-        commands.push(`scoop: ${dep.installCommands.scoop}`)
-      }
-      if (commands.length > 0) {
-        message += `\nInstall commands:\n${commands.join('\n')}`
-      }
-    }
-
-    // Add download URL
-    if (dep.downloadUrl) {
-      message += `\nDownload: ${dep.downloadUrl}`
-    }
-
-    return message
-  })
-
-  const fullMessage = `Missing external dependencies:\n\n${depMessages.join('\n\n')}`
-
-  // Show toast notification with dependency information
-  toast({
-    title: t('settings.acp.terminal.missingDependencies'),
-    description: fullMessage,
-    duration: 10000, // Show for 10 seconds
-    variant: 'default'
-  })
-
-  // Also write to terminal
-  if (terminal) {
-    terminal.writeln(`\r\n\x1b[33m⚠ Missing external dependencies detected:\x1b[0m`)
-    data.missingDeps.forEach((dep) => {
-      terminal?.writeln(`\r\n\x1b[33m${dep.name}\x1b[0m: ${dep.description}`)
-      if (dep.installCommands?.winget) {
-        terminal?.writeln(`  Install: ${dep.installCommands.winget}`)
-      }
-      if (dep.downloadUrl) {
-        terminal?.writeln(`  Download: ${dep.downloadUrl}`)
-      }
-    })
-  }
+  // Close terminal dialog since initialization is blocked
+  emit('update:open', false)
+  emit('close')
 }
 
 const setupIpcListeners = () => {
@@ -449,6 +404,11 @@ onBeforeUnmount(() => {
 .terminal-surface {
   height: 100%;
   width: 100%;
+}
+
+/* Hide default DialogContent close button */
+:deep([data-slot='dialog-close']) {
+  display: none !important;
 }
 
 /* Xterm.js styles */

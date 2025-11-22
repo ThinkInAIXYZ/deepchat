@@ -193,16 +193,19 @@ class AcpInitHelper {
 
     // Check external dependencies before initialization
     const missingDeps = await this.checkRequiredDependencies(agentId)
-    if (missingDeps.length > 0 && webContents && !webContents.isDestroyed()) {
-      console.log('[ACP Init] Missing dependencies detected, sending notification:', {
+    if (missingDeps.length > 0) {
+      console.log('[ACP Init] Missing dependencies detected, blocking initialization:', {
         agentId,
         missingCount: missingDeps.length
       })
-      webContents.send('external-deps-required', {
-        agentId,
-        missingDeps
-      })
-      // Continue with initialization anyway - user can install dependencies manually
+      if (webContents && !webContents.isDestroyed()) {
+        webContents.send('external-deps-required', {
+          agentId,
+          missingDeps
+        })
+      }
+      // Stop initialization - user must install dependencies first
+      return null
     }
 
     const initConfig = BUILTIN_INIT_COMMANDS[agentId]
