@@ -904,7 +904,10 @@
         "running": "달리기"
       },
       "title": "터미널 초기화",
-      "waiting": "초기화가 시작되기를 기다리는 중..."
+      "waiting": "초기화가 시작되기를 기다리는 중...",
+      "missingDependencies": "외부 종속성 누락",
+      "paste": "반죽",
+      "pasteError": "클립보드에서 붙여넣기 실패"
     }
   }
 }

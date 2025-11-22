@@ -904,7 +904,10 @@
         "running": "Correndo"
       },
       "title": "Inicializar terminal",
-      "waiting": "Aguardando o início da inicialização..."
+      "waiting": "Aguardando o início da inicialização...",
+      "missingDependencies": "Dependências externas ausentes",
+      "paste": "Colar",
+      "pasteError": "Falha ao colar da área de transferência"
     }
   }
 }

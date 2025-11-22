@@ -904,7 +904,10 @@
         "running": "En cours d'exécution"
       },
       "title": "Initialiser le terminal",
-      "waiting": "En attente du début de l'initialisation..."
+      "waiting": "En attente du début de l'initialisation...",
+      "missingDependencies": "Dépendances externes manquantes",
+      "paste": "Coller",
+      "pasteError": "Le collage depuis le presse-papiers a échoué"
     }
   }
 }
