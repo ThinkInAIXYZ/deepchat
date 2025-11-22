@@ -60,6 +60,7 @@ nsis:
   createDesktopShortcut: always
   allowToChangeInstallationDirectory: true
   oneClick: false
+  killProcess: false
   include: build/nsis-installer.nsh
 afterSign: scripts/notarize.js
 afterPack: scripts/afterPack.js
