@@ -909,11 +909,11 @@
     },
     "dependency": {
       "copied": "Copiado para a área de transferência",
-      "copy": "cópia",
+      "copy": "Copiar",
       "copyFailed": "Falha na cópia",
       "description": "As seguintes dependências precisam ser instaladas antes da inicialização.",
-      "downloadUrl": "Baixar link",
-      "installCommands": "Comando de instalação",
+      "downloadUrl": "Link de download",
+      "installCommands": "Comandos de instalação",
       "title": "Dependências externas ausentes"
     }
   }

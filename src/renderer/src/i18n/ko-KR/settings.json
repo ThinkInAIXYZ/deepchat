@@ -904,7 +904,7 @@
       },
       "title": "터미널 초기화",
       "waiting": "초기화가 시작되기를 기다리는 중...",
-      "paste": "반죽",
+      "paste": "붙여넣기",
       "pasteError": "클립보드에서 붙여넣기 실패"
     },
     "dependency": {
