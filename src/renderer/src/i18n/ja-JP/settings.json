@@ -892,7 +892,6 @@
     "terminal": {
       "close": "閉鎖",
       "closing": "閉会中...",
-      "description": "初期化プロセスをリアルタイムで表示します。",
       "exitError": "プロセスの終了中にエラーが発生しました (終了コード: {code})",
       "exitSuccess": "プロセスは正常に完了しました (終了コード: {code})",
       "processError": "プロセスエラー",
@@ -904,7 +903,18 @@
         "running": "ランニング"
       },
       "title": "端末の初期化",
-      "waiting": "初期化が始まるのを待っています..."
+      "waiting": "初期化が始まるのを待っています...",
+      "paste": "ペースト",
+      "pasteError": "クリップボードからの貼り付けに失敗しました"
+    },
+    "dependency": {
+      "copied": "クリップボードにコピーされました",
+      "copy": "コピー",
+      "copyFailed": "コピーに失敗しました",
+      "description": "初期化の前に、次の依存関係をインストールする必要があります。",
+      "downloadUrl": "ダウンロードリンク",
+      "installCommands": "インストールコマンド",
+      "title": "外部依存関係が欠落している"
     }
   }
 }

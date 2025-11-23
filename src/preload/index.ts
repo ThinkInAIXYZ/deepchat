@@ -22,6 +22,9 @@ const api = {
     const img = nativeImage.createFromDataURL(image)
     clipboard.writeImage(img)
   },
+  readClipboardText: () => {
+    return clipboard.readText()
+  },
   getPathForFile: (file: File) => {
     return webUtils.getPathForFile(file)
   },

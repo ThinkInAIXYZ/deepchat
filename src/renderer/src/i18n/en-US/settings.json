@@ -865,7 +865,6 @@
     },
     "terminal": {
       "title": "Initialization Terminal",
-      "description": "Watch the initialization process in real-time.",
       "waiting": "Waiting for initialization to start...",
       "starting": "Starting initialization...",
       "close": "Close",
@@ -873,12 +872,23 @@
       "exitSuccess": "Process completed successfully (exit code: {code})",
       "exitError": "Process exited with error (exit code: {code})",
       "processError": "Process error",
+      "paste": "Paste",
+      "pasteError": "Failed to paste from clipboard",
       "status": {
         "idle": "Idle",
         "running": "Running",
         "completed": "Completed",
         "error": "Error"
       }
+    },
+    "dependency": {
+      "title": "Missing External Dependencies",
+      "description": "The following dependencies need to be installed before initialization.",
+      "installCommands": "Installation Commands",
+      "downloadUrl": "Download Link",
+      "copy": "Copy",
+      "copied": "Copied to clipboard",
+      "copyFailed": "Failed to copy"
     }
   },
   "rateLimit": {

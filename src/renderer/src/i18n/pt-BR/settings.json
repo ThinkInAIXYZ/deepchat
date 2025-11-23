@@ -892,7 +892,6 @@
     "terminal": {
       "close": "encerramento",
       "closing": "Fechando...",
-      "description": "Veja o processo de inicialização em tempo real.",
       "exitError": "Ocorreu um erro durante a saída do processo (código de saída: {code})",
       "exitSuccess": "Processo concluído com sucesso (código de saída: {code})",
       "processError": "erro de processo",
@@ -904,7 +903,18 @@
         "running": "Correndo"
       },
       "title": "Inicializar terminal",
-      "waiting": "Aguardando o início da inicialização..."
+      "waiting": "Aguardando o início da inicialização...",
+      "paste": "Colar",
+      "pasteError": "Falha ao colar da área de transferência"
+    },
+    "dependency": {
+      "copied": "Copiado para a área de transferência",
+      "copy": "cópia",
+      "copyFailed": "Falha na cópia",
+      "description": "As seguintes dependências precisam ser instaladas antes da inicialização.",
+      "downloadUrl": "Baixar link",
+      "installCommands": "Comando de instalação",
+      "title": "Dependências externas ausentes"
     }
   }
 }

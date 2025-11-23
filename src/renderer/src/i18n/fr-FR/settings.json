@@ -892,8 +892,7 @@
     "terminal": {
       "close": "fermeture",
       "closing": "Clôture...",
-      "description": "Visualisez le processus d'initialisation en temps réel.",
-      "exitError": "Une erreur s'est produite lors de la fermeture du processus (code de sortie : {code})",
+      "exitError": "Une erreur s'est produite lors de la fermeture du processus (code de sortie : {code})",
       "exitSuccess": "Processus terminé avec succès (code de sortie : {code})",
       "processError": "erreur de processus",
       "starting": "Démarrage de l'initialisation...",
@@ -904,7 +903,18 @@
         "running": "En cours d'exécution"
       },
       "title": "Initialiser le terminal",
-      "waiting": "En attente du début de l'initialisation..."
+      "waiting": "En attente du début de l'initialisation...",
+      "paste": "Coller",
+      "pasteError": "Le collage depuis le presse-papiers a échoué"
+    },
+    "dependency": {
+      "copied": "Copié dans le presse-papiers",
+      "copy": "copie",
+      "copyFailed": "Échec de la copie",
+      "description": "Les dépendances suivantes doivent être installées avant l'initialisation.",
+      "downloadUrl": "Lien de téléchargement",
+      "installCommands": "Commande d'installation",
+      "title": "Dépendances externes manquantes"
     }
   }
 }

@@ -1057,7 +1057,7 @@ export class ConfigPresenter implements IConfigPresenter {
         throw new Error(`No active profile found for agent: ${agentId}`)
       }
 
-      await initializeBuiltinAgent(
+      const result = await initializeBuiltinAgent(
         agentId as AcpBuiltinAgentId,
         activeProfile,
         useBuiltinRuntime,
@@ -1065,6 +1065,11 @@ export class ConfigPresenter implements IConfigPresenter {
         uvRegistry,
         webContents
       )
+      // If initialization returns null, it means dependencies are missing
+      // The event has already been sent to frontend, just return without error
+      if (result === null) {
+        return
+      }
     } else {
       // Get custom agent
       const customs = await this.getAcpCustomAgents()

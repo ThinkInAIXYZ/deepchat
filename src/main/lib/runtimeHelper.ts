@@ -319,4 +319,42 @@ export class RuntimeHelper {
       return [`${homeDir}\\.cargo\\bin`, `${homeDir}\\.local\\bin`]
     }
   }
+
+  /**
+   * Check if the application is installed in a Windows system directory
+   * System directories include Program Files and Program Files (x86)
+   * @returns true if installed in system directory, false otherwise
+   */
+  public isInstalledInSystemDirectory(): boolean {
+    if (process.platform !== 'win32') {
+      return false
+    }
+
+    const appPath = app.getAppPath()
+    const normalizedPath = appPath.toLowerCase()
+
+    // Check if app is installed in Program Files or Program Files (x86)
+    const isSystemDir =
+      normalizedPath.includes('program files') || normalizedPath.includes('program files (x86)')
+
+    if (isSystemDir) {
+      console.log('[RuntimeHelper] Application is installed in system directory:', appPath)
+    }
+
+    return isSystemDir
+  }
+
+  /**
+   * Get user npm prefix path for Windows
+   * Returns the path where npm should install global packages when app is in system directory
+   * @returns User npm prefix path or null if not applicable
+   */
+  public getUserNpmPrefix(): string | null {
+    if (process.platform !== 'win32') {
+      return null
+    }
+
+    const appDataPath = app.getPath('appData')
+    return path.join(appDataPath, 'npm')
+  }
 }
