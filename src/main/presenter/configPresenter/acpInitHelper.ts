@@ -2,7 +2,7 @@ import * as path from 'path'
 import * as fs from 'fs'
 import { exec } from 'child_process'
 import { promisify } from 'util'
-import { type WebContents } from 'electron'
+import { type WebContents, app } from 'electron'
 import type { AcpBuiltinAgentId, AcpAgentConfig, AcpAgentProfile } from '@shared/presenter'
 import { spawn } from '@homebridge/node-pty-prebuilt-multiarch'
 import type { IPty } from '@homebridge/node-pty-prebuilt-multiarch'
@@ -75,6 +75,25 @@ class AcpInitHelper {
 
   constructor() {
     this.runtimeHelper.initializeRuntimes()
+  }
+
+  /**
+   * Get or create the temporary directory for ACP agent shell sessions
+   */
+  private getAcpTempDir(): string {
+    const userDataPath = app.getPath('userData')
+    const acpTempDir = path.join(userDataPath, 'temp', 'acp-agents')
+
+    try {
+      fs.mkdirSync(acpTempDir, { recursive: true })
+      console.log('[ACP Init] ACP temp directory:', acpTempDir)
+    } catch (error) {
+      console.error('[ACP Init] Failed to create ACP temp directory:', error)
+      // Fallback to process.cwd() if directory creation fails
+      return process.cwd()
+    }
+
+    return acpTempDir
   }
 
   /**
@@ -322,6 +341,9 @@ class AcpInitHelper {
     // Kill existing shell if any
     this.killTerminal()
 
+    // Get temporary directory for ACP agent shell session
+    const workDir = this.getAcpTempDir()
+
     const platform = process.platform
     let shell: string
     let shellArgs: string[] = []
@@ -342,7 +364,7 @@ class AcpInitHelper {
       platform,
       shell,
       shellArgs,
-      cwd: process.cwd()
+      cwd: workDir
     })
 
     // Spawn PTY process
@@ -350,7 +372,7 @@ class AcpInitHelper {
       name: 'xterm-color',
       cols: 80,
       rows: 24,
-      cwd: process.cwd(),
+      cwd: workDir,
       env: { ...process.env, ...envVars } as Record<string, string>
     })
 
