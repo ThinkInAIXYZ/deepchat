@@ -892,7 +892,6 @@
     "terminal": {
       "close": "encerramento",
       "closing": "Fechando...",
-      "description": "Veja o processo de inicialização em tempo real.",
       "exitError": "Ocorreu um erro durante a saída do processo (código de saída: {code})",
       "exitSuccess": "Processo concluído com sucesso (código de saída: {code})",
       "processError": "erro de processo",

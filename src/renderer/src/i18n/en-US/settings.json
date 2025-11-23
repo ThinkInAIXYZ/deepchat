@@ -865,7 +865,6 @@
     },
     "terminal": {
       "title": "Initialization Terminal",
-      "description": "Watch the initialization process in real-time.",
       "waiting": "Waiting for initialization to start...",
       "starting": "Starting initialization...",
       "close": "Close",

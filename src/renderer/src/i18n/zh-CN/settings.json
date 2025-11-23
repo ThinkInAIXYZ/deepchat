@@ -865,7 +865,6 @@
     },
     "terminal": {
       "title": "初始化终端",
-      "description": "实时查看初始化过程。",
       "waiting": "等待初始化开始...",
       "starting": "正在启动初始化...",
       "close": "关闭",

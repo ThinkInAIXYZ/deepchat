@@ -892,7 +892,6 @@
     "terminal": {
       "close": "폐쇄",
       "closing": "폐쇄...",
-      "description": "초기화 과정을 실시간으로 확인하세요.",
       "exitError": "프로세스가 종료되는 동안 오류가 발생했습니다(종료 코드: {code})",
       "exitSuccess": "프로세스가 성공적으로 완료되었습니다(종료 코드: {code})",
       "processError": "프로세스 오류",

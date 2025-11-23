@@ -1,48 +1,32 @@
 <template>
   <Dialog :open="open" @update:open="handleOpenUpdate">
     <DialogContent
-      class="sm:max-w-5xl h-[85vh] flex flex-col gap-0 p-0 overflow-hidden bg-black border-zinc-800"
+      class="sm:max-w-5xl h-[85vh] flex flex-col gap-0 p-2 overflow-hidden"
       @pointer-down-outside.prevent
       @escape-key-down.prevent
     >
-      <DialogHeader class="sr-only">
+      <DialogHeader>
         <DialogTitle>{{ t('settings.acp.terminal.title') }}</DialogTitle>
-        <DialogDescription>
-          {{ t('settings.acp.terminal.description') }}
-        </DialogDescription>
       </DialogHeader>
-      <div
-        class="flex items-center justify-between px-4 py-2 border-b border-zinc-800 bg-zinc-900 shrink-0"
-      >
-        <div class="flex items-center gap-3">
-          <div class="font-medium text-zinc-100">{{ t('settings.acp.terminal.title') }}</div>
-          <div
-            class="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-zinc-800 text-xs text-zinc-400"
-          >
-            <div class="w-1.5 h-1.5 rounded-full" :class="statusColor"></div>
-            {{ statusText }}
-          </div>
+
+      <div class="flex items-center gap-2 px-4 py-2 border-b shrink-0">
+        <div
+          class="flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs"
+          :class="statusBadgeClass"
+        >
+          <div class="w-1.5 h-1.5 rounded-full" :class="statusColor"></div>
+          {{ statusText }}
         </div>
-        <div class="flex items-center gap-2">
-          <Button
-            variant="ghost"
-            size="icon"
-            class="h-8 w-8 text-zinc-400 hover:text-white hover:bg-zinc-800"
-            :disabled="!isRunning"
-            @click="handlePaste"
-            :title="t('settings.acp.terminal.paste')"
-          >
-            <Icon icon="lucide:clipboard" class="h-4 w-4" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            class="h-8 w-8 text-zinc-400 hover:text-white hover:bg-zinc-800"
-            @click="handleManualClose"
-          >
-            <X class="h-4 w-4" />
-          </Button>
-        </div>
+        <Button
+          variant="ghost"
+          size="icon"
+          class="h-8 w-8"
+          :disabled="!isRunning"
+          @click="handlePaste"
+          :title="t('settings.acp.terminal.paste')"
+        >
+          <Icon icon="lucide:clipboard" class="h-4 w-4" />
+        </Button>
       </div>
 
       <div class="flex-1 relative w-full h-full bg-black p-0 overflow-hidden">
@@ -57,15 +41,8 @@ import { ref, computed, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
 import { Terminal } from '@xterm/xterm'
 import '@xterm/xterm/css/xterm.css'
 import { useI18n } from 'vue-i18n'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle
-} from '@shadcn/components/ui/dialog'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@shadcn/components/ui/dialog'
 import { Button } from '@shadcn/components/ui/button'
-import { X } from 'lucide-vue-next'
 import { Icon } from '@iconify/vue'
 import { useToast } from '@/components/use-toast'
 
@@ -129,21 +106,23 @@ const statusText = computed(() => {
   }
 })
 
+const statusBadgeClass = computed(() => {
+  return 'bg-muted text-muted-foreground'
+})
+
 const handleOpenUpdate = (val: boolean) => {
   if (!val) {
-    handleManualClose()
-  }
-}
-
-const handleManualClose = () => {
-  // Kill process if running
-  if (isRunning.value) {
-    if (window.electron) {
-      window.electron.ipcRenderer.send('acp-terminal:kill')
+    // Kill process if running
+    if (isRunning.value) {
+      if (window.electron) {
+        window.electron.ipcRenderer.send('acp-terminal:kill')
+      }
     }
+    emit('update:open', false)
+    emit('close')
+  } else {
+    emit('update:open', val)
   }
-  emit('update:open', false)
-  emit('close')
 }
 
 const ensureTerminal = () => {
@@ -406,11 +385,6 @@ onBeforeUnmount(() => {
   width: 100%;
 }
 
-/* Hide default DialogContent close button */
-:deep([data-slot='dialog-close']) {
-  display: none !important;
-}
-
 /* Xterm.js styles */
 :deep(.xterm) {
   height: 100% !important;
@@ -447,18 +421,5 @@ onBeforeUnmount(() => {
 
 :deep(.xterm-viewport::-webkit-scrollbar-track) {
   background: transparent;
-}
-
-/* Screen reader only - for accessibility */
-.sr-only {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
-  border-width: 0;
 }
 </style>

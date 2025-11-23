@@ -901,7 +901,6 @@
     "terminal": {
       "close": "關閉",
       "closing": "正在關閉...",
-      "description": "實時查看初始化過程。",
       "exitError": "進程退出時出錯（退出碼：{code}）",
       "exitSuccess": "進程成功完成（退出碼：{code}）",
       "processError": "進程錯誤",

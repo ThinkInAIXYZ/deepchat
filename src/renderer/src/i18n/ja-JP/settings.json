@@ -892,7 +892,6 @@
     "terminal": {
       "close": "閉鎖",
       "closing": "閉会中...",
-      "description": "初期化プロセスをリアルタイムで表示します。",
       "exitError": "プロセスの終了中にエラーが発生しました (終了コード: {code})",
       "exitSuccess": "プロセスは正常に完了しました (終了コード: {code})",
       "processError": "プロセスエラー",

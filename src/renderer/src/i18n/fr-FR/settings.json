@@ -892,8 +892,7 @@
     "terminal": {
       "close": "fermeture",
       "closing": "Clôture...",
-      "description": "Visualisez le processus d'initialisation en temps réel.",
-      "exitError": "Une erreur s'est produite lors de la fermeture du processus (code de sortie : {code})",
+      "exitError": "Une erreur s'est produite lors de la fermeture du processus (code de sortie : {code})",
       "exitSuccess": "Processus terminé avec succès (code de sortie : {code})",
       "processError": "erreur de processus",
       "starting": "Démarrage de l'initialisation...",
