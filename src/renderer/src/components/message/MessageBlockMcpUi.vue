@@ -67,22 +67,30 @@ const mcpPresenter = usePresenter('mcpPresenter')
 const rendererRef = ref<HTMLElement | null>(null)
 const isLoading = ref(false)
 const errorMessage = ref<string | null>(null)
+const payload = ref<string>('')
 
 const resource = computed(() => props.block.mcp_ui_resource)
 
-const resourcePayload = computed(() => {
-  const value = resource.value
-  if (!value?.uri || !value.mimeType) {
-    return ''
-  }
-  try {
-    return JSON.stringify(value)
-  } catch (error) {
-    console.error('[MessageBlockMcpUi] Failed to serialize MCP UI resource', error)
-    errorMessage.value = t('common.error.requestFailed')
-    return ''
-  }
-})
+const resourcePayload = computed(() => payload.value)
+
+watch(
+  () => resource.value,
+  (value) => {
+    errorMessage.value = null
+    if (!value?.uri || !value.mimeType) {
+      payload.value = ''
+      return
+    }
+    try {
+      payload.value = JSON.stringify(value)
+    } catch (error) {
+      console.error('[MessageBlockMcpUi] Failed to serialize MCP UI resource', error)
+      errorMessage.value = t('common.error.requestFailed')
+      payload.value = ''
+    }
+  },
+  { immediate: true }
+)
 
 const handleUIAction = async (action?: UIActionResult | null): Promise<unknown> => {
   if (!action) {

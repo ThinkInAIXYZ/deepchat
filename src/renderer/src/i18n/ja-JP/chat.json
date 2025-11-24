@@ -83,8 +83,8 @@
   },
   "mcpUi": {
     "badge": "UI",
-    "collapse": "近い",
-    "expand": "拡大する",
+    "collapse": "折りたたむ",
+    "expand": "展開",
     "title": "MCP UI"
   }
 }
