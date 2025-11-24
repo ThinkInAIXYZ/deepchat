@@ -80,5 +80,11 @@
     "functionName": "함수 이름",
     "params": "매개변수",
     "responseData": "응답 데이터"
+  },
+  "mcpUi": {
+    "badge": "UI",
+    "collapse": "닫다",
+    "expand": "확장하다",
+    "title": "MCP UI"
   }
 }

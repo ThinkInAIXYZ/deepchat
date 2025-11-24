@@ -59,6 +59,12 @@
             :conversation-id="currentThreadId"
             :block="block"
           />
+          <MessageBlockMcpUi
+            v-else-if="block.type === 'mcp_ui_resource'"
+            :block="block"
+            :message-id="currentMessage.id"
+            :thread-id="currentThreadId"
+          />
           <MessageBlockImage
             v-else-if="block.type === 'image'"
             :block="block"
@@ -128,6 +134,7 @@ import { Spinner } from '@shadcn/components/ui/spinner'
 import MessageBlockAction from './MessageBlockAction.vue'
 import { useI18n } from 'vue-i18n'
 import MessageBlockImage from './MessageBlockImage.vue'
+import MessageBlockMcpUi from './MessageBlockMcpUi.vue'
 
 import {
   Dialog,

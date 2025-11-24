@@ -70,6 +70,12 @@
     "assistantMessage": "助手回复",
     "unknownMessage": "未知消息"
   },
+  "mcpUi": {
+    "title": "MCP UI",
+    "badge": "UI",
+    "expand": "展开",
+    "collapse": "收起"
+  },
   "toolCall": {
     "title": "工具调用",
     "calling": "工具调用中",

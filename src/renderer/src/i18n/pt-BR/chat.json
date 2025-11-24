@@ -80,5 +80,11 @@
     "functionName": "Nome da função",
     "params": "Parâmetros",
     "responseData": "Dados de resposta"
+  },
+  "mcpUi": {
+    "badge": "IU",
+    "collapse": "fechar",
+    "expand": "Expandir",
+    "title": "MCP UI"
   }
 }

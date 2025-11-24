@@ -111,6 +111,7 @@ export class LLMEventHandler {
 
     if (tool_call_response_raw && tool_call === 'end') {
       await this.toolCallHandler.processSearchResultsFromToolCall(state, msg, currentTime)
+      await this.toolCallHandler.processMcpUiResourcesFromToolCall(state, msg, currentTime)
     }
 
     if (tool_call) {

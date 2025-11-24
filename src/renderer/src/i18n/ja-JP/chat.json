@@ -80,5 +80,11 @@
     "functionName": "関数名",
     "params": "パラメータ",
     "responseData": "レスポンスデータ"
+  },
+  "mcpUi": {
+    "badge": "UI",
+    "collapse": "近い",
+    "expand": "拡大する",
+    "title": "MCP UI"
   }
 }

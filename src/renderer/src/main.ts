@@ -11,6 +11,7 @@ import { createI18n } from 'vue-i18n'
 import locales from './i18n'
 import 'vue-virtual-scroller/dist/vue-virtual-scroller.css'
 import 'katex/dist/katex.min.css'
+import '@mcp-ui/client/ui-resource-renderer.wc.js'
 
 const i18n = createI18n({
   locale: 'zh-CN',

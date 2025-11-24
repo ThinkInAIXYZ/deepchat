@@ -80,5 +80,11 @@
     "functionName": "函數名稱",
     "params": "參數",
     "responseData": "回應數據"
+  },
+  "mcpUi": {
+    "badge": "UI",
+    "collapse": "收起",
+    "expand": "展開",
+    "title": "MCP UI"
   }
 }

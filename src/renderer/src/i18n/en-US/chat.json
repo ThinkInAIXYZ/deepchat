@@ -70,6 +70,12 @@
     "assistantMessage": "Assistant reply",
     "unknownMessage": "Unknown message"
   },
+  "mcpUi": {
+    "title": "MCP UI",
+    "badge": "UI",
+    "expand": "Expand",
+    "collapse": "Collapse"
+  },
   "toolCall": {
     "title": "Tool Call",
     "calling": "Tool call in progress",

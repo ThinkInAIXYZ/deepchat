@@ -26,6 +26,12 @@ interface PermissionRequestPayload {
 }
 
 export class ToolCallHandler {
+  private static readonly MCP_UI_MIME_TYPES = new Set([
+    'text/html',
+    'text/uri-list',
+    'application/vnd.mcp-ui.remote-dom'
+  ])
+
   private readonly messageManager: MessageManager
   private readonly sqlitePresenter: ISQLitePresenter
   private readonly searchingMessages: Set<string>
@@ -166,6 +172,87 @@ export class ToolCallHandler {
         lastBlock.status = 'success'
         return
       }
+    }
+  }
+
+  async processMcpUiResourcesFromToolCall(
+    state: GeneratingMessageState,
+    event: LLMAgentEventData,
+    currentTime: number
+  ): Promise<boolean> {
+    if (event.tool_call !== 'end') {
+      return false
+    }
+
+    try {
+      const response = event.tool_call_response_raw as MCPToolResponse | null
+      const contentItems = Array.isArray(response?.content)
+        ? (response.content as MCPContentItem[])
+        : []
+
+      const uiResourceItems = contentItems.filter((item): item is MCPResourceContent => {
+        if (item.type !== 'resource') {
+          return false
+        }
+        const uri = item.resource?.uri
+        const mimeType = item.resource?.mimeType || ''
+        return (
+          typeof uri === 'string' &&
+          uri.startsWith('ui://') &&
+          ToolCallHandler.MCP_UI_MIME_TYPES.has(mimeType)
+        )
+      })
+
+      if (uiResourceItems.length === 0) {
+        return false
+      }
+
+      const uiBlocks: AssistantMessageBlock[] = uiResourceItems
+        .map((item) => {
+          const resource = item.resource
+          if (!resource?.uri) {
+            return null
+          }
+
+          const mimeType = resource.mimeType || ''
+          if (!ToolCallHandler.MCP_UI_MIME_TYPES.has(mimeType)) {
+            return null
+          }
+          const typedMimeType = mimeType as
+            | 'text/html'
+            | 'text/uri-list'
+            | 'application/vnd.mcp-ui.remote-dom'
+
+          const meta = (
+            resource as MCPResourceContent['resource'] & { _meta?: Record<string, unknown> }
+          )._meta
+
+          return {
+            type: 'mcp_ui_resource',
+            status: 'success',
+            timestamp: currentTime,
+            mcp_ui_resource: {
+              uri: resource.uri,
+              mimeType: typedMimeType,
+              text: typeof resource.text === 'string' ? resource.text : undefined,
+              blob: typeof resource.blob === 'string' ? resource.blob : undefined,
+              _meta: meta && typeof meta === 'object' ? meta : undefined
+            }
+          }
+        })
+        .filter(Boolean) as AssistantMessageBlock[]
+
+      if (uiBlocks.length === 0) {
+        return false
+      }
+
+      this.finalizeLastBlock(state)
+      state.message.content.push(...uiBlocks)
+      await this.messageManager.editMessage(event.eventId, JSON.stringify(state.message.content))
+      return true
+    } catch (error) {
+      console.error('[ToolCallHandler] Error processing MCP UI resources from tool call:', error)
+      return false
     }
   }
 

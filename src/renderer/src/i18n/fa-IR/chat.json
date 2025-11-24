@@ -80,5 +80,11 @@
     "functionName": "نام تابع",
     "params": "پارامترها",
     "responseData": "داده‌های پاسخ"
+  },
+  "mcpUi": {
+    "badge": "UI",
+    "collapse": "بستن",
+    "expand": "گسترش دهید",
+    "title": "MCP UI"
   }
 }

@@ -79,7 +79,14 @@ export default defineConfig({
           return path.resolve(buildOutDir, 'monacoeditorwork')
         },
       }),
-      vue(),
+      vue({
+        template: {
+          compilerOptions: {
+            // 将所有带短横线的标签名都视为自定义元素
+            isCustomElement: (tag) => tag.startsWith('ui-resource-renderer')
+          }
+        }
+      }),
       svgLoader(),
       vueDevTools()
     ],
