@@ -4,7 +4,7 @@
       ref="iframeRef"
       :srcdoc="htmlContent"
       class="w-full h-full min-h-[400px] html-iframe-wrapper"
-      sandbox="allow-scripts allow-same-origin"
+      sandbox="allow-scripts"
     ></iframe>
   </div>
 </template>

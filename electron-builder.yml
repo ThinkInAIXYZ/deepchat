@@ -30,6 +30,9 @@ extraResources:
   - from: ./runtime/
     to: app.asar.unpacked/runtime
     filter: ['**/*']
+  - from: ./resources/cdn/
+    to: app.asar.unpacked/resources/cdn
+    filter: ['**/*']
 electronLanguages:
   - zh-CN
   - zh-TW
