@@ -266,125 +266,92 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
         processedArgs.some((arg) => typeof arg === 'string' && arg.includes(cmd))
     )
 
-    // Define allowed environment variables whitelist for Node.js/UV commands
-    const allowedEnvVars = [
-      'PATH',
-      'path',
-      'Path',
-      'npm_config_registry',
-      'npm_config_cache',
-      'npm_config_prefix',
-      'npm_config_tmp',
-      'NPM_CONFIG_REGISTRY',
-      'NPM_CONFIG_CACHE',
-      'NPM_CONFIG_PREFIX',
-      'NPM_CONFIG_TMP',
-      'ANTHROPIC_BASE_URL',
-      'ANTHROPIC_AUTH_TOKEN',
-      'ANTHROPIC_MODEL',
-      'OPENAI_BASE_URL',
-      'OPENAI_API_KEY'
-    ]
-
     const HOME_DIR = app.getPath('home')
     const env: Record<string, string> = {}
+    Object.entries(process.env).forEach(([key, value]) => {
+      if (value !== undefined && value !== '') {
+        env[key] = value
+      }
+    })
     let pathKey = process.platform === 'win32' ? 'Path' : 'PATH'
     let pathValue = ''
 
     if (isNodeCommand) {
-      // Node.js/UV commands use whitelist processing
-      if (process.env) {
-        const existingPaths: string[] = []
-
-        // Collect all PATH-related values
-        Object.entries(process.env).forEach(([key, value]) => {
-          if (value !== undefined && value !== '') {
-            if (['PATH', 'Path', 'path'].includes(key)) {
-              existingPaths.push(value)
-            } else if (allowedEnvVars.includes(key) && !['PATH', 'Path', 'path'].includes(key)) {
-              env[key] = value
-            }
-          }
-        })
-
-        // Get shell environment variables when not using builtin runtime
-        // This ensures nvm/n/fnm/volta paths are available
-        let shellEnv: Record<string, string> = {}
-        if (!useBuiltinRuntime) {
-          try {
-            shellEnv = await getShellEnvironment()
-            console.info(`[ACP] Retrieved shell environment variables for agent ${agent.id}`)
-
-            // Merge shell environment variables (except PATH which we handle separately)
-            Object.entries(shellEnv).forEach(([key, value]) => {
-              if (!['PATH', 'Path', 'path'].includes(key) && value) {
-                env[key] = value
-              }
-            })
-          } catch (error) {
-            console.warn(
-              `[ACP] Failed to get shell environment variables for agent ${agent.id}, using fallback:`,
-              error
-            )
-          }
-        }
-
-        // Get shell PATH if available (priority: shell PATH > existing PATH)
-        const shellPath = shellEnv.PATH || shellEnv.Path
-        if (shellPath) {
-          // Use shell PATH as base, then merge existing paths
-          const shellPaths = shellPath.split(process.platform === 'win32' ? ';' : ':')
-          existingPaths.unshift(...shellPaths)
-          console.info(`[ACP] Using shell PATH for agent ${agent.id} (length: ${shellPath.length})`)
-        }
-
-        // Get default paths
-        const defaultPaths = this.runtimeHelper.getDefaultPaths(HOME_DIR)
-
-        // Merge all paths (priority: shell PATH > existing PATH > default paths)
-        const allPaths = [...existingPaths, ...defaultPaths]
-        // Add runtime paths only when using builtin runtime
-        if (useBuiltinRuntime) {
-          const uvRuntimePath = this.runtimeHelper.getUvRuntimePath()
-          const nodeRuntimePath = this.runtimeHelper.getNodeRuntimePath()
-          if (process.platform === 'win32') {
-            // Windows platform only adds node and uv paths
-            if (uvRuntimePath) {
-              allPaths.unshift(uvRuntimePath)
-              console.info(`[ACP] Added UV runtime path to PATH: ${uvRuntimePath}`)
-            }
-            if (nodeRuntimePath) {
-              allPaths.unshift(nodeRuntimePath)
-              console.info(`[ACP] Added Node runtime path to PATH: ${nodeRuntimePath}`)
-            }
-          } else {
-            // Other platforms priority: node > uv
-            if (uvRuntimePath) {
-              allPaths.unshift(uvRuntimePath)
-              console.info(`[ACP] Added UV runtime path to PATH: ${uvRuntimePath}`)
-            }
-            if (nodeRuntimePath) {
-              const nodeBinPath = path.join(nodeRuntimePath, 'bin')
-              allPaths.unshift(nodeBinPath)
-              console.info(`[ACP] Added Node bin path to PATH: ${nodeBinPath}`)
-            }
-          }
-        }
-
-        // Normalize and set PATH
-        const normalized = this.runtimeHelper.normalizePathEnv(allPaths)
-        pathKey = normalized.key
-        pathValue = normalized.value
-        env[pathKey] = pathValue
-      }
-    } else {
-      // Non Node.js/UV commands, preserve all system environment variables, only supplement PATH
-      Object.entries(process.env).forEach(([key, value]) => {
-        if (value !== undefined && value !== '') {
-          env[key] = value
+      // Node.js/UV commands need full environment propagation similar to ACP init
+      const existingPaths: string[] = []
+      const pathKeys = ['PATH', 'Path', 'path']
+      pathKeys.forEach((key) => {
+        const value = env[key]
+        if (value) {
+          existingPaths.push(value)
         }
       })
 
+      // Get shell environment variables regardless of runtime choice
+      let shellEnv: Record<string, string> = {}
+      try {
+        shellEnv = await getShellEnvironment()
+        console.info(`[ACP] Retrieved shell environment variables for agent ${agent.id}`)
+        Object.entries(shellEnv).forEach(([key, value]) => {
+          if (value !== undefined && value !== '' && !pathKeys.includes(key)) {
+            env[key] = value
+          }
+        })
+      } catch (error) {
+        console.warn(
+          `[ACP] Failed to get shell environment variables for agent ${agent.id}, using fallback:`,
+          error
+        )
+      }
+
+      // Get shell PATH if available (priority: shell PATH > existing PATH)
+      const shellPath = shellEnv.PATH || shellEnv.Path || shellEnv.path
+      if (shellPath) {
+        const shellPaths = shellPath.split(process.platform === 'win32' ? ';' : ':')
+        existingPaths.unshift(...shellPaths)
+        console.info(`[ACP] Using shell PATH for agent ${agent.id} (length: ${shellPath.length})`)
+      }
+
+      // Get default paths
+      const defaultPaths = this.runtimeHelper.getDefaultPaths(HOME_DIR)
+
+      // Merge all paths (priority: shell PATH > existing PATH > default paths)
+      const allPaths = [...existingPaths, ...defaultPaths]
+      // Add runtime paths only when using builtin runtime
+      if (useBuiltinRuntime) {
+        const uvRuntimePath = this.runtimeHelper.getUvRuntimePath()
+        const nodeRuntimePath = this.runtimeHelper.getNodeRuntimePath()
+        if (process.platform === 'win32') {
+          // Windows platform only adds node and uv paths
+          if (uvRuntimePath) {
+            allPaths.unshift(uvRuntimePath)
+            console.info(`[ACP] Added UV runtime path to PATH: ${uvRuntimePath}`)
+          }
+          if (nodeRuntimePath) {
+            allPaths.unshift(nodeRuntimePath)
+            console.info(`[ACP] Added Node runtime path to PATH: ${nodeRuntimePath}`)
+          }
+        } else {
+          // Other platforms priority: node > uv
+          if (uvRuntimePath) {
+            allPaths.unshift(uvRuntimePath)
+            console.info(`[ACP] Added UV runtime path to PATH: ${uvRuntimePath}`)
+          }
+          if (nodeRuntimePath) {
+            const nodeBinPath = path.join(nodeRuntimePath, 'bin')
+            allPaths.unshift(nodeBinPath)
+            console.info(`[ACP] Added Node bin path to PATH: ${nodeBinPath}`)
+          }
+        }
+      }
+
+      // Normalize and set PATH
+      const normalized = this.runtimeHelper.normalizePathEnv(allPaths)
+      pathKey = normalized.key
+      pathValue = normalized.value
+      env[pathKey] = pathValue
+    } else {
+      // Non Node.js/UV commands, preserve all system environment variables, only supplement PATH
       // Supplement PATH
       const existingPaths: string[] = []
       if (env.PATH) {
