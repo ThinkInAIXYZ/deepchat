@@ -81,7 +81,9 @@
   "serverForm": {
     "add": "追加",
     "args": "パラメーター",
-    "argsPlaceholder": "スペースで区切られたパラメーターを入力します",
+    "argsPlaceholder": "1行に1つのパラメーターを入力",
+    "addArg": "パラメーターを追加",
+    "argPlaceholder": "パラメーター値を入力",
     "argsRequired": "パラメーターを空にすることはできません",
     "autoApprove": "自動認証",
     "autoApproveAll": "全て",

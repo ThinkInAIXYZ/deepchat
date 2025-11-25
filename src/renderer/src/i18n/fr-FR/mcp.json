@@ -81,7 +81,9 @@
   "serverForm": {
     "add": "Ajouter",
     "args": "Arguments",
-    "argsPlaceholder": "Entrez les paramètres, séparés par des espaces",
+    "argsPlaceholder": "Saisir un argument par ligne",
+    "addArg": "Ajouter un argument",
+    "argPlaceholder": "Saisir la valeur de l'argument",
     "argsRequired": "Les paramètres ne peuvent pas être vides",
     "autoApprove": "Autorisation automatique",
     "autoApproveAll": "Tout",

@@ -81,7 +81,9 @@
   "serverForm": {
     "add": "Add",
     "args": "Arguments",
-    "argsPlaceholder": "Enter parameters, separated by spaces",
+    "argsPlaceholder": "Enter one argument per line",
+    "addArg": "Add Argument",
+    "argPlaceholder": "Enter argument value",
     "argsRequired": "Parameters cannot be empty",
     "autoApprove": "Auto-approve",
     "autoApproveAll": "All",

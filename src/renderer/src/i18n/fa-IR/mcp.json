@@ -81,7 +81,9 @@
   "serverForm": {
     "add": "افزودن به",
     "args": "داده‌ها",
-    "argsPlaceholder": "داده‌ها را با فاصله وارد کنید",
+    "argsPlaceholder": "Enter one argument per line",
+    "addArg": "Add Argument",
+    "argPlaceholder": "Enter argument value",
     "argsRequired": "داده‌ها نمی‌توانند خالی باشند",
     "autoApprove": "پذیرش خودکار",
     "autoApproveAll": "همه",

@@ -20,7 +20,6 @@ import { useToast } from '@/components/use-toast'
 import { Icon } from '@iconify/vue'
 import { Popover, PopoverContent, PopoverTrigger } from '@shadcn/components/ui/popover'
 import { ChevronDown, X } from 'lucide-vue-next'
-import { Badge } from '@shadcn/components/ui/badge'
 import ModelSelect from '@/components/ModelSelect.vue'
 import ModelIcon from '@/components/icons/ModelIcon.vue'
 import { useModelStore } from '@/stores/modelStore'
@@ -29,6 +28,7 @@ import { MCP_MARKETPLACE_URL, HIGRESS_MCP_MARKETPLACE_URL } from './const'
 import { usePresenter } from '@/composables/usePresenter'
 import { useThemeStore } from '@/stores/theme'
 import { ModelType } from '@shared/model'
+import { nanoid } from 'nanoid'
 
 const { t } = useI18n()
 const { toast } = useToast()
@@ -49,7 +49,7 @@ const emit = defineEmits<{
 // 表单状态
 const name = ref(props.serverName || '')
 const command = ref(props.initialConfig?.command || 'npx')
-const args = ref(props.initialConfig?.args?.join(' ') || '')
+const args = ref(props.initialConfig?.args?.join('\n') || '')
 const env = ref(JSON.stringify(props.initialConfig?.env || {}, null, 2))
 const descriptions = ref(props.initialConfig?.descriptions || '')
 type MCPServerTypeOption = 'sse' | 'stdio' | 'inmemory' | 'http'
@@ -99,7 +99,7 @@ const handleImageModelSelect = (model: RENDERER_MODEL_META, providerId: string):
   selectedImageModel.value = model
   selectedImageModelProvider.value = providerId
   // 将provider和modelId以空格分隔拼接成args的值
-  args.value = `${providerId} ${model.id}`
+  setArgsRowsFromArray([providerId, model.id])
   modelSelectOpen.value = false
 }
 
@@ -186,16 +186,23 @@ const parseJsonConfig = (): void => {
     // 填充表单数据
     name.value = serverName
     command.value = serverConfig.command || 'npx'
-    args.value = serverConfig.args?.join(' ') || ''
     env.value = JSON.stringify(serverConfig.env || {}, null, 2)
     descriptions.value = serverConfig.descriptions || ''
     icons.value = serverConfig.icons || '📁'
+    const incomingArgs = Array.isArray(serverConfig.args) ? serverConfig.args : []
     const incomingType = serverConfig.type as MCPServerTypeOption | undefined
     baseUrl.value = serverConfig.url || serverConfig.baseUrl || ''
     const fallbackType: MCPServerTypeOption = baseUrl.value ? 'http' : 'stdio'
     type.value =
       incomingType && VALID_MCP_TYPES.includes(incomingType) ? incomingType : fallbackType
     console.log('type', type.value, baseUrl.value)
+    // 根据类型填充参数
+    if (isBuildInFileSystem.value) {
+      foldersList.value = incomingArgs
+      args.value = incomingArgs.join('\n')
+    } else {
+      setArgsRowsFromArray(incomingArgs)
+    }
 
     // 填充 customHeaders (如果存在)
     const headersFromConfig =
@@ -310,10 +317,33 @@ const isFormValid = computed(() => {
   return isNameValid.value && isCommandValid.value && isEnvValid.value
 })
 
-// 参数输入相关状态 (用于标签式输入)
-const argumentsList = ref<string[]>([])
-const currentArgumentInput = ref('')
-const argsInputRef = ref<HTMLInputElement | null>(null) // 用于聚焦输入框
+// 参数输入相关状态 (列表式输入)
+const argsRows = ref<Array<{ id: string; value: string }>>([])
+const createArgsRows = (values: string[]): Array<{ id: string; value: string }> =>
+  values.map((value) => ({
+    id: nanoid(),
+    value
+  }))
+const syncArgsRowsFromString = (value: string): void => {
+  const parsedValues = value ? value.split(/\r?\n/) : []
+  const currentValues = argsRows.value.map((row) => row.value)
+  if (
+    parsedValues.length === currentValues.length &&
+    parsedValues.every((val, index) => val === currentValues[index])
+  ) {
+    return
+  }
+  argsRows.value = createArgsRows(parsedValues)
+}
+const setArgsRowsFromArray = (values: string[]): void => {
+  syncArgsRowsFromString(values.join('\n'))
+}
+const addArgsRow = (): void => {
+  argsRows.value.push({ id: nanoid(), value: '' })
+}
+const removeArgsRow = (id: string): void => {
+  argsRows.value = argsRows.value.filter((row) => row.id !== id)
+}
 
 // 文件夹选择相关状态 (用于 buildInFileSystem)
 const foldersList = ref<string[]>([])
@@ -351,17 +381,12 @@ watch(
     if (isBuildInFileSystem.value) {
       // 对于 buildInFileSystem，args 是文件夹路径列表
       if (newArgs) {
-        foldersList.value = newArgs.split(/\s+/).filter(Boolean)
+        foldersList.value = newArgs.split(/\r?\n/).filter((item) => item.trim().length > 0)
       } else {
         foldersList.value = []
       }
     } else {
-      // 对于其他类型，使用标签式输入
-      if (newArgs) {
-        argumentsList.value = newArgs.split(/\s+/).filter(Boolean)
-      } else {
-        argumentsList.value = []
-      }
+      syncArgsRowsFromString(newArgs || '')
     }
   },
   { immediate: true }
@@ -369,11 +394,11 @@ watch(
 
 // 监听内部列表变化，更新外部 args 字符串
 watch(
-  argumentsList,
-  (newList) => {
-    if (!isBuildInFileSystem.value) {
-      args.value = newList.join(' ')
-    }
+  argsRows,
+  (newRows) => {
+    if (isBuildInFileSystem.value) return
+    const joinedArgs = newRows.map((row) => row.value).join('\n')
+    if (args.value !== joinedArgs) args.value = joinedArgs
   },
   { deep: true }
 )
@@ -383,48 +408,11 @@ watch(
   foldersList,
   (newList) => {
     if (isBuildInFileSystem.value) {
-      args.value = newList.join(' ')
+      args.value = newList.join('\n')
     }
   },
   { deep: true }
 )
-
-// 添加参数到列表
-const addArgument = (): void => {
-  const value = currentArgumentInput.value.trim()
-  if (value) {
-    argumentsList.value.push(value)
-  }
-  currentArgumentInput.value = '' // 清空输入框
-}
-
-// 移除指定索引的参数
-const removeArgument = (index: number): void => {
-  argumentsList.value.splice(index, 1)
-}
-
-// 处理输入框键盘事件
-const handleArgumentInputKeydown = (event: KeyboardEvent): void => {
-  switch (event.key) {
-    case 'Enter':
-    case ' ': // 按下空格也添加
-      event.preventDefault() // 阻止默认行为 (如换行或输入空格)
-      addArgument()
-      break
-    case 'Backspace':
-      // 如果输入框为空，且参数列表不为空，则将最后一个tag的内容移回输入框，并从列表中移除
-      if (currentArgumentInput.value === '' && argumentsList.value.length > 0) {
-        event.preventDefault() // 阻止默认的退格行为
-        currentArgumentInput.value = argumentsList.value.pop() || ''
-      }
-      break
-  }
-}
-
-// 点击容器时聚焦输入框
-const focusArgsInput = (): void => {
-  argsInputRef.value?.focus()
-}
 
 // 提交表单
 const handleSubmit = (): void => {
@@ -502,11 +490,13 @@ const handleSubmit = (): void => {
     }
   } else {
     // STDIO 或 inmemory 类型的服务器
+    const normalizedArgs = isBuildInFileSystem.value
+      ? foldersList.value.filter((folder) => folder.trim().length > 0)
+      : argsRows.value.map((row) => row.value.trim()).filter((value) => value.length > 0)
     serverConfig = {
       ...baseConfig,
       command: command.value.trim(),
-      // args 从 argumentsList 更新，所以直接使用 split 即可，或者直接使用 argumentsList.value
-      args: args.value.split(/\s+/).filter(Boolean),
+      args: normalizedArgs,
       env: parsedEnv,
       baseUrl: baseUrl.value.trim()
     }
@@ -619,11 +609,11 @@ watch(
 
 // 初始化时解析args中的provider和modelId（针对imageServer）
 watch(
-  [() => name.value, () => args.value, () => type.value],
+  [() => name.value, () => argsRows.value.map((row) => row.value), () => type.value],
   ([newName, newArgs, newType]) => {
-    if (newType === 'inmemory' && newName === 'imageServer' && newArgs) {
+    if (newType === 'inmemory' && newName === 'imageServer' && newArgs.length > 0) {
       // 从args中解析出provider和modelId
-      const argsParts = newArgs.split(/\s+/)
+      const argsParts = newArgs.filter((value) => value.trim().length > 0)
       if (argsParts.length >= 2) {
         const providerId = argsParts[0]
         const modelId = argsParts[1]
@@ -651,13 +641,19 @@ watch(
       // Reset fields based on initialConfig
       // name.value = props.serverName || ''; // Name is usually passed separately and kept disabled
       command.value = newConfig.command || 'npx'
-      args.value = newConfig.args?.join(' ') || ''
+      const incomingArgs = Array.isArray(newConfig.args) ? newConfig.args : []
       env.value = JSON.stringify(newConfig.env || {}, null, 2)
       descriptions.value = newConfig.descriptions || ''
       icons.value = newConfig.icons || '📁'
       type.value = newConfig.type || 'stdio'
       baseUrl.value = newConfig.baseUrl || ''
       npmRegistry.value = newConfig.customNpmRegistry || ''
+      if (isBuildInFileSystem.value) {
+        foldersList.value = incomingArgs
+        args.value = incomingArgs.join('\n')
+      } else {
+        setArgsRowsFromArray(incomingArgs)
+      }
 
       // 解析 E2B 配置（仅针对 powerpack 服务器）
       if (props.serverName === 'powerpack' && newConfig.env) {
@@ -948,39 +944,25 @@ HTTP-Referer=deepchatai.cn`
         </div>
         <!-- 参数 (标签式输入 for stdio/inmemory) -->
         <div v-else-if="showArgsInput" class="space-y-2">
-          <Label class="text-xs text-muted-foreground" for="server-args">{{
-            t('settings.mcp.serverForm.args')
-          }}</Label>
-          <div
-            class="flex flex-wrap items-center gap-1 p-2 border border-input rounded-md min-h-[40px] cursor-text"
-            @click="focusArgsInput"
-          >
-            <Badge
-              v-for="(arg, index) in argumentsList"
-              :key="index"
-              variant="outline"
-              class="flex items-center gap-1 whitespace-nowrap"
-            >
-              <span>{{ arg }}</span>
-              <button
-                type="button"
-                class="rounded-full outline-none ring-offset-background focus:ring-2 focus:ring-ring focus:ring-offset-2"
-                :aria-label="`Remove ${arg}`"
-                @click.stop="removeArgument(index)"
-              >
-                <X class="h-3 w-3 text-muted-foreground hover:text-foreground" />
-              </button>
-            </Badge>
-            <input
-              id="server-args-input"
-              ref="argsInputRef"
-              v-model="currentArgumentInput"
-              :placeholder="
-                argumentsList.length === 0 ? t('settings.mcp.serverForm.argsPlaceholder') : ''
-              "
-              class="flex-1 bg-transparent outline-none text-sm min-w-[60px]"
-              @keydown="handleArgumentInputKeydown"
-            />
+          <div class="flex items-center justify-between">
+            <Label class="text-xs text-muted-foreground" for="server-args">
+              {{ t('settings.mcp.serverForm.args') }}
+            </Label>
+            <Button variant="ghost" size="sm" @click="addArgsRow">
+              {{ t('settings.mcp.serverForm.addArg') || '添加参数' }}
+            </Button>
+          </div>
+          <div class="space-y-2 max-h-48 overflow-y-auto pr-1">
+            <div v-for="row in argsRows" :key="row.id" class="grid grid-cols-12 gap-2 items-center">
+              <Input
+                v-model="row.value"
+                class="col-span-11"
+                :placeholder="t('settings.mcp.serverForm.argPlaceholder') || '输入参数值'"
+              />
+              <Button variant="ghost" size="icon" class="col-span-1" @click="removeArgsRow(row.id)">
+                <X class="h-4 w-4" />
+              </Button>
+            </div>
           </div>
           <!-- 隐藏原始Input，但保留v-model绑定以利用其验证状态或原有逻辑(如果需要) -->
           <Input id="server-args" v-model="args" class="hidden" />
