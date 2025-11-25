@@ -2,7 +2,7 @@
   <Dialog :open="open" @update:open="$emit('update:open', $event)">
     <DialogContent class="sm:max-w-[600px] max-h-[80vh] overflow-hidden flex flex-col">
       <DialogHeader>
-        <DialogTitle>{{ t('settings.model.modelConfig.title') }} - {{ modelName }}</DialogTitle>
+        <DialogTitle>{{ dialogTitle }}</DialogTitle>
         <p class="text-sm text-muted-foreground">
           {{ t('settings.model.modelConfig.description') }}
         </p>
@@ -10,6 +10,52 @@
 
       <div class="overflow-y-auto flex-1 pr-2 -mr-2">
         <form @submit.prevent="handleSave" class="space-y-6">
+          <!-- 模型名称 -->
+          <div class="space-y-2">
+            <Label for="modelName">{{ t('settings.model.modelConfig.name.label') }}</Label>
+            <Input
+              id="modelName"
+              v-model="modelNameField"
+              type="text"
+              :placeholder="t('settings.model.modelConfig.name.placeholder')"
+              :disabled="!canEditModelIdentity"
+              :class="{ 'border-destructive': errors.modelName }"
+            />
+            <p class="text-xs text-muted-foreground">
+              {{
+                canEditModelIdentity
+                  ? t('settings.model.modelConfig.name.description')
+                  : t('settings.model.modelConfig.name.readonly')
+              }}
+            </p>
+            <p v-if="errors.modelName" class="text-xs text-destructive">
+              {{ errors.modelName }}
+            </p>
+          </div>
+
+          <!-- 模型 ID -->
+          <div class="space-y-2">
+            <Label for="modelId">{{ t('settings.model.modelConfig.id.label') }}</Label>
+            <Input
+              id="modelId"
+              v-model="modelIdField"
+              type="text"
+              :placeholder="t('settings.model.modelConfig.id.placeholder')"
+              :disabled="!canEditModelIdentity"
+              :class="{ 'border-destructive': errors.modelId }"
+            />
+            <p class="text-xs text-muted-foreground">
+              {{
+                canEditModelIdentity
+                  ? t('settings.model.modelConfig.id.description')
+                  : t('settings.model.modelConfig.id.readonly')
+              }}
+            </p>
+            <p v-if="errors.modelId" class="text-xs text-destructive">
+              {{ errors.modelId }}
+            </p>
+          </div>
+
           <!-- 最大输出长度 -->
           <div class="space-y-2">
             <Label for="maxTokens">{{ t('settings.model.modelConfig.maxTokens.label') }}</Label>
@@ -371,10 +417,12 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from 'vue'
+import { storeToRefs } from 'pinia'
 import { useI18n } from 'vue-i18n'
 import { ModelType } from '@shared/model'
 import type { ModelConfig } from '@shared/presenter'
 import { useModelConfigStore } from '@/stores/modelConfigStore'
+import { useModelStore } from '@/stores/modelStore'
 import { usePresenter } from '@/composables/usePresenter'
 import {
   Dialog,
@@ -410,9 +458,14 @@ interface Props {
   modelId: string
   modelName: string
   providerId: string
+  mode?: 'create' | 'edit'
+  isCustomModel?: boolean
 }
 
-const props = defineProps<Props>()
+const props = withDefaults(defineProps<Props>(), {
+  mode: 'edit',
+  isCustomModel: false
+})
 
 const emit = defineEmits<{
   'update:open': [boolean]
@@ -421,10 +474,11 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 const modelConfigStore = useModelConfigStore()
+const modelStore = useModelStore()
+const { customModels, allProviderModels } = storeToRefs(modelStore)
 const configPresenter = usePresenter('configPresenter')
 
-// 配置数据
-const config = ref<ModelConfig>({
+const createDefaultConfig = (): ModelConfig => ({
   maxTokens: 4096,
   contextLength: 8192,
   temperature: 0.7,
@@ -439,6 +493,22 @@ const config = ref<ModelConfig>({
   searchStrategy: 'turbo'
 })
 
+// 配置数据
+const config = ref<ModelConfig>(createDefaultConfig())
+const modelNameField = ref(props.modelName ?? '')
+const modelIdField = ref(props.modelId ?? '')
+const originalModelId = ref(props.modelId ?? '')
+
+const isCreateMode = computed(() => props.mode === 'create')
+const identityDisplayName = computed(() => modelNameField.value || props.modelName || '')
+const dialogTitle = computed(() =>
+  isCreateMode.value
+    ? t('settings.model.modelConfig.createTitle')
+    : t('settings.model.modelConfig.editTitle', { name: identityDisplayName.value })
+)
+const canEditModelIdentity = computed(() => isCreateMode.value || props.isCustomModel === true)
+const shouldValidateIdentity = computed(() => isCreateMode.value || props.isCustomModel === true)
+
 // 重置确认对话框
 const showResetConfirm = ref(false)
 
@@ -452,32 +522,81 @@ const mutualExclusiveAction = ref<{
 // 错误信息
 const errors = ref<Record<string, string>>({})
 
+const providerCustomModelList = computed(() => {
+  if (!props.providerId) return []
+  return customModels.value.find((entry) => entry.providerId === props.providerId)?.models ?? []
+})
+
+const providerStandardModelList = computed(() => {
+  if (!props.providerId) return []
+  return (
+    allProviderModels.value.find((entry) => entry.providerId === props.providerId)?.models ?? []
+  )
+})
+
+const currentCustomModel = computed(() => {
+  if (!props.providerId || !props.modelId) return null
+  return providerCustomModelList.value.find((model) => model.id === props.modelId) ?? null
+})
+
+const hasModelIdConflict = (modelId: string, excludeId?: string) => {
+  if (!modelId) return false
+  const normalized = modelId.trim().toLowerCase()
+  if (!normalized) return false
+  const models = [...providerStandardModelList.value, ...providerCustomModelList.value]
+  return models.some((model) => {
+    if (!model.id) return false
+    if (excludeId && model.id === excludeId) return false
+    return model.id.toLowerCase() === normalized
+  })
+}
+
+const buildCustomModelPayload = (id: string, name: string, enabled?: boolean) => ({
+  id,
+  name,
+  enabled: enabled ?? true,
+  contextLength: config.value.contextLength ?? 4096,
+  maxTokens: config.value.maxTokens ?? 2048,
+  vision: config.value.vision ?? false,
+  functionCall: config.value.functionCall ?? false,
+  reasoning: config.value.reasoning ?? false,
+  enableSearch: config.value.enableSearch ?? false,
+  type: config.value.type ?? ModelType.Chat
+})
+
+const initializeIdentityFields = () => {
+  if (isCreateMode.value) {
+    modelNameField.value = ''
+    modelIdField.value = ''
+    originalModelId.value = ''
+    return
+  }
+
+  modelNameField.value = props.modelName ?? ''
+  modelIdField.value = props.modelId ?? ''
+  originalModelId.value = props.modelId ?? ''
+}
+
 // 加载模型配置
 const loadConfig = async () => {
-  if (!props.modelId || !props.providerId) return
+  if (!props.providerId) return
+
+  initializeIdentityFields()
+
+  if (isCreateMode.value) {
+    config.value = createDefaultConfig()
+    await fetchCapabilities()
+    return
+  }
+
+  if (!props.modelId) return
 
   try {
     const modelConfig = await modelConfigStore.getModelConfig(props.modelId, props.providerId)
     config.value = { ...modelConfig }
   } catch (error) {
     console.error('Failed to load model config:', error)
-
-    const defaultConfig: ModelConfig = {
-      maxTokens: 4096,
-      contextLength: 8192,
-      temperature: 0.7,
-      vision: false,
-      functionCall: false,
-      reasoning: false,
-      type: ModelType.Chat,
-      reasoningEffort: 'medium',
-      verbosity: 'medium',
-      enableSearch: false,
-      forcedSearch: false,
-      searchStrategy: 'turbo'
-    }
-
-    config.value = defaultConfig
+    config.value = createDefaultConfig()
   }
 
   await fetchCapabilities()
@@ -527,6 +646,27 @@ const loadConfig = async () => {
 const validateForm = () => {
   errors.value = {}
 
+  if (shouldValidateIdentity.value) {
+    const trimmedName = modelNameField.value.trim()
+    const trimmedId = modelIdField.value.trim()
+
+    if (!trimmedName) {
+      errors.value.modelName = t('settings.model.modelConfig.name.required')
+    }
+
+    if (!trimmedId) {
+      errors.value.modelId = t('settings.model.modelConfig.id.required')
+    } else {
+      const excludeId = isCreateMode.value ? undefined : originalModelId.value
+      if (
+        (isCreateMode.value || trimmedId !== originalModelId.value) &&
+        hasModelIdConflict(trimmedId, excludeId)
+      ) {
+        errors.value.modelId = t('settings.model.modelConfig.id.duplicate')
+      }
+    }
+  }
+
   // 验证最大输出长度
   if (!config.value.maxTokens || config.value.maxTokens <= 0) {
     errors.value.maxTokens = t('settings.model.modelConfig.validation.maxTokensMin')
@@ -559,10 +699,58 @@ const isValid = computed(() => {
 
 // 保存配置
 const handleSave = async () => {
-  if (!isValid.value) return
+  if (!isValid.value || !props.providerId) return
+
+  const trimmedName = modelNameField.value.trim()
+  const trimmedId = modelIdField.value.trim()
 
   try {
-    await modelConfigStore.setModelConfig(props.modelId, props.providerId, config.value)
+    if (isCreateMode.value) {
+      await modelStore.addCustomModel(
+        props.providerId,
+        buildCustomModelPayload(trimmedId, trimmedName, true)
+      )
+      await modelConfigStore.setModelConfig(trimmedId, props.providerId, config.value)
+    } else if (props.isCustomModel) {
+      if (!props.modelId) return
+      const previousId = originalModelId.value
+      const enabledState = currentCustomModel.value?.enabled ?? true
+
+      if (trimmedId !== previousId) {
+        if (previousId) {
+          try {
+            await modelConfigStore.resetModelConfig(previousId, props.providerId)
+          } catch (resetError) {
+            console.warn('Failed to reset previous model config:', resetError)
+          }
+          await modelStore.removeCustomModel(props.providerId, previousId)
+        }
+        await modelStore.addCustomModel(
+          props.providerId,
+          buildCustomModelPayload(trimmedId, trimmedName, enabledState)
+        )
+        if (!enabledState) {
+          await modelStore.updateModelStatus(props.providerId, trimmedId, false)
+        }
+      } else {
+        await modelStore.updateCustomModel(props.providerId, trimmedId, {
+          name: trimmedName,
+          contextLength: config.value.contextLength,
+          maxTokens: config.value.maxTokens,
+          vision: config.value.vision,
+          functionCall: config.value.functionCall,
+          reasoning: config.value.reasoning,
+          enableSearch: config.value.enableSearch,
+          type: config.value.type ?? ModelType.Chat
+        })
+      }
+
+      await modelConfigStore.setModelConfig(trimmedId, props.providerId, config.value)
+    } else {
+      if (!props.modelId) return
+      await modelConfigStore.setModelConfig(props.modelId, props.providerId, config.value)
+    }
+
     emit('saved')
     emit('update:open', false)
   } catch (error) {
@@ -578,6 +766,14 @@ const handleReset = () => {
 // 确认重置
 const confirmReset = async () => {
   try {
+    if (isCreateMode.value) {
+      config.value = createDefaultConfig()
+      modelNameField.value = ''
+      modelIdField.value = ''
+      showResetConfirm.value = false
+      return
+    }
+
     await modelConfigStore.resetModelConfig(props.modelId, props.providerId)
     await loadConfig() // 重新加载默认配置
     showResetConfirm.value = false

@@ -137,6 +137,23 @@
     "modelConfig": {
       "title": "自定义模型参数",
       "description": "请注意，此配置仅对当前模型有效，不会影响其他模型，请谨慎修改，错误的参数可能导致模型无法正常工作。",
+      "name": {
+        "label": "模型名称",
+        "description": "模型在界面中的显示名称",
+        "placeholder": "请输入模型名称",
+        "required": "模型名称为必填项",
+        "readonly": "模型名称（只读）"
+      },
+      "id": {
+        "label": "模型 ID",
+        "description": "模型用于标识的唯一 ID",
+        "placeholder": "请输入模型 ID",
+        "required": "模型 ID 为必填项",
+        "readonly": "模型 ID（只读）",
+        "duplicate": "已存在相同的模型 ID"
+      },
+      "createTitle": "添加自定义模型",
+      "editTitle": "编辑模型配置 - {name}",
       "maxTokens": {
         "label": "最大输出长度",
         "description": "设置模型单次输出的最大Token数量"

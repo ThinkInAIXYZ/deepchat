@@ -141,6 +141,23 @@
         "label": "طول متن"
       },
       "description": "لطفاً توجه داشته باشید که این پیکربندی فقط برای مدل فعلی معتبر است و بر سایر مدل ها تأثیر نمی گذارد. لطفاً آن را با احتیاط اصلاح کنید. پارامترهای نادرست ممکن است باعث شود که مدل به درستی کار نکند.",
+      "name": {
+        "label": "Model Name",
+        "description": "The display name of the model",
+        "placeholder": "Enter model name",
+        "required": "Model name is required",
+        "readonly": "Model name (read-only)"
+      },
+      "id": {
+        "label": "Model ID",
+        "description": "The unique identifier of the model",
+        "placeholder": "Enter model ID",
+        "required": "Model ID is required",
+        "readonly": "Model ID (read-only)",
+        "duplicate": "A model with this ID already exists"
+      },
+      "createTitle": "Add Custom Model",
+      "editTitle": "Edit Model Configuration - {name}",
       "functionCall": {
         "description": "این که آیا مدل از عملکردهای عملکردی پشتیبانی می کند (DeepChat پس از خاموش کردن این گزینه ، به طور خودکار تماس های عملکردی را شبیه سازی می کند)",
         "label": "تماسهای عملکردی"

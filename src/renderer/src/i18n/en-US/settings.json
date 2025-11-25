@@ -141,6 +141,23 @@
         "label": "Context Length"
       },
       "description": "Please note that this configuration is only valid for the current model and will not affect other models. Please modify it with caution. Incorrect parameters may cause the model to not work properly.",
+      "name": {
+        "label": "Model Name",
+        "description": "The display name of the model",
+        "placeholder": "Enter model name",
+        "required": "Model name is required",
+        "readonly": "Model name (read-only)"
+      },
+      "id": {
+        "label": "Model ID",
+        "description": "The unique identifier of the model",
+        "placeholder": "Enter model ID",
+        "required": "Model ID is required",
+        "readonly": "Model ID (read-only)",
+        "duplicate": "A model with this ID already exists"
+      },
+      "createTitle": "Add Custom Model",
+      "editTitle": "Edit Model Configuration - {name}",
       "functionCall": {
         "description": "Whether the model supports function calls natively (DeepChat will automatically simulate function calls after turning off this option)",
         "label": "Function Calls"

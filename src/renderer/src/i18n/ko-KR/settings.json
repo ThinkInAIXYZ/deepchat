@@ -141,6 +141,23 @@
         "label": "컨텍스트 길이"
       },
       "description": "이 구성은 현재 모델에만 유효하며 다른 모델에는 영향을 미치지 않습니다. 주의해서 수정하십시오. 잘못된 매개 변수로 인해 모델이 제대로 작동하지 않을 수 있습니다.",
+      "name": {
+        "label": "Model Name",
+        "description": "The display name of the model",
+        "placeholder": "Enter model name",
+        "required": "Model name is required",
+        "readonly": "Model name (read-only)"
+      },
+      "id": {
+        "label": "Model ID",
+        "description": "The unique identifier of the model",
+        "placeholder": "Enter model ID",
+        "required": "Model ID is required",
+        "readonly": "Model ID (read-only)",
+        "duplicate": "A model with this ID already exists"
+      },
+      "createTitle": "Add Custom Model",
+      "editTitle": "Edit Model Configuration - {name}",
       "functionCall": {
         "description": "모델이 기능을 지원하는지 여부는 기본적으로 호출을 지원합니다 (DeepChat은이 옵션을 끄면 기능 호출을 자동으로 시뮬레이션합니다).",
         "label": "기능 호출"

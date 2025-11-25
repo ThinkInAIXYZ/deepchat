@@ -141,6 +141,23 @@
         "label": "上下文長度"
       },
       "description": "請注意，此配置僅對當前模型有效，不會影響其他模型，請謹慎修改，錯誤的參數可能導致模型無法正常工作。",
+      "name": {
+        "label": "模型名稱",
+        "description": "模型在介面中的顯示名稱",
+        "placeholder": "請輸入模型名稱",
+        "required": "模型名稱為必填項",
+        "readonly": "模型名稱（唯讀）"
+      },
+      "id": {
+        "label": "模型 ID",
+        "description": "模型用於識別的唯一 ID",
+        "placeholder": "請輸入模型 ID",
+        "required": "模型 ID 為必填項",
+        "readonly": "模型 ID（唯讀）",
+        "duplicate": "已存在相同的模型 ID"
+      },
+      "createTitle": "新增自訂模型",
+      "editTitle": "編輯模型配置 - {name}",
       "functionCall": {
         "description": "模型是否原生支持函數調用(關閉這個選項後DeepChat會自動模擬函數調用)",
         "label": "函數調用"

@@ -141,6 +141,23 @@
         "label": "コンテキスト長"
       },
       "description": "この構成は現在のモデルに対してのみ有効であり、他のモデルには影響しないことに注意してください。注意して変更してください。パラメーターが誤っていると、モデルが適切に機能しない場合があります。",
+      "name": {
+        "label": "Model Name",
+        "description": "The display name of the model",
+        "placeholder": "Enter model name",
+        "required": "Model name is required",
+        "readonly": "Model name (read-only)"
+      },
+      "id": {
+        "label": "Model ID",
+        "description": "The unique identifier of the model",
+        "placeholder": "Enter model ID",
+        "required": "Model ID is required",
+        "readonly": "Model ID (read-only)",
+        "duplicate": "A model with this ID already exists"
+      },
+      "createTitle": "Add Custom Model",
+      "editTitle": "Edit Model Configuration - {name}",
       "functionCall": {
         "description": "モデルが機能コールをネイティブにサポートするかどうか（このオプションをオフにした後、DeepChatは機能コールを自動的にシミュレートします）",
         "label": "関数呼び出し"

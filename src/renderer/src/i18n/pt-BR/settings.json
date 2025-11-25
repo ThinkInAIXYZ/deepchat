@@ -141,6 +141,23 @@
         "label": "Comprimento do Contexto"
       },
       "description": "Observe que esta configuração é válida apenas para o modelo atual e não afetará outros modelos. Modifique com cautela. Parâmetros incorretos podem fazer com que o modelo não funcione corretamente.",
+      "name": {
+        "label": "Model Name",
+        "description": "The display name of the model",
+        "placeholder": "Enter model name",
+        "required": "Model name is required",
+        "readonly": "Model name (read-only)"
+      },
+      "id": {
+        "label": "Model ID",
+        "description": "The unique identifier of the model",
+        "placeholder": "Enter model ID",
+        "required": "Model ID is required",
+        "readonly": "Model ID (read-only)",
+        "duplicate": "A model with this ID already exists"
+      },
+      "createTitle": "Add Custom Model",
+      "editTitle": "Edit Model Configuration - {name}",
       "functionCall": {
         "description": "Se o modelo suporta chamadas de função nativamente (o DeepChat simulará automaticamente chamadas de função após desativar esta opção)",
         "label": "Chamadas de Função"

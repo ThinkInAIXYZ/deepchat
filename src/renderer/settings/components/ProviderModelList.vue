@@ -24,50 +24,14 @@
         @config-changed="$emit('config-changed')"
       />
     </div>
-    <div v-for="(model, idx) in addModelList" :key="idx" class="flex flex-row gap-2 items-center">
-      <Input v-model="model.modelName" :placeholder="t('model.add.namePlaceholder')" />
-      <Input v-model="model.modelId" :placeholder="t('model.add.idPlaceholder')" />
-      <Input
-        v-model="model.contextLength"
-        type="number"
-        :placeholder="t('model.add.contextLengthPlaceholder')"
-        class="w-32"
-      />
-      <Input
-        v-model="model.maxTokens"
-        type="number"
-        :placeholder="t('model.add.maxTokensPlaceholder')"
-        class="w-32"
-      />
-      <Select v-model="model.type" class="w-16">
-        <SelectTrigger class="w-full">
-          <div class="flex items-center gap-1">
-            <SelectValue class="text-xs font-bold truncate" />
-          </div>
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem v-for="type in Object.values(ModelType)" :key="type" :value="type">
-            {{ type }}
-          </SelectItem>
-        </SelectContent>
-      </Select>
+    <div class="flex flex-row justify-start">
       <Button
         variant="outline"
         size="sm"
         class="text-xs text-normal rounded-lg"
-        @click="removeEdit(idx)"
-        >{{ t('dialog.cancel') }}</Button
+        :disabled="!primaryProviderId"
+        @click="openAddModelDialog"
       >
-      <Button
-        variant="default"
-        size="sm"
-        class="text-xs text-normal rounded-lg text-primary-foreground"
-        @click="confirmAdd(idx)"
-        >{{ t('dialog.confirm') }}</Button
-      >
-    </div>
-    <div class="flex flex-row justify-start">
-      <Button variant="outline" size="sm" class="text-xs text-normal rounded-lg" @click="addEdit">
         <Icon icon="lucide:plus" class="w-4 h-4 text-muted-foreground" />
         {{ t('model.actions.add') }}
       </Button>
@@ -121,6 +85,17 @@
         />
       </div>
     </div>
+
+    <ModelConfigDialog
+      v-if="primaryProviderId"
+      v-model:open="showAddModelDialog"
+      model-id=""
+      model-name=""
+      :provider-id="primaryProviderId"
+      mode="create"
+      :is-custom-model="true"
+      @saved="handleAddModelSaved"
+    />
   </div>
 </template>
 <script setup lang="ts">
@@ -128,30 +103,16 @@ import { useI18n } from 'vue-i18n'
 import { computed, ref } from 'vue'
 import { Input } from '@shadcn/components/ui/input'
 import { Button } from '@shadcn/components/ui/button'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue
-} from '@shadcn/components/ui/select'
 import { Icon } from '@iconify/vue'
 import ModelConfigItem from '@/components/settings/ModelConfigItem.vue'
+import ModelConfigDialog from '@/components/settings/ModelConfigDialog.vue'
 import { type RENDERER_MODEL_META } from '@shared/presenter'
 import { ModelType } from '@shared/model'
 import { useModelStore } from '@/stores/modelStore'
 
 const { t } = useI18n()
-interface ModelEdit {
-  modelName: string
-  modelId: string
-  contextLength: number
-  maxTokens: number
-  type: ModelType
-}
-
-const addModelList = ref<ModelEdit[]>([])
 const modelSearchQuery = ref('')
+const showAddModelDialog = ref(false)
 const modelStore = useModelStore()
 
 const props = defineProps<{
@@ -164,6 +125,8 @@ const emit = defineEmits<{
   enabledChange: [model: RENDERER_MODEL_META, enabled: boolean]
   'config-changed': []
 }>()
+
+const primaryProviderId = computed(() => props.providers[0]?.id ?? '')
 
 const filteredProviderModels = computed(() => {
   if (!modelSearchQuery.value) {
@@ -204,48 +167,20 @@ const filteredCustomModels = computed(() => {
   return filteredModels
 })
 
+const openAddModelDialog = () => {
+  showAddModelDialog.value = true
+}
+
+const handleAddModelSaved = async () => {
+  if (primaryProviderId.value) {
+    await modelStore.refreshCustomModels(primaryProviderId.value)
+  }
+  emit('config-changed')
+}
+
 const getProviderName = (providerId: string) => {
   const provider = props.providers.find((p) => p.id === providerId)
   return provider?.name || providerId
-}
-
-const addEdit = () => {
-  addModelList.value.push({
-    modelName: '',
-    modelId: '',
-    contextLength: 4096,
-    maxTokens: 2048,
-    type: ModelType.Chat
-  })
-}
-
-const removeEdit = (idx: number) => {
-  addModelList.value.splice(idx, 1)
-}
-
-const confirmAdd = async (idx: number) => {
-  const model = addModelList.value[idx]
-  if (!model.modelId || !model.modelName) {
-    console.error('模型ID和名称为必填项')
-    return
-  }
-
-  try {
-    await modelStore.addCustomModel(props.providers[0].id, {
-      id: model.modelId,
-      name: model.modelName,
-      enabled: true,
-      contextLength: model.contextLength || 4096,
-      maxTokens: model.maxTokens || 2048,
-      vision: false,
-      functionCall: false,
-      reasoning: false,
-      type: model.type
-    })
-    removeEdit(idx)
-  } catch (error) {
-    console.error('Failed to add custom model:', error)
-  }
 }
 
 const handleModelEnabledChange = async (model: RENDERER_MODEL_META, enabled: boolean) => {

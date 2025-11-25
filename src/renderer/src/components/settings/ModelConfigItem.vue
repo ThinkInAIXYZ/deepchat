@@ -75,6 +75,8 @@
     :model-id="modelId"
     :model-name="modelName"
     :provider-id="providerId"
+    mode="edit"
+    :is-custom-model="isCustomModel"
     @saved="onConfigSaved"
   />
 </template>
