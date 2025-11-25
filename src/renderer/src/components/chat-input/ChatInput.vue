@@ -9,7 +9,9 @@
   >
     <TooltipProvider>
       <div
+        ref="inputContainer"
         :dir="langStore.dir"
+        :style="inputHeight && variant === 'chat' ? { height: `${inputHeight}px` } : {}"
         :class="[
           'flex flex-col gap-2 relative',
           variant === 'newThread'
@@ -17,6 +19,16 @@
             : 'border-t px-4 py-3 gap-3'
         ]"
       >
+        <!-- Resize Handle -->
+        <div
+          v-if="variant === 'chat'"
+          class="absolute -top-1.5 left-0 right-0 h-3 cursor-ns-resize hover:bg-primary/10 z-20 flex justify-center items-center group opacity-0 hover:opacity-100 transition-opacity"
+          @mousedown="startResize"
+        >
+          <div
+            class="w-16 h-1 bg-muted-foreground/20 rounded-full group-hover:bg-primary/40 transition-colors"
+          ></div>
+        </div>
         <!-- File Area -->
         <div v-if="files.selectedFiles.value.length > 0">
           <TransitionGroup
@@ -45,11 +57,13 @@
         </div>
 
         <!-- Editor -->
-        <editor-content
-          :editor="editor"
-          :class="['text-sm', variant === 'chat' ? 'dark:text-white/80' : 'p-2']"
-          @keydown="onKeydown"
-        />
+        <div class="flex-1 min-h-0 overflow-y-auto">
+          <editor-content
+            :editor="editor"
+            :class="['text-sm', variant === 'chat' ? 'dark:text-white/80' : 'p-2']"
+            @keydown="onKeydown"
+          />
+        </div>
 
         <!-- Footer -->
         <div class="flex items-center justify-between">
@@ -377,6 +391,7 @@ import { useThemeStore } from '@/stores/theme'
 import { Mention } from '../editor/mention/mention'
 import suggestion, { setPromptFilesHandler } from '../editor/mention/suggestion'
 import { mentionData } from '../editor/mention/suggestion'
+import { useEventListener } from '@vueuse/core'
 
 // === Props & Emits ===
 const props = withDefaults(
@@ -398,6 +413,45 @@ const props = withDefaults(
 )
 
 const emit = defineEmits(['send', 'file-upload'])
+
+// === Resize Logic ===
+const inputContainer = ref<HTMLElement | null>(null)
+const inputHeight = ref<number | null>(null)
+const isResizing = ref(false)
+const startY = ref(0)
+const startHeight = ref(0)
+
+const startResize = (e: MouseEvent) => {
+  if (props.variant !== 'chat') return
+  isResizing.value = true
+  startY.value = e.clientY
+  if (inputContainer.value) {
+    startHeight.value = inputContainer.value.getBoundingClientRect().height
+  }
+  document.addEventListener('mousemove', handleResize)
+  document.addEventListener('mouseup', stopResize)
+  document.body.style.cursor = 'ns-resize'
+  document.body.style.userSelect = 'none'
+}
+
+const handleResize = (e: MouseEvent) => {
+  if (!isResizing.value) return
+  const deltaY = startY.value - e.clientY
+  const newHeight = startHeight.value + deltaY
+  // Min height 100px, Max height 80% of window height
+  const maxHeight = window.innerHeight * 0.8
+  if (newHeight > 100 && newHeight < maxHeight) {
+    inputHeight.value = newHeight
+  }
+}
+
+const stopResize = () => {
+  isResizing.value = false
+  document.removeEventListener('mousemove', handleResize)
+  document.removeEventListener('mouseup', stopResize)
+  document.body.style.cursor = ''
+  document.body.style.userSelect = ''
+}
 
 // === Stores ===
 const chatStore = useChatStore()
@@ -665,23 +719,14 @@ onMounted(async () => {
 
   // Setup editor paste handler
   editorComposable.setupEditorPasteHandler(files.handlePaste)
-
-  // Register context menu handler
-  window.addEventListener('context-menu-ask-ai', handleContextMenuAskAI)
-
-  // Register visibility change handler
-  document.addEventListener('visibilitychange', handleVisibilityChange)
 })
+
+useEventListener(window,'context-menu-ask-ai', handleContextMenuAskAI)
+useEventListener(window,'visibilitychange', handleVisibilityChange)
 
 onUnmounted(() => {
   // Cleanup paste handler
   editorComposable.cleanupEditorPasteHandler()
-
-  // Remove context menu event listener
-  window.removeEventListener('context-menu-ask-ai', handleContextMenuAskAI)
-
-  // Remove visibility change event listener
-  document.removeEventListener('visibilitychange', handleVisibilityChange)
 
   // Remove editor update listener
   editor.off('update', editorComposable.onEditorUpdate)
