@@ -38,7 +38,7 @@ export function useMentionData(selectedFiles: Ref<MessageFile[]>) {
           }))
         )
     },
-    { deep: true }
+    { deep: true, immediate: true }
   )
 
   /**
@@ -59,7 +59,8 @@ export function useMentionData(selectedFiles: Ref<MessageFile[]>) {
             mcpEntry: resource
           }))
         )
-    }
+    },
+    { immediate: true }
   )
 
   /**
@@ -80,7 +81,8 @@ export function useMentionData(selectedFiles: Ref<MessageFile[]>) {
             description: tool.function.description ?? ''
           }))
         )
-    }
+    },
+    { immediate: true }
   )
 
   /**
@@ -101,7 +103,8 @@ export function useMentionData(selectedFiles: Ref<MessageFile[]>) {
             mcpEntry: prompt
           }))
         )
-    }
+    },
+    { immediate: true }
   )
 
   // === Public Methods ===
