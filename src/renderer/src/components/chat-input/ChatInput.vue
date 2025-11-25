@@ -721,8 +721,8 @@ onMounted(async () => {
   editorComposable.setupEditorPasteHandler(files.handlePaste)
 })
 
-useEventListener(window,'context-menu-ask-ai', handleContextMenuAskAI)
-useEventListener(window,'visibilitychange', handleVisibilityChange)
+useEventListener(window, 'context-menu-ask-ai', handleContextMenuAskAI)
+useEventListener(document, 'visibilitychange', handleVisibilityChange)
 
 onUnmounted(() => {
   // Cleanup paste handler
