@@ -543,11 +543,13 @@ const hasModelIdConflict = (modelId: string, excludeId?: string) => {
   if (!modelId) return false
   const normalized = modelId.trim().toLowerCase()
   if (!normalized) return false
+  const normalizedExcludeId = excludeId?.trim().toLowerCase()
   const models = [...providerStandardModelList.value, ...providerCustomModelList.value]
   return models.some((model) => {
     if (!model.id) return false
-    if (excludeId && model.id === excludeId) return false
-    return model.id.toLowerCase() === normalized
+    const currentId = model.id.toLowerCase()
+    if (normalizedExcludeId && currentId === normalizedExcludeId) return false
+    return currentId === normalized
   })
 }
 
