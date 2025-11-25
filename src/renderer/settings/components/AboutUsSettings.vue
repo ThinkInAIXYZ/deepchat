@@ -150,6 +150,7 @@
         <DialogDescription>
           <NodeRenderer
             class="max-h-[300px] overflow-y-auto"
+            :isDark="themeStore.isDark"
             :content="t('searchDisclaimer')"
           ></NodeRenderer>
         </DialogDescription>
@@ -186,8 +187,10 @@ import NodeRenderer from 'vue-renderer-markdown'
 import { useUpgradeStore } from '@/stores/upgrade'
 import { useLanguageStore } from '@/stores/language'
 import type { AcceptableValue } from 'reka-ui'
+import { useThemeStore } from '@/stores/theme'
 
 const { t } = useI18n()
+const themeStore = useThemeStore()
 const languageStore = useLanguageStore()
 const devicePresenter = usePresenter('devicePresenter')
 const configPresenter = usePresenter('configPresenter')

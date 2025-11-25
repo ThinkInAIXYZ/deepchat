@@ -30,6 +30,7 @@
       <NodeRenderer
         v-if="content"
         class="think-prose w-full max-w-full"
+        :isDark="themeStore.isDark"
         :content="content"
         :customId="customId"
       />
@@ -44,6 +45,7 @@
 </template>
 
 <script setup lang="ts">
+import { useThemeStore } from '@/stores/theme'
 import { Icon } from '@iconify/vue'
 import { h } from 'vue'
 import NodeRenderer, {
@@ -63,9 +65,17 @@ defineEmits<{
   (e: 'toggle'): void
 }>()
 const customId = 'thinking-content'
+const themeStore = useThemeStore()
 setCustomComponents(customId, {
-  code_block: (_props) =>
-    h(
+  code_block: (_props) => {
+    const isMermaid = _props.node.language === 'mermaid'
+    if (isMermaid) {
+      // 对于 Mermaid 代码块，直接返回 MermaidNode 组件
+      return h(PreCodeNode.vue, {
+        ..._props
+      })
+    }
+    return h(
       CodeBlockNode,
       {
         ..._props,
@@ -76,7 +86,8 @@ setCustomComponents(customId, {
         showFontSizeButtons: false
       },
       undefined
-    ),
+    )
+  },
   mermaid: (_props) =>
     h(PreCodeNode.vue, {
       ..._props

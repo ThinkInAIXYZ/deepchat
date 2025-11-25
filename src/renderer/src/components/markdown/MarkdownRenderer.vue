@@ -1,6 +1,10 @@
 <template>
   <div class="prose prose-zinc prose-sm dark:prose-invert w-full max-w-none break-all">
-    <NodeRenderer :content="debouncedContent" @copy="$emit('copy', $event)" />
+    <NodeRenderer
+      :content="debouncedContent"
+      :isDark="themeStore.isDark"
+      @copy="$emit('copy', $event)"
+    />
   </div>
 </template>
 
@@ -17,15 +21,18 @@ import NodeRenderer, {
   setCustomComponents,
   setKaTeXWorker,
   setMermaidWorker,
-  getUseMonaco
+  getUseMonaco,
+  MermaidBlockNode
 } from 'vue-renderer-markdown'
 import KatexWorker from 'vue-renderer-markdown/workers/katexRenderer.worker?worker&inline'
 import MermaidWorker from 'vue-renderer-markdown/workers/mermaidParser.worker?worker&inline'
+import { useThemeStore } from '@/stores/theme'
 
 const props = defineProps<{
   content: string
   debug?: boolean
 }>()
+const themeStore = useThemeStore()
 getUseMonaco()
 setKaTeXWorker(new KatexWorker())
 setMermaidWorker(new MermaidWorker())
@@ -86,8 +93,15 @@ setCustomComponents({
         referenceStore.hideReference()
       }
     }),
-  code_block: (_props) =>
-    h(CodeBlockNode, {
+  code_block: (_props) => {
+    const isMermaid = _props.node.language === 'mermaid'
+    if (isMermaid) {
+      // 对于 Mermaid 代码块，直接返回 MermaidNode 组件
+      return h(MermaidBlockNode, {
+        ..._props
+      })
+    }
+    return h(CodeBlockNode, {
       ..._props,
       onPreviewCode(v) {
         artifactStore.showArtifact(
@@ -105,6 +119,7 @@ setCustomComponents({
         )
       }
     })
+  }
 })
 
 defineEmits(['copy'])
