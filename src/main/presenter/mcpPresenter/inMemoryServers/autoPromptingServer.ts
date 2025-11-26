@@ -1,5 +1,9 @@
 import { Server } from '@modelcontextprotocol/sdk/server/index.js'
-import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js'
+import {
+  CallToolRequestSchema,
+  ListToolsRequestSchema,
+  type CallToolRequest
+} from '@modelcontextprotocol/sdk/types.js'
 import { Transport } from '@modelcontextprotocol/sdk/shared/transport.js'
 import { z } from 'zod'
 import { zodToJsonSchema } from 'zod-to-json-schema'
@@ -123,7 +127,7 @@ export class AutoPromptingServer {
   }
 
   // 处理工具调用 (对应 CallToolRequestSchema)
-  private async handleToolCall(request: z.infer<typeof CallToolRequestSchema>) {
+  private async handleToolCall(request: CallToolRequest) {
     const { name, arguments: args } = request.params
 
     if (name === 'list_all_prompt_template_names') {
