@@ -48,11 +48,7 @@
 import { useThemeStore } from '@/stores/theme'
 import { Icon } from '@iconify/vue'
 import { h } from 'vue'
-import NodeRenderer, {
-  setCustomComponents,
-  CodeBlockNode,
-  PreCodeNode
-} from 'vue-renderer-markdown'
+import NodeRenderer, { setCustomComponents, CodeBlockNode, PreCodeNode } from 'markstream-vue'
 
 defineProps<{
   label: string

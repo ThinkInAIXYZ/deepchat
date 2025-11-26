@@ -65,7 +65,7 @@ import {
   DialogTitle
 } from '@shadcn/components/ui/dialog'
 import { useUpgradeStore } from '@/stores/upgrade'
-import NodeRenderer from 'vue-renderer-markdown'
+import NodeRenderer from 'markstream-vue'
 import { useThemeStore } from '@/stores/theme'
 
 const { t } = useI18n()

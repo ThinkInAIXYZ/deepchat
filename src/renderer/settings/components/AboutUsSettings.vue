@@ -183,7 +183,7 @@ import {
   SelectTrigger,
   SelectValue
 } from '@shadcn/components/ui/select'
-import NodeRenderer from 'vue-renderer-markdown'
+import NodeRenderer from 'markstream-vue'
 import { useUpgradeStore } from '@/stores/upgrade'
 import { useLanguageStore } from '@/stores/language'
 import type { AcceptableValue } from 'reka-ui'

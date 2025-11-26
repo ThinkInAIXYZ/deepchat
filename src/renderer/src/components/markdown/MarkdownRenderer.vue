@@ -23,9 +23,9 @@ import NodeRenderer, {
   setMermaidWorker,
   getUseMonaco,
   MermaidBlockNode
-} from 'vue-renderer-markdown'
-import KatexWorker from 'vue-renderer-markdown/workers/katexRenderer.worker?worker&inline'
-import MermaidWorker from 'vue-renderer-markdown/workers/mermaidParser.worker?worker&inline'
+} from 'markstream-vue'
+import KatexWorker from 'markstream-vue/workers/katexRenderer.worker?worker&inline'
+import MermaidWorker from 'markstream-vue/workers/mermaidParser.worker?worker&inline'
 import { useThemeStore } from '@/stores/theme'
 
 const props = defineProps<{

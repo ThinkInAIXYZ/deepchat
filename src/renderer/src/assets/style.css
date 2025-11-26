@@ -8,12 +8,12 @@
 @source '../**/*.{vue,ts,tsx,js,jsx}';
 @source '../../shell/**/*.{vue,ts,tsx,js,jsx}';
 @source '../../../shadcn/components/**/*.{vue,ts,tsx,js,jsx}';
-@source '../../../../node_modules/vue-renderer-markdown/dist/tailwind.ts';
+@source '../../../../node_modules/markstream-vue/dist/tailwind.ts';
 
 @custom-variant dark (&:where(.dark &, [data-theme='dark'] &));
 
 @layer base {
-  @import 'vue-renderer-markdown/index.tailwind.css';
+  @import 'markstream-vue/index.tailwind.css';
 
   :root {
     --dc-font-scale: 1;
