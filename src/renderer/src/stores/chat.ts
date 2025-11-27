@@ -1311,10 +1311,14 @@ export const useChatStore = defineStore('chat', () => {
    */
   const exportThread = async (
     threadId: string,
-    format: 'markdown' | 'html' | 'txt' = 'markdown'
+    format: 'markdown' | 'html' | 'txt' | 'nowledge-mem' = 'markdown'
   ) => {
     try {
       // 直接使用主线程导出
+      if (format === 'nowledge-mem') {
+        await submitToNowledgeMem(threadId)
+        return { filename: '', content: '' }
+      }
       return await exportWithMainThread(threadId, format)
     } catch (error) {
       console.error('Failed to export thread:', error)
@@ -1326,8 +1330,9 @@ export const useChatStore = defineStore('chat', () => {
    * 主线程导出
    */
   const exportWithMainThread = async (threadId: string, format: 'markdown' | 'html' | 'txt') => {
-    const result = await threadP.exportConversation(threadId, format)
+    let result: { filename: string; content: string }
 
+    result = await threadP.exportConversation(threadId, format)
     // 触发下载
     const blob = new Blob([result.content], {
       type: getContentType(format)
@@ -1335,6 +1340,58 @@ export const useChatStore = defineStore('chat', () => {
     downloadBlob(blob, result.filename)
 
     return result
+  }
+
+  /**
+   * Submit thread to nowledge-mem API
+   */
+  const submitToNowledgeMem = async (threadId: string) => {
+    const result = await threadP.submitToNowledgeMem(threadId)
+
+    if (!result.success) {
+      throw new Error(result.errors?.join(', ') || 'Submission failed')
+    }
+  }
+
+  /**
+   * Test nowledge-mem connection
+   */
+  const testNowledgeMemConnection = async () => {
+    try {
+      const result = await threadP.testNowledgeMemConnection()
+
+      if (!result.success) {
+        throw new Error(result.error || 'Connection test failed')
+      }
+
+      return result
+    } catch (error) {
+      console.error('Failed to test nowledge-mem connection:', error)
+      throw error
+    }
+  }
+
+  /**
+   * Update nowledge-mem configuration
+   */
+  const updateNowledgeMemConfig = async (config: {
+    baseUrl?: string
+    apiKey?: string
+    timeout?: number
+  }) => {
+    try {
+      await threadP.updateNowledgeMemConfig(config)
+    } catch (error) {
+      console.error('Failed to update nowledge-mem config:', error)
+      throw error
+    }
+  }
+
+  /**
+   * Get nowledge-mem configuration
+   */
+  const getNowledgeMemConfig = () => {
+    return threadP.getNowledgeMemConfig()
   }
 
   /**
@@ -1348,6 +1405,8 @@ export const useChatStore = defineStore('chat', () => {
         return 'text/html;charset=utf-8'
       case 'txt':
         return 'text/plain;charset=utf-8'
+      case 'nowledge-mem':
+        return 'application/json;charset=utf-8'
       default:
         return 'text/plain;charset=utf-8'
     }
@@ -1406,6 +1465,10 @@ export const useChatStore = defineStore('chat', () => {
     getMessages,
     getCurrentThreadMessages,
     exportThread,
+    submitToNowledgeMem,
+    testNowledgeMemConnection,
+    updateNowledgeMemConfig,
+    getNowledgeMemConfig,
     showProviderSelector,
     regenerateFromUserMessage,
     updateSelectedVariant

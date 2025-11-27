@@ -6,7 +6,8 @@
     "pin": "Pin",
     "unpin": "Unpin",
     "export": "Export",
-    "exportText": "Plain Text"
+    "exportText": "Plain Text",
+    "exportNowledgeMem": "Nowledge-mem"
   },
   "toolbar": {
     "save": "Save",
@@ -31,6 +32,15 @@
   },
   "export": {
     "failed": "Export failed",
-    "failedDesc": "An error occurred during the export process, please try again"
+    "failedDesc": "An error occurred during the export process, please try again",
+    "success": "Export successful",
+    "successDesc": "Conversation has been successfully exported",
+    "nowledgeMemSuccess": "Nowledge-mem Export Successful",
+    "nowledgeMemSuccessDesc": "Conversation has been successfully exported to nowledge-mem format",
+    "nowledgeMemSubmitPrompt": "Would you like to submit this conversation to nowledge-mem API?",
+    "nowledgeMemSubmitSuccess": "Nowledge-mem Submission Successful",
+    "nowledgeMemSubmitSuccessDesc": "Conversation has been successfully submitted to nowledge-mem",
+    "nowledgeMemSubmitFailed": "Nowledge-mem Submission Failed",
+    "nowledgeMemSubmitFailedDesc": "Failed to submit conversation to nowledge-mem"
   }
 }

@@ -39,7 +39,8 @@ export const CONFIG_EVENTS = {
   THEME_CHANGED: 'config:theme-changed', // 主题变更事件
   FONT_SIZE_CHANGED: 'config:font-size-changed', // 字体大小变更事件
   DEFAULT_SYSTEM_PROMPT_CHANGED: 'config:default-system-prompt-changed', // Default system prompt changed event
-  CUSTOM_PROMPTS_CHANGED: 'config:custom-prompts-changed' // 自定义提示词变更事件
+  CUSTOM_PROMPTS_CHANGED: 'config:custom-prompts-changed', // 自定义提示词变更事件
+  NOWLEDGE_MEM_CONFIG_UPDATED: 'config:nowledge-mem-config-updated' // Nowledge-mem configuration updated event
 }
 
 // Provider DB（聚合 JSON）相关事件

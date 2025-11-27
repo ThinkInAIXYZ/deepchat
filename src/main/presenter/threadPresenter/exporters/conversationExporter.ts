@@ -2,14 +2,34 @@ import { AssistantMessageBlock, Message, UserMessageContent } from '@shared/chat
 import { CONVERSATION } from '@shared/presenter'
 import { getNormalizedUserMessageText } from '../utils/messageContent'
 import { conversationExportTemplates } from '../templates/conversationExportTemplates'
+import { NowledgeMemThread } from '@shared/types/nowledgeMem'
+import { NowledgeMemExportSummary } from '@shared/types/nowledgeMem'
+import {
+  buildNowledgeMemExportContent,
+  generateNowledgeMemExportFilename,
+  validateNowledgeMemThread,
+  convertDeepChatToNowledgeMemFormat
+} from './nowledgeMemExporter'
 
-export type ConversationExportFormat = 'markdown' | 'html' | 'txt'
+export type ConversationExportFormat = 'markdown' | 'html' | 'txt' | 'nowledge-mem'
+
+interface NowledgeMemExportResult {
+  valid: boolean
+  errors: string[]
+  data?: NowledgeMemThread
+  summary?: NowledgeMemExportSummary
+}
 
 export function generateExportFilename(
   format: ConversationExportFormat,
+  conversation?: CONVERSATION,
   timestamp: Date = new Date()
 ): string {
-  const extension = format === 'markdown' ? 'md' : format
+  if (format === 'nowledge-mem' && conversation) {
+    return generateNowledgeMemExportFilename(conversation, timestamp)
+  }
+
+  const extension = format === 'markdown' ? 'md' : format === 'nowledge-mem' ? 'json' : format
   const formattedTimestamp = timestamp
     .toISOString()
     .replace(/[:.]/g, '-')
@@ -31,9 +51,79 @@ export function buildConversationExportContent(
       return exportToHtml(conversation, messages)
     case 'txt':
       return exportToText(conversation, messages)
+    case 'nowledge-mem':
+      return buildNowledgeMemExportContent(conversation, messages)
     default:
       throw new Error(`Unsupported export format: ${format}`)
   }
+}
+
+/**
+ * Validates and returns nowledge-mem export data
+ */
+export function buildNowledgeMemExportData(
+  conversation: CONVERSATION,
+  messages: Message[]
+): NowledgeMemExportResult {
+  try {
+    const threadData = convertDeepChatToNowledgeMemFormat(conversation, messages)
+    const validation = validateNowledgeMemThread(threadData)
+
+    if (!validation.valid) {
+      return {
+        valid: false,
+        errors: validation.errors
+      }
+    }
+
+    // Create summary for API submission
+    const summary = {
+      title: threadData.title,
+      description: threadData.metadata?.conversation?.description || '',
+      message_count: threadData.messages.length,
+      total_tokens: calculateTotalTokens(threadData),
+      duration_hours: calculateDurationHours(threadData)
+    }
+
+    return {
+      valid: true,
+      errors: [],
+      data: threadData,
+      summary
+    }
+  } catch (err) {
+    return {
+      valid: false,
+      errors: [
+        `Failed to build nowledge-mem export data: ${err instanceof Error ? err.message : String(err)}`
+      ]
+    }
+  }
+}
+
+function calculateTotalTokens(threadData: NowledgeMemThread): number {
+  return threadData.messages.reduce((sum, _, index) => {
+    const messageMeta = threadData.metadata?.message_metadata?.find((meta) => meta.index === index)
+    return sum + (messageMeta?.tokens?.total || 0)
+  }, 0)
+}
+
+function calculateDurationHours(threadData: NowledgeMemThread): number {
+  if (threadData.messages.length <= 1 || !threadData.metadata?.message_metadata) {
+    return 0
+  }
+
+  const firstMessageMeta = threadData.metadata.message_metadata.find((meta) => meta.index === 0)
+  const lastMessageMeta = threadData.metadata.message_metadata.find(
+    (meta) => meta.index === threadData.messages.length - 1
+  )
+
+  if (!firstMessageMeta?.timestamp || !lastMessageMeta?.timestamp) {
+    return 0
+  }
+
+  const durationMs = lastMessageMeta.timestamp - firstMessageMeta.timestamp
+  return Math.round((durationMs / (1000 * 60 * 60)) * 100) / 100
 }
 
 function exportToMarkdown(conversation: CONVERSATION, messages: Message[]): string {

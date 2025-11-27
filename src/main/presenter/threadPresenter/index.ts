@@ -19,7 +19,11 @@ import { eventBus } from '@/eventbus'
 import { AssistantMessage, Message, SearchEngineTemplate } from '@shared/chat'
 import { SearchManager } from './managers/searchManager'
 import { TAB_EVENTS } from '@/events'
-import { ConversationExportFormat } from './exporters/conversationExporter'
+import {
+  ConversationExportFormat,
+  buildNowledgeMemExportData
+} from './exporters/conversationExporter'
+import { NowledgeMemThread, NowledgeMemExportSummary } from '@shared/types/nowledgeMem'
 import type { GeneratingMessageState } from './types'
 import { ContentBufferHandler } from './handlers/contentBufferHandler'
 import { ToolCallHandler } from './handlers/toolCallHandler'
@@ -30,6 +34,7 @@ import { PermissionHandler } from './handlers/permissionHandler'
 import { UtilityHandler } from './handlers/utilityHandler'
 import type { ThreadHandlerContext } from './handlers/baseHandler'
 import { ConversationManager, type CreateConversationOptions } from './managers/conversationManager'
+import { NowledgeMemPresenter } from '../nowledgeMemPresenter'
 
 export class ThreadPresenter implements IThreadPresenter {
   private sqlitePresenter: ISQLitePresenter
@@ -45,6 +50,7 @@ export class ThreadPresenter implements IThreadPresenter {
   private streamGenerationHandler: StreamGenerationHandler
   private permissionHandler: PermissionHandler
   private utilityHandler: UtilityHandler
+  private nowledgeMemPresenter: NowledgeMemPresenter
   private generatingMessages: Map<string, GeneratingMessageState> = new Map()
   private activeConversationIds: Map<number, string> = new Map()
   public searchAssistantModel: MODEL_META | null = null
@@ -61,6 +67,7 @@ export class ThreadPresenter implements IThreadPresenter {
     this.llmProviderPresenter = llmProviderPresenter
     this.searchManager = new SearchManager()
     this.configPresenter = configPresenter
+    this.nowledgeMemPresenter = new NowledgeMemPresenter(configPresenter)
     this.conversationManager = new ConversationManager({
       sqlitePresenter,
       configPresenter,
@@ -751,5 +758,134 @@ export class ThreadPresenter implements IThreadPresenter {
     workdir: string | null
   ): Promise<void> {
     await this.llmProviderPresenter.setAcpWorkdir(conversationId, agentId, workdir)
+  }
+
+  /**
+   * Export conversation to nowledge-mem format with validation
+   */
+  async exportToNowledgeMem(conversationId: string): Promise<{
+    success: boolean
+    data?: NowledgeMemThread | undefined
+    summary?: NowledgeMemExportSummary
+    errors?: string[]
+    warnings?: string[]
+  }> {
+    try {
+      const conversation = await this.getConversation(conversationId)
+      // Fetch all messages by paging to avoid silent truncation
+      const pageSize = 1000
+      let page = 1
+      let total = 0
+      const allMessages: Message[] = []
+      do {
+        const res = await this.getMessages(conversationId, page, pageSize)
+        total = res.total
+        allMessages.push(...res.list)
+        page += 1
+      } while (allMessages.length < total && page <= Math.ceil(total / pageSize) + 1)
+
+      const exportResult = buildNowledgeMemExportData(conversation, allMessages)
+
+      if (!exportResult.valid) {
+        return {
+          success: false,
+          errors: exportResult.errors
+        }
+      }
+
+      return {
+        success: true,
+        data: exportResult.data,
+        summary: exportResult.summary
+      }
+    } catch (error) {
+      return {
+        success: false,
+        errors: [error instanceof Error ? error.message : 'Unknown error']
+      }
+    }
+  }
+
+  /**
+   * Submit thread to nowledge-mem API
+   */
+  async submitToNowledgeMem(conversationId: string): Promise<{
+    success: boolean
+    threadId?: string
+    data?: NowledgeMemThread
+    errors?: string[]
+  }> {
+    try {
+      const exportResult = await this.exportToNowledgeMem(conversationId)
+
+      if (!exportResult.success) {
+        return {
+          success: false,
+          errors: exportResult.errors
+        }
+      }
+
+      const result = await this.nowledgeMemPresenter.submitThread(exportResult.data!)
+
+      if (result.success && result.data) {
+        return {
+          success: true,
+          threadId: result.data.thread_id,
+          data: result.data
+        }
+      } else {
+        return {
+          success: false,
+          errors: [result.error || 'Failed to submit thread to nowledge-mem']
+        }
+      }
+    } catch (error) {
+      return {
+        success: false,
+        errors: [error instanceof Error ? error.message : 'Unknown error during submission']
+      }
+    }
+  }
+
+  /**
+   * Test nowledge-mem API connection
+   */
+  async testNowledgeMemConnection(): Promise<{
+    success: boolean
+    message?: string
+    error?: string
+  }> {
+    try {
+      const result = await this.nowledgeMemPresenter.testConnection()
+
+      return {
+        success: result.success,
+        message: result.success ? 'Connection successful' : undefined,
+        error: result.error || undefined
+      }
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Connection test failed'
+      }
+    }
+  }
+
+  /**
+   * Update nowledge-mem configuration
+   */
+  async updateNowledgeMemConfig(config: {
+    baseUrl?: string
+    apiKey?: string
+    timeout?: number
+  }): Promise<void> {
+    await this.nowledgeMemPresenter.updateConfig(config)
+  }
+
+  /**
+   * Get nowledge-mem configuration
+   */
+  getNowledgeMemConfig() {
+    return this.nowledgeMemPresenter.getConfig()
   }
 }

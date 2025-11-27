@@ -583,6 +583,20 @@
       "title": "Re-upload confirmation",
       "content": "Are you sure to re-upload the file \"{fileName}\"?"
     },
+    "nowledgeMem": {
+      "title": "Nowledge Mem Export",
+      "description": "Export conversations to Nowledge Mem service.",
+      "connection": "Connection",
+      "testConnection": "Test Connection",
+      "configuration": "Configuration",
+      "baseUrl": "Base URL",
+      "apiKey": "API Key",
+      "apiKeyHint": "Optional. If your service requires an API key, enter it here.",
+      "timeout": "Timeout",
+      "saveConfig": "Save",
+      "resetConfig": "Reset",
+      "seconds": "seconds"
+    },
     "deleteFile": {
       "title": "Delete file confirmation",
       "content": "Are you sure to delete the file \"{fileName}\"? \nThis operation is not restored."

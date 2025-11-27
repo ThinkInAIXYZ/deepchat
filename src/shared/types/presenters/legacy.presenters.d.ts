@@ -4,6 +4,7 @@ import { MessageFile } from './chat'
 import { ShowResponse } from 'ollama'
 import { ShortcutKeySetting } from '@/presenter/configPresenter/shortcutKeySettings'
 import { ModelType } from '@shared/model'
+import type { NowledgeMemThread, NowledgeMemExportSummary } from '../nowledgeMem'
 import { ProviderChange, ProviderBatchUpdate } from './provider-operations'
 import type { AgentSessionLifecycleStatus } from './agent-provider'
 
@@ -498,6 +499,13 @@ export interface IConfigPresenter {
   // ACP configuration methods
   getAcpEnabled(): Promise<boolean>
   setAcpEnabled(enabled: boolean): Promise<void>
+  // Nowledge-mem configuration methods
+  getNowledgeMemConfig(): Promise<{
+    baseUrl: string
+    apiKey?: string
+    timeout: number
+  } | null>
+  setNowledgeMemConfig(config: { baseUrl: string; apiKey?: string; timeout: number }): Promise<void>
   getAcpUseBuiltinRuntime(): Promise<boolean>
   setAcpUseBuiltinRuntime(enabled: boolean): Promise<void>
   setAcpAgents(agents: AcpAgentConfig[]): Promise<AcpAgentConfig[]>
@@ -997,6 +1005,36 @@ export interface IThreadPresenter {
     conversationId: string,
     format: 'markdown' | 'html' | 'txt'
   ): Promise<{ filename: string; content: string }>
+
+  // Nowledge-mem integration
+  submitToNowledgeMem(conversationId: string): Promise<{
+    success: boolean
+    threadId?: string
+    data?: NowledgeMemThread
+    errors?: string[]
+  }>
+  exportToNowledgeMem(conversationId: string): Promise<{
+    success: boolean
+    data?: NowledgeMemThread
+    summary?: NowledgeMemExportSummary
+    errors?: string[]
+    warnings?: string[]
+  }>
+  testNowledgeMemConnection(): Promise<{
+    success: boolean
+    message?: string
+    error?: string
+  }>
+  updateNowledgeMemConfig(config: {
+    baseUrl?: string
+    apiKey?: string
+    timeout?: number
+  }): Promise<void>
+  getNowledgeMemConfig(): {
+    baseUrl: string
+    apiKey?: string
+    timeout: number
+  }
 
   // Dev tools
   getMessageRequestPreview(messageId: string): Promise<unknown>
