@@ -144,7 +144,8 @@
     "parametersHint": "Indtast venligst parametre i JSON-format, understøtter automatisk formatering.",
     "resultTitle": "Prompt detaljer",
     "runningPrompt": "Henter prompt",
-    "selectPrompt": "Her vises den valgte prompt."
+    "selectPrompt": "Her vises den valgte prompt.",
+    "resetToDefault": "Nulstil til standardparametre"
   },
   "removeDefault": "Fjern standard",
   "removeServer": "Slet server",
@@ -160,7 +161,8 @@
     "loading": "Indlæser",
     "noResourcesAvailable": "Ingen ressourcer tilgængelige endnu",
     "pleaseSelect": "Klik for at få vist ressourcens detaljer",
-    "selectResource": "Her vises indholdet af Ressourcer"
+    "selectResource": "Her vises indholdet af Ressourcer",
+    "loadContent": "Få ressourceindhold"
   },
   "running": "I driftende",
   "sampling": {
@@ -199,7 +201,8 @@
     "unknownMime": "Ukendt MIME-type",
     "unknownServer": "Ukendt server",
     "unsupportedMessage": "Denne indholdstype understøttes ikke.",
-    "visionWarning": "Den valgte model understøtter ikke visuel input.\nVælg venligst en model med visuelle funktioner, før du fortsætter."
+    "visionWarning": "Den valgte model understøtter ikke visuel input.\nVælg venligst en model med visuelle funktioner, før du fortsætter.",
+    "noVisionModels": "Ingen visuelt aktiverede modeller er aktiveret.\nAktiver den visuelle model i Indstillinger for at fortsætte."
   },
   "serverForm": {
     "add": "tilføje",
@@ -252,7 +255,8 @@
     "typePlaceholder": "Vælg servertype",
     "typeSse": "Server-sent events",
     "typeStdio": "Standard input og output",
-    "update": "Opdatering"
+    "update": "Opdatering",
+    "autoApproveAll": "alle"
   },
   "serverList": "Serverliste",
   "setAsDefault": "Indstil som standardserver",
@@ -287,6 +291,26 @@
     "inputHint": "Indtast venligst parametrene i JSON-format.",
     "invalidJson": "Ugyldig JSON-format",
     "invalidJsonFormat": "JSON-formaten er ikke korrekt",
-    "jsonInputPlaceholder": "Indtast parametre i JSON-format"
+    "jsonInputPlaceholder": "Indtast parametre i JSON-format",
+    "loadError": "Kunne ikke indlæse værktøjet",
+    "loading": "indlæser...",
+    "noDescription": "Ingen beskrivelse endnu",
+    "noToolsAvailable": "Ingen tilgængelige værktøjer endnu",
+    "none": "Ingen tilgængelige værktøjer",
+    "parameters": "parameter",
+    "path": "sti",
+    "pathPlaceholder": "input filsti",
+    "refresh": "opfriske",
+    "required": "påkrævet",
+    "resultTitle": "Udførelsesresultat",
+    "runningTool": "Eksekverende værktøj",
+    "searchPattern": "Søgetilstand",
+    "searchPatternPlaceholder": "Indtast regulært udtryk",
+    "searchPlaceholder": "Søgeværktøjer...",
+    "selectToolToDebug": "Vælg et værktøj til fejlretning",
+    "toolList": "Værktøjsliste",
+    "toolsCount": "værktøjer",
+    "type": "type",
+    "title": "MCP værktøjer"
   }
 }

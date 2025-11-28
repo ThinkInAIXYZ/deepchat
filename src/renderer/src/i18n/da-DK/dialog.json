@@ -39,5 +39,6 @@
   "rename": {
     "description": "Indtast venligst det nye samtalenavn.",
     "title": "Omdøb sessionen"
-  }
+  },
+  "cancel": "Ophæve"
 }

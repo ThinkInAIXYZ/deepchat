@@ -1,1 +1,12 @@
-{}
+{
+  "calling": "Kalder...",
+  "response": "Kører...",
+  "end": "Færdig",
+  "error": "Fejl",
+  "title": "Værktøjskald",
+  "clickToView": "Klik for at se detaljer",
+  "functionName": "Funktionsnavn",
+  "permission": "Anmoder om tilladelse...",
+  "params": "Funktionsparametre",
+  "responseData": "Svar"
+}

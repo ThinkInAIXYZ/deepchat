@@ -1,1 +1,16 @@
-{}
+{
+  "newVersion": "Ny version fundet",
+  "version": "Version",
+  "releaseDate": "Udgivelsesdato",
+  "releaseNotes": "Udgivelsesnoter",
+  "later": "Senere",
+  "githubDownload": "GitHub-download",
+  "netdiskDownload": "Sky-download",
+  "checkUpdate": "Søg efter opdateringer",
+  "downloading": "Downloader",
+  "installNow": "Installer nu",
+  "autoUpdate": "Automatisk opdatering",
+  "restarting": "Genstarter",
+  "alreadyUpToDate": "Allerede opdateret",
+  "alreadyUpToDateDesc": "Din DeepChat er allerede opdateret til den seneste version, ingen opdatering er nødvendig."
+}

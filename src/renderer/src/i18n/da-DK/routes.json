@@ -1,1 +1,17 @@
-{}
+{
+  "chat": "Chat",
+  "welcome": "Velkomst",
+  "playground": "Playground",
+  "settings": "Indstillinger",
+  "settings-common": "Generelle indstillinger",
+  "settings-provider": "Udbydere",
+  "settings-mcp": "MCP-indstillinger",
+  "settings-database": "Data",
+  "settings-about": "Om",
+  "settings-shortcut": "Genveje",
+  "settings-display": "Skærm",
+  "settings-knowledge-base": "Vidensbase",
+  "settings-prompt": "Prompter",
+  "settings-mcp-market": "MCP-marked",
+  "settings-acp": "ACP-agenter"
+}

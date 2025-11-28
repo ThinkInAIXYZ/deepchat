@@ -1,1 +1,46 @@
-{}
+{
+  "actions": {
+    "rename": "Omdøb",
+    "delete": "Slet",
+    "cleanMessages": "Ryd beskeder",
+    "pin": "Fastgør",
+    "unpin": "Frigør",
+    "export": "Eksporter",
+    "exportText": "Ren tekst",
+    "exportNowledgeMem": "Nowledge-mem"
+  },
+  "toolbar": {
+    "save": "Gem",
+    "cancel": "Annuller",
+    "previousVariant": "Forrige variant",
+    "nextVariant": "Næste variant",
+    "copy": "Kopiér som Markdown",
+    "copyImage": "Kopiér som billede",
+    "copyImageWithLongPress": "Kopiér som billede (langt tryk for at fange fra toppen)",
+    "copyFromTopSuccess": "Fuldt samtalebillede kopieret",
+    "capturing": "Optager...",
+    "retry": "Generer igen",
+    "fork": "Forgren til ny chat",
+    "edit": "Rediger besked",
+    "delete": "Slet besked",
+    "trace": "Spor anmodning"
+  },
+  "message": {
+    "toolbar": {
+      "save": "Gem"
+    }
+  },
+  "export": {
+    "failed": "Eksport mislykkedes",
+    "failedDesc": "Der opstod en fejl under eksporten, prøv igen",
+    "success": "Eksport lykkedes",
+    "successDesc": "Samtalen er eksporteret",
+    "nowledgeMemSuccess": "Nowledge-mem eksport gennemført",
+    "nowledgeMemSuccessDesc": "Samtalen er eksporteret til Nowledge-mem-formatet",
+    "nowledgeMemSubmitPrompt": "Vil du indsende denne samtale til Nowledge-mem?",
+    "nowledgeMemSubmitSuccess": "Indsendt til Nowledge-mem",
+    "nowledgeMemSubmitSuccessDesc": "Samtalen blev indsendt til Nowledge-mem",
+    "nowledgeMemSubmitFailed": "Indsendelse til Nowledge-mem mislykkedes",
+    "nowledgeMemSubmitFailedDesc": "Det lykkedes ikke at indsende samtalen til Nowledge-mem"
+  }
+}

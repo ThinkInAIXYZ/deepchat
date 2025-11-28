@@ -1,1 +1,37 @@
-{}
+{
+  "steps": {
+    "welcome": {
+      "title": "Velkomst",
+      "description": "Lad os begynde at konfigurere DeepChat"
+    },
+    "provider": {
+      "title": "Udbyder",
+      "description": "Vælg din foretrukne modeludbyder"
+    },
+    "configuration": {
+      "title": "Konfiguration",
+      "description": "Konfigurer de modeller, du vil bruge"
+    },
+    "complete": {
+      "title": "Færdig",
+      "description": "Alt er klar, og du kan starte!"
+    }
+  },
+  "title": "Velkommen til DeepChat",
+  "description": "Vi guider dig gennem opsætningen.",
+  "provider": {
+    "select": "Vælg en udbyder",
+    "apiUrl": "API-URL",
+    "apiKey": "API-nøgle",
+    "verifyLink": "Verificeringslink"
+  },
+  "complete": {
+    "title": "Alt klaret!",
+    "description": "Du er klar. Lad os komme i gang!"
+  },
+  "buttons": {
+    "getStarted": "Kom i gang",
+    "next": "Næste",
+    "back": "Tilbage"
+  }
+}

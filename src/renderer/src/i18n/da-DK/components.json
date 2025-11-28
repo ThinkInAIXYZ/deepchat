@@ -30,7 +30,8 @@
       "all": "Fuld adgangstilladelse",
       "read": "læsetilladelse",
       "write": "Skrivetilladelse"
-    }
+    },
+    "title": "Tilladelse påkrævet"
   },
   "promptParamsDialog": {
     "description": "Udfyld venligst følgende parametre, felter markeret med * er obligatoriske.",

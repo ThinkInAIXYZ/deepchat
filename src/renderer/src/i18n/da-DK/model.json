@@ -1,1 +1,30 @@
-{}
+{
+  "search": {
+    "placeholder": "Søg efter modeller..."
+  },
+  "error": {
+    "loadFailed": "Kunne ikke indlæse modeller"
+  },
+  "type": {
+    "custom": "Brugerdefineret model",
+    "official": "Officiel model"
+  },
+  "add": {
+    "namePlaceholder": "Modelnavn",
+    "idPlaceholder": "Model-ID",
+    "contextLengthPlaceholder": "Kontekstlængde",
+    "maxTokensPlaceholder": "Maksimale tokens"
+  },
+  "actions": {
+    "add": "Tilføj model",
+    "enableAll": "Aktiver alle",
+    "disableAll": "Deaktiver alle"
+  },
+  "tags": {
+    "reasoning": "Ræsonnement",
+    "chat": "Chat",
+    "code": "Kode",
+    "writing": "Skrivning",
+    "analysis": "Analyse"
+  }
+}

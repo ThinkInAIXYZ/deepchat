@@ -1,1 +1,17 @@
-{}
+{
+  "title": "Anmodningsforhåndsvisning",
+  "provider": "Udbyder",
+  "model": "Model",
+  "endpoint": "API-endpoint",
+  "headers": "Headers",
+  "body": "Forespørgselskrop",
+  "copyJson": "Kopiér JSON",
+  "copySuccess": "Kopieret til udklipsholderen",
+  "close": "Luk",
+  "loading": "Indlæser...",
+  "error": "Kunne ikke indlæse",
+  "errorDesc": "Kan ikke hente anmodningsforhåndsvisning, prøv igen",
+  "notImplemented": "Ikke understøttet",
+  "notImplementedDesc": "Denne udbyder understøtter endnu ikke forhåndsvisning",
+  "mayNotMatch": "Bemærk: Denne forhåndsvisning er rekonstrueret ud fra de nuværende samtaleindstillinger og matcher muligvis ikke de faktiske anmodningsparametre helt præcist"
+}

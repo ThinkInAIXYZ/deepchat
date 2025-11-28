@@ -1,1 +1,17 @@
-{}
+{
+  "success": {
+    "importComplete": "Import af {count} samtale(r) lykkedes. Programmet genstarter nu."
+  },
+  "error": {
+    "notEnabled": "Synkronisering er ikke aktiveret",
+    "folderNotExists": "Synkroniseringsmappen findes ikke",
+    "noValidBackup": "Der blev ikke fundet gyldige backupfiler i synkroniseringsmappen",
+    "dbNotExists": "Databasefilen findes ikke",
+    "configNotExists": "Konfigurationsfilen findes ikke",
+    "tempDbFailed": "Kunne ikke oprette midlertidig databasebackup",
+    "tempConfigFailed": "Kunne ikke oprette midlertidig konfigurationsbackup",
+    "importFailed": "Import mislykkedes, de oprindelige data er gendannet",
+    "importProcess": "Der opstod en fejl under importen",
+    "unknown": "Ukendt fejl"
+  }
+}

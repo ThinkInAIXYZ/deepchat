@@ -26,7 +26,8 @@
     "rateLimitQueueTooltip": "Der er {count} anmodninger i køen, med et interval på {interval} sekunder.",
     "rateLimitReadyTooltip": "Du kan sende en anmodning med et interval på {interval} sekunder.",
     "rateLimitWait": "Vent {seconds}s",
-    "rateLimitWaitingTooltip": "Vent {seconds} sekunder, interval {interval} sekunder"
+    "rateLimitWaitingTooltip": "Vent {seconds} sekunder, interval {interval} sekunder",
+    "fileArea": "fil område"
   },
   "mcpUi": {
     "badge": "UI",

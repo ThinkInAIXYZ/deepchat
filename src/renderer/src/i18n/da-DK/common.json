@@ -41,7 +41,8 @@
     "requestFailed": "Anmodning mislykkedes...",
     "selectChatFailed": "Valg af samtale mislykkedes",
     "sessionInterrupted": "Samtalen blev afbrudt uventet, genereringen er ikke fuldført.",
-    "userCanceledGeneration": "Brugeren annullerede genereringen"
+    "userCanceledGeneration": "Brugeren annullerede genereringen",
+    "error401": "Godkendelse mislykkedes, forkert API-nøgle eller domænenavn blev konfigureret"
   },
   "expand": "udvide",
   "export": "Eksportere",
@@ -75,5 +76,7 @@
   "testing": "Under test",
   "title": "Generelle indstillinger",
   "unknownError": "Ukendt fejl",
-  "watermarkTip": "AI-genereret indhold, vær venlig at bruge det med forsigtighed."
+  "watermarkTip": "AI-genereret indhold, vær venlig at bruge det med forsigtighed.",
+  "disabled": "Handicappet",
+  "language": "sprog"
 }
