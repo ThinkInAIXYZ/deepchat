@@ -346,9 +346,8 @@ describe('FileValidationService', () => {
       vi.clearAllMocks()
 
       // Import and use the real function directly
-      const { getMimeTypeAdapterMap: realGetMimeTypeAdapterMap } = await import(
-        '../../../src/main/presenter/filePresenter/mime'
-      )
+      const { getMimeTypeAdapterMap: realGetMimeTypeAdapterMap } =
+        await import('../../../src/main/presenter/filePresenter/mime')
 
       // Mock with real implementation
       vi.mocked(getMimeTypeAdapterMap).mockImplementation(realGetMimeTypeAdapterMap)

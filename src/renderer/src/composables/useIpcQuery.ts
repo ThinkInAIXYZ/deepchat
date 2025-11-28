@@ -19,9 +19,9 @@ export interface UseIpcQueryOptions<
   TName extends PresenterName,
   TMethod extends PresenterMethod<TName>
 > extends Pick<
-    UseQueryOptions<Awaited<ReturnType<PresenterMethodFn<TName, TMethod>>>>,
-    QueryOptionKeys
-  > {
+  UseQueryOptions<Awaited<ReturnType<PresenterMethodFn<TName, TMethod>>>>,
+  QueryOptionKeys
+> {
   key: () => EntryKey
   presenter: TName
   method: TMethod
