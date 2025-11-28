@@ -10,7 +10,7 @@ import type {
 import { finalizeAssistantMessageBlocks } from '@shared/chat/messageBlocks'
 import type { CONVERSATION, CONVERSATION_SETTINGS } from '@shared/presenter'
 import { usePresenter } from '@/composables/usePresenter'
-import { CONVERSATION_EVENTS, DEEPLINK_EVENTS, MEETING_EVENTS } from '@/events'
+import { CONVERSATION_EVENTS, DEEPLINK_EVENTS, MEETING_EVENTS, STREAM_EVENTS } from '@/events'
 import router from '@/router'
 import { useI18n } from 'vue-i18n'
 import { useSoundStore } from './sound'
@@ -313,32 +313,36 @@ export const useChatStore = defineStore('chat', () => {
   }
 
   const sendMessage = async (content: UserMessageContent | AssistantMessageBlock[]) => {
-    if (!getActiveThreadId() || !content) return
+    const threadId = getActiveThreadId()
+    if (!threadId || !content) return
 
     try {
-      generatingThreadIds.value.add(getActiveThreadId()!)
+      generatingThreadIds.value.add(threadId)
       // 设置当前会话的workingStatus为working
-      updateThreadWorkingStatus(getActiveThreadId()!, 'working')
-      const aiResponseMessage = await threadP.sendMessage(
-        getActiveThreadId()!,
-        JSON.stringify(content),
-        'user'
-      )
+      updateThreadWorkingStatus(threadId, 'working')
+      const aiResponseMessage = await threadP.sendMessage(threadId, JSON.stringify(content), 'user')
 
       // 将消息添加到缓存
       getGeneratingMessagesCache().set(aiResponseMessage.id, {
         message: aiResponseMessage,
-        threadId: getActiveThreadId()!
+        threadId
       })
 
       await loadMessages()
       await threadP.startStreamCompletion(
-        getActiveThreadId()!,
-        undefined,
+        threadId,
+        aiResponseMessage.id,
         Object.fromEntries(selectedVariantsMap.value)
       )
     } catch (error) {
       console.error('Failed to send message:', error)
+      // 发生错误时，务必清理 loading 状态
+      if (threadId) {
+        generatingThreadIds.value.delete(threadId)
+        // 强制触发响应式更新
+        generatingThreadIds.value = new Set(generatingThreadIds.value)
+        updateThreadWorkingStatus(threadId, 'error')
+      }
       throw error
     }
   }
@@ -681,6 +685,7 @@ export const useChatStore = defineStore('chat', () => {
 
       getGeneratingMessagesCache().delete(msg.eventId)
       generatingThreadIds.value.delete(cached.threadId)
+      generatingThreadIds.value = new Set(generatingThreadIds.value)
       // 设置会话的workingStatus为completed
       // 如果是当前活跃的会话，则直接从Map中移除
       if (getActiveThreadId() === cached.threadId) {
@@ -746,8 +751,28 @@ export const useChatStore = defineStore('chat', () => {
 
   const handleStreamError = async (msg: { eventId: string }) => {
     // 从缓存中获取消息
-    const cached = getGeneratingMessagesCache().get(msg.eventId)
-    if (cached) {
+    let cached = getGeneratingMessagesCache().get(msg.eventId)
+    let threadId = cached?.threadId
+
+    // 如果缓存中没有，尝试从当前消息列表中查找对应的会话ID
+    if (!threadId) {
+      // 遍历所有会话的消息列表
+      for (const [tid, msgs] of messagesMap.value.entries()) {
+        const found = msgs.some((m) => {
+          if (m.id === msg.eventId) return true
+          if ((m as AssistantMessage).variants) {
+            return (m as AssistantMessage).variants?.some((v) => v.id === msg.eventId)
+          }
+          return false
+        })
+        if (found) {
+          threadId = tid.toString()
+          break
+        }
+      }
+    }
+
+    if (threadId) {
       try {
         const updatedMessage = await threadP.getMessage(msg.eventId)
         const enrichedMessage = await enrichMessageWithExtra(updatedMessage)
@@ -805,13 +830,13 @@ export const useChatStore = defineStore('chat', () => {
       }
 
       getGeneratingMessagesCache().delete(msg.eventId)
-      generatingThreadIds.value.delete(cached.threadId)
+      generatingThreadIds.value.delete(threadId)
       // 设置会话的workingStatus为error
       // 如果是当前活跃的会话，则直接从Map中移除
-      if (getActiveThreadId() === cached.threadId) {
-        getThreadsWorkingStatus().delete(cached.threadId)
+      if (getActiveThreadId() === threadId) {
+        getThreadsWorkingStatus().delete(threadId)
       } else {
-        updateThreadWorkingStatus(cached.threadId, 'error')
+        updateThreadWorkingStatus(threadId, 'error')
       }
     }
   }
@@ -931,6 +956,7 @@ export const useChatStore = defineStore('chat', () => {
         }
       }
       generatingThreadIds.value.delete(threadId)
+      generatingThreadIds.value = new Set(generatingThreadIds.value)
       // 从状态Map中移除会话状态
       getThreadsWorkingStatus().delete(threadId)
     } catch (error) {
@@ -975,6 +1001,7 @@ export const useChatStore = defineStore('chat', () => {
     if (!conversationId || !messageId) return
     try {
       generatingThreadIds.value.add(conversationId)
+      generatingThreadIds.value = new Set(generatingThreadIds.value)
       // 设置会话的workingStatus为working
       updateThreadWorkingStatus(conversationId, 'working')
 
@@ -1418,6 +1445,27 @@ export const useChatStore = defineStore('chat', () => {
   const showProviderSelector = () => {
     // 触发事件让 ChatInput 组件显示 provider 选择器
     window.dispatchEvent(new CustomEvent('show-provider-selector'))
+  }
+
+  // 初始化全局流事件监听
+  // 确保只在客户端环境中执行
+  if (window.electron && window.electron.ipcRenderer) {
+    // 移除旧的监听器以防止重复（虽然 store 通常只初始化一次）
+    window.electron.ipcRenderer.removeAllListeners(STREAM_EVENTS.RESPONSE)
+    window.electron.ipcRenderer.removeAllListeners(STREAM_EVENTS.END)
+    window.electron.ipcRenderer.removeAllListeners(STREAM_EVENTS.ERROR)
+
+    window.electron.ipcRenderer.on(STREAM_EVENTS.RESPONSE, (_, msg) => {
+      handleStreamResponse(msg)
+    })
+
+    window.electron.ipcRenderer.on(STREAM_EVENTS.END, (_, msg) => {
+      handleStreamEnd(msg)
+    })
+
+    window.electron.ipcRenderer.on(STREAM_EVENTS.ERROR, (_, msg) => {
+      handleStreamError(msg)
+    })
   }
 
   return {

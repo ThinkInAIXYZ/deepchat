@@ -87,36 +87,36 @@ const handleFileUpload = () => {
   scrollToBottom()
 }
 
+
+const onStreamEnd = (_, _msg) => {
+  // 状态处理已移至 store
+  // 当用户没有主动向上滚动时才自动滚动到底部
+  nextTick(() => {
+    if (messageList.value && !messageList.value.aboveThreshold) {
+      scrollToBottom(false)
+    }
+  })
+  setTimeout(() => {
+    chatInput.value?.restoreFocus()
+  }, 200)
+}
+
+const onStreamError = (_, _msg) => {
+  // 状态处理已移至 store
+  setTimeout(() => {
+    chatInput.value?.restoreFocus()
+  }, 200)
+}
+
+const onCleanChatHistory = () => {
+  cleanDialog.open()
+}
+
 // 监听流式响应
 onMounted(async () => {
-  window.electron.ipcRenderer.on(STREAM_EVENTS.RESPONSE, (_, msg) => {
-    // console.log('stream-response', msg)
-    chatStore.handleStreamResponse(msg)
-  })
-
-  window.electron.ipcRenderer.on(STREAM_EVENTS.END, (_, msg) => {
-    chatStore.handleStreamEnd(msg)
-    // 当用户没有主动向上滚动时才自动滚动到底部
-    nextTick(() => {
-      if (messageList.value && !messageList.value.aboveThreshold) {
-        scrollToBottom(false)
-      }
-    })
-    setTimeout(() => {
-      chatInput.value?.restoreFocus()
-    }, 200)
-  })
-
-  window.electron.ipcRenderer.on(STREAM_EVENTS.ERROR, (_, msg) => {
-    chatStore.handleStreamError(msg)
-    setTimeout(() => {
-      chatInput.value?.restoreFocus()
-    }, 200)
-  })
-
-  window.electron.ipcRenderer.on(SHORTCUT_EVENTS.CLEAN_CHAT_HISTORY, () => {
-    cleanDialog.open()
-  })
+  window.electron.ipcRenderer.on(STREAM_EVENTS.END, onStreamEnd)
+  window.electron.ipcRenderer.on(STREAM_EVENTS.ERROR, onStreamError)
+  window.electron.ipcRenderer.on(SHORTCUT_EVENTS.CLEAN_CHAT_HISTORY, onCleanChatHistory)
 
   if (route.query.modelId && route.query.providerId) {
     const threadId = await chatStore.createThread('新会话', {
@@ -145,7 +145,6 @@ watch(
 
 // 清理事件监听
 onUnmounted(async () => {
-  window.electron.ipcRenderer.removeAllListeners(STREAM_EVENTS.RESPONSE)
   window.electron.ipcRenderer.removeAllListeners(STREAM_EVENTS.END)
   window.electron.ipcRenderer.removeAllListeners(STREAM_EVENTS.ERROR)
   window.electron.ipcRenderer.removeAllListeners(SHORTCUT_EVENTS.CLEAN_CHAT_HISTORY)
