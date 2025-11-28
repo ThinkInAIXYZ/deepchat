@@ -87,7 +87,6 @@ const handleFileUpload = () => {
   scrollToBottom()
 }
 
-
 const onStreamEnd = (_, _msg) => {
   // 状态处理已移至 store
   // 当用户没有主动向上滚动时才自动滚动到底部
