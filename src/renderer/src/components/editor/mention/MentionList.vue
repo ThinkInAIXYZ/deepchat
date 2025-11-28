@@ -87,10 +87,10 @@ const hasFiles = (item: CategorizedData): boolean => {
   // 类型保护：检查是否是 PromptListEntry 并且有 files 字段
   return Boolean(
     mcpEntry &&
-    'files' in mcpEntry &&
-    mcpEntry.files &&
-    Array.isArray(mcpEntry.files) &&
-    mcpEntry.files.length > 0
+      'files' in mcpEntry &&
+      mcpEntry.files &&
+      Array.isArray(mcpEntry.files) &&
+      mcpEntry.files.length > 0
   )
 }
 
