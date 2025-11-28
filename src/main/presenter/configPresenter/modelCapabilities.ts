@@ -19,7 +19,8 @@ export class ModelCapabilities {
   private index: Map<string, Map<string, ProviderModel>> = new Map()
   private static readonly PROVIDER_ID_ALIASES: Record<string, string> = {
     dashscope: 'alibaba-cn',
-    gemini: 'google'
+    gemini: 'google',
+    vertex: 'google-vertex'
   }
 
   constructor() {
