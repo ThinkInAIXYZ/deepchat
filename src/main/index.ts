@@ -20,6 +20,62 @@ if (process.platform === 'darwin') {
   app.commandLine.appendSwitch('disable-features', 'DesktopCaptureMacV2,IOSurfaceCapturer')
 }
 
+// Check for startup deeplink before any other initialization
+let startupDeepLink: string | null = null
+
+console.log('Main process starting, checking for deeplink...')
+
+// Check command line arguments for deeplink first
+console.log('Full command line arguments:', process.argv)
+const deepLinkArg = process.argv.find((arg) => {
+  return arg.startsWith('deepchat://') || arg.includes('deepchat://') || arg.match(/^deepchat:/)
+})
+
+if (deepLinkArg) {
+  console.log('Found startup deeplink in command line:', deepLinkArg)
+  startupDeepLink = deepLinkArg
+} else {
+  console.log('No startup deeplink found in command line arguments')
+}
+
+// Check for deeplink in environment variables (macOS sometimes passes it this way)
+const envDeepLink = process.env.DEEPLINK_URL || process.env.deepchat_deeplink
+if (envDeepLink) {
+  console.log('Found deeplink in environment variables:', envDeepLink)
+  startupDeepLink = envDeepLink
+}
+
+// Listen for open-url events that might occur during startup
+// This must be set before app.whenReady() because open-url events can fire before that
+app.on('open-url', (event, url) => {
+  event.preventDefault()
+  console.log('Received open-url event during startup:', url)
+  if (url.startsWith('deepchat://')) {
+    console.log('Setting startup deeplink from open-url event:', url)
+    startupDeepLink = url
+    process.env.STARTUP_DEEPLINK = url
+  }
+})
+
+// Also listen for second-instance events (Windows/Linux)
+app.on('second-instance', (_event, commandLine) => {
+  console.log('Received second-instance event with command line:', commandLine)
+  const deepLinkUrl = commandLine.find((arg) => arg.startsWith('deepchat://'))
+  if (deepLinkUrl) {
+    console.log('Found deeplink in second-instance command line:', deepLinkUrl)
+    startupDeepLink = deepLinkUrl
+    process.env.STARTUP_DEEPLINK = deepLinkUrl
+  }
+})
+
+// Store the startup deeplink for later use
+if (startupDeepLink) {
+  console.log('Final startup deeplink detected:', startupDeepLink)
+  process.env.STARTUP_DEEPLINK = startupDeepLink
+} else {
+  console.log('No startup deeplink detected during initialization')
+}
+
 // Initialize lifecycle manager and register core hooks
 const lifecycleManager = new LifecycleManager()
 registerCoreHooks(lifecycleManager)
