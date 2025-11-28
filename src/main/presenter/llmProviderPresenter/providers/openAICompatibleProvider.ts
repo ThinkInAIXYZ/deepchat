@@ -1723,7 +1723,8 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
         .filter(
           (
             call
-          ): call is { id: string; type: string; function: { name: string; arguments: string } } => // Type guard ensures correct structure
+          ): call is { id: string; type: string; function: { name: string; arguments: string } } =>
+            // Type guard ensures correct structure
             call !== null &&
             typeof call.id === 'string' &&
             typeof call.function === 'object' &&
