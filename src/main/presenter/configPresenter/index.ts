@@ -685,7 +685,8 @@ export class ConfigPresenter implements IConfigPresenter {
       'ja-JP',
       'fr-FR',
       'fa-IR',
-      'pt-BR'
+      'pt-BR',
+      'da-DK'
     ]
 
     // Exact match

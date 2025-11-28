@@ -4,7 +4,18 @@ export interface TranslationMap {
 }
 
 // Define supported languages
-export const supportedLocales = ['zh-CN', 'zh-TW', 'en-US', 'ja', 'ko', 'fr', 'de', 'es', 'pt-BR']
+export const supportedLocales = [
+  'zh-CN',
+  'zh-TW',
+  'en-US',
+  'ja',
+  'ko',
+  'fr',
+  'de',
+  'es',
+  'pt-BR',
+  'da-DK'
+]
 
 // Context menu translations
 export const contextMenuTranslations: Record<string, TranslationMap> = {
@@ -142,6 +153,21 @@ export const contextMenuTranslations: Record<string, TranslationMap> = {
     quit: 'Sair',
     translate: 'Traduzir',
     askAI: 'Perguntar à IA'
+  },
+  'da-DK': {
+    copy: 'Kopiér',
+    paste: 'Indsæt',
+    cut: 'Klip',
+    selectAll: 'Markér alt',
+    undo: 'Fortryd',
+    redo: 'Gendan',
+    saveImage: 'Gem billede...',
+    copyImage: 'Kopiér billede',
+    open: 'Åbn/skjul',
+    checkForUpdates: 'Søg efter opdateringer',
+    quit: 'Afslut',
+    translate: 'Oversæt',
+    askAI: 'Spørg AI'
   }
 }
 
