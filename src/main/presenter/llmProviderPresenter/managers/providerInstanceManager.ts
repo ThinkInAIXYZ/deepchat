@@ -23,6 +23,7 @@ import { ZhipuProvider } from '../providers/zhipuProvider'
 import { LMStudioProvider } from '../providers/lmstudioProvider'
 import { OpenAIResponsesProvider } from '../providers/openAIResponsesProvider'
 import { CherryInProvider } from '../providers/cherryInProvider'
+import { VertexProvider } from '../providers/vertexProvider'
 import { OpenRouterProvider } from '../providers/openRouterProvider'
 import { MinimaxProvider } from '../providers/minimaxProvider'
 import { AihubmixProvider } from '../providers/aihubmixProvider'
@@ -77,6 +78,7 @@ export class ProviderInstanceManager {
       ['dashscope', DashscopeProvider],
       ['gemini', GeminiProvider],
       ['zhipu', ZhipuProvider],
+      ['vertex', VertexProvider],
       ['github', GithubProvider],
       ['github-copilot', GithubCopilotProvider],
       ['ollama', OllamaProvider],
@@ -106,6 +108,7 @@ export class ProviderInstanceManager {
       ['dashscope', DashscopeProvider],
       ['ppio', PPIOProvider],
       ['gemini', GeminiProvider],
+      ['vertex', VertexProvider],
       ['zhipu', ZhipuProvider],
       ['github', GithubProvider],
       ['github-copilot', GithubCopilotProvider],

@@ -16,6 +16,15 @@
 
         <Separator />
 
+        <VertexProviderSettingsDetail
+          v-if="provider.apiType === 'vertex'"
+          :provider="provider as VERTEX_PROVIDER"
+          @config-updated="handleConfigChanged"
+          @validate-provider="validateApiKey"
+        />
+
+        <Separator v-if="provider.apiType === 'vertex'" />
+
         <!-- Azure特殊配置 -->
         <AzureProviderConfig
           v-if="provider.id === 'azure-openai'"
@@ -81,11 +90,12 @@
 import { computed, ref, watch, reactive } from 'vue'
 import { useProviderStore } from '@/stores/providerStore'
 import { useModelStore } from '@/stores/modelStore'
-import type { LLM_PROVIDER, RENDERER_MODEL_META } from '@shared/presenter'
+import type { LLM_PROVIDER, RENDERER_MODEL_META, VERTEX_PROVIDER } from '@shared/presenter'
 import { ScrollArea } from '@shadcn/components/ui/scroll-area'
 import ProviderApiConfig from './ProviderApiConfig.vue'
 import AzureProviderConfig from './AzureProviderConfig.vue'
 import GeminiSafetyConfig from './GeminiSafetyConfig.vue'
+import VertexProviderSettingsDetail from './VertexProviderSettingsDetail.vue'
 import ProviderRateLimitConfig from './ProviderRateLimitConfig.vue'
 import ModelScopeMcpSync from './ModelScopeMcpSync.vue'
 import ProviderModelManager from './ProviderModelManager.vue'
