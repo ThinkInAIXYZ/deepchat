@@ -1,0 +1,292 @@
+{
+  "addServer": "Tilføj server",
+  "addServerDialog": {
+    "description": "Konfigurer en ny MCP-server",
+    "title": "Tilføj server"
+  },
+  "confirmDelete": {
+    "cancel": "Annuller",
+    "confirm": "slet",
+    "description": "Er du sikker på, at du vil slette serveren {name}? Denne handling kan ikke fortrydes.",
+    "title": "Bekræft sletning"
+  },
+  "confirmRemoveServer": "Er du sikker på, at du vil slette serveren {name}? Denne handling kan ikke fortrydes.",
+  "default": "standard",
+  "deleteServer": "Slet server",
+  "description": "Administration og konfiguration af MCP (Model Context Protocol) servere og værktøjer",
+  "editServer": "Rediger server",
+  "editServerDialog": {
+    "description": "Rediger MCP-serverkonfiguration",
+    "title": "Rediger server"
+  },
+  "enableToAccess": "Aktivér venligst MCP først for at få adgang til konfigurationsmulighederne.",
+  "enabledDescription": "Aktivér eller deaktiver MCP-funktioner og værktøjer",
+  "enabledTitle": "Aktivér MCP",
+  "errors": {
+    "addServerFailed": "Tilføjelse af server mislykkedes",
+    "callToolFailed": "Kald af værktøj {toolName} mislykkedes",
+    "emptyPromptContent": "'{name}' prompt er tom",
+    "getPromptFailed": "Hentning af promptskabelon mislykkedes",
+    "getServerStatusFailed": "Hentning af serverstatus for {serverName} mislykkedes",
+    "invalidParameters": "Ugyldig parameter: {params}",
+    "loadConfigFailed": "Indlæsning af MCP-konfiguration mislykkedes",
+    "loadPromptsFailed": "Indlæsning af skabelon til indlæsningsprompt mislykkedes",
+    "loadResourcesFailed": "Indlæsning af ressourcer mislykkedes",
+    "loadToolsFailed": "Indlæsning af værktøj mislykkedes",
+    "maxDefaultServersReached": "Du kan højst indstille 30 standardservere.",
+    "mcpDisabled": "MCP-funktionen er deaktiveret.",
+    "missingParameters": "Manglende parameter: {params}",
+    "promptNotFound": "Promptskabelon '{name}' ikke fundet",
+    "readResourceFailed": "Fejl ved indlæsning af ressourcer",
+    "removeServerFailed": "Sletning af server mislykkedes",
+    "resetToDefaultFailed": "Gendannelse af standardserver mislykkedes",
+    "setEnabledFailed": "Indstilling af MCP aktiveringsstatus mislykkedes",
+    "toggleDefaultServerFailed": "Skift af standardserverstatus mislykkedes",
+    "toggleServerFailed": "Skift af server {serverName} status mislykkedes",
+    "toolCallError": "Værktøjsopkaldsfejl: {error}",
+    "updateServerFailed": "Opdatering af server mislykkedes"
+  },
+  "inmemory": {
+    "Artifacts": {
+      "desc": "Lad din DeepChat generere varieret indhold af Artifacts.",
+      "name": "Artefakter"
+    },
+    "bochaSearch": {
+      "desc": "Bocha Søgning API https://open.bochaai.com/",
+      "name": "Bocha Søgning"
+    },
+    "braveSearch": {
+      "desc": "Brave-søge API https://brave.com/search/api/",
+      "name": "Brave-søgning"
+    },
+    "buildInFileSystem": {
+      "desc": "Lad DeepChat kunne håndtere lokale filer",
+      "name": "filsystem"
+    },
+    "builtinKnowledge": {
+      "desc": "DeepChat har en indbygget vidensbase-søgetjeneste, som kan søge i DeepChats indbyggede vidensbaseindhold.",
+      "name": "Indbygget vidensbase-søgning"
+    },
+    "deepchat-inmemory/auto-prompting-server": {
+      "desc": "Vælg automatisk den mest passende brugerdefinerede prompt baseret på brugerens input, og udfyld promptskabelonen intelligent.",
+      "name": "Automatiske skabelonpromptord"
+    },
+    "deepchat-inmemory/conversation-search-server": {
+      "desc": "DeepChat har en indbygget søgefunktion til samtalehistorik, som kan søge i tidligere samtaler og beskedindhold.",
+      "name": "Søgning i samtalehistorik"
+    },
+    "deepchat-inmemory/custom-prompts-server": {
+      "desc": "DeepChat indbygget brugerdefineret prompttjeneste",
+      "name": "Brugerdefinerede promptord"
+    },
+    "deepchat-inmemory/deep-research-server": {
+      "desc": "DeepChat indbyggede dybdeforskningsservice baseret på Bocha-søgning (bemærk, at det kræver en lang kontekstmodel for at kunne bruges; modeller med utilstrækkelig kontekst kan fejle).",
+      "name": "DeepResearch"
+    },
+    "deepchat-inmemory/meeting-server": {
+      "desc": "DeepChat har en indbygget mødetjeneste, der understøtter igangsættelse og ledelse af diskussioner med flere intelligente agenter.",
+      "name": "Multi-agent møde"
+    },
+    "deepchat/apple-server": {
+      "desc": "Lad modellen kunne betjene macOS' systemfunktioner som kalender, kontakter, mail, kort, noter og påmindelser.",
+      "name": "macOS systemassistent"
+    },
+    "difyKnowledge": {
+      "desc": "Dify vidensbase søgetjeneste kan søge i indholdet af Dify vidensbasen.",
+      "name": "Dify vidensbase søgning"
+    },
+    "fastGptKnowledge": {
+      "desc": "FastGPT vidensbase søgetjeneste kan søge i indholdet af FastGPT vidensbasen.",
+      "name": "FastGPT vidensbase søgning"
+    },
+    "imageServer": {
+      "desc": "Når det er aktiveret, kan enhver model i DeepChat forstå billeder og generere billeder.",
+      "name": "Billedtjeneste"
+    },
+    "powerpack": {
+      "desc": "At tilbyde enhver stor model forbedrede funktioner som tidsforespørgsler, websideinformation og sikker kodeudførelse, så modellen får stærkere og mere præcis informationsindhentningsevne.",
+      "name": "Forstærkningsværktøjssæt"
+    },
+    "ragflowKnowledge": {
+      "desc": "RAGFlow vidensbase søgetjeneste kan søge i indholdet af RAGFlow vidensbasen.",
+      "name": "RAGFlow vidensbase søgning"
+    }
+  },
+  "isDefault": "Standardserver",
+  "market": {
+    "apiKeyPlaceholder": "Indtast MCPRouter API-nøgle",
+    "apiKeyRequiredDesc": "Udfyld venligst MCPRouter API-nøglen, før du installerer.",
+    "apiKeyRequiredTitle": "Kræver API-nøgle",
+    "browseBuiltin": "Gennemse den indbyggede MCP-marked",
+    "builtinTitle": "MCP markeded",
+    "empty": "Ingen service tilgængelig endnu",
+    "install": "installere",
+    "installFailed": "Installation mislykkedes",
+    "installSuccess": "Installation lykkedes",
+    "installed": "Installeret",
+    "keyGuide": "Få adgangsnøgle",
+    "keyHelpEnd": "Efter at have ansøgt om en API-nøgle, skal du indtaste den i inputfeltet ovenfor.",
+    "keyHelpText": "Venligst gå først til",
+    "loadMore": "Indlæs flere",
+    "noMore": "Der er ikke mere.",
+    "poweredBy": "Drevet af MCPRouter",
+    "pullDownToLoad": "Fortsæt med at trække ned for at indlæse flere"
+  },
+  "noServersFound": "Server ikke fundet",
+  "prompts": {
+    "dialogDescription": "Fejlfinding og test af promptskabeloner leveret af MCP-serveren",
+    "executeButton": "Klik for at få adgang",
+    "input": "Inputparametre",
+    "invalidJson": "Ugyldigt JSON-format",
+    "noDescription": "Ingen beskrivelse tilgængelig",
+    "noPromptsAvailable": "Ingen tilgængelige prompts i øjeblikket",
+    "parameters": "Prompt parametre",
+    "parametersHint": "Indtast venligst parametre i JSON-format, understøtter automatisk formatering.",
+    "resultTitle": "Prompt detaljer",
+    "runningPrompt": "Henter prompt",
+    "selectPrompt": "Her vises den valgte prompt."
+  },
+  "removeDefault": "Fjern standard",
+  "removeServer": "Slet server",
+  "removeServerDialog": {
+    "title": "Slet server"
+  },
+  "resetConfirm": "gendanne",
+  "resetConfirmDescription": "Denne handling vil gendanne alle standardservere og samtidig bevare dine tilpassede servere. Enhver ændring af standardserverne vil gå tabt.",
+  "resetConfirmTitle": "Gendan standardtjeneste",
+  "resetToDefault": "Gendan standardtjeneste",
+  "resources": {
+    "dialogDescription": "Gennemse og se ressourcer leveret af MCP-serveren",
+    "loading": "Indlæser",
+    "noResourcesAvailable": "Ingen ressourcer tilgængelige endnu",
+    "pleaseSelect": "Klik for at få vist ressourcens detaljer",
+    "selectResource": "Her vises indholdet af Ressourcer"
+  },
+  "running": "I driftende",
+  "sampling": {
+    "approve": "Enig",
+    "autoApproveIn": "Automatisk brug af {model} godkendt om {seconds} sekunder",
+    "autoApproving": "MCP-forespørgsel om prøvetagning fra {server}",
+    "confirm": "Send modelrespons",
+    "confirming": "Bekræftes...",
+    "contentType": {
+      "audio": "lyd",
+      "image": "billede",
+      "text": "tekst"
+    },
+    "description": "Se konteksten delt af MCP-serveren og vælg, om der skal genereres et svar.",
+    "imageAlt": "Billede{indeks}",
+    "maxTokensInfo": "Maksimal svarlængde: {maxTokens} tokens",
+    "messagesTitle": "Samtalekontekst",
+    "noModels": "Ingen kvalificerede modeller er aktiveret.\nAktivér en passende model i \"Indstillinger\" for at fortsætte.",
+    "preference": {
+      "cost": "Omkostningsprioritet",
+      "hints": "model prompt",
+      "intelligence": "Efterretning først",
+      "speed": "Hastighed prioriteret"
+    },
+    "preferencesTitle": "Modelpræferencer",
+    "reject": "afvise",
+    "respondWith": "Responsmodel:",
+    "reviewRequest": "Se detaljer",
+    "selectModel": "Vælg model",
+    "selectedModelLabel": "Brug {model} ({provider}) til at svare",
+    "sendResponse": "Send svar",
+    "sessionActive": "Samtaleaktivitet - Anmodninger vil blive godkendt automatisk",
+    "systemPrompt": "Systemmeddelelse",
+    "title": "Prøveanmodning fra {server}",
+    "unknownHint": "Uden navn prompt",
+    "unknownMime": "Ukendt MIME-type",
+    "unknownServer": "Ukendt server",
+    "unsupportedMessage": "Denne indholdstype understøttes ikke.",
+    "visionWarning": "Den valgte model understøtter ikke visuel input.\nVælg venligst en model med visuelle funktioner, før du fortsætter."
+  },
+  "serverForm": {
+    "add": "tilføje",
+    "addArg": "Tilføj parameter",
+    "addFolder": "Tilføj mappe",
+    "argPlaceholder": "Indtast parameter værdi",
+    "args": "parameter",
+    "argsPlaceholder": "Én parameter pr. linje",
+    "argsRequired": "Parameter kan ikke være tom",
+    "autoApprove": "Automatisk godkendelse",
+    "autoApproveHelp": "Vælg den type handling, der skal autoriseres automatisk, så den kan udføres uden brugerbekræftelse.",
+    "autoApproveRead": "læse",
+    "autoApproveWrite": "skriv ind",
+    "baseUrl": "Basis-URL",
+    "baseUrlPlaceholder": "Indtast serverens basis-URL (f.eks.: http://localhost:3000)",
+    "cancel": "Annuller",
+    "command": "kommando",
+    "commandPlaceholder": "Indtast kommandoen",
+    "commandRequired": "Kommandoen må ikke være tom.",
+    "configImported": "Konfiguration importeret med succes",
+    "description": "beskrivelse",
+    "descriptionPlaceholder": "Indtast serverbeskrivelse",
+    "descriptions": "beskrivelse",
+    "descriptionsPlaceholder": "Indtast serverbeskrivelse",
+    "env": "miljøvariabel",
+    "envInvalid": "Miljøvariabler skal være i gyldig JSON-format.",
+    "envPlaceholder": "Indtast miljøvariabler i JSON-format",
+    "folders": "Mappeoversigt",
+    "icon": "ikon",
+    "iconPlaceholder": "Indtast ikon",
+    "icons": "ikon",
+    "iconsPlaceholder": "Indtast ikon",
+    "jsonConfig": "JSON-konfiguration",
+    "jsonConfigExample": "JSON konfigurations eksempel",
+    "jsonConfigIntro": "Du kan indsætte JSON-konfigurationen direkte eller vælge at konfigurere serveren manuelt.",
+    "jsonConfigPlaceholder": "Indsæt venligst MCP-serverens JSON-format konfiguration.",
+    "name": "Servernavn",
+    "namePlaceholder": "Indtast servernavn",
+    "nameRequired": "Servernavnet må ikke være tomt",
+    "noFoldersSelected": "Ingen mappe valgt",
+    "parseAndContinue": "Analyser og fortsæt",
+    "parseError": "Analysefejl",
+    "parseSuccess": "Konfiguration analyseret med succes",
+    "selectFolder": "Vælg mappe",
+    "selectFolderError": "Valg af mappe mislykkedes",
+    "skipToManual": "Spring til manuel konfiguration",
+    "submit": "Indsend",
+    "type": "Servertype",
+    "typeInMemory": "hukommelse",
+    "typePlaceholder": "Vælg servertype",
+    "typeSse": "Server-sent events",
+    "typeStdio": "Standard input og output",
+    "update": "Opdatering"
+  },
+  "serverList": "Serverliste",
+  "setAsDefault": "Indstil som standardserver",
+  "setDefault": "Indstil som standard",
+  "startServer": "Start server",
+  "stopServer": "Stop server",
+  "stopped": "Er stoppet",
+  "tabs": {
+    "servers": "server",
+    "tools": "værktøj"
+  },
+  "title": "MCP-indstillinger",
+  "tools": {
+    "allowedValues": "Tilladte værdier",
+    "annotations": "Kommentar",
+    "arrayItemValues": "Array elementværdi",
+    "available": "{count} værktøjer tilgængelige",
+    "availableTools": "Tilgængelige værktøjer",
+    "description": "Værktøjer leveret af MCP-serveren",
+    "dialogDescription": "Fejlfinding og testværktøjer leveret af MCP-serveren",
+    "disabled": "MCP er deaktiveret",
+    "empty": "tomrum",
+    "enableToUse": "Aktivér venligst MCP for at bruge værktøjet.",
+    "enabled": "Aktivér MCP",
+    "enabledDescription": "Aktivér MCP-funktionen for at bruge værktøjsopkald.",
+    "error": "Indlæsning mislykkedes",
+    "executeButton": "udførelsesværktøj",
+    "filePattern": "Filtilstand",
+    "filePatternPlaceholder": "Indtast filmønster, for eksempel: *.md",
+    "functionDescription": "Funktionsbeskrivelse",
+    "input": "Inputparametre",
+    "inputHint": "Indtast venligst parametrene i JSON-format.",
+    "invalidJson": "Ugyldig JSON-format",
+    "invalidJsonFormat": "JSON-formaten er ikke korrekt",
+    "jsonInputPlaceholder": "Indtast parametre i JSON-format"
+  }
+}

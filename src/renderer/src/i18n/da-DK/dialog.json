@@ -1,0 +1,43 @@
+{
+  "cleanMessages": {
+    "confirm": "ryd tom",
+    "description": "At rydde beskeder vil slette alle beskeder og filer i samtalen. Er du sikker på, at du vil fortsætte?",
+    "title": "Ryd samtalemeddelelserne"
+  },
+  "close": "lukke",
+  "confirm": "bekræfte",
+  "delete": {
+    "confirm": "slet",
+    "description": "Denne handling kan ikke fortrydes, vær venlig at handle forsigtigt.",
+    "title": "Er du sikker på, at du vil slette denne samtale?"
+  },
+  "error": {
+    "title": "Fejl"
+  },
+  "fork": {
+    "confirm": "Opret gren",
+    "description": "De valgte beskeder fra den første besked til den aktuelt valgte besked kopieres til en ny samtale, hvor du kan fortsætte dialogen.",
+    "tag": "gren",
+    "title": "Opret samtalegren"
+  },
+  "mutualExclusive": {
+    "confirmEnable": "Bekræft aktivering",
+    "message": {
+      "functionCall": "Aktivering af funktionskald vil automatisk deaktivere inferensfunktionen. Dette er en begrænsning i DeepSeek-V3.1-modellen, og de to funktioner kan ikke bruges samtidigt. Vil du fortsætte?",
+      "reasoning": "Aktivering af ræsonneringsevne vil automatisk deaktivere funktionskaldsfunktionen. Dette er en begrænsning i DeepSeek-V3.1-modellen, og de to funktioner kan ikke bruges samtidigt. Vil du fortsætte?"
+    },
+    "title": {
+      "functionCall": "Bekræft aktivering af funktionskald",
+      "reasoning": "Bekræft aktivering af ræsonneringsevne"
+    },
+    "warningText": {
+      "functionCall": "Bemærk: Aktivering af funktionsopkald vil automatisk deaktivere inferensevnen, hvilket er en begrænsning i DeepSeek-V3.1-modellen.",
+      "reasoning": "Bemærk: Aktivering af inferensfunktion vil automatisk deaktivere funktionsopkaldsfunktionen, hvilket er en begrænsning i DeepSeek-V3.1-modellen."
+    }
+  },
+  "ok": "bestemme",
+  "rename": {
+    "description": "Indtast venligst det nye samtalenavn.",
+    "title": "Omdøb sessionen"
+  }
+}

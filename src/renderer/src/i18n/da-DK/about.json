@@ -1,0 +1,19 @@
+{
+  "canaryChannel": "Intern testversion",
+  "checkUpdateButton": "Tjek for opdateringer",
+  "description": "DeepChat er en tværplatform AI-klient, der har til formål at gøre det nemmere for flere mennesker at bruge AI.",
+  "deviceInfo": {
+    "arch": "arkitektur",
+    "cpuModel": "CPU-model",
+    "osVersion": "Systemversion",
+    "platform": "platform",
+    "title": "Enhedsoplysninger",
+    "totalMemory": "Total hukommelse"
+  },
+  "disclaimerButton": "Ansvarsfraskrivelse",
+  "disclaimerTitle": "Brugsbetingelser erklæring",
+  "stableChannel": "officiel version",
+  "title": "DeepChat",
+  "updateChannel": "Opdateringskanal",
+  "website": "Besøg vores hjemmeside"
+}

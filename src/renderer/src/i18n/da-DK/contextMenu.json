@@ -1,0 +1,17 @@
+{
+  "askAI": {
+    "answer": "svar",
+    "error": "AI-svar mislykkedes",
+    "question": "problem",
+    "title": "AI forespørgsel"
+  },
+  "copy": "kopiér",
+  "cut": "Klip",
+  "paste": "indsæt",
+  "translate": {
+    "error": "Oversættelse mislykkedes",
+    "original": "Originaltekst",
+    "title": "oversættelse",
+    "translated": "Oversættelsesresultat"
+  }
+}

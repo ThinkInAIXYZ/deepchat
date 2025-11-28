@@ -8,6 +8,7 @@ import ruRU from './ru-RU'
 import frFR from './fr-FR'
 import faIR from './fa-IR'
 import ptBR from './pt-BR'
+import daDK from './da-DK'
 
 const locales = {
   'zh-CN': zhCN,
@@ -20,10 +21,12 @@ const locales = {
   'fr-FR': frFR,
   'fa-IR': faIR,
   'pt-BR': ptBR,
+  'da-DK': daDK,
   zh: zhCN,
   en: enUS,
   fr: frFR,
-  pt: ptBR
+  pt: ptBR,
+  da: daDK
 }
 console.log('locales', locales)
 export default locales

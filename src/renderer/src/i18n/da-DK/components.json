@@ -1,0 +1,40 @@
+{
+  "emojiPicker": {
+    "activities": "aktivitet",
+    "animals": "Dyr og natur",
+    "flags": "flag",
+    "food": "Mad og drikkevarer",
+    "objects": "vare",
+    "people": "Personer og kroppe",
+    "search": "Søg efter emojis",
+    "smileys": "Udtryk og følelser",
+    "symbols": "symbol",
+    "travel": "Rejser og steder"
+  },
+  "messageBlockAction": {
+    "continue": "Fortsæt",
+    "continued": "Fortsat"
+  },
+  "messageBlockPermissionRequest": {
+    "allow": "tillade",
+    "denied": "Adgang nægtet",
+    "deny": "afvise",
+    "description": {
+      "all": "Tillad '{toolName}' på '{serverName}' at udføre læse- og skriveoperationer?",
+      "read": "Tillad '{toolName}' på '{serverName}' at udføre læseoperationer?",
+      "write": "Tillad '{toolName}' på '{serverName}' at udføre skrivehandlinger?"
+    },
+    "granted": "Tilladelser er givet",
+    "rememberChoice": "Husk dette valg",
+    "type": {
+      "all": "Fuld adgangstilladelse",
+      "read": "læsetilladelse",
+      "write": "Skrivetilladelse"
+    }
+  },
+  "promptParamsDialog": {
+    "description": "Udfyld venligst følgende parametre, felter markeret med * er obligatoriske.",
+    "required": "Denne parameter er påkrævet.",
+    "title": "{name} parameterindstillinger"
+  }
+}

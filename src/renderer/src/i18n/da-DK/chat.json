@@ -1,0 +1,89 @@
+{
+  "features": {
+    "artifactThinking": "artifact tænkning",
+    "thoughtForSeconds": "Tænkte i {seconds} sekunder",
+    "thoughtForSecondsLoading": "Tænker (sekund {seconds})",
+    "webSearch": "Netværkssøgning"
+  },
+  "input": {
+    "acpWorkdir": "arbejdskatalog",
+    "acpWorkdirChange": "Gendan standard arbejdsmappe",
+    "acpWorkdirCurrent": "Nuværende arbejdsmappe: {path}",
+    "acpWorkdirSelect": "Vælg arbejdsmappe",
+    "acpWorkdirTooltip": "Indstil ACP arbejdsmappe",
+    "dropFiles": "Træk filer hertil",
+    "fileSelect": "Vælg fil",
+    "functionSwitch": "Funktionsafbryder",
+    "historyPlaceholder": "(Udfyld med Tab)",
+    "inputArea": "Indtastningsområde",
+    "pasteFiles": "Understøtter kopiering og indsættelse af filer",
+    "placeholder": "Spørg om noget? Du kan referere til værktøjer, filer, ressourcer osv. ved at bruge {'@'}.",
+    "promptFilesAdded": "Prompt-filen er blevet tilføjet",
+    "promptFilesAddedDesc": "{count} filer er blevet tilføjet successfully",
+    "promptFilesError": "Filbehandlingsfejl",
+    "promptFilesErrorDesc": "{count} filer kunne ikke behandles",
+    "rateLimitQueue": "Kø {count}",
+    "rateLimitQueueTooltip": "Der er {count} anmodninger i køen, med et interval på {interval} sekunder.",
+    "rateLimitReadyTooltip": "Du kan sende en anmodning med et interval på {interval} sekunder.",
+    "rateLimitWait": "Vent {seconds}s",
+    "rateLimitWaitingTooltip": "Vent {seconds} sekunder, interval {interval} sekunder"
+  },
+  "mcpUi": {
+    "badge": "UI",
+    "collapse": "Skjul",
+    "expand": "udvide",
+    "title": "MCP-brugergrænseflade"
+  },
+  "messages": {
+    "rateLimitEstimated": "Forventet ventetid",
+    "rateLimitImmediately": "med det samme",
+    "rateLimitMinutes": "minut",
+    "rateLimitQueue": "Køposition",
+    "rateLimitQuickSettings": "Juster begrænsninger",
+    "rateLimitSeconds": "sekund",
+    "rateLimitSwitchProvider": "Skift tjenesteudbyder",
+    "rateLimitTitle": "Anmodningsfrekvensbegrænsning",
+    "rateLimitWaiting": "Anmodningsfrekvensbegrænsning, venter i kø...",
+    "thinking": "Tænker..."
+  },
+  "navigation": {
+    "assistantMessage": "Assistentens svar",
+    "noMessages": "Ingen nyheder endnu",
+    "noResults": "Ingen matchende besked fundet",
+    "searchPlaceholder": "Søg beskeder...",
+    "searchResults": "Fundet {count} resultater, i alt {total} beskeder",
+    "title": "Beskednavigation",
+    "totalMessages": "I alt {count} beskeder",
+    "unknownMessage": "Ukendt besked",
+    "userMessage": "Brugermeddelelse"
+  },
+  "notify": {
+    "generationComplete": "Generering fuldført",
+    "generationError": "Generering mislykkedes"
+  },
+  "rateLimit": {
+    "queueTooltip": "Der er {count} anmodninger i køen, med et interval på {interval} sekunder.",
+    "readyTooltip": "Du kan sende en anmodning med et interval på {interval} sekunder.",
+    "waitingTooltip": "Vent {seconds} sekunder, interval {interval} sekunder"
+  },
+  "search": {
+    "description": "Der blev fundet {0} relaterede resultater.",
+    "error": "Søgning mislykkedes",
+    "optimizing": "Udtrækker søgeintention...",
+    "reading": "Søger og læser websider...",
+    "results": "{0} websider fundet",
+    "searching": "Søger...",
+    "title": "Søgeresultater"
+  },
+  "toolCall": {
+    "calling": "Værktøj i brug",
+    "clickToView": "Klik for at se detaljer",
+    "end": "Værktøjsopkald fuldført",
+    "error": "Fejl ved kald af værktøj",
+    "functionName": "Funktionsnavn",
+    "params": "parameter",
+    "response": "Værktøjsrespons",
+    "responseData": "Svardata",
+    "title": "Værktøjsopkald"
+  }
+}
