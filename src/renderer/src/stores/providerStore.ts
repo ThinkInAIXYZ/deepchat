@@ -3,7 +3,7 @@ import { defineStore } from 'pinia'
 import { usePresenter } from '@/composables/usePresenter'
 import { useIpcQuery } from '@/composables/useIpcQuery'
 import { CONFIG_EVENTS, PROVIDER_DB_EVENTS } from '@/events'
-import type { AWS_BEDROCK_PROVIDER, LLM_PROVIDER } from '@shared/presenter'
+import type { AWS_BEDROCK_PROVIDER, LLM_PROVIDER, VERTEX_PROVIDER } from '@shared/presenter'
 
 const PROVIDER_ORDER_KEY = 'providerOrder'
 const PROVIDER_TIMESTAMP_KEY = 'providerTimestamps'
@@ -293,6 +293,13 @@ export const useProviderStore = defineStore('provider', () => {
     return updateProviderConfig(providerId, updates)
   }
 
+  const updateVertexProviderConfig = async (
+    providerId: string,
+    updates: Partial<VERTEX_PROVIDER>
+  ) => {
+    return updateProviderConfig(providerId, updates)
+  }
+
   const checkProvider = async (providerId: string, modelId?: string) => {
     return llmP.check(providerId, modelId)
   }
@@ -400,6 +407,7 @@ export const useProviderStore = defineStore('provider', () => {
     addCustomProvider,
     removeProvider,
     updateAwsBedrockProviderConfig,
+    updateVertexProviderConfig,
     checkProvider,
     setAzureApiVersion,
     getAzureApiVersion,

@@ -106,6 +106,7 @@ const icons = {
   upstage: upstageColorIcon,
   vercel: vercelColorIcon,
   vertexai: vertexaiColorIcon,
+  vertex: vertexaiColorIcon,
   vidu: viduColorIcon,
   viggle: viggleColorIcon,
   tiangong: tiangongColorIcon,

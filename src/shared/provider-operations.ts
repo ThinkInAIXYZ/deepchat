@@ -46,7 +46,13 @@ export const REBUILD_REQUIRED_FIELDS = [
   'secretAccessKey', // AWS Bedrock
   'region', // AWS Bedrock
   'azureResourceName', // Azure
-  'azureApiVersion' // Azure
+  'azureApiVersion', // Azure
+  'projectId', // Vertex AI
+  'location', // Vertex AI
+  'accountPrivateKey', // Vertex AI
+  'accountClientEmail', // Vertex AI
+  'apiVersion', // Vertex AI
+  'endpointMode' // Vertex AI
 ] as const
 
 /**

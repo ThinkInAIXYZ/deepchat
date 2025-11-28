@@ -91,6 +91,15 @@ export type AWS_BEDROCK_PROVIDER = LLM_PROVIDER & {
   credential?: AwsBedrockCredential
 }
 
+export type VERTEX_PROVIDER = LLM_PROVIDER & {
+  projectId?: string
+  location?: string
+  accountPrivateKey?: string
+  accountClientEmail?: string
+  apiVersion?: 'v1' | 'v1beta1'
+  endpointMode?: 'standard' | 'express'
+}
+
 export interface OllamaModel {
   name: string
   size: number
