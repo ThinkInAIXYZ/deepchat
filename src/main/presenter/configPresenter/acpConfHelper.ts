@@ -24,8 +24,8 @@ const BUILTIN_TEMPLATES: Record<AcpBuiltinAgentId, BuiltinTemplate> = {
     name: 'Kimi CLI',
     defaultProfile: () => ({
       name: DEFAULT_PROFILE_NAME,
-      command: 'uv',
-      args: ['tool', 'run', '--from', 'kimi-cli', 'kimi', '--acp'],
+      command: 'kimi',
+      args: ['--acp'],
       env: {}
     })
   },

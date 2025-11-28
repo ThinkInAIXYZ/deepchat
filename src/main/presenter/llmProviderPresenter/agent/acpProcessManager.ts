@@ -174,11 +174,51 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
     const client = this.createClientProxy()
     const connection = new ClientSideConnection(() => client, stream)
 
-    await connection.initialize({
-      protocolVersion: PROTOCOL_VERSION,
-      clientCapabilities: {},
-      clientInfo: { name: 'DeepChat', version: app.getVersion() }
-    })
+    // Add process health check before initialization
+    if (child.killed) {
+      throw new Error(
+        `[ACP] Agent process ${agent.id} exited before initialization (PID: ${child.pid})`
+      )
+    }
+
+    // Initialize connection with timeout and error handling
+    console.info(`[ACP] Starting connection initialization for agent ${agent.id}`)
+    const timeoutMs = 30000 // 30 seconds timeout for initialization
+
+    try {
+      const initPromise = connection.initialize({
+        protocolVersion: PROTOCOL_VERSION,
+        clientCapabilities: {},
+        clientInfo: { name: 'DeepChat', version: app.getVersion() }
+      })
+
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        setTimeout(() => {
+          reject(
+            new Error(
+              `[ACP] Connection initialization timeout after ${timeoutMs}ms for agent ${agent.id}`
+            )
+          )
+        }, timeoutMs)
+      })
+
+      await Promise.race([initPromise, timeoutPromise])
+      console.info(`[ACP] Connection initialization completed successfully for agent ${agent.id}`)
+    } catch (error) {
+      console.error(`[ACP] Connection initialization failed for agent ${agent.id}:`, error)
+
+      // Clean up the child process if initialization failed
+      if (!child.killed) {
+        try {
+          child.kill()
+          console.info(`[ACP] Killed process for failed agent ${agent.id} (PID: ${child.pid})`)
+        } catch (killError) {
+          console.warn(`[ACP] Failed to kill process for agent ${agent.id}:`, killError)
+        }
+      }
+
+      throw error
+    }
 
     const handle: AcpProcessHandle = {
       providerId: this.providerId,
@@ -196,7 +236,7 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
 
     child.on('exit', (code, signal) => {
       console.warn(
-        `[ACP] Agent process for ${agent.id} exited (code=${code ?? 'null'}, signal=${signal ?? 'null'})`
+        `[ACP] Agent process for ${agent.id} exited (PID: ${child.pid}, code=${code ?? 'null'}, signal=${signal ?? 'null'})`
       )
       if (this.handles.get(agent.id)?.child === child) {
         this.handles.delete(agent.id)
@@ -204,9 +244,26 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
       this.clearSessionsForAgent(agent.id)
     })
 
-    child.stderr?.on('data', (chunk: Buffer) => {
-      console.warn(`[ACP] ${agent.id} stderr: ${chunk.toString()}`)
+    child.stdout?.on('data', (chunk: Buffer) => {
+      const output = chunk.toString().trim()
+      if (output) {
+        console.info(`[ACP] ${agent.id} stdout: ${output}`)
+      }
     })
+
+    child.stderr?.on('data', (chunk: Buffer) => {
+      const error = chunk.toString().trim()
+      if (error) {
+        console.error(`[ACP] ${agent.id} stderr: ${error}`)
+      }
+    })
+
+    // Add additional process monitoring
+    child.on('error', (error) => {
+      console.error(`[ACP] Agent process ${agent.id} encountered error:`, error)
+    })
+
+    console.info(`[ACP] Process monitoring set up for agent ${agent.id} (PID: ${child.pid})`)
 
     return handle
   }
