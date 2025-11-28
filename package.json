@@ -67,7 +67,7 @@
     "@electron-toolkit/preload": "^3.0.2",
     "@electron-toolkit/utils": "^4.0.0",
     "@google/genai": "^1.29.0",
-    "@homebridge/node-pty-prebuilt-multiarch": "^0.13.1",
+    "node-pty": "^1.1.0-beta39",
     "@jxa/run": "^1.4.0",
     "@modelcontextprotocol/sdk": "^1.22.0",
     "axios": "^1.13.2",
@@ -201,7 +201,7 @@
       "simple-git-hooks"
     ],
     "ignoredBuiltDependencies": [
-      "@homebridge/node-pty-prebuilt-multiarch",
+      "node-pty",
       "better-sqlite3-multiple-ciphers",
       "esbuild",
       "maplibre-gl",
