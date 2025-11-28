@@ -183,7 +183,7 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
 
     // Initialize connection with timeout and error handling
     console.info(`[ACP] Starting connection initialization for agent ${agent.id}`)
-    const timeoutMs = 30000 // 30 seconds timeout for initialization
+    const timeoutMs = 60 * 1000 * 5 // 5 minutes timeout for initialization
 
     try {
       const initPromise = connection.initialize({
