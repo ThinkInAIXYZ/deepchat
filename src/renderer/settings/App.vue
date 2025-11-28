@@ -73,6 +73,8 @@ import { useModelStore } from '@/stores/modelStore'
 import { useOllamaStore } from '@/stores/ollamaStore'
 import { useSearchAssistantStore } from '@/stores/searchAssistantStore'
 import { useSearchEngineStore } from '@/stores/searchEngineStore'
+import { useMcpStore } from '@/stores/mcp'
+import { useMcpInstallDeeplinkHandler } from '../src/lib/storeInitializer'
 
 const devicePresenter = usePresenter('devicePresenter')
 const windowPresenter = usePresenter('windowPresenter')
@@ -89,6 +91,10 @@ const modelStore = useModelStore()
 const ollamaStore = useOllamaStore()
 const searchAssistantStore = useSearchAssistantStore()
 const searchEngineStore = useSearchEngineStore()
+const mcpStore = useMcpStore()
+const { setup: setupMcpDeeplink, cleanup: cleanupMcpDeeplink } = useMcpInstallDeeplinkHandler()
+// Register MCP deeplink listener immediately to avoid race with incoming IPC
+setupMcpDeeplink()
 
 const errorQueue = ref<Array<{ id: string; title: string; message: string; type: string }>>([])
 const currentErrorId = ref<string | null>(null)
@@ -253,7 +259,7 @@ const showErrorToast = (error: { id: string; title: string; message: string; typ
   displayError(error)
 }
 
-onMounted(() => {
+onMounted(async () => {
   // Listen for window maximize/unmaximize events
   devicePresenter.getDeviceInfo().then((deviceInfo: any) => {
     isMacOS.value = deviceInfo.platform === 'darwin'
@@ -263,7 +269,53 @@ onMounted(() => {
     showErrorToast(error)
   })
 
-  void uiSettingsStore.loadSettings()
+  await uiSettingsStore.loadSettings()
+
+  // Wait for router to be ready
+  await router.isReady()
+
+  // Check for pending MCP install from localStorage
+  try {
+    const pendingMcpInstall = localStorage.getItem('pending-mcp-install')
+    if (pendingMcpInstall) {
+      console.log('Found pending MCP install in localStorage:', pendingMcpInstall)
+      // Clear the localStorage immediately to prevent re-processing
+      localStorage.removeItem('pending-mcp-install')
+
+      // Parse and process the MCP configuration
+      const mcpConfig = JSON.parse(pendingMcpInstall)
+
+      if (!mcpConfig?.mcpServers || typeof mcpConfig.mcpServers !== 'object') {
+        console.error('Invalid MCP install config, missing mcpServers')
+        return
+      }
+
+      // Enable MCP if not already enabled
+      if (!mcpStore.mcpEnabled) {
+        await mcpStore.setMcpEnabled(true)
+      }
+
+      // Set the MCP install cache
+      mcpStore.setMcpInstallCache(JSON.stringify(mcpConfig))
+
+      // Navigate to MCP settings page
+      const currentRoute = router.currentRoute.value
+      if (currentRoute.name !== 'settings-mcp') {
+        await router.push({ name: 'settings-mcp' })
+      } else {
+        await router.replace({
+          name: 'settings-mcp',
+          query: { ...currentRoute.query }
+        })
+      }
+
+      console.log('MCP install deeplink processed successfully')
+    }
+  } catch (error) {
+    console.error('Error processing pending MCP install:', error)
+    // Clear potentially corrupted data
+    localStorage.removeItem('pending-mcp-install')
+  }
 })
 
 const closeWindow = () => {
@@ -277,6 +329,7 @@ onBeforeUnmount(() => {
   }
 
   window.electron.ipcRenderer.removeAllListeners(NOTIFICATION_EVENTS.SHOW_ERROR)
+  cleanupMcpDeeplink()
 })
 </script>
 

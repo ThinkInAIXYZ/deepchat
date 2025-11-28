@@ -1,4 +1,4 @@
-import { app } from 'electron'
+import { app, BrowserWindow } from 'electron'
 import { presenter } from '@/presenter'
 import { IDeeplinkPresenter, MCPServerConfig } from '@shared/presenter'
 import path from 'path'
@@ -310,6 +310,16 @@ export class DeeplinkPresenter implements IDeeplinkPresenter {
         return
       }
 
+      // Store MCP configuration in localStorage for Settings window to pick up
+      const settingsWindowId = await presenter.windowPresenter.createSettingsWindow()
+      if (!settingsWindowId) {
+        console.error('Failed to open Settings window for MCP install deeplink')
+        return
+      }
+
+      // Prepare complete MCP configuration for all servers
+      const completeMcpConfig: { mcpServers: Record<string, any> } = { mcpServers: {} }
+
       // 遍历并安装所有 MCP 服务器
       for (const [serverName, serverConfig] of Object.entries(mcpConfig.mcpServers)) {
         let determinedType: 'sse' | 'stdio' | null = null
@@ -400,20 +410,25 @@ export class DeeplinkPresenter implements IDeeplinkPresenter {
           baseUrl: determinedType === 'sse' ? determinedUrl! : defaultConfig.baseUrl!
         }
 
-        // 安装 MCP 服务器
+        // 添加服务器配置到完整配置中
         console.log(
           `Preparing to install MCP server: ${serverName} (type: ${determinedType})`,
           finalConfig
         )
-        const resultServerConfig = {
-          mcpServers: {
-            [serverName]: finalConfig
-          }
+        completeMcpConfig.mcpServers[serverName] = finalConfig
+      }
+
+      // Store the complete MCP configuration in localStorage of the Settings window
+      const settingsWindow = BrowserWindow.fromId(settingsWindowId)
+      if (settingsWindow && !settingsWindow.isDestroyed()) {
+        try {
+          await settingsWindow.webContents.executeJavaScript(`
+            localStorage.setItem('pending-mcp-install', '${JSON.stringify(completeMcpConfig).replace(/'/g, "\\'")}');
+          `)
+          console.log('Complete MCP configuration stored in Settings window localStorage')
+        } catch (error) {
+          console.error('Failed to store MCP configuration in localStorage:', error)
         }
-        // 如果配置中指定了该服务器为默认服务器，则添加到默认服务器列表
-        eventBus.sendToRenderer(DEEPLINK_EVENTS.MCP_INSTALL, SendTarget.DEFAULT_TAB, {
-          mcpConfig: JSON.stringify(resultServerConfig)
-        })
       }
       console.log('All MCP servers processing completed')
     } catch (error) {
