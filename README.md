@@ -73,7 +73,7 @@ Compared to other AI tools, DeepChat offers the following unique advantages:
 
 ## 🔥 Main Features
 
-- 🌐 **Multiple Cloud LLM Provider Support**: DeepSeek, OpenAI, SiliconFlow, Grok, Gemini, Anthropic, and more
+- 🌐 **Multiple Cloud LLM Provider Support**: DeepSeek, OpenAI, Kimi, Grok, Gemini, Anthropic, and more
 - 🏠 **Local Model Deployment Support**:
   - Integrated Ollama with comprehensive management capabilities
   - Control and manage Ollama model downloads, deployments, and runs without command-line operations
@@ -116,26 +116,44 @@ For more details on how to use these features, see the [User Guide](./docs/user-
 <table>
   <tr align="center">
     <td>
-      <img src="./src/renderer/src/assets/llm-icons/ollama.svg" width="50" height="50" alt="Ollama Icon"><br/>
-      <a href="https://ollama.com">Ollama</a>
-    </td>
-    <td>
       <img src="./src/renderer/src/assets/llm-icons/deepseek-color.svg" width="50" height="50" alt="Deepseek Icon"><br/>
       <a href="https://deepseek.com/">Deepseek</a>
     </td>
     <td>
-      <img src="./src/renderer/src/assets/llm-icons/ppio-color.svg" width="50" height="50" alt="PPIO Icon"><br/>
-      <a href="https://ppinfra.com/">PPIO</a>
+      <img src="./src/renderer/src/assets/llm-icons/moonshot.svg" width="50" height="50" alt="Moonshot Icon"><br/>
+      <a href="https://moonshot.ai/">Moonshot</a>
     </td>
     <td>
-      <img src="./src/renderer/src/assets/llm-icons/alibabacloud-color.svg" width="50" height="50" alt="DashScope Icon"><br/>
-      <a href="https://www.aliyun.com/product/bailian">DashScope</a>
+      <img src="./src/renderer/src/assets/llm-icons/openai.svg" width="50" height="50" alt="OpenAI Icon"><br/>
+      <a href="https://openai.com/">OpenAI</a>
+    </td>
+    <td>
+      <img src="./src/renderer/src/assets/llm-icons/gemini-color.svg" width="50" height="50" alt="Gemini Icon"><br/>
+      <a href="https://gemini.google.com/">Gemini</a>
     </td>
   </tr>
   <tr align="center">
     <td>
-      <img src="./src/renderer/src/assets/llm-icons/doubao-color.svg" width="50" height="50" alt="Doubao Icon"><br/>
-      <a href="https://console.volcengine.com/ark/">Doubao</a>
+      <img src="./src/renderer/src/assets/llm-icons/ollama.svg" width="50" height="50" alt="Ollama Icon"><br/>
+      <a href="https://ollama.com/">Ollama</a>
+    </td>
+    <td>
+      <img src="./src/renderer/src/assets/llm-icons/qiniu.svg" width="50" height="50" alt="Qiniu Icon"><br/>
+      <a href="https://www.qiniu.com">Qiniu</a>
+    </td>
+    <td>
+      <img src="./src/renderer/src/assets/llm-icons/grok.svg" width="50" height="50" alt="Grok Icon"><br/>
+      <a href="https://x.ai/">Grok</a>
+    </td>
+    <td>
+      <img src="./src/renderer/src/assets/llm-icons/zhipu-color.svg" width="50" height="50" alt="Zhipu Icon"><br/>
+      <a href="https://open.bigmodel.cn/">Zhipu</a>
+    </td>
+  </tr>
+  <tr align="center">
+    <td>
+      <img src="./src/renderer/src/assets/llm-icons/ppio-color.svg" width="50" height="50" alt="PPIO Icon"><br/>
+      <a href="https://ppinfra.com/">PPIO</a>
     </td>
     <td>
       <img src="./src/renderer/src/assets/llm-icons/minimax-color.svg" width="50" height="50" alt="MiniMax Icon"><br/>
@@ -146,26 +164,62 @@ For more details on how to use these features, see the [User Guide](./docs/user-
       <a href="https://fireworks.ai/">Fireworks</a>
     </td>
     <td>
-      <img src="./src/renderer/src/assets/llm-icons/302ai.svg" width="50" height="50" alt="302.AI Icon"><br/>
-      <a href="https://302.ai/">302.AI</a>
+      <img src="./src/renderer/src/assets/llm-icons/aihubmix.png" width="50" height="50" alt="AIHubMix Icon"><br/>
+      <a href="https://aihubmix.com/">AIHubMix</a>
     </td>
   </tr>
   <tr align="center">
     <td>
-      <img src="./src/renderer/src/assets/llm-icons/openai.svg" width="50" height="50" alt="OpenAI Icon"><br/>
-      <a href="https://openai.com/">OpenAI</a>
+      <img src="./src/renderer/src/assets/llm-icons/doubao-color.svg" width="50" height="50" alt="Doubao Icon"><br/>
+      <a href="https://console.volcengine.com/ark/">Doubao</a>
     </td>
     <td>
-      <img src="./src/renderer/src/assets/llm-icons/gemini-color.svg" width="50" height="50" alt="Gemini Icon"><br/>
-      <a href="https://gemini.google.com/">Gemini</a>
+      <img src="./src/renderer/src/assets/llm-icons/alibabacloud-color.svg" width="50" height="50" alt="DashScope Icon"><br/>
+      <a href="https://www.aliyun.com/product/bailian">DashScope</a>
+    </td>
+    <td>
+      <img src="./src/renderer/src/assets/llm-icons/groq.svg" width="50" height="50" alt="Groq Icon"><br/>
+      <a href="https://groq.com/">Groq</a>
+    </td>
+    <td>
+      <img src="./src/renderer/src/assets/llm-icons/jiekou-color.svg" width="50" height="50" alt="JieKou.AI Icon"><br/>
+      <a href="https://jiekou.ai?utm_source=github_deepchat">JieKou.AI</a>
+    </td>
+  </tr>
+  <tr align="center">
+    <td>
+      <img src="./src/renderer/src/assets/llm-icons/zenmux-color.svg" width="50" height="50" alt="ZenMux Icon"><br/>
+      <a href="https://zenmux.ai/">ZenMux</a>
     </td>
     <td>
       <img src="./src/renderer/src/assets/llm-icons/github.svg" width="50" height="50" alt="GitHub Models Icon"><br/>
       <a href="https://github.com/marketplace/models">GitHub Models</a>
     </td>
     <td>
-      <img src="./src/renderer/src/assets/llm-icons/moonshot.svg" width="50" height="50" alt="Moonshot Icon"><br/>
-      <a href="https://moonshot.ai/">Moonshot</a>
+      <img src="./src/renderer/src/assets/llm-icons/lmstudio.svg" width="50" height="50" alt="LM Studio Icon"><br/>
+      <a href="https://lmstudio.ai/docs/app">LM Studio</a>
+    </td>
+    <td>
+      <img src="./src/renderer/src/assets/llm-icons/hunyuan-color.svg" width="50" height="50" alt="Hunyuan Icon"><br/>
+      <a href="https://cloud.tencent.com/product/hunyuan">Hunyuan</a>
+    </td>
+  </tr>
+  <tr align="center">
+    <td>
+      <img src="./src/renderer/src/assets/llm-icons/302ai.svg" width="50" height="50" alt="302.AI Icon"><br/>
+      <a href="https://302.ai">302.AI</a>
+    </td>
+    <td>
+      <img src="./src/renderer/src/assets/llm-icons/together-color.svg" width="50" height="50" alt="Together Icon"><br/>
+      <a href="https://www.together.ai/">Together</a>
+    </td>
+    <td>
+      <img src="./src/renderer/src/assets/llm-icons/poe-color.svg" width="50" height="50" alt="Poe Icon"><br/>
+      <a href="https://poe.com/">Poe</a>
+    </td>
+    <td>
+      <img src="./src/renderer/src/assets/llm-icons/vercel.svg" width="50" height="50" alt="Vercel AI Gateway Icon"><br/>
+      <a href="https://vercel.com/ai">Vercel AI Gateway</a>
     </td>
   </tr>
   <tr align="center">
@@ -178,40 +232,40 @@ For more details on how to use these features, see the [User Guide](./docs/user-
       <a href="https://azure.microsoft.com/en-us/products/ai-services/openai-service">Azure OpenAI</a>
     </td>
     <td>
-      <img src="./src/renderer/src/assets/llm-icons/qiniu.svg" width="50" height="50" alt="Qiniu Icon"><br/>
-      <a href="https://www.qiniu.com/products/ai-token-api">Qiniu</a>
+      <img src="./src/renderer/src/assets/llm-icons/tokenflux-color.svg" width="50" height="50" alt="TokenFlux Icon"><br/>
+      <a href="https://tokenflux.ai/">TokenFlux</a>
     </td>
     <td>
-      <img src="./src/renderer/src/assets/llm-icons/grok.svg" width="50" height="50" alt="Grok Icon"><br/>
-      <a href="https://x.ai/">Grok</a>
+      <img src="./src/renderer/src/assets/llm-icons/burncloud-color.svg" width="50" height="50" alt="BurnCloud Icon"><br/>
+      <a href="https://www.burncloud.com/">BurnCloud</a>
     </td>
   </tr>
   <tr align="center">
     <td>
-      <img src="./src/renderer/src/assets/llm-icons/zhipu-color.svg" width="50" height="50" alt="Zhipu Icon"><br/>
-      <a href="https://open.bigmodel.cn/">Zhipu</a>
+      <img src="./src/renderer/src/assets/llm-icons/openai.svg" width="50" height="50" alt="OpenAI Responses Icon"><br/>
+      <a href="https://openai.com/">OpenAI Responses</a>
     </td>
     <td>
-      <img src="./src/renderer/src/assets/llm-icons/siliconcloud.svg" width="50" height="50" alt="SiliconFlow Icon"><br/>
+      <img src="./src/renderer/src/assets/llm-icons/cherryin-color.png" width="50" height="50" alt="CherryIn Icon"><br/>
+      <a href="https://open.cherryin.ai/console">CherryIn</a>
+    </td>
+    <td>
+      <img src="./src/renderer/src/assets/llm-icons/modelscope-color.svg" width="50" height="50" alt="ModelScope Icon"><br/>
+      <a href="https://modelscope.cn/">ModelScope</a>
+    </td>
+    <td>
+      <img src="./src/renderer/src/assets/llm-icons/aws-bedrock.svg" width="50" height="50" alt="AWS Bedrock Icon"><br/>
+      <a href="https://aws.amazon.com/bedrock/">AWS Bedrock</a>
+    </td>
+  </tr>
+  <tr align="center">
+    <td>
+      <img src="./src/renderer/src/assets/llm-icons/siliconcloud-color.svg" width="50" height="50" alt="SiliconFlow Icon"><br/>
       <a href="https://www.siliconflow.cn/">SiliconFlow</a>
     </td>
     <td>
-      <img src="./src/renderer/src/assets/llm-icons/aihubmix.png" width="50" height="50" alt="AIHubMix Icon"><br/>
-      <a href="https://aihubmix.com/">AIHubMix</a>
-    </td>
-    <td>
-      <img src="./src/renderer/src/assets/llm-icons/hunyuan-color.svg" width="50" height="50" alt="Hunyuan Icon"><br/>
-      <a href="https://cloud.tencent.com/product/hunyuan">Hunyuan</a>
-    </td>
-  </tr>
-  <tr align="center">
-    <td>
-      <img src="./src/renderer/src/assets/llm-icons/lmstudio.svg" width="50" height="50" alt="LM Studio Icon"><br/>
-      <a href="https://lmstudio.ai/">LM Studio</a>
-    </td>
-    <td>
-      <img src="./src/renderer/src/assets/llm-icons/groq.svg" width="50" height="50" alt="Groq Icon"><br/>
-      <a href="https://groq.com/">Groq</a>
+      <img src="./src/renderer/src/assets/llm-icons/anthropic.svg" width="50" height="50" alt="Anthropic Icon"><br/>
+      <a href="https://www.anthropic.com/">Anthropic</a>
     </td>
     <td></td>
     <td></td>

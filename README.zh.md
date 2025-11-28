@@ -73,7 +73,7 @@ DeepChat是一个功能强大的开源AI聊天平台，为用户提供与多种�
 
 ## 🔥 主要功能
 
-- 🌐 **多种云端LLM提供商支持**：DeepSeek、OpenAI、SiliconFlow、Grok、Gemini、Anthropic等
+- 🌐 **多种云端LLM提供商支持**：DeepSeek、OpenAI、Kimi、Grok、Gemini、Anthropic等
 - 🏠 **本地模型部署支持**：
   - 集成Ollama，提供全面的管理功能
   - 无需命令行操作即可控制和管理Ollama模型的下载、部署和运行
@@ -114,26 +114,44 @@ DeepChat是一个功能强大的开源AI聊天平台，为用户提供与多种�
 <table>
   <tr align="center">
     <td>
-      <img src="./src/renderer/src/assets/llm-icons/ollama.svg" width="50" height="50" alt="Ollama图标"><br/>
-      <a href="https://ollama.com">Ollama</a>
-    </td>
-    <td>
       <img src="./src/renderer/src/assets/llm-icons/deepseek-color.svg" width="50" height="50" alt="Deepseek图标"><br/>
-      <a href="https://deepseek.com/">Deepseek</a>
+      <a href="https://deepseek.com/">深度求索</a>
     </td>
     <td>
-      <img src="./src/renderer/src/assets/llm-icons/ppio-color.svg" width="50" height="50" alt="PPIO图标"><br/>
-      <a href="https://ppinfra.com/">PPIO</a>
+      <img src="./src/renderer/src/assets/llm-icons/moonshot.svg" width="50" height="50" alt="Moonshot图标"><br/>
+      <a href="https://moonshot.ai/">月之暗面</a>
     </td>
     <td>
-      <img src="./src/renderer/src/assets/llm-icons/alibabacloud-color.svg" width="50" height="50" alt="DashScope图标"><br/>
-      <a href="https://www.aliyun.com/product/bailian">DashScope</a>
+      <img src="./src/renderer/src/assets/llm-icons/openai.svg" width="50" height="50" alt="OpenAI图标"><br/>
+      <a href="https://openai.com/">OpenAI</a>
+    </td>
+    <td>
+      <img src="./src/renderer/src/assets/llm-icons/gemini-color.svg" width="50" height="50" alt="Gemini图标"><br/>
+      <a href="https://gemini.google.com/">Gemini</a>
     </td>
   </tr>
   <tr align="center">
     <td>
-      <img src="./src/renderer/src/assets/llm-icons/doubao-color.svg" width="50" height="50" alt="Doubao图标"><br/>
-      <a href="https://console.volcengine.com/ark/">Doubao</a>
+      <img src="./src/renderer/src/assets/llm-icons/ollama.svg" width="50" height="50" alt="Ollama图标"><br/>
+      <a href="https://ollama.com/">Ollama</a>
+    </td>
+    <td>
+      <img src="./src/renderer/src/assets/llm-icons/qiniu.svg" width="50" height="50" alt="Qiniu图标"><br/>
+      <a href="https://www.qiniu.com">七牛</a>
+    </td>
+    <td>
+      <img src="./src/renderer/src/assets/llm-icons/grok.svg" width="50" height="50" alt="Grok图标"><br/>
+      <a href="https://x.ai/">Grok</a>
+    </td>
+    <td>
+      <img src="./src/renderer/src/assets/llm-icons/zhipu-color.svg" width="50" height="50" alt="智谱图标"><br/>
+      <a href="https://open.bigmodel.cn/">智谱</a>
+    </td>
+  </tr>
+  <tr align="center">
+    <td>
+      <img src="./src/renderer/src/assets/llm-icons/ppio-color.svg" width="50" height="50" alt="PPIO图标"><br/>
+      <a href="https://ppinfra.com/">派欧云</a>
     </td>
     <td>
       <img src="./src/renderer/src/assets/llm-icons/minimax-color.svg" width="50" height="50" alt="MiniMax图标"><br/>
@@ -144,26 +162,62 @@ DeepChat是一个功能强大的开源AI聊天平台，为用户提供与多种�
       <a href="https://fireworks.ai/">Fireworks</a>
     </td>
     <td>
-      <img src="./src/renderer/src/assets/llm-icons/302ai.svg" width="50" height="50" alt="302.AI图标"><br/>
-      <a href="https://302.ai/">302.AI</a>
+      <img src="./src/renderer/src/assets/llm-icons/aihubmix.png" width="50" height="50" alt="AIHubMix图标"><br/>
+      <a href="https://aihubmix.com/">推理时代</a>
     </td>
   </tr>
   <tr align="center">
     <td>
-      <img src="./src/renderer/src/assets/llm-icons/openai.svg" width="50" height="50" alt="OpenAI图标"><br/>
-      <a href="https://openai.com/">OpenAI</a>
+      <img src="./src/renderer/src/assets/llm-icons/doubao-color.svg" width="50" height="50" alt="Doubao图标"><br/>
+      <a href="https://console.volcengine.com/ark/">火山引擎</a>
     </td>
     <td>
-      <img src="./src/renderer/src/assets/llm-icons/gemini-color.svg" width="50" height="50" alt="Gemini图标"><br/>
-      <a href="https://gemini.google.com/">Gemini</a>
+      <img src="./src/renderer/src/assets/llm-icons/alibabacloud-color.svg" width="50" height="50" alt="DashScope图标"><br/>
+      <a href="https://www.aliyun.com/product/bailian">阿里云百炼</a>
+    </td>
+    <td>
+      <img src="./src/renderer/src/assets/llm-icons/groq.svg" width="50" height="50" alt="Groq图标"><br/>
+      <a href="https://groq.com/">Groq</a>
+    </td>
+    <td>
+      <img src="./src/renderer/src/assets/llm-icons/jiekou-color.svg" width="50" height="50" alt="JieKou.AI图标"><br/>
+      <a href="https://jiekou.ai?utm_source=github_deepchat">JieKou.AI</a>
+    </td>
+  </tr>
+  <tr align="center">
+    <td>
+      <img src="./src/renderer/src/assets/llm-icons/zenmux-color.svg" width="50" height="50" alt="ZenMux图标"><br/>
+      <a href="https://zenmux.ai/">ZenMux</a>
     </td>
     <td>
       <img src="./src/renderer/src/assets/llm-icons/github.svg" width="50" height="50" alt="GitHub Models图标"><br/>
       <a href="https://github.com/marketplace/models">GitHub Models</a>
     </td>
     <td>
-      <img src="./src/renderer/src/assets/llm-icons/moonshot.svg" width="50" height="50" alt="Moonshot图标"><br/>
-      <a href="https://moonshot.ai/">Moonshot</a>
+      <img src="./src/renderer/src/assets/llm-icons/lmstudio.svg" width="50" height="50" alt="LM Studio图标"><br/>
+      <a href="https://lmstudio.ai/docs/app">LM Studio</a>
+    </td>
+    <td>
+      <img src="./src/renderer/src/assets/llm-icons/hunyuan-color.svg" width="50" height="50" alt="混元图标"><br/>
+      <a href="https://cloud.tencent.com/product/hunyuan">混元</a>
+    </td>
+  </tr>
+  <tr align="center">
+    <td>
+      <img src="./src/renderer/src/assets/llm-icons/302ai.svg" width="50" height="50" alt="302.AI图标"><br/>
+      <a href="https://302.ai">302.AI</a>
+    </td>
+    <td>
+      <img src="./src/renderer/src/assets/llm-icons/together-color.svg" width="50" height="50" alt="Together图标"><br/>
+      <a href="https://www.together.ai/">Together</a>
+    </td>
+    <td>
+      <img src="./src/renderer/src/assets/llm-icons/poe-color.svg" width="50" height="50" alt="Poe图标"><br/>
+      <a href="https://poe.com/">Poe</a>
+    </td>
+    <td>
+      <img src="./src/renderer/src/assets/llm-icons/vercel.svg" width="50" height="50" alt="Vercel AI Gateway图标"><br/>
+      <a href="https://vercel.com/ai">Vercel AI Gateway</a>
     </td>
   </tr>
   <tr align="center">
@@ -176,40 +230,40 @@ DeepChat是一个功能强大的开源AI聊天平台，为用户提供与多种�
       <a href="https://azure.microsoft.com/en-us/products/ai-services/openai-service">Azure OpenAI</a>
     </td>
     <td>
-      <img src="./src/renderer/src/assets/llm-icons/qiniu.svg" width="50" height="50" alt="Qiniu图标"><br/>
-      <a href="https://www.qiniu.com/products/ai-token-api">Qiniu</a>
+      <img src="./src/renderer/src/assets/llm-icons/tokenflux-color.svg" width="50" height="50" alt="TokenFlux图标"><br/>
+      <a href="https://tokenflux.ai/">TokenFlux</a>
     </td>
     <td>
-      <img src="./src/renderer/src/assets/llm-icons/grok.svg" width="50" height="50" alt="Grok图标"><br/>
-      <a href="https://x.ai/">Grok</a>
-    </td>
-  </tr>
-  <tr align="center">
-    <td>
-      <img src="./src/renderer/src/assets/llm-icons/zhipu-color.svg" width="50" height="50" alt="智谱图标"><br/>
-      <a href="https://open.bigmodel.cn/">智谱</a>
-    </td>
-    <td>
-      <img src="./src/renderer/src/assets/llm-icons/siliconcloud.svg" width="50" height="50" alt="SiliconFlow图标"><br/>
-      <a href="https://www.siliconflow.cn/">SiliconFlow</a>
-    </td>
-    <td>
-      <img src="./src/renderer/src/assets/llm-icons/aihubmix.png" width="50" height="50" alt="AIHubMix图标"><br/>
-      <a href="https://aihubmix.com/">AIHubMix</a>
-    </td>
-    <td>
-      <img src="./src/renderer/src/assets/llm-icons/hunyuan-color.svg" width="50" height="50" alt="混元图标"><br/>
-      <a href="https://cloud.tencent.com/product/hunyuan">混元</a>
+      <img src="./src/renderer/src/assets/llm-icons/burncloud-color.svg" width="50" height="50" alt="BurnCloud图标"><br/>
+      <a href="https://www.burncloud.com/">BurnCloud</a>
     </td>
   </tr>
   <tr align="center">
     <td>
-      <img src="./src/renderer/src/assets/llm-icons/lmstudio.svg" width="50" height="50" alt="LM Studio图标"><br/>
-      <a href="https://lmstudio.ai/">LM Studio</a>
+      <img src="./src/renderer/src/assets/llm-icons/openai.svg" width="50" height="50" alt="OpenAI Responses图标"><br/>
+      <a href="https://openai.com/">OpenAI Responses</a>
     </td>
     <td>
-      <img src="./src/renderer/src/assets/llm-icons/groq.svg" width="50" height="50" alt="Groq图标"><br/>
-      <a href="https://groq.com/">Groq</a>
+      <img src="./src/renderer/src/assets/llm-icons/cherryin-color.png" width="50" height="50" alt="CherryIn图标"><br/>
+      <a href="https://open.cherryin.ai/console">CherryIn</a>
+    </td>
+    <td>
+      <img src="./src/renderer/src/assets/llm-icons/modelscope-color.svg" width="50" height="50" alt="ModelScope图标"><br/>
+      <a href="https://modelscope.cn/">魔塔社区</a>
+    </td>
+    <td>
+      <img src="./src/renderer/src/assets/llm-icons/aws-bedrock.svg" width="50" height="50" alt="AWS Bedrock图标"><br/>
+      <a href="https://aws.amazon.com/bedrock/">AWS Bedrock</a>
+    </td>
+  </tr>
+  <tr align="center">
+    <td>
+      <img src="./src/renderer/src/assets/llm-icons/siliconcloud-color.svg" width="50" height="50" alt="SiliconFlow图标"><br/>
+      <a href="https://www.siliconflow.cn/">硅基流动</a>
+    </td>
+    <td>
+      <img src="./src/renderer/src/assets/llm-icons/anthropic.svg" width="50" height="50" alt="Anthropic图标"><br/>
+      <a href="https://www.anthropic.com/">Anthropic</a>
     </td>
     <td></td>
     <td></td>
