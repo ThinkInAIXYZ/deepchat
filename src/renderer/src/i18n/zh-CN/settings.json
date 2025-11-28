@@ -593,7 +593,20 @@
     "separatorsHelper": "文档切分分隔符，单个分隔符用半角符号双引号(\"\")包裹，分隔符之间用半角符号逗号(,)分割",
     "invalidSeparators": "无效的分隔符",
     "selectLanguage": "选择预设",
-    "separatorsPreset": "加载预设"
+    "separatorsPreset": "加载预设",
+    "nowledgeMem": {
+      "apiKey": "API密钥",
+      "apiKeyHint": "可选。\n如果您的服务需要 API 密钥，请在此处输入。",
+      "baseUrl": "Base URL",
+      "configuration": "配置",
+      "description": "导出会话到 Nowledge Mem",
+      "resetConfig": "重置配置",
+      "saveConfig": "保存",
+      "seconds": "秒",
+      "testConnection": "测试连接",
+      "timeout": "超时",
+      "title": "Nowledge Mem 导出配置"
+    }
   },
   "mcp": {
     "title": "MCP设置",

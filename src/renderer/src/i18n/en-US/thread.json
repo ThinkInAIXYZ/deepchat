@@ -37,7 +37,7 @@
     "successDesc": "Conversation has been successfully exported",
     "nowledgeMemSuccess": "Nowledge-mem Export Successful",
     "nowledgeMemSuccessDesc": "Conversation has been successfully exported to nowledge-mem format",
-    "nowledgeMemSubmitPrompt": "Would you like to submit this conversation to nowledge-mem API?",
+    "nowledgeMemSubmitPrompt": "Would you like to submit this conversation to nowledge-mem?",
     "nowledgeMemSubmitSuccess": "Nowledge-mem Submission Successful",
     "nowledgeMemSubmitSuccessDesc": "Conversation has been successfully submitted to nowledge-mem",
     "nowledgeMemSubmitFailed": "Nowledge-mem Submission Failed",

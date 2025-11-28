@@ -593,7 +593,20 @@
     "separatorsHelper": "Разделитель сегментации документа, одиночный разделитель заключается в двойные кавычки (\"\"), а разделители разделяются запятыми (,)",
     "invalidSeparators": "Неверный сепаратор",
     "selectLanguage": "Выберите предустановку",
-    "separatorsPreset": "Загрузка пресетов"
+    "separatorsPreset": "Загрузка пресетов",
+    "nowledgeMem": {
+      "apiKey": "API-ключ",
+      "apiKeyHint": "Необязательный.\nЕсли вашему сервису требуется ключ API, введите его здесь.",
+      "baseUrl": "Базовый URL",
+      "configuration": "конфигурация",
+      "description": "Экспортировать сеанс в Nowledge Mem",
+      "resetConfig": "Сбросить настройки",
+      "saveConfig": "Сохранить",
+      "seconds": "секунда",
+      "testConnection": "Тестовое соединение",
+      "timeout": "превышение времени",
+      "title": "Конфигурация экспорта Nowledge Mem"
+    }
   },
   "mcp": {
     "title": "Настройки MCP",

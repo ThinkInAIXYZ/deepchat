@@ -593,7 +593,20 @@
     "separatorsHelper": "ドキュメントのセグメンテーション区切り文字。単一の区切り文字は二重引用符 (\"\") で囲まれ、区切り文字はコンマ (,) で区切られます",
     "invalidSeparators": "無効な分離器",
     "selectLanguage": "プリセットを選択します",
-    "separatorsPreset": "プリセットの読み込み"
+    "separatorsPreset": "プリセットの読み込み",
+    "nowledgeMem": {
+      "apiKey": "APIキー",
+      "apiKeyHint": "オプション。\nサービスで API キーが必要な場合は、ここに API キーを入力します。",
+      "baseUrl": "ベースURL",
+      "configuration": "設定",
+      "description": "会話をNowledge Memにエクスポートする",
+      "resetConfig": "設定をリセットする",
+      "saveConfig": "保存",
+      "seconds": "秒",
+      "testConnection": "接続をテストする",
+      "timeout": "タイムアウト",
+      "title": "Nowledge Mem エクスポート設定"
+    }
   },
   "mcp": {
     "title": "MCP設定",

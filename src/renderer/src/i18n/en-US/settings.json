@@ -586,7 +586,6 @@
     "nowledgeMem": {
       "title": "Nowledge Mem Export",
       "description": "Export conversations to Nowledge Mem service.",
-      "connection": "Connection",
       "testConnection": "Test Connection",
       "configuration": "Configuration",
       "baseUrl": "Base URL",

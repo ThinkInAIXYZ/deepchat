@@ -76,5 +76,7 @@
   "clear": "クリア",
   "saved": "保存",
   "newTab": "新しいタブ",
-  "unknownError": "不明なエラー"
+  "unknownError": "不明なエラー",
+  "testing": "テスト中",
+  "saving": "保存中"
 }

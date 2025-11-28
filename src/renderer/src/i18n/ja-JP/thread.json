@@ -6,7 +6,8 @@
     "pin": "ピン留めする",
     "unpin": "ピン留めを外す",
     "export": "エクスポート",
-    "exportText": "プレーンテキスト"
+    "exportText": "プレーンテキスト",
+    "exportNowledgeMem": "Nowledge-mem"
   },
   "toolbar": {
     "save": "保存",
@@ -31,6 +32,15 @@
   },
   "export": {
     "failed": "エクスポートは失敗しました",
-    "failedDesc": "エクスポートプロセス中にエラーが発生しました。もう一度やり直してください"
+    "failedDesc": "エクスポートプロセス中にエラーが発生しました。もう一度やり直してください",
+    "nowledgeMemSubmitFailed": "Nowledge-memへの送信に失敗しました",
+    "nowledgeMemSubmitFailedDesc": "nowledge-memへのセッションの送信に失敗しました",
+    "nowledgeMemSubmitPrompt": "現在のセッションをnowledge-memにエクスポートしてもよろしいですか？",
+    "nowledgeMemSubmitSuccess": "Nowledge-memへの提出に成功しました",
+    "nowledgeMemSubmitSuccessDesc": "Nowledge-memへのセッションの送信に成功しました",
+    "nowledgeMemSuccessDesc": "会話はNowledge-mem形式で正常にエクスポートされました。",
+    "success": "エクスポート成功",
+    "nowledgeMemSuccess": "Nowledge-memへのエクスポートに成功しました。",
+    "successDesc": "会話のエクスポートに成功しました"
   }
 }

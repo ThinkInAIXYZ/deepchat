@@ -6,7 +6,8 @@
     "pin": "Épingler",
     "unpin": "Détacher",
     "export": "Exporter",
-    "exportText": "Texte brut"
+    "exportText": "Texte brut",
+    "exportNowledgeMem": "Nowledge-mem"
   },
   "toolbar": {
     "save": "Enregistrer",
@@ -31,6 +32,15 @@
   },
   "export": {
     "failed": "Échec de l'exportation",
-    "failedDesc": "Une erreur s'est produite pendant le processus d'exportation, veuillez réessayer"
+    "failedDesc": "Une erreur s'est produite pendant le processus d'exportation, veuillez réessayer",
+    "nowledgeMemSubmitFailed": "Échec de la soumission à Nowledge-mem",
+    "nowledgeMemSubmitFailedDesc": "Échec de la soumission de la session à nowledge-mem",
+    "nowledgeMemSubmitPrompt": "Confirmez-vous que vous souhaitez exporter la session actuelle vers nowledge-mem ?",
+    "nowledgeMemSubmitSuccess": "Soumission à Nowledge-mem réussie",
+    "nowledgeMemSubmitSuccessDesc": "Soumission de la session à Nowledge-mem réussie",
+    "nowledgeMemSuccessDesc": "La conversation a été exportée avec succès au format Nowledge-mem.",
+    "success": "Exportation réussie",
+    "nowledgeMemSuccess": "Exportation réussie vers Nowledge-mem",
+    "successDesc": "Exportation de la conversation réussie"
   }
 }

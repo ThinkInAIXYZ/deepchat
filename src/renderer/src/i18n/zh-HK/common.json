@@ -76,5 +76,7 @@
   "clear": "清除",
   "saved": "已保存",
   "newTab": "新建標籤頁",
-  "unknownError": "未知錯誤"
+  "unknownError": "未知錯誤",
+  "testing": "測試中",
+  "saving": "儲存中"
 }

@@ -6,7 +6,8 @@
     "pin": "سنجاق کردن",
     "unpin": "برداشتن سنجاق",
     "export": "صادر کردن",
-    "exportText": "متن ساده"
+    "exportText": "متن ساده",
+    "exportNowledgeMem": "Nowledge-mem"
   },
   "toolbar": {
     "save": "ذخیره",
@@ -31,6 +32,15 @@
   },
   "export": {
     "failed": "صادرات شکست خورد",
-    "failedDesc": "در طی فرآیند صادرات خطایی رخ داده است ، لطفاً دوباره امتحان کنید"
+    "failedDesc": "در طی فرآیند صادرات خطایی رخ داده است ، لطفاً دوباره امتحان کنید",
+    "nowledgeMemSubmitFailed": "ارسال به Nowledge-mem ناموفق بود",
+    "nowledgeMemSubmitFailedDesc": "ارسال جلسه به nowledge-mem ناموفق بود",
+    "nowledgeMemSubmitPrompt": "آیا تأیید می‌کنید که جلسه فعلی به nowledge-mem صادر شود؟",
+    "nowledgeMemSubmitSuccess": "با موفقیت به Nowledge-mem ارسال شد",
+    "nowledgeMemSubmitSuccessDesc": "جلسه با موفقیت به Nowledge-mem ارسال شد",
+    "nowledgeMemSuccessDesc": "گفتگو با موفقیت به فرمت Nowledge-mem صادر شد",
+    "success": "صادرات با موفقیت انجام شد",
+    "nowledgeMemSuccess": "با موفقیت به Nowledge-mem صادر شد",
+    "successDesc": "صادرات گفتگو با موفقیت انجام شد"
   }
 }

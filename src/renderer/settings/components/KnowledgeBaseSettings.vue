@@ -14,14 +14,14 @@
         <DifyKnowledgeSettings ref="difySettingsRef" />
         <!-- FastGPT知识库 -->
         <FastGptKnowledgeSettings ref="fastGptSettingsRef" />
-        <!-- NowledgeMem Integration -->
-        <NowledgeMemSettings ref="nowledgeMemSettingsRef" />
         <!-- 内置知识库 -->
         <BuiltinKnowledgeSettings
           v-if="enableBuiltinKnowledge"
           ref="builtinSettingsRef"
           @showDetail="showDetail"
         />
+        <!-- NowledgeMem Integration -->
+        <NowledgeMemSettings ref="nowledgeMemSettingsRef" />
       </div>
     </div>
     <div v-if="showBuiltinKnowledgeDetail">

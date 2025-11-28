@@ -19,10 +19,6 @@
     <div v-if="showConfigPanel" class="border-t p-4 space-y-4">
       <!-- Connection Test Section -->
       <div class="space-y-3">
-        <div class="text-sm font-medium">
-          {{ $t('settings.knowledgeBase.nowledgeMem.connection') }}
-        </div>
-
         <div class="flex gap-2">
           <Button
             @click="testConnection"

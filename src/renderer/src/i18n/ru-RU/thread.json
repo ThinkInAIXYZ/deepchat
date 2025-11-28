@@ -6,7 +6,8 @@
     "pin": "Закрепить",
     "unpin": "Открепить",
     "export": "Экспорт",
-    "exportText": "Простой текст"
+    "exportText": "Простой текст",
+    "exportNowledgeMem": "Nowledge-mem"
   },
   "toolbar": {
     "save": "Сохранить",
@@ -31,6 +32,15 @@
   },
   "export": {
     "failed": "Экспорт не удался",
-    "failedDesc": "Произошла ошибка во время процесса экспорта, попробуйте еще раз"
+    "failedDesc": "Произошла ошибка во время процесса экспорта, попробуйте еще раз",
+    "nowledgeMemSubmitFailed": "Не удалось отправить в Nowledge-mem",
+    "nowledgeMemSubmitFailedDesc": "Не удалось отправить сеанс в nowledge-mem",
+    "nowledgeMemSubmitPrompt": "Подтвердите, что нужно экспортировать текущую сессию в nowledge-mem?",
+    "nowledgeMemSubmitSuccess": "Успешно отправлено в Nowledge-mem",
+    "nowledgeMemSubmitSuccessDesc": "Успешно отправлено сеанс в Nowledge-mem",
+    "nowledgeMemSuccessDesc": "Сеанс успешно экспортирован в формат Nowledge-mem",
+    "success": "Экспорт выполнен успешно",
+    "nowledgeMemSuccess": "Успешно экспортировано в Nowledge-mem",
+    "successDesc": "Экспорт сеанса выполнен успешно"
   }
 }

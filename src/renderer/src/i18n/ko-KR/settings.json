@@ -593,7 +593,20 @@
     "separatorsHelper": "문서 분할 구분 기호, 단일 구분 기호는 큰따옴표(\"\")로 묶고, 구분 기호는 쉼표(,)로 구분합니다",
     "invalidSeparators": "잘못된 분리기",
     "selectLanguage": "사전 설정을 선택하십시오",
-    "separatorsPreset": "사전 설정을로드합니다"
+    "separatorsPreset": "사전 설정을로드합니다",
+    "nowledgeMem": {
+      "apiKey": "API 키",
+      "apiKeyHint": "선택 과목. \n서비스에 API 키가 필요한 경우 여기에 입력하세요.",
+      "baseUrl": "기본 URL",
+      "configuration": "설정",
+      "description": "대화를 Nowledge Mem으로 내보내기",
+      "resetConfig": "구성 재설정",
+      "saveConfig": "저장",
+      "seconds": "초",
+      "testConnection": "연결 테스트",
+      "timeout": "초과 시간",
+      "title": "Nowledge Mem 내보내기 설정"
+    }
   },
   "mcp": {
     "title": "MCP 설정",

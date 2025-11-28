@@ -6,7 +6,8 @@
     "pin": "고정하기",
     "unpin": "고정 해제",
     "export": "내보내다",
-    "exportText": "일반 텍스트"
+    "exportText": "일반 텍스트",
+    "exportNowledgeMem": "Nowledge-mem"
   },
   "toolbar": {
     "save": "저장",
@@ -31,6 +32,15 @@
   },
   "export": {
     "failed": "내보내기 실패",
-    "failedDesc": "수출 과정에서 오류가 발생했는데 다시 시도하십시오."
+    "failedDesc": "수출 과정에서 오류가 발생했는데 다시 시도하십시오.",
+    "nowledgeMemSubmitFailed": "Nowledge-mem에 제출 실패",
+    "nowledgeMemSubmitFailedDesc": "nowledge-mem에 세션 제출 실패",
+    "nowledgeMemSubmitPrompt": "현재 세션을 nowledge-mem으로 내보내시겠습니까?",
+    "nowledgeMemSubmitSuccess": "Nowledge-mem에 성공적으로 제출되었습니다",
+    "nowledgeMemSubmitSuccessDesc": "Nowledge-mem에 세션이 성공적으로 제출되었습니다",
+    "nowledgeMemSuccessDesc": "대화가 Nowledge-mem 형식으로 성공적으로 내보내졌습니다",
+    "success": "내보내기 성공",
+    "nowledgeMemSuccess": "Nowledge-mem으로 성공적으로 내보냈습니다.",
+    "successDesc": "대화 내보내기 성공"
   }
 }

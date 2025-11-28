@@ -593,7 +593,20 @@
     "separatorsHelper": "جداکننده تقسیم‌بندی سند، یک جداکننده منفرد داخل نقل قول دوتایی (\"\") قرار می‌گیرد و جداکننده‌ها با کاما (,) از هم جدا می‌شوند",
     "invalidSeparators": "جداکننده نامعتبر",
     "selectLanguage": "از پیش تعیین شده را انتخاب کنید",
-    "separatorsPreset": "از پیش تنظیمات در حال بارگیری"
+    "separatorsPreset": "از پیش تنظیمات در حال بارگیری",
+    "nowledgeMem": {
+      "apiKey": "کلید API",
+      "apiKeyHint": "اختیاری.\nاگر سرویس شما به یک کلید API نیاز دارد، آن را در اینجا وارد کنید.",
+      "baseUrl": "آدرس پایه",
+      "configuration": "پیکربندی",
+      "description": "صادرات گفتگو به Nowledge Mem",
+      "resetConfig": "بازنشانی پیکربندی",
+      "saveConfig": "ذخیره کردن",
+      "seconds": "ثانیه",
+      "testConnection": "آزمایش اتصال",
+      "timeout": "زمان گذشته",
+      "title": "پیکربندی صادرات Nowledge Mem"
+    }
   },
   "mcp": {
     "title": "تنظیمات MCP",

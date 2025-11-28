@@ -593,7 +593,20 @@
     "separatorsHelper": "Delimitador de segmentação de documento, um único delimitador é envolto em aspas duplas (\"\"), e os delimitadores são separados por vírgulas (,)",
     "invalidSeparators": "Separador inválido",
     "selectLanguage": "Selecionar um pré-ajuste",
-    "separatorsPreset": "Carregando pré-ajustes"
+    "separatorsPreset": "Carregando pré-ajustes",
+    "nowledgeMem": {
+      "apiKey": "Chave de API",
+      "apiKeyHint": "Opcional.\nSe o seu serviço exigir uma chave de API, insira-a aqui.",
+      "baseUrl": "URL base",
+      "configuration": "Configuração",
+      "description": "Exportar conversa para Nowledge Mem",
+      "resetConfig": "Redefinir configurações",
+      "saveConfig": "Salvar",
+      "seconds": "segundo",
+      "testConnection": "Testar conexão",
+      "timeout": "tempo esgotado",
+      "title": "Configuração de exportação do Nowledge Mem"
+    }
   },
   "mcp": {
     "title": "Configurações MCP",

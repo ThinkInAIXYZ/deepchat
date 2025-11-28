@@ -6,7 +6,8 @@
     "pin": "Fixar",
     "unpin": "Desafixar",
     "export": "Exportar",
-    "exportText": "Texto Simples"
+    "exportText": "Texto Simples",
+    "exportNowledgeMem": "Nowledge-mem"
   },
   "toolbar": {
     "save": "Salvar",
@@ -31,6 +32,15 @@
   },
   "export": {
     "failed": "Falha na exportação",
-    "failedDesc": "Ocorreu um erro durante o processo de exportação, por favor tente novamente"
+    "failedDesc": "Ocorreu um erro durante o processo de exportação, por favor tente novamente",
+    "nowledgeMemSubmitFailed": "Falha ao enviar para Nowledge-mem",
+    "nowledgeMemSubmitFailedDesc": "Falha ao enviar a sessão para o knowledge-mem",
+    "nowledgeMemSubmitPrompt": "Confirmar a exportação da sessão atual para o nowledge-mem?",
+    "nowledgeMemSubmitSuccess": "Enviado para Nowledge-mem com sucesso",
+    "nowledgeMemSubmitSuccessDesc": "Sessão enviada com sucesso para Nowledge-mem",
+    "nowledgeMemSuccessDesc": "A conversa foi exportada com sucesso no formato Nowledge-mem.",
+    "success": "Exportação bem-sucedida",
+    "nowledgeMemSuccess": "Exportado com sucesso para Nowledge-mem",
+    "successDesc": "Exportação da conversa realizada com sucesso"
   }
 }

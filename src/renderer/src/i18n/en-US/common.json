@@ -76,5 +76,7 @@
   "clear": "Clear",
   "saved": "Saved",
   "newTab": "New Tab",
-  "unknownError": "Unknown error"
+  "unknownError": "Unknown error",
+  "testing": "Testing in progress",
+  "saving": "Saving"
 }

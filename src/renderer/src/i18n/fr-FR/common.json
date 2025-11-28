@@ -76,5 +76,7 @@
   "clear": "Effacer",
   "saved": "Sauvé",
   "newTab": "Nouvel onglet",
-  "unknownError": "Erreur inconnue"
+  "unknownError": "Erreur inconnue",
+  "testing": "En cours de test",
+  "saving": "En cours d'enregistrement"
 }

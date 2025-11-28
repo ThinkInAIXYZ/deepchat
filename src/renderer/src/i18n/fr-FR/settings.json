@@ -593,7 +593,20 @@
     "separatorsHelper": "Document Séliquant séparateur, le séparateur unique est enveloppé dans des citations doubles à demi-largeur (\"\"), et le séparateur est divisé par une virgule à demi-largeur (,)",
     "invalidSeparators": "Séparateur non valide",
     "selectLanguage": "Sélectionnez un préréglage",
-    "separatorsPreset": "Chargement des préréglages"
+    "separatorsPreset": "Chargement des préréglages",
+    "nowledgeMem": {
+      "apiKey": "Clé API",
+      "apiKeyHint": "Facultatif.\nSi votre service nécessite une clé API, saisissez-la ici.",
+      "baseUrl": "URL de base",
+      "configuration": "configuration",
+      "description": "Exporter la conversation vers Nowledge Mem",
+      "resetConfig": "Réinitialiser la configuration",
+      "saveConfig": "Enregistrer",
+      "seconds": "seconde",
+      "testConnection": "Tester la connexion",
+      "timeout": "dépassement de délai",
+      "title": "Configuration d'exportation Nowledge Mem"
+    }
   },
   "mcp": {
     "title": "Paramètres MCP",

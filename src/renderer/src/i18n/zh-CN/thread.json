@@ -6,11 +6,21 @@
     "pin": "置顶",
     "unpin": "取消置顶",
     "export": "导出",
-    "exportText": "纯文本"
+    "exportText": "纯文本",
+    "exportNowledgeMem": "Nowledge-mem"
   },
   "export": {
     "failed": "导出失败",
-    "failedDesc": "导出过程中发生错误，请重试"
+    "failedDesc": "导出过程中发生错误，请重试",
+    "nowledgeMemSubmitFailed": "提交到 Nowledge-mem 失败",
+    "nowledgeMemSubmitFailedDesc": "提交会话到 nowledge-mem 失败",
+    "nowledgeMemSubmitPrompt": "确认需要导出当前会话到 nowledge-mem 么",
+    "nowledgeMemSubmitSuccess": "提交到 Nowledge-mem 成功",
+    "nowledgeMemSubmitSuccessDesc": "成功提交会话到 Nowledge-mem",
+    "nowledgeMemSuccessDesc": "会话成功导出为 Nowledge-mem 格式",
+    "success": "导出成功",
+    "nowledgeMemSuccess": "成功导出到 Nowledge-mem ",
+    "successDesc": "会话导出成功"
   },
   "message": {
     "toolbar": {
