@@ -361,6 +361,53 @@ export class StreamGenerationHandler extends BaseHandler {
     userMessage: Message
     contextMessages: Message[]
   }> {
+    const hasUsableAssistantContent = (msg: Message): boolean => {
+      if (msg.role !== 'assistant') return true
+      const blocks = msg.content as AssistantMessageBlock[]
+      return (
+        Array.isArray(blocks) &&
+        blocks.some((block) => {
+          if (block.type === 'content' && block.content) return true
+          if (block.type === 'tool_call' && block.tool_call) return true
+          if (block.type === 'reasoning_content' && block.content) return true
+          return false
+        })
+      )
+    }
+
+    const applyVariantToAssistant = (msg: Message, variantId?: string): Message => {
+      if (msg.role !== 'assistant' || !msg.variants || msg.variants.length === 0) {
+        return msg
+      }
+
+      const variants = msg.variants
+
+      const findVariantById = (id?: string): Message | undefined =>
+        id ? variants.find((variant) => variant.id === id) : undefined
+
+      const findFallbackVariant = (): Message | undefined => {
+        for (let i = variants.length - 1; i >= 0; i--) {
+          const variant = variants[i]
+          if (hasUsableAssistantContent(variant)) {
+            return variant
+          }
+        }
+        return variants[variants.length - 1]
+      }
+
+      const selectedVariant = findVariantById(variantId) || findFallbackVariant()
+      if (!selectedVariant) return msg
+
+      return {
+        ...msg,
+        content: selectedVariant.content,
+        usage: selectedVariant.usage,
+        model_id: selectedVariant.model_id,
+        model_provider: selectedVariant.model_provider,
+        model_name: selectedVariant.model_name
+      }
+    }
+
     const conversation = await this.getConversation(conversationId)
     let contextMessages: Message[] = []
     let userMessage: Message | null = null
@@ -400,21 +447,19 @@ export class StreamGenerationHandler extends BaseHandler {
     if (selectedVariantsMap && Object.keys(selectedVariantsMap).length > 0) {
       contextMessages = contextMessages.map((msg) => {
         if (msg.role === 'assistant' && selectedVariantsMap[msg.id] && msg.variants) {
-          const selectedVariantId = selectedVariantsMap[msg.id]
-          const selectedVariant = msg.variants.find((v) => v.id === selectedVariantId)
-
-          if (selectedVariant) {
-            const newMsg = JSON.parse(JSON.stringify(msg))
-            newMsg.content = selectedVariant.content
-            newMsg.usage = selectedVariant.usage
-            newMsg.model_id = selectedVariant.model_id
-            newMsg.model_provider = selectedVariant.model_provider
-            return newMsg
-          }
+          return applyVariantToAssistant(msg, selectedVariantsMap[msg.id])
         }
         return msg
       })
     }
+
+    // Fallback: if assistant content is empty and no variant was explicitly chosen, pick a usable variant
+    contextMessages = contextMessages.map((msg) => {
+      if (msg.role === 'assistant' && !hasUsableAssistantContent(msg)) {
+        return applyVariantToAssistant(msg)
+      }
+      return msg
+    })
 
     if (userMessage.role === 'user') {
       const msgContent = userMessage.content as UserMessageContent
