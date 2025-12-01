@@ -261,7 +261,7 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
     messages: ChatMessage[],
     supportsFunctionCall: boolean = false
   ): ChatCompletionMessageParam[] {
-    console.log('formatMessages', messages)
+    // console.log('formatMessages', messages)
     const result: ChatCompletionMessageParam[] = []
     // Track pending tool calls for non-FC models (to pair with tool responses)
     const pendingToolCalls: Map<
@@ -1047,7 +1047,7 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
     // 如果存在 API 工具且支持函数调用，则添加到请求参数中
     if (apiTools && apiTools.length > 0 && supportsFunctionCall) requestParams.tools = apiTools
 
-    console.log('[handleChatCompletion] requestParams', JSON.stringify(requestParams))
+    // console.log('[handleChatCompletion] requestParams', JSON.stringify(requestParams))
     // 发起 OpenAI 聊天补全请求
     const stream = await this.openai.chat.completions.create(requestParams)
 
