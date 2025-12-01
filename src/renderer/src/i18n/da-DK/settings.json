@@ -489,7 +489,19 @@
     "operationSuccess": "Handling gennemført",
     "settingsApplied": "Indstillinger anvendt",
     "bedrockLimitTip": "* Kun Anthropic Claude (Opus, Sonnet, Haiku) understøttes",
-    "bedrockVerifyTip": "DeepChat bruger Claude 3.5 Sonnet til verifikation. Hvis du ikke har adgang, mislykkes testen – dette påvirker ikke andre modeller."
+    "bedrockVerifyTip": "DeepChat bruger Claude 3.5 Sonnet til verifikation. Hvis du ikke har adgang, mislykkes testen – dette påvirker ikke andre modeller.",
+    "vertexApiVersion": "API version",
+    "vertexEndpointExpress": "Express (globalt slutpunkt)",
+    "vertexEndpointMode": "slutpunktstilstand",
+    "vertexEndpointStandard": "Standard (områdeslutpunkt)",
+    "vertexLocation": "areal",
+    "vertexLocationPlaceholder": "Indtast venligst en region (f.eks. us-central1)",
+    "vertexPrivateKey": "Tjenestekonto privat nøgle",
+    "vertexPrivateKeyPlaceholder": "Indsæt den private nøgle (understøtter enkelt linje \\n)",
+    "vertexProjectId": "Projekt ID",
+    "vertexProjectIdPlaceholder": "Indtast dit Google Cloud-projekt-id",
+    "vertexServiceEmailPlaceholder": "Indtast venligst tjenestekontoens e-mail",
+    "vertexServiceEmail": "Servicekonto-e-mail"
   },
   "knowledgeBase": {
     "title": "Indstillinger for vidensbase",
