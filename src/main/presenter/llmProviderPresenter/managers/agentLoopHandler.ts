@@ -24,6 +24,11 @@ export class AgentLoopHandler {
     })
   }
 
+  private requiresReasoningField(modelId: string): boolean {
+    const lower = modelId.toLowerCase()
+    return lower.startsWith('deepseek-reasoner') || lower.startsWith('kimi-k2-thinking')
+  }
+
   async *startStreamCompletion(
     providerId: string,
     initialMessages: ChatMessage[],
@@ -125,7 +130,7 @@ export class AgentLoopHandler {
 
         // Prepare for LLM call
         let currentContent = ''
-        // let currentReasoning = ''
+        let currentReasoning = ''
         const currentToolCalls: Array<{
           id: string
           name: string
@@ -194,7 +199,7 @@ export class AgentLoopHandler {
                 break
               case 'reasoning':
                 if (chunk.reasoning_content) {
-                  // currentReasoning += chunk.reasoning_content
+                  currentReasoning += chunk.reasoning_content
                   yield {
                     type: 'response',
                     data: {
@@ -400,6 +405,13 @@ export class AgentLoopHandler {
           const assistantMessage: ChatMessage = {
             role: 'assistant',
             content: currentContent
+          }
+          if (
+            this.requiresReasoningField(modelId) &&
+            currentToolCalls.length > 0 &&
+            currentReasoning
+          ) {
+            ;(assistantMessage as any).reasoning_content = currentReasoning
           }
           // Only add if there's content or tool calls are expected
           if (currentContent || (needContinueConversation && currentToolCalls.length > 0)) {

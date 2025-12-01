@@ -42,6 +42,7 @@ export interface PreparePromptContentParams {
   imageFiles: MessageFile[]
   supportsFunctionCall: boolean
   modelType?: ModelType
+  injectReasoningForToolCalls?: boolean
 }
 
 export interface ContinueToolCallContextParams {
@@ -71,7 +72,8 @@ export async function preparePromptContent({
   vision,
   imageFiles,
   supportsFunctionCall,
-  modelType
+  modelType,
+  injectReasoningForToolCalls = false
 }: PreparePromptContentParams): Promise<{
   finalContent: ChatMessage[]
   promptTokens: number
@@ -121,6 +123,8 @@ export async function preparePromptContent({
     remainingContextLength
   )
 
+  const enableReasoningInjection = Boolean(injectReasoningForToolCalls)
+
   const formattedMessages = formatMessagesForCompletion(
     selectedContextMessages,
     isImageGeneration ? '' : finalSystemPrompt,
@@ -130,7 +134,8 @@ export async function preparePromptContent({
     enrichedUserMessage,
     imageFiles,
     vision,
-    supportsFunctionCall
+    supportsFunctionCall,
+    enableReasoningInjection
   )
 
   const mergedMessages = mergeConsecutiveMessages(formattedMessages)
@@ -187,7 +192,12 @@ export async function buildContinueToolCallContext({
     })
   }
 
-  const contextChatMessages = addContextMessages(contextMessages, false, modelConfig.functionCall)
+  const contextChatMessages = addContextMessages(
+    contextMessages,
+    false,
+    modelConfig.functionCall,
+    false
+  )
   formattedMessages.push(...contextChatMessages)
 
   const userContent = userMessage.content as UserMessageContent
@@ -251,7 +261,12 @@ export async function buildPostToolExecutionContext({
     })
   }
 
-  const contextChatMessages = addContextMessages(contextMessages, false, modelConfig.functionCall)
+  const contextChatMessages = addContextMessages(
+    contextMessages,
+    false,
+    modelConfig.functionCall,
+    false
+  )
   formattedMessages.push(...contextChatMessages)
 
   const userContent = userMessage.content as UserMessageContent
@@ -387,11 +402,19 @@ function formatMessagesForCompletion(
   enrichedUserMessage: string,
   imageFiles: MessageFile[],
   vision: boolean,
-  supportsFunctionCall: boolean
+  supportsFunctionCall: boolean,
+  injectReasoningForToolCalls: boolean
 ): ChatMessage[] {
   const formattedMessages: ChatMessage[] = []
 
-  formattedMessages.push(...addContextMessages(contextMessages, vision, supportsFunctionCall))
+  formattedMessages.push(
+    ...addContextMessages(
+      contextMessages,
+      vision,
+      supportsFunctionCall,
+      injectReasoningForToolCalls
+    )
+  )
 
   if (systemPrompt) {
     formattedMessages.unshift({
@@ -437,7 +460,8 @@ function addImageFiles(finalContent: string, imageFiles: MessageFile[]): ChatMes
 function addContextMessages(
   contextMessages: Message[],
   vision: boolean,
-  supportsFunctionCall: boolean
+  supportsFunctionCall: boolean,
+  injectReasoningForToolCalls: boolean
 ): ChatMessage[] {
   const resultMessages: ChatMessage[] = []
 
@@ -488,8 +512,12 @@ function addContextMessages(
                 response: block.tool_call.response
               })
             }
-          } else if (block.type === 'reasoning_content' && block.content) {
-            // DeepSeek Reasoner 等模型要求将 reasoning_content 单独下发（不混入 content 文本）
+          } else if (
+            block.type === 'reasoning_content' &&
+            block.content &&
+            injectReasoningForToolCalls
+          ) {
+            // 将 reasoning_content 按需写入字段（仅启用时）
             reasoningContent = reasoningContent
               ? `${reasoningContent}\n${block.content}`
               : block.content

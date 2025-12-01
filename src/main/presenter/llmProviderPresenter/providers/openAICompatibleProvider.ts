@@ -261,6 +261,7 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
     messages: ChatMessage[],
     supportsFunctionCall: boolean = false
   ): ChatCompletionMessageParam[] {
+    console.log('formatMessages', messages)
     const result: ChatCompletionMessageParam[] = []
     // Track pending tool calls for non-FC models (to pair with tool responses)
     const pendingToolCalls: Map<
@@ -277,25 +278,6 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
       if (content === undefined) return ''
       if (typeof content === 'string') return content
       return JSON.stringify(content)
-    }
-
-    const shouldAttachReasoningContent = (): boolean => {
-      const providerId = (this.provider.id || '').toLowerCase()
-      const baseUrl = (this.provider.baseUrl || '').toLowerCase()
-      return providerId.includes('deepseek') || baseUrl.includes('deepseek')
-    }
-
-    const attachReasoningContent = <T extends ChatCompletionMessageParam>(
-      payload: T,
-      reasoning: string | undefined,
-      forceWhenToolCall: boolean = false
-    ): T => {
-      if (!shouldAttachReasoningContent()) return payload
-      if (reasoning !== undefined || forceWhenToolCall) {
-        // DeepSeek Reasoner 要求工具调用消息必须携带 reasoning_content 字段，即便为空
-        ;(payload as any).reasoning_content = reasoning ?? ''
-      }
-      return payload
     }
 
     const enqueueNativeToolCallId = (toolCallId?: string) => {
@@ -431,29 +413,21 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
             }
           })
 
-          const assistantMessage = attachReasoningContent(
-            {
-              role: 'assistant',
-              content: baseMessage.content || null,
-              tool_calls: normalizedToolCalls
-            } as ChatCompletionMessageParam,
-            reasoningContent,
-            true
-          )
-
-          result.push(assistantMessage)
+          result.push({
+            role: 'assistant',
+            content: baseMessage.content || null,
+            tool_calls: normalizedToolCalls,
+            ...(reasoningContent !== undefined ? { reasoning_content: reasoningContent } : {})
+          } as ChatCompletionMessageParam)
         } else {
-          const assistantMessage = attachReasoningContent(
-            {
-              role: 'assistant',
-              content: baseMessage.content || null
-            } as ChatCompletionMessageParam,
-            reasoningContent
-          )
           // Mock format: Store tool calls and assistant content, wait for tool responses
           // First add the assistant message if it has content
-          if (assistantMessage.content) {
-            result.push(assistantMessage)
+          if (baseMessage.content) {
+            result.push({
+              role: 'assistant',
+              content: baseMessage.content,
+              ...(reasoningContent !== undefined ? { reasoning_content: reasoningContent } : {})
+            } as ChatCompletionMessageParam)
           }
 
           // Store tool calls for pairing with responses
@@ -553,12 +527,13 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
       }
 
       // Handle other messages (system, assistant without tool_calls)
-      const reasoningContent = (msg as any).reasoning_content as string | undefined
-      const messageWithReasoning =
-        msg.role === 'assistant'
-          ? attachReasoningContent(baseMessage as ChatCompletionMessageParam, reasoningContent)
-          : baseMessage
-      result.push(messageWithReasoning as ChatCompletionMessageParam)
+      if (msg.role === 'assistant') {
+        const reasoningContent = (msg as any).reasoning_content as string | undefined
+        if (reasoningContent !== undefined) {
+          ;(baseMessage as any).reasoning_content = reasoningContent
+        }
+      }
+      result.push(baseMessage as ChatCompletionMessageParam)
     }
 
     return result
