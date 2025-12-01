@@ -57,18 +57,18 @@
           </div>
         </div>
 
-        <div class="flex-1 min-h-0 flex flex-col border rounded-lg overflow-hidden">
-          <div class="flex items-center justify-between px-4 py-2 bg-muted border-b">
+        <div class="flex-1 min-h-0 flex flex-col border rounded-lg overflow-hidden min-h-[300px]">
+          <div class="flex-shrink-0 flex items-center justify-between px-4 py-2 bg-muted border-b">
             <span class="text-sm font-semibold">{{ t('traceDialog.body') }}</span>
             <Button variant="ghost" size="sm" @click="copyJson">
               <Icon icon="lucide:copy" class="w-4 h-4 mr-1" />
               {{ copySuccess ? t('traceDialog.copySuccess') : t('traceDialog.copyJson') }}
             </Button>
           </div>
-          <div class="flex-1 min-h-0 overflow-hidden bg-muted/30 relative">
+          <div class="flex-1 min-h-0 bg-muted/30 relative">
             <div
               ref="jsonEditor"
-              class="h-full w-full min-h-[200px]"
+              class="absolute inset-0"
               :class="{ 'opacity-0': !editorInitialized }"
             ></div>
             <!-- Fallback: show raw JSON while Monaco Editor is initializing -->
@@ -114,14 +114,20 @@ const threadPresenter = usePresenter('threadPresenter')
 const jsonEditor = ref<HTMLElement | null>(null)
 const { createEditor, updateCode, cleanupEditor } = useMonaco({
   readOnly: true,
-  wordWrap: 'on',
+  wordWrap: 'off',
   wrappingIndent: 'same',
   minimap: { enabled: false },
-  scrollBeyondLastLine: false,
+  scrollBeyondLastLine: true,
   fontSize: 12,
   lineNumbers: 'on',
   folding: true,
-  automaticLayout: true
+  automaticLayout: true,
+  scrollbar: {
+    horizontal: 'visible',
+    vertical: 'visible',
+    horizontalScrollbarSize: 10,
+    verticalScrollbarSize: 10
+  }
 })
 
 type PreviewData = {
