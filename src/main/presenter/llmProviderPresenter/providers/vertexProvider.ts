@@ -31,6 +31,7 @@ import { BaseLLMProvider, SUMMARY_TITLES_PROMPT } from '../baseProvider'
 import { modelCapabilities } from '../../configPresenter/modelCapabilities'
 import { eventBus, SendTarget } from '@/eventbus'
 import { CONFIG_EVENTS } from '@/events'
+import { is } from '@electron-toolkit/utils'
 
 // Mapping from simple keys to API HarmCategory constants
 const keyToHarmCategoryMap: Record<string, HarmCategory> = {
@@ -374,15 +375,22 @@ export class VertexProvider extends BaseLLMProvider {
             `geminiSafety_${key}` // Match the key used in settings store
           )) || 'HARM_BLOCK_THRESHOLD_UNSPECIFIED' // Default if not set
 
+        // Check the original string setting key first to exclude BLOCK_NONE and UNSPECIFIED
+        if (settingValue === 'BLOCK_NONE' || settingValue === 'HARM_BLOCK_THRESHOLD_UNSPECIFIED') {
+          continue
+        }
+
+        // Only map to enum if we need to include this setting
         const threshold = valueToHarmBlockThresholdMap[settingValue]
         const category = keyToHarmCategoryMap[key]
 
-        // Only add if threshold is defined, category is defined, and threshold is not BLOCK_NONE
+        // Use explicit checks for undefined/null instead of truthy check
+        // This ensures numeric enum values (including 0) are handled correctly
         if (
-          threshold &&
-          category &&
-          threshold !== 'BLOCK_NONE' &&
-          threshold !== 'HARM_BLOCK_THRESHOLD_UNSPECIFIED'
+          threshold !== undefined &&
+          threshold !== null &&
+          category !== undefined &&
+          category !== null
         ) {
           safetySettings.push({ category, threshold })
         }
@@ -392,6 +400,65 @@ export class VertexProvider extends BaseLLMProvider {
     }
 
     return safetySettings.length > 0 ? safetySettings : undefined
+  }
+
+  // Check if detailed debug logging is enabled
+  private isDebugLoggingEnabled(): boolean {
+    return is.dev || this.configPresenter.getSetting<boolean>('traceDebugEnabled') === true
+  }
+
+  // Sanitize sensitive data from request/response payloads
+  private sanitizeForLogging(data: any, maxLength = 100): any {
+    if (data === null || data === undefined) {
+      return data
+    }
+
+    if (typeof data === 'string') {
+      // Mask long text content
+      if (data.length > maxLength) {
+        return `${data.substring(0, maxLength)}... [${data.length} chars]`
+      }
+      return data
+    }
+
+    if (Array.isArray(data)) {
+      return data.map((item) => this.sanitizeForLogging(item, maxLength))
+    }
+
+    if (typeof data === 'object') {
+      const sanitized: any = {}
+      for (const [key, value] of Object.entries(data)) {
+        const lowerKey = key.toLowerCase()
+        // Redact sensitive fields
+        if (
+          lowerKey.includes('prompt') ||
+          lowerKey.includes('content') ||
+          lowerKey.includes('text') ||
+          lowerKey.includes('message') ||
+          lowerKey.includes('token') ||
+          lowerKey.includes('api') ||
+          lowerKey.includes('key') ||
+          lowerKey.includes('secret') ||
+          lowerKey.includes('password') ||
+          lowerKey.includes('parts') ||
+          lowerKey.includes('systeminstruction')
+        ) {
+          if (typeof value === 'string') {
+            sanitized[key] = value.length > 50 ? `[${value.length} chars]` : '[REDACTED]'
+          } else if (Array.isArray(value)) {
+            sanitized[key] = `[Array(${value.length})]`
+          } else {
+            sanitized[key] = '[REDACTED]'
+          }
+        } else {
+          // Recursively sanitize nested objects
+          sanitized[key] = this.sanitizeForLogging(value, maxLength)
+        }
+      }
+      return sanitized
+    }
+
+    return data
   }
 
   // 判断模型是否支持 thinkingBudget
@@ -887,7 +954,19 @@ export class VertexProvider extends BaseLLMProvider {
   ): AsyncGenerator<LLMCoreStreamEvent> {
     if (!this.isInitialized) throw new Error('Provider not initialized')
     if (!modelId) throw new Error('Model ID is required')
-    console.log('modelConfig', modelConfig, modelId)
+
+    const requestStartTime = Date.now()
+    const requestId = `vertex-${Date.now()}-${Math.random().toString(36).substring(7)}`
+    // Log only non-sensitive metadata
+    console.log('[Vertex] Stream request:', {
+      requestId,
+      modelId,
+      hasReasoning: modelConfig.reasoning === true,
+      hasSearch: modelConfig.enableSearch === true,
+      hasTools: mcpTools.length > 0,
+      temperature,
+      maxTokens
+    })
 
     // 检查是否是图片生成模型
     const isImageGenerationModel = modelConfig?.type === ModelType.ImageGeneration
@@ -899,7 +978,12 @@ export class VertexProvider extends BaseLLMProvider {
     }
 
     const safetySettings = await this.getFormattedSafetySettings()
-    console.log('safetySettings', safetySettings)
+    if (this.isDebugLoggingEnabled()) {
+      console.log('[Vertex] Safety settings:', {
+        count: safetySettings?.length || 0,
+        categories: safetySettings?.map((s) => s.category) || []
+      })
+    }
 
     // 添加Gemini工具调用
     let geminiTools: Tool[] = []
@@ -956,7 +1040,10 @@ export class VertexProvider extends BaseLLMProvider {
       config: generateContentConfig
     }
 
-    console.log('requestParams', requestParams)
+    if (this.isDebugLoggingEnabled()) {
+      const sanitizedParams = this.sanitizeForLogging(requestParams)
+      console.log('[Vertex] Request params (sanitized):', sanitizedParams)
+    }
 
     // 发送流式请求
     const result = await this.genAI.models.generateContentStream({
@@ -978,7 +1065,13 @@ export class VertexProvider extends BaseLLMProvider {
         usageMetadata = chunk.usageMetadata
       }
 
-      console.log('chunk.candidates', JSON.stringify(chunk.candidates, null, 2))
+      if (this.isDebugLoggingEnabled()) {
+        const sanitizedChunk = this.sanitizeForLogging({
+          candidates: chunk.candidates,
+          usageMetadata: chunk.usageMetadata
+        })
+        console.log('[Vertex] Stream chunk (sanitized):', sanitizedChunk)
+      }
       // 检查是否包含函数调用
       if (chunk.candidates && chunk.candidates[0]?.content?.parts?.[0]?.functionCall) {
         const functionCall = chunk.candidates[0].content.parts[0].functionCall
@@ -1084,7 +1177,22 @@ export class VertexProvider extends BaseLLMProvider {
     }
 
     // 发送停止事件
-    yield createStreamEvent.stop(toolUseDetected ? 'tool_use' : 'complete')
+    const requestDuration = Date.now() - requestStartTime
+    const status = toolUseDetected ? 'tool_use' : 'complete'
+    console.log('[Vertex] Stream request completed:', {
+      requestId,
+      modelId,
+      status,
+      duration: `${requestDuration}ms`,
+      tokensUsed: usageMetadata
+        ? {
+            prompt: usageMetadata.promptTokenCount || 0,
+            completion: usageMetadata.candidatesTokenCount || 0,
+            total: usageMetadata.totalTokenCount || 0
+          }
+        : undefined
+    })
+    yield createStreamEvent.stop(status)
   }
 
   /**
