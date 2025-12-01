@@ -956,8 +956,6 @@ export class VertexProvider extends BaseLLMProvider {
       config: generateContentConfig
     }
 
-    console.log('requestParams', requestParams)
-
     // 发送流式请求
     const result = await this.genAI.models.generateContentStream({
       ...requestParams,
@@ -978,7 +976,6 @@ export class VertexProvider extends BaseLLMProvider {
         usageMetadata = chunk.usageMetadata
       }
 
-      console.log('chunk.candidates', JSON.stringify(chunk.candidates, null, 2))
       // 检查是否包含函数调用
       if (chunk.candidates && chunk.candidates[0]?.content?.parts?.[0]?.functionCall) {
         const functionCall = chunk.candidates[0].content.parts[0].functionCall
