@@ -26,7 +26,7 @@ export class AgentLoopHandler {
 
   private requiresReasoningField(modelId: string): boolean {
     const lower = modelId.toLowerCase()
-    return lower.startsWith('deepseek-reasoner') || lower.startsWith('kimi-k2-thinking')
+    return lower.includes('deepseek-reasoner') || lower.includes('kimi-k2-thinking')
   }
 
   async *startStreamCompletion(

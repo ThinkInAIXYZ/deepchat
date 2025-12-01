@@ -42,7 +42,6 @@ export interface PreparePromptContentParams {
   imageFiles: MessageFile[]
   supportsFunctionCall: boolean
   modelType?: ModelType
-  injectReasoningForToolCalls?: boolean
 }
 
 export interface ContinueToolCallContextParams {
@@ -72,8 +71,7 @@ export async function preparePromptContent({
   vision,
   imageFiles,
   supportsFunctionCall,
-  modelType,
-  injectReasoningForToolCalls = false
+  modelType
 }: PreparePromptContentParams): Promise<{
   finalContent: ChatMessage[]
   promptTokens: number
@@ -123,8 +121,6 @@ export async function preparePromptContent({
     remainingContextLength
   )
 
-  const enableReasoningInjection = Boolean(injectReasoningForToolCalls)
-
   const formattedMessages = formatMessagesForCompletion(
     selectedContextMessages,
     isImageGeneration ? '' : finalSystemPrompt,
@@ -134,8 +130,7 @@ export async function preparePromptContent({
     enrichedUserMessage,
     imageFiles,
     vision,
-    supportsFunctionCall,
-    enableReasoningInjection
+    supportsFunctionCall
   )
 
   const mergedMessages = mergeConsecutiveMessages(formattedMessages)
@@ -192,12 +187,7 @@ export async function buildContinueToolCallContext({
     })
   }
 
-  const contextChatMessages = addContextMessages(
-    contextMessages,
-    false,
-    modelConfig.functionCall,
-    false
-  )
+  const contextChatMessages = addContextMessages(contextMessages, false, modelConfig.functionCall)
   formattedMessages.push(...contextChatMessages)
 
   const userContent = userMessage.content as UserMessageContent
@@ -261,12 +251,7 @@ export async function buildPostToolExecutionContext({
     })
   }
 
-  const contextChatMessages = addContextMessages(
-    contextMessages,
-    false,
-    modelConfig.functionCall,
-    false
-  )
+  const contextChatMessages = addContextMessages(contextMessages, false, modelConfig.functionCall)
   formattedMessages.push(...contextChatMessages)
 
   const userContent = userMessage.content as UserMessageContent
@@ -402,19 +387,11 @@ function formatMessagesForCompletion(
   enrichedUserMessage: string,
   imageFiles: MessageFile[],
   vision: boolean,
-  supportsFunctionCall: boolean,
-  injectReasoningForToolCalls: boolean
+  supportsFunctionCall: boolean
 ): ChatMessage[] {
   const formattedMessages: ChatMessage[] = []
 
-  formattedMessages.push(
-    ...addContextMessages(
-      contextMessages,
-      vision,
-      supportsFunctionCall,
-      injectReasoningForToolCalls
-    )
-  )
+  formattedMessages.push(...addContextMessages(contextMessages, vision, supportsFunctionCall))
 
   if (systemPrompt) {
     formattedMessages.unshift({
@@ -460,8 +437,7 @@ function addImageFiles(finalContent: string, imageFiles: MessageFile[]): ChatMes
 function addContextMessages(
   contextMessages: Message[],
   vision: boolean,
-  supportsFunctionCall: boolean,
-  injectReasoningForToolCalls: boolean
+  supportsFunctionCall: boolean
 ): ChatMessage[] {
   const resultMessages: ChatMessage[] = []
 
@@ -492,7 +468,6 @@ function addContextMessages(
         const messageContent: ChatMessageContent[] = []
         const toolCalls: ChatMessage['tool_calls'] = []
         const toolResponses: { id: string; response: string }[] = []
-        let reasoningContent: string | undefined
 
         content.forEach((block) => {
           if (block.type === 'tool_call' && block.tool_call) {
@@ -512,15 +487,6 @@ function addContextMessages(
                 response: block.tool_call.response
               })
             }
-          } else if (
-            block.type === 'reasoning_content' &&
-            block.content &&
-            injectReasoningForToolCalls
-          ) {
-            // 将 reasoning_content 按需写入字段（仅启用时）
-            reasoningContent = reasoningContent
-              ? `${reasoningContent}\n${block.content}`
-              : block.content
           } else if (block.type === 'content' && block.content) {
             messageContent.push({ type: 'text', text: block.content })
           }
@@ -528,13 +494,10 @@ function addContextMessages(
 
         // Add assistant message with tool_calls (without responses in content)
         if (toolCalls.length > 0) {
-          const assistantMessage: ChatMessage & { reasoning_content?: string } = {
+          const assistantMessage: ChatMessage = {
             role: 'assistant',
             content: messageContent.length > 0 ? messageContent : undefined,
             tool_calls: toolCalls
-          }
-          if (reasoningContent) {
-            assistantMessage.reasoning_content = reasoningContent
           }
           resultMessages.push(assistantMessage)
 
@@ -546,13 +509,10 @@ function addContextMessages(
               tool_call_id: toolResp.id
             })
           })
-        } else if (messageContent.length > 0 || reasoningContent) {
-          const assistantMessage: ChatMessage & { reasoning_content?: string } = {
+        } else if (messageContent.length > 0) {
+          const assistantMessage: ChatMessage = {
             role: 'assistant',
             content: messageContent
-          }
-          if (reasoningContent) {
-            assistantMessage.reasoning_content = reasoningContent
           }
           resultMessages.push(assistantMessage)
         }
