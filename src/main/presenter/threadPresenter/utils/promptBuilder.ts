@@ -468,6 +468,7 @@ function addContextMessages(
         const messageContent: ChatMessageContent[] = []
         const toolCalls: ChatMessage['tool_calls'] = []
         const toolResponses: { id: string; response: string }[] = []
+        let reasoningContent: string | undefined
 
         content.forEach((block) => {
           if (block.type === 'tool_call' && block.tool_call) {
@@ -487,6 +488,11 @@ function addContextMessages(
                 response: block.tool_call.response
               })
             }
+          } else if (block.type === 'reasoning_content' && block.content) {
+            // DeepSeek Reasoner 等模型要求将 reasoning_content 单独下发（不混入 content 文本）
+            reasoningContent = reasoningContent
+              ? `${reasoningContent}\n${block.content}`
+              : block.content
           } else if (block.type === 'content' && block.content) {
             messageContent.push({ type: 'text', text: block.content })
           }
@@ -494,11 +500,15 @@ function addContextMessages(
 
         // Add assistant message with tool_calls (without responses in content)
         if (toolCalls.length > 0) {
-          resultMessages.push({
+          const assistantMessage: ChatMessage & { reasoning_content?: string } = {
             role: 'assistant',
             content: messageContent.length > 0 ? messageContent : undefined,
             tool_calls: toolCalls
-          })
+          }
+          if (reasoningContent) {
+            assistantMessage.reasoning_content = reasoningContent
+          }
+          resultMessages.push(assistantMessage)
 
           // Add separate role:tool messages for each tool response
           toolResponses.forEach((toolResp) => {
@@ -508,11 +518,15 @@ function addContextMessages(
               tool_call_id: toolResp.id
             })
           })
-        } else if (messageContent.length > 0) {
-          resultMessages.push({
+        } else if (messageContent.length > 0 || reasoningContent) {
+          const assistantMessage: ChatMessage & { reasoning_content?: string } = {
             role: 'assistant',
             content: messageContent
-          })
+          }
+          if (reasoningContent) {
+            assistantMessage.reasoning_content = reasoningContent
+          }
+          resultMessages.push(assistantMessage)
         }
       } else {
         resultMessages.push({

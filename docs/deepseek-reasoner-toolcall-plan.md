@@ -22,10 +22,14 @@
 - **模型识别**：新增 `isDeepseekReasoner(modelId: string)` 辅助，匹配 `deepseek-reasoner` 及后续版本/通道前缀（含 OpenRouter `deepseek/deepseek-reasoner`）。仅在 `supportsFunctionCall` 且命中 Reasoner 时启用特殊逻辑。
 - **历史消息重排（核心）**：
   - 利用现有消息流水线已存好的 reasoning 片段，不再额外缓存流内内容。
-  - 在 `openAICompatibleProvider.formatMessages()` 或准备请求参数时，对「当前请求上下文」做轻量重排：若上一轮是 Reasoner 且包含 `reasoning_content` + `tool_calls`，将 `reasoning_content` 放在对应工具调用之前（满足文档图示序）。历史消息本身完整，重排只在「当前回合构造上下文」生效，不修改 DB。
+  - 在构造当前请求上下文时，将 assistant 的 `reasoning_content` 以专有字段写入同一条 message，而不是塞进 `content` 文本（对齐官方示例代码中 `message.reasoning_content` 的写法），并确保在工具调用前传递。
   - 仅对“本轮 loop 输出工具调用”的情况执行；纯历史消息无需处理，避免重复。
 - **流式事件保持现状**：继续在流循环中直接 `createStreamEvent.reasoning()` 输出，保证 UI 实时展示和 DB 写入；顺序依赖于上一步的上下文重排来喂给模型。
 - **边界处理**：未命中 Reasoner 或无工具调用时保持原行为；避免对非 Reasoner 模型的消息顺序做任何调整。
+
+## 已落地变更
+- 在上下文构建阶段（`addContextMessages`，仅函数调用分支）提取 `reasoning_content` 块并写入 ChatMessage 的 `reasoning_content` 字段，不再混入 `content` 文本，确保工具调用模型能在同一条 assistant 消息中拿到推理片段（顺序由原始块顺序决定，位于 tool_call 之前）。
+- 在 `openAICompatibleProvider.formatMessages` 中针对 DeepSeek 渠道，确保带有 `tool_calls` 的 assistant 消息总是带上 `reasoning_content` 字段（无则空字符串），避免出现 “Missing reasoning_content field” 400 报错。
 
 ## 测试与验证
 - 人工/录制流式样例：构造含 `reasoning_content` → `tool_calls` → `content` 的增量，验证上下文重排后模型请求体中 reasoning 位于工具调用前，UI 顺序与 DB 存储均保持合理。
