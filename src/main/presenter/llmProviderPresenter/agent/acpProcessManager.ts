@@ -15,6 +15,9 @@ import type { AcpAgentConfig } from '@shared/presenter'
 import type { AgentProcessHandle, AgentProcessManager } from './types'
 import { getShellEnvironment } from './shellEnvHelper'
 import { RuntimeHelper } from '@/lib/runtimeHelper'
+import { buildClientCapabilities } from './acpCapabilities'
+import { AcpFsHandler } from './acpFsHandler'
+import { AcpTerminalManager } from './acpTerminalManager'
 
 export interface AcpProcessHandle extends AgentProcessHandle {
   child: ChildProcessWithoutNullStreams
@@ -64,12 +67,40 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
   private readonly sessionListeners = new Map<string, SessionListenerEntry>()
   private readonly permissionResolvers = new Map<string, PermissionResolverEntry>()
   private readonly runtimeHelper = RuntimeHelper.getInstance()
+  private readonly terminalManager = new AcpTerminalManager()
+  private readonly sessionWorkdirs = new Map<string, string>()
+  private readonly fsHandlers = new Map<string, AcpFsHandler>()
 
   constructor(options: AcpProcessManagerOptions) {
     this.providerId = options.providerId
     this.getUseBuiltinRuntime = options.getUseBuiltinRuntime
     this.getNpmRegistry = options.getNpmRegistry
     this.getUvRegistry = options.getUvRegistry
+  }
+
+  /**
+   * Register a session's working directory for file system operations.
+   * This must be called when a session is created, before any fs/terminal operations.
+   */
+  registerSessionWorkdir(sessionId: string, workdir: string): void {
+    this.sessionWorkdirs.set(sessionId, workdir)
+    // Create fs handler for this session
+    this.fsHandlers.set(sessionId, new AcpFsHandler({ workspaceRoot: workdir }))
+  }
+
+  /**
+   * Get the fs handler for a session.
+   */
+  private getFsHandler(sessionId: string): AcpFsHandler {
+    const handler = this.fsHandlers.get(sessionId)
+    if (!handler) {
+      // Fallback: create handler with no workspace restriction
+      console.warn(
+        `[ACP] No fs handler registered for session ${sessionId}, using unrestricted handler`
+      )
+      return new AcpFsHandler({ workspaceRoot: null })
+    }
+    return handler
   }
 
   async getConnection(agent: AcpAgentConfig): Promise<AcpProcessHandle> {
@@ -115,10 +146,13 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
   async shutdown(): Promise<void> {
     const releases = Array.from(this.handles.keys()).map((agentId) => this.release(agentId))
     await Promise.allSettled(releases)
+    await this.terminalManager.shutdown()
     this.handles.clear()
     this.sessionListeners.clear()
     this.permissionResolvers.clear()
     this.pendingHandles.clear()
+    this.sessionWorkdirs.clear()
+    this.fsHandlers.clear()
   }
 
   registerSessionListener(
@@ -166,6 +200,10 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
   clearSession(sessionId: string): void {
     this.sessionListeners.delete(sessionId)
     this.permissionResolvers.delete(sessionId)
+    this.sessionWorkdirs.delete(sessionId)
+    this.fsHandlers.delete(sessionId)
+    // Clean up terminals for this session
+    void this.terminalManager.releaseSessionTerminals(sessionId)
   }
 
   private async spawnProcess(agent: AcpAgentConfig): Promise<AcpProcessHandle> {
@@ -188,7 +226,10 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
     try {
       const initPromise = connection.initialize({
         protocolVersion: PROTOCOL_VERSION,
-        clientCapabilities: {},
+        clientCapabilities: buildClientCapabilities({
+          enableFs: true,
+          enableTerminal: true
+        }),
         clientInfo: { name: 'DeepChat', version: app.getVersion() }
       })
 
@@ -498,6 +539,31 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
       requestPermission: async (params) => this.dispatchPermissionRequest(params),
       sessionUpdate: async (notification) => {
         this.dispatchSessionUpdate(notification)
+      },
+      // File system operations
+      readTextFile: async (params) => {
+        const handler = this.getFsHandler(params.sessionId)
+        return handler.readTextFile(params)
+      },
+      writeTextFile: async (params) => {
+        const handler = this.getFsHandler(params.sessionId)
+        return handler.writeTextFile(params)
+      },
+      // Terminal operations
+      createTerminal: async (params) => {
+        return this.terminalManager.createTerminal(params)
+      },
+      terminalOutput: async (params) => {
+        return this.terminalManager.terminalOutput(params)
+      },
+      waitForTerminalExit: async (params) => {
+        return this.terminalManager.waitForTerminalExit(params)
+      },
+      killTerminal: async (params) => {
+        return this.terminalManager.killTerminal(params)
+      },
+      releaseTerminal: async (params) => {
+        return this.terminalManager.releaseTerminal(params)
       }
     }
   }
