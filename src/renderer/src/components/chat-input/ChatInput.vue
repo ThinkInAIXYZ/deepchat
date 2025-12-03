@@ -147,19 +147,27 @@
               </TooltipContent>
             </Tooltip>
 
-            <Tooltip v-if="acpWorkdir.isAcpModel.value && acpWorkdir.hasWorkdir.value">
+            <Tooltip v-if="acpMode.isAcpModel.value">
               <TooltipTrigger>
                 <Button
-                  variant="ghost"
+                  variant="outline"
                   size="icon"
                   class="w-7 h-7 text-xs rounded-lg"
-                  :disabled="acpWorkdir.loading.value"
-                  @click="acpWorkdir.clearWorkdir"
+                  :disabled="acpMode.loading.value"
+                  @click="acpMode.cycleMode"
                 >
-                  <Icon icon="lucide:folder-minus" class="w-4 h-4" />
+                  <Icon icon="lucide:zap" class="w-4 h-4" />
                 </Button>
               </TooltipTrigger>
-              <TooltipContent>{{ t('chat.input.acpWorkdirChange') }}</TooltipContent>
+              <TooltipContent class="max-w-xs">
+                <p class="text-xs font-semibold">{{ t('chat.input.acpMode') }}</p>
+                <p class="text-xs text-muted-foreground mt-1">
+                  {{ t('chat.input.acpModeTooltip', { mode: acpMode.currentModeName.value }) }}
+                </p>
+                <p v-if="acpMode.currentModeInfo.value" class="text-xs text-muted-foreground mt-1">
+                  {{ acpMode.currentModeInfo.value.description }}
+                </p>
+              </TooltipContent>
             </Tooltip>
 
             <McpToolsList />
@@ -381,6 +389,7 @@ import { useInputSettings } from './composables/useInputSettings'
 import { useContextLength } from './composables/useContextLength'
 import { useSendButtonState } from './composables/useSendButtonState'
 import { useAcpWorkdir } from './composables/useAcpWorkdir'
+import { useAcpMode } from './composables/useAcpMode'
 
 // === Stores ===
 import { useChatStore } from '@/stores/chat'
@@ -593,6 +602,11 @@ const activeModelSource = computed(() => {
 })
 
 const acpWorkdir = useAcpWorkdir({
+  activeModel: activeModelSource,
+  conversationId
+})
+
+const acpMode = useAcpMode({
   activeModel: activeModelSource,
   conversationId
 })

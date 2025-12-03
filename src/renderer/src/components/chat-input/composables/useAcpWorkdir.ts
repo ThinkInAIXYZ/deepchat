@@ -142,27 +142,6 @@ export function useAcpWorkdir(options: UseAcpWorkdirOptions) {
     }
   }
 
-  const clearWorkdir = async () => {
-    if (loading.value || !isAcpModel.value || !agentId.value) {
-      return
-    }
-    loading.value = true
-    try {
-      if (hasConversation.value && options.conversationId.value) {
-        await threadPresenter.setAcpWorkdir(options.conversationId.value, agentId.value, null)
-        await loadWorkdir()
-      } else {
-        pendingWorkdir.value = null
-        resetToDefault()
-      }
-      syncPreference(null)
-    } catch (error) {
-      console.warn('[useAcpWorkdir] Failed to clear workdir', error)
-    } finally {
-      loading.value = false
-    }
-  }
-
   const hasWorkdir = computed(() => isCustom.value || Boolean(pendingWorkdir.value))
 
   return {
@@ -170,7 +149,6 @@ export function useAcpWorkdir(options: UseAcpWorkdirOptions) {
     workdir,
     hasWorkdir,
     selectWorkdir,
-    clearWorkdir,
     loading
   }
 }

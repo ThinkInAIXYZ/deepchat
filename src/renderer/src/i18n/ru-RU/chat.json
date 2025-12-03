@@ -20,8 +20,14 @@
     "acpWorkdir": "ACP Workdir",
     "acpWorkdirTooltip": "Set ACP working directory",
     "acpWorkdirSelect": "Select a folder to use as the ACP workdir",
-    "acpWorkdirChange": "Reset to default workdir",
-    "acpWorkdirCurrent": "Current workdir: {path}"
+    "acpWorkdirCurrent": "Current workdir: {path}",
+    "acpMode": "Режим",
+    "acpModeTooltip": "Текущий режим: {mode}",
+    "acpModeSwitched": "Переключено на {mode}",
+    "acpModeDefault": "Всегда спрашивать",
+    "acpModeAcceptEdits": "Принимать правки",
+    "acpModePlan": "Режим планирования",
+    "acpModeBypassPermissions": "Пропустить разрешения"
   },
   "features": {
     "webSearch": "Поиск в интернете",

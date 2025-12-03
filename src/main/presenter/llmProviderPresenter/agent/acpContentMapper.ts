@@ -47,24 +47,27 @@ export class AcpContentMapper {
         this.handleToolCallUpdate(sessionId, update, payload)
         break
       case 'plan':
+        console.info('[ACP] Plan update received:', JSON.stringify(update))
         this.handlePlanUpdate(update, payload)
         break
       case 'current_mode_update':
+        console.info('[ACP] Mode update received:', update)
         this.handleModeUpdate(update, payload)
         break
       case 'available_commands_update':
-        // Log for debugging; slash commands are optional per the gap analysis
-        console.debug('[ACP] Available commands update:', update)
+        console.info(
+          '[ACP] Available commands update:',
+          JSON.stringify(update.availableCommands?.map((c) => c.name) ?? [])
+        )
         break
       case 'user_message_chunk':
         // ignore echo
         break
       default:
         // Handle any unrecognized session update types
-        console.debug(
-          '[ACP] Unhandled session update',
-          (update as { sessionUpdate?: string }).sessionUpdate
-        )
+        const sessionUpdate = (update as { sessionUpdate?: string }).sessionUpdate
+        console.warn('[ACP] Unhandled session update type:', sessionUpdate)
+        console.debug('[ACP] Full update data:', JSON.stringify(update))
         break
     }
 

@@ -20,8 +20,14 @@
     "acpWorkdir": "工作目录",
     "acpWorkdirTooltip": "设置 ACP 工作目录",
     "acpWorkdirSelect": "选择工作目录",
-    "acpWorkdirChange": "恢复默认工作目录",
-    "acpWorkdirCurrent": "当前工作目录：{path}"
+    "acpWorkdirCurrent": "当前工作目录：{path}",
+    "acpMode": "模式",
+    "acpModeTooltip": "当前模式：{mode}",
+    "acpModeSwitched": "已切换到 {mode}",
+    "acpModeDefault": "始终询问",
+    "acpModeAcceptEdits": "自动接受编辑",
+    "acpModePlan": "计划模式",
+    "acpModeBypassPermissions": "跳过权限"
   },
   "features": {
     "webSearch": "联网搜索",

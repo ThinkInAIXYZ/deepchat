@@ -656,4 +656,41 @@ export class AcpProvider extends BaseAgentProvider<
     // Call this.init() instead of super.init() to use the overridden method
     await this.init()
   }
+
+  /**
+   * Set the session mode for an ACP conversation
+   */
+  async setSessionMode(conversationId: string, modeId: string): Promise<void> {
+    const session = this.sessionManager.getSession(conversationId)
+    if (!session) {
+      throw new Error(`[ACP] No session found for conversation ${conversationId}`)
+    }
+
+    try {
+      await session.connection.setSessionMode({ sessionId: session.sessionId, modeId })
+      session.currentModeId = modeId
+      console.info(`[ACP] Session mode changed to ${modeId} for conversation ${conversationId}`)
+    } catch (error) {
+      console.error('[ACP] Failed to set session mode:', error)
+      throw error
+    }
+  }
+
+  /**
+   * Get available session modes and current mode for a conversation
+   */
+  async getSessionModes(conversationId: string): Promise<{
+    current: string
+    available: Array<{ id: string; name: string; description: string }>
+  } | null> {
+    const session = this.sessionManager.getSession(conversationId)
+    if (!session) {
+      return null
+    }
+
+    return {
+      current: session.currentModeId ?? 'default',
+      available: session.availableModes ?? []
+    }
+  }
 }

@@ -25,6 +25,9 @@ export interface AcpSessionRecord extends AgentSessionState {
   connection: ClientSideConnectionType
   detachHandlers: Array<() => void>
   workdir: string
+  availableModes?: Array<{ id: string; name: string; description: string }>
+  currentModeId?: string
+  availableCommands?: Array<{ name: string; description: string }>
 }
 
 export class AcpSessionManager {
@@ -175,7 +178,9 @@ export class AcpSessionManager {
       metadata: { agentName: agent.name },
       connection: handle.connection,
       detachHandlers: detachListeners,
-      workdir
+      workdir,
+      availableModes: session.availableModes,
+      currentModeId: session.currentModeId
     }
   }
 
@@ -201,13 +206,29 @@ export class AcpSessionManager {
     handle: AcpProcessHandle,
     agent: AcpAgentConfig,
     workdir: string
-  ): Promise<{ sessionId: string }> {
+  ): Promise<{
+    sessionId: string
+    availableModes?: Array<{ id: string; name: string; description: string }>
+    currentModeId?: string
+  }> {
     try {
       const response = await handle.connection.newSession({
         cwd: workdir,
         mcpServers: []
       })
-      return { sessionId: response.sessionId }
+
+      // Extract modes from response if available
+      const modes = response.modes
+
+      return {
+        sessionId: response.sessionId,
+        availableModes: modes?.availableModes?.map((m) => ({
+          id: m.id,
+          name: m.name,
+          description: m.description ?? ''
+        })),
+        currentModeId: modes?.currentModeId
+      }
     } catch (error) {
       console.error(`[ACP] Failed to create session for agent ${agent.id}:`, error)
       throw error

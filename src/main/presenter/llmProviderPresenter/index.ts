@@ -479,6 +479,25 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
     await this.acpSessionPersistence.updateWorkdir(conversationId, agentId, trimmed)
   }
 
+  async setAcpSessionMode(conversationId: string, modeId: string): Promise<void> {
+    const provider = this.getAcpProviderInstance()
+    if (!provider) {
+      throw new Error('[ACP] ACP provider not found')
+    }
+    await provider.setSessionMode(conversationId, modeId)
+  }
+
+  async getAcpSessionModes(conversationId: string): Promise<{
+    current: string
+    available: Array<{ id: string; name: string; description: string }>
+  } | null> {
+    const provider = this.getAcpProviderInstance()
+    if (!provider) {
+      return null
+    }
+    return await provider.getSessionModes(conversationId)
+  }
+
   async resolveAgentPermission(requestId: string, granted: boolean): Promise<void> {
     const provider = this.getAcpProviderInstance()
     if (!provider) {

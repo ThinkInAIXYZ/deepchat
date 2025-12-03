@@ -871,6 +871,11 @@ export interface ILlmProviderPresenter {
   ): Promise<string>
   getAcpWorkdir(conversationId: string, agentId: string): Promise<AcpWorkdirInfo>
   setAcpWorkdir(conversationId: string, agentId: string, workdir: string | null): Promise<void>
+  setAcpSessionMode(conversationId: string, modeId: string): Promise<void>
+  getAcpSessionModes(conversationId: string): Promise<{
+    current: string
+    available: Array<{ id: string; name: string; description: string }>
+  } | null>
   resolveAgentPermission(requestId: string, granted: boolean): Promise<void>
   getProviderInstance(providerId: string): unknown
 }
@@ -995,6 +1000,11 @@ export interface IThreadPresenter {
   destroy(): void
   getAcpWorkdir(conversationId: string, agentId: string): Promise<AcpWorkdirInfo>
   setAcpWorkdir(conversationId: string, agentId: string, workdir: string | null): Promise<void>
+  setAcpSessionMode(conversationId: string, modeId: string): Promise<void>
+  getAcpSessionModes(conversationId: string): Promise<{
+    current: string
+    available: Array<{ id: string; name: string; description: string }>
+  } | null>
   continueStreamCompletion(
     conversationId: string,
     queryMsgId: string,

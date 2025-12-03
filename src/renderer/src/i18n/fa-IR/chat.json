@@ -20,8 +20,14 @@
     "acpWorkdir": "ACP Workdir",
     "acpWorkdirTooltip": "Set ACP working directory",
     "acpWorkdirSelect": "Select a folder to use as the ACP workdir",
-    "acpWorkdirChange": "Reset to default workdir",
-    "acpWorkdirCurrent": "Current workdir: {path}"
+    "acpWorkdirCurrent": "Current workdir: {path}",
+    "acpMode": "حالت",
+    "acpModeTooltip": "حالت فعلی: {mode}",
+    "acpModeSwitched": "تغییر به {mode}",
+    "acpModeDefault": "همیشه بپرس",
+    "acpModeAcceptEdits": "قبول ویرایش‌ها",
+    "acpModePlan": "حالت برنامه‌ریزی",
+    "acpModeBypassPermissions": "رد شدن از مجوزها"
   },
   "features": {
     "webSearch": "جستجوی وب",

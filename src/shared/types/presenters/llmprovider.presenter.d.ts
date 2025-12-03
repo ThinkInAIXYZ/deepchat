@@ -227,5 +227,10 @@ export interface ILlmProviderPresenter {
 
   getAcpWorkdir(conversationId: string, agentId: string): Promise<AcpWorkdirInfo>
   setAcpWorkdir(conversationId: string, agentId: string, workdir: string | null): Promise<void>
+  setAcpSessionMode(conversationId: string, modeId: string): Promise<void>
+  getAcpSessionModes(conversationId: string): Promise<{
+    current: string
+    available: Array<{ id: string; name: string; description: string }>
+  } | null>
   resolveAgentPermission(requestId: string, granted: boolean): Promise<void>
 }

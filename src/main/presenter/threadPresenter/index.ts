@@ -760,6 +760,17 @@ export class ThreadPresenter implements IThreadPresenter {
     await this.llmProviderPresenter.setAcpWorkdir(conversationId, agentId, workdir)
   }
 
+  async setAcpSessionMode(conversationId: string, modeId: string): Promise<void> {
+    await this.llmProviderPresenter.setAcpSessionMode(conversationId, modeId)
+  }
+
+  async getAcpSessionModes(conversationId: string): Promise<{
+    current: string
+    available: Array<{ id: string; name: string; description: string }>
+  } | null> {
+    return await this.llmProviderPresenter.getAcpSessionModes(conversationId)
+  }
+
   /**
    * Export conversation to nowledge-mem format with validation
    */

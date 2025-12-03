@@ -243,8 +243,35 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
         }, timeoutMs)
       })
 
-      await Promise.race([initPromise, timeoutPromise])
+      const initResult = await Promise.race([initPromise, timeoutPromise])
       console.info(`[ACP] Connection initialization completed successfully for agent ${agent.id}`)
+
+      // Log Agent capabilities from initialization
+      const resultData = initResult as unknown as {
+        sessionId?: string
+        models?: {
+          availableModels?: Array<{ modelId: string }>
+          currentModelId?: string
+        }
+        modes?: {
+          availableModes?: Array<{ id: string }>
+          currentModeId?: string
+        }
+      }
+
+      if (resultData.sessionId) {
+        console.info(`[ACP] Session ID: ${resultData.sessionId}`)
+      }
+      if (resultData.models) {
+        console.info(`[ACP] Available models: ${resultData.models.availableModels?.length ?? 0}`)
+        console.info(`[ACP] Current model: ${resultData.models.currentModelId}`)
+      }
+      if (resultData.modes) {
+        console.info(
+          `[ACP] Available modes: ${JSON.stringify(resultData.modes.availableModes?.map((m) => m.id) ?? [])}`
+        )
+        console.info(`[ACP] Current mode: ${resultData.modes.currentModeId}`)
+      }
     } catch (error) {
       console.error(`[ACP] Connection initialization failed for agent ${agent.id}:`, error)
 

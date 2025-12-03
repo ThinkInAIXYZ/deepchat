@@ -20,8 +20,14 @@
     "acpWorkdir": "ACP Workdir",
     "acpWorkdirTooltip": "Set ACP working directory",
     "acpWorkdirSelect": "Select a folder to use as the ACP workdir",
-    "acpWorkdirChange": "Reset to default workdir",
-    "acpWorkdirCurrent": "Current workdir: {path}"
+    "acpWorkdirCurrent": "Current workdir: {path}",
+    "acpMode": "モード",
+    "acpModeTooltip": "現在のモード：{mode}",
+    "acpModeSwitched": "{mode} に切り替えました",
+    "acpModeDefault": "常に確認",
+    "acpModeAcceptEdits": "編集を自動承認",
+    "acpModePlan": "計画モード",
+    "acpModeBypassPermissions": "権限をスキップ"
   },
   "features": {
     "webSearch": "ウェブ検索",
