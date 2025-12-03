@@ -9,7 +9,7 @@
   "fileRead": "파일 읽기",
   "fileWrite": "파일 쓰기",
   "functionName": "함수 이름",
-  "params": "기능 매개변수",
+  "params": "함수 매개변수",
   "response": "실행 중",
   "permission": "권한 요청 중",
   "responseData": "기능 응답",

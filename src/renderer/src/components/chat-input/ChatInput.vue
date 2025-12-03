@@ -147,7 +147,7 @@
               </TooltipContent>
             </Tooltip>
 
-            <Tooltip v-if="acpMode.isAcpModel.value">
+            <Tooltip v-if="variant === 'chat' && acpMode.isAcpModel.value">
               <TooltipTrigger>
                 <Button
                   variant="outline"
