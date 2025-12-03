@@ -2,9 +2,19 @@ import type * as schema from '@agentclientprotocol/sdk/dist/schema.js'
 import type { AssistantMessageBlock } from '@shared/chat'
 import { createStreamEvent, type LLMCoreStreamEvent } from '@shared/types/core/llm-events'
 
+export interface PlanEntry {
+  content: string
+  priority?: string | null
+  status?: string | null
+}
+
 export interface MappedContent {
   events: LLMCoreStreamEvent[]
   blocks: AssistantMessageBlock[]
+  /** Structured plan entries from the agent (optional) */
+  planEntries?: PlanEntry[]
+  /** Current mode ID from mode change notification (optional) */
+  currentModeId?: string
 }
 
 interface ToolCallState {
@@ -39,11 +49,22 @@ export class AcpContentMapper {
       case 'plan':
         this.handlePlanUpdate(update, payload)
         break
+      case 'current_mode_update':
+        this.handleModeUpdate(update, payload)
+        break
+      case 'available_commands_update':
+        // Log for debugging; slash commands are optional per the gap analysis
+        console.debug('[ACP] Available commands update:', update)
+        break
       case 'user_message_chunk':
         // ignore echo
         break
       default:
-        console.debug('[ACP] Unhandled session update', update.sessionUpdate)
+        // Handle any unrecognized session update types
+        console.debug(
+          '[ACP] Unhandled session update',
+          (update as { sessionUpdate?: string }).sessionUpdate
+        )
         break
     }
 
@@ -162,13 +183,70 @@ export class AcpContentMapper {
     update: Extract<schema.SessionNotification['update'], { sessionUpdate: 'plan' }>,
     payload: MappedContent
   ) {
-    const summary = (update.entries || [])
-      .map((entry) => `${entry.content} (${entry.status})`)
-      .join('; ')
-    if (!summary) return
-    const text = `Plan updated: ${summary}`
+    const entries = update.entries || []
+    if (!entries.length) return
+
+    // Store structured plan entries
+    payload.planEntries = entries.map((entry) => ({
+      content: entry.content,
+      priority: entry.priority ?? null,
+      status: entry.status ?? null
+    }))
+
+    // Format plan entries with status indicators
+    const formatEntry = (entry: (typeof entries)[0], index: number): string => {
+      const statusIcon = this.getStatusIcon(entry.status)
+      const priorityTag = entry.priority ? ` [${entry.priority}]` : ''
+      return `${statusIcon} ${index + 1}. ${entry.content}${priorityTag}`
+    }
+
+    const formattedEntries = entries.map(formatEntry)
+    const text = `Plan:\n${formattedEntries.join('\n')}`
+
     payload.events.push(createStreamEvent.reasoning(text))
-    payload.blocks.push(this.createBlock('reasoning_content', text))
+    payload.blocks.push(
+      this.createBlock('reasoning_content', text, {
+        extra: { plan_entries: payload.planEntries }
+      })
+    )
+  }
+
+  private handleModeUpdate(
+    update: Extract<schema.SessionNotification['update'], { sessionUpdate: 'current_mode_update' }>,
+    payload: MappedContent
+  ) {
+    const modeId = update.currentModeId
+    if (!modeId) return
+
+    // Store mode change
+    payload.currentModeId = modeId
+
+    // Emit as reasoning for visibility
+    const text = `Mode changed to: ${modeId}`
+    payload.events.push(createStreamEvent.reasoning(text))
+    payload.blocks.push(
+      this.createBlock('reasoning_content', text, {
+        extra: { mode_change: modeId }
+      })
+    )
+  }
+
+  private getStatusIcon(status?: string | null): string {
+    switch (status) {
+      case 'pending':
+        return '○'
+      case 'in_progress':
+        return '◐'
+      case 'completed':
+      case 'done':
+        return '●'
+      case 'skipped':
+        return '⊘'
+      case 'failed':
+        return '✕'
+      default:
+        return '○'
+    }
   }
 
   private formatToolCallContent(
