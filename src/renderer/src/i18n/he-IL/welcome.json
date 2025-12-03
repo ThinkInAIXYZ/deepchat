@@ -1,0 +1,37 @@
+{
+  "steps": {
+    "welcome": {
+      "title": "ברוכים הבאים",
+      "description": "בוא נתחיל להגדיר את DeepChat"
+    },
+    "provider": {
+      "title": "ספק",
+      "description": "בחר את ספק המודל המועדף עליך"
+    },
+    "configuration": {
+      "title": "תצורה",
+      "description": "הגדר את המודלים שברצונך להשתמש בהם"
+    },
+    "complete": {
+      "title": "סיום",
+      "description": "הכל מוכן ואפשר לצאת לדרך!"
+    }
+  },
+  "title": "ברוכים הבאים ל-DeepChat",
+  "description": "בוא נעבור יחד על ההתקנה.",
+  "provider": {
+    "select": "בחר ספק",
+    "apiUrl": "כתובת API",
+    "apiKey": "מפתח API",
+    "verifyLink": "אמת קישור"
+  },
+  "complete": {
+    "title": "סיימנו!",
+    "description": "אתה מוכן לשימוש. בוא נתחיל!"
+  },
+  "buttons": {
+    "getStarted": "התחל",
+    "next": "הבא",
+    "back": "חזור"
+  }
+}

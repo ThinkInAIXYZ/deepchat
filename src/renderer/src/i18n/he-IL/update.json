@@ -1,0 +1,16 @@
+{
+  "newVersion": "גרסה חדשה נמצאה",
+  "version": "גרסה",
+  "releaseDate": "תאריך שחרור",
+  "releaseNotes": "הערות גרסה",
+  "later": "מאוחר יותר",
+  "githubDownload": "הורדה מ-GitHub",
+  "netdiskDownload": "הורדה מהענן",
+  "checkUpdate": "בדוק עדכונים",
+  "downloading": "מוריד",
+  "installNow": "התקן כעת",
+  "autoUpdate": "עדכון אוטומטי",
+  "restarting": "מפעיל מחדש",
+  "alreadyUpToDate": "התוכנה מעודכנת",
+  "alreadyUpToDateDesc": "ה-DeepChat שלך כבר מעודכן לגרסה האחרונה, אין צורך בעדכון."
+}

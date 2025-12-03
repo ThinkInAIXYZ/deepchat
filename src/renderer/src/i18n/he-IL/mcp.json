@@ -1,0 +1,316 @@
+{
+  "tools": {
+    "searchPlaceholder": "חפש כלים...",
+    "noToolsAvailable": "אין כלים זמינים",
+    "selectToolToDebug": "בחר כלי לניפוי באגים",
+    "dialogDescription": "ניפוי באגים ובדיקת כלים המסופקים על ידי שרתי MCP",
+    "toolsCount": "{count} כלים",
+    "availableTools": "כלים זמינים",
+    "toolList": "רשימת כלים",
+    "functionDescription": "תיאור פונקציה",
+    "invalidJson": "פורמט JSON לא חוקי",
+    "inputHint": "אנא הזן פרמטרים בפורמט JSON",
+    "required": "נדרש",
+    "noDescription": "אין תיאור",
+    "input": "ארגומנטים",
+    "path": "נתיב",
+    "pathPlaceholder": "הזן נתיב קובץ",
+    "searchPattern": "תבנית חיפוש",
+    "searchPatternPlaceholder": "הזן ביטוי רגולרי (Regex)",
+    "filePattern": "תבנית קובץ",
+    "filePatternPlaceholder": "הזן תבנית קובץ, למשל: *.md",
+    "executeButton": "הפעל כלי",
+    "resultTitle": "תוצאה",
+    "runningTool": "מבצע כלי...",
+    "loading": "טוען...",
+    "error": "טעינה נכשלה",
+    "available": "{count} זמינים",
+    "none": "אין כלים זמינים",
+    "title": "כלי MCP",
+    "description": "כלים המסופקים על ידי שרת ה-MCP",
+    "loadError": "טעינת הכלים נכשלה",
+    "parameters": "פרמטרים",
+    "refresh": "רענן",
+    "disabled": "MCP מושבת",
+    "enableToUse": "אנא הפעל את MCP כדי להשתמש בכלים",
+    "enabled": "הפעל את MCP",
+    "enabledDescription": "הפעל את פונקציונליות MCP כדי להשתמש בקריאות לכלים",
+    "empty": "ריק",
+    "jsonInputPlaceholder": "הזן את הפרמטרים בפורמט JSON",
+    "type": "סוג",
+    "annotations": "הערות (Annotations)",
+    "invalidJsonFormat": "פורמט ה-JSON שגוי",
+    "allowedValues": "ערכים מותרים",
+    "arrayItemValues": "ערכי פריט במערך"
+  },
+  "addServer": "הוסף שרת",
+  "addServerDialog": {
+    "description": "הגדר שרת MCP חדש",
+    "title": "הוסף שרת"
+  },
+  "confirmDelete": {
+    "cancel": "ביטול",
+    "confirm": "מחק",
+    "description": "האם אתה בטוח שברצונך למחוק את השרת {name}? \nלא ניתן לבטל פעולה זו.",
+    "title": "אשר מחיקה"
+  },
+  "confirmRemoveServer": "האם אתה בטוח שברצונך למחוק את השרת {name}? \nלא ניתן לבטל פעולה זו.",
+  "default": "ברירת מחדל",
+  "deleteServer": "מחק שרת",
+  "description": "ניהול והגדרה של שרתי וכלים של MCP (Model Context Protocol)",
+  "editServer": "ערוך שרת",
+  "editServerDialog": {
+    "description": "ערוך תצורת שרת MCP",
+    "title": "ערוך שרת"
+  },
+  "enableToAccess": "אנא הפעל את MCP כדי לגשת לאפשרויות התצורה.",
+  "enabledDescription": "הפעל או השבת פונקציונליות וכלים של MCP.",
+  "enabledTitle": "הפעל את MCP",
+  "isDefault": "שרת ברירת מחדל",
+  "noServersFound": "שרת לא נמצא",
+  "removeDefault": "הסר ברירת מחדל",
+  "removeServer": "הסר שרת",
+  "removeServerDialog": {
+    "title": "מחק שרת"
+  },
+  "resetConfirm": "שחזר",
+  "resetConfirmDescription": "פעולה זו משחזרת את כל שרתי ברירת המחדל תוך שמירה על השרתים המותאמים אישית שלך. \nכל שינוי בשרת ברירת המחדל יאבד.",
+  "resetConfirmTitle": "שחזר שירות ברירת מחדל",
+  "resetToDefault": "שחזר שירות ברירת מחדל",
+  "running": "פועל",
+  "serverForm": {
+    "add": "הוסף",
+    "args": "ארגומנטים",
+    "argsPlaceholder": "הזן ארגומנט אחד בכל שורה",
+    "addArg": "הוסף ארגומנט",
+    "argPlaceholder": "הזן ערך ארגומנט",
+    "argsRequired": "הפרמטרים לא יכולים להיות ריקים",
+    "autoApprove": "אישור אוטומטי",
+    "autoApproveAll": "הכל",
+    "autoApproveHelp": "בחר את סוג הפעולה הדורש אישור אוטומטי ובצע ללא אישור משתמש",
+    "autoApproveRead": "קריאה",
+    "autoApproveWrite": "כתיבה",
+    "baseUrl": "כתובת בסיס (Base URL)",
+    "baseUrlPlaceholder": "הזן את כתובת הבסיס של השרת (לדוגמה: http://localhost:3000)",
+    "cancel": "ביטול",
+    "command": "פקודה",
+    "commandPlaceholder": "הזן פקודה",
+    "commandRequired": "הפקודה לא יכולה להיות ריקה",
+    "configImported": "ייבוא התצורה הצליח",
+    "description": "תיאור",
+    "descriptionPlaceholder": "הזן את תיאור השרת",
+    "descriptions": "תיאור",
+    "descriptionsPlaceholder": "הזן את תיאור השרת",
+    "env": "משתני סביבה",
+    "envInvalid": "משתני סביבה חייבים להיות בפורמט JSON חוקי",
+    "envPlaceholder": "הזן משתני סביבה בפורמט JSON",
+    "icon": "אייקון",
+    "iconPlaceholder": "הזן אייקון",
+    "icons": "אייקונים",
+    "iconsPlaceholder": "הזן אייקונים",
+    "jsonConfig": "תצורת JSON",
+    "jsonConfigExample": "דוגמה לתצורת JSON",
+    "jsonConfigIntro": "ניתן להדביק ישירות את תצורת ה-JSON או לבחור להגדיר את השרת ידנית.",
+    "jsonConfigPlaceholder": "אנא הדבק את תצורת השרת MCP בפורמט JSON",
+    "name": "שם השרת",
+    "namePlaceholder": "הזן את שם השרת",
+    "nameRequired": "שם השרת לא יכול להיות ריק",
+    "parseAndContinue": "נתח והמשך",
+    "parseError": "שגיאת ניתוח",
+    "parseSuccess": "התצורה נותחה בהצלחה",
+    "skipToManual": "דלג להגדרה ידנית",
+    "submit": "שלח",
+    "folders": "רשימת תיקיות",
+    "addFolder": "הוסף תיקייה",
+    "selectFolder": "בחר תיקייה",
+    "selectFolderError": "בחירת התיקייה נכשלה",
+    "noFoldersSelected": "לא נבחרו תיקיות",
+    "type": "סוג שרת",
+    "typeInMemory": "זיכרון (Memory)",
+    "typePlaceholder": "בחר סוג שרת",
+    "typeSse": "אירועים הנשלחים מהשרת (SSE)",
+    "typeStdio": "קלט ופלט סטנדרטי (Stdio)",
+    "update": "עדכן"
+  },
+  "serverList": "רשימת שרתים",
+  "setAsDefault": "הגדר כשרת ברירת המחדל",
+  "setDefault": "הגדר כברירת מחדל",
+  "startServer": "התחל את השרת",
+  "stopServer": "עצור את השרת",
+  "stopped": "נעצר",
+  "sampling": {
+    "title": "דגימת בקשה מ-{server}",
+    "unknownServer": "שרת לא ידוע",
+    "description": "סקור את ההקשר המשותף על ידי שרת ה-MCP ובחר האם ליצור תגובה.",
+    "systemPrompt": "הנחיית מערכת (System prompt)",
+    "messagesTitle": "הקשר שיחה",
+    "preferencesTitle": "העדפות מודל",
+    "approve": "אשר",
+    "reject": "דחה",
+    "confirm": "שלח תגובה",
+    "confirming": "מאשר...",
+    "sendResponse": "שלח תגובה",
+    "selectModel": "בחר מודל",
+    "respondWith": "הגב באמצעות:",
+    "maxTokensInfo": "אורך תגובה מקסימלי: {maxTokens} טוקנים",
+    "visionWarning": "המודל שנבחר אינו תומך בקלט חזותי. אנא בחר מודל בעל יכולות ראייה לפני שתמשיך.",
+    "selectedModelLabel": "מגיב עם {model} ({provider})",
+    "unsupportedMessage": "סוג תוכן זה אינו נתמך.",
+    "noVisionModels": "לא מופעלים מודלים בעלי יכולת ראייה. הפעל מודל ראייה בהגדרות כדי להמשיך.",
+    "noModels": "לא מופעלים מודלים מתאימים. הפעל מודל ישים בהגדרות כדי להמשיך.",
+    "imageAlt": "תמונה {index}",
+    "unknownMime": "סוג MIME לא ידוע",
+    "unknownHint": "רמז ללא שם",
+    "autoApproving": "בקשת דגימת MCP מאת {server}",
+    "autoApproveIn": "מאשר אוטומטית בעוד {seconds} שניות באמצעות {model}",
+    "reviewRequest": "סקירה",
+    "sessionActive": "הפעלה פעילה - בקשות יאושרו אוטומטית",
+    "contentType": {
+      "text": "טקסט",
+      "image": "תמונה",
+      "audio": "שמע"
+    },
+    "preference": {
+      "cost": "עדיפות עלות",
+      "speed": "עדיפות מהירות",
+      "intelligence": "עדיפות אינטליגנציה",
+      "hints": "רמזי מודל"
+    }
+  },
+  "tabs": {
+    "servers": "שרתים",
+    "tools": "כלים"
+  },
+  "title": "הגדרות MCP",
+  "inmemory": {
+    "Artifacts": {
+      "desc": "צור תוצרים (Artifacts) עשירים יותר ב-DeepChat",
+      "name": "תוצרים (Artifacts)"
+    },
+    "bochaSearch": {
+      "desc": "Bocha Search API https://open.bochaai.com/",
+      "name": "Bocha Search"
+    },
+    "buildInFileSystem": {
+      "desc": "אפשר ל-DeepChat אינטראקציה עם מערכת הקבצים המקומית.",
+      "name": "מערכת קבצים"
+    },
+    "imageServer": {
+      "desc": "אפשר לכל מודל ב-DeepChat להבין וליצור תמונות.",
+      "name": "שירות תמונות"
+    },
+    "braveSearch": {
+      "desc": "Brave Search API https://brave.com/search/api/",
+      "name": "Brave Search"
+    },
+    "powerpack": {
+      "desc": "ספק למודלים שאילתות זמן, גלישה באינטרנט והרצת קוד מאובטחת.",
+      "name": "Power Pack"
+    },
+    "difyKnowledge": {
+      "desc": "שירות חיפוש בסיס ידע של Dify, המסוגל לאחזר תוכן מתוך Dify Knowledge Base",
+      "name": "חיפוש בסיס ידע Dify"
+    },
+    "ragflowKnowledge": {
+      "name": "חיפוש בסיס ידע RAGFlow",
+      "desc": "שירות חיפוש בסיס ידע של RAGFlow, יכול לחפש בתוכן בסיס הידע של RAGFlow"
+    },
+    "fastGptKnowledge": {
+      "name": "חיפוש בסיס ידע FastGPT",
+      "desc": "שירות חיפוש בסיס ידע של FastGPT, יכול לחפש בתוכן בסיס הידע של FastGPT"
+    },
+    "deepchat-inmemory/custom-prompts-server": {
+      "desc": "שירות הנחיות מותאמות אישית מובנה של DeepChat",
+      "name": "הנחיות מותאמות אישית"
+    },
+    "deepchat-inmemory/deep-research-server": {
+      "desc": "מחקר עמוק מובנה ב-DeepChat המופעל על ידי Bocha Search. מומלץ להשתמש במודלים בעלי הקשר ארוך (Long-context).",
+      "name": "מחקר עמוק (DeepResearch)"
+    },
+    "deepchat-inmemory/auto-prompting-server": {
+      "name": "הנחיה אוטומטית לפי תבנית",
+      "desc": "בחר אוטומטית את ההנחיה המותאמת הטובה ביותר בהתבסס על הקלט ומלא את התבנית בצורה חכמה."
+    },
+    "deepchat-inmemory/conversation-search-server": {
+      "name": "חיפוש היסטוריית שיחות",
+      "desc": "חיפוש היסטוריית שיחות מובנה של DeepChat עבור צ'אטים והודעות עבר."
+    },
+    "builtinKnowledge": {
+      "desc": "חיפוש בסיס ידע מובנה של DeepChat עבור מסמכים ומדריכים של DeepChat.",
+      "name": "חיפוש בסיס ידע מובנה"
+    },
+    "deepchat-inmemory/meeting-server": {
+      "name": "פגישות מרובות סוכנים (Multi-Agent)",
+      "desc": "פגישות מובנות ב-DeepChat לאירוח דיונים מרובי סוכנים."
+    },
+    "deepchat/apple-server": {
+      "desc": "אפשר למודלים להפעיל אפליקציות macOS כמו יומן, אנשי קשר, דואר, מפות, פתקים ותזכורות.",
+      "name": "עוזר מערכת macOS"
+    }
+  },
+  "prompts": {
+    "noPromptsAvailable": "אין הנחיות (Prompts) זמינות",
+    "noDescription": "אין תיאור עדיין",
+    "selectPrompt": "פרטים עבור ההנחיה שנבחרה יוצגו כאן.",
+    "parameters": "פרמטרים",
+    "input": "פרמטרים",
+    "runningPrompt": "מביא הנחיה...",
+    "executeButton": "קבל הנחיה",
+    "resultTitle": "פרטי הנחיה",
+    "invalidJson": "פורמט JSON לא חוקי",
+    "parametersHint": "אנא הזן את הפרמטרים בפורמט JSON, תומך בעיצוב אוטומטי",
+    "resetToDefault": "אפס לפרמטרים ברירת מחדל",
+    "dialogDescription": "ניפוי באגים ובדיקת הנחיות המסופקות על ידי שרתי MCP"
+  },
+  "resources": {
+    "noResourcesAvailable": "אין משאבים זמינים",
+    "selectResource": "בחר משאב לצפייה בתוכנו.",
+    "loading": "טוען...",
+    "loadContent": "טען תוכן",
+    "pleaseSelect": "לחץ לצפייה בפרטי המשאב.",
+    "dialogDescription": "עיין וצפה במשאבים המסופקים על ידי שרתי MCP"
+  },
+  "errors": {
+    "loadConfigFailed": "טעינת תצורת MCP נכשלה",
+    "setEnabledFailed": "הגדרת מצב הפעלה של MCP נכשלה",
+    "getServerStatusFailed": "קבלת סטטוס עבור השרת {serverName} נכשלה",
+    "addServerFailed": "הוספת השרת נכשלה",
+    "updateServerFailed": "עדכון השרת נכשל",
+    "removeServerFailed": "הסרת השרת נכשלה",
+    "maxDefaultServersReached": "הגעת למספר המקסימלי של שרתי ברירת מחדל (30)",
+    "toggleDefaultServerFailed": "שינוי סטטוס שרת ברירת המחדל נכשל",
+    "resetToDefaultFailed": "שחזור לשרתי ברירת מחדל נכשל",
+    "toggleServerFailed": "שינוי מצב השרת {serverName} נכשל",
+    "loadToolsFailed": "טעינת הכלים נכשלה",
+    "loadPromptsFailed": "טעינת ההנחיות נכשלה",
+    "loadResourcesFailed": "טעינת המשאבים נכשלה",
+    "callToolFailed": "הקריאה לכלי {toolName} נכשלה",
+    "toolCallError": "שגיאה בקריאה לכלי: {error}",
+    "mcpDisabled": "MCP מושבת",
+    "getPromptFailed": "קבלת ההנחיה נכשלה",
+    "readResourceFailed": "קריאת המשאב נכשלה",
+    "promptNotFound": "הנחיה '{name}' לא נמצאה",
+    "emptyPromptContent": "להנחיה '{name}' אין תוכן",
+    "missingParameters": "חסרים פרמטרים נדרשים: {params}",
+    "invalidParameters": "פרמטרים לא חוקיים עבור: {params}"
+  },
+  "market": {
+    "browseBuiltin": "עיין בחנות ה-MCP המובנית",
+    "builtinTitle": "חנות MCP",
+    "poweredBy": "מופעל על ידי MCPRouter",
+    "keyGuide": "קבל מפתח API",
+    "keyHelpText": "אנא עבור אל",
+    "keyHelpEnd": "כדי להגיש בקשה למפתח API ומלא אותו בתיבת הקלט למעלה",
+    "apiKeyPlaceholder": "הזן מפתח API של MCPRouter",
+    "apiKeyRequiredTitle": "נדרש מפתח API",
+    "apiKeyRequiredDesc": "אנא מלא את מפתח ה-API של MCPRouter לפני ההתקנה",
+    "install": "התקן",
+    "installed": "מותקן",
+    "installSuccess": "ההתקנה הצליחה",
+    "installFailed": "ההתקנה נכשלה",
+    "noMore": "אין עוד",
+    "empty": "אין שירותים",
+    "loadMore": "טען עוד",
+    "pullDownToLoad": "המשך למשוך למטה כדי לטעון עוד"
+  }
+}

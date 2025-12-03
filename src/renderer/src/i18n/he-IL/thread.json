@@ -1,0 +1,46 @@
+{
+  "actions": {
+    "rename": "שנה שם",
+    "delete": "מחק",
+    "cleanMessages": "נקה הודעות",
+    "pin": "נעץ",
+    "unpin": "בטל נעיצה",
+    "export": "ייצוא",
+    "exportText": "טקסט רגיל",
+    "exportNowledgeMem": "Nowledge-mem"
+  },
+  "toolbar": {
+    "save": "שמור",
+    "cancel": "ביטול",
+    "previousVariant": "גרסה קודמת",
+    "nextVariant": "גרסה הבאה",
+    "copy": "העתק כ-Markdown",
+    "copyImage": "העתק כתמונה",
+    "copyImageWithLongPress": "העתק כתמונה (לחיצה ארוכה ללכידה מלמעלה)",
+    "copyFromTopSuccess": "תמונת השיחה המלאה הועתקה",
+    "capturing": "לוכד...",
+    "retry": "צור מחדש",
+    "fork": "צור ענף לשיחה חדשה",
+    "edit": "ערוך הודעה",
+    "delete": "מחק הודעה",
+    "trace": "עקוב אחר בקשה (Trace)"
+  },
+  "message": {
+    "toolbar": {
+      "save": "שמור"
+    }
+  },
+  "export": {
+    "failed": "הייצוא נכשל",
+    "failedDesc": "אירעה שגיאה במהלך תהליך הייצוא, אנא נסה שוב",
+    "success": "הייצוא הושלם בהצלחה",
+    "successDesc": "השיחה יוצאה בהצלחה",
+    "nowledgeMemSuccess": "ייצוא ל-Nowledge-mem הושלם בהצלחה",
+    "nowledgeMemSuccessDesc": "השיחה יוצאה בהצלחה לפורמט nowledge-mem",
+    "nowledgeMemSubmitPrompt": "האם ברצונך לשלוח שיחה זו ל-nowledge-mem?",
+    "nowledgeMemSubmitSuccess": "השליחה ל-Nowledge-mem הושלמה בהצלחה",
+    "nowledgeMemSubmitSuccessDesc": "השיחה נשלחה בהצלחה ל-nowledge-mem",
+    "nowledgeMemSubmitFailed": "השליחה ל-Nowledge-mem נכשלה",
+    "nowledgeMemSubmitFailedDesc": "נכשל בשליחת השיחה ל-nowledge-mem"
+  }
+}

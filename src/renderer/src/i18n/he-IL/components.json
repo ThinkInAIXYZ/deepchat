@@ -1,0 +1,41 @@
+{
+  "emojiPicker": {
+    "search": "חפש אימוג'י",
+    "smileys": "סמיילים ורגשות",
+    "people": "אנשים וגוף",
+    "animals": "בעלי חיים וטבע",
+    "food": "אוכל ושתייה",
+    "travel": "נסיעות ומקומות",
+    "activities": "פעילויות",
+    "objects": "חפצים",
+    "symbols": "סמלים",
+    "flags": "דגלים"
+  },
+  "messageBlockAction": {
+    "continue": "המשך",
+    "continued": "המשך"
+  },
+  "messageBlockPermissionRequest": {
+    "title": "נדרשת הרשאה",
+    "allow": "אפשר",
+    "deny": "דחה",
+    "rememberChoice": "זכור בחירה זו",
+    "granted": "הרשאה ניתנה",
+    "denied": "הרשאה נדחתה",
+    "type": {
+      "read": "גישת קריאה",
+      "write": "גישת כתיבה",
+      "all": "גישה מלאה"
+    },
+    "description": {
+      "read": "האם לאפשר ל-'{toolName}' מ-'{serverName}' לבצע פעולות קריאה?",
+      "write": "האם לאפשר ל-'{toolName}' מ-'{serverName}' לבצע פעולות כתיבה?",
+      "all": "האם לאפשר ל-'{toolName}' מ-'{serverName}' לבצע פעולות קריאה וכתיבה?"
+    }
+  },
+  "promptParamsDialog": {
+    "title": "הגדרות פרמטרים עבור {name}",
+    "description": "אנא מלא את הפרמטרים למטה. שדות המסומנים ב-* הם שדות חובה.",
+    "required": "שדה זה הוא חובה."
+  }
+}

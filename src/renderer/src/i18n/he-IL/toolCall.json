@@ -1,0 +1,19 @@
+{
+  "calling": "קורא...",
+  "response": "רץ...",
+  "end": "בוצע",
+  "error": "שגיאה",
+  "title": "קריאה לכלי",
+  "clickToView": "לחץ לצפייה בפרטים",
+  "functionName": "שם הפונקציה",
+  "permission": "מבקש הרשאה...",
+  "params": "פרמטרי פונקציה",
+  "responseData": "תגובה",
+  "failed": "לְהִכָּשֵׁל",
+  "fileOperation": "פעולות קובץ",
+  "filePath": "נתיב הקובץ",
+  "fileRead": "לקרוא קובץ",
+  "fileWrite": "לכתוב קובץ",
+  "success": "הַצלָחָה",
+  "terminalOutput": "פלט מסוף"
+}

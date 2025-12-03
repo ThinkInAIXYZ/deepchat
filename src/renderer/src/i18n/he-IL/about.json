@@ -1,0 +1,19 @@
+{
+  "title": "DeepChat",
+  "description": "DeepChat הוא לקוח AI חוצה-פלטפורמות, המוקדש להנגשת הבינה המלאכותית ליותר אנשים.",
+  "website": "בקר באתר שלנו",
+  "deviceInfo": {
+    "title": "מידע על המכשיר",
+    "platform": "פלטפורמה",
+    "arch": "ארכיטקטורה",
+    "cpuModel": "דגם מעבד",
+    "totalMemory": "זיכרון כולל",
+    "osVersion": "גרסת מערכת"
+  },
+  "disclaimerButton": "כתב ויתור",
+  "disclaimerTitle": "הצהרת תנאי שימוש",
+  "checkUpdateButton": "בדוק עדכונים",
+  "updateChannel": "ערוץ עדכון",
+  "stableChannel": "יציב (Stable)",
+  "canaryChannel": "קנרית (Canary)"
+}

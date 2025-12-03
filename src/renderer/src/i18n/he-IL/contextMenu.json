@@ -1,0 +1,17 @@
+{
+  "translate": {
+    "title": "תרגם",
+    "original": "מקור",
+    "translated": "תרגום",
+    "error": "התרגום נכשל"
+  },
+  "askAI": {
+    "title": "שאל את ה-AI",
+    "question": "שאלה",
+    "answer": "תשובה",
+    "error": "תגובת ה-AI נכשלה"
+  },
+  "copy": "העתק",
+  "paste": "הדבק",
+  "cut": "גזור"
+}

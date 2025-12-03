@@ -340,7 +340,8 @@ const languageOptions = [
   { value: 'fr-FR', label: 'Français' },
   { value: 'fa-IR', label: 'فارسی (ایران)' },
   { value: 'pt-BR', label: 'Português (Brasil)' },
-  { value: 'da-DK', label: 'Dansk' }
+  { value: 'da-DK', label: 'Dansk' },
+  { value: 'he-IL', label: 'עברית (ישראל)' }
 ]
 
 watch(selectedLanguage, async (newValue) => {
