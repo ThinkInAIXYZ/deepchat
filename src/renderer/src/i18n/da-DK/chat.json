@@ -4,7 +4,7 @@
     "thoughtForSeconds": "Tænkte i {seconds} sekunder",
     "thoughtForSecondsLoading": "Tænker (sekund {seconds})",
     "webSearch": "Netværkssøgning",
-    "modeChanged": "Mode changed to: {mode}"
+    "modeChanged": "Tilstand skiftet til: {mode}"
   },
   "input": {
     "acpWorkdir": "arbejdskatalog",

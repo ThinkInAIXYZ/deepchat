@@ -28,7 +28,7 @@
     "artifactThinking": "Réflexion sur les artefacts",
     "thoughtForSeconds": "Réflexion pendant {seconds}s",
     "thoughtForSecondsLoading": "Réflexion en cours ({seconds}s)",
-    "modeChanged": "Mode changed to: {mode}"
+    "modeChanged": "Mode commuté sur : {mode}"
   },
   "search": {
     "results": "{0} pages web trouvées",

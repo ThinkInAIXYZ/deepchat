@@ -28,7 +28,7 @@
     "artifactThinking": "Артефакт мышление",
     "thoughtForSeconds": "Мышление {seconds} секунд",
     "thoughtForSecondsLoading": "Мышление ({seconds} секунд)",
-    "modeChanged": "Mode changed to: {mode}"
+    "modeChanged": "Режим переключен на: {mode}"
   },
   "search": {
     "results": "Найдено {0} веб-страниц",

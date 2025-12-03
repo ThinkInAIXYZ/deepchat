@@ -28,7 +28,7 @@
     "thoughtForSeconds": "Pensou por {seconds}s",
     "thoughtForSecondsLoading": "Pensando por {seconds}s...",
     "artifactThinking": "Processando Artefato",
-    "modeChanged": "Mode changed to: {mode}"
+    "modeChanged": "Modo alterado para: {mode}"
   },
   "search": {
     "results": "Encontradas {0} páginas web",

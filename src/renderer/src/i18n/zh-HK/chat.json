@@ -28,7 +28,7 @@
     "artifactThinking": "artifact 思考",
     "thoughtForSeconds": "思考了 {seconds} 秒",
     "thoughtForSecondsLoading": "正在思考（第 {seconds} 秒）",
-    "modeChanged": "Mode changed to: {mode}"
+    "modeChanged": "模式已切換至：{mode}"
   },
   "search": {
     "results": "已搜索到{0}個網頁",

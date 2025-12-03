@@ -28,7 +28,7 @@
     "artifactThinking": "تفکر مصنوعی",
     "thoughtForSeconds": "تفکر به مدت {seconds} ثانیه",
     "thoughtForSecondsLoading": "در حال تفکر ({seconds} ثانیه)",
-    "modeChanged": "Mode changed to: {mode}"
+    "modeChanged": "تغییر حالت به: {mode}"
   },
   "search": {
     "results": "{0} صفحه وب یافت شد",

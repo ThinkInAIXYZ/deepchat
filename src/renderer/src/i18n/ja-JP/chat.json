@@ -28,7 +28,7 @@
     "artifactThinking": "アーティファクト思考",
     "thoughtForSeconds": "{seconds}秒間思考しました",
     "thoughtForSecondsLoading": "{seconds}秒間思考中...",
-    "modeChanged": "Mode changed to: {mode}"
+    "modeChanged": "モードが次のように切り替わりました: {mode}"
   },
   "search": {
     "results": "{0}件のウェブページが見つかりました",
