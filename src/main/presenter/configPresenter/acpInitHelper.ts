@@ -7,6 +7,7 @@ import type { AcpBuiltinAgentId, AcpAgentConfig, AcpAgentProfile } from '@shared
 import { spawn } from 'node-pty'
 import type { IPty } from 'node-pty'
 import { RuntimeHelper } from '@/lib/runtimeHelper'
+import { getShellEnvironment } from '../llmProviderPresenter/agent/shellEnvHelper'
 
 const execAsync = promisify(exec)
 
@@ -238,7 +239,7 @@ class AcpInitHelper {
       commands: initConfig.commands
     })
 
-    const envVars = this.buildEnvironmentVariables(
+    const envVars = await this.buildEnvironmentVariables(
       profile,
       useBuiltinRuntime,
       npmRegistry,
@@ -270,7 +271,7 @@ class AcpInitHelper {
       hasWebContents: !!webContents
     })
 
-    const envVars = this.buildEnvironmentVariables(
+    const envVars = await this.buildEnvironmentVariables(
       agent,
       useBuiltinRuntime,
       npmRegistry,
@@ -489,12 +490,12 @@ class AcpInitHelper {
   /**
    * Build environment variables for the terminal
    */
-  private buildEnvironmentVariables(
+  private async buildEnvironmentVariables(
     profile: AcpAgentProfile | AcpAgentConfig,
     useBuiltinRuntime: boolean,
     npmRegistry: string | null,
     uvRegistry: string | null
-  ): Record<string, string> {
+  ): Promise<Record<string, string>> {
     console.log('[ACP Init] Building environment variables:', {
       useBuiltinRuntime,
       npmRegistry,
@@ -515,11 +516,36 @@ class AcpInitHelper {
     })
     console.log('[ACP Init] Added system environment variables:', systemEnvCount)
 
+    // Merge shell environment (includes user PATH from shell startup)
+    const pathKeys = ['PATH', 'Path', 'path']
+    const existingPaths: string[] = []
+    pathKeys.forEach((key) => {
+      const value = env[key]
+      if (value) existingPaths.push(value)
+    })
+
+    try {
+      const shellEnv = await getShellEnvironment()
+      Object.entries(shellEnv).forEach(([key, value]) => {
+        if (value !== undefined && value !== '' && !pathKeys.includes(key)) {
+          env[key] = value
+        }
+      })
+      const shellPath = shellEnv.PATH || shellEnv.Path || shellEnv.path
+      if (shellPath) {
+        existingPaths.unshift(shellPath)
+      }
+    } catch (error) {
+      console.warn('[ACP Init] Failed to merge shell environment variables:', error)
+    }
+
+    // Prepare PATH merging
+    const HOME_DIR = app.getPath('home')
+    const defaultPaths = this.runtimeHelper.getDefaultPaths(HOME_DIR)
+    const allPaths = [...existingPaths, ...defaultPaths]
+
     // Add runtime paths to PATH if using builtin runtime
     if (useBuiltinRuntime) {
-      const pathKey = process.platform === 'win32' ? 'Path' : 'PATH'
-      const existingPath = env[pathKey] || ''
-      const separator = process.platform === 'win32' ? ';' : ':'
       const runtimePaths: string[] = []
 
       const uvRuntimePath = this.runtimeHelper.getUvRuntimePath()
@@ -544,15 +570,15 @@ class AcpInitHelper {
       }
 
       if (runtimePaths.length > 0) {
-        env[pathKey] = [...runtimePaths, existingPath].filter(Boolean).join(separator)
-        console.log('[ACP Init] Updated PATH with runtime paths:', {
-          runtimePaths,
-          finalPathLength: env[pathKey].length
-        })
+        allPaths.unshift(...runtimePaths)
       } else {
         console.warn('[ACP Init] No runtime paths available to add to PATH')
       }
     }
+
+    // Normalize and set PATH
+    const normalizedPath = this.runtimeHelper.normalizePathEnv(allPaths)
+    env[normalizedPath.key] = normalizedPath.value
 
     // Add registry environment variables if using builtin runtime
     if (useBuiltinRuntime) {
@@ -610,7 +636,7 @@ class AcpInitHelper {
             // Merge PATH variables
             const pathKey = process.platform === 'win32' ? 'Path' : 'PATH'
             const separator = process.platform === 'win32' ? ';' : ':'
-            const existingPath = env[pathKey] || ''
+            const existingPath = env[pathKey] || env[normalizedPath.key] || ''
             env[pathKey] = [value, existingPath].filter(Boolean).join(separator)
             console.log('[ACP Init] Merged custom PATH from profile:', {
               customPath: value,

@@ -117,8 +117,15 @@ const formatEnv = (env?: Record<string, string>) => {
   if (!env || !Object.keys(env).length) {
     return t('settings.acp.none')
   }
+
+  const maskValue = (val: string | undefined | null) => {
+    if (!val) return ''
+    const str = String(val)
+    return str.length <= 10 ? str : `${str.slice(0, 10)}***`
+  }
+
   return Object.entries(env)
-    .map(([key, value]) => `${key}=${value ?? ''}`)
+    .map(([key, value]) => `${key}=${maskValue(value)}`)
     .join(', ')
 }
 </script>
