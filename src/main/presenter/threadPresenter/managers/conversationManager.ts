@@ -182,6 +182,7 @@ export class ConversationManager {
         defaultSettings.enableSearch = undefined
         defaultSettings.forcedSearch = undefined
         defaultSettings.searchStrategy = undefined
+        defaultSettings.selectedVariantsMap = {}
       }
 
       const sanitizedSettings: Partial<CONVERSATION_SETTINGS> = { ...settings }
