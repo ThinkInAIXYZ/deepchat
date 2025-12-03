@@ -10,7 +10,7 @@
   "fileWrite": "записать файл",
   "functionName": "имя функции",
   "params": "Параметры функции",
-  "response": "Бег",
+  "response": "Выполняется...",
   "permission": "Запрос разрешения",
   "responseData": "ответ функции",
   "success": "успех",

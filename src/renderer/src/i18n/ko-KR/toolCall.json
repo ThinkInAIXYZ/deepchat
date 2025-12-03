@@ -1,7 +1,7 @@
 {
-  "calling": "부름",
+  "calling": "호출 중",
   "clickToView": "세부정보를 보려면 클릭하세요.",
-  "end": "마치다",
+  "end": "완료",
   "error": "실수",
   "failed": "실패하다",
   "fileOperation": "파일 작업",
@@ -10,7 +10,7 @@
   "fileWrite": "파일 쓰기",
   "functionName": "함수 이름",
   "params": "기능 매개변수",
-  "response": "달리기",
+  "response": "실행 중",
   "permission": "권한 요청 중",
   "responseData": "기능 응답",
   "success": "성공",
