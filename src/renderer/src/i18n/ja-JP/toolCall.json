@@ -8,5 +8,12 @@
   "functionName": "関数名",
   "permission": "権限リクエスト中",
   "params": "関数パラメータ",
-  "responseData": "応答データ"
+  "responseData": "応答データ",
+  "terminalOutput": "Terminal Output",
+  "fileOperation": "File Operation",
+  "fileRead": "Read File",
+  "fileWrite": "Write File",
+  "filePath": "File Path",
+  "success": "Success",
+  "failed": "Failed"
 }

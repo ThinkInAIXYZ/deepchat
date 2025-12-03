@@ -17,6 +17,7 @@ import about from './about.json'
 import contextMenu from './contextMenu.json'
 import promptSetting from './promptSetting.json'
 import traceDialog from './traceDialog.json'
+import plan from './plan.json'
 
 // Individual top-level keys
 const others = {
@@ -52,5 +53,6 @@ export default {
   contextMenu,
   promptSetting,
   traceDialog,
+  plan,
   ...others
 }

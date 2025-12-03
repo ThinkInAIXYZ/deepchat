@@ -8,5 +8,12 @@
   "functionName": "函數名稱",
   "permission": "請求權限中",
   "params": "函數參數",
-  "responseData": "函數響應"
+  "responseData": "函數響應",
+  "terminalOutput": "Terminal Output",
+  "fileOperation": "File Operation",
+  "fileRead": "Read File",
+  "fileWrite": "Write File",
+  "filePath": "File Path",
+  "success": "Success",
+  "failed": "Failed"
 }

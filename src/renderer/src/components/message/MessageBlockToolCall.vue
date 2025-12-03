@@ -26,6 +26,44 @@
         class="rounded-lg border bg-muted text-card-foreground px-2 py-3 mt-2 mb-4 max-w-full sm:max-w-2xl"
       >
         <div class="space-y-4">
+          <!-- File system operation (for fs tool calls) -->
+          <div v-if="isFileSystemTool" class="space-y-2">
+            <h5 class="text-xs font-medium text-accent-foreground flex items-center gap-2">
+              <Icon :icon="fsIcon" class="w-4 h-4" />
+              {{ fsOperationLabel }}
+            </h5>
+            <div class="text-sm rounded-md p-2 bg-background">
+              <div class="flex items-center gap-2">
+                <span class="text-muted-foreground">{{ t('toolCall.filePath') }}:</span>
+                <code class="text-xs bg-muted px-1.5 py-0.5 rounded">{{ fsFilePath }}</code>
+              </div>
+              <div v-if="fsOperationResult" class="mt-2 flex items-center gap-2">
+                <Icon
+                  :icon="fsSuccess ? 'lucide:check-circle' : 'lucide:x-circle'"
+                  :class="fsSuccess ? 'text-green-500' : 'text-destructive'"
+                  class="w-4 h-4"
+                />
+                <span :class="fsSuccess ? 'text-green-500' : 'text-destructive'">
+                  {{ fsSuccess ? t('toolCall.success') : t('toolCall.failed') }}
+                </span>
+              </div>
+            </div>
+            <hr v-if="block.tool_call?.params || block.tool_call?.response" />
+          </div>
+
+          <!-- Terminal output (for terminal-related tool calls) -->
+          <div v-if="isTerminalTool && block.tool_call?.response" class="space-y-2">
+            <h5 class="text-xs font-medium text-accent-foreground flex items-center gap-2">
+              <Icon icon="lucide:terminal" class="w-4 h-4" />
+              {{ t('toolCall.terminalOutput') }}
+            </h5>
+            <div
+              ref="terminalContainer"
+              class="rounded-md bg-black text-white font-mono text-xs p-2 overflow-auto max-h-64"
+            />
+            <hr v-if="block.tool_call?.params" />
+          </div>
+
           <!-- 参数 -->
           <div v-if="block.tool_call?.params" class="space-y-2">
             <h5 class="text-xs font-medium text-accent-foreground flex flex-row gap-2 items-center">
@@ -37,10 +75,10 @@
             </div>
           </div>
 
-          <hr />
+          <hr v-if="block.tool_call?.params && block.tool_call?.response && !isTerminalTool" />
 
-          <!-- 响应 -->
-          <div v-if="block.tool_call?.response" class="space-y-2">
+          <!-- 响应 (hide for terminal tools as output is shown above) -->
+          <div v-if="block.tool_call?.response && !isTerminalTool" class="space-y-2">
             <h5 class="text-xs font-medium text-accent-foreground flex flex-row gap-2 items-center">
               <Icon icon="lucide:arrow-down-to-dot" class="w-4 h-4 text-foreground" />
               {{ t('toolCall.responseData') }}
@@ -59,8 +97,10 @@
 import { Icon } from '@iconify/vue'
 import { useI18n } from 'vue-i18n'
 import { AssistantMessageBlock } from '@shared/chat'
-import { computed, ref } from 'vue'
+import { computed, ref, nextTick, watch, onBeforeUnmount } from 'vue'
 import { JsonObject } from '@/components/json-viewer'
+import { Terminal } from '@xterm/xterm'
+import '@xterm/xterm/css/xterm.css'
 
 const keyMap = {
   'toolCall.calling': '工具调用中',
@@ -160,18 +200,105 @@ const parseJson = (jsonStr: string) => {
   }
 }
 
-// const simpleIn = computed(() => {
-//   if (!props.block.tool_call) return false
-//   if (props.block.tool_call.params) {
-//     const params = parseJson(props.block.tool_call.params)
-//     const strArr: string[] = []
-//     for (const key in params) {
-//       strArr.push(`${params[key]}`)
-//     }
-//     return strArr.join(', ')
-//   }
-//   return ''
-// })
+// Terminal and file system detection
+const isTerminalTool = computed(() => {
+  const name = props.block.tool_call?.name?.toLowerCase() || ''
+  return name.includes('terminal') || name.includes('command') || name.includes('exec')
+})
+
+const isFileSystemTool = computed(() => {
+  const name = props.block.tool_call?.name?.toLowerCase() || ''
+  return name.includes('read') || name.includes('write') || name.includes('file')
+})
+
+const fsIcon = computed(() => {
+  const name = props.block.tool_call?.name?.toLowerCase() || ''
+  if (name.includes('read')) return 'lucide:file-text'
+  if (name.includes('write')) return 'lucide:file-edit'
+  return 'lucide:file'
+})
+
+const fsOperationLabel = computed(() => {
+  const name = props.block.tool_call?.name?.toLowerCase() || ''
+  if (name.includes('read')) return t('toolCall.fileRead')
+  if (name.includes('write')) return t('toolCall.fileWrite')
+  return t('toolCall.fileOperation')
+})
+
+const fsFilePath = computed(() => {
+  try {
+    const params = parseJson(props.block.tool_call?.params || '{}')
+    return params.path || ''
+  } catch {
+    return ''
+  }
+})
+
+const fsSuccess = computed(() => {
+  return props.block.status === 'success'
+})
+
+const fsOperationResult = computed(() => {
+  return props.block.status === 'success' || props.block.status === 'error'
+})
+
+// Terminal rendering
+const terminalContainer = ref<HTMLElement | null>(null)
+let terminal: Terminal | null = null
+
+const initTerminal = () => {
+  if (!terminalContainer.value || !isTerminalTool.value) return
+
+  terminal = new Terminal({
+    convertEol: true,
+    fontSize: 12,
+    fontFamily: 'Menlo, Monaco, "Courier New", monospace',
+    theme: {
+      background: '#000000',
+      foreground: '#ffffff'
+    },
+    cursorStyle: 'bar',
+    scrollback: 1000,
+    disableStdin: true // Read-only
+  })
+
+  terminal.open(terminalContainer.value)
+
+  // Write terminal output from response
+  const response = props.block.tool_call?.response
+  if (response) {
+    try {
+      const data = parseJson(response)
+      const output = data.output || data.stdout || ''
+      if (output) {
+        terminal.write(output.replace(/\n/g, '\r\n'))
+      }
+    } catch {
+      // Fallback: treat response as plain text
+      terminal.write(response.replace(/\n/g, '\r\n'))
+    }
+  }
+}
+
+// Watch for expanded state and initialize terminal
+watch(
+  [isExpanded, () => props.block.tool_call?.response],
+  () => {
+    if (isExpanded.value && isTerminalTool.value) {
+      nextTick(() => {
+        initTerminal()
+      })
+    }
+  },
+  { immediate: true }
+)
+
+onBeforeUnmount(() => {
+  if (terminal) {
+    terminal.dispose()
+    terminal = null
+  }
+})
 </script>
 
 <style scoped>

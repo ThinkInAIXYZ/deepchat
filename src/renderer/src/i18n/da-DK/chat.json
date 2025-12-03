@@ -3,7 +3,8 @@
     "artifactThinking": "artifact tænkning",
     "thoughtForSeconds": "Tænkte i {seconds} sekunder",
     "thoughtForSecondsLoading": "Tænker (sekund {seconds})",
-    "webSearch": "Netværkssøgning"
+    "webSearch": "Netværkssøgning",
+    "modeChanged": "Mode changed to: {mode}"
   },
   "input": {
     "acpWorkdir": "arbejdskatalog",

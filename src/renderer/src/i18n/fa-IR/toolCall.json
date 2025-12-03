@@ -8,5 +8,12 @@
   "functionName": "نام تابع",
   "permission": "درخواست دسترسی",
   "params": "ورودی‌های تابع",
-  "responseData": "داده پاسخ"
+  "responseData": "داده پاسخ",
+  "terminalOutput": "Terminal Output",
+  "fileOperation": "File Operation",
+  "fileRead": "Read File",
+  "fileWrite": "Write File",
+  "filePath": "File Path",
+  "success": "Success",
+  "failed": "Failed"
 }

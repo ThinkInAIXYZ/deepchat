@@ -8,5 +8,12 @@
   "functionName": "함수 이름",
   "permission": "권한 요청 중",
   "params": "함수 매개변수",
-  "responseData": "응답 데이터"
+  "responseData": "응답 데이터",
+  "terminalOutput": "Terminal Output",
+  "fileOperation": "File Operation",
+  "fileRead": "Read File",
+  "fileWrite": "Write File",
+  "filePath": "File Path",
+  "success": "Success",
+  "failed": "Failed"
 }

@@ -27,7 +27,8 @@
     "webSearch": "Web Search",
     "thoughtForSeconds": "Thought for {seconds}s",
     "thoughtForSecondsLoading": "Thinking for {seconds}s...",
-    "artifactThinking": "Artifact Thinking"
+    "artifactThinking": "Artifact Thinking",
+    "modeChanged": "Mode changed to: {mode}"
   },
   "search": {
     "results": "Found {0} web pages",

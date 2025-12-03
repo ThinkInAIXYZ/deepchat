@@ -27,7 +27,8 @@
     "webSearch": "網路搜尋",
     "artifactThinking": "Artifact 思考",
     "thoughtForSeconds": "思考了 {seconds} 秒",
-    "thoughtForSecondsLoading": "正在思考（第 {seconds} 秒）"
+    "thoughtForSecondsLoading": "正在思考（第 {seconds} 秒）",
+    "modeChanged": "Mode changed to: {mode}"
   },
   "search": {
     "results": "已搜尋到 {0} 個網頁",

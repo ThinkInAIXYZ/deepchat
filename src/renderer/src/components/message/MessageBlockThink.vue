@@ -76,7 +76,18 @@ const scheduleNextUpdate = () => {
   }, delay)
 }
 
+const isModeChange = computed(() => {
+  return props.block.extra?.mode_change !== undefined
+})
+
+const modeChangeId = computed(() => {
+  return props.block.extra?.mode_change as string
+})
+
 const headerText = computed(() => {
+  if (isModeChange.value) {
+    return t('chat.features.modeChanged', { mode: modeChangeId.value })
+  }
   const seconds = displayedSeconds.value
   return props.block.status === 'loading'
     ? t('chat.features.thoughtForSecondsLoading', { seconds })

@@ -27,7 +27,8 @@
     "webSearch": "联网搜索",
     "thoughtForSeconds": "思考了 {seconds} 秒",
     "thoughtForSecondsLoading": "正在思考（第 {seconds} 秒）",
-    "artifactThinking": "artifact 思考"
+    "artifactThinking": "artifact 思考",
+    "modeChanged": "模式已切换至：{mode}"
   },
   "search": {
     "results": "已搜索到{0}个网页",

@@ -193,19 +193,10 @@ export class AcpContentMapper {
       status: entry.status ?? null
     }))
 
-    // Format plan entries with status indicators
-    const formatEntry = (entry: (typeof entries)[0], index: number): string => {
-      const statusIcon = this.getStatusIcon(entry.status)
-      const priorityTag = entry.priority ? ` [${entry.priority}]` : ''
-      return `${statusIcon} ${index + 1}. ${entry.content}${priorityTag}`
-    }
-
-    const formattedEntries = entries.map(formatEntry)
-    const text = `Plan:\n${formattedEntries.join('\n')}`
-
-    payload.events.push(createStreamEvent.reasoning(text))
+    // Create dedicated plan block
+    payload.events.push(createStreamEvent.reasoning('')) // Empty event for plan
     payload.blocks.push(
-      this.createBlock('reasoning_content', text, {
+      this.createBlock('plan', '', {
         extra: { plan_entries: payload.planEntries }
       })
     )
@@ -229,24 +220,6 @@ export class AcpContentMapper {
         extra: { mode_change: modeId }
       })
     )
-  }
-
-  private getStatusIcon(status?: string | null): string {
-    switch (status) {
-      case 'pending':
-        return '○'
-      case 'in_progress':
-        return '◐'
-      case 'completed':
-      case 'done':
-        return '●'
-      case 'skipped':
-        return '⊘'
-      case 'failed':
-        return '✕'
-      default:
-        return '○'
-    }
   }
 
   private formatToolCallContent(

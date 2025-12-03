@@ -36,6 +36,7 @@
             :block="block"
             :usage="message.usage"
           />
+          <MessageBlockPlan v-else-if="block.type === 'plan'" :block="block" />
           <MessageBlockSearch
             v-else-if="block.type === 'search'"
             :message-id="currentMessage.id"
@@ -135,6 +136,7 @@ import MessageBlockAction from './MessageBlockAction.vue'
 import { useI18n } from 'vue-i18n'
 import MessageBlockImage from './MessageBlockImage.vue'
 import MessageBlockMcpUi from './MessageBlockMcpUi.vue'
+import MessageBlockPlan from './MessageBlockPlan.vue'
 
 import {
   Dialog,

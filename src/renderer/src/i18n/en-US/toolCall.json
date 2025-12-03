@@ -8,5 +8,12 @@
   "functionName": "Function Name",
   "permission": "Requesting permission...",
   "params": "Function Parameters",
-  "responseData": "Response"
+  "responseData": "Response",
+  "terminalOutput": "Terminal Output",
+  "fileOperation": "File Operation",
+  "fileRead": "Read File",
+  "fileWrite": "Write File",
+  "filePath": "File Path",
+  "success": "Success",
+  "failed": "Failed"
 }

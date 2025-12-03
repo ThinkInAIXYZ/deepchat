@@ -27,7 +27,8 @@
     "webSearch": "Поиск в интернете",
     "artifactThinking": "Артефакт мышление",
     "thoughtForSeconds": "Мышление {seconds} секунд",
-    "thoughtForSecondsLoading": "Мышление ({seconds} секунд)"
+    "thoughtForSecondsLoading": "Мышление ({seconds} секунд)",
+    "modeChanged": "Mode changed to: {mode}"
   },
   "search": {
     "results": "Найдено {0} веб-страниц",
