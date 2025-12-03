@@ -1,7 +1,6 @@
 import { computed, ref, watch } from 'vue'
 import { usePresenter } from '@/composables/usePresenter'
 import type { Ref } from 'vue'
-import { useToast } from '@/components/use-toast'
 import { useI18n } from 'vue-i18n'
 
 type ActiveModelRef = Ref<{ id?: string; providerId?: string } | null>
@@ -22,7 +21,6 @@ const MODE_CYCLE_ORDER = ['default', 'acceptEdits', 'plan', 'bypassPermissions']
 
 export function useAcpMode(options: UseAcpModeOptions) {
   const threadPresenter = usePresenter('threadPresenter')
-  const { toast } = useToast()
   const { t } = useI18n()
 
   const currentMode = ref<string>('default')
@@ -80,22 +78,8 @@ export function useAcpMode(options: UseAcpModeOptions) {
     try {
       await threadPresenter.setAcpSessionMode(options.conversationId.value, nextModeId)
       currentMode.value = nextModeId
-
-      // Show toast notification
-      const modeInfo = availableModes.value.find((m) => m.id === nextModeId)
-      const modeName = modeInfo?.name || nextModeId
-      toast({
-        title: t('chat.input.acpModeSwitched', { mode: modeName }),
-        duration: 2000
-      })
     } catch (error) {
       console.error('[useAcpMode] Failed to cycle mode', error)
-      toast({
-        title: 'Failed to switch mode',
-        description: error instanceof Error ? error.message : 'Unknown error',
-        variant: 'destructive',
-        duration: 3000
-      })
     } finally {
       loading.value = false
     }

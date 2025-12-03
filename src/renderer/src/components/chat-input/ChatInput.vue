@@ -147,29 +147,6 @@
               </TooltipContent>
             </Tooltip>
 
-            <Tooltip v-if="variant === 'chat' && acpMode.isAcpModel.value">
-              <TooltipTrigger>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  class="w-7 h-7 text-xs rounded-lg"
-                  :disabled="acpMode.loading.value"
-                  @click="acpMode.cycleMode"
-                >
-                  <Icon icon="lucide:zap" class="w-4 h-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent class="max-w-xs">
-                <p class="text-xs font-semibold">{{ t('chat.input.acpMode') }}</p>
-                <p class="text-xs text-muted-foreground mt-1">
-                  {{ t('chat.input.acpModeTooltip', { mode: acpMode.currentModeName.value }) }}
-                </p>
-                <p v-if="acpMode.currentModeInfo.value" class="text-xs text-muted-foreground mt-1">
-                  {{ acpMode.currentModeInfo.value.description }}
-                </p>
-              </TooltipContent>
-            </Tooltip>
-
             <McpToolsList />
           </div>
 
@@ -215,6 +192,35 @@
                 {{ rateLimit.formatWaitTime() }}
               </span>
             </div>
+
+            <!-- Mode Switcher (ACPs only, chat mode) -->
+            <Tooltip v-if="variant === 'chat' && acpMode.isAcpModel.value">
+              <TooltipTrigger>
+                <Button
+                  variant="ghost"
+                  class="flex items-center gap-1 h-7 px-2 rounded-md text-xs font-semibold text-muted-foreground hover:bg-muted/60 hover:text-foreground dark:text-white/70 dark:hover:bg-white/10 dark:hover:text-white"
+                  :disabled="acpMode.loading.value"
+                  @click="acpMode.cycleMode"
+                >
+                  <span
+                    class="truncate max-w-[120px] text-foreground"
+                    :title="acpMode.currentModeName.value"
+                  >
+                    {{ acpMode.currentModeName.value }}
+                  </span>
+                  <Icon icon="lucide:chevron-right" class="w-4 h-4 text-muted-foreground" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent class="max-w-xs">
+                <p class="text-xs font-semibold">{{ t('chat.input.acpMode') }}</p>
+                <p class="text-xs text-muted-foreground mt-1">
+                  {{ t('chat.input.acpModeTooltip', { mode: acpMode.currentModeName.value }) }}
+                </p>
+                <p v-if="acpMode.currentModeInfo.value" class="text-xs text-muted-foreground mt-1">
+                  {{ acpMode.currentModeInfo.value.description }}
+                </p>
+              </TooltipContent>
+            </Tooltip>
 
             <!-- Model Selector (only in chat mode) -->
             <Popover v-if="variant === 'chat'" v-model:open="modelSelectOpen">

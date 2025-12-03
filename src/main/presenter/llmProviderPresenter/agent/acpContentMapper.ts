@@ -22,6 +22,7 @@ interface ToolCallState {
   toolCallId: string
   toolName: string
   argumentsBuffer: string
+  paramsCaptured: boolean
   status?: schema.ToolCallStatus | null
   started: boolean
 }
@@ -172,9 +173,14 @@ export class AcpContentMapper {
     }
 
     const content = 'content' in update ? (update.content ?? undefined) : undefined
-    const chunk = this.formatToolCallContent(content, '')
+    const paramsChunk = this.stringifyToolParams(update)
+    const contentChunk = this.formatToolCallContent(content, '')
+    const chunk = paramsChunk ?? (state.paramsCaptured ? '' : contentChunk)
     if (chunk) {
       this.emitToolCallChunk(state, chunk, payload)
+      if (paramsChunk) {
+        state.paramsCaptured = true
+      }
     }
 
     if (status === 'completed' || status === 'failed') {
@@ -355,6 +361,7 @@ export class AcpContentMapper {
       toolCallId,
       toolName: toolName ?? toolCallId,
       argumentsBuffer: '',
+      paramsCaptured: false,
       status: undefined,
       started: false
     }
@@ -378,5 +385,35 @@ export class AcpContentMapper {
       timestamp: now(),
       ...extra
     } as AssistantMessageBlock
+  }
+
+  private stringifyToolParams(
+    update: Extract<
+      schema.SessionNotification['update'],
+      { sessionUpdate: 'tool_call' | 'tool_call_update' }
+    >
+  ): string | undefined {
+    const rawInput = (update as any).rawInput ?? (update as any).raw_input
+    if (rawInput && typeof rawInput === 'object' && Object.keys(rawInput).length > 0) {
+      try {
+        return JSON.stringify(rawInput)
+      } catch (error) {
+        console.warn('[ACP] Failed to stringify rawInput for tool call params:', error)
+      }
+    }
+
+    if (update.locations?.length) {
+      try {
+        return JSON.stringify({ locations: update.locations })
+      } catch (error) {
+        console.warn('[ACP] Failed to stringify locations for tool call params:', error)
+      }
+    }
+
+    if ('title' in update && typeof update.title === 'string' && update.title.trim()) {
+      return update.title.trim()
+    }
+
+    return undefined
   }
 }
