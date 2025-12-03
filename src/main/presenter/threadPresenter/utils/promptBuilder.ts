@@ -471,17 +471,19 @@ function addContextMessages(
 
         content.forEach((block) => {
           if (block.type === 'tool_call' && block.tool_call) {
-            let toolCallId = block.tool_call.id || nanoid(8)
-            toolCalls.push({
-              id: toolCallId,
-              type: 'function',
-              function: {
-                name: block.tool_call.name,
-                arguments: block.tool_call.params || ''
-              }
-            })
-            // Store tool response separately to create role:tool messages
+            // Only add tool_call if it has a response (completed successfully)
+            // This ensures that every tool_call in the message has a corresponding tool response
             if (block.tool_call.response) {
+              let toolCallId = block.tool_call.id || nanoid(8)
+              toolCalls.push({
+                id: toolCallId,
+                type: 'function',
+                function: {
+                  name: block.tool_call.name,
+                  arguments: block.tool_call.params || ''
+                }
+              })
+              // Store tool response separately to create role:tool messages
               toolResponses.push({
                 id: toolCallId,
                 response: block.tool_call.response
