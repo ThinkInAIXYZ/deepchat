@@ -94,13 +94,31 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
   private getFsHandler(sessionId: string): AcpFsHandler {
     const handler = this.fsHandlers.get(sessionId)
     if (!handler) {
-      // Fallback: create handler with no workspace restriction
+      // Fallback: restrict to a temporary workspace instead of unrestricted access
+      const fallbackWorkdir = this.getFallbackWorkdir()
       console.warn(
-        `[ACP] No fs handler registered for session ${sessionId}, using unrestricted handler`
+        `[ACP] No fs handler registered for session ${sessionId}, using fallback workdir: ${fallbackWorkdir}`
       )
-      return new AcpFsHandler({ workspaceRoot: null })
+      const fallbackHandler = new AcpFsHandler({ workspaceRoot: fallbackWorkdir })
+      this.fsHandlers.set(sessionId, fallbackHandler)
+      return fallbackHandler
     }
     return handler
+  }
+
+  /**
+   * Provide a fallback workspace for sessions that haven't registered a workdir.
+   * Keeps file access constrained to a temp directory rather than the entire filesystem.
+   */
+  private getFallbackWorkdir(): string {
+    const tempDir = path.join(app.getPath('temp'), 'deepchat-acp', 'sessions')
+    try {
+      fs.mkdirSync(tempDir, { recursive: true })
+    } catch (error) {
+      console.warn('[ACP] Failed to create fallback workdir, defaulting to system temp:', error)
+      return app.getPath('temp')
+    }
+    return tempDir
   }
 
   async getConnection(agent: AcpAgentConfig): Promise<AcpProcessHandle> {

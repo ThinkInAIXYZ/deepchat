@@ -194,6 +194,18 @@ const hasParams = computed(() => {
 const initTerminal = () => {
   if (!terminalContainer.value || !isTerminalTool.value) return
 
+  // Clean up any existing terminal before creating a new one
+  if (terminal) {
+    try {
+      terminal.dispose()
+    } catch (error) {
+      console.warn('[MessageBlockToolCall] Failed to dispose existing terminal:', error)
+    }
+    terminal = null
+  }
+  // Clear previous terminal DOM content
+  terminalContainer.value.innerHTML = ''
+
   terminal = new Terminal({
     convertEol: true,
     fontSize: 12,
