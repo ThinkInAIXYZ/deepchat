@@ -22,7 +22,8 @@ import {
   ITabPresenter,
   IThreadPresenter,
   IUpgradePresenter,
-  IWindowPresenter
+  IWindowPresenter,
+  IAcpWorkspacePresenter
 } from '@shared/presenter'
 import { eventBus } from '@/eventbus'
 import { LLMProviderPresenter } from './llmProviderPresenter'
@@ -40,6 +41,7 @@ import { OAuthPresenter } from './oauthPresenter'
 import { FloatingButtonPresenter } from './floatingButtonPresenter'
 import { CONFIG_EVENTS, WINDOW_EVENTS } from '@/events'
 import { KnowledgePresenter } from './knowledgePresenter'
+import { AcpWorkspacePresenter } from './acpWorkspacePresenter'
 
 // IPC调用上下文接口
 interface IPCCallContext {
@@ -77,6 +79,7 @@ export class Presenter implements IPresenter {
   oauthPresenter: OAuthPresenter
   floatingButtonPresenter: FloatingButtonPresenter
   knowledgePresenter: IKnowledgePresenter
+  acpWorkspacePresenter: IAcpWorkspacePresenter
   // llamaCppPresenter: LlamaCppPresenter // 保留原始注释
   dialogPresenter: IDialogPresenter
   lifecycleManager: ILifecycleManager
@@ -118,6 +121,9 @@ export class Presenter implements IPresenter {
       dbDir,
       this.filePresenter
     )
+
+    // Initialize ACP Workspace presenter
+    this.acpWorkspacePresenter = new AcpWorkspacePresenter()
 
     // this.llamaCppPresenter = new LlamaCppPresenter() // 保留原始注释
     this.setupEventBus() // 设置事件总线监听

@@ -22,12 +22,7 @@
     "acpWorkdirSelect": "Select a folder to use as the ACP workdir",
     "acpWorkdirCurrent": "Current workdir: {path}",
     "acpMode": "모드",
-    "acpModeTooltip": "현재 모드: {mode}",
-    "acpModeSwitched": "{mode}로 전환됨",
-    "acpModeDefault": "항상 묻기",
-    "acpModeAcceptEdits": "편집 자동 승인",
-    "acpModePlan": "계획 모드",
-    "acpModeBypassPermissions": "권한 건너뛰기"
+    "acpModeTooltip": "현재 모드: {mode}"
   },
   "features": {
     "webSearch": "웹 검색",
@@ -93,5 +88,31 @@
     "collapse": "닫다",
     "expand": "확장하다",
     "title": "MCP UI"
+  },
+  "acp": {
+    "workspace": {
+      "title": "작업 공간",
+      "collapse": "접기",
+      "plan": {
+        "section": "계획",
+        "empty": "아직 작업이 없습니다",
+        "status": {
+          "pending": "대기 중",
+          "in_progress": "진행 중",
+          "completed": "완료",
+          "failed": "실패",
+          "skipped": "건너뜀"
+        }
+      },
+      "files": {
+        "section": "파일",
+        "empty": "파일이 없습니다",
+        "loading": "파일 로딩 중..."
+      },
+      "terminal": {
+        "section": "터미널",
+        "empty": "출력이 없습니다"
+      }
+    }
   }
 }

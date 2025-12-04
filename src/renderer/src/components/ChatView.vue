@@ -1,11 +1,20 @@
 <template>
   <div class="flex flex-col overflow-hidden h-0 flex-1">
-    <!-- 消息列表区域 -->
-    <MessageList
-      :key="chatStore.getActiveThreadId() ?? 'default'"
-      ref="messageList"
-      :messages="chatStore.getMessages()"
-    />
+    <div class="flex flex-1 overflow-hidden">
+      <!-- 消息列表区域 -->
+      <div class="flex min-w-0 flex-1 overflow-hidden">
+        <MessageList
+          :key="chatStore.getActiveThreadId() ?? 'default'"
+          ref="messageList"
+          :messages="chatStore.getMessages()"
+        />
+      </div>
+
+      <!-- ACP Workspace 面板 -->
+      <Transition name="workspace-slide">
+        <AcpWorkspaceView v-if="showAcpWorkspace" class="h-full flex-shrink-0" />
+      </Transition>
+    </div>
 
     <!-- 输入框区域 -->
     <div class="flex-none px-0 pb-0">
@@ -42,11 +51,13 @@
 import { ref, onMounted, onUnmounted, watch, computed, nextTick } from 'vue'
 import MessageList from './message/MessageList.vue'
 import ChatInput from './chat-input/ChatInput.vue'
+import AcpWorkspaceView from './acp-workspace/AcpWorkspaceView.vue'
 import { useRoute } from 'vue-router'
 import { UserMessageContent } from '@shared/chat'
 import { STREAM_EVENTS, SHORTCUT_EVENTS } from '@/events'
 import { useUiSettingsStore } from '@/stores/uiSettingsStore'
 import { useChatStore } from '@/stores/chat'
+import { useAcpWorkspaceStore } from '@/stores/acpWorkspace'
 import { useCleanDialog } from '@/composables/message/useCleanDialog'
 import { useI18n } from 'vue-i18n'
 import {
@@ -63,7 +74,11 @@ const { t } = useI18n()
 const route = useRoute()
 const uiSettingsStore = useUiSettingsStore()
 const chatStore = useChatStore()
+const acpWorkspaceStore = useAcpWorkspaceStore()
 const cleanDialog = useCleanDialog()
+
+// Show workspace only in ACP mode and when open
+const showAcpWorkspace = computed(() => acpWorkspaceStore.isAcpMode && acpWorkspaceStore.isOpen)
 
 const messageList = ref()
 const chatInput = ref()
@@ -153,3 +168,22 @@ defineExpose({
   messageList
 })
 </script>
+
+<style scoped>
+.workspace-slide-enter-active,
+.workspace-slide-leave-active {
+  transition: all 0.2s ease;
+}
+
+.workspace-slide-enter-from,
+.workspace-slide-leave-to {
+  opacity: 0;
+  transform: translateX(100%);
+}
+
+.workspace-slide-enter-to,
+.workspace-slide-leave-from {
+  opacity: 1;
+  transform: translateX(0);
+}
+</style>

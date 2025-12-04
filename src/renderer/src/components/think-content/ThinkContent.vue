@@ -28,10 +28,10 @@
 
     <div v-show="expanded" class="w-full relative">
       <NodeRenderer
-        v-if="content"
+        v-if="sanitizedContent"
         class="think-prose w-full max-w-full"
         :isDark="themeStore.isDark"
-        :content="content"
+        :content="sanitizedContent"
         :customId="customId"
       />
     </div>
@@ -47,15 +47,21 @@
 <script setup lang="ts">
 import { useThemeStore } from '@/stores/theme'
 import { Icon } from '@iconify/vue'
-import { h } from 'vue'
+import { h, computed } from 'vue'
 import NodeRenderer, { setCustomComponents, CodeBlockNode, PreCodeNode } from 'markstream-vue'
 
-defineProps<{
+const props = defineProps<{
   label: string
   expanded: boolean
   thinking: boolean
   content?: string
 }>()
+
+// Strip <style> tags to prevent global style pollution
+const sanitizedContent = computed(() => {
+  if (!props.content) return ''
+  return props.content.replace(/<style[\s\S]*?<\/style>/gi, '')
+})
 
 defineEmits<{
   (e: 'toggle'): void

@@ -22,12 +22,7 @@
     "acpWorkdirSelect": "Select a folder to use as the ACP workdir",
     "acpWorkdirCurrent": "Current workdir: {path}",
     "acpMode": "モード",
-    "acpModeTooltip": "現在のモード：{mode}",
-    "acpModeSwitched": "{mode} に切り替えました",
-    "acpModeDefault": "常に確認",
-    "acpModeAcceptEdits": "編集を自動承認",
-    "acpModePlan": "計画モード",
-    "acpModeBypassPermissions": "権限をスキップ"
+    "acpModeTooltip": "現在のモード：{mode}"
   },
   "features": {
     "webSearch": "ウェブ検索",
@@ -93,5 +88,31 @@
     "collapse": "折りたたむ",
     "expand": "展開",
     "title": "MCP UI"
+  },
+  "acp": {
+    "workspace": {
+      "title": "ワークスペース",
+      "collapse": "折りたたむ",
+      "plan": {
+        "section": "プラン",
+        "empty": "タスクはまだありません",
+        "status": {
+          "pending": "保留中",
+          "in_progress": "進行中",
+          "completed": "完了",
+          "failed": "失敗",
+          "skipped": "スキップ"
+        }
+      },
+      "files": {
+        "section": "ファイル",
+        "empty": "ファイルはまだありません",
+        "loading": "ファイルを読み込み中..."
+      },
+      "terminal": {
+        "section": "ターミナル",
+        "empty": "出力はまだありません"
+      }
+    }
   }
 }

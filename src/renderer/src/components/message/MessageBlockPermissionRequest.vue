@@ -15,7 +15,7 @@
             </span>
             <Icon v-else icon="lucide:shield-check" class="w-4 h-4 text-muted-foreground" />
             {{ block.tool_call?.server_name ? `${block.tool_call.server_name} · ` : '' }}
-            {{ block.tool_call?.name ?? '' }}
+            {{ truncatedName }}
           </h4>
         </div>
         <div class="text-xs text-muted-foreground">{{ getStatusText() }}</div>
@@ -42,7 +42,7 @@
           class="w-4 h-4 text-amber-600 dark:text-amber-400"
         />
         <h4 class="text-xs font-medium text-accent-foreground">
-          {{ block.tool_call?.name }}
+          {{ truncatedName }}
         </h4>
         <Icon :icon="getPermissionIcon()" :class="['w-3 h-3', getPermissionIconClass()]" />
         <span class="text-xs" :class="getPermissionTextClass()">
@@ -99,6 +99,23 @@ const props = defineProps<{
 
 const isProcessing = ref(false)
 const rememberable = computed(() => props.block.extra?.rememberable !== false)
+
+// Truncate name to max 200 characters
+const MAX_NAME_LENGTH = 200
+const truncatedName = computed(() => {
+  const name = props.block.tool_call?.name ?? ''
+  const ellipsis = '...'
+
+  if (MAX_NAME_LENGTH <= ellipsis.length) {
+    return ellipsis.slice(0, MAX_NAME_LENGTH)
+  }
+
+  if (name.length > MAX_NAME_LENGTH) {
+    return name.slice(0, MAX_NAME_LENGTH - ellipsis.length) + ellipsis
+  }
+
+  return name
+})
 
 const getPermissionIcon = () => {
   const permissionType = props.block.extra?.permissionType as string

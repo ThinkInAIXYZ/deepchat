@@ -171,3 +171,11 @@ export const RAG_EVENTS = {
 export const SYSTEM_EVENTS = {
   SYSTEM_THEME_UPDATED: 'system:theme-updated'
 }
+
+// ACP Workspace events
+export const ACP_WORKSPACE_EVENTS = {
+  PLAN_UPDATED: 'acp-workspace:plan-updated', // Plan entries updated
+  TERMINAL_OUTPUT: 'acp-workspace:terminal-output', // Terminal output snippet
+  FILES_CHANGED: 'acp-workspace:files-changed', // File tree changed
+  SESSION_MODES_READY: 'acp-workspace:session-modes-ready' // Session modes available
+}

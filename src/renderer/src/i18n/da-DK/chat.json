@@ -13,11 +13,6 @@
     "acpWorkdirTooltip": "Indstil ACP arbejdsmappe",
     "acpMode": "Tilstand",
     "acpModeTooltip": "Aktuel tilstand: {mode}",
-    "acpModeSwitched": "Skiftet til {mode}",
-    "acpModeDefault": "Spørg altid",
-    "acpModeAcceptEdits": "Accepter redigeringer",
-    "acpModePlan": "Plantilstand",
-    "acpModeBypassPermissions": "Spring tilladelser over",
     "dropFiles": "Træk filer hertil",
     "fileSelect": "Vælg fil",
     "functionSwitch": "Funktionsafbryder",
@@ -93,5 +88,31 @@
     "response": "Værktøjsrespons",
     "responseData": "Svardata",
     "title": "Værktøjsopkald"
+  },
+  "acp": {
+    "workspace": {
+      "title": "Arbejdsområde",
+      "collapse": "Skjul",
+      "plan": {
+        "section": "Plan",
+        "empty": "Ingen opgaver endnu",
+        "status": {
+          "pending": "Afventer",
+          "in_progress": "I gang",
+          "completed": "Fuldført",
+          "failed": "Fejlet",
+          "skipped": "Sprunget over"
+        }
+      },
+      "files": {
+        "section": "Filer",
+        "empty": "Ingen filer",
+        "loading": "Indlæser filer..."
+      },
+      "terminal": {
+        "section": "Terminal",
+        "empty": "Ingen output"
+      }
+    }
   }
 }

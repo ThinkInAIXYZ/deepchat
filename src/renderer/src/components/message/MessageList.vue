@@ -39,8 +39,10 @@
       <MessageActionButtons
         :show-clean-button="!showCancelButton"
         :show-scroll-button="aboveThreshold"
+        :show-workspace-button="showWorkspaceButton"
         @clean="cleanDialog.open"
         @scroll-to-bottom="scrollToBottom(true)"
+        @open-workspace="handleOpenWorkspace"
       />
     </template>
     <ReferencePreview
@@ -87,6 +89,7 @@ import { useMessageRetry } from '@/composables/message/useMessageRetry'
 // === Stores ===
 import { useChatStore } from '@/stores/chat'
 import { useReferenceStore } from '@/stores/reference'
+import { useAcpWorkspaceStore } from '@/stores/acpWorkspace'
 
 // === Props & Emits ===
 const props = defineProps<{
@@ -96,6 +99,7 @@ const props = defineProps<{
 // === Stores ===
 const chatStore = useChatStore()
 const referenceStore = useReferenceStore()
+const acpWorkspaceStore = useAcpWorkspaceStore()
 
 // === Composable Integrations ===
 // Scroll management
@@ -180,6 +184,15 @@ const handleRetry = async (index: number) => {
 const showCancelButton = computed(() => {
   return chatStore.generatingThreadIds.has(chatStore.getActiveThreadId() ?? '')
 })
+
+// Show workspace button only in ACP mode when workspace is closed
+const showWorkspaceButton = computed(() => {
+  return acpWorkspaceStore.isAcpMode && !acpWorkspaceStore.isOpen
+})
+
+const handleOpenWorkspace = () => {
+  acpWorkspaceStore.setOpen(true)
+}
 
 const handleTrace = (messageId: string) => {
   traceMessageId.value = messageId

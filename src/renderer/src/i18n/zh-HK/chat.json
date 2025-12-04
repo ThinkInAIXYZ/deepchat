@@ -22,12 +22,7 @@
     "acpWorkdirSelect": "選擇工作目錄",
     "acpWorkdirCurrent": "目前工作目錄：{path}",
     "acpMode": "模式",
-    "acpModeTooltip": "目前模式：{mode}",
-    "acpModeSwitched": "已切換至 {mode}",
-    "acpModeDefault": "總是詢問",
-    "acpModeAcceptEdits": "自動接受編輯",
-    "acpModePlan": "計劃模式",
-    "acpModeBypassPermissions": "略過權限"
+    "acpModeTooltip": "目前模式：{mode}"
   },
   "features": {
     "webSearch": "網絡搜索",
@@ -93,5 +88,31 @@
     "collapse": "收起",
     "expand": "展開",
     "title": "MCP UI"
+  },
+  "acp": {
+    "workspace": {
+      "title": "工作區",
+      "collapse": "收起",
+      "plan": {
+        "section": "計劃",
+        "empty": "暫無任務",
+        "status": {
+          "pending": "待處理",
+          "in_progress": "進行中",
+          "completed": "已完成",
+          "failed": "失敗",
+          "skipped": "已跳過"
+        }
+      },
+      "files": {
+        "section": "檔案",
+        "empty": "暫無檔案",
+        "loading": "載入檔案中..."
+      },
+      "terminal": {
+        "section": "終端",
+        "empty": "暫無輸出"
+      }
+    }
   }
 }

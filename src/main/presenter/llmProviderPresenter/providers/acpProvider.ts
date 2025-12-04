@@ -19,7 +19,7 @@ import {
 } from '@shared/types/core/llm-events'
 import { ModelType } from '@shared/model'
 import { eventBus, SendTarget } from '@/eventbus'
-import { CONFIG_EVENTS } from '@/events'
+import { CONFIG_EVENTS, ACP_WORKSPACE_EVENTS } from '@/events'
 import { AcpProcessManager } from '../agent/acpProcessManager'
 import { AcpSessionManager } from '../agent/acpSessionManager'
 import type { AcpSessionRecord } from '../agent/acpSessionManager'
@@ -327,7 +327,7 @@ export class AcpProvider extends BaseAgentProvider<
             agent,
             {
               onSessionUpdate: (notification) => {
-                console.log('[ACP] onSessionUpdate: notification:', JSON.stringify(notification))
+                // console.log('[ACP] onSessionUpdate: notification:', JSON.stringify(notification))
                 const mapped = this.contentMapper.map(notification)
                 mapped.events.forEach((event) => queue.push(event))
               },
@@ -339,6 +339,19 @@ export class AcpProvider extends BaseAgentProvider<
             },
             workdir
           )
+
+          // Notify renderer of available session modes (if any)
+          if (session.availableModes && session.availableModes.length > 0) {
+            eventBus.sendToRenderer(
+              ACP_WORKSPACE_EVENTS.SESSION_MODES_READY,
+              SendTarget.ALL_WINDOWS,
+              {
+                conversationId: conversationKey,
+                current: session.currentModeId ?? 'default',
+                available: session.availableModes
+              }
+            )
+          }
 
           const promptBlocks = this.messageFormatter.format(messages, modelConfig)
           void this.runPrompt(session, promptBlocks, queue)
@@ -666,12 +679,38 @@ export class AcpProvider extends BaseAgentProvider<
       throw new Error(`[ACP] No session found for conversation ${conversationId}`)
     }
 
+    const previousMode = session.currentModeId ?? 'default'
+    const availableModes = session.availableModes ?? []
+    const availableModeIds = availableModes.map((m) => m.id)
+
+    // Log available modes for debugging
+    console.info(
+      `[ACP] Agent "${session.agentId}" available modes: [${availableModeIds.join(', ')}]`
+    )
+
+    // Warn if requested mode is not in available modes
+    if (availableModeIds.length > 0 && !availableModeIds.includes(modeId)) {
+      console.warn(
+        `[ACP] Mode "${modeId}" is not in agent's available modes [${availableModeIds.join(', ')}]. ` +
+          `The agent may not support this mode.`
+      )
+    }
+
     try {
+      console.info(
+        `[ACP] Changing session mode: "${previousMode}" -> "${modeId}" ` +
+          `(conversation: ${conversationId}, agent: ${session.agentId})`
+      )
       await session.connection.setSessionMode({ sessionId: session.sessionId, modeId })
       session.currentModeId = modeId
-      console.info(`[ACP] Session mode changed to ${modeId} for conversation ${conversationId}`)
+      console.info(
+        `[ACP] Session mode successfully changed to "${modeId}" for conversation ${conversationId}`
+      )
     } catch (error) {
-      console.error('[ACP] Failed to set session mode:', error)
+      console.error(
+        `[ACP] Failed to set session mode "${modeId}" for agent "${session.agentId}":`,
+        error
+      )
       throw error
     }
   }
@@ -685,12 +724,20 @@ export class AcpProvider extends BaseAgentProvider<
   } | null> {
     const session = this.sessionManager.getSession(conversationId)
     if (!session) {
+      console.warn(`[ACP] getSessionModes: No session found for conversation ${conversationId}`)
       return null
     }
 
-    return {
+    const result = {
       current: session.currentModeId ?? 'default',
       available: session.availableModes ?? []
     }
+
+    console.info(
+      `[ACP] getSessionModes for agent "${session.agentId}": ` +
+        `current="${result.current}", available=[${result.available.map((m) => m.id).join(', ')}]`
+    )
+
+    return result
   }
 }

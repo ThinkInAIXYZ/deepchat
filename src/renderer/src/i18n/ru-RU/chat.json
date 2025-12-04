@@ -22,12 +22,7 @@
     "acpWorkdirSelect": "Select a folder to use as the ACP workdir",
     "acpWorkdirCurrent": "Current workdir: {path}",
     "acpMode": "Режим",
-    "acpModeTooltip": "Текущий режим: {mode}",
-    "acpModeSwitched": "Переключено на {mode}",
-    "acpModeDefault": "Всегда спрашивать",
-    "acpModeAcceptEdits": "Принимать правки",
-    "acpModePlan": "Режим планирования",
-    "acpModeBypassPermissions": "Пропустить разрешения"
+    "acpModeTooltip": "Текущий режим: {mode}"
   },
   "features": {
     "webSearch": "Поиск в интернете",
@@ -93,5 +88,31 @@
     "collapse": "закрывать",
     "expand": "Расширять",
     "title": "MCP UI"
+  },
+  "acp": {
+    "workspace": {
+      "title": "Рабочее пространство",
+      "collapse": "Свернуть",
+      "plan": {
+        "section": "План",
+        "empty": "Пока нет задач",
+        "status": {
+          "pending": "Ожидание",
+          "in_progress": "Выполняется",
+          "completed": "Завершено",
+          "failed": "Ошибка",
+          "skipped": "Пропущено"
+        }
+      },
+      "files": {
+        "section": "Файлы",
+        "empty": "Нет файлов",
+        "loading": "Загрузка файлов..."
+      },
+      "terminal": {
+        "section": "Терминал",
+        "empty": "Нет вывода"
+      }
+    }
   }
 }

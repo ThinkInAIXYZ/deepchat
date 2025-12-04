@@ -22,12 +22,7 @@
     "acpWorkdirSelect": "Select a folder to use as the ACP workdir",
     "acpWorkdirCurrent": "Current workdir: {path}",
     "acpMode": "Modo",
-    "acpModeTooltip": "Modo atual: {mode}",
-    "acpModeSwitched": "Alterado para {mode}",
-    "acpModeDefault": "Sempre perguntar",
-    "acpModeAcceptEdits": "Aceitar edições",
-    "acpModePlan": "Modo de planejamento",
-    "acpModeBypassPermissions": "Ignorar permissões"
+    "acpModeTooltip": "Modo atual: {mode}"
   },
   "features": {
     "webSearch": "Busca na Web",
@@ -93,5 +88,31 @@
     "collapse": "fechar",
     "expand": "Expandir",
     "title": "MCP UI"
+  },
+  "acp": {
+    "workspace": {
+      "title": "Área de trabalho",
+      "collapse": "Recolher",
+      "plan": {
+        "section": "Plano",
+        "empty": "Nenhuma tarefa ainda",
+        "status": {
+          "pending": "Pendente",
+          "in_progress": "Em andamento",
+          "completed": "Concluído",
+          "failed": "Falhou",
+          "skipped": "Ignorado"
+        }
+      },
+      "files": {
+        "section": "Arquivos",
+        "empty": "Nenhum arquivo",
+        "loading": "Carregando arquivos..."
+      },
+      "terminal": {
+        "section": "Terminal",
+        "empty": "Nenhuma saída"
+      }
+    }
   }
 }

@@ -175,11 +175,13 @@ export class ThreadPresenter implements IThreadPresenter {
 
     if (conversation.is_new === 1) {
       try {
-        const title = await this.summaryTitles(undefined, state.conversationId)
-        if (title) {
-          await this.renameConversation(state.conversationId, title)
-          return
-        }
+        this.summaryTitles(undefined, state.conversationId)
+          .then((title) => {
+            return this.renameConversation(state.conversationId, title)
+          })
+          .then(() => {
+            console.log('renameConversation success')
+          })
       } catch (error) {
         console.error('[ThreadPresenter] Failed to summarize title', {
           conversationId: state.conversationId,
