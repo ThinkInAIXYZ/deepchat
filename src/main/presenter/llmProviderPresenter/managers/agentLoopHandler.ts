@@ -257,25 +257,50 @@ export class AgentLoopHandler {
                   const completeArgs =
                     chunk.tool_call_arguments_complete ??
                     currentToolChunks[chunk.tool_call_id].arguments_chunk
-                  currentToolCalls.push({
-                    id: chunk.tool_call_id,
-                    name: currentToolChunks[chunk.tool_call_id].name,
-                    arguments: completeArgs
-                  })
+                  const toolCallName = currentToolChunks[chunk.tool_call_id].name
 
-                  // Send final update event to ensure parameter completeness
-                  yield {
-                    type: 'response',
-                    data: {
-                      eventId,
-                      tool_call: 'update',
-                      tool_call_id: chunk.tool_call_id,
-                      tool_call_name: currentToolChunks[chunk.tool_call_id].name,
-                      tool_call_params: completeArgs
+                  // For ACP provider, tool call execution is completed on agent side
+                  // The tool_call_arguments_complete contains the execution result
+                  // So we should immediately send 'end' event to mark it as successful
+                  if (providerId === 'acp') {
+                    // For ACP, tool_call_arguments_complete contains the execution result
+                    // Use it directly as the response
+                    yield {
+                      type: 'response',
+                      data: {
+                        eventId,
+                        tool_call: 'end',
+                        tool_call_id: chunk.tool_call_id,
+                        tool_call_name: toolCallName,
+                        tool_call_params: completeArgs,
+                        tool_call_response: completeArgs
+                      }
                     }
-                  }
 
-                  delete currentToolChunks[chunk.tool_call_id]
+                    // Don't add to currentToolCalls for ACP - execution already completed
+                    delete currentToolChunks[chunk.tool_call_id]
+                  } else {
+                    // For non-ACP providers, tool call needs to be executed by ToolCallProcessor
+                    currentToolCalls.push({
+                      id: chunk.tool_call_id,
+                      name: toolCallName,
+                      arguments: completeArgs
+                    })
+
+                    // Send final update event to ensure parameter completeness
+                    yield {
+                      type: 'response',
+                      data: {
+                        eventId,
+                        tool_call: 'update',
+                        tool_call_id: chunk.tool_call_id,
+                        tool_call_name: toolCallName,
+                        tool_call_params: completeArgs
+                      }
+                    }
+
+                    delete currentToolChunks[chunk.tool_call_id]
+                  }
                 }
                 break
               case 'permission': {
