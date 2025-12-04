@@ -89,22 +89,30 @@
     "expand": "展開",
     "title": "MCP UI"
   },
-  "acpWorkspace": {
-    "title": "ワークスペース",
-    "collapse": "折りたたむ",
-    "planSection": "プラン",
-    "planEmpty": "タスクはまだありません",
-    "filesSection": "ファイル",
-    "filesEmpty": "ファイルはまだありません",
-    "filesLoading": "ファイルを読み込み中...",
-    "terminalSection": "ターミナル",
-    "terminalEmpty": "出力はまだありません",
-    "planStatus": {
-      "pending": "保留中",
-      "in_progress": "進行中",
-      "completed": "完了",
-      "failed": "失敗",
-      "skipped": "スキップ"
+  "acp": {
+    "workspace": {
+      "title": "ワークスペース",
+      "collapse": "折りたたむ",
+      "plan": {
+        "section": "プラン",
+        "empty": "タスクはまだありません",
+        "status": {
+          "pending": "保留中",
+          "in_progress": "進行中",
+          "completed": "完了",
+          "failed": "失敗",
+          "skipped": "スキップ"
+        }
+      },
+      "files": {
+        "section": "ファイル",
+        "empty": "ファイルはまだありません",
+        "loading": "ファイルを読み込み中..."
+      },
+      "terminal": {
+        "section": "ターミナル",
+        "empty": "出力はまだありません"
+      }
     }
   }
 }

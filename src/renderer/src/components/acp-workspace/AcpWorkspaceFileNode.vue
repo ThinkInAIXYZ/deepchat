@@ -39,15 +39,15 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { Icon } from '@iconify/vue'
-import type { ACP_FILE_NODE } from '@shared/presenter'
+import type { AcpFileNode } from '@shared/presenter'
 
 const props = defineProps<{
-  node: ACP_FILE_NODE
+  node: AcpFileNode
   depth: number
 }>()
 
 const emit = defineEmits<{
-  toggle: [node: ACP_FILE_NODE]
+  toggle: [node: AcpFileNode]
 }>()
 
 const extensionIconMap: Record<string, string> = {

@@ -9,7 +9,7 @@
       <span
         class="flex-1 text-[12px] font-medium tracking-wide text-foreground/80 dark:text-white/80"
       >
-        {{ t('chat.acpWorkspace.filesSection') }}
+        {{ t('chat.acp.workspace.files.section') }}
       </span>
       <span class="text-[10px] text-muted-foreground">
         {{ fileCount }}
@@ -23,7 +23,7 @@
     <Transition name="workspace-collapse">
       <div v-if="showFiles" class="space-y-0 overflow-hidden">
         <div v-if="store.isLoading" class="px-4 py-3 text-[11px] text-muted-foreground">
-          {{ t('chat.acpWorkspace.filesLoading') }}
+          {{ t('chat.acp.workspace.files.loading') }}
         </div>
         <div v-else-if="store.fileTree.length > 0" class="pb-1">
           <AcpWorkspaceFileNode
@@ -35,7 +35,7 @@
           />
         </div>
         <div v-else class="px-4 py-3 text-[11px] text-muted-foreground">
-          {{ t('chat.acpWorkspace.filesEmpty') }}
+          {{ t('chat.acp.workspace.files.empty') }}
         </div>
       </div>
     </Transition>
@@ -48,13 +48,13 @@ import { Icon } from '@iconify/vue'
 import { useI18n } from 'vue-i18n'
 import { useAcpWorkspaceStore } from '@/stores/acpWorkspace'
 import AcpWorkspaceFileNode from './AcpWorkspaceFileNode.vue'
-import type { ACP_FILE_NODE } from '@shared/presenter'
+import type { AcpFileNode } from '@shared/presenter'
 
 const { t } = useI18n()
 const store = useAcpWorkspaceStore()
 const showFiles = ref(true)
 
-const countFiles = (nodes: ACP_FILE_NODE[]): number => {
+const countFiles = (nodes: AcpFileNode[]): number => {
   let count = 0
   for (const node of nodes) {
     count += 1
@@ -67,7 +67,7 @@ const countFiles = (nodes: ACP_FILE_NODE[]): number => {
 
 const fileCount = computed(() => countFiles(store.fileTree))
 
-const handleToggle = async (node: ACP_FILE_NODE) => {
+const handleToggle = async (node: AcpFileNode) => {
   await store.toggleFileNode(node)
 }
 </script>

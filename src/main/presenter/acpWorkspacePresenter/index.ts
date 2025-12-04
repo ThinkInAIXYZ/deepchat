@@ -5,10 +5,10 @@ import { readDirectoryShallow } from './directoryReader'
 import { PlanStateManager } from './planStateManager'
 import type {
   IAcpWorkspacePresenter,
-  ACP_FILE_NODE,
-  ACP_PLAN_ENTRY,
-  ACP_TERMINAL_SNIPPET,
-  ACP_RAW_PLAN_ENTRY
+  AcpFileNode,
+  AcpPlanEntry,
+  AcpTerminalSnippet,
+  AcpRawPlanEntry
 } from '@shared/presenter'
 
 export class AcpWorkspacePresenter implements IAcpWorkspacePresenter {
@@ -51,7 +51,7 @@ export class AcpWorkspacePresenter implements IAcpWorkspacePresenter {
    * Read directory (shallow, only first level)
    * Use expandDirectory to load subdirectory contents
    */
-  async readDirectory(dirPath: string): Promise<ACP_FILE_NODE[]> {
+  async readDirectory(dirPath: string): Promise<AcpFileNode[]> {
     // Security check: only allow reading within registered workdirs
     if (!this.isPathAllowed(dirPath)) {
       console.warn(`[AcpWorkspace] Blocked read attempt for unauthorized path: ${dirPath}`)
@@ -64,7 +64,7 @@ export class AcpWorkspacePresenter implements IAcpWorkspacePresenter {
    * Expand a directory to load its children (lazy loading)
    * @param dirPath Directory path to expand
    */
-  async expandDirectory(dirPath: string): Promise<ACP_FILE_NODE[]> {
+  async expandDirectory(dirPath: string): Promise<AcpFileNode[]> {
     // Security check: only allow reading within registered workdirs
     if (!this.isPathAllowed(dirPath)) {
       console.warn(`[AcpWorkspace] Blocked expand attempt for unauthorized path: ${dirPath}`)
@@ -76,14 +76,14 @@ export class AcpWorkspacePresenter implements IAcpWorkspacePresenter {
   /**
    * Get plan entries
    */
-  async getPlanEntries(conversationId: string): Promise<ACP_PLAN_ENTRY[]> {
+  async getPlanEntries(conversationId: string): Promise<AcpPlanEntry[]> {
     return this.planManager.getEntries(conversationId)
   }
 
   /**
    * Update plan entries (called by acpContentMapper)
    */
-  async updatePlanEntries(conversationId: string, entries: ACP_RAW_PLAN_ENTRY[]): Promise<void> {
+  async updatePlanEntries(conversationId: string, entries: AcpRawPlanEntry[]): Promise<void> {
     const updated = this.planManager.updateEntries(conversationId, entries)
 
     // Send event to renderer
@@ -96,7 +96,7 @@ export class AcpWorkspacePresenter implements IAcpWorkspacePresenter {
   /**
    * Emit terminal output snippet (called by acpContentMapper)
    */
-  async emitTerminalSnippet(conversationId: string, snippet: ACP_TERMINAL_SNIPPET): Promise<void> {
+  async emitTerminalSnippet(conversationId: string, snippet: AcpTerminalSnippet): Promise<void> {
     eventBus.sendToRenderer(ACP_WORKSPACE_EVENTS.TERMINAL_OUTPUT, SendTarget.ALL_WINDOWS, {
       conversationId,
       snippet

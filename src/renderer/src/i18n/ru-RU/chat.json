@@ -89,22 +89,30 @@
     "expand": "Расширять",
     "title": "MCP UI"
   },
-  "acpWorkspace": {
-    "title": "Рабочее пространство",
-    "collapse": "Свернуть",
-    "planSection": "План",
-    "planEmpty": "Пока нет задач",
-    "filesSection": "Файлы",
-    "filesEmpty": "Нет файлов",
-    "filesLoading": "Загрузка файлов...",
-    "terminalSection": "Терминал",
-    "terminalEmpty": "Нет вывода",
-    "planStatus": {
-      "pending": "Ожидание",
-      "in_progress": "Выполняется",
-      "completed": "Завершено",
-      "failed": "Ошибка",
-      "skipped": "Пропущено"
+  "acp": {
+    "workspace": {
+      "title": "Рабочее пространство",
+      "collapse": "Свернуть",
+      "plan": {
+        "section": "План",
+        "empty": "Пока нет задач",
+        "status": {
+          "pending": "Ожидание",
+          "in_progress": "Выполняется",
+          "completed": "Завершено",
+          "failed": "Ошибка",
+          "skipped": "Пропущено"
+        }
+      },
+      "files": {
+        "section": "Файлы",
+        "empty": "Нет файлов",
+        "loading": "Загрузка файлов..."
+      },
+      "terminal": {
+        "section": "Терминал",
+        "empty": "Нет вывода"
+      }
     }
   }
 }

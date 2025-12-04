@@ -9,7 +9,7 @@
       <span
         class="flex-1 text-[12px] font-medium tracking-wide text-foreground/80 dark:text-white/80"
       >
-        {{ t('chat.acpWorkspace.planSection') }}
+        {{ t('chat.acp.workspace.plan.section') }}
       </span>
       <span class="text-[10px] text-muted-foreground">
         {{ store.completedPlanCount }}/{{ store.totalPlanCount }}
@@ -60,13 +60,13 @@ import { ref } from 'vue'
 import { Icon } from '@iconify/vue'
 import { useI18n } from 'vue-i18n'
 import { useAcpWorkspaceStore } from '@/stores/acpWorkspace'
-import type { ACP_PLAN_STATUS } from '@shared/presenter'
+import type { AcpPlanStatus } from '@shared/presenter'
 
 const { t } = useI18n()
 const store = useAcpWorkspaceStore()
 const showPlan = ref(true)
 
-const getStatusIcon = (status: ACP_PLAN_STATUS): string => {
+const getStatusIcon = (status: AcpPlanStatus): string => {
   switch (status) {
     case 'pending':
       return '○'
@@ -83,7 +83,7 @@ const getStatusIcon = (status: ACP_PLAN_STATUS): string => {
   }
 }
 
-const getStatusTextClass = (status: ACP_PLAN_STATUS): string => {
+const getStatusTextClass = (status: AcpPlanStatus): string => {
   switch (status) {
     case 'completed':
       return 'text-muted-foreground line-through'

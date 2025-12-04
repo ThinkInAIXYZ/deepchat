@@ -104,9 +104,16 @@ const rememberable = computed(() => props.block.extra?.rememberable !== false)
 const MAX_NAME_LENGTH = 200
 const truncatedName = computed(() => {
   const name = props.block.tool_call?.name ?? ''
-  if (name.length > MAX_NAME_LENGTH) {
-    return name.slice(0, MAX_NAME_LENGTH) + '...'
+  const ellipsis = '...'
+
+  if (MAX_NAME_LENGTH <= ellipsis.length) {
+    return ellipsis.slice(0, MAX_NAME_LENGTH)
   }
+
+  if (name.length > MAX_NAME_LENGTH) {
+    return name.slice(0, MAX_NAME_LENGTH - ellipsis.length) + ellipsis
+  }
+
   return name
 })
 

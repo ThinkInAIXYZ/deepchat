@@ -89,22 +89,30 @@
     "params": "参数",
     "responseData": "响应数据"
   },
-  "acpWorkspace": {
-    "title": "工作区",
-    "collapse": "收起",
-    "planSection": "计划",
-    "planEmpty": "暂无任务",
-    "filesSection": "文件",
-    "filesEmpty": "暂无文件",
-    "filesLoading": "加载文件中...",
-    "terminalSection": "终端",
-    "terminalEmpty": "暂无输出",
-    "planStatus": {
-      "pending": "待处理",
-      "in_progress": "进行中",
-      "completed": "已完成",
-      "failed": "失败",
-      "skipped": "已跳过"
+  "acp": {
+    "workspace": {
+      "title": "工作区",
+      "collapse": "收起",
+      "plan": {
+        "section": "计划",
+        "empty": "暂无任务",
+        "status": {
+          "pending": "待处理",
+          "in_progress": "进行中",
+          "completed": "已完成",
+          "failed": "失败",
+          "skipped": "已跳过"
+        }
+      },
+      "files": {
+        "section": "文件",
+        "empty": "暂无文件",
+        "loading": "加载文件中..."
+      },
+      "terminal": {
+        "section": "终端",
+        "empty": "暂无输出"
+      }
     }
   }
 }

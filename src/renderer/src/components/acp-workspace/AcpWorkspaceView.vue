@@ -7,14 +7,14 @@
       <div class="flex items-center gap-2">
         <Icon icon="lucide:layout-dashboard" class="h-4 w-4 text-muted-foreground" />
         <h2 class="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-          {{ t('chat.acpWorkspace.title') }}
+          {{ t('chat.acp.workspace.title') }}
         </h2>
       </div>
       <button
         class="flex h-5 w-5 items-center justify-center rounded-md border border-transparent text-muted-foreground transition hover:border-border hover:bg-muted/50"
         type="button"
         @click="store.setOpen(false)"
-        :aria-label="t('chat.acpWorkspace.collapse')"
+        :aria-label="t('chat.acp.workspace.collapse')"
       >
         <Icon icon="lucide:chevron-right" class="h-3 w-3" />
       </button>

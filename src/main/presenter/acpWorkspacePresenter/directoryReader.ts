@@ -1,6 +1,6 @@
 import fs from 'fs/promises'
 import path from 'path'
-import type { ACP_FILE_NODE } from '@shared/presenter'
+import type { AcpFileNode } from '@shared/presenter'
 
 // Ignored directory/file patterns
 const IGNORED_PATTERNS = [
@@ -27,10 +27,10 @@ const IGNORED_PATTERNS = [
  * Directories will have children = undefined, indicating not yet loaded
  * @param dirPath Directory path
  */
-export async function readDirectoryShallow(dirPath: string): Promise<ACP_FILE_NODE[]> {
+export async function readDirectoryShallow(dirPath: string): Promise<AcpFileNode[]> {
   try {
     const entries = await fs.readdir(dirPath, { withFileTypes: true })
-    const nodes: ACP_FILE_NODE[] = []
+    const nodes: AcpFileNode[] = []
 
     for (const entry of entries) {
       // Skip ignored files/directories
@@ -44,7 +44,7 @@ export async function readDirectoryShallow(dirPath: string): Promise<ACP_FILE_NO
       }
 
       const fullPath = path.join(dirPath, entry.name)
-      const node: ACP_FILE_NODE = {
+      const node: AcpFileNode = {
         name: entry.name,
         path: fullPath,
         isDirectory: entry.isDirectory()
@@ -82,7 +82,7 @@ export async function readDirectoryTree(
   dirPath: string,
   currentDepth: number = 0,
   maxDepth: number = 3
-): Promise<ACP_FILE_NODE[]> {
+): Promise<AcpFileNode[]> {
   // Boundary check: depth limit
   if (currentDepth >= maxDepth) {
     return []
@@ -90,7 +90,7 @@ export async function readDirectoryTree(
 
   try {
     const entries = await fs.readdir(dirPath, { withFileTypes: true })
-    const nodes: ACP_FILE_NODE[] = []
+    const nodes: AcpFileNode[] = []
 
     for (const entry of entries) {
       // Skip ignored files/directories
@@ -104,7 +104,7 @@ export async function readDirectoryTree(
       }
 
       const fullPath = path.join(dirPath, entry.name)
-      const node: ACP_FILE_NODE = {
+      const node: AcpFileNode = {
         name: entry.name,
         path: fullPath,
         isDirectory: entry.isDirectory()

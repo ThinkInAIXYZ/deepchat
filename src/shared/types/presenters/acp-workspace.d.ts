@@ -6,18 +6,18 @@
 /**
  * Plan entry status
  */
-export type ACP_PLAN_STATUS = 'pending' | 'in_progress' | 'completed' | 'failed' | 'skipped'
+export type AcpPlanStatus = 'pending' | 'in_progress' | 'completed' | 'failed' | 'skipped'
 
 /**
  * Plan entry - task from ACP agent
  */
-export type ACP_PLAN_ENTRY = {
+export type AcpPlanEntry = {
   /** Unique identifier (system generated) */
   id: string
   /** Task content description */
   content: string
   /** Task status */
-  status: ACP_PLAN_STATUS
+  status: AcpPlanStatus
   /** Priority (optional, from agent) */
   priority?: string | null
   /** Update timestamp */
@@ -27,7 +27,7 @@ export type ACP_PLAN_ENTRY = {
 /**
  * File tree node
  */
-export type ACP_FILE_NODE = {
+export type AcpFileNode = {
   /** File/directory name */
   name: string
   /** Full path */
@@ -35,7 +35,7 @@ export type ACP_FILE_NODE = {
   /** Whether it's a directory */
   isDirectory: boolean
   /** Child nodes (directories only) */
-  children?: ACP_FILE_NODE[]
+  children?: AcpFileNode[]
   /** Whether expanded (frontend state) */
   expanded?: boolean
 }
@@ -43,7 +43,7 @@ export type ACP_FILE_NODE = {
 /**
  * Terminal output snippet - from ACP tool_call terminal output
  */
-export type ACP_TERMINAL_SNIPPET = {
+export type AcpTerminalSnippet = {
   /** Unique identifier */
   id: string
   /** Executed command */
@@ -63,7 +63,7 @@ export type ACP_TERMINAL_SNIPPET = {
 /**
  * Raw plan entry from acpContentMapper
  */
-export type ACP_RAW_PLAN_ENTRY = {
+export type AcpRawPlanEntry = {
   content: string
   status?: string | null
   priority?: string | null
@@ -91,34 +91,34 @@ export interface IAcpWorkspacePresenter {
    * @param dirPath Directory path
    * @returns Array of file tree nodes (directories have children = undefined)
    */
-  readDirectory(dirPath: string): Promise<ACP_FILE_NODE[]>
+  readDirectory(dirPath: string): Promise<AcpFileNode[]>
 
   /**
    * Expand a directory to load its children (lazy loading)
    * @param dirPath Directory path to expand
    * @returns Array of child file tree nodes
    */
-  expandDirectory(dirPath: string): Promise<ACP_FILE_NODE[]>
+  expandDirectory(dirPath: string): Promise<AcpFileNode[]>
 
   /**
    * Get plan entries for a conversation
    * @param conversationId Conversation ID
    */
-  getPlanEntries(conversationId: string): Promise<ACP_PLAN_ENTRY[]>
+  getPlanEntries(conversationId: string): Promise<AcpPlanEntry[]>
 
   /**
    * Update plan entries for a conversation (called internally by ACP events)
    * @param conversationId Conversation ID
    * @param entries Raw plan entries from agent
    */
-  updatePlanEntries(conversationId: string, entries: ACP_RAW_PLAN_ENTRY[]): Promise<void>
+  updatePlanEntries(conversationId: string, entries: AcpRawPlanEntry[]): Promise<void>
 
   /**
    * Emit terminal snippet (called internally by ACP events)
    * @param conversationId Conversation ID
    * @param snippet Terminal snippet
    */
-  emitTerminalSnippet(conversationId: string, snippet: ACP_TERMINAL_SNIPPET): Promise<void>
+  emitTerminalSnippet(conversationId: string, snippet: AcpTerminalSnippet): Promise<void>
 
   /**
    * Clear workspace data for a conversation

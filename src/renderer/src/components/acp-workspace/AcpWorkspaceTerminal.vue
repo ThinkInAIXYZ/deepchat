@@ -9,7 +9,7 @@
       <span
         class="flex-1 text-[12px] font-medium tracking-wide text-foreground/80 dark:text-white/80"
       >
-        {{ t('chat.acpWorkspace.terminalSection') }}
+        {{ t('chat.acp.workspace.terminal.section') }}
       </span>
       <span class="text-[10px] text-muted-foreground">
         {{ store.terminalSnippets.length }}

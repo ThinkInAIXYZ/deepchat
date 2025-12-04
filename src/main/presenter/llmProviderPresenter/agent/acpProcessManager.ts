@@ -72,6 +72,7 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
   private readonly terminalManager = new AcpTerminalManager()
   private readonly sessionWorkdirs = new Map<string, string>()
   private readonly fsHandlers = new Map<string, AcpFsHandler>()
+  private readonly agentLocks = new Map<string, Promise<void>>()
 
   constructor(options: AcpProcessManagerOptions) {
     this.providerId = options.providerId
@@ -132,40 +133,47 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
     const resolvedWorkdir = this.resolveWorkdir(workdir)
     const existing = this.handles.get(agent.id)
 
-    // Check if existing process has matching workdir
-    if (existing && this.isHandleAlive(existing)) {
-      if (existing.workdir === resolvedWorkdir) {
-        return existing
-      }
-      // Workdir changed, need to recreate process
-      console.info(
-        `[ACP] Workdir changed for agent ${agent.id}: "${existing.workdir}" -> "${resolvedWorkdir}", recreating process`
-      )
-      await this.release(agent.id)
+    // Fast-path for already-alive handles with matching workdir
+    if (existing && this.isHandleAlive(existing) && existing.workdir === resolvedWorkdir) {
+      return existing
     }
 
-    const inflight = this.pendingHandles.get(agent.id)
-    if (inflight) {
-      // Check if inflight process matches workdir - if not, wait for it and potentially recreate
-      const inflightHandle = await inflight
-      if (inflightHandle.workdir === resolvedWorkdir) {
-        return inflightHandle
-      }
-      // Workdir mismatch, release and recreate
-      console.info(
-        `[ACP] Workdir mismatch for inflight agent ${agent.id}, recreating with workdir: "${resolvedWorkdir}"`
-      )
-      await this.release(agent.id)
-    }
-
-    const handlePromise = this.spawnProcess(agent, resolvedWorkdir)
-    this.pendingHandles.set(agent.id, handlePromise)
+    const releaseLock = await this.acquireAgentLock(agent.id)
     try {
-      const handle = await handlePromise
-      this.handles.set(agent.id, handle)
-      return handle
+      const currentHandle = this.handles.get(agent.id)
+      if (currentHandle && this.isHandleAlive(currentHandle)) {
+        if (currentHandle.workdir === resolvedWorkdir) {
+          return currentHandle
+        }
+        console.info(
+          `[ACP] Workdir changed for agent ${agent.id}: "${currentHandle.workdir}" -> "${resolvedWorkdir}", recreating process`
+        )
+        await this.release(agent.id)
+      }
+
+      const inflight = this.pendingHandles.get(agent.id)
+      if (inflight) {
+        const inflightHandle = await inflight
+        if (inflightHandle.workdir === resolvedWorkdir) {
+          return inflightHandle
+        }
+        console.info(
+          `[ACP] Workdir mismatch for inflight agent ${agent.id}, recreating with workdir: "${resolvedWorkdir}"`
+        )
+        await this.release(agent.id)
+      }
+
+      const handlePromise = this.spawnProcess(agent, resolvedWorkdir)
+      this.pendingHandles.set(agent.id, handlePromise)
+      try {
+        const handle = await handlePromise
+        this.handles.set(agent.id, handle)
+        return handle
+      } finally {
+        this.pendingHandles.delete(agent.id)
+      }
     } finally {
-      this.pendingHandles.delete(agent.id)
+      releaseLock()
     }
   }
 
@@ -707,6 +715,25 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
         child.kill()
       } catch (error) {
         console.warn('[ACP] Failed to kill agent process:', error)
+      }
+    }
+  }
+
+  private async acquireAgentLock(agentId: string): Promise<() => void> {
+    const previousLock = this.agentLocks.get(agentId) ?? Promise.resolve()
+
+    let releaseResolver: (() => void) | undefined
+    const currentLock = new Promise<void>((resolve) => {
+      releaseResolver = resolve
+    })
+
+    this.agentLocks.set(agentId, currentLock)
+    await previousLock
+
+    return () => {
+      releaseResolver?.()
+      if (this.agentLocks.get(agentId) === currentLock) {
+        this.agentLocks.delete(agentId)
       }
     }
   }

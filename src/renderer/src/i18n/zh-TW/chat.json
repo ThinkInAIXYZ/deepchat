@@ -89,22 +89,30 @@
     "expand": "展開",
     "title": "MCP UI"
   },
-  "acpWorkspace": {
-    "title": "工作區",
-    "collapse": "收起",
-    "planSection": "計畫",
-    "planEmpty": "暫無任務",
-    "filesSection": "檔案",
-    "filesEmpty": "暫無檔案",
-    "filesLoading": "載入檔案中...",
-    "terminalSection": "終端機",
-    "terminalEmpty": "暫無輸出",
-    "planStatus": {
-      "pending": "待處理",
-      "in_progress": "進行中",
-      "completed": "已完成",
-      "failed": "失敗",
-      "skipped": "已略過"
+  "acp": {
+    "workspace": {
+      "title": "工作區",
+      "collapse": "收起",
+      "plan": {
+        "section": "計畫",
+        "empty": "暫無任務",
+        "status": {
+          "pending": "待處理",
+          "in_progress": "進行中",
+          "completed": "已完成",
+          "failed": "失敗",
+          "skipped": "已略過"
+        }
+      },
+      "files": {
+        "section": "檔案",
+        "empty": "暫無檔案",
+        "loading": "載入檔案中..."
+      },
+      "terminal": {
+        "section": "終端機",
+        "empty": "暫無輸出"
+      }
     }
   }
 }

@@ -3,7 +3,7 @@ import { ref, computed, watch } from 'vue'
 import { usePresenter } from '@/composables/usePresenter'
 import { useChatStore } from './chat'
 import { ACP_WORKSPACE_EVENTS } from '@/events'
-import type { ACP_PLAN_ENTRY, ACP_FILE_NODE, ACP_TERMINAL_SNIPPET } from '@shared/presenter'
+import type { AcpPlanEntry, AcpFileNode, AcpTerminalSnippet } from '@shared/presenter'
 
 // Debounce delay for file tree refresh (ms)
 const FILE_REFRESH_DEBOUNCE_MS = 500
@@ -15,9 +15,9 @@ export const useAcpWorkspaceStore = defineStore('acpWorkspace', () => {
   // === State ===
   const isOpen = ref(false)
   const isLoading = ref(false)
-  const planEntries = ref<ACP_PLAN_ENTRY[]>([])
-  const fileTree = ref<ACP_FILE_NODE[]>([])
-  const terminalSnippets = ref<ACP_TERMINAL_SNIPPET[]>([])
+  const planEntries = ref<AcpPlanEntry[]>([])
+  const fileTree = ref<AcpFileNode[]>([])
+  const terminalSnippets = ref<AcpTerminalSnippet[]>([])
   const lastSyncedConversationId = ref<string | null>(null)
 
   // Debounce timer for file refresh
@@ -100,7 +100,7 @@ export const useAcpWorkspaceStore = defineStore('acpWorkspace', () => {
   /**
    * Load children for a directory node (lazy loading)
    */
-  const loadDirectoryChildren = async (node: ACP_FILE_NODE): Promise<void> => {
+  const loadDirectoryChildren = async (node: AcpFileNode): Promise<void> => {
     if (!node.isDirectory) return
 
     try {
@@ -135,7 +135,7 @@ export const useAcpWorkspaceStore = defineStore('acpWorkspace', () => {
   /**
    * Toggle file node expansion (with lazy loading support)
    */
-  const toggleFileNode = async (node: ACP_FILE_NODE): Promise<void> => {
+  const toggleFileNode = async (node: AcpFileNode): Promise<void> => {
     if (!node.isDirectory) return
 
     if (node.expanded) {
@@ -163,7 +163,7 @@ export const useAcpWorkspaceStore = defineStore('acpWorkspace', () => {
     // Plan update event
     window.electron.ipcRenderer.on(
       ACP_WORKSPACE_EVENTS.PLAN_UPDATED,
-      (_, payload: { conversationId: string; entries: ACP_PLAN_ENTRY[] }) => {
+      (_, payload: { conversationId: string; entries: AcpPlanEntry[] }) => {
         if (payload.conversationId === chatStore.getActiveThreadId()) {
           planEntries.value = payload.entries
         }
@@ -173,7 +173,7 @@ export const useAcpWorkspaceStore = defineStore('acpWorkspace', () => {
     // Terminal output event
     window.electron.ipcRenderer.on(
       ACP_WORKSPACE_EVENTS.TERMINAL_OUTPUT,
-      (_, payload: { conversationId: string; snippet: ACP_TERMINAL_SNIPPET }) => {
+      (_, payload: { conversationId: string; snippet: AcpTerminalSnippet }) => {
         if (payload.conversationId === chatStore.getActiveThreadId()) {
           // Keep latest 10 items
           terminalSnippets.value = [payload.snippet, ...terminalSnippets.value.slice(0, 9)]

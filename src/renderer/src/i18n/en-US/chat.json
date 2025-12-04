@@ -89,22 +89,30 @@
     "params": "Parameters",
     "responseData": "Response data"
   },
-  "acpWorkspace": {
-    "title": "Workspace",
-    "collapse": "Collapse",
-    "planSection": "Plan",
-    "planEmpty": "No tasks yet",
-    "filesSection": "Files",
-    "filesEmpty": "No files",
-    "filesLoading": "Loading files...",
-    "terminalSection": "Terminal",
-    "terminalEmpty": "No output yet",
-    "planStatus": {
-      "pending": "Pending",
-      "in_progress": "In Progress",
-      "completed": "Completed",
-      "failed": "Failed",
-      "skipped": "Skipped"
+  "acp": {
+    "workspace": {
+      "title": "Workspace",
+      "collapse": "Collapse",
+      "plan": {
+        "section": "Plan",
+        "empty": "No tasks yet",
+        "status": {
+          "pending": "Pending",
+          "in_progress": "In Progress",
+          "completed": "Completed",
+          "failed": "Failed",
+          "skipped": "Skipped"
+        }
+      },
+      "files": {
+        "section": "Files",
+        "empty": "No files",
+        "loading": "Loading files..."
+      },
+      "terminal": {
+        "section": "Terminal",
+        "empty": "No output yet"
+      }
     }
   }
 }

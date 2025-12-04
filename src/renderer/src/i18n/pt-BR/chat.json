@@ -89,22 +89,30 @@
     "expand": "Expandir",
     "title": "MCP UI"
   },
-  "acpWorkspace": {
-    "title": "Área de trabalho",
-    "collapse": "Recolher",
-    "planSection": "Plano",
-    "planEmpty": "Nenhuma tarefa ainda",
-    "filesSection": "Arquivos",
-    "filesEmpty": "Nenhum arquivo",
-    "filesLoading": "Carregando arquivos...",
-    "terminalSection": "Terminal",
-    "terminalEmpty": "Nenhuma saída",
-    "planStatus": {
-      "pending": "Pendente",
-      "in_progress": "Em andamento",
-      "completed": "Concluído",
-      "failed": "Falhou",
-      "skipped": "Ignorado"
+  "acp": {
+    "workspace": {
+      "title": "Área de trabalho",
+      "collapse": "Recolher",
+      "plan": {
+        "section": "Plano",
+        "empty": "Nenhuma tarefa ainda",
+        "status": {
+          "pending": "Pendente",
+          "in_progress": "Em andamento",
+          "completed": "Concluído",
+          "failed": "Falhou",
+          "skipped": "Ignorado"
+        }
+      },
+      "files": {
+        "section": "Arquivos",
+        "empty": "Nenhum arquivo",
+        "loading": "Carregando arquivos..."
+      },
+      "terminal": {
+        "section": "Terminal",
+        "empty": "Nenhuma saída"
+      }
     }
   }
 }
