@@ -35,5 +35,15 @@ export type {
 
 export type * from './agent-provider'
 
+// ACP Workspace types
+export type {
+  ACP_PLAN_STATUS,
+  ACP_PLAN_ENTRY,
+  ACP_FILE_NODE,
+  ACP_TERMINAL_SNIPPET,
+  ACP_RAW_PLAN_ENTRY,
+  IAcpWorkspacePresenter
+} from './acp-workspace'
+
 // Re-export legacy types temporarily for compatibility
 export * from './legacy.presenters'

@@ -14,6 +14,18 @@
     @leave-cancelled="handleAfterLeave"
   >
     <Button
+      v-if="showWorkspaceButton"
+      key="open-workspace"
+      variant="outline"
+      size="icon"
+      class="w-8 h-8 shrink-0 opacity-100 bg-card backdrop-blur-lg z-30"
+      :title="t('chat.acpWorkspace.title')"
+      @click="$emit('open-workspace')"
+    >
+      <Icon icon="lucide:layout-dashboard" class="w-5 h-5 text-foreground" />
+    </Button>
+
+    <Button
       v-if="showCleanButton"
       key="new-chat"
       variant="outline"
@@ -40,15 +52,20 @@
 <script setup lang="ts">
 import { Button } from '@shadcn/components/ui/button'
 import { Icon } from '@iconify/vue'
+import { useI18n } from 'vue-i18n'
+
+const { t } = useI18n()
 
 defineProps<{
   showCleanButton: boolean
   showScrollButton: boolean
+  showWorkspaceButton?: boolean
 }>()
 
 defineEmits<{
   clean: []
   'scroll-to-bottom': []
+  'open-workspace': []
 }>()
 
 const handleBeforeLeave = (el: Element) => {

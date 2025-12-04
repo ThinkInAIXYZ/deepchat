@@ -93,5 +93,23 @@
     "collapse": "fermer",
     "expand": "Développer",
     "title": "MCP UI"
+  },
+  "acpWorkspace": {
+    "title": "Espace de travail",
+    "collapse": "Réduire",
+    "planSection": "Plan",
+    "planEmpty": "Aucune tâche pour le moment",
+    "filesSection": "Fichiers",
+    "filesEmpty": "Aucun fichier",
+    "filesLoading": "Chargement des fichiers...",
+    "terminalSection": "Terminal",
+    "terminalEmpty": "Aucune sortie",
+    "planStatus": {
+      "pending": "En attente",
+      "in_progress": "En cours",
+      "completed": "Terminé",
+      "failed": "Échoué",
+      "skipped": "Ignoré"
+    }
   }
 }

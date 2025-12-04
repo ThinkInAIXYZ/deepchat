@@ -93,5 +93,23 @@
     "collapse": "بستن",
     "expand": "گسترش دهید",
     "title": "MCP UI"
+  },
+  "acpWorkspace": {
+    "title": "فضای کاری",
+    "collapse": "بستن",
+    "planSection": "برنامه",
+    "planEmpty": "هنوز وظیفه‌ای وجود ندارد",
+    "filesSection": "فایل‌ها",
+    "filesEmpty": "فایلی وجود ندارد",
+    "filesLoading": "در حال بارگذاری فایل‌ها...",
+    "terminalSection": "ترمینال",
+    "terminalEmpty": "خروجی وجود ندارد",
+    "planStatus": {
+      "pending": "در انتظار",
+      "in_progress": "در حال انجام",
+      "completed": "تکمیل شده",
+      "failed": "ناموفق",
+      "skipped": "رد شده"
+    }
   }
 }

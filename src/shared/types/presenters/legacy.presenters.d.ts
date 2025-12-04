@@ -7,6 +7,7 @@ import { ModelType } from '@shared/model'
 import type { NowledgeMemThread, NowledgeMemExportSummary } from '../nowledgeMem'
 import { ProviderChange, ProviderBatchUpdate } from './provider-operations'
 import type { AgentSessionLifecycleStatus } from './agent-provider'
+import type { IAcpWorkspacePresenter } from './acp-workspace'
 
 export type SQLITE_MESSAGE = {
   id: string
@@ -391,6 +392,7 @@ export interface IPresenter {
   oauthPresenter: IOAuthPresenter
   dialogPresenter: IDialogPresenter
   knowledgePresenter: IKnowledgePresenter
+  acpWorkspacePresenter: IAcpWorkspacePresenter
   init(): void
   destroy(): void
 }

@@ -93,5 +93,23 @@
     "collapse": "닫다",
     "expand": "확장하다",
     "title": "MCP UI"
+  },
+  "acpWorkspace": {
+    "title": "작업 공간",
+    "collapse": "접기",
+    "planSection": "계획",
+    "planEmpty": "아직 작업이 없습니다",
+    "filesSection": "파일",
+    "filesEmpty": "파일이 없습니다",
+    "filesLoading": "파일 로딩 중...",
+    "terminalSection": "터미널",
+    "terminalEmpty": "출력이 없습니다",
+    "planStatus": {
+      "pending": "대기 중",
+      "in_progress": "진행 중",
+      "completed": "완료",
+      "failed": "실패",
+      "skipped": "건너뜀"
+    }
   }
 }

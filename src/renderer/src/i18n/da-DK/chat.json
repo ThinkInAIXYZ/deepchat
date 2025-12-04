@@ -93,5 +93,23 @@
     "response": "Værktøjsrespons",
     "responseData": "Svardata",
     "title": "Værktøjsopkald"
+  },
+  "acpWorkspace": {
+    "title": "Arbejdsområde",
+    "collapse": "Skjul",
+    "planSection": "Plan",
+    "planEmpty": "Ingen opgaver endnu",
+    "filesSection": "Filer",
+    "filesEmpty": "Ingen filer",
+    "filesLoading": "Indlæser filer...",
+    "terminalSection": "Terminal",
+    "terminalEmpty": "Ingen output",
+    "planStatus": {
+      "pending": "Afventer",
+      "in_progress": "I gang",
+      "completed": "Fuldført",
+      "failed": "Fejlet",
+      "skipped": "Sprunget over"
+    }
   }
 }

@@ -93,5 +93,23 @@
     "functionName": "Function",
     "params": "Parameters",
     "responseData": "Response data"
+  },
+  "acpWorkspace": {
+    "title": "Workspace",
+    "collapse": "Collapse",
+    "planSection": "Plan",
+    "planEmpty": "No tasks yet",
+    "filesSection": "Files",
+    "filesEmpty": "No files",
+    "filesLoading": "Loading files...",
+    "terminalSection": "Terminal",
+    "terminalEmpty": "No output yet",
+    "planStatus": {
+      "pending": "Pending",
+      "in_progress": "In Progress",
+      "completed": "Completed",
+      "failed": "Failed",
+      "skipped": "Skipped"
+    }
   }
 }
