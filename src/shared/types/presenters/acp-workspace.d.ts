@@ -77,21 +77,28 @@ export interface IAcpWorkspacePresenter {
    * Register a workdir as allowed for reading (security boundary)
    * @param workdir Workspace directory path
    */
-  registerWorkdir(workdir: string): void
+  registerWorkdir(workdir: string): Promise<void>
 
   /**
    * Unregister a workdir
    * @param workdir Workspace directory path
    */
-  unregisterWorkdir(workdir: string): void
+  unregisterWorkdir(workdir: string): Promise<void>
 
   /**
-   * Read directory tree (only works within registered workdirs)
+   * Read directory (shallow, only first level)
+   * Use expandDirectory to load subdirectory contents
    * @param dirPath Directory path
-   * @param maxDepth Maximum recursion depth (default 3)
-   * @returns Array of file tree nodes
+   * @returns Array of file tree nodes (directories have children = undefined)
    */
-  readDirectory(dirPath: string, maxDepth?: number): Promise<ACP_FILE_NODE[]>
+  readDirectory(dirPath: string): Promise<ACP_FILE_NODE[]>
+
+  /**
+   * Expand a directory to load its children (lazy loading)
+   * @param dirPath Directory path to expand
+   * @returns Array of child file tree nodes
+   */
+  expandDirectory(dirPath: string): Promise<ACP_FILE_NODE[]>
 
   /**
    * Get plan entries for a conversation

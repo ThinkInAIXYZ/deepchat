@@ -67,8 +67,8 @@ const countFiles = (nodes: ACP_FILE_NODE[]): number => {
 
 const fileCount = computed(() => countFiles(store.fileTree))
 
-const handleToggle = (node: ACP_FILE_NODE) => {
-  store.toggleFileNode(node)
+const handleToggle = async (node: ACP_FILE_NODE) => {
+  await store.toggleFileNode(node)
 }
 </script>
 

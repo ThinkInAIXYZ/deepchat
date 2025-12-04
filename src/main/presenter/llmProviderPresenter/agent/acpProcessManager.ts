@@ -24,6 +24,8 @@ export interface AcpProcessHandle extends AgentProcessHandle {
   connection: ClientSideConnectionType
   agent: AcpAgentConfig
   readyAt: number
+  /** The working directory this process was spawned with */
+  workdir: string
 }
 
 interface AcpProcessManagerOptions {
@@ -121,18 +123,42 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
     return tempDir
   }
 
-  async getConnection(agent: AcpAgentConfig): Promise<AcpProcessHandle> {
+  /**
+   * Get or create a connection for the given agent.
+   * If workdir is provided and differs from the existing process's workdir,
+   * the existing process will be released and a new one spawned with the new workdir.
+   */
+  async getConnection(agent: AcpAgentConfig, workdir?: string): Promise<AcpProcessHandle> {
+    const resolvedWorkdir = this.resolveWorkdir(workdir)
     const existing = this.handles.get(agent.id)
+
+    // Check if existing process has matching workdir
     if (existing && this.isHandleAlive(existing)) {
-      return existing
+      if (existing.workdir === resolvedWorkdir) {
+        return existing
+      }
+      // Workdir changed, need to recreate process
+      console.info(
+        `[ACP] Workdir changed for agent ${agent.id}: "${existing.workdir}" -> "${resolvedWorkdir}", recreating process`
+      )
+      await this.release(agent.id)
     }
 
     const inflight = this.pendingHandles.get(agent.id)
     if (inflight) {
-      return inflight
+      // Check if inflight process matches workdir - if not, wait for it and potentially recreate
+      const inflightHandle = await inflight
+      if (inflightHandle.workdir === resolvedWorkdir) {
+        return inflightHandle
+      }
+      // Workdir mismatch, release and recreate
+      console.info(
+        `[ACP] Workdir mismatch for inflight agent ${agent.id}, recreating with workdir: "${resolvedWorkdir}"`
+      )
+      await this.release(agent.id)
     }
 
-    const handlePromise = this.spawnProcess(agent)
+    const handlePromise = this.spawnProcess(agent, resolvedWorkdir)
     this.pendingHandles.set(agent.id, handlePromise)
     try {
       const handle = await handlePromise
@@ -141,6 +167,16 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
     } finally {
       this.pendingHandles.delete(agent.id)
     }
+  }
+
+  /**
+   * Resolve workdir to an absolute path, using fallback if not provided.
+   */
+  private resolveWorkdir(workdir?: string): string {
+    if (workdir && workdir.trim()) {
+      return workdir.trim()
+    }
+    return this.getFallbackWorkdir()
   }
 
   getProcess(agentId: string): AcpProcessHandle | null {
@@ -224,8 +260,8 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
     void this.terminalManager.releaseSessionTerminals(sessionId)
   }
 
-  private async spawnProcess(agent: AcpAgentConfig): Promise<AcpProcessHandle> {
-    const child = await this.spawnAgentProcess(agent)
+  private async spawnProcess(agent: AcpAgentConfig, workdir: string): Promise<AcpProcessHandle> {
+    const child = await this.spawnAgentProcess(agent, workdir)
     const stream = this.createAgentStream(child)
     const client = this.createClientProxy()
     const connection = new ClientSideConnection(() => client, stream)
@@ -317,7 +353,8 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
       metadata: { command: agent.command },
       child,
       connection,
-      readyAt: Date.now()
+      readyAt: Date.now(),
+      workdir
     }
 
     child.on('exit', (code, signal) => {
@@ -330,12 +367,12 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
       this.clearSessionsForAgent(agent.id)
     })
 
-    child.stdout?.on('data', (chunk: Buffer) => {
-      const output = chunk.toString().trim()
-      if (output) {
-        console.info(`[ACP] ${agent.id} stdout: ${output}`)
-      }
-    })
+    // child.stdout?.on('data', (chunk: Buffer) => {
+    //   const output = chunk.toString().trim()
+    //   if (output) {
+    //     console.info(`[ACP] ${agent.id} stdout: ${output}`)
+    //   }
+    // })
 
     child.stderr?.on('data', (chunk: Buffer) => {
       const error = chunk.toString().trim()
@@ -354,7 +391,10 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
     return handle
   }
 
-  private async spawnAgentProcess(agent: AcpAgentConfig): Promise<ChildProcessWithoutNullStreams> {
+  private async spawnAgentProcess(
+    agent: AcpAgentConfig,
+    workdir: string
+  ): Promise<ChildProcessWithoutNullStreams> {
     // Initialize runtime paths if not already done
     this.runtimeHelper.initializeRuntimes()
 
@@ -533,16 +573,15 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
       customEnvKeys: agent.env ? Object.keys(agent.env) : []
     })
 
-    // Create isolated temp directory for each agent process to avoid conflicts
-    // when multiple instances of the same agent (e.g., kimi-cli) are running
-    const tempBase = app.getPath('temp')
-    const agentTempDir = path.join(tempBase, 'deepchat-acp', agent.id)
-    try {
-      fs.mkdirSync(agentTempDir, { recursive: true })
-    } catch (error) {
-      console.warn(`[ACP] Failed to create temp directory for agent ${agent.id}:`, error)
+    // Use the provided workdir as cwd if it exists, otherwise fall back to home directory
+    let cwd = workdir
+    if (!fs.existsSync(workdir)) {
+      console.warn(
+        `[ACP] Workdir "${workdir}" does not exist for agent ${agent.id}, using HOME_DIR`
+      )
+      cwd = HOME_DIR
     }
-    const cwd = fs.existsSync(agentTempDir) ? agentTempDir : HOME_DIR
+    console.info(`[ACP] Using workdir as cwd for agent ${agent.id}: ${cwd}`)
 
     console.info(`[ACP] Spawning process with options:`, {
       command: processedCommand,

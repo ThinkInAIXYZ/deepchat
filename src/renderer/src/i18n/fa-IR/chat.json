@@ -22,12 +22,7 @@
     "acpWorkdirSelect": "یک پوشه برای استفاده به عنوان دایرکتوری کاری ACP انتخاب کنید",
     "acpWorkdirCurrent": "دایرکتوری جاری: {path}",
     "acpMode": "حالت",
-    "acpModeTooltip": "حالت فعلی: {mode}",
-    "acpModeSwitched": "تغییر به {mode}",
-    "acpModeDefault": "همیشه بپرس",
-    "acpModeAcceptEdits": "قبول ویرایش‌ها",
-    "acpModePlan": "حالت برنامه‌ریزی",
-    "acpModeBypassPermissions": "رد شدن از مجوزها"
+    "acpModeTooltip": "حالت فعلی: {mode}"
   },
   "features": {
     "webSearch": "جستجوی وب",

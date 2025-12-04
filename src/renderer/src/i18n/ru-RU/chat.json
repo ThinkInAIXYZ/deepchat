@@ -22,12 +22,7 @@
     "acpWorkdirSelect": "Select a folder to use as the ACP workdir",
     "acpWorkdirCurrent": "Current workdir: {path}",
     "acpMode": "Режим",
-    "acpModeTooltip": "Текущий режим: {mode}",
-    "acpModeSwitched": "Переключено на {mode}",
-    "acpModeDefault": "Всегда спрашивать",
-    "acpModeAcceptEdits": "Принимать правки",
-    "acpModePlan": "Режим планирования",
-    "acpModeBypassPermissions": "Пропустить разрешения"
+    "acpModeTooltip": "Текущий режим: {mode}"
   },
   "features": {
     "webSearch": "Поиск в интернете",

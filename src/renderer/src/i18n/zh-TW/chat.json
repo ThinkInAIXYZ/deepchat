@@ -22,12 +22,7 @@
     "acpWorkdirSelect": "選擇工作目錄",
     "acpWorkdirCurrent": "目前工作目錄：{path}",
     "acpMode": "模式",
-    "acpModeTooltip": "目前模式：{mode}",
-    "acpModeSwitched": "已切換至 {mode}",
-    "acpModeDefault": "總是詢問",
-    "acpModeAcceptEdits": "自動接受編輯",
-    "acpModePlan": "計劃模式",
-    "acpModeBypassPermissions": "略過權限"
+    "acpModeTooltip": "目前模式：{mode}"
   },
   "features": {
     "webSearch": "網路搜尋",

@@ -22,12 +22,7 @@
     "acpWorkdirSelect": "Select a folder to use as the ACP workdir",
     "acpWorkdirCurrent": "Current workdir: {path}",
     "acpMode": "Modo",
-    "acpModeTooltip": "Modo atual: {mode}",
-    "acpModeSwitched": "Alterado para {mode}",
-    "acpModeDefault": "Sempre perguntar",
-    "acpModeAcceptEdits": "Aceitar edições",
-    "acpModePlan": "Modo de planejamento",
-    "acpModeBypassPermissions": "Ignorar permissões"
+    "acpModeTooltip": "Modo atual: {mode}"
   },
   "features": {
     "webSearch": "Busca na Web",

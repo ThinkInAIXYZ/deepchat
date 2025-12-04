@@ -193,8 +193,10 @@
               </span>
             </div>
 
-            <!-- Mode Switcher (ACPs only, chat mode) -->
-            <Tooltip v-if="variant === 'chat' && acpMode.isAcpModel.value">
+            <!-- Mode Switcher (ACPs only, chat mode, only when agent declares modes) -->
+            <Tooltip
+              v-if="variant === 'chat' && acpMode.isAcpModel.value && acpMode.hasAgentModes.value"
+            >
               <TooltipTrigger>
                 <Button
                   variant="ghost"
@@ -612,17 +614,19 @@ const acpWorkdir = useAcpWorkdir({
   conversationId
 })
 
+// Extract isStreaming first so we can pass it to useAcpMode
+const { disabledSend, isStreaming } = sendButtonState
+
 const acpMode = useAcpMode({
   activeModel: activeModelSource,
-  conversationId
+  conversationId,
+  isStreaming
 })
 
 // === Computed ===
 // Use composable values
 const { currentContextLengthText, shouldShowContextLength, contextLengthStatusClass } =
   contextLengthTracker
-
-const { disabledSend, isStreaming } = sendButtonState
 
 // === Event Handlers ===
 const handleDrop = async (e: DragEvent) => {

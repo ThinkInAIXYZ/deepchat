@@ -5,6 +5,9 @@ import { useChatStore } from './chat'
 import { ACP_WORKSPACE_EVENTS } from '@/events'
 import type { ACP_PLAN_ENTRY, ACP_FILE_NODE, ACP_TERMINAL_SNIPPET } from '@shared/presenter'
 
+// Debounce delay for file tree refresh (ms)
+const FILE_REFRESH_DEBOUNCE_MS = 500
+
 export const useAcpWorkspaceStore = defineStore('acpWorkspace', () => {
   const chatStore = useChatStore()
   const acpWorkspacePresenter = usePresenter('acpWorkspacePresenter')
@@ -16,6 +19,9 @@ export const useAcpWorkspaceStore = defineStore('acpWorkspace', () => {
   const fileTree = ref<ACP_FILE_NODE[]>([])
   const terminalSnippets = ref<ACP_TERMINAL_SNIPPET[]>([])
   const lastSyncedConversationId = ref<string | null>(null)
+
+  // Debounce timer for file refresh
+  let fileRefreshDebounceTimer: ReturnType<typeof setTimeout> | null = null
 
   // === Computed Properties ===
   const isAcpMode = computed(() => chatStore.chatConfig.providerId === 'acp')
@@ -55,12 +61,13 @@ export const useAcpWorkspaceStore = defineStore('acpWorkspace', () => {
       return
     }
 
-    // Register workdir before reading (security boundary)
-    acpWorkspacePresenter.registerWorkdir(workdir)
+    // Register workdir before reading (security boundary) - await to ensure completion
+    await acpWorkspacePresenter.registerWorkdir(workdir)
 
     isLoading.value = true
     try {
-      const result = (await acpWorkspacePresenter.readDirectory(workdir, 3)) ?? []
+      // Only read first level (lazy loading)
+      const result = (await acpWorkspacePresenter.readDirectory(workdir)) ?? []
       // Guard against race condition: only update if still on the same conversation
       if (chatStore.getActiveThreadId() === conversationIdBefore) {
         fileTree.value = result
@@ -74,6 +81,36 @@ export const useAcpWorkspaceStore = defineStore('acpWorkspace', () => {
       if (chatStore.getActiveThreadId() === conversationIdBefore) {
         isLoading.value = false
       }
+    }
+  }
+
+  /**
+   * Debounced file tree refresh - merges multiple refresh requests within a short time window
+   */
+  const debouncedRefreshFileTree = () => {
+    if (fileRefreshDebounceTimer) {
+      clearTimeout(fileRefreshDebounceTimer)
+    }
+    fileRefreshDebounceTimer = setTimeout(() => {
+      fileRefreshDebounceTimer = null
+      refreshFileTree()
+    }, FILE_REFRESH_DEBOUNCE_MS)
+  }
+
+  /**
+   * Load children for a directory node (lazy loading)
+   */
+  const loadDirectoryChildren = async (node: ACP_FILE_NODE): Promise<void> => {
+    if (!node.isDirectory) return
+
+    try {
+      const children = (await acpWorkspacePresenter.expandDirectory(node.path)) ?? []
+      node.children = children
+      node.expanded = true
+    } catch (error) {
+      console.error('[AcpWorkspace] Failed to load directory children:', error)
+      node.children = []
+      node.expanded = true
     }
   }
 
@@ -95,8 +132,23 @@ export const useAcpWorkspaceStore = defineStore('acpWorkspace', () => {
     }
   }
 
-  const toggleFileNode = (node: ACP_FILE_NODE) => {
-    node.expanded = !node.expanded
+  /**
+   * Toggle file node expansion (with lazy loading support)
+   */
+  const toggleFileNode = async (node: ACP_FILE_NODE): Promise<void> => {
+    if (!node.isDirectory) return
+
+    if (node.expanded) {
+      // Collapse: just toggle expanded state
+      node.expanded = false
+    } else {
+      // Expand: load children if not yet loaded
+      if (node.children === undefined) {
+        await loadDirectoryChildren(node)
+      } else {
+        node.expanded = true
+      }
+    }
   }
 
   const clearData = () => {
@@ -129,12 +181,12 @@ export const useAcpWorkspaceStore = defineStore('acpWorkspace', () => {
       }
     )
 
-    // File change event - refresh file tree
+    // File change event - refresh file tree (debounced to merge rapid updates)
     window.electron.ipcRenderer.on(
       ACP_WORKSPACE_EVENTS.FILES_CHANGED,
       (_, payload: { conversationId: string }) => {
         if (payload.conversationId === chatStore.getActiveThreadId() && isAcpMode.value) {
-          refreshFileTree()
+          debouncedRefreshFileTree()
         }
       }
     )
@@ -205,6 +257,7 @@ export const useAcpWorkspaceStore = defineStore('acpWorkspace', () => {
     refreshFileTree,
     refreshPlanEntries,
     toggleFileNode,
+    loadDirectoryChildren,
     clearData
   }
 })

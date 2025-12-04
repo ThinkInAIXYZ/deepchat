@@ -1,5 +1,7 @@
 import { ChatMessage, IConfigPresenter, LLMAgentEvent, MCPToolCall } from '@shared/presenter'
 import { presenter } from '@/presenter'
+import { eventBus, SendTarget } from '@/eventbus'
+import { ACP_WORKSPACE_EVENTS } from '@/events'
 import { BaseLLMProvider } from '../baseProvider'
 import { StreamState } from '../types'
 import { RateLimitManager } from './rateLimitManager'
@@ -504,6 +506,13 @@ export class AgentLoopHandler {
 
       this.options.activeStreams.delete(eventId)
       console.log('Agent loop finished for event:', eventId, 'User stopped:', userStop)
+
+      // Trigger ACP workspace file refresh (only for ACP provider)
+      if (providerId === 'acp' && conversationId) {
+        eventBus.sendToRenderer(ACP_WORKSPACE_EVENTS.FILES_CHANGED, SendTarget.ALL_WINDOWS, {
+          conversationId
+        })
+      }
     }
   }
 }

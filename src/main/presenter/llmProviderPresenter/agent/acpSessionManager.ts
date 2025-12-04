@@ -152,7 +152,8 @@ export class AcpSessionManager {
     hooks: SessionHooks,
     workdir: string
   ): Promise<AcpSessionRecord> {
-    const handle = await this.processManager.getConnection(agent)
+    // Pass workdir to process manager so the process runs in the correct directory
+    const handle = await this.processManager.getConnection(agent, workdir)
     const session = await this.initializeSession(handle, agent, workdir)
     const detachListeners = this.attachSessionHooks(agent.id, session.sessionId, hooks)
 
@@ -219,15 +220,29 @@ export class AcpSessionManager {
 
       // Extract modes from response if available
       const modes = response.modes
+      const availableModes = modes?.availableModes?.map((m) => ({
+        id: m.id,
+        name: m.name,
+        description: m.description ?? ''
+      }))
+      const currentModeId = modes?.currentModeId
+
+      // Log available modes for the agent
+      if (availableModes && availableModes.length > 0) {
+        console.info(
+          `[ACP] Agent "${agent.name}" (${agent.id}) supports modes: [${availableModes.map((m) => m.id).join(', ')}], ` +
+            `current mode: "${currentModeId ?? 'default'}"`
+        )
+      } else {
+        console.info(
+          `[ACP] Agent "${agent.name}" (${agent.id}) does not declare any modes (will use default behavior)`
+        )
+      }
 
       return {
         sessionId: response.sessionId,
-        availableModes: modes?.availableModes?.map((m) => ({
-          id: m.id,
-          name: m.name,
-          description: m.description ?? ''
-        })),
-        currentModeId: modes?.currentModeId
+        availableModes,
+        currentModeId
       }
     } catch (error) {
       console.error(`[ACP] Failed to create session for agent ${agent.id}:`, error)

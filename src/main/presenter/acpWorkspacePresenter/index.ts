@@ -1,7 +1,7 @@
 import path from 'path'
 import { eventBus, SendTarget } from '@/eventbus'
 import { ACP_WORKSPACE_EVENTS } from '@/events'
-import { readDirectoryTree } from './directoryReader'
+import { readDirectoryShallow } from './directoryReader'
 import { PlanStateManager } from './planStateManager'
 import type {
   IAcpWorkspacePresenter,
@@ -18,8 +18,9 @@ export class AcpWorkspacePresenter implements IAcpWorkspacePresenter {
 
   /**
    * Register a workdir as allowed for reading
+   * Returns Promise to ensure IPC call completion
    */
-  registerWorkdir(workdir: string): void {
+  async registerWorkdir(workdir: string): Promise<void> {
     const normalized = path.resolve(workdir)
     this.allowedWorkdirs.add(normalized)
   }
@@ -27,7 +28,7 @@ export class AcpWorkspacePresenter implements IAcpWorkspacePresenter {
   /**
    * Unregister a workdir
    */
-  unregisterWorkdir(workdir: string): void {
+  async unregisterWorkdir(workdir: string): Promise<void> {
     const normalized = path.resolve(workdir)
     this.allowedWorkdirs.delete(normalized)
   }
@@ -47,15 +48,29 @@ export class AcpWorkspacePresenter implements IAcpWorkspacePresenter {
   }
 
   /**
-   * Read directory tree
+   * Read directory (shallow, only first level)
+   * Use expandDirectory to load subdirectory contents
    */
-  async readDirectory(dirPath: string, maxDepth: number = 3): Promise<ACP_FILE_NODE[]> {
+  async readDirectory(dirPath: string): Promise<ACP_FILE_NODE[]> {
     // Security check: only allow reading within registered workdirs
     if (!this.isPathAllowed(dirPath)) {
       console.warn(`[AcpWorkspace] Blocked read attempt for unauthorized path: ${dirPath}`)
       return []
     }
-    return readDirectoryTree(dirPath, 0, maxDepth)
+    return readDirectoryShallow(dirPath)
+  }
+
+  /**
+   * Expand a directory to load its children (lazy loading)
+   * @param dirPath Directory path to expand
+   */
+  async expandDirectory(dirPath: string): Promise<ACP_FILE_NODE[]> {
+    // Security check: only allow reading within registered workdirs
+    if (!this.isPathAllowed(dirPath)) {
+      console.warn(`[AcpWorkspace] Blocked expand attempt for unauthorized path: ${dirPath}`)
+      return []
+    }
+    return readDirectoryShallow(dirPath)
   }
 
   /**
