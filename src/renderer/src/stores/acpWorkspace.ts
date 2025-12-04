@@ -55,6 +55,9 @@ export const useAcpWorkspaceStore = defineStore('acpWorkspace', () => {
       return
     }
 
+    // Register workdir before reading (security boundary)
+    acpWorkspacePresenter.registerWorkdir(workdir)
+
     isLoading.value = true
     try {
       const result = (await acpWorkspacePresenter.readDirectory(workdir, 3)) ?? []
@@ -125,6 +128,16 @@ export const useAcpWorkspaceStore = defineStore('acpWorkspace', () => {
         }
       }
     )
+
+    // File change event - refresh file tree
+    window.electron.ipcRenderer.on(
+      ACP_WORKSPACE_EVENTS.FILES_CHANGED,
+      (_, payload: { conversationId: string }) => {
+        if (payload.conversationId === chatStore.getActiveThreadId() && isAcpMode.value) {
+          refreshFileTree()
+        }
+      }
+    )
   }
 
   // === Watchers ===
@@ -144,23 +157,31 @@ export const useAcpWorkspaceStore = defineStore('acpWorkspace', () => {
   )
 
   // Watch for workdir changes
-  watch(currentWorkdir, () => {
-    if (isAcpMode.value) {
-      refreshFileTree()
-    }
-  })
+  watch(
+    currentWorkdir,
+    (workdir) => {
+      if (isAcpMode.value && workdir) {
+        refreshFileTree()
+      }
+    },
+    { immediate: true }
+  )
 
   // Watch for ACP mode changes
-  watch(isAcpMode, (isAcp) => {
-    if (isAcp) {
-      setOpen(true)
-      refreshFileTree()
-      refreshPlanEntries()
-    } else {
-      setOpen(false)
-      clearData()
-    }
-  })
+  watch(
+    isAcpMode,
+    (isAcp) => {
+      if (isAcp) {
+        setOpen(true)
+        refreshFileTree()
+        refreshPlanEntries()
+      } else {
+        setOpen(false)
+        clearData()
+      }
+    },
+    { immediate: true }
+  )
 
   // Initialize event listeners
   setupEventListeners()

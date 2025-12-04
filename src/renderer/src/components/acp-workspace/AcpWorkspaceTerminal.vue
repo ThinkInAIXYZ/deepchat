@@ -1,5 +1,5 @@
 <template>
-  <section class="mt-2 px-0">
+  <section v-if="store.terminalSnippets.length > 0" class="mt-2 px-0">
     <button
       class="flex w-full items-center gap-2 px-4 py-2 text-left text-xs text-muted-foreground transition hover:bg-muted/40"
       type="button"
@@ -21,38 +21,33 @@
     </button>
 
     <Transition name="workspace-collapse">
-      <div v-if="showTerminal" class="space-y-0 overflow-hidden">
-        <div v-if="store.terminalSnippets.length > 0" class="pb-1">
-          <div
-            v-for="snippet in store.terminalSnippets"
-            :key="snippet.id"
-            class="px-4 py-2 border-b border-border/50 last:border-b-0"
-          >
-            <div class="flex items-center gap-2 mb-1">
-              <span class="text-[10px] text-muted-foreground">$</span>
-              <span class="text-xs font-mono text-foreground/90 truncate">
-                {{ snippet.command }}
-              </span>
-              <span
-                v-if="snippet.exitCode !== null && snippet.exitCode !== undefined"
-                class="ml-auto text-[10px]"
-                :class="snippet.exitCode === 0 ? 'text-green-500' : 'text-red-500'"
-              >
-                {{ snippet.exitCode }}
-              </span>
-            </div>
-            <pre
-              v-if="snippet.output"
-              class="text-[10px] text-muted-foreground font-mono whitespace-pre-wrap break-all max-h-20 overflow-y-auto"
-              >{{ snippet.output }}</pre
+      <div v-if="showTerminal" class="space-y-0 overflow-hidden pb-1">
+        <div
+          v-for="snippet in store.terminalSnippets"
+          :key="snippet.id"
+          class="px-4 py-2 border-b border-border/50 last:border-b-0"
+        >
+          <div class="flex items-center gap-2 mb-1">
+            <span class="text-[10px] text-muted-foreground">$</span>
+            <span class="text-xs font-mono text-foreground/90 truncate">
+              {{ snippet.command }}
+            </span>
+            <span
+              v-if="snippet.exitCode !== null && snippet.exitCode !== undefined"
+              class="ml-auto text-[10px]"
+              :class="snippet.exitCode === 0 ? 'text-green-500' : 'text-red-500'"
             >
-            <span v-if="snippet.truncated" class="text-[10px] text-muted-foreground italic">
-              (truncated)
+              {{ snippet.exitCode }}
             </span>
           </div>
-        </div>
-        <div v-else class="px-4 py-3 text-[11px] text-muted-foreground">
-          {{ t('chat.acpWorkspace.terminalEmpty') }}
+          <pre
+            v-if="snippet.output"
+            class="text-[10px] text-muted-foreground font-mono whitespace-pre-wrap break-all max-h-20 overflow-y-auto"
+            >{{ snippet.output }}</pre
+          >
+          <span v-if="snippet.truncated" class="text-[10px] text-muted-foreground italic">
+            (truncated)
+          </span>
         </div>
       </div>
     </Transition>

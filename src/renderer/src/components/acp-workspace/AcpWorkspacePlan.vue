@@ -1,5 +1,5 @@
 <template>
-  <section class="px-0">
+  <section v-if="store.planEntries.length > 0" class="px-0">
     <button
       class="flex w-full items-center gap-2 px-4 py-2 text-left text-xs text-muted-foreground transition hover:bg-muted/40"
       type="button"
@@ -30,7 +30,7 @@
           />
         </div>
 
-        <ul v-if="store.planEntries.length > 0" class="m-0 list-none p-0">
+        <ul class="m-0 list-none p-0">
           <li
             v-for="entry in store.planEntries"
             :key="entry.id"
@@ -50,9 +50,6 @@
             </span>
           </li>
         </ul>
-        <div v-else class="px-4 py-3 text-[11px] text-muted-foreground">
-          {{ t('chat.acpWorkspace.planEmpty') }}
-        </div>
       </div>
     </Transition>
   </section>

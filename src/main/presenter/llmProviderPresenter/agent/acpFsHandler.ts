@@ -8,6 +8,8 @@ export interface FsHandlerOptions {
   workspaceRoot: string | null
   /** Maximum file size in bytes to read (default: 10MB) */
   maxReadSize?: number
+  /** Callback when a file is written */
+  onFileChange?: (filePath: string) => void
 }
 
 /**
@@ -21,10 +23,12 @@ export interface FsHandlerOptions {
 export class AcpFsHandler {
   private readonly workspaceRoot: string | null
   private readonly maxReadSize: number
+  private readonly onFileChange?: (filePath: string) => void
 
   constructor(options: FsHandlerOptions) {
     this.workspaceRoot = options.workspaceRoot ? path.resolve(options.workspaceRoot) : null
     this.maxReadSize = options.maxReadSize ?? 10 * 1024 * 1024 // 10MB default
+    this.onFileChange = options.onFileChange
   }
 
   /**
@@ -101,6 +105,12 @@ export class AcpFsHandler {
       await fs.mkdir(dir, { recursive: true })
 
       await fs.writeFile(filePath, params.content, 'utf-8')
+
+      // Notify file change
+      if (this.onFileChange) {
+        this.onFileChange(filePath)
+      }
+
       return {}
     } catch (error) {
       if (error instanceof RequestError) {

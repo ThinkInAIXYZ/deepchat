@@ -22,13 +22,13 @@
 
     <!-- Content -->
     <div class="flex-1 overflow-y-auto">
-      <!-- Plan Section -->
-      <AcpWorkspacePlan />
-
       <!-- Files Section -->
       <AcpWorkspaceFiles />
 
-      <!-- Terminal Section -->
+      <!-- Plan Section (hidden when empty) -->
+      <AcpWorkspacePlan />
+
+      <!-- Terminal Section (hidden when empty) -->
       <AcpWorkspaceTerminal />
     </div>
   </aside>
