@@ -51,7 +51,10 @@ const api = {
 
     try {
       const relative = path.relative(baseDir, filePath)
-      if (relative && !relative.startsWith('..') && !path.isAbsolute(relative)) {
+      if (
+        relative === '' ||
+        (relative && !relative.startsWith('..') && !path.isAbsolute(relative))
+      ) {
         return relative
       }
     } catch (error) {
