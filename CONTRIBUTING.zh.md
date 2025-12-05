@@ -40,7 +40,7 @@
 1. 克隆仓库：
 
    ```bash
-   git clone https://github.com/yourusername/deepchat.git
+   git clone https://github.com/ThinkInAIXYZ/deepchat.git
    cd deepchat
    ```
 
@@ -95,31 +95,81 @@ pnpm run dev
 
 ## 项目结构
 
-- `/src` - 主要源代码
-- `/scripts` - 构建和开发脚本
-- `/resources` - 应用资源
-- `/build` - 构建配置
-- `/out` - 构建输出
+- `src/main/`：Electron 主进程。Presenter 全部集中于此（window/tab/thread/config/llmProvider/mcp/knowledge/sync/浮窗/deeplink/OAuth 等）。
+- `src/preload/`：开启 contextIsolation 的 IPC 桥，只暴露白名单 API 给渲染进程。
+- `src/renderer/`：Vue 3 + Pinia 应用。业务代码在 `src/renderer/src`（components、stores、views、lib、i18n），Shell UI 在 `src/renderer/shell/`。
+- `src/shared/`：主渲染共享的类型、工具和 presenter 契约。
+- `runtime/`：随应用发布的 MCP/Agent 运行时（Node/uv）。
+- `scripts/`、`resources/`：构建、打包与资产管线。
+- `build/`、`out/`、`dist/`：构建产物（请勿直接修改）。
+- `docs/`：设计文档与指南。
+- `test/`：Vitest 测试（main/renderer）。
+
+## 架构概览
+
+### 设计原则
+
+- **Presenter 模式**：系统能力集中在主进程 Presenter，通过 preload 的 `usePresenter` 类型化调用。
+- **多窗口 + 多 Tab Shell**：WindowPresenter 与 TabPresenter 管理真正的 Electron 窗口/BrowserView，可分离/移动；EventBus 负责跨进程广播。
+- **清晰数据边界**：聊天数据在 SQLite（`app_db/chat.db`），设置在 Electron Store，知识库在 DuckDB，备份由 SyncPresenter 负责；渲染进程不直接读写文件系统。
+- **工具优先运行时**：LLMProviderPresenter 统一流式处理、限流、实例管理（云/本地/ACP Agent）；MCPPresenter 启动 MCP 服务器、Router 市场和内置工具，捆绑 Node 运行时。
+- **安全与韧性**：开启 contextIsolation；文件访问经 Presenter 授权（如 ACP 需要 `registerWorkdir`）；备份/导入校验输入；限流保护避免 Provider 过载。
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    Electron Main (TS)                       │
+│  Presenters: window/tab/thread/config/llm/mcp/knowledge/    │
+│  sync/oauth/deeplink/浮窗                                   │
+│  存储: SQLite chat.db, ElectronStore, 备份                  │
+└───────────────┬─────────────────────────────────────────────┘
+                │ IPC (contextBridge + EventBus)
+┌───────────────▼─────────────────────────────────────────────┐
+│                    Preload (strict API)                     │
+└───────────────┬─────────────────────────────────────────────┘
+                │ Typed presenters via `usePresenter`
+┌───────────────▼─────────────────────────────────────────────┐
+│      Renderer (Vue 3 + Pinia + Tailwind + shadcn/ui)        │
+│  Shell UI, 聊天流转, ACP 工作区, MCP 控制台, 设置           │
+└───────────────┬─────────────────────────────────────────────┘
+                │
+┌───────────────▼─────────────────────────────────────────────┐
+│ 运行时扩展: MCP Node 运行时, Ollama 控制, ACP Agent 进程,   │
+│ DuckDB 知识库, 同步备份                                    │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### 模块与特性要点
+
+- **LLM 管线**：`LLMProviderPresenter` 负责 Provider 编排、限流守卫、实例管理、模型发现、ModelScope 同步、自定义模型导入、Ollama 生命周期、Embedding、Agent Loop（工具调用、流式状态），ACP Agent 会话持久化在 `AcpSessionPersistence`。
+- **MCP 栈**：`McpPresenter` 搭配 ServerManager/ToolManager/McpRouterManager 启停服务，选择 npm registry，自动拉起默认/内置服务器，并在 UI 中呈现 Tools/Prompts/Resources，支持 StreamableHTTP/SSE/Stdio 传输及调试窗口。
+- **ACP（Agent Client Protocol）**：ACP Provider 启动 Agent 进程，将通知映射为聊天区块，并驱动 **ACP Workspace**（计划面板增量更新、终端输出、受控文件树，需先 `registerWorkdir`）。PlanStateManager 去重计划项并保留最近完成记录。
+- **知识与搜索**：内置知识库采用 DuckDB + 文本切分 + MCP 配置；搜索助手自动择模，支持 API 搜索和模拟浏览搜索引擎，亦可用自定义模板。
+- **Shell & 体验**：多窗口/多 Tab 导航、悬浮聊天窗、deeplink 启动、同步/备份/恢复（SQLite+配置清单打包 zip）、通知、升级通道、隐私开关。
+
+## 最佳实践
+
+- **渲染层勿直接用 Node API**：所有 OS/网络/文件操作经 preload Presenter；注意使用 `tabId`/`windowId` 保障多窗口安全。
+- **全量 i18n**：用户可见文案放在 `src/renderer/src/i18n`，避免组件内硬编码。
+- **状态与 UI**：倾向 Pinia store 与组合式工具，保持组件尽量无状态并兼容 tab 分离；修改聊天流时留意 artifacts、variants、流式状态。
+- **LLM/MCP/ACP 变更**：尊重限流；切换 Provider 前清理活跃流；通过 eventBus 派发事件。MCP 相关改动要落盘到 `configPresenter`，并呈现 server start/stop 事件。ACP 访问文件前调用 `registerWorkdir`，会话结束需清理计划/工作区状态。
+- **数据与持久化**：会话用 `sqlitePresenter`，设置/Provider 用 `configPresenter`，备份导入用 `syncPresenter`；不要从渲染进程直接写 `appData`。
+- **质量门槛**：提交前运行 `pnpm run format`、`pnpm run lint`、`pnpm run typecheck` 及相关 `pnpm test*`。新增文案后跑 `pnpm run i18n` 校验 key。
 
 ## 代码风格
 
-- 使用 ESLint 进行 JavaScript/TypeScript 代码检查
-- 使用 Prettier 进行代码格式化
-- 使用 EditorConfig 维护一致的编码风格
-
-请确保您的代码符合我们的代码风格指南，可以运行以下命令：
-
-```bash
-pnpm run lint
-pnpm run i18n
-pnpm run build
-```
+- TypeScript + Vue 3 Composition API + Pinia；样式使用 Tailwind + shadcn/ui。
+- Prettier：单引号、无分号；提交前请执行 `pnpm run format`。
+- OxLint 用于代码检查（`pnpm run lint`）；类型检查 `pnpm run typecheck`（node + web 双目标）。
+- 测试使用 Vitest（`test/main`、`test/renderer`），命名 `*.test.ts` / `*.spec.ts`。
+- 命名约定：组件/类型 PascalCase，变量/函数 camelCase，常量 SCREAMING_SNAKE_CASE。
 
 ## Pull Request 流程
 
-1. 如果涉及接口变更，请更新 README.md
-2. 如有需要，请更新 `/docs` 目录中的文档
-3. 获得至少一位维护者的批准后，PR 将被合并
+1. 保持 PR 聚焦，描述改动内容及关联 Issue。
+2. UI 变更请附截图/GIF，并注明涉及的文档更新（README/CONTRIBUTING/docs）。
+3. 本地确认 format + lint + typecheck + 相关测试，如未执行请在 PR 备注。
+4. 目标分支为 `dev`；外部贡献者请先 Fork，再向 `dev` 提 PR。
+5. 至少需一位维护者批准后合并。
 
 ## 有问题？
 
