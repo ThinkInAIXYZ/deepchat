@@ -1,3 +1,4 @@
+import path from 'path'
 import {
   clipboard,
   contextBridge,
@@ -44,6 +45,45 @@ const api = {
   },
   openExternal: (url: string) => {
     return shell.openExternal(url)
+  },
+  toRelativePath: (filePath: string, baseDir?: string) => {
+    if (!baseDir) return filePath
+
+    try {
+      const relative = path.relative(baseDir, filePath)
+      if (
+        relative === '' ||
+        (relative && !relative.startsWith('..') && !path.isAbsolute(relative))
+      ) {
+        return relative
+      }
+    } catch (error) {
+      console.warn('Preload: Failed to compute relative path', filePath, baseDir, error)
+    }
+    return filePath
+  },
+  formatPathForInput: (filePath: string) => {
+    const containsSpace = /\s/.test(filePath)
+    const hasDoubleQuote = filePath.includes('"')
+    const hasSingleQuote = filePath.includes("'")
+
+    if (!containsSpace && !hasDoubleQuote && !hasSingleQuote) {
+      return filePath
+    }
+
+    // Prefer double quotes; escape any existing ones
+    if (hasDoubleQuote) {
+      const escaped = filePath.replace(/"/g, '\\"')
+      return `"${escaped}"`
+    }
+
+    // Use double quotes when only spaces
+    if (containsSpace) {
+      return `"${filePath}"`
+    }
+
+    // Fallback: no spaces but contains single quotes
+    return `'${filePath.replace(/'/g, `'\\''`)}'`
   }
 }
 exposeElectronAPI()

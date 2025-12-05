@@ -12,7 +12,11 @@
 
       <!-- ACP Workspace 面板 -->
       <Transition name="workspace-slide">
-        <AcpWorkspaceView v-if="showAcpWorkspace" class="h-full flex-shrink-0" />
+        <AcpWorkspaceView
+          v-if="showAcpWorkspace"
+          class="h-full flex-shrink-0"
+          @append-file-path="handleAppendFilePath"
+        />
       </Transition>
     </div>
 
@@ -100,6 +104,21 @@ const handleSend = async (msg: UserMessageContent) => {
 
 const handleFileUpload = () => {
   scrollToBottom()
+}
+
+const formatFilePathForEditor = (filePath: string) =>
+  window.api?.formatPathForInput?.(filePath) ?? (/\s/.test(filePath) ? `"${filePath}"` : filePath)
+
+const toRelativePath = (filePath: string) => {
+  const workdir = acpWorkspaceStore.currentWorkdir ?? undefined
+  return window.api?.toRelativePath?.(filePath, workdir) ?? filePath
+}
+
+const handleAppendFilePath = (filePath: string) => {
+  const relativePath = toRelativePath(filePath)
+  const formattedPath = formatFilePathForEditor(relativePath)
+  chatInput.value?.appendText(`${formattedPath} `)
+  chatInput.value?.restoreFocus()
 }
 
 const onStreamEnd = (_, _msg) => {

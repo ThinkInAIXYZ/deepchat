@@ -32,6 +32,7 @@
             :node="node"
             :depth="0"
             @toggle="handleToggle"
+            @append-path="handleAppendPath"
           />
         </div>
         <div v-else class="px-4 py-3 text-[11px] text-muted-foreground">
@@ -53,6 +54,9 @@ import type { AcpFileNode } from '@shared/presenter'
 const { t } = useI18n()
 const store = useAcpWorkspaceStore()
 const showFiles = ref(true)
+const emit = defineEmits<{
+  'append-path': [filePath: string]
+}>()
 
 const countFiles = (nodes: AcpFileNode[]): number => {
   let count = 0
@@ -69,6 +73,10 @@ const fileCount = computed(() => countFiles(store.fileTree))
 
 const handleToggle = async (node: AcpFileNode) => {
   await store.toggleFileNode(node)
+}
+
+const handleAppendPath = (filePath: string) => {
+  emit('append-path', filePath)
 }
 </script>
 

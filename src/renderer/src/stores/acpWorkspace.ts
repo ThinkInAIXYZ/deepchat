@@ -19,6 +19,7 @@ export const useAcpWorkspaceStore = defineStore('acpWorkspace', () => {
   const fileTree = ref<AcpFileNode[]>([])
   const terminalSnippets = ref<AcpTerminalSnippet[]>([])
   const lastSyncedConversationId = ref<string | null>(null)
+  const lastSuccessfulWorkdir = ref<string | null>(null)
 
   // Debounce timer for file refresh
   let fileRefreshDebounceTimer: ReturnType<typeof setTimeout> | null = null
@@ -71,11 +72,14 @@ export const useAcpWorkspaceStore = defineStore('acpWorkspace', () => {
       // Guard against race condition: only update if still on the same conversation
       if (chatStore.getActiveThreadId() === conversationIdBefore) {
         fileTree.value = result
+        lastSuccessfulWorkdir.value = workdir
       }
     } catch (error) {
       console.error('[AcpWorkspace] Failed to load file tree:', error)
       if (chatStore.getActiveThreadId() === conversationIdBefore) {
-        fileTree.value = []
+        if (lastSuccessfulWorkdir.value !== workdir) {
+          fileTree.value = []
+        }
       }
     } finally {
       if (chatStore.getActiveThreadId() === conversationIdBefore) {
@@ -156,6 +160,7 @@ export const useAcpWorkspaceStore = defineStore('acpWorkspace', () => {
     fileTree.value = []
     terminalSnippets.value = []
     lastSyncedConversationId.value = null
+    lastSuccessfulWorkdir.value = null
   }
 
   // === Event Listeners ===
@@ -211,7 +216,11 @@ export const useAcpWorkspaceStore = defineStore('acpWorkspace', () => {
   // Watch for workdir changes
   watch(
     currentWorkdir,
-    (workdir) => {
+    (workdir, previousWorkdir) => {
+      if (workdir !== previousWorkdir) {
+        lastSuccessfulWorkdir.value = null
+      }
+
       if (isAcpMode.value && workdir) {
         refreshFileTree()
       }

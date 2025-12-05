@@ -101,6 +101,18 @@ export interface IAcpWorkspacePresenter {
   expandDirectory(dirPath: string): Promise<AcpFileNode[]>
 
   /**
+   * Reveal a file or directory in the system file manager
+   * @param filePath Path to reveal
+   */
+  revealFileInFolder(filePath: string): Promise<void>
+
+  /**
+   * Open a file or directory using the system default application
+   * @param filePath Path to open
+   */
+  openFile(filePath: string): Promise<void>
+
+  /**
    * Get plan entries for a conversation
    * @param conversationId Conversation ID
    */
