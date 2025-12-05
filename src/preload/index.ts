@@ -63,10 +63,27 @@ const api = {
     return filePath
   },
   formatPathForInput: (filePath: string) => {
-    if (/\s/.test(filePath)) {
+    const containsSpace = /\s/.test(filePath)
+    const hasDoubleQuote = filePath.includes('"')
+    const hasSingleQuote = filePath.includes("'")
+
+    if (!containsSpace && !hasDoubleQuote && !hasSingleQuote) {
+      return filePath
+    }
+
+    // Prefer double quotes; escape any existing ones
+    if (hasDoubleQuote) {
+      const escaped = filePath.replace(/"/g, '\\"')
+      return `"${escaped}"`
+    }
+
+    // Use double quotes when only spaces
+    if (containsSpace) {
       return `"${filePath}"`
     }
-    return filePath
+
+    // Fallback: no spaces but contains single quotes
+    return `'${filePath.replace(/'/g, `'\\''`)}'`
   }
 }
 exposeElectronAPI()
