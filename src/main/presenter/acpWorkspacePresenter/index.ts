@@ -1,4 +1,5 @@
 import path from 'path'
+import { shell } from 'electron'
 import { eventBus, SendTarget } from '@/eventbus'
 import { ACP_WORKSPACE_EVENTS } from '@/events'
 import { readDirectoryShallow } from './directoryReader'
@@ -71,6 +72,46 @@ export class AcpWorkspacePresenter implements IAcpWorkspacePresenter {
       return []
     }
     return readDirectoryShallow(dirPath)
+  }
+
+  /**
+   * Reveal a file or directory in the system file manager
+   */
+  async revealFileInFolder(filePath: string): Promise<void> {
+    // Security check: only allow revealing within registered workdirs
+    if (!this.isPathAllowed(filePath)) {
+      console.warn(`[AcpWorkspace] Blocked reveal attempt for unauthorized path: ${filePath}`)
+      return
+    }
+
+    const normalizedPath = path.resolve(filePath)
+
+    try {
+      shell.showItemInFolder(normalizedPath)
+    } catch (error) {
+      console.error(`[AcpWorkspace] Failed to reveal path: ${normalizedPath}`, error)
+    }
+  }
+
+  /**
+   * Open a file or directory with the system default application
+   */
+  async openFile(filePath: string): Promise<void> {
+    if (!this.isPathAllowed(filePath)) {
+      console.warn(`[AcpWorkspace] Blocked open attempt for unauthorized path: ${filePath}`)
+      return
+    }
+
+    const normalizedPath = path.resolve(filePath)
+
+    try {
+      const errorMessage = await shell.openPath(normalizedPath)
+      if (errorMessage) {
+        console.error(`[AcpWorkspace] Failed to open path: ${normalizedPath}`, errorMessage)
+      }
+    } catch (error) {
+      console.error(`[AcpWorkspace] Failed to open path: ${normalizedPath}`, error)
+    }
   }
 
   /**

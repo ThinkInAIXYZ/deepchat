@@ -107,7 +107,12 @@
       "files": {
         "section": "ファイル",
         "empty": "ファイルはまだありません",
-        "loading": "ファイルを読み込み中..."
+        "loading": "ファイルを読み込み中...",
+        "contextMenu": {
+          "insertPath": "入力ボックスに挿入",
+          "openFile": "ファイルを開く",
+          "revealInFolder": "ファイルマネージャーで開く"
+        }
       },
       "terminal": {
         "section": "ターミナル",

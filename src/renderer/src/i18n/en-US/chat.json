@@ -107,7 +107,12 @@
       "files": {
         "section": "Files",
         "empty": "No files",
-        "loading": "Loading files..."
+        "loading": "Loading files...",
+        "contextMenu": {
+          "openFile": "Open file",
+          "revealInFolder": "Show in file manager",
+          "insertPath": "Insert into input"
+        }
       },
       "terminal": {
         "section": "Terminal",

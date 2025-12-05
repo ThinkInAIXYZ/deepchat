@@ -107,7 +107,12 @@
       "files": {
         "section": "檔案",
         "empty": "暫無檔案",
-        "loading": "載入檔案中..."
+        "loading": "載入檔案中...",
+        "contextMenu": {
+          "openFile": "開啟檔案",
+          "revealInFolder": "在檔案管理器中開啟",
+          "insertPath": "插入到輸入框"
+        }
       },
       "terminal": {
         "section": "終端",

@@ -12,7 +12,11 @@
 
       <!-- ACP Workspace 面板 -->
       <Transition name="workspace-slide">
-        <AcpWorkspaceView v-if="showAcpWorkspace" class="h-full flex-shrink-0" />
+        <AcpWorkspaceView
+          v-if="showAcpWorkspace"
+          class="h-full flex-shrink-0"
+          @append-file-path="handleAppendFilePath"
+        />
       </Transition>
     </div>
 
@@ -48,6 +52,7 @@
 </template>
 
 <script setup lang="ts">
+import path from 'path'
 import { ref, onMounted, onUnmounted, watch, computed, nextTick } from 'vue'
 import MessageList from './message/MessageList.vue'
 import ChatInput from './chat-input/ChatInput.vue'
@@ -100,6 +105,27 @@ const handleSend = async (msg: UserMessageContent) => {
 
 const handleFileUpload = () => {
   scrollToBottom()
+}
+
+const formatFilePathForEditor = (filePath: string) =>
+  /\s/.test(filePath) ? `"${filePath}"` : filePath
+
+const toRelativePath = (filePath: string) => {
+  const workdir = acpWorkspaceStore.currentWorkdir
+  if (!workdir) return filePath
+
+  const relative = path.relative(workdir, filePath)
+  if (relative && !relative.startsWith('..')) {
+    return relative
+  }
+  return filePath
+}
+
+const handleAppendFilePath = (filePath: string) => {
+  const relativePath = toRelativePath(filePath)
+  const formattedPath = formatFilePathForEditor(relativePath)
+  chatInput.value?.appendText(`${formattedPath} `)
+  chatInput.value?.restoreFocus()
 }
 
 const onStreamEnd = (_, _msg) => {

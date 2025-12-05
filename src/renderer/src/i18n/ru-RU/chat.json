@@ -107,7 +107,12 @@
       "files": {
         "section": "Файлы",
         "empty": "Нет файлов",
-        "loading": "Загрузка файлов..."
+        "loading": "Загрузка файлов...",
+        "contextMenu": {
+          "insertPath": "Вставить в поле ввода",
+          "openFile": "открыть файл",
+          "revealInFolder": "Открыть в файловом менеджере"
+        }
       },
       "terminal": {
         "section": "Терминал",

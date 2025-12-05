@@ -107,7 +107,12 @@
       "files": {
         "section": "Fichiers",
         "empty": "Aucun fichier",
-        "loading": "Chargement des fichiers..."
+        "loading": "Chargement des fichiers...",
+        "contextMenu": {
+          "insertPath": "Insérer dans la zone de saisie",
+          "openFile": "ouvrir le fichier",
+          "revealInFolder": "Ouvrir dans le gestionnaire de fichiers"
+        }
       },
       "terminal": {
         "section": "Terminal",

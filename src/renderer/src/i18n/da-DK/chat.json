@@ -107,7 +107,12 @@
       "files": {
         "section": "Filer",
         "empty": "Ingen filer",
-        "loading": "Indlæser filer..."
+        "loading": "Indlæser filer...",
+        "contextMenu": {
+          "insertPath": "Indsæt i inputboksen",
+          "openFile": "åbne fil",
+          "revealInFolder": "Åbn i filhåndtering"
+        }
       },
       "terminal": {
         "section": "Terminal",

@@ -23,7 +23,7 @@
     <!-- Content -->
     <div class="flex-1 overflow-y-auto">
       <!-- Files Section -->
-      <AcpWorkspaceFiles />
+      <AcpWorkspaceFiles @append-path="emit('append-file-path', $event)" />
 
       <!-- Plan Section (hidden when empty) -->
       <AcpWorkspacePlan />
@@ -44,4 +44,7 @@ import AcpWorkspaceTerminal from './AcpWorkspaceTerminal.vue'
 
 const { t } = useI18n()
 const store = useAcpWorkspaceStore()
+const emit = defineEmits<{
+  'append-file-path': [filePath: string]
+}>()
 </script>

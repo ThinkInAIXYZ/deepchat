@@ -107,7 +107,12 @@
       "files": {
         "section": "파일",
         "empty": "파일이 없습니다",
-        "loading": "파일 로딩 중..."
+        "loading": "파일 로딩 중...",
+        "contextMenu": {
+          "insertPath": "입력창에 삽입",
+          "openFile": "파일 열기",
+          "revealInFolder": "파일 관리자에서 열기"
+        }
       },
       "terminal": {
         "section": "터미널",
