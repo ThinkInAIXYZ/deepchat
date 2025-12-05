@@ -1,0 +1,30 @@
+{
+  "search": {
+    "placeholder": "חפש מודלים..."
+  },
+  "error": {
+    "loadFailed": "טעינת המודלים נכשלה"
+  },
+  "type": {
+    "custom": "מודל מותאם אישית",
+    "official": "מודל רשמי"
+  },
+  "add": {
+    "namePlaceholder": "שם המודל",
+    "idPlaceholder": "מזהה מודל (ID)",
+    "contextLengthPlaceholder": "אורך הקשר (Context)",
+    "maxTokensPlaceholder": "מקסימום טוקנים"
+  },
+  "actions": {
+    "add": "הוסף מודל",
+    "enableAll": "הפעל הכל",
+    "disableAll": "השבת הכל"
+  },
+  "tags": {
+    "reasoning": "חשיבה (Reasoning)",
+    "chat": "צ'אט",
+    "code": "קוד",
+    "writing": "כתיבה",
+    "analysis": "ניתוח"
+  }
+}

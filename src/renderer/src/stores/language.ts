@@ -5,7 +5,7 @@ import { useI18n } from 'vue-i18n'
 import { usePresenter } from '@/composables/usePresenter'
 import { CONFIG_EVENTS } from '@/events'
 
-const RTL_LIST = ['fa-IR']
+const RTL_LIST = ['fa-IR', 'he-IL']
 export const useLanguageStore = defineStore('language', () => {
   const { locale } = useI18n({ useScope: 'global' })
   const language = ref<string>('system')

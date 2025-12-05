@@ -1,0 +1,17 @@
+{
+  "chat": "צ'אט",
+  "welcome": "ברוכים הבאים",
+  "playground": "אזור ניסויים (Playground)",
+  "settings": "הגדרות",
+  "settings-common": "הגדרות כלליות",
+  "settings-provider": "ספקים",
+  "settings-mcp": "הגדרות MCP",
+  "settings-database": "נתונים",
+  "settings-about": "אודות",
+  "settings-shortcut": "קיצורי מקשים",
+  "settings-display": "תצוגה",
+  "settings-knowledge-base": "בסיס ידע",
+  "settings-prompt": "הנחיות (Prompts)",
+  "settings-mcp-market": "חנות MCP",
+  "settings-acp": "סוכני ACP"
+}

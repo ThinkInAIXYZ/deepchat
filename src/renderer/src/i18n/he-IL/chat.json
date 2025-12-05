@@ -1,0 +1,97 @@
+{
+  "input": {
+    "placeholder": "שאל משהו? ניתן לצטט כלים, קבצים ומשאבים באמצעות {'@'}...",
+    "fileArea": "אזור קבצים",
+    "inputArea": "אזור קלט",
+    "functionSwitch": "מתג פונקציות",
+    "fileSelect": "בחר קובץ",
+    "pasteFiles": "הדבק קבצים מהלוח",
+    "dropFiles": "גרור קבצים לכאן",
+    "promptFilesAdded": "קבצי הנחיה (Prompt) נוספו",
+    "promptFilesAddedDesc": "נוספו בהצלחה {count} קבצים",
+    "promptFilesError": "שגיאה בעיבוד קבצים",
+    "promptFilesErrorDesc": "{count} קבצים נכשלו בעיבוד",
+    "historyPlaceholder": "(לחץ Tab להשלמה אוטומטית)",
+    "rateLimitQueue": "תור {count}",
+    "rateLimitWait": "המתן {seconds} שניות",
+    "rateLimitQueueTooltip": "{count} בקשות בתור, מרווח של {interval} שניות",
+    "rateLimitReadyTooltip": "מוכן לשליחה, מרווח של {interval} שניות",
+    "rateLimitWaitingTooltip": "המתן {seconds} שניות נוספות, מרווח של {interval} שניות",
+    "acpWorkdir": "תיקיית עבודה ACP",
+    "acpWorkdirTooltip": "הגדר תיקיית עבודה ל-ACP",
+    "acpWorkdirSelect": "בחר תיקייה שתשמש כתיקיית העבודה של ACP",
+    "acpWorkdirCurrent": "תיקיית עבודה נוכחית: {path}",
+    "acpMode": "דֶגֶם",
+    "acpModeAcceptEdits": "קבל באופן אוטומטי עריכות",
+    "acpModeBypassPermissions": "דילוג על הרשאות",
+    "acpModeDefault": "תמיד לשאול",
+    "acpModePlan": "מצב תכנון",
+    "acpModeSwitched": "עבר ל-{mode}",
+    "acpModeTooltip": "מצב נוכחי: {mode}"
+  },
+  "features": {
+    "webSearch": "חיפוש אינטרנט",
+    "thoughtForSeconds": "חשב במשך {seconds} שניות",
+    "thoughtForSecondsLoading": "חושב במשך {seconds} שניות...",
+    "artifactThinking": "חשיבת תוצר (Artifact Thinking)",
+    "modeChanged": "המצב הועבר ל: {mode}"
+  },
+  "search": {
+    "results": "נמצאו {0} דפי אינטרנט",
+    "searching": "מחפש...",
+    "title": "תוצאות חיפוש",
+    "description": "נמצאו {0} תוצאות קשורות",
+    "optimizing": "ממטב את שאילתת החיפוש...",
+    "reading": "מחפש וקורא דפי אינטרנט...",
+    "error": "החיפוש נכשל"
+  },
+  "messages": {
+    "thinking": "חושב...",
+    "rateLimitWaiting": "הגעת למגבלת הקצב, ממתין בתור...",
+    "rateLimitTitle": "מגבלת קצב פעילה",
+    "rateLimitQueue": "מיקום בתור",
+    "rateLimitEstimated": "המתנה משוערת",
+    "rateLimitQuickSettings": "התאם מגבלה",
+    "rateLimitSwitchProvider": "החלף ספק",
+    "rateLimitImmediately": "עכשיו",
+    "rateLimitSeconds": "שניות",
+    "rateLimitMinutes": "דקות"
+  },
+  "rateLimit": {
+    "queueTooltip": "{count} בקשות בתור, מרווח של {interval} שניות",
+    "readyTooltip": "מוכן לשליחה, מרווח של {interval} שניות",
+    "waitingTooltip": "המתן {seconds} שניות נוספות, מרווח של {interval} שניות"
+  },
+  "notify": {
+    "generationComplete": "היצירה הושלמה",
+    "generationError": "היצירה נכשלה"
+  },
+  "navigation": {
+    "title": "ניווט בהודעות",
+    "searchPlaceholder": "חפש הודעות...",
+    "noResults": "לא נמצאו הודעות תואמות",
+    "noMessages": "אין הודעות עדיין",
+    "totalMessages": "{count} הודעות סה\"כ",
+    "searchResults": "נמצאו {count} תוצאות בתוך {total} הודעות",
+    "userMessage": "הודעת משתמש",
+    "assistantMessage": "תשובת עוזר",
+    "unknownMessage": "הודעה לא ידועה"
+  },
+  "mcpUi": {
+    "title": "ממשק MCP",
+    "badge": "UI",
+    "expand": "הרחב",
+    "collapse": "צמצם"
+  },
+  "toolCall": {
+    "title": "קריאה לכלי",
+    "calling": "קריאה לכלי בתהליך",
+    "response": "תגובת כלי",
+    "end": "קריאה לכלי הסתיימה",
+    "error": "שגיאה בקריאה לכלי",
+    "clickToView": "לחץ לצפייה בפרטים",
+    "functionName": "פונקציה",
+    "params": "פרמטרים",
+    "responseData": "נתוני תגובה"
+  }
+}
