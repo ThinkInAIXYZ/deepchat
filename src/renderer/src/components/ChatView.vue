@@ -52,7 +52,6 @@
 </template>
 
 <script setup lang="ts">
-import path from 'path'
 import { ref, onMounted, onUnmounted, watch, computed, nextTick } from 'vue'
 import MessageList from './message/MessageList.vue'
 import ChatInput from './chat-input/ChatInput.vue'
@@ -108,17 +107,11 @@ const handleFileUpload = () => {
 }
 
 const formatFilePathForEditor = (filePath: string) =>
-  /\s/.test(filePath) ? `"${filePath}"` : filePath
+  window.api?.formatPathForInput?.(filePath) ?? (/\s/.test(filePath) ? `"${filePath}"` : filePath)
 
 const toRelativePath = (filePath: string) => {
-  const workdir = acpWorkspaceStore.currentWorkdir
-  if (!workdir) return filePath
-
-  const relative = path.relative(workdir, filePath)
-  if (relative && !relative.startsWith('..')) {
-    return relative
-  }
-  return filePath
+  const workdir = acpWorkspaceStore.currentWorkdir ?? undefined
+  return window.api?.toRelativePath?.(filePath, workdir) ?? filePath
 }
 
 const handleAppendFilePath = (filePath: string) => {

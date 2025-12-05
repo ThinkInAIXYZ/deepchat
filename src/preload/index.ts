@@ -1,3 +1,4 @@
+import path from 'path'
 import {
   clipboard,
   contextBridge,
@@ -44,6 +45,25 @@ const api = {
   },
   openExternal: (url: string) => {
     return shell.openExternal(url)
+  },
+  toRelativePath: (filePath: string, baseDir?: string) => {
+    if (!baseDir) return filePath
+
+    try {
+      const relative = path.relative(baseDir, filePath)
+      if (relative && !relative.startsWith('..') && !path.isAbsolute(relative)) {
+        return relative
+      }
+    } catch (error) {
+      console.warn('Preload: Failed to compute relative path', filePath, baseDir, error)
+    }
+    return filePath
+  },
+  formatPathForInput: (filePath: string) => {
+    if (/\s/.test(filePath)) {
+      return `"${filePath}"`
+    }
+    return filePath
   }
 }
 exposeElectronAPI()

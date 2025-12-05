@@ -11,6 +11,8 @@ declare global {
       getWindowId(): number | null
       getWebContentsId(): number
       openExternal?(url: string): Promise<void>
+      toRelativePath?(filePath: string, baseDir?: string): string
+      formatPathForInput?(filePath: string): string
     }
     floatingButtonAPI: typeof floatingButtonAPI
   }
