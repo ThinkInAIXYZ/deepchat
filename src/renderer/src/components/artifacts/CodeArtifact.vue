@@ -262,13 +262,6 @@ onMounted(() => {
 <style>
 /* Ensure CodeMirror inherits the right font in the editor */
 .cm-editor .cm-content {
-  font-family:
-    ui-monospace,
-    SFMono-Regular,
-    SF Mono,
-    Menlo,
-    Consolas,
-    Liberation Mono,
-    monospace !important;
+  font-family: var(--dc-code-font-family) !important;
 }
 </style>

@@ -5,11 +5,27 @@ import { CONFIG_EVENTS } from '@/events'
 
 const FONT_SIZE_CLASSES = ['text-sm', 'text-base', 'text-lg', 'text-xl', 'text-2xl']
 const DEFAULT_FONT_SIZE_LEVEL = 1
+const DEFAULT_FONT_STACK =
+  "'Geist', Noto Sans, ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji'"
+const DEFAULT_CODE_FONT_STACK =
+  "'JetBrains Mono', 'Fira Code', 'Menlo', 'Monaco', 'Consolas', 'Courier New', monospace"
+
+const buildFontStack = (custom: string, fallback: string) => {
+  const normalized = (custom || '').trim()
+  if (!normalized) return fallback
+  const wrapped =
+    /\s/.test(normalized) && !normalized.includes(',') ? `"${normalized}"` : normalized
+  return `${wrapped}, ${fallback}`
+}
 
 export const useUiSettingsStore = defineStore('uiSettings', () => {
   const configP = usePresenter('configPresenter')
 
   const fontSizeLevel = ref(DEFAULT_FONT_SIZE_LEVEL)
+  const fontFamily = ref('')
+  const codeFontFamily = ref('')
+  const systemFonts = ref<string[]>([])
+  const isLoadingFonts = ref(false)
   const artifactsEffectEnabled = ref(false)
   const searchPreviewEnabled = ref(true)
   const contentProtectionEnabled = ref(false)
@@ -22,12 +38,19 @@ export const useUiSettingsStore = defineStore('uiSettings', () => {
     () => FONT_SIZE_CLASSES[fontSizeLevel.value] || FONT_SIZE_CLASSES[DEFAULT_FONT_SIZE_LEVEL]
   )
 
+  const formattedFontFamily = computed(() => buildFontStack(fontFamily.value, DEFAULT_FONT_STACK))
+  const formattedCodeFontFamily = computed(() =>
+    buildFontStack(codeFontFamily.value, DEFAULT_CODE_FONT_STACK)
+  )
+
   const loadSettings = async () => {
     fontSizeLevel.value =
       (await configP.getSetting<number>('fontSizeLevel')) ?? DEFAULT_FONT_SIZE_LEVEL
     if (fontSizeLevel.value < 0 || fontSizeLevel.value >= FONT_SIZE_CLASSES.length) {
       fontSizeLevel.value = DEFAULT_FONT_SIZE_LEVEL
     }
+    fontFamily.value = (await configP.getFontFamily()) ?? ''
+    codeFontFamily.value = (await configP.getCodeFontFamily()) ?? ''
     artifactsEffectEnabled.value =
       (await configP.getSetting<boolean>('artifactsEffectEnabled')) ?? false
     searchPreviewEnabled.value = await configP.getSearchPreviewEnabled()
@@ -42,6 +65,35 @@ export const useUiSettingsStore = defineStore('uiSettings', () => {
     const validLevel = Math.max(0, Math.min(level, FONT_SIZE_CLASSES.length - 1))
     fontSizeLevel.value = validLevel
     await configP.setSetting('fontSizeLevel', validLevel)
+  }
+
+  const setFontFamily = async (value: string) => {
+    fontFamily.value = (value || '').trim()
+    await configP.setFontFamily(fontFamily.value)
+  }
+
+  const setCodeFontFamily = async (value: string) => {
+    codeFontFamily.value = (value || '').trim()
+    await configP.setCodeFontFamily(codeFontFamily.value)
+  }
+
+  const resetFontSettings = async () => {
+    fontFamily.value = ''
+    codeFontFamily.value = ''
+    await configP.resetFontSettings()
+  }
+
+  const fetchSystemFonts = async () => {
+    if (isLoadingFonts.value || systemFonts.value.length > 0) return
+    isLoadingFonts.value = true
+    try {
+      const fonts = await configP.getSystemFonts()
+      systemFonts.value = fonts || []
+    } catch (error) {
+      console.warn('Failed to fetch system fonts', error)
+    } finally {
+      isLoadingFonts.value = false
+    }
   }
 
   const setSearchPreviewEnabled = async (enabled: boolean) => {
@@ -99,6 +151,12 @@ export const useUiSettingsStore = defineStore('uiSettings', () => {
     window.electron.ipcRenderer.on(CONFIG_EVENTS.NOTIFICATIONS_CHANGED, (_event, value) => {
       notificationsEnabled.value = value
     })
+    window.electron.ipcRenderer.on(CONFIG_EVENTS.FONT_FAMILY_CHANGED, (_event, value) => {
+      fontFamily.value = value ?? ''
+    })
+    window.electron.ipcRenderer.on(CONFIG_EVENTS.CODE_FONT_FAMILY_CHANGED, (_event, value) => {
+      codeFontFamily.value = value ?? ''
+    })
   }
 
   onMounted(() => {
@@ -114,11 +172,19 @@ export const useUiSettingsStore = defineStore('uiSettings', () => {
     window.electron.ipcRenderer.removeAllListeners(CONFIG_EVENTS.COPY_WITH_COT_CHANGED)
     window.electron.ipcRenderer.removeAllListeners(CONFIG_EVENTS.TRACE_DEBUG_CHANGED)
     window.electron.ipcRenderer.removeAllListeners(CONFIG_EVENTS.NOTIFICATIONS_CHANGED)
+    window.electron.ipcRenderer.removeAllListeners(CONFIG_EVENTS.FONT_FAMILY_CHANGED)
+    window.electron.ipcRenderer.removeAllListeners(CONFIG_EVENTS.CODE_FONT_FAMILY_CHANGED)
   })
 
   return {
     fontSizeLevel,
     fontSizeClass,
+    fontFamily,
+    codeFontFamily,
+    systemFonts,
+    isLoadingFonts,
+    formattedFontFamily,
+    formattedCodeFontFamily,
     artifactsEffectEnabled,
     searchPreviewEnabled,
     contentProtectionEnabled,
@@ -127,6 +193,10 @@ export const useUiSettingsStore = defineStore('uiSettings', () => {
     notificationsEnabled,
     loggingEnabled,
     updateFontSizeLevel,
+    setFontFamily,
+    setCodeFontFamily,
+    resetFontSettings,
+    fetchSystemFonts,
     setSearchPreviewEnabled,
     setArtifactsEffectEnabled,
     setContentProtectionEnabled,

@@ -212,6 +212,8 @@
         </ButtonGroup>
       </div>
 
+      <FontSettingsSection />
+
       <!-- 投屏保护开关 -->
       <div class="flex items-center gap-3 px-2 py-2">
         <span
@@ -318,6 +320,7 @@ import {
 import { Button } from '@shadcn/components/ui/button'
 import { ButtonGroup } from '@shadcn/components/ui/button-group'
 import { Switch } from '@shadcn/components/ui/switch'
+import FontSettingsSection from './display/FontSettingsSection.vue'
 
 const languageStore = useLanguageStore()
 const uiSettingsStore = useUiSettingsStore()

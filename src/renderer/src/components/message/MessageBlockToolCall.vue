@@ -266,9 +266,7 @@ onBeforeUnmount(() => {
 }
 
 pre {
-  font-family:
-    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New',
-    monospace;
+  font-family: var(--dc-code-font-family);
   font-size: 0.85em;
 }
 </style>

@@ -64,6 +64,19 @@ watch(
   { immediate: false } // Initialization is handled in onMounted
 )
 
+const applyFontVariables = (textFont: string, codeFont: string) => {
+  document.documentElement.style.setProperty('--dc-font-family', textFont)
+  document.documentElement.style.setProperty('--dc-code-font-family', codeFont)
+}
+
+watch(
+  [() => uiSettingsStore.formattedFontFamily, () => uiSettingsStore.formattedCodeFontFamily],
+  ([textFont, codeFont]) => {
+    applyFontVariables(textFont, codeFont)
+  },
+  { immediate: true }
+)
+
 // Handle error notifications
 const showErrorToast = (error: { id: string; title: string; message: string; type: string }) => {
   // Check if error with same ID already exists in queue to prevent duplicates

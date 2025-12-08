@@ -26,6 +26,8 @@ export const CONFIG_EVENTS = {
   SOUND_ENABLED_CHANGED: 'config:sound-enabled-changed', // 新增：声音启用状态变更事件
   COPY_WITH_COT_CHANGED: 'config:copy-with-cot-enabled-changed',
   TRACE_DEBUG_CHANGED: 'config:trace-debug-changed', // Trace 调试功能开关变更事件
+  FONT_FAMILY_CHANGED: 'config:font-family-changed',
+  CODE_FONT_FAMILY_CHANGED: 'config:code-font-family-changed',
   THEME_CHANGED: 'config:theme-changed',
   FONT_SIZE_CHANGED: 'config:font-size-changed',
   DEFAULT_SYSTEM_PROMPT_CHANGED: 'config:default-system-prompt-changed',

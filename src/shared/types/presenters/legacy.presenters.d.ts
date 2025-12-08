@@ -439,6 +439,13 @@ export interface IConfigPresenter {
   // Chain of Thought copy settings
   getCopyWithCotEnabled(): boolean
   setCopyWithCotEnabled(enabled: boolean): void
+  // Font settings
+  getFontFamily(): string
+  setFontFamily(fontFamily?: string | null): void
+  getCodeFontFamily(): string
+  setCodeFontFamily(fontFamily?: string | null): void
+  resetFontSettings(): void
+  getSystemFonts(): Promise<string[]>
   // Floating button settings
   getFloatingButtonEnabled(): boolean
   setFloatingButtonEnabled(enabled: boolean): void

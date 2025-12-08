@@ -17,6 +17,11 @@
 
   :root {
     --dc-font-scale: 1;
+    --dc-font-family:
+      'Geist', Noto Sans, ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji',
+      'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+    --dc-code-font-family:
+      'JetBrains Mono', 'Fira Code', 'Menlo', 'Monaco', 'Consolas', 'Courier New', monospace;
     --base-50: hsl(0 0% 100%);
     --base-100: hsl(0 0% 98.1%);
     --base-200: hsl(0 0% 93.4%);
@@ -834,16 +839,15 @@
   }
 
   html {
-    font-family:
-      'Geist',
-      Noto Sans,
-      ui-sans-serif,
-      system-ui,
-      sans-serif,
-      'Apple Color Emoji',
-      'Segoe UI Emoji',
-      'Segoe UI Symbol',
-      'Noto Color Emoji';
+    font-family: var(--dc-font-family);
+  }
+
+  code,
+  pre,
+  kbd,
+  samp,
+  .font-mono {
+    font-family: var(--dc-code-font-family);
   }
 
   @font-face {

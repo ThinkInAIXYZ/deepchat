@@ -23,7 +23,7 @@ export const formatTemplate = (title: string, reactCode: string) => {
       }
       html, body {
         height: 100%;
-        font-family: Arial, sans-serif;
+        font-family: var(--dc-font-family, Arial, sans-serif);
       }
       img {
         max-width: 100%;
