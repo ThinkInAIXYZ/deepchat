@@ -29,6 +29,51 @@ const DEFAULT_CODE_FONTS = [
   'Courier New'
 ]
 
+const normalizeFontNameValue = (name: string): string => {
+  const trimmed = name
+    .replace(/\(.*?\)/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+  if (!trimmed) return ''
+
+  const stripped = trimmed
+    .replace(
+      /\b(Regular|Italic|Oblique|Bold|Light|Medium|Semi\s*Bold|Black|Narrow|Condensed|Extended|Book|Roman)\b/gi,
+      ''
+    )
+    .replace(/\s+/g, ' ')
+    .trim()
+
+  return stripped || trimmed
+}
+
+export const parseLinuxFontFamilies = (output: string): string[] => {
+  const seen = new Set<string>()
+  const fonts: string[] = []
+
+  output
+    .split(/\r?\n/)
+    .map((line) => {
+      const [familyPart] = line.split(':')
+      return familyPart ?? ''
+    })
+    .forEach((familyPart) => {
+      if (!familyPart.trim()) return
+      familyPart
+        .split(',')
+        .map((part) => normalizeFontNameValue(part))
+        .forEach((name) => {
+          if (!name || name.includes('=')) return
+          const key = name.toLowerCase()
+          if (seen.has(key)) return
+          seen.add(key)
+          fonts.push(name)
+        })
+    })
+
+  return fonts
+}
+
 type SetSetting = <T>(key: string, value: T) => void
 type GetSetting = <T>(key: string) => T | undefined
 
@@ -193,7 +238,7 @@ export class UiSettingsHelper {
 
   private async getLinuxFonts(): Promise<string[]> {
     const output = await this.runCommand('fc-list : family', 5000)
-    return this.parseFontOutput(output)
+    return parseLinuxFontFamilies(output)
   }
 
   private async getMacFonts(): Promise<string[]> {
@@ -236,21 +281,7 @@ export class UiSettingsHelper {
   }
 
   private normalizeFontName(name: string): string {
-    const trimmed = name
-      .replace(/\(.*?\)/g, '')
-      .replace(/\s+/g, ' ')
-      .trim()
-    if (!trimmed) return ''
-
-    const stripped = trimmed
-      .replace(
-        /\b(Regular|Italic|Oblique|Bold|Light|Medium|Semi\s*Bold|Black|Narrow|Condensed|Extended|Book|Roman)\b/gi,
-        ''
-      )
-      .replace(/\s+/g, ' ')
-      .trim()
-
-    return stripped || trimmed
+    return normalizeFontNameValue(name)
   }
 
   private readFontsFromDirectories(directories: string[]): string[] {
