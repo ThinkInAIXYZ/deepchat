@@ -89,7 +89,6 @@ export function useArtifactCodeEditor(
     const editor = getEditorView()
     if (editor) {
       editor.updateOptions({ fontFamily })
-      console.info('[Monaco] Applied code font family to artifact dialog:', fontFamily)
     }
   }
 

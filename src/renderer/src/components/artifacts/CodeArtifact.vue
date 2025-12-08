@@ -96,7 +96,6 @@ const applyFontFamily = (fontFamily: string) => {
   const editor = getEditorView()
   if (editor) {
     editor.updateOptions({ fontFamily })
-    console.info('[Monaco] Applied code font family to artifact editor:', fontFamily)
   }
 }
 

@@ -133,7 +133,24 @@ export class UiSettingsHelper {
 
   private normalizeStoredFont(value?: string | null): string {
     if (typeof value !== 'string') return ''
-    return value.trim()
+    const cleaned = value
+      .replace(/[\r\n\t]/g, ' ')
+      .replace(/[;:{}()[\]<>]/g, '')
+      .replace(/['"`\\]/g, '')
+      .trim()
+    if (!cleaned) return ''
+
+    const collapsed = cleaned.replace(/\s+/g, ' ').slice(0, 100)
+
+    // If we already have detected system fonts cached, prefer an exact match from that list
+    if (this.systemFontsCache?.length) {
+      const match = this.systemFontsCache.find(
+        (font) => font.toLowerCase() === collapsed.toLowerCase()
+      )
+      if (match) return match
+    }
+
+    return collapsed
   }
 
   private async loadSystemFonts(): Promise<string[]> {
