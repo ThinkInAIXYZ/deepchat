@@ -22,11 +22,6 @@
     "acpWorkdirSelect": "בחר תיקייה שתשמש כתיקיית העבודה של ACP",
     "acpWorkdirCurrent": "תיקיית עבודה נוכחית: {path}",
     "acpMode": "דֶגֶם",
-    "acpModeAcceptEdits": "קבל באופן אוטומטי עריכות",
-    "acpModeBypassPermissions": "דילוג על הרשאות",
-    "acpModeDefault": "תמיד לשאול",
-    "acpModePlan": "מצב תכנון",
-    "acpModeSwitched": "עבר ל-{mode}",
     "acpModeTooltip": "מצב נוכחי: {mode}"
   },
   "features": {
@@ -93,5 +88,36 @@
     "functionName": "פונקציה",
     "params": "פרמטרים",
     "responseData": "נתוני תגובה"
+  },
+  "acp": {
+    "workspace": {
+      "collapse": "לִסְגוֹר",
+      "files": {
+        "contextMenu": {
+          "insertPath": "הכנס לתוך תיבת הקלט",
+          "openFile": "לפתוח קובץ",
+          "revealInFolder": "פתח במנהל הקבצים"
+        },
+        "empty": "עדיין אין קבצים",
+        "loading": "טוען קבצים...",
+        "section": "מִסְמָך"
+      },
+      "plan": {
+        "empty": "עדיין אין משימות",
+        "section": "לְתַכְנֵן",
+        "status": {
+          "completed": "הושלם",
+          "failed": "לְהִכָּשֵׁל",
+          "in_progress": "בתהליך",
+          "pending": "תָלוּי וְעוֹמֵד",
+          "skipped": "דילג"
+        }
+      },
+      "terminal": {
+        "empty": "עדיין אין פלט",
+        "section": "מָסוֹף"
+      },
+      "title": "סביבת עבודה"
+    }
   }
 }
