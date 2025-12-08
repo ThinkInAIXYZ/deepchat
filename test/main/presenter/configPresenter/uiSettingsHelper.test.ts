@@ -1,30 +1,44 @@
-import { describe, expect, it } from 'vitest'
+import fontList from 'font-list'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { parseLinuxFontFamilies } from '@/presenter/configPresenter/uiSettingsHelper'
+import { UiSettingsHelper } from '@/presenter/configPresenter/uiSettingsHelper'
 
-describe('parseLinuxFontFamilies', () => {
-  it('extracts family names before the style portion', () => {
-    const output = [
-      'DejaVu Sans:style=Book',
-      'Noto Sans Mono:style=Regular',
-      'Ubuntu:style=Bold'
-    ].join('\n')
+vi.mock('font-list', () => {
+  const getFonts = vi.fn()
+  return { default: { getFonts } }
+})
 
-    expect(parseLinuxFontFamilies(output)).toEqual(['DejaVu Sans', 'Noto Sans Mono', 'Ubuntu'])
+const getFontsMock = vi.mocked(fontList.getFonts)
+
+const createHelper = () =>
+  new UiSettingsHelper({
+    getSetting: () => undefined,
+    setSetting: () => undefined
   })
 
-  it('deduplicates and normalizes comma-separated families', () => {
-    const output = [
-      'Noto Sans Mono, Noto Sans Mono Light:style=Regular,Italic',
-      'Noto Sans Mono:style=Bold'
-    ].join('\n')
-
-    expect(parseLinuxFontFamilies(output)).toEqual(['Noto Sans Mono'])
+describe('UiSettingsHelper.getSystemFonts', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
   })
 
-  it('ignores entries without a valid family name', () => {
-    const output = ['', ':style=Book', 'style=Bold', ' , :style=Regular'].join('\n')
+  it('normalizes and caches fonts from font-list', async () => {
+    getFontsMock.mockResolvedValue(['Inter Regular', 'Inter Bold', 'Menlo'])
+    const helper = createHelper()
 
-    expect(parseLinuxFontFamilies(output)).toEqual([])
+    const fonts = await helper.getSystemFonts()
+    const cachedFonts = await helper.getSystemFonts()
+
+    expect(getFontsMock).toHaveBeenCalledTimes(1)
+    expect(fonts).toEqual(['Inter', 'Menlo'])
+    expect(cachedFonts).toBe(fonts)
+  })
+
+  it('returns an empty array when font detection fails', async () => {
+    getFontsMock.mockRejectedValue(new Error('failed to load'))
+    const helper = createHelper()
+
+    const fonts = await helper.getSystemFonts()
+
+    expect(fonts).toEqual([])
   })
 })

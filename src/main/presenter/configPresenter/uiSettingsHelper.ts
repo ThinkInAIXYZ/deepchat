@@ -1,33 +1,6 @@
 import { eventBus, SendTarget } from '@/eventbus'
 import { CONFIG_EVENTS } from '@/events'
-import { exec } from 'child_process'
-import { promisify } from 'util'
-import os from 'os'
-import path from 'path'
-import fs from 'fs'
-
-const execAsync = promisify(exec)
-const FONT_FILE_EXTENSIONS = new Set(['.ttf', '.otf', '.ttc', '.dfont'])
-const DEFAULT_TEXT_FONTS = [
-  'Geist',
-  'Inter',
-  'Noto Sans',
-  'SF Pro Text',
-  'SF Pro Display',
-  'Helvetica Neue',
-  'Helvetica',
-  'Arial',
-  'Segoe UI',
-  'Roboto'
-]
-const DEFAULT_CODE_FONTS = [
-  'JetBrains Mono',
-  'Fira Code',
-  'Menlo',
-  'Monaco',
-  'Consolas',
-  'Courier New'
-]
+import fontList from 'font-list'
 
 const normalizeFontNameValue = (name: string): string => {
   const trimmed = name
@@ -45,33 +18,6 @@ const normalizeFontNameValue = (name: string): string => {
     .trim()
 
   return stripped || trimmed
-}
-
-export const parseLinuxFontFamilies = (output: string): string[] => {
-  const seen = new Set<string>()
-  const fonts: string[] = []
-
-  output
-    .split(/\r?\n/)
-    .map((line) => {
-      const [familyPart] = line.split(':')
-      return familyPart ?? ''
-    })
-    .forEach((familyPart) => {
-      if (!familyPart.trim()) return
-      familyPart
-        .split(',')
-        .map((part) => normalizeFontNameValue(part))
-        .forEach((name) => {
-          if (!name || name.includes('=')) return
-          const key = name.toLowerCase()
-          if (seen.has(key)) return
-          seen.add(key)
-          fonts.push(name)
-        })
-    })
-
-  return fonts
 }
 
 type SetSetting = <T>(key: string, value: T) => void
@@ -199,16 +145,16 @@ export class UiSettingsHelper {
   }
 
   private async loadSystemFonts(): Promise<string[]> {
-    const candidates: string[] = []
     try {
-      const detected = await this.queryPlatformFonts()
-      candidates.push(...detected)
+      const detected = await fontList.getFonts()
+      const normalized = detected
+        .map((font) => this.normalizeFontName(font))
+        .filter((font): font is string => Boolean(font))
+      return this.uniqueFonts(normalized)
     } catch (error) {
-      console.warn('Failed to detect system fonts, using fallbacks only:', error)
+      console.warn('Failed to detect system fonts with font-list:', error)
+      return []
     }
-
-    candidates.push(...DEFAULT_TEXT_FONTS, ...DEFAULT_CODE_FONTS)
-    return this.uniqueFonts(candidates)
   }
 
   private uniqueFonts(fonts: string[]): string[] {
@@ -225,97 +171,7 @@ export class UiSettingsHelper {
     return result
   }
 
-  private async queryPlatformFonts(): Promise<string[]> {
-    const platform = process.platform
-    if (platform === 'darwin') {
-      return this.getMacFonts()
-    }
-    if (platform === 'win32') {
-      return this.getWindowsFonts()
-    }
-    return this.getLinuxFonts()
-  }
-
-  private async getLinuxFonts(): Promise<string[]> {
-    const output = await this.runCommand('fc-list : family', 5000)
-    return parseLinuxFontFamilies(output)
-  }
-
-  private async getMacFonts(): Promise<string[]> {
-    const profilerOutput = await this.runCommand(
-      'system_profiler SPFontsDataType | grep "Family:"',
-      7000
-    )
-    const parsedProfiler = this.parseFontOutput(profilerOutput)
-    if (parsedProfiler.length > 0) {
-      return parsedProfiler
-    }
-
-    return this.readFontsFromDirectories([
-      '/System/Library/Fonts',
-      '/Library/Fonts',
-      path.join(os.homedir(), 'Library/Fonts')
-    ])
-  }
-
-  private async getWindowsFonts(): Promise<string[]> {
-    const command =
-      "powershell -NoProfile -Command \"(Get-ItemProperty 'HKLM:\\\\SOFTWARE\\\\Microsoft\\\\Windows NT\\\\CurrentVersion\\\\Fonts').PSObject.Properties | Where-Object { $_.Name -and $_.Value -match '\\.(ttf|otf|ttc)$' } | Select-Object -ExpandProperty Name\""
-    const output = await this.runCommand(command, 5000)
-    const parsed = this.parseFontOutput(output)
-    if (parsed.length > 0) {
-      return parsed
-    }
-
-    const windowsFontDir = path.join(process.env.WINDIR || 'C:\\Windows', 'Fonts')
-    return this.readFontsFromDirectories([windowsFontDir])
-  }
-
-  private parseFontOutput(output: string): string[] {
-    return output
-      .split(/\r?\n/)
-      .flatMap((line) => line.split(','))
-      .map((line) => line.replace(/^[^:]*:\s*/, '').replace(/^Family:\s*/i, ''))
-      .map((font) => this.normalizeFontName(font))
-      .filter(Boolean)
-  }
-
   private normalizeFontName(name: string): string {
     return normalizeFontNameValue(name)
-  }
-
-  private readFontsFromDirectories(directories: string[]): string[] {
-    const fonts: string[] = []
-    directories.forEach((dir) => {
-      if (!fs.existsSync(dir)) return
-      try {
-        const files = fs.readdirSync(dir)
-        files.forEach((file) => {
-          const ext = path.extname(file).toLowerCase()
-          if (!FONT_FILE_EXTENSIONS.has(ext)) return
-          const name = this.normalizeFontName(path.basename(file, ext))
-          if (name) {
-            fonts.push(name)
-          }
-        })
-      } catch (error) {
-        console.warn('Failed to read fonts from directory:', dir, error)
-      }
-    })
-    return fonts
-  }
-
-  private async runCommand(command: string, timeout = 5000): Promise<string> {
-    try {
-      const { stdout } = await execAsync(command, {
-        timeout,
-        windowsHide: true,
-        maxBuffer: 1024 * 1024
-      })
-      return stdout || ''
-    } catch (error) {
-      console.warn(`Failed to execute command for font detection: ${command}`, error)
-      return ''
-    }
   }
 }
