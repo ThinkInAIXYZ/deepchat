@@ -109,22 +109,15 @@ setCustomComponents(customId, {
   @apply my-1.5;
 }
 .think-prose :where(p, li, ol, ul) {
-  font-size: 12px;
-  line-height: 16px;
+  font-size: inherit;
+  line-height: inherit;
   letter-spacing: 0;
-  color: rgba(37, 37, 37, 0.5);
 }
 .think-prose :where(ol, ul) {
   padding-left: 1.5em;
 }
 .think-prose :where(p, li, ol, ul) :where(a) {
-  color: rgba(37, 37, 37, 0.6);
+  color: inherit;
   text-decoration: underline;
-}
-.dark .think-prose :where(p, li, ol, ul) {
-  color: rgba(255, 255, 255, 0.5);
-}
-.dark .think-prose :where(p, li, ol, ul) :where(a) {
-  color: rgba(255, 255, 255, 0.6);
 }
 </style>

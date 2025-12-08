@@ -74,7 +74,7 @@ export function useChatConfigFields(options: UseChatConfigFieldsOptions) {
         label: t('settings.model.temperature.label'),
         description: t('settings.model.temperature.description'),
         min: 0,
-        max: 1.5,
+        max: 2,
         step: 0.1,
         getValue: () => options.temperature.value,
         setValue: (val) => options.emit('update:temperature', val)

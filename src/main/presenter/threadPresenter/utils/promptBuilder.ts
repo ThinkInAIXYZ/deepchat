@@ -445,7 +445,7 @@ function addContextMessages(
     contextMessages.forEach((msg) => {
       if (msg.role === 'user') {
         const msgContent = msg.content as VisionUserMessageContent
-        const normalizedText = getNormalizedUserMessageText(msgContent)
+        const finalUserContext = buildUserMessageContext(msgContent)
         if (vision && msgContent.images && msgContent.images.length > 0) {
           resultMessages.push({
             role: 'user',
@@ -454,13 +454,13 @@ function addContextMessages(
                 type: 'image_url' as const,
                 image_url: { url: image, detail: 'auto' as const }
               })),
-              { type: 'text' as const, text: normalizedText }
+              { type: 'text' as const, text: finalUserContext }
             ]
           })
         } else {
           resultMessages.push({
             role: 'user',
-            content: normalizedText
+            content: finalUserContext
           })
         }
       } else if (msg.role === 'assistant') {
@@ -532,7 +532,7 @@ function addContextMessages(
   contextMessages.forEach((msg) => {
     if (msg.role === 'user') {
       const msgContent = msg.content as VisionUserMessageContent
-      const normalizedText = getNormalizedUserMessageText(msgContent)
+      const finalUserContext = buildUserMessageContext(msgContent)
       if (vision && msgContent.images && msgContent.images.length > 0) {
         resultMessages.push({
           role: 'user',
@@ -541,13 +541,13 @@ function addContextMessages(
               type: 'image_url' as const,
               image_url: { url: image, detail: 'auto' as const }
             })),
-            { type: 'text' as const, text: normalizedText }
+            { type: 'text' as const, text: finalUserContext }
           ]
         })
       } else {
         resultMessages.push({
           role: 'user',
-          content: normalizedText
+          content: finalUserContext
         })
       }
     } else if (msg.role === 'assistant') {

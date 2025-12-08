@@ -166,7 +166,7 @@ const selectTool = (tool: MCPToolDefinition) => {
       side="right"
       class="w-4/5 min-w-[80vw] max-w-[80vw] p-0 bg-white dark:bg-black h-screen flex flex-col gap-0"
     >
-      <SheetHeader class="px-4 py-3 border-b bg-card shrink-0">
+      <SheetHeader class="px-4 py-3 border-b bg-card shrink-0 window-no-drag-region">
         <SheetTitle class="flex items-center space-x-2">
           <Icon icon="lucide:wrench" class="h-5 w-5 text-primary" />
           <span>{{ t('mcp.tools.title') }} - {{ serverName }}</span>
