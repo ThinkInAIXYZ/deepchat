@@ -30,6 +30,7 @@
         <PopoverContent class="w-80 p-0" align="end">
           <ModelSelect
             :type="[ModelType.Chat, ModelType.ImageGeneration]"
+            :exclude-providers="['acp']"
             @update:model="handleSearchModelSelect"
           />
         </PopoverContent>

@@ -26,6 +26,13 @@ export const useSearchAssistantStore = defineStore('searchAssistant', () => {
 
   const searchAssistantModel = computed(() => modelRef.value)
   const searchAssistantProvider = computed(() => providerRef.value)
+  const isProviderAllowed = (providerId?: string) => providerId !== 'acp'
+  const isModelEnabledForProvider = (model: RENDERER_MODEL_META, providerId: string) =>
+    enabledModels.value.some(
+      (provider) =>
+        provider.providerId === providerId &&
+        provider.models.some((enabledModel) => enabledModel.id === model.id)
+    )
 
   const findPriorityModel = (): { model: RENDERER_MODEL_META; providerId: string } | null => {
     if (!enabledModels.value || enabledModels.value.length === 0) {
@@ -34,6 +41,9 @@ export const useSearchAssistantStore = defineStore('searchAssistant', () => {
 
     for (const keyword of priorities) {
       for (const providerModels of enabledModels.value) {
+        if (!isProviderAllowed(providerModels.providerId)) {
+          continue
+        }
         for (const model of providerModels.models) {
           if (
             model.id.toLowerCase().includes(keyword.toLowerCase()) ||
@@ -49,6 +59,7 @@ export const useSearchAssistantStore = defineStore('searchAssistant', () => {
     }
 
     const fallback = enabledModels.value
+      .filter((provider) => isProviderAllowed(provider.providerId))
       .flatMap((provider) =>
         provider.models.map((model) => ({ ...model, providerId: provider.providerId }))
       )
@@ -65,6 +76,10 @@ export const useSearchAssistantStore = defineStore('searchAssistant', () => {
   }
 
   const setSearchAssistantModel = async (model: RENDERER_MODEL_META, providerId: string) => {
+    if (!isProviderAllowed(providerId)) {
+      await initOrUpdateSearchAssistantModel()
+      return
+    }
     const rawModel = toRaw(model)
     modelRef.value = rawModel
     providerRef.value = providerId
@@ -82,10 +97,18 @@ export const useSearchAssistantStore = defineStore('searchAssistant', () => {
       'searchAssistantModel'
     )
     savedModel = toRaw(savedModel)
-    if (savedModel) {
-      modelRef.value = savedModel.model
-      providerRef.value = savedModel.providerId
-      threadP.setSearchAssistantModel(savedModel.model, savedModel.providerId)
+    const hasEnabledModels = enabledModels.value.length > 0
+    const usableSavedModel =
+      savedModel &&
+      isProviderAllowed(savedModel.providerId) &&
+      (!hasEnabledModels || isModelEnabledForProvider(savedModel.model, savedModel.providerId))
+        ? savedModel
+        : null
+
+    if (usableSavedModel) {
+      modelRef.value = usableSavedModel.model
+      providerRef.value = usableSavedModel.providerId
+      threadP.setSearchAssistantModel(usableSavedModel.model, usableSavedModel.providerId)
       return
     }
 
@@ -113,9 +136,14 @@ export const useSearchAssistantStore = defineStore('searchAssistant', () => {
       return
     }
 
-    const stillAvailable = enabledModels.value.some((provider) =>
-      provider.models.some((model) => model.id === currentModel.id)
-    )
+    const resolvedProviderId = providerRef.value || currentModel.providerId || ''
+    if (!isProviderAllowed(resolvedProviderId)) {
+      await initOrUpdateSearchAssistantModel()
+      return
+    }
+
+    const stillAvailable =
+      resolvedProviderId !== '' && isModelEnabledForProvider(currentModel, resolvedProviderId)
 
     if (!stillAvailable) {
       await initOrUpdateSearchAssistantModel()

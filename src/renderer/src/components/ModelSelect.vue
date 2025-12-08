@@ -71,13 +71,17 @@ const props = defineProps({
   type: {
     type: Array as PropType<ModelType[]>,
     default: undefined // ←  explicit for clarity
+  },
+  excludeProviders: {
+    type: Array as PropType<string[]>,
+    default: () => []
   }
 })
 const providers = computed(() => {
   const sortedProviders = providerStore.sortedProviders
   const enabledModels = modelStore.enabledModels
   const orderedProviders = sortedProviders
-    .filter((provider) => provider.enable)
+    .filter((provider) => provider.enable && !props.excludeProviders.includes(provider.id))
     .map((provider) => {
       const enabledProvider = enabledModels.find((ep) => ep.providerId === provider.id)
       if (!enabledProvider || enabledProvider.models.length === 0) {
