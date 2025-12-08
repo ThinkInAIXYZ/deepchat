@@ -3,6 +3,7 @@
     <NodeRenderer
       :content="debouncedContent"
       :isDark="themeStore.isDark"
+      :codeBlockMonacoOptions="codeBlockMonacoOption"
       @copy="$emit('copy', $event)"
     />
   </div>
@@ -14,7 +15,7 @@ import { useArtifactStore } from '@/stores/artifact'
 import { useReferenceStore } from '@/stores/reference'
 import { nanoid } from 'nanoid'
 import { useDebounceFn } from '@vueuse/core'
-import { h, ref, watch } from 'vue'
+import { computed, h, ref, watch } from 'vue'
 import NodeRenderer, {
   CodeBlockNode,
   ReferenceNode,
@@ -27,12 +28,14 @@ import NodeRenderer, {
 import KatexWorker from 'markstream-vue/workers/katexRenderer.worker?worker&inline'
 import MermaidWorker from 'markstream-vue/workers/mermaidParser.worker?worker&inline'
 import { useThemeStore } from '@/stores/theme'
+import { useUiSettingsStore } from '@/stores/uiSettingsStore'
 
 const props = defineProps<{
   content: string
   debug?: boolean
 }>()
 const themeStore = useThemeStore()
+const uiSettingsStore = useUiSettingsStore()
 getUseMonaco()
 setKaTeXWorker(new KatexWorker())
 setMermaidWorker(new MermaidWorker())
@@ -45,6 +48,9 @@ const referenceStore = useReferenceStore()
 const threadPresenter = usePresenter('threadPresenter')
 const referenceNode = ref<HTMLElement | null>(null)
 const debouncedContent = ref(props.content)
+const codeBlockMonacoOption = computed(() => ({
+  fontFamily: uiSettingsStore.formattedCodeFontFamily
+}))
 
 const updateContent = useDebounceFn(
   (value: string) => {

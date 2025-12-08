@@ -814,7 +814,21 @@
     "text-xl": "Ekstra stor",
     "text-2xl": "XXL",
     "floatingButton": "Flydende knap",
-    "floatingButtonDesc": "Vis en flydende knap på skrivebordet for hurtigt at aktivere vinduet"
+    "floatingButtonDesc": "Vis en flydende knap på skrivebordet for hurtigt at aktivere vinduet",
+    "codeFontFamily": "monospace skrifttype",
+    "codeFontFamilyDesc": "Anvendes til kodeblokke og områder med konstant bredde.",
+    "fontDefaultLabel": "Standard (indbygget skrifttypestak)",
+    "fontFamily": "Interface skrifttype",
+    "fontFamilyDesc": "Vælg grænsefladens hovedskrifttype. Hvis det efterlades tomt, skal du bruge den indbyggede skrifttypestak.",
+    "fontPreview": "Forhåndsvisning",
+    "fontPreviewCode": "Forhåndsvisning af kode",
+    "fontPreviewText": "Den hurtige brune ræv hopper over den dovne hund.",
+    "fontReset": "nulstilles til standard",
+    "fontSearchEmpty": "Ingen matchende skrifttype",
+    "fontSearchPlaceholder": "Søg skrifttype",
+    "fontSystemLoading": "Indlæser systemskrifttyper...",
+    "fontTitle": "skrifttype",
+    "fontUsageHint": "Nogle grænseflader kræver genstart af applikationen for at træde i kraft. Hvis skrifttypen ikke er tilgængelig, vil den automatisk falde tilbage til standardskrifttypen."
   },
   "shortcuts": {
     "title": "Indstillinger for genvejstaster",

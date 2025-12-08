@@ -1,25 +1,45 @@
 <template>
-  <div class="flex flex-col gap-2 px-2 py-2">
-    <div class="flex items-start gap-3">
+  <div class="flex flex-col gap-3 px-2 py-2 max-w-4xl">
+    <div class="flex flex-wrap items-center justify-between gap-3">
       <span
-        class="flex items-center gap-2 text-sm font-medium shrink-0 min-w-[220px]"
+        class="flex items-center gap-2 text-sm font-medium shrink-0 min-w-[200px]"
         :dir="languageStore.dir"
       >
         <Icon icon="lucide:type" class="w-4 h-4 text-muted-foreground" />
         <span class="truncate">{{ t('settings.display.fontTitle') }}</span>
       </span>
+      <Button
+        variant="ghost"
+        size="sm"
+        class="h-9 md:h-8 px-3 w-full md:w-auto justify-center"
+        :disabled="isResetting || (!uiSettingsStore.fontFamily && !uiSettingsStore.codeFontFamily)"
+        @click="handleReset"
+      >
+        <Icon icon="lucide:rotate-ccw" class="h-4 w-4 mr-1.5" />
+        {{ t('settings.display.fontReset') }}
+      </Button>
+    </div>
 
-      <div class="ml-auto flex-1 space-y-3">
-        <div class="grid gap-3 md:grid-cols-2">
-          <div class="space-y-2">
-            <div class="flex items-center justify-between text-xs text-muted-foreground">
-              <span class="text-foreground font-medium">
-                {{ t('settings.display.fontFamily') }}
-              </span>
-              <span class="truncate text-[11px]">
-                {{ textFontLabel }}
-              </span>
-            </div>
+    <div class="flex items-center gap-2 text-[11px] text-muted-foreground">
+      <Spinner v-if="uiSettingsStore.isLoadingFonts" class="h-3 w-3" />
+      <span>
+        {{
+          uiSettingsStore.isLoadingFonts
+            ? t('settings.display.fontSystemLoading')
+            : t('settings.display.fontUsageHint')
+        }}
+      </span>
+    </div>
+
+    <div class="flex flex-col gap-4">
+      <div class="space-y-1.5">
+        <div class="flex flex-col gap-2 md:flex-row md:items-center md:gap-3">
+          <div class="flex items-center gap-2 text-xs text-muted-foreground md:w-32 shrink-0">
+            <span class="text-foreground font-medium text-sm">
+              {{ t('settings.display.fontFamily') }}
+            </span>
+          </div>
+          <div class="w-full md:w-[260px] ml-auto">
             <Popover v-model:open="textPopoverOpen">
               <PopoverTrigger as-child>
                 <Button
@@ -88,20 +108,24 @@
                 </div>
               </PopoverContent>
             </Popover>
-            <p class="text-[11px] text-muted-foreground leading-relaxed">
-              {{ t('settings.display.fontFamilyDesc') }}
-            </p>
           </div>
+        </div>
+        <p
+          class="text-[11px] text-muted-foreground leading-relaxed"
+          :style="{ fontFamily: textPreviewFont }"
+        >
+          {{ t('settings.display.fontFamilyDesc') }}
+        </p>
+      </div>
 
-          <div class="space-y-2">
-            <div class="flex items-center justify-between text-xs text-muted-foreground">
-              <span class="text-foreground font-medium">
-                {{ t('settings.display.codeFontFamily') }}
-              </span>
-              <span class="truncate text-[11px]">
-                {{ codeFontLabel }}
-              </span>
-            </div>
+      <div class="space-y-1.5">
+        <div class="flex flex-col gap-2 md:flex-row md:items-center md:gap-3">
+          <div class="flex items-center gap-2 text-xs text-muted-foreground md:w-32 shrink-0">
+            <span class="text-foreground font-medium text-sm">
+              {{ t('settings.display.codeFontFamily') }}
+            </span>
+          </div>
+          <div class="w-full md:w-[260px] ml-auto">
             <Popover v-model:open="codePopoverOpen">
               <PopoverTrigger as-child>
                 <Button
@@ -171,62 +195,14 @@
                 </div>
               </PopoverContent>
             </Popover>
-            <p class="text-[11px] text-muted-foreground leading-relaxed">
-              {{ t('settings.display.codeFontFamilyDesc') }}
-            </p>
           </div>
         </div>
-
-        <div class="rounded-lg border bg-muted/40 p-3 space-y-2">
-          <div class="flex items-center justify-between">
-            <div class="flex items-center gap-2 text-sm font-medium">
-              <Icon icon="lucide:eye" class="h-4 w-4 text-muted-foreground" />
-              <span>{{ t('settings.display.fontPreview') }}</span>
-            </div>
-            <Button
-              variant="ghost"
-              size="sm"
-              class="h-8 px-3"
-              :disabled="
-                isResetting || (!uiSettingsStore.fontFamily && !uiSettingsStore.codeFontFamily)
-              "
-              @click="handleReset"
-            >
-              <Icon icon="lucide:rotate-ccw" class="h-4 w-4 mr-1.5" />
-              {{ t('settings.display.fontReset') }}
-            </Button>
-          </div>
-          <div
-            class="rounded-md border bg-background px-3 py-2 text-sm leading-6"
-            :style="{ fontFamily: textPreviewFont }"
-          >
-            {{ previewText }}
-          </div>
-          <div
-            class="rounded-md border bg-background px-3 py-2 text-xs"
-            :style="{ fontFamily: codePreviewFont }"
-          >
-            <div class="text-[11px] text-muted-foreground mb-1">
-              {{ t('settings.display.fontPreviewCode') }}
-            </div>
-            <pre
-              class="whitespace-pre-wrap text-xs leading-6"
-              :style="{ fontFamily: codePreviewFont }"
-              >{{ codePreview }}</pre
-            >
-          </div>
-        </div>
-
-        <div class="flex items-center gap-2 text-[11px] text-muted-foreground">
-          <Spinner v-if="uiSettingsStore.isLoadingFonts" class="h-3 w-3" />
-          <span>
-            {{
-              uiSettingsStore.isLoadingFonts
-                ? t('settings.display.fontSystemLoading')
-                : t('settings.display.fontUsageHint')
-            }}
-          </span>
-        </div>
+        <p
+          class="text-[11px] text-muted-foreground leading-relaxed"
+          :style="{ fontFamily: codePreviewFont }"
+        >
+          {{ t('settings.display.codeFontFamilyDesc') }}
+        </p>
       </div>
     </div>
   </div>
@@ -297,12 +273,6 @@ const codeFontLabel = computed(() => uiSettingsStore.codeFontFamily || defaultLa
 
 const textPreviewFont = computed(() => uiSettingsStore.formattedFontFamily)
 const codePreviewFont = computed(() => uiSettingsStore.formattedCodeFontFamily)
-
-const previewText = computed(() => t('settings.display.fontPreviewText'))
-
-const codePreview = `const greet = (name: string) => \`Hello, \${name}!\`
-const sum = (a: number, b: number) => a + b
-console.log(greet('DeepChat'), sum(2, 3))`
 
 const buildFontPreview = (font: string, fallback: string) => {
   const normalized = (font || '').trim()

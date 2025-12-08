@@ -814,7 +814,21 @@
     "text-xl": "XL",
     "text-2xl": "XXL",
     "floatingButton": "Bouton flottant",
-    "floatingButtonDesc": "Afficher un bouton flottant sur le bureau pour activer rapidement la fenêtre de l'application"
+    "floatingButtonDesc": "Afficher un bouton flottant sur le bureau pour activer rapidement la fenêtre de l'application",
+    "codeFontFamily": "police à espacement fixe",
+    "codeFontFamilyDesc": "Utilisé pour les blocs de code et les zones de largeur constante.",
+    "fontDefaultLabel": "Par défaut (pile de polices intégrée)",
+    "fontFamily": "Police d'interface",
+    "fontFamilyDesc": "Sélectionnez la police principale de l'interface. Si laissé vide, utilisez la pile de polices intégrée.",
+    "fontPreview": "Aperçu",
+    "fontPreviewCode": "Aperçu du code",
+    "fontPreviewText": "Le renard brun rapide saute par-dessus le chien paresseux.",
+    "fontReset": "réinitialiser par défaut",
+    "fontSearchEmpty": "Aucune police correspondante",
+    "fontSearchPlaceholder": "Rechercher une police",
+    "fontSystemLoading": "Chargement des polices système...",
+    "fontTitle": "fonte",
+    "fontUsageHint": "Certaines interfaces nécessitent le redémarrage de l'application pour prendre effet. Si la police n'est pas disponible, elle reviendra automatiquement à la police par défaut."
   },
   "shortcuts": {
     "title": "Paramètres des raccourcis clavier",

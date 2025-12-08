@@ -814,7 +814,21 @@
     "text-xl": "XL",
     "text-2xl": "XXL",
     "floatingButton": "플로팅 버튼",
-    "floatingButtonDesc": "데스크톱에 플로팅 버튼을 표시하여 애플리케이션 창을 빠르게 활성화할 수 있습니다"
+    "floatingButtonDesc": "데스크톱에 플로팅 버튼을 표시하여 애플리케이션 창을 빠르게 활성화할 수 있습니다",
+    "codeFontFamily": "고정 폭 글꼴",
+    "codeFontFamilyDesc": "코드 블록 및 고정 너비 영역에 사용됩니다.",
+    "fontDefaultLabel": "기본값(내장 글꼴 스택)",
+    "fontFamily": "인터페이스 글꼴",
+    "fontFamilyDesc": "인터페이스의 기본 글꼴을 선택합니다. 비워두면 내장된 글꼴 스택을 사용합니다.",
+    "fontPreview": "시사",
+    "fontPreviewCode": "코드 미리보기",
+    "fontPreviewText": "날렵한 갈색여우가 게으른 개를 뛰어넘습니다.",
+    "fontReset": "기본값으로 재설정",
+    "fontSearchEmpty": "일치하는 글꼴이 없습니다.",
+    "fontSearchPlaceholder": "글꼴 검색",
+    "fontSystemLoading": "시스템 글꼴 로드 중...",
+    "fontTitle": "세례반",
+    "fontUsageHint": "일부 인터페이스를 적용하려면 애플리케이션을 다시 시작해야 합니다. 글꼴을 사용할 수 없는 경우 자동으로 기본 글꼴로 돌아갑니다."
   },
   "shortcuts": {
     "title": "단축키 설정",

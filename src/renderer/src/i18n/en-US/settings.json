@@ -820,7 +820,7 @@
     "fontPreviewCode": "Code preview",
     "fontReset": "Reset to default",
     "fontSystemLoading": "Loading system fonts...",
-    "fontUsageHint": "If a font is missing, DeepChat will fall back to the default stack automatically.",
+    "fontUsageHint": "Some interfaces require restarting the application to take effect. If the font is unavailable, it will automatically fall back to the default font.",
     "fontSize": "Text size",
     "text-sm": "Small",
     "text-base": "Medium",

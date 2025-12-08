@@ -814,7 +814,21 @@
     "text-xl": "XL",
     "text-2xl": "XXL",
     "floatingButton": "フローティングボタン",
-    "floatingButtonDesc": "デスクトップにフローティングボタンを表示し、アプリケーションウィンドウを素早く起動できます"
+    "floatingButtonDesc": "デスクトップにフローティングボタンを表示し、アプリケーションウィンドウを素早く起動できます",
+    "codeFontFamily": "等幅フォント",
+    "codeFontFamilyDesc": "コードブロックと固定幅領域に使用されます。",
+    "fontDefaultLabel": "デフォルト（内蔵フォントスタック）",
+    "fontFamily": "インターフェースフォント",
+    "fontFamilyDesc": "インターフェースのメインフォントを選択します。空白のままにすると、組み込みのフォント スタックが使用されます。",
+    "fontPreview": "プレビュー",
+    "fontPreviewCode": "コードのプレビュー",
+    "fontPreviewText": "素早い茶色のキツネが怠惰な犬を飛び越えます。",
+    "fontReset": "デフォルトにリセットする",
+    "fontSearchEmpty": "一致するフォントがありません",
+    "fontSearchPlaceholder": "フォントの検索",
+    "fontSystemLoading": "システムフォントを読み込んでいます...",
+    "fontTitle": "フォント",
+    "fontUsageHint": "一部のインターフェイスを有効にするには、アプリケーションを再起動する必要があります。フォントが使用できない場合は、自動的にデフォルトのフォントに戻ります。"
   },
   "shortcuts": {
     "title": "ショートカットキー設定",

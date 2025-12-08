@@ -820,7 +820,7 @@
     "fontPreviewCode": "代码预览",
     "fontReset": "重置为默认",
     "fontSystemLoading": "正在加载系统字体...",
-    "fontUsageHint": "如果字体不可用，将自动回落到默认字体。",
+    "fontUsageHint": "部分界面需要重启应用后才会生效，如果字体不可用，将自动回落到默认字体。",
     "fontSize": "文字大小",
     "text-sm": "小",
     "text-base": "标准",

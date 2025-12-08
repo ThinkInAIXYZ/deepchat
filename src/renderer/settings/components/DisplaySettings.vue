@@ -2,30 +2,32 @@
   <ScrollArea class="w-full h-full">
     <div class="w-full h-full flex flex-col gap-1.5 p-4">
       <!-- 语言选择 -->
-      <div class="flex items-center gap-3 h-10">
-        <span
-          class="flex items-center gap-2 text-sm font-medium shrink-0 min-w-[220px]"
-          :dir="languageStore.dir"
-        >
-          <Icon icon="lucide:languages" class="w-4 h-4 text-muted-foreground" />
-          <span class="truncate">{{ t('settings.common.language') }}</span>
-        </span>
-        <div class="ml-auto w-auto">
-          <Select v-model="selectedLanguage">
-            <SelectTrigger class="h-8!">
-              <SelectValue :placeholder="t('settings.common.languageSelect')" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem
-                v-for="lang in languageOptions"
-                :key="lang.value"
-                :value="lang.value"
-                :dir="languageStore.dir"
-              >
-                {{ lang.label }}
-              </SelectItem>
-            </SelectContent>
-          </Select>
+      <div class="flex flex-col gap-2 px-2 py-2">
+        <div class="flex items-center gap-3">
+          <span
+            class="flex items-center gap-2 text-sm font-medium shrink-0 min-w-[220px]"
+            :dir="languageStore.dir"
+          >
+            <Icon icon="lucide:languages" class="w-4 h-4 text-muted-foreground" />
+            <span class="truncate">{{ t('settings.common.language') }}</span>
+          </span>
+          <div class="ml-auto w-auto">
+            <Select v-model="selectedLanguage">
+              <SelectTrigger class="h-8!">
+                <SelectValue :placeholder="t('settings.common.languageSelect')" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem
+                  v-for="lang in languageOptions"
+                  :key="lang.value"
+                  :value="lang.value"
+                  :dir="languageStore.dir"
+                >
+                  {{ lang.label }}
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
       </div>
 

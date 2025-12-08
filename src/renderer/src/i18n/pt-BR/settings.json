@@ -814,7 +814,21 @@
     "text-xl": "X-Grande",
     "text-2xl": "XX-Grande",
     "floatingButton": "Botão Flutuante",
-    "floatingButtonDesc": "Exibir um botão flutuante na área de trabalho para ativar rapidamente a janela do aplicativo"
+    "floatingButtonDesc": "Exibir um botão flutuante na área de trabalho para ativar rapidamente a janela do aplicativo",
+    "codeFontFamily": "fonte monoespaçada",
+    "codeFontFamilyDesc": "Usado para blocos de código e áreas de largura constante.",
+    "fontDefaultLabel": "Padrão (pilha de fontes integrada)",
+    "fontFamily": "Fonte da interface",
+    "fontFamilyDesc": "Selecione a fonte principal da interface. Se deixado em branco, use a pilha de fontes integrada.",
+    "fontPreview": "Visualização",
+    "fontPreviewCode": "Pré-visualização do código",
+    "fontPreviewText": "A rápida raposa marrom salta sobre o cachorro preguiçoso.",
+    "fontReset": "redefinir para o padrão",
+    "fontSearchEmpty": "Nenhuma fonte correspondente",
+    "fontSearchPlaceholder": "Fonte de pesquisa",
+    "fontSystemLoading": "Carregando fontes do sistema...",
+    "fontTitle": "fonte",
+    "fontUsageHint": "Algumas interfaces exigem a reinicialização do aplicativo para que tenham efeito. Se a fonte não estiver disponível, ela retornará automaticamente à fonte padrão."
   },
   "shortcuts": {
     "title": "Configurações de Teclas de Atalho",
