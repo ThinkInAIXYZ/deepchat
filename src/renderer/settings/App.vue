@@ -75,6 +75,7 @@ import { useSearchAssistantStore } from '@/stores/searchAssistantStore'
 import { useSearchEngineStore } from '@/stores/searchEngineStore'
 import { useMcpStore } from '@/stores/mcp'
 import { useMcpInstallDeeplinkHandler } from '../src/lib/storeInitializer'
+import { useFontManager } from '../src/composables/useFontManager'
 
 const devicePresenter = usePresenter('devicePresenter')
 const windowPresenter = usePresenter('windowPresenter')
@@ -82,6 +83,9 @@ const configPresenter = usePresenter('configPresenter')
 
 // Initialize stores
 const uiSettingsStore = useUiSettingsStore()
+const { setupFontListener } = useFontManager()
+setupFontListener()
+
 const languageStore = useLanguageStore()
 const modelCheckStore = useModelCheckStore()
 const { toast } = useToast()

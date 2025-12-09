@@ -1,8 +1,8 @@
 <template>
-  <div class="flex flex-col gap-3 px-2 py-2 max-w-4xl">
+  <div class="flex flex-col gap-3 px-2 py-2">
     <div class="flex flex-wrap items-center justify-between gap-3">
       <span
-        class="flex items-center gap-2 text-sm font-medium shrink-0 min-w-[200px]"
+        class="flex items-center gap-2 text-sm font-medium shrink-0 min-w-[220px]"
         :dir="languageStore.dir"
       >
         <Icon icon="lucide:type" class="w-4 h-4 text-muted-foreground" />
@@ -52,13 +52,14 @@
                 </Button>
               </PopoverTrigger>
               <PopoverContent class="w-[320px] p-0" align="start">
-                <div class="p-2">
+                <div class="p-2" :style="{ fontFamily: PREVIEW_FALLBACK }">
                   <div class="flex items-center gap-2 mb-2">
                     <Icon icon="lucide:search" class="h-4 w-4 text-muted-foreground" />
                     <Input
                       v-model="textQuery"
                       :placeholder="t('settings.display.fontSearchPlaceholder')"
                       class="h-8"
+                      :style="{ fontFamily: PREVIEW_FALLBACK }"
                     />
                   </div>
                   <ScrollArea class="h-64">
@@ -69,6 +70,7 @@
                         :class="{
                           'border border-primary/60 bg-primary/5': uiSettingsStore.fontFamily === ''
                         }"
+                        :style="{ fontFamily: PREVIEW_FALLBACK }"
                         @click="selectTextFont('')"
                       >
                         <span class="truncate">{{ defaultLabel }}</span>
@@ -87,7 +89,7 @@
                           'border border-primary/60 bg-primary/5':
                             uiSettingsStore.fontFamily === font
                         }"
-                        :style="{ fontFamily: buildFontPreview(font, textPreviewFont) }"
+                        :style="{ fontFamily: buildFontPreview(font) }"
                         @click="selectTextFont(font)"
                       >
                         <span class="truncate">{{ font }}</span>
@@ -138,13 +140,14 @@
                 </Button>
               </PopoverTrigger>
               <PopoverContent class="w-[320px] p-0" align="start">
-                <div class="p-2">
+                <div class="p-2" :style="{ fontFamily: PREVIEW_FALLBACK }">
                   <div class="flex items-center gap-2 mb-2">
                     <Icon icon="lucide:search" class="h-4 w-4 text-muted-foreground" />
                     <Input
                       v-model="codeQuery"
                       :placeholder="t('settings.display.fontSearchPlaceholder')"
                       class="h-8"
+                      :style="{ fontFamily: PREVIEW_FALLBACK }"
                     />
                   </div>
                   <ScrollArea class="h-64">
@@ -156,6 +159,7 @@
                           'border border-primary/60 bg-primary/5':
                             uiSettingsStore.codeFontFamily === ''
                         }"
+                        :style="{ fontFamily: PREVIEW_FALLBACK }"
                         @click="selectCodeFont('')"
                       >
                         <span class="truncate">{{ defaultLabel }}</span>
@@ -174,7 +178,7 @@
                           'border border-primary/60 bg-primary/5':
                             uiSettingsStore.codeFontFamily === font
                         }"
-                        :style="{ fontFamily: buildFontPreview(font, codePreviewFont) }"
+                        :style="{ fontFamily: buildFontPreview(font) }"
                         @click="selectCodeFont(font)"
                       >
                         <span class="truncate">{{ font }}</span>
@@ -274,12 +278,14 @@ const codeFontLabel = computed(() => uiSettingsStore.codeFontFamily || defaultLa
 const textPreviewFont = computed(() => uiSettingsStore.formattedFontFamily)
 const codePreviewFont = computed(() => uiSettingsStore.formattedCodeFontFamily)
 
-const buildFontPreview = (font: string, fallback: string) => {
+const PREVIEW_FALLBACK = 'ui-sans-serif, system-ui, sans-serif'
+
+const buildFontPreview = (font: string) => {
   const normalized = (font || '').trim()
-  if (!normalized) return fallback
+  if (!normalized) return PREVIEW_FALLBACK
   const wrapped =
     /\s/.test(normalized) && !normalized.includes(',') ? `"${normalized}"` : normalized
-  return `${wrapped}, ${fallback}`
+  return `${wrapped}, ${PREVIEW_FALLBACK}`
 }
 
 const selectTextFont = async (font: string) => {

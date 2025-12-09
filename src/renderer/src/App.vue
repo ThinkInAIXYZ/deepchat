@@ -21,6 +21,7 @@ import MessageDialog from './components/ui/MessageDialog.vue'
 import McpSamplingDialog from '@/components/mcp/McpSamplingDialog.vue'
 import { initAppStores, useMcpInstallDeeplinkHandler } from '@/lib/storeInitializer'
 import 'vue-sonner/style.css' // vue-sonner v2 requires this import
+import { useFontManager } from './composables/useFontManager'
 
 const route = useRoute()
 const configPresenter = usePresenter('configPresenter')
@@ -28,6 +29,9 @@ const artifactStore = useArtifactStore()
 const chatStore = useChatStore()
 const { toast } = useToast()
 const uiSettingsStore = useUiSettingsStore()
+const { setupFontListener } = useFontManager()
+setupFontListener()
+
 const themeStore = useThemeStore()
 const langStore = useLanguageStore()
 const modelCheckStore = useModelCheckStore()
@@ -62,19 +66,6 @@ watch(
     console.log('newTheme', newThemeName)
   },
   { immediate: false } // Initialization is handled in onMounted
-)
-
-const applyFontVariables = (textFont: string, codeFont: string) => {
-  document.documentElement.style.setProperty('--dc-font-family', textFont)
-  document.documentElement.style.setProperty('--dc-code-font-family', codeFont)
-}
-
-watch(
-  [() => uiSettingsStore.formattedFontFamily, () => uiSettingsStore.formattedCodeFontFamily],
-  ([textFont, codeFont]) => {
-    applyFontVariables(textFont, codeFont)
-  },
-  { immediate: true }
 )
 
 // Handle error notifications
