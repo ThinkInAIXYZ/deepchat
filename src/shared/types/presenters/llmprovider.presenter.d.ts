@@ -238,6 +238,7 @@ export interface ILlmProviderPresenter {
       }
     | undefined
   >
+  setAcpPreferredProcessMode(agentId: string, workdir: string, modeId: string): Promise<void>
   setAcpSessionMode(conversationId: string, modeId: string): Promise<void>
   getAcpSessionModes(conversationId: string): Promise<{
     current: string

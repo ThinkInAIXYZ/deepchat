@@ -431,6 +431,20 @@ export class AcpProvider extends BaseAgentProvider<
     return this.processManager.getProcessModes(agentId, workdir) ?? undefined
   }
 
+  public async setPreferredProcessMode(agentId: string, workdir: string, modeId: string) {
+    const agent = await this.getAgentById(agentId)
+    if (!agent) return
+
+    try {
+      await this.processManager.setPreferredMode(agent, workdir, modeId)
+    } catch (error) {
+      console.warn(
+        `[ACP] Failed to set preferred mode "${modeId}" for agent ${agentId} in workdir "${workdir}":`,
+        error
+      )
+    }
+  }
+
   private async runPrompt(
     session: AcpSessionRecord,
     prompt: schema.ContentBlock[],

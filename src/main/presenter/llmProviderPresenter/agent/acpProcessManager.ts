@@ -151,32 +151,65 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
   }
 
   /**
+   * Build a stable key for warmup handles scoped by agent and workdir.
+   */
+  private getWarmupKey(agentId: string, workdir: string): string {
+    return `${agentId}::${workdir}`
+  }
+
+  /**
    * Warm up a process for the given agent/workdir without binding it to a conversation.
    * Reuses an existing warmup handle when possible; never reuses bound handles.
    */
   async warmupProcess(agent: AcpAgentConfig, workdir?: string): Promise<AcpProcessHandle> {
     const resolvedWorkdir = this.resolveWorkdir(workdir)
+    const warmupKey = this.getWarmupKey(agent.id, resolvedWorkdir)
     const releaseLock = await this.acquireAgentLock(agent.id)
 
     try {
-      const existing = this.handles.get(agent.id)
+      const warmupCount = Array.from(this.handles.values()).filter(
+        (handle) => handle.agentId === agent.id
+      ).length
+      console.info(
+        `[ACP] Warmup requested for agent ${agent.id} (workdir=${resolvedWorkdir}, warmups=${warmupCount})`
+      )
+      const boundCandidate = Array.from(this.boundHandles.values()).find(
+        (handle) =>
+          handle.agentId === agent.id &&
+          handle.workdir === resolvedWorkdir &&
+          this.isHandleAlive(handle)
+      )
+      if (boundCandidate) {
+        console.info(
+          `[ACP] Reusing bound process for agent ${agent.id} (pid=${boundCandidate.pid}, workdir=${resolvedWorkdir})`
+        )
+        return boundCandidate
+      }
+      const existing = this.handles.get(warmupKey)
       if (
         existing &&
         this.isHandleAlive(existing) &&
         existing.state === 'warmup' &&
         existing.workdir === resolvedWorkdir
       ) {
+        console.info(
+          `[ACP] Reusing warmup process for agent ${agent.id} (pid=${existing.pid}, workdir=${resolvedWorkdir})`
+        )
         return existing
       }
 
       if (existing && existing.state === 'warmup') {
         console.info(
-          `[ACP] Replacing warmup process for agent ${agent.id} due to workdir change: "${existing.workdir}" -> "${resolvedWorkdir}"`
+          `[ACP] Discarding stale warmup for agent ${agent.id} (pid=${existing.pid}, alive=${this.isHandleAlive(existing)}, workdir=${existing.workdir})`
         )
         await this.disposeHandle(existing)
+      } else if (existing) {
+        console.info(
+          `[ACP] Existing handle for agent ${agent.id} is not reusable (state=${existing.state}, alive=${this.isHandleAlive(existing)}, workdir=${existing.workdir})`
+        )
       }
 
-      const inflight = this.pendingHandles.get(agent.id)
+      const inflight = this.pendingHandles.get(warmupKey)
       if (inflight) {
         const inflightHandle = await inflight
         if (
@@ -184,6 +217,9 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
           inflightHandle.state === 'warmup' &&
           inflightHandle.workdir === resolvedWorkdir
         ) {
+          console.info(
+            `[ACP] Awaiting inflight warmup for agent ${agent.id} (pid=${inflightHandle.pid}, workdir=${resolvedWorkdir})`
+          )
           return inflightHandle
         }
         if (inflightHandle.state === 'warmup') {
@@ -192,31 +228,48 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
           )
           await this.disposeHandle(inflightHandle)
         }
+      } else {
+        console.info(
+          `[ACP] No inflight handle for agent ${agent.id} (workdir=${resolvedWorkdir}), spawning new warmup`
+        )
       }
 
       const handlePromise = this.spawnProcess(agent, resolvedWorkdir)
-      this.pendingHandles.set(agent.id, handlePromise)
+      this.pendingHandles.set(warmupKey, handlePromise)
 
       try {
         const handle = await handlePromise
         handle.state = 'warmup'
         handle.boundConversationId = undefined
         handle.workdir = resolvedWorkdir
-        this.handles.set(agent.id, handle)
+        this.handles.set(warmupKey, handle)
         void this.fetchProcessModes(handle).catch((error) => {
           console.warn(`[ACP] Failed to fetch modes during warmup for agent ${agent.id}:`, error)
         })
+        console.info(
+          `[ACP] Warmup process ready for agent ${agent.id} (pid=${handle.pid}, workdir=${resolvedWorkdir})`
+        )
         return handle
       } finally {
-        this.pendingHandles.delete(agent.id)
+        this.pendingHandles.delete(warmupKey)
       }
     } finally {
       releaseLock()
     }
   }
 
+  /**
+   * Update preferred mode on a warmup handle so the next session can apply it.
+   */
+  async setPreferredMode(agent: AcpAgentConfig, workdir: string, modeId: string): Promise<void> {
+    const handle = await this.warmupProcess(agent, workdir)
+    handle.currentModeId = modeId
+  }
+
   getProcess(agentId: string): AcpProcessHandle | null {
-    const warmupHandle = this.handles.get(agentId)
+    const warmupHandle = Array.from(this.handles.values()).find(
+      (handle) => handle.agentId === agentId
+    )
     if (warmupHandle) return warmupHandle
 
     for (const handle of this.boundHandles.values()) {
@@ -277,8 +330,18 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
     this.fsHandlers.clear()
   }
 
-  bindProcess(agentId: string, conversationId: string): void {
-    const handle = this.handles.get(agentId)
+  bindProcess(agentId: string, conversationId: string, workdir?: string): void {
+    const resolvedWorkdir = this.resolveWorkdir(workdir)
+    // Prefer warmup handle matching requested workdir if provided
+    const warmupHandles = Array.from(this.handles.entries()).filter(
+      ([, handle]) =>
+        handle.agentId === agentId &&
+        handle.state === 'warmup' &&
+        (!workdir || !handle.workdir || handle.workdir === resolvedWorkdir)
+    )
+    const handle =
+      warmupHandles.find(([, candidate]) => candidate.workdir === resolvedWorkdir)?.[1] ??
+      warmupHandles[0]?.[1]
     if (!handle) {
       console.warn(`[ACP] No warmup handle to bind for agent ${agentId}`)
       return
@@ -291,11 +354,20 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
 
     handle.state = 'bound'
     handle.boundConversationId = conversationId
-    this.handles.delete(agentId)
+    // Remove from warmup map
+    for (const [key, value] of this.handles.entries()) {
+      if (value === handle) {
+        this.handles.delete(key)
+        break
+      }
+    }
     this.boundHandles.set(conversationId, handle)
 
     // Immediately notify renderer if modes are already known
     this.notifyModesReady(handle, conversationId)
+    console.info(
+      `[ACP] Bound process for agent ${agentId} to conversation ${conversationId} (pid=${handle.pid}, workdir=${handle.workdir})`
+    )
   }
 
   async unbindProcess(agentId: string, conversationId: string): Promise<void> {
@@ -439,11 +511,13 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
         console.info(`[ACP] Available models: ${resultData.models.availableModels?.length ?? 0}`)
         console.info(`[ACP] Current model: ${resultData.models.currentModelId}`)
       }
-      const initAvailableModes = resultData.modes?.availableModes?.map((m) => ({
-        id: m.id,
-        name: m.name ?? m.id,
-        description: m.description ?? ''
-      }))
+      const initAvailableModes = resultData.modes?.availableModes?.map(
+        (m: { id: string; name?: string; description?: string }) => ({
+          id: m.id,
+          name: m.name ?? m.id,
+          description: m.description ?? ''
+        })
+      )
       if (initAvailableModes) {
         console.info(
           `[ACP] Available modes: ${JSON.stringify(initAvailableModes.map((m) => m.id) ?? [])}`
@@ -867,9 +941,10 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
 
   private getHandlesByAgent(agentId: string): AcpProcessHandle[] {
     const handles: AcpProcessHandle[] = []
-    const warmup = this.handles.get(agentId)
-    if (warmup) {
-      handles.push(warmup)
+    for (const handle of this.handles.values()) {
+      if (handle.agentId === agentId && !handles.includes(handle)) {
+        handles.push(handle)
+      }
     }
     for (const handle of this.boundHandles.values()) {
       if (handle.agentId === agentId && !handles.includes(handle)) {
@@ -887,8 +962,10 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
   }
 
   private removeHandleReferences(handle: AcpProcessHandle): void {
-    if (this.handles.get(handle.agentId) === handle) {
-      this.handles.delete(handle.agentId)
+    for (const [key, warmupHandle] of this.handles.entries()) {
+      if (warmupHandle === handle) {
+        this.handles.delete(key)
+      }
     }
 
     for (const [conversationId, boundHandle] of this.boundHandles.entries()) {
@@ -944,6 +1021,12 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
     this.agentLocks.set(agentId, currentLock)
     await previousLock
 
+    // Debug: show queued locks count for the agent
+    const queued = this.agentLocks.has(agentId) ? 1 : 0
+    if (queued > 1) {
+      console.info(`[ACP] Agent ${agentId} lock queue depth: ${queued}`)
+    }
+
     return () => {
       releaseResolver?.()
       if (this.agentLocks.get(agentId) === currentLock) {
@@ -953,6 +1036,8 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
   }
 
   private isHandleAlive(handle: AcpProcessHandle): boolean {
-    return !handle.child.killed && !handle.connection.signal.aborted
+    return (
+      !handle.child.killed && handle.child.exitCode === null && handle.child.signalCode === null
+    )
   }
 }

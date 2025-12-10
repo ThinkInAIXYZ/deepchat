@@ -503,6 +503,13 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
     return provider.getProcessModes(agentId, workdir)
   }
 
+  async setAcpPreferredProcessMode(agentId: string, workdir: string, modeId: string) {
+    const provider = this.getAcpProviderInstance()
+    if (!provider) return
+
+    await provider.setPreferredProcessMode(agentId, workdir, modeId)
+  }
+
   async setAcpSessionMode(conversationId: string, modeId: string): Promise<void> {
     const provider = this.getAcpProviderInstance()
     if (!provider) {

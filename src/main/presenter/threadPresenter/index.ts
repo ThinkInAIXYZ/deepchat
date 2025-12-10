@@ -779,6 +779,10 @@ export class ThreadPresenter implements IThreadPresenter {
     return await this.llmProviderPresenter.getAcpProcessModes(agentId, workdir)
   }
 
+  async setAcpPreferredProcessMode(agentId: string, workdir: string, modeId: string) {
+    await this.llmProviderPresenter.setAcpPreferredProcessMode(agentId, workdir, modeId)
+  }
+
   async setAcpSessionMode(conversationId: string, modeId: string): Promise<void> {
     await this.llmProviderPresenter.setAcpSessionMode(conversationId, modeId)
   }

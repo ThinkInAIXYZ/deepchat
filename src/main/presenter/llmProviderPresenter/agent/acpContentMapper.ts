@@ -128,8 +128,13 @@ export class AcpContentMapper {
       payload.events.push(createStreamEvent.text(text))
       payload.blocks.push(this.createBlock('content', text))
     } else {
+      const timestamp = now()
       payload.events.push(createStreamEvent.reasoning(text))
-      payload.blocks.push(this.createBlock('reasoning_content', text))
+      payload.blocks.push(
+        this.createBlock('reasoning_content', text, {
+          reasoning_time: { start: timestamp, end: timestamp }
+        })
+      )
     }
   }
 

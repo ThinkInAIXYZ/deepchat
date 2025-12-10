@@ -190,7 +190,7 @@ export class LLMEventHandler {
       const currentLastBlock = state.message.content[state.message.content.length - 1]
       if (!currentLastBlock || currentLastBlock.type !== 'reasoning_content') {
         this.finalizeLastBlock(state)
-        const reasoningStartTime = state.reasoningStartTime ?? currentTime
+        const reasoningStartTime = currentTime
         state.message.content.push({
           type: 'reasoning_content',
           content: reasoning_content || '',
@@ -207,7 +207,7 @@ export class LLMEventHandler {
         if (currentLastBlock.reasoning_time) {
           currentLastBlock.reasoning_time.end = currentTime
         } else {
-          const reasoningStartTime = state.reasoningStartTime ?? currentLastBlock.timestamp
+          const reasoningStartTime = currentLastBlock.timestamp ?? currentTime
           currentLastBlock.reasoning_time = {
             start: reasoningStartTime,
             end: currentTime

@@ -26,6 +26,7 @@ export function useAcpMode(options: UseAcpModeOptions) {
   const availableModes = ref<ModeInfo[]>([])
   const loading = ref(false)
   const lastWarmupModesKey = ref<string | null>(null)
+  const pendingPreferredMode = ref<string | null>(null)
 
   const isAcpModel = computed(
     () => options.activeModel.value?.providerId === 'acp' && !!options.activeModel.value?.id
@@ -152,6 +153,9 @@ export function useAcpMode(options: UseAcpModeOptions) {
       )
       currentMode.value = payload.current
       availableModes.value = payload.available
+      if (!conversationMatch && pendingPreferredMode.value) {
+        currentMode.value = pendingPreferredMode.value
+      }
     }
   }
 
@@ -171,12 +175,7 @@ export function useAcpMode(options: UseAcpModeOptions) {
    * Only works when agent has declared modes.
    */
   const cycleMode = async () => {
-    if (
-      loading.value ||
-      !isAcpModel.value ||
-      !options.conversationId.value ||
-      !hasAgentModes.value
-    ) {
+    if (loading.value || !isAcpModel.value || !hasAgentModes.value) {
       return
     }
 
@@ -191,8 +190,19 @@ export function useAcpMode(options: UseAcpModeOptions) {
       console.info(
         `[useAcpMode] Cycling mode: "${currentMode.value}" -> "${nextModeId}" (cycle: [${cycleOrder.join(', ')}])`
       )
-      await threadPresenter.setAcpSessionMode(options.conversationId.value, nextModeId)
-      currentMode.value = nextModeId
+      if (options.conversationId.value) {
+        await threadPresenter.setAcpSessionMode(options.conversationId.value, nextModeId)
+        currentMode.value = nextModeId
+        pendingPreferredMode.value = null
+      } else if (selectedWorkdir.value) {
+        await threadPresenter.setAcpPreferredProcessMode(
+          options.activeModel.value!.id!,
+          selectedWorkdir.value,
+          nextModeId
+        )
+        currentMode.value = nextModeId
+        pendingPreferredMode.value = nextModeId
+      }
     } catch (error) {
       console.error('[useAcpMode] Failed to cycle mode', error)
     } finally {

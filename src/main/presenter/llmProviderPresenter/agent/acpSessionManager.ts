@@ -163,7 +163,7 @@ export class AcpSessionManager {
   ): Promise<AcpSessionRecord> {
     // Pass workdir to process manager so the process runs in the correct directory
     const handle = await this.processManager.getConnection(agent, workdir)
-    this.processManager.bindProcess(agent.id, conversationId)
+    this.processManager.bindProcess(agent.id, conversationId, workdir)
 
     const session = await this.initializeSession(handle, agent, workdir).catch(async (error) => {
       await this.processManager.unbindProcess(agent.id, conversationId)
@@ -183,9 +183,30 @@ export class AcpSessionManager {
       })
 
     const availableModes = session.availableModes ?? handle.availableModes
-    const currentModeId = session.currentModeId ?? handle.currentModeId
+    let currentModeId = session.currentModeId ?? handle.currentModeId
     handle.availableModes = availableModes
     handle.currentModeId = currentModeId
+
+    // Apply preferred mode captured during warmup if it differs from session default
+    if (
+      availableModes?.length &&
+      handle.currentModeId &&
+      currentModeId !== handle.currentModeId &&
+      availableModes.some((mode) => mode.id === handle.currentModeId)
+    ) {
+      try {
+        await handle.connection.setSessionMode({
+          sessionId: session.sessionId,
+          modeId: handle.currentModeId
+        })
+        currentModeId = handle.currentModeId
+      } catch (error) {
+        console.warn(
+          `[ACP] Failed to apply preferred mode "${handle.currentModeId}" for conversation ${conversationId}:`,
+          error
+        )
+      }
+    }
 
     return {
       ...session,
