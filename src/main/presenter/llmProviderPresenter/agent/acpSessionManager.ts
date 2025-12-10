@@ -183,28 +183,33 @@ export class AcpSessionManager {
       })
 
     const availableModes = session.availableModes ?? handle.availableModes
-    let currentModeId = session.currentModeId ?? handle.currentModeId
+    // Prefer handle.currentModeId (which may contain preferredMode from warmup) over session default
+    let currentModeId = handle.currentModeId ?? session.currentModeId
     handle.availableModes = availableModes
     handle.currentModeId = currentModeId
 
-    // Apply preferred mode captured during warmup if it differs from session default
+    // Apply preferred mode to session if it differs from session default and is valid
     if (
       availableModes?.length &&
-      handle.currentModeId &&
-      currentModeId !== handle.currentModeId &&
-      availableModes.some((mode) => mode.id === handle.currentModeId)
+      currentModeId &&
+      currentModeId !== session.currentModeId &&
+      availableModes.some((mode) => mode.id === currentModeId)
     ) {
       try {
         await handle.connection.setSessionMode({
           sessionId: session.sessionId,
-          modeId: handle.currentModeId
+          modeId: currentModeId
         })
-        currentModeId = handle.currentModeId
+        console.info(
+          `[ACP] Applied preferred mode "${currentModeId}" to session ${session.sessionId} for conversation ${conversationId}`
+        )
       } catch (error) {
         console.warn(
-          `[ACP] Failed to apply preferred mode "${handle.currentModeId}" for conversation ${conversationId}:`,
+          `[ACP] Failed to apply preferred mode "${currentModeId}" for conversation ${conversationId}:`,
           error
         )
+        // Fallback to session default mode if preferred mode application fails
+        currentModeId = session.currentModeId ?? currentModeId
       }
     }
 
@@ -266,7 +271,17 @@ export class AcpSessionManager {
           name: m.name,
           description: m.description ?? ''
         })) ?? handle.availableModes
-      const currentModeId = modes?.currentModeId ?? handle.currentModeId
+
+      const preferredModeId = handle.currentModeId
+      const responseModeId = modes?.currentModeId
+      let currentModeId = preferredModeId
+      if (
+        !currentModeId ||
+        (availableModes && !availableModes.some((m) => m.id === currentModeId))
+      ) {
+        currentModeId = responseModeId ?? currentModeId ?? availableModes?.[0]?.id
+      }
+
       handle.availableModes = availableModes
       handle.currentModeId = currentModeId
 

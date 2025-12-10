@@ -742,6 +742,17 @@ export class AcpProvider extends BaseAgentProvider<
       )
       await session.connection.setSessionMode({ sessionId: session.sessionId, modeId })
       session.currentModeId = modeId
+      const handle = this.processManager.getProcess(session.agentId)
+      if (handle && handle.boundConversationId === conversationId) {
+        handle.currentModeId = modeId
+      }
+      eventBus.sendToRenderer(ACP_WORKSPACE_EVENTS.SESSION_MODES_READY, SendTarget.ALL_WINDOWS, {
+        conversationId,
+        agentId: session.agentId,
+        workdir: session.workdir,
+        current: modeId,
+        available: session.availableModes ?? []
+      })
       console.info(
         `[ACP] Session mode successfully changed to "${modeId}" for conversation ${conversationId}`
       )

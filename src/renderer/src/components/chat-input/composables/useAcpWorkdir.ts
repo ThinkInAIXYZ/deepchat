@@ -80,9 +80,6 @@ export function useAcpWorkdir(options: UseAcpWorkdirOptions) {
       isCustom.value = Boolean(result?.isCustom)
       pendingWorkdir.value = null
       syncPreference(workdir.value || null)
-      if (workdir.value) {
-        await warmupProcess(workdir.value)
-      }
     } catch (error) {
       console.warn('[useAcpWorkdir] Failed to load workdir', error)
       resetToDefault()

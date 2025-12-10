@@ -152,8 +152,6 @@
 
           <!-- Actions -->
           <div class="flex items-center gap-2 flex-wrap">
-            <!-- NewThread model selector and settings (right-aligned) -->
-            <slot name="addon-actions"></slot>
             <div
               v-if="shouldShowContextLength"
               :class="[
@@ -227,6 +225,9 @@
                 </p>
               </TooltipContent>
             </Tooltip>
+
+            <!-- NewThread model selector and settings (right-aligned) -->
+            <slot name="addon-actions"></slot>
 
             <!-- Model Selector (only in chat mode) -->
             <Popover v-if="variant === 'chat'" v-model:open="modelSelectOpen">
