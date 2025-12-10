@@ -26,12 +26,7 @@
         </button>
       </ContextMenuTrigger>
 
-      <ContextMenuContent
-        class="w-48"
-        align="start"
-        :side="depth === 0 ? 'bottom' : 'right'"
-        :side-offset="4"
-      >
+      <ContextMenuContent class="w-48">
         <ContextMenuItem v-if="!node.isDirectory" @select="handleOpenFile">
           <Icon icon="lucide:external-link" class="h-4 w-4" />
           {{ t('chat.acp.workspace.files.contextMenu.openFile') }}
