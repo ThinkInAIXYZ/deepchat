@@ -133,6 +133,15 @@ export class AcpSessionManager {
       console.warn(`[ACP] Failed to cancel session ${session.sessionId}:`, error)
     }
 
+    try {
+      await this.processManager.unbindProcess(session.agentId, conversationId)
+    } catch (error) {
+      console.warn(
+        `[ACP] Failed to unbind process for conversation ${conversationId} (agent ${session.agentId}):`,
+        error
+      )
+    }
+
     await this.sessionPersistence.clearSession(conversationId, session.agentId)
   }
 
@@ -154,7 +163,12 @@ export class AcpSessionManager {
   ): Promise<AcpSessionRecord> {
     // Pass workdir to process manager so the process runs in the correct directory
     const handle = await this.processManager.getConnection(agent, workdir)
-    const session = await this.initializeSession(handle, agent, workdir)
+    this.processManager.bindProcess(agent.id, conversationId)
+
+    const session = await this.initializeSession(handle, agent, workdir).catch(async (error) => {
+      await this.processManager.unbindProcess(agent.id, conversationId)
+      throw error
+    })
     const detachListeners = this.attachSessionHooks(agent.id, session.sessionId, hooks)
 
     // Register session workdir for fs/terminal operations
@@ -168,6 +182,11 @@ export class AcpSessionManager {
         console.warn('[ACP] Failed to persist session metadata:', error)
       })
 
+    const availableModes = session.availableModes ?? handle.availableModes
+    const currentModeId = session.currentModeId ?? handle.currentModeId
+    handle.availableModes = availableModes
+    handle.currentModeId = currentModeId
+
     return {
       ...session,
       providerId: this.providerId,
@@ -180,8 +199,8 @@ export class AcpSessionManager {
       connection: handle.connection,
       detachHandlers: detachListeners,
       workdir,
-      availableModes: session.availableModes,
-      currentModeId: session.currentModeId
+      availableModes,
+      currentModeId
     }
   }
 
@@ -220,12 +239,15 @@ export class AcpSessionManager {
 
       // Extract modes from response if available
       const modes = response.modes
-      const availableModes = modes?.availableModes?.map((m) => ({
-        id: m.id,
-        name: m.name,
-        description: m.description ?? ''
-      }))
-      const currentModeId = modes?.currentModeId
+      const availableModes =
+        modes?.availableModes?.map((m) => ({
+          id: m.id,
+          name: m.name,
+          description: m.description ?? ''
+        })) ?? handle.availableModes
+      const currentModeId = modes?.currentModeId ?? handle.currentModeId
+      handle.availableModes = availableModes
+      handle.currentModeId = currentModeId
 
       // Log available modes for the agent
       if (availableModes && availableModes.length > 0) {

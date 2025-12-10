@@ -19,6 +19,7 @@ export function useAcpWorkdir(options: UseAcpWorkdirOptions) {
   const isCustom = ref(false)
   const loading = ref(false)
   const pendingWorkdir = ref<string | null>(null)
+  const lastWarmupKey = ref<string | null>(null)
 
   const hasConversation = computed(() => Boolean(options.conversationId.value))
 
@@ -35,6 +36,24 @@ export function useAcpWorkdir(options: UseAcpWorkdirOptions) {
   const resetToDefault = () => {
     workdir.value = ''
     isCustom.value = false
+    lastWarmupKey.value = null
+  }
+
+  const warmupProcess = async (target: string | null) => {
+    const trimmed = target?.trim()
+    if (!trimmed || !isAcpModel.value || !agentId.value) {
+      return
+    }
+
+    const warmupKey = `${agentId.value}::${trimmed}`
+    if (lastWarmupKey.value === warmupKey) return
+    lastWarmupKey.value = warmupKey
+
+    try {
+      await threadPresenter.warmupAcpProcess(agentId.value, trimmed)
+    } catch (error) {
+      console.warn('[useAcpWorkdir] Failed to warmup ACP process', error)
+    }
   }
 
   const loadWorkdir = async () => {
@@ -61,6 +80,9 @@ export function useAcpWorkdir(options: UseAcpWorkdirOptions) {
       isCustom.value = Boolean(result?.isCustom)
       pendingWorkdir.value = null
       syncPreference(workdir.value || null)
+      if (workdir.value) {
+        await warmupProcess(workdir.value)
+      }
     } catch (error) {
       console.warn('[useAcpWorkdir] Failed to load workdir', error)
       resetToDefault()
@@ -91,6 +113,7 @@ export function useAcpWorkdir(options: UseAcpWorkdirOptions) {
       isCustom.value = Boolean(pendingWorkdir.value)
       syncPreference(workdir.value || null)
       pendingWorkdir.value = null
+      await warmupProcess(workdir.value)
     } catch (error) {
       console.warn('[useAcpWorkdir] Failed to apply pending workdir', error)
     } finally {
@@ -109,6 +132,7 @@ export function useAcpWorkdir(options: UseAcpWorkdirOptions) {
       pendingWorkdir.value = null
       resetToDefault()
     }
+    lastWarmupKey.value = null
   })
 
   const selectWorkdir = async () => {
@@ -135,6 +159,7 @@ export function useAcpWorkdir(options: UseAcpWorkdirOptions) {
         isCustom.value = true
       }
       syncPreference(selectedPath)
+      await warmupProcess(selectedPath)
     } catch (error) {
       console.warn('[useAcpWorkdir] Failed to set workdir', error)
     } finally {

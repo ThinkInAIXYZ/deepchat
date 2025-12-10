@@ -195,7 +195,11 @@
 
             <!-- Mode Switcher (ACPs only, chat mode, only when agent declares modes) -->
             <Tooltip
-              v-if="variant === 'chat' && acpMode.isAcpModel.value && acpMode.hasAgentModes.value"
+              v-if="
+                ['chat', 'newThread'].includes(variant) &&
+                acpMode.isAcpModel.value &&
+                acpMode.hasAgentModes.value
+              "
             >
               <TooltipTrigger>
                 <Button
@@ -620,7 +624,8 @@ const { disabledSend, isStreaming } = sendButtonState
 const acpMode = useAcpMode({
   activeModel: activeModelSource,
   conversationId,
-  isStreaming
+  isStreaming,
+  workdir: acpWorkdir.workdir
 })
 
 // === Computed ===

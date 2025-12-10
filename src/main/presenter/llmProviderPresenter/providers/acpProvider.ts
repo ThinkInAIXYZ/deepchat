@@ -347,6 +347,8 @@ export class AcpProvider extends BaseAgentProvider<
               SendTarget.ALL_WINDOWS,
               {
                 conversationId: conversationKey,
+                agentId: agent.id,
+                workdir: session.workdir,
                 current: session.currentModeId ?? 'default',
                 available: session.availableModes
               }
@@ -404,6 +406,29 @@ export class AcpProvider extends BaseAgentProvider<
         console.warn('[ACP] Failed to clear session after workdir update:', error)
       }
     }
+  }
+
+  public async warmupProcess(agentId: string, workdir: string): Promise<void> {
+    const agent = await this.getAgentById(agentId)
+    if (!agent) return
+
+    try {
+      await this.processManager.warmupProcess(agent, workdir)
+    } catch (error) {
+      console.warn(`[ACP] Failed to warmup ACP process for agent ${agentId}:`, error)
+    }
+  }
+
+  public getProcessModes(
+    agentId: string,
+    workdir: string
+  ):
+    | {
+        availableModes?: Array<{ id: string; name: string; description: string }>
+        currentModeId?: string
+      }
+    | undefined {
+    return this.processManager.getProcessModes(agentId, workdir) ?? undefined
   }
 
   private async runPrompt(

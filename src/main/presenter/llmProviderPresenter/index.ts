@@ -479,6 +479,30 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
     await this.acpSessionPersistence.updateWorkdir(conversationId, agentId, trimmed)
   }
 
+  async warmupAcpProcess(agentId: string, workdir: string): Promise<void> {
+    const provider = this.getAcpProviderInstance()
+    if (!provider) return
+
+    await provider.warmupProcess(agentId, workdir)
+  }
+
+  async getAcpProcessModes(
+    agentId: string,
+    workdir: string
+  ): Promise<
+    | {
+        availableModes?: Array<{ id: string; name: string; description: string }>
+        currentModeId?: string
+      }
+    | undefined
+  > {
+    const provider = this.getAcpProviderInstance()
+    if (!provider) {
+      return undefined
+    }
+    return provider.getProcessModes(agentId, workdir)
+  }
+
   async setAcpSessionMode(conversationId: string, modeId: string): Promise<void> {
     const provider = this.getAcpProviderInstance()
     if (!provider) {

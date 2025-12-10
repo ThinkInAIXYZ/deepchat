@@ -177,6 +177,17 @@ export interface IThreadPresenter {
   // ACP workdir controls
   getAcpWorkdir(conversationId: string, agentId: string): Promise<AcpWorkdirInfo>
   setAcpWorkdir(conversationId: string, agentId: string, workdir: string | null): Promise<void>
+  warmupAcpProcess(agentId: string, workdir: string): Promise<void>
+  getAcpProcessModes(
+    agentId: string,
+    workdir: string
+  ): Promise<
+    | {
+        availableModes?: Array<{ id: string; name: string; description: string }>
+        currentModeId?: string
+      }
+    | undefined
+  >
   setAcpSessionMode(conversationId: string, modeId: string): Promise<void>
   getAcpSessionModes(conversationId: string): Promise<{
     current: string
