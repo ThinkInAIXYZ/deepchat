@@ -972,7 +972,7 @@
       "title": "عدم وابستگی خارجی"
     },
     "debug": {
-      "clearHistory": "پاک کردن تاریخچه",
+      "clearHistory": "حذف تاریخچه",
       "close": "بستن",
       "customMethod": "نام روش سفارشی",
       "customMethodPlaceholder": "به عنوان مثال جلسه / پینگ",
@@ -983,7 +983,7 @@
       "eventCount": "{count} مورد",
       "eventKinds": {
         "error": "اشتباه",
-        "notification": "اعلان",
+        "notification": "اطلاع‌رسانی",
         "permission": "مجوزها",
         "request": "درخواست",
         "response": "پاسخ"

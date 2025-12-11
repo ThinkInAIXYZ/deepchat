@@ -300,10 +300,13 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
   }
 
   async shutdown(): Promise<void> {
-    const allAgents = new Set<string>([
-      ...Array.from(this.handles.keys()),
-      ...Array.from(this.boundHandles.values()).map((handle) => handle.agentId)
-    ])
+    const allAgents = new Set<string>()
+    for (const handle of this.handles.values()) {
+      allAgents.add(handle.agentId)
+    }
+    for (const handle of this.boundHandles.values()) {
+      allAgents.add(handle.agentId)
+    }
     const releases = Array.from(allAgents.values()).map((agentId) => this.release(agentId))
     await Promise.allSettled(releases)
     await this.terminalManager.shutdown()
