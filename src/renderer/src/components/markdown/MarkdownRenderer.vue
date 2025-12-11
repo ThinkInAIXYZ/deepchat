@@ -104,7 +104,8 @@ setCustomComponents({
     if (isMermaid) {
       // 对于 Mermaid 代码块，直接返回 MermaidNode 组件
       return h(MermaidBlockNode, {
-        ..._props
+        ..._props,
+        isStrict: true
       })
     }
     return h(CodeBlockNode, {
