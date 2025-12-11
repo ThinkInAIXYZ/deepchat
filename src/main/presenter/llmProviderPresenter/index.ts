@@ -145,6 +145,10 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
     return this.providerInstanceManager.getProviderInstance(providerId)
   }
 
+  public getExistingProviderInstance(providerId: string): BaseLLMProvider | undefined {
+    return this.providerInstanceManager.getExistingProviderInstance(providerId)
+  }
+
   async getModelList(providerId: string): Promise<MODEL_META[]> {
     return this.modelManager.getModelList(providerId)
   }

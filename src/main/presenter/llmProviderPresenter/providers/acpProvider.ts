@@ -1122,4 +1122,24 @@ export class AcpProvider extends BaseAgentProvider<
 
     return result
   }
+
+  async cleanup(): Promise<void> {
+    console.log('[ACP] Cleanup: shutting down ACP sessions and processes')
+    try {
+      await this.sessionManager.clearAllSessions()
+    } catch (error) {
+      console.warn('[ACP] Cleanup: failed to clear sessions:', error)
+    }
+
+    try {
+      await this.processManager.shutdown()
+    } catch (error) {
+      console.warn('[ACP] Cleanup: failed to shutdown process manager:', error)
+    }
+
+    for (const [requestId, state] of this.pendingPermissions.entries()) {
+      state.resolve({ outcome: { outcome: 'cancelled' } })
+      this.pendingPermissions.delete(requestId)
+    }
+  }
 }

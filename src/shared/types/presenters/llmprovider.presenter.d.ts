@@ -142,6 +142,7 @@ export interface ILlmProviderPresenter {
   getProviderById(id: string): LLM_PROVIDER
   isAgentProvider(providerId: string): boolean
   getProviderInstance(providerId: string): unknown
+  getExistingProviderInstance(providerId: string): unknown
   getModelList(providerId: string): Promise<MODEL_META[]>
   updateModelStatus(providerId: string, modelId: string, enabled: boolean): Promise<void>
   addCustomModel(
