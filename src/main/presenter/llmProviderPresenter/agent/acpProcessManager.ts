@@ -363,10 +363,15 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
   }
 
   async unbindProcess(agentId: string, conversationId: string): Promise<void> {
-    const handle = this.boundHandles.get(conversationId)
-    if (!handle || handle.agentId !== agentId) return
+    const releaseLock = await this.acquireAgentLock(agentId)
+    try {
+      const handle = this.boundHandles.get(conversationId)
+      if (!handle || handle.agentId !== agentId) return
 
-    await this.disposeHandle(handle)
+      await this.disposeHandle(handle)
+    } finally {
+      releaseLock()
+    }
   }
 
   getProcessModes(
