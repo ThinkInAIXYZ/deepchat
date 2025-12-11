@@ -119,9 +119,6 @@
                   </div>
                 </div>
                 <div class="flex flex-wrap gap-2">
-                  <Button size="sm" variant="outline" @click="openBuiltinProfileDialog(agent)">
-                    {{ t('settings.acp.addProfile') }}
-                  </Button>
                   <Button size="sm" variant="ghost" @click="openProfileManager(agent)">
                     {{ t('settings.acp.manageProfiles') }}
                   </Button>
@@ -136,6 +133,9 @@
                         ? t('settings.acp.initializing')
                         : t('settings.acp.initialize')
                     }}
+                  </Button>
+                  <Button size="sm" variant="outline" @click="openDebugDialog(agent)">
+                    {{ t('settings.acp.debug.entry') }}
                   </Button>
                 </div>
               </CardContent>
@@ -224,6 +224,9 @@
                         : t('settings.acp.initialize')
                     }}
                   </Button>
+                  <Button size="sm" variant="outline" @click="openDebugDialog(agent)">
+                    {{ t('settings.acp.debug.entry') }}
+                  </Button>
                 </div>
               </CardContent>
             </Card>
@@ -268,6 +271,13 @@
       :dependencies="missingDependencies"
       @update:open="(value) => (dependencyDialogOpen = value)"
     />
+
+    <AcpDebugDialog
+      :open="debugDialogState.open"
+      :agent-id="debugDialogState.agentId"
+      :agent-name="debugDialogState.agentName"
+      @update:open="(value) => (debugDialogState.open = value)"
+    />
   </div>
 </template>
 
@@ -304,6 +314,7 @@ import AcpProfileDialog from './AcpProfileDialog.vue'
 import AcpProfileManagerDialog from './AcpProfileManagerDialog.vue'
 import AcpTerminalDialog from './AcpTerminalDialog.vue'
 import AcpDependencyDialog from './AcpDependencyDialog.vue'
+import AcpDebugDialog from './AcpDebugDialog.vue'
 
 const { t } = useI18n()
 const { toast } = useToast()
@@ -341,6 +352,11 @@ const missingDependencies = ref<
     requiredFor?: string[]
   }>
 >([])
+const debugDialogState = reactive({
+  open: false,
+  agentId: '',
+  agentName: ''
+})
 
 const profileDialogState = reactive({
   open: false,
@@ -558,6 +574,12 @@ const openCustomAgentDialog = (agent?: AcpCustomAgent) => {
   profileDialogState.profileId = null
   profileDialogState.profile = ensureProfilePayload(agent ?? null)
   profileDialogState.open = true
+}
+
+const openDebugDialog = (agent: { id: string; name: string }) => {
+  debugDialogState.agentId = agent.id
+  debugDialogState.agentName = agent.name
+  debugDialogState.open = true
 }
 
 const handleProfileSave = async (payload: ProfilePayload) => {

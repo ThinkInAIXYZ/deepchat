@@ -12,7 +12,9 @@ import {
   ModelScopeMcpSyncResult,
   IConfigPresenter,
   ISQLitePresenter,
-  AcpWorkdirInfo
+  AcpWorkdirInfo,
+  AcpDebugRequest,
+  AcpDebugRunResult
 } from '@shared/presenter'
 import { ProviderChange, ProviderBatchUpdate } from '@shared/provider-operations'
 import { eventBus } from '@/eventbus'
@@ -527,6 +529,14 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
       return null
     }
     return await provider.getSessionModes(conversationId)
+  }
+
+  async runAcpDebugAction(request: AcpDebugRequest): Promise<AcpDebugRunResult> {
+    const provider = this.getAcpProviderInstance()
+    if (!provider) {
+      throw new Error('ACP provider unavailable')
+    }
+    return await provider.runDebugAction(request)
   }
 
   async resolveAgentPermission(requestId: string, granted: boolean): Promise<void> {

@@ -240,3 +240,7 @@ export const ACP_WORKSPACE_EVENTS = {
   FILES_CHANGED: 'acp-workspace:files-changed', // File tree changed
   SESSION_MODES_READY: 'acp-workspace:session-modes-ready' // Session modes available
 }
+
+export const ACP_DEBUG_EVENTS = {
+  EVENT: 'acp-debug:event'
+}

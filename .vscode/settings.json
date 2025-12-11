@@ -1,5 +1,7 @@
 {
-  "i18n-ally.localesPaths": ["src/renderer/src/i18n"],
+  "i18n-ally.localesPaths": [
+    "src/renderer/src/i18n"
+  ],
   "i18n-ally.keystyle": "nested",
   "i18n-ally.sourceLanguage": "zh-CN",
   "i18n-ally.namespace": true,

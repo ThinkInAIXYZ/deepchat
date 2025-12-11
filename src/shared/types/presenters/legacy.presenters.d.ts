@@ -693,6 +693,47 @@ export type LLM_EMBEDDING_ATTRS = {
   normalized: boolean
 }
 
+export type AcpDebugActionType =
+  | 'initialize'
+  | 'newSession'
+  | 'loadSession'
+  | 'prompt'
+  | 'cancel'
+  | 'setSessionMode'
+  | 'setSessionModel'
+  | 'extMethod'
+  | 'extNotification'
+
+export type AcpDebugEventKind = 'request' | 'response' | 'notification' | 'permission' | 'error'
+
+export interface AcpDebugRequest {
+  agentId: string
+  action: AcpDebugActionType
+  payload?: Record<string, unknown>
+  sessionId?: string
+  workdir?: string
+  methodName?: string
+  webContentsId?: number
+}
+
+export interface AcpDebugEventEntry {
+  id: string
+  kind: AcpDebugEventKind
+  action: string
+  agentId: string
+  sessionId?: string
+  timestamp: number
+  payload?: unknown
+  message?: string
+}
+
+export interface AcpDebugRunResult {
+  status: 'ok' | 'error'
+  sessionId?: string
+  error?: string
+  events: AcpDebugEventEntry[]
+}
+
 export type AcpBuiltinAgentId = 'kimi-cli' | 'claude-code-acp' | 'codex-acp'
 
 export interface AcpAgentProfile {
@@ -898,6 +939,7 @@ export interface ILlmProviderPresenter {
     available: Array<{ id: string; name: string; description: string }>
   } | null>
   resolveAgentPermission(requestId: string, granted: boolean): Promise<void>
+  runAcpDebugAction(request: AcpDebugRequest): Promise<AcpDebugRunResult>
   getProviderInstance(providerId: string): unknown
 }
 

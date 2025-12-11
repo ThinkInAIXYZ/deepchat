@@ -8,6 +8,9 @@ import type {
   MODEL_META,
   ModelConfig,
   AcpAgentConfig,
+  AcpDebugEventEntry,
+  AcpDebugRequest,
+  AcpDebugRunResult,
   LLM_PROVIDER,
   IConfigPresenter
 } from '@shared/presenter'
@@ -18,14 +21,17 @@ import {
   type PermissionRequestOption
 } from '@shared/types/core/llm-events'
 import { ModelType } from '@shared/model'
+import { PROTOCOL_VERSION } from '@agentclientprotocol/sdk'
 import { eventBus, SendTarget } from '@/eventbus'
-import { CONFIG_EVENTS, ACP_WORKSPACE_EVENTS } from '@/events'
+import { ACP_DEBUG_EVENTS, ACP_WORKSPACE_EVENTS, CONFIG_EVENTS } from '@/events'
+import { app } from 'electron'
 import { AcpProcessManager } from '../agent/acpProcessManager'
 import { AcpSessionManager } from '../agent/acpSessionManager'
 import type { AcpSessionRecord } from '../agent/acpSessionManager'
 import { AcpContentMapper } from '../agent/acpContentMapper'
 import { AcpMessageFormatter } from '../agent/acpMessageFormatter'
 import { AcpSessionPersistence } from '../agent/acpSessionPersistence'
+import { buildClientCapabilities } from '../agent/acpCapabilities'
 import { nanoid } from 'nanoid'
 import { presenter } from '@/presenter'
 
@@ -442,6 +448,313 @@ export class AcpProvider extends BaseAgentProvider<
         `[ACP] Failed to set preferred mode "${modeId}" for agent ${agentId} in workdir "${workdir}":`,
         error
       )
+    }
+  }
+
+  public async runDebugAction(request: AcpDebugRequest): Promise<AcpDebugRunResult> {
+    const agent = (await this.configPresenter.getAcpAgents()).find(
+      (item) => item.id === request.agentId
+    )
+    if (!agent) {
+      throw new Error(`[ACP] Agent not found: ${request.agentId}`)
+    }
+
+    const handle = await this.processManager.getConnection(agent, request.workdir)
+    const connection = handle.connection
+    const events: AcpDebugEventEntry[] = []
+
+    const isPlainObject = (value: unknown): value is Record<string, unknown> =>
+      Boolean(value) && typeof value === 'object' && !Array.isArray(value)
+
+    const pushEvent = (entry: Omit<AcpDebugEventEntry, 'id' | 'timestamp' | 'agentId'>): void => {
+      const record: AcpDebugEventEntry = {
+        ...entry,
+        id: nanoid(),
+        timestamp: Date.now(),
+        agentId: agent.id
+      }
+      events.push(record)
+      if (request.webContentsId) {
+        eventBus.sendToRenderer(ACP_DEBUG_EVENTS.EVENT, SendTarget.ALL_WINDOWS, {
+          webContentsId: request.webContentsId,
+          agentId: agent.id,
+          event: record
+        })
+      }
+    }
+
+    let activeSessionId =
+      request.sessionId ??
+      (isPlainObject(request.payload) && typeof request.payload.sessionId === 'string'
+        ? (request.payload.sessionId as string)
+        : undefined)
+
+    let disposeNotification: (() => void) | undefined
+    let disposePermission: (() => void) | undefined
+
+    const attachSession = (sessionId: string) => {
+      disposeNotification = this.processManager.registerSessionListener(
+        agent.id,
+        sessionId,
+        (notification) => {
+          pushEvent({
+            kind: 'notification',
+            action: 'session/update',
+            sessionId,
+            payload: notification
+          })
+        }
+      )
+      disposePermission = this.processManager.registerPermissionResolver(
+        agent.id,
+        sessionId,
+        async (params) => {
+          pushEvent({
+            kind: 'permission',
+            action: 'requestPermission',
+            sessionId,
+            payload: params
+          })
+          return { outcome: { outcome: 'cancelled' } }
+        }
+      )
+    }
+
+    const defaultInitPayload = (): schema.InitializeRequest => ({
+      protocolVersion: PROTOCOL_VERSION,
+      clientInfo: { name: 'DeepChat', version: app.getVersion() },
+      clientCapabilities: buildClientCapabilities({ enableFs: true, enableTerminal: true })
+    })
+
+    const resolveWorkdir = (): string | undefined => {
+      const cwd = request.workdir ?? handle.workdir
+      return cwd?.trim() || undefined
+    }
+
+    try {
+      switch (request.action) {
+        case 'initialize': {
+          const body = isPlainObject(request.payload)
+            ? { ...defaultInitPayload(), ...request.payload }
+            : defaultInitPayload()
+          pushEvent({ kind: 'request', action: 'initialize', payload: body })
+          const response = await connection.initialize(body)
+          if (
+            !activeSessionId &&
+            typeof (response as Record<string, unknown>).sessionId === 'string'
+          ) {
+            activeSessionId = (response as Record<string, unknown>).sessionId as string
+          }
+          pushEvent({
+            kind: 'response',
+            action: 'initialize',
+            sessionId: activeSessionId,
+            payload: response
+          })
+          break
+        }
+        case 'newSession': {
+          const basePayload: schema.NewSessionRequest = {
+            cwd: resolveWorkdir(),
+            mcpServers: []
+          }
+          const body = isPlainObject(request.payload)
+            ? { ...basePayload, ...request.payload }
+            : basePayload
+          pushEvent({ kind: 'request', action: 'newSession', payload: body })
+          const response = await connection.newSession(body)
+          activeSessionId = response.sessionId
+          pushEvent({
+            kind: 'response',
+            action: 'newSession',
+            sessionId: activeSessionId,
+            payload: response
+          })
+          break
+        }
+        case 'loadSession': {
+          const basePayload: Record<string, unknown> = isPlainObject(request.payload)
+            ? { ...request.payload }
+            : {}
+          const sessionToLoad =
+            basePayload.sessionId ??
+            activeSessionId ??
+            (isPlainObject(request.payload) && typeof request.payload.sessionId === 'string'
+              ? request.payload.sessionId
+              : undefined)
+          if (!sessionToLoad || typeof sessionToLoad !== 'string') {
+            throw new Error('Session ID is required for loadSession')
+          }
+          basePayload.sessionId = sessionToLoad
+          pushEvent({
+            kind: 'request',
+            action: 'loadSession',
+            sessionId: sessionToLoad,
+            payload: basePayload
+          })
+          attachSession(sessionToLoad)
+          const response = await connection.loadSession(basePayload as schema.LoadSessionRequest)
+          activeSessionId = response.sessionId ?? sessionToLoad
+          pushEvent({
+            kind: 'response',
+            action: 'loadSession',
+            sessionId: activeSessionId,
+            payload: response
+          })
+          break
+        }
+        case 'prompt': {
+          if (!activeSessionId) {
+            throw new Error('Session ID is required for prompt')
+          }
+          const body = isPlainObject(request.payload)
+            ? { ...request.payload, sessionId: activeSessionId }
+            : { sessionId: activeSessionId, prompt: [] }
+          pushEvent({
+            kind: 'request',
+            action: 'prompt',
+            sessionId: activeSessionId,
+            payload: body
+          })
+          attachSession(activeSessionId)
+          const response = await connection.prompt(body as schema.PromptRequest)
+          pushEvent({
+            kind: 'response',
+            action: 'prompt',
+            sessionId: activeSessionId,
+            payload: response
+          })
+          break
+        }
+        case 'cancel': {
+          if (!activeSessionId) {
+            throw new Error('Session ID is required for cancel')
+          }
+          const body = isPlainObject(request.payload)
+            ? { ...request.payload, sessionId: activeSessionId }
+            : { sessionId: activeSessionId }
+          pushEvent({
+            kind: 'request',
+            action: 'cancel',
+            sessionId: activeSessionId,
+            payload: body
+          })
+          attachSession(activeSessionId)
+          await connection.cancel(body as schema.CancelNotification)
+          pushEvent({
+            kind: 'response',
+            action: 'cancel',
+            sessionId: activeSessionId,
+            payload: { ok: true }
+          })
+          break
+        }
+        case 'setSessionMode': {
+          if (!activeSessionId) {
+            throw new Error('Session ID is required for setSessionMode')
+          }
+          const body = isPlainObject(request.payload)
+            ? { ...request.payload, sessionId: activeSessionId }
+            : { sessionId: activeSessionId, modeId: 'default' }
+          pushEvent({
+            kind: 'request',
+            action: 'setSessionMode',
+            sessionId: activeSessionId,
+            payload: body
+          })
+          attachSession(activeSessionId)
+          const response = await connection.setSessionMode(body as schema.SetSessionModeRequest)
+          pushEvent({
+            kind: 'response',
+            action: 'setSessionMode',
+            sessionId: activeSessionId,
+            payload: response
+          })
+          break
+        }
+        case 'setSessionModel': {
+          if (!activeSessionId) {
+            throw new Error('Session ID is required for setSessionModel')
+          }
+          const body = isPlainObject(request.payload)
+            ? { ...request.payload, sessionId: activeSessionId }
+            : { sessionId: activeSessionId }
+          pushEvent({
+            kind: 'request',
+            action: 'setSessionModel',
+            sessionId: activeSessionId,
+            payload: body
+          })
+          attachSession(activeSessionId)
+          const response = await connection.setSessionModel(body as schema.SetSessionModelRequest)
+          pushEvent({
+            kind: 'response',
+            action: 'setSessionModel',
+            sessionId: activeSessionId,
+            payload: response
+          })
+          break
+        }
+        case 'extMethod': {
+          const method = request.methodName?.trim()
+          if (!method) {
+            throw new Error('Custom method name is required for extMethod')
+          }
+          const body = isPlainObject(request.payload) ? request.payload : {}
+          pushEvent({ kind: 'request', action: `ext:${method}`, payload: body })
+          const response = await connection.extMethod(method, body)
+          pushEvent({
+            kind: 'response',
+            action: `ext:${method}`,
+            sessionId: activeSessionId,
+            payload: response
+          })
+          break
+        }
+        case 'extNotification': {
+          const method = request.methodName?.trim()
+          if (!method) {
+            throw new Error('Custom method name is required for extNotification')
+          }
+          const body = isPlainObject(request.payload) ? request.payload : {}
+          pushEvent({ kind: 'request', action: `ext:${method}`, payload: body })
+          await connection.extNotification(method, body)
+          pushEvent({
+            kind: 'response',
+            action: `ext:${method}`,
+            sessionId: activeSessionId,
+            payload: { ok: true }
+          })
+          break
+        }
+        default:
+          throw new Error(`Unsupported ACP debug action: ${request.action}`)
+      }
+
+      return {
+        status: 'ok',
+        sessionId: activeSessionId,
+        events
+      }
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : typeof error === 'string' ? error : 'Unknown error'
+      pushEvent({
+        kind: 'error',
+        action: request.action,
+        sessionId: activeSessionId,
+        message,
+        payload: error instanceof Error ? { name: error.name, stack: error.stack } : error
+      })
+      return {
+        status: 'error',
+        sessionId: activeSessionId,
+        error: message,
+        events
+      }
+    } finally {
+      disposeNotification?.()
+      disposePermission?.()
     }
   }
 

@@ -1,7 +1,7 @@
 import { ShowResponse } from 'ollama'
 import { ChatMessage, LLMAgentEvent } from '../core/chat'
 import { ModelType } from '../core/model'
-import type { AcpWorkdirInfo } from './legacy.presenters'
+import type { AcpDebugRequest, AcpDebugRunResult, AcpWorkdirInfo } from './legacy.presenters'
 
 /**
  * LLM Provider Presenter Interface
@@ -244,5 +244,6 @@ export interface ILlmProviderPresenter {
     current: string
     available: Array<{ id: string; name: string; description: string }>
   } | null>
+  runAcpDebugAction(request: AcpDebugRequest): Promise<AcpDebugRunResult>
   resolveAgentPermission(requestId: string, granted: boolean): Promise<void>
 }
