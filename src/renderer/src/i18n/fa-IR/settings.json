@@ -972,20 +972,20 @@
       "title": "عدم وابستگی خارجی"
     },
     "debug": {
-      "clearHistory": "رکورد پاک",
-      "close": "بسته شدن",
+      "clearHistory": "پاک کردن تاریخچه",
+      "close": "بستن",
       "customMethod": "نام روش سفارشی",
       "customMethodPlaceholder": "به عنوان مثال جلسه / پینگ",
       "customMethodRequired": "لطفاً نام روش پسوند را وارد کنید",
       "description": "یک درخواست ACP به \"{name}\" ارسال کنید و پاسخ را در زمان واقعی مشاهده کنید.",
-      "empty": "هنوز هیچ رویداد اشکال زدایی وجود ندارد.",
+      "empty": "هنوز هیچ رویداد اشکال‌زدایی وجود ندارد.",
       "entry": "اشکال زدایی",
       "eventCount": "{count} مورد",
       "eventKinds": {
         "error": "اشتباه",
-        "notification": "اطلاع دهد",
+        "notification": "اعلان",
         "permission": "مجوزها",
-        "request": "بپرسید",
+        "request": "درخواست",
         "response": "پاسخ"
       },
       "events": "رویداد",

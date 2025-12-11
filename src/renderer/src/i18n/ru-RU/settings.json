@@ -972,23 +972,23 @@
       "title": "Отсутствуют внешние зависимости"
     },
     "debug": {
-      "clearHistory": "очистить запись",
-      "close": "закрытие",
+      "clearHistory": "Очистить историю",
+      "close": "Закрыть",
       "customMethod": "Имя пользовательского метода",
       "customMethodPlaceholder": "Например сеанс/пинг",
       "customMethodRequired": "Пожалуйста, введите имя метода расширения",
       "description": "Отправьте запрос ACP на «{name}» и просмотрите ответ в режиме реального времени.",
       "empty": "Отладочных событий пока нет.",
-      "entry": "отлаживать",
-      "eventCount": "{count} предметов",
+      "entry": "Отладка",
+      "eventCount": "{count} событий",
       "eventKinds": {
         "error": "ошибка",
-        "notification": "уведомить",
-        "permission": "Разрешения",
-        "request": "просить",
-        "response": "ответ"
+        "notification": "Уведомление",
+        "permission": "Разрешение",
+        "request": "Запрос",
+        "response": "Ответ"
       },
-      "events": "событие",
+      "events": "События",
       "format": "Формат JSON",
       "methods": {
         "cancel": "сеанс/отмена",
@@ -1009,7 +1009,7 @@
       "requestFailed": "Запрос не выполнен",
       "resetTemplate": "Шаблон восстановления",
       "send": "Отправить запрос",
-      "sending": "Отправка...",
+      "sending": "Отправка…",
       "title": "Отладка ACP",
       "workdirPlaceholder": "Оставьте пустым, чтобы использовать рабочий каталог по умолчанию."
     }

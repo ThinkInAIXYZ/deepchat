@@ -1037,12 +1037,6 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
     this.agentLocks.set(agentId, currentLock)
     await previousLock
 
-    // Debug: show queued locks count for the agent
-    const queued = this.agentLocks.has(agentId) ? 1 : 0
-    if (queued > 1) {
-      console.info(`[ACP] Agent ${agentId} lock queue depth: ${queued}`)
-    }
-
     return () => {
       releaseResolver?.()
       if (this.agentLocks.get(agentId) === currentLock) {

@@ -493,6 +493,15 @@ export class AcpProvider extends BaseAgentProvider<
     let disposePermission: (() => void) | undefined
 
     const attachSession = (sessionId: string) => {
+      if (disposeNotification) {
+        disposeNotification()
+        disposeNotification = undefined
+      }
+      if (disposePermission) {
+        disposePermission()
+        disposePermission = undefined
+      }
+
       disposeNotification = this.processManager.registerSessionListener(
         agent.id,
         sessionId,

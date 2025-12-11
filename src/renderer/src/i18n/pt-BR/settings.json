@@ -980,7 +980,7 @@
       "description": "Envie uma solicitação ACP para \"{name}\" e veja a resposta em tempo real.",
       "empty": "Ainda não há eventos de depuração.",
       "entry": "depurar",
-      "eventCount": "{contar} itens",
+      "eventCount": "{count} itens",
       "eventKinds": {
         "error": "erro",
         "notification": "notificar",

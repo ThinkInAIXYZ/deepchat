@@ -973,7 +973,7 @@
     },
     "debug": {
       "clearHistory": "기록 지우기",
-      "close": "폐쇄",
+      "close": "닫기",
       "customMethod": "커스텀 메소드 이름",
       "customMethodPlaceholder": "예를 들어 세션/핑",
       "customMethodRequired": "확장 메서드 이름을 입력하세요.",
@@ -982,24 +982,24 @@
       "entry": "디버그",
       "eventCount": "{count}개 항목",
       "eventKinds": {
-        "error": "실수",
-        "notification": "통지하다",
+        "error": "오류",
+        "notification": "알림",
         "permission": "권한",
-        "request": "묻다",
+        "request": "요청",
         "response": "응답"
       },
       "events": "이벤트",
       "format": "JSON 형식",
       "methods": {
-        "cancel": "세션/취소",
-        "extMethod": "확장/방법",
-        "extNotification": "내선/알림",
-        "initialize": "초기화",
-        "loadSession": "세션/로드",
-        "newSession": "세션/새",
-        "prompt": "세션/프롬프트",
-        "setSessionMode": "세션/설정 모드",
-        "setSessionModel": "세션/세트모델"
+        "cancel": "session/cancel",
+        "extMethod": "ext/method",
+        "extNotification": "ext/notification",
+        "initialize": "initialize",
+        "loadSession": "session/load",
+        "newSession": "session/new",
+        "prompt": "session/prompt",
+        "setSessionMode": "session/setMode",
+        "setSessionModel": "session/setModel"
       },
       "needInitialize": "먼저 초기화를 실행해 주세요",
       "parseError": "JSON 구문 분석에 실패했습니다.",
@@ -1009,7 +1009,7 @@
       "requestFailed": "요청 실패",
       "resetTemplate": "복구 템플릿",
       "send": "요청 보내기",
-      "sending": "배상...",
+      "sending": "전송 중...",
       "title": "ACP 디버깅",
       "workdirPlaceholder": "기본 작업 디렉터리를 사용하려면 비워 두세요."
     }
