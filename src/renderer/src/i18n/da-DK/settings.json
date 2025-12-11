@@ -944,6 +944,48 @@
       "copy": "Kopiér",
       "copied": "Kopieret til udklipsholder",
       "copyFailed": "Kunne ikke kopiere"
+    },
+    "debug": {
+      "clearHistory": "klar rekord",
+      "close": "lukning",
+      "customMethod": "Navn på tilpasset metode",
+      "customMethodPlaceholder": "For eksempel session/ping",
+      "customMethodRequired": "Udfyld venligst udvidelsesmetodens navn",
+      "description": "Send en ACP-anmodning til \"{name}\", og se svaret i realtid.",
+      "empty": "Der er ingen fejlretningsbegivenheder endnu.",
+      "entry": "debug",
+      "eventCount": "{count} varer",
+      "eventKinds": {
+        "error": "fejl",
+        "notification": "underrette",
+        "permission": "Tilladelser",
+        "request": "spørge",
+        "response": "svar"
+      },
+      "events": "tilfælde",
+      "format": "Formater JSON",
+      "methods": {
+        "cancel": "session/aflys",
+        "extMethod": "ext/metode",
+        "extNotification": "ext/meddelelse",
+        "initialize": "initialisere",
+        "loadSession": "session/belastning",
+        "newSession": "session/nyt",
+        "prompt": "session/prompt",
+        "setSessionMode": "session/setMode",
+        "setSessionModel": "session/sætModel"
+      },
+      "needInitialize": "Udfør initialisering først",
+      "parseError": "JSON-parsing mislykkedes",
+      "payloadHint": "JSON kan justeres før afsendelse.",
+      "processNotReady": "Initialiser venligst først",
+      "processReady": "Processen er klar",
+      "requestFailed": "Anmodningen mislykkedes",
+      "resetTemplate": "Gendannelsesskabelon",
+      "send": "Send anmodning",
+      "sending": "Sender...",
+      "title": "ACP debugging",
+      "workdirPlaceholder": "Lad tom for at bruge standard arbejdsmappe"
     }
   },
   "rateLimit": {

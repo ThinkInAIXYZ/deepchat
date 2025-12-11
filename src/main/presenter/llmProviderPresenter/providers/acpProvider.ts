@@ -539,11 +539,9 @@ export class AcpProvider extends BaseAgentProvider<
             : defaultInitPayload()
           pushEvent({ kind: 'request', action: 'initialize', payload: body })
           const response = await connection.initialize(body)
-          if (
-            !activeSessionId &&
-            typeof (response as Record<string, unknown>).sessionId === 'string'
-          ) {
-            activeSessionId = (response as Record<string, unknown>).sessionId as string
+          const sessionIdFromInit = (response as unknown as { sessionId?: unknown }).sessionId
+          if (!activeSessionId && typeof sessionIdFromInit === 'string') {
+            activeSessionId = sessionIdFromInit
           }
           pushEvent({
             kind: 'response',
@@ -555,7 +553,7 @@ export class AcpProvider extends BaseAgentProvider<
         }
         case 'newSession': {
           const basePayload: schema.NewSessionRequest = {
-            cwd: resolveWorkdir(),
+            cwd: resolveWorkdir() ?? process.cwd(),
             mcpServers: []
           }
           const body = isPlainObject(request.payload)
@@ -573,28 +571,40 @@ export class AcpProvider extends BaseAgentProvider<
           break
         }
         case 'loadSession': {
-          const basePayload: Record<string, unknown> = isPlainObject(request.payload)
-            ? { ...request.payload }
-            : {}
-          const sessionToLoad =
-            basePayload.sessionId ??
-            activeSessionId ??
-            (isPlainObject(request.payload) && typeof request.payload.sessionId === 'string'
-              ? request.payload.sessionId
-              : undefined)
+          const payloadOverrides = isPlainObject(request.payload) ? request.payload : undefined
+          const sessionFromPayload =
+            payloadOverrides && typeof payloadOverrides.sessionId === 'string'
+              ? payloadOverrides.sessionId
+              : undefined
+          const sessionToLoad = sessionFromPayload ?? activeSessionId
           if (!sessionToLoad || typeof sessionToLoad !== 'string') {
             throw new Error('Session ID is required for loadSession')
           }
-          basePayload.sessionId = sessionToLoad
+          const body: schema.LoadSessionRequest = {
+            cwd: resolveWorkdir() ?? process.cwd(),
+            mcpServers: [],
+            sessionId: sessionToLoad
+          }
+          if (payloadOverrides) {
+            if (typeof payloadOverrides.cwd === 'string') {
+              body.cwd = payloadOverrides.cwd
+            }
+            if (Array.isArray(payloadOverrides.mcpServers)) {
+              body.mcpServers = payloadOverrides.mcpServers as schema.McpServer[]
+            }
+            if (isPlainObject(payloadOverrides._meta)) {
+              body._meta = payloadOverrides._meta
+            }
+          }
           pushEvent({
             kind: 'request',
             action: 'loadSession',
             sessionId: sessionToLoad,
-            payload: basePayload
+            payload: body
           })
           attachSession(sessionToLoad)
-          const response = await connection.loadSession(basePayload as schema.LoadSessionRequest)
-          activeSessionId = response.sessionId ?? sessionToLoad
+          const response = await connection.loadSession(body)
+          activeSessionId = sessionToLoad
           pushEvent({
             kind: 'response',
             action: 'loadSession',

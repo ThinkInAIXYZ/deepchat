@@ -970,6 +970,48 @@
       "downloadUrl": "Lien de téléchargement",
       "installCommands": "Commande d'installation",
       "title": "Dépendances externes manquantes"
+    },
+    "debug": {
+      "clearHistory": "enregistrement clair",
+      "close": "fermeture",
+      "customMethod": "Nom de la méthode personnalisée",
+      "customMethodPlaceholder": "Par exemple session/ping",
+      "customMethodRequired": "Veuillez remplir le nom de la méthode d'extension",
+      "description": "Envoyez une requête ACP à \"{name}\" et affichez la réponse en temps réel.",
+      "empty": "Il n'y a pas encore d'événements de débogage.",
+      "entry": "déboguer",
+      "eventCount": "{count} articles",
+      "eventKinds": {
+        "error": "erreur",
+        "notification": "notifier",
+        "permission": "Autorisations",
+        "request": "demander",
+        "response": "réponse"
+      },
+      "events": "événement",
+      "format": "Formater JSON",
+      "methods": {
+        "cancel": "session/annuler",
+        "extMethod": "poste/méthode",
+        "extNotification": "poste/notification",
+        "initialize": "initialiser",
+        "loadSession": "session/chargement",
+        "newSession": "session/nouveau",
+        "prompt": "session/invite",
+        "setSessionMode": "session/setMode",
+        "setSessionModel": "session/setModèle"
+      },
+      "needInitialize": "Veuillez d'abord exécuter initialize",
+      "parseError": "L'analyse JSON a échoué",
+      "payloadHint": "JSON peut être ajusté avant l'envoi.",
+      "processNotReady": "Veuillez d'abord initialiser",
+      "processReady": "Le processus est prêt",
+      "requestFailed": "La demande a échoué",
+      "resetTemplate": "Modèle de récupération",
+      "send": "Envoyer la demande",
+      "sending": "Envoi...",
+      "title": "Débogage ACP",
+      "workdirPlaceholder": "Laissez vide pour utiliser le répertoire de travail par défaut"
     }
   }
 }

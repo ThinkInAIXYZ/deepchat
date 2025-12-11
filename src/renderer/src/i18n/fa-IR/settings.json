@@ -970,6 +970,48 @@
       "downloadUrl": "لینک دانلود",
       "installCommands": "دستور نصب",
       "title": "عدم وابستگی خارجی"
+    },
+    "debug": {
+      "clearHistory": "رکورد پاک",
+      "close": "بسته شدن",
+      "customMethod": "نام روش سفارشی",
+      "customMethodPlaceholder": "به عنوان مثال جلسه / پینگ",
+      "customMethodRequired": "لطفاً نام روش پسوند را وارد کنید",
+      "description": "یک درخواست ACP به \"{name}\" ارسال کنید و پاسخ را در زمان واقعی مشاهده کنید.",
+      "empty": "هنوز هیچ رویداد اشکال زدایی وجود ندارد.",
+      "entry": "اشکال زدایی",
+      "eventCount": "{count} مورد",
+      "eventKinds": {
+        "error": "اشتباه",
+        "notification": "اطلاع دهد",
+        "permission": "مجوزها",
+        "request": "بپرسید",
+        "response": "پاسخ"
+      },
+      "events": "رویداد",
+      "format": "فرمت JSON",
+      "methods": {
+        "cancel": "جلسه/لغو",
+        "extMethod": "ext/روش",
+        "extNotification": "خروجی / اطلاع رسانی",
+        "initialize": "مقداردهی اولیه",
+        "loadSession": "جلسه / بار",
+        "newSession": "جلسه/جدید",
+        "prompt": "جلسه / درخواست",
+        "setSessionMode": "session/setMode",
+        "setSessionModel": "session/setModel"
+      },
+      "needInitialize": "لطفا ابتدا مقداردهی اولیه را اجرا کنید",
+      "parseError": "تجزیه JSON انجام نشد",
+      "payloadHint": "JSON را می توان قبل از ارسال تنظیم کرد.",
+      "processNotReady": "لطفا ابتدا مقداردهی اولیه کنید",
+      "processReady": "فرآیند آماده است",
+      "requestFailed": "درخواست ناموفق بود",
+      "resetTemplate": "قالب بازیابی",
+      "send": "ارسال درخواست",
+      "sending": "ارسال...",
+      "title": "اشکال زدایی ACP",
+      "workdirPlaceholder": "برای استفاده از دایرکتوری کاری پیش فرض، خالی بگذارید"
     }
   }
 }

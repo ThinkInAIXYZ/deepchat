@@ -41,9 +41,6 @@
 
       <div class="flex-1 grid lg:grid-cols-[260px_1fr] min-h-0 overflow-hidden h-full">
         <aside class="border-r overflow-y-auto p-3 space-y-2 min-h-0 h-full">
-          <div class="px-2 text-xs text-muted-foreground">
-            {{ t('settings.acp.debug.methodHint') }}
-          </div>
           <button
             v-for="method in methodOptions"
             :key="method.value"
@@ -57,107 +54,31 @@
             @click="selectMethod(method.value)"
           >
             <div class="text-sm font-medium leading-tight">{{ method.label }}</div>
-            <p class="text-xs text-muted-foreground leading-tight">
-              {{ method.description }}
-            </p>
           </button>
         </aside>
 
         <main class="flex flex-col gap-4 p-4 overflow-hidden min-h-0 h-full">
-          <div class="grid gap-3 md:grid-cols-2 shrink-0">
-            <div class="space-y-1">
-              <div class="text-xs text-muted-foreground">
-                {{ t('settings.acp.debug.workdir') }}
-              </div>
-              <div class="flex items-center gap-2">
-                <Input
-                  :value="workdirPath"
-                  readonly
-                  :placeholder="t('settings.acp.debug.workdirPlaceholder')"
-                  class="flex-1"
-                />
-                <Button size="sm" variant="outline" class="h-9" @click="handleSelectWorkdir">
-                  <Icon icon="lucide:folder-open" class="h-4 w-4 mr-1" />
-                  {{
-                    workdirPath
-                      ? t('settings.acp.debug.changeWorkdir')
-                      : t('settings.acp.debug.pickWorkdir')
-                  }}
-                </Button>
-                <Button
-                  v-if="workdirPath"
-                  size="sm"
-                  variant="ghost"
-                  class="h-9"
-                  @click="clearWorkdir"
-                >
-                  {{ t('common.clear') }}
-                </Button>
-              </div>
+          <div v-if="requiresCustomMethod" class="shrink-0 space-y-1">
+            <div class="text-xs text-muted-foreground">
+              {{ t('settings.acp.debug.customMethod') }}
             </div>
-            <div v-if="requiresCustomMethod" class="space-y-1">
-              <div class="text-xs text-muted-foreground">
-                {{ t('settings.acp.debug.customMethod') }}
-              </div>
-              <Input
-                v-model="customMethod"
-                :placeholder="t('settings.acp.debug.customMethodPlaceholder')"
-                spellcheck="false"
-              />
-            </div>
+            <Input
+              v-model="customMethod"
+              :placeholder="t('settings.acp.debug.customMethodPlaceholder')"
+              spellcheck="false"
+            />
           </div>
 
-          <div class="space-y-2 min-h-0 shrink-0">
-            <div class="flex items-center justify-between gap-2">
-              <div>
-                <div class="text-sm font-medium">{{ t('settings.acp.debug.payload') }}</div>
-                <p class="text-xs text-muted-foreground">
-                  {{ t('settings.acp.debug.payloadHint') }}
-                </p>
-              </div>
-              <div class="flex items-center gap-2">
-                <Button size="sm" variant="ghost" class="h-8 px-2" @click="formatPayload">
-                  {{ t('settings.acp.debug.format') }}
-                </Button>
-                <Button size="sm" variant="ghost" class="h-8 px-2" @click="resetPayload">
-                  {{ t('settings.acp.debug.resetTemplate') }}
-                </Button>
-              </div>
-            </div>
-            <div
-              class="border rounded-md bg-background overflow-hidden min-h-[260px] max-h-[420px] h-full"
-            >
-              <div ref="payloadEditor" class="h-full min-h-[260px]"></div>
-            </div>
-          </div>
-
-          <div class="flex items-center justify-between gap-2">
-            <div class="flex items-center gap-2 text-xs text-muted-foreground">
-              <Badge variant="outline">{{ t('settings.acp.debug.agentBadge') }}</Badge>
-              <span class="truncate">{{ agentName }}</span>
-            </div>
-            <div class="flex items-center gap-2">
-              <Button
-                size="sm"
-                class="h-8"
-                :disabled="loading"
-                :class="loading ? 'opacity-80' : ''"
-                @click="handleSend"
-              >
-                <Icon v-if="loading" icon="lucide:loader" class="h-4 w-4 mr-2 animate-spin" />
-                {{ loading ? t('settings.acp.debug.sending') : t('settings.acp.debug.send') }}
-              </Button>
-            </div>
-          </div>
-
-          <div class="flex-1 min-h-0 border rounded-lg overflow-hidden flex flex-col">
-            <div class="flex items-center justify-between px-3 py-2 border-b">
+          <div class="flex-1 min-h-0 flex flex-col gap-3">
+            <div class="flex items-center justify-between px-3 py-2 border rounded-md bg-muted/40">
               <div class="text-sm font-medium">{{ t('settings.acp.debug.events') }}</div>
               <div class="text-xs text-muted-foreground">
                 {{ t('settings.acp.debug.eventCount', { count: sortedEvents.length }) }}
               </div>
             </div>
-            <div class="flex-1 overflow-y-auto p-3 space-y-2 bg-muted/40 text-xs min-h-0">
+            <div
+              class="flex-1 overflow-y-auto p-3 space-y-2 bg-muted/40 text-xs min-h-0 rounded-md"
+            >
               <div
                 v-if="!sortedEvents.length"
                 class="text-muted-foreground text-xs text-center py-6"
@@ -168,7 +89,8 @@
                 v-else
                 v-for="event in sortedEvents"
                 :key="event.id"
-                class="bg-background rounded-md border p-2 space-y-1"
+                class="rounded-md border p-2 space-y-1"
+                :class="eventTone(event.kind)"
               >
                 <div class="flex items-center justify-between gap-2">
                   <div class="flex items-center gap-2">
@@ -193,6 +115,57 @@
               </div>
             </div>
           </div>
+
+          <div
+            class="shrink-0 border rounded-lg overflow-hidden flex flex-col bg-background/80 shadow-sm"
+          >
+            <div
+              class="border-x-0 border-b-0 border rounded-none bg-background overflow-hidden min-h-[200px] max-h-[340px] h-full"
+            >
+              <div ref="payloadEditor" class="h-full min-h-[200px]"></div>
+            </div>
+
+            <div
+              class="flex flex-wrap items-center gap-3 px-3 py-3 border-t bg-muted/20 justify-between"
+            >
+              <div class="text-xs text-muted-foreground">
+                {{ t('settings.acp.debug.payloadHint') }}
+              </div>
+              <div class="flex items-center gap-2 text-xs text-muted-foreground min-w-0">
+                <span class="truncate max-w-[240px]" :title="workdirPath || undefined">
+                  {{ workdirLabel }}
+                </span>
+                <Button size="icon" variant="ghost" class="h-9 w-9" @click="handleSelectWorkdir">
+                  <Icon icon="lucide:folder-open" class="h-4 w-4" />
+                </Button>
+                <Button
+                  v-if="workdirPath"
+                  size="sm"
+                  variant="ghost"
+                  class="h-8"
+                  @click="clearWorkdir"
+                >
+                  {{ t('common.clear') }}
+                </Button>
+                <Button size="sm" variant="ghost" class="h-8 px-2" @click="formatPayload">
+                  {{ t('settings.acp.debug.format') }}
+                </Button>
+                <Button size="sm" variant="ghost" class="h-8 px-2" @click="resetPayload">
+                  {{ t('settings.acp.debug.resetTemplate') }}
+                </Button>
+                <Button
+                  size="sm"
+                  class="h-9"
+                  :disabled="loading"
+                  :class="loading ? 'opacity-80' : ''"
+                  @click="handleSend"
+                >
+                  <Icon v-if="loading" icon="lucide:loader" class="h-4 w-4 mr-2 animate-spin" />
+                  {{ loading ? t('settings.acp.debug.sending') : t('settings.acp.debug.send') }}
+                </Button>
+              </div>
+            </div>
+          </div>
         </main>
       </div>
     </div>
@@ -200,7 +173,7 @@
 </template>
 
 <script setup lang="ts">
-import { Teleport, computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Button } from '@shadcn/components/ui/button'
 import { Input } from '@shadcn/components/ui/input'
@@ -242,6 +215,9 @@ const debugSessionId = ref(createDebugSessionId())
 const processReady = ref(false)
 const payloadEditor = ref<HTMLElement | null>(null)
 let editorCreated = false
+const workdirLabel = computed(() =>
+  workdirPath.value ? workdirPath.value : t('settings.acp.debug.workdirPlaceholder')
+)
 
 const { createEditor, updateCode, getEditorView, cleanupEditor } = useMonaco({
   readOnly: false,
@@ -262,48 +238,39 @@ function createDebugSessionId() {
 const methodOptions = computed(() => [
   {
     value: 'initialize' as const,
-    label: t('settings.acp.debug.methods.initialize'),
-    description: t('settings.acp.debug.methods.initializeDesc')
+    label: t('settings.acp.debug.methods.initialize')
   },
   {
     value: 'newSession' as const,
-    label: t('settings.acp.debug.methods.newSession'),
-    description: t('settings.acp.debug.methods.newSessionDesc')
+    label: t('settings.acp.debug.methods.newSession')
   },
   {
     value: 'loadSession' as const,
-    label: t('settings.acp.debug.methods.loadSession'),
-    description: t('settings.acp.debug.methods.loadSessionDesc')
+    label: t('settings.acp.debug.methods.loadSession')
   },
   {
     value: 'prompt' as const,
-    label: t('settings.acp.debug.methods.prompt'),
-    description: t('settings.acp.debug.methods.promptDesc')
+    label: t('settings.acp.debug.methods.prompt')
   },
   {
     value: 'cancel' as const,
-    label: t('settings.acp.debug.methods.cancel'),
-    description: t('settings.acp.debug.methods.cancelDesc')
+    label: t('settings.acp.debug.methods.cancel')
   },
   {
     value: 'setSessionMode' as const,
-    label: t('settings.acp.debug.methods.setSessionMode'),
-    description: t('settings.acp.debug.methods.setSessionModeDesc')
+    label: t('settings.acp.debug.methods.setSessionMode')
   },
   {
     value: 'setSessionModel' as const,
-    label: t('settings.acp.debug.methods.setSessionModel'),
-    description: t('settings.acp.debug.methods.setSessionModelDesc')
+    label: t('settings.acp.debug.methods.setSessionModel')
   },
   {
     value: 'extMethod' as const,
-    label: t('settings.acp.debug.methods.extMethod'),
-    description: t('settings.acp.debug.methods.extMethodDesc')
+    label: t('settings.acp.debug.methods.extMethod')
   },
   {
     value: 'extNotification' as const,
-    label: t('settings.acp.debug.methods.extNotification'),
-    description: t('settings.acp.debug.methods.extNotificationDesc')
+    label: t('settings.acp.debug.methods.extNotification')
   }
 ])
 
@@ -317,7 +284,7 @@ const requiresCustomMethod = computed(() =>
   ['extMethod', 'extNotification'].includes(selectedMethod.value)
 )
 
-const sortedEvents = computed(() => [...events.value].sort((a, b) => a.timestamp - b.timestamp))
+const sortedEvents = computed(() => [...events.value].sort((a, b) => b.timestamp - a.timestamp))
 
 const appendEvents = (items: AcpDebugEventEntry[]) => {
   items.forEach((event) => {
@@ -355,7 +322,7 @@ const templateForMethod = (method: AcpDebugRequest['action']) => {
   switch (method) {
     case 'initialize':
       return {
-        protocolVersion: '1.0',
+        protocolVersion: 1.0,
         clientCapabilities: {
           fs: { readTextFile: true, writeTextFile: true },
           terminal: true
@@ -368,7 +335,7 @@ const templateForMethod = (method: AcpDebugRequest['action']) => {
         mcpServers: []
       }
     case 'loadSession':
-      return { sessionId: debugSessionId.value }
+      return { sessionId: debugSessionId.value, cwd: workdirPath.value || undefined }
     case 'prompt':
       return {
         prompt: [{ type: 'text', text: 'ping' }]
@@ -395,6 +362,39 @@ const resetPayload = () => {
   }
 }
 
+const applyWorkdirToPayload = (
+  payload: Record<string, unknown> | undefined
+): Record<string, unknown> | undefined => {
+  if (!['newSession', 'loadSession'].includes(selectedMethod.value)) {
+    return payload
+  }
+  const base = payload ?? {}
+  return {
+    ...base,
+    ...(workdirPath.value ? { cwd: workdirPath.value } : {})
+  }
+}
+
+const syncWorkdirIntoPayload = () => {
+  if (!['newSession', 'loadSession'].includes(selectedMethod.value)) return
+  if (!payloadText.value.trim()) return
+  try {
+    const parsed = JSON.parse(payloadText.value) ?? {}
+    if (workdirPath.value) {
+      parsed.cwd = workdirPath.value
+    } else {
+      delete parsed.cwd
+    }
+    const content = JSON.stringify(parsed, null, 2)
+    payloadText.value = content
+    if (editorCreated) {
+      updateCode(content, 'json')
+    }
+  } catch {
+    // ignore sync errors to avoid interrupting editing
+  }
+}
+
 const selectMethod = (method: AcpDebugRequest['action']) => {
   selectedMethod.value = method
   if (!requiresCustomMethod.value) {
@@ -410,6 +410,15 @@ const clearEvents = () => {
 
 const eventLabel = (kind: AcpDebugEventEntry['kind']) => {
   return t(`settings.acp.debug.eventKinds.${kind}`)
+}
+
+const eventTone = (kind: AcpDebugEventEntry['kind']) => {
+  if (kind === 'request') return 'bg-primary/5 border-primary/30'
+  if (kind === 'response') {
+    return 'bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200/60 dark:border-emerald-700/40'
+  }
+  if (kind === 'error') return 'bg-destructive/10 border-destructive/30'
+  return 'bg-muted/40 border-border'
 }
 
 const formatTime = (timestamp: number) => {
@@ -465,13 +474,14 @@ const handleSend = async () => {
   }
 
   const sessionId = requiresSession.value ? debugSessionId.value : undefined
+  const payloadToSend = applyWorkdirToPayload(parsedPayload)
 
   loading.value = true
   try {
     const result = await llmProviderPresenter.runAcpDebugAction({
       agentId: props.agentId,
       action: selectedMethod.value,
-      payload: parsedPayload,
+      payload: payloadToSend,
       sessionId,
       workdir: workdirPath.value || undefined,
       methodName: requiresCustomMethod.value ? customMethod.value.trim() : undefined,
@@ -508,10 +518,12 @@ const handleSelectWorkdir = async () => {
   const result = await devicePresenter.selectDirectory()
   if (result?.canceled || !result.filePaths?.length) return
   workdirPath.value = result.filePaths[0]
+  syncWorkdirIntoPayload()
 }
 
 const clearWorkdir = () => {
   workdirPath.value = ''
+  syncWorkdirIntoPayload()
 }
 
 const ensureEditor = async () => {

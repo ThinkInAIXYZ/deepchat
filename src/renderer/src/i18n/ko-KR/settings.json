@@ -970,6 +970,48 @@
       "downloadUrl": "다운로드 링크",
       "installCommands": "설치 명령",
       "title": "외부 종속성 누락"
+    },
+    "debug": {
+      "clearHistory": "기록 지우기",
+      "close": "폐쇄",
+      "customMethod": "커스텀 메소드 이름",
+      "customMethodPlaceholder": "예를 들어 세션/핑",
+      "customMethodRequired": "확장 메서드 이름을 입력하세요.",
+      "description": "\"{name}\"에게 ACP 요청을 보내고 실시간으로 응답을 확인하세요.",
+      "empty": "아직 디버깅 이벤트가 없습니다.",
+      "entry": "디버그",
+      "eventCount": "{count}개 항목",
+      "eventKinds": {
+        "error": "실수",
+        "notification": "통지하다",
+        "permission": "권한",
+        "request": "묻다",
+        "response": "응답"
+      },
+      "events": "이벤트",
+      "format": "JSON 형식",
+      "methods": {
+        "cancel": "세션/취소",
+        "extMethod": "확장/방법",
+        "extNotification": "내선/알림",
+        "initialize": "초기화",
+        "loadSession": "세션/로드",
+        "newSession": "세션/새",
+        "prompt": "세션/프롬프트",
+        "setSessionMode": "세션/설정 모드",
+        "setSessionModel": "세션/세트모델"
+      },
+      "needInitialize": "먼저 초기화를 실행해 주세요",
+      "parseError": "JSON 구문 분석에 실패했습니다.",
+      "payloadHint": "전송하기 전에 JSON을 조정할 수 있습니다.",
+      "processNotReady": "먼저 초기화해주세요",
+      "processReady": "프로세스가 준비되었습니다.",
+      "requestFailed": "요청 실패",
+      "resetTemplate": "복구 템플릿",
+      "send": "요청 보내기",
+      "sending": "배상...",
+      "title": "ACP 디버깅",
+      "workdirPlaceholder": "기본 작업 디렉터리를 사용하려면 비워 두세요."
     }
   }
 }

@@ -970,6 +970,48 @@
       },
       "title": "初始化終端",
       "waiting": "等待初始化開始..."
+    },
+    "debug": {
+      "clearHistory": "清空記錄",
+      "close": "關閉",
+      "customMethod": "自定義方法名",
+      "customMethodPlaceholder": "例如 session/ping",
+      "customMethodRequired": "請填寫擴展方法名",
+      "description": "向「{name}」發送 ACP 請求並實時查看返回。",
+      "empty": "暫無調試事件。",
+      "entry": "偵錯",
+      "eventCount": "{count} 條",
+      "eventKinds": {
+        "error": "錯誤",
+        "notification": "通知",
+        "permission": "權限",
+        "request": "請求",
+        "response": "響應"
+      },
+      "events": "事件",
+      "format": "格式化 JSON",
+      "methods": {
+        "cancel": "session/cancel",
+        "extMethod": "ext/method",
+        "extNotification": "ext/notification",
+        "initialize": "initialize",
+        "loadSession": "session/load",
+        "newSession": "session/new",
+        "prompt": "session/prompt",
+        "setSessionMode": "session/setMode",
+        "setSessionModel": "session/setModel"
+      },
+      "needInitialize": "請先執行 initialize",
+      "parseError": "JSON 解析失敗",
+      "payloadHint": "發送前可以調整 JSON。",
+      "processNotReady": "請先初始化",
+      "processReady": "進程已就緒",
+      "requestFailed": "請求失敗",
+      "resetTemplate": "恢復模板",
+      "send": "發送請求",
+      "sending": "發送中...",
+      "title": "ACP 調試",
+      "workdirPlaceholder": "留空使用默認工作目錄"
     }
   }
 }

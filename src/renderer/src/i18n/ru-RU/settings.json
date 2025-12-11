@@ -970,6 +970,48 @@
       "downloadUrl": "Ссылка для скачивания",
       "installCommands": "Команда установки",
       "title": "Отсутствуют внешние зависимости"
+    },
+    "debug": {
+      "clearHistory": "очистить запись",
+      "close": "закрытие",
+      "customMethod": "Имя пользовательского метода",
+      "customMethodPlaceholder": "Например сеанс/пинг",
+      "customMethodRequired": "Пожалуйста, введите имя метода расширения",
+      "description": "Отправьте запрос ACP на «{name}» и просмотрите ответ в режиме реального времени.",
+      "empty": "Отладочных событий пока нет.",
+      "entry": "отлаживать",
+      "eventCount": "{count} предметов",
+      "eventKinds": {
+        "error": "ошибка",
+        "notification": "уведомить",
+        "permission": "Разрешения",
+        "request": "просить",
+        "response": "ответ"
+      },
+      "events": "событие",
+      "format": "Формат JSON",
+      "methods": {
+        "cancel": "сеанс/отмена",
+        "extMethod": "расширение/метод",
+        "extNotification": "расширение/уведомление",
+        "initialize": "инициализировать",
+        "loadSession": "сеанс/загрузка",
+        "newSession": "сессия/новая",
+        "prompt": "сеанс/подсказка",
+        "setSessionMode": "сеанс/setMode",
+        "setSessionModel": "сеанс/setModel"
+      },
+      "needInitialize": "Пожалуйста, сначала выполните инициализацию",
+      "parseError": "Разбор JSON не удался",
+      "payloadHint": "JSON можно настроить перед отправкой.",
+      "processNotReady": "Пожалуйста, сначала инициализируйте",
+      "processReady": "Процесс готов",
+      "requestFailed": "Запрос не выполнен",
+      "resetTemplate": "Шаблон восстановления",
+      "send": "Отправить запрос",
+      "sending": "Отправка...",
+      "title": "Отладка ACP",
+      "workdirPlaceholder": "Оставьте пустым, чтобы использовать рабочий каталог по умолчанию."
     }
   }
 }

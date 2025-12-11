@@ -970,6 +970,48 @@
       "downloadUrl": "ダウンロードリンク",
       "installCommands": "インストールコマンド",
       "title": "外部依存関係が欠落している"
+    },
+    "debug": {
+      "clearHistory": "明確な記録",
+      "close": "閉鎖",
+      "customMethod": "カスタムメソッド名",
+      "customMethodPlaceholder": "たとえばセッション/ping",
+      "customMethodRequired": "拡張メソッド名を入力してください",
+      "description": "ACP リクエストを「{name}」に送信し、リアルタイムで応答を表示します。",
+      "empty": "デバッグ イベントはまだありません。",
+      "entry": "デバッグ",
+      "eventCount": "{count} 個のアイテム",
+      "eventKinds": {
+        "error": "間違い",
+        "notification": "通知する",
+        "permission": "権限",
+        "request": "聞く",
+        "response": "応答"
+      },
+      "events": "イベント",
+      "format": "JSON形式",
+      "methods": {
+        "cancel": "セッション/キャンセル",
+        "extMethod": "外部/メソッド",
+        "extNotification": "内線/通知",
+        "initialize": "初期化する",
+        "loadSession": "セッション/ロード",
+        "newSession": "セッション/新規",
+        "prompt": "セッション/プロンプト",
+        "setSessionMode": "セッション/セットモード",
+        "setSessionModel": "セッション/セットモデル"
+      },
+      "needInitialize": "最初に初期化を実行してください",
+      "parseError": "JSONの解析に失敗しました",
+      "payloadHint": "JSON は送信前に調整できます。",
+      "processNotReady": "まず初期化してください",
+      "processReady": "プロセスの準備が完了しました",
+      "requestFailed": "リクエストが失敗しました",
+      "resetTemplate": "リカバリテンプレート",
+      "send": "リクエストの送信",
+      "sending": "送信中...",
+      "title": "ACPのデバッグ",
+      "workdirPlaceholder": "デフォルトの作業ディレクトリを使用するには空白のままにします"
     }
   }
 }

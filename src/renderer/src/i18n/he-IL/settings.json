@@ -944,6 +944,48 @@
       "copy": "העתק",
       "copied": "הועתק ללוח",
       "copyFailed": "ההעתקה נכשלה"
+    },
+    "debug": {
+      "clearHistory": "שיא ברור",
+      "close": "סֶגֶר",
+      "customMethod": "שם שיטה מותאמת אישית",
+      "customMethodPlaceholder": "למשל סשן/פינג",
+      "customMethodRequired": "נא למלא את שם שיטת ההרחבה",
+      "description": "שלח בקשת ACP אל \"{name}\" והצג את התגובה בזמן אמת.",
+      "empty": "עדיין אין אירועי ניפוי באגים.",
+      "entry": "לְנַפּוֹת",
+      "eventCount": "{count} פריטים",
+      "eventKinds": {
+        "error": "טָעוּת",
+        "notification": "לְהוֹדִיעַ",
+        "permission": "הרשאות",
+        "request": "לִשְׁאוֹל",
+        "response": "תְגוּבָה"
+      },
+      "events": "מִקרֶה",
+      "format": "פורמט JSON",
+      "methods": {
+        "cancel": "הפעלה/ביטול",
+        "extMethod": "הרחבה/שיטה",
+        "extNotification": "שלוחה/הודעה",
+        "initialize": "לְאַתחֵל",
+        "loadSession": "הפעלה/טעינה",
+        "newSession": "מושב/חדש",
+        "prompt": "הפעלה/הנחיה",
+        "setSessionMode": "session/setMode",
+        "setSessionModel": "session/setModel"
+      },
+      "needInitialize": "נא לבצע אתחול תחילה",
+      "parseError": "ניתוח JSON נכשל",
+      "payloadHint": "ניתן להתאים JSON לפני השליחה.",
+      "processNotReady": "נא לאתחל תחילה",
+      "processReady": "התהליך מוכן",
+      "requestFailed": "הבקשה נכשלה",
+      "resetTemplate": "תבנית שחזור",
+      "send": "שלח בקשה",
+      "sending": "שְׁלִיחָה...",
+      "title": "איתור באגים של ACP",
+      "workdirPlaceholder": "השאר ריק כדי להשתמש בספריית העבודה המוגדרת כברירת מחדל"
     }
   },
   "rateLimit": {
