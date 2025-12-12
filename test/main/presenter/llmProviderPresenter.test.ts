@@ -541,6 +541,36 @@ describe('LLMProviderPresenter Integration Tests', () => {
       }).toThrow('Provider non-existent not found')
     })
 
+    it('should swallow ACP warmup shutdown errors', async () => {
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+      const mockAcpProvider = {
+        warmupProcess: vi
+          .fn()
+          .mockRejectedValue(new Error('[ACP] Process manager is shutting down, refusing to spawn'))
+      }
+      vi.spyOn(llmProviderPresenter as any, 'getAcpProviderInstance').mockReturnValue(
+        mockAcpProvider as any
+      )
+
+      await expect(
+        llmProviderPresenter.warmupAcpProcess('agent-test', '/tmp')
+      ).resolves.toBeUndefined()
+      warnSpy.mockRestore()
+    })
+
+    it('should rethrow non-shutdown ACP warmup errors', async () => {
+      const mockAcpProvider = {
+        warmupProcess: vi.fn().mockRejectedValue(new Error('boom'))
+      }
+      vi.spyOn(llmProviderPresenter as any, 'getAcpProviderInstance').mockReturnValue(
+        mockAcpProvider as any
+      )
+
+      await expect(llmProviderPresenter.warmupAcpProcess('agent-test', '/tmp')).rejects.toThrow(
+        'boom'
+      )
+    })
+
     it('should handle provider check failure for invalid config', async () => {
       // 创建一个无效配置的provider
       const invalidProvider: LLM_PROVIDER = {
