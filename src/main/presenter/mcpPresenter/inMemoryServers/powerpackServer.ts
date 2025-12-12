@@ -63,7 +63,7 @@ const RunShellCommandArgsSchema = z.object({
     .string()
     .optional()
     .describe(
-      'Optional working directory. If omitted, uses an isolated temporary directory under the application temp path.'
+      'Optional working directory within the sandboxed temp area. If omitted, uses an isolated temporary directory under the application temp path.'
     )
 })
 
@@ -100,9 +100,19 @@ const CODE_EXECUTION_FORBIDDEN_PATTERNS = [
   /process\.env/gi
 ]
 
+const SHELL_COMMAND_FORBIDDEN_PATTERNS = [
+  /\b(sudo|su)\b/gi,
+  /\brm\s+-[^\n]*\brf\b/gi,
+  /\b(del|erase|rmdir|rd)\b\s+\/[^\n]*\b(s|q)\b/gi,
+  /\b(shutdown|reboot|halt|poweroff)\b/gi,
+  /\b(mkfs|diskpart|format)\b/gi,
+  /:\s*\(\s*\)\s*{\s*:\s*\|\s*:\s*&\s*}\s*;\s*:/g
+]
+
 export class PowerpackServer {
   private server: Server
   private useE2B: boolean = false
+  private enableShellCommandTool: boolean = false
   private e2bApiKey: string = ''
   private readonly runtimeHelper = RuntimeHelper.getInstance()
   private readonly shellEnvironment: ShellEnvironment
@@ -111,6 +121,7 @@ export class PowerpackServer {
   constructor(env?: Record<string, any>) {
     // 从环境变量中获取 E2B 配置
     this.parseE2BConfig(env)
+    this.parseShellCommandToolConfig(env)
 
     // 查找内置的运行时路径
     this.runtimeHelper.initializeRuntimes()
@@ -152,15 +163,20 @@ export class PowerpackServer {
     }
   }
 
+  private parseShellCommandToolConfig(env?: Record<string, any>): void {
+    const enableValue = env?.ENABLE_SHELL_COMMAND_TOOL ?? process.env.ENABLE_SHELL_COMMAND_TOOL
+    this.enableShellCommandTool = enableValue === true || enableValue === 'true'
+  }
+
   private detectShellEnvironment(): ShellEnvironment {
     if (process.platform === 'win32') {
       return {
         platform: 'windows',
         shellName: 'powershell',
         shellExecutable: 'powershell.exe',
-        buildArgs: (command) => ['-Command', command],
+        buildArgs: (command) => ['-NoProfile', '-NonInteractive', '-Command', command],
         promptHint:
-          'Windows environment detected. Commands run with PowerShell, you can use built-in cmdlets and scripts. '
+          'Windows environment detected. Commands run with PowerShell, you can use built-in cmdlets and scripts.'
       }
     }
 
@@ -169,8 +185,8 @@ export class PowerpackServer {
     return {
       platform: isMac ? 'mac' : 'linux',
       shellName: 'bash',
-      shellExecutable: '/bin/bash',
-      buildArgs: (command) => ['-lc', command],
+      shellExecutable: process.env.SHELL || '/bin/bash',
+      buildArgs: (command) => ['-c', command],
       promptHint: isMac
         ? 'macOS environment detected. Commands run with bash; macOS utilities like osascript, open, defaults are available.'
         : 'Linux environment detected. Commands run with bash and typical GNU utilities are available.'
@@ -185,6 +201,7 @@ export class PowerpackServer {
   // 检查代码的安全性
   private checkCodeSafety(code: string): boolean {
     for (const pattern of CODE_EXECUTION_FORBIDDEN_PATTERNS) {
+      pattern.lastIndex = 0
       if (pattern.test(code)) {
         return false
       }
@@ -258,30 +275,90 @@ export class PowerpackServer {
     }
   }
 
+  private checkShellCommandSafety(command: string): void {
+    for (const pattern of SHELL_COMMAND_FORBIDDEN_PATTERNS) {
+      pattern.lastIndex = 0
+      if (pattern.test(command)) {
+        throw new Error('Shell command contains disallowed operations and was rejected')
+      }
+    }
+  }
+
+  private getRealPath(candidate: string): string {
+    try {
+      return fs.realpathSync(candidate)
+    } catch {
+      return path.resolve(candidate)
+    }
+  }
+
+  private resolveShellCwd(workdir?: string): string {
+    const requestedCwd = workdir || this.shellWorkdir
+    const resolvedCwd = this.getRealPath(path.resolve(requestedCwd))
+    const shellRoot = this.getRealPath(this.shellWorkdir)
+    const tempRoot = this.getRealPath(app.getPath('temp'))
+
+    const isWithin = (child: string, parent: string) =>
+      child === parent || child.startsWith(parent + path.sep)
+
+    if (!isWithin(resolvedCwd, shellRoot) && !isWithin(resolvedCwd, tempRoot)) {
+      throw new Error(`workdir must be within sandboxed temp directories: ${shellRoot}`)
+    }
+
+    if (!fs.existsSync(resolvedCwd) || !fs.statSync(resolvedCwd).isDirectory()) {
+      throw new Error(`workdir does not exist or is not a directory: ${resolvedCwd}`)
+    }
+
+    return resolvedCwd
+  }
+
+  private formatShellOutput(stdout?: string, stderr?: string, errorMessage?: string): string {
+    const outputParts: string[] = []
+    const trimmedStdout = stdout?.trim()
+    const trimmedStderr = stderr?.trim()
+
+    if (trimmedStdout) {
+      outputParts.push(`STDOUT:\n${trimmedStdout}`)
+    }
+
+    if (trimmedStderr) {
+      outputParts.push(`STDERR:\n${trimmedStderr}`)
+    }
+
+    if (errorMessage) {
+      const trimmedError = errorMessage.trim()
+      if (trimmedError) {
+        outputParts.push(`ERROR:\n${trimmedError}`)
+      }
+    }
+
+    return outputParts.join('\n\n') || 'Command executed with no output'
+  }
+
   private async executeShellCommand(
     command: string,
     timeout: number,
     workdir?: string
   ): Promise<string> {
+    this.checkShellCommandSafety(command)
     const { shellExecutable, buildArgs } = this.shellEnvironment
-    const execPromise = promisify(execFile)(shellExecutable, buildArgs(command), {
-      timeout,
-      cwd: workdir || this.shellWorkdir,
-      windowsHide: true
-    })
+    const cwd = this.resolveShellCwd(workdir)
 
-    const { stdout, stderr } = await execPromise
-    const outputParts: string[] = []
+    try {
+      const { stdout, stderr } = await promisify(execFile)(shellExecutable, buildArgs(command), {
+        timeout,
+        cwd,
+        windowsHide: true,
+        maxBuffer: 10 * 1024 * 1024
+      })
 
-    if (stdout) {
-      outputParts.push(stdout.trim())
+      return this.formatShellOutput(stdout, stderr)
+    } catch (error) {
+      const stdout = typeof (error as any)?.stdout === 'string' ? (error as any).stdout : ''
+      const stderr = typeof (error as any)?.stderr === 'string' ? (error as any).stderr : ''
+      const errorMessage = error instanceof Error ? error.message : String(error)
+      throw new Error(this.formatShellOutput(stdout, stderr, errorMessage))
     }
-
-    if (stderr) {
-      outputParts.push(`STDERR:\n${stderr.trim()}`)
-    }
-
-    return outputParts.join('\n\n') || 'Command executed with no output'
   }
 
   private ensureShellWorkdir(): string {
@@ -381,16 +458,18 @@ export class PowerpackServer {
         }
       ]
 
-      const shellDescription =
-        `${this.shellEnvironment.promptHint} ` +
-        'Use this tool for day-to-day automation, file inspection, networking, and scripting. ' +
-        'Provide a full shell command string; output includes stdout and stderr. '
+      if (this.enableShellCommandTool) {
+        const shellDescription =
+          `${this.shellEnvironment.promptHint} ` +
+          'Use this tool for day-to-day automation, file inspection, networking, and scripting. ' +
+          'Provide a full shell command string; output includes stdout and stderr. '
 
-      tools.push({
-        name: 'run_shell_command',
-        description: shellDescription,
-        inputSchema: zodToJsonSchema(RunShellCommandArgsSchema)
-      })
+        tools.push({
+          name: 'run_shell_command',
+          description: shellDescription,
+          inputSchema: zodToJsonSchema(RunShellCommandArgsSchema)
+        })
+      }
 
       // 根据配置添加代码执行工具
       if (this.useE2B) {
@@ -494,6 +573,9 @@ export class PowerpackServer {
           }
 
           case 'run_shell_command': {
+            if (!this.enableShellCommandTool) {
+              throw new Error('run_shell_command tool is disabled by configuration')
+            }
             const parsed = RunShellCommandArgsSchema.safeParse(args)
 
             if (!parsed.success) {
