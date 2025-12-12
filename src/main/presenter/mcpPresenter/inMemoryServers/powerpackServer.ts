@@ -13,6 +13,14 @@ import { nanoid } from 'nanoid'
 import { Sandbox } from '@e2b/code-interpreter'
 import { RuntimeHelper } from '@/lib/runtimeHelper'
 
+type ShellEnvironment = {
+  platform: 'windows' | 'mac' | 'linux'
+  shellName: 'powershell' | 'bash'
+  shellExecutable: string
+  buildArgs: (command: string) => string[]
+  promptHint: string
+}
+
 // Schema 定义
 const GetTimeArgsSchema = z.object({
   offset: z
@@ -37,6 +45,26 @@ const RunNodeCodeArgsSchema = z.object({
     .optional()
     .default(5000)
     .describe('Code execution timeout in milliseconds, default 5 seconds')
+})
+
+const RunShellCommandArgsSchema = z.object({
+  command: z
+    .string()
+    .min(1)
+    .describe(
+      'Shell command to execute. Provide the full command string including arguments and flags.'
+    ),
+  timeout: z
+    .number()
+    .optional()
+    .default(60000)
+    .describe('Command execution timeout in milliseconds, defaults to 60 seconds.'),
+  workdir: z
+    .string()
+    .optional()
+    .describe(
+      'Optional working directory. If omitted, uses an isolated temporary directory under the application temp path.'
+    )
 })
 
 // E2B 代码执行 Schema
@@ -77,6 +105,8 @@ export class PowerpackServer {
   private useE2B: boolean = false
   private e2bApiKey: string = ''
   private readonly runtimeHelper = RuntimeHelper.getInstance()
+  private readonly shellEnvironment: ShellEnvironment
+  private readonly shellWorkdir: string
 
   constructor(env?: Record<string, any>) {
     // 从环境变量中获取 E2B 配置
@@ -84,6 +114,12 @@ export class PowerpackServer {
 
     // 查找内置的运行时路径
     this.runtimeHelper.initializeRuntimes()
+
+    // 检测当前系统的 Shell 环境
+    this.shellEnvironment = this.detectShellEnvironment()
+
+    // 确保 Shell 使用的工作目录
+    this.shellWorkdir = this.ensureShellWorkdir()
 
     // 创建服务器实例
     this.server = new Server(
@@ -116,6 +152,31 @@ export class PowerpackServer {
     }
   }
 
+  private detectShellEnvironment(): ShellEnvironment {
+    if (process.platform === 'win32') {
+      return {
+        platform: 'windows',
+        shellName: 'powershell',
+        shellExecutable: 'powershell.exe',
+        buildArgs: (command) => ['-Command', command],
+        promptHint:
+          'Windows environment detected. Commands run with PowerShell, you can use built-in cmdlets and scripts. '
+      }
+    }
+
+    const isMac = process.platform === 'darwin'
+
+    return {
+      platform: isMac ? 'mac' : 'linux',
+      shellName: 'bash',
+      shellExecutable: '/bin/bash',
+      buildArgs: (command) => ['-lc', command],
+      promptHint: isMac
+        ? 'macOS environment detected. Commands run with bash; macOS utilities like osascript, open, defaults are available.'
+        : 'Linux environment detected. Commands run with bash and typical GNU utilities are available.'
+    }
+  }
+
   // 启动服务器
   public async startServer(transport: Transport): Promise<void> {
     this.server.connect(transport)
@@ -141,12 +202,12 @@ export class PowerpackServer {
     // 所有平台都使用 Node.js
     const nodeRuntimePath = this.runtimeHelper.getNodeRuntimePath()
     if (!nodeRuntimePath) {
-      throw new Error('运行时未找到，无法执行代码')
+      throw new Error('Runtime not found; cannot execute code')
     }
 
     // 检查代码安全性
     if (!this.checkCodeSafety(code)) {
-      throw new Error('代码包含不安全的操作，已被拒绝执行')
+      throw new Error('Code contains disallowed operations and was rejected')
     }
 
     // 创建临时文件
@@ -194,6 +255,44 @@ export class PowerpackServer {
       } catch (cleanupError) {
         console.error('Failed to clean up temporary file:', cleanupError)
       }
+    }
+  }
+
+  private async executeShellCommand(
+    command: string,
+    timeout: number,
+    workdir?: string
+  ): Promise<string> {
+    const { shellExecutable, buildArgs } = this.shellEnvironment
+    const execPromise = promisify(execFile)(shellExecutable, buildArgs(command), {
+      timeout,
+      cwd: workdir || this.shellWorkdir,
+      windowsHide: true
+    })
+
+    const { stdout, stderr } = await execPromise
+    const outputParts: string[] = []
+
+    if (stdout) {
+      outputParts.push(stdout.trim())
+    }
+
+    if (stderr) {
+      outputParts.push(`STDERR:\n${stderr.trim()}`)
+    }
+
+    return outputParts.join('\n\n') || 'Command executed with no output'
+  }
+
+  private ensureShellWorkdir(): string {
+    const baseTempDir = app.getPath('temp')
+    const shellDirPrefix = path.join(baseTempDir, 'powerpack_shell_')
+
+    try {
+      return fs.mkdtempSync(shellDirPrefix)
+    } catch (error) {
+      console.error('Failed to ensure shell workdir, falling back to temp path:', error)
+      return baseTempDir
     }
   }
 
@@ -282,6 +381,17 @@ export class PowerpackServer {
         }
       ]
 
+      const shellDescription =
+        `${this.shellEnvironment.promptHint} ` +
+        'Use this tool for day-to-day automation, file inspection, networking, and scripting. ' +
+        'Provide a full shell command string; output includes stdout and stderr. '
+
+      tools.push({
+        name: 'run_shell_command',
+        description: shellDescription,
+        inputSchema: zodToJsonSchema(RunShellCommandArgsSchema)
+      })
+
       // 根据配置添加代码执行工具
       if (this.useE2B) {
         // 使用 E2B 执行代码
@@ -327,7 +437,7 @@ export class PowerpackServer {
           case 'get_time': {
             const parsed = GetTimeArgsSchema.safeParse(args)
             if (!parsed.success) {
-              throw new Error(`无效的时间参数: ${parsed.error}`)
+              throw new Error(`Invalid time arguments: ${parsed.error}`)
             }
 
             const { offset } = parsed.data
@@ -350,7 +460,7 @@ export class PowerpackServer {
           case 'get_web_info': {
             const parsed = GetWebInfoArgsSchema.safeParse(args)
             if (!parsed.success) {
-              throw new Error(`无效的URL参数: ${parsed.error}`)
+              throw new Error(`Invalid URL arguments: ${parsed.error}`)
             }
 
             const { url } = parsed.data
@@ -383,6 +493,26 @@ export class PowerpackServer {
             }
           }
 
+          case 'run_shell_command': {
+            const parsed = RunShellCommandArgsSchema.safeParse(args)
+
+            if (!parsed.success) {
+              throw new Error(`Invalid command arguments: ${parsed.error}`)
+            }
+
+            const { command, timeout, workdir } = parsed.data
+            const result = await this.executeShellCommand(command, timeout, workdir)
+
+            return {
+              content: [
+                {
+                  type: 'text',
+                  text: `Current shell environment: ${this.shellEnvironment.shellName}\n\nExecution result:\n${result}`
+                }
+              ]
+            }
+          }
+
           case 'run_code': {
             // E2B 代码执行
             if (!this.useE2B) {
@@ -391,7 +521,7 @@ export class PowerpackServer {
 
             const parsed = E2BRunCodeArgsSchema.safeParse(args)
             if (!parsed.success) {
-              throw new Error(`无效的代码参数: ${parsed.error}`)
+              throw new Error(`Invalid code arguments: ${parsed.error}`)
             }
 
             const { code } = parsed.data
@@ -401,7 +531,7 @@ export class PowerpackServer {
               content: [
                 {
                   type: 'text',
-                  text: `代码执行结果 (E2B Sandbox):\n\n${result}`
+                  text: `Code execution result (E2B Sandbox):\n\n${result}`
                 }
               ]
             }
@@ -420,7 +550,7 @@ export class PowerpackServer {
 
             const parsed = RunNodeCodeArgsSchema.safeParse(args)
             if (!parsed.success) {
-              throw new Error(`无效的代码参数: ${parsed.error}`)
+              throw new Error(`Invalid code arguments: ${parsed.error}`)
             }
 
             const { code, timeout } = parsed.data
@@ -430,7 +560,7 @@ export class PowerpackServer {
               content: [
                 {
                   type: 'text',
-                  text: `代码执行结果:\n\n${result}`
+                  text: `Code execution result:\n\n${result}`
                 }
               ]
             }
@@ -442,7 +572,7 @@ export class PowerpackServer {
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error)
         return {
-          content: [{ type: 'text', text: `错误: ${errorMessage}` }],
+          content: [{ type: 'text', text: `Error: ${errorMessage}` }],
           isError: true
         }
       }
