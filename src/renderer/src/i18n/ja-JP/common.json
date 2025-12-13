@@ -78,5 +78,11 @@
   "newTab": "新しいタブ",
   "unknownError": "不明なエラー",
   "testing": "テスト中",
-  "saving": "保存中"
+  "saving": "保存中",
+  "scrollLeft": "左へスクロール",
+  "scrollRight": "右へスクロール",
+  "history": "履歴",
+  "minimize": "最小化",
+  "maximize": "最大化",
+  "restore": "元に戻す"
 }

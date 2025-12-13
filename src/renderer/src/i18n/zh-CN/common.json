@@ -78,5 +78,11 @@
   "newTab": "新建标签页",
   "unknownError": "未知错误",
   "testing": "测试中",
-  "saving": "保存中"
+  "saving": "保存中",
+  "scrollLeft": "向左滚动",
+  "scrollRight": "向右滚动",
+  "history": "历史",
+  "minimize": "最小化",
+  "maximize": "最大化",
+  "restore": "还原"
 }

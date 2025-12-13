@@ -78,5 +78,11 @@
   "newTab": "כרטיסייה חדשה",
   "unknownError": "שגיאה לא ידועה",
   "testing": "בדיקה בתהליך",
-  "saving": "שומר"
+  "saving": "שומר",
+  "scrollLeft": "גלול שמאלה",
+  "scrollRight": "גלול ימינה",
+  "history": "היסטוריה",
+  "minimize": "מזער",
+  "maximize": "הגדל",
+  "restore": "שחזר"
 }

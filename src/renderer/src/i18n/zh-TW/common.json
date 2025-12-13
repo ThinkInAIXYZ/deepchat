@@ -78,5 +78,11 @@
   "newTab": "新建標籤頁",
   "unknownError": "未知錯誤",
   "testing": "測試中",
-  "saving": "保存中"
+  "saving": "保存中",
+  "scrollLeft": "向左捲動",
+  "scrollRight": "向右捲動",
+  "history": "歷史",
+  "minimize": "最小化",
+  "maximize": "最大化",
+  "restore": "還原"
 }

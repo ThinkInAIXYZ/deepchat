@@ -2,7 +2,7 @@
   <div
     ref="tabItem"
     draggable="true"
-    class="shrink-0 hover:bg-card/80 text-xs font-medium text-foreground px-2 h-full flex items-center justify-between group border-r first:border-l border-border"
+    class="window-no-drag-region shrink-0 hover:bg-card/80 text-xs font-medium text-foreground px-2 h-full flex items-center justify-between group border-r first:border-l border-border"
     :class="[active ? 'bg-card' : '']"
     @dragstart="onDragStart"
     @click="onClick"
@@ -57,3 +57,9 @@ const onDragStart = (event: DragEvent) => {
   emit('dragstart', event)
 }
 </script>
+
+<style scoped>
+.window-no-drag-region {
+  -webkit-app-region: no-drag;
+}
+</style>

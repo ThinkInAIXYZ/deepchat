@@ -102,6 +102,7 @@ export default defineConfig({
       rollupOptions: {
         input: {
           shell: resolve('src/renderer/shell/index.html'),
+          shellTooltipOverlay: resolve('src/renderer/shell/tooltip-overlay/index.html'),
           index: resolve('src/renderer/index.html'),
           floating: resolve('src/renderer/floating/index.html'),
           splash: resolve('src/renderer/splash/index.html'),

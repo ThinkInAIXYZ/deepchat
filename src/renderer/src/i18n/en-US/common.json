@@ -78,5 +78,11 @@
   "newTab": "New Tab",
   "unknownError": "Unknown error",
   "testing": "Testing in progress",
-  "saving": "Saving"
+  "saving": "Saving",
+  "scrollLeft": "Scroll left",
+  "scrollRight": "Scroll right",
+  "history": "History",
+  "minimize": "Minimize",
+  "maximize": "Maximize",
+  "restore": "Restore"
 }

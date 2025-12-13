@@ -40,6 +40,8 @@ export class WindowPresenter implements IWindowPresenter {
   >()
   private floatingChatWindow: FloatingChatWindow | null = null
   private settingsWindow: BrowserWindow | null = null
+  private tooltipOverlayWindows = new Map<number, BrowserWindow>()
+  private pendingTooltipPayload = new Map<number, { x: number; y: number; text: string }>()
 
   constructor(configPresenter: IConfigPresenter) {
     this.windows = new Map()
@@ -64,6 +66,44 @@ export class WindowPresenter implements IWindowPresenter {
       ) {
         this.hideFloatingChatWindow()
       }
+    })
+
+    ipcMain.on(
+      'shell-tooltip:show',
+      (event, payload: { x: number; y: number; text: string } | undefined) => {
+        if (!payload) return
+
+        const parentWindow = BrowserWindow.fromWebContents(event.sender)
+        if (!parentWindow || parentWindow.isDestroyed()) return
+
+        const overlay = this.getOrCreateTooltipOverlay(parentWindow)
+        if (!overlay) return
+
+        this.pendingTooltipPayload.set(parentWindow.id, payload)
+
+        if (!overlay.webContents.isLoadingMainFrame()) {
+          overlay.webContents.send('shell-tooltip-overlay:show', payload)
+          return
+        }
+
+        overlay.webContents.once('did-finish-load', () => {
+          const pending = this.pendingTooltipPayload.get(parentWindow.id)
+          if (!pending) return
+          if (overlay.isDestroyed()) return
+          overlay.webContents.send('shell-tooltip-overlay:show', pending)
+        })
+      }
+    )
+
+    ipcMain.on('shell-tooltip:hide', (event) => {
+      const parentWindow = BrowserWindow.fromWebContents(event.sender)
+      if (!parentWindow || parentWindow.isDestroyed()) return
+
+      const overlay = this.tooltipOverlayWindows.get(parentWindow.id)
+      if (!overlay || overlay.isDestroyed()) return
+
+      this.pendingTooltipPayload.delete(parentWindow.id)
+      overlay.webContents.send('shell-tooltip-overlay:hide')
     })
 
     // Listen for shortcut event: create new window
@@ -734,6 +774,7 @@ export class WindowPresenter implements IWindowPresenter {
       if (!shellWindow.isDestroyed()) {
         shellWindow.webContents.send('window-blurred', windowId)
       }
+      this.clearTooltipOverlay(windowId)
     })
 
     // 窗口最大化
@@ -881,6 +922,7 @@ export class WindowPresenter implements IWindowPresenter {
       this.windowFocusStates.delete(windowIdBeingClosed)
       shellWindowState.unmanage() // 停止管理窗口状态
       eventBus.sendToMain(WINDOW_EVENTS.WINDOW_CLOSED, windowIdBeingClosed)
+      this.destroyTooltipOverlay(windowIdBeingClosed)
       console.log(
         `Window ${windowIdBeingClosed} closed event handled. Map size AFTER delete: ${this.windows.size}`
       )
@@ -910,6 +952,12 @@ export class WindowPresenter implements IWindowPresenter {
       )
       shellWindow.loadFile(join(__dirname, '../renderer/shell/index.html'))
     }
+
+    // Pre-create tooltip overlay so first hover is instant
+    shellWindow.webContents.once('did-finish-load', () => {
+      if (shellWindow.isDestroyed()) return
+      this.getOrCreateTooltipOverlay(shellWindow)
+    })
 
     // --- 处理初始标签页创建或激活 ---
 
@@ -980,6 +1028,117 @@ export class WindowPresenter implements IWindowPresenter {
       this.mainWindowId = windowId // 如果这是第一个窗口，设置为主窗口 ID
     }
     return windowId // 返回新创建窗口的 ID
+  }
+
+  private getOrCreateTooltipOverlay(parentWindow: BrowserWindow): BrowserWindow | null {
+    if (parentWindow.isDestroyed()) return null
+
+    const existing = this.tooltipOverlayWindows.get(parentWindow.id)
+    if (existing && !existing.isDestroyed()) {
+      this.syncTooltipOverlayBounds(parentWindow, existing)
+      if (!existing.isVisible()) {
+        existing.showInactive()
+      }
+      return existing
+    }
+
+    const bounds = parentWindow.getContentBounds()
+
+    const overlay = new BrowserWindow({
+      x: bounds.x,
+      y: bounds.y,
+      width: bounds.width,
+      height: bounds.height,
+      parent: parentWindow,
+      show: false,
+      frame: false,
+      transparent: true,
+      backgroundColor: '#00000000',
+      resizable: false,
+      movable: false,
+      minimizable: false,
+      maximizable: false,
+      closable: false,
+      hasShadow: false,
+      focusable: false,
+      skipTaskbar: true,
+      autoHideMenuBar: true,
+      webPreferences: {
+        preload: join(__dirname, '../preload/index.mjs'),
+        sandbox: false,
+        devTools: is.dev
+      }
+    })
+
+    overlay.setIgnoreMouseEvents(true, { forward: true })
+
+    const sync = () => {
+      const current = this.tooltipOverlayWindows.get(parentWindow.id)
+      if (!current || current.isDestroyed() || parentWindow.isDestroyed()) return
+      this.syncTooltipOverlayBounds(parentWindow, current)
+    }
+
+    parentWindow.on('move', sync)
+    parentWindow.on('resize', sync)
+    parentWindow.on('show', () => {
+      if (!overlay.isDestroyed()) overlay.showInactive()
+    })
+    parentWindow.on('hide', () => {
+      if (!overlay.isDestroyed()) overlay.hide()
+    })
+    parentWindow.on('minimize', () => {
+      if (!overlay.isDestroyed()) overlay.hide()
+    })
+    parentWindow.on('restore', () => {
+      if (!overlay.isDestroyed()) overlay.showInactive()
+    })
+
+    overlay.on('closed', () => {
+      this.tooltipOverlayWindows.delete(parentWindow.id)
+      this.pendingTooltipPayload.delete(parentWindow.id)
+    })
+
+    if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
+      overlay.loadURL(process.env['ELECTRON_RENDERER_URL'] + '/shell/tooltip-overlay/index.html')
+    } else {
+      overlay.loadFile(join(__dirname, '../renderer/shell/tooltip-overlay/index.html'))
+    }
+
+    overlay.webContents.once('did-finish-load', () => {
+      if (overlay.isDestroyed()) return
+      overlay.showInactive()
+      overlay.webContents.send('shell-tooltip-overlay:clear')
+
+      const pending = this.pendingTooltipPayload.get(parentWindow.id)
+      if (pending) {
+        overlay.webContents.send('shell-tooltip-overlay:show', pending)
+      }
+    })
+
+    this.tooltipOverlayWindows.set(parentWindow.id, overlay)
+    return overlay
+  }
+
+  private syncTooltipOverlayBounds(parentWindow: BrowserWindow, overlay: BrowserWindow): void {
+    if (parentWindow.isDestroyed() || overlay.isDestroyed()) return
+    const bounds = parentWindow.getContentBounds()
+    overlay.setBounds(bounds)
+  }
+
+  private clearTooltipOverlay(windowId: number): void {
+    const overlay = this.tooltipOverlayWindows.get(windowId)
+    if (!overlay || overlay.isDestroyed()) return
+    this.pendingTooltipPayload.delete(windowId)
+    overlay.webContents.send('shell-tooltip-overlay:hide')
+  }
+
+  private destroyTooltipOverlay(windowId: number): void {
+    const overlay = this.tooltipOverlayWindows.get(windowId)
+    if (overlay && !overlay.isDestroyed()) {
+      overlay.destroy()
+    }
+    this.tooltipOverlayWindows.delete(windowId)
+    this.pendingTooltipPayload.delete(windowId)
   }
 
   /**

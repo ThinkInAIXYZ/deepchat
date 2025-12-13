@@ -78,5 +78,11 @@
   "unknownError": "Ukendt fejl",
   "watermarkTip": "AI-genereret indhold, vær venlig at bruge det med forsigtighed.",
   "disabled": "Handicappet",
-  "language": "sprog"
+  "language": "sprog",
+  "scrollLeft": "Rul til venstre",
+  "scrollRight": "Rul til højre",
+  "history": "Historik",
+  "minimize": "Minimer",
+  "maximize": "Maksimer",
+  "restore": "Gendan"
 }
