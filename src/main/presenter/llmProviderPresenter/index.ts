@@ -145,6 +145,10 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
     return this.providerInstanceManager.getProviderInstance(providerId)
   }
 
+  public getExistingProviderInstance(providerId: string): BaseLLMProvider | undefined {
+    return this.providerInstanceManager.getExistingProviderInstance(providerId)
+  }
+
   async getModelList(providerId: string): Promise<MODEL_META[]> {
     return this.modelManager.getModelList(providerId)
   }
@@ -484,8 +488,18 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
   async warmupAcpProcess(agentId: string, workdir: string): Promise<void> {
     const provider = this.getAcpProviderInstance()
     if (!provider) return
-
-    await provider.warmupProcess(agentId, workdir)
+    try {
+      await provider.warmupProcess(agentId, workdir)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      if (message.includes('shutting down')) {
+        console.warn(
+          `[ACP] Cannot warmup process for agent ${agentId}: process manager is shutting down`
+        )
+        return
+      }
+      throw error
+    }
   }
 
   async getAcpProcessModes(

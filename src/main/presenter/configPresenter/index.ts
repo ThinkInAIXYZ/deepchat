@@ -1192,7 +1192,7 @@ export class ConfigPresenter implements IConfigPresenter {
 
   private refreshAcpProviderAgents(agentIds?: string[]): void {
     try {
-      const providerInstance = presenter?.llmproviderPresenter?.getProviderInstance('acp')
+      const providerInstance = presenter?.llmproviderPresenter?.getProviderInstance?.('acp')
       if (!providerInstance) {
         return
       }

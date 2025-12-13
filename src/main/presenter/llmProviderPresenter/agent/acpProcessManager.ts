@@ -81,6 +81,7 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
   private readonly fsHandlers = new Map<string, AcpFsHandler>()
   private readonly agentLocks = new Map<string, Promise<void>>()
   private readonly preferredModes = new Map<string, string>()
+  private shuttingDown = false
 
   constructor(options: AcpProcessManagerOptions) {
     this.providerId = options.providerId
@@ -163,6 +164,9 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
    * Reuses an existing warmup handle when possible; never reuses bound handles.
    */
   async warmupProcess(agent: AcpAgentConfig, workdir?: string): Promise<AcpProcessHandle> {
+    if (this.shuttingDown) {
+      throw new Error('[ACP] Process manager is shutting down, refusing to spawn new process')
+    }
     const resolvedWorkdir = this.resolveWorkdir(workdir)
     const warmupKey = this.getWarmupKey(agent.id, resolvedWorkdir)
     const preferredModeId = this.preferredModes.get(warmupKey)
@@ -300,6 +304,10 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
   }
 
   async shutdown(): Promise<void> {
+    if (this.shuttingDown) return
+    this.shuttingDown = true
+    // Kill eagerly so subprocesses don't survive app shutdown even if async cleanup is skipped
+    this.forceKillAllProcesses('shutdown')
     const allAgents = new Set<string>()
     for (const handle of this.handles.values()) {
       allAgents.add(handle.agentId)
@@ -987,7 +995,7 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
 
   private async disposeHandle(handle: AcpProcessHandle): Promise<void> {
     this.removeHandleReferences(handle)
-    this.killChild(handle.child)
+    this.killChild(handle.child, 'dispose')
   }
 
   private findReusableHandle(agentId: string, workdir: string): AcpProcessHandle | undefined {
@@ -1024,12 +1032,42 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
     }
   }
 
-  private killChild(child: ChildProcessWithoutNullStreams): void {
+  private forceKillAllProcesses(reason: string): void {
+    const handles = this.listProcesses()
+    handles.forEach((handle) => this.killChild(handle.child, reason))
+  }
+
+  private killChild(child: ChildProcessWithoutNullStreams, reason?: string): void {
+    const pid = child.pid
+    if (pid) {
+      if (process.platform === 'win32') {
+        try {
+          spawn('taskkill', ['/PID', `${pid}`, '/T', '/F'], { stdio: 'ignore' })
+        } catch (error) {
+          console.warn(`[ACP] Failed to taskkill process ${pid} (${reason ?? 'unknown'}):`, error)
+        }
+      } else {
+        try {
+          spawn('pkill', ['-TERM', '-P', `${pid}`], { stdio: 'ignore' })
+        } catch (error) {
+          console.warn(`[ACP] Failed to pkill children for process ${pid}:`, error)
+        }
+        try {
+          process.kill(pid, 'SIGTERM')
+        } catch (error) {
+          console.warn(`[ACP] Failed to SIGTERM process ${pid}:`, error)
+        }
+      }
+    }
+
     if (!child.killed) {
       try {
         child.kill()
       } catch (error) {
-        console.warn('[ACP] Failed to kill agent process:', error)
+        console.warn(
+          `[ACP] Failed to kill agent process${pid ? ` ${pid}` : ''} (${reason ?? 'unknown'}):`,
+          error
+        )
       }
     }
   }

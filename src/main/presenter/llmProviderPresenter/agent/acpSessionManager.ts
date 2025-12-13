@@ -162,7 +162,16 @@ export class AcpSessionManager {
     workdir: string
   ): Promise<AcpSessionRecord> {
     // Pass workdir to process manager so the process runs in the correct directory
-    const handle = await this.processManager.getConnection(agent, workdir)
+    let handle: AcpProcessHandle
+    try {
+      handle = await this.processManager.getConnection(agent, workdir)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      if (message.includes('shutting down')) {
+        throw new Error('[ACP] Cannot create session: process manager is shutting down')
+      }
+      throw error
+    }
     this.processManager.bindProcess(agent.id, conversationId, workdir)
 
     const session = await this.initializeSession(handle, agent, workdir).catch(async (error) => {

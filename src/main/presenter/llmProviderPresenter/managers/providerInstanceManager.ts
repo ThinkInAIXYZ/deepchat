@@ -218,6 +218,10 @@ export class ProviderInstanceManager {
     }
   }
 
+  getExistingProviderInstance(providerId: string): BaseLLMProvider | undefined {
+    return this.providerInstances.get(providerId)
+  }
+
   getProviders(): LLM_PROVIDER[] {
     return Array.from(this.providers.values())
   }

@@ -2,9 +2,9 @@
 <img src='./build/icon.png' width="150" height="150" alt="DeepChat AI Assistant Icon" />
 </p>
 
-<h1 align="center">DeepChat - Powerful Open-Source Multi-Model AI Chat Platform</h1>
+<h1 align="center">DeepChat - Powerful Open-Source AI Agent Platform</h1>
 
-<p align="center">DeepChat is a feature-rich open-source AI chat platform supporting multiple cloud and local large language models with powerful search enhancement and tool calling capabilities.</p>
+<p align="center">DeepChat is a feature-rich open-source AI agent platform that unifies models, tools, and agents: multi-LLM chat, MCP tool calling, and ACP agent integration.</p>
 
 <p align="center">
   <a href="https://github.com/ThinkInAIXYZ/deepchat/stargazers"><img src="https://img.shields.io/github/stars/ThinkInAIXYZ/deepchat" alt="Stars Badge"/></a>
@@ -30,6 +30,7 @@
 - [🚀 Project Introduction](#-project-introduction)
 - [💡 Why Choose DeepChat](#-why-choose-deepchat)
 - [🔥 Main Features](#-main-features)
+- [🧩 ACP Integration (Agent Client Protocol)](#-acp-integration-agent-client-protocol)
 - [🤖 Supported Model Providers](#-supported-model-providers)
   - [Compatible with any model provider in OpenAI/Gemini/Anthropic API format](#compatible-with-any-model-provider-in-openaigeminianthropic-api-format)
 - [🔍 Use Cases](#-use-cases)
@@ -48,9 +49,9 @@
 
 ## 🚀 Project Introduction
 
-DeepChat is a powerful open-source AI chat platform providing a unified interface for interacting with various large language models. Whether you're using cloud APIs like OpenAI, Gemini, Anthropic, or locally deployed Ollama models, DeepChat delivers a smooth user experience.
+DeepChat is a powerful open-source AI agent platform that brings together models, tools, and agent runtimes in one desktop app. Whether you're using cloud APIs like OpenAI, Gemini, Anthropic, or locally deployed Ollama models, DeepChat delivers a smooth user experience.
 
-As a cross-platform AI assistant application, DeepChat not only supports basic chat functionality but also offers advanced features such as search enhancement, tool calling, and multimodal interaction, making AI capabilities more accessible and efficient.
+Beyond chat, DeepChat supports agentic workflows: rich tool calling via MCP (Model Context Protocol), and unique ACP (Agent Client Protocol) integration that lets you run ACP-compatible agents as first-class “models” with a dedicated workspace UI.
 
 <table align="center">
   <tr>
@@ -71,7 +72,7 @@ Compared to other AI tools, DeepChat offers the following unique advantages:
 
 - **Unified Multi-Model Management**: One application supports almost all mainstream LLMs, eliminating the need to switch between multiple apps
 - **Seamless Local Model Integration**: Built-in Ollama support allows you to manage and use local models without command-line operations
-- **Advanced Tool Calling**: Built-in MCP support enables code execution, web access, and other tools without additional configuration
+- **Agentic Protocol Ecosystem**: Built-in MCP support enables tool calling (code execution, web access, etc.), and built-in ACP support connects external agents into DeepChat with a native workspace UX
 - **Powerful Search Enhancement**: Support for multiple search engines makes AI responses more accurate and timely, providing non-standard web search paradigms that can be quickly customized
 - **Privacy-Focused**: Local data storage and network proxy support reduce the risk of information leakage
 - **Business-Friendly**: Embraces open source under the Apache License 2.0, suitable for both commercial and personal use
@@ -103,6 +104,9 @@ Compared to other AI tools, DeepChat offers the following unique advantages:
   - Supports StreamableHTTP/SSE/Stdio protocol Transports
   - Supports inMemory services with built-in utilities like code execution, web information retrieval, and file operations; ready for most common use cases out-of-the-box without secondary installation
   - Converts visual model capabilities into universally usable functions for any model via the built-in MCP service
+- 🤝 **ACP (Agent Client Protocol) Agent Integration**
+  - Run ACP-compatible agents (built-in or custom commands) as selectable “models”
+  - ACP workspace UI for structured plans, tool calls, and terminal output when provided by the agent
 - 💻 **Multi-Platform Support**: Windows, macOS, Linux
 - 🎨 **Beautiful and User-Friendly Interface**, user-oriented design, meticulously themed light and dark modes
 - 🔗 **Rich DeepLink Support**: Initiate conversations via links for seamless integration with other applications. Also supports one-click installation of MCP services for simplicity and speed
@@ -115,6 +119,18 @@ Compared to other AI tools, DeepChat offers the following unique advantages:
   - Reasonable architecture, data interaction and UI behavior separation, fully utilizing Electron's capabilities, rejecting simple web wrappers, excellent performance
 
 For more details on how to use these features, see the [User Guide](./docs/user-guide.md).
+
+## 🧩 ACP Integration (Agent Client Protocol)
+
+DeepChat has built-in support for [Agent Client Protocol (ACP)](https://agentclientprotocol.com), allowing you to integrate external agent runtimes into DeepChat with a native UI. Once enabled, ACP agents appear as first-class entries in the model selector, so you can use coding agents and task agents directly inside DeepChat.
+
+Quick start:
+
+1. Open **Settings → ACP Agents** and enable ACP
+2. Enable a built-in ACP agent or add a custom ACP-compatible command
+3. Select the ACP agent in the model selector to start an agent session
+
+To explore the ecosystem of compatible agents and clients, see: https://agentclientprotocol.com/overview/clients
 
 ## 🤖 Supported Model Providers
 
@@ -398,4 +414,3 @@ This project is built with the help of these awesome libraries:
 ## 📃 License
 
 [LICENSE](./LICENSE)
-

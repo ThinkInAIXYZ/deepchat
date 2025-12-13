@@ -369,7 +369,8 @@ export class UtilityHandler extends BaseHandler {
       }
 
       // Get provider and request preview
-      const provider = this.ctx.llmProviderPresenter.getProviderInstance(effectiveProviderId)
+      const provider =
+        this.ctx.llmProviderPresenter.getProviderInstance?.(effectiveProviderId) ?? null
       if (!provider) {
         throw new Error(`Provider ${effectiveProviderId} not found`)
       }

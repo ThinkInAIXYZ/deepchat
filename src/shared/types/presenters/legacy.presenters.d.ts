@@ -837,6 +837,7 @@ export interface ILlmProviderPresenter {
   getProviders(): LLM_PROVIDER[]
   getProviderById(id: string): LLM_PROVIDER
   isAgentProvider(providerId: string): boolean
+  getExistingProviderInstance?(providerId: string): unknown
   getModelList(providerId: string): Promise<MODEL_META[]>
   updateModelStatus(providerId: string, modelId: string, enabled: boolean): Promise<void>
   addCustomModel(
@@ -941,6 +942,7 @@ export interface ILlmProviderPresenter {
   resolveAgentPermission(requestId: string, granted: boolean): Promise<void>
   runAcpDebugAction(request: AcpDebugRequest): Promise<AcpDebugRunResult>
   getProviderInstance(providerId: string): unknown
+  getExistingProviderInstance?(providerId: string): unknown
 }
 
 export type CONVERSATION_SETTINGS = {

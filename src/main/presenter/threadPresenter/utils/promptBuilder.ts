@@ -589,7 +589,10 @@ function mergeConsecutiveMessages(messages: ChatMessage[]): ChatMessage[] {
     let allowMessagePropertiesMerge = false
 
     if (lastPushedMessage.role === currentMessage.role) {
-      if (currentMessage.role === 'assistant') {
+      // Never merge tool messages - each tool message must correspond to a specific tool_call_id
+      if (currentMessage.role === 'tool') {
+        allowMessagePropertiesMerge = false
+      } else if (currentMessage.role === 'assistant') {
         if (!lastPushedMessage.tool_calls && !currentMessage.tool_calls) {
           allowMessagePropertiesMerge = true
         }

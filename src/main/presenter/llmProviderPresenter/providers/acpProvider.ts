@@ -25,7 +25,7 @@ import { PROTOCOL_VERSION } from '@agentclientprotocol/sdk'
 import { eventBus, SendTarget } from '@/eventbus'
 import { ACP_DEBUG_EVENTS, ACP_WORKSPACE_EVENTS, CONFIG_EVENTS } from '@/events'
 import { app } from 'electron'
-import { AcpProcessManager } from '../agent/acpProcessManager'
+import { AcpProcessManager, type AcpProcessHandle } from '../agent/acpProcessManager'
 import { AcpSessionManager } from '../agent/acpSessionManager'
 import type { AcpSessionRecord } from '../agent/acpSessionManager'
 import { AcpContentMapper } from '../agent/acpContentMapper'
@@ -458,8 +458,21 @@ export class AcpProvider extends BaseAgentProvider<
     if (!agent) {
       throw new Error(`[ACP] Agent not found: ${request.agentId}`)
     }
-
-    const handle = await this.processManager.getConnection(agent, request.workdir)
+    let handle: AcpProcessHandle
+    try {
+      handle = await this.processManager.getConnection(agent, request.workdir)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      if (message.includes('shutting down')) {
+        return {
+          status: 'error',
+          sessionId: undefined,
+          error: 'Process manager is shutting down',
+          events: []
+        }
+      }
+      throw error
+    }
     const connection = handle.connection
     const events: AcpDebugEventEntry[] = []
 
@@ -1121,5 +1134,25 @@ export class AcpProvider extends BaseAgentProvider<
     )
 
     return result
+  }
+
+  async cleanup(): Promise<void> {
+    console.log('[ACP] Cleanup: shutting down ACP sessions and processes')
+    try {
+      await this.sessionManager.clearAllSessions()
+    } catch (error) {
+      console.warn('[ACP] Cleanup: failed to clear sessions:', error)
+    }
+
+    try {
+      await this.processManager.shutdown()
+    } catch (error) {
+      console.warn('[ACP] Cleanup: failed to shutdown process manager:', error)
+    }
+
+    for (const [requestId, state] of this.pendingPermissions.entries()) {
+      state.resolve({ outcome: { outcome: 'cancelled' } })
+      this.pendingPermissions.delete(requestId)
+    }
   }
 }
