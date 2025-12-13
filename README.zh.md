@@ -2,9 +2,9 @@
 <img src='./build/icon.png' width="150" height="150" alt="DeepChat AI助手图标" />
 </p>
 
-<h1 align="center">DeepChat - 强大的开源多模型AI聊天平台</h1>
+<h1 align="center">DeepChat - 强大的开源多模型 AI Agent 平台</h1>
 
-<p align="center">DeepChat是一个功能丰富的开源AI聊天平台，支持多种云端和本地大语言模型，提供强大的搜索增强和工具调用能力。</p>
+<p align="center">DeepChat是一个功能丰富的开源 AI Agent 平台，统一模型、工具与 Agent：多模型聊天、MCP 工具调用，以及 ACP Agent 集成。</p>
 
 <p align="center">
   <a href="https://github.com/ThinkInAIXYZ/deepchat/stargazers"><img src="https://img.shields.io/github/stars/ThinkInAIXYZ/deepchat" alt="Stars Badge"/></a>
@@ -30,6 +30,7 @@
 - [🚀 项目简介](#-项目简介)
 - [💡 为什么选择DeepChat](#-为什么选择deepchat)
 - [🔥 主要功能](#-主要功能)
+- [🧩 ACP 集成（Agent Client Protocol）](#-acp-集成agent-client-protocol)
 - [🤖 支持的模型提供商](#-支持的模型提供商)
   - [兼容任何OpenAI/Gemini/Anthropic API格式的模型提供商](#兼容任何openaigeminianthropic-api格式的模型提供商)
 - [🔍 使用场景](#-使用场景)
@@ -48,9 +49,9 @@
 
 ## 🚀 项目简介
 
-DeepChat是一个功能强大的开源AI聊天平台，为用户提供与多种大语言模型交互的统一界面。无论是云端API如OpenAI、Gemini、Anthropic，还是本地部署的Ollama模型，DeepChat都能提供流畅的用户体验。
+DeepChat是一个功能强大的开源 AI Agent 平台，将模型、工具与 Agent Runtime 统一在一款桌面应用中。无论是云端API如OpenAI、Gemini、Anthropic，还是本地部署的Ollama模型，DeepChat都能提供流畅的用户体验。
 
-作为一个跨平台的AI助手应用，DeepChat不仅支持基础的聊天功能，还提供了搜索增强、工具调用、多模态交互等高级特性，让AI能力的应用更加便捷和高效。
+除了聊天，DeepChat还支持更强的 agentic 工作流：通过 MCP（Model Context Protocol）进行工具调用，并内置 ACP（Agent Client Protocol）集成，让 ACP 兼容 Agent 以一等“模型”形态接入，同时提供专用 Workspace UI。
 
 <table align="center">
   <tr>
@@ -71,7 +72,7 @@ DeepChat是一个功能强大的开源AI聊天平台，为用户提供与多种�
 
 - **多模型统一管理**：一个应用支持几乎所有主流LLM，无需在多个应用间切换
 - **本地模型无缝集成**：内置Ollama支持，无需命令行操作即可管理和使用本地模型
-- **高级工具调用**：内置MCP支持，无需额外配置即可使用代码执行、网络访问等工具
+- **Agentic 协议生态**：内置MCP支持工具调用（代码执行、网络访问等），同时内置ACP支持将外部 Agent 接入 DeepChat，并提供原生 Workspace 体验
 - **强大的搜索增强**：支持多种搜索引擎，让AI回答更加准确和及时，提供了非标网页搜索范式，可以快速定制
 - **注重隐私保护**：本地数据存储，支持网络代理，减少信息泄露风险
 - **开源友好**：基于 Apache License 2.0 协议，适合商业和个人使用
@@ -103,6 +104,9 @@ DeepChat是一个功能强大的开源AI聊天平台，为用户提供与多种�
   - 支持 StreamableHTTP/SSE/Stdio 协议 Transports
   - 支持 inMemory 服务，内置代码执行、网络信息获取、文件操作等实用工具；开箱即用，无需二次安装即可满足大多数常见用例
   - 通过内置 MCP 服务，将视觉模型能力转换为任何模型都可通用的函数
+- 🤝 **ACP（Agent Client Protocol）Agent 集成**
+  - 将 ACP 兼容 Agent（内置或自定义命令）作为可选“模型”使用
+  - Agent 提供时，支持 ACP Workspace UI 展示结构化计划、工具调用与终端输出
 - 💻 **多平台支持**：Windows、macOS、Linux
 - 🎨 **美观友好的界面**，以用户为中心的设计，精心设计的明暗主题
 - 🔗 **丰富的DeepLink支持**：通过链接发起对话，与其他应用无缝集成。还支持一键安装MCP服务，简单快速
@@ -113,6 +117,18 @@ DeepChat是一个功能强大的开源AI聊天平台，为用户提供与多种�
   - 企业集成只需要修改极少配置代码即可使用预留的加密混淆的安全能力
   - 代码结构清晰，无论是模型供应商还是 MCP 服务都高度解耦，可以随意进行增删定制，成本极低
   - 架构合理，数据交互和UI行为分离，充分利用 Electron 的能力，拒绝简单的网页套壳，性能优异
+
+## 🧩 ACP 集成（Agent Client Protocol）
+
+DeepChat内置对 [Agent Client Protocol（ACP）](https://agentclientprotocol.com) 的支持，让你可以把外部 Agent Runtime 以原生体验接入 DeepChat。启用后，ACP Agent 会作为一等“模型”出现在模型选择器中，你可以直接在 DeepChat 内使用编码/任务类 Agent，并配合 Workspace UI 进行交互。
+
+快速上手：
+
+1. 打开 **设置 → ACP Agent** 并开启 ACP
+2. 启用一个内置 ACP Agent，或添加自定义 ACP 兼容命令
+3. 在模型选择器中选择该 ACP Agent，开始一个 Agent 会话
+
+ACP 生态中更多兼容 Agent/Client 参考：https://agentclientprotocol.com/overview/clients
 
 ## 🤖 支持的模型提供商
 

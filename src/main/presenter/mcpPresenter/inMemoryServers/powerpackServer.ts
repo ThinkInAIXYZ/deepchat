@@ -112,7 +112,6 @@ const SHELL_COMMAND_FORBIDDEN_PATTERNS = [
 export class PowerpackServer {
   private server: Server
   private useE2B: boolean = false
-  private enableShellCommandTool: boolean = false
   private e2bApiKey: string = ''
   private readonly runtimeHelper = RuntimeHelper.getInstance()
   private readonly shellEnvironment: ShellEnvironment
@@ -121,7 +120,6 @@ export class PowerpackServer {
   constructor(env?: Record<string, any>) {
     // 从环境变量中获取 E2B 配置
     this.parseE2BConfig(env)
-    this.parseShellCommandToolConfig(env)
 
     // 查找内置的运行时路径
     this.runtimeHelper.initializeRuntimes()
@@ -161,11 +159,6 @@ export class PowerpackServer {
         this.useE2B = false
       }
     }
-  }
-
-  private parseShellCommandToolConfig(env?: Record<string, any>): void {
-    const enableValue = env?.ENABLE_SHELL_COMMAND_TOOL ?? process.env.ENABLE_SHELL_COMMAND_TOOL
-    this.enableShellCommandTool = enableValue === true || enableValue === 'true'
   }
 
   private detectShellEnvironment(): ShellEnvironment {
@@ -455,21 +448,16 @@ export class PowerpackServer {
             'This tool is useful for analyzing webpage content, obtaining article summaries or details. ' +
             'Just provide a valid HTTP or HTTPS URL to get complete webpage content analysis.',
           inputSchema: zodToJsonSchema(GetWebInfoArgsSchema)
+        },
+        {
+          name: 'run_shell_command',
+          description:
+            `${this.shellEnvironment.promptHint} ` +
+            'Use this tool for day-to-day automation, file inspection, networking, and scripting. ' +
+            'Provide a full shell command string; output includes stdout and stderr. ',
+          inputSchema: zodToJsonSchema(RunShellCommandArgsSchema)
         }
       ]
-
-      if (this.enableShellCommandTool) {
-        const shellDescription =
-          `${this.shellEnvironment.promptHint} ` +
-          'Use this tool for day-to-day automation, file inspection, networking, and scripting. ' +
-          'Provide a full shell command string; output includes stdout and stderr. '
-
-        tools.push({
-          name: 'run_shell_command',
-          description: shellDescription,
-          inputSchema: zodToJsonSchema(RunShellCommandArgsSchema)
-        })
-      }
 
       // 根据配置添加代码执行工具
       if (this.useE2B) {
@@ -573,9 +561,6 @@ export class PowerpackServer {
           }
 
           case 'run_shell_command': {
-            if (!this.enableShellCommandTool) {
-              throw new Error('run_shell_command tool is disabled by configuration')
-            }
             const parsed = RunShellCommandArgsSchema.safeParse(args)
 
             if (!parsed.success) {
