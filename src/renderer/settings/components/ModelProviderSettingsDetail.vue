@@ -139,7 +139,7 @@ const geminiSafetyLevels = reactive<Record<string, number>>({})
 const providerModels = ref<RENDERER_MODEL_META[]>([])
 const customModels = ref<RENDERER_MODEL_META[]>([])
 const isModelListLoading = ref(true)
-let hasInitializedModelList = false
+const hasInitializedModelList = ref(false)
 
 const modelToDisable = ref<RENDERER_MODEL_META | null>(null)
 const showConfirmDialog = ref(false)
@@ -196,7 +196,7 @@ const validateApiKey = async () => {
 
 // Original initData implementation without debouncing
 const _initData = async () => {
-  if (!hasInitializedModelList) {
+  if (!hasInitializedModelList.value) {
     isModelListLoading.value = true
   }
 
@@ -258,8 +258,8 @@ const _initData = async () => {
       console.log('All Gemini safety levels initialized:', JSON.stringify(geminiSafetyLevels))
     }
   } finally {
-    if (!hasInitializedModelList) {
-      hasInitializedModelList = true
+    if (!hasInitializedModelList.value) {
+      hasInitializedModelList.value = true
     }
     isModelListLoading.value = false
   }
