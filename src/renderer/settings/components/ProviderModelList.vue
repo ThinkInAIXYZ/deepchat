@@ -1,132 +1,166 @@
 <template>
-  <div class="flex flex-col w-full gap-2">
-    <Input v-model="modelSearchQuery" :placeholder="t('model.search.placeholder')" />
-    <div class="text-xs text-muted-foreground px-2">{{ t('model.type.custom') }}</div>
+  <div class="flex flex-col w-full gap-4">
     <div
-      v-show="filteredCustomModels.length > 0"
-      class="flex flex-col w-full border overflow-hidden rounded-lg"
+      ref="searchContainerRef"
+      class="sticky z-30 backdrop-blur supports-[backdrop-filter]:bg-background/80 py-2 border-b border-border/60 flex gap-2"
+      :style="{ top: `${searchStickyTop}px` }"
     >
-      <ModelConfigItem
-        v-for="model in filteredCustomModels"
-        :key="model.name"
-        :model-name="model.name"
-        :model-id="model.id"
-        :provider-id="model.providerId"
-        :enabled="model.enabled ?? false"
-        :is-custom-model="true"
-        :vision="model.vision"
-        :function-call="model.functionCall"
-        :reasoning="model.reasoning"
-        :enable-search="model.enableSearch"
-        :type="model.type ?? ModelType.Chat"
-        @enabled-change="(enabled) => handleModelEnabledChange(model, enabled)"
-        @delete-model="() => handleDeleteCustomModel(model)"
-        @config-changed="$emit('config-changed')"
+      <Input
+        class="flex-1"
+        v-model="modelSearchQuery"
+        :placeholder="t('model.search.placeholder')"
       />
+
+      <AddCustomModelButton :provider-id="newProviderModel" @saved="$emit('config-changed')" />
     </div>
-    <div class="flex flex-row justify-start">
-      <Button
-        variant="outline"
-        size="sm"
-        class="text-xs text-normal rounded-lg"
-        :disabled="!primaryProviderId"
-        @click="openAddModelDialog"
-      >
-        <Icon icon="lucide:plus" class="w-4 h-4 text-muted-foreground" />
-        {{ t('model.actions.add') }}
-      </Button>
-    </div>
-    <div class="text-xs text-muted-foreground px-2">{{ t('model.type.official') }}</div>
-    <div v-for="provider in filteredProviderModels" :key="provider.providerId" class="mb-4">
+
+    <div v-if="filteredCustomModels.length > 0" class="relative">
       <div
-        v-show="provider.models.length > 0"
-        class="flex justify-between items-center text-sm font-medium mb-2"
+        class="sticky z-20 backdrop-blur supports-[backdrop-filter]:bg-background/80 px-3 py-2 text-xs font-medium text-muted-foreground"
+        :style="{ top: `${customLabelStickyTop}px` }"
       >
-        <span>{{ getProviderName(provider.providerId) }}</span>
-        <div class="flex gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            class="text-xs text-normal rounded-lg"
-            @click="enableAllModels(provider.providerId)"
-          >
-            <Icon icon="lucide:check-circle" class="w-3.5 h-3.5 mr-1" />
-            {{ t('model.actions.enableAll') }}
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            class="text-xs text-normal rounded-lg"
-            @click="disableAllModels(provider.providerId)"
-          >
-            <Icon icon="lucide:x-circle" class="w-3.5 h-3.5 mr-1" />
-            {{ t('model.actions.disableAll') }}
-          </Button>
-        </div>
+        {{ t('model.type.custom') }}
       </div>
-      <div
-        v-show="provider.models.length > 0"
-        class="flex flex-col w-full border overflow-hidden rounded-lg"
-      >
+      <div class="w-full border border-border/50 overflow-hidden divide-y divide-border bg-card">
         <ModelConfigItem
-          v-for="model in provider.models"
+          v-for="model in filteredCustomModels"
           :key="model.id"
           :model-name="model.name"
           :model-id="model.id"
-          :provider-id="provider.providerId"
+          :provider-id="model.providerId"
           :enabled="model.enabled ?? false"
+          :is-custom-model="true"
           :vision="model.vision"
           :function-call="model.functionCall"
           :reasoning="model.reasoning"
           :enable-search="model.enableSearch"
           :type="model.type ?? ModelType.Chat"
           @enabled-change="(enabled) => handleModelEnabledChange(model, enabled)"
+          @delete-model="() => handleDeleteCustomModel(model)"
           @config-changed="$emit('config-changed')"
         />
       </div>
     </div>
 
-    <ModelConfigDialog
-      v-if="primaryProviderId"
-      v-model:open="showAddModelDialog"
-      model-id=""
-      model-name=""
-      :provider-id="primaryProviderId"
-      mode="create"
-      :is-custom-model="true"
-      @saved="handleAddModelSaved"
-    />
+    <div
+      v-if="isLoading"
+      class="flex items-center gap-2 rounded-lg border border-dashed border-muted py-4 px-4 text-sm text-muted-foreground"
+    >
+      <Icon icon="lucide:loader-2" class="w-4 h-4 animate-spin" />
+      {{ t('common.loading') }}
+    </div>
+
+    <template v-else-if="virtualItems.length > 0">
+      <DynamicScroller
+        :items="virtualItems"
+        :min-item-size="MIN_MODEL_ITEM_HEIGHT"
+        key-field="id"
+        class="w-full"
+        page-mode
+        :buffer="500"
+      >
+        <template #default="{ item, active }">
+          <DynamicScrollerItem
+            :item="item"
+            :active="active"
+            :size-dependencies="getItemSizeDependencies(item)"
+          >
+            <div v-if="item.type === 'label'" class="px-3 py-2 text-xs text-muted-foreground">
+              {{ item.label }}
+            </div>
+            <div
+              v-else-if="item.type === 'provider-actions'"
+              class="flex flex-wrap items-center justify-between gap-3 px-3 py-2 bg-muted/30"
+            >
+              <div class="text-sm font-medium">{{ getProviderName(item.providerId) }}</div>
+              <div class="flex gap-2 flex-wrap">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  class="text-xs text-normal rounded-lg"
+                  @click="enableAllModels(item.providerId)"
+                >
+                  <Icon icon="lucide:check-circle" class="w-3.5 h-3.5 mr-1" />
+                  {{ t('model.actions.enableAll') }}
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  class="text-xs text-normal rounded-lg"
+                  @click="disableAllModels(item.providerId)"
+                >
+                  <Icon icon="lucide:x-circle" class="w-3.5 h-3.5 mr-1" />
+                  {{ t('model.actions.disableAll') }}
+                </Button>
+              </div>
+            </div>
+            <div v-else class="bg-card">
+              <ModelConfigItem
+                :model-name="item.model.name"
+                :model-id="item.model.id"
+                :provider-id="item.providerId"
+                :enabled="item.model.enabled ?? false"
+                :is-custom-model="false"
+                :vision="item.model.vision"
+                :function-call="item.model.functionCall"
+                :reasoning="item.model.reasoning"
+                :enable-search="item.model.enableSearch"
+                :type="item.model.type ?? ModelType.Chat"
+                @enabled-change="(enabled) => handleModelEnabledChange(item.model, enabled)"
+                @delete-model="() => handleDeleteCustomModel(item.model)"
+                @config-changed="$emit('config-changed')"
+              />
+            </div>
+          </DynamicScrollerItem>
+        </template>
+      </DynamicScroller>
+    </template>
+
+    <div v-else class="rounded-lg b py-6 px-4 text-sm text-muted-foreground text-center">
+      {{ t('settings.provider.dialogs.modelCheck.noModels') }}
+    </div>
   </div>
 </template>
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { Input } from '@shadcn/components/ui/input'
 import { Button } from '@shadcn/components/ui/button'
 import { Icon } from '@iconify/vue'
 import ModelConfigItem from '@/components/settings/ModelConfigItem.vue'
-import ModelConfigDialog from '@/components/settings/ModelConfigDialog.vue'
 import { type RENDERER_MODEL_META } from '@shared/presenter'
 import { ModelType } from '@shared/model'
 import { useModelStore } from '@/stores/modelStore'
+import { DynamicScroller, DynamicScrollerItem } from 'vue-virtual-scroller'
+import 'vue-virtual-scroller/dist/vue-virtual-scroller.css'
+import { useElementSize } from '@vueuse/core'
+
+import AddCustomModelButton from './AddCustomModelButton.vue'
 
 const { t } = useI18n()
 const modelSearchQuery = ref('')
-const showAddModelDialog = ref(false)
 const modelStore = useModelStore()
+const MIN_MODEL_ITEM_HEIGHT = 56
 
 const props = defineProps<{
   providerModels: { providerId: string; models: RENDERER_MODEL_META[] }[]
   customModels: RENDERER_MODEL_META[]
   providers: { id: string; name: string }[]
+  isLoading?: boolean
+  stickyOffset?: number
 }>()
+
+const isLoading = computed(() => props.isLoading ?? false)
+const newProviderModel = computed(() => {
+  return props.providers?.[0].id ?? ''
+})
 
 const emit = defineEmits<{
   enabledChange: [model: RENDERER_MODEL_META, enabled: boolean]
   'config-changed': []
 }>()
 
-const primaryProviderId = computed(() => props.providers[0]?.id ?? '')
+const stickyBaseOffset = computed(() => props.stickyOffset ?? 0)
 
 const filteredProviderModels = computed(() => {
   if (!modelSearchQuery.value) {
@@ -167,15 +201,70 @@ const filteredCustomModels = computed(() => {
   return filteredModels
 })
 
-const openAddModelDialog = () => {
-  showAddModelDialog.value = true
-}
+type VirtualModelListItem =
+  | { id: string; type: 'label'; label: string }
+  | { id: string; type: 'provider-actions'; providerId: string }
+  | {
+      id: string
+      type: 'model'
+      providerId: string
+      model: RENDERER_MODEL_META
+    }
 
-const handleAddModelSaved = async () => {
-  if (primaryProviderId.value) {
-    await modelStore.refreshCustomModels(primaryProviderId.value)
+const virtualItems = computed<VirtualModelListItem[]>(() => {
+  const items: VirtualModelListItem[] = []
+  let officialLabelInserted = false
+  filteredProviderModels.value.forEach((provider) => {
+    if (provider.models.length === 0) {
+      return
+    }
+
+    if (!officialLabelInserted) {
+      items.push({ id: 'label-official', type: 'label', label: t('model.type.official') })
+      officialLabelInserted = true
+    }
+
+    items.push({
+      id: `${provider.providerId}-actions`,
+      type: 'provider-actions',
+      providerId: provider.providerId
+    })
+
+    provider.models.forEach((model) => {
+      items.push({
+        id: `${provider.providerId}-${model.id}`,
+        type: 'model',
+        providerId: provider.providerId,
+        model
+      })
+    })
+  })
+
+  return items
+})
+
+const getItemSizeDependencies = (item: VirtualModelListItem) => {
+  if (item.type === 'model') {
+    return [
+      item.model.name,
+      item.model.id,
+      item.model.enabled,
+      item.model.vision,
+      item.model.functionCall,
+      item.model.reasoning,
+      item.model.enableSearch,
+      item.model.type
+    ]
   }
-  emit('config-changed')
+
+  if (item.type === 'provider-actions') {
+    return [
+      item.providerId,
+      filteredProviderModels.value.find((p) => p.providerId === item.providerId)?.models.length
+    ]
+  }
+
+  return [item.label]
 }
 
 const getProviderName = (providerId: string) => {
@@ -183,9 +272,8 @@ const getProviderName = (providerId: string) => {
   return provider?.name || providerId
 }
 
-const handleModelEnabledChange = async (model: RENDERER_MODEL_META, enabled: boolean) => {
+const handleModelEnabledChange = (model: RENDERER_MODEL_META, enabled: boolean) => {
   emit('enabledChange', model, enabled)
-  await modelStore.updateModelStatus(model.providerId, model.id, enabled)
 }
 
 const handleDeleteCustomModel = async (model: RENDERER_MODEL_META) => {
@@ -205,4 +293,41 @@ const enableAllModels = (providerId: string) => {
 const disableAllModels = (providerId: string) => {
   modelStore.disableAllModels(providerId)
 }
+
+const searchContainerRef = ref<HTMLElement | null>(null)
+const { height: searchContainerHeight } = useElementSize(searchContainerRef)
+const searchStickyTop = computed(() => stickyBaseOffset.value)
+const customLabelStickyTop = computed(() => {
+  if (filteredCustomModels.value.length === 0) {
+    return stickyBaseOffset.value
+  }
+  return stickyBaseOffset.value + (searchContainerHeight.value || 53) + 8
+})
+
+const stickyHeaderInfo = ref<{
+  provider?: { providerId: string }
+}>({})
+
+const updateStickyHeader = (startIndex: number) => {
+  if (startIndex < 0 || startIndex >= virtualItems.value.length) return
+
+  const currentItem = virtualItems.value[startIndex]
+  let providerItem: { providerId: string } | undefined
+
+  if (currentItem.type === 'model' || currentItem.type === 'provider-actions') {
+    providerItem = { providerId: currentItem.providerId }
+  }
+
+  stickyHeaderInfo.value = {
+    provider: providerItem
+  }
+}
+
+watch(
+  virtualItems,
+  () => {
+    updateStickyHeader(0)
+  },
+  { immediate: true }
+)
 </script>

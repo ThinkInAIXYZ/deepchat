@@ -1,75 +1,28 @@
 <template>
-  <div class="flex flex-col items-start gap-4">
-    <div class="flex flex-col w-full gap-2">
-      <Label :for="`${provider.id}-model`" class="flex-1 cursor-pointer">{{
-        t('settings.provider.modelList')
-      }}</Label>
-      <div class="text-xs text-muted-foreground">
-        {{ enabledModels.length }}/{{ totalModelsCount }}
-        {{ t('settings.provider.modelsEnabled') }}
-      </div>
-    </div>
-
-    <div class="flex flex-row gap-2 items-center">
-      <Button
-        variant="outline"
-        size="sm"
-        class="text-xs text-normal rounded-lg"
-        @click="$emit('show-model-list-dialog')"
-      >
-        <Icon icon="lucide:list-check" class="w-4 h-4 text-muted-foreground" />{{
-          t('settings.provider.enableModels')
-        }}
-      </Button>
-      <Button
-        variant="outline"
-        size="sm"
-        class="text-xs text-normal rounded-lg"
-        :disabled="enabledModels.length === 0"
-        @click="$emit('disable-all-models')"
-      >
-        <Icon icon="lucide:x-circle" class="w-4 h-4 text-muted-foreground" />{{
-          t('settings.provider.disableAllModels')
-        }}
-      </Button>
-    </div>
-
-    <div
-      v-if="enabledModels.length > 0"
-      class="flex flex-col w-full border overflow-hidden rounded-lg bg-card"
-    >
-      <ModelConfigItem
-        v-for="model in enabledModels"
-        :key="model.id"
-        :model-name="model.name"
-        :model-id="model.id"
-        :provider-id="provider.id"
-        :group="model.group"
-        :enabled="model.enabled ?? false"
-        :vision="model.vision ?? false"
-        :function-call="model.functionCall ?? false"
-        :reasoning="model.reasoning ?? false"
-        :enable-search="model.enableSearch ?? false"
-        :type="model.type ?? ModelType.Chat"
-        @enabled-change="$emit('model-enabled-change', model, $event)"
-        @config-changed="$emit('config-changed')"
-      />
-    </div>
-    <div
-      v-else-if="totalModelsCount > 0"
-      class="flex flex-col w-full border border-dashed border-muted-foreground/30 rounded-lg p-4"
-    >
-      <div class="flex items-center gap-3 text-muted-foreground">
-        <Icon icon="lucide:info" class="w-5 h-5 text-blue-500" />
-        <div class="flex-1">
-          <p class="text-sm font-medium">
-            {{ t('settings.provider.noModelsEnabled.title') }}
-          </p>
-          <p class="text-xs mt-1">
-            {{ t('settings.provider.noModelsEnabled.description') }}
-          </p>
+  <div class="w-full rounded-2xl shadow-sm relative">
+    <div class="flex w-full justify-between items-center sticky top-0 z-30 backdrop-blur">
+      <div class="flex flex-col w-full gap-2">
+        <Label :for="`${provider.id}-model`" class="flex-1 cursor-pointer">{{
+          t('settings.provider.modelList')
+        }}</Label>
+        <div class="text-xs text-muted-foreground">
+          {{ enabledModels.length }}/{{ totalModelsCount }}
+          {{ t('settings.provider.modelsEnabled') }}
         </div>
       </div>
+    </div>
+
+    <div class="w-full">
+      <ProviderModelList
+        :provider-id="provider.id"
+        :provider-models="[{ providerId: provider.id, models: providerModels }]"
+        :custom-models="customModels"
+        :providers="[{ id: provider.id, name: provider.name }]"
+        @enabled-change="(model, enabled) => $emit('model-enabled-change', model, enabled)"
+        @saved="$emit('custom-model-added')"
+        @config-changed="$emit('config-changed')"
+        :is-loading="isModelListLoading"
+      />
     </div>
   </div>
 </template>
@@ -77,11 +30,8 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
 import { Label } from '@shadcn/components/ui/label'
-import { Button } from '@shadcn/components/ui/button'
-import { Icon } from '@iconify/vue'
-import ModelConfigItem from '@/components/settings/ModelConfigItem.vue'
 import type { LLM_PROVIDER, RENDERER_MODEL_META } from '@shared/presenter'
-import { ModelType } from '@shared/model'
+import ProviderModelList from './ProviderModelList.vue'
 
 const { t } = useI18n()
 
@@ -89,12 +39,15 @@ defineProps<{
   provider: LLM_PROVIDER
   enabledModels: RENDERER_MODEL_META[]
   totalModelsCount: number
+  providerModels: RENDERER_MODEL_META[]
+  customModels: RENDERER_MODEL_META[]
+  isModelListLoading?: boolean
 }>()
 
 defineEmits<{
-  'show-model-list-dialog': []
   'disable-all-models': []
   'model-enabled-change': [model: RENDERER_MODEL_META, enabled: boolean]
   'config-changed': []
+  'custom-model-added': []
 }>()
 </script>

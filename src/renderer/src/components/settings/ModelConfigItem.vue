@@ -1,7 +1,11 @@
 <template>
-  <div class="flex flex-row items-center gap-2 px-3 py-2 border-b last:border-none">
-    <div class="flex gap-1">
-      <span class="text-xs">
+  <div
+    :class="[
+      'flex flex-row bg-muted/50 hover:bg-accent items-center gap-2 px-3 py-2 border-b last:border-none transition-colors'
+    ]"
+  >
+    <div class="flex gap-1 items-center">
+      <span class="text-xs" :class="!enabled ? 'text-foreground/70' : ''">
         {{ modelName }}
       </span>
       <Icon v-if="vision" icon="lucide:eye" class="w-4 h-4 text-blue-500" title="视觉能力" />
@@ -29,24 +33,11 @@
       >
         {{ type }}
       </span>
-      <Button
-        v-if="!hideEnableToggle && !enabled"
-        variant="link"
-        size="icon"
-        class="w-7 h-7 text-xs text-normal rounded-lg"
-        @click="onEnabledChange(true)"
-      >
-        <Icon icon="lucide:circle-minus" class="w-4 h-4 text-destructive" />
-      </Button>
-      <Button
-        v-if="!hideEnableToggle && enabled"
-        variant="link"
-        size="icon"
-        class="w-7 h-7 text-xs text-normal rounded-lg"
-        @click="onEnabledChange(false)"
-      >
-        <Icon icon="lucide:circle-check" class="w-4 h-4 text-green-500" />
-      </Button>
+      <Switch
+        v-if="!hideEnableToggle"
+        :model-value="enabled"
+        @update:model-value="onEnabledChange"
+      />
       <Button
         v-if="changeable"
         variant="link"
@@ -84,6 +75,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { Button } from '@shadcn/components/ui/button'
+import { Switch } from '@shadcn/components/ui/switch'
 import { Icon } from '@iconify/vue'
 import { ModelType } from '@shared/model'
 import ModelConfigDialog from './ModelConfigDialog.vue'

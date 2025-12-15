@@ -100,8 +100,10 @@
         <ProviderModelManager
           :provider="provider"
           :enabled-models="enabledModels"
-          :total-models-count="providerModels.length"
-          @show-model-list-dialog="showModelListDialog = true"
+          :total-models-count="providerModels.length + customModels.length"
+          :provider-models="providerModels"
+          :custom-models="customModels"
+          @custom-model-added="handleAddModelSaved"
           @disable-all-models="disableAllModelsConfirm"
           @model-enabled-change="handleModelEnabledChange"
           @config-changed="handleConfigChanged"
@@ -112,17 +114,13 @@
     <!-- 对话框容器 -->
     <ProviderDialogContainer
       v-model:show-confirm-dialog="showConfirmDialog"
-      v-model:show-model-list-dialog="showModelListDialog"
       v-model:show-check-model-dialog="showCheckModelDialog"
       v-model:show-disable-all-confirm-dialog="showDisableAllConfirmDialog"
       v-model:show-delete-provider-dialog="showDeleteProviderDialog"
       :provider="provider"
-      :provider-models="providerModels"
-      :custom-models="[]"
       :model-to-disable="modelToDisable"
       :check-result="checkResult"
       @confirm-disable-model="confirmDisable"
-      @model-enabled-change="handleModelEnabledChange"
       @confirm-disable-all-models="confirmDisableAll"
       @confirm-delete-provider="() => {}"
     />
@@ -153,11 +151,6 @@ const props = defineProps<{
   provider: AWS_BEDROCK_PROVIDER
 }>()
 
-// const emit = defineEmits<{
-//   'credential-change': [value: AwsBedrockCredential]
-//   'validate-key': [value: AwsBedrockCredential]
-// }>()
-
 const { t } = useI18n()
 const providerStore = useProviderStore()
 const modelStore = useModelStore()
@@ -168,18 +161,33 @@ const region = ref(props.provider.credential?.region || '')
 const showAccessKeyId = ref(false)
 const showSecretAccessKey = ref(false)
 const providerModels = ref<RENDERER_MODEL_META[]>([])
+const customModels = computed(() => {
+  const providerCustomModels = modelStore.customModels.find(
+    (entry) => entry.providerId === props.provider.id
+  )
+  return providerCustomModels?.models || []
+})
 const checkResult = ref<boolean>(false)
 const modelToDisable = ref<RENDERER_MODEL_META | null>(null)
 const showConfirmDialog = ref(false)
 const showCheckModelDialog = ref(false)
-const showModelListDialog = ref(false)
 const showDisableAllConfirmDialog = ref(false)
 const showDeleteProviderDialog = ref(false)
 
 const enabledModels = computed(() => {
-  const enabledModelsList = providerModels.value.filter((m) => m.enabled)
+  const enabledCustom = customModels.value.filter((m) => m.enabled)
+  const enabledBuiltIn = providerModels.value.filter((m) => m.enabled)
+  const uniqueModels = new Map<string, RENDERER_MODEL_META>()
 
-  return enabledModelsList
+  const merged = [...enabledCustom, ...enabledBuiltIn]
+
+  merged.forEach((model) => {
+    if (!uniqueModels.has(model.id)) {
+      uniqueModels.set(model.id, model)
+    }
+  })
+
+  return Array.from(uniqueModels.values())
 })
 
 const initData = async () => {
@@ -318,6 +326,11 @@ const confirmDisableAll = async () => {
 // Handler for config changes
 const handleConfigChanged = async () => {
   // 模型配置变更后重新初始化数据
+  await initData()
+}
+
+const handleAddModelSaved = async () => {
+  await modelStore.refreshCustomModels(props.provider.id)
   await initData()
 }
 </script>

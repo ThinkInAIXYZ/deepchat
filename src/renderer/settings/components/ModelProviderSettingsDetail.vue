@@ -58,7 +58,10 @@
           :provider="provider"
           :enabled-models="enabledModels"
           :total-models-count="providerModels.length + customModels.length"
-          @show-model-list-dialog="showModelListDialog = true"
+          :provider-models="providerModels"
+          :custom-models="customModels"
+          :is-model-list-loading="isModelListLoading"
+          @custom-model-added="handleAddModelSaved"
           @disable-all-models="disableAllModelsConfirm"
           @model-enabled-change="handleModelEnabledChange"
           @config-changed="handleConfigChanged"
@@ -69,17 +72,13 @@
     <!-- 对话框容器 -->
     <ProviderDialogContainer
       v-model:show-confirm-dialog="showConfirmDialog"
-      v-model:show-model-list-dialog="showModelListDialog"
       v-model:show-check-model-dialog="showCheckModelDialog"
       v-model:show-disable-all-confirm-dialog="showDisableAllConfirmDialog"
       v-model:show-delete-provider-dialog="showDeleteProviderDialog"
       :provider="provider"
-      :provider-models="providerModels"
-      :custom-models="customModels"
       :model-to-disable="modelToDisable"
       :check-result="checkResult"
       @confirm-disable-model="confirmDisable"
-      @model-enabled-change="handleModelEnabledChange"
       @confirm-disable-all-models="confirmDisableAll"
       @confirm-delete-provider="confirmDeleteProvider"
     />
@@ -139,10 +138,11 @@ const geminiSafetyLevels = reactive<Record<string, number>>({})
 
 const providerModels = ref<RENDERER_MODEL_META[]>([])
 const customModels = ref<RENDERER_MODEL_META[]>([])
+const isModelListLoading = ref(true)
+let hasInitializedModelList = false
 
 const modelToDisable = ref<RENDERER_MODEL_META | null>(null)
 const showConfirmDialog = ref(false)
-const showModelListDialog = ref(false)
 const showDisableAllConfirmDialog = ref(false)
 const showDeleteProviderDialog = ref(false)
 const enabledModels = computed(() => {
@@ -196,59 +196,72 @@ const validateApiKey = async () => {
 
 // Original initData implementation without debouncing
 const _initData = async () => {
-  console.log('initData for provider:', props.provider.id)
-  const providerData = modelStore.allProviderModels.find((p) => p.providerId === props.provider.id)
-  if (providerData) {
-    providerModels.value = providerData.models
-  } else {
-    providerModels.value = [] // Reset if provider data not found
-  }
-  const customModelData = modelStore.customModels.find((p) => p.providerId === props.provider.id)
-  if (customModelData) {
-    customModels.value = customModelData.models
-  } else {
-    customModels.value = [] // Reset if custom data not found
+  if (!hasInitializedModelList) {
+    isModelListLoading.value = true
   }
 
-  // Fetch Azure API Version if applicable
-  if (props.provider.id === 'azure-openai') {
-    try {
-      azureApiVersion.value = await providerStore.getAzureApiVersion()
-      console.log('Azure API Version fetched:', azureApiVersion.value)
-    } catch (error) {
-      console.error('Failed to fetch Azure API Version:', error)
-      azureApiVersion.value = '2024-02-01' // Default value on error
+  try {
+    console.log('initData for provider:', props.provider.id)
+    const providerData = modelStore.allProviderModels.find(
+      (p) => p.providerId === props.provider.id
+    )
+    if (providerData) {
+      providerModels.value = providerData.models
+    } else {
+      providerModels.value = [] // Reset if provider data not found
     }
-  }
+    const customModelData = modelStore.customModels.find((p) => p.providerId === props.provider.id)
+    if (customModelData) {
+      customModels.value = customModelData.models
+    } else {
+      customModels.value = [] // Reset if custom data not found
+    }
 
-  // Fetch Gemini Safety Settings if applicable
-  if (props.provider.id === 'gemini') {
-    console.log('Fetching Gemini safety settings...')
-
-    // 先清空现有数据
-    Object.keys(geminiSafetyLevels).forEach((key) => {
-      delete geminiSafetyLevels[key]
-    })
-
-    for (const key in safetyCategories) {
-      const categoryKey = key as string
+    // Fetch Azure API Version if applicable
+    if (props.provider.id === 'azure-openai') {
       try {
-        const savedValue = (await providerStore.getGeminiSafety(categoryKey)) as
-          | string
-          | 'HARM_BLOCK_THRESHOLD_UNSPECIFIED'
-        console.log(`Fetched Gemini safety for ${categoryKey}:`, savedValue)
-        geminiSafetyLevels[categoryKey] =
-          valueToLevelMap[savedValue as SafetySettingValue] ??
-          safetyCategories[categoryKey as SafetyCategoryKey].defaultLevel
-        console.log(`Set Gemini level for ${categoryKey}:`, geminiSafetyLevels[categoryKey])
+        azureApiVersion.value = await providerStore.getAzureApiVersion()
+        console.log('Azure API Version fetched:', azureApiVersion.value)
       } catch (error) {
-        console.error(`Failed to fetch Gemini safety setting for ${categoryKey}:`, error)
-        geminiSafetyLevels[categoryKey] =
-          safetyCategories[categoryKey as SafetyCategoryKey].defaultLevel // Default on error
+        console.error('Failed to fetch Azure API Version:', error)
+        azureApiVersion.value = '2024-02-01' // Default value on error
       }
     }
 
-    console.log('All Gemini safety levels initialized:', JSON.stringify(geminiSafetyLevels))
+    // Fetch Gemini Safety Settings if applicable
+    if (props.provider.id === 'gemini') {
+      console.log('Fetching Gemini safety settings...')
+
+      // 先清空现有数据
+      Object.keys(geminiSafetyLevels).forEach((key) => {
+        delete geminiSafetyLevels[key]
+      })
+
+      for (const key in safetyCategories) {
+        const categoryKey = key as string
+        try {
+          const savedValue = (await providerStore.getGeminiSafety(categoryKey)) as
+            | string
+            | 'HARM_BLOCK_THRESHOLD_UNSPECIFIED'
+          console.log(`Fetched Gemini safety for ${categoryKey}:`, savedValue)
+          geminiSafetyLevels[categoryKey] =
+            valueToLevelMap[savedValue as SafetySettingValue] ??
+            safetyCategories[categoryKey as SafetyCategoryKey].defaultLevel
+          console.log(`Set Gemini level for ${categoryKey}:`, geminiSafetyLevels[categoryKey])
+        } catch (error) {
+          console.error(`Failed to fetch Gemini safety setting for ${categoryKey}:`, error)
+          geminiSafetyLevels[categoryKey] =
+            safetyCategories[categoryKey as SafetyCategoryKey].defaultLevel // Default on error
+        }
+      }
+
+      console.log('All Gemini safety levels initialized:', JSON.stringify(geminiSafetyLevels))
+    }
+  } finally {
+    if (!hasInitializedModelList) {
+      hasInitializedModelList = true
+    }
+    isModelListLoading.value = false
   }
 }
 
@@ -397,6 +410,11 @@ const handleConfigChanged = () => {
 
 const openModelCheckDialog = () => {
   modelCheckStore.openDialog(props.provider.id)
+}
+
+const handleAddModelSaved = async () => {
+  await modelStore.refreshCustomModels(props.provider.id)
+  await initDataImmediate()
 }
 
 // 使用 computed 确保响应性正确传递

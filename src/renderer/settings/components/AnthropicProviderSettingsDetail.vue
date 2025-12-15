@@ -244,7 +244,9 @@
           :provider="provider"
           :enabled-models="enabledModels"
           :total-models-count="totalModelsCount"
-          @show-model-list-dialog="showModelListDialog = true"
+          :provider-models="providerModels"
+          :custom-models="customModels"
+          @custom-model-added="handleAddModelSaved"
           @disable-all-models="handleDisableAllModels"
           @model-enabled-change="handleModelEnabledChange"
           @config-changed="handleConfigChanged"
@@ -323,14 +325,10 @@
       </Dialog>
     </div>
     <ProviderDialogContainer
-      v-model:show-model-list-dialog="showModelListDialog"
       v-model:show-delete-provider-dialog="showDeleteProviderDialog"
       :provider="provider"
-      :provider-models="providerModels"
-      :custom-models="customModels"
       :model-to-disable="null"
       :check-result="false"
-      @model-enabled-change="handleModelEnabledChange"
       @confirm-delete-provider="confirmDeleteProvider"
     />
   </section>
@@ -389,7 +387,6 @@ const apiHost = ref(props.provider.baseUrl || '')
 const apiKey = ref(props.provider.apiKey || '')
 const showApiKey = ref(false)
 const showCheckModelDialog = ref(false)
-const showModelListDialog = ref(false)
 const checkResult = ref<boolean>(false)
 const isLoggingIn = ref(false)
 const validationResult = ref<{ success: boolean; message: string } | null>(null)
@@ -413,7 +410,8 @@ const totalModelsCount = computed(() => {
   const providerModels = modelStore.allProviderModels.find(
     (provider) => provider.providerId === props.provider.id
   )
-  return providerModels?.models.length || 0
+  const custom = modelStore.customModels.find((entry) => entry.providerId === props.provider.id)
+  return (providerModels?.models.length || 0) + (custom?.models.length || 0)
 })
 
 const providerModels = computed((): RENDERER_MODEL_META[] => {
@@ -690,6 +688,10 @@ const handleDisableAllModels = async () => {
   } catch (error) {
     console.error('Failed to disable all models:', error)
   }
+}
+
+const handleAddModelSaved = async () => {
+  await modelStore.refreshCustomModels(props.provider.id)
 }
 
 const handleModelEnabledChange = async (model: RENDERER_MODEL_META, enabled: boolean) => {
