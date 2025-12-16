@@ -1396,7 +1396,7 @@ export interface ProgressResponse {
 export interface MCPServerConfig {
   command: string
   args: string[]
-  env: Record<string, unknow>
+  env: Record<string, unknown>
   descriptions: string
   icons: string
   autoApprove: string[]
@@ -1407,6 +1407,11 @@ export interface MCPServerConfig {
   type: 'sse' | 'stdio' | 'inmemory' | 'http'
   source?: string // Source identifier: "mcprouter" | "modelscope" | undefined(for manual)
   sourceId?: string // Source ID: mcprouter uuid or modelscope mcpServer.id
+}
+
+export interface BrowserServerConfig {
+  showWindow?: boolean
+  sessionTimeoutMs?: number
 }
 
 export interface MCPConfig {
