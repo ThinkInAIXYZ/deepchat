@@ -207,6 +207,10 @@
     "deepchat/apple-server": {
       "desc": "モデルがカレンダー、連絡先、電子メール、マップ、メモ、リマインダー、その他のシステムなどのMacOSのシステム機能を動作させます",
       "name": "MACOSシステムアシスタント"
+    },
+    "deepchat-inmemory/browser-server": {
+      "desc": "DeepChat には、Web の閲覧や検索などの自動ブラウザ操作をサポートするブラウザ自動化サービスが組み込まれています。",
+      "name": "ブラウザの使用"
     }
   },
   "prompts": {

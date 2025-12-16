@@ -110,6 +110,10 @@
     "ragflowKnowledge": {
       "desc": "RAGFlow vidensbase søgetjeneste kan søge i indholdet af RAGFlow vidensbasen.",
       "name": "RAGFlow vidensbase søgning"
+    },
+    "deepchat-inmemory/browser-server": {
+      "desc": "DeepChat har en indbygget browserautomatiseringstjeneste, der understøtter automatiserede browseroperationer, såsom at surfe på nettet, søge osv.",
+      "name": "Browser-brug"
     }
   },
   "isDefault": "Standardserver",

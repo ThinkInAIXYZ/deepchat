@@ -246,6 +246,10 @@
     "deepchat/apple-server": {
       "desc": "Let models operate macOS apps like Calendar, Contacts, Mail, Maps, Notes, and Reminders.",
       "name": "macOS System Assistant"
+    },
+    "deepchat-inmemory/browser-server": {
+      "desc": "DeepChat has a built-in browser automation service that supports automated browser operations, such as browsing the web, searching, etc.",
+      "name": "Browser-Use"
     }
   },
   "prompts": {

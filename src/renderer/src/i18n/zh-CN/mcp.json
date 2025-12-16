@@ -231,6 +231,10 @@
     "deepchat/apple-server": {
       "name": "macOS系统助手",
       "desc": "让模型能操作macOS的日历、联系人、邮件、地图、备忘录、提醒事项等系统功能"
+    },
+    "deepchat-inmemory/browser-server": {
+      "name": "Browser-Use",
+      "desc": "DeepChat内置浏览器自动化服务，支持自动化操作浏览器，如浏览网页、搜索等"
     }
   },
   "prompts": {
