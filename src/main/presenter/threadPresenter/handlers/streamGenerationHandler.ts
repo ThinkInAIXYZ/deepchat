@@ -91,8 +91,7 @@ export class StreamGenerationHandler extends BaseHandler {
         vision: Boolean(modelConfig?.vision),
         imageFiles: modelConfig?.vision ? imageFiles : [],
         supportsFunctionCall: modelConfig.functionCall,
-        modelType: modelConfig.type,
-        enableBrowser: conversation.settings.enableBrowser
+        modelType: modelConfig.type
       })
 
       this.throwIfCancelled(state.message.id)
@@ -112,7 +111,6 @@ export class StreamGenerationHandler extends BaseHandler {
         reasoningEffort: currentReasoningEffort,
         verbosity: currentVerbosity,
         enableSearch: currentEnableSearch,
-        enableBrowser: currentEnableBrowser,
         forcedSearch: currentForcedSearch,
         searchStrategy: currentSearchStrategy
       } = currentConversation.settings
@@ -129,7 +127,6 @@ export class StreamGenerationHandler extends BaseHandler {
         currentReasoningEffort,
         currentVerbosity,
         currentEnableSearch,
-        currentEnableBrowser,
         currentForcedSearch,
         currentSearchStrategy,
         conversationId
@@ -234,7 +231,6 @@ export class StreamGenerationHandler extends BaseHandler {
         reasoningEffort,
         verbosity,
         enableSearch,
-        enableBrowser,
         forcedSearch,
         searchStrategy
       } = conversation.settings
@@ -253,8 +249,7 @@ export class StreamGenerationHandler extends BaseHandler {
         vision: false,
         imageFiles: [],
         supportsFunctionCall: modelConfig.functionCall,
-        modelType: modelConfig.type,
-        enableBrowser
+        modelType: modelConfig.type
       })
 
       await this.updateGenerationState(state, promptTokens)
@@ -311,7 +306,6 @@ export class StreamGenerationHandler extends BaseHandler {
         reasoningEffort,
         verbosity,
         enableSearch,
-        enableBrowser,
         forcedSearch,
         searchStrategy,
         conversationId
@@ -455,7 +449,7 @@ export class StreamGenerationHandler extends BaseHandler {
       }
     }
 
-    const webSearchEnabled = Boolean(conversation.settings.enableBrowser)
+    const webSearchEnabled = Boolean(conversation.settings.enableSearch)
     const thinkEnabled = this.ctx.configPresenter.getSetting('input_deepThinking') as boolean
     ;(userMessage.content as UserMessageContent).search = webSearchEnabled
     ;(userMessage.content as UserMessageContent).think = thinkEnabled

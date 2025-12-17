@@ -93,7 +93,6 @@ export class ModelConfigHelper {
       type: this.inferModelType(model),
       thinkingBudget: model.reasoning?.budget?.default ?? undefined,
       enableSearch: Boolean(model.search?.supported ?? false),
-      enableBrowser: false,
       forcedSearch: Boolean(model.search?.forced_search),
       searchStrategy: model.search?.search_strategy === 'max' ? 'max' : 'turbo',
       reasoningEffort: (model.reasoning?.effort ?? undefined) as

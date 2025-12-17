@@ -506,7 +506,7 @@ const modelSelectOpen = ref(false)
 // === Composable Integrations ===
 
 // Initialize settings management
-const { settings, toggleWebSearch, setWebSearch } = useInputSettings()
+const { settings, setWebSearch } = useInputSettings()
 
 // Initialize history composable first (needed for editor placeholder)
 const history = useInputHistory(null as any, t)

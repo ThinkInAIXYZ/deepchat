@@ -53,3 +53,8 @@ export type BrowserEvent =
   | { type: 'tab-closed'; tabId: string }
   | { type: 'tab-navigated'; tabId: string; url: string }
   | { type: 'window-visibility-changed'; visible: boolean }
+
+export interface BrowserContextSnapshot {
+  activeTabId: string | null
+  tabs: BrowserTabInfo[]
+}

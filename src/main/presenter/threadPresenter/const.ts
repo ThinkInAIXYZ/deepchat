@@ -117,6 +117,5 @@ export const DEFAULT_SETTINGS: CONVERSATION_SETTINGS = {
   providerId: 'deepseek',
   modelId: 'deepseek-chat',
   artifacts: 0,
-  enableBrowser: false,
   acpWorkdirMap: {}
 }

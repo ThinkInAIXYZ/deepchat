@@ -89,6 +89,8 @@
     "back": "后退",
     "forward": "前进",
     "reload": "刷新",
-    "addressPlaceholder": "输入网址"
+    "addressPlaceholder": "输入网址",
+    "enterUrlToStart": "输入网址开始访问",
+    "enterUrlDescription": "在上方地址栏输入网址以访问网站"
   }
 }

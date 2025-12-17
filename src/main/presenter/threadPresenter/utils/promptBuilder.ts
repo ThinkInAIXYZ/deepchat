@@ -43,7 +43,6 @@ export interface PreparePromptContentParams {
   imageFiles: MessageFile[]
   supportsFunctionCall: boolean
   modelType?: ModelType
-  enableBrowser?: boolean
 }
 
 export interface ContinueToolCallContextParams {
@@ -73,8 +72,7 @@ export async function preparePromptContent({
   vision,
   imageFiles,
   supportsFunctionCall,
-  modelType,
-  enableBrowser
+  modelType
 }: PreparePromptContentParams): Promise<{
   finalContent: ChatMessage[]
   promptTokens: number
@@ -104,8 +102,9 @@ export async function preparePromptContent({
 
   let browserContextPrompt = ''
   const { providerId, modelId } = conversation.settings
-  const yoBrowserEnabled = Boolean(enableBrowser)
-  if (!isImageGeneration && yoBrowserEnabled) {
+  // Check if browser window is open - independent of MCP
+  const hasBrowserWindow = await presenter.yoBrowserPresenter.hasWindow()
+  if (!isImageGeneration && hasBrowserWindow) {
     try {
       const supportsVision = modelCapabilities.supportsVision(providerId, modelId)
       const browserTools = await presenter.yoBrowserPresenter.getToolDefinitions(supportsVision)

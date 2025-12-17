@@ -63,7 +63,6 @@ export const useChatStore = defineStore('chat', () => {
     enabledMcpTools: [],
     thinkingBudget: undefined,
     enableSearch: undefined,
-    enableBrowser: false,
     forcedSearch: undefined,
     searchStrategy: undefined,
     reasoningEffort: undefined,

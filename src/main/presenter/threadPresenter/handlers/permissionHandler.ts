@@ -322,7 +322,6 @@ export class PermissionHandler extends BaseHandler {
         reasoningEffort,
         verbosity,
         enableSearch,
-        enableBrowser,
         forcedSearch,
         searchStrategy
       } = conversation.settings
@@ -359,7 +358,6 @@ export class PermissionHandler extends BaseHandler {
         reasoningEffort,
         verbosity,
         enableSearch,
-        enableBrowser,
         forcedSearch,
         searchStrategy,
         conversation.id
@@ -436,7 +434,6 @@ export class PermissionHandler extends BaseHandler {
         conversation.settings.reasoningEffort,
         conversation.settings.verbosity,
         conversation.settings.enableSearch,
-        conversation.settings.enableBrowser,
         conversation.settings.forcedSearch,
         conversation.settings.searchStrategy,
         conversationId
@@ -491,7 +488,6 @@ export class PermissionHandler extends BaseHandler {
         reasoningEffort,
         verbosity,
         enableSearch,
-        enableBrowser,
         forcedSearch,
         searchStrategy
       } = conversation.settings
@@ -619,7 +615,6 @@ export class PermissionHandler extends BaseHandler {
         reasoningEffort,
         verbosity,
         enableSearch,
-        enableBrowser,
         forcedSearch,
         searchStrategy,
         conversation.id

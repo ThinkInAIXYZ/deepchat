@@ -230,7 +230,6 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
     reasoningEffort?: 'minimal' | 'low' | 'medium' | 'high',
     verbosity?: 'low' | 'medium' | 'high',
     enableSearch?: boolean,
-    enableBrowser?: boolean,
     forcedSearch?: boolean,
     searchStrategy?: 'turbo' | 'max',
     conversationId?: string
@@ -247,7 +246,6 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
       reasoningEffort,
       verbosity,
       enableSearch,
-      enableBrowser,
       forcedSearch,
       searchStrategy,
       conversationId

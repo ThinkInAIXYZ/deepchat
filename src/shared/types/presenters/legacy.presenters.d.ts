@@ -150,7 +150,6 @@ export interface ModelConfig {
   isUserDefined?: boolean
   thinkingBudget?: number
   enableSearch?: boolean
-  enableBrowser?: boolean
   forcedSearch?: boolean
   searchStrategy?: 'turbo' | 'max'
   // New parameters for GPT-5 series
@@ -189,6 +188,7 @@ export interface BrowserContextSnapshot {
 export interface IYoBrowserPresenter {
   initialize(): Promise<void>
   ensureWindow(): Promise<number | null>
+  hasWindow(): Promise<boolean>
   show(): Promise<void>
   hide(): Promise<void>
   toggleVisibility(): Promise<boolean>
@@ -910,7 +910,6 @@ export interface ILlmProviderPresenter {
     reasoningEffort?: 'minimal' | 'low' | 'medium' | 'high',
     verbosity?: 'low' | 'medium' | 'high',
     enableSearch?: boolean,
-    enableBrowser?: boolean,
     forcedSearch?: boolean,
     searchStrategy?: 'turbo' | 'max',
     conversationId?: string
@@ -1004,7 +1003,6 @@ export type CONVERSATION_SETTINGS = {
   enabledMcpTools?: string[]
   thinkingBudget?: number
   enableSearch?: boolean
-  enableBrowser?: boolean
   forcedSearch?: boolean
   searchStrategy?: 'turbo' | 'max'
   reasoningEffort?: 'minimal' | 'low' | 'medium' | 'high'

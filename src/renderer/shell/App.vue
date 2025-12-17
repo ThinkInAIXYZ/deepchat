@@ -4,6 +4,8 @@
     <BrowserToolbar v-if="shouldShowToolbar" ref="toolbarRef" />
     <main class="content-container">
       <!-- WebContentsView will be rendered here by the main process -->
+      <!-- Show placeholder when browser tab is about:blank -->
+      <BrowserPlaceholder v-if="shouldShowPlaceholder" />
     </main>
   </div>
 </template>
@@ -13,6 +15,7 @@ import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import AppBar from './components/AppBar.vue'
 import BrowserToolbar from './components/BrowserToolbar.vue'
+import BrowserPlaceholder from './components/BrowserPlaceholder.vue'
 import { useDeviceVersion } from '@/composables/useDeviceVersion'
 import { useMcpStore } from '@/stores/mcp'
 import { useTabStore } from '@shell/stores/tab'
@@ -35,7 +38,14 @@ const isWebTabActive = computed(() => {
   if (!tab) return false
   return Boolean(!tab.url?.startsWith('local://') && tab.browserTabId)
 })
+const isAboutBlank = computed(() => {
+  const tab = activeTab.value
+  return tab?.url === 'about:blank'
+})
 const shouldShowToolbar = computed(() => windowType.value === 'browser' && isWebTabActive.value)
+const shouldShowPlaceholder = computed(
+  () => windowType.value === 'browser' && isWebTabActive.value && isAboutBlank.value
+)
 
 const appBarSize = useElementSize(computed(() => appBarRef.value?.$el ?? null))
 const toolbarSize = useElementSize(computed(() => toolbarRef.value?.$el ?? null))

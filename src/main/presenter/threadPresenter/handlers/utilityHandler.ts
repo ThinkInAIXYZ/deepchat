@@ -354,8 +354,7 @@ export class UtilityHandler extends BaseHandler {
         vision: visionEnabled,
         imageFiles: [],
         supportsFunctionCall,
-        modelType: ModelType.Chat,
-        enableBrowser: conversation.settings.enableBrowser
+        modelType: ModelType.Chat
       })
 
       // Get MCP tools

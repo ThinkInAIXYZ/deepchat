@@ -53,9 +53,18 @@ export class YoBrowserPresenter implements IYoBrowserPresenter, YoBrowserRuntime
     if (created) {
       created.on('closed', () => this.handleWindowClosed())
       this.emitVisibility(created.isVisible())
+
+      // Auto-create a blank tab when the window is first created
+      if (this.tabIdToBrowserTab.size === 0) {
+        await this.createTab('about:blank')
+      }
     }
 
     return this.windowId
+  }
+
+  async hasWindow(): Promise<boolean> {
+    return this.windowId !== null && this.getWindow() !== null
   }
 
   async show(): Promise<void> {
@@ -177,7 +186,7 @@ export class YoBrowserPresenter implements IYoBrowserPresenter, YoBrowserRuntime
       if (!created) {
         throw new Error('Failed to create tab for navigation')
       }
-      tab = this.tabIdToBrowserTab.get(created.id) || null
+      tab = this.tabIdToBrowserTab.get(created.id) ?? undefined
       this.activeTabId = created.id
     }
     if (!tab) {

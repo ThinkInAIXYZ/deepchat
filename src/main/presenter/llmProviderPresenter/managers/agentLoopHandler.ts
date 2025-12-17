@@ -32,8 +32,9 @@ export class AgentLoopHandler {
         const mcpDefs = await presenter.mcpPresenter.getAllToolDefinitions(context.enabledMcpTools)
         defs.push(...mcpDefs)
 
-        const yoEnabled = Boolean(context.modelConfig?.enableBrowser)
-        if (yoEnabled) {
+        // Check if browser window is open - independent of MCP
+        const hasBrowserWindow = await presenter.yoBrowserPresenter.hasWindow()
+        if (hasBrowserWindow) {
           try {
             const yoDefs = await presenter.yoBrowserPresenter.getToolDefinitions(
               this.currentSupportsVision
@@ -82,7 +83,6 @@ export class AgentLoopHandler {
     reasoningEffort?: 'minimal' | 'low' | 'medium' | 'high',
     verbosity?: 'low' | 'medium' | 'high',
     enableSearch?: boolean,
-    enableBrowser?: boolean,
     forcedSearch?: boolean,
     searchStrategy?: 'turbo' | 'max',
     conversationId?: string
@@ -114,9 +114,6 @@ export class AgentLoopHandler {
     }
     if (enableSearch !== undefined) {
       modelConfig.enableSearch = enableSearch
-    }
-    if (enableBrowser !== undefined) {
-      modelConfig.enableBrowser = enableBrowser
     }
     if (forcedSearch !== undefined) {
       modelConfig.forcedSearch = forcedSearch
@@ -186,9 +183,10 @@ export class AgentLoopHandler {
 
         try {
           console.log(`[Agent Loop] Iteration ${toolCallCount + 1} for event: ${eventId}`)
-          const yoEnabled = Boolean(modelConfig.enableBrowser)
+          // Check if browser window is open - independent of MCP
+          const hasBrowserWindow = await presenter.yoBrowserPresenter.hasWindow()
           let toolDefs = await presenter.mcpPresenter.getAllToolDefinitions(enabledMcpTools)
-          if (yoEnabled) {
+          if (hasBrowserWindow) {
             try {
               const yoDefs = await presenter.yoBrowserPresenter.getToolDefinitions(
                 this.currentSupportsVision

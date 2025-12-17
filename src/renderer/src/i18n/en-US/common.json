@@ -89,6 +89,8 @@
     "back": "Back",
     "forward": "Forward",
     "reload": "Reload",
-    "addressPlaceholder": "Enter a URL"
+    "addressPlaceholder": "Enter a URL",
+    "enterUrlToStart": "Enter a URL to start browsing",
+    "enterUrlDescription": "Type a URL in the address bar above to visit a website"
   }
 }

@@ -87,6 +87,16 @@
         v-if="windowType !== 'browser'"
         size="icon"
         class="window-no-drag-region shrink-0 w-10 bg-transparent shadow-none rounded-none hover:bg-card/80 text-xs font-medium text-foreground flex items-center justify-center transition-all duration-200 group border-l"
+        @click="onBrowserClick"
+        @mouseenter="onOverlayMouseEnter('browser', t('common.browser'), $event)"
+        @mouseleave="onOverlayMouseLeave('browser')"
+      >
+        <Icon icon="lucide:globe" class="w-4 h-4" />
+      </Button>
+      <Button
+        v-if="windowType !== 'browser'"
+        size="icon"
+        class="window-no-drag-region shrink-0 w-10 bg-transparent shadow-none rounded-none hover:bg-card/80 text-xs font-medium text-foreground flex items-center justify-center transition-all duration-200 group border-l"
         @click="onHistoryClick"
         @mouseenter="onOverlayMouseEnter('history', t('common.history'), $event)"
         @mouseleave="onOverlayMouseLeave('history')"
@@ -173,6 +183,7 @@ const langStore = useLanguageStore()
 const windowPresenter = usePresenter('windowPresenter')
 const devicePresenter = usePresenter('devicePresenter')
 const tabPresenter = usePresenter('tabPresenter')
+const yoBrowserPresenter = usePresenter('yoBrowserPresenter')
 const endOfTabs = ref<HTMLElement | null>(null)
 
 const { t } = useI18n()
@@ -662,6 +673,14 @@ const openSettings = () => {
   const windowId = window.api.getWindowId()
   if (windowId != null) {
     windowPresenter.openOrFocusSettingsTab(windowId)
+  }
+}
+
+const onBrowserClick = async () => {
+  try {
+    await yoBrowserPresenter.show()
+  } catch (error) {
+    console.warn('Failed to open browser window.', error)
   }
 }
 </script>

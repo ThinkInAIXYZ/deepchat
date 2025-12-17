@@ -16,7 +16,7 @@ export function useInputSettings() {
   // === Local State ===
   const settings = ref({
     deepThinking: false,
-    webSearch: Boolean(chatStore.chatConfig.enableBrowser)
+    webSearch: Boolean(chatStore.chatConfig.enableSearch)
   })
 
   // === Public Methods ===
@@ -25,7 +25,7 @@ export function useInputSettings() {
     settings.value.webSearch = value
 
     try {
-      await chatStore.updateChatConfig({ enableBrowser: value })
+      await chatStore.updateChatConfig({ enableSearch: value })
     } catch (error) {
       // Revert to previous value on error
       settings.value.webSearch = previousValue
@@ -55,17 +55,17 @@ export function useInputSettings() {
   const loadSettings = async () => {
     try {
       settings.value.deepThinking = Boolean(await configPresenter.getSetting('input_deepThinking'))
-      settings.value.webSearch = Boolean(chatStore.chatConfig.enableBrowser)
+      settings.value.webSearch = Boolean(chatStore.chatConfig.enableSearch)
     } catch (error) {
       // Fall back to safe defaults on error
       settings.value.deepThinking = false
-      settings.value.webSearch = Boolean(chatStore.chatConfig.enableBrowser)
+      settings.value.webSearch = Boolean(chatStore.chatConfig.enableSearch)
       console.error('Failed to load input settings, using defaults:', error)
     }
   }
 
   watch(
-    () => chatStore.chatConfig.enableBrowser,
+    () => chatStore.chatConfig.enableSearch,
     (value) => {
       settings.value.webSearch = Boolean(value)
     },
