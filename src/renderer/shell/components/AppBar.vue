@@ -72,7 +72,6 @@
       </div>
 
       <Button
-        v-if="windowType !== 'browser'"
         size="icon"
         class="window-no-drag-region shrink-0 w-10 bg-transparent shadow-none rounded-none hover:bg-card/80 text-xs font-medium text-foreground flex items-center justify-center transition-all duration-200 group"
         @click="onNewTabClick"
@@ -88,7 +87,7 @@
         size="icon"
         class="window-no-drag-region shrink-0 w-10 bg-transparent shadow-none rounded-none hover:bg-card/80 text-xs font-medium text-foreground flex items-center justify-center transition-all duration-200 group border-l"
         @click="onBrowserClick"
-        @mouseenter="onOverlayMouseEnter('browser', t('common.browser'), $event)"
+        @mouseenter="onOverlayMouseEnter('browser', t('common.browser.name'), $event)"
         @mouseleave="onOverlayMouseLeave('browser')"
       >
         <Icon icon="lucide:globe" class="w-4 h-4" />
@@ -601,7 +600,26 @@ onBeforeUnmount(() => {
 
 const isPlaygroundEnabled = import.meta.env.VITE_ENABLE_PLAYGROUND === 'true'
 
-const openNewTab = (event?: MouseEvent, forcePlayground = false) => {
+const openNewTab = async (event?: MouseEvent, forcePlayground = false) => {
+  // In browser mode, create browser tab
+  if (windowType.value === 'browser') {
+    try {
+      await yoBrowserPresenter.createTab('about:blank')
+      setTimeout(() => {
+        nextTick(() => {
+          if (endOfTabs.value) {
+            console.log('newTabButton', endOfTabs.value)
+            endOfTabs.value.scrollIntoView({ behavior: 'smooth', block: 'center' })
+          }
+        })
+      }, 300)
+    } catch (error) {
+      console.error('Failed to create browser tab:', error)
+    }
+    return
+  }
+
+  // In chat mode, create chat tab or playground
   const shouldOpenPlayground = isPlaygroundEnabled && (forcePlayground || event?.shiftKey)
 
   const config = shouldOpenPlayground

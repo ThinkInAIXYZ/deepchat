@@ -89,6 +89,9 @@
     "back": "Back",
     "forward": "Forward",
     "reload": "Reload",
-    "addressPlaceholder": "Enter a URL"
+    "addressPlaceholder": "Enter a URL",
+    "enterUrlDescription": "הזן את כתובת האתר בשורת הכתובת למעלה כדי לגשת לאתר",
+    "enterUrlToStart": "הזן את כתובת האתר כדי להתחיל לבקר",
+    "name": "יו דפדפן"
   }
 }

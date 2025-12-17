@@ -48,7 +48,7 @@ export class AgentLoopHandler {
         return defs
       },
       callTool: async (request: MCPToolCall) => {
-        if (request.function.name.startsWith('yo_browser_')) {
+        if (request.function.name.startsWith('browser_')) {
           const response = await presenter.yoBrowserPresenter.callTool(
             request.function.name,
             JSON.parse(request.function.arguments || '{}') as Record<string, unknown>

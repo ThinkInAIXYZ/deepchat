@@ -13,10 +13,10 @@ import { BrowserTab } from './BrowserTab'
 import { CDPManager } from './CDPManager'
 import { ScreenshotManager } from './ScreenshotManager'
 import { DownloadManager } from './DownloadManager'
-import { YoBrowserTooling } from './YoBrowserTooling'
-import { YoBrowserToolHandler, YoBrowserRuntime } from './YoBrowserToolHandler'
+import { BrowserToolManager } from './BrowserToolManager'
+import { zodToJsonSchema } from 'zod-to-json-schema'
 
-export class YoBrowserPresenter implements IYoBrowserPresenter, YoBrowserRuntime {
+export class YoBrowserPresenter implements IYoBrowserPresenter {
   private windowId: number | null = null
   private readonly tabIds: Map<string, number> = new Map()
   private readonly viewIdToTabId: Map<number, string> = new Map()
@@ -26,14 +26,14 @@ export class YoBrowserPresenter implements IYoBrowserPresenter, YoBrowserRuntime
   private readonly cdpManager = new CDPManager()
   private readonly screenshotManager = new ScreenshotManager(this.cdpManager)
   private readonly downloadManager = new DownloadManager()
-  private readonly toolHandler: YoBrowserToolHandler
+  private readonly browserToolManager: BrowserToolManager
   private readonly windowPresenter: IWindowPresenter
   private readonly tabPresenter: ITabPresenter
 
   constructor(windowPresenter: IWindowPresenter, tabPresenter: ITabPresenter) {
     this.windowPresenter = windowPresenter
     this.tabPresenter = tabPresenter
-    this.toolHandler = new YoBrowserToolHandler(this)
+    this.browserToolManager = new BrowserToolManager(this)
     eventBus.on(TAB_EVENTS.CLOSED, (tabId: number) => this.handleTabClosed(tabId))
   }
 
@@ -117,6 +117,10 @@ export class YoBrowserPresenter implements IYoBrowserPresenter, YoBrowserRuntime
     const tab = this.tabIdToBrowserTab.get(tabId)
     if (!tab || tab.contents.isDestroyed()) return null
     return this.toTabInfo(tab)
+  }
+
+  async getBrowserTab(tabId?: string): Promise<BrowserTab | null> {
+    return await this.resolveTab(tabId)
   }
 
   async goBack(tabId?: string): Promise<void> {
@@ -259,12 +263,47 @@ export class YoBrowserPresenter implements IYoBrowserPresenter, YoBrowserRuntime
     return this.viewIdToTabId.get(viewId) ?? null
   }
 
-  async getToolDefinitions(supportsVision: boolean): Promise<MCPToolDefinition[]> {
-    return YoBrowserTooling.getToolDefinitions(supportsVision)
+  async getToolDefinitions(_supportsVision: boolean): Promise<MCPToolDefinition[]> {
+    // Only return browser_* tools from BrowserToolManager
+    const browserTools = this.browserToolManager.getToolDefinitions()
+    const browserMcpTools: MCPToolDefinition[] = browserTools.map((tool) => {
+      const jsonSchema = zodToJsonSchema(tool.schema) as {
+        type?: string
+        properties?: Record<string, unknown>
+        required?: string[]
+        [key: string]: unknown
+      }
+      return {
+        type: 'function' as const,
+        function: {
+          name: tool.name,
+          description: tool.description,
+          parameters: {
+            type: 'object' as const,
+            properties: (jsonSchema.properties || {}) as Record<string, unknown>,
+            required: (jsonSchema.required || []) as string[]
+          }
+        },
+        server: {
+          name: 'yo-browser',
+          icons: '🌐',
+          description: 'DeepChat built-in Yo Browser'
+        }
+      }
+    })
+    return browserMcpTools
   }
 
   async callTool(toolName: string, params: Record<string, unknown>): Promise<string> {
-    return await this.toolHandler.executeTool(toolName, params)
+    const result = await this.browserToolManager.executeTool(toolName, params)
+    if (result.isError) {
+      const textContent = result.content.find((c) => c.type === 'text')
+      throw new Error(
+        textContent && 'text' in textContent ? textContent.text : 'Tool execution failed'
+      )
+    }
+    const textContent = result.content.find((c) => c.type === 'text')
+    return textContent && 'text' in textContent ? textContent.text : ''
   }
 
   async captureScreenshot(tabId: string, options?: ScreenshotOptions): Promise<string> {

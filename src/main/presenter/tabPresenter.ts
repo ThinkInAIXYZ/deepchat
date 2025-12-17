@@ -78,10 +78,6 @@ export class TabPresenter implements ITabPresenter {
     }
   }
 
-  private getChromeHeight(windowId: number): number {
-    return this.chromeHeights.get(windowId) ?? TabPresenter.DEFAULT_CHROME_HEIGHT
-  }
-
   private onWindowSizeChange(windowId: number) {
     const views = this.windowTabs.get(windowId)
     const window = BrowserWindow.fromId(windowId)
@@ -618,7 +614,15 @@ export class TabPresenter implements ITabPresenter {
   ): void {
     // 处理外部链接
     webContents.setWindowOpenHandler(({ url }) => {
-      // 使用系统默认浏览器打开链接
+      const state = this.tabState.get(tabId)
+      // 如果是 browser tab，在当前 tab 导航
+      if (state?.browserTabId) {
+        presenter.yoBrowserPresenter.navigateTab(state.browserTabId, url).catch((error: Error) => {
+          console.error(`[TabPresenter] Failed to navigate browser tab:`, error)
+        })
+        return { action: 'deny' }
+      }
+      // Chat tab: 使用系统默认浏览器打开链接
       shell.openExternal(url)
       return { action: 'deny' }
     })
@@ -745,7 +749,11 @@ export class TabPresenter implements ITabPresenter {
     // 获取窗口尺寸
     const { width, height } = window.getContentBounds()
 
-    const topOffset = this.getChromeHeight(window.id)
+    // 根据窗口类型使用固定高度值
+    // Chat 模式：AppBar = 36px (h-9)
+    // Browser 模式：AppBar + BrowserToolbar = 36px + 48px = 84px (h-9 + h-12)
+    const windowType = this.getWindowType(window.id)
+    const topOffset = windowType === 'browser' ? 84 : 36
     const viewHeight = Math.max(0, height - topOffset)
 
     // 设置视图位置大小（留出顶部标签栏空间）

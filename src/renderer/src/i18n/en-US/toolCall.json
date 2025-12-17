@@ -15,5 +15,27 @@
   "fileWrite": "Write File",
   "filePath": "File Path",
   "success": "Success",
-  "failed": "Failed"
+  "failed": "Failed",
+  "browserTools": {
+    "browser_navigate": "Navigate the browser to the specified URL.",
+    "browser_go_back": "Go back to the previous page in the current tab.",
+    "browser_go_forward": "Go forward to the next page in the current tab.",
+    "browser_new_tab": "Open a new browser tab (window) for the session.",
+    "browser_tab_list": "List all tabs (windows) for the current session.",
+    "browser_switch_tab": "Activate a specific tab (window) by its id.",
+    "browser_close_tab": "Close a tab (window). Defaults to the active tab.",
+    "browser_get_text": "Extract visible text from the page or a specific element.",
+    "browser_get_markdown": "Extract the page content as Markdown.",
+    "browser_read_links": "List hyperlinks on the current page.",
+    "browser_get_clickable_elements": "List clickable elements with simple selectors.",
+    "browser_click": "Click an element on the page using a CSS selector.",
+    "browser_hover": "Hover over an element on the page.",
+    "browser_form_input_fill": "Fill text into an input or textarea element.",
+    "browser_select": "Select value(s) within a select element.",
+    "browser_scroll": "Scroll the page by specified offsets.",
+    "browser_press_key": "Send keyboard input to the active page.",
+    "browser_screenshot": "Capture a screenshot of the current page or a specific element.",
+    "browser_get_download_list": "Get download items for the current browser session.",
+    "browser_download_file": "Download a file using the browser session, preserving cookies of the active tab."
+  }
 }

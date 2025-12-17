@@ -91,6 +91,7 @@
     "reload": "Reload",
     "addressPlaceholder": "Enter a URL",
     "enterUrlToStart": "Enter a URL to start browsing",
-    "enterUrlDescription": "Type a URL in the address bar above to visit a website"
+    "enterUrlDescription": "Type a URL in the address bar above to visit a website",
+    "name": "Yo Browser"
   }
 }

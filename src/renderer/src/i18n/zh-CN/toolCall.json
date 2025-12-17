@@ -15,5 +15,27 @@
   "fileWrite": "写入文件",
   "filePath": "文件路径",
   "success": "成功",
-  "failed": "失败"
+  "failed": "失败",
+  "browserTools": {
+    "browser_navigate": "导航浏览器到指定 URL。",
+    "browser_go_back": "在当前标签页中返回上一页。",
+    "browser_go_forward": "在当前标签页中前进到下一页。",
+    "browser_new_tab": "为会话打开一个新的浏览器标签页（窗口）。",
+    "browser_tab_list": "列出当前会话的所有标签页（窗口）。",
+    "browser_switch_tab": "通过 ID 激活指定的标签页（窗口）。",
+    "browser_close_tab": "关闭标签页（窗口）。默认为活动标签页。",
+    "browser_get_text": "从页面或特定元素中提取可见文本。",
+    "browser_get_markdown": "将页面内容提取为 Markdown 格式。",
+    "browser_read_links": "列出当前页面上的超链接。",
+    "browser_get_clickable_elements": "列出带有简单选择器的可点击元素。",
+    "browser_click": "使用 CSS 选择器点击页面上的元素。",
+    "browser_hover": "悬停在页面上的元素上。",
+    "browser_form_input_fill": "在输入框或文本区域元素中填充文本。",
+    "browser_select": "在 select 元素中选择值。",
+    "browser_scroll": "按指定的偏移量滚动页面。",
+    "browser_press_key": "向活动页面发送键盘输入。",
+    "browser_screenshot": "捕获当前页面或特定元素的截图。",
+    "browser_get_download_list": "获取当前浏览器会话的下载项。",
+    "browser_download_file": "使用浏览器会话下载文件，保留活动标签页的 cookies。"
+  }
 }

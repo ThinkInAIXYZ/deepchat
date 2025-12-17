@@ -89,6 +89,9 @@
     "back": "뒤로",
     "forward": "앞으로",
     "reload": "새로고침",
-    "addressPlaceholder": "URL을 입력하세요"
+    "addressPlaceholder": "URL을 입력하세요",
+    "enterUrlDescription": "위 주소창에 URL을 입력하시면 해당 홈페이지에 접속하실 수 있습니다.",
+    "enterUrlToStart": "방문을 시작하려면 URL을 입력하세요.",
+    "name": "요 브라우저"
   }
 }

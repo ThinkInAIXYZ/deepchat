@@ -89,6 +89,9 @@
     "back": "Назад",
     "forward": "Вперед",
     "reload": "Перезагрузить",
-    "addressPlaceholder": "Введите URL"
+    "addressPlaceholder": "Введите URL",
+    "enterUrlDescription": "Введите URL-адрес в адресную строку выше, чтобы получить доступ к веб-сайту.",
+    "enterUrlToStart": "Введите URL, чтобы начать посещение",
+    "name": "Эй, браузер"
   }
 }

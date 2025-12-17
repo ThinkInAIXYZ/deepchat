@@ -14,7 +14,7 @@
         v-model="urlInput"
         type="text"
         class="flex-1 text-sm"
-        :placeholder="t('browser.addressPlaceholder')"
+        :placeholder="t('common.browser.addressPlaceholder')"
         autocapitalize="off"
         autocomplete="off"
         spellcheck="false"

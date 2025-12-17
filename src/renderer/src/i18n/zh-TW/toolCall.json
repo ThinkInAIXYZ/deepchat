@@ -15,5 +15,27 @@
   "responseData": "函數響應",
   "success": "成功",
   "title": "工具調用",
-  "terminalOutput": "終端輸出"
+  "terminalOutput": "終端輸出",
+  "browserTools": {
+    "browser_click": "使用 CSS 選擇器點擊頁面上的元素。",
+    "browser_close_tab": "關閉標籤頁（窗口）。\n默認為活動標籤頁。",
+    "browser_download_file": "使用瀏覽器會話下載文件，保留活動標籤頁的 cookies。",
+    "browser_form_input_fill": "在輸入框或文本區域元素中填充文本。",
+    "browser_get_clickable_elements": "列出帶有簡單選擇器的可點擊元素。",
+    "browser_get_download_list": "獲取當前瀏覽器會話的下載項。",
+    "browser_get_markdown": "將頁面內容提取為 Markdown 格式。",
+    "browser_get_text": "從頁面或特定元素中提取可見文本。",
+    "browser_go_back": "在當前標籤頁中返回上一頁。",
+    "browser_go_forward": "在當前標籤頁中前進到下一頁。",
+    "browser_hover": "懸停在頁面上的元素上。",
+    "browser_navigate": "導航瀏覽器到指定 URL。",
+    "browser_new_tab": "為會話打開一個新的瀏覽器標籤頁（窗口）。",
+    "browser_press_key": "向活動頁面發送鍵盤輸入。",
+    "browser_read_links": "列出當前頁面上的超鏈接。",
+    "browser_screenshot": "捕獲當前頁面或特定元素的截圖。",
+    "browser_scroll": "按指定的偏移量滾動頁面。",
+    "browser_select": "在 select 元素中選擇值。",
+    "browser_switch_tab": "通過 ID 激活指定的標籤頁（窗口）。",
+    "browser_tab_list": "列出當前會話的所有標籤頁（窗口）。"
+  }
 }

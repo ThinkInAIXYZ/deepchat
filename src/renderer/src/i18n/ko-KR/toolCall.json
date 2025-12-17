@@ -15,5 +15,27 @@
   "responseData": "기능 응답",
   "success": "성공",
   "title": "도구 호출",
-  "terminalOutput": "터미널 출력"
+  "terminalOutput": "터미널 출력",
+  "browserTools": {
+    "browser_click": "CSS 선택기를 사용하여 페이지의 요소를 클릭하세요.",
+    "browser_close_tab": "탭(창)을 닫습니다. 기본값은 활성 탭입니다.",
+    "browser_download_file": "브라우저 세션을 사용하여 파일을 다운로드하고 활성 탭에 대한 쿠키를 유지합니다.",
+    "browser_form_input_fill": "입력 상자나 텍스트 영역 요소를 텍스트로 채웁니다.",
+    "browser_get_clickable_elements": "간단한 선택기로 클릭 가능한 요소를 나열합니다.",
+    "browser_get_download_list": "현재 브라우저 세션에 대한 다운로드를 가져옵니다.",
+    "browser_get_markdown": "페이지 콘텐츠를 Markdown 형식으로 추출합니다.",
+    "browser_get_text": "페이지나 특정 요소에서 보이는 텍스트를 추출합니다.",
+    "browser_go_back": "현재 탭의 이전 페이지로 돌아갑니다.",
+    "browser_go_forward": "현재 탭의 다음 페이지로 이동합니다.",
+    "browser_hover": "페이지의 요소 위로 마우스를 가져갑니다.",
+    "browser_navigate": "브라우저를 지정된 URL로 이동합니다.",
+    "browser_new_tab": "세션에 대한 새 브라우저 탭(창)을 엽니다.",
+    "browser_press_key": "활성 페이지에 키보드 입력을 보냅니다.",
+    "browser_read_links": "현재 페이지의 하이퍼링크를 나열합니다.",
+    "browser_screenshot": "현재 페이지 또는 특정 요소의 스크린샷을 캡처합니다.",
+    "browser_scroll": "지정된 오프셋만큼 페이지를 스크롤합니다.",
+    "browser_select": "선택 요소에서 값을 선택합니다.",
+    "browser_switch_tab": "ID별로 지정된 탭(창)을 활성화합니다.",
+    "browser_tab_list": "현재 세션의 모든 탭(창)을 나열합니다."
+  }
 }

@@ -1,17 +1,32 @@
 import type { RequestHandlerExtra } from '@modelcontextprotocol/sdk/shared/protocol.js'
 import type { CallToolResult, Notification, Request } from '@modelcontextprotocol/sdk/types.js'
 import type { ZodTypeAny } from 'zod'
-import type { BrowserSessionManager } from '../browserContext/BrowserSessionManager'
+import type { BrowserTab } from '../BrowserTab'
 
 export type ToolResult = CallToolResult
 
 export interface BrowserToolContext {
-  sessionManager: BrowserSessionManager
-  showWindow: boolean
-  getConversationId: (
-    args: { conversationId?: string } | undefined,
+  getTab: (tabId?: string) => Promise<BrowserTab | null>
+  getActiveTab: () => Promise<BrowserTab | null>
+  resolveTabId: (
+    args: { tabId?: string } | undefined,
     extra?: RequestHandlerExtra<Request, Notification>
-  ) => string
+  ) => Promise<string>
+  // Tab management methods
+  createTab?: (url?: string) => Promise<{ id: string; url: string; title: string } | null>
+  listTabs?: () => Promise<Array<{ id: string; url: string; title: string; isActive: boolean }>>
+  activateTab?: (tabId: string) => Promise<void>
+  closeTab?: (tabId: string) => Promise<void>
+  // Download methods
+  downloadFile?: (
+    url: string,
+    savePath?: string
+  ) => Promise<{
+    id: string
+    url: string
+    filePath?: string
+    status: string
+  }>
 }
 
 export interface BrowserToolDefinition {

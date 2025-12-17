@@ -1,8 +1,8 @@
 <template>
-  <div class="w-screen h-screen" :class="isWinMacOS ? '' : 'bg-background'">
+  <div class="w-screen h-screen flex flex-col" :class="isWinMacOS ? '' : 'bg-background'">
     <AppBar ref="appBarRef" :window-type="windowType" />
     <BrowserToolbar v-if="shouldShowToolbar" ref="toolbarRef" />
-    <main class="content-container">
+    <main class="content-container flex-1 relative overflow-hidden">
       <!-- WebContentsView will be rendered here by the main process -->
       <!-- Show placeholder when browser tab is about:blank -->
       <BrowserPlaceholder v-if="shouldShowPlaceholder" />

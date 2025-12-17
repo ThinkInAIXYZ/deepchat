@@ -2,7 +2,7 @@ import { z } from 'zod'
 import type { BrowserToolDefinition } from './types'
 
 const ScreenshotArgsSchema = z.object({
-  conversationId: z.string().optional().describe('Conversation/session identifier'),
+  tabId: z.string().optional().describe('Tab identifier (defaults to active tab)'),
   selector: z.string().optional().describe('Capture only the element matching this selector'),
   fullPage: z.boolean().optional().default(false).describe('Capture the full page'),
   highlightSelectors: z
@@ -19,10 +19,16 @@ export function createScreenshotTools(): BrowserToolDefinition[] {
       schema: ScreenshotArgsSchema,
       handler: async (args, context) => {
         const parsed = ScreenshotArgsSchema.parse(args)
-        const conversationId = context.getConversationId(parsed)
-        const page = await context.sessionManager.getOrCreatePage(conversationId)
+        const tabId = await context.resolveTabId(parsed)
+        const tab = await context.getTab(tabId)
+        if (!tab) {
+          return {
+            content: [{ type: 'text', text: `Tab ${tabId} not found` }],
+            isError: true
+          }
+        }
 
-        const base64 = await page.screenshot({
+        const base64 = await tab.takeScreenshot({
           selector: parsed.selector,
           fullPage: parsed.fullPage,
           highlightSelectors: parsed.highlightSelectors

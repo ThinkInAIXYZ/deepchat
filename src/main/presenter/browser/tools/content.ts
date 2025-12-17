@@ -3,7 +3,7 @@ import TurndownService from 'turndown'
 import type { BrowserToolDefinition } from './types'
 
 const BaseArgsSchema = z.object({
-  conversationId: z.string().optional().describe('Conversation/session identifier')
+  tabId: z.string().optional().describe('Tab identifier (defaults to active tab)')
 })
 
 const SelectorArgsSchema = BaseArgsSchema.extend({
@@ -37,10 +37,16 @@ export function createContentTools(): BrowserToolDefinition[] {
       schema: SelectorArgsSchema,
       handler: async (args, context) => {
         const parsed = SelectorArgsSchema.parse(args)
-        const conversationId = context.getConversationId(parsed)
-        const page = await context.sessionManager.getOrCreatePage(conversationId)
+        const tabId = await context.resolveTabId(parsed)
+        const tab = await context.getTab(tabId)
+        if (!tab) {
+          return {
+            content: [{ type: 'text', text: `Tab ${tabId} not found` }],
+            isError: true
+          }
+        }
 
-        const text = await page.getInnerText(parsed.selector)
+        const text = await tab.getInnerText(parsed.selector)
         return {
           content: [
             {
@@ -60,11 +66,17 @@ export function createContentTools(): BrowserToolDefinition[] {
       schema: SelectorArgsSchema,
       handler: async (args, context) => {
         const parsed = SelectorArgsSchema.parse(args)
-        const conversationId = context.getConversationId(parsed)
-        const page = await context.sessionManager.getOrCreatePage(conversationId)
+        const tabId = await context.resolveTabId(parsed)
+        const tab = await context.getTab(tabId)
+        if (!tab) {
+          return {
+            content: [{ type: 'text', text: `Tab ${tabId} not found` }],
+            isError: true
+          }
+        }
 
-        await page.waitForNetworkIdle()
-        const html = await page.getHtml(parsed.selector)
+        await tab.waitForNetworkIdle()
+        const html = await tab.getHtml(parsed.selector)
         const markdown = html ? turndown.turndown(html) : ''
         return {
           content: [
@@ -85,10 +97,16 @@ export function createContentTools(): BrowserToolDefinition[] {
       schema: LinksArgsSchema,
       handler: async (args, context) => {
         const parsed = LinksArgsSchema.parse(args)
-        const conversationId = context.getConversationId(parsed)
-        const page = await context.sessionManager.getOrCreatePage(conversationId)
+        const tabId = await context.resolveTabId(parsed)
+        const tab = await context.getTab(tabId)
+        if (!tab) {
+          return {
+            content: [{ type: 'text', text: `Tab ${tabId} not found` }],
+            isError: true
+          }
+        }
 
-        const links = await page.getLinks(parsed.limit)
+        const links = await tab.getLinks(parsed.limit)
         const formatted =
           links.length === 0
             ? 'No links found.'
@@ -115,10 +133,16 @@ export function createContentTools(): BrowserToolDefinition[] {
       schema: ClickableArgsSchema,
       handler: async (args, context) => {
         const parsed = ClickableArgsSchema.parse(args)
-        const conversationId = context.getConversationId(parsed)
-        const page = await context.sessionManager.getOrCreatePage(conversationId)
+        const tabId = await context.resolveTabId(parsed)
+        const tab = await context.getTab(tabId)
+        if (!tab) {
+          return {
+            content: [{ type: 'text', text: `Tab ${tabId} not found` }],
+            isError: true
+          }
+        }
 
-        const elements = await page.getClickableElements(parsed.limit)
+        const elements = await tab.getClickableElements(parsed.limit)
         const formatted =
           elements.length === 0
             ? 'No clickable elements found.'

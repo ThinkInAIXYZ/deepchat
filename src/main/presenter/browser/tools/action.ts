@@ -2,7 +2,7 @@ import { z } from 'zod'
 import type { BrowserToolDefinition } from './types'
 
 const BaseArgsSchema = z.object({
-  conversationId: z.string().optional().describe('Conversation/session identifier')
+  tabId: z.string().optional().describe('Tab identifier (defaults to active tab)')
 })
 
 const SelectorSchema = BaseArgsSchema.extend({
@@ -44,10 +44,16 @@ export function createActionTools(): BrowserToolDefinition[] {
       schema: ClickArgsSchema,
       handler: async (args, context) => {
         const parsed = ClickArgsSchema.parse(args)
-        const conversationId = context.getConversationId(parsed)
-        const page = await context.sessionManager.getOrCreatePage(conversationId)
-        await page.waitForSelector(parsed.selector, { timeout: 5000 })
-        await page.click(parsed.selector)
+        const tabId = await context.resolveTabId(parsed)
+        const tab = await context.getTab(tabId)
+        if (!tab) {
+          return {
+            content: [{ type: 'text', text: `Tab ${tabId} not found` }],
+            isError: true
+          }
+        }
+        await tab.waitForSelector(parsed.selector, { timeout: 5000 })
+        await tab.click(parsed.selector)
         return {
           content: [
             {
@@ -64,10 +70,16 @@ export function createActionTools(): BrowserToolDefinition[] {
       schema: HoverArgsSchema,
       handler: async (args, context) => {
         const parsed = HoverArgsSchema.parse(args)
-        const conversationId = context.getConversationId(parsed)
-        const page = await context.sessionManager.getOrCreatePage(conversationId)
-        await page.waitForSelector(parsed.selector, { timeout: 5000 })
-        await page.hover(parsed.selector)
+        const tabId = await context.resolveTabId(parsed)
+        const tab = await context.getTab(tabId)
+        if (!tab) {
+          return {
+            content: [{ type: 'text', text: `Tab ${tabId} not found` }],
+            isError: true
+          }
+        }
+        await tab.waitForSelector(parsed.selector, { timeout: 5000 })
+        await tab.hover(parsed.selector)
         return {
           content: [
             {
@@ -84,10 +96,16 @@ export function createActionTools(): BrowserToolDefinition[] {
       schema: FormInputArgsSchema,
       handler: async (args, context) => {
         const parsed = FormInputArgsSchema.parse(args)
-        const conversationId = context.getConversationId(parsed)
-        const page = await context.sessionManager.getOrCreatePage(conversationId)
-        await page.waitForSelector(parsed.selector, { timeout: 5000 })
-        await page.fill(parsed.selector, parsed.value, parsed.append)
+        const tabId = await context.resolveTabId(parsed)
+        const tab = await context.getTab(tabId)
+        if (!tab) {
+          return {
+            content: [{ type: 'text', text: `Tab ${tabId} not found` }],
+            isError: true
+          }
+        }
+        await tab.waitForSelector(parsed.selector, { timeout: 5000 })
+        await tab.fill(parsed.selector, parsed.value, parsed.append)
         return {
           content: [
             {
@@ -104,10 +122,16 @@ export function createActionTools(): BrowserToolDefinition[] {
       schema: SelectArgsSchema,
       handler: async (args, context) => {
         const parsed = SelectArgsSchema.parse(args)
-        const conversationId = context.getConversationId(parsed)
-        const page = await context.sessionManager.getOrCreatePage(conversationId)
-        await page.waitForSelector(parsed.selector, { timeout: 5000 })
-        await page.select(parsed.selector, parsed.value)
+        const tabId = await context.resolveTabId(parsed)
+        const tab = await context.getTab(tabId)
+        if (!tab) {
+          return {
+            content: [{ type: 'text', text: `Tab ${tabId} not found` }],
+            isError: true
+          }
+        }
+        await tab.waitForSelector(parsed.selector, { timeout: 5000 })
+        await tab.select(parsed.selector, parsed.value)
         return {
           content: [
             {
@@ -124,9 +148,15 @@ export function createActionTools(): BrowserToolDefinition[] {
       schema: ScrollArgsSchema,
       handler: async (args, context) => {
         const parsed = ScrollArgsSchema.parse(args)
-        const conversationId = context.getConversationId(parsed)
-        const page = await context.sessionManager.getOrCreatePage(conversationId)
-        await page.scroll({
+        const tabId = await context.resolveTabId(parsed)
+        const tab = await context.getTab(tabId)
+        if (!tab) {
+          return {
+            content: [{ type: 'text', text: `Tab ${tabId} not found` }],
+            isError: true
+          }
+        }
+        await tab.scroll({
           x: parsed.x,
           y: parsed.y,
           behavior: parsed.behavior
@@ -147,9 +177,15 @@ export function createActionTools(): BrowserToolDefinition[] {
       schema: PressKeyArgsSchema,
       handler: async (args, context) => {
         const parsed = PressKeyArgsSchema.parse(args)
-        const conversationId = context.getConversationId(parsed)
-        const page = await context.sessionManager.getOrCreatePage(conversationId)
-        await page.pressKey(parsed.key, parsed.count)
+        const tabId = await context.resolveTabId(parsed)
+        const tab = await context.getTab(tabId)
+        if (!tab) {
+          return {
+            content: [{ type: 'text', text: `Tab ${tabId} not found` }],
+            isError: true
+          }
+        }
+        await tab.pressKey(parsed.key, parsed.count)
         return {
           content: [
             {

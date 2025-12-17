@@ -891,7 +891,7 @@ export class GeminiProvider extends BaseLLMProvider {
         usageMetadata = chunk.usageMetadata
       }
 
-      console.log('chunk.candidates', JSON.stringify(chunk.candidates, null, 2))
+      // console.log('chunk.candidates', JSON.stringify(chunk.candidates, null, 2))
       // 检查是否包含函数调用
       if (chunk.candidates && chunk.candidates[0]?.content?.parts?.[0]?.functionCall) {
         const functionCall = chunk.candidates[0].content.parts[0].functionCall

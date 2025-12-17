@@ -89,6 +89,9 @@
     "back": "Précédent",
     "forward": "Suivant",
     "reload": "Actualiser",
-    "addressPlaceholder": "Saisir une URL"
+    "addressPlaceholder": "Saisir une URL",
+    "enterUrlDescription": "Entrez l'URL dans la barre d'adresse ci-dessus pour accéder au site Web",
+    "enterUrlToStart": "Entrez l'URL pour commencer la visite",
+    "name": "Votre navigateur"
   }
 }

@@ -89,6 +89,9 @@
     "back": "後退",
     "forward": "前進",
     "reload": "重新載入",
-    "addressPlaceholder": "輸入網址"
+    "addressPlaceholder": "輸入網址",
+    "enterUrlDescription": "在上方地址欄輸入網址以訪問網站",
+    "enterUrlToStart": "輸入網址開始訪問",
+    "name": "Yo Browser"
   }
 }

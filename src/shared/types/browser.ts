@@ -20,6 +20,8 @@ export interface BrowserTabInfo {
 export interface ScreenshotOptions {
   fullPage?: boolean
   quality?: number
+  selector?: string
+  highlightSelectors?: string[]
   clip?: {
     x: number
     y: number

@@ -1456,11 +1456,6 @@ export interface MCPServerConfig {
   sourceId?: string // Source ID: mcprouter uuid or modelscope mcpServer.id
 }
 
-export interface BrowserServerConfig {
-  showWindow?: boolean
-  sessionTimeoutMs?: number
-}
-
 export interface MCPConfig {
   mcpServers: Record<string, MCPServerConfig>
   defaultServers: string[]

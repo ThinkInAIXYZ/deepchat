@@ -15,5 +15,27 @@
   "responseData": "funktionsrespons",
   "success": "succes",
   "title": "Værktøjskald",
-  "terminalOutput": "Terminaludgang"
+  "terminalOutput": "Terminaludgang",
+  "browserTools": {
+    "browser_click": "Brug CSS-vælgere til at klikke på elementer på siden.",
+    "browser_close_tab": "Luk fanen (vinduet). Standard til aktiv fane.",
+    "browser_download_file": "Download filer ved hjælp af en browsersession, bevar cookies til aktive faner.",
+    "browser_form_input_fill": "Udfylder et inputfelt eller et tekstområdeelement med tekst.",
+    "browser_get_clickable_elements": "Liste klikbare elementer med en simpel vælger.",
+    "browser_get_download_list": "Hent downloads til den aktuelle browsersession.",
+    "browser_get_markdown": "Udpak sideindhold til Markdown-format.",
+    "browser_get_text": "Udtræk synlig tekst fra siden eller specifikke elementer.",
+    "browser_go_back": "Vend tilbage til den forrige side i den aktuelle fane.",
+    "browser_go_forward": "Gå videre til næste side i den aktuelle fane.",
+    "browser_hover": "Hold markøren over et element på siden.",
+    "browser_navigate": "Navigerer browseren til den angivne URL.",
+    "browser_new_tab": "Åbn en ny browserfane (vindue) til sessionen.",
+    "browser_press_key": "Send tastaturinput til den aktive side.",
+    "browser_read_links": "Viser hyperlinks på den aktuelle side.",
+    "browser_screenshot": "Tag et skærmbillede af den aktuelle side eller et specifikt element.",
+    "browser_scroll": "Ruller siden med en specificeret forskydning.",
+    "browser_select": "Vælger en værdi i et udvalgt element.",
+    "browser_switch_tab": "Aktiverer den angivne fane (vindue) efter ID.",
+    "browser_tab_list": "Viser alle faner (vinduer) i den aktuelle session."
+  }
 }

@@ -89,6 +89,9 @@
     "back": "Back",
     "forward": "Forward",
     "reload": "Reload",
-    "addressPlaceholder": "Enter a URL"
+    "addressPlaceholder": "Enter a URL",
+    "enterUrlDescription": "Indtast URL'en i adresselinjen ovenfor for at få adgang til webstedet",
+    "enterUrlToStart": "Indtast URL'en for at begynde at besøge",
+    "name": "Yo browser"
   }
 }

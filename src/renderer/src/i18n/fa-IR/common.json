@@ -89,6 +89,9 @@
     "back": "Back",
     "forward": "Forward",
     "reload": "Reload",
-    "addressPlaceholder": "Enter a URL"
+    "addressPlaceholder": "Enter a URL",
+    "enterUrlDescription": "برای دسترسی به وب سایت، آدرس اینترنتی را در نوار آدرس بالا وارد کنید",
+    "enterUrlToStart": "برای شروع بازدید، URL را وارد کنید",
+    "name": "مرورگر یو"
   }
 }
