@@ -179,7 +179,7 @@ export class YoBrowserPresenter implements IYoBrowserPresenter, YoBrowserRuntime
     return this.toTabInfo(browserTab)
   }
 
-  async navigateTab(tabId: string, url: string): Promise<void> {
+  async navigateTab(tabId: string, url: string, timeoutMs?: number): Promise<void> {
     let tab = this.tabIdToBrowserTab.get(tabId)
     if (!tab || tab.contents.isDestroyed()) {
       const created = await this.createTab(url)
@@ -195,7 +195,7 @@ export class YoBrowserPresenter implements IYoBrowserPresenter, YoBrowserRuntime
     if (tab.contents.isDestroyed()) {
       throw new Error(`Tab ${tab.tabId} is destroyed`)
     }
-    await tab.navigate(url)
+    await tab.navigate(url, timeoutMs)
     this.emitTabNavigated(tab.tabId, url)
   }
 

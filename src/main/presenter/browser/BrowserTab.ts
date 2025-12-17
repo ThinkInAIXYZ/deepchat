@@ -36,14 +36,14 @@ export class BrowserTab {
     return this.webContents
   }
 
-  async navigate(url: string): Promise<void> {
+  async navigate(url: string, timeoutMs?: number): Promise<void> {
     this.status = BrowserTabStatus.Loading
     this.url = url
     this.updatedAt = Date.now()
     await this.ensureSession()
     try {
       await this.webContents.loadURL(url)
-      await this.waitForLoad()
+      await this.waitForLoad(timeoutMs)
       this.title = this.webContents.getTitle() || url
       this.status = BrowserTabStatus.Ready
       this.updatedAt = Date.now()
@@ -69,24 +69,101 @@ export class BrowserTab {
     return await this.screenshotManager.captureScreenshot(session, options)
   }
 
-  async waitForLoad(): Promise<void> {
-    if (this.webContents.isLoading()) {
-      await new Promise<void>((resolve, reject) => {
-        const onFinish = () => {
-          cleanup()
-          resolve()
-        }
-        const onFail = (_event: unknown, errorCode: number, errorDescription: string) => {
-          cleanup()
-          reject(new Error(`Navigation failed ${errorCode}: ${errorDescription}`))
-        }
-        const cleanup = () => {
-          this.webContents.removeListener('did-finish-load', onFinish)
-          this.webContents.removeListener('did-fail-load', onFail as any)
-        }
-        this.webContents.once('did-finish-load', onFinish)
-        this.webContents.once('did-fail-load', onFail as any)
-      })
+  async waitForLoad(timeoutMs: number = 30000): Promise<void> {
+    // Check if webContents is destroyed
+    if (this.webContents.isDestroyed()) {
+      throw new Error('WebContents destroyed')
+    }
+
+    // If not loading, return immediately
+    if (!this.webContents.isLoading()) {
+      return
+    }
+
+    // Wait for load with timeout
+    let resolved = false
+    let timeoutId: NodeJS.Timeout | null = null
+    let onStopLoading: (() => void) | null = null
+    let onDomReady: (() => void) | null = null
+    let onFinishLoad: (() => void) | null = null
+    let onFailLoad: ((...args: any[]) => void) | null = null
+
+    const cleanup = () => {
+      if (timeoutId) {
+        clearTimeout(timeoutId)
+        timeoutId = null
+      }
+      if (onStopLoading) {
+        this.webContents.removeListener('did-stop-loading', onStopLoading)
+      }
+      if (onDomReady) {
+        this.webContents.removeListener('dom-ready', onDomReady)
+      }
+      if (onFinishLoad) {
+        this.webContents.removeListener('did-finish-load', onFinishLoad)
+      }
+      if (onFailLoad) {
+        this.webContents.removeListener('did-fail-load', onFailLoad as any)
+      }
+    }
+
+    try {
+      await Promise.race([
+        new Promise<void>((resolvePromise, rejectPromise) => {
+          // Success handlers - any one triggers resolve
+          onStopLoading = () => {
+            if (!resolved) {
+              resolved = true
+              cleanup()
+              resolvePromise()
+            }
+          }
+
+          onDomReady = () => {
+            if (!resolved) {
+              resolved = true
+              cleanup()
+              resolvePromise()
+            }
+          }
+
+          onFinishLoad = () => {
+            if (!resolved) {
+              resolved = true
+              cleanup()
+              resolvePromise()
+            }
+          }
+
+          // Fail handler
+          onFailLoad = (_event: unknown, errorCode: number, errorDescription: string) => {
+            if (!resolved) {
+              resolved = true
+              cleanup()
+              rejectPromise(new Error(`Navigation failed ${errorCode}: ${errorDescription}`))
+            }
+          }
+
+          this.webContents.once('did-stop-loading', onStopLoading)
+          this.webContents.once('dom-ready', onDomReady)
+          this.webContents.once('did-finish-load', onFinishLoad)
+          this.webContents.once('did-fail-load', onFailLoad as any)
+        }),
+        new Promise<void>((resolvePromise) => {
+          timeoutId = setTimeout(() => {
+            if (!resolved) {
+              resolved = true
+              cleanup()
+              resolvePromise()
+            }
+          }, timeoutMs)
+        })
+      ])
+    } catch (error) {
+      if (!resolved) {
+        cleanup()
+      }
+      throw error
     }
   }
 

@@ -21,6 +21,10 @@ export class YoBrowserTooling {
               reuse: {
                 type: 'boolean',
                 description: 'Reuse an existing tab that matches the domain when true'
+              },
+              timeout: {
+                type: 'number',
+                description: 'Navigation timeout in milliseconds (default: 30000)'
               }
             },
             required: ['url']

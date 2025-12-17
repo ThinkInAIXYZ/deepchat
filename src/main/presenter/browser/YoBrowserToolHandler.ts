@@ -6,7 +6,7 @@ export interface YoBrowserRuntime {
   getActiveTab(): Promise<BrowserTabInfo | null>
   getTabById(tabId: string): Promise<BrowserTabInfo | null>
   createTab(url?: string): Promise<BrowserTabInfo | null>
-  navigateTab(tabId: string, url: string): Promise<void>
+  navigateTab(tabId: string, url: string, timeoutMs?: number): Promise<void>
   activateTab(tabId: string): Promise<void>
   closeTab(tabId: string): Promise<void>
   reuseTab(url: string): Promise<BrowserTabInfo | null>
@@ -49,23 +49,90 @@ export class YoBrowserToolHandler {
     if (!url) {
       throw new Error('yo_browser_navigate requires url')
     }
+    const timeoutMs =
+      typeof params.timeout === 'number' && params.timeout > 0 ? params.timeout : undefined
+
     await this.runtime.ensureWindow()
     const reuse = Boolean(params.reuse ?? true)
     let tab: BrowserTabInfo | null = null
-    if (reuse) {
-      tab = await this.runtime.reuseTab(url)
+    let navigationStatus: 'success' | 'failed' = 'success'
+    let errorMessage: string | undefined
+
+    try {
+      if (reuse) {
+        tab = await this.runtime.reuseTab(url)
+      }
+      if (!tab) {
+        tab = await this.runtime.createTab(url)
+      }
+      if (!tab) {
+        throw new Error('Failed to create or reuse tab')
+      }
+
+      // Navigate if URL is different
+      if (tab.url !== url) {
+        try {
+          await this.runtime.navigateTab(tab.id, url, timeoutMs)
+        } catch (error) {
+          navigationStatus = 'failed'
+          errorMessage = error instanceof Error ? error.message : String(error)
+          throw error
+        }
+      }
+
+      // Activate the tab
+      await this.runtime.activateTab(tab.id)
+
+      // Get updated tab info after navigation
+      const updatedTab = await this.runtime.getTabById(tab.id)
+      if (updatedTab) {
+        tab = updatedTab
+      }
+
+      // Build result message
+      const result: {
+        status: string
+        tabId: string
+        url: string
+        title?: string
+        message: string
+        error?: string
+      } = {
+        status: navigationStatus,
+        tabId: tab.id,
+        url: tab.url,
+        title: tab.title,
+        message:
+          navigationStatus === 'success'
+            ? `Successfully navigated to ${tab.url}`
+            : `Navigation failed`
+      }
+
+      if (errorMessage) {
+        result.error = errorMessage
+      }
+
+      if (navigationStatus === 'success') {
+        return `Navigation completed.\nTab ID: ${result.tabId}\nURL: ${result.url}\nTitle: ${result.title || 'N/A'}`
+      } else {
+        return `Navigation failed.\nTab ID: ${result.tabId}\nURL: ${result.url}\nError: ${errorMessage || 'Unknown error'}`
+      }
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error)
+      navigationStatus = 'failed'
+      errorMessage = errorMsg
+
+      // Try to get tab info even if navigation failed
+      let tabInfo = ''
+      if (tab) {
+        const currentTab = await this.runtime.getTabById(tab.id)
+        if (currentTab) {
+          tabInfo = `\nTab ID: ${currentTab.id}\nURL: ${currentTab.url}\nTitle: ${currentTab.title || 'N/A'}`
+        }
+      }
+
+      return `Navigation failed: ${errorMessage}${tabInfo}`
     }
-    if (!tab) {
-      tab = await this.runtime.createTab(url)
-    }
-    if (!tab) {
-      throw new Error('Failed to create or reuse tab')
-    }
-    if (tab.url !== url) {
-      await this.runtime.navigateTab(tab.id, url)
-    }
-    await this.runtime.activateTab(tab.id)
-    return `Navigated to ${url} in tab ${tab.id}`
   }
 
   private async handleListTabs(): Promise<string> {
