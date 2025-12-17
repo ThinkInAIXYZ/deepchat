@@ -2,21 +2,10 @@ import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { defineStore } from 'pinia'
 import { usePresenter } from '@/composables/usePresenter'
 import { CONFIG_EVENTS } from '@/events'
+import { buildFontStack, DEFAULT_CODE_FONT_STACK, DEFAULT_TEXT_FONT_STACK } from '@/lib/fontStack'
 
 const FONT_SIZE_CLASSES = ['text-sm', 'text-base', 'text-lg', 'text-xl', 'text-2xl']
 const DEFAULT_FONT_SIZE_LEVEL = 1
-const DEFAULT_FONT_STACK =
-  "'Geist', Noto Sans, ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji'"
-const DEFAULT_CODE_FONT_STACK =
-  "'JetBrains Mono', 'Fira Code', 'Menlo', 'Monaco', 'Consolas', 'Courier New', monospace"
-
-const buildFontStack = (custom: string, fallback: string) => {
-  const normalized = (custom || '').trim()
-  if (!normalized) return fallback
-  const wrapped =
-    /\s/.test(normalized) && !normalized.includes(',') ? `"${normalized}"` : normalized
-  return `${wrapped}, ${fallback}`
-}
 
 export const useUiSettingsStore = defineStore('uiSettings', () => {
   const configP = usePresenter('configPresenter')
@@ -38,7 +27,9 @@ export const useUiSettingsStore = defineStore('uiSettings', () => {
     () => FONT_SIZE_CLASSES[fontSizeLevel.value] || FONT_SIZE_CLASSES[DEFAULT_FONT_SIZE_LEVEL]
   )
 
-  const formattedFontFamily = computed(() => buildFontStack(fontFamily.value, DEFAULT_FONT_STACK))
+  const formattedFontFamily = computed(() =>
+    buildFontStack(fontFamily.value, DEFAULT_TEXT_FONT_STACK)
+  )
   const formattedCodeFontFamily = computed(() =>
     buildFontStack(codeFontFamily.value, DEFAULT_CODE_FONT_STACK)
   )

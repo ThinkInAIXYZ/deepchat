@@ -13,11 +13,14 @@ import { useRouter } from 'vue-router'
 import AppBar from './components/AppBar.vue'
 import { useDeviceVersion } from '@/composables/useDeviceVersion'
 import { useMcpStore } from '@/stores/mcp'
+import { useFontManager } from '@/composables/useFontManager'
 
 // Detect platform to apply proper styling
 const { isWinMacOS } = useDeviceVersion()
 const router = useRouter()
 const mcpStore = useMcpStore()
+const { setupFontListener } = useFontManager()
+setupFontListener()
 
 onMounted(async () => {
   // Check for pending MCP install from localStorage (cold start scenario)

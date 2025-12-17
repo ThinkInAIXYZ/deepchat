@@ -1,10 +1,25 @@
 import '@/assets/main.css'
+import { CONFIG_EVENTS } from '@/events'
+import { usePresenter } from '@/composables/usePresenter'
+import { buildFontStack, DEFAULT_CODE_FONT_STACK, DEFAULT_TEXT_FONT_STACK } from '@/lib/fontStack'
 
 type TooltipOverlayShowPayload = {
   x: number
   y: number
   text: string
 }
+
+const configPresenter = usePresenter('configPresenter')
+
+const applyFontVariables = (textFont: string, codeFont: string) => {
+  document.documentElement.style.setProperty('--dc-font-family', textFont)
+  document.documentElement.style.setProperty('--dc-code-font-family', codeFont)
+}
+
+const toTextFontStack = (font: unknown) =>
+  buildFontStack(typeof font === 'string' ? font : '', DEFAULT_TEXT_FONT_STACK)
+const toCodeFontStack = (font: unknown) =>
+  buildFontStack(typeof font === 'string' ? font : '', DEFAULT_CODE_FONT_STACK)
 
 const root = document.getElementById('app')
 if (!root) {
@@ -28,6 +43,26 @@ tooltip.appendChild(arrow)
 root.appendChild(tooltip)
 
 const { ipcRenderer } = window.electron
+
+const initFonts = async () => {
+  const [fontFamily, codeFontFamily] = await Promise.all([
+    configPresenter.getFontFamily(),
+    configPresenter.getCodeFontFamily()
+  ])
+  applyFontVariables(toTextFontStack(fontFamily), toCodeFontStack(codeFontFamily))
+}
+
+initFonts().catch((error) => {
+  console.warn('Tooltip overlay: failed to initialize fonts', error)
+})
+
+ipcRenderer.on(CONFIG_EVENTS.FONT_FAMILY_CHANGED, (_event, value) => {
+  document.documentElement.style.setProperty('--dc-font-family', toTextFontStack(value))
+})
+
+ipcRenderer.on(CONFIG_EVENTS.CODE_FONT_FAMILY_CHANGED, (_event, value) => {
+  document.documentElement.style.setProperty('--dc-code-font-family', toCodeFontStack(value))
+})
 
 const hide = () => {
   tooltip.classList.add('hidden')
