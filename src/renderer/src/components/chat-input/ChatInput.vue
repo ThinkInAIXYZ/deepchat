@@ -105,18 +105,9 @@
                   ]"
                   :dir="langStore.dir"
                   size="icon"
-                  @click="onYoBrowserClick"
+                  @click="onWebSearchClick"
                 >
-                  <div class="relative flex items-center justify-center w-full h-full">
-                    <Icon icon="lucide:globe" class="w-4 h-4" />
-                    <Badge
-                      v-if="!yoBrowserStore.isVisible && yoBrowserStore.tabCount > 0"
-                      variant="default"
-                      class="absolute -right-2 -top-2 h-4 min-w-[18px] px-1 text-[10px] rounded-full"
-                    >
-                      {{ yoBrowserStore.tabCount }}
-                    </Badge>
-                  </div>
+                  <Icon icon="lucide:globe" class="w-4 h-4" />
                 </Button>
               </TooltipTrigger>
               <TooltipContent>{{ t('chat.features.webSearch') }}</TooltipContent>
@@ -417,7 +408,6 @@ import { useAcpMode } from './composables/useAcpMode'
 import { useChatStore } from '@/stores/chat'
 import { useLanguageStore } from '@/stores/language'
 import { useThemeStore } from '@/stores/theme'
-import { useYoBrowserStore } from '@/stores/yoBrowser'
 
 // === Mention System ===
 import { Mention } from '../editor/mention/mention'
@@ -489,12 +479,9 @@ const stopResize = () => {
 const chatStore = useChatStore()
 const langStore = useLanguageStore()
 const themeStore = useThemeStore()
-const yoBrowserStore = useYoBrowserStore()
 
 // === Presenters ===
 const windowPresenter = usePresenter('windowPresenter')
-const configPresenter = usePresenter('configPresenter')
-const yoBrowserPresenter = usePresenter('yoBrowserPresenter')
 
 // === i18n ===
 const { t } = useI18n()
@@ -506,7 +493,7 @@ const modelSelectOpen = ref(false)
 // === Composable Integrations ===
 
 // Initialize settings management
-const { settings, setWebSearch } = useInputSettings()
+const { settings, toggleWebSearch } = useInputSettings()
 
 // Initialize history composable first (needed for editor placeholder)
 const history = useInputHistory(null as any, t)
@@ -692,37 +679,8 @@ const emitSend = async () => {
   }
 }
 
-const onYoBrowserClick = async () => {
-  const hiddenMode = await configPresenter.getSearchPreviewEnabled?.()
-  const hasWindow = yoBrowserStore.hasWindow
-  // Mode A: not hidden -> toggle show and hard close
-  if (!hiddenMode) {
-    if (!yoBrowserStore.isVisible) {
-      await yoBrowserStore.show()
-      await setWebSearch(true)
-    } else {
-      await yoBrowserPresenter.shutdown()
-      await yoBrowserStore.loadState()
-      await setWebSearch(false)
-    }
-    return
-  }
-
-  // Mode B: hidden allowed -> show hidden first, then close on third click
-  if (!hasWindow) {
-    await yoBrowserStore.show()
-    await setWebSearch(true)
-    return
-  }
-
-  if (!yoBrowserStore.isVisible) {
-    await yoBrowserStore.show()
-    return
-  }
-
-  await yoBrowserPresenter.shutdown()
-  await yoBrowserStore.loadState()
-  await setWebSearch(false)
+const onWebSearchClick = async () => {
+  await toggleWebSearch()
 }
 
 const onKeydown = (e: KeyboardEvent) => {

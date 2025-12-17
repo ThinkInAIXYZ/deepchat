@@ -1,9 +1,8 @@
 // === Vue Core ===
-import { onMounted, ref, watch } from 'vue'
+import { ref, onMounted } from 'vue'
 
 // === Composables ===
 import { usePresenter } from '@/composables/usePresenter'
-import { useChatStore } from '@/stores/chat'
 
 /**
  * Manages input-specific settings (web search, deep thinking)
@@ -11,31 +10,26 @@ import { useChatStore } from '@/stores/chat'
 export function useInputSettings() {
   // === Presenters ===
   const configPresenter = usePresenter('configPresenter')
-  const chatStore = useChatStore()
 
   // === Local State ===
   const settings = ref({
     deepThinking: false,
-    webSearch: Boolean(chatStore.chatConfig.enableSearch)
+    webSearch: false
   })
 
   // === Public Methods ===
-  const setWebSearch = async (value: boolean) => {
+  const toggleWebSearch = async () => {
     const previousValue = settings.value.webSearch
-    settings.value.webSearch = value
+    settings.value.webSearch = !settings.value.webSearch
 
     try {
-      await chatStore.updateChatConfig({ enableSearch: value })
+      await configPresenter.setSetting('input_webSearch', settings.value.webSearch)
     } catch (error) {
       // Revert to previous value on error
       settings.value.webSearch = previousValue
       console.error('Failed to save web search setting:', error)
       // TODO: Show user-facing notification when toast system is available
     }
-  }
-
-  const toggleWebSearch = async () => {
-    await setWebSearch(!settings.value.webSearch)
   }
 
   const toggleDeepThinking = async () => {
@@ -55,22 +49,14 @@ export function useInputSettings() {
   const loadSettings = async () => {
     try {
       settings.value.deepThinking = Boolean(await configPresenter.getSetting('input_deepThinking'))
-      settings.value.webSearch = Boolean(chatStore.chatConfig.enableSearch)
+      settings.value.webSearch = Boolean(await configPresenter.getSetting('input_webSearch'))
     } catch (error) {
       // Fall back to safe defaults on error
       settings.value.deepThinking = false
-      settings.value.webSearch = Boolean(chatStore.chatConfig.enableSearch)
+      settings.value.webSearch = false
       console.error('Failed to load input settings, using defaults:', error)
     }
   }
-
-  watch(
-    () => chatStore.chatConfig.enableSearch,
-    (value) => {
-      settings.value.webSearch = Boolean(value)
-    },
-    { immediate: true }
-  )
 
   // === Lifecycle Hooks ===
   onMounted(async () => {
@@ -83,7 +69,6 @@ export function useInputSettings() {
 
   return {
     settings,
-    setWebSearch,
     toggleWebSearch,
     toggleDeepThinking,
     loadSettings

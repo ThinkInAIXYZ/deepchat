@@ -81,11 +81,30 @@ export class StreamGenerationHandler extends BaseHandler {
 
       this.throwIfCancelled(state.message.id)
 
+      let searchResults: SearchResult[] | null = null
+      if ((userMessage.content as UserMessageContent).search) {
+        try {
+          searchResults = await this.searchHandler.startStreamSearch(
+            conversationId,
+            state.message.id,
+            userContent
+          )
+          this.throwIfCancelled(state.message.id)
+        } catch (error) {
+          if (String(error).includes('userCanceledGeneration')) {
+            return
+          }
+          console.error('[StreamGenerationHandler] Error during search:', error)
+        }
+      }
+
+      this.throwIfCancelled(state.message.id)
+
       const { finalContent, promptTokens } = await preparePromptContent({
         conversation,
         userContent,
         contextMessages,
-        searchResults: null,
+        searchResults,
         urlResults,
         userMessage,
         vision: Boolean(modelConfig?.vision),
@@ -449,7 +468,7 @@ export class StreamGenerationHandler extends BaseHandler {
       }
     }
 
-    const webSearchEnabled = Boolean(conversation.settings.enableSearch)
+    const webSearchEnabled = this.ctx.configPresenter.getSetting('input_webSearch') as boolean
     const thinkEnabled = this.ctx.configPresenter.getSetting('input_deepThinking') as boolean
     ;(userMessage.content as UserMessageContent).search = webSearchEnabled
     ;(userMessage.content as UserMessageContent).think = thinkEnabled
