@@ -68,7 +68,7 @@
     "@electron-toolkit/utils": "^4.0.0",
     "@google/genai": "^1.30.0",
     "@jxa/run": "^1.4.0",
-    "@modelcontextprotocol/sdk": "^1.22.0",
+    "@modelcontextprotocol/sdk": "^1.25.1",
     "axios": "^1.13.2",
     "better-sqlite3-multiple-ciphers": "12.4.1",
     "cheerio": "^1.1.2",

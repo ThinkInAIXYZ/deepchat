@@ -47,13 +47,11 @@ const OPENAI_REASONING_MODELS = [
   'gpt-5-nano',
   'gpt-5-chat'
 ]
-const OPENAI_IMAGE_GENERATION_MODELS = [
-  'gpt-4o-all',
-  'gpt-4o-image',
-  'gpt-image-1',
-  'dall-e-3',
-  'dall-e-2'
-]
+const OPENAI_IMAGE_GENERATION_MODELS = ['gpt-4o-all', 'gpt-4o-image']
+const OPENAI_IMAGE_GENERATION_MODEL_PREFIXES = ['dall-e-', 'gpt-image-']
+const isOpenAIImageGenerationModel = (modelId: string): boolean =>
+  OPENAI_IMAGE_GENERATION_MODELS.includes(modelId) ||
+  OPENAI_IMAGE_GENERATION_MODEL_PREFIXES.some((prefix) => modelId.startsWith(prefix))
 
 // Add supported image size constants
 const SUPPORTED_IMAGE_SIZES = {
@@ -1524,7 +1522,7 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
     if (!this.isInitialized) throw new Error('Provider not initialized')
     if (!modelId) throw new Error('Model ID is required')
 
-    if (OPENAI_IMAGE_GENERATION_MODELS.includes(modelId)) {
+    if (isOpenAIImageGenerationModel(modelId)) {
       yield* this.handleImgGeneration(messages, modelId)
     } else {
       yield* this.handleChatCompletion(
