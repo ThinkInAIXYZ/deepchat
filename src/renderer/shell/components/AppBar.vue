@@ -72,6 +72,7 @@
       </div>
 
       <Button
+        v-if="windowType !== 'browser'"
         size="icon"
         class="window-no-drag-region shrink-0 w-10 bg-transparent shadow-none rounded-none hover:bg-card/80 text-xs font-medium text-foreground flex items-center justify-center transition-all duration-200 group"
         @click="onNewTabClick"
@@ -83,6 +84,7 @@
       <div class="flex-1"></div>
 
       <Button
+        v-if="windowType !== 'browser'"
         size="icon"
         class="window-no-drag-region shrink-0 w-10 bg-transparent shadow-none rounded-none hover:bg-card/80 text-xs font-medium text-foreground flex items-center justify-center transition-all duration-200 group border-l"
         @click="onHistoryClick"
@@ -92,6 +94,7 @@
         <Icon icon="lucide:history" class="w-4 h-4" />
       </Button>
       <Button
+        v-if="windowType !== 'browser'"
         size="icon"
         class="window-no-drag-region shrink-0 w-10 bg-transparent shadow-none rounded-none hover:bg-card/80 text-xs font-medium text-foreground flex items-center justify-center transition-all duration-200 group border-l"
         @click="openSettings"
@@ -162,6 +165,9 @@ import { WINDOW_EVENTS } from '../lib/events'
 import CloseIcon from './icons/CloseIcon.vue'
 import MinimizeIcon from './icons/MinimizeIcon.vue'
 import { THREAD_VIEW_EVENTS } from '@/events'
+const props = defineProps<{
+  windowType?: 'chat' | 'browser'
+}>()
 const tabStore = useTabStore()
 const langStore = useLanguageStore()
 const windowPresenter = usePresenter('windowPresenter')
@@ -170,6 +176,7 @@ const tabPresenter = usePresenter('tabPresenter')
 const endOfTabs = ref<HTMLElement | null>(null)
 
 const { t } = useI18n()
+const windowType = computed(() => props.windowType ?? 'chat')
 
 const isMacOS = ref(false)
 const isMaximized = ref(false)

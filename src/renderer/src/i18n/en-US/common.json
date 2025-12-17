@@ -84,5 +84,11 @@
   "history": "History",
   "minimize": "Minimize",
   "maximize": "Maximize",
-  "restore": "Restore"
+  "restore": "Restore",
+  "browser": {
+    "back": "Back",
+    "forward": "Forward",
+    "reload": "Reload",
+    "addressPlaceholder": "Enter a URL"
+  }
 }

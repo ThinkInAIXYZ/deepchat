@@ -84,5 +84,11 @@
   "history": "歷史",
   "minimize": "最小化",
   "maximize": "最大化",
-  "restore": "還原"
+  "restore": "還原",
+  "browser": {
+    "back": "後退",
+    "forward": "前進",
+    "reload": "重新載入",
+    "addressPlaceholder": "輸入網址"
+  }
 }

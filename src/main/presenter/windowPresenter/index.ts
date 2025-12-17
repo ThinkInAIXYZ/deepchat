@@ -57,6 +57,14 @@ export class WindowPresenter implements IWindowPresenter {
       event.returnValue = event.sender.id
     })
 
+    ipcMain.on('shell:chrome-height', (event, payload: { height?: number } | number) => {
+      const window = BrowserWindow.fromWebContents(event.sender)
+      if (!window || window.isDestroyed()) return
+      const height = typeof payload === 'number' ? payload : payload?.height
+      if (typeof height !== 'number' || Number.isNaN(height)) return
+      ;(presenter.tabPresenter as TabPresenter).updateChromeHeight(window.id, height)
+    })
+
     ipcMain.on('close-floating-window', (event) => {
       // Check if sender is the floating chat window
       const webContentsId = event.sender.id
@@ -660,10 +668,12 @@ export class WindowPresenter implements IWindowPresenter {
       url: string
       icon?: string
     }
+    windowType?: 'chat' | 'browser'
     x?: number // 初始 X 坐标
     y?: number // 初始 Y 坐标
   }): Promise<number | null> {
     console.log('Creating new shell window.')
+    const windowType = options?.windowType ?? 'chat'
 
     // 根据平台选择图标
     const iconFile = nativeImage.createFromPath(process.platform === 'win32' ? iconWin : icon)
@@ -726,6 +736,7 @@ export class WindowPresenter implements IWindowPresenter {
 
     const windowId = shellWindow.id
     this.windows.set(windowId, shellWindow) // 将窗口实例存入 Map
+    ;(presenter.tabPresenter as TabPresenter).setWindowType(windowId, windowType)
 
     this.windowFocusStates.set(windowId, {
       lastFocusTime: 0,
@@ -956,6 +967,7 @@ export class WindowPresenter implements IWindowPresenter {
     // Pre-create tooltip overlay so first hover is instant
     shellWindow.webContents.once('did-finish-load', () => {
       if (shellWindow.isDestroyed()) return
+      shellWindow.webContents.send('shell-window:type', windowType)
       this.getOrCreateTooltipOverlay(shellWindow)
     })
 

@@ -84,5 +84,11 @@
   "history": "تاریخچه",
   "minimize": "کوچک‌کردن",
   "maximize": "بزرگ‌کردن",
-  "restore": "بازگردانی"
+  "restore": "بازگردانی",
+  "browser": {
+    "back": "Back",
+    "forward": "Forward",
+    "reload": "Reload",
+    "addressPlaceholder": "Enter a URL"
+  }
 }

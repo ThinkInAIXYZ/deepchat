@@ -84,5 +84,11 @@
   "history": "Histórico",
   "minimize": "Minimizar",
   "maximize": "Maximizar",
-  "restore": "Restaurar"
+  "restore": "Restaurar",
+  "browser": {
+    "back": "Voltar",
+    "forward": "Avançar",
+    "reload": "Recarregar",
+    "addressPlaceholder": "Digite uma URL"
+  }
 }

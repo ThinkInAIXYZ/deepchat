@@ -84,5 +84,11 @@
   "history": "기록",
   "minimize": "최소화",
   "maximize": "최대화",
-  "restore": "복원"
+  "restore": "복원",
+  "browser": {
+    "back": "뒤로",
+    "forward": "앞으로",
+    "reload": "새로고침",
+    "addressPlaceholder": "URL을 입력하세요"
+  }
 }

@@ -38,10 +38,7 @@ export class YoBrowserPresenter implements IYoBrowserPresenter, YoBrowserRuntime
   }
 
   async initialize(): Promise<void> {
-    await this.ensureWindow()
-    if (this.tabIdToBrowserTab.size === 0) {
-      await this.createTab()
-    }
+    // Lazy initialization: only create browser window/tabs when explicitly requested.
   }
 
   async ensureWindow(): Promise<number | null> {
@@ -49,10 +46,7 @@ export class YoBrowserPresenter implements IYoBrowserPresenter, YoBrowserRuntime
     if (window) return window.id
 
     this.windowId = await this.windowPresenter.createShellWindow({
-      initialTab: {
-        url: 'local://yo-browser',
-        icon: 'lucide:globe'
-      }
+      windowType: 'browser'
     })
 
     const created = this.getWindow()
@@ -167,6 +161,7 @@ export class YoBrowserPresenter implements IYoBrowserPresenter, YoBrowserRuntime
     this.tabIds.set(tabKey, viewId as number)
     this.viewIdToTabId.set(view.webContents.id, tabKey)
     this.tabIdToBrowserTab.set(tabKey, browserTab)
+    this.tabPresenter.setTabBrowserId(viewId as number, tabKey)
     this.activeTabId = tabKey
 
     this.setupTabListeners(tabKey, viewId as number, view.webContents)
@@ -235,6 +230,24 @@ export class YoBrowserPresenter implements IYoBrowserPresenter, YoBrowserRuntime
       activeTabId: this.activeTabId,
       tabs: await this.listTabs()
     }
+  }
+
+  async getNavigationState(tabId?: string): Promise<{
+    canGoBack: boolean
+    canGoForward: boolean
+  }> {
+    const tab = await this.resolveTab(tabId)
+    if (!tab || tab.contents.isDestroyed()) {
+      return { canGoBack: false, canGoForward: false }
+    }
+    return {
+      canGoBack: tab.contents.canGoBack(),
+      canGoForward: tab.contents.canGoForward()
+    }
+  }
+
+  async getTabIdByViewId(viewId: number): Promise<string | null> {
+    return this.viewIdToTabId.get(viewId) ?? null
   }
 
   async getToolDefinitions(supportsVision: boolean): Promise<MCPToolDefinition[]> {

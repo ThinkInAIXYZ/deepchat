@@ -84,5 +84,11 @@
   "history": "履歴",
   "minimize": "最小化",
   "maximize": "最大化",
-  "restore": "元に戻す"
+  "restore": "元に戻す",
+  "browser": {
+    "back": "戻る",
+    "forward": "進む",
+    "reload": "再読み込み",
+    "addressPlaceholder": "URLを入力"
+  }
 }

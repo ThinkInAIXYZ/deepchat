@@ -178,6 +178,7 @@ export interface TabData {
   closable: boolean
   url: string
   icon?: string
+  browserTabId?: string
 }
 
 export interface BrowserContextSnapshot {
@@ -203,6 +204,11 @@ export interface IYoBrowserPresenter {
   goForward(tabId?: string): Promise<void>
   reload(tabId?: string): Promise<void>
   getBrowserContext(): Promise<BrowserContextSnapshot>
+  getNavigationState(tabId?: string): Promise<{
+    canGoBack: boolean
+    canGoForward: boolean
+  }>
+  getTabIdByViewId(viewId: number): Promise<string | null>
   getToolDefinitions(supportsVision: boolean): Promise<MCPToolDefinition[]>
   callTool(toolName: string, params: Record<string, unknown>): Promise<string>
   captureScreenshot(tabId: string, options?: ScreenshotOptions): Promise<string>
@@ -219,6 +225,7 @@ export interface IWindowPresenter {
       icon?: string
     }
     forMovedTab?: boolean
+    windowType?: 'chat' | 'browser'
     x?: number
     y?: number
   }): Promise<number | null>
@@ -295,12 +302,14 @@ export interface ITabPresenter {
   registerFloatingWindow(webContentsId: number, webContents: Electron.WebContents): void
   unregisterFloatingWindow(webContentsId: number): void
   resetTabToBlank(tabId: number): Promise<void>
+  setTabBrowserId(tabId: number, browserTabId: string): void
   destroy(): Promise<void>
 }
 
 export interface TabCreateOptions {
   active?: boolean
   position?: number
+  allowNonLocal?: boolean
 }
 
 export interface ILlamaCppPresenter {

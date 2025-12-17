@@ -31,16 +31,61 @@ export class TabPresenter implements ITabPresenter {
   // WebContents ID 到 Tab ID 的映射 (用于IPC调用来源识别)
   private webContentsToTabId: Map<number, number> = new Map()
 
+  private windowTypes: Map<number, 'chat' | 'browser'> = new Map()
+  private chromeHeights: Map<number, number> = new Map()
+  private static readonly DEFAULT_CHROME_HEIGHT = 60
+  private static readonly DEFAULT_WINDOW_TYPE: 'chat' | 'browser' = 'chat'
+
   private windowPresenter: IWindowPresenter // 窗口管理器实例
 
   constructor(windowPresenter: IWindowPresenter) {
     this.windowPresenter = windowPresenter // 注入窗口管理器
     this.initBusHandlers()
   }
+
+  setWindowType(windowId: number, type: 'chat' | 'browser'): void {
+    this.windowTypes.set(windowId, type)
+  }
+
+  private getWindowType(windowId: number): 'chat' | 'browser' {
+    return this.windowTypes.get(windowId) ?? TabPresenter.DEFAULT_WINDOW_TYPE
+  }
+
+  updateChromeHeight(windowId: number, height: number): void {
+    const safeHeight = Math.max(0, Math.floor(height))
+    this.chromeHeights.set(windowId, safeHeight)
+    const window = BrowserWindow.fromId(windowId)
+    if (!window || window.isDestroyed()) return
+    const tabs = this.windowTabs.get(windowId) || []
+    tabs.forEach((tabId) => {
+      const view = this.tabs.get(tabId)
+      if (view) {
+        this.updateViewBounds(window, view)
+      }
+    })
+  }
+
+  setTabBrowserId(tabId: number, browserTabId: string): void {
+    const state = this.tabState.get(tabId)
+    if (state) {
+      state.browserTabId = browserTabId
+      const windowId = this.tabWindowMap.get(tabId)
+      if (windowId !== undefined) {
+        this.notifyWindowTabsUpdate(windowId).catch((error) => {
+          console.warn(`Failed to sync browser tab id for window ${windowId}:`, error)
+        })
+      }
+    }
+  }
+
+  private getChromeHeight(windowId: number): number {
+    return this.chromeHeights.get(windowId) ?? TabPresenter.DEFAULT_CHROME_HEIGHT
+  }
+
   private onWindowSizeChange(windowId: number) {
     const views = this.windowTabs.get(windowId)
     const window = BrowserWindow.fromId(windowId)
-    if (window) {
+    if (window && !window.isDestroyed()) {
       views?.forEach((view) => {
         const tabView = this.tabs.get(view)
         if (tabView) {
@@ -78,6 +123,9 @@ export class TabPresenter implements ITabPresenter {
           }
         })
       }
+      this.windowTabs.delete(windowId)
+      this.windowTypes.delete(windowId)
+      this.chromeHeights.delete(windowId)
     })
 
     // 语言设置改变，更新所有标签页右键菜单
@@ -112,6 +160,27 @@ export class TabPresenter implements ITabPresenter {
     console.log('createTab', windowId, url, options)
     const window = BrowserWindow.fromId(windowId)
     if (!window) return null
+    if (!this.windowTypes.has(windowId)) {
+      this.windowTypes.set(windowId, TabPresenter.DEFAULT_WINDOW_TYPE)
+    }
+    const windowType = this.getWindowType(windowId)
+    const isLocalUrl = url.startsWith('local://')
+
+    if (windowType === 'browser' && isLocalUrl) {
+      console.warn(`Browser window ${windowId} cannot open local tab: ${url}`)
+      return null
+    }
+
+    if (windowType === 'chat' && !isLocalUrl && !options.allowNonLocal) {
+      console.warn(
+        `Chat window ${windowId} cannot open external tab without explicit opt-in: ${url}`
+      )
+      return null
+    }
+
+    if (!this.chromeHeights.has(windowId)) {
+      this.chromeHeights.set(windowId, TabPresenter.DEFAULT_CHROME_HEIGHT)
+    }
 
     // 创建新的WebContentsView
     const view = new WebContentsView({
@@ -361,7 +430,26 @@ export class TabPresenter implements ITabPresenter {
     if (!view) return false
 
     const window = BrowserWindow.fromId(targetWindowId)
-    if (!window) return false
+    if (!window || window.isDestroyed()) return false
+    const state = this.tabState.get(tabId)
+    if (!state) {
+      console.warn(`attachTab: Tab ${tabId} state not found.`)
+      return false
+    }
+    const targetWindowType = this.getWindowType(targetWindowId)
+    const isLocal = state.url?.startsWith('local://')
+
+    if (targetWindowType === 'browser' && isLocal) {
+      console.warn(`Browser window ${targetWindowId} cannot attach local tab ${tabId}.`)
+      return false
+    }
+    if (targetWindowType === 'chat' && !isLocal) {
+      console.warn(`Chat window ${targetWindowId} cannot attach external tab ${tabId}.`)
+      return false
+    }
+    if (!this.chromeHeights.has(targetWindowId)) {
+      this.chromeHeights.set(targetWindowId, TabPresenter.DEFAULT_CHROME_HEIGHT)
+    }
 
     // 确保目标窗口有标签列表
     if (!this.windowTabs.has(targetWindowId)) {
@@ -393,6 +481,22 @@ export class TabPresenter implements ITabPresenter {
    */
   async moveTab(tabId: number, targetWindowId: number, index?: number): Promise<boolean> {
     const windowId = this.tabWindowMap.get(tabId)
+    const tabState = this.tabState.get(tabId)
+    if (!tabState) {
+      console.warn(`moveTab: Tab ${tabId} state not found.`)
+      return false
+    }
+    const targetWindowType = this.getWindowType(targetWindowId)
+    const isLocal = tabState.url?.startsWith('local://')
+
+    if (targetWindowType === 'browser' && isLocal) {
+      console.warn(`Browser window ${targetWindowId} cannot receive local tab ${tabId}.`)
+      return false
+    }
+    if (targetWindowType === 'chat' && !isLocal) {
+      console.warn(`Chat window ${targetWindowId} cannot receive external tab ${tabId}.`)
+      return false
+    }
 
     // 如果已经在目标窗口中，仅调整位置
     if (windowId === targetWindowId) {
@@ -637,16 +741,19 @@ export class TabPresenter implements ITabPresenter {
    * 更新视图大小以适应窗口
    */
   private updateViewBounds(window: BrowserWindow, view: WebContentsView): void {
+    if (window.isDestroyed()) return
     // 获取窗口尺寸
     const { width, height } = window.getContentBounds()
 
+    const topOffset = this.getChromeHeight(window.id)
+    const viewHeight = Math.max(0, height - topOffset)
+
     // 设置视图位置大小（留出顶部标签栏空间）
-    const TAB_BAR_HEIGHT = 36 // 标签栏高度，需要根据实际UI调整
     view.setBounds({
       x: 0,
-      y: TAB_BAR_HEIGHT,
+      y: topOffset,
       width: width,
-      height: height - TAB_BAR_HEIGHT
+      height: viewHeight
     })
   }
 
@@ -708,6 +815,8 @@ export class TabPresenter implements ITabPresenter {
     this.tabState.clear()
     this.windowTabs.clear()
     this.webContentsToTabId.clear()
+    this.windowTypes.clear()
+    this.chromeHeights.clear()
   }
 
   /**
@@ -767,9 +876,11 @@ export class TabPresenter implements ITabPresenter {
     }
 
     // 2. 创建新窗口
+    const sourceWindowType = this.getWindowType(originalWindowId)
     const newWindowOptions: Record<string, any> = {
       forMovedTab: true,
-      activateTabId: tabId // Pass the tabId to the new window presenter to activate it
+      activateTabId: tabId, // Pass the tabId to the new window presenter to activate it
+      windowType: sourceWindowType
     }
     if (screenX !== undefined && screenY !== undefined) {
       newWindowOptions.x = screenX

@@ -84,5 +84,11 @@
   "history": "Historik",
   "minimize": "Minimer",
   "maximize": "Maksimer",
-  "restore": "Gendan"
+  "restore": "Gendan",
+  "browser": {
+    "back": "Back",
+    "forward": "Forward",
+    "reload": "Reload",
+    "addressPlaceholder": "Enter a URL"
+  }
 }

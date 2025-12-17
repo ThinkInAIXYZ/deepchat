@@ -84,5 +84,11 @@
   "history": "История",
   "minimize": "Свернуть",
   "maximize": "Развернуть",
-  "restore": "Восстановить"
+  "restore": "Восстановить",
+  "browser": {
+    "back": "Назад",
+    "forward": "Вперед",
+    "reload": "Перезагрузить",
+    "addressPlaceholder": "Введите URL"
+  }
 }

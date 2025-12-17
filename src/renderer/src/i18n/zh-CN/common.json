@@ -84,5 +84,11 @@
   "history": "历史",
   "minimize": "最小化",
   "maximize": "最大化",
-  "restore": "还原"
+  "restore": "还原",
+  "browser": {
+    "back": "后退",
+    "forward": "前进",
+    "reload": "刷新",
+    "addressPlaceholder": "输入网址"
+  }
 }
