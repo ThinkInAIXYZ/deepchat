@@ -23,7 +23,8 @@ import {
   IThreadPresenter,
   IUpgradePresenter,
   IWindowPresenter,
-  IAcpWorkspacePresenter
+  IAcpWorkspacePresenter,
+  IYoBrowserPresenter
 } from '@shared/presenter'
 import { eventBus } from '@/eventbus'
 import { LLMProviderPresenter } from './llmProviderPresenter'
@@ -39,6 +40,7 @@ import { TabPresenter } from './tabPresenter'
 import { TrayPresenter } from './trayPresenter'
 import { OAuthPresenter } from './oauthPresenter'
 import { FloatingButtonPresenter } from './floatingButtonPresenter'
+import { YoBrowserPresenter } from './browser/YoBrowserPresenter'
 import { CONFIG_EVENTS, WINDOW_EVENTS } from '@/events'
 import { KnowledgePresenter } from './knowledgePresenter'
 import { AcpWorkspacePresenter } from './acpWorkspacePresenter'
@@ -80,6 +82,7 @@ export class Presenter implements IPresenter {
   floatingButtonPresenter: FloatingButtonPresenter
   knowledgePresenter: IKnowledgePresenter
   acpWorkspacePresenter: IAcpWorkspacePresenter
+  yoBrowserPresenter: IYoBrowserPresenter
   // llamaCppPresenter: LlamaCppPresenter // 保留原始注释
   dialogPresenter: IDialogPresenter
   lifecycleManager: ILifecycleManager
@@ -113,6 +116,7 @@ export class Presenter implements IPresenter {
     this.trayPresenter = new TrayPresenter()
     this.floatingButtonPresenter = new FloatingButtonPresenter(this.configPresenter)
     this.dialogPresenter = new DialogPresenter()
+    this.yoBrowserPresenter = new YoBrowserPresenter(this.windowPresenter, this.tabPresenter)
 
     // Define dbDir for knowledge presenter
     const dbDir = path.join(app.getPath('userData'), 'app_db')
@@ -179,6 +183,9 @@ export class Presenter implements IPresenter {
 
     // 初始化悬浮按钮
     this.initializeFloatingButton()
+
+    // 初始化 Yo Browser
+    this.initializeYoBrowser()
   }
 
   // 初始化悬浮按钮
@@ -188,6 +195,15 @@ export class Presenter implements IPresenter {
       console.log('FloatingButtonPresenter initialized successfully')
     } catch (error) {
       console.error('Failed to initialize FloatingButtonPresenter:', error)
+    }
+  }
+
+  private async initializeYoBrowser() {
+    try {
+      await this.yoBrowserPresenter.initialize()
+      console.log('YoBrowserPresenter initialized')
+    } catch (error) {
+      console.error('Failed to initialize YoBrowserPresenter:', error)
     }
   }
 

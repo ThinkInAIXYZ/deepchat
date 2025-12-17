@@ -150,6 +150,16 @@ export const TAB_EVENTS = {
   RENDERER_TAB_ACTIVATED: 'tab:renderer-activated' // 渲染进程标签页激活
 }
 
+// Yo Browser 相关事件
+export const YO_BROWSER_EVENTS = {
+  TAB_CREATED: 'yo-browser:tab-created',
+  TAB_CLOSED: 'yo-browser:tab-closed',
+  TAB_ACTIVATED: 'yo-browser:tab-activated',
+  TAB_NAVIGATED: 'yo-browser:tab-navigated',
+  TAB_COUNT_CHANGED: 'yo-browser:tab-count-changed',
+  WINDOW_VISIBILITY_CHANGED: 'yo-browser:window-visibility-changed'
+}
+
 // 悬浮按钮相关事件
 export const FLOATING_BUTTON_EVENTS = {
   CLICKED: 'floating-button:clicked', // 悬浮按钮被点击

@@ -168,6 +168,7 @@ export interface ILlmProviderPresenter {
     reasoningEffort?: 'minimal' | 'low' | 'medium' | 'high',
     verbosity?: 'low' | 'medium' | 'high',
     enableSearch?: boolean,
+    enableBrowser?: boolean,
     forcedSearch?: boolean,
     searchStrategy?: 'turbo' | 'max',
     conversationId?: string

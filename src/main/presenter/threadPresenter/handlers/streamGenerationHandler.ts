@@ -81,36 +81,18 @@ export class StreamGenerationHandler extends BaseHandler {
 
       this.throwIfCancelled(state.message.id)
 
-      let searchResults: SearchResult[] | null = null
-      if ((userMessage.content as UserMessageContent).search) {
-        try {
-          searchResults = await this.searchHandler.startStreamSearch(
-            conversationId,
-            state.message.id,
-            userContent
-          )
-          this.throwIfCancelled(state.message.id)
-        } catch (error) {
-          if (String(error).includes('userCanceledGeneration')) {
-            return
-          }
-          console.error('[StreamGenerationHandler] Error during search:', error)
-        }
-      }
-
-      this.throwIfCancelled(state.message.id)
-
       const { finalContent, promptTokens } = await preparePromptContent({
         conversation,
         userContent,
         contextMessages,
-        searchResults,
+        searchResults: null,
         urlResults,
         userMessage,
         vision: Boolean(modelConfig?.vision),
         imageFiles: modelConfig?.vision ? imageFiles : [],
         supportsFunctionCall: modelConfig.functionCall,
-        modelType: modelConfig.type
+        modelType: modelConfig.type,
+        enableBrowser: conversation.settings.enableBrowser
       })
 
       this.throwIfCancelled(state.message.id)
@@ -130,6 +112,7 @@ export class StreamGenerationHandler extends BaseHandler {
         reasoningEffort: currentReasoningEffort,
         verbosity: currentVerbosity,
         enableSearch: currentEnableSearch,
+        enableBrowser: currentEnableBrowser,
         forcedSearch: currentForcedSearch,
         searchStrategy: currentSearchStrategy
       } = currentConversation.settings
@@ -146,6 +129,7 @@ export class StreamGenerationHandler extends BaseHandler {
         currentReasoningEffort,
         currentVerbosity,
         currentEnableSearch,
+        currentEnableBrowser,
         currentForcedSearch,
         currentSearchStrategy,
         conversationId
@@ -250,6 +234,7 @@ export class StreamGenerationHandler extends BaseHandler {
         reasoningEffort,
         verbosity,
         enableSearch,
+        enableBrowser,
         forcedSearch,
         searchStrategy
       } = conversation.settings
@@ -268,7 +253,8 @@ export class StreamGenerationHandler extends BaseHandler {
         vision: false,
         imageFiles: [],
         supportsFunctionCall: modelConfig.functionCall,
-        modelType: modelConfig.type
+        modelType: modelConfig.type,
+        enableBrowser
       })
 
       await this.updateGenerationState(state, promptTokens)
@@ -325,6 +311,7 @@ export class StreamGenerationHandler extends BaseHandler {
         reasoningEffort,
         verbosity,
         enableSearch,
+        enableBrowser,
         forcedSearch,
         searchStrategy,
         conversationId
@@ -468,7 +455,7 @@ export class StreamGenerationHandler extends BaseHandler {
       }
     }
 
-    const webSearchEnabled = this.ctx.configPresenter.getSetting('input_webSearch') as boolean
+    const webSearchEnabled = Boolean(conversation.settings.enableBrowser)
     const thinkEnabled = this.ctx.configPresenter.getSetting('input_deepThinking') as boolean
     ;(userMessage.content as UserMessageContent).search = webSearchEnabled
     ;(userMessage.content as UserMessageContent).think = thinkEnabled

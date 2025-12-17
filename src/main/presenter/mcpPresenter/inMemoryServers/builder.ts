@@ -14,7 +14,6 @@ import { MeetingServer } from './meetingServer'
 import { BuiltinKnowledgeServer } from './builtinKnowledgeServer'
 import { BuiltinKnowledgeConfig } from '@shared/presenter'
 import { AppleServer } from './appleServer'
-import { BrowserServer, BrowserServerConfig } from './browserServer'
 
 export function getInMemoryServer(
   serverName: string,
@@ -92,8 +91,6 @@ export function getInMemoryServer(
         throw new Error('Apple Server is only supported on macOS')
       }
       return new AppleServer()
-    case 'deepchat-inmemory/browser-server':
-      return new BrowserServer(env as BrowserServerConfig)
     default:
       throw new Error(`Unknown in-memory server: ${serverName}`)
   }

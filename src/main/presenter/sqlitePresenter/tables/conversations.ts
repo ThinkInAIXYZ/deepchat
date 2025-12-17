@@ -24,6 +24,7 @@ type ConversationRow = {
   enable_search: number | null
   forced_search: number | null
   search_strategy: string | null
+  enable_browser: number | null
   context_chain: string | null
 }
 
@@ -57,7 +58,8 @@ export class ConversationsTable extends BaseTable {
         max_tokens INTEGER DEFAULT 2000,
         temperature REAL DEFAULT 0.7,
         system_prompt TEXT DEFAULT '',
-        context_chain TEXT DEFAULT '[]'
+        context_chain TEXT DEFAULT '[]',
+        enable_browser INTEGER DEFAULT NULL
       );
       CREATE INDEX idx_conversations_updated ON conversations(updated_at DESC);
       CREATE INDEX idx_conversations_pinned ON conversations(is_pinned);
@@ -118,12 +120,18 @@ export class ConversationsTable extends BaseTable {
         ALTER TABLE conversations ADD COLUMN search_strategy TEXT DEFAULT NULL;
       `
     }
+    if (version === 8) {
+      return `
+        -- 添加浏览器开关字段
+        ALTER TABLE conversations ADD COLUMN enable_browser INTEGER DEFAULT NULL;
+      `
+    }
 
     return null
   }
 
   getLatestVersion(): number {
-    return 7
+    return 8
   }
 
   async create(title: string, settings: Partial<CONVERSATION_SETTINGS> = {}): Promise<string> {
@@ -149,9 +157,10 @@ export class ConversationsTable extends BaseTable {
         enable_search,
         forced_search,
         search_strategy,
+        enable_browser,
         context_chain
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `)
     const conv_id = nanoid()
     const now = Date.now()
@@ -176,6 +185,7 @@ export class ConversationsTable extends BaseTable {
       settings.enableSearch !== undefined ? (settings.enableSearch ? 1 : 0) : null,
       settings.forcedSearch !== undefined ? (settings.forcedSearch ? 1 : 0) : null,
       settings.searchStrategy !== undefined ? settings.searchStrategy : null,
+      settings.enableBrowser !== undefined ? (settings.enableBrowser ? 1 : 0) : null,
       settings.selectedVariantsMap ? JSON.stringify(settings.selectedVariantsMap) : '{}'
     )
     return conv_id
@@ -206,6 +216,7 @@ export class ConversationsTable extends BaseTable {
         enable_search,
         forced_search,
         search_strategy,
+        enable_browser,
         context_chain
       FROM conversations
       WHERE conv_id = ?
@@ -243,6 +254,7 @@ export class ConversationsTable extends BaseTable {
         searchStrategy: result.search_strategy
           ? (result.search_strategy as 'turbo' | 'max')
           : undefined,
+        enableBrowser: result.enable_browser !== null ? Boolean(result.enable_browser) : undefined,
         selectedVariantsMap: getJsonField(result.context_chain, undefined)
       }
     }
@@ -324,6 +336,10 @@ export class ConversationsTable extends BaseTable {
         updates.push('search_strategy = ?')
         params.push(data.settings.searchStrategy)
       }
+      if (data.settings.enableBrowser !== undefined) {
+        updates.push('enable_browser = ?')
+        params.push(data.settings.enableBrowser ? 1 : 0)
+      }
       if (data.settings.selectedVariantsMap !== undefined) {
         updates.push('context_chain = ?')
         params.push(JSON.stringify(data.settings.selectedVariantsMap))
@@ -379,6 +395,7 @@ export class ConversationsTable extends BaseTable {
         enable_search,
         forced_search,
         search_strategy,
+        enable_browser,
         context_chain
       FROM conversations
       ORDER BY updated_at DESC
@@ -415,6 +432,7 @@ export class ConversationsTable extends BaseTable {
           searchStrategy: row.search_strategy
             ? (row.search_strategy as 'turbo' | 'max')
             : undefined,
+          enableBrowser: row.enable_browser !== null ? Boolean(row.enable_browser) : undefined,
           selectedVariantsMap: getJsonField(row.context_chain, undefined)
         }
       }))

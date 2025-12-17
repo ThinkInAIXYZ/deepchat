@@ -23,6 +23,7 @@ export type CONVERSATION_SETTINGS = {
   enabledMcpTools?: string[]
   thinkingBudget?: number
   enableSearch?: boolean
+  enableBrowser?: boolean
   forcedSearch?: boolean
   searchStrategy?: 'turbo' | 'max'
   reasoningEffort?: 'minimal' | 'low' | 'medium' | 'high'

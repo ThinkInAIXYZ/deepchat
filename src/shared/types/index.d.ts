@@ -2,3 +2,4 @@
 export type * from './presenters/legacy.presenters'
 export type * from './presenters/agent-provider'
 export type * from './presenters/acp-workspace'
+export * from './browser'

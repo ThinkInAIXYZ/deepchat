@@ -8,6 +8,12 @@ import type { NowledgeMemThread, NowledgeMemExportSummary } from '../nowledgeMem
 import { ProviderChange, ProviderBatchUpdate } from './provider-operations'
 import type { AgentSessionLifecycleStatus } from './agent-provider'
 import type { IAcpWorkspacePresenter } from './acp-workspace'
+import type {
+  BrowserTabInfo,
+  BrowserContextSnapshot,
+  DownloadInfo,
+  ScreenshotOptions
+} from '../browser'
 
 export type SQLITE_MESSAGE = {
   id: string
@@ -144,6 +150,7 @@ export interface ModelConfig {
   isUserDefined?: boolean
   thinkingBudget?: number
   enableSearch?: boolean
+  enableBrowser?: boolean
   forcedSearch?: boolean
   searchStrategy?: 'turbo' | 'max'
   // New parameters for GPT-5 series
@@ -171,6 +178,36 @@ export interface TabData {
   closable: boolean
   url: string
   icon?: string
+}
+
+export interface BrowserContextSnapshot {
+  activeTabId: string | null
+  tabs: BrowserTabInfo[]
+}
+
+export interface IYoBrowserPresenter {
+  initialize(): Promise<void>
+  ensureWindow(): Promise<number | null>
+  show(): Promise<void>
+  hide(): Promise<void>
+  toggleVisibility(): Promise<boolean>
+  isVisible(): Promise<boolean>
+  listTabs(): Promise<BrowserTabInfo[]>
+  getActiveTab(): Promise<BrowserTabInfo | null>
+  createTab(url?: string): Promise<BrowserTabInfo | null>
+  navigateTab(tabId: string, url: string): Promise<void>
+  activateTab(tabId: string): Promise<void>
+  closeTab(tabId: string): Promise<void>
+  reuseTab(url: string): Promise<BrowserTabInfo | null>
+  goBack(tabId?: string): Promise<void>
+  goForward(tabId?: string): Promise<void>
+  reload(tabId?: string): Promise<void>
+  getBrowserContext(): Promise<BrowserContextSnapshot>
+  getToolDefinitions(supportsVision: boolean): Promise<MCPToolDefinition[]>
+  callTool(toolName: string, params: Record<string, unknown>): Promise<string>
+  captureScreenshot(tabId: string, options?: ScreenshotOptions): Promise<string>
+  startDownload(url: string, savePath?: string): Promise<DownloadInfo>
+  shutdown(): Promise<void>
 }
 
 export interface IWindowPresenter {
@@ -389,6 +426,7 @@ export interface IPresenter {
   deeplinkPresenter: IDeeplinkPresenter
   notificationPresenter: INotificationPresenter
   tabPresenter: ITabPresenter
+  yoBrowserPresenter: IYoBrowserPresenter
   oauthPresenter: IOAuthPresenter
   dialogPresenter: IDialogPresenter
   knowledgePresenter: IKnowledgePresenter
@@ -863,6 +901,7 @@ export interface ILlmProviderPresenter {
     reasoningEffort?: 'minimal' | 'low' | 'medium' | 'high',
     verbosity?: 'low' | 'medium' | 'high',
     enableSearch?: boolean,
+    enableBrowser?: boolean,
     forcedSearch?: boolean,
     searchStrategy?: 'turbo' | 'max',
     conversationId?: string
@@ -956,6 +995,7 @@ export type CONVERSATION_SETTINGS = {
   enabledMcpTools?: string[]
   thinkingBudget?: number
   enableSearch?: boolean
+  enableBrowser?: boolean
   forcedSearch?: boolean
   searchStrategy?: 'turbo' | 'max'
   reasoningEffort?: 'minimal' | 'low' | 'medium' | 'high'

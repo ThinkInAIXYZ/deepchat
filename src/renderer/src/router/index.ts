@@ -25,6 +25,15 @@ const router = createRouter({
         icon: 'lucide:message-square'
       }
     },
+    {
+      path: '/yo-browser',
+      name: 'yo-browser',
+      component: () => import('@/views/YoBrowser.vue'),
+      meta: {
+        titleKey: 'routes.yoBrowser',
+        icon: 'lucide:globe'
+      }
+    },
     ...(import.meta.env.VITE_ENABLE_PLAYGROUND === 'true'
       ? [
           {

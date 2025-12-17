@@ -8,7 +8,7 @@ import {
 } from '@shared/presenter'
 
 interface ToolCallProcessorOptions {
-  getAllToolDefinitions: (enabledMcpTools?: string[]) => Promise<MCPToolDefinition[]>
+  getAllToolDefinitions: (context: ToolCallExecutionContext) => Promise<MCPToolDefinition[]>
   callTool: (request: MCPToolCall) => Promise<{ content: unknown; rawData: MCPToolResponse }>
 }
 
@@ -37,14 +37,14 @@ export class ToolCallProcessor {
     let toolCallCount = context.currentToolCallCount
     let needContinueConversation = context.toolCalls.length > 0
 
-    let toolDefinitions = await this.options.getAllToolDefinitions(context.enabledMcpTools)
+    let toolDefinitions = await this.options.getAllToolDefinitions(context)
 
     const resolveToolDefinition = async (
       toolName: string
     ): Promise<MCPToolDefinition | undefined> => {
       const match = toolDefinitions.find((tool) => tool.function.name === toolName)
       if (match) return match
-      toolDefinitions = await this.options.getAllToolDefinitions(context.enabledMcpTools)
+      toolDefinitions = await this.options.getAllToolDefinitions(context)
       return toolDefinitions.find((tool) => tool.function.name === toolName)
     }
 

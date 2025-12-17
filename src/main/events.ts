@@ -186,6 +186,16 @@ export const TAB_EVENTS = {
   CLOSED: 'tab:closed' // 标签页被关闭事件
 }
 
+// Yo Browser 相关事件
+export const YO_BROWSER_EVENTS = {
+  TAB_CREATED: 'yo-browser:tab-created',
+  TAB_CLOSED: 'yo-browser:tab-closed',
+  TAB_ACTIVATED: 'yo-browser:tab-activated',
+  TAB_NAVIGATED: 'yo-browser:tab-navigated',
+  TAB_COUNT_CHANGED: 'yo-browser:tab-count-changed',
+  WINDOW_VISIBILITY_CHANGED: 'yo-browser:window-visibility-changed'
+}
+
 // 托盘相关事件
 export const TRAY_EVENTS = {
   SHOW_HIDDEN_WINDOW: 'tray:show-hidden-window', // 从托盘显示/隐藏窗口

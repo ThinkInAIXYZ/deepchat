@@ -1,4 +1,10 @@
-import { ChatMessage, IConfigPresenter, LLMAgentEvent, MCPToolCall } from '@shared/presenter'
+import {
+  ChatMessage,
+  IConfigPresenter,
+  LLMAgentEvent,
+  MCPToolCall,
+  MCPToolDefinition
+} from '@shared/presenter'
 import { presenter } from '@/presenter'
 import { eventBus, SendTarget } from '@/eventbus'
 import { ACP_WORKSPACE_EVENTS } from '@/events'
@@ -17,12 +23,45 @@ interface AgentLoopHandlerOptions {
 
 export class AgentLoopHandler {
   private readonly toolCallProcessor: ToolCallProcessor
+  private currentSupportsVision = false
 
   constructor(private readonly options: AgentLoopHandlerOptions) {
     this.toolCallProcessor = new ToolCallProcessor({
-      getAllToolDefinitions: (enabledMcpTools?: string[]) =>
-        presenter.mcpPresenter.getAllToolDefinitions(enabledMcpTools),
-      callTool: (request: MCPToolCall) => presenter.mcpPresenter.callTool(request)
+      getAllToolDefinitions: async (context) => {
+        const defs: MCPToolDefinition[] = []
+        const mcpDefs = await presenter.mcpPresenter.getAllToolDefinitions(context.enabledMcpTools)
+        defs.push(...mcpDefs)
+
+        const yoEnabled = Boolean(context.modelConfig?.enableBrowser)
+        if (yoEnabled) {
+          try {
+            const yoDefs = await presenter.yoBrowserPresenter.getToolDefinitions(
+              this.currentSupportsVision
+            )
+            defs.push(...yoDefs)
+          } catch (error) {
+            console.warn('[AgentLoop] Failed to load Yo Browser tool definitions', error)
+          }
+        }
+
+        return defs
+      },
+      callTool: async (request: MCPToolCall) => {
+        if (request.function.name.startsWith('yo_browser_')) {
+          const response = await presenter.yoBrowserPresenter.callTool(
+            request.function.name,
+            JSON.parse(request.function.arguments || '{}') as Record<string, unknown>
+          )
+          return {
+            content: typeof response === 'string' ? response : JSON.stringify(response),
+            rawData: {
+              toolCallId: request.id,
+              content: response
+            }
+          }
+        }
+        return await presenter.mcpPresenter.callTool(request)
+      }
     })
   }
 
@@ -43,6 +82,7 @@ export class AgentLoopHandler {
     reasoningEffort?: 'minimal' | 'low' | 'medium' | 'high',
     verbosity?: 'low' | 'medium' | 'high',
     enableSearch?: boolean,
+    enableBrowser?: boolean,
     forcedSearch?: boolean,
     searchStrategy?: 'turbo' | 'max',
     conversationId?: string
@@ -75,12 +115,16 @@ export class AgentLoopHandler {
     if (enableSearch !== undefined) {
       modelConfig.enableSearch = enableSearch
     }
+    if (enableBrowser !== undefined) {
+      modelConfig.enableBrowser = enableBrowser
+    }
     if (forcedSearch !== undefined) {
       modelConfig.forcedSearch = forcedSearch
     }
     if (searchStrategy !== undefined) {
       modelConfig.searchStrategy = searchStrategy
     }
+    this.currentSupportsVision = Boolean(modelConfig?.vision)
 
     this.options.activeStreams.set(eventId, {
       isGenerating: true,
@@ -142,7 +186,19 @@ export class AgentLoopHandler {
 
         try {
           console.log(`[Agent Loop] Iteration ${toolCallCount + 1} for event: ${eventId}`)
-          const mcpTools = await presenter.mcpPresenter.getAllToolDefinitions(enabledMcpTools)
+          const yoEnabled = Boolean(modelConfig.enableBrowser)
+          let toolDefs = await presenter.mcpPresenter.getAllToolDefinitions(enabledMcpTools)
+          if (yoEnabled) {
+            try {
+              const yoDefs = await presenter.yoBrowserPresenter.getToolDefinitions(
+                this.currentSupportsVision
+              )
+              toolDefs = [...toolDefs, ...yoDefs]
+            } catch (error) {
+              console.warn('[AgentLoop] Failed to load Yo Browser tool definitions', error)
+            }
+          }
+
           const canExecute = this.options.rateLimitManager.canExecuteImmediately(providerId)
           if (!canExecute) {
             const config = this.options.rateLimitManager.getProviderRateLimitConfig(providerId)
@@ -175,7 +231,7 @@ export class AgentLoopHandler {
             modelConfig,
             temperature,
             maxTokens,
-            mcpTools
+            toolDefs
           )
 
           // Process the standardized stream events
