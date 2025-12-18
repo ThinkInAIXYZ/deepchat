@@ -213,6 +213,7 @@ export interface IYoBrowserPresenter {
   callTool(toolName: string, params: Record<string, unknown>): Promise<string>
   captureScreenshot(tabId: string, options?: ScreenshotOptions): Promise<string>
   startDownload(url: string, savePath?: string): Promise<DownloadInfo>
+  clearSandboxData(): Promise<void>
   shutdown(): Promise<void>
 }
 

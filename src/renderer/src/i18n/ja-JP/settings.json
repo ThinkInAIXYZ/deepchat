@@ -103,6 +103,19 @@
     "toast": {
       "backupSuccessTitle": "バックアップ成功",
       "backupSuccessMessage": "データは正常にバックアップされました"
+    },
+    "yoBrowser": {
+      "clearButton": "YoBrowser データをクリアする",
+      "clearFailedDescription": "もう一度試すか、ログで詳細を確認してください。",
+      "clearFailedTitle": "クリアに失敗しました",
+      "clearedDescription": "サンドボックス セッションがリセットされ、関連するタブが再ロードされます。",
+      "clearedTitle": "YoBrowser データがクリアされました",
+      "clearing": "掃除中...",
+      "confirmAction": "今すぐクリア",
+      "confirmDescription": "YoBrowser セッションの Cookie、キャッシュ、LocalStorage、IndexedDB およびその他のデータが削除されるため、Web サイトへの再ログインが必要になる場合があります。",
+      "confirmTitle": "YoBrowser データをクリアしますか?",
+      "description": "Cookie やローカル ストレージをメイン アプリケーションと共有しない独立したブラウザ サンドボックス。ここで、YoBrowser のデータをワンクリックでクリアできます。",
+      "title": "YoBrowser サンドボックス"
     }
   },
   "model": {

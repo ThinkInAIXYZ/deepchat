@@ -103,6 +103,19 @@
     "toast": {
       "backupSuccessTitle": "Sauvegarde réussie",
       "backupSuccessMessage": "Données sauvegardées avec succès"
+    },
+    "yoBrowser": {
+      "clearButton": "Effacer les données de YoBrowser",
+      "clearFailedDescription": "Veuillez réessayer ou consulter les journaux pour plus d'informations.",
+      "clearFailedTitle": "Échec de la compensation",
+      "clearedDescription": "La session sandbox a été réinitialisée et l'onglet associé sera rechargé.",
+      "clearedTitle": "Données YoBrowser effacées",
+      "clearing": "Faire le ménage...",
+      "confirmAction": "Effacer maintenant",
+      "confirmDescription": "Les cookies, le cache, LocalStorage, IndexedDB et autres données de la session YoBrowser seront supprimés et vous devrez peut-être vous reconnecter au site Web.",
+      "confirmTitle": "Confirmer pour effacer les données de YoBrowser ?",
+      "description": "Un bac à sable de navigateur indépendant qui ne partage pas de cookies ni de stockage local avec l'application principale. Les données YoBrowser peuvent être effacées en un seul clic ici.",
+      "title": "Bac à sable YoBrowser"
     }
   },
   "model": {

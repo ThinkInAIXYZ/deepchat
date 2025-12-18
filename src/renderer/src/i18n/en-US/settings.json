@@ -103,6 +103,19 @@
     "toast": {
       "backupSuccessTitle": "Backup successful",
       "backupSuccessMessage": "Data backed up successfully"
+    },
+    "yoBrowser": {
+      "clearButton": "Clear YoBrowser data",
+      "clearFailedDescription": "Please try again or check the logs for more information.",
+      "clearFailedTitle": "Clearing failed",
+      "clearedDescription": "The sandbox session has been reset and the associated tab will be reloaded.",
+      "clearedTitle": "YoBrowser data cleared",
+      "clearing": "Cleaning up...",
+      "confirmAction": "Clear now",
+      "confirmDescription": "The YoBrowser session's cookies, cache, LocalStorage, IndexedDB and other data will be deleted, and you may need to log in to the website again.",
+      "confirmTitle": "Confirm to clear YoBrowser data?",
+      "description": "An independent browser sandbox that does not share cookies and local storage with the main application. \nYoBrowser data can be cleared with one click here.",
+      "title": "YoBrowser Sandbox"
     }
   },
   "model": {

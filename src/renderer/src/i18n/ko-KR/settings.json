@@ -103,6 +103,19 @@
     "toast": {
       "backupSuccessTitle": "백업 성공",
       "backupSuccessMessage": "데이터가 성공적으로 백업되었습니다."
+    },
+    "yoBrowser": {
+      "clearButton": "YoBrowser 데이터 지우기",
+      "clearFailedDescription": "자세한 내용은 다시 시도하거나 로그를 확인하세요.",
+      "clearFailedTitle": "삭제 실패",
+      "clearedDescription": "샌드박스 세션이 재설정되었으며 관련 탭이 다시 로드됩니다.",
+      "clearedTitle": "YoBrowser 데이터가 삭제되었습니다.",
+      "clearing": "청소 중...",
+      "confirmAction": "지금 지우기",
+      "confirmDescription": "YoBrowser 세션의 쿠키, 캐시, LocalStorage, IndexedDB 및 기타 데이터가 삭제되며 웹사이트에 다시 로그인해야 할 수도 있습니다.",
+      "confirmTitle": "YoBrowser 데이터를 삭제하시겠습니까?",
+      "description": "기본 애플리케이션과 쿠키 및 로컬 저장소를 공유하지 않는 독립적인 브라우저 샌드박스입니다. 여기를 클릭하면 YoBrowser 데이터를 삭제할 수 있습니다.",
+      "title": "요브라우저 샌드박스"
     }
   },
   "model": {

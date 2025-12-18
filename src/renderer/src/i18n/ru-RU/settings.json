@@ -103,6 +103,19 @@
     "toast": {
       "backupSuccessTitle": "Резервное копирование выполнено успешно",
       "backupSuccessMessage": "Резервное копирование данных успешно выполнено"
+    },
+    "yoBrowser": {
+      "clearButton": "Очистить данные YoBrowser",
+      "clearFailedDescription": "Повторите попытку или проверьте журналы для получения дополнительной информации.",
+      "clearFailedTitle": "Очистка не удалась",
+      "clearedDescription": "Сеанс песочницы был сброшен, и соответствующая вкладка будет перезагружена.",
+      "clearedTitle": "Данные YoBrowser удалены.",
+      "clearing": "Уборка...",
+      "confirmAction": "Очистить сейчас",
+      "confirmDescription": "Файлы cookie, кеш, LocalStorage, IndexedDB и другие данные сеанса YoBrowser будут удалены, и вам, возможно, придется снова войти на веб-сайт.",
+      "confirmTitle": "Подтвердить очистку данных YoBrowser?",
+      "description": "Независимая песочница браузера, которая не использует файлы cookie и локальное хранилище совместно с основным приложением. Данные YoBrowser можно очистить одним щелчком мыши здесь.",
+      "title": "Песочница YoBrowser"
     }
   },
   "model": {

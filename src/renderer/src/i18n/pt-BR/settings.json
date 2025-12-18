@@ -103,6 +103,19 @@
     "toast": {
       "backupSuccessTitle": "Backup bem-sucedido",
       "backupSuccessMessage": "Dados salvos em backup com sucesso"
+    },
+    "yoBrowser": {
+      "clearButton": "Limpar dados do YoBrowser",
+      "clearFailedDescription": "Tente novamente ou verifique os registros para obter mais informações.",
+      "clearFailedTitle": "Falha na limpeza",
+      "clearedDescription": "A sessão sandbox foi redefinida e a guia associada será recarregada.",
+      "clearedTitle": "Dados do YoBrowser apagados",
+      "clearing": "Limpando...",
+      "confirmAction": "Limpar agora",
+      "confirmDescription": "Os cookies, cache, LocalStorage, IndexedDB e outros dados da sessão YoBrowser serão excluídos e pode ser necessário fazer login no site novamente.",
+      "confirmTitle": "Confirmar para limpar os dados do YoBrowser?",
+      "description": "Uma sandbox de navegador independente que não compartilha cookies e armazenamento local com o aplicativo principal. Os dados do YoBrowser podem ser apagados com um clique aqui.",
+      "title": "Caixa de areia YoBrowser"
     }
   },
   "model": {

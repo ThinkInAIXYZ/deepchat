@@ -15,6 +15,7 @@ import { ScreenshotManager } from './ScreenshotManager'
 import { DownloadManager } from './DownloadManager'
 import { BrowserToolManager } from './BrowserToolManager'
 import { zodToJsonSchema } from 'zod-to-json-schema'
+import { clearYoBrowserSessionData } from './yoBrowserSession'
 
 export class YoBrowserPresenter implements IYoBrowserPresenter {
   private windowId: number | null = null
@@ -336,6 +337,15 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
       throw new Error('Active tab is destroyed')
     }
     return await this.downloadManager.downloadFile(url, savePath, active?.contents)
+  }
+
+  async clearSandboxData(): Promise<void> {
+    await clearYoBrowserSessionData()
+    for (const tab of this.tabIdToBrowserTab.values()) {
+      if (!tab.contents.isDestroyed()) {
+        tab.contents.reloadIgnoringCache()
+      }
+    }
   }
 
   async shutdown(): Promise<void> {

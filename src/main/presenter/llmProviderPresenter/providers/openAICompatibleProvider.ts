@@ -983,7 +983,6 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
     let processedMessages = [
       ...this.formatMessages(messages, supportsFunctionCall)
     ] as ChatCompletionMessageParam[]
-
     // 如果不支持原生函数调用但存在工具，则准备非原生函数调用提示
     if (tools.length > 0 && !supportsFunctionCall) {
       processedMessages = this.prepareFunctionCallPrompt(processedMessages, tools)

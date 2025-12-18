@@ -103,6 +103,19 @@
     "toast": {
       "backupSuccessTitle": "備份成功",
       "backupSuccessMessage": "成功備份了數據"
+    },
+    "yoBrowser": {
+      "clearButton": "清空 YoBrowser 數據",
+      "clearFailedDescription": "請重試或查看日誌獲取更多信息。",
+      "clearFailedTitle": "清空失敗",
+      "clearedDescription": "沙盒會話已重置，相關標籤頁將重新加載。",
+      "clearedTitle": "已清空 YoBrowser 數據",
+      "clearing": "清理中...",
+      "confirmAction": "立即清空",
+      "confirmDescription": "將刪除 YoBrowser 會話的 Cookie、緩存、LocalStorage、IndexedDB 等數據，可能需要重新登錄網站。",
+      "confirmTitle": "確認清空 YoBrowser 數據？",
+      "description": "獨立的瀏覽器沙盒，不與主應用共享 Cookie 和本地存儲。\n可在此一鍵清空 YoBrowser 數據。",
+      "title": "YoBrowser 沙盒"
     }
   },
   "model": {

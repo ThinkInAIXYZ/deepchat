@@ -103,6 +103,19 @@
     "toast": {
       "backupSuccessTitle": "پشتیبان گیری با موفقیت انجام شد",
       "backupSuccessMessage": "داده ها با موفقیت پشتیبان گیری شدند"
+    },
+    "yoBrowser": {
+      "clearButton": "داده های YoBrowser را پاک کنید",
+      "clearFailedDescription": "لطفاً دوباره امتحان کنید یا برای اطلاعات بیشتر گزارش‌ها را بررسی کنید.",
+      "clearFailedTitle": "پاکسازی انجام نشد",
+      "clearedDescription": "جلسه جعبه ایمنی بازنشانی شده است و برگه مربوطه بارگیری مجدد خواهد شد.",
+      "clearedTitle": "داده های YoBrowser پاک شد",
+      "clearing": "تمیز کردن...",
+      "confirmAction": "حالا پاک کن",
+      "confirmDescription": "کوکی‌ها، حافظه پنهان، LocalStorage، IndexedDB و سایر داده‌های جلسه YoBrowser حذف خواهند شد و ممکن است لازم باشد دوباره وارد وب‌سایت شوید.",
+      "confirmTitle": "برای پاک کردن داده‌های YoBrowser تأیید می‌کنید؟",
+      "description": "یک سندباکس مرورگر مستقل که کوکی‌ها و فضای ذخیره‌سازی محلی را با برنامه اصلی به اشتراک نمی‌گذارد. داده های YoBrowser را می توان با یک کلیک در اینجا پاک کرد.",
+      "title": "YoBrowser Sandbox"
     }
   },
   "model": {

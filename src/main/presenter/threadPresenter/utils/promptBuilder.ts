@@ -108,7 +108,7 @@ export async function preparePromptContent({
     try {
       const supportsVision = modelCapabilities.supportsVision(providerId, modelId)
       const browserTools = await presenter.yoBrowserPresenter.getToolDefinitions(supportsVision)
-      console.log('browserTools', browserTools)
+      // console.log('browserTools', browserTools)
       mcpTools = [...mcpTools, ...browserTools]
       const browserContext = await presenter.yoBrowserPresenter.getBrowserContext()
       browserContextPrompt = BrowserContextBuilder.buildSystemPrompt(

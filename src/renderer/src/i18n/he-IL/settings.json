@@ -103,6 +103,19 @@
     "toast": {
       "backupSuccessTitle": "גיבוי הושלם בהצלחה",
       "backupSuccessMessage": "הנתונים גובו בהצלחה"
+    },
+    "yoBrowser": {
+      "clearButton": "נקה את נתוני YoBrowser",
+      "clearFailedDescription": "אנא נסה שוב או בדוק את היומנים לקבלת מידע נוסף.",
+      "clearFailedTitle": "הניקוי נכשל",
+      "clearedDescription": "הפעלת ארגז החול אופסה והכרטיסייה המשויכת תיטען מחדש.",
+      "clearedTitle": "נתוני YoBrowser נוקו",
+      "clearing": "מנקה...",
+      "confirmAction": "נקה עכשיו",
+      "confirmDescription": "העוגיות, המטמון, LocalStorage, IndexedDB ונתונים אחרים של הפעלת YoBrowser יימחקו, וייתכן שתצטרך להיכנס שוב לאתר.",
+      "confirmTitle": "לאשר לנקות נתוני YoBrowser?",
+      "description": "ארגז חול עצמאי של דפדפן שאינו חולק עוגיות ואחסון מקומי עם האפליקציה הראשית. ניתן לנקות את נתוני YoBrowser בלחיצה אחת כאן.",
+      "title": "ארגז חול של YoBrowser"
     }
   },
   "model": {

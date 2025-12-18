@@ -103,6 +103,19 @@
     "toast": {
       "backupSuccessTitle": "Backup lykkedes",
       "backupSuccessMessage": "Data blev sikkerhedskopieret"
+    },
+    "yoBrowser": {
+      "clearButton": "Ryd YoBrowser-data",
+      "clearFailedDescription": "Prøv venligst igen, eller tjek logfilerne for at få flere oplysninger.",
+      "clearFailedTitle": "Rydningen mislykkedes",
+      "clearedDescription": "Sandbox-sessionen er blevet nulstillet, og den tilknyttede fane vil blive genindlæst.",
+      "clearedTitle": "YoBrowser-data blev ryddet",
+      "clearing": "Rydder op...",
+      "confirmAction": "Ryd nu",
+      "confirmDescription": "YoBrowser-sessionens cookies, cache, LocalStorage, IndexedDB og andre data vil blive slettet, og du skal muligvis logge ind på hjemmesiden igen.",
+      "confirmTitle": "Bekræft at rydde YoBrowser-data?",
+      "description": "En uafhængig browsersandbox, der ikke deler cookies og lokal lagring med hovedapplikationen. YoBrowser-data kan ryddes med et enkelt klik her.",
+      "title": "YoBrowser Sandbox"
     }
   },
   "model": {

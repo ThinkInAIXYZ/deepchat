@@ -3,7 +3,7 @@ import { eventBus } from '@/eventbus'
 import { WINDOW_EVENTS, CONFIG_EVENTS, SYSTEM_EVENTS, TAB_EVENTS } from '@/events'
 import { is } from '@electron-toolkit/utils'
 import { ITabPresenter, TabCreateOptions, IWindowPresenter, TabData } from '@shared/presenter'
-import { BrowserWindow, WebContentsView, shell, nativeImage } from 'electron'
+import { BrowserWindow, WebContentsView, shell, nativeImage, type WebPreferences } from 'electron'
 import { join } from 'path'
 import contextMenu from '@/contextMenuHelper'
 import { getContextMenuLabels } from '@shared/i18n'
@@ -11,6 +11,7 @@ import { app } from 'electron'
 import { addWatermarkToNativeImage } from '@/lib/watermark'
 import { stitchImagesVertically } from '@/lib/scrollCapture'
 import { presenter } from './'
+import { getYoBrowserSession } from './browser/yoBrowserSession'
 
 export class TabPresenter implements ITabPresenter {
   // 全局标签页实例存储
@@ -178,13 +179,19 @@ export class TabPresenter implements ITabPresenter {
       this.chromeHeights.set(windowId, TabPresenter.DEFAULT_CHROME_HEIGHT)
     }
 
+    const webPreferences: WebPreferences = {
+      preload: join(__dirname, '../preload/index.mjs'),
+      sandbox: false,
+      devTools: is.dev
+    }
+
+    if (windowType === 'browser') {
+      webPreferences.session = getYoBrowserSession()
+    }
+
     // 创建新的WebContentsView
     const view = new WebContentsView({
-      webPreferences: {
-        preload: join(__dirname, '../preload/index.mjs'),
-        sandbox: false,
-        devTools: is.dev
-      }
+      webPreferences
     })
 
     view.setBorderRadius(0)

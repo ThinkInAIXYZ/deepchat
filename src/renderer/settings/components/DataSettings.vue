@@ -265,6 +265,63 @@
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <Separator class="my-4" />
+
+      <div class="flex flex-col gap-3 p-4 border border-border rounded-lg bg-card/30">
+        <div class="flex flex-row gap-3 items-start">
+          <Icon icon="lucide:shield" class="w-4 h-4 text-muted-foreground mt-1" />
+          <div class="flex flex-col gap-1">
+            <div class="text-sm font-medium">{{ t('settings.data.yoBrowser.title') }}</div>
+            <p class="text-xs text-muted-foreground">
+              {{ t('settings.data.yoBrowser.description') }}
+            </p>
+          </div>
+        </div>
+        <AlertDialog v-model:open="isClearSandboxDialogOpen">
+          <AlertDialogTrigger as-child>
+            <Button
+              variant="outline"
+              class="w-56"
+              :disabled="isClearingSandbox"
+              :dir="languageStore.dir"
+            >
+              <Icon
+                :icon="isClearingSandbox ? 'lucide:loader-2' : 'lucide:trash-2'"
+                class="w-4 h-4 text-muted-foreground"
+                :class="isClearingSandbox ? 'animate-spin' : ''"
+              />
+              <span class="text-sm font-medium">
+                {{
+                  isClearingSandbox
+                    ? t('settings.data.yoBrowser.clearing')
+                    : t('settings.data.yoBrowser.clearButton')
+                }}
+              </span>
+            </Button>
+          </AlertDialogTrigger>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>{{ t('settings.data.yoBrowser.confirmTitle') }}</AlertDialogTitle>
+              <AlertDialogDescription>
+                {{ t('settings.data.yoBrowser.confirmDescription') }}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel @click="isClearSandboxDialogOpen = false">
+                {{ t('dialog.cancel') }}
+              </AlertDialogCancel>
+              <AlertDialogAction :disabled="isClearingSandbox" @click="handleClearSandboxData">
+                {{
+                  isClearingSandbox
+                    ? t('settings.data.yoBrowser.clearing')
+                    : t('settings.data.yoBrowser.confirmAction')
+                }}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      </div>
     </div>
   </ScrollArea>
 </template>
@@ -318,6 +375,7 @@ const { t } = useI18n()
 const languageStore = useLanguageStore()
 const syncStore = useSyncStore()
 const devicePresenter = usePresenter('devicePresenter')
+const yoBrowserPresenter = usePresenter('yoBrowserPresenter')
 const { backups: backupsRef } = storeToRefs(syncStore)
 const { toast } = useToast()
 
@@ -328,6 +386,8 @@ const selectedBackup = ref('')
 const isResetDialogOpen = ref(false)
 const resetType = ref<'chat' | 'knowledge' | 'config' | 'all'>('chat')
 const isResetting = ref(false)
+const isClearingSandbox = ref(false)
+const isClearSandboxDialogOpen = ref(false)
 
 // 使用计算属性处理双向绑定
 const syncEnabled = computed({
@@ -459,6 +519,31 @@ const handleReset = async () => {
     console.error('重置数据失败:', error)
   } finally {
     isResetting.value = false
+  }
+}
+
+const handleClearSandboxData = async () => {
+  if (isClearingSandbox.value) return
+
+  isClearingSandbox.value = true
+  try {
+    await yoBrowserPresenter.clearSandboxData()
+    toast({
+      title: t('settings.data.yoBrowser.clearedTitle'),
+      description: t('settings.data.yoBrowser.clearedDescription'),
+      duration: 4000
+    })
+  } catch (error) {
+    console.error('Failed to clear YoBrowser sandbox data:', error)
+    toast({
+      title: t('settings.data.yoBrowser.clearFailedTitle'),
+      description: t('settings.data.yoBrowser.clearFailedDescription'),
+      variant: 'destructive',
+      duration: 4000
+    })
+  } finally {
+    isClearingSandbox.value = false
+    isClearSandboxDialogOpen.value = false
   }
 }
 </script>
