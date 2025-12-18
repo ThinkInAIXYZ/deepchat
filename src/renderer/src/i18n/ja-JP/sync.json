@@ -1,6 +1,6 @@
 {
   "success": {
-    "importComplete": "{count}件の会話をインポートしました。OKをクリックして、アプリケーションを再起動します。"
+    "importComplete": "{count}件の会話をインポートしました。"
   },
   "error": {
     "notEnabled": "同期機能が有効になっていません",

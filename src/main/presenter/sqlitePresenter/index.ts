@@ -32,9 +32,11 @@ export class SQLitePresenter implements ISQLitePresenter {
   private acpSessionsTable!: AcpSessionsTable
   private currentVersion: number = 0
   private dbPath: string
+  private password?: string
 
   constructor(dbPath: string, password?: string) {
     this.dbPath = dbPath
+    this.password = password
     try {
       // 确保数据库目录存在
       const dbDir = path.dirname(dbPath)
@@ -215,7 +217,39 @@ export class SQLitePresenter implements ISQLitePresenter {
 
   // 关闭数据库连接
   public close() {
-    this.db.close()
+    try {
+      this.db.close()
+    } catch (error) {
+      console.warn('Failed to close database:', error)
+    }
+  }
+
+  public reopen() {
+    try {
+      this.close()
+
+      const dbDir = path.dirname(this.dbPath)
+      if (!fs.existsSync(dbDir)) {
+        fs.mkdirSync(dbDir, { recursive: true })
+      }
+
+      this.db = new Database(this.dbPath)
+      this.db.pragma('journal_mode = WAL')
+
+      if (this.password) {
+        this.db.pragma(`cipher='sqlcipher'`)
+        this.db.pragma(`key='${this.password}'`)
+      }
+
+      this.db.prepare('SELECT 1').get()
+
+      this.initTables()
+      this.initVersionTable()
+      this.migrate()
+    } catch (error) {
+      console.error('Failed to reopen database:', error)
+      throw error
+    }
   }
 
   // 创建新对话

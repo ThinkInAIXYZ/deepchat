@@ -80,7 +80,7 @@
     "selectBackupPlaceholder": "請選擇備份",
     "noBackupsAvailable": "目前沒有可用備份，請先建立備份。",
     "importConfirmTitle": "確認匯入資料",
-    "importConfirmDescription": "匯入將會覆蓋目前所有資料，包括聊天記錄和設定。請確保已備份重要資料。匯入完成後需要重新啟動應用程式。",
+    "importConfirmDescription": "匯入將會覆蓋目前所有資料，包括聊天記錄和設定。請確保已備份重要資料。匯入完成後將自動刷新資料。",
     "importing": "匯入中...",
     "confirmImport": "確認匯入",
     "importSuccessTitle": "匯入成功",

@@ -80,7 +80,7 @@
     "selectBackupPlaceholder": "請選擇備份",
     "noBackupsAvailable": "當前沒有可用備份，請先進行備份。",
     "importConfirmTitle": "確認導入數據",
-    "importConfirmDescription": "導入將會覆蓋所有當前數據，包括聊天記錄和設置。請確保已備份重要數據。導入後需要重新啟動應用程序。",
+    "importConfirmDescription": "導入將會覆蓋所有當前數據，包括聊天記錄和設置。請確保已備份重要數據。導入完成後將自動刷新資料。",
     "importing": "導入中...",
     "confirmImport": "確認導入",
     "importSuccessTitle": "導入成功",

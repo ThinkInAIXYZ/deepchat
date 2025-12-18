@@ -80,7 +80,7 @@
     "selectBackupPlaceholder": "Sélectionnez une sauvegarde",
     "noBackupsAvailable": "Aucune sauvegarde disponible. Lancez d'abord une sauvegarde.",
     "importConfirmTitle": "Confirmer l'importation des données",
-    "importConfirmDescription": "L'importation écrasera toutes les données actuelles, y compris l'historique des conversations et les paramètres. Assurez-vous d'avoir sauvegardé les données importantes. Vous devrez redémarrer l'application après l'importation.",
+    "importConfirmDescription": "L'importation écrasera toutes les données actuelles, y compris l'historique des conversations et les paramètres. Assurez-vous d'avoir sauvegardé les données importantes. Les données seront actualisées automatiquement après l'importation.",
     "importing": "Importation en cours...",
     "confirmImport": "Confirmer l'importation",
     "importSuccessTitle": "Importation réussie",

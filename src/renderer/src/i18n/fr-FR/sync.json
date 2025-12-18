@@ -1,6 +1,6 @@
 {
   "success": {
-    "importComplete": "{count} conversation(s) importée(s) avec succès. Cliquez sur OK pour redémarrer l'application."
+    "importComplete": "{count} conversation(s) importée(s) avec succès."
   },
   "error": {
     "notEnabled": "La fonction de synchronisation n'est pas activée",

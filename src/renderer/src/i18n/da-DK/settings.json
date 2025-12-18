@@ -80,7 +80,7 @@
     "selectBackupPlaceholder": "Vælg en backup",
     "noBackupsAvailable": "Ingen backups tilgængelige. Kør først en sikkerhedskopi.",
     "importConfirmTitle": "Bekræft dataimport",
-    "importConfirmDescription": "Import overskriver alle aktuelle data, inklusiv chat- og indstillingshistorik. Sørg for at sikkerhedskopiere vigtige data. Appen skal genstartes efter import.",
+    "importConfirmDescription": "Import overskriver alle aktuelle data, inklusiv chat- og indstillingshistorik. Sørg for at sikkerhedskopiere vigtige data. Data bliver automatisk opdateret efter import.",
     "importing": "Importerer...",
     "confirmImport": "Bekræft import",
     "importSuccessTitle": "Import gennemført",

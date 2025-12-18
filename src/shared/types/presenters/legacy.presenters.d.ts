@@ -328,6 +328,7 @@ export interface IShortcutPresenter {
 
 export interface ISQLitePresenter {
   close(): void
+  reopen(): void
   createConversation(title: string, settings?: Partial<CONVERSATION_SETTINGS>): Promise<string>
   deleteConversation(conversationId: string): Promise<void>
   renameConversation(conversationId: string, title: string): Promise<CONVERSATION>

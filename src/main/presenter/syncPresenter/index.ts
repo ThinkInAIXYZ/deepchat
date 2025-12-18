@@ -182,6 +182,8 @@ export class SyncPresenter implements ISyncPresenter {
       mcpSettings: null
     }
 
+    let sqliteClosed = false
+
     try {
       this.extractBackupArchive(backupZipPath, extractionDir)
 
@@ -196,6 +198,7 @@ export class SyncPresenter implements ISyncPresenter {
       }
 
       this.sqlitePresenter.close()
+      sqliteClosed = true
 
       tempCurrentFiles.db = this.createTempBackup(this.DB_PATH, 'chat.db')
       tempCurrentFiles.appSettings = this.createTempBackup(
@@ -226,6 +229,7 @@ export class SyncPresenter implements ISyncPresenter {
         backupDb.close()
 
         this.copyFile(backupDbPath, this.DB_PATH)
+        this.cleanupDatabaseSidecarFiles(this.DB_PATH)
         this.mergeAppSettingsPreservingSync(backupAppSettingsPath, this.APP_SETTINGS_PATH)
 
         if (fs.existsSync(backupCustomPromptsPath)) {
@@ -257,6 +261,13 @@ export class SyncPresenter implements ISyncPresenter {
         }
       }
 
+      if (sqliteClosed) {
+        this.sqlitePresenter.reopen()
+      }
+      await this.broadcastThreadListUpdateAfterImport()
+      if (importMode === ImportMode.OVERWRITE) {
+        await this.resetShellWindowsToSingleNewChatTab()
+      }
       eventBus.send(SYNC_EVENTS.IMPORT_COMPLETED, SendTarget.ALL_WINDOWS)
       return {
         success: true,
@@ -266,6 +277,14 @@ export class SyncPresenter implements ISyncPresenter {
     } catch (error) {
       console.error('import failed,reverting:', error)
       this.restoreFromTempBackup(tempCurrentFiles)
+      if (sqliteClosed) {
+        try {
+          this.sqlitePresenter.reopen()
+          await this.broadcastThreadListUpdateAfterImport()
+        } catch (reopenError) {
+          console.error('Failed to reopen sqlite after import failure:', reopenError)
+        }
+      }
       eventBus.send(
         SYNC_EVENTS.IMPORT_ERROR,
         SendTarget.ALL_WINDOWS,
@@ -533,6 +552,70 @@ export class SyncPresenter implements ISyncPresenter {
   private copyFile(source: string, target: string): void {
     fs.mkdirSync(path.dirname(target), { recursive: true })
     fs.copyFileSync(source, target)
+  }
+
+  private async broadcastThreadListUpdateAfterImport(): Promise<void> {
+    try {
+      const { presenter } = await import('../index')
+      await (presenter?.threadPresenter as any)?.broadcastThreadListUpdate?.()
+    } catch (error) {
+      console.warn('Failed to broadcast thread list update after import:', error)
+    }
+  }
+
+  private async resetShellWindowsToSingleNewChatTab(): Promise<void> {
+    try {
+      const { presenter } = await import('../index')
+      const windowPresenter = presenter?.windowPresenter as any
+      const tabPresenter = presenter?.tabPresenter as any
+
+      const windows = (windowPresenter?.getAllWindows?.() as Array<{ id: number }>) ?? []
+      await Promise.all(
+        windows.map(async ({ id: windowId }) => {
+          const tabsData =
+            (await tabPresenter?.getWindowTabsData?.(windowId)) ??
+            ([] as Array<{ id: number; isActive?: boolean }>)
+
+          if (tabsData.length === 0) {
+            await tabPresenter?.createTab?.(windowId, 'local://chat', { active: true })
+            return
+          }
+
+          const tabToKeep = tabsData.find((tab) => tab.isActive) ?? tabsData[0]
+          if (!tabToKeep) {
+            return
+          }
+
+          await tabPresenter?.resetTabToBlank?.(tabToKeep.id)
+          await tabPresenter?.switchTab?.(tabToKeep.id)
+
+          const tabsToClose = tabsData.filter((tab) => tab.id !== tabToKeep.id).map((tab) => tab.id)
+          for (const tabId of tabsToClose) {
+            try {
+              await tabPresenter?.closeTab?.(tabId)
+            } catch (error) {
+              console.warn('Failed to close tab after overwrite import:', tabId, error)
+            }
+          }
+        })
+      )
+    } catch (error) {
+      console.warn('Failed to reset shell windows after overwrite import:', error)
+    }
+  }
+
+  private cleanupDatabaseSidecarFiles(dbFilePath: string): void {
+    const sidecarFiles = [`${dbFilePath}-wal`, `${dbFilePath}-shm`]
+    for (const filePath of sidecarFiles) {
+      if (!fs.existsSync(filePath)) {
+        continue
+      }
+      try {
+        fs.unlinkSync(filePath)
+      } catch (error) {
+        console.warn('Failed to remove database sidecar file:', filePath, error)
+      }
+    }
   }
 
   private restoreFromTempBackup(tempFiles: Record<string, string | null>): void {

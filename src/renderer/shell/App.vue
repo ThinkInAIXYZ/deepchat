@@ -20,6 +20,10 @@ import { useDeviceVersion } from '@/composables/useDeviceVersion'
 import { useMcpStore } from '@/stores/mcp'
 import { useTabStore } from '@shell/stores/tab'
 import { useElementSize } from '@vueuse/core'
+import { useFontManager } from '@/composables/useFontManager'
+
+const { setupFontListener } = useFontManager()
+setupFontListener()
 
 // Detect platform to apply proper styling
 const { isWinMacOS } = useDeviceVersion()

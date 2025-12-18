@@ -80,7 +80,7 @@
     "selectBackupPlaceholder": "请选择备份",
     "noBackupsAvailable": "当前没有可用的备份，请先执行一次备份。",
     "importConfirmTitle": "确认导入数据",
-    "importConfirmDescription": "导入将会覆盖当前所有数据，包括聊天记录和设置。请确保已备份重要数据。导入完成后需要重启应用程序。",
+    "importConfirmDescription": "导入将会覆盖当前所有数据，包括聊天记录和设置。请确保已备份重要数据。导入完成后将自动刷新数据。",
     "importing": "导入中...",
     "confirmImport": "确认导入",
     "importSuccessTitle": "导入成功",

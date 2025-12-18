@@ -1,6 +1,6 @@
 {
   "success": {
-    "importComplete": "יובאו בהצלחה {count} שיחות. היישום יופעל מחדש כעת."
+    "importComplete": "יובאו בהצלחה {count} שיחות."
   },
   "error": {
     "notEnabled": "הסנכרון אינו מופעל",

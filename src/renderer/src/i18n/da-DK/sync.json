@@ -1,6 +1,6 @@
 {
   "success": {
-    "importComplete": "Import af {count} samtale(r) lykkedes. Programmet genstarter nu."
+    "importComplete": "Import af {count} samtale(r) lykkedes."
   },
   "error": {
     "notEnabled": "Synkronisering er ikke aktiveret",

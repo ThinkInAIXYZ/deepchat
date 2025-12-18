@@ -80,7 +80,7 @@
     "selectBackupPlaceholder": "백업을 선택하세요",
     "noBackupsAvailable": "사용 가능한 백업이 없습니다. 먼저 백업을 생성하세요.",
     "importConfirmTitle": "데이터 가져오기 확인",
-    "importConfirmDescription": "가져오기를 실행하면 채팅 기록과 설정을 포함한 모든 현재 데이터가 덮어쓰기됩니다. 중요한 데이터를 백업했는지 확인하세요. 가져오기 후에는 애플리케이션을 다시 시작해야 합니다.",
+    "importConfirmDescription": "가져오기를 실행하면 채팅 기록과 설정을 포함한 모든 현재 데이터가 덮어쓰기됩니다. 중요한 데이터를 백업했는지 확인하세요. 가져오기 후 데이터가 자동으로 새로고침됩니다.",
     "importing": "가져오는 중...",
     "confirmImport": "가져오기 확인",
     "importSuccessTitle": "가져오기 성공",

@@ -48,7 +48,8 @@ describe('SyncPresenter backup import', () => {
     })
 
     sqlitePresenter = {
-      close: vi.fn()
+      close: vi.fn(),
+      reopen: vi.fn()
     }
 
     configPresenter = {
@@ -121,6 +122,7 @@ describe('SyncPresenter backup import', () => {
     expect(result.success).toBe(true)
     expect(result.count).toBe(1)
     expect(sqlitePresenter.close).toHaveBeenCalled()
+    expect(sqlitePresenter.reopen).toHaveBeenCalled()
 
     const dbPath = path.join(userDataDir, 'app_db', 'chat.db')
     const db = new Database(dbPath)
@@ -211,6 +213,7 @@ describe('SyncPresenter backup import', () => {
 
     expect(result.success).toBe(true)
     expect(result.count).toBe(1)
+    expect(sqlitePresenter.reopen).toHaveBeenCalled()
 
     const dbPath = path.join(userDataDir, 'app_db', 'chat.db')
     const db = new Database(dbPath)

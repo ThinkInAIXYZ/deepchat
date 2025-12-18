@@ -326,6 +326,36 @@ export class ToolCallProcessor {
     errorMessage: string
   ): void {
     if (modelConfig?.functionCall) {
+      // For native function-calling models, ensure every tool error is still paired
+      // with a preceding assistant message that declares the tool_call in tool_calls.
+      const toolCallEntry = {
+        id: toolCall.id,
+        type: 'function' as const,
+        function: {
+          name: toolCall.name,
+          arguments: toolCall.arguments
+        }
+      }
+
+      let lastAssistantMessage = conversationMessages.findLast(
+        (message) => message.role === 'assistant'
+      )
+
+      if (lastAssistantMessage) {
+        if (!lastAssistantMessage.tool_calls) {
+          lastAssistantMessage.tool_calls = []
+        }
+        lastAssistantMessage.tool_calls.push(toolCallEntry)
+      } else {
+        // Extremely defensive fallback – create a synthetic assistant message
+        // so the OpenAI API still sees a valid tool_calls declaration.
+        lastAssistantMessage = {
+          role: 'assistant',
+          tool_calls: [toolCallEntry]
+        }
+        conversationMessages.push(lastAssistantMessage)
+      }
+
       conversationMessages.push({
         role: 'tool',
         content: `The tool call with ID ${toolCall.id} and name ${toolCall.name} failed to execute: ${errorMessage}`,

@@ -1,6 +1,6 @@
 {
   "success": {
-    "importComplete": "成功导入 {count} 个对话，点击确定后将重启应用"
+    "importComplete": "成功导入 {count} 个对话"
   },
   "error": {
     "notEnabled": "同步功能未启用",
