@@ -207,10 +207,6 @@
     "deepchat/apple-server": {
       "desc": "Laissez le modèle d'exploitation des fonctions du système de MacOS telles que le calendrier, les contacts, les e-mails, les cartes, les mémos, les rappels et autres systèmes",
       "name": "Assistant système macOS"
-    },
-    "deepchat-inmemory/browser-server": {
-      "desc": "DeepChat dispose d'un service d'automatisation de navigateur intégré qui prend en charge les opérations automatisées du navigateur, telles que la navigation sur le Web, la recherche, etc.",
-      "name": "Utilisation du navigateur"
     }
   },
   "prompts": {

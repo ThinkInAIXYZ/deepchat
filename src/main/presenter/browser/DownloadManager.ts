@@ -49,22 +49,26 @@ export class DownloadManager {
 
         item.once('done', (_doneEvent, state) => {
           const existing = this.downloads.get(id)
-          if (!existing) return
+          if (!existing) {
+            reject(new Error('Download info missing on completion'))
+            return
+          }
           existing.receivedBytes = item.getReceivedBytes()
           existing.totalBytes = item.getTotalBytes()
           existing.filePath = item.getSavePath()
 
           if (state === 'completed') {
             existing.status = 'completed'
-          } else {
-            existing.status = 'failed'
-            existing.error = state
+            this.downloads.set(id, { ...existing })
+            resolve({ ...existing })
+            return
           }
+
+          existing.status = 'failed'
+          existing.error = state
           this.downloads.set(id, { ...existing })
           resolve({ ...existing })
         })
-
-        resolve(info)
       }
 
       electronSessionRef.once('will-download', handler)

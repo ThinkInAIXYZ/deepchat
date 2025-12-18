@@ -207,10 +207,6 @@
     "deepchat/apple-server": {
       "desc": "모델이 캘린더, 연락처, 이메일,지도, 메모, 알림 및 기타 시스템과 같은 MacOS의 시스템 기능을 작동하도록합니다.",
       "name": "MACOS 시스템 어시스턴트"
-    },
-    "deepchat-inmemory/browser-server": {
-      "desc": "DeepChat에는 웹 탐색, 검색 등과 같은 자동화된 브라우저 작업을 지원하는 브라우저 자동화 서비스가 내장되어 있습니다.",
-      "name": "브라우저 사용"
     }
   },
   "prompts": {

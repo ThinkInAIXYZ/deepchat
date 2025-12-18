@@ -286,18 +286,6 @@ const DEFAULT_INMEMORY_SERVERS: Record<string, MCPServerConfig> = {
     env: {},
     disable: false
   },
-  'deepchat-inmemory/browser-server': {
-    args: [],
-    descriptions: 'DeepChat内置浏览器自动化服务',
-    icons: '🌐',
-    autoApprove: [],
-    type: 'inmemory' as MCPServerType,
-    command: 'deepchat-inmemory/browser-server',
-    env: {
-      showWindow: false
-    },
-    disable: true
-  },
   // Merge platform-specific services
   ...PLATFORM_SPECIFIC_SERVERS
 }

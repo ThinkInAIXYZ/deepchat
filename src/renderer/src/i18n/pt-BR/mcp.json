@@ -207,10 +207,6 @@
     "deepchat/apple-server": {
       "desc": "Permite que os modelos operem aplicativos do macOS como Calendário, Contatos, Mail, Mapas, Notas e Lembretes.",
       "name": "Assistente do Sistema macOS"
-    },
-    "deepchat-inmemory/browser-server": {
-      "desc": "DeepChat possui um serviço de automação de navegador integrado que suporta operações automatizadas de navegador, como navegar na web, pesquisar, etc.",
-      "name": "Uso do navegador"
     }
   },
   "prompts": {
