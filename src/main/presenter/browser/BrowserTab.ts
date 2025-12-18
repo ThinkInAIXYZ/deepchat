@@ -254,10 +254,12 @@ export class BrowserTab {
 
   async pressKey(key: string, count: number = 1): Promise<void> {
     this.ensureAvailable()
+    const normalizedKey = this.validateKeyInput(key, count)
+
     for (let i = 0; i < count; i += 1) {
-      this.webContents.sendInputEvent({ type: 'keyDown', keyCode: key })
-      this.webContents.sendInputEvent({ type: 'char', keyCode: key })
-      this.webContents.sendInputEvent({ type: 'keyUp', keyCode: key })
+      this.webContents.sendInputEvent({ type: 'keyDown', keyCode: normalizedKey })
+      this.webContents.sendInputEvent({ type: 'char', keyCode: normalizedKey })
+      this.webContents.sendInputEvent({ type: 'keyUp', keyCode: normalizedKey })
     }
   }
 
@@ -462,6 +464,70 @@ export class BrowserTab {
     }
   }
 
+  private validateKeyInput(key: string, count: number): string {
+    if (!Number.isInteger(count) || count <= 0) {
+      throw new Error('pressKey count must be a positive integer')
+    }
+
+    const supportedKeysDescription =
+      'Supported keys include: Enter, Space, Tab, ArrowUp/ArrowDown/ArrowLeft/ArrowRight, Backspace, digits 0-9, letters A-Z, function keys F1-F12, modifiers Shift/Control/Alt/Meta, or any single printable ASCII character (e.g., punctuation like `~!@#$%^&*()_+-={}[];:\\\'",.<>/?|`).'
+    const rawKey = key
+    const trimmedKey = rawKey.trim()
+    if (!rawKey) {
+      throw new Error(`Invalid key provided. ${supportedKeysDescription}`)
+    }
+
+    const namedKeys = new Map(
+      [
+        'Enter',
+        'Space',
+        'Tab',
+        'Backspace',
+        'Escape',
+        'ArrowUp',
+        'ArrowDown',
+        'ArrowLeft',
+        'ArrowRight',
+        'Shift',
+        'Control',
+        'Alt',
+        'Meta'
+      ].map((value) => [value.toLowerCase(), value])
+    )
+
+    const singleCharCandidate =
+      rawKey.length === 1 ? rawKey : trimmedKey.length === 1 ? trimmedKey : ''
+
+    const lowerKey = trimmedKey.toLowerCase()
+    const namedMatch = namedKeys.get(lowerKey)
+    if (namedMatch) {
+      return namedMatch
+    }
+
+    if (/^[a-z]$/i.test(trimmedKey)) {
+      return trimmedKey.toUpperCase()
+    }
+
+    if (/^\d$/.test(trimmedKey)) {
+      return trimmedKey
+    }
+
+    const functionKeyMatch = /^f(?:[1-9]|1[0-2])$/i.test(trimmedKey)
+    if (functionKeyMatch) {
+      return trimmedKey.toUpperCase()
+    }
+
+    if (
+      singleCharCandidate.length === 1 &&
+      /^[\x20-\x7E]$/.test(singleCharCandidate) // printable ASCII, includes space and punctuation
+    ) {
+      const char = singleCharCandidate
+      return /^[a-z]$/i.test(char) ? char.toUpperCase() : char
+    }
+
+    throw new Error(`Unsupported key "${key}". ${supportedKeysDescription}`)
+  }
+
   async waitForLoad(timeoutMs: number = 30000): Promise<void> {
     // Check if webContents is destroyed
     if (this.webContents.isDestroyed()) {
@@ -546,12 +612,14 @@ export class BrowserTab {
   }
 
   destroy(): void {
-    if (this.webContents.debugger && this.webContents.debugger.isAttached()) {
-      try {
+    try {
+      if (this.webContents.debugger && this.webContents.debugger.isAttached()) {
         this.webContents.debugger.detach()
-      } catch (error) {
-        console.warn(`[YoBrowser][${this.tabId}] failed to detach debugger:`, error)
       }
+    } catch (error) {
+      console.warn(`[YoBrowser][${this.tabId}] failed to detach debugger:`, error)
+    } finally {
+      this.isAttached = false
     }
   }
 
