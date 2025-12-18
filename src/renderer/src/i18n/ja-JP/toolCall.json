@@ -15,27 +15,5 @@
   "responseData": "関数の応答",
   "success": "成功",
   "title": "ツール呼び出し",
-  "terminalOutput": "端子出力",
-  "browserTools": {
-    "browser_click": "CSS セレクターを使用して、ページ上の要素をクリックします。",
-    "browser_close_tab": "タブ（ウィンドウ）を閉じます。デフォルトはアクティブなタブです。",
-    "browser_download_file": "ブラウザ セッションを使用してファイルをダウンロードし、アクティブなタブの Cookie を保持します。",
-    "browser_form_input_fill": "入力ボックスまたはテキストエリア要素にテキストを入力します。",
-    "browser_get_clickable_elements": "シンプルなセレクターを使用して、クリック可能な要素をリストします。",
-    "browser_get_download_list": "現在のブラウザ セッションのダウンロードを取得します。",
-    "browser_get_markdown": "ページのコンテンツを Markdown 形式に抽出します。",
-    "browser_get_text": "ページまたは特定の要素から表示テキストを抽出します。",
-    "browser_go_back": "現在のタブの前のページに戻ります。",
-    "browser_go_forward": "現在のタブの次のページに進みます。",
-    "browser_hover": "ページ上の要素の上にマウスを置きます。",
-    "browser_navigate": "ブラウザを指定された URL に移動します。",
-    "browser_new_tab": "セッション用の新しいブラウザー タブ (ウィンドウ) を開きます。",
-    "browser_press_key": "キーボード入力をアクティブなページに送信します。",
-    "browser_read_links": "現在のページのハイパーリンクを一覧表示します。",
-    "browser_screenshot": "現在のページまたは特定の要素のスクリーンショットをキャプチャします。",
-    "browser_scroll": "指定されたオフセットだけページをスクロールします。",
-    "browser_select": "select 要素内の値を選択します。",
-    "browser_switch_tab": "指定したタブ（ウィンドウ）をIDでアクティブにします。",
-    "browser_tab_list": "現在のセッションのすべてのタブ (ウィンドウ) をリストします。"
-  }
+  "terminalOutput": "端子出力"
 }

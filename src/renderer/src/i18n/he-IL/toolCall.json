@@ -15,27 +15,5 @@
   "fileRead": "לקרוא קובץ",
   "fileWrite": "לכתוב קובץ",
   "success": "הַצלָחָה",
-  "terminalOutput": "פלט מסוף",
-  "browserTools": {
-    "browser_click": "השתמש בבוררי CSS כדי ללחוץ על אלמנטים בדף.",
-    "browser_close_tab": "סגור את הכרטיסייה (חלון). ברירת המחדל לכרטיסייה פעילה.",
-    "browser_download_file": "הורד קבצים באמצעות הפעלת דפדפן, תוך שמירה על קובצי Cookie עבור כרטיסיות פעילות.",
-    "browser_form_input_fill": "ממלא תיבת קלט או אלמנט אזור טקסט בטקסט.",
-    "browser_get_clickable_elements": "רשום רכיבים הניתנים ללחיצה עם בורר פשוט.",
-    "browser_get_download_list": "קבל את ההורדות עבור הפעלת הדפדפן הנוכחית.",
-    "browser_get_markdown": "חלץ את תוכן הדף לפורמט Markdown.",
-    "browser_get_text": "חלץ טקסט גלוי מהדף או אלמנטים ספציפיים.",
-    "browser_go_back": "חזור לעמוד הקודם בלשונית הנוכחית.",
-    "browser_go_forward": "התקדמו לעמוד הבא בלשונית הנוכחית.",
-    "browser_hover": "העבר את העכבר מעל אלמנט בדף.",
-    "browser_navigate": "מנווט את הדפדפן לכתובת ה-URL שצוינה.",
-    "browser_new_tab": "פתח כרטיסיית דפדפן חדשה (חלון) עבור ההפעלה.",
-    "browser_press_key": "שלח קלט מקלדת לדף הפעיל.",
-    "browser_read_links": "מפרט היפר-קישורים בדף הנוכחי.",
-    "browser_screenshot": "צלם צילום מסך של העמוד הנוכחי או של אלמנט מסוים.",
-    "browser_scroll": "גלילה של העמוד בהיסט שצוין.",
-    "browser_select": "בוחר ערך ברכיב בחירה.",
-    "browser_switch_tab": "מפעיל את הכרטיסייה (חלון) שצוינה לפי מזהה.",
-    "browser_tab_list": "מפרט את כל הכרטיסיות (חלונות) של ההפעלה הנוכחית."
-  }
+  "terminalOutput": "פלט מסוף"
 }

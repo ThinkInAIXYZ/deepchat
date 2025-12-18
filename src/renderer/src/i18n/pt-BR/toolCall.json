@@ -15,27 +15,5 @@
   "responseData": "resposta da função",
   "success": "sucesso",
   "title": "Chamada de ferramenta",
-  "terminalOutput": "Saída terminal",
-  "browserTools": {
-    "browser_click": "Use seletores CSS para clicar nos elementos da página.",
-    "browser_close_tab": "Feche a guia (janela). O padrão é a guia ativa.",
-    "browser_download_file": "Baixe arquivos usando uma sessão do navegador, retendo cookies para guias ativas.",
-    "browser_form_input_fill": "Preenche uma caixa de entrada ou elemento textarea com texto.",
-    "browser_get_clickable_elements": "Liste elementos clicáveis ​​com um seletor simples.",
-    "browser_get_download_list": "Obtenha os downloads da sessão atual do navegador.",
-    "browser_get_markdown": "Extraia o conteúdo da página no formato Markdown.",
-    "browser_get_text": "Extraia texto visível da página ou de elementos específicos.",
-    "browser_go_back": "Retorne à página anterior na guia atual.",
-    "browser_go_forward": "Avance para a próxima página na guia atual.",
-    "browser_hover": "Passe o mouse sobre um elemento da página.",
-    "browser_navigate": "Navega no navegador até o URL especificado.",
-    "browser_new_tab": "Abra uma nova guia (janela) do navegador para a sessão.",
-    "browser_press_key": "Envie a entrada do teclado para a página ativa.",
-    "browser_read_links": "Lista hiperlinks na página atual.",
-    "browser_screenshot": "Capture uma captura de tela da página atual ou de um elemento específico.",
-    "browser_scroll": "Rola a página em um deslocamento especificado.",
-    "browser_select": "Seleciona um valor em um elemento selecionado.",
-    "browser_switch_tab": "Ativa a guia (janela) especificada por ID.",
-    "browser_tab_list": "Lista todas as guias (janelas) da sessão atual."
-  }
+  "terminalOutput": "Saída terminal"
 }

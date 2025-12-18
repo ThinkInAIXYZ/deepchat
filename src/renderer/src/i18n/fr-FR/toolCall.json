@@ -15,27 +15,5 @@
   "responseData": "réponse de la fonction",
   "success": "succès",
   "title": "Appel d'outil",
-  "terminalOutput": "Sortie terminale",
-  "browserTools": {
-    "browser_click": "Utilisez les sélecteurs CSS pour cliquer sur les éléments de la page.",
-    "browser_close_tab": "Fermez l'onglet (fenêtre). Par défaut, l'onglet actif.",
-    "browser_download_file": "Téléchargez des fichiers à l'aide d'une session de navigateur, en conservant les cookies pour les onglets actifs.",
-    "browser_form_input_fill": "Remplit une zone de saisie ou un élément textarea avec du texte.",
-    "browser_get_clickable_elements": "Répertoriez les éléments cliquables avec un simple sélecteur.",
-    "browser_get_download_list": "Obtenez les téléchargements pour la session de navigateur en cours.",
-    "browser_get_markdown": "Extrayez le contenu de la page au format Markdown.",
-    "browser_get_text": "Extrayez le texte visible de la page ou des éléments spécifiques.",
-    "browser_go_back": "Revenir à la page précédente dans l'onglet actuel.",
-    "browser_go_forward": "Passez à la page suivante dans l'onglet actuel.",
-    "browser_hover": "Survolez un élément de la page.",
-    "browser_navigate": "Navigue dans le navigateur jusqu'à l'URL spécifiée.",
-    "browser_new_tab": "Ouvrez un nouvel onglet (fenêtre) de navigateur pour la session.",
-    "browser_press_key": "Envoyez la saisie au clavier à la page active.",
-    "browser_read_links": "Répertorie les hyperliens sur la page actuelle.",
-    "browser_screenshot": "Capturez une capture d'écran de la page actuelle ou d'un élément spécifique.",
-    "browser_scroll": "Fait défiler la page selon un décalage spécifié.",
-    "browser_select": "Sélectionne une valeur dans un élément de sélection.",
-    "browser_switch_tab": "Active l'onglet (fenêtre) spécifié par ID.",
-    "browser_tab_list": "Répertorie tous les onglets (fenêtres) de la session en cours."
-  }
+  "terminalOutput": "Sortie terminale"
 }

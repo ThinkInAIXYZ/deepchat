@@ -2,7 +2,10 @@
   <div class="w-screen h-screen flex flex-col" :class="isWinMacOS ? '' : 'bg-background'">
     <AppBar ref="appBarRef" :window-type="windowType" />
     <BrowserToolbar v-if="shouldShowToolbar" ref="toolbarRef" />
-    <main class="content-container flex-1 relative overflow-hidden">
+    <main
+      class="content-container flex-1 relative overflow-hidden"
+      :class="webContentBackgroundClass"
+    >
       <!-- WebContentsView will be rendered here by the main process -->
       <!-- Show placeholder when browser tab is about:blank -->
       <BrowserPlaceholder v-if="shouldShowPlaceholder" />
@@ -49,6 +52,9 @@ const isAboutBlank = computed(() => {
 const shouldShowToolbar = computed(() => windowType.value === 'browser' && isWebTabActive.value)
 const shouldShowPlaceholder = computed(
   () => windowType.value === 'browser' && isWebTabActive.value && isAboutBlank.value
+)
+const webContentBackgroundClass = computed(() =>
+  windowType.value === 'browser' && isWebTabActive.value ? 'bg-white' : ''
 )
 
 const appBarSize = useElementSize(computed(() => appBarRef.value?.$el ?? null))
