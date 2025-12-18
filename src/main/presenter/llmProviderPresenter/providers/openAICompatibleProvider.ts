@@ -451,7 +451,10 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
           const serializedContent = serializeContent(msg.content)
           const pendingIds = snapshotPendingNativeToolCallIds()
 
-          if (pendingIds.length > 1 && serializedContent) {
+          // Only attempt to heuristically split merged tool responses when we don't
+          // already have an explicit tool_call_id from upstream. If tool_call_id is
+          // present, we trust the upstream pairing and pass the content through as-is.
+          if (pendingIds.length > 1 && !msg.tool_call_id && serializedContent) {
             const splitParts = this.splitMergedToolContent(serializedContent, pendingIds.length)
             if (splitParts && splitParts.length === pendingIds.length) {
               splitParts.forEach((part, index) => {
@@ -485,7 +488,10 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
           const serializedContent = serializeContent(msg.content)
           const pendingEntries = getPendingMockToolCallEntries()
 
-          if (pendingEntries.length > 1 && serializedContent) {
+          // 同样地，在 legacy mock 模式下，仅当没有明确的 tool_call_id 时才尝试
+          // 对单条 tool 响应做多段拆分；一旦上游已经指定了 tool_call_id，就不要再
+          // 进行基于内容的猜测拆分，以避免错误地跨工具混淆响应。
+          if (pendingEntries.length > 1 && !msg.tool_call_id && serializedContent) {
             const splitParts = this.splitMergedToolContent(serializedContent, pendingEntries.length)
             if (splitParts && splitParts.length === pendingEntries.length) {
               splitParts.forEach((part, index) => {
@@ -981,6 +987,7 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
     let processedMessages = [
       ...this.formatMessages(messages, supportsFunctionCall)
     ] as ChatCompletionMessageParam[]
+    // console.log('processedMessages', JSON.stringify(processedMessages))
     // 如果不支持原生函数调用但存在工具，则准备非原生函数调用提示
     if (tools.length > 0 && !supportsFunctionCall) {
       processedMessages = this.prepareFunctionCallPrompt(processedMessages, tools)
