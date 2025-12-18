@@ -38,6 +38,31 @@ export class DownloadManager {
 
         this.downloads.set(id, info)
 
+        const finalizeDownload = (status: DownloadInfo['status'], error?: string) => {
+          const existing = this.downloads.get(id)
+          if (!existing) {
+            reject(new Error('Download info missing on completion'))
+            return
+          }
+
+          const updated: DownloadInfo = {
+            ...existing,
+            receivedBytes: item.getReceivedBytes(),
+            totalBytes: item.getTotalBytes(),
+            filePath: item.getSavePath(),
+            status
+          }
+
+          if (error) {
+            updated.error = error
+          } else {
+            delete updated.error
+          }
+
+          this.downloads.set(id, updated)
+          resolve({ ...updated })
+        }
+
         item.on('updated', (_updateEvent, state) => {
           const existing = this.downloads.get(id)
           if (!existing) return
@@ -48,26 +73,12 @@ export class DownloadManager {
         })
 
         item.once('done', (_doneEvent, state) => {
-          const existing = this.downloads.get(id)
-          if (!existing) {
-            reject(new Error('Download info missing on completion'))
-            return
-          }
-          existing.receivedBytes = item.getReceivedBytes()
-          existing.totalBytes = item.getTotalBytes()
-          existing.filePath = item.getSavePath()
-
           if (state === 'completed') {
-            existing.status = 'completed'
-            this.downloads.set(id, { ...existing })
-            resolve({ ...existing })
+            finalizeDownload('completed')
             return
           }
 
-          existing.status = 'failed'
-          existing.error = state
-          this.downloads.set(id, { ...existing })
-          resolve({ ...existing })
+          finalizeDownload('failed', state)
         })
       }
 

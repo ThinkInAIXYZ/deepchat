@@ -474,7 +474,8 @@ export class BrowserTab {
     }
 
     // Wait for load with timeout
-    let resolved = false
+    let settled = false
+    let domReadyFired = false
     let timeoutId: NodeJS.Timeout | null = null
     let onStopLoading: (() => void) | null = null
     let onDomReady: (() => void) | null = null
@@ -500,60 +501,44 @@ export class BrowserTab {
       }
     }
 
+    const settle = (handler: () => void) => {
+      if (settled) return
+      settled = true
+      cleanup()
+      handler()
+    }
+
     try {
-      await Promise.race([
-        new Promise<void>((resolvePromise, rejectPromise) => {
-          // Success handlers - any one triggers resolve
-          onStopLoading = () => {
-            if (!resolved) {
-              resolved = true
-              cleanup()
-              resolvePromise()
-            }
-          }
+      await new Promise<void>((resolvePromise, rejectPromise) => {
+        onStopLoading = () => settle(resolvePromise)
 
-          onDomReady = () => {
-            if (!resolved) {
-              resolved = true
-              cleanup()
-              resolvePromise()
-            }
-          }
+        onDomReady = () => {
+          domReadyFired = true
+        }
 
-          onFinishLoad = () => {
-            if (!resolved) {
-              resolved = true
-              cleanup()
-              resolvePromise()
-            }
-          }
+        onFinishLoad = () => settle(resolvePromise)
 
-          // Fail handler
-          onFailLoad = (_event: unknown, errorCode: number, errorDescription: string) => {
-            if (!resolved) {
-              resolved = true
-              cleanup()
-              rejectPromise(new Error(`Navigation failed ${errorCode}: ${errorDescription}`))
-            }
-          }
+        onFailLoad = (_event: unknown, errorCode: number, errorDescription: string) => {
+          settle(() =>
+            rejectPromise(new Error(`Navigation failed ${errorCode}: ${errorDescription}`))
+          )
+        }
 
-          this.webContents.once('did-stop-loading', onStopLoading)
-          this.webContents.once('dom-ready', onDomReady)
-          this.webContents.once('did-finish-load', onFinishLoad)
-          this.webContents.once('did-fail-load', onFailLoad as any)
-        }),
-        new Promise<void>((resolvePromise) => {
-          timeoutId = setTimeout(() => {
-            if (!resolved) {
-              resolved = true
-              cleanup()
-              resolvePromise()
-            }
-          }, timeoutMs)
-        })
-      ])
+        timeoutId = setTimeout(() => {
+          if (domReadyFired) {
+            settle(resolvePromise)
+            return
+          }
+          settle(() => rejectPromise(new Error('Timed out waiting for page load')))
+        }, timeoutMs)
+
+        this.webContents.once('did-stop-loading', onStopLoading)
+        this.webContents.once('dom-ready', onDomReady)
+        this.webContents.once('did-finish-load', onFinishLoad)
+        this.webContents.once('did-fail-load', onFailLoad as any)
+      })
     } catch (error) {
-      if (!resolved) {
+      if (!settled) {
         cleanup()
       }
       throw error
