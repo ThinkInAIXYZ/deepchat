@@ -4,7 +4,7 @@ import type { BrowserToolContext, BrowserToolDefinition } from './tools/types'
 import { createNavigateTools } from './tools/navigate'
 import { createActionTools } from './tools/action'
 import { createContentTools } from './tools/content'
-import { createScreenshotTools } from './tools/screenshot'
+// import { createScreenshotTools } from './tools/screenshot'
 import { createTabTools } from './tools/tabs'
 import { createDownloadTools } from './tools/download'
 import type { YoBrowserPresenter } from './YoBrowserPresenter'
@@ -19,7 +19,7 @@ export class BrowserToolManager {
       ...createNavigateTools(),
       ...createActionTools(),
       ...createContentTools(),
-      ...createScreenshotTools(),
+      // ...createScreenshotTools(),
       ...createTabTools(),
       ...createDownloadTools()
     ]
