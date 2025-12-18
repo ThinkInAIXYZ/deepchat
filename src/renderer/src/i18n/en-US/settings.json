@@ -80,7 +80,7 @@
     "selectBackupPlaceholder": "Select a backup",
     "noBackupsAvailable": "No backups available. Run a backup first.",
     "importConfirmTitle": "Confirm Data Import",
-    "importConfirmDescription": "Importing will overwrite all current data, including chat history and settings. Make sure you have backed up important data. You'll need to restart the application after import.",
+    "importConfirmDescription": "Importing will overwrite all current data, including chat history and settings. Make sure you have backed up important data. Data will refresh automatically after import.",
     "importing": "Importing...",
     "confirmImport": "Confirm Import",
     "importSuccessTitle": "Import Successful",

@@ -80,7 +80,7 @@
     "selectBackupPlaceholder": "バックアップを選択",
     "noBackupsAvailable": "利用可能なバックアップがありません。まずバックアップを作成してください。",
     "importConfirmTitle": "データインポートの確認",
-    "importConfirmDescription": "インポートすると、チャット履歴や設定を含むすべての現在のデータが上書きされます。重要なデータをバックアップしたことを確認してください。インポート後はアプリケーションを再起動する必要があります。",
+    "importConfirmDescription": "インポートすると、チャット履歴や設定を含むすべての現在のデータが上書きされます。重要なデータをバックアップしたことを確認してください。インポート後、データは自動的に更新されます。",
     "importing": "インポート中...",
     "confirmImport": "インポートを確認",
     "importSuccessTitle": "インポート成功",

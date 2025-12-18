@@ -80,7 +80,7 @@
     "selectBackupPlaceholder": "Selecione um backup",
     "noBackupsAvailable": "Nenhum backup disponível. Execute um backup primeiro.",
     "importConfirmTitle": "Confirmar Importação de Dados",
-    "importConfirmDescription": "A importação substituirá todos os dados atuais, incluindo histórico de chat e configurações. Certifique-se de ter feito backup de dados importantes. Você precisará reiniciar o aplicativo após a importação.",
+    "importConfirmDescription": "A importação substituirá todos os dados atuais, incluindo histórico de chat e configurações. Certifique-se de ter feito backup de dados importantes. Os dados serão atualizados automaticamente após a importação.",
     "importing": "Importando...",
     "confirmImport": "Confirmar Importação",
     "importSuccessTitle": "Importação Bem-sucedida",

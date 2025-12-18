@@ -85,7 +85,7 @@ export const useSyncStore = defineStore('sync', () => {
         message: string
         count?: number
       }
-      importResult.value = result
+      importResult.value = result.success ? null : result
       return result
     } catch (error) {
       console.error('import failed:', error)

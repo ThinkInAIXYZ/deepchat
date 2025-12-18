@@ -242,14 +242,10 @@
         </AlertDialogContent>
       </AlertDialog>
 
-      <AlertDialog :open="!!syncStore.importResult">
+      <AlertDialog :open="!!syncStore.importResult && !syncStore.importResult?.success">
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>{{
-              syncStore.importResult?.success
-                ? t('settings.data.importSuccessTitle')
-                : t('settings.data.importErrorTitle')
-            }}</AlertDialogTitle>
+            <AlertDialogTitle>{{ t('settings.data.importErrorTitle') }}</AlertDialogTitle>
             <AlertDialogDescription>
               {{
                 syncStore.importResult?.message
@@ -397,8 +393,8 @@ const handleBackup = async () => {
   }
 
   toast({
-    title: t('settings.data.toast.backupSuccessTitle'),
-    description: t('settings.data.toast.backupSuccessMessage', {
+    title: t('settings.provider.toast.backupSuccessTitle'),
+    description: t('settings.provider.toast.backupSuccessMessage', {
       time: new Date(backupInfo.createdAt).toLocaleString(),
       size: formatBytes(backupInfo.size)
     }),
@@ -423,8 +419,8 @@ const handleImport = async () => {
   )
   if (result?.success) {
     toast({
-      title: t('settings.data.toast.importSuccessTitle'),
-      description: t('settings.data.toast.importSuccessMessage', {
+      title: t('settings.provider.toast.importSuccessTitle'),
+      description: t('settings.provider.toast.importSuccessMessage', {
         count: result.count ?? 0
       }),
       duration: 4000
@@ -435,11 +431,6 @@ const handleImport = async () => {
 
 // 处理警告对话框的确认操作
 const handleAlertAction = () => {
-  // 如果导入成功，则重启应用
-  console.log(syncStore.importResult)
-  if (syncStore.importResult?.success) {
-    syncStore.restartApp()
-  }
   syncStore.clearImportResult()
 }
 
