@@ -407,18 +407,42 @@ function calculateToolCallBlockTokens(block: AssistantMessageBlock): number {
   return nameTokens + paramsTokens + responseTokens
 }
 
+function cloneMessageWithContent(message: Message): Message {
+  const cloned: Message = { ...message }
+
+  if (Array.isArray(message.content)) {
+    cloned.content = message.content.map((block) => {
+      const clonedBlock: AssistantMessageBlock = { ...(block as AssistantMessageBlock) }
+      if (block.type === 'tool_call' && block.tool_call) {
+        clonedBlock.tool_call = { ...block.tool_call }
+      }
+      return clonedBlock
+    })
+  } else if (message.content && typeof message.content === 'object') {
+    cloned.content = JSON.parse(JSON.stringify(message.content))
+  } else {
+    cloned.content = message.content
+  }
+
+  return cloned
+}
+
 function removeToolCallsFromAssistant(message: Message): {
+  updatedMessage: Message
   removedTokens: number
   removedToolCalls: number
 } {
   if (message.role !== 'assistant' || !Array.isArray(message.content)) {
-    return { removedTokens: 0, removedToolCalls: 0 }
+    return { updatedMessage: message, removedTokens: 0, removedToolCalls: 0 }
   }
+
+  const clonedMessage = cloneMessageWithContent(message)
+  const clonedContent = clonedMessage.content as AssistantMessageBlock[]
 
   let removedTokens = 0
   let removedToolCalls = 0
 
-  const filteredBlocks = message.content.filter((block) => {
+  const filteredBlocks = clonedContent.filter((block) => {
     if (block.type !== 'tool_call' || !block.tool_call) {
       return true
     }
@@ -428,9 +452,9 @@ function removeToolCallsFromAssistant(message: Message): {
     return false
   })
 
-  message.content = filteredBlocks
+  clonedMessage.content = filteredBlocks
 
-  return { removedTokens, removedToolCalls }
+  return { updatedMessage: clonedMessage, removedTokens, removedToolCalls }
 }
 
 function compressToolCallsFromContext(
@@ -455,11 +479,15 @@ function compressToolCallsFromContext(
       continue
     }
 
-    const { removedTokens: toolCallTokens, removedToolCalls } =
-      removeToolCallsFromAssistant(message)
+    const {
+      updatedMessage,
+      removedTokens: toolCallTokens,
+      removedToolCalls
+    } = removeToolCallsFromAssistant(message)
 
     if (removedToolCalls > 0) {
-      console.log(
+      messages[i] = updatedMessage
+      console.debug(
         `PromptBuilder: removed ${removedToolCalls} tool call block(s) (${toolCallTokens} tokens) from context`
       )
     }
@@ -485,7 +513,10 @@ export function selectContextMessages(
     return []
   }
 
-  const messages = contextMessages.filter((msg) => msg.id !== userMessage?.id).reverse()
+  const messages = contextMessages
+    .filter((msg) => msg.id !== userMessage?.id)
+    .map((msg) => cloneMessageWithContent(msg))
+    .reverse()
   let selectedMessages = messages.filter((msg) => msg.status === 'sent')
 
   if (selectedMessages.length === 0) {
