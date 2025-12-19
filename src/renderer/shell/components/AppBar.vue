@@ -90,7 +90,7 @@
         @mouseenter="onOverlayMouseEnter('browser', t('common.browser.name'), $event)"
         @mouseleave="onOverlayMouseLeave('browser')"
       >
-        <Icon icon="lucide:globe" class="w-4 h-4" />
+        <Icon icon="lucide:compass" class="w-4 h-4" />
       </Button>
       <Button
         v-if="windowType !== 'browser'"

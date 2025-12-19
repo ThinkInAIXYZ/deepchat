@@ -494,7 +494,7 @@ export function selectContextMessages(
 
   let chatMessages = addContextMessages(selectedMessages, vision, supportsFunctionCall)
   let totalTokens = calculateMessagesTokens(chatMessages)
-
+  console.log('totalTokens', totalTokens, 'remainingContextLength', remainingContextLength)
   if (totalTokens > remainingContextLength) {
     let excessTokens = totalTokens - remainingContextLength
 
