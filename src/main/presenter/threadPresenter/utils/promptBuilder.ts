@@ -17,7 +17,7 @@ import {
 } from '@shared/presenter'
 import type { MCPToolDefinition } from '@shared/presenter'
 import { ContentEnricher } from './contentEnricher'
-import { buildUserMessageContext, getNormalizedUserMessageText } from './messageContent'
+import { buildUserMessageContext } from './messageContent'
 import { nanoid } from 'nanoid'
 import { BrowserContextBuilder } from '../../browser/BrowserContextBuilder'
 import { modelCapabilities } from '../../configPresenter/modelCapabilities'
@@ -139,7 +139,9 @@ export async function preparePromptContent({
   const selectedContextMessages = selectContextMessages(
     contextMessages,
     userMessage,
-    remainingContextLength
+    remainingContextLength,
+    supportsFunctionCall,
+    vision
   )
 
   const formattedMessages = formatMessagesForCompletion(
@@ -359,43 +361,226 @@ function collectAssistantTextBeforePermission(blocks: AssistantMessageBlock[] | 
   return parts.join('')
 }
 
-function selectContextMessages(
+function calculateToolCallTokens(toolCall: NonNullable<ChatMessage['tool_calls']>[number]): number {
+  const nameTokens = approximateTokenSize(toolCall.function?.name || '')
+  const argumentsTokens = approximateTokenSize(toolCall.function?.arguments || '')
+  return nameTokens + argumentsTokens
+}
+
+function calculateMessageTokens(message: ChatMessage): number {
+  let tokens = 0
+
+  if (typeof message.content === 'string') {
+    tokens += approximateTokenSize(message.content)
+  } else if (Array.isArray(message.content)) {
+    const textContent = message.content.reduce((acc, item) => {
+      if (item.type === 'text' && typeof item.text === 'string') {
+        return acc + item.text
+      }
+      return acc
+    }, '')
+    tokens += approximateTokenSize(textContent)
+  }
+
+  if (message.role === 'assistant' && Array.isArray(message.tool_calls)) {
+    message.tool_calls.forEach((toolCall) => {
+      tokens += calculateToolCallTokens(toolCall)
+    })
+  }
+
+  return tokens
+}
+
+function calculateMessagesTokens(messages: ChatMessage[]): number {
+  return messages.reduce((acc, message) => acc + calculateMessageTokens(message), 0)
+}
+
+function calculateToolCallBlockTokens(block: AssistantMessageBlock): number {
+  if (block.type !== 'tool_call' || !block.tool_call?.response) {
+    return 0
+  }
+
+  const nameTokens = approximateTokenSize(block.tool_call.name || '')
+  const paramsTokens = approximateTokenSize(block.tool_call.params || '')
+  const responseTokens = approximateTokenSize(block.tool_call.response || '')
+
+  return nameTokens + paramsTokens + responseTokens
+}
+
+function removeToolCallsFromAssistant(message: Message): {
+  removedTokens: number
+  removedToolCalls: number
+} {
+  if (message.role !== 'assistant' || !Array.isArray(message.content)) {
+    return { removedTokens: 0, removedToolCalls: 0 }
+  }
+
+  let removedTokens = 0
+  let removedToolCalls = 0
+
+  const filteredBlocks = message.content.filter((block) => {
+    if (block.type !== 'tool_call' || !block.tool_call) {
+      return true
+    }
+
+    removedTokens += calculateToolCallBlockTokens(block)
+    removedToolCalls += 1
+    return false
+  })
+
+  message.content = filteredBlocks
+
+  return { removedTokens, removedToolCalls }
+}
+
+function compressToolCallsFromContext(
+  messages: Message[],
+  excessTokens: number,
+  supportsFunctionCall: boolean
+): { compressedMessages: Message[]; removedTokens: number } {
+  if (!supportsFunctionCall || excessTokens <= 0) {
+    return { compressedMessages: messages, removedTokens: 0 }
+  }
+
+  const lastUserIndex = messages.findLastIndex((message) => message.role === 'user')
+  let removedTokens = 0
+
+  for (let i = 0; i < messages.length; i++) {
+    if (lastUserIndex !== -1 && i >= lastUserIndex) {
+      break
+    }
+
+    const message = messages[i]
+    if (message.role !== 'assistant') {
+      continue
+    }
+
+    const { removedTokens: toolCallTokens, removedToolCalls } =
+      removeToolCallsFromAssistant(message)
+
+    if (removedToolCalls > 0) {
+      console.log(
+        `PromptBuilder: removed ${removedToolCalls} tool call block(s) (${toolCallTokens} tokens) from context`
+      )
+    }
+
+    removedTokens += toolCallTokens
+
+    if (removedTokens >= excessTokens) {
+      break
+    }
+  }
+
+  return { compressedMessages: messages, removedTokens }
+}
+
+export function selectContextMessages(
   contextMessages: Message[],
   userMessage: Message,
-  remainingContextLength: number
+  remainingContextLength: number,
+  supportsFunctionCall: boolean,
+  vision: boolean
 ): Message[] {
   if (remainingContextLength <= 0) {
     return []
   }
 
   const messages = contextMessages.filter((msg) => msg.id !== userMessage?.id).reverse()
+  let selectedMessages = messages.filter((msg) => msg.status === 'sent')
 
-  let currentLength = 0
-  const selectedMessages: Message[] = []
-
-  for (const msg of messages) {
-    if (msg.status !== 'sent') {
-      continue
-    }
-
-    const msgContent = msg.role === 'user' ? (msg.content as UserMessageContent) : null
-    const msgTokens = approximateTokenSize(
-      msgContent ? getNormalizedUserMessageText(msgContent) : JSON.stringify(msg.content)
-    )
-
-    if (currentLength + msgTokens <= remainingContextLength) {
-      selectedMessages.unshift(msg)
-      currentLength += msgTokens
-    } else {
-      break
-    }
+  if (selectedMessages.length === 0) {
+    return []
   }
 
-  while (selectedMessages.length > 0 && selectedMessages[0].role !== 'user') {
-    selectedMessages.shift()
+  let chatMessages = addContextMessages(selectedMessages, vision, supportsFunctionCall)
+  let totalTokens = calculateMessagesTokens(chatMessages)
+
+  if (totalTokens > remainingContextLength) {
+    let excessTokens = totalTokens - remainingContextLength
+
+    if (supportsFunctionCall) {
+      const { removedTokens } = compressToolCallsFromContext(
+        selectedMessages,
+        excessTokens,
+        supportsFunctionCall
+      )
+
+      totalTokens = Math.max(0, totalTokens - removedTokens)
+      chatMessages = addContextMessages(selectedMessages, vision, supportsFunctionCall)
+      totalTokens = calculateMessagesTokens(chatMessages)
+    }
+
+    if (totalTokens > remainingContextLength) {
+      excessTokens = totalTokens - remainingContextLength
+      let removedTokens = 0
+
+      while (removedTokens < excessTokens && selectedMessages.length > 0) {
+        const userIndex = selectedMessages.findIndex((msg) => msg.role === 'user')
+        if (userIndex === -1) {
+          break
+        }
+
+        const lastUserIndex = selectedMessages.findLastIndex((msg) => msg.role === 'user')
+        if (userIndex === lastUserIndex) {
+          break
+        }
+
+        const userMsg = selectedMessages[userIndex]
+        // Find the assistant message that corresponds to this user message by parentId
+        // Since messages are reversed (newest first), the assistant might be before or after the user
+        // Prefer non-variant messages (is_variant = 0) if multiple assistants match
+        const matchingAssistants = selectedMessages
+          .map((msg, idx) => ({ msg, idx }))
+          .filter(({ msg }) => msg.role === 'assistant' && msg.parentId === userMsg.id)
+          .sort((a, b) => a.msg.is_variant - b.msg.is_variant) // Non-variant (0) comes first
+
+        if (matchingAssistants.length === 0) {
+          // If no matching assistant found, remove the user message alone
+          selectedMessages.splice(userIndex, 1)
+          continue
+        }
+
+        const assistantIndex = matchingAssistants[0].idx
+
+        // Determine the range to remove: from min(userIndex, assistantIndex) to max(userIndex, assistantIndex) + 1
+        const startIndex = Math.min(userIndex, assistantIndex)
+        const endIndex = Math.max(userIndex, assistantIndex)
+
+        const pairMessages = selectedMessages.slice(startIndex, endIndex + 1)
+        const pairTokens = calculateMessagesTokens(
+          addContextMessages(pairMessages, vision, supportsFunctionCall)
+        )
+
+        console.log(
+          `PromptBuilder: removing one user/assistant pair from context (${pairTokens} tokens)`
+        )
+
+        selectedMessages.splice(startIndex, endIndex - startIndex + 1)
+        removedTokens += pairTokens
+        totalTokens = Math.max(0, totalTokens - pairTokens)
+      }
+    }
+
+    chatMessages = addContextMessages(selectedMessages, vision, supportsFunctionCall)
+    totalTokens = calculateMessagesTokens(chatMessages)
   }
 
-  return selectedMessages
+  // Remove orphaned assistant messages (assistants without a corresponding user message)
+  // Since messages are reversed (newest first), we need to check if each assistant has a user
+  // that appears later in the list (earlier in chronological order)
+  const userIds = new Set(
+    selectedMessages.filter((msg) => msg.role === 'user').map((msg) => msg.id)
+  )
+  selectedMessages = selectedMessages.filter((msg) => {
+    if (msg.role === 'assistant') {
+      // Keep assistant only if its parentId corresponds to a user in the list
+      return msg.parentId && userIds.has(msg.parentId)
+    }
+    return true
+  })
+
+  // Reverse back to chronological order for downstream consumers
+  return selectedMessages.reverse()
 }
 
 function formatMessagesForCompletion(
