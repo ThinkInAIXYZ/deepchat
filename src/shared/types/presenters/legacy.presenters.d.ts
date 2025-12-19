@@ -710,6 +710,7 @@ export type LLM_PROVIDER = {
   name: string
   apiType: string
   apiKey: string
+  copilotClientId?: string
   baseUrl: string
   enable: boolean
   custom?: boolean

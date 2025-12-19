@@ -4,6 +4,23 @@
       {{ t('settings.provider.githubCopilotAuth') }}
     </Label>
 
+    <div class="w-full space-y-1">
+      <Label :for="`${provider.id}-copilot-client-id`" class="text-xs text-muted-foreground">
+        {{ t('settings.provider.githubCopilotClientId') }}
+      </Label>
+      <Input
+        :id="`${provider.id}-copilot-client-id`"
+        :model-value="copilotClientId"
+        :placeholder="t('settings.provider.githubCopilotClientId')"
+        @update:model-value="copilotClientId = String($event)"
+        @blur="handleClientIdBlur"
+        @keyup.enter="saveClientId(copilotClientId)"
+      />
+      <div class="text-xs text-muted-foreground">
+        {{ t('settings.provider.githubCopilotClientIdHint') }}
+      </div>
+    </div>
+
     <!-- 如果已经有Token -->
     <div v-if="hasToken" class="w-full space-y-2">
       <div
@@ -116,6 +133,7 @@
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Label } from '@shadcn/components/ui/label'
+import { Input } from '@shadcn/components/ui/input'
 import { Button } from '@shadcn/components/ui/button'
 import { Icon } from '@iconify/vue'
 import { usePresenter } from '@/composables/usePresenter'
@@ -140,12 +158,37 @@ const modelCheckStore = useModelCheckStore()
 
 const isLoggingIn = ref(false)
 const validationResult = ref<{ success: boolean; message: string } | null>(null)
+const copilotClientId = ref(props.provider.copilotClientId || '')
 
 const hasToken = computed(() => {
   return !!(props.provider.apiKey && props.provider.apiKey.trim())
 })
 
-// 注意：GitHub Copilot OAuth配置现在从环境变量读取
+watch(
+  () => props.provider,
+  (next) => {
+    copilotClientId.value = next.copilotClientId || ''
+  }
+)
+
+const saveClientId = async (value: string) => {
+  const next = value.trim()
+  copilotClientId.value = next
+  try {
+    await providerStore.updateProviderConfig(props.provider.id, { copilotClientId: next })
+  } catch (error) {
+    const message = error instanceof Error ? error.message : t('settings.provider.loginFailed')
+    validationResult.value = { success: false, message }
+  }
+}
+
+const handleClientIdBlur = (event: FocusEvent) => {
+  const target = event.target as HTMLInputElement | null
+  if (!target) return
+  void saveClientId(target.value)
+}
+
+// 默认从环境变量读取，可在上方自定义 Client ID
 
 /**
  * 开始Device Flow登录流程（推荐）

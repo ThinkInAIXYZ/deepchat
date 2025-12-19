@@ -45,8 +45,8 @@ export class OAuthPresenter {
    */
   async startGitHubCopilotDeviceFlowLogin(providerId: string): Promise<boolean> {
     try {
-      const githubDeviceFlow = getGlobalGitHubCopilotDeviceFlow()
       const provider = presenter.configPresenter.getProviderById(providerId)
+      const githubDeviceFlow = getGlobalGitHubCopilotDeviceFlow(provider?.copilotClientId)
 
       // 首先检查现有认证状态
       if (provider && provider.apiKey) {
@@ -97,7 +97,8 @@ export class OAuthPresenter {
 
       // 使用专门的GitHub Copilot OAuth实现
       console.log('[GitHub Copilot][OAuth] Creating GitHub OAuth instance...')
-      const githubOAuth = createGitHubCopilotOAuth()
+      const provider = presenter.configPresenter.getProviderById(providerId)
+      const githubOAuth = createGitHubCopilotOAuth(provider?.copilotClientId)
 
       // 开始OAuth登录
       console.log('[GitHub Copilot][OAuth] Starting OAuth login flow...')
@@ -137,7 +138,6 @@ export class OAuthPresenter {
 
       // 保存访问令牌到provider配置
       console.log('[GitHub Copilot][OAuth] Saving access token to provider configuration...')
-      const provider = presenter.configPresenter.getProviderById(providerId)
       if (provider) {
         provider.apiKey = accessToken
         presenter.configPresenter.setProviderById(providerId, provider)

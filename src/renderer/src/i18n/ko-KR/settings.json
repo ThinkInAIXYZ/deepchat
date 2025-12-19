@@ -410,6 +410,8 @@
     "githubCopilotNotConnected": "GitHub Copilot 연결되지 않음",
     "loginWithGitHub": "GitHub로 로그인",
     "loggingIn": "로그인 중...",
+    "githubCopilotClientId": "Custom Client ID",
+    "githubCopilotClientIdHint": "Optional. Leave empty to use the built-in default Client ID. Only affects GitHub Copilot auth.",
     "githubCopilotLoginTip": "DeepChat이 GitHub Copilot 구독에 액세스하도록 허용하세요. Copilot API에 액세스하려면 'read:user' 및 'read:org' 권한이 필요합니다.",
     "loginSuccess": "로그인 성공",
     "loginFailed": "로그인 실패",

@@ -410,6 +410,8 @@
     "githubCopilotNotConnected": "GitHub Copilot 未連接",
     "loginWithGitHub": "用 GitHub 登入",
     "loggingIn": "登入中...",
+    "githubCopilotClientId": "自訂 Client ID",
+    "githubCopilotClientIdHint": "可選，留空會使用預設 Client ID，只影響 GitHub Copilot 授權。",
     "githubCopilotLoginTip": "請授權 DeepChat 存取你的 GitHub Copilot 訂閱。需要 'read:user' 及 'read:org' 權限才能正常使用 Copilot API。",
     "loginSuccess": "登入成功",
     "loginFailed": "登入失敗",

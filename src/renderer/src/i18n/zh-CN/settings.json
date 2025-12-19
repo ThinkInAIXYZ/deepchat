@@ -477,6 +477,8 @@
     "githubCopilotNotConnected": "GitHub Copilot 未连接",
     "loginWithGitHub": "使用 GitHub 登录",
     "loggingIn": "登录中...",
+    "githubCopilotClientId": "自定义 Client ID",
+    "githubCopilotClientIdHint": "可选，留空使用默认 Client ID，仅影响 GitHub Copilot 授权。",
     "githubCopilotLoginTip": "点击授权 DeepChat 访问您的 GitHub Copilot 订阅",
     "loginSuccess": "登录成功",
     "loginFailed": "登录失败",

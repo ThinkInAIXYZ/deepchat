@@ -221,15 +221,16 @@ export class GitHubCopilotOAuth {
 }
 
 // GitHub Copilot OAuth configuration
-export function createGitHubCopilotOAuth(): GitHubCopilotOAuth {
+export function createGitHubCopilotOAuth(clientIdOverride?: string): GitHubCopilotOAuth {
   // Read GitHub OAuth configuration from environment variables
-  const clientId = import.meta.env.VITE_GITHUB_CLIENT_ID
+  const clientId = clientIdOverride?.trim() || import.meta.env.VITE_GITHUB_CLIENT_ID
   const clientSecret = import.meta.env.VITE_GITHUB_CLIENT_SECRET
   const redirectUri =
     import.meta.env.VITE_GITHUB_REDIRECT_URI || 'https://deepchatai.cn/auth/github/callback'
 
   console.log('GitHub OAuth Configuration:')
   console.log('- Client ID configured:', clientId ? '✅' : '❌')
+  console.log('- Client ID override provided:', clientIdOverride ? '✅' : '❌')
   console.log('- Client Secret configured:', clientSecret ? '✅' : '❌')
   console.log('- Redirect URI:', redirectUri)
   console.log('- Environment variables check:')
@@ -248,7 +249,7 @@ export function createGitHubCopilotOAuth(): GitHubCopilotOAuth {
 
   if (!clientId) {
     throw new Error(
-      'GITHUB_CLIENT_ID environment variable is required. Please create a .env file with your GitHub OAuth Client ID. You can use either GITHUB_CLIENT_ID or VITE_GITHUB_CLIENT_ID.'
+      'GitHub Client ID is required. Please enter it in the Copilot settings input or set GITHUB_CLIENT_ID / VITE_GITHUB_CLIENT_ID in .env.'
     )
   }
 

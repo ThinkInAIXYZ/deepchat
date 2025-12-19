@@ -410,6 +410,8 @@
     "githubCopilotNotConnected": "GitHub Copilot не подключен",
     "loginWithGitHub": "Войти через GitHub",
     "loggingIn": "Вход...",
+    "githubCopilotClientId": "Custom Client ID",
+    "githubCopilotClientIdHint": "Optional. Leave empty to use the built-in default Client ID. Only affects GitHub Copilot auth.",
     "githubCopilotLoginTip": "Разрешите DeepChat доступ к вашей подписке GitHub Copilot. Для доступа к API Copilot требуются разрешения 'read:user' и 'read:org'.",
     "loginSuccess": "Вход выполнен успешно",
     "loginFailed": "Ошибка входа",

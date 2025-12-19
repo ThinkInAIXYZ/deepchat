@@ -39,6 +39,7 @@ export interface ProviderChange {
 export const REBUILD_REQUIRED_FIELDS = [
   'enable',
   'apiKey',
+  'copilotClientId',
   'baseUrl',
   'authMode',
   'oauthToken',

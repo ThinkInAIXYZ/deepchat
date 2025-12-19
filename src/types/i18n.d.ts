@@ -843,6 +843,8 @@ declare module 'vue-i18n' {
       githubCopilotNotConnected: string
       loginWithGitHub: string
       loggingIn: string
+      githubCopilotClientId: string
+      githubCopilotClientIdHint: string
       githubCopilotLoginTip: string
       loginSuccess: string
       loginFailed: string

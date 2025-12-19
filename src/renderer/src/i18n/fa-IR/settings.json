@@ -410,6 +410,8 @@
     "githubCopilotNotConnected": "گیت‌هاب کوپایلت پیوند داده نشده",
     "loginWithGitHub": "ورود با گیت‌هاب",
     "loggingIn": "در حال ورود...",
+    "githubCopilotClientId": "Custom Client ID",
+    "githubCopilotClientIdHint": "Optional. Leave empty to use the built-in default Client ID. Only affects GitHub Copilot auth.",
     "githubCopilotLoginTip": "دیپ‌چت را برای دسترسی به اشتراک گیت‌هاب کوپایلت خود مجاز کنید. دسترسی‌های 'read:user' و 'read:org' برای دسترسی به API کوپایلت لازم است.",
     "loginSuccess": "ورود موفق",
     "loginFailed": "ورود ناموفق",

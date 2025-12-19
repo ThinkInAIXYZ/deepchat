@@ -43,7 +43,7 @@ export class GithubCopilotProvider extends BaseLLMProvider {
     if (this.provider.enable) {
       try {
         this.isInitialized = true
-        this.deviceFlow = getGlobalGitHubCopilotDeviceFlow()
+        this.deviceFlow = getGlobalGitHubCopilotDeviceFlow(this.provider.copilotClientId)
 
         // 检查现有认证状态
         if (this.provider.apiKey) {

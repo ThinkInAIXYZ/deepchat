@@ -591,13 +591,12 @@ export class GitHubCopilotDeviceFlow {
 }
 
 // GitHub Copilot Device Flow configuration
-export function createGitHubCopilotDeviceFlow(): GitHubCopilotDeviceFlow {
-  // Read GitHub OAuth configuration from environment variables
-  const clientId = import.meta.env.VITE_GITHUB_CLIENT_ID
+export function createGitHubCopilotDeviceFlow(clientIdOverride?: string): GitHubCopilotDeviceFlow {
+  const clientId = clientIdOverride?.trim() || import.meta.env.VITE_GITHUB_CLIENT_ID
 
   if (!clientId) {
     throw new Error(
-      'VITE_GITHUB_CLIENT_ID environment variable is required. Please create a .env file with your GitHub OAuth Client ID.'
+      'GitHub Client ID is required. Please enter it in the Copilot settings input or set VITE_GITHUB_CLIENT_ID in .env.'
     )
   }
 
@@ -618,10 +617,18 @@ export function createGitHubCopilotDeviceFlow(): GitHubCopilotDeviceFlow {
  * 创建一个全局的 GitHub Copilot Device Flow 实例
  */
 let globalDeviceFlowInstance: GitHubCopilotDeviceFlow | null = null
+let globalDeviceFlowClientId: string | null = null
 
-export function getGlobalGitHubCopilotDeviceFlow(): GitHubCopilotDeviceFlow {
-  if (!globalDeviceFlowInstance) {
-    globalDeviceFlowInstance = createGitHubCopilotDeviceFlow()
+export function getGlobalGitHubCopilotDeviceFlow(
+  clientIdOverride?: string
+): GitHubCopilotDeviceFlow {
+  const effectiveClientId = clientIdOverride?.trim() || import.meta.env.VITE_GITHUB_CLIENT_ID
+
+  if (!globalDeviceFlowInstance || globalDeviceFlowClientId !== effectiveClientId) {
+    globalDeviceFlowInstance?.dispose()
+    globalDeviceFlowInstance = null
+    globalDeviceFlowInstance = createGitHubCopilotDeviceFlow(effectiveClientId)
+    globalDeviceFlowClientId = effectiveClientId || null
   }
   return globalDeviceFlowInstance
 }
@@ -631,4 +638,5 @@ export function disposeGlobalGitHubCopilotDeviceFlow(): void {
     globalDeviceFlowInstance.dispose()
     globalDeviceFlowInstance = null
   }
+  globalDeviceFlowClientId = null
 }

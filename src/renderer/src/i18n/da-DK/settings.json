@@ -398,6 +398,8 @@
     "githubCopilotNotConnected": "GitHub Copilot ikke forbundet",
     "loginWithGitHub": "Log ind med GitHub",
     "loggingIn": "Logger ind...",
+    "githubCopilotClientId": "Custom Client ID",
+    "githubCopilotClientIdHint": "Optional. Leave empty to use the built-in default Client ID. Only affects GitHub Copilot auth.",
     "githubCopilotLoginTip": "Giv DeepChat adgang til dit GitHub Copilot-abonnement. Rettighederne 'read:user' og 'read:org' er nødvendige for Copilot API'et.",
     "loginSuccess": "Login lykkedes",
     "loginFailed": "Login mislykkedes",

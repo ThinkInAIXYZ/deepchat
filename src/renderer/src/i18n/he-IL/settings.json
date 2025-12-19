@@ -410,6 +410,8 @@
     "githubCopilotNotConnected": "GitHub Copilot אינו מחובר",
     "loginWithGitHub": "התחבר עם GitHub",
     "loggingIn": "מתחבר...",
+    "githubCopilotClientId": "Custom Client ID",
+    "githubCopilotClientIdHint": "Optional. Leave empty to use the built-in default Client ID. Only affects GitHub Copilot auth.",
     "githubCopilotLoginTip": "אשר ל-DeepChat לגשת למנוי GitHub Copilot שלך. ההרשאות 'read:user' ו-'read:org' נדרשות כדי לגשת ל-API של Copilot.",
     "loginSuccess": "ההתחברות הצליחה",
     "loginFailed": "ההתחברות נכשלה",

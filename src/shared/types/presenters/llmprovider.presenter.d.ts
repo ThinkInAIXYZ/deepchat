@@ -47,6 +47,7 @@ export type LLM_PROVIDER = {
   name: string
   apiType: string
   apiKey: string
+  copilotClientId?: string
   baseUrl: string
   models: MODEL_META[]
   customModels?: MODEL_META[]
