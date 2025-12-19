@@ -120,7 +120,7 @@
       v-else-if="filteredCustomModels.length === 0"
       class="rounded-lg border py-6 px-4 text-sm text-muted-foreground text-center"
     >
-      {{ t('settings.provider.dialogs.modelCheck.noModels') }}
+      {{ t('settings.provider.dialog.modelCheck.noModels') }}
     </div>
   </div>
 </template>

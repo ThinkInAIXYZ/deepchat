@@ -66,6 +66,7 @@ import awsBedrockIcon from '@/assets/llm-icons/aws-bedrock.svg?url'
 import jiekouColorIcon from '@/assets/llm-icons/jiekou-color.svg?url'
 import zenmuxColorIcon from '@/assets/llm-icons/zenmux-color.svg?url'
 import burncloudColorIcon from '@/assets/llm-icons/burncloud-color.svg?url'
+import xiaomiColorIcon from '@/assets/llm-icons/xiaomi.png?url'
 
 // 导入所有图标
 const icons = {
@@ -144,6 +145,7 @@ const icons = {
   jiekou: jiekouColorIcon,
   zenmux: zenmuxColorIcon,
   burncloud: burncloudColorIcon,
+  xiaomi: xiaomiColorIcon,
   default: defaultIcon
 }
 

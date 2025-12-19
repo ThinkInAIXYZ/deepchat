@@ -731,5 +731,20 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
       models: 'https://docs.aws.amazon.com/bedrock/latest/userguide/models-supported.html',
       defaultBaseUrl: ''
     }
+  },
+  {
+    id: 'xiaomi',
+    name: 'Xiaomi',
+    apiType: 'openai',
+    apiKey: '',
+    baseUrl: 'https://api.xiaomimimo.com/v1',
+    enable: false,
+    websites: {
+      official: 'https://platform.xiaomimimo.com/#/docs/quick-start/first-api-call',
+      apiKey: 'https://platform.xiaomimimo.com/#/console/api-keys',
+      docs: 'https://platform.xiaomimimo.com/#/docs',
+      models: 'https://platform.xiaomimimo.com/#/docs',
+      defaultBaseUrl: 'https://api.xiaomimimo.com/v1'
+    }
   }
 ]
