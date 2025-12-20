@@ -550,6 +550,11 @@ const { settings, toggleWebSearch } = useInputSettings()
 // Initialize chat mode management
 const chatMode = useChatMode()
 const modeSelectOpen = ref(false)
+console.log(
+  '%c🤪 ~ file: /Users/zerob13/Documents/deepchat/src/renderer/src/components/chat-input/ChatInput.vue:552 [] -> modeSelectOpen : ',
+  'color: #394483',
+  modeSelectOpen
+)
 
 // Initialize history composable first (needed for editor placeholder)
 const history = useInputHistory(null as any, t)
@@ -724,7 +729,8 @@ const acpWorkdir = useAcpWorkdir({
 // Unified workspace management (for agent and acp agent modes)
 const workspace = useAgentWorkspace({
   conversationId,
-  activeModel: activeModelSource
+  activeModel: activeModelSource,
+  chatMode
 })
 
 // Extract isStreaming first so we can pass it to useAcpMode
@@ -919,7 +925,29 @@ defineExpose({
   clearContent: editorComposable.clearContent,
   appendText: editorComposable.appendText,
   appendMention: (name: string) => editorComposable.appendMention(name, mentionData),
-  restoreFocus
+  restoreFocus,
+  getAgentWorkspacePath: () => {
+    // #region agent log
+    const mode = chatMode.currentMode.value
+    const path = mode === 'agent' ? workspace.workspacePath.value : null
+    fetch('http://127.0.0.1:7242/ingest/96aae794-ae5b-4c8b-839c-d427e7ad0242', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        location: 'ChatInput.vue:925',
+        message: 'getAgentWorkspacePath called',
+        data: { mode, path, workspacePath: workspace.workspacePath.value },
+        timestamp: Date.now(),
+        sessionId: 'debug-session',
+        runId: 'run1',
+        hypothesisId: 'B'
+      })
+    }).catch(() => {})
+    // #endregion
+    if (mode !== 'agent') return null
+    return workspace.workspacePath.value
+  },
+  getChatMode: () => chatMode.currentMode.value
 })
 </script>
 

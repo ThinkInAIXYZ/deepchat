@@ -165,6 +165,21 @@ export const useChatStore = defineStore('chat', () => {
 
   const createThread = async (title: string, settings: Partial<CONVERSATION_SETTINGS>) => {
     try {
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/96aae794-ae5b-4c8b-839c-d427e7ad0242', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          location: 'chat.ts:166',
+          message: 'createThread - input settings',
+          data: { agentWorkspacePath: settings.agentWorkspacePath, allSettings: settings },
+          timestamp: Date.now(),
+          sessionId: 'debug-session',
+          runId: 'run1',
+          hypothesisId: 'A,C,D'
+        })
+      }).catch(() => {})
+      // #endregion
       const normalizedSettings: Partial<CONVERSATION_SETTINGS> = { ...settings }
       const shouldAttachAcpWorkdir =
         (!normalizedSettings.acpWorkdirMap ||
@@ -188,7 +203,24 @@ export const useChatStore = defineStore('chat', () => {
           normalizedSettings.agentWorkspacePath = pendingWorkspacePath
         }
       }
-
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/96aae794-ae5b-4c8b-839c-d427e7ad0242', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          location: 'chat.ts:190',
+          message: 'createThread - before createConversation',
+          data: {
+            agentWorkspacePath: normalizedSettings.agentWorkspacePath,
+            allSettings: normalizedSettings
+          },
+          timestamp: Date.now(),
+          sessionId: 'debug-session',
+          runId: 'run1',
+          hypothesisId: 'A,C,D'
+        })
+      }).catch(() => {})
+      // #endregion
       const threadId = await threadP.createConversation(title, normalizedSettings, getTabId())
       // 因为 createConversation 内部已经调用了 setActiveConversation
       // 并且可以确定是为当前tab激活，所以在这里可以直接、安全地更新本地状态

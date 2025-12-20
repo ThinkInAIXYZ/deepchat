@@ -1,5 +1,6 @@
 // === Vue Core ===
 import { ref, onMounted, computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 
 // === Composables ===
 import { usePresenter } from '@/composables/usePresenter'
@@ -12,12 +13,6 @@ const MODE_ICONS = {
   'acp agent': 'lucide:bot-message-square'
 } as const
 
-const MODE_LABELS = {
-  chat: 'Chat',
-  agent: 'Agent',
-  'acp agent': 'ACP Agent'
-} as const
-
 /**
  * Manages chat mode selection (chat, agent, acp agent)
  * Similar to useInputSettings, stores mode in database via configPresenter
@@ -25,23 +20,28 @@ const MODE_LABELS = {
 export function useChatMode() {
   // === Presenters ===
   const configPresenter = usePresenter('configPresenter')
+  const { t } = useI18n()
 
   // === Local State ===
   const currentMode = ref<ChatMode>('chat')
 
   // === Computed ===
   const currentIcon = computed(() => MODE_ICONS[currentMode.value])
-  const currentLabel = computed(() => MODE_LABELS[currentMode.value])
+  const currentLabel = computed(() => {
+    if (currentMode.value === 'chat') return t('chat.mode.chat')
+    if (currentMode.value === 'agent') return t('chat.mode.agent')
+    return t('chat.mode.acpAgent')
+  })
   const isAgentMode = computed(
     () => currentMode.value === 'agent' || currentMode.value === 'acp agent'
   )
 
   const modes = computed(() => [
-    { value: 'chat' as ChatMode, label: MODE_LABELS.chat, icon: MODE_ICONS.chat },
-    { value: 'agent' as ChatMode, label: MODE_LABELS.agent, icon: MODE_ICONS.agent },
+    { value: 'chat' as ChatMode, label: t('chat.mode.chat'), icon: MODE_ICONS.chat },
+    { value: 'agent' as ChatMode, label: t('chat.mode.agent'), icon: MODE_ICONS.agent },
     {
       value: 'acp agent' as ChatMode,
-      label: MODE_LABELS['acp agent'],
+      label: t('chat.mode.acpAgent'),
       icon: MODE_ICONS['acp agent']
     }
   ])

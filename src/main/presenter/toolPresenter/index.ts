@@ -8,6 +8,7 @@ import type {
 } from '@shared/presenter'
 import { ToolMapper } from './toolMapper'
 import { AgentToolManager } from '../llmProviderPresenter/agent/agentToolManager'
+import { jsonrepair } from 'jsonrepair'
 
 export interface IToolPresenter {
   getAllToolDefinitions(context: {
@@ -77,8 +78,15 @@ export class ToolPresenter implements IToolPresenter {
           supportsVision,
           agentWorkspacePath
         })
-        defs.push(...agentDefs)
-        this.mapper.registerTools(agentDefs, 'agent')
+        const filteredAgentDefs = agentDefs.filter((tool) => {
+          if (!this.mapper.hasTool(tool.function.name)) return true
+          console.warn(
+            `[ToolPresenter] Tool name conflict for '${tool.function.name}', preferring MCP tool.`
+          )
+          return false
+        })
+        defs.push(...filteredAgentDefs)
+        this.mapper.registerTools(filteredAgentDefs, 'agent')
       } catch (error) {
         console.warn('[ToolPresenter] Failed to load Agent tool definitions', error)
       }
@@ -98,9 +106,29 @@ export class ToolPresenter implements IToolPresenter {
       throw new Error(`Tool ${toolName} not found in any source`)
     }
 
-    if (source === 'agent' && this.agentToolManager) {
+    if (source === 'agent') {
+      if (!this.agentToolManager) {
+        throw new Error(`Agent tool manager not initialized for tool ${toolName}`)
+      }
       // Route to Agent tool manager
-      const args = JSON.parse(request.function.arguments || '{}') as Record<string, unknown>
+      let args: Record<string, unknown> = {}
+      const argsString = request.function.arguments || ''
+      if (argsString.trim().length > 0) {
+        try {
+          args = JSON.parse(argsString) as Record<string, unknown>
+        } catch (error) {
+          console.warn('[ToolPresenter] Failed to parse tool arguments, trying jsonrepair:', error)
+          try {
+            args = JSON.parse(jsonrepair(argsString)) as Record<string, unknown>
+          } catch (error) {
+            console.warn(
+              '[ToolPresenter] Failed to repair tool arguments, using empty args.',
+              error
+            )
+            args = {}
+          }
+        }
+      }
       const response = await this.agentToolManager.callTool(toolName, args)
       return {
         content: typeof response === 'string' ? response : JSON.stringify(response),

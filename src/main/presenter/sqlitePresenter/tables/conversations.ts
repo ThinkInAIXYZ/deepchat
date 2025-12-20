@@ -2,6 +2,7 @@ import { BaseTable } from './baseTable'
 import type Database from 'better-sqlite3-multiple-ciphers'
 import { CONVERSATION, CONVERSATION_SETTINGS } from '@shared/presenter'
 import { nanoid } from 'nanoid'
+import * as fs from 'fs'
 
 type ConversationRow = {
   id: string
@@ -118,12 +119,20 @@ export class ConversationsTable extends BaseTable {
         ALTER TABLE conversations ADD COLUMN search_strategy TEXT DEFAULT NULL;
       `
     }
+    if (version === 8) {
+      return `
+        -- 添加 agent_workspace_path 字段
+        ALTER TABLE conversations ADD COLUMN agent_workspace_path TEXT DEFAULT NULL;
+        -- 添加 acp_workdir_map 字段
+        ALTER TABLE conversations ADD COLUMN acp_workdir_map TEXT DEFAULT NULL;
+      `
+    }
 
     return null
   }
 
   getLatestVersion(): number {
-    return 7
+    return 8
   }
 
   async create(title: string, settings: Partial<CONVERSATION_SETTINGS> = {}): Promise<string> {
@@ -149,9 +158,11 @@ export class ConversationsTable extends BaseTable {
         enable_search,
         forced_search,
         search_strategy,
-        context_chain
+        context_chain,
+        agent_workspace_path,
+        acp_workdir_map
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `)
     const conv_id = nanoid()
     const now = Date.now()
@@ -176,8 +187,30 @@ export class ConversationsTable extends BaseTable {
       settings.enableSearch !== undefined ? (settings.enableSearch ? 1 : 0) : null,
       settings.forcedSearch !== undefined ? (settings.forcedSearch ? 1 : 0) : null,
       settings.searchStrategy !== undefined ? settings.searchStrategy : null,
-      settings.selectedVariantsMap ? JSON.stringify(settings.selectedVariantsMap) : '{}'
+      settings.selectedVariantsMap ? JSON.stringify(settings.selectedVariantsMap) : '{}',
+      settings.agentWorkspacePath !== undefined && settings.agentWorkspacePath !== null
+        ? settings.agentWorkspacePath
+        : null,
+      settings.acpWorkdirMap ? JSON.stringify(settings.acpWorkdirMap) : null
     )
+    // #region agent log
+    const logPath = '/Users/zerob13/Documents/deepchat/.cursor/debug.log'
+    const logEntry =
+      JSON.stringify({
+        location: 'conversations.ts:create',
+        message: 'create - saved to database',
+        data: {
+          agentWorkspacePath: settings.agentWorkspacePath,
+          acpWorkdirMap: settings.acpWorkdirMap,
+          convId: conv_id
+        },
+        timestamp: Date.now(),
+        sessionId: 'debug-session',
+        runId: 'post-fix',
+        hypothesisId: 'FIXED'
+      }) + '\n'
+    fs.appendFileSync(logPath, logEntry)
+    // #endregion
     return conv_id
   }
 
@@ -206,17 +239,68 @@ export class ConversationsTable extends BaseTable {
         enable_search,
         forced_search,
         search_strategy,
-        context_chain
+        context_chain,
+        agent_workspace_path,
+        acp_workdir_map
       FROM conversations
       WHERE conv_id = ?
     `
       )
-      .get(conversationId) as ConversationRow & { is_pinned: number }
+      .get(conversationId) as ConversationRow & {
+      is_pinned: number
+      agent_workspace_path: string | null
+      acp_workdir_map: string | null
+    }
 
     if (!result) {
       throw new Error(`Conversation ${conversationId} not found`)
     }
 
+    const settings = {
+      systemPrompt: result.systemPrompt,
+      temperature: result.temperature,
+      contextLength: result.contextLength,
+      maxTokens: result.maxTokens,
+      providerId: result.providerId,
+      modelId: result.modelId,
+      artifacts: result.artifacts as 0 | 1,
+      enabledMcpTools: getJsonField(result.enabled_mcp_tools, undefined),
+      thinkingBudget: result.thinking_budget !== null ? result.thinking_budget : undefined,
+      reasoningEffort: result.reasoning_effort
+        ? (result.reasoning_effort as 'minimal' | 'low' | 'medium' | 'high')
+        : undefined,
+      verbosity: result.verbosity ? (result.verbosity as 'low' | 'medium' | 'high') : undefined,
+      enableSearch: result.enable_search !== null ? Boolean(result.enable_search) : undefined,
+      forcedSearch: result.forced_search !== null ? Boolean(result.forced_search) : undefined,
+      searchStrategy: result.search_strategy
+        ? (result.search_strategy as 'turbo' | 'max')
+        : undefined,
+      selectedVariantsMap: getJsonField(result.context_chain, undefined),
+      agentWorkspacePath:
+        result.agent_workspace_path !== null && result.agent_workspace_path !== undefined
+          ? result.agent_workspace_path
+          : undefined,
+      acpWorkdirMap: getJsonField(result.acp_workdir_map, undefined)
+    }
+    // #region agent log
+    const logPath = '/Users/zerob13/Documents/deepchat/.cursor/debug.log'
+    const logEntry =
+      JSON.stringify({
+        location: 'conversations.ts:get',
+        message: 'get - loaded from database',
+        data: {
+          agentWorkspacePath: settings.agentWorkspacePath,
+          acpWorkdirMap: settings.acpWorkdirMap,
+          rawAgentWorkspacePath: result.agent_workspace_path,
+          rawAcpWorkdirMap: result.acp_workdir_map
+        },
+        timestamp: Date.now(),
+        sessionId: 'debug-session',
+        runId: 'post-fix',
+        hypothesisId: 'FIXED'
+      }) + '\n'
+    fs.appendFileSync(logPath, logEntry)
+    // #endregion
     return {
       id: result.id,
       title: result.title,
@@ -224,33 +308,13 @@ export class ConversationsTable extends BaseTable {
       updatedAt: result.updatedAt,
       is_new: result.is_new,
       is_pinned: result.is_pinned,
-      settings: {
-        systemPrompt: result.systemPrompt,
-        temperature: result.temperature,
-        contextLength: result.contextLength,
-        maxTokens: result.maxTokens,
-        providerId: result.providerId,
-        modelId: result.modelId,
-        artifacts: result.artifacts as 0 | 1,
-        enabledMcpTools: getJsonField(result.enabled_mcp_tools, undefined),
-        thinkingBudget: result.thinking_budget !== null ? result.thinking_budget : undefined,
-        reasoningEffort: result.reasoning_effort
-          ? (result.reasoning_effort as 'minimal' | 'low' | 'medium' | 'high')
-          : undefined,
-        verbosity: result.verbosity ? (result.verbosity as 'low' | 'medium' | 'high') : undefined,
-        enableSearch: result.enable_search !== null ? Boolean(result.enable_search) : undefined,
-        forcedSearch: result.forced_search !== null ? Boolean(result.forced_search) : undefined,
-        searchStrategy: result.search_strategy
-          ? (result.search_strategy as 'turbo' | 'max')
-          : undefined,
-        selectedVariantsMap: getJsonField(result.context_chain, undefined)
-      }
+      settings
     }
   }
 
   async update(conversationId: string, data: Partial<CONVERSATION>): Promise<void> {
     const updates: string[] = []
-    const params: (string | number)[] = []
+    const params: (string | number | null)[] = []
 
     if (data.title !== undefined) {
       updates.push('title = ?')
@@ -328,6 +392,18 @@ export class ConversationsTable extends BaseTable {
         updates.push('context_chain = ?')
         params.push(JSON.stringify(data.settings.selectedVariantsMap))
       }
+      if (data.settings.agentWorkspacePath !== undefined) {
+        updates.push('agent_workspace_path = ?')
+        params.push(
+          data.settings.agentWorkspacePath !== null ? data.settings.agentWorkspacePath : null
+        )
+      }
+      if (data.settings.acpWorkdirMap !== undefined) {
+        updates.push('acp_workdir_map = ?')
+        params.push(
+          data.settings.acpWorkdirMap ? JSON.stringify(data.settings.acpWorkdirMap) : null
+        )
+      }
     }
     if (updates.length > 0 || data.updatedAt) {
       updates.push('updated_at = ?')
@@ -379,13 +455,18 @@ export class ConversationsTable extends BaseTable {
         enable_search,
         forced_search,
         search_strategy,
-        context_chain
+        context_chain,
+        agent_workspace_path,
+        acp_workdir_map
       FROM conversations
       ORDER BY updated_at DESC
       LIMIT ? OFFSET ?
     `
       )
-      .all(pageSize, offset) as ConversationRow[]
+      .all(pageSize, offset) as (ConversationRow & {
+      agent_workspace_path: string | null
+      acp_workdir_map: string | null
+    })[]
 
     return {
       total: totalResult.count,
@@ -415,7 +496,12 @@ export class ConversationsTable extends BaseTable {
           searchStrategy: row.search_strategy
             ? (row.search_strategy as 'turbo' | 'max')
             : undefined,
-          selectedVariantsMap: getJsonField(row.context_chain, undefined)
+          selectedVariantsMap: getJsonField(row.context_chain, undefined),
+          agentWorkspacePath:
+            row.agent_workspace_path !== null && row.agent_workspace_path !== undefined
+              ? row.agent_workspace_path
+              : undefined,
+          acpWorkdirMap: getJsonField(row.acp_workdir_map, undefined)
         }
       }))
     }

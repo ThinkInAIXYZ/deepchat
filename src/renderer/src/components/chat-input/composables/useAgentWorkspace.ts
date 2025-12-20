@@ -14,6 +14,7 @@ import type { Ref } from 'vue'
 export interface UseAgentWorkspaceOptions {
   conversationId: Ref<string | null>
   activeModel: Ref<{ id: string; providerId: string } | null>
+  chatMode?: ReturnType<typeof useChatMode>
 }
 
 /**
@@ -23,7 +24,7 @@ export interface UseAgentWorkspaceOptions {
 export function useAgentWorkspace(options: UseAgentWorkspaceOptions) {
   const { t } = useI18n()
   const threadPresenter = usePresenter('threadPresenter')
-  const chatMode = useChatMode()
+  const chatMode = options.chatMode ?? useChatMode()
   const chatStore = useChatStore()
 
   // Use ACP workdir for acp agent mode
@@ -51,6 +52,14 @@ export function useAgentWorkspace(options: UseAgentWorkspaceOptions) {
 
     if (typeof chatStore.updateChatConfig === 'function') {
       void chatStore.updateChatConfig({ agentWorkspacePath: workspacePath })
+    }
+  }
+
+  const hydrateWorkspaceFromPreference = () => {
+    if (pendingWorkspacePath.value || agentWorkspacePath.value) return
+    const storedPath = chatStore.chatConfig.agentWorkspacePath ?? null
+    if (storedPath) {
+      agentWorkspacePath.value = storedPath
     }
   }
 
@@ -139,9 +148,7 @@ export function useAgentWorkspace(options: UseAgentWorkspaceOptions) {
     }
 
     if (!options.conversationId.value) {
-      if (!pendingWorkspacePath.value) {
-        agentWorkspacePath.value = null
-      }
+      hydrateWorkspaceFromPreference()
       return
     }
 
@@ -199,15 +206,26 @@ export function useAgentWorkspace(options: UseAgentWorkspaceOptions) {
   watch(
     [() => chatMode.currentMode.value, () => options.conversationId.value],
     async ([newMode, conversationId]) => {
-      if (newMode === 'agent' && conversationId) {
-        await loadWorkspacePath()
-      } else if (newMode === 'acp agent') {
-        // ACP workdir is handled by useAcpWorkdir
-      } else {
-        // Clear workspace path when switching to chat mode
-        agentWorkspacePath.value = null
-        pendingWorkspacePath.value = null
+      if (newMode === 'agent') {
+        if (pendingWorkspacePath.value && conversationId) {
+          await syncPendingWorkspaceWhenReady()
+        }
+        if (conversationId) {
+          await loadWorkspacePath()
+        } else {
+          hydrateWorkspaceFromPreference()
+        }
+        return
       }
+
+      if (newMode === 'acp agent') {
+        // ACP workdir is handled by useAcpWorkdir
+        return
+      }
+
+      // Clear workspace path when switching to chat mode
+      agentWorkspacePath.value = null
+      pendingWorkspacePath.value = null
     },
     { immediate: true }
   )

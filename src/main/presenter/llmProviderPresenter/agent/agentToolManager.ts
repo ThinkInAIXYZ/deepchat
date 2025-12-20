@@ -11,7 +11,7 @@ interface AgentToolManagerOptions {
 
 export class AgentToolManager {
   private readonly yoBrowserPresenter: IYoBrowserPresenter
-  private readonly agentWorkspacePath: string | null
+  private agentWorkspacePath: string | null
   private fileSystemHandler: AgentFileSystemHandler | null = null
 
   constructor(options: AgentToolManagerOptions) {
@@ -39,6 +39,7 @@ export class AgentToolManager {
       } else {
         this.fileSystemHandler = null
       }
+      this.agentWorkspacePath = context.agentWorkspacePath
     }
 
     // 1. Yo Browser tools (only when browser window is open)
