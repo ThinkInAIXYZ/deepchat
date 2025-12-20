@@ -22,7 +22,10 @@
     "acpWorkdirSelect": "Select a folder to use as the ACP workdir",
     "acpWorkdirCurrent": "Current workdir: {path}",
     "acpMode": "모드",
-    "acpModeTooltip": "현재 모드: {mode}"
+    "acpModeTooltip": "현재 모드: {mode}",
+    "agentWorkspaceCurrent": "현재 작업 디렉터리: {path}",
+    "agentWorkspaceSelect": "작업 디렉터리 선택",
+    "agentWorkspaceTooltip": "에이전트 작업 디렉터리 설정"
   },
   "features": {
     "webSearch": "웹 검색",
@@ -119,5 +122,40 @@
         "empty": "출력이 없습니다"
       }
     }
+  },
+  "mode": {
+    "acpAgent": "ACP 에이전트",
+    "agent": "대리인",
+    "chat": "채팅",
+    "current": "현재 모드: {mode}"
+  },
+  "workspace": {
+    "collapse": "닫다",
+    "files": {
+      "contextMenu": {
+        "insertPath": "입력창에 삽입",
+        "openFile": "파일 열기",
+        "revealInFolder": "파일 관리자에서 열기"
+      },
+      "empty": "아직 파일이 없습니다",
+      "loading": "파일 로드 중...",
+      "section": "문서"
+    },
+    "plan": {
+      "empty": "아직 할 일이 없습니다.",
+      "section": "계획",
+      "status": {
+        "completed": "완전한",
+        "failed": "실패하다",
+        "in_progress": "진행 중",
+        "pending": "보류 중",
+        "skipped": "건너뛰었습니다"
+      }
+    },
+    "terminal": {
+      "empty": "아직 출력이 없습니다",
+      "section": "단말기"
+    },
+    "title": "작업 공간"
   }
 }

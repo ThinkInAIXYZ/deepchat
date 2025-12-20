@@ -22,7 +22,10 @@
     "acpWorkdirSelect": "選擇工作目錄",
     "acpWorkdirCurrent": "目前工作目錄：{path}",
     "acpMode": "模式",
-    "acpModeTooltip": "目前模式：{mode}"
+    "acpModeTooltip": "目前模式：{mode}",
+    "agentWorkspaceCurrent": "當前工作目錄：{path}",
+    "agentWorkspaceSelect": "選擇工作目錄",
+    "agentWorkspaceTooltip": "設置 Agent 工作目錄"
   },
   "features": {
     "webSearch": "網路搜尋",
@@ -119,5 +122,40 @@
         "empty": "暫無輸出"
       }
     }
+  },
+  "mode": {
+    "acpAgent": "ACP Agent",
+    "agent": "Agent",
+    "chat": "聊天",
+    "current": "當前模式：{mode}"
+  },
+  "workspace": {
+    "collapse": "收起",
+    "files": {
+      "contextMenu": {
+        "insertPath": "插入到輸入框",
+        "openFile": "打開文件",
+        "revealInFolder": "在文件管理器中打開"
+      },
+      "empty": "暫無文件",
+      "loading": "加載文件中...",
+      "section": "文件"
+    },
+    "plan": {
+      "empty": "暫無任務",
+      "section": "計劃",
+      "status": {
+        "completed": "已完成",
+        "failed": "失敗",
+        "in_progress": "進行中",
+        "pending": "待處理",
+        "skipped": "已跳過"
+      }
+    },
+    "terminal": {
+      "empty": "暫無輸出",
+      "section": "終端"
+    },
+    "title": "工作區"
   }
 }

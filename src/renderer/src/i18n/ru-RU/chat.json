@@ -22,7 +22,10 @@
     "acpWorkdirSelect": "Select a folder to use as the ACP workdir",
     "acpWorkdirCurrent": "Current workdir: {path}",
     "acpMode": "Режим",
-    "acpModeTooltip": "Текущий режим: {mode}"
+    "acpModeTooltip": "Текущий режим: {mode}",
+    "agentWorkspaceCurrent": "Текущий рабочий каталог: {path}",
+    "agentWorkspaceSelect": "Выберите рабочий каталог",
+    "agentWorkspaceTooltip": "Установить рабочий каталог агента"
   },
   "features": {
     "webSearch": "Поиск в интернете",
@@ -119,5 +122,40 @@
         "empty": "Нет вывода"
       }
     }
+  },
+  "mode": {
+    "acpAgent": "Агент АШП",
+    "agent": "Агент",
+    "chat": "чат",
+    "current": "Текущий режим: {mode}"
+  },
+  "workspace": {
+    "collapse": "закрывать",
+    "files": {
+      "contextMenu": {
+        "insertPath": "Вставить в поле ввода",
+        "openFile": "открыть файл",
+        "revealInFolder": "Открыть в файловом менеджере"
+      },
+      "empty": "Файлов пока нет",
+      "loading": "Загрузка файлов...",
+      "section": "документ"
+    },
+    "plan": {
+      "empty": "Заданий пока нет",
+      "section": "план",
+      "status": {
+        "completed": "Завершенный",
+        "failed": "неудача",
+        "in_progress": "в ходе выполнения",
+        "pending": "В ожидании",
+        "skipped": "пропущен"
+      }
+    },
+    "terminal": {
+      "empty": "Выходных данных пока нет",
+      "section": "Терминал"
+    },
+    "title": "рабочее пространство"
   }
 }

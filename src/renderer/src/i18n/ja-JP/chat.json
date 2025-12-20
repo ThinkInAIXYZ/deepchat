@@ -22,7 +22,10 @@
     "acpWorkdirSelect": "Select a folder to use as the ACP workdir",
     "acpWorkdirCurrent": "Current workdir: {path}",
     "acpMode": "モード",
-    "acpModeTooltip": "現在のモード：{mode}"
+    "acpModeTooltip": "現在のモード：{mode}",
+    "agentWorkspaceCurrent": "現在の作業ディレクトリ: {パス}",
+    "agentWorkspaceSelect": "作業ディレクトリを選択",
+    "agentWorkspaceTooltip": "エージェントの作業ディレクトリを設定する"
   },
   "features": {
     "webSearch": "ウェブ検索",
@@ -119,5 +122,40 @@
         "empty": "出力はまだありません"
       }
     }
+  },
+  "mode": {
+    "acpAgent": "ACPエージェント",
+    "agent": "エージェント",
+    "chat": "チャット",
+    "current": "現在のモード: {モード}"
+  },
+  "workspace": {
+    "collapse": "近い",
+    "files": {
+      "contextMenu": {
+        "insertPath": "入力ボックスに挿入",
+        "openFile": "ファイルを開く",
+        "revealInFolder": "ファイルマネージャーで開く"
+      },
+      "empty": "まだファイルがありません",
+      "loading": "ファイルをロード中...",
+      "section": "書類"
+    },
+    "plan": {
+      "empty": "まだタスクはありません",
+      "section": "プラン",
+      "status": {
+        "completed": "完了しました",
+        "failed": "失敗",
+        "in_progress": "進行中",
+        "pending": "保留中",
+        "skipped": "スキップしました"
+      }
+    },
+    "terminal": {
+      "empty": "まだ出力はありません",
+      "section": "ターミナル"
+    },
+    "title": "ワークスペース"
   }
 }

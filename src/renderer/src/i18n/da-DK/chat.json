@@ -29,7 +29,10 @@
     "rateLimitReadyTooltip": "Du kan sende en anmodning med et interval på {interval} sekunder.",
     "rateLimitWait": "Vent {seconds}s",
     "rateLimitWaitingTooltip": "Vent {seconds} sekunder, interval {interval} sekunder",
-    "fileArea": "fil område"
+    "fileArea": "fil område",
+    "agentWorkspaceCurrent": "Nuværende arbejdsmappe: {sti}",
+    "agentWorkspaceSelect": "Vælg arbejdsmappe",
+    "agentWorkspaceTooltip": "Indstil agentens arbejdsmappe"
   },
   "mcpUi": {
     "badge": "UI",
@@ -119,5 +122,40 @@
         "empty": "Ingen output"
       }
     }
+  },
+  "mode": {
+    "acpAgent": "ACP-agent",
+    "agent": "Agent",
+    "chat": "snak",
+    "current": "Aktuel tilstand: {mode}"
+  },
+  "workspace": {
+    "collapse": "tæt",
+    "files": {
+      "contextMenu": {
+        "insertPath": "Indsæt i inputboksen",
+        "openFile": "åbne fil",
+        "revealInFolder": "Åbn i filhåndtering"
+      },
+      "empty": "Ingen filer endnu",
+      "loading": "Indlæser filer...",
+      "section": "dokument"
+    },
+    "plan": {
+      "empty": "Ingen opgaver endnu",
+      "section": "plan",
+      "status": {
+        "completed": "Afsluttet",
+        "failed": "svigte",
+        "in_progress": "i gang",
+        "pending": "Indtil",
+        "skipped": "sprunget over"
+      }
+    },
+    "terminal": {
+      "empty": "Ingen output endnu",
+      "section": "terminal"
+    },
+    "title": "arbejdsrum"
   }
 }

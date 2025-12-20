@@ -22,7 +22,10 @@
     "acpWorkdirSelect": "یک پوشه برای استفاده به عنوان دایرکتوری کاری ACP انتخاب کنید",
     "acpWorkdirCurrent": "دایرکتوری جاری: {path}",
     "acpMode": "حالت",
-    "acpModeTooltip": "حالت فعلی: {mode}"
+    "acpModeTooltip": "حالت فعلی: {mode}",
+    "agentWorkspaceCurrent": "فهرست کاری فعلی: {path}",
+    "agentWorkspaceSelect": "پوشه کاری را انتخاب کنید",
+    "agentWorkspaceTooltip": "دایرکتوری کاری عامل را تنظیم کنید"
   },
   "features": {
     "webSearch": "جستجوی وب",
@@ -119,5 +122,40 @@
         "empty": "خروجی وجود ندارد"
       }
     }
+  },
+  "mode": {
+    "acpAgent": "نماینده ACP",
+    "agent": "عامل",
+    "chat": "چت کردن",
+    "current": "حالت فعلی: {mode}"
+  },
+  "workspace": {
+    "collapse": "بستن",
+    "files": {
+      "contextMenu": {
+        "insertPath": "در جعبه ورودی وارد کنید",
+        "openFile": "باز کردن فایل",
+        "revealInFolder": "در فایل منیجر باز کنید"
+      },
+      "empty": "هنوز فایلی وجود ندارد",
+      "loading": "در حال بارگیری فایل ها...",
+      "section": "سند"
+    },
+    "plan": {
+      "empty": "هنوز هیچ تکلیفی وجود ندارد",
+      "section": "برنامه ریزی کنید",
+      "status": {
+        "completed": "تکمیل شد",
+        "failed": "شکست بخورد",
+        "in_progress": "در حال انجام است",
+        "pending": "در انتظار",
+        "skipped": "پرش کرد"
+      }
+    },
+    "terminal": {
+      "empty": "هنوز خروجی وجود ندارد",
+      "section": "ترمینال"
+    },
+    "title": "فضای کار"
   }
 }

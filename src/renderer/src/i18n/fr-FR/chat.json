@@ -22,7 +22,10 @@
     "acpWorkdirSelect": "Select a folder to use as the ACP workdir",
     "acpWorkdirCurrent": "Current workdir: {path}",
     "acpMode": "Mode",
-    "acpModeTooltip": "Mode actuel : {mode}"
+    "acpModeTooltip": "Mode actuel : {mode}",
+    "agentWorkspaceCurrent": "Répertoire de travail actuel : {path}",
+    "agentWorkspaceSelect": "Sélectionnez le répertoire de travail",
+    "agentWorkspaceTooltip": "Définir le répertoire de travail de l'agent"
   },
   "features": {
     "webSearch": "Recherche web",
@@ -119,5 +122,40 @@
         "empty": "Aucune sortie"
       }
     }
+  },
+  "mode": {
+    "acpAgent": "Agent ACP",
+    "agent": "Agent",
+    "chat": "chat",
+    "current": "Mode actuel : {mode}"
+  },
+  "workspace": {
+    "collapse": "fermer",
+    "files": {
+      "contextMenu": {
+        "insertPath": "Insérer dans la zone de saisie",
+        "openFile": "ouvrir le fichier",
+        "revealInFolder": "Ouvrir dans le gestionnaire de fichiers"
+      },
+      "empty": "Aucun fichier pour l'instant",
+      "loading": "Chargement des fichiers...",
+      "section": "document"
+    },
+    "plan": {
+      "empty": "Aucune tâche pour l'instant",
+      "section": "plan",
+      "status": {
+        "completed": "Complété",
+        "failed": "échouer",
+        "in_progress": "en cours",
+        "pending": "En attente",
+        "skipped": "ignoré"
+      }
+    },
+    "terminal": {
+      "empty": "Pas encore de sortie",
+      "section": "Terminal"
+    },
+    "title": "espace de travail"
   }
 }

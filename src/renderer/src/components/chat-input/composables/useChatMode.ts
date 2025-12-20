@@ -1,5 +1,5 @@
 // === Vue Core ===
-import { ref, onMounted, computed } from 'vue'
+import { ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 // === Composables ===
@@ -13,6 +13,12 @@ const MODE_ICONS = {
   'acp agent': 'lucide:bot-message-square'
 } as const
 
+// Shared state so all callers observe the same mode.
+const currentMode = ref<ChatMode>('chat')
+let hasLoaded = false
+let loadPromise: Promise<void> | null = null
+let modeUpdateVersion = 0
+
 /**
  * Manages chat mode selection (chat, agent, acp agent)
  * Similar to useInputSettings, stores mode in database via configPresenter
@@ -21,9 +27,6 @@ export function useChatMode() {
   // === Presenters ===
   const configPresenter = usePresenter('configPresenter')
   const { t } = useI18n()
-
-  // === Local State ===
-  const currentMode = ref<ChatMode>('chat')
 
   // === Computed ===
   const currentIcon = computed(() => MODE_ICONS[currentMode.value])
@@ -49,37 +52,49 @@ export function useChatMode() {
   // === Public Methods ===
   const setMode = async (mode: ChatMode) => {
     const previousValue = currentMode.value
+    const updateVersion = ++modeUpdateVersion
     currentMode.value = mode
 
     try {
       await configPresenter.setSetting('input_chatMode', mode)
     } catch (error) {
       // Revert to previous value on error
-      currentMode.value = previousValue
+      if (modeUpdateVersion === updateVersion) {
+        currentMode.value = previousValue
+      }
       console.error('Failed to save chat mode:', error)
       // TODO: Show user-facing notification when toast system is available
     }
   }
 
   const loadMode = async () => {
+    const loadVersion = modeUpdateVersion
     try {
       const saved = await configPresenter.getSetting<string>('input_chatMode')
-      currentMode.value = (saved as ChatMode) || 'chat'
+      if (modeUpdateVersion === loadVersion) {
+        currentMode.value = (saved as ChatMode) || 'chat'
+      }
     } catch (error) {
       // Fall back to safe defaults on error
-      currentMode.value = 'chat'
+      if (modeUpdateVersion === loadVersion) {
+        currentMode.value = 'chat'
+      }
       console.error('Failed to load chat mode, using default:', error)
+    } finally {
+      hasLoaded = true
     }
   }
 
-  // === Lifecycle Hooks ===
-  onMounted(async () => {
-    try {
-      await loadMode()
-    } catch (error) {
-      console.error('Failed to initialize chat mode:', error)
+  const ensureLoaded = () => {
+    if (hasLoaded) return
+    if (!loadPromise) {
+      loadPromise = loadMode().finally(() => {
+        loadPromise = null
+      })
     }
-  })
+  }
+
+  ensureLoaded()
 
   return {
     currentMode,
