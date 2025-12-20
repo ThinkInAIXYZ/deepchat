@@ -24,6 +24,8 @@ import {
   IUpgradePresenter,
   IWindowPresenter,
   IAcpWorkspacePresenter,
+  IWorkspacePresenter,
+  IToolPresenter,
   IYoBrowserPresenter
 } from '@shared/presenter'
 import { eventBus } from '@/eventbus'
@@ -44,6 +46,8 @@ import { YoBrowserPresenter } from './browser/YoBrowserPresenter'
 import { CONFIG_EVENTS, WINDOW_EVENTS } from '@/events'
 import { KnowledgePresenter } from './knowledgePresenter'
 import { AcpWorkspacePresenter } from './acpWorkspacePresenter'
+import { WorkspacePresenter } from './workspacePresenter'
+import { ToolPresenter } from './toolPresenter'
 
 // IPC调用上下文接口
 interface IPCCallContext {
@@ -82,6 +86,8 @@ export class Presenter implements IPresenter {
   floatingButtonPresenter: FloatingButtonPresenter
   knowledgePresenter: IKnowledgePresenter
   acpWorkspacePresenter: IAcpWorkspacePresenter
+  workspacePresenter: IWorkspacePresenter
+  toolPresenter: IToolPresenter
   yoBrowserPresenter: IYoBrowserPresenter
   // llamaCppPresenter: LlamaCppPresenter // 保留原始注释
   dialogPresenter: IDialogPresenter
@@ -126,8 +132,18 @@ export class Presenter implements IPresenter {
       this.filePresenter
     )
 
-    // Initialize ACP Workspace presenter
+    // Initialize ACP Workspace presenter (legacy, kept for backward compatibility)
     this.acpWorkspacePresenter = new AcpWorkspacePresenter()
+
+    // Initialize generic Workspace presenter (for all Agent modes)
+    this.workspacePresenter = new WorkspacePresenter()
+
+    // Initialize unified Tool presenter (for routing MCP and Agent tools)
+    this.toolPresenter = new ToolPresenter({
+      mcpPresenter: this.mcpPresenter,
+      yoBrowserPresenter: this.yoBrowserPresenter,
+      configPresenter: this.configPresenter
+    })
 
     // this.llamaCppPresenter = new LlamaCppPresenter() // 保留原始注释
     this.setupEventBus() // 设置事件总线监听

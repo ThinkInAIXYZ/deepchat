@@ -8,6 +8,8 @@ import type { NowledgeMemThread, NowledgeMemExportSummary } from '../nowledgeMem
 import { ProviderChange, ProviderBatchUpdate } from './provider-operations'
 import type { AgentSessionLifecycleStatus } from './agent-provider'
 import type { IAcpWorkspacePresenter } from './acp-workspace'
+import type { IWorkspacePresenter } from './workspace'
+import type { IToolPresenter } from './tool.presenter'
 import type {
   BrowserTabInfo,
   BrowserContextSnapshot,
@@ -442,6 +444,8 @@ export interface IPresenter {
   dialogPresenter: IDialogPresenter
   knowledgePresenter: IKnowledgePresenter
   acpWorkspacePresenter: IAcpWorkspacePresenter
+  workspacePresenter: IWorkspacePresenter
+  toolPresenter: IToolPresenter
   init(): void
   destroy(): void
 }
@@ -1012,6 +1016,8 @@ export type CONVERSATION_SETTINGS = {
   verbosity?: 'low' | 'medium' | 'high'
   selectedVariantsMap?: Record<string, string>
   acpWorkdirMap?: Record<string, string | null>
+  chatMode?: 'chat' | 'agent' | 'acp agent'
+  agentWorkspacePath?: string | null
 }
 
 export type CONVERSATION = {

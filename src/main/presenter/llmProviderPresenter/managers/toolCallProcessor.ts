@@ -21,6 +21,7 @@ interface ToolCallExecutionContext {
   abortSignal: AbortSignal
   currentToolCallCount: number
   maxToolCalls: number
+  conversationId?: string
 }
 
 interface ToolCallProcessResult {

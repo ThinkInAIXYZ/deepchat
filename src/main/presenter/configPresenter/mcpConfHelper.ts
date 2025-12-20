@@ -2,7 +2,8 @@ import { eventBus, SendTarget } from '@/eventbus'
 import { MCPServerConfig } from '@shared/presenter'
 import { MCP_EVENTS } from '@/events'
 import ElectronStore from 'electron-store'
-import { app } from 'electron'
+// app is used in DEFAULT_INMEMORY_SERVERS but removed buildInFileSystem
+// import { app } from 'electron'
 import { compare } from 'compare-versions'
 import { presenter } from '..'
 
@@ -110,16 +111,7 @@ const PLATFORM_SPECIFIC_SERVERS: Record<string, MCPServerConfig> = {
 
 // Extract inmemory type services as constants
 const DEFAULT_INMEMORY_SERVERS: Record<string, MCPServerConfig> = {
-  buildInFileSystem: {
-    args: [app.getPath('home')],
-    descriptions: 'DeepChat内置文件系统mcp服务',
-    icons: '📁',
-    autoApprove: ['read'],
-    type: 'inmemory' as MCPServerType,
-    command: 'filesystem',
-    env: {},
-    disable: true
-  },
+  // buildInFileSystem has been removed - filesystem capabilities are now provided via Agent tools
   Artifacts: {
     args: [],
     descriptions: 'DeepChat内置 artifacts mcp服务',
@@ -404,6 +396,7 @@ export class McpConfHelper {
     }
 
     // 遍历所有默认的inmemory服务，确保它们都存在
+    // Note: buildInFileSystem is excluded as it's now provided via Agent tools
     for (const [serverName, serverConfig] of Object.entries(DEFAULT_INMEMORY_SERVERS)) {
       ensureBuiltInServerExists(serverName, serverConfig)
     }
@@ -874,55 +867,43 @@ export class McpConfHelper {
         this.mcpStore.delete('defaultServer')
       }
 
-      // 迁移 filesystem 服务器到 buildInFileSystem
+      // Migrate filesystem/buildInFileSystem servers - these are now provided via Agent tools
       try {
         const mcpServers = this.mcpStore.get('mcpServers') || {}
-        // console.log('mcpServers', mcpServers)
+        const defaultServers = this.mcpStore.get('defaultServers') || []
+        let hasChanges = false
+
+        // Remove old filesystem server
         if (mcpServers.filesystem) {
-          console.log(
-            'Detected old version filesystem MCP server, starting migration to buildInFileSystem'
-          )
-
-          // 检查 buildInFileSystem 是否已存在
-          if (!mcpServers.buildInFileSystem) {
-            // 创建 buildInFileSystem 配置
-            mcpServers.buildInFileSystem = {
-              args: [app.getPath('home')], // 默认值
-              descriptions: '内置文件系统mcp服务',
-              icons: '💾',
-              autoApprove: ['read'],
-              type: 'inmemory' as MCPServerType,
-              command: 'filesystem',
-              env: {},
-              disable: false
-            }
-          }
-
-          // 如果 filesystem 的 args 长度大于 2，将第三个参数及以后的参数迁移
-          if (mcpServers.filesystem.args && mcpServers.filesystem.args.length > 2) {
-            mcpServers.buildInFileSystem.args = mcpServers.filesystem.args.slice(2)
-          }
-
-          // 迁移 autoApprove 设置
-          if (mcpServers.filesystem.autoApprove) {
-            mcpServers.buildInFileSystem.autoApprove = [...mcpServers.filesystem.autoApprove]
-          }
-
+          console.log('Removing old filesystem MCP server (now provided via Agent tools)')
           delete mcpServers.filesystem
-          // 更新 mcpServers
+          hasChanges = true
+        }
+
+        // Remove buildInFileSystem server
+        if (mcpServers.buildInFileSystem) {
+          console.log('Removing buildInFileSystem MCP server (now provided via Agent tools)')
+          delete mcpServers.buildInFileSystem
+          hasChanges = true
+        }
+
+        // Remove from default servers list
+        const updatedDefaultServers = defaultServers.filter(
+          (name) => name !== 'filesystem' && name !== 'buildInFileSystem'
+        )
+        if (updatedDefaultServers.length !== defaultServers.length) {
+          this.mcpStore.set('defaultServers', updatedDefaultServers)
+          hasChanges = true
+        }
+
+        // Mark as removed for tracking
+        if (mcpServers.filesystem || mcpServers.buildInFileSystem) {
+          this.markBuiltInServerRemoved('buildInFileSystem')
+        }
+
+        if (hasChanges) {
           this.mcpStore.set('mcpServers', mcpServers)
-
-          // 如果 filesystem 是默认服务器，将 buildInFileSystem 添加到默认服务器列表
-          const defaultServers = this.mcpStore.get('defaultServers') || []
-          if (
-            defaultServers.includes('filesystem') &&
-            !defaultServers.includes('buildInFileSystem')
-          ) {
-            defaultServers.push('buildInFileSystem')
-            this.mcpStore.set('defaultServers', defaultServers)
-          }
-
-          console.log('Migration from filesystem to buildInFileSystem completed')
+          console.log('Migration: filesystem MCP servers removed (now available via Agent tools)')
         }
       } catch (error) {
         console.error('Error occurred while migrating filesystem server:', error)

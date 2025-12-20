@@ -22,7 +22,10 @@
     "acpWorkdirSelect": "选择工作目录",
     "acpWorkdirCurrent": "当前工作目录：{path}",
     "acpMode": "模式",
-    "acpModeTooltip": "当前模式：{mode}"
+    "acpModeTooltip": "当前模式：{mode}",
+    "agentWorkspaceTooltip": "设置 Agent 工作目录",
+    "agentWorkspaceSelect": "选择工作目录",
+    "agentWorkspaceCurrent": "当前工作目录：{path}"
   },
   "features": {
     "webSearch": "联网搜索",
@@ -88,6 +91,41 @@
     "functionName": "函数名称",
     "params": "参数",
     "responseData": "响应数据"
+  },
+  "mode": {
+    "current": "当前模式：{mode}",
+    "chat": "聊天",
+    "agent": "Agent",
+    "acpAgent": "ACP Agent"
+  },
+  "workspace": {
+    "title": "工作区",
+    "collapse": "收起",
+    "plan": {
+      "section": "计划",
+      "empty": "暂无任务",
+      "status": {
+        "pending": "待处理",
+        "in_progress": "进行中",
+        "completed": "已完成",
+        "failed": "失败",
+        "skipped": "已跳过"
+      }
+    },
+    "files": {
+      "section": "文件",
+      "empty": "暂无文件",
+      "loading": "加载文件中...",
+      "contextMenu": {
+        "openFile": "打开文件",
+        "revealInFolder": "在文件管理器中打开",
+        "insertPath": "插入到输入框"
+      }
+    },
+    "terminal": {
+      "section": "终端",
+      "empty": "暂无输出"
+    }
   },
   "acp": {
     "workspace": {

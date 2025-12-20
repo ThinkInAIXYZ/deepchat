@@ -28,6 +28,8 @@ export type CONVERSATION_SETTINGS = {
   reasoningEffort?: 'minimal' | 'low' | 'medium' | 'high'
   verbosity?: 'low' | 'medium' | 'high'
   acpWorkdirMap?: Record<string, string | null>
+  chatMode?: 'chat' | 'agent' | 'acp agent'
+  agentWorkspacePath?: string | null
 }
 
 export type CONVERSATION = {

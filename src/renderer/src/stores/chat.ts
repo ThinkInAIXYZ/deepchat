@@ -68,7 +68,8 @@ export const useChatStore = defineStore('chat', () => {
     reasoningEffort: undefined,
     verbosity: undefined,
     selectedVariantsMap: {},
-    acpWorkdirMap: {}
+    acpWorkdirMap: {},
+    agentWorkspacePath: null
   })
 
   // Deeplink 消息缓存
@@ -181,6 +182,13 @@ export const useChatStore = defineStore('chat', () => {
         }
       }
 
+      if (normalizedSettings.agentWorkspacePath === undefined) {
+        const pendingWorkspacePath = chatConfig.value.agentWorkspacePath ?? null
+        if (pendingWorkspacePath) {
+          normalizedSettings.agentWorkspacePath = pendingWorkspacePath
+        }
+      }
+
       const threadId = await threadP.createConversation(title, normalizedSettings, getTabId())
       // 因为 createConversation 内部已经调用了 setActiveConversation
       // 并且可以确定是为当前tab激活，所以在这里可以直接、安全地更新本地状态
@@ -219,6 +227,11 @@ export const useChatStore = defineStore('chat', () => {
       delete nextMap[agentId]
     }
     chatConfig.value = { ...chatConfig.value, acpWorkdirMap: nextMap }
+  }
+
+  const setAgentWorkspacePreference = (workspacePath: string | null) => {
+    const nextPath = workspacePath?.trim() ? workspacePath : null
+    chatConfig.value = { ...chatConfig.value, agentWorkspacePath: nextPath }
   }
 
   // 处理消息的 extra 信息
@@ -1495,6 +1508,7 @@ export const useChatStore = defineStore('chat', () => {
     chatConfig,
     updateChatConfig,
     setAcpWorkdirPreference,
+    setAgentWorkspacePreference,
     retryMessage,
     deleteMessage,
     clearActiveThread,

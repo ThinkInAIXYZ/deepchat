@@ -1,5 +1,5 @@
 import { ArtifactsServer } from './artifactsServer'
-import { FileSystemServer } from './filesystem'
+// FileSystemServer has been removed - filesystem capabilities are now provided via Agent tools
 import { BochaSearchServer } from './bochaSearchServer'
 import { BraveSearchServer } from './braveSearchServer'
 import { ImageServer } from './imageServer'
@@ -21,8 +21,7 @@ export function getInMemoryServer(
   env?: Record<string, unknown>
 ) {
   switch (serverName) {
-    case 'buildInFileSystem':
-      return new FileSystemServer(args)
+    // buildInFileSystem has been removed - filesystem capabilities are now provided via Agent tools
     case 'Artifacts':
       return new ArtifactsServer()
     case 'bochaSearch':

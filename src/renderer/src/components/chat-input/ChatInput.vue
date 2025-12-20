@@ -114,36 +114,77 @@
               <TooltipContent>{{ t('chat.features.webSearch') }}</TooltipContent>
             </Tooltip>
 
-            <Tooltip v-if="acpWorkdir.isAcpModel.value">
+            <!-- Mode Switch -->
+            <Popover v-model:open="modeSelectOpen">
+              <PopoverTrigger as-child>
+                <Button
+                  variant="outline"
+                  :class="[
+                    'w-7 h-7 text-xs rounded-lg',
+                    variant === 'chat' ? 'text-accent-foreground' : ''
+                  ]"
+                  size="icon"
+                  :title="t('chat.mode.current', { mode: chatMode.currentLabel.value })"
+                >
+                  <Icon :icon="chatMode.currentIcon.value" class="w-4 h-4" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent align="start" class="w-64 border-none bg-transparent p-0 shadow-none">
+                <div class="rounded-lg border bg-card p-1 shadow-md">
+                  <div
+                    v-for="mode in chatMode.modes.value"
+                    :key="mode.value"
+                    :class="[
+                      'flex items-center gap-2 rounded-md px-2 py-1.5 text-sm cursor-pointer transition-colors',
+                      chatMode.currentMode.value === mode.value
+                        ? 'bg-primary text-primary-foreground'
+                        : 'hover:bg-muted'
+                    ]"
+                    @click="handleModeSelect(mode.value)"
+                  >
+                    <Icon :icon="mode.icon" class="w-4 h-4" />
+                    <span class="flex-1">{{ mode.label }}</span>
+                    <Icon
+                      v-if="chatMode.currentMode.value === mode.value"
+                      icon="lucide:check"
+                      class="w-4 h-4"
+                    />
+                  </div>
+                </div>
+              </PopoverContent>
+            </Popover>
+
+            <!-- Unified Workspace Path Selection (for agent and acp agent modes) -->
+            <Tooltip v-if="chatMode.isAgentMode.value">
               <TooltipTrigger>
                 <Button
                   :class="[
                     'w-7 h-7 text-xs rounded-lg',
                     variant === 'chat' ? 'text-accent-foreground' : '',
-                    acpWorkdir.hasWorkdir.value
+                    workspace.hasWorkspace.value
                       ? 'bg-primary text-primary-foreground hover:bg-primary/90'
                       : ''
                   ]"
-                  :variant="acpWorkdir.hasWorkdir.value ? 'default' : 'outline'"
+                  :variant="workspace.hasWorkspace.value ? 'default' : 'outline'"
                   size="icon"
-                  :disabled="acpWorkdir.loading.value"
-                  @click="acpWorkdir.selectWorkdir"
+                  :disabled="workspace.loading.value"
+                  @click="workspace.selectWorkspace"
                 >
                   <Icon
-                    :icon="acpWorkdir.hasWorkdir.value ? 'lucide:folder-open' : 'lucide:folder'"
+                    :icon="workspace.hasWorkspace.value ? 'lucide:folder-open' : 'lucide:folder'"
                     class="w-4 h-4"
                   />
                 </Button>
               </TooltipTrigger>
               <TooltipContent class="max-w-xs">
                 <p class="text-xs font-semibold">
-                  {{ t('chat.input.acpWorkdirTooltip') }}
+                  {{ workspace.tooltipTitle }}
                 </p>
-                <p v-if="acpWorkdir.hasWorkdir.value" class="text-xs text-muted-foreground mt-1">
-                  {{ t('chat.input.acpWorkdirCurrent', { path: acpWorkdir.workdir.value }) }}
+                <p v-if="workspace.hasWorkspace.value" class="text-xs text-muted-foreground mt-1">
+                  {{ workspace.tooltipCurrent }}
                 </p>
                 <p v-else class="text-xs text-muted-foreground mt-1">
-                  {{ t('chat.input.acpWorkdirSelect') }}
+                  {{ workspace.tooltipSelect }}
                 </p>
               </TooltipContent>
             </Tooltip>
@@ -404,6 +445,8 @@ import { useContextLength } from './composables/useContextLength'
 import { useSendButtonState } from './composables/useSendButtonState'
 import { useAcpWorkdir } from './composables/useAcpWorkdir'
 import { useAcpMode } from './composables/useAcpMode'
+import { useChatMode, type ChatMode } from './composables/useChatMode'
+import { useAgentWorkspace } from './composables/useAgentWorkspace'
 
 // === Stores ===
 import { useChatStore } from '@/stores/chat'
@@ -503,6 +546,10 @@ const showFakeCaret = computed(() => caretVisible.value && !props.disabled)
 
 // Initialize settings management
 const { settings, toggleWebSearch } = useInputSettings()
+
+// Initialize chat mode management
+const chatMode = useChatMode()
+const modeSelectOpen = ref(false)
 
 // Initialize history composable first (needed for editor placeholder)
 const history = useInputHistory(null as any, t)
@@ -674,6 +721,12 @@ const acpWorkdir = useAcpWorkdir({
   conversationId
 })
 
+// Unified workspace management (for agent and acp agent modes)
+const workspace = useAgentWorkspace({
+  conversationId,
+  activeModel: activeModelSource
+})
+
 // Extract isStreaming first so we can pass it to useAcpMode
 const { disabledSend, isStreaming } = sendButtonState
 
@@ -736,6 +789,11 @@ const emitSend = async () => {
 
 const onWebSearchClick = async () => {
   await toggleWebSearch()
+}
+
+const handleModeSelect = async (mode: ChatMode) => {
+  await chatMode.setMode(mode)
+  modeSelectOpen.value = false
 }
 
 const onKeydown = (e: KeyboardEvent) => {
