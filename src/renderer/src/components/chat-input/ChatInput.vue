@@ -70,6 +70,61 @@
         <div class="flex items-center justify-between">
           <!-- Tools -->
           <div class="flex gap-1.5">
+            <!-- Mode Switch -->
+            <Tooltip>
+              <TooltipTrigger as-child>
+                <span class="inline-flex">
+                  <Popover v-model:open="modeSelectOpen">
+                    <PopoverTrigger as-child>
+                      <Button
+                        variant="outline"
+                        :class="[
+                          'w-7 h-7 text-xs rounded-lg',
+                          variant === 'chat' ? 'text-accent-foreground' : '',
+                          isModeLocked ? 'cursor-not-allowed opacity-60' : ''
+                        ]"
+                        size="icon"
+                        :title="t('chat.mode.current', { mode: chatMode.currentLabel.value })"
+                        :disabled="isModeLocked"
+                      >
+                        <Icon :icon="chatMode.currentIcon.value" class="w-4 h-4" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent
+                      v-if="!isModeLocked"
+                      align="start"
+                      class="w-64 border-none bg-transparent p-0 shadow-none"
+                    >
+                      <div class="rounded-lg border bg-card p-1 shadow-md">
+                        <div
+                          v-for="mode in chatMode.modes.value"
+                          :key="mode.value"
+                          :class="[
+                            'flex items-center gap-2 rounded-md px-2 py-1.5 text-sm cursor-pointer transition-colors',
+                            chatMode.currentMode.value === mode.value
+                              ? 'bg-primary text-primary-foreground'
+                              : 'hover:bg-muted'
+                          ]"
+                          @click="handleModeSelect(mode.value)"
+                        >
+                          <Icon :icon="mode.icon" class="w-4 h-4" />
+                          <span class="flex-1">{{ mode.label }}</span>
+                          <Icon
+                            v-if="chatMode.currentMode.value === mode.value"
+                            icon="lucide:check"
+                            class="w-4 h-4"
+                          />
+                        </div>
+                      </div>
+                    </PopoverContent>
+                  </Popover>
+                </span>
+              </TooltipTrigger>
+              <TooltipContent>
+                {{ t('chat.mode.current', { mode: chatMode.currentLabel.value }) }}
+              </TooltipContent>
+            </Tooltip>
+
             <Tooltip>
               <TooltipTrigger>
                 <Button
@@ -113,46 +168,6 @@
               </TooltipTrigger>
               <TooltipContent>{{ t('chat.features.webSearch') }}</TooltipContent>
             </Tooltip>
-
-            <!-- Mode Switch -->
-            <Popover v-model:open="modeSelectOpen">
-              <PopoverTrigger as-child>
-                <Button
-                  variant="outline"
-                  :class="[
-                    'w-7 h-7 text-xs rounded-lg',
-                    variant === 'chat' ? 'text-accent-foreground' : ''
-                  ]"
-                  size="icon"
-                  :title="t('chat.mode.current', { mode: chatMode.currentLabel.value })"
-                >
-                  <Icon :icon="chatMode.currentIcon.value" class="w-4 h-4" />
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent align="start" class="w-64 border-none bg-transparent p-0 shadow-none">
-                <div class="rounded-lg border bg-card p-1 shadow-md">
-                  <div
-                    v-for="mode in chatMode.modes.value"
-                    :key="mode.value"
-                    :class="[
-                      'flex items-center gap-2 rounded-md px-2 py-1.5 text-sm cursor-pointer transition-colors',
-                      chatMode.currentMode.value === mode.value
-                        ? 'bg-primary text-primary-foreground'
-                        : 'hover:bg-muted'
-                    ]"
-                    @click="handleModeSelect(mode.value)"
-                  >
-                    <Icon :icon="mode.icon" class="w-4 h-4" />
-                    <span class="flex-1">{{ mode.label }}</span>
-                    <Icon
-                      v-if="chatMode.currentMode.value === mode.value"
-                      icon="lucide:check"
-                      class="w-4 h-4"
-                    />
-                  </div>
-                </div>
-              </PopoverContent>
-            </Popover>
 
             <!-- Unified Workspace Path Selection (for agent and acp agent modes) -->
             <Tooltip v-if="chatMode.isAgentMode.value">
@@ -720,6 +735,7 @@ const activeModelSource = computed(() => {
   }
   return config.activeModel.value
 })
+const isModeLocked = computed(() => props.variant === 'chat' && !!conversationId.value)
 
 const acpWorkdir = useAcpWorkdir({
   activeModel: activeModelSource,
@@ -798,6 +814,7 @@ const onWebSearchClick = async () => {
 }
 
 const handleModeSelect = async (mode: ChatMode) => {
+  if (isModeLocked.value) return
   await chatMode.setMode(mode)
   modeSelectOpen.value = false
 }
@@ -918,6 +935,31 @@ watch(
   () => {
     rateLimit.loadRateLimitStatus()
   }
+)
+
+watch(isModeLocked, (locked) => {
+  if (locked) {
+    modeSelectOpen.value = false
+  }
+})
+
+watch(
+  () => [conversationId.value, chatStore.chatConfig.chatMode] as const,
+  async ([activeId, storedMode]) => {
+    if (!activeId) return
+    try {
+      if (!storedMode) {
+        await chatStore.updateChatConfig({ chatMode: chatMode.currentMode.value })
+        return
+      }
+      if (chatMode.currentMode.value !== storedMode) {
+        await chatMode.setMode(storedMode)
+      }
+    } catch (error) {
+      console.warn('Failed to sync chat mode for conversation:', error)
+    }
+  },
+  { immediate: true }
 )
 
 // === Expose ===

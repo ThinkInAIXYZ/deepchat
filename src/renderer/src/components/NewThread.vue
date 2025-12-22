@@ -440,6 +440,7 @@ const handleSend = async (content: UserMessageContent) => {
   const chatInput = chatInputRef.value
   const pathFromInput = chatInput?.getAgentWorkspacePath?.()
   const pathFromStore = chatStore.chatConfig.agentWorkspacePath
+  const chatMode = chatInput?.getChatMode?.()
   const agentWorkspacePath = pathFromInput ?? pathFromStore ?? undefined
   fetch('http://127.0.0.1:7242/ingest/96aae794-ae5b-4c8b-839c-d427e7ad0242', {
     method: 'POST',
@@ -451,7 +452,7 @@ const handleSend = async (content: UserMessageContent) => {
         pathFromInput,
         pathFromStore,
         agentWorkspacePath,
-        chatMode: chatInput?.getChatMode?.()
+        chatMode
       },
       timestamp: Date.now(),
       sessionId: 'debug-session',
@@ -463,6 +464,7 @@ const handleSend = async (content: UserMessageContent) => {
   const threadId = await chatStore.createThread(content.text, {
     providerId: activeModel.value.providerId,
     modelId: activeModel.value.id,
+    chatMode,
     systemPrompt: systemPrompt.value,
     temperature: temperature.value,
     contextLength: contextLength.value,
