@@ -185,24 +185,6 @@ export class ConversationManager {
         defaultSettings.selectedVariantsMap = {}
       }
 
-      // #region agent log
-      const fs = await import('fs')
-      const logPath = '/Users/zerob13/Documents/deepchat/.cursor/debug.log'
-      const logEntry1 =
-        JSON.stringify({
-          location: 'conversationManager.ts:188',
-          message: 'createConversation - input settings',
-          data: {
-            agentWorkspacePath: settings.agentWorkspacePath,
-            allSettingsKeys: Object.keys(settings)
-          },
-          timestamp: Date.now(),
-          sessionId: 'debug-session',
-          runId: 'run1',
-          hypothesisId: 'A,D'
-        }) + '\n'
-      fs.appendFileSync(logPath, logEntry1)
-      // #endregion
       const sanitizedSettings: Partial<CONVERSATION_SETTINGS> = { ...settings }
       Object.keys(sanitizedSettings).forEach((key) => {
         const typedKey = key as keyof CONVERSATION_SETTINGS
@@ -211,24 +193,6 @@ export class ConversationManager {
           delete sanitizedSettings[typedKey]
         }
       })
-      // #region agent log
-      const logEntry2 =
-        JSON.stringify({
-          location: 'conversationManager.ts:195',
-          message: 'createConversation - after sanitization',
-          data: {
-            agentWorkspacePath: sanitizedSettings.agentWorkspacePath,
-            wasRemoved:
-              !('agentWorkspacePath' in sanitizedSettings) && 'agentWorkspacePath' in settings,
-            allSettingsKeys: Object.keys(sanitizedSettings)
-          },
-          timestamp: Date.now(),
-          sessionId: 'debug-session',
-          runId: 'run1',
-          hypothesisId: 'A,D'
-        }) + '\n'
-      fs.appendFileSync(logPath, logEntry2)
-      // #endregion
       const mergedSettings = { ...defaultSettings }
       const previewSettings = { ...mergedSettings, ...sanitizedSettings }
 
@@ -258,22 +222,6 @@ export class ConversationManager {
       if (mergedSettings.temperature === undefined || mergedSettings.temperature === null) {
         mergedSettings.temperature = defaultModelsSettings?.temperature ?? 0.7
       }
-      // #region agent log
-      const logEntry3 =
-        JSON.stringify({
-          location: 'conversationManager.ts:221',
-          message: 'createConversation - before save',
-          data: {
-            agentWorkspacePath: mergedSettings.agentWorkspacePath,
-            allSettingsKeys: Object.keys(mergedSettings)
-          },
-          timestamp: Date.now(),
-          sessionId: 'debug-session',
-          runId: 'run1',
-          hypothesisId: 'A,D'
-        }) + '\n'
-      fs.appendFileSync(logPath, logEntry3)
-      // #endregion
       const conversationId = await this.sqlitePresenter.createConversation(title, mergedSettings)
 
       if (options.forceNewAndActivate) {

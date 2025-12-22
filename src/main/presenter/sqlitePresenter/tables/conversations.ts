@@ -2,7 +2,6 @@ import { BaseTable } from './baseTable'
 import type Database from 'better-sqlite3-multiple-ciphers'
 import { CONVERSATION, CONVERSATION_SETTINGS } from '@shared/presenter'
 import { nanoid } from 'nanoid'
-import * as fs from 'fs'
 
 type ConversationRow = {
   id: string
@@ -193,24 +192,6 @@ export class ConversationsTable extends BaseTable {
         : null,
       settings.acpWorkdirMap ? JSON.stringify(settings.acpWorkdirMap) : null
     )
-    // #region agent log
-    const logPath = '/Users/zerob13/Documents/deepchat/.cursor/debug.log'
-    const logEntry =
-      JSON.stringify({
-        location: 'conversations.ts:create',
-        message: 'create - saved to database',
-        data: {
-          agentWorkspacePath: settings.agentWorkspacePath,
-          acpWorkdirMap: settings.acpWorkdirMap,
-          convId: conv_id
-        },
-        timestamp: Date.now(),
-        sessionId: 'debug-session',
-        runId: 'post-fix',
-        hypothesisId: 'FIXED'
-      }) + '\n'
-    fs.appendFileSync(logPath, logEntry)
-    // #endregion
     return conv_id
   }
 
@@ -282,25 +263,6 @@ export class ConversationsTable extends BaseTable {
           : undefined,
       acpWorkdirMap: getJsonField(result.acp_workdir_map, undefined)
     }
-    // #region agent log
-    const logPath = '/Users/zerob13/Documents/deepchat/.cursor/debug.log'
-    const logEntry =
-      JSON.stringify({
-        location: 'conversations.ts:get',
-        message: 'get - loaded from database',
-        data: {
-          agentWorkspacePath: settings.agentWorkspacePath,
-          acpWorkdirMap: settings.acpWorkdirMap,
-          rawAgentWorkspacePath: result.agent_workspace_path,
-          rawAcpWorkdirMap: result.acp_workdir_map
-        },
-        timestamp: Date.now(),
-        sessionId: 'debug-session',
-        runId: 'post-fix',
-        hypothesisId: 'FIXED'
-      }) + '\n'
-    fs.appendFileSync(logPath, logEntry)
-    // #endregion
     return {
       id: result.id,
       title: result.title,

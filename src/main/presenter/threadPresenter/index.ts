@@ -368,24 +368,6 @@ export class ThreadPresenter implements IThreadPresenter {
   ): Promise<AssistantMessage | null> {
     const conversation = await this.getConversation(conversationId)
     const { providerId, modelId } = conversation.settings
-    // #region agent log
-    const fs = await import('fs')
-    const logPath = '/Users/zerob13/Documents/deepchat/.cursor/debug.log'
-    const logEntry =
-      JSON.stringify({
-        location: 'threadPresenter/index.ts:369',
-        message: 'sendMessage - retrieved conversation',
-        data: {
-          agentWorkspacePath: conversation.settings.agentWorkspacePath,
-          allSettingsKeys: Object.keys(conversation.settings)
-        },
-        timestamp: Date.now(),
-        sessionId: 'debug-session',
-        runId: 'run1',
-        hypothesisId: 'E'
-      }) + '\n'
-    fs.appendFileSync(logPath, logEntry)
-    // #endregion
     console.log('sendMessage', conversation)
     const message = await this.messageManager.sendMessage(
       conversationId,
