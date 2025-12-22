@@ -978,21 +978,6 @@ defineExpose({
   getAgentWorkspacePath: () => {
     // #region agent log
     const mode = chatMode.currentMode.value
-    const path = mode === 'agent' ? workspace.workspacePath.value : null
-    fetch('http://127.0.0.1:7242/ingest/96aae794-ae5b-4c8b-839c-d427e7ad0242', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        location: 'ChatInput.vue:925',
-        message: 'getAgentWorkspacePath called',
-        data: { mode, path, workspacePath: workspace.workspacePath.value },
-        timestamp: Date.now(),
-        sessionId: 'debug-session',
-        runId: 'run1',
-        hypothesisId: 'B'
-      })
-    }).catch(() => {})
-    // #endregion
     if (mode !== 'agent') return null
     return workspace.workspacePath.value
   },

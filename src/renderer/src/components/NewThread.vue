@@ -509,25 +509,6 @@ const handleSend = async (content: UserMessageContent) => {
   const pathFromStore = chatStore.chatConfig.agentWorkspacePath
   const chatMode = chatInput?.getChatMode?.()
   const agentWorkspacePath = pathFromInput ?? pathFromStore ?? undefined
-  fetch('http://127.0.0.1:7242/ingest/96aae794-ae5b-4c8b-839c-d427e7ad0242', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      location: 'NewThread.vue:438',
-      message: 'handleSend - before createThread',
-      data: {
-        pathFromInput,
-        pathFromStore,
-        agentWorkspacePath,
-        chatMode
-      },
-      timestamp: Date.now(),
-      sessionId: 'debug-session',
-      runId: 'run1',
-      hypothesisId: 'A,B,C'
-    })
-  }).catch(() => {})
-  // #endregion
   const threadId = await chatStore.createThread(content.text, {
     providerId: activeModel.value.providerId,
     modelId: activeModel.value.id,
@@ -550,21 +531,6 @@ const handleSend = async (content: UserMessageContent) => {
         ? { [activeModel.value.id]: pendingAcpWorkdir.value }
         : undefined
   } as any)
-  // #region agent log
-  fetch('http://127.0.0.1:7242/ingest/96aae794-ae5b-4c8b-839c-d427e7ad0242', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      location: 'NewThread.vue:462',
-      message: 'handleSend - after createThread',
-      data: { threadId, agentWorkspacePath, settingsPassed: { agentWorkspacePath } },
-      timestamp: Date.now(),
-      sessionId: 'debug-session',
-      runId: 'run1',
-      hypothesisId: 'A,D'
-    })
-  }).catch(() => {})
-  // #endregion
   console.log('threadId', threadId, activeModel.value)
   if (chatMode === 'agent' || chatMode === 'acp agent') {
     await workspaceStore.refreshFileTree()
