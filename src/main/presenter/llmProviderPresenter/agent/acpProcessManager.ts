@@ -19,7 +19,7 @@ import { buildClientCapabilities } from './acpCapabilities'
 import { AcpFsHandler } from './acpFsHandler'
 import { AcpTerminalManager } from './acpTerminalManager'
 import { eventBus, SendTarget } from '@/eventbus'
-import { ACP_WORKSPACE_EVENTS } from '@/events'
+import { ACP_WORKSPACE_EVENTS, WORKSPACE_EVENTS } from '@/events'
 
 export interface AcpProcessHandle extends AgentProcessHandle {
   child: ChildProcessWithoutNullStreams
@@ -78,6 +78,7 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
   private readonly runtimeHelper = RuntimeHelper.getInstance()
   private readonly terminalManager = new AcpTerminalManager()
   private readonly sessionWorkdirs = new Map<string, string>()
+  private readonly sessionConversations = new Map<string, string>()
   private readonly fsHandlers = new Map<string, AcpFsHandler>()
   private readonly agentLocks = new Map<string, Promise<void>>()
   private readonly preferredModes = new Map<string, string>()
@@ -94,8 +95,11 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
    * Register a session's working directory for file system operations.
    * This must be called when a session is created, before any fs/terminal operations.
    */
-  registerSessionWorkdir(sessionId: string, workdir: string): void {
+  registerSessionWorkdir(sessionId: string, workdir: string, conversationId?: string): void {
     this.sessionWorkdirs.set(sessionId, workdir)
+    if (conversationId) {
+      this.sessionConversations.set(sessionId, conversationId)
+    }
     // Create fs handler for this session
     this.fsHandlers.set(sessionId, new AcpFsHandler({ workspaceRoot: workdir }))
   }
@@ -116,6 +120,14 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
       return fallbackHandler
     }
     return handler
+  }
+
+  private notifyWorkspaceFilesChanged(sessionId: string): void {
+    const conversationId = this.sessionConversations.get(sessionId)
+    if (!conversationId) return
+    eventBus.sendToRenderer(WORKSPACE_EVENTS.FILES_CHANGED, SendTarget.ALL_WINDOWS, {
+      conversationId
+    })
   }
 
   /**
@@ -324,6 +336,7 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
     this.permissionResolvers.clear()
     this.pendingHandles.clear()
     this.sessionWorkdirs.clear()
+    this.sessionConversations.clear()
     this.fsHandlers.clear()
   }
 
@@ -453,6 +466,7 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
     this.sessionListeners.delete(sessionId)
     this.permissionResolvers.delete(sessionId)
     this.sessionWorkdirs.delete(sessionId)
+    this.sessionConversations.delete(sessionId)
     this.fsHandlers.delete(sessionId)
     // Clean up terminals for this session
     void this.terminalManager.releaseSessionTerminals(sessionId)
@@ -837,11 +851,19 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
       // File system operations
       readTextFile: async (params) => {
         const handler = this.getFsHandler(params.sessionId)
-        return handler.readTextFile(params)
+        try {
+          return await handler.readTextFile(params)
+        } finally {
+          this.notifyWorkspaceFilesChanged(params.sessionId)
+        }
       },
       writeTextFile: async (params) => {
         const handler = this.getFsHandler(params.sessionId)
-        return handler.writeTextFile(params)
+        try {
+          return await handler.writeTextFile(params)
+        } finally {
+          this.notifyWorkspaceFilesChanged(params.sessionId)
+        }
       },
       // Terminal operations
       createTerminal: async (params) => {

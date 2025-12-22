@@ -181,7 +181,7 @@ export class AcpSessionManager {
     const detachListeners = this.attachSessionHooks(agent.id, session.sessionId, hooks)
 
     // Register session workdir for fs/terminal operations
-    this.processManager.registerSessionWorkdir(session.sessionId, workdir)
+    this.processManager.registerSessionWorkdir(session.sessionId, workdir, conversationId)
 
     void this.sessionPersistence
       .saveSessionData(conversationId, agent.id, session.sessionId, workdir, 'active', {
