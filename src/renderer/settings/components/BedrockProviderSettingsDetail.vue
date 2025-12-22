@@ -94,7 +94,9 @@
           </TooltipProvider>
         </div>
 
-        <div class="hint">{{ t('settings.provider.bedrockLimitTip') }}</div>
+        <div class="text-xs leading-4 text-muted-foreground">
+          {{ t('settings.provider.bedrockLimitTip') }}
+        </div>
 
         <!-- 模型管理 -->
         <ProviderModelManager
@@ -334,15 +336,3 @@ const handleAddModelSaved = async () => {
   await initData()
 }
 </script>
-
-<style scoped>
-.hint {
-  font-size: 0.75rem;
-  line-height: 1rem;
-  color: #b91c1c;
-}
-
-.dark .hint {
-  color: #f87171;
-}
-</style>
