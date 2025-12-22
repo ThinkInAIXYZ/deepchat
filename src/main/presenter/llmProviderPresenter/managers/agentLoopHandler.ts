@@ -1,7 +1,7 @@
 import { ChatMessage, IConfigPresenter, LLMAgentEvent, MCPToolCall } from '@shared/presenter'
 import { presenter } from '@/presenter'
 import { eventBus, SendTarget } from '@/eventbus'
-import { ACP_WORKSPACE_EVENTS } from '@/events'
+import { WORKSPACE_EVENTS } from '@/events'
 import { BaseLLMProvider } from '../baseProvider'
 import { StreamState } from '../types'
 import { RateLimitManager } from './rateLimitManager'
@@ -72,6 +72,10 @@ export class AgentLoopHandler {
       },
       callTool: async (request: MCPToolCall) => {
         return await this.getToolPresenter().callTool(request)
+      },
+      onToolCallFinished: ({ toolServerName, conversationId }) => {
+        if (toolServerName !== 'agent-filesystem') return
+        this.notifyWorkspaceFilesChanged(conversationId)
       }
     })
   }
@@ -145,6 +149,13 @@ export class AgentLoopHandler {
       }
     }
     return fallback
+  }
+
+  private notifyWorkspaceFilesChanged(conversationId?: string): void {
+    if (!conversationId) return
+    eventBus.sendToRenderer(WORKSPACE_EVENTS.FILES_CHANGED, SendTarget.ALL_WINDOWS, {
+      conversationId
+    })
   }
 
   private requiresReasoningField(modelId: string): boolean {
@@ -696,10 +707,8 @@ export class AgentLoopHandler {
       console.log('Agent loop finished for event:', eventId, 'User stopped:', userStop)
 
       // Trigger ACP workspace file refresh (only for ACP provider)
-      if (providerId === 'acp' && conversationId) {
-        eventBus.sendToRenderer(ACP_WORKSPACE_EVENTS.FILES_CHANGED, SendTarget.ALL_WINDOWS, {
-          conversationId
-        })
+      if (providerId === 'acp') {
+        this.notifyWorkspaceFilesChanged(conversationId)
       }
     }
   }

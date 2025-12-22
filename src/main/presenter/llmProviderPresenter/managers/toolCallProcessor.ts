@@ -10,6 +10,13 @@ import {
 interface ToolCallProcessorOptions {
   getAllToolDefinitions: (context: ToolCallExecutionContext) => Promise<MCPToolDefinition[]>
   callTool: (request: MCPToolCall) => Promise<{ content: unknown; rawData: MCPToolResponse }>
+  onToolCallFinished?: (info: {
+    toolName: string
+    toolCallId: string
+    toolServerName?: string
+    conversationId?: string
+    status: 'success' | 'error' | 'permission'
+  }) => void
 }
 
 interface ToolCallExecutionContext {
@@ -93,6 +100,21 @@ export class ToolCallProcessor {
         continue
       }
 
+      const notifyToolCallFinished = (status: 'success' | 'error' | 'permission') => {
+        if (!this.options.onToolCallFinished) return
+        try {
+          this.options.onToolCallFinished({
+            toolName: toolCall.name,
+            toolCallId: toolCall.id,
+            toolServerName: toolDef.server?.name,
+            conversationId: context.conversationId,
+            status
+          })
+        } catch (error) {
+          console.warn('[ToolCallProcessor] onToolCallFinished handler failed:', error)
+        }
+      }
+
       const mcpToolInput: MCPToolCall = {
         id: toolCall.id,
         type: 'function',
@@ -119,10 +141,10 @@ export class ToolCallProcessor {
 
       try {
         const toolResponse = await this.options.callTool(mcpToolInput)
+        const requiresPermission = Boolean(toolResponse.rawData?.requiresPermission)
 
-        if (context.abortSignal.aborted) break
-
-        if (toolResponse.rawData?.requiresPermission) {
+        if (requiresPermission) {
+          notifyToolCallFinished('permission')
           console.log(
             `[Agent Loop] Permission required for tool ${toolCall.name}, creating permission request`
           )
@@ -146,6 +168,10 @@ export class ToolCallProcessor {
           needContinueConversation = false
           break
         }
+
+        notifyToolCallFinished('success')
+
+        if (context.abortSignal.aborted) break
 
         const supportsFunctionCall = context.modelConfig?.functionCall || false
 
@@ -195,6 +221,7 @@ export class ToolCallProcessor {
           }
         }
       } catch (toolError) {
+        notifyToolCallFinished('error')
         if (context.abortSignal.aborted) break
 
         console.error(

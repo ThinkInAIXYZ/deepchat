@@ -1,7 +1,7 @@
 import path from 'path'
 import { shell } from 'electron'
 import { eventBus, SendTarget } from '@/eventbus'
-import { ACP_WORKSPACE_EVENTS } from '@/events'
+import { WORKSPACE_EVENTS } from '@/events'
 import { readDirectoryShallow } from '../acpWorkspacePresenter/directoryReader'
 import { PlanStateManager } from '../acpWorkspacePresenter/planStateManager'
 import type {
@@ -137,7 +137,7 @@ export class WorkspacePresenter implements IWorkspacePresenter {
     ) as unknown as WorkspacePlanEntry[]
 
     // Send event to renderer
-    eventBus.sendToRenderer(ACP_WORKSPACE_EVENTS.PLAN_UPDATED, SendTarget.ALL_WINDOWS, {
+    eventBus.sendToRenderer(WORKSPACE_EVENTS.PLAN_UPDATED, SendTarget.ALL_WINDOWS, {
       conversationId,
       entries: updated
     })
@@ -150,7 +150,7 @@ export class WorkspacePresenter implements IWorkspacePresenter {
     conversationId: string,
     snippet: WorkspaceTerminalSnippet
   ): Promise<void> {
-    eventBus.sendToRenderer(ACP_WORKSPACE_EVENTS.TERMINAL_OUTPUT, SendTarget.ALL_WINDOWS, {
+    eventBus.sendToRenderer(WORKSPACE_EVENTS.TERMINAL_OUTPUT, SendTarget.ALL_WINDOWS, {
       conversationId,
       snippet
     })

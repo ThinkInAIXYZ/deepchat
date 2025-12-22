@@ -5,7 +5,7 @@
       type="button"
       @click="showTabs = !showTabs"
     >
-      <Icon icon="lucide:globe" class="h-3.5 w-3.5" />
+      <Icon icon="lucide:compass" class="h-3.5 w-3.5" />
       <span
         class="flex-1 text-[12px] font-medium tracking-wide text-foreground/80 dark:text-white/80"
       >
@@ -35,7 +35,7 @@
             >
               <span class="flex h-4 w-4 items-center justify-center">
                 <img v-if="tab.favicon" :src="tab.favicon" alt="" class="h-3.5 w-3.5" />
-                <Icon v-else icon="lucide:globe" class="h-3.5 w-3.5" />
+                <Icon v-else icon="lucide:form" class="h-3.5 w-3.5" />
               </span>
               <span class="flex-1 truncate text-[12px] font-medium">
                 {{ tab.title || tab.url || 'about:blank' }}

@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 import { ref, computed, watch } from 'vue'
 import { usePresenter } from '@/composables/usePresenter'
 import { useChatStore } from './chat'
-import { ACP_WORKSPACE_EVENTS } from '@/events'
+import { WORKSPACE_EVENTS } from '@/events'
 import type { AcpPlanEntry, AcpFileNode, AcpTerminalSnippet } from '@shared/presenter'
 
 // Debounce delay for file tree refresh (ms)
@@ -167,7 +167,7 @@ export const useAcpWorkspaceStore = defineStore('acpWorkspace', () => {
   const setupEventListeners = () => {
     // Plan update event
     window.electron.ipcRenderer.on(
-      ACP_WORKSPACE_EVENTS.PLAN_UPDATED,
+      WORKSPACE_EVENTS.PLAN_UPDATED,
       (_, payload: { conversationId: string; entries: AcpPlanEntry[] }) => {
         if (payload.conversationId === chatStore.getActiveThreadId()) {
           planEntries.value = payload.entries
@@ -177,7 +177,7 @@ export const useAcpWorkspaceStore = defineStore('acpWorkspace', () => {
 
     // Terminal output event
     window.electron.ipcRenderer.on(
-      ACP_WORKSPACE_EVENTS.TERMINAL_OUTPUT,
+      WORKSPACE_EVENTS.TERMINAL_OUTPUT,
       (_, payload: { conversationId: string; snippet: AcpTerminalSnippet }) => {
         if (payload.conversationId === chatStore.getActiveThreadId()) {
           // Keep latest 10 items
@@ -188,7 +188,7 @@ export const useAcpWorkspaceStore = defineStore('acpWorkspace', () => {
 
     // File change event - refresh file tree (debounced to merge rapid updates)
     window.electron.ipcRenderer.on(
-      ACP_WORKSPACE_EVENTS.FILES_CHANGED,
+      WORKSPACE_EVENTS.FILES_CHANGED,
       (_, payload: { conversationId: string }) => {
         if (payload.conversationId === chatStore.getActiveThreadId() && isAcpMode.value) {
           debouncedRefreshFileTree()

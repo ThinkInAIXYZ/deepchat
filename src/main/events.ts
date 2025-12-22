@@ -243,11 +243,15 @@ export const LIFECYCLE_EVENTS = {
   SHUTDOWN_REQUESTED: 'lifecycle:shutdown-requested' // Application shutdown requested
 }
 
-// ACP Workspace events
+// Workspace events
+export const WORKSPACE_EVENTS = {
+  PLAN_UPDATED: 'workspace:plan-updated', // Plan entries updated
+  TERMINAL_OUTPUT: 'workspace:terminal-output', // Terminal output snippet
+  FILES_CHANGED: 'workspace:files-changed' // File tree changed
+}
+
+// ACP-specific workspace events
 export const ACP_WORKSPACE_EVENTS = {
-  PLAN_UPDATED: 'acp-workspace:plan-updated', // Plan entries updated
-  TERMINAL_OUTPUT: 'acp-workspace:terminal-output', // Terminal output snippet
-  FILES_CHANGED: 'acp-workspace:files-changed', // File tree changed
   SESSION_MODES_READY: 'acp-workspace:session-modes-ready' // Session modes available
 }
 

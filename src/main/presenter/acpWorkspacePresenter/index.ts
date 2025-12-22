@@ -1,7 +1,7 @@
 import path from 'path'
 import { shell } from 'electron'
 import { eventBus, SendTarget } from '@/eventbus'
-import { ACP_WORKSPACE_EVENTS } from '@/events'
+import { WORKSPACE_EVENTS } from '@/events'
 import { readDirectoryShallow } from './directoryReader'
 import { PlanStateManager } from './planStateManager'
 import type {
@@ -128,7 +128,7 @@ export class AcpWorkspacePresenter implements IAcpWorkspacePresenter {
     const updated = this.planManager.updateEntries(conversationId, entries)
 
     // Send event to renderer
-    eventBus.sendToRenderer(ACP_WORKSPACE_EVENTS.PLAN_UPDATED, SendTarget.ALL_WINDOWS, {
+    eventBus.sendToRenderer(WORKSPACE_EVENTS.PLAN_UPDATED, SendTarget.ALL_WINDOWS, {
       conversationId,
       entries: updated
     })
@@ -138,7 +138,7 @@ export class AcpWorkspacePresenter implements IAcpWorkspacePresenter {
    * Emit terminal output snippet (called by acpContentMapper)
    */
   async emitTerminalSnippet(conversationId: string, snippet: AcpTerminalSnippet): Promise<void> {
-    eventBus.sendToRenderer(ACP_WORKSPACE_EVENTS.TERMINAL_OUTPUT, SendTarget.ALL_WINDOWS, {
+    eventBus.sendToRenderer(WORKSPACE_EVENTS.TERMINAL_OUTPUT, SendTarget.ALL_WINDOWS, {
       conversationId,
       snippet
     })

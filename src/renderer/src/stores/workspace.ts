@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 import { ref, computed, watch } from 'vue'
 import { usePresenter } from '@/composables/usePresenter'
 import { useChatStore } from './chat'
-import { ACP_WORKSPACE_EVENTS } from '@/events'
+import { WORKSPACE_EVENTS } from '@/events'
 import type {
   WorkspacePlanEntry,
   WorkspaceFileNode,
@@ -180,7 +180,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
   const setupEventListeners = () => {
     // Plan update event
     window.electron.ipcRenderer.on(
-      ACP_WORKSPACE_EVENTS.PLAN_UPDATED,
+      WORKSPACE_EVENTS.PLAN_UPDATED,
       (_, payload: { conversationId: string; entries: WorkspacePlanEntry[] }) => {
         if (payload.conversationId === chatStore.getActiveThreadId()) {
           planEntries.value = payload.entries
@@ -190,7 +190,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
 
     // Terminal output event
     window.electron.ipcRenderer.on(
-      ACP_WORKSPACE_EVENTS.TERMINAL_OUTPUT,
+      WORKSPACE_EVENTS.TERMINAL_OUTPUT,
       (_, payload: { conversationId: string; snippet: WorkspaceTerminalSnippet }) => {
         if (payload.conversationId === chatStore.getActiveThreadId()) {
           // Keep latest 10 items
@@ -201,7 +201,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
 
     // File change event - refresh file tree (debounced to merge rapid updates)
     window.electron.ipcRenderer.on(
-      ACP_WORKSPACE_EVENTS.FILES_CHANGED,
+      WORKSPACE_EVENTS.FILES_CHANGED,
       (_, payload: { conversationId: string }) => {
         if (payload.conversationId === chatStore.getActiveThreadId() && isAgentMode.value) {
           debouncedRefreshFileTree()
