@@ -122,6 +122,10 @@
         "insertPath": "Insert into input"
       }
     },
+    "browser": {
+      "section": "Browser",
+      "empty": "No tabs yet"
+    },
     "terminal": {
       "section": "Terminal",
       "empty": "No output yet"

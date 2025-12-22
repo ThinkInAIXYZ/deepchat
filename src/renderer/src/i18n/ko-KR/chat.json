@@ -141,6 +141,10 @@
       "loading": "파일 로드 중...",
       "section": "문서"
     },
+    "browser": {
+      "section": "브라우저",
+      "empty": "탭이 없습니다"
+    },
     "plan": {
       "empty": "아직 할 일이 없습니다.",
       "section": "계획",

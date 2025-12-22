@@ -2,6 +2,9 @@ import type { MCPToolDefinition } from '@shared/presenter'
 import type { IYoBrowserPresenter } from '@shared/presenter'
 import { zodToJsonSchema } from 'zod-to-json-schema'
 import { z } from 'zod'
+import fs from 'fs'
+import path from 'path'
+import { app } from 'electron'
 import { AgentFileSystemHandler } from './agentFileSystemHandler'
 
 interface AgentToolManagerOptions {
@@ -31,32 +34,33 @@ export class AgentToolManager {
     agentWorkspacePath: string | null
   }): Promise<MCPToolDefinition[]> {
     const defs: MCPToolDefinition[] = []
+    const isAgentMode = context.chatMode === 'agent'
+    const effectiveWorkspacePath = isAgentMode
+      ? context.agentWorkspacePath?.trim() || this.getDefaultAgentWorkspacePath()
+      : null
 
     // Update filesystem handler if workspace path changed
-    if (context.agentWorkspacePath !== this.agentWorkspacePath) {
-      if (context.agentWorkspacePath) {
-        this.fileSystemHandler = new AgentFileSystemHandler([context.agentWorkspacePath])
+    if (effectiveWorkspacePath !== this.agentWorkspacePath) {
+      if (effectiveWorkspacePath) {
+        this.fileSystemHandler = new AgentFileSystemHandler([effectiveWorkspacePath])
       } else {
         this.fileSystemHandler = null
       }
-      this.agentWorkspacePath = context.agentWorkspacePath
+      this.agentWorkspacePath = effectiveWorkspacePath
     }
 
-    // 1. Yo Browser tools (only when browser window is open)
-    if (context.chatMode !== 'chat') {
-      const hasBrowserWindow = await this.yoBrowserPresenter.hasWindow()
-      if (hasBrowserWindow) {
-        try {
-          const yoDefs = await this.yoBrowserPresenter.getToolDefinitions(context.supportsVision)
-          defs.push(...yoDefs)
-        } catch (error) {
-          console.warn('[AgentToolManager] Failed to load Yo Browser tool definitions', error)
-        }
+    // 1. Yo Browser tools (agent mode only)
+    if (isAgentMode) {
+      try {
+        const yoDefs = await this.yoBrowserPresenter.getToolDefinitions(context.supportsVision)
+        defs.push(...yoDefs)
+      } catch (error) {
+        console.warn('[AgentToolManager] Failed to load Yo Browser tool definitions', error)
       }
     }
 
-    // 2. FileSystem tools (only when workspace path is set)
-    if (context.chatMode !== 'chat' && this.fileSystemHandler) {
+    // 2. FileSystem tools (agent mode only)
+    if (isAgentMode && this.fileSystemHandler) {
       const fsDefs = this.getFileSystemToolDefinitions()
       defs.push(...fsDefs)
     }
@@ -135,6 +139,34 @@ export class AgentToolManager {
       excludePatterns: z.array(z.string()).optional().default([]),
       caseSensitive: z.boolean().default(false),
       maxResults: z.number().default(1000)
+    })
+
+    const GrepSearchSchema = z.object({
+      path: z.string(),
+      pattern: z.string(),
+      filePattern: z.string().optional(),
+      recursive: z.boolean().default(true),
+      caseSensitive: z.boolean().default(false),
+      includeLineNumbers: z.boolean().default(true),
+      contextLines: z.number().default(0),
+      maxResults: z.number().default(100)
+    })
+
+    const TextReplaceSchema = z.object({
+      path: z.string(),
+      pattern: z.string(),
+      replacement: z.string(),
+      global: z.boolean().default(true),
+      caseSensitive: z.boolean().default(false),
+      dryRun: z.boolean().default(false)
+    })
+
+    const DirectoryTreeSchema = z.object({
+      path: z.string()
+    })
+
+    const GetFileInfoSchema = z.object({
+      path: z.string()
     })
 
     return [
@@ -256,6 +288,74 @@ export class AgentToolManager {
           icons: '📁',
           description: 'Agent FileSystem tools'
         }
+      },
+      {
+        type: 'function',
+        function: {
+          name: 'directory_tree',
+          description: 'Get a recursive directory tree as JSON',
+          parameters: zodToJsonSchema(DirectoryTreeSchema) as {
+            type: string
+            properties: Record<string, unknown>
+            required?: string[]
+          }
+        },
+        server: {
+          name: 'agent-filesystem',
+          icons: '📁',
+          description: 'Agent FileSystem tools'
+        }
+      },
+      {
+        type: 'function',
+        function: {
+          name: 'get_file_info',
+          description: 'Get detailed metadata about a file or directory',
+          parameters: zodToJsonSchema(GetFileInfoSchema) as {
+            type: string
+            properties: Record<string, unknown>
+            required?: string[]
+          }
+        },
+        server: {
+          name: 'agent-filesystem',
+          icons: '📁',
+          description: 'Agent FileSystem tools'
+        }
+      },
+      {
+        type: 'function',
+        function: {
+          name: 'grep_search',
+          description: 'Search file contents using a regular expression',
+          parameters: zodToJsonSchema(GrepSearchSchema) as {
+            type: string
+            properties: Record<string, unknown>
+            required?: string[]
+          }
+        },
+        server: {
+          name: 'agent-filesystem',
+          icons: '📁',
+          description: 'Agent FileSystem tools'
+        }
+      },
+      {
+        type: 'function',
+        function: {
+          name: 'text_replace',
+          description: 'Replace text in a file using a regular expression',
+          parameters: zodToJsonSchema(TextReplaceSchema) as {
+            type: string
+            properties: Record<string, unknown>
+            required?: string[]
+          }
+        },
+        server: {
+          name: 'agent-filesystem',
+          icons: '📁',
+          description: 'Agent FileSystem tools'
+        }
       }
     ]
   }
@@ -283,8 +383,30 @@ export class AgentToolManager {
         return await this.fileSystemHandler.editText(args)
       case 'search_files':
         return await this.fileSystemHandler.searchFiles(args)
+      case 'directory_tree':
+        return await this.fileSystemHandler.directoryTree(args)
+      case 'get_file_info':
+        return await this.fileSystemHandler.getFileInfo(args)
+      case 'grep_search':
+        return await this.fileSystemHandler.grepSearch(args)
+      case 'text_replace':
+        return await this.fileSystemHandler.textReplace(args)
       default:
         throw new Error(`Unknown FileSystem tool: ${toolName}`)
     }
+  }
+
+  private getDefaultAgentWorkspacePath(): string {
+    const tempDir = path.join(app.getPath('temp'), 'deepchat-agent', 'workspaces')
+    try {
+      fs.mkdirSync(tempDir, { recursive: true })
+    } catch (error) {
+      console.warn(
+        '[AgentToolManager] Failed to create default workspace, using system temp:',
+        error
+      )
+      return app.getPath('temp')
+    }
+    return tempDir
   }
 }

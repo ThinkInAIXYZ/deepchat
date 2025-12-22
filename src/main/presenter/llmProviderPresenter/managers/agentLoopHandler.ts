@@ -7,6 +7,9 @@ import { StreamState } from '../types'
 import { RateLimitManager } from './rateLimitManager'
 import { ToolCallProcessor } from './toolCallProcessor'
 import { ToolPresenter } from '../../toolPresenter'
+import fs from 'fs'
+import path from 'path'
+import { app } from 'electron'
 
 interface AgentLoopHandlerOptions {
   configPresenter: IConfigPresenter
@@ -53,6 +56,13 @@ export class AgentLoopHandler {
           }
         }
 
+        if (chatMode === 'agent') {
+          agentWorkspacePath = await this.resolveAgentWorkspacePath(
+            context.conversationId,
+            agentWorkspacePath
+          )
+        }
+
         return await this.getToolPresenter().getAllToolDefinitions({
           enabledMcpTools: context.enabledMcpTools,
           chatMode,
@@ -86,6 +96,55 @@ export class AgentLoopHandler {
       })
     }
     return this.toolPresenter
+  }
+
+  private getDefaultAgentWorkspacePath(conversationId?: string | null): string {
+    const tempRoot = path.join(app.getPath('temp'), 'deepchat-agent', 'workspaces')
+    try {
+      fs.mkdirSync(tempRoot, { recursive: true })
+    } catch (error) {
+      console.warn(
+        '[AgentLoopHandler] Failed to create default workspace root, using system temp:',
+        error
+      )
+      return app.getPath('temp')
+    }
+
+    if (!conversationId) {
+      return tempRoot
+    }
+
+    const workspaceDir = path.join(tempRoot, conversationId)
+    try {
+      fs.mkdirSync(workspaceDir, { recursive: true })
+      return workspaceDir
+    } catch (error) {
+      console.warn(
+        '[AgentLoopHandler] Failed to create conversation workspace, using root temp workspace:',
+        error
+      )
+      return tempRoot
+    }
+  }
+
+  private async resolveAgentWorkspacePath(
+    conversationId: string | undefined,
+    currentPath: string | null
+  ): Promise<string | null> {
+    const trimmedPath = currentPath?.trim()
+    if (trimmedPath) return trimmedPath
+
+    const fallback = this.getDefaultAgentWorkspacePath(conversationId ?? null)
+    if (conversationId) {
+      try {
+        await presenter.threadPresenter.updateConversationSettings(conversationId, {
+          agentWorkspacePath: fallback
+        })
+      } catch (error) {
+        console.warn('[AgentLoopHandler] Failed to persist agent workspace path:', error)
+      }
+    }
+    return fallback
   }
 
   private requiresReasoningField(modelId: string): boolean {
@@ -229,6 +288,13 @@ export class AgentLoopHandler {
             } catch (error) {
               console.warn('[AgentLoopHandler] Failed to get conversation settings:', error)
             }
+          }
+
+          if (chatMode === 'agent') {
+            agentWorkspacePath = await this.resolveAgentWorkspacePath(
+              conversationId,
+              agentWorkspacePath
+            )
           }
 
           // Get all tool definitions using ToolPresenter

@@ -94,6 +94,12 @@ export const useYoBrowserStore = defineStore('yoBrowser', () => {
     return isVisible.value
   }
 
+  const openTab = async (tabId: string): Promise<void> => {
+    await yoBrowserPresenter.activateTab(tabId)
+    await yoBrowserPresenter.show()
+    await loadState()
+  }
+
   onMounted(async () => {
     await loadState()
     if (window?.electron?.ipcRenderer) {
@@ -141,6 +147,7 @@ export const useYoBrowserStore = defineStore('yoBrowser', () => {
     show,
     hide,
     toggleVisibility,
+    openTab,
     loadState
   }
 })

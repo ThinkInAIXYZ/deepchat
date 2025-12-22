@@ -78,6 +78,12 @@ export async function preparePromptContent({
   promptTokens: number
 }> {
   const { systemPrompt, contextLength, artifacts, enabledMcpTools } = conversation.settings
+  const chatMode =
+    ((await presenter.configPresenter.getSetting('input_chatMode')) as
+      | 'chat'
+      | 'agent'
+      | 'acp agent') || 'chat'
+  const isAgentMode = chatMode === 'agent'
 
   const isImageGeneration = modelType === ModelType.ImageGeneration
   const enrichedUserMessage =
@@ -86,6 +92,13 @@ export async function preparePromptContent({
       : ''
 
   const finalSystemPrompt = enhanceSystemPromptWithDateTime(systemPrompt, isImageGeneration)
+  const agentWorkspacePath = conversation.settings.agentWorkspacePath?.trim()
+  const finalSystemPromptWithWorkspace =
+    isAgentMode && agentWorkspacePath
+      ? finalSystemPrompt
+        ? `${finalSystemPrompt}\n\nCurrent working directory: ${agentWorkspacePath}`
+        : `Current working directory: ${agentWorkspacePath}`
+      : finalSystemPrompt
 
   let mcpTools: MCPToolDefinition[] = []
   if (!isImageGeneration) {
@@ -102,9 +115,7 @@ export async function preparePromptContent({
 
   let browserContextPrompt = ''
   const { providerId, modelId } = conversation.settings
-  // Check if browser window is open - independent of MCP
-  const hasBrowserWindow = await presenter.yoBrowserPresenter.hasWindow()
-  if (!isImageGeneration && hasBrowserWindow) {
+  if (!isImageGeneration && isAgentMode) {
     try {
       const supportsVision = modelCapabilities.supportsVision(providerId, modelId)
       const browserTools = await presenter.yoBrowserPresenter.getToolDefinitions(supportsVision)
@@ -121,8 +132,10 @@ export async function preparePromptContent({
   }
 
   const finalSystemPromptWithBrowser = browserContextPrompt
-    ? `${finalSystemPrompt}\n${browserContextPrompt}`
-    : finalSystemPrompt
+    ? finalSystemPromptWithWorkspace
+      ? `${finalSystemPromptWithWorkspace}\n${browserContextPrompt}`
+      : browserContextPrompt
+    : finalSystemPromptWithWorkspace
 
   const systemPromptTokens =
     !isImageGeneration && finalSystemPromptWithBrowser

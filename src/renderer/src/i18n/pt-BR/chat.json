@@ -141,6 +141,10 @@
       "loading": "Carregando arquivos...",
       "section": "documento"
     },
+    "browser": {
+      "section": "Navegador",
+      "empty": "Nenhuma guia"
+    },
     "plan": {
       "empty": "Nenhuma tarefa ainda",
       "section": "plano",

@@ -141,6 +141,10 @@
       "loading": "Indlæser filer...",
       "section": "dokument"
     },
+    "browser": {
+      "section": "Browser",
+      "empty": "Ingen faner"
+    },
     "plan": {
       "empty": "Ingen opgaver endnu",
       "section": "plan",

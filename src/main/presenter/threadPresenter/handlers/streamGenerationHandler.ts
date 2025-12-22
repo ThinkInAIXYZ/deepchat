@@ -21,6 +21,9 @@ import { presenter } from '@/presenter'
 import type { SearchHandler } from './searchHandler'
 import { BaseHandler, type ThreadHandlerContext } from './baseHandler'
 import type { LLMEventHandler } from './llmEventHandler'
+import fs from 'fs'
+import path from 'path'
+import { app } from 'electron'
 
 interface StreamGenerationHandlerDeps {
   searchHandler: SearchHandler
@@ -47,6 +50,53 @@ export class StreamGenerationHandler extends BaseHandler {
     void this.llmEventHandler
   }
 
+  private getDefaultAgentWorkspacePath(conversationId?: string | null): string {
+    const tempRoot = path.join(app.getPath('temp'), 'deepchat-agent', 'workspaces')
+    try {
+      fs.mkdirSync(tempRoot, { recursive: true })
+    } catch (error) {
+      console.warn(
+        '[StreamGenerationHandler] Failed to create default workspace root, using system temp:',
+        error
+      )
+      return app.getPath('temp')
+    }
+
+    if (!conversationId) {
+      return tempRoot
+    }
+
+    const workspaceDir = path.join(tempRoot, conversationId)
+    try {
+      fs.mkdirSync(workspaceDir, { recursive: true })
+      return workspaceDir
+    } catch (error) {
+      console.warn(
+        '[StreamGenerationHandler] Failed to create conversation workspace, using root temp workspace:',
+        error
+      )
+      return tempRoot
+    }
+  }
+
+  private async ensureAgentWorkspacePath(
+    conversationId: string,
+    conversation: CONVERSATION
+  ): Promise<void> {
+    const currentPath = conversation.settings.agentWorkspacePath?.trim()
+    if (currentPath) return
+
+    const fallback = this.getDefaultAgentWorkspacePath(conversationId)
+    try {
+      await presenter.threadPresenter.updateConversationSettings(conversationId, {
+        agentWorkspacePath: fallback
+      })
+    } catch (error) {
+      console.warn('[StreamGenerationHandler] Failed to persist agent workspace path:', error)
+    }
+    conversation.settings.agentWorkspacePath = fallback
+  }
+
   async startStreamCompletion(
     conversationId: string,
     queryMsgId?: string,
@@ -66,6 +116,15 @@ export class StreamGenerationHandler extends BaseHandler {
         queryMsgId,
         selectedVariantsMap
       )
+
+      const chatMode =
+        ((await this.ctx.configPresenter.getSetting('input_chatMode')) as
+          | 'chat'
+          | 'agent'
+          | 'acp agent') || 'chat'
+      if (chatMode === 'agent') {
+        await this.ensureAgentWorkspacePath(conversationId, conversation)
+      }
 
       const { providerId, modelId } = conversation.settings
       const modelConfig = this.ctx.configPresenter.getModelConfig(modelId, providerId)

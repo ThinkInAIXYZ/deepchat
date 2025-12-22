@@ -30,6 +30,7 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
   private readonly browserToolManager: BrowserToolManager
   private readonly windowPresenter: IWindowPresenter
   private readonly tabPresenter: ITabPresenter
+  private explicitlyOpened = false
 
   constructor(windowPresenter: IWindowPresenter, tabPresenter: ITabPresenter) {
     this.windowPresenter = windowPresenter
@@ -42,23 +43,19 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
     // Lazy initialization: only create browser window/tabs when explicitly requested.
   }
 
-  async ensureWindow(): Promise<number | null> {
+  async ensureWindow(options?: { showOnReady?: boolean }): Promise<number | null> {
     const window = this.getWindow()
     if (window) return window.id
 
     this.windowId = await this.windowPresenter.createShellWindow({
-      windowType: 'browser'
+      windowType: 'browser',
+      showOnReady: options?.showOnReady ?? false
     })
 
     const created = this.getWindow()
     if (created) {
       created.on('closed', () => this.handleWindowClosed())
       this.emitVisibility(created.isVisible())
-
-      // Auto-create a blank tab when the window is first created
-      if (this.tabIdToBrowserTab.size === 0) {
-        await this.createTab('about:blank')
-      }
     }
 
     return this.windowId
@@ -69,7 +66,13 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
   }
 
   async show(): Promise<void> {
-    await this.ensureWindow()
+    if (!this.explicitlyOpened) {
+      this.explicitlyOpened = true
+    }
+    await this.ensureWindow({ showOnReady: true })
+    if (this.tabIdToBrowserTab.size === 0) {
+      await this.createTab('about:blank')
+    }
     const window = this.getWindow()
     if (window && !window.isDestroyed()) {
       this.windowPresenter.show(window.id)
@@ -369,6 +372,7 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
 
   private handleWindowClosed(): void {
     this.cleanup()
+    this.explicitlyOpened = false
     this.emitVisibility(false)
     this.emitTabCount()
   }

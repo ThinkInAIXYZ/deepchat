@@ -141,6 +141,10 @@
       "loading": "加載文件中...",
       "section": "文件"
     },
+    "browser": {
+      "section": "瀏覽器",
+      "empty": "尚無分頁"
+    },
     "plan": {
       "empty": "暫無任務",
       "section": "計劃",

@@ -141,6 +141,10 @@
       "loading": "ファイルをロード中...",
       "section": "書類"
     },
+    "browser": {
+      "section": "ブラウザ",
+      "empty": "タブがありません"
+    },
     "plan": {
       "empty": "まだタスクはありません",
       "section": "プラン",

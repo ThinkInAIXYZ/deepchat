@@ -25,6 +25,9 @@
       <!-- Files Section -->
       <WorkspaceFiles @append-path="emit('append-file-path', $event)" />
 
+      <!-- Browser Tabs Section (agent mode only) -->
+      <WorkspaceBrowserTabs v-if="showBrowserTabs" />
+
       <!-- Plan Section (hidden when empty) -->
       <WorkspacePlan />
 
@@ -35,15 +38,20 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue'
 import { Icon } from '@iconify/vue'
 import { useI18n } from 'vue-i18n'
 import { useWorkspaceStore } from '@/stores/workspace'
+import { useChatMode } from '@/components/chat-input/composables/useChatMode'
 import WorkspacePlan from './WorkspacePlan.vue'
 import WorkspaceFiles from './WorkspaceFiles.vue'
 import WorkspaceTerminal from './WorkspaceTerminal.vue'
+import WorkspaceBrowserTabs from './WorkspaceBrowserTabs.vue'
 
 const { t } = useI18n()
 const store = useWorkspaceStore()
+const chatMode = useChatMode()
+const showBrowserTabs = computed(() => chatMode.currentMode.value === 'agent')
 const emit = defineEmits<{
   'append-file-path': [filePath: string]
 }>()

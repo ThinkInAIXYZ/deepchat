@@ -122,6 +122,10 @@
         "insertPath": "插入到输入框"
       }
     },
+    "browser": {
+      "section": "浏览器",
+      "empty": "暂无标签页"
+    },
     "terminal": {
       "section": "终端",
       "empty": "暂无输出"

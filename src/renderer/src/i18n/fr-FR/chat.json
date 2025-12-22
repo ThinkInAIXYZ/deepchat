@@ -141,6 +141,10 @@
       "loading": "Chargement des fichiers...",
       "section": "document"
     },
+    "browser": {
+      "section": "Navigateur",
+      "empty": "Aucun onglet"
+    },
     "plan": {
       "empty": "Aucune tâche pour l'instant",
       "section": "plan",

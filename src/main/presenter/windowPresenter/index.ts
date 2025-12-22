@@ -669,11 +669,13 @@ export class WindowPresenter implements IWindowPresenter {
       icon?: string
     }
     windowType?: 'chat' | 'browser'
+    showOnReady?: boolean // ready-to-show 时是否自动显示
     x?: number // 初始 X 坐标
     y?: number // 初始 Y 坐标
   }): Promise<number | null> {
     console.log('Creating new shell window.')
     const windowType = options?.windowType ?? 'chat'
+    const showOnReady = options?.showOnReady ?? true
 
     // 根据平台选择图标
     const iconFile = nativeImage.createFromPath(process.platform === 'win32' ? iconWin : icon)
@@ -757,7 +759,9 @@ export class WindowPresenter implements IWindowPresenter {
     shellWindow.on('ready-to-show', () => {
       console.log(`Window ${windowId} is ready to show.`)
       if (!shellWindow.isDestroyed()) {
-        shellWindow.show() // 显示窗口避免白屏
+        if (showOnReady) {
+          shellWindow.show() // 显示窗口避免白屏
+        }
         eventBus.sendToMain(WINDOW_EVENTS.WINDOW_CREATED, windowId)
       } else {
         console.warn(`Window ${windowId} was destroyed before ready-to-show.`)
