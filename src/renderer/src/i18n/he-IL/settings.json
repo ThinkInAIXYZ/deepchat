@@ -882,7 +882,7 @@
     "builtinSectionDescription": "לכל סוכן מובנה יכולים להיות מספר פרופילי הפעלה. רק סוכנים מופעלים עם פרופיל פעיל מופיעים ברשימת המודלים.",
     "builtinHint": "הפעל את {name} עם הגדרות אלה.",
     "disabledBadge": "מושבת",
-    "manageProfiles": "נהל פרופילים",
+    "manageProfiles": "פרופילים",
     "addProfile": "הוסף פרופיל",
     "activeProfile": "פרופיל פעיל",
     "profilePlaceholder": "בחר פרופיל",

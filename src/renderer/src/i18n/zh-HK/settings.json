@@ -908,7 +908,7 @@
     "builtinSectionDescription": "每個內建 Agent 都可以儲存多組啟動設定。只有啟用兼已激活嘅 Agent 先會出現在模型清單。",
     "builtinHint": "用以下設定嚟啟動 {name}。",
     "disabledBadge": "未啟用",
-    "manageProfiles": "管理設定",
+    "manageProfiles": "配置",
     "addProfile": "新增設定",
     "activeProfile": "激活設定",
     "profilePlaceholder": "揀一個設定",

@@ -33,6 +33,19 @@ export function useAcpWorkdir(options: UseAcpWorkdirOptions) {
     chatStore.setAcpWorkdirPreference(agentId.value, value)
   }
 
+  const hydrateFromPreference = () => {
+    if (!agentId.value) return
+    const stored = chatStore.chatConfig.acpWorkdirMap?.[agentId.value] ?? null
+    if (stored) {
+      workdir.value = stored
+      isCustom.value = true
+      pendingWorkdir.value = stored
+    } else {
+      pendingWorkdir.value = null
+      resetToDefault()
+    }
+  }
+
   const resetToDefault = () => {
     workdir.value = ''
     isCustom.value = false
@@ -65,7 +78,7 @@ export function useAcpWorkdir(options: UseAcpWorkdirOptions) {
 
     if (!options.conversationId.value || !agentId.value) {
       if (!pendingWorkdir.value) {
-        resetToDefault()
+        hydrateFromPreference()
       }
       return
     }
@@ -126,8 +139,7 @@ export function useAcpWorkdir(options: UseAcpWorkdirOptions) {
 
   watch(agentId, () => {
     if (!hasConversation.value) {
-      pendingWorkdir.value = null
-      resetToDefault()
+      hydrateFromPreference()
     }
     lastWarmupKey.value = null
   })

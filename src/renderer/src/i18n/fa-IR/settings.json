@@ -926,7 +926,7 @@
     "customSectionTitle": "عامل سفارشی",
     "disabledBadge": "فعال نیست",
     "loading": "در حال بارگیری داده های ACP...",
-    "manageProfiles": "پیکربندی مدیریت",
+    "manageProfiles": "پروفایل ها",
     "none": "هیچ کدام",
     "profileDialog": {
       "addBuiltinTitle": "پیکربندی {name} را اضافه کنید",

@@ -926,7 +926,7 @@
     "customSectionTitle": "사용자 정의 에이전트",
     "disabledBadge": "사용 안 함",
     "loading": "ACP 데이터를 로드하는 중...",
-    "manageProfiles": "관리 구성",
+    "manageProfiles": "구성",
     "none": "없음",
     "profileDialog": {
       "addBuiltinTitle": "{name} 구성 추가",

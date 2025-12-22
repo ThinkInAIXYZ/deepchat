@@ -735,7 +735,7 @@ const activeModelSource = computed(() => {
   }
   return config.activeModel.value
 })
-const isModeLocked = computed(() => props.variant === 'chat' && !!conversationId.value)
+const isModeLocked = computed(() => false)
 
 const acpWorkdir = useAcpWorkdir({
   activeModel: activeModelSource,
@@ -816,6 +816,13 @@ const onWebSearchClick = async () => {
 const handleModeSelect = async (mode: ChatMode) => {
   if (isModeLocked.value) return
   await chatMode.setMode(mode)
+  if (conversationId.value && chatMode.currentMode.value === mode) {
+    try {
+      await chatStore.updateChatConfig({ chatMode: mode })
+    } catch (error) {
+      console.warn('Failed to update chat mode in conversation settings:', error)
+    }
+  }
   modeSelectOpen.value = false
 }
 

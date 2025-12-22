@@ -222,10 +222,6 @@ export function useAgentWorkspace(options: UseAgentWorkspaceOptions) {
         // ACP workdir is handled by useAcpWorkdir
         return
       }
-
-      // Clear workspace path when switching to chat mode
-      agentWorkspacePath.value = null
-      pendingWorkspacePath.value = null
     },
     { immediate: true }
   )

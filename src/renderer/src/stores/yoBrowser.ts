@@ -70,6 +70,13 @@ export const useYoBrowserStore = defineStore('yoBrowser', () => {
     )
   }
 
+  const handleTabUpdated = (_event: unknown, tab: BrowserTabInfo) => {
+    tabs.value = upsertTab(tabs.value, tab)
+    if (tab.isActive) {
+      activeTabId.value = tab.id
+    }
+  }
+
   const handleTabCountChanged = async () => {
     await loadState()
   }
@@ -107,6 +114,7 @@ export const useYoBrowserStore = defineStore('yoBrowser', () => {
       window.electron.ipcRenderer.on(YO_BROWSER_EVENTS.TAB_CLOSED, handleTabClosed)
       window.electron.ipcRenderer.on(YO_BROWSER_EVENTS.TAB_ACTIVATED, handleTabActivated)
       window.electron.ipcRenderer.on(YO_BROWSER_EVENTS.TAB_NAVIGATED, handleTabNavigated)
+      window.electron.ipcRenderer.on(YO_BROWSER_EVENTS.TAB_UPDATED, handleTabUpdated)
       window.electron.ipcRenderer.on(YO_BROWSER_EVENTS.TAB_COUNT_CHANGED, handleTabCountChanged)
       window.electron.ipcRenderer.on(
         YO_BROWSER_EVENTS.WINDOW_VISIBILITY_CHANGED,
@@ -127,6 +135,7 @@ export const useYoBrowserStore = defineStore('yoBrowser', () => {
         YO_BROWSER_EVENTS.TAB_NAVIGATED,
         handleTabNavigated
       )
+      window.electron.ipcRenderer.removeListener(YO_BROWSER_EVENTS.TAB_UPDATED, handleTabUpdated)
       window.electron.ipcRenderer.removeListener(
         YO_BROWSER_EVENTS.TAB_COUNT_CHANGED,
         handleTabCountChanged

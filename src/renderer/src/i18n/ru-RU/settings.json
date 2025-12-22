@@ -926,7 +926,7 @@
     "customSectionTitle": "Пользовательский агент",
     "disabledBadge": "Не активировано",
     "loading": "Загрузка данных ACP...",
-    "manageProfiles": "Управление конфигурацией",
+    "manageProfiles": "Профили",
     "none": "никто",
     "profileDialog": {
       "addBuiltinTitle": "Добавлена новая конфигурация {name}",

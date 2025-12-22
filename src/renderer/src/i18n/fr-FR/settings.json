@@ -953,7 +953,7 @@
     "profilePlaceholder": "Veuillez sélectionner la configuration",
     "profileSwitched": "Configuration commutée",
     "disabledBadge": "Non activé",
-    "manageProfiles": "Gestion de la configuration",
+    "manageProfiles": "Profils",
     "initialize": "initialisation",
     "initializeDescription": "Ouvert dans le terminal et commande d'initialisation exécutée",
     "initializeFailed": "L'initialisation a échoué",

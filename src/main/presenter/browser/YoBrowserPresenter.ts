@@ -300,14 +300,14 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
 
   async callTool(toolName: string, params: Record<string, unknown>): Promise<string> {
     const result = await this.browserToolManager.executeTool(toolName, params)
+    const textParts = result.content
+      .filter((c): c is { type: 'text'; text: string } => c.type === 'text')
+      .map((c) => c.text)
+    const textContent = textParts.join('\n\n')
     if (result.isError) {
-      const textContent = result.content.find((c) => c.type === 'text')
-      throw new Error(
-        textContent && 'text' in textContent ? textContent.text : 'Tool execution failed'
-      )
+      throw new Error(textContent || 'Tool execution failed')
     }
-    const textContent = result.content.find((c) => c.type === 'text')
-    return textContent && 'text' in textContent ? textContent.text : ''
+    return textContent
   }
 
   async captureScreenshot(tabId: string, options?: ScreenshotOptions): Promise<string> {
@@ -390,6 +390,20 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
       const tab = this.tabIdToBrowserTab.get(tabId)
       if (!tab) return
       tab.title = title || tab.url
+      tab.updatedAt = Date.now()
+      this.emitTabUpdated(tab)
+    })
+
+    contents.on('page-favicon-updated', (_event, favicons) => {
+      if (favicons.length > 0) {
+        const tab = this.tabIdToBrowserTab.get(tabId)
+        if (!tab) return
+        if (tab.favicon !== favicons[0]) {
+          tab.favicon = favicons[0]
+          tab.updatedAt = Date.now()
+          this.emitTabUpdated(tab)
+        }
+      }
     })
 
     contents.on('destroyed', () => {
@@ -515,6 +529,11 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
       tabId,
       url
     })
+  }
+
+  private emitTabUpdated(tab: BrowserTab) {
+    const info = this.toTabInfo(tab)
+    eventBus.sendToRenderer(YO_BROWSER_EVENTS.TAB_UPDATED, SendTarget.ALL_WINDOWS, info)
   }
 
   private emitTabCount() {

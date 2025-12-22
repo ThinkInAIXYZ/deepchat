@@ -882,7 +882,7 @@
     "builtinSectionDescription": "每个内置 Agent 都可以保存多套启动配置。只有启用且有激活配置的 Agent 才会出现在模型列表。",
     "builtinHint": "使用以下设置启动 {name}。",
     "disabledBadge": "未启用",
-    "manageProfiles": "管理配置",
+    "manageProfiles": "配置",
     "addProfile": "新增配置",
     "activeProfile": "激活配置",
     "profilePlaceholder": "请选择配置",

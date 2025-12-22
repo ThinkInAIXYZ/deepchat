@@ -3,7 +3,7 @@
     <div
       :class="[
         'flex-1 w-0 h-full transition-all duration-200 max-lg:mr-0!',
-        artifactStore.isOpen && route.name === 'chat' ? 'mr-[calc(60%-104px)]' : '',
+        chatViewMargin,
         chatStore.isMessageNavigationOpen && !artifactStore.isOpen && isLargeScreen ? 'mr-80' : ''
       ]"
     >
@@ -69,7 +69,7 @@
 <script setup lang="ts">
 import { defineAsyncComponent } from 'vue'
 import { useChatStore } from '@/stores/chat'
-import { watch, ref } from 'vue'
+import { watch, ref, computed } from 'vue'
 import { useTitle, useMediaQuery } from '@vueuse/core'
 import { useArtifactStore } from '@/stores/artifact'
 import ArtifactDialog from '@/components/artifacts/ArtifactDialog.vue'
@@ -82,6 +82,18 @@ const route = useRoute()
 const chatStore = useChatStore()
 const title = useTitle()
 const chatViewRef = ref()
+
+// Calculate chat view margin based on artifact and workspace state
+const chatViewMargin = computed(() => {
+  if (route.name !== 'chat') return ''
+
+  const artifactOpen = artifactStore.isOpen
+  if (artifactOpen) {
+    // Only artifact open
+    return 'mr-[calc(60%-104px)]'
+  }
+  return ''
+})
 // 添加标题更新逻辑
 const updateTitle = () => {
   const activeThread = chatStore.activeThread

@@ -88,7 +88,12 @@ export default defineConfig({
         }
       }),
       svgLoader(),
-      vueDevTools()
+      vueDevTools(
+        {
+          appendTo:'src/renderer/src/main.ts'
+          // appendTo:'src/renderer/shell/main.ts'
+        }
+      )
     ],
     worker: {
       format: 'es'

@@ -119,7 +119,7 @@
                   </div>
                 </div>
                 <div class="flex flex-wrap gap-2">
-                  <Button size="sm" variant="ghost" @click="openProfileManager(agent)">
+                  <Button size="sm" variant="outline" @click="openProfileManager(agent)">
                     {{ t('settings.acp.manageProfiles') }}
                   </Button>
                   <Button

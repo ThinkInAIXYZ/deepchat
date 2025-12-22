@@ -28,16 +28,27 @@
         <ul v-else class="pb-1">
           <li v-for="tab in store.tabs" :key="tab.id">
             <button
-              class="flex w-full items-center gap-2 px-4 py-2 text-left text-xs transition hover:bg-muted/40"
+              class="flex w-full items-center gap-2 py-2 pr-4 text-left text-xs transition hover:bg-muted/40 pl-7"
               :class="tab.isActive ? 'bg-muted/40 text-foreground' : 'text-muted-foreground'"
               type="button"
               @click="openTab(tab.id)"
             >
-              <span class="flex h-4 w-4 items-center justify-center">
-                <img v-if="tab.favicon" :src="tab.favicon" alt="" class="h-3.5 w-3.5" />
+              <span class="flex h-4 w-4 shrink-0 items-center justify-center">
+                <Icon
+                  v-if="tab.status === 'loading'"
+                  icon="lucide:loader-2"
+                  class="h-3.5 w-3.5 animate-spin text-muted-foreground"
+                />
+                <img
+                  v-else-if="tab.favicon && !faviconError[tab.id]"
+                  :src="tab.favicon"
+                  alt=""
+                  class="h-3.5 w-3.5 object-contain"
+                  @error="faviconError[tab.id] = true"
+                />
                 <Icon v-else icon="lucide:form" class="h-3.5 w-3.5" />
               </span>
-              <span class="flex-1 truncate text-[12px] font-medium">
+              <span class="flex-1 min-w-0 truncate text-[12px] font-medium">
                 {{ tab.title || tab.url || 'about:blank' }}
               </span>
             </button>
@@ -57,6 +68,7 @@ import { useYoBrowserStore } from '@/stores/yoBrowser'
 const { t } = useI18n()
 const store = useYoBrowserStore()
 const showTabs = ref(true)
+const faviconError = ref<Record<string, boolean>>({})
 
 const tabCount = computed(() => store.tabs.length)
 

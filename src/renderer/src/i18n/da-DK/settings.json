@@ -882,7 +882,7 @@
     "builtinSectionDescription": "Hver indbygget agent kan have flere startprofiler. Kun aktiverede agenter med en aktiv profil vises i modellisten.",
     "builtinHint": "Start {name} med disse indstillinger.",
     "disabledBadge": "Deaktiveret",
-    "manageProfiles": "Administrér profiler",
+    "manageProfiles": "Profiler",
     "addProfile": "Tilføj profil",
     "activeProfile": "Aktiv profil",
     "profilePlaceholder": "Vælg en profil",

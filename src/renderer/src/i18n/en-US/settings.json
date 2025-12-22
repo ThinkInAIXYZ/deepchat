@@ -882,7 +882,7 @@
     "builtinSectionDescription": "Each built-in agent can have multiple launch profiles. Only enabled agents with an active profile appear in the model list.",
     "builtinHint": "Launch {name} with these settings.",
     "disabledBadge": "Disabled",
-    "manageProfiles": "Manage Profiles",
+    "manageProfiles": "Profiles",
     "addProfile": "Add Profile",
     "activeProfile": "Active Profile",
     "profilePlaceholder": "Select a profile",

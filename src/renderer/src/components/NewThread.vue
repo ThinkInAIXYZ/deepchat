@@ -110,6 +110,7 @@ import { Badge } from '@shadcn/components/ui/badge'
 import { Icon } from '@iconify/vue'
 import ModelSelect from './ModelSelect.vue'
 import { useChatStore } from '@/stores/chat'
+import { useWorkspaceStore } from '@/stores/workspace'
 import { MODEL_META } from '@shared/presenter'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { UserMessageContent } from '@shared/chat'
@@ -134,6 +135,7 @@ interface PreferredModel {
 
 const { t } = useI18n()
 const chatStore = useChatStore()
+const workspaceStore = useWorkspaceStore()
 const modelStore = useModelStore()
 const uiSettingsStore = useUiSettingsStore()
 const activeModel = ref({
@@ -564,6 +566,9 @@ const handleSend = async (content: UserMessageContent) => {
   }).catch(() => {})
   // #endregion
   console.log('threadId', threadId, activeModel.value)
+  if (chatMode === 'agent' || chatMode === 'acp agent') {
+    await workspaceStore.refreshFileTree()
+  }
   chatStore.sendMessage(content)
 }
 </script>

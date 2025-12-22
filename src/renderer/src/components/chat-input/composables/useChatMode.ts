@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n'
 
 // === Composables ===
 import { usePresenter } from '@/composables/usePresenter'
+import { CONFIG_EVENTS } from '@/events'
 
 export type ChatMode = 'chat' | 'agent' | 'acp agent'
 
@@ -19,6 +20,7 @@ const hasAcpAgents = ref<boolean>(false)
 let hasLoaded = false
 let loadPromise: Promise<void> | null = null
 let modeUpdateVersion = 0
+let hasAcpListener = false
 
 /**
  * Manages chat mode selection (chat, agent, acp agent)
@@ -83,6 +85,11 @@ export function useChatMode() {
 
   const checkAcpAgents = async () => {
     try {
+      const acpEnabled = await configPresenter.getAcpEnabled()
+      if (!acpEnabled) {
+        hasAcpAgents.value = false
+        return
+      }
       const agents = await configPresenter.getAcpAgents()
       hasAcpAgents.value = agents.length > 0
     } catch (error) {
@@ -130,6 +137,15 @@ export function useChatMode() {
   }
 
   ensureLoaded()
+
+  if (!hasAcpListener && window.electron?.ipcRenderer) {
+    hasAcpListener = true
+    window.electron.ipcRenderer.on(CONFIG_EVENTS.MODEL_LIST_CHANGED, (_, providerId?: string) => {
+      if (!providerId || providerId === 'acp') {
+        void checkAcpAgents()
+      }
+    })
+  }
 
   // Watch for ACP agents changes and update availability
   // This will be triggered when ACP agents are added/removed

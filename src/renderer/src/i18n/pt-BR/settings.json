@@ -926,7 +926,7 @@
     "customSectionTitle": "Agente Personalizado",
     "disabledBadge": "Não ativado",
     "loading": "Carregando dados ACP...",
-    "manageProfiles": "Configuração de gerenciamento",
+    "manageProfiles": "Perfis",
     "profileDialog": {
       "addBuiltinTitle": "Adicionar nova configuração {name}",
       "addCustomTitle": "Adicionar Agente Personalizado",

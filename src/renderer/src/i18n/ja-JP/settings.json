@@ -926,7 +926,7 @@
     "customSectionTitle": "カスタムエージェント",
     "disabledBadge": "未有効化",
     "loading": "ACPデータを読み込み中...",
-    "manageProfiles": "管理設定",
+    "manageProfiles": "構成",
     "none": "なし",
     "profileDialog": {
       "addBuiltinTitle": "{name} 設定を追加しました",

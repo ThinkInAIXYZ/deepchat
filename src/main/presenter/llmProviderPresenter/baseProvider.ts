@@ -29,7 +29,7 @@ import { CONFIG_EVENTS } from '@/events'
  */
 export abstract class BaseLLMProvider {
   // Maximum tool calls limit in a single conversation turn
-  protected static readonly MAX_TOOL_CALLS = 50
+  protected static readonly MAX_TOOL_CALLS = 200
   protected static readonly DEFAULT_MODEL_FETCH_TIMEOUT = 12000 // Increased to 12 seconds as universal default
 
   protected provider: LLM_PROVIDER
