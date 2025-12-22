@@ -111,13 +111,23 @@ export class OllamaProvider extends BaseLLMProvider {
                 .join('\n')
             : ''
 
-        const images =
+        const rawImages =
           msg.content && Array.isArray(msg.content)
             ? (msg.content
                 .filter((c) => c.type === 'image_url')
                 .map((c) => c.image_url?.url)
                 .filter(Boolean) as string[])
             : []
+
+        // Extract base64 data from data URIs (Ollama expects just the base64 string, not the full data URI)
+        const images: string[] = rawImages.map((imgUrl) => {
+          // If it's a data URI (data:image/...;base64,...), extract just the base64 part
+          if (imgUrl.startsWith('data:image') && imgUrl.includes('base64,')) {
+            return imgUrl.split(',')[1]
+          }
+          // For regular URLs, pass as-is
+          return imgUrl
+        })
 
         return {
           role: msg.role,
