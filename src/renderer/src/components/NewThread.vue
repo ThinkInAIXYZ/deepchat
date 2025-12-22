@@ -121,9 +121,11 @@ import type { IpcRendererEvent } from 'electron'
 import { CONFIG_EVENTS } from '@/events'
 import { useModelStore } from '@/stores/modelStore'
 import { useUiSettingsStore } from '@/stores/uiSettingsStore'
+import { useChatMode } from '@/components/chat-input/composables/useChatMode'
 
 const configPresenter = usePresenter('configPresenter')
 const themeStore = useThemeStore()
+const chatMode = useChatMode()
 // 定义偏好模型的类型
 interface PreferredModel {
   modelId: string
@@ -233,6 +235,28 @@ const pickFirstEnabledModel = () => {
   return found
 }
 
+const pickFirstAcpModel = () => {
+  const found = modelStore.enabledModels
+    .flatMap((p) => p.models.map((m) => ({ ...m, providerId: p.providerId })))
+    .find(
+      (m) =>
+        m.providerId === 'acp' &&
+        (m.type === ModelType.Chat || m.type === ModelType.ImageGeneration)
+    )
+  return found
+}
+
+const pickFirstNonAcpModel = () => {
+  const found = modelStore.enabledModels
+    .flatMap((p) => p.models.map((m) => ({ ...m, providerId: p.providerId })))
+    .find(
+      (m) =>
+        m.providerId !== 'acp' &&
+        (m.type === ModelType.Chat || m.type === ModelType.ImageGeneration)
+    )
+  return found
+}
+
 const setActiveFromEnabled = (m: {
   name: string
   id: string
@@ -321,6 +345,47 @@ watch(
     }
   },
   { immediate: false, deep: true }
+)
+
+// 监听 chat mode 变化，自动切换模型
+watch(
+  () => chatMode.currentMode.value,
+  async (newMode, oldMode) => {
+    // 只在 mode 真正变化时切换模型，避免初始化时触发
+    if (!initialized.value || newMode === oldMode) {
+      return
+    }
+
+    const currentProviderId = activeModel.value.providerId
+    const isCurrentAcp = currentProviderId === 'acp'
+    const shouldBeAcp = newMode === 'acp agent'
+
+    // 如果当前模型类型与 mode 不匹配，需要切换
+    if (isCurrentAcp !== shouldBeAcp) {
+      let targetModel
+      if (shouldBeAcp) {
+        // 切换到 ACP 模型
+        targetModel = pickFirstAcpModel()
+      } else {
+        // 切换到非 ACP 模型
+        targetModel = pickFirstNonAcpModel()
+      }
+
+      if (targetModel) {
+        setActiveFromEnabled(targetModel)
+        // 更新 chat config 和偏好设置
+        chatStore.updateChatConfig({
+          modelId: targetModel.id,
+          providerId: targetModel.providerId
+        })
+        configPresenter.setSetting('preferredModel', {
+          modelId: targetModel.id,
+          providerId: targetModel.providerId
+        })
+      }
+    }
+  },
+  { immediate: false }
 )
 
 const modelSelectOpen = ref(false)

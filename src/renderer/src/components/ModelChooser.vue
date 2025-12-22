@@ -112,8 +112,12 @@ const providers = computed(() => {
   const orderedProviders = sortedProviders
     .filter((provider) => provider.enable)
     .map((provider) => {
-      // Hide ACP provider unless in acp agent mode
-      if (provider.id === 'acp' && currentMode !== 'acp agent') {
+      // In 'acp agent' mode, only show ACP provider
+      if (currentMode === 'acp agent' && provider.id !== 'acp') {
+        return null
+      }
+      // In other modes, hide ACP provider
+      if (currentMode !== 'acp agent' && provider.id === 'acp') {
         return null
       }
 

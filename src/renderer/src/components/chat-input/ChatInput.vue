@@ -125,6 +125,41 @@
               </TooltipContent>
             </Tooltip>
 
+            <!-- Unified Workspace Path Selection (for agent and acp agent modes) -->
+            <Tooltip v-if="chatMode.isAgentMode.value">
+              <TooltipTrigger>
+                <Button
+                  :class="[
+                    'w-7 h-7 text-xs rounded-lg',
+                    variant === 'chat' ? 'text-accent-foreground' : '',
+                    workspace.hasWorkspace.value
+                      ? 'bg-primary text-primary-foreground hover:bg-primary/90'
+                      : ''
+                  ]"
+                  :variant="workspace.hasWorkspace.value ? 'default' : 'outline'"
+                  size="icon"
+                  :disabled="workspace.loading.value"
+                  @click="workspace.selectWorkspace"
+                >
+                  <Icon
+                    :icon="workspace.hasWorkspace.value ? 'lucide:folder-open' : 'lucide:folder'"
+                    class="w-4 h-4"
+                  />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent class="max-w-xs">
+                <p class="text-xs font-semibold">
+                  {{ workspace.tooltipTitle }}
+                </p>
+                <p v-if="workspace.hasWorkspace.value" class="text-xs text-muted-foreground mt-1">
+                  {{ workspace.tooltipCurrent }}
+                </p>
+                <p v-else class="text-xs text-muted-foreground mt-1">
+                  {{ workspace.tooltipSelect }}
+                </p>
+              </TooltipContent>
+            </Tooltip>
+
             <Tooltip>
               <TooltipTrigger>
                 <Button
@@ -167,41 +202,6 @@
                 </Button>
               </TooltipTrigger>
               <TooltipContent>{{ t('chat.features.webSearch') }}</TooltipContent>
-            </Tooltip>
-
-            <!-- Unified Workspace Path Selection (for agent and acp agent modes) -->
-            <Tooltip v-if="chatMode.isAgentMode.value">
-              <TooltipTrigger>
-                <Button
-                  :class="[
-                    'w-7 h-7 text-xs rounded-lg',
-                    variant === 'chat' ? 'text-accent-foreground' : '',
-                    workspace.hasWorkspace.value
-                      ? 'bg-primary text-primary-foreground hover:bg-primary/90'
-                      : ''
-                  ]"
-                  :variant="workspace.hasWorkspace.value ? 'default' : 'outline'"
-                  size="icon"
-                  :disabled="workspace.loading.value"
-                  @click="workspace.selectWorkspace"
-                >
-                  <Icon
-                    :icon="workspace.hasWorkspace.value ? 'lucide:folder-open' : 'lucide:folder'"
-                    class="w-4 h-4"
-                  />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent class="max-w-xs">
-                <p class="text-xs font-semibold">
-                  {{ workspace.tooltipTitle }}
-                </p>
-                <p v-if="workspace.hasWorkspace.value" class="text-xs text-muted-foreground mt-1">
-                  {{ workspace.tooltipCurrent }}
-                </p>
-                <p v-else class="text-xs text-muted-foreground mt-1">
-                  {{ workspace.tooltipSelect }}
-                </p>
-              </TooltipContent>
             </Tooltip>
 
             <McpToolsList />

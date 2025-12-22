@@ -866,12 +866,19 @@ export class McpConfHelper {
         // 删除旧的defaultServer字段，防止重复迁移
         this.mcpStore.delete('defaultServer')
       }
+    }
 
-      // Migrate filesystem/buildInFileSystem servers - these are now provided via Agent tools
+    // Migrate filesystem/buildInFileSystem servers - these are now provided via Agent tools
+    // Remove for all versions < 0.6.0
+    if (oldVersion && compare(oldVersion, '0.6.0', '<')) {
       try {
         const mcpServers = this.mcpStore.get('mcpServers') || {}
         const defaultServers = this.mcpStore.get('defaultServers') || []
         let hasChanges = false
+
+        // Check if servers exist before deletion (for tracking)
+        const hadFilesystem = !!mcpServers.filesystem
+        const hadBuildInFileSystem = !!mcpServers.buildInFileSystem
 
         // Remove old filesystem server
         if (mcpServers.filesystem) {
@@ -897,7 +904,7 @@ export class McpConfHelper {
         }
 
         // Mark as removed for tracking
-        if (mcpServers.filesystem || mcpServers.buildInFileSystem) {
+        if (hadFilesystem || hadBuildInFileSystem) {
           this.markBuiltInServerRemoved('buildInFileSystem')
         }
 
