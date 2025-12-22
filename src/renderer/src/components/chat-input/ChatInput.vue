@@ -80,18 +80,15 @@
                         variant="outline"
                         :class="[
                           'w-7 h-7 text-xs rounded-lg',
-                          variant === 'chat' ? 'text-accent-foreground' : '',
-                          isModeLocked ? 'cursor-not-allowed opacity-60' : ''
+                          variant === 'chat' ? 'text-accent-foreground' : ''
                         ]"
                         size="icon"
                         :title="t('chat.mode.current', { mode: chatMode.currentLabel.value })"
-                        :disabled="isModeLocked"
                       >
                         <Icon :icon="chatMode.currentIcon.value" class="w-4 h-4" />
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent
-                      v-if="!isModeLocked"
                       align="start"
                       class="w-64 border-none bg-transparent p-0 shadow-none"
                     >
@@ -730,7 +727,6 @@ const activeModelSource = computed(() => {
   }
   return config.activeModel.value
 })
-const isModeLocked = computed(() => false)
 
 const acpWorkdir = useAcpWorkdir({
   activeModel: activeModelSource,
@@ -809,7 +805,6 @@ const onWebSearchClick = async () => {
 }
 
 const handleModeSelect = async (mode: ChatMode) => {
-  if (isModeLocked.value) return
   await chatMode.setMode(mode)
   if (conversationId.value && chatMode.currentMode.value === mode) {
     try {
@@ -938,12 +933,6 @@ watch(
     rateLimit.loadRateLimitStatus()
   }
 )
-
-watch(isModeLocked, (locked) => {
-  if (locked) {
-    modeSelectOpen.value = false
-  }
-})
 
 watch(
   () => [conversationId.value, chatStore.chatConfig.chatMode] as const,

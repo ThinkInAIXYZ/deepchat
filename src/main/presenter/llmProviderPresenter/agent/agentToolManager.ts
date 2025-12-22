@@ -82,7 +82,10 @@ export class AgentToolManager {
     }
 
     // Route to FileSystem tools
-    if (this.fileSystemHandler) {
+    if (this.isFileSystemTool(toolName)) {
+      if (!this.fileSystemHandler) {
+        throw new Error(`FileSystem handler not initialized for tool: ${toolName}`)
+      }
       return await this.callFileSystemTool(toolName, args)
     }
 
@@ -377,6 +380,23 @@ export class AgentToolManager {
         }
       }
     ]
+  }
+
+  private isFileSystemTool(toolName: string): boolean {
+    const filesystemTools = [
+      'read_file',
+      'write_file',
+      'list_directory',
+      'create_directory',
+      'move_files',
+      'edit_text',
+      'search_files',
+      'directory_tree',
+      'get_file_info',
+      'grep_search',
+      'text_replace'
+    ]
+    return filesystemTools.includes(toolName)
   }
 
   private async callFileSystemTool(
