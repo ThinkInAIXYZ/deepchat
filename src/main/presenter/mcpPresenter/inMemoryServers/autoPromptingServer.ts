@@ -9,6 +9,7 @@ import { z } from 'zod'
 import { zodToJsonSchema } from 'zod-to-json-schema'
 import { presenter } from '@/presenter'
 import { Prompt } from '@shared/presenter'
+import { isSafeRegexPattern } from '@shared/regexValidator'
 
 // --- 类型定义和 Schema (合并后) ---
 
@@ -184,7 +185,16 @@ export class AutoPromptingServer {
       if (templateArgs && template.parameters) {
         for (const param of template.parameters) {
           const value = templateArgs[param.name] || ''
-          filledContent = filledContent.replace(new RegExp(`{{${param.name}}}`, 'g'), value)
+          // Validate regex pattern for ReDoS safety
+          // Escape special characters in param.name to create a safe pattern
+          const escapedParamName = param.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+          const pattern = `{{${escapedParamName}}}`
+          if (!isSafeRegexPattern(pattern)) {
+            throw new Error(
+              `Template parameter name "${param.name}" creates an unsafe regex pattern. Please use a simpler parameter name.`
+            )
+          }
+          filledContent = filledContent.replace(new RegExp(pattern, 'g'), value)
         }
       }
 

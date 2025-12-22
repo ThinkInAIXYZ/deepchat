@@ -132,6 +132,7 @@ import { useI18n } from 'vue-i18n'
 import { useThemeStore } from '@/stores/theme'
 import ModelIcon from '@/components/icons/ModelIcon.vue'
 import type { Message } from '@shared/chat'
+import { isSafeRegexPattern } from '@shared/regexValidator'
 
 interface Props {
   messages: Message[]
@@ -241,7 +242,14 @@ const highlightSearchQuery = (text: string): string => {
   }
 
   const query = searchQuery.value.trim()
-  const regex = new RegExp(`(${query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi')
+  // Escape special characters and validate pattern for ReDoS safety
+  const escapedQuery = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const pattern = `(${escapedQuery})`
+  if (!isSafeRegexPattern(pattern)) {
+    // If pattern is unsafe, return text without highlighting
+    return text
+  }
+  const regex = new RegExp(pattern, 'gi')
   return text.replace(
     regex,
     '<mark class="bg-yellow-200 dark:bg-yellow-800 px-1 rounded">$1</mark>'

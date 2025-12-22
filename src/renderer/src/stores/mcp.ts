@@ -7,6 +7,7 @@ import { MCP_EVENTS } from '@/events'
 import { useI18n } from 'vue-i18n'
 import { useChatStore } from './chat'
 import { useQuery, type UseMutationReturn, type UseQueryReturn } from '@pinia/colada'
+import { isSafeRegexPattern } from '@shared/regexValidator'
 import type {
   McpClient,
   MCPConfig,
@@ -744,6 +745,12 @@ export const useMcpStore = defineStore('mcp', () => {
       if (toolName === 'search_files') {
         if (!params.regex) params.regex = '\\.md$'
         if (!params.path) params.path = '.'
+        // Validate regex pattern for ReDoS safety
+        if (params.regex && typeof params.regex === 'string' && !isSafeRegexPattern(params.regex)) {
+          throw new Error(
+            'Regular expression pattern is potentially unsafe and may cause ReDoS. Please use a simpler, safer pattern.'
+          )
+        }
         if (!params.file_pattern) {
           const match = params.regex.match(/\.(\w+)\$/)
           if (match) {

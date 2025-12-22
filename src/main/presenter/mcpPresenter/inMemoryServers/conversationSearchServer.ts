@@ -7,6 +7,7 @@ import { Transport } from '@modelcontextprotocol/sdk/shared/transport.js'
 import { presenter } from '@/presenter' // 导入全局的 presenter 对象
 import { eventBus } from '@/eventbus' // 引入 eventBus
 import { TAB_EVENTS } from '@/events'
+import { isSafeRegexPattern } from '@shared/regexValidator'
 
 // Schema definitions
 const SearchConversationsArgsSchema = z.object({
@@ -458,8 +459,14 @@ export class ConversationSearchServer {
     if (start > 0) snippet = '...' + snippet
     if (end < content.length) snippet = snippet + '...'
 
-    // 高亮关键词
-    const regex = new RegExp(`(${query})`, 'gi')
+    // 高亮关键词 - 转义特殊字符并验证安全性
+    const escapedQuery = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    const pattern = `(${escapedQuery})`
+    if (!isSafeRegexPattern(pattern)) {
+      // If pattern is unsafe, return snippet without highlighting
+      return snippet
+    }
+    const regex = new RegExp(pattern, 'gi')
     snippet = snippet.replace(regex, '**$1**')
 
     return snippet

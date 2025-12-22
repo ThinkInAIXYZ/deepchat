@@ -4,7 +4,7 @@ import os from 'os'
 import { z } from 'zod'
 import { minimatch } from 'minimatch'
 import { createTwoFilesPatch } from 'diff'
-import safeRegex from 'safe-regex2'
+import { validateRegexPattern } from '@shared/regexValidator'
 
 const ReadFileArgsSchema = z.object({
   paths: z.array(z.string()).min(1).describe('Array of file paths to read')
@@ -132,29 +132,6 @@ export class AgentFileSystemHandler {
     return text.replace(/\r\n/g, '\n')
   }
 
-  /**
-   * Validate regex pattern for ReDoS safety
-   * @param pattern The regex pattern to validate
-   * @throws Error if pattern is unsafe or exceeds length limit
-   */
-  private validateRegexPattern(pattern: string): void {
-    const MAX_PATTERN_LENGTH = 1000
-
-    // Check length limit
-    if (pattern.length > MAX_PATTERN_LENGTH) {
-      throw new Error(
-        `Regular expression pattern exceeds maximum length of ${MAX_PATTERN_LENGTH} characters. Pattern length: ${pattern.length}`
-      )
-    }
-
-    // Check for ReDoS vulnerability using safe-regex2
-    if (!safeRegex(pattern)) {
-      throw new Error(
-        `Regular expression pattern is potentially unsafe and may cause ReDoS (Regular Expression Denial of Service). Please use a simpler, safer pattern.`
-      )
-    }
-  }
-
   private isPathAllowed(candidatePath: string): boolean {
     return this.allowedDirectories.some((dir) => {
       if (candidatePath === dir) return true
@@ -261,7 +238,7 @@ export class AgentFileSystemHandler {
     }
 
     // Validate pattern for ReDoS safety before constructing RegExp
-    this.validateRegexPattern(pattern)
+    validateRegexPattern(pattern)
 
     const regexFlags = caseSensitive ? 'g' : 'gi'
     let regex: RegExp
@@ -371,7 +348,7 @@ export class AgentFileSystemHandler {
     try {
       // Validate pattern for ReDoS safety before constructing RegExp
       try {
-        this.validateRegexPattern(pattern)
+        validateRegexPattern(pattern)
       } catch (error) {
         return {
           success: false,
@@ -524,7 +501,7 @@ export class AgentFileSystemHandler {
     } else if (parsed.data.operation === 'replace_pattern' && parsed.data.pattern) {
       // Validate pattern for ReDoS safety before constructing RegExp
       try {
-        this.validateRegexPattern(parsed.data.pattern)
+        validateRegexPattern(parsed.data.pattern)
       } catch (error) {
         throw new Error(
           error instanceof Error ? error.message : `Invalid pattern: ${String(error)}`
