@@ -9,7 +9,7 @@
       <span
         class="flex-1 text-[12px] font-medium tracking-wide text-foreground/80 dark:text-white/80"
       >
-        {{ t('chat.workspace.terminal.section') }}
+        {{ t(sectionKey) }}
       </span>
       <span class="text-[10px] text-muted-foreground">
         {{ store.terminalSnippets.length }}
@@ -55,14 +55,22 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { Icon } from '@iconify/vue'
 import { useI18n } from 'vue-i18n'
 import { useWorkspaceStore } from '@/stores/workspace'
+import { useChatMode } from '@/components/chat-input/composables/useChatMode'
 
 const { t } = useI18n()
 const store = useWorkspaceStore()
+const chatMode = useChatMode()
 const showTerminal = ref(true)
+
+const i18nPrefix = computed(() =>
+  chatMode.currentMode.value === 'acp agent' ? 'chat.acp.workspace' : 'chat.workspace'
+)
+
+const sectionKey = computed(() => `${i18nPrefix.value}.terminal.section`)
 </script>
 
 <style scoped>

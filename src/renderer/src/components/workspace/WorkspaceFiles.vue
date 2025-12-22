@@ -9,7 +9,7 @@
       <span
         class="flex-1 text-[12px] font-medium tracking-wide text-foreground/80 dark:text-white/80"
       >
-        {{ t('chat.workspace.files.section') }}
+        {{ t(sectionKey) }}
       </span>
       <span class="text-[10px] text-muted-foreground">
         {{ fileCount }}
@@ -23,7 +23,7 @@
     <Transition name="workspace-collapse">
       <div v-if="showFiles" class="space-y-0 overflow-hidden">
         <div v-if="store.isLoading" class="px-4 py-3 text-[11px] text-muted-foreground">
-          {{ t('chat.workspace.files.loading') }}
+          {{ t(loadingKey) }}
         </div>
         <div v-else-if="store.fileTree.length > 0" class="pb-1">
           <WorkspaceFileNode
@@ -36,7 +36,7 @@
           />
         </div>
         <div v-else class="px-4 py-3 text-[11px] text-muted-foreground">
-          {{ t('chat.workspace.files.empty') }}
+          {{ t(emptyKey) }}
         </div>
       </div>
     </Transition>
@@ -48,12 +48,23 @@ import { ref, computed } from 'vue'
 import { Icon } from '@iconify/vue'
 import { useI18n } from 'vue-i18n'
 import { useWorkspaceStore } from '@/stores/workspace'
+import { useChatMode } from '@/components/chat-input/composables/useChatMode'
 import WorkspaceFileNode from './WorkspaceFileNode.vue'
 import type { WorkspaceFileNode as WorkspaceFileNodeType } from '@shared/presenter'
 
 const { t } = useI18n()
 const store = useWorkspaceStore()
+const chatMode = useChatMode()
 const showFiles = ref(true)
+
+const i18nPrefix = computed(() =>
+  chatMode.currentMode.value === 'acp agent' ? 'chat.acp.workspace' : 'chat.workspace'
+)
+
+const sectionKey = computed(() => `${i18nPrefix.value}.files.section`)
+const loadingKey = computed(() => `${i18nPrefix.value}.files.loading`)
+const emptyKey = computed(() => `${i18nPrefix.value}.files.empty`)
+
 const emit = defineEmits<{
   'append-path': [filePath: string]
 }>()

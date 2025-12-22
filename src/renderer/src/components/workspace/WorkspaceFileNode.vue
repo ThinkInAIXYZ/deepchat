@@ -62,6 +62,7 @@ import { computed } from 'vue'
 import { Icon } from '@iconify/vue'
 import { useI18n } from 'vue-i18n'
 import { usePresenter } from '@/composables/usePresenter'
+import { useChatMode } from '@/components/chat-input/composables/useChatMode'
 import {
   ContextMenu,
   ContextMenuContent,
@@ -82,7 +83,13 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
+const chatMode = useChatMode()
 const workspacePresenter = usePresenter('workspacePresenter')
+const acpWorkspacePresenter = usePresenter('acpWorkspacePresenter')
+
+const presenter = computed(() =>
+  chatMode.currentMode.value === 'acp agent' ? acpWorkspacePresenter : workspacePresenter
+)
 
 const extensionIconMap: Record<string, string> = {
   pdf: 'lucide:file-text',
@@ -139,7 +146,7 @@ const handleOpenFile = async () => {
   }
 
   try {
-    await workspacePresenter.openFile(props.node.path)
+    await presenter.value.openFile(props.node.path)
   } catch (error) {
     console.error(`[Workspace] Failed to open file: ${props.node.path}`, error)
   }
@@ -147,7 +154,7 @@ const handleOpenFile = async () => {
 
 const handleRevealInFolder = async () => {
   try {
-    await workspacePresenter.revealFileInFolder(props.node.path)
+    await presenter.value.revealFileInFolder(props.node.path)
   } catch (error) {
     console.error(`[Workspace] Failed to reveal path: ${props.node.path}`, error)
   }

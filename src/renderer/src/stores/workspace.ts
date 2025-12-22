@@ -6,17 +6,54 @@ import { WORKSPACE_EVENTS } from '@/events'
 import type {
   WorkspacePlanEntry,
   WorkspaceFileNode,
-  WorkspaceTerminalSnippet
+  WorkspaceTerminalSnippet,
+  AcpPlanEntry,
+  AcpFileNode,
+  AcpTerminalSnippet
 } from '@shared/presenter'
 import { useChatMode } from '@/components/chat-input/composables/useChatMode'
 
 // Debounce delay for file tree refresh (ms)
 const FILE_REFRESH_DEBOUNCE_MS = 500
 
+// Type conversion helpers
+const convertAcpPlanEntry = (entry: AcpPlanEntry): WorkspacePlanEntry => ({
+  id: entry.id,
+  content: entry.content,
+  status: entry.status,
+  priority: entry.priority,
+  updatedAt: entry.updatedAt
+})
+
+const convertAcpFileNode = (node: AcpFileNode): WorkspaceFileNode => ({
+  name: node.name,
+  path: node.path,
+  isDirectory: node.isDirectory,
+  children: node.children?.map(convertAcpFileNode),
+  expanded: node.expanded
+})
+
+const convertAcpTerminalSnippet = (snippet: AcpTerminalSnippet): WorkspaceTerminalSnippet => ({
+  id: snippet.id,
+  command: snippet.command,
+  cwd: snippet.cwd,
+  output: snippet.output,
+  truncated: snippet.truncated,
+  exitCode: snippet.exitCode,
+  timestamp: snippet.timestamp
+})
+
 export const useWorkspaceStore = defineStore('workspace', () => {
   const chatStore = useChatStore()
   const workspacePresenter = usePresenter('workspacePresenter')
+  const acpWorkspacePresenter = usePresenter('acpWorkspacePresenter')
   const chatMode = useChatMode()
+
+  // Select presenter based on mode
+  const isAcpAgentMode = computed(() => chatMode.currentMode.value === 'acp agent')
+  const presenter = computed(() =>
+    isAcpAgentMode.value ? acpWorkspacePresenter : workspacePresenter
+  )
 
   // === State ===
   const isOpen = ref(false)
@@ -75,16 +112,23 @@ export const useWorkspaceStore = defineStore('workspace', () => {
       return
     }
 
-    // Register workspace before reading (security boundary) - await to ensure completion
-    await workspacePresenter.registerWorkspace(workspacePath)
+    // Register workspace/workdir before reading (security boundary) - await to ensure completion
+    if (isAcpAgentMode.value) {
+      await (acpWorkspacePresenter as any).registerWorkdir(workspacePath)
+    } else {
+      await (workspacePresenter as any).registerWorkspace(workspacePath)
+    }
 
     isLoading.value = true
     try {
       // Only read first level (lazy loading)
-      const result = (await workspacePresenter.readDirectory(workspacePath)) ?? []
+      const result = (await presenter.value.readDirectory(workspacePath)) ?? []
       // Guard against race condition: only update if still on the same conversation
       if (chatStore.getActiveThreadId() === conversationIdBefore) {
-        fileTree.value = result
+        // Convert Acp* types to Workspace* types if needed
+        fileTree.value = isAcpAgentMode.value
+          ? (result as AcpFileNode[]).map(convertAcpFileNode)
+          : (result as WorkspaceFileNode[])
         lastSuccessfulWorkspace.value = workspacePath
       }
     } catch (error) {
@@ -121,8 +165,11 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     if (!node.isDirectory) return
 
     try {
-      const children = (await workspacePresenter.expandDirectory(node.path)) ?? []
-      node.children = children
+      const children = (await presenter.value.expandDirectory(node.path)) ?? []
+      // Convert Acp* types to Workspace* types if needed
+      node.children = isAcpAgentMode.value
+        ? (children as AcpFileNode[]).map(convertAcpFileNode)
+        : (children as WorkspaceFileNode[])
       node.expanded = true
     } catch (error) {
       console.error('[Workspace] Failed to load directory children:', error)
@@ -139,10 +186,13 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     }
 
     try {
-      const result = (await workspacePresenter.getPlanEntries(conversationId)) ?? []
+      const result = (await presenter.value.getPlanEntries(conversationId)) ?? []
       // Guard against race condition: only update if still on the same conversation
       if (chatStore.getActiveThreadId() === conversationId) {
-        planEntries.value = result
+        // Convert Acp* types to Workspace* types if needed
+        planEntries.value = isAcpAgentMode.value
+          ? (result as AcpPlanEntry[]).map(convertAcpPlanEntry)
+          : (result as WorkspacePlanEntry[])
       }
     } catch (error) {
       console.error('[Workspace] Failed to load plan entries:', error)
@@ -181,9 +231,18 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     // Plan update event
     window.electron.ipcRenderer.on(
       WORKSPACE_EVENTS.PLAN_UPDATED,
-      (_, payload: { conversationId: string; entries: WorkspacePlanEntry[] }) => {
+      (
+        _,
+        payload: {
+          conversationId: string
+          entries: WorkspacePlanEntry[] | AcpPlanEntry[]
+        }
+      ) => {
         if (payload.conversationId === chatStore.getActiveThreadId()) {
-          planEntries.value = payload.entries
+          // Convert Acp* types to Workspace* types if needed
+          planEntries.value = isAcpAgentMode.value
+            ? (payload.entries as AcpPlanEntry[]).map(convertAcpPlanEntry)
+            : (payload.entries as WorkspacePlanEntry[])
         }
       }
     )
@@ -191,10 +250,20 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     // Terminal output event
     window.electron.ipcRenderer.on(
       WORKSPACE_EVENTS.TERMINAL_OUTPUT,
-      (_, payload: { conversationId: string; snippet: WorkspaceTerminalSnippet }) => {
+      (
+        _,
+        payload: {
+          conversationId: string
+          snippet: WorkspaceTerminalSnippet | AcpTerminalSnippet
+        }
+      ) => {
         if (payload.conversationId === chatStore.getActiveThreadId()) {
+          // Convert Acp* types to Workspace* types if needed
+          const snippet = isAcpAgentMode.value
+            ? convertAcpTerminalSnippet(payload.snippet as AcpTerminalSnippet)
+            : (payload.snippet as WorkspaceTerminalSnippet)
           // Keep latest 10 items
-          terminalSnippets.value = [payload.snippet, ...terminalSnippets.value.slice(0, 9)]
+          terminalSnippets.value = [snippet, ...terminalSnippets.value.slice(0, 9)]
         }
       }
     )

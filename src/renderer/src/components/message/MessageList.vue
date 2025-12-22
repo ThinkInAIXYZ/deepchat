@@ -89,7 +89,7 @@ import { useMessageRetry } from '@/composables/message/useMessageRetry'
 // === Stores ===
 import { useChatStore } from '@/stores/chat'
 import { useReferenceStore } from '@/stores/reference'
-import { useAcpWorkspaceStore } from '@/stores/acpWorkspace'
+import { useWorkspaceStore } from '@/stores/workspace'
 
 // === Props & Emits ===
 const props = defineProps<{
@@ -99,7 +99,7 @@ const props = defineProps<{
 // === Stores ===
 const chatStore = useChatStore()
 const referenceStore = useReferenceStore()
-const acpWorkspaceStore = useAcpWorkspaceStore()
+const workspaceStore = useWorkspaceStore()
 
 // === Composable Integrations ===
 // Scroll management
@@ -185,13 +185,13 @@ const showCancelButton = computed(() => {
   return chatStore.generatingThreadIds.has(chatStore.getActiveThreadId() ?? '')
 })
 
-// Show workspace button only in ACP mode when workspace is closed
+// Show workspace button only in agent mode when workspace is closed
 const showWorkspaceButton = computed(() => {
-  return acpWorkspaceStore.isAcpMode && !acpWorkspaceStore.isOpen
+  return workspaceStore.isAgentMode && !workspaceStore.isOpen
 })
 
 const handleOpenWorkspace = () => {
-  acpWorkspaceStore.setOpen(true)
+  workspaceStore.setOpen(true)
 }
 
 const handleTrace = (messageId: string) => {

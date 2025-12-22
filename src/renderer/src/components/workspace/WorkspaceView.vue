@@ -7,14 +7,14 @@
       <div class="flex items-center gap-2">
         <Icon icon="lucide:layout-dashboard" class="h-4 w-4 text-muted-foreground" />
         <h2 class="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-          {{ t('chat.workspace.title') }}
+          {{ t(titleKey) }}
         </h2>
       </div>
       <button
         class="flex h-5 w-5 items-center justify-center rounded-md border border-transparent text-muted-foreground transition hover:border-border hover:bg-muted/50"
         type="button"
         @click="store.setOpen(false)"
-        :aria-label="t('chat.workspace.collapse')"
+        :aria-label="t(collapseKey)"
       >
         <Icon icon="lucide:chevron-right" class="h-3 w-3" />
       </button>
@@ -52,6 +52,14 @@ const { t } = useI18n()
 const store = useWorkspaceStore()
 const chatMode = useChatMode()
 const showBrowserTabs = computed(() => chatMode.currentMode.value === 'agent')
+
+const i18nPrefix = computed(() =>
+  chatMode.currentMode.value === 'acp agent' ? 'chat.acp.workspace' : 'chat.workspace'
+)
+
+const titleKey = computed(() => `${i18nPrefix.value}.title`)
+const collapseKey = computed(() => `${i18nPrefix.value}.collapse`)
+
 const emit = defineEmits<{
   'append-file-path': [filePath: string]
 }>()
