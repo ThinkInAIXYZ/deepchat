@@ -342,7 +342,7 @@ const handleAddModelSaved = async () => {
   color: #b91c1c;
 }
 
-:global(.dark) .hint {
+.dark .hint {
   color: #f87171;
 }
 </style>
