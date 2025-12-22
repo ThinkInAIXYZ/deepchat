@@ -117,7 +117,13 @@ export class AgentToolManager {
     const EditTextSchema = z.object({
       path: z.string(),
       operation: z.enum(['replace_pattern', 'edit_lines']),
-      pattern: z.string().optional(),
+      pattern: z
+        .string()
+        .max(1000)
+        .describe(
+          'Regular expression pattern (max 1000 characters, must be safe and not cause ReDoS). Required when operation is "replace_pattern"'
+        )
+        .optional(),
       replacement: z.string().optional(),
       global: z.boolean().default(true),
       caseSensitive: z.boolean().default(false),
@@ -143,7 +149,12 @@ export class AgentToolManager {
 
     const GrepSearchSchema = z.object({
       path: z.string(),
-      pattern: z.string(),
+      pattern: z
+        .string()
+        .max(1000)
+        .describe(
+          'Regular expression pattern (max 1000 characters, must be safe and not cause ReDoS)'
+        ),
       filePattern: z.string().optional(),
       recursive: z.boolean().default(true),
       caseSensitive: z.boolean().default(false),
@@ -154,7 +165,12 @@ export class AgentToolManager {
 
     const TextReplaceSchema = z.object({
       path: z.string(),
-      pattern: z.string(),
+      pattern: z
+        .string()
+        .max(1000)
+        .describe(
+          'Regular expression pattern (max 1000 characters, must be safe and not cause ReDoS)'
+        ),
       replacement: z.string(),
       global: z.boolean().default(true),
       caseSensitive: z.boolean().default(false),
@@ -259,7 +275,8 @@ export class AgentToolManager {
         type: 'function',
         function: {
           name: 'edit_text',
-          description: 'Edit text files using pattern replacement or line-based editing',
+          description:
+            'Edit text files using pattern replacement or line-based editing. When using "replace_pattern" operation, the pattern must be safe and not exceed 1000 characters to prevent ReDoS (Regular Expression Denial of Service) attacks.',
           parameters: zodToJsonSchema(EditTextSchema) as {
             type: string
             properties: Record<string, unknown>
@@ -327,7 +344,8 @@ export class AgentToolManager {
         type: 'function',
         function: {
           name: 'grep_search',
-          description: 'Search file contents using a regular expression',
+          description:
+            'Search file contents using a regular expression. The pattern must be safe and not exceed 1000 characters to prevent ReDoS (Regular Expression Denial of Service) attacks.',
           parameters: zodToJsonSchema(GrepSearchSchema) as {
             type: string
             properties: Record<string, unknown>
@@ -344,7 +362,8 @@ export class AgentToolManager {
         type: 'function',
         function: {
           name: 'text_replace',
-          description: 'Replace text in a file using a regular expression',
+          description:
+            'Replace text in a file using a regular expression. The pattern must be safe and not exceed 1000 characters to prevent ReDoS (Regular Expression Denial of Service) attacks.',
           parameters: zodToJsonSchema(TextReplaceSchema) as {
             type: string
             properties: Record<string, unknown>

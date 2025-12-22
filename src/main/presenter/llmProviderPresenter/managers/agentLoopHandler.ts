@@ -27,41 +27,23 @@ export class AgentLoopHandler {
   constructor(private readonly options: AgentLoopHandlerOptions) {
     this.toolCallProcessor = new ToolCallProcessor({
       getAllToolDefinitions: async (context) => {
-        // Get chatMode from global config (default to 'chat')
-        const chatMode =
-          ((await this.options.configPresenter.getSetting('input_chatMode')) as
-            | 'chat'
-            | 'agent'
-            | 'acp agent') || 'chat'
-
-        // Get agentWorkspacePath from conversation settings (if available)
-        let agentWorkspacePath: string | null = null
+        // Get modelId from conversation
+        let modelId: string | undefined
         if (context.conversationId) {
           try {
             const conversation = await presenter.threadPresenter.getConversation(
               context.conversationId
             )
-            if (conversation) {
-              // For acp agent mode, use acpWorkdirMap
-              if (chatMode === 'acp agent' && conversation.settings.acpWorkdirMap) {
-                const modelId = conversation.settings.modelId
-                agentWorkspacePath = conversation.settings.acpWorkdirMap[modelId] ?? null
-              } else {
-                // For agent mode, use agentWorkspacePath
-                agentWorkspacePath = conversation.settings.agentWorkspacePath ?? null
-              }
-            }
-          } catch (error) {
-            console.warn('[AgentLoopHandler] Failed to get conversation settings:', error)
+            modelId = conversation?.settings.modelId
+          } catch {
+            // Ignore errors, modelId will be undefined
           }
         }
 
-        if (chatMode === 'agent') {
-          agentWorkspacePath = await this.resolveAgentWorkspacePath(
-            context.conversationId,
-            agentWorkspacePath
-          )
-        }
+        const { chatMode, agentWorkspacePath } = await this.resolveWorkspaceContext(
+          context.conversationId,
+          modelId
+        )
 
         return await this.getToolPresenter().getAllToolDefinitions({
           enabledMcpTools: context.enabledMcpTools,
@@ -149,6 +131,49 @@ export class AgentLoopHandler {
       }
     }
     return fallback
+  }
+
+  /**
+   * Resolve workspace context (chatMode and agentWorkspacePath) for tool definitions
+   * @param conversationId Optional conversation ID
+   * @param modelId Optional model ID (required for acp agent mode)
+   * @returns Resolved workspace context
+   */
+  private async resolveWorkspaceContext(
+    conversationId?: string,
+    modelId?: string
+  ): Promise<{ chatMode: 'chat' | 'agent' | 'acp agent'; agentWorkspacePath: string | null }> {
+    // Get chatMode from global config (default to 'chat')
+    const chatMode =
+      ((await this.options.configPresenter.getSetting('input_chatMode')) as
+        | 'chat'
+        | 'agent'
+        | 'acp agent') || 'chat'
+
+    // Get agentWorkspacePath from conversation settings
+    let agentWorkspacePath: string | null = null
+    if (conversationId) {
+      try {
+        const conversation = await presenter.threadPresenter.getConversation(conversationId)
+        if (conversation) {
+          // For acp agent mode, use acpWorkdirMap
+          if (chatMode === 'acp agent' && conversation.settings.acpWorkdirMap && modelId) {
+            agentWorkspacePath = conversation.settings.acpWorkdirMap[modelId] ?? null
+          } else {
+            // For agent mode, use agentWorkspacePath
+            agentWorkspacePath = conversation.settings.agentWorkspacePath ?? null
+          }
+        }
+      } catch (error) {
+        console.warn('[AgentLoopHandler] Failed to get conversation settings:', error)
+      }
+    }
+
+    if (chatMode === 'agent') {
+      agentWorkspacePath = await this.resolveAgentWorkspacePath(conversationId, agentWorkspacePath)
+    }
+
+    return { chatMode, agentWorkspacePath }
   }
 
   private notifyWorkspaceFilesChanged(conversationId?: string): void {
@@ -275,38 +300,11 @@ export class AgentLoopHandler {
 
         try {
           console.log(`[Agent Loop] Iteration ${toolCallCount + 1} for event: ${eventId}`)
-          // Get chatMode from global config
-          const chatMode =
-            ((await this.options.configPresenter.getSetting('input_chatMode')) as
-              | 'chat'
-              | 'agent'
-              | 'acp agent') || 'chat'
-
-          // Get agentWorkspacePath from conversation settings
-          let agentWorkspacePath: string | null = null
-          if (conversationId) {
-            try {
-              const conversation = await presenter.threadPresenter.getConversation(conversationId)
-              if (conversation) {
-                // For acp agent mode, use acpWorkdirMap
-                if (chatMode === 'acp agent' && conversation.settings.acpWorkdirMap) {
-                  agentWorkspacePath = conversation.settings.acpWorkdirMap[modelId] ?? null
-                } else {
-                  // For agent mode, use agentWorkspacePath
-                  agentWorkspacePath = conversation.settings.agentWorkspacePath ?? null
-                }
-              }
-            } catch (error) {
-              console.warn('[AgentLoopHandler] Failed to get conversation settings:', error)
-            }
-          }
-
-          if (chatMode === 'agent') {
-            agentWorkspacePath = await this.resolveAgentWorkspacePath(
-              conversationId,
-              agentWorkspacePath
-            )
-          }
+          // Resolve workspace context
+          const { chatMode, agentWorkspacePath } = await this.resolveWorkspaceContext(
+            conversationId,
+            modelId
+          )
 
           // Get all tool definitions using ToolPresenter
           const toolDefs = await this.getToolPresenter().getAllToolDefinitions({

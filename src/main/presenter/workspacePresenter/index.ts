@@ -1,4 +1,5 @@
 import path from 'path'
+import fs from 'fs'
 import { shell } from 'electron'
 import { eventBus, SendTarget } from '@/eventbus'
 import { WORKSPACE_EVENTS } from '@/events'
@@ -36,16 +37,43 @@ export class WorkspacePresenter implements IWorkspacePresenter {
 
   /**
    * Check if a path is within allowed workspaces
+   * Uses realpathSync to resolve symlinks and prevent bypass attacks
    */
   private isPathAllowed(targetPath: string): boolean {
-    const normalized = path.resolve(targetPath)
-    for (const workspace of this.allowedWorkspaces) {
-      // Check if targetPath is equal to or under the workspace
-      if (normalized === workspace || normalized.startsWith(workspace + path.sep)) {
-        return true
+    try {
+      // Resolve symlinks for target path
+      const realTargetPath = fs.realpathSync(targetPath)
+      const normalizedTarget = path.normalize(realTargetPath)
+      const targetWithSep = normalizedTarget.endsWith(path.sep)
+        ? normalizedTarget
+        : `${normalizedTarget}${path.sep}`
+
+      for (const workspace of this.allowedWorkspaces) {
+        try {
+          // Resolve symlinks for each allowed workspace
+          const realWorkspace = fs.realpathSync(workspace)
+          const normalizedWorkspace = path.normalize(realWorkspace)
+          const workspaceWithSep = normalizedWorkspace.endsWith(path.sep)
+            ? normalizedWorkspace
+            : `${normalizedWorkspace}${path.sep}`
+
+          // Check if targetPath is equal to or under the workspace
+          if (
+            normalizedTarget === normalizedWorkspace ||
+            targetWithSep.startsWith(workspaceWithSep)
+          ) {
+            return true
+          }
+        } catch {
+          // If workspace path resolution fails, skip this workspace
+          continue
+        }
       }
+      return false
+    } catch {
+      // If target path resolution fails, treat as not allowed
+      return false
     }
-    return false
   }
 
   /**

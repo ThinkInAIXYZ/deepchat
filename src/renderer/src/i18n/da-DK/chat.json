@@ -30,7 +30,7 @@
     "rateLimitWait": "Vent {seconds}s",
     "rateLimitWaitingTooltip": "Vent {seconds} sekunder, interval {interval} sekunder",
     "fileArea": "fil område",
-    "agentWorkspaceCurrent": "Nuværende arbejdsmappe: {sti}",
+    "agentWorkspaceCurrent": "Nuværende arbejdsmappe: {path}",
     "agentWorkspaceSelect": "Vælg arbejdsmappe",
     "agentWorkspaceTooltip": "Indstil agentens arbejdsmappe"
   },

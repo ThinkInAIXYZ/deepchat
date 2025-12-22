@@ -4,6 +4,7 @@ import os from 'os'
 import { z } from 'zod'
 import { minimatch } from 'minimatch'
 import { createTwoFilesPatch } from 'diff'
+import safeRegex from 'safe-regex2'
 
 const ReadFileArgsSchema = z.object({
   paths: z.array(z.string()).min(1).describe('Array of file paths to read')
@@ -131,6 +132,37 @@ export class AgentFileSystemHandler {
     return text.replace(/\r\n/g, '\n')
   }
 
+  /**
+   * Validate regex pattern for ReDoS safety
+   * @param pattern The regex pattern to validate
+   * @throws Error if pattern is unsafe or exceeds length limit
+   */
+  private validateRegexPattern(pattern: string): void {
+    const MAX_PATTERN_LENGTH = 1000
+
+    // Check length limit
+    if (pattern.length > MAX_PATTERN_LENGTH) {
+      throw new Error(
+        `Regular expression pattern exceeds maximum length of ${MAX_PATTERN_LENGTH} characters. Pattern length: ${pattern.length}`
+      )
+    }
+
+    // Check for ReDoS vulnerability using safe-regex2
+    if (!safeRegex(pattern)) {
+      throw new Error(
+        `Regular expression pattern is potentially unsafe and may cause ReDoS (Regular Expression Denial of Service). Please use a simpler, safer pattern.`
+      )
+    }
+  }
+
+  private isPathAllowed(candidatePath: string): boolean {
+    return this.allowedDirectories.some((dir) => {
+      if (candidatePath === dir) return true
+      const dirWithSeparator = dir.endsWith(path.sep) ? dir : `${dir}${path.sep}`
+      return candidatePath.startsWith(dirWithSeparator)
+    })
+  }
+
   private expandHome(filepath: string): string {
     if (filepath.startsWith('~/') || filepath === '~') {
       return path.join(os.homedir(), filepath.slice(1))
@@ -144,7 +176,7 @@ export class AgentFileSystemHandler {
       ? path.resolve(expandedPath)
       : path.resolve(process.cwd(), expandedPath)
     const normalizedRequested = this.normalizePath(absolute)
-    const isAllowed = this.allowedDirectories.some((dir) => normalizedRequested.startsWith(dir))
+    const isAllowed = this.isPathAllowed(normalizedRequested)
     if (!isAllowed) {
       throw new Error(
         `Access denied - path outside allowed directories: ${absolute} not in ${this.allowedDirectories.join(', ')}`
@@ -153,9 +185,7 @@ export class AgentFileSystemHandler {
     try {
       const realPath = await fs.realpath(absolute)
       const normalizedReal = this.normalizePath(realPath)
-      const isRealPathAllowed = this.allowedDirectories.some((dir) =>
-        normalizedReal.startsWith(dir)
-      )
+      const isRealPathAllowed = this.isPathAllowed(normalizedReal)
       if (!isRealPathAllowed) {
         throw new Error('Access denied - symlink target outside allowed directories')
       }
@@ -165,9 +195,7 @@ export class AgentFileSystemHandler {
       try {
         const realParentPath = await fs.realpath(parentDir)
         const normalizedParent = this.normalizePath(realParentPath)
-        const isParentAllowed = this.allowedDirectories.some((dir) =>
-          normalizedParent.startsWith(dir)
-        )
+        const isParentAllowed = this.isPathAllowed(normalizedParent)
         if (!isParentAllowed) {
           throw new Error('Access denied - parent directory outside allowed directories')
         }
@@ -231,6 +259,9 @@ export class AgentFileSystemHandler {
       files: [],
       matches: []
     }
+
+    // Validate pattern for ReDoS safety before constructing RegExp
+    this.validateRegexPattern(pattern)
 
     const regexFlags = caseSensitive ? 'g' : 'gi'
     let regex: RegExp
@@ -338,6 +369,17 @@ export class AgentFileSystemHandler {
   ): Promise<TextReplaceResult> {
     const { global = true, caseSensitive = false, dryRun = false } = options
     try {
+      // Validate pattern for ReDoS safety before constructing RegExp
+      try {
+        this.validateRegexPattern(pattern)
+      } catch (error) {
+        return {
+          success: false,
+          replacements: 0,
+          error: error instanceof Error ? error.message : String(error)
+        }
+      }
+
       const originalContent = await fs.readFile(filePath, 'utf-8')
       const normalizedOriginal = this.normalizeLineEndings(originalContent)
       const regexFlags = global ? (caseSensitive ? 'g' : 'gi') : caseSensitive ? '' : 'i'
@@ -353,6 +395,7 @@ export class AgentFileSystemHandler {
       }
 
       const modifiedContent = normalizedOriginal.replace(regex, replacement)
+      // Pattern already validated above, safe to create count regex
       const countRegex = new RegExp(pattern, caseSensitive ? 'g' : 'gi')
       const matches = Array.from(normalizedOriginal.matchAll(countRegex))
       const replacements = global ? matches.length : Math.min(1, matches.length)
@@ -479,6 +522,15 @@ export class AgentFileSystemHandler {
         modifiedContent = modifiedContent.replace(edit.oldText, edit.newText)
       }
     } else if (parsed.data.operation === 'replace_pattern' && parsed.data.pattern) {
+      // Validate pattern for ReDoS safety before constructing RegExp
+      try {
+        this.validateRegexPattern(parsed.data.pattern)
+      } catch (error) {
+        throw new Error(
+          error instanceof Error ? error.message : `Invalid pattern: ${String(error)}`
+        )
+      }
+
       const flags = parsed.data.caseSensitive ? 'g' : 'gi'
       const regex = new RegExp(parsed.data.pattern, flags)
       modifiedContent = modifiedContent.replace(regex, parsed.data.replacement || '')

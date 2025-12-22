@@ -92,6 +92,7 @@
     "openai": "^5.23.2",
     "pdf-parse-new": "^1.4.1",
     "run-applescript": "^7.1.0",
+    "safe-regex2": "^5.0.0",
     "sharp": "^0.33.5",
     "together-ai": "^0.16.0",
     "tokenx": "^0.4.1",

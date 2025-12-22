@@ -565,11 +565,6 @@ const { settings, toggleWebSearch } = useInputSettings()
 // Initialize chat mode management
 const chatMode = useChatMode()
 const modeSelectOpen = ref(false)
-console.log(
-  '%c🤪 ~ file: /Users/zerob13/Documents/deepchat/src/renderer/src/components/chat-input/ChatInput.vue:552 [] -> modeSelectOpen : ',
-  'color: #394483',
-  modeSelectOpen
-)
 
 // Initialize history composable first (needed for editor placeholder)
 const history = useInputHistory(null as any, t)
