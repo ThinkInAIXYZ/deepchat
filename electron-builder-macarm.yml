@@ -83,3 +83,4 @@ publish:
   provider: github
   owner: ThinkInAIXYZ
   repo: deepchat
+  channel: arm64

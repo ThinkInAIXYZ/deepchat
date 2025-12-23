@@ -74,6 +74,7 @@ jobs:
           if [ -d "artifacts/deepchat-mac-x64" ]; then
             cp artifacts/deepchat-mac-x64/*.dmg release_assets/ 2>/dev/null || true
             cp artifacts/deepchat-mac-x64/*.zip release_assets/ 2>/dev/null || true
+            cp artifacts/deepchat-mac-x64/x64-mac.yml release_assets/ 2>/dev/null || true
             cp artifacts/deepchat-mac-x64/latest*.yml release_assets/ 2>/dev/null || true
             cp artifacts/deepchat-mac-x64/*.blockmap release_assets/ 2>/dev/null || true
           fi
@@ -82,6 +83,7 @@ jobs:
           if [ -d "artifacts/deepchat-mac-arm64" ]; then
             cp artifacts/deepchat-mac-arm64/*.dmg release_assets/ 2>/dev/null || true
             cp artifacts/deepchat-mac-arm64/*.zip release_assets/ 2>/dev/null || true
+            cp artifacts/deepchat-mac-arm64/arm64-mac.yml release_assets/ 2>/dev/null || true
             cp artifacts/deepchat-mac-arm64/latest*.yml release_assets/ 2>/dev/null || true
             cp artifacts/deepchat-mac-arm64/*.blockmap release_assets/ 2>/dev/null || true
           fi
