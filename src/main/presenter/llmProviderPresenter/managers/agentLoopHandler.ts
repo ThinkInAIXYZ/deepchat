@@ -84,10 +84,10 @@ export class AgentLoopHandler {
     return this.toolPresenter
   }
 
-  private getDefaultAgentWorkspacePath(conversationId?: string | null): string {
+  private async getDefaultAgentWorkspacePath(conversationId?: string | null): Promise<string> {
     const tempRoot = path.join(app.getPath('temp'), 'deepchat-agent', 'workspaces')
     try {
-      fs.mkdirSync(tempRoot, { recursive: true })
+      await fs.promises.mkdir(tempRoot, { recursive: true })
     } catch (error) {
       console.warn(
         '[AgentLoopHandler] Failed to create default workspace root, using system temp:',
@@ -102,7 +102,7 @@ export class AgentLoopHandler {
 
     const workspaceDir = path.join(tempRoot, conversationId)
     try {
-      fs.mkdirSync(workspaceDir, { recursive: true })
+      await fs.promises.mkdir(workspaceDir, { recursive: true })
       return workspaceDir
     } catch (error) {
       console.warn(
@@ -120,8 +120,8 @@ export class AgentLoopHandler {
     const trimmedPath = currentPath?.trim()
     if (trimmedPath) return trimmedPath
 
-    const fallback = this.getDefaultAgentWorkspacePath(conversationId ?? null)
-    if (conversationId) {
+    const fallback = await this.getDefaultAgentWorkspacePath(conversationId ?? null)
+    if (conversationId && fallback) {
       try {
         await presenter.threadPresenter.updateConversationSettings(conversationId, {
           agentWorkspacePath: fallback

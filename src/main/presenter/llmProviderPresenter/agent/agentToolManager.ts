@@ -17,6 +17,92 @@ export class AgentToolManager {
   private readonly yoBrowserPresenter: IYoBrowserPresenter
   private agentWorkspacePath: string | null
   private fileSystemHandler: AgentFileSystemHandler | null = null
+  private readonly fileSystemSchemas = {
+    read_file: z.object({
+      paths: z.array(z.string()).min(1)
+    }),
+    write_file: z.object({
+      path: z.string(),
+      content: z.string()
+    }),
+    list_directory: z.object({
+      path: z.string(),
+      showDetails: z.boolean().default(false),
+      sortBy: z.enum(['name', 'size', 'modified']).default('name')
+    }),
+    create_directory: z.object({
+      path: z.string()
+    }),
+    move_files: z.object({
+      sources: z.array(z.string()).min(1),
+      destination: z.string()
+    }),
+    edit_text: z.object({
+      path: z.string(),
+      operation: z.enum(['replace_pattern', 'edit_lines']),
+      pattern: z
+        .string()
+        .max(1000)
+        .describe(
+          'Regular expression pattern (max 1000 characters, must be safe and not cause ReDoS). Required when operation is "replace_pattern"'
+        )
+        .optional(),
+      replacement: z.string().optional(),
+      global: z.boolean().default(true),
+      caseSensitive: z.boolean().default(false),
+      edits: z
+        .array(
+          z.object({
+            oldText: z.string(),
+            newText: z.string()
+          })
+        )
+        .optional(),
+      dryRun: z.boolean().default(false)
+    }),
+    search_files: z.object({
+      path: z.string().optional(),
+      pattern: z.string(),
+      searchType: z.enum(['glob', 'name']).default('glob'),
+      excludePatterns: z.array(z.string()).optional().default([]),
+      caseSensitive: z.boolean().default(false),
+      maxResults: z.number().default(1000)
+    }),
+    grep_search: z.object({
+      path: z.string(),
+      pattern: z
+        .string()
+        .max(1000)
+        .describe(
+          'Regular expression pattern (max 1000 characters, must be safe and not cause ReDoS)'
+        ),
+      filePattern: z.string().optional(),
+      recursive: z.boolean().default(true),
+      caseSensitive: z.boolean().default(false),
+      includeLineNumbers: z.boolean().default(true),
+      contextLines: z.number().default(0),
+      maxResults: z.number().default(100)
+    }),
+    text_replace: z.object({
+      path: z.string(),
+      pattern: z
+        .string()
+        .max(1000)
+        .describe(
+          'Regular expression pattern (max 1000 characters, must be safe and not cause ReDoS)'
+        ),
+      replacement: z.string(),
+      global: z.boolean().default(true),
+      caseSensitive: z.boolean().default(false),
+      dryRun: z.boolean().default(false)
+    }),
+    directory_tree: z.object({
+      path: z.string()
+    }),
+    get_file_info: z.object({
+      path: z.string()
+    })
+  }
 
   constructor(options: AgentToolManagerOptions) {
     this.yoBrowserPresenter = options.yoBrowserPresenter
@@ -94,108 +180,14 @@ export class AgentToolManager {
   }
 
   private getFileSystemToolDefinitions(): MCPToolDefinition[] {
-    const ReadFileSchema = z.object({
-      paths: z.array(z.string()).min(1)
-    })
-
-    const WriteFileSchema = z.object({
-      path: z.string(),
-      content: z.string()
-    })
-
-    const ListDirectorySchema = z.object({
-      path: z.string(),
-      showDetails: z.boolean().default(false),
-      sortBy: z.enum(['name', 'size', 'modified']).default('name')
-    })
-
-    const CreateDirectorySchema = z.object({
-      path: z.string()
-    })
-
-    const MoveFilesSchema = z.object({
-      sources: z.array(z.string()).min(1),
-      destination: z.string()
-    })
-
-    const EditTextSchema = z.object({
-      path: z.string(),
-      operation: z.enum(['replace_pattern', 'edit_lines']),
-      pattern: z
-        .string()
-        .max(1000)
-        .describe(
-          'Regular expression pattern (max 1000 characters, must be safe and not cause ReDoS). Required when operation is "replace_pattern"'
-        )
-        .optional(),
-      replacement: z.string().optional(),
-      global: z.boolean().default(true),
-      caseSensitive: z.boolean().default(false),
-      edits: z
-        .array(
-          z.object({
-            oldText: z.string(),
-            newText: z.string()
-          })
-        )
-        .optional(),
-      dryRun: z.boolean().default(false)
-    })
-
-    const FileSearchSchema = z.object({
-      path: z.string().optional(),
-      pattern: z.string(),
-      searchType: z.enum(['glob', 'name']).default('glob'),
-      excludePatterns: z.array(z.string()).optional().default([]),
-      caseSensitive: z.boolean().default(false),
-      maxResults: z.number().default(1000)
-    })
-
-    const GrepSearchSchema = z.object({
-      path: z.string(),
-      pattern: z
-        .string()
-        .max(1000)
-        .describe(
-          'Regular expression pattern (max 1000 characters, must be safe and not cause ReDoS)'
-        ),
-      filePattern: z.string().optional(),
-      recursive: z.boolean().default(true),
-      caseSensitive: z.boolean().default(false),
-      includeLineNumbers: z.boolean().default(true),
-      contextLines: z.number().default(0),
-      maxResults: z.number().default(100)
-    })
-
-    const TextReplaceSchema = z.object({
-      path: z.string(),
-      pattern: z
-        .string()
-        .max(1000)
-        .describe(
-          'Regular expression pattern (max 1000 characters, must be safe and not cause ReDoS)'
-        ),
-      replacement: z.string(),
-      global: z.boolean().default(true),
-      caseSensitive: z.boolean().default(false),
-      dryRun: z.boolean().default(false)
-    })
-
-    const DirectoryTreeSchema = z.object({
-      path: z.string()
-    })
-
-    const GetFileInfoSchema = z.object({
-      path: z.string()
-    })
-
+    const schemas = this.fileSystemSchemas
     return [
       {
         type: 'function',
         function: {
           name: 'read_file',
           description: 'Read the contents of one or more files',
-          parameters: zodToJsonSchema(ReadFileSchema) as {
+          parameters: zodToJsonSchema(schemas.read_file) as {
             type: string
             properties: Record<string, unknown>
             required?: string[]
@@ -212,7 +204,7 @@ export class AgentToolManager {
         function: {
           name: 'write_file',
           description: 'Write content to a file',
-          parameters: zodToJsonSchema(WriteFileSchema) as {
+          parameters: zodToJsonSchema(schemas.write_file) as {
             type: string
             properties: Record<string, unknown>
             required?: string[]
@@ -229,7 +221,7 @@ export class AgentToolManager {
         function: {
           name: 'list_directory',
           description: 'List files and directories in a path',
-          parameters: zodToJsonSchema(ListDirectorySchema) as {
+          parameters: zodToJsonSchema(schemas.list_directory) as {
             type: string
             properties: Record<string, unknown>
             required?: string[]
@@ -246,7 +238,7 @@ export class AgentToolManager {
         function: {
           name: 'create_directory',
           description: 'Create a directory',
-          parameters: zodToJsonSchema(CreateDirectorySchema) as {
+          parameters: zodToJsonSchema(schemas.create_directory) as {
             type: string
             properties: Record<string, unknown>
             required?: string[]
@@ -263,7 +255,7 @@ export class AgentToolManager {
         function: {
           name: 'move_files',
           description: 'Move or rename files and directories',
-          parameters: zodToJsonSchema(MoveFilesSchema) as {
+          parameters: zodToJsonSchema(schemas.move_files) as {
             type: string
             properties: Record<string, unknown>
             required?: string[]
@@ -281,7 +273,7 @@ export class AgentToolManager {
           name: 'edit_text',
           description:
             'Edit text files using pattern replacement or line-based editing. When using "replace_pattern" operation, the pattern must be safe and not exceed 1000 characters to prevent ReDoS (Regular Expression Denial of Service) attacks.',
-          parameters: zodToJsonSchema(EditTextSchema) as {
+          parameters: zodToJsonSchema(schemas.edit_text) as {
             type: string
             properties: Record<string, unknown>
             required?: string[]
@@ -298,7 +290,7 @@ export class AgentToolManager {
         function: {
           name: 'search_files',
           description: 'Search for files matching a pattern',
-          parameters: zodToJsonSchema(FileSearchSchema) as {
+          parameters: zodToJsonSchema(schemas.search_files) as {
             type: string
             properties: Record<string, unknown>
             required?: string[]
@@ -315,7 +307,7 @@ export class AgentToolManager {
         function: {
           name: 'directory_tree',
           description: 'Get a recursive directory tree as JSON',
-          parameters: zodToJsonSchema(DirectoryTreeSchema) as {
+          parameters: zodToJsonSchema(schemas.directory_tree) as {
             type: string
             properties: Record<string, unknown>
             required?: string[]
@@ -332,7 +324,7 @@ export class AgentToolManager {
         function: {
           name: 'get_file_info',
           description: 'Get detailed metadata about a file or directory',
-          parameters: zodToJsonSchema(GetFileInfoSchema) as {
+          parameters: zodToJsonSchema(schemas.get_file_info) as {
             type: string
             properties: Record<string, unknown>
             required?: string[]
@@ -350,7 +342,7 @@ export class AgentToolManager {
           name: 'grep_search',
           description:
             'Search file contents using a regular expression. The pattern must be safe and not exceed 1000 characters to prevent ReDoS (Regular Expression Denial of Service) attacks.',
-          parameters: zodToJsonSchema(GrepSearchSchema) as {
+          parameters: zodToJsonSchema(schemas.grep_search) as {
             type: string
             properties: Record<string, unknown>
             required?: string[]
@@ -368,7 +360,7 @@ export class AgentToolManager {
           name: 'text_replace',
           description:
             'Replace text in a file using a regular expression. The pattern must be safe and not exceed 1000 characters to prevent ReDoS (Regular Expression Denial of Service) attacks.',
-          parameters: zodToJsonSchema(TextReplaceSchema) as {
+          parameters: zodToJsonSchema(schemas.text_replace) as {
             type: string
             properties: Record<string, unknown>
             required?: string[]
@@ -408,29 +400,41 @@ export class AgentToolManager {
       throw new Error('FileSystem handler not initialized')
     }
 
+    const schema = this.fileSystemSchemas[toolName as keyof typeof this.fileSystemSchemas]
+    if (!schema) {
+      throw new Error(`No schema found for FileSystem tool: ${toolName}`)
+    }
+
+    const validationResult = schema.safeParse(args)
+    if (!validationResult.success) {
+      throw new Error(`Invalid arguments for ${toolName}: ${validationResult.error.message}`)
+    }
+
+    const parsedArgs = validationResult.data
+
     switch (toolName) {
       case 'read_file':
-        return await this.fileSystemHandler.readFile(args)
+        return await this.fileSystemHandler.readFile(parsedArgs)
       case 'write_file':
-        return await this.fileSystemHandler.writeFile(args)
+        return await this.fileSystemHandler.writeFile(parsedArgs)
       case 'list_directory':
-        return await this.fileSystemHandler.listDirectory(args)
+        return await this.fileSystemHandler.listDirectory(parsedArgs)
       case 'create_directory':
-        return await this.fileSystemHandler.createDirectory(args)
+        return await this.fileSystemHandler.createDirectory(parsedArgs)
       case 'move_files':
-        return await this.fileSystemHandler.moveFiles(args)
+        return await this.fileSystemHandler.moveFiles(parsedArgs)
       case 'edit_text':
-        return await this.fileSystemHandler.editText(args)
+        return await this.fileSystemHandler.editText(parsedArgs)
       case 'search_files':
-        return await this.fileSystemHandler.searchFiles(args)
+        return await this.fileSystemHandler.searchFiles(parsedArgs)
       case 'directory_tree':
-        return await this.fileSystemHandler.directoryTree(args)
+        return await this.fileSystemHandler.directoryTree(parsedArgs)
       case 'get_file_info':
-        return await this.fileSystemHandler.getFileInfo(args)
+        return await this.fileSystemHandler.getFileInfo(parsedArgs)
       case 'grep_search':
-        return await this.fileSystemHandler.grepSearch(args)
+        return await this.fileSystemHandler.grepSearch(parsedArgs)
       case 'text_replace':
-        return await this.fileSystemHandler.textReplace(args)
+        return await this.fileSystemHandler.textReplace(parsedArgs)
       default:
         throw new Error(`Unknown FileSystem tool: ${toolName}`)
     }
@@ -441,7 +445,7 @@ export class AgentToolManager {
     try {
       fs.mkdirSync(tempDir, { recursive: true })
     } catch (error) {
-      console.warn(
+      logger.warn(
         '[AgentToolManager] Failed to create default workspace, using system temp:',
         error
       )

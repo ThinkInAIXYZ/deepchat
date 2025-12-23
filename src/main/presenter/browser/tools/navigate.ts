@@ -165,15 +165,16 @@ export function createNavigateTools(): BrowserToolDefinition[] {
                   }
                   return result
                 } catch (error) {
-                  // If navigation fails, still return success since tab was created
-                  // The tab might still be loading or the URL might be correct
+                  console.error('[browser_navigate] Failed to navigate newly created tab:', error)
+                  const errorMessage = error instanceof Error ? error.message : String(error)
                   const result: ToolResult = {
                     content: [
                       {
                         type: 'text' as const,
-                        text: `Created new tab and navigated to ${parsed.url}\nTitle: ${browserTab.title || 'unknown'}`
+                        text: `Failed to navigate new tab ${browserTab.tabId} to ${parsed.url}\nError: ${errorMessage}\nTitle: ${browserTab.title || 'unknown'}`
                       }
-                    ]
+                    ],
+                    isError: true
                   }
                   return result
                 }
