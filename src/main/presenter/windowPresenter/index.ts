@@ -669,21 +669,23 @@ export class WindowPresenter implements IWindowPresenter {
       icon?: string
     }
     windowType?: 'chat' | 'browser'
-    showOnReady?: boolean // ready-to-show 时是否自动显示
     x?: number // 初始 X 坐标
     y?: number // 初始 Y 坐标
   }): Promise<number | null> {
     console.log('Creating new shell window.')
     const windowType = options?.windowType ?? 'chat'
-    const showOnReady = options?.showOnReady ?? windowType !== 'browser'
 
     // 根据平台选择图标
     const iconFile = nativeImage.createFromPath(process.platform === 'win32' ? iconWin : icon)
 
+    // 根据窗口类型设置默认宽度
+    const defaultWidth = windowType === 'browser' ? 600 : 800
+    const defaultHeight = 620
+
     // 使用窗口状态管理器恢复位置和尺寸
     const shellWindowState = windowStateManager({
-      defaultWidth: 800,
-      defaultHeight: 620
+      defaultWidth,
+      defaultHeight
     })
 
     // 计算初始位置，确保窗口完全在屏幕范围内
@@ -759,9 +761,8 @@ export class WindowPresenter implements IWindowPresenter {
     shellWindow.on('ready-to-show', () => {
       console.log(`Window ${windowId} is ready to show.`)
       if (!shellWindow.isDestroyed()) {
-        if (showOnReady) {
-          shellWindow.show() // 显示窗口避免白屏
-        }
+        shellWindow.show()
+        shellWindow.focus()
         eventBus.sendToMain(WINDOW_EVENTS.WINDOW_CREATED, windowId)
       } else {
         console.warn(`Window ${windowId} was destroyed before ready-to-show.`)

@@ -907,7 +907,8 @@ export const useChatStore = defineStore('chat', () => {
   const updateChatConfig = async (newConfig: Partial<CONVERSATION_SETTINGS>) => {
     chatConfig.value = { ...chatConfig.value, ...newConfig }
     await saveChatConfig()
-    await loadChatConfig() // 加载对话配置
+    // Removed loadChatConfig() call to avoid triggering watch loops
+    // loadChatConfig() should only be called when switching conversations, not after every config update
   }
 
   const deleteMessage = async (messageId: string) => {

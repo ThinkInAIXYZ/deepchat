@@ -229,7 +229,6 @@ export interface IWindowPresenter {
     }
     forMovedTab?: boolean
     windowType?: 'chat' | 'browser'
-    showOnReady?: boolean
     x?: number
     y?: number
   }): Promise<number | null>

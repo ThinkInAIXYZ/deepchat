@@ -31,7 +31,6 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
   private readonly browserToolManager: BrowserToolManager
   private readonly windowPresenter: IWindowPresenter
   private readonly tabPresenter: ITabPresenter
-  private explicitlyOpened = false
 
   constructor(windowPresenter: IWindowPresenter, tabPresenter: ITabPresenter) {
     this.windowPresenter = windowPresenter
@@ -44,17 +43,12 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
     // Lazy initialization: only create browser window/tabs when explicitly requested.
   }
 
-  async ensureWindow(options?: {
-    showOnReady?: boolean
-    x?: number
-    y?: number
-  }): Promise<number | null> {
+  async ensureWindow(options?: { x?: number; y?: number }): Promise<number | null> {
     const window = this.getWindow()
     if (window) return window.id
 
     this.windowId = await this.windowPresenter.createShellWindow({
       windowType: 'browser',
-      showOnReady: options?.showOnReady ?? false,
       x: options?.x,
       y: options?.y
     })
@@ -73,10 +67,6 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
   }
 
   async show(): Promise<void> {
-    if (!this.explicitlyOpened) {
-      this.explicitlyOpened = true
-    }
-
     const existingWindow = this.getWindow()
     const referenceBounds = existingWindow
       ? this.getReferenceBounds(existingWindow.id)
@@ -85,18 +75,17 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
     // Calculate position before creating window if it doesn't exist
     let initialPosition: { x: number; y: number } | undefined
     if (!existingWindow && referenceBounds) {
-      // Use default window size for calculation (will be adjusted by windowStateManager)
+      // Use default window size for calculation (browser window is 600px wide)
       const defaultBounds: Rectangle = {
         x: 0,
         y: 0,
-        width: 800,
+        width: 600,
         height: 620
       }
       initialPosition = this.calculateWindowPosition(defaultBounds, referenceBounds)
     }
 
     await this.ensureWindow({
-      showOnReady: false,
       x: initialPosition?.x,
       y: initialPosition?.y
     })
@@ -114,17 +103,25 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
         window.setPosition(position.x, position.y)
       }
 
-      const reveal = () => {
-        if (!window.isDestroyed()) {
-          this.windowPresenter.show(window.id)
-          this.emitVisibility(true)
-        }
-      }
-      // If window is already visible, it's ready to show
-      if (window.isVisible()) {
-        reveal()
+      // For existing windows, directly show them (they're already ready)
+      // For new windows, wait for ready-to-show event
+      if (existingWindow) {
+        // Window already exists, just show it directly
+        this.windowPresenter.show(window.id)
+        this.emitVisibility(true)
       } else {
-        window.once('ready-to-show', reveal)
+        // New window, wait for ready-to-show
+        const reveal = () => {
+          if (!window.isDestroyed()) {
+            this.windowPresenter.show(window.id)
+            this.emitVisibility(true)
+          }
+        }
+        if (window.isVisible()) {
+          reveal()
+        } else {
+          window.once('ready-to-show', reveal)
+        }
       }
     }
   }
@@ -234,6 +231,7 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
     this.setupTabListeners(tabKey, viewId as number, view.webContents)
     this.emitTabCreated(browserTab)
     this.emitTabCount()
+
     const result = this.toTabInfo(browserTab)
     return result
   }
@@ -436,40 +434,59 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
     windowBounds: Rectangle,
     referenceBounds?: Rectangle
   ): { x: number; y: number } {
-    const gap = 20
-    const display = referenceBounds
-      ? screen.getDisplayMatching(referenceBounds)
-      : screen.getDisplayMatching(windowBounds)
-    const { workArea } = display
-
-    let targetX: number
-    if (referenceBounds) {
-      const rightX = referenceBounds.x + referenceBounds.width + gap
-      if (rightX + windowBounds.width <= workArea.x + workArea.width) {
-        targetX = rightX
-      } else {
-        const leftX = referenceBounds.x - windowBounds.width - gap
-        if (leftX >= workArea.x) {
-          targetX = leftX
-        } else {
-          targetX = workArea.x + workArea.width - windowBounds.width
-        }
+    if (!referenceBounds) {
+      // 如果没有参考窗口，使用默认位置
+      const display = screen.getDisplayMatching(windowBounds)
+      const { workArea } = display
+      return {
+        x: workArea.x + workArea.width - windowBounds.width - 20,
+        y: workArea.y + (workArea.height - windowBounds.height) / 2
       }
-    } else {
-      targetX = workArea.x + workArea.width - windowBounds.width - gap
     }
 
-    const idealY = referenceBounds
-      ? referenceBounds.y + (referenceBounds.height - windowBounds.height) / 2
-      : workArea.y + (workArea.height - windowBounds.height) / 2
+    const gap = 20
+    const display = screen.getDisplayMatching(referenceBounds)
+    const { workArea } = display
 
+    // Browser 窗口尺寸
+    const browserWidth = windowBounds.width
+    const browserHeight = windowBounds.height
+
+    // 计算主窗口右侧和左侧的空间
+    const spaceOnRight = workArea.x + workArea.width - (referenceBounds.x + referenceBounds.width)
+    const spaceOnLeft = referenceBounds.x - workArea.x
+
+    let targetX: number
+    let targetY: number
+
+    if (spaceOnRight >= browserWidth + gap) {
+      // 显示在主窗口右侧
+      targetX = referenceBounds.x + referenceBounds.width + gap
+      targetY = referenceBounds.y + (referenceBounds.height - browserHeight) / 2
+    } else if (spaceOnLeft >= browserWidth + gap) {
+      // 显示在主窗口左侧
+      targetX = referenceBounds.x - browserWidth - gap
+      targetY = referenceBounds.y + (referenceBounds.height - browserHeight) / 2
+    } else {
+      // 空间不够，显示在主窗口下方
+      targetX = referenceBounds.x
+      const spaceBelow = workArea.y + workArea.height - (referenceBounds.y + referenceBounds.height)
+      if (spaceBelow >= browserHeight + gap) {
+        targetY = referenceBounds.y + referenceBounds.height + gap
+      } else {
+        // 下方空间也不够，显示在主窗口上方
+        targetY = referenceBounds.y - browserHeight - gap
+      }
+    }
+
+    // 确保窗口在屏幕范围内
     const clampedX = Math.max(
       workArea.x,
-      Math.min(targetX, workArea.x + workArea.width - windowBounds.width)
+      Math.min(targetX, workArea.x + workArea.width - browserWidth)
     )
     const clampedY = Math.max(
       workArea.y,
-      Math.min(idealY, workArea.y + workArea.height - windowBounds.height)
+      Math.min(targetY, workArea.y + workArea.height - browserHeight)
     )
 
     return { x: Math.round(clampedX), y: Math.round(clampedY) }
@@ -477,7 +494,6 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
 
   private handleWindowClosed(): void {
     this.cleanup()
-    this.explicitlyOpened = false
     this.emitVisibility(false)
     this.emitTabCount()
   }
