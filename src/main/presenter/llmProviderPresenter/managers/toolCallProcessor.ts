@@ -6,6 +6,7 @@ import {
   MCPToolResponse,
   ModelConfig
 } from '@shared/presenter'
+import { isNonRetryableError } from './errorClassification'
 
 interface ToolCallProcessorOptions {
   getAllToolDefinitions: (context: ToolCallExecutionContext) => Promise<MCPToolDefinition[]>
@@ -230,6 +231,11 @@ export class ToolCallProcessor {
         )
         const errorMessage = toolError instanceof Error ? toolError.message : String(toolError)
 
+        // Check if error is non-retryable (should stop the loop)
+        const errorForClassification: Error | string =
+          toolError instanceof Error ? toolError : String(toolError)
+        const isNonRetryable = isNonRetryableError(errorForClassification)
+
         this.appendToolError(
           context.conversationMessages,
           context.modelConfig,
@@ -251,6 +257,14 @@ export class ToolCallProcessor {
             tool_call_server_description: toolDef.server.description
           }
         }
+
+        // If error is non-retryable, stop the loop
+        // Otherwise, keep needContinueConversation = true (default) to let LLM decide
+        if (isNonRetryable) {
+          needContinueConversation = false
+          break
+        }
+        // For retryable errors, continue the loop (needContinueConversation remains true)
       }
     }
 
