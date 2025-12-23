@@ -180,9 +180,14 @@ export class TabPresenter implements ITabPresenter {
     }
 
     const webPreferences: WebPreferences = {
-      preload: join(__dirname, '../preload/index.mjs'),
       sandbox: false,
       devTools: is.dev
+    }
+
+    // 对于 browser 窗口，不注入 preload（安全考虑）
+    // 对于 chat 窗口，注入 preload
+    if (windowType !== 'browser') {
+      webPreferences.preload = join(__dirname, '../preload/index.mjs')
     }
 
     if (windowType === 'browser') {
@@ -211,7 +216,9 @@ export class TabPresenter implements ITabPresenter {
       view.webContents.loadURL(url)
     }
 
-    if (is.dev) {
+    // 对于 browser 窗口，不自动打开 DevTools
+    // 对于 chat 窗口，开发模式下可以自动打开
+    if (is.dev && windowType !== 'browser') {
       view.webContents.openDevTools({ mode: 'detach' })
     }
 

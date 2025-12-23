@@ -1045,10 +1045,7 @@ export class WindowPresenter implements IWindowPresenter {
       })
     }
 
-    // 开发模式下可选开启 DevTools
-    if (is.dev) {
-      shellWindow.webContents.openDevTools({ mode: 'detach' })
-    }
+    // DevTools 不再自动打开，需要手动通过菜单或快捷键打开
 
     console.log(`Shell window ${windowId} created successfully.`)
 

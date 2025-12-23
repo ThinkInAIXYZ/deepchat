@@ -628,6 +628,12 @@ export class BrowserTab {
       throw new Error('WebContents destroyed')
     }
 
+    // 安全检查：只有加载外部网页的 browser tab 才允许绑定 CDP
+    const currentUrl = this.webContents.getURL()
+    if (currentUrl.startsWith('local://')) {
+      throw new Error('CDP is not allowed for local:// URLs')
+    }
+
     if (!this.isAttached) {
       try {
         await this.cdpManager.createSession(this.webContents)
