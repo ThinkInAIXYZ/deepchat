@@ -1,6 +1,6 @@
 {
   "name": "DeepChat",
-  "version": "0.5.4",
+  "version": "0.5.6-canary",
   "description": "DeepChat，一个简单易用的AI客户端",
   "main": "./out/main/index.js",
   "author": "ThinkInAIXYZ",
