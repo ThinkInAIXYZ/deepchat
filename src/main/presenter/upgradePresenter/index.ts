@@ -258,12 +258,7 @@ export class UpgradePresenter implements IUpgradePresenter {
       const rawChannel = this._configPresenter.getUpdateChannel()
       autoUpdater.allowPrerelease = rawChannel === 'canary'
       if (process.platform === 'darwin') {
-        if (rawChannel === 'canary') {
-          // Clear runtime channel so prerelease tag matching works; app-update.yml channel drives file name.
-          autoUpdater.channel = ''
-        } else {
-          autoUpdater.channel = process.arch === 'arm64' ? 'arm64' : 'x64'
-        }
+        autoUpdater.channel = process.arch === 'arm64' ? 'arm64' : 'x64'
       }
 
       // 更新上次检查时间
