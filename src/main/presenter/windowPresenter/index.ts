@@ -675,7 +675,7 @@ export class WindowPresenter implements IWindowPresenter {
   }): Promise<number | null> {
     console.log('Creating new shell window.')
     const windowType = options?.windowType ?? 'chat'
-    const showOnReady = options?.showOnReady ?? true
+    const showOnReady = options?.showOnReady ?? windowType !== 'browser'
 
     // 根据平台选择图标
     const iconFile = nativeImage.createFromPath(process.platform === 'win32' ? iconWin : icon)

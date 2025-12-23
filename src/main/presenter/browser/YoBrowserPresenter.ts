@@ -1,4 +1,5 @@
-import { BrowserWindow, WebContents } from 'electron'
+import { BrowserWindow, WebContents, screen } from 'electron'
+import type { Rectangle } from 'electron'
 import { eventBus, SendTarget } from '@/eventbus'
 import { TAB_EVENTS, YO_BROWSER_EVENTS } from '@/events'
 import { BrowserTabInfo, BrowserContextSnapshot, ScreenshotOptions } from '@shared/types/browser'
@@ -43,13 +44,19 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
     // Lazy initialization: only create browser window/tabs when explicitly requested.
   }
 
-  async ensureWindow(options?: { showOnReady?: boolean }): Promise<number | null> {
+  async ensureWindow(options?: {
+    showOnReady?: boolean
+    x?: number
+    y?: number
+  }): Promise<number | null> {
     const window = this.getWindow()
     if (window) return window.id
 
     this.windowId = await this.windowPresenter.createShellWindow({
       windowType: 'browser',
-      showOnReady: options?.showOnReady ?? false
+      showOnReady: options?.showOnReady ?? false,
+      x: options?.x,
+      y: options?.y
     })
 
     const created = this.getWindow()
@@ -69,14 +76,56 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
     if (!this.explicitlyOpened) {
       this.explicitlyOpened = true
     }
-    await this.ensureWindow({ showOnReady: true })
+
+    const existingWindow = this.getWindow()
+    const referenceBounds = existingWindow
+      ? this.getReferenceBounds(existingWindow.id)
+      : this.getReferenceBounds()
+
+    // Calculate position before creating window if it doesn't exist
+    let initialPosition: { x: number; y: number } | undefined
+    if (!existingWindow && referenceBounds) {
+      // Use default window size for calculation (will be adjusted by windowStateManager)
+      const defaultBounds: Rectangle = {
+        x: 0,
+        y: 0,
+        width: 800,
+        height: 620
+      }
+      initialPosition = this.calculateWindowPosition(defaultBounds, referenceBounds)
+    }
+
+    await this.ensureWindow({
+      showOnReady: false,
+      x: initialPosition?.x,
+      y: initialPosition?.y
+    })
+
     if (this.tabIdToBrowserTab.size === 0) {
       await this.createTab('about:blank')
     }
+
     const window = this.getWindow()
     if (window && !window.isDestroyed()) {
-      this.windowPresenter.show(window.id)
-      this.emitVisibility(true)
+      // If window already existed, recalculate position based on actual bounds
+      if (existingWindow) {
+        const currentReferenceBounds = this.getReferenceBounds(window.id)
+        const position = this.calculateWindowPosition(window.getBounds(), currentReferenceBounds)
+        window.setPosition(position.x, position.y)
+      }
+
+      const reveal = () => {
+        if (!window.isDestroyed()) {
+          this.windowPresenter.show(window.id)
+          this.emitVisibility(true)
+        }
+      }
+      // If window is already visible, it's ready to show
+      if (window.isVisible()) {
+        reveal()
+      } else {
+        window.once('ready-to-show', reveal)
+      }
     }
   }
 
@@ -370,6 +419,60 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
       return null
     }
     return window
+  }
+
+  private getReferenceBounds(excludeWindowId?: number): Rectangle | undefined {
+    const focused = this.windowPresenter.getFocusedWindow()
+    if (focused && !focused.isDestroyed() && focused.id !== excludeWindowId) {
+      return focused.getBounds()
+    }
+    const fallback = this.windowPresenter
+      .getAllWindows()
+      .find((candidate) => candidate.id !== excludeWindowId)
+    return fallback?.getBounds()
+  }
+
+  private calculateWindowPosition(
+    windowBounds: Rectangle,
+    referenceBounds?: Rectangle
+  ): { x: number; y: number } {
+    const gap = 20
+    const display = referenceBounds
+      ? screen.getDisplayMatching(referenceBounds)
+      : screen.getDisplayMatching(windowBounds)
+    const { workArea } = display
+
+    let targetX: number
+    if (referenceBounds) {
+      const rightX = referenceBounds.x + referenceBounds.width + gap
+      if (rightX + windowBounds.width <= workArea.x + workArea.width) {
+        targetX = rightX
+      } else {
+        const leftX = referenceBounds.x - windowBounds.width - gap
+        if (leftX >= workArea.x) {
+          targetX = leftX
+        } else {
+          targetX = workArea.x + workArea.width - windowBounds.width
+        }
+      }
+    } else {
+      targetX = workArea.x + workArea.width - windowBounds.width - gap
+    }
+
+    const idealY = referenceBounds
+      ? referenceBounds.y + (referenceBounds.height - windowBounds.height) / 2
+      : workArea.y + (workArea.height - windowBounds.height) / 2
+
+    const clampedX = Math.max(
+      workArea.x,
+      Math.min(targetX, workArea.x + workArea.width - windowBounds.width)
+    )
+    const clampedY = Math.max(
+      workArea.y,
+      Math.min(idealY, workArea.y + workArea.height - windowBounds.height)
+    )
+
+    return { x: Math.round(clampedX), y: Math.round(clampedY) }
   }
 
   private handleWindowClosed(): void {
