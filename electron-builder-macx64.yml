@@ -79,5 +79,7 @@ mac:
   artifactName: ${name}-${version}-mac-${arch}.${ext}
 npmRebuild: true
 publish:
-  provider: generic
-  url: https://cdn.deepchatai.cn/upgrade/
+  provider: github
+  owner: ThinkInAIXYZ
+  repo: deepchat
+  channel: x64

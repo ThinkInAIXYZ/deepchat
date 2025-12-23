@@ -37,7 +37,7 @@
     "build:win:arm64": "pnpm run build && electron-builder --win --arm64",
     "install:sharp": "node scripts/install-sharp-for-platform.js",
     "build:mac": "pnpm run build && electron-builder --mac",
-    "build:mac:arm64": "pnpm run build && electron-builder --mac --arm64",
+    "build:mac:arm64": "pnpm run build && electron-builder -c electron-builder-macarm.yml --mac --arm64",
     "build:mac:x64": "pnpm run build && electron-builder -c electron-builder-macx64.yml --mac --x64 ",
     "build:linux": "pnpm run build && electron-builder --linux",
     "build:linux:x64": "pnpm run build && electron-builder --linux --x64",

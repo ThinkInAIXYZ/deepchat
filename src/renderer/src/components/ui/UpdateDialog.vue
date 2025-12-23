@@ -44,7 +44,7 @@
           <Button @click="handleUpdate('github')">
             {{ t('update.githubDownload') }}
           </Button>
-          <Button @click="handleUpdate('netdisk')">
+          <Button v-if="upgrade.updateInfo?.downloadUrl" @click="handleUpdate('netdisk')">
             {{ t('update.netdiskDownload') }}
           </Button>
         </template>

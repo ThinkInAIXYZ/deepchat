@@ -105,6 +105,15 @@ export const useUpgradeStore = defineStore('upgrade', () => {
           hasUpdate.value = true
           isDownloading.value = true
           isUpdating.value = true
+          if (info) {
+            updateInfo.value = {
+              version: info.version,
+              releaseDate: info.releaseDate,
+              releaseNotes: info.releaseNotes,
+              githubUrl: info.githubUrl,
+              downloadUrl: info.downloadUrl
+            }
+          }
           break
         case 'downloaded':
           hasUpdate.value = true

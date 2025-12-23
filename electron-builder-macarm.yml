@@ -10,22 +10,22 @@ files:
   - '!src/*'
   - '!test/*'
   - '!docs/*'
-  - '!keys/*'
-  - '!scripts/*'
-  - '!.github/*'
   - '!electron.vite.config.{js,ts,mjs,cjs}'
   - '!{.eslintignore,.eslintrc.cjs,.prettierignore,.prettierrc.yaml,dev-app-update.yml,CHANGELOG.md,README.md}'
   - '!{.env,.env.*,.npmrc,pnpm-lock.yaml}'
   - '!{tsconfig.json,tsconfig.node.json,tsconfig.app.json}'
+  - '!keys/*'
+  - '!scripts/*'
+  - '!.github/*'
   - '!electron-builder.yml'
   - '!electron-builder-macx64.yml'
+  - '!electron-builder-macarm.yml'
   - '!test/*'
   - '!*.config.ts'
   - '!*.config.js'
   - '!**/{LICENSE,LICENSE.txt,*.LICENSE.txt,NOTICE.txt,README.md,CHANGELOG.md,CONTRIBUTING.md,CONTRIBUTING.zh.md,README.zh.md,README.jp.md}'
   - '!**/{.DS_Store,Thumbs.db}'
   - '!*.md'
-
 asarUnpack:
   - '**/node_modules/sharp/**/*'
   - '**/node_modules/@img/**/*'
@@ -36,6 +36,8 @@ extraResources:
   - from: ./resources/cdn/
     to: app.asar.unpacked/resources/cdn
     filter: ['**/*']
+afterSign: scripts/notarize.js
+afterPack: scripts/afterPack.js
 electronLanguages:
   - zh-CN
   - zh-TW
@@ -61,18 +63,6 @@ electronLanguages:
   - da
   - he-IL
   - he
-win:
-  executableName: DeepChat
-nsis:
-  artifactName: ${name}-${version}-windows-${arch}.${ext}
-  shortcutName: ${productName}
-  uninstallDisplayName: ${productName}
-  createDesktopShortcut: always
-  allowToChangeInstallationDirectory: true
-  oneClick: false
-  include: build/nsis-installer.nsh
-afterSign: scripts/notarize.js
-afterPack: scripts/afterPack.js
 mac:
   entitlementsInherit: build/entitlements.mac.plist
   extendInfo:
@@ -88,17 +78,9 @@ mac:
     - target: zip
       arch: arm64
   artifactName: ${name}-${version}-mac-${arch}.${ext}
-linux:
-  target:
-    - AppImage
-    - tar.gz
-  maintainer: ThinkInAIXYZ
-  category: Utility
-  artifactName: ${name}-${version}-linux-${arch}.${ext}
-  mimeTypes:
-    - x-scheme-handler/deepchat
 npmRebuild: true
 publish:
   provider: github
   owner: ThinkInAIXYZ
   repo: deepchat
+  channel: arm64

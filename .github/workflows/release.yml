@@ -49,6 +49,8 @@ jobs:
             cp artifacts/deepchat-win-x64/*.exe release_assets/ 2>/dev/null || true
             cp artifacts/deepchat-win-x64/*.msi release_assets/ 2>/dev/null || true
             cp artifacts/deepchat-win-x64/*.zip release_assets/ 2>/dev/null || true
+            cp artifacts/deepchat-win-x64/latest*.yml release_assets/ 2>/dev/null || true
+            cp artifacts/deepchat-win-x64/*.blockmap release_assets/ 2>/dev/null || true
           fi
 
           # Process Windows arm64 artifacts
@@ -64,18 +66,29 @@ jobs:
             cp artifacts/deepchat-linux-x64/*.deb release_assets/ 2>/dev/null || true
             cp artifacts/deepchat-linux-x64/*.rpm release_assets/ 2>/dev/null || true
             cp artifacts/deepchat-linux-x64/*.tar.gz release_assets/ 2>/dev/null || true
+            cp artifacts/deepchat-linux-x64/latest*.yml release_assets/ 2>/dev/null || true
+            cp artifacts/deepchat-linux-x64/*.blockmap release_assets/ 2>/dev/null || true
           fi
 
           # Process Mac x64 artifacts
           if [ -d "artifacts/deepchat-mac-x64" ]; then
             cp artifacts/deepchat-mac-x64/*.dmg release_assets/ 2>/dev/null || true
             cp artifacts/deepchat-mac-x64/*.zip release_assets/ 2>/dev/null || true
+            cp artifacts/deepchat-mac-x64/latest*.yml release_assets/ 2>/dev/null || true
+            cp artifacts/deepchat-mac-x64/*.blockmap release_assets/ 2>/dev/null || true
           fi
 
           # Process Mac arm64 artifacts
           if [ -d "artifacts/deepchat-mac-arm64" ]; then
             cp artifacts/deepchat-mac-arm64/*.dmg release_assets/ 2>/dev/null || true
             cp artifacts/deepchat-mac-arm64/*.zip release_assets/ 2>/dev/null || true
+            cp artifacts/deepchat-mac-arm64/latest*.yml release_assets/ 2>/dev/null || true
+            cp artifacts/deepchat-mac-arm64/*.blockmap release_assets/ 2>/dev/null || true
+          fi
+
+          CHANGELOG_FILE=$(find artifacts -name "changelog.md" | head -n 1)
+          if [ -n "$CHANGELOG_FILE" ]; then
+            cp "$CHANGELOG_FILE" release_assets/ 2>/dev/null || true
           fi
 
           ls -la release_assets/

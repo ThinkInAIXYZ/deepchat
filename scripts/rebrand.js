@@ -151,6 +151,35 @@ function updateElectronBuilderMacX64(config) {
   }
 }
 
+// 更新 electron-builder-macarm.yml
+function updateElectronBuilderMacArm(config) {
+  const builderPath = path.join(PROJECT_ROOT, 'electron-builder-macarm.yml')
+
+  if (!fs.existsSync(builderPath)) {
+    return // 文件不存在则跳过
+  }
+
+  try {
+    let content = fs.readFileSync(builderPath, 'utf8')
+
+    // 替换 appId
+    content = content.replace(/appId: .+/, `appId: ${config.app.appId}`)
+
+    // 替换 productName
+    content = content.replace(/productName: .+/, `productName: ${config.app.productName}`)
+
+    // 替换 publish URL
+    if (config.update && config.update.baseUrl) {
+      content = content.replace(/url: https:\/\/cdn\.deepchatai\.cn\/upgrade\//, `url: ${config.update.baseUrl}`)
+    }
+
+    fs.writeFileSync(builderPath, content, 'utf8')
+    success('已更新 electron-builder-macarm.yml')
+  } catch (err) {
+    error(`更新 electron-builder-macarm.yml 失败: ${err.message}`)
+  }
+}
+
 // 更新主进程中的 app user model ID
 function updateMainIndex(config) {
   const mainIndexPath = path.join(PROJECT_ROOT, 'src/main/index.ts')
@@ -481,6 +510,7 @@ function main() {
   updatePackageJson(config)
   updateElectronBuilder(config)
   updateElectronBuilderMacX64(config)
+  updateElectronBuilderMacArm(config)
   updateMainIndex(config)
   updateUpgradePresenter(config)
   updateI18nFiles(config)
