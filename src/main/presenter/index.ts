@@ -166,9 +166,13 @@ export class Presenter implements IPresenter {
     // 设置特殊事件的处理逻辑
     this.setupSpecialEventHandlers()
 
-    // 应用主窗口准备就绪时触发初始化
+    // 应用主窗口准备就绪时触发初始化（只执行一次）
+    let initCalled = false
     eventBus.on(WINDOW_EVENTS.READY_TO_SHOW, () => {
-      this.init()
+      if (!initCalled) {
+        initCalled = true
+        this.init()
+      }
     })
   }
 

@@ -308,9 +308,10 @@ export class ToolCallProcessor {
       })
     }
 
+    const toolContent = this.stringifyToolContent(toolResponse.content)
     conversationMessages.push({
       role: 'tool',
-      content: this.stringifyToolContent(toolResponse.content),
+      content: toolContent,
       tool_call_id: toolCall.id
     })
   }

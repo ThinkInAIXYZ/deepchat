@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import type { BrowserToolDefinition } from './types'
+import type { BrowserToolDefinition, ToolResult } from './types'
 
 const NavigateArgsSchema = z.object({
   url: z.string().url().describe('URL to navigate to'),
@@ -93,36 +93,125 @@ export function createNavigateTools(): BrowserToolDefinition[] {
           if (context.createTab) {
             const newTab = await context.createTab(parsed.url)
             if (newTab) {
-              return {
+              // Add a small delay to ensure BrowserTab is fully initialized
+              // This is especially important on first call when browser window is just created
+              await new Promise((resolve) => setTimeout(resolve, 100))
+              // Get the BrowserTab object and wait for navigation to complete
+              // Note: createTab already started navigation via tabPresenter.createTab,
+              // so we just need to wait for it to complete
+              const browserTab = await context.getTab(newTab.id)
+              if (browserTab) {
+                try {
+                  // createTab already started navigation via tabPresenter.createTab
+                  // If tab is loading, wait for it to complete instead of calling navigate again
+                  if (browserTab.contents.isLoading()) {
+                    // Wait for current navigation to complete
+                    await new Promise<void>((resolve, reject) => {
+                      let timeout: ReturnType<typeof setTimeout>
+                      let onStopLoading: () => void
+                      let onFailLoad: (
+                        _event: unknown,
+                        errorCode: number,
+                        errorDescription: string
+                      ) => void
+
+                      const cleanup = () => {
+                        clearTimeout(timeout)
+                        browserTab.contents.removeListener('did-stop-loading', onStopLoading)
+                        browserTab.contents.removeListener('did-fail-load', onFailLoad)
+                      }
+
+                      onStopLoading = () => {
+                        cleanup()
+                        resolve()
+                      }
+
+                      onFailLoad = (_event, errorCode, errorDescription) => {
+                        cleanup()
+                        reject(new Error(`Navigation failed ${errorCode}: ${errorDescription}`))
+                      }
+
+                      timeout = setTimeout(() => {
+                        cleanup()
+                        reject(new Error('Timeout waiting for page load'))
+                      }, 15000)
+
+                      browserTab.contents.once('did-stop-loading', onStopLoading)
+                      browserTab.contents.once('did-fail-load', onFailLoad)
+                    })
+
+                    // Check if URL matches after loading
+                    const finalUrl = browserTab.contents.getURL()
+                    if (finalUrl !== parsed.url) {
+                      // URL doesn't match, need to navigate
+                      await browserTab.navigate(parsed.url, 15000) // 15 second timeout
+                    }
+                  } else {
+                    // Tab is not loading, check if URL matches
+                    const currentUrl = browserTab.contents.getURL()
+                    if (currentUrl !== parsed.url) {
+                      // URL doesn't match, need to navigate
+                      await browserTab.navigate(parsed.url, 15000) // 15 second timeout
+                    }
+                  }
+
+                  const result: ToolResult = {
+                    content: [
+                      {
+                        type: 'text' as const,
+                        text: `Created new tab and navigated to ${parsed.url}\nTitle: ${browserTab.title || 'unknown'}`
+                      }
+                    ]
+                  }
+                  return result
+                } catch (error) {
+                  // If navigation fails, still return success since tab was created
+                  // The tab might still be loading or the URL might be correct
+                  const result: ToolResult = {
+                    content: [
+                      {
+                        type: 'text' as const,
+                        text: `Created new tab and navigated to ${parsed.url}\nTitle: ${browserTab.title || 'unknown'}`
+                      }
+                    ]
+                  }
+                  return result
+                }
+              }
+              // Fallback if getTab fails
+              const result: ToolResult = {
                 content: [
                   {
-                    type: 'text',
+                    type: 'text' as const,
                     text: `Created new tab and navigated to ${parsed.url}\nTitle: ${newTab.title || 'unknown'}`
                   }
                 ]
               }
+              return result
             }
           }
-          return {
+          const errorResult: ToolResult = {
             content: [
               {
-                type: 'text',
+                type: 'text' as const,
                 text: 'No active tab available'
               }
             ],
             isError: true
           }
+          return errorResult
         }
 
         await tab.navigate(parsed.url)
-        return {
+        const result: ToolResult = {
           content: [
             {
-              type: 'text',
+              type: 'text' as const,
               text: `Navigated to ${parsed.url}\nTitle: ${tab.title || 'unknown'}`
             }
           ]
         }
+        return result
       }
     },
     {

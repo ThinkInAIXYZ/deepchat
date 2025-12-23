@@ -960,7 +960,6 @@ defineExpose({
   appendMention: (name: string) => editorComposable.appendMention(name, mentionData),
   restoreFocus,
   getAgentWorkspacePath: () => {
-    // #region agent log
     const mode = chatMode.currentMode.value
     if (mode !== 'agent') return null
     return workspace.workspacePath.value

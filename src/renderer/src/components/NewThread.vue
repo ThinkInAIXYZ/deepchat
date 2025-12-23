@@ -503,7 +503,6 @@ onBeforeUnmount(() => {
 })
 
 const handleSend = async (content: UserMessageContent) => {
-  // #region agent log
   const chatInput = chatInputRef.value
   const pathFromInput = chatInput?.getAgentWorkspacePath?.()
   const pathFromStore = chatStore.chatConfig.agentWorkspacePath

@@ -640,7 +640,9 @@ export class AgentLoopHandler {
               yield value
             }
 
-            if (abortController.signal.aborted) break // Check after tool loop
+            if (abortController.signal.aborted) {
+              break // Check after tool loop
+            }
 
             if (!needContinueConversation) {
               // If max tool calls reached or explicit stop, break outer loop
@@ -667,7 +669,6 @@ export class AgentLoopHandler {
           needContinueConversation = false // Stop loop on inner error
         }
       } // --- End of Agent Loop (while) ---
-
       console.log(
         `[Agent Loop] Agent loop completed for event: ${eventId}, iterations: ${toolCallCount}`
       )

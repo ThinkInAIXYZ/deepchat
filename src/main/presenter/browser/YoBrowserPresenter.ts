@@ -114,7 +114,8 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
     await this.syncActiveTabId()
     if (!this.activeTabId) return null
     const tab = this.tabIdToBrowserTab.get(this.activeTabId)
-    return tab ? this.toTabInfo(tab) : null
+    const result = tab ? this.toTabInfo(tab) : null
+    return result
   }
 
   async getTabById(tabId: string): Promise<BrowserTabInfo | null> {
@@ -184,7 +185,8 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
     this.setupTabListeners(tabKey, viewId as number, view.webContents)
     this.emitTabCreated(browserTab)
     this.emitTabCount()
-    return this.toTabInfo(browserTab)
+    const result = this.toTabInfo(browserTab)
+    return result
   }
 
   async navigateTab(tabId: string, url: string, timeoutMs?: number): Promise<void> {
