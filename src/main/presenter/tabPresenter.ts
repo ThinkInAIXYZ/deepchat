@@ -48,7 +48,7 @@ export class TabPresenter implements ITabPresenter {
     this.windowTypes.set(windowId, type)
   }
 
-  private getWindowType(windowId: number): 'chat' | 'browser' {
+  getWindowType(windowId: number): 'chat' | 'browser' {
     return this.windowTypes.get(windowId) ?? TabPresenter.DEFAULT_WINDOW_TYPE
   }
 
@@ -750,9 +750,13 @@ export class TabPresenter implements ITabPresenter {
     this.updateViewBounds(window, view)
     const windowType = this.getWindowType(window.id)
     const isVisible = window.isVisible()
+    const isFocused = window.isFocused()
 
-    // Focus the view if window is visible or it's not a browser window
-    const shouldFocus = isVisible || windowType !== 'browser'
+    // For browser windows, only focus if window is already focused
+    // This prevents focus stealing when tools call activateTab() on hidden browser windows
+    // For chat windows, focus if visible (normal behavior)
+    const shouldFocus = windowType === 'browser' ? isVisible && isFocused : isVisible
+
     if (shouldFocus && !view.webContents.isDestroyed()) {
       view.webContents.focus()
     }

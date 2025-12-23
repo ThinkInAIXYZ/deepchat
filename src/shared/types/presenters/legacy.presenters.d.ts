@@ -191,7 +191,7 @@ export interface IYoBrowserPresenter {
   initialize(): Promise<void>
   ensureWindow(): Promise<number | null>
   hasWindow(): Promise<boolean>
-  show(): Promise<void>
+  show(shouldFocus?: boolean): Promise<void>
   hide(): Promise<void>
   toggleVisibility(): Promise<boolean>
   isVisible(): Promise<boolean>
@@ -241,7 +241,7 @@ export interface IWindowPresenter {
   closeSettingsWindow(): void
   getSettingsWindowId(): number | null
   hide(windowId: number): void
-  show(windowId?: number): void
+  show(windowId?: number, shouldFocus?: boolean): void
   isMaximized(windowId: number): boolean
   isMainWindowFocused(windowId: number): boolean
   sendToAllWindows(channel: string, ...args: unknown[]): void

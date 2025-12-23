@@ -86,7 +86,7 @@ export const useYoBrowserStore = defineStore('yoBrowser', () => {
   }
 
   const show = async () => {
-    await yoBrowserPresenter.show()
+    await yoBrowserPresenter.show(true)
     await loadState()
   }
 
@@ -103,7 +103,7 @@ export const useYoBrowserStore = defineStore('yoBrowser', () => {
 
   const openTab = async (tabId: string): Promise<void> => {
     await yoBrowserPresenter.activateTab(tabId)
-    await yoBrowserPresenter.show()
+    await yoBrowserPresenter.show(true)
     await loadState()
   }
 

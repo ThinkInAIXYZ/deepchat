@@ -696,7 +696,7 @@ const openSettings = () => {
 
 const onBrowserClick = async () => {
   try {
-    await yoBrowserPresenter.show()
+    await yoBrowserPresenter.show(true)
   } catch (error) {
     console.warn('Failed to open browser window.', error)
   }
