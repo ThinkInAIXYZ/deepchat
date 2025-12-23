@@ -5,6 +5,7 @@ import { z } from 'zod'
 import fs from 'fs'
 import path from 'path'
 import { app } from 'electron'
+import logger from '@shared/logger'
 import { AgentFileSystemHandler } from './agentFileSystemHandler'
 
 interface AgentToolManagerOptions {
@@ -55,7 +56,7 @@ export class AgentToolManager {
         const yoDefs = await this.yoBrowserPresenter.getToolDefinitions(context.supportsVision)
         defs.push(...yoDefs)
       } catch (error) {
-        console.warn('[AgentToolManager] Failed to load Yo Browser tool definitions', error)
+        logger.warn('[AgentToolManager] Failed to load Yo Browser tool definitions', { error })
       }
     }
 
