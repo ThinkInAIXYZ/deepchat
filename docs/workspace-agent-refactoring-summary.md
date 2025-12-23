@@ -2,7 +2,7 @@
 
 ## 概述
 
-本次重构将 Workspace 和 Agent 能力从 ACP 专用扩展到所有模型，重构 filesystem MCP 为 Agent 工具，统一管理 MCP 和 Agent 工具调用注入逻辑，并重构 AcpWorkspaceView 为通用 Workspace 组件。
+本次重构围绕“统一工具路由 + 通用 Workspace 视图 + Mode 化能力开关”推进：工具调用统一经 ToolPresenter/ToolMapper 管控，Agent 工具拆为 Yo Browser + Agent FileSystem（仅 agent 模式启用），ACP agent 仍走 ACP provider 内置工具流；Workspace UI 对 agent/acp agent 通用，路径选择与会话设置同步，并补齐安全边界与文件刷新机制。
 
 ## 架构概览
 
@@ -20,13 +20,12 @@ graph TB
 
     subgraph "工具源"
         MCP[MCP Tools]
-        AGENT[Agent Tools]
+        AGENT[Agent Tools (agent mode)]
     end
 
     subgraph "Agent 工具"
         YO[Yo Browser]
-        FS[FileSystem]
-        TERM[Terminal 未来]
+        FS[Agent FileSystem]
     end
 
     subgraph "Workspace"
@@ -34,6 +33,7 @@ graph TB
         FILES[Files Section]
         PLAN[Plan Section]
         TERM_UI[Terminal Section]
+        BROWSER_UI[Browser Tabs Section]
     end
 
     AL --> TCP
@@ -43,328 +43,251 @@ graph TB
     TM --> AGENT
     AGENT --> YO
     AGENT --> FS
-    AGENT --> TERM
     WS --> FILES
     WS --> PLAN
     WS --> TERM_UI
+    WS --> BROWSER_UI
 ```
+
+> Browser Tabs 仅在 agent 模式展示；acp agent 模式仍使用 ACP workdir 与 ACP provider 工具流。
 
 ## 已完成的工作
 
 ### 1. 统一工具路由架构 ✅
 
 **实现文件**：
-- `src/main/presenter/toolPresenter/index.ts` - 统一工具路由 Presenter
-- `src/main/presenter/toolPresenter/toolMapper.ts` - 工具映射器
+- `src/main/presenter/toolPresenter/index.ts`
+- `src/main/presenter/toolPresenter/toolMapper.ts`
 
 **功能**：
-- 创建 `ToolPresenter` 类，统一管理所有工具源（MCP、Agent）
-- 创建 `ToolMapper` 类，实现工具名称到工具源的映射机制
-- 所有工具定义统一使用 MCP 规范格式（`MCPToolDefinition`）
-- 工具调用时根据映射路由到对应的工具源处理器
-- 支持工具去重和映射（如果 MCP 和 Agent 有同名工具，可以映射到 MCP 工具）
+- `ToolPresenter` 统一汇总 MCP + Agent 工具，输出 MCP 规范 `MCPToolDefinition`
+- `ToolMapper` 维护工具名 → 来源映射，冲突时优先 MCP
+- 工具调用统一经 `ToolPresenter.callTool()`，参数解析失败时尝试 `jsonrepair`
 
 ### 2. Agent 工具管理 ✅
 
 **实现文件**：
-- `src/main/presenter/llmProviderPresenter/agent/agentToolManager.ts` - Agent 工具管理器
-- `src/main/presenter/llmProviderPresenter/agent/agentFileSystemHandler.ts` - 文件系统能力处理器
+- `src/main/presenter/llmProviderPresenter/agent/agentToolManager.ts`
 
 **功能**：
-- 创建 `AgentToolManager` 类，管理所有 Agent 工具
-- Agent 工具包括：
-  - **Yo Browser**：保持现有实现，工具名称使用 `browser_` 前缀（如 `browser_navigate`）
-  - **FileSystem**：新增，工具名称**不加前缀**（如 `read_file`, `write_file`）
-  - **Terminal**：未来扩展
-- 工具注入逻辑：
-  - **chat 模式**：不注入 Agent 工具（只有 MCP 工具）
-  - **agent 模式**：注入所有 Agent 工具（yo browser、filesystem 等）
-  - **acp agent 模式**：根据 ACP 逻辑决定
+- Agent 工具包含 Yo Browser + Agent FileSystem
+- **仅在 `agent` 模式下注入**（`acp agent` 不注入 Agent 工具）
+- Yo Browser 工具根据 `supportsVision` 动态注入
+- 缺省工作目录生成于 `temp/deepchat-agent/workspaces`
 
-### 3. 文件系统能力抽象 ✅
+### 3. Agent 文件系统能力 ✅
 
 **实现文件**：
-- `src/main/presenter/llmProviderPresenter/agent/agentFileSystemHandler.ts` - 文件系统处理器
+- `src/main/presenter/llmProviderPresenter/agent/agentFileSystemHandler.ts`
 
 **功能**：
-- 创建 `AgentFileSystemHandler` 类，封装文件操作能力
-- 工具名称不加前缀，例如：`read_file`, `write_file`, `list_directory` 等
-- 从 `mcpConfHelper.ts` 中移除 `buildInFileSystem` 配置
-- 从 `inMemoryServers/builder.ts` 中移除 filesystem server 的创建逻辑
-- 添加数据迁移逻辑，将现有 buildInFileSystem 配置迁移
+- 内置文件工具：`read_file`, `write_file`, `list_directory`, `create_directory`, `move_files`,
+  `edit_text`, `search_files`, `grep_search`, `text_replace`, `directory_tree`, `get_file_info`
+- 强制路径白名单 + `realpath` 校验，阻断越界与 symlink 绕过
+- 正则工具使用 `validateRegexPattern` 防 ReDoS；`text_replace`/`edit_text` 支持 diff
+- 工具以 `agent-filesystem` server 标识返回
 
-### 4. 通用 Mode Switch 配置 ✅
+### 4. Chat Mode Switch 配置 ✅
 
 **实现文件**：
-- `src/renderer/src/components/chat-input/composables/useChatMode.ts` - Chat Mode Switch composable
-- `src/renderer/src/components/chat-input/ChatInput.vue` - 添加 Mode Switch 选择器
+- `src/renderer/src/components/chat-input/composables/useChatMode.ts`
+- `src/renderer/src/components/chat-input/ChatInput.vue`
 
 **功能**：
-- 在配置存储（ElectronStore）中添加 `chatMode: 'chat' | 'agent' | 'acp agent'` 字段
-- 在 `chatConfig` 中添加 `chatMode` 字段（从配置存储读取）
-- 创建 `useChatMode` composable，管理模式状态
-- 在 `ChatInput.vue` 中添加 Mode Switch 选择器（Icon + 下拉选择）
-- 三种模式的区别：
-  - **chat**：基础聊天模式，只有 MCP 工具，不支持 yo browser、文件读写等功能
-  - **agent**：内置 agent 模式，包含 workdir 设置、各种工具（yo browser、文件读写等）、agent loop 定制内容
-  - **acp agent**：ACP 模式，只有这个模式才能选择 ACP 模型，loop 和逻辑会有不同
-- 配置持久化：通过 `configPresenter.setSetting('input_chatMode', value)` 存储
+- `chatMode` 存储在 `input_chatMode`
+- 无 ACP agents 时隐藏 `acp agent`，并自动回退到 `chat`
+- `isAgentMode` 用于统一控制 UI 与工具注入
 
 ### 5. Workspace 组件通用化 ✅
 
 **实现文件**：
-- `src/main/presenter/workspacePresenter/index.ts` - 通用 Workspace Presenter
-- `src/renderer/src/stores/workspace.ts` - 通用 Workspace Store
-- `src/renderer/src/components/workspace/WorkspaceView.vue` - 通用 Workspace 组件
-- `src/renderer/src/components/workspace/WorkspaceFiles.vue` - 文件列表组件
-- `src/renderer/src/components/workspace/WorkspacePlan.vue` - 计划组件
-- `src/renderer/src/components/workspace/WorkspaceTerminal.vue` - 终端组件
+- `src/main/presenter/workspacePresenter/index.ts`
+- `src/renderer/src/stores/workspace.ts`
+- `src/renderer/src/components/workspace/WorkspaceView.vue`
+- `src/renderer/src/components/workspace/WorkspaceFiles.vue`
+- `src/renderer/src/components/workspace/WorkspaceFileNode.vue`
+- `src/renderer/src/components/workspace/WorkspacePlan.vue`
+- `src/renderer/src/components/workspace/WorkspaceTerminal.vue`
+- `src/renderer/src/components/workspace/WorkspaceBrowserTabs.vue`
+- `src/renderer/src/components/ChatView.vue`
 
 **功能**：
-- 重命名 `AcpWorkspaceView.vue` → `WorkspaceView.vue`
-- 重命名 `acpWorkspace` store → `workspace` store
-- 重命名 `AcpWorkspacePresenter` → `WorkspacePresenter`
-- 移除 ACP 特定的依赖，改为基于 Agent 模式判断
-- 支持所有模型的 Agent 模式
+- Workspace UI 对 agent/acp agent 统一开放，Files/Plan/Terminal 共用
+- agent 模式额外展示 Browser Tabs（Yo Browser）
+- Store 根据 `chatMode` 选择 `workspacePresenter` 或 `acpWorkspacePresenter`
+- 文件树按需展开（lazy loading），支持打开文件/定位路径/插入路径
 
 ### 6. Workspace 路径选择（统一化）✅
 
 **实现文件**：
-- `src/renderer/src/components/chat-input/composables/useAgentWorkspace.ts` - Workspace 路径选择 composable
-- `src/renderer/src/components/chat-input/ChatInput.vue` - 添加统一的目录选择按钮
+- `src/renderer/src/components/chat-input/composables/useAgentWorkspace.ts`
 
 **功能**：
-- 在 `chatConfig` 中添加 `agentWorkspacePath: string | null` 字段
-- 创建 `useAgentWorkspace` composable，统一管理工作目录选择
-- 在 `ChatInput.vue` 的 Tools 区域添加目录选择按钮（在 agent 或 acp agent 模式下显示）
-- 目录选择按钮逻辑统一化：
-  - **acp agent 模式**：使用 ACP workdir（现有的 ACP workdir 逻辑）
-  - **agent 模式**：使用 filesystem 工具的工作目录
-- 按钮样式和行为统一
+- `agent` 模式通过 `devicePresenter.selectDirectory` 选择目录
+- `acp agent` 模式走 ACP workdir（`useAcpWorkdir`）
+- 路径与会话设置同步（会话未创建时暂存并补写）
 
 ### 7. 模型选择逻辑更新 ✅
 
 **实现文件**：
-- `src/renderer/src/components/ModelChooser.vue` - 更新模型选择逻辑
+- `src/renderer/src/components/ModelChooser.vue`
+- `src/renderer/src/components/ModelSelect.vue`
 
 **功能**：
-- 只有在 `acp agent` 模式下才显示 ACP 模型
-- 其他模式隐藏 ACP 模型选项
+- `acp agent` 模式仅展示 ACP provider
+- 其他模式隐藏 ACP provider
 
-### 8. ChatView 集成更新 ✅
+### 8. Agent Loop / 提示词与工具执行 ✅
 
 **实现文件**：
-- `src/renderer/src/components/chat/ChatView.vue` - 使用通用 WorkspaceView
+- `src/main/presenter/llmProviderPresenter/managers/agentLoopHandler.ts`
+- `src/main/presenter/llmProviderPresenter/managers/toolCallProcessor.ts`
+- `src/main/presenter/threadPresenter/utils/promptBuilder.ts`
+- `src/main/presenter/threadPresenter/handlers/streamGenerationHandler.ts`
 
 **功能**：
-- 更新 ChatView 使用通用 WorkspaceView
-- 更新事件监听和状态同步逻辑
+- `agent` 模式自动补全默认工作区并落库
+- system prompt 在 `agent` 模式追加当前工作目录
+- Yo Browser context 仅在 `agent` 模式下注入
+- ACP provider 的 tool call 由 provider 侧执行，流中直接返回结果
 
-### 9. Agent Loop Handler 更新 ✅
+### 9. Workspace 文件刷新机制 ✅
 
 **实现文件**：
-- `src/main/presenter/llmProviderPresenter/managers/agentLoopHandler.ts` - 使用统一的 ToolPresenter
-- `src/main/presenter/llmProviderPresenter/managers/toolCallProcessor.ts` - 使用 ToolPresenter 进行工具调用路由
+- `src/main/presenter/llmProviderPresenter/managers/agentLoopHandler.ts`
+- `src/renderer/src/stores/workspace.ts`
 
 **功能**：
-- 更新 `AgentLoopHandler` 使用统一的 ToolPresenter
-- 简化工具注入逻辑，不再区分工具源
-- 更新 `ToolCallProcessor` 使用 `ToolPresenter.callTool()` 进行工具调用
-- 根据工具映射自动路由到对应的处理器
+- `agent-filesystem` 调用完成时触发 `WORKSPACE_EVENTS.FILES_CHANGED`
+- Workspace Store 对文件刷新做防抖合并
+- ACP provider 在流结束后触发刷新
 
-### 10. 类型定义更新 ✅
+### 10. 类型定义与 i18n ✅
 
 **实现文件**：
-- `src/shared/presenter.d.ts` - 更新类型定义
-- `src/shared/types/presenters/tool.presenter.d.ts` - 添加 ToolPresenter 接口
+- `src/shared/types/presenters/tool.presenter.d.ts`
+- `src/shared/types/presenters/workspace.d.ts`
+- `src/renderer/src/i18n/*/chat.json`
+- `src/renderer/src/i18n/*/toolCall.json`
 
 **功能**：
-- 添加 ToolPresenter 接口和 ChatMode 类型
-- 更新 Workspace 相关接口
-- 添加 Agent 模式相关类型
+- ToolPresenter、Workspace、ChatMode 相关类型补齐
+- 新增模式/Workspace/工具调用相关文案
 
-### 11. i18n 翻译 ✅
+## 关键文件
 
-**实现文件**：
-- `src/renderer/src/i18n/*/chat.json` - 添加模式相关翻译
-- `src/renderer/src/i18n/*/toolCall.json` - 添加工具调用相关翻译
+- `src/main/presenter/toolPresenter/index.ts`：统一工具定义与路由
+- `src/main/presenter/llmProviderPresenter/agent/agentToolManager.ts`：Agent 工具装配
+- `src/main/presenter/llmProviderPresenter/agent/agentFileSystemHandler.ts`：文件系统工具实现
+- `src/main/presenter/workspacePresenter/index.ts`：通用 Workspace Presenter
+- `src/renderer/src/stores/workspace.ts`：Workspace 状态与事件同步
+- `src/renderer/src/components/workspace/WorkspaceView.vue`：Workspace 入口 UI
+- `src/renderer/src/components/chat-input/composables/useChatMode.ts`：Mode 管理
+- `src/renderer/src/components/chat-input/composables/useAgentWorkspace.ts`：Workspace 路径选择
 
-**功能**：
-- 添加所有新增 UI 元素的 i18n 翻译（中文、英文等）
-- 更新相关翻译键
+## 遗留/兼容
 
-## 新增文件
-
-1. `src/main/presenter/toolPresenter/index.ts` - 统一工具路由 Presenter
-2. `src/main/presenter/toolPresenter/toolMapper.ts` - 工具映射器
-3. `src/main/presenter/llmProviderPresenter/agent/agentToolManager.ts` - Agent 工具管理器
-4. `src/main/presenter/llmProviderPresenter/agent/agentFileSystemHandler.ts` - 文件系统能力处理器
-5. `src/renderer/src/stores/workspace.ts` - 通用 Workspace Store
-6. `src/main/presenter/workspacePresenter/index.ts` - 通用 Workspace Presenter
-7. `src/renderer/src/components/workspace/WorkspaceView.vue` - 通用 Workspace 组件
-8. `src/renderer/src/components/workspace/WorkspaceFiles.vue` - 文件列表组件
-9. `src/renderer/src/components/workspace/WorkspacePlan.vue` - 计划组件
-10. `src/renderer/src/components/workspace/WorkspaceTerminal.vue` - 终端组件
-11. `src/renderer/src/components/chat-input/composables/useChatMode.ts` - Chat Mode Switch composable
-12. `src/renderer/src/components/chat-input/composables/useAgentWorkspace.ts` - Workspace 路径选择 composable
-13. `src/shared/types/presenters/tool.presenter.d.ts` - ToolPresenter 类型定义
-
-## 修改的文件
-
-1. `src/main/presenter/llmProviderPresenter/managers/agentLoopHandler.ts` - 使用统一的 ToolPresenter
-2. `src/main/presenter/llmProviderPresenter/managers/toolCallProcessor.ts` - 使用 ToolPresenter 进行工具调用路由
-3. `src/main/presenter/configPresenter/mcpConfHelper.ts` - 移除 buildInFileSystem 配置，添加数据迁移
-4. `src/main/presenter/mcpPresenter/inMemoryServers/builder.ts` - 移除 filesystem server
-5. `src/renderer/src/stores/chat.ts` - 添加 chatMode 和 agentWorkspacePath 配置
-6. `src/shared/presenter.d.ts` - 更新类型定义
-7. `src/renderer/src/components/chat-input/ChatInput.vue` - 添加 Mode Switch 选择器和路径选择器
-8. `src/renderer/src/components/ModelChooser.vue` - 更新模型选择逻辑
-9. `src/renderer/src/components/chat/ChatView.vue` - 使用通用 WorkspaceView
-10. `src/main/presenter/index.ts` - 初始化 ToolPresenter 和 WorkspacePresenter
-
-## 删除/废弃文件
-
-1. `src/renderer/src/components/acp-workspace/` - 整个目录（重构为 workspace）
-2. `src/renderer/src/stores/acpWorkspace.ts` - 重构为 workspace.ts
-3. `src/main/presenter/acpWorkspacePresenter/` - 重构为 workspacePresenter（保留部分用于向后兼容）
+- `src/main/presenter/acpWorkspacePresenter/` 仍保留并在 `acp agent` 模式使用
+- Renderer 的 ACP Workspace 旧组件已移除，统一使用通用 Workspace 组件
 
 ## 关键技术点
 
 ### 工具命名规范
 
-- **MCP 工具**：保持原样（如 `read_files`, `write_file`）
-- **Agent 工具**：**不加前缀**（如 `read_file`, `write_file`）
-- Yo Browser：保持 `browser_` 前缀（已存在）
-- FileSystem：不加前缀（如 `read_file`, `write_file`）
-- Terminal：未来不加前缀（如 `execute_command`）
+- MCP 工具：保持原始命名
+- Agent FileSystem 工具：不加前缀（`read_file` 等）
+- Yo Browser：保留 `browser_` 前缀
 
 ### 工具路由机制
 
-- 所有工具定义统一使用 MCP 规范格式（`MCPToolDefinition`）
-- `ToolMapper` 维护工具名称到工具源的映射
-- 工具调用时根据映射自动路由：
-  - 如果工具名称映射到 MCP → 调用 `mcpPresenter.callTool()`
-  - 如果工具名称映射到 Agent → 调用 `agentToolManager.callTool()`
-- 支持工具去重：如果 MCP 和 Agent 有同名工具，可以配置映射到 MCP 工具
+- ToolPresenter 统一输出 MCP 规范 `MCPToolDefinition`
+- ToolMapper 维护工具名 → 来源映射，冲突时偏向 MCP
+- Agent 工具参数解析失败时尝试 `jsonrepair`
 
 ### Agent 工具注入机制（基于 Mode）
 
-- 根据 `chatMode` 决定工具注入：
-  - **chat 模式**：不注入 Agent 工具，只有 MCP 工具
-  - **agent 模式**：注入所有 Agent 工具（yo browser、filesystem 等）
-  - **acp agent 模式**：根据 ACP 逻辑决定
-- 工具注入逻辑：
-  - Yo Browser：在 agent 或 acp agent 模式下，当浏览器窗口打开时注入
-  - FileSystem：在 agent 或 acp agent 模式下注入
-  - Terminal：未来按需扩展
+- `chat`：仅 MCP 工具
+- `agent`：MCP + Yo Browser + Agent FileSystem
+- `acp agent`：MCP 工具；ACP provider 自执行工具调用
 
 ### 配置持久化
 
-- `chatMode` 通过 `configPresenter.setSetting('input_chatMode', value)` 存储
-- 通过 `configPresenter.getSetting('input_chatMode')` 读取
-- 类型：`'chat' | 'agent' | 'acp agent'`
-- 默认值：`'chat'`
-- 存储方式：与 `input_webSearch`、`input_deepThinking` 相同，存储在 ElectronStore 中
-- 在 `useChatMode` composable 的初始化时自动加载保存的模式
+- `chatMode` 存储为 `input_chatMode`
+- `agentWorkspacePath` 持久化到会话 `settings`
+- `agent` 模式缺省路径自动写入会话设置
 
 ### Mode Switch 与 ACP Session Mode 的区别
 
-- **Chat Mode Switch**：全局模式选择，决定整个会话的行为和可用功能
-  - chat：基础聊天模式
-  - agent：内置 agent 模式
-  - acp agent：ACP 专用模式
-- **ACP Session Mode**：ACP agent 模式下的会话模式（如 plan、code 等），由 ACP agent 内部定义
-- 两者是不同层级的概念，互不干扰
+- Chat Mode Switch：全局模式（chat/agent/acp agent）
+- ACP Session Mode：ACP agent 内部会话模式，互不干扰
 
 ### 路径安全
 
-- Agent 模式下的文件操作必须限制在用户选择的 workspace 路径内
-- 临时目录在会话结束后自动清理
-- 所有路径操作都需要验证权限
-- `WorkspacePresenter` 维护允许的 workspace 路径列表
+- WorkspacePresenter：基于 `allowedWorkspaces` + `realpath` 限制访问
+- AgentFileSystemHandler：路径白名单 + symlink 校验 + regex 安全验证
+
+### 默认工作区路径
+
+- `agent` 模式缺省使用 `temp/deepchat-agent/workspaces[/conversationId]`
+- 路径会持久化到会话设置，供后续恢复
 
 ### 向后兼容
 
-- 保留 ACP Provider 的现有功能
-- 迁移现有 ACP Workspace 数据到通用 Workspace
-- 确保现有 MCP filesystem 配置能平滑迁移
-- 保留 `AcpWorkspacePresenter` 用于向后兼容（标记为 legacy）
+- ACP provider 与 ACP workspace 逻辑保留
+- UI 统一收口到通用 Workspace 组件
 
 ## 如何测试
 
-### 测试 Mode Switch
+### Mode Switch
 
-```bash
-pnpm run dev
-```
+1. 进入 ChatInput，确认 `acp agent` 仅在配置 ACP agents 时出现
+2. 切换模式，确认 UI 与模型列表同步更新
 
-1. 打开应用，在 ChatInput 中找到 Mode Switch 按钮
-2. 点击按钮，选择不同的模式（chat、agent、acp agent）
-3. 验证模式切换后，UI 和功能是否正确更新
-4. 重新打开应用，验证模式是否被正确持久化
+### Agent Workspace
 
-### 测试 Workspace 路径选择
+1. 切换到 `agent` 模式，选择目录
+2. 切换/重启应用后确认路径恢复
+3. 切换到 `acp agent`，确认使用 ACP workdir
 
-1. 切换到 `agent` 或 `acp agent` 模式
-2. 点击目录选择按钮
-3. 选择一个工作目录
-4. 验证目录是否正确设置和显示
-5. 在 `acp agent` 模式下，验证是否使用 ACP workdir 逻辑
-6. 在 `agent` 模式下，验证是否使用 filesystem 工具的工作目录
+### 工具路由
 
-### 测试工具路由
+1. `agent` 模式调用 `read_file` 等文件工具，确认走 Agent FileSystem
+2. MCP 工具调用仍走 MCP Presenter
+3. ACP provider 下 tool call 直接显示执行结果（不再本地执行）
 
-1. 在 `agent` 模式下，发送消息触发工具调用
-2. 验证文件系统工具（如 `read_file`, `write_file`）是否正确路由到 Agent 工具处理器
-3. 验证 MCP 工具是否正确路由到 MCP 处理器
-4. 验证工具调用结果是否正确返回
+### Workspace UI
 
-### 测试 Workspace 组件
-
-1. 在 `agent` 或 `acp agent` 模式下，打开 Workspace 视图
-2. 验证文件列表是否正确显示
-3. 验证计划列表是否正确显示
-4. 验证终端输出是否正确显示
-5. 验证不同模式下的 Workspace 行为是否一致
-
-### 测试模型选择
-
-1. 切换到 `chat` 或 `agent` 模式，验证 ACP 模型是否隐藏
-2. 切换到 `acp agent` 模式，验证 ACP 模型是否显示
-3. 验证模型选择逻辑是否正确
+1. `agent`/`acp agent` 模式下打开 Workspace
+2. 文件树可展开并通过右键菜单打开/定位
+3. Browser Tabs 仅在 `agent` 模式显示
+4. 执行文件工具后文件树自动刷新
 
 ## 架构说明
 
 ### 数据流
 
 ```
-用户选择 Mode
+ChatMode
   ↓
-useChatMode (管理模式状态)
+ChatInput (Mode Switch)
   ↓
-ChatInput (显示 Mode Switch)
+AgentLoopHandler (resolve workspace & tools)
   ↓
-AgentLoopHandler (根据模式注入工具)
-  ↓
-ToolPresenter (统一工具路由)
-  ↓
-ToolMapper (路由到对应工具源)
-  ↓
-MCP Tools / Agent Tools
+ToolPresenter → ToolMapper → MCP/Agent tools
 ```
 
 ### Workspace 数据流
 
 ```
-用户选择 Workspace 路径
+Workspace Path Select
   ↓
-useAgentWorkspace (统一管理工作目录)
+useAgentWorkspace / useAcpWorkdir
   ↓
-WorkspacePresenter (注册 workspace)
+WorkspacePresenter (register)
   ↓
-WorkspaceStore (管理状态)
+WorkspaceStore
   ↓
-WorkspaceView (显示 UI)
+WorkspaceView
 ```
 
 ### 工具调用流程
@@ -376,29 +299,22 @@ ToolCallProcessor
   ↓
 ToolPresenter.callTool()
   ↓
-ToolMapper (查找工具源)
+MCP Presenter / AgentToolManager
   ↓
-MCP Presenter / Agent Tool Manager
-  ↓
-工具执行
-  ↓
-返回结果
+Tool response → Workspace refresh (agent-filesystem)
 ```
+
+> ACP provider 的 tool call 由 provider 侧执行，流中直接返回结果。
 
 ## 注意事项
 
-1. **文件大小限制**：确保每个文件不超过 200 行（TypeScript）
-2. **文件夹文件数限制**：每个文件夹不超过 8 个文件
-3. **UI 一致性**：Mode Switch 和目录选择按钮的样式和行为应该与现有的 UI 元素保持一致
-4. **性能**：工具路由机制应该高效，避免不必要的查找和转换
-5. **安全**：所有文件操作必须限制在允许的 workspace 路径内
-6. **向后兼容**：确保现有功能不受影响，平滑迁移
+1. Agent 工具仅在 `agent` 模式生效，`acp agent` 走 ACP provider 工具流
+2. Workspace 访问必须先注册允许路径
+3. 正则相关工具调用需遵循安全限制（pattern 长度与验证）
 
 ## 未来扩展
 
-1. **Terminal 工具**：添加终端命令执行能力
-2. **按需工具注入**：支持更细粒度的工具注入控制
-3. **工具去重优化**：改进工具名称冲突处理机制
-4. **Workspace 模板**：支持预设的 workspace 配置
-5. **多 Workspace 支持**：支持同时管理多个 workspace
-
+1. Terminal 工具执行与 Workspace Terminal 的联动
+2. 工具注入更细粒度控制（按需加载）
+3. 工具去重策略可配置化
+4. 多 Workspace 支持与模板化配置

@@ -257,46 +257,9 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
   }
 
   async activateTab(tabId: string): Promise<void> {
-    // #region agent log
-    const window = this.getWindow()
-    fetch('http://127.0.0.1:7242/ingest/30ee3286-ed05-472e-bc14-9d2d7e3d12d9', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        location: 'browser/YoBrowserPresenter.ts:259',
-        message: 'YoBrowserPresenter.activateTab called',
-        data: {
-          tabId,
-          windowExists: !!window,
-          isVisible: window?.isVisible(),
-          isFocused: window?.isFocused()
-        },
-        timestamp: Date.now(),
-        sessionId: 'debug-session',
-        runId: 'run1',
-        hypothesisId: 'E'
-      })
-    }).catch(() => {})
-    // #endregion
     const viewId = this.tabIds.get(tabId)
     if (viewId === undefined) return
     await this.tabPresenter.switchTab(viewId)
-    // #region agent log
-    const windowAfter = this.getWindow()
-    fetch('http://127.0.0.1:7242/ingest/30ee3286-ed05-472e-bc14-9d2d7e3d12d9', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        location: 'browser/YoBrowserPresenter.ts:264',
-        message: 'After tabPresenter.switchTab',
-        data: { tabId, isVisible: windowAfter?.isVisible(), isFocused: windowAfter?.isFocused() },
-        timestamp: Date.now(),
-        sessionId: 'debug-session',
-        runId: 'run1',
-        hypothesisId: 'E'
-      })
-    }).catch(() => {})
-    // #endregion
     this.activeTabId = tabId
     this.emitTabActivated(tabId)
   }
