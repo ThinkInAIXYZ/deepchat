@@ -60,9 +60,6 @@ export class UpgradePresenter implements IUpgradePresenter {
     autoUpdater.autoDownload = false // 默认不自动下载，由我们手动控制
     autoUpdater.allowDowngrade = false
     autoUpdater.autoInstallOnAppQuit = true
-    if (process.platform === 'darwin') {
-      autoUpdater.channel = process.arch === 'arm64' ? 'arm64' : 'x64'
-    }
 
     // 错误处理
     autoUpdater.on('error', (e) => {
