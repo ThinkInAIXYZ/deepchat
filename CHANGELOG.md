@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.5.6-beta.2 (2025-12-24)
+- 重构全智能体循环模式
+- 测试 github 更新方式
+- refactor full agent loop mode
+- Test GitHub update method
+
 ## v0.5.6-beta.1 (2025-12-23)
 - Markdown 优化，修复列表元素异常
 - 修复 Ollama 视觉模型图片格式
