@@ -7,7 +7,6 @@ import { MCP_EVENTS } from '@/events'
 import { useI18n } from 'vue-i18n'
 import { useChatStore } from './chat'
 import { useQuery, type UseMutationReturn, type UseQueryReturn } from '@pinia/colada'
-import { isSafeRegexPattern } from '@shared/regexValidator'
 import type {
   McpClient,
   MCPConfig,
@@ -279,11 +278,13 @@ export const useMcpStore = defineStore('mcp', () => {
           })
         }
 
-        if (tool.function.name === 'search_files') {
+        if (tool.function.name === 'glob_search') {
           toolInputs.value[tool.function.name] = {
-            path: '',
-            regex: '\\.md$',
-            file_pattern: '*.md'
+            pattern: '**/*.md',
+            root: '',
+            excludePatterns: '',
+            maxResults: '1000',
+            sortBy: 'name'
           }
         }
       }
@@ -739,23 +740,43 @@ export const useMcpStore = defineStore('mcp', () => {
     toolLoadingStates.value[toolName] = true
     try {
       // 准备工具参数
-      const params = toolInputs.value[toolName] || {}
+      const rawParams = toolInputs.value[toolName] || {}
+      const params = { ...rawParams } as Record<string, unknown>
 
-      // 特殊处理search_files工具
-      if (toolName === 'search_files') {
-        if (!params.regex) params.regex = '\\.md$'
-        if (!params.path) params.path = '.'
-        // Validate regex pattern for ReDoS safety
-        if (params.regex && typeof params.regex === 'string' && !isSafeRegexPattern(params.regex)) {
-          throw new Error(
-            'Regular expression pattern is potentially unsafe and may cause ReDoS. Please use a simpler, safer pattern.'
-          )
+      // 特殊处理 glob_search 工具
+      if (toolName === 'glob_search') {
+        const pattern = typeof params.pattern === 'string' ? params.pattern.trim() : ''
+        if (!pattern) {
+          params.pattern = '**/*.md'
         }
-        if (!params.file_pattern) {
-          const match = params.regex.match(/\.(\w+)\$/)
-          if (match) {
-            params.file_pattern = `*.${match[1]}`
+
+        if (typeof params.root === 'string' && params.root.trim() === '') {
+          delete params.root
+        }
+
+        if (typeof params.excludePatterns === 'string') {
+          const parsed = params.excludePatterns
+            .split(',')
+            .map((item) => item.trim())
+            .filter(Boolean)
+          if (parsed.length > 0) {
+            params.excludePatterns = parsed
+          } else {
+            delete params.excludePatterns
           }
+        }
+
+        if (typeof params.maxResults === 'string') {
+          const parsed = Number(params.maxResults)
+          if (!Number.isNaN(parsed)) {
+            params.maxResults = parsed
+          } else {
+            delete params.maxResults
+          }
+        }
+
+        if (typeof params.sortBy === 'string' && params.sortBy.trim() === '') {
+          delete params.sortBy
         }
       }
 

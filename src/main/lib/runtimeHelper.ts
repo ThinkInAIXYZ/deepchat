@@ -10,6 +10,7 @@ export class RuntimeHelper {
   private static instance: RuntimeHelper | null = null
   private nodeRuntimePath: string | null = null
   private uvRuntimePath: string | null = null
+  private ripgrepRuntimePath: string | null = null
   private runtimesInitialized: boolean = false
 
   private constructor() {
@@ -28,7 +29,7 @@ export class RuntimeHelper {
 
   /**
    * Initialize runtime paths (idempotent operation)
-   * Caches Node.js and UV runtime paths to avoid repeated filesystem checks
+   * Caches Node.js, UV and Ripgrep runtime paths to avoid repeated filesystem checks
    */
   public initializeRuntimes(): void {
     if (this.runtimesInitialized) {
@@ -77,6 +78,24 @@ export class RuntimeHelper {
       }
     }
 
+    // Check if ripgrep runtime file exists
+    const ripgrepRuntimePath = path.join(runtimeBasePath, 'ripgrep')
+    if (process.platform === 'win32') {
+      const rgExe = path.join(ripgrepRuntimePath, 'rg.exe')
+      if (fs.existsSync(rgExe)) {
+        this.ripgrepRuntimePath = ripgrepRuntimePath
+      } else {
+        this.ripgrepRuntimePath = null
+      }
+    } else {
+      const rgBin = path.join(ripgrepRuntimePath, 'rg')
+      if (fs.existsSync(rgBin)) {
+        this.ripgrepRuntimePath = ripgrepRuntimePath
+      } else {
+        this.ripgrepRuntimePath = null
+      }
+    }
+
     this.runtimesInitialized = true
   }
 
@@ -94,6 +113,14 @@ export class RuntimeHelper {
    */
   public getUvRuntimePath(): string | null {
     return this.uvRuntimePath
+  }
+
+  /**
+   * Get Ripgrep runtime path
+   * @returns Ripgrep runtime path or null if not found
+   */
+  public getRipgrepRuntimePath(): string | null {
+    return this.ripgrepRuntimePath
   }
 
   /**
@@ -230,6 +257,35 @@ export class RuntimeHelper {
           return command
         } else {
           return uvPath
+        }
+      }
+    }
+
+    // Ripgrep command handling (all platforms)
+    if (basename === 'rg') {
+      if (!this.ripgrepRuntimePath) {
+        return command
+      }
+
+      if (process.platform === 'win32') {
+        const rgPath = path.join(this.ripgrepRuntimePath, 'rg.exe')
+        if (checkExists) {
+          if (fs.existsSync(rgPath)) {
+            return rgPath
+          }
+          return command
+        } else {
+          return rgPath
+        }
+      } else {
+        const rgPath = path.join(this.ripgrepRuntimePath, 'rg')
+        if (checkExists) {
+          if (fs.existsSync(rgPath)) {
+            return rgPath
+          }
+          return command
+        } else {
+          return rgPath
         }
       }
     }

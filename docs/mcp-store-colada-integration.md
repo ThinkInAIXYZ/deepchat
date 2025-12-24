@@ -664,11 +664,13 @@ const applyToolsSnapshot = (toolDefs: MCPToolDefinition[] = []) => {
       }
 
       // 特殊工具的默认值
-      if (tool.function.name === 'search_files') {
+      if (tool.function.name === 'glob_search') {
         toolInputs.value[tool.function.name] = {
-          path: '',
-          regex: '\\\\.md$',
-          file_pattern: '*.md'
+          pattern: '**/*.md',
+          root: '',
+          excludePatterns: '',
+          maxResults: '1000',
+          sortBy: 'name'
         }
       }
     }
@@ -2663,4 +2665,3 @@ const memoryMonitor = {
 ## 六、迁移指南
 
 > 本节内容将由 Claude Code 完成（如果需要）
-

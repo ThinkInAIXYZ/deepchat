@@ -60,13 +60,22 @@ export class AgentToolManager {
         .optional(),
       dryRun: z.boolean().default(false)
     }),
-    search_files: z.object({
-      path: z.string().optional(),
-      pattern: z.string(),
-      searchType: z.enum(['glob', 'name']).default('glob'),
-      excludePatterns: z.array(z.string()).optional().default([]),
-      caseSensitive: z.boolean().default(false),
-      maxResults: z.number().default(1000)
+    glob_search: z.object({
+      pattern: z.string().describe('Glob pattern (e.g., **/*.ts, src/**/*.js)'),
+      root: z
+        .string()
+        .optional()
+        .describe('Root directory for search (defaults to workspace root)'),
+      excludePatterns: z
+        .array(z.string())
+        .optional()
+        .default([])
+        .describe('Patterns to exclude (e.g., ["node_modules", ".git"])'),
+      maxResults: z.number().default(1000).describe('Maximum number of results to return'),
+      sortBy: z
+        .enum(['name', 'modified'])
+        .default('name')
+        .describe('Sort results by name or modification time')
     }),
     grep_search: z.object({
       path: z.string(),
@@ -288,9 +297,10 @@ export class AgentToolManager {
       {
         type: 'function',
         function: {
-          name: 'search_files',
-          description: 'Search for files matching a pattern',
-          parameters: zodToJsonSchema(schemas.search_files) as {
+          name: 'glob_search',
+          description:
+            'Search for files using glob patterns (e.g., **/*.ts, src/**/*.js). Automatically excludes common directories like node_modules and .git.',
+          parameters: zodToJsonSchema(schemas.glob_search) as {
             type: string
             properties: Record<string, unknown>
             required?: string[]
@@ -383,7 +393,7 @@ export class AgentToolManager {
       'create_directory',
       'move_files',
       'edit_text',
-      'search_files',
+      'glob_search',
       'directory_tree',
       'get_file_info',
       'grep_search',
@@ -425,8 +435,8 @@ export class AgentToolManager {
         return await this.fileSystemHandler.moveFiles(parsedArgs)
       case 'edit_text':
         return await this.fileSystemHandler.editText(parsedArgs)
-      case 'search_files':
-        return await this.fileSystemHandler.searchFiles(parsedArgs)
+      case 'glob_search':
+        return await this.fileSystemHandler.globSearch(parsedArgs)
       case 'directory_tree':
         return await this.fileSystemHandler.directoryTree(parsedArgs)
       case 'get_file_info':

@@ -82,7 +82,7 @@ graph TB
 
 **功能**：
 - 内置文件工具：`read_file`, `write_file`, `list_directory`, `create_directory`, `move_files`,
-  `edit_text`, `search_files`, `grep_search`, `text_replace`, `directory_tree`, `get_file_info`
+  `edit_text`, `glob_search`, `grep_search`, `text_replace`, `directory_tree`, `get_file_info`
 - 强制路径白名单 + `realpath` 校验，阻断越界与 symlink 绕过
 - 正则工具使用 `validateRegexPattern` 防 ReDoS；`text_replace`/`edit_text` 支持 diff
 - 工具以 `agent-filesystem` server 标识返回

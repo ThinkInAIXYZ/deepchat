@@ -5,6 +5,9 @@ import { z } from 'zod'
 import { minimatch } from 'minimatch'
 import { createTwoFilesPatch } from 'diff'
 import { validateRegexPattern } from '@shared/regexValidator'
+import { spawn } from 'child_process'
+import { RuntimeHelper } from '../../../lib/runtimeHelper'
+import { glob } from 'glob'
 
 const ReadFileArgsSchema = z.object({
   paths: z.array(z.string()).min(1).describe('Array of file paths to read')
@@ -48,13 +51,19 @@ const EditTextArgsSchema = z.object({
   dryRun: z.boolean().default(false)
 })
 
-const FileSearchArgsSchema = z.object({
-  path: z.string().optional(),
-  pattern: z.string(),
-  searchType: z.enum(['glob', 'name']).default('glob'),
-  excludePatterns: z.array(z.string()).optional().default([]),
-  caseSensitive: z.boolean().default(false),
-  maxResults: z.number().default(1000)
+const GlobSearchArgsSchema = z.object({
+  pattern: z.string().describe('Glob pattern (e.g., **/*.ts, src/**/*.js)'),
+  root: z.string().optional().describe('Root directory for search (defaults to workspace root)'),
+  excludePatterns: z
+    .array(z.string())
+    .optional()
+    .default([])
+    .describe('Patterns to exclude (e.g., ["node_modules", ".git"])'),
+  maxResults: z.number().default(1000).describe('Maximum number of results to return'),
+  sortBy: z
+    .enum(['name', 'modified'])
+    .default('name')
+    .describe('Sort results by name or modification time')
 })
 
 const GrepSearchArgsSchema = z.object({
@@ -110,6 +119,13 @@ interface TreeEntry {
   name: string
   type: 'file' | 'directory'
   children?: TreeEntry[]
+}
+
+interface GlobMatch {
+  path: string
+  name: string
+  modified?: Date
+  size?: number
 }
 
 export class AgentFileSystemHandler {
@@ -223,7 +239,66 @@ export class AgentFileSystemHandler {
     } = {}
   ): Promise<GrepResult> {
     const {
-      filePattern = '*',
+      filePattern,
+      recursive = true,
+      caseSensitive = false,
+      includeLineNumbers = true,
+      contextLines = 0,
+      maxResults = 100
+    } = options
+
+    // Validate pattern for ReDoS safety
+    validateRegexPattern(pattern)
+
+    // Try to use ripgrep if available
+    const runtimeHelper = RuntimeHelper.getInstance()
+    runtimeHelper.initializeRuntimes()
+    const ripgrepPath = runtimeHelper.getRipgrepRuntimePath()
+
+    if (ripgrepPath) {
+      try {
+        return await this.runRipgrepSearch(rootPath, pattern, {
+          filePattern,
+          recursive,
+          caseSensitive,
+          includeLineNumbers,
+          contextLines,
+          maxResults
+        })
+      } catch (error) {
+        // Fall back to JavaScript implementation if ripgrep fails
+        console.warn(
+          '[AgentFileSystemHandler] Ripgrep search failed, falling back to JS implementation:',
+          error
+        )
+      }
+    }
+
+    // Fallback to JavaScript implementation
+    return this.runJavaScriptGrepSearch(rootPath, pattern, {
+      filePattern: filePattern || '*',
+      recursive,
+      caseSensitive,
+      includeLineNumbers,
+      contextLines,
+      maxResults
+    })
+  }
+
+  private async runRipgrepSearch(
+    rootPath: string,
+    pattern: string,
+    options: {
+      filePattern?: string
+      recursive?: boolean
+      caseSensitive?: boolean
+      includeLineNumbers?: boolean
+      contextLines?: number
+      maxResults?: number
+    }
+  ): Promise<GrepResult> {
+    const {
+      filePattern,
       recursive = true,
       caseSensitive = false,
       includeLineNumbers = true,
@@ -237,8 +312,141 @@ export class AgentFileSystemHandler {
       matches: []
     }
 
-    // Validate pattern for ReDoS safety before constructing RegExp
-    validateRegexPattern(pattern)
+    const runtimeHelper = RuntimeHelper.getInstance()
+    const ripgrepPath = runtimeHelper.getRipgrepRuntimePath()
+    if (!ripgrepPath) {
+      throw new Error('Ripgrep runtime path not found')
+    }
+
+    const rgExecutable =
+      process.platform === 'win32' ? path.join(ripgrepPath, 'rg.exe') : path.join(ripgrepPath, 'rg')
+
+    // Build ripgrep arguments
+    const args: string[] = []
+
+    // Search pattern
+    args.push('-e', pattern)
+
+    // Case sensitivity
+    if (caseSensitive) {
+      args.push('--case-sensitive')
+    } else {
+      args.push('-i')
+    }
+
+    // Context lines
+    if (contextLines > 0) {
+      args.push(`-C${contextLines}`)
+    }
+
+    // Max count
+    args.push('-m', String(maxResults))
+
+    // File pattern (glob)
+    if (filePattern) {
+      args.push('-g', filePattern)
+    }
+
+    // Recursive (default for rg, but add --no-recursive if not wanted)
+    if (!recursive) {
+      args.push('--no-recursive')
+    }
+
+    // Output format with line numbers
+    args.push('--with-filename')
+    args.push('--line-number')
+    args.push('--no-heading')
+
+    // Search path
+    const validatedPath = await this.validatePath(rootPath)
+    args.push(validatedPath)
+
+    return new Promise((resolve, reject) => {
+      const ripgrep = spawn(rgExecutable, args, {
+        stdio: ['ignore', 'pipe', 'pipe']
+      })
+
+      let stdout = ''
+      let stderr = ''
+
+      ripgrep.stdout.on('data', (data) => {
+        stdout += data.toString()
+      })
+
+      ripgrep.stderr.on('data', (data) => {
+        stderr += data.toString()
+      })
+
+      ripgrep.on('close', (code) => {
+        if (code === 0 || code === 1) {
+          // 0 = matches found, 1 = no matches (both are OK)
+          // Parse ripgrep output
+          const lines = stdout.split('\n').filter((line) => line.trim())
+          const currentFileMatches = new Map<string, GrepMatch[]>()
+          const uniqueFiles = new Set<string>()
+
+          for (const line of lines) {
+            // Parse ripgrep output format: file:line:content
+            const match = line.match(/^([^:]+):(\d+):(.*)$/)
+            if (match) {
+              const [, file, lineNum, content] = match
+              uniqueFiles.add(file)
+
+              const grepMatch: GrepMatch = {
+                file,
+                line: includeLineNumbers ? parseInt(lineNum, 10) : 0,
+                content
+              }
+
+              if (!currentFileMatches.has(file)) {
+                currentFileMatches.set(file, [])
+              }
+              currentFileMatches.get(file)!.push(grepMatch)
+              result.totalMatches++
+            }
+          }
+
+          result.files = Array.from(uniqueFiles)
+          result.matches = Array.from(currentFileMatches.values()).flat()
+
+          resolve(result)
+        } else {
+          reject(new Error(`Ripgrep failed with code ${code}: ${stderr}`))
+        }
+      })
+
+      ripgrep.on('error', (error) => {
+        reject(new Error(`Ripgrep spawn error: ${error.message}`))
+      })
+    })
+  }
+
+  private async runJavaScriptGrepSearch(
+    rootPath: string,
+    pattern: string,
+    options: {
+      filePattern?: string
+      recursive?: boolean
+      caseSensitive?: boolean
+      includeLineNumbers?: boolean
+      contextLines?: number
+      maxResults?: number
+    }
+  ): Promise<GrepResult> {
+    const {
+      filePattern = '*',
+      recursive = true,
+      caseSensitive = false,
+      includeLineNumbers = true,
+      contextLines = 0,
+      maxResults = 100
+    } = options
+
+    const result: GrepResult = {
+      totalMatches: 0,
+      files: [],
+      matches: []
+    }
 
     const regexFlags = caseSensitive ? 'g' : 'gi'
     let regex: RegExp
@@ -630,44 +838,102 @@ export class AgentFileSystemHandler {
       .join('\n')
   }
 
-  async searchFiles(args: unknown): Promise<string> {
-    const parsed = FileSearchArgsSchema.safeParse(args)
+  async globSearch(args: unknown): Promise<string> {
+    const parsed = GlobSearchArgsSchema.safeParse(args)
     if (!parsed.success) {
       throw new Error(`Invalid arguments: ${parsed.error}`)
     }
-    const rootPath = parsed.data.path
-      ? await this.validatePath(parsed.data.path)
-      : this.allowedDirectories[0]
-    const results: string[] = []
 
-    const search = async (currentPath: string) => {
-      const entries = await fs.readdir(currentPath, { withFileTypes: true })
-      for (const entry of entries) {
-        const fullPath = path.join(currentPath, entry.name)
-        try {
-          await this.validatePath(fullPath)
-          const isMatch =
-            parsed.data.searchType === 'glob'
-              ? minimatch(entry.name, parsed.data.pattern, {
-                  dot: true,
-                  nocase: !parsed.data.caseSensitive
-                })
-              : parsed.data.caseSensitive
-                ? entry.name.includes(parsed.data.pattern)
-                : entry.name.toLowerCase().includes(parsed.data.pattern.toLowerCase())
-          if (isMatch) {
-            results.push(fullPath)
-          }
-          if (entry.isDirectory()) {
-            await search(fullPath)
-          }
-        } catch {
-          continue
-        }
-      }
+    const { pattern, root, excludePatterns = [], maxResults = 1000, sortBy = 'name' } = parsed.data
+
+    // Determine root directory
+    const searchRoot = root ? await this.validatePath(root) : this.allowedDirectories[0]
+
+    // Default exclusions
+    const defaultExclusions = [
+      '**/node_modules/**',
+      '**/.git/**',
+      '**/dist/**',
+      '**/build/**',
+      '**/.next/**'
+    ]
+    const allExclusions = [...defaultExclusions, ...excludePatterns]
+
+    // Use glob library for fast file matching
+    const globOptions = {
+      cwd: searchRoot,
+      ignore: allExclusions,
+      absolute: true,
+      nodir: true,
+      maxResults: maxResults + 100 // Get extra results for filtering
     }
 
-    await search(rootPath)
-    return results.slice(0, parsed.data.maxResults).join('\n')
+    try {
+      const matches = await glob(pattern, globOptions)
+
+      // Filter matches to ensure they're in allowed directories
+      const validMatches = await Promise.all(
+        matches.map(async (filePath) => {
+          try {
+            await this.validatePath(filePath)
+            return filePath
+          } catch {
+            return null
+          }
+        })
+      )
+
+      const filteredMatches = validMatches.filter((match): match is string => match !== null)
+
+      // Get file stats for sorting
+      const matchesWithStats: GlobMatch[] = await Promise.all(
+        filteredMatches.slice(0, maxResults).map(async (filePath) => {
+          try {
+            const stats = await fs.stat(filePath)
+            return {
+              path: filePath,
+              name: path.basename(filePath),
+              modified: stats.mtime,
+              size: stats.size
+            }
+          } catch {
+            return {
+              path: filePath,
+              name: path.basename(filePath)
+            }
+          }
+        })
+      )
+
+      // Sort results
+      if (sortBy === 'modified') {
+        matchesWithStats.sort((a, b) => {
+          const aTime = a.modified?.getTime() || 0
+          const bTime = b.modified?.getTime() || 0
+          return bTime - aTime // Descending (newest first)
+        })
+      } else {
+        // Sort by name (default)
+        matchesWithStats.sort((a, b) => a.path.localeCompare(b.path))
+      }
+
+      // Format output
+      const formatted = matchesWithStats.map((match) => {
+        let output = match.path
+        if (match.modified !== undefined && sortBy === 'modified') {
+          output += ` (${match.modified.toISOString()})`
+        }
+        if (match.size !== undefined) {
+          output += ` [${match.size} bytes]`
+        }
+        return output
+      })
+
+      return `Found ${formatted.length} files matching pattern "${pattern}":\n\n${formatted.join('\n')}`
+    } catch (error) {
+      throw new Error(
+        `Glob search failed: ${error instanceof Error ? error.message : String(error)}`
+      )
+    }
   }
 }
