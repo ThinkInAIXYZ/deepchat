@@ -20,8 +20,8 @@ const UPDATE_CHANNEL_STABLE = 'stable'
 const UPDATE_CHANNEL_BETA = 'beta'
 
 type ReleaseNoteItem = {
-  version?: string
-  note?: string
+  version?: string | null
+  note?: string | null
 }
 
 // 版本信息接口
