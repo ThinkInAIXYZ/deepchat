@@ -55,8 +55,7 @@ export class RipgrepSearcher {
       '--max-filesize',
       DEFAULT_MAX_FILESIZE,
       '--max-columns',
-      String(DEFAULT_MAX_COLUMNS),
-      '--binary' // Skip binary files (equivalent to --binary-files=without-match)
+      String(DEFAULT_MAX_COLUMNS)
     ]
 
     // Handle glob pattern
@@ -92,6 +91,9 @@ export class RipgrepSearcher {
     let terminatedEarly = false
     let timeoutHandle: NodeJS.Timeout | null = null
     let stderrOutput = '' // Move stderrOutput to outer scope
+    let exitCode: number | null = null
+    let exitError: Error | null = null
+    let runError: unknown = null
 
     const exitPromise = new Promise<{ code: number | null }>((resolve, reject) => {
       proc.once('close', (code) => resolve({ code }))
@@ -135,6 +137,8 @@ export class RipgrepSearcher {
           }
         }
       }
+    } catch (error) {
+      runError = error
     } finally {
       if (timeoutHandle) {
         clearTimeout(timeoutHandle)
@@ -145,18 +149,27 @@ export class RipgrepSearcher {
       }
       try {
         const { code } = await exitPromise
-        // Exit code 0: matches found
-        // Exit code 1: no matches found (not an error)
-        // Exit code 2: error (e.g., "no files were searched" due to glob filter)
-        // For code 2, we've already logged stderr, and count is 0, so just return empty
-        // Only throw for unexpected errors (code > 2)
-        if (!terminatedEarly && code && code > 2) {
-          throw new Error(`Ripgrep exited with code ${code}: ${stderrOutput.substring(0, 200)}`)
-        }
+        exitCode = code
       } catch (error) {
-        if (!terminatedEarly) {
-          throw error
-        }
+        exitError = error instanceof Error ? error : new Error(String(error))
+      }
+    }
+
+    if (runError) {
+      throw runError
+    }
+
+    // Exit code 0: matches found
+    // Exit code 1: no matches found (not an error)
+    // Exit code 2: error (e.g., "no files were searched" due to glob filter)
+    // For code 2, we've already logged stderr, and count is 0, so just return empty
+    // Only throw for unexpected errors (code > 2)
+    if (!terminatedEarly) {
+      if (exitError) {
+        throw exitError
+      }
+      if (exitCode !== null && exitCode > 2) {
+        throw new Error(`Ripgrep exited with code ${exitCode}: ${stderrOutput.substring(0, 200)}`)
       }
     }
   }

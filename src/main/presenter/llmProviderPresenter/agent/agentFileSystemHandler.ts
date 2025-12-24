@@ -387,9 +387,15 @@ export class AgentFileSystemHandler {
 
           for (const line of lines) {
             // Parse ripgrep output format: file:line:content
-            const match = line.match(/^([^:]+):(\d+):(.*)$/)
-            if (match) {
-              const [, file, lineNum, content] = match
+            const lastColonIndex = line.lastIndexOf(':')
+            const lineNumberSeparator = line.lastIndexOf(':', lastColonIndex - 1)
+            if (lineNumberSeparator !== -1 && lastColonIndex !== -1) {
+              const file = line.slice(0, lineNumberSeparator)
+              const lineNum = line.slice(lineNumberSeparator + 1, lastColonIndex)
+              const content = line.slice(lastColonIndex + 1)
+              if (!/^\d+$/.test(lineNum)) {
+                continue
+              }
               uniqueFiles.add(file)
 
               const grepMatch: GrepMatch = {
