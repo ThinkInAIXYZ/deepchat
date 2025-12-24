@@ -56,15 +56,33 @@ export class RipgrepSearcher {
       DEFAULT_MAX_FILESIZE,
       '--max-columns',
       String(DEFAULT_MAX_COLUMNS),
-      '--binary-files=without-match',
-      '--glob',
-      pattern || '**'
+      '--binary' // Skip binary files (equivalent to --binary-files=without-match)
     ]
+
+    // Handle glob pattern
+    // For "**/*" or "**", we want to match all files, so we don't need --glob
+    // For other patterns, use --glob
+    // Note: ripgrep uses gitignore-style globs
+    // Patterns like "*query*" work better than "**/*query*" for filename matching
+    if (pattern && pattern !== '**/*' && pattern !== '**' && pattern !== '*') {
+      // If pattern starts with "**/*", simplify it to just "*" + rest
+      // e.g., "**/*src*" -> "*src*" (matches files with "src" in name anywhere)
+      let simplifiedPattern = pattern
+      if (pattern.startsWith('**/*')) {
+        simplifiedPattern = '*' + pattern.slice(4) // Remove "**/" prefix
+      } else if (pattern.startsWith('**/')) {
+        simplifiedPattern = pattern.slice(3) // Remove "**/" prefix
+      }
+      args.push('--glob', simplifiedPattern)
+    }
 
     for (const exclude of excludePatterns) {
       args.push('--glob', `!${exclude}`)
     }
 
+    // For --files mode, we need a search pattern (even if it's just '.')
+    // The pattern is used to match file contents, but with --files we only care about file paths
+    args.push('.') // Search pattern: match any character (will match all files)
     args.push(workspacePath)
 
     const proc = spawn(rgExecutable, args, { stdio: ['ignore', 'pipe', 'pipe'] })
@@ -73,6 +91,7 @@ export class RipgrepSearcher {
     let count = 0
     let terminatedEarly = false
     let timeoutHandle: NodeJS.Timeout | null = null
+    let stderrOutput = '' // Move stderrOutput to outer scope
 
     const exitPromise = new Promise<{ code: number | null }>((resolve, reject) => {
       proc.once('close', (code) => resolve({ code }))
@@ -85,6 +104,11 @@ export class RipgrepSearcher {
         proc.kill()
       }, timeoutMs)
     }
+
+    // Capture stderr for debugging
+    proc.stderr?.on('data', (chunk) => {
+      stderrOutput += chunk.toString()
+    })
 
     try {
       for await (const line of rl) {
@@ -100,7 +124,8 @@ export class RipgrepSearcher {
         const pathValue =
           typeof parsed.data?.path === 'string' ? parsed.data.path : parsed.data?.path?.text
 
-        if ((parsed.type === 'begin' || parsed.type === 'match') && pathValue) {
+        // ripgrep with --files returns 'begin' type for each file
+        if (parsed.type === 'begin' && pathValue) {
           yield pathValue
           count += 1
           if (maxResults && count >= maxResults) {
@@ -120,8 +145,13 @@ export class RipgrepSearcher {
       }
       try {
         const { code } = await exitPromise
-        if (!terminatedEarly && code && code > 1) {
-          throw new Error(`Ripgrep exited with code ${code}`)
+        // Exit code 0: matches found
+        // Exit code 1: no matches found (not an error)
+        // Exit code 2: error (e.g., "no files were searched" due to glob filter)
+        // For code 2, we've already logged stderr, and count is 0, so just return empty
+        // Only throw for unexpected errors (code > 2)
+        if (!terminatedEarly && code && code > 2) {
+          throw new Error(`Ripgrep exited with code ${code}: ${stderrOutput.substring(0, 200)}`)
         }
       } catch (error) {
         if (!terminatedEarly) {

@@ -468,7 +468,10 @@ import { useThemeStore } from '@/stores/theme'
 
 // === Mention System ===
 import { Mention } from '../editor/mention/mention'
-import suggestion, { setPromptFilesHandler, setWorkspaceMention } from '../editor/mention/suggestion'
+import suggestion, {
+  setPromptFilesHandler,
+  setWorkspaceMention
+} from '../editor/mention/suggestion'
 import { mentionData } from '../editor/mention/suggestion'
 import { useEventListener } from '@vueuse/core'
 

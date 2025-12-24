@@ -39,7 +39,9 @@ export async function searchWorkspaceFiles(
   query: string
 ): Promise<WorkspaceFileNode[]> {
   const trimmed = query.trim()
-  if (!trimmed) return []
+  if (!trimmed) {
+    return []
+  }
 
   // Handle special case: if query is "**/*", use it directly as glob pattern
   // This is used when user just types "@" to show some files
@@ -49,7 +51,7 @@ export async function searchWorkspaceFiles(
       sortBy: 'name'
     })
 
-    return result.files
+    const filtered = result.files
       .filter((filePath) => {
         try {
           checkSensitiveFile(filePath)
@@ -59,6 +61,7 @@ export async function searchWorkspaceFiles(
         }
       })
       .map((filePath) => buildFileNode(filePath))
+    return filtered
   }
 
   const resolved = resolveWorkspacePath(workspacePath, trimmed)
@@ -78,7 +81,12 @@ export async function searchWorkspaceFiles(
 
   const hasSeparator = trimmed.includes('/') || trimmed.includes('\\')
   const escaped = escapeGlob(trimmed)
-  const globPattern = hasSeparator ? `**/${escaped}*` : `**/*${escaped}*`
+  // For ripgrep, use simpler glob patterns
+  // If has separator, use the path as-is with wildcards
+  // Otherwise, use *query* to match anywhere in filename
+  const globPattern = hasSeparator
+    ? `**/${escaped}*` // Path-based: **/path/to/file*
+    : `*${escaped}*` // Filename-based: *query* (matches anywhere in filename)
 
   const result = await searchFiles(workspacePath, globPattern, {
     maxResults: DEFAULT_RESULT_LIMIT,
@@ -100,5 +108,6 @@ export async function searchWorkspaceFiles(
     })
     .sort((a, b) => b.score - a.score || a.filePath.localeCompare(b.filePath))
 
-  return ranked.map(({ filePath }) => buildFileNode(filePath))
+  const finalResults = ranked.map(({ filePath }) => buildFileNode(filePath))
+  return finalResults
 }

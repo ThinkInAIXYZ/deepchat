@@ -65,55 +65,39 @@ export const setPromptFilesHandler = (handler: typeof promptFilesHandler) => {
 export const getPromptFilesHandler = () => promptFilesHandler
 
 export default {
-  allowedPrefixes: null,
+  char: '@',
+  allowedPrefixes: null, // null means allow @ after any character
   items: ({ query }) => {
-    // Handle @ file reference (workspace files)
-    if (query?.startsWith('@')) {
-      const fileQuery = query.slice(1) // Remove @ symbol
+    // Note: TipTap mention passes query WITHOUT the trigger character (@)
+    // So if user types "@", query is ""
+    // If user types "@p", query is "p"
 
-      // If workspace mention is enabled, search workspace files
-      if (workspaceMentionHandler?.isEnabled.value) {
-        workspaceMentionHandler.searchWorkspaceFiles(fileQuery)
-        const workspaceResults = workspaceMentionHandler.workspaceFileResults.value
-
-        // If we have workspace results, return them
-        // If query is empty (just "@"), also include other mention data
-        if (workspaceResults.length > 0 || !fileQuery.trim()) {
-          // Combine workspace results with other mention data if query is empty
-          if (!fileQuery.trim()) {
-            return [...workspaceResults, ...mentionData.value]
-          }
-          return workspaceResults
-        }
-      }
-
-      // If workspace is not enabled or no results, fall back to other mention data
-      // This ensures users can still see prompt tools, files, etc. even when workspace is disabled
-      const allItems: CategorizedData[] = []
-      for (const item of mentionData.value) {
-        if (!fileQuery.trim() || item.label.toLowerCase().includes(fileQuery.toLowerCase())) {
-          allItems.push(item)
-        }
-      }
-      return allItems.slice(0, 10)
+    // Collect workspace results if enabled
+    let workspaceResults: CategorizedData[] = []
+    if (workspaceMentionHandler?.isEnabled.value) {
+      workspaceMentionHandler.searchWorkspaceFiles(query)
+      workspaceResults = workspaceMentionHandler.workspaceFileResults.value
     }
 
-    // If there's a query (without @), search across all categories
+    // Collect other mention data (prompts, tools, files, resources)
+    let otherItems: CategorizedData[] = []
     if (query) {
-      const allItems: CategorizedData[] = []
-      // Flatten the structure and search in all categories
-
+      // Search across all categories
       for (const item of mentionData.value) {
         if (item.label.toLowerCase().includes(query.toLowerCase())) {
-          allItems.push(item)
+          otherItems.push(item)
         }
       }
-
-      return allItems.slice(0, 5)
+      otherItems = otherItems.slice(0, 5)
+    } else {
+      // If no query, return all mention data
+      otherItems = mentionData.value
     }
 
-    // If no query, return the full list
-    return mentionData.value
+    // Combine workspace results with other mention data
+    // Workspace results come first, then other mention data
+    const combined = [...workspaceResults, ...otherItems]
+    return combined
   },
 
   render: () => {

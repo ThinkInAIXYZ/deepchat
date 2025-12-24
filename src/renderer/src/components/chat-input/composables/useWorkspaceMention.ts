@@ -13,8 +13,10 @@ export function useWorkspaceMention(options: {
   const workspaceFileResults = ref<CategorizedData[]>([])
 
   const isEnabled = computed(() => {
-    if (!options.workspacePath.value) return false
-    return options.chatMode.value === 'agent' || options.chatMode.value === 'acp agent'
+    const hasPath = !!options.workspacePath.value
+    const isAgentMode = options.chatMode.value === 'agent' || options.chatMode.value === 'acp agent'
+    const enabled = hasPath && isAgentMode
+    return enabled
   })
 
   const toDisplayPath = (filePath: string) => {

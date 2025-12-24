@@ -205,6 +205,7 @@ export class WorkspacePresenter implements IWorkspacePresenter {
       console.warn(`[Workspace] Blocked search attempt for unauthorized path: ${workspacePath}`)
       return []
     }
-    return searchWorkspaceFiles(workspacePath, query)
+    const results = await searchWorkspaceFiles(workspacePath, query)
+    return results
   }
 }
