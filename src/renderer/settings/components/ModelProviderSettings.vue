@@ -58,9 +58,27 @@
                   :custom-class="'w-4 h-4 text-muted-foreground'"
                   :is-dark="themeStore.isDark"
                 />
-                <span class="text-sm font-medium flex-1" :dir="languageStore.dir">{{
-                  t(provider.name)
-                }}</span>
+                <input
+                  v-if="editingProviderId === provider.id"
+                  ref="editInputRef"
+                  v-model="editingName"
+                  class="text-sm font-medium flex-1 min-w-0 bg-background border border-input rounded px-2 py-0.5 outline-none focus:ring-1 focus:ring-ring"
+                  :dir="languageStore.dir"
+                  @blur="saveEditingName"
+                  @keydown="handleEditKeydown"
+                  @click.stop
+                />
+                <template v-else>
+                  <span class="text-sm font-medium flex-1" :dir="languageStore.dir">{{
+                    t(provider.name)
+                  }}</span>
+                  <Icon
+                    v-if="provider.custom"
+                    icon="lucide:pencil"
+                    class="w-3.5 h-3.5 text-muted-foreground opacity-0 group-hover:opacity-60 hover:opacity-100! cursor-pointer shrink-0"
+                    @click="startEditingName(provider, $event)"
+                  />
+                </template>
                 <Switch
                   :model-value="provider.enable"
                   @click.stop="toggleProviderStatus(provider)"
@@ -102,9 +120,27 @@
                   :custom-class="'w-4 h-4 text-muted-foreground'"
                   :is-dark="themeStore.isDark"
                 />
-                <span class="text-sm font-medium flex-1" :dir="languageStore.dir">{{
-                  t(provider.name)
-                }}</span>
+                <input
+                  v-if="editingProviderId === provider.id"
+                  ref="editInputRef"
+                  v-model="editingName"
+                  class="text-sm font-medium flex-1 min-w-0 bg-background border border-input rounded px-2 py-0.5 outline-none focus:ring-1 focus:ring-ring"
+                  :dir="languageStore.dir"
+                  @blur="saveEditingName"
+                  @keydown="handleEditKeydown"
+                  @click.stop
+                />
+                <template v-else>
+                  <span class="text-sm font-medium flex-1" :dir="languageStore.dir">{{
+                    t(provider.name)
+                  }}</span>
+                  <Icon
+                    v-if="provider.custom"
+                    icon="lucide:pencil"
+                    class="w-3.5 h-3.5 text-muted-foreground opacity-0 group-hover:opacity-60 hover:opacity-100! cursor-pointer shrink-0"
+                    @click="startEditingName(provider, $event)"
+                  />
+                </template>
                 <Switch
                   :model-value="provider.enable"
                   @click.stop="toggleProviderStatus(provider)"
@@ -196,6 +232,44 @@ const isAddProviderDialogOpen = ref(false)
 const searchQueryBase = ref('')
 const searchQuery = refDebounced(searchQueryBase, 150)
 const showClearButton = computed(() => searchQueryBase.value.trim().length > 0)
+
+const editingProviderId = ref<string | null>(null)
+const editingName = ref('')
+const editInputRef = ref<HTMLInputElement | null>(null)
+
+const startEditingName = (provider: LLM_PROVIDER, event: Event) => {
+  event.stopPropagation()
+  editingProviderId.value = provider.id
+  editingName.value = provider.name
+  nextTick(() => {
+    editInputRef.value?.focus()
+    editInputRef.value?.select()
+  })
+}
+
+const saveEditingName = async () => {
+  if (!editingProviderId.value || !editingName.value.trim()) {
+    cancelEditingName()
+    return
+  }
+  const trimmedName = editingName.value.trim()
+  const providerId = editingProviderId.value
+  editingProviderId.value = null
+  await providerStore.updateProviderConfig(providerId, { name: trimmedName })
+}
+
+const cancelEditingName = () => {
+  editingProviderId.value = null
+  editingName.value = ''
+}
+
+const handleEditKeydown = (event: KeyboardEvent) => {
+  if (event.key === 'Enter') {
+    saveEditingName()
+  } else if (event.key === 'Escape') {
+    cancelEditingName()
+  }
+}
 
 const clearSearch = () => {
   searchQueryBase.value = ''
