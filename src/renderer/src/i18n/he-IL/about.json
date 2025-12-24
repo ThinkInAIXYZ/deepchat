@@ -15,5 +15,5 @@
   "checkUpdateButton": "בדוק עדכונים",
   "updateChannel": "ערוץ עדכון",
   "stableChannel": "יציב (Stable)",
-  "canaryChannel": "קנרית (Canary)"
+  "canaryChannel": "Beta"
 }

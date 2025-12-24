@@ -73,7 +73,7 @@ interface IAppSettings {
   floatingButtonEnabled?: boolean // Whether floating button is enabled
   default_system_prompt?: string // Default system prompt
   webContentLengthLimit?: number // Web content truncation length limit, default 3000 characters
-  updateChannel?: string // Update channel: 'stable' | 'canary'
+  updateChannel?: string // Update channel: 'stable' | 'beta'
   fontFamily?: string // Custom UI font
   codeFontFamily?: string // Custom code font
   [key: string]: unknown // Allow arbitrary keys, using unknown type instead of any
@@ -1475,7 +1475,13 @@ export class ConfigPresenter implements IConfigPresenter {
 
   // 获取更新渠道
   getUpdateChannel(): string {
-    return this.getSetting<string>('updateChannel') || 'stable'
+    const raw = this.getSetting<string>('updateChannel') || 'stable'
+    const normalized = raw === 'canary' ? 'beta' : raw
+    const channel = normalized === 'beta' || normalized === 'stable' ? normalized : 'stable'
+    if (channel !== raw) {
+      this.setSetting('updateChannel', channel)
+    }
+    return channel
   }
 
   // 设置更新渠道

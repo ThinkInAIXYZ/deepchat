@@ -8,12 +8,16 @@ import {
 import { eventBus, SendTarget } from '@/eventbus'
 import { UPDATE_EVENTS, WINDOW_EVENTS } from '@/events'
 import electronUpdater from 'electron-updater'
-import axios from 'axios'
-import { compare } from 'compare-versions'
+import type { ReleaseNoteInfo, UpdateInfo } from 'electron-updater'
 import fs from 'fs'
 import path from 'path'
 
 const { autoUpdater } = electronUpdater
+
+const GITHUB_OWNER = 'yyhhyyyyyy'
+const GITHUB_REPO = 'deepchat'
+const UPDATE_CHANNEL_STABLE = 'stable'
+const UPDATE_CHANNEL_BETA = 'beta'
 
 // 版本信息接口
 interface VersionInfo {
@@ -24,26 +28,42 @@ interface VersionInfo {
   downloadUrl: string
 }
 
-// 获取平台和架构信息
-const getPlatformInfo = () => {
-  const platform = process.platform
-  const arch = process.arch
-  let platformString = ''
-
-  if (platform === 'win32') {
-    platformString = arch === 'arm64' ? 'winarm' : 'winx64'
-  } else if (platform === 'darwin') {
-    platformString = arch === 'arm64' ? 'macarm' : 'macx64'
-  } else if (platform === 'linux') {
-    platformString = arch === 'arm64' ? 'linuxarm' : 'linuxx64'
-  }
-
-  return platformString
+const normalizeUpdateChannel = (channel?: string): 'stable' | 'beta' => {
+  if (channel === UPDATE_CHANNEL_BETA || channel === 'canary') return UPDATE_CHANNEL_BETA
+  return UPDATE_CHANNEL_STABLE
 }
 
-// 获取版本检查的基础URL
-const getVersionCheckBaseUrl = () => {
-  return 'https://cdn.deepchatai.cn'
+const formatTagVersion = (version: string): string => {
+  return version.startsWith('v') ? version : `v${version}`
+}
+
+const buildReleaseUrl = (version: string): string => {
+  return `https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}/releases/tag/${formatTagVersion(version)}`
+}
+
+const formatReleaseNotes = (notes?: string | ReleaseNoteInfo[] | null): string => {
+  if (!notes) return ''
+  if (typeof notes === 'string') return notes
+  if (!Array.isArray(notes)) return String(notes)
+  const blocks = notes
+    .map((note) => {
+      const title = note.version ? `## ${note.version}` : ''
+      const body = note.note ?? ''
+      return [title, body].filter(Boolean).join('\n')
+    })
+    .filter((entry) => entry.length > 0)
+  return blocks.join('\n\n')
+}
+
+const toVersionInfo = (info: UpdateInfo): VersionInfo => {
+  const releaseUrl = buildReleaseUrl(info.version)
+  return {
+    version: info.version,
+    releaseDate: info.releaseDate || '',
+    releaseNotes: formatReleaseNotes(info.releaseNotes),
+    githubUrl: releaseUrl,
+    downloadUrl: releaseUrl
+  }
 }
 
 // 获取自动更新状态文件路径
@@ -57,8 +77,8 @@ export class UpgradePresenter implements IUpgradePresenter {
   private _progress: UpdateProgress | null = null
   private _error: string | null = null
   private _versionInfo: VersionInfo | null = null
-  private _baseUrl: string
   private _lastCheckTime: number = 0 // 上次检查更新的时间戳
+  private _lastCheckType?: string
   private _updateMarkerPath: string
   private _previousUpdateFailed: boolean = false // 标记上次更新是否失败
   private _configPresenter: IConfigPresenter // 配置presenter
@@ -66,7 +86,6 @@ export class UpgradePresenter implements IUpgradePresenter {
 
   constructor(configPresenter: IConfigPresenter) {
     this._configPresenter = configPresenter
-    this._baseUrl = getVersionCheckBaseUrl()
     this._updateMarkerPath = getUpdateMarkerFilePath()
 
     // 配置自动更新
@@ -98,18 +117,33 @@ export class UpgradePresenter implements IUpgradePresenter {
       this._lock = false
       this._status = 'not-available'
       eventBus.sendToRenderer(UPDATE_EVENTS.STATUS_CHANGED, SendTarget.ALL_WINDOWS, {
-        status: this._status
+        status: this._status,
+        type: this._lastCheckType
       })
     })
 
     // 有可用更新
     autoUpdater.on('update-available', (info) => {
       console.log('检测到新版本', info)
-      this._status = 'available'
+      this._versionInfo = toVersionInfo(info)
 
-      // 重要：这里不再使用info中的信息更新this._versionInfo
-      // 而是确保使用之前从versionUrl获取的原始信息
-      console.log('使用已保存的版本信息:', this._versionInfo)
+      if (this._previousUpdateFailed) {
+        console.log('上次更新失败，本次不进行自动更新，改为手动更新')
+        this._status = 'error'
+        this._error = '自动更新可能不稳定，请手动下载更新'
+        eventBus.sendToRenderer(UPDATE_EVENTS.STATUS_CHANGED, SendTarget.ALL_WINDOWS, {
+          status: this._status,
+          error: this._error,
+          info: this._versionInfo
+        })
+        return
+      }
+
+      this._status = 'available'
+      eventBus.sendToRenderer(UPDATE_EVENTS.STATUS_CHANGED, SendTarget.ALL_WINDOWS, {
+        status: this._status,
+        info: this._versionInfo
+      })
       // 检测到更新后自动开始下载
       this.startDownloadUpdate()
     })
@@ -136,6 +170,10 @@ export class UpgradePresenter implements IUpgradePresenter {
       console.log('更新下载完成', info)
       this._lock = false
       this._status = 'downloaded'
+
+      if (!this._versionInfo) {
+        this._versionInfo = toVersionInfo(info)
+      }
 
       // 写入更新标记文件
       this.writeUpdateMarker(this._versionInfo?.version || info.version)
@@ -250,83 +288,17 @@ export class UpgradePresenter implements IUpgradePresenter {
 
     try {
       this._status = 'checking'
+      this._lastCheckType = type
       eventBus.sendToRenderer(UPDATE_EVENTS.STATUS_CHANGED, SendTarget.ALL_WINDOWS, {
         status: this._status
       })
 
-      // 首先获取版本信息文件
-      const platformString = getPlatformInfo()
-      const rawChannel = this._configPresenter.getUpdateChannel()
-      const updateChannel = rawChannel === 'canary' ? 'canary' : 'upgrade' // Sanitize channel
-      const randomId = Math.floor(Date.now() / 3600000) // Timestamp truncated to hour
-      const versionPath = updateChannel
-      const versionUrl = `${this._baseUrl}/${versionPath}/${platformString}.json?noCache=${randomId}`
-      console.log('versionUrl', versionUrl)
-      const response = await axios.get<VersionInfo>(versionUrl, { timeout: 60000 }) // Add network timeout
-      const remoteVersion = response.data
-      const currentVersion = app.getVersion()
+      const updateChannel = normalizeUpdateChannel(this._configPresenter.getUpdateChannel())
+      autoUpdater.allowPrerelease = updateChannel === UPDATE_CHANNEL_BETA
+      autoUpdater.channel = updateChannel === UPDATE_CHANNEL_BETA ? UPDATE_CHANNEL_BETA : 'latest'
 
-      // 保存完整的远程版本信息到内存中，作为唯一的标准信息源
-      this._versionInfo = {
-        version: remoteVersion.version,
-        releaseDate: remoteVersion.releaseDate,
-        releaseNotes: remoteVersion.releaseNotes,
-        githubUrl: remoteVersion.githubUrl,
-        downloadUrl: remoteVersion.downloadUrl
-      }
-
-      console.log('cache versionInfo：', this._versionInfo)
-
-      // 更新上次检查时间
+      await autoUpdater.checkForUpdates()
       this._lastCheckTime = Date.now()
-
-      // 比较版本号
-      if (compare(remoteVersion.version, currentVersion, '>')) {
-        // 有新版本
-
-        // 如果上次更新失败，这次不再尝试自动更新，直接进入错误状态让用户手动更新
-        if (this._previousUpdateFailed) {
-          console.log('上次更新失败，本次不进行自动更新，改为手动更新')
-          this._status = 'error'
-          this._error = '自动更新可能不稳定，请手动下载更新'
-
-          eventBus.sendToRenderer(UPDATE_EVENTS.STATUS_CHANGED, SendTarget.ALL_WINDOWS, {
-            status: this._status,
-            error: this._error,
-            info: this._versionInfo
-          })
-          return
-        }
-
-        // 设置自动更新的URL
-        const autoUpdateUrl =
-          updateChannel === 'canary'
-            ? `${this._baseUrl}/canary/${platformString}`
-            : `${this._baseUrl}/upgrade/v${remoteVersion.version}/${platformString}`
-        console.log('设置自动更新URL:', autoUpdateUrl)
-        autoUpdater.setFeedURL(autoUpdateUrl)
-
-        try {
-          // 使用electron-updater检查更新，但不自动下载
-          await autoUpdater.checkForUpdates()
-        } catch (err) {
-          console.error('自动更新检查失败，回退到手动更新', err)
-          // 如果自动更新失败，回退到手动更新
-          this._status = 'available'
-
-          eventBus.sendToRenderer(UPDATE_EVENTS.STATUS_CHANGED, SendTarget.ALL_WINDOWS, {
-            status: this._status,
-            info: this._versionInfo // 使用已保存的版本信息
-          })
-        }
-      } else {
-        // 没有新版本
-        this._status = 'not-available'
-        eventBus.sendToRenderer(UPDATE_EVENTS.STATUS_CHANGED, SendTarget.ALL_WINDOWS, {
-          status: this._status,
-          type
-        })
-      }
     } catch (error: Error | unknown) {
       this._status = 'error'
       this._error = error instanceof Error ? error.message : String(error)
@@ -355,13 +327,14 @@ export class UpgradePresenter implements IUpgradePresenter {
   }
 
   async goDownloadUpgrade(type: 'github' | 'netdisk'): Promise<void> {
+    const fallbackUrl = `https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}/releases`
     if (type === 'github') {
-      const url = this._versionInfo?.githubUrl
+      const url = this._versionInfo?.githubUrl || fallbackUrl
       if (url) {
         shell.openExternal(url)
       }
     } else if (type === 'netdisk') {
-      const url = this._versionInfo?.downloadUrl
+      const url = this._versionInfo?.downloadUrl || fallbackUrl
       if (url) {
         shell.openExternal(url)
       }

@@ -7,11 +7,6 @@ on:
         description: 'Build workflow run ID to use for artifacts'
         required: true
         type: string
-      prerelease:
-        description: 'Is this a prerelease?'
-        required: true
-        type: boolean
-        default: false
 
 jobs:
   create-release:
@@ -32,7 +27,16 @@ jobs:
         run: |
           VERSION_FILE=$(find artifacts/deepchat-linux-x64 -name "DeepChat-*.tar.gz" | head -n 1)
           if [ -n "$VERSION_FILE" ]; then
-            VERSION=$(echo $VERSION_FILE | grep -o 'DeepChat-[0-9]\+\.[0-9]\+\.[0-9]\+' | sed 's/DeepChat-//')
+            VERSION=$(echo "$VERSION_FILE" | grep -oE 'DeepChat-[0-9]+\.[0-9]+\.[0-9]+(-(beta|alpha)\.[0-9]+)?' | sed 's/DeepChat-//')
+            if [ -z "$VERSION" ]; then
+              echo "Error: Failed to parse version from $VERSION_FILE"
+              exit 1
+            fi
+            if echo "$VERSION" | grep -qE '-(beta|alpha)\.'; then
+              echo "prerelease=true" >> $GITHUB_OUTPUT
+            else
+              echo "prerelease=false" >> $GITHUB_OUTPUT
+            fi
             echo "version=$VERSION" >> $GITHUB_OUTPUT
             echo "Found version: $VERSION"
           else
@@ -49,6 +53,8 @@ jobs:
             cp artifacts/deepchat-win-x64/*.exe release_assets/ 2>/dev/null || true
             cp artifacts/deepchat-win-x64/*.msi release_assets/ 2>/dev/null || true
             cp artifacts/deepchat-win-x64/*.zip release_assets/ 2>/dev/null || true
+            cp artifacts/deepchat-win-x64/*.yml release_assets/ 2>/dev/null || true
+            cp artifacts/deepchat-win-x64/*.blockmap release_assets/ 2>/dev/null || true
           fi
 
           # Process Windows arm64 artifacts
@@ -64,19 +70,53 @@ jobs:
             cp artifacts/deepchat-linux-x64/*.deb release_assets/ 2>/dev/null || true
             cp artifacts/deepchat-linux-x64/*.rpm release_assets/ 2>/dev/null || true
             cp artifacts/deepchat-linux-x64/*.tar.gz release_assets/ 2>/dev/null || true
+            cp artifacts/deepchat-linux-x64/*.yml release_assets/ 2>/dev/null || true
+            cp artifacts/deepchat-linux-x64/*.blockmap release_assets/ 2>/dev/null || true
           fi
 
           # Process Mac x64 artifacts
           if [ -d "artifacts/deepchat-mac-x64" ]; then
             cp artifacts/deepchat-mac-x64/*.dmg release_assets/ 2>/dev/null || true
             cp artifacts/deepchat-mac-x64/*.zip release_assets/ 2>/dev/null || true
+            cp artifacts/deepchat-mac-x64/*.blockmap release_assets/ 2>/dev/null || true
           fi
 
           # Process Mac arm64 artifacts
           if [ -d "artifacts/deepchat-mac-arm64" ]; then
             cp artifacts/deepchat-mac-arm64/*.dmg release_assets/ 2>/dev/null || true
             cp artifacts/deepchat-mac-arm64/*.zip release_assets/ 2>/dev/null || true
+            cp artifacts/deepchat-mac-arm64/*.blockmap release_assets/ 2>/dev/null || true
           fi
+
+          merge_mac_yml() {
+            local name="$1"
+            local x64="artifacts/deepchat-mac-x64/$name"
+            local arm64="artifacts/deepchat-mac-arm64/$name"
+            if [ -f "$x64" ] && [ -f "$arm64" ]; then
+              ruby -ryaml -e '
+                x64 = YAML.load_file(ARGV[0]) || {}
+                arm = YAML.load_file(ARGV[1]) || {}
+                merged = x64.dup
+                merged["version"] ||= arm["version"]
+                merged["releaseDate"] ||= arm["releaseDate"]
+                merged["releaseNotes"] ||= arm["releaseNotes"]
+                merged["path"] ||= arm["path"]
+                merged["sha512"] ||= arm["sha512"]
+                files = []
+                files.concat(x64["files"]) if x64["files"].is_a?(Array)
+                files.concat(arm["files"]) if arm["files"].is_a?(Array)
+                merged["files"] = files.uniq { |f| f["url"] }
+                File.write(ARGV[2], merged.to_yaml)
+              ' "$x64" "$arm64" "release_assets/$name"
+            elif [ -f "$x64" ]; then
+              cp "$x64" "release_assets/$name"
+            elif [ -f "$arm64" ]; then
+              cp "$arm64" "release_assets/$name"
+            fi
+          }
+
+          merge_mac_yml latest-mac.yml
+          merge_mac_yml beta-mac.yml
 
           ls -la release_assets/
 
@@ -86,7 +126,7 @@ jobs:
           tag_name: v${{ steps.get_version.outputs.version }}
           name: DeepChat V${{ steps.get_version.outputs.version }}
           draft: true
-          prerelease: ${{ github.event.inputs.prerelease }}
+          prerelease: ${{ steps.get_version.outputs.prerelease == 'true' }}
           files: |
             release_assets/*
           body: |

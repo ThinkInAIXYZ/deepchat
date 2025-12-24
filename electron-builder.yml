@@ -96,5 +96,6 @@ linux:
     - x-scheme-handler/deepchat
 npmRebuild: true
 publish:
-  provider: generic
-  url: https://cdn.deepchatai.cn/upgrade/
+  provider: github
+  owner: yyhhyyyyyy
+  repo: deepchat
