@@ -1,67 +1,244 @@
-name: Create Release
+name: Release
 
 on:
   workflow_dispatch:
     inputs:
-      workflow_id:
-        description: 'Build workflow run ID to use for artifacts'
+      tag:
+        description: 'Release tag (e.g. v0.5.5)'
         required: true
         type: string
+  push:
+    tags:
+      - v*.*.*
+
+permissions:
+  contents: write
 
 jobs:
-  create-release:
+  resolve-tag:
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.resolve.outputs.tag }}
+    steps:
+      - name: Resolve tag
+        id: resolve
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "tag=${{ github.event.inputs.tag }}" >> $GITHUB_OUTPUT
+          else
+            echo "tag=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+          fi
+
+  build-windows:
+    needs: resolve-tag
+    runs-on: windows-latest
+    strategy:
+      matrix:
+        arch: [x64]
+        include:
+          - arch: x64
+            platform: win-x64
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.resolve-tag.outputs.tag }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.13.1'
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 10.12.1
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Configure pnpm workspace for Windows ${{ matrix.arch }}
+        run: pnpm run install:sharp
+        env:
+          TARGET_OS: win32
+          TARGET_ARCH: ${{ matrix.arch }}
+
+      - name: Install dependencies
+        run: pnpm install
+        env:
+          npm_config_build_from_source: true
+          npm_config_platform: win32
+          npm_config_arch: ${{ matrix.arch }}
+
+      - name: Install Node Runtime
+        run: pnpm run installRuntime:win:${{ matrix.arch }}
+
+      - name: Build Windows
+        run: |
+          pnpm run build
+          pnpm exec electron-builder --win --${{ matrix.arch }} --publish=never
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VITE_GITHUB_CLIENT_ID: ${{ secrets.DC_GITHUB_CLIENT_ID }}
+          VITE_GITHUB_CLIENT_SECRET: ${{ secrets.DC_GITHUB_CLIENT_SECRET }}
+          VITE_GITHUB_REDIRECT_URI: ${{ secrets.DC_GITHUB_REDIRECT_URI }}
+          VITE_PROVIDER_DB_URL: ${{ secrets.CDN_PROVIDER_DB_URL }}
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: deepchat-${{ matrix.platform }}
+          path: |
+            dist/*
+            !dist/win-unpacked
+            !dist/win-arm64-unpacked
+
+  build-linux:
+    needs: resolve-tag
+    runs-on: ubuntu-22.04
+    strategy:
+      matrix:
+        arch: [x64]
+        include:
+          - arch: x64
+            platform: linux-x64
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.resolve-tag.outputs.tag }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.13.1'
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 10.12.1
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Configure pnpm workspace for Linux ${{ matrix.arch }}
+        run: pnpm run install:sharp
+        env:
+          TARGET_OS: linux
+          TARGET_ARCH: ${{ matrix.arch }}
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Build Linux
+        run: |
+          pnpm run build
+          pnpm exec electron-builder --linux --${{ matrix.arch }} --publish=never
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VITE_GITHUB_CLIENT_ID: ${{ secrets.DC_GITHUB_CLIENT_ID }}
+          VITE_GITHUB_CLIENT_SECRET: ${{ secrets.DC_GITHUB_CLIENT_SECRET }}
+          VITE_GITHUB_REDIRECT_URI: ${{ secrets.DC_GITHUB_REDIRECT_URI }}
+          VITE_PROVIDER_DB_URL: ${{ secrets.CDN_PROVIDER_DB_URL }}
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: deepchat-${{ matrix.platform }}
+          path: |
+            dist/*
+            !dist/linux-unpacked
+
+  build-mac:
+    needs: resolve-tag
+    runs-on: macos-15
+    strategy:
+      matrix:
+        arch: [x64, arm64]
+        include:
+          - arch: x64
+            platform: mac-x64
+          - arch: arm64
+            platform: mac-arm64
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.resolve-tag.outputs.tag }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.13.1'
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 10.12.1
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Configure pnpm workspace for macOS ${{ matrix.arch }}
+        run: pnpm run install:sharp
+        env:
+          TARGET_OS: darwin
+          TARGET_ARCH: ${{ matrix.arch }}
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Install Node Runtime
+        run: pnpm run installRuntime:mac:${{ matrix.arch }}
+
+      - name: Build Mac
+        run: |
+          pnpm run build
+          pnpm exec electron-builder --mac --${{ matrix.arch }} --publish=never
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VITE_GITHUB_CLIENT_ID: ${{ secrets.DC_GITHUB_CLIENT_ID }}
+          VITE_GITHUB_CLIENT_SECRET: ${{ secrets.DC_GITHUB_CLIENT_SECRET }}
+          VITE_GITHUB_REDIRECT_URI: ${{ secrets.DC_GITHUB_REDIRECT_URI }}
+          NODE_OPTIONS: '--max-old-space-size=4096'
+          VITE_PROVIDER_DB_URL: ${{ secrets.CDN_PROVIDER_DB_URL }}
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: deepchat-${{ matrix.platform }}
+          path: |
+            dist/*
+            !dist/mac/*
+            !dist/mac-arm64/*
+
+  release:
+    needs:
+      - resolve-tag
+      - build-windows
+      - build-linux
+      - build-mac
     runs-on: ubuntu-latest
     steps:
-      - name: Download artifacts from workflow
-        uses: dawidd6/action-download-artifact@v6
+      - uses: actions/checkout@v4
         with:
-          workflow_conclusion: success
-          run_id: ${{ github.event.inputs.workflow_id }}
-          path: artifacts
-
-      - name: List downloaded artifacts
-        run: find artifacts -type f | sort
-
-      - name: Get build run info
-        id: build_run
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const runId = Number('${{ github.event.inputs.workflow_id }}')
-            const { data } = await github.rest.actions.getWorkflowRun({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              run_id: runId
-            })
-            core.setOutput('sha', data.head_sha)
+          ref: ${{ needs.resolve-tag.outputs.tag }}
+          fetch-depth: 1
 
       - name: Get version number
         id: get_version
         run: |
-          VERSION_FILE=$(find artifacts/deepchat-linux-x64 -name "DeepChat-*.tar.gz" | head -n 1)
-          if [ -n "$VERSION_FILE" ]; then
-            VERSION=$(echo "$VERSION_FILE" | grep -oE 'DeepChat-[0-9]+\.[0-9]+\.[0-9]+(-(beta|alpha)\.[0-9]+)?' | sed 's/DeepChat-//')
-            if [ -z "$VERSION" ]; then
-              echo "Error: Failed to parse version from $VERSION_FILE"
-              exit 1
-            fi
-            if echo "$VERSION" | grep -qE '-(beta|alpha)\.'; then
-              echo "prerelease=true" >> $GITHUB_OUTPUT
-            else
-              echo "prerelease=false" >> $GITHUB_OUTPUT
-            fi
-            echo "version=$VERSION" >> $GITHUB_OUTPUT
-            echo "Found version: $VERSION"
-          else
-            echo "Error: DeepChat tar.gz file not found"
+          VERSION=$(node -p "require('./package.json').version")
+          TAG="${{ needs.resolve-tag.outputs.tag }}"
+          if [ "v$VERSION" != "$TAG" ]; then
+            echo "Error: tag $TAG does not match package.json version v$VERSION"
             exit 1
           fi
-
-      - name: Checkout build commit
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ steps.build_run.outputs.sha }}
-          fetch-depth: 1
+          if echo "$VERSION" | grep -qE '-(beta|alpha)\.[0-9]+$'; then
+            echo "prerelease=true" >> $GITHUB_OUTPUT
+          else
+            echo "prerelease=false" >> $GITHUB_OUTPUT
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
 
       - name: Build release notes from CHANGELOG
         run: |
@@ -86,6 +263,11 @@ jobs:
             exit 1
           fi
 
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
       - name: Prepare release assets
         run: |
           mkdir -p release_assets
@@ -98,13 +280,6 @@ jobs:
             cp artifacts/deepchat-win-x64/*.yml release_assets/ 2>/dev/null || true
             cp artifacts/deepchat-win-x64/*.blockmap release_assets/ 2>/dev/null || true
           fi
-
-          # Process Windows arm64 artifacts
-          #if [ -d "artifacts/deepchat-win-arm64" ]; then
-          #  cp artifacts/deepchat-win-arm64/*.exe release_assets/ 2>/dev/null || true
-          #  cp artifacts/deepchat-win-arm64/*.msi release_assets/ 2>/dev/null || true
-          #  cp artifacts/deepchat-win-arm64/*.zip release_assets/ 2>/dev/null || true
-          #fi
 
           # Process Linux x64 artifacts
           if [ -d "artifacts/deepchat-linux-x64" ]; then
@@ -160,18 +335,22 @@ jobs:
           merge_mac_yml latest-mac.yml
           merge_mac_yml beta-mac.yml
 
+          if [ -z "$(ls -A release_assets)" ]; then
+            echo "Error: No release assets found"
+            exit 1
+          fi
+
           ls -la release_assets/
 
       - name: Create Draft Release
         uses: softprops/action-gh-release@v1
         with:
-          tag_name: v${{ steps.get_version.outputs.version }}
+          tag_name: ${{ needs.resolve-tag.outputs.tag }}
           name: DeepChat V${{ steps.get_version.outputs.version }}
           draft: true
           prerelease: ${{ steps.get_version.outputs.prerelease == 'true' }}
           files: |
             release_assets/*
           body_path: release_notes.md
-
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
