@@ -459,6 +459,7 @@ import { useAcpWorkdir } from './composables/useAcpWorkdir'
 import { useAcpMode } from './composables/useAcpMode'
 import { useChatMode, type ChatMode } from './composables/useChatMode'
 import { useAgentWorkspace } from './composables/useAgentWorkspace'
+import { useWorkspaceMention } from './composables/useWorkspaceMention'
 
 // === Stores ===
 import { useChatStore } from '@/stores/chat'
@@ -467,7 +468,7 @@ import { useThemeStore } from '@/stores/theme'
 
 // === Mention System ===
 import { Mention } from '../editor/mention/mention'
-import suggestion, { setPromptFilesHandler } from '../editor/mention/suggestion'
+import suggestion, { setPromptFilesHandler, setWorkspaceMention } from '../editor/mention/suggestion'
 import { mentionData } from '../editor/mention/suggestion'
 import { useEventListener } from '@vueuse/core'
 
@@ -740,6 +741,13 @@ const workspace = useAgentWorkspace({
   chatMode
 })
 
+const workspaceMention = useWorkspaceMention({
+  workspacePath: workspace.workspacePath,
+  chatMode: chatMode.currentMode,
+  conversationId
+})
+setWorkspaceMention(workspaceMention)
+
 // Extract isStreaming first so we can pass it to useAcpMode
 const { disabledSend, isStreaming } = sendButtonState
 
@@ -909,6 +917,8 @@ onUnmounted(() => {
   if (caretAnimationFrame) {
     cancelAnimationFrame(caretAnimationFrame)
   }
+
+  setWorkspaceMention(null)
 })
 
 // === Watchers ===

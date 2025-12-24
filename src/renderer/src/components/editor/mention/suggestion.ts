@@ -28,6 +28,18 @@ const categorizedData: CategorizedData[] = [
 export const mentionSelected = ref(false)
 export const mentionData: Ref<CategorizedData[]> = ref(categorizedData)
 
+export type WorkspaceMentionHandler = {
+  searchWorkspaceFiles: (query: string) => void
+  workspaceFileResults: Ref<CategorizedData[]>
+  isEnabled: Ref<boolean>
+}
+
+let workspaceMentionHandler: WorkspaceMentionHandler | null = null
+
+export const setWorkspaceMention = (handler: WorkspaceMentionHandler | null) => {
+  workspaceMentionHandler = handler
+}
+
 // 存储文件处理回调函数
 let promptFilesHandler:
   | ((
@@ -55,7 +67,38 @@ export const getPromptFilesHandler = () => promptFilesHandler
 export default {
   allowedPrefixes: null,
   items: ({ query }) => {
-    // If there's a query, search across all categories
+    // Handle @ file reference (workspace files)
+    if (query?.startsWith('@')) {
+      const fileQuery = query.slice(1) // Remove @ symbol
+
+      // If workspace mention is enabled, search workspace files
+      if (workspaceMentionHandler?.isEnabled.value) {
+        workspaceMentionHandler.searchWorkspaceFiles(fileQuery)
+        const workspaceResults = workspaceMentionHandler.workspaceFileResults.value
+
+        // If we have workspace results, return them
+        // If query is empty (just "@"), also include other mention data
+        if (workspaceResults.length > 0 || !fileQuery.trim()) {
+          // Combine workspace results with other mention data if query is empty
+          if (!fileQuery.trim()) {
+            return [...workspaceResults, ...mentionData.value]
+          }
+          return workspaceResults
+        }
+      }
+
+      // If workspace is not enabled or no results, fall back to other mention data
+      // This ensures users can still see prompt tools, files, etc. even when workspace is disabled
+      const allItems: CategorizedData[] = []
+      for (const item of mentionData.value) {
+        if (!fileQuery.trim() || item.label.toLowerCase().includes(fileQuery.toLowerCase())) {
+          allItems.push(item)
+        }
+      }
+      return allItems.slice(0, 10)
+    }
+
+    // If there's a query (without @), search across all categories
     if (query) {
       const allItems: CategorizedData[] = []
       // Flatten the structure and search in all categories

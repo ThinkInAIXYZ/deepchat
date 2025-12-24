@@ -1,6 +1,6 @@
 import fs from 'fs/promises'
 import path from 'path'
-import type { AcpFileNode } from '@shared/presenter'
+import type { WorkspaceFileNode } from '@shared/presenter'
 
 // Ignored directory/file patterns
 const IGNORED_PATTERNS = [
@@ -27,10 +27,10 @@ const IGNORED_PATTERNS = [
  * Directories will have children = undefined, indicating not yet loaded
  * @param dirPath Directory path
  */
-export async function readDirectoryShallow(dirPath: string): Promise<AcpFileNode[]> {
+export async function readDirectoryShallow(dirPath: string): Promise<WorkspaceFileNode[]> {
   try {
     const entries = await fs.readdir(dirPath, { withFileTypes: true })
-    const nodes: AcpFileNode[] = []
+    const nodes: WorkspaceFileNode[] = []
 
     for (const entry of entries) {
       // Skip ignored files/directories
@@ -44,7 +44,7 @@ export async function readDirectoryShallow(dirPath: string): Promise<AcpFileNode
       }
 
       const fullPath = path.join(dirPath, entry.name)
-      const node: AcpFileNode = {
+      const node: WorkspaceFileNode = {
         name: entry.name,
         path: fullPath,
         isDirectory: entry.isDirectory()
@@ -67,7 +67,7 @@ export async function readDirectoryShallow(dirPath: string): Promise<AcpFileNode
       return a.name.localeCompare(b.name)
     })
   } catch (error) {
-    console.error(`[AcpWorkspace] Failed to read directory ${dirPath}:`, error)
+    console.error(`[Workspace] Failed to read directory ${dirPath}:`, error)
     return []
   }
 }
@@ -82,7 +82,7 @@ export async function readDirectoryTree(
   dirPath: string,
   currentDepth: number = 0,
   maxDepth: number = 3
-): Promise<AcpFileNode[]> {
+): Promise<WorkspaceFileNode[]> {
   // Boundary check: depth limit
   if (currentDepth >= maxDepth) {
     return []
@@ -90,7 +90,7 @@ export async function readDirectoryTree(
 
   try {
     const entries = await fs.readdir(dirPath, { withFileTypes: true })
-    const nodes: AcpFileNode[] = []
+    const nodes: WorkspaceFileNode[] = []
 
     for (const entry of entries) {
       // Skip ignored files/directories
@@ -104,7 +104,7 @@ export async function readDirectoryTree(
       }
 
       const fullPath = path.join(dirPath, entry.name)
-      const node: AcpFileNode = {
+      const node: WorkspaceFileNode = {
         name: entry.name,
         path: fullPath,
         isDirectory: entry.isDirectory()
@@ -127,7 +127,7 @@ export async function readDirectoryTree(
       return a.name.localeCompare(b.name)
     })
   } catch (error) {
-    console.error(`[AcpWorkspace] Failed to read directory ${dirPath}:`, error)
+    console.error(`[Workspace] Failed to read directory ${dirPath}:`, error)
     return []
   }
 }

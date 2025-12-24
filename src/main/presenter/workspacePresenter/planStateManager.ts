@@ -1,6 +1,10 @@
 import crypto from 'crypto'
 import { nanoid } from 'nanoid'
-import type { AcpPlanEntry, AcpPlanStatus, AcpRawPlanEntry } from '@shared/presenter'
+import type {
+  WorkspacePlanEntry,
+  WorkspacePlanStatus,
+  WorkspaceRawPlanEntry
+} from '@shared/presenter'
 
 // Maximum number of completed entries to retain per conversation
 const MAX_COMPLETED_ENTRIES = 10
@@ -10,8 +14,8 @@ const MAX_COMPLETED_ENTRIES = 10
  * Maintains plan entries for each conversation, supports incremental updates
  */
 export class PlanStateManager {
-  // Map<conversationId, Map<contentHash, AcpPlanEntry>>
-  private readonly planStore = new Map<string, Map<string, AcpPlanEntry>>()
+  // Map<conversationId, Map<contentHash, WorkspacePlanEntry>>
+  private readonly planStore = new Map<string, Map<string, WorkspacePlanEntry>>()
 
   /**
    * Update plan entries (incremental merge)
@@ -19,7 +23,7 @@ export class PlanStateManager {
    * @param rawEntries Raw plan entries
    * @returns Updated complete entries list
    */
-  updateEntries(conversationId: string, rawEntries: AcpRawPlanEntry[]): AcpPlanEntry[] {
+  updateEntries(conversationId: string, rawEntries: WorkspaceRawPlanEntry[]): WorkspacePlanEntry[] {
     if (!this.planStore.has(conversationId)) {
       this.planStore.set(conversationId, new Map())
     }
@@ -55,7 +59,7 @@ export class PlanStateManager {
   /**
    * Get all plan entries for a conversation
    */
-  getEntries(conversationId: string): AcpPlanEntry[] {
+  getEntries(conversationId: string): WorkspacePlanEntry[] {
     const store = this.planStore.get(conversationId)
     if (!store) return []
     return Array.from(store.values())
@@ -71,8 +75,8 @@ export class PlanStateManager {
   /**
    * Prune completed entries, keeping only the latest MAX_COMPLETED_ENTRIES
    */
-  private pruneCompletedEntries(store: Map<string, AcpPlanEntry>): void {
-    const completedEntries: Array<{ key: string; entry: AcpPlanEntry }> = []
+  private pruneCompletedEntries(store: Map<string, WorkspacePlanEntry>): void {
+    const completedEntries: Array<{ key: string; entry: WorkspacePlanEntry }> = []
 
     for (const [key, entry] of store) {
       if (entry.status === 'completed') {
@@ -101,7 +105,7 @@ export class PlanStateManager {
     return crypto.createHash('sha256').update(normalized).digest('hex')
   }
 
-  private normalizeStatus(status?: string | null): AcpPlanStatus {
+  private normalizeStatus(status?: string | null): WorkspacePlanStatus {
     switch (status) {
       case 'completed':
       case 'done':

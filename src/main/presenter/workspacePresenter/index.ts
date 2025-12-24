@@ -3,8 +3,9 @@ import fs from 'fs'
 import { shell } from 'electron'
 import { eventBus, SendTarget } from '@/eventbus'
 import { WORKSPACE_EVENTS } from '@/events'
-import { readDirectoryShallow } from '../acpWorkspacePresenter/directoryReader'
-import { PlanStateManager } from '../acpWorkspacePresenter/planStateManager'
+import { readDirectoryShallow } from './directoryReader'
+import { PlanStateManager } from './planStateManager'
+import { searchWorkspaceFiles } from './workspaceFileSearch'
 import type {
   IWorkspacePresenter,
   WorkspaceFileNode,
@@ -15,8 +16,8 @@ import type {
 
 export class WorkspacePresenter implements IWorkspacePresenter {
   private readonly planManager = new PlanStateManager()
-  // Allowed workspace paths (registered by Agent sessions)
-  private readonly allowedWorkspaces = new Set<string>()
+  // Allowed workspace paths (registered by Agent and ACP sessions)
+  private readonly allowedPaths = new Set<string>()
 
   /**
    * Register a workspace path as allowed for reading
@@ -24,7 +25,14 @@ export class WorkspacePresenter implements IWorkspacePresenter {
    */
   async registerWorkspace(workspacePath: string): Promise<void> {
     const normalized = path.resolve(workspacePath)
-    this.allowedWorkspaces.add(normalized)
+    this.allowedPaths.add(normalized)
+  }
+
+  /**
+   * Register a workdir path as allowed for reading (ACP alias)
+   */
+  async registerWorkdir(workdir: string): Promise<void> {
+    await this.registerWorkspace(workdir)
   }
 
   /**
@@ -32,7 +40,14 @@ export class WorkspacePresenter implements IWorkspacePresenter {
    */
   async unregisterWorkspace(workspacePath: string): Promise<void> {
     const normalized = path.resolve(workspacePath)
-    this.allowedWorkspaces.delete(normalized)
+    this.allowedPaths.delete(normalized)
+  }
+
+  /**
+   * Unregister a workdir path (ACP alias)
+   */
+  async unregisterWorkdir(workdir: string): Promise<void> {
+    await this.unregisterWorkspace(workdir)
   }
 
   /**
@@ -48,7 +63,7 @@ export class WorkspacePresenter implements IWorkspacePresenter {
         ? normalizedTarget
         : `${normalizedTarget}${path.sep}`
 
-      for (const workspace of this.allowedWorkspaces) {
+      for (const workspace of this.allowedPaths) {
         try {
           // Resolve symlinks for each allowed workspace
           const realWorkspace = fs.realpathSync(workspace)
@@ -86,9 +101,7 @@ export class WorkspacePresenter implements IWorkspacePresenter {
       console.warn(`[Workspace] Blocked read attempt for unauthorized path: ${dirPath}`)
       return []
     }
-    // AcpFileNode and WorkspaceFileNode have the same structure
-    const nodes = await readDirectoryShallow(dirPath)
-    return nodes as unknown as WorkspaceFileNode[]
+    return readDirectoryShallow(dirPath)
   }
 
   /**
@@ -101,9 +114,7 @@ export class WorkspacePresenter implements IWorkspacePresenter {
       console.warn(`[Workspace] Blocked expand attempt for unauthorized path: ${dirPath}`)
       return []
     }
-    // AcpFileNode and WorkspaceFileNode have the same structure
-    const nodes = await readDirectoryShallow(dirPath)
-    return nodes as unknown as WorkspaceFileNode[]
+    return readDirectoryShallow(dirPath)
   }
 
   /**
@@ -150,19 +161,14 @@ export class WorkspacePresenter implements IWorkspacePresenter {
    * Get plan entries
    */
   async getPlanEntries(conversationId: string): Promise<WorkspacePlanEntry[]> {
-    // WorkspacePlanEntry and AcpPlanEntry have the same structure
-    return this.planManager.getEntries(conversationId) as unknown as WorkspacePlanEntry[]
+    return this.planManager.getEntries(conversationId)
   }
 
   /**
    * Update plan entries (called by agent content mapper)
    */
   async updatePlanEntries(conversationId: string, entries: WorkspaceRawPlanEntry[]): Promise<void> {
-    // WorkspaceRawPlanEntry and AcpRawPlanEntry have the same structure
-    const updated = this.planManager.updateEntries(
-      conversationId,
-      entries as unknown as import('@shared/presenter').AcpRawPlanEntry[]
-    ) as unknown as WorkspacePlanEntry[]
+    const updated = this.planManager.updateEntries(conversationId, entries)
 
     // Send event to renderer
     eventBus.sendToRenderer(WORKSPACE_EVENTS.PLAN_UPDATED, SendTarget.ALL_WINDOWS, {
@@ -189,5 +195,16 @@ export class WorkspacePresenter implements IWorkspacePresenter {
    */
   async clearWorkspaceData(conversationId: string): Promise<void> {
     this.planManager.clear(conversationId)
+  }
+
+  /**
+   * Search workspace files by query (query does not include @)
+   */
+  async searchFiles(workspacePath: string, query: string): Promise<WorkspaceFileNode[]> {
+    if (!this.isPathAllowed(workspacePath)) {
+      console.warn(`[Workspace] Blocked search attempt for unauthorized path: ${workspacePath}`)
+      return []
+    }
+    return searchWorkspaceFiles(workspacePath, query)
   }
 }

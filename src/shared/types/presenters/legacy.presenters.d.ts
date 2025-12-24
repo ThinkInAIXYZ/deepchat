@@ -7,7 +7,6 @@ import { ModelType } from '@shared/model'
 import type { NowledgeMemThread, NowledgeMemExportSummary } from '../nowledgeMem'
 import { ProviderChange, ProviderBatchUpdate } from './provider-operations'
 import type { AgentSessionLifecycleStatus } from './agent-provider'
-import type { IAcpWorkspacePresenter } from './acp-workspace'
 import type { IWorkspacePresenter } from './workspace'
 import type { IToolPresenter } from './tool.presenter'
 import type {
@@ -443,7 +442,6 @@ export interface IPresenter {
   oauthPresenter: IOAuthPresenter
   dialogPresenter: IDialogPresenter
   knowledgePresenter: IKnowledgePresenter
-  acpWorkspacePresenter: IAcpWorkspacePresenter
   workspacePresenter: IWorkspacePresenter
   toolPresenter: IToolPresenter
   init(): void

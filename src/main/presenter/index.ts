@@ -23,7 +23,6 @@ import {
   IThreadPresenter,
   IUpgradePresenter,
   IWindowPresenter,
-  IAcpWorkspacePresenter,
   IWorkspacePresenter,
   IToolPresenter,
   IYoBrowserPresenter
@@ -45,7 +44,6 @@ import { FloatingButtonPresenter } from './floatingButtonPresenter'
 import { YoBrowserPresenter } from './browser/YoBrowserPresenter'
 import { CONFIG_EVENTS, WINDOW_EVENTS } from '@/events'
 import { KnowledgePresenter } from './knowledgePresenter'
-import { AcpWorkspacePresenter } from './acpWorkspacePresenter'
 import { WorkspacePresenter } from './workspacePresenter'
 import { ToolPresenter } from './toolPresenter'
 
@@ -85,7 +83,6 @@ export class Presenter implements IPresenter {
   oauthPresenter: OAuthPresenter
   floatingButtonPresenter: FloatingButtonPresenter
   knowledgePresenter: IKnowledgePresenter
-  acpWorkspacePresenter: IAcpWorkspacePresenter
   workspacePresenter: IWorkspacePresenter
   toolPresenter: IToolPresenter
   yoBrowserPresenter: IYoBrowserPresenter
@@ -131,9 +128,6 @@ export class Presenter implements IPresenter {
       dbDir,
       this.filePresenter
     )
-
-    // Initialize ACP Workspace presenter (legacy, kept for backward compatibility)
-    this.acpWorkspacePresenter = new AcpWorkspacePresenter()
 
     // Initialize generic Workspace presenter (for all Agent modes)
     this.workspacePresenter = new WorkspacePresenter()

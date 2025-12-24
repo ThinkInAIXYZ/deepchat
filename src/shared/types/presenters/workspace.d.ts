@@ -80,10 +80,22 @@ export interface IWorkspacePresenter {
   registerWorkspace(workspacePath: string): Promise<void>
 
   /**
+   * Register a workdir path as allowed for reading (ACP alias)
+   * @param workdir Workspace directory path
+   */
+  registerWorkdir(workdir: string): Promise<void>
+
+  /**
    * Unregister a workspace path
    * @param workspacePath Workspace directory path
    */
   unregisterWorkspace(workspacePath: string): Promise<void>
+
+  /**
+   * Unregister a workdir path (ACP alias)
+   * @param workdir Workspace directory path
+   */
+  unregisterWorkdir(workdir: string): Promise<void>
 
   /**
    * Read directory (shallow, only first level)
@@ -137,4 +149,11 @@ export interface IWorkspacePresenter {
    * @param conversationId Conversation ID
    */
   clearWorkspaceData(conversationId: string): Promise<void>
+
+  /**
+   * Search workspace files by query (query does not include @)
+   * @param workspacePath Workspace directory path
+   * @param query Search query (plain string)
+   */
+  searchFiles(workspacePath: string, query: string): Promise<WorkspaceFileNode[]>
 }
