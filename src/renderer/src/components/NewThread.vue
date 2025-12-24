@@ -122,7 +122,7 @@ import type { IpcRendererEvent } from 'electron'
 import { CONFIG_EVENTS } from '@/events'
 import { useModelStore } from '@/stores/modelStore'
 import { useUiSettingsStore } from '@/stores/uiSettingsStore'
-import { useChatMode } from '@/components/chat-input/composables/useChatMode'
+import { useChatMode, type ChatMode } from '@/components/chat-input/composables/useChatMode'
 
 const configPresenter = usePresenter('configPresenter')
 const themeStore = useThemeStore()
@@ -259,6 +259,16 @@ const pickFirstNonAcpModel = () => {
   return found
 }
 
+const pickModelForMode = (mode: ChatMode) => {
+  return mode === 'acp agent' ? pickFirstAcpModel() : pickFirstNonAcpModel()
+}
+
+const matchesModeProvider = (providerId: string | undefined, mode: ChatMode) => {
+  if (!providerId) return false
+  if (mode === 'acp agent') return providerId === 'acp'
+  return providerId !== 'acp'
+}
+
 const setActiveFromEnabled = (m: {
   name: string
   id: string
@@ -272,10 +282,36 @@ const setActiveFromEnabled = (m: {
     tags: [],
     type: m.type ?? ModelType.Chat
   }
+  void chatStore.updateChatConfig({
+    modelId: m.id,
+    providerId: m.providerId
+  })
+}
+
+const syncModelWithMode = (mode: ChatMode, persistPreference = false) => {
+  const currentProviderId = activeModel.value.providerId
+  const isCurrentAcp = currentProviderId === 'acp'
+  const shouldBeAcp = mode === 'acp agent'
+
+  if (isCurrentAcp === shouldBeAcp) {
+    return
+  }
+
+  const targetModel = pickModelForMode(mode) ?? pickFirstEnabledModel()
+  if (!targetModel) return
+
+  setActiveFromEnabled(targetModel)
+  if (persistPreference) {
+    configPresenter.setSetting('preferredModel', {
+      modelId: targetModel.id,
+      providerId: targetModel.providerId
+    })
+  }
 }
 
 const initActiveModel = async () => {
   if (initialized.value) return
+  const currentMode = chatMode.currentMode.value
   // 1) 尝试根据最近会话（区分 pinned/非 pinned）选择
   if (chatStore.threads.length > 0) {
     const pinnedGroup = chatStore.threads.find((g) => g.dt === 'Pinned')
@@ -289,9 +325,10 @@ const initActiveModel = async () => {
       | undefined
     if (candidate?.settings?.modelId && candidate?.settings?.providerId) {
       const match = findEnabledModel(candidate.settings.providerId, candidate.settings.modelId)
-      if (match) {
+      if (match && matchesModeProvider(candidate.settings.providerId, currentMode)) {
         setActiveFromEnabled({ ...match.model, providerId: match.providerId })
         initialized.value = true
+        syncModelWithMode(chatMode.currentMode.value)
         return
       }
     }
@@ -304,9 +341,10 @@ const initActiveModel = async () => {
       | undefined
     if (preferredModel?.modelId && preferredModel?.providerId) {
       const match = findEnabledModel(preferredModel.providerId, preferredModel.modelId)
-      if (match) {
+      if (match && matchesModeProvider(preferredModel.providerId, currentMode)) {
         setActiveFromEnabled({ ...match.model, providerId: match.providerId })
         initialized.value = true
+        syncModelWithMode(chatMode.currentMode.value)
         return
       }
     }
@@ -315,10 +353,11 @@ const initActiveModel = async () => {
   }
 
   // 3) 选择第一个可用模型
-  const first = pickFirstEnabledModel()
+  const first = pickModelForMode(currentMode) ?? pickFirstEnabledModel()
   if (first) {
     setActiveFromEnabled(first)
     initialized.value = true
+    syncModelWithMode(chatMode.currentMode.value)
   }
 }
 
@@ -336,13 +375,13 @@ watch(
     // 校验当前模型是否仍可用
     const current = activeModel.value
     if (!current?.id || !current?.providerId) {
-      const first = pickFirstEnabledModel()
+      const first = pickModelForMode(chatMode.currentMode.value) ?? pickFirstEnabledModel()
       if (first) setActiveFromEnabled(first)
       return
     }
     const stillExists = !!findEnabledModel(current.providerId, current.id)
     if (!stillExists) {
-      const first = pickFirstEnabledModel()
+      const first = pickModelForMode(chatMode.currentMode.value) ?? pickFirstEnabledModel()
       if (first) setActiveFromEnabled(first)
     }
   },
@@ -358,34 +397,7 @@ watch(
       return
     }
 
-    const currentProviderId = activeModel.value.providerId
-    const isCurrentAcp = currentProviderId === 'acp'
-    const shouldBeAcp = newMode === 'acp agent'
-
-    // 如果当前模型类型与 mode 不匹配，需要切换
-    if (isCurrentAcp !== shouldBeAcp) {
-      let targetModel
-      if (shouldBeAcp) {
-        // 切换到 ACP 模型
-        targetModel = pickFirstAcpModel()
-      } else {
-        // 切换到非 ACP 模型
-        targetModel = pickFirstNonAcpModel()
-      }
-
-      if (targetModel) {
-        setActiveFromEnabled(targetModel)
-        // 更新 chat config 和偏好设置
-        chatStore.updateChatConfig({
-          modelId: targetModel.id,
-          providerId: targetModel.providerId
-        })
-        configPresenter.setSetting('preferredModel', {
-          modelId: targetModel.id,
-          providerId: targetModel.providerId
-        })
-      }
-    }
+    syncModelWithMode(newMode, true)
   },
   { immediate: false }
 )

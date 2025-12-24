@@ -260,6 +260,11 @@ export const useChatStore = defineStore('chat', () => {
     await threadP.clearActiveThread(tabId)
     setActiveThreadId(null)
     selectedVariantsMap.value.clear()
+    chatConfig.value = {
+      ...chatConfig.value,
+      acpWorkdirMap: {},
+      agentWorkspacePath: null
+    }
   }
 
   const setAcpWorkdirPreference = (agentId: string, workdir: string | null) => {

@@ -182,7 +182,7 @@
               <TooltipContent>{{ t('chat.input.fileSelect') }}</TooltipContent>
             </Tooltip>
 
-            <Tooltip>
+            <Tooltip v-if="canUseWebSearch">
               <TooltipTrigger>
                 <Button
                   variant="outline"
@@ -561,11 +561,12 @@ const showFakeCaret = computed(() => caretVisible.value && !props.disabled)
 // === Composable Integrations ===
 
 // Initialize settings management
-const { settings, toggleWebSearch } = useInputSettings()
+const { settings, setWebSearch, toggleWebSearch } = useInputSettings()
 
 // Initialize chat mode management
 const chatMode = useChatMode()
 const modeSelectOpen = ref(false)
+const canUseWebSearch = computed(() => chatMode.currentMode.value === 'chat')
 
 // Initialize history composable first (needed for editor placeholder)
 const history = useInputHistory(null as any, t)
@@ -793,7 +794,7 @@ const emitSend = async () => {
       text: editorComposable.inputText.value.trim(),
       files: files.selectedFiles.value,
       links: [],
-      search: settings.value.webSearch,
+      search: canUseWebSearch.value ? settings.value.webSearch : false,
       think: settings.value.deepThinking,
       content: blocks
     }
@@ -812,6 +813,7 @@ const emitSend = async () => {
 }
 
 const onWebSearchClick = async () => {
+  if (!canUseWebSearch.value) return
   await toggleWebSearch()
 }
 
@@ -945,6 +947,16 @@ watch(
   () => {
     rateLimit.loadRateLimitStatus()
   }
+)
+
+watch(
+  () => [chatMode.currentMode.value, settings.value.webSearch] as const,
+  ([mode, webSearch]) => {
+    if (mode !== 'chat' && webSearch) {
+      void setWebSearch(false)
+    }
+  },
+  { immediate: true }
 )
 
 watch(

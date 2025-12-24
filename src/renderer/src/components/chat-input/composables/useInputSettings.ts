@@ -18,9 +18,10 @@ export function useInputSettings() {
   })
 
   // === Public Methods ===
-  const toggleWebSearch = async () => {
+  const setWebSearch = async (value: boolean) => {
     const previousValue = settings.value.webSearch
-    settings.value.webSearch = !settings.value.webSearch
+    if (previousValue === value) return
+    settings.value.webSearch = value
 
     try {
       await configPresenter.setSetting('input_webSearch', settings.value.webSearch)
@@ -30,6 +31,10 @@ export function useInputSettings() {
       console.error('Failed to save web search setting:', error)
       // TODO: Show user-facing notification when toast system is available
     }
+  }
+
+  const toggleWebSearch = async () => {
+    await setWebSearch(!settings.value.webSearch)
   }
 
   const toggleDeepThinking = async () => {
@@ -69,6 +74,7 @@ export function useInputSettings() {
 
   return {
     settings,
+    setWebSearch,
     toggleWebSearch,
     toggleDeepThinking,
     loadSettings

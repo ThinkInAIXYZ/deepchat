@@ -183,6 +183,8 @@ export class ConversationManager {
         defaultSettings.forcedSearch = undefined
         defaultSettings.searchStrategy = undefined
         defaultSettings.selectedVariantsMap = {}
+        defaultSettings.acpWorkdirMap = {}
+        defaultSettings.agentWorkspacePath = null
       }
 
       const sanitizedSettings: Partial<CONVERSATION_SETTINGS> = { ...settings }
