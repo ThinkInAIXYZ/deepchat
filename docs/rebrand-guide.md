@@ -86,7 +86,6 @@ This script will automatically replace brand information in the following files:
 
 - `package.json` - Package configuration
 - `electron-builder.yml` - Build configuration
-- `electron-builder-macx64.yml` - macOS x64 build configuration
 - `src/main/index.ts` - Main process configuration
 - `src/main/presenter/upgradePresenter/index.ts` - Update service configuration
 - `src/renderer/src/i18n/*/about.json` - Internationalization files
@@ -343,7 +342,6 @@ node scripts/rebrand.js
 
 - `package.json` - 包配置
 - `electron-builder.yml` - 构建配置
-- `electron-builder-macx64.yml` - macOS x64 构建配置
 - `src/main/index.ts` - 主进程配置
 - `src/main/presenter/upgradePresenter/index.ts` - 更新服务配置
 - `src/renderer/src/i18n/*/about.json` - 国际化文件
