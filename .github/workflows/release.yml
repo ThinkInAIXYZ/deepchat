@@ -19,16 +19,74 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       tag: ${{ steps.resolve.outputs.tag }}
+      sha: ${{ steps.resolve.outputs.sha }}
     steps:
       - name: Resolve tag
         id: resolve
-        shell: bash
-        run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "tag=${{ github.event.inputs.tag }}" >> $GITHUB_OUTPUT
-          else
-            echo "tag=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
-          fi
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const isDispatch = context.eventName === 'workflow_dispatch'
+            const tag = isDispatch
+              ? context.payload.inputs?.tag
+              : context.ref.replace('refs/tags/', '')
+            if (!tag) {
+              core.setFailed('Tag is required')
+              return
+            }
+
+            const owner = context.repo.owner
+            const repo = context.repo.repo
+            const refName = `tags/${tag}`
+
+            const resolveTagSha = async (refData) => {
+              let sha = refData.object.sha
+              if (refData.object.type === 'tag') {
+                const tagObj = await github.rest.git.getTag({
+                  owner,
+                  repo,
+                  tag_sha: sha
+                })
+                sha = tagObj.data.object.sha
+              }
+              return sha
+            }
+
+            if (isDispatch) {
+              try {
+                const { data } = await github.rest.git.getRef({
+                  owner,
+                  repo,
+                  ref: refName
+                })
+                const sha = await resolveTagSha(data)
+                core.setOutput('sha', sha)
+              } catch (error) {
+                const sha = context.sha
+                await github.rest.git.createRef({
+                  owner,
+                  repo,
+                  ref: `refs/${refName}`,
+                  sha
+                })
+                core.setOutput('sha', sha)
+              }
+            } else {
+              try {
+                const { data } = await github.rest.git.getRef({
+                  owner,
+                  repo,
+                  ref: refName
+                })
+                const sha = await resolveTagSha(data)
+                core.setOutput('sha', sha)
+              } catch (error) {
+                core.setFailed(`Tag ${tag} not found`)
+                return
+              }
+            }
+
+            core.setOutput('tag', tag)
 
   build-windows:
     needs: resolve-tag
@@ -42,7 +100,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ needs.resolve-tag.outputs.tag }}
+          ref: ${{ needs.resolve-tag.outputs.sha }}
+          fetch-depth: 1
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -105,7 +164,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ needs.resolve-tag.outputs.tag }}
+          ref: ${{ needs.resolve-tag.outputs.sha }}
+          fetch-depth: 1
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -162,7 +222,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ needs.resolve-tag.outputs.tag }}
+          ref: ${{ needs.resolve-tag.outputs.sha }}
+          fetch-depth: 1
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -221,7 +282,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ needs.resolve-tag.outputs.tag }}
+          ref: ${{ needs.resolve-tag.outputs.sha }}
           fetch-depth: 1
 
       - name: Get version number
