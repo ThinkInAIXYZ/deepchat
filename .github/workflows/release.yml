@@ -309,16 +309,18 @@ jobs:
             echo "Error: CHANGELOG.md not found"
             exit 1
           fi
-          HEADER_REGEX="^## v${VERSION} \\([0-9]{4}-[0-9]{2}-[0-9]{2}\\)$"
-          if ! grep -Eq "$HEADER_REGEX" "$CHANGELOG"; then
+          NORMALIZED_CHANGELOG="$(mktemp)"
+          perl -pe 's/\x{FF08}/(/g; s/\x{FF09}/)/g; s/\r$//' "$CHANGELOG" > "$NORMALIZED_CHANGELOG"
+          HEADER_REGEX="^##[[:space:]]+v${VERSION}[[:space:]]*\\([0-9]{4}-[0-9]{2}-[0-9]{2}\\)[[:space:]]*$"
+          if ! grep -Eq "$HEADER_REGEX" "$NORMALIZED_CHANGELOG"; then
             echo "Error: Changelog entry not found for v${VERSION}"
             exit 1
           fi
           awk -v ver="v${VERSION}" '
-            $0 ~ "^## " ver " \\(" { in_section = 1 }
-            in_section && $0 ~ "^## " && $0 !~ "^## " ver " \\(" { exit }
+            $0 ~ "^##[[:space:]]+" ver "[[:space:]]*\\(" { in_section = 1 }
+            in_section && $0 ~ "^##[[:space:]]+" && $0 !~ "^##[[:space:]]+" ver "[[:space:]]*\\(" { exit }
             in_section { print }
-          ' "$CHANGELOG" > release_notes.md
+          ' "$NORMALIZED_CHANGELOG" > release_notes.md
           if [ ! -s release_notes.md ]; then
             echo "Error: Release notes are empty for v${VERSION}"
             exit 1
