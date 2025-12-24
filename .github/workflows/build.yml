@@ -59,6 +59,7 @@ jobs:
       - name: Build Windows
         run: pnpm run build:win:${{ matrix.arch }}
         env:
+          ELECTRON_BUILDER_PUBLISH: 'never'
           VITE_GITHUB_CLIENT_ID: ${{ secrets.DC_GITHUB_CLIENT_ID }}
           VITE_GITHUB_CLIENT_SECRET: ${{ secrets.DC_GITHUB_CLIENT_SECRET }}
           VITE_GITHUB_REDIRECT_URI: ${{ secrets.DC_GITHUB_REDIRECT_URI }}
@@ -113,6 +114,7 @@ jobs:
       - name: Build Linux
         run: pnpm run build:linux:${{ matrix.arch }}
         env:
+          ELECTRON_BUILDER_PUBLISH: 'never'
           VITE_GITHUB_CLIENT_ID: ${{ secrets.DC_GITHUB_CLIENT_ID }}
           VITE_GITHUB_CLIENT_SECRET: ${{ secrets.DC_GITHUB_CLIENT_SECRET }}
           VITE_GITHUB_REDIRECT_URI: ${{ secrets.DC_GITHUB_REDIRECT_URI }}
@@ -169,6 +171,7 @@ jobs:
         run: pnpm run build:mac:${{ matrix.arch }}
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+          ELECTRON_BUILDER_PUBLISH: 'never'
           VITE_GITHUB_CLIENT_ID: ${{ secrets.DC_GITHUB_CLIENT_ID }}
           VITE_GITHUB_CLIENT_SECRET: ${{ secrets.DC_GITHUB_CLIENT_SECRET }}
           VITE_GITHUB_REDIRECT_URI: ${{ secrets.DC_GITHUB_REDIRECT_URI }}
