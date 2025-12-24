@@ -1028,7 +1028,7 @@
       "title": "ACPのデバッグ",
       "workdirPlaceholder": "デフォルトの作業ディレクトリを使用するには空白のままにします"
     },
-    "mcpAccessBadge": "MCP {数}",
+    "mcpAccessBadge": "MCP {count}",
     "mcpAccessEmpty": "現在、オプションの MCP はありません。",
     "mcpAccessTitle": "利用可能なMCP"
   }

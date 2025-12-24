@@ -1028,7 +1028,7 @@
       "title": "ACP 디버깅",
       "workdirPlaceholder": "기본 작업 디렉터리를 사용하려면 비워 두세요."
     },
-    "mcpAccessBadge": "MCP {개수}",
+    "mcpAccessBadge": "MCP {count}",
     "mcpAccessEmpty": "현재 선택적 MCP가 없습니다.",
     "mcpAccessTitle": "사용 가능한 MCP"
   }

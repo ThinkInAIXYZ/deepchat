@@ -1028,7 +1028,7 @@
       "title": "Отладка ACP",
       "workdirPlaceholder": "Оставьте пустым, чтобы использовать рабочий каталог по умолчанию."
     },
-    "mcpAccessBadge": "MCP {количество}",
+    "mcpAccessBadge": "MCP {count}",
     "mcpAccessEmpty": "В настоящее время не существует дополнительного MCP.",
     "mcpAccessTitle": "Доступные MCP"
   }

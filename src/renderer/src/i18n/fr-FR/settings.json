@@ -1028,7 +1028,7 @@
       "title": "Débogage ACP",
       "workdirPlaceholder": "Laissez vide pour utiliser le répertoire de travail par défaut"
     },
-    "mcpAccessBadge": "MCP {nombre}",
+    "mcpAccessBadge": "MCP {count}",
     "mcpAccessEmpty": "Il n’existe actuellement aucun MCP facultatif.",
     "mcpAccessTitle": "MCP disponibles"
   }

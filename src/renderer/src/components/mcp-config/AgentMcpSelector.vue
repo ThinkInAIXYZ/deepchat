@@ -3,6 +3,7 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { usePresenter } from '@/composables/usePresenter'
 import { Checkbox } from '@shadcn/components/ui/checkbox'
+import { useToast } from '@/components/use-toast'
 import type { MCPServerConfig } from '@shared/presenter'
 
 const props = defineProps<{
@@ -15,6 +16,7 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
+const { toast } = useToast()
 const configPresenter = usePresenter('configPresenter')
 
 const loading = ref(false)
@@ -48,23 +50,41 @@ const load = async () => {
   }
 }
 
-const persist = async (nextSelections: string[]) => {
+const persist = async (
+  nextSelections: string[],
+  previousSelections: string[] = selections.value
+) => {
   if (!props.agentId) return
   saving.value = true
   try {
     await configPresenter.setAgentMcpSelections(props.agentId, props.isBuiltin, nextSelections)
     emit('update:selections', nextSelections)
+  } catch (error) {
+    selections.value = previousSelections
+    emit('update:selections', previousSelections)
+    toast({
+      title: t('common.error.operationFailed'),
+      description: t('common.error.requestFailed'),
+      variant: 'destructive'
+    })
+    throw error
   } finally {
     saving.value = false
   }
 }
 
 const toggleServer = async (serverName: string, checked: boolean) => {
+  const prev = [...selections.value]
   const next = checked
     ? Array.from(new Set([...selections.value, serverName]))
     : selections.value.filter((name) => name !== serverName)
   selections.value = next
-  await persist(next)
+  try {
+    await persist(next, prev)
+  } catch (error) {
+    selections.value = prev
+    throw error
+  }
 }
 
 watch(

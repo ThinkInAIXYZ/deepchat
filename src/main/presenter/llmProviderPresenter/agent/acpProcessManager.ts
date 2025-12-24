@@ -589,7 +589,8 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
       boundConversationId: undefined,
       workdir,
       availableModes: handleSeed.availableModes,
-      currentModeId: handleSeed.currentModeId
+      currentModeId: handleSeed.currentModeId,
+      mcpCapabilities: handleSeed.mcpCapabilities
     }
 
     child.on('exit', (code, signal) => {
