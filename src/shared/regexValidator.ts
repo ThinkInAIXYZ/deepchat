@@ -1,3 +1,4 @@
+import { minimatch } from 'minimatch'
 import safeRegex from 'safe-regex2'
 
 const DEFAULT_MAX_PATTERN_LENGTH = 1000
@@ -23,6 +24,40 @@ export function validateRegexPattern(
   if (!safeRegex(pattern)) {
     throw new Error(
       `Regular expression pattern is potentially unsafe and may cause ReDoS (Regular Expression Denial of Service). Please use a simpler, safer pattern.`
+    )
+  }
+}
+
+/**
+ * Validate glob pattern for ReDoS safety
+ * @param pattern The glob pattern to validate
+ * @param maxLength Maximum allowed pattern length (default: 1000)
+ * @throws Error if pattern is unsafe or exceeds length limit
+ */
+export function validateGlobPattern(
+  pattern: string,
+  maxLength: number = DEFAULT_MAX_PATTERN_LENGTH
+): void {
+  if (pattern.length > maxLength) {
+    throw new Error(
+      `Glob pattern exceeds maximum length of ${maxLength} characters. Pattern length: ${pattern.length}`
+    )
+  }
+
+  let compiled: RegExp | false
+  try {
+    compiled = minimatch.makeRe(pattern)
+  } catch (error) {
+    throw new Error(`Invalid glob pattern: ${pattern}. Error: ${error}`)
+  }
+
+  if (!compiled) {
+    throw new Error(`Invalid glob pattern: ${pattern}`)
+  }
+
+  if (!safeRegex(compiled)) {
+    throw new Error(
+      'Glob pattern is potentially unsafe and may cause ReDoS (Regular Expression Denial of Service). Please use a simpler, safer pattern.'
     )
   }
 }

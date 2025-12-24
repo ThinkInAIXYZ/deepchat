@@ -4,7 +4,8 @@ import os from 'os'
 import { z } from 'zod'
 import { minimatch } from 'minimatch'
 import { createTwoFilesPatch } from 'diff'
-import { validateRegexPattern } from '@shared/regexValidator'
+import logger from '@shared/logger'
+import { validateGlobPattern, validateRegexPattern } from '@shared/regexValidator'
 import { spawn } from 'child_process'
 import { RuntimeHelper } from '../../../lib/runtimeHelper'
 import { glob } from 'glob'
@@ -267,10 +268,9 @@ export class AgentFileSystemHandler {
         })
       } catch (error) {
         // Fall back to JavaScript implementation if ripgrep fails
-        console.warn(
-          '[AgentFileSystemHandler] Ripgrep search failed, falling back to JS implementation:',
+        logger.warn('[AgentFileSystemHandler] Ripgrep search failed, falling back to JS', {
           error
-        )
+        })
       }
     }
 
@@ -368,6 +368,13 @@ export class AgentFileSystemHandler {
 
       let stdout = ''
       let stderr = ''
+      let settled = false
+      const timeout = setTimeout(() => {
+        if (settled) return
+        settled = true
+        ripgrep.kill('SIGKILL')
+        reject(new Error('Ripgrep search timed out after 30000ms'))
+      }, 30_000)
 
       ripgrep.stdout.on('data', (data) => {
         stdout += data.toString()
@@ -378,6 +385,9 @@ export class AgentFileSystemHandler {
       })
 
       ripgrep.on('close', (code) => {
+        if (settled) return
+        settled = true
+        clearTimeout(timeout)
         if (code === 0 || code === 1) {
           // 0 = matches found, 1 = no matches (both are OK)
           // Parse ripgrep output
@@ -422,6 +432,9 @@ export class AgentFileSystemHandler {
       })
 
       ripgrep.on('error', (error) => {
+        if (settled) return
+        settled = true
+        clearTimeout(timeout)
         reject(new Error(`Ripgrep spawn error: ${error.message}`))
       })
     })
@@ -851,6 +864,7 @@ export class AgentFileSystemHandler {
     }
 
     const { pattern, root, excludePatterns = [], maxResults = 1000, sortBy = 'name' } = parsed.data
+    validateGlobPattern(pattern)
 
     // Determine root directory
     const searchRoot = root ? await this.validatePath(root) : this.allowedDirectories[0]
