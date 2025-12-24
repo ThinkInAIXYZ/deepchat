@@ -1027,6 +1027,9 @@
       "sending": "Enviando...",
       "title": "Depuração ACP",
       "workdirPlaceholder": "Deixe em branco para usar o diretório de trabalho padrão"
-    }
+    },
+    "mcpAccessBadge": "MCP {contagem}",
+    "mcpAccessEmpty": "Atualmente não há MCP opcional.",
+    "mcpAccessTitle": "MCPs disponíveis"
   }
 }

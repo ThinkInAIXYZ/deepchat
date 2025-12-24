@@ -41,7 +41,10 @@
     "annotations": "הערות (Annotations)",
     "invalidJsonFormat": "פורמט ה-JSON שגוי",
     "allowedValues": "ערכים מותרים",
-    "arrayItemValues": "ערכי פריט במערך"
+    "arrayItemValues": "ערכי פריט במערך",
+    "acpManagedHint": "כלי MCP מנוהלים על ידי \"סוכן ACP\"",
+    "acpServersNone": "הסוכן אינו מוגדר עם MCP",
+    "acpServersSelected": "נבחרו {count} MCPs"
   },
   "addServer": "הוסף שרת",
   "addServerDialog": {

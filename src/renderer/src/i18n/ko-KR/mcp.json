@@ -141,7 +141,10 @@
     "required": "필수",
     "noDescription": "설명 없음",
     "allowedValues": "허용되는 값",
-    "arrayItemValues": "배열 요소 값"
+    "arrayItemValues": "배열 요소 값",
+    "acpManagedHint": "MCP 도구는 \"ACP 에이전트\"에 의해 관리됩니다.",
+    "acpServersNone": "에이전트가 MCP로 구성되지 않았습니다.",
+    "acpServersSelected": "{count}개의 MCP가 선택되었습니다."
   },
   "inmemory": {
     "Artifacts": {

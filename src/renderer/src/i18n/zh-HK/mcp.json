@@ -41,7 +41,10 @@
     "required": "必填",
     "noDescription": "無描述",
     "allowedValues": "允許的值",
-    "arrayItemValues": "陣列項目值"
+    "arrayItemValues": "陣列項目值",
+    "acpManagedHint": "MCP 工具由「ACP Agent」管理",
+    "acpServersNone": "該 Agent 未配置 MCP",
+    "acpServersSelected": "已選擇 {count} 個 MCP"
   },
   "addServer": "添加服務器",
   "addServerDialog": {

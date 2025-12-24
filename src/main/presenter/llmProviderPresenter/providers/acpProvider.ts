@@ -92,7 +92,8 @@ export class AcpProvider extends BaseAgentProvider<
     this.sessionManager = new AcpSessionManager({
       providerId: provider.id,
       processManager: this.processManager,
-      sessionPersistence: this.sessionPersistence
+      sessionPersistence: this.sessionPersistence,
+      configPresenter
     })
 
     void this.initWhenEnabled()

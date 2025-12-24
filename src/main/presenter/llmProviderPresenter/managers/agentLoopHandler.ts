@@ -7,6 +7,7 @@ import { StreamState } from '../types'
 import { RateLimitManager } from './rateLimitManager'
 import { ToolCallProcessor } from './toolCallProcessor'
 import { ToolPresenter } from '../../toolPresenter'
+import { getAgentFilteredTools } from '../../mcpPresenter/agentMcpFilter'
 import fs from 'fs'
 import path from 'path'
 import { app } from 'electron'
@@ -45,12 +46,14 @@ export class AgentLoopHandler {
           modelId
         )
 
-        return await this.getToolPresenter().getAllToolDefinitions({
+        const toolDefs = await this.getToolPresenter().getAllToolDefinitions({
           enabledMcpTools: context.enabledMcpTools,
           chatMode,
           supportsVision: this.currentSupportsVision,
           agentWorkspacePath
         })
+
+        return await this.filterToolsForChatMode(toolDefs, chatMode, modelId)
       },
       callTool: async (request: MCPToolCall) => {
         return await this.getToolPresenter().callTool(request)
@@ -188,6 +191,30 @@ export class AgentLoopHandler {
     return lower.includes('deepseek-reasoner') || lower.includes('kimi-k2-thinking')
   }
 
+  private isAgentToolDefinition(tool: { server?: { name: string } }): boolean {
+    const name = tool.server?.name
+    return Boolean(name && (name === 'yo-browser' || name.startsWith('agent-')))
+  }
+
+  private async filterToolsForChatMode(
+    tools: Awaited<ReturnType<ToolPresenter['getAllToolDefinitions']>>,
+    chatMode: 'chat' | 'agent' | 'acp agent',
+    agentId?: string
+  ): Promise<Awaited<ReturnType<ToolPresenter['getAllToolDefinitions']>>> {
+    if (chatMode !== 'acp agent') return tools
+    if (!agentId) return []
+
+    const agentTools = tools.filter((tool) => this.isAgentToolDefinition(tool))
+    const mcpTools = tools.filter((tool) => !this.isAgentToolDefinition(tool))
+    const filteredMcp = await getAgentFilteredTools(
+      agentId,
+      undefined,
+      mcpTools,
+      this.options.configPresenter
+    )
+    return [...filteredMcp, ...agentTools]
+  }
+
   async *startStreamCompletion(
     providerId: string,
     initialMessages: ChatMessage[],
@@ -313,6 +340,7 @@ export class AgentLoopHandler {
             supportsVision: this.currentSupportsVision,
             agentWorkspacePath
           })
+          const filteredToolDefs = await this.filterToolsForChatMode(toolDefs, chatMode, modelId)
 
           const canExecute = this.options.rateLimitManager.canExecuteImmediately(providerId)
           if (!canExecute) {
@@ -346,7 +374,7 @@ export class AgentLoopHandler {
             modelConfig,
             temperature,
             maxTokens,
-            toolDefs
+            filteredToolDefs
           )
 
           // Process the standardized stream events

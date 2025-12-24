@@ -123,7 +123,8 @@ export class ToolCallProcessor {
           name: toolCall.name,
           arguments: toolCall.arguments
         },
-        server: toolDef.server
+        server: toolDef.server,
+        conversationId: context.conversationId
       }
 
       yield {

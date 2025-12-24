@@ -32,6 +32,7 @@ export interface AcpProcessHandle extends AgentProcessHandle {
   workdir: string
   availableModes?: Array<{ id: string; name: string; description: string }>
   currentModeId?: string
+  mcpCapabilities?: schema.McpCapabilities
 }
 
 interface AcpProcessManagerOptions {
@@ -524,6 +525,14 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
           availableModes?: Array<{ id: string }>
           currentModeId?: string
         }
+        agentCapabilities?: {
+          mcpCapabilities?: schema.McpCapabilities
+        }
+      }
+
+      if (resultData.agentCapabilities?.mcpCapabilities) {
+        handleSeed.mcpCapabilities = resultData.agentCapabilities.mcpCapabilities
+        console.info('[ACP] MCP capabilities:', resultData.agentCapabilities.mcpCapabilities)
       }
 
       if (resultData.sessionId) {

@@ -1027,6 +1027,9 @@
       "sending": "發送中...",
       "title": "ACP 調試",
       "workdirPlaceholder": "留空使用默認工作目錄"
-    }
+    },
+    "mcpAccessBadge": "MCP {count}",
+    "mcpAccessEmpty": "暫無可選 MCP。",
+    "mcpAccessTitle": "可用 MCP"
   }
 }

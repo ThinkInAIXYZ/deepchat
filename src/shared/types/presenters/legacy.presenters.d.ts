@@ -602,6 +602,10 @@ export interface IConfigPresenter {
   removeCustomAcpAgent(agentId: string): Promise<boolean>
   setCustomAcpAgentEnabled(agentId: string, enabled: boolean): Promise<void>
   initializeAcpAgent(agentId: string, isBuiltin: boolean): Promise<void>
+  getAgentMcpSelections(agentId: string, isBuiltin?: boolean): Promise<string[]>
+  setAgentMcpSelections(agentId: string, isBuiltin: boolean, mcpIds: string[]): Promise<void>
+  addMcpToAgent(agentId: string, isBuiltin: boolean, mcpId: string): Promise<void>
+  removeMcpFromAgent(agentId: string, isBuiltin: boolean, mcpId: string): Promise<void>
   getMcpConfHelper(): any // Used to get MCP configuration helper
   getModelConfig(modelId: string, providerId?: string): ModelConfig
   setModelConfig(
@@ -802,6 +806,11 @@ export interface AcpBuiltinAgent {
   enabled: boolean
   activeProfileId: string | null
   profiles: AcpAgentProfile[]
+  /**
+   * Selected MCP server names the agent can access (ACP mode).
+   * Empty/undefined means no MCP access.
+   */
+  mcpSelections?: string[]
 }
 
 export interface AcpCustomAgent {
@@ -811,6 +820,11 @@ export interface AcpCustomAgent {
   args?: string[]
   env?: Record<string, string>
   enabled: boolean
+  /**
+   * Selected MCP server names the agent can access (ACP mode).
+   * Empty/undefined means no MCP access.
+   */
+  mcpSelections?: string[]
 }
 
 export interface AcpStoreData {
@@ -1500,6 +1514,10 @@ export interface MCPToolCall {
     icons: string
     description: string
   }
+  /**
+   * Optional conversation context (used for ACP agent MCP access control).
+   */
+  conversationId?: string
 }
 
 export interface MCPToolResponse {

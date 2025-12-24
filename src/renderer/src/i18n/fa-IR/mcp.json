@@ -41,7 +41,10 @@
     "annotations": "حاشیه‌نویسی",
     "invalidJsonFormat": "قالب JSON نادرست است",
     "allowedValues": "مقادیر مجاز",
-    "arrayItemValues": "مقادیر عنصر آرایه"
+    "arrayItemValues": "مقادیر عنصر آرایه",
+    "acpManagedHint": "ابزارهای MCP توسط \"ACP Agent\" مدیریت می شوند",
+    "acpServersNone": "Agent با MCP پیکربندی نشده است",
+    "acpServersSelected": "{count} MCP انتخاب شد"
   },
   "addServer": "افزودن کارساز",
   "addServerDialog": {

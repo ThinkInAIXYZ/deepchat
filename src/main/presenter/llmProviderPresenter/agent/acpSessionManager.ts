@@ -1,5 +1,5 @@
 import { app } from 'electron'
-import type { AcpAgentConfig } from '@shared/presenter'
+import type { AcpAgentConfig, IConfigPresenter } from '@shared/presenter'
 import type { AgentSessionState } from './types'
 import type {
   AcpProcessManager,
@@ -9,11 +9,15 @@ import type {
 } from './acpProcessManager'
 import type { ClientSideConnection as ClientSideConnectionType } from '@agentclientprotocol/sdk'
 import { AcpSessionPersistence } from './acpSessionPersistence'
+import { convertMcpConfigToAcpFormat } from './mcpConfigConverter'
+import { filterMcpServersByTransportSupport } from './mcpTransportFilter'
+import type * as schema from '@agentclientprotocol/sdk/dist/schema.js'
 
 interface AcpSessionManagerOptions {
   providerId: string
   processManager: AcpProcessManager
   sessionPersistence: AcpSessionPersistence
+  configPresenter: IConfigPresenter
 }
 
 interface SessionHooks {
@@ -34,6 +38,7 @@ export class AcpSessionManager {
   private readonly providerId: string
   private readonly processManager: AcpProcessManager
   private readonly sessionPersistence: AcpSessionPersistence
+  private readonly configPresenter: IConfigPresenter
   private readonly sessionsByConversation = new Map<string, AcpSessionRecord>()
   private readonly sessionsById = new Map<string, AcpSessionRecord>()
   private readonly pendingSessions = new Map<string, Promise<AcpSessionRecord>>()
@@ -42,6 +47,7 @@ export class AcpSessionManager {
     this.providerId = options.providerId
     this.processManager = options.processManager
     this.sessionPersistence = options.sessionPersistence
+    this.configPresenter = options.configPresenter
 
     app.on('before-quit', () => {
       void this.clearAllSessions()
@@ -267,9 +273,53 @@ export class AcpSessionManager {
     currentModeId?: string
   }> {
     try {
+      let mcpServers: schema.McpServer[] = []
+      try {
+        const selections = await this.configPresenter.getAgentMcpSelections(agent.id)
+        if (selections.length > 0) {
+          const serverConfigs = await this.configPresenter.getMcpServers()
+          const converted = selections
+            .map((name) => {
+              const cfg = serverConfigs[name]
+              if (!cfg) return null
+              return convertMcpConfigToAcpFormat(name, cfg)
+            })
+            .filter((item): item is schema.McpServer => Boolean(item))
+
+          mcpServers = filterMcpServersByTransportSupport(converted, handle.mcpCapabilities)
+
+          if (converted.length !== mcpServers.length) {
+            console.info(`[ACP] Filtered MCP servers by transport support for agent ${agent.id}:`, {
+              selected: selections,
+              converted: converted.map((s) =>
+                'type' in s ? `${s.name}:${s.type}` : `${s.name}:stdio`
+              ),
+              passed: mcpServers.map((s) =>
+                'type' in s ? `${s.name}:${s.type}` : `${s.name}:stdio`
+              )
+            })
+          } else {
+            console.info(`[ACP] Passing MCP servers to agent ${agent.id}:`, {
+              selected: selections,
+              passed: mcpServers.map((s) =>
+                'type' in s ? `${s.name}:${s.type}` : `${s.name}:stdio`
+              )
+            })
+          }
+        } else {
+          console.info(`[ACP] No MCP selections for agent ${agent.id}; passing none.`)
+        }
+      } catch (error) {
+        console.warn(
+          `[ACP] Failed to resolve MCP servers for agent ${agent.id}; passing none.`,
+          error
+        )
+        mcpServers = []
+      }
+
       const response = await handle.connection.newSession({
         cwd: workdir,
-        mcpServers: []
+        mcpServers
       })
 
       // Extract modes from response if available

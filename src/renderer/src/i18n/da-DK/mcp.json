@@ -311,6 +311,9 @@
     "toolList": "Værktøjsliste",
     "toolsCount": "værktøjer",
     "type": "type",
-    "title": "MCP værktøjer"
+    "title": "MCP værktøjer",
+    "acpManagedHint": "MCP-værktøjer administreres af \"ACP Agent\"",
+    "acpServersNone": "Agenten er ikke konfigureret med MCP",
+    "acpServersSelected": "{count} MCP'er valgt"
   }
 }

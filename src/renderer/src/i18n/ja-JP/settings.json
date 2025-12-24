@@ -1027,6 +1027,9 @@
       "sending": "送信中...",
       "title": "ACPのデバッグ",
       "workdirPlaceholder": "デフォルトの作業ディレクトリを使用するには空白のままにします"
-    }
+    },
+    "mcpAccessBadge": "MCP {数}",
+    "mcpAccessEmpty": "現在、オプションの MCP はありません。",
+    "mcpAccessTitle": "利用可能なMCP"
   }
 }

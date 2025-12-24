@@ -1001,7 +1001,10 @@
       "sending": "שְׁלִיחָה...",
       "title": "איתור באגים של ACP",
       "workdirPlaceholder": "השאר ריק כדי להשתמש בספריית העבודה המוגדרת כברירת מחדל"
-    }
+    },
+    "mcpAccessBadge": "MCP {count}",
+    "mcpAccessEmpty": "כרגע אין MCP אופציונלי.",
+    "mcpAccessTitle": "MCPs זמינים"
   },
   "rateLimit": {
     "title": "מגבלת קצב (Rate Limit)",

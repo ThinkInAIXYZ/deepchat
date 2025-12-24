@@ -8,6 +8,7 @@ import type {
   AcpCustomAgent,
   AcpStoreData
 } from '@shared/presenter'
+import { McpConfHelper } from './mcpConfHelper'
 
 const ACP_STORE_VERSION = '2'
 const DEFAULT_PROFILE_NAME = 'Default'
@@ -64,8 +65,10 @@ const deepClone = <T>(value: T): T => {
 
 export class AcpConfHelper {
   private store: ElectronStore<InternalStore>
+  private readonly mcpConfHelper: McpConfHelper
 
-  constructor() {
+  constructor(options?: { mcpConfHelper?: McpConfHelper }) {
+    this.mcpConfHelper = options?.mcpConfHelper ?? new McpConfHelper()
     this.store = new ElectronStore<InternalStore>({
       name: 'acp_agents',
       defaults: {
@@ -147,6 +150,57 @@ export class AcpConfHelper {
 
   getCustoms(): AcpCustomAgent[] {
     return deepClone(this.getData().customs)
+  }
+
+  async getAgentMcpSelections(agentId: string, isBuiltin?: boolean): Promise<string[]> {
+    const builtin = typeof isBuiltin === 'boolean' ? isBuiltin : this.isBuiltinAgent(agentId)
+    if (builtin) {
+      const agent = this.getBuiltins().find((item) => item.id === agentId)
+      return this.normalizeMcpSelections(agent?.mcpSelections) ?? []
+    }
+
+    const agent = this.getCustoms().find((item) => item.id === agentId)
+    return this.normalizeMcpSelections(agent?.mcpSelections) ?? []
+  }
+
+  async setAgentMcpSelections(
+    agentId: string,
+    isBuiltin: boolean,
+    mcpIds: string[]
+  ): Promise<void> {
+    const normalized = this.normalizeMcpSelections(mcpIds) ?? []
+    const validated = await this.validateMcpSelections(normalized)
+
+    if (isBuiltin) {
+      this.mutateBuiltins((builtins) => {
+        const target = builtins.find((agent) => agent.id === agentId)
+        if (!target) {
+          throw new Error(`ACP builtin agent not found: ${agentId}`)
+        }
+        target.mcpSelections = validated
+      })
+      return
+    }
+
+    this.mutateCustoms((customs) => {
+      const target = customs.find((agent) => agent.id === agentId)
+      if (!target) {
+        throw new Error(`ACP custom agent not found: ${agentId}`)
+      }
+      target.mcpSelections = validated
+    })
+  }
+
+  async addMcpToAgent(agentId: string, isBuiltin: boolean, mcpId: string): Promise<void> {
+    const current = await this.getAgentMcpSelections(agentId, isBuiltin)
+    const next = Array.from(new Set([...current, mcpId]))
+    await this.setAgentMcpSelections(agentId, isBuiltin, next)
+  }
+
+  async removeMcpFromAgent(agentId: string, isBuiltin: boolean, mcpId: string): Promise<void> {
+    const current = await this.getAgentMcpSelections(agentId, isBuiltin)
+    const next = current.filter((id) => id !== mcpId)
+    await this.setAgentMcpSelections(agentId, isBuiltin, next)
   }
 
   addBuiltinProfile(
@@ -585,7 +639,8 @@ export class AcpConfHelper {
       name: BUILTIN_TEMPLATES[id].name,
       enabled: false,
       activeProfileId: profile.id,
-      profiles: [profile]
+      profiles: [profile],
+      mcpSelections: undefined
     }
   }
 
@@ -620,7 +675,8 @@ export class AcpConfHelper {
       name: template.name,
       enabled: Boolean(agent.enabled),
       activeProfileId,
-      profiles
+      profiles,
+      mcpSelections: this.normalizeMcpSelections(agent.mcpSelections)
     }
   }
 
@@ -682,7 +738,8 @@ export class AcpConfHelper {
       command,
       args: this.normalizeArgs(agent.args),
       env: this.normalizeEnv(agent.env),
-      enabled
+      enabled,
+      mcpSelections: this.normalizeMcpSelections(agent.mcpSelections)
     }
   }
 
@@ -720,6 +777,26 @@ export class AcpConfHelper {
       .filter(([key]) => Boolean(key))
     if (!entries.length) return undefined
     return Object.fromEntries(entries)
+  }
+
+  private normalizeMcpSelections(value: unknown): string[] | undefined {
+    if (!Array.isArray(value)) return undefined
+    const cleaned = value
+      .map((item) => (typeof item === 'string' ? item.trim() : String(item).trim()))
+      .filter((item) => item.length > 0)
+    if (!cleaned.length) return undefined
+    return Array.from(new Set(cleaned))
+  }
+
+  private async validateMcpSelections(selections: string[]): Promise<string[]> {
+    if (!selections.length) return []
+    const servers = await this.mcpConfHelper.getMcpServers()
+    const valid = new Set(
+      Object.entries(servers)
+        .filter(([, config]) => config?.type !== 'inmemory')
+        .map(([name]) => name)
+    )
+    return selections.filter((name) => valid.has(name))
   }
 
   private isBuiltinAgent(id: string): id is AcpBuiltinAgentId {

@@ -41,7 +41,10 @@
     "invalidJson": "無効なJSON形式",
     "inputHint": "JSON形式でパラメータを入力してください",
     "required": "必須",
-    "noDescription": "説明なし"
+    "noDescription": "説明なし",
+    "acpManagedHint": "MCPツールは「ACPエージェント」によって管理されます",
+    "acpServersNone": "エージェントは MCP で構成されていません",
+    "acpServersSelected": "{count} 個の MCP が選択されました"
   },
   "addServer": "サーバーを追加",
   "addServerDialog": {

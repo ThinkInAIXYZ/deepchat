@@ -41,7 +41,10 @@
     "annotations": "Anotações",
     "invalidJsonFormat": "O formato JSON está incorreto",
     "allowedValues": "Valores permitidos",
-    "arrayItemValues": "Valores dos itens do array"
+    "arrayItemValues": "Valores dos itens do array",
+    "acpManagedHint": "As ferramentas MCP são gerenciadas pelo \"Agente ACP\"",
+    "acpServersNone": "O agente não está configurado com MCP",
+    "acpServersSelected": "{count} MCPs selecionados"
   },
   "addServer": "Adicionar Servidor",
   "addServerDialog": {

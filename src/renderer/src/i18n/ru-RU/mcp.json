@@ -41,7 +41,10 @@
     "required": "Обязательно",
     "noDescription": "Нет описания",
     "allowedValues": "Разрешенные значения",
-    "arrayItemValues": "Значения элемента массива"
+    "arrayItemValues": "Значения элемента массива",
+    "acpManagedHint": "Инструменты MCP управляются «Агентом ACP».",
+    "acpServersNone": "Агент не настроен с помощью MCP.",
+    "acpServersSelected": "Выбрано {count} MCP"
   },
   "addServer": "Добавить сервер",
   "addServerDialog": {

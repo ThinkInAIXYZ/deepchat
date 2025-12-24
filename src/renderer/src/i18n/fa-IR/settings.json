@@ -1027,6 +1027,9 @@
       "sending": "ارسال...",
       "title": "اشکال زدایی ACP",
       "workdirPlaceholder": "برای استفاده از دایرکتوری کاری پیش فرض، خالی بگذارید"
-    }
+    },
+    "mcpAccessBadge": "MCP {count}",
+    "mcpAccessEmpty": "در حال حاضر هیچ MCP اختیاری وجود ندارد.",
+    "mcpAccessTitle": "MCPهای موجود"
   }
 }

@@ -1001,7 +1001,10 @@
       "sending": "Sender...",
       "title": "ACP-fejlsøgning",
       "workdirPlaceholder": "Lad tom for at bruge standard arbejdsmappe"
-    }
+    },
+    "mcpAccessBadge": "MCP {count}",
+    "mcpAccessEmpty": "Der er i øjeblikket ingen valgfri MCP.",
+    "mcpAccessTitle": "Tilgængelige MCP'er"
   },
   "rateLimit": {
     "title": "Rate limit",

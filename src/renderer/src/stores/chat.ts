@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import type {
   UserMessageContent,
   AssistantMessageBlock,
@@ -10,13 +10,20 @@ import type {
 import { finalizeAssistantMessageBlocks } from '@shared/chat/messageBlocks'
 import type { CONVERSATION, CONVERSATION_SETTINGS } from '@shared/presenter'
 import { usePresenter } from '@/composables/usePresenter'
-import { CONVERSATION_EVENTS, DEEPLINK_EVENTS, MEETING_EVENTS, STREAM_EVENTS } from '@/events'
+import {
+  CONVERSATION_EVENTS,
+  CONFIG_EVENTS,
+  DEEPLINK_EVENTS,
+  MEETING_EVENTS,
+  STREAM_EVENTS
+} from '@/events'
 import router from '@/router'
 import { useI18n } from 'vue-i18n'
 import { useSoundStore } from './sound'
 import sfxfcMp3 from '/sounds/sfx-fc.mp3?url'
 import sfxtyMp3 from '/sounds/sfx-typing.mp3?url'
 import { downloadBlob } from '@/lib/download'
+import { useChatMode } from '@/components/chat-input/composables/useChatMode'
 
 // 定义会话工作状态类型
 export type WorkingStatus = 'working' | 'error' | 'completed' | 'none'
@@ -26,7 +33,9 @@ export const useChatStore = defineStore('chat', () => {
   const windowP = usePresenter('windowPresenter')
   const notificationP = usePresenter('notificationPresenter')
   const tabP = usePresenter('tabPresenter')
+  const configP = usePresenter('configPresenter')
   const { t } = useI18n()
+  const { currentMode } = useChatMode()
 
   const soundStore = useSoundStore()
 
@@ -115,6 +124,43 @@ export const useChatStore = defineStore('chat', () => {
   const activeThread = computed(() => {
     return threads.value.flatMap((t) => t.dtThreads).find((t) => t.id === getActiveThreadId())
   })
+
+  const isAcpMode = computed(() => currentMode.value === 'acp agent')
+  const activeAcpAgentId = computed(() =>
+    isAcpMode.value ? chatConfig.value.modelId?.trim() || null : null
+  )
+
+  const activeAgentMcpSelectionsState = ref<string[] | null>(null)
+  let activeAgentMcpSelectionsRequestId = 0
+
+  const refreshActiveAgentMcpSelections = async () => {
+    const requestId = ++activeAgentMcpSelectionsRequestId
+
+    if (!isAcpMode.value || !activeAcpAgentId.value) {
+      activeAgentMcpSelectionsState.value = null
+      return
+    }
+
+    try {
+      const selections = await configP.getAgentMcpSelections(activeAcpAgentId.value)
+      if (activeAgentMcpSelectionsRequestId !== requestId) return
+      activeAgentMcpSelectionsState.value = Array.isArray(selections) ? selections : []
+    } catch (error) {
+      if (activeAgentMcpSelectionsRequestId !== requestId) return
+      console.warn('[Chat Store] Failed to load ACP agent MCP selections:', error)
+      activeAgentMcpSelectionsState.value = []
+    }
+  }
+
+  watch(
+    [isAcpMode, activeAcpAgentId],
+    () => {
+      void refreshActiveAgentMcpSelections()
+    },
+    { immediate: true }
+  )
+
+  const activeAgentMcpSelections = computed(() => activeAgentMcpSelectionsState.value)
 
   const variantAwareMessages = computed((): Array<AssistantMessage | UserMessage> => {
     const messages = getMessages()
@@ -1331,6 +1377,12 @@ export const useChatStore = defineStore('chat', () => {
       }
       setActiveThreadId(null)
     })
+
+    window.electron.ipcRenderer.on(CONFIG_EVENTS.MODEL_LIST_CHANGED, (_, providerId?: string) => {
+      if (providerId === 'acp') {
+        void refreshActiveAgentMcpSelections()
+      }
+    })
   }
 
   onMounted(() => {
@@ -1495,6 +1547,8 @@ export const useChatStore = defineStore('chat', () => {
     // Getters
     activeThread,
     variantAwareMessages,
+    isAcpMode,
+    activeAgentMcpSelections,
     // Actions
     createThread,
     setActiveThread,

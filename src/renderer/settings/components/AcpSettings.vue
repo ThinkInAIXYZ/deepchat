@@ -62,6 +62,22 @@
                   <div>
                     <CardTitle class="text-base flex items-center gap-2">
                       <span>{{ agent.name }}</span>
+                      <TooltipProvider v-if="getMcpSelectionCount(agent) > 0">
+                        <Tooltip>
+                          <TooltipTrigger as-child>
+                            <Badge variant="secondary">
+                              {{
+                                t('settings.acp.mcpAccessBadge', {
+                                  count: getMcpSelectionCount(agent)
+                                })
+                              }}
+                            </Badge>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>{{ getMcpSelectionTooltip(agent) }}</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
                       <Badge v-if="!agent.enabled" variant="outline">
                         {{ t('settings.acp.disabledBadge') }}
                       </Badge>
@@ -118,6 +134,11 @@
                     </span>
                   </div>
                 </div>
+                <AgentMcpSelector
+                  :agent-id="agent.id"
+                  :is-builtin="true"
+                  @update:selections="() => loadAcpData()"
+                />
                 <div class="flex flex-wrap gap-2">
                   <Button size="sm" variant="outline" @click="openProfileManager(agent)">
                     {{ t('settings.acp.manageProfiles') }}
@@ -178,7 +199,23 @@
                 <div class="flex items-start justify-between gap-3">
                   <div class="min-w-0">
                     <CardTitle class="text-base truncate" :title="agent.name">
-                      {{ agent.name }}
+                      <span>{{ agent.name }}</span>
+                      <TooltipProvider v-if="getMcpSelectionCount(agent) > 0">
+                        <Tooltip>
+                          <TooltipTrigger as-child>
+                            <Badge class="ml-2" variant="secondary">
+                              {{
+                                t('settings.acp.mcpAccessBadge', {
+                                  count: getMcpSelectionCount(agent)
+                                })
+                              }}
+                            </Badge>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>{{ getMcpSelectionTooltip(agent) }}</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
                     </CardTitle>
                     <CardDescription
                       class="text-xs text-muted-foreground truncate"
@@ -205,6 +242,12 @@
                     {{ formatArgs(agent.args) }}
                   </span>
                 </div>
+                <AgentMcpSelector
+                  :agent-id="agent.id"
+                  :is-builtin="false"
+                  class="pt-2"
+                  @update:selections="() => loadAcpData()"
+                />
                 <div class="flex gap-2 pt-2">
                   <Button size="sm" variant="ghost" @click="openCustomAgentDialog(agent)">
                     {{ t('common.edit') }}
@@ -287,7 +330,8 @@ import type {
   AcpAgentProfile,
   AcpBuiltinAgent,
   AcpBuiltinAgentId,
-  AcpCustomAgent
+  AcpCustomAgent,
+  MCPServerConfig
 } from '@shared/presenter'
 import { useI18n } from 'vue-i18n'
 import { useToast } from '@/components/use-toast'
@@ -304,6 +348,12 @@ import { Button } from '@shadcn/components/ui/button'
 import { Switch } from '@shadcn/components/ui/switch'
 import { Separator } from '@shadcn/components/ui/separator'
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger
+} from '@shadcn/components/ui/tooltip'
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -315,6 +365,7 @@ import AcpProfileManagerDialog from './AcpProfileManagerDialog.vue'
 import AcpTerminalDialog from './AcpTerminalDialog.vue'
 import AcpDependencyDialog from './AcpDependencyDialog.vue'
 import AcpDebugDialog from './AcpDebugDialog.vue'
+import AgentMcpSelector from '@/components/mcp-config/AgentMcpSelector.vue'
 
 const { t } = useI18n()
 const { toast } = useToast()
@@ -330,6 +381,7 @@ const loading = ref(false)
 const builtins = ref<AcpBuiltinAgent[]>([])
 const customAgents = ref<AcpCustomAgent[]>([])
 const savingProfile = ref(false)
+const mcpServers = ref<Record<string, MCPServerConfig>>({})
 
 const builtinPending = reactive<Record<string, boolean>>({})
 const customPending = reactive<Record<string, boolean>>({})
@@ -486,6 +538,28 @@ const loadAcpData = async () => {
   } finally {
     loading.value = false
   }
+}
+
+const loadMcpServers = async () => {
+  try {
+    mcpServers.value = (await configPresenter.getMcpServers()) ?? {}
+  } catch (error) {
+    console.warn('[ACP] Failed to load MCP servers for selection UI:', error)
+    mcpServers.value = {}
+  }
+}
+
+const getMcpSelectionCount = (agent: { mcpSelections?: string[] }) =>
+  agent.mcpSelections?.length ?? 0
+
+const getMcpSelectionTooltip = (agent: { mcpSelections?: string[] }) => {
+  const selections = agent.mcpSelections ?? []
+  const labels = selections.map((name) => {
+    const config = mcpServers.value[name]
+    if (!config) return name
+    return `${config.icons} ${name}`
+  })
+  return labels.join(', ')
 }
 
 const refreshAfterMutation = async () => {
@@ -787,5 +861,6 @@ onMounted(async () => {
   await loadAcpEnabled()
   await loadAcpUseBuiltinRuntime()
   await loadAcpData()
+  await loadMcpServers()
 })
 </script>

@@ -41,7 +41,10 @@
     "required": "Requis",
     "noDescription": "Pas de description",
     "allowedValues": "Valeurs autorisées",
-    "arrayItemValues": "Valeurs des éléments du tableau"
+    "arrayItemValues": "Valeurs des éléments du tableau",
+    "acpManagedHint": "Les outils MCP sont gérés par \"ACP Agent\"",
+    "acpServersNone": "L'agent n'est pas configuré avec MCP",
+    "acpServersSelected": "{count} MCP sélectionnés"
   },
   "addServer": "Ajouter un serveur",
   "addServerDialog": {

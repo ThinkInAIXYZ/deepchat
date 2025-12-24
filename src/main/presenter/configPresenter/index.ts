@@ -190,12 +190,12 @@ export class ConfigPresenter implements IConfigPresenter {
       setSetting: this.setSetting.bind(this)
     })
 
-    this.acpConfHelper = new AcpConfHelper()
-    this.syncAcpProviderEnabled(this.acpConfHelper.getGlobalEnabled())
-    this.setupIpcHandlers()
-
     // Initialize MCP configuration helper
     this.mcpConfHelper = new McpConfHelper()
+
+    this.acpConfHelper = new AcpConfHelper({ mcpConfHelper: this.mcpConfHelper })
+    this.syncAcpProviderEnabled(this.acpConfHelper.getGlobalEnabled())
+    this.setupIpcHandlers()
 
     // Initialize model configuration helper
     this.modelConfigHelper = new ModelConfigHelper(this.currentAppVersion)
@@ -1181,6 +1181,29 @@ export class ConfigPresenter implements IConfigPresenter {
 
   async setCustomAcpAgentEnabled(agentId: string, enabled: boolean): Promise<void> {
     this.acpConfHelper.setCustomAgentEnabled(agentId, enabled)
+    this.handleAcpAgentsMutated([agentId])
+  }
+
+  async getAgentMcpSelections(agentId: string, isBuiltin?: boolean): Promise<string[]> {
+    return await this.acpConfHelper.getAgentMcpSelections(agentId, isBuiltin)
+  }
+
+  async setAgentMcpSelections(
+    agentId: string,
+    isBuiltin: boolean,
+    mcpIds: string[]
+  ): Promise<void> {
+    await this.acpConfHelper.setAgentMcpSelections(agentId, isBuiltin, mcpIds)
+    this.handleAcpAgentsMutated([agentId])
+  }
+
+  async addMcpToAgent(agentId: string, isBuiltin: boolean, mcpId: string): Promise<void> {
+    await this.acpConfHelper.addMcpToAgent(agentId, isBuiltin, mcpId)
+    this.handleAcpAgentsMutated([agentId])
+  }
+
+  async removeMcpFromAgent(agentId: string, isBuiltin: boolean, mcpId: string): Promise<void> {
+    await this.acpConfHelper.removeMcpFromAgent(agentId, isBuiltin, mcpId)
     this.handleAcpAgentsMutated([agentId])
   }
 

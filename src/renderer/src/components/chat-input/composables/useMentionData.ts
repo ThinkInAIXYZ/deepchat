@@ -6,7 +6,7 @@ import type { MessageFile } from '@shared/chat'
 import type { CategorizedData } from '../../editor/mention/suggestion'
 
 // === Stores ===
-import { useMcpStore } from '@/stores/mcp'
+import { useAgentMcpData } from './useAgentMcpData'
 
 // === Mention System ===
 import { mentionData } from '../../editor/mention/suggestion'
@@ -16,8 +16,7 @@ import { mentionData } from '../../editor/mention/suggestion'
  * Watches various data sources (files, MCP resources/tools/prompts) and updates mention data
  */
 export function useMentionData(selectedFiles: Ref<MessageFile[]>) {
-  // === Stores ===
-  const mcpStore = useMcpStore()
+  const { tools, resources, prompts } = useAgentMcpData()
 
   // === Watchers ===
   /**
@@ -45,12 +44,12 @@ export function useMentionData(selectedFiles: Ref<MessageFile[]>) {
    * Watch MCP resources and update mention data
    */
   watch(
-    () => mcpStore.resources,
+    () => resources.value,
     () => {
       mentionData.value = mentionData.value
         .filter((item) => item.type !== 'item' || item.category !== 'resources')
         .concat(
-          mcpStore.resources.map((resource) => ({
+          resources.value.map((resource) => ({
             id: `${resource.client.name}.${resource.name ?? ''}`,
             label: resource.name ?? '',
             icon: 'lucide:tag',
@@ -67,12 +66,12 @@ export function useMentionData(selectedFiles: Ref<MessageFile[]>) {
    * Watch MCP tools and update mention data
    */
   watch(
-    () => mcpStore.tools,
+    () => tools.value,
     () => {
       mentionData.value = mentionData.value
         .filter((item) => item.type !== 'item' || item.category !== 'tools')
         .concat(
-          mcpStore.tools.map((tool) => ({
+          tools.value.map((tool) => ({
             id: `${tool.server.name}.${tool.function.name ?? ''}`,
             label: `${tool.server.icons}${' '}${tool.function.name ?? ''}`,
             icon: undefined,
@@ -89,12 +88,12 @@ export function useMentionData(selectedFiles: Ref<MessageFile[]>) {
    * Watch MCP prompts and update mention data
    */
   watch(
-    () => mcpStore.prompts,
+    () => prompts.value,
     () => {
       mentionData.value = mentionData.value
         .filter((item) => item.type !== 'item' || item.category !== 'prompts')
         .concat(
-          mcpStore.prompts.map((prompt) => ({
+          prompts.value.map((prompt) => ({
             id: prompt.name,
             label: prompt.name,
             icon: undefined,
