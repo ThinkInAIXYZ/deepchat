@@ -19,9 +19,21 @@ import { ProxyAgent } from 'undici'
 const OAUTH_MODEL_LIST = {
   data: [
     {
+      created_at: '2025-11-01T00:00:00Z',
+      display_name: 'Claude Opus 4.5',
+      id: 'claude-opus-4-5-20251101',
+      type: 'model'
+    },
+    {
       created_at: '2025-09-29T00:00:00Z',
       display_name: 'Claude Sonnet 4.5',
       id: 'claude-sonnet-4-5-20250929',
+      type: 'model'
+    },
+    {
+      created_at: '2025-09-29T00:00:00Z',
+      display_name: 'Claude Opus 4.1',
+      id: 'claude-opus-4-1-20250805',
       type: 'model'
     },
     {
@@ -61,7 +73,7 @@ const OAUTH_MODEL_LIST = {
       type: 'model'
     }
   ],
-  first_id: 'claude-sonnet-4-5-20250929',
+  first_id: 'claude-opus-4-5-20251101',
   has_more: false,
   last_id: 'claude-3-5-sonnet-20240620'
 }
@@ -247,7 +259,8 @@ export class AnthropicProvider extends BaseLLMProvider {
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
       'anthropic-version': '2023-06-01',
-      'anthropic-beta': 'oauth-2025-04-20',
+      'anthropic-beta':
+        'oauth-2025-04-20,claude-code-20250219,interleaved-thinking-2025-05-14,fine-grained-tool-streaming-2025-05-14',
       Authorization: `Bearer ${this.oauthToken}`
     }
 
@@ -1242,7 +1255,8 @@ ${context}
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
         'anthropic-version': '2023-06-01',
-        'anthropic-beta': 'oauth-2025-04-20',
+        'anthropic-beta':
+          'oauth-2025-04-20,claude-code-20250219,interleaved-thinking-2025-05-14,fine-grained-tool-streaming-2025-05-14',
         Authorization: `Bearer ${this.oauthToken}`,
         Accept: 'text/event-stream'
       }

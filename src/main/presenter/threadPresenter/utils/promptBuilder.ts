@@ -925,5 +925,5 @@ function enhanceSystemPromptWithDateTime(
     hour12: false
   })
 
-  return `${systemPrompt}\nToday's date and time is ${currentDateTime}`
+  return `${systemPrompt}\nToday is ${currentDateTime}`
 }
