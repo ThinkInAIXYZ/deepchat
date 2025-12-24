@@ -22,6 +22,19 @@ jobs:
       - name: List downloaded artifacts
         run: find artifacts -type f | sort
 
+      - name: Get build run info
+        id: build_run
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const runId = Number('${{ github.event.inputs.workflow_id }}')
+            const { data } = await github.rest.actions.getWorkflowRun({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              run_id: runId
+            })
+            core.setOutput('sha', data.head_sha)
+
       - name: Get version number
         id: get_version
         run: |
@@ -41,6 +54,35 @@ jobs:
             echo "Found version: $VERSION"
           else
             echo "Error: DeepChat tar.gz file not found"
+            exit 1
+          fi
+
+      - name: Checkout build commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.build_run.outputs.sha }}
+          fetch-depth: 1
+
+      - name: Build release notes from CHANGELOG
+        run: |
+          VERSION="${{ steps.get_version.outputs.version }}"
+          CHANGELOG="CHANGELOG.md"
+          if [ ! -f "$CHANGELOG" ]; then
+            echo "Error: CHANGELOG.md not found"
+            exit 1
+          fi
+          HEADER_REGEX="^## v${VERSION} \\([0-9]{4}-[0-9]{2}-[0-9]{2}\\)$"
+          if ! grep -Eq "$HEADER_REGEX" "$CHANGELOG"; then
+            echo "Error: Changelog entry not found for v${VERSION}"
+            exit 1
+          fi
+          awk -v ver="v${VERSION}" '
+            $0 ~ "^## " ver " \\(" { in_section = 1 }
+            in_section && $0 ~ "^## " && $0 !~ "^## " ver " \\(" { exit }
+            in_section { print }
+          ' "$CHANGELOG" > release_notes.md
+          if [ ! -s release_notes.md ]; then
+            echo "Error: Release notes are empty for v${VERSION}"
             exit 1
           fi
 
@@ -129,45 +171,7 @@ jobs:
           prerelease: ${{ steps.get_version.outputs.prerelease == 'true' }}
           files: |
             release_assets/*
-          body: |
-            # 🚀 DeepChat ${{ steps.get_version.outputs.version }} 正式发布 | 重新定义你的 AI 对话体验！
-            —— 不再是简单的 ChatBot，而是你的自然语言 Agent  工具🌟
-
-            🔥 为什么选择 DeepChat？
-
-            ✅ **商业友好**：基于原版 [Apache License 2.0](https://github.com/ThinkInAIXYZ/deepchat/blob/main/LICENSE) 开源，无任何协议外的额外约束，面向开源。
-            ✅ **开箱即用**：极简配置，即刻开启你的智能对话之旅。
-            ✅ **极致灵活**：自由切换模型，自定义模型源，满足你多样化的对话和探索需求。
-            ✅ **体验绝佳**：LaTeX 公式渲染、代码高亮、Markdown 支持，模型对话从未如此顺畅。
-            ✅ **持续进化**：我们倾听用户反馈，不断迭代更新，为你带来更卓越的 AI 对话体验。
-
-            📥 立即体验未来
-
-            💬 反馈有礼：欢迎提交你的宝贵建议，加入 VIP 用户社群，与我们一同塑造 DeepChat 的未来！
-            <img width="400px" src="https://github.com/user-attachments/assets/2ebc21e8-3eef-4a11-b3ab-de28e8f9d9c0"/>
-
-            🎮 加入 Discord 社区：[https://discord.gg/6RBatENX](https://discord.gg/6RBatENX)
-
-            ---
-
-            # 🚀 DeepChat ${{ steps.get_version.outputs.version }} Official Release | Redefine Your AI Conversation Experience!
-            —— Not just a simple ChatBot, but your natural language Agent tool 🌟
-
-            🔥 Why Choose DeepChat?
-
-            ✅ **Business-Friendly**: Open source under [Apache License 2.0](https://github.com/ThinkInAIXYZ/deepchat/blob/main/LICENSE), with no additional constraints beyond the license, truly open source.
-            ✅ **Ready to Use**: Minimal configuration, start your intelligent conversation journey immediately.
-            ✅ **Ultra Flexible**: Freely switch models, customize model sources, meet your diverse conversation and exploration needs.
-            ✅ **Excellent Experience**: LaTeX formula rendering, code highlighting, Markdown support, model conversations have never been smoother.
-            ✅ **Continuous Evolution**: We listen to user feedback, continuously iterate and update, bringing you an even better AI conversation experience.
-
-            📥 Experience the Future Now
-
-            💬 Feedback Welcome: We welcome your valuable suggestions, join the user community, and shape the future of DeepChat together!
-
-            <img width="400px" src="https://github.com/user-attachments/assets/2ebc21e8-3eef-4a11-b3ab-de28e8f9d9c0"/>
-
-            🎮 Join Discord Community: [https://discord.gg/6RBatENX](https://discord.gg/6RBatENX)
+          body_path: release_notes.md
 
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

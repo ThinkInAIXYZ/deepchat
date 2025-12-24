@@ -8,7 +8,7 @@ import {
 import { eventBus, SendTarget } from '@/eventbus'
 import { UPDATE_EVENTS, WINDOW_EVENTS } from '@/events'
 import electronUpdater from 'electron-updater'
-import type { ReleaseNoteInfo, UpdateInfo } from 'electron-updater'
+import type { UpdateInfo } from 'electron-updater'
 import fs from 'fs'
 import path from 'path'
 
@@ -18,6 +18,11 @@ const GITHUB_OWNER = 'yyhhyyyyyy'
 const GITHUB_REPO = 'deepchat'
 const UPDATE_CHANNEL_STABLE = 'stable'
 const UPDATE_CHANNEL_BETA = 'beta'
+
+type ReleaseNoteItem = {
+  version?: string
+  note?: string
+}
 
 // 版本信息接口
 interface VersionInfo {
@@ -41,7 +46,7 @@ const buildReleaseUrl = (version: string): string => {
   return `https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}/releases/tag/${formatTagVersion(version)}`
 }
 
-const formatReleaseNotes = (notes?: string | ReleaseNoteInfo[] | null): string => {
+const formatReleaseNotes = (notes?: string | ReleaseNoteItem[] | null): string => {
   if (!notes) return ''
   if (typeof notes === 'string') return notes
   if (!Array.isArray(notes)) return String(notes)
