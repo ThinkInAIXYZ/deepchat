@@ -57,9 +57,10 @@ jobs:
         run: pnpm run installRuntime:win:${{ matrix.arch }}
 
       - name: Build Windows
-        run: pnpm run build:win:${{ matrix.arch }}
+        run: |
+          pnpm run build
+          pnpm exec electron-builder --win --${{ matrix.arch }} --publish=never
         env:
-          ELECTRON_BUILDER_PUBLISH: 'never'
           VITE_GITHUB_CLIENT_ID: ${{ secrets.DC_GITHUB_CLIENT_ID }}
           VITE_GITHUB_CLIENT_SECRET: ${{ secrets.DC_GITHUB_CLIENT_SECRET }}
           VITE_GITHUB_REDIRECT_URI: ${{ secrets.DC_GITHUB_REDIRECT_URI }}
@@ -112,9 +113,10 @@ jobs:
         # run: pnpm run installRuntime:linux:${{ matrix.arch }}
 
       - name: Build Linux
-        run: pnpm run build:linux:${{ matrix.arch }}
+        run: |
+          pnpm run build
+          pnpm exec electron-builder --linux --${{ matrix.arch }} --publish=never
         env:
-          ELECTRON_BUILDER_PUBLISH: 'never'
           VITE_GITHUB_CLIENT_ID: ${{ secrets.DC_GITHUB_CLIENT_ID }}
           VITE_GITHUB_CLIENT_SECRET: ${{ secrets.DC_GITHUB_CLIENT_SECRET }}
           VITE_GITHUB_REDIRECT_URI: ${{ secrets.DC_GITHUB_REDIRECT_URI }}
@@ -168,10 +170,11 @@ jobs:
         run: pnpm run installRuntime:mac:${{ matrix.arch }}
 
       - name: Build Mac
-        run: pnpm run build:mac:${{ matrix.arch }}
+        run: |
+          pnpm run build
+          pnpm exec electron-builder --mac --${{ matrix.arch }} --publish=never
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
-          ELECTRON_BUILDER_PUBLISH: 'never'
           VITE_GITHUB_CLIENT_ID: ${{ secrets.DC_GITHUB_CLIENT_ID }}
           VITE_GITHUB_CLIENT_SECRET: ${{ secrets.DC_GITHUB_CLIENT_SECRET }}
           VITE_GITHUB_REDIRECT_URI: ${{ secrets.DC_GITHUB_REDIRECT_URI }}
