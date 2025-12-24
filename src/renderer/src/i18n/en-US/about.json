@@ -15,5 +15,5 @@
   "checkUpdateButton": "Check for Updates",
   "updateChannel": "Update Channel",
   "stableChannel": "Stable",
-  "canaryChannel": "Canary"
+  "betaChannel": "Beta"
 }

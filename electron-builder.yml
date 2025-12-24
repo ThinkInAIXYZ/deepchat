@@ -18,7 +18,6 @@ files:
   - '!{.env,.env.*,.npmrc,pnpm-lock.yaml}'
   - '!{tsconfig.json,tsconfig.node.json,tsconfig.app.json}'
   - '!electron-builder.yml'
-  - '!electron-builder-macx64.yml'
   - '!test/*'
   - '!*.config.ts'
   - '!*.config.js'
@@ -84,9 +83,7 @@ mac:
   category: public.app-category.utilities
   target:
     - target: dmg
-      arch: arm64
     - target: zip
-      arch: arm64
   artifactName: ${name}-${version}-mac-${arch}.${ext}
 linux:
   target:
@@ -99,5 +96,6 @@ linux:
     - x-scheme-handler/deepchat
 npmRebuild: true
 publish:
-  provider: generic
-  url: https://cdn.deepchatai.cn/upgrade/
+  provider: github
+  owner: ThinkInAIXYZ
+  repo: deepchat

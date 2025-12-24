@@ -1,44 +1,340 @@
-name: Create Release
+name: Release
 
 on:
   workflow_dispatch:
     inputs:
-      workflow_id:
-        description: 'Build workflow run ID to use for artifacts'
+      tag:
+        description: 'Release tag (e.g. v0.5.5 v0.5.6-beta.1)'
         required: true
         type: string
-      prerelease:
-        description: 'Is this a prerelease?'
-        required: true
-        type: boolean
-        default: false
+  push:
+    tags:
+      - v*.*.*
+
+permissions:
+  contents: write
 
 jobs:
-  create-release:
+  resolve-tag:
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.resolve.outputs.tag }}
+      sha: ${{ steps.resolve.outputs.sha }}
+    steps:
+      - name: Resolve tag
+        id: resolve
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const isDispatch = context.eventName === 'workflow_dispatch'
+            const tag = isDispatch
+              ? context.payload.inputs?.tag
+              : context.ref.replace('refs/tags/', '')
+            if (!tag) {
+              core.setFailed('Tag is required')
+              return
+            }
+
+            const owner = context.repo.owner
+            const repo = context.repo.repo
+            const refName = `tags/${tag}`
+
+            const resolveTagSha = async (refData) => {
+              let sha = refData.object.sha
+              if (refData.object.type === 'tag') {
+                const tagObj = await github.rest.git.getTag({
+                  owner,
+                  repo,
+                  tag_sha: sha
+                })
+                sha = tagObj.data.object.sha
+              }
+              return sha
+            }
+
+            if (isDispatch) {
+              try {
+                const { data } = await github.rest.git.getRef({
+                  owner,
+                  repo,
+                  ref: refName
+                })
+                const sha = await resolveTagSha(data)
+                core.setOutput('sha', sha)
+              } catch (error) {
+                const sha = context.sha
+                await github.rest.git.createRef({
+                  owner,
+                  repo,
+                  ref: `refs/${refName}`,
+                  sha
+                })
+                core.setOutput('sha', sha)
+              }
+            } else {
+              try {
+                const { data } = await github.rest.git.getRef({
+                  owner,
+                  repo,
+                  ref: refName
+                })
+                const sha = await resolveTagSha(data)
+                core.setOutput('sha', sha)
+              } catch (error) {
+                core.setFailed(`Tag ${tag} not found`)
+                return
+              }
+            }
+
+            core.setOutput('tag', tag)
+
+  build-windows:
+    needs: resolve-tag
+    runs-on: windows-latest
+    strategy:
+      matrix:
+        arch: [x64]
+        include:
+          - arch: x64
+            platform: win-x64
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.resolve-tag.outputs.sha }}
+          fetch-depth: 1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.13.1'
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 10.12.1
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Configure pnpm workspace for Windows ${{ matrix.arch }}
+        run: pnpm run install:sharp
+        env:
+          TARGET_OS: win32
+          TARGET_ARCH: ${{ matrix.arch }}
+
+      - name: Install dependencies
+        run: pnpm install
+        env:
+          npm_config_build_from_source: true
+          npm_config_platform: win32
+          npm_config_arch: ${{ matrix.arch }}
+
+      - name: Install Node Runtime
+        run: pnpm run installRuntime:win:${{ matrix.arch }}
+
+      - name: Build Windows
+        run: |
+          pnpm run build
+          pnpm exec electron-builder --win --${{ matrix.arch }} --publish=never
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VITE_GITHUB_CLIENT_ID: ${{ secrets.DC_GITHUB_CLIENT_ID }}
+          VITE_GITHUB_CLIENT_SECRET: ${{ secrets.DC_GITHUB_CLIENT_SECRET }}
+          VITE_GITHUB_REDIRECT_URI: ${{ secrets.DC_GITHUB_REDIRECT_URI }}
+          VITE_PROVIDER_DB_URL: ${{ secrets.CDN_PROVIDER_DB_URL }}
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: deepchat-${{ matrix.platform }}
+          path: |
+            dist/*
+            !dist/win-unpacked
+            !dist/win-arm64-unpacked
+
+  build-linux:
+    needs: resolve-tag
+    runs-on: ubuntu-22.04
+    strategy:
+      matrix:
+        arch: [x64]
+        include:
+          - arch: x64
+            platform: linux-x64
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.resolve-tag.outputs.sha }}
+          fetch-depth: 1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.13.1'
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 10.12.1
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Configure pnpm workspace for Linux ${{ matrix.arch }}
+        run: pnpm run install:sharp
+        env:
+          TARGET_OS: linux
+          TARGET_ARCH: ${{ matrix.arch }}
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Build Linux
+        run: |
+          pnpm run build
+          pnpm exec electron-builder --linux --${{ matrix.arch }} --publish=never
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VITE_GITHUB_CLIENT_ID: ${{ secrets.DC_GITHUB_CLIENT_ID }}
+          VITE_GITHUB_CLIENT_SECRET: ${{ secrets.DC_GITHUB_CLIENT_SECRET }}
+          VITE_GITHUB_REDIRECT_URI: ${{ secrets.DC_GITHUB_REDIRECT_URI }}
+          VITE_PROVIDER_DB_URL: ${{ secrets.CDN_PROVIDER_DB_URL }}
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: deepchat-${{ matrix.platform }}
+          path: |
+            dist/*
+            !dist/linux-unpacked
+
+  build-mac:
+    needs: resolve-tag
+    runs-on: macos-15
+    strategy:
+      matrix:
+        arch: [x64, arm64]
+        include:
+          - arch: x64
+            platform: mac-x64
+          - arch: arm64
+            platform: mac-arm64
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.resolve-tag.outputs.sha }}
+          fetch-depth: 1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.13.1'
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 10.12.1
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Configure pnpm workspace for macOS ${{ matrix.arch }}
+        run: pnpm run install:sharp
+        env:
+          TARGET_OS: darwin
+          TARGET_ARCH: ${{ matrix.arch }}
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Install Node Runtime
+        run: pnpm run installRuntime:mac:${{ matrix.arch }}
+
+      - name: Build Mac
+        run: |
+          pnpm run build
+          pnpm exec electron-builder --mac --${{ matrix.arch }} --publish=never
+        env:
+          CSC_LINK: ${{ secrets.DEEPCHAT_CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.DEEPCHAT_CSC_KEY_PASS }}
+          DEEPCHAT_APPLE_NOTARY_USERNAME: ${{ secrets.DEEPCHAT_APPLE_NOTARY_USERNAME }}
+          DEEPCHAT_APPLE_NOTARY_TEAM_ID: ${{ secrets.DEEPCHAT_APPLE_NOTARY_TEAM_ID }}
+          DEEPCHAT_APPLE_NOTARY_PASSWORD: ${{ secrets.DEEPCHAT_APPLE_NOTARY_PASSWORD }}
+          build_for_release: '2'
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VITE_GITHUB_CLIENT_ID: ${{ secrets.DC_GITHUB_CLIENT_ID }}
+          VITE_GITHUB_CLIENT_SECRET: ${{ secrets.DC_GITHUB_CLIENT_SECRET }}
+          VITE_GITHUB_REDIRECT_URI: ${{ secrets.DC_GITHUB_REDIRECT_URI }}
+          NODE_OPTIONS: '--max-old-space-size=4096'
+          VITE_PROVIDER_DB_URL: ${{ secrets.CDN_PROVIDER_DB_URL }}
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: deepchat-${{ matrix.platform }}
+          path: |
+            dist/*
+            !dist/mac/*
+            !dist/mac-arm64/*
+
+  release:
+    needs:
+      - resolve-tag
+      - build-windows
+      - build-linux
+      - build-mac
     runs-on: ubuntu-latest
     steps:
-      - name: Download artifacts from workflow
-        uses: dawidd6/action-download-artifact@v6
+      - uses: actions/checkout@v4
         with:
-          workflow_conclusion: success
-          run_id: ${{ github.event.inputs.workflow_id }}
-          path: artifacts
-
-      - name: List downloaded artifacts
-        run: find artifacts -type f | sort
+          ref: ${{ needs.resolve-tag.outputs.sha }}
+          fetch-depth: 1
 
       - name: Get version number
         id: get_version
         run: |
-          VERSION_FILE=$(find artifacts/deepchat-linux-x64 -name "DeepChat-*.tar.gz" | head -n 1)
-          if [ -n "$VERSION_FILE" ]; then
-            VERSION=$(echo $VERSION_FILE | grep -o 'DeepChat-[0-9]\+\.[0-9]\+\.[0-9]\+' | sed 's/DeepChat-//')
-            echo "version=$VERSION" >> $GITHUB_OUTPUT
-            echo "Found version: $VERSION"
-          else
-            echo "Error: DeepChat tar.gz file not found"
+          VERSION=$(node -p "require('./package.json').version")
+          TAG="${{ needs.resolve-tag.outputs.tag }}"
+          if [ "v$VERSION" != "$TAG" ]; then
+            echo "Error: tag $TAG does not match package.json version v$VERSION"
             exit 1
           fi
+          if echo "$VERSION" | grep -qE '-(beta|alpha)\.[0-9]+$'; then
+            echo "prerelease=true" >> $GITHUB_OUTPUT
+          else
+            echo "prerelease=false" >> $GITHUB_OUTPUT
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Build release notes from CHANGELOG
+        run: |
+          VERSION="${{ steps.get_version.outputs.version }}"
+          CHANGELOG="CHANGELOG.md"
+          if [ ! -f "$CHANGELOG" ]; then
+            echo "Error: CHANGELOG.md not found"
+            exit 1
+          fi
+          NORMALIZED_CHANGELOG="$(mktemp)"
+          perl -pe 's/\x{FF08}/(/g; s/\x{FF09}/)/g; s/\r$//' "$CHANGELOG" > "$NORMALIZED_CHANGELOG"
+          HEADER_REGEX="^##[[:space:]]+v${VERSION}[[:space:]]*\\([0-9]{4}-[0-9]{2}-[0-9]{2}\\)[[:space:]]*$"
+          if ! grep -Eq "$HEADER_REGEX" "$NORMALIZED_CHANGELOG"; then
+            echo "Error: Changelog entry not found for v${VERSION}"
+            exit 1
+          fi
+          awk -v ver="v${VERSION}" '
+            $0 ~ "^##[[:space:]]+" ver "[[:space:]]*\\(" { in_section = 1 }
+            in_section && $0 ~ "^##[[:space:]]+" && $0 !~ "^##[[:space:]]+" ver "[[:space:]]*\\(" { exit }
+            in_section { print }
+          ' "$NORMALIZED_CHANGELOG" > release_notes.md
+          if [ ! -s release_notes.md ]; then
+            echo "Error: Release notes are empty for v${VERSION}"
+            exit 1
+          fi
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
 
       - name: Prepare release assets
         run: |
@@ -49,14 +345,9 @@ jobs:
             cp artifacts/deepchat-win-x64/*.exe release_assets/ 2>/dev/null || true
             cp artifacts/deepchat-win-x64/*.msi release_assets/ 2>/dev/null || true
             cp artifacts/deepchat-win-x64/*.zip release_assets/ 2>/dev/null || true
+            cp artifacts/deepchat-win-x64/*.yml release_assets/ 2>/dev/null || true
+            cp artifacts/deepchat-win-x64/*.blockmap release_assets/ 2>/dev/null || true
           fi
-
-          # Process Windows arm64 artifacts
-          #if [ -d "artifacts/deepchat-win-arm64" ]; then
-          #  cp artifacts/deepchat-win-arm64/*.exe release_assets/ 2>/dev/null || true
-          #  cp artifacts/deepchat-win-arm64/*.msi release_assets/ 2>/dev/null || true
-          #  cp artifacts/deepchat-win-arm64/*.zip release_assets/ 2>/dev/null || true
-          #fi
 
           # Process Linux x64 artifacts
           if [ -d "artifacts/deepchat-linux-x64" ]; then
@@ -64,18 +355,57 @@ jobs:
             cp artifacts/deepchat-linux-x64/*.deb release_assets/ 2>/dev/null || true
             cp artifacts/deepchat-linux-x64/*.rpm release_assets/ 2>/dev/null || true
             cp artifacts/deepchat-linux-x64/*.tar.gz release_assets/ 2>/dev/null || true
+            cp artifacts/deepchat-linux-x64/*.yml release_assets/ 2>/dev/null || true
+            cp artifacts/deepchat-linux-x64/*.blockmap release_assets/ 2>/dev/null || true
           fi
 
           # Process Mac x64 artifacts
           if [ -d "artifacts/deepchat-mac-x64" ]; then
             cp artifacts/deepchat-mac-x64/*.dmg release_assets/ 2>/dev/null || true
             cp artifacts/deepchat-mac-x64/*.zip release_assets/ 2>/dev/null || true
+            cp artifacts/deepchat-mac-x64/*.blockmap release_assets/ 2>/dev/null || true
           fi
 
           # Process Mac arm64 artifacts
           if [ -d "artifacts/deepchat-mac-arm64" ]; then
             cp artifacts/deepchat-mac-arm64/*.dmg release_assets/ 2>/dev/null || true
             cp artifacts/deepchat-mac-arm64/*.zip release_assets/ 2>/dev/null || true
+            cp artifacts/deepchat-mac-arm64/*.blockmap release_assets/ 2>/dev/null || true
+          fi
+
+          merge_mac_yml() {
+            local name="$1"
+            local x64="artifacts/deepchat-mac-x64/$name"
+            local arm64="artifacts/deepchat-mac-arm64/$name"
+            if [ -f "$x64" ] && [ -f "$arm64" ]; then
+              ruby -ryaml -e '
+                x64 = YAML.load_file(ARGV[0]) || {}
+                arm = YAML.load_file(ARGV[1]) || {}
+                merged = x64.dup
+                merged["version"] ||= arm["version"]
+                merged["releaseDate"] ||= arm["releaseDate"]
+                merged["releaseNotes"] ||= arm["releaseNotes"]
+                merged["path"] ||= arm["path"]
+                merged["sha512"] ||= arm["sha512"]
+                files = []
+                files.concat(x64["files"]) if x64["files"].is_a?(Array)
+                files.concat(arm["files"]) if arm["files"].is_a?(Array)
+                merged["files"] = files.uniq { |f| f["url"] }
+                File.write(ARGV[2], merged.to_yaml)
+              ' "$x64" "$arm64" "release_assets/$name"
+            elif [ -f "$x64" ]; then
+              cp "$x64" "release_assets/$name"
+            elif [ -f "$arm64" ]; then
+              cp "$arm64" "release_assets/$name"
+            fi
+          }
+
+          merge_mac_yml latest-mac.yml
+          merge_mac_yml beta-mac.yml
+
+          if [ -z "$(ls -A release_assets)" ]; then
+            echo "Error: No release assets found"
+            exit 1
           fi
 
           ls -la release_assets/
@@ -83,51 +413,12 @@ jobs:
       - name: Create Draft Release
         uses: softprops/action-gh-release@v1
         with:
-          tag_name: v${{ steps.get_version.outputs.version }}
+          tag_name: ${{ needs.resolve-tag.outputs.tag }}
           name: DeepChat V${{ steps.get_version.outputs.version }}
           draft: true
-          prerelease: ${{ github.event.inputs.prerelease }}
+          prerelease: ${{ steps.get_version.outputs.prerelease == 'true' }}
           files: |
             release_assets/*
-          body: |
-            # 🚀 DeepChat ${{ steps.get_version.outputs.version }} 正式发布 | 重新定义你的 AI 对话体验！
-            —— 不再是简单的 ChatBot，而是你的自然语言 Agent  工具🌟
-
-            🔥 为什么选择 DeepChat？
-
-            ✅ **商业友好**：基于原版 [Apache License 2.0](https://github.com/ThinkInAIXYZ/deepchat/blob/main/LICENSE) 开源，无任何协议外的额外约束，面向开源。
-            ✅ **开箱即用**：极简配置，即刻开启你的智能对话之旅。
-            ✅ **极致灵活**：自由切换模型，自定义模型源，满足你多样化的对话和探索需求。
-            ✅ **体验绝佳**：LaTeX 公式渲染、代码高亮、Markdown 支持，模型对话从未如此顺畅。
-            ✅ **持续进化**：我们倾听用户反馈，不断迭代更新，为你带来更卓越的 AI 对话体验。
-
-            📥 立即体验未来
-
-            💬 反馈有礼：欢迎提交你的宝贵建议，加入 VIP 用户社群，与我们一同塑造 DeepChat 的未来！
-            <img width="400px" src="https://github.com/user-attachments/assets/2ebc21e8-3eef-4a11-b3ab-de28e8f9d9c0"/>
-
-            🎮 加入 Discord 社区：[https://discord.gg/6RBatENX](https://discord.gg/6RBatENX)
-
-            ---
-
-            # 🚀 DeepChat ${{ steps.get_version.outputs.version }} Official Release | Redefine Your AI Conversation Experience!
-            —— Not just a simple ChatBot, but your natural language Agent tool 🌟
-
-            🔥 Why Choose DeepChat?
-
-            ✅ **Business-Friendly**: Open source under [Apache License 2.0](https://github.com/ThinkInAIXYZ/deepchat/blob/main/LICENSE), with no additional constraints beyond the license, truly open source.
-            ✅ **Ready to Use**: Minimal configuration, start your intelligent conversation journey immediately.
-            ✅ **Ultra Flexible**: Freely switch models, customize model sources, meet your diverse conversation and exploration needs.
-            ✅ **Excellent Experience**: LaTeX formula rendering, code highlighting, Markdown support, model conversations have never been smoother.
-            ✅ **Continuous Evolution**: We listen to user feedback, continuously iterate and update, bringing you an even better AI conversation experience.
-
-            📥 Experience the Future Now
-
-            💬 Feedback Welcome: We welcome your valuable suggestions, join the user community, and shape the future of DeepChat together!
-
-            <img width="400px" src="https://github.com/user-attachments/assets/2ebc21e8-3eef-4a11-b3ab-de28e8f9d9c0"/>
-
-            🎮 Join Discord Community: [https://discord.gg/6RBatENX](https://discord.gg/6RBatENX)
-
+          body_path: release_notes.md
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

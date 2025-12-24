@@ -7,7 +7,7 @@
   "checkUpdateButton": "Проверить обновления",
   "updateChannel": "Канал обновлений",
   "stableChannel": "Стабильный",
-  "canaryChannel": "Канареечный",
+  "betaChannel": "Beta",
   "deviceInfo": {
     "title": "Сведения об устройстве",
     "platform": "Платформа",

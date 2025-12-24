@@ -57,8 +57,8 @@
                 <SelectItem value="stable">
                   {{ t('about.stableChannel') }}
                 </SelectItem>
-                <SelectItem value="canary">
-                  {{ t('about.canaryChannel') }}
+                <SelectItem value="beta">
+                  {{ t('about.betaChannel') }}
                 </SelectItem>
               </SelectContent>
             </Select>
