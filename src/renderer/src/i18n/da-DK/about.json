@@ -1,5 +1,5 @@
 {
-  "canaryChannel": "Beta",
+  "betaChannel": "Beta",
   "checkUpdateButton": "Tjek for opdateringer",
   "description": "DeepChat er en tværplatform AI-klient, der har til formål at gøre det nemmere for flere mennesker at bruge AI.",
   "deviceInfo": {

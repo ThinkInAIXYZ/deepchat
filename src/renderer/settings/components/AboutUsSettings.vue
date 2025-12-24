@@ -58,7 +58,7 @@
                   {{ t('about.stableChannel') }}
                 </SelectItem>
                 <SelectItem value="beta">
-                  {{ t('about.canaryChannel') }}
+                  {{ t('about.betaChannel') }}
                 </SelectItem>
               </SelectContent>
             </Select>

@@ -7,7 +7,7 @@
   "checkUpdateButton": "檢查更新",
   "updateChannel": "更新頻道",
   "stableChannel": "正式版",
-  "canaryChannel": "Beta",
+  "betaChannel": "内测版",
   "deviceInfo": {
     "title": "設備信息",
     "platform": "平台",

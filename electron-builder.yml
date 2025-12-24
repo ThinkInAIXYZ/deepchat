@@ -97,5 +97,5 @@ linux:
 npmRebuild: true
 publish:
   provider: github
-  owner: yyhhyyyyyy
+  owner: ThinkInAIXYZ
   repo: deepchat

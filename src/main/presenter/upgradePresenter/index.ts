@@ -14,7 +14,7 @@ import path from 'path'
 
 const { autoUpdater } = electronUpdater
 
-const GITHUB_OWNER = 'yyhhyyyyyy'
+const GITHUB_OWNER = 'ThinkInAIXYZ'
 const GITHUB_REPO = 'deepchat'
 const UPDATE_CHANNEL_STABLE = 'stable'
 const UPDATE_CHANNEL_BETA = 'beta'
@@ -34,8 +34,7 @@ interface VersionInfo {
 }
 
 const normalizeUpdateChannel = (channel?: string): 'stable' | 'beta' => {
-  if (channel === UPDATE_CHANNEL_BETA || channel === 'canary') return UPDATE_CHANNEL_BETA
-  return UPDATE_CHANNEL_STABLE
+  return channel === UPDATE_CHANNEL_BETA ? UPDATE_CHANNEL_BETA : UPDATE_CHANNEL_STABLE
 }
 
 const formatTagVersion = (version: string): string => {

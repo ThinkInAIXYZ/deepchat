@@ -7,7 +7,7 @@
   "checkUpdateButton": "업데이트 확인",
   "updateChannel": "업데이트 채널",
   "stableChannel": "안정 버전",
-  "canaryChannel": "Beta",
+  "betaChannel": "Beta",
   "deviceInfo": {
     "title": "장치 정보",
     "platform": "플랫폼",

@@ -1476,8 +1476,7 @@ export class ConfigPresenter implements IConfigPresenter {
   // 获取更新渠道
   getUpdateChannel(): string {
     const raw = this.getSetting<string>('updateChannel') || 'stable'
-    const normalized = raw === 'canary' ? 'beta' : raw
-    const channel = normalized === 'beta' || normalized === 'stable' ? normalized : 'stable'
+    const channel = raw === 'stable' || raw === 'beta' ? raw : 'beta'
     if (channel !== raw) {
       this.setSetting('updateChannel', channel)
     }
