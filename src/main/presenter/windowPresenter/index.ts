@@ -1097,14 +1097,30 @@ export class WindowPresenter implements IWindowPresenter {
 
     overlay.setIgnoreMouseEvents(true, { forward: true })
 
-    const sync = () => {
+    const syncOnMoved = () => {
       const current = this.tooltipOverlayWindows.get(parentWindow.id)
       if (!current || current.isDestroyed() || parentWindow.isDestroyed()) return
       this.syncTooltipOverlayBounds(parentWindow, current)
     }
 
-    parentWindow.on('move', sync)
-    parentWindow.on('resize', sync)
+    // Debounce resize to avoid excessive sync during window resize.
+    let resizeSyncTimer: NodeJS.Timeout | null = null
+    const syncOnResize = () => {
+      const current = this.tooltipOverlayWindows.get(parentWindow.id)
+      if (!current || current.isDestroyed() || parentWindow.isDestroyed()) return
+
+      if (resizeSyncTimer) {
+        clearTimeout(resizeSyncTimer)
+      }
+
+      resizeSyncTimer = setTimeout(() => {
+        this.syncTooltipOverlayBounds(parentWindow, current)
+        resizeSyncTimer = null
+      }, 100)
+    }
+
+    parentWindow.on('moved', syncOnMoved)
+    parentWindow.on('resize', syncOnResize)
     parentWindow.on('show', () => {
       if (!overlay.isDestroyed()) overlay.showInactive()
     })
