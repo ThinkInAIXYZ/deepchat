@@ -101,7 +101,7 @@ export class ProviderInstanceManager {
 
   private static buildProviderTypeMap(): Map<string, ProviderConstructor> {
     return new Map<string, ProviderConstructor>([
-      ['minimax', OpenAIProvider],
+      ['minimax', AnthropicProvider],
       ['deepseek', DeepseekProvider],
       ['silicon', SiliconcloudProvider],
       ['siliconcloud', SiliconcloudProvider],

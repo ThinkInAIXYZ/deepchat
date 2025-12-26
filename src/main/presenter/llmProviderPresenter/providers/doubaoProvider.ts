@@ -8,7 +8,10 @@ import {
   ModelConfig,
   MCPToolDefinition
 } from '@shared/presenter'
+import { ModelType } from '@shared/model'
 import { OpenAICompatibleProvider } from './openAICompatibleProvider'
+import { providerDbLoader } from '../../configPresenter/providerDbLoader'
+import { modelCapabilities } from '../../configPresenter/modelCapabilities'
 
 export class DoubaoProvider extends OpenAICompatibleProvider {
   // List of models that support thinking parameter
@@ -80,178 +83,34 @@ export class DoubaoProvider extends OpenAICompatibleProvider {
   }
 
   protected async fetchOpenAIModels(): Promise<MODEL_META[]> {
-    return [
-      // DeepSeek models
-      {
-        id: 'deepseek-v3-1-250821',
-        name: 'deepseek-v3.1',
-        group: 'deepseek',
+    const resolvedId = modelCapabilities.resolveProviderId(this.provider.id) || this.provider.id
+    const provider = providerDbLoader.getProvider(resolvedId)
+    if (!provider || !Array.isArray(provider.models)) {
+      return []
+    }
+
+    return provider.models.map((model) => {
+      const inputs = model.modalities?.input
+      const outputs = model.modalities?.output
+      const hasImageInput = Array.isArray(inputs) && inputs.includes('image')
+      const hasImageOutput = Array.isArray(outputs) && outputs.includes('image')
+      const modelType = hasImageOutput ? ModelType.ImageGeneration : ModelType.Chat
+
+      return {
+        id: model.id,
+        name: model.display_name || model.name || model.id,
+        group: 'default',
         providerId: this.provider.id,
         isCustom: false,
-        contextLength: 128000,
-        maxTokens: 32000,
-        reasoning: false,
-        functionCall: true,
-        vision: false
-      },
-      {
-        id: 'deepseek-r1-250120',
-        name: 'deepseek-r1',
-        group: 'deepseek',
-        providerId: this.provider.id,
-        isCustom: false,
-        contextLength: 64000,
-        maxTokens: 4096,
-        reasoning: true,
-        functionCall: false,
-        vision: false
-      },
-      {
-        id: 'deepseek-r1-distill-qwen-32b-250120',
-        name: 'deepseek-r1-distill-qwen-32b',
-        group: 'deepseek',
-        providerId: this.provider.id,
-        isCustom: false,
-        contextLength: 32000,
-        maxTokens: 4096,
-        reasoning: true,
-        functionCall: false,
-        vision: false
-      },
-      {
-        id: 'deepseek-r1-distill-qwen-7b-250120',
-        name: 'deepseek-r1-distill-qwen-7b',
-        group: 'deepseek',
-        providerId: this.provider.id,
-        isCustom: false,
-        contextLength: 32000,
-        maxTokens: 4096,
-        reasoning: true,
-        functionCall: false,
-        vision: false
-      },
-      {
-        id: 'deepseek-v3-250324',
-        name: 'deepseek-v3',
-        group: 'deepseek',
-        providerId: this.provider.id,
-        isCustom: false,
-        contextLength: 64000,
-        maxTokens: 4096,
-        reasoning: false,
-        functionCall: true,
-        vision: false
-      },
-      // Doubao native models
-      {
-        id: 'doubao-seed-1-6-vision-250815',
-        name: 'doubao-seed-1.6-vision',
-        group: 'doubao',
-        providerId: this.provider.id,
-        isCustom: false,
-        contextLength: 256000,
-        maxTokens: 32000,
-        reasoning: true,
-        functionCall: true,
-        vision: true
-      },
-      {
-        id: 'doubao-seed-1-6-250615',
-        name: 'doubao-seed-1.6',
-        group: 'doubao',
-        providerId: this.provider.id,
-        isCustom: false,
-        contextLength: 256000,
-        maxTokens: 32000,
-        reasoning: true,
-        functionCall: true,
-        vision: true
-      },
-      {
-        id: 'doubao-seed-1-6-flash-250715',
-        name: 'doubao-seed-1.6-flash',
-        group: 'doubao',
-        providerId: this.provider.id,
-        isCustom: false,
-        contextLength: 256000,
-        maxTokens: 32000,
-        reasoning: false,
-        functionCall: true,
-        vision: true
-      },
-      {
-        id: 'doubao-seed-1-6-flash-250615',
-        name: 'doubao-seed-1.6-flash (250615)',
-        group: 'doubao',
-        providerId: this.provider.id,
-        isCustom: false,
-        contextLength: 256000,
-        maxTokens: 32000,
-        reasoning: true,
-        functionCall: true,
-        vision: true
-      },
-      {
-        id: 'doubao-seed-1-6-thinking-250715',
-        name: 'doubao-seed-1.6-thinking',
-        group: 'doubao',
-        providerId: this.provider.id,
-        isCustom: false,
-        contextLength: 256000,
-        maxTokens: 32000,
-        reasoning: false,
-        functionCall: true,
-        vision: true
-      },
-      {
-        id: 'doubao-seed-1-6-thinking-250615',
-        name: 'doubao-seed-1.6-thinking (250615)',
-        group: 'doubao',
-        providerId: this.provider.id,
-        isCustom: false,
-        contextLength: 256000,
-        maxTokens: 32000,
-        reasoning: false,
-        functionCall: true,
-        vision: true
-      },
-      {
-        id: 'doubao-1-5-thinking-vision-pro-250428',
-        name: 'doubao-1.5-thinking-vision-pro',
-        group: 'doubao',
-        providerId: this.provider.id,
-        isCustom: false,
-        contextLength: 256000,
-        maxTokens: 32000,
-        reasoning: true,
-        functionCall: true,
-        vision: true
-      },
-      {
-        id: 'doubao-1-5-ui-tars-250428',
-        name: 'doubao-1.5-ui-tars',
-        group: 'doubao',
-        providerId: this.provider.id,
-        isCustom: false,
-        contextLength: 256000,
-        maxTokens: 32000,
-        reasoning: true,
-        functionCall: true,
-        vision: true
-      },
-      {
-        id: 'doubao-1-5-thinking-pro-m-250428',
-        name: 'doubao-1.5-thinking-pro-m',
-        group: 'doubao',
-        providerId: this.provider.id,
-        isCustom: false,
-        contextLength: 256000,
-        maxTokens: 32000,
-        reasoning: true,
-        functionCall: true,
-        vision: false
+        contextLength: model.limit?.context ?? 8192,
+        maxTokens: model.limit?.output ?? 4096,
+        vision: hasImageInput,
+        functionCall: Boolean(model.tool_call),
+        reasoning: Boolean(model.reasoning?.supported),
+        enableSearch: Boolean(model.search?.supported),
+        type: modelType
       }
-    ]
+    })
   }
 
   async completions(
