@@ -17411,8 +17411,8 @@
         }
       ]
     },
-    "github": {
-      "id": "github",
+    "github-models": {
+      "id": "github-models",
       "name": "GitHub Models",
       "display_name": "GitHub Models",
       "api": "https://models.github.ai/inference",
@@ -19196,8 +19196,8 @@
         }
       ]
     },
-    "together": {
-      "id": "together",
+    "togetherai": {
+      "id": "togetherai",
       "name": "Together AI",
       "display_name": "Together AI",
       "doc": "https://docs.together.ai/docs/serverless-models",
@@ -19236,8 +19236,8 @@
         }
       ]
     },
-    "azure-openai": {
-      "id": "azure-openai",
+    "azure": {
+      "id": "azure",
       "name": "Azure",
       "display_name": "Azure",
       "doc": "https://learn.microsoft.com/en-us/azure/ai-services/openai/concepts/models",
@@ -29759,8 +29759,8 @@
         }
       ]
     },
-    "vertex": {
-      "id": "vertex",
+    "google-vertex": {
+      "id": "google-vertex",
       "name": "Vertex",
       "display_name": "Vertex",
       "doc": "https://cloud.google.com/vertex-ai/generative-ai/docs/models",
@@ -38309,8 +38309,8 @@
         }
       ]
     },
-    "zhipu": {
-      "id": "zhipu",
+    "zhipuai": {
+      "id": "zhipuai",
       "name": "Zhipu AI",
       "display_name": "Zhipu AI",
       "api": "https://open.bigmodel.cn/api/paas/v4",
@@ -41311,8 +41311,8 @@
         }
       ]
     },
-    "fireworks": {
-      "id": "fireworks",
+    "fireworks-ai": {
+      "id": "fireworks-ai",
       "name": "Fireworks AI",
       "display_name": "Fireworks AI",
       "api": "https://api.fireworks.ai/inference/v1/",
@@ -45331,8 +45331,8 @@
         }
       ]
     },
-    "aws-bedrock": {
-      "id": "aws-bedrock",
+    "amazon-bedrock": {
+      "id": "amazon-bedrock",
       "name": "Amazon Bedrock",
       "display_name": "Amazon Bedrock",
       "doc": "https://docs.aws.amazon.com/bedrock/latest/userguide/models-supported.html",
@@ -57798,8 +57798,8 @@
         }
       ]
     },
-    "ppio": {
-      "id": "ppio",
+    "ppinfra": {
+      "id": "ppinfra",
       "name": "PPInfra",
       "display_name": "PPInfra",
       "models": [

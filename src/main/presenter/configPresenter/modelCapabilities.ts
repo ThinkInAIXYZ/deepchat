@@ -20,10 +20,18 @@ export class ModelCapabilities {
   private static readonly PROVIDER_ID_ALIASES: Record<string, string> = {
     dashscope: 'alibaba-cn',
     gemini: 'google',
-    vertex: 'google-vertex'
+    zhipu: 'zhipuai',
+    vertex: 'google-vertex',
+    together: 'togetherai',
+    github: 'github-models',
+    'azure-openai': 'azure',
+    'aws-bedrock': 'amazon-bedrock',
+    ppio: 'ppinfra',
+    fireworks: 'fireworks-ai'
   }
 
   constructor() {
+    providerDbLoader.setProviderIdResolver((providerId) => this.resolveProviderId(providerId))
     this.rebuildIndexFromDb()
     eventBus.on(PROVIDER_DB_EVENTS.LOADED, () => this.rebuildIndexFromDb())
     eventBus.on(PROVIDER_DB_EVENTS.UPDATED, () => this.rebuildIndexFromDb())
@@ -91,7 +99,11 @@ export class ModelCapabilities {
   resolveProviderId(providerId: string | undefined): string | undefined {
     if (!providerId) return undefined
     const alias = ModelCapabilities.PROVIDER_ID_ALIASES[providerId]
-    return alias || providerId
+    if (alias) {
+      console.log(`[ModelCapabilities] Provider ID mapped: "${providerId}" -> "${alias}"`)
+      return alias
+    }
+    return providerId
   }
 
   supportsReasoning(providerId: string, modelId: string): boolean {

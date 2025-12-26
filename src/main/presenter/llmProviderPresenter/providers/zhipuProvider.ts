@@ -5,7 +5,10 @@ import {
   ChatMessage,
   IConfigPresenter
 } from '@shared/presenter'
+import { ModelType } from '@shared/model'
 import { OpenAICompatibleProvider } from './openAICompatibleProvider'
+import { providerDbLoader } from '../../configPresenter/providerDbLoader'
+import { modelCapabilities } from '../../configPresenter/modelCapabilities'
 
 export class ZhipuProvider extends OpenAICompatibleProvider {
   constructor(provider: LLM_PROVIDER, configPresenter: IConfigPresenter) {
@@ -14,173 +17,34 @@ export class ZhipuProvider extends OpenAICompatibleProvider {
   }
 
   protected async fetchOpenAIModels(): Promise<MODEL_META[]> {
-    return [
-      // Language models
-      {
-        id: 'glm-4.5',
-        name: 'GLM-4.5',
+    const resolvedId = modelCapabilities.resolveProviderId(this.provider.id) || this.provider.id
+    const provider = providerDbLoader.getProvider(resolvedId)
+    if (!provider || !Array.isArray(provider.models)) {
+      return []
+    }
+
+    return provider.models.map((model) => {
+      const inputs = model.modalities?.input
+      const outputs = model.modalities?.output
+      const hasImageInput = Array.isArray(inputs) && inputs.includes('image')
+      const hasImageOutput = Array.isArray(outputs) && outputs.includes('image')
+      const modelType = hasImageOutput ? ModelType.ImageGeneration : ModelType.Chat
+
+      return {
+        id: model.id,
+        name: model.display_name || model.name || model.id,
         group: 'zhipu',
         providerId: this.provider.id,
         isCustom: false,
-        contextLength: 128000,
-        maxTokens: 8192
-      },
-      {
-        id: 'glm-4.5-air',
-        name: 'GLM-4.5-Air',
-        group: 'zhipu',
-        providerId: this.provider.id,
-        isCustom: false,
-        contextLength: 128000,
-        maxTokens: 8192
-      },
-      {
-        id: 'glm-4.5-x',
-        name: 'GLM-4.5-X',
-        group: 'zhipu',
-        providerId: this.provider.id,
-        isCustom: false,
-        contextLength: 128000,
-        maxTokens: 8192
-      },
-      {
-        id: 'glm-4.5-airx',
-        name: 'GLM-4.5-AirX',
-        group: 'zhipu',
-        providerId: this.provider.id,
-        isCustom: false,
-        contextLength: 128000,
-        maxTokens: 8192
-      },
-      {
-        id: 'glm-4.5-flash',
-        name: 'GLM-4.5-Flash',
-        group: 'zhipu',
-        providerId: this.provider.id,
-        isCustom: false,
-        contextLength: 128000,
-        maxTokens: 8192
-      },
-      {
-        id: 'glm-4-plus',
-        name: 'GLM-4-Plus',
-        group: 'zhipu',
-        providerId: this.provider.id,
-        isCustom: false,
-        contextLength: 128000,
-        maxTokens: 4096
-      },
-      {
-        id: 'glm-4-air-250414',
-        name: 'GLM-4-Air-250414',
-        group: 'zhipu',
-        providerId: this.provider.id,
-        isCustom: false,
-        contextLength: 128000,
-        maxTokens: 16000
-      },
-      {
-        id: 'glm-4-long',
-        name: 'GLM-4-Long',
-        group: 'zhipu',
-        providerId: this.provider.id,
-        isCustom: false,
-        contextLength: 1000000,
-        maxTokens: 4096
-      },
-      {
-        id: 'glm-4-airx',
-        name: 'GLM-4-AirX',
-        group: 'zhipu',
-        providerId: this.provider.id,
-        isCustom: false,
-        contextLength: 8000,
-        maxTokens: 4096
-      },
-      {
-        id: 'glm-4-flashx',
-        name: 'GLM-4-FlashX',
-        group: 'zhipu',
-        providerId: this.provider.id,
-        isCustom: false,
-        contextLength: 128000,
-        maxTokens: 4096
-      },
-      {
-        id: 'glm-4-flash-250414',
-        name: 'GLM-4-Flash-250414',
-        group: 'zhipu',
-        providerId: this.provider.id,
-        isCustom: false,
-        contextLength: 128000,
-        maxTokens: 16000
-      },
-      // Reasoning models
-      {
-        id: 'glm-z1-air',
-        name: 'GLM-Z1-Air',
-        group: 'zhipu',
-        providerId: this.provider.id,
-        isCustom: false,
-        contextLength: 32000,
-        maxTokens: 32000
-      },
-      {
-        id: 'glm-z1-airx',
-        name: 'GLM-Z1-AirX',
-        group: 'zhipu',
-        providerId: this.provider.id,
-        isCustom: false,
-        contextLength: 32000,
-        maxTokens: 30000
-      },
-      {
-        id: 'glm-z1-flash',
-        name: 'GLM-Z1-Flash',
-        group: 'zhipu',
-        providerId: this.provider.id,
-        isCustom: false,
-        contextLength: 32000,
-        maxTokens: 32000
-      },
-      // Multimodal models
-      {
-        id: 'glm-4.5v',
-        name: 'GLM-4.5V',
-        group: 'zhipu',
-        providerId: this.provider.id,
-        isCustom: false,
-        contextLength: 65536,
-        maxTokens: 8192
-      },
-      {
-        id: 'glm-4v-plus-0111',
-        name: 'GLM-4V-Plus-0111',
-        group: 'zhipu',
-        providerId: this.provider.id,
-        isCustom: false,
-        contextLength: 16000,
-        maxTokens: 4096
-      },
-      {
-        id: 'glm-4v',
-        name: 'GLM-4V',
-        group: 'zhipu',
-        providerId: this.provider.id,
-        isCustom: false,
-        contextLength: 4000,
-        maxTokens: 4096
-      },
-      {
-        id: 'glm-4v-flash',
-        name: 'GLM-4V-Flash',
-        group: 'zhipu',
-        providerId: this.provider.id,
-        isCustom: false,
-        contextLength: 4000,
-        maxTokens: 4096
+        contextLength: model.limit?.context ?? 8192,
+        maxTokens: model.limit?.output ?? 4096,
+        vision: hasImageInput,
+        functionCall: Boolean(model.tool_call),
+        reasoning: Boolean(model.reasoning?.supported),
+        enableSearch: Boolean(model.search?.supported),
+        type: modelType
       }
-    ]
+    })
   }
 
   async completions(

@@ -27,6 +27,7 @@ export class ProviderDbLoader {
   private cacheDir: string
   private cacheFilePath: string
   private metaFilePath: string
+  private providerIdResolver: ((providerId: string | undefined) => string | undefined) | null = null
 
   constructor() {
     this.userDataDir = app.getPath('userData')
@@ -63,10 +64,15 @@ export class ProviderDbLoader {
     return this.cache
   }
 
+  setProviderIdResolver(resolver: (providerId: string | undefined) => string | undefined): void {
+    this.providerIdResolver = resolver
+  }
+
   getProvider(providerId: string): ProviderEntry | undefined {
     const db = this.getDb()
     if (!db) return undefined
-    return db.providers?.[providerId]
+    const resolvedId = this.providerIdResolver?.(providerId) ?? providerId
+    return db.providers?.[resolvedId]
   }
 
   getModel(providerId: string, modelId: string): ProviderModel | undefined {
