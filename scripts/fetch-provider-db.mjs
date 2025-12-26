@@ -18,11 +18,11 @@ async function ensureDir(dir) {
 }
 
 const PROVIDER_ID_REGEX = /^[a-z0-9][a-z0-9-_]*$/
-const MODEL_ID_REGEX = /^[a-z0-9][a-z0-9\-_.:/]*$/
+const MODEL_ID_REGEX = /^[a-zA-Z0-9][a-zA-Z0-9\-_.:/]*$/
 const isValidLowercaseProviderId = (id) =>
   typeof id === 'string' && id === id.toLowerCase() && PROVIDER_ID_REGEX.test(id)
-const isValidLowercaseModelId = (id) =>
-  typeof id === 'string' && id === id.toLowerCase() && MODEL_ID_REGEX.test(id)
+const isValidModelId = (id) =>
+  typeof id === 'string' && MODEL_ID_REGEX.test(id)
 
 function sanitizeAggregateJson(json) {
   if (!json || typeof json !== 'object') return null
@@ -39,7 +39,7 @@ function sanitizeAggregateJson(json) {
     for (const m of models) {
       if (!m || typeof m !== 'object') continue
       const mid = m.id
-      if (!isValidLowercaseModelId(mid)) continue
+      if (!isValidModelId(mid)) continue
       const rlimit = m.limit
       let limit
       if (rlimit && typeof rlimit === 'object') {

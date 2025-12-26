@@ -86,16 +86,14 @@ export function isImageInputSupported(model: ProviderModel | undefined): boolean
 
 // strengthened id check: lowercase and allowed chars
 const PROVIDER_ID_REGEX = /^[a-z0-9][a-z0-9-_]*$/
-const MODEL_ID_REGEX = /^[a-z0-9][a-z0-9\-_.:/]*$/
+const MODEL_ID_REGEX = /^[a-zA-Z0-9][a-zA-Z0-9\-_.:/]*$/
 export function isValidLowercaseProviderId(id: unknown): id is string {
   return (
     typeof id === 'string' && id.length > 0 && id === id.toLowerCase() && PROVIDER_ID_REGEX.test(id)
   )
 }
-export function isValidLowercaseModelId(id: unknown): id is string {
-  return (
-    typeof id === 'string' && id.length > 0 && id === id.toLowerCase() && MODEL_ID_REGEX.test(id)
-  )
+export function isValidModelId(id: unknown): id is string {
+  return typeof id === 'string' && id.length > 0 && MODEL_ID_REGEX.test(id)
 }
 
 // Sanitize an unknown aggregate object: filter out invalid providers/models
@@ -260,7 +258,7 @@ export function sanitizeAggregate(input: unknown): ProviderAggregate | null {
       if (!isRecord(rmVal)) continue
       const rm = rmVal as Record<string, unknown>
       const mid = getString(rm, 'id')
-      if (!isValidLowercaseModelId(mid)) continue
+      if (!isValidModelId(mid)) continue
 
       // limit
       let limit: ProviderModel['limit'] | undefined
