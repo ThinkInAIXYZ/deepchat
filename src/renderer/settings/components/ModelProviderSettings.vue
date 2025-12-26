@@ -170,7 +170,7 @@
         class="flex-1"
       />
       <AnthropicProviderSettingsDetail
-        v-else-if="activeProvider.id === 'anthropic' || activeProvider.apiType === 'anthropic'"
+        v-else-if="activeProvider.id === 'anthropic'"
         :key="`anthropic-${activeProvider.id}`"
         :provider="activeProvider"
         class="flex-1"

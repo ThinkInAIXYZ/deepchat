@@ -141,6 +141,7 @@ export const useProviderStore = defineStore('provider', () => {
     // Load order first to ensure we have the latest saved order before processing provider list updates
     await loadProviderOrder()
     await providersQuery.refetch()
+    await defaultProvidersQuery.refetch()
   }
 
   const setupProviderListeners = () => {
@@ -349,6 +350,7 @@ export const useProviderStore = defineStore('provider', () => {
     await loadProviderOrder()
     setupProviderListeners()
     await refreshProviders()
+    await defaultProvidersQuery.refetch()
   }
 
   let providerOrderSyncTimer: ReturnType<typeof setTimeout> | null = null
