@@ -24,6 +24,17 @@ const isValidLowercaseProviderId = (id) =>
 const isValidLowercaseModelId = (id) =>
   typeof id === 'string' && id === id.toLowerCase() && MODEL_ID_REGEX.test(id)
 
+const PROVIDER_ID_MAPPING = {
+  zhipuai: 'zhipu',
+  'google-vertex': 'vertex',
+  togetherai: 'together',
+  'github-models': 'github',
+  azure: 'azure-openai',
+  'amazon-bedrock': 'aws-bedrock',
+  ppinfra: 'ppio',
+  'fireworks-ai': 'fireworks'
+}
+
 function sanitizeAggregateJson(json) {
   if (!json || typeof json !== 'object') return null
   const providers = json.providers
@@ -32,7 +43,8 @@ function sanitizeAggregateJson(json) {
   for (const [key, p] of Object.entries(providers)) {
     if (!p || typeof p !== 'object') continue
     const pid = p.id ?? key
-    if (!isValidLowercaseProviderId(pid)) continue
+    const mappedPid = PROVIDER_ID_MAPPING[pid] ?? pid
+    if (!isValidLowercaseProviderId(mappedPid)) continue
     if (pid !== key) continue
     const models = Array.isArray(p.models) ? p.models : []
     const sanitizedModels = []
@@ -139,8 +151,8 @@ function sanitizeAggregateJson(json) {
     }
     if (!sanitizedModels.length) continue
     const envArr = Array.isArray(p.env) ? p.env.filter((v) => typeof v === 'string') : undefined
-    out.providers[pid] = {
-      id: pid,
+    out.providers[mappedPid] = {
+      id: mappedPid,
       name: typeof p.name === 'string' ? p.name : undefined,
       display_name: typeof p.display_name === 'string' ? p.display_name : undefined,
       api: typeof p.api === 'string' ? p.api : undefined,
