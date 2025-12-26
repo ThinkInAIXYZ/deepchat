@@ -3,6 +3,7 @@ import { IModelConfig, ModelConfig, ModelConfigSource } from '@shared/presenter'
 import ElectronStore from 'electron-store'
 import { providerDbLoader } from './providerDbLoader'
 import { isImageInputSupported, ProviderModel } from '@shared/types/model-db'
+import { resolveProviderId } from './providerId'
 
 const SPECIAL_CONCAT_CHAR = '-_-'
 
@@ -20,10 +21,6 @@ export class ModelConfigHelper {
   private memoryCache: Map<string, IModelConfig> = new Map()
   private cacheInitialized: boolean = false
   private currentVersion: string
-  private static readonly PROVIDER_ID_ALIASES: Record<string, string> = {
-    dashscope: 'alibaba-cn',
-    gemini: 'google'
-  }
 
   constructor(appVersion: string = '0.0.0') {
     this.modelConfigStore = new ElectronStore<ModelConfigStoreSchema>({
@@ -46,9 +43,7 @@ export class ModelConfigHelper {
   }
 
   private resolveProviderId(providerId: string | undefined): string | undefined {
-    if (!providerId) return undefined
-    const alias = ModelConfigHelper.PROVIDER_ID_ALIASES[providerId]
-    return alias || providerId
+    return resolveProviderId(providerId)
   }
 
   /**

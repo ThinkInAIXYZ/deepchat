@@ -2,6 +2,7 @@ import { eventBus } from '@/eventbus'
 import { PROVIDER_DB_EVENTS } from '@/events'
 import { providerDbLoader } from './providerDbLoader'
 import { ProviderAggregate, ProviderModel } from '@shared/types/model-db'
+import { resolveProviderId as resolveProviderIdAlias } from './providerId'
 
 export type ThinkingBudgetRange = {
   min?: number
@@ -17,21 +18,8 @@ export type SearchDefaults = {
 
 export class ModelCapabilities {
   private index: Map<string, Map<string, ProviderModel>> = new Map()
-  private static readonly PROVIDER_ID_ALIASES: Record<string, string> = {
-    dashscope: 'alibaba-cn',
-    gemini: 'google',
-    zhipu: 'zhipuai',
-    vertex: 'google-vertex',
-    together: 'togetherai',
-    github: 'github-models',
-    'azure-openai': 'azure',
-    'aws-bedrock': 'amazon-bedrock',
-    ppio: 'ppinfra',
-    fireworks: 'fireworks-ai'
-  }
 
   constructor() {
-    providerDbLoader.setProviderIdResolver((providerId) => this.resolveProviderId(providerId))
     this.rebuildIndexFromDb()
     eventBus.on(PROVIDER_DB_EVENTS.LOADED, () => this.rebuildIndexFromDb())
     eventBus.on(PROVIDER_DB_EVENTS.UPDATED, () => this.rebuildIndexFromDb())
@@ -97,13 +85,8 @@ export class ModelCapabilities {
   }
 
   resolveProviderId(providerId: string | undefined): string | undefined {
-    if (!providerId) return undefined
-    const alias = ModelCapabilities.PROVIDER_ID_ALIASES[providerId]
-    if (alias) {
-      console.log(`[ModelCapabilities] Provider ID mapped: "${providerId}" -> "${alias}"`)
-      return alias
-    }
-    return providerId
+    const resolved = resolveProviderIdAlias(providerId)
+    return resolved
   }
 
   supportsReasoning(providerId: string, modelId: string): boolean {
