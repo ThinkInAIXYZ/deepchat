@@ -65,7 +65,7 @@
 
 <script setup lang="ts">
 // === Vue Core ===
-import { ref, onMounted, nextTick, watch, computed, toRef } from 'vue'
+import { ref, onMounted, nextTick, watch, computed, toRef, onBeforeUnmount } from 'vue'
 
 // === Types ===
 import { AssistantMessage, UserMessage } from '@shared/chat'
@@ -79,7 +79,7 @@ import MessageMinimap from './MessageMinimap.vue'
 import TraceDialog from '../trace/TraceDialog.vue'
 
 // === Composables ===
-import { useResizeObserver } from '@vueuse/core'
+import { useResizeObserver, useEventListener } from '@vueuse/core'
 import { useMessageScroll } from '@/composables/message/useMessageScroll'
 import { useCleanDialog } from '@/composables/message/useCleanDialog'
 import { useMessageMinimap } from '@/composables/message/useMessageMinimap'
@@ -90,6 +90,7 @@ import { useMessageRetry } from '@/composables/message/useMessageRetry'
 import { useChatStore } from '@/stores/chat'
 import { useReferenceStore } from '@/stores/reference'
 import { useWorkspaceStore } from '@/stores/workspace'
+import type { ParentSelection } from '@shared/presenter'
 
 // === Props & Emits ===
 const props = defineProps<{
@@ -132,6 +133,7 @@ const messageList = ref<HTMLDivElement>()
 const visible = ref(false)
 const shouldAutoFollow = ref(true)
 const traceMessageId = ref<string | null>(null)
+let highlightRefreshTimer: number | null = null
 
 const scheduleScrollToBottom = (force = false) => {
   nextTick(() => {
@@ -198,6 +200,230 @@ const handleTrace = (messageId: string) => {
   traceMessageId.value = messageId
 }
 
+const HIGHLIGHT_CLASS = 'selection-highlight'
+
+const hashText = (value: string) => {
+  let hash = 0
+  for (let i = 0; i < value.length; i += 1) {
+    hash = (hash << 5) - hash + value.charCodeAt(i)
+    hash |= 0
+  }
+  return `${hash}`
+}
+
+const clearSelectionHighlights = (container: HTMLElement) => {
+  const highlights = Array.from(container.querySelectorAll(`.${HIGHLIGHT_CLASS}`))
+  for (const highlight of highlights) {
+    const parent = highlight.parentNode
+    if (!parent) continue
+    while (highlight.firstChild) {
+      parent.insertBefore(highlight.firstChild, highlight)
+    }
+    parent.removeChild(highlight)
+    parent.normalize()
+  }
+}
+
+const resolveSelectionOffsets = (fullText: string, selection: ParentSelection) => {
+  const { startOffset, endOffset, selectedText, contextBefore, contextAfter } = selection
+  if (
+    Number.isFinite(startOffset) &&
+    Number.isFinite(endOffset) &&
+    startOffset >= 0 &&
+    endOffset <= fullText.length &&
+    endOffset > startOffset
+  ) {
+    const matchedText = fullText.slice(startOffset, endOffset)
+    if (matchedText === selectedText) {
+      return { startOffset, endOffset }
+    }
+  }
+
+  const hasBefore = typeof contextBefore === 'string' && contextBefore.length > 0
+  const hasAfter = typeof contextAfter === 'string' && contextAfter.length > 0
+
+  if (selectedText && hasBefore && hasAfter) {
+    const composite = `${contextBefore}${selectedText}${contextAfter}`
+    const idx = fullText.indexOf(composite)
+    if (idx !== -1) {
+      const resolvedStart = idx + contextBefore.length
+      return { startOffset: resolvedStart, endOffset: resolvedStart + selectedText.length }
+    }
+  }
+
+  if (selectedText && hasBefore) {
+    const composite = `${contextBefore}${selectedText}`
+    const idx = fullText.indexOf(composite)
+    if (idx !== -1) {
+      const resolvedStart = idx + contextBefore.length
+      return { startOffset: resolvedStart, endOffset: resolvedStart + selectedText.length }
+    }
+  }
+
+  if (selectedText && hasAfter) {
+    const composite = `${selectedText}${contextAfter}`
+    const idx = fullText.indexOf(composite)
+    if (idx !== -1) {
+      const resolvedStart = idx
+      return { startOffset: resolvedStart, endOffset: resolvedStart + selectedText.length }
+    }
+  }
+
+  if (selectedText) {
+    const idx = fullText.indexOf(selectedText)
+    if (idx !== -1) {
+      return { startOffset: idx, endOffset: idx + selectedText.length }
+    }
+  }
+
+  return null
+}
+
+const applySelectionHighlight = (
+  container: HTMLElement,
+  selection: ParentSelection,
+  childConversationId: string
+) => {
+  const fullText = container.textContent ?? ''
+  if (!fullText) return
+  if (selection.contentHash && selection.contentHash !== hashText(fullText)) {
+    return
+  }
+  const offsets = resolveSelectionOffsets(fullText, selection)
+  if (!offsets) return
+
+  const { startOffset, endOffset } = offsets
+  if (startOffset >= endOffset) return
+
+  const textNodes: Array<{ node: Text; start: number; end: number }> = []
+  const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT)
+  let cursor = 0
+  while (walker.nextNode()) {
+    const node = walker.currentNode as Text
+    const length = node.nodeValue?.length ?? 0
+    textNodes.push({ node, start: cursor, end: cursor + length })
+    cursor += length
+  }
+
+  for (const entry of textNodes) {
+    if (entry.end <= startOffset || entry.start >= endOffset) {
+      continue
+    }
+
+    const node = entry.node
+    const nodeText = node.nodeValue ?? ''
+    const startInNode = Math.max(0, startOffset - entry.start)
+    const endInNode = Math.min(nodeText.length, endOffset - entry.start)
+
+    if (startInNode >= endInNode) {
+      continue
+    }
+
+    const beforeText = nodeText.slice(0, startInNode)
+    const highlightText = nodeText.slice(startInNode, endInNode)
+    const afterText = nodeText.slice(endInNode)
+
+    const fragment = document.createDocumentFragment()
+    if (beforeText) {
+      fragment.appendChild(document.createTextNode(beforeText))
+    }
+
+    const highlight = document.createElement('span')
+    highlight.className = HIGHLIGHT_CLASS
+    highlight.dataset.childConversationId = childConversationId
+    highlight.textContent = highlightText
+    fragment.appendChild(highlight)
+
+    if (afterText) {
+      fragment.appendChild(document.createTextNode(afterText))
+    }
+
+    node.parentNode?.replaceChild(fragment, node)
+  }
+}
+
+const applySelectionHighlights = () => {
+  const container = messagesContainer.value
+  if (!container) return
+  clearSelectionHighlights(container)
+
+  for (const [messageId, children] of chatStore.childThreadsByMessageId.entries()) {
+    const messageElement = container.querySelector(
+      `[data-message-id="${messageId}"]`
+    ) as HTMLElement | null
+    if (!messageElement) continue
+    const contentElement = messageElement.querySelector(
+      '[data-message-content]'
+    ) as HTMLElement | null
+    const selectionContainer = contentElement ?? messageElement
+    for (const child of children) {
+      if (!child.parentSelection || typeof child.parentSelection !== 'object') continue
+      applySelectionHighlight(selectionContainer, child.parentSelection, child.id)
+    }
+  }
+}
+
+const scheduleSelectionHighlightRefresh = () => {
+  if (highlightRefreshTimer) {
+    clearTimeout(highlightRefreshTimer)
+    highlightRefreshTimer = null
+  }
+  nextTick(() => {
+    if (!chatStore.childThreadsByMessageId.size) {
+      const container = messagesContainer.value
+      if (container) {
+        clearSelectionHighlights(container)
+      }
+      return
+    }
+    applySelectionHighlights()
+    highlightRefreshTimer = window.setTimeout(() => {
+      highlightRefreshTimer = null
+      applySelectionHighlights()
+    }, 80)
+  })
+}
+
+const handleHighlightClick = (event: MouseEvent) => {
+  const target = event.target as HTMLElement | null
+  const highlight = target?.closest(`.${HIGHLIGHT_CLASS}`) as HTMLElement | null
+  if (!highlight) return
+  const childConversationId = highlight.dataset.childConversationId
+  if (!childConversationId) return
+  event.preventDefault()
+  chatStore.openThreadInNewTab(childConversationId)
+}
+
+const scrollToSelectionHighlight = (childConversationId: string) => {
+  if (!childConversationId) return false
+  const container = messagesContainer.value
+  if (!container) return false
+  const highlight = container.querySelector(
+    `.${HIGHLIGHT_CLASS}[data-child-conversation-id="${childConversationId}"]`
+  ) as HTMLElement | null
+  if (!highlight) return false
+  highlight.scrollIntoView({ block: 'center' })
+  highlight.classList.add('selection-highlight-active')
+  setTimeout(() => {
+    highlight.classList.remove('selection-highlight-active')
+  }, 2000)
+  return true
+}
+
+useEventListener(messagesContainer, 'click', handleHighlightClick)
+
+watch(
+  () => [
+    props.messages.length,
+    chatStore.childThreadsByMessageId,
+    chatStore.chatConfig.selectedVariantsMap
+  ],
+  () => {
+    scheduleSelectionHighlightRefresh()
+  },
+  { immediate: true }
+)
+
 // === Lifecycle Hooks ===
 onMounted(() => {
   // Initialize scroll and visibility
@@ -236,10 +462,21 @@ onMounted(() => {
   )
 })
 
+onBeforeUnmount(() => {
+  const container = messagesContainer.value
+  if (!container) return
+  clearSelectionHighlights(container)
+  if (highlightRefreshTimer) {
+    clearTimeout(highlightRefreshTimer)
+    highlightRefreshTimer = null
+  }
+})
+
 // === Expose ===
 defineExpose({
   scrollToBottom,
   scrollToMessage,
+  scrollToSelectionHighlight,
   aboveThreshold
 })
 </script>
@@ -253,5 +490,21 @@ defineExpose({
 
 .dark .message-highlight {
   background-color: rgba(59, 130, 246, 0.15);
+}
+
+:global(.selection-highlight) {
+  background-color: rgba(250, 204, 21, 0.4);
+  cursor: pointer;
+  border-radius: 2px;
+  padding: 0 1px;
+}
+
+:global(.selection-highlight:hover) {
+  background-color: rgba(250, 204, 21, 0.6);
+}
+
+:global(.selection-highlight-active) {
+  background-color: rgba(250, 204, 21, 0.7);
+  box-shadow: 0 0 0 2px rgba(250, 204, 21, 0.5);
 }
 </style>

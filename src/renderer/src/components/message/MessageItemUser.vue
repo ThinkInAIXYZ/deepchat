@@ -18,7 +18,10 @@
         :timestamp="message.timestamp"
       />
       <!-- 消息内容 -->
-      <div class="text-sm bg-muted dark:bg-muted rounded-lg p-2 border flex flex-col gap-1.5">
+      <div
+        class="text-sm bg-muted dark:bg-muted rounded-lg p-2 border flex flex-col gap-1.5"
+        data-message-content="true"
+      >
         <div v-show="message.content.files.length > 0" class="flex flex-wrap gap-1.5">
           <FileItem
             v-for="file in message.content.files"
@@ -198,8 +201,17 @@ const handleAction = (action: 'delete' | 'copy') => {
 }
 
 const handleMentionClick = (block: UserMessageMentionBlock) => {
-  // 处理 mention 点击事件，可以根据需要实现具体逻辑
-  console.log('Mention clicked:', block)
+  if (block.category !== 'context') {
+    return
+  }
+  const activeThread = chatStore.activeThread
+  if (!activeThread?.parentConversationId || !activeThread.parentMessageId) {
+    return
+  }
+  chatStore.openThreadInNewTab(activeThread.parentConversationId, {
+    messageId: activeThread.parentMessageId,
+    childConversationId: activeThread.id
+  })
 }
 
 const autoResize = () => {

@@ -64,6 +64,7 @@ import { useChatStore } from '@/stores/chat'
 import { useWorkspaceStore } from '@/stores/workspace'
 import { useCleanDialog } from '@/composables/message/useCleanDialog'
 import { useI18n } from 'vue-i18n'
+import type { CategorizedData } from '@/components/editor/mention/suggestion'
 import {
   Dialog,
   DialogContent,
@@ -144,6 +145,27 @@ const onStreamError = (_, _msg) => {
 const onCleanChatHistory = () => {
   cleanDialog.open()
 }
+
+watch(
+  () => [chatStore.activeContextMention, chatInput.value] as const,
+  ([mention, input]) => {
+    if (!mention || !input) return
+    const activeThreadId = chatStore.getActiveThreadId()
+    if (!activeThreadId) return
+    const mentionData: CategorizedData = {
+      id: mention.id,
+      label: mention.label,
+      category: mention.category,
+      type: 'item',
+      content: mention.content
+    }
+    const inserted = input.appendCustomMention?.(mentionData)
+    if (inserted) {
+      chatStore.consumeContextMention(activeThreadId)
+    }
+  },
+  { immediate: true }
+)
 
 // 监听流式响应
 onMounted(async () => {

@@ -25,6 +25,9 @@ type ConversationRow = {
   forced_search: number | null
   search_strategy: string | null
   context_chain: string | null
+  parent_conversation_id: string | null
+  parent_message_id: string | null
+  parent_selection: string | null
 }
 
 // 解析 JSON 字段
@@ -126,12 +129,22 @@ export class ConversationsTable extends BaseTable {
         ALTER TABLE conversations ADD COLUMN acp_workdir_map TEXT DEFAULT NULL;
       `
     }
+    if (version === 9) {
+      return `
+        -- 添加 parent 相关字段
+        ALTER TABLE conversations ADD COLUMN parent_conversation_id TEXT DEFAULT NULL;
+        ALTER TABLE conversations ADD COLUMN parent_message_id TEXT DEFAULT NULL;
+        ALTER TABLE conversations ADD COLUMN parent_selection TEXT DEFAULT NULL;
+        CREATE INDEX idx_conversations_parent ON conversations(parent_conversation_id);
+        CREATE INDEX idx_conversations_parent_message ON conversations(parent_message_id);
+      `
+    }
 
     return null
   }
 
   getLatestVersion(): number {
-    return 8
+    return 9
   }
 
   async create(title: string, settings: Partial<CONVERSATION_SETTINGS> = {}): Promise<string> {
@@ -159,9 +172,12 @@ export class ConversationsTable extends BaseTable {
         search_strategy,
         context_chain,
         agent_workspace_path,
-        acp_workdir_map
+        acp_workdir_map,
+        parent_conversation_id,
+        parent_message_id,
+        parent_selection
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `)
     const conv_id = nanoid()
     const now = Date.now()
@@ -190,7 +206,10 @@ export class ConversationsTable extends BaseTable {
       settings.agentWorkspacePath !== undefined && settings.agentWorkspacePath !== null
         ? settings.agentWorkspacePath
         : null,
-      settings.acpWorkdirMap ? JSON.stringify(settings.acpWorkdirMap) : null
+      settings.acpWorkdirMap ? JSON.stringify(settings.acpWorkdirMap) : null,
+      null,
+      null,
+      null
     )
     return conv_id
   }
@@ -222,7 +241,10 @@ export class ConversationsTable extends BaseTable {
         search_strategy,
         context_chain,
         agent_workspace_path,
-        acp_workdir_map
+        acp_workdir_map,
+        parent_conversation_id,
+        parent_message_id,
+        parent_selection
       FROM conversations
       WHERE conv_id = ?
     `
@@ -270,7 +292,10 @@ export class ConversationsTable extends BaseTable {
       updatedAt: result.updatedAt,
       is_new: result.is_new,
       is_pinned: result.is_pinned,
-      settings
+      settings,
+      parentConversationId: result.parent_conversation_id,
+      parentMessageId: result.parent_message_id,
+      parentSelection: getJsonField(result.parent_selection, undefined)
     }
   }
 
@@ -367,6 +392,24 @@ export class ConversationsTable extends BaseTable {
         )
       }
     }
+    if (data.parentConversationId !== undefined) {
+      updates.push('parent_conversation_id = ?')
+      params.push(data.parentConversationId ?? null)
+    }
+    if (data.parentMessageId !== undefined) {
+      updates.push('parent_message_id = ?')
+      params.push(data.parentMessageId ?? null)
+    }
+    if (data.parentSelection !== undefined) {
+      updates.push('parent_selection = ?')
+      if (data.parentSelection === null) {
+        params.push(null)
+      } else if (typeof data.parentSelection === 'string') {
+        params.push(data.parentSelection)
+      } else {
+        params.push(JSON.stringify(data.parentSelection))
+      }
+    }
     if (updates.length > 0 || data.updatedAt) {
       updates.push('updated_at = ?')
       params.push(data.updatedAt || Date.now())
@@ -419,7 +462,10 @@ export class ConversationsTable extends BaseTable {
         search_strategy,
         context_chain,
         agent_workspace_path,
-        acp_workdir_map
+        acp_workdir_map,
+        parent_conversation_id,
+        parent_message_id,
+        parent_selection
       FROM conversations
       ORDER BY updated_at DESC
       LIMIT ? OFFSET ?
@@ -464,9 +510,173 @@ export class ConversationsTable extends BaseTable {
               ? row.agent_workspace_path
               : undefined,
           acpWorkdirMap: getJsonField(row.acp_workdir_map, undefined)
-        }
+        },
+        parentConversationId: row.parent_conversation_id,
+        parentMessageId: row.parent_message_id,
+        parentSelection: getJsonField(row.parent_selection, undefined)
       }))
     }
+  }
+
+  async listByParentConversationId(parentConversationId: string): Promise<CONVERSATION[]> {
+    const results = this.db
+      .prepare(
+        `
+      SELECT
+        conv_id as id,
+        title,
+        created_at as createdAt,
+        updated_at as updatedAt,
+        system_prompt as systemPrompt,
+        temperature,
+        context_length as contextLength,
+        max_tokens as maxTokens,
+        provider_id as providerId,
+        model_id as modelId,
+        is_new,
+        artifacts,
+        is_pinned,
+        enabled_mcp_tools,
+        thinking_budget,
+        reasoning_effort,
+        verbosity,
+        enable_search,
+        forced_search,
+        search_strategy,
+        context_chain,
+        agent_workspace_path,
+        acp_workdir_map,
+        parent_conversation_id,
+        parent_message_id,
+        parent_selection
+      FROM conversations
+      WHERE parent_conversation_id = ?
+      ORDER BY updated_at DESC
+    `
+      )
+      .all(parentConversationId) as (ConversationRow & {
+      agent_workspace_path: string | null
+      acp_workdir_map: string | null
+    })[]
+
+    return results.map((row) => ({
+      id: row.id,
+      title: row.title,
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt,
+      is_new: row.is_new,
+      is_pinned: row.is_pinned,
+      settings: {
+        systemPrompt: row.systemPrompt,
+        temperature: row.temperature,
+        contextLength: row.contextLength,
+        maxTokens: row.maxTokens,
+        providerId: row.providerId,
+        modelId: row.modelId,
+        artifacts: row.artifacts as 0 | 1,
+        enabledMcpTools: getJsonField(row.enabled_mcp_tools, undefined),
+        thinkingBudget: row.thinking_budget !== null ? row.thinking_budget : undefined,
+        reasoningEffort: row.reasoning_effort
+          ? (row.reasoning_effort as 'minimal' | 'low' | 'medium' | 'high')
+          : undefined,
+        verbosity: row.verbosity ? (row.verbosity as 'low' | 'medium' | 'high') : undefined,
+        enableSearch: row.enable_search !== null ? Boolean(row.enable_search) : undefined,
+        forcedSearch: row.forced_search !== null ? Boolean(row.forced_search) : undefined,
+        searchStrategy: row.search_strategy ? (row.search_strategy as 'turbo' | 'max') : undefined,
+        selectedVariantsMap: getJsonField(row.context_chain, undefined),
+        agentWorkspacePath:
+          row.agent_workspace_path !== null && row.agent_workspace_path !== undefined
+            ? row.agent_workspace_path
+            : undefined,
+        acpWorkdirMap: getJsonField(row.acp_workdir_map, undefined)
+      },
+      parentConversationId: row.parent_conversation_id,
+      parentMessageId: row.parent_message_id,
+      parentSelection: getJsonField(row.parent_selection, undefined)
+    }))
+  }
+
+  async listByParentMessageIds(parentMessageIds: string[]): Promise<CONVERSATION[]> {
+    if (parentMessageIds.length === 0) {
+      return []
+    }
+
+    const placeholders = parentMessageIds.map(() => '?').join(', ')
+    const results = this.db
+      .prepare(
+        `
+      SELECT
+        conv_id as id,
+        title,
+        created_at as createdAt,
+        updated_at as updatedAt,
+        system_prompt as systemPrompt,
+        temperature,
+        context_length as contextLength,
+        max_tokens as maxTokens,
+        provider_id as providerId,
+        model_id as modelId,
+        is_new,
+        artifacts,
+        is_pinned,
+        enabled_mcp_tools,
+        thinking_budget,
+        reasoning_effort,
+        verbosity,
+        enable_search,
+        forced_search,
+        search_strategy,
+        context_chain,
+        agent_workspace_path,
+        acp_workdir_map,
+        parent_conversation_id,
+        parent_message_id,
+        parent_selection
+      FROM conversations
+      WHERE parent_message_id IN (${placeholders})
+      ORDER BY updated_at DESC
+    `
+      )
+      .all(...parentMessageIds) as (ConversationRow & {
+      agent_workspace_path: string | null
+      acp_workdir_map: string | null
+    })[]
+
+    return results.map((row) => ({
+      id: row.id,
+      title: row.title,
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt,
+      is_new: row.is_new,
+      is_pinned: row.is_pinned,
+      settings: {
+        systemPrompt: row.systemPrompt,
+        temperature: row.temperature,
+        contextLength: row.contextLength,
+        maxTokens: row.maxTokens,
+        providerId: row.providerId,
+        modelId: row.modelId,
+        artifacts: row.artifacts as 0 | 1,
+        enabledMcpTools: getJsonField(row.enabled_mcp_tools, undefined),
+        thinkingBudget: row.thinking_budget !== null ? row.thinking_budget : undefined,
+        reasoningEffort: row.reasoning_effort
+          ? (row.reasoning_effort as 'minimal' | 'low' | 'medium' | 'high')
+          : undefined,
+        verbosity: row.verbosity ? (row.verbosity as 'low' | 'medium' | 'high') : undefined,
+        enableSearch: row.enable_search !== null ? Boolean(row.enable_search) : undefined,
+        forcedSearch: row.forced_search !== null ? Boolean(row.forced_search) : undefined,
+        searchStrategy: row.search_strategy ? (row.search_strategy as 'turbo' | 'max') : undefined,
+        selectedVariantsMap: getJsonField(row.context_chain, undefined),
+        agentWorkspacePath:
+          row.agent_workspace_path !== null && row.agent_workspace_path !== undefined
+            ? row.agent_workspace_path
+            : undefined,
+        acpWorkdirMap: getJsonField(row.acp_workdir_map, undefined)
+      },
+      parentConversationId: row.parent_conversation_id,
+      parentMessageId: row.parent_message_id,
+      parentSelection: getJsonField(row.parent_selection, undefined)
+    }))
   }
 
   async rename(conversationId: string, title: string): Promise<void> {

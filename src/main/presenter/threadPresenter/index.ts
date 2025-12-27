@@ -2,6 +2,7 @@ import {
   IThreadPresenter,
   CONVERSATION,
   CONVERSATION_SETTINGS,
+  ParentSelection,
   MESSAGE_ROLE,
   MESSAGE_STATUS,
   MESSAGE_METADATA,
@@ -18,7 +19,7 @@ import { MessageManager } from './managers/messageManager'
 import { eventBus } from '@/eventbus'
 import { AssistantMessage, Message, SearchEngineTemplate } from '@shared/chat'
 import { SearchManager } from './managers/searchManager'
-import { TAB_EVENTS } from '@/events'
+import { TAB_EVENTS, CONVERSATION_EVENTS } from '@/events'
 import {
   ConversationExportFormat,
   buildNowledgeMemExportData
@@ -247,6 +248,82 @@ export class ThreadPresenter implements IThreadPresenter {
 
   async setActiveConversation(conversationId: string, tabId: number): Promise<void> {
     await this.conversationManager.setActiveConversation(conversationId, tabId)
+  }
+
+  async openConversationInNewTab(payload: {
+    conversationId: string
+    tabId?: number
+    messageId?: string
+    childConversationId?: string
+  }): Promise<number | null> {
+    const { conversationId, tabId, messageId, childConversationId } = payload
+
+    await this.sqlitePresenter.getConversation(conversationId)
+
+    const existingTabId = await this.conversationManager.findTabForConversation(conversationId)
+    if (existingTabId !== null) {
+      await presenter.tabPresenter.switchTab(existingTabId)
+      if (messageId || childConversationId) {
+        eventBus.sendToTab(existingTabId, CONVERSATION_EVENTS.SCROLL_TO_MESSAGE, {
+          conversationId,
+          messageId,
+          childConversationId
+        })
+      }
+      return existingTabId
+    }
+
+    const sourceWindowId =
+      typeof tabId === 'number'
+        ? presenter.tabPresenter.getWindowIdByWebContentsId(tabId)
+        : undefined
+    const fallbackWindowId = presenter.windowPresenter.getFocusedWindow()?.id
+    const windowId = sourceWindowId ?? fallbackWindowId
+
+    if (!windowId) {
+      if (typeof tabId === 'number') {
+        await this.conversationManager.setActiveConversation(conversationId, tabId)
+        if (messageId || childConversationId) {
+          eventBus.sendToTab(tabId, CONVERSATION_EVENTS.SCROLL_TO_MESSAGE, {
+            conversationId,
+            messageId,
+            childConversationId
+          })
+        }
+        return tabId
+      }
+      return null
+    }
+
+    const newTabId = await presenter.tabPresenter.createTab(windowId, 'local://chat', {
+      active: true
+    })
+
+    if (!newTabId) {
+      if (typeof tabId === 'number') {
+        await this.conversationManager.setActiveConversation(conversationId, tabId)
+        if (messageId || childConversationId) {
+          eventBus.sendToTab(tabId, CONVERSATION_EVENTS.SCROLL_TO_MESSAGE, {
+            conversationId,
+            messageId,
+            childConversationId
+          })
+        }
+        return tabId
+      }
+      return null
+    }
+
+    await this.waitForTabReady(newTabId)
+    await this.conversationManager.setActiveConversation(conversationId, newTabId)
+    if (messageId || childConversationId) {
+      eventBus.sendToTab(newTabId, CONVERSATION_EVENTS.SCROLL_TO_MESSAGE, {
+        conversationId,
+        messageId,
+        childConversationId
+      })
+    }
+    return newTabId
   }
 
   async getActiveConversation(tabId: number): Promise<CONVERSATION | null> {
@@ -694,6 +771,118 @@ export class ThreadPresenter implements IThreadPresenter {
       settings,
       selectedVariantsMap
     )
+  }
+
+  async createChildConversationFromSelection(payload: {
+    parentConversationId: string
+    parentMessageId: string
+    parentSelection: ParentSelection | string
+    title: string
+    settings?: Partial<CONVERSATION_SETTINGS>
+    tabId?: number
+    openInNewTab?: boolean
+  }): Promise<string> {
+    const {
+      parentConversationId,
+      parentMessageId,
+      parentSelection,
+      title,
+      settings,
+      tabId,
+      openInNewTab
+    } = payload
+
+    const parentConversation = await this.sqlitePresenter.getConversation(parentConversationId)
+    if (!parentConversation) {
+      throw new Error('Parent conversation not found')
+    }
+
+    await this.messageManager.getMessage(parentMessageId)
+
+    const mergedSettings = {
+      ...parentConversation.settings,
+      ...settings
+    }
+    mergedSettings.selectedVariantsMap = {}
+
+    const newConversationId = await this.sqlitePresenter.createConversation(title, mergedSettings)
+    const resolvedParentSelection =
+      typeof parentSelection === 'string'
+        ? (() => {
+            try {
+              return JSON.parse(parentSelection) as ParentSelection
+            } catch {
+              throw new Error('Invalid parent selection payload')
+            }
+          })()
+        : parentSelection
+    await this.sqlitePresenter.updateConversation(newConversationId, {
+      is_new: 0,
+      parentConversationId,
+      parentMessageId,
+      parentSelection: resolvedParentSelection
+    })
+
+    const shouldOpenInNewTab = openInNewTab ?? true
+    if (shouldOpenInNewTab) {
+      const sourceWindowId =
+        typeof tabId === 'number'
+          ? presenter.tabPresenter.getWindowIdByWebContentsId(tabId)
+          : undefined
+      const fallbackWindowId = presenter.windowPresenter.getFocusedWindow()?.id
+      const windowId = sourceWindowId ?? fallbackWindowId
+
+      if (windowId) {
+        const newTabId = await presenter.tabPresenter.createTab(windowId, 'local://chat', {
+          active: true
+        })
+        if (newTabId) {
+          await this.waitForTabReady(newTabId)
+          await this.conversationManager.setActiveConversation(newConversationId, newTabId)
+          await this.broadcastThreadListUpdate()
+          return newConversationId
+        }
+      }
+    }
+
+    if (typeof tabId === 'number') {
+      await this.conversationManager.setActiveConversation(newConversationId, tabId)
+    }
+
+    await this.broadcastThreadListUpdate()
+    return newConversationId
+  }
+
+  async listChildConversationsByParent(parentConversationId: string): Promise<CONVERSATION[]> {
+    return this.sqlitePresenter.listChildConversationsByParent(parentConversationId)
+  }
+
+  async listChildConversationsByMessageIds(parentMessageIds: string[]): Promise<CONVERSATION[]> {
+    return this.sqlitePresenter.listChildConversationsByMessageIds(parentMessageIds)
+  }
+
+  private async waitForTabReady(tabId: number): Promise<void> {
+    return new Promise((resolve) => {
+      let resolved = false
+      const onTabReady = (readyTabId: number) => {
+        if (readyTabId === tabId && !resolved) {
+          resolved = true
+          eventBus.off(TAB_EVENTS.RENDERER_TAB_READY, onTabReady)
+          clearTimeout(timeoutId)
+          resolve()
+        }
+      }
+
+      eventBus.on(TAB_EVENTS.RENDERER_TAB_READY, onTabReady)
+
+      const timeoutId = setTimeout(() => {
+        if (!resolved) {
+          resolved = true
+          eventBus.off(TAB_EVENTS.RENDERER_TAB_READY, onTabReady)
+          resolve()
+        }
+      }, 3000)
+    })
   }
 
   // 翻译文本

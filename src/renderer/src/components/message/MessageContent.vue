@@ -8,11 +8,11 @@
       <span
         v-else-if="block.type === 'mention'"
         class="cursor-pointer px-1.5 py-0.5 text-xs rounded-md bg-blue-200/80 dark:bg-secondary text-foreground inline-flex items-center gap-1 max-w-64 align-sub truncate"
-        :title="block.content"
+        :title="getMentionTitle(block)"
         @click="handleMentionClick(block)"
       >
         <Icon :icon="getMentionIcon(block.category)" class="w-3 h-3 shrink-0" />
-        <span class="truncate">{{ block.category === 'prompts' ? block.id : block.content }}</span>
+        <span class="truncate">{{ getMentionLabel(block) }}</span>
       </span>
 
       <!-- 代码块 -->
@@ -59,6 +59,7 @@ const handleMentionClick = (block: UserMessageMentionBlock) => {
 // 根据 category 获取对应的图标
 const getMentionIcon = (category: string) => {
   const iconMap: Record<string, string> = {
+    context: 'lucide:quote',
     prompts: 'lucide:message-square-quote',
     files: 'lucide:file-text',
     tools: 'lucide:wrench',
@@ -71,5 +72,22 @@ const getMentionIcon = (category: string) => {
   }
 
   return iconMap[category] || iconMap.default
+}
+
+const getMentionLabel = (block: UserMessageMentionBlock) => {
+  if (block.category === 'prompts') {
+    return block.id || block.content
+  }
+  if (block.category === 'context') {
+    return block.id || block.category
+  }
+  return block.content
+}
+
+const getMentionTitle = (block: UserMessageMentionBlock) => {
+  if (block.category === 'context') {
+    return block.id || ''
+  }
+  return block.content
 }
 </script>

@@ -14,10 +14,12 @@ export interface CategorizedData {
   category?: string
   description?: string
   mcpEntry?: ResourceListEntry | PromptListEntry
+  content?: string
 }
 
 // Sample categorized items
 const categorizedData: CategorizedData[] = [
+  { label: 'context', icon: 'lucide:quote', type: 'category' },
   { label: 'files', icon: 'lucide:files', type: 'category' },
   { label: 'resources', icon: 'lucide:swatch-book', type: 'category' },
   { label: 'tools', icon: 'lucide:hammer', type: 'category' },

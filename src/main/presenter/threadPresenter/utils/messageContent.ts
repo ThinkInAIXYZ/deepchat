@@ -88,6 +88,8 @@ export function formatUserMessageContent(msgContentBlock: UserMessageRichBlock[]
           return `@${block.id}`
         } else if (block.category === 'files') {
           return `@${block.id}`
+        } else if (block.category === 'context') {
+          return block.content
         } else if (block.category === 'prompts') {
           try {
             const promptData = JSON.parse(block.content)

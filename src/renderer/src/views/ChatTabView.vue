@@ -69,7 +69,7 @@
 <script setup lang="ts">
 import { defineAsyncComponent } from 'vue'
 import { useChatStore } from '@/stores/chat'
-import { watch, ref, computed } from 'vue'
+import { watch, ref, computed, nextTick } from 'vue'
 import { useTitle, useMediaQuery } from '@vueuse/core'
 import { useArtifactStore } from '@/stores/artifact'
 import ArtifactDialog from '@/components/artifacts/ArtifactDialog.vue'
@@ -126,6 +126,11 @@ watch(
 
 // 点击外部区域关闭侧边栏
 const isLargeScreen = useMediaQuery('(min-width: 1024px)')
+let pendingScrollRetryTimer: number | null = null
+let pendingScrollRetryCount = 0
+let lastPendingScrollKey = ''
+let pendingVariantResetKey = ''
+const MAX_PENDING_SCROLL_RETRY = 12
 
 /**
  * 处理滚动到指定消息
@@ -140,6 +145,119 @@ const handleScrollToMessage = (messageId: string) => {
     }
   }
 }
+
+const tryScrollToPendingMessage = () => {
+  const activeThreadId = chatStore.activeThread?.id
+  const pendingTarget = chatStore.activePendingScrollTarget
+  if (!activeThreadId || !pendingTarget) {
+    if (pendingScrollRetryTimer) {
+      clearTimeout(pendingScrollRetryTimer)
+      pendingScrollRetryTimer = null
+    }
+    pendingScrollRetryCount = 0
+    lastPendingScrollKey = ''
+    pendingVariantResetKey = ''
+    return
+  }
+
+  const pendingKey = `${activeThreadId}:${pendingTarget.childConversationId ?? ''}:${pendingTarget.messageId ?? ''}`
+  if (pendingKey !== lastPendingScrollKey) {
+    pendingScrollRetryCount = 0
+    lastPendingScrollKey = pendingKey
+    pendingVariantResetKey = ''
+    if (pendingScrollRetryTimer) {
+      clearTimeout(pendingScrollRetryTimer)
+      pendingScrollRetryTimer = null
+    }
+  }
+
+  nextTick(() => {
+    if (pendingTarget.childConversationId && chatViewRef.value?.messageList) {
+      const scrolled = chatViewRef.value.messageList.scrollToSelectionHighlight?.(
+        pendingTarget.childConversationId
+      )
+      if (scrolled) {
+        chatStore.consumePendingScrollMessage(activeThreadId)
+        pendingScrollRetryCount = 0
+        lastPendingScrollKey = ''
+        pendingVariantResetKey = ''
+        if (pendingScrollRetryTimer) {
+          clearTimeout(pendingScrollRetryTimer)
+          pendingScrollRetryTimer = null
+        }
+        return
+      }
+      if (
+        pendingTarget.messageId &&
+        pendingVariantResetKey !== pendingKey &&
+        chatStore.clearSelectedVariantForMessage(pendingTarget.messageId)
+      ) {
+        pendingVariantResetKey = pendingKey
+        pendingScrollRetryCount = 0
+        if (!pendingScrollRetryTimer) {
+          pendingScrollRetryTimer = window.setTimeout(() => {
+            pendingScrollRetryTimer = null
+            tryScrollToPendingMessage()
+          }, 60)
+        }
+        return
+      }
+      if (pendingScrollRetryCount >= MAX_PENDING_SCROLL_RETRY) {
+        chatStore.consumePendingScrollMessage(activeThreadId)
+        pendingScrollRetryCount = 0
+        lastPendingScrollKey = ''
+        pendingVariantResetKey = ''
+        return
+      }
+      if (pendingScrollRetryCount >= 8 && pendingTarget.messageId) {
+        const hasMessage = chatStore.variantAwareMessages.some(
+          (message) => message.id === pendingTarget.messageId
+        )
+        if (hasMessage) {
+          handleScrollToMessage(pendingTarget.messageId)
+          chatStore.consumePendingScrollMessage(activeThreadId)
+          pendingScrollRetryCount = 0
+          lastPendingScrollKey = ''
+          pendingVariantResetKey = ''
+          return
+        }
+      }
+      if (!pendingScrollRetryTimer) {
+        pendingScrollRetryCount += 1
+        pendingScrollRetryTimer = window.setTimeout(() => {
+          pendingScrollRetryTimer = null
+          tryScrollToPendingMessage()
+        }, 60)
+      }
+      return
+    }
+
+    if (!pendingTarget.childConversationId && pendingTarget.messageId) {
+      const hasMessage = chatStore.variantAwareMessages.some(
+        (message) => message.id === pendingTarget.messageId
+      )
+      if (!hasMessage) return
+      handleScrollToMessage(pendingTarget.messageId)
+      chatStore.consumePendingScrollMessage(activeThreadId)
+      pendingScrollRetryCount = 0
+      lastPendingScrollKey = ''
+    }
+  })
+}
+
+watch(
+  () =>
+    [
+      chatStore.activeThread?.id,
+      chatStore.activePendingScrollTarget,
+      chatStore.variantAwareMessages.length,
+      chatStore.childThreadsByMessageId
+    ] as const,
+  () => {
+    tryScrollToPendingMessage()
+  },
+  { immediate: true }
+)
 </script>
 
 <style>

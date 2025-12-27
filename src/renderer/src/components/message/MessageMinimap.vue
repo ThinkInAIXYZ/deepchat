@@ -95,14 +95,26 @@ const getMessageContentLength = (message: Message) => {
   const userMessage = message as UserMessage
   const content = userMessage.content
   const textParts: string[] = []
+  const resolveUserBlockText = (block: {
+    type?: string
+    content?: string
+    category?: string
+    id?: string
+  }) => {
+    if (block?.type === 'mention' && block?.category === 'context') {
+      const label = block.id?.trim() || 'context'
+      return `@${label}`
+    }
+    return typeof block?.content === 'string' ? block.content : ''
+  }
+
   if (content?.text) {
     textParts.push(content.text)
+  } else if (content?.content) {
+    content.content.forEach((block) => {
+      textParts.push(resolveUserBlockText(block))
+    })
   }
-  content?.content?.forEach((block) => {
-    if ('content' in block && typeof block.content === 'string') {
-      textParts.push(block.content)
-    }
-  })
   if (content?.files?.length) {
     textParts.push(content.files.map((file) => file.name ?? '').join(' '))
   }

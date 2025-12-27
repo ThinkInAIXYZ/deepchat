@@ -22,7 +22,7 @@
     <div class="flex flex-col w-full space-y-1.5">
       <MessageInfo :name="currentMessage.model_name" :timestamp="currentMessage.timestamp" />
       <Spinner v-if="currentContent.length === 0" class="size-3 text-muted-foreground" />
-      <div v-else class="flex flex-col w-full gap-1.5">
+      <div v-else class="flex flex-col w-full gap-1.5" data-message-content="true">
         <template v-for="(block, idx) in currentContent" :key="`${message.id}-${idx}`">
           <MessageBlockContent
             v-if="block.type === 'content'"

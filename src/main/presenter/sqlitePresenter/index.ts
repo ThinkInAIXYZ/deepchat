@@ -281,6 +281,18 @@ export class SQLitePresenter implements ISQLitePresenter {
     return this.conversationsTable.list(page, pageSize)
   }
 
+  public async listChildConversationsByParent(
+    parentConversationId: string
+  ): Promise<CONVERSATION[]> {
+    return this.conversationsTable.listByParentConversationId(parentConversationId)
+  }
+
+  public async listChildConversationsByMessageIds(
+    parentMessageIds: string[]
+  ): Promise<CONVERSATION[]> {
+    return this.conversationsTable.listByParentMessageIds(parentMessageIds)
+  }
+
   // 获取对话总数
   public async getConversationCount(): Promise<number> {
     return this.conversationsTable.count()

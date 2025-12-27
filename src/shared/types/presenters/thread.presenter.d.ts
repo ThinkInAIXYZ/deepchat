@@ -32,6 +32,16 @@ export type CONVERSATION_SETTINGS = {
   agentWorkspacePath?: string | null
 }
 
+export type ParentSelection = {
+  selectedText: string
+  startOffset: number
+  endOffset: number
+  contextBefore: string
+  contextAfter: string
+  contentHash: string
+  version?: number
+}
+
 export type CONVERSATION = {
   id: string
   title: string
@@ -41,6 +51,9 @@ export type CONVERSATION = {
   is_new?: number
   artifacts?: number
   is_pinned?: number
+  parentConversationId?: string | null
+  parentMessageId?: string | null
+  parentSelection?: ParentSelection | null
 }
 
 export type MESSAGE_STATUS = 'sent' | 'pending' | 'error'
@@ -123,13 +136,31 @@ export interface IThreadPresenter {
     settings?: Partial<CONVERSATION_SETTINGS>
   ): Promise<string>
 
+  createChildConversationFromSelection(payload: {
+    parentConversationId: string
+    parentMessageId: string
+    parentSelection: ParentSelection | string
+    title: string
+    settings?: Partial<CONVERSATION_SETTINGS>
+    tabId?: number
+    openInNewTab?: boolean
+  }): Promise<string>
+
   // Conversation list and activation status
   getConversationList(
     page: number,
     pageSize: number
   ): Promise<{ total: number; list: CONVERSATION[] }>
+  listChildConversationsByParent(parentConversationId: string): Promise<CONVERSATION[]>
+  listChildConversationsByMessageIds(parentMessageIds: string[]): Promise<CONVERSATION[]>
   loadMoreThreads(): Promise<{ hasMore: boolean; total: number }>
   setActiveConversation(conversationId: string, tabId: number): Promise<void>
+  openConversationInNewTab(payload: {
+    conversationId: string
+    tabId?: number
+    messageId?: string
+    childConversationId?: string
+  }): Promise<number | null>
   getActiveConversation(tabId: number): Promise<CONVERSATION | null>
   getActiveConversationId(tabId: number): Promise<string | null>
   clearActiveThread(tabId: number): Promise<void>

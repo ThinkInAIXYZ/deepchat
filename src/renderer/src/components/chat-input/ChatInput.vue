@@ -430,6 +430,7 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from '@shadcn/components/ui/popover'
 import { Icon } from '@iconify/vue'
 import { Editor, EditorContent } from '@tiptap/vue-3'
+import { TextSelection } from '@tiptap/pm/state'
 import Document from '@tiptap/extension-document'
 import Paragraph from '@tiptap/extension-paragraph'
 import Text from '@tiptap/extension-text'
@@ -472,7 +473,7 @@ import suggestion, {
   setPromptFilesHandler,
   setWorkspaceMention
 } from '../editor/mention/suggestion'
-import { mentionData } from '../editor/mention/suggestion'
+import { mentionData, type CategorizedData } from '../editor/mention/suggestion'
 import { useEventListener } from '@vueuse/core'
 
 // === Props & Emits ===
@@ -878,6 +879,57 @@ const handleVisibilityChange = () => {
   }
 }
 
+const hasContextMention = () => {
+  let found = false
+  editor.state.doc.descendants((node) => {
+    if (node.type.name === 'mention' && node.attrs?.category === 'context') {
+      found = true
+      return false
+    }
+    return true
+  })
+  return found
+}
+
+const setCaretToEnd = () => {
+  if (editor.isDestroyed) return
+  const { state, view } = editor
+  const endSelection = TextSelection.atEnd(state.doc)
+  view.dispatch(state.tr.setSelection(endSelection))
+  editor.commands.focus()
+}
+
+const scheduleCaretToEnd = () => {
+  const delays = [0, 50, 120]
+  for (const delay of delays) {
+    setTimeout(() => {
+      if (editor.isDestroyed) return
+      requestAnimationFrame(() => {
+        setCaretToEnd()
+      })
+    }, delay)
+  }
+}
+
+const appendCustomMention = (mention: CategorizedData) => {
+  const shouldInsertAtEnd = mention.category === 'context'
+  if (shouldInsertAtEnd && hasContextMention()) {
+    scheduleCaretToEnd()
+    return true
+  }
+  if (shouldInsertAtEnd) {
+    setCaretToEnd()
+  }
+  const insertPosition = shouldInsertAtEnd
+    ? editor.state.selection.to
+    : editor.state.selection.anchor
+  const inserted = editorComposable.insertMentionToEditor(mention, insertPosition)
+  if (inserted && shouldInsertAtEnd) {
+    scheduleCaretToEnd()
+  }
+  return inserted
+}
+
 useEventListener(window, 'resize', updateFakeCaretPosition)
 useEventListener(editorContainer, 'scroll', updateFakeCaretPosition)
 
@@ -983,6 +1035,7 @@ defineExpose({
   clearContent: editorComposable.clearContent,
   appendText: editorComposable.appendText,
   appendMention: (name: string) => editorComposable.appendMention(name, mentionData),
+  appendCustomMention,
   restoreFocus,
   getAgentWorkspacePath: () => {
     const mode = chatMode.currentMode.value

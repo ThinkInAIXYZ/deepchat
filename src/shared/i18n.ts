@@ -32,7 +32,8 @@ export const contextMenuTranslations: Record<string, TranslationMap> = {
     checkForUpdates: '检查更新',
     quit: '退出',
     translate: '翻译',
-    askAI: '询问AI'
+    askAI: '询问AI',
+    newThreadFromSelection: '基于选区新建会话'
   },
   'zh-TW': {
     copy: '複製',
@@ -47,7 +48,8 @@ export const contextMenuTranslations: Record<string, TranslationMap> = {
     checkForUpdates: '檢查更新',
     quit: '退出',
     translate: '翻譯',
-    askAI: '詢問AI'
+    askAI: '詢問AI',
+    newThreadFromSelection: '基於選區新建會話'
   },
   'en-US': {
     copy: 'Copy',
@@ -62,7 +64,8 @@ export const contextMenuTranslations: Record<string, TranslationMap> = {
     checkForUpdates: 'Check for Updates',
     quit: 'Quit',
     translate: 'Translate',
-    askAI: 'Ask AI'
+    askAI: 'Ask AI',
+    newThreadFromSelection: 'New Thread from Selection'
   },
   ja: {
     copy: 'コピー',
@@ -77,7 +80,8 @@ export const contextMenuTranslations: Record<string, TranslationMap> = {
     checkForUpdates: '更新を確認',
     quit: '終了',
     translate: '翻訳',
-    askAI: 'AIに質問'
+    askAI: 'AIに質問',
+    newThreadFromSelection: '選択範囲から新規スレッド'
   },
   ko: {
     copy: '복사',
@@ -92,7 +96,8 @@ export const contextMenuTranslations: Record<string, TranslationMap> = {
     checkForUpdates: '업데이트 확인',
     quit: '종료',
     translate: '번역',
-    askAI: 'AI에게 질문'
+    askAI: 'AI에게 질문',
+    newThreadFromSelection: '선택 영역에서 새 스레드'
   },
   fr: {
     copy: 'Copier',
@@ -107,7 +112,8 @@ export const contextMenuTranslations: Record<string, TranslationMap> = {
     checkForUpdates: 'Vérifier les mises à jour',
     quit: 'Quitter',
     translate: 'Traduire',
-    askAI: "Demander à l'AI"
+    askAI: "Demander à l'AI",
+    newThreadFromSelection: 'Nouveau fil depuis la sélection'
   },
   de: {
     copy: 'Kopieren',
@@ -122,7 +128,8 @@ export const contextMenuTranslations: Record<string, TranslationMap> = {
     checkForUpdates: 'Nach Updates suchen',
     quit: 'Beenden',
     translate: 'Übersetzen',
-    askAI: 'KI fragen'
+    askAI: 'KI fragen',
+    newThreadFromSelection: 'Neuer Thread aus Auswahl'
   },
   es: {
     copy: 'Copiar',
@@ -137,7 +144,8 @@ export const contextMenuTranslations: Record<string, TranslationMap> = {
     checkForUpdates: 'Comprobar actualizaciones',
     quit: 'Salir',
     translate: 'Traducir',
-    askAI: 'Preguntar a la AI'
+    askAI: 'Preguntar a la AI',
+    newThreadFromSelection: 'Nuevo hilo desde selección'
   },
   'pt-BR': {
     copy: 'Copiar',
@@ -152,7 +160,8 @@ export const contextMenuTranslations: Record<string, TranslationMap> = {
     checkForUpdates: 'Verificar por atualizações',
     quit: 'Sair',
     translate: 'Traduzir',
-    askAI: 'Perguntar à IA'
+    askAI: 'Perguntar à IA',
+    newThreadFromSelection: 'Novo tópico da seleção'
   },
   'da-DK': {
     copy: 'Kopiér',
@@ -167,7 +176,8 @@ export const contextMenuTranslations: Record<string, TranslationMap> = {
     checkForUpdates: 'Søg efter opdateringer',
     quit: 'Afslut',
     translate: 'Oversæt',
-    askAI: 'Spørg AI'
+    askAI: 'Spørg AI',
+    newThreadFromSelection: 'Ny tråd fra markering'
   }
 }
 

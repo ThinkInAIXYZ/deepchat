@@ -40,7 +40,8 @@ export const CONVERSATION_EVENTS = {
 
   ACTIVATED: 'conversation:activated', // 替代 conversation-activated
   DEACTIVATED: 'conversation:deactivated', // 替代 active-conversation-cleared
-  MESSAGE_EDITED: 'conversation:message-edited' // 替代 message-edited
+  MESSAGE_EDITED: 'conversation:message-edited', // 替代 message-edited
+  SCROLL_TO_MESSAGE: 'conversation:scroll-to-message'
 }
 
 // 通信相关事件

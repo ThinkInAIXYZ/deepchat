@@ -243,6 +243,19 @@ export default function contextMenu(options: ContextMenuOptions): () => void {
       // 添加分隔符
       menuItems.push({ type: 'separator' })
 
+      menuItems.push({
+        id: 'newThreadFromSelection',
+        label: options.labels?.newThreadFromSelection || 'New Thread from Selection',
+        click: () => {
+          options.webContents.send(
+            'context-menu-new-thread',
+            params.selectionText,
+            params.x,
+            params.y
+          )
+        }
+      })
+
       // 添加翻译选项
       menuItems.push({
         id: 'translate',

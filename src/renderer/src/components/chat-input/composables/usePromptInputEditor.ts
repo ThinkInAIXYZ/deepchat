@@ -107,6 +107,10 @@ export function usePromptInputEditor(
                 fetchingMcpEntry.value = false
               }
 
+              if (subBlock.attrs?.category === 'context' && subBlock.attrs?.content) {
+                content = subBlock.attrs.content as string
+              }
+
               if (subBlock.attrs?.category === 'prompts') {
                 fetchingMcpEntry.value = true
                 try {
@@ -266,11 +270,13 @@ export function usePromptInputEditor(
    */
   const insertMentionToEditor = (mentionData: CategorizedData, position: number): boolean => {
     try {
+      const mentionContent =
+        mentionData.content ?? (mentionData.mcpEntry ? JSON.stringify(mentionData.mcpEntry) : '')
       const mentionAttrs = {
         id: mentionData.id,
         label: mentionData.label,
         category: mentionData.category,
-        content: mentionData.mcpEntry ? JSON.stringify(mentionData.mcpEntry) : ''
+        content: mentionContent
       }
 
       const success = editor

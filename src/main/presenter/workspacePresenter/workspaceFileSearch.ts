@@ -7,7 +7,7 @@ import { checkSensitiveFile, isBinaryFile } from './fileSecurity'
 
 const DEFAULT_RESULT_LIMIT = 50
 
-const escapeGlob = (input: string) => input.replace(/[\\*?\[\]]/g, '\\$&')
+const escapeGlob = (input: string) => input.replace(/[[\\*?\]]/g, '\\$&')
 
 const buildFileNode = (filePath: string): WorkspaceFileNode => ({
   name: path.basename(filePath),

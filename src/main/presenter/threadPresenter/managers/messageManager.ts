@@ -14,7 +14,6 @@ import {
   UserMessageMentionBlock,
   UserMessageCodeBlock
 } from '@shared/chat'
-import { formatUserMessageContent } from '../utils/messageContent'
 import { eventBus, SendTarget } from '@/eventbus'
 import { CONVERSATION_EVENTS } from '@/events'
 
@@ -29,7 +28,17 @@ export class MessageManager implements IMessageManager {
     msgContentBlock: (UserMessageTextBlock | UserMessageMentionBlock | UserMessageCodeBlock)[]
   ): string {
     if (!Array.isArray(msgContentBlock)) return ''
-    return msgContentBlock.map((block) => block.content || '').join('')
+    return msgContentBlock
+      .map((block) => {
+        if (block.type === 'mention') {
+          if (block.category === 'context') {
+            const label = block.id?.trim() || 'context'
+            return `@${label}`
+          }
+        }
+        return block.content || ''
+      })
+      .join('')
   }
 
   private convertToMessage(sqliteMessage: SQLITE_MESSAGE): Message {
@@ -266,7 +275,7 @@ export class MessageManager implements IMessageManager {
             ...msg,
             content: {
               ...userContent,
-              text: formatUserMessageContent(userContent.content)
+              text: this.formatUserMessageContentForDisplay(userContent.content)
             }
           }
         }
