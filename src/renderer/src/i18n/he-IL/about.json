@@ -15,5 +15,6 @@
   "checkUpdateButton": "בדוק עדכונים",
   "updateChannel": "ערוץ עדכון",
   "stableChannel": "יציב (Stable)",
-  "betaChannel": "Beta"
+  "betaChannel": "Beta",
+  "feedbackButton": "מָשׁוֹב"
 }

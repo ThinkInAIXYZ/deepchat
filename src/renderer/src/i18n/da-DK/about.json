@@ -15,5 +15,6 @@
   "stableChannel": "officiel version",
   "title": "DeepChat",
   "updateChannel": "Opdateringskanal",
-  "website": "Besøg vores hjemmeside"
+  "website": "Besøg vores hjemmeside",
+  "feedbackButton": "Feedback"
 }

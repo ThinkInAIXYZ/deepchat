@@ -67,6 +67,17 @@
 
         <!-- 操作按钮区域 -->
         <div class="flex gap-2 mt-2">
+          <!-- 意见反馈按钮 -->
+          <Button
+            variant="outline"
+            size="sm"
+            class="mb-2 text-xs"
+            @click="openExternalLink('https://github.com/ThinkInAIXYZ/deepchat/discussions/1226')"
+          >
+            <Icon icon="lucide:message-square" class="mr-1 h-3 w-3" />
+            {{ t('about.feedbackButton') }}
+          </Button>
+
           <!-- 免责声明按钮 -->
           <Button variant="outline" size="sm" class="mb-2 text-xs" @click="openDisclaimerDialog">
             <Icon icon="lucide:info" class="mr-1 h-3 w-3" />

@@ -3,6 +3,7 @@
   "description": "DeepChat是一个跨平台AI客户端，致力于让更多人便捷地使用AI。",
   "website": "访问我们的网站",
   "disclaimerButton": "免责声明",
+  "feedbackButton": "意见反馈",
   "disclaimerTitle": "使用条款声明",
   "checkUpdateButton": "检查更新",
   "updateChannel": "更新渠道",

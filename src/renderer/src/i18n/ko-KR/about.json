@@ -15,5 +15,6 @@
     "cpuModel": "CPU 모델",
     "totalMemory": "총 메모리",
     "osVersion": "시스템 버전"
-  }
+  },
+  "feedbackButton": "피드백"
 }

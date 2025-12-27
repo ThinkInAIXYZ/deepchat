@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.5.6-beta-3 (2025-12-27)
+- 全新 Agent Mode，支持 RipGrep 等数十项新特性
+- 全新子会话概念，随时针对会话中任意消息单独讨论
+- 修复一些已知问题
+- ACP Agent 可以直接使用软件里面配置的 MCP
+- All-new Agent Mode with dozens of new features, including RipGrep
+- New sub-session concept: discuss any message in a conversation at any time
+- Fixed some known issues
+- ACP Agent can directly use the MCP configured in the app
+
 ## v0.5.6-beta.1 (2025-12-23)
 - Markdown 优化，修复列表元素异常
 - 修复 Ollama 视觉模型图片格式

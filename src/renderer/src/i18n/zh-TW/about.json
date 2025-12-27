@@ -15,5 +15,6 @@
     "cpuModel": "CPU 型號",
     "totalMemory": "總記憶體",
     "osVersion": "系統版本"
-  }
+  },
+  "feedbackButton": "意見反饋"
 }

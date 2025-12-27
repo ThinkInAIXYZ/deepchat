@@ -15,5 +15,6 @@
   "checkUpdateButton": "Verificar Atualizações",
   "updateChannel": "Canal de Atualização",
   "stableChannel": "Estável",
-  "betaChannel": "Beta"
+  "betaChannel": "Beta",
+  "feedbackButton": "Opinião"
 }
