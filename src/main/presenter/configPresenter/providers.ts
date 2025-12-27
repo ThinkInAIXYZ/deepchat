@@ -416,16 +416,16 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
   {
     id: 'minimax',
     name: 'MiniMax',
-    apiType: 'openai',
+    apiType: 'anthropic',
     apiKey: '',
-    baseUrl: 'https://api.minimax.chat/v1',
+    baseUrl: 'https://api.minimaxi.com/anthropic',
     enable: false,
     websites: {
       official: 'https://platform.minimaxi.com/',
       apiKey: 'https://platform.minimaxi.com/user-center/basic-information/interface-key',
-      docs: 'https://platform.minimaxi.com/document/Announcement',
+      docs: 'https://platform.minimax.io/docs/api-reference/text-anthropic-api',
       models: 'https://platform.minimaxi.com/document/Models',
-      defaultBaseUrl: 'https://api.minimax.chat/v1'
+      defaultBaseUrl: 'https://api.minimax.io/anthropic'
     }
   },
   {

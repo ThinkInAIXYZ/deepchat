@@ -2,6 +2,7 @@ import { eventBus } from '@/eventbus'
 import { PROVIDER_DB_EVENTS } from '@/events'
 import { providerDbLoader } from './providerDbLoader'
 import { ProviderAggregate, ProviderModel } from '@shared/types/model-db'
+import { resolveProviderId as resolveProviderIdAlias } from './providerId'
 
 export type ThinkingBudgetRange = {
   min?: number
@@ -17,11 +18,6 @@ export type SearchDefaults = {
 
 export class ModelCapabilities {
   private index: Map<string, Map<string, ProviderModel>> = new Map()
-  private static readonly PROVIDER_ID_ALIASES: Record<string, string> = {
-    dashscope: 'alibaba-cn',
-    gemini: 'google',
-    vertex: 'google-vertex'
-  }
 
   constructor() {
     this.rebuildIndexFromDb()
@@ -89,9 +85,8 @@ export class ModelCapabilities {
   }
 
   resolveProviderId(providerId: string | undefined): string | undefined {
-    if (!providerId) return undefined
-    const alias = ModelCapabilities.PROVIDER_ID_ALIASES[providerId]
-    return alias || providerId
+    const resolved = resolveProviderIdAlias(providerId)
+    return resolved
   }
 
   supportsReasoning(providerId: string, modelId: string): boolean {

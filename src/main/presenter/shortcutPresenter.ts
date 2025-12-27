@@ -171,13 +171,15 @@ export class ShortcutPresenter implements IShortcutPresenter {
     }
 
     // 注册标签页数字快捷键 (1-8)
-    for (let i = 1; i <= 8; i++) {
-      globalShortcut.register(`${CommandKey}+${i}`, () => {
-        const focusedWindow = presenter.windowPresenter.getFocusedWindow()
-        if (focusedWindow?.isFocused()) {
-          this.switchToTabByIndex(focusedWindow.id, i - 1) // 索引从0开始
-        }
-      })
+    if (this.shortcutKeys.NumberTabs) {
+      for (let i = 1; i <= 8; i++) {
+        globalShortcut.register(`${CommandKey}+${i}`, () => {
+          const focusedWindow = presenter.windowPresenter.getFocusedWindow()
+          if (focusedWindow?.isFocused()) {
+            this.switchToTabByIndex(focusedWindow.id, i - 1) // 索引从0开始
+          }
+        })
+      }
     }
 
     // Command+9 或 Ctrl+9 切换到最后一个标签页

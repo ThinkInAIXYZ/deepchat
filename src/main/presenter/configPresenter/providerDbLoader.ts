@@ -7,6 +7,7 @@ import {
   ProviderModel,
   sanitizeAggregate
 } from '@shared/types/model-db'
+import { resolveProviderId } from './providerId'
 import { eventBus, SendTarget } from '@/eventbus'
 import { PROVIDER_DB_EVENTS } from '@/events'
 
@@ -66,7 +67,8 @@ export class ProviderDbLoader {
   getProvider(providerId: string): ProviderEntry | undefined {
     const db = this.getDb()
     if (!db) return undefined
-    return db.providers?.[providerId]
+    const resolvedId = resolveProviderId(providerId)
+    return db.providers?.[resolvedId ?? providerId]
   }
 
   getModel(providerId: string, modelId: string): ProviderModel | undefined {
@@ -129,8 +131,8 @@ export class ProviderDbLoader {
 
   private getTtlHours(): number {
     const env = process.env.PROVIDER_DB_TTL_HOURS
-    const v = env ? Number(env) : 24
-    return Number.isFinite(v) && v > 0 ? v : 24
+    const v = env ? Number(env) : 12
+    return Number.isFinite(v) && v > 0 ? v : 12
   }
 
   private getProviderDbUrl(): string {

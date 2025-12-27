@@ -17,7 +17,8 @@ export const rendererShortcutKey = {
   DeleteConversation: `${CommandKey}+D`,
   SwitchNextTab: `${CommandKey}+Tab`,
   SwitchPrevTab: `${CommandKey}+${ShiftKey}+Tab`,
-  SwtichToLastTab: `${CommandKey}+9`
+  SwtichToLastTab: `${CommandKey}+9`,
+  NumberTabs: `${CommandKey}+1...8`
 }
 
 // System-level shortcut keys

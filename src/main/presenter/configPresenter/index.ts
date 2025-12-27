@@ -227,6 +227,9 @@ export class ConfigPresenter implements IConfigPresenter {
       this.mcpConfHelper.onUpgrade(oldVersion)
     }
 
+    // Migrate minimax provider from OpenAI format to Anthropic format
+    this.migrateMinimaxProvider()
+
     const existingProviders = this.getSetting<LLM_PROVIDER[]>(PROVIDERS_STORE_KEY) || []
     const newProviders = defaultProviders.filter(
       (defaultProvider) =>
@@ -422,6 +425,38 @@ export class ConfigPresenter implements IConfigPresenter {
       } catch (e) {
         console.warn('Failed to migrate legacy default_system_prompt:', e)
       }
+    }
+  }
+
+  private migrateMinimaxProvider(): void {
+    const providers = this.getProviders()
+    const legacyMinimax = providers.find(
+      (provider) =>
+        provider.id === 'minimax' &&
+        (provider.apiType === 'openai' || provider.apiType === 'minimax')
+    )
+
+    if (!legacyMinimax) {
+      return
+    }
+
+    const defaultMinimax = defaultProviders.find((provider) => provider.id === 'minimax')
+    if (!defaultMinimax) {
+      return
+    }
+
+    const updatedProvider: LLM_PROVIDER = {
+      ...defaultMinimax,
+      apiKey: legacyMinimax.apiKey
+    }
+
+    this.setProviderById('minimax', updatedProvider)
+
+    if (providers.some((provider) => provider.id === 'minimax-an')) {
+      const filteredProviders = this.getProviders().filter(
+        (provider) => provider.id !== 'minimax-an'
+      )
+      this.setProviders(filteredProviders)
     }
   }
 

@@ -14,6 +14,7 @@ import { DevicePresenter } from '../devicePresenter'
 import { jsonrepair } from 'jsonrepair'
 import { eventBus, SendTarget } from '@/eventbus'
 import { CONFIG_EVENTS } from '@/events'
+import logger from '@shared/logger'
 
 /**
  * Base LLM Provider Abstract Class
@@ -78,7 +79,7 @@ export abstract class BaseLLMProvider {
       const cachedModels = this.configPresenter.getProviderModels(this.provider.id)
       if (cachedModels && cachedModels.length > 0) {
         this.models = cachedModels
-        console.info(
+        logger.info(
           `Loaded ${cachedModels.length} cached models for provider: ${this.provider.name}`
         )
       }
@@ -87,12 +88,12 @@ export abstract class BaseLLMProvider {
       const cachedCustomModels = this.configPresenter.getCustomModels(this.provider.id)
       if (cachedCustomModels && cachedCustomModels.length > 0) {
         this.customModels = cachedCustomModels
-        console.info(
+        logger.info(
           `Loaded ${cachedCustomModels.length} cached custom models for provider: ${this.provider.name}`
         )
       }
     } catch (error) {
-      console.warn(`Failed to load cached models for provider: ${this.provider.name}`, error)
+      logger.warn(`Failed to load cached models for provider: ${this.provider.name}`, error)
       // Keep default empty arrays if loading fails
       this.models = []
       this.customModels = []
@@ -112,15 +113,15 @@ export abstract class BaseLLMProvider {
             return this.autoEnableModelsIfNeeded()
           })
           .then(() => {
-            console.info('Provider initialized successfully:', this.provider.name)
+            logger.info('Provider initialized successfully:', this.provider.name)
           })
           .catch((error) => {
             // Handle errors from fetchModels() and autoEnableModelsIfNeeded()
-            console.warn('Provider initialization failed:', this.provider.name, error)
+            logger.warn('Provider initialization failed:', this.provider.name, error)
           })
         // Check if we need to automatically enable all models
       } catch (error) {
-        console.warn('Provider initialization failed:', this.provider.name, error)
+        logger.warn('Provider initialization failed:', this.provider.name, error)
       }
     }
   }
@@ -149,7 +150,7 @@ export abstract class BaseLLMProvider {
 
     // 不再自动启用模型，让用户手动选择启用需要的模型
     if (!hasEnabledModels) {
-      console.info(
+      logger.info(
         `Provider ${this.provider.name} models loaded, please manually enable the models you need`
       )
     }
@@ -162,13 +163,13 @@ export abstract class BaseLLMProvider {
   public async fetchModels(): Promise<MODEL_META[]> {
     try {
       return this.fetchProviderModels().then((models) => {
-        console.log(
+        logger.info(
           `[Provider] fetchModels: fetched ${models?.length || 0} models for provider "${this.provider.id}"`
         )
         // Validate that all models have correct providerId
         const validatedModels = models.map((model) => {
           if (model.providerId !== this.provider.id) {
-            console.warn(
+            logger.warn(
               `[Provider] fetchModels: Model ${model.id} has incorrect providerId: expected "${this.provider.id}", got "${model.providerId}". Fixing it.`
             )
             model.providerId = this.provider.id
@@ -180,7 +181,7 @@ export abstract class BaseLLMProvider {
         return validatedModels
       })
     } catch (e) {
-      console.error(
+      logger.error(
         `[Provider] fetchModels: Failed to fetch models for provider "${this.provider.id}":`,
         e
       )
@@ -197,12 +198,12 @@ export abstract class BaseLLMProvider {
    * @returns 模型列表
    */
   public async refreshModels(): Promise<void> {
-    console.log(
+    logger.info(
       `[Provider] refreshModels: force refreshing models for provider "${this.provider.id}" (${this.provider.name})`
     )
     await this.fetchModels()
     await this.autoEnableModelsIfNeeded()
-    console.log(
+    logger.info(
       `[Provider] refreshModels: sending MODEL_LIST_CHANGED event for provider "${this.provider.id}"`
     )
     eventBus.sendToRenderer(
@@ -470,7 +471,7 @@ ${this.convertToolsToXml(tools)}
                 parsedCall = JSON.parse(jsonrepair(content))
               } catch (repairError) {
                 // 记录错误日志但不中断处理
-                console.error('Failed to parse with jsonrepair:', repairError)
+                logger.error('Failed to parse with jsonrepair:', repairError)
                 return null
               }
             }
@@ -513,7 +514,7 @@ ${this.convertToolsToXml(tools)}
 
               // 如果仍未找到格式，记录错误
               if (!functionName || functionArgs === undefined) {
-                console.error('Unknown function call format:', parsedCall)
+                logger.error('Unknown function call format:', parsedCall)
                 return null
               }
             }
@@ -532,7 +533,7 @@ ${this.convertToolsToXml(tools)}
               }
             }
           } catch (parseError) {
-            console.error('Error parsing function call JSON:', parseError, match, content)
+            logger.error('Error parsing function call JSON:', parseError, match, content)
             return null
           }
         })
@@ -540,7 +541,7 @@ ${this.convertToolsToXml(tools)}
 
       return toolCalls
     } catch (error) {
-      console.error('Error parsing function calls:', error)
+      logger.error('Error parsing function calls:', error)
       return []
     }
   }

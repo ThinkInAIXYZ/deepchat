@@ -24,7 +24,7 @@ const others = {
   Silicon: 'SiliconFlow',
   Qiniu: 'Qiniu',
   QwenLM: 'Qwen Model',
-  Doubao: 'Doubao',
+  Doubao: 'Volcano Engine',
   PPIO: 'PPIO Cloud',
   Moonshot: 'Moonshot AI',
   DashScope: 'Alibaba Bailian',

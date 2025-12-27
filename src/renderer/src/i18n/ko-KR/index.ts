@@ -23,7 +23,7 @@ const others = {
   Silicon: 'SiliconFlow',
   Qiniu: 'Qiniu',
   QwenLM: 'QwenLM',
-  Doubao: 'Doubao',
+  Doubao: 'Volcano Engine',
   PPIO: 'PPIO',
   Moonshot: 'Moonshot',
   Hunyuan: 'Hunyuan',

@@ -69,7 +69,7 @@
                   <Icon icon="lucide:pencil" class="h-4 w-4" />
                 </Button>
                 <Button
-                  v-if="!shortcut.disabled && shortcut.key.length"
+                  v-if="shortcut.key.length && (!shortcut.disabled || shortcut.isNumberTabs)"
                   variant="ghost"
                   size="icon"
                   class="h-8 w-8 text-muted-foreground hover:text-destructive"
@@ -250,13 +250,20 @@ const shortcuts = computed(() => {
   }
 
   try {
-    return Object.entries(shortcutMapping).map(([key, value]) => ({
-      id: key,
-      icon: value.icon,
-      label: value.label,
-      key: formatShortcut(shortcutKeys.value[key] || value.key),
-      disabled: value.disabled
-    }))
+    return Object.entries(shortcutMapping).map(([key, value]) => {
+      const savedKey = shortcutKeys.value?.[key as ShortcutKey]
+      const rawKey = savedKey ?? value.key ?? ''
+      const formattedKey = formatShortcut(rawKey)
+
+      return {
+        id: key as ShortcutKey,
+        icon: value.icon,
+        label: value.label,
+        key: formattedKey,
+        disabled: value.disabled,
+        isNumberTabs: key === 'NumberTabs'
+      }
+    })
   } catch (error) {
     console.error('Parse shortcut key error', error)
     return []
@@ -439,6 +446,10 @@ const clearShortcut = async (shortcutId: string) => {
   if (!shortcutKeys.value) return
 
   try {
+    if (recordingShortcutId.value === shortcutId) {
+      cancelRecording()
+    }
+
     // 设置为空字符串
     const shortcutKey = shortcutId as keyof typeof shortcutKeys.value
     shortcutKeys.value[shortcutKey] = ''
