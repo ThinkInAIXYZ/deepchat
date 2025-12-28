@@ -60,7 +60,7 @@
         <div ref="editorContainer" class="flex-1 min-h-0 overflow-y-auto relative">
           <editor-content
             :editor="editor"
-            :class="['text-sm', variant === 'chat' ? 'dark:text-white/80' : 'p-2']"
+            :class="['text-sm h-full', variant === 'chat' ? 'dark:text-white/80' : 'p-2']"
             @keydown="onKeydown"
           />
           <div v-if="showFakeCaret" class="fake-caret" :style="fakeCaretStyle" />
@@ -577,7 +577,7 @@ const editor = new Editor({
   editorProps: {
     attributes: {
       class:
-        'outline-none focus:outline-none focus-within:outline-none min-h-12 max-h-28 overflow-y-auto'
+        'outline-none focus:outline-none focus-within:outline-none min-h-12 h-full overflow-y-auto'
     }
   },
   autofocus: true,
