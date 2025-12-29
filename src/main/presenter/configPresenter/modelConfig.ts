@@ -48,10 +48,15 @@ export class ModelConfigHelper {
 
   /**
    * Infer model type from provider model data
-   * Priority: 1. model.type (from provider.json) 2. modalities.output inference 3. default Chat
+   * Priority: 1. modalities.output includes image 2. model.type (from provider.json) 3. default Chat
    */
   private inferModelType(model: ProviderModel): ModelType {
-    // Priority 1: Use type from provider.json if present and valid
+    // Priority 1: Output modality indicates image generation
+    if (Array.isArray(model.modalities?.output) && model.modalities.output.includes('image')) {
+      return ModelType.ImageGeneration
+    }
+
+    // Priority 2: Use type from provider.json if present and valid
     if (model.type) {
       switch (model.type) {
         case 'chat':
@@ -61,16 +66,11 @@ export class ModelConfigHelper {
         case 'rerank':
           return ModelType.Rerank
         case 'imageGeneration':
-          return ModelType.ImageGeneration
+          return ModelType.Chat
         default:
-          // Invalid type, fall through to inference
+          // Invalid type, fall through to default
           break
       }
-    }
-
-    // Priority 2: Infer from modalities.output
-    if (Array.isArray(model.modalities?.output) && model.modalities.output.includes('image')) {
-      return ModelType.ImageGeneration
     }
 
     // Priority 3: Default to Chat

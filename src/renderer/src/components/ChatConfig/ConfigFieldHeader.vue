@@ -24,7 +24,7 @@ defineProps<{
     <div class="flex items-center space-x-2">
       <Icon :icon="icon" class="w-4 h-4 text-muted-foreground" />
       <Label :class="size === 'sm' ? 'text-sm' : 'text-xs font-medium'">{{ label }}</Label>
-      <TooltipProvider v-if="description" :delayDuration="200">
+      <TooltipProvider v-if="description" :delayDuration="200" :ignore-non-keyboard-focus="true">
         <Tooltip>
           <TooltipTrigger>
             <Icon icon="lucide:help-circle" class="w-4 h-4 text-muted-foreground" />
