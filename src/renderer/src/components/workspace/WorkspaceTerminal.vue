@@ -21,38 +21,36 @@
     </button>
 
     <Transition name="workspace-collapse">
-      <div v-if="showTerminal" class="space-y-0 overflow-hidden pb-1">
+      <div v-if="showTerminal" class="space-y-0 overflow-hidden">
         <div
-          v-for="snippet in store.terminalSnippets"
-          :key="snippet.id"
-          class="px-4 py-2 border-b border-border/50 last:border-b-0"
+          v-if="store.terminalSnippets.length === 0"
+          class="px-4 py-3 text-[11px] text-muted-foreground"
         >
-          <div class="flex items-center gap-2 mb-1">
-            <span class="text-[10px] text-muted-foreground">$</span>
-            <span class="text-xs font-mono text-foreground/90 truncate">
-              {{ snippet.command }}
-            </span>
-            <span class="ml-auto flex items-center gap-2 text-[10px]">
-              <span :class="getStatusClass(snippet.status)">
-                {{ getStatusLabel(snippet.status) }}
+          {{ t(`${terminalKeyPrefix}.empty`) }}
+        </div>
+        <ul v-else class="pb-1">
+          <li v-for="snippet in store.terminalSnippets" :key="snippet.id">
+            <div
+              class="flex w-full items-center gap-2 py-2 pr-4 text-left text-xs text-muted-foreground pl-7"
+            >
+              <span class="flex h-4 w-4 shrink-0 items-center justify-center">
+                <Icon
+                  :icon="getStatusIcon(getDisplayStatus(snippet.status))"
+                  :class="getStatusIconClass(getDisplayStatus(snippet.status))"
+                />
+              </span>
+              <span class="flex-1 min-w-0 truncate text-[12px] font-medium">
+                {{ snippet.command }}
               </span>
               <span
-                v-if="snippet.exitCode !== null && snippet.exitCode !== undefined"
-                :class="snippet.exitCode === 0 ? 'text-green-500' : 'text-red-500'"
+                class="text-[10px]"
+                :class="getStatusLabelClass(getDisplayStatus(snippet.status))"
               >
-                {{ snippet.exitCode }}
+                {{ getStatusLabel(getDisplayStatus(snippet.status)) }}
               </span>
-            </span>
-          </div>
-          <pre
-            v-if="snippet.output"
-            class="text-[10px] text-muted-foreground font-mono whitespace-pre-wrap break-all max-h-20 overflow-y-auto"
-            >{{ snippet.output }}</pre
-          >
-          <span v-if="snippet.truncated" class="text-[10px] text-muted-foreground italic">
-            (truncated)
-          </span>
-        </div>
+            </div>
+          </li>
+        </ul>
       </div>
     </Transition>
   </section>
@@ -77,15 +75,34 @@ const i18nPrefix = computed(() =>
 const terminalKeyPrefix = computed(() => `${i18nPrefix.value}.terminal`)
 const sectionKey = computed(() => `${terminalKeyPrefix.value}.section`)
 
-const statusClassMap: Record<string, string> = {
-  running: 'text-sky-500',
-  completed: 'text-green-500',
-  failed: 'text-red-500',
-  timed_out: 'text-amber-500',
-  aborted: 'text-muted-foreground'
+const getDisplayStatus = (status: string) => {
+  if (status === 'running') return 'running'
+  if (status === 'completed') return 'completed'
+  return 'failed'
 }
 
-const getStatusClass = (status: string) => statusClassMap[status] ?? 'text-muted-foreground'
+const statusColorMap: Record<string, string> = {
+  running: 'text-sky-500',
+  completed: 'text-green-500',
+  failed: 'text-red-500'
+}
+
+const statusIconClassMap: Record<string, string> = {
+  running: 'h-3.5 w-3.5 animate-spin text-sky-500',
+  completed: 'h-3.5 w-3.5 text-green-500',
+  failed: 'h-3.5 w-3.5 text-red-500'
+}
+
+const statusIconMap: Record<string, string> = {
+  running: 'lucide:loader-2',
+  completed: 'lucide:check',
+  failed: 'lucide:x'
+}
+
+const getStatusLabelClass = (status: string) => statusColorMap[status] ?? 'text-muted-foreground'
+const getStatusIconClass = (status: string) =>
+  statusIconClassMap[status] ?? 'h-3.5 w-3.5 text-muted-foreground'
+const getStatusIcon = (status: string) => statusIconMap[status] ?? 'lucide:circle-small'
 const getStatusLabel = (status: string) => t(`${terminalKeyPrefix.value}.status.${status}`)
 </script>
 

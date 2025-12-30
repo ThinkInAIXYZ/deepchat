@@ -131,7 +131,7 @@
       "empty": "No output yet",
       "status": {
         "running": "Running",
-        "completed": "Completed",
+        "completed": "Success",
         "failed": "Failed",
         "timed_out": "Timed out",
         "aborted": "Aborted"
@@ -168,7 +168,7 @@
         "empty": "No output yet",
         "status": {
           "running": "Running",
-          "completed": "Completed",
+          "completed": "Success",
           "failed": "Failed",
           "timed_out": "Timed out",
           "aborted": "Aborted"
