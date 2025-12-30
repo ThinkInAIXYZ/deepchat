@@ -10,6 +10,10 @@ import { presenter } from '@/presenter'
 import { validateGlobPattern, validateRegexPattern } from '@shared/regexValidator'
 import { spawn } from 'child_process'
 import { RuntimeHelper } from '../../../lib/runtimeHelper'
+import {
+  CommandPermissionHandler,
+  CommandPermissionRequiredError
+} from '../../threadPresenter/handlers/commandPermissionHandler'
 import { getShellEnvironment } from './shellEnvHelper'
 import { glob } from 'glob'
 
@@ -145,14 +149,16 @@ interface GlobMatch {
 
 export class AgentFileSystemHandler {
   private allowedDirectories: string[]
+  private readonly commandPermissionHandler?: CommandPermissionHandler
 
-  constructor(allowedDirectories: string[]) {
+  constructor(allowedDirectories: string[], commandPermissionHandler?: CommandPermissionHandler) {
     if (allowedDirectories.length === 0) {
       throw new Error('At least one allowed directory must be provided')
     }
     this.allowedDirectories = allowedDirectories.map((dir) =>
       this.normalizePath(path.resolve(this.expandHome(dir)))
     )
+    this.commandPermissionHandler = commandPermissionHandler
   }
 
   private normalizePath(p: string): string {
@@ -1107,6 +1113,27 @@ export class AgentFileSystemHandler {
     }
 
     const { command, timeout, workdir } = parsed.data
+    if (this.commandPermissionHandler) {
+      const permissionCheck = this.commandPermissionHandler.checkPermission(
+        options.conversationId,
+        command
+      )
+      if (!permissionCheck.allowed) {
+        const commandInfo = this.commandPermissionHandler.buildCommandInfo(command)
+        const responseContent =
+          'components.messageBlockPermissionRequest.description.commandWithRisk'
+        throw new CommandPermissionRequiredError(responseContent, {
+          toolName: 'execute_command',
+          serverName: 'agent-filesystem',
+          permissionType: 'command',
+          description: 'Execute command requires approval.',
+          command,
+          commandSignature: commandInfo.signature,
+          commandInfo,
+          conversationId: options.conversationId
+        })
+      }
+    }
     const cwd = workdir ? await this.validatePath(workdir) : this.allowedDirectories[0]
     const startedAt = Date.now()
     const snippetId = randomUUID()

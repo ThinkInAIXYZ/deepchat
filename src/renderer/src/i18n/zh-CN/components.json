@@ -18,19 +18,37 @@
   "messageBlockPermissionRequest": {
     "title": "需要权限",
     "allow": "允许",
+    "allowOnce": "允许一次",
+    "allowForSession": "当前会话自动执行",
     "deny": "拒绝",
     "rememberChoice": "记住此选择",
     "granted": "权限已授予",
     "denied": "权限已拒绝",
+    "riskLabel": "风险",
     "type": {
       "read": "读取权限",
       "write": "写入权限",
-      "all": "完全权限"
+      "all": "完全权限",
+      "command": "执行命令"
     },
     "description": {
       "read": "允许 '{serverName}' 的 '{toolName}' 执行读取操作？",
       "write": "允许 '{serverName}' 的 '{toolName}' 执行写入操作？",
-      "all": "允许 '{serverName}' 的 '{toolName}' 执行读取和写入操作？"
+      "all": "允许 '{serverName}' 的 '{toolName}' 执行读取和写入操作？",
+      "command": "执行命令: {command}",
+      "commandWithRisk": "执行命令: {command}\n\n风险等级: {riskLevel}\n\n建议: {suggestion}"
+    },
+    "riskLevel": {
+      "low": "低",
+      "medium": "中",
+      "high": "高",
+      "critical": "严重"
+    },
+    "suggestion": {
+      "low": "该命令为只读操作，影响较小。",
+      "medium": "该命令可能安装依赖或修改状态，请确认后执行。",
+      "high": "该命令会修改文件或系统状态，请谨慎。",
+      "critical": "该命令可能具有破坏性或访问外部网络，请核实。"
     }
   },
   "promptParamsDialog": {

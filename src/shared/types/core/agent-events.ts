@@ -18,8 +18,17 @@ export interface LLMAgentEventData {
   permission_request?: {
     toolName: string
     serverName: string
-    permissionType: 'read' | 'write' | 'all'
+    permissionType: 'read' | 'write' | 'all' | 'command'
     description: string
+    command?: string
+    commandSignature?: string
+    commandInfo?: {
+      command: string
+      riskLevel: 'low' | 'medium' | 'high' | 'critical'
+      suggestion: string
+      signature?: string
+      baseCommand?: string
+    }
     providerId?: string
     requestId?: string
     sessionId?: string

@@ -1196,9 +1196,10 @@ export interface IThreadPresenter {
     messageId: string,
     toolCallId: string,
     granted: boolean,
-    permissionType: 'read' | 'write' | 'all',
+    permissionType: 'read' | 'write' | 'all' | 'command',
     remember?: boolean
   ): Promise<void>
+  clearCommandPermissionCache(conversationId?: string): void
   exportConversation(
     conversationId: string,
     format: 'markdown' | 'html' | 'txt'
@@ -1579,8 +1580,18 @@ export interface MCPToolResponse {
   permissionRequest?: {
     toolName: string
     serverName: string
-    permissionType: 'read' | 'write' | 'all'
+    permissionType: 'read' | 'write' | 'all' | 'command'
     description: string
+    command?: string
+    commandSignature?: string
+    commandInfo?: {
+      command: string
+      riskLevel: 'low' | 'medium' | 'high' | 'critical'
+      suggestion: string
+      signature?: string
+      baseCommand?: string
+    }
+    conversationId?: string
   }
 }
 

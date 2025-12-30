@@ -119,7 +119,13 @@
       },
       "terminal": {
         "section": "Terminal",
-        "empty": "Aucune sortie"
+        "empty": "Aucune sortie",
+        "status": {
+          "aborted": "avorté",
+          "completed": "succès",
+          "running": "En cours d'exécution",
+          "timed_out": "Délai expiré"
+        }
       }
     }
   },
@@ -158,7 +164,14 @@
     },
     "terminal": {
       "empty": "Pas encore de sortie",
-      "section": "Terminal"
+      "section": "Terminal",
+      "status": {
+        "aborted": "avorté",
+        "completed": "succès",
+        "running": "En cours d'exécution",
+        "timed_out": "Délai expiré",
+        "failed": "échouer"
+      }
     },
     "title": "espace de travail"
   }

@@ -119,7 +119,13 @@
       },
       "terminal": {
         "section": "Terminal",
-        "empty": "Ingen output"
+        "empty": "Ingen output",
+        "status": {
+          "aborted": "afbrudt",
+          "completed": "succes",
+          "running": "Løb",
+          "timed_out": "Timeout"
+        }
       }
     }
   },
@@ -158,7 +164,14 @@
     },
     "terminal": {
       "empty": "Ingen output endnu",
-      "section": "terminal"
+      "section": "terminal",
+      "status": {
+        "aborted": "afbrudt",
+        "completed": "succes",
+        "failed": "svigte",
+        "running": "Løb",
+        "timed_out": "Timeout"
+      }
     },
     "title": "arbejdsrum"
   }

@@ -233,9 +233,10 @@ export interface IThreadPresenter {
     messageId: string,
     toolCallId: string,
     granted: boolean,
-    permissionType: 'read' | 'write' | 'all',
+    permissionType: 'read' | 'write' | 'all' | 'command',
     remember?: boolean
   ): Promise<void>
+  clearCommandPermissionCache(conversationId?: string): void
   exportConversation(
     conversationId: string,
     format: 'markdown' | 'html' | 'txt'

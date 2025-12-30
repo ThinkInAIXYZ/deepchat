@@ -33,6 +33,7 @@ import { SearchHandler } from './handlers/searchHandler'
 import { StreamGenerationHandler } from './handlers/streamGenerationHandler'
 import { PermissionHandler } from './handlers/permissionHandler'
 import { UtilityHandler } from './handlers/utilityHandler'
+import { CommandPermissionHandler } from './handlers/commandPermissionHandler'
 import type { ThreadHandlerContext } from './handlers/baseHandler'
 import { ConversationManager, type CreateConversationOptions } from './managers/conversationManager'
 import { NowledgeMemPresenter } from '../nowledgeMemPresenter'
@@ -52,6 +53,7 @@ export class ThreadPresenter implements IThreadPresenter {
   private permissionHandler: PermissionHandler
   private utilityHandler: UtilityHandler
   private nowledgeMemPresenter: NowledgeMemPresenter
+  private commandPermissionHandler: CommandPermissionHandler
   private generatingMessages: Map<string, GeneratingMessageState> = new Map()
   private activeConversationIds: Map<number, string> = new Map()
   public searchAssistantModel: MODEL_META | null = null
@@ -61,7 +63,8 @@ export class ThreadPresenter implements IThreadPresenter {
   constructor(
     sqlitePresenter: ISQLitePresenter,
     llmProviderPresenter: ILlmProviderPresenter,
-    configPresenter: IConfigPresenter
+    configPresenter: IConfigPresenter,
+    commandPermissionHandler?: CommandPermissionHandler
   ) {
     this.sqlitePresenter = sqlitePresenter
     this.messageManager = new MessageManager(sqlitePresenter)
@@ -69,6 +72,7 @@ export class ThreadPresenter implements IThreadPresenter {
     this.searchManager = new SearchManager()
     this.configPresenter = configPresenter
     this.nowledgeMemPresenter = new NowledgeMemPresenter(configPresenter)
+    this.commandPermissionHandler = commandPermissionHandler ?? new CommandPermissionHandler()
     this.conversationManager = new ConversationManager({
       sqlitePresenter,
       configPresenter,
@@ -82,7 +86,8 @@ export class ThreadPresenter implements IThreadPresenter {
     this.toolCallHandler = new ToolCallHandler({
       messageManager: this.messageManager,
       sqlitePresenter,
-      searchingMessages: this.searchingMessages
+      searchingMessages: this.searchingMessages,
+      commandPermissionHandler: this.commandPermissionHandler
     })
     this.llmEventHandler = new LLMEventHandler({
       generatingMessages: this.generatingMessages,
@@ -118,8 +123,10 @@ export class ThreadPresenter implements IThreadPresenter {
       generatingMessages: this.generatingMessages,
       llmProviderPresenter: this.llmProviderPresenter,
       getMcpPresenter: () => presenter.mcpPresenter,
+      getToolPresenter: () => presenter.toolPresenter,
       streamGenerationHandler: this.streamGenerationHandler,
-      llmEventHandler: this.llmEventHandler
+      llmEventHandler: this.llmEventHandler,
+      commandPermissionHandler: this.commandPermissionHandler
     })
 
     this.utilityHandler = new UtilityHandler(handlerContext, {
@@ -133,6 +140,7 @@ export class ThreadPresenter implements IThreadPresenter {
     eventBus.on(TAB_EVENTS.CLOSED, (tabId: number) => {
       const activeConversationId = this.getActiveConversationIdSync(tabId)
       if (activeConversationId) {
+        this.commandPermissionHandler.clearConversation(activeConversationId)
         this.clearActiveConversation(tabId, { notify: true })
         console.log(`ThreadPresenter: Cleaned up conversation binding for closed tab ${tabId}.`)
       }
@@ -239,11 +247,24 @@ export class ThreadPresenter implements IThreadPresenter {
   }
 
   clearActiveConversation(tabId: number, options: { notify?: boolean } = {}): void {
+    const conversationId = this.getActiveConversationIdSync(tabId)
+    if (conversationId) {
+      this.commandPermissionHandler.clearConversation(conversationId)
+    }
     this.conversationManager.clearActiveConversation(tabId, options)
   }
 
   clearConversationBindings(conversationId: string): void {
+    this.commandPermissionHandler.clearConversation(conversationId)
     this.conversationManager.clearConversationBindings(conversationId)
+  }
+
+  clearCommandPermissionCache(conversationId?: string): void {
+    if (conversationId) {
+      this.commandPermissionHandler.clearConversation(conversationId)
+      return
+    }
+    this.commandPermissionHandler.clearAll()
   }
 
   async setActiveConversation(conversationId: string, tabId: number): Promise<void> {
@@ -373,6 +394,7 @@ export class ThreadPresenter implements IThreadPresenter {
   }
 
   async deleteConversation(conversationId: string): Promise<void> {
+    this.commandPermissionHandler.clearConversation(conversationId)
     await this.conversationManager.deleteConversation(conversationId)
   }
 
@@ -915,7 +937,7 @@ export class ThreadPresenter implements IThreadPresenter {
     messageId: string,
     toolCallId: string,
     granted: boolean,
-    permissionType: 'read' | 'write' | 'all',
+    permissionType: 'read' | 'write' | 'all' | 'command',
     remember: boolean = true
   ): Promise<void> {
     await this.permissionHandler.handlePermissionResponse(

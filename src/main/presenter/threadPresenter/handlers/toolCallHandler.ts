@@ -10,6 +10,7 @@ import type {
 import { nanoid } from 'nanoid'
 import type { MessageManager } from '../managers/messageManager'
 import type { GeneratingMessageState } from '../types'
+import type { CommandPermissionHandler } from './commandPermissionHandler'
 
 interface PermissionRequestPayload {
   permissionType?: string
@@ -21,6 +22,15 @@ interface PermissionRequestPayload {
   agentId?: string
   agentName?: string
   conversationId?: string
+  command?: string
+  commandSignature?: string
+  commandInfo?: {
+    command: string
+    riskLevel: 'low' | 'medium' | 'high' | 'critical'
+    suggestion: string
+    signature?: string
+    baseCommand?: string
+  }
   rememberable?: boolean
   [key: string]: unknown
 }
@@ -35,15 +45,18 @@ export class ToolCallHandler {
   private readonly messageManager: MessageManager
   private readonly sqlitePresenter: ISQLitePresenter
   private readonly searchingMessages: Set<string>
+  private readonly commandPermissionHandler?: CommandPermissionHandler
 
   constructor(options: {
     messageManager: MessageManager
     sqlitePresenter: ISQLitePresenter
     searchingMessages: Set<string>
+    commandPermissionHandler?: CommandPermissionHandler
   }) {
     this.messageManager = options.messageManager
     this.sqlitePresenter = options.sqlitePresenter
     this.searchingMessages = options.searchingMessages
+    this.commandPermissionHandler = options.commandPermissionHandler
   }
 
   async processToolCallStart(
@@ -379,7 +392,7 @@ export class ToolCallHandler {
     event: LLMAgentEventData,
     currentTime: number
   ): void {
-    const ALLOWED_PERMISSION_TYPES = ['read', 'write', 'all'] as const
+    const ALLOWED_PERMISSION_TYPES = ['read', 'write', 'all', 'command'] as const
     type PermissionType = (typeof ALLOWED_PERMISSION_TYPES)[number]
 
     let permissionType: PermissionType = 'read'
@@ -413,6 +426,16 @@ export class ToolCallHandler {
     permissionExtra.permissionType = permissionRequest?.permissionType ?? permissionType
     if (permissionRequest) {
       permissionExtra.permissionRequest = JSON.stringify(permissionRequest)
+      if (permissionRequest.commandInfo) {
+        permissionExtra.commandInfo = JSON.stringify(permissionRequest.commandInfo)
+      } else {
+        const commandFromRequest = permissionRequest.command
+        if (commandFromRequest && this.commandPermissionHandler) {
+          permissionExtra.commandInfo = JSON.stringify(
+            this.commandPermissionHandler.buildCommandInfo(commandFromRequest)
+          )
+        }
+      }
       if (permissionRequest.toolName) {
         permissionExtra.toolName = permissionRequest.toolName
       }
@@ -436,6 +459,18 @@ export class ToolCallHandler {
       }
       if (permissionRequest.sessionId) {
         permissionExtra.sessionId = permissionRequest.sessionId
+      }
+      if (!permissionExtra.commandInfo && this.commandPermissionHandler) {
+        try {
+          const parsedParams = JSON.parse(event.tool_call_params || '{}') as { command?: string }
+          if (typeof parsedParams.command === 'string' && parsedParams.command.trim()) {
+            permissionExtra.commandInfo = JSON.stringify(
+              this.commandPermissionHandler.buildCommandInfo(parsedParams.command)
+            )
+          }
+        } catch {
+          // Ignore parsing failures for command info fallback.
+        }
       }
     } else {
       if (event.tool_call_name) {

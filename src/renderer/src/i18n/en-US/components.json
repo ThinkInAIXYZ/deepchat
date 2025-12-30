@@ -18,19 +18,37 @@
   "messageBlockPermissionRequest": {
     "title": "Permission Required",
     "allow": "Allow",
+    "allowOnce": "Allow Once",
+    "allowForSession": "Allow for Session",
     "deny": "Deny",
     "rememberChoice": "Remember this choice",
     "granted": "Permission granted",
     "denied": "Permission denied",
+    "riskLabel": "Risk",
     "type": {
       "read": "Read Access",
       "write": "Write Access",
-      "all": "Full Access"
+      "all": "Full Access",
+      "command": "Execute Command"
     },
     "description": {
       "read": "Allow '{toolName}' from '{serverName}' to perform read operations?",
       "write": "Allow '{toolName}' from '{serverName}' to perform write operations?",
-      "all": "Allow '{toolName}' from '{serverName}' to perform read and write operations?"
+      "all": "Allow '{toolName}' from '{serverName}' to perform read and write operations?",
+      "command": "Execute command: {command}",
+      "commandWithRisk": "Execute command: {command}\n\nRisk level: {riskLevel}\n\nSuggestion: {suggestion}"
+    },
+    "riskLevel": {
+      "low": "Low",
+      "medium": "Medium",
+      "high": "High",
+      "critical": "Critical"
+    },
+    "suggestion": {
+      "low": "This is a read-only command with minimal impact.",
+      "medium": "This command may change state or install dependencies. Review before running.",
+      "high": "This command modifies files or system state. Proceed carefully.",
+      "critical": "This command can be destructive or access external networks. Verify intent."
     }
   },
   "promptParamsDialog": {

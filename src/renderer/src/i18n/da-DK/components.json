@@ -17,21 +17,39 @@
   },
   "messageBlockPermissionRequest": {
     "allow": "tillade",
+    "allowOnce": "Tillad én gang",
+    "allowForSession": "Tillad for sessionen",
     "denied": "Adgang nægtet",
     "deny": "afvise",
+    "riskLabel": "Risiko",
     "description": {
       "all": "Tillad '{toolName}' på '{serverName}' at udføre læse- og skriveoperationer?",
       "read": "Tillad '{toolName}' på '{serverName}' at udføre læseoperationer?",
-      "write": "Tillad '{toolName}' på '{serverName}' at udføre skrivehandlinger?"
+      "write": "Tillad '{toolName}' på '{serverName}' at udføre skrivehandlinger?",
+      "command": "Kør kommando: {command}",
+      "commandWithRisk": "Kør kommando: {command}\n\nRisikniveau: {riskLevel}\n\nForslag: {suggestion}"
     },
     "granted": "Tilladelser er givet",
     "rememberChoice": "Husk dette valg",
     "type": {
       "all": "Fuld adgangstilladelse",
       "read": "læsetilladelse",
-      "write": "Skrivetilladelse"
+      "write": "Skrivetilladelse",
+      "command": "Kør kommando"
     },
-    "title": "Tilladelse påkrævet"
+    "title": "Tilladelse påkrævet",
+    "riskLevel": {
+      "low": "Lav",
+      "medium": "Mellem",
+      "high": "Høj",
+      "critical": "Kritisk"
+    },
+    "suggestion": {
+      "low": "Dette er en læseoperation med minimal påvirkning.",
+      "medium": "Denne kommando kan ændre tilstand eller installere afhængigheder. Gennemgå før kørsel.",
+      "high": "Denne kommando ændrer filer eller systemtilstand. Vær forsigtig.",
+      "critical": "Denne kommando kan være destruktiv eller tilgå netværk. Bekræft hensigten."
+    }
   },
   "promptParamsDialog": {
     "description": "Udfyld venligst følgende parametre, felter markeret med * er obligatoriske.",

@@ -72,6 +72,10 @@ export class AgentLoopHandler {
    */
   private getToolPresenter(): ToolPresenter {
     if (!this.toolPresenter) {
+      if (presenter.toolPresenter) {
+        this.toolPresenter = presenter.toolPresenter as ToolPresenter
+        return this.toolPresenter
+      }
       // Check if presenter is fully initialized
       if (!presenter.mcpPresenter || !presenter.yoBrowserPresenter) {
         throw new Error(

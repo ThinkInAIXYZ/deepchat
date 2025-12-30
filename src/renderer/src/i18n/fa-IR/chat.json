@@ -119,7 +119,14 @@
       },
       "terminal": {
         "section": "ترمینال",
-        "empty": "خروجی وجود ندارد"
+        "empty": "خروجی وجود ندارد",
+        "status": {
+          "aborted": "سقط شد",
+          "completed": "موفقیت",
+          "failed": "شکست بخورد",
+          "running": "در حال دویدن",
+          "timed_out": "زمان تمام شد"
+        }
       }
     }
   },
@@ -158,7 +165,13 @@
     },
     "terminal": {
       "empty": "هنوز خروجی وجود ندارد",
-      "section": "ترمینال"
+      "section": "ترمینال",
+      "status": {
+        "aborted": "سقط شد",
+        "completed": "موفقیت",
+        "running": "در حال دویدن",
+        "timed_out": "زمان تمام شد"
+      }
     },
     "title": "فضای کار"
   }

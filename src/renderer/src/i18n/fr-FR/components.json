@@ -18,19 +18,37 @@
   "messageBlockPermissionRequest": {
     "title": "Autorisation requise",
     "allow": "Autoriser",
+    "allowOnce": "Autoriser une fois",
+    "allowForSession": "Autoriser pour la session",
     "deny": "Refuser",
     "rememberChoice": "Se souvenir de ce choix",
     "granted": "Autorisation accordée",
     "denied": "Autorisation refusée",
+    "riskLabel": "Risque",
     "type": {
       "read": "Accès en lecture",
       "write": "Accès en écriture",
-      "all": "Accès complet"
+      "all": "Accès complet",
+      "command": "Exécuter une commande"
     },
     "description": {
       "read": "Autoriser '{toolName}' de '{serverName}' à effectuer des opérations de lecture ?",
       "write": "Autoriser '{toolName}' de '{serverName}' à effectuer des opérations d'écriture ?",
-      "all": "Autoriser '{toolName}' de '{serverName}' à lire et écrire ?"
+      "all": "Autoriser '{toolName}' de '{serverName}' à lire et écrire ?",
+      "command": "Exécuter la commande : {command}",
+      "commandWithRisk": "Exécuter la commande : {command}\n\nNiveau de risque : {riskLevel}\n\nSuggestion : {suggestion}"
+    },
+    "riskLevel": {
+      "low": "Faible",
+      "medium": "Moyen",
+      "high": "Élevé",
+      "critical": "Critique"
+    },
+    "suggestion": {
+      "low": "Commande en lecture seule, impact minimal.",
+      "medium": "Cette commande peut installer des dépendances ou modifier l'état. Vérifiez avant d'exécuter.",
+      "high": "Cette commande modifie des fichiers ou l'état du système. Procédez avec prudence.",
+      "critical": "Cette commande peut être destructive ou accéder au réseau. Vérifiez l'intention."
     }
   },
   "promptParamsDialog": {

@@ -4,6 +4,7 @@ import type { AssistantMessage, AssistantMessageBlock } from '@shared/chat'
 import type {
   ILlmProviderPresenter,
   IMCPPresenter,
+  IToolPresenter,
   MCPToolDefinition,
   MCPToolResponse
 } from '@shared/presenter'
@@ -16,13 +17,16 @@ import type { GeneratingMessageState } from '../types'
 import type { StreamGenerationHandler } from './streamGenerationHandler'
 import type { LLMEventHandler } from './llmEventHandler'
 import { BaseHandler, type ThreadHandlerContext } from './baseHandler'
+import { CommandPermissionHandler } from './commandPermissionHandler'
 
 export class PermissionHandler extends BaseHandler {
   private readonly generatingMessages: Map<string, GeneratingMessageState>
   private readonly llmProviderPresenter: ILlmProviderPresenter
   private readonly getMcpPresenter: () => IMCPPresenter
+  private readonly getToolPresenter: () => IToolPresenter
   private readonly streamGenerationHandler: StreamGenerationHandler
   private readonly llmEventHandler: LLMEventHandler
+  private readonly commandPermissionHandler: CommandPermissionHandler
 
   constructor(
     context: ThreadHandlerContext,
@@ -30,16 +34,20 @@ export class PermissionHandler extends BaseHandler {
       generatingMessages: Map<string, GeneratingMessageState>
       llmProviderPresenter: ILlmProviderPresenter
       getMcpPresenter: () => IMCPPresenter
+      getToolPresenter: () => IToolPresenter
       streamGenerationHandler: StreamGenerationHandler
       llmEventHandler: LLMEventHandler
+      commandPermissionHandler: CommandPermissionHandler
     }
   ) {
     super(context)
     this.generatingMessages = options.generatingMessages
     this.llmProviderPresenter = options.llmProviderPresenter
     this.getMcpPresenter = options.getMcpPresenter
+    this.getToolPresenter = options.getToolPresenter
     this.streamGenerationHandler = options.streamGenerationHandler
     this.llmEventHandler = options.llmEventHandler
+    this.commandPermissionHandler = options.commandPermissionHandler
     this.assertDependencies()
   }
 
@@ -47,15 +55,17 @@ export class PermissionHandler extends BaseHandler {
     void this.generatingMessages
     void this.llmProviderPresenter
     void this.getMcpPresenter
+    void this.getToolPresenter
     void this.streamGenerationHandler
     void this.llmEventHandler
+    void this.commandPermissionHandler
   }
 
   async handlePermissionResponse(
     messageId: string,
     toolCallId: string,
     granted: boolean,
-    permissionType: 'read' | 'write' | 'all',
+    permissionType: 'read' | 'write' | 'all' | 'command',
     remember: boolean = true
   ): Promise<void> {
     console.log('[PermissionHandler] Handling permission response', {
@@ -140,6 +150,19 @@ export class PermissionHandler extends BaseHandler {
           parsedPermissionRequest,
           granted
         )
+        return
+      }
+
+      if (permissionType === 'command') {
+        if (granted) {
+          const conversationId = message.conversationId
+          const command = this.getCommandFromPermissionBlock(permissionBlock)
+          const signature = this.commandPermissionHandler.extractCommandSignature(command)
+          this.commandPermissionHandler.approve(conversationId, signature, remember)
+          await this.restartAgentLoopAfterPermission(messageId)
+        } else {
+          await this.continueAfterPermissionDenied(messageId)
+        }
         return
       }
 
@@ -500,7 +523,27 @@ export class PermissionHandler extends BaseHandler {
 
       let toolDef: MCPToolDefinition | undefined
       try {
-        const toolDefinitions = await this.getMcpPresenter().getAllToolDefinitions(enabledMcpTools)
+        const chatMode =
+          ((await this.ctx.configPresenter.getSetting('input_chatMode')) as
+            | 'chat'
+            | 'agent'
+            | 'acp agent') || 'chat'
+        let agentWorkspacePath: string | null = null
+        if (chatMode === 'agent') {
+          agentWorkspacePath = conversation.settings.agentWorkspacePath ?? null
+        } else if (chatMode === 'acp agent') {
+          const modelId = conversation.settings.modelId
+          agentWorkspacePath =
+            modelId && conversation.settings.acpWorkdirMap
+              ? (conversation.settings.acpWorkdirMap[modelId] ?? null)
+              : null
+        }
+        const toolDefinitions = await this.getToolPresenter().getAllToolDefinitions({
+          enabledMcpTools,
+          chatMode,
+          supportsVision: false,
+          agentWorkspacePath
+        })
         toolDef = toolDefinitions.find((definition) => {
           if (definition.function.name !== pendingToolCall.name) {
             return false
@@ -519,30 +562,36 @@ export class PermissionHandler extends BaseHandler {
         return
       }
 
+      const resolvedServer = toolDef?.server
       await this.llmEventHandler.handleLLMAgentResponse({
         eventId: message.id,
         tool_call: 'running',
         tool_call_id: pendingToolCall.id,
         tool_call_name: pendingToolCall.name,
         tool_call_params: pendingToolCall.params,
-        tool_call_server_name: toolDef.server.name,
-        tool_call_server_icons: toolDef.server.icons,
-        tool_call_server_description: toolDef.server.description
+        tool_call_server_name: resolvedServer?.name || pendingToolCall.serverName,
+        tool_call_server_icons: resolvedServer?.icons || pendingToolCall.serverIcons,
+        tool_call_server_description:
+          resolvedServer?.description || pendingToolCall.serverDescription
       } as any)
 
       let toolContent = ''
       let toolRawData: MCPToolResponse | null = null
       try {
-        const toolCallResult = await this.getMcpPresenter().callTool({
+        const toolCallResult = await this.getToolPresenter().callTool({
           id: pendingToolCall.id,
           type: 'function',
           function: {
             name: pendingToolCall.name,
             arguments: pendingToolCall.params
           },
-          server: toolDef.server
+          server: resolvedServer,
+          conversationId
         })
-        toolContent = toolCallResult.content
+        toolContent =
+          typeof toolCallResult.content === 'string'
+            ? toolCallResult.content
+            : JSON.stringify(toolCallResult.content)
         toolRawData = toolCallResult.rawData
       } catch (toolError) {
         console.error('[PermissionHandler] Failed to execute pending tool call:', toolError)
@@ -553,9 +602,10 @@ export class PermissionHandler extends BaseHandler {
           tool_call_name: pendingToolCall.name,
           tool_call_params: pendingToolCall.params,
           tool_call_response: toolError instanceof Error ? toolError.message : String(toolError),
-          tool_call_server_name: toolDef.server.name,
-          tool_call_server_icons: toolDef.server.icons,
-          tool_call_server_description: toolDef.server.description
+          tool_call_server_name: resolvedServer?.name || pendingToolCall.serverName,
+          tool_call_server_icons: resolvedServer?.icons || pendingToolCall.serverIcons,
+          tool_call_server_description:
+            resolvedServer?.description || pendingToolCall.serverDescription
         } as any)
         throw toolError
       }
@@ -567,9 +617,13 @@ export class PermissionHandler extends BaseHandler {
           tool_call_id: pendingToolCall.id,
           tool_call_name: pendingToolCall.name,
           tool_call_params: pendingToolCall.params,
-          tool_call_server_name: toolRawData.permissionRequest?.serverName || toolDef.server.name,
-          tool_call_server_icons: toolDef.server.icons,
-          tool_call_server_description: toolDef.server.description,
+          tool_call_server_name:
+            toolRawData.permissionRequest?.serverName ||
+            resolvedServer?.name ||
+            pendingToolCall.serverName,
+          tool_call_server_icons: resolvedServer?.icons || pendingToolCall.serverIcons,
+          tool_call_server_description:
+            resolvedServer?.description || pendingToolCall.serverDescription,
           tool_call_response: toolContent,
           permission_request: toolRawData.permissionRequest
         } as any)
@@ -583,9 +637,10 @@ export class PermissionHandler extends BaseHandler {
         tool_call_name: pendingToolCall.name,
         tool_call_params: pendingToolCall.params,
         tool_call_response: toolContent,
-        tool_call_server_name: toolDef.server.name,
-        tool_call_server_icons: toolDef.server.icons,
-        tool_call_server_description: toolDef.server.description,
+        tool_call_server_name: resolvedServer?.name || pendingToolCall.serverName,
+        tool_call_server_icons: resolvedServer?.icons || pendingToolCall.serverIcons,
+        tool_call_server_description:
+          resolvedServer?.description || pendingToolCall.serverDescription,
         tool_call_response_raw: toolRawData ?? undefined
       } as any)
 
@@ -760,5 +815,47 @@ export class PermissionHandler extends BaseHandler {
     }
     const value = source[key]
     return typeof value === 'string' ? value : undefined
+  }
+
+  private getCommandFromPermissionBlock(block: AssistantMessageBlock): string {
+    const extraCommandInfo = this.getExtraString(block, 'commandInfo')
+    if (extraCommandInfo) {
+      try {
+        const parsed = JSON.parse(extraCommandInfo) as { command?: string }
+        if (parsed?.command) {
+          return parsed.command
+        }
+      } catch (error) {
+        console.warn('[PermissionHandler] Failed to parse commandInfo:', error)
+      }
+    }
+
+    const permissionRequest = this.parsePermissionRequest(block)
+    const commandFromRequest = this.getStringFromObject(permissionRequest, 'command')
+    if (commandFromRequest) {
+      return commandFromRequest
+    }
+
+    const commandInfoFromRequest = permissionRequest?.commandInfo
+    if (commandInfoFromRequest && typeof commandInfoFromRequest === 'object') {
+      const commandValue = (commandInfoFromRequest as { command?: unknown }).command
+      if (typeof commandValue === 'string') {
+        return commandValue
+      }
+    }
+
+    const params = block.tool_call?.params
+    if (typeof params === 'string' && params.trim()) {
+      try {
+        const parsed = JSON.parse(params) as { command?: string }
+        if (typeof parsed.command === 'string') {
+          return parsed.command
+        }
+      } catch {
+        // Ignore parse errors; fall through to empty command.
+      }
+    }
+
+    return ''
   }
 }

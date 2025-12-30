@@ -176,7 +176,7 @@ export interface PermissionRequestPayload {
   tool_call_name?: string
   tool_call_params?: string
   description?: string
-  permissionType?: 'read' | 'write' | 'all'
+  permissionType?: 'read' | 'write' | 'all' | 'command'
   server_name?: string
   server_description?: string
   server_icons?: string

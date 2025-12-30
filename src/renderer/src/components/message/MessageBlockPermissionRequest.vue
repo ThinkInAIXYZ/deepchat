@@ -51,10 +51,28 @@
       </div>
 
       <!-- Description -->
-      <p class="text-xs text-muted-foreground mb-3">{{ getFormattedDescription() }}</p>
+      <p v-if="!isCommandPermission" class="text-xs text-muted-foreground mb-3">
+        {{ getFormattedDescription() }}
+      </p>
+      <div v-else class="mb-3">
+        <div class="rounded-md border bg-muted/60 px-2 py-1.5 text-xs font-mono text-foreground">
+          {{ displayCommand }}
+        </div>
+        <div class="mt-2 flex items-center gap-2">
+          <span class="text-[10px] uppercase tracking-wide text-muted-foreground">
+            {{ t('components.messageBlockPermissionRequest.riskLabel') }}
+          </span>
+          <span :class="['text-[10px] font-semibold px-2 py-0.5 rounded-full', riskBadgeClass]">
+            {{ riskLabel }}
+          </span>
+        </div>
+        <p class="mt-2 text-xs text-muted-foreground">
+          {{ suggestionText }}
+        </p>
+      </div>
 
       <!-- Action buttons -->
-      <div class="flex gap-2">
+      <div v-if="!isCommandPermission" class="flex gap-2">
         <Button
           variant="outline"
           size="sm"
@@ -74,6 +92,39 @@
           <Icon v-if="isProcessing" icon="lucide:loader-2" class="w-3 h-3 mr-1 animate-spin" />
           <Icon v-else icon="lucide:check" class="w-3 h-3 mr-1" />
           {{ t('components.messageBlockPermissionRequest.allow') }}
+        </Button>
+      </div>
+      <div v-else class="flex gap-2">
+        <Button
+          variant="outline"
+          size="sm"
+          class="flex-1 h-7 text-xs"
+          :disabled="isProcessing"
+          @click="denyPermission"
+        >
+          <Icon icon="lucide:x" class="w-3 h-3 mr-1" />
+          {{ t('components.messageBlockPermissionRequest.deny') }}
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          class="flex-1 h-7 text-xs"
+          :disabled="isProcessing"
+          @click="grantPermissionOnce"
+        >
+          <Icon v-if="isProcessing" icon="lucide:loader-2" class="w-3 h-3 mr-1 animate-spin" />
+          <Icon v-else icon="lucide:check" class="w-3 h-3 mr-1" />
+          {{ t('components.messageBlockPermissionRequest.allowOnce') }}
+        </Button>
+        <Button
+          size="sm"
+          class="flex-1 h-7 text-xs"
+          :disabled="isProcessing || !rememberable"
+          @click="grantPermissionForSession"
+        >
+          <Icon v-if="isProcessing" icon="lucide:loader-2" class="w-3 h-3 mr-1 animate-spin" />
+          <Icon v-else icon="lucide:check-circle" class="w-3 h-3 mr-1" />
+          {{ t('components.messageBlockPermissionRequest.allowForSession') }}
         </Button>
       </div>
     </div>
@@ -99,6 +150,7 @@ const props = defineProps<{
 
 const isProcessing = ref(false)
 const rememberable = computed(() => props.block.extra?.rememberable !== false)
+const isCommandPermission = computed(() => props.block.extra?.permissionType === 'command')
 
 // Truncate name to max 200 characters
 const MAX_NAME_LENGTH = 200
@@ -126,6 +178,8 @@ const getPermissionIcon = () => {
       return 'lucide:edit'
     case 'all':
       return 'lucide:unlock'
+    case 'command':
+      return 'lucide:terminal'
     default:
       return 'lucide:lock'
   }
@@ -140,6 +194,8 @@ const getPermissionIconClass = () => {
       return 'text-orange-500'
     case 'all':
       return 'text-red-500'
+    case 'command':
+      return 'text-amber-500'
     default:
       return 'text-gray-500'
   }
@@ -154,6 +210,8 @@ const getPermissionTextClass = () => {
       return 'text-orange-700 dark:text-orange-400'
     case 'all':
       return 'text-red-700 dark:text-red-400'
+    case 'command':
+      return 'text-amber-700 dark:text-amber-400'
     default:
       return 'text-gray-700 dark:text-gray-400'
   }
@@ -197,6 +255,99 @@ const getFormattedDescription = () => {
   return content
 }
 
+const commandInfo = computed(() => {
+  const rawInfo = props.block.extra?.commandInfo
+  if (typeof rawInfo === 'string') {
+    try {
+      return JSON.parse(rawInfo) as {
+        command?: string
+        riskLevel?: string
+        suggestion?: string
+      }
+    } catch (error) {
+      console.error('Failed to parse commandInfo:', error)
+    }
+  }
+
+  const rawRequest = props.block.extra?.permissionRequest
+  if (typeof rawRequest === 'string') {
+    try {
+      const request = JSON.parse(rawRequest) as {
+        command?: string
+        commandInfo?: {
+          command?: string
+          riskLevel?: string
+          suggestion?: string
+        }
+      }
+      if (request.commandInfo) {
+        return request.commandInfo
+      }
+      if (request.command) {
+        return { command: request.command }
+      }
+    } catch (error) {
+      console.error('Failed to parse permissionRequest for command info:', error)
+    }
+  }
+
+  const rawParams = props.block.tool_call?.params
+  if (typeof rawParams === 'string') {
+    try {
+      const parsed = JSON.parse(rawParams) as { command?: string }
+      if (parsed.command) {
+        return { command: parsed.command }
+      }
+    } catch (error) {
+      console.error('Failed to parse tool_call params for command:', error)
+    }
+  }
+
+  return null
+})
+
+const displayCommand = computed(() => commandInfo.value?.command || '')
+const riskLevel = computed(() => {
+  const rawLevel = commandInfo.value?.riskLevel
+  if (
+    rawLevel === 'low' ||
+    rawLevel === 'medium' ||
+    rawLevel === 'high' ||
+    rawLevel === 'critical'
+  ) {
+    return rawLevel
+  }
+  return 'medium'
+})
+const riskLabel = computed(() =>
+  t(`components.messageBlockPermissionRequest.riskLevel.${riskLevel.value}`)
+)
+const riskBadgeClass = computed(() => {
+  switch (riskLevel.value) {
+    case 'low':
+      return 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/60 dark:text-emerald-200'
+    case 'medium':
+      return 'bg-amber-100 text-amber-700 dark:bg-amber-900/60 dark:text-amber-200'
+    case 'high':
+      return 'bg-orange-100 text-orange-700 dark:bg-orange-900/60 dark:text-orange-200'
+    case 'critical':
+      return 'bg-red-100 text-red-700 dark:bg-red-900/60 dark:text-red-200'
+    default:
+      return 'bg-amber-100 text-amber-700 dark:bg-amber-900/60 dark:text-amber-200'
+  }
+})
+
+const suggestionText = computed(() => {
+  const suggestion = commandInfo.value?.suggestion
+  if (suggestion) {
+    if (suggestion.startsWith('components.')) {
+      return t(suggestion)
+    }
+    return suggestion
+  }
+  return t(`components.messageBlockPermissionRequest.suggestion.${riskLevel.value}`)
+})
+
 const getStatusIcon = () => {
   switch (props.block.status) {
     case 'granted':
@@ -237,7 +388,20 @@ const getStatusText = () => {
   }
 }
 
-const grantPermission = async () => {
+const resolvedPermissionType = computed(() => {
+  const permissionType = props.block.extra?.permissionType
+  if (
+    permissionType === 'read' ||
+    permissionType === 'write' ||
+    permissionType === 'all' ||
+    permissionType === 'command'
+  ) {
+    return permissionType
+  }
+  return 'write'
+})
+
+const submitPermission = async (granted: boolean, remember: boolean) => {
   if (!props.block.tool_call?.id) return
 
   isProcessing.value = true
@@ -245,34 +409,31 @@ const grantPermission = async () => {
     await threadPresenter.handlePermissionResponse(
       props.messageId,
       props.block.tool_call.id,
-      true,
-      (props.block.extra?.permissionType as 'read' | 'write' | 'all') || 'write',
-      rememberable.value
+      granted,
+      resolvedPermissionType.value,
+      remember
     )
   } catch (error) {
-    console.error('Failed to grant permission:', error)
+    console.error('Failed to handle permission response:', error)
   } finally {
     isProcessing.value = false
   }
 }
 
-const denyPermission = async () => {
-  if (!props.block.tool_call?.id) return
+const grantPermission = async () => {
+  await submitPermission(true, rememberable.value)
+}
 
-  isProcessing.value = true
-  try {
-    await threadPresenter.handlePermissionResponse(
-      props.messageId,
-      props.block.tool_call.id,
-      false,
-      (props.block.extra?.permissionType as 'read' | 'write' | 'all') || 'write',
-      false
-    )
-  } catch (error) {
-    console.error('Failed to deny permission:', error)
-  } finally {
-    isProcessing.value = false
-  }
+const grantPermissionOnce = async () => {
+  await submitPermission(true, false)
+}
+
+const grantPermissionForSession = async () => {
+  await submitPermission(true, true)
+}
+
+const denyPermission = async () => {
+  await submitPermission(false, false)
 }
 </script>
 

@@ -18,19 +18,37 @@
   "messageBlockPermissionRequest": {
     "title": "権限が必要",
     "allow": "許可",
+    "allowOnce": "一度だけ許可",
+    "allowForSession": "このセッションで許可",
     "deny": "拒否",
     "rememberChoice": "この選択を記憶する",
     "granted": "権限が許可されました",
     "denied": "権限が拒否されました",
+    "riskLabel": "リスク",
     "type": {
       "read": "読み取りアクセス",
       "write": "書き込みアクセス",
-      "all": "フルアクセス"
+      "all": "フルアクセス",
+      "command": "コマンド実行"
     },
     "description": {
       "read": "'{serverName}' の '{toolName}' が読み取り操作を行うことを許可しますか？",
       "write": "'{serverName}' の '{toolName}' が書き込み操作を行うことを許可しますか？",
-      "all": "'{serverName}' の '{toolName}' が読み取り・書き込みを行うことを許可しますか？"
+      "all": "'{serverName}' の '{toolName}' が読み取り・書き込みを行うことを許可しますか？",
+      "command": "コマンドを実行: {command}",
+      "commandWithRisk": "コマンドを実行: {command}\n\nリスクレベル: {riskLevel}\n\n提案: {suggestion}"
+    },
+    "riskLevel": {
+      "low": "低",
+      "medium": "中",
+      "high": "高",
+      "critical": "重大"
+    },
+    "suggestion": {
+      "low": "読み取り専用の操作で影響は最小です。",
+      "medium": "このコマンドは状態変更や依存関係のインストールを行う可能性があります。確認してください。",
+      "high": "このコマンドはファイルやシステム状態を変更します。注意してください。",
+      "critical": "破壊的な操作や外部ネットワークへのアクセスの可能性があります。意図を確認してください。"
     }
   },
   "promptParamsDialog": {

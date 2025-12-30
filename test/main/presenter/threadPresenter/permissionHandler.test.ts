@@ -1,7 +1,8 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { AssistantMessage, AssistantMessageBlock } from '@shared/chat'
-import type { ILlmProviderPresenter, IMCPPresenter } from '@shared/presenter'
+import type { ILlmProviderPresenter, IMCPPresenter, IToolPresenter } from '@shared/presenter'
 import { PermissionHandler } from '@/presenter/threadPresenter/handlers/permissionHandler'
+import { CommandPermissionHandler } from '@/presenter/threadPresenter/handlers/commandPermissionHandler'
 import type { ThreadHandlerContext } from '@/presenter/threadPresenter/handlers/baseHandler'
 import type { StreamGenerationHandler } from '@/presenter/threadPresenter/handlers/streamGenerationHandler'
 import type { LLMEventHandler } from '@/presenter/threadPresenter/handlers/llmEventHandler'
@@ -95,8 +96,14 @@ describe('PermissionHandler - ACP permissions', () => {
       generatingMessages,
       llmProviderPresenter,
       getMcpPresenter: () => ({ grantPermission: vi.fn() }) as unknown as IMCPPresenter,
+      getToolPresenter: () =>
+        ({
+          getAllToolDefinitions: vi.fn(),
+          callTool: vi.fn()
+        }) as unknown as IToolPresenter,
       streamGenerationHandler: {} as StreamGenerationHandler,
-      llmEventHandler: {} as LLMEventHandler
+      llmEventHandler: {} as LLMEventHandler,
+      commandPermissionHandler: new CommandPermissionHandler()
     })
 
     return {

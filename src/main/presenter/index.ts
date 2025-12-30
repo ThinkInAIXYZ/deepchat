@@ -46,6 +46,7 @@ import { CONFIG_EVENTS, WINDOW_EVENTS } from '@/events'
 import { KnowledgePresenter } from './knowledgePresenter'
 import { WorkspacePresenter } from './workspacePresenter'
 import { ToolPresenter } from './toolPresenter'
+import { CommandPermissionHandler } from './threadPresenter/handlers/commandPermissionHandler'
 
 // IPC调用上下文接口
 interface IPCCallContext {
@@ -102,11 +103,13 @@ export class Presenter implements IPresenter {
     this.windowPresenter = new WindowPresenter(this.configPresenter)
     this.tabPresenter = new TabPresenter(this.windowPresenter)
     this.llmproviderPresenter = new LLMProviderPresenter(this.configPresenter, this.sqlitePresenter)
+    const commandPermissionHandler = new CommandPermissionHandler()
     this.devicePresenter = new DevicePresenter()
     this.threadPresenter = new ThreadPresenter(
       this.sqlitePresenter,
       this.llmproviderPresenter,
-      this.configPresenter
+      this.configPresenter,
+      commandPermissionHandler
     )
     this.mcpPresenter = new McpPresenter(this.configPresenter)
     this.upgradePresenter = new UpgradePresenter(this.configPresenter)
@@ -136,7 +139,8 @@ export class Presenter implements IPresenter {
     this.toolPresenter = new ToolPresenter({
       mcpPresenter: this.mcpPresenter,
       yoBrowserPresenter: this.yoBrowserPresenter,
-      configPresenter: this.configPresenter
+      configPresenter: this.configPresenter,
+      commandPermissionHandler
     })
 
     // this.llamaCppPresenter = new LlamaCppPresenter() // 保留原始注释

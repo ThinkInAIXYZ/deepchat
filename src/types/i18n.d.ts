@@ -163,19 +163,37 @@ declare module 'vue-i18n' {
     messageBlockPermissionRequest: {
       title: string
       allow: string
+      allowOnce: string
+      allowForSession: string
       deny: string
       rememberChoice: string
       granted: string
       denied: string
+      riskLabel: string
       type: {
         read: string
         write: string
         all: string
+        command: string
       }
       description: {
         read: string
         write: string
         all: string
+        command: string
+        commandWithRisk: string
+      }
+      riskLevel: {
+        low: string
+        medium: string
+        high: string
+        critical: string
+      }
+      suggestion: {
+        low: string
+        medium: string
+        high: string
+        critical: string
       }
     }
     translate: {
