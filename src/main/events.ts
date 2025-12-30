@@ -248,7 +248,7 @@ export const LIFECYCLE_EVENTS = {
 // Workspace events
 export const WORKSPACE_EVENTS = {
   PLAN_UPDATED: 'workspace:plan-updated', // Plan entries updated
-  TERMINAL_OUTPUT: 'workspace:terminal-output', // Terminal output snippet
+  TERMINAL_OUTPUT: 'workspace:terminal-output', // Terminal snippet update
   FILES_CHANGED: 'workspace:files-changed' // File tree changed
 }
 

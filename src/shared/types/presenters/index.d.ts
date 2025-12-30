@@ -40,6 +40,7 @@ export type {
   WorkspacePlanStatus,
   WorkspacePlanEntry,
   WorkspaceFileNode,
+  WorkspaceTerminalStatus,
   WorkspaceTerminalSnippet,
   WorkspaceRawPlanEntry,
   IWorkspacePresenter

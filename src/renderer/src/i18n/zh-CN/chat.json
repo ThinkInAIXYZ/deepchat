@@ -128,7 +128,14 @@
     },
     "terminal": {
       "section": "终端",
-      "empty": "暂无输出"
+      "empty": "暂无输出",
+      "status": {
+        "running": "运行中",
+        "completed": "已完成",
+        "failed": "失败",
+        "timed_out": "已超时",
+        "aborted": "已中止"
+      }
     }
   },
   "acp": {
@@ -158,7 +165,14 @@
       },
       "terminal": {
         "section": "终端",
-        "empty": "暂无输出"
+        "empty": "暂无输出",
+        "status": {
+          "running": "运行中",
+          "completed": "已完成",
+          "failed": "失败",
+          "timed_out": "已超时",
+          "aborted": "已中止"
+        }
       }
     }
   }

@@ -129,7 +129,7 @@ export class ToolPresenter implements IToolPresenter {
           }
         }
       }
-      const response = await this.agentToolManager.callTool(toolName, args)
+      const response = await this.agentToolManager.callTool(toolName, args, request.conversationId)
       return {
         content: typeof response === 'string' ? response : JSON.stringify(response),
         rawData: {

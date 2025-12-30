@@ -182,6 +182,34 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     lastSuccessfulWorkspace.value = null
   }
 
+  const getSnippetTime = (snippet: WorkspaceTerminalSnippet, key: 'startedAt' | 'endedAt') =>
+    snippet[key] ?? snippet.timestamp
+
+  const trimTerminalSnippets = (snippets: WorkspaceTerminalSnippet[]) => {
+    const running = snippets
+      .filter((snippet) => snippet.status === 'running')
+      .sort((a, b) => getSnippetTime(b, 'startedAt') - getSnippetTime(a, 'startedAt'))
+
+    const completed = snippets
+      .filter((snippet) => snippet.status !== 'running')
+      .sort((a, b) => getSnippetTime(b, 'endedAt') - getSnippetTime(a, 'endedAt'))
+
+    return [...running, ...completed.slice(0, 3)]
+  }
+
+  const upsertTerminalSnippet = (snippet: WorkspaceTerminalSnippet) => {
+    const existingIndex = terminalSnippets.value.findIndex((item) => item.id === snippet.id)
+    if (existingIndex >= 0) {
+      terminalSnippets.value[existingIndex] = {
+        ...terminalSnippets.value[existingIndex],
+        ...snippet
+      }
+    } else {
+      terminalSnippets.value = [snippet, ...terminalSnippets.value]
+    }
+    terminalSnippets.value = trimTerminalSnippets(terminalSnippets.value)
+  }
+
   // === Event Listeners ===
   const setupEventListeners = () => {
     // Plan update event
@@ -199,8 +227,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
       WORKSPACE_EVENTS.TERMINAL_OUTPUT,
       (_, payload: { conversationId: string; snippet: WorkspaceTerminalSnippet }) => {
         if (payload.conversationId === chatStore.getActiveThreadId()) {
-          // Keep latest 10 items
-          terminalSnippets.value = [payload.snippet, ...terminalSnippets.value.slice(0, 9)]
+          upsertTerminalSnippet(payload.snippet)
         }
       }
     )

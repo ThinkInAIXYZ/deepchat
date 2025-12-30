@@ -110,6 +110,12 @@ export class AgentToolManager {
     }),
     get_file_info: z.object({
       path: z.string()
+    }),
+    execute_command: z.object({
+      command: z.string().describe('The shell command to execute'),
+      timeout: z.number().optional().describe('Optional timeout in milliseconds'),
+      workdir: z.string().optional().describe('Working directory (defaults to workspace root)'),
+      description: z.string().min(5).max(100).describe('Brief description of what the command does')
     })
   }
 
@@ -167,7 +173,11 @@ export class AgentToolManager {
   /**
    * Call an Agent tool
    */
-  async callTool(toolName: string, args: Record<string, unknown>): Promise<string> {
+  async callTool(
+    toolName: string,
+    args: Record<string, unknown>,
+    conversationId?: string
+  ): Promise<string> {
     // Route to Yo Browser tools
     if (toolName.startsWith('browser_')) {
       const response = await this.yoBrowserPresenter.callTool(
@@ -182,7 +192,7 @@ export class AgentToolManager {
       if (!this.fileSystemHandler) {
         throw new Error(`FileSystem handler not initialized for tool: ${toolName}`)
       }
-      return await this.callFileSystemTool(toolName, args)
+      return await this.callFileSystemTool(toolName, args, conversationId)
     }
 
     throw new Error(`Unknown Agent tool: ${toolName}`)
@@ -381,6 +391,23 @@ export class AgentToolManager {
           icons: '📁',
           description: 'Agent FileSystem tools'
         }
+      },
+      {
+        type: 'function',
+        function: {
+          name: 'execute_command',
+          description: 'Execute a shell command in the workspace directory',
+          parameters: zodToJsonSchema(schemas.execute_command) as {
+            type: string
+            properties: Record<string, unknown>
+            required?: string[]
+          }
+        },
+        server: {
+          name: 'agent-filesystem',
+          icons: '📁',
+          description: 'Agent FileSystem tools'
+        }
       }
     ]
   }
@@ -397,14 +424,16 @@ export class AgentToolManager {
       'directory_tree',
       'get_file_info',
       'grep_search',
-      'text_replace'
+      'text_replace',
+      'execute_command'
     ]
     return filesystemTools.includes(toolName)
   }
 
   private async callFileSystemTool(
     toolName: string,
-    args: Record<string, unknown>
+    args: Record<string, unknown>,
+    conversationId?: string
   ): Promise<string> {
     if (!this.fileSystemHandler) {
       throw new Error('FileSystem handler not initialized')
@@ -445,6 +474,8 @@ export class AgentToolManager {
         return await this.fileSystemHandler.grepSearch(parsedArgs)
       case 'text_replace':
         return await this.fileSystemHandler.textReplace(parsedArgs)
+      case 'execute_command':
+        return await this.fileSystemHandler.executeCommand(parsedArgs, { conversationId })
       default:
         throw new Error(`Unknown FileSystem tool: ${toolName}`)
     }

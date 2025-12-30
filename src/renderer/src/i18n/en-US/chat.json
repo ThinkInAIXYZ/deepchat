@@ -128,7 +128,14 @@
     },
     "terminal": {
       "section": "Terminal",
-      "empty": "No output yet"
+      "empty": "No output yet",
+      "status": {
+        "running": "Running",
+        "completed": "Completed",
+        "failed": "Failed",
+        "timed_out": "Timed out",
+        "aborted": "Aborted"
+      }
     }
   },
   "acp": {
@@ -158,7 +165,14 @@
       },
       "terminal": {
         "section": "Terminal",
-        "empty": "No output yet"
+        "empty": "No output yet",
+        "status": {
+          "running": "Running",
+          "completed": "Completed",
+          "failed": "Failed",
+          "timed_out": "Timed out",
+          "aborted": "Aborted"
+        }
       }
     }
   }

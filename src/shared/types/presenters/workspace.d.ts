@@ -43,9 +43,13 @@ export type WorkspaceFileNode = {
 /**
  * Terminal output snippet - from Agent tool_call terminal output
  */
+export type WorkspaceTerminalStatus = 'running' | 'completed' | 'failed' | 'timed_out' | 'aborted'
+
 export type WorkspaceTerminalSnippet = {
   /** Unique identifier */
   id: string
+  /** Execution status */
+  status: WorkspaceTerminalStatus
   /** Executed command */
   command: string
   /** Working directory */
@@ -56,6 +60,12 @@ export type WorkspaceTerminalSnippet = {
   truncated: boolean
   /** Exit code (after command completion) */
   exitCode?: number | null
+  /** Command start time (ms since epoch) */
+  startedAt?: number
+  /** Command end time (ms since epoch) */
+  endedAt?: number
+  /** Duration in milliseconds */
+  durationMs?: number
   /** Timestamp */
   timestamp: number
 }

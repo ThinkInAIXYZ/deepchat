@@ -32,12 +32,16 @@
             <span class="text-xs font-mono text-foreground/90 truncate">
               {{ snippet.command }}
             </span>
-            <span
-              v-if="snippet.exitCode !== null && snippet.exitCode !== undefined"
-              class="ml-auto text-[10px]"
-              :class="snippet.exitCode === 0 ? 'text-green-500' : 'text-red-500'"
-            >
-              {{ snippet.exitCode }}
+            <span class="ml-auto flex items-center gap-2 text-[10px]">
+              <span :class="getStatusClass(snippet.status)">
+                {{ getStatusLabel(snippet.status) }}
+              </span>
+              <span
+                v-if="snippet.exitCode !== null && snippet.exitCode !== undefined"
+                :class="snippet.exitCode === 0 ? 'text-green-500' : 'text-red-500'"
+              >
+                {{ snippet.exitCode }}
+              </span>
             </span>
           </div>
           <pre
@@ -70,7 +74,19 @@ const i18nPrefix = computed(() =>
   chatMode.currentMode.value === 'acp agent' ? 'chat.acp.workspace' : 'chat.workspace'
 )
 
-const sectionKey = computed(() => `${i18nPrefix.value}.terminal.section`)
+const terminalKeyPrefix = computed(() => `${i18nPrefix.value}.terminal`)
+const sectionKey = computed(() => `${terminalKeyPrefix.value}.section`)
+
+const statusClassMap: Record<string, string> = {
+  running: 'text-sky-500',
+  completed: 'text-green-500',
+  failed: 'text-red-500',
+  timed_out: 'text-amber-500',
+  aborted: 'text-muted-foreground'
+}
+
+const getStatusClass = (status: string) => statusClassMap[status] ?? 'text-muted-foreground'
+const getStatusLabel = (status: string) => t(`${terminalKeyPrefix.value}.status.${status}`)
 </script>
 
 <style scoped>
