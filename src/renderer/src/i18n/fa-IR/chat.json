@@ -130,7 +130,7 @@
       "section": "ترمینال",
       "status": {
         "aborted": "سقط شد",
-        "completed": "موفقیت",
+        "completed": "تکمیل شد",
         "running": "در حال دویدن",
         "timed_out": "زمان تمام شد",
         "failed": "شکست بخورد"

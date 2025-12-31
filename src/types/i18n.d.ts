@@ -1,13 +1,15 @@
-import { DefineLocaleMessage } from 'vue-i18n'
-
 declare module 'vue-i18n' {
   interface DefineLocaleMessage {
     title: string
     description: string
     website: string
     disclaimerButton: string
+    feedbackButton: string
     disclaimerTitle: string
     checkUpdateButton: string
+    updateChannel: string
+    stableChannel: string
+    betaChannel: string
     deviceInfo: {
       title: string
       platform: string
@@ -46,6 +48,15 @@ declare module 'vue-i18n' {
     export: {
       failed: string
       failedDesc: string
+      nowledgeMemSubmitFailed: string
+      nowledgeMemSubmitFailedDesc: string
+      nowledgeMemSubmitPrompt: string
+      nowledgeMemSubmitSuccess: string
+      nowledgeMemSubmitSuccessDesc: string
+      nowledgeMemSuccessDesc: string
+      success: string
+      nowledgeMemSuccess: string
+      successDesc: string
     }
     htmlPreviewTitle: string
     svgPreviewTitle: string
@@ -57,6 +68,18 @@ declare module 'vue-i18n' {
     copySuccessDesc: string
     copyFailed: string
     copyFailedDesc: string
+    desktop: string
+    tablet: string
+    mobile: string
+    responsive: string
+    width: string
+    height: string
+    sanitizingSvg: string
+    svgSanitizationFailed: string
+    noSvgContent: string
+    mermaid: {
+      renderError: string
+    }
     input: {
       placeholder: string
       fileArea: string
@@ -70,12 +93,27 @@ declare module 'vue-i18n' {
       promptFilesError: string
       promptFilesErrorDesc: string
       historyPlaceholder: string
+      rateLimitQueue: string
+      rateLimitWait: string
+      rateLimitQueueTooltip: string
+      rateLimitReadyTooltip: string
+      rateLimitWaitingTooltip: string
+      acpWorkdir: string
+      acpWorkdirTooltip: string
+      acpWorkdirSelect: string
+      acpWorkdirCurrent: string
+      acpMode: string
+      acpModeTooltip: string
+      agentWorkspaceTooltip: string
+      agentWorkspaceSelect: string
+      agentWorkspaceCurrent: string
     }
     features: {
       webSearch: string
       thoughtForSeconds: string
       thoughtForSecondsLoading: string
       artifactThinking: string
+      modeChanged: string
     }
     search: {
       results: string
@@ -89,12 +127,130 @@ declare module 'vue-i18n' {
     }
     messages: {
       thinking: string
+      rateLimitWaiting: string
+      rateLimitTitle: string
+      rateLimitQueue: string
+      rateLimitEstimated: string
+      rateLimitQuickSettings: string
+      rateLimitSwitchProvider: string
+      rateLimitImmediately: string
+      rateLimitSeconds: string
+      rateLimitMinutes: string
+    }
+    rateLimit: {
+      queueTooltip: string
+      readyTooltip: string
+      waitingTooltip: string
+      title: string
+      description: string
+      intervalLimit: string
+      intervalUnit: string
+      intervalHelper: string
+      lastRequestTime: string
+      queueLength: string
+      nextAllowedTime: string
+      never: string
+      justNow: string
+      secondsAgo: string
+      minutesAgo: string
+      immediately: string
+      secondsLater: string
+      confirmDisableTitle: string
+      confirmDisableMessage: string
+      confirmDisable: string
+      disabled: string
+      disabledDescription: string
     }
     notify: {
       generationComplete: string
       generationError: string
     }
+    navigation: {
+      title: string
+      searchPlaceholder: string
+      noResults: string
+      noMessages: string
+      totalMessages: string
+      searchResults: string
+      userMessage: string
+      assistantMessage: string
+      unknownMessage: string
+    }
+    mcpUi: {
+      title: string
+      badge: string
+      expand: string
+      collapse: string
+    }
+    toolCall: {
+      title: string
+      calling: string
+      response: string
+      end: string
+      error: string
+      clickToView: string
+      functionName: string
+      params: string
+      responseData: string
+    }
+    mode: {
+      current: string
+      chat: string
+      agent: string
+      acpAgent: string
+    }
+    workspace: {
+      title: string
+      collapse: string
+      plan: {
+        section: string
+        empty: string
+        status: {
+          pending: string
+          in_progress: string
+          completed: string
+          failed: string
+          skipped: string
+        }
+      }
+      files: {
+        section: string
+        empty: string
+        loading: string
+        contextMenu: {
+          openFile: string
+          revealInFolder: string
+          insertPath: string
+        }
+      }
+      browser: {
+        section: string
+        empty: string
+      }
+      terminal: {
+        section: string
+        empty: string
+        contextMenu: {
+          terminate: string
+          delete: string
+          expand: string
+          collapse: string
+        }
+        output: {
+          truncated: string
+        }
+        noOutput: string
+        status: {
+          running: string
+          completed: string
+          failed: string
+          timed_out: string
+          aborted: string
+        }
+      }
+    }
     loading: string
+    copied: string
     paste: string
     copyImageSuccess: string
     copyCode: string
@@ -143,6 +299,28 @@ declare module 'vue-i18n' {
       title: string
       description: string
       confirm: string
+    }
+    save: string
+    clear: string
+    saved: string
+    newTab: string
+    unknownError: string
+    testing: string
+    saving: string
+    scrollLeft: string
+    scrollRight: string
+    history: string
+    minimize: string
+    maximize: string
+    restore: string
+    browser: {
+      back: string
+      forward: string
+      reload: string
+      addressPlaceholder: string
+      enterUrlToStart: string
+      enterUrlDescription: string
+      name: string
     }
     emojiPicker: {
       search: string
@@ -198,6 +376,11 @@ declare module 'vue-i18n' {
         critical: string
       }
     }
+    promptParamsDialog: {
+      title: string
+      description: string
+      required: string
+    }
     translate: {
       title: string
       original: string
@@ -227,6 +410,21 @@ declare module 'vue-i18n' {
       confirm: string
       tag: string
     }
+    mutualExclusive: {
+      title: {
+        reasoning: string
+        functionCall: string
+      }
+      message: {
+        reasoning: string
+        functionCall: string
+      }
+      warningText: {
+        reasoning: string
+        functionCall: string
+      }
+      confirmEnable: string
+    }
     enabledTitle: string
     enabledDescription: string
     enableToAccess: string
@@ -249,6 +447,10 @@ declare module 'vue-i18n' {
       mcpDisabled: string
       getPromptFailed: string
       readResourceFailed: string
+      promptNotFound: string
+      emptyPromptContent: string
+      missingParameters: string
+      invalidParameters: string
     }
     tabs: {
       servers: string
@@ -285,6 +487,8 @@ declare module 'vue-i18n' {
       commandRequired: string
       args: string
       argsPlaceholder: string
+      addArg: string
+      argPlaceholder: string
       argsRequired: string
       env: string
       envPlaceholder: string
@@ -374,11 +578,16 @@ declare module 'vue-i18n' {
       enableToUse: string
       enabled: string
       enabledDescription: string
+      acpManagedHint: string
+      acpServersSelected: string
+      acpServersNone: string
       jsonInputPlaceholder: string
       type: string
       annotations: string
       empty: string
       invalidJsonFormat: string
+      allowedValues: string
+      arrayItemValues: string
     }
     inmemory: {
       bochaSearch: {
@@ -468,6 +677,64 @@ declare module 'vue-i18n' {
       pleaseSelect: string
       dialogDescription: string
     }
+    market: {
+      browseBuiltin: string
+      builtinTitle: string
+      poweredBy: string
+      keyGuide: string
+      keyHelpText: string
+      keyHelpEnd: string
+      apiKeyPlaceholder: string
+      apiKeyRequiredTitle: string
+      apiKeyRequiredDesc: string
+      install: string
+      installed: string
+      installSuccess: string
+      installFailed: string
+      noMore: string
+      empty: string
+      loadMore: string
+      pullDownToLoad: string
+    }
+    sampling: {
+      approve: string
+      confirming: string
+      confirm: string
+      sendResponse: string
+      selectModel: string
+      respondWith: string
+      maxTokensInfo: string
+      contentType: {
+        audio: string
+        image: string
+        text: string
+      }
+      description: string
+      imageAlt: string
+      messagesTitle: string
+      noModels: string
+      noVisionModels: string
+      preference: {
+        cost: string
+        hints: string
+        intelligence: string
+        speed: string
+      }
+      preferencesTitle: string
+      reject: string
+      selectedModelLabel: string
+      systemPrompt: string
+      title: string
+      unknownHint: string
+      unknownMime: string
+      unknownServer: string
+      unsupportedMessage: string
+      visionWarning: string
+      autoApproving: string
+      autoApproveIn: string
+      reviewRequest: string
+      sessionActive: string
+    }
     type: {
       custom: string
       official: string
@@ -483,6 +750,7 @@ declare module 'vue-i18n' {
       unpin: string
       export: string
       exportText: string
+      exportNowledgeMem: string
     }
     tags: {
       reasoning: string
@@ -493,6 +761,7 @@ declare module 'vue-i18n' {
     }
     greeting: string
     prompt: string
+    completed: string
     addTitle: string
     addDescription: string
     editTitle: string
@@ -500,7 +769,7 @@ declare module 'vue-i18n' {
     name: string
     namePlaceholder: string
     descriptionPlaceholder: string
-    content: string
+    promptContent: string
     contentPlaceholder: string
     basicInfo: string
     contentTip: string
@@ -535,6 +804,9 @@ declare module 'vue-i18n' {
     noFilesUploadDesc: string
     uploadSuccess: string
     uploadedCount: string
+    confirmDeleteDescription: string
+    confirmDeleteSystemPrompt: string
+    confirmDeleteSystemPromptDescription: string
     deleteSuccess: string
     deleteFailed: string
     inactive: string
@@ -551,11 +823,33 @@ declare module 'vue-i18n' {
     defaultSystemPromptPlaceholder: string
     defaultSystemPromptDescription: string
     typing: string
-    saving: string
-    saved: string
     saveDefaultPromptFailed: string
+    systemPrompts: string
+    customPrompts: string
+    addSystemPrompt: string
+    addCustomPrompt: string
+    editSystemPrompt: string
+    addSystemPromptDesc: string
+    editSystemPromptDesc: string
+    selectSystemPrompt: string
+    systemPromptDescription: string
+    emptySystemPromptOption: string
+    emptySystemPromptDescription: string
+    systemPromptChanged: string
+    systemPromptChangeFailed: string
+    systemPromptAdded: string
+    systemPromptAddedAndSwitched: string
+    systemPromptUpdated: string
+    systemPromptSaveFailed: string
+    systemPromptDeleted: string
+    systemPromptDeleteFailed: string
+    systemPromptEditTip: string
+    resetToDefaultSuccess: string
+    resetToDefaultFailed: string
+    parameterRequired: string
     chat: string
     welcome: string
+    playground: string
     settings: string
     'settings-common': string
     'settings-provider': string
@@ -566,6 +860,8 @@ declare module 'vue-i18n' {
     'settings-display': string
     'settings-knowledge-base': string
     'settings-prompt': string
+    'settings-mcp-market': string
+    'settings-acp': string
     common: {
       title: string
       resetData: string
@@ -598,6 +894,9 @@ declare module 'vue-i18n' {
       testSearchEngineNote: string
       theme: string
       themeSelect: string
+      themeLight: string
+      themeDark: string
+      themeSystem: string
       closeToQuit: string
       shortcut: {
         title: string
@@ -610,14 +909,21 @@ declare module 'vue-i18n' {
       contentProtectionRestartNotice: string
       soundEnabled: string
       copyWithCotEnabled: string
+      traceDebugEnabled: string
       loggingEnabled: string
       loggingDialogTitle: string
       loggingEnableDesc: string
       loggingDisableDesc: string
+      webContentLengthLimit: string
+      webContentLengthLimitHint: string
+      charactersUnit: string
+      webContentLengthLimitTooltip: string
       loggingRestartNotice: string
       openLogFolder: string
       notifications: string
       notificationsDesc: string
+      fileMaxSize: string
+      fileMaxSizeHint: string
     }
     data: {
       title: string
@@ -631,255 +937,55 @@ declare module 'vue-i18n' {
       importData: string
       incrementImport: string
       overwriteImport: string
+      backupSelectLabel: string
+      backupSelectDescription: string
+      selectBackupPlaceholder: string
+      noBackupsAvailable: string
       importConfirmTitle: string
       importConfirmDescription: string
       importing: string
       confirmImport: string
       importSuccessTitle: string
       importErrorTitle: string
-    }
-    model: {
-      title: string
-      systemPrompt: {
-        label: string
-        placeholder: string
-        description: string
-      }
-      temperature: {
-        label: string
-        description: string
-      }
-      contextLength: {
-        label: string
-        description: string
-      }
-      responseLength: {
-        label: string
-        description: string
-      }
-      artifacts: {
-        title: string
-        description: string
-      }
-      provider: string
-      modelList: string
-      selectModel: string
-      providerSetting: string
-      configureModel: string
-      addModel: string
-      modelConfig: {
-        title: string
-        description: string
-        maxTokens: {
-          label: string
-          description: string
-        }
-        contextLength: {
-          label: string
-          description: string
-        }
-        temperature: {
-          label: string
-          description: string
-        }
-        vision: {
-          label: string
-          description: string
-        }
-        functionCall: {
-          label: string
-          description: string
-        }
-        reasoning: {
-          label: string
-          description: string
-        }
-        thinkingBudget: {
-          label: string
-          description: string
-          dynamic: string
-          range: string
-          onlySupported: string
-          valueLabel: string
-          placeholder: string
-          forceEnabled: string
-          dynamicPrefix: string
-          notice: string
-          warnings: {
-            proNoDisable: string
-            proCannotDisable: string
-            flashLiteCannotSetZero: string
-            modelCannotDisable: string
-            flashLiteMinValue: string
-            belowMin: string
-            aboveMax: string
-          }
-          hints: {
-            flashLiteDisable: string
-            normalDisable: string
-            withZeroAndDynamic: string
-            withDynamic: string
-          }
-        }
-        type: {
-          label: string
-          description: string
-          options: {
-            chat: string
-            embedding: string
-            rerank: string
-            imageGeneration: string
-          }
-        }
-        resetToDefault: string
-        saveConfig: string
-        cancel: string
-        useModelDefault: string
-        currentUsingModelDefault: string
-        resetConfirm: {
-          title: string
-          message: string
-          confirm: string
-        }
-        validation: {
-          maxTokensRequired: string
-          maxTokensMin: string
-          maxTokensMax: string
-          contextLengthRequired: string
-          contextLengthMin: string
-          contextLengthMax: string
-          temperatureRequired: string
-          temperatureMin: string
-          temperatureMax: string
-        }
-      }
-    }
-    provider: {
-      enable: string
-      urlPlaceholder: string
-      keyPlaceholder: string
-      verifyKey: string
-      howToGet: string
-      refreshingModels: string
-      getKeyTip: string
-      getKeyTipEnd: string
-      urlFormat: string
-      modelList: string
-      enableModels: string
-      disableAllModels: string
-      modelsEnabled: string
-      verifyLink: string
-      syncModelsFailed: string
-      addCustomProvider: string
-      delete: string
-      stopModel: string
-      pulling: string
-      runModel: string
+      resetData: string
+      resetConfirmTitle: string
+      resetConfirmDescription: string
+      resetChatData: string
+      resetChatDataDesc: string
+      resetKnowledgeData: string
+      resetKnowledgeDataDesc: string
+      resetConfig: string
+      resetConfigDesc: string
+      resetAll: string
+      resetAllDesc: string
+      resetting: string
+      confirmReset: string
+      resetCompleteDevTitle: string
+      resetCompleteDevMessage: string
       toast: {
-        modelRunning: string
-        modelRunningDesc: string
+        backupSuccessTitle: string
+        backupSuccessMessage: string
       }
-      dialog: {
-        disableModel: {
-          title: string
-          content: string
-          confirm: string
-        }
-        disableAllModels: {
-          title: string
-          content: string
-          confirm: string
-        }
-        configModels: {
-          title: string
-        }
-        verify: {
-          missingFields: string
-          failed: string
-          success: string
-        }
-        addCustomProvider: {
-          title: string
-          description: string
-          name: string
-          namePlaceholder: string
-          apiType: string
-          apiTypePlaceholder: string
-          apiKey: string
-          apiKeyPlaceholder: string
-          baseUrl: string
-          baseUrlPlaceholder: string
-          enable: string
-        }
-        deleteProvider: {
-          title: string
-          content: string
-          confirm: string
-        }
-        deleteModel: {
-          title: string
-          content: string
-          confirm: string
-        }
-        pullModel: {
-          title: string
-          pull: string
-        }
-        modelCheck: {
-          title: string
-          description: string
-          model: string
-          modelPlaceholder: string
-          test: string
-          checking: string
-          success: string
-          failed: string
-          noModels: string
-        }
-      }
-      pullModels: string
-      refreshModels: string
-      modelsRunning: string
-      runningModels: string
-      noRunningModels: string
-      deleteModel: string
-      deleteModelConfirm: string
-      noLocalModels: string
-      localModels: string
-      azureApiVersion: string
-      safety: {
+      yoBrowser: {
         title: string
-        blockNone: string
-        blockSome: string
-        blockMost: string
-        blockHighest: string
+        description: string
+        clearButton: string
+        confirmTitle: string
+        confirmDescription: string
+        confirmAction: string
+        clearing: string
+        clearedTitle: string
+        clearedDescription: string
+        clearFailedTitle: string
+        clearFailedDescription: string
       }
-      serverList: string
-      totalServers: string
-      addServer: string
-      autoStart: string
-      githubCopilotAuth: string
-      githubCopilotConnected: string
-      githubCopilotNotConnected: string
-      loginWithGitHub: string
-      loggingIn: string
-      githubCopilotClientId: string
-      githubCopilotClientIdHint: string
-      githubCopilotLoginTip: string
-      loginSuccess: string
-      loginFailed: string
-      tokenValid: string
-      tokenInvalid: string
-      disconnect: string
-      disconnected: string
-      disconnectFailed: string
-      keyStatus: {
-        usage: string
-        remaining: string
-      }
+    }
+    model: string
+    provider: {
       select: string
       apiUrl: string
       apiKey: string
+      verifyLink: string
     }
     knowledgeBase: {
       title: string
@@ -942,7 +1048,7 @@ declare module 'vue-i18n' {
       chunkOverlapPlaceholder: string
       return: string
       uploadHelper: string
-      onlySupport: string
+      fileSupport: string
       searchKnowledge: string
       searchKnowledgePlaceholder: string
       noData: string
@@ -951,12 +1057,25 @@ declare module 'vue-i18n' {
       uploadCompleted: string
       reAdd: string
       uploadError: string
+      processing: string
+      paused: string
+      unknown: string
       delete: string
       reason: string
       deleteSuccess: string
       copy: string
       copySuccess: string
       source: string
+      resumeAllPausedTasks: string
+      pauseAllRunningTasks: string
+      reAddFile: {
+        title: string
+        content: string
+      }
+      deleteFile: {
+        title: string
+        content: string
+      }
       dialog: {
         beforequit: {
           title: string
@@ -966,6 +1085,24 @@ declare module 'vue-i18n' {
         }
       }
       searchError: string
+      separators: string
+      separatorsHelper: string
+      invalidSeparators: string
+      selectLanguage: string
+      separatorsPreset: string
+      nowledgeMem: {
+        apiKey: string
+        apiKeyHint: string
+        baseUrl: string
+        configuration: string
+        description: string
+        resetConfig: string
+        saveConfig: string
+        seconds: string
+        testConnection: string
+        timeout: string
+        title: string
+      }
     }
     mcp: {
       title: string
@@ -1019,6 +1156,8 @@ declare module 'vue-i18n' {
         commandRequired: string
         args: string
         argsPlaceholder: string
+        addArg: string
+        argPlaceholder: string
         argsRequired: string
         env: string
         envPlaceholder: string
@@ -1054,6 +1193,7 @@ declare module 'vue-i18n' {
         imageModel: string
         customHeadersParseError: string
         customHeaders: string
+        clickToEdit: string
         invalidKeyValueFormat: string
         npmRegistry: string
         npmRegistryPlaceholder: string
@@ -1101,6 +1241,47 @@ declare module 'vue-i18n' {
       removeDefaultFirst: string
       higressMarket: string
       totalServers: string
+      npmRegistry: {
+        title: string
+        currentSource: string
+        cached: string
+        lastChecked: string
+        refresh: string
+        advanced: string
+        advancedSettings: string
+        advancedSettingsDesc: string
+        autoDetect: string
+        autoDetectDesc: string
+        customSource: string
+        customSourcePlaceholder: string
+        currentCustom: string
+        justNow: string
+        minutesAgo: string
+        hoursAgo: string
+        daysAgo: string
+        refreshSuccess: string
+        refreshSuccessDesc: string
+        refreshFailed: string
+        autoDetectUpdated: string
+        autoDetectEnabled: string
+        autoDetectDisabled: string
+        updateFailed: string
+        customSourceSet: string
+        customSourceSetDesc: string
+        customSourceCleared: string
+        customSourceClearedDesc: string
+        invalidUrl: string
+        invalidUrlDesc: string
+        testing: string
+        testingDesc: string
+        testFailed: string
+        testFailedDesc: string
+        redetectingOptimal: string
+        redetectComplete: string
+        redetectCompleteDesc: string
+        redetectFailed: string
+        redetectFailedDesc: string
+      }
     }
     about: {
       title: string
@@ -1110,6 +1291,17 @@ declare module 'vue-i18n' {
       latestVersion: string
     }
     display: {
+      fontTitle: string
+      fontFamily: string
+      fontFamilyDesc: string
+      codeFontFamily: string
+      codeFontFamilyDesc: string
+      fontDefaultLabel: string
+      fontSearchPlaceholder: string
+      fontSearchEmpty: string
+      fontReset: string
+      fontSystemLoading: string
+      fontUsageHint: string
       fontSize: string
       'text-sm': string
       'text-base': string
@@ -1144,9 +1336,151 @@ declare module 'vue-i18n' {
       specificTab: string
       lastTab: string
     }
-    success: {
-      importComplete: string
+    acp: {
+      title: string
+      description: string
+      enabledTitle: string
+      enabledDescription: string
+      useBuiltinRuntimeTitle: string
+      useBuiltinRuntimeDescription: string
+      enableToAccess: string
+      addCustomAgent: string
+      customEmpty: string
+      customDeleteConfirm: string
+      builtinSectionTitle: string
+      builtinSectionDescription: string
+      builtinHint: string
+      disabledBadge: string
+      manageProfiles: string
+      addProfile: string
+      activeProfile: string
+      profilePlaceholder: string
+      profileSwitched: string
+      customSectionTitle: string
+      customSectionDescription: string
+      mcpAccessTitle: string
+      mcpAccessEmpty: string
+      mcpAccessBadge: string
+      loading: string
+      none: string
+      saveSuccess: string
+      saveFailed: string
+      deleteSuccess: string
+      initialize: string
+      initializing: string
+      initializeDescription: string
+      initializeSuccess: string
+      initializeFailed: string
+      missingFieldsTitle: string
+      missingFieldsDesc: string
+      command: string
+      commandPlaceholder: string
+      args: string
+      argsPlaceholder: string
+      env: string
+      addEnv: string
+      envKeyPlaceholder: string
+      envValuePlaceholder: string
+      profileDialog: {
+        addBuiltinTitle: string
+        editBuiltinTitle: string
+        addCustomTitle: string
+        editCustomTitle: string
+        builtinHint: string
+        customHint: string
+        profileName: string
+        profileNamePlaceholder: string
+        agentName: string
+        agentNamePlaceholder: string
+      }
+      profileManager: {
+        title: string
+        description: string
+        count: string
+        empty: string
+        active: string
+        setActive: string
+        deleteConfirm: string
+        cannotDeleteTitle: string
+        cannotDeleteDesc: string
+        noAgent: string
+      }
+      terminal: {
+        title: string
+        waiting: string
+        starting: string
+        close: string
+        closing: string
+        exitSuccess: string
+        exitError: string
+        processError: string
+        paste: string
+        pasteError: string
+        status: {
+          idle: string
+          running: string
+          completed: string
+          error: string
+        }
+      }
+      dependency: {
+        title: string
+        description: string
+        installCommands: string
+        downloadUrl: string
+        copy: string
+        copied: string
+        copyFailed: string
+      }
+      debug: {
+        title: string
+        description: string
+        entry: string
+        workdirPlaceholder: string
+        close: string
+        customMethod: string
+        customMethodPlaceholder: string
+        payloadHint: string
+        format: string
+        resetTemplate: string
+        clearHistory: string
+        send: string
+        sending: string
+        processReady: string
+        processNotReady: string
+        needInitialize: string
+        events: string
+        eventCount: string
+        empty: string
+        parseError: string
+        customMethodRequired: string
+        requestFailed: string
+        methods: {
+          initialize: string
+          newSession: string
+          loadSession: string
+          prompt: string
+          cancel: string
+          setSessionMode: string
+          setSessionModel: string
+          extMethod: string
+          extNotification: string
+        }
+        eventKinds: {
+          request: string
+          response: string
+          notification: string
+          permission: string
+          error: string
+        }
+      }
     }
+    promptSetting: {
+      resetToDefault: string
+      resetToDefaultSuccess: string
+      resetToDefaultFailed: string
+    }
+    success: string
     message: {
       toolbar: {
         save: string
@@ -1166,6 +1500,7 @@ declare module 'vue-i18n' {
       fork: string
       edit: string
       delete: string
+      trace: string
     }
     calling: string
     response: string
@@ -1175,6 +1510,20 @@ declare module 'vue-i18n' {
     permission: string
     params: string
     responseData: string
+    terminalOutput: string
+    fileOperation: string
+    fileRead: string
+    fileWrite: string
+    filePath: string
+    failed: string
+    endpoint: string
+    headers: string
+    body: string
+    copyJson: string
+    errorDesc: string
+    notImplemented: string
+    notImplementedDesc: string
+    mayNotMatch: string
     newVersion: string
     version: string
     releaseDate: string

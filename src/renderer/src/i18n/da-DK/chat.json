@@ -119,7 +119,7 @@
       "section": "plan",
       "status": {
         "completed": "Afsluttet",
-        "failed": "svigte",
+        "failed": "Mislykket",
         "in_progress": "i gang",
         "pending": "Indtil",
         "skipped": "sprunget over"
@@ -131,8 +131,8 @@
       "status": {
         "aborted": "afbrudt",
         "completed": "succes",
-        "failed": "svigte",
-        "running": "Løb",
+        "failed": "Mislykket",
+        "running": "Kører",
         "timed_out": "Timeout"
       },
       "contextMenu": {
