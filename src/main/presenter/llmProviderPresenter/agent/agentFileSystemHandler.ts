@@ -16,7 +16,7 @@ import {
 } from '../../threadPresenter/handlers/commandPermissionHandler'
 import { getShellEnvironment } from './shellEnvHelper'
 import { glob } from 'glob'
-import { registerCommandProcess, unregisterCommandProcess } from './commandProcessTracker'
+import { registerCommandProcess } from './commandProcessTracker'
 
 const ReadFileArgsSchema = z.object({
   paths: z.array(z.string()).min(1).describe('Array of file paths to read')
@@ -1164,13 +1164,11 @@ export class AgentFileSystemHandler {
 
     let result
     const conversationId = options.conversationId
-    let shouldUnregisterProcess = false
     try {
       result = await this.runShellProcess(command, cwd, timeout ?? COMMAND_DEFAULT_TIMEOUT_MS, {
         onSpawn: (child, markAborted) => {
           if (!conversationId) return
           registerCommandProcess(conversationId, snippetId, child, markAborted)
-          shouldUnregisterProcess = true
         }
       })
     } catch (error) {
@@ -1189,10 +1187,6 @@ export class AgentFileSystemHandler {
         timestamp: endedAt
       })
       throw error
-    } finally {
-      if (shouldUnregisterProcess && conversationId) {
-        unregisterCommandProcess(conversationId, snippetId)
-      }
     }
 
     const endedAt = Date.now()

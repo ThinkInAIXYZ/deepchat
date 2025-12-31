@@ -33,14 +33,14 @@
       "write": "האם לאפשר ל-'{toolName}' מ-'{serverName}' לבצע פעולות כתיבה?",
       "all": "האם לאפשר ל-'{toolName}' מ-'{serverName}' לבצע פעולות קריאה וכתיבה?",
       "command": "{command}: הפעל פקודה",
-      "commandWithRisk": "执行命令: {command}\nרמת סיכון: {riskLevel}\nהמלצה: {suggestion}"
+      "commandWithRisk": "ביצוע פקודה: {command}\nרמת סיכון: {riskLevel}\nהמלצה: {suggestion}"
     },
     "riskLabel": "סיכון",
     "riskLevel": {
       "high": "גבוה",
       "low": "נמוך",
       "critical": "חָמוּר",
-      "medium": "א"
+      "medium": "בינוני"
     },
     "allowForSession": "הפעולה הנוכחית תתבצע אוטומטית",
     "allowForSessionTooltip": "זכור את הפקודה הזו עבור השיחה הנוכחית.",
@@ -51,7 +51,7 @@
       "low": "הפקודה היא פעולה לקריאה בלבד, עם השפעה מינימלית.",
       "medium": "הפקודה עשויה להתקין תלויות או לשנות את המצב, נא לאשר לפני ביצוע."
     },
-    "allowOnce": "One time"
+    "allowOnce": "פעם אחת"
   },
   "promptParamsDialog": {
     "title": "הגדרות פרמטרים עבור {name}",

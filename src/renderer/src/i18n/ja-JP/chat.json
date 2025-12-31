@@ -187,10 +187,10 @@
       },
       "noOutput": "出力なし",
       "status": {
-        "completed": "成功 (Chénggōng) → 成功 (Seikō)",
+        "completed": "成功",
         "failed": "失敗",
         "running": "実行中",
-        "timed_out": "はい、承知いたしました。\n翻訳します。\n\n**タイムアウトしました**\n(または)\n**期限切れです**",
+        "timed_out": "タイムアウトしました",
         "aborted": "中止"
       }
     },

@@ -135,7 +135,7 @@
         },
         "noOutput": "Ingen uddata",
         "output": {
-          "truncated": "[Afkortet]"
+          "truncated": "[afkortet]"
         }
       }
     }

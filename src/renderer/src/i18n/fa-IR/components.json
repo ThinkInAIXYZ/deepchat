@@ -33,7 +33,7 @@
       "write": "به '{toolName}' از '{serverName}' اجازه می‌دهید عملیات نوشتن انجام دهد؟",
       "all": "به '{toolName}' از '{serverName}' اجازه می‌دهید بخواند و بنویسد؟",
       "command": "اجرای دستور: {command}",
-      "commandWithRisk": "اجرای دستور: {command}\n\nسطح ریسک: {riskLevel}\n\nپیشنهاد: {پیشنهاد}"
+      "commandWithRisk": "اجرای دستور: {command}\n\nسطح ریسک: {riskLevel}\n\nپیشنهاد: {suggestion}"
     },
     "allowForSession": "اجرای خودکار جلسه جاری",
     "allowOnce": "یک بار مجاز است",

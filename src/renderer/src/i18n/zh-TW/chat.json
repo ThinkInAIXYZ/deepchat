@@ -125,7 +125,7 @@
           "timed_out": "已超時",
           "completed": "成功",
           "running": "運行中",
-          "aborted": "已中止 → 已中止（用字相同，但若需更在地化表达，可用：已停止、已暫停）"
+          "aborted": "已中止"
         },
         "contextMenu": {
           "collapse": "摺疊",

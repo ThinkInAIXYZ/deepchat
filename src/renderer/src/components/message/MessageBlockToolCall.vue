@@ -87,7 +87,8 @@ const keyMap = {
   'toolCall.clickToView': '点击查看详情',
   'toolCall.functionName': '函数名称',
   'toolCall.params': '参数',
-  'toolCall.responseData': '响应数据'
+  'toolCall.responseData': '响应数据',
+  'toolCall.terminalOutput': 'Terminal output'
 }
 // 创建一个安全的翻译函数
 const t = (() => {

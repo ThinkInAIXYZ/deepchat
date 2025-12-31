@@ -124,7 +124,8 @@
           "failed": "falhar",
           "completed": "sucesso",
           "running": "Em execução",
-          "timed_out": "Tempo esgotado"
+          "timed_out": "Tempo esgotado",
+          "aborted": "interrompido"
         },
         "contextMenu": {
           "collapse": "Dobrar",

@@ -157,6 +157,9 @@ export class PermissionHandler extends BaseHandler {
         if (granted) {
           const conversationId = message.conversationId
           const command = this.getCommandFromPermissionBlock(permissionBlock)
+          if (!command) {
+            throw new Error(`Unable to extract command from permission block (${messageId})`)
+          }
           const signature = this.commandPermissionHandler.extractCommandSignature(command)
           this.commandPermissionHandler.approve(conversationId, signature, remember)
           await this.restartAgentLoopAfterPermission(messageId)
@@ -817,7 +820,7 @@ export class PermissionHandler extends BaseHandler {
     return typeof value === 'string' ? value : undefined
   }
 
-  private getCommandFromPermissionBlock(block: AssistantMessageBlock): string {
+  private getCommandFromPermissionBlock(block: AssistantMessageBlock): string | undefined {
     const extraCommandInfo = this.getExtraString(block, 'commandInfo')
     if (extraCommandInfo) {
       try {
@@ -852,10 +855,11 @@ export class PermissionHandler extends BaseHandler {
           return parsed.command
         }
       } catch {
-        // Ignore parse errors; fall through to empty command.
+        // Ignore parse errors; fall through to return undefined.
       }
     }
 
-    return ''
+    console.warn('[PermissionHandler] No command found in permission block')
+    return undefined
   }
 }

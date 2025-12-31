@@ -41,7 +41,7 @@
       "critical": "grave",
       "high": "alto",
       "low": "baixo",
-      "medium": "China"
+      "medium": "médio"
     },
     "suggestion": {
       "critical": "Este comando pode ser destrutivo ou acessar redes externas. Por favor, verifique.",

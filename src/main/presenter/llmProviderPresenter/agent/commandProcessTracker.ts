@@ -3,6 +3,8 @@ import type { ChildProcess } from 'child_process'
 type ActiveCommandProcess = {
   child: ChildProcess
   markAborted: () => void
+  terminating: boolean
+  exitPromise: Promise<void>
 }
 
 const activeProcesses = new Map<string, ActiveCommandProcess>()
@@ -16,7 +18,11 @@ export const registerCommandProcess = (
   child: ChildProcess,
   markAborted: () => void
 ) => {
-  activeProcesses.set(getProcessKey(conversationId, snippetId), { child, markAborted })
+  const processKey = getProcessKey(conversationId, snippetId)
+  const exitPromise = new Promise<void>((resolve) => {
+    child.once('exit', () => resolve())
+  })
+  activeProcesses.set(processKey, { child, markAborted, terminating: false, exitPromise })
 }
 
 export const unregisterCommandProcess = (conversationId: string, snippetId: string) => {
@@ -32,13 +38,13 @@ export const terminateCommandProcess = async (conversationId: string, snippetId:
     return
   }
 
-  entry.markAborted()
-
-  try {
-    entry.child.kill('SIGTERM')
-  } catch (error) {
-    console.error(`[Workspace] Failed to terminate command ${snippetId}:`, error)
+  if (entry.terminating) {
+    await entry.exitPromise
+    return
   }
+
+  entry.terminating = true
+  entry.markAborted()
 
   const killTimer = setTimeout(() => {
     try {
@@ -50,7 +56,12 @@ export const terminateCommandProcess = async (conversationId: string, snippetId:
 
   entry.child.once('exit', () => {
     clearTimeout(killTimer)
+    activeProcesses.delete(processKey)
   })
 
-  activeProcesses.delete(processKey)
+  try {
+    entry.child.kill('SIGTERM')
+  } catch (error) {
+    console.error(`[Workspace] Failed to terminate command ${snippetId}:`, error)
+  }
 }
