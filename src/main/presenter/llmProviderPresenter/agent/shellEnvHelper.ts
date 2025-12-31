@@ -9,7 +9,7 @@ const TIMEOUT_MS = 3000 // 3 seconds timeout
 /**
  * Get user's default shell
  */
-function getUserShell(): { shell: string; args: string[] } {
+export function getUserShell(): { shell: string; args: string[] } {
   const platform = process.platform
 
   if (platform === 'win32') {

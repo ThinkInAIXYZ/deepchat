@@ -7,6 +7,7 @@ import path from 'path'
 import { app } from 'electron'
 import logger from '@shared/logger'
 import { AgentFileSystemHandler } from './agentFileSystemHandler'
+import { AgentBashHandler } from './agentBashHandler'
 import {
   CommandPermissionHandler,
   CommandPermissionRequiredError
@@ -48,6 +49,7 @@ export class AgentToolManager {
   private readonly yoBrowserPresenter: IYoBrowserPresenter
   private agentWorkspacePath: string | null
   private fileSystemHandler: AgentFileSystemHandler | null = null
+  private bashHandler: AgentBashHandler | null = null
   private readonly commandPermissionHandler?: CommandPermissionHandler
   private readonly fileSystemSchemas = {
     read_file: z.object({
@@ -144,9 +146,18 @@ export class AgentToolManager {
       path: z.string()
     }),
     execute_command: z.object({
-      command: z.string().describe('The shell command to execute'),
-      timeout: z.number().optional().describe('Optional timeout in milliseconds'),
-      workdir: z.string().optional().describe('Working directory (defaults to workspace root)'),
+      command: z.string().min(1).describe('The shell command to execute'),
+      timeout: z
+        .number()
+        .min(100)
+        .max(600000)
+        .optional()
+        .describe('Optional timeout in milliseconds'),
+      workdir: z
+        .string()
+        .min(1)
+        .optional()
+        .describe('Working directory (defaults to workspace root); prefer this over using cd'),
       description: z.string().min(5).max(100).describe('Brief description of what the command does')
     })
   }
@@ -156,7 +167,8 @@ export class AgentToolManager {
     this.agentWorkspacePath = options.agentWorkspacePath
     this.commandPermissionHandler = options.commandPermissionHandler
     if (this.agentWorkspacePath) {
-      this.fileSystemHandler = new AgentFileSystemHandler(
+      this.fileSystemHandler = new AgentFileSystemHandler([this.agentWorkspacePath])
+      this.bashHandler = new AgentBashHandler(
         [this.agentWorkspacePath],
         this.commandPermissionHandler
       )
@@ -180,12 +192,14 @@ export class AgentToolManager {
     // Update filesystem handler if workspace path changed
     if (effectiveWorkspacePath !== this.agentWorkspacePath) {
       if (effectiveWorkspacePath) {
-        this.fileSystemHandler = new AgentFileSystemHandler(
+        this.fileSystemHandler = new AgentFileSystemHandler([effectiveWorkspacePath])
+        this.bashHandler = new AgentBashHandler(
           [effectiveWorkspacePath],
           this.commandPermissionHandler
         )
       } else {
         this.fileSystemHandler = null
+        this.bashHandler = null
       }
       this.agentWorkspacePath = effectiveWorkspacePath
     }
@@ -437,7 +451,8 @@ export class AgentToolManager {
         type: 'function',
         function: {
           name: 'execute_command',
-          description: 'Execute a shell command in the workspace directory',
+          description:
+            'Execute a shell command in the workspace directory. Prefer file system tools for read/write/search operations.',
           parameters: zodToJsonSchema(schemas.execute_command) as {
             type: string
             properties: Record<string, unknown>
@@ -517,8 +532,11 @@ export class AgentToolManager {
         case 'text_replace':
           return { content: await this.fileSystemHandler.textReplace(parsedArgs) }
         case 'execute_command':
+          if (!this.bashHandler) {
+            throw new Error('Bash handler not initialized for execute_command tool')
+          }
           return {
-            content: await this.fileSystemHandler.executeCommand(parsedArgs, { conversationId })
+            content: await this.bashHandler.executeCommand(parsedArgs, { conversationId })
           }
         default:
           throw new Error(`Unknown FileSystem tool: ${toolName}`)

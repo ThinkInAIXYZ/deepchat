@@ -192,7 +192,11 @@ export class AgentLoopHandler {
 
   private requiresReasoningField(modelId: string): boolean {
     const lower = modelId.toLowerCase()
-    return lower.includes('deepseek-reasoner') || lower.includes('kimi-k2-thinking')
+    return (
+      lower.includes('deepseek-reasoner') ||
+      lower.includes('kimi-k2-thinking') ||
+      lower.includes('glm-4.7')
+    )
   }
 
   private isAgentToolDefinition(tool: { server?: { name: string } }): boolean {

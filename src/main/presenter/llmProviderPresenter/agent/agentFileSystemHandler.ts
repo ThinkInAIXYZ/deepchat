@@ -1,22 +1,14 @@
 import fs from 'fs/promises'
 import path from 'path'
 import os from 'os'
-import { randomUUID } from 'crypto'
 import { z } from 'zod'
 import { minimatch } from 'minimatch'
 import { createTwoFilesPatch } from 'diff'
 import logger from '@shared/logger'
-import { presenter } from '@/presenter'
 import { validateGlobPattern, validateRegexPattern } from '@shared/regexValidator'
-import { spawn, type ChildProcess } from 'child_process'
+import { spawn } from 'child_process'
 import { RuntimeHelper } from '../../../lib/runtimeHelper'
-import {
-  CommandPermissionHandler,
-  CommandPermissionRequiredError
-} from '../../threadPresenter/handlers/commandPermissionHandler'
-import { getShellEnvironment } from './shellEnvHelper'
 import { glob } from 'glob'
-import { registerCommandProcess } from './commandProcessTracker'
 
 const ReadFileArgsSchema = z.object({
   paths: z.array(z.string()).min(1).describe('Array of file paths to read')
@@ -103,17 +95,6 @@ const GetFileInfoArgsSchema = z.object({
   path: z.string()
 })
 
-const ExecuteCommandArgsSchema = z.object({
-  command: z.string().min(1),
-  timeout: z.number().min(100).optional(),
-  workdir: z.string().optional(),
-  description: z.string().min(5).max(100)
-})
-
-const COMMAND_MAX_OUTPUT_LENGTH = 30000
-const COMMAND_DEFAULT_TIMEOUT_MS = 120000
-const COMMAND_KILL_GRACE_MS = 5000
-
 interface GrepMatch {
   file: string
   line: number
@@ -150,16 +131,14 @@ interface GlobMatch {
 
 export class AgentFileSystemHandler {
   private allowedDirectories: string[]
-  private readonly commandPermissionHandler?: CommandPermissionHandler
 
-  constructor(allowedDirectories: string[], commandPermissionHandler?: CommandPermissionHandler) {
+  constructor(allowedDirectories: string[]) {
     if (allowedDirectories.length === 0) {
       throw new Error('At least one allowed directory must be provided')
     }
     this.allowedDirectories = allowedDirectories.map((dir) =>
       this.normalizePath(path.resolve(this.expandHome(dir)))
     )
-    this.commandPermissionHandler = commandPermissionHandler
   }
 
   private normalizePath(p: string): string {
@@ -582,143 +561,6 @@ export class AgentFileSystemHandler {
     return result
   }
 
-  private getUserShell(): { shell: string; args: string[] } {
-    if (process.platform === 'win32') {
-      if (process.env.PSModulePath) {
-        return { shell: 'powershell.exe', args: ['-NoProfile', '-Command'] }
-      }
-      return { shell: 'cmd.exe', args: ['/c'] }
-    }
-    return { shell: process.env.SHELL || '/bin/bash', args: ['-c'] }
-  }
-
-  private async runShellProcess(
-    command: string,
-    cwd: string,
-    timeout: number,
-    options: {
-      onSpawn?: (child: ChildProcess, markAborted: () => void) => void
-    } = {}
-  ): Promise<{
-    output: string
-    exitCode: number | null
-    timedOut: boolean
-    aborted: boolean
-    truncated: boolean
-  }> {
-    const { shell, args } = this.getUserShell()
-    const shellEnv = await getShellEnvironment()
-
-    return new Promise((resolve, reject) => {
-      const child = spawn(shell, [...args, command], {
-        cwd,
-        env: {
-          ...process.env,
-          ...shellEnv
-        },
-        stdio: ['ignore', 'pipe', 'pipe']
-      })
-
-      let output = ''
-      let truncated = false
-      let timedOut = false
-      let aborted = false
-      let exitCode: number | null = null
-      let timeoutId: NodeJS.Timeout | null = null
-      let killTimeoutId: NodeJS.Timeout | null = null
-      const markAborted = () => {
-        aborted = true
-      }
-
-      options.onSpawn?.(child, markAborted)
-
-      const appendOutput = (chunk: string) => {
-        if (truncated) return
-        const remaining = COMMAND_MAX_OUTPUT_LENGTH - output.length
-        if (remaining <= 0) {
-          truncated = true
-          return
-        }
-        if (chunk.length <= remaining) {
-          output += chunk
-        } else {
-          output += chunk.slice(0, remaining)
-          truncated = true
-        }
-      }
-
-      child.stdout?.setEncoding('utf-8')
-      child.stderr?.setEncoding('utf-8')
-
-      child.stdout?.on('data', (data: string) => {
-        appendOutput(data)
-      })
-
-      child.stderr?.on('data', (data: string) => {
-        appendOutput(data)
-      })
-
-      timeoutId = setTimeout(() => {
-        timedOut = true
-        try {
-          child.kill()
-        } catch {
-          // ignore kill errors
-        }
-        killTimeoutId = setTimeout(() => {
-          try {
-            child.kill('SIGKILL')
-          } catch {
-            // ignore kill errors
-          }
-        }, COMMAND_KILL_GRACE_MS)
-      }, timeout)
-
-      child.on('error', (error) => {
-        if (timeoutId) clearTimeout(timeoutId)
-        if (killTimeoutId) clearTimeout(killTimeoutId)
-        reject(error)
-      })
-
-      child.on('exit', (code, signal) => {
-        if (timeoutId) clearTimeout(timeoutId)
-        if (killTimeoutId) clearTimeout(killTimeoutId)
-        if (signal && timedOut) {
-          exitCode = null
-        } else {
-          exitCode = code ?? null
-        }
-        resolve({
-          output,
-          exitCode,
-          timedOut,
-          aborted,
-          truncated
-        })
-      })
-    })
-  }
-
-  private async emitTerminalSnippet(
-    conversationId: string | undefined,
-    snippet: {
-      id: string
-      status: 'running' | 'completed' | 'failed' | 'timed_out' | 'aborted'
-      command: string
-      cwd?: string
-      output: string
-      truncated: boolean
-      exitCode?: number | null
-      startedAt?: number
-      endedAt?: number
-      durationMs?: number
-      timestamp: number
-    }
-  ): Promise<void> {
-    if (!conversationId || !presenter?.workspacePresenter) return
-    await presenter.workspacePresenter.emitTerminalSnippet(conversationId, snippet)
-  }
-
   private async replaceTextInFile(
     filePath: string,
     pattern: string,
@@ -1113,116 +955,5 @@ export class AgentFileSystemHandler {
         `Glob search failed: ${error instanceof Error ? error.message : String(error)}`
       )
     }
-  }
-
-  async executeCommand(
-    args: unknown,
-    options: { conversationId?: string; snippetId?: string } = {}
-  ): Promise<string> {
-    const parsed = ExecuteCommandArgsSchema.safeParse(args)
-    if (!parsed.success) {
-      throw new Error(`Invalid arguments: ${parsed.error}`)
-    }
-
-    const { command, timeout, workdir } = parsed.data
-    if (this.commandPermissionHandler) {
-      const permissionCheck = this.commandPermissionHandler.checkPermission(
-        options.conversationId,
-        command
-      )
-      if (!permissionCheck.allowed) {
-        const commandInfo = this.commandPermissionHandler.buildCommandInfo(command)
-        const responseContent =
-          'components.messageBlockPermissionRequest.description.commandWithRisk'
-        throw new CommandPermissionRequiredError(responseContent, {
-          toolName: 'execute_command',
-          serverName: 'agent-filesystem',
-          permissionType: 'command',
-          description: 'Execute command requires approval.',
-          command,
-          commandSignature: commandInfo.signature,
-          commandInfo,
-          conversationId: options.conversationId
-        })
-      }
-    }
-    const cwd = workdir ? await this.validatePath(workdir) : this.allowedDirectories[0]
-    const startedAt = Date.now()
-    const snippetId = options.snippetId ?? randomUUID()
-
-    await this.emitTerminalSnippet(options.conversationId, {
-      id: snippetId,
-      status: 'running',
-      command,
-      cwd,
-      output: '',
-      truncated: false,
-      exitCode: null,
-      startedAt,
-      timestamp: startedAt
-    })
-
-    let result
-    const conversationId = options.conversationId
-    try {
-      result = await this.runShellProcess(command, cwd, timeout ?? COMMAND_DEFAULT_TIMEOUT_MS, {
-        onSpawn: (child, markAborted) => {
-          if (!conversationId) return
-          registerCommandProcess(conversationId, snippetId, child, markAborted)
-        }
-      })
-    } catch (error) {
-      const endedAt = Date.now()
-      await this.emitTerminalSnippet(options.conversationId, {
-        id: snippetId,
-        status: 'failed',
-        command,
-        cwd,
-        output: error instanceof Error ? error.message : String(error),
-        truncated: false,
-        exitCode: null,
-        startedAt,
-        endedAt,
-        durationMs: endedAt - startedAt,
-        timestamp: endedAt
-      })
-      throw error
-    }
-
-    const endedAt = Date.now()
-    const status = result.timedOut
-      ? 'timed_out'
-      : result.aborted
-        ? 'aborted'
-        : result.exitCode === 0
-          ? 'completed'
-          : 'failed'
-
-    await this.emitTerminalSnippet(options.conversationId, {
-      id: snippetId,
-      status,
-      command,
-      cwd,
-      output: result.output,
-      truncated: result.truncated,
-      exitCode: result.exitCode,
-      startedAt,
-      endedAt,
-      durationMs: endedAt - startedAt,
-      timestamp: endedAt
-    })
-
-    const responseLines: string[] = []
-    if (result.output) {
-      responseLines.push(result.output.trimEnd())
-    }
-    responseLines.push(`Exit Code: ${result.exitCode ?? 'null'}`)
-    if (result.timedOut) {
-      responseLines.push('Timed out')
-    }
-    if (result.truncated) {
-      responseLines.push('Output truncated')
-    }
-    return responseLines.join('\n')
   }
 }
