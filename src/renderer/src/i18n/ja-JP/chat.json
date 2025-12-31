@@ -120,6 +120,15 @@
       "terminal": {
         "section": "ターミナル",
         "empty": "出力はまだありません",
+        "contextMenu": {
+          "terminate": "コマンドを停止",
+          "expand": "展開",
+          "collapse": "折りたたむ"
+        },
+        "output": {
+          "truncated": "[切り捨て]"
+        },
+        "noOutput": "出力なし",
         "status": {
           "failed": "失敗",
           "completed": "成功",
@@ -166,6 +175,15 @@
     "terminal": {
       "empty": "まだ出力はありません",
       "section": "ターミナル",
+      "contextMenu": {
+        "terminate": "コマンドを停止",
+        "expand": "展開",
+        "collapse": "折りたたむ"
+      },
+      "output": {
+        "truncated": "[切り捨て]"
+      },
+      "noOutput": "出力なし",
       "status": {
         "completed": "成功 (Chénggōng) → 成功 (Seikō)",
         "failed": "失敗",

@@ -26,6 +26,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
   const planEntries = ref<WorkspacePlanEntry[]>([])
   const fileTree = ref<WorkspaceFileNode[]>([])
   const terminalSnippets = ref<WorkspaceTerminalSnippet[]>([])
+  const expandedSnippetIds = ref<Set<string>>(new Set())
   const lastSyncedConversationId = ref<string | null>(null)
   const lastSuccessfulWorkspace = ref<string | null>(null)
 
@@ -178,6 +179,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     planEntries.value = []
     fileTree.value = []
     terminalSnippets.value = []
+    expandedSnippetIds.value = new Set()
     lastSyncedConversationId.value = null
     lastSuccessfulWorkspace.value = null
   }
@@ -198,6 +200,10 @@ export const useWorkspaceStore = defineStore('workspace', () => {
   }
 
   const upsertTerminalSnippet = (snippet: WorkspaceTerminalSnippet) => {
+    if (snippet.status === 'aborted') {
+      removeTerminalSnippet(snippet.id)
+      return
+    }
     const existingIndex = terminalSnippets.value.findIndex((item) => item.id === snippet.id)
     if (existingIndex >= 0) {
       terminalSnippets.value[existingIndex] = {
@@ -208,6 +214,52 @@ export const useWorkspaceStore = defineStore('workspace', () => {
       terminalSnippets.value = [snippet, ...terminalSnippets.value]
     }
     terminalSnippets.value = trimTerminalSnippets(terminalSnippets.value)
+  }
+
+  const toggleSnippetExpansion = (snippetId: string) => {
+    const next = new Set(expandedSnippetIds.value)
+    if (next.has(snippetId)) {
+      next.delete(snippetId)
+    } else {
+      next.add(snippetId)
+    }
+    expandedSnippetIds.value = next
+  }
+
+  const removeTerminalSnippet = (snippetId: string) => {
+    terminalSnippets.value = terminalSnippets.value.filter((snippet) => snippet.id !== snippetId)
+    const next = new Set(expandedSnippetIds.value)
+    next.delete(snippetId)
+    expandedSnippetIds.value = next
+  }
+
+  const terminateCommand = async (snippetId: string) => {
+    const conversationId = chatStore.getActiveThreadId()
+    if (!conversationId) {
+      console.warn('[Workspace] No active conversation, cannot terminate command')
+      return
+    }
+
+    try {
+      await workspacePresenter.terminateCommand(conversationId, snippetId)
+      removeTerminalSnippet(snippetId)
+    } catch (error) {
+      console.error('[Workspace] Failed to terminate command:', error)
+    }
+  }
+
+  const terminateAllRunningCommands = async () => {
+    const conversationId = chatStore.getActiveThreadId()
+    if (!conversationId) return
+
+    const runningSnippets = terminalSnippets.value.filter((snippet) => snippet.status === 'running')
+    if (runningSnippets.length === 0) return
+
+    try {
+      await Promise.all(runningSnippets.map((snippet) => terminateCommand(snippet.id)))
+    } catch (error) {
+      console.error('[Workspace] Failed to terminate one or more commands:', error)
+    }
   }
 
   // === Event Listeners ===
@@ -300,6 +352,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     planEntries,
     fileTree,
     terminalSnippets,
+    expandedSnippetIds,
     // Computed
     isAgentMode,
     currentWorkspacePath,
@@ -313,6 +366,10 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     refreshPlanEntries,
     toggleFileNode,
     loadDirectoryChildren,
-    clearData
+    clearData,
+    toggleSnippetExpansion,
+    removeTerminalSnippet,
+    terminateCommand,
+    terminateAllRunningCommands
   }
 })

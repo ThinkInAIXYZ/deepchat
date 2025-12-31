@@ -6,6 +6,7 @@ import { WORKSPACE_EVENTS } from '@/events'
 import { readDirectoryShallow } from './directoryReader'
 import { PlanStateManager } from './planStateManager'
 import { searchWorkspaceFiles } from './workspaceFileSearch'
+import { terminateCommandProcess } from '@/presenter/llmProviderPresenter/agent/commandProcessTracker'
 import type {
   IWorkspacePresenter,
   WorkspaceFileNode,
@@ -188,6 +189,13 @@ export class WorkspacePresenter implements IWorkspacePresenter {
       conversationId,
       snippet
     })
+  }
+
+  /**
+   * Terminate a running command
+   */
+  async terminateCommand(conversationId: string, snippetId: string): Promise<void> {
+    await terminateCommandProcess(conversationId, snippetId)
   }
 
   /**

@@ -20,6 +20,7 @@ import {
 import router from '@/router'
 import { useI18n } from 'vue-i18n'
 import { useSoundStore } from './sound'
+import { useWorkspaceStore } from './workspace'
 import sfxfcMp3 from '/sounds/sfx-fc.mp3?url'
 import sfxtyMp3 from '/sounds/sfx-typing.mp3?url'
 import { downloadBlob } from '@/lib/download'
@@ -1231,6 +1232,9 @@ export const useChatStore = defineStore('chat', () => {
   const cancelGenerating = async (threadId: string) => {
     if (!threadId) return
     try {
+      const workspaceStore = useWorkspaceStore()
+      await workspaceStore.terminateAllRunningCommands()
+
       // 找到当前正在生成的消息
       const cache = getGeneratingMessagesCache()
       const generatingMessage = Array.from(cache.entries()).find(

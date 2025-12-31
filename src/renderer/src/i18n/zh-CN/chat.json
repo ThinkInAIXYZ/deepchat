@@ -129,6 +129,15 @@
     "terminal": {
       "section": "终端",
       "empty": "暂无输出",
+      "contextMenu": {
+        "terminate": "终止命令",
+        "expand": "展开查看",
+        "collapse": "折叠"
+      },
+      "output": {
+        "truncated": "[已截断]"
+      },
+      "noOutput": "无输出",
       "status": {
         "running": "运行中",
         "completed": "成功",
@@ -166,6 +175,15 @@
       "terminal": {
         "section": "终端",
         "empty": "暂无输出",
+        "contextMenu": {
+          "terminate": "终止命令",
+          "expand": "展开查看",
+          "collapse": "折叠"
+        },
+        "output": {
+          "truncated": "[已截断]"
+        },
+        "noOutput": "无输出",
         "status": {
           "running": "运行中",
           "completed": "成功",

@@ -8,7 +8,7 @@ import { createTwoFilesPatch } from 'diff'
 import logger from '@shared/logger'
 import { presenter } from '@/presenter'
 import { validateGlobPattern, validateRegexPattern } from '@shared/regexValidator'
-import { spawn } from 'child_process'
+import { spawn, type ChildProcess } from 'child_process'
 import { RuntimeHelper } from '../../../lib/runtimeHelper'
 import {
   CommandPermissionHandler,
@@ -16,6 +16,7 @@ import {
 } from '../../threadPresenter/handlers/commandPermissionHandler'
 import { getShellEnvironment } from './shellEnvHelper'
 import { glob } from 'glob'
+import { registerCommandProcess, unregisterCommandProcess } from './commandProcessTracker'
 
 const ReadFileArgsSchema = z.object({
   paths: z.array(z.string()).min(1).describe('Array of file paths to read')
@@ -594,7 +595,10 @@ export class AgentFileSystemHandler {
   private async runShellProcess(
     command: string,
     cwd: string,
-    timeout: number
+    timeout: number,
+    options: {
+      onSpawn?: (child: ChildProcess, markAborted: () => void) => void
+    } = {}
   ): Promise<{
     output: string
     exitCode: number | null
@@ -622,6 +626,11 @@ export class AgentFileSystemHandler {
       let exitCode: number | null = null
       let timeoutId: NodeJS.Timeout | null = null
       let killTimeoutId: NodeJS.Timeout | null = null
+      const markAborted = () => {
+        aborted = true
+      }
+
+      options.onSpawn?.(child, markAborted)
 
       const appendOutput = (chunk: string) => {
         if (truncated) return
@@ -1106,7 +1115,10 @@ export class AgentFileSystemHandler {
     }
   }
 
-  async executeCommand(args: unknown, options: { conversationId?: string } = {}): Promise<string> {
+  async executeCommand(
+    args: unknown,
+    options: { conversationId?: string; snippetId?: string } = {}
+  ): Promise<string> {
     const parsed = ExecuteCommandArgsSchema.safeParse(args)
     if (!parsed.success) {
       throw new Error(`Invalid arguments: ${parsed.error}`)
@@ -1136,7 +1148,7 @@ export class AgentFileSystemHandler {
     }
     const cwd = workdir ? await this.validatePath(workdir) : this.allowedDirectories[0]
     const startedAt = Date.now()
-    const snippetId = randomUUID()
+    const snippetId = options.snippetId ?? randomUUID()
 
     await this.emitTerminalSnippet(options.conversationId, {
       id: snippetId,
@@ -1151,8 +1163,16 @@ export class AgentFileSystemHandler {
     })
 
     let result
+    const conversationId = options.conversationId
+    let shouldUnregisterProcess = false
     try {
-      result = await this.runShellProcess(command, cwd, timeout ?? COMMAND_DEFAULT_TIMEOUT_MS)
+      result = await this.runShellProcess(command, cwd, timeout ?? COMMAND_DEFAULT_TIMEOUT_MS, {
+        onSpawn: (child, markAborted) => {
+          if (!conversationId) return
+          registerCommandProcess(conversationId, snippetId, child, markAborted)
+          shouldUnregisterProcess = true
+        }
+      })
     } catch (error) {
       const endedAt = Date.now()
       await this.emitTerminalSnippet(options.conversationId, {
@@ -1169,6 +1189,10 @@ export class AgentFileSystemHandler {
         timestamp: endedAt
       })
       throw error
+    } finally {
+      if (shouldUnregisterProcess && conversationId) {
+        unregisterCommandProcess(conversationId, snippetId)
+      }
     }
 
     const endedAt = Date.now()

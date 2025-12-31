@@ -155,6 +155,13 @@ export interface IWorkspacePresenter {
   emitTerminalSnippet(conversationId: string, snippet: WorkspaceTerminalSnippet): Promise<void>
 
   /**
+   * Terminate a running command
+   * @param conversationId Conversation ID
+   * @param snippetId Terminal snippet ID
+   */
+  terminateCommand(conversationId: string, snippetId: string): Promise<void>
+
+  /**
    * Clear workspace data for a conversation
    * @param conversationId Conversation ID
    */

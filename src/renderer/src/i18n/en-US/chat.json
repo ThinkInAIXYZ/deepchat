@@ -129,6 +129,15 @@
     "terminal": {
       "section": "Terminal",
       "empty": "No output yet",
+      "contextMenu": {
+        "terminate": "Terminate",
+        "expand": "Expand",
+        "collapse": "Collapse"
+      },
+      "output": {
+        "truncated": "[truncated]"
+      },
+      "noOutput": "No output",
       "status": {
         "running": "Running",
         "completed": "Success",
@@ -166,6 +175,15 @@
       "terminal": {
         "section": "Terminal",
         "empty": "No output yet",
+        "contextMenu": {
+          "terminate": "Terminate",
+          "expand": "Expand",
+          "collapse": "Collapse"
+        },
+        "output": {
+          "truncated": "[truncated]"
+        },
+        "noOutput": "No output",
         "status": {
           "running": "Running",
           "completed": "Success",
