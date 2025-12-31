@@ -53,10 +53,7 @@ const store = useWorkspaceStore()
 const chatMode = useChatMode()
 const showBrowserTabs = computed(() => chatMode.currentMode.value === 'agent')
 
-const i18nPrefix = computed(() =>
-  chatMode.currentMode.value === 'acp agent' ? 'chat.acp.workspace' : 'chat.workspace'
-)
-
+const i18nPrefix = computed(() => 'chat.workspace')
 const titleKey = computed(() => `${i18nPrefix.value}.title`)
 const collapseKey = computed(() => `${i18nPrefix.value}.collapse`)
 

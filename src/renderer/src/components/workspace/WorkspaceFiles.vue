@@ -48,19 +48,14 @@ import { ref, computed } from 'vue'
 import { Icon } from '@iconify/vue'
 import { useI18n } from 'vue-i18n'
 import { useWorkspaceStore } from '@/stores/workspace'
-import { useChatMode } from '@/components/chat-input/composables/useChatMode'
 import WorkspaceFileNode from './WorkspaceFileNode.vue'
 import type { WorkspaceFileNode as WorkspaceFileNodeType } from '@shared/presenter'
 
 const { t } = useI18n()
 const store = useWorkspaceStore()
-const chatMode = useChatMode()
 const showFiles = ref(true)
 
-const i18nPrefix = computed(() =>
-  chatMode.currentMode.value === 'acp agent' ? 'chat.acp.workspace' : 'chat.workspace'
-)
-
+const i18nPrefix = computed(() => 'chat.workspace')
 const sectionKey = computed(() => `${i18nPrefix.value}.files.section`)
 const loadingKey = computed(() => `${i18nPrefix.value}.files.loading`)
 const emptyKey = computed(() => `${i18nPrefix.value}.files.empty`)

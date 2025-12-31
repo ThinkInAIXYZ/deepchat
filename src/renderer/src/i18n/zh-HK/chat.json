@@ -92,54 +92,7 @@
     "expand": "展開",
     "title": "MCP UI"
   },
-  "acp": {
-    "workspace": {
-      "title": "工作區",
-      "collapse": "收起",
-      "plan": {
-        "section": "計劃",
-        "empty": "暫無任務",
-        "status": {
-          "pending": "待處理",
-          "in_progress": "進行中",
-          "completed": "已完成",
-          "failed": "失敗",
-          "skipped": "已跳過"
-        }
-      },
-      "files": {
-        "section": "檔案",
-        "empty": "暫無檔案",
-        "loading": "載入檔案中...",
-        "contextMenu": {
-          "openFile": "開啟檔案",
-          "revealInFolder": "在檔案管理器中開啟",
-          "insertPath": "插入到輸入框"
-        }
-      },
-      "terminal": {
-        "section": "終端",
-        "empty": "暫無輸出",
-        "status": {
-          "failed": "失敗",
-          "aborted": "已中止",
-          "running": "運行中",
-          "timed_out": "已超時",
-          "completed": "成功"
-        },
-        "contextMenu": {
-          "collapse": "摺疊",
-          "delete": "刪除記錄",
-          "expand": "展開查看",
-          "terminate": "終止命令"
-        },
-        "noOutput": "無輸出",
-        "output": {
-          "truncated": "[已截斷]"
-        }
-      }
-    }
-  },
+  "acp": {},
   "mode": {
     "acpAgent": "ACP Agent",
     "agent": "Agent",

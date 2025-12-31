@@ -92,54 +92,7 @@
     "expand": "Développer",
     "title": "MCP UI"
   },
-  "acp": {
-    "workspace": {
-      "title": "Espace de travail",
-      "collapse": "Réduire",
-      "plan": {
-        "section": "Plan",
-        "empty": "Aucune tâche pour le moment",
-        "status": {
-          "pending": "En attente",
-          "in_progress": "En cours",
-          "completed": "Terminé",
-          "failed": "Échoué",
-          "skipped": "Ignoré"
-        }
-      },
-      "files": {
-        "section": "Fichiers",
-        "empty": "Aucun fichier",
-        "loading": "Chargement des fichiers...",
-        "contextMenu": {
-          "insertPath": "Insérer dans la zone de saisie",
-          "openFile": "ouvrir le fichier",
-          "revealInFolder": "Ouvrir dans le gestionnaire de fichiers"
-        }
-      },
-      "terminal": {
-        "section": "Terminal",
-        "empty": "Aucune sortie",
-        "status": {
-          "aborted": "avorté",
-          "completed": "succès",
-          "running": "En cours d'exécution",
-          "timed_out": "Délai expiré",
-          "failed": "échouer"
-        },
-        "contextMenu": {
-          "collapse": "Plier",
-          "delete": "Supprimer les enregistrements",
-          "expand": "Développer pour voir",
-          "terminate": "Commande d'arrêt"
-        },
-        "noOutput": "Aucune sortie",
-        "output": {
-          "truncated": "[Tronqué]"
-        }
-      }
-    }
-  },
+  "acp": {},
   "mode": {
     "acpAgent": "Agent ACP",
     "agent": "Agent",

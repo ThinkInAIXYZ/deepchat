@@ -92,54 +92,7 @@
     "expand": "گسترش دهید",
     "title": "MCP UI"
   },
-  "acp": {
-    "workspace": {
-      "title": "فضای کاری",
-      "collapse": "بستن",
-      "plan": {
-        "section": "برنامه",
-        "empty": "هنوز وظیفه‌ای وجود ندارد",
-        "status": {
-          "pending": "در انتظار",
-          "in_progress": "در حال انجام",
-          "completed": "تکمیل شده",
-          "failed": "ناموفق",
-          "skipped": "رد شده"
-        }
-      },
-      "files": {
-        "section": "فایل‌ها",
-        "empty": "فایلی وجود ندارد",
-        "loading": "در حال بارگذاری فایل‌ها...",
-        "contextMenu": {
-          "insertPath": "در جعبه ورودی وارد کنید",
-          "openFile": "باز کردن فایل",
-          "revealInFolder": "در فایل منیجر باز کنید"
-        }
-      },
-      "terminal": {
-        "section": "ترمینال",
-        "empty": "خروجی وجود ندارد",
-        "status": {
-          "aborted": "سقط شد",
-          "completed": "موفقیت",
-          "failed": "شکست بخورد",
-          "running": "در حال دویدن",
-          "timed_out": "زمان تمام شد"
-        },
-        "contextMenu": {
-          "collapse": "تا زدن",
-          "delete": "حذف رکورد",
-          "terminate": "دستور خاتمه",
-          "expand": "نمایش کامل"
-        },
-        "noOutput": "خروجی ندارد",
-        "output": {
-          "truncated": "[قطع شده]"
-        }
-      }
-    }
-  },
+  "acp": {},
   "mode": {
     "acpAgent": "نماینده ACP",
     "agent": "عامل",

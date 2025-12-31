@@ -122,7 +122,6 @@ import { ref, computed, nextTick, type ComponentPublicInstance, type VNodeRef } 
 import { Icon } from '@iconify/vue'
 import { useI18n } from 'vue-i18n'
 import { useWorkspaceStore } from '@/stores/workspace'
-import { useChatMode } from '@/components/chat-input/composables/useChatMode'
 import {
   ContextMenu,
   ContextMenuContent,
@@ -134,14 +133,10 @@ import type { WorkspaceTerminalStatus } from '@shared/presenter'
 
 const { t } = useI18n()
 const store = useWorkspaceStore()
-const chatMode = useChatMode()
 const showTerminal = ref(true)
 const expandedOutputRefs = ref<Map<string, HTMLElement>>(new Map())
 
-const i18nPrefix = computed(() =>
-  chatMode.currentMode.value === 'acp agent' ? 'chat.acp.workspace' : 'chat.workspace'
-)
-
+const i18nPrefix = computed(() => 'chat.workspace')
 const terminalKeyPrefix = computed(() => `${i18nPrefix.value}.terminal`)
 const sectionKey = computed(() => `${terminalKeyPrefix.value}.section`)
 

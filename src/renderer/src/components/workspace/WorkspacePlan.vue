@@ -60,18 +60,13 @@ import { ref, computed } from 'vue'
 import { Icon } from '@iconify/vue'
 import { useI18n } from 'vue-i18n'
 import { useWorkspaceStore } from '@/stores/workspace'
-import { useChatMode } from '@/components/chat-input/composables/useChatMode'
 import type { WorkspacePlanStatus } from '@shared/presenter'
 
 const { t } = useI18n()
 const store = useWorkspaceStore()
-const chatMode = useChatMode()
 const showPlan = ref(true)
 
-const i18nPrefix = computed(() =>
-  chatMode.currentMode.value === 'acp agent' ? 'chat.acp.workspace' : 'chat.workspace'
-)
-
+const i18nPrefix = computed(() => 'chat.workspace')
 const sectionKey = computed(() => `${i18nPrefix.value}.plan.section`)
 
 const getStatusIcon = (status: WorkspacePlanStatus): string => {

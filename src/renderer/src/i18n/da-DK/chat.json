@@ -92,54 +92,7 @@
     "responseData": "Svardata",
     "title": "Værktøjsopkald"
   },
-  "acp": {
-    "workspace": {
-      "title": "Arbejdsområde",
-      "collapse": "Skjul",
-      "plan": {
-        "section": "Plan",
-        "empty": "Ingen opgaver endnu",
-        "status": {
-          "pending": "Afventer",
-          "in_progress": "I gang",
-          "completed": "Fuldført",
-          "failed": "Fejlet",
-          "skipped": "Sprunget over"
-        }
-      },
-      "files": {
-        "section": "Filer",
-        "empty": "Ingen filer",
-        "loading": "Indlæser filer...",
-        "contextMenu": {
-          "insertPath": "Indsæt i inputboksen",
-          "openFile": "åbne fil",
-          "revealInFolder": "Åbn i filhåndtering"
-        }
-      },
-      "terminal": {
-        "section": "Terminal",
-        "empty": "Ingen output",
-        "status": {
-          "aborted": "afbrudt",
-          "completed": "succes",
-          "running": "Løb",
-          "timed_out": "Timeout",
-          "failed": "svigte"
-        },
-        "contextMenu": {
-          "expand": "Udvid for at se",
-          "terminate": "Afslut kommando",
-          "collapse": "foldning",
-          "delete": "Slet post"
-        },
-        "noOutput": "Ingen uddata",
-        "output": {
-          "truncated": "[afkortet]"
-        }
-      }
-    }
-  },
+  "acp": {},
   "mode": {
     "acpAgent": "ACP-agent",
     "agent": "Agent",

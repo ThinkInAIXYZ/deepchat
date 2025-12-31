@@ -148,52 +148,5 @@
       }
     }
   },
-  "acp": {
-    "workspace": {
-      "title": "Workspace",
-      "collapse": "Collapse",
-      "plan": {
-        "section": "Plan",
-        "empty": "No tasks yet",
-        "status": {
-          "pending": "Pending",
-          "in_progress": "In Progress",
-          "completed": "Completed",
-          "failed": "Failed",
-          "skipped": "Skipped"
-        }
-      },
-      "files": {
-        "section": "Files",
-        "empty": "No files",
-        "loading": "Loading files...",
-        "contextMenu": {
-          "openFile": "Open file",
-          "revealInFolder": "Show in file manager",
-          "insertPath": "Insert into input"
-        }
-      },
-      "terminal": {
-        "section": "Terminal",
-        "empty": "No output yet",
-        "contextMenu": {
-          "terminate": "Terminate",
-          "delete": "Delete record",
-          "expand": "Expand",
-          "collapse": "Collapse"
-        },
-        "output": {
-          "truncated": "[truncated]"
-        },
-        "noOutput": "No output",
-        "status": {
-          "running": "Running",
-          "completed": "Success",
-          "failed": "Failed",
-          "timed_out": "Timed out",
-          "aborted": "Aborted"
-        }
-      }
-    }
-  }
+  "acp": {}
 }

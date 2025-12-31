@@ -92,54 +92,7 @@
     "expand": "Expandir",
     "title": "MCP UI"
   },
-  "acp": {
-    "workspace": {
-      "title": "Área de trabalho",
-      "collapse": "Recolher",
-      "plan": {
-        "section": "Plano",
-        "empty": "Nenhuma tarefa ainda",
-        "status": {
-          "pending": "Pendente",
-          "in_progress": "Em andamento",
-          "completed": "Concluído",
-          "failed": "Falhou",
-          "skipped": "Ignorado"
-        }
-      },
-      "files": {
-        "section": "Arquivos",
-        "empty": "Nenhum arquivo",
-        "loading": "Carregando arquivos...",
-        "contextMenu": {
-          "insertPath": "Insira na caixa de entrada",
-          "openFile": "abrir arquivo",
-          "revealInFolder": "Abrir no gerenciador de arquivos"
-        }
-      },
-      "terminal": {
-        "section": "Terminal",
-        "empty": "Nenhuma saída",
-        "status": {
-          "failed": "falhar",
-          "completed": "sucesso",
-          "running": "Em execução",
-          "timed_out": "Tempo esgotado",
-          "aborted": "interrompido"
-        },
-        "contextMenu": {
-          "collapse": "Dobrar",
-          "delete": "Excluir registro",
-          "expand": "Expandir para visualizar",
-          "terminate": "Comando de Terminação"
-        },
-        "noOutput": "Sem saída",
-        "output": {
-          "truncated": "[Truncado]"
-        }
-      }
-    }
-  },
+  "acp": {},
   "mode": {
     "acpAgent": "Agente ACP",
     "agent": "Agente",

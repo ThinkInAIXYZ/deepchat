@@ -92,54 +92,7 @@
     "expand": "Расширять",
     "title": "MCP UI"
   },
-  "acp": {
-    "workspace": {
-      "title": "Рабочее пространство",
-      "collapse": "Свернуть",
-      "plan": {
-        "section": "План",
-        "empty": "Пока нет задач",
-        "status": {
-          "pending": "Ожидание",
-          "in_progress": "Выполняется",
-          "completed": "Завершено",
-          "failed": "Ошибка",
-          "skipped": "Пропущено"
-        }
-      },
-      "files": {
-        "section": "Файлы",
-        "empty": "Нет файлов",
-        "loading": "Загрузка файлов...",
-        "contextMenu": {
-          "insertPath": "Вставить в поле ввода",
-          "openFile": "открыть файл",
-          "revealInFolder": "Открыть в файловом менеджере"
-        }
-      },
-      "terminal": {
-        "section": "Терминал",
-        "empty": "Нет вывода",
-        "status": {
-          "failed": "неудача",
-          "aborted": "прерван",
-          "completed": "успех",
-          "timed_out": "Время ожидания истекло",
-          "running": "Выполняется"
-        },
-        "contextMenu": {
-          "expand": "Развернуть для просмотра",
-          "terminate": "Команда завершения",
-          "collapse": "складывать",
-          "delete": "Удалить запись"
-        },
-        "noOutput": "без вывода",
-        "output": {
-          "truncated": "[Обрезано]"
-        }
-      }
-    }
-  },
+  "acp": {},
   "mode": {
     "acpAgent": "Агент АШП",
     "agent": "Агент",

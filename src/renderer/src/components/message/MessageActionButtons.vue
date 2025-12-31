@@ -19,7 +19,7 @@
       variant="outline"
       size="icon"
       class="w-8 h-8 shrink-0 opacity-100 bg-card backdrop-blur-lg z-30"
-      :title="t('chat.acp.workspace.title')"
+      :title="t('chat.workspace.title')"
       @click="$emit('open-workspace')"
     >
       <Icon icon="lucide:layout-dashboard" class="w-5 h-5 text-foreground" />

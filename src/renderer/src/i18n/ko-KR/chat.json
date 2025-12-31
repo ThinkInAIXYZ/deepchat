@@ -92,54 +92,7 @@
     "expand": "확장하다",
     "title": "MCP UI"
   },
-  "acp": {
-    "workspace": {
-      "title": "작업 공간",
-      "collapse": "접기",
-      "plan": {
-        "section": "계획",
-        "empty": "아직 작업이 없습니다",
-        "status": {
-          "pending": "대기 중",
-          "in_progress": "진행 중",
-          "completed": "완료",
-          "failed": "실패",
-          "skipped": "건너뜀"
-        }
-      },
-      "files": {
-        "section": "파일",
-        "empty": "파일이 없습니다",
-        "loading": "파일 로딩 중...",
-        "contextMenu": {
-          "insertPath": "입력창에 삽입",
-          "openFile": "파일 열기",
-          "revealInFolder": "파일 관리자에서 열기"
-        }
-      },
-      "terminal": {
-        "section": "터미널",
-        "empty": "출력이 없습니다",
-        "status": {
-          "failed": "실패하다",
-          "aborted": "중지됨",
-          "running": "실행 중",
-          "timed_out": "시간 초과",
-          "completed": "성공"
-        },
-        "contextMenu": {
-          "delete": "기록 삭제",
-          "terminate": "종료 명령",
-          "collapse": "접다",
-          "expand": "펼쳐보기"
-        },
-        "noOutput": "출력 없음",
-        "output": {
-          "truncated": "[잘림]"
-        }
-      }
-    }
-  },
+  "acp": {},
   "mode": {
     "acpAgent": "ACP 에이전트",
     "agent": "대리인",
