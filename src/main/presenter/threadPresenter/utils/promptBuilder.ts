@@ -673,10 +673,16 @@ function addImageFiles(finalContent: string, imageFiles: MessageFile[]): ChatMes
   return {
     role: 'user',
     content: [
-      ...imageFiles.map((file) => ({
-        type: 'image_url' as const,
-        image_url: { url: file.content, detail: 'auto' as const }
-      })),
+      ...imageFiles.flatMap((file) => [
+        {
+          type: 'text' as const,
+          text: `File path for tool calls: ${file.path}`
+        },
+        {
+          type: 'image_url' as const,
+          image_url: { url: file.content, detail: 'auto' as const }
+        }
+      ]),
       { type: 'text' as const, text: finalContent.trim() }
     ]
   }
