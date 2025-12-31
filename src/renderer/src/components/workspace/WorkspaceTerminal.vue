@@ -140,7 +140,7 @@ const i18nPrefix = computed(() => 'chat.workspace')
 const terminalKeyPrefix = computed(() => `${i18nPrefix.value}.terminal`)
 const sectionKey = computed(() => `${terminalKeyPrefix.value}.section`)
 
-type DisplayStatus = 'running' | 'completed' | 'failed' | 'timed_out'
+type DisplayStatus = 'running' | 'completed' | 'failed' | 'timed_out' | 'aborted'
 
 const isSnippetExpanded = (snippetId: string) => store.expandedSnippetIds.has(snippetId)
 
@@ -184,7 +184,8 @@ const getDisplayStatus = (status: WorkspaceTerminalStatus): DisplayStatus => {
     status === 'running' ||
     status === 'completed' ||
     status === 'failed' ||
-    status === 'timed_out'
+    status === 'timed_out' ||
+    status === 'aborted'
   ) {
     return status
   }
@@ -195,21 +196,24 @@ const statusColorMap: Record<DisplayStatus, string> = {
   running: 'text-sky-500',
   completed: 'text-green-500',
   failed: 'text-red-500',
-  timed_out: 'text-amber-500'
+  timed_out: 'text-amber-500',
+  aborted: 'text-orange-500'
 }
 
 const statusIconClassMap: Record<DisplayStatus, string> = {
   running: 'h-3.5 w-3.5 animate-spin text-sky-500',
   completed: 'h-3.5 w-3.5 text-green-500',
   failed: 'h-3.5 w-3.5 text-red-500',
-  timed_out: 'h-3.5 w-3.5 text-amber-500'
+  timed_out: 'h-3.5 w-3.5 text-amber-500',
+  aborted: 'h-3.5 w-3.5 text-orange-500'
 }
 
 const statusIconMap: Record<DisplayStatus, string> = {
   running: 'lucide:loader-2',
   completed: 'lucide:check',
   failed: 'lucide:x',
-  timed_out: 'lucide:clock'
+  timed_out: 'lucide:clock',
+  aborted: 'lucide:ban'
 }
 
 const getStatusLabelClass = (status: DisplayStatus) =>

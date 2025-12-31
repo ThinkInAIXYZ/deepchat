@@ -137,7 +137,7 @@
       "noOutput": "출력 없음",
       "status": {
         "aborted": "중지됨",
-        "completed": "성공",
+        "completed": "완료",
         "failed": "실패",
         "running": "실행 중",
         "timed_out": "시간 초과"

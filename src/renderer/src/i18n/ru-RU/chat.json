@@ -130,13 +130,13 @@
       "section": "Терминал",
       "status": {
         "aborted": "прерван",
-        "completed": "успех",
+        "completed": "Завершенный",
         "failed": "неудача",
         "timed_out": "Время ожидания истекло",
         "running": "в работе"
       },
       "contextMenu": {
-        "collapse": "складывание",
+        "collapse": "закрывать",
         "delete": "Удалить запись",
         "expand": "Развернуть для просмотра",
         "terminate": "Команда завершения"
