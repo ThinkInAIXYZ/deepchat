@@ -122,6 +122,7 @@
         "empty": "出力はまだありません",
         "contextMenu": {
           "terminate": "コマンドを停止",
+          "delete": "記録を削除",
           "expand": "展開",
           "collapse": "折りたたむ"
         },
@@ -177,6 +178,7 @@
       "section": "ターミナル",
       "contextMenu": {
         "terminate": "コマンドを停止",
+        "delete": "記録を削除",
         "expand": "展開",
         "collapse": "折りたたむ"
       },

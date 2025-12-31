@@ -25,13 +25,33 @@
     "type": {
       "read": "Acesso de Leitura",
       "write": "Acesso de Escrita",
-      "all": "Acesso Total"
+      "all": "Acesso Total",
+      "command": "Executar comando"
     },
     "description": {
       "read": "Permitir que '{toolName}' de '{serverName}' realize operações de leitura?",
       "write": "Permitir que '{toolName}' de '{serverName}' realize operações de escrita?",
-      "all": "Permitir que '{toolName}' de '{serverName}' realize operações de leitura e escrita?"
-    }
+      "all": "Permitir que '{toolName}' de '{serverName}' realize operações de leitura e escrita?",
+      "command": "Executar comando: {command}",
+      "commandWithRisk": "Executar comando: {command}\n\nNível de risco: {riskLevel}\n\nSugestão: {suggestion}"
+    },
+    "allowOnce": "Permitir uma vez",
+    "riskLabel": "risco",
+    "riskLevel": {
+      "critical": "grave",
+      "high": "alto",
+      "low": "baixo",
+      "medium": "China"
+    },
+    "suggestion": {
+      "critical": "Este comando pode ser destrutivo ou acessar redes externas. Por favor, verifique.",
+      "high": "Este comando modificará arquivos ou o estado do sistema. Use com cautela.",
+      "medium": "Este comando pode instalar dependências ou modificar o estado. Confirme antes de executar.",
+      "low": "Este comando é uma operação somente leitura, com impacto mínimo."
+    },
+    "allowForSessionTooltip": "Lembre-se deste comando na sessão atual.",
+    "allowOnceTooltip": "Executar este comando apenas desta vez, sem salvar a decisão.",
+    "allowForSession": "Sessão atual executa automaticamente"
   },
   "promptParamsDialog": {
     "title": "Configurações de Parâmetros de {name}",

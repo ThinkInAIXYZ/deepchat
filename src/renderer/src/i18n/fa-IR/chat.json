@@ -126,6 +126,16 @@
           "failed": "شکست بخورد",
           "running": "در حال دویدن",
           "timed_out": "زمان تمام شد"
+        },
+        "contextMenu": {
+          "collapse": "تا زدن",
+          "delete": "حذف رکورد",
+          "terminate": "دستور خاتمه",
+          "expand": "نمایش کامل"
+        },
+        "noOutput": "خروجی ندارد",
+        "output": {
+          "truncated": "[قطع شده]"
         }
       }
     }
@@ -172,7 +182,17 @@
         "running": "در حال دویدن",
         "timed_out": "زمان تمام شد",
         "failed": "شکست بخورد"
-      }
+      },
+      "contextMenu": {
+        "delete": "حذف رکورد",
+        "terminate": "دستور خاتمه",
+        "collapse": "تا زدن",
+        "expand": "نمایش کامل"
+      },
+      "output": {
+        "truncated": "[قطع شده]"
+      },
+      "noOutput": "بدون خروجی"
     },
     "title": "فضای کار"
   }

@@ -126,6 +126,16 @@
           "running": "Løb",
           "timed_out": "Timeout",
           "failed": "svigte"
+        },
+        "contextMenu": {
+          "expand": "Udvid for at se",
+          "terminate": "Afslut kommando",
+          "collapse": "foldning",
+          "delete": "Slet post"
+        },
+        "noOutput": "Ingen uddata",
+        "output": {
+          "truncated": "[Afkortet]"
         }
       }
     }
@@ -172,6 +182,16 @@
         "failed": "svigte",
         "running": "Løb",
         "timed_out": "Timeout"
+      },
+      "contextMenu": {
+        "delete": "Slet post",
+        "expand": "Udvid for at se",
+        "terminate": "Afslut kommando",
+        "collapse": "Foldning"
+      },
+      "noOutput": "Ingen uddata",
+      "output": {
+        "truncated": "[afkortet]"
       }
     },
     "title": "arbejdsrum"

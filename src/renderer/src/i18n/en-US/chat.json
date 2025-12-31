@@ -131,6 +131,7 @@
       "empty": "No output yet",
       "contextMenu": {
         "terminate": "Terminate",
+        "delete": "Delete record",
         "expand": "Expand",
         "collapse": "Collapse"
       },
@@ -177,6 +178,7 @@
         "empty": "No output yet",
         "contextMenu": {
           "terminate": "Terminate",
+          "delete": "Delete record",
           "expand": "Expand",
           "collapse": "Collapse"
         },

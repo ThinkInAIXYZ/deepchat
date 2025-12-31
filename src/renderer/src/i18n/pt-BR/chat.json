@@ -121,7 +121,20 @@
         "section": "Terminal",
         "empty": "Nenhuma saída",
         "status": {
-          "failed": "falhar"
+          "failed": "falhar",
+          "completed": "sucesso",
+          "running": "Em execução",
+          "timed_out": "Tempo esgotado"
+        },
+        "contextMenu": {
+          "collapse": "Dobrar",
+          "delete": "Excluir registro",
+          "expand": "Expandir para visualizar",
+          "terminate": "Comando de Terminação"
+        },
+        "noOutput": "Sem saída",
+        "output": {
+          "truncated": "[Truncado]"
         }
       }
     }
@@ -161,7 +174,24 @@
     },
     "terminal": {
       "empty": "Nenhuma saída ainda",
-      "section": "terminal"
+      "section": "terminal",
+      "contextMenu": {
+        "collapse": "Dobrar",
+        "expand": "Expandir para visualizar",
+        "terminate": "Comando de Término",
+        "delete": "Excluir registro"
+      },
+      "output": {
+        "truncated": "[Truncado]"
+      },
+      "status": {
+        "aborted": "Cancelado",
+        "completed": "sucesso",
+        "failed": "Falha",
+        "running": "Em execução",
+        "timed_out": "Tempo esgotado"
+      },
+      "noOutput": "Sem saída"
     },
     "title": "área de trabalho"
   }

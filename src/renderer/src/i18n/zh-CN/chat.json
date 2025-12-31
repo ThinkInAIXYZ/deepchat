@@ -131,6 +131,7 @@
       "empty": "暂无输出",
       "contextMenu": {
         "terminate": "终止命令",
+        "delete": "删除记录",
         "expand": "展开查看",
         "collapse": "折叠"
       },
@@ -177,6 +178,7 @@
         "empty": "暂无输出",
         "contextMenu": {
           "terminate": "终止命令",
+          "delete": "删除记录",
           "expand": "展开查看",
           "collapse": "折叠"
         },

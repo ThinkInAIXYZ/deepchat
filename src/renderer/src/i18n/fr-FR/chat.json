@@ -126,6 +126,16 @@
           "running": "En cours d'exécution",
           "timed_out": "Délai expiré",
           "failed": "échouer"
+        },
+        "contextMenu": {
+          "collapse": "Plier",
+          "delete": "Supprimer les enregistrements",
+          "expand": "Développer pour voir",
+          "terminate": "Commande d'arrêt"
+        },
+        "noOutput": "Aucune sortie",
+        "output": {
+          "truncated": "[Tronqué]"
         }
       }
     }
@@ -172,6 +182,16 @@
         "running": "En cours d'exécution",
         "timed_out": "Délai expiré",
         "failed": "échouer"
+      },
+      "contextMenu": {
+        "collapse": "plier",
+        "delete": "Supprimer l'enregistrement",
+        "expand": "Développer pour voir",
+        "terminate": "Commande d’arrêt"
+      },
+      "noOutput": "Aucune sortie",
+      "output": {
+        "truncated": "[Tronqué]"
       }
     },
     "title": "espace de travail"

@@ -126,6 +126,16 @@
           "running": "運行中",
           "timed_out": "已超時",
           "completed": "成功"
+        },
+        "contextMenu": {
+          "collapse": "摺疊",
+          "delete": "刪除記錄",
+          "expand": "展開查看",
+          "terminate": "終止命令"
+        },
+        "noOutput": "無輸出",
+        "output": {
+          "truncated": "[已截斷]"
         }
       }
     }
@@ -172,6 +182,16 @@
         "failed": "失敗",
         "running": "運行中",
         "timed_out": "已超時"
+      },
+      "contextMenu": {
+        "collapse": "摺疊",
+        "terminate": "終止命令",
+        "delete": "刪除記錄",
+        "expand": "展開查看"
+      },
+      "noOutput": "無輸出",
+      "output": {
+        "truncated": "[已截斷]"
       }
     },
     "title": "工作區"

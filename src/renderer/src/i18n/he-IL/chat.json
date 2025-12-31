@@ -125,6 +125,16 @@
           "running": "בביצוע",
           "timed_out": "הזמן עבר",
           "aborted": "הופסק"
+        },
+        "contextMenu": {
+          "expand": "הרחב לצפייה",
+          "terminate": "פקודת סיום",
+          "delete": "מחק רשומה",
+          "collapse": "קיפול"
+        },
+        "noOutput": "אין פלט",
+        "output": {
+          "truncated": "[נקטע]"
         }
       },
       "title": "סביבת עבודה"
@@ -172,6 +182,16 @@
         "timed_out": "פסק זמן",
         "aborted": "הופסק",
         "running": "בפעילות"
+      },
+      "contextMenu": {
+        "collapse": "קיפול",
+        "delete": "מחק רשומה",
+        "expand": "הרחב לצפייה",
+        "terminate": "פקודת סיום"
+      },
+      "noOutput": "ללא פלט",
+      "output": {
+        "truncated": "[מקוצר]"
       }
     },
     "title": "סביבת עבודה"

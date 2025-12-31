@@ -69,6 +69,10 @@
                   <Icon icon="lucide:stop-circle" class="h-4 w-4" />
                   {{ t(`${terminalKeyPrefix}.contextMenu.terminate`) }}
                 </ContextMenuItem>
+                <ContextMenuItem v-else @select="handleDelete(snippet.id)">
+                  <Icon icon="lucide:trash-2" class="h-4 w-4" />
+                  {{ t(`${terminalKeyPrefix}.contextMenu.delete`) }}
+                </ContextMenuItem>
                 <ContextMenuSeparator />
                 <ContextMenuItem
                   v-if="isSnippetExpanded(snippet.id)"
@@ -174,6 +178,10 @@ const handleSnippetClick = (snippetId: string) => {
 
 const handleTerminate = async (snippetId: string) => {
   await store.terminateCommand(snippetId)
+}
+
+const handleDelete = (snippetId: string) => {
+  store.removeTerminalSnippet(snippetId)
 }
 
 const getDisplayStatus = (status: WorkspaceTerminalStatus): DisplayStatus => {

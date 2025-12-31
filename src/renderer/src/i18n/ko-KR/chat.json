@@ -121,7 +121,21 @@
         "section": "터미널",
         "empty": "출력이 없습니다",
         "status": {
-          "failed": "실패하다"
+          "failed": "실패하다",
+          "aborted": "중지됨",
+          "running": "실행 중",
+          "timed_out": "시간 초과",
+          "completed": "성공"
+        },
+        "contextMenu": {
+          "delete": "기록 삭제",
+          "terminate": "종료 명령",
+          "collapse": "접다",
+          "expand": "펼쳐보기"
+        },
+        "noOutput": "출력 없음",
+        "output": {
+          "truncated": "[잘림]"
         }
       }
     }
@@ -161,7 +175,24 @@
     },
     "terminal": {
       "empty": "아직 출력이 없습니다",
-      "section": "단말기"
+      "section": "단말기",
+      "contextMenu": {
+        "collapse": "접기",
+        "delete": "기록 삭제",
+        "expand": "펼쳐보기",
+        "terminate": "종료 명령"
+      },
+      "noOutput": "출력 없음",
+      "status": {
+        "aborted": "중지됨",
+        "completed": "성공",
+        "failed": "실패",
+        "running": "실행 중",
+        "timed_out": "시간 초과"
+      },
+      "output": {
+        "truncated": "[잘림]"
+      }
     },
     "title": "작업 공간"
   }

@@ -25,13 +25,33 @@
     "type": {
       "read": "읽기 권한",
       "write": "쓰기 권한",
-      "all": "모든 권한"
+      "all": "모든 권한",
+      "command": "명령 실행"
     },
     "description": {
       "all": "읽기 및 쓰기 작업을 수행하려면 '{servername}'의 '{toolname}'을 허용합니까?",
       "read": "읽기 작업을 수행하려면 '{servername}'의 '{toolname}'을 허용합니까?",
-      "write": "쓰기 작업을 수행하려면 '{servername}'의 '{toolname}'을 허용합니까?"
-    }
+      "write": "쓰기 작업을 수행하려면 '{servername}'의 '{toolname}'을 허용합니까?",
+      "command": "명령 실행: {command}",
+      "commandWithRisk": "명령 실행: {command}\n\n위험 등급: {riskLevel}\n\n제안: {suggestion}"
+    },
+    "allowOnce": "한 번 허용",
+    "riskLabel": "위험",
+    "riskLevel": {
+      "critical": "심각",
+      "medium": "중",
+      "low": "낮다",
+      "high": "높은"
+    },
+    "suggestion": {
+      "medium": "이 명령은 의존성을 설치하거나 상태를 변경할 수 있습니다. 확인 후 실행하세요.",
+      "critical": "이 명령은 파괴적일 수 있거나 외부 네트워크에 접근할 수 있으니 확인하세요.",
+      "high": "이 명령은 파일 또는 시스템 상태를 수정합니다. 주의하세요.",
+      "low": "이 명령은 읽기 전용 작업으로, 영향이 작습니다."
+    },
+    "allowForSession": "현재 세션 자동 실행",
+    "allowOnceTooltip": "이번 한 번만 해당 명령을 실행하며, 결정을 저장하지 않습니다.",
+    "allowForSessionTooltip": "현재 세션 내에서 이 명령을 기억하세요."
   },
   "promptParamsDialog": {
     "title": "{name} 매개변수 설정",
