@@ -19,6 +19,8 @@
     "allow": "tillade",
     "allowOnce": "Tillad én gang",
     "allowForSession": "Tillad for sessionen",
+    "allowOnceTooltip": "Kør kommandoen én gang uden at gemme beslutningen.",
+    "allowForSessionTooltip": "Husk denne kommando for denne samtale.",
     "denied": "Adgang nægtet",
     "deny": "afvise",
     "riskLabel": "Risiko",

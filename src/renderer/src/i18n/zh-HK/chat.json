@@ -119,7 +119,14 @@
       },
       "terminal": {
         "section": "終端",
-        "empty": "暫無輸出"
+        "empty": "暫無輸出",
+        "status": {
+          "failed": "失敗",
+          "aborted": "已中止",
+          "running": "運行中",
+          "timed_out": "已超時",
+          "completed": "成功"
+        }
       }
     }
   },
@@ -158,7 +165,14 @@
     },
     "terminal": {
       "empty": "暫無輸出",
-      "section": "終端"
+      "section": "終端",
+      "status": {
+        "aborted": "已中止",
+        "completed": "成功",
+        "failed": "失敗",
+        "running": "運行中",
+        "timed_out": "已超時"
+      }
     },
     "title": "工作區"
   }

@@ -20,6 +20,8 @@
     "allow": "Allow",
     "allowOnce": "Allow Once",
     "allowForSession": "Allow for Session",
+    "allowOnceTooltip": "Execute this command once without saving the decision.",
+    "allowForSessionTooltip": "Remember this command for this conversation only.",
     "deny": "Deny",
     "rememberChoice": "Remember this choice",
     "granted": "Permission granted",

@@ -94,39 +94,63 @@
           {{ t('components.messageBlockPermissionRequest.allow') }}
         </Button>
       </div>
-      <div v-else class="flex gap-2">
-        <Button
-          variant="outline"
-          size="sm"
-          class="flex-1 h-7 text-xs"
-          :disabled="isProcessing"
-          @click="denyPermission"
-        >
-          <Icon icon="lucide:x" class="w-3 h-3 mr-1" />
-          {{ t('components.messageBlockPermissionRequest.deny') }}
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          class="flex-1 h-7 text-xs"
-          :disabled="isProcessing"
-          @click="grantPermissionOnce"
-        >
-          <Icon v-if="isProcessing" icon="lucide:loader-2" class="w-3 h-3 mr-1 animate-spin" />
-          <Icon v-else icon="lucide:check" class="w-3 h-3 mr-1" />
-          {{ t('components.messageBlockPermissionRequest.allowOnce') }}
-        </Button>
-        <Button
-          size="sm"
-          class="flex-1 h-7 text-xs"
-          :disabled="isProcessing || !rememberable"
-          @click="grantPermissionForSession"
-        >
-          <Icon v-if="isProcessing" icon="lucide:loader-2" class="w-3 h-3 mr-1 animate-spin" />
-          <Icon v-else icon="lucide:check-circle" class="w-3 h-3 mr-1" />
-          {{ t('components.messageBlockPermissionRequest.allowForSession') }}
-        </Button>
-      </div>
+      <TooltipProvider v-else :delayDuration="200">
+        <div class="flex gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            class="flex-1 h-7 text-xs"
+            :disabled="isProcessing"
+            @click="denyPermission"
+          >
+            <Icon icon="lucide:x" class="w-3 h-3 mr-1" />
+            {{ t('components.messageBlockPermissionRequest.deny') }}
+          </Button>
+          <Tooltip>
+            <TooltipTrigger as-child>
+              <Button
+                variant="outline"
+                size="sm"
+                class="flex-1 h-7 text-xs"
+                :disabled="isProcessing"
+                @click="grantPermissionOnce"
+              >
+                <Icon
+                  v-if="isProcessing"
+                  icon="lucide:loader-2"
+                  class="w-3 h-3 mr-1 animate-spin"
+                />
+                <Icon v-else icon="lucide:check" class="w-3 h-3 mr-1" />
+                {{ t('components.messageBlockPermissionRequest.allowOnce') }}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent class="max-w-xs text-xs">
+              {{ t('components.messageBlockPermissionRequest.allowOnceTooltip') }}
+            </TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger as-child>
+              <Button
+                size="sm"
+                class="flex-1 h-7 text-xs"
+                :disabled="isProcessing || !rememberable"
+                @click="grantPermissionForSession"
+              >
+                <Icon
+                  v-if="isProcessing"
+                  icon="lucide:loader-2"
+                  class="w-3 h-3 mr-1 animate-spin"
+                />
+                <Icon v-else icon="lucide:check-circle" class="w-3 h-3 mr-1" />
+                {{ t('components.messageBlockPermissionRequest.allowForSession') }}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent class="max-w-xs text-xs">
+              {{ t('components.messageBlockPermissionRequest.allowForSessionTooltip') }}
+            </TooltipContent>
+          </Tooltip>
+        </div>
+      </TooltipProvider>
     </div>
   </div>
 </template>
@@ -136,6 +160,12 @@ import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
 import { Button } from '@shadcn/components/ui/button'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger
+} from '@shadcn/components/ui/tooltip'
 import { usePresenter } from '@/composables/usePresenter'
 import { AssistantMessageBlock } from '@shared/chat'
 
@@ -331,7 +361,7 @@ const riskBadgeClass = computed(() => {
     case 'high':
       return 'bg-orange-100 text-orange-700 dark:bg-orange-900/60 dark:text-orange-200'
     case 'critical':
-      return 'bg-red-100 text-red-700 dark:bg-red-900/60 dark:text-red-200'
+      return 'bg-red-100 text-red-700 dark:bg-red-900/60 dark:text-red-200 motion-safe:animate-pulse'
     default:
       return 'bg-amber-100 text-amber-700 dark:bg-amber-900/60 dark:text-amber-200'
   }

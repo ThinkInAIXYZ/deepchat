@@ -25,13 +25,33 @@
     "type": {
       "read": "讀取權限",
       "write": "寫入權限",
-      "all": "完整權限"
+      "all": "完整權限",
+      "command": "執行命令"
     },
     "description": {
       "all": "允許 '{serverName}' 的 '{toolName}' 執行讀取和寫入操作？",
       "read": "允許 '{serverName}' 的 '{toolName}' 執行讀取操作？",
-      "write": "允許 '{serverName}' 的 '{toolName}' 執行寫入操作？"
-    }
+      "write": "允許 '{serverName}' 的 '{toolName}' 執行寫入操作？",
+      "commandWithRisk": "執行命令: {command}\n\n風險等級: {riskLevel}\n\n建議: {suggestion}",
+      "command": "執行命令: {command}"
+    },
+    "allowForSessionTooltip": "在當前會話內記住該命令。",
+    "allowOnceTooltip": "僅本次執行該命令，不保存決策。",
+    "riskLabel": "風險",
+    "riskLevel": {
+      "high": "高",
+      "low": "低",
+      "medium": "中",
+      "critical": "嚴重"
+    },
+    "suggestion": {
+      "critical": "該命令可能具有破壞性或訪問外部網絡，請核實。",
+      "high": "該命令會修改文件或系統狀態，請謹慎。",
+      "low": "該命令為只讀操作，影響較小。",
+      "medium": "此指令可能會安裝相依性或更改狀態，請確認後執行。"
+    },
+    "allowForSession": "當前會話自動執行",
+    "allowOnce": "允許一次"
   },
   "promptParamsDialog": {
     "title": "{name} 參數設定",

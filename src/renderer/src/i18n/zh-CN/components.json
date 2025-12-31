@@ -20,6 +20,8 @@
     "allow": "允许",
     "allowOnce": "允许一次",
     "allowForSession": "当前会话自动执行",
+    "allowOnceTooltip": "仅本次执行该命令，不保存决策。",
+    "allowForSessionTooltip": "在当前会话内记住该命令。",
     "deny": "拒绝",
     "rememberChoice": "记住此选择",
     "granted": "权限已授予",

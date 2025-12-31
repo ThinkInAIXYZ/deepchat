@@ -119,7 +119,10 @@
       },
       "terminal": {
         "section": "터미널",
-        "empty": "출력이 없습니다"
+        "empty": "출력이 없습니다",
+        "status": {
+          "failed": "실패하다"
+        }
       }
     }
   },

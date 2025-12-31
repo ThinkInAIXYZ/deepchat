@@ -25,13 +25,33 @@
     "type": {
       "read": "גישת קריאה",
       "write": "גישת כתיבה",
-      "all": "גישה מלאה"
+      "all": "גישה מלאה",
+      "command": "הפעל פקודה"
     },
     "description": {
       "read": "האם לאפשר ל-'{toolName}' מ-'{serverName}' לבצע פעולות קריאה?",
       "write": "האם לאפשר ל-'{toolName}' מ-'{serverName}' לבצע פעולות כתיבה?",
-      "all": "האם לאפשר ל-'{toolName}' מ-'{serverName}' לבצע פעולות קריאה וכתיבה?"
-    }
+      "all": "האם לאפשר ל-'{toolName}' מ-'{serverName}' לבצע פעולות קריאה וכתיבה?",
+      "command": "{command}: הפעל פקודה",
+      "commandWithRisk": "执行命令: {command}\nרמת סיכון: {riskLevel}\nהמלצה: {suggestion}"
+    },
+    "riskLabel": "סיכון",
+    "riskLevel": {
+      "high": "גבוה",
+      "low": "נמוך",
+      "critical": "חָמוּר",
+      "medium": "א"
+    },
+    "allowForSession": "הפעולה הנוכחית תתבצע אוטומטית",
+    "allowForSessionTooltip": "זכור את הפקודה הזו עבור השיחה הנוכחית.",
+    "allowOnceTooltip": "הפעל את הפקודה הזו רק הפעם, ללא שמירת ההחלטה.",
+    "suggestion": {
+      "critical": "הפקודה עשויה להיות הרסנית או לגשת לרשתות חיצוניות, נא לאשר.",
+      "high": "הפקודה תשנה את מצב הקובץ או המערכת, נא להיזהר.",
+      "low": "הפקודה היא פעולה לקריאה בלבד, עם השפעה מינימלית.",
+      "medium": "הפקודה עשויה להתקין תלויות או לשנות את המצב, נא לאשר לפני ביצוע."
+    },
+    "allowOnce": "One time"
   },
   "promptParamsDialog": {
     "title": "הגדרות פרמטרים עבור {name}",

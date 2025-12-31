@@ -119,7 +119,14 @@
       },
       "terminal": {
         "section": "ターミナル",
-        "empty": "出力はまだありません"
+        "empty": "出力はまだありません",
+        "status": {
+          "failed": "失敗",
+          "completed": "成功",
+          "running": "翻訳中",
+          "timed_out": "既定の時間内に完了できませんでした",
+          "aborted": "中止"
+        }
       }
     }
   },
@@ -158,7 +165,14 @@
     },
     "terminal": {
       "empty": "まだ出力はありません",
-      "section": "ターミナル"
+      "section": "ターミナル",
+      "status": {
+        "completed": "成功 (Chénggōng) → 成功 (Seikō)",
+        "failed": "失敗",
+        "running": "実行中",
+        "timed_out": "はい、承知いたしました。\n翻訳します。\n\n**タイムアウトしました**\n(または)\n**期限切れです**",
+        "aborted": "中止"
+      }
     },
     "title": "ワークスペース"
   }

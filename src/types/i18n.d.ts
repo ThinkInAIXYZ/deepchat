@@ -165,6 +165,8 @@ declare module 'vue-i18n' {
       allow: string
       allowOnce: string
       allowForSession: string
+      allowOnceTooltip: string
+      allowForSessionTooltip: string
       deny: string
       rememberChoice: string
       granted: string

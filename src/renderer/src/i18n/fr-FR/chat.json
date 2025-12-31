@@ -124,7 +124,8 @@
           "aborted": "avorté",
           "completed": "succès",
           "running": "En cours d'exécution",
-          "timed_out": "Délai expiré"
+          "timed_out": "Délai expiré",
+          "failed": "échouer"
         }
       }
     }

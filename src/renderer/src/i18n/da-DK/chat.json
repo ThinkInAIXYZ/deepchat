@@ -124,7 +124,8 @@
           "aborted": "afbrudt",
           "completed": "succes",
           "running": "Løb",
-          "timed_out": "Timeout"
+          "timed_out": "Timeout",
+          "failed": "svigte"
         }
       }
     }

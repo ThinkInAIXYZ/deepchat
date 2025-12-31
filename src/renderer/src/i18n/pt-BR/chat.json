@@ -119,7 +119,10 @@
       },
       "terminal": {
         "section": "Terminal",
-        "empty": "Nenhuma saída"
+        "empty": "Nenhuma saída",
+        "status": {
+          "failed": "falhar"
+        }
       }
     }
   },

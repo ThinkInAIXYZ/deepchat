@@ -118,7 +118,14 @@
       },
       "terminal": {
         "empty": "עדיין אין פלט",
-        "section": "מָסוֹף"
+        "section": "מָסוֹף",
+        "status": {
+          "completed": "הצלחה",
+          "failed": "כישלון",
+          "running": "בביצוע",
+          "timed_out": "הזמן עבר",
+          "aborted": "הופסק"
+        }
       },
       "title": "סביבת עבודה"
     }
@@ -158,7 +165,14 @@
     },
     "terminal": {
       "empty": "עדיין אין פלט",
-      "section": "מָסוֹף"
+      "section": "מָסוֹף",
+      "status": {
+        "completed": "הצלחה",
+        "failed": "כישלון",
+        "timed_out": "פסק זמן",
+        "aborted": "הופסק",
+        "running": "בפעילות"
+      }
     },
     "title": "סביבת עבודה"
   }

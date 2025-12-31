@@ -378,8 +378,8 @@ CommandPermissionHandler.checkPermission(conversationId, command)
   - [x] Add `clearConversation()` hook to conversation close events
   - [x] Add `clearAll()` to app lifecycle events
 - [x] Allow cached approvals to bypass critical-risk gating
-- [ ] Update `src/shared/types/chat.d.ts`
-  - [ ] Add `'command'` to `PermissionType` union type
+- [x] Update `src/shared/chat.d.ts` (optional: types are currently loose)
+  - [x] Add `'command'` to a `PermissionType` union type and tighten `extra` typings if desired
 
 ### Phase 5: UI Component Enhancement (Priority: MEDIUM)
 - [x] Modify `src/renderer/src/components/message/MessageBlockPermissionRequest.vue`
@@ -395,9 +395,9 @@ CommandPermissionHandler.checkPermission(conversationId, command)
   - [x] Replace button layout for command permissions
     - [x] Keep single "Deny" button
     - [x] Split "Allow" into two buttons: "Allow Once" and "Allow for Session"
-    - [ ] Add tooltips explaining the difference
+    - [x] Add tooltips explaining the difference
   - [x] Update template logic to render command-specific UI
-  - [ ] Add CSS/animations for risk level indicators
+  - [x] Add CSS/animations for risk level indicators
 
 ### Phase 6: i18n Updates (Priority: MEDIUM)
 - [x] Update all locale files with new i18n keys:
@@ -515,9 +515,9 @@ CommandPermissionHandler.checkPermission(conversationId, command)
   - Risk level indicators
 
 ### Modified Files - Types
-- [ ] `src/shared/types/chat.d.ts`
-  - Add `'command'` to permission types
-  - Add command info to extra field types
+- [x] `src/shared/chat.d.ts` (optional: types are currently loose)
+  - Add `'command'` to permission types if you introduce a `PermissionType` type
+  - Add command info to extra field types if you want stricter typing
 
 ### Modified Files - i18n
 - [x] `src/renderer/src/i18n/en-US/components.json`

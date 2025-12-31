@@ -20,6 +20,8 @@
     "allow": "Autoriser",
     "allowOnce": "Autoriser une fois",
     "allowForSession": "Autoriser pour la session",
+    "allowOnceTooltip": "Exécuter cette commande une seule fois sans mémoriser.",
+    "allowForSessionTooltip": "Mémoriser cette commande pour cette conversation.",
     "deny": "Refuser",
     "rememberChoice": "Se souvenir de ce choix",
     "granted": "Autorisation accordée",

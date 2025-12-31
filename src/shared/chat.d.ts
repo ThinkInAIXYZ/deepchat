@@ -95,7 +95,7 @@ export type AssistantMessageBlock = {
     | 'mcp_ui_resource'
   id?: string
   content?: string
-  extra?: Record<string, string | number | object[] | boolean>
+  extra?: AssistantMessageExtra
   status:
     | 'success'
     | 'loading'
@@ -144,6 +144,31 @@ export type AssistantMessageBlock = {
     start: number
     end: number
   }
+}
+
+export type PermissionType = 'read' | 'write' | 'all' | 'command'
+
+export type CommandRiskLevel = 'low' | 'medium' | 'high' | 'critical'
+
+export type CommandInfo = {
+  command: string
+  riskLevel: CommandRiskLevel
+  suggestion: string
+  signature?: string
+  baseCommand?: string
+}
+
+export type AssistantMessageExtra = Record<string, string | number | object[] | boolean> & {
+  needsUserAction?: boolean
+  permissionType?: PermissionType
+  grantedPermissions?: PermissionType
+  toolName?: string
+  serverName?: string
+  providerId?: string
+  permissionRequestId?: string
+  permissionRequest?: string
+  commandInfo?: string
+  rememberable?: boolean
 }
 // Search-related message block types
 export type SearchBlock = {

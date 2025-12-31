@@ -20,6 +20,8 @@
     "allow": "許可",
     "allowOnce": "一度だけ許可",
     "allowForSession": "このセッションで許可",
+    "allowOnceTooltip": "このコマンドを一度だけ実行し、決定は保存しません。",
+    "allowForSessionTooltip": "この会話の間だけコマンドを記憶します。",
     "deny": "拒否",
     "rememberChoice": "この選択を記憶する",
     "granted": "権限が許可されました",
