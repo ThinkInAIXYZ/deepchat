@@ -11,6 +11,7 @@ import type { Session, SessionRuntime, SessionStatus, CreateSessionParams } from
 import type { Message, AssistantMessage } from '@shared/chat'
 import type { CONVERSATION_SETTINGS, SQLITE_MESSAGE } from '@shared/presenter'
 import { LoopOrchestrator } from './loop/loopOrchestrator'
+import { preparePromptContent } from './message/messageBuilder'
 
 interface SessionPresenterDependencies {
   sessionManager: SessionManager
@@ -54,15 +55,51 @@ export class SessionPresenter implements ISessionPresenter {
 
     this.loopOrchestrator = new LoopOrchestrator({
       handleLLMAgentResponse: async (msg) => {
-        console.log('[SessionPresenter] LLM response:', msg)
+        this.handleLLMAgentResponse(msg)
       },
       handleLLMAgentError: async (msg) => {
-        console.error('[SessionPresenter] LLM error:', msg)
+        this.handleLLMAgentError(msg)
       },
       handleLLMAgentEnd: async (msg) => {
-        console.log('[SessionPresenter] LLM end:', msg)
+        await this.handleLLMAgentEnd(msg)
       }
     })
+  }
+
+  private async handleLLMAgentResponse(msg: any): Promise<void> {
+    console.log('[SessionPresenter] LLM response:', msg.eventId, msg.content?.substring(0, 100))
+    if (msg.eventId && msg.content) {
+      await this.messagePersister.updateMessage(msg.eventId, {
+        content: JSON.stringify([
+          { type: 'content', content: msg.content, status: 'success', timestamp: Date.now() }
+        ])
+      })
+    }
+  }
+
+  private async handleLLMAgentError(msg: any): Promise<void> {
+    console.error('[SessionPresenter] LLM error:', msg.eventId, msg.error)
+    if (msg.eventId) {
+      await this.messagePersister.updateMessage(msg.eventId, {
+        status: 'error'
+      })
+    }
+    this.activeLoops.delete(msg.eventId)
+    await this.sessionManager.setStatus(msg.eventId, 'idle')
+  }
+
+  private async handleLLMAgentEnd(msg: any): Promise<void> {
+    console.log('[SessionPresenter] LLM end:', msg.eventId)
+    const sessionState = this.activeLoops.get(msg.eventId)
+    if (sessionState) {
+      this.activeLoops.delete(msg.eventId)
+    }
+    if (msg.eventId) {
+      await this.messagePersister.updateMessage(msg.eventId, {
+        status: 'sent'
+      })
+    }
+    await this.sessionManager.setStatus(msg.eventId, 'idle')
   }
 
   // === Session Lifecycle ===
@@ -220,17 +257,110 @@ export class SessionPresenter implements ISessionPresenter {
       0
     )
 
+    // Start loop and create abort controller
     await this.startLoop(sessionId, assistantMessageId)
+    const abortController = new AbortController()
+    this.activeLoops.set(sessionId, {
+      isGenerating: true,
+      abortController
+    })
 
-    // TODO: Integrate full AsyncGenerator stream handling
-    // - Call llmProviderPresenter.startStreamCompletion()
-    // - Use LoopOrchestrator.consume() to process LLMAgentEvent stream
-    // - Update message content in real-time via MessagePersister
-    // - Handle tool calls, permissions, search results
-    // - Manage abort signal through activeLoops state
-    // For now, return the stub message (content will be updated during streaming)
-    const assistantMessage = (await this.getMessage(assistantMessageId)) as AssistantMessage
-    return assistantMessage
+    try {
+      // Get conversation/settings from Session
+      const conversation = await this.conversationPersister.getConversation(sessionId)
+      if (!conversation) {
+        throw new Error(`Conversation not found: ${sessionId}`)
+      }
+
+      const {
+        providerId,
+        modelId,
+        temperature,
+        maxTokens,
+        enabledMcpTools,
+        thinkingBudget,
+        reasoningEffort,
+        verbosity,
+        enableSearch,
+        forcedSearch,
+        searchStrategy
+      } = conversation.settings
+
+      // Get recent context messages
+      const allMessages = await this.messagePersister.queryMessages(sessionId)
+      const recentMessages = allMessages.slice(-10).map((msg) => this.transformToUIMessage(msg))
+
+      // Build minimal userMessage object for preparePromptContent
+      const userMessage: Message = {
+        id: userMessageId,
+        role: 'user' as const,
+        content: { text: content, files: [], links: [], think: false, search: false },
+        timestamp: Date.now(),
+        avatar: '',
+        name: '',
+        model_name: modelId,
+        model_id: modelId,
+        model_provider: providerId,
+        status: 'sent',
+        error: '',
+        usage: {
+          context_usage: 0,
+          tokens_per_second: 0,
+          total_tokens: 0,
+          generation_time: 0,
+          first_token_time: 0,
+          reasoning_start_time: 0,
+          reasoning_end_time: 0,
+          input_tokens: 0,
+          output_tokens: 0
+        },
+        conversationId: sessionId,
+        is_variant: 0
+      }
+
+      // Prepare prompt content (build context messages, system prompt, etc.)
+      const { finalContent } = await preparePromptContent({
+        conversation,
+        userContent: content,
+        contextMessages: recentMessages,
+        searchResults: null,
+        urlResults: [],
+        userMessage,
+        vision: false,
+        imageFiles: [],
+        supportsFunctionCall: session.config.supportsFunctionCall || false
+      })
+
+      // Start stream completion
+      const stream = this.llmProviderPresenter.startStreamCompletion(
+        providerId,
+        finalContent,
+        modelId,
+        assistantMessageId,
+        temperature,
+        maxTokens,
+        enabledMcpTools,
+        thinkingBudget,
+        reasoningEffort,
+        verbosity,
+        enableSearch,
+        forcedSearch,
+        searchStrategy,
+        sessionId
+      )
+
+      // Consume the stream through LoopOrchestrator
+      await this.loopOrchestrator.consume(stream)
+
+      const assistantMessage = (await this.getMessage(assistantMessageId)) as AssistantMessage
+      return assistantMessage
+    } catch (error) {
+      console.error('[SessionPresenter] Error in sendMessage:', error)
+      await this.messagePersister.updateMessage(assistantMessageId, { status: 'error' })
+      this.activeLoops.delete(sessionId)
+      await this.sessionManager.setStatus(sessionId, 'idle')
+      return null
+    }
   }
 
   async editMessage(messageId: string, content: string): Promise<Message> {
