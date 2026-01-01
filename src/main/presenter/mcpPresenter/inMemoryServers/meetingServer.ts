@@ -159,7 +159,11 @@ export class MeetingServer {
           name: 'start_meeting',
           description:
             '启动并主持一个由多个Tab（参会者）参与的关于特定主题的讨论会议。如果你当前已经是某个会议的参与者，请勿调用！',
-          inputSchema: zodToJsonSchema(StartMeetingArgsSchema)
+          inputSchema: zodToJsonSchema(StartMeetingArgsSchema),
+          annotations: {
+            title: 'Start Meeting',
+            destructiveHint: false,
+          }
         }
       ]
     }))

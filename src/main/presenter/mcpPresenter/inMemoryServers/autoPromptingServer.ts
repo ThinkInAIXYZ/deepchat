@@ -111,17 +111,29 @@ export class AutoPromptingServer {
         {
           name: 'list_all_prompt_template_names',
           description: '获取所有可用提示词模板的名称列表。',
-          inputSchema: zodToJsonSchema(z.object({})) // 无需参数
+          inputSchema: zodToJsonSchema(z.object({})), // 无需参数
+          annotations: {
+            title: 'List Prompt Template Names',
+            readOnlyHint: true,
+          }
         },
         {
           name: 'get_prompt_template_parameters',
           description: '根据提示词模板名称获取其所需的参数列表和描述。',
-          inputSchema: GetTemplateParametersArgsJsonSchema
+          inputSchema: GetTemplateParametersArgsJsonSchema,
+          annotations: {
+            title: 'Get Template Parameters',
+            readOnlyHint: true,
+          }
         },
         {
           name: 'fill_prompt_template',
           description: '根据提示词模板名称和参数，填充模板内容并生成最终的Prompt。',
-          inputSchema: FillTemplateArgsJsonSchema
+          inputSchema: FillTemplateArgsJsonSchema,
+          annotations: {
+            title: 'Fill Prompt Template',
+            readOnlyHint: true,
+          }
         }
       ]
     }

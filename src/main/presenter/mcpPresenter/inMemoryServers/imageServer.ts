@@ -196,43 +196,76 @@ export class ImageServer {
             name: 'read_image_base64',
             description:
               'Reads an image file from the specified path and returns its base64 encoded content.',
-            inputSchema: zodToJsonSchema(ReadImageBase64ArgsSchema)
+            inputSchema: zodToJsonSchema(ReadImageBase64ArgsSchema),
+            annotations: {
+              title: 'Read Image Base64',
+              readOnlyHint: true,
+            }
           },
           {
             name: 'upload_image',
             description:
               'Uploads an image file from the specified path to a hosting service and returns the public URL.',
-            inputSchema: zodToJsonSchema(UploadImageArgsSchema)
+            inputSchema: zodToJsonSchema(UploadImageArgsSchema),
+            annotations: {
+              title: 'Upload Image',
+              destructiveHint: false,
+              openWorldHint: true,
+            }
           },
           {
             name: 'read_multiple_images_base64',
             description:
               'Reads multiple image files from the specified paths and returns their base64 encoded content.',
-            inputSchema: zodToJsonSchema(ReadMultipleImagesBase64ArgsSchema)
+            inputSchema: zodToJsonSchema(ReadMultipleImagesBase64ArgsSchema),
+            annotations: {
+              title: 'Read Multiple Images Base64',
+              readOnlyHint: true,
+            }
           },
           {
             name: 'upload_multiple_images',
             description:
               'Uploads multiple image files from the specified paths to a hosting service and returns their public URLs.',
-            inputSchema: zodToJsonSchema(UploadMultipleImagesArgsSchema)
+            inputSchema: zodToJsonSchema(UploadMultipleImagesArgsSchema),
+            annotations: {
+              title: 'Upload Multiple Images',
+              destructiveHint: false,
+              openWorldHint: true,
+            }
           },
           {
             name: 'describe_image',
             description:
               'Uses a multimodal model to simply describe the image at the specified path.',
-            inputSchema: zodToJsonSchema(DescribeImageArgsSchema)
+            inputSchema: zodToJsonSchema(DescribeImageArgsSchema),
+            annotations: {
+              title: 'Describe Image',
+              readOnlyHint: true,
+              openWorldHint: true,
+            }
           },
           {
             name: 'query_image_with_prompt',
             description:
               'Uses a multimodal model to answer a query (prompt) about the image at the specified path.',
-            inputSchema: zodToJsonSchema(QueryImageWithPromptArgsSchema)
+            inputSchema: zodToJsonSchema(QueryImageWithPromptArgsSchema),
+            annotations: {
+              title: 'Query Image with Prompt',
+              readOnlyHint: true,
+              openWorldHint: true,
+            }
           },
           {
             name: 'ocr_image',
             description:
               'Performs Optical Character Recognition (OCR) on the image at the specified path and returns the extracted text.',
-            inputSchema: zodToJsonSchema(OcrImageArgsSchema)
+            inputSchema: zodToJsonSchema(OcrImageArgsSchema),
+            annotations: {
+              title: 'OCR Image',
+              readOnlyHint: true,
+              openWorldHint: true,
+            }
           }
         ]
       }

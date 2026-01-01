@@ -439,7 +439,11 @@ export class PowerpackServer {
             'Get formatted time with specified offset from current time. Calculate any time point relative to the current time. ' +
             "For example, get current time, yesterday's time, tomorrow's time, etc. " +
             'Use the offset parameter (milliseconds) to specify the offset relative to the current time, positive for future, negative for past.',
-          inputSchema: zodToJsonSchema(GetTimeArgsSchema)
+          inputSchema: zodToJsonSchema(GetTimeArgsSchema),
+          annotations: {
+            title: 'Get Time',
+            readOnlyHint: true,
+          }
         },
         {
           name: 'get_web_info',
@@ -447,7 +451,12 @@ export class PowerpackServer {
             'Get detailed content information from a specified webpage. Extract title, description, main content, and other information. ' +
             'This tool is useful for analyzing webpage content, obtaining article summaries or details. ' +
             'Just provide a valid HTTP or HTTPS URL to get complete webpage content analysis.',
-          inputSchema: zodToJsonSchema(GetWebInfoArgsSchema)
+          inputSchema: zodToJsonSchema(GetWebInfoArgsSchema),
+          annotations: {
+            title: 'Get Web Info',
+            readOnlyHint: true,
+            openWorldHint: true,
+          }
         },
         {
           name: 'run_shell_command',
@@ -455,7 +464,11 @@ export class PowerpackServer {
             `${this.shellEnvironment.promptHint} ` +
             'Use this tool for day-to-day automation, file inspection, networking, and scripting. ' +
             'Provide a full shell command string; output includes stdout and stderr. ',
-          inputSchema: zodToJsonSchema(RunShellCommandArgsSchema)
+          inputSchema: zodToJsonSchema(RunShellCommandArgsSchema),
+          annotations: {
+            title: 'Run Shell Command',
+            destructiveHint: true,
+          }
         }
       ]
 
@@ -469,7 +482,12 @@ export class PowerpackServer {
             'The code will be executed in an isolated environment with full Python ecosystem support. ' +
             'This is safer than local execution as it runs in a controlled cloud sandbox. ' +
             'Perfect for data analysis, calculations, visualizations, and any Python programming tasks.',
-          inputSchema: zodToJsonSchema(E2BRunCodeArgsSchema)
+          inputSchema: zodToJsonSchema(E2BRunCodeArgsSchema),
+          annotations: {
+            title: 'Run Code (E2B)',
+            readOnlyHint: false,
+            openWorldHint: true,
+          }
         })
       } else {
         // 使用本地运行时执行代码
@@ -487,7 +505,11 @@ export class PowerpackServer {
               'For security reasons, the code cannot perform file operations, modify system settings, spawn child processes, or execute external code from network. ' +
               'Code execution has a timeout limit, default is 5 seconds, you can adjust it based on the estimated time of the code, generally not recommended to exceed 2 minutes. ' +
               'When a problem can be solved by a simple and secure JavaScript/TypeScript code or you have generated a simple code for the user and want to execute it, please use this tool, providing more reliable information to the user.',
-            inputSchema: zodToJsonSchema(RunNodeCodeArgsSchema)
+            inputSchema: zodToJsonSchema(RunNodeCodeArgsSchema),
+            annotations: {
+              title: 'Run Node.js Code',
+              destructiveHint: false,
+            }
           })
         }
       }

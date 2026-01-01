@@ -580,7 +580,11 @@ export class ArtifactsServer {
               'Do not call this function repeatedly if instructions or definitions for the requested artifact type are already available in the current context. ' +
               'Specify the desired artifact category through the type parameter: code, documents, html, svg, mermaid, or react. ' +
               'After obtaining the instructions, use them appropriately and avoid duplicate calls for the same type.',
-            inputSchema: zodToJsonSchema(GetArtifactInstructionsArgsSchema)
+            inputSchema: zodToJsonSchema(GetArtifactInstructionsArgsSchema),
+            annotations: {
+              title: 'Get Artifact Instructions',
+              readOnlyHint: true,
+            }
           }
         ]
       }

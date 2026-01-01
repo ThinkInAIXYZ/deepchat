@@ -121,7 +121,12 @@ export class FastGptKnowledgeServer {
           return {
             name: `fastgpt_knowledge_search${suffix}`,
             description: config.description,
-            inputSchema: zodToJsonSchema(FastGptKnowledgeSearchArgsSchema)
+            inputSchema: zodToJsonSchema(FastGptKnowledgeSearchArgsSchema),
+            annotations: {
+              title: 'FastGPT Knowledge Search',
+              readOnlyHint: true,
+              openWorldHint: true,
+            }
           }
         })
       return { tools }

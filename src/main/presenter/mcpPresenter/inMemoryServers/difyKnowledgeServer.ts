@@ -132,7 +132,12 @@ export class DifyKnowledgeServer {
           return {
             name: `dify_knowledge_search${suffix}`,
             description: config.description,
-            inputSchema: zodToJsonSchema(DifyKnowledgeSearchArgsSchema)
+            inputSchema: zodToJsonSchema(DifyKnowledgeSearchArgsSchema),
+            annotations: {
+              title: 'Dify Knowledge Search',
+              readOnlyHint: true,
+              openWorldHint: true,
+            }
           }
         })
 

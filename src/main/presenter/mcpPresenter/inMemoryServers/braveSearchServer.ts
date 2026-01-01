@@ -312,7 +312,12 @@ export class BraveSearchServer {
               'Use this for broad information gathering, recent events, or when you need diverse web sources. ' +
               'Supports pagination, content filtering, and freshness controls. ' +
               'Maximum 20 results per request, with offset for pagination. ',
-            inputSchema: zodToJsonSchema(BraveWebSearchArgsSchema)
+            inputSchema: zodToJsonSchema(BraveWebSearchArgsSchema),
+            annotations: {
+              title: 'Brave Web Search',
+              readOnlyHint: true,
+              openWorldHint: true,
+            }
           },
           {
             name: 'brave_local_search',
@@ -325,7 +330,12 @@ export class BraveSearchServer {
               '- Phone numbers and opening hours\n' +
               "Use this when the query implies 'near me' or mentions specific locations. " +
               'Automatically falls back to web search if no local results are found.',
-            inputSchema: zodToJsonSchema(BraveLocalSearchArgsSchema)
+            inputSchema: zodToJsonSchema(BraveLocalSearchArgsSchema),
+            annotations: {
+              title: 'Brave Local Search',
+              readOnlyHint: true,
+              openWorldHint: true,
+            }
           }
         ]
       }

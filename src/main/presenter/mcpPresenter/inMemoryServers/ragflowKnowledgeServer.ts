@@ -128,7 +128,12 @@ export class RagflowKnowledgeServer {
           return {
             name: `ragflow_knowledge_search${suffix}`,
             description: config.description,
-            inputSchema: zodToJsonSchema(RagflowKnowledgeSearchArgsSchema)
+            inputSchema: zodToJsonSchema(RagflowKnowledgeSearchArgsSchema),
+            annotations: {
+              title: 'RAGFlow Knowledge Search',
+              readOnlyHint: true,
+              openWorldHint: true,
+            }
           }
         })
       return { tools }

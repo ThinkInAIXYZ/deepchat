@@ -1209,40 +1209,70 @@ export class AppleServer {
         {
           name: 'calendar',
           description: 'Search, create, and open calendar events in Apple Calendar app',
-          inputSchema: zodToJsonSchema(CalendarArgsSchema)
+          inputSchema: zodToJsonSchema(CalendarArgsSchema),
+          annotations: {
+            title: 'Apple Calendar',
+            destructiveHint: false,
+          }
         },
         {
           name: 'contacts',
           description: 'Search and retrieve contacts from Apple Contacts app',
-          inputSchema: zodToJsonSchema(ContactsArgsSchema)
+          inputSchema: zodToJsonSchema(ContactsArgsSchema),
+          annotations: {
+            title: 'Apple Contacts',
+            readOnlyHint: true,
+          }
         },
         {
           name: 'mail',
           description:
             'Interact with Apple Mail app - read unread emails, search emails, and send emails',
-          inputSchema: zodToJsonSchema(MailArgsSchema)
+          inputSchema: zodToJsonSchema(MailArgsSchema),
+          annotations: {
+            title: 'Apple Mail',
+            destructiveHint: false,
+            openWorldHint: true,
+          }
         },
         {
           name: 'maps',
           description:
             'Search locations, manage guides, save favorites, and get directions using Apple Maps',
-          inputSchema: zodToJsonSchema(MapsArgsSchema)
+          inputSchema: zodToJsonSchema(MapsArgsSchema),
+          annotations: {
+            title: 'Apple Maps',
+            destructiveHint: false,
+          }
         },
         {
           name: 'messages',
           description:
             'Interact with Apple Messages app - send, read, schedule messages and check unread messages',
-          inputSchema: zodToJsonSchema(MessagesArgsSchema)
+          inputSchema: zodToJsonSchema(MessagesArgsSchema),
+          annotations: {
+            title: 'Apple Messages',
+            destructiveHint: false,
+            openWorldHint: true,
+          }
         },
         {
           name: 'notes',
           description: 'Search, retrieve and create notes in Apple Notes app',
-          inputSchema: zodToJsonSchema(NotesArgsSchema)
+          inputSchema: zodToJsonSchema(NotesArgsSchema),
+          annotations: {
+            title: 'Apple Notes',
+            destructiveHint: false,
+          }
         },
         {
           name: 'reminders',
           description: 'Search, create, and open reminders in Apple Reminders app',
-          inputSchema: zodToJsonSchema(RemindersArgsSchema)
+          inputSchema: zodToJsonSchema(RemindersArgsSchema),
+          annotations: {
+            title: 'Apple Reminders',
+            destructiveHint: false,
+          }
         }
       ]
     }))

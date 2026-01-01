@@ -57,7 +57,11 @@ export class BuiltinKnowledgeServer {
           return {
             name: `builtin_knowledge_search${suffix}`,
             description: config.description,
-            inputSchema: zodToJsonSchema(BuiltinKnowledgeSearchArgsSchema)
+            inputSchema: zodToJsonSchema(BuiltinKnowledgeSearchArgsSchema),
+            annotations: {
+              title: 'Builtin Knowledge Search',
+              readOnlyHint: true,
+            }
           }
         })
       return { tools }

@@ -131,13 +131,23 @@ export class BochaSearchServer {
             name: 'bocha_web_search',
             description:
               'Search with Bocha Web Search and get enhanced search details from billions of web documents, including page titles, urls, summaries, site names, site icons, publication dates, image links, and more.', // 官方描述
-            inputSchema: zodToJsonSchema(BochaWebSearchArgsSchema)
+            inputSchema: zodToJsonSchema(BochaWebSearchArgsSchema),
+            annotations: {
+              title: 'Bocha Web Search',
+              readOnlyHint: true,
+              openWorldHint: true,
+            }
           },
           {
             name: 'bocha_ai_search',
             description:
               'Search with Bocha AI Search, recognizes the semantics of search terms and additionally returns structured modal cards with content from vertical domains.', // 官方描述
-            inputSchema: zodToJsonSchema(BochaAiSearchArgsSchema)
+            inputSchema: zodToJsonSchema(BochaAiSearchArgsSchema),
+            annotations: {
+              title: 'Bocha AI Search',
+              readOnlyHint: true,
+              openWorldHint: true,
+            }
           }
         ]
       }
