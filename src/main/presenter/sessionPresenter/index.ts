@@ -5,11 +5,12 @@ import type { ConversationPersister } from './persistence/conversationPersister'
 import type { MessagePersister } from './persistence/messagePersister'
 import type { AgentLoopHandler } from './loop/agentLoopHandler'
 import type { ToolCallCenter } from './tool/toolCallCenter'
-import type { IToolPresenter } from '@shared/presenter'
+import type { IToolPresenter, ILlmProviderPresenter } from '@shared/presenter'
 import type { IConfigPresenter } from '@shared/presenter'
 import type { Session, SessionRuntime, SessionStatus, CreateSessionParams } from './types'
 import type { Message, AssistantMessage } from '@shared/chat'
 import type { CONVERSATION_SETTINGS, SQLITE_MESSAGE } from '@shared/presenter'
+import { LoopOrchestrator } from './loop/loopOrchestrator'
 
 interface SessionPresenterDependencies {
   sessionManager: SessionManager
@@ -20,6 +21,12 @@ interface SessionPresenterDependencies {
   toolCallCenter: ToolCallCenter
   configPresenter: IConfigPresenter
   toolPresenter: IToolPresenter
+  llmProviderPresenter: ILlmProviderPresenter
+}
+
+interface SessionState {
+  isGenerating: boolean
+  abortController: AbortController
 }
 
 export class SessionPresenter implements ISessionPresenter {
@@ -30,6 +37,10 @@ export class SessionPresenter implements ISessionPresenter {
   private readonly agentLoopHandler: AgentLoopHandler
   private readonly toolCallCenter: ToolCallCenter
   private readonly configPresenter: IConfigPresenter
+  private readonly llmProviderPresenter: ILlmProviderPresenter
+
+  private readonly activeLoops: Map<string, SessionState> = new Map()
+  private readonly loopOrchestrator: LoopOrchestrator
 
   constructor(dependencies: SessionPresenterDependencies) {
     this.sessionManager = dependencies.sessionManager
@@ -39,6 +50,19 @@ export class SessionPresenter implements ISessionPresenter {
     this.agentLoopHandler = dependencies.agentLoopHandler
     this.toolCallCenter = dependencies.toolCallCenter
     this.configPresenter = dependencies.configPresenter
+    this.llmProviderPresenter = dependencies.llmProviderPresenter
+
+    this.loopOrchestrator = new LoopOrchestrator({
+      handleLLMAgentResponse: async (msg) => {
+        console.log('[SessionPresenter] LLM response:', msg)
+      },
+      handleLLMAgentError: async (msg) => {
+        console.error('[SessionPresenter] LLM error:', msg)
+      },
+      handleLLMAgentEnd: async (msg) => {
+        console.log('[SessionPresenter] LLM end:', msg)
+      }
+    })
   }
 
   // === Session Lifecycle ===
@@ -141,12 +165,65 @@ export class SessionPresenter implements ISessionPresenter {
   // === Message ===
 
   async sendMessage(
-    _sessionId: string,
-    _content: string,
+    sessionId: string,
+    content: string,
     _tabId?: number,
     _selectedVariantsMap?: Record<string, string>
   ): Promise<AssistantMessage | null> {
-    throw new Error('sendMessage not implemented yet')
+    const session = await this.sessionManager.getSession(sessionId)
+
+    // Create user message
+    const userMessageId = `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`
+    await this.messagePersister.insertMessage(
+      sessionId,
+      content,
+      'user',
+      '',
+      JSON.stringify({
+        contextUsage: 0,
+        totalTokens: 0,
+        generationTime: 0,
+        firstTokenTime: 0,
+        tokensPerSecond: 0,
+        inputTokens: 0,
+        outputTokens: 0,
+        model: session.config.modelId,
+        provider: session.config.providerId
+      }),
+      0,
+      0,
+      'sent',
+      0,
+      0
+    )
+
+    // Create assistant message stub
+    const assistantMessageId = `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`
+    await this.messagePersister.insertMessage(
+      sessionId,
+      '[]',
+      'assistant',
+      userMessageId,
+      JSON.stringify({
+        contextUsage: 0,
+        totalTokens: 0,
+        generationTime: 0,
+        firstTokenTime: 0,
+        tokensPerSecond: 0,
+        inputTokens: 0,
+        outputTokens: 0
+      }),
+      0,
+      0,
+      'pending',
+      0,
+      0
+    )
+
+    await this.startLoop(sessionId, assistantMessageId)
+
+    const assistantMessage = (await this.getMessage(assistantMessageId)) as AssistantMessage
+    return assistantMessage
   }
 
   async editMessage(messageId: string, content: string): Promise<Message> {
@@ -206,15 +283,25 @@ export class SessionPresenter implements ISessionPresenter {
   // === Loop Control ===
 
   async continueLoop(
-    _sessionId: string,
-    _messageId: string,
+    sessionId: string,
+    messageId: string,
     _selectedVariantsMap?: Record<string, string>
   ): Promise<void> {
-    throw new Error('continueLoop not implemented yet')
+    await this.sessionManager.startLoop(sessionId, messageId)
+    const abortController = new AbortController()
+    this.activeLoops.set(sessionId, {
+      isGenerating: true,
+      abortController
+    })
   }
 
-  async cancelLoop(_sessionId: string, _messageId: string): Promise<void> {
-    throw new Error('cancelLoop not implemented yet')
+  async cancelLoop(sessionId: string, messageId: string): Promise<void> {
+    const sessionState = this.activeLoops.get(sessionId)
+    if (sessionState) {
+      sessionState.abortController.abort()
+      this.activeLoops.delete(sessionId)
+    }
+    await this.sessionManager.setStatus(sessionId, 'idle')
   }
 
   async startLoop(sessionId: string, messageId: string): Promise<void> {

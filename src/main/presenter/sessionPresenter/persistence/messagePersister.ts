@@ -25,6 +25,7 @@ export class MessagePersister {
     orderSeq: number,
     tokenCount: number,
     status: MESSAGE_STATUS,
+    isContextEdge: number,
     isVariant: number
   ): Promise<string> {
     return await this.sqlitePresenter.insertMessage(
@@ -36,7 +37,7 @@ export class MessagePersister {
       orderSeq,
       tokenCount,
       status,
-      0,
+      isContextEdge,
       isVariant
     )
   }
