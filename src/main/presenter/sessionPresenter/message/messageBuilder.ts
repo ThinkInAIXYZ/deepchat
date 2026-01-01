@@ -4,6 +4,9 @@ import { AssistantMessage, Message, MessageFile, UserMessageContent } from '@sha
 import { ModelType } from '@shared/model'
 import { CONVERSATION, ModelConfig, SearchResult, ChatMessage } from '@shared/presenter'
 import type { MCPToolDefinition } from '@shared/presenter'
+
+// TODO: ContentEnricher is a shared utility from threadPresenter
+// Consider moving to a shared location in future refactoring
 import { ContentEnricher } from '../../threadPresenter/utils/contentEnricher'
 import { BrowserContextBuilder } from '../../browser/BrowserContextBuilder'
 import { modelCapabilities } from '../../configPresenter/modelCapabilities'

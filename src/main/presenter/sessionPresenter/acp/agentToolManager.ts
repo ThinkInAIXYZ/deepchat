@@ -8,6 +8,9 @@ import { app } from 'electron'
 import logger from '@shared/logger'
 import { AgentFileSystemHandler } from './agentFileSystemHandler'
 import { AgentBashHandler } from './agentBashHandler'
+
+// TODO: CommandPermissionHandler is in threadPresenter for now
+// Consider moving to a shared handlers location in future refactoring
 import {
   CommandPermissionHandler,
   CommandPermissionRequiredError

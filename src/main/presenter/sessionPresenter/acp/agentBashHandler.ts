@@ -6,6 +6,9 @@ import { z } from 'zod'
 import { nanoid } from 'nanoid'
 import logger from '@shared/logger'
 import { presenter } from '@/presenter'
+
+// TODO: CommandPermissionHandler is in threadPresenter for now
+// Consider moving to a shared handlers location in future refactoring
 import {
   CommandPermissionHandler,
   CommandPermissionRequiredError

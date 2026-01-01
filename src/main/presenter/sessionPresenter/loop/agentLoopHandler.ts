@@ -8,10 +8,10 @@ import { RateLimitManager } from '@/presenter/llmProviderPresenter/managers/rate
 import { ToolCallProcessor } from './toolCallProcessor'
 import { ToolPresenter } from '../../toolPresenter'
 import { getAgentFilteredTools } from '../../mcpPresenter/agentMcpFilter'
-import { isNonRetryableError } from './errorClassification'
 
 interface AgentLoopHandlerOptions {
   configPresenter: IConfigPresenter
+  sessionManager?: any
   getProviderInstance: (providerId: string) => BaseLLMProvider
   activeStreams: Map<string, StreamState>
   canStartNewStream: () => boolean
@@ -20,20 +20,20 @@ interface AgentLoopHandlerOptions {
 
 export class AgentLoopHandler {
   private readonly toolCallProcessor: ToolCallProcessor
+  private readonly sessionManager?: any
   private toolPresenter: ToolPresenter | null = null
   private currentSupportsVision = false
 
   constructor(private readonly options: AgentLoopHandlerOptions) {
+    this.sessionManager = options.sessionManager
     this.toolCallProcessor = new ToolCallProcessor({
       getAllToolDefinitions: async (context) => {
-        // Get modelId from conversation
+        // Get modelId from session
         let modelId: string | undefined
-        if (context.conversationId) {
+        if (context.conversationId && this.sessionManager) {
           try {
-            const conversation = await presenter.threadPresenter.getConversation(
-              context.conversationId
-            )
-            modelId = conversation?.settings.modelId
+            const session = await this.sessionManager.getSession(context.conversationId)
+            modelId = session?.config.modelId
           } catch {
             // Ignore errors, modelId will be undefined
           }
