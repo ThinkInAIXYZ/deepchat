@@ -222,6 +222,13 @@ export class SessionPresenter implements ISessionPresenter {
 
     await this.startLoop(sessionId, assistantMessageId)
 
+    // TODO: Integrate full AsyncGenerator stream handling
+    // - Call llmProviderPresenter.startStreamCompletion()
+    // - Use LoopOrchestrator.consume() to process LLMAgentEvent stream
+    // - Update message content in real-time via MessagePersister
+    // - Handle tool calls, permissions, search results
+    // - Manage abort signal through activeLoops state
+    // For now, return the stub message (content will be updated during streaming)
     const assistantMessage = (await this.getMessage(assistantMessageId)) as AssistantMessage
     return assistantMessage
   }
