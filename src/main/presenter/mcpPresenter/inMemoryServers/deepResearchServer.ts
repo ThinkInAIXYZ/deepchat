@@ -294,7 +294,7 @@ export class DeepResearchServer {
             inputSchema: zodToJsonSchema(SingleWebSearchArgsSchema),
             annotations: {
               title: 'Execute Web Search',
-              readOnlyHint: true,
+              readOnlyHint: false,
               openWorldHint: true,
             }
           },
