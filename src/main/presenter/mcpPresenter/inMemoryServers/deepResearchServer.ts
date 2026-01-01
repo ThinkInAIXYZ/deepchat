@@ -322,7 +322,7 @@ export class DeepResearchServer {
             inputSchema: zodToJsonSchema(GenerateFinalAnswerArgsSchema),
             annotations: {
               title: 'Generate Final Answer',
-              destructiveHint: false,
+              destructiveHint: true,
             }
           }
         ]
