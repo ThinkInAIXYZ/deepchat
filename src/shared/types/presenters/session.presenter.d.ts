@@ -1,0 +1,80 @@
+export type SessionStatus = 'idle' | 'generating' | 'paused' | 'waiting_permission' | 'error'
+
+export type SessionConfig = {
+  sessionId: string
+  title: string
+  providerId: string
+  modelId: string
+  chatMode: 'chat' | 'agent' | 'acp agent'
+  systemPrompt: string
+  maxTokens?: number
+  temperature?: number
+  contextLength?: number
+  supportsVision?: boolean
+  supportsFunctionCall?: boolean
+  thinkingBudget?: number
+  reasoningEffort?: 'minimal' | 'low' | 'medium' | 'high'
+  verbosity?: 'low' | 'medium' | 'high'
+  enableSearch?: boolean
+  forcedSearch?: boolean
+  searchStrategy?: 'turbo' | 'max'
+  enabledMcpTools?: string[]
+  agentWorkspacePath?: string | null
+  acpWorkdirMap?: Record<string, string | null>
+  selectedVariantsMap?: Record<string, string>
+  isPinned?: boolean
+}
+
+export type SessionBindings = {
+  tabId: number | null
+  windowId: number | null
+  windowType: 'main' | 'floating' | 'browser' | null
+}
+
+export type PermissionState = {
+  toolCallId: string
+  permissionType: 'read' | 'write' | 'all' | 'command'
+  payload: unknown
+  requestId?: string
+  sessionId?: string
+  agentId?: string
+  agentName?: string
+  conversationId?: string
+}
+
+export type SessionRuntime = {
+  loopId?: string
+  currentMessageId?: string
+  toolCallCount: number
+  userStopRequested: boolean
+  pendingPermission?: PermissionState
+}
+
+export type WorkspaceContext = {
+  resolvedChatMode: 'chat' | 'agent' | 'acp agent'
+  agentWorkspacePath: string | null
+  acpWorkdirMap?: Record<string, string | null>
+}
+
+export type Session = {
+  sessionId: string
+  status: SessionStatus
+  config: SessionConfig
+  bindings: SessionBindings
+  runtime?: SessionRuntime
+  context: WorkspaceContext
+  createdAt: number
+  updatedAt: number
+}
+
+export type CreateSessionOptions = {
+  forceNewAndActivate?: boolean
+  tabId?: number
+}
+
+export type CreateSessionParams = {
+  title: string
+  settings?: Partial<SessionConfig>
+  tabId?: number
+  options?: CreateSessionOptions
+}
