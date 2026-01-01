@@ -145,7 +145,7 @@ type PreviewData = {
 
 const props = defineProps<{
   messageId: string | null
-  conversationId?: string | null
+  agentId?: string | null
 }>()
 
 const emit = defineEmits<{
@@ -267,12 +267,12 @@ const loadPreview = async (messageId: string) => {
   previewData.value = null
 
   try {
-    if (!props.conversationId) {
+    if (!props.agentId) {
       error.value = true
       loading.value = false
       return
     }
-    const result = await agentPresenter.getMessageRequestPreview(props.conversationId, messageId)
+    const result = await agentPresenter.getMessageRequestPreview(props.agentId, messageId)
     // Only update state if this is still the latest request
     if (currentRequestId !== requestId.value) {
       return

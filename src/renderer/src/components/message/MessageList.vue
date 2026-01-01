@@ -61,7 +61,7 @@
     />
     <TraceDialog
       :message-id="traceMessageId"
-      :conversation-id="chatStore.getActiveThreadId()"
+      :agent-id="chatStore.getActiveThreadId()"
       @close="traceMessageId = null"
     />
   </div>
