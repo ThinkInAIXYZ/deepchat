@@ -1,4 +1,7 @@
 import type { IConfigPresenter } from '@shared/presenter'
+import { app } from 'electron'
+import * as fs from 'fs/promises'
+import * as path from 'path'
 import type {
   Session,
   SessionStatus,
@@ -9,7 +12,7 @@ import type {
 
 export interface SessionManagerOptions {
   configPresenter: IConfigPresenter
-  conversationPersister: any
+  conversationPersister?: any
 }
 
 export class SessionManager {
@@ -202,8 +205,26 @@ export class SessionManager {
     return context
   }
 
-  private getDefaultAgentWorkspacePath(_conversationId: string): Promise<string> {
-    throw new Error('getDefaultAgentWorkspacePath not implemented')
+  private async getDefaultAgentWorkspacePath(conversationId: string): Promise<string> {
+    const tempRoot = path.join(app.getPath('temp'), 'deepchat-agent', 'workspaces')
+    try {
+      await fs.mkdir(tempRoot, { recursive: true })
+    } catch (error) {
+      console.warn(
+        '[SessionManager] Failed to create default workspace root, using system temp:',
+        error
+      )
+      return app.getPath('temp')
+    }
+
+    const workspaceDir = path.join(tempRoot, conversationId)
+    try {
+      await fs.mkdir(workspaceDir, { recursive: true })
+      return workspaceDir
+    } catch (error) {
+      console.warn('[SessionManager] Failed to create workspace dir, using temp root:', error)
+      return tempRoot
+    }
   }
 
   private ensureRuntime(runtime?: SessionRuntime): NonNullable<SessionRuntime> {
