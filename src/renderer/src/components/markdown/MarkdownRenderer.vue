@@ -45,7 +45,7 @@ const artifactStore = useArtifactStore()
 const messageId = `artifact-msg-${nanoid()}`
 const threadId = `artifact-thread-${nanoid()}`
 const referenceStore = useReferenceStore()
-const threadPresenter = usePresenter('agentPresenter')
+const agentPresenter = usePresenter('agentPresenter')
 const referenceNode = ref<HTMLElement | null>(null)
 const debouncedContent = ref(props.content)
 const codeBlockMonacoOption = computed(() => ({
@@ -74,7 +74,7 @@ setCustomComponents({
       messageId,
       threadId,
       onClick() {
-        threadPresenter.getSearchResults(_props.messageId ?? '').then((results) => {
+        agentPresenter.getSearchResults(_props.messageId ?? '').then((results) => {
           const index = parseInt(_props.node.id)
           if (index < results.length) {
             window.open(results[index - 1].url, '_blank', 'noopener,noreferrer')
@@ -84,7 +84,7 @@ setCustomComponents({
       onMouseEnter() {
         console.log('Mouse entered')
         referenceStore.hideReference()
-        threadPresenter.getSearchResults(_props.messageId ?? '').then((results) => {
+        agentPresenter.getSearchResults(_props.messageId ?? '').then((results) => {
           const index = parseInt(_props.node.id)
           if (index - 1 < results.length && referenceNode.value) {
             referenceStore.showReference(
@@ -225,4 +225,3 @@ defineEmits(['copy'])
   }
 }
 </style>
-

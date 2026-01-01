@@ -252,4 +252,3 @@ onBeforeUnmount(() => {
   window.removeEventListener('resize', handleWindowResize)
 })
 </script>
-

@@ -124,4 +124,3 @@ const handleClick = async () => {
   searchResults.value = await threadPresenter.getSearchResults(props.messageId, searchId.value)
 }
 </script>
-

@@ -20,7 +20,7 @@ interface ModeInfo {
 }
 
 export function useAcpMode(options: UseAcpModeOptions) {
-  const threadPresenter = usePresenter('agentPresenter')
+  const agentPresenter = usePresenter('agentPresenter')
 
   const currentMode = ref<string>('default')
   const availableModes = ref<ModeInfo[]>([])
@@ -55,7 +55,7 @@ export function useAcpMode(options: UseAcpModeOptions) {
 
     loading.value = true
     try {
-      const result = await threadPresenter.getAcpSessionModes(options.conversationId.value)
+      const result = await agentPresenter.getAcpSessionModes(options.conversationId.value)
       if (result && result.available.length > 0) {
         currentMode.value = result.current
         availableModes.value = result.available
@@ -82,7 +82,7 @@ export function useAcpMode(options: UseAcpModeOptions) {
     lastWarmupModesKey.value = warmupKey
 
     try {
-      const result = await threadPresenter.getAcpProcessModes(agentId, workdir)
+      const result = await agentPresenter.getAcpProcessModes(agentId, workdir)
       if (result?.availableModes && result.availableModes.length > 0) {
         currentMode.value =
           result.currentModeId ?? result.availableModes[0]?.id ?? currentMode.value
@@ -191,11 +191,11 @@ export function useAcpMode(options: UseAcpModeOptions) {
         `[useAcpMode] Cycling mode: "${currentMode.value}" -> "${nextModeId}" (cycle: [${cycleOrder.join(', ')}])`
       )
       if (options.conversationId.value) {
-        await threadPresenter.setAcpSessionMode(options.conversationId.value, nextModeId)
+        await agentPresenter.setAcpSessionMode(options.conversationId.value, nextModeId)
         currentMode.value = nextModeId
         pendingPreferredMode.value = null
       } else if (selectedWorkdir.value) {
-        await threadPresenter.setAcpPreferredProcessMode(
+        await agentPresenter.setAcpPreferredProcessMode(
           options.activeModel.value!.id!,
           selectedWorkdir.value,
           nextModeId

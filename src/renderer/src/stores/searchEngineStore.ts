@@ -9,7 +9,7 @@ import type { EntryKey, UseQueryReturn } from '@pinia/colada'
 
 export const useSearchEngineStore = defineStore('searchEngine', () => {
   const configP = usePresenter('configPresenter')
-  const threadP = usePresenter('agentPresenter')
+  const agentP = usePresenter('agentPresenter')
 
   const searchEngineListKey: EntryKey = ['search', 'engines'] as const
   const customSearchEngineKey: EntryKey = ['search', 'customEngines'] as const
@@ -41,7 +41,7 @@ export const useSearchEngineStore = defineStore('searchEngine', () => {
   const refreshSearchEngines = async () => {
     try {
       await Promise.all([baseSearchEngines.refetch(), customSearchEngines.refetch()])
-      const activeEngine = await threadP.getActiveSearchEngine()
+      const activeEngine = await agentP.getActiveSearchEngine()
       activeSearchEngine.value = activeEngine
     } catch (error) {
       console.error('刷新搜索引擎列表失败', error)
@@ -59,7 +59,7 @@ export const useSearchEngineStore = defineStore('searchEngine', () => {
     if (!targetId) return
 
     try {
-      await threadP.setActiveSearchEngine(targetId)
+      await agentP.setActiveSearchEngine(targetId)
     } catch (error) {
       console.error('设置活跃搜索引擎失败:', error)
     }
@@ -112,7 +112,7 @@ export const useSearchEngineStore = defineStore('searchEngine', () => {
           const engine = searchEngines.value.find((item) => item.id === currentActiveEngineId)
           if (engine) {
             activeSearchEngine.value = engine
-            await threadP.setActiveSearchEngine(currentActiveEngineId)
+            await agentP.setActiveSearchEngine(currentActiveEngineId)
           }
         }
       } catch (error) {
@@ -129,7 +129,7 @@ export const useSearchEngineStore = defineStore('searchEngine', () => {
 
   const testSearchEngine = async (query = '天气'): Promise<boolean> => {
     try {
-      return await threadP.testSearchEngine(query)
+      return await agentP.testSearchEngine(query)
     } catch (error) {
       console.error('测试搜索引擎失败', error)
       return false

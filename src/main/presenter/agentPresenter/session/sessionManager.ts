@@ -23,13 +23,18 @@ export class SessionManager {
     this.options = options
   }
 
-  getSessionSync(sessionId: string): SessionContext | null {
-    return this.sessions.get(sessionId) ?? null
+  /**
+   * Sessions are keyed by agentId (conversationId in agent/chat flows).
+   * ACP sessions use AcpSessionManager with separate ACP session IDs.
+   */
+  getSessionSync(agentId: string): SessionContext | null {
+    return this.sessions.get(agentId) ?? null
   }
 
-  async getSession(sessionId: string): Promise<SessionContext> {
-    const existing = this.sessions.get(sessionId)
-    const resolved = await this.resolveSession(sessionId)
+  /** Resolves (or creates) the session keyed by agentId/conversationId. */
+  async getSession(agentId: string): Promise<SessionContext> {
+    const existing = this.sessions.get(agentId)
+    const resolved = await this.resolveSession(agentId)
     const now = Date.now()
 
     if (existing) {
@@ -40,8 +45,8 @@ export class SessionManager {
     }
 
     const session: SessionContext = {
-      sessionId,
-      agentId: sessionId,
+      sessionId: agentId,
+      agentId,
       status: 'idle',
       createdAt: now,
       updatedAt: now,
@@ -51,12 +56,12 @@ export class SessionManager {
         userStopRequested: false
       }
     }
-    this.sessions.set(sessionId, session)
+    this.sessions.set(agentId, session)
     return session
   }
 
-  async resolveSession(sessionId: string): Promise<SessionContextResolved> {
-    const conversation = await this.options.threadPresenter.getConversation(sessionId)
+  async resolveSession(agentId: string): Promise<SessionContextResolved> {
+    const conversation = await this.options.threadPresenter.getConversation(agentId)
     const fallbackChatMode = this.options.configPresenter.getSetting('input_chatMode') as
       | 'chat'
       | 'agent'
@@ -75,7 +80,7 @@ export class SessionManager {
 
     if (resolved.chatMode === 'agent') {
       resolved.agentWorkspacePath = await this.resolveAgentWorkspacePath(
-        sessionId,
+        agentId,
         conversation.settings.agentWorkspacePath ?? null
       )
     } else if (resolved.chatMode === 'acp agent') {
@@ -132,8 +137,8 @@ export class SessionManager {
     }
   }
 
-  async startLoop(sessionId: string, messageId: string): Promise<void> {
-    const session = await this.getSession(sessionId)
+  async startLoop(agentId: string, messageId: string): Promise<void> {
+    const session = await this.getSession(agentId)
     session.status = 'generating'
     session.updatedAt = Date.now()
     const runtime = this.ensureRuntime(session)
@@ -144,31 +149,31 @@ export class SessionManager {
     runtime.pendingPermission = undefined
   }
 
-  setStatus(sessionId: string, status: SessionStatus): void {
-    const session = this.sessions.get(sessionId)
+  setStatus(agentId: string, status: SessionStatus): void {
+    const session = this.sessions.get(agentId)
     if (!session) return
     session.status = status
     session.updatedAt = Date.now()
   }
 
-  updateRuntime(sessionId: string, updates: Partial<SessionContext['runtime']>): void {
-    const session = this.sessions.get(sessionId)
+  updateRuntime(agentId: string, updates: Partial<SessionContext['runtime']>): void {
+    const session = this.sessions.get(agentId)
     if (!session) return
     const runtime = this.ensureRuntime(session)
     session.runtime = { ...runtime, ...updates }
     session.updatedAt = Date.now()
   }
 
-  incrementToolCallCount(sessionId: string): void {
-    const session = this.sessions.get(sessionId)
+  incrementToolCallCount(agentId: string): void {
+    const session = this.sessions.get(agentId)
     if (!session) return
     const runtime = this.ensureRuntime(session)
     runtime.toolCallCount = (runtime.toolCallCount ?? 0) + 1
     session.updatedAt = Date.now()
   }
 
-  clearPendingPermission(sessionId: string): void {
-    this.updateRuntime(sessionId, { pendingPermission: undefined })
+  clearPendingPermission(agentId: string): void {
+    this.updateRuntime(agentId, { pendingPermission: undefined })
   }
 
   private ensureRuntime(session: SessionContext): NonNullable<SessionContext['runtime']> {
