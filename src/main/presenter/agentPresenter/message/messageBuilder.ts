@@ -72,11 +72,13 @@ export async function preparePromptContent({
   promptTokens: number
 }> {
   const { systemPrompt, contextLength, artifacts, enabledMcpTools } = conversation.settings
-  const chatMode =
+  const chatMode: 'chat' | 'agent' | 'acp agent' =
+    conversation.settings.chatMode ??
     ((await presenter.configPresenter.getSetting('input_chatMode')) as
       | 'chat'
       | 'agent'
-      | 'acp agent') || 'chat'
+      | 'acp agent') ??
+    'chat'
   const isAgentMode = chatMode === 'agent'
 
   const isImageGeneration = modelType === ModelType.ImageGeneration

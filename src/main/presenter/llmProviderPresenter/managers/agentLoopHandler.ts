@@ -150,19 +150,16 @@ export class AgentLoopHandler {
     conversationId?: string,
     modelId?: string
   ): Promise<{ chatMode: 'chat' | 'agent' | 'acp agent'; agentWorkspacePath: string | null }> {
-    // Get chatMode from global config (default to 'chat')
-    const chatMode =
-      ((await this.options.configPresenter.getSetting('input_chatMode')) as
-        | 'chat'
-        | 'agent'
-        | 'acp agent') || 'chat'
-
-    // Get agentWorkspacePath from conversation settings
+    let chatMode: 'chat' | 'agent' | 'acp agent' = 'chat'
     let agentWorkspacePath: string | null = null
+
+    // First, try to get chatMode from conversation settings
     if (conversationId) {
       try {
         const conversation = await presenter.threadPresenter.getConversation(conversationId)
         if (conversation) {
+          chatMode = conversation.settings.chatMode ?? 'chat'
+
           // For acp agent mode, use acpWorkdirMap
           if (chatMode === 'acp agent' && conversation.settings.acpWorkdirMap && modelId) {
             agentWorkspacePath = conversation.settings.acpWorkdirMap[modelId] ?? null
@@ -174,6 +171,15 @@ export class AgentLoopHandler {
       } catch (error) {
         console.warn('[AgentLoopHandler] Failed to get conversation settings:', error)
       }
+    }
+
+    // Fallback to global config if chatMode not found in conversation
+    if (chatMode === 'chat') {
+      chatMode =
+        ((await this.options.configPresenter.getSetting('input_chatMode')) as
+          | 'chat'
+          | 'agent'
+          | 'acp agent') || 'chat'
     }
 
     if (chatMode === 'agent') {

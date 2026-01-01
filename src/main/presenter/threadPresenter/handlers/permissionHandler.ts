@@ -526,11 +526,13 @@ export class PermissionHandler extends BaseHandler {
 
       let toolDef: MCPToolDefinition | undefined
       try {
-        const chatMode =
+        const chatMode: 'chat' | 'agent' | 'acp agent' =
+          conversation.settings.chatMode ??
           ((await this.ctx.configPresenter.getSetting('input_chatMode')) as
             | 'chat'
             | 'agent'
-            | 'acp agent') || 'chat'
+            | 'acp agent') ??
+          'chat'
         let agentWorkspacePath: string | null = null
         if (chatMode === 'agent') {
           agentWorkspacePath = conversation.settings.agentWorkspacePath ?? null

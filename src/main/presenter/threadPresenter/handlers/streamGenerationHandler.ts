@@ -117,11 +117,13 @@ export class StreamGenerationHandler extends BaseHandler {
         selectedVariantsMap
       )
 
-      const chatMode =
+      const chatMode: 'chat' | 'agent' | 'acp agent' =
+        conversation.settings.chatMode ??
         ((await this.ctx.configPresenter.getSetting('input_chatMode')) as
           | 'chat'
           | 'agent'
-          | 'acp agent') || 'chat'
+          | 'acp agent') ??
+        'chat'
       if (chatMode === 'agent') {
         await this.ensureAgentWorkspacePath(conversationId, conversation)
       }
