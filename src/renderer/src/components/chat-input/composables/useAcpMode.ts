@@ -20,7 +20,7 @@ interface ModeInfo {
 }
 
 export function useAcpMode(options: UseAcpModeOptions) {
-  const threadPresenter = usePresenter('threadPresenter')
+  const threadPresenter = usePresenter('agentPresenter')
 
   const currentMode = ref<string>('default')
   const availableModes = ref<ModeInfo[]>([])

@@ -677,6 +677,9 @@ export class ThreadPresenter implements IThreadPresenter {
   async stopMessageGeneration(messageId: string): Promise<void> {
     const state = this.generatingMessages.get(messageId)
     if (state) {
+      presenter.sessionManager.updateRuntime(state.conversationId, { userStopRequested: true })
+      presenter.sessionManager.setStatus(state.conversationId, 'paused')
+      presenter.sessionManager.clearPendingPermission(state.conversationId)
       // 设置统一的取消标志
       state.isCancelled = true
 

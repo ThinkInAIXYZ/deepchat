@@ -9,13 +9,13 @@ import type { EntryKey, UseQueryReturn } from '@pinia/colada'
 
 export const useSearchEngineStore = defineStore('searchEngine', () => {
   const configP = usePresenter('configPresenter')
-  const threadP = usePresenter('threadPresenter')
+  const threadP = usePresenter('agentPresenter')
 
   const searchEngineListKey: EntryKey = ['search', 'engines'] as const
   const customSearchEngineKey: EntryKey = ['search', 'customEngines'] as const
 
   const baseSearchEngines = useIpcQuery({
-    presenter: 'threadPresenter',
+    presenter: 'agentPresenter',
     method: 'getSearchEngines',
     key: () => searchEngineListKey,
     staleTime: 30_000
@@ -68,7 +68,7 @@ export const useSearchEngineStore = defineStore('searchEngine', () => {
   const invalidateSearchEngineKeys = (): EntryKey[] => [searchEngineListKey, customSearchEngineKey]
 
   const setSearchEngineMutation = useIpcMutation({
-    presenter: 'threadPresenter',
+    presenter: 'agentPresenter',
     method: 'setSearchEngine',
     invalidateQueries: () => invalidateSearchEngineKeys()
   })

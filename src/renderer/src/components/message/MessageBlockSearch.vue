@@ -31,7 +31,7 @@ import SearchStatusIndicator from '@/components/SearchStatusIndicator.vue'
 import { AssistantMessageBlock } from '@shared/chat'
 
 const { t } = useI18n()
-const threadPresenter = usePresenter('threadPresenter')
+const threadPresenter = usePresenter('agentPresenter')
 const isDrawerOpen = ref(false)
 const searchResults = ref<SearchResult[]>([])
 
@@ -124,3 +124,4 @@ const handleClick = async () => {
   searchResults.value = await threadPresenter.getSearchResults(props.messageId, searchId.value)
 }
 </script>
+

@@ -125,7 +125,7 @@ import { DynamicScroller, DynamicScrollerItem } from 'vue-virtual-scroller'
 
 const { t } = useI18n()
 const chatStore = useChatStore()
-const threadP = usePresenter('threadPresenter')
+const threadP = usePresenter('agentPresenter')
 const dynamicScrollerRef = ref<InstanceType<typeof DynamicScroller> | null>(null)
 const deleteDialog = ref(false)
 const deleteThread = ref<CONVERSATION | null>(null)
@@ -298,3 +298,4 @@ const handleScrollEnd = async () => {
 <style scoped>
 /* 组件特定样式 */
 </style>
+

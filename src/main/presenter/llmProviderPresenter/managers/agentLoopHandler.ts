@@ -8,9 +8,6 @@ import { RateLimitManager } from './rateLimitManager'
 import { ToolCallProcessor } from './toolCallProcessor'
 import { ToolPresenter } from '../../toolPresenter'
 import { getAgentFilteredTools } from '../../mcpPresenter/agentMcpFilter'
-import fs from 'fs'
-import path from 'path'
-import { app } from 'electron'
 
 interface AgentLoopHandlerOptions {
   configPresenter: IConfigPresenter
@@ -91,55 +88,6 @@ export class AgentLoopHandler {
     return this.toolPresenter
   }
 
-  private async getDefaultAgentWorkspacePath(conversationId?: string | null): Promise<string> {
-    const tempRoot = path.join(app.getPath('temp'), 'deepchat-agent', 'workspaces')
-    try {
-      await fs.promises.mkdir(tempRoot, { recursive: true })
-    } catch (error) {
-      console.warn(
-        '[AgentLoopHandler] Failed to create default workspace root, using system temp:',
-        error
-      )
-      return app.getPath('temp')
-    }
-
-    if (!conversationId) {
-      return tempRoot
-    }
-
-    const workspaceDir = path.join(tempRoot, conversationId)
-    try {
-      await fs.promises.mkdir(workspaceDir, { recursive: true })
-      return workspaceDir
-    } catch (error) {
-      console.warn(
-        '[AgentLoopHandler] Failed to create conversation workspace, using root temp workspace:',
-        error
-      )
-      return tempRoot
-    }
-  }
-
-  private async resolveAgentWorkspacePath(
-    conversationId: string | undefined,
-    currentPath: string | null
-  ): Promise<string | null> {
-    const trimmedPath = currentPath?.trim()
-    if (trimmedPath) return trimmedPath
-
-    const fallback = await this.getDefaultAgentWorkspacePath(conversationId ?? null)
-    if (conversationId && fallback) {
-      try {
-        await presenter.threadPresenter.updateConversationSettings(conversationId, {
-          agentWorkspacePath: fallback
-        })
-      } catch (error) {
-        console.warn('[AgentLoopHandler] Failed to persist agent workspace path:', error)
-      }
-    }
-    return fallback
-  }
-
   /**
    * Resolve workspace context (chatMode and agentWorkspacePath) for tool definitions
    * @param conversationId Optional conversation ID
@@ -150,43 +98,7 @@ export class AgentLoopHandler {
     conversationId?: string,
     modelId?: string
   ): Promise<{ chatMode: 'chat' | 'agent' | 'acp agent'; agentWorkspacePath: string | null }> {
-    let chatMode: 'chat' | 'agent' | 'acp agent' = 'chat'
-    let agentWorkspacePath: string | null = null
-
-    // First, try to get chatMode from conversation settings
-    if (conversationId) {
-      try {
-        const conversation = await presenter.threadPresenter.getConversation(conversationId)
-        if (conversation) {
-          chatMode = conversation.settings.chatMode ?? 'chat'
-
-          // For acp agent mode, use acpWorkdirMap
-          if (chatMode === 'acp agent' && conversation.settings.acpWorkdirMap && modelId) {
-            agentWorkspacePath = conversation.settings.acpWorkdirMap[modelId] ?? null
-          } else {
-            // For agent mode, use agentWorkspacePath
-            agentWorkspacePath = conversation.settings.agentWorkspacePath ?? null
-          }
-        }
-      } catch (error) {
-        console.warn('[AgentLoopHandler] Failed to get conversation settings:', error)
-      }
-    }
-
-    // Fallback to global config if chatMode not found in conversation
-    if (chatMode === 'chat') {
-      chatMode =
-        ((await this.options.configPresenter.getSetting('input_chatMode')) as
-          | 'chat'
-          | 'agent'
-          | 'acp agent') || 'chat'
-    }
-
-    if (chatMode === 'agent') {
-      agentWorkspacePath = await this.resolveAgentWorkspacePath(conversationId, agentWorkspacePath)
-    }
-
-    return { chatMode, agentWorkspacePath }
+    return presenter.sessionManager.resolveWorkspaceContext(conversationId, modelId)
   }
 
   private notifyWorkspaceFilesChanged(conversationId?: string): void {

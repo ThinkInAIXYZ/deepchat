@@ -4,6 +4,7 @@ import type { AssistantMessageBlock } from '@shared/chat'
 import { finalizeAssistantMessageBlocks } from '@shared/chat/messageBlocks'
 import type { LLMAgentEventData, MESSAGE_METADATA } from '@shared/presenter'
 import { approximateTokenSize } from 'tokenx'
+import { presenter } from '@/presenter'
 import type { MessageManager } from '../managers/messageManager'
 import type { GeneratingMessageState } from '../types'
 import type { ContentBufferHandler } from './contentBufferHandler'
@@ -117,6 +118,7 @@ export class LLMEventHandler {
     if (tool_call) {
       switch (tool_call) {
         case 'start':
+          presenter.sessionManager.incrementToolCallCount(state.conversationId)
           await this.toolCallHandler.processToolCallStart(state, msg, currentTime)
           break
         case 'update':
@@ -124,6 +126,18 @@ export class LLMEventHandler {
           await this.toolCallHandler.processToolCallUpdate(state, msg)
           break
         case 'permission-required':
+          presenter.sessionManager.updateRuntime(state.conversationId, {
+            pendingPermission: {
+              toolCallId: tool_call_id || '',
+              permissionType:
+                (msg.permission_request?.permissionType as 'read' | 'write' | 'all' | 'command') ||
+                'read',
+              payload: msg.permission_request ?? {}
+            }
+          })
+          presenter.sessionManager.setStatus(state.conversationId, 'waiting_permission')
+          await this.toolCallHandler.processToolCallPermission(state, msg, currentTime)
+          break
         case 'permission-granted':
         case 'permission-denied':
         case 'continue':
@@ -232,6 +246,8 @@ export class LLMEventHandler {
 
       await this.messageManager.handleMessageError(eventId, String(error))
       this.generatingMessages.delete(eventId)
+      presenter.sessionManager.setStatus(state.conversationId, 'error')
+      presenter.sessionManager.clearPendingPermission(state.conversationId)
     }
 
     this.searchingMessages.delete(eventId)
@@ -267,10 +283,13 @@ export class LLMEventHandler {
         })
         await this.messageManager.editMessage(eventId, JSON.stringify(state.message.content))
         this.searchingMessages.delete(eventId)
+        presenter.sessionManager.setStatus(state.conversationId, 'waiting_permission')
         return
       }
 
       await this.finalizeMessage(state, eventId, Boolean(userStop))
+      presenter.sessionManager.setStatus(state.conversationId, 'idle')
+      presenter.sessionManager.clearPendingPermission(state.conversationId)
     }
 
     this.searchingMessages.delete(eventId)

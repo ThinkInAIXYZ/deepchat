@@ -431,8 +431,7 @@ export interface IPresenter {
   sqlitePresenter: ISQLitePresenter
   llmproviderPresenter: ILlmProviderPresenter
   configPresenter: IConfigPresenter
-  threadPresenter: IThreadPresenter
-  agentPresenter: IAgentPresenter
+  agentPresenter: IAgentPresenter & IThreadPresenter
   devicePresenter: IDevicePresenter
   upgradePresenter: IUpgradePresenter
   shortcutPresenter: IShortcutPresenter

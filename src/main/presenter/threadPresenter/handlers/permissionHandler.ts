@@ -1,5 +1,6 @@
 import { eventBus, SendTarget } from '@/eventbus'
 import { STREAM_EVENTS } from '@/events'
+import { presenter } from '@/presenter'
 import type { AssistantMessage, AssistantMessageBlock } from '@shared/chat'
 import type {
   ILlmProviderPresenter,
@@ -150,6 +151,8 @@ export class PermissionHandler extends BaseHandler {
           parsedPermissionRequest,
           granted
         )
+        presenter.sessionManager.clearPendingPermission(message.conversationId)
+        presenter.sessionManager.setStatus(message.conversationId, 'generating')
         return
       }
 
@@ -214,6 +217,7 @@ export class PermissionHandler extends BaseHandler {
       }
 
       const conversationId = message.conversationId
+      await presenter.sessionManager.startLoop(conversationId, messageId)
       const content = message.content as AssistantMessageBlock[]
       const permissionBlock = content.find(
         (block) =>
@@ -288,6 +292,7 @@ export class PermissionHandler extends BaseHandler {
       }
 
       const conversationId = message.conversationId
+      await presenter.sessionManager.startLoop(conversationId, messageId)
       const content = message.content as AssistantMessageBlock[]
       const deniedPermissionBlock = content.find(
         (block) =>
@@ -421,6 +426,7 @@ export class PermissionHandler extends BaseHandler {
     }
 
     try {
+      await presenter.sessionManager.startLoop(conversationId, messageId)
       const conversation = await this.ctx.sqlitePresenter.getConversation(conversationId)
       if (!conversation) {
         throw new Error(`Conversation not found (${conversationId})`)
@@ -526,22 +532,11 @@ export class PermissionHandler extends BaseHandler {
 
       let toolDef: MCPToolDefinition | undefined
       try {
-        const chatMode: 'chat' | 'agent' | 'acp agent' =
-          conversation.settings.chatMode ??
-          (await this.ctx.configPresenter.getSetting<'chat' | 'agent' | 'acp agent'>(
-            'input_chatMode'
-          )) ??
-          'chat'
-        let agentWorkspacePath: string | null = null
-        if (chatMode === 'agent') {
-          agentWorkspacePath = conversation.settings.agentWorkspacePath ?? null
-        } else if (chatMode === 'acp agent') {
-          const modelId = conversation.settings.modelId
-          agentWorkspacePath =
-            modelId && conversation.settings.acpWorkdirMap
-              ? (conversation.settings.acpWorkdirMap[modelId] ?? null)
-              : null
-        }
+        const { chatMode, agentWorkspacePath } =
+          await presenter.sessionManager.resolveWorkspaceContext(
+            conversationId,
+            conversation.settings.modelId
+          )
         const toolDefinitions = await this.getToolPresenter().getAllToolDefinitions({
           enabledMcpTools,
           chatMode,

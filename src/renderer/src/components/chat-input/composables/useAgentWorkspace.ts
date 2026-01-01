@@ -23,7 +23,7 @@ export interface UseAgentWorkspaceOptions {
  */
 export function useAgentWorkspace(options: UseAgentWorkspaceOptions) {
   const { t } = useI18n()
-  const threadPresenter = usePresenter('threadPresenter')
+  const threadPresenter = usePresenter('agentPresenter')
   const chatMode = options.chatMode ?? useChatMode()
   const chatStore = useChatStore()
 

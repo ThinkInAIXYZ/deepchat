@@ -44,7 +44,7 @@ import { Icon } from '@iconify/vue'
 import type { IThreadPresenter } from '../../../../shared/presenter'
 
 const { t } = useI18n()
-const threadPresenter = usePresenter('threadPresenter')
+const threadPresenter = usePresenter('agentPresenter')
 
 // 状态
 const isOpen = ref(false)
@@ -156,3 +156,4 @@ onUnmounted(() => {
   cursor: move;
 }
 </style>
+

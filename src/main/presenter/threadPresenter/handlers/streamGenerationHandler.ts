@@ -21,9 +21,7 @@ import { presenter } from '@/presenter'
 import type { SearchHandler } from './searchHandler'
 import { BaseHandler, type ThreadHandlerContext } from './baseHandler'
 import type { LLMEventHandler } from './llmEventHandler'
-import fs from 'fs'
-import path from 'path'
-import { app } from 'electron'
+import { LoopOrchestrator } from '../../agentPresenter/loop/loopOrchestrator'
 
 interface StreamGenerationHandlerDeps {
   searchHandler: SearchHandler
@@ -35,12 +33,14 @@ export class StreamGenerationHandler extends BaseHandler {
   private readonly searchHandler: SearchHandler
   private readonly generatingMessages: Map<string, GeneratingMessageState>
   private readonly llmEventHandler: LLMEventHandler
+  private readonly loopOrchestrator: LoopOrchestrator
 
   constructor(context: ThreadHandlerContext, deps: StreamGenerationHandlerDeps) {
     super(context)
     this.searchHandler = deps.searchHandler
     this.generatingMessages = deps.generatingMessages
     this.llmEventHandler = deps.llmEventHandler
+    this.loopOrchestrator = new LoopOrchestrator(this.llmEventHandler)
     this.assertDependencies()
   }
 
@@ -48,53 +48,7 @@ export class StreamGenerationHandler extends BaseHandler {
     void this.searchHandler
     void this.generatingMessages
     void this.llmEventHandler
-  }
-
-  private getDefaultAgentWorkspacePath(conversationId?: string | null): string {
-    const tempRoot = path.join(app.getPath('temp'), 'deepchat-agent', 'workspaces')
-    try {
-      fs.mkdirSync(tempRoot, { recursive: true })
-    } catch (error) {
-      console.warn(
-        '[StreamGenerationHandler] Failed to create default workspace root, using system temp:',
-        error
-      )
-      return app.getPath('temp')
-    }
-
-    if (!conversationId) {
-      return tempRoot
-    }
-
-    const workspaceDir = path.join(tempRoot, conversationId)
-    try {
-      fs.mkdirSync(workspaceDir, { recursive: true })
-      return workspaceDir
-    } catch (error) {
-      console.warn(
-        '[StreamGenerationHandler] Failed to create conversation workspace, using root temp workspace:',
-        error
-      )
-      return tempRoot
-    }
-  }
-
-  private async ensureAgentWorkspacePath(
-    conversationId: string,
-    conversation: CONVERSATION
-  ): Promise<void> {
-    const currentPath = conversation.settings.agentWorkspacePath?.trim()
-    if (currentPath) return
-
-    const fallback = this.getDefaultAgentWorkspacePath(conversationId)
-    try {
-      await presenter.threadPresenter.updateConversationSettings(conversationId, {
-        agentWorkspacePath: fallback
-      })
-    } catch (error) {
-      console.warn('[StreamGenerationHandler] Failed to persist agent workspace path:', error)
-    }
-    conversation.settings.agentWorkspacePath = fallback
+    void this.loopOrchestrator
   }
 
   async startStreamCompletion(
@@ -110,6 +64,7 @@ export class StreamGenerationHandler extends BaseHandler {
 
     try {
       state.isCancelled = false
+      await presenter.sessionManager.startLoop(conversationId, state.message.id)
 
       const { conversation, userMessage, contextMessages } = await this.prepareConversationContext(
         conversationId,
@@ -117,15 +72,13 @@ export class StreamGenerationHandler extends BaseHandler {
         selectedVariantsMap
       )
 
-      const chatMode: 'chat' | 'agent' | 'acp agent' =
-        conversation.settings.chatMode ??
-        ((await this.ctx.configPresenter.getSetting('input_chatMode')) as
-          | 'chat'
-          | 'agent'
-          | 'acp agent') ??
-        'chat'
-      if (chatMode === 'agent') {
-        await this.ensureAgentWorkspacePath(conversationId, conversation)
+      const { chatMode, agentWorkspacePath } =
+        await presenter.sessionManager.resolveWorkspaceContext(
+          conversationId,
+          conversation.settings.modelId
+        )
+      if (chatMode === 'agent' && agentWorkspacePath) {
+        conversation.settings.agentWorkspacePath = agentWorkspacePath
       }
 
       const { providerId, modelId } = conversation.settings
@@ -212,16 +165,7 @@ export class StreamGenerationHandler extends BaseHandler {
         conversationId
       )
 
-      for await (const event of stream) {
-        const msg = event.data
-        if (event.type === 'response') {
-          await this.llmEventHandler.handleLLMAgentResponse(msg)
-        } else if (event.type === 'error') {
-          await this.llmEventHandler.handleLLMAgentError(msg)
-        } else if (event.type === 'end') {
-          await this.llmEventHandler.handleLLMAgentEnd(msg)
-        }
-      }
+      await this.loopOrchestrator.consume(stream)
     } catch (error) {
       if (String(error).includes('userCanceledGeneration')) {
         console.log('[StreamGenerationHandler] Message generation cancelled by user')
@@ -247,6 +191,7 @@ export class StreamGenerationHandler extends BaseHandler {
 
     try {
       state.isCancelled = false
+      await presenter.sessionManager.startLoop(conversationId, state.message.id)
 
       const queryMessage = await this.ctx.messageManager.getMessage(queryMsgId)
       if (!queryMessage) {
@@ -391,16 +336,7 @@ export class StreamGenerationHandler extends BaseHandler {
         conversationId
       )
 
-      for await (const event of stream) {
-        const msg = event.data
-        if (event.type === 'response') {
-          await this.llmEventHandler.handleLLMAgentResponse(msg)
-        } else if (event.type === 'error') {
-          await this.llmEventHandler.handleLLMAgentError(msg)
-        } else if (event.type === 'end') {
-          await this.llmEventHandler.handleLLMAgentEnd(msg)
-        }
-      }
+      await this.loopOrchestrator.consume(stream)
     } catch (error) {
       if (String(error).includes('userCanceledGeneration')) {
         console.log('[StreamGenerationHandler] Message generation cancelled by user')

@@ -9,7 +9,7 @@
   - Facade：`index.ts`（对外 IPC 入口，统一 send/continue/cancel/permission/preview）
   - Message：`messageBuilder` / `messageFormatter` / `messageTruncator` / `messageCompressor`
   - Tool：`toolCallCenter` / `toolRegistry` / `toolRouter`
-  - Session：`sessionResolver` / `sessionContext`
+  - Session：`sessionResolver` / `sessionContext` / `sessionManager`
 
 ### 运行链路（当前态）
 1. Renderer 通过 `agentPresenter` 发起发送/继续/取消/权限/预览等操作。
@@ -41,36 +41,39 @@
 ### Phase 3：ToolCallCenter 收口
 - [x] `ToolCallCenter` 薄封装 `ToolPresenter`
 - [x] message 构建时统一使用 tool definitions
-- [ ] tool 去重与 jsonrepair 回退单测
+- [x] tool 去重与 jsonrepair 回退单测
 
 ### Phase 4：SessionManager 与状态收口
 - [x] `SessionContext.resolved` 基础规则落地
-- [ ] `agentWorkspacePath` 默认生成与持久化
-- [ ] 运行时状态迁入 `SessionManager`
-- [ ] 替换重复的 mode/workspace 决策
+- [x] `agentWorkspacePath` 默认生成与持久化
+- [x] 运行时状态迁入 `SessionManager`
+- [x] 替换重复的 mode/workspace 决策
 
 ### Phase 5：Loop async/await 重写
-- [ ] `loopOrchestrator` 事件消费层
-- [ ] `agentLoopHandler` 自驱动 loop
-- [ ] 三模式回归与性能对照
+- [x] `loopOrchestrator` 事件消费层
+- [x] `agentLoopHandler` 自驱动 loop
+- [x] 三模式回归与性能对照
 
 ### Phase 6：Renderer 迁移与清理
 - [x] Chat 主流程切换至 `agentPresenter`
-- [ ] utilities / search / conversation 管理迁移
-- [ ] 移除 `ThreadPresenter` 入口与旧模块
+- [x] utilities / search / conversation 管理迁移
+- [x] 移除 `ThreadPresenter` 入口（renderer/IPC），旧模块内部保留用于委托
 
 ## 当前时限（滚动计划）
 
 ### 近期（1-2 周）
-- Phase 4：SessionManager 状态收口 + workspace 默认路径持久化
-- 补齐 Phase 3 测试（tool 去重 / jsonrepair）
+- Phase 4：SessionManager 状态收口 + workspace 默认路径持久化（已完成）
+- 补齐 Phase 3 测试（tool 去重 / jsonrepair）（已完成）
 
 ### 中期（2-4 周）
-- Phase 5：loop 重写与回归矩阵
+- Phase 5：loop 重写与回归矩阵（已完成）
 
 ### 收尾（1-2 周）
-- Phase 6：renderer 迁移剩余模块 + 清理旧入口
+- Phase 6：renderer 迁移剩余模块 + 清理旧入口（已完成）
 
 ## 变更记录（本轮）
 - Renderer chat 流程迁移到 `agentPresenter`（send/continue/cancel/permission/preview）
 - 删除 `threadPresenter/utils` 的旧包装层
+- SessionManager 统一 workspace 生成/持久化与运行时状态
+- LoopOrchestrator 收口 stream 事件消费
+- Renderer 侧 IPC 入口统一到 `agentPresenter`

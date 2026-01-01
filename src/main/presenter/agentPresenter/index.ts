@@ -1,22 +1,23 @@
-import type { IAgentPresenter, IConfigPresenter, IThreadPresenter } from '@shared/presenter'
+import type { IAgentPresenter, IThreadPresenter } from '@shared/presenter'
 import type { AssistantMessage } from '@shared/chat'
 import { eventBus, SendTarget } from '@/eventbus'
 import { STREAM_EVENTS } from '@/events'
 import type { SessionContextResolved } from './session/sessionContext'
-import { resolveSessionContext } from './session/sessionResolver'
+import type { SessionManager } from './session/sessionManager'
 
 type AgentPresenterDependencies = {
   threadPresenter: IThreadPresenter
-  configPresenter: IConfigPresenter
+  sessionManager: SessionManager
 }
 
 export class AgentPresenter implements IAgentPresenter {
   private threadPresenter: IThreadPresenter
-  private configPresenter: IConfigPresenter
+  private sessionManager: SessionManager
 
-  constructor({ threadPresenter, configPresenter }: AgentPresenterDependencies) {
+  constructor({ threadPresenter, sessionManager }: AgentPresenterDependencies) {
     this.threadPresenter = threadPresenter
-    this.configPresenter = configPresenter
+    this.sessionManager = sessionManager
+    this.bindThreadPresenterMethods()
   }
 
   async sendMessage(
@@ -31,6 +32,7 @@ export class AgentPresenter implements IAgentPresenter {
       return null
     }
 
+    await this.sessionManager.startLoop(agentId, assistantMessage.id)
     void this.threadPresenter
       .startStreamCompletion(agentId, assistantMessage.id, selectedVariantsMap)
       .catch((error) => {
@@ -49,10 +51,20 @@ export class AgentPresenter implements IAgentPresenter {
     selectedVariantsMap?: Record<string, string>
   ): Promise<void> {
     await this.logResolvedIfEnabled(agentId)
+    await this.sessionManager.startLoop(agentId, messageId)
     await this.threadPresenter.continueStreamCompletion(agentId, messageId, selectedVariantsMap)
   }
 
   async cancelLoop(messageId: string): Promise<void> {
+    try {
+      const message = await this.threadPresenter.getMessage(messageId)
+      if (message) {
+        this.sessionManager.updateRuntime(message.conversationId, { userStopRequested: true })
+        this.sessionManager.setStatus(message.conversationId, 'paused')
+      }
+    } catch (error) {
+      console.warn('[AgentPresenter] Failed to update session state for cancel:', error)
+    }
     await this.threadPresenter.stopMessageGeneration(messageId)
   }
 
@@ -97,21 +109,20 @@ export class AgentPresenter implements IAgentPresenter {
   }
 
   private async resolveSession(agentId: string): Promise<SessionContextResolved> {
-    const conversation = await this.threadPresenter.getConversation(agentId)
-    const fallbackChatMode = this.configPresenter.getSetting('input_chatMode') as
-      | 'chat'
-      | 'agent'
-      | 'acp agent'
-      | undefined
-    const modelConfig = this.configPresenter.getModelDefaultConfig(
-      conversation.settings.modelId,
-      conversation.settings.providerId
-    )
+    const session = await this.sessionManager.getSession(agentId)
+    return session.resolved
+  }
 
-    return resolveSessionContext({
-      settings: conversation.settings,
-      fallbackChatMode,
-      modelConfig
-    })
+  private bindThreadPresenterMethods(): void {
+    const threadPresenter = this.threadPresenter as unknown as Record<string, unknown>
+    const threadProto = Object.getPrototypeOf(threadPresenter) as Record<string, unknown>
+    for (const key of Object.getOwnPropertyNames(threadProto)) {
+      if (key === 'constructor') continue
+      if (key in this) continue
+      const value = threadPresenter[key]
+      if (typeof value === 'function') {
+        ;(this as Record<string, unknown>)[key] = value.bind(this.threadPresenter)
+      }
+    }
   }
 }

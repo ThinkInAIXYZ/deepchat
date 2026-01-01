@@ -106,7 +106,7 @@ import { ref, watch, onMounted, nextTick, onBeforeUnmount } from 'vue'
 
 const chatStore = useChatStore()
 const windowPresenter = usePresenter('windowPresenter')
-const threadPresenter = usePresenter('threadPresenter')
+const threadPresenter = usePresenter('agentPresenter')
 
 const props = defineProps<{
   message: UserMessage
@@ -252,3 +252,4 @@ onBeforeUnmount(() => {
   window.removeEventListener('resize', handleWindowResize)
 })
 </script>
+

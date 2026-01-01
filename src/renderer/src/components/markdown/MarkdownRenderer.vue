@@ -45,7 +45,7 @@ const artifactStore = useArtifactStore()
 const messageId = `artifact-msg-${nanoid()}`
 const threadId = `artifact-thread-${nanoid()}`
 const referenceStore = useReferenceStore()
-const threadPresenter = usePresenter('threadPresenter')
+const threadPresenter = usePresenter('agentPresenter')
 const referenceNode = ref<HTMLElement | null>(null)
 const debouncedContent = ref(props.content)
 const codeBlockMonacoOption = computed(() => ({
@@ -225,3 +225,4 @@ defineEmits(['copy'])
   }
 }
 </style>
+

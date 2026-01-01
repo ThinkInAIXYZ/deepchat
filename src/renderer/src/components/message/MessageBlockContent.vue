@@ -28,7 +28,7 @@ import { ref, nextTick, watch, onMounted } from 'vue'
 import { usePresenter } from '@/composables/usePresenter'
 import { SearchResult } from '@shared/presenter'
 
-const threadPresenter = usePresenter('threadPresenter')
+const threadPresenter = usePresenter('agentPresenter')
 const searchResults = ref<SearchResult[]>([])
 
 import ArtifactThinking from '../artifacts/ArtifactThinking.vue'
@@ -105,3 +105,4 @@ onMounted(async () => {
   }
 })
 </script>
+

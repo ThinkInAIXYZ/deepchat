@@ -49,6 +49,7 @@ import { WorkspacePresenter } from './workspacePresenter'
 import { ToolPresenter } from './toolPresenter'
 import { CommandPermissionHandler } from './threadPresenter/handlers/commandPermissionHandler'
 import { AgentPresenter } from './agentPresenter'
+import { SessionManager } from './agentPresenter/session/sessionManager'
 
 // IPC调用上下文接口
 interface IPCCallContext {
@@ -73,7 +74,8 @@ export class Presenter implements IPresenter {
   llmproviderPresenter: ILlmProviderPresenter
   configPresenter: IConfigPresenter
   threadPresenter: IThreadPresenter
-  agentPresenter: IAgentPresenter
+  agentPresenter: IAgentPresenter & IThreadPresenter
+  sessionManager: SessionManager
   devicePresenter: IDevicePresenter
   upgradePresenter: IUpgradePresenter
   shortcutPresenter: IShortcutPresenter
@@ -114,10 +116,14 @@ export class Presenter implements IPresenter {
       this.configPresenter,
       commandPermissionHandler
     )
+    this.sessionManager = new SessionManager({
+      configPresenter: this.configPresenter,
+      threadPresenter: this.threadPresenter
+    })
     this.agentPresenter = new AgentPresenter({
       threadPresenter: this.threadPresenter,
-      configPresenter: this.configPresenter
-    })
+      sessionManager: this.sessionManager
+    }) as unknown as IAgentPresenter & IThreadPresenter
     this.mcpPresenter = new McpPresenter(this.configPresenter)
     this.upgradePresenter = new UpgradePresenter(this.configPresenter)
     this.shortcutPresenter = new ShortcutPresenter(this.configPresenter)

@@ -11,7 +11,7 @@ interface UseAcpWorkdirOptions {
 }
 
 export function useAcpWorkdir(options: UseAcpWorkdirOptions) {
-  const threadPresenter = usePresenter('threadPresenter')
+  const threadPresenter = usePresenter('agentPresenter')
   const devicePresenter = usePresenter('devicePresenter')
   const chatStore = useChatStore()
 

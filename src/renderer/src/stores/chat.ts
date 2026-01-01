@@ -42,7 +42,7 @@ type PendingScrollTarget = {
 }
 
 export const useChatStore = defineStore('chat', () => {
-  const threadP = usePresenter('threadPresenter')
+  const threadP = usePresenter('agentPresenter')
   const agentP = usePresenter('agentPresenter')
   const windowP = usePresenter('windowPresenter')
   const notificationP = usePresenter('notificationPresenter')

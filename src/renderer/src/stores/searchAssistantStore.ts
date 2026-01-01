@@ -7,7 +7,7 @@ import { useModelStore } from '@/stores/modelStore'
 
 export const useSearchAssistantStore = defineStore('searchAssistant', () => {
   const configP = usePresenter('configPresenter')
-  const threadP = usePresenter('threadPresenter')
+  const threadP = usePresenter('agentPresenter')
   const modelStore = useModelStore()
   const { enabledModels } = storeToRefs(modelStore)
 
