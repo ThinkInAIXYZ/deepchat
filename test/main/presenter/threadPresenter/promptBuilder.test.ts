@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { approximateTokenSize } from 'tokenx'
 import type { AssistantMessageBlock, Message, UserMessageContent } from '@shared/chat'
 import { buildUserMessageContext } from '@/presenter/threadPresenter/utils/messageContent'
-import { selectContextMessages } from '@/presenter/threadPresenter/utils/promptBuilder'
+import { selectContextMessages } from '@/presenter/agentPresenter/message/messageTruncator'
 
 const baseUsage = {
   context_usage: 0,
@@ -172,5 +172,55 @@ describe('selectContextMessages', () => {
     )
 
     expect(selected.map((message) => message.id)).toEqual(['user-2', 'assistant-2'])
+  })
+
+  it('returns empty when remaining context length is non-positive', () => {
+    const user = createMessage('user-1', 'user', createUserContent('hello'))
+    const assistant = createMessage('assistant-1', 'assistant', createAssistantBlocks('reply'))
+
+    const selected = selectContextMessages([user, assistant], user, 0, false, false)
+
+    expect(selected).toEqual([])
+  })
+
+  it('returns empty when no sent context messages exist', () => {
+    const user = createMessage('user-1', 'user', createUserContent('hello'))
+    const assistant = createMessage('assistant-1', 'assistant', createAssistantBlocks('reply'))
+    user.status = 'pending'
+    assistant.status = 'pending'
+
+    const selected = selectContextMessages([user, assistant], user, 100, false, false)
+
+    expect(selected).toEqual([])
+  })
+
+  it('retains image user messages when vision is enabled', () => {
+    const userWithImage = createMessage('user-1', 'user', createUserContent('hello'))
+    const imageContent = userWithImage.content as UserMessageContent & { images?: string[] }
+    imageContent.images = ['data:image/png;base64,abc']
+    const assistant = createMessage('assistant-1', 'assistant', createAssistantBlocks('reply'))
+    const currentUser = createMessage('user-2', 'user', createUserContent('new question'))
+
+    const selected = selectContextMessages(
+      [userWithImage, assistant],
+      currentUser,
+      1000,
+      true,
+      true
+    )
+
+    expect(selected.map((message) => message.id)).toEqual(['user-1', 'assistant-1'])
+  })
+
+  it('keeps context edge messages when within limits', () => {
+    const user = createMessage('user-1', 'user', createUserContent('edge message'))
+    const assistant = createMessage('assistant-1', 'assistant', createAssistantBlocks('reply'))
+    const edgeUser = user as Message & { is_context_edge?: boolean }
+    edgeUser.is_context_edge = true
+    const currentUser = createMessage('user-2', 'user', createUserContent('new question'))
+
+    const selected = selectContextMessages([user, assistant], currentUser, 1000, false, false)
+
+    expect(selected.map((message) => message.id)).toEqual(['user-1', 'assistant-1'])
   })
 })

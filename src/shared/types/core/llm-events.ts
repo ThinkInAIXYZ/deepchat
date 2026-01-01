@@ -97,6 +97,13 @@ export type LLMCoreStreamEvent =
   | ImageDataStreamEvent
   | RateLimitStreamEvent
 
+export type {
+  ChatMessage,
+  ChatMessageContent,
+  ChatMessageRole,
+  ChatMessageToolCall
+} from './chat-message'
+
 export const createStreamEvent = {
   text: (content: string): TextStreamEvent => ({ type: 'text', content }),
   reasoning: (reasoning_content: string): ReasoningStreamEvent => ({

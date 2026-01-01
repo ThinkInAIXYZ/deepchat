@@ -1,5 +1,6 @@
 import { ShowResponse } from 'ollama'
-import { ChatMessage, LLMAgentEvent } from '../core/chat'
+import type { ChatMessage } from '../core/chat-message'
+import type { LLMAgentEvent } from '../core/agent-events'
 import { ModelType } from '../core/model'
 import type { AcpDebugRequest, AcpDebugRunResult, AcpWorkdirInfo } from './legacy.presenters'
 
