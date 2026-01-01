@@ -528,10 +528,9 @@ export class PermissionHandler extends BaseHandler {
       try {
         const chatMode: 'chat' | 'agent' | 'acp agent' =
           conversation.settings.chatMode ??
-          ((await this.ctx.configPresenter.getSetting('input_chatMode')) as
-            | 'chat'
-            | 'agent'
-            | 'acp agent') ??
+          (await this.ctx.configPresenter.getSetting<'chat' | 'agent' | 'acp agent'>(
+            'input_chatMode'
+          )) ??
           'chat'
         let agentWorkspacePath: string | null = null
         if (chatMode === 'agent') {

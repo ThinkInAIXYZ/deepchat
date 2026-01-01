@@ -1,5 +1,4 @@
-import type { ChatMessage } from '../core/chat-message'
-import { AssistantMessageBlock, Message, AssistantMessage, UserMessage } from '../core/chat'
+import { AssistantMessageBlock, Message, AssistantMessage } from '../core/chat'
 import { MODEL_META, AcpWorkdirInfo } from './llmprovider.presenter'
 
 /**

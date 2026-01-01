@@ -269,6 +269,7 @@ const loadPreview = async (messageId: string) => {
   try {
     if (!props.conversationId) {
       error.value = true
+      loading.value = false
       return
     }
     const result = await agentPresenter.getMessageRequestPreview(props.conversationId, messageId)
