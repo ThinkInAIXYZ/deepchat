@@ -1,7 +1,6 @@
 import path from 'path'
 import { DialogPresenter } from './dialogPresenter/index'
 import { ipcMain, IpcMainInvokeEvent, app } from 'electron'
-// import { LlamaCppPresenter } from './llamaCppPresenter' // 保留原始注释
 import { WindowPresenter } from './windowPresenter'
 import { ShortcutPresenter } from './shortcutPresenter'
 import {
@@ -92,7 +91,6 @@ export class Presenter implements IPresenter {
   workspacePresenter: IWorkspacePresenter
   toolPresenter: IToolPresenter
   yoBrowserPresenter: IYoBrowserPresenter
-  // llamaCppPresenter: LlamaCppPresenter // 保留原始注释
   dialogPresenter: IDialogPresenter
   lifecycleManager: ILifecycleManager
 
@@ -156,7 +154,6 @@ export class Presenter implements IPresenter {
       commandPermissionHandler
     })
 
-    // this.llamaCppPresenter = new LlamaCppPresenter() // 保留原始注释
     this.setupEventBus() // 设置事件总线监听
   }
 

@@ -315,13 +315,6 @@ export interface TabCreateOptions {
   allowNonLocal?: boolean
 }
 
-export interface ILlamaCppPresenter {
-  init(): void
-  prompt(text: string): Promise<string>
-  startNewChat(): void
-  destroy(): Promise<void>
-}
-
 export interface IShortcutPresenter {
   registerShortcuts(): void
   unregisterShortcuts(): void
