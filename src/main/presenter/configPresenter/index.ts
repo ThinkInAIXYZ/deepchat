@@ -87,7 +87,11 @@ const defaultProviders = DEFAULT_PROVIDERS.map((provider) => ({
   apiKey: provider.apiKey,
   baseUrl: provider.baseUrl,
   enable: provider.enable,
-  websites: provider.websites
+  websites: provider.websites,
+  models: provider.models ?? [],
+  customModels: provider.customModels ?? [],
+  enabledModels: provider.enabledModels ?? [],
+  disabledModels: provider.disabledModels ?? []
 }))
 
 const PROVIDERS_STORE_KEY = 'providers'

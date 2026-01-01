@@ -50,25 +50,51 @@ export type LLM_PROVIDER = {
   apiKey: string
   copilotClientId?: string
   baseUrl: string
-  models: MODEL_META[]
+  models?: MODEL_META[]
   customModels?: MODEL_META[]
   enable: boolean
-  enabledModels: string[]
-  disabledModels: string[]
+  enabledModels?: string[]
+  disabledModels?: string[]
+  custom?: boolean
+  authMode?: 'apikey' | 'oauth'
+  oauthToken?: string
+  websites?: {
+    official: string
+    apiKey: string
+    name?: string
+    icon?: string
+    docs?: string
+    models?: string
+    defaultBaseUrl?: string
+  }
+  rateLimit?: {
+    enabled: boolean
+    qpsLimit: number
+  }
   rateLimitConfig?: {
     enabled: boolean
     qpsLimit: number
   }
 }
 
-export type LLM_PROVIDER_BASE = {
+export type LLM_PROVIDER_BASE = Omit<
+  LLM_PROVIDER,
+  'models' | 'customModels' | 'enabledModels' | 'disabledModels'
+> & {
+  models?: MODEL_META[]
+  customModels?: MODEL_META[]
+  enabledModels?: string[]
+  disabledModels?: string[]
   websites?: {
     official: string
     apiKey: string
-    name: string
-    icon: string
+    name?: string
+    icon?: string
+    docs?: string
+    models?: string
+    defaultBaseUrl?: string
   }
-} & LLM_PROVIDER
+}
 
 export type LLM_EMBEDDING_ATTRS = {
   dimensions: number
@@ -104,9 +130,10 @@ export type VERTEX_PROVIDER = LLM_PROVIDER & {
 
 export interface OllamaModel {
   name: string
+  model?: string
   size: number
   digest: string
-  modified_at: string
+  modified_at: string | Date
   details: {
     format: string
     family: string
@@ -115,6 +142,11 @@ export interface OllamaModel {
     quantization_level: string
   }
   model_info?: {
+    context_length?: number
+    embedding_length?: number
+    vision?: {
+      embedding_length: number
+    }
     general?: {
       architecture?: string
       file_type?: string
@@ -122,6 +154,7 @@ export interface OllamaModel {
       quantization_version?: number
     }
   }
+  capabilities?: string[]
 }
 
 export interface ModelScopeMcpSyncOptions {

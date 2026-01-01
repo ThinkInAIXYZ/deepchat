@@ -1,14 +1,14 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { AssistantMessage, AssistantMessageBlock } from '@shared/chat'
 import type { ILlmProviderPresenter, IMCPPresenter, IToolPresenter } from '@shared/presenter'
-import { PermissionHandler } from '@/presenter/threadPresenter/handlers/permissionHandler'
-import { CommandPermissionHandler } from '@/presenter/threadPresenter/handlers/commandPermissionHandler'
-import type { ThreadHandlerContext } from '@/presenter/threadPresenter/handlers/baseHandler'
-import type { StreamGenerationHandler } from '@/presenter/threadPresenter/handlers/streamGenerationHandler'
-import type { LLMEventHandler } from '@/presenter/threadPresenter/handlers/llmEventHandler'
-import type { MessageManager } from '@/presenter/threadPresenter/managers/messageManager'
-import type { SearchManager } from '@/presenter/threadPresenter/managers/searchManager'
-import type { GeneratingMessageState } from '@/presenter/threadPresenter/types'
+import { PermissionHandler } from '@/presenter/sessionPresenter/permission/permissionHandler'
+import { CommandPermissionService } from '@/presenter/permission'
+import type { ThreadHandlerContext } from '@/presenter/searchPresenter/handlers/baseHandler'
+import type { StreamGenerationHandler } from '@/presenter/sessionPresenter/streaming/streamGenerationHandler'
+import type { LLMEventHandler } from '@/presenter/sessionPresenter/streaming/llmEventHandler'
+import type { MessageManager } from '@/presenter/sessionPresenter/managers/messageManager'
+import type { SearchManager } from '@/presenter/searchPresenter/managers/searchManager'
+import type { GeneratingMessageState } from '@/presenter/sessionPresenter/streaming/types'
 
 const createAssistantMessage = (
   block: AssistantMessageBlock,
@@ -103,7 +103,7 @@ describe('PermissionHandler - ACP permissions', () => {
         }) as unknown as IToolPresenter,
       streamGenerationHandler: {} as StreamGenerationHandler,
       llmEventHandler: {} as LLMEventHandler,
-      commandPermissionHandler: new CommandPermissionHandler()
+      commandPermissionHandler: new CommandPermissionService()
     })
 
     return {

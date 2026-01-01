@@ -1,4 +1,4 @@
-import type { IAgentPresenter, IThreadPresenter } from '@shared/presenter'
+import type { IAgentPresenter, ISessionPresenter } from '@shared/presenter'
 import type { AssistantMessage } from '@shared/chat'
 import { eventBus, SendTarget } from '@/eventbus'
 import { STREAM_EVENTS } from '@/events'
@@ -6,18 +6,18 @@ import type { SessionContextResolved } from './session/sessionContext'
 import type { SessionManager } from './session/sessionManager'
 
 type AgentPresenterDependencies = {
-  threadPresenter: IThreadPresenter
+  sessionPresenter: ISessionPresenter
   sessionManager: SessionManager
 }
 
 export class AgentPresenter implements IAgentPresenter {
-  private threadPresenter: IThreadPresenter
+  private sessionPresenter: ISessionPresenter
   private sessionManager: SessionManager
 
-  constructor({ threadPresenter, sessionManager }: AgentPresenterDependencies) {
-    this.threadPresenter = threadPresenter
+  constructor({ sessionPresenter, sessionManager }: AgentPresenterDependencies) {
+    this.sessionPresenter = sessionPresenter
     this.sessionManager = sessionManager
-    this.bindThreadPresenterMethods()
+    this.bindSessionPresenterMethods()
   }
 
   async sendMessage(
@@ -27,13 +27,13 @@ export class AgentPresenter implements IAgentPresenter {
     selectedVariantsMap?: Record<string, string>
   ): Promise<AssistantMessage | null> {
     await this.logResolvedIfEnabled(agentId)
-    const assistantMessage = await this.threadPresenter.sendMessage(agentId, content, 'user')
+    const assistantMessage = await this.sessionPresenter.sendMessage(agentId, content)
     if (!assistantMessage) {
       return null
     }
 
     await this.sessionManager.startLoop(agentId, assistantMessage.id)
-    void this.threadPresenter
+    void this.sessionPresenter
       .startStreamCompletion(agentId, assistantMessage.id, selectedVariantsMap)
       .catch((error) => {
         console.error('[AgentPresenter] Failed to start stream completion:', error)
@@ -52,12 +52,12 @@ export class AgentPresenter implements IAgentPresenter {
   ): Promise<void> {
     await this.logResolvedIfEnabled(agentId)
     await this.sessionManager.startLoop(agentId, messageId)
-    await this.threadPresenter.continueStreamCompletion(agentId, messageId, selectedVariantsMap)
+    await this.sessionPresenter.continueStreamCompletion(agentId, messageId, selectedVariantsMap)
   }
 
   async cancelLoop(messageId: string): Promise<void> {
     try {
-      const message = await this.threadPresenter.getMessage(messageId)
+      const message = await this.sessionPresenter.getMessage(messageId)
       if (message) {
         this.sessionManager.updateRuntime(message.conversationId, { userStopRequested: true })
         this.sessionManager.setStatus(message.conversationId, 'paused')
@@ -65,7 +65,7 @@ export class AgentPresenter implements IAgentPresenter {
     } catch (error) {
       console.warn('[AgentPresenter] Failed to update session state for cancel:', error)
     }
-    await this.threadPresenter.stopMessageGeneration(messageId)
+    await this.sessionPresenter.stopMessageGeneration(messageId)
   }
 
   async handlePermissionResponse(
@@ -75,7 +75,7 @@ export class AgentPresenter implements IAgentPresenter {
     permissionType: 'read' | 'write' | 'all' | 'command',
     remember?: boolean
   ): Promise<void> {
-    await this.threadPresenter.handlePermissionResponse(
+    await this.sessionPresenter.handlePermissionResponse(
       messageId,
       toolCallId,
       granted,
@@ -89,7 +89,7 @@ export class AgentPresenter implements IAgentPresenter {
       return null
     }
     await this.logResolvedIfEnabled(agentId)
-    return this.threadPresenter.getMessageRequestPreview(messageId)
+    return this.sessionPresenter.getMessageRequestPreview(messageId)
   }
 
   private shouldLogResolved(): boolean {
@@ -113,15 +113,15 @@ export class AgentPresenter implements IAgentPresenter {
     return session.resolved
   }
 
-  private bindThreadPresenterMethods(): void {
-    const threadPresenter = this.threadPresenter as unknown as Record<string, unknown>
-    const threadProto = Object.getPrototypeOf(threadPresenter) as Record<string, unknown>
-    for (const key of Object.getOwnPropertyNames(threadProto)) {
+  private bindSessionPresenterMethods(): void {
+    const sessionPresenter = this.sessionPresenter as unknown as Record<string, unknown>
+    const sessionProto = Object.getPrototypeOf(sessionPresenter) as Record<string, unknown>
+    for (const key of Object.getOwnPropertyNames(sessionProto)) {
       if (key === 'constructor') continue
       if (key in this) continue
-      const value = threadPresenter[key]
+      const value = sessionPresenter[key]
       if (typeof value === 'function') {
-        ;(this as Record<string, unknown>)[key] = value.bind(this.threadPresenter)
+        ;(this as Record<string, unknown>)[key] = value.bind(this.sessionPresenter)
       }
     }
   }

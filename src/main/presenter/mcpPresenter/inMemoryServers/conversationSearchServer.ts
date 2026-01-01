@@ -614,7 +614,7 @@ export class ConversationSearchServer {
             }
 
             // 步骤 2: 主进程创建会话。此操作会触发 CONVERSATION_EVENTS.ACTIVATED 事件，必须在 Vue/Pinia 就绪后执行
-            const newThreadId = await presenter.threadPresenter.createConversation(
+            const newThreadId = await presenter.sessionPresenter.createConversation(
               'New Chat', // 临时标题
               {}, // 默认设置
               newTabId

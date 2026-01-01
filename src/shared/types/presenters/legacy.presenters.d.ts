@@ -8,6 +8,9 @@ import type { NowledgeMemThread, NowledgeMemExportSummary } from '../nowledgeMem
 import { ProviderChange, ProviderBatchUpdate } from './provider-operations'
 import type { AgentSessionLifecycleStatus } from './agent-provider'
 import type { IAgentPresenter } from './agent.presenter'
+import type { ISessionPresenter } from './session.presenter'
+import type { ISearchPresenter } from './search.presenter'
+import type { IConversationExporter } from './exporter.presenter'
 import type { IWorkspacePresenter } from './workspace'
 import type { IToolPresenter } from './tool.presenter'
 import type {
@@ -424,7 +427,10 @@ export interface IPresenter {
   sqlitePresenter: ISQLitePresenter
   llmproviderPresenter: ILlmProviderPresenter
   configPresenter: IConfigPresenter
-  agentPresenter: IAgentPresenter & IThreadPresenter
+  sessionPresenter: ISessionPresenter
+  searchPresenter: ISearchPresenter
+  exporter: IConversationExporter
+  agentPresenter: IAgentPresenter & ISessionPresenter
   devicePresenter: IDevicePresenter
   upgradePresenter: IUpgradePresenter
   shortcutPresenter: IShortcutPresenter
@@ -682,30 +688,32 @@ export type RENDERER_MODEL_META = {
   name: string
   group: string
   providerId: string
-  enabled: boolean
-  isCustom: boolean
-  contextLength: number
-  maxTokens: number
+  enabled?: boolean
+  isCustom?: boolean
   vision?: boolean
   functionCall?: boolean
   reasoning?: boolean
   enableSearch?: boolean
   type?: ModelType
+  contextLength?: number
+  maxTokens?: number
+  description?: string
 }
 export type MODEL_META = {
   id: string
   name: string
   group: string
   providerId: string
-  isCustom: boolean
-  contextLength: number
-  maxTokens: number
-  description?: string
+  enabled?: boolean
+  isCustom?: boolean
   vision?: boolean
   functionCall?: boolean
   reasoning?: boolean
   enableSearch?: boolean
   type?: ModelType
+  contextLength?: number
+  maxTokens?: number
+  description?: string
 }
 export type LLM_PROVIDER = {
   id: string
@@ -714,7 +722,11 @@ export type LLM_PROVIDER = {
   apiKey: string
   copilotClientId?: string
   baseUrl: string
+  models?: MODEL_META[]
+  customModels?: MODEL_META[]
   enable: boolean
+  enabledModels?: string[]
+  disabledModels?: string[]
   custom?: boolean
   authMode?: 'apikey' | 'oauth' // Authentication mode
   oauthToken?: string // OAuth token
@@ -722,23 +734,39 @@ export type LLM_PROVIDER = {
     enabled: boolean
     qpsLimit: number
   }
+  rateLimitConfig?: {
+    enabled: boolean
+    qpsLimit: number
+  }
   websites?: {
     official: string
     apiKey: string
-    docs: string
-    models: string
+    name?: string
+    icon?: string
+    docs?: string
+    models?: string
+    defaultBaseUrl?: string
   }
 }
 
-export type LLM_PROVIDER_BASE = {
+export type LLM_PROVIDER_BASE = Omit<
+  LLM_PROVIDER,
+  'models' | 'customModels' | 'enabledModels' | 'disabledModels'
+> & {
+  models?: MODEL_META[]
+  customModels?: MODEL_META[]
+  enabledModels?: string[]
+  disabledModels?: string[]
   websites?: {
     official: string
     apiKey: string
-    docs: string
-    models: string
-    defaultBaseUrl: string
+    name?: string
+    icon?: string
+    docs?: string
+    models?: string
+    defaultBaseUrl?: string
   }
-} & LLM_PROVIDER
+}
 
 export type LLM_EMBEDDING_ATTRS = {
   dimensions: number
@@ -866,10 +894,15 @@ export interface AcpWorkdirInfo {
 export interface ModelScopeMcpSyncOptions {
   page_number?: number
   page_size?: number
+  timeout?: number
+  retryCount?: number
 }
 
 // ModelScope MCP sync result interface
 export interface ModelScopeMcpSyncResult {
+  success?: boolean
+  message?: string
+  synced?: number
   imported: number
   skipped: number
   errors: string[]
@@ -1458,26 +1491,26 @@ export interface FileMetaData {
 // Define model interface based on Ollama SDK
 export interface OllamaModel {
   name: string
-  model: string
+  model?: string
   modified_at: Date | string // Modified to allow Date or string
   size: number
   digest: string
   details: {
     format: string
     family: string
-    families: string[]
+    families?: string[]
     parameter_size: string
     quantization_level: string
   }
   // Merge some information from show interface
-  model_info: {
-    context_length: number
-    embedding_length: number
+  model_info?: {
+    context_length?: number
+    embedding_length?: number
     vision?: {
       embedding_length: number
     }
   }
-  capabilities: string[]
+  capabilities?: string[]
 }
 
 // Define progress callback interface

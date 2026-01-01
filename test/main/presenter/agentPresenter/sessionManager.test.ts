@@ -26,7 +26,7 @@ const createConversation = (overrides?: Partial<typeof baseSettings>) => ({
 })
 
 const createManager = (conversation: ReturnType<typeof createConversation>) => {
-  const threadPresenter = {
+  const sessionPresenter = {
     getConversation: vi.fn().mockResolvedValue(conversation),
     updateConversationSettings: vi.fn().mockResolvedValue(undefined)
   } as any
@@ -43,8 +43,8 @@ const createManager = (conversation: ReturnType<typeof createConversation>) => {
   } as any
 
   return {
-    manager: new SessionManager({ configPresenter, threadPresenter }),
-    threadPresenter,
+    manager: new SessionManager({ configPresenter, sessionPresenter }),
+    sessionPresenter,
     configPresenter
   }
 }
@@ -65,7 +65,7 @@ describe('SessionManager', () => {
 
   it('generates and persists workspace path for agent mode', async () => {
     const conversation = createConversation({ chatMode: 'agent', agentWorkspacePath: null })
-    const { manager, threadPresenter } = createManager(conversation)
+    const { manager, sessionPresenter } = createManager(conversation)
 
     const context = await manager.resolveWorkspaceContext(
       conversation.id,
@@ -75,7 +75,7 @@ describe('SessionManager', () => {
 
     expect(context.chatMode).toBe('agent')
     expect(context.agentWorkspacePath).toBe(expected)
-    expect(threadPresenter.updateConversationSettings).toHaveBeenCalledWith(conversation.id, {
+    expect(sessionPresenter.updateConversationSettings).toHaveBeenCalledWith(conversation.id, {
       agentWorkspacePath: expected
     })
   })
@@ -85,7 +85,7 @@ describe('SessionManager', () => {
       chatMode: 'acp agent',
       acpWorkdirMap: { 'model-1': 'C:\\\\acp-workdir' }
     })
-    const { manager, threadPresenter } = createManager(conversation)
+    const { manager, sessionPresenter } = createManager(conversation)
 
     const context = await manager.resolveWorkspaceContext(
       conversation.id,
@@ -94,6 +94,6 @@ describe('SessionManager', () => {
 
     expect(context.chatMode).toBe('acp agent')
     expect(context.agentWorkspacePath).toBe('C:\\\\acp-workdir')
-    expect(threadPresenter.updateConversationSettings).not.toHaveBeenCalled()
+    expect(sessionPresenter.updateConversationSettings).not.toHaveBeenCalled()
   })
 })

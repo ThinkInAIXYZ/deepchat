@@ -7,7 +7,7 @@ import { useModelStore } from '@/stores/modelStore'
 
 export const useSearchAssistantStore = defineStore('searchAssistant', () => {
   const configP = usePresenter('configPresenter')
-  const threadP = usePresenter('agentPresenter')
+  const searchP = usePresenter('searchPresenter')
   const modelStore = useModelStore()
   const { enabledModels } = storeToRefs(modelStore)
 
@@ -89,7 +89,7 @@ export const useSearchAssistantStore = defineStore('searchAssistant', () => {
       providerId
     })
 
-    threadP.setSearchAssistantModel(rawModel, providerId)
+    searchP.setSearchAssistantModel(rawModel, providerId)
   }
 
   const initOrUpdateSearchAssistantModel = async () => {
@@ -108,7 +108,7 @@ export const useSearchAssistantStore = defineStore('searchAssistant', () => {
     if (usableSavedModel) {
       modelRef.value = usableSavedModel.model
       providerRef.value = usableSavedModel.providerId
-      threadP.setSearchAssistantModel(usableSavedModel.model, usableSavedModel.providerId)
+      searchP.setSearchAssistantModel(usableSavedModel.model, usableSavedModel.providerId)
       return
     }
 

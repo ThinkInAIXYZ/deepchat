@@ -2,7 +2,7 @@ import { eventBus, SendTarget } from '@/eventbus'
 import { STREAM_EVENTS } from '@/events'
 import { finalizeAssistantMessageBlocks } from '@shared/chat/messageBlocks'
 import type { MessageManager } from '../managers/messageManager'
-import type { GeneratingMessageState } from '../types'
+import type { GeneratingMessageState } from './types'
 
 export class ContentBufferHandler {
   private readonly generatingMessages: Map<string, GeneratingMessageState>

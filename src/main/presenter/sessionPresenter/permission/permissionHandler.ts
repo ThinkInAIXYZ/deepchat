@@ -14,11 +14,11 @@ import {
   buildPostToolExecutionContext,
   type PendingToolCall
 } from '../../agentPresenter/message/messageBuilder'
-import type { GeneratingMessageState } from '../types'
-import type { StreamGenerationHandler } from './streamGenerationHandler'
-import type { LLMEventHandler } from './llmEventHandler'
-import { BaseHandler, type ThreadHandlerContext } from './baseHandler'
-import { CommandPermissionHandler } from './commandPermissionHandler'
+import type { GeneratingMessageState } from '../streaming/types'
+import type { StreamGenerationHandler } from '../streaming/streamGenerationHandler'
+import type { LLMEventHandler } from '../streaming/llmEventHandler'
+import { BaseHandler, type ThreadHandlerContext } from '../../searchPresenter/handlers/baseHandler'
+import { CommandPermissionService } from '../../permission/commandPermissionService'
 
 export class PermissionHandler extends BaseHandler {
   private readonly generatingMessages: Map<string, GeneratingMessageState>
@@ -27,7 +27,7 @@ export class PermissionHandler extends BaseHandler {
   private readonly getToolPresenter: () => IToolPresenter
   private readonly streamGenerationHandler: StreamGenerationHandler
   private readonly llmEventHandler: LLMEventHandler
-  private readonly commandPermissionHandler: CommandPermissionHandler
+  private readonly commandPermissionHandler: CommandPermissionService
 
   constructor(
     context: ThreadHandlerContext,
@@ -38,7 +38,7 @@ export class PermissionHandler extends BaseHandler {
       getToolPresenter: () => IToolPresenter
       streamGenerationHandler: StreamGenerationHandler
       llmEventHandler: LLMEventHandler
-      commandPermissionHandler: CommandPermissionHandler
+      commandPermissionHandler: CommandPermissionService
     }
   ) {
     super(context)

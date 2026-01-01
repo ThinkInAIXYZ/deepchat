@@ -28,7 +28,7 @@ import { ref, nextTick, watch, onMounted } from 'vue'
 import { usePresenter } from '@/composables/usePresenter'
 import { SearchResult } from '@shared/presenter'
 
-const threadPresenter = usePresenter('agentPresenter')
+const sessionPresenter = usePresenter('sessionPresenter')
 const searchResults = ref<SearchResult[]>([])
 
 import ArtifactThinking from '../artifacts/ArtifactThinking.vue'
@@ -101,7 +101,7 @@ watch(
 
 onMounted(async () => {
   if (props.isSearchResult) {
-    searchResults.value = await threadPresenter.getSearchResults(props.messageId)
+    searchResults.value = await sessionPresenter.getSearchResults(props.messageId)
   }
 })
 </script>

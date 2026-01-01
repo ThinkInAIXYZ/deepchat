@@ -203,7 +203,7 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
     const stream = this.activeStreams.get(eventId)
     if (stream) {
       stream.abortController.abort()
-      // Deletion is handled by the consuming loop in threadPresenter upon receiving the 'end' event or abortion signal
+      // Deletion is handled by the consuming loop in sessionPresenter upon receiving the 'end' event or abortion signal
     }
   }
 

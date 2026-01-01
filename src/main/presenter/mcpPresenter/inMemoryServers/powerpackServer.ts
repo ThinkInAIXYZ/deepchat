@@ -3,7 +3,7 @@ import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprot
 import { z } from 'zod'
 import { zodToJsonSchema } from 'zod-to-json-schema'
 import { Transport } from '@modelcontextprotocol/sdk/shared/transport.js'
-import { ContentEnricher } from '@/presenter/threadPresenter/utils/contentEnricher'
+import { ContentEnricher } from '@/presenter/content/contentEnricher'
 import { app } from 'electron'
 import path from 'path'
 import fs from 'fs'

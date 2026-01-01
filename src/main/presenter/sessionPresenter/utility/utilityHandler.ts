@@ -8,16 +8,16 @@ import type {
 import type { AssistantMessageBlock, Message, UserMessageContent } from '@shared/chat'
 import { ModelType } from '@shared/model'
 import { presenter } from '@/presenter'
-import { BaseHandler, type ThreadHandlerContext } from './baseHandler'
+import { BaseHandler, type ThreadHandlerContext } from '../../searchPresenter/handlers/baseHandler'
 import { buildUserMessageContext } from '../../agentPresenter/message/messageFormatter'
 import {
   buildConversationExportContent,
   generateExportFilename,
   type ConversationExportFormat
-} from '../exporters/conversationExporter'
+} from '../../exporter/formats/conversationExporter'
 import { preparePromptContent } from '../../agentPresenter/message/messageBuilder'
 import type { ConversationManager } from '../managers/conversationManager'
-import type { StreamGenerationHandler } from './streamGenerationHandler'
+import type { StreamGenerationHandler } from '../streaming/streamGenerationHandler'
 
 // Translation constants
 const TRANSLATION_TEMPERATURE = 0.3

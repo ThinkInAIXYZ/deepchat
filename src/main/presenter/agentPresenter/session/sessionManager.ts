@@ -1,7 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 import { app } from 'electron'
-import type { IConfigPresenter, IThreadPresenter } from '@shared/presenter'
+import type { IConfigPresenter, ISessionPresenter } from '@shared/presenter'
 import type { SessionContext, SessionContextResolved, SessionStatus } from './sessionContext'
 import { resolveSessionContext } from './sessionResolver'
 
@@ -12,7 +12,7 @@ type WorkspaceContext = {
 
 interface SessionManagerOptions {
   configPresenter: IConfigPresenter
-  threadPresenter: IThreadPresenter
+  sessionPresenter: ISessionPresenter
 }
 
 export class SessionManager {
@@ -61,7 +61,7 @@ export class SessionManager {
   }
 
   async resolveSession(agentId: string): Promise<SessionContextResolved> {
-    const conversation = await this.options.threadPresenter.getConversation(agentId)
+    const conversation = await this.options.sessionPresenter.getConversation(agentId)
     const fallbackChatMode = this.options.configPresenter.getSetting('input_chatMode') as
       | 'chat'
       | 'agent'
@@ -203,7 +203,7 @@ export class SessionManager {
     const fallback = await this.getDefaultAgentWorkspacePath(conversationId)
     if (conversationId && fallback) {
       try {
-        await this.options.threadPresenter.updateConversationSettings(conversationId, {
+        await this.options.sessionPresenter.updateConversationSettings(conversationId, {
           agentWorkspacePath: fallback
         })
       } catch (error) {

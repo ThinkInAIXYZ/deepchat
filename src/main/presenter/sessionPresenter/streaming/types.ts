@@ -1,5 +1,5 @@
 import type { AssistantMessage } from '@shared/chat'
-import type { PendingToolCall } from '../agentPresenter/message/messageBuilder'
+import type { PendingToolCall } from '../../agentPresenter/message/messageBuilder'
 
 export interface GeneratingMessageState {
   message: AssistantMessage

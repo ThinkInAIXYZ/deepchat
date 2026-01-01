@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { MCPToolDefinition } from '@shared/presenter'
 import { ToolPresenter } from '@/presenter/toolPresenter'
-import { CommandPermissionHandler } from '@/presenter/threadPresenter/handlers/commandPermissionHandler'
+import { CommandPermissionService } from '@/presenter/permission'
 
 vi.mock('electron', () => ({
   app: {
@@ -41,7 +41,7 @@ describe('ToolPresenter', () => {
       mcpPresenter,
       yoBrowserPresenter,
       configPresenter: {} as any,
-      commandPermissionHandler: new CommandPermissionHandler()
+      commandPermissionHandler: new CommandPermissionService()
     })
 
     const defs = await toolPresenter.getAllToolDefinitions({
@@ -68,7 +68,7 @@ describe('ToolPresenter', () => {
       mcpPresenter,
       yoBrowserPresenter,
       configPresenter: {} as any,
-      commandPermissionHandler: new CommandPermissionHandler()
+      commandPermissionHandler: new CommandPermissionService()
     })
 
     await toolPresenter.getAllToolDefinitions({

@@ -19,7 +19,8 @@ import {
   ISQLitePresenter,
   ISyncPresenter,
   ITabPresenter,
-  IThreadPresenter,
+  ISessionPresenter,
+  IConversationExporter,
   IAgentPresenter,
   IUpgradePresenter,
   IWindowPresenter,
@@ -29,7 +30,7 @@ import {
 } from '@shared/presenter'
 import { eventBus } from '@/eventbus'
 import { LLMProviderPresenter } from './llmProviderPresenter'
-import { ThreadPresenter } from './threadPresenter'
+import { SessionPresenter } from './sessionPresenter'
 import { DevicePresenter } from './devicePresenter'
 import { UpgradePresenter } from './upgradePresenter'
 import { FilePresenter } from './filePresenter/FilePresenter'
@@ -46,9 +47,11 @@ import { CONFIG_EVENTS, WINDOW_EVENTS } from '@/events'
 import { KnowledgePresenter } from './knowledgePresenter'
 import { WorkspacePresenter } from './workspacePresenter'
 import { ToolPresenter } from './toolPresenter'
-import { CommandPermissionHandler } from './threadPresenter/handlers/commandPermissionHandler'
+import { CommandPermissionService } from './permission'
 import { AgentPresenter } from './agentPresenter'
 import { SessionManager } from './agentPresenter/session/sessionManager'
+import { SearchPresenter } from './searchPresenter'
+import { ConversationExporterService } from './exporter'
 
 // IPC调用上下文接口
 interface IPCCallContext {
@@ -72,8 +75,10 @@ export class Presenter implements IPresenter {
   sqlitePresenter: ISQLitePresenter
   llmproviderPresenter: ILlmProviderPresenter
   configPresenter: IConfigPresenter
-  threadPresenter: IThreadPresenter
-  agentPresenter: IAgentPresenter & IThreadPresenter
+  sessionPresenter: ISessionPresenter
+  searchPresenter: SearchPresenter
+  exporter: IConversationExporter
+  agentPresenter: IAgentPresenter & ISessionPresenter
   sessionManager: SessionManager
   devicePresenter: IDevicePresenter
   upgradePresenter: IUpgradePresenter
@@ -106,22 +111,33 @@ export class Presenter implements IPresenter {
     this.windowPresenter = new WindowPresenter(this.configPresenter)
     this.tabPresenter = new TabPresenter(this.windowPresenter)
     this.llmproviderPresenter = new LLMProviderPresenter(this.configPresenter, this.sqlitePresenter)
-    const commandPermissionHandler = new CommandPermissionHandler()
+    const commandPermissionHandler = new CommandPermissionService()
     this.devicePresenter = new DevicePresenter()
-    this.threadPresenter = new ThreadPresenter(
-      this.sqlitePresenter,
-      this.llmproviderPresenter,
-      this.configPresenter,
-      commandPermissionHandler
-    )
+    this.searchPresenter = new SearchPresenter({
+      configPresenter: this.configPresenter,
+      windowPresenter: this.windowPresenter,
+      llmProviderPresenter: this.llmproviderPresenter
+    })
+    this.exporter = new ConversationExporterService({
+      sqlitePresenter: this.sqlitePresenter,
+      configPresenter: this.configPresenter
+    })
+    this.sessionPresenter = new SessionPresenter({
+      sqlitePresenter: this.sqlitePresenter,
+      llmProviderPresenter: this.llmproviderPresenter,
+      configPresenter: this.configPresenter,
+      searchPresenter: this.searchPresenter,
+      exporter: this.exporter,
+      commandPermissionService: commandPermissionHandler
+    })
     this.sessionManager = new SessionManager({
       configPresenter: this.configPresenter,
-      threadPresenter: this.threadPresenter
+      sessionPresenter: this.sessionPresenter
     })
     this.agentPresenter = new AgentPresenter({
-      threadPresenter: this.threadPresenter,
+      sessionPresenter: this.sessionPresenter,
       sessionManager: this.sessionManager
-    }) as unknown as IAgentPresenter & IThreadPresenter
+    }) as unknown as IAgentPresenter & ISessionPresenter
     this.mcpPresenter = new McpPresenter(this.configPresenter)
     this.upgradePresenter = new UpgradePresenter(this.configPresenter)
     this.shortcutPresenter = new ShortcutPresenter(this.configPresenter)

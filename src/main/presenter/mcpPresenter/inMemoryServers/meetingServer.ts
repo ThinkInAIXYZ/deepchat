@@ -257,7 +257,7 @@ export class MeetingServer {
       // 关键点: 根据tab定位方法的不同，采取不同处理方法
       if (!foundByTabTitle) {
         // 关键点1: 通过tabId定位到的tab通常为create_new_tab的结果，需要创建会话并激活
-        let conversationId = await presenter.threadPresenter.getActiveConversationId(tabData.id)
+        let conversationId = await presenter.sessionPresenter.getActiveConversationId(tabData.id)
 
         // 确保每个参会者都有一个参会名称，超过26个用‘参会者27’之类命名
         const meetingName =
@@ -271,7 +271,7 @@ export class MeetingServer {
           console.log(`参会者 (ID: ${tabData.id}) 没有活动会话，正在为其创建...`)
 
           // 步骤 a: 创建新会话，将自动激活并广播 'conversation:activated' 事件
-          conversationId = await presenter.threadPresenter.createConversation(
+          conversationId = await presenter.sessionPresenter.createConversation(
             `${meetingName}`,
             {},
             tabData.id,
@@ -301,7 +301,7 @@ export class MeetingServer {
         })
       } else {
         // 关键点2: 通过title定位到的tab，通常为已有tab，无需重新创建会话并激活
-        let conversationId = await presenter.threadPresenter.getActiveConversationId(tabData.id)
+        let conversationId = await presenter.sessionPresenter.getActiveConversationId(tabData.id)
         if (!conversationId) {
           console.warn(`为Tab ${tabData.id} 创建会话失败，将跳过此参会者。`)
           continue

@@ -1,13 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import {
-  CommandPermissionCache,
-  CommandPermissionHandler
-} from '@/presenter/threadPresenter/handlers/commandPermissionHandler'
+import { CommandPermissionCache, CommandPermissionService } from '@/presenter/permission'
 
-describe('CommandPermissionHandler', () => {
+describe('CommandPermissionService', () => {
   it('allows whitelisted commands without approval', () => {
-    const handler = new CommandPermissionHandler()
-    const result = handler.checkPermission('conv-1', 'ls -la')
+    const service = new CommandPermissionService()
+    const result = service.checkPermission('conv-1', 'ls -la')
 
     expect(result.allowed).toBe(true)
     expect(result.reason).toBe('whitelist')
@@ -15,8 +12,8 @@ describe('CommandPermissionHandler', () => {
   })
 
   it('requires approval for install commands', () => {
-    const handler = new CommandPermissionHandler()
-    const result = handler.checkPermission('conv-1', 'npm install react')
+    const service = new CommandPermissionService()
+    const result = service.checkPermission('conv-1', 'npm install react')
 
     expect(result.allowed).toBe(false)
     expect(result.reason).toBe('permission')
@@ -24,16 +21,16 @@ describe('CommandPermissionHandler', () => {
   })
 
   it('flags destructive commands as critical', () => {
-    const handler = new CommandPermissionHandler()
-    const result = handler.assessCommandRisk('rm -rf /')
+    const service = new CommandPermissionService()
+    const result = service.assessCommandRisk('rm -rf /')
 
     expect(result.level).toBe('critical')
   })
 
   it('extracts command signatures', () => {
-    const handler = new CommandPermissionHandler()
-    expect(handler.extractCommandSignature('git pull origin main')).toBe('git pull')
-    expect(handler.extractCommandSignature('rm -rf /')).toBe('rm -rf /')
+    const service = new CommandPermissionService()
+    expect(service.extractCommandSignature('git pull origin main')).toBe('git pull')
+    expect(service.extractCommandSignature('rm -rf /')).toBe('rm -rf /')
   })
 })
 

@@ -7,12 +7,11 @@ import { nanoid } from 'nanoid'
 import logger from '@shared/logger'
 import { presenter } from '@/presenter'
 
-// TODO: CommandPermissionHandler is in threadPresenter for now
 // Consider moving to a shared handlers location in future refactoring
 import {
-  CommandPermissionHandler,
-  CommandPermissionRequiredError
-} from '../../threadPresenter/handlers/commandPermissionHandler'
+  CommandPermissionRequiredError,
+  CommandPermissionService
+} from '../../permission/commandPermissionService'
 import { getShellEnvironment, getUserShell } from './shellEnvHelper'
 import { registerCommandProcess, unregisterCommandProcess } from './commandProcessTracker'
 
@@ -34,9 +33,9 @@ export interface ExecuteCommandOptions {
 
 export class AgentBashHandler {
   private allowedDirectories: string[]
-  private readonly commandPermissionHandler?: CommandPermissionHandler
+  private readonly commandPermissionHandler?: CommandPermissionService
 
-  constructor(allowedDirectories: string[], commandPermissionHandler?: CommandPermissionHandler) {
+  constructor(allowedDirectories: string[], commandPermissionHandler?: CommandPermissionService) {
     if (allowedDirectories.length === 0) {
       throw new Error('At least one allowed directory must be provided')
     }

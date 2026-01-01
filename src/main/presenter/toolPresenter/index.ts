@@ -12,7 +12,7 @@ import {
   AgentToolCallResult
 } from '../llmProviderPresenter/agent/agentToolManager'
 import { jsonrepair } from 'jsonrepair'
-import { CommandPermissionHandler } from '../threadPresenter/handlers/commandPermissionHandler'
+import { CommandPermissionService } from '../permission'
 
 export interface IToolPresenter {
   getAllToolDefinitions(context: {
@@ -28,7 +28,7 @@ interface ToolPresenterOptions {
   mcpPresenter: IMCPPresenter
   yoBrowserPresenter: IYoBrowserPresenter
   configPresenter: IConfigPresenter
-  commandPermissionHandler?: CommandPermissionHandler
+  commandPermissionHandler?: CommandPermissionService
 }
 
 /**

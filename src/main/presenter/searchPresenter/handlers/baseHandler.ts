@@ -1,5 +1,5 @@
 import type { IConfigPresenter, ILlmProviderPresenter, ISQLitePresenter } from '@shared/presenter'
-import type { MessageManager } from '../managers/messageManager'
+import type { MessageManager } from '../../sessionPresenter/managers/messageManager'
 import type { SearchManager } from '../managers/searchManager'
 
 export interface ThreadHandlerContext {

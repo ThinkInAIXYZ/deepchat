@@ -9,14 +9,14 @@ import type { EntryKey, UseQueryReturn } from '@pinia/colada'
 
 export const useSearchEngineStore = defineStore('searchEngine', () => {
   const configP = usePresenter('configPresenter')
-  const agentP = usePresenter('agentPresenter')
+  const searchP = usePresenter('searchPresenter')
 
   const searchEngineListKey: EntryKey = ['search', 'engines'] as const
   const customSearchEngineKey: EntryKey = ['search', 'customEngines'] as const
 
   const baseSearchEngines = useIpcQuery({
-    presenter: 'agentPresenter',
-    method: 'getSearchEngines',
+    presenter: 'searchPresenter',
+    method: 'getEngines',
     key: () => searchEngineListKey,
     staleTime: 30_000
   }) as UseQueryReturn<SearchEngineTemplate[]>
@@ -41,7 +41,7 @@ export const useSearchEngineStore = defineStore('searchEngine', () => {
   const refreshSearchEngines = async () => {
     try {
       await Promise.all([baseSearchEngines.refetch(), customSearchEngines.refetch()])
-      const activeEngine = await agentP.getActiveSearchEngine()
+      const activeEngine = await searchP.getActiveEngine()
       activeSearchEngine.value = activeEngine
     } catch (error) {
       console.error('刷新搜索引擎列表失败', error)
@@ -59,7 +59,7 @@ export const useSearchEngineStore = defineStore('searchEngine', () => {
     if (!targetId) return
 
     try {
-      await agentP.setActiveSearchEngine(targetId)
+      await searchP.setActiveEngine(targetId)
     } catch (error) {
       console.error('设置活跃搜索引擎失败:', error)
     }
@@ -68,8 +68,8 @@ export const useSearchEngineStore = defineStore('searchEngine', () => {
   const invalidateSearchEngineKeys = (): EntryKey[] => [searchEngineListKey, customSearchEngineKey]
 
   const setSearchEngineMutation = useIpcMutation({
-    presenter: 'agentPresenter',
-    method: 'setSearchEngine',
+    presenter: 'searchPresenter',
+    method: 'setActiveEngine',
     invalidateQueries: () => invalidateSearchEngineKeys()
   })
 
@@ -112,7 +112,7 @@ export const useSearchEngineStore = defineStore('searchEngine', () => {
           const engine = searchEngines.value.find((item) => item.id === currentActiveEngineId)
           if (engine) {
             activeSearchEngine.value = engine
-            await agentP.setActiveSearchEngine(currentActiveEngineId)
+            await searchP.setActiveEngine(currentActiveEngineId)
           }
         }
       } catch (error) {
@@ -129,7 +129,7 @@ export const useSearchEngineStore = defineStore('searchEngine', () => {
 
   const testSearchEngine = async (query = '天气'): Promise<boolean> => {
     try {
-      return await agentP.testSearchEngine(query)
+      return await searchP.testEngine(query)
     } catch (error) {
       console.error('测试搜索引擎失败', error)
       return false

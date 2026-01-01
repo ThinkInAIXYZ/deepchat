@@ -50,6 +50,7 @@ export type AssistantMessageBlock = {
     | 'content'
     | 'search'
     | 'reasoning_content'
+    | 'plan'
     | 'error'
     | 'tool_call'
     | 'action'

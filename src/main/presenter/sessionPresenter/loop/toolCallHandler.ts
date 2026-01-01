@@ -9,8 +9,8 @@ import type {
 } from '@shared/presenter'
 import { nanoid } from 'nanoid'
 import type { MessageManager } from '../managers/messageManager'
-import type { GeneratingMessageState } from '../types'
-import type { CommandPermissionHandler } from './commandPermissionHandler'
+import type { GeneratingMessageState } from '../streaming/types'
+import type { CommandPermissionService } from '../../permission/commandPermissionService'
 
 interface PermissionRequestPayload {
   permissionType?: string
@@ -45,13 +45,13 @@ export class ToolCallHandler {
   private readonly messageManager: MessageManager
   private readonly sqlitePresenter: ISQLitePresenter
   private readonly searchingMessages: Set<string>
-  private readonly commandPermissionHandler?: CommandPermissionHandler
+  private readonly commandPermissionHandler?: CommandPermissionService
 
   constructor(options: {
     messageManager: MessageManager
     sqlitePresenter: ISQLitePresenter
     searchingMessages: Set<string>
-    commandPermissionHandler?: CommandPermissionHandler
+    commandPermissionHandler?: CommandPermissionService
   }) {
     this.messageManager = options.messageManager
     this.sqlitePresenter = options.sqlitePresenter

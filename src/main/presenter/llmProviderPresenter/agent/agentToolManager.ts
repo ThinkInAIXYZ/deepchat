@@ -9,9 +9,9 @@ import logger from '@shared/logger'
 import { AgentFileSystemHandler } from './agentFileSystemHandler'
 import { AgentBashHandler } from './agentBashHandler'
 import {
-  CommandPermissionHandler,
-  CommandPermissionRequiredError
-} from '../../threadPresenter/handlers/commandPermissionHandler'
+  CommandPermissionRequiredError,
+  CommandPermissionService
+} from '../../permission/commandPermissionService'
 
 export interface AgentToolCallResult {
   content: string
@@ -42,7 +42,7 @@ export interface AgentToolCallResult {
 interface AgentToolManagerOptions {
   yoBrowserPresenter: IYoBrowserPresenter
   agentWorkspacePath: string | null
-  commandPermissionHandler?: CommandPermissionHandler
+  commandPermissionHandler?: CommandPermissionService
 }
 
 export class AgentToolManager {
@@ -50,7 +50,7 @@ export class AgentToolManager {
   private agentWorkspacePath: string | null
   private fileSystemHandler: AgentFileSystemHandler | null = null
   private bashHandler: AgentBashHandler | null = null
-  private readonly commandPermissionHandler?: CommandPermissionHandler
+  private readonly commandPermissionHandler?: CommandPermissionService
   private readonly fileSystemSchemas = {
     read_file: z.object({
       paths: z.array(z.string()).min(1)

@@ -1,8 +1,8 @@
 import { ref, type Ref } from 'vue'
 import { useChatStore } from '@/stores/chat'
-import type { UserMessage, AssistantMessage } from '@shared/chat'
+import type { Message } from '@shared/chat'
 
-export function useMessageRetry(messages: Ref<Array<UserMessage | AssistantMessage>>) {
+export function useMessageRetry(messages: Ref<Array<Message>>) {
   const chatStore = useChatStore()
 
   // Simplified ref management - use Map for better type safety

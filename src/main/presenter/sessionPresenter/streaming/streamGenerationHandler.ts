@@ -9,17 +9,17 @@ import type {
   UserMessageContent
 } from '@shared/chat'
 import type { CONVERSATION, MCPToolResponse, SearchResult } from '@shared/presenter'
-import { ContentEnricher } from '../utils/contentEnricher'
+import { ContentEnricher } from '../../content/contentEnricher'
 import {
   buildUserMessageContext,
   formatUserMessageContent,
   getNormalizedUserMessageText
 } from '../../agentPresenter/message/messageFormatter'
 import { preparePromptContent } from '../../agentPresenter/message/messageBuilder'
-import type { GeneratingMessageState } from '../types'
+import type { GeneratingMessageState } from './types'
 import { presenter } from '@/presenter'
-import type { SearchHandler } from './searchHandler'
-import { BaseHandler, type ThreadHandlerContext } from './baseHandler'
+import type { SearchHandler } from '../../searchPresenter/handlers/searchHandler'
+import { BaseHandler, type ThreadHandlerContext } from '../../searchPresenter/handlers/baseHandler'
 import type { LLMEventHandler } from './llmEventHandler'
 import { LoopOrchestrator } from '../../agentPresenter/loop/loopOrchestrator'
 

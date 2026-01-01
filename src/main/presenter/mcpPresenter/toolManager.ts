@@ -347,7 +347,7 @@ export class ToolManager {
         )
         if (chatMode === 'acp agent') {
           try {
-            const conversation = await presenter.threadPresenter.getConversation(
+            const conversation = await presenter.sessionPresenter.getConversation(
               toolCall.conversationId
             )
             const agentId = conversation?.settings?.modelId

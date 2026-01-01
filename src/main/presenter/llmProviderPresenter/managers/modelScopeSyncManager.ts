@@ -44,6 +44,9 @@ export class ModelScopeSyncManager {
     }
 
     const result: ModelScopeMcpSyncResult = {
+      success: false,
+      message: '',
+      synced: 0,
       imported: 0,
       skipped: 0,
       errors: []
@@ -138,6 +141,11 @@ export class ModelScopeSyncManager {
         console.log(
           `[ModelScope MCP Sync] Sync completed. Imported: ${result.imported}, Skipped: ${result.skipped}, Errors: ${result.errors.length}`
         )
+        result.synced = result.imported + result.skipped
+        result.success = result.errors.length === 0
+        result.message = result.success
+          ? 'ModelScope MCP servers synced successfully'
+          : 'ModelScope MCP sync completed with errors'
         return result
       }
 

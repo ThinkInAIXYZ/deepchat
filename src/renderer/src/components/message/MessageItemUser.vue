@@ -106,7 +106,7 @@ import { ref, watch, onMounted, nextTick, onBeforeUnmount } from 'vue'
 
 const chatStore = useChatStore()
 const windowPresenter = usePresenter('windowPresenter')
-const threadPresenter = usePresenter('agentPresenter')
+const sessionPresenter = usePresenter('sessionPresenter')
 
 const props = defineProps<{
   message: UserMessage
@@ -176,7 +176,7 @@ const saveEdit = async () => {
       newContent.text = editedText.value
     }
     // Update the message in the database using editMessage method
-    await threadPresenter.editMessage(props.message.id, JSON.stringify(newContent))
+    await sessionPresenter.editMessage(props.message.id, JSON.stringify(newContent))
 
     // Emit retry event for MessageItemAssistant to handle
     emit('retry')

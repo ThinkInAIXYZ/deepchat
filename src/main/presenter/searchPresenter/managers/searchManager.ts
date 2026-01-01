@@ -1,14 +1,19 @@
 import { app, BrowserWindow, screen } from 'electron'
 import path from 'path'
 import { SearchEngineTemplate } from '@shared/chat'
-import { ContentEnricher } from '../utils/contentEnricher'
-import { SearchResult } from '@shared/presenter'
+import { ContentEnricher } from '../../content/contentEnricher'
+import type {
+  IConfigPresenter,
+  ILlmProviderPresenter,
+  IWindowPresenter,
+  MODEL_META,
+  SearchResult
+} from '@shared/presenter'
 import { is } from '@electron-toolkit/utils'
-import { presenter } from '@/presenter'
 import { eventBus } from '@/eventbus'
 import { CONFIG_EVENTS } from '@/events'
 import { jsonrepair } from 'jsonrepair'
-import { SEARCH_PROMPT_TEMPLATE } from '../const'
+import { SEARCH_PROMPT_TEMPLATE } from '../../searchPrompts/templates/searchPromptTemplate'
 
 const helperPage = path.join(app.getAppPath(), 'resources', 'blankSearch.html')
 
@@ -247,6 +252,11 @@ export function generateSearchPrompt(query: string, results: SearchResult[]): st
 }
 
 export class SearchManager {
+  private readonly configPresenter: IConfigPresenter
+  private readonly windowPresenter: IWindowPresenter
+  private readonly llmProviderPresenter: ILlmProviderPresenter
+  private readonly getSearchAssistantModel: () => MODEL_META | null
+  private readonly getSearchAssistantProviderId: () => string | null
   private searchWindows: Map<string, BrowserWindow> = new Map()
   private maxConcurrentSearches = 3
   private engines: SearchEngineTemplate[] = defaultEngines
@@ -260,7 +270,18 @@ export class SearchManager {
   // 保存当前正在使用的选择器配置
   private currentSelectors = { ...searchEngineSelectors }
 
-  constructor() {
+  constructor(options: {
+    configPresenter: IConfigPresenter
+    windowPresenter: IWindowPresenter
+    llmProviderPresenter: ILlmProviderPresenter
+    getSearchAssistantModel?: () => MODEL_META | null
+    getSearchAssistantProviderId?: () => string | null
+  }) {
+    this.configPresenter = options.configPresenter
+    this.windowPresenter = options.windowPresenter
+    this.llmProviderPresenter = options.llmProviderPresenter
+    this.getSearchAssistantModel = options.getSearchAssistantModel ?? (() => null)
+    this.getSearchAssistantProviderId = options.getSearchAssistantProviderId ?? (() => null)
     // 初始化搜索管理器
     this.setupEventListeners()
   }
@@ -301,7 +322,7 @@ export class SearchManager {
     if (engine) {
       this.activeEngine = engine
       // 保存搜索引擎选择到配置中
-      await presenter.configPresenter.setSetting('searchEngine', engineId)
+      await this.configPresenter.setSetting('searchEngine', engineId)
       return true
     }
     return false
@@ -334,6 +355,19 @@ export class SearchManager {
     this.lastEnginesUpdateTime = Date.now()
   }
 
+  async addCustomEngine(engine: SearchEngineTemplate): Promise<void> {
+    await this.ensureEnginesUpdated()
+    const updated = this.engines.filter((item) => item.id !== engine.id)
+    updated.push({ ...engine, isCustom: true })
+    await this.updateEngines(updated)
+  }
+
+  async removeCustomEngine(engineId: string): Promise<void> {
+    await this.ensureEnginesUpdated()
+    const updated = this.engines.filter((engine) => engine.id !== engineId)
+    await this.updateEngines(updated)
+  }
+
   /**
    * 确保引擎列表是最新的，如果需要就更新
    */
@@ -354,7 +388,7 @@ export class SearchManager {
    */
   private async refreshEngines(): Promise<void> {
     try {
-      const configPresenter = presenter.configPresenter
+      const configPresenter = this.configPresenter
 
       // 获取自定义搜索引擎
       const customEngines = await configPresenter.getCustomSearchEngines()
@@ -664,7 +698,7 @@ export class SearchManager {
 
       // 更新到配置
       if (customEngines.length > 0) {
-        const configPresenter = presenter.configPresenter
+        const configPresenter = this.configPresenter
         await configPresenter.setCustomSearchEngines(customEngines)
       }
     } catch (error) {
@@ -674,7 +708,7 @@ export class SearchManager {
 
   private async initSearchWindow(conversationId: string): Promise<BrowserWindow> {
     // 直接从 ConfigPresenter 获取搜索预览设置状态
-    const searchPreviewEnabled = await presenter.configPresenter.getSearchPreviewEnabled()
+    const searchPreviewEnabled = await this.configPresenter.getSearchPreviewEnabled()
 
     // 如果搜索预览关闭，创建一个隐藏的窗口
     if (!searchPreviewEnabled) {
@@ -711,7 +745,7 @@ export class SearchManager {
       const [oldestConversationId] = this.searchWindows.keys()
       this.destroySearchWindow(oldestConversationId)
     }
-    const mainWindow = presenter.windowPresenter.mainWindow
+    const mainWindow = this.windowPresenter.mainWindow
 
     // 确保mainWindow存在
     if (!mainWindow) {
@@ -875,7 +909,7 @@ export class SearchManager {
       this.searchWindows.delete(conversationId)
 
       // 直接从 ConfigPresenter 获取搜索预览设置状态
-      const searchPreviewEnabled = await presenter.configPresenter.getSearchPreviewEnabled()
+      const searchPreviewEnabled = await this.configPresenter.getSearchPreviewEnabled()
 
       // 如果搜索预览未启用，不需要恢复主窗口状态
       if (!searchPreviewEnabled) {
@@ -888,7 +922,7 @@ export class SearchManager {
       const wasFullScreen = this.wasFullScreen.get(conversationId)
 
       if (originalSize && originalPosition) {
-        const mainWindow = presenter.windowPresenter.mainWindow
+        const mainWindow = this.windowPresenter.mainWindow
         if (mainWindow) {
           if (wasFullScreen) {
             // 如果原来是全屏，先恢复原始尺寸和位置，再进入全屏
@@ -1181,12 +1215,12 @@ export class SearchManager {
       `
 
       // 4. 使用AI模型进行分析
-      const searchAssistantModel = presenter.threadPresenter.searchAssistantModel
-      const searchAssistantProviderId = presenter.threadPresenter.searchAssistantProviderId
+      const searchAssistantModel = this.getSearchAssistantModel()
+      const searchAssistantProviderId = this.getSearchAssistantProviderId()
       if (!searchAssistantModel || !searchAssistantProviderId) {
         throw new Error('搜索助手模型或提供商ID未设置')
       }
-      const modelResponse = await presenter.llmproviderPresenter.generateCompletion(
+      const modelResponse = await this.llmProviderPresenter.generateCompletion(
         searchAssistantProviderId,
         [
           {

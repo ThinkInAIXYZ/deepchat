@@ -29,7 +29,7 @@ export class AgentLoopHandler {
         let modelId: string | undefined
         if (context.conversationId) {
           try {
-            const conversation = await presenter.threadPresenter.getConversation(
+            const conversation = await presenter.sessionPresenter.getConversation(
               context.conversationId
             )
             modelId = conversation?.settings.modelId
