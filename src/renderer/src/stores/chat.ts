@@ -43,6 +43,7 @@ type PendingScrollTarget = {
 
 export const useChatStore = defineStore('chat', () => {
   const threadP = usePresenter('threadPresenter')
+  const agentP = usePresenter('agentPresenter')
   const windowP = usePresenter('windowPresenter')
   const notificationP = usePresenter('notificationPresenter')
   const tabP = usePresenter('tabPresenter')
@@ -541,7 +542,16 @@ export const useChatStore = defineStore('chat', () => {
       generatingThreadIds.value.add(threadId)
       // 设置当前会话的workingStatus为working
       updateThreadWorkingStatus(threadId, 'working')
-      const aiResponseMessage = await threadP.sendMessage(threadId, JSON.stringify(content), 'user')
+      const aiResponseMessage = await agentP.sendMessage(
+        threadId,
+        JSON.stringify(content),
+        getTabId(),
+        Object.fromEntries(selectedVariantsMap.value)
+      )
+
+      if (!aiResponseMessage) {
+        throw new Error('Failed to create assistant message')
+      }
 
       // 将消息添加到缓存
       getGeneratingMessagesCache().set(aiResponseMessage.id, {
@@ -550,11 +560,6 @@ export const useChatStore = defineStore('chat', () => {
       })
 
       await loadMessages()
-      await threadP.startStreamCompletion(
-        threadId,
-        aiResponseMessage.id,
-        Object.fromEntries(selectedVariantsMap.value)
-      )
     } catch (error) {
       console.error('Failed to send message:', error)
       // 发生错误时，务必清理 loading 状态
@@ -1242,7 +1247,7 @@ export const useChatStore = defineStore('chat', () => {
       ) as string[]
       if (generatingMessage) {
         const [messageId] = generatingMessage
-        await threadP.stopMessageGeneration(messageId)
+        await agentP.cancelLoop(messageId)
         // 从缓存中移除消息
         cache.delete(messageId)
         generatingThreadIds.value.delete(threadId)
@@ -1298,7 +1303,7 @@ export const useChatStore = defineStore('chat', () => {
       })
 
       await loadMessages()
-      await threadP.continueStreamCompletion(
+      await agentP.continueLoop(
         conversationId,
         messageId,
         Object.fromEntries(selectedVariantsMap.value)

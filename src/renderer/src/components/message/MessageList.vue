@@ -59,7 +59,11 @@
       @bar-hover="minimap.handleHover"
       @bar-click="minimap.handleClick"
     />
-    <TraceDialog :message-id="traceMessageId" @close="traceMessageId = null" />
+    <TraceDialog
+      :message-id="traceMessageId"
+      :conversation-id="chatStore.getActiveThreadId()"
+      @close="traceMessageId = null"
+    />
   </div>
 </template>
 

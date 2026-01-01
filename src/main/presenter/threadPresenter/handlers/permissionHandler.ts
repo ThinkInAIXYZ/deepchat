@@ -12,7 +12,7 @@ import {
   buildContinueToolCallContext,
   buildPostToolExecutionContext,
   type PendingToolCall
-} from '../utils/promptBuilder'
+} from '../../agentPresenter/message/messageBuilder'
 import type { GeneratingMessageState } from '../types'
 import type { StreamGenerationHandler } from './streamGenerationHandler'
 import type { LLMEventHandler } from './llmEventHandler'

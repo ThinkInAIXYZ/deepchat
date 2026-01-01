@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { approximateTokenSize } from 'tokenx'
 import type { AssistantMessageBlock, Message, UserMessageContent } from '@shared/chat'
-import { buildUserMessageContext } from '@/presenter/threadPresenter/utils/messageContent'
+import { buildUserMessageContext } from '@/presenter/agentPresenter/message/messageFormatter'
 import { selectContextMessages } from '@/presenter/agentPresenter/message/messageTruncator'
 
 const baseUsage = {

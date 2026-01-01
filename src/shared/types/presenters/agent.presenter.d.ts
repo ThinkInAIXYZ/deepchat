@@ -1,8 +1,17 @@
-import type { MESSAGE } from './thread.presenter'
+import type { AssistantMessage } from '@shared/chat'
 
 export interface IAgentPresenter {
-  sendMessage(agentId: string, content: string, tabId?: number): Promise<MESSAGE | null>
-  continueLoop(agentId: string, messageId: string): Promise<void>
+  sendMessage(
+    agentId: string,
+    content: string,
+    tabId?: number,
+    selectedVariantsMap?: Record<string, string>
+  ): Promise<AssistantMessage | null>
+  continueLoop(
+    agentId: string,
+    messageId: string,
+    selectedVariantsMap?: Record<string, string>
+  ): Promise<void>
   cancelLoop(messageId: string): Promise<void>
   handlePermissionResponse(
     messageId: string,

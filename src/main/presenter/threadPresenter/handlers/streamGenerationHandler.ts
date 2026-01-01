@@ -14,8 +14,8 @@ import {
   buildUserMessageContext,
   formatUserMessageContent,
   getNormalizedUserMessageText
-} from '../utils/messageContent'
-import { preparePromptContent } from '../utils/promptBuilder'
+} from '../../agentPresenter/message/messageFormatter'
+import { preparePromptContent } from '../../agentPresenter/message/messageBuilder'
 import type { GeneratingMessageState } from '../types'
 import { presenter } from '@/presenter'
 import type { SearchHandler } from './searchHandler'

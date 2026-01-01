@@ -170,7 +170,7 @@ import { usePresenter } from '@/composables/usePresenter'
 import { AssistantMessageBlock } from '@shared/chat'
 
 const { t } = useI18n()
-const threadPresenter = usePresenter('threadPresenter')
+const agentPresenter = usePresenter('agentPresenter')
 
 const props = defineProps<{
   block: AssistantMessageBlock
@@ -436,7 +436,7 @@ const submitPermission = async (granted: boolean, remember: boolean) => {
 
   isProcessing.value = true
   try {
-    await threadPresenter.handlePermissionResponse(
+    await agentPresenter.handlePermissionResponse(
       props.messageId,
       props.block.tool_call.id,
       granted,

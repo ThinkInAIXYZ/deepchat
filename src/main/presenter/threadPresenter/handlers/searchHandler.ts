@@ -2,7 +2,7 @@ import type { AssistantMessageBlock, Message, UserMessageContent } from '@shared
 import { finalizeAssistantMessageBlocks } from '@shared/chat/messageBlocks'
 import type { MODEL_META, SearchResult } from '@shared/presenter'
 import { nanoid } from 'nanoid'
-import { buildUserMessageContext } from '../utils/messageContent'
+import { buildUserMessageContext } from '../../agentPresenter/message/messageFormatter'
 import type { GeneratingMessageState } from '../types'
 import { BaseHandler, type ThreadHandlerContext } from './baseHandler'
 

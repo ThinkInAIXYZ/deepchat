@@ -111,7 +111,7 @@ export async function preparePromptContent({
         agentWorkspacePath
       })
     } catch (error) {
-      console.warn('ThreadPresenter: Failed to load tool definitions', error)
+      console.warn('AgentPresenter: Failed to load tool definitions', error)
       toolDefinitions = []
     }
   }
@@ -124,7 +124,7 @@ export async function preparePromptContent({
         browserContext.activeTabId
       )
     } catch (error) {
-      console.warn('ThreadPresenter: Failed to load Yo Browser context/tools', error)
+      console.warn('AgentPresenter: Failed to load Yo Browser context/tools', error)
     }
   }
 

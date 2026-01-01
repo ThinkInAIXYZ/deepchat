@@ -9,13 +9,13 @@ import type { AssistantMessageBlock, Message, UserMessageContent } from '@shared
 import { ModelType } from '@shared/model'
 import { presenter } from '@/presenter'
 import { BaseHandler, type ThreadHandlerContext } from './baseHandler'
-import { buildUserMessageContext } from '../utils/messageContent'
+import { buildUserMessageContext } from '../../agentPresenter/message/messageFormatter'
 import {
   buildConversationExportContent,
   generateExportFilename,
   type ConversationExportFormat
 } from '../exporters/conversationExporter'
-import { preparePromptContent } from '../utils/promptBuilder'
+import { preparePromptContent } from '../../agentPresenter/message/messageBuilder'
 import type { ConversationManager } from '../managers/conversationManager'
 import type { StreamGenerationHandler } from './streamGenerationHandler'
 

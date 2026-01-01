@@ -1,9 +1,7 @@
-import type {
-  IAgentPresenter,
-  IConfigPresenter,
-  IThreadPresenter,
-  MESSAGE
-} from '@shared/presenter'
+import type { IAgentPresenter, IConfigPresenter, IThreadPresenter } from '@shared/presenter'
+import type { AssistantMessage } from '@shared/chat'
+import { eventBus, SendTarget } from '@/eventbus'
+import { STREAM_EVENTS } from '@/events'
 import type { SessionContextResolved } from './session/sessionContext'
 import { resolveSessionContext } from './session/sessionResolver'
 
@@ -21,9 +19,28 @@ export class AgentPresenter implements IAgentPresenter {
     this.configPresenter = configPresenter
   }
 
-  async sendMessage(agentId: string, content: string, _tabId?: number): Promise<MESSAGE | null> {
+  async sendMessage(
+    agentId: string,
+    content: string,
+    _tabId?: number,
+    selectedVariantsMap?: Record<string, string>
+  ): Promise<AssistantMessage | null> {
     await this.logResolvedIfEnabled(agentId)
-    return this.threadPresenter.sendMessage(agentId, content, 'user')
+    const assistantMessage = await this.threadPresenter.sendMessage(agentId, content, 'user')
+    if (!assistantMessage) {
+      return null
+    }
+
+    void this.threadPresenter
+      .startStreamCompletion(agentId, assistantMessage.id, selectedVariantsMap)
+      .catch((error) => {
+        console.error('[AgentPresenter] Failed to start stream completion:', error)
+        eventBus.sendToRenderer(STREAM_EVENTS.ERROR, SendTarget.ALL_WINDOWS, {
+          eventId: assistantMessage.id
+        })
+      })
+
+    return assistantMessage
   }
 
   async continueLoop(

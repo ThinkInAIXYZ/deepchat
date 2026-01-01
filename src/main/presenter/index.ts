@@ -308,34 +308,11 @@ ipcMain.handle(
         )
       }
 
-      const useAgentPresenter = import.meta.env.VITE_AGENT_PRESENTER_ENABLED === '1'
-
       // 通过名称获取对应的 Presenter 实例
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       let calledPresenter: any = presenter[name as keyof Presenter]
       let resolvedMethod = method
       let resolvedPayloads = payloads
-
-      if (useAgentPresenter && name === 'threadPresenter' && presenter.agentPresenter) {
-        if (method === 'sendMessage') {
-          const [conversationId, content] = payloads as [string, string]
-          calledPresenter = presenter.agentPresenter
-          resolvedMethod = 'sendMessage'
-          resolvedPayloads = [conversationId, content, tabId]
-        } else if (method === 'continueStreamCompletion') {
-          calledPresenter = presenter.agentPresenter
-          resolvedMethod = 'continueLoop'
-          resolvedPayloads = payloads
-        } else if (method === 'stopMessageGeneration') {
-          calledPresenter = presenter.agentPresenter
-          resolvedMethod = 'cancelLoop'
-          resolvedPayloads = payloads
-        } else if (method === 'handlePermissionResponse') {
-          calledPresenter = presenter.agentPresenter
-          resolvedMethod = 'handlePermissionResponse'
-          resolvedPayloads = payloads
-        }
-      }
 
       if (!calledPresenter) {
         console.warn(`[IPC Warning] Tab:${context.tabId} calling wrong presenter: ${name}`)
