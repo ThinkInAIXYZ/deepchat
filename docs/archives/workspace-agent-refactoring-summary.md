@@ -140,8 +140,8 @@ graph TB
 ### 8. Agent Loop / 提示词与工具执行 ✅
 
 **实现文件**：
-- `src/main/presenter/llmProviderPresenter/managers/agentLoopHandler.ts`
-- `src/main/presenter/llmProviderPresenter/managers/toolCallProcessor.ts`
+- `src/main/presenter/agentPresenter/loop/agentLoopHandler.ts`
+- `src/main/presenter/agentPresenter/loop/toolCallProcessor.ts`
 - `src/main/presenter/threadPresenter/utils/promptBuilder.ts`
 - `src/main/presenter/threadPresenter/handlers/streamGenerationHandler.ts`
 
@@ -154,7 +154,7 @@ graph TB
 ### 9. Workspace 文件刷新机制 ✅
 
 **实现文件**：
-- `src/main/presenter/llmProviderPresenter/managers/agentLoopHandler.ts`
+- `src/main/presenter/agentPresenter/loop/agentLoopHandler.ts`
 - `src/renderer/src/stores/workspace.ts`
 
 **功能**：

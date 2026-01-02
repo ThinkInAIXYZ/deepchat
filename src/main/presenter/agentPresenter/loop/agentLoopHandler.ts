@@ -1,3 +1,22 @@
+/**
+ * Session 架构说明：
+ *
+ * SessionPresenter (src/presenter/sessionPresenter/)
+ *   - 职责：会话的 CRUD 操作（数据库层）
+ *   - 主要方法：getConversation, createSession, updateConversationSettings 等
+ *   - 使用场景：当需要从数据库读取会话数据时
+ *
+ * SessionManager (src/presenter/agentPresenter/session/)
+ *   - 职责：单次对话的 runtime 状态管理（内存层）
+ *   - 包含 SessionContext:
+ *     - resolved: 解析后的配置 (chatMode, modelId, agentWorkspacePath)
+ *     - runtime: 运行时状态 (toolCallCount, userStopRequested, status)
+ *   - 使用场景：在 agent loop 期间管理对话状态
+ *
+ * 访问方式：
+ *   - 通过全局 presenter: presenter.sessionManager
+ *   - SessionContext.resolved.modelId 获取模型 ID
+ */
 import { ChatMessage, IConfigPresenter, LLMAgentEvent, MCPToolCall } from '@shared/presenter'
 import { presenter } from '@/presenter'
 import { eventBus, SendTarget } from '@/eventbus'
@@ -11,7 +30,6 @@ import { getAgentFilteredTools } from '../../mcpPresenter/agentMcpFilter'
 
 interface AgentLoopHandlerOptions {
   configPresenter: IConfigPresenter
-  sessionManager?: any
   getProviderInstance: (providerId: string) => BaseLLMProvider
   activeStreams: Map<string, StreamState>
   canStartNewStream: () => boolean
@@ -20,20 +38,18 @@ interface AgentLoopHandlerOptions {
 
 export class AgentLoopHandler {
   private readonly toolCallProcessor: ToolCallProcessor
-  private readonly sessionManager?: any
   private toolPresenter: ToolPresenter | null = null
   private currentSupportsVision = false
 
   constructor(private readonly options: AgentLoopHandlerOptions) {
-    this.sessionManager = options.sessionManager
     this.toolCallProcessor = new ToolCallProcessor({
       getAllToolDefinitions: async (context) => {
         // Get modelId from session
         let modelId: string | undefined
-        if (context.conversationId && this.sessionManager) {
+        if (context.conversationId) {
           try {
-            const session = await this.sessionManager.getSession(context.conversationId)
-            modelId = session?.config.modelId
+            const session = await presenter.sessionManager.getSession(context.conversationId)
+            modelId = session?.resolved.modelId
           } catch {
             // Ignore errors, modelId will be undefined
           }
