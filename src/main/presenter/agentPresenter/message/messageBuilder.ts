@@ -4,6 +4,7 @@ import { AssistantMessage, Message, MessageFile, UserMessageContent } from '@sha
 import { ModelType } from '@shared/model'
 import { CONVERSATION, ModelConfig, SearchResult, ChatMessage } from '@shared/presenter'
 import type { MCPToolDefinition } from '@shared/presenter'
+
 import { ContentEnricher } from '../../content/contentEnricher'
 import { BrowserContextBuilder } from '../../browser/BrowserContextBuilder'
 import { modelCapabilities } from '../../configPresenter/modelCapabilities'
