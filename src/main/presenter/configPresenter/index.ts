@@ -48,7 +48,7 @@ import {
   writeToTerminal,
   killTerminal
 } from './acpInitHelper'
-import { clearShellEnvironmentCache } from '../llmProviderPresenter/agent/shellEnvHelper'
+import { clearShellEnvironmentCache } from '../agentPresenter/acp'
 
 // Define application settings interface
 interface IAppSettings {

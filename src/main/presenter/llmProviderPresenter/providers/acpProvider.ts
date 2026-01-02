@@ -25,13 +25,16 @@ import { PROTOCOL_VERSION } from '@agentclientprotocol/sdk'
 import { eventBus, SendTarget } from '@/eventbus'
 import { ACP_DEBUG_EVENTS, ACP_WORKSPACE_EVENTS, CONFIG_EVENTS } from '@/events'
 import { app } from 'electron'
-import { AcpProcessManager, type AcpProcessHandle } from '../agent/acpProcessManager'
-import { AcpSessionManager } from '../agent/acpSessionManager'
-import type { AcpSessionRecord } from '../agent/acpSessionManager'
-import { AcpContentMapper } from '../agent/acpContentMapper'
-import { AcpMessageFormatter } from '../agent/acpMessageFormatter'
-import { AcpSessionPersistence } from '../agent/acpSessionPersistence'
-import { buildClientCapabilities } from '../agent/acpCapabilities'
+import {
+  AcpProcessManager,
+  AcpSessionManager,
+  AcpSessionPersistence,
+  AcpContentMapper,
+  AcpMessageFormatter,
+  buildClientCapabilities,
+  type AcpProcessHandle,
+  type AcpSessionRecord
+} from '../../agentPresenter/acp'
 import { nanoid } from 'nanoid'
 import { presenter } from '@/presenter'
 

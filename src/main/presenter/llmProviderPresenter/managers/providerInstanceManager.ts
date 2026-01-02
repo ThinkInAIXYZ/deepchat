@@ -36,7 +36,7 @@ import { JiekouProvider } from '../providers/jiekouProvider'
 import { ZenmuxProvider } from '../providers/zenmuxProvider'
 import { RateLimitManager } from './rateLimitManager'
 import { StreamState } from '../types'
-import { AcpSessionPersistence } from '../agent/acpSessionPersistence'
+import { AcpSessionPersistence } from '../../agentPresenter/acp'
 
 type ProviderConstructor = new (
   provider: LLM_PROVIDER,

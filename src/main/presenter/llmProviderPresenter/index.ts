@@ -30,7 +30,7 @@ import { AgentLoopHandler } from './managers/agentLoopHandler'
 import { ModelScopeSyncManager } from './managers/modelScopeSyncManager'
 import type { OllamaProvider } from './providers/ollamaProvider'
 import { ShowResponse } from 'ollama'
-import { AcpSessionPersistence } from './agent/acpSessionPersistence'
+import { AcpSessionPersistence } from '../agentPresenter/acp'
 import { AcpProvider } from './providers/acpProvider'
 
 export class LLMProviderPresenter implements ILlmProviderPresenter {

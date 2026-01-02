@@ -7,7 +7,7 @@ import type { AcpBuiltinAgentId, AcpAgentConfig, AcpAgentProfile } from '@shared
 import { spawn } from 'node-pty'
 import type { IPty } from 'node-pty'
 import { RuntimeHelper } from '@/lib/runtimeHelper'
-import { getShellEnvironment } from '../llmProviderPresenter/agent/shellEnvHelper'
+import { getShellEnvironment } from '../agentPresenter/acp'
 
 const execAsync = promisify(exec)
 

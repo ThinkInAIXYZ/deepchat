@@ -7,10 +7,7 @@ import type {
   MCPToolResponse
 } from '@shared/presenter'
 import { ToolMapper } from './toolMapper'
-import {
-  AgentToolManager,
-  AgentToolCallResult
-} from '../llmProviderPresenter/agent/agentToolManager'
+import { AgentToolManager, type AgentToolCallResult } from '../agentPresenter/acp'
 import { jsonrepair } from 'jsonrepair'
 import { CommandPermissionService } from '../permission'
 

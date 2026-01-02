@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { buildClientCapabilities } from '@/presenter/llmProviderPresenter/agent/acpCapabilities'
+import { buildClientCapabilities } from '@/presenter/agentPresenter/acp'
 
 describe('AcpCapabilities', () => {
   describe('buildClientCapabilities', () => {

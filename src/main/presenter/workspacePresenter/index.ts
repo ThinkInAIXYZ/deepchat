@@ -6,7 +6,7 @@ import { WORKSPACE_EVENTS } from '@/events'
 import { readDirectoryShallow } from './directoryReader'
 import { PlanStateManager } from './planStateManager'
 import { searchWorkspaceFiles } from './workspaceFileSearch'
-import { terminateCommandProcess } from '@/presenter/llmProviderPresenter/agent/commandProcessTracker'
+import { terminateCommandProcess } from '@/presenter/agentPresenter/acp'
 import type {
   IWorkspacePresenter,
   WorkspaceFileNode,
