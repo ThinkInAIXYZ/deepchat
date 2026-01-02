@@ -9,7 +9,7 @@ import { ContentEnricher } from '../../content/contentEnricher'
 import { BrowserContextBuilder } from '../../browser/BrowserContextBuilder'
 import { modelCapabilities } from '../../configPresenter/modelCapabilities'
 import { enhanceSystemPromptWithDateTime } from '../utility/promptEnhancer'
-import { ToolCallCenter } from '../tool/toolCallCenter'
+import { ToolCallCenter } from '../../agentPresenter/tool/toolCallCenter'
 import {
   addContextMessages,
   buildUserMessageContext,
