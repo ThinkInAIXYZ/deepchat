@@ -31,6 +31,7 @@ import {
 import { eventBus } from '@/eventbus'
 import { LLMProviderPresenter } from './llmProviderPresenter'
 import { SessionPresenter } from './sessionPresenter'
+import { MessageManager } from './sessionPresenter/managers/messageManager'
 import { DevicePresenter } from './devicePresenter'
 import { UpgradePresenter } from './upgradePresenter'
 import { FilePresenter } from './filePresenter/FilePresenter'
@@ -112,6 +113,7 @@ export class Presenter implements IPresenter {
     this.tabPresenter = new TabPresenter(this.windowPresenter)
     this.llmproviderPresenter = new LLMProviderPresenter(this.configPresenter, this.sqlitePresenter)
     const commandPermissionHandler = new CommandPermissionService()
+    const messageManager = new MessageManager(this.sqlitePresenter)
     this.devicePresenter = new DevicePresenter()
     this.searchPresenter = new SearchPresenter({
       configPresenter: this.configPresenter,
@@ -123,6 +125,7 @@ export class Presenter implements IPresenter {
       configPresenter: this.configPresenter
     })
     this.sessionPresenter = new SessionPresenter({
+      messageManager,
       sqlitePresenter: this.sqlitePresenter,
       llmProviderPresenter: this.llmproviderPresenter,
       configPresenter: this.configPresenter,
@@ -140,7 +143,8 @@ export class Presenter implements IPresenter {
       llmProviderPresenter: this.llmproviderPresenter,
       configPresenter: this.configPresenter,
       searchPresenter: this.searchPresenter,
-      commandPermissionService: commandPermissionHandler
+      commandPermissionService: commandPermissionHandler,
+      messageManager
     }) as unknown as IAgentPresenter & ISessionPresenter
     this.mcpPresenter = new McpPresenter(this.configPresenter)
     this.upgradePresenter = new UpgradePresenter(this.configPresenter)

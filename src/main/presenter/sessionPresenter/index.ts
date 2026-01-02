@@ -37,6 +37,7 @@ export class SessionPresenter implements ISessionPresenter {
   private activeConversationIds: Map<number, string> = new Map()
 
   constructor(options: {
+    messageManager?: MessageManager
     sqlitePresenter: ISQLitePresenter
     llmProviderPresenter: ILlmProviderPresenter
     configPresenter: IConfigPresenter
@@ -44,7 +45,7 @@ export class SessionPresenter implements ISessionPresenter {
     commandPermissionService?: CommandPermissionService
   }) {
     this.sqlitePresenter = options.sqlitePresenter
-    this.messageManager = new MessageManager(options.sqlitePresenter)
+    this.messageManager = options.messageManager ?? new MessageManager(options.sqlitePresenter)
     this.llmProviderPresenter = options.llmProviderPresenter
     this.exporter = options.exporter
     this.commandPermissionService =
