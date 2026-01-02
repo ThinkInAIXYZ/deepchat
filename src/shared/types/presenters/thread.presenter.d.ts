@@ -1,5 +1,4 @@
-import { AssistantMessageBlock, Message, AssistantMessage, SearchEngineTemplate } from '../../chat'
-import { AcpWorkdirInfo } from './llmprovider.presenter'
+import { AssistantMessageBlock, Message } from '../../chat'
 
 /**
  * Thread/Conversation Presenter Interface
@@ -148,6 +147,7 @@ export interface IThreadPresenter {
   getActiveConversation(tabId: number): Promise<CONVERSATION | null>
   getActiveConversationId(tabId: number): Promise<string | null>
   clearActiveThread(tabId: number): Promise<void>
+  findTabForConversation(conversationId: string): Promise<number | null>
 
   getSearchResults(messageId: string, searchId?: string): Promise<SearchResult[]>
   clearAllMessages(conversationId: string): Promise<void>
@@ -158,70 +158,27 @@ export interface IThreadPresenter {
     page: number,
     pageSize: number
   ): Promise<{ total: number; list: Message[] }>
-  sendMessage(conversationId: string, content: string, role: MESSAGE_ROLE): Promise<Message | null>
-  startStreamCompletion(conversationId: string, queryMsgId?: string): Promise<void>
+  getMessageThread(
+    conversationId: string,
+    page: number,
+    pageSize: number
+  ): Promise<{ total: number; messages: Message[] }>
   editMessage(messageId: string, content: string): Promise<Message>
   deleteMessage(messageId: string): Promise<void>
-  retryMessage(messageId: string, modelId?: string): Promise<Message>
   getMessage(messageId: string): Promise<Message>
   getMessageVariants(messageId: string): Promise<Message[]>
   updateMessageStatus(messageId: string, status: MESSAGE_STATUS): Promise<void>
   updateMessageMetadata(messageId: string, metadata: Partial<MESSAGE_METADATA>): Promise<void>
   getMessageExtraInfo(messageId: string, type: string): Promise<Record<string, unknown>[]>
-
-  // Popup operations
-  translateText(text: string, tabId: number): Promise<string>
-  askAI(text: string, tabId: number): Promise<string>
+  getMainMessageByParentId(conversationId: string, parentId: string): Promise<Message | null>
+  getLastUserMessage(conversationId: string): Promise<Message | null>
 
   // Context control
   getContextMessages(conversationId: string): Promise<Message[]>
   clearContext(conversationId: string): Promise<void>
   markMessageAsContextEdge(messageId: string, isEdge: boolean): Promise<void>
-  summaryTitles(tabId?: number): Promise<string>
-  stopMessageGeneration(messageId: string): Promise<void>
-  getMainMessageByParentId(conversationId: string, parentId: string): Promise<Message | null>
   destroy(): void
-  continueStreamCompletion(conversationId: string, queryMsgId: string): Promise<AssistantMessage>
   toggleConversationPinned(conversationId: string, isPinned: boolean): Promise<void>
-  findTabForConversation(conversationId: string): Promise<number | null>
-
-  // ACP workdir controls
-  getAcpWorkdir(conversationId: string, agentId: string): Promise<AcpWorkdirInfo>
-  setAcpWorkdir(conversationId: string, agentId: string, workdir: string | null): Promise<void>
-  warmupAcpProcess(agentId: string, workdir: string): Promise<void>
-  getAcpProcessModes(
-    agentId: string,
-    workdir: string
-  ): Promise<
-    | {
-        availableModes?: Array<{ id: string; name: string; description: string }>
-        currentModeId?: string
-      }
-    | undefined
-  >
-  setAcpPreferredProcessMode(agentId: string, workdir: string, modeId: string): Promise<void>
-  setAcpSessionMode(conversationId: string, modeId: string): Promise<void>
-  getAcpSessionModes(conversationId: string): Promise<{
-    current: string
-    available: Array<{ id: string; name: string; description: string }>
-  } | null>
-
-  // Permission handling
-  handlePermissionResponse(
-    messageId: string,
-    toolCallId: string,
-    granted: boolean,
-    permissionType: 'read' | 'write' | 'all' | 'command',
-    remember?: boolean
-  ): Promise<void>
-  clearCommandPermissionCache(conversationId?: string): void
-  exportConversation(
-    conversationId: string,
-    format: 'markdown' | 'html' | 'txt'
-  ): Promise<{ filename: string; content: string }>
-
-  // Dev tools
-  getMessageRequestPreview(messageId: string): Promise<unknown>
 }
 
 export interface IMessageManager {

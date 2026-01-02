@@ -38,8 +38,6 @@ export type {
   SessionStatus,
   SessionConfig,
   SessionBindings,
-  PermissionState,
-  SessionRuntime,
   WorkspaceContext,
   Session,
   CreateSessionOptions,

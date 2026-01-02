@@ -11,8 +11,19 @@ export interface IAgentPresenter {
     agentId: string,
     messageId: string,
     selectedVariantsMap?: Record<string, string>
-  ): Promise<void>
+  ): Promise<AssistantMessage | null>
   cancelLoop(messageId: string): Promise<void>
+  retryMessage(
+    messageId: string,
+    selectedVariantsMap?: Record<string, string>
+  ): Promise<AssistantMessage>
+  regenerateFromUserMessage(
+    agentId: string,
+    userMessageId: string,
+    selectedVariantsMap?: Record<string, string>
+  ): Promise<AssistantMessage>
+  translateText(text: string, tabId: number): Promise<string>
+  askAI(text: string, tabId: number): Promise<string>
   handlePermissionResponse(
     messageId: string,
     toolCallId: string,

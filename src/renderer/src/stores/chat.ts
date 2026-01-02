@@ -577,7 +577,10 @@ export const useChatStore = defineStore('chat', () => {
   const retryMessage = async (messageId: string) => {
     if (!getActiveThreadId()) return
     try {
-      const aiResponseMessage = await threadP.retryMessage(messageId, chatConfig.value.modelId)
+      const aiResponseMessage = await agentP.retryMessage(
+        messageId,
+        Object.fromEntries(selectedVariantsMap.value)
+      )
       // 将消息添加到缓存
       getGeneratingMessagesCache().set(aiResponseMessage.id, {
         message: aiResponseMessage,
@@ -587,11 +590,6 @@ export const useChatStore = defineStore('chat', () => {
       generatingThreadIds.value.add(getActiveThreadId()!)
       // 设置当前会话的workingStatus为working
       updateThreadWorkingStatus(getActiveThreadId()!, 'working')
-      await threadP.startStreamCompletion(
-        getActiveThreadId()!,
-        messageId,
-        Object.fromEntries(selectedVariantsMap.value)
-      )
     } catch (error) {
       console.error('Failed to retry message:', error)
       throw error
@@ -605,7 +603,7 @@ export const useChatStore = defineStore('chat', () => {
       generatingThreadIds.value.add(activeThread)
       updateThreadWorkingStatus(activeThread, 'working')
 
-      const aiResponseMessage = await threadP.regenerateFromUserMessage(
+      const aiResponseMessage = await agentP.regenerateFromUserMessage(
         activeThread,
         userMessageId,
         Object.fromEntries(selectedVariantsMap.value)
@@ -1278,18 +1276,9 @@ export const useChatStore = defineStore('chat', () => {
       // 设置会话的workingStatus为working
       updateThreadWorkingStatus(conversationId, 'working')
 
-      // 创建一个新的助手消息
-      const aiResponseMessage = await threadP.sendMessage(
+      const aiResponseMessage = await agentP.continueLoop(
         conversationId,
-        JSON.stringify({
-          text: 'continue',
-          files: [],
-          links: [],
-          search: false,
-          think: false,
-          continue: true
-        }),
-        getTabId(),
+        messageId,
         Object.fromEntries(selectedVariantsMap.value)
       )
 
@@ -1305,11 +1294,6 @@ export const useChatStore = defineStore('chat', () => {
       })
 
       await loadMessages()
-      await agentP.continueLoop(
-        conversationId,
-        messageId,
-        Object.fromEntries(selectedVariantsMap.value)
-      )
     } catch (error) {
       console.error('Failed to continue generation:', error)
       throw error

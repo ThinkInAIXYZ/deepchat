@@ -1,5 +1,7 @@
 import type {
   ChatMessage,
+  CONVERSATION,
+  CONVERSATION_SETTINGS,
   LLMAgentEventData,
   MCPToolDefinition,
   MESSAGE_METADATA,
@@ -16,7 +18,6 @@ import {
   type ConversationExportFormat
 } from '../../exporter/formats/conversationExporter'
 import { preparePromptContent } from '../message/messageBuilder'
-import type { ConversationManager } from '../../sessionPresenter/managers/conversationManager'
 import type { StreamGenerationHandler } from '../streaming/streamGenerationHandler'
 
 // Translation constants
@@ -27,21 +28,38 @@ const TRANSLATION_TIMEOUT_MS = 1000
 const DEFAULT_MESSAGE_LENGTH = 300
 
 export interface UtilityHandlerOptions {
-  conversationManager: ConversationManager
+  getActiveConversation: (tabId: number) => Promise<CONVERSATION | null>
+  getActiveConversationId: (tabId: number) => Promise<string | null>
+  getConversation: (conversationId: string) => Promise<CONVERSATION>
+  createConversation: (
+    title: string,
+    settings: Partial<CONVERSATION_SETTINGS>,
+    tabId: number
+  ) => Promise<string>
   streamGenerationHandler: StreamGenerationHandler
   getSearchAssistantModel: () => MODEL_META | null
   getSearchAssistantProviderId: () => string | null
 }
 
 export class UtilityHandler extends BaseHandler {
-  private readonly conversationManager: ConversationManager
+  private readonly getActiveConversation: (tabId: number) => Promise<CONVERSATION | null>
+  private readonly getActiveConversationId: (tabId: number) => Promise<string | null>
+  private readonly getConversation: (conversationId: string) => Promise<CONVERSATION>
+  private readonly createConversation: (
+    title: string,
+    settings: Partial<CONVERSATION_SETTINGS>,
+    tabId: number
+  ) => Promise<string>
   private readonly streamGenerationHandler: StreamGenerationHandler
   private readonly getSearchAssistantModel: () => MODEL_META | null
   private readonly getSearchAssistantProviderId: () => string | null
 
   constructor(context: ThreadHandlerContext, options: UtilityHandlerOptions) {
     super(context)
-    this.conversationManager = options.conversationManager
+    this.getActiveConversation = options.getActiveConversation
+    this.getActiveConversationId = options.getActiveConversationId
+    this.getConversation = options.getConversation
+    this.createConversation = options.createConversation
     this.streamGenerationHandler = options.streamGenerationHandler
     this.getSearchAssistantModel = options.getSearchAssistantModel
     this.getSearchAssistantProviderId = options.getSearchAssistantProviderId
@@ -49,13 +67,13 @@ export class UtilityHandler extends BaseHandler {
 
   async translateText(text: string, tabId: number): Promise<string> {
     try {
-      let conversation = await this.conversationManager.getActiveConversation(tabId)
+      let conversation = await this.getActiveConversation(tabId)
       if (!conversation) {
         // Create a temporary conversation for translation
         const defaultProvider = this.ctx.configPresenter.getDefaultProviders()[0]
         const models = await this.ctx.llmProviderPresenter.getModelList(defaultProvider.id)
         const defaultModel = models[0]
-        const conversationId = await this.conversationManager.createConversation(
+        const conversationId = await this.createConversation(
           'Temporary translation conversation',
           {
             modelId: defaultModel.id,
@@ -63,7 +81,7 @@ export class UtilityHandler extends BaseHandler {
           },
           tabId
         )
-        conversation = await this.conversationManager.getConversation(conversationId)
+        conversation = await this.getConversation(conversationId)
       }
 
       const { providerId, modelId } = conversation.settings
@@ -114,13 +132,13 @@ export class UtilityHandler extends BaseHandler {
 
   async askAI(text: string, tabId: number): Promise<string> {
     try {
-      let conversation = await this.conversationManager.getActiveConversation(tabId)
+      let conversation = await this.getActiveConversation(tabId)
       if (!conversation) {
         // Create a temporary conversation for AI query
         const defaultProvider = this.ctx.configPresenter.getDefaultProviders()[0]
         const models = await this.ctx.llmProviderPresenter.getModelList(defaultProvider.id)
         const defaultModel = models[0]
-        const conversationId = await this.conversationManager.createConversation(
+        const conversationId = await this.createConversation(
           '临时AI对话',
           {
             modelId: defaultModel.id,
@@ -128,7 +146,7 @@ export class UtilityHandler extends BaseHandler {
           },
           tabId
         )
-        conversation = await this.conversationManager.getConversation(conversationId)
+        conversation = await this.getConversation(conversationId)
       }
 
       const { providerId, modelId } = conversation.settings
@@ -178,7 +196,7 @@ export class UtilityHandler extends BaseHandler {
   ): Promise<{ filename: string; content: string }> {
     try {
       // Get conversation
-      const conversation = await this.conversationManager.getConversation(conversationId)
+      const conversation = await this.getConversation(conversationId)
       if (!conversation) {
         throw new Error('Conversation not found')
       }
@@ -209,13 +227,12 @@ export class UtilityHandler extends BaseHandler {
   }
 
   async summaryTitles(tabId?: number, conversationId?: string): Promise<string> {
-    const activeId =
-      tabId !== undefined ? this.conversationManager.getActiveConversationIdSync(tabId) : null
+    const activeId = tabId !== undefined ? await this.getActiveConversationId(tabId) : null
     const targetConversationId = conversationId ?? activeId ?? undefined
     if (!targetConversationId) {
       throw new Error('Conversation not found')
     }
-    const conversation = await this.conversationManager.getConversation(targetConversationId)
+    const conversation = await this.getConversation(targetConversationId)
     if (!conversation) {
       throw new Error('Conversation not found')
     }

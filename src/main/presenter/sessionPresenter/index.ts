@@ -2,7 +2,6 @@ import type {
   CONVERSATION,
   CONVERSATION_SETTINGS,
   ParentSelection,
-  MESSAGE_ROLE,
   MESSAGE_STATUS,
   MESSAGE_METADATA,
   SearchResult,
@@ -11,67 +10,42 @@ import type {
   ISQLitePresenter,
   IConfigPresenter,
   ILlmProviderPresenter,
-  LLMAgentEventData,
   AcpWorkdirInfo,
   IConversationExporter
 } from '@shared/presenter'
-import type { AssistantMessage, Message } from '@shared/chat'
+import type { AssistantMessageBlock, Message, UserMessageContent } from '@shared/chat'
 import type { NowledgeMemThread, NowledgeMemExportSummary } from '@shared/types/nowledgeMem'
 import { presenter } from '@/presenter'
 import { eventBus } from '@/eventbus'
 import { TAB_EVENTS, CONVERSATION_EVENTS } from '@/events'
 import type { ISessionPresenter } from './interface'
 import { MessageManager } from './managers/messageManager'
-import type { GeneratingMessageState } from '../agentPresenter/streaming/types'
-import { ContentBufferHandler } from '../agentPresenter/streaming/contentBufferHandler'
-import { ToolCallHandler } from '../agentPresenter/loop/toolCallHandler'
-import { LLMEventHandler } from '../agentPresenter/streaming/llmEventHandler'
-import { SearchHandler } from '../searchPresenter/handlers/searchHandler'
-import { StreamGenerationHandler } from '../agentPresenter/streaming/streamGenerationHandler'
-import { PermissionHandler } from '../agentPresenter/permission/permissionHandler'
-import { UtilityHandler } from '../agentPresenter/utility/utilityHandler'
+import { buildUserMessageContext } from '../agentPresenter/message/messageFormatter'
 import { CommandPermissionService } from '../permission/commandPermissionService'
-import type { ThreadHandlerContext } from '../searchPresenter/handlers/baseHandler'
 import { ConversationManager, type CreateConversationOptions } from './managers/conversationManager'
-import type { SearchPresenter } from '../searchPresenter'
-import type { SearchManager } from '../searchPresenter/managers/searchManager'
 import type { ConversationExportFormat } from '../exporter/formats/conversationExporter'
+
+const DEFAULT_MESSAGE_LENGTH = 300
 
 export class SessionPresenter implements ISessionPresenter {
   private sqlitePresenter: ISQLitePresenter
   private messageManager: MessageManager
   private llmProviderPresenter: ILlmProviderPresenter
-  private configPresenter: IConfigPresenter
-  private searchManager: SearchManager
-  private searchPresenter: SearchPresenter
   private conversationManager: ConversationManager
-  private contentBufferHandler: ContentBufferHandler
-  private toolCallHandler: ToolCallHandler
-  private llmEventHandler: LLMEventHandler
-  private searchHandler: SearchHandler
-  private streamGenerationHandler: StreamGenerationHandler
-  private permissionHandler: PermissionHandler
-  private utilityHandler: UtilityHandler
   private exporter: IConversationExporter
   private commandPermissionService: CommandPermissionService
-  private generatingMessages: Map<string, GeneratingMessageState> = new Map()
   private activeConversationIds: Map<number, string> = new Map()
-  private searchingMessages: Set<string> = new Set()
 
   constructor(options: {
     sqlitePresenter: ISQLitePresenter
     llmProviderPresenter: ILlmProviderPresenter
     configPresenter: IConfigPresenter
-    searchPresenter: SearchPresenter
     exporter: IConversationExporter
     commandPermissionService?: CommandPermissionService
   }) {
     this.sqlitePresenter = options.sqlitePresenter
     this.messageManager = new MessageManager(options.sqlitePresenter)
     this.llmProviderPresenter = options.llmProviderPresenter
-    this.configPresenter = options.configPresenter
-    this.searchPresenter = options.searchPresenter
-    this.searchManager = this.searchPresenter.getSearchManager()
     this.exporter = options.exporter
     this.commandPermissionService =
       options.commandPermissionService ?? new CommandPermissionService()
@@ -81,63 +55,6 @@ export class SessionPresenter implements ISessionPresenter {
       messageManager: this.messageManager,
       activeConversationIds: this.activeConversationIds
     })
-    this.contentBufferHandler = new ContentBufferHandler({
-      generatingMessages: this.generatingMessages,
-      messageManager: this.messageManager
-    })
-    this.toolCallHandler = new ToolCallHandler({
-      messageManager: this.messageManager,
-      sqlitePresenter: this.sqlitePresenter,
-      searchingMessages: this.searchingMessages,
-      commandPermissionHandler: this.commandPermissionService
-    })
-    this.llmEventHandler = new LLMEventHandler({
-      generatingMessages: this.generatingMessages,
-      searchingMessages: this.searchingMessages,
-      messageManager: this.messageManager,
-      contentBufferHandler: this.contentBufferHandler,
-      toolCallHandler: this.toolCallHandler,
-      onConversationUpdated: (state) => this.handleConversationUpdates(state)
-    })
-
-    const handlerContext: ThreadHandlerContext = {
-      sqlitePresenter: this.sqlitePresenter,
-      messageManager: this.messageManager,
-      llmProviderPresenter: this.llmProviderPresenter,
-      configPresenter: this.configPresenter,
-      searchManager: this.searchManager
-    }
-
-    this.searchHandler = new SearchHandler(handlerContext, {
-      generatingMessages: this.generatingMessages,
-      searchingMessages: this.searchingMessages,
-      getSearchAssistantModel: () => this.searchPresenter.getSearchAssistantModel(),
-      getSearchAssistantProviderId: () => this.searchPresenter.getSearchAssistantProviderId()
-    })
-
-    this.streamGenerationHandler = new StreamGenerationHandler(handlerContext, {
-      searchHandler: this.searchHandler,
-      generatingMessages: this.generatingMessages,
-      llmEventHandler: this.llmEventHandler
-    })
-
-    this.permissionHandler = new PermissionHandler(handlerContext, {
-      generatingMessages: this.generatingMessages,
-      llmProviderPresenter: this.llmProviderPresenter,
-      getMcpPresenter: () => presenter.mcpPresenter,
-      getToolPresenter: () => presenter.toolPresenter,
-      streamGenerationHandler: this.streamGenerationHandler,
-      llmEventHandler: this.llmEventHandler,
-      commandPermissionHandler: this.commandPermissionService
-    })
-
-    this.utilityHandler = new UtilityHandler(handlerContext, {
-      conversationManager: this.conversationManager,
-      streamGenerationHandler: this.streamGenerationHandler,
-      getSearchAssistantModel: () => this.searchPresenter.getSearchAssistantModel(),
-      getSearchAssistantProviderId: () => this.searchPresenter.getSearchAssistantProviderId()
-    })
-
     // 监听Tab关闭事件，清理绑定关系
     eventBus.on(TAB_EVENTS.CLOSED, (tabId: number) => {
       const activeConversationId = this.getActiveConversationIdSync(tabId)
@@ -243,18 +160,6 @@ export class SessionPresenter implements ISessionPresenter {
     return this.messageManager.getLastUserMessage(sessionId)
   }
 
-  async stopStreamCompletion(sessionId: string, messageId?: string): Promise<void> {
-    if (messageId) {
-      await this.stopMessageGeneration(messageId)
-      return
-    }
-    await this.stopConversationGeneration(sessionId)
-  }
-
-  async stopSessionGeneration(sessionId: string): Promise<void> {
-    await this.stopConversationGeneration(sessionId)
-  }
-
   async forkSession(
     targetSessionId: string,
     targetMessageId: string,
@@ -302,7 +207,56 @@ export class SessionPresenter implements ISessionPresenter {
   }
 
   async generateTitle(sessionId: string): Promise<string> {
-    return this.summaryTitles(undefined, sessionId)
+    const conversation = await this.getConversation(sessionId)
+
+    let messageCount = Math.ceil(conversation.settings.contextLength / DEFAULT_MESSAGE_LENGTH)
+    if (messageCount < 2) {
+      messageCount = 2
+    }
+
+    const messages = await this.messageManager.getContextMessages(conversation.id, messageCount)
+    const selectedVariantsMap = conversation.settings.selectedVariantsMap || {}
+    const variantAwareMessages = this.applyVariantSelection(messages, selectedVariantsMap)
+    const formattedMessages = variantAwareMessages
+      .map((msg) => {
+        if (msg.role === 'user') {
+          const userContent: UserMessageContent =
+            typeof msg.content === 'string'
+              ? {
+                  text: msg.content,
+                  files: [],
+                  links: [],
+                  think: false,
+                  search: false
+                }
+              : (msg.content as UserMessageContent)
+          return {
+            role: 'user' as const,
+            content: buildUserMessageContext(userContent)
+          }
+        }
+
+        const content = (msg.content as AssistantMessageBlock[])
+          .filter((block) => block.type === 'content')
+          .map((block) => block.content)
+          .join('\n')
+
+        return {
+          role: 'assistant' as const,
+          content
+        }
+      })
+      .filter((item) => item.content.length > 0)
+
+    const title = await this.llmProviderPresenter.summaryTitles(
+      formattedMessages,
+      conversation.settings.providerId,
+      conversation.settings.modelId
+    )
+
+    let cleanedTitle = title.replace(/<think>.*?<\/think>/g, '').trim()
+    cleanedTitle = cleanedTitle.replace(/^<think>/, '').trim()
+    return cleanedTitle
   }
 
   /**
@@ -312,44 +266,6 @@ export class SessionPresenter implements ISessionPresenter {
    */
   async findTabForConversation(conversationId: string): Promise<number | null> {
     return this.conversationManager.findTabForConversation(conversationId)
-  }
-
-  async handleLLMAgentError(msg: LLMAgentEventData) {
-    await this.llmEventHandler.handleLLMAgentError(msg)
-  }
-
-  async handleLLMAgentEnd(msg: LLMAgentEventData) {
-    await this.llmEventHandler.handleLLMAgentEnd(msg)
-  }
-
-  async handleLLMAgentResponse(msg: LLMAgentEventData) {
-    await this.llmEventHandler.handleLLMAgentResponse(msg)
-  }
-
-  private async handleConversationUpdates(state: GeneratingMessageState): Promise<void> {
-    const conversation = await this.getConversation(state.conversationId)
-
-    if (conversation.is_new === 1) {
-      try {
-        this.summaryTitles(undefined, state.conversationId)
-          .then((title) => {
-            return this.renameConversation(state.conversationId, title)
-          })
-          .then(() => {
-            console.log('renameConversation success')
-          })
-      } catch (error) {
-        console.error('[SessionPresenter] Failed to summarize title', {
-          conversationId: state.conversationId,
-          err: error
-        })
-      }
-    }
-
-    await this.sqlitePresenter.updateConversation(state.conversationId, {
-      updatedAt: Date.now()
-    })
-    await this.broadcastThreadListUpdate()
   }
 
   getActiveConversationIdSync(tabId: number): string | null {
@@ -567,78 +483,6 @@ export class SessionPresenter implements ISessionPresenter {
       }
     })
   }
-  /**
-   *
-   * @param conversationId
-   * @param content
-   * @param tabId
-   * @returns 如果是user的消息，返回ai生成的message，否则返回空
-   */
-  async sendMessage(
-    conversationId: string,
-    content: string,
-    _tabId?: number,
-    _selectedVariantsMap?: Record<string, string>
-  ): Promise<AssistantMessage | null> {
-    const role: MESSAGE_ROLE = 'user'
-    const conversation = await this.getConversation(conversationId)
-    const { providerId, modelId } = conversation.settings
-    console.log('sendMessage', conversation)
-    const message = await this.messageManager.sendMessage(
-      conversationId,
-      content,
-      role,
-      '',
-      false,
-      {
-        contextUsage: 0,
-        totalTokens: 0,
-        generationTime: 0,
-        firstTokenTime: 0,
-        tokensPerSecond: 0,
-        inputTokens: 0,
-        outputTokens: 0,
-        model: modelId,
-        provider: providerId
-      }
-    )
-    if (role === 'user') {
-      const assistantMessage = await this.streamGenerationHandler.generateAIResponse(
-        conversationId,
-        message.id
-      )
-      this.generatingMessages.set(assistantMessage.id, {
-        message: assistantMessage,
-        conversationId,
-        startTime: Date.now(),
-        firstTokenTime: null,
-        promptTokens: 0,
-        reasoningStartTime: null,
-        reasoningEndTime: null,
-        lastReasoningTime: null
-      })
-
-      // 检查是否是新会话的第一条消息
-      const { list: messages } = await this.getMessages(conversationId, 1, 2)
-      if (messages.length === 1) {
-        // 更新会话的 is_new 标志位
-        await this.sqlitePresenter.updateConversation(conversationId, {
-          is_new: 0,
-          updatedAt: Date.now()
-        })
-      } else {
-        await this.sqlitePresenter.updateConversation(conversationId, {
-          updatedAt: Date.now()
-        })
-      }
-
-      // 因为handleLLMAgentEnd会处理会话列表广播，所以此处不用广播
-
-      return assistantMessage
-    }
-
-    return null
-  }
 
   async getMessage(messageId: string): Promise<Message> {
     return await this.messageManager.getMessage(messageId)
@@ -674,29 +518,6 @@ export class SessionPresenter implements ISessionPresenter {
     return parsed
   }
 
-  async startStreamCompletion(
-    conversationId: string,
-    queryMsgId?: string,
-    selectedVariantsMap?: Record<string, string>
-  ): Promise<void> {
-    await this.streamGenerationHandler.startStreamCompletion(
-      conversationId,
-      queryMsgId,
-      selectedVariantsMap
-    )
-  }
-  async continueStreamCompletion(
-    conversationId: string,
-    queryMsgId: string,
-    selectedVariantsMap?: Record<string, string>
-  ): Promise<void> {
-    await this.streamGenerationHandler.continueStreamCompletion(
-      conversationId,
-      queryMsgId,
-      selectedVariantsMap
-    )
-  }
-
   // 查找特定会话的生成状态
   async editMessage(messageId: string, content: string): Promise<Message> {
     return await this.messageManager.editMessage(messageId, content)
@@ -704,57 +525,6 @@ export class SessionPresenter implements ISessionPresenter {
 
   async deleteMessage(messageId: string): Promise<void> {
     await this.messageManager.deleteMessage(messageId)
-  }
-
-  async retryMessage(messageId: string, _modelId?: string): Promise<AssistantMessage> {
-    const message = await this.messageManager.getMessage(messageId)
-    if (message.role !== 'assistant') {
-      throw new Error('只能重试助手消息')
-    }
-
-    const userMessage = await this.messageManager.getMessage(message.parentId || '')
-    if (!userMessage) {
-      throw new Error('找不到对应的用户消息')
-    }
-    const conversation = await this.getConversation(message.conversationId)
-    const { providerId, modelId } = conversation.settings
-    const assistantMessage = await this.messageManager.retryMessage(messageId, {
-      totalTokens: 0,
-      generationTime: 0,
-      firstTokenTime: 0,
-      tokensPerSecond: 0,
-      contextUsage: 0,
-      inputTokens: 0,
-      outputTokens: 0,
-      model: modelId,
-      provider: providerId
-    })
-
-    // 初始化生成状态
-    this.generatingMessages.set(assistantMessage.id, {
-      message: assistantMessage as AssistantMessage,
-      conversationId: message.conversationId,
-      startTime: Date.now(),
-      firstTokenTime: null,
-      promptTokens: 0,
-      reasoningStartTime: null,
-      reasoningEndTime: null,
-      lastReasoningTime: null
-    })
-
-    return assistantMessage as AssistantMessage
-  }
-
-  async regenerateFromUserMessage(
-    conversationId: string,
-    userMessageId: string,
-    selectedVariantsMap?: Record<string, string>
-  ): Promise<AssistantMessage> {
-    return this.streamGenerationHandler.regenerateFromUserMessage(
-      conversationId,
-      userMessageId,
-      selectedVariantsMap
-    )
   }
 
   async getMessageVariants(messageId: string): Promise<Message[]> {
@@ -780,93 +550,12 @@ export class SessionPresenter implements ISessionPresenter {
     return this.conversationManager.getActiveConversationIdSync(tabId)
   }
 
-  getGeneratingMessageState(messageId: string): GeneratingMessageState | null {
-    return this.generatingMessages.get(messageId) || null
-  }
-
-  getConversationGeneratingMessages(conversationId: string): AssistantMessage[] {
-    return Array.from(this.generatingMessages.values())
-      .filter((state) => state.conversationId === conversationId)
-      .map((state) => state.message)
-  }
-
-  async stopMessageGeneration(messageId: string): Promise<void> {
-    const state = this.generatingMessages.get(messageId)
-    if (state) {
-      presenter.sessionManager.updateRuntime(state.conversationId, { userStopRequested: true })
-      presenter.sessionManager.setStatus(state.conversationId, 'paused')
-      presenter.sessionManager.clearPendingPermission(state.conversationId)
-      // 设置统一的取消标志
-      state.isCancelled = true
-
-      // 刷新剩余缓冲内容
-      if (state.adaptiveBuffer) {
-        await this.contentBufferHandler.flushAdaptiveBuffer(messageId)
-      }
-
-      // 清理缓冲相关资源
-      this.contentBufferHandler.cleanupContentBuffer(state)
-
-      // 标记消息不再处于搜索状态
-      if (state.isSearching) {
-        this.searchingMessages.delete(messageId)
-
-        // 停止搜索窗口
-        await this.searchManager.stopSearch(state.conversationId)
-      }
-
-      // 添加用户取消的消息块
-      state.message.content.forEach((block) => {
-        if (
-          block.status === 'loading' ||
-          block.status === 'reading' ||
-          block.status === 'optimizing'
-        ) {
-          block.status = 'success'
-        }
-      })
-      state.message.content.push({
-        type: 'error',
-        content: 'common.error.userCanceledGeneration',
-        status: 'cancel',
-        timestamp: Date.now()
-      })
-
-      // 更新消息状态和内容
-      await this.messageManager.updateMessageStatus(messageId, 'error')
-      await this.messageManager.editMessage(messageId, JSON.stringify(state.message.content))
-
-      // 停止流式生成
-      await this.llmProviderPresenter.stopStream(messageId)
-
-      // 清理生成状态
-      this.generatingMessages.delete(messageId)
-    }
-  }
-
-  async stopConversationGeneration(conversationId: string): Promise<void> {
-    const messageIds = Array.from(this.generatingMessages.entries())
-      .filter(([, state]) => state.conversationId === conversationId)
-      .map(([messageId]) => messageId)
-
-    await Promise.all(messageIds.map((messageId) => this.stopMessageGeneration(messageId)))
-  }
-
-  async summaryTitles(tabId?: number, conversationId?: string): Promise<string> {
-    return this.utilityHandler.summaryTitles(tabId, conversationId)
-  }
-
   async clearActiveThread(tabId: number): Promise<void> {
     this.clearActiveConversation(tabId, { notify: true })
   }
 
   async clearAllMessages(conversationId: string): Promise<void> {
     await this.messageManager.clearAllMessages(conversationId)
-    // 检查所有 tab 中的活跃会话
-    const tabs = this.getTabsByConversation(conversationId)
-    if (tabs.length > 0) {
-      await this.stopConversationGeneration(conversationId)
-    }
   }
 
   async getMessageExtraInfo(messageId: string, type: string): Promise<Record<string, unknown>[]> {
@@ -885,8 +574,35 @@ export class SessionPresenter implements ISessionPresenter {
     return message
   }
 
+  /**
+   * Applies variant selection to messages based on selectedVariantsMap.
+   * Returns messages with selected variant fields applied when a variant is selected.
+   */
+  private applyVariantSelection(
+    messages: Message[],
+    selectedVariantsMap: Record<string, string>
+  ): Message[] {
+    return messages.map((msg) => {
+      if (msg.role === 'assistant' && selectedVariantsMap[msg.id] && msg.variants) {
+        const selectedVariantId = selectedVariantsMap[msg.id]
+        const selectedVariant = msg.variants.find((variant) => variant.id === selectedVariantId)
+
+        if (selectedVariant) {
+          const newMsg = JSON.parse(JSON.stringify(msg))
+          newMsg.content = selectedVariant.content
+          newMsg.usage = selectedVariant.usage
+          newMsg.model_id = selectedVariant.model_id
+          newMsg.model_provider = selectedVariant.model_provider
+          newMsg.model_name = selectedVariant.model_name
+          return newMsg
+        }
+      }
+      return msg
+    })
+  }
+
   destroy() {
-    this.searchManager.destroy()
+    // Reserved for future cleanup hooks.
   }
 
   /**
@@ -1026,16 +742,6 @@ export class SessionPresenter implements ISessionPresenter {
     })
   }
 
-  // 翻译文本
-  async translateText(text: string, tabId: number): Promise<string> {
-    return this.utilityHandler.translateText(text, tabId)
-  }
-
-  // AI询问
-  async askAI(text: string, tabId: number): Promise<string> {
-    return this.utilityHandler.askAI(text, tabId)
-  }
-
   /**
    * 导出会话内容
    * @param conversationId 会话ID
@@ -1050,34 +756,6 @@ export class SessionPresenter implements ISessionPresenter {
     content: string
   }> {
     return this.exporter.exportConversation(conversationId, format)
-  }
-
-  async handlePermissionResponse(
-    messageId: string,
-    toolCallId: string,
-    granted: boolean,
-    permissionType: 'read' | 'write' | 'all' | 'command',
-    remember: boolean = true
-  ): Promise<void> {
-    await this.permissionHandler.handlePermissionResponse(
-      messageId,
-      toolCallId,
-      granted,
-      permissionType,
-      remember
-    )
-  }
-
-  // 等待MCP服务重启完成并准备就绪
-
-  // 查找权限授予后待执行的工具调用
-
-  /**
-   * Get request preview for debugging (DEV mode only)
-   * Reconstructs the request parameters that would be sent to the provider
-   */
-  async getMessageRequestPreview(messageId: string): Promise<unknown> {
-    return this.utilityHandler.getMessageRequestPreview(messageId)
   }
 
   async getAcpWorkdir(conversationId: string, agentId: string): Promise<AcpWorkdirInfo> {
@@ -1206,11 +884,6 @@ export class SessionPresenter implements ISessionPresenter {
         tabId: tabId ?? null,
         windowId: windowId ?? null,
         windowType
-      },
-      runtime: {
-        toolCallCount: sessionContext?.runtime?.toolCallCount ?? 0,
-        userStopRequested: sessionContext?.runtime?.userStopRequested ?? false,
-        pendingPermission: sessionContext?.runtime?.pendingPermission
       },
       context: {
         resolvedChatMode: (conversation.settings.chatMode ??

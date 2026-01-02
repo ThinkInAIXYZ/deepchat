@@ -126,7 +126,6 @@ export class Presenter implements IPresenter {
       sqlitePresenter: this.sqlitePresenter,
       llmProviderPresenter: this.llmproviderPresenter,
       configPresenter: this.configPresenter,
-      searchPresenter: this.searchPresenter,
       exporter: this.exporter,
       commandPermissionService: commandPermissionHandler
     })
@@ -136,7 +135,12 @@ export class Presenter implements IPresenter {
     })
     this.agentPresenter = new AgentPresenter({
       sessionPresenter: this.sessionPresenter,
-      sessionManager: this.sessionManager
+      sessionManager: this.sessionManager,
+      sqlitePresenter: this.sqlitePresenter,
+      llmProviderPresenter: this.llmproviderPresenter,
+      configPresenter: this.configPresenter,
+      searchPresenter: this.searchPresenter,
+      commandPermissionService: commandPermissionHandler
     }) as unknown as IAgentPresenter & ISessionPresenter
     this.mcpPresenter = new McpPresenter(this.configPresenter)
     this.upgradePresenter = new UpgradePresenter(this.configPresenter)
