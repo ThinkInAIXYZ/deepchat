@@ -8,7 +8,7 @@ import { presenter } from '@/presenter'
 import type { MessageManager } from '../managers/messageManager'
 import type { GeneratingMessageState } from './types'
 import type { ContentBufferHandler } from './contentBufferHandler'
-import type { ToolCallHandler } from '../loop/toolCallHandler'
+import type { ToolCallHandler } from '../../agentPresenter/loop/toolCallHandler'
 
 type ConversationUpdateHandler = (state: GeneratingMessageState) => Promise<void>
 

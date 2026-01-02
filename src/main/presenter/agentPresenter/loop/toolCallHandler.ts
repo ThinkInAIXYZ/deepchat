@@ -8,8 +8,8 @@ import type {
   MCPResourceContent
 } from '@shared/presenter'
 import { nanoid } from 'nanoid'
-import type { MessageManager } from '../managers/messageManager'
-import type { GeneratingMessageState } from '../streaming/types'
+import type { MessageManager } from '../../sessionPresenter/managers/messageManager'
+import type { GeneratingMessageState } from '../../sessionPresenter/streaming/types'
 import type { CommandPermissionService } from '../../permission/commandPermissionService'
 
 interface PermissionRequestPayload {
