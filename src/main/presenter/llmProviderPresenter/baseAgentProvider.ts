@@ -4,7 +4,7 @@ import type {
   AgentPermissionResult,
   AgentProcessManager,
   AgentSessionManager
-} from './agent/types'
+} from '../agentPresenter/acp'
 
 /**
  * Base class for Agent-specific providers.
