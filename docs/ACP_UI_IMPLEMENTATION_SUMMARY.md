@@ -6,7 +6,7 @@
 - 在 `src/shared/chat.d.ts` 中添加了 `'plan'` 类型到 `AssistantMessageBlock`
 
 ### 2. Content Mapper 调整 ✅
-- 修改了 `src/main/presenter/llmProviderPresenter/agent/acpContentMapper.ts`
+- 修改了 `src/main/presenter/agentPresenter/acp/acpContentMapper.ts`
 - `handlePlanUpdate` 现在创建独立的 `plan` 类型块
 - 移除了未使用的 `getStatusIcon` 方法
 
@@ -68,7 +68,7 @@
 ## 修改的文件
 
 1. `src/shared/chat.d.ts` - 添加 plan 类型
-2. `src/main/presenter/llmProviderPresenter/agent/acpContentMapper.ts` - 修改 plan 处理逻辑
+2. `src/main/presenter/agentPresenter/acp/acpContentMapper.ts` - 修改 plan 处理逻辑
 3. `src/renderer/src/components/message/MessageBlockThink.vue` - 添加 mode 检测
 4. `src/renderer/src/components/message/MessageBlockToolCall.vue` - 添加终端和文件系统 UI
 5. `src/renderer/src/components/message/MessageItemAssistant.vue` - 注册 plan 组件

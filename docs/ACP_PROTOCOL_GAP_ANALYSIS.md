@@ -204,7 +204,7 @@ The goal is to focus on what matters for a reliable ACP coding agent, mark optio
 ## 2. New File Structure
 
 ```
-src/main/presenter/llmProviderPresenter/agent/
+src/main/presenter/agentPresenter/acp/
 ├── acpProcessManager.ts      # MODIFY: update createClientProxy()
 ├── acpSessionManager.ts      # MODIFY: add mode tracking
 ├── acpContentMapper.ts       # MODIFY: structured plan, mode updates
@@ -226,7 +226,7 @@ src/shared/presenter/
 **Purpose:** Centralize client capability flags for initialization.
 
 ```typescript
-// src/main/presenter/llmProviderPresenter/agent/acpCapabilities.ts
+// src/main/presenter/agentPresenter/acp/acpCapabilities.ts
 
 import type * as schema from '@agentclientprotocol/sdk/dist/schema.js'
 
@@ -277,7 +277,7 @@ export function buildClientCapabilities(
 **Purpose:** Handle `fs/read_text_file` and `fs/write_text_file` requests from agents.
 
 ```typescript
-// src/main/presenter/llmProviderPresenter/agent/acpFsHandler.ts
+// src/main/presenter/agentPresenter/acp/acpFsHandler.ts
 
 import * as fs from 'fs/promises'
 import * as path from 'path'
@@ -376,7 +376,7 @@ export class AcpFsHandler {
 **Purpose:** Manage PTY-based terminals for agent command execution.
 
 ```typescript
-// src/main/presenter/llmProviderPresenter/agent/acpTerminalManager.ts
+// src/main/presenter/agentPresenter/acp/acpTerminalManager.ts
 
 import * as pty from 'node-pty'
 import { nanoid } from 'nanoid'
@@ -568,7 +568,7 @@ export class AcpTerminalManager {
 
 ### 4.1 Modify AcpProcessManager.createClientProxy()
 
-**File:** `src/main/presenter/llmProviderPresenter/agent/acpProcessManager.ts`
+**File:** `src/main/presenter/agentPresenter/acp/acpProcessManager.ts`
 
 **Current:**
 ```typescript
@@ -609,7 +609,7 @@ private createClientProxy(
 
 ### 4.2 Update initialize() call with capabilities
 
-**File:** `src/main/presenter/llmProviderPresenter/agent/acpProcessManager.ts`
+**File:** `src/main/presenter/agentPresenter/acp/acpProcessManager.ts`
 
 **Current:**
 ```typescript

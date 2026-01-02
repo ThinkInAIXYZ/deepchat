@@ -67,7 +67,7 @@ graph TB
 ### 2. Agent 工具管理 ✅
 
 **实现文件**：
-- `src/main/presenter/llmProviderPresenter/agent/agentToolManager.ts`
+- `src/main/presenter/agentPresenter/acp/agentToolManager.ts`
 
 **功能**：
 - Agent 工具包含 Yo Browser + Agent FileSystem
@@ -78,7 +78,7 @@ graph TB
 ### 3. Agent 文件系统能力 ✅
 
 **实现文件**：
-- `src/main/presenter/llmProviderPresenter/agent/agentFileSystemHandler.ts`
+- `src/main/presenter/agentPresenter/acp/agentFileSystemHandler.ts`
 
 **功能**：
 - 内置文件工具：`read_file`, `write_file`, `list_directory`, `create_directory`, `move_files`,
@@ -177,8 +177,8 @@ graph TB
 ## 关键文件
 
 - `src/main/presenter/toolPresenter/index.ts`：统一工具定义与路由
-- `src/main/presenter/llmProviderPresenter/agent/agentToolManager.ts`：Agent 工具装配
-- `src/main/presenter/llmProviderPresenter/agent/agentFileSystemHandler.ts`：文件系统工具实现
+- `src/main/presenter/agentPresenter/acp/agentToolManager.ts`：Agent 工具装配
+- `src/main/presenter/agentPresenter/acp/agentFileSystemHandler.ts`：文件系统工具实现
 - `src/main/presenter/workspacePresenter/index.ts`：通用 Workspace Presenter
 - `src/renderer/src/stores/workspace.ts`：Workspace 状态与事件同步
 - `src/renderer/src/components/workspace/WorkspaceView.vue`：Workspace 入口 UI
