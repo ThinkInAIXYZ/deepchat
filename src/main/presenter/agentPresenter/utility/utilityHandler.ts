@@ -9,15 +9,15 @@ import type { AssistantMessageBlock, Message, UserMessageContent } from '@shared
 import { ModelType } from '@shared/model'
 import { presenter } from '@/presenter'
 import { BaseHandler, type ThreadHandlerContext } from '../../searchPresenter/handlers/baseHandler'
-import { buildUserMessageContext } from '../../agentPresenter/message/messageFormatter'
+import { buildUserMessageContext } from '../message/messageFormatter'
 import {
   buildConversationExportContent,
   generateExportFilename,
   type ConversationExportFormat
 } from '../../exporter/formats/conversationExporter'
-import { preparePromptContent } from '../../agentPresenter/message/messageBuilder'
-import type { ConversationManager } from '../managers/conversationManager'
-import type { StreamGenerationHandler } from '../../agentPresenter/streaming/streamGenerationHandler'
+import { preparePromptContent } from '../message/messageBuilder'
+import type { ConversationManager } from '../../sessionPresenter/managers/conversationManager'
+import type { StreamGenerationHandler } from '../streaming/streamGenerationHandler'
 
 // Translation constants
 const TRANSLATION_TEMPERATURE = 0.3
