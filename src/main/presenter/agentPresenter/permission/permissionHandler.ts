@@ -13,10 +13,10 @@ import {
   buildContinueToolCallContext,
   buildPostToolExecutionContext,
   type PendingToolCall
-} from '../../agentPresenter/message/messageBuilder'
-import type { GeneratingMessageState } from '../../agentPresenter/streaming/types'
-import type { StreamGenerationHandler } from '../../agentPresenter/streaming/streamGenerationHandler'
-import type { LLMEventHandler } from '../../agentPresenter/streaming/llmEventHandler'
+} from '../message/messageBuilder'
+import type { GeneratingMessageState } from '../streaming/types'
+import type { StreamGenerationHandler } from '../streaming/streamGenerationHandler'
+import type { LLMEventHandler } from '../streaming/llmEventHandler'
 import { BaseHandler, type ThreadHandlerContext } from '../../searchPresenter/handlers/baseHandler'
 import { CommandPermissionService } from '../../permission/commandPermissionService'
 
