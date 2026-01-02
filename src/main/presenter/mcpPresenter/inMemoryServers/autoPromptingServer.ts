@@ -114,7 +114,7 @@ export class AutoPromptingServer {
           inputSchema: zodToJsonSchema(z.object({})), // 无需参数
           annotations: {
             title: 'List Prompt Template Names',
-            readOnlyHint: true,
+            readOnlyHint: true
           }
         },
         {
@@ -123,7 +123,7 @@ export class AutoPromptingServer {
           inputSchema: GetTemplateParametersArgsJsonSchema,
           annotations: {
             title: 'Get Template Parameters',
-            readOnlyHint: true,
+            readOnlyHint: true
           }
         },
         {
@@ -132,7 +132,7 @@ export class AutoPromptingServer {
           inputSchema: FillTemplateArgsJsonSchema,
           annotations: {
             title: 'Fill Prompt Template',
-            readOnlyHint: true,
+            readOnlyHint: true
           }
         }
       ]

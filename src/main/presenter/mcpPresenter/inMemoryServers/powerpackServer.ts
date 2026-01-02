@@ -442,7 +442,7 @@ export class PowerpackServer {
           inputSchema: zodToJsonSchema(GetTimeArgsSchema),
           annotations: {
             title: 'Get Time',
-            readOnlyHint: true,
+            readOnlyHint: true
           }
         },
         {
@@ -455,7 +455,7 @@ export class PowerpackServer {
           annotations: {
             title: 'Get Web Info',
             readOnlyHint: true,
-            openWorldHint: true,
+            openWorldHint: true
           }
         },
         {
@@ -467,7 +467,7 @@ export class PowerpackServer {
           inputSchema: zodToJsonSchema(RunShellCommandArgsSchema),
           annotations: {
             title: 'Run Shell Command',
-            destructiveHint: true,
+            destructiveHint: true
           }
         }
       ]
@@ -486,7 +486,7 @@ export class PowerpackServer {
           annotations: {
             title: 'Run Code (E2B)',
             readOnlyHint: false,
-            openWorldHint: true,
+            openWorldHint: true
           }
         })
       } else {
@@ -508,7 +508,7 @@ export class PowerpackServer {
             inputSchema: zodToJsonSchema(RunNodeCodeArgsSchema),
             annotations: {
               title: 'Run Node.js Code',
-              destructiveHint: false,
+              destructiveHint: false
             }
           })
         }

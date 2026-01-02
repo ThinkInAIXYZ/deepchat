@@ -1212,7 +1212,7 @@ export class AppleServer {
           inputSchema: zodToJsonSchema(CalendarArgsSchema),
           annotations: {
             title: 'Apple Calendar',
-            destructiveHint: false,
+            destructiveHint: false
           }
         },
         {
@@ -1221,7 +1221,7 @@ export class AppleServer {
           inputSchema: zodToJsonSchema(ContactsArgsSchema),
           annotations: {
             title: 'Apple Contacts',
-            readOnlyHint: true,
+            readOnlyHint: true
           }
         },
         {
@@ -1232,7 +1232,7 @@ export class AppleServer {
           annotations: {
             title: 'Apple Mail',
             destructiveHint: false,
-            openWorldHint: true,
+            openWorldHint: true
           }
         },
         {
@@ -1242,7 +1242,7 @@ export class AppleServer {
           inputSchema: zodToJsonSchema(MapsArgsSchema),
           annotations: {
             title: 'Apple Maps',
-            destructiveHint: false,
+            destructiveHint: false
           }
         },
         {
@@ -1253,7 +1253,7 @@ export class AppleServer {
           annotations: {
             title: 'Apple Messages',
             destructiveHint: false,
-            openWorldHint: true,
+            openWorldHint: true
           }
         },
         {
@@ -1262,7 +1262,7 @@ export class AppleServer {
           inputSchema: zodToJsonSchema(NotesArgsSchema),
           annotations: {
             title: 'Apple Notes',
-            destructiveHint: false,
+            destructiveHint: false
           }
         },
         {
@@ -1271,7 +1271,7 @@ export class AppleServer {
           inputSchema: zodToJsonSchema(RemindersArgsSchema),
           annotations: {
             title: 'Apple Reminders',
-            destructiveHint: false,
+            destructiveHint: false
           }
         }
       ]

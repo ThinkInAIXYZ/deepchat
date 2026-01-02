@@ -125,7 +125,7 @@ export class FastGptKnowledgeServer {
             annotations: {
               title: 'FastGPT Knowledge Search',
               readOnlyHint: true,
-              openWorldHint: true,
+              openWorldHint: true
             }
           }
         })

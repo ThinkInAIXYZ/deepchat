@@ -162,7 +162,7 @@ export class MeetingServer {
           inputSchema: zodToJsonSchema(StartMeetingArgsSchema),
           annotations: {
             title: 'Start Meeting',
-            destructiveHint: false,
+            destructiveHint: false
           }
         }
       ]

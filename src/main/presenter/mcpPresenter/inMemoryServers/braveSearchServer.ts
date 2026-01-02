@@ -316,7 +316,7 @@ export class BraveSearchServer {
             annotations: {
               title: 'Brave Web Search',
               readOnlyHint: true,
-              openWorldHint: true,
+              openWorldHint: true
             }
           },
           {
@@ -334,7 +334,7 @@ export class BraveSearchServer {
             annotations: {
               title: 'Brave Local Search',
               readOnlyHint: true,
-              openWorldHint: true,
+              openWorldHint: true
             }
           }
         ]

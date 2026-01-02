@@ -135,7 +135,7 @@ export class BochaSearchServer {
             annotations: {
               title: 'Bocha Web Search',
               readOnlyHint: true,
-              openWorldHint: true,
+              openWorldHint: true
             }
           },
           {
@@ -146,7 +146,7 @@ export class BochaSearchServer {
             annotations: {
               title: 'Bocha AI Search',
               readOnlyHint: true,
-              openWorldHint: true,
+              openWorldHint: true
             }
           }
         ]

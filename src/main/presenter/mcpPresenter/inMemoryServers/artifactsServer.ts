@@ -583,7 +583,7 @@ export class ArtifactsServer {
             inputSchema: zodToJsonSchema(GetArtifactInstructionsArgsSchema),
             annotations: {
               title: 'Get Artifact Instructions',
-              readOnlyHint: true,
+              readOnlyHint: true
             }
           }
         ]

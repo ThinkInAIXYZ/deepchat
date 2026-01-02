@@ -60,7 +60,7 @@ export class BuiltinKnowledgeServer {
             inputSchema: zodToJsonSchema(BuiltinKnowledgeSearchArgsSchema),
             annotations: {
               title: 'Builtin Knowledge Search',
-              readOnlyHint: true,
+              readOnlyHint: true
             }
           }
         })

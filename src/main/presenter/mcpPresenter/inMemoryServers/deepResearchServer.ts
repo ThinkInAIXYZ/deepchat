@@ -285,7 +285,7 @@ export class DeepResearchServer {
             inputSchema: zodToJsonSchema(StartDeepResearchArgsSchema),
             annotations: {
               title: 'Start Deep Research',
-              destructiveHint: false,
+              destructiveHint: false
             }
           },
           {
@@ -295,7 +295,7 @@ export class DeepResearchServer {
             annotations: {
               title: 'Execute Web Search',
               readOnlyHint: false,
-              openWorldHint: true,
+              openWorldHint: true
             }
           },
           {
@@ -304,7 +304,7 @@ export class DeepResearchServer {
             inputSchema: zodToJsonSchema(RequestResearchDataArgsSchema),
             annotations: {
               title: 'Request Research Data',
-              readOnlyHint: true,
+              readOnlyHint: true
             }
           },
           {
@@ -313,7 +313,7 @@ export class DeepResearchServer {
             inputSchema: zodToJsonSchema(SubmitReflectionResultsArgsSchema),
             annotations: {
               title: 'Submit Reflection Results',
-              destructiveHint: false,
+              destructiveHint: false
             }
           },
           {
@@ -322,7 +322,7 @@ export class DeepResearchServer {
             inputSchema: zodToJsonSchema(GenerateFinalAnswerArgsSchema),
             annotations: {
               title: 'Generate Final Answer',
-              destructiveHint: true,
+              destructiveHint: true
             }
           }
         ]

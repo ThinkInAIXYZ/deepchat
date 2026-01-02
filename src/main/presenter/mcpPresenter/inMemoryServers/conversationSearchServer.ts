@@ -485,7 +485,7 @@ export class ConversationSearchServer {
             inputSchema: zodToJsonSchema(SearchConversationsArgsSchema),
             annotations: {
               title: 'Search Conversations',
-              readOnlyHint: true,
+              readOnlyHint: true
             }
           },
           {
@@ -495,7 +495,7 @@ export class ConversationSearchServer {
             inputSchema: zodToJsonSchema(SearchMessagesArgsSchema),
             annotations: {
               title: 'Search Messages',
-              readOnlyHint: true,
+              readOnlyHint: true
             }
           },
           {
@@ -504,7 +504,7 @@ export class ConversationSearchServer {
             inputSchema: zodToJsonSchema(GetConversationHistoryArgsSchema),
             annotations: {
               title: 'Get Conversation History',
-              readOnlyHint: true,
+              readOnlyHint: true
             }
           },
           {
@@ -513,7 +513,7 @@ export class ConversationSearchServer {
             inputSchema: zodToJsonSchema(GetConversationStatsArgsSchema),
             annotations: {
               title: 'Get Conversation Stats',
-              readOnlyHint: true,
+              readOnlyHint: true
             }
           },
           {
@@ -523,7 +523,7 @@ export class ConversationSearchServer {
             inputSchema: zodToJsonSchema(CreateNewTabArgsSchema),
             annotations: {
               title: 'Create New Tab',
-              destructiveHint: false,
+              destructiveHint: false
             }
           }
         ]

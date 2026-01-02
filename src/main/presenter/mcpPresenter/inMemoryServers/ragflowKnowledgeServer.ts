@@ -132,7 +132,7 @@ export class RagflowKnowledgeServer {
             annotations: {
               title: 'RAGFlow Knowledge Search',
               readOnlyHint: true,
-              openWorldHint: true,
+              openWorldHint: true
             }
           }
         })

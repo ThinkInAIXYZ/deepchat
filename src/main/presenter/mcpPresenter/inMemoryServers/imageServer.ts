@@ -199,7 +199,7 @@ export class ImageServer {
             inputSchema: zodToJsonSchema(ReadImageBase64ArgsSchema),
             annotations: {
               title: 'Read Image Base64',
-              readOnlyHint: true,
+              readOnlyHint: true
             }
           },
           {
@@ -210,7 +210,7 @@ export class ImageServer {
             annotations: {
               title: 'Upload Image',
               destructiveHint: false,
-              openWorldHint: true,
+              openWorldHint: true
             }
           },
           {
@@ -220,7 +220,7 @@ export class ImageServer {
             inputSchema: zodToJsonSchema(ReadMultipleImagesBase64ArgsSchema),
             annotations: {
               title: 'Read Multiple Images Base64',
-              readOnlyHint: true,
+              readOnlyHint: true
             }
           },
           {
@@ -231,7 +231,7 @@ export class ImageServer {
             annotations: {
               title: 'Upload Multiple Images',
               destructiveHint: false,
-              openWorldHint: true,
+              openWorldHint: true
             }
           },
           {
@@ -242,7 +242,7 @@ export class ImageServer {
             annotations: {
               title: 'Describe Image',
               readOnlyHint: true,
-              openWorldHint: true,
+              openWorldHint: true
             }
           },
           {
@@ -253,7 +253,7 @@ export class ImageServer {
             annotations: {
               title: 'Query Image with Prompt',
               readOnlyHint: true,
-              openWorldHint: true,
+              openWorldHint: true
             }
           },
           {
@@ -264,7 +264,7 @@ export class ImageServer {
             annotations: {
               title: 'OCR Image',
               readOnlyHint: true,
-              openWorldHint: true,
+              openWorldHint: true
             }
           }
         ]

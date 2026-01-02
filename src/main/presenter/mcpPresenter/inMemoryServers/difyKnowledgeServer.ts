@@ -136,7 +136,7 @@ export class DifyKnowledgeServer {
             annotations: {
               title: 'Dify Knowledge Search',
               readOnlyHint: true,
-              openWorldHint: true,
+              openWorldHint: true
             }
           }
         })
