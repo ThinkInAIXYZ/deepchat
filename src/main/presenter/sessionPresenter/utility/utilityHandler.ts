@@ -17,7 +17,7 @@ import {
 } from '../../exporter/formats/conversationExporter'
 import { preparePromptContent } from '../../agentPresenter/message/messageBuilder'
 import type { ConversationManager } from '../managers/conversationManager'
-import type { StreamGenerationHandler } from '../streaming/streamGenerationHandler'
+import type { StreamGenerationHandler } from '../../agentPresenter/streaming/streamGenerationHandler'
 
 // Translation constants
 const TRANSLATION_TEMPERATURE = 0.3

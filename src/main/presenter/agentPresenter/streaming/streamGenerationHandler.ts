@@ -14,14 +14,14 @@ import {
   buildUserMessageContext,
   formatUserMessageContent,
   getNormalizedUserMessageText
-} from '../../agentPresenter/message/messageFormatter'
-import { preparePromptContent } from '../../agentPresenter/message/messageBuilder'
+} from '../message/messageFormatter'
+import { preparePromptContent } from '../message/messageBuilder'
 import type { GeneratingMessageState } from './types'
 import { presenter } from '@/presenter'
 import type { SearchHandler } from '../../searchPresenter/handlers/searchHandler'
 import { BaseHandler, type ThreadHandlerContext } from '../../searchPresenter/handlers/baseHandler'
 import type { LLMEventHandler } from './llmEventHandler'
-import { LoopOrchestrator } from '../../agentPresenter/loop/loopOrchestrator'
+import { LoopOrchestrator } from '../loop/loopOrchestrator'
 
 interface StreamGenerationHandlerDeps {
   searchHandler: SearchHandler

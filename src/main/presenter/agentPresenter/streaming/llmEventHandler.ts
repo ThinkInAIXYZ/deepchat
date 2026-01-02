@@ -5,10 +5,10 @@ import { finalizeAssistantMessageBlocks } from '@shared/chat/messageBlocks'
 import type { LLMAgentEventData, MESSAGE_METADATA } from '@shared/presenter'
 import { approximateTokenSize } from 'tokenx'
 import { presenter } from '@/presenter'
-import type { MessageManager } from '../managers/messageManager'
+import type { MessageManager } from '../../sessionPresenter/managers/messageManager'
 import type { GeneratingMessageState } from './types'
 import type { ContentBufferHandler } from './contentBufferHandler'
-import type { ToolCallHandler } from '../../agentPresenter/loop/toolCallHandler'
+import type { ToolCallHandler } from '../loop/toolCallHandler'
 
 type ConversationUpdateHandler = (state: GeneratingMessageState) => Promise<void>
 
