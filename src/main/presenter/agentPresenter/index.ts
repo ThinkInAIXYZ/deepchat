@@ -132,6 +132,7 @@ export class AgentPresenter implements IAgentPresenter {
       getSearchAssistantProviderId: () => this.searchPresenter.getSearchAssistantProviderId()
     })
 
+    // Legacy IPC surface: dynamic proxy for ISessionPresenter methods.
     this.bindSessionPresenterMethods()
   }
 
