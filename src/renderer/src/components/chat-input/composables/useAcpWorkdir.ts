@@ -11,7 +11,7 @@ interface UseAcpWorkdirOptions {
 }
 
 export function useAcpWorkdir(options: UseAcpWorkdirOptions) {
-  const agentPresenter = usePresenter('agentPresenter')
+  const sessionPresenter = usePresenter('sessionPresenter')
   const devicePresenter = usePresenter('devicePresenter')
   const chatStore = useChatStore()
 
@@ -63,7 +63,7 @@ export function useAcpWorkdir(options: UseAcpWorkdirOptions) {
     lastWarmupKey.value = warmupKey
 
     try {
-      await agentPresenter.warmupAcpProcess(agentId.value, trimmed)
+      await sessionPresenter.warmupAcpProcess(agentId.value, trimmed)
     } catch (error) {
       console.warn('[useAcpWorkdir] Failed to warmup ACP process', error)
     }
@@ -85,7 +85,10 @@ export function useAcpWorkdir(options: UseAcpWorkdirOptions) {
 
     loading.value = true
     try {
-      const result = await agentPresenter.getAcpWorkdir(options.conversationId.value, agentId.value)
+      const result = await sessionPresenter.getAcpWorkdir(
+        options.conversationId.value,
+        agentId.value
+      )
       workdir.value = result?.path ?? ''
       isCustom.value = Boolean(result?.isCustom)
       pendingWorkdir.value = null
@@ -111,7 +114,7 @@ export function useAcpWorkdir(options: UseAcpWorkdirOptions) {
     if (!pendingWorkdir.value || !options.conversationId.value || !agentId.value) return
     loading.value = true
     try {
-      await agentPresenter.setAcpWorkdir(
+      await sessionPresenter.setAcpWorkdir(
         options.conversationId.value,
         agentId.value,
         pendingWorkdir.value
@@ -152,7 +155,7 @@ export function useAcpWorkdir(options: UseAcpWorkdirOptions) {
     loading.value = true
     try {
       if (hasConversation.value && options.conversationId.value) {
-        await agentPresenter.setAcpWorkdir(
+        await sessionPresenter.setAcpWorkdir(
           options.conversationId.value,
           agentId.value,
           selectedPath
