@@ -10,6 +10,7 @@ import {
   LLM_EMBEDDING_ATTRS,
   IConfigPresenter
 } from '@shared/presenter'
+import { ApiEndpointType } from '@shared/model'
 import { createStreamEvent } from '@shared/types/core/llm-events'
 import { BaseLLMProvider, SUMMARY_TITLES_PROMPT } from '../baseProvider'
 import OpenAI, { AzureOpenAI } from 'openai'
@@ -84,6 +85,20 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
 
   private supportsVerbosityParameter(modelId: string): boolean {
     return modelCapabilities.supportsVerbosity(this.provider.id, modelId)
+  }
+
+  private getEffectiveApiEndpoint(modelId: string): ApiEndpointType {
+    const modelConfig = this.configPresenter.getModelConfig(modelId, this.provider.id)
+
+    if (modelConfig?.apiEndpoint) {
+      return modelConfig.apiEndpoint
+    }
+
+    if (isOpenAIImageGenerationModel(modelId)) {
+      return ApiEndpointType.Image
+    }
+
+    return ApiEndpointType.Chat
   }
 
   protected createOpenAIClient(): void {
@@ -1528,17 +1543,32 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
     if (!this.isInitialized) throw new Error('Provider not initialized')
     if (!modelId) throw new Error('Model ID is required')
 
-    if (isOpenAIImageGenerationModel(modelId)) {
-      yield* this.handleImgGeneration(messages, modelId)
-    } else {
-      yield* this.handleChatCompletion(
-        messages,
-        modelId,
-        modelConfig,
-        temperature,
-        maxTokens,
-        mcpTools
-      )
+    const apiEndpoint = this.getEffectiveApiEndpoint(modelId)
+
+    switch (apiEndpoint) {
+      case ApiEndpointType.Image:
+        yield* this.handleImgGeneration(messages, modelId)
+        break
+      case ApiEndpointType.Video:
+        yield* this.handleChatCompletion(
+          messages,
+          modelId,
+          modelConfig,
+          temperature,
+          maxTokens,
+          mcpTools
+        )
+        break
+      case ApiEndpointType.Chat:
+      default:
+        yield* this.handleChatCompletion(
+          messages,
+          modelId,
+          modelConfig,
+          temperature,
+          maxTokens,
+          mcpTools
+        )
     }
   }
 
