@@ -1,4 +1,4 @@
-import { ModelType } from '@shared/model'
+import { ApiEndpointType, ModelType } from '@shared/model'
 import { IModelConfig, ModelConfig, ModelConfigSource } from '@shared/presenter'
 import ElectronStore from 'electron-store'
 import { providerDbLoader } from './providerDbLoader'
@@ -380,6 +380,7 @@ export class ModelConfigHelper {
         functionCall: false,
         reasoning: false,
         type: ModelType.Chat,
+        apiEndpoint: ApiEndpointType.Chat,
         thinkingBudget: undefined,
         enableSearch: false,
         forcedSearch: false,
