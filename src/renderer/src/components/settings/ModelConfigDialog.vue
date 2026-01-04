@@ -146,6 +146,27 @@
             </p>
           </div>
 
+          <!-- API 端点（仅 OpenAI 兼容 provider 显示） -->
+          <div v-if="showApiEndpointSelector" class="space-y-2">
+            <Label for="apiEndpoint">{{ t('settings.model.modelConfig.apiEndpoint.label') }}</Label>
+            <Select v-model="config.apiEndpoint">
+              <SelectTrigger>
+                <SelectValue :placeholder="t('settings.model.modelConfig.apiEndpoint.label')" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="chat">
+                  {{ t('settings.model.modelConfig.apiEndpoint.options.chat') }}
+                </SelectItem>
+                <SelectItem value="image">
+                  {{ t('settings.model.modelConfig.apiEndpoint.options.image') }}
+                </SelectItem>
+              </SelectContent>
+            </Select>
+            <p class="text-xs text-muted-foreground">
+              {{ t('settings.model.modelConfig.apiEndpoint.description') }}
+            </p>
+          </div>
+
           <!-- 视觉能力 -->
           <div class="flex items-center justify-between">
             <div class="space-y-0.5">
@@ -419,7 +440,7 @@
 import { ref, computed, watch, onMounted } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useI18n } from 'vue-i18n'
-import { ModelType } from '@shared/model'
+import { ApiEndpointType, ModelType } from '@shared/model'
 import type { ModelConfig } from '@shared/presenter'
 import { useModelConfigStore } from '@/stores/modelConfigStore'
 import { useModelStore } from '@/stores/modelStore'
@@ -478,6 +499,22 @@ const modelStore = useModelStore()
 const { customModels, allProviderModels } = storeToRefs(modelStore)
 const configPresenter = usePresenter('configPresenter')
 
+const isOpenAICompatibleProvider = computed(() => {
+  const EXCLUDED_PROVIDERS = [
+    'anthropic',
+    'gemini',
+    'vertex',
+    'aws-bedrock',
+    'github-copilot',
+    'ollama',
+    'acp'
+  ]
+  const providerId = props.providerId?.toLowerCase() || ''
+  return !EXCLUDED_PROVIDERS.some((excluded) => providerId.includes(excluded))
+})
+
+const showApiEndpointSelector = computed(() => isOpenAICompatibleProvider.value)
+
 const createDefaultConfig = (): ModelConfig => ({
   maxTokens: 4096,
   contextLength: 8192,
@@ -486,6 +523,7 @@ const createDefaultConfig = (): ModelConfig => ({
   functionCall: false,
   reasoning: false,
   type: ModelType.Chat,
+  apiEndpoint: ApiEndpointType.Chat,
   reasoningEffort: 'medium',
   verbosity: 'medium',
   enableSearch: false,
@@ -596,6 +634,10 @@ const loadConfig = async () => {
   try {
     const modelConfig = await modelConfigStore.getModelConfig(props.modelId, props.providerId)
     config.value = { ...modelConfig }
+
+    if (isOpenAICompatibleProvider.value && !config.value.apiEndpoint) {
+      config.value.apiEndpoint = ApiEndpointType.Chat
+    }
   } catch (error) {
     console.error('Failed to load model config:', error)
     config.value = createDefaultConfig()
