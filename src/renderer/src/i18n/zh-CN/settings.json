@@ -233,6 +233,14 @@
           "imageGeneration": "图像生成模型"
         }
       },
+      "apiEndpoint": {
+        "label": "API 端点",
+        "description": "选择此模型使用的 OpenAI API 端点。",
+        "options": {
+          "chat": "聊天对话",
+          "image": "图片生成"
+        }
+      },
       "resetToDefault": "重置为默认",
       "saveConfig": "保存配置",
       "cancel": "取消",
