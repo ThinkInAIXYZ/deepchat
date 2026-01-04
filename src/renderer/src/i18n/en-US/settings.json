@@ -274,6 +274,14 @@
       "searchLimit": {
         "label": "Search limitation",
         "description": "Model limitation: Enabling web search will disable tool function calls"
+      },
+      "apiEndpoint": {
+        "description": "Select the OpenAI API endpoint used by this model.",
+        "label": "API endpoint",
+        "options": {
+          "chat": "Text Generation",
+          "image": "Image Generation"
+        }
       }
     }
   },

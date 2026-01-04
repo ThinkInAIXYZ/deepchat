@@ -274,6 +274,14 @@
       "searchLimit": {
         "label": "Limitação de busca",
         "description": "Limitação do modelo: Habilitar a busca na web desabilitará as chamadas de função de ferramenta"
+      },
+      "apiEndpoint": {
+        "description": "Selecione o endpoint da API OpenAI usado por este modelo.",
+        "label": "Endpoint da API",
+        "options": {
+          "chat": "Geração de texto",
+          "image": "Geração de Imagens"
+        }
       }
     }
   },

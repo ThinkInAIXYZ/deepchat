@@ -274,6 +274,14 @@
       "searchLimit": {
         "label": "検索制限",
         "description": "モデル制限: ネット検索を有効にすると、ツール関数の呼び出しが無効になります"
+      },
+      "apiEndpoint": {
+        "description": "このモデルが使用する OpenAI API エンドポイントを選択。",
+        "label": "API エンドポイント",
+        "options": {
+          "chat": "テキスト生成",
+          "image": "画像生成"
+        }
       }
     }
   },

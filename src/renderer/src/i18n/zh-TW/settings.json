@@ -274,6 +274,14 @@
       "searchLimit": {
         "label": "搜尋限制",
         "description": "模型限制: 啟用網路搜尋將使工具函數呼叫失效"
+      },
+      "apiEndpoint": {
+        "description": "選擇此模型使用的 OpenAI API 端點。",
+        "label": "API 端點",
+        "options": {
+          "chat": "文字生成",
+          "image": "圖片生成"
+        }
       }
     }
   },

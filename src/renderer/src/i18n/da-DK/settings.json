@@ -274,6 +274,14 @@
       "searchLimit": {
         "label": "Søgebegrænsning",
         "description": "Modelbegrænsning: Aktivering af websøgning deaktiverer funktionskald til værktøjer"
+      },
+      "apiEndpoint": {
+        "description": "Vælg OpenAI API-endpunktet, som denne model bruger.",
+        "label": "API-endpunkt",
+        "options": {
+          "chat": "tekstgenerering",
+          "image": "Billedgenerering"
+        }
       }
     }
   },

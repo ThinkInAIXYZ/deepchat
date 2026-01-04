@@ -274,6 +274,14 @@
       "searchLimit": {
         "label": "Limitation de recherche",
         "description": "Limitation du modèle : l'activation de la recherche web désactivera les appels de fonctions d'outils"
+      },
+      "apiEndpoint": {
+        "description": "Sélectionnez le point de terminaison de l’API OpenAI utilisé par ce modèle.",
+        "label": "Point de terminaison API",
+        "options": {
+          "chat": "Génération de texte",
+          "image": "Génération d'images"
+        }
       }
     }
   },

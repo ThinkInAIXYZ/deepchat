@@ -274,6 +274,14 @@
       "searchLimit": {
         "label": "검색 제한",
         "description": "모델 제한: 네트워크 검색을 활성화하면 도구 함수 호출이 비활성화됩니다"
+      },
+      "apiEndpoint": {
+        "description": "이 모델이 사용하는 OpenAI API 엔드포인트를 선택하세요.",
+        "label": "API 엔드포인트",
+        "options": {
+          "chat": "텍스트 생성",
+          "image": "이미지 생성"
+        }
       }
     }
   },

@@ -237,7 +237,7 @@
         "label": "API 端点",
         "description": "选择此模型使用的 OpenAI API 端点。",
         "options": {
-          "chat": "聊天对话",
+          "chat": "文本生成",
           "image": "图片生成"
         }
       },
