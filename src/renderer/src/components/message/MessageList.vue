@@ -1,40 +1,49 @@
 <template>
   <div class="w-full h-full relative min-h-0">
-    <div
-      ref="messagesContainer"
-      class="message-list-container relative flex-1 scrollbar-hide overflow-y-auto w-full h-full pr-12 lg:pr-12"
-      @scroll="handleScroll"
+    <DynamicScroller
+      ref="dynamicScrollerRef"
+      class="message-list-container relative flex-1 scrollbar-hide overflow-y-auto w-full h-full pr-12 lg:pr-12 transition-opacity duration-300"
+      :class="{ 'opacity-0': !visible }"
+      :items="messages"
+      list-class="w-full pt-4"
+      :min-item-size="48"
+      :buffer="200"
+      key-field="id"
     >
-      <div
-        ref="messageList"
-        class="w-full break-all transition-opacity duration-300 pt-4"
-        :class="{ 'opacity-0': !visible }"
-      >
-        <div
-          v-for="(msg, index) in messages"
-          :key="msg.id"
-          @mouseenter="minimap.handleHover(msg.id)"
-          @mouseleave="minimap.handleHover(null)"
+      <template v-slot="{ item, index, active }">
+        <DynamicScrollerItem
+          :item="item"
+          :active="active"
+          :size-dependencies="[getMessageSizeKey(item), getVariantSizeKey(item)]"
+          :data-index="index"
+          class="w-full break-all"
         >
-          <MessageItemAssistant
-            v-if="msg.role === 'assistant'"
-            :ref="retry.setAssistantRef(index)"
-            :message="msg as AssistantMessage"
-            :is-capturing-image="capture.isCapturing.value"
-            @copy-image="handleCopyImage"
-            @variant-changed="scrollToMessage"
-            @trace="handleTrace"
-          />
-          <MessageItemUser
-            v-else-if="msg.role === 'user'"
-            :message="msg as UserMessage"
-            @retry="handleRetry(index)"
-            @scroll-to-bottom="scrollToBottom"
-          />
-        </div>
-      </div>
-      <div ref="scrollAnchor" class="h-8" />
-    </div>
+          <div
+            @mouseenter="minimap.handleHover(item.id)"
+            @mouseleave="minimap.handleHover(null)"
+          >
+            <MessageItemAssistant
+              v-if="item.role === 'assistant'"
+              :ref="retry.setAssistantRef(index)"
+              :message="item as AssistantMessage"
+              :is-capturing-image="capture.isCapturing.value"
+              @copy-image="handleCopyImage"
+              @variant-changed="scrollToMessage"
+              @trace="handleTrace"
+            />
+            <MessageItemUser
+              v-else-if="item.role === 'user'"
+              :message="item as UserMessage"
+              @retry="handleRetry(index)"
+              @scroll-to-bottom="scrollToBottom"
+            />
+          </div>
+        </DynamicScrollerItem>
+      </template>
+      <template #after>
+        <div ref="scrollAnchor" class="h-8" />
+      </template>
+    </DynamicScroller>
     <template v-if="!capture.isCapturing.value">
       <MessageActionButtons
         :show-clean-button="!showCancelButton"
@@ -83,12 +92,13 @@ import MessageMinimap from './MessageMinimap.vue'
 import TraceDialog from '../trace/TraceDialog.vue'
 
 // === Composables ===
-import { useResizeObserver, useEventListener } from '@vueuse/core'
+import { useResizeObserver, useEventListener, useDebounceFn } from '@vueuse/core'
 import { useMessageScroll } from '@/composables/message/useMessageScroll'
 import { useCleanDialog } from '@/composables/message/useCleanDialog'
 import { useMessageMinimap } from '@/composables/message/useMessageMinimap'
 import { useMessageCapture } from '@/composables/message/useMessageCapture'
 import { useMessageRetry } from '@/composables/message/useMessageRetry'
+import { DynamicScroller, DynamicScrollerItem } from 'vue-virtual-scroller'
 
 // === Stores ===
 import { useChatStore } from '@/stores/chat'
@@ -113,8 +123,8 @@ const {
   messagesContainer,
   scrollAnchor,
   aboveThreshold,
-  scrollToBottom: scrollToBottomImmediate,
-  scrollToMessage,
+  scrollToBottom: scrollToBottomBase,
+  scrollToMessage: scrollToMessageBase,
   handleScroll,
   updateScrollInfo,
   setupScrollObserver
@@ -133,11 +143,60 @@ const capture = useMessageCapture()
 const retry = useMessageRetry(toRef(props, 'messages'))
 
 // === Local State ===
-const messageList = ref<HTMLDivElement>()
+const dynamicScrollerRef = ref<InstanceType<typeof DynamicScroller> | null>(null)
 const visible = ref(false)
 const shouldAutoFollow = ref(true)
 const traceMessageId = ref<string | null>(null)
 let highlightRefreshTimer: number | null = null
+
+const getTextLength = (value?: string) => (typeof value === 'string' ? value.length : 0)
+
+const getMessageSizeKey = (message: Message) => {
+  if (message.role === 'assistant') {
+    const blocks = (message as AssistantMessage).content
+    if (Array.isArray(blocks)) {
+      let contentLength = 0
+      for (const block of blocks) {
+        contentLength += getTextLength(block.content)
+      }
+      return `assistant:${blocks.length}:${contentLength}:${message.status ?? ''}`
+    }
+  }
+
+  if (message.role === 'user') {
+    const userContent = (message as UserMessage).content
+    let contentLength = getTextLength(userContent.text)
+    if (Array.isArray(userContent.content)) {
+      for (const block of userContent.content) {
+        contentLength += getTextLength(block.content)
+      }
+    }
+    const fileCount = Array.isArray(userContent.files) ? userContent.files.length : 0
+    const promptCount = Array.isArray(userContent.prompts) ? userContent.prompts.length : 0
+    return `user:${contentLength}:${fileCount}:${promptCount}`
+  }
+
+  return `message:${message.id}`
+}
+
+const getVariantSizeKey = (message: Message) => {
+  if (message.role !== 'assistant') return ''
+  return chatStore.selectedVariantsMap.get(message.id) ?? ''
+}
+
+let scrollRetryTimer: number | null = null
+let scrollRetryToken = 0
+const MAX_SCROLL_RETRIES = 8
+
+const scrollToBottomImmediate = () => {
+  const scroller = dynamicScrollerRef.value
+  if (scroller && typeof scroller.scrollToBottom === 'function') {
+    scroller.scrollToBottom()
+    updateScrollInfo()
+    return
+  }
+  scrollToBottomBase()
+}
 
 const scheduleScrollToBottom = (force = false) => {
   nextTick(() => {
@@ -405,13 +464,38 @@ const scrollToSelectionHighlight = (childConversationId: string) => {
   const highlight = container.querySelector(
     `.${HIGHLIGHT_CLASS}[data-child-conversation-id="${childConversationId}"]`
   ) as HTMLElement | null
-  if (!highlight) return false
-  highlight.scrollIntoView({ block: 'center' })
-  highlight.classList.add('selection-highlight-active')
-  setTimeout(() => {
-    highlight.classList.remove('selection-highlight-active')
-  }, 2000)
-  return true
+  if (highlight) {
+    highlight.scrollIntoView({ block: 'center' })
+    highlight.classList.add('selection-highlight-active')
+    setTimeout(() => {
+      highlight.classList.remove('selection-highlight-active')
+    }, 2000)
+    return true
+  }
+
+  const targetMessageId = Array.from(chatStore.childThreadsByMessageId.entries()).find(
+    ([, children]) => children.some((child) => child.id === childConversationId)
+  )?.[0]
+
+  if (targetMessageId) {
+    scrollToMessage(targetMessageId)
+    nextTick(() => {
+      scheduleSelectionHighlightRefresh()
+      const refreshedHighlight = container.querySelector(
+        `.${HIGHLIGHT_CLASS}[data-child-conversation-id="${childConversationId}"]`
+      ) as HTMLElement | null
+      if (refreshedHighlight) {
+        refreshedHighlight.scrollIntoView({ block: 'center' })
+        refreshedHighlight.classList.add('selection-highlight-active')
+        setTimeout(() => {
+          refreshedHighlight.classList.remove('selection-highlight-active')
+        }, 2000)
+      }
+    })
+    return true
+  }
+
+  return false
 }
 
 useEventListener(messagesContainer, 'click', handleHighlightClick)
@@ -429,7 +513,74 @@ watch(
 )
 
 // === Lifecycle Hooks ===
+const handleScrollUpdate = useDebounceFn(() => {
+  if (chatStore.childThreadsByMessageId.size) {
+    scheduleSelectionHighlightRefresh()
+  }
+}, 80)
+
+useEventListener(messagesContainer, 'scroll', () => {
+  handleScroll()
+  handleScrollUpdate()
+})
+
+const bindScrollContainer = () => {
+  const scrollerEl = dynamicScrollerRef.value?.$el as HTMLDivElement | undefined
+  if (scrollerEl && messagesContainer.value !== scrollerEl) {
+    messagesContainer.value = scrollerEl
+  }
+}
+
+const scrollToMessage = (messageId: string) => {
+  const index = props.messages.findIndex((msg) => msg.id === messageId)
+  const scroller = dynamicScrollerRef.value
+  const tryScrollToRenderedMessage = () => {
+    const container = messagesContainer.value
+    if (!container) return false
+    const target = container.querySelector(
+      `[data-message-id="${messageId}"]`
+    ) as HTMLElement | null
+    if (!target) return false
+    scrollToMessageBase(messageId)
+    return true
+  }
+
+  if (index !== -1 && scroller && typeof scroller.scrollToItem === 'function') {
+    if (scrollRetryTimer) {
+      clearTimeout(scrollRetryTimer)
+      scrollRetryTimer = null
+    }
+    const currentToken = ++scrollRetryToken
+    const attemptScroll = (attempt: number) => {
+      if (currentToken !== scrollRetryToken) return
+      scroller.scrollToItem(index)
+      scroller.forceUpdate?.()
+      nextTick(() => {
+        if (tryScrollToRenderedMessage()) return
+        if (attempt >= MAX_SCROLL_RETRIES) return
+        scrollRetryTimer = window.setTimeout(() => {
+          scrollRetryTimer = null
+          attemptScroll(attempt + 1)
+        }, 32)
+      })
+    }
+    attemptScroll(0)
+    return
+  }
+
+  scrollToMessageBase(messageId)
+}
+
+watch(
+  dynamicScrollerRef,
+  () => {
+    bindScrollContainer()
+  },
+  { immediate: true }
+)
+
 onMounted(() => {
+  bindScrollContainer()
   // Initialize scroll and visibility
   scheduleScrollToBottom(true)
   nextTick(() => {
@@ -438,7 +589,7 @@ onMounted(() => {
     updateScrollInfo()
   })
 
-  useResizeObserver(messageList, () => {
+  useResizeObserver(messagesContainer, () => {
     scheduleScrollToBottom()
   })
 
@@ -464,15 +615,31 @@ onMounted(() => {
     },
     { flush: 'post' }
   )
+
+  watch(
+    () => {
+      const lastMessage = props.messages[props.messages.length - 1]
+      return lastMessage ? getMessageSizeKey(lastMessage) : ''
+    },
+    () => {
+      scheduleScrollToBottom()
+    },
+    { flush: 'post' }
+  )
 })
 
 onBeforeUnmount(() => {
   const container = messagesContainer.value
-  if (!container) return
-  clearSelectionHighlights(container)
+  if (container) {
+    clearSelectionHighlights(container)
+  }
   if (highlightRefreshTimer) {
     clearTimeout(highlightRefreshTimer)
     highlightRefreshTimer = null
+  }
+  if (scrollRetryTimer) {
+    clearTimeout(scrollRetryTimer)
+    scrollRetryTimer = null
   }
 })
 
