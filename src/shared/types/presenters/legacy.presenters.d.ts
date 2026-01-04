@@ -3,7 +3,7 @@ import { BrowserWindow } from 'electron'
 import { MessageFile } from './chat'
 import { ShowResponse } from 'ollama'
 import { ShortcutKeySetting } from '@/presenter/configPresenter/shortcutKeySettings'
-import { ModelType } from '@shared/model'
+import { ApiEndpointType, ModelType } from '@shared/model'
 import type { NowledgeMemThread, NowledgeMemExportSummary } from '../nowledgeMem'
 import { ProviderChange, ProviderBatchUpdate } from './provider-operations'
 import type { AgentSessionLifecycleStatus } from './agent-provider'
@@ -162,6 +162,7 @@ export interface ModelConfig {
   verbosity?: 'low' | 'medium' | 'high'
   maxCompletionTokens?: number // GPT-5 series uses this parameter to replace maxTokens
   conversationId?: string
+  apiEndpoint?: ApiEndpointType
 }
 
 export interface IModelConfig {
