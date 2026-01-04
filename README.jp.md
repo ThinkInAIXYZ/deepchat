@@ -24,6 +24,16 @@
   <a href="./README.zh.md">中文</a> / <a href="./README.md">English</a> / <a href="./README.jp.md">日本語</a>
 </div>
 
+## ❤️ スポンサー
+
+[![Zhipu GLM](docs/images/zai.en.png)](https://z.ai/subscribe?ic=8JVLJQFSKB)
+
+このプロジェクトは Z.ai のスポンサー提供で、GLM CODING PLAN から支援を受けています。
+GLM CODING PLAN は AI コーディング向けのサブスクリプションサービスで、月額 3 ドルから利用できます。Claude Code、Cline、Roo Code など 10 以上の主要 AI コーディングツールで、同社のフラッグシップ GLM-4.7 モデルを利用でき、開発者にトップクラスで高速・安定したコーディング体験を提供します。
+GLM CODING PLAN が 10% オフになるリンク：[https://z.ai/subscribe?ic=8JVLJQFSKB](https://z.ai/subscribe?ic=8JVLJQFSKB)
+
+---
+
 ## 📑 目次
 
 - [📑 目次](#-目次)

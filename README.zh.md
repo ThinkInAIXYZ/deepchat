@@ -24,6 +24,16 @@
   <a href="./README.zh.md">中文</a> / <a href="./README.md">English</a> / <a href="./README.jp.md">日本語</a>
 </div>
 
+## ❤️ 赞助商
+
+[![Zhipu GLM](docs/images/zai.zh.png)](https://z.ai/subscribe?ic=8JVLJQFSKB)
+
+本项目由 Z.ai 赞助，并由其 GLM CODING PLAN 提供支持。
+GLM CODING PLAN 是面向 AI 编程的订阅服务，月费 20 元起，可在 10+ 主流 AI 编程工具（Claude Code、Cline、Roo Code 等）中使用其旗舰 GLM-4.7 模型，为开发者带来顶级、快速且稳定的编码体验。
+GLM CODING PLAN 九折优惠链接：[https://z.ai/subscribe?ic=8JVLJQFSKB](https://z.ai/subscribe?ic=8JVLJQFSKB)
+
+---
+
 ## 📑 目录
 
 - [📑 目录](#-目录)
