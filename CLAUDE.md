@@ -189,6 +189,12 @@ The LLM system follows a two-layer architecture:
 - **Styling**: Tailwind CSS with scoped styles
 - **Internationalization**: All user-facing strings must use i18n keys via vue-i18n
 
+### Specification-Driven Development
+
+Use SDD methodology for all feature implementations. See [docs/spec-driven-dev.md](docs/spec-driven-dev.md) for details.
+
+Key principles: specification-driven, test-when-useful, Presenter architecture, UI consistency, anti-over-engineering.
+
 ### IPC Communication
 
 - **Renderer to Main**: Use `usePresenter.ts` composable for direct presenter method calls
