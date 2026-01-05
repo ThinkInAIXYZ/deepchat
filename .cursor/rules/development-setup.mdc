@@ -1,26 +1,155 @@
 ---
-description:
+description: Development environment setup and common commands
 globs:
 alwaysApply: true
 ---
-# 开发环境设置指南
-- 使用 OxLint 进行代码检查
-- 使用 pnpm 包管理
-- Log和注释使用英文书写
-- Node.js >= 22
-- pnpm >= 9
+# Development Environment Setup
 
-# install
-`pnpm install`
+## Requirements
 
-# lint
-`pnpm run lint`
+- **Node.js**: >= 20.19.0
+- **pnpm**: >= 10.11.0
+- **Platform**: Windows, macOS, or Linux
 
-# format
-`pnpm run format`
+## Installation
 
-# dev
-`pnpm run dev`
+First time setup:
+```bash
+pnpm install              # Install dependencies
+pnpm run installRuntime   # Install runtime binaries (uv, node, ripgrep)
+```
 
-# build
-`pnpm run build`
+## Common Commands
+
+### Development
+```bash
+pnpm run dev              # Start development server with HMR
+pnpm run dev:inspect      # Start with debug inspector (port 9229)
+pnpm run dev:linux        # Start on Linux (no sandbox)
+pnpm start                # Preview production build
+```
+
+### Code Quality
+```bash
+pnpm run lint             # Run OxLint linter
+pnpm run format           # Format code with Prettier
+pnpm run format:check     # Check formatting without modifying
+pnpm run typecheck        # Type check all code
+pnpm run typecheck:node   # Type check main process only
+pnpm run typecheck:web    # Type check renderer process only
+```
+
+After completing a feature, always run:
+```bash
+pnpm run format && pnpm run lint
+```
+
+### Testing
+```bash
+pnpm test                 # Run all tests
+pnpm test:main            # Run main process tests
+pnpm test:renderer        # Run renderer process tests
+pnpm test:coverage        # Generate coverage report
+pnpm test:watch           # Run tests in watch mode
+pnpm test:ui              # Run tests with UI
+```
+
+### Building
+```bash
+pnpm run build            # Build for production (typecheck + electron-vite build)
+pnpm run build:win        # Build Windows package
+pnpm run build:win:x64    # Build Windows x64
+pnpm run build:win:arm64  # Build Windows ARM64
+pnpm run build:mac        # Build macOS package
+pnpm run build:mac:arm64  # Build macOS ARM64
+pnpm run build:mac:x64    # Build macOS x64
+pnpm run build:linux      # Build Linux package
+pnpm run build:linux:x64  # Build Linux x64
+pnpm run build:linux:arm64 # Build Linux ARM64
+```
+
+### Internationalization
+```bash
+pnpm run i18n             # Check i18n completeness (source: zh-CN)
+pnpm run i18n:en          # Check i18n completeness (source: en-US)
+pnpm run i18n:types       # Generate TypeScript types for i18n keys
+```
+
+### Other Commands
+```bash
+pnpm run install:sharp    # Install Sharp for current platform
+pnpm run installRuntime   # Install runtime binaries
+pnpm run update-shadcn    # Update shadcn-ui components
+```
+
+## Code Style
+
+- **Linter**: OxLint
+- **Formatter**: Prettier
+- **Language**: All logs and comments must be in English
+- **Package Manager**: pnpm (version specified in package.json)
+
+## Git Hooks
+
+Pre-commit hooks run automatically:
+- `lint-staged` - Format and lint staged files
+- `typecheck` - TypeScript type checking enforced before commit
+- Commit message validation via `verify-commit.js`
+
+## Environment Variables
+
+Create `.env` file based on `.env.example`:
+```bash
+cp .env.example .env
+```
+
+Important: Never commit `.env` file or any API keys to repository.
+
+## Troubleshooting
+
+### Runtime Installation Issues
+If runtime binaries fail to install:
+```bash
+pnpm run cleanRuntime
+pnpm run installRuntime
+```
+
+### Windows Developer Mode
+Enable Developer Mode on Windows for symlink support.
+
+### Platform-specific Runtime Installation
+```bash
+# Windows x64
+pnpm run installRuntime:win:x64
+
+# Windows ARM64
+pnpm run installRuntime:win:arm64
+
+# macOS ARM64 (Apple Silicon)
+pnpm run installRuntime:mac:arm64
+
+# macOS x64 (Intel)
+pnpm run installRuntime:mac:x64
+
+# Linux x64
+pnpm run installRuntime:linux:x64
+
+# Linux ARM64
+pnpm run installRuntime:linux:arm64
+```
+
+## Project Structure
+
+- `src/main/` - Main process code
+- `src/renderer/` - Renderer process code (Vue 3)
+- `src/preload/` - Preload scripts
+- `src/shared/` - Shared utilities and types
+- `test/` - Test suites (main and renderer)
+- `scripts/` - Build and utility scripts
+- `docs/` - Documentation
+
+## Additional Resources
+
+- Architecture: See `docs/ARCHITECTURE.md` and `docs/FLOWS.md`
+- Code Navigation: See `docs/guides/code-navigation.md`
+- Getting Started: See `docs/guides/getting-started.md`
