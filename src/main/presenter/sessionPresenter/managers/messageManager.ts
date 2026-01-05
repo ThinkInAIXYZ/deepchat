@@ -168,6 +168,27 @@ export class MessageManager implements IMessageManager {
     return this.convertToMessage(message)
   }
 
+  async getMessagesByIds(messageIds: string[]): Promise<Message[]> {
+    if (messageIds.length === 0) return []
+    const sqliteMessages = await this.sqlitePresenter.getMessagesByIds(messageIds)
+    const sqliteById = new Map(sqliteMessages.map((msg) => [msg.id, msg]))
+    const result: Message[] = []
+
+    for (const messageId of messageIds) {
+      const sqliteMessage = sqliteById.get(messageId)
+      if (!sqliteMessage) continue
+      if (sqliteMessage.role === 'assistant' && sqliteMessage.parent_id) {
+        const variants = await this.sqlitePresenter.getMessageVariants(sqliteMessage.parent_id)
+        if (variants.length > 0) {
+          sqliteMessage.variants = variants
+        }
+      }
+      result.push(this.convertToMessage(sqliteMessage))
+    }
+
+    return result
+  }
+
   async getMessageVariants(messageId: string): Promise<Message[]> {
     const variants = await this.sqlitePresenter.getMessageVariants(messageId)
     return variants.map((variant) => this.convertToMessage(variant))
@@ -208,6 +229,10 @@ export class MessageManager implements IMessageManager {
       total: messages.length,
       list: messages.slice(start, end)
     }
+  }
+
+  async getMessageIds(conversationId: string): Promise<string[]> {
+    return this.sqlitePresenter.queryMessageIds(conversationId)
   }
 
   async updateMessageStatus(messageId: string, status: MESSAGE_STATUS): Promise<void> {

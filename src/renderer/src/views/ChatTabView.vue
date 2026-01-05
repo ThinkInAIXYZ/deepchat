@@ -30,6 +30,7 @@
     >
       <MessageNavigationSidebar
         :messages="chatStore.variantAwareMessages"
+        :total-messages="chatStore.messageCount"
         :is-open="chatStore.isMessageNavigationOpen"
         @close="chatStore.isMessageNavigationOpen = false"
         @scroll-to-message="handleScrollToMessage"
@@ -52,6 +53,7 @@
           <div class="w-80 max-w-80">
             <MessageNavigationSidebar
               :messages="chatStore.variantAwareMessages"
+              :total-messages="chatStore.messageCount"
               :is-open="chatStore.isMessageNavigationOpen"
               @close="chatStore.isMessageNavigationOpen = false"
               @scroll-to-message="handleScrollToMessage"
@@ -210,9 +212,7 @@ const tryScrollToPendingMessage = () => {
         return
       }
       if (pendingScrollRetryCount >= 8 && pendingTarget.messageId) {
-        const hasMessage = chatStore.variantAwareMessages.some(
-          (message) => message.id === pendingTarget.messageId
-        )
+        const hasMessage = chatStore.getMessageIds().includes(pendingTarget.messageId)
         if (hasMessage) {
           handleScrollToMessage(pendingTarget.messageId)
           chatStore.consumePendingScrollMessage(activeThreadId)
@@ -233,9 +233,7 @@ const tryScrollToPendingMessage = () => {
     }
 
     if (!pendingTarget.childConversationId && pendingTarget.messageId) {
-      const hasMessage = chatStore.variantAwareMessages.some(
-        (message) => message.id === pendingTarget.messageId
-      )
+      const hasMessage = chatStore.getMessageIds().includes(pendingTarget.messageId)
       if (!hasMessage) return
       handleScrollToMessage(pendingTarget.messageId)
       chatStore.consumePendingScrollMessage(activeThreadId)
@@ -250,13 +248,22 @@ watch(
     [
       chatStore.activeThread?.id,
       chatStore.activePendingScrollTarget,
-      chatStore.variantAwareMessages.length,
+      chatStore.messageCount,
       chatStore.childThreadsByMessageId
     ] as const,
   () => {
     tryScrollToPendingMessage()
   },
   { immediate: true }
+)
+
+watch(
+  () => chatStore.isMessageNavigationOpen,
+  (isOpen) => {
+    if (isOpen) {
+      void chatStore.prefetchAllMessages()
+    }
+  }
 )
 </script>
 

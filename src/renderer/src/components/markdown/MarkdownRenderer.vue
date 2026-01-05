@@ -20,13 +20,8 @@ import NodeRenderer, {
   CodeBlockNode,
   ReferenceNode,
   setCustomComponents,
-  setKaTeXWorker,
-  setMermaidWorker,
-  getUseMonaco,
   MermaidBlockNode
 } from 'markstream-vue'
-import KatexWorker from 'markstream-vue/workers/katexRenderer.worker?worker&inline'
-import MermaidWorker from 'markstream-vue/workers/mermaidParser.worker?worker&inline'
 import { useThemeStore } from '@/stores/theme'
 import { useUiSettingsStore } from '@/stores/uiSettingsStore'
 
@@ -36,9 +31,6 @@ const props = defineProps<{
 }>()
 const themeStore = useThemeStore()
 const uiSettingsStore = useUiSettingsStore()
-getUseMonaco()
-setKaTeXWorker(new KatexWorker())
-setMermaidWorker(new MermaidWorker())
 // 组件映射表
 const artifactStore = useArtifactStore()
 // 生成唯一的 message ID 和 thread ID，用于 MarkdownRenderer

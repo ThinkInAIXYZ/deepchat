@@ -4,11 +4,13 @@
       ref="dynamicScrollerRef"
       class="message-list-container relative flex-1 scrollbar-hide overflow-y-auto w-full h-full pr-12 lg:pr-12 transition-opacity duration-300"
       :class="{ 'opacity-0': !visible }"
-      :items="messages"
+      :items="items"
       list-class="w-full pt-4"
       :min-item-size="48"
       :buffer="200"
+      :emit-update="true"
       key-field="id"
+      @update="handleVirtualUpdate"
     >
       <template v-slot="{ item, index, active }">
         <DynamicScrollerItem
@@ -18,25 +20,23 @@
           :data-index="index"
           class="w-full break-all"
         >
-          <div
-            @mouseenter="minimap.handleHover(item.id)"
-            @mouseleave="minimap.handleHover(null)"
-          >
+          <div @mouseenter="minimap.handleHover(item.id)" @mouseleave="minimap.handleHover(null)">
             <MessageItemAssistant
-              v-if="item.role === 'assistant'"
+              v-if="item.message?.role === 'assistant'"
               :ref="retry.setAssistantRef(index)"
-              :message="item as AssistantMessage"
+              :message="item.message as AssistantMessage"
               :is-capturing-image="capture.isCapturing.value"
               @copy-image="handleCopyImage"
               @variant-changed="scrollToMessage"
               @trace="handleTrace"
             />
             <MessageItemUser
-              v-else-if="item.role === 'user'"
-              :message="item as UserMessage"
+              v-else-if="item.message?.role === 'user'"
+              :message="item.message as UserMessage"
               @retry="handleRetry(index)"
               @scroll-to-bottom="scrollToBottom"
             />
+            <MessageItemPlaceholder v-else :message-id="item.id" />
           </div>
         </DynamicScrollerItem>
       </template>
@@ -61,8 +61,8 @@
       :rect="referenceStore.previewRect"
     />
     <MessageMinimap
-      v-if="messages.length > 0"
-      :messages="messages"
+      v-if="loadedMessages.length > 0"
+      :messages="loadedMessages"
       :hovered-message-id="minimap.hoveredMessageId.value"
       :scroll-info="minimap.scrollInfo"
       @bar-hover="minimap.handleHover"
@@ -78,14 +78,16 @@
 
 <script setup lang="ts">
 // === Vue Core ===
-import { ref, onMounted, nextTick, watch, computed, toRef, onBeforeUnmount } from 'vue'
+import { ref, onMounted, nextTick, watch, computed, onBeforeUnmount } from 'vue'
 
 // === Types ===
 import type { AssistantMessage, Message, UserMessage } from '@shared/chat'
+import type { MessageListItem } from '@/stores/chat'
 
 // === Components ===
 import MessageItemAssistant from './MessageItemAssistant.vue'
 import MessageItemUser from './MessageItemUser.vue'
+import MessageItemPlaceholder from './MessageItemPlaceholder.vue'
 import MessageActionButtons from './MessageActionButtons.vue'
 import ReferencePreview from './ReferencePreview.vue'
 import MessageMinimap from './MessageMinimap.vue'
@@ -108,7 +110,7 @@ import type { ParentSelection } from '@shared/presenter'
 
 // === Props & Emits ===
 const props = defineProps<{
-  messages: Array<Message>
+  items: Array<MessageListItem>
 }>()
 
 // === Stores ===
@@ -140,7 +142,10 @@ const minimap = useMessageMinimap(scroll.scrollInfo)
 const capture = useMessageCapture()
 
 // Message retry
-const retry = useMessageRetry(toRef(props, 'messages'))
+const loadedMessages = computed(() =>
+  props.items.map((item) => item.message).filter((message): message is Message => Boolean(message))
+)
+const retry = useMessageRetry(loadedMessages)
 
 // === Local State ===
 const dynamicScrollerRef = ref<InstanceType<typeof DynamicScroller> | null>(null)
@@ -148,10 +153,15 @@ const visible = ref(false)
 const shouldAutoFollow = ref(true)
 const traceMessageId = ref<string | null>(null)
 let highlightRefreshTimer: number | null = null
+let pendingScrollTargetId: string | null = null
 
 const getTextLength = (value?: string) => (typeof value === 'string' ? value.length : 0)
 
-const getMessageSizeKey = (message: Message) => {
+const getMessageSizeKey = (item: MessageListItem) => {
+  const message = item.message
+  if (!message) {
+    return `placeholder:${item.id}`
+  }
   if (message.role === 'assistant') {
     const blocks = (message as AssistantMessage).content
     if (Array.isArray(blocks)) {
@@ -179,8 +189,9 @@ const getMessageSizeKey = (message: Message) => {
   return `message:${message.id}`
 }
 
-const getVariantSizeKey = (message: Message) => {
-  if (message.role !== 'assistant') return ''
+const getVariantSizeKey = (item: MessageListItem) => {
+  const message = item.message
+  if (!message || message.role !== 'assistant') return ''
   return chatStore.selectedVariantsMap.get(message.id) ?? ''
 }
 
@@ -235,6 +246,13 @@ const handleCopyImage = async (
   fromTop: boolean = false,
   modelInfo?: { model_name: string; model_provider: string }
 ) => {
+  const targets = [messageId, parentId].filter((id): id is string => Boolean(id))
+  await chatStore.ensureMessagesLoadedByIds(targets)
+  await nextTick()
+  if (!chatStore.hasMessageDomInfo(messageId)) {
+    scrollToMessage(messageId)
+    await nextTick()
+  }
   await capture.captureMessage({ messageId, parentId, fromTop, modelInfo })
 }
 
@@ -502,7 +520,7 @@ useEventListener(messagesContainer, 'click', handleHighlightClick)
 
 watch(
   () => [
-    props.messages.length,
+    props.items.length,
     chatStore.childThreadsByMessageId,
     chatStore.chatConfig.selectedVariantsMap
   ],
@@ -517,6 +535,7 @@ const handleScrollUpdate = useDebounceFn(() => {
   if (chatStore.childThreadsByMessageId.size) {
     scheduleSelectionHighlightRefresh()
   }
+  recordVisibleDomInfo()
 }, 80)
 
 useEventListener(messagesContainer, 'scroll', () => {
@@ -531,21 +550,42 @@ const bindScrollContainer = () => {
   }
 }
 
+const recordVisibleDomInfo = () => {
+  const container = messagesContainer.value
+  if (!container) return
+  const containerRect = container.getBoundingClientRect()
+  const nodes = container.querySelectorAll('[data-message-id]')
+  const entries: Array<{ id: string; top: number; height: number }> = []
+  nodes.forEach((node) => {
+    const messageId = node.getAttribute('data-message-id')
+    if (!messageId) return
+    const rect = (node as HTMLElement).getBoundingClientRect()
+    entries.push({
+      id: messageId,
+      top: rect.top - containerRect.top + container.scrollTop,
+      height: rect.height
+    })
+  })
+  if (entries.length) {
+    chatStore.recordMessageDomInfo(entries)
+  }
+}
+
 const scrollToMessage = (messageId: string) => {
-  const index = props.messages.findIndex((msg) => msg.id === messageId)
+  void chatStore.ensureMessagesLoadedByIds([messageId])
+  const index = props.items.findIndex((msg) => msg.id === messageId)
   const scroller = dynamicScrollerRef.value
   const tryScrollToRenderedMessage = () => {
     const container = messagesContainer.value
     if (!container) return false
-    const target = container.querySelector(
-      `[data-message-id="${messageId}"]`
-    ) as HTMLElement | null
+    const target = container.querySelector(`[data-message-id="${messageId}"]`) as HTMLElement | null
     if (!target) return false
     scrollToMessageBase(messageId)
     return true
   }
 
   if (index !== -1 && scroller && typeof scroller.scrollToItem === 'function') {
+    pendingScrollTargetId = messageId
     if (scrollRetryTimer) {
       clearTimeout(scrollRetryTimer)
       scrollRetryTimer = null
@@ -571,6 +611,30 @@ const scrollToMessage = (messageId: string) => {
   scrollToMessageBase(messageId)
 }
 
+const handleVirtualUpdate = (
+  startIndex: number,
+  endIndex: number,
+  visibleStartIndex?: number,
+  visibleEndIndex?: number
+) => {
+  const resolvedStart = visibleStartIndex ?? startIndex
+  const resolvedEnd = visibleEndIndex ?? endIndex
+  const safeStart = Number.isFinite(resolvedStart) ? resolvedStart : 0
+  const safeEnd = Number.isFinite(resolvedEnd) ? resolvedEnd : safeStart
+  void chatStore.prefetchMessagesForRange(safeStart, safeEnd)
+  recordVisibleDomInfo()
+  if (!pendingScrollTargetId) return
+  const container = messagesContainer.value
+  if (!container) return
+  const target = container.querySelector(
+    `[data-message-id="${pendingScrollTargetId}"]`
+  ) as HTMLElement | null
+  if (!target) return
+  const messageId = pendingScrollTargetId
+  pendingScrollTargetId = null
+  scrollToMessageBase(messageId)
+}
+
 watch(
   dynamicScrollerRef,
   () => {
@@ -587,6 +651,7 @@ onMounted(() => {
     visible.value = true
     setupScrollObserver()
     updateScrollInfo()
+    recordVisibleDomInfo()
   })
 
   useResizeObserver(messagesContainer, () => {
@@ -602,7 +667,7 @@ onMounted(() => {
 
   // Update scroll info when message count changes
   watch(
-    () => props.messages.length,
+    () => props.items.length,
     (length, prevLength) => {
       const isGrowing = length > prevLength
       const isReset = prevLength > 0 && length < prevLength
@@ -618,7 +683,7 @@ onMounted(() => {
 
   watch(
     () => {
-      const lastMessage = props.messages[props.messages.length - 1]
+      const lastMessage = props.items[props.items.length - 1]
       return lastMessage ? getMessageSizeKey(lastMessage) : ''
     },
     () => {
@@ -641,6 +706,7 @@ onBeforeUnmount(() => {
     clearTimeout(scrollRetryTimer)
     scrollRetryTimer = null
   }
+  pendingScrollTargetId = null
 })
 
 // === Expose ===
