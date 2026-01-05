@@ -37,6 +37,7 @@ GLM CODING PLAN 九折优惠链接：[https://z.ai/subscribe?ic=8JVLJQFSKB](http
 ## 📑 目录
 
 - [📑 目录](#-目录)
+- [❤️ 赞助商](#-赞助商)
 - [🚀 项目简介](#-项目简介)
 - [💡 为什么选择DeepChat](#-为什么选择deepchat)
 - [🔥 主要功能](#-主要功能)
