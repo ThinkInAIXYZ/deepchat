@@ -90,6 +90,9 @@ export class WindowPresenter implements IWindowPresenter {
         this.pendingTooltipPayload.set(parentWindow.id, payload)
 
         if (!overlay.webContents.isLoadingMainFrame()) {
+          if (!overlay.isVisible()) {
+            overlay.showInactive()
+          }
           overlay.webContents.send('shell-tooltip-overlay:show', payload)
           return
         }
@@ -98,6 +101,9 @@ export class WindowPresenter implements IWindowPresenter {
           const pending = this.pendingTooltipPayload.get(parentWindow.id)
           if (!pending) return
           if (overlay.isDestroyed()) return
+          if (!overlay.isVisible()) {
+            overlay.showInactive()
+          }
           overlay.webContents.send('shell-tooltip-overlay:show', pending)
         })
       }
@@ -112,6 +118,9 @@ export class WindowPresenter implements IWindowPresenter {
 
       this.pendingTooltipPayload.delete(parentWindow.id)
       overlay.webContents.send('shell-tooltip-overlay:hide')
+      if (overlay.isVisible()) {
+        overlay.hide()
+      }
     })
 
     // Listen for shortcut event: create new window
@@ -672,6 +681,7 @@ export class WindowPresenter implements IWindowPresenter {
       icon?: string
     }
     windowType?: 'chat' | 'browser'
+    forMovedTab?: boolean // 用户拖拽标签页到新窗口时强制显示（即使是 browser 窗口）
     x?: number // 初始 X 坐标
     y?: number // 初始 Y 坐标
   }): Promise<number | null> {
@@ -768,7 +778,7 @@ export class WindowPresenter implements IWindowPresenter {
         // Browser windows should only be shown when explicitly requested by user (e.g., clicking browser button)
         const tabPresenterInstance = presenter.tabPresenter as TabPresenter
         const windowType = tabPresenterInstance.getWindowType(windowId)
-        const shouldAutoShow = windowType !== 'browser'
+        const shouldAutoShow = windowType !== 'browser' || options?.forMovedTab === true
 
         if (shouldAutoShow) {
           shellWindow.show()
@@ -1061,9 +1071,6 @@ export class WindowPresenter implements IWindowPresenter {
     const existing = this.tooltipOverlayWindows.get(parentWindow.id)
     if (existing && !existing.isDestroyed()) {
       this.syncTooltipOverlayBounds(parentWindow, existing)
-      if (!existing.isVisible()) {
-        existing.showInactive()
-      }
       return existing
     }
 
@@ -1095,6 +1102,11 @@ export class WindowPresenter implements IWindowPresenter {
       }
     })
 
+    if (process.platform === 'darwin') {
+      overlay.setHiddenInMissionControl(true)
+      overlay.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
+    }
+
     overlay.setIgnoreMouseEvents(true, { forward: true })
 
     const syncOnMoved = () => {
@@ -1121,17 +1133,11 @@ export class WindowPresenter implements IWindowPresenter {
 
     parentWindow.on('moved', syncOnMoved)
     parentWindow.on('resize', syncOnResize)
-    parentWindow.on('show', () => {
-      if (!overlay.isDestroyed()) overlay.showInactive()
-    })
     parentWindow.on('hide', () => {
       if (!overlay.isDestroyed()) overlay.hide()
     })
     parentWindow.on('minimize', () => {
       if (!overlay.isDestroyed()) overlay.hide()
-    })
-    parentWindow.on('restore', () => {
-      if (!overlay.isDestroyed()) overlay.showInactive()
     })
 
     overlay.on('closed', () => {
@@ -1147,11 +1153,13 @@ export class WindowPresenter implements IWindowPresenter {
 
     overlay.webContents.once('did-finish-load', () => {
       if (overlay.isDestroyed()) return
-      overlay.showInactive()
       overlay.webContents.send('shell-tooltip-overlay:clear')
 
       const pending = this.pendingTooltipPayload.get(parentWindow.id)
       if (pending) {
+        if (!overlay.isVisible()) {
+          overlay.showInactive()
+        }
         overlay.webContents.send('shell-tooltip-overlay:show', pending)
       }
     })
@@ -1171,6 +1179,9 @@ export class WindowPresenter implements IWindowPresenter {
     if (!overlay || overlay.isDestroyed()) return
     this.pendingTooltipPayload.delete(windowId)
     overlay.webContents.send('shell-tooltip-overlay:hide')
+    if (overlay.isVisible()) {
+      overlay.hide()
+    }
   }
 
   private destroyTooltipOverlay(windowId: number): void {

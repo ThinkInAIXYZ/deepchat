@@ -558,7 +558,7 @@ const handleDragEnd = async (event: DragEvent) => {
     if (isOutsideWindow) {
       console.log('Tab dragged outside window:', draggedTabId)
       // Call main process to move tab to new window
-      await tabPresenter.moveTabToNewWindow(draggedTabId, event.clientX, event.clientY)
+      await tabPresenter.moveTabToNewWindow(draggedTabId, event.screenX, event.screenY)
     }
   }
   draggedTabId = null
