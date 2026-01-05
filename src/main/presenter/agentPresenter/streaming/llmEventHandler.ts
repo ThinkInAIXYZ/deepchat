@@ -231,6 +231,7 @@ export class LLMEventHandler {
     }
 
     await this.messageManager.editMessage(eventId, JSON.stringify(state.message.content))
+    eventBus.sendToRenderer(STREAM_EVENTS.RESPONSE, SendTarget.ALL_WINDOWS, msg)
   }
 
   async handleLLMAgentError(msg: LLMAgentEventData): Promise<void> {
