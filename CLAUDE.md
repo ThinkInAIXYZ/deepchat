@@ -193,7 +193,9 @@ The LLM system follows a two-layer architecture:
 
 Use SDD methodology for all feature implementations. See [docs/spec-driven-dev.md](docs/spec-driven-dev.md) for details.
 
-Key principles: specification-driven, test-when-useful, Presenter architecture, UI consistency, anti-over-engineering.
+Prefer lightweight spec artifacts under `docs/specs/<feature>/` (spec/plan/tasks) and resolve `[NEEDS CLARIFICATION]` markers before coding.
+
+Key principles: specification-first, test-when-useful, Presenter architecture, UI consistency, anti-over-engineering, compatibility/migration awareness.
 
 ### IPC Communication
 

@@ -46,4 +46,6 @@
 
 Follow the SDD methodology for feature implementation. See [docs/spec-driven-dev.md](docs/spec-driven-dev.md).
 
-Core principles: specification-first, architectural consistency, minimal complexity, forward compatibility.
+When working on a feature, prefer creating spec artifacts under `docs/specs/<feature>/` (spec/plan/tasks) and resolve any `[NEEDS CLARIFICATION]` items before implementation.
+
+Core principles: specification-first, architectural consistency, minimal complexity, compatibility/migration awareness.
