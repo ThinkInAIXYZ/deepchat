@@ -1116,7 +1116,6 @@ export class WindowPresenter implements IWindowPresenter {
       }
     })
 
-
     if (process.platform === 'darwin') {
       overlay.setHiddenInMissionControl(true)
       // Keep overlay off fullscreen spaces to avoid covering macOS traffic lights
