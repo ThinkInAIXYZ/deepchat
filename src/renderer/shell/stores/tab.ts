@@ -11,7 +11,8 @@ export const useTabStore = defineStore('tab', () => {
   const currentTabId = ref<number | null>(null)
 
   const addTab = async (tab: { name: string; icon: string; viewType: string }) => {
-    if (tab.viewType !== 'playground') {
+    const shouldDeduplicate = tab.viewType !== 'playground' && tab.viewType !== 'chat'
+    if (shouldDeduplicate) {
       const existing = tabs.value.find((t) => t.url === `local://${tab.viewType}`)
       if (existing) {
         setCurrentTabId(existing.id)

@@ -1,5 +1,4 @@
 import { spawn, type ChildProcess } from 'child_process'
-import fs from 'fs/promises'
 import path from 'path'
 import os from 'os'
 import { z } from 'zod'
@@ -22,7 +21,6 @@ const COMMAND_KILL_GRACE_MS = 5000
 const ExecuteCommandArgsSchema = z.object({
   command: z.string().min(1),
   timeout: z.number().min(100).optional(),
-  workdir: z.string().optional(),
   description: z.string().min(5).max(100)
 })
 
@@ -51,7 +49,7 @@ export class AgentBashHandler {
       throw new Error(`Invalid arguments: ${parsed.error}`)
     }
 
-    const { command, timeout, workdir } = parsed.data
+    const { command, timeout } = parsed.data
     if (this.commandPermissionHandler) {
       const permissionCheck = this.commandPermissionHandler.checkPermission(
         options.conversationId,
@@ -74,7 +72,7 @@ export class AgentBashHandler {
       }
     }
 
-    const cwd = workdir ? await this.validatePath(workdir) : this.allowedDirectories[0]
+    const cwd = this.allowedDirectories[0]
     const startedAt = Date.now()
     const snippetId = options.snippetId ?? nanoid()
 
@@ -176,50 +174,6 @@ export class AgentBashHandler {
       return path.join(os.homedir(), filepath.slice(1))
     }
     return filepath
-  }
-
-  private isPathAllowed(candidatePath: string): boolean {
-    return this.allowedDirectories.some((dir) => {
-      if (candidatePath === dir) return true
-      const dirWithSeparator = dir.endsWith(path.sep) ? dir : `${dir}${path.sep}`
-      return candidatePath.startsWith(dirWithSeparator)
-    })
-  }
-
-  private async validatePath(requestedPath: string): Promise<string> {
-    const expandedPath = this.expandHome(requestedPath)
-    const absolute = path.isAbsolute(expandedPath)
-      ? path.resolve(expandedPath)
-      : path.resolve(process.cwd(), expandedPath)
-    const normalizedRequested = this.normalizePath(absolute)
-    const isAllowed = this.isPathAllowed(normalizedRequested)
-    if (!isAllowed) {
-      throw new Error(
-        `Access denied - path outside allowed directories: ${absolute} not in ${this.allowedDirectories.join(', ')}`
-      )
-    }
-    try {
-      const realPath = await fs.realpath(absolute)
-      const normalizedReal = this.normalizePath(realPath)
-      const isRealPathAllowed = this.isPathAllowed(normalizedReal)
-      if (!isRealPathAllowed) {
-        throw new Error('Access denied - symlink target outside allowed directories')
-      }
-      return realPath
-    } catch {
-      const parentDir = path.dirname(absolute)
-      try {
-        const realParentPath = await fs.realpath(parentDir)
-        const normalizedParent = this.normalizePath(realParentPath)
-        const isParentAllowed = this.isPathAllowed(normalizedParent)
-        if (!isParentAllowed) {
-          throw new Error('Access denied - parent directory outside allowed directories')
-        }
-        return absolute
-      } catch {
-        throw new Error(`Parent directory does not exist: ${parentDir}`)
-      }
-    }
   }
 
   private async runShellProcess(
