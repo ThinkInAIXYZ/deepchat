@@ -1,74 +1,217 @@
 ---
-description: Internationalization for renderer
+description: Internationalization and localization settings
 globs: src/renderer/src/**
 alwaysApply: false
 ---
-# Internationalization
-i18n:
-  framework: 'vue-i18n'
-  location: 'src/renderer/src/i18n'
-  requirement: 'all user-facing strings must use i18n keys'
-  locales: ['zh-CN','en-US','ko-KR','ru-RU','zh-HK','fr-FR','fa-IR']
+# Internationalization (i18n)
 
-# 国际化开发指南
-R
-## 多语言支持
+## Technology Stack
 
-本项目支持多语言，包括：
-- 中文（简体）
-- 英文
-- 日文
-- 韩文
-- 俄文
-- 繁体中文
-- 法文
-- 波斯文（伊朗）
+- **Framework**: vue-i18n
+- **Location**: `src/renderer/src/i18n/`
+- **Requirement**: All user-facing strings must use i18n keys
 
-## 技术实现
+## Supported Locales
 
-- 框架：vue-i18n
-- 位置：src/renderer/src/i18n
-- 要求：所有面向用户的字符串必须使用 i18n 键
+DeepChat supports 12 languages:
+- da-DK (Danish)
+- en-US (English - United States)
+- fa-IR (Persian - Iran)
+- fr-FR (French)
+- he-IL (Hebrew)
+- ja-JP (Japanese)
+- ko-KR (Korean)
+- pt-BR (Portuguese - Brazil)
+- ru-RU (Russian)
+- zh-CN (Chinese - Simplified)
+- zh-HK (Chinese - Hong Kong)
+- zh-TW (Chinese - Traditional)
 
-## 文件结构
+## File Structure
 
-- 语言文件位于 `src/renderer/src/i18n/` 目录
-- 每种语言都有独立的 JSON 文件
-- 共享的翻译键值放在 `common.json` 中
+```
+src/renderer/src/i18n/
+├── index.ts                        # i18n configuration
+├── en-US/                          # English translations
+│   ├── common.json
+│   └── ...
+├── zh-CN/                          # Chinese translations
+│   ├── common.json
+│   └── ...
+├── ja-JP/                          # Japanese translations
+│   ├── common.json
+│   └── ...
+├── ko-KR/                          # Korean translations
+│   ├── common.json
+│   └── ...
+├── fr-FR/                          # French translations
+│   ├── common.json
+│   └── ...
+├── ru-RU/                          # Russian translations
+│   ├── common.json
+│   └── ...
+├── zh-HK/                          # Chinese (Hong Kong)
+│   ├── common.json
+│   └── ...
+├── zh-TW/                          # Chinese (Taiwan)
+│   ├── common.json
+│   └── ...
+├── pt-BR/                          # Portuguese (Brazil)
+│   ├── common.json
+│   └── ...
+├── fa-IR/                          # Persian (Iran)
+│   ├── common.json
+│   └── ...
+└── da-DK/                          # Danish
+    ├── common.json
+    └── ...
+```
 
-## 使用规范
+## Usage Guidelines
 
-1. 翻译键命名规范：
-- 使用点号分隔的层级结构
-- 使用小写字母
-- 使用有意义的描述性名称
-- 例如：`common.button.submit`
+### Translation Key Naming
 
-2. 添加新翻译：
-- 在 `common.json` 中添加共享翻译
-- 在语言特定文件中添加特定翻译
-- 保持所有语言文件的键值一致
+- Use dot-separated hierarchical structure
+- Use lowercase letters
+- Use descriptive names
+- Group by feature/context
 
-3. 在代码中使用：
-```typescript
+Examples:
+- `common.button.submit`
+- `common.button.cancel`
+- `chat.send.placeholder`
+- `settings.provider.model.label`
+
+### Adding New Translations
+
+1. Add the key to ALL language files
+2. Keep key names consistent across all locales
+3. Ensure English is the reference for accuracy
+
+Example:
+```json
+// en-US/common.json
+{
+  "common": {
+    "button": {
+      "submit": "Submit",
+      "cancel": "Cancel"
+    }
+  }
+}
+
+// zh-CN/common.json
+{
+  "common": {
+    "button": {
+      "submit": "提交",
+      "cancel": "取消"
+    }
+  }
+}
+```
+
+### Using Translations in Components
+
+```vue
+<script setup lang="ts">
 import { useI18n } from 'vue-i18n'
 
-const { t } = useI18n()
-// 使用翻译
+const { t, locale } = useI18n()
+
 const message = t('common.button.submit')
+
+const changeLanguage = (lang: string) => {
+  locale.value = lang
+}
+</script>
+
+<template>
+  <button>{{ t('common.button.submit') }}</button>
+  <button @click="changeLanguage('zh-CN')">中文</button>
+  <button @click="changeLanguage('en-US')">English</button>
+</template>
 ```
 
-4. 动态切换语言：
+### Dynamic Language Switching
+
 ```typescript
 const { locale } = useI18n()
-// 切换语言
+
+// Switch language
 locale.value = 'zh-CN'
+locale.value = 'en-US'
+locale.value = 'ja-JP'
 ```
 
-## 最佳实践
+## Translation Quality Guidelines
 
-1. 避免硬编码文本
-2. 使用有意义的键名
-3. 保持翻译文件的结构一致
-4. 定期检查未使用的翻译键
-5. 确保所有用户可见的文本都使用翻译系统
+### Latin-based Languages
+Base translations on English source:
+- en-US → fr-FR, ru-RU, pt-BR
+
+### Non-Latin Languages
+Base translations on Chinese source when more appropriate:
+- zh-CN → ja-JP, ko-KR
+
+### Proper Nouns and Technical Terms
+- Keep "DeepChat" untranslated unless established convention exists
+- "MCP" remains "MCP" in all languages
+- "Agents" can remain "Agents" in some languages, consider "智能体" for Chinese
+- Follow established conventions for well-known technical terms
+- API names, file formats should remain in original form
+
+### Translation Principles
+
+1. **Accuracy**: Convey original meaning precisely
+2. **Cultural Appropriateness**: Follow local language habits and internet application conventions
+3. **Length Considerations**: Balance accuracy with UI aesthetics and space constraints
+4. **Consistency**: Maintain consistent terminology across the application
+5. **Natural Phrasing**: Translations should feel natural to native speakers
+
+## Best Practices
+
+1. **Avoid hardcoded text**: All user-visible text must use i18n keys
+2. **Use meaningful key names**: Keys should be descriptive and follow hierarchy
+3. **Keep structure consistent**: Maintain same key structure across all locale files
+4. **Regular checks**: Use `pnpm run i18n` to check for missing translations
+5. **Generate types**: Run `pnpm run i18n:types` to generate TypeScript types for translation keys
+
+## Checking Translations
+
+```bash
+# Check completeness using zh-CN as source
+pnpm run i18n
+
+# Check completeness using en-US as source
+pnpm run i18n:en
+
+# Generate TypeScript types for autocomplete
+pnpm run i18n:types
+```
+
+## i18n Code Review
+
+Use the `i18n-code-reviewer` agent to:
+- Validate translation quality
+- Check for missing translations
+- Review proper noun handling
+- Ensure consistency across languages
+
+The agent will also check that:
+- All code comments are in English
+- All log messages are in English
+- No non-English text in code comments or console statements
+
+## TypeScript Support
+
+After running `pnpm run i18n:types`, TypeScript types are generated for autocomplete:
+
+```typescript
+import type { I18n } from 'vue-i18n'
+
+const t: I18n['t'] = useI18n().t
+
+// Autocomplete will suggest available translation keys
+t('common.button.') // Shows: submit, cancel, save, etc.
+```

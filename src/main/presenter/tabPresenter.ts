@@ -216,11 +216,7 @@ export class TabPresenter implements ITabPresenter {
       view.webContents.loadURL(url)
     }
 
-    // 对于 browser 窗口，不自动打开 DevTools
-    // 对于 chat 窗口，开发模式下可以自动打开
-    if (is.dev && windowType !== 'browser') {
-      view.webContents.openDevTools({ mode: 'detach' })
-    }
+    // DevTools 不再自动打开（避免在 macOS 全屏时产生额外窗口/空间的异常体验）
 
     // 存储标签信息
     const tabId = view.webContents.id
@@ -700,17 +696,20 @@ export class TabPresenter implements ITabPresenter {
     webContents.on('did-navigate', (_event, url) => {
       const state = this.tabState.get(tabId)
       if (state) {
-        state.url = url
-        // 如果没有标题，使用URL作为标题
-        if (!state.title || state.title === 'Untitled') {
-          state.title = url
-          const window = BrowserWindow.fromId(windowId)
-          if (window && !window.isDestroyed()) {
-            window.webContents.send(TAB_EVENTS.TITLE_UPDATED, {
-              tabId,
-              title: state.title,
-              windowId
-            })
+        const isLocalTab = state.url?.startsWith('local://')
+        if (!isLocalTab) {
+          state.url = url
+          // 如果没有标题，使用URL作为标题
+          if (!state.title || state.title === 'Untitled') {
+            state.title = url
+            const window = BrowserWindow.fromId(windowId)
+            if (window && !window.isDestroyed()) {
+              window.webContents.send(TAB_EVENTS.TITLE_UPDATED, {
+                tabId,
+                title: state.title,
+                windowId
+              })
+            }
           }
           this.notifyWindowTabsUpdate(windowId).catch(console.error) // Call async function, handle potential rejection
         }
@@ -915,7 +914,6 @@ export class TabPresenter implements ITabPresenter {
     const sourceWindowType = this.getWindowType(originalWindowId)
     const newWindowOptions: Record<string, any> = {
       forMovedTab: true,
-      activateTabId: tabId, // Pass the tabId to the new window presenter to activate it
       windowType: sourceWindowType
     }
     if (screenX !== undefined && screenY !== undefined) {

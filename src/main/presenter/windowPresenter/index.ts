@@ -83,6 +83,10 @@ export class WindowPresenter implements IWindowPresenter {
 
         const parentWindow = BrowserWindow.fromWebContents(event.sender)
         if (!parentWindow || parentWindow.isDestroyed()) return
+        // On macOS fullscreen, suppress tooltip overlay to keep system traffic lights reachable
+        if (process.platform === 'darwin' && parentWindow.isFullScreen()) {
+          return
+        }
 
         const overlay = this.getOrCreateTooltipOverlay(parentWindow)
         if (!overlay) return
@@ -90,6 +94,9 @@ export class WindowPresenter implements IWindowPresenter {
         this.pendingTooltipPayload.set(parentWindow.id, payload)
 
         if (!overlay.webContents.isLoadingMainFrame()) {
+          if (!overlay.isVisible()) {
+            overlay.showInactive()
+          }
           overlay.webContents.send('shell-tooltip-overlay:show', payload)
           return
         }
@@ -98,6 +105,9 @@ export class WindowPresenter implements IWindowPresenter {
           const pending = this.pendingTooltipPayload.get(parentWindow.id)
           if (!pending) return
           if (overlay.isDestroyed()) return
+          if (!overlay.isVisible()) {
+            overlay.showInactive()
+          }
           overlay.webContents.send('shell-tooltip-overlay:show', pending)
         })
       }
@@ -112,6 +122,9 @@ export class WindowPresenter implements IWindowPresenter {
 
       this.pendingTooltipPayload.delete(parentWindow.id)
       overlay.webContents.send('shell-tooltip-overlay:hide')
+      if (overlay.isVisible()) {
+        overlay.hide()
+      }
     })
 
     // Listen for shortcut event: create new window
@@ -672,6 +685,7 @@ export class WindowPresenter implements IWindowPresenter {
       icon?: string
     }
     windowType?: 'chat' | 'browser'
+    forMovedTab?: boolean // 用户拖拽标签页到新窗口时强制显示（即使是 browser 窗口）
     x?: number // 初始 X 坐标
     y?: number // 初始 Y 坐标
   }): Promise<number | null> {
@@ -768,7 +782,7 @@ export class WindowPresenter implements IWindowPresenter {
         // Browser windows should only be shown when explicitly requested by user (e.g., clicking browser button)
         const tabPresenterInstance = presenter.tabPresenter as TabPresenter
         const windowType = tabPresenterInstance.getWindowType(windowId)
-        const shouldAutoShow = windowType !== 'browser'
+        const shouldAutoShow = windowType !== 'browser' || options?.forMovedTab === true
 
         if (shouldAutoShow) {
           shellWindow.show()
@@ -848,6 +862,8 @@ export class WindowPresenter implements IWindowPresenter {
     // 窗口进入全屏
     shellWindow.on('enter-full-screen', () => {
       console.log(`Window ${windowId} entered fullscreen.`)
+      // Destroy tooltip overlay while fullscreen so it never blocks system traffic lights
+      this.destroyTooltipOverlay(windowId)
       if (!shellWindow.isDestroyed()) {
         shellWindow.webContents.send(WINDOW_EVENTS.WINDOW_ENTER_FULL_SCREEN)
         eventBus.sendToMain(WINDOW_EVENTS.WINDOW_ENTER_FULL_SCREEN, windowId)
@@ -864,6 +880,8 @@ export class WindowPresenter implements IWindowPresenter {
     // 窗口退出全屏
     shellWindow.on('leave-full-screen', () => {
       console.log(`Window ${windowId} left fullscreen.`)
+      // Recreate tooltip overlay after exiting fullscreen for normal behavior
+      this.getOrCreateTooltipOverlay(shellWindow)
       if (!shellWindow.isDestroyed()) {
         shellWindow.webContents.send(WINDOW_EVENTS.WINDOW_LEAVE_FULL_SCREEN)
         eventBus.sendToMain(WINDOW_EVENTS.WINDOW_LEAVE_FULL_SCREEN, windowId)
@@ -984,7 +1002,10 @@ export class WindowPresenter implements IWindowPresenter {
     shellWindow.webContents.once('did-finish-load', () => {
       if (shellWindow.isDestroyed()) return
       shellWindow.webContents.send('shell-window:type', windowType)
-      this.getOrCreateTooltipOverlay(shellWindow)
+      // Avoid pre-creating overlay if window already in fullscreen on macOS
+      if (!(process.platform === 'darwin' && shellWindow.isFullScreen())) {
+        this.getOrCreateTooltipOverlay(shellWindow)
+      }
     })
 
     // --- 处理初始标签页创建或激活 ---
@@ -1019,8 +1040,9 @@ export class WindowPresenter implements IWindowPresenter {
     }
 
     // 如果提供了 activateTabId，表示一个现有标签页 (WebContentsView) 将被 TabPresenter 关联到此新窗口
+    // 拖拽分离的场景在 attachTab 内激活，这里跳过以避免重复激活
     // 激活逻辑 (设置可见性、bounds) 在 tabPresenter.attachTab / switchTab 中处理
-    if (options?.activateTabId !== undefined) {
+    if (options?.activateTabId !== undefined && !options?.forMovedTab) {
       // 等待窗口加载完成，然后尝试激活指定标签页
       shellWindow.webContents.once('did-finish-load', async () => {
         console.log(
@@ -1057,13 +1079,12 @@ export class WindowPresenter implements IWindowPresenter {
 
   private getOrCreateTooltipOverlay(parentWindow: BrowserWindow): BrowserWindow | null {
     if (parentWindow.isDestroyed()) return null
+    // Do not create overlay on macOS fullscreen; it hides traffic lights
+    if (process.platform === 'darwin' && parentWindow.isFullScreen()) return null
 
     const existing = this.tooltipOverlayWindows.get(parentWindow.id)
     if (existing && !existing.isDestroyed()) {
       this.syncTooltipOverlayBounds(parentWindow, existing)
-      if (!existing.isVisible()) {
-        existing.showInactive()
-      }
       return existing
     }
 
@@ -1095,6 +1116,11 @@ export class WindowPresenter implements IWindowPresenter {
       }
     })
 
+    if (process.platform === 'darwin') {
+      overlay.setHiddenInMissionControl(true)
+      // Keep overlay off fullscreen spaces to avoid covering macOS traffic lights
+      overlay.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: false })
+    }
     overlay.setIgnoreMouseEvents(true, { forward: true })
 
     const syncOnMoved = () => {
@@ -1121,17 +1147,11 @@ export class WindowPresenter implements IWindowPresenter {
 
     parentWindow.on('moved', syncOnMoved)
     parentWindow.on('resize', syncOnResize)
-    parentWindow.on('show', () => {
-      if (!overlay.isDestroyed()) overlay.showInactive()
-    })
     parentWindow.on('hide', () => {
       if (!overlay.isDestroyed()) overlay.hide()
     })
     parentWindow.on('minimize', () => {
       if (!overlay.isDestroyed()) overlay.hide()
-    })
-    parentWindow.on('restore', () => {
-      if (!overlay.isDestroyed()) overlay.showInactive()
     })
 
     overlay.on('closed', () => {
@@ -1147,11 +1167,13 @@ export class WindowPresenter implements IWindowPresenter {
 
     overlay.webContents.once('did-finish-load', () => {
       if (overlay.isDestroyed()) return
-      overlay.showInactive()
       overlay.webContents.send('shell-tooltip-overlay:clear')
 
       const pending = this.pendingTooltipPayload.get(parentWindow.id)
       if (pending) {
+        if (!overlay.isVisible()) {
+          overlay.showInactive()
+        }
         overlay.webContents.send('shell-tooltip-overlay:show', pending)
       }
     })
@@ -1171,6 +1193,9 @@ export class WindowPresenter implements IWindowPresenter {
     if (!overlay || overlay.isDestroyed()) return
     this.pendingTooltipPayload.delete(windowId)
     overlay.webContents.send('shell-tooltip-overlay:hide')
+    if (overlay.isVisible()) {
+      overlay.hide()
+    }
   }
 
   private destroyTooltipOverlay(windowId: number): void {

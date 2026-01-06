@@ -41,3 +41,11 @@
 - Patterns: Presenter pattern in main; EventBus for inter-process events; two-layer LLM provider (Agent Loop + Provider); integrated MCP tools.
 - Secrets: use `.env` (see `.env.example`); never commit keys.
 - Toolchains: Node ≥ 20.19, pnpm ≥ 10.11 (pnpm only). Windows: enable Developer Mode for symlinks.
+
+## Specification-Driven Development
+
+Follow the SDD methodology for feature implementation. See [docs/spec-driven-dev.md](docs/spec-driven-dev.md).
+
+When working on a feature, prefer creating spec artifacts under `docs/specs/<feature>/` (spec/plan/tasks) and resolve any `[NEEDS CLARIFICATION]` items before implementation.
+
+Core principles: specification-first, architectural consistency, minimal complexity, compatibility/migration awareness.

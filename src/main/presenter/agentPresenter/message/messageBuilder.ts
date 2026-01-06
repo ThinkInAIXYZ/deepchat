@@ -10,6 +10,7 @@ import { BrowserContextBuilder } from '../../browser/BrowserContextBuilder'
 import { modelCapabilities } from '../../configPresenter/modelCapabilities'
 import { enhanceSystemPromptWithDateTime } from '../utility/promptEnhancer'
 import { ToolCallCenter } from '../tool/toolCallCenter'
+import { nanoid } from 'nanoid'
 import {
   addContextMessages,
   buildUserMessageContext,
@@ -244,6 +245,7 @@ export async function buildPostToolExecutionContext({
 }: PostToolExecutionContextParams): Promise<ChatMessage[]> {
   const { systemPrompt } = conversation.settings
   const formattedMessages: ChatMessage[] = []
+  const supportsFunctionCall = Boolean(modelConfig?.functionCall)
 
   if (systemPrompt) {
     const finalSystemPrompt = enhanceSystemPromptWithDateTime(systemPrompt)
@@ -264,19 +266,61 @@ export async function buildPostToolExecutionContext({
     content: finalUserContent
   })
 
-  formattedMessages.push({
-    role: 'assistant',
-    content: currentAssistantMessage.content
-      .filter((block) => block.type === 'content')
-      .map((block) => block.content || '')
-      .join('\n')
-  })
+  const assistantText = currentAssistantMessage.content
+    .filter((block) => block.type === 'content')
+    .map((block) => block.content || '')
+    .join('\n')
+    .trim()
 
-  formattedMessages.push({
-    role: 'tool',
-    content: completedToolCall.response,
-    tool_call_id: completedToolCall.id
-  })
+  // OpenAI-compatible function-calling requires:
+  // assistant(tool_calls: [...]) -> tool(tool_call_id=...) pairing.
+  if (supportsFunctionCall) {
+    const toolCallId = completedToolCall.id || nanoid(8)
+    formattedMessages.push({
+      role: 'assistant',
+      content: assistantText || undefined,
+      tool_calls: [
+        {
+          id: toolCallId,
+          type: 'function',
+          function: {
+            name: completedToolCall.name,
+            arguments: completedToolCall.params || ''
+          }
+        }
+      ]
+    })
+
+    formattedMessages.push({
+      role: 'tool',
+      content: completedToolCall.response,
+      tool_call_id: toolCallId
+    })
+  } else {
+    const formattedToolRecordText =
+      '<function_call>' +
+      JSON.stringify({
+        function_call_record: {
+          name: completedToolCall.name,
+          arguments: completedToolCall.params,
+          response: completedToolCall.response
+        }
+      }) +
+      '</function_call>'
+
+    const combinedText = [assistantText, formattedToolRecordText].filter(Boolean).join('\n')
+    formattedMessages.push({
+      role: 'assistant',
+      content: combinedText || undefined
+    })
+
+    const userPromptText =
+      '以上是你刚执行的工具调用及其响应信息，已帮你插入，请仔细阅读工具响应，并继续你的回答。'
+    formattedMessages.push({
+      role: 'user',
+      content: userPromptText
+    })
+  }
 
   return formattedMessages
 }

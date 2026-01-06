@@ -1,0 +1,427 @@
+---
+description: Vue 3, Pinia, Shadcn Vue, and Tailwind best practices
+globs: src/renderer/src/**/*.{vue,ts,tsx,js,jsx}
+alwaysApply: false
+---
+# Vue Stack Guide
+
+## Technology Stack
+
+- **Framework**: Vue 3 with Composition API
+- **State Management**: Pinia
+- **Routing**: Vue Router (manual configuration)
+- **UI Components**: Shadcn Vue (reka-ui) + Radix Vue
+- **Styling**: Tailwind v4 with @tailwindcss/vite
+- **Build Tool**: Vite
+- **Icons**: Iconify Vue (@iconify/vue)
+- **Utilities**: VueUse, dayjs, clsx, tailwind-merge
+
+## Vue 3 Best Practices
+
+### Composition API
+
+Use `<script setup>` syntax for concise component definitions:
+
+```vue
+<script setup lang="ts">
+import { ref, computed, watch } from 'vue'
+
+// Reactive state
+const isLoading = ref(false)
+const items = ref<string[]>([])
+
+// Computed properties
+const itemCount = computed(() => items.value.length)
+
+// Watchers
+watch(items, (newItems) => {
+  console.log('Items changed:', newItems.length)
+}, { deep: true })
+</script>
+
+<template>
+  <div v-if="isLoading">Loading...</div>
+  <div v-else>Total: {{ itemCount }}</div>
+</template>
+```
+
+### Component Organization
+
+**File Structure**:
+```
+src/renderer/src/components/
+├── chat-input/
+│   ├── ChatInput.vue
+│   └── components/
+│       └── ToolbarButton.vue
+├── message/
+│   ├── MessageItemUser.vue
+│   ├── MessageItemAssistant.vue
+│   └── MessageBlockToolCall.vue
+└── settings/
+    └── ModelConfigDialog.vue
+```
+
+**Naming Conventions**:
+- Components: PascalCase (`ChatInput.vue`, `MessageItemUser.vue`)
+- Directories: lowercase with dashes (`chat-input/`, `message/`)
+- Composables: camelCase with `use` prefix (`useChatState.ts`, `useMessageList.ts`)
+
+### Component Best Practices
+
+1. **Use `<script setup>` syntax**
+2. **Define props and emits explicitly**:
+
+```vue
+<script setup lang="ts">
+interface Props {
+  message: string
+  isLoading?: boolean
+}
+
+interface Emits {
+  submit: [content: string]
+  cancel: []
+}
+
+const props = withDefaults(defineProps<Props>(), {
+  isLoading: false
+})
+
+const emit = defineEmits<Emits>()
+
+const handleSubmit = () => {
+  emit('submit', props.message)
+}
+</script>
+```
+
+3. **Use ref for primitives/references, reactive for objects**:
+
+```typescript
+const count = ref(0) // single value
+const user = reactive({ name: 'John', age: 30 }) // object
+```
+
+4. **Prefer computed over methods for derived state**:
+
+```typescript
+const filteredItems = computed(() =>
+  items.value.filter(item => item.active)
+)
+```
+
+5. **Use provide/inject for dependency injection**:
+
+```typescript
+// Parent
+provide('chatService', chatService)
+
+// Child
+const chatService = inject<ChatService>('chatService')!
+```
+
+## Pinia State Management
+
+### Store Organization
+
+Stores are located in `src/renderer/src/stores/`:
+
+```typescript
+// stores/chat.ts
+import { defineStore } from 'pinia'
+import { ref, computed } from 'vue'
+
+export const useChatStore = defineStore('chat', () => {
+  const conversations = ref<Conversation[]>([])
+  const currentConversationId = ref<string | null>(null)
+
+  const currentConversation = computed(() =>
+    conversations.value.find(c => c.id === currentConversationId.value)
+  )
+
+  const addConversation = (conversation: Conversation) => {
+    conversations.value.push(conversation)
+  }
+
+  const setCurrentConversation = (id: string) => {
+    currentConversationId.value = id
+  }
+
+  return {
+    conversations,
+    currentConversationId,
+    currentConversation,
+    addConversation,
+    setCurrentConversation
+  }
+})
+```
+
+### Store Best Practices
+
+1. **Use Setup Store syntax (defineStore with function)**
+2. **Separate concerns**: Different stores for different domains
+3. **Use getters (computed) for derived state**
+4. **Keep actions focused** on state mutations and async operations
+5. **Avoid component-specific data** in global stores
+
+## Vue Router
+
+### Router Setup
+
+Manual configuration in `src/renderer/src/router/`:
+
+```typescript
+// router/index.ts
+import { createRouter, createWebHashHistory } from 'vue-router'
+import type { RouteRecordRaw } from 'vue-router'
+
+const routes: RouteRecordRaw[] = [
+  {
+    path: '/',
+    component: () => import('../views/ChatView.vue')
+  },
+  {
+    path: '/settings',
+    component: () => import('../views/SettingsView.vue')
+  }
+]
+
+const router = createRouter({
+  history: createWebHashHistory(),
+  routes
+})
+
+export default router
+```
+
+### Router Best Practices
+
+1. **Use named routes** for easier navigation:
+
+```typescript
+// Define
+{
+  path: '/conversation/:id',
+  name: 'conversation',
+  component: ConversationView
+}
+
+// Navigate
+router.push({ name: 'conversation', params: { id: '123' } })
+```
+
+2. **Implement lazy loading** with dynamic imports
+3. **Use route guards** for authentication/logic:
+
+```typescript
+router.beforeEach((to, from, next) => {
+  if (to.meta.requiresAuth && !isAuthenticated.value) {
+    next('/login')
+  } else {
+    next()
+  }
+})
+```
+
+4. **Use route meta** for additional data:
+
+```typescript
+{
+  path: '/settings',
+  meta: { title: 'Settings', icon: 'settings' },
+  component: SettingsView
+}
+```
+
+## Shadcn Vue (reka-ui) Integration
+
+### Component Import
+
+Use reka-ui primitives combined with Tailwind:
+
+```vue
+<script setup lang="ts">
+import { Button } from '@/shadcn/components/ui/button'
+import { Dialog, DialogContent, DialogHeader } from '@/shadcn/components/ui/dialog'
+
+const isDialogOpen = ref(false)
+const handleClick = () => {
+  isDialogOpen.value = true
+}
+</script>
+
+<template>
+  <Button @click="handleClick">Open Dialog</Button>
+  <Dialog v-model:open="isDialogOpen">
+    <DialogContent>
+      <DialogHeader>Dialog Title</DialogHeader>
+      <p>Dialog content</p>
+    </DialogContent>
+  </Dialog>
+</template>
+```
+
+### Tailwind Utility Helpers
+
+Use clsx and tailwind-merge for dynamic classes:
+
+```typescript
+import { clsx, type ClassValue } from 'clsx'
+import { twMerge } from 'tailwind-merge'
+
+export function cn(...inputs: ClassValue[]) {
+  return twMerge(clsx(inputs))
+}
+
+// Usage
+<div :class="cn('base-class', isActive && 'active-class', customClass)" />
+```
+
+### Styling Best Practices
+
+1. **Use Tailwind for all styling** - no scoped CSS files needed
+2. **Responsive design**: mobile-first approach with Tailwind breakpoints
+3. **Use utility classes** instead of writing custom CSS
+4. **Component variants**: use class-variance-authority (CVA):
+
+```typescript
+import { cva } from 'class-variance-authority'
+
+const buttonVariants = cva(
+  'base-button-classes',
+  {
+    variants: {
+      variant: {
+        default: 'bg-blue-500 hover:bg-blue-600',
+        secondary: 'bg-gray-500 hover:bg-gray-600',
+        outline: 'border border-gray-300'
+      },
+      size: {
+        sm: 'px-2 py-1 text-sm',
+        md: 'px-4 py-2',
+        lg: 'px-6 py-3 text-lg'
+      }
+    }
+  }
+)
+```
+
+## Icons
+
+Use Iconify Vue with lucide icons as primary choice:
+
+```vue
+<script setup lang="ts">
+import { Icon } from '@iconify/vue'
+</script>
+
+<template>
+  <div class="flex gap-2">
+    <Icon icon="lucide:user" />
+    <Icon icon="lucide:settings" />
+    <Icon icon="lucide:send" />
+  </div>
+</template>
+```
+
+**Icon Patterns**:
+- Primary: `lucide:*` (most UI icons)
+- Fallback: Other Iconify collections when needed
+- Follow pattern: `{collection}:{icon-name}`
+
+## Performance Optimization
+
+1. **Component lazy loading**:
+   ```typescript
+   const HeavyComponent = defineAsyncComponent(() =>
+     import('./HeavyComponent.vue')
+   )
+   ```
+
+2. **v-memo** for expensive computations:
+   ```vue
+   <div v-memo="[dependency]">{{ expensiveResult }}</div>
+   ```
+
+3. **Use v-once** for static content:
+   ```vue
+   <span v-once>Static title</span>
+   ```
+
+4. **Virtual scrolling** for long lists:
+   ```typescript
+   import { RecycleScroller } from 'vue-virtual-scroller'
+   ```
+
+5. **Optimize reactivity** with `shallowRef` and `shallowReactive` for large objects
+
+## VueUse Integration
+
+Use VueUse composables for common utilities:
+
+```typescript
+import { useLocalStorage, useClipboard, useDebounceFn } from '@vueuse/core'
+
+// Local storage state
+const storedTheme = useLocalStorage('theme', 'light')
+
+// Clipboard API
+const { copy, copied } = useClipboard()
+
+// Debounced function
+const debouncedSearch = useDebounceFn((query: string) => {
+  search(query)
+}, 300)
+```
+
+## Type Safety
+
+- Use TypeScript for all components and composables
+- Define interfaces for props and data structures
+- Use `defineComponent` for complex type inference
+- Prefer `type` over `interface` unless using extends
+
+## Project-Specific Patterns
+
+### IPC Communication
+
+Use the `usePresenter` composable for main process communication:
+
+```typescript
+import { usePresenter } from '@/composables/usePresenter'
+
+const presenter = usePresenter()
+
+// Call main process methods
+await presenter.agentPresenter.sendMessage(agentId, content)
+const conversations = await presenter.sessionPresenter.listConversations()
+```
+
+### Event Handling
+
+Component events for main process communication:
+
+```typescript
+import { rendererEvents } from '@/events'
+
+// Subscribe to events
+rendererEvents.on('conversation:list_updated', (conversations) => {
+  updateConversationList(conversations)
+})
+
+// Cleanup
+onUnmounted(() => {
+  rendererEvents.off('conversation:list_updated')
+})
+```
+
+## Key Files Reference
+
+- Components: `src/renderer/src/components/`
+- Composables: `src/renderer/src/composables/`
+- Stores: `src/renderer/src/stores/`
+- Router: `src/renderer/src/router/`
+- i18n: `src/renderer/src/i18n/`
+- Shadcn components: `shadcn/components/ui/`

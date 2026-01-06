@@ -6,6 +6,7 @@ import fs from 'fs'
 import path from 'path'
 import { app } from 'electron'
 import logger from '@shared/logger'
+import { presenter } from '@/presenter'
 import { AgentFileSystemHandler } from './agentFileSystemHandler'
 import { AgentBashHandler } from './agentBashHandler'
 
@@ -155,11 +156,6 @@ export class AgentToolManager {
         .max(600000)
         .optional()
         .describe('Optional timeout in milliseconds'),
-      workdir: z
-        .string()
-        .min(1)
-        .optional()
-        .describe('Working directory (defaults to workspace root); prefer this over using cd'),
       description: z.string().min(5).max(100).describe('Brief description of what the command does')
     })
   }
@@ -253,6 +249,35 @@ export class AgentToolManager {
     }
 
     throw new Error(`Unknown Agent tool: ${toolName}`)
+  }
+
+  private async getWorkdirForConversation(conversationId: string): Promise<string | null> {
+    try {
+      const session = await presenter?.sessionManager?.getSession(conversationId)
+      if (!session?.resolved) {
+        return null
+      }
+
+      const resolved = session.resolved
+
+      if (resolved.chatMode === 'acp agent') {
+        const modelId = resolved.modelId
+        const map = resolved.acpWorkdirMap
+        return modelId && map ? (map[modelId] ?? null) : null
+      }
+
+      if (resolved.chatMode === 'agent') {
+        return resolved.agentWorkspacePath ?? null
+      }
+
+      return null
+    } catch (error) {
+      logger.warn('[AgentToolManager] Failed to get workdir for conversation:', {
+        conversationId,
+        error
+      })
+      return null
+    }
   }
 
   private getFileSystemToolDefinitions(): MCPToolDefinition[] {
@@ -508,31 +533,46 @@ export class AgentToolManager {
     }
 
     const parsedArgs = validationResult.data
+    let dynamicWorkdir: string | null = null
+    if (conversationId) {
+      try {
+        dynamicWorkdir = await this.getWorkdirForConversation(conversationId)
+      } catch (error) {
+        logger.warn('[AgentToolManager] Failed to get workdir for conversation:', {
+          conversationId,
+          error
+        })
+      }
+    }
+
+    const baseDirectory = dynamicWorkdir ?? undefined
 
     try {
       switch (toolName) {
         case 'read_file':
-          return { content: await this.fileSystemHandler.readFile(parsedArgs) }
+          return { content: await this.fileSystemHandler.readFile(parsedArgs, baseDirectory) }
         case 'write_file':
-          return { content: await this.fileSystemHandler.writeFile(parsedArgs) }
+          return { content: await this.fileSystemHandler.writeFile(parsedArgs, baseDirectory) }
         case 'list_directory':
-          return { content: await this.fileSystemHandler.listDirectory(parsedArgs) }
+          return { content: await this.fileSystemHandler.listDirectory(parsedArgs, baseDirectory) }
         case 'create_directory':
-          return { content: await this.fileSystemHandler.createDirectory(parsedArgs) }
+          return {
+            content: await this.fileSystemHandler.createDirectory(parsedArgs, baseDirectory)
+          }
         case 'move_files':
-          return { content: await this.fileSystemHandler.moveFiles(parsedArgs) }
+          return { content: await this.fileSystemHandler.moveFiles(parsedArgs, baseDirectory) }
         case 'edit_text':
-          return { content: await this.fileSystemHandler.editText(parsedArgs) }
+          return { content: await this.fileSystemHandler.editText(parsedArgs, baseDirectory) }
         case 'glob_search':
-          return { content: await this.fileSystemHandler.globSearch(parsedArgs) }
+          return { content: await this.fileSystemHandler.globSearch(parsedArgs, baseDirectory) }
         case 'directory_tree':
-          return { content: await this.fileSystemHandler.directoryTree(parsedArgs) }
+          return { content: await this.fileSystemHandler.directoryTree(parsedArgs, baseDirectory) }
         case 'get_file_info':
-          return { content: await this.fileSystemHandler.getFileInfo(parsedArgs) }
+          return { content: await this.fileSystemHandler.getFileInfo(parsedArgs, baseDirectory) }
         case 'grep_search':
-          return { content: await this.fileSystemHandler.grepSearch(parsedArgs) }
+          return { content: await this.fileSystemHandler.grepSearch(parsedArgs, baseDirectory) }
         case 'text_replace':
-          return { content: await this.fileSystemHandler.textReplace(parsedArgs) }
+          return { content: await this.fileSystemHandler.textReplace(parsedArgs, baseDirectory) }
         case 'execute_command':
           if (!this.bashHandler) {
             throw new Error('Bash handler not initialized for execute_command tool')

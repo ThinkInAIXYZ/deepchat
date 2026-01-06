@@ -164,11 +164,11 @@ export class AgentFileSystemHandler {
     return filepath
   }
 
-  private async validatePath(requestedPath: string): Promise<string> {
+  private async validatePath(requestedPath: string, baseDirectory?: string): Promise<string> {
     const expandedPath = this.expandHome(requestedPath)
     const absolute = path.isAbsolute(expandedPath)
       ? path.resolve(expandedPath)
-      : path.resolve(process.cwd(), expandedPath)
+      : path.resolve(baseDirectory ?? this.allowedDirectories[0], expandedPath)
     const normalizedRequested = this.normalizePath(absolute)
     const isAllowed = this.isPathAllowed(normalizedRequested)
     if (!isAllowed) {
@@ -631,7 +631,7 @@ export class AgentFileSystemHandler {
     }
   }
 
-  async readFile(args: unknown): Promise<string> {
+  async readFile(args: unknown, baseDirectory?: string): Promise<string> {
     const parsed = ReadFileArgsSchema.safeParse(args)
     if (!parsed.success) {
       throw new Error(`Invalid arguments: ${parsed.error}`)
@@ -639,7 +639,7 @@ export class AgentFileSystemHandler {
     const results = await Promise.all(
       parsed.data.paths.map(async (filePath: string) => {
         try {
-          const validPath = await this.validatePath(filePath)
+          const validPath = await this.validatePath(filePath, baseDirectory)
           const content = await fs.readFile(validPath, 'utf-8')
           return `${filePath}:\n${content}\n`
         } catch (error) {
@@ -651,22 +651,22 @@ export class AgentFileSystemHandler {
     return results.join('\n---\n')
   }
 
-  async writeFile(args: unknown): Promise<string> {
+  async writeFile(args: unknown, baseDirectory?: string): Promise<string> {
     const parsed = WriteFileArgsSchema.safeParse(args)
     if (!parsed.success) {
       throw new Error(`Invalid arguments: ${parsed.error}`)
     }
-    const validPath = await this.validatePath(parsed.data.path)
+    const validPath = await this.validatePath(parsed.data.path, baseDirectory)
     await fs.writeFile(validPath, parsed.data.content, 'utf-8')
     return `Successfully wrote to ${parsed.data.path}`
   }
 
-  async listDirectory(args: unknown): Promise<string> {
+  async listDirectory(args: unknown, baseDirectory?: string): Promise<string> {
     const parsed = ListDirectoryArgsSchema.safeParse(args)
     if (!parsed.success) {
       throw new Error(`Invalid arguments: ${parsed.error}`)
     }
-    const validPath = await this.validatePath(parsed.data.path)
+    const validPath = await this.validatePath(parsed.data.path, baseDirectory)
     const entries = await fs.readdir(validPath, { withFileTypes: true })
     const formatted = entries
       .map((entry) => {
@@ -677,26 +677,27 @@ export class AgentFileSystemHandler {
     return `Directory listing for ${parsed.data.path}:\n\n${formatted}`
   }
 
-  async createDirectory(args: unknown): Promise<string> {
+  async createDirectory(args: unknown, baseDirectory?: string): Promise<string> {
     const parsed = CreateDirectoryArgsSchema.safeParse(args)
     if (!parsed.success) {
       throw new Error(`Invalid arguments: ${parsed.error}`)
     }
-    const validPath = await this.validatePath(parsed.data.path)
+    const validPath = await this.validatePath(parsed.data.path, baseDirectory)
     await fs.mkdir(validPath, { recursive: true })
     return `Successfully created directory ${parsed.data.path}`
   }
 
-  async moveFiles(args: unknown): Promise<string> {
+  async moveFiles(args: unknown, baseDirectory?: string): Promise<string> {
     const parsed = MoveFilesArgsSchema.safeParse(args)
     if (!parsed.success) {
       throw new Error(`Invalid arguments: ${parsed.error}`)
     }
     const results = await Promise.all(
       parsed.data.sources.map(async (source) => {
-        const validSourcePath = await this.validatePath(source)
+        const validSourcePath = await this.validatePath(source, baseDirectory)
         const validDestPath = await this.validatePath(
-          path.join(parsed.data.destination, path.basename(source))
+          path.join(parsed.data.destination, path.basename(source)),
+          baseDirectory
         )
         try {
           await fs.rename(validSourcePath, validDestPath)
@@ -709,12 +710,12 @@ export class AgentFileSystemHandler {
     return results.join('\n')
   }
 
-  async editText(args: unknown): Promise<string> {
+  async editText(args: unknown, baseDirectory?: string): Promise<string> {
     const parsed = EditTextArgsSchema.safeParse(args)
     if (!parsed.success) {
       throw new Error(`Invalid arguments: ${parsed.error}`)
     }
-    const validPath = await this.validatePath(parsed.data.path)
+    const validPath = await this.validatePath(parsed.data.path, baseDirectory)
     const content = await fs.readFile(validPath, 'utf-8')
     let modifiedContent = content
 
@@ -747,13 +748,13 @@ export class AgentFileSystemHandler {
     return diff
   }
 
-  async grepSearch(args: unknown): Promise<string> {
+  async grepSearch(args: unknown, baseDirectory?: string): Promise<string> {
     const parsed = GrepSearchArgsSchema.safeParse(args)
     if (!parsed.success) {
       throw new Error(`Invalid arguments: ${parsed.error}`)
     }
 
-    const validPath = await this.validatePath(parsed.data.path)
+    const validPath = await this.validatePath(parsed.data.path, baseDirectory)
     const result = await this.runGrepSearch(validPath, parsed.data.pattern, {
       filePattern: parsed.data.filePattern,
       recursive: parsed.data.recursive,
@@ -791,13 +792,13 @@ export class AgentFileSystemHandler {
     return `Found ${result.totalMatches} matches in ${result.files.length} files:\n\n${formattedResults}`
   }
 
-  async textReplace(args: unknown): Promise<string> {
+  async textReplace(args: unknown, baseDirectory?: string): Promise<string> {
     const parsed = TextReplaceArgsSchema.safeParse(args)
     if (!parsed.success) {
       throw new Error(`Invalid arguments: ${parsed.error}`)
     }
 
-    const validPath = await this.validatePath(parsed.data.path)
+    const validPath = await this.validatePath(parsed.data.path, baseDirectory)
     const result = await this.replaceTextInFile(
       validPath,
       parsed.data.pattern,
@@ -812,14 +813,14 @@ export class AgentFileSystemHandler {
     return result.success ? result.diff || '' : result.error || 'Text replacement failed'
   }
 
-  async directoryTree(args: unknown): Promise<string> {
+  async directoryTree(args: unknown, baseDirectory?: string): Promise<string> {
     const parsed = DirectoryTreeArgsSchema.safeParse(args)
     if (!parsed.success) {
       throw new Error(`Invalid arguments: ${parsed.error}`)
     }
 
     const buildTree = async (currentPath: string): Promise<TreeEntry[]> => {
-      const validPath = await this.validatePath(currentPath)
+      const validPath = await this.validatePath(currentPath, baseDirectory)
       const entries = await fs.readdir(validPath, { withFileTypes: true })
       const result: TreeEntry[] = []
 
@@ -844,20 +845,20 @@ export class AgentFileSystemHandler {
     return JSON.stringify(treeData, null, 2)
   }
 
-  async getFileInfo(args: unknown): Promise<string> {
+  async getFileInfo(args: unknown, baseDirectory?: string): Promise<string> {
     const parsed = GetFileInfoArgsSchema.safeParse(args)
     if (!parsed.success) {
       throw new Error(`Invalid arguments: ${parsed.error}`)
     }
 
-    const validPath = await this.validatePath(parsed.data.path)
+    const validPath = await this.validatePath(parsed.data.path, baseDirectory)
     const info = await this.getFileStats(validPath)
     return Object.entries(info)
       .map(([key, value]) => `${key}: ${value}`)
       .join('\n')
   }
 
-  async globSearch(args: unknown): Promise<string> {
+  async globSearch(args: unknown, baseDirectory?: string): Promise<string> {
     const parsed = GlobSearchArgsSchema.safeParse(args)
     if (!parsed.success) {
       throw new Error(`Invalid arguments: ${parsed.error}`)
@@ -867,7 +868,9 @@ export class AgentFileSystemHandler {
     validateGlobPattern(pattern)
 
     // Determine root directory
-    const searchRoot = root ? await this.validatePath(root) : this.allowedDirectories[0]
+    const searchRoot = root
+      ? await this.validatePath(root, baseDirectory)
+      : await this.validatePath(baseDirectory ?? this.allowedDirectories[0])
 
     // Default exclusions
     const defaultExclusions = [
