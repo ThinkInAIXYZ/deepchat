@@ -83,6 +83,10 @@ export class WindowPresenter implements IWindowPresenter {
 
         const parentWindow = BrowserWindow.fromWebContents(event.sender)
         if (!parentWindow || parentWindow.isDestroyed()) return
+        // On macOS fullscreen, suppress tooltip overlay to keep system traffic lights reachable
+        if (process.platform === 'darwin' && parentWindow.isFullScreen()) {
+          return
+        }
 
         const overlay = this.getOrCreateTooltipOverlay(parentWindow)
         if (!overlay) return
@@ -858,6 +862,8 @@ export class WindowPresenter implements IWindowPresenter {
     // 窗口进入全屏
     shellWindow.on('enter-full-screen', () => {
       console.log(`Window ${windowId} entered fullscreen.`)
+      // Destroy tooltip overlay while fullscreen so it never blocks system traffic lights
+      this.destroyTooltipOverlay(windowId)
       if (!shellWindow.isDestroyed()) {
         shellWindow.webContents.send(WINDOW_EVENTS.WINDOW_ENTER_FULL_SCREEN)
         eventBus.sendToMain(WINDOW_EVENTS.WINDOW_ENTER_FULL_SCREEN, windowId)
@@ -874,6 +880,8 @@ export class WindowPresenter implements IWindowPresenter {
     // 窗口退出全屏
     shellWindow.on('leave-full-screen', () => {
       console.log(`Window ${windowId} left fullscreen.`)
+      // Recreate tooltip overlay after exiting fullscreen for normal behavior
+      this.getOrCreateTooltipOverlay(shellWindow)
       if (!shellWindow.isDestroyed()) {
         shellWindow.webContents.send(WINDOW_EVENTS.WINDOW_LEAVE_FULL_SCREEN)
         eventBus.sendToMain(WINDOW_EVENTS.WINDOW_LEAVE_FULL_SCREEN, windowId)
@@ -994,7 +1002,10 @@ export class WindowPresenter implements IWindowPresenter {
     shellWindow.webContents.once('did-finish-load', () => {
       if (shellWindow.isDestroyed()) return
       shellWindow.webContents.send('shell-window:type', windowType)
-      this.getOrCreateTooltipOverlay(shellWindow)
+      // Avoid pre-creating overlay if window already in fullscreen on macOS
+      if (!(process.platform === 'darwin' && shellWindow.isFullScreen())) {
+        this.getOrCreateTooltipOverlay(shellWindow)
+      }
     })
 
     // --- 处理初始标签页创建或激活 ---
@@ -1067,6 +1078,8 @@ export class WindowPresenter implements IWindowPresenter {
 
   private getOrCreateTooltipOverlay(parentWindow: BrowserWindow): BrowserWindow | null {
     if (parentWindow.isDestroyed()) return null
+    // Do not create overlay on macOS fullscreen; it hides traffic lights
+    if (process.platform === 'darwin' && parentWindow.isFullScreen()) return null
 
     const existing = this.tooltipOverlayWindows.get(parentWindow.id)
     if (existing && !existing.isDestroyed()) {
@@ -1104,7 +1117,8 @@ export class WindowPresenter implements IWindowPresenter {
 
     if (process.platform === 'darwin') {
       overlay.setHiddenInMissionControl(true)
-      overlay.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
+      // Keep overlay off fullscreen spaces to avoid covering macOS traffic lights
+      overlay.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: false })
     }
 
     overlay.setIgnoreMouseEvents(true, { forward: true })
