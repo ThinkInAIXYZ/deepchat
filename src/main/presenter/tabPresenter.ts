@@ -696,17 +696,20 @@ export class TabPresenter implements ITabPresenter {
     webContents.on('did-navigate', (_event, url) => {
       const state = this.tabState.get(tabId)
       if (state) {
-        state.url = url
-        // 如果没有标题，使用URL作为标题
-        if (!state.title || state.title === 'Untitled') {
-          state.title = url
-          const window = BrowserWindow.fromId(windowId)
-          if (window && !window.isDestroyed()) {
-            window.webContents.send(TAB_EVENTS.TITLE_UPDATED, {
-              tabId,
-              title: state.title,
-              windowId
-            })
+        const isLocalTab = state.url?.startsWith('local://')
+        if (!isLocalTab) {
+          state.url = url
+          // 如果没有标题，使用URL作为标题
+          if (!state.title || state.title === 'Untitled') {
+            state.title = url
+            const window = BrowserWindow.fromId(windowId)
+            if (window && !window.isDestroyed()) {
+              window.webContents.send(TAB_EVENTS.TITLE_UPDATED, {
+                tabId,
+                title: state.title,
+                windowId
+              })
+            }
           }
           this.notifyWindowTabsUpdate(windowId).catch(console.error) // Call async function, handle potential rejection
         }
@@ -911,7 +914,6 @@ export class TabPresenter implements ITabPresenter {
     const sourceWindowType = this.getWindowType(originalWindowId)
     const newWindowOptions: Record<string, any> = {
       forMovedTab: true,
-      activateTabId: tabId, // Pass the tabId to the new window presenter to activate it
       windowType: sourceWindowType
     }
     if (screenX !== undefined && screenY !== undefined) {

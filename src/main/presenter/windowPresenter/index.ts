@@ -1029,8 +1029,9 @@ export class WindowPresenter implements IWindowPresenter {
     }
 
     // 如果提供了 activateTabId，表示一个现有标签页 (WebContentsView) 将被 TabPresenter 关联到此新窗口
+    // 拖拽分离的场景在 attachTab 内激活，这里跳过以避免重复激活
     // 激活逻辑 (设置可见性、bounds) 在 tabPresenter.attachTab / switchTab 中处理
-    if (options?.activateTabId !== undefined) {
+    if (options?.activateTabId !== undefined && !options?.forMovedTab) {
       // 等待窗口加载完成，然后尝试激活指定标签页
       shellWindow.webContents.once('did-finish-load', async () => {
         console.log(
