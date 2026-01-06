@@ -1102,11 +1102,6 @@ export class WindowPresenter implements IWindowPresenter {
       }
     })
 
-    if (process.platform === 'darwin') {
-      overlay.setHiddenInMissionControl(true)
-      overlay.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
-    }
-
     overlay.setIgnoreMouseEvents(true, { forward: true })
 
     const syncOnMoved = () => {
