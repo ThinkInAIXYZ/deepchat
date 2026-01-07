@@ -1,12 +1,7 @@
-export function enhanceSystemPromptWithDateTime(
-  systemPrompt: string,
-  isImageGeneration: boolean = false
-): string {
-  if (isImageGeneration || !systemPrompt || !systemPrompt.trim()) {
-    return systemPrompt
-  }
+type PlatformName = 'macOS' | 'Windows' | 'Linux' | 'Unknown'
 
-  const currentDateTime = new Date().toLocaleString('en-US', {
+function formatCurrentDateTime(): string {
+  return new Date().toLocaleString('en-US', {
     year: 'numeric',
     month: 'long',
     day: 'numeric',
@@ -16,6 +11,51 @@ export function enhanceSystemPromptWithDateTime(
     timeZoneName: 'short',
     hour12: false
   })
+}
 
-  return `${systemPrompt}\nToday is ${currentDateTime}`
+function formatPlatformName(platform: NodeJS.Platform): PlatformName {
+  if (platform === 'darwin') return 'macOS'
+  if (platform === 'win32') return 'Windows'
+  if (platform === 'linux') return 'Linux'
+  return 'Unknown'
+}
+
+interface EnhanceOptions {
+  isImageGeneration?: boolean
+  isAgentMode?: boolean
+  agentWorkspacePath?: string | null
+  platform?: NodeJS.Platform
+}
+
+export function enhanceSystemPromptWithDateTime(
+  systemPrompt: string,
+  options: EnhanceOptions = {}
+): string {
+  const {
+    isImageGeneration = false,
+    isAgentMode = false,
+    agentWorkspacePath,
+    platform = process.platform
+  } = options
+
+  if (isImageGeneration) return systemPrompt
+
+  const trimmedPrompt = systemPrompt?.trim() ?? ''
+
+  const runtimeLines: string[] = [`## Runtime Context - Today is ${formatCurrentDateTime()}`]
+  const platformName = formatPlatformName(platform)
+  if (platformName !== 'Unknown') {
+    runtimeLines.push(`- You are running on ${platformName}`)
+  }
+
+  const normalizedWorkspace = agentWorkspacePath?.trim()
+  if (isAgentMode && normalizedWorkspace) {
+    runtimeLines.push(
+      `- Current working directory: ${normalizedWorkspace} (All file operations and shell commands will be executed relative to this directory)`
+    )
+  }
+
+  const runtimeBlock = runtimeLines.join('\n')
+
+  return trimmedPrompt ? `${trimmedPrompt}\n${runtimeBlock}` : runtimeBlock
 }

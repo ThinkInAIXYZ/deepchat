@@ -6,11 +6,11 @@ import { CONVERSATION, ModelConfig, SearchResult, ChatMessage } from '@shared/pr
 import type { MCPToolDefinition } from '@shared/presenter'
 
 import { ContentEnricher } from '../../content/contentEnricher'
-import { BrowserContextBuilder } from '../../browser/BrowserContextBuilder'
 import { modelCapabilities } from '../../configPresenter/modelCapabilities'
 import { enhanceSystemPromptWithDateTime } from '../utility/promptEnhancer'
 import { ToolCallCenter } from '../tool/toolCallCenter'
 import { nanoid } from 'nanoid'
+
 import {
   addContextMessages,
   buildUserMessageContext,
@@ -89,16 +89,12 @@ export async function preparePromptContent({
       ? '\n\n' + ContentEnricher.enrichUserMessageWithUrlContent(userContent, urlResults)
       : ''
 
-  const finalSystemPrompt = enhanceSystemPromptWithDateTime(systemPrompt, isImageGeneration)
-  const agentWorkspacePath = conversation.settings.agentWorkspacePath?.trim() || null
-  const finalSystemPromptWithWorkspace =
-    isAgentMode && agentWorkspacePath
-      ? finalSystemPrompt
-        ? `${finalSystemPrompt}\n\nCurrent working directory: ${agentWorkspacePath}`
-        : `Current working directory: ${agentWorkspacePath}`
-      : finalSystemPrompt
+  const finalSystemPrompt = enhanceSystemPromptWithDateTime(systemPrompt, {
+    isImageGeneration,
+    isAgentMode,
+    agentWorkspacePath: conversation.settings.agentWorkspacePath?.trim() || null
+  })
 
-  let browserContextPrompt = ''
   const { providerId, modelId } = conversation.settings
   const supportsVision = modelCapabilities.supportsVision(providerId, modelId)
   let toolDefinitions: MCPToolDefinition[] = []
@@ -110,7 +106,7 @@ export async function preparePromptContent({
         enabledMcpTools,
         chatMode,
         supportsVision,
-        agentWorkspacePath
+        agentWorkspacePath: conversation.settings.agentWorkspacePath?.trim() || null
       })
     } catch (error) {
       console.warn('AgentPresenter: Failed to load tool definitions', error)
@@ -118,28 +114,8 @@ export async function preparePromptContent({
     }
   }
 
-  if (!isImageGeneration && isAgentMode) {
-    try {
-      const browserContext = await presenter.yoBrowserPresenter.getBrowserContext()
-      browserContextPrompt = BrowserContextBuilder.buildSystemPrompt(
-        browserContext.tabs,
-        browserContext.activeTabId
-      )
-    } catch (error) {
-      console.warn('AgentPresenter: Failed to load Yo Browser context/tools', error)
-    }
-  }
-
-  const finalSystemPromptWithBrowser = browserContextPrompt
-    ? finalSystemPromptWithWorkspace
-      ? `${finalSystemPromptWithWorkspace}\n${browserContextPrompt}`
-      : browserContextPrompt
-    : finalSystemPromptWithWorkspace
-
   const systemPromptTokens =
-    !isImageGeneration && finalSystemPromptWithBrowser
-      ? approximateTokenSize(finalSystemPromptWithBrowser)
-      : 0
+    !isImageGeneration && finalSystemPrompt ? approximateTokenSize(finalSystemPrompt) : 0
   const userMessageTokens = approximateTokenSize(userContent + enrichedUserMessage)
   const toolDefinitionsTokens = toolDefinitions.reduce((acc, tool) => {
     return acc + approximateTokenSize(JSON.stringify(tool))
@@ -158,7 +134,7 @@ export async function preparePromptContent({
 
   const formattedMessages = formatMessagesForCompletion(
     selectedContextMessages,
-    isImageGeneration ? '' : finalSystemPromptWithBrowser,
+    isImageGeneration ? '' : finalSystemPrompt,
     artifacts,
     userContent,
     enrichedUserMessage,
@@ -214,7 +190,7 @@ export async function buildContinueToolCallContext({
   const formattedMessages: ChatMessage[] = []
 
   if (systemPrompt) {
-    const finalSystemPrompt = enhanceSystemPromptWithDateTime(systemPrompt)
+    const finalSystemPrompt = enhanceSystemPromptWithDateTime(systemPrompt, {})
     formattedMessages.push({
       role: 'system',
       content: finalSystemPrompt
@@ -248,7 +224,7 @@ export async function buildPostToolExecutionContext({
   const supportsFunctionCall = Boolean(modelConfig?.functionCall)
 
   if (systemPrompt) {
-    const finalSystemPrompt = enhanceSystemPromptWithDateTime(systemPrompt)
+    const finalSystemPrompt = enhanceSystemPromptWithDateTime(systemPrompt, {})
     formattedMessages.push({
       role: 'system',
       content: finalSystemPrompt
