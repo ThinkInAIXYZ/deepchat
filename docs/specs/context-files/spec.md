@@ -75,7 +75,7 @@ ContextRef 是模型侧唯一需要“记住”的对象，用于按需读取文
 
 输入：
 - `id: string`
-- `offset: number`（字节或字符偏移，需在实现中明确；建议“字节”）
+- `offset: number`（字节偏移，UTF-8）
 - `limit: number`（默认 8192，最大可配置）
 
 输出：
@@ -112,7 +112,7 @@ ContextRef 是模型侧唯一需要“记住”的对象，用于按需读取文
 - `matches: Array<{ line: number; content: string; before?: string[]; after?: string[] }>`
 
 #### 实现建议：优先使用 ripgrep
-- 若运行环境可用 ripgrep（项目已有 runtime 方案），`context.grep` 应优先走 ripgrep，以获得更好的性能与一致的 grep 语义；失败时再回退到 JS 扫描。
+- 若运行环境可用 ripgrep（项目已有 runtime 方案），`context.grep` 应优先走 ripgrep，以获得更好的性能与一致的 grep 语义；不可用时使用 JS 扫描。
 - pattern 必须做 ReDoS 安全校验（与 `AgentFileSystemHandler` 一致的思路），并限制 `maxResults` 与超时。
 
 ## 物化策略（Eager vs Lazy）与清理
@@ -121,14 +121,16 @@ ContextRef 是模型侧唯一需要“记住”的对象，用于按需读取文
 ### Eager（创建即写文件）
 - 适用：原始大输出本身就是“源数据”（例如 tool/terminal 的完整输出在裁切后不再保留于上下文）。
 - 行为：创建 `ContextRef` 时立即写入文件，保证随时可 `tail/grep/read`，并在 export/import 中打包。
+- 保留：默认不自动删除（与 DB 一样长期保留）。
 
 ### Lazy（按需生成文件，作为可再生缓存）
 - 适用：源数据已经可靠存在于本地存储（例如 SQLite 对话消息、可重建的索引/目录）。
 - 行为：创建 `ContextRef` 时只记录必要元信息（例如 `hint`、来源 message/tool ids），不立即写文件；当首次调用 `context.read/tail/grep` 时再从源数据生成文件后执行读取/grep。
-- 清理：这类文件可按 LRU/TTL 自动清理；再次访问时可重新生成。
+- 清理：这类文件允许按 LRU 自动清理（作为可再生缓存）；再次访问时可重新生成。
 
 约束：
 - 不管 eager/lazy，模型侧交互仍只使用 `ContextRef.id` + `context.*` API，不暴露真实路径与复杂存储细节。
+- lazy ref 的“可重建元信息”必须被系统持久化（可在 `manifest.json` 或 SQLite 中存储），确保清理后仍可重建。
 
 ## Truncate 与分页策略
 - 所有“写入对话上下文”的内容都必须有 `maxInlineBytes/maxInlineChars` 阈值。
@@ -139,7 +141,7 @@ ContextRef 是模型侧唯一需要“记住”的对象，用于按需读取文
 Context files 属于“会话运行时衍生数据”，但对排障与可回溯非常关键，应纳入备份导入。
 
 最低要求：
-- Export 时按 `conversationId` 打包：`context/<conversationId>/**`
+- Export 时按 `conversationId` 打包：`context/<conversationId>/**`（eager artifacts 必须包含；lazy cache 文件可缺省并在导入后重建）
 - Import 时恢复到 `<userData>/context/<conversationId>/**`
 - 若存在 `manifest.json`，需要随同导入；否则允许按目录结构重建索引（可选）。
 
@@ -148,7 +150,7 @@ Context files 属于“会话运行时衍生数据”，但对排障与可回溯
 - 不允许通过 `id` 间接访问任意磁盘路径（防止路径穿越）。
 - `context.grep` 的 pattern 需要做 ReDoS 安全校验（复用现有 validator 思路）。
 
-## [NEEDS CLARIFICATION]
-- `context.read` 的 offset 语义：字节 vs 字符（建议字节 + UTF-8，跨平台一致性需要定义好）。
-- Context 的默认保留策略（按会话删除/按大小 LRU/上限默认值）。
-- 是否需要默认脱敏（建议最小化：只对明显 key/token 进行 regex redact；其余由用户选择“敏感模式”）。
+## Decisions（Resolved）
+- `context.read.offset`：字节偏移（UTF-8）。
+- 保留策略：默认不自动删除（与 DB 一样长期保留）；仅对 lazy cache 文件做 LRU 清理。
+- 脱敏：不做默认脱敏（纯本地；Context Store 不应主动引入敏感信息）。

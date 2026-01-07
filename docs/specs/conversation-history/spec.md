@@ -49,7 +49,7 @@
 ### Lazy（默认推荐）
 - 创建 placeholder 时只创建 `ContextRef(history)`（逻辑 ref），记录 messageId 范围/时间戳等元信息，不立即写 markdown 文件。
 - 当模型首次 `context.read/tail/grep` 访问该 ref 时，从 SQLite 导出该段历史生成 markdown 文件，再执行读取/grep。
-- 清理：可按 LRU/TTL 清理生成的 markdown；再次访问可重新生成。
+- 清理：可按 LRU 清理生成的 markdown（作为可再生缓存）；再次访问可重新生成。
 
 ### Eager（可选）
 - 在裁切当下立即生成 markdown 文件并写入 `history/archive/`。
@@ -86,4 +86,4 @@
 
 ## 安全与隐私
 - 历史归档属于用户对话数据，应纳入 export/import。
-- 若启用敏感模式，可对归档内容做最小化脱敏（同 Context Files 策略）。
+- 不做默认脱敏（纯本地；归档内容来自用户/工具原始数据）。

@@ -54,4 +54,3 @@
 
 ## 6) Rollout
 - 默认关闭；灰度打开（dev mode 先）
-- 如出现兼容问题：提供全局开关强制 traditional

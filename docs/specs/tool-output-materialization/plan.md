@@ -34,7 +34,7 @@
 ## 5) 测试
 - Unit：
   - 超阈值时生成 artifacts + ContextRef
-  - snippet 生成与边界（空输出/超长单行/二进制兜底）
+  - snippet 生成与边界（空输出/超长单行/二进制内容处理）
 - Integration：
   - native function-call：tool message 体积显著下降
   - legacy：`<function_call>` 中 response 不包含完整原始数据

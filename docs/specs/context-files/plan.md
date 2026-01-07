@@ -9,11 +9,13 @@
 
 ## 1) 设计确认（先做）
 - 定稿 `ContextRef` 字段与 `kind` 枚举（artifact/history/catalog）。
-- 定稿 `context.read` offset 语义（建议：字节偏移 + UTF-8；输出为 string）。
+- 定稿 `context.read` offset 语义：字节偏移（UTF-8；输出为 string）。
 - 定稿默认阈值：
   - `read.limit` 默认 8KB（可配置，上限例如 64KB）
   - `tail.lines` 默认 200（可配置，上限例如 2000）
-- 定稿保留策略与上限（建议：按会话目录 + 全局上限 + LRU 清理）。
+- 定稿保留策略：
+  - eager artifacts 默认不自动删除（与 DB 一样长期保留）
+  - lazy cache 文件允许按 LRU 清理（可重建）
 
 ## 2) Context Store 管理器（main 侧）
 - 生成 `contextRoot` 与 `conversationContextRoot(conversationId)` 的路径管理。
@@ -30,7 +32,7 @@
 ## 3) Context Tool（推荐独立 server）
 - 以最小 API 暴露：`context.list/read/tail/grep`
 - 所有操作都隐式绑定 `conversationId`（避免模型拼错路径/越权）。
-- `grep` 优先复用 ripgrep runtime（若可用），失败再回退到 JS；复用既有的 regex safety 校验思路，并限制 maxResults/超时。
+- `grep` 优先复用 ripgrep runtime（若可用），不可用时使用 JS 扫描；复用既有的 regex safety 校验思路，并限制 maxResults/超时。
 - 实现上可以复用 `AgentFileSystemHandler` 的内部能力（尤其是 ripgrep + fallback 的 grep 实现），但对模型仅暴露 `context.*` 这组受限接口，且访问范围严格限制在 `<userData>/context/<conversationId>`。
 
 ## 4) Export/Import 集成
@@ -47,6 +49,6 @@
 - Integration：
   - Export/Import 后 `ContextRef` 仍可读
 
-## 6) 交付与回退
-- Feature flag：`enableContextStore`（默认 true，允许紧急回退到旧行为）。
-- 回退时仍保证：不崩溃；API 不可用时给出明确错误与提示。
+## 6) 交付
+- 按本 spec 作为唯一标准实现并接入：Context Store + `context.*` API。
+- 与 Export/Import 同步交付，保证 `ContextRef` 在导入后可读（eager artifacts）或可重建（lazy refs）。
