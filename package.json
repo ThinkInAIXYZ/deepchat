@@ -185,8 +185,8 @@
     "zod-to-json-schema": "^3.25.0"
   },
   "simple-git-hooks": {
-    "pre-commit": "pnpm lint-staged && pnpm typecheck",
-    "commit-msg": "node scripts/verify-commit.js"
+    "pre-commit": "node scripts/pre-commit.mjs",
+    "commit-msg": "node scripts/verify-commit.js \"$1\""
   },
   "lint-staged": {
     "*.js": [

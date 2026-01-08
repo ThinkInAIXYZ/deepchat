@@ -123,6 +123,7 @@ import { CONFIG_EVENTS } from '@/events'
 import { useModelStore } from '@/stores/modelStore'
 import { useUiSettingsStore } from '@/stores/uiSettingsStore'
 import { useChatMode, type ChatMode } from '@/components/chat-input/composables/useChatMode'
+import { calculateSafeDefaultMaxTokens, GLOBAL_OUTPUT_TOKEN_MAX } from '@/utils/maxOutputTokens'
 
 const configPresenter = usePresenter('configPresenter')
 const themeStore = useThemeStore()
@@ -155,8 +156,8 @@ const activeModel = ref({
 const temperature = ref(0.6)
 const contextLength = ref(16384)
 const contextLengthLimit = ref(16384)
-const maxTokens = ref(4096)
-const maxTokensLimit = ref(4096)
+const maxTokens = ref(GLOBAL_OUTPUT_TOKEN_MAX)
+const maxTokensLimit = ref(GLOBAL_OUTPUT_TOKEN_MAX)
 const systemPrompt = ref('')
 const artifacts = ref(uiSettingsStore.artifactsEffectEnabled ? 1 : 0)
 const thinkingBudget = ref<number | undefined>(undefined)
@@ -200,9 +201,20 @@ watch(
     )
     temperature.value = config.temperature ?? 0.7
     contextLength.value = config.contextLength
-    maxTokens.value = config.maxTokens
     contextLengthLimit.value = config.contextLength
     maxTokensLimit.value = config.maxTokens
+
+    const safeDefaultMaxTokens = calculateSafeDefaultMaxTokens({
+      modelMaxTokens: config.maxTokens || GLOBAL_OUTPUT_TOKEN_MAX,
+      thinkingBudget: config.thinkingBudget,
+      reasoningSupported: Boolean(config.reasoning)
+    })
+
+    maxTokens.value = safeDefaultMaxTokens
+
+    if (maxTokens.value > (config.maxTokens || GLOBAL_OUTPUT_TOKEN_MAX)) {
+      maxTokens.value = config.maxTokens || GLOBAL_OUTPUT_TOKEN_MAX
+    }
     thinkingBudget.value = config.thinkingBudget
     enableSearch.value = config.enableSearch
     forcedSearch.value = config.forcedSearch
