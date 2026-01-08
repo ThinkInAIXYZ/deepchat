@@ -11,7 +11,13 @@
       <div
         ref="inputContainer"
         :dir="langStore.dir"
-        :style="inputHeight && variant === 'chat' ? { height: `${inputHeight}px` } : {}"
+        :style="
+          variant === 'chat'
+            ? inputHeight
+              ? { height: `${inputHeight}px` }
+              : { maxHeight: '50vh' }
+            : {}
+        "
         :class="[
           'flex flex-col gap-2 relative',
           variant === 'newThread'
@@ -521,8 +527,8 @@ const handleResize = (e: MouseEvent) => {
   if (!isResizing.value) return
   const deltaY = startY.value - e.clientY
   const newHeight = startHeight.value + deltaY
-  // Min height 100px, Max height 80% of window height
-  const maxHeight = window.innerHeight * 0.8
+  // Min height 100px, Max height 50% of window height
+  const maxHeight = window.innerHeight * 0.5
   if (newHeight > 100 && newHeight < maxHeight) {
     inputHeight.value = newHeight
   }
@@ -576,8 +582,7 @@ const history = useInputHistory(null as any, t)
 const editor = new Editor({
   editorProps: {
     attributes: {
-      class:
-        'outline-none focus:outline-none focus-within:outline-none min-h-12 h-full overflow-y-auto'
+      class: 'outline-none focus:outline-none focus-within:outline-none min-h-12'
     }
   },
   autofocus: true,
