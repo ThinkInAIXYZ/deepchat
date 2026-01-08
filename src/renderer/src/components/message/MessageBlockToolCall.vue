@@ -25,9 +25,9 @@
         v-if="isExpanded"
         class="rounded-lg border bg-muted text-card-foreground px-2 py-3 mt-2 mb-4 max-w-full sm:max-w-2xl"
       >
-        <div class="space-y-4">
+        <div class="flex flex-col sm:flex-row sm:gap-4 space-y-4 sm:space-y-0">
           <!-- 参数 -->
-          <div v-if="hasParams" class="space-y-2">
+          <div v-if="hasParams" class="space-y-2 flex-1 min-w-0">
             <div class="flex items-center justify-between gap-2">
               <h5
                 class="text-xs font-medium text-accent-foreground flex flex-row gap-2 items-center"
@@ -49,10 +49,10 @@
             >
           </div>
 
-          <hr v-if="hasParams && hasResponse" />
+          <hr v-if="hasParams && hasResponse" class="sm:hidden" />
 
           <!-- 响应 -->
-          <div v-if="hasResponse" class="space-y-2">
+          <div v-if="hasResponse" class="space-y-2 flex-1 min-w-0">
             <div class="flex items-center justify-between gap-2">
               <h5
                 class="text-xs font-medium text-accent-foreground flex flex-row gap-2 items-center"
