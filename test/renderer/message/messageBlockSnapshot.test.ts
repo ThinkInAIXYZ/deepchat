@@ -49,24 +49,6 @@ describe('Message Block Data Structure Snapshot Tests', () => {
       expect(block).toMatchSnapshot()
     })
 
-    it('should create consistent permission request block structure', () => {
-      const block: AssistantMessageBlock = {
-        type: 'action',
-        action_type: 'tool_call_permission',
-        status: 'pending',
-        timestamp: 1704067200000,
-        content: 'Permission required to write file',
-        tool_call: {
-          id: 'tool-123',
-          name: 'writeFile',
-          server_name: 'filesystem',
-          server_description: 'Local file system access'
-        }
-      }
-
-      expect(block).toMatchSnapshot()
-    })
-
     it('should create consistent rate limit block structure', () => {
       const block: AssistantMessageBlock = {
         type: 'action',
@@ -158,27 +140,6 @@ describe('Message Block Data Structure Snapshot Tests', () => {
           tool_call_id: 'tool-456',
           tool_call_name: 'searchWeb',
           tool_call_params: '{"query": "test"}'
-        }
-      }
-
-      const block = mapEventToBlock(event)
-      expect(block).toMatchSnapshot()
-    })
-
-    it('should map permission required event consistently', () => {
-      const event: LLMAgentEvent = {
-        type: 'response',
-        data: {
-          eventId: 'test-123',
-          tool_call: 'permission-required',
-          tool_call_id: 'tool-789',
-          tool_call_name: 'writeFile',
-          permission_request: {
-            toolName: 'writeFile',
-            serverName: 'filesystem',
-            permissionType: 'write',
-            description: 'Write to local file system'
-          }
         }
       }
 

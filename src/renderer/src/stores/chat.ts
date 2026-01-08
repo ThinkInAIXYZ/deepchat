@@ -887,7 +887,6 @@ export const useChatStore = defineStore('chat', () => {
         else if (msg.content) {
           const lastContentBlock = curMsg.content[curMsg.content.length - 1]
           if (lastContentBlock) {
-            lastContentBlock.status = 'success'
             if (lastContentBlock.type === 'content') {
               lastContentBlock.content += msg.content
             }
@@ -907,7 +906,6 @@ export const useChatStore = defineStore('chat', () => {
         if (msg.reasoning_content) {
           const lastReasoningBlock = curMsg.content[curMsg.content.length - 1]
           if (lastReasoningBlock) {
-            lastReasoningBlock.status = 'success'
             if (lastReasoningBlock.type === 'reasoning_content') {
               lastReasoningBlock.content += msg.reasoning_content
             }
