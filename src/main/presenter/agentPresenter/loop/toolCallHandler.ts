@@ -414,7 +414,6 @@ export class ToolCallHandler {
 
     const lastBlock = state.message.content[state.message.content.length - 1]
     if (lastBlock && lastBlock.type === 'tool_call' && lastBlock.tool_call) {
-      lastBlock.status = 'success'
     }
 
     this.finalizeLastBlock(state)

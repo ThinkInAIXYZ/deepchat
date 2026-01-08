@@ -221,26 +221,6 @@ export class PermissionHandler extends BaseHandler {
           block.tool_call?.id === toolCallId
       )
 
-      if (permissionBlock) {
-        const toolCallBlockIndex = content.findIndex(
-          (block) => block.type === 'tool_call' && block.tool_call?.id === toolCallId
-        )
-        if (toolCallBlockIndex !== -1) {
-          const toolCallBlock = content[toolCallBlockIndex]
-          if (permissionBlock.status === 'granted') {
-            toolCallBlock.status = 'success'
-            if (toolCallBlock.tool_call && permissionBlock.tool_call?.response) {
-              toolCallBlock.tool_call.response = permissionBlock.tool_call.response
-            }
-          } else if (permissionBlock.status === 'denied') {
-            toolCallBlock.status = 'error'
-            if (toolCallBlock.tool_call) {
-              toolCallBlock.tool_call.response = 'Permission denied'
-            }
-          }
-        }
-      }
-
       if (permissionBlock?.extra?.serverName) {
         try {
           const servers = await this.ctx.configPresenter.getMcpServers()

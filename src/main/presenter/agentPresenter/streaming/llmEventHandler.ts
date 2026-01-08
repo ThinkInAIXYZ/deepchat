@@ -279,7 +279,9 @@ export class LLMEventHandler {
             !(block.type === 'action' && block.action_type === 'tool_call_permission') &&
             block.status === 'loading'
           ) {
-            block.status = 'success'
+            if (block.type !== 'tool_call') {
+              block.status = 'success'
+            }
           }
         })
         await this.messageManager.editMessage(eventId, JSON.stringify(state.message.content))
