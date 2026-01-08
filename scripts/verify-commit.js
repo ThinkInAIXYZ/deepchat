@@ -1,9 +1,31 @@
 // @ts-check
 import pico from 'picocolors'
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import path from 'node:path'
 
-const msgPath = path.resolve('.git/COMMIT_EDITMSG')
+const resolveMsgPath = () => {
+  const argPath = process.argv[2]
+  if (argPath && existsSync(argPath)) {
+    return argPath
+  }
+
+  const gitPath = path.resolve('.git')
+  if (existsSync(gitPath)) {
+    try {
+      const stat = readFileSync(gitPath, 'utf-8').trim()
+      if (stat.startsWith('gitdir:')) {
+        const gitDir = stat.replace('gitdir:', '').trim()
+        return path.resolve(gitDir, 'COMMIT_EDITMSG')
+      }
+    } catch {
+      // ignore and fall through
+    }
+  }
+
+  return path.resolve('.git/COMMIT_EDITMSG')
+}
+
+const msgPath = resolveMsgPath()
 const msg = readFileSync(msgPath, 'utf-8').trim()
 
 const commitRE =
