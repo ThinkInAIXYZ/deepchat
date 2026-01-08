@@ -48,12 +48,6 @@
             :message-id="currentMessage.id"
             :thread-id="currentThreadId"
           />
-          <MessageBlockPermissionRequest
-            v-else-if="block.type === 'action' && block.action_type === 'tool_call_permission'"
-            :block="block"
-            :message-id="currentMessage.id"
-            :conversation-id="currentThreadId"
-          />
           <MessageBlockAction
             v-else-if="block.type === 'action'"
             :message-id="currentMessage.id"
@@ -125,7 +119,6 @@ import MessageBlockThink from './MessageBlockThink.vue'
 import MessageBlockSearch from './MessageBlockSearch.vue'
 import MessageBlockToolCall from './MessageBlockToolCall.vue'
 import MessageBlockError from './MessageBlockError.vue'
-import MessageBlockPermissionRequest from './MessageBlockPermissionRequest.vue'
 import MessageToolbar from './MessageToolbar.vue'
 import MessageInfo from './MessageInfo.vue'
 import { useChatStore } from '@/stores/chat'

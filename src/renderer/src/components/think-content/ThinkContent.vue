@@ -47,7 +47,7 @@
 <script setup lang="ts">
 import { useThemeStore } from '@/stores/theme'
 import { Icon } from '@iconify/vue'
-import { h, computed } from 'vue'
+import { h, computed, watch } from 'vue'
 import NodeRenderer, { setCustomComponents, CodeBlockNode, PreCodeNode } from 'markstream-vue'
 
 const props = defineProps<{
@@ -68,6 +68,28 @@ defineEmits<{
 }>()
 const customId = 'thinking-content'
 const themeStore = useThemeStore()
+const propsWatchSource = () => [props.label, props.expanded, props.thinking, props.content] as const
+
+watch(
+  propsWatchSource,
+  (current, previous) => {
+    const [label, expanded, thinking, content] = current
+    const [prevLabel, prevExpanded, prevThinking, prevContent] = (previous ?? []) as typeof current
+    console.log('[ThinkContent] props change', {
+      label,
+      expanded,
+      thinking,
+      contentLength: content?.length ?? 0,
+      prev: {
+        label: prevLabel,
+        expanded: prevExpanded,
+        thinking: prevThinking,
+        contentLength: prevContent?.length ?? 0
+      }
+    })
+  },
+  { immediate: true }
+)
 setCustomComponents(customId, {
   code_block: (_props) => {
     const isMermaid = _props.node.language === 'mermaid'

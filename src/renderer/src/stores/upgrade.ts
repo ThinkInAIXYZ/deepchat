@@ -1,10 +1,11 @@
 import { usePresenter } from '@/composables/usePresenter'
 import { UPDATE_EVENTS } from '@/events'
 import { defineStore } from 'pinia'
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 
 export const useUpgradeStore = defineStore('upgrade', () => {
   const upgradeP = usePresenter('upgradePresenter')
+  const devicePresenter = usePresenter('devicePresenter')
   const hasUpdate = ref(false)
   const updateInfo = ref<{
     version: string
@@ -28,6 +29,19 @@ export const useUpgradeStore = defineStore('upgrade', () => {
   const isRestarting = ref(false)
   const updateError = ref<string | null>(null)
   const isSilent = ref(true) // 默认不弹出检查没有最新更新
+  const platform = ref<string | null>(null)
+  const isWindows = computed(() => platform.value === 'win32')
+
+  const loadDeviceInfo = async () => {
+    try {
+      const deviceInfo = await devicePresenter.getDeviceInfo()
+      platform.value = deviceInfo?.platform ?? null
+    } catch (error) {
+      console.error('Failed to load device info:', error)
+    }
+  }
+
+  void loadDeviceInfo()
   // 检查更新
   const checkUpdate = async (silent = true) => {
     isSilent.value = silent
@@ -251,6 +265,7 @@ export const useUpgradeStore = defineStore('upgrade', () => {
     isReadyToInstall,
     isRestarting,
     updateError,
-    isSilent
+    isSilent,
+    isWindows
   }
 })

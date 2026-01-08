@@ -101,9 +101,22 @@ watch(
   }
 )
 
+const statusWatchSource = () =>
+  [props.block.status, props.block.reasoning_time?.start, props.block.reasoning_time?.end] as const
+
 watch(
-  () => [props.block.status, props.block.reasoning_time?.start],
-  () => {
+  statusWatchSource,
+  (current, previous) => {
+    const [status, start, end] = current
+    const [prevStatus, prevStart, prevEnd] = (previous ?? []) as typeof current
+    console.log('[MessageBlockThink] state change', {
+      type: props.block.type,
+      status,
+      prevStatus,
+      reasoningTime: { start, end },
+      prevReasoningTime: { start: prevStart, end: prevEnd },
+      contentLength: props.block.content?.length ?? 0
+    })
     updateDisplayedSeconds()
     if (props.block.status === 'loading') {
       scheduleNextUpdate()

@@ -31,22 +31,6 @@ exports[`Message Block Data Structure Snapshot Tests > Block Structure Validatio
 }
 `;
 
-exports[`Message Block Data Structure Snapshot Tests > Block Structure Validation > should create consistent permission request block structure 1`] = `
-{
-  "action_type": "tool_call_permission",
-  "content": "Permission required to write file",
-  "status": "pending",
-  "timestamp": 1704067200000,
-  "tool_call": {
-    "id": "tool-123",
-    "name": "writeFile",
-    "server_description": "Local file system access",
-    "server_name": "filesystem",
-  },
-  "type": "action",
-}
-`;
-
 exports[`Message Block Data Structure Snapshot Tests > Block Structure Validation > should create consistent rate limit block structure 1`] = `
 {
   "action_type": "rate_limit",
@@ -95,19 +79,6 @@ exports[`Message Block Data Structure Snapshot Tests > Event-to-Block Mapping Sn
   "status": "error",
   "timestamp": 1704067200000,
   "type": "error",
-}
-`;
-
-exports[`Message Block Data Structure Snapshot Tests > Event-to-Block Mapping Snapshots > should map permission required event consistently 1`] = `
-{
-  "action_type": "tool_call_permission",
-  "status": "pending",
-  "timestamp": 1704067200000,
-  "tool_call": {
-    "id": "tool-789",
-    "name": "writeFile",
-  },
-  "type": "action",
 }
 `;
 

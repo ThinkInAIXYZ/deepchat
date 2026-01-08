@@ -28,40 +28,61 @@
         <div class="space-y-4">
           <!-- 参数 -->
           <div v-if="hasParams" class="space-y-2">
-            <h5 class="text-xs font-medium text-accent-foreground flex flex-row gap-2 items-center">
-              <Icon icon="lucide:arrow-up-from-dot" class="w-4 h-4 text-foreground" />
-              {{ t('toolCall.params') }}
-            </h5>
-            <div class="text-sm rounded-md p-2">
-              <JsonObject :data="parsedParams" />
+            <div class="flex items-center justify-between gap-2">
+              <h5
+                class="text-xs font-medium text-accent-foreground flex flex-row gap-2 items-center"
+              >
+                <Icon icon="lucide:arrow-up-from-dot" class="w-4 h-4 text-foreground" />
+                {{ t('toolCall.params') }}
+              </h5>
+              <button
+                class="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                @click="copyParams"
+              >
+                <Icon icon="lucide:copy" class="w-3 h-3 inline-block mr-1" />
+                {{ paramsCopyText }}
+              </button>
+            </div>
+            <div class="rounded-md border bg-background text-xs overflow-hidden">
+              <div ref="paramsEditor" class="min-h-[72px] max-h-64 overflow-auto"></div>
+              <pre
+                v-if="!paramsEditorReady"
+                class="p-2 whitespace-pre-wrap break-words max-h-64 overflow-auto"
+                >{{ paramsText }}</pre
+              >
             </div>
           </div>
 
-          <hr v-if="hasParams && block.tool_call?.response && !isTerminalTool" />
+          <hr v-if="hasParams && hasResponse" />
 
-          <!-- 响应 (hide for terminal tools as output is shown above) -->
-          <div v-if="block.tool_call?.response && !isTerminalTool" class="space-y-2">
-            <h5 class="text-xs font-medium text-accent-foreground flex flex-row gap-2 items-center">
-              <Icon icon="lucide:arrow-down-to-dot" class="w-4 h-4 text-foreground" />
-              {{ t('toolCall.responseData') }}
-            </h5>
-            <div class="text-sm rounded-md p-3">
-              <JsonObject :data="parseJson(block.tool_call.response)" />
+          <!-- 响应 -->
+          <div v-if="hasResponse" class="space-y-2">
+            <div class="flex items-center justify-between gap-2">
+              <h5
+                class="text-xs font-medium text-accent-foreground flex flex-row gap-2 items-center"
+              >
+                <Icon
+                  :icon="isTerminalTool ? 'lucide:terminal' : 'lucide:arrow-down-to-dot'"
+                  class="w-4 h-4 text-foreground"
+                />
+                {{ isTerminalTool ? t('toolCall.terminalOutput') : t('toolCall.responseData') }}
+              </h5>
+              <button
+                class="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                @click="copyResponse"
+              >
+                <Icon icon="lucide:copy" class="w-3 h-3 inline-block mr-1" />
+                {{ responseCopyText }}
+              </button>
             </div>
-          </div>
-
-          <hr v-if="hasParams && block.tool_call?.response && isTerminalTool" />
-
-          <!-- Terminal output (for terminal-related tool calls) -->
-          <div v-if="isTerminalTool && block.tool_call?.response" class="space-y-2">
-            <h5 class="text-xs font-medium text-accent-foreground flex items-center gap-2">
-              <Icon icon="lucide:terminal" class="w-4 h-4" />
-              {{ t('toolCall.terminalOutput') }}
-            </h5>
-            <div
-              ref="terminalContainer"
-              class="rounded-md bg-black text-white font-mono text-xs p-2 overflow-auto max-h-64"
-            />
+            <div class="rounded-md border bg-background text-xs overflow-hidden">
+              <div ref="responseEditor" class="min-h-[72px] max-h-64 overflow-auto"></div>
+              <pre
+                v-if="!responseEditorReady"
+                class="p-2 whitespace-pre-wrap break-words max-h-64 overflow-auto"
+                >{{ responseText }}</pre
+              >
+            </div>
           </div>
         </div>
       </div>
@@ -74,9 +95,9 @@ import { Icon } from '@iconify/vue'
 import { useI18n } from 'vue-i18n'
 import { AssistantMessageBlock } from '@shared/chat'
 import { computed, ref, nextTick, watch, onBeforeUnmount } from 'vue'
-import { JsonObject } from '@/components/json-viewer'
-import { Terminal } from '@xterm/xterm'
-import '@xterm/xterm/css/xterm.css'
+import { useMonaco } from 'stream-monaco'
+import { useUpgradeStore } from '@/stores/upgrade'
+import { useUiSettingsStore } from '@/stores/uiSettingsStore'
 
 const keyMap = {
   'toolCall.calling': '工具调用中',
@@ -108,6 +129,8 @@ const props = defineProps<{
 }>()
 
 const isExpanded = ref(false)
+const upgradeStore = useUpgradeStore()
+const uiSettingsStore = useUiSettingsStore()
 
 const statusVariant = computed(() => {
   if (props.block.status === 'error') return 'error'
@@ -160,114 +183,222 @@ const statusIconClass = computed(() => {
   }
 })
 
-// 解析JSON为对象；解析失败时回退原文
-const parseJson = (jsonStr: string) => {
-  if (!jsonStr) return {}
-  try {
-    const parsed = JSON.parse(jsonStr)
-    if (parsed && (typeof parsed === 'object' || Array.isArray(parsed))) {
-      return parsed
-    }
-    return { raw: parsed ?? jsonStr }
-  } catch (e) {
-    return { raw: jsonStr }
-  }
-}
-
-const parseTerminalOutput = (response: string) => {
-  if (!response) return ''
-  try {
-    const parsed = JSON.parse(response)
-    if (typeof parsed === 'string') return parsed
-    if (parsed && typeof parsed === 'object') {
-      if (typeof parsed.output === 'string') return parsed.output
-      if (typeof parsed.stdout === 'string') return parsed.stdout
-    }
-  } catch {
-    // Fallback to raw response
-  }
-  return response
-}
-
 // Terminal detection
 const isTerminalTool = computed(() => {
   const name = props.block.tool_call?.name?.toLowerCase() || ''
   const serverName = props.block.tool_call?.server_name?.toLowerCase() || ''
-  if (name == 'run_shell_command' && serverName === 'powerpack') {
+  if (name === 'run_shell_command' && serverName === 'powerpack') {
     return false
   }
   return name.includes('terminal') || name.includes('command') || name.includes('exec')
 })
 
-// Terminal rendering
-const terminalContainer = ref<HTMLElement | null>(null)
-let terminal: Terminal | null = null
+const paramsText = computed(() => props.block.tool_call?.params ?? '')
+const responseText = computed(() => props.block.tool_call?.response ?? '')
+const hasParams = computed(() => paramsText.value.trim().length > 0)
+const hasResponse = computed(() => responseText.value.trim().length > 0)
 
-const parsedParams = computed(() => parseJson(props.block.tool_call?.params ?? ''))
-const hasParams = computed(() => {
-  const data = parsedParams.value as unknown
-  if (Array.isArray(data)) return data.length > 0
-  if (data && typeof data === 'object') return Object.keys(data).length > 0
-  if (typeof data === 'string') return data.trim().length > 0
-  return false
-})
-
-const initTerminal = () => {
-  if (!terminalContainer.value || !isTerminalTool.value) return
-
-  // Clean up any existing terminal before creating a new one
-  if (terminal) {
-    try {
-      terminal.dispose()
-    } catch (error) {
-      console.warn('[MessageBlockToolCall] Failed to dispose existing terminal:', error)
-    }
-    terminal = null
-  }
-  // Clear previous terminal DOM content
-  terminalContainer.value.innerHTML = ''
-
-  terminal = new Terminal({
-    convertEol: true,
-    fontSize: 12,
-    fontFamily: 'Menlo, Monaco, "Courier New", monospace',
-    theme: {
-      background: '#000000',
-      foreground: '#ffffff'
-    },
-    cursorStyle: 'bar',
-    scrollback: 1000,
-    disableStdin: true // Read-only
-  })
-
-  terminal.open(terminalContainer.value)
-
-  // Write terminal output from response
-  const response = props.block.tool_call?.response ?? ''
-  const output = parseTerminalOutput(response)
-  if (output) {
-    terminal.write(output.replace(/\n/g, '\r\n'))
+const isValidJson = (value: string) => {
+  if (!value) return false
+  try {
+    JSON.parse(value)
+    return true
+  } catch {
+    return false
   }
 }
 
-// Watch for expanded state and initialize terminal
+const paramsLanguage = computed(() => 'json')
+const responseLanguage = computed(() => {
+  if (isTerminalTool.value) {
+    return upgradeStore.isWindows ? 'powershell' : 'shell'
+  }
+  return isValidJson(responseText.value) ? 'json' : 'plaintext'
+})
+
+const paramsEditor = ref<HTMLElement | null>(null)
+const responseEditor = ref<HTMLElement | null>(null)
+const paramsEditorReady = ref(false)
+const responseEditorReady = ref(false)
+const paramsCopyText = ref(t('common.copy'))
+const responseCopyText = ref(t('common.copy'))
+
+const {
+  createEditor: createParamsEditor,
+  updateCode: updateParamsCode,
+  cleanupEditor: cleanupParamsEditor,
+  getEditorView: getParamsEditorView
+} = useMonaco({
+  readOnly: true,
+  wordWrap: 'on',
+  wrappingIndent: 'same',
+  minimap: { enabled: false },
+  scrollBeyondLastLine: false,
+  fontFamily: uiSettingsStore.formattedCodeFontFamily,
+  fontSize: 12,
+  lineNumbers: 'off',
+  folding: false,
+  automaticLayout: true
+})
+
+const {
+  createEditor: createResponseEditor,
+  updateCode: updateResponseCode,
+  cleanupEditor: cleanupResponseEditor,
+  getEditorView: getResponseEditorView
+} = useMonaco({
+  readOnly: true,
+  wordWrap: 'on',
+  wrappingIndent: 'same',
+  minimap: { enabled: false },
+  scrollBeyondLastLine: false,
+  fontFamily: uiSettingsStore.formattedCodeFontFamily,
+  fontSize: 12,
+  lineNumbers: 'off',
+  folding: false,
+  automaticLayout: true
+})
+
+const applyEditorFont = (fontFamily: string) => {
+  const paramsView = getParamsEditorView()
+  if (paramsView) {
+    paramsView.updateOptions({ fontFamily })
+  }
+  const responseView = getResponseEditorView()
+  if (responseView) {
+    responseView.updateOptions({ fontFamily })
+  }
+}
+
+const ensureParamsEditor = async () => {
+  if (!isExpanded.value || !hasParams.value || paramsEditorReady.value || !paramsEditor.value) {
+    return
+  }
+  await nextTick()
+  if (!paramsEditor.value || paramsEditorReady.value) return
+  try {
+    createParamsEditor(paramsEditor.value, paramsText.value, paramsLanguage.value)
+    paramsEditorReady.value = true
+    applyEditorFont(uiSettingsStore.formattedCodeFontFamily)
+  } catch (error) {
+    console.error('[MessageBlockToolCall] Failed to create params editor:', error)
+  }
+}
+
+const ensureResponseEditor = async () => {
+  if (
+    !isExpanded.value ||
+    !hasResponse.value ||
+    responseEditorReady.value ||
+    !responseEditor.value
+  ) {
+    return
+  }
+  await nextTick()
+  if (!responseEditor.value || responseEditorReady.value) return
+  try {
+    createResponseEditor(responseEditor.value, responseText.value, responseLanguage.value)
+    responseEditorReady.value = true
+    applyEditorFont(uiSettingsStore.formattedCodeFontFamily)
+  } catch (error) {
+    console.error('[MessageBlockToolCall] Failed to create response editor:', error)
+  }
+}
+
+const cleanupEditors = () => {
+  if (paramsEditorReady.value) {
+    cleanupParamsEditor()
+    paramsEditorReady.value = false
+  }
+  if (responseEditorReady.value) {
+    cleanupResponseEditor()
+    responseEditorReady.value = false
+  }
+}
+
+const copyContent = async (content: string, type: 'params' | 'response') => {
+  try {
+    if (window.api?.copyText) {
+      window.api.copyText(content)
+    } else {
+      await navigator.clipboard.writeText(content)
+    }
+    if (type === 'params') {
+      paramsCopyText.value = t('common.copySuccess')
+      setTimeout(() => {
+        paramsCopyText.value = t('common.copy')
+      }, 2000)
+    } else {
+      responseCopyText.value = t('common.copySuccess')
+      setTimeout(() => {
+        responseCopyText.value = t('common.copy')
+      }, 2000)
+    }
+  } catch (error) {
+    console.error('[MessageBlockToolCall] Failed to copy text:', error)
+  }
+}
+
+const copyParams = () => {
+  void copyContent(paramsText.value, 'params')
+}
+
+const copyResponse = () => {
+  void copyContent(responseText.value, 'response')
+}
+
 watch(
-  [isExpanded, () => props.block.tool_call?.response],
-  () => {
-    if (isExpanded.value && isTerminalTool.value) {
-      nextTick(() => {
-        initTerminal()
-      })
+  isExpanded,
+  (expanded) => {
+    if (expanded) {
+      void ensureParamsEditor()
+      void ensureResponseEditor()
+    } else {
+      cleanupEditors()
     }
   },
   { immediate: true }
 )
 
-onBeforeUnmount(() => {
-  if (terminal) {
-    terminal.dispose()
-    terminal = null
+watch([hasParams, paramsText, paramsLanguage], () => {
+  if (!hasParams.value) {
+    if (paramsEditorReady.value) {
+      cleanupParamsEditor()
+      paramsEditorReady.value = false
+    }
+    return
   }
+  if (paramsEditorReady.value) {
+    updateParamsCode(paramsText.value, paramsLanguage.value)
+  } else if (isExpanded.value) {
+    void ensureParamsEditor()
+  }
+})
+
+watch([hasResponse, responseText, responseLanguage], () => {
+  if (!hasResponse.value) {
+    if (responseEditorReady.value) {
+      cleanupResponseEditor()
+      responseEditorReady.value = false
+    }
+    return
+  }
+  if (responseEditorReady.value) {
+    updateResponseCode(responseText.value, responseLanguage.value)
+  } else if (isExpanded.value) {
+    void ensureResponseEditor()
+  }
+})
+
+watch(
+  () => uiSettingsStore.formattedCodeFontFamily,
+  (font) => {
+    applyEditorFont(font)
+  }
+)
+
+onBeforeUnmount(() => {
+  cleanupEditors()
 })
 </script>
 
