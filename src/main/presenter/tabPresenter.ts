@@ -216,7 +216,10 @@ export class TabPresenter implements ITabPresenter {
       view.webContents.loadURL(url)
     }
 
-    // DevTools 不再自动打开（避免在 macOS 全屏时产生额外窗口/空间的异常体验）
+    // 开发模式下自动打开 DevTools
+    if (is.dev) {
+      view.webContents.openDevTools({ mode: 'detach' })
+    }
 
     // 存储标签信息
     const tabId = view.webContents.id

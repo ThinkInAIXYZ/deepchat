@@ -5,6 +5,12 @@ type DomInfo = {
   height: number
 }
 
+type DomInfoEntry = {
+  id: string
+  top: number
+  height: number
+}
+
 const MAX_CACHE_ENTRIES = 800
 
 const messageCache = new Map<string, Message>()
@@ -81,6 +87,14 @@ export const setMessageDomInfo = (entries: Array<{ id: string; top: number; heig
 
 export const getMessageDomInfo = (messageId: string): DomInfo | null => {
   return messageDomInfo.get(messageId) ?? null
+}
+
+export const getAllMessageDomInfo = (): DomInfoEntry[] => {
+  return Array.from(messageDomInfo.entries()).map(([id, info]) => ({
+    id,
+    top: info.top,
+    height: info.height
+  }))
 }
 
 export const clearMessageDomInfo = () => {

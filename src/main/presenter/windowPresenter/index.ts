@@ -772,6 +772,11 @@ export class WindowPresenter implements IWindowPresenter {
     const contentProtectionEnabled = this.configPresenter.getContentProtectionEnabled()
     this.updateContentProtection(shellWindow, contentProtectionEnabled)
 
+    // 开发模式下自动打开 DevTools
+    if (is.dev) {
+      shellWindow.webContents.openDevTools()
+    }
+
     // --- 窗口事件监听 ---
 
     // 窗口准备就绪时显示
@@ -1068,6 +1073,10 @@ export class WindowPresenter implements IWindowPresenter {
     }
 
     // DevTools 不再自动打开，需要手动通过菜单或快捷键打开
+    // 开发环境直接自动开启，方便排查
+    if (is.dev) {
+      shellWindow.webContents.openDevTools({ mode: 'detach' })
+    }
 
     console.log(`Shell window ${windowId} created successfully.`)
 

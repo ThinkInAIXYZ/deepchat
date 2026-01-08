@@ -24,7 +24,7 @@
             <MessageItemAssistant
               v-if="item.message?.role === 'assistant'"
               :ref="retry.setAssistantRef(index)"
-              :message="item.message as AssistantMessage"
+              :message="item.message"
               :is-capturing-image="capture.isCapturing.value"
               @copy-image="handleCopyImage"
               @variant-changed="scrollToMessage"
@@ -32,11 +32,15 @@
             />
             <MessageItemUser
               v-else-if="item.message?.role === 'user'"
-              :message="item.message as UserMessage"
+              :message="item.message"
               @retry="handleRetry(index)"
               @scroll-to-bottom="scrollToBottom"
             />
-            <MessageItemPlaceholder v-else :message-id="item.id" />
+            <MessageItemPlaceholder
+              v-else
+              :message-id="item.id"
+              :height="getPlaceholderHeight(item.id)"
+            />
           </div>
         </DynamicScrollerItem>
       </template>
@@ -61,12 +65,12 @@
       :rect="referenceStore.previewRect"
     />
     <MessageMinimap
-      v-if="loadedMessages.length > 0"
-      :messages="loadedMessages"
+      v-if="minimapMessages.length > 0"
+      :messages="minimapMessages"
       :hovered-message-id="minimap.hoveredMessageId.value"
       :scroll-info="minimap.scrollInfo"
       @bar-hover="minimap.handleHover"
-      @bar-click="minimap.handleClick"
+      @bar-click="scrollToMessage"
     />
     <TraceDialog
       :message-id="traceMessageId"
@@ -101,6 +105,7 @@ import { useMessageMinimap } from '@/composables/message/useMessageMinimap'
 import { useMessageCapture } from '@/composables/message/useMessageCapture'
 import { useMessageRetry } from '@/composables/message/useMessageRetry'
 import { DynamicScroller, DynamicScrollerItem } from 'vue-virtual-scroller'
+import { getAllMessageDomInfo, getMessageDomInfo } from '@/lib/messageRuntimeCache'
 
 // === Stores ===
 import { useChatStore } from '@/stores/chat'
@@ -145,6 +150,24 @@ const capture = useMessageCapture()
 const loadedMessages = computed(() =>
   props.items.map((item) => item.message).filter((message): message is Message => Boolean(message))
 )
+
+const createPlaceholderMessage = (item: MessageListItem): Message => {
+  return {
+    id: item.id,
+    role: 'user',
+    conversationId: chatStore.getActiveThreadId() ?? '',
+    content: { text: '', files: [], links: [], think: false, search: false },
+    timestamp: Date.now()
+  } as unknown as Message
+}
+
+const minimapMessages = computed(() => {
+  const mapped = props.items.map((item) => item.message ?? createPlaceholderMessage(item))
+  if (mapped.length > 0) return mapped
+  const current = chatStore.getCurrentThreadMessages()
+  if (current.length > 0) return current
+  return chatStore.variantAwareMessages
+})
 const retry = useMessageRetry(loadedMessages)
 
 // === Local State ===
@@ -261,6 +284,17 @@ const handleRetry = async (index: number) => {
   if (triggered) {
     scrollToBottom(true)
   }
+}
+
+const getPlaceholderHeight = (messageId: string) => {
+  const info = getMessageDomInfo(messageId)
+  return info?.height
+}
+
+const getAnchorList = () => {
+  const domEntries = getAllMessageDomInfo()
+  const idSet = new Set(props.items.map((item) => item.id))
+  return domEntries.filter((entry) => idSet.has(entry.id))
 }
 
 // === Computed ===
@@ -556,15 +590,36 @@ const recordVisibleDomInfo = () => {
   const containerRect = container.getBoundingClientRect()
   const nodes = container.querySelectorAll('[data-message-id]')
   const entries: Array<{ id: string; top: number; height: number }> = []
+
   nodes.forEach((node) => {
     const messageId = node.getAttribute('data-message-id')
     if (!messageId) return
     const rect = (node as HTMLElement).getBoundingClientRect()
-    entries.push({
-      id: messageId,
-      top: rect.top - containerRect.top + container.scrollTop,
-      height: rect.height
-    })
+
+    // 过滤掉虚拟滚动中未真实渲染的元素
+    // 这些元素通常有极端的位置值或在可见区域之外很远
+    const absoluteTop = rect.top - containerRect.top + container.scrollTop
+
+    // 只记录合理范围内的元素位置
+    // 允许一定的缓冲区（上下各两个视口高度）
+    const bufferZone = containerRect.height * 2
+    const MAX_REASONABLE_HEIGHT = 2000 // 单条消息最大合理高度
+
+    const isInReasonableRange =
+      absoluteTop > -bufferZone &&
+      absoluteTop < container.scrollHeight + bufferZone &&
+      rect.height > 0 &&
+      rect.height < MAX_REASONABLE_HEIGHT && // 更严格的高度限制
+      rect.top < 100000 && // 过滤极端位置
+      rect.top > -100000
+
+    if (isInReasonableRange) {
+      entries.push({
+        id: messageId,
+        top: absoluteTop,
+        height: rect.height
+      })
+    }
   })
   if (entries.length) {
     chatStore.recordMessageDomInfo(entries)
@@ -572,43 +627,108 @@ const recordVisibleDomInfo = () => {
 }
 
 const scrollToMessage = (messageId: string) => {
+  console.log('[ScrollDebug] scrollToMessage called for:', messageId)
   void chatStore.ensureMessagesLoadedByIds([messageId])
   const index = props.items.findIndex((msg) => msg.id === messageId)
   const scroller = dynamicScrollerRef.value
-  const tryScrollToRenderedMessage = () => {
-    const container = messagesContainer.value
-    if (!container) return false
-    const target = container.querySelector(`[data-message-id="${messageId}"]`) as HTMLElement | null
-    if (!target) return false
-    scrollToMessageBase(messageId)
-    return true
-  }
 
-  if (index !== -1 && scroller && typeof scroller.scrollToItem === 'function') {
-    pendingScrollTargetId = messageId
-    if (scrollRetryTimer) {
-      clearTimeout(scrollRetryTimer)
-      scrollRetryTimer = null
-    }
-    const currentToken = ++scrollRetryToken
-    const attemptScroll = (attempt: number) => {
-      if (currentToken !== scrollRetryToken) return
-      scroller.scrollToItem(index)
-      scroller.forceUpdate?.()
-      nextTick(() => {
-        if (tryScrollToRenderedMessage()) return
-        if (attempt >= MAX_SCROLL_RETRIES) return
-        scrollRetryTimer = window.setTimeout(() => {
-          scrollRetryTimer = null
-          attemptScroll(attempt + 1)
-        }, 32)
-      })
-    }
-    attemptScroll(0)
+  console.log('[ScrollDebug] index:', index, 'scroller:', !!scroller)
+
+  if (index === -1) {
+    console.warn(`[ScrollDebug] Message ${messageId} not found in items`)
     return
   }
 
-  scrollToMessageBase(messageId)
+  if (!scroller || typeof scroller.scrollToItem !== 'function') {
+    console.warn('[ScrollDebug] DynamicScroller not available, using fallback')
+    scrollToMessageBase(messageId)
+    return
+  }
+
+  pendingScrollTargetId = messageId
+
+  const tryApplyCenterAndHighlight = () => {
+    const currentContainer = messagesContainer.value
+    if (!currentContainer) return false
+
+    const target = currentContainer.querySelector(
+      `[data-message-id="${messageId}"]`
+    ) as HTMLElement | null
+
+    if (!target) {
+      console.log('[ScrollDebug] Target not yet rendered')
+      return false
+    }
+
+    const targetRect = target.getBoundingClientRect()
+    const containerRect = currentContainer.getBoundingClientRect()
+
+    // 检查元素是否真实渲染（不在占位符状态）
+    const targetTop = targetRect.top - containerRect.top + currentContainer.scrollTop
+    if (targetTop < -5000 || targetTop > currentContainer.scrollHeight + 5000) {
+      console.log('[ScrollDebug] Target in placeholder state, top:', targetTop)
+      return false
+    }
+
+    console.log('[ScrollDebug] Target rendered! Scrolling to top, targetTop:', targetTop)
+
+    // 使用 scrollIntoView 将消息定位到顶部
+    target.scrollIntoView({ block: 'start', behavior: 'instant' })
+    updateScrollInfo()
+
+    // 高亮效果
+    target.classList.add('message-highlight')
+    setTimeout(() => {
+      target.classList.remove('message-highlight')
+    }, 2000)
+
+    pendingScrollTargetId = null
+    return true
+  }
+
+  // 清除之前的重试
+  if (scrollRetryTimer) {
+    clearTimeout(scrollRetryTimer)
+    scrollRetryTimer = null
+  }
+
+  const currentToken = ++scrollRetryToken
+  let retryCount = 0
+
+  const attemptScroll = () => {
+    if (currentToken !== scrollRetryToken) {
+      console.log('[ScrollDebug] Aborted, newer scroll request')
+      return
+    }
+
+    console.log('[ScrollDebug] Attempt', retryCount, '- calling scrollToItem')
+
+    // 完全依赖 DynamicScroller 的 scrollToItem
+    scroller.scrollToItem(index)
+
+    // 等待虚拟滚动完成渲染后再尝试居中和高亮
+    nextTick(() => {
+      setTimeout(() => {
+        if (tryApplyCenterAndHighlight()) {
+          console.log('[ScrollDebug] Success!')
+          return
+        }
+
+        retryCount++
+        if (retryCount < MAX_SCROLL_RETRIES) {
+          scrollRetryTimer = window.setTimeout(() => {
+            scrollRetryTimer = null
+            attemptScroll()
+          }, 50) // 增加等待时间到 50ms
+        } else {
+          console.warn('[ScrollDebug] Max retries reached')
+          pendingScrollTargetId = null
+        }
+      }, 50) // 初始等待 50ms 让虚拟滚动渲染
+    })
+  }
+
+  attemptScroll()
 }
 
 const handleVirtualUpdate = (
@@ -714,7 +834,8 @@ defineExpose({
   scrollToBottom,
   scrollToMessage,
   scrollToSelectionHighlight,
-  aboveThreshold
+  aboveThreshold,
+  getAnchorList
 })
 </script>
 
