@@ -9,6 +9,7 @@ import logger from '@shared/logger'
 import { presenter } from '@/presenter'
 import { AgentFileSystemHandler } from './agentFileSystemHandler'
 import { AgentBashHandler } from './agentBashHandler'
+import type { IContextFilePresenter } from '@shared/types/presenters/contextFiles.presenter'
 
 // Consider moving to a shared handlers location in future refactoring
 import {
@@ -44,12 +45,14 @@ export interface AgentToolCallResult {
 
 interface AgentToolManagerOptions {
   yoBrowserPresenter: IYoBrowserPresenter
+  contextFilePresenter: IContextFilePresenter
   agentWorkspacePath: string | null
   commandPermissionHandler?: CommandPermissionService
 }
 
 export class AgentToolManager {
   private readonly yoBrowserPresenter: IYoBrowserPresenter
+  private readonly contextFilePresenter: IContextFilePresenter
   private agentWorkspacePath: string | null
   private fileSystemHandler: AgentFileSystemHandler | null = null
   private bashHandler: AgentBashHandler | null = null
@@ -162,6 +165,7 @@ export class AgentToolManager {
 
   constructor(options: AgentToolManagerOptions) {
     this.yoBrowserPresenter = options.yoBrowserPresenter
+    this.contextFilePresenter = options.contextFilePresenter
     this.agentWorkspacePath = options.agentWorkspacePath
     this.commandPermissionHandler = options.commandPermissionHandler
     if (this.agentWorkspacePath) {
@@ -218,6 +222,14 @@ export class AgentToolManager {
       defs.push(...fsDefs)
     }
 
+    // 3. Context File tools (所有模式可用)
+    try {
+      const contextDefs = await this.contextFilePresenter.getToolDefinitions()
+      defs.push(...contextDefs)
+    } catch (error) {
+      logger.warn('[AgentToolManager] Failed to load Context File tool definitions', { error })
+    }
+
     return defs
   }
 
@@ -246,6 +258,17 @@ export class AgentToolManager {
         throw new Error(`FileSystem handler not initialized for tool: ${toolName}`)
       }
       return await this.callFileSystemTool(toolName, args, conversationId)
+    }
+
+    // Route to Context File tools
+    if (toolName.startsWith('context_')) {
+      if (!conversationId) {
+        throw new Error(`conversationId is required for context tools`)
+      }
+      const response = await this.contextFilePresenter.callTool(toolName, args, conversationId)
+      return {
+        content: response
+      }
     }
 
     throw new Error(`Unknown Agent tool: ${toolName}`)

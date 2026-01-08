@@ -91,14 +91,19 @@ export class AgentLoopHandler {
         return this.toolPresenter
       }
       // Check if presenter is fully initialized
-      if (!presenter.mcpPresenter || !presenter.yoBrowserPresenter) {
+      if (
+        !presenter.mcpPresenter ||
+        !presenter.yoBrowserPresenter ||
+        !presenter.contextFilePresenter
+      ) {
         throw new Error(
-          'ToolPresenter dependencies not initialized. mcpPresenter and yoBrowserPresenter must be initialized first.'
+          'ToolPresenter dependencies not initialized. mcpPresenter, yoBrowserPresenter, and contextFilePresenter must be initialized first.'
         )
       }
       this.toolPresenter = new ToolPresenter({
         mcpPresenter: presenter.mcpPresenter,
         yoBrowserPresenter: presenter.yoBrowserPresenter,
+        contextFilePresenter: presenter.contextFilePresenter,
         configPresenter: this.options.configPresenter
       })
     }

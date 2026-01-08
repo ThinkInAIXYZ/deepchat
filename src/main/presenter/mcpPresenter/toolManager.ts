@@ -234,6 +234,8 @@ export class ToolManager {
       lowerToolName.includes('view') ||
       lowerToolName.includes('fetch') ||
       lowerToolName.includes('search') ||
+      lowerToolName.includes('grep') ||
+      lowerToolName.includes('tail') ||
       lowerToolName.includes('find') ||
       lowerToolName.includes('query') ||
       lowerToolName.includes('tree')
@@ -439,7 +441,10 @@ export class ToolManager {
       }
 
       // Call the tool on the target client using the ORIGINAL name
-      const result = await targetClient.callTool(originalName, args || {})
+      const meta: Record<string, unknown> | undefined = toolCall.conversationId
+        ? { 'deepchat/conversationId': toolCall.conversationId }
+        : undefined
+      const result = await targetClient.callTool(originalName, args || {}, meta)
 
       // Format response
       let formattedContent: string | MCPContentItem[] = ''

@@ -225,7 +225,8 @@ export class StreamGenerationHandler extends BaseHandler {
               name: toolCall.server_name || '',
               icons: toolCall.server_icons || '',
               description: toolCall.server_description || ''
-            }
+            },
+            conversationId
           })
         }
       }

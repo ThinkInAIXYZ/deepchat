@@ -26,7 +26,8 @@ import {
   IWindowPresenter,
   IWorkspacePresenter,
   IToolPresenter,
-  IYoBrowserPresenter
+  IYoBrowserPresenter,
+  IContextFilePresenter
 } from '@shared/presenter'
 import { eventBus } from '@/eventbus'
 import { LLMProviderPresenter } from './llmProviderPresenter'
@@ -44,6 +45,7 @@ import { TrayPresenter } from './trayPresenter'
 import { OAuthPresenter } from './oauthPresenter'
 import { FloatingButtonPresenter } from './floatingButtonPresenter'
 import { YoBrowserPresenter } from './browser/YoBrowserPresenter'
+import { ContextFilePresenter } from './contextFiles/ContextFilePresenter'
 import { CONFIG_EVENTS, WINDOW_EVENTS } from '@/events'
 import { KnowledgePresenter } from './knowledgePresenter'
 import { WorkspacePresenter } from './workspacePresenter'
@@ -97,6 +99,7 @@ export class Presenter implements IPresenter {
   workspacePresenter: IWorkspacePresenter
   toolPresenter: IToolPresenter
   yoBrowserPresenter: IYoBrowserPresenter
+  contextFilePresenter: IContextFilePresenter
   dialogPresenter: IDialogPresenter
   lifecycleManager: ILifecycleManager
 
@@ -158,6 +161,7 @@ export class Presenter implements IPresenter {
     this.floatingButtonPresenter = new FloatingButtonPresenter(this.configPresenter)
     this.dialogPresenter = new DialogPresenter()
     this.yoBrowserPresenter = new YoBrowserPresenter(this.windowPresenter, this.tabPresenter)
+    this.contextFilePresenter = new ContextFilePresenter()
 
     // Define dbDir for knowledge presenter
     const dbDir = path.join(app.getPath('userData'), 'app_db')
@@ -174,6 +178,7 @@ export class Presenter implements IPresenter {
     this.toolPresenter = new ToolPresenter({
       mcpPresenter: this.mcpPresenter,
       yoBrowserPresenter: this.yoBrowserPresenter,
+      contextFilePresenter: this.contextFilePresenter,
       configPresenter: this.configPresenter,
       commandPermissionHandler
     })

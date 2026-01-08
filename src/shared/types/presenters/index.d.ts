@@ -71,5 +71,8 @@ export type { IToolPresenter } from './tool.presenter'
 // Agent Presenter types
 export type { IAgentPresenter } from './agent.presenter'
 
+// Context File Presenter types
+export type * from './contextFiles.presenter'
+
 // Re-export legacy types temporarily for compatibility
 export * from './legacy.presenters'

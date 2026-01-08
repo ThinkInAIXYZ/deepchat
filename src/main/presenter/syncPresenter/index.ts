@@ -40,6 +40,8 @@ const ZIP_PATHS = {
   manifest: 'manifest.json'
 }
 
+const CONTEXT_ZIP_ROOT = 'context'
+
 export class SyncPresenter implements ISyncPresenter {
   private configPresenter: IConfigPresenter
   private sqlitePresenter: ISQLitePresenter
@@ -52,6 +54,7 @@ export class SyncPresenter implements ISyncPresenter {
   private readonly SYSTEM_PROMPTS_PATH = path.join(app.getPath('userData'), 'system_prompts.json')
   private readonly MCP_SETTINGS_PATH = path.join(app.getPath('userData'), 'mcp-settings.json')
   private readonly DB_PATH = path.join(app.getPath('userData'), 'app_db', 'chat.db')
+  private readonly CONTEXT_ROOT = path.join(app.getPath('userData'), 'context')
 
   constructor(configPresenter: IConfigPresenter, sqlitePresenter: ISQLitePresenter) {
     this.configPresenter = configPresenter
@@ -261,6 +264,8 @@ export class SyncPresenter implements ISyncPresenter {
         }
       }
 
+      this.restoreContextFiles(path.join(extractionDir, CONTEXT_ZIP_ROOT))
+
       if (sqliteClosed) {
         this.sqlitePresenter.reopen()
       }
@@ -333,6 +338,7 @@ export class SyncPresenter implements ISyncPresenter {
       this.addOptionalFile(files, ZIP_PATHS.customPrompts, this.CUSTOM_PROMPTS_PATH)
       this.addOptionalFile(files, ZIP_PATHS.systemPrompts, this.SYSTEM_PROMPTS_PATH)
       this.addOptionalFile(files, ZIP_PATHS.mcpSettings, this.MCP_SETTINGS_PATH)
+      this.addDirectoryToZip(files, this.CONTEXT_ROOT, CONTEXT_ZIP_ROOT)
 
       const manifest = {
         version: 1,
@@ -441,6 +447,80 @@ export class SyncPresenter implements ISyncPresenter {
   ): void {
     if (fs.existsSync(filePath)) {
       files[zipPath] = new Uint8Array(fs.readFileSync(filePath))
+    }
+  }
+
+  private addDirectoryToZip(
+    files: Record<string, Uint8Array>,
+    sourceDir: string,
+    zipRoot: string
+  ): void {
+    if (!fs.existsSync(sourceDir)) {
+      return
+    }
+
+    const entries = fs.readdirSync(sourceDir, { withFileTypes: true })
+    for (const entry of entries) {
+      const fullPath = path.join(sourceDir, entry.name)
+      const zipPath = path.posix.join(zipRoot, entry.name)
+      if (entry.isDirectory()) {
+        this.addDirectoryToZip(files, fullPath, zipPath)
+      } else if (entry.isFile()) {
+        files[zipPath] = new Uint8Array(fs.readFileSync(fullPath))
+      }
+    }
+  }
+
+  private restoreContextFiles(backupContextRoot: string): void {
+    if (!fs.existsSync(backupContextRoot)) {
+      return
+    }
+
+    try {
+      fs.mkdirSync(this.CONTEXT_ROOT, { recursive: true })
+      const entries = fs.readdirSync(backupContextRoot, { withFileTypes: true })
+      const timestamp = Date.now()
+
+      for (const entry of entries) {
+        if (!entry.isDirectory()) {
+          continue
+        }
+        const sourceDir = path.join(backupContextRoot, entry.name)
+        const targetDir = path.join(this.CONTEXT_ROOT, entry.name)
+
+        if (fs.existsSync(targetDir)) {
+          const backupDir = this.getContextBackupPath(entry.name, timestamp)
+          fs.renameSync(targetDir, backupDir)
+        }
+
+        this.copyDirectory(sourceDir, targetDir)
+      }
+    } catch (error) {
+      console.warn('Failed to restore context files from backup:', error)
+    }
+  }
+
+  private getContextBackupPath(conversationId: string, timestamp: number): string {
+    let candidate = path.join(this.CONTEXT_ROOT, `${conversationId}.bak-${timestamp}`)
+    let counter = 1
+    while (fs.existsSync(candidate)) {
+      candidate = path.join(this.CONTEXT_ROOT, `${conversationId}.bak-${timestamp}-${counter}`)
+      counter += 1
+    }
+    return candidate
+  }
+
+  private copyDirectory(sourceDir: string, targetDir: string): void {
+    fs.mkdirSync(targetDir, { recursive: true })
+    const entries = fs.readdirSync(sourceDir, { withFileTypes: true })
+    for (const entry of entries) {
+      const sourcePath = path.join(sourceDir, entry.name)
+      const targetPath = path.join(targetDir, entry.name)
+      if (entry.isDirectory()) {
+        this.copyDirectory(sourcePath, targetPath)
+      } else if (entry.isFile()) {
+        fs.copyFileSync(sourcePath, targetPath)
+      }
     }
   }
 

@@ -4,7 +4,8 @@ import type {
   IYoBrowserPresenter,
   MCPToolDefinition,
   MCPToolCall,
-  MCPToolResponse
+  MCPToolResponse,
+  IContextFilePresenter
 } from '@shared/presenter'
 import { ToolMapper } from './toolMapper'
 import { AgentToolManager, type AgentToolCallResult } from '../agentPresenter/acp'
@@ -19,6 +20,14 @@ export interface IToolPresenter {
     agentWorkspacePath?: string | null
   }): Promise<MCPToolDefinition[]>
   callTool(request: MCPToolCall): Promise<{ content: unknown; rawData: MCPToolResponse }>
+}
+
+interface ToolPresenterOptions {
+  mcpPresenter: IMCPPresenter
+  yoBrowserPresenter: IYoBrowserPresenter
+  contextFilePresenter: IContextFilePresenter
+  configPresenter: IConfigPresenter
+  commandPermissionHandler?: CommandPermissionService
 }
 
 interface ToolPresenterOptions {
@@ -70,6 +79,7 @@ export class ToolPresenter implements IToolPresenter {
       if (!this.agentToolManager) {
         this.agentToolManager = new AgentToolManager({
           yoBrowserPresenter: this.options.yoBrowserPresenter,
+          contextFilePresenter: this.options.contextFilePresenter,
           agentWorkspacePath,
           commandPermissionHandler: this.options.commandPermissionHandler
         })

@@ -17,7 +17,17 @@
 ## 非目标
 - 不引入 embedding/语义检索（只做文本读取与 grep）。
 - 不做跨设备/云端同步（先本地）。
-- 不要求模型理解复杂的“知识库/向量库”概念。
+- 不要求模型理解复杂的"知识库/向量库"概念。
+
+## 架构模式
+**Runtime Capability（非 MCP）**
+
+Context Files 是 DeepChat 的原生运行时能力，类似 Yo Browser：
+- **实现方式**：通过 `ContextFilePresenter` 直接集成到主进程（不使用 MCP 协议）
+- **可用范围**：所有聊天模式均可使用（不限于 agent 模式）
+- **工具命名**：使用 `context_*` 前缀（`context_list`, `context_read`, `context_tail`, `context_grep`）
+- **工具路由**：通过 `AgentToolManager` 和 `ToolPresenter` 统一路由
+- **Export/Import**：完全解耦，不属于用户态 conversation export
 
 ## 存储位置与目录结构
 
@@ -60,7 +70,7 @@ ContextRef 是模型侧唯一需要“记住”的对象，用于按需读取文
 - `context.grep`/`context.tail` 的行为等价于“对一个文件做 ripgrep / tail”，目的是让模型用熟悉的文件排障方式动态发现上下文：先搜关键词，再按需读取相关片段。
 - 实现层应尽可能复用现有的文件/搜索能力（例如 ripgrep），并在输出里保留“行号/上下文行”，让模型明显感知自己是在“检索一个文件”。
 
-### `context.list`
+### `context_list`
 用途：列出当前会话已有的 ContextRef（按 kind 过滤）。
 
 输入：
@@ -70,7 +80,7 @@ ContextRef 是模型侧唯一需要“记住”的对象，用于按需读取文
 输出：
 - `items: ContextRef[]`
 
-### `context.read`（分页读取）
+### `context_read`（分页读取）
 用途：以 offset/limit 分页读取，避免一次性把大文件塞进上下文。
 
 输入：
@@ -85,7 +95,7 @@ ContextRef 是模型侧唯一需要“记住”的对象，用于按需读取文
 - `done: boolean`（是否读到文件末尾）
 - `content: string`（此页内容）
 
-### `context.tail`（优先用于排障）
+### `context_tail`（优先用于排障）
 用途：先看末尾错误段落，再决定是否继续读取。
 
 输入：
@@ -97,7 +107,7 @@ ContextRef 是模型侧唯一需要“记住”的对象，用于按需读取文
 - `lines: number`
 - `content: string`
 
-### `context.grep`
+### `context_grep`
 用途：在大输出/历史里快速定位关键词/错误堆栈。
 
 输入：
@@ -137,13 +147,26 @@ ContextRef 是模型侧唯一需要“记住”的对象，用于按需读取文
 - 超阈值时：完整内容写入 context file；对话里只放摘要/片段 + `ContextRef`。
 - 模型若需要更多信息，应通过 `context.read/tail/grep` 按需拉取。
 
-## 备份/导入（与 Sync/Export 集成）
-Context files 属于“会话运行时衍生数据”，但对排障与可回溯非常关键，应纳入备份导入。
+## Export/Import
+Context files 的 Export/Import 是独立的运行时能力，完全解耦于用户态 conversation export。
 
-最低要求：
-- Export 时按 `conversationId` 打包：`context/<conversationId>/**`（eager artifacts 必须包含；lazy cache 文件可缺省并在导入后重建）
-- Import 时恢复到 `<userData>/context/<conversationId>/**`
-- 若存在 `manifest.json`，需要随同导入；否则允许按目录结构重建索引（可选）。
+**接口方式**（通过 `ContextFilePresenter`）：
+- `export(conversationId)`: 导出为 `ContextExportData` JSON 对象
+- `import(conversationId, data)`: 从 `ContextExportData` 导入并恢复
+
+**导出内容**：
+- `ContextRef[]`: 所有引用的元数据
+- `files: Record<string, string>`: eager 文件的实际内容（相对路径 -> 内容）
+- `metadata`: 可选的额外元信息
+
+**导入行为**：
+- 恢复所有 eager 文件到正确路径
+- 重建 ContextRef 信息（lazy refs 在导入时可跳过，按需重建时再生成）
+
+**与用户态 Export 的区别**：
+- 独立触发：不随 conversation export 自动执行
+- 独立存储：导出数据不绑定于 conversation 导出格式
+- 按需机制：用户可以单独 export/import context data
 
 ## 安全边界
 - Context API 只能访问 `<userData>/context/<conversationId>` 这棵树。

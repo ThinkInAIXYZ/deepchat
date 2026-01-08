@@ -922,7 +922,11 @@ export class McpClient {
   }
 
   // 调用 MCP 工具
-  async callTool(toolName: string, args: Record<string, unknown>): Promise<ToolCallResult> {
+  async callTool(
+    toolName: string,
+    args: Record<string, unknown>,
+    meta?: Record<string, unknown>
+  ): Promise<ToolCallResult> {
     try {
       if (!this.isConnected) {
         await this.connect()
@@ -933,10 +937,20 @@ export class McpClient {
       }
 
       // 调用工具
-      const result = (await this.client.callTool({
+      const params: {
+        name: string
+        arguments: Record<string, unknown>
+        _meta?: Record<string, unknown>
+      } = {
         name: toolName,
         arguments: args
-      })) as ToolCallResult
+      }
+
+      if (meta && Object.keys(meta).length > 0) {
+        params._meta = meta
+      }
+
+      const result = (await this.client.callTool(params)) as ToolCallResult
 
       // 成功调用后重置重启标志
       this.hasRestarted = false
