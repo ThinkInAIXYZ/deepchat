@@ -37,20 +37,16 @@
               </h5>
               <button
                 class="text-xs text-muted-foreground hover:text-foreground transition-colors"
-                @click="copyParams"
+                @click.stop="copyParams"
               >
                 <Icon icon="lucide:copy" class="w-3 h-3 inline-block mr-1" />
                 {{ paramsCopyText }}
               </button>
             </div>
-            <div class="rounded-md border bg-background text-xs overflow-hidden">
-              <div ref="paramsEditor" class="min-h-[72px] max-h-64 overflow-auto"></div>
-              <pre
-                v-if="!paramsEditorReady"
-                class="p-2 whitespace-pre-wrap break-words max-h-64 overflow-auto"
-                >{{ paramsText }}</pre
-              >
-            </div>
+            <pre
+              class="rounded-md border bg-background text-xs p-2 whitespace-pre-wrap break-words max-h-64 overflow-auto"
+              >{{ paramsText }}</pre
+            >
           </div>
 
           <hr v-if="hasParams && hasResponse" />
@@ -69,20 +65,16 @@
               </h5>
               <button
                 class="text-xs text-muted-foreground hover:text-foreground transition-colors"
-                @click="copyResponse"
+                @click.stop="copyResponse"
               >
                 <Icon icon="lucide:copy" class="w-3 h-3 inline-block mr-1" />
                 {{ responseCopyText }}
               </button>
             </div>
-            <div class="rounded-md border bg-background text-xs overflow-hidden">
-              <div ref="responseEditor" class="min-h-[72px] max-h-64 overflow-auto"></div>
-              <pre
-                v-if="!responseEditorReady"
-                class="p-2 whitespace-pre-wrap break-words max-h-64 overflow-auto"
-                >{{ responseText }}</pre
-              >
-            </div>
+            <pre
+              class="rounded-md border bg-background text-xs p-2 whitespace-pre-wrap break-words max-h-64 overflow-auto"
+              >{{ responseText }}</pre
+            >
           </div>
         </div>
       </div>
@@ -94,10 +86,7 @@
 import { Icon } from '@iconify/vue'
 import { useI18n } from 'vue-i18n'
 import { AssistantMessageBlock } from '@shared/chat'
-import { computed, ref, nextTick, watch, onBeforeUnmount } from 'vue'
-import { useMonaco } from 'stream-monaco'
-import { useUpgradeStore } from '@/stores/upgrade'
-import { useUiSettingsStore } from '@/stores/uiSettingsStore'
+import { computed, ref } from 'vue'
 
 const keyMap = {
   'toolCall.calling': '工具调用中',
@@ -109,15 +98,16 @@ const keyMap = {
   'toolCall.functionName': '函数名称',
   'toolCall.params': '参数',
   'toolCall.responseData': '响应数据',
-  'toolCall.terminalOutput': 'Terminal output'
+  'toolCall.terminalOutput': 'Terminal output',
+  'common.copy': '复制',
+  'common.copySuccess': '已复制'
 }
-// 创建一个安全的翻译函数
+
 const t = (() => {
   try {
     const { t } = useI18n()
     return t
   } catch (e) {
-    // 如果 i18n 未初始化，提供默认翻译
     return (key: string) => keyMap[key] || key
   }
 })()
@@ -129,8 +119,6 @@ const props = defineProps<{
 }>()
 
 const isExpanded = ref(false)
-const upgradeStore = useUpgradeStore()
-const uiSettingsStore = useUiSettingsStore()
 
 const statusVariant = computed(() => {
   if (props.block.status === 'error') return 'error'
@@ -183,7 +171,11 @@ const statusIconClass = computed(() => {
   }
 })
 
-// Terminal detection
+const paramsText = computed(() => props.block.tool_call?.params ?? '')
+const responseText = computed(() => props.block.tool_call?.response ?? '')
+const hasParams = computed(() => paramsText.value.trim().length > 0)
+const hasResponse = computed(() => responseText.value.trim().length > 0)
+
 const isTerminalTool = computed(() => {
   const name = props.block.tool_call?.name?.toLowerCase() || ''
   const serverName = props.block.tool_call?.server_name?.toLowerCase() || ''
@@ -193,213 +185,42 @@ const isTerminalTool = computed(() => {
   return name.includes('terminal') || name.includes('command') || name.includes('exec')
 })
 
-const paramsText = computed(() => props.block.tool_call?.params ?? '')
-const responseText = computed(() => props.block.tool_call?.response ?? '')
-const hasParams = computed(() => paramsText.value.trim().length > 0)
-const hasResponse = computed(() => responseText.value.trim().length > 0)
-
-const isValidJson = (value: string) => {
-  if (!value) return false
-  try {
-    JSON.parse(value)
-    return true
-  } catch {
-    return false
-  }
-}
-
-const paramsLanguage = computed(() => 'json')
-const responseLanguage = computed(() => {
-  if (isTerminalTool.value) {
-    return upgradeStore.isWindows ? 'powershell' : 'shell'
-  }
-  return isValidJson(responseText.value) ? 'json' : 'plaintext'
-})
-
-const paramsEditor = ref<HTMLElement | null>(null)
-const responseEditor = ref<HTMLElement | null>(null)
-const paramsEditorReady = ref(false)
-const responseEditorReady = ref(false)
 const paramsCopyText = ref(t('common.copy'))
 const responseCopyText = ref(t('common.copy'))
 
-const {
-  createEditor: createParamsEditor,
-  updateCode: updateParamsCode,
-  cleanupEditor: cleanupParamsEditor,
-  getEditorView: getParamsEditorView
-} = useMonaco({
-  readOnly: true,
-  wordWrap: 'on',
-  wrappingIndent: 'same',
-  minimap: { enabled: false },
-  scrollBeyondLastLine: false,
-  fontFamily: uiSettingsStore.formattedCodeFontFamily,
-  fontSize: 12,
-  lineNumbers: 'off',
-  folding: false,
-  automaticLayout: true
-})
-
-const {
-  createEditor: createResponseEditor,
-  updateCode: updateResponseCode,
-  cleanupEditor: cleanupResponseEditor,
-  getEditorView: getResponseEditorView
-} = useMonaco({
-  readOnly: true,
-  wordWrap: 'on',
-  wrappingIndent: 'same',
-  minimap: { enabled: false },
-  scrollBeyondLastLine: false,
-  fontFamily: uiSettingsStore.formattedCodeFontFamily,
-  fontSize: 12,
-  lineNumbers: 'off',
-  folding: false,
-  automaticLayout: true
-})
-
-const applyEditorFont = (fontFamily: string) => {
-  const paramsView = getParamsEditorView()
-  if (paramsView) {
-    paramsView.updateOptions({ fontFamily })
-  }
-  const responseView = getResponseEditorView()
-  if (responseView) {
-    responseView.updateOptions({ fontFamily })
-  }
-}
-
-const ensureParamsEditor = async () => {
-  if (!isExpanded.value || !hasParams.value || paramsEditorReady.value || !paramsEditor.value) {
-    return
-  }
-  await nextTick()
-  if (!paramsEditor.value || paramsEditorReady.value) return
-  try {
-    createParamsEditor(paramsEditor.value, paramsText.value, paramsLanguage.value)
-    paramsEditorReady.value = true
-    applyEditorFont(uiSettingsStore.formattedCodeFontFamily)
-  } catch (error) {
-    console.error('[MessageBlockToolCall] Failed to create params editor:', error)
-  }
-}
-
-const ensureResponseEditor = async () => {
-  if (
-    !isExpanded.value ||
-    !hasResponse.value ||
-    responseEditorReady.value ||
-    !responseEditor.value
-  ) {
-    return
-  }
-  await nextTick()
-  if (!responseEditor.value || responseEditorReady.value) return
-  try {
-    createResponseEditor(responseEditor.value, responseText.value, responseLanguage.value)
-    responseEditorReady.value = true
-    applyEditorFont(uiSettingsStore.formattedCodeFontFamily)
-  } catch (error) {
-    console.error('[MessageBlockToolCall] Failed to create response editor:', error)
-  }
-}
-
-const cleanupEditors = () => {
-  if (paramsEditorReady.value) {
-    cleanupParamsEditor()
-    paramsEditorReady.value = false
-  }
-  if (responseEditorReady.value) {
-    cleanupResponseEditor()
-    responseEditorReady.value = false
-  }
-}
-
-const copyContent = async (content: string, type: 'params' | 'response') => {
+const copyParams = async () => {
+  if (!hasParams.value) return
   try {
     if (window.api?.copyText) {
-      window.api.copyText(content)
+      window.api.copyText(paramsText.value)
     } else {
-      await navigator.clipboard.writeText(content)
+      await navigator.clipboard.writeText(paramsText.value)
     }
-    if (type === 'params') {
-      paramsCopyText.value = t('common.copySuccess')
-      setTimeout(() => {
-        paramsCopyText.value = t('common.copy')
-      }, 2000)
-    } else {
-      responseCopyText.value = t('common.copySuccess')
-      setTimeout(() => {
-        responseCopyText.value = t('common.copy')
-      }, 2000)
-    }
+    paramsCopyText.value = t('common.copySuccess')
+    setTimeout(() => {
+      paramsCopyText.value = t('common.copy')
+    }, 2000)
   } catch (error) {
-    console.error('[MessageBlockToolCall] Failed to copy text:', error)
+    console.error('[MessageBlockToolCall] Failed to copy params:', error)
   }
 }
 
-const copyParams = () => {
-  void copyContent(paramsText.value, 'params')
-}
-
-const copyResponse = () => {
-  void copyContent(responseText.value, 'response')
-}
-
-watch(
-  isExpanded,
-  (expanded) => {
-    if (expanded) {
-      void ensureParamsEditor()
-      void ensureResponseEditor()
+const copyResponse = async () => {
+  if (!hasResponse.value) return
+  try {
+    if (window.api?.copyText) {
+      window.api.copyText(responseText.value)
     } else {
-      cleanupEditors()
+      await navigator.clipboard.writeText(responseText.value)
     }
-  },
-  { immediate: true }
-)
-
-watch([hasParams, paramsText, paramsLanguage], () => {
-  if (!hasParams.value) {
-    if (paramsEditorReady.value) {
-      cleanupParamsEditor()
-      paramsEditorReady.value = false
-    }
-    return
+    responseCopyText.value = t('common.copySuccess')
+    setTimeout(() => {
+      responseCopyText.value = t('common.copy')
+    }, 2000)
+  } catch (error) {
+    console.error('[MessageBlockToolCall] Failed to copy response:', error)
   }
-  if (paramsEditorReady.value) {
-    updateParamsCode(paramsText.value, paramsLanguage.value)
-  } else if (isExpanded.value) {
-    void ensureParamsEditor()
-  }
-})
-
-watch([hasResponse, responseText, responseLanguage], () => {
-  if (!hasResponse.value) {
-    if (responseEditorReady.value) {
-      cleanupResponseEditor()
-      responseEditorReady.value = false
-    }
-    return
-  }
-  if (responseEditorReady.value) {
-    updateResponseCode(responseText.value, responseLanguage.value)
-  } else if (isExpanded.value) {
-    void ensureResponseEditor()
-  }
-})
-
-watch(
-  () => uiSettingsStore.formattedCodeFontFamily,
-  (font) => {
-    applyEditorFont(font)
-  }
-)
-
-onBeforeUnmount(() => {
-  cleanupEditors()
-})
+}
 </script>
 
 <style scoped>

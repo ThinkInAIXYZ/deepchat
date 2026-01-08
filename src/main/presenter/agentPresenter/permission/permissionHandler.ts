@@ -108,24 +108,43 @@ export class PermissionHandler extends BaseHandler {
         }
       }
 
-      const updatedContent = this.removePermissionBlockFromContent(
-        content,
-        toolCallId,
-        permissionBlock
-      )
-
       const generatingState = this.generatingMessages.get(messageId)
       if (generatingState) {
-        generatingState.message.content = this.removePermissionBlockFromContent(
-          generatingState.message.content,
+        const permissionIndex = generatingState.message.content.findIndex(
+          (block) =>
+            block.type === 'action' &&
+            block.action_type === 'tool_call_permission' &&
+            block.tool_call?.id === toolCallId
+        )
+
+        if (permissionIndex !== -1) {
+          const statePermissionBlock = generatingState.message.content[permissionIndex]
+          generatingState.message.content[permissionIndex] = {
+            ...statePermissionBlock,
+            ...permissionBlock,
+            extra: permissionBlock.extra
+              ? {
+                  ...permissionBlock.extra
+                }
+              : undefined,
+            tool_call: permissionBlock.tool_call
+              ? {
+                  ...permissionBlock.tool_call
+                }
+              : undefined
+          }
+        }
+      }
+
+      await this.ctx.messageManager.editMessage(messageId, JSON.stringify(content))
+
+      if (isAcpPermission) {
+        const updatedContent = this.removePermissionBlockFromContent(
+          content,
           toolCallId,
           permissionBlock
         )
-      }
-
-      await this.ctx.messageManager.editMessage(messageId, JSON.stringify(updatedContent))
-
-      if (isAcpPermission) {
+        await this.ctx.messageManager.editMessage(messageId, JSON.stringify(updatedContent))
         await this.handleAcpPermissionFlow(
           messageId,
           permissionBlock,
@@ -146,7 +165,7 @@ export class PermissionHandler extends BaseHandler {
           }
           const signature = this.commandPermissionHandler.extractCommandSignature(command)
           this.commandPermissionHandler.approve(conversationId, signature, remember)
-          await this.restartAgentLoopAfterPermission(messageId, toolCallId, permissionBlock)
+          await this.restartAgentLoopAfterPermission(messageId, toolCallId)
         } else {
           await this.continueAfterPermissionDenied(messageId, permissionBlock)
         }
@@ -164,11 +183,11 @@ export class PermissionHandler extends BaseHandler {
           await this.waitForMcpServiceReady(serverName)
         } catch (error) {
           permissionBlock.status = 'error'
-          await this.ctx.messageManager.editMessage(messageId, JSON.stringify(updatedContent))
+          await this.ctx.messageManager.editMessage(messageId, JSON.stringify(content))
           throw error
         }
 
-        await this.restartAgentLoopAfterPermission(messageId, toolCallId, permissionBlock)
+        await this.restartAgentLoopAfterPermission(messageId, toolCallId)
       } else {
         await this.continueAfterPermissionDenied(messageId, permissionBlock)
       }
@@ -188,11 +207,7 @@ export class PermissionHandler extends BaseHandler {
     }
   }
 
-  async restartAgentLoopAfterPermission(
-    messageId: string,
-    toolCallId?: string,
-    resolvedPermissionBlock?: AssistantMessageBlock
-  ): Promise<void> {
+  async restartAgentLoopAfterPermission(messageId: string, toolCallId?: string): Promise<void> {
     console.log('[PermissionHandler] Restarting agent loop after permission', messageId)
 
     try {
@@ -204,14 +219,40 @@ export class PermissionHandler extends BaseHandler {
       const conversationId = message.conversationId
       await presenter.sessionManager.startLoop(conversationId, messageId)
       const content = message.content as AssistantMessageBlock[]
+
+      const permissionBlockIndex = content.findIndex(
+        (block) =>
+          block.type === 'action' &&
+          block.action_type === 'tool_call_permission' &&
+          block.tool_call?.id === toolCallId
+      )
+
       const permissionBlock =
-        resolvedPermissionBlock ||
-        content.find(
-          (block) =>
-            block.type === 'action' &&
-            block.action_type === 'tool_call_permission' &&
-            block.status === 'granted'
+        permissionBlockIndex !== -1 ? content[permissionBlockIndex] : undefined
+      const updatedContent =
+        permissionBlockIndex !== -1
+          ? content.filter((_, index) => index !== permissionBlockIndex)
+          : content
+
+      if (permissionBlock) {
+        const toolCallBlockIndex = content.findIndex(
+          (block) => block.type === 'tool_call' && block.tool_call?.id === toolCallId
         )
+        if (toolCallBlockIndex !== -1) {
+          const toolCallBlock = content[toolCallBlockIndex]
+          if (permissionBlock.status === 'granted') {
+            toolCallBlock.status = 'success'
+            if (toolCallBlock.tool_call && permissionBlock.tool_call?.response) {
+              toolCallBlock.tool_call.response = permissionBlock.tool_call.response
+            }
+          } else if (permissionBlock.status === 'denied') {
+            toolCallBlock.status = 'error'
+            if (toolCallBlock.tool_call) {
+              toolCallBlock.tool_call.response = 'Permission denied'
+            }
+          }
+        }
+      }
 
       if (permissionBlock?.extra?.serverName) {
         try {
@@ -223,6 +264,8 @@ export class PermissionHandler extends BaseHandler {
         }
       }
 
+      const contentForPendingCheck = permissionBlockIndex !== -1 ? updatedContent : content
+
       if (!permissionBlock) {
         console.warn('[PermissionHandler] Granted permission block missing; continuing', messageId)
       }
@@ -230,12 +273,12 @@ export class PermissionHandler extends BaseHandler {
       const pendingToolCallFromPermission =
         this.buildPendingToolCallFromPermissionBlock(permissionBlock)
       const pendingToolCallFromId = toolCallId
-        ? this.buildPendingToolCallFromToolCallId(content, toolCallId)
+        ? this.buildPendingToolCallFromToolCallId(contentForPendingCheck, toolCallId)
         : undefined
       const fallbackPendingToolCall =
         pendingToolCallFromPermission ??
         pendingToolCallFromId ??
-        this.findPendingToolCallAfterPermission(content)
+        this.findPendingToolCallAfterPermission(contentForPendingCheck)
 
       const state = this.generatingMessages.get(messageId)
       if (state) {
