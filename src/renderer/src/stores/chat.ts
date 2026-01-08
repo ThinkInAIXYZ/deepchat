@@ -887,7 +887,6 @@ export const useChatStore = defineStore('chat', () => {
         else if (msg.content) {
           const lastContentBlock = curMsg.content[curMsg.content.length - 1]
           if (lastContentBlock) {
-            lastContentBlock.status = 'success'
             if (lastContentBlock.type === 'content') {
               lastContentBlock.content += msg.content
             }
@@ -907,16 +906,8 @@ export const useChatStore = defineStore('chat', () => {
         if (msg.reasoning_content) {
           const lastReasoningBlock = curMsg.content[curMsg.content.length - 1]
           if (lastReasoningBlock) {
-            lastReasoningBlock.status = 'success'
             if (lastReasoningBlock.type === 'reasoning_content') {
-              const previousLength = lastReasoningBlock.content?.length ?? 0
               lastReasoningBlock.content += msg.reasoning_content
-              console.log('[ChatStore] reasoning_content update', {
-                messageId: msg.eventId,
-                blockType: lastReasoningBlock.type,
-                previousLength,
-                nextLength: lastReasoningBlock.content?.length ?? 0
-              })
             }
           } else {
             curMsg.content.push({
@@ -924,11 +915,6 @@ export const useChatStore = defineStore('chat', () => {
               content: msg.reasoning_content,
               status: 'loading',
               timestamp: Date.now()
-            })
-            console.log('[ChatStore] reasoning_content create', {
-              messageId: msg.eventId,
-              blockType: 'reasoning_content',
-              contentLength: msg.reasoning_content.length
             })
           }
         }

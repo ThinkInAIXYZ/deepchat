@@ -70,26 +70,7 @@ const customId = 'thinking-content'
 const themeStore = useThemeStore()
 const propsWatchSource = () => [props.label, props.expanded, props.thinking, props.content] as const
 
-watch(
-  propsWatchSource,
-  (current, previous) => {
-    const [label, expanded, thinking, content] = current
-    const [prevLabel, prevExpanded, prevThinking, prevContent] = (previous ?? []) as typeof current
-    console.log('[ThinkContent] props change', {
-      label,
-      expanded,
-      thinking,
-      contentLength: content?.length ?? 0,
-      prev: {
-        label: prevLabel,
-        expanded: prevExpanded,
-        thinking: prevThinking,
-        contentLength: prevContent?.length ?? 0
-      }
-    })
-  },
-  { immediate: true }
-)
+watch(propsWatchSource, () => {}, { immediate: true })
 setCustomComponents(customId, {
   code_block: (_props) => {
     const isMermaid = _props.node.language === 'mermaid'
