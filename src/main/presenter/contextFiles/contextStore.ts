@@ -48,6 +48,7 @@ type CreateRefParams = {
   mimeType?: string
   strategy?: ContextRefStrategy
   source?: ContextSource
+  id?: string
 }
 
 const KIND_DIRS: Record<ContextKind, string> = {
@@ -93,7 +94,7 @@ export class ContextStore {
 
   async createRef(params: CreateRefParams): Promise<{ ref: ContextRef; path: string }> {
     const conversationRoot = await this.ensureConversationDirs(params.conversationId)
-    const id = crypto.randomUUID()
+    const id = params.id || crypto.randomUUID()
     const createdAt = Date.now()
     const hint = params.hint.trim() || 'Context file'
     const extension = this.resolveExtension(params.mimeType)

@@ -27,6 +27,7 @@ import { RateLimitManager } from '@/presenter/llmProviderPresenter/managers/rate
 import { ToolCallProcessor } from './toolCallProcessor'
 import { ToolPresenter } from '../../toolPresenter'
 import { getAgentFilteredTools } from '../../mcpPresenter/agentMcpFilter'
+import type { IContextFilePresenter } from '@shared/types/presenters/contextFiles.presenter'
 
 interface AgentLoopHandlerOptions {
   configPresenter: IConfigPresenter
@@ -34,6 +35,7 @@ interface AgentLoopHandlerOptions {
   activeStreams: Map<string, StreamState>
   canStartNewStream: () => boolean
   rateLimitManager: RateLimitManager
+  contextFilePresenter?: IContextFilePresenter
 }
 
 export class AgentLoopHandler {
@@ -75,7 +77,9 @@ export class AgentLoopHandler {
       onToolCallFinished: ({ toolServerName, conversationId }) => {
         if (toolServerName !== 'agent-filesystem') return
         this.notifyWorkspaceFilesChanged(conversationId)
-      }
+      },
+      contextFilePresenter: this.options.contextFilePresenter,
+      toolOffloadThreshold: 1024
     })
   }
 

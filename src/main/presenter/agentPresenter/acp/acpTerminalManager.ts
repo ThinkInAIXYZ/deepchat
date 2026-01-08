@@ -32,7 +32,7 @@ interface TerminalState {
  */
 export class AcpTerminalManager {
   private readonly terminals = new Map<string, TerminalState>()
-  private readonly defaultMaxOutputBytes = 1024 * 1024 // 1MB default
+  private readonly defaultMaxOutputBytes = 2048
 
   /**
    * Create a new terminal to execute a command.

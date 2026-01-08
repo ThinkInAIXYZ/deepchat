@@ -57,5 +57,31 @@ export function enhanceSystemPromptWithDateTime(
 
   const runtimeBlock = runtimeLines.join('\n')
 
-  return trimmedPrompt ? `${trimmedPrompt}\n${runtimeBlock}` : runtimeBlock
+  const contextFileLines: string[] = []
+  if (!isImageGeneration) {
+    contextFileLines.push('')
+    contextFileLines.push('## Context Files')
+    contextFileLines.push('Large tool outputs are saved to context files. When you see:')
+    contextFileLines.push('`[Bash output in context: id] (size)` - Bash command output')
+    contextFileLines.push('`[Tool output in context: id] (size)` - Terminal/MCP tool output')
+    contextFileLines.push('')
+    contextFileLines.push('Use these tools to read the full content:')
+    contextFileLines.push('- `context_list()` - List all context files')
+    contextFileLines.push(
+      '- `context_tail(id="id", lines=200)` - Read last N lines (check errors first)'
+    )
+    contextFileLines.push('- `context_grep(id="id", pattern="text")` - Search for text')
+    contextFileLines.push('- `context_read(id="id", offset=0, limit=8192)` - Read in chunks')
+    contextFileLines.push('')
+    contextFileLines.push(
+      'Example: If you see `[Bash output in context: abcde] (14.1KB)`, check the end:'
+    )
+    contextFileLines.push('> context_tail(id="abcde", lines=200)')
+  }
+
+  const contextFileBlock = contextFileLines.length > 0 ? contextFileLines.join('\n') : ''
+
+  return trimmedPrompt
+    ? `${trimmedPrompt}\n${runtimeBlock}${contextFileBlock}`
+    : `${runtimeBlock}${contextFileBlock}`
 }

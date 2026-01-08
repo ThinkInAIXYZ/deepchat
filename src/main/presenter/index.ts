@@ -114,7 +114,12 @@ export class Presenter implements IPresenter {
     // 初始化各个 Presenter 实例及其依赖
     this.windowPresenter = new WindowPresenter(this.configPresenter)
     this.tabPresenter = new TabPresenter(this.windowPresenter)
-    this.llmproviderPresenter = new LLMProviderPresenter(this.configPresenter, this.sqlitePresenter)
+    this.contextFilePresenter = new ContextFilePresenter()
+    this.llmproviderPresenter = new LLMProviderPresenter(
+      this.configPresenter,
+      this.sqlitePresenter,
+      this.contextFilePresenter
+    )
     const commandPermissionHandler = new CommandPermissionService()
     const messageManager = new MessageManager(this.sqlitePresenter)
     this.devicePresenter = new DevicePresenter()
@@ -161,7 +166,6 @@ export class Presenter implements IPresenter {
     this.floatingButtonPresenter = new FloatingButtonPresenter(this.configPresenter)
     this.dialogPresenter = new DialogPresenter()
     this.yoBrowserPresenter = new YoBrowserPresenter(this.windowPresenter, this.tabPresenter)
-    this.contextFilePresenter = new ContextFilePresenter()
 
     // Define dbDir for knowledge presenter
     const dbDir = path.join(app.getPath('userData'), 'app_db')

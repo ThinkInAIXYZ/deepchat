@@ -5,6 +5,7 @@ import { z } from 'zod'
 import { nanoid } from 'nanoid'
 import logger from '@shared/logger'
 import { presenter } from '@/presenter'
+import { ContextOffloadManager } from '@/presenter/contextFiles/ContextOffloadManager'
 
 // Consider moving to a shared handlers location in future refactoring
 import {
@@ -14,7 +15,8 @@ import {
 import { getShellEnvironment, getUserShell } from './shellEnvHelper'
 import { registerCommandProcess, unregisterCommandProcess } from './commandProcessTracker'
 
-const COMMAND_MAX_OUTPUT_LENGTH = 30000
+const COMMAND_OFFLOAD_THRESHOLD = 5000
+const COMMAND_INLINE_PREVIEW = 800
 const COMMAND_DEFAULT_TIMEOUT_MS = 120000
 const COMMAND_KILL_GRACE_MS = 5000
 
@@ -90,6 +92,7 @@ export class AgentBashHandler {
 
     let result: {
       output: string
+      fullOutput: string[]
       exitCode: number | null
       timedOut: boolean
       aborted: boolean
@@ -152,16 +155,48 @@ export class AgentBashHandler {
     })
 
     const responseLines: string[] = []
-    if (result.output) {
-      responseLines.push(result.output.trimEnd())
+    const fullOutputString = result.fullOutput.join('')
+
+    if (fullOutputString.length > COMMAND_OFFLOAD_THRESHOLD) {
+      try {
+        const offloadManager = new ContextOffloadManager(
+          presenter.contextFilePresenter.getContextStore()
+        )
+
+        const offloadResult = await offloadManager.offload({
+          conversationId: options.conversationId,
+          content: fullOutputString,
+          kind: 'artifact',
+          mimeType: 'text/plain',
+          threshold: COMMAND_OFFLOAD_THRESHOLD,
+          inlinePreviewSize: COMMAND_INLINE_PREVIEW,
+          sourceHint: `bash command: ${command}`,
+          refHint: `Full bash command output (${fullOutputString.length} chars)`
+        })
+
+        if (offloadResult.wasOffloaded) {
+          responseLines.push(offloadResult.inlineContent)
+          responseLines.push('')
+          responseLines.push(offloadResult.contextRefMarkdown!)
+        }
+      } catch (offloadError) {
+        console.warn('[AgentBashHandler] Failed to offload output:', offloadError)
+        responseLines.push(result.output.trimEnd())
+        responseLines.push(
+          `[Output truncated to ${result.output.length} chars due to offload error]`
+        )
+      }
+    } else {
+      if (result.output) {
+        responseLines.push(result.output.trimEnd())
+      }
     }
+
     responseLines.push(`Exit Code: ${result.exitCode ?? 'null'}`)
     if (result.timedOut) {
       responseLines.push('Timed out')
     }
-    if (result.truncated) {
-      responseLines.push('Output truncated')
-    }
+
     return responseLines.join('\n')
   }
 
@@ -185,6 +220,7 @@ export class AgentBashHandler {
     } = {}
   ): Promise<{
     output: string
+    fullOutput: string[]
     exitCode: number | null
     timedOut: boolean
     aborted: boolean
@@ -204,6 +240,7 @@ export class AgentBashHandler {
       })
 
       let output = ''
+      let fullOutput: string[] = []
       let truncated = false
       let timedOut = false
       let aborted = false
@@ -217,16 +254,28 @@ export class AgentBashHandler {
       options.onSpawn?.(child, markAborted)
 
       const appendOutput = (chunk: string) => {
-        if (truncated) return
-        const remaining = COMMAND_MAX_OUTPUT_LENGTH - output.length
+        fullOutput.push(chunk)
+
+        const limit = COMMAND_INLINE_PREVIEW
+        if (output.length >= limit) {
+          truncated = true
+          if (!output.endsWith('\n...')) {
+            output = output.slice(0, limit) + '\n...'
+          }
+          return
+        }
+
+        const remaining = limit - output.length
         if (remaining <= 0) {
+          output += '\n...'
           truncated = true
           return
         }
+
         if (chunk.length <= remaining) {
           output += chunk
         } else {
-          output += chunk.slice(0, remaining)
+          output += chunk.slice(0, remaining) + '\n...'
           truncated = true
         }
       }
@@ -274,6 +323,7 @@ export class AgentBashHandler {
         }
         resolve({
           output,
+          fullOutput,
           exitCode,
           timedOut,
           aborted,

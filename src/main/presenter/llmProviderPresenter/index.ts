@@ -16,6 +16,7 @@ import {
   AcpDebugRequest,
   AcpDebugRunResult
 } from '@shared/presenter'
+import type { IContextFilePresenter } from '@shared/types/presenters/contextFiles.presenter'
 import { ProviderChange, ProviderBatchUpdate } from '@shared/provider-operations'
 import { eventBus } from '@/eventbus'
 import { CONFIG_EVENTS } from '@/events'
@@ -48,7 +49,11 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
   private readonly modelScopeSyncManager: ModelScopeSyncManager
   private readonly acpSessionPersistence: AcpSessionPersistence
 
-  constructor(configPresenter: IConfigPresenter, sqlitePresenter: ISQLitePresenter) {
+  constructor(
+    configPresenter: IConfigPresenter,
+    sqlitePresenter: ISQLitePresenter,
+    contextFilePresenter?: IContextFilePresenter
+  ) {
     this.rateLimitManager = new RateLimitManager(configPresenter)
     this.acpSessionPersistence = new AcpSessionPersistence(sqlitePresenter)
     this.providerInstanceManager = new ProviderInstanceManager({
@@ -80,7 +85,8 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
       getProviderInstance: this.getProviderInstance.bind(this),
       activeStreams: this.activeStreams,
       canStartNewStream: this.canStartNewStream.bind(this),
-      rateLimitManager: this.rateLimitManager
+      rateLimitManager: this.rateLimitManager,
+      contextFilePresenter
     })
 
     this.rateLimitManager.initializeProviderRateLimitConfigs()

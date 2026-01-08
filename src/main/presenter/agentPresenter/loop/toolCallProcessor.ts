@@ -7,6 +7,8 @@ import {
   ModelConfig
 } from '@shared/presenter'
 import { isNonRetryableError } from './errorClassification'
+import { ContextOffloadManager } from '@/presenter/contextFiles/ContextOffloadManager'
+import type { IContextFilePresenter } from '@shared/types/presenters/contextFiles.presenter'
 
 interface ToolCallProcessorOptions {
   getAllToolDefinitions: (context: ToolCallExecutionContext) => Promise<MCPToolDefinition[]>
@@ -18,6 +20,8 @@ interface ToolCallProcessorOptions {
     conversationId?: string
     status: 'success' | 'error' | 'permission'
   }) => void
+  contextFilePresenter?: IContextFilePresenter
+  toolOffloadThreshold?: number
 }
 
 interface ToolCallExecutionContext {
@@ -38,7 +42,15 @@ interface ToolCallProcessResult {
 }
 
 export class ToolCallProcessor {
-  constructor(private readonly options: ToolCallProcessorOptions) {}
+  private offloadManager: ContextOffloadManager | null = null
+
+  constructor(private readonly options: ToolCallProcessorOptions) {
+    if (this.options.contextFilePresenter) {
+      this.offloadManager = new ContextOffloadManager(
+        this.options.contextFilePresenter.getContextStore()
+      )
+    }
+  }
 
   async *process(
     context: ToolCallExecutionContext
@@ -144,6 +156,12 @@ export class ToolCallProcessor {
       try {
         const toolResponse = await this.options.callTool(mcpToolInput)
         const requiresPermission = Boolean(toolResponse.rawData?.requiresPermission)
+
+        const { content: processedContent } = await this.checkAndOffloadToolOutput(
+          toolResponse,
+          mcpToolInput
+        )
+        toolResponse.content = processedContent
 
         if (requiresPermission) {
           notifyToolCallFinished('permission')
@@ -436,6 +454,80 @@ export class ToolCallProcessor {
       role: 'user',
       content: [{ type: 'text', text: userPromptText }]
     })
+  }
+
+  /**
+   * Check if tool output is too large and offload to context file.
+   * Returns modified content with context ref reference if offloaded.
+   */
+  private async checkAndOffloadToolOutput(
+    toolResponse: { content: unknown; rawData?: unknown },
+    toolCall: MCPToolCall
+  ): Promise<{ content: unknown; offloaded: boolean }> {
+    if (!this.offloadManager || !this.options.contextFilePresenter) {
+      return { content: toolResponse.content, offloaded: false }
+    }
+
+    let contentString: string
+    try {
+      contentString =
+        typeof toolResponse.content === 'string'
+          ? toolResponse.content
+          : JSON.stringify(toolResponse.content)
+    } catch {
+      return { content: toolResponse.content, offloaded: false }
+    }
+
+    const threshold = this.options.toolOffloadThreshold ?? 1024
+    if (contentString.length <= threshold) {
+      return { content: toolResponse.content, offloaded: false }
+    }
+
+    const serverName = toolCall.server?.name
+    const toolName = toolCall.function.name
+
+    if (
+      serverName === 'agent-filesystem' ||
+      serverName === 'yo-browser' ||
+      serverName === 'context-files' ||
+      toolName === 'execute_command' ||
+      toolName === 'create_terminal' ||
+      toolName.startsWith('terminal_')
+    ) {
+      return { content: toolResponse.content, offloaded: false }
+    }
+
+    try {
+      const result = await this.offloadManager.offload({
+        conversationId: toolCall.conversationId,
+        content: contentString,
+        kind: 'artifact',
+        threshold,
+        inlinePreviewSize: 800,
+        sourceHint: toolCall.function.name,
+        refHint: `Tool output from ${toolCall.function.name} (${contentString.length} chars)`
+      })
+
+      if (result.wasOffloaded) {
+        console.log(
+          `[ToolCallProcessor] Offloaded tool output: ${toolCall.function.name} (${result.originalSize} chars)`
+        )
+        return {
+          content: `${result.inlineContent}\n\n${result.contextRefMarkdown}`,
+          offloaded: true
+        }
+      }
+    } catch (error) {
+      console.warn(
+        `[ToolCallProcessor] Failed to offload tool output for ${toolCall.function.name}:`,
+        error
+      )
+      const fallbackContent =
+        contentString.slice(0, threshold) + '\n\n[Output truncated due to offload error]'
+      return { content: fallbackContent, offloaded: false }
+    }
+
+    return { content: toolResponse.content, offloaded: false }
   }
 
   private stringifyToolContent(content: unknown): string {
