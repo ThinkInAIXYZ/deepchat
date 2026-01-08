@@ -96,8 +96,8 @@ export class ProviderInstanceManager {
       ['aws-bedrock', AwsBedrockProvider],
       ['jiekou', JiekouProvider],
       ['zenmux', ZenmuxProvider],
-      ['acp', AcpProvider],
-      ['o3fan', O3fanProvider]
+      ['o3fan', O3fanProvider],
+      ['acp', AcpProvider]
     ])
   }
 

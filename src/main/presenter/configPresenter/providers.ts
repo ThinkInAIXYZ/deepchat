@@ -759,7 +759,7 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
       apiKey: 'https://o3.fan/token',
       docs: 'https://o3.fan',
       models: 'https://o3.fan/info/models',
-      defaultBaseUrl: 'https://api.o3.fan'
+      defaultBaseUrl: 'https://api.o3.fan/v1'
     }
   }
 ]
