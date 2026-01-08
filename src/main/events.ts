@@ -260,3 +260,13 @@ export const ACP_WORKSPACE_EVENTS = {
 export const ACP_DEBUG_EVENTS = {
   EVENT: 'acp-debug:event'
 }
+
+// Skills system events
+export const SKILL_EVENTS = {
+  DISCOVERED: 'skill:discovered', // Skills discovery completed
+  METADATA_UPDATED: 'skill:metadata-updated', // Metadata hot-reload updated
+  INSTALLED: 'skill:installed', // Skill installation completed
+  UNINSTALLED: 'skill:uninstalled', // Skill uninstallation completed
+  ACTIVATED: 'skill:activated', // Skill activated in session
+  DEACTIVATED: 'skill:deactivated' // Skill deactivated in session
+}

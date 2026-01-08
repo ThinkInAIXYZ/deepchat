@@ -1039,5 +1039,36 @@
     "resetToDefault": "Reset to default prompt",
     "resetToDefaultSuccess": "Reset to default system prompt successfully",
     "resetToDefaultFailed": "Failed to reset, please try again"
+  },
+  "skills": {
+    "title": "Skills",
+    "description": "Manage and configure AI assistant skills",
+    "openFolder": "Open Folder",
+    "addSkill": "Add Skill",
+    "empty": "No skills yet",
+    "emptyHint": "Click \"Add Skill\" to install a new skill",
+    "install": {
+      "title": "Install Skill",
+      "description": "Choose skill installation method",
+      "fromFolder": "Install from Folder",
+      "selectFolder": "Select Skill Folder",
+      "success": "Installation Successful",
+      "successMessage": "Skill {name} has been installed successfully",
+      "failed": "Installation Failed"
+    },
+    "delete": {
+      "title": "Delete Skill",
+      "description": "Are you sure you want to delete skill {name}? This action cannot be undone.",
+      "success": "Deletion Successful",
+      "successMessage": "Skill {name} has been deleted successfully",
+      "failed": "Deletion Failed"
+    },
+    "edit": {
+      "title": "Edit Skill",
+      "placeholder": "Edit skill content here...",
+      "readFailed": "Failed to read",
+      "success": "Saved Successfully",
+      "failed": "Failed to save"
+    }
   }
 }

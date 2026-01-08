@@ -13,6 +13,7 @@ import type { ISearchPresenter } from './search.presenter'
 import type { IConversationExporter } from './exporter.presenter'
 import type { IWorkspacePresenter } from './workspace'
 import type { IToolPresenter } from './tool.presenter'
+import type { ISkillPresenter } from '../skill'
 import type {
   BrowserTabInfo,
   BrowserContextSnapshot,
@@ -447,6 +448,7 @@ export interface IPresenter {
   knowledgePresenter: IKnowledgePresenter
   workspacePresenter: IWorkspacePresenter
   toolPresenter: IToolPresenter
+  skillPresenter: ISkillPresenter
   init(): void
   destroy(): void
 }
@@ -548,6 +550,12 @@ export interface IConfigPresenter {
   setSyncFolderPath(folderPath: string): void
   getLastSyncTime(): number
   setLastSyncTime(time: number): void
+  // Skills settings
+  getSkillsEnabled(): boolean
+  setSkillsEnabled(enabled: boolean): void
+  getSkillsPath(): string
+  setSkillsPath(skillsPath: string): void
+  getSkillSettings(): { skillsPath: string; enableSkills: boolean }
   // MCP configuration related methods
   getMcpServers(): Promise<Record<string, MCPServerConfig>>
   setMcpServers(servers: Record<string, MCPServerConfig>): Promise<void>
@@ -1060,6 +1068,7 @@ export type CONVERSATION_SETTINGS = {
   acpWorkdirMap?: Record<string, string | null>
   chatMode?: 'chat' | 'agent' | 'acp agent'
   agentWorkspacePath?: string | null
+  activeSkills?: string[] // Activated skills for this conversation
 }
 
 export type ParentSelection = {

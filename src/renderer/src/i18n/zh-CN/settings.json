@@ -1039,5 +1039,36 @@
     "resetToDefault": "重置为默认提示词",
     "resetToDefaultSuccess": "已重置为默认系统提示词",
     "resetToDefaultFailed": "重置失败，请重试"
+  },
+  "skills": {
+    "title": "技能管理",
+    "description": "管理和配置 AI 助手的技能模块",
+    "openFolder": "打开文件夹",
+    "addSkill": "添加技能",
+    "empty": "暂无技能",
+    "emptyHint": "点击\"添加技能\"按钮安装新技能",
+    "install": {
+      "title": "安装技能",
+      "description": "选择技能安装方式",
+      "fromFolder": "从文件夹安装",
+      "selectFolder": "选择技能文件夹",
+      "success": "安装成功",
+      "successMessage": "技能 {name} 已成功安装",
+      "failed": "安装失败"
+    },
+    "delete": {
+      "title": "删除技能",
+      "description": "确定要删除技能 {name} 吗？此操作无法撤销。",
+      "success": "删除成功",
+      "successMessage": "技能 {name} 已成功删除",
+      "failed": "删除失败"
+    },
+    "edit": {
+      "title": "编辑技能",
+      "placeholder": "在此编辑技能内容...",
+      "readFailed": "读取失败",
+      "success": "保存成功",
+      "failed": "保存失败"
+    }
   }
 }

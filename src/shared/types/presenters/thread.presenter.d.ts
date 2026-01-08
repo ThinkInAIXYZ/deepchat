@@ -24,6 +24,7 @@ export type CONVERSATION_SETTINGS = {
   chatMode?: 'chat' | 'agent' | 'acp agent'
   agentWorkspacePath?: string | null
   selectedVariantsMap?: Record<string, string>
+  activeSkills?: string[]
 }
 
 export type ParentSelection = {

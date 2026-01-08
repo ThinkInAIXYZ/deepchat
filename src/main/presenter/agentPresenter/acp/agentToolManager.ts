@@ -1,5 +1,4 @@
-import type { MCPToolDefinition } from '@shared/presenter'
-import type { IYoBrowserPresenter } from '@shared/presenter'
+import type { IConfigPresenter, IYoBrowserPresenter, MCPToolDefinition } from '@shared/presenter'
 import { zodToJsonSchema } from 'zod-to-json-schema'
 import { z } from 'zod'
 import fs from 'fs'
@@ -9,6 +8,7 @@ import logger from '@shared/logger'
 import { presenter } from '@/presenter'
 import { AgentFileSystemHandler } from './agentFileSystemHandler'
 import { AgentBashHandler } from './agentBashHandler'
+import { SkillTools } from '../../skillPresenter/skillTools'
 
 // Consider moving to a shared handlers location in future refactoring
 import {
@@ -45,6 +45,7 @@ export interface AgentToolCallResult {
 interface AgentToolManagerOptions {
   yoBrowserPresenter: IYoBrowserPresenter
   agentWorkspacePath: string | null
+  configPresenter: IConfigPresenter
   commandPermissionHandler?: CommandPermissionService
 }
 
@@ -54,6 +55,8 @@ export class AgentToolManager {
   private fileSystemHandler: AgentFileSystemHandler | null = null
   private bashHandler: AgentBashHandler | null = null
   private readonly commandPermissionHandler?: CommandPermissionService
+  private readonly configPresenter: IConfigPresenter
+  private skillTools: SkillTools | null = null
   private readonly fileSystemSchemas = {
     read_file: z.object({
       paths: z.array(z.string()).min(1)
@@ -160,9 +163,27 @@ export class AgentToolManager {
     })
   }
 
+  private readonly skillSchemas = {
+    skill_list: z.object({}),
+    skill_control: z
+      .object({
+        action: z.enum(['activate', 'deactivate']).describe('The action to perform'),
+        skill_name: z.string().min(1).optional().describe('Skill name to activate or deactivate'),
+        skills: z
+          .array(z.string())
+          .min(1)
+          .optional()
+          .describe('List of skill names to activate or deactivate')
+      })
+      .refine((data) => Boolean(data.skill_name || (data.skills && data.skills.length > 0)), {
+        message: 'Either skill_name or skills must be provided'
+      })
+  }
+
   constructor(options: AgentToolManagerOptions) {
     this.yoBrowserPresenter = options.yoBrowserPresenter
     this.agentWorkspacePath = options.agentWorkspacePath
+    this.configPresenter = options.configPresenter
     this.commandPermissionHandler = options.commandPermissionHandler
     if (this.agentWorkspacePath) {
       this.fileSystemHandler = new AgentFileSystemHandler([this.agentWorkspacePath])
@@ -218,6 +239,12 @@ export class AgentToolManager {
       defs.push(...fsDefs)
     }
 
+    // 3. Skill tools (agent mode only)
+    if (isAgentMode && this.isSkillsEnabled()) {
+      const skillDefs = this.getSkillToolDefinitions()
+      defs.push(...skillDefs)
+    }
+
     return defs
   }
 
@@ -246,6 +273,11 @@ export class AgentToolManager {
         throw new Error(`FileSystem handler not initialized for tool: ${toolName}`)
       }
       return await this.callFileSystemTool(toolName, args, conversationId)
+    }
+
+    // Route to Skill tools
+    if (this.isSkillTool(toolName)) {
+      return await this.callSkillTool(toolName, args, conversationId)
     }
 
     throw new Error(`Unknown Agent tool: ${toolName}`)
@@ -611,5 +643,99 @@ export class AgentToolManager {
       return app.getPath('temp')
     }
     return tempDir
+  }
+
+  private isSkillsEnabled(): boolean {
+    return this.configPresenter.getSkillsEnabled()
+  }
+
+  private getSkillTools(): SkillTools {
+    if (!this.skillTools) {
+      this.skillTools = new SkillTools(presenter.skillPresenter)
+    }
+    return this.skillTools
+  }
+
+  private getSkillToolDefinitions(): MCPToolDefinition[] {
+    const schemas = this.skillSchemas
+    return [
+      {
+        type: 'function',
+        function: {
+          name: 'skill_list',
+          description:
+            'List all available skills and their activation status. Skills provide specialized expertise and behavioral guidance.',
+          parameters: zodToJsonSchema(schemas.skill_list) as {
+            type: string
+            properties: Record<string, unknown>
+            required?: string[]
+          }
+        },
+        server: {
+          name: 'agent-skills',
+          icons: '🎯',
+          description: 'Agent Skills management'
+        }
+      },
+      {
+        type: 'function',
+        function: {
+          name: 'skill_control',
+          description:
+            'Activate or deactivate skills. Activated skills inject their expertise into the conversation context.',
+          parameters: zodToJsonSchema(schemas.skill_control) as {
+            type: string
+            properties: Record<string, unknown>
+            required?: string[]
+          }
+        },
+        server: {
+          name: 'agent-skills',
+          icons: '🎯',
+          description: 'Agent Skills management'
+        }
+      }
+    ]
+  }
+
+  private isSkillTool(toolName: string): boolean {
+    return toolName === 'skill_list' || toolName === 'skill_control'
+  }
+
+  private async callSkillTool(
+    toolName: string,
+    args: Record<string, unknown>,
+    conversationId?: string
+  ): Promise<AgentToolCallResult> {
+    if (!this.isSkillsEnabled()) {
+      return {
+        content: JSON.stringify({
+          success: false,
+          error: 'Skills are disabled'
+        })
+      }
+    }
+
+    const skillTools = this.getSkillTools()
+
+    if (toolName === 'skill_list') {
+      const result = await skillTools.handleSkillList(conversationId)
+      return { content: JSON.stringify(result) }
+    }
+
+    if (toolName === 'skill_control') {
+      const schema = this.skillSchemas.skill_control
+      const validationResult = schema.safeParse(args)
+      if (!validationResult.success) {
+        throw new Error(`Invalid arguments for skill_control: ${validationResult.error.message}`)
+      }
+
+      const { action, skill_name: skillName, skills } = validationResult.data
+      const skillNames = skillName ? [skillName] : (skills ?? [])
+      const result = await skillTools.handleSkillControl(conversationId, action, skillNames)
+      return { content: JSON.stringify(result) }
+    }
+
+    throw new Error(`Unknown skill tool: ${toolName}`)
   }
 }

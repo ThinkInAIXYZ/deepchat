@@ -83,13 +83,23 @@ const router = createRouter({
       }
     },
     {
+      path: '/skills',
+      name: 'settings-skills',
+      component: () => import('./components/SkillsSettings.vue'),
+      meta: {
+        titleKey: 'routes.settings-skills',
+        icon: 'lucide:wand-sparkles',
+        position: 7
+      }
+    },
+    {
       path: '/prompt',
       name: 'settings-prompt',
       component: () => import('./components/PromptSetting.vue'),
       meta: {
         titleKey: 'routes.settings-prompt',
         icon: 'lucide:book-open-text',
-        position: 7
+        position: 8
       }
     },
     {
@@ -99,7 +109,7 @@ const router = createRouter({
       meta: {
         titleKey: 'routes.settings-knowledge-base',
         icon: 'lucide:book-marked',
-        position: 8
+        position: 9
       }
     },
     {
@@ -109,7 +119,7 @@ const router = createRouter({
       meta: {
         titleKey: 'routes.settings-database',
         icon: 'lucide:database',
-        position: 9
+        position: 10
       }
     },
     {
@@ -119,7 +129,7 @@ const router = createRouter({
       meta: {
         titleKey: 'routes.settings-shortcut',
         icon: 'lucide:keyboard',
-        position: 10
+        position: 11
       }
     },
     {
@@ -129,7 +139,7 @@ const router = createRouter({
       meta: {
         titleKey: 'routes.settings-about',
         icon: 'lucide:info',
-        position: 11
+        position: 12
       }
     },
     {
