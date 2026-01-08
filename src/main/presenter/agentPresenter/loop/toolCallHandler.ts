@@ -134,6 +134,29 @@ export class ToolCallHandler {
     state.pendingToolCall = undefined
   }
 
+  async processToolCallError(
+    state: GeneratingMessageState,
+    event: LLMAgentEventData
+  ): Promise<void> {
+    const toolCallBlock = state.message.content.find(
+      (block) =>
+        block.type === 'tool_call' &&
+        block.tool_call?.id === event.tool_call_id &&
+        block.status === 'loading'
+    )
+
+    if (toolCallBlock && toolCallBlock.type === 'tool_call') {
+      toolCallBlock.status = 'error'
+      if (toolCallBlock.tool_call) {
+        toolCallBlock.tool_call.response = event.tool_call_response || ''
+      }
+    }
+
+    this.searchingMessages.delete(event.eventId)
+    state.isSearching = false
+    state.pendingToolCall = undefined
+  }
+
   async processToolCallPermission(
     state: GeneratingMessageState,
     event: LLMAgentEventData,

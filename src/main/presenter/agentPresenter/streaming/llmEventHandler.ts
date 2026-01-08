@@ -143,6 +143,9 @@ export class LLMEventHandler {
         case 'continue':
           await this.toolCallHandler.processToolCallPermission(state, msg, currentTime)
           break
+        case 'error':
+          await this.toolCallHandler.processToolCallError(state, msg)
+          break
         case 'end':
           await this.toolCallHandler.processToolCallEnd(state, msg)
           break

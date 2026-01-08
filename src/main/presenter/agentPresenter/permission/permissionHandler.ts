@@ -1,5 +1,3 @@
-import { eventBus, SendTarget } from '@/eventbus'
-import { STREAM_EVENTS } from '@/events'
 import { presenter } from '@/presenter'
 import type { AssistantMessage, AssistantMessageBlock } from '@shared/chat'
 import type {
@@ -320,21 +318,7 @@ export class PermissionHandler extends BaseHandler {
       }
 
       const toolCall = deniedPermissionBlock.tool_call
-      const errorMessage = `Tool execution failed: Permission denied by user for ${
-        toolCall.name || 'this tool'
-      }`
-
-      eventBus.sendToRenderer(STREAM_EVENTS.RESPONSE, SendTarget.ALL_WINDOWS, {
-        eventId: messageId,
-        tool_call: 'end',
-        tool_call_id: toolCall.id,
-        tool_call_name: toolCall.name,
-        tool_call_params: toolCall.params,
-        tool_call_response: errorMessage,
-        tool_call_server_name: toolCall.server_name,
-        tool_call_server_icons: toolCall.server_icons,
-        tool_call_server_description: toolCall.server_description
-      })
+      const errorMessage = 'User denied the request.'
 
       let state = this.generatingMessages.get(messageId)
       if (!state) {
@@ -352,6 +336,18 @@ export class PermissionHandler extends BaseHandler {
       }
 
       state.pendingToolCall = undefined
+
+      await this.llmEventHandler.handleLLMAgentResponse({
+        eventId: messageId,
+        tool_call: 'error',
+        tool_call_id: toolCall.id,
+        tool_call_name: toolCall.name,
+        tool_call_params: toolCall.params,
+        tool_call_response: errorMessage,
+        tool_call_server_name: toolCall.server_name,
+        tool_call_server_icons: toolCall.server_icons,
+        tool_call_server_description: toolCall.server_description
+      } as any)
 
       const { conversation, contextMessages, userMessage } =
         await this.streamGenerationHandler.prepareConversationContext(conversationId, messageId)
