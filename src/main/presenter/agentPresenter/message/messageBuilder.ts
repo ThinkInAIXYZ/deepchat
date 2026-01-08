@@ -5,7 +5,6 @@ import { ModelType } from '@shared/model'
 import { CONVERSATION, ModelConfig, SearchResult, ChatMessage } from '@shared/presenter'
 import type { MCPToolDefinition } from '@shared/presenter'
 
-import { ContentEnricher } from '../../content/contentEnricher'
 import { modelCapabilities } from '../../configPresenter/modelCapabilities'
 import { enhanceSystemPromptWithDateTime } from '../utility/promptEnhancer'
 import { ToolCallCenter } from '../tool/toolCallCenter'
@@ -33,7 +32,6 @@ export interface PreparePromptContentParams {
   userContent: string
   contextMessages: Message[]
   searchResults: SearchResult[] | null
-  urlResults: SearchResult[]
   userMessage: Message
   vision: boolean
   imageFiles: MessageFile[]
@@ -63,7 +61,6 @@ export async function preparePromptContent({
   userContent,
   contextMessages,
   searchResults: _searchResults,
-  urlResults,
   userMessage,
   vision,
   imageFiles,
@@ -84,10 +81,6 @@ export async function preparePromptContent({
   const isAgentMode = chatMode === 'agent'
 
   const isImageGeneration = modelType === ModelType.ImageGeneration
-  const enrichedUserMessage =
-    !isImageGeneration && urlResults.length > 0
-      ? '\n\n' + ContentEnricher.enrichUserMessageWithUrlContent(userContent, urlResults)
-      : ''
 
   const finalSystemPrompt = enhanceSystemPromptWithDateTime(systemPrompt, {
     isImageGeneration,
@@ -116,7 +109,7 @@ export async function preparePromptContent({
 
   const systemPromptTokens =
     !isImageGeneration && finalSystemPrompt ? approximateTokenSize(finalSystemPrompt) : 0
-  const userMessageTokens = approximateTokenSize(userContent + enrichedUserMessage)
+  const userMessageTokens = approximateTokenSize(userContent)
   const toolDefinitionsTokens = toolDefinitions.reduce((acc, tool) => {
     return acc + approximateTokenSize(JSON.stringify(tool))
   }, 0)
@@ -137,7 +130,7 @@ export async function preparePromptContent({
     isImageGeneration ? '' : finalSystemPrompt,
     artifacts,
     userContent,
-    enrichedUserMessage,
+    '',
     imageFiles,
     vision,
     supportsFunctionCall
