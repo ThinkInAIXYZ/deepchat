@@ -34,6 +34,7 @@ import { VercelAIGatewayProvider } from '../providers/vercelAIGatewayProvider'
 import { PoeProvider } from '../providers/poeProvider'
 import { JiekouProvider } from '../providers/jiekouProvider'
 import { ZenmuxProvider } from '../providers/zenmuxProvider'
+import { O3fanProvider } from '../providers/o3fanProvider'
 import { RateLimitManager } from './rateLimitManager'
 import { StreamState } from '../types'
 import { AcpSessionPersistence } from '../../agentPresenter/acp'
@@ -95,6 +96,7 @@ export class ProviderInstanceManager {
       ['aws-bedrock', AwsBedrockProvider],
       ['jiekou', JiekouProvider],
       ['zenmux', ZenmuxProvider],
+      ['o3fan', O3fanProvider],
       ['acp', AcpProvider]
     ])
   }
@@ -127,7 +129,8 @@ export class ProviderInstanceManager {
       ['aws-bedrock', AwsBedrockProvider],
       ['jiekou', JiekouProvider],
       ['zenmux', ZenmuxProvider],
-      ['acp', AcpProvider]
+      ['acp', AcpProvider],
+      ['o3fan', O3fanProvider]
     ])
   }
 

@@ -67,12 +67,14 @@ import jiekouColorIcon from '@/assets/llm-icons/jiekou-color.svg?url'
 import zenmuxColorIcon from '@/assets/llm-icons/zenmux-color.svg?url'
 import burncloudColorIcon from '@/assets/llm-icons/burncloud-color.svg?url'
 import xiaomiColorIcon from '@/assets/llm-icons/xiaomi.png?url'
+import o3fanColorIcon from '@/assets/llm-icons/o3-fan.png?url'
 
 // 导入所有图标
 const icons = {
   'kimi-cli': moonshotColorIcon,
   'claude-code-acp': claudeColorIcon,
   'codex-acp': openaiColorIcon,
+  o3fan: o3fanColorIcon,
   cherryin: cherryinColorIcon,
   modelscope: modelscopeColorIcon,
   '302ai': _302aiIcon,
