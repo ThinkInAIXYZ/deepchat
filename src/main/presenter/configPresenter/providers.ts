@@ -750,12 +750,12 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
   {
     id: 'o3fan',
     name: 'o3.fan',
-    apiType: 'openai',
+    apiType: 'o3fan',
     apiKey: '',
     baseUrl: 'https://api.o3.fan/v1',
     enable: false,
     websites: {
-      official: 'https://o3.fan/v1',
+      official: 'https://o3.fan',
       apiKey: 'https://o3.fan/token',
       docs: 'https://o3.fan',
       models: 'https://o3.fan/info/models',
