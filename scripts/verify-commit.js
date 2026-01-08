@@ -1,7 +1,39 @@
 // @ts-check
 import pico from 'picocolors'
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync, readFileSync, statSync } from 'node:fs'
 import path from 'node:path'
+
+const findGitPath = (startDir) => {
+  let current = startDir
+  while (true) {
+    const candidate = path.join(current, '.git')
+    if (existsSync(candidate)) {
+      return candidate
+    }
+    const parent = path.dirname(current)
+    if (parent === current) {
+      return null
+    }
+    current = parent
+  }
+}
+
+const resolveGitDir = (gitPath) => {
+  try {
+    const stat = statSync(gitPath)
+    if (stat.isDirectory()) {
+      return gitPath
+    }
+    const content = readFileSync(gitPath, 'utf-8').trim()
+    if (content.startsWith('gitdir:')) {
+      const gitDir = content.replace('gitdir:', '').trim()
+      return path.resolve(path.dirname(gitPath), gitDir)
+    }
+  } catch {
+    // ignore and fall through
+  }
+  return null
+}
 
 const resolveMsgPath = () => {
   const argPath = process.argv[2]
@@ -9,16 +41,19 @@ const resolveMsgPath = () => {
     return argPath
   }
 
-  const gitPath = path.resolve('.git')
-  if (existsSync(gitPath)) {
-    try {
-      const stat = readFileSync(gitPath, 'utf-8').trim()
-      if (stat.startsWith('gitdir:')) {
-        const gitDir = stat.replace('gitdir:', '').trim()
-        return path.resolve(gitDir, 'COMMIT_EDITMSG')
-      }
-    } catch {
-      // ignore and fall through
+  const envGitDir = process.env.GIT_DIR
+  if (envGitDir && existsSync(envGitDir)) {
+    const resolved = resolveGitDir(envGitDir)
+    if (resolved) {
+      return path.resolve(resolved, 'COMMIT_EDITMSG')
+    }
+  }
+
+  const gitPath = findGitPath(process.cwd())
+  if (gitPath) {
+    const resolved = resolveGitDir(gitPath)
+    if (resolved) {
+      return path.resolve(resolved, 'COMMIT_EDITMSG')
     }
   }
 
