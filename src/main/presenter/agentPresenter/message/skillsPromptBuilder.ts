@@ -48,6 +48,7 @@ export async function buildSkillsPrompt(conversationId: string): Promise<string>
 /**
  * Build the skills metadata prompt section for the system prompt.
  * Lists available skills and how to activate them.
+ * Delegates to skillPresenter.getMetadataPrompt() to avoid code duplication.
  */
 export async function buildSkillsMetadataPrompt(): Promise<string> {
   try {
@@ -56,18 +57,7 @@ export async function buildSkillsMetadataPrompt(): Promise<string> {
     }
 
     const skillPresenter = presenter.skillPresenter as SkillPresenter
-    const skillsDir = await skillPresenter.getSkillsDir()
-    const skills = await skillPresenter.getMetadataList()
-
-    const header = '# Available Skills'
-    const dirLine = `Skills directory: ${skillsDir}`
-
-    if (skills.length === 0) {
-      return `${header}\n\n${dirLine}\nNo skills are currently installed.`
-    }
-
-    const lines = skills.map((skill) => `- ${skill.name}: ${skill.description}`)
-    return `${header}\n\n${dirLine}\nYou can activate these skills using skill_control tool:\n${lines.join('\n')}`
+    return await skillPresenter.getMetadataPrompt()
   } catch (error) {
     console.warn('[SkillsPromptBuilder] Failed to build skills metadata prompt:', error)
     return ''

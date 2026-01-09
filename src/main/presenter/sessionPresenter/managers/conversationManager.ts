@@ -185,6 +185,7 @@ export class ConversationManager {
         defaultSettings.selectedVariantsMap = {}
         defaultSettings.acpWorkdirMap = {}
         defaultSettings.agentWorkspacePath = null
+        defaultSettings.activeSkills = []
       }
 
       const sanitizedSettings: Partial<CONVERSATION_SETTINGS> = { ...settings }

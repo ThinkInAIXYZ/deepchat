@@ -18,6 +18,27 @@ import { SKILL_EVENTS } from '@/events'
 import { presenter } from '@/presenter'
 
 /**
+ * Skill system configuration constants
+ */
+export const SKILL_CONFIG = {
+  /** Maximum size for SKILL.md file (bytes) - prevents memory exhaustion */
+  SKILL_FILE_MAX_SIZE: 5 * 1024 * 1024, // 5MB
+
+  /** Maximum size for ZIP file (bytes) - prevents ZIP bomb attacks */
+  ZIP_MAX_SIZE: 200 * 1024 * 1024, // 200MB
+
+  /** Download timeout (milliseconds) - prevents hanging connections */
+  DOWNLOAD_TIMEOUT: 30 * 1000, // 30 seconds
+
+  /** Maximum depth for folder tree traversal - prevents stack overflow */
+  FOLDER_TREE_MAX_DEPTH: 10,
+
+  /** File watcher debounce settings */
+  WATCHER_STABILITY_THRESHOLD: 300, // ms
+  WATCHER_POLL_INTERVAL: 100 // ms
+} as const
+
+/**
  * SkillPresenter - Manages the skills system
  *
  * Responsibilities:
@@ -33,6 +54,8 @@ export class SkillPresenter implements ISkillPresenter {
   private contentCache: Map<string, SkillContent> = new Map()
   private watcher: FSWatcher | null = null
   private initialized: boolean = false
+  // Prevent concurrent discovery calls (race condition protection)
+  private discoveryPromise: Promise<SkillMetadata[]> | null = null
 
   constructor(private readonly configPresenter: IConfigPresenter) {
     // Skills directory: ~/.deepchat/skills/
@@ -141,7 +164,9 @@ export class SkillPresenter implements ISkillPresenter {
         description: data.description || '',
         path: skillPath,
         skillRoot: path.dirname(skillPath),
-        allowedTools: Array.isArray(data.allowedTools) ? data.allowedTools : undefined
+        allowedTools: Array.isArray(data.allowedTools)
+          ? data.allowedTools.filter((t): t is string => typeof t === 'string')
+          : undefined
       }
     } catch (error) {
       console.error(`[SkillPresenter] Error parsing skill metadata at ${skillPath}:`, error)
@@ -151,10 +176,16 @@ export class SkillPresenter implements ISkillPresenter {
 
   /**
    * Get list of all skill metadata (from cache)
+   * Uses discoveryPromise pattern to prevent race conditions
    */
   async getMetadataList(): Promise<SkillMetadata[]> {
     if (this.metadataCache.size === 0) {
-      await this.discoverSkills()
+      if (!this.discoveryPromise) {
+        this.discoveryPromise = this.discoverSkills().finally(() => {
+          this.discoveryPromise = null
+        })
+      }
+      await this.discoveryPromise
     }
     return Array.from(this.metadataCache.values())
   }
@@ -196,6 +227,15 @@ export class SkillPresenter implements ISkillPresenter {
     }
 
     try {
+      // Check file size before reading to prevent memory exhaustion
+      const stats = fs.statSync(metadata.path)
+      if (stats.size > SKILL_CONFIG.SKILL_FILE_MAX_SIZE) {
+        console.error(
+          `[SkillPresenter] Skill file too large: ${stats.size} bytes (max: ${SKILL_CONFIG.SKILL_FILE_MAX_SIZE})`
+        )
+        return null
+      }
+
       const rawContent = fs.readFileSync(metadata.path, 'utf-8')
       const { content } = matter(rawContent)
       const renderedContent = this.replacePathVariables(content, metadata)
@@ -412,6 +452,12 @@ export class SkillPresenter implements ISkillPresenter {
   }
 
   private extractZipToDirectory(zipPath: string, targetDir: string): void {
+    // Check ZIP file size before loading to prevent memory exhaustion
+    const stats = fs.statSync(zipPath)
+    if (stats.size > SKILL_CONFIG.ZIP_MAX_SIZE) {
+      throw new Error(`ZIP file too large: ${stats.size} bytes (max: ${SKILL_CONFIG.ZIP_MAX_SIZE})`)
+    }
+
     const zipContent = new Uint8Array(fs.readFileSync(zipPath))
     const extracted = unzipSync(zipContent)
     const resolvedTargetDir = path.resolve(targetDir)
@@ -485,12 +531,47 @@ export class SkillPresenter implements ISkillPresenter {
   }
 
   private async downloadSkillZip(url: string, destPath: string): Promise<void> {
-    const response = await fetch(url)
-    if (!response.ok) {
-      throw new Error(`Failed to download skill zip: ${response.status} ${response.statusText}`)
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), SKILL_CONFIG.DOWNLOAD_TIMEOUT)
+
+    try {
+      const response = await fetch(url, { signal: controller.signal })
+      if (!response.ok) {
+        throw new Error(`Failed to download skill zip: ${response.status} ${response.statusText}`)
+      }
+
+      // Check Content-Length to prevent memory exhaustion
+      const contentLength = response.headers.get('content-length')
+      if (contentLength && parseInt(contentLength) > SKILL_CONFIG.ZIP_MAX_SIZE) {
+        throw new Error(
+          `File too large: ${contentLength} bytes (max: ${SKILL_CONFIG.ZIP_MAX_SIZE})`
+        )
+      }
+
+      // Validate Content-Type
+      const contentType = response.headers.get('content-type')
+      if (
+        contentType &&
+        !contentType.includes('application/zip') &&
+        !contentType.includes('application/octet-stream') &&
+        !contentType.includes('application/x-zip')
+      ) {
+        throw new Error(`Expected ZIP file but got: ${contentType}`)
+      }
+
+      const buffer = new Uint8Array(await response.arrayBuffer())
+
+      // Double-check actual size after download
+      if (buffer.length > SKILL_CONFIG.ZIP_MAX_SIZE) {
+        throw new Error(
+          `Downloaded file too large: ${buffer.length} bytes (max: ${SKILL_CONFIG.ZIP_MAX_SIZE})`
+        )
+      }
+
+      fs.writeFileSync(destPath, Buffer.from(buffer))
+    } finally {
+      clearTimeout(timeoutId)
     }
-    const buffer = new Uint8Array(await response.arrayBuffer())
-    fs.writeFileSync(destPath, Buffer.from(buffer))
   }
 
   /**
@@ -559,31 +640,49 @@ export class SkillPresenter implements ISkillPresenter {
   }
 
   /**
-   * Build folder tree recursively
+   * Build folder tree recursively with depth limit and symlink protection
    */
-  private buildFolderTree(dirPath: string): SkillFolderNode[] {
-    const entries = fs.readdirSync(dirPath, { withFileTypes: true })
-    const nodes: SkillFolderNode[] = []
-
-    for (const entry of entries) {
-      const fullPath = path.join(dirPath, entry.name)
-      if (entry.isDirectory()) {
-        nodes.push({
-          name: entry.name,
-          type: 'directory',
-          path: fullPath,
-          children: this.buildFolderTree(fullPath)
-        })
-      } else {
-        nodes.push({
-          name: entry.name,
-          type: 'file',
-          path: fullPath
-        })
-      }
+  private buildFolderTree(
+    dirPath: string,
+    depth: number = 0,
+    maxDepth: number = SKILL_CONFIG.FOLDER_TREE_MAX_DEPTH
+  ): SkillFolderNode[] {
+    if (depth >= maxDepth) {
+      return []
     }
 
-    return nodes
+    try {
+      const entries = fs.readdirSync(dirPath, { withFileTypes: true })
+      const nodes: SkillFolderNode[] = []
+
+      for (const entry of entries) {
+        // Skip symbolic links to prevent infinite recursion
+        if (entry.isSymbolicLink()) {
+          continue
+        }
+
+        const fullPath = path.join(dirPath, entry.name)
+        if (entry.isDirectory()) {
+          nodes.push({
+            name: entry.name,
+            type: 'directory',
+            path: fullPath,
+            children: this.buildFolderTree(fullPath, depth + 1, maxDepth)
+          })
+        } else {
+          nodes.push({
+            name: entry.name,
+            type: 'file',
+            path: fullPath
+          })
+        }
+      }
+
+      return nodes
+    } catch (error) {
+      console.warn(`[SkillPresenter] Cannot read directory: ${dirPath}`, error)
+      return []
+    }
   }
 
   /**
@@ -696,8 +795,8 @@ export class SkillPresenter implements ISkillPresenter {
       ignoreInitial: true,
       depth: 2, // Watch skill directories and their immediate contents
       awaitWriteFinish: {
-        stabilityThreshold: 300,
-        pollInterval: 100
+        stabilityThreshold: SKILL_CONFIG.WATCHER_STABILITY_THRESHOLD,
+        pollInterval: SKILL_CONFIG.WATCHER_POLL_INTERVAL
       }
     })
 
@@ -746,6 +845,10 @@ export class SkillPresenter implements ISkillPresenter {
       }
     })
 
+    this.watcher.on('error', (error) => {
+      console.error('[SkillPresenter] File watcher error:', error)
+    })
+
     console.log('[SkillPresenter] File watcher started')
   }
 
@@ -761,7 +864,7 @@ export class SkillPresenter implements ISkillPresenter {
   }
 
   /**
-   * Utility: Copy directory recursively
+   * Utility: Copy directory recursively (skips symbolic links)
    */
   private copyDirectory(src: string, dest: string): void {
     fs.mkdirSync(dest, { recursive: true })
@@ -769,6 +872,11 @@ export class SkillPresenter implements ISkillPresenter {
     const entries = fs.readdirSync(src, { withFileTypes: true })
 
     for (const entry of entries) {
+      // Skip symbolic links to prevent infinite recursion
+      if (entry.isSymbolicLink()) {
+        continue
+      }
+
       const srcPath = path.join(src, entry.name)
       const destPath = path.join(dest, entry.name)
 
@@ -787,5 +895,7 @@ export class SkillPresenter implements ISkillPresenter {
     this.stopWatching()
     this.metadataCache.clear()
     this.contentCache.clear()
+    this.discoveryPromise = null
+    this.initialized = false
   }
 }

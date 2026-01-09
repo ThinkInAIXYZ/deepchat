@@ -1085,6 +1085,7 @@
       "failed": "Failed to save",
       "name": "Name",
       "namePlaceholder": "Skill name",
+      "nameHint": "Skill name cannot be changed after creation",
       "description": "Description",
       "descriptionPlaceholder": "Skill description",
       "allowedTools": "Allowed Tools",

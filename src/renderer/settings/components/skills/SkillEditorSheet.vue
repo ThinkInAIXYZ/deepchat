@@ -18,7 +18,12 @@
                 id="skill-name"
                 v-model="editName"
                 :placeholder="t('settings.skills.edit.namePlaceholder')"
+                disabled
+                class="bg-muted"
               />
+              <p class="text-xs text-muted-foreground">
+                {{ t('settings.skills.edit.nameHint') }}
+              </p>
             </div>
 
             <div class="space-y-1.5">
@@ -84,6 +89,7 @@
 <script setup lang="ts">
 import { ref, watch, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
+import * as yaml from 'yaml'
 import { Icon } from '@iconify/vue'
 import { Button } from '@shadcn/components/ui/button'
 import { Input } from '@shadcn/components/ui/input'
@@ -175,11 +181,12 @@ const parseSkillContent = (content: string): { body: string } => {
   return { body }
 }
 
-// Build SKILL.md content from edited fields
+// Build SKILL.md content from edited fields using proper YAML serialization
 const buildSkillContent = (): string => {
-  const frontmatter = ['---']
-  frontmatter.push(`name: "${editName.value}"`)
-  frontmatter.push(`description: "${editDescription.value}"`)
+  const frontmatterData: Record<string, unknown> = {
+    name: editName.value,
+    description: editDescription.value
+  }
 
   if (editAllowedTools.value.trim()) {
     const tools = editAllowedTools.value
@@ -187,17 +194,17 @@ const buildSkillContent = (): string => {
       .map((t) => t.trim())
       .filter((t) => t)
     if (tools.length > 0) {
-      frontmatter.push(`allowedTools:`)
-      tools.forEach((tool) => {
-        frontmatter.push(`  - ${tool}`)
-      })
+      frontmatterData.allowedTools = tools
     }
   }
 
-  frontmatter.push('---')
-  frontmatter.push('')
+  const yamlContent = yaml.stringify(frontmatterData, {
+    lineWidth: 0, // Disable line wrapping
+    defaultKeyType: 'PLAIN',
+    defaultStringType: 'QUOTE_DOUBLE'
+  })
 
-  return frontmatter.join('\n') + editContent.value
+  return `---\n${yamlContent}---\n\n${editContent.value}`
 }
 
 const handleSave = async () => {

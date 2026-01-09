@@ -34,12 +34,13 @@ import { ref } from 'vue'
 import { Icon } from '@iconify/vue'
 import type { SkillFolderNode } from '@shared/types/skill'
 
-defineProps<{
+const props = defineProps<{
   node: SkillFolderNode
   depth: number
 }>()
 
-const expanded = ref(true)
+// Only expand the first level by default
+const expanded = ref(props.depth === 0)
 
 const toggleExpand = () => {
   expanded.value = !expanded.value

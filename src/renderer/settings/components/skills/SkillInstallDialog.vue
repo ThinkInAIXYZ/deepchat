@@ -27,11 +27,7 @@
         <TabsContent value="folder" class="mt-4">
           <div
             class="border-2 border-dashed rounded-lg p-8 text-center hover:border-primary/50 transition-colors cursor-pointer"
-            :class="{ 'border-primary bg-primary/5': folderDragOver }"
             @click="selectFolder"
-            @dragover.prevent="folderDragOver = true"
-            @dragleave="folderDragOver = false"
-            @drop.prevent="handleFolderDrop"
           >
             <Icon
               v-if="!installing"
@@ -55,11 +51,7 @@
         <TabsContent value="zip" class="mt-4">
           <div
             class="border-2 border-dashed rounded-lg p-8 text-center hover:border-primary/50 transition-colors cursor-pointer"
-            :class="{ 'border-primary bg-primary/5': zipDragOver }"
             @click="selectZip"
-            @dragover.prevent="zipDragOver = true"
-            @dragleave="zipDragOver = false"
-            @drop.prevent="handleZipDrop"
           >
             <Icon
               v-if="!installing"
@@ -127,7 +119,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
 import { Button } from '@shadcn/components/ui/button'
@@ -176,13 +168,20 @@ const isOpen = computed({
 const activeTab = ref('folder')
 const installUrl = ref('')
 const installing = ref(false)
-const folderDragOver = ref(false)
-const zipDragOver = ref(false)
 
 // Conflict handling
 const conflictDialogOpen = ref(false)
 const conflictSkillName = ref('')
 const pendingInstallAction = ref<(() => Promise<void>) | null>(null)
+
+// Clear pending action when dialog closes to prevent memory leaks
+watch(isOpen, (open) => {
+  if (!open) {
+    pendingInstallAction.value = null
+    conflictDialogOpen.value = false
+    conflictSkillName.value = ''
+  }
+})
 
 // Folder installation
 const selectFolder = async () => {
@@ -194,19 +193,6 @@ const selectFolder = async () => {
     }
   } catch (error) {
     showError(error)
-  }
-}
-
-const handleFolderDrop = async (event: DragEvent) => {
-  folderDragOver.value = false
-  const items = event.dataTransfer?.items
-  if (items && items.length > 0) {
-    // Note: Web drag-drop doesn't give full path access in Electron renderer
-    // This would need special handling via IPC
-    toast({
-      title: t('settings.skills.install.dragNotSupported'),
-      variant: 'destructive'
-    })
   }
 }
 
@@ -235,17 +221,6 @@ const selectZip = async () => {
   }
 }
 
-const handleZipDrop = async (event: DragEvent) => {
-  zipDragOver.value = false
-  const items = event.dataTransfer?.items
-  if (items && items.length > 0) {
-    toast({
-      title: t('settings.skills.install.dragNotSupported'),
-      variant: 'destructive'
-    })
-  }
-}
-
 const tryInstallFromZip = async (zipPath: string, overwrite = false) => {
   installing.value = true
   try {
@@ -256,9 +231,27 @@ const tryInstallFromZip = async (zipPath: string, overwrite = false) => {
   }
 }
 
+// URL validation helper
+const isValidUrl = (url: string): boolean => {
+  try {
+    const parsed = new URL(url)
+    return ['http:', 'https:'].includes(parsed.protocol)
+  } catch {
+    return false
+  }
+}
+
 // URL installation
 const installFromUrl = async () => {
   if (!installUrl.value || installing.value) return
+  if (!isValidUrl(installUrl.value)) {
+    toast({
+      title: t('settings.skills.install.failed'),
+      description: 'Invalid URL format. Please enter a valid HTTP or HTTPS URL.',
+      variant: 'destructive'
+    })
+    return
+  }
   await tryInstallFromUrl(installUrl.value)
 }
 

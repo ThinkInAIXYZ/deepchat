@@ -1085,6 +1085,7 @@
       "failed": "保存失败",
       "name": "名称",
       "namePlaceholder": "技能名称",
+      "nameHint": "技能创建后名称不可更改",
       "description": "描述",
       "descriptionPlaceholder": "技能描述",
       "allowedTools": "额外工具",
