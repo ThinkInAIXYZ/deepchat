@@ -8,7 +8,12 @@
       <div
         class="flex items-center gap-2 font-mono font-medium tracking-tight text-foreground/80 truncate leading-none min-w-0"
       >
-        <span class="truncate text-xs">{{ primaryLabel }}.{{ functionLabel }}</span>
+        <span class="truncate text-xs">
+          <template v-if="primaryLabel !== functionLabel">
+            {{ primaryLabel }}.{{ functionLabel }}
+          </template>
+          <template v-else>{{ functionLabel }}</template>
+        </span>
       </div>
     </div>
 
@@ -143,11 +148,15 @@ const statusVariant = computed(() => {
 
 const primaryLabel = computed(() => {
   if (!props.block.tool_call) return t('toolCall.title')
+  const toolName = props.block.tool_call.name || t('toolCall.title')
   let serverName = props.block.tool_call.server_name
   if (props.block.tool_call.server_name?.includes('/')) {
     serverName = props.block.tool_call.server_name.split('/').pop()
   }
-  return serverName || props.block.tool_call.name || t('toolCall.title')
+  if (serverName && serverName !== toolName) {
+    return serverName
+  }
+  return toolName
 })
 
 const functionLabel = computed(() => {
@@ -179,7 +188,7 @@ const statusIconClass = computed(() => {
     case 'success':
       return 'text-emerald-500'
     case 'running':
-      return 'text-muted-foreground animate-pulse'
+      return 'text-cyan-500 animate-pulse'
     default:
       return 'text-muted-foreground'
   }

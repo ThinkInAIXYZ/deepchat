@@ -901,6 +901,16 @@ export const useChatStore = defineStore('chat', () => {
             ) {
               // 更新参数内容
               existingToolCallBlock.tool_call.params = msg.tool_call_params || ''
+              if (msg.tool_call_server_name) {
+                existingToolCallBlock.tool_call.server_name = msg.tool_call_server_name
+              }
+              if (msg.tool_call_server_icons) {
+                existingToolCallBlock.tool_call.server_icons = msg.tool_call_server_icons
+              }
+              if (msg.tool_call_server_description) {
+                existingToolCallBlock.tool_call.server_description =
+                  msg.tool_call_server_description
+              }
             }
           } else if (msg.tool_call === 'running') {
             // 工具开始执行 - 查找对应的工具调用块并更新状态
@@ -918,6 +928,16 @@ export const useChatStore = defineStore('chat', () => {
                 // 确保参数是最新的
                 existingToolCallBlock.tool_call.params =
                   msg.tool_call_params || existingToolCallBlock.tool_call.params
+                if (msg.tool_call_server_name) {
+                  existingToolCallBlock.tool_call.server_name = msg.tool_call_server_name
+                }
+                if (msg.tool_call_server_icons) {
+                  existingToolCallBlock.tool_call.server_icons = msg.tool_call_server_icons
+                }
+                if (msg.tool_call_server_description) {
+                  existingToolCallBlock.tool_call.server_description =
+                    msg.tool_call_server_description
+                }
               }
             } else {
               // 如果没有找到现有的工具调用块，创建一个新的（兼容旧逻辑）

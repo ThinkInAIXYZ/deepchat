@@ -98,9 +98,13 @@ export class ToolCallHandler {
 
     block.tool_call.params = event.tool_call_params || ''
 
-    if (event.tool_call === 'running') {
+    if (event.tool_call_server_name) {
       block.tool_call.server_name = event.tool_call_server_name
+    }
+    if (event.tool_call_server_icons) {
       block.tool_call.server_icons = event.tool_call_server_icons
+    }
+    if (event.tool_call_server_description) {
       block.tool_call.server_description = event.tool_call_server_description
     }
   }
