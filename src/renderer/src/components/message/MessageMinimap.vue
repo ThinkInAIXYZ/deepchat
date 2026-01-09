@@ -174,7 +174,6 @@ const overallContextUsage = computed(() => {
   return Math.max(...usageValues)
 })
 
-
 watch(
   () => props.hoveredMessageId,
   (value) => {

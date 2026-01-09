@@ -1,10 +1,24 @@
-import { ref, reactive, readonly, onUnmounted, nextTick } from 'vue'
+import { ref, reactive, readonly, onUnmounted, nextTick, type Ref } from 'vue'
 import { useDebounceFn } from '@vueuse/core'
 import type { ScrollInfo } from './types'
+import type { DynamicScroller } from 'vue-virtual-scroller'
 
-export function useMessageScroll() {
+// === Constants ===
+const MESSAGE_HIGHLIGHT_CLASS = 'message-highlight'
+const MAX_SCROLL_RETRIES = 8
+const SCROLL_RETRY_DELAY = 50
+const HIGHLIGHT_DURATION = 2000
+const PLACEHOLDER_POSITION_THRESHOLD = 5000
+
+export interface UseMessageScrollOptions {
+  dynamicScrollerRef?: Ref<InstanceType<typeof DynamicScroller> | null>
+  shouldAutoFollow?: Ref<boolean>
+  scrollAnchor?: Ref<HTMLDivElement | undefined>
+}
+
+export function useMessageScroll(options?: UseMessageScrollOptions) {
   const messagesContainer = ref<HTMLDivElement>()
-  const scrollAnchor = ref<HTMLDivElement>()
+  const scrollAnchor = options?.scrollAnchor ?? ref<HTMLDivElement>()
   const aboveThreshold = ref(false)
 
   const scrollInfo = reactive<ScrollInfo>({
@@ -14,6 +28,9 @@ export function useMessageScroll() {
   })
 
   let intersectionObserver: IntersectionObserver | null = null
+  let scrollRetryTimer: number | null = null
+  let scrollRetryToken = 0
+  let pendingScrollTargetId: string | null = null
 
   const updateScrollInfoImmediate = () => {
     const container = messagesContainer.value
@@ -30,11 +47,12 @@ export function useMessageScroll() {
     updateScrollInfo()
   }
 
-  const scrollToBottom = (_smooth = false) => {
+  /**
+   * Fallback scroll to bottom (non-virtual scroll)
+   */
+  const scrollToBottomBase = (_smooth = false) => {
     const container = messagesContainer.value
-    if (!container) {
-      return
-    }
+    if (!container) return
 
     const targetTop = Math.max(container.scrollHeight - container.clientHeight, 0)
     container.scrollTop = targetTop
@@ -42,24 +60,187 @@ export function useMessageScroll() {
   }
 
   /**
-   * 滚动到指定消息
+   * Schedule scroll to bottom with retry mechanism for virtual scroller
    */
-  const scrollToMessage = (messageId: string) => {
+  const scheduleScrollToBottom = (force = false) => {
     nextTick(() => {
-      const messageElement = document.querySelector(`[data-message-id="${messageId}"]`)
-      if (messageElement) {
-        messageElement.scrollIntoView({
-          block: 'start'
-        })
+      const shouldAutoFollow = options?.shouldAutoFollow
+      if (force && shouldAutoFollow) {
+        shouldAutoFollow.value = true
+      }
 
-        // 添加高亮效果
-        messageElement.classList.add('message-highlight')
-        setTimeout(() => {
-          messageElement.classList.remove('message-highlight')
-        }, 2000)
+      if (!force && shouldAutoFollow && !shouldAutoFollow.value) {
+        updateScrollInfo()
+        return
+      }
+
+      const dynamicScrollerRef = options?.dynamicScrollerRef
+      const scroller = dynamicScrollerRef?.value
+
+      if (scroller?.scrollToBottom) {
+        // Virtual scroll with retry mechanism
+        let retryCount = 0
+        let lastScrollHeight = 0
+
+        const attemptScrollToBottom = () => {
+          scroller.scrollToBottom()
+
+          nextTick(() => {
+            setTimeout(() => {
+              const container = messagesContainer.value
+              if (!container) {
+                updateScrollInfo()
+                return
+              }
+
+              const currentScrollHeight = container.scrollHeight
+              const currentScrollTop = container.scrollTop
+              const viewportHeight = container.clientHeight
+              const distanceToBottom = currentScrollHeight - currentScrollTop - viewportHeight
+
+              const isAtBottom = distanceToBottom <= 1
+              const heightStillChanging = currentScrollHeight !== lastScrollHeight
+              lastScrollHeight = currentScrollHeight
+
+              if (!isAtBottom && heightStillChanging && retryCount < MAX_SCROLL_RETRIES) {
+                retryCount++
+                attemptScrollToBottom()
+              } else {
+                updateScrollInfo()
+              }
+            }, SCROLL_RETRY_DELAY)
+          })
+        }
+
+        attemptScrollToBottom()
+      } else {
+        // Fallback to base scroll
+        scrollToBottomBase()
+      }
+    })
+  }
+
+  /**
+   * Public scroll to bottom API
+   */
+  const scrollToBottom = (force = false) => scheduleScrollToBottom(force)
+
+  /**
+   * Highlight a message element
+   */
+  const highlightMessage = (target: HTMLElement) => {
+    target.classList.add(MESSAGE_HIGHLIGHT_CLASS)
+    setTimeout(() => target.classList.remove(MESSAGE_HIGHLIGHT_CLASS), HIGHLIGHT_DURATION)
+  }
+
+  /**
+   * Fallback scroll to message (non-virtual scroll)
+   */
+  const scrollToMessageBase = (messageId: string) => {
+    nextTick(() => {
+      const messageElement = document.querySelector(
+        `[data-message-id="${messageId}"]`
+      ) as HTMLElement | null
+      if (messageElement) {
+        messageElement.scrollIntoView({ block: 'start' })
+        highlightMessage(messageElement)
       }
       updateScrollInfoImmediate()
     })
+  }
+
+  /**
+   * Scroll to specific message with retry mechanism for virtual scroller
+   */
+  const scrollToMessage = (messageId: string, itemsGetter?: () => Array<{ id: string }>) => {
+    const dynamicScrollerRef = options?.dynamicScrollerRef
+    const scroller = dynamicScrollerRef?.value
+
+    if (!scroller?.scrollToItem || !itemsGetter) {
+      scrollToMessageBase(messageId)
+      return
+    }
+
+    const items = itemsGetter()
+    const index = items.findIndex((item) => item.id === messageId)
+
+    if (index === -1) return
+
+    pendingScrollTargetId = messageId
+
+    const tryApplyCenterAndHighlight = () => {
+      const container = messagesContainer.value
+      if (!container) return false
+
+      const target = container.querySelector(
+        `[data-message-id="${messageId}"]`
+      ) as HTMLElement | null
+      if (!target) return false
+
+      const targetRect = target.getBoundingClientRect()
+      const containerRect = container.getBoundingClientRect()
+      const targetTop = targetRect.top - containerRect.top + container.scrollTop
+
+      // Check if element is actually rendered (not in placeholder state)
+      if (
+        Math.abs(targetTop) > PLACEHOLDER_POSITION_THRESHOLD &&
+        (targetTop < 0 || targetTop > container.scrollHeight)
+      ) {
+        return false
+      }
+
+      target.scrollIntoView({ block: 'start', behavior: 'instant' })
+      updateScrollInfo()
+      highlightMessage(target)
+      pendingScrollTargetId = null
+      return true
+    }
+
+    if (scrollRetryTimer) clearTimeout(scrollRetryTimer)
+    scrollRetryTimer = null
+
+    const currentToken = ++scrollRetryToken
+    let retryCount = 0
+
+    const attemptScroll = () => {
+      if (currentToken !== scrollRetryToken) return
+
+      scroller.scrollToItem(index)
+      nextTick(() => {
+        setTimeout(() => {
+          if (tryApplyCenterAndHighlight()) return
+
+          if (++retryCount < MAX_SCROLL_RETRIES) {
+            scrollRetryTimer = window.setTimeout(() => {
+              scrollRetryTimer = null
+              attemptScroll()
+            }, SCROLL_RETRY_DELAY)
+          } else {
+            pendingScrollTargetId = null
+          }
+        }, SCROLL_RETRY_DELAY)
+      })
+    }
+
+    attemptScroll()
+  }
+
+  /**
+   * Handle virtual scroll update
+   */
+  const handleVirtualScrollUpdate = () => {
+    if (!pendingScrollTargetId) return
+    const container = messagesContainer.value
+    if (!container) return
+
+    const target = container.querySelector(
+      `[data-message-id="${pendingScrollTargetId}"]`
+    ) as HTMLElement | null
+    if (!target) return
+
+    const messageId = pendingScrollTargetId
+    pendingScrollTargetId = null
+    scrollToMessageBase(messageId)
   }
 
   const setupScrollObserver = () => {
@@ -92,6 +273,13 @@ export function useMessageScroll() {
       intersectionObserver.disconnect()
       intersectionObserver = null
     }
+
+    if (scrollRetryTimer) {
+      clearTimeout(scrollRetryTimer)
+      scrollRetryTimer = null
+    }
+
+    pendingScrollTargetId = null
   })
 
   return {
@@ -105,9 +293,13 @@ export function useMessageScroll() {
 
     // Methods
     scrollToBottom,
+    scrollToBottomBase,
     scrollToMessage,
+    scrollToMessageBase,
     handleScroll,
-    updateScrollInfo: updateScrollInfoImmediate, // Export immediate version
-    setupScrollObserver
+    updateScrollInfo: updateScrollInfoImmediate,
+    setupScrollObserver,
+    handleVirtualScrollUpdate,
+    highlightMessage
   }
 }
