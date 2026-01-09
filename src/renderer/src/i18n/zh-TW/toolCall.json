@@ -15,5 +15,6 @@
   "responseData": "函數響應",
   "success": "成功",
   "title": "工具調用",
-  "terminalOutput": "終端輸出"
+  "terminalOutput": "終端輸出",
+  "replacementsCount": "已完成 {count} 處替換"
 }

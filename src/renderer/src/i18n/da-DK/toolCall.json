@@ -15,5 +15,6 @@
   "responseData": "funktionsrespons",
   "success": "succes",
   "title": "Værktøjskald",
-  "terminalOutput": "Terminaludgang"
+  "terminalOutput": "Terminaludgang",
+  "replacementsCount": "Udført {count} erstatninger"
 }

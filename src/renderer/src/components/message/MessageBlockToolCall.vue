@@ -43,10 +43,19 @@
                 {{ paramsCopyText }}
               </button>
             </div>
-            <pre
-              class="rounded-md border bg-background text-xs p-2 whitespace-pre-wrap break-words max-h-40 overflow-auto"
-              >{{ paramsText }}</pre
-            >
+            <div class="min-h-0 max-h-40 overflow-auto">
+              <CodeBlockNode
+                :node="{
+                  type: 'code_block',
+                  language: 'json',
+                  code: paramsText,
+                  raw: paramsText
+                }"
+                :is-dark="themeStore.isDark"
+                :show-header="false"
+                class="rounded-md border bg-background text-xs p-2 min-h-0"
+              />
+            </div>
           </div>
 
           <hr v-if="hasParams && hasResponse" class="sm:hidden" />
@@ -72,7 +81,7 @@
               </button>
             </div>
             <template v-if="diffData">
-              <div class="min-h-0">
+              <div class="min-h-0 overflow-auto">
                 <CodeBlockNode
                   :node="{
                     type: 'code_block',
@@ -129,10 +138,12 @@ const keyMap = {
   'common.copySuccess': '已复制'
 }
 
-const t = (() => {
+type TranslateFn = (key: string, params?: Record<string, unknown>) => string
+
+const t: TranslateFn = (() => {
   try {
     const { t } = useI18n()
-    return t
+    return t as TranslateFn
   } catch (e) {
     return (key: string) => keyMap[key] || key
   }

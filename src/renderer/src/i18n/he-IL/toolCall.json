@@ -15,5 +15,6 @@
   "fileRead": "לקרוא קובץ",
   "fileWrite": "לכתוב קובץ",
   "success": "הַצלָחָה",
-  "terminalOutput": "פלט מסוף"
+  "terminalOutput": "פלט מסוף",
+  "replacementsCount": "הושלמו {count} החלפות"
 }
