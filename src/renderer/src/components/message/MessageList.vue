@@ -554,9 +554,25 @@ const recordVisibleDomInfo = () => {
   if (entries.length) chatStore.recordMessageDomInfo(entries)
 }
 
-const wrapScrollToMessage = (messageId: string) => {
+const refreshVirtualScroller = async (messageId?: string) => {
+  await nextTick()
+  await new Promise((resolve) => requestAnimationFrame(resolve))
+
+  const scroller = dynamicScrollerRef.value
+  if (messageId && scroller?.scrollToItem) {
+    const index = props.items.findIndex((item) => item.id === messageId)
+    if (index !== -1) {
+      scroller.scrollToItem(index)
+    }
+  }
+
+  scroller?.updateVisibleItems?.(true)
+}
+
+const wrapScrollToMessage = async (messageId: string) => {
   void chatStore.ensureMessagesLoadedByIds([messageId])
   scrollToMessage(messageId, () => props.items)
+  await refreshVirtualScroller(messageId)
 }
 
 const handleVirtualUpdate = (
