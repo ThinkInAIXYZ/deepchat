@@ -746,5 +746,20 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
       models: 'https://platform.xiaomimimo.com/#/docs',
       defaultBaseUrl: 'https://api.xiaomimimo.com/v1'
     }
+  },
+  {
+    id: 'o3fan',
+    name: 'o3.fan',
+    apiType: 'o3fan',
+    apiKey: '',
+    baseUrl: 'https://api.o3.fan/v1',
+    enable: false,
+    websites: {
+      official: 'https://o3.fan',
+      apiKey: 'https://o3.fan/token',
+      docs: 'https://o3.fan',
+      models: 'https://o3.fan/info/models',
+      defaultBaseUrl: 'https://api.o3.fan/v1'
+    }
   }
 ]

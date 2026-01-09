@@ -25,43 +25,56 @@
         v-if="isExpanded"
         class="rounded-lg border bg-muted text-card-foreground px-2 py-3 mt-2 mb-4 max-w-full sm:max-w-2xl"
       >
-        <div class="space-y-4">
+        <div class="flex flex-col sm:flex-row sm:gap-4 space-y-4 sm:space-y-0">
           <!-- 参数 -->
-          <div v-if="hasParams" class="space-y-2">
-            <h5 class="text-xs font-medium text-accent-foreground flex flex-row gap-2 items-center">
-              <Icon icon="lucide:arrow-up-from-dot" class="w-4 h-4 text-foreground" />
-              {{ t('toolCall.params') }}
-            </h5>
-            <div class="text-sm rounded-md p-2">
-              <JsonObject :data="parsedParams" />
+          <div v-if="hasParams" class="space-y-2 flex-1 min-w-0">
+            <div class="flex items-center justify-between gap-2">
+              <h5
+                class="text-xs font-medium text-accent-foreground flex flex-row gap-2 items-center"
+              >
+                <Icon icon="lucide:arrow-up-from-dot" class="w-4 h-4 text-foreground" />
+                {{ t('toolCall.params') }}
+              </h5>
+              <button
+                class="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                @click.stop="copyParams"
+              >
+                <Icon icon="lucide:copy" class="w-3 h-3 inline-block mr-1" />
+                {{ paramsCopyText }}
+              </button>
             </div>
+            <pre
+              class="rounded-md border bg-background text-xs p-2 whitespace-pre-wrap break-words max-h-64 overflow-auto"
+              >{{ paramsText }}</pre
+            >
           </div>
 
-          <hr v-if="hasParams && block.tool_call?.response && !isTerminalTool" />
+          <hr v-if="hasParams && hasResponse" class="sm:hidden" />
 
-          <!-- 响应 (hide for terminal tools as output is shown above) -->
-          <div v-if="block.tool_call?.response && !isTerminalTool" class="space-y-2">
-            <h5 class="text-xs font-medium text-accent-foreground flex flex-row gap-2 items-center">
-              <Icon icon="lucide:arrow-down-to-dot" class="w-4 h-4 text-foreground" />
-              {{ t('toolCall.responseData') }}
-            </h5>
-            <div class="text-sm rounded-md p-3">
-              <JsonObject :data="parseJson(block.tool_call.response)" />
+          <!-- 响应 -->
+          <div v-if="hasResponse" class="space-y-2 flex-1 min-w-0">
+            <div class="flex items-center justify-between gap-2">
+              <h5
+                class="text-xs font-medium text-accent-foreground flex flex-row gap-2 items-center"
+              >
+                <Icon
+                  :icon="isTerminalTool ? 'lucide:terminal' : 'lucide:arrow-down-to-dot'"
+                  class="w-4 h-4 text-foreground"
+                />
+                {{ isTerminalTool ? t('toolCall.terminalOutput') : t('toolCall.responseData') }}
+              </h5>
+              <button
+                class="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                @click.stop="copyResponse"
+              >
+                <Icon icon="lucide:copy" class="w-3 h-3 inline-block mr-1" />
+                {{ responseCopyText }}
+              </button>
             </div>
-          </div>
-
-          <hr v-if="hasParams && block.tool_call?.response && isTerminalTool" />
-
-          <!-- Terminal output (for terminal-related tool calls) -->
-          <div v-if="isTerminalTool && block.tool_call?.response" class="space-y-2">
-            <h5 class="text-xs font-medium text-accent-foreground flex items-center gap-2">
-              <Icon icon="lucide:terminal" class="w-4 h-4" />
-              {{ t('toolCall.terminalOutput') }}
-            </h5>
-            <div
-              ref="terminalContainer"
-              class="rounded-md bg-black text-white font-mono text-xs p-2 overflow-auto max-h-64"
-            />
+            <pre
+              class="rounded-md border bg-background text-xs p-2 whitespace-pre-wrap break-words max-h-64 overflow-auto"
+              >{{ responseText }}</pre
+            >
           </div>
         </div>
       </div>
@@ -73,10 +86,7 @@
 import { Icon } from '@iconify/vue'
 import { useI18n } from 'vue-i18n'
 import { AssistantMessageBlock } from '@shared/chat'
-import { computed, ref, nextTick, watch, onBeforeUnmount } from 'vue'
-import { JsonObject } from '@/components/json-viewer'
-import { Terminal } from '@xterm/xterm'
-import '@xterm/xterm/css/xterm.css'
+import { computed, ref } from 'vue'
 
 const keyMap = {
   'toolCall.calling': '工具调用中',
@@ -88,15 +98,16 @@ const keyMap = {
   'toolCall.functionName': '函数名称',
   'toolCall.params': '参数',
   'toolCall.responseData': '响应数据',
-  'toolCall.terminalOutput': 'Terminal output'
+  'toolCall.terminalOutput': 'Terminal output',
+  'common.copy': '复制',
+  'common.copySuccess': '已复制'
 }
-// 创建一个安全的翻译函数
+
 const t = (() => {
   try {
     const { t } = useI18n()
     return t
   } catch (e) {
-    // 如果 i18n 未初始化，提供默认翻译
     return (key: string) => keyMap[key] || key
   }
 })()
@@ -160,115 +171,56 @@ const statusIconClass = computed(() => {
   }
 })
 
-// 解析JSON为对象；解析失败时回退原文
-const parseJson = (jsonStr: string) => {
-  if (!jsonStr) return {}
-  try {
-    const parsed = JSON.parse(jsonStr)
-    if (parsed && (typeof parsed === 'object' || Array.isArray(parsed))) {
-      return parsed
-    }
-    return { raw: parsed ?? jsonStr }
-  } catch (e) {
-    return { raw: jsonStr }
-  }
-}
+const paramsText = computed(() => props.block.tool_call?.params ?? '')
+const responseText = computed(() => props.block.tool_call?.response ?? '')
+const hasParams = computed(() => paramsText.value.trim().length > 0)
+const hasResponse = computed(() => responseText.value.trim().length > 0)
 
-const parseTerminalOutput = (response: string) => {
-  if (!response) return ''
-  try {
-    const parsed = JSON.parse(response)
-    if (typeof parsed === 'string') return parsed
-    if (parsed && typeof parsed === 'object') {
-      if (typeof parsed.output === 'string') return parsed.output
-      if (typeof parsed.stdout === 'string') return parsed.stdout
-    }
-  } catch {
-    // Fallback to raw response
-  }
-  return response
-}
-
-// Terminal detection
 const isTerminalTool = computed(() => {
   const name = props.block.tool_call?.name?.toLowerCase() || ''
   const serverName = props.block.tool_call?.server_name?.toLowerCase() || ''
-  if (name == 'run_shell_command' && serverName === 'powerpack') {
+  if (name === 'run_shell_command' && serverName === 'powerpack') {
     return false
   }
   return name.includes('terminal') || name.includes('command') || name.includes('exec')
 })
 
-// Terminal rendering
-const terminalContainer = ref<HTMLElement | null>(null)
-let terminal: Terminal | null = null
+const paramsCopyText = ref(t('common.copy'))
+const responseCopyText = ref(t('common.copy'))
 
-const parsedParams = computed(() => parseJson(props.block.tool_call?.params ?? ''))
-const hasParams = computed(() => {
-  const data = parsedParams.value as unknown
-  if (Array.isArray(data)) return data.length > 0
-  if (data && typeof data === 'object') return Object.keys(data).length > 0
-  if (typeof data === 'string') return data.trim().length > 0
-  return false
-})
-
-const initTerminal = () => {
-  if (!terminalContainer.value || !isTerminalTool.value) return
-
-  // Clean up any existing terminal before creating a new one
-  if (terminal) {
-    try {
-      terminal.dispose()
-    } catch (error) {
-      console.warn('[MessageBlockToolCall] Failed to dispose existing terminal:', error)
+const copyParams = async () => {
+  if (!hasParams.value) return
+  try {
+    if (window.api?.copyText) {
+      window.api.copyText(paramsText.value)
+    } else {
+      await navigator.clipboard.writeText(paramsText.value)
     }
-    terminal = null
-  }
-  // Clear previous terminal DOM content
-  terminalContainer.value.innerHTML = ''
-
-  terminal = new Terminal({
-    convertEol: true,
-    fontSize: 12,
-    fontFamily: 'Menlo, Monaco, "Courier New", monospace',
-    theme: {
-      background: '#000000',
-      foreground: '#ffffff'
-    },
-    cursorStyle: 'bar',
-    scrollback: 1000,
-    disableStdin: true // Read-only
-  })
-
-  terminal.open(terminalContainer.value)
-
-  // Write terminal output from response
-  const response = props.block.tool_call?.response ?? ''
-  const output = parseTerminalOutput(response)
-  if (output) {
-    terminal.write(output.replace(/\n/g, '\r\n'))
+    paramsCopyText.value = t('common.copySuccess')
+    setTimeout(() => {
+      paramsCopyText.value = t('common.copy')
+    }, 2000)
+  } catch (error) {
+    console.error('[MessageBlockToolCall] Failed to copy params:', error)
   }
 }
 
-// Watch for expanded state and initialize terminal
-watch(
-  [isExpanded, () => props.block.tool_call?.response],
-  () => {
-    if (isExpanded.value && isTerminalTool.value) {
-      nextTick(() => {
-        initTerminal()
-      })
+const copyResponse = async () => {
+  if (!hasResponse.value) return
+  try {
+    if (window.api?.copyText) {
+      window.api.copyText(responseText.value)
+    } else {
+      await navigator.clipboard.writeText(responseText.value)
     }
-  },
-  { immediate: true }
-)
-
-onBeforeUnmount(() => {
-  if (terminal) {
-    terminal.dispose()
-    terminal = null
+    responseCopyText.value = t('common.copySuccess')
+    setTimeout(() => {
+      responseCopyText.value = t('common.copy')
+    }, 2000)
+  } catch (error) {
+    console.error('[MessageBlockToolCall] Failed to copy response:', error)
   }
-})
+}
 </script>
 
 <style scoped>

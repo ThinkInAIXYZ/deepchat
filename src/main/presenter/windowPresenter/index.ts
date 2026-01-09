@@ -42,6 +42,8 @@ export class WindowPresenter implements IWindowPresenter {
   private settingsWindow: BrowserWindow | null = null
   private tooltipOverlayWindows = new Map<number, BrowserWindow>()
   private pendingTooltipPayload = new Map<number, { x: number; y: number; text: string }>()
+  // TEMP: Tooltip overlay window creation is disabled while renderer tooltip overlay is unstable.
+  private isTooltipOverlayEnabled = false
 
   constructor(configPresenter: IConfigPresenter) {
     this.windows = new Map()
@@ -1087,6 +1089,7 @@ export class WindowPresenter implements IWindowPresenter {
   }
 
   private getOrCreateTooltipOverlay(parentWindow: BrowserWindow): BrowserWindow | null {
+    if (!this.isTooltipOverlayEnabled) return null
     if (parentWindow.isDestroyed()) return null
     // Do not create overlay on macOS fullscreen; it hides traffic lights
     if (process.platform === 'darwin' && parentWindow.isFullScreen()) return null

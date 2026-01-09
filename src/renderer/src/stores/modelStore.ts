@@ -1,6 +1,6 @@
-import { ref } from 'vue'
+import { computed, type ComputedRef, ref } from 'vue'
 import { defineStore } from 'pinia'
-import { useQuery, useQueryCache } from '@pinia/colada'
+import { useQueryCache, type DataState, type EntryKey, type UseQueryEntry } from '@pinia/colada'
 import { useThrottleFn } from '@vueuse/core'
 import type { MODEL_META, RENDERER_MODEL_META, ModelConfig } from '@shared/presenter'
 import { ModelType } from '@shared/model'
@@ -15,6 +15,13 @@ const PROVIDER_MODELS_KEY = (providerId: string) => ['model-store', 'provider-mo
 const CUSTOM_MODELS_KEY = (providerId: string) => ['model-store', 'custom-models', providerId]
 const ENABLED_MODELS_KEY = (providerId: string) => ['model-store', 'enabled-models', providerId]
 
+type ModelQueryHandle<TData> = {
+  entry: UseQueryEntry<TData, unknown, TData | undefined>
+  data: ComputedRef<TData | undefined>
+  refresh: (throwOnError?: boolean) => Promise<DataState<TData, unknown, TData | undefined>>
+  refetch: (throwOnError?: boolean) => Promise<DataState<TData, unknown, TData | undefined>>
+}
+
 export const useModelStore = defineStore('model', () => {
   const configP = usePresenter('configPresenter')
   const llmP = usePresenter('llmproviderPresenter')
@@ -27,8 +34,9 @@ export const useModelStore = defineStore('model', () => {
   const customModels = ref<{ providerId: string; models: RENDERER_MODEL_META[] }[]>([])
   const listenersRegistered = ref(false)
 
-  const providerModelQueries = new Map<string, ReturnType<typeof getProviderModelsQuery>>()
-  const customModelQueries = new Map<string, ReturnType<typeof getCustomModelsQuery>>()
+  const providerModelQueries = new Map<string, ModelQueryHandle<MODEL_META[]>>()
+  const customModelQueries = new Map<string, ModelQueryHandle<MODEL_META[]>>()
+  const enabledModelQueries = new Map<string, ModelQueryHandle<RENDERER_MODEL_META[]>>()
   const queryCache = useQueryCache()
   const isAgentProvider = async (providerId: string): Promise<boolean> => {
     try {
@@ -115,37 +123,57 @@ export const useModelStore = defineStore('model', () => {
     type: (model.type ?? ModelType.Chat) as ModelType
   })
 
-  const getProviderModelsQuery = (providerId: string) => {
-    if (!providerModelQueries.has(providerId)) {
-      providerModelQueries.set(
-        providerId,
-        useQuery<MODEL_META[]>({
-          key: () => PROVIDER_MODELS_KEY(providerId),
-          staleTime: 30_000,
-          query: async () => configP.getProviderModels(providerId)
-        })
-      )
+  const createQueryHandle = <TData>(
+    entry: UseQueryEntry<TData, unknown, TData | undefined>
+  ): ModelQueryHandle<TData> => {
+    const data = computed(() => entry.state.value.data as TData | undefined)
+    const refresh = (throwOnError?: boolean) => {
+      const promise = queryCache.refresh(entry)
+      return throwOnError ? promise : promise.catch(() => entry.state.value)
     }
-    return providerModelQueries.get(providerId)!
+    const refetch = (throwOnError?: boolean) => {
+      const promise = queryCache.fetch(entry)
+      return throwOnError ? promise : promise.catch(() => entry.state.value)
+    }
+    return { entry, data, refresh, refetch }
+  }
+
+  const ensureQueryHandle = <TData>(
+    map: Map<string, ModelQueryHandle<TData>>,
+    providerId: string,
+    options: {
+      key: EntryKey
+      staleTime: number
+      query: () => Promise<TData>
+    }
+  ) => {
+    const entry = queryCache.ensure<TData>(options)
+    const existing = map.get(providerId)
+    if (existing?.entry === entry) return existing
+    const handle = createQueryHandle(entry)
+    map.set(providerId, handle)
+    return handle
+  }
+
+  const getProviderModelsQuery = (providerId: string) => {
+    return ensureQueryHandle(providerModelQueries, providerId, {
+      key: PROVIDER_MODELS_KEY(providerId),
+      staleTime: 30_000,
+      query: async () => configP.getProviderModels(providerId)
+    })
   }
 
   const getCustomModelsQuery = (providerId: string) => {
-    if (!customModelQueries.has(providerId)) {
-      customModelQueries.set(
-        providerId,
-        useQuery<MODEL_META[]>({
-          key: () => CUSTOM_MODELS_KEY(providerId),
-          staleTime: 30_000,
-          query: async () => configP.getCustomModels(providerId)
-        })
-      )
-    }
-    return customModelQueries.get(providerId)!
+    return ensureQueryHandle(customModelQueries, providerId, {
+      key: CUSTOM_MODELS_KEY(providerId),
+      staleTime: 30_000,
+      query: async () => configP.getCustomModels(providerId)
+    })
   }
 
-  const getEnabledModelsQuery = (providerId: string) =>
-    useQuery<RENDERER_MODEL_META[]>({
-      key: () => ENABLED_MODELS_KEY(providerId),
+  const getEnabledModelsQuery = (providerId: string) => {
+    return ensureQueryHandle(enabledModelQueries, providerId, {
+      key: ENABLED_MODELS_KEY(providerId),
       staleTime: 30_000,
       query: async () => {
         const [providerModels, customModelsList] = await Promise.all([
@@ -160,6 +188,7 @@ export const useModelStore = defineStore('model', () => {
           .map((model) => ({ ...normalizeRendererModel(model, providerId), enabled: true }))
       }
     })
+  }
 
   const applyUserDefinedModelConfig = async (
     model: RENDERER_MODEL_META,

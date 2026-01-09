@@ -13,6 +13,9 @@ import { usePresenter } from '@/composables/usePresenter'
 import { useChatStore } from '@/stores/chat'
 import { useModelStore } from '@/stores/modelStore'
 
+// === Utils ===
+import { calculateSafeDefaultMaxTokens, GLOBAL_OUTPUT_TOKEN_MAX } from '@/utils/maxOutputTokens'
+
 /**
  * Composable for managing model configuration and synchronization with store
  * Handles bidirectional sync between local config refs and chatStore
@@ -105,11 +108,20 @@ export function usePromptInputConfig() {
         configContextLength.value = Math.max(2048, config.contextLength)
       }
 
-      const maxTokensMax = !config.maxTokens || config.maxTokens < 8192 ? 8192 : config.maxTokens
-      if (configMaxTokens.value > maxTokensMax) {
-        configMaxTokens.value = maxTokensMax
-      } else if (configMaxTokens.value < 1024) {
+      const safeDefaultMaxTokens = calculateSafeDefaultMaxTokens({
+        modelMaxTokens: config.maxTokens || GLOBAL_OUTPUT_TOKEN_MAX,
+        thinkingBudget: config.thinkingBudget,
+        reasoningSupported: Boolean(config.reasoning)
+      })
+
+      configMaxTokens.value = safeDefaultMaxTokens
+
+      if (configMaxTokens.value < 1024) {
         configMaxTokens.value = 1024
+      }
+
+      if (configMaxTokensLimit.value && configMaxTokens.value > configMaxTokensLimit.value) {
+        configMaxTokens.value = configMaxTokensLimit.value
       }
 
       if (configTemperature.value === undefined || configTemperature.value === null) {

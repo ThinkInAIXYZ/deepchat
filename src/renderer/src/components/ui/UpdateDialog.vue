@@ -1,17 +1,19 @@
 <template>
   <Dialog :open="upgrade.showUpdateDialog" @update:open="upgrade.closeUpdateDialog">
-    <DialogContent>
-      <DialogHeader>
+    <DialogContent class="max-h-[85dvh] sm:max-w-[720px] flex flex-col overflow-hidden">
+      <DialogHeader class="shrink-0">
         <DialogTitle>{{ t(upgrade.hasUpdate ? 'update.newVersion' : 'update.alreadyUpToDate') }}</DialogTitle>
-        <DialogDescription>
-          <div class="space-y-2">
+        <DialogDescription class="flex-1 min-h-0">
+          <div class="flex min-h-0 flex-col space-y-2">
             <template v-if="upgrade.hasUpdate">
               <p>{{ t('update.version') }}: {{ upgrade.updateInfo?.version }}</p>
               <p>{{ t('update.releaseDate') }}: {{ upgrade.updateInfo?.releaseDate }}</p>
               <p>{{ t('update.releaseNotes') }}:</p>
-              <p class="whitespace-pre-line">
-                <NodeRenderer :isDark="themeStore.isDark" :content="upgrade.updateInfo?.releaseNotes"></NodeRenderer>
-              </p>
+              <ScrollArea class="max-h-[50dvh] pr-3">
+                <div class="whitespace-pre-line">
+                  <NodeRenderer :isDark="themeStore.isDark" :content="upgrade.updateInfo?.releaseNotes"></NodeRenderer>
+                </div>
+              </ScrollArea>
               <!-- 显示下载进度 -->
               <div v-if="upgrade.isDownloading && upgrade.updateProgress" class="mt-4">
                 <p class="mb-2">
@@ -64,6 +66,7 @@ import {
   DialogHeader,
   DialogTitle
 } from '@shadcn/components/ui/dialog'
+import { ScrollArea } from '@shadcn/components/ui/scroll-area'
 import { useUpgradeStore } from '@/stores/upgrade'
 import NodeRenderer from 'markstream-vue'
 import { useThemeStore } from '@/stores/theme'

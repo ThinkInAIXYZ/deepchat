@@ -61720,7 +61720,7 @@
     },
     "burncloud": {
       "id": "burncloud",
-      "name": "burncloud",
+      "name": "BurnCloud",
       "display_name": "burncloud",
       "models": [
         {
@@ -95151,6 +95151,135 @@
             "cache_read": 0.057
           },
           "type": "chat"
+        }
+      ]
+    },
+    "o3fan": {
+      "id": "o3fan",
+      "name": "o3.fan",
+      "display_name": "o3.fan",
+      "models": [
+        {
+          "id": "claude-sonnet-4-5-20250929",
+          "name": "Anthropic: Claude Sonnet 4.5 (20250929)",
+          "display_name": "Anthropic: Claude Sonnet 4.5 (20250929)",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 200000,
+            "output": 64000
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "attachment": false,
+          "open_weights": false,
+          "cost": {
+            "input": 3,
+            "output": 15
+          }
+        },
+        {
+          "id": "gemini-3-pro-preview",
+          "name": "Gemini 3 Pro Preview",
+          "display_name": "Gemini 3 Pro Preview",
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "audio",
+              "video"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 1000000,
+            "output": 64000
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "attachment": true,
+          "open_weights": false,
+          "cost": {
+            "input": 0,
+            "output": 0
+          }
+        },
+        {
+          "id": "gpt-5.2",
+          "name": "GPT-5.2",
+          "display_name": "GPT-5.2",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 128000,
+            "output": 64000
+          },
+          "temperature": false,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "attachment": true,
+          "open_weights": false,
+          "knowledge": "2025-08-31",
+          "release_date": "2025-12-11",
+          "last_updated": "2025-12-11",
+          "cost": {
+            "input": 0,
+            "output": 0
+          }
+        },
+        {
+          "id": "kimi-k2-0711-preview",
+          "name": "Kimi K2 0711",
+          "display_name": "Kimi K2 0711",
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 128000
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": false
+          },
+          "attachment": false,
+          "open_weights": true,
+          "cost": {
+            "input": 3.5,
+            "output": 14
+          }
         }
       ]
     }

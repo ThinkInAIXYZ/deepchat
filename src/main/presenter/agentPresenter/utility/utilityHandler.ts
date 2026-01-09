@@ -366,7 +366,6 @@ export class UtilityHandler extends BaseHandler {
         userContent,
         contextMessages,
         searchResults: null,
-        urlResults: [],
         userMessage,
         vision: visionEnabled,
         imageFiles: [],

@@ -5,12 +5,11 @@ import { ModelType } from '@shared/model'
 import { CONVERSATION, ModelConfig, SearchResult, ChatMessage } from '@shared/presenter'
 import type { MCPToolDefinition } from '@shared/presenter'
 
-import { ContentEnricher } from '../../content/contentEnricher'
-import { BrowserContextBuilder } from '../../browser/BrowserContextBuilder'
 import { modelCapabilities } from '../../configPresenter/modelCapabilities'
 import { enhanceSystemPromptWithDateTime } from '../utility/promptEnhancer'
 import { ToolCallCenter } from '../tool/toolCallCenter'
 import { nanoid } from 'nanoid'
+
 import {
   addContextMessages,
   buildUserMessageContext,
@@ -33,7 +32,6 @@ export interface PreparePromptContentParams {
   userContent: string
   contextMessages: Message[]
   searchResults: SearchResult[] | null
-  urlResults: SearchResult[]
   userMessage: Message
   vision: boolean
   imageFiles: MessageFile[]
@@ -63,7 +61,6 @@ export async function preparePromptContent({
   userContent,
   contextMessages,
   searchResults: _searchResults,
-  urlResults,
   userMessage,
   vision,
   imageFiles,
@@ -84,21 +81,13 @@ export async function preparePromptContent({
   const isAgentMode = chatMode === 'agent'
 
   const isImageGeneration = modelType === ModelType.ImageGeneration
-  const enrichedUserMessage =
-    !isImageGeneration && urlResults.length > 0
-      ? '\n\n' + ContentEnricher.enrichUserMessageWithUrlContent(userContent, urlResults)
-      : ''
 
-  const finalSystemPrompt = enhanceSystemPromptWithDateTime(systemPrompt, isImageGeneration)
-  const agentWorkspacePath = conversation.settings.agentWorkspacePath?.trim() || null
-  const finalSystemPromptWithWorkspace =
-    isAgentMode && agentWorkspacePath
-      ? finalSystemPrompt
-        ? `${finalSystemPrompt}\n\nCurrent working directory: ${agentWorkspacePath}`
-        : `Current working directory: ${agentWorkspacePath}`
-      : finalSystemPrompt
+  const finalSystemPrompt = enhanceSystemPromptWithDateTime(systemPrompt, {
+    isImageGeneration,
+    isAgentMode,
+    agentWorkspacePath: conversation.settings.agentWorkspacePath?.trim() || null
+  })
 
-  let browserContextPrompt = ''
   const { providerId, modelId } = conversation.settings
   const supportsVision = modelCapabilities.supportsVision(providerId, modelId)
   let toolDefinitions: MCPToolDefinition[] = []
@@ -110,7 +99,7 @@ export async function preparePromptContent({
         enabledMcpTools,
         chatMode,
         supportsVision,
-        agentWorkspacePath
+        agentWorkspacePath: conversation.settings.agentWorkspacePath?.trim() || null
       })
     } catch (error) {
       console.warn('AgentPresenter: Failed to load tool definitions', error)
@@ -118,29 +107,9 @@ export async function preparePromptContent({
     }
   }
 
-  if (!isImageGeneration && isAgentMode) {
-    try {
-      const browserContext = await presenter.yoBrowserPresenter.getBrowserContext()
-      browserContextPrompt = BrowserContextBuilder.buildSystemPrompt(
-        browserContext.tabs,
-        browserContext.activeTabId
-      )
-    } catch (error) {
-      console.warn('AgentPresenter: Failed to load Yo Browser context/tools', error)
-    }
-  }
-
-  const finalSystemPromptWithBrowser = browserContextPrompt
-    ? finalSystemPromptWithWorkspace
-      ? `${finalSystemPromptWithWorkspace}\n${browserContextPrompt}`
-      : browserContextPrompt
-    : finalSystemPromptWithWorkspace
-
   const systemPromptTokens =
-    !isImageGeneration && finalSystemPromptWithBrowser
-      ? approximateTokenSize(finalSystemPromptWithBrowser)
-      : 0
-  const userMessageTokens = approximateTokenSize(userContent + enrichedUserMessage)
+    !isImageGeneration && finalSystemPrompt ? approximateTokenSize(finalSystemPrompt) : 0
+  const userMessageTokens = approximateTokenSize(userContent)
   const toolDefinitionsTokens = toolDefinitions.reduce((acc, tool) => {
     return acc + approximateTokenSize(JSON.stringify(tool))
   }, 0)
@@ -158,10 +127,10 @@ export async function preparePromptContent({
 
   const formattedMessages = formatMessagesForCompletion(
     selectedContextMessages,
-    isImageGeneration ? '' : finalSystemPromptWithBrowser,
+    isImageGeneration ? '' : finalSystemPrompt,
     artifacts,
     userContent,
-    enrichedUserMessage,
+    '',
     imageFiles,
     vision,
     supportsFunctionCall
@@ -214,7 +183,7 @@ export async function buildContinueToolCallContext({
   const formattedMessages: ChatMessage[] = []
 
   if (systemPrompt) {
-    const finalSystemPrompt = enhanceSystemPromptWithDateTime(systemPrompt)
+    const finalSystemPrompt = enhanceSystemPromptWithDateTime(systemPrompt, {})
     formattedMessages.push({
       role: 'system',
       content: finalSystemPrompt
@@ -248,7 +217,7 @@ export async function buildPostToolExecutionContext({
   const supportsFunctionCall = Boolean(modelConfig?.functionCall)
 
   if (systemPrompt) {
-    const finalSystemPrompt = enhanceSystemPromptWithDateTime(systemPrompt)
+    const finalSystemPrompt = enhanceSystemPromptWithDateTime(systemPrompt, {})
     formattedMessages.push({
       role: 'system',
       content: finalSystemPrompt

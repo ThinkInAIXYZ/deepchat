@@ -9,12 +9,7 @@ import type {
   UserMessageContent
 } from '@shared/chat'
 import type { CONVERSATION, MCPToolResponse, SearchResult } from '@shared/presenter'
-import { ContentEnricher } from '../../content/contentEnricher'
-import {
-  buildUserMessageContext,
-  formatUserMessageContent,
-  getNormalizedUserMessageText
-} from '../message/messageFormatter'
+import { buildUserMessageContext, formatUserMessageContent } from '../message/messageFormatter'
 import { preparePromptContent } from '../message/messageBuilder'
 import type { GeneratingMessageState } from './types'
 import { presenter } from '@/presenter'
@@ -89,7 +84,7 @@ export class StreamGenerationHandler extends BaseHandler {
 
       this.throwIfCancelled(state.message.id)
 
-      const { userContent, urlResults, imageFiles } = await this.processUserMessageContent(
+      const { userContent, imageFiles } = await this.processUserMessageContent(
         userMessage as UserMessage
       )
 
@@ -119,7 +114,6 @@ export class StreamGenerationHandler extends BaseHandler {
         userContent,
         contextMessages,
         searchResults,
-        urlResults,
         userMessage,
         vision: Boolean(modelConfig?.vision),
         imageFiles: modelConfig?.vision ? imageFiles : [],
@@ -269,7 +263,6 @@ export class StreamGenerationHandler extends BaseHandler {
         userContent: 'continue',
         contextMessages,
         searchResults: null,
-        urlResults: [],
         userMessage,
         vision: false,
         imageFiles: [],
@@ -475,10 +468,8 @@ export class StreamGenerationHandler extends BaseHandler {
 
   async processUserMessageContent(
     userMessage: UserMessage
-  ): Promise<{ userContent: string; urlResults: SearchResult[]; imageFiles: MessageFile[] }> {
+  ): Promise<{ userContent: string; imageFiles: MessageFile[] }> {
     const userContent = buildUserMessageContext(userMessage.content)
-    const normalizedText = getNormalizedUserMessageText(userMessage.content)
-    const urlResults = await ContentEnricher.extractAndEnrichUrls(normalizedText)
 
     const imageFiles =
       userMessage.content.files?.filter((file) => {
@@ -488,7 +479,7 @@ export class StreamGenerationHandler extends BaseHandler {
         return isImage
       }) || []
 
-    return { userContent, urlResults, imageFiles }
+    return { userContent, imageFiles }
   }
 
   async updateGenerationState(state: GeneratingMessageState, promptTokens: number): Promise<void> {
