@@ -27,7 +27,8 @@ import {
   IWorkspacePresenter,
   IToolPresenter,
   IYoBrowserPresenter,
-  ISkillPresenter
+  ISkillPresenter,
+  ISkillSyncPresenter
 } from '@shared/presenter'
 import { eventBus } from '@/eventbus'
 import { LLMProviderPresenter } from './llmProviderPresenter'
@@ -55,6 +56,7 @@ import { SessionManager } from './agentPresenter/session/sessionManager'
 import { SearchPresenter } from './searchPresenter'
 import { ConversationExporterService } from './exporter'
 import { SkillPresenter } from './skillPresenter'
+import { SkillSyncPresenter } from './skillSyncPresenter'
 
 // IPC调用上下文接口
 interface IPCCallContext {
@@ -102,6 +104,7 @@ export class Presenter implements IPresenter {
   dialogPresenter: IDialogPresenter
   lifecycleManager: ILifecycleManager
   skillPresenter: ISkillPresenter
+  skillSyncPresenter: ISkillSyncPresenter
 
   private constructor(lifecycleManager: ILifecycleManager) {
     // Store lifecycle manager reference for component access
@@ -183,6 +186,9 @@ export class Presenter implements IPresenter {
 
     // Initialize Skill presenter
     this.skillPresenter = new SkillPresenter(this.configPresenter)
+
+    // Initialize Skill Sync presenter
+    this.skillSyncPresenter = new SkillSyncPresenter(this.skillPresenter)
 
     this.setupEventBus() // 设置事件总线监听
   }
@@ -312,6 +318,7 @@ export class Presenter implements IPresenter {
     this.notificationPresenter.clearAllNotifications() // 清除所有通知
     this.knowledgePresenter.destroy() // 释放所有数据库连接
     ;(this.skillPresenter as SkillPresenter).destroy() // 销毁 Skills 相关资源
+    ;(this.skillSyncPresenter as SkillSyncPresenter).destroy() // 销毁 Skill Sync 相关资源
     // 注意: trayPresenter.destroy() 在 main/index.ts 的 will-quit 事件中处理
     // 此处不销毁 trayPresenter，其生命周期由 main/index.ts 管理
   }

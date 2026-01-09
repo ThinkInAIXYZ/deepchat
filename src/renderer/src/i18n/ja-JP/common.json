@@ -18,6 +18,8 @@
   "cancel": "キャンセル",
   "confirm": "確認",
   "close": "閉じる",
+  "next": "次へ",
+  "back": "戻る",
   "error": {
     "requestFailed": "リクエストに失敗しました...",
     "createChatFailed": "チャットの作成に失敗しました",

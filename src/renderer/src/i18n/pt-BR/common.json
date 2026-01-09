@@ -18,6 +18,8 @@
   "cancel": "Cancelar",
   "confirm": "Confirmar",
   "close": "Fechar",
+  "next": "Próximo",
+  "back": "Voltar",
   "error": {
     "requestFailed": "Falha na requisição...",
     "createChatFailed": "Falha ao criar conversa",

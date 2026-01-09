@@ -14,6 +14,8 @@
   "cancel": "Отмена",
   "confirm": "Подтвердить",
   "close": "Закрыть",
+  "next": "Далее",
+  "back": "Назад",
   "error": {
     "requestFailed": "Ошибка запроса...",
     "createChatFailed": "Не удалось создать чат",

@@ -1,7 +1,12 @@
 <template>
   <div class="w-full h-full flex flex-col">
     <!-- Header -->
-    <SkillsHeader v-model:search-query="searchQuery" @install="installDialogOpen = true" />
+    <SkillsHeader
+      v-model:search-query="searchQuery"
+      @install="installDialogOpen = true"
+      @import="openSyncDialog('import')"
+      @export="openSyncDialog('export')"
+    />
 
     <Separator class="my-4" />
 
@@ -49,6 +54,13 @@
 
     <!-- Install dialog -->
     <SkillInstallDialog v-model:open="installDialogOpen" @installed="handleInstalled" />
+
+    <!-- Sync dialog -->
+    <SkillSyncDialog
+      v-model:open="syncDialogOpen"
+      :mode="syncMode"
+      @completed="handleSyncCompleted"
+    />
 
     <!-- Editor sheet -->
     <SkillEditorSheet v-model:open="editorOpen" :skill="editingSkill" @saved="handleSaved" />
@@ -102,6 +114,7 @@ import SkillsHeader from './SkillsHeader.vue'
 import SkillCard from './SkillCard.vue'
 import SkillInstallDialog from './SkillInstallDialog.vue'
 import SkillEditorSheet from './SkillEditorSheet.vue'
+import { SkillSyncDialog } from './SkillSyncDialog'
 
 const { t } = useI18n()
 const { toast } = useToast()
@@ -122,6 +135,15 @@ const filteredSkills = computed(() => {
 
 // Install dialog
 const installDialogOpen = ref(false)
+
+// Sync dialog
+const syncDialogOpen = ref(false)
+const syncMode = ref<'import' | 'export'>('import')
+
+const openSyncDialog = (mode: 'import' | 'export') => {
+  syncMode.value = mode
+  syncDialogOpen.value = true
+}
 
 // Editor
 const editorOpen = ref(false)
@@ -203,6 +225,10 @@ const handleInstalled = () => {
 }
 
 const handleSaved = () => {
+  skillsStore.loadSkills()
+}
+
+const handleSyncCompleted = () => {
   skillsStore.loadSkills()
 }
 </script>

@@ -14,6 +14,7 @@ import type { IConversationExporter } from './exporter.presenter'
 import type { IWorkspacePresenter } from './workspace'
 import type { IToolPresenter } from './tool.presenter'
 import type { ISkillPresenter } from '../skill'
+import type { ISkillSyncPresenter } from '../skillSync'
 import type {
   BrowserTabInfo,
   BrowserContextSnapshot,
@@ -451,6 +452,7 @@ export interface IPresenter {
   workspacePresenter: IWorkspacePresenter
   toolPresenter: IToolPresenter
   skillPresenter: ISkillPresenter
+  skillSyncPresenter: ISkillSyncPresenter
   init(): void
   destroy(): void
 }

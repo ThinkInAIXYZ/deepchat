@@ -18,6 +18,8 @@
   "cancel": "ביטול",
   "confirm": "אישור",
   "close": "סגור",
+  "next": "הבא",
+  "back": "חזור",
   "error": {
     "requestFailed": "הבקשה נכשלה...",
     "createChatFailed": "יצירת הצ'אט נכשלה",

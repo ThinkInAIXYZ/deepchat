@@ -270,3 +270,15 @@ export const SKILL_EVENTS = {
   ACTIVATED: 'skill:activated', // Skill activated in session
   DEACTIVATED: 'skill:deactivated' // Skill deactivated in session
 }
+
+// Skill sync events (cross-tool synchronization)
+export const SKILL_SYNC_EVENTS = {
+  SCAN_STARTED: 'skill-sync:scan-started', // Scan operation started
+  SCAN_COMPLETED: 'skill-sync:scan-completed', // Scan operation completed
+  IMPORT_STARTED: 'skill-sync:import-started', // Import operation started
+  IMPORT_PROGRESS: 'skill-sync:import-progress', // Import progress update
+  IMPORT_COMPLETED: 'skill-sync:import-completed', // Import operation completed
+  EXPORT_STARTED: 'skill-sync:export-started', // Export operation started
+  EXPORT_PROGRESS: 'skill-sync:export-progress', // Export progress update
+  EXPORT_COMPLETED: 'skill-sync:export-completed' // Export operation completed
+}

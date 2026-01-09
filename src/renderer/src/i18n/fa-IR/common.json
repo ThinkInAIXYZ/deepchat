@@ -18,6 +18,8 @@
   "cancel": "رد کردن",
   "confirm": "پذیرفتن",
   "close": "بستن",
+  "next": "بعدی",
+  "back": "قبلی",
   "error": {
     "requestFailed": "درخواست شکست خورد...",
     "createChatFailed": "ساخت گفت‌وگو انجام نشد",
