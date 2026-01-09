@@ -1,12 +1,6 @@
 <template>
   <div class="w-full h-full flex-row flex">
-    <div
-      :class="[
-        'flex-1 w-0 h-full transition-all duration-200 max-lg:mr-0!',
-        chatViewMargin,
-        chatStore.isMessageNavigationOpen && !artifactStore.isOpen && isLargeScreen ? 'mr-80' : ''
-      ]"
-    >
+    <div :class="['flex-1 w-0 h-full transition-all duration-200 max-lg:mr-0!', chatViewMargin]">
       <div class="flex h-full">
         <!-- 主聊天区域 -->
         <div class="flex-1 flex flex-col w-0">
@@ -23,44 +17,6 @@
       </div>
     </div>
 
-    <!-- 消息导航侧边栏 (大屏幕) -->
-    <div
-      v-show="chatStore.isMessageNavigationOpen && !artifactStore.isOpen && isLargeScreen"
-      class="fixed right-0 top-0 w-80 max-w-80 h-full z-10 hidden lg:block"
-    >
-      <MessageNavigationSidebar
-        :messages="chatStore.variantAwareMessages"
-        :is-open="chatStore.isMessageNavigationOpen"
-        @close="chatStore.isMessageNavigationOpen = false"
-        @scroll-to-message="handleScrollToMessage"
-      />
-    </div>
-
-    <!-- 小屏幕模式下的消息导航侧边栏 -->
-    <Teleport to="body">
-      <Transition
-        enter-active-class="transition-all duration-300 ease-out"
-        leave-active-class="transition-all duration-300 ease-in"
-        enter-from-class="translate-x-full opacity-0"
-        leave-to-class="translate-x-full opacity-0"
-      >
-        <div v-if="chatStore.isMessageNavigationOpen" class="fixed inset-0 z-50 flex lg:hidden">
-          <!-- 背景遮罩 -->
-          <div class="flex-1" @click="chatStore.isMessageNavigationOpen = false"></div>
-
-          <!-- 侧边栏 -->
-          <div class="w-80 max-w-80">
-            <MessageNavigationSidebar
-              :messages="chatStore.variantAwareMessages"
-              :is-open="chatStore.isMessageNavigationOpen"
-              @close="chatStore.isMessageNavigationOpen = false"
-              @scroll-to-message="handleScrollToMessage"
-            />
-          </div>
-        </div>
-      </Transition>
-    </Teleport>
-
     <!-- Artifacts 预览区域 -->
     <ArtifactDialog />
   </div>
@@ -73,7 +29,6 @@ import { watch, ref, computed, nextTick } from 'vue'
 import { useTitle, useMediaQuery } from '@vueuse/core'
 import { useArtifactStore } from '@/stores/artifact'
 import ArtifactDialog from '@/components/artifacts/ArtifactDialog.vue'
-import MessageNavigationSidebar from '@/components/MessageNavigationSidebar.vue'
 import { useRoute } from 'vue-router'
 const ChatView = defineAsyncComponent(() => import('@/components/ChatView.vue'))
 const NewThread = defineAsyncComponent(() => import('@/components/NewThread.vue'))
@@ -210,9 +165,7 @@ const tryScrollToPendingMessage = () => {
         return
       }
       if (pendingScrollRetryCount >= 8 && pendingTarget.messageId) {
-        const hasMessage = chatStore.variantAwareMessages.some(
-          (message) => message.id === pendingTarget.messageId
-        )
+        const hasMessage = chatStore.getMessageIds().includes(pendingTarget.messageId)
         if (hasMessage) {
           handleScrollToMessage(pendingTarget.messageId)
           chatStore.consumePendingScrollMessage(activeThreadId)
@@ -233,9 +186,7 @@ const tryScrollToPendingMessage = () => {
     }
 
     if (!pendingTarget.childConversationId && pendingTarget.messageId) {
-      const hasMessage = chatStore.variantAwareMessages.some(
-        (message) => message.id === pendingTarget.messageId
-      )
+      const hasMessage = chatStore.getMessageIds().includes(pendingTarget.messageId)
       if (!hasMessage) return
       handleScrollToMessage(pendingTarget.messageId)
       chatStore.consumePendingScrollMessage(activeThreadId)
@@ -250,13 +201,22 @@ watch(
     [
       chatStore.activeThread?.id,
       chatStore.activePendingScrollTarget,
-      chatStore.variantAwareMessages.length,
+      chatStore.messageCount,
       chatStore.childThreadsByMessageId
     ] as const,
   () => {
     tryScrollToPendingMessage()
   },
   { immediate: true }
+)
+
+watch(
+  () => chatStore.isMessageNavigationOpen,
+  (isOpen) => {
+    if (isOpen) {
+      void chatStore.prefetchAllMessages()
+    }
+  }
 )
 </script>
 

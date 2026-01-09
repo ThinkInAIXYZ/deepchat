@@ -32,6 +32,9 @@
         class="think-prose w-full max-w-full"
         :isDark="themeStore.isDark"
         :content="sanitizedContent"
+        :deferNodesUntilVisible="true"
+        :maxLiveNodes="120"
+        :liveNodeBuffer="30"
         :customId="customId"
       />
     </div>
@@ -47,7 +50,7 @@
 <script setup lang="ts">
 import { useThemeStore } from '@/stores/theme'
 import { Icon } from '@iconify/vue'
-import { h, computed } from 'vue'
+import { h, computed, watch } from 'vue'
 import NodeRenderer, { setCustomComponents, CodeBlockNode, PreCodeNode } from 'markstream-vue'
 
 const props = defineProps<{
@@ -68,6 +71,9 @@ defineEmits<{
 }>()
 const customId = 'thinking-content'
 const themeStore = useThemeStore()
+const propsWatchSource = () => [props.label, props.expanded, props.thinking, props.content] as const
+
+watch(propsWatchSource, () => {}, { immediate: true })
 setCustomComponents(customId, {
   code_block: (_props) => {
     const isMermaid = _props.node.language === 'mermaid'

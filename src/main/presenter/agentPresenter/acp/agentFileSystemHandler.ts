@@ -3,9 +3,10 @@ import path from 'path'
 import os from 'os'
 import { z } from 'zod'
 import { minimatch } from 'minimatch'
-import { createTwoFilesPatch } from 'diff'
+import { diffLines } from 'diff'
 import logger from '@shared/logger'
 import { validateGlobPattern, validateRegexPattern } from '@shared/regexValidator'
+import { getLanguageFromFilename } from '@shared/utils/codeLanguage'
 import { spawn } from 'child_process'
 import { RuntimeHelper } from '../../../lib/runtimeHelper'
 import { glob } from 'glob'
@@ -114,7 +115,24 @@ interface TextReplaceResult {
   replacements: number
   diff?: string
   error?: string
+  originalContent?: string
+  modifiedContent?: string
 }
+
+interface DiffToolSuccessResponse {
+  success: true
+  originalCode: string
+  updatedCode: string
+  language: string
+  replacements?: number
+}
+
+interface DiffToolErrorResponse {
+  success: false
+  error: string
+}
+
+type DiffToolResponse = DiffToolSuccessResponse | DiffToolErrorResponse
 
 interface TreeEntry {
   name: string
@@ -127,6 +145,11 @@ interface GlobMatch {
   name: string
   modified?: Date
   size?: number
+}
+
+interface LineRange {
+  start: number
+  end: number
 }
 
 export class AgentFileSystemHandler {
@@ -200,10 +223,112 @@ export class AgentFileSystemHandler {
     }
   }
 
-  private createUnifiedDiff(originalContent: string, newContent: string, filePath: string): string {
+  private countLines(value: string): number {
+    if (value.length === 0) return 0
+    const lineCount = value.split('\n').length
+    return value.endsWith('\n') ? lineCount - 1 : lineCount
+  }
+
+  private addContextRange(ranges: LineRange[], index: number, totalLines: number): void {
+    if (totalLines <= 0) return
+    const clamped = Math.min(Math.max(index, 0), totalLines - 1)
+    ranges.push({ start: clamped, end: clamped })
+  }
+
+  private expandRanges(ranges: LineRange[], totalLines: number, contextLines: number): LineRange[] {
+    if (totalLines <= 0 || ranges.length === 0) return []
+    const expanded = ranges.map((range) => ({
+      start: Math.max(0, range.start - contextLines),
+      end: Math.min(totalLines - 1, range.end + contextLines)
+    }))
+    expanded.sort((a, b) => a.start - b.start)
+    const merged: LineRange[] = []
+    for (const range of expanded) {
+      const last = merged[merged.length - 1]
+      if (!last || range.start > last.end + 1) {
+        merged.push({ ...range })
+        continue
+      }
+      last.end = Math.max(last.end, range.end)
+    }
+    return merged
+  }
+
+  private formatNoChanges(count: number): string {
+    return `... [No changes: ${count} lines] ...`
+  }
+
+  private buildCollapsedText(lines: string[], ranges: LineRange[]): string {
+    if (lines.length === 0) return ''
+    if (ranges.length === 0) {
+      return this.formatNoChanges(lines.length)
+    }
+    const output: string[] = []
+    let cursor = 0
+    for (const range of ranges) {
+      if (range.start > cursor) {
+        const gap = range.start - cursor
+        if (gap > 0) {
+          output.push(this.formatNoChanges(gap))
+        }
+      }
+      output.push(...lines.slice(range.start, range.end + 1))
+      cursor = range.end + 1
+    }
+    if (cursor < lines.length) {
+      const remaining = lines.length - cursor
+      if (remaining > 0) {
+        output.push(this.formatNoChanges(remaining))
+      }
+    }
+    return output.join('\n')
+  }
+
+  private buildTruncatedDiff(
+    originalContent: string,
+    updatedContent: string,
+    contextLines: number
+  ): { originalCode: string; updatedCode: string } {
     const normalizedOriginal = this.normalizeLineEndings(originalContent)
-    const normalizedNew = this.normalizeLineEndings(newContent)
-    return createTwoFilesPatch(filePath, filePath, normalizedOriginal, normalizedNew)
+    const normalizedUpdated = this.normalizeLineEndings(updatedContent)
+    const originalLines = normalizedOriginal.split('\n')
+    const updatedLines = normalizedUpdated.split('\n')
+    const originalRanges: LineRange[] = []
+    const updatedRanges: LineRange[] = []
+
+    let originalIndex = 0
+    let updatedIndex = 0
+    const parts = diffLines(normalizedOriginal, normalizedUpdated)
+
+    for (const part of parts) {
+      const lineCount = this.countLines(part.value)
+      if (part.added) {
+        if (lineCount > 0) {
+          updatedRanges.push({ start: updatedIndex, end: updatedIndex + lineCount - 1 })
+        }
+        this.addContextRange(originalRanges, originalIndex, originalLines.length)
+        updatedIndex += lineCount
+        continue
+      }
+      if (part.removed) {
+        if (lineCount > 0) {
+          originalRanges.push({ start: originalIndex, end: originalIndex + lineCount - 1 })
+        }
+        this.addContextRange(updatedRanges, updatedIndex, updatedLines.length)
+        originalIndex += lineCount
+        continue
+      }
+      originalIndex += lineCount
+      updatedIndex += lineCount
+    }
+
+    const expandedOriginal = this.expandRanges(originalRanges, originalLines.length, contextLines)
+    const expandedUpdated = this.expandRanges(updatedRanges, updatedLines.length, contextLines)
+
+    return {
+      originalCode: this.buildCollapsedText(originalLines, expandedOriginal),
+      updatedCode: this.buildCollapsedText(updatedLines, expandedUpdated)
+    }
   }
 
   private async getFileStats(filePath: string): Promise<{
@@ -598,7 +723,6 @@ export class AgentFileSystemHandler {
         }
       }
 
-      const modifiedContent = normalizedOriginal.replace(regex, replacement)
       // Pattern already validated above, safe to create count regex
       const countRegex = new RegExp(pattern, caseSensitive ? 'g' : 'gi')
       const matches = Array.from(normalizedOriginal.matchAll(countRegex))
@@ -608,11 +732,12 @@ export class AgentFileSystemHandler {
         return {
           success: true,
           replacements: 0,
-          diff: 'No matches found for the given pattern.'
+          originalContent: normalizedOriginal,
+          modifiedContent: normalizedOriginal
         }
       }
 
-      const diff = this.createUnifiedDiff(normalizedOriginal, modifiedContent, filePath)
+      const modifiedContent = normalizedOriginal.replace(regex, replacement)
       if (!dryRun) {
         await fs.writeFile(filePath, modifiedContent, 'utf-8')
       }
@@ -620,7 +745,8 @@ export class AgentFileSystemHandler {
       return {
         success: true,
         replacements,
-        diff
+        originalContent: normalizedOriginal,
+        modifiedContent
       }
     } catch (error) {
       return {
@@ -741,11 +867,18 @@ export class AgentFileSystemHandler {
       modifiedContent = modifiedContent.replace(regex, parsed.data.replacement || '')
     }
 
-    const diff = createTwoFilesPatch(validPath, validPath, content, modifiedContent)
+    const { originalCode, updatedCode } = this.buildTruncatedDiff(content, modifiedContent, 3)
+    const language = getLanguageFromFilename(validPath)
     if (!parsed.data.dryRun) {
       await fs.writeFile(validPath, modifiedContent, 'utf-8')
     }
-    return diff
+    const response: DiffToolResponse = {
+      success: true,
+      originalCode,
+      updatedCode,
+      language
+    }
+    return JSON.stringify(response)
   }
 
   async grepSearch(args: unknown, baseDirectory?: string): Promise<string> {
@@ -810,7 +943,24 @@ export class AgentFileSystemHandler {
       }
     )
 
-    return result.success ? result.diff || '' : result.error || 'Text replacement failed'
+    if (!result.success) {
+      return result.error || 'Text replacement failed'
+    }
+
+    const { originalCode, updatedCode } = this.buildTruncatedDiff(
+      result.originalContent ?? '',
+      result.modifiedContent ?? '',
+      3
+    )
+    const language = getLanguageFromFilename(validPath)
+    const response: DiffToolResponse = {
+      success: true,
+      originalCode,
+      updatedCode,
+      language,
+      replacements: result.replacements
+    }
+    return JSON.stringify(response)
   }
 
   async directoryTree(args: unknown, baseDirectory?: string): Promise<string> {

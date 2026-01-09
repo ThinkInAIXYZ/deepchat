@@ -1,7 +1,7 @@
 <template>
   <div
     :data-message-id="message.id"
-    class="flex flex-row pl-4 pr-11 group gap-2 w-full justify-start assistant-message-item"
+    class="flex flex-row pl-4 pt-5 pr-11 group gap-2 w-full justify-start assistant-message-item"
   >
     <div class="shrink-0 w-5 h-5 flex items-center justify-center">
       <ModelIcon
@@ -48,12 +48,16 @@
             :message-id="currentMessage.id"
             :thread-id="currentThreadId"
           />
-          <MessageBlockPermissionRequest
+          <template
             v-else-if="block.type === 'action' && block.action_type === 'tool_call_permission'"
-            :block="block"
-            :message-id="currentMessage.id"
-            :conversation-id="currentThreadId"
-          />
+          >
+            <MessageBlockPermissionRequest
+              v-if="block.extra?.needsUserAction"
+              :block="block"
+              :message-id="currentMessage.id"
+              :conversation-id="currentThreadId"
+            />
+          </template>
           <MessageBlockAction
             v-else-if="block.type === 'action'"
             :message-id="currentMessage.id"

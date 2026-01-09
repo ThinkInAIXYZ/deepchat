@@ -15,5 +15,6 @@
   "responseData": "ответ функции",
   "success": "успех",
   "title": "Вызов инструмента",
-  "terminalOutput": "Выходной терминал"
+  "terminalOutput": "Выходной терминал",
+  "replacementsCount": "Выполнено {count} замен"
 }

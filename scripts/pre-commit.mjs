@@ -1,5 +1,5 @@
 // @ts-check
-import { spawnSync } from 'node:child_process'
+import { sync as spawnSync } from 'cross-spawn'
 
 const tryCommand = (cmd, args) => {
   const result = spawnSync(cmd, args, { stdio: 'ignore' })

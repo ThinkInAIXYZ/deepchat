@@ -15,5 +15,6 @@
   "responseData": "réponse de la fonction",
   "success": "succès",
   "title": "Appel d'outil",
-  "terminalOutput": "Sortie terminale"
+  "terminalOutput": "Sortie terminale",
+  "replacementsCount": "Terminé {count} remplacement(s)"
 }

@@ -1,6 +1,7 @@
 import { BaseFileAdapter } from './BaseFileAdapter'
 import fs from 'fs/promises'
 import path from 'path'
+import { getLanguageFromFilename } from '@shared/utils/codeLanguage'
 
 export class CodeFileAdapter extends BaseFileAdapter {
   private maxFileSize: number
@@ -172,164 +173,6 @@ export class CodeFileAdapter extends BaseFileAdapter {
     }
   }
 
-  private getLanguageFromExt(): string {
-    const ext = path.extname(this.filePath).toLowerCase()
-    switch (ext) {
-      case '.js':
-      case '.jsx':
-        return 'javascript'
-      case '.ts':
-      case '.tsx':
-        return 'typescript'
-      case '.py':
-        return 'python'
-      case '.java':
-        return 'java'
-      case '.c':
-        return 'c'
-      case '.cpp':
-      case '.cc':
-      case '.cxx':
-        return 'cpp'
-      case '.h':
-        return 'c'
-      case '.hpp':
-      case '.hxx':
-      case '.hh':
-        return 'cpp'
-      case '.cs':
-        return 'csharp'
-      case '.go':
-        return 'go'
-      case '.rb':
-        return 'ruby'
-      case '.php':
-        return 'php'
-      case '.rs':
-        return 'rust'
-      case '.swift':
-        return 'swift'
-      case '.kt':
-        return 'kotlin'
-      case '.scala':
-        return 'scala'
-      case '.pl':
-        return 'perl'
-      case '.lua':
-        return 'lua'
-      case '.sh':
-        return 'shell'
-      case '.html':
-      case '.htm':
-        return 'html'
-      case '.css':
-        return 'css'
-      case '.dart':
-        return 'dart'
-      case '.r':
-        return 'r'
-      case '.m':
-        return 'matlab'
-      case '.sql':
-        return 'sql'
-      case '.json':
-        return 'json'
-      case '.yaml':
-      case '.yml':
-        return 'yaml'
-      case '.xml':
-        return 'xml'
-      case '.md':
-        return 'markdown'
-      case '.vue':
-        return 'vue'
-      case '.svelte':
-        return 'svelte'
-      case '.sass':
-      case '.scss':
-        return 'scss'
-      case '.less':
-        return 'less'
-      case '.f90':
-      case '.f95':
-      case '.f03':
-        return 'fortran'
-      case '.jl':
-        return 'julia'
-      case '.ex':
-      case '.exs':
-        return 'elixir'
-      case '.elm':
-        return 'elm'
-      case '.clj':
-      case '.cljs':
-        return 'clojure'
-      case '.fs':
-      case '.fsx':
-        return 'fsharp'
-      case '.hs':
-        return 'haskell'
-      case '.ml':
-      case '.mli':
-        return 'ocaml'
-      case '.nim':
-        return 'nim'
-      case '.proto':
-        return 'protobuf'
-      case '.groovy':
-        return 'groovy'
-      case '.tf':
-      case '.tfvars':
-        return 'terraform'
-      case '.dockerfile':
-        return 'dockerfile'
-      case '.toml':
-        return 'toml'
-      case '.graphql':
-      case '.gql':
-        return 'graphql'
-      case '.astro':
-        return 'astro'
-      case '.zig':
-        return 'zig'
-      case '.v':
-        return 'v'
-      case '.ini':
-        return 'ini'
-      case '.env':
-        return 'dotenv'
-      case '.conf':
-      case '.config':
-        return 'configuration'
-      case '.properties':
-        return 'properties'
-      case '.lock':
-        return 'yaml'
-      case '.npmrc':
-        return 'ini'
-      case '.babelrc':
-      case '.babel.config.js':
-        return 'json'
-      case '.eslintrc':
-        return 'json'
-      case '.eslintignore':
-        return 'gitignore'
-      case '.prettierrc':
-        return 'json'
-      case '.gitignore':
-      case '.dockerignore':
-        return 'gitignore'
-      case '.editorconfig':
-        return 'ini'
-      case '.htaccess':
-        return 'apacheconf'
-      case '.nginx':
-        return 'nginx'
-      default:
-        return 'plaintext'
-    }
-  }
-
   async getContent(): Promise<string | undefined> {
     if (this.fileContent === undefined) {
       const fullPath = path.join(this.filePath)
@@ -343,7 +186,7 @@ export class CodeFileAdapter extends BaseFileAdapter {
 
   public async getLLMContent(): Promise<string | undefined> {
     const content = await this.getContent()
-    const language = this.getLanguageFromExt()
+    const language = getLanguageFromFilename(this.filePath)
     return `
   \`\`\`${language}
   ${content}

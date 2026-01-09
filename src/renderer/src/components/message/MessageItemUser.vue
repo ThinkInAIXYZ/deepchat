@@ -2,7 +2,7 @@
   <div
     v-show="!message.content.continue"
     :data-message-id="message.id"
-    class="flex flex-row-reverse group pl-11 gap-2 user-message-item"
+    class="flex flex-row-reverse group pt-5 pl-11 gap-2 user-message-item"
   >
     <!-- 头像 -->
     <div class="w-5 h-5 bg-muted rounded-md overflow-hidden">

@@ -1,5 +1,3 @@
-import { eventBus, SendTarget } from '@/eventbus'
-import { STREAM_EVENTS } from '@/events'
 import { presenter } from '@/presenter'
 import type { AssistantMessage, AssistantMessageBlock } from '@shared/chat'
 import type {
@@ -133,12 +131,6 @@ export class PermissionHandler extends BaseHandler {
                 }
               : undefined
           }
-        } else {
-          generatingState.message.content = content.map((block) => ({
-            ...block,
-            extra: block.extra ? { ...block.extra } : undefined,
-            tool_call: block.tool_call ? { ...block.tool_call } : undefined
-          }))
         }
       }
 
@@ -165,9 +157,9 @@ export class PermissionHandler extends BaseHandler {
           }
           const signature = this.commandPermissionHandler.extractCommandSignature(command)
           this.commandPermissionHandler.approve(conversationId, signature, remember)
-          await this.restartAgentLoopAfterPermission(messageId)
+          await this.restartAgentLoopAfterPermission(messageId, toolCallId)
         } else {
-          await this.continueAfterPermissionDenied(messageId)
+          await this.continueAfterPermissionDenied(messageId, permissionBlock)
         }
         return
       }
@@ -187,9 +179,9 @@ export class PermissionHandler extends BaseHandler {
           throw error
         }
 
-        await this.restartAgentLoopAfterPermission(messageId)
+        await this.restartAgentLoopAfterPermission(messageId, toolCallId)
       } else {
-        await this.continueAfterPermissionDenied(messageId)
+        await this.continueAfterPermissionDenied(messageId, permissionBlock)
       }
     } catch (error) {
       console.error('[PermissionHandler] Failed to handle permission response:', error)
@@ -207,7 +199,7 @@ export class PermissionHandler extends BaseHandler {
     }
   }
 
-  async restartAgentLoopAfterPermission(messageId: string): Promise<void> {
+  async restartAgentLoopAfterPermission(messageId: string, toolCallId?: string): Promise<void> {
     console.log('[PermissionHandler] Restarting agent loop after permission', messageId)
 
     try {
@@ -219,16 +211,13 @@ export class PermissionHandler extends BaseHandler {
       const conversationId = message.conversationId
       await presenter.sessionManager.startLoop(conversationId, messageId)
       const content = message.content as AssistantMessageBlock[]
+
       const permissionBlock = content.find(
         (block) =>
           block.type === 'action' &&
           block.action_type === 'tool_call_permission' &&
-          block.status === 'granted'
+          block.tool_call?.id === toolCallId
       )
-
-      if (!permissionBlock) {
-        throw new Error(`No granted permission block found (${messageId})`)
-      }
 
       if (permissionBlock?.extra?.serverName) {
         try {
@@ -240,8 +229,25 @@ export class PermissionHandler extends BaseHandler {
         }
       }
 
+      if (!permissionBlock) {
+        console.warn('[PermissionHandler] Granted permission block missing; continuing', messageId)
+      }
+
+      const pendingToolCallFromPermission =
+        this.buildPendingToolCallFromPermissionBlock(permissionBlock)
+      const pendingToolCallFromId = toolCallId
+        ? this.buildPendingToolCallFromToolCallId(content, toolCallId)
+        : undefined
+      const fallbackPendingToolCall =
+        pendingToolCallFromPermission ??
+        pendingToolCallFromId ??
+        this.findPendingToolCallAfterPermission(content)
+
       const state = this.generatingMessages.get(messageId)
       if (state) {
+        if (!state.pendingToolCall && fallbackPendingToolCall) {
+          state.pendingToolCall = fallbackPendingToolCall
+        }
         if (state.pendingToolCall) {
           await this.resumeAfterPermissionWithPendingToolCall(
             state,
@@ -264,7 +270,7 @@ export class PermissionHandler extends BaseHandler {
         reasoningStartTime: null,
         reasoningEndTime: null,
         lastReasoningTime: null,
-        pendingToolCall: this.findPendingToolCallAfterPermission(assistantMessage.content)
+        pendingToolCall: fallbackPendingToolCall
       })
 
       await this.streamGenerationHandler.startStreamCompletion(conversationId, messageId)
@@ -282,7 +288,10 @@ export class PermissionHandler extends BaseHandler {
     }
   }
 
-  async continueAfterPermissionDenied(messageId: string): Promise<void> {
+  async continueAfterPermissionDenied(
+    messageId: string,
+    resolvedPermissionBlock?: AssistantMessageBlock
+  ): Promise<void> {
     console.log('[PermissionHandler] Continuing after permission denied', messageId)
 
     try {
@@ -294,12 +303,14 @@ export class PermissionHandler extends BaseHandler {
       const conversationId = message.conversationId
       await presenter.sessionManager.startLoop(conversationId, messageId)
       const content = message.content as AssistantMessageBlock[]
-      const deniedPermissionBlock = content.find(
-        (block) =>
-          block.type === 'action' &&
-          block.action_type === 'tool_call_permission' &&
-          block.status === 'denied'
-      )
+      const deniedPermissionBlock =
+        resolvedPermissionBlock ||
+        content.find(
+          (block) =>
+            block.type === 'action' &&
+            block.action_type === 'tool_call_permission' &&
+            block.status === 'denied'
+        )
 
       if (!deniedPermissionBlock?.tool_call) {
         console.warn('[PermissionHandler] No denied permission block for', messageId)
@@ -307,21 +318,7 @@ export class PermissionHandler extends BaseHandler {
       }
 
       const toolCall = deniedPermissionBlock.tool_call
-      const errorMessage = `Tool execution failed: Permission denied by user for ${
-        toolCall.name || 'this tool'
-      }`
-
-      eventBus.sendToRenderer(STREAM_EVENTS.RESPONSE, SendTarget.ALL_WINDOWS, {
-        eventId: messageId,
-        tool_call: 'end',
-        tool_call_id: toolCall.id,
-        tool_call_name: toolCall.name,
-        tool_call_params: toolCall.params,
-        tool_call_response: errorMessage,
-        tool_call_server_name: toolCall.server_name,
-        tool_call_server_icons: toolCall.server_icons,
-        tool_call_server_description: toolCall.server_description
-      })
+      const errorMessage = 'User denied the request.'
 
       let state = this.generatingMessages.get(messageId)
       if (!state) {
@@ -339,6 +336,18 @@ export class PermissionHandler extends BaseHandler {
       }
 
       state.pendingToolCall = undefined
+
+      await this.llmEventHandler.handleLLMAgentResponse({
+        eventId: messageId,
+        tool_call: 'error',
+        tool_call_id: toolCall.id,
+        tool_call_name: toolCall.name,
+        tool_call_params: toolCall.params,
+        tool_call_response: errorMessage,
+        tool_call_server_name: toolCall.server_name,
+        tool_call_server_icons: toolCall.server_icons,
+        tool_call_server_description: toolCall.server_description
+      } as any)
 
       const { conversation, contextMessages, userMessage } =
         await this.streamGenerationHandler.prepareConversationContext(conversationId, messageId)
@@ -738,16 +747,18 @@ export class PermissionHandler extends BaseHandler {
         block.status === 'granted'
     )
 
-    if (!grantedPermissionBlock?.tool_call) {
+    return this.buildPendingToolCallFromPermissionBlock(grantedPermissionBlock)
+  }
+  private buildPendingToolCallFromPermissionBlock(
+    block?: AssistantMessageBlock
+  ): PendingToolCall | undefined {
+    if (!block?.tool_call) {
       return undefined
     }
 
-    const { id, name, params } = grantedPermissionBlock.tool_call
+    const { id, name, params } = block.tool_call
     if (!id || !name || !params) {
-      console.warn(
-        '[PermissionHandler] Incomplete tool call info:',
-        grantedPermissionBlock.tool_call
-      )
+      console.warn('[PermissionHandler] Incomplete tool call info:', block.tool_call)
       return undefined
     }
 
@@ -755,9 +766,37 @@ export class PermissionHandler extends BaseHandler {
       id,
       name,
       params,
-      serverName: grantedPermissionBlock.tool_call.server_name,
-      serverIcons: grantedPermissionBlock.tool_call.server_icons,
-      serverDescription: grantedPermissionBlock.tool_call.server_description
+      serverName: block.tool_call.server_name,
+      serverIcons: block.tool_call.server_icons,
+      serverDescription: block.tool_call.server_description
+    }
+  }
+
+  private buildPendingToolCallFromToolCallId(
+    content: AssistantMessageBlock[],
+    toolCallId: string
+  ): PendingToolCall | undefined {
+    const toolCallBlock = content.find(
+      (block) => block.type === 'tool_call' && block.tool_call?.id === toolCallId
+    )
+
+    if (!toolCallBlock || toolCallBlock.type !== 'tool_call' || !toolCallBlock.tool_call) {
+      return undefined
+    }
+
+    const { id, name, params } = toolCallBlock.tool_call
+    if (!id || !name || !params) {
+      console.warn('[PermissionHandler] Incomplete tool call info:', toolCallBlock.tool_call)
+      return undefined
+    }
+
+    return {
+      id,
+      name,
+      params,
+      serverName: toolCallBlock.tool_call.server_name,
+      serverIcons: toolCallBlock.tool_call.server_icons,
+      serverDescription: toolCallBlock.tool_call.server_description
     }
   }
 

@@ -98,9 +98,13 @@ export class ToolCallHandler {
 
     block.tool_call.params = event.tool_call_params || ''
 
-    if (event.tool_call === 'running') {
+    if (event.tool_call_server_name) {
       block.tool_call.server_name = event.tool_call_server_name
+    }
+    if (event.tool_call_server_icons) {
       block.tool_call.server_icons = event.tool_call_server_icons
+    }
+    if (event.tool_call_server_description) {
       block.tool_call.server_description = event.tool_call_server_description
     }
   }
@@ -127,6 +131,29 @@ export class ToolCallHandler {
       lastBlock.action_type === 'tool_call_permission'
     ) {
       lastBlock.status = 'success'
+    }
+
+    this.searchingMessages.delete(event.eventId)
+    state.isSearching = false
+    state.pendingToolCall = undefined
+  }
+
+  async processToolCallError(
+    state: GeneratingMessageState,
+    event: LLMAgentEventData
+  ): Promise<void> {
+    const toolCallBlock = state.message.content.find(
+      (block) =>
+        block.type === 'tool_call' &&
+        block.tool_call?.id === event.tool_call_id &&
+        block.status === 'loading'
+    )
+
+    if (toolCallBlock && toolCallBlock.type === 'tool_call') {
+      toolCallBlock.status = 'error'
+      if (toolCallBlock.tool_call) {
+        toolCallBlock.tool_call.response = event.tool_call_response || ''
+      }
     }
 
     this.searchingMessages.delete(event.eventId)
@@ -414,7 +441,6 @@ export class ToolCallHandler {
 
     const lastBlock = state.message.content[state.message.content.length - 1]
     if (lastBlock && lastBlock.type === 'tool_call' && lastBlock.tool_call) {
-      lastBlock.status = 'success'
     }
 
     this.finalizeLastBlock(state)

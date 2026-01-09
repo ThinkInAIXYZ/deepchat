@@ -186,6 +186,32 @@ export class MessagesTable extends BaseTable {
       .get(messageId) as SQLITE_MESSAGE | null
   }
 
+  async getByIds(messageIds: string[]): Promise<SQLITE_MESSAGE[]> {
+    if (messageIds.length === 0) return []
+    const placeholders = messageIds.map(() => '?').join(',')
+    return this.db
+      .prepare(
+        `
+        SELECT
+          msg_id as id,
+          conversation_id,
+          parent_id,
+          content,
+          role,
+          created_at,
+          order_seq,
+          token_count,
+          status,
+          metadata,
+          is_context_edge,
+          is_variant
+        FROM messages
+        WHERE msg_id IN (${placeholders})
+      `
+      )
+      .all(...messageIds) as SQLITE_MESSAGE[]
+  }
+
   async getVariants(messageId: string): Promise<SQLITE_MESSAGE[]> {
     return this.db
       .prepare(
@@ -366,5 +392,20 @@ export class MessagesTable extends BaseTable {
       }
       return msg
     })
+  }
+
+  async queryIds(conversationId: string): Promise<string[]> {
+    const rows = this.db
+      .prepare(
+        `
+        SELECT
+          msg_id as id
+        FROM messages
+        WHERE conversation_id = ? AND is_variant != 1
+        ORDER BY created_at ASC, order_seq ASC
+      `
+      )
+      .all(conversationId) as Array<{ id: string }>
+    return rows.map((row) => row.id)
   }
 }
