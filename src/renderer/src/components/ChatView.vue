@@ -6,7 +6,7 @@
         <MessageList
           :key="chatStore.getActiveThreadId() ?? 'default'"
           ref="messageList"
-          :messages="chatStore.getMessages()"
+          :items="chatStore.messageItems"
         />
       </div>
 

@@ -15,5 +15,6 @@
   "responseData": "پاسخ تابع",
   "success": "موفقیت",
   "title": "تماس ابزار",
-  "terminalOutput": "خروجی ترمینال"
+  "terminalOutput": "خروجی ترمینال",
+  "replacementsCount": "{count} مورد جایگزین شد"
 }

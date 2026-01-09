@@ -15,5 +15,6 @@
   "responseData": "resposta da função",
   "success": "sucesso",
   "title": "Chamada de ferramenta",
-  "terminalOutput": "Saída terminal"
+  "terminalOutput": "Saída terminal",
+  "replacementsCount": "Substituídas {count} ocorrências"
 }

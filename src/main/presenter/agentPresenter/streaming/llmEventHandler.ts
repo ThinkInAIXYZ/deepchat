@@ -143,6 +143,9 @@ export class LLMEventHandler {
         case 'continue':
           await this.toolCallHandler.processToolCallPermission(state, msg, currentTime)
           break
+        case 'error':
+          await this.toolCallHandler.processToolCallError(state, msg)
+          break
         case 'end':
           await this.toolCallHandler.processToolCallEnd(state, msg)
           break
@@ -279,7 +282,9 @@ export class LLMEventHandler {
             !(block.type === 'action' && block.action_type === 'tool_call_permission') &&
             block.status === 'loading'
           ) {
-            block.status = 'success'
+            if (block.type !== 'tool_call') {
+              block.status = 'success'
+            }
           }
         })
         await this.messageManager.editMessage(eventId, JSON.stringify(state.message.content))

@@ -38,7 +38,7 @@
         {{
           t('chat.navigation.searchResults', {
             count: filteredMessages.length,
-            total: messages.length
+            total: totalMessages
           })
         }}
       </div>
@@ -117,7 +117,7 @@
 
     <div class="p-4 border-t border-border">
       <div class="text-xs text-muted-foreground text-center">
-        {{ t('chat.navigation.totalMessages', { count: messages.length }) }}
+        {{ t('chat.navigation.totalMessages', { count: totalMessages }) }}
       </div>
     </div>
   </div>
@@ -136,6 +136,7 @@ import { isSafeRegexPattern } from '@shared/regexValidator'
 
 interface Props {
   messages: Message[]
+  totalMessages: number
   isOpen: boolean
   activeMessageId?: string
 }

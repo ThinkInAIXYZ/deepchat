@@ -109,8 +109,7 @@ export class SiliconcloudProvider extends OpenAICompatibleProvider {
 
   protected async fetchOpenAIModels(options?: { timeout: number }): Promise<MODEL_META[]> {
     const response = await this.openai.models.list({
-      ...options,
-      query: { type: 'text', sub_type: 'chat' }
+      ...options
     })
     return response.data.map((model) => ({
       id: model.id,

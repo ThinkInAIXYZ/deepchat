@@ -266,7 +266,16 @@ export class AgentLoopHandler {
           name: string
           arguments: string
         }> = []
-        const currentToolChunks: Record<string, { name: string; arguments_chunk: string }> = {}
+        const currentToolChunks: Record<
+          string,
+          {
+            name: string
+            arguments_chunk: string
+            server_name?: string
+            server_icons?: string
+            server_description?: string
+          }
+        > = {}
 
         try {
           console.log(`[Agent Loop] Iteration ${toolCallCount + 1} for event: ${eventId}`)
@@ -355,9 +364,19 @@ export class AgentLoopHandler {
                 break
               case 'tool_call_start':
                 if (chunk.tool_call_id && chunk.tool_call_name) {
+                  const toolDef = filteredToolDefs.find(
+                    (tool) => tool.function.name === chunk.tool_call_name
+                  )
+                  const serverName = toolDef?.server?.name
+                  const serverIcons = toolDef?.server?.icons
+                  const serverDescription = toolDef?.server?.description
+
                   currentToolChunks[chunk.tool_call_id] = {
                     name: chunk.tool_call_name,
-                    arguments_chunk: ''
+                    arguments_chunk: '',
+                    server_name: serverName,
+                    server_icons: serverIcons,
+                    server_description: serverDescription
                   }
                   // Immediately send the start event to indicate the tool call has begun
                   yield {
@@ -367,7 +386,10 @@ export class AgentLoopHandler {
                       tool_call: 'start',
                       tool_call_id: chunk.tool_call_id,
                       tool_call_name: chunk.tool_call_name,
-                      tool_call_params: '' // Initial parameters are empty
+                      tool_call_params: '', // Initial parameters are empty
+                      tool_call_server_name: serverName,
+                      tool_call_server_icons: serverIcons,
+                      tool_call_server_description: serverDescription
                     }
                   }
                 }
@@ -389,7 +411,11 @@ export class AgentLoopHandler {
                       tool_call: 'update',
                       tool_call_id: chunk.tool_call_id,
                       tool_call_name: currentToolChunks[chunk.tool_call_id].name,
-                      tool_call_params: currentToolChunks[chunk.tool_call_id].arguments_chunk
+                      tool_call_params: currentToolChunks[chunk.tool_call_id].arguments_chunk,
+                      tool_call_server_name: currentToolChunks[chunk.tool_call_id].server_name,
+                      tool_call_server_icons: currentToolChunks[chunk.tool_call_id].server_icons,
+                      tool_call_server_description:
+                        currentToolChunks[chunk.tool_call_id].server_description
                     }
                   }
                 }
@@ -400,6 +426,9 @@ export class AgentLoopHandler {
                     chunk.tool_call_arguments_complete ??
                     currentToolChunks[chunk.tool_call_id].arguments_chunk
                   const toolCallName = currentToolChunks[chunk.tool_call_id].name
+                  const serverName = currentToolChunks[chunk.tool_call_id].server_name
+                  const serverIcons = currentToolChunks[chunk.tool_call_id].server_icons
+                  const serverDescription = currentToolChunks[chunk.tool_call_id].server_description
 
                   // For ACP provider, tool call execution is completed on agent side
                   // The tool_call_arguments_complete contains the execution result
@@ -415,7 +444,10 @@ export class AgentLoopHandler {
                         tool_call_id: chunk.tool_call_id,
                         tool_call_name: toolCallName,
                         tool_call_params: completeArgs,
-                        tool_call_response: completeArgs
+                        tool_call_response: completeArgs,
+                        tool_call_server_name: serverName,
+                        tool_call_server_icons: serverIcons,
+                        tool_call_server_description: serverDescription
                       }
                     }
 
@@ -437,7 +469,10 @@ export class AgentLoopHandler {
                         tool_call: 'update',
                         tool_call_id: chunk.tool_call_id,
                         tool_call_name: toolCallName,
-                        tool_call_params: completeArgs
+                        tool_call_params: completeArgs,
+                        tool_call_server_name: serverName,
+                        tool_call_server_icons: serverIcons,
+                        tool_call_server_description: serverDescription
                       }
                     }
 

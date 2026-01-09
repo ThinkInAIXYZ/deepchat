@@ -10,6 +10,7 @@
   "params": "Function Parameters",
   "responseData": "Response",
   "terminalOutput": "Terminal Output",
+  "replacementsCount": "Completed {count} replacements",
   "fileOperation": "File Operation",
   "fileRead": "Read File",
   "fileWrite": "Write File",

@@ -14,6 +14,7 @@ import { ThinkContent } from '@/components/think-content'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { usePresenter } from '@/composables/usePresenter'
 import { AssistantMessageBlock } from '@shared/chat'
+import { useThrottleFn } from '@vueuse/core'
 const props = defineProps<{
   block: AssistantMessageBlock
   usage: {
@@ -101,8 +102,10 @@ watch(
   }
 )
 
-watch(
-  () => [props.block.status, props.block.reasoning_time?.start],
+const statusWatchSource = () =>
+  [props.block.status, props.block.reasoning_time?.start, props.block.reasoning_time?.end] as const
+
+const handleStatusChange = useThrottleFn(
   () => {
     updateDisplayedSeconds()
     if (props.block.status === 'loading') {
@@ -110,6 +113,16 @@ watch(
     } else {
       stopTimer()
     }
+  },
+  500,
+  true,
+  true
+)
+
+watch(
+  statusWatchSource,
+  () => {
+    handleStatusChange()
   },
   { immediate: true }
 )
