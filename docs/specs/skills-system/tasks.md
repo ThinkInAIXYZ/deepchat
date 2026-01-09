@@ -121,55 +121,55 @@
 
 ### 3.2 Pinia Store
 
-- [~] **3.2.1** 创建 `src/renderer/src/stores/skills.ts`（已存在 `skillsStore.ts`）
+- [x] **3.2.1** 创建 `src/renderer/src/stores/skills.ts`（已存在 `skillsStore.ts`）
 - [x] **3.2.2** 实现 state: `skills`, `loading`, `error`
-- [~] **3.2.3** 实现 actions: `loadSkills`, `installFromFolder`, `installFromZip`, `installFromUrl`, `uninstall`, `updateSkill`（缺少 zip/url）
+- [x] **3.2.3** 实现 actions: `loadSkills`, `installFromFolder`, `installFromZip`, `installFromUrl`, `uninstall`, `updateSkill`
 
 ### 3.3 主页面组件
 
-- [~] **3.3.1** 创建 `src/renderer/settings/components/skills/SkillsSettings.vue`（已存在简版页面）
-- [~] **3.3.2** 实现页面整体布局（Header + ScrollArea + Footer）（无 Footer）
+- [x] **3.3.1** 创建 `src/renderer/settings/components/skills/SkillsSettings.vue`
+- [x] **3.3.2** 实现页面整体布局（Header + ScrollArea + Footer）
 - [x] **3.3.3** 实现空状态展示
-- [~] **3.3.4** 实现卡片网格布局（目前为列表）
-- [ ] **3.3.5** 监听 SKILL_EVENTS 实时更新
+- [x] **3.3.4** 实现卡片网格布局（`grid grid-cols-1 md:grid-cols-2`）
+- [x] **3.3.5** 监听 SKILL_EVENTS 实时更新
 
 ### 3.4 Header 组件
 
-- [ ] **3.4.1** 创建 `SkillsHeader.vue`
-- [ ] **3.4.2** 实现搜索输入框
-- [ ] **3.4.3** 实现导入下拉菜单（文件夹/ZIP/URL）
-- [ ] **3.4.4** 实现安装按钮
+- [x] **3.4.1** 创建 `SkillsHeader.vue`
+- [x] **3.4.2** 实现搜索输入框
+- [~] **3.4.3** 实现导入下拉菜单（文件夹/ZIP/URL）（通过 Dialog Tab 实现）
+- [x] **3.4.4** 实现安装按钮
 
 ### 3.5 Skill 卡片组件
 
-- [ ] **3.5.1** 创建 `SkillCard.vue`
-- [ ] **3.5.2** 实现卡片展示（名称、描述、allowedTools）
-- [ ] **3.5.3** 实现编辑/删除操作按钮
-- [ ] **3.5.4** 实现 hover 效果
+- [x] **3.5.1** 创建 `SkillCard.vue`
+- [x] **3.5.2** 实现卡片展示（名称、描述、allowedTools）
+- [x] **3.5.3** 实现编辑/删除操作按钮
+- [x] **3.5.4** 实现 hover 效果
 
 ### 3.6 编辑侧边栏
 
-- [~] **3.6.1** 创建 `SkillEditorSheet.vue`（已内嵌在 SkillsSettings）
-- [ ] **3.6.2** 实现 frontmatter 字段编辑（name, description, allowedTools）
+- [x] **3.6.1** 创建 `SkillEditorSheet.vue`（独立组件）
+- [x] **3.6.2** 实现 frontmatter 字段编辑（name, description, allowedTools）
 - [x] **3.6.3** 实现 Markdown 内容编辑
-- [ ] **3.6.4** 实现文件夹结构展示（只读）
+- [x] **3.6.4** 实现文件夹结构展示（只读）
 - [x] **3.6.5** 实现保存逻辑（写回 SKILL.md）
 
 ### 3.7 安装对话框
 
-- [~] **3.7.1** 创建 `SkillInstallDialog.vue`（已内嵌 Dialog）
-- [ ] **3.7.2** 实现 Tab 切换（文件夹/ZIP/URL）
-- [~] **3.7.3** 实现文件夹选择（支持拖拽）（仅选择）
-- [ ] **3.7.4** 实现 ZIP 文件选择（支持拖拽）
-- [ ] **3.7.5** 实现 URL 输入
-- [ ] **3.7.6** 实现安装流程与进度提示
-- [ ] **3.7.7** 实现冲突确认对话框
+- [x] **3.7.1** 创建 `SkillInstallDialog.vue`（独立组件）
+- [x] **3.7.2** 实现 Tab 切换（文件夹/ZIP/URL）
+- [~] **3.7.3** 实现文件夹选择（支持拖拽）（仅选择，拖拽待实现）
+- [~] **3.7.4** 实现 ZIP 文件选择（支持拖拽）（仅选择，拖拽待实现）
+- [x] **3.7.5** 实现 URL 输入
+- [x] **3.7.6** 实现安装流程与进度提示
+- [x] **3.7.7** 实现冲突确认对话框
 
 ### 3.8 文件夹树组件
 
-- [ ] **3.8.1** 创建 `SkillFolderTree.vue`
+- [x] **3.8.1** 创建 `SkillFolderTree.vue` 和 `SkillFolderTreeNode.vue`
 - [x] **3.8.2** 实现 `getSkillFolderTree(name)` Presenter 方法
-- [ ] **3.8.3** 实现树形结构展示
+- [x] **3.8.3** 实现树形结构展示
 
 ### 3.9 删除确认
 
@@ -182,28 +182,30 @@
 
 ### 4.1 i18n
 
-- [~] **4.1.1** 添加中文 i18n keys (`zh-CN`)（已部分添加）
-- [~] **4.1.2** 添加英文 i18n keys (`en-US`)（已部分添加）
-- [ ] **4.1.3** 运行 `pnpm run i18n` 检查完整性
+- [x] **4.1.1** 添加中文 i18n keys (`zh-CN`)
+- [x] **4.1.2** 添加英文 i18n keys (`en-US`)
+- [x] **4.1.3** 运行 `pnpm run i18n` 检查完整性
 
 ### 4.2 内置 Skills
 
-- [ ] **4.2.1** 设计并编写 1-2 个内置 Skill 示例
-- [ ] **4.2.2** 打包内置 Skills 到应用资源
-- [ ] **4.2.3** 首次启动时自动安装
+- [x] **4.2.1** 设计并编写 1-2 个内置 Skill 示例
+  - `code-review`: 代码审查助手
+  - `git-commit`: Git 提交信息生成助手
+- [x] **4.2.2** 打包内置 Skills 到应用资源（electron-builder.yml extraResources）
+- [x] **4.2.3** 首次启动时自动安装（已在 SkillPresenter.initialize() 中实现）
 
 ### 4.3 测试
 
-- [ ] **4.3.1** SkillPresenter 单元测试
-- [ ] **4.3.2** skill_list / skill_control 工具测试
-- [ ] **4.3.3** 安装/卸载流程测试
+- [x] **4.3.1** SkillPresenter 单元测试
+- [x] **4.3.2** skill_list / skill_control 工具测试
+- [x] **4.3.3** 安装/卸载流程测试
 - [ ] **4.3.4** UI 组件测试（可选）
 
 ### 4.4 文档与清理
 
 - [ ] **4.4.1** 更新 README 或用户文档
 - [ ] **4.4.2** 代码审查与清理
-- [ ] **4.4.3** 运行 `pnpm run format && pnpm run lint && pnpm run typecheck`
+- [x] **4.4.3** 运行 `pnpm run format && pnpm run lint && pnpm run typecheck`
 
 ---
 

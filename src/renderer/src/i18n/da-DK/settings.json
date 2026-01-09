@@ -1039,5 +1039,65 @@
     "resetToDefault": "Gendan standardprompt",
     "resetToDefaultSuccess": "Systemprompten blev gendannet til standard",
     "resetToDefaultFailed": "Kunne ikke gendanne, prøv igen"
+  },
+  "skills": {
+    "title": "Færdigheder",
+    "description": "Administrer og konfigurer AI-assistentens færdigheder",
+    "openFolder": "Åbn mappe",
+    "addSkill": "Tilføj færdighed",
+    "empty": "Ingen færdigheder endnu",
+    "emptyHint": "Klik på \"Tilføj færdighed\" for at installere en ny færdighed",
+    "noResults": "Ingen matchende færdigheder fundet",
+    "search": "Søg færdigheder...",
+    "count": "{count} færdigheder",
+    "install": {
+      "title": "Installer færdighed",
+      "description": "Vælg installationsmetode for færdighed",
+      "tabFolder": "Mappe",
+      "tabZip": "ZIP",
+      "tabUrl": "URL",
+      "fromFolder": "Installer fra mappe",
+      "selectFolder": "Vælg færdighedsmappe",
+      "folderHint": "Klik for at vælge en færdighedsmappe",
+      "folderTip": "Importer færdigheder fra andre klienter som ~/.claude/skills/",
+      "zipHint": "Klik for at vælge en ZIP-fil",
+      "urlPlaceholder": "Indtast download-URL til færdigheds-ZIP",
+      "urlHint": "Indtast downloadlinket til færdighedspakken",
+      "installButton": "Installer",
+      "installing": "Installerer...",
+      "success": "Installation gennemført",
+      "successMessage": "Færdighed {name} er installeret",
+      "failed": "Installation mislykkedes",
+      "dragNotSupported": "Træk ikke understøttet, klik venligst for at vælge"
+    },
+    "delete": {
+      "title": "Slet færdighed",
+      "description": "Er du sikker på, at du vil slette færdighed {name}? Denne handling kan ikke fortrydes.",
+      "success": "Sletning gennemført",
+      "successMessage": "Færdighed {name} er slettet",
+      "failed": "Sletning mislykkedes"
+    },
+    "edit": {
+      "title": "Rediger færdighed",
+      "placeholder": "Rediger færdighedsindhold her...",
+      "readFailed": "Kunne ikke læse",
+      "success": "Gemt",
+      "failed": "Kunne ikke gemme",
+      "name": "Navn",
+      "namePlaceholder": "Færdighedsnavn",
+      "description": "Beskrivelse",
+      "descriptionPlaceholder": "Færdighedsbeskrivelse",
+      "allowedTools": "Tilladte værktøjer",
+      "allowedToolsPlaceholder": "Read, Grep, Bash",
+      "allowedToolsHint": "Kommasepareret liste over værktøjsnavne",
+      "content": "Færdighedsindhold",
+      "files": "Mappeindhold",
+      "noFiles": "Ingen filer"
+    },
+    "conflict": {
+      "title": "Færdighed findes allerede",
+      "description": "En færdighed med navnet \"{name}\" findes allerede. Vil du overskrive den?",
+      "overwrite": "Overskriv"
+    }
   }
 }

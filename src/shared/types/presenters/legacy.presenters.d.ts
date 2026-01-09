@@ -1246,6 +1246,10 @@ export interface IDevicePresenter {
 
   // Directory selection and application restart
   selectDirectory(): Promise<{ canceled: boolean; filePaths: string[] }>
+  selectFiles(options?: {
+    filters?: { name: string; extensions: string[] }[]
+    multiple?: boolean
+  }): Promise<{ canceled: boolean; filePaths: string[] }>
   restartApp(): Promise<void>
 
   // Image caching

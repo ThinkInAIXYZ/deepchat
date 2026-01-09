@@ -28,9 +28,44 @@ export const useSkillsStore = defineStore('skills', () => {
     }
   }
 
-  const installFromFolder = async (folderPath: string): Promise<SkillInstallResult> => {
+  const installFromFolder = async (
+    folderPath: string,
+    options?: { overwrite?: boolean }
+  ): Promise<SkillInstallResult> => {
     try {
-      const result = await skillPresenter.installFromFolder(folderPath)
+      const result = await skillPresenter.installFromFolder(folderPath, options)
+      if (result.success) {
+        await loadSkills()
+      }
+      return result
+    } catch (e) {
+      const errorMsg = e instanceof Error ? e.message : String(e)
+      return { success: false, error: errorMsg }
+    }
+  }
+
+  const installFromZip = async (
+    zipPath: string,
+    options?: { overwrite?: boolean }
+  ): Promise<SkillInstallResult> => {
+    try {
+      const result = await skillPresenter.installFromZip(zipPath, options)
+      if (result.success) {
+        await loadSkills()
+      }
+      return result
+    } catch (e) {
+      const errorMsg = e instanceof Error ? e.message : String(e)
+      return { success: false, error: errorMsg }
+    }
+  }
+
+  const installFromUrl = async (
+    url: string,
+    options?: { overwrite?: boolean }
+  ): Promise<SkillInstallResult> => {
+    try {
+      const result = await skillPresenter.installFromUrl(url, options)
       if (result.success) {
         await loadSkills()
       }
@@ -91,6 +126,8 @@ export const useSkillsStore = defineStore('skills', () => {
     // Actions
     loadSkills,
     installFromFolder,
+    installFromZip,
+    installFromUrl,
     uninstallSkill,
     getSkillsDir,
     openSkillsFolder,

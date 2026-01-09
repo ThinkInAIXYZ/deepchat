@@ -13,5 +13,6 @@
   "settings-knowledge-base": "База знаний",
   "settings-prompt": "Управление промптами",
   "settings-mcp-market": "MCP Market",
-  "settings-acp": "ACP-агент"
+  "settings-acp": "ACP-агент",
+  "settings-skills": "Навыки"
 }

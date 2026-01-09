@@ -1047,14 +1047,28 @@
     "addSkill": "添加技能",
     "empty": "暂无技能",
     "emptyHint": "点击\"添加技能\"按钮安装新技能",
+    "noResults": "未找到匹配的技能",
+    "search": "搜索技能...",
+    "count": "共 {count} 个技能",
     "install": {
       "title": "安装技能",
       "description": "选择技能安装方式",
+      "tabFolder": "文件夹",
+      "tabZip": "ZIP",
+      "tabUrl": "URL",
       "fromFolder": "从文件夹安装",
       "selectFolder": "选择技能文件夹",
+      "folderHint": "点击选择技能文件夹",
+      "folderTip": "支持从 ~/.claude/skills/ 等其他客户端直接导入",
+      "zipHint": "点击选择 ZIP 文件",
+      "urlPlaceholder": "输入技能 ZIP 下载地址",
+      "urlHint": "输入技能包的下载链接",
+      "installButton": "安装",
+      "installing": "正在安装...",
       "success": "安装成功",
       "successMessage": "技能 {name} 已成功安装",
-      "failed": "安装失败"
+      "failed": "安装失败",
+      "dragNotSupported": "暂不支持拖拽，请点击选择"
     },
     "delete": {
       "title": "删除技能",
@@ -1068,7 +1082,22 @@
       "placeholder": "在此编辑技能内容...",
       "readFailed": "读取失败",
       "success": "保存成功",
-      "failed": "保存失败"
+      "failed": "保存失败",
+      "name": "名称",
+      "namePlaceholder": "技能名称",
+      "description": "描述",
+      "descriptionPlaceholder": "技能描述",
+      "allowedTools": "额外工具",
+      "allowedToolsPlaceholder": "Read, Grep, Bash",
+      "allowedToolsHint": "逗号分隔的工具名称列表",
+      "content": "技能内容",
+      "files": "文件夹内容",
+      "noFiles": "无文件"
+    },
+    "conflict": {
+      "title": "技能已存在",
+      "description": "名为 \"{name}\" 的技能已存在。是否要覆盖？",
+      "overwrite": "覆盖"
     }
   }
 }

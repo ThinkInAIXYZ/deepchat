@@ -1039,5 +1039,65 @@
     "mcpAccessBadge": "MCP {count}",
     "mcpAccessEmpty": "현재 선택적 MCP가 없습니다.",
     "mcpAccessTitle": "사용 가능한 MCP"
+  },
+  "skills": {
+    "title": "Skills",
+    "description": "Manage and configure AI assistant skills",
+    "openFolder": "Open Folder",
+    "addSkill": "Add Skill",
+    "empty": "No skills yet",
+    "emptyHint": "Click \"Add Skill\" to install a new skill",
+    "noResults": "No matching skills found",
+    "search": "Search skills...",
+    "count": "{count} skills",
+    "install": {
+      "title": "Install Skill",
+      "description": "Choose skill installation method",
+      "tabFolder": "Folder",
+      "tabZip": "ZIP",
+      "tabUrl": "URL",
+      "fromFolder": "Install from Folder",
+      "selectFolder": "Select Skill Folder",
+      "folderHint": "Click to select a skill folder",
+      "folderTip": "Import skills from other clients like ~/.claude/skills/",
+      "zipHint": "Click to select a ZIP file",
+      "urlPlaceholder": "Enter skill ZIP download URL",
+      "urlHint": "Enter the download link for the skill package",
+      "installButton": "Install",
+      "installing": "Installing...",
+      "success": "Installation Successful",
+      "successMessage": "Skill {name} has been installed successfully",
+      "failed": "Installation Failed",
+      "dragNotSupported": "Drag not supported, please click to select"
+    },
+    "delete": {
+      "title": "Delete Skill",
+      "description": "Are you sure you want to delete skill {name}? This action cannot be undone.",
+      "success": "Deletion Successful",
+      "successMessage": "Skill {name} has been deleted successfully",
+      "failed": "Deletion Failed"
+    },
+    "edit": {
+      "title": "Edit Skill",
+      "placeholder": "Edit skill content here...",
+      "readFailed": "Failed to read",
+      "success": "Saved Successfully",
+      "failed": "Failed to save",
+      "name": "Name",
+      "namePlaceholder": "Skill name",
+      "description": "Description",
+      "descriptionPlaceholder": "Skill description",
+      "allowedTools": "Allowed Tools",
+      "allowedToolsPlaceholder": "Read, Grep, Bash",
+      "allowedToolsHint": "Comma-separated list of tool names",
+      "content": "Skill Content",
+      "files": "Folder Contents",
+      "noFiles": "No files"
+    },
+    "conflict": {
+      "title": "Skill Already Exists",
+      "description": "A skill named \"{name}\" already exists. Do you want to overwrite it?",
+      "overwrite": "Overwrite"
+    }
   }
 }

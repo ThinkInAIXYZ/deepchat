@@ -13,5 +13,6 @@
   "settings-knowledge-base": "Base de connaissances",
   "settings-prompt": "Gestion des Prompts",
   "settings-mcp-market": "Marché MCP",
-  "settings-acp": "Agent ACP"
+  "settings-acp": "Agent ACP",
+  "settings-skills": "Compétences"
 }

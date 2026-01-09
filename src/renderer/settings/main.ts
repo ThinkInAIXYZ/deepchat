@@ -85,7 +85,7 @@ const router = createRouter({
     {
       path: '/skills',
       name: 'settings-skills',
-      component: () => import('./components/SkillsSettings.vue'),
+      component: () => import('./components/skills/SkillsSettings.vue'),
       meta: {
         titleKey: 'routes.settings-skills',
         icon: 'lucide:wand-sparkles',
