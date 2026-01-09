@@ -152,6 +152,10 @@ interface LineRange {
   end: number
 }
 
+interface PathValidationOptions {
+  enforceAllowed?: boolean
+}
+
 export class AgentFileSystemHandler {
   private allowedDirectories: string[]
 
@@ -187,36 +191,56 @@ export class AgentFileSystemHandler {
     return filepath
   }
 
-  private async validatePath(requestedPath: string, baseDirectory?: string): Promise<string> {
+  resolvePath(requestedPath: string, baseDirectory?: string): string {
     const expandedPath = this.expandHome(requestedPath)
     const absolute = path.isAbsolute(expandedPath)
       ? path.resolve(expandedPath)
       : path.resolve(baseDirectory ?? this.allowedDirectories[0], expandedPath)
-    const normalizedRequested = this.normalizePath(absolute)
-    const isAllowed = this.isPathAllowed(normalizedRequested)
-    if (!isAllowed) {
-      throw new Error(
-        `Access denied - path outside allowed directories: ${absolute} not in ${this.allowedDirectories.join(', ')}`
-      )
+    return this.normalizePath(absolute)
+  }
+
+  isPathAllowedAbsolute(candidatePath: string): boolean {
+    const normalized = this.normalizePath(path.resolve(candidatePath))
+    return this.isPathAllowed(normalized)
+  }
+
+  private async validatePath(
+    requestedPath: string,
+    baseDirectory?: string,
+    options: PathValidationOptions = {}
+  ): Promise<string> {
+    const enforceAllowed = options.enforceAllowed ?? true
+    const normalizedRequested = this.resolvePath(requestedPath, baseDirectory)
+    if (enforceAllowed) {
+      const isAllowed = this.isPathAllowed(normalizedRequested)
+      if (!isAllowed) {
+        throw new Error(
+          `Access denied - path outside allowed directories: ${normalizedRequested} not in ${this.allowedDirectories.join(', ')}`
+        )
+      }
     }
     try {
-      const realPath = await fs.realpath(absolute)
+      const realPath = await fs.realpath(normalizedRequested)
       const normalizedReal = this.normalizePath(realPath)
-      const isRealPathAllowed = this.isPathAllowed(normalizedReal)
-      if (!isRealPathAllowed) {
-        throw new Error('Access denied - symlink target outside allowed directories')
+      if (enforceAllowed) {
+        const isRealPathAllowed = this.isPathAllowed(normalizedReal)
+        if (!isRealPathAllowed) {
+          throw new Error('Access denied - symlink target outside allowed directories')
+        }
       }
       return realPath
     } catch {
-      const parentDir = path.dirname(absolute)
+      const parentDir = path.dirname(normalizedRequested)
       try {
         const realParentPath = await fs.realpath(parentDir)
         const normalizedParent = this.normalizePath(realParentPath)
-        const isParentAllowed = this.isPathAllowed(normalizedParent)
-        if (!isParentAllowed) {
-          throw new Error('Access denied - parent directory outside allowed directories')
+        if (enforceAllowed) {
+          const isParentAllowed = this.isPathAllowed(normalizedParent)
+          if (!isParentAllowed) {
+            throw new Error('Access denied - parent directory outside allowed directories')
+          }
         }
-        return absolute
+        return normalizedRequested
       } catch {
         throw new Error(`Parent directory does not exist: ${parentDir}`)
       }
@@ -483,7 +507,7 @@ export class AgentFileSystemHandler {
     args.push('--no-heading')
 
     // Search path
-    const validatedPath = await this.validatePath(rootPath)
+    const validatedPath = await this.validatePath(rootPath, undefined, { enforceAllowed: false })
     args.push(validatedPath)
 
     return new Promise((resolve, reject) => {
@@ -658,7 +682,7 @@ export class AgentFileSystemHandler {
         if (result.totalMatches >= maxResults) break
         const fullPath = path.join(currentPath, entry.name)
         try {
-          await this.validatePath(fullPath)
+          await this.validatePath(fullPath, undefined, { enforceAllowed: false })
           if (entry.isFile()) {
             if (minimatch(entry.name, filePattern, { nocase: !caseSensitive })) {
               await searchInFile(fullPath)
@@ -672,7 +696,7 @@ export class AgentFileSystemHandler {
       }
     }
 
-    const validatedPath = await this.validatePath(rootPath)
+    const validatedPath = await this.validatePath(rootPath, undefined, { enforceAllowed: false })
     const stats = await fs.stat(validatedPath)
 
     if (stats.isFile()) {
@@ -765,7 +789,9 @@ export class AgentFileSystemHandler {
     const results = await Promise.all(
       parsed.data.paths.map(async (filePath: string) => {
         try {
-          const validPath = await this.validatePath(filePath, baseDirectory)
+          const validPath = await this.validatePath(filePath, baseDirectory, {
+            enforceAllowed: false
+          })
           const content = await fs.readFile(validPath, 'utf-8')
           return `${filePath}:\n${content}\n`
         } catch (error) {
@@ -792,7 +818,9 @@ export class AgentFileSystemHandler {
     if (!parsed.success) {
       throw new Error(`Invalid arguments: ${parsed.error}`)
     }
-    const validPath = await this.validatePath(parsed.data.path, baseDirectory)
+    const validPath = await this.validatePath(parsed.data.path, baseDirectory, {
+      enforceAllowed: false
+    })
     const entries = await fs.readdir(validPath, { withFileTypes: true })
     const formatted = entries
       .map((entry) => {
@@ -887,7 +915,9 @@ export class AgentFileSystemHandler {
       throw new Error(`Invalid arguments: ${parsed.error}`)
     }
 
-    const validPath = await this.validatePath(parsed.data.path, baseDirectory)
+    const validPath = await this.validatePath(parsed.data.path, baseDirectory, {
+      enforceAllowed: false
+    })
     const result = await this.runGrepSearch(validPath, parsed.data.pattern, {
       filePattern: parsed.data.filePattern,
       recursive: parsed.data.recursive,
@@ -970,7 +1000,9 @@ export class AgentFileSystemHandler {
     }
 
     const buildTree = async (currentPath: string): Promise<TreeEntry[]> => {
-      const validPath = await this.validatePath(currentPath, baseDirectory)
+      const validPath = await this.validatePath(currentPath, baseDirectory, {
+        enforceAllowed: false
+      })
       const entries = await fs.readdir(validPath, { withFileTypes: true })
       const result: TreeEntry[] = []
 
@@ -1001,7 +1033,9 @@ export class AgentFileSystemHandler {
       throw new Error(`Invalid arguments: ${parsed.error}`)
     }
 
-    const validPath = await this.validatePath(parsed.data.path, baseDirectory)
+    const validPath = await this.validatePath(parsed.data.path, baseDirectory, {
+      enforceAllowed: false
+    })
     const info = await this.getFileStats(validPath)
     return Object.entries(info)
       .map(([key, value]) => `${key}: ${value}`)
@@ -1019,8 +1053,10 @@ export class AgentFileSystemHandler {
 
     // Determine root directory
     const searchRoot = root
-      ? await this.validatePath(root, baseDirectory)
-      : await this.validatePath(baseDirectory ?? this.allowedDirectories[0])
+      ? await this.validatePath(root, baseDirectory, { enforceAllowed: false })
+      : await this.validatePath(baseDirectory ?? this.allowedDirectories[0], undefined, {
+          enforceAllowed: false
+        })
 
     // Default exclusions
     const defaultExclusions = [
@@ -1044,15 +1080,10 @@ export class AgentFileSystemHandler {
     try {
       const matches = await glob(pattern, globOptions)
 
-      // Filter matches to ensure they're in allowed directories
+      // Preserve matches without allowlist filtering for read operations.
       const validMatches = await Promise.all(
         matches.map(async (filePath) => {
-          try {
-            await this.validatePath(filePath)
-            return filePath
-          } catch {
-            return null
-          }
+          return filePath
         })
       )
 

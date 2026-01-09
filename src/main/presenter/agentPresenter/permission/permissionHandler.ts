@@ -170,6 +170,18 @@ export class PermissionHandler extends BaseHandler {
           throw new Error(`Server name not found in permission block (${messageId})`)
         }
 
+        if (serverName === 'agent-filesystem') {
+          const paths = this.getStringArrayFromObject(parsedPermissionRequest, 'paths')
+          if (paths.length === 0) {
+            console.warn('[PermissionHandler] Missing filesystem paths in permission request')
+            await this.continueAfterPermissionDenied(messageId, permissionBlock)
+            return
+          }
+          presenter.filePermissionService?.approve(message.conversationId, paths, remember)
+          await this.restartAgentLoopAfterPermission(messageId, toolCallId)
+          return
+        }
+
         try {
           await this.getMcpPresenter().grantPermission(serverName, permissionType, remember)
           await this.waitForMcpServiceReady(serverName)
@@ -853,6 +865,15 @@ export class PermissionHandler extends BaseHandler {
     }
     const value = source[key]
     return typeof value === 'string' ? value : undefined
+  }
+
+  private getStringArrayFromObject(source: Record<string, unknown> | null, key: string): string[] {
+    if (!source) return []
+    const value = source[key]
+    if (!Array.isArray(value)) return []
+    return value.filter(
+      (entry): entry is string => typeof entry === 'string' && entry.trim().length > 0
+    )
   }
 
   private getCommandFromPermissionBlock(block: AssistantMessageBlock): string | undefined {

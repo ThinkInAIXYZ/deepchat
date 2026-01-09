@@ -61,6 +61,7 @@ export class SessionPresenter implements ISessionPresenter {
       const activeConversationId = this.getActiveConversationIdSync(tabId)
       if (activeConversationId) {
         this.commandPermissionService.clearConversation(activeConversationId)
+        presenter.filePermissionService?.clearConversation(activeConversationId)
         this.clearActiveConversation(tabId, { notify: true })
         console.log(`SessionPresenter: Cleaned up conversation binding for closed tab ${tabId}.`)
       }
@@ -281,21 +282,25 @@ export class SessionPresenter implements ISessionPresenter {
     const conversationId = this.getActiveConversationIdSync(tabId)
     if (conversationId) {
       this.commandPermissionService.clearConversation(conversationId)
+      presenter.filePermissionService?.clearConversation(conversationId)
     }
     this.conversationManager.clearActiveConversation(tabId, options)
   }
 
   clearConversationBindings(conversationId: string): void {
     this.commandPermissionService.clearConversation(conversationId)
+    presenter.filePermissionService?.clearConversation(conversationId)
     this.conversationManager.clearConversationBindings(conversationId)
   }
 
   clearCommandPermissionCache(conversationId?: string): void {
     if (conversationId) {
       this.commandPermissionService.clearConversation(conversationId)
+      presenter.filePermissionService?.clearConversation(conversationId)
       return
     }
     this.commandPermissionService.clearAll()
+    presenter.filePermissionService?.clearAll()
   }
 
   async setActiveConversation(conversationId: string, tabId: number): Promise<void> {
@@ -426,6 +431,7 @@ export class SessionPresenter implements ISessionPresenter {
 
   async deleteConversation(conversationId: string): Promise<void> {
     this.commandPermissionService.clearConversation(conversationId)
+    presenter.filePermissionService?.clearConversation(conversationId)
     await this.conversationManager.deleteConversation(conversationId)
   }
 
