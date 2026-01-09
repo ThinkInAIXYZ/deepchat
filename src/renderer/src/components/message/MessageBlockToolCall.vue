@@ -23,9 +23,9 @@
     >
       <div
         v-if="isExpanded"
-        class="rounded-lg border bg-muted text-card-foreground px-2 py-3 mt-2 mb-4 max-w-full sm:max-w-2xl"
+        class="rounded-lg border bg-muted text-card-foreground px-2 py-3 mt-2 mb-4 w-full"
       >
-        <div class="flex flex-col sm:flex-row sm:gap-4 space-y-4 sm:space-y-0">
+        <div class="flex flex-col gap-4">
           <!-- 参数 -->
           <div v-if="hasParams" class="space-y-2 flex-1 min-w-0">
             <div class="flex items-center justify-between gap-2">
@@ -44,7 +44,7 @@
               </button>
             </div>
             <pre
-              class="rounded-md border bg-background text-xs p-2 whitespace-pre-wrap break-words max-h-64 overflow-auto"
+              class="rounded-md border bg-background text-xs p-2 whitespace-pre-wrap break-words max-h-40 overflow-auto"
               >{{ paramsText }}</pre
             >
           </div>
@@ -52,7 +52,7 @@
           <hr v-if="hasParams && hasResponse" class="sm:hidden" />
 
           <!-- 响应 -->
-          <div v-if="hasResponse" class="space-y-2 flex-1 min-w-0">
+          <div v-if="hasResponse" :class="responseLayoutClass">
             <div class="flex items-center justify-between gap-2">
               <h5
                 class="text-xs font-medium text-accent-foreground flex flex-row gap-2 items-center"
@@ -71,7 +71,29 @@
                 {{ responseCopyText }}
               </button>
             </div>
+            <template v-if="diffData">
+              <div class="min-h-0">
+                <CodeBlockNode
+                  :node="{
+                    type: 'code_block',
+                    language: diffLanguage,
+                    code: diffData.updatedCode,
+                    raw: diffData.updatedCode,
+                    diff: true,
+                    originalCode: diffData.originalCode,
+                    updatedCode: diffData.updatedCode
+                  }"
+                  :is-dark="themeStore.isDark"
+                  :show-header="false"
+                  class="rounded-md border bg-background text-xs p-2 h-full min-h-0"
+                />
+              </div>
+              <div v-if="diffData.replacements !== undefined" class="text-xs text-muted-foreground">
+                {{ t('toolCall.replacementsCount', { count: diffData.replacements }) }}
+              </div>
+            </template>
             <pre
+              v-else
               class="rounded-md border bg-background text-xs p-2 whitespace-pre-wrap break-words max-h-64 overflow-auto"
               >{{ responseText }}</pre
             >
@@ -87,6 +109,9 @@ import { Icon } from '@iconify/vue'
 import { useI18n } from 'vue-i18n'
 import { AssistantMessageBlock } from '@shared/chat'
 import { computed, ref } from 'vue'
+import { CodeBlockNode } from 'markstream-vue'
+import { useThemeStore } from '@/stores/theme'
+import { getLanguageFromFilename } from '@shared/utils/codeLanguage'
 
 const keyMap = {
   'toolCall.calling': '工具调用中',
@@ -99,6 +124,7 @@ const keyMap = {
   'toolCall.params': '参数',
   'toolCall.responseData': '响应数据',
   'toolCall.terminalOutput': 'Terminal output',
+  'toolCall.replacementsCount': '已完成 {count} 处替换',
   'common.copy': '复制',
   'common.copySuccess': '已复制'
 }
@@ -111,6 +137,8 @@ const t = (() => {
     return (key: string) => keyMap[key] || key
   }
 })()
+
+const themeStore = useThemeStore()
 
 const props = defineProps<{
   block: AssistantMessageBlock
@@ -175,6 +203,69 @@ const paramsText = computed(() => props.block.tool_call?.params ?? '')
 const responseText = computed(() => props.block.tool_call?.response ?? '')
 const hasParams = computed(() => paramsText.value.trim().length > 0)
 const hasResponse = computed(() => responseText.value.trim().length > 0)
+
+const isDiffTool = computed(() => {
+  const name = props.block.tool_call?.name ?? ''
+  const normalized = name.replace(/[_-]/g, '').toLowerCase()
+  if (props.block.status !== 'success') return false
+  return normalized === 'edittext' || normalized === 'textreplace'
+})
+
+const diffData = computed(() => {
+  if (!isDiffTool.value || !hasResponse.value) return null
+  try {
+    const parsed = JSON.parse(responseText.value) as {
+      success?: boolean
+      originalCode?: unknown
+      updatedCode?: unknown
+      language?: unknown
+      replacements?: unknown
+    }
+    if (
+      parsed.success === true &&
+      typeof parsed.originalCode === 'string' &&
+      typeof parsed.updatedCode === 'string'
+    ) {
+      return {
+        originalCode: parsed.originalCode,
+        updatedCode: parsed.updatedCode,
+        language: typeof parsed.language === 'string' ? parsed.language : undefined,
+        replacements: typeof parsed.replacements === 'number' ? parsed.replacements : undefined
+      }
+    }
+  } catch (error) {
+    console.warn('[MessageBlockToolCall] Failed to parse diff response:', error)
+  }
+  return null
+})
+
+const paramsPath = computed(() => {
+  const params = props.block.tool_call?.params
+  if (!params) return ''
+  try {
+    const parsed = JSON.parse(params) as { path?: unknown }
+    if (parsed && typeof parsed.path === 'string') {
+      return parsed.path
+    }
+  } catch {
+    return ''
+  }
+  return ''
+})
+
+const diffLanguage = computed(() => {
+  if (diffData.value?.language) return diffData.value.language
+  return getLanguageFromFilename(paramsPath.value)
+})
+
+const hasDiff = computed(() => Boolean(diffData.value))
+
+const responseLayoutClass = computed(() => {
+  if (hasDiff.value) {
+    return 'flex-1 min-w-0 grid grid-rows-[auto_minmax(0,1fr)_auto] gap-2 min-h-72 max-h-72'
+  }
+  return 'space-y-2 flex-1 min-w-0'
+})
 
 const isTerminalTool = computed(() => {
   const name = props.block.tool_call?.name?.toLowerCase() || ''
