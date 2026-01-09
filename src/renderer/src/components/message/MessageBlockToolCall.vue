@@ -122,32 +122,7 @@ import { CodeBlockNode } from 'markstream-vue'
 import { useThemeStore } from '@/stores/theme'
 import { getLanguageFromFilename } from '@shared/utils/codeLanguage'
 
-const keyMap = {
-  'toolCall.calling': '工具调用中',
-  'toolCall.response': '工具响应',
-  'toolCall.end': '工具调用完成',
-  'toolCall.error': '工具调用错误',
-  'toolCall.title': '工具调用',
-  'toolCall.clickToView': '点击查看详情',
-  'toolCall.functionName': '函数名称',
-  'toolCall.params': '参数',
-  'toolCall.responseData': '响应数据',
-  'toolCall.terminalOutput': 'Terminal output',
-  'toolCall.replacementsCount': '已完成 {count} 处替换',
-  'common.copy': '复制',
-  'common.copySuccess': '已复制'
-}
-
-type TranslateFn = (key: string, params?: Record<string, unknown>) => string
-
-const t: TranslateFn = (() => {
-  try {
-    const { t } = useI18n()
-    return t as TranslateFn
-  } catch (e) {
-    return (key: string) => keyMap[key] || key
-  }
-})()
+const { t } = useI18n()
 
 const themeStore = useThemeStore()
 
