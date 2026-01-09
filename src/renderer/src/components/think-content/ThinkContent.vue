@@ -32,6 +32,9 @@
         class="think-prose w-full max-w-full"
         :isDark="themeStore.isDark"
         :content="sanitizedContent"
+        :deferNodesUntilVisible="true"
+        :maxLiveNodes="120"
+        :liveNodeBuffer="30"
         :customId="customId"
       />
     </div>

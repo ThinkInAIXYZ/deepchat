@@ -467,6 +467,14 @@ export class SessionPresenter implements ISessionPresenter {
     return await this.messageManager.getMessageThread(conversationId, page, pageSize)
   }
 
+  async getMessageIds(conversationId: string): Promise<string[]> {
+    return this.messageManager.getMessageIds(conversationId)
+  }
+
+  async getMessagesByIds(messageIds: string[]): Promise<Message[]> {
+    return this.messageManager.getMessagesByIds(messageIds)
+  }
+
   async getContextMessages(conversationId: string): Promise<Message[]> {
     const conversation = await this.getConversation(conversationId)
     let messageCount = Math.ceil(conversation.settings.contextLength / 300)

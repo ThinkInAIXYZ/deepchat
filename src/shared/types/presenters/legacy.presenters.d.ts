@@ -353,11 +353,13 @@ export interface ISQLitePresenter {
     isVariant: number
   ): Promise<string>
   queryMessages(conversationId: string): Promise<Array<SQLITE_MESSAGE>>
+  queryMessageIds(conversationId: string): Promise<string[]>
   deleteAllMessages(): Promise<void>
   runTransaction(operations: () => void): Promise<void>
 
   // Added message management methods
   getMessage(messageId: string): Promise<SQLITE_MESSAGE | null>
+  getMessagesByIds(messageIds: string[]): Promise<SQLITE_MESSAGE[]>
   getMessageVariants(messageId: string): Promise<SQLITE_MESSAGE[]>
   updateMessage(
     messageId: string,

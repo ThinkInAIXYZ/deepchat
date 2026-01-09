@@ -69,7 +69,7 @@
         class="mx-auto overflow-hidden rounded-md border border-dashed border-border/80 bg-muted/40"
         :style="containerStyle"
       >
-        <MessageList ref="messageListRef" :messages="messages" />
+        <MessageList ref="messageListRef" :items="messageItems" />
       </div>
     </div>
 
@@ -89,6 +89,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import MessageList from '@/components/message/MessageList.vue'
 import type { AssistantMessage, AssistantMessageBlock, UserMessage } from '@shared/chat'
+import type { MessageListItem } from '@/stores/chat'
 import { Button } from '@shadcn/components/ui/button'
 import { Input } from '@shadcn/components/ui/input'
 import { Label } from '@shadcn/components/ui/label'
@@ -167,6 +168,13 @@ const reasoningTotal = fullReasoning.length
 const responseTotal = fullResponse.length
 
 const messages = ref<Array<UserMessage | AssistantMessage>>([])
+
+const messageItems = computed<MessageListItem[]>(() =>
+  messages.value.map((message) => ({
+    id: message.id,
+    message
+  }))
+)
 const userMessage = ref<UserMessage>()
 const assistantMessage = ref<AssistantMessage>()
 

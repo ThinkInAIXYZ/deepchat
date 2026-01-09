@@ -1,44 +1,63 @@
 <template>
   <div
     class="absolute top-0 right-0 w-14 min-h-[148px] box-border rounded-md py-4 px-3 flex flex-col items-stretch gap-0 pointer-events-none z-[5] overflow-hidden"
-    :style="containerStyle"
   >
     <div
-      class="relative flex-none flex justify-end overflow-hidden w-full pointer-events-auto"
-      :style="trackStyle"
+      class="map-list relative max-h-[70vh] flex-1 flex justify-end w-full pointer-events-auto overflow-y-auto"
     >
-      <div
-        class="flex flex-col items-end gap-1 w-full relative z-2"
-        role="list"
-        :style="barsWrapperStyle"
-      >
-        <button
-          v-for="bar in bars"
-          :key="bar.id"
-          type="button"
-          class="h-1.5 rounded-xs transition-[transform,opacity,background-color] duration-200 ease-out opacity-30 outline-none border-0 cursor-pointer focus-visible:outline-none"
-          :class="[
-            bar.role === 'assistant'
-              ? 'bg-[rgba(37,37,37,0.65)] dark:bg-[rgba(255,255,255,0.9)]'
-              : 'bg-[rgba(37,37,37,0.25)] dark:bg-[rgba(255,255,255,0.6)]',
-            hoveredMessageId === bar.id || activeMessageId === bar.id
-              ? 'opacity-100 scale-x-110 -translate-x-0.5'
-              : ''
-          ]"
-          :style="{ width: `${bar.width}px` }"
-          :aria-label="bar.ariaLabel"
-          role="listitem"
-          @mouseenter="handleBarEnter(bar.id)"
-          @mouseleave="handleBarLeave"
-          @focus="handleBarEnter(bar.id)"
-          @blur="handleBarLeave"
-          @click="handleBarClick(bar.id)"
-        />
-      </div>
+      <TooltipProvider :delay-duration="80">
+        <div class="flex flex-col items-end gap-1 w-full relative z-2" role="list">
+          <TooltipRoot v-for="bar in bars" :key="bar.id">
+            <TooltipTrigger>
+              <button
+                type="button"
+                class="w-full h-2.5 pl-2 pr-1.5 flex items-center justify-end gap-1 rounded-sm transition-[transform,opacity] duration-200 ease-out outline-none border-0 cursor-pointer focus-visible:outline-none"
+                :class="[isActiveBar(bar.id) ? 'opacity-100' : 'opacity-60']"
+                :aria-label="bar.ariaLabel"
+                role="listitem"
+                @mouseenter="handleBarEnter(bar.id)"
+                @mouseleave="handleBarLeave"
+                @focus="handleBarEnter(bar.id)"
+                @blur="handleBarLeave"
+                @click.stop="handleBarClick(bar.id)"
+              >
+                <span
+                  class="block h-1.5 rounded-xs transition-[transform,background-color] duration-200 ease-out pointer-events-none"
+                  :class="[
+                    bar.role === 'assistant'
+                      ? isActiveBar(bar.id)
+                        ? 'bg-[rgba(37,37,37,0.75)] dark:bg-[rgba(255,255,255,0.95)]'
+                        : 'bg-[rgba(37,37,37,0.3)] dark:bg-[rgba(255,255,255,0.5)]'
+                      : isActiveBar(bar.id)
+                        ? 'bg-[rgba(37,37,37,0.55)] dark:bg-[rgba(255,255,255,0.8)]'
+                        : 'bg-[rgba(37,37,37,0.2)] dark:bg-[rgba(255,255,255,0.35)]',
+                    isActiveBar(bar.id) ? 'scale-x-110 -translate-x-0.5' : ''
+                  ]"
+                  :style="{ width: `${bar.width}px` }"
+                />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent
+              v-if="getPreviewData(bar.id)"
+              class="max-w-64 border border-border/60 bg-background/95 dark:bg-base-900/90 text-[11px] leading-snug rounded-md shadow-sm px-3 py-2"
+              side="left"
+              :side-offset="6"
+              align="end"
+            >
+              <div class="text-[11px] font-medium text-muted-foreground mb-1 leading-none">
+                #{{ getPreviewData(bar.id)?.index }} · {{ getPreviewData(bar.id)?.role }}
+              </div>
+              <div class="text-[11px] text-foreground/85 whitespace-pre-line">
+                {{ getPreviewData(bar.id)?.preview }}
+              </div>
+            </TooltipContent>
+          </TooltipRoot>
+        </div>
+      </TooltipProvider>
     </div>
     <div
       v-if="overallContextUsage !== null"
-      class="font-['Geist\\ Mono',ui-monospace,SFMono-Regular,SFMono,Menlo,Monaco,Consolas,'Liberation\\ Mono','Courier\\ New',monospace] text-[11px] leading-none text-[rgba(37,37,37,0.6)] mt-[6px] self-end dark:text-[rgba(255,255,255,0.6)]"
+      class="font-['Geist\\ Mono',ui-monospace,SFMono-Regular,SFMono,Menlo,Monaco,Consolas,'Liberation\\ Mono','Courier\\ New',monospace] text-[11px] leading-none text-[rgba(37,37,37,0.6)] mt-[6px] self-end pointer-events-auto dark:text-[rgba(255,255,255,0.6)]"
     >
       {{ overallContextUsage.toFixed(0) }}%
     </div>
@@ -48,6 +67,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import type { AssistantMessage, Message, UserMessage } from '@shared/chat'
+import { TooltipContent, TooltipProvider, TooltipRoot, TooltipTrigger } from 'reka-ui'
 
 interface ScrollInfo {
   viewportHeight: number
@@ -73,12 +93,6 @@ const localHoveredId = ref<string | null>(null)
 
 const MIN_WIDTH = 8
 const MAX_WIDTH = 20
-const DEFAULT_VIEWPORT_HEIGHT = 220
-const BAR_HEIGHT = 6
-const BAR_GAP = 4
-const MIN_TRACK_HEIGHT = BAR_HEIGHT
-const USAGE_LABEL_HEIGHT = 24
-const USAGE_SECTION_GAP = 6
 
 const getMessageContentLength = (message: Message) => {
   if (message.role === 'assistant') {
@@ -148,16 +162,6 @@ const bars = computed(() => {
   })
 })
 
-const totalBarsHeight = computed(() => {
-  if (!bars.value.length) return 0
-  return bars.value.length * BAR_HEIGHT + (bars.value.length - 1) * BAR_GAP
-})
-
-const containerHeight = computed(() => {
-  const viewportHeight = props.scrollInfo?.viewportHeight ?? DEFAULT_VIEWPORT_HEIGHT
-  return Math.max(viewportHeight, DEFAULT_VIEWPORT_HEIGHT)
-})
-
 const overallContextUsage = computed(() => {
   const usageValues = props.messages
     ?.map((message) => message.usage?.context_usage)
@@ -170,50 +174,6 @@ const overallContextUsage = computed(() => {
   return Math.max(...usageValues)
 })
 
-const usageSectionHeight = computed(() => {
-  if (overallContextUsage.value === null) {
-    return 0
-  }
-  return USAGE_LABEL_HEIGHT + USAGE_SECTION_GAP
-})
-
-const maxTrackHeight = computed(() =>
-  Math.max(containerHeight.value - usageSectionHeight.value, MIN_TRACK_HEIGHT)
-)
-
-const trackHeight = computed(() => {
-  if (!totalBarsHeight.value) {
-    return maxTrackHeight.value
-  }
-  return Math.min(totalBarsHeight.value, maxTrackHeight.value)
-})
-
-const scaleRatio = computed(() => {
-  if (!totalBarsHeight.value) return 1
-  if (totalBarsHeight.value <= trackHeight.value) return 1
-  return trackHeight.value / totalBarsHeight.value
-})
-
-const barsWrapperStyle = computed(() => {
-  const style: Record<string, string> = {
-    height: `${Math.max(totalBarsHeight.value, 0)}px`,
-    width: '100%'
-  }
-  if (scaleRatio.value < 0.999) {
-    style.transform = `scaleY(${scaleRatio.value})`
-    style.transformOrigin = 'top right'
-  }
-  return style
-})
-
-const containerStyle = computed(() => ({
-  height: `${containerHeight.value}px`
-}))
-
-const trackStyle = computed(() => ({
-  height: `${Math.max(trackHeight.value, MIN_TRACK_HEIGHT)}px`
-}))
-
 watch(
   () => props.hoveredMessageId,
   (value) => {
@@ -223,6 +183,59 @@ watch(
 
 const hoveredMessageId = computed(() => props.hoveredMessageId ?? localHoveredId.value)
 const activeMessageId = computed(() => props.activeMessageId ?? null)
+
+const formatUserBlock = (block: {
+  type?: string
+  content?: string
+  category?: string
+  id?: string
+}) => {
+  if (block?.type === 'mention' && block?.category === 'context') {
+    const label = block.id?.trim() || 'context'
+    return `@${label}`
+  }
+  return typeof block?.content === 'string' ? block.content : ''
+}
+
+const buildPreview = (message: Message) => {
+  if (message.role === 'assistant') {
+    const assistant = message as AssistantMessage
+    const text = (assistant.content ?? [])
+      .filter((block) => block.type === 'content' || block.type === 'reasoning_content')
+      .map((block) => block.content ?? '')
+      .join(' ')
+    return text || 'assistant'
+  }
+  const user = message as UserMessage
+  const parts: string[] = []
+  if (user.content?.text) parts.push(user.content.text)
+  if (Array.isArray(user.content?.content)) {
+    parts.push(...user.content.content.map((block) => formatUserBlock(block)))
+  }
+  if (user.content?.files?.length) {
+    parts.push(user.content.files.map((file) => file.name ?? '').join(' '))
+  }
+  return parts.join(' ').trim() || 'user'
+}
+
+const getPreviewData = (messageId: string) => {
+  const messageIndex = props.messages.findIndex((msg) => msg.id === messageId)
+  if (messageIndex === -1) return null
+  const message = props.messages[messageIndex]
+  const previewText = buildPreview(message)
+  const roleLabel = message.role === 'assistant' ? 'assistant' : 'user'
+  const truncated =
+    previewText.length > 30 ? `${previewText.slice(0, 27).trimEnd()}...` : previewText
+  return {
+    index: messageIndex + 1,
+    role: roleLabel,
+    preview: truncated
+  }
+}
+
+const isActiveBar = (messageId: string) => {
+  return hoveredMessageId.value === messageId || activeMessageId.value === messageId
+}
 
 const handleBarEnter = (messageId: string) => {
   localHoveredId.value = messageId
@@ -238,3 +251,41 @@ const handleBarClick = (messageId: string) => {
   emit('bar-click', messageId)
 }
 </script>
+
+<style scoped>
+/* 自定义滚动条样式，不占用布局空间 */
+.map-list::-webkit-scrollbar {
+  width: 4px;
+}
+
+.map-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.map-list::-webkit-scrollbar-thumb {
+  background-color: rgba(0, 0, 0, 0.2);
+  border-radius: 2px;
+}
+
+.dark .map-list::-webkit-scrollbar-thumb {
+  background-color: rgba(255, 255, 255, 0.2);
+}
+
+.map-list::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(0, 0, 0, 0.3);
+}
+
+.dark .map-list::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(255, 255, 255, 0.3);
+}
+
+/* Firefox */
+.map-list {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(0, 0, 0, 0.2) transparent;
+}
+
+.dark .map-list {
+  scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+}
+</style>

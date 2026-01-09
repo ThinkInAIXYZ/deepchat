@@ -336,6 +336,10 @@ export class SQLitePresenter implements ISQLitePresenter {
     return this.messagesTable.query(conversationId)
   }
 
+  public async queryMessageIds(conversationId: string): Promise<string[]> {
+    return this.messagesTable.queryIds(conversationId)
+  }
+
   // 更新消息
   public async updateMessage(
     messageId: string,
@@ -363,6 +367,10 @@ export class SQLitePresenter implements ISQLitePresenter {
   // 获取单条消息
   public async getMessage(messageId: string): Promise<SQLITE_MESSAGE | null> {
     return this.messagesTable.get(messageId)
+  }
+
+  public async getMessagesByIds(messageIds: string[]): Promise<SQLITE_MESSAGE[]> {
+    return this.messagesTable.getByIds(messageIds)
   }
 
   // 获取消息变体

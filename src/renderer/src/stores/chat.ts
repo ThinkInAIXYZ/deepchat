@@ -25,6 +25,17 @@ import sfxfcMp3 from '/sounds/sfx-fc.mp3?url'
 import sfxtyMp3 from '/sounds/sfx-typing.mp3?url'
 import { downloadBlob } from '@/lib/download'
 import { useChatMode } from '@/components/chat-input/composables/useChatMode'
+import {
+  cacheMessage,
+  cacheMessages,
+  clearCachedMessagesForThread,
+  clearMessageDomInfo,
+  deleteCachedMessage,
+  getCachedMessage,
+  getMessageDomInfo,
+  hasCachedMessage,
+  setMessageDomInfo
+} from '@/lib/messageRuntimeCache'
 
 // 定义会话工作状态类型
 export type WorkingStatus = 'working' | 'error' | 'completed' | 'none'
@@ -39,6 +50,11 @@ type PendingContextMention = {
 type PendingScrollTarget = {
   messageId?: string
   childConversationId?: string
+}
+
+export type MessageListItem = {
+  id: string
+  message: Message | null
 }
 
 export const useChatStore = defineStore('chat', () => {
@@ -62,7 +78,8 @@ export const useChatStore = defineStore('chat', () => {
       dtThreads: CONVERSATION[]
     }[]
   >([])
-  const messagesMap = ref<Map<number, Array<Message>>>(new Map())
+  const messageIdsMap = ref<Map<number, string[]>>(new Map())
+  const messageCacheVersion = ref(0)
   const generatingThreadIds = ref(new Set<string>())
   const isSidebarOpen = ref(false)
   const isMessageNavigationOpen = ref(false)
@@ -117,14 +134,44 @@ export const useChatStore = defineStore('chat', () => {
   const setActiveThreadId = (threadId: string | null) => {
     activeThreadIdMap.value.set(getTabId(), threadId)
   }
-  const getMessages = () => messagesMap.value.get(getTabId()) ?? []
-  const setMessages = (msgs: Array<Message>) => {
-    messagesMap.value.set(getTabId(), msgs)
+  const bumpMessageCacheVersion = () => {
+    messageCacheVersion.value += 1
+  }
+  const getMessageIds = () => messageIdsMap.value.get(getTabId()) ?? []
+  const setMessageIds = (ids: string[]) => {
+    messageIdsMap.value.set(getTabId(), ids)
+    bumpMessageCacheVersion()
+  }
+  const ensureMessageId = (messageId: string) => {
+    if (!messageId) return
+    const ids = getMessageIds()
+    if (ids.includes(messageId)) return
+    setMessageIds([...ids, messageId])
+  }
+  const getLoadedMessages = () => {
+    const ids = getMessageIds()
+    const messages: Message[] = []
+    for (const messageId of ids) {
+      const message = getCachedMessage(messageId)
+      if (message) {
+        messages.push(message)
+      }
+    }
+    return messages
+  }
+  const cacheMessageForView = (message: Message) => {
+    cacheMessage(message)
+    bumpMessageCacheVersion()
+  }
+  const cacheMessagesForView = (messages: Message[]) => {
+    if (messages.length === 0) return
+    cacheMessages(messages)
+    bumpMessageCacheVersion()
   }
   const getCurrentThreadMessages = () => {
     const activeThreadId = getActiveThreadId()
     if (!activeThreadId) return []
-    return getMessages()
+    return getLoadedMessages()
   }
   const getThreadsWorkingStatus = () => {
     if (!threadsWorkingStatusMap.value.has(getTabId())) {
@@ -192,41 +239,58 @@ export const useChatStore = defineStore('chat', () => {
 
   const activeAgentMcpSelections = computed(() => activeAgentMcpSelectionsState.value)
 
-  const variantAwareMessages = computed((): Array<Message> => {
-    const messages = getMessages()
-    const currentSelectedVariants = selectedVariantsMap.value
-
-    if (currentSelectedVariants.size === 0) {
-      return messages
+  const resolveVariantMessage = (
+    message: Message,
+    currentSelectedVariants: Map<string, string>
+  ) => {
+    if (message.role === 'assistant' && currentSelectedVariants.has(message.id)) {
+      const selectedVariantId = currentSelectedVariants.get(message.id)
+      if (!selectedVariantId) return message
+      const selectedVariant = (message as AssistantMessage).variants?.find(
+        (v) => v.id === selectedVariantId
+      )
+      if (selectedVariant) {
+        const newMsg = JSON.parse(JSON.stringify(message))
+        newMsg.content = selectedVariant.content
+        newMsg.usage = selectedVariant.usage
+        newMsg.model_id = selectedVariant.model_id
+        newMsg.model_provider = selectedVariant.model_provider
+        newMsg.model_name = selectedVariant.model_name
+        return newMsg
+      }
     }
 
-    return messages.map((msg) => {
-      if (msg.role === 'assistant' && currentSelectedVariants.has(msg.id)) {
-        const selectedVariantId = currentSelectedVariants.get(msg.id)
+    return message
+  }
 
-        if (!selectedVariantId) {
-          return msg
-        }
+  const messageItems = computed((): MessageListItem[] => {
+    const ids = getMessageIds()
+    const cacheVersion = messageCacheVersion.value
+    const currentSelectedVariants = selectedVariantsMap.value
+    if (cacheVersion < 0) return []
 
-        const selectedVariant = (msg as AssistantMessage).variants?.find(
-          (v) => v.id === selectedVariantId
-        )
-
-        if (selectedVariant) {
-          const newMsg = JSON.parse(JSON.stringify(msg))
-
-          newMsg.content = selectedVariant.content
-          newMsg.usage = selectedVariant.usage
-          newMsg.model_id = selectedVariant.model_id
-          newMsg.model_provider = selectedVariant.model_provider
-          newMsg.model_name = selectedVariant.model_name
-
-          return newMsg
-        }
+    return ids.map((messageId) => {
+      const cached = getCachedMessage(messageId)
+      if (!cached) {
+        return { id: messageId, message: null }
       }
+      return {
+        id: messageId,
+        message: resolveVariantMessage(cached, currentSelectedVariants)
+      }
+    })
+  })
 
-      return msg
-    }) as Array<Message>
+  const variantAwareMessages = computed((): Array<Message> => {
+    return messageItems.value
+      .map((item) => item.message)
+      .filter((message): message is Message => Boolean(message))
+  })
+
+  const messageCount = computed(() => {
+    const cacheVersion = messageCacheVersion.value
+    if (cacheVersion < 0) return 0
+    return getMessageIds().length
   })
 
   const formatContextLabel = (value: string) => {
@@ -347,10 +411,39 @@ export const useChatStore = defineStore('chat', () => {
   }
 
   const clearActiveThread = async () => {
-    if (!getActiveThreadId()) return
+    const activeThreadId = getActiveThreadId()
+    if (!activeThreadId) return
     const tabId = getTabId()
     await threadP.clearActiveThread(tabId)
     setActiveThreadId(null)
+    setMessageIds([])
+    clearCachedMessagesForThread(activeThreadId)
+    clearMessageDomInfo()
+    selectedVariantsMap.value.clear()
+    childThreadsByMessageId.value = new Map()
+    pendingContextMentions.value = new Map()
+    pendingScrollTargetByConversation.value = new Map()
+    chatConfig.value = {
+      ...chatConfig.value,
+      acpWorkdirMap: {},
+      agentWorkspacePath: null
+    }
+  }
+
+  const clearThreadCachesForTab = (threadId: string | null) => {
+    if (threadId) {
+      clearCachedMessagesForThread(threadId)
+      if (!generatingThreadIds.value.has(threadId)) {
+        const cache = getGeneratingMessagesCache()
+        for (const [messageId, cached] of cache.entries()) {
+          if (cached.threadId === threadId) {
+            cache.delete(messageId)
+          }
+        }
+      }
+    }
+    setMessageIds([])
+    clearMessageDomInfo()
     selectedVariantsMap.value.clear()
     childThreadsByMessageId.value = new Map()
     pendingContextMentions.value = new Map()
@@ -446,7 +539,7 @@ export const useChatStore = defineStore('chat', () => {
       return
     }
 
-    const messageIds = getMessages().map((message) => message.id)
+    const messageIds = getMessageIds()
     if (messageIds.length === 0) {
       childThreadsByMessageId.value = new Map()
       return
@@ -468,7 +561,7 @@ export const useChatStore = defineStore('chat', () => {
     const activeThreadId = getActiveThreadId()
     if (!activeThreadId) return
     if (pendingContextMentions.value.has(activeThreadId)) return
-    if (getMessages().length > 0) return
+    if (getMessageIds().length > 0) return
 
     const active = activeThread.value
     if (!active?.parentMessageId) return
@@ -481,52 +574,65 @@ export const useChatStore = defineStore('chat', () => {
     setPendingContextMention(activeThreadId, parentText, selectionLabel)
   }
 
+  const PREFETCH_BUFFER = 24
+  const PREFETCH_BATCH_SIZE = 80
+
+  const fetchMessagesByIds = async (messageIds: string[]) => {
+    if (!messageIds.length) return
+    for (let i = 0; i < messageIds.length; i += PREFETCH_BATCH_SIZE) {
+      const chunk = messageIds.slice(i, i + PREFETCH_BATCH_SIZE)
+      const messages = await threadP.getMessagesByIds(chunk)
+      const enriched = (await Promise.all(messages.map((msg) => enrichMessageWithExtra(msg)))) as
+        | AssistantMessage[]
+        | UserMessage[]
+      cacheMessagesForView(enriched as Message[])
+    }
+  }
+
+  const ensureMessagesLoadedByIds = async (messageIds: string[]) => {
+    const missing = messageIds.filter((messageId) => !hasCachedMessage(messageId))
+    if (!missing.length) return
+    await fetchMessagesByIds(missing)
+  }
+
+  const prefetchMessagesForRange = async (startIndex: number, endIndex: number) => {
+    const ids = getMessageIds()
+    if (!ids.length) return
+    const safeStart = Math.max(0, startIndex - PREFETCH_BUFFER)
+    const safeEnd = Math.min(ids.length, endIndex + PREFETCH_BUFFER + 1)
+    const targetIds = ids.slice(safeStart, safeEnd)
+    await ensureMessagesLoadedByIds(targetIds)
+  }
+
+  const prefetchAllMessages = async () => {
+    const ids = getMessageIds()
+    if (!ids.length) return
+    await ensureMessagesLoadedByIds(ids)
+  }
+
+  const recordMessageDomInfo = (entries: Array<{ id: string; top: number; height: number }>) => {
+    setMessageDomInfo(entries)
+  }
+
+  const hasMessageDomInfo = (messageId: string) => {
+    return Boolean(getMessageDomInfo(messageId))
+  }
+
   const loadMessages = async () => {
     if (!getActiveThreadId()) return
 
     try {
       childThreadsByMessageId.value = new Map()
-      const result = await threadP.getMessages(getActiveThreadId()!, 1, 100)
-      // 合并数据库消息和缓存中的消息
-      const mergedMessages = [...result.list]
-
-      // 查找当前会话的缓存消息
+      const messageIds = (await threadP.getMessageIds(getActiveThreadId()!)) || []
+      setMessageIds(Array.isArray(messageIds) ? messageIds : [])
       const activeThread = getActiveThreadId()
       for (const [, cached] of getGeneratingMessagesCache()) {
         if (cached.threadId === activeThread) {
-          const message = cached.message
-          if (message.is_variant && message.parentId) {
-            // 如果是变体消息，找到父消息并添加到其 variants 数组中
-            const parentMsg = mergedMessages.find((m) => m.parentId === message.parentId)
-            if (parentMsg) {
-              if (!parentMsg.variants) {
-                parentMsg.variants = []
-              }
-              const existingVariantIndex = parentMsg.variants.findIndex((v) => v.id === message.id)
-              if (existingVariantIndex !== -1) {
-                parentMsg.variants[existingVariantIndex] = await enrichMessageWithExtra(message)
-              } else {
-                parentMsg.variants.push(await enrichMessageWithExtra(message))
-              }
-            }
-          } else {
-            // 如果是非变体消息，直接更新或添加到消息列表
-            const existingIndex = mergedMessages.findIndex((m) => m.id === message.id)
-            if (existingIndex !== -1) {
-              mergedMessages[existingIndex] = await enrichMessageWithExtra(message)
-            } else {
-              mergedMessages.push(await enrichMessageWithExtra(message))
-            }
-          }
+          cacheMessageForView(await enrichMessageWithExtra(cached.message))
+          ensureMessageId(cached.message.id)
         }
       }
-
-      // 处理所有消息的 extra 信息
-      setMessages(
-        (await Promise.all(mergedMessages.map((msg) => enrichMessageWithExtra(msg)))) as
-          | AssistantMessage[]
-          | UserMessage[]
-      )
+      await prefetchMessagesForRange(0, Math.min(messageIds.length - 1, 50))
       await refreshChildThreadsForActiveThread()
       await maybeQueueContextMention()
     } catch (error) {
@@ -559,6 +665,8 @@ export const useChatStore = defineStore('chat', () => {
         message: aiResponseMessage,
         threadId
       })
+      cacheMessageForView(aiResponseMessage)
+      ensureMessageId(aiResponseMessage.id)
 
       await loadMessages()
     } catch (error) {
@@ -586,6 +694,8 @@ export const useChatStore = defineStore('chat', () => {
         message: aiResponseMessage,
         threadId: getActiveThreadId()!
       })
+      cacheMessageForView(aiResponseMessage)
+      ensureMessageId(aiResponseMessage.id)
       await loadMessages()
       generatingThreadIds.value.add(getActiveThreadId()!)
       // 设置当前会话的workingStatus为working
@@ -613,6 +723,8 @@ export const useChatStore = defineStore('chat', () => {
         message: aiResponseMessage,
         threadId: getActiveThreadId()!
       })
+      cacheMessageForView(aiResponseMessage)
+      ensureMessageId(aiResponseMessage.id)
 
       await loadMessages()
     } catch (error) {
@@ -932,10 +1044,8 @@ export const useChatStore = defineStore('chat', () => {
 
       // 如果是当前激活的会话，更新显示
       if (cached.threadId === getActiveThreadId()) {
-        const msgIndex = getMessages().findIndex((m) => m.id === msg.eventId)
-        if (msgIndex !== -1) {
-          getMessages()[msgIndex] = curMsg
-        }
+        cacheMessageForView(curMsg)
+        ensureMessageId(curMsg.id)
       }
     }
   }
@@ -996,19 +1106,15 @@ export const useChatStore = defineStore('chat', () => {
           const enrichedMainMessage = await enrichMessageWithExtra(mainMessage)
           // 如果是当前激活的会话，更新显示
           if (getActiveThreadId() === getActiveThreadId()) {
-            const mainMsgIndex = getMessages().findIndex((m) => m.id === mainMessage.id)
-            if (mainMsgIndex !== -1) {
-              getMessages()[mainMsgIndex] = enrichedMainMessage as AssistantMessage | UserMessage
-            }
+            cacheMessageForView(enrichedMainMessage as AssistantMessage | UserMessage)
+            ensureMessageId(enrichedMainMessage.id)
           }
         }
       } else {
         // 如果是当前激活的会话，更新显示
         if (getActiveThreadId() === getActiveThreadId()) {
-          const msgIndex = getMessages().findIndex((m) => m.id === msg.eventId)
-          if (msgIndex !== -1) {
-            getMessages()[msgIndex] = enrichedMessage as AssistantMessage | UserMessage
-          }
+          cacheMessageForView(enrichedMessage as AssistantMessage | UserMessage)
+          ensureMessageId(enrichedMessage.id)
         }
       }
     }
@@ -1021,19 +1127,11 @@ export const useChatStore = defineStore('chat', () => {
 
     // 如果缓存中没有，尝试从当前消息列表中查找对应的会话ID
     if (!threadId) {
-      // 遍历所有会话的消息列表
-      for (const [tid, msgs] of messagesMap.value.entries()) {
-        const found = msgs.some((m) => {
-          if (m.id === msg.eventId) return true
-          if ((m as AssistantMessage).variants) {
-            return (m as AssistantMessage).variants?.some((v) => v.id === msg.eventId)
-          }
-          return false
-        })
-        if (found) {
-          threadId = tid.toString()
-          break
-        }
+      try {
+        const foundMessage = await threadP.getMessage(msg.eventId)
+        threadId = foundMessage.conversationId
+      } catch (error) {
+        console.warn('Failed to locate message thread for stream error:', error)
       }
     }
 
@@ -1044,9 +1142,8 @@ export const useChatStore = defineStore('chat', () => {
 
         if (enrichedMessage.is_variant && enrichedMessage.parentId) {
           // 处理变体消息的错误状态
-          const parentMsgIndex = getMessages().findIndex((m) => m.id === enrichedMessage.parentId)
-          if (parentMsgIndex !== -1) {
-            const parentMsg = getMessages()[parentMsgIndex] as AssistantMessage
+          const parentMsg = getCachedMessage(enrichedMessage.parentId) as AssistantMessage | null
+          if (parentMsg) {
             if (!parentMsg.variants) {
               parentMsg.variants = []
             }
@@ -1056,14 +1153,13 @@ export const useChatStore = defineStore('chat', () => {
             } else {
               parentMsg.variants.push(enrichedMessage)
             }
-            getMessages()[parentMsgIndex] = { ...parentMsg }
+            cacheMessageForView({ ...parentMsg })
+            ensureMessageId(parentMsg.id)
           }
         } else {
           // 非变体消息的原有错误处理逻辑
-          const messageIndex = getMessages().findIndex((m) => m.id === msg.eventId)
-          if (messageIndex !== -1) {
-            getMessages()[messageIndex] = enrichedMessage as AssistantMessage | UserMessage
-          }
+          cacheMessageForView(enrichedMessage as AssistantMessage | UserMessage)
+          ensureMessageId(enrichedMessage.id)
         }
         const wid = window.api.getWindowId() || 0
         // 检查窗口是否聚焦，如果未聚焦则发送错误通知
@@ -1169,7 +1265,7 @@ export const useChatStore = defineStore('chat', () => {
     if (!activeThreadId) return
 
     try {
-      const messages = getMessages()
+      const messages = getLoadedMessages()
       let parentMessage: AssistantMessage | undefined
       let parentIndex = -1
       const mainMsgIndex = messages.findIndex((m) => m.id === messageId)
@@ -1199,6 +1295,7 @@ export const useChatStore = defineStore('chat', () => {
       }
 
       await threadP.deleteMessage(messageId)
+      deleteCachedMessage(messageId)
       await loadMessages()
     } catch (error) {
       console.error('Failed to delete message:', error)
@@ -1210,9 +1307,11 @@ export const useChatStore = defineStore('chat', () => {
     if (!threadId) return
     try {
       await threadP.clearAllMessages(threadId)
+      clearCachedMessagesForThread(threadId)
       // 清空本地消息列表
       if (threadId === getActiveThreadId()) {
-        setMessages([])
+        setMessageIds([])
+        clearMessageDomInfo()
       }
       // 清空生成缓存中的相关消息
       const cache = getGeneratingMessagesCache()
@@ -1256,11 +1355,9 @@ export const useChatStore = defineStore('chat', () => {
         }
         // 获取更新后的消息
         const updatedMessage = await threadP.getMessage(messageId)
-        // 更新消息列表中的对应消息
-        const messageIndex = getMessages().findIndex((msg) => msg.id === messageId)
-        if (messageIndex !== -1) {
-          getMessages()[messageIndex] = updatedMessage
-        }
+        const enrichedMessage = await enrichMessageWithExtra(updatedMessage)
+        cacheMessageForView(enrichedMessage)
+        ensureMessageId(enrichedMessage.id)
       }
     } catch (error) {
       console.error('Failed to cancel generation:', error)
@@ -1290,6 +1387,8 @@ export const useChatStore = defineStore('chat', () => {
         message: aiResponseMessage,
         threadId: conversationId
       })
+      cacheMessageForView(aiResponseMessage)
+      ensureMessageId(aiResponseMessage.id)
 
       await loadMessages()
     } catch (error) {
@@ -1337,10 +1436,8 @@ export const useChatStore = defineStore('chat', () => {
 
       // 如果是当前会话的消息，也更新显示
       if (cached.threadId === getActiveThreadId()) {
-        const msgIndex = getMessages().findIndex((m) => m.id === msgId)
-        if (msgIndex !== -1) {
-          getMessages()[msgIndex] = enrichedMessage as AssistantMessage | UserMessage
-        }
+        cacheMessageForView(enrichedMessage as AssistantMessage | UserMessage)
+        ensureMessageId(enrichedMessage.id)
       }
     } else if (getActiveThreadId()) {
       // 如果不在缓存中，先尝试获取主消息
@@ -1348,18 +1445,14 @@ export const useChatStore = defineStore('chat', () => {
       if (mainMessage) {
         // 如果找到主消息，说明当前消息是变体消息
         const enrichedMainMessage = await enrichMessageWithExtra(mainMessage)
-        const mainMsgIndex = getMessages().findIndex((m) => m.id === mainMessage.id)
-        if (mainMsgIndex !== -1) {
-          getMessages()[mainMsgIndex] = enrichedMainMessage as AssistantMessage | UserMessage
-        }
+        cacheMessageForView(enrichedMainMessage as AssistantMessage | UserMessage)
+        ensureMessageId(enrichedMainMessage.id)
       } else {
         // 如果不是变体消息，直接更新当前消息
-        const msgIndex = getMessages().findIndex((m) => m.id === msgId)
-        if (msgIndex !== -1) {
-          const updatedMessage = await threadP.getMessage(msgId)
-          const enrichedMessage = await enrichMessageWithExtra(updatedMessage)
-          getMessages()[msgIndex] = enrichedMessage as AssistantMessage | UserMessage
-        }
+        const updatedMessage = await threadP.getMessage(msgId)
+        const enrichedMessage = await enrichMessageWithExtra(updatedMessage)
+        cacheMessageForView(enrichedMessage as AssistantMessage | UserMessage)
+        ensureMessageId(enrichedMessage.id)
       }
     }
   }
@@ -1554,7 +1647,11 @@ export const useChatStore = defineStore('chat', () => {
       }
 
       // 如果是当前tab或新激活的会话在当前窗口中，则正常处理
+      const prevActiveThreadId = getActiveThreadId()
       activeThreadIdMap.value.set(getTabId(), msg.conversationId)
+      if (prevActiveThreadId && prevActiveThreadId !== msg.conversationId) {
+        clearThreadCachesForTab(prevActiveThreadId)
+      }
 
       // 如果存在状态为completed或error的会话，从Map中移除
       if (msg.conversationId) {
@@ -1579,7 +1676,9 @@ export const useChatStore = defineStore('chat', () => {
       if (msg.tabId !== getTabId()) {
         return
       }
+      const prevActiveThreadId = getActiveThreadId()
       setActiveThreadId(null)
+      clearThreadCachesForTab(prevActiveThreadId)
     })
 
     window.electron.ipcRenderer.on(CONVERSATION_EVENTS.SCROLL_TO_MESSAGE, (_, payload) => {
@@ -1755,13 +1854,15 @@ export const useChatStore = defineStore('chat', () => {
     isMessageNavigationOpen,
     activeThreadIdMap,
     threads,
-    messagesMap,
+    messageIdsMap,
     generatingThreadIds,
     selectedVariantsMap,
     childThreadsByMessageId,
     // Getters
     activeThread,
+    messageItems,
     variantAwareMessages,
+    messageCount,
     activeContextMention,
     activePendingScrollTarget,
     isAcpMode,
@@ -1775,6 +1876,11 @@ export const useChatStore = defineStore('chat', () => {
     handleStreamEnd,
     handleStreamError,
     handleMessageEdited,
+    prefetchMessagesForRange,
+    ensureMessagesLoadedByIds,
+    prefetchAllMessages,
+    recordMessageDomInfo,
+    hasMessageDomInfo,
     // 导出配置相关的状态和方法
     chatConfig,
     updateChatConfig,
@@ -1800,7 +1906,7 @@ export const useChatStore = defineStore('chat', () => {
     toggleThreadPinned,
     getActiveThreadId,
     getGeneratingMessagesCache,
-    getMessages,
+    getMessageIds,
     getCurrentThreadMessages,
     exportThread,
     submitToNowledgeMem,
