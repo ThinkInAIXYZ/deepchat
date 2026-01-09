@@ -1125,14 +1125,14 @@ export const useChatStore = defineStore('chat', () => {
         if (mainMessage) {
           const enrichedMainMessage = await enrichMessageWithExtra(mainMessage)
           // 如果是当前激活的会话，更新显示
-          if (getActiveThreadId() === getActiveThreadId()) {
+          if (getActiveThreadId() === cached.threadId) {
             cacheMessageForView(enrichedMainMessage as AssistantMessage | UserMessage)
             ensureMessageId(enrichedMainMessage.id)
           }
         }
       } else {
         // 如果是当前激活的会话，更新显示
-        if (getActiveThreadId() === getActiveThreadId()) {
+        if (getActiveThreadId() === cached.threadId) {
           cacheMessageForView(enrichedMessage as AssistantMessage | UserMessage)
           ensureMessageId(enrichedMessage.id)
         }

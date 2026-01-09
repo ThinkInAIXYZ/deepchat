@@ -1,4 +1,4 @@
-import { ref, reactive, readonly, onUnmounted, nextTick, type Ref } from 'vue'
+import { ref, reactive, readonly, onBeforeUnmount, nextTick, type Ref } from 'vue'
 import { useDebounceFn } from '@vueuse/core'
 import type { ScrollInfo } from './types'
 import type { DynamicScroller } from 'vue-virtual-scroller'
@@ -30,6 +30,8 @@ export function useMessageScroll(options?: UseMessageScrollOptions) {
   let intersectionObserver: IntersectionObserver | null = null
   let scrollRetryTimer: number | null = null
   let scrollRetryToken = 0
+  let bottomScrollRetryTimer: number | null = null
+  let bottomScrollCancelToken = 0
   let pendingScrollTargetId: string | null = null
 
   const updateScrollInfoImmediate = () => {
@@ -63,6 +65,12 @@ export function useMessageScroll(options?: UseMessageScrollOptions) {
    * Schedule scroll to bottom with retry mechanism for virtual scroller
    */
   const scheduleScrollToBottom = (force = false) => {
+    if (bottomScrollRetryTimer) {
+      clearTimeout(bottomScrollRetryTimer)
+      bottomScrollRetryTimer = null
+    }
+    const currentBottomToken = ++bottomScrollCancelToken
+
     nextTick(() => {
       const shouldAutoFollow = options?.shouldAutoFollow
       if (force && shouldAutoFollow) {
@@ -83,10 +91,14 @@ export function useMessageScroll(options?: UseMessageScrollOptions) {
         let lastScrollHeight = 0
 
         const attemptScrollToBottom = () => {
+          if (currentBottomToken !== bottomScrollCancelToken) return
           scroller.scrollToBottom()
 
           nextTick(() => {
-            setTimeout(() => {
+            bottomScrollRetryTimer = window.setTimeout(() => {
+              bottomScrollRetryTimer = null
+              if (currentBottomToken !== bottomScrollCancelToken) return
+
               const container = messagesContainer.value
               if (!container) {
                 updateScrollInfo()
@@ -268,7 +280,7 @@ export function useMessageScroll(options?: UseMessageScrollOptions) {
     updateScrollInfoImmediate()
   }
 
-  onUnmounted(() => {
+  onBeforeUnmount(() => {
     if (intersectionObserver) {
       intersectionObserver.disconnect()
       intersectionObserver = null
@@ -278,6 +290,12 @@ export function useMessageScroll(options?: UseMessageScrollOptions) {
       clearTimeout(scrollRetryTimer)
       scrollRetryTimer = null
     }
+
+    if (bottomScrollRetryTimer) {
+      clearTimeout(bottomScrollRetryTimer)
+      bottomScrollRetryTimer = null
+    }
+    bottomScrollCancelToken++
 
     pendingScrollTargetId = null
   })
