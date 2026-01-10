@@ -120,7 +120,7 @@ describe('SkillSyncPresenter', () => {
     mockSkillPresenter = {
       getMetadataList: vi.fn().mockResolvedValue([]),
       installFromFolder: vi.fn().mockResolvedValue({ success: true }),
-      loadSkillContent: vi.fn().mockResolvedValue('# Skill Content')
+      loadSkillContent: vi.fn().mockResolvedValue({ content: '# Skill Content' })
     } as unknown as ISkillPresenter
 
     presenter = new SkillSyncPresenter(mockSkillPresenter)
@@ -167,7 +167,7 @@ describe('SkillSyncPresenter', () => {
         toolId: 'cursor',
         toolName: 'Cursor',
         available: true,
-        skillsDir: '/project/.cursor/commands/',
+        skillsDir: '/project/.cursor/skills/',
         skills: []
       })
 
@@ -371,11 +371,11 @@ describe('SkillSyncPresenter', () => {
 
       vi.mocked(isValidToolId).mockReturnValue(true)
       vi.mocked(toolScanner.getTool).mockReturnValue({
-        id: 'cursor',
-        name: 'Cursor',
-        skillsDir: '.cursor/commands/',
+        id: 'windsurf',
+        name: 'Windsurf',
+        skillsDir: '.windsurf/rules/',
         filePattern: '*.md',
-        format: 'cursor',
+        format: 'windsurf',
         capabilities: {
           hasFrontmatter: false,
           supportsName: true,
@@ -405,7 +405,7 @@ describe('SkillSyncPresenter', () => {
       vi.mocked(fs.promises.readdir).mockResolvedValue([])
 
       presenter.setProjectRoot('/project')
-      const result = await presenter.previewExport(['skill1'], 'cursor')
+      const result = await presenter.previewExport(['skill1'], 'windsurf')
 
       expect(result).toHaveLength(1)
       expect(result[0].warnings).toContain('Tool restrictions will be lost')
@@ -421,8 +421,8 @@ describe('SkillSyncPresenter', () => {
       const previews: ExportPreview[] = [
         {
           skillName: 'skill1',
-          targetTool: 'cursor',
-          targetPath: '/project/.cursor/commands/skill1.md',
+          targetTool: 'cursor-project',
+          targetPath: '/project/.cursor/skills/skill1/SKILL.md',
           convertedContent: '# Skill1',
           warnings: []
         }
@@ -444,11 +444,11 @@ describe('SkillSyncPresenter', () => {
       const previews: ExportPreview[] = [
         {
           skillName: 'skill1',
-          targetTool: 'cursor',
-          targetPath: '/project/.cursor/commands/skill1.md',
+          targetTool: 'cursor-project',
+          targetPath: '/project/.cursor/skills/skill1/SKILL.md',
           convertedContent: '# Skill1',
           conflict: {
-            existingPath: '/project/.cursor/commands/skill1.md',
+            existingPath: '/project/.cursor/skills/skill1/SKILL.md',
             strategy: ConflictStrategy.SKIP
           },
           warnings: []
@@ -472,7 +472,7 @@ describe('SkillSyncPresenter', () => {
       const previews: ExportPreview[] = [
         {
           skillName: 'skill1',
-          targetTool: 'cursor',
+          targetTool: 'cursor-project',
           targetPath: '/readonly/path/skill1.md',
           convertedContent: '# Skill1',
           warnings: []
@@ -496,8 +496,8 @@ describe('SkillSyncPresenter', () => {
       const previews: ExportPreview[] = [
         {
           skillName: 'skill1',
-          targetTool: 'cursor',
-          targetPath: '/project/.cursor/commands/skill1.md',
+          targetTool: 'cursor-project',
+          targetPath: '/project/.cursor/skills/skill1/SKILL.md',
           convertedContent: '# Skill1',
           warnings: []
         }
@@ -507,7 +507,7 @@ describe('SkillSyncPresenter', () => {
 
       expect(result.exported).toBe(1)
       expect(fs.promises.writeFile).toHaveBeenCalledWith(
-        '/project/.cursor/commands/skill1.md',
+        '/project/.cursor/skills/skill1/SKILL.md',
         '# Skill1',
         'utf-8'
       )

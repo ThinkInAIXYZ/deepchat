@@ -68,12 +68,43 @@ export const EXTERNAL_TOOLS: ExternalToolConfig[] = [
     }
   },
   {
+    id: 'codex',
+    name: 'OpenAI Codex',
+    skillsDir: '~/.codex/skills/',
+    filePattern: '*/SKILL.md',
+    format: 'codex',
+    capabilities: {
+      ...FRONTMATTER_CAPABILITIES,
+      supportsSubfolders: true,
+      supportsReferences: true,
+      supportsScripts: true
+    }
+  },
+  {
     id: 'cursor',
     name: 'Cursor',
-    skillsDir: '.cursor/commands/',
-    filePattern: '*.md',
+    skillsDir: '~/.cursor/skills/',
+    filePattern: '*/SKILL.md',
     format: 'cursor',
-    capabilities: MARKDOWN_ONLY_CAPABILITIES,
+    capabilities: {
+      ...FRONTMATTER_CAPABILITIES,
+      supportsSubfolders: true,
+      supportsReferences: true,
+      supportsScripts: true
+    }
+  },
+  {
+    id: 'cursor-project',
+    name: 'Cursor (Project)',
+    skillsDir: '.cursor/skills/',
+    filePattern: '*/SKILL.md',
+    format: 'cursor',
+    capabilities: {
+      ...FRONTMATTER_CAPABILITIES,
+      supportsSubfolders: true,
+      supportsReferences: true,
+      supportsScripts: true
+    },
     isProjectLevel: true
   },
   {
@@ -88,7 +119,7 @@ export const EXTERNAL_TOOLS: ExternalToolConfig[] = [
   {
     id: 'copilot',
     name: 'GitHub Copilot',
-    skillsDir: '.github/',
+    skillsDir: '.github/prompts/',
     filePattern: '*.prompt.md',
     format: 'copilot',
     capabilities: FRONTMATTER_CAPABILITIES,
@@ -97,7 +128,7 @@ export const EXTERNAL_TOOLS: ExternalToolConfig[] = [
   {
     id: 'kiro',
     name: 'Kiro',
-    skillsDir: '.kiro/rules/',
+    skillsDir: '.kiro/steering/',
     filePattern: '*.md',
     format: 'kiro',
     capabilities: {
@@ -109,11 +140,63 @@ export const EXTERNAL_TOOLS: ExternalToolConfig[] = [
   {
     id: 'antigravity',
     name: 'Antigravity',
-    skillsDir: '.antigravity/workflows/',
+    skillsDir: '.agent/workflows/',
     filePattern: '*.md',
     format: 'antigravity',
     capabilities: FRONTMATTER_CAPABILITIES,
     isProjectLevel: true
+  },
+  {
+    id: 'opencode',
+    name: 'OpenCode',
+    skillsDir: '~/.opencode/skills/',
+    filePattern: '*/SKILL.md',
+    format: 'opencode',
+    capabilities: {
+      ...FRONTMATTER_CAPABILITIES,
+      supportsSubfolders: true,
+      supportsReferences: true,
+      supportsScripts: true
+    }
+  },
+  {
+    id: 'goose',
+    name: 'Goose',
+    skillsDir: '~/.config/goose/skills/',
+    filePattern: '*/SKILL.md',
+    format: 'goose',
+    capabilities: {
+      ...FRONTMATTER_CAPABILITIES,
+      supportsSubfolders: true,
+      supportsReferences: true,
+      supportsScripts: true
+    }
+  },
+  {
+    id: 'kilocode',
+    name: 'Kilo Code',
+    skillsDir: '~/.kilocode/skills/',
+    filePattern: '*/SKILL.md',
+    format: 'kilocode',
+    capabilities: {
+      ...FRONTMATTER_CAPABILITIES,
+      supportsSubfolders: true,
+      supportsReferences: true,
+      supportsScripts: true
+    }
+  },
+  {
+    id: 'copilot-user',
+    name: 'GitHub Copilot (User)',
+    skillsDir: '~/.copilot/skills/',
+    filePattern: '*/SKILL.md',
+    format: 'copilot-user',
+    capabilities: {
+      ...FRONTMATTER_CAPABILITIES,
+      supportsSubfolders: true,
+      supportsReferences: true,
+      supportsScripts: true
+    }
   }
 ]
 

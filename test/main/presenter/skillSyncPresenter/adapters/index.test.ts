@@ -168,19 +168,6 @@ description: A skill
       expect(adapter?.id).toBe('claude-code')
     })
 
-    it('should detect Cursor format', () => {
-      const content = `# My Command
-
-This is a command description.
-
-## Objective
-
-Do something.`
-
-      const adapter = detectAdapter(content)
-      expect(adapter?.id).toBe('cursor')
-    })
-
     it('should detect Windsurf format', () => {
       const content = `# Build Workflow
 

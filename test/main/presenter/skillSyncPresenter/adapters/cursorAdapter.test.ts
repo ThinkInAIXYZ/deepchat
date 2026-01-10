@@ -1,5 +1,7 @@
 /**
  * CursorAdapter Unit Tests
+ *
+ * Cursor now uses SKILL.md format (same as Claude Code)
  */
 import { describe, it, expect } from 'vitest'
 import { CursorAdapter } from '../../../../../src/main/presenter/skillSyncPresenter/adapters/cursorAdapter'
@@ -22,299 +24,147 @@ describe('CursorAdapter', () => {
     it('should return correct capabilities', () => {
       const capabilities = adapter.getCapabilities()
 
-      expect(capabilities.hasFrontmatter).toBe(false)
+      expect(capabilities.hasFrontmatter).toBe(true)
       expect(capabilities.supportsName).toBe(true)
       expect(capabilities.supportsDescription).toBe(true)
-      expect(capabilities.supportsTools).toBe(false)
-      expect(capabilities.supportsModel).toBe(false)
-      expect(capabilities.supportsSubfolders).toBe(false)
-      expect(capabilities.supportsReferences).toBe(false)
-      expect(capabilities.supportsScripts).toBe(false)
+      expect(capabilities.supportsTools).toBe(true)
+      expect(capabilities.supportsSubfolders).toBe(true)
+      expect(capabilities.supportsReferences).toBe(true)
+      expect(capabilities.supportsScripts).toBe(true)
     })
   })
 
   describe('detect', () => {
-    it('should detect pure markdown with title', () => {
-      const content = `# My Command
+    it('should detect SKILL.md format with name and description', () => {
+      const content = `---
+name: my-skill
+description: A test skill
+---
 
-This is a command description.
-
-## Objective
+# Instructions
 
 Do something useful.`
 
       expect(adapter.detect(content)).toBe(true)
     })
 
-    it('should not detect content with frontmatter', () => {
+    it('should not detect content without frontmatter', () => {
+      const content = `# My Command
+
+This is just some markdown content.`
+
+      expect(adapter.detect(content)).toBe(false)
+    })
+
+    it('should not detect frontmatter without name', () => {
+      const content = `---
+description: A test skill
+---
+
+# Instructions`
+
+      expect(adapter.detect(content)).toBe(false)
+    })
+
+    it('should not detect frontmatter without description', () => {
       const content = `---
 name: my-skill
 ---
 
-# My Command
-
-Content here.`
+# Instructions`
 
       expect(adapter.detect(content)).toBe(false)
-    })
-
-    it('should not detect content without title', () => {
-      const content = `This is just some markdown content.
-
-With multiple paragraphs.`
-
-      expect(adapter.detect(content)).toBe(false)
-    })
-
-    it('should not detect Windsurf format (has ## Steps)', () => {
-      const content = `# My Workflow
-
-A workflow description.
-
-## Steps
-
-### 1. First step
-
-Do something.`
-
-      expect(adapter.detect(content)).toBe(false)
-    })
-
-    it('should detect markdown with multiple headings', () => {
-      const content = `# Code Review Command
-
-Review the current code for issues.
-
-## Guidelines
-
-- Check for bugs
-- Look for performance issues`
-
-      expect(adapter.detect(content)).toBe(true)
     })
   })
 
   describe('parse', () => {
     const baseContext: ParseContext = {
       toolId: 'cursor',
-      filePath: '/project/.cursor/commands/my-command.md'
+      filePath: '/project/.cursor/skills/my-skill/SKILL.md',
+      folderPath: '/project/.cursor/skills/my-skill'
     }
 
-    it('should extract name from title', () => {
-      const content = `# My Custom Command
+    it('should parse basic frontmatter', () => {
+      const content = `---
+name: my-skill
+description: A test skill description
+---
 
-This is the description.
+# Instructions
 
-## Objective
-
-Do something.`
-
-      const result = adapter.parse(content, baseContext)
-
-      expect(result.name).toBe('my-custom-command')
-    })
-
-    it('should extract description from first paragraph after title', () => {
-      const content = `# Test Command
-
-This is the description paragraph.
-
-## More content
-
-Additional info.`
+Follow these steps.`
 
       const result = adapter.parse(content, baseContext)
 
-      expect(result.description).toBe('This is the description paragraph.')
+      expect(result.name).toBe('my-skill')
+      expect(result.description).toBe('A test skill description')
+      expect(result.instructions).toBe('# Instructions\n\nFollow these steps.')
+      expect(result.source?.tool).toBe('cursor')
+      expect(result.source?.originalFormat).toBe('yaml-frontmatter-markdown')
     })
 
-    it('should use full content as instructions', () => {
-      const content = `# My Command
+    it('should parse allowed-tools as string', () => {
+      const content = `---
+name: git-skill
+description: Git helper
+allowed-tools: Read, Grep, Bash(git:*)
+---
 
-Description here.
-
-## Steps
-
-1. Do this
-2. Do that`
+# Git Helper`
 
       const result = adapter.parse(content, baseContext)
 
-      expect(result.instructions).toBe(content.trim())
+      expect(result.allowedTools).toEqual(['Read', 'Grep', 'Bash(git:*)'])
     })
 
-    it('should include source information', () => {
-      const content = `# Test
+    it('should parse allowed-tools as array', () => {
+      const content = `---
+name: git-skill
+description: Git helper
+allowed-tools:
+  - Read
+  - Grep
+  - Bash(git:*)
+---
 
-Description.`
+# Git Helper`
 
       const result = adapter.parse(content, baseContext)
 
-      expect(result.source).toEqual({
-        tool: 'cursor',
-        originalPath: '/project/.cursor/commands/my-command.md',
-        originalFormat: 'pure-markdown'
-      })
-    })
-
-    it('should use filename as fallback when no title', () => {
-      const content = `Just some content without a title.
-
-More content.`
-
-      const context: ParseContext = {
-        toolId: 'cursor',
-        filePath: '/path/to/fallback-name.md'
-      }
-
-      const result = adapter.parse(content, context)
-
-      expect(result.name).toBe('fallback-name')
-    })
-
-    it('should convert title to kebab-case name', () => {
-      const content = `# Code Review Helper
-
-Review code.`
-
-      const result = adapter.parse(content, baseContext)
-
-      expect(result.name).toBe('code-review-helper')
-    })
-
-    it('should handle empty description', () => {
-      const content = `# Command
-
-## First Section
-
-Content.`
-
-      const result = adapter.parse(content, baseContext)
-
-      expect(result.description).toBe('')
-    })
-
-    it('should remove special characters from name', () => {
-      const content = `# Code Review: The Best! (2024)
-
-A command.`
-
-      const result = adapter.parse(content, baseContext)
-
-      expect(result.name).toBe('code-review-the-best-2024')
+      expect(result.allowedTools).toEqual(['Read', 'Grep', 'Bash(git:*)'])
     })
   })
 
   describe('serialize', () => {
-    it('should serialize with title and description', () => {
+    it('should serialize skill to SKILL.md format', () => {
       const skill: CanonicalSkill = {
-        name: 'my-command',
-        description: 'A test command description',
-        instructions: 'Do something useful.'
+        name: 'my-skill',
+        description: 'A test skill',
+        instructions: '# Do something useful'
       }
 
       const result = adapter.serialize(skill)
 
-      expect(result).toContain('# My Command')
-      expect(result).toContain('A test command description')
+      expect(result).toContain('---')
+      expect(result).toContain('name: my-skill')
+      expect(result).toContain('description: A test skill')
+      expect(result).toContain('# Do something useful')
     })
 
-    it('should add Objective section if instructions have no heading', () => {
+    it('should serialize allowed-tools', () => {
       const skill: CanonicalSkill = {
-        name: 'simple-command',
-        description: 'A simple command',
-        instructions: 'Just do this thing.'
+        name: 'git-skill',
+        description: 'Git helper',
+        instructions: '# Git operations',
+        allowedTools: ['Read', 'Grep', 'Bash(git:*)']
       }
 
       const result = adapter.serialize(skill)
 
-      expect(result).toContain('## Objective')
-      expect(result).toContain('Just do this thing.')
-    })
-
-    it('should preserve existing headings in instructions', () => {
-      const skill: CanonicalSkill = {
-        name: 'complex-command',
-        description: 'A complex command',
-        instructions: '## Steps\n\n1. First step\n2. Second step'
-      }
-
-      const result = adapter.serialize(skill)
-
-      expect(result).not.toMatch(/## Objective[\s\S]*## Steps/)
-      expect(result).toContain('## Steps')
-    })
-
-    it('should inline references when present', () => {
-      const skill: CanonicalSkill = {
-        name: 'command-with-refs',
-        description: 'Has references',
-        instructions: 'Main content.',
-        references: [
-          { name: 'guide.md', content: 'Guide content', relativePath: 'references/guide.md' },
-          { name: 'rules.md', content: 'Rules content', relativePath: 'references/rules.md' }
-        ]
-      }
-
-      const result = adapter.serialize(skill)
-
-      expect(result).toContain('## References')
-      expect(result).toContain('### guide.md')
-      expect(result).toContain('Guide content')
-      expect(result).toContain('### rules.md')
-      expect(result).toContain('Rules content')
-    })
-
-    it('should not inline references when inlineReferences is false', () => {
-      const skill: CanonicalSkill = {
-        name: 'command-with-refs',
-        description: 'Has references',
-        instructions: 'Main content.',
-        references: [
-          { name: 'guide.md', content: 'Guide content', relativePath: 'references/guide.md' }
-        ]
-      }
-
-      const result = adapter.serialize(skill, { inlineReferences: false })
-
-      expect(result).not.toContain('## References')
-      expect(result).not.toContain('Guide content')
-    })
-
-    it('should convert kebab-case name to title case', () => {
-      const skill: CanonicalSkill = {
-        name: 'complex-multi-word-name',
-        description: 'Test',
-        instructions: 'Content'
-      }
-
-      const result = adapter.serialize(skill)
-
-      expect(result).toContain('# Complex Multi Word Name')
-    })
-  })
-
-  describe('round-trip conversion', () => {
-    it('should preserve basic data through parse and serialize cycle', () => {
-      const original = `# My Test Command
-
-This is the command description.
-
-## Objective
-
-Follow these instructions carefully.`
-
-      const context: ParseContext = {
-        toolId: 'cursor',
-        filePath: '/path/to/command.md'
-      }
-
-      const parsed = adapter.parse(original, context)
-      const serialized = adapter.serialize(parsed)
-      const reparsed = adapter.parse(serialized, context)
-
-      expect(reparsed.name).toBe(parsed.name)
-      expect(reparsed.description).toBe(parsed.description)
+      expect(result).toContain('allowed-tools:')
+      expect(result).toContain('Read')
+      expect(result).toContain('Grep')
+      expect(result).toContain('Bash(git:*)')
     })
   })
 })

@@ -1,7 +1,7 @@
 /**
- * Cursor Format Adapter
+ * OpenCode Format Adapter
  *
- * Handles parsing and serializing skills in Cursor SKILL.md format.
+ * Handles parsing and serializing skills in OpenCode SKILL.md format.
  * Uses the same format as Claude Code (agent skills specification).
  */
 
@@ -9,11 +9,11 @@ import { ClaudeCodeAdapter } from './claudeCodeAdapter'
 import type { CanonicalSkill, ParseContext } from '@shared/types/skillSync'
 
 /**
- * Cursor format adapter
+ * OpenCode format adapter
  */
-export class CursorAdapter extends ClaudeCodeAdapter {
-  readonly id = 'cursor'
-  readonly name = 'Cursor'
+export class OpenCodeAdapter extends ClaudeCodeAdapter {
+  readonly id = 'opencode'
+  readonly name = 'OpenCode'
 
   parse(content: string, context: ParseContext): CanonicalSkill {
     const skill = super.parse(content, context)

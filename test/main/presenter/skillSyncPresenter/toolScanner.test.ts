@@ -65,7 +65,18 @@ describe('ToolScanner', () => {
       const cursor = EXTERNAL_TOOLS.find((t) => t.id === 'cursor')
       expect(cursor).toBeDefined()
       expect(cursor?.name).toBe('Cursor')
-      expect(cursor?.isProjectLevel).toBe(true)
+      expect(cursor?.skillsDir).toBe('~/.cursor/skills/')
+      expect(cursor?.filePattern).toBe('*/SKILL.md')
+      expect(cursor?.isProjectLevel).toBeUndefined()
+    })
+
+    it('should have cursor-project tool configured', () => {
+      const cursorProject = EXTERNAL_TOOLS.find((t) => t.id === 'cursor-project')
+      expect(cursorProject).toBeDefined()
+      expect(cursorProject?.name).toBe('Cursor (Project)')
+      expect(cursorProject?.skillsDir).toBe('.cursor/skills/')
+      expect(cursorProject?.filePattern).toBe('*/SKILL.md')
+      expect(cursorProject?.isProjectLevel).toBe(true)
     })
 
     it('should have windsurf tool configured', () => {
@@ -92,6 +103,51 @@ describe('ToolScanner', () => {
       const antigravity = EXTERNAL_TOOLS.find((t) => t.id === 'antigravity')
       expect(antigravity).toBeDefined()
       expect(antigravity?.name).toBe('Antigravity')
+    })
+
+    it('should have codex tool configured', () => {
+      const codex = EXTERNAL_TOOLS.find((t) => t.id === 'codex')
+      expect(codex).toBeDefined()
+      expect(codex?.name).toBe('OpenAI Codex')
+      expect(codex?.skillsDir).toBe('~/.codex/skills/')
+      expect(codex?.filePattern).toBe('*/SKILL.md')
+      expect(codex?.format).toBe('codex')
+    })
+
+    it('should have opencode tool configured', () => {
+      const opencode = EXTERNAL_TOOLS.find((t) => t.id === 'opencode')
+      expect(opencode).toBeDefined()
+      expect(opencode?.name).toBe('OpenCode')
+      expect(opencode?.skillsDir).toBe('~/.opencode/skills/')
+      expect(opencode?.filePattern).toBe('*/SKILL.md')
+      expect(opencode?.format).toBe('opencode')
+    })
+
+    it('should have goose tool configured', () => {
+      const goose = EXTERNAL_TOOLS.find((t) => t.id === 'goose')
+      expect(goose).toBeDefined()
+      expect(goose?.name).toBe('Goose')
+      expect(goose?.skillsDir).toBe('~/.config/goose/skills/')
+      expect(goose?.filePattern).toBe('*/SKILL.md')
+      expect(goose?.format).toBe('goose')
+    })
+
+    it('should have kilocode tool configured', () => {
+      const kilocode = EXTERNAL_TOOLS.find((t) => t.id === 'kilocode')
+      expect(kilocode).toBeDefined()
+      expect(kilocode?.name).toBe('Kilo Code')
+      expect(kilocode?.skillsDir).toBe('~/.kilocode/skills/')
+      expect(kilocode?.filePattern).toBe('*/SKILL.md')
+      expect(kilocode?.format).toBe('kilocode')
+    })
+
+    it('should have copilot-user tool configured', () => {
+      const copilotUser = EXTERNAL_TOOLS.find((t) => t.id === 'copilot-user')
+      expect(copilotUser).toBeDefined()
+      expect(copilotUser?.name).toBe('GitHub Copilot (User)')
+      expect(copilotUser?.skillsDir).toBe('~/.copilot/skills/')
+      expect(copilotUser?.filePattern).toBe('*/SKILL.md')
+      expect(copilotUser?.format).toBe('copilot-user')
     })
   })
 
@@ -136,14 +192,14 @@ describe('ToolScanner', () => {
     })
 
     it('should require project root for project-level tools', () => {
-      const tool = EXTERNAL_TOOLS.find((t) => t.id === 'cursor')!
+      const tool = EXTERNAL_TOOLS.find((t) => t.id === 'cursor-project')!
       expect(() => resolveSkillsDir(tool)).toThrow('Project root required')
     })
 
     it('should resolve project-level tools relative to project root', () => {
-      const tool = EXTERNAL_TOOLS.find((t) => t.id === 'cursor')!
+      const tool = EXTERNAL_TOOLS.find((t) => t.id === 'cursor-project')!
       const result = resolveSkillsDir(tool, '/my/project')
-      expect(result).toBe(path.resolve('/my/project', '.cursor/commands/'))
+      expect(result).toBe(path.resolve('/my/project', '.cursor/skills/'))
     })
   })
 
@@ -247,7 +303,7 @@ description: A test skill
     })
 
     it('should require project root for project-level tools', async () => {
-      const result = await scanner.scanTool('cursor')
+      const result = await scanner.scanTool('cursor-project')
       expect(result.available).toBe(false)
       expect(result.error).toContain('Project root required')
     })
@@ -260,10 +316,11 @@ description: A test skill
 
       const results = await scanner.scanExternalTools()
 
-      // Should only include user-level tools (claude-code)
+      // Should only include user-level tools
       const toolIds = results.map((r) => r.toolId)
       expect(toolIds).toContain('claude-code')
-      expect(toolIds).not.toContain('cursor')
+      expect(toolIds).toContain('cursor') // cursor is now user-level
+      expect(toolIds).not.toContain('cursor-project') // cursor-project is project-level
       expect(toolIds).not.toContain('windsurf')
     })
 
@@ -277,6 +334,7 @@ description: A test skill
       const toolIds = results.map((r) => r.toolId)
       expect(toolIds).toContain('claude-code')
       expect(toolIds).toContain('cursor')
+      expect(toolIds).toContain('cursor-project')
       expect(toolIds).toContain('windsurf')
     })
   })
@@ -306,7 +364,7 @@ description: A test skill
     })
 
     it('should reject files with path traversal in names', async () => {
-      const skillsDir = '/project/.cursor/commands/'
+      const skillsDir = '/project/.cursor/skills/'
 
       vi.mocked(fs.promises.stat).mockResolvedValueOnce({
         isDirectory: () => true
@@ -316,7 +374,7 @@ description: A test skill
         { name: '../../../etc/passwd.md', isFile: () => true, isDirectory: () => false }
       ] as unknown as fs.Dirent[])
 
-      const result = await scanner.scanTool('cursor', '/project')
+      const result = await scanner.scanTool('cursor-project', '/project')
 
       expect(result.skills).toHaveLength(0)
     })

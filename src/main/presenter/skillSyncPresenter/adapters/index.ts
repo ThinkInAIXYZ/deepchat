@@ -7,11 +7,16 @@
 
 import type { IFormatAdapter } from '@shared/types/skillSync'
 import { ClaudeCodeAdapter } from './claudeCodeAdapter'
+import { CodexAdapter } from './codexAdapter'
 import { CursorAdapter } from './cursorAdapter'
 import { WindsurfAdapter } from './windsurfAdapter'
 import { CopilotAdapter } from './copilotAdapter'
 import { KiroAdapter } from './kiroAdapter'
 import { AntigravityAdapter } from './antigravityAdapter'
+import { OpenCodeAdapter } from './openCodeAdapter'
+import { GooseAdapter } from './gooseAdapter'
+import { KiloCodeAdapter } from './kiloCodeAdapter'
+import { CopilotUserAdapter } from './copilotUserAdapter'
 
 /**
  * Registry of all available format adapters
@@ -24,11 +29,16 @@ const adapters: Map<string, IFormatAdapter> = new Map()
 function registerBuiltinAdapters(): void {
   const builtinAdapters: IFormatAdapter[] = [
     new ClaudeCodeAdapter(),
+    new CodexAdapter(),
     new CursorAdapter(),
     new WindsurfAdapter(),
     new CopilotAdapter(),
     new KiroAdapter(),
-    new AntigravityAdapter()
+    new AntigravityAdapter(),
+    new OpenCodeAdapter(),
+    new GooseAdapter(),
+    new KiloCodeAdapter(),
+    new CopilotUserAdapter()
   ]
 
   for (const adapter of builtinAdapters) {
@@ -74,9 +84,14 @@ export function detectAdapter(content: string): IFormatAdapter | undefined {
 
 export {
   ClaudeCodeAdapter,
+  CodexAdapter,
   CursorAdapter,
   WindsurfAdapter,
   CopilotAdapter,
   KiroAdapter,
-  AntigravityAdapter
+  AntigravityAdapter,
+  OpenCodeAdapter,
+  GooseAdapter,
+  KiloCodeAdapter,
+  CopilotUserAdapter
 }

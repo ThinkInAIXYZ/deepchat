@@ -1,7 +1,7 @@
 /**
- * Cursor Format Adapter
+ * Kilo Code Format Adapter
  *
- * Handles parsing and serializing skills in Cursor SKILL.md format.
+ * Handles parsing and serializing skills in Kilo Code SKILL.md format.
  * Uses the same format as Claude Code (agent skills specification).
  */
 
@@ -9,11 +9,11 @@ import { ClaudeCodeAdapter } from './claudeCodeAdapter'
 import type { CanonicalSkill, ParseContext } from '@shared/types/skillSync'
 
 /**
- * Cursor format adapter
+ * Kilo Code format adapter
  */
-export class CursorAdapter extends ClaudeCodeAdapter {
-  readonly id = 'cursor'
-  readonly name = 'Cursor'
+export class KiloCodeAdapter extends ClaudeCodeAdapter {
+  readonly id = 'kilocode'
+  readonly name = 'Kilo Code'
 
   parse(content: string, context: ParseContext): CanonicalSkill {
     const skill = super.parse(content, context)
