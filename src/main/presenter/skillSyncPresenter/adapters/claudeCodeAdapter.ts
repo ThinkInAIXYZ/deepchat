@@ -22,8 +22,8 @@ import type {
  * Claude Code format adapter
  */
 export class ClaudeCodeAdapter implements IFormatAdapter {
-  readonly id = 'claude-code'
-  readonly name = 'Claude Code'
+  readonly id: string = 'claude-code'
+  readonly name: string = 'Claude Code'
 
   /**
    * Parse Claude Code SKILL.md format to CanonicalSkill
