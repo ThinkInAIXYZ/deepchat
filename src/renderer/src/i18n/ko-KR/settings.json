@@ -1093,7 +1093,7 @@
       "content": "Skill Content",
       "files": "Folder Contents",
       "noFiles": "No files",
-      "nameHint": "스킬 생성 후 이름은 변경할 수 없습니다."
+      "nameHint": "skill 생성 후 이름은 변경할 수 없습니다."
     },
     "conflict": {
       "title": "Skill Already Exists",
@@ -1103,7 +1103,7 @@
     "sync": {
       "batchAction": "배치 처리",
       "conflict": "충돌",
-      "conflictDescription": "동일한 이름의 스킬 \\\"{name}\\\"이 이미 존재합니다.",
+      "conflictDescription": "동일한 이름의 skill \\\"{name}\\\"이 이미 존재합니다.",
       "deselectAll": "전체 선택 취소",
       "export": "다른 도구로 내보내기...",
       "exportButton": "내보내기",

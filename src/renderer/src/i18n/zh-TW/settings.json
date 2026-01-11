@@ -1093,7 +1093,7 @@
       "content": "Skill Content",
       "files": "Folder Contents",
       "noFiles": "No files",
-      "nameHint": "技能創建後名稱不可更改"
+      "nameHint": "skill創建後名稱不可更改"
     },
     "conflict": {
       "title": "Skill Already Exists",
@@ -1103,7 +1103,7 @@
     "sync": {
       "batchAction": "批次處理",
       "conflict": "衝突",
-      "conflictDescription": "已存在同名技能「{name}」",
+      "conflictDescription": "已存在同名skill「{name}」",
       "deselectAll": "取消全選",
       "export": "匯出到其他工具...",
       "exportButton": "匯出",

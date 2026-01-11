@@ -1093,7 +1093,7 @@
       "content": "Skill Content",
       "files": "Folder Contents",
       "noFiles": "No files",
-      "nameHint": "スキル作成後、名称は変更できません。"
+      "nameHint": "skill作成後、名称は変更できません。"
     },
     "conflict": {
       "title": "Skill Already Exists",
@@ -1103,7 +1103,7 @@
     "sync": {
       "batchAction": "バッチ処理",
       "conflict": "衝突",
-      "conflictDescription": "同名のスキル「{name}」が既に存在します。",
+      "conflictDescription": "同名のskill「{name}」が既に存在します。",
       "deselectAll": "全選択解除",
       "export": "他のツールにエクスポート…",
       "exportButton": "エクスポート",
@@ -1129,7 +1129,7 @@
       "importPartial": "一部のインポートが成功しました",
       "importPartialMessage": "成功 {success} 個、スキップ {skipped} 個、失敗 {failed} 個",
       "importSuccess": "インポート成功",
-      "importSuccessMessage": "{count} 個のスキルが正常にインポートされました",
+      "importSuccessMessage": "{count} 個のskillが正常にインポートされました",
       "importTitle": "他のツールから Skills をインポート",
       "imported": "インポート済み",
       "importing": "インポート中 ({current}/{total})…",

@@ -1093,7 +1093,7 @@
       "content": "Skill Content",
       "files": "Folder Contents",
       "noFiles": "No files",
-      "nameHint": "Le nom de la compétence ne peut pas être modifié après sa création."
+      "nameHint": "Le nom de la skill ne peut pas être modifié après sa création."
     },
     "conflict": {
       "title": "Skill Already Exists",
@@ -1103,7 +1103,7 @@
     "sync": {
       "batchAction": "traitement par lots",
       "conflict": "conflit",
-      "conflictDescription": "La compétence « {name} » existe déjà.",
+      "conflictDescription": "La skill « {name} » existe déjà.",
       "deselectAll": "Tout désélectionner",
       "export": "Exporter vers d'autres outils...",
       "exportButton": "Exporter",
