@@ -5,26 +5,21 @@ import { Ref, ref } from 'vue'
 import MentionList from './MentionList.vue'
 import { PromptListEntry, ResourceListEntry } from '@shared/presenter'
 
-// Define the type for categorized data
+// Define the type for mention data items
 export interface CategorizedData {
   label: string
   icon?: string
   id?: string
-  type: string
+  type: 'item' | 'category' // 'category' kept for backward compatibility but not displayed
   category?: string
   description?: string
   mcpEntry?: ResourceListEntry | PromptListEntry
   content?: string
 }
 
-// Sample categorized items
-const categorizedData: CategorizedData[] = [
-  { label: 'context', icon: 'lucide:quote', type: 'category' },
-  { label: 'files', icon: 'lucide:files', type: 'category' },
-  { label: 'resources', icon: 'lucide:swatch-book', type: 'category' },
-  { label: 'tools', icon: 'lucide:hammer', type: 'category' },
-  { label: 'prompts', icon: 'lucide:message-square-quote', type: 'category' }
-]
+// Initial empty data - items are populated by useMentionData composable
+// Category entries removed since we now use flat list display
+const categorizedData: CategorizedData[] = []
 
 // Create a ref to track mention selections
 export const mentionSelected = ref(false)

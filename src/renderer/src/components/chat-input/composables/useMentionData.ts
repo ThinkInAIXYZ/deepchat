@@ -12,11 +12,15 @@ import { useAgentMcpData } from './useAgentMcpData'
 import { mentionData } from '../../editor/mention/suggestion'
 
 /**
- * Composable for managing mention data aggregation
- * Watches various data sources (files, MCP resources/tools/prompts) and updates mention data
+ * Composable for managing @ mention data aggregation
+ *
+ * Watches various data sources (files, MCP resources) and updates mention data.
+ *
+ * NOTE: Tools and prompts have been moved to the `/` trigger (slashSuggestion).
+ * The `@` trigger now only shows: files, resources, and workspace files.
  */
 export function useMentionData(selectedFiles: Ref<MessageFile[]>) {
-  const { tools, resources, prompts } = useAgentMcpData()
+  const { resources } = useAgentMcpData()
 
   // === Watchers ===
   /**
@@ -62,49 +66,7 @@ export function useMentionData(selectedFiles: Ref<MessageFile[]>) {
     { immediate: true }
   )
 
-  /**
-   * Watch MCP tools and update mention data
-   */
-  watch(
-    () => tools.value,
-    () => {
-      mentionData.value = mentionData.value
-        .filter((item) => item.type !== 'item' || item.category !== 'tools')
-        .concat(
-          tools.value.map((tool) => ({
-            id: `${tool.server.name}.${tool.function.name ?? ''}`,
-            label: `${tool.server.icons}${' '}${tool.function.name ?? ''}`,
-            icon: undefined,
-            type: 'item' as const,
-            category: 'tools' as const,
-            description: tool.function.description ?? ''
-          }))
-        )
-    },
-    { immediate: true }
-  )
-
-  /**
-   * Watch MCP prompts and update mention data
-   */
-  watch(
-    () => prompts.value,
-    () => {
-      mentionData.value = mentionData.value
-        .filter((item) => item.type !== 'item' || item.category !== 'prompts')
-        .concat(
-          prompts.value.map((prompt) => ({
-            id: prompt.name,
-            label: prompt.name,
-            icon: undefined,
-            type: 'item' as const,
-            category: 'prompts' as const,
-            mcpEntry: prompt
-          }))
-        )
-    },
-    { immediate: true }
-  )
+  // NOTE: Tools and prompts watchers removed - they are now handled by useSlashMentionData
 
   // === Public Methods ===
   /**

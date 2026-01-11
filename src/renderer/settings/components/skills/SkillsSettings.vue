@@ -10,6 +10,13 @@
 
     <Separator class="my-4" />
 
+    <!-- Sync Status Section -->
+    <div class="px-4 mb-4">
+      <SyncStatusSection @import="handleQuickImport" />
+    </div>
+
+    <Separator class="mb-4" />
+
     <!-- Skills grid -->
     <ScrollArea class="flex-1 px-4">
       <div v-if="loading" class="flex items-center justify-center py-8">
@@ -85,6 +92,9 @@
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>
+
+    <!-- First-launch sync prompt -->
+    <SyncPromptDialog @import="handlePromptImport" @close="handlePromptClose" />
   </div>
 </template>
 
@@ -114,6 +124,8 @@ import SkillsHeader from './SkillsHeader.vue'
 import SkillCard from './SkillCard.vue'
 import SkillInstallDialog from './SkillInstallDialog.vue'
 import SkillEditorSheet from './SkillEditorSheet.vue'
+import SyncStatusSection from './SyncStatusSection.vue'
+import SyncPromptDialog from './SyncPromptDialog.vue'
 import { SkillSyncDialog } from './SkillSyncDialog'
 
 const { t } = useI18n()
@@ -230,5 +242,23 @@ const handleSaved = () => {
 
 const handleSyncCompleted = () => {
   skillsStore.loadSkills()
+}
+
+const handleQuickImport = (_toolId: string, _skills: string[]) => {
+  // Open sync dialog in import mode with the specified tool preselected
+  syncMode.value = 'import'
+  syncDialogOpen.value = true
+  // Note: The SkillSyncDialog will need to handle the preselected tool
+  // For now, we just open it in import mode
+}
+
+const handlePromptImport = (_toolIds: string[]) => {
+  // Open sync dialog in import mode
+  syncMode.value = 'import'
+  syncDialogOpen.value = true
+}
+
+const handlePromptClose = () => {
+  // Dialog closed without action
 }
 </script>

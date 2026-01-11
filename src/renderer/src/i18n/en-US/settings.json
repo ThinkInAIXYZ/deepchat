@@ -1170,6 +1170,27 @@
       "skipped": "Skipped",
       "failed": "Failed",
       "failedItems": "Failed Items"
+    },
+    "syncStatus": {
+      "title": "External Tools",
+      "description": "Import skills from other AI coding assistants",
+      "scanning": "Scanning for tools...",
+      "noToolsFound": "No external tools detected",
+      "skillCount": "{count} skills",
+      "notInstalled": "Not installed",
+      "notAvailable": "Not available",
+      "noSkills": "No skills",
+      "import": "Import",
+      "syncing": "Importing...",
+      "showMore": "Show {count} more tools",
+      "showLess": "Show less"
+    },
+    "syncPrompt": {
+      "title": "Import Skills from Other Tools",
+      "description": "We detected skills in other AI coding assistants. Would you like to import them?",
+      "dontShowAgain": "Don't show this again",
+      "skip": "Skip",
+      "importSelected": "Import Selected"
     }
   }
 }

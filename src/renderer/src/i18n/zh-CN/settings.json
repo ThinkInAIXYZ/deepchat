@@ -1170,6 +1170,27 @@
       "skipped": "已跳过",
       "failed": "失败",
       "failedItems": "失败项目"
+    },
+    "syncStatus": {
+      "title": "外部工具",
+      "description": "从其他AI编程助手导入技能",
+      "scanning": "正在扫描工具...",
+      "noToolsFound": "未检测到外部工具",
+      "skillCount": "{count} 个技能",
+      "notInstalled": "未安装",
+      "notAvailable": "不可用",
+      "noSkills": "无技能",
+      "import": "导入",
+      "syncing": "正在导入...",
+      "showMore": "显示其他 {count} 个工具",
+      "showLess": "收起"
+    },
+    "syncPrompt": {
+      "title": "从其他工具导入技能",
+      "description": "我们检测到其他AI编程助手中的技能。是否要导入？",
+      "dontShowAgain": "不再显示此提示",
+      "skip": "跳过",
+      "importSelected": "导入所选"
     }
   }
 }

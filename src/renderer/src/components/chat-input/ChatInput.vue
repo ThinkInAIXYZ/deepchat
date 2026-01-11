@@ -208,6 +208,7 @@
             </Tooltip>
 
             <McpToolsList />
+            <SkillsIndicator :conversation-id="conversationId" />
           </div>
 
           <!-- Actions -->
@@ -449,6 +450,7 @@ import ChatConfig from '../ChatConfig.vue'
 import ModelChooser from '../ModelChooser.vue'
 import ModelIcon from '../icons/ModelIcon.vue'
 import McpToolsList from '../McpToolsList.vue'
+import SkillsIndicator from './SkillsIndicator.vue'
 
 // === Composables ===
 import { usePresenter } from '@/composables/usePresenter'
@@ -457,6 +459,8 @@ import { useRateLimitStatus } from './composables/useRateLimitStatus'
 import { useDragAndDrop } from './composables/useDragAndDrop'
 import { usePromptInputFiles } from './composables/usePromptInputFiles'
 import { useMentionData } from './composables/useMentionData'
+import { useSlashMentionData } from './composables/useSlashMentionData'
+import { useSkillsData } from './composables/useSkillsData'
 import { usePromptInputConfig } from './composables/usePromptInputConfig'
 import { usePromptInputEditor } from './composables/usePromptInputEditor'
 import { useInputSettings } from './composables/useInputSettings'
@@ -475,10 +479,12 @@ import { useThemeStore } from '@/stores/theme'
 
 // === Mention System ===
 import { Mention } from '../editor/mention/mention'
+import { SlashMention } from '../editor/mention/slashMention'
 import suggestion, {
   setPromptFilesHandler,
   setWorkspaceMention
 } from '../editor/mention/suggestion'
+import slashSuggestion, { setSkillActivationHandler } from '../editor/mention/slashSuggestion'
 import { mentionData, type CategorizedData } from '../editor/mention/suggestion'
 import { useEventListener } from '@vueuse/core'
 
@@ -597,6 +603,14 @@ const editor = new Editor({
           'mention px-1.5 py-0.5 text-xs rounded-md bg-secondary text-foreground inline-block max-w-64 align-sub truncate!'
       },
       suggestion,
+      deleteTriggerWithBackspace: true
+    }),
+    SlashMention.configure({
+      HTMLAttributes: {
+        class:
+          'slash-mention px-1.5 py-0.5 text-xs rounded-md bg-primary/10 text-primary inline-block max-w-64 align-sub truncate!'
+      },
+      suggestion: slashSuggestion,
       deleteTriggerWithBackspace: true
     }),
     Placeholder.configure({
@@ -757,6 +771,13 @@ const workspaceMention = useWorkspaceMention({
   conversationId
 })
 setWorkspaceMention(workspaceMention)
+
+// Setup slash mention data (skills, prompts, tools)
+useSlashMentionData(conversationId)
+
+// Setup skill activation handler for slash mentions
+const { activateSkill, pendingSkills, consumePendingSkills } = useSkillsData(conversationId)
+setSkillActivationHandler(activateSkill)
 
 // Extract isStreaming first so we can pass it to useAcpMode
 const { disabledSend, isStreaming } = sendButtonState
@@ -1047,7 +1068,9 @@ defineExpose({
     if (mode !== 'agent') return null
     return workspace.workspacePath.value
   },
-  getChatMode: () => chatMode.currentMode.value
+  getChatMode: () => chatMode.currentMode.value,
+  getPendingSkills: () => [...pendingSkills.value],
+  consumePendingSkills
 })
 </script>
 

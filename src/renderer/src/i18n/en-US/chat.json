@@ -98,6 +98,17 @@
     "agent": "Agent",
     "acpAgent": "ACP Agent"
   },
+  "skills": {
+    "indicator": {
+      "active": "{count} skills active",
+      "none": "No skills active"
+    },
+    "panel": {
+      "title": "Skills",
+      "manage": "Manage",
+      "empty": "No skills installed"
+    }
+  },
   "workspace": {
     "title": "Workspace",
     "collapse": "Collapse",

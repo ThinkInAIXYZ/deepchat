@@ -126,6 +126,7 @@ import { useChatMode, type ChatMode } from '@/components/chat-input/composables/
 import { calculateSafeDefaultMaxTokens, GLOBAL_OUTPUT_TOKEN_MAX } from '@/utils/maxOutputTokens'
 
 const configPresenter = usePresenter('configPresenter')
+const skillPresenter = usePresenter('skillPresenter')
 const themeStore = useThemeStore()
 const chatMode = useChatMode()
 // 定义偏好模型的类型
@@ -532,6 +533,10 @@ const handleSend = async (content: UserMessageContent) => {
   const pathFromStore = chatStore.chatConfig.agentWorkspacePath
   const chatMode = chatInput?.getChatMode?.()
   const agentWorkspacePath = pathFromInput ?? pathFromStore ?? undefined
+
+  // Get pending skills before creating thread (will be cleared after consumption)
+  const pendingSkills = chatInput?.getPendingSkills?.() ?? []
+
   const threadId = await chatStore.createThread(content.text, {
     providerId: activeModel.value.providerId,
     modelId: activeModel.value.id,
@@ -555,6 +560,18 @@ const handleSend = async (content: UserMessageContent) => {
         : undefined
   } as any)
   console.log('threadId', threadId, activeModel.value)
+
+  // Apply pending skills to the newly created thread
+  if (threadId && pendingSkills.length > 0) {
+    try {
+      await skillPresenter.setActiveSkills(threadId, pendingSkills)
+      // Consume the pending skills from ChatInput
+      chatInput?.consumePendingSkills?.()
+    } catch (error) {
+      console.error('[NewThread] Failed to apply pending skills:', error)
+    }
+  }
+
   if (chatMode === 'agent' || chatMode === 'acp agent') {
     await workspaceStore.refreshFileTree()
   }

@@ -98,6 +98,17 @@
     "agent": "Agent",
     "acpAgent": "ACP Agent"
   },
+  "skills": {
+    "indicator": {
+      "active": "{count} 个技能已激活",
+      "none": "无激活技能"
+    },
+    "panel": {
+      "title": "技能",
+      "manage": "管理",
+      "empty": "暂无安装技能"
+    }
+  },
   "workspace": {
     "title": "工作区",
     "collapse": "收起",
