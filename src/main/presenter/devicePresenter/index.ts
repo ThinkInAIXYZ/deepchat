@@ -477,6 +477,25 @@ export class DevicePresenter implements IDevicePresenter {
   }
 
   /**
+   * 选择文件
+   * @param options 文件选择选项
+   * @returns 返回所选文件的路径，如果用户取消则返回空数组
+   */
+  async selectFiles(options?: {
+    filters?: { name: string; extensions: string[] }[]
+    multiple?: boolean
+  }): Promise<{ canceled: boolean; filePaths: string[] }> {
+    const properties: ('openFile' | 'multiSelections')[] = ['openFile']
+    if (options?.multiple) {
+      properties.push('multiSelections')
+    }
+    return dialog.showOpenDialog({
+      properties,
+      filters: options?.filters
+    })
+  }
+
+  /**
    * 重启应用程序
    */
   restartApp(): Promise<void> {

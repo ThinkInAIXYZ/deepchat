@@ -18,6 +18,8 @@
   "cancel": "Cancel",
   "confirm": "Confirm",
   "close": "Close",
+  "next": "Next",
+  "back": "Back",
   "error": {
     "requestFailed": "Request failed...",
     "createChatFailed": "Failed to create chat",

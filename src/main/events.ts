@@ -260,3 +260,25 @@ export const ACP_WORKSPACE_EVENTS = {
 export const ACP_DEBUG_EVENTS = {
   EVENT: 'acp-debug:event'
 }
+
+// Skills system events
+export const SKILL_EVENTS = {
+  DISCOVERED: 'skill:discovered', // Skills discovery completed
+  METADATA_UPDATED: 'skill:metadata-updated', // Metadata hot-reload updated
+  INSTALLED: 'skill:installed', // Skill installation completed
+  UNINSTALLED: 'skill:uninstalled', // Skill uninstallation completed
+  ACTIVATED: 'skill:activated', // Skill activated in session
+  DEACTIVATED: 'skill:deactivated' // Skill deactivated in session
+}
+
+// Skill sync events (cross-tool synchronization)
+export const SKILL_SYNC_EVENTS = {
+  SCAN_STARTED: 'skill-sync:scan-started', // Scan operation started
+  SCAN_COMPLETED: 'skill-sync:scan-completed', // Scan operation completed
+  IMPORT_STARTED: 'skill-sync:import-started', // Import operation started
+  IMPORT_PROGRESS: 'skill-sync:import-progress', // Import progress update
+  IMPORT_COMPLETED: 'skill-sync:import-completed', // Import operation completed
+  EXPORT_STARTED: 'skill-sync:export-started', // Export operation started
+  EXPORT_PROGRESS: 'skill-sync:export-progress', // Export progress update
+  EXPORT_COMPLETED: 'skill-sync:export-completed' // Export operation completed
+}

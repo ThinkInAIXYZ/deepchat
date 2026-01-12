@@ -21,6 +21,7 @@ import { useMcpStore } from '@/stores/mcp'
 // === Utils ===
 import { sanitizeText } from '@/lib/sanitizeText'
 import { mentionSelected, getPromptFilesHandler } from '../../editor/mention/suggestion'
+import { slashMentionSelected } from '../../editor/mention/slashSuggestion'
 
 /**
  * Composable for managing TipTap editor operations
@@ -67,8 +68,15 @@ export function usePromptInputEditor(
                   content: '\n'
                 })
               }
-            } else if (subBlock.type === 'mention') {
+            } else if (subBlock.type === 'mention' || subBlock.type === 'slashMention') {
+              // Handle both @ mentions and / slash mentions
               let content = subBlock.attrs?.label ?? ''
+
+              // Skip skills from slash mentions - they are handled separately via skill activation
+              if (subBlock.type === 'slashMention' && subBlock.attrs?.category === 'skills') {
+                // Skills are just activated, not included in message content
+                continue
+              }
 
               try {
                 if (subBlock.attrs?.category === 'resources' && subBlock.attrs?.content) {
@@ -245,11 +253,15 @@ export function usePromptInputEditor(
     disabledSend: boolean,
     emitSend: () => void
   ): void => {
-    if (mentionSelected.value) {
+    // Check if either @ mention or / slash mention was just selected
+    if (mentionSelected.value || slashMentionSelected.value) {
       return
     }
 
-    const hasMentionSuggestion = editor.isActive('mention') || document.querySelector('.tippy-box')
+    const hasMentionSuggestion =
+      editor.isActive('mention') ||
+      editor.isActive('slashMention') ||
+      document.querySelector('.tippy-box')
     if (hasMentionSuggestion) {
       return
     }

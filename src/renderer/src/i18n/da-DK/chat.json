@@ -147,5 +147,16 @@
       }
     },
     "title": "arbejdsrum"
+  },
+  "skills": {
+    "indicator": {
+      "active": "{count} færdigheder er aktiveret",
+      "none": "Ingen aktiverede færdigheder"
+    },
+    "panel": {
+      "empty": "Ingen installeret færdigheder",
+      "manage": "ledelse",
+      "title": "færdigheder"
+    }
   }
 }

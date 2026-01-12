@@ -76,6 +76,8 @@ interface IAppSettings {
   updateChannel?: string // Update channel: 'stable' | 'beta'
   fontFamily?: string // Custom UI font
   codeFontFamily?: string // Custom code font
+  skillsPath?: string // Skills directory path
+  enableSkills?: boolean // Skills system global toggle
   [key: string]: unknown // Allow arbitrary keys, using unknown type instead of any
 }
 
@@ -141,6 +143,8 @@ export class ConfigPresenter implements IConfigPresenter {
         codeFontFamily: '',
         default_system_prompt: '',
         webContentLengthLimit: 3000,
+        skillsPath: path.join(app.getPath('home'), '.deepchat', 'skills'),
+        enableSkills: true,
         updateChannel: 'stable', // Default to stable version
         appVersion: this.currentAppVersion
       }
@@ -826,6 +830,32 @@ export class ConfigPresenter implements IConfigPresenter {
   // Set last sync time
   setLastSyncTime(time: number): void {
     this.setSetting('lastSyncTime', time)
+  }
+
+  // Skills settings
+  getSkillsEnabled(): boolean {
+    return this.getSetting<boolean>('enableSkills') ?? true
+  }
+
+  setSkillsEnabled(enabled: boolean): void {
+    this.setSetting('enableSkills', enabled)
+  }
+
+  getSkillsPath(): string {
+    return (
+      this.getSetting<string>('skillsPath') || path.join(app.getPath('home'), '.deepchat', 'skills')
+    )
+  }
+
+  setSkillsPath(skillsPath: string): void {
+    this.setSetting('skillsPath', skillsPath)
+  }
+
+  getSkillSettings(): { skillsPath: string; enableSkills: boolean } {
+    return {
+      skillsPath: this.getSkillsPath(),
+      enableSkills: this.getSkillsEnabled()
+    }
   }
 
   // Get custom search engines

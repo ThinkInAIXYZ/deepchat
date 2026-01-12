@@ -71,6 +71,7 @@ export class ToolPresenter implements IToolPresenter {
         this.agentToolManager = new AgentToolManager({
           yoBrowserPresenter: this.options.yoBrowserPresenter,
           agentWorkspacePath,
+          configPresenter: this.options.configPresenter,
           commandPermissionHandler: this.options.commandPermissionHandler
         })
       }

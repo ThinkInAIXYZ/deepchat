@@ -147,5 +147,16 @@
       }
     },
     "title": "工作區"
+  },
+  "skills": {
+    "indicator": {
+      "active": "{count} 個技能已激活",
+      "none": "無激活技能"
+    },
+    "panel": {
+      "empty": "暫無安裝技能",
+      "manage": "管理",
+      "title": "技能"
+    }
   }
 }

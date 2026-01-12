@@ -4,348 +4,185 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-DeepChat is a feature-rich open-source AI chat platform built with Electron + Vue 3 + TypeScript. It supports multiple cloud and local LLM providers, advanced MCP (Model Context Protocol) tool calling, and multi-window/multi-tab architecture.
+DeepChat is an open-source AI agent platform built with Electron + Vue 3 + TypeScript. It supports multiple cloud and local LLM providers, MCP (Model Context Protocol) tool calling, ACP (Agent Client Protocol) agent integration, and multi-window/multi-tab architecture.
 
 ## Development Commands
 
-### Package Management
-
-Use `pnpm` as the package manager (required Node.js >= 20.19.0, pnpm >= 10.11.0):
+### Setup
 
 ```bash
-# Install dependencies
-pnpm install
-
-# Install runtime dependencies for MCP and Python execution
-pnpm run installRuntime
-
-# Note: If you encounter "No module named 'distutils'" error on Windows:
-pip install setuptools
+pnpm install              # Install dependencies (Node.js >= 20.19.0, pnpm >= 10.11.0)
+pnpm run installRuntime   # Install runtime binaries (uv, node, ripgrep)
 ```
 
 ### Development
 
 ```bash
-# Start development server
-pnpm run dev
-
-# Start development with inspector for debugging
-pnpm run dev:inspect
-
-# Linux development (disable sandbox)
-pnpm run dev:linux
+pnpm run dev              # Start development server with HMR
+pnpm run dev:inspect      # Start with debug inspector (port 9229)
+pnpm run dev:linux        # Start on Linux (no sandbox)
 ```
 
 ### Code Quality
 
 ```bash
-# Lint with OxLint
-pnpm run lint
+pnpm run lint             # Lint with OxLint
+pnpm run format           # Format with Prettier
+pnpm run typecheck        # Type check all code
+pnpm run typecheck:node   # Type check main process only
+pnpm run typecheck:web    # Type check renderer process only
+```
 
-# Format code with Prettier
-pnpm run format
-
-# Type checking
-pnpm run typecheck
-# or separately:
-pnpm run typecheck:node  # Main process
-pnpm run typecheck:web   # Renderer process
+**After completing a feature, always run:**
+```bash
+pnpm run format && pnpm run lint
 ```
 
 ### Testing
 
 ```bash
-# Run all tests
-pnpm run test
-
-# Run tests with coverage
-pnpm run test:coverage
-
-# Run tests in watch mode
-pnpm run test:watch
-
-# Run tests with UI
-pnpm run test:ui
-
-# Run specific test suites
-pnpm run test:main      # Main process tests
-pnpm run test:renderer  # Renderer process tests
+pnpm test                      # Run all tests
+pnpm test path/to/file.test.ts # Run a single test file
+pnpm test:main                 # Main process tests only
+pnpm test:renderer             # Renderer process tests only
+pnpm test:coverage             # Generate coverage report
+pnpm test:watch                # Watch mode
 ```
 
 ### Building
 
 ```bash
-# Build for development preview
-pnpm run build
-
-# Build for production (platform-specific)
-pnpm run build:win      # Windows
-pnpm run build:mac      # macOS
-pnpm run build:linux    # Linux
-
-# Build for specific architectures
-pnpm run build:win:x64
-pnpm run build:win:arm64
-pnpm run build:mac:x64
-pnpm run build:mac:arm64
-pnpm run build:linux:x64
-pnpm run build:linux:arm64
+pnpm run build            # Build for production (includes typecheck)
+pnpm run build:win        # Windows
+pnpm run build:mac        # macOS
+pnpm run build:linux      # Linux
+# Architecture-specific: build:win:x64, build:win:arm64, build:mac:x64, build:mac:arm64, etc.
 ```
 
 ### Internationalization
 
 ```bash
-# Check i18n completeness (Chinese as source)
-pnpm run i18n
-
-# Check i18n completeness (English as source)
-pnpm run i18n:en
+pnpm run i18n             # Check i18n completeness (source: zh-CN)
+pnpm run i18n:en          # Check i18n completeness (source: en-US)
+pnpm run i18n:types       # Generate TypeScript types for i18n keys
 ```
 
 ## Architecture Overview
 
-### Multi-Process Architecture
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    Electron Main (TS)                       │
+│  Presenters: window/tab/thread/config/llm/mcp/knowledge/    │
+│  sync/oauth/deeplink/floating button                        │
+│  Storage: SQLite chat.db, ElectronStore settings, backups   │
+└───────────────┬─────────────────────────────────────────────┘
+                │ IPC (contextBridge + EventBus)
+┌───────────────▼─────────────────────────────────────────────┐
+│                    Preload (strict API)                     │
+└───────────────┬─────────────────────────────────────────────┘
+                │ Typed presenters via `usePresenter`
+┌───────────────▼─────────────────────────────────────────────┐
+│      Renderer (Vue 3 + Pinia + Tailwind + shadcn/ui)        │
+│  Shell UI, chat flow, ACP workspace, MCP console, settings  │
+└─────────────────────────────────────────────────────────────┘
+```
 
-- **Main Process**: Core business logic, system integration, window management
-- **Renderer Process**: UI components, user interactions, frontend state management
-- **Preload Scripts**: Secure IPC bridge between main and renderer processes
+### Core Patterns
 
-### Key Architectural Patterns
+**Presenter Pattern**: All system capabilities are in main-process presenters (`src/main/presenter/`). The renderer calls them via the typed `usePresenter` hook through the preload bridge.
 
-#### Presenter Pattern
+**Multi-Window Multi-Tab**: WindowPresenter and TabPresenter manage Electron windows/BrowserViews with detach/move support. EventBus fans out cross-process events.
 
-Each functional domain has a dedicated Presenter class in `src/main/presenter/`:
+**Data Boundaries**: Chat data in SQLite (`app_db/chat.db`), settings in Electron Store, knowledge bases in DuckDB. Renderer never touches filesystem directly.
 
-- **WindowPresenter**: BrowserWindow lifecycle management
-- **TabPresenter**: WebContentsView management with cross-window tab dragging
+### Key Presenters
+
+- **LLMProviderPresenter**: Streaming, rate limits, provider instances (cloud/local/ACP), model discovery, agent loop
+- **McpPresenter**: MCP server lifecycle, tool/prompt/resource management, supports StreamableHTTP/SSE/Stdio
 - **ThreadPresenter**: Conversation session management and LLM coordination
-- **McpPresenter**: MCP server connections and tool execution
 - **ConfigPresenter**: Unified configuration management
-- **LLMProviderPresenter**: LLM provider abstraction with Agent Loop architecture
+- **WindowPresenter/TabPresenter**: Window and tab lifecycle
 
-#### Multi-Window Multi-Tab Architecture
+### LLM Provider Architecture (Two Layers)
 
-- **Window Shell** (`src/renderer/shell/`): Lightweight tab bar UI management
-- **Tab Content** (`src/renderer/src/`): Complete application functionality
-- **Independent Vue Instances**: Separation of concerns for better performance
-
-#### Event-Driven Communication
-
-- **EventBus** (`src/main/eventbus.ts`): Decoupled inter-process communication
-- **Standard Event Patterns**: Consistent naming and responsibility separation
-- **IPC Integration**: EventBus bridges main process events to renderer via IPC
-
-### LLM Provider Architecture
-
-The LLM system follows a two-layer architecture:
-
-1. **Agent Loop Layer** (`llmProviderPresenter/index.ts`):
-   - Manages conversation flow with multi-turn tool calling
-   - Handles tool execution via McpPresenter
-   - Standardizes events sent to frontend
-
-2. **Provider Layer** (`llmProviderPresenter/providers/*.ts`):
-   - Each provider handles specific LLM API interactions
-   - Converts MCP tools to provider-specific formats
-   - Normalizes streaming responses to standard events
-   - Supports both native and prompt-wrapped tool calling
-
-### MCP Integration
-
-- **Server Management**: Lifecycle management of MCP servers
-- **Tool Execution**: Seamless integration with LLM providers
-- **Format Conversion**: Bridges MCP tools with various LLM provider formats
-- **Built-in Services**: In-memory servers for code execution, web access, file operations
-- **Data Source Decoupling**: Custom prompts work independently of MCP through config data source
+1. **Agent Loop Layer** (`llmProviderPresenter/index.ts`): Multi-turn tool calling, tool execution via McpPresenter, standardized frontend events
+2. **Provider Layer** (`llmProviderPresenter/providers/*.ts`): Provider-specific API interactions, MCP tool conversion, streaming normalization
 
 ## Code Structure
 
-### Main Process (`src/main/`)
-
-- `presenter/`: Core business logic organized by functional domain
-- `eventbus.ts`: Central event coordination system
-- `index.ts`: Application entry point and lifecycle management
-
-### Renderer Process (`src/renderer/`)
-
-- `src/`: Main application UI (Vue 3 + Composition API)
-- `shell/`: Tab management UI shell
-- `floating/`: Floating button interface
-
-### Shared Code (`src/shared/`)
-
-- Type definitions shared between main and renderer processes
-- Common utilities and constants
-- IPC contract definitions
+```
+src/main/           # Main process
+  presenter/        # Core business logic by domain
+  eventbus.ts       # Central event coordination
+src/preload/        # Context-isolated IPC bridge
+src/renderer/
+  src/              # Main app UI (Vue 3 + Composition API)
+  shell/            # Tab management shell UI
+  floating/         # Floating button interface
+src/shared/         # Shared types/utilities and presenter contracts
+test/               # Vitest suites (main/, renderer/)
+docs/               # Design docs and guides
+```
 
 ## Development Guidelines
 
 ### Code Standards
 
-- **Language**: Use English for logs and comments (Chinese text exists in legacy code)
-- **TypeScript**: Strict type checking enabled
-- **Vue 3**: Use Composition API for all components
-- **State Management**: Pinia for frontend state
-- **Styling**: Tailwind CSS with scoped styles
-- **Internationalization**: All user-facing strings must use i18n keys via vue-i18n
-
-### Specification-Driven Development
-
-Use SDD methodology for all feature implementations. See [docs/spec-driven-dev.md](docs/spec-driven-dev.md) for details.
-
-Prefer lightweight spec artifacts under `docs/specs/<feature>/` (spec/plan/tasks) and resolve `[NEEDS CLARIFICATION]` markers before coding.
-
-Key principles: specification-first, test-when-useful, Presenter architecture, UI consistency, anti-over-engineering, compatibility/migration awareness.
+- **Language**: English for all logs and comments
+- **TypeScript**: Strict type checking
+- **Vue 3**: Composition API with `<script setup>` syntax
+- **State Management**: Pinia stores
+- **Styling**: Tailwind CSS (v4) with shadcn/ui (reka-ui)
+- **i18n**: All user-facing strings must use i18n keys (supports 12 languages)
 
 ### IPC Communication
 
-- **Renderer to Main**: Use `usePresenter.ts` composable for direct presenter method calls
-- **Main to Renderer**: Use EventBus to broadcast events via `mainWindow.webContents.send()`
-- **Security**: Context isolation enabled with preload scripts
+```typescript
+// Renderer → Main: Use usePresenter composable
+const presenter = usePresenter()
+await presenter.configPresenter.getSetting('key')
 
-### Testing
+// Main → Renderer: Use EventBus
+eventBus.sendToRenderer(CONFIG_EVENTS.SETTING_CHANGED, SendTarget.ALL_WINDOWS, payload)
+```
 
-- **Framework**: Vitest for unit and integration tests
-- **Test Files**: Place in `test/` directory with corresponding structure
-- **Coverage**: Run tests with coverage reporting
+### Git Hooks
 
-### File Organization
+Pre-commit automatically runs:
+- `lint-staged` - Format and lint staged files
+- `typecheck` - TypeScript type checking
+- Commit message validation
 
-- **Presenters**: One presenter per functional domain
-- **Components**: Organize by feature in `src/renderer/src/`
-- **Types**: Shared types in `src/shared/`
-- **Configuration**: Centralized in `configPresenter/`
+### Specification-Driven Development
 
-## Common Development Tasks
+For features, use lightweight spec artifacts under `docs/specs/<feature>/` (spec.md, plan.md, tasks.md). Resolve `[NEEDS CLARIFICATION]` markers before coding. See [docs/spec-driven-dev.md](docs/spec-driven-dev.md).
+
+## Common Tasks
 
 ### Adding New LLM Provider
 
-1. Create provider file in `src/main/presenter/llmProviderPresenter/providers/`
+1. Create provider in `src/main/presenter/llmProviderPresenter/providers/`
 2. Implement `coreStream` method following standardized event interface
-3. Add provider configuration in `configPresenter/providers.ts`
-4. Update UI in renderer provider settings
+3. Add provider config in `configPresenter/providers.ts`
+4. Update renderer provider settings UI
 
 ### Adding New MCP Tool
 
-1. Implement tool in `src/main/presenter/mcpPresenter/inMemoryServers/`
+1. Implement in `src/main/presenter/mcpPresenter/inMemoryServers/`
 2. Register in `mcpPresenter/index.ts`
-3. Add tool configuration UI if needed
 
-### Managing Custom Prompts
+### UI Changes
 
-Custom prompts are managed independently of MCP through the config data source:
+When making UI/layout changes, create ASCII diagrams showing BEFORE/AFTER layouts and seek approval before implementation.
 
-1. **Config Storage**: Prompts stored via `configPresenter.getCustomPrompts()`
-2. **UI Management**: Use `promptsStore` for CRUD operations in settings
-3. **@ Operations**: Mention system loads from both config and MCP sources
-4. **MCP Independence**: @ prompt functionality works even when MCP is disabled
+## Platform Notes
 
-### Creating New UI Components
-
-1. Follow existing component patterns in `src/renderer/src/`
-2. Use Composition API with proper TypeScript typing
-3. Implement responsive design with Tailwind CSS
-4. Add proper error handling and loading states
-
-### UI Changes and Layout Documentation
-
-When making UI/layout changes that affect the visual structure or user interface:
-
-1. **Before Implementation**: Create ASCII diagrams to show the current layout
-2. **After Implementation**: Create ASCII diagrams to show the proposed/new layout
-3. **Visual Comparison**: Use BEFORE/AFTER format to clearly demonstrate changes
-4. **Seek Approval**: Present ASCII mockups to user before implementing changes
-
-Example format:
-```
-BEFORE:
-┌─────────────────────────────────────────────┐
-│ [Icon] Component Name    [Button] [Hidden]  │
-└─────────────────────────────────────────────┘
-
-AFTER:
-┌─────────────────────────────────────────────┐
-│ [Icon] Component Name    [Button] [Visible] │
-└─────────────────────────────────────────────┘
-```
-
-This ensures UI changes are clearly communicated and approved before implementation.
-
-### Debugging
-
-- **Main Process**: Use VSCode debugger with breakpoints
-- **Renderer Process**: Chrome DevTools (F12)
-- **MCP Tools**: Built-in MCP debugging window
-- **Event Flow**: EventBus logging for event tracing
-
-## Key Dependencies
-
-### Core Framework
-
-- **Electron**: Desktop application framework
-- **Vue 3**: Progressive web framework
-- **TypeScript**: Type-safe JavaScript
-- **Vite**: Fast build tool via electron-vite
-
-### State & Routing
-
-- **Pinia**: Vue state management
-- **Vue Router**: SPA routing
-
-### UI & Styling
-
-- **Tailwind CSS**: Utility-first CSS
-- **Radix Vue**: Accessible UI components
-- **Monaco Editor**: Code editor integration
-
-### LLM Integration
-
-- **Multiple SDK**: OpenAI, Anthropic, Google AI, etc.
-- **Ollama**: Local model support
-- **MCP SDK**: Model Context Protocol support
-
-### Development Tools
-
-- **OxLint**: Fast linting
-- **Prettier**: Code formatting
-- **Vitest**: Testing framework
-- **Vue DevTools**: Vue debugging support
-
-## Security Considerations
-
-- Context isolation enabled for secure IPC
-- Preload scripts provide controlled API exposure
-- Configuration encryption interfaces available
-- Network proxy support for privacy
-- Screen capture hiding capabilities
-
-## Performance Optimization
-
-- Lazy loading for application startup
-- Efficient event handling via EventBus
-- Optimized build with tree-shaking
-- Monaco Editor worker separation
-- Streaming responses for real-time chat
-
-## Platform-Specific Notes
-
-### Windows
-
-- Enable Developer Mode or use admin account for symlink creation
-- Install Visual Studio Build Tools for native dependencies
-
-### macOS
-
-- Code signing configuration in `scripts/notarize.js`
-- Platform-specific build configurations
-
-### Linux
-
-- AppImage and deb package support
-- Sandbox considerations for development
+- **Windows**: Enable Developer Mode for symlink support; install Visual Studio Build Tools
+- **macOS**: Code signing in `scripts/notarize.js`
+- **Linux**: Use `pnpm run dev:linux` (no sandbox)
 
 ## Git Commit Guidelines
 
-- Do not include AI co-authoring information (e.g., "Co-Authored-By: Claude") in commits
-- Follow conventional commit format where applicable
-- Keep commit messages concise and descriptive
+- Do not include AI co-authoring information (e.g., "Co-Authored-By: Claude")
+- Follow conventional commit format
+- PRs should target the `dev` branch

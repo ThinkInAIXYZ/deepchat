@@ -22,6 +22,7 @@ export type SessionConfig = {
   agentWorkspacePath?: string | null
   acpWorkdirMap?: Record<string, string | null>
   selectedVariantsMap?: Record<string, string>
+  activeSkills?: string[]
   isPinned?: boolean
 }
 

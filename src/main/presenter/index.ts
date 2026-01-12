@@ -26,7 +26,9 @@ import {
   IWindowPresenter,
   IWorkspacePresenter,
   IToolPresenter,
-  IYoBrowserPresenter
+  IYoBrowserPresenter,
+  ISkillPresenter,
+  ISkillSyncPresenter
 } from '@shared/presenter'
 import { eventBus } from '@/eventbus'
 import { LLMProviderPresenter } from './llmProviderPresenter'
@@ -48,11 +50,13 @@ import { CONFIG_EVENTS, WINDOW_EVENTS } from '@/events'
 import { KnowledgePresenter } from './knowledgePresenter'
 import { WorkspacePresenter } from './workspacePresenter'
 import { ToolPresenter } from './toolPresenter'
-import { CommandPermissionService } from './permission'
+import { CommandPermissionService, FilePermissionService } from './permission'
 import { AgentPresenter } from './agentPresenter'
 import { SessionManager } from './agentPresenter/session/sessionManager'
 import { SearchPresenter } from './searchPresenter'
 import { ConversationExporterService } from './exporter'
+import { SkillPresenter } from './skillPresenter'
+import { SkillSyncPresenter } from './skillSyncPresenter'
 
 // IPC调用上下文接口
 interface IPCCallContext {
@@ -99,6 +103,9 @@ export class Presenter implements IPresenter {
   yoBrowserPresenter: IYoBrowserPresenter
   dialogPresenter: IDialogPresenter
   lifecycleManager: ILifecycleManager
+  skillPresenter: ISkillPresenter
+  skillSyncPresenter: ISkillSyncPresenter
+  filePermissionService: FilePermissionService
 
   private constructor(lifecycleManager: ILifecycleManager) {
     // Store lifecycle manager reference for component access
@@ -113,6 +120,7 @@ export class Presenter implements IPresenter {
     this.tabPresenter = new TabPresenter(this.windowPresenter)
     this.llmproviderPresenter = new LLMProviderPresenter(this.configPresenter, this.sqlitePresenter)
     const commandPermissionHandler = new CommandPermissionService()
+    this.filePermissionService = new FilePermissionService()
     const messageManager = new MessageManager(this.sqlitePresenter)
     this.devicePresenter = new DevicePresenter()
     this.searchPresenter = new SearchPresenter({
@@ -178,6 +186,12 @@ export class Presenter implements IPresenter {
       commandPermissionHandler
     })
 
+    // Initialize Skill presenter
+    this.skillPresenter = new SkillPresenter(this.configPresenter)
+
+    // Initialize Skill Sync presenter
+    this.skillSyncPresenter = new SkillSyncPresenter(this.skillPresenter)
+
     this.setupEventBus() // 设置事件总线监听
   }
 
@@ -238,6 +252,9 @@ export class Presenter implements IPresenter {
 
     // 初始化 Yo Browser
     this.initializeYoBrowser()
+
+    // 初始化 Skills 系统
+    this.initializeSkills()
   }
 
   // 初始化悬浮按钮
@@ -256,6 +273,20 @@ export class Presenter implements IPresenter {
       console.log('YoBrowserPresenter initialized')
     } catch (error) {
       console.error('Failed to initialize YoBrowserPresenter:', error)
+    }
+  }
+
+  private async initializeSkills() {
+    try {
+      const { enableSkills } = this.configPresenter.getSkillSettings()
+      if (!enableSkills) {
+        console.log('SkillPresenter disabled by config')
+        return
+      }
+      await (this.skillPresenter as SkillPresenter).initialize()
+      console.log('SkillPresenter initialized')
+    } catch (error) {
+      console.error('Failed to initialize SkillPresenter:', error)
     }
   }
 
@@ -288,6 +319,8 @@ export class Presenter implements IPresenter {
     this.syncPresenter.destroy() // 销毁同步相关资源
     this.notificationPresenter.clearAllNotifications() // 清除所有通知
     this.knowledgePresenter.destroy() // 释放所有数据库连接
+    ;(this.skillPresenter as SkillPresenter).destroy() // 销毁 Skills 相关资源
+    ;(this.skillSyncPresenter as SkillSyncPresenter).destroy() // 销毁 Skill Sync 相关资源
     // 注意: trayPresenter.destroy() 在 main/index.ts 的 will-quit 事件中处理
     // 此处不销毁 trayPresenter，其生命周期由 main/index.ts 管理
   }

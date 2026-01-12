@@ -19,3 +19,4 @@ runtime/**/*
 .env
 .env.local
 .npmrc
+.claude/settings.local.json

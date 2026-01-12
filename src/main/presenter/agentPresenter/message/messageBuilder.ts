@@ -16,7 +16,13 @@ import {
   formatMessagesForCompletion,
   mergeConsecutiveMessages
 } from './messageFormatter'
+import { BrowserContextBuilder } from '../../browser/BrowserContextBuilder'
 import { selectContextMessages } from './messageTruncator'
+import {
+  buildSkillsMetadataPrompt,
+  buildSkillsPrompt,
+  getSkillsAllowedTools
+} from './skillsPromptBuilder'
 
 export type PendingToolCall = {
   id: string
@@ -56,6 +62,27 @@ export interface PostToolExecutionContextParams {
   modelConfig: ModelConfig
 }
 
+function mergeToolSelections(base?: string[], extra?: string[]): string[] | undefined {
+  const merged = new Set<string>()
+  base?.forEach((tool) => merged.add(tool))
+  extra?.forEach((tool) => merged.add(tool))
+  if (merged.size === 0) {
+    return undefined
+  }
+  return Array.from(merged)
+}
+
+function appendPromptSection(base: string, section: string): string {
+  const trimmedSection = section.trim()
+  if (!trimmedSection) {
+    return base
+  }
+  if (!base) {
+    return trimmedSection
+  }
+  return `${base}\n\n${trimmedSection}`
+}
+
 export async function preparePromptContent({
   conversation,
   userContent,
@@ -91,12 +118,18 @@ export async function preparePromptContent({
   const { providerId, modelId } = conversation.settings
   const supportsVision = modelCapabilities.supportsVision(providerId, modelId)
   let toolDefinitions: MCPToolDefinition[] = []
+  let effectiveEnabledMcpTools = enabledMcpTools
+
+  if (!isImageGeneration && isAgentMode) {
+    const skillsAllowedTools = await getSkillsAllowedTools(conversation.id)
+    effectiveEnabledMcpTools = mergeToolSelections(enabledMcpTools, skillsAllowedTools)
+  }
 
   if (!isImageGeneration) {
     const toolCallCenter = new ToolCallCenter(presenter.toolPresenter)
     try {
       toolDefinitions = await toolCallCenter.getAllToolDefinitions({
-        enabledMcpTools,
+        enabledMcpTools: effectiveEnabledMcpTools,
         chatMode,
         supportsVision,
         agentWorkspacePath: conversation.settings.agentWorkspacePath?.trim() || null
@@ -107,8 +140,43 @@ export async function preparePromptContent({
     }
   }
 
+  let finalSystemPromptWithExtras = finalSystemPrompt
+
+  if (!isImageGeneration && isAgentMode) {
+    try {
+      const browserContext = await presenter.yoBrowserPresenter.getBrowserContext()
+      const browserContextPrompt = BrowserContextBuilder.buildSystemPrompt(
+        browserContext.tabs,
+        browserContext.activeTabId
+      )
+      finalSystemPromptWithExtras = appendPromptSection(
+        finalSystemPromptWithExtras,
+        browserContextPrompt
+      )
+    } catch (error) {
+      console.warn('AgentPresenter: Failed to load Yo Browser context/tools', error)
+    }
+  }
+
+  if (!isImageGeneration && isAgentMode) {
+    try {
+      const skillsMetadataPrompt = await buildSkillsMetadataPrompt()
+      finalSystemPromptWithExtras = appendPromptSection(
+        finalSystemPromptWithExtras,
+        skillsMetadataPrompt
+      )
+
+      const skillsPrompt = await buildSkillsPrompt(conversation.id)
+      finalSystemPromptWithExtras = appendPromptSection(finalSystemPromptWithExtras, skillsPrompt)
+    } catch (error) {
+      console.warn('AgentPresenter: Failed to build skills prompt', error)
+    }
+  }
+
   const systemPromptTokens =
-    !isImageGeneration && finalSystemPrompt ? approximateTokenSize(finalSystemPrompt) : 0
+    !isImageGeneration && finalSystemPromptWithExtras
+      ? approximateTokenSize(finalSystemPromptWithExtras)
+      : 0
   const userMessageTokens = approximateTokenSize(userContent)
   const toolDefinitionsTokens = toolDefinitions.reduce((acc, tool) => {
     return acc + approximateTokenSize(JSON.stringify(tool))
@@ -127,7 +195,7 @@ export async function preparePromptContent({
 
   const formattedMessages = formatMessagesForCompletion(
     selectedContextMessages,
-    isImageGeneration ? '' : finalSystemPrompt,
+    isImageGeneration ? '' : finalSystemPromptWithExtras,
     artifacts,
     userContent,
     '',

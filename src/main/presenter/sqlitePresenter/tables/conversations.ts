@@ -25,6 +25,7 @@ type ConversationRow = {
   forced_search: number | null
   search_strategy: string | null
   context_chain: string | null
+  active_skills: string | null
   parent_conversation_id: string | null
   parent_message_id: string | null
   parent_selection: string | null
@@ -139,12 +140,19 @@ export class ConversationsTable extends BaseTable {
         CREATE INDEX idx_conversations_parent_message ON conversations(parent_message_id);
       `
     }
+    if (version === 10) {
+      return `
+        -- 添加 active_skills 字段
+        ALTER TABLE conversations ADD COLUMN active_skills TEXT DEFAULT '[]';
+        UPDATE conversations SET active_skills = '[]' WHERE active_skills IS NULL;
+      `
+    }
 
     return null
   }
 
   getLatestVersion(): number {
-    return 9
+    return 10
   }
 
   async create(title: string, settings: Partial<CONVERSATION_SETTINGS> = {}): Promise<string> {
@@ -171,13 +179,14 @@ export class ConversationsTable extends BaseTable {
         forced_search,
         search_strategy,
         context_chain,
+        active_skills,
         agent_workspace_path,
         acp_workdir_map,
         parent_conversation_id,
         parent_message_id,
         parent_selection
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `)
     const conv_id = nanoid()
     const now = Date.now()
@@ -203,6 +212,7 @@ export class ConversationsTable extends BaseTable {
       settings.forcedSearch !== undefined ? (settings.forcedSearch ? 1 : 0) : null,
       settings.searchStrategy !== undefined ? settings.searchStrategy : null,
       settings.selectedVariantsMap ? JSON.stringify(settings.selectedVariantsMap) : '{}',
+      settings.activeSkills ? JSON.stringify(settings.activeSkills) : '[]',
       settings.agentWorkspacePath !== undefined && settings.agentWorkspacePath !== null
         ? settings.agentWorkspacePath
         : null,
@@ -240,6 +250,7 @@ export class ConversationsTable extends BaseTable {
         forced_search,
         search_strategy,
         context_chain,
+        active_skills,
         agent_workspace_path,
         acp_workdir_map,
         parent_conversation_id,
@@ -279,6 +290,7 @@ export class ConversationsTable extends BaseTable {
         ? (result.search_strategy as 'turbo' | 'max')
         : undefined,
       selectedVariantsMap: getJsonField(result.context_chain, undefined),
+      activeSkills: getJsonField(result.active_skills, []),
       agentWorkspacePath:
         result.agent_workspace_path !== null && result.agent_workspace_path !== undefined
           ? result.agent_workspace_path
@@ -379,6 +391,10 @@ export class ConversationsTable extends BaseTable {
         updates.push('context_chain = ?')
         params.push(JSON.stringify(data.settings.selectedVariantsMap))
       }
+      if (data.settings.activeSkills !== undefined) {
+        updates.push('active_skills = ?')
+        params.push(JSON.stringify(data.settings.activeSkills))
+      }
       if (data.settings.agentWorkspacePath !== undefined) {
         updates.push('agent_workspace_path = ?')
         params.push(
@@ -461,6 +477,7 @@ export class ConversationsTable extends BaseTable {
         forced_search,
         search_strategy,
         context_chain,
+        active_skills,
         agent_workspace_path,
         acp_workdir_map,
         parent_conversation_id,
@@ -505,6 +522,7 @@ export class ConversationsTable extends BaseTable {
             ? (row.search_strategy as 'turbo' | 'max')
             : undefined,
           selectedVariantsMap: getJsonField(row.context_chain, undefined),
+          activeSkills: getJsonField(row.active_skills, []),
           agentWorkspacePath:
             row.agent_workspace_path !== null && row.agent_workspace_path !== undefined
               ? row.agent_workspace_path
@@ -544,6 +562,7 @@ export class ConversationsTable extends BaseTable {
         forced_search,
         search_strategy,
         context_chain,
+        active_skills,
         agent_workspace_path,
         acp_workdir_map,
         parent_conversation_id,
@@ -584,6 +603,7 @@ export class ConversationsTable extends BaseTable {
         forcedSearch: row.forced_search !== null ? Boolean(row.forced_search) : undefined,
         searchStrategy: row.search_strategy ? (row.search_strategy as 'turbo' | 'max') : undefined,
         selectedVariantsMap: getJsonField(row.context_chain, undefined),
+        activeSkills: getJsonField(row.active_skills, []),
         agentWorkspacePath:
           row.agent_workspace_path !== null && row.agent_workspace_path !== undefined
             ? row.agent_workspace_path
@@ -627,6 +647,7 @@ export class ConversationsTable extends BaseTable {
         forced_search,
         search_strategy,
         context_chain,
+        active_skills,
         agent_workspace_path,
         acp_workdir_map,
         parent_conversation_id,
@@ -667,6 +688,7 @@ export class ConversationsTable extends BaseTable {
         forcedSearch: row.forced_search !== null ? Boolean(row.forced_search) : undefined,
         searchStrategy: row.search_strategy ? (row.search_strategy as 'turbo' | 'max') : undefined,
         selectedVariantsMap: getJsonField(row.context_chain, undefined),
+        activeSkills: getJsonField(row.active_skills, []),
         agentWorkspacePath:
           row.agent_workspace_path !== null && row.agent_workspace_path !== undefined
             ? row.agent_workspace_path

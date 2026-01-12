@@ -147,5 +147,16 @@
       }
     },
     "title": "작업 공간"
+  },
+  "skills": {
+    "indicator": {
+      "active": "{count}개 스킬 활성화됨",
+      "none": "활성화 스킬 없음"
+    },
+    "panel": {
+      "empty": "설치된 스킬이 없습니다.",
+      "manage": "관리",
+      "title": "기술"
+    }
   }
 }
