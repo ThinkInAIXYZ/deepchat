@@ -23,7 +23,6 @@
           <div @mouseenter="minimap.handleHover(item.id)" @mouseleave="minimap.handleHover(null)">
             <MessageItemAssistant
               v-if="item.message?.role === 'assistant'"
-              :ref="retry.setAssistantRef(index)"
               :message="item.message"
               :is-capturing-image="capture.isCapturing.value"
               @copy-image="handleCopyImage"
@@ -33,7 +32,7 @@
             <MessageItemUser
               v-else-if="item.message?.role === 'user'"
               :message="item.message"
-              @retry="handleRetry(index)"
+              @retry="handleRetry(item.message?.id)"
               @scroll-to-bottom="scrollToBottom"
             />
             <MessageItemPlaceholder
@@ -103,7 +102,6 @@ import { useMessageScroll } from '@/composables/message/useMessageScroll'
 import { useCleanDialog } from '@/composables/message/useCleanDialog'
 import { useMessageMinimap } from '@/composables/message/useMessageMinimap'
 import { useMessageCapture } from '@/composables/message/useMessageCapture'
-import { useMessageRetry } from '@/composables/message/useMessageRetry'
 import { DynamicScroller, DynamicScrollerItem } from 'vue-virtual-scroller'
 import { getAllMessageDomInfo, getMessageDomInfo } from '@/lib/messageRuntimeCache'
 
@@ -159,9 +157,6 @@ const minimap = useMessageMinimap(scroll.scrollInfo)
 const capture = useMessageCapture()
 
 // Message retry
-const loadedMessages = computed(() =>
-  props.items.map((item) => item.message).filter((message): message is Message => Boolean(message))
-)
 
 const minimapMessages = computed(() => {
   const mapped = props.items.map((item) => {
@@ -179,7 +174,6 @@ const minimapMessages = computed(() => {
   if (current.length > 0) return current
   return chatStore.variantAwareMessages
 })
-const retry = useMessageRetry(loadedMessages)
 
 // === Constants ===
 const HIGHLIGHT_CLASS = 'selection-highlight'
@@ -225,7 +219,7 @@ const getMessageSizeKey = (item: MessageListItem) => {
 const getVariantSizeKey = (item: MessageListItem) => {
   const message = item.message
   if (!message || message.role !== 'assistant') return ''
-  return chatStore.selectedVariantsMap.get(message.id) ?? ''
+  return chatStore.selectedVariantsMap[message.id] ?? ''
 }
 
 // === Event Handlers ===
@@ -247,8 +241,9 @@ const handleCopyImage = async (
   await capture.captureMessage({ messageId, parentId, fromTop, modelInfo })
 }
 
-const handleRetry = async (index: number) => {
-  if (await retry.retryFromUserMessage(index)) {
+const handleRetry = async (messageId?: string) => {
+  if (!messageId) return
+  if (await chatStore.retryFromUserMessage(messageId)) {
     scrollToBottom(true)
   }
 }
