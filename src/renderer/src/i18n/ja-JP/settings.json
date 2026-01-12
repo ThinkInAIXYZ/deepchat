@@ -1170,6 +1170,27 @@
       "step3Title": "インポートを確認",
       "title": "同期",
       "warnings": "変換警告"
+    },
+    "syncPrompt": {
+      "description": "他のAIプログラミングアシスタントのスキルが検出されました。インポートしますか？",
+      "dontShowAgain": "このメッセージを今後表示しない",
+      "importSelected": "選択のインポート",
+      "skip": "スキップ",
+      "title": "他のツールからスキルをインポート"
+    },
+    "syncStatus": {
+      "description": "他のAIプログラミングアシスタントからスキルをインポート",
+      "import": "インポート",
+      "noSkills": "スキルなし",
+      "noToolsFound": "外部ツールが検出されませんでした",
+      "notAvailable": "使用不可",
+      "notInstalled": "未インストール",
+      "scanning": "ツールをスキャン中...",
+      "showLess": "折りたたむ",
+      "showMore": "他の {count} 個のツールを表示",
+      "skillCount": "{count}個のスキル",
+      "syncing": "インポート中...",
+      "title": "外部ツール"
     }
   }
 }

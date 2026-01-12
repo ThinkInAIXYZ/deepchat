@@ -1170,6 +1170,27 @@
       "step3Title": "가져오기 확인",
       "title": "동기화",
       "warnings": "변환 경고"
+    },
+    "syncPrompt": {
+      "description": "다른 AI 프로그래밍 도우미에서 스킬을 감지했습니다. 가져오시겠습니까?",
+      "dontShowAgain": "이 알림을 더 이상 표시하지 않음",
+      "importSelected": "선택된 항목 가져오기",
+      "skip": "건너뛰기",
+      "title": "다른 도구에서 스킬 가져오기"
+    },
+    "syncStatus": {
+      "description": "다른 AI 프로그래밍 어시스턴트에서 스킬 가져오기",
+      "import": "가져오기",
+      "noSkills": "기술 없음",
+      "noToolsFound": "외부 도구가 감지되지 않았습니다.",
+      "notAvailable": "사용 불가",
+      "notInstalled": "미설치",
+      "scanning": "도구를 스캔 중...",
+      "showLess": "접기",
+      "showMore": "다른 {count}개 도구 표시",
+      "skillCount": "{count} 개 스킬",
+      "syncing": "가져오는 중...",
+      "title": "외부 도구"
     }
   }
 }

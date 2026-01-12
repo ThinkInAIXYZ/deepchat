@@ -147,5 +147,16 @@
       }
     },
     "title": "espace de travail"
+  },
+  "skills": {
+    "indicator": {
+      "active": "{count} compétences activées",
+      "none": "Aucune compétence activée"
+    },
+    "panel": {
+      "empty": "Aucune compétence installée",
+      "manage": "gestion",
+      "title": "compétences"
+    }
   }
 }

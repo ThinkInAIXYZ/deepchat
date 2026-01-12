@@ -1170,6 +1170,27 @@
       "step3Title": "Confirmer l'importation",
       "title": "synchronisation",
       "warnings": "Avertissement de conversion"
+    },
+    "syncPrompt": {
+      "description": "Nous avons détecté des compétences dans d'autres assistants de programmation IA. Voulez-vous les importer ?",
+      "dontShowAgain": "Ne plus afficher ce message",
+      "importSelected": "Importer la sélection",
+      "skip": "Passer",
+      "title": "Importer des compétences depuis d'autres outils"
+    },
+    "syncStatus": {
+      "description": "Importer des compétences depuis d'autres assistants de programmation IA",
+      "import": "Importer",
+      "noSkills": "Sans compétences",
+      "noToolsFound": "Aucun outil externe détecté",
+      "notAvailable": "Indisponible",
+      "notInstalled": "Non installé",
+      "scanning": "Analyse des outils en cours...",
+      "showLess": "Réduire",
+      "showMore": "Afficher {count} autres outils",
+      "skillCount": "{count} compétences",
+      "syncing": "Importation en cours...",
+      "title": "Outils externes"
     }
   }
 }

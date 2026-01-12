@@ -1170,6 +1170,27 @@
       "step3Title": "Bekræft import",
       "title": "synkronisering",
       "warnings": "Konverteringsadvarsel"
+    },
+    "syncPrompt": {
+      "description": "Vi har opdaget færdigheder i andre AI-programmeringsassistenter. Vil du importere?",
+      "dontShowAgain": "Vis ikke denne meddelelse igen",
+      "importSelected": "Importér valgte",
+      "skip": "Spring over",
+      "title": "Importér færdigheder fra andre værktøjer"
+    },
+    "syncStatus": {
+      "description": "Importer færdigheder fra andre AI-programmeringsassistenter",
+      "import": "Importér",
+      "noSkills": "Ingen færdigheder",
+      "noToolsFound": "Ingen eksterne værktøjer opdaget",
+      "notAvailable": "Ikke tilgængelig",
+      "notInstalled": "Ikke installeret",
+      "scanning": "Scanner værktøjer...",
+      "showLess": "Sammenklap",
+      "showMore": "Vis andre {count} værktøjer",
+      "skillCount": "{count} færdigheder",
+      "syncing": "Importerer...",
+      "title": "Eksterne værktøjer"
     }
   }
 }

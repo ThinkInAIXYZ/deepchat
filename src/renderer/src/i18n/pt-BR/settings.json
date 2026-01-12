@@ -1170,6 +1170,27 @@
       "skipped": "Ignoradas",
       "failed": "Falha",
       "failedItems": "Itens com falha"
+    },
+    "syncPrompt": {
+      "description": "Detectamos habilidades em outros assistentes de programação de IA. Deseja importá-las?",
+      "dontShowAgain": "Não exibir esta mensagem novamente",
+      "importSelected": "Importar selecionados",
+      "skip": "Pular",
+      "title": "Importar habilidades de outras ferramentas"
+    },
+    "syncStatus": {
+      "description": "Importar habilidades de outros assistentes de programação de IA",
+      "import": "Importar",
+      "noSkills": "Sem habilidades",
+      "noToolsFound": "Nenhuma ferramenta externa detectada",
+      "notAvailable": "indisponível",
+      "notInstalled": "Não instalado",
+      "scanning": "Escaneando ferramentas...",
+      "showLess": "Recolher",
+      "showMore": "Mostrar outras {count} ferramentas",
+      "skillCount": "{count} habilidades",
+      "syncing": "Importando...",
+      "title": "Ferramentas externas"
     }
   }
 }

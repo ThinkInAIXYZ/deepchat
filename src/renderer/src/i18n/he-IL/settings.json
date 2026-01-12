@@ -1170,6 +1170,27 @@
       "step3Title": "אישור ייבוא",
       "title": "סנכרון",
       "warnings": "אזהרת המרה"
+    },
+    "syncPrompt": {
+      "description": "זיהינו כישורים בעוזרי תכנות AI אחרים. האם תרצה לייבא?",
+      "dontShowAgain": "אל תציג את ההודעה הזו שוב",
+      "importSelected": "ייבוא נבחר",
+      "skip": "דלג",
+      "title": "ייבוא כישורים מכלים אחרים"
+    },
+    "syncStatus": {
+      "description": "ייבוא כישורים מעוזרי תכנות AI אחרים",
+      "import": "ייבוא",
+      "noSkills": "ללא כישורים",
+      "noToolsFound": "לא זוהו כלים חיצוניים",
+      "notAvailable": "לא זמין",
+      "notInstalled": "לא מותקן",
+      "scanning": "סריקת כלים...",
+      "showLess": "כווץ",
+      "showMore": "הצג עוד {count} כלים",
+      "skillCount": "{count} כישורים",
+      "syncing": "מייבא...",
+      "title": "כלים חיצוניים"
     }
   }
 }

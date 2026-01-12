@@ -1170,6 +1170,27 @@
       "skipped": "已跳過",
       "failed": "失敗",
       "failedItems": "失敗項目"
+    },
+    "syncPrompt": {
+      "description": "我們偵測到其他 AI 編程助手中的技能。是否要匯入？",
+      "dontShowAgain": "不再顯示此提示",
+      "importSelected": "匯入所選",
+      "skip": "跳過",
+      "title": "從其他工具匯入技能"
+    },
+    "syncStatus": {
+      "description": "從其他AI程式助手匯入技能",
+      "import": "匯入",
+      "noSkills": "無技能",
+      "noToolsFound": "未偵測到外部工具",
+      "notAvailable": "不可用",
+      "notInstalled": "未安裝",
+      "scanning": "正在掃描工具...",
+      "showLess": "收起",
+      "showMore": "顯示其他 {count} 個工具",
+      "skillCount": "{count} 個技能",
+      "syncing": "正在匯入...",
+      "title": "外部工具"
     }
   }
 }

@@ -147,5 +147,16 @@
       "noOutput": "Sem saída"
     },
     "title": "área de trabalho"
+  },
+  "skills": {
+    "indicator": {
+      "active": "{count} habilidades ativadas",
+      "none": "Sem habilidades ativadas"
+    },
+    "panel": {
+      "empty": "Nenhuma habilidade instalada",
+      "manage": "gerenciamento",
+      "title": "Habilidade"
+    }
   }
 }
