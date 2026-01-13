@@ -210,7 +210,12 @@ const allVariants = computed(() => {
 
   for (const [, cached] of chatStore.getGeneratingMessagesCache().entries()) {
     const msg = cached.message
-    if (msg.role === 'assistant' && msg.is_variant && msg.parentId === props.message.id) {
+    if (
+      props.message.parentId &&
+      msg.role === 'assistant' &&
+      msg.is_variant &&
+      msg.parentId === props.message.parentId
+    ) {
       variantsById.set(msg.id, msg as AssistantMessage)
     }
   }

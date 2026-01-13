@@ -3,6 +3,11 @@ import type { UsageStats, RateLimitInfo } from './usage'
 
 export interface LLMAgentEventData {
   eventId: string
+  conversationId?: string
+  parentId?: string
+  is_variant?: boolean
+  stream_kind?: 'init' | 'delta' | 'final'
+  seq?: number
   content?: string
   reasoning_content?: string
   tool_call_id?: string

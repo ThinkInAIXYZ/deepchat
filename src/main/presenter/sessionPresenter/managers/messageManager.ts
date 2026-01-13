@@ -119,22 +119,35 @@ export class MessageManager implements IMessageManager {
     return message
   }
 
-  async editMessage(messageId: string, content: string): Promise<Message> {
+  async editMessage(
+    messageId: string,
+    content: string,
+    options?: { emit?: boolean; emitParent?: boolean }
+  ): Promise<Message> {
     await this.sqlitePresenter.updateMessage(messageId, { content })
     const message = await this.sqlitePresenter.getMessage(messageId)
     if (!message) {
       throw new Error(`Message ${messageId} not found`)
     }
     const msg = this.convertToMessage(message)
-    eventBus.sendToRenderer(CONVERSATION_EVENTS.MESSAGE_EDITED, SendTarget.ALL_WINDOWS, messageId)
-    if (msg.parentId) {
-      eventBus.sendToRenderer(
-        CONVERSATION_EVENTS.MESSAGE_EDITED,
-        SendTarget.ALL_WINDOWS,
-        msg.parentId
-      )
+    const shouldEmit = options?.emit !== false
+    const shouldEmitParent = options?.emitParent !== false
+
+    if (shouldEmit) {
+      eventBus.sendToRenderer(CONVERSATION_EVENTS.MESSAGE_EDITED, SendTarget.ALL_WINDOWS, messageId)
+      if (shouldEmitParent && msg.parentId) {
+        eventBus.sendToRenderer(
+          CONVERSATION_EVENTS.MESSAGE_EDITED,
+          SendTarget.ALL_WINDOWS,
+          msg.parentId
+        )
+      }
     }
     return msg
+  }
+
+  async editMessageSilently(messageId: string, content: string): Promise<Message> {
+    return this.editMessage(messageId, content, { emit: false, emitParent: false })
   }
 
   async deleteMessage(messageId: string): Promise<void> {

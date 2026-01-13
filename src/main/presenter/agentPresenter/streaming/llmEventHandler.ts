@@ -9,6 +9,7 @@ import type { MessageManager } from '../../sessionPresenter/managers/messageMana
 import type { GeneratingMessageState } from './types'
 import type { ContentBufferHandler } from './contentBufferHandler'
 import type { ToolCallHandler } from '../loop/toolCallHandler'
+import type { StreamUpdateScheduler } from './streamUpdateScheduler'
 
 type ConversationUpdateHandler = (state: GeneratingMessageState) => Promise<void>
 
@@ -18,6 +19,7 @@ export class LLMEventHandler {
   private readonly messageManager: MessageManager
   private readonly contentBufferHandler: ContentBufferHandler
   private readonly toolCallHandler: ToolCallHandler
+  private readonly streamUpdateScheduler: StreamUpdateScheduler
   private readonly onConversationUpdated?: ConversationUpdateHandler
 
   constructor(options: {
@@ -26,6 +28,7 @@ export class LLMEventHandler {
     messageManager: MessageManager
     contentBufferHandler: ContentBufferHandler
     toolCallHandler: ToolCallHandler
+    streamUpdateScheduler: StreamUpdateScheduler
     onConversationUpdated?: ConversationUpdateHandler
   }) {
     this.generatingMessages = options.generatingMessages
@@ -33,6 +36,7 @@ export class LLMEventHandler {
     this.messageManager = options.messageManager
     this.contentBufferHandler = options.contentBufferHandler
     this.toolCallHandler = options.toolCallHandler
+    this.streamUpdateScheduler = options.streamUpdateScheduler
     this.onConversationUpdated = options.onConversationUpdated
   }
 
@@ -90,7 +94,15 @@ export class LLMEventHandler {
         },
         extra: { needContinue: true }
       })
-      await this.messageManager.editMessage(eventId, JSON.stringify(state.message.content))
+      this.streamUpdateScheduler.enqueueDelta(
+        eventId,
+        state.conversationId,
+        state.message.parentId,
+        Boolean(state.message.is_variant),
+        state.tabId,
+        {},
+        state.message.content
+      )
       return
     }
 
@@ -233,8 +245,33 @@ export class LLMEventHandler {
       }
     }
 
-    await this.messageManager.editMessage(eventId, JSON.stringify(state.message.content))
-    eventBus.sendToRenderer(STREAM_EVENTS.RESPONSE, SendTarget.ALL_WINDOWS, msg)
+    const delta: Partial<LLMAgentEventData> = {}
+    if (content) delta.content = content
+    if (reasoning_content) delta.reasoning_content = reasoning_content
+    if (image_data) delta.image_data = image_data
+    if (totalUsage) delta.totalUsage = totalUsage
+
+    if (tool_call) {
+      delta.tool_call = tool_call
+      delta.tool_call_id = tool_call_id
+      delta.tool_call_name = tool_call_name
+      delta.tool_call_params = tool_call_params
+      delta.tool_call_response = msg.tool_call_response
+      delta.tool_call_server_name = tool_call_server_name
+      delta.tool_call_server_icons = tool_call_server_icons
+      delta.tool_call_server_description = tool_call_server_description
+      delta.tool_call_response_raw = tool_call_response_raw
+    }
+
+    this.streamUpdateScheduler.enqueueDelta(
+      eventId,
+      state.conversationId,
+      state.message.parentId,
+      Boolean(state.message.is_variant),
+      state.tabId,
+      delta,
+      state.message.content
+    )
   }
 
   async handleLLMAgentError(msg: LLMAgentEventData): Promise<void> {
@@ -254,6 +291,7 @@ export class LLMEventHandler {
       presenter.sessionManager.clearPendingPermission(state.conversationId)
     }
 
+    await this.streamUpdateScheduler.flushAll(eventId, 'final')
     this.searchingMessages.delete(eventId)
     eventBus.sendToRenderer(STREAM_EVENTS.ERROR, SendTarget.ALL_WINDOWS, msg)
   }
@@ -287,7 +325,15 @@ export class LLMEventHandler {
             }
           }
         })
-        await this.messageManager.editMessage(eventId, JSON.stringify(state.message.content))
+        this.streamUpdateScheduler.enqueueDelta(
+          eventId,
+          state.conversationId,
+          state.message.parentId,
+          Boolean(state.message.is_variant),
+          state.tabId,
+          {},
+          state.message.content
+        )
         this.searchingMessages.delete(eventId)
         presenter.sessionManager.setStatus(state.conversationId, 'waiting_permission')
         return
@@ -298,6 +344,7 @@ export class LLMEventHandler {
       presenter.sessionManager.clearPendingPermission(state.conversationId)
     }
 
+    await this.streamUpdateScheduler.flushAll(eventId, 'final')
     this.searchingMessages.delete(eventId)
     eventBus.sendToRenderer(STREAM_EVENTS.END, SendTarget.ALL_WINDOWS, msg)
   }

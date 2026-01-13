@@ -1,19 +1,17 @@
-import { eventBus, SendTarget } from '@/eventbus'
-import { STREAM_EVENTS } from '@/events'
 import { finalizeAssistantMessageBlocks } from '@shared/chat/messageBlocks'
-import type { MessageManager } from '../../sessionPresenter/managers/messageManager'
 import type { GeneratingMessageState } from './types'
+import type { StreamUpdateScheduler } from './streamUpdateScheduler'
 
 export class ContentBufferHandler {
   private readonly generatingMessages: Map<string, GeneratingMessageState>
-  private readonly messageManager: MessageManager
+  private readonly streamUpdateScheduler: StreamUpdateScheduler
 
   constructor(options: {
     generatingMessages: Map<string, GeneratingMessageState>
-    messageManager: MessageManager
+    streamUpdateScheduler: StreamUpdateScheduler
   }) {
     this.generatingMessages = options.generatingMessages
-    this.messageManager = options.messageManager
+    this.streamUpdateScheduler = options.streamUpdateScheduler
   }
 
   async flushAdaptiveBuffer(eventId: string): Promise<void> {
@@ -106,20 +104,15 @@ export class ContentBufferHandler {
         const batchContent = batch.join('')
         contentBlock.content += batchContent
 
-        await this.messageManager.editMessage(eventId, JSON.stringify(state.message.content))
-
-        const eventData: any = {
+        this.streamUpdateScheduler.enqueueDelta(
           eventId,
-          content: batchContent,
-          chunkInfo: {
-            current: batchEnd,
-            total: totalChunks,
-            isLargeContent: true,
-            batchSize: batch.length
-          }
-        }
-
-        eventBus.sendToRenderer(STREAM_EVENTS.RESPONSE, SendTarget.ALL_WINDOWS, eventData)
+          state.conversationId,
+          state.message.parentId,
+          Boolean(state.message.is_variant),
+          state.tabId,
+          { content: batchContent },
+          state.message.content
+        )
 
         if (batchEnd < chunks.length) {
           await new Promise((resolve) => setImmediate(resolve))
@@ -154,7 +147,15 @@ export class ContentBufferHandler {
       })
     }
 
-    await this.messageManager.editMessage(eventId, JSON.stringify(state.message.content))
+    this.streamUpdateScheduler.enqueueDelta(
+      eventId,
+      state.conversationId,
+      state.message.parentId,
+      Boolean(state.message.is_variant),
+      state.tabId,
+      { content },
+      state.message.content
+    )
   }
 
   splitLargeContent(content: string): string[] {
