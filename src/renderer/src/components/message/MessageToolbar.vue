@@ -68,14 +68,13 @@
               <TooltipContent>{{ t('thread.toolbar.previousVariant') }}</TooltipContent>
             </Tooltip>
             <span v-show="isAssistant && hasVariants">
-              {{ currentVariantIndex !== undefined ? currentVariantIndex + 1 : 1 }} /
-              {{ totalVariants }}
+              {{ (currentVariantIndex ?? 0) + 1 }} / {{ totalVariants }}
             </span>
             <Tooltip :delayDuration="200">
               <TooltipTrigger as-child>
                 <Button
                   v-show="isAssistant && hasVariants"
-                  :disabled="hasVariants && totalVariants === (currentVariantIndex ?? 0) + 1"
+                  :disabled="(currentVariantIndex ?? 0) >= (totalVariants || 0) - 1"
                   variant="ghost"
                   size="icon"
                   class="w-4 h-4 text-muted-foreground hover:text-primary hover:bg-transparent"

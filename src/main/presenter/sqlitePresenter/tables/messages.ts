@@ -293,8 +293,9 @@ export class MessagesTable extends BaseTable {
         FROM messages
         WHERE conversation_id = ?
         AND parent_id = ?
+        AND role = 'assistant'
         AND is_variant = 0
-        ORDER BY created_at ASC
+        ORDER BY created_at DESC
         LIMIT 1
       `
       )

@@ -948,7 +948,7 @@ HTTP-Referer=deepchatai.cn`
             <Label class="text-xs text-muted-foreground" for="server-args">
               {{ t('settings.mcp.serverForm.args') }}
             </Label>
-            <Button variant="ghost" size="sm" @click="addArgsRow">
+            <Button type="button" variant="ghost" size="sm" @click="addArgsRow">
               {{ t('settings.mcp.serverForm.addArg') || '添加参数' }}
             </Button>
           </div>
@@ -959,7 +959,13 @@ HTTP-Referer=deepchatai.cn`
                 class="col-span-11"
                 :placeholder="t('settings.mcp.serverForm.argPlaceholder') || '输入参数值'"
               />
-              <Button variant="ghost" size="icon" class="col-span-1" @click="removeArgsRow(row.id)">
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                class="col-span-1"
+                @click="removeArgsRow(row.id)"
+              >
                 <X class="h-4 w-4" />
               </Button>
             </div>
