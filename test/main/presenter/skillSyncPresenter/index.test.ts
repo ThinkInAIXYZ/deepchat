@@ -112,6 +112,10 @@ vi.mock('../../../../src/main/presenter/skillSyncPresenter/formatConverter', () 
 describe('SkillSyncPresenter', () => {
   let presenter: SkillSyncPresenter
   let mockSkillPresenter: ISkillPresenter
+  let mockConfigPresenter: {
+    getSetting: ReturnType<typeof vi.fn>
+    setSetting: ReturnType<typeof vi.fn>
+  }
 
   beforeEach(() => {
     vi.clearAllMocks()
@@ -123,7 +127,13 @@ describe('SkillSyncPresenter', () => {
       loadSkillContent: vi.fn().mockResolvedValue({ content: '# Skill Content' })
     } as unknown as ISkillPresenter
 
-    presenter = new SkillSyncPresenter(mockSkillPresenter)
+    // Create mock config presenter
+    mockConfigPresenter = {
+      getSetting: vi.fn().mockResolvedValue(null),
+      setSetting: vi.fn().mockResolvedValue(undefined)
+    }
+
+    presenter = new SkillSyncPresenter(mockSkillPresenter, mockConfigPresenter as any)
   })
 
   // ============================================================================

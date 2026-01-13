@@ -1103,7 +1103,7 @@
     "sync": {
       "title": "Sync",
       "import": "Import from Other Tools...",
-      "export": "Export to Other Tools...",
+      "export": "Export",
       "importTitle": "Import Skills from Other Tools",
       "exportTitle": "Export Skills to Other Tools",
       "importDescription": "Import skills from Claude Code, Cursor, and other tools",
@@ -1181,13 +1181,11 @@
       "notAvailable": "Not available",
       "noSkills": "No skills",
       "import": "Import",
-      "syncing": "Importing...",
-      "showMore": "Show {count} more tools",
-      "showLess": "Show less"
+      "syncing": "Importing..."
     },
     "syncPrompt": {
-      "title": "Import Skills from Other Tools",
-      "description": "We detected skills in other AI coding assistants. Would you like to import them?",
+      "title": "New Skills Discovered",
+      "description": "We found new skills in other AI coding assistants. Would you like to import them?",
       "dontShowAgain": "Don't show this again",
       "skip": "Skip",
       "importSelected": "Import Selected"

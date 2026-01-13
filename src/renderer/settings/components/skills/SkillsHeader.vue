@@ -23,25 +23,11 @@
           />
         </div>
 
-        <!-- Sync dropdown menu -->
-        <DropdownMenu>
-          <DropdownMenuTrigger as-child>
-            <Button variant="outline" size="sm">
-              <Icon icon="lucide:refresh-cw" class="w-4 h-4 mr-1" />
-              {{ t('settings.skills.sync.title') }}
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem @click="$emit('import')">
-              <Icon icon="lucide:download" class="w-4 h-4 mr-2" />
-              {{ t('settings.skills.sync.import') }}
-            </DropdownMenuItem>
-            <DropdownMenuItem @click="$emit('export')">
-              <Icon icon="lucide:upload" class="w-4 h-4 mr-2" />
-              {{ t('settings.skills.sync.export') }}
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <!-- Export button -->
+        <Button variant="outline" size="sm" @click="$emit('export')">
+          <Icon icon="lucide:upload" class="w-4 h-4 mr-1" />
+          {{ t('settings.skills.sync.export') }}
+        </Button>
 
         <Button size="sm" @click="$emit('install')">
           <Icon icon="lucide:plus" class="w-4 h-4 mr-1" />
@@ -57,12 +43,6 @@ import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
 import { Button } from '@shadcn/components/ui/button'
 import { Input } from '@shadcn/components/ui/input'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger
-} from '@shadcn/components/ui/dropdown-menu'
 import { useLanguageStore } from '@/stores/language'
 
 defineProps<{
@@ -72,7 +52,6 @@ defineProps<{
 defineEmits<{
   'update:searchQuery': [value: string]
   install: []
-  import: []
   export: []
 }>()
 

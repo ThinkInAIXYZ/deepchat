@@ -19,10 +19,12 @@ import type {
   ExportPreview,
   SyncResult,
   CanonicalSkill,
-  ExternalSkillInfo
+  ExternalSkillInfo,
+  ScanCache,
+  NewDiscovery
 } from '@shared/types/skillSync'
 import { ConflictStrategy } from '@shared/types/skillSync'
-import type { ISkillPresenter } from '@shared/presenter'
+import type { ISkillPresenter, IConfigPresenter } from '@shared/presenter'
 import { toolScanner, resolveSkillsDir } from './toolScanner'
 import { formatConverter } from './formatConverter'
 import type { SyncContext } from './types'
@@ -36,10 +38,30 @@ import { isValidToolId, isValidConflictStrategy, checkWritePermission } from './
 
 export class SkillSyncPresenter implements ISkillSyncPresenter {
   private skillPresenter: ISkillPresenter
+  private configPresenter: IConfigPresenter
   private syncContext: SyncContext = {}
+  private initialized: boolean = false
 
-  constructor(skillPresenter: ISkillPresenter) {
+  constructor(skillPresenter: ISkillPresenter, configPresenter: IConfigPresenter) {
     this.skillPresenter = skillPresenter
+    this.configPresenter = configPresenter
+  }
+
+  /**
+   * Initialize the sync presenter - scan for external tools on startup
+   */
+  async initialize(): Promise<void> {
+    if (this.initialized) return
+    this.initialized = true
+
+    // Scan in background after a short delay to not block startup
+    setTimeout(async () => {
+      try {
+        await this.scanAndDetectNewDiscoveries()
+      } catch (error) {
+        console.error('[SkillSync] Background scan failed:', error)
+      }
+    }, 3000) // 3 second delay after app starts
   }
 
   /**
@@ -47,6 +69,165 @@ export class SkillSyncPresenter implements ISkillSyncPresenter {
    */
   setProjectRoot(projectRoot: string): void {
     this.syncContext.projectRoot = projectRoot
+  }
+
+  // ============================================================================
+  // Scan Cache Operations
+  // ============================================================================
+
+  /**
+   * Get cached scan results from config
+   */
+  async getScanCache(): Promise<ScanCache | null> {
+    try {
+      const cache = await this.configPresenter.getSetting('skills.scanCache')
+      return cache as ScanCache | null
+    } catch {
+      return null
+    }
+  }
+
+  /**
+   * Save scan results to cache
+   */
+  async saveScanCache(results: ScanResult[]): Promise<void> {
+    const cache: ScanCache = {
+      timestamp: new Date().toISOString(),
+      tools: results.map((result) => ({
+        toolId: result.toolId,
+        available: result.available,
+        skills: result.skills.map((skill) => ({
+          name: skill.name,
+          lastModified: skill.lastModified.toISOString()
+        }))
+      }))
+    }
+    await this.configPresenter.setSetting('skills.scanCache', cache)
+  }
+
+  /**
+   * Scan external tools and detect new discoveries by comparing with cache and current skills
+   * This is the main method called on app startup
+   */
+  async scanAndDetectNewDiscoveries(): Promise<NewDiscovery[]> {
+    console.log('[SkillSync] Starting background scan for new discoveries')
+
+    // 1. Get cached scan results
+    const cache = await this.getScanCache()
+
+    // 2. Scan all external tools
+    const scanResults = await toolScanner.scanExternalTools(this.syncContext.projectRoot)
+
+    // 3. Get current DeepChat skills
+    const existingSkills = await this.skillPresenter.getMetadataList()
+    const existingSkillNames = new Set(existingSkills.map((s) => s.name))
+
+    // 4. Compare and find new discoveries
+    const newDiscoveries = this.compareWithCacheAndSkills(scanResults, cache, existingSkillNames)
+
+    // 5. Save new cache
+    await this.saveScanCache(scanResults)
+
+    // 6. Emit event if there are new discoveries
+    if (newDiscoveries.length > 0) {
+      const totalNewSkills = newDiscoveries.reduce((sum, d) => sum + d.newSkills.length, 0)
+      console.log(
+        `[SkillSync] Found ${totalNewSkills} new skills from ${newDiscoveries.length} tools`
+      )
+      eventBus.sendToRenderer(SKILL_SYNC_EVENTS.NEW_DISCOVERIES, SendTarget.ALL_WINDOWS, {
+        discoveries: newDiscoveries
+      })
+    } else {
+      console.log('[SkillSync] No new discoveries found')
+    }
+
+    return newDiscoveries
+  }
+
+  /**
+   * Compare scan results with cache and existing skills to find new discoveries
+   */
+  private compareWithCacheAndSkills(
+    scanResults: ScanResult[],
+    cache: ScanCache | null,
+    existingSkillNames: Set<string>
+  ): NewDiscovery[] {
+    const discoveries: NewDiscovery[] = []
+
+    // Build cache lookup map
+    const cacheMap = new Map<string, Set<string>>()
+    if (cache) {
+      for (const tool of cache.tools) {
+        cacheMap.set(tool.toolId, new Set(tool.skills.map((s) => s.name)))
+      }
+    }
+
+    for (const result of scanResults) {
+      // Only consider available user-level tools
+      if (!result.available || result.toolId.includes('project')) {
+        continue
+      }
+
+      const cachedSkillNames = cacheMap.get(result.toolId) || new Set<string>()
+      const newSkills: ExternalSkillInfo[] = []
+
+      for (const skill of result.skills) {
+        // A skill is "new" if:
+        // 1. It's not in the cache (newly discovered)
+        // 2. It's not already imported into DeepChat
+        const isInCache = cachedSkillNames.has(skill.name)
+        const isAlreadyImported = existingSkillNames.has(skill.name)
+
+        if (!isInCache && !isAlreadyImported) {
+          newSkills.push(skill)
+        }
+      }
+
+      if (newSkills.length > 0) {
+        discoveries.push({
+          toolId: result.toolId,
+          toolName: result.toolName,
+          newSkills
+        })
+      }
+    }
+
+    return discoveries
+  }
+
+  /**
+   * Get new discoveries by comparing current scan with cache and existing skills
+   * Note: This does trigger a scan to get fresh results
+   */
+  async getNewDiscoveries(): Promise<NewDiscovery[]> {
+    const cache = await this.getScanCache()
+    const scanResults = await toolScanner.scanExternalTools(this.syncContext.projectRoot)
+    const existingSkills = await this.skillPresenter.getMetadataList()
+    const existingSkillNames = new Set(existingSkills.map((s) => s.name))
+
+    return this.compareWithCacheAndSkills(scanResults, cache, existingSkillNames)
+  }
+
+  /**
+   * Get both scan results and new discoveries in a single call
+   * This is more efficient than calling scanExternalTools and getNewDiscoveries separately
+   */
+  async getToolsAndDiscoveries(): Promise<{ tools: ScanResult[]; discoveries: NewDiscovery[] }> {
+    const cache = await this.getScanCache()
+    const scanResults = await toolScanner.scanExternalTools(this.syncContext.projectRoot)
+    const existingSkills = await this.skillPresenter.getMetadataList()
+    const existingSkillNames = new Set(existingSkills.map((s) => s.name))
+
+    const discoveries = this.compareWithCacheAndSkills(scanResults, cache, existingSkillNames)
+    return { tools: scanResults, discoveries }
+  }
+
+  /**
+   * Mark discoveries as acknowledged (update cache without showing them again)
+   */
+  async acknowledgeDiscoveries(): Promise<void> {
+    const scanResults = await toolScanner.scanExternalTools(this.syncContext.projectRoot)
+    await this.saveScanCache(scanResults)
   }
 
   // ============================================================================

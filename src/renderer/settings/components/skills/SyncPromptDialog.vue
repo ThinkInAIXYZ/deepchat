@@ -14,27 +14,29 @@
       <div class="space-y-3 py-4">
         <!-- Detected tools list -->
         <div
-          v-for="tool in detectedTools"
-          :key="tool.toolId"
+          v-for="discovery in discoveries"
+          :key="discovery.toolId"
           class="flex items-center justify-between p-3 border rounded-lg"
         >
           <div class="flex items-center gap-3">
             <div
               class="w-9 h-9 rounded-lg flex items-center justify-center"
-              :class="getToolIconBg(tool.toolId)"
+              :class="getToolIconBg(discovery.toolId)"
             >
-              <Icon :icon="getToolIcon(tool.toolId)" class="w-4 h-4" />
+              <Icon :icon="getToolIcon(discovery.toolId)" class="w-4 h-4" />
             </div>
             <div>
-              <div class="font-medium text-sm">{{ tool.toolName }}</div>
+              <div class="font-medium text-sm">{{ discovery.toolName }}</div>
               <div class="text-xs text-muted-foreground">
-                {{ t('settings.skills.syncStatus.skillCount', { count: tool.skills.length }) }}
+                {{
+                  t('settings.skills.syncStatus.skillCount', { count: discovery.newSkills.length })
+                }}
               </div>
             </div>
           </div>
           <Checkbox
-            :checked="selectedTools.has(tool.toolId)"
-            @update:checked="toggleTool(tool.toolId)"
+            :checked="selectedTools.has(discovery.toolId)"
+            @update:checked="toggleTool(discovery.toolId)"
           />
         </div>
       </div>
@@ -59,7 +61,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
 import {
@@ -73,7 +75,8 @@ import {
 import { Button } from '@shadcn/components/ui/button'
 import { Checkbox } from '@shadcn/components/ui/checkbox'
 import { usePresenter } from '@/composables/usePresenter'
-import type { ScanResult } from '@shared/types/skillSync'
+import type { NewDiscovery } from '@shared/types/skillSync'
+import { SKILL_SYNC_EVENTS } from '@/events'
 
 const emit = defineEmits<{
   import: [toolIds: string[]]
@@ -81,11 +84,10 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
-const configPresenter = usePresenter('configPresenter')
 const skillSyncPresenter = usePresenter('skillSyncPresenter')
 
 const isOpen = ref(false)
-const detectedTools = ref<ScanResult[]>([])
+const discoveries = ref<NewDiscovery[]>([])
 const selectedTools = ref<Set<string>>(new Set())
 const dontShowAgain = ref(false)
 
@@ -101,14 +103,16 @@ const toggleTool = (toolId: string) => {
 
 const handleSkip = async () => {
   if (dontShowAgain.value) {
-    await configPresenter.setSetting('skills.syncPromptShown', true)
+    // Acknowledge discoveries so they won't show again
+    await skillSyncPresenter.acknowledgeDiscoveries()
   }
   isOpen.value = false
   emit('close')
 }
 
 const handleImport = async () => {
-  await configPresenter.setSetting('skills.syncPromptShown', true)
+  // Acknowledge discoveries after import
+  await skillSyncPresenter.acknowledgeDiscoveries()
   isOpen.value = false
   emit('import', Array.from(selectedTools.value))
 }
@@ -147,42 +151,41 @@ const getToolIconBg = (toolId: string): string => {
   return bgs[toolId] || 'bg-gray-100 text-gray-600 dark:bg-gray-900/30 dark:text-gray-400'
 }
 
-// Check and show dialog on mount
-onMounted(async () => {
-  try {
-    // Check if we've already shown this prompt
-    const shown = await configPresenter.getSetting('skills.syncPromptShown')
-    if (shown) return
-
-    // Scan for external tools
-    const results = await skillSyncPresenter.scanExternalTools()
-
-    // Filter to only available tools with skills (user-level only)
-    const availableTools = results.filter(
-      (tool) => tool.available && tool.skills.length > 0 && !tool.toolId.includes('project')
-    )
-
-    if (availableTools.length > 0) {
-      detectedTools.value = availableTools
-      // Pre-select all tools
-      selectedTools.value = new Set(availableTools.map((t) => t.toolId))
-      isOpen.value = true
-    }
-  } catch (error) {
-    console.error('Failed to check for external tools:', error)
+// Listen for new discoveries event from main process
+const handleNewDiscoveries = (_event: unknown, data: { discoveries: NewDiscovery[] }) => {
+  if (data.discoveries && data.discoveries.length > 0) {
+    discoveries.value = data.discoveries
+    selectedTools.value = new Set(data.discoveries.map((d) => d.toolId))
+    isOpen.value = true
   }
+}
+
+let cleanup: (() => void) | null = null
+
+onMounted(() => {
+  // Listen for new discoveries event
+  if (window.electron?.ipcRenderer) {
+    window.electron.ipcRenderer.on(SKILL_SYNC_EVENTS.NEW_DISCOVERIES, handleNewDiscoveries)
+    cleanup = () => {
+      window.electron.ipcRenderer.removeListener(
+        SKILL_SYNC_EVENTS.NEW_DISCOVERIES,
+        handleNewDiscoveries
+      )
+    }
+  }
+})
+
+onUnmounted(() => {
+  cleanup?.()
 })
 
 // Expose method for parent component to trigger check
 defineExpose({
   checkAndShow: async () => {
-    const results = await skillSyncPresenter.scanExternalTools()
-    const availableTools = results.filter(
-      (tool) => tool.available && tool.skills.length > 0 && !tool.toolId.includes('project')
-    )
-    if (availableTools.length > 0) {
-      detectedTools.value = availableTools
-      selectedTools.value = new Set(availableTools.map((t) => t.toolId))
+    const newDiscoveries = await skillSyncPresenter.getNewDiscoveries()
+    if (newDiscoveries.length > 0) {
+      discoveries.value = newDiscoveries
+      selectedTools.value = new Set(newDiscoveries.map((d) => d.toolId))
       isOpen.value = true
     }
   }

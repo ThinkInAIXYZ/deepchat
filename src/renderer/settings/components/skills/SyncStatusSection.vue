@@ -36,31 +36,15 @@
       </p>
     </div>
 
-    <!-- Tools list -->
-    <div v-else class="space-y-2">
+    <!-- Tools grid -->
+    <div v-else class="grid grid-cols-2 md:grid-cols-3 gap-2">
       <SyncStatusCard
-        v-for="tool in filteredTools"
+        v-for="tool in sortedTools"
         :key="tool.toolId"
         :tool="tool"
         :syncing="syncingTools.has(tool.toolId)"
         @sync="handleSync"
       />
-
-      <!-- Show more / less toggle -->
-      <Button
-        v-if="hasHiddenTools"
-        variant="ghost"
-        size="sm"
-        class="w-full text-muted-foreground"
-        @click="showAll = !showAll"
-      >
-        <Icon :icon="showAll ? 'lucide:chevron-up' : 'lucide:chevron-down'" class="w-4 h-4 mr-1" />
-        {{
-          showAll
-            ? t('settings.skills.syncStatus.showLess')
-            : t('settings.skills.syncStatus.showMore', { count: tools.length - 3 })
-        }}
-      </Button>
     </div>
   </div>
 </template>
@@ -86,7 +70,6 @@ const skillSyncPresenter = usePresenter('skillSyncPresenter')
 const tools = ref<ScanResult[]>([])
 const scanning = ref(false)
 const syncingTools = ref<Set<string>>(new Set())
-const showAll = ref(false)
 
 // Filter to only show user-level tools (not project-level)
 // and prioritize available tools
@@ -101,13 +84,6 @@ const sortedTools = computed(() => {
       return (b.skills?.length ?? 0) - (a.skills?.length ?? 0)
     })
 })
-
-const filteredTools = computed(() => {
-  if (showAll.value) return sortedTools.value
-  return sortedTools.value.slice(0, 3)
-})
-
-const hasHiddenTools = computed(() => sortedTools.value.length > 3)
 
 const refresh = async () => {
   scanning.value = true

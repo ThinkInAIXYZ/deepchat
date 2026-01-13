@@ -9,7 +9,7 @@
     </div>
 
     <!-- Skills List -->
-    <div v-if="skills.length > 0" class="p-2 space-y-0.5">
+    <div v-if="skills.length > 0" class="p-2 space-y-0.5 max-h-64 overflow-y-auto">
       <TooltipProvider>
         <Tooltip v-for="skill in skills" :key="skill.name">
           <TooltipTrigger as-child>

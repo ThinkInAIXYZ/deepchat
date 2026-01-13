@@ -307,6 +307,54 @@ export interface IFormatAdapter {
 }
 
 // ============================================================================
+// Scan Cache Types (for incremental discovery)
+// ============================================================================
+
+/**
+ * Cached skill info for comparison
+ */
+export interface CachedSkillInfo {
+  /** Skill name */
+  name: string
+  /** Last modified timestamp (ISO string) */
+  lastModified: string
+}
+
+/**
+ * Cached tool scan result
+ */
+export interface CachedToolScan {
+  /** Tool identifier */
+  toolId: string
+  /** Whether the directory existed */
+  available: boolean
+  /** List of skills found */
+  skills: CachedSkillInfo[]
+}
+
+/**
+ * Complete scan cache stored in config
+ */
+export interface ScanCache {
+  /** When this cache was created (ISO string) */
+  timestamp: string
+  /** Cached results per tool */
+  tools: CachedToolScan[]
+}
+
+/**
+ * New discovery result after comparing with cache and current skills
+ */
+export interface NewDiscovery {
+  /** Tool identifier */
+  toolId: string
+  /** Tool display name */
+  toolName: string
+  /** Newly discovered skills (not in cache and not in DeepChat) */
+  newSkills: ExternalSkillInfo[]
+}
+
+// ============================================================================
 // Skill Sync Presenter Interface
 // ============================================================================
 
@@ -315,6 +363,12 @@ export interface IFormatAdapter {
  * Coordinates scanning, conversion, and sync operations
  */
 export interface ISkillSyncPresenter {
+  // Initialization
+  /**
+   * Initialize the sync presenter (starts background scan)
+   */
+  initialize(): Promise<void>
+
   // Scanning
   /**
    * Scan all registered external tools
@@ -325,6 +379,27 @@ export interface ISkillSyncPresenter {
    * Scan a specific external tool
    */
   scanTool(toolId: string): Promise<ScanResult>
+
+  // Cache and Discovery
+  /**
+   * Get cached scan results
+   */
+  getScanCache(): Promise<ScanCache | null>
+
+  /**
+   * Get new discoveries (skills not in cache and not in DeepChat)
+   */
+  getNewDiscoveries(): Promise<NewDiscovery[]>
+
+  /**
+   * Get both scan results and new discoveries in a single call
+   */
+  getToolsAndDiscoveries(): Promise<{ tools: ScanResult[]; discoveries: NewDiscovery[] }>
+
+  /**
+   * Mark current discoveries as acknowledged (update cache)
+   */
+  acknowledgeDiscoveries(): Promise<void>
 
   // Import (External Tool → DeepChat)
   /**

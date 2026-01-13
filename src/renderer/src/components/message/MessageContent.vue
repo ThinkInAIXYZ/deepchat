@@ -63,6 +63,7 @@ const getMentionIcon = (category: string) => {
     prompts: 'lucide:message-square-quote',
     files: 'lucide:file-text',
     tools: 'lucide:wrench',
+    skills: 'lucide:sparkles',
     users: 'lucide:user',
     channels: 'lucide:hash',
     projects: 'lucide:folder',

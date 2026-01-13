@@ -72,11 +72,8 @@ export function usePromptInputEditor(
               // Handle both @ mentions and / slash mentions
               let content = subBlock.attrs?.label ?? ''
 
-              // Skip skills from slash mentions - they are handled separately via skill activation
-              if (subBlock.type === 'slashMention' && subBlock.attrs?.category === 'skills') {
-                // Skills are just activated, not included in message content
-                continue
-              }
+              // Skills from slash mentions are included in message content for display
+              // They are also activated separately via skill activation mechanism
 
               try {
                 if (subBlock.attrs?.category === 'resources' && subBlock.attrs?.content) {

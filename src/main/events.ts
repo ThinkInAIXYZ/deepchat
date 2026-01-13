@@ -275,6 +275,7 @@ export const SKILL_EVENTS = {
 export const SKILL_SYNC_EVENTS = {
   SCAN_STARTED: 'skill-sync:scan-started', // Scan operation started
   SCAN_COMPLETED: 'skill-sync:scan-completed', // Scan operation completed
+  NEW_DISCOVERIES: 'skill-sync:new-discoveries', // New skills discovered (after comparing with cache)
   IMPORT_STARTED: 'skill-sync:import-started', // Import operation started
   IMPORT_PROGRESS: 'skill-sync:import-progress', // Import progress update
   IMPORT_COMPLETED: 'skill-sync:import-completed', // Import operation completed

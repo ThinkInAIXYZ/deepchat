@@ -190,7 +190,7 @@ export class Presenter implements IPresenter {
     this.skillPresenter = new SkillPresenter(this.configPresenter)
 
     // Initialize Skill Sync presenter
-    this.skillSyncPresenter = new SkillSyncPresenter(this.skillPresenter)
+    this.skillSyncPresenter = new SkillSyncPresenter(this.skillPresenter, this.configPresenter)
 
     this.setupEventBus() // 设置事件总线监听
   }
@@ -285,6 +285,10 @@ export class Presenter implements IPresenter {
       }
       await (this.skillPresenter as SkillPresenter).initialize()
       console.log('SkillPresenter initialized')
+
+      // Initialize SkillSyncPresenter for background scanning
+      await this.skillSyncPresenter.initialize()
+      console.log('SkillSyncPresenter initialized')
     } catch (error) {
       console.error('Failed to initialize SkillPresenter:', error)
     }

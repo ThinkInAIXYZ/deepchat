@@ -1103,7 +1103,7 @@
     "sync": {
       "title": "同步",
       "import": "从其他工具导入...",
-      "export": "导出到其他工具...",
+      "export": "导出",
       "importTitle": "从其他工具导入 Skills",
       "exportTitle": "导出 Skills 到其他工具",
       "importDescription": "从 Claude Code、Cursor 等工具导入 Skills",
@@ -1181,13 +1181,11 @@
       "notAvailable": "不可用",
       "noSkills": "无技能",
       "import": "导入",
-      "syncing": "正在导入...",
-      "showMore": "显示其他 {count} 个工具",
-      "showLess": "收起"
+      "syncing": "正在导入..."
     },
     "syncPrompt": {
-      "title": "从其他工具导入技能",
-      "description": "我们检测到其他AI编程助手中的技能。是否要导入？",
+      "title": "发现新技能",
+      "description": "我们在其他AI编程助手中发现了新技能。是否要导入？",
       "dontShowAgain": "不再显示此提示",
       "skip": "跳过",
       "importSelected": "导入所选"

@@ -1,78 +1,58 @@
 <template>
   <div
-    class="flex items-center justify-between p-3 border rounded-lg transition-colors"
+    class="flex items-center justify-between p-2 border rounded-lg transition-colors"
     :class="{
-      'hover:bg-accent cursor-pointer': tool.available,
+      'hover:bg-accent cursor-pointer': tool.available && skillCount > 0,
       'opacity-60': !tool.available
     }"
   >
-    <div class="flex items-center gap-3">
+    <div class="flex items-center gap-2 min-w-0">
       <!-- Status indicator -->
-      <div class="relative">
+      <div class="relative shrink-0">
         <div
-          class="w-10 h-10 rounded-lg flex items-center justify-center"
+          class="w-6 h-6 rounded flex items-center justify-center"
           :class="getToolIconBg(tool.toolId)"
         >
-          <Icon :icon="getToolIcon(tool.toolId)" class="w-5 h-5" />
+          <Icon :icon="getToolIcon(tool.toolId)" class="w-3.5 h-3.5" />
         </div>
         <!-- Connection status dot -->
         <div
-          class="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-background"
+          class="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full border-2 border-background"
           :class="tool.available ? 'bg-green-500' : 'bg-muted-foreground'"
         />
       </div>
 
       <!-- Tool info -->
-      <div class="min-w-0">
-        <div class="font-medium flex items-center gap-2">
+      <div class="min-w-0 flex-1">
+        <div class="text-sm font-medium flex items-center gap-1.5 truncate">
           {{ tool.toolName }}
-          <Badge v-if="tool.available" variant="secondary" class="text-xs">
-            {{ t('settings.skills.syncStatus.skillCount', { count: skillCount }) }}
+          <Badge v-if="tool.available && skillCount > 0" variant="secondary" class="text-xs px-1">
+            {{ skillCount }}
           </Badge>
-        </div>
-        <div class="text-xs text-muted-foreground truncate max-w-[280px]">
-          <template v-if="tool.available">
-            {{ tool.skillsDir }}
-          </template>
-          <template v-else>
-            {{ t('settings.skills.syncStatus.notInstalled') }}
-          </template>
         </div>
       </div>
     </div>
 
     <!-- Action button -->
-    <div class="flex items-center gap-2">
-      <Button
-        v-if="tool.available && skillCount > 0"
-        size="sm"
-        variant="outline"
-        :disabled="syncing"
-        @click.stop="handleSync"
-      >
-        <Icon
-          :icon="syncing ? 'lucide:loader-2' : 'lucide:download'"
-          class="w-4 h-4 mr-1"
-          :class="{ 'animate-spin': syncing }"
-        />
-        {{
-          syncing ? t('settings.skills.syncStatus.syncing') : t('settings.skills.syncStatus.import')
-        }}
-      </Button>
-      <Button v-else-if="!tool.available" size="sm" variant="ghost" disabled>
-        <Icon icon="lucide:external-link" class="w-4 h-4 mr-1" />
-        {{ t('settings.skills.syncStatus.notAvailable') }}
-      </Button>
-      <Button v-else size="sm" variant="ghost" disabled>
-        {{ t('settings.skills.syncStatus.noSkills') }}
-      </Button>
-    </div>
+    <Button
+      v-if="tool.available && skillCount > 0"
+      size="sm"
+      variant="outline"
+      class="shrink-0 ml-2 h-7 px-2 text-xs"
+      :disabled="syncing"
+      @click.stop="handleSync"
+    >
+      <Icon
+        :icon="syncing ? 'lucide:loader-2' : 'lucide:download'"
+        class="w-3.5 h-3.5"
+        :class="{ 'animate-spin': syncing }"
+      />
+    </Button>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
 import { Button } from '@shadcn/components/ui/button'
 import { Badge } from '@shadcn/components/ui/badge'
@@ -86,8 +66,6 @@ const props = defineProps<{
 const emit = defineEmits<{
   sync: [toolId: string]
 }>()
-
-const { t } = useI18n()
 
 const skillCount = computed(() => props.tool.skills?.length ?? 0)
 

@@ -1,6 +1,6 @@
 <template>
   <Sheet v-model:open="isOpen">
-    <SheetContent class="sm:max-w-xl flex flex-col">
+    <SheetContent class="sm:max-w-xl flex flex-col p-6 pt-12">
       <SheetHeader>
         <SheetTitle>{{ t('settings.skills.edit.title') }}</SheetTitle>
         <SheetDescription>
@@ -9,7 +9,7 @@
       </SheetHeader>
 
       <ScrollArea class="flex-1 mt-4">
-        <div class="space-y-4 pr-4">
+        <div class="space-y-4 px-1">
           <!-- Frontmatter fields -->
           <div class="space-y-3">
             <div class="space-y-1.5">
@@ -47,18 +47,6 @@
                 {{ t('settings.skills.edit.allowedToolsHint') }}
               </p>
             </div>
-          </div>
-
-          <Separator />
-
-          <!-- Markdown content -->
-          <div class="space-y-1.5">
-            <Label>{{ t('settings.skills.edit.content') }}</Label>
-            <Textarea
-              v-model="editContent"
-              class="w-full h-64 font-mono text-sm resize-none"
-              :placeholder="t('settings.skills.edit.placeholder')"
-            />
           </div>
 
           <Separator />
@@ -160,7 +148,10 @@ watch(
 )
 
 // Parse SKILL.md content to extract frontmatter and body
-const parseSkillContent = (content: string): { body: string } => {
+const parseSkillContent = (content: string | null): { body: string } => {
+  if (!content) {
+    return { body: '' }
+  }
   const lines = content.split('\n')
   let inFrontmatter = false
   let frontmatterEnd = 0
