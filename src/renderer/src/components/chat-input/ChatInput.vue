@@ -91,7 +91,12 @@
                         size="icon"
                         :title="t('chat.mode.current', { mode: chatMode.currentLabel.value })"
                       >
-                        <Icon :icon="chatMode.currentIcon.value" class="w-4 h-4" />
+                        <ModelIcon
+                          v-if="selectedAcpAgentId"
+                          :model-id="selectedAcpAgentId"
+                          custom-class="w-4 h-4"
+                        />
+                        <Icon v-else :icon="chatMode.currentIcon.value" class="w-4 h-4" />
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent
@@ -131,7 +136,7 @@
                           ]"
                           @click="handleAcpAgentSelect(agent)"
                         >
-                          <Icon icon="lucide:bot-message-square" class="w-4 h-4" />
+                          <ModelIcon :model-id="agent.id" custom-class="w-4 h-4" />
                           <span class="flex-1">{{ agent.name }}</span>
                           <Icon
                             v-if="selectedAcpAgentId === agent.id"
@@ -414,38 +419,6 @@
                     <span class="flex-1">{{ model.name || model.id }}</span>
                     <Icon
                       v-if="acpSessionModel.currentModelId.value === model.id"
-                      icon="lucide:check"
-                      class="w-4 h-4"
-                    />
-                  </div>
-
-                  <div
-                    class="mt-1 px-2 py-1 text-[10px] uppercase tracking-[0.18em] text-muted-foreground"
-                  >
-                    {{ t('settings.model.acpSession.mode.label') }}
-                  </div>
-                  <div
-                    v-if="!acpMode.hasAgentModes.value"
-                    class="px-2 py-2 text-xs text-muted-foreground"
-                  >
-                    {{ t('settings.model.acpSession.mode.empty') }}
-                  </div>
-                  <div
-                    v-for="mode in acpMode.availableModes.value"
-                    :key="mode.id"
-                    :class="[
-                      'flex items-center gap-2 rounded-md px-2 py-1.5 text-sm cursor-pointer transition-colors',
-                      acpMode.currentMode.value === mode.id
-                        ? 'bg-primary text-primary-foreground'
-                        : 'hover:bg-muted',
-                      acpMode.loading.value ? 'opacity-60 cursor-not-allowed' : ''
-                    ]"
-                    @click="handleAcpSessionModeSelect(mode.id)"
-                  >
-                    <Icon icon="lucide:shield" class="w-4 h-4" />
-                    <span class="flex-1">{{ mode.name || mode.id }}</span>
-                    <Icon
-                      v-if="acpMode.currentMode.value === mode.id"
                       icon="lucide:check"
                       class="w-4 h-4"
                     />
@@ -964,12 +937,6 @@ const modelSelectorLabel = computed(() => {
 const handleAcpSessionModelSelect = async (modelId: string) => {
   if (acpSessionModel.loading.value) return
   await acpSessionModel.setModel(modelId)
-  modelSelectOpen.value = false
-}
-
-const handleAcpSessionModeSelect = async (modeId: string) => {
-  if (acpMode.loading.value) return
-  await acpMode.setMode(modeId)
   modelSelectOpen.value = false
 }
 
