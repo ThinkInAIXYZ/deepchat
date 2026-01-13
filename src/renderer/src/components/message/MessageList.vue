@@ -102,6 +102,7 @@ import { useMessageScroll } from '@/composables/message/useMessageScroll'
 import { useCleanDialog } from '@/composables/message/useCleanDialog'
 import { useMessageMinimap } from '@/composables/message/useMessageMinimap'
 import { useMessageCapture } from '@/composables/message/useMessageCapture'
+import { useSendButtonState } from '@/components/chat-input/composables/useSendButtonState'
 import { DynamicScroller, DynamicScrollerItem } from 'vue-virtual-scroller'
 import { getAllMessageDomInfo, getMessageDomInfo } from '@/lib/messageRuntimeCache'
 
@@ -128,6 +129,16 @@ const visible = ref(false)
 const shouldAutoFollow = ref(true)
 const traceMessageId = ref<string | null>(null)
 let highlightRefreshTimer: number | null = null
+
+// === Streaming State ===
+const inputText = ref('')
+const currentContextLength = ref(0)
+const { isStreaming } = useSendButtonState({
+  variant: 'chat',
+  inputText,
+  currentContextLength,
+  contextLength: computed(() => chatStore.chatConfig.contextLength)
+})
 
 // === Composable Integrations ===
 // Scroll management
@@ -159,16 +170,22 @@ const capture = useMessageCapture()
 // Message retry
 
 const minimapMessages = computed(() => {
-  const mapped = props.items.map((item) => {
-    if (item.message) return item.message
-    return {
-      id: item.id,
-      role: 'user',
-      conversationId: chatStore.getActiveThreadId() ?? '',
-      content: { text: '', files: [], links: [], think: false, search: false },
-      timestamp: Date.now()
-    } as unknown as Message
-  })
+  // 如果正在 streaming，排除 pending 状态的消息，避免 minimap 频繁重新计算
+  const mapped = props.items
+    .filter((item) => {
+      if (!isStreaming.value) return true
+      return !item.message || item.message.status !== 'pending'
+    })
+    .map((item) => {
+      if (item.message) return item.message
+      return {
+        id: item.id,
+        role: 'user',
+        conversationId: chatStore.getActiveThreadId() ?? '',
+        content: { text: '', files: [], links: [], think: false, search: false },
+        timestamp: Date.now()
+      } as unknown as Message
+    })
   if (mapped.length > 0) return mapped
   const current = chatStore.getCurrentThreadMessages()
   if (current.length > 0) return current
@@ -190,6 +207,11 @@ const getTextLength = (value?: string) => value?.length ?? 0
 const getMessageSizeKey = (item: MessageListItem) => {
   const message = item.message
   if (!message) return `placeholder:${item.id}`
+
+  // 如果正在 streaming，返回固定值，避免频繁重新计算高度
+  if (isStreaming.value && message.status === 'pending') {
+    return `streaming:${message.id}`
+  }
 
   if (message.role === 'assistant') {
     const blocks = (message as AssistantMessage).content
@@ -219,6 +241,8 @@ const getMessageSizeKey = (item: MessageListItem) => {
 const getVariantSizeKey = (item: MessageListItem) => {
   const message = item.message
   if (!message || message.role !== 'assistant') return ''
+  // 如果正在 streaming，不参与 variant 计算
+  if (isStreaming.value && message.status === 'pending') return ''
   return chatStore.selectedVariantsMap[message.id] ?? ''
 }
 
@@ -522,6 +546,9 @@ const bindScrollContainer = () => {
 const recordVisibleDomInfo = () => {
   const container = messagesContainer.value
   if (!container) return
+
+  // 如果正在 streaming，跳过 dom info 记录，避免频繁计算
+  if (isStreaming.value) return
 
   const containerRect = container.getBoundingClientRect()
   const bufferZone = containerRect.height * BUFFER_ZONE_MULTIPLIER
