@@ -281,21 +281,53 @@
                 acpMode.hasAgentModes.value
               "
             >
-              <TooltipTrigger>
-                <Button
-                  variant="ghost"
-                  class="flex items-center gap-1 h-7 px-2 rounded-md text-xs font-semibold text-muted-foreground hover:bg-muted/60 hover:text-foreground dark:text-white/70 dark:hover:bg-white/10 dark:hover:text-white"
-                  :disabled="acpMode.loading.value"
-                  @click="acpMode.cycleMode"
-                >
-                  <span
-                    class="truncate max-w-[120px] text-foreground"
-                    :title="acpMode.currentModeName.value"
-                  >
-                    {{ acpMode.currentModeName.value }}
-                  </span>
-                  <Icon icon="lucide:chevron-right" class="w-4 h-4 text-muted-foreground" />
-                </Button>
+              <TooltipTrigger as-child>
+                <span class="inline-flex">
+                  <Popover v-model:open="acpModeSelectOpen">
+                    <PopoverTrigger as-child>
+                      <Button
+                        variant="ghost"
+                        class="flex items-center gap-1 h-7 px-2 rounded-md text-xs font-semibold text-muted-foreground hover:bg-muted/60 hover:text-foreground dark:text-white/70 dark:hover:bg-white/10 dark:hover:text-white"
+                        :disabled="acpMode.loading.value"
+                      >
+                        <span
+                          class="truncate max-w-[120px] text-foreground"
+                          :title="acpMode.currentModeName.value"
+                        >
+                          {{ acpMode.currentModeName.value }}
+                        </span>
+                        <Icon icon="lucide:chevron-down" class="w-4 h-4 text-muted-foreground" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent
+                      align="start"
+                      class="w-64 border-none bg-transparent p-0 shadow-none"
+                    >
+                      <div class="rounded-lg border bg-card p-1 shadow-md max-h-56 overflow-y-auto">
+                        <div
+                          v-for="mode in acpMode.availableModes.value"
+                          :key="mode.id"
+                          :class="[
+                            'flex items-center gap-2 rounded-md px-2 py-1.5 text-sm cursor-pointer transition-colors',
+                            acpMode.currentMode.value === mode.id
+                              ? 'bg-primary text-primary-foreground'
+                              : 'hover:bg-muted',
+                            acpMode.loading.value ? 'opacity-60 cursor-not-allowed' : ''
+                          ]"
+                          @click="handleAcpModeSelect(mode.id)"
+                        >
+                          <Icon icon="lucide:shield" class="w-4 h-4" />
+                          <span class="flex-1">{{ mode.name || mode.id }}</span>
+                          <Icon
+                            v-if="acpMode.currentMode.value === mode.id"
+                            icon="lucide:check"
+                            class="w-4 h-4"
+                          />
+                        </div>
+                      </div>
+                    </PopoverContent>
+                  </Popover>
+                </span>
               </TooltipTrigger>
               <TooltipContent class="max-w-xs">
                 <p class="text-xs font-semibold">{{ t('chat.input.acpMode') }}</p>
@@ -333,23 +365,94 @@
                   />
                   <span
                     class="text-xs font-semibold truncate max-w-[140px] text-foreground"
-                    :title="config.modelDisplayName.value"
+                    :title="modelSelectorLabel"
                   >
-                    {{ config.modelDisplayName.value }}
+                    {{ modelSelectorLabel }}
                   </span>
-                  <Badge
-                    v-for="tag in config.activeModel.value.tags"
-                    :key="tag"
-                    variant="outline"
-                    class="py-0 px-1 rounded-lg text-[10px]"
-                  >
-                    {{ t(`model.tags.${tag}`) }}
-                  </Badge>
+                  <template v-if="!showAcpSessionModelSelector">
+                    <Badge
+                      v-for="tag in config.activeModel.value.tags"
+                      :key="tag"
+                      variant="outline"
+                      class="py-0 px-1 rounded-lg text-[10px]"
+                    >
+                      {{ t(`model.tags.${tag}`) }}
+                    </Badge>
+                  </template>
                   <Icon icon="lucide:chevron-right" class="w-4 h-4 text-muted-foreground" />
                 </Button>
               </PopoverTrigger>
               <PopoverContent align="end" class="w-80 border-none bg-transparent p-0 shadow-none">
+                <div
+                  v-if="showAcpSessionModelSelector"
+                  class="rounded-lg border bg-card p-1 shadow-md max-h-72 overflow-y-auto"
+                >
+                  <div
+                    class="px-2 py-1 text-[10px] uppercase tracking-[0.18em] text-muted-foreground"
+                  >
+                    {{ t('settings.model.acpSession.model.label') }}
+                  </div>
+                  <div
+                    v-if="!acpSessionModel.hasModels.value"
+                    class="px-2 py-2 text-xs text-muted-foreground"
+                  >
+                    {{ t('settings.model.acpSession.model.empty') }}
+                  </div>
+                  <div
+                    v-for="model in acpSessionModel.availableModels.value"
+                    :key="model.id"
+                    :class="[
+                      'flex items-center gap-2 rounded-md px-2 py-1.5 text-sm cursor-pointer transition-colors',
+                      acpSessionModel.currentModelId.value === model.id
+                        ? 'bg-primary text-primary-foreground'
+                        : 'hover:bg-muted',
+                      acpSessionModel.loading.value ? 'opacity-60 cursor-not-allowed' : ''
+                    ]"
+                    @click="handleAcpSessionModelSelect(model.id)"
+                  >
+                    <Icon icon="lucide:cpu" class="w-4 h-4" />
+                    <span class="flex-1">{{ model.name || model.id }}</span>
+                    <Icon
+                      v-if="acpSessionModel.currentModelId.value === model.id"
+                      icon="lucide:check"
+                      class="w-4 h-4"
+                    />
+                  </div>
+
+                  <div
+                    class="mt-1 px-2 py-1 text-[10px] uppercase tracking-[0.18em] text-muted-foreground"
+                  >
+                    {{ t('settings.model.acpSession.mode.label') }}
+                  </div>
+                  <div
+                    v-if="!acpMode.hasAgentModes.value"
+                    class="px-2 py-2 text-xs text-muted-foreground"
+                  >
+                    {{ t('settings.model.acpSession.mode.empty') }}
+                  </div>
+                  <div
+                    v-for="mode in acpMode.availableModes.value"
+                    :key="mode.id"
+                    :class="[
+                      'flex items-center gap-2 rounded-md px-2 py-1.5 text-sm cursor-pointer transition-colors',
+                      acpMode.currentMode.value === mode.id
+                        ? 'bg-primary text-primary-foreground'
+                        : 'hover:bg-muted',
+                      acpMode.loading.value ? 'opacity-60 cursor-not-allowed' : ''
+                    ]"
+                    @click="handleAcpSessionModeSelect(mode.id)"
+                  >
+                    <Icon icon="lucide:shield" class="w-4 h-4" />
+                    <span class="flex-1">{{ mode.name || mode.id }}</span>
+                    <Icon
+                      v-if="acpMode.currentMode.value === mode.id"
+                      icon="lucide:check"
+                      class="w-4 h-4"
+                    />
+                  </div>
+                </div>
                 <ModelChooser
+                  v-else
                   :type="[ModelType.Chat, ModelType.ImageGeneration]"
                   @update:model="config.handleModelUpdate"
                 />
@@ -358,7 +461,7 @@
 
             <!-- Config Button (only in chat mode) -->
             <ScrollablePopover
-              v-if="variant === 'chat'"
+              v-if="variant === 'chat' && !isAcpChatMode"
               align="end"
               content-class="w-80"
               :enable-scrollable="true"
@@ -489,6 +592,7 @@ import { useContextLength } from './composables/useContextLength'
 import { useSendButtonState } from './composables/useSendButtonState'
 import { useAcpWorkdir } from './composables/useAcpWorkdir'
 import { useAcpMode } from './composables/useAcpMode'
+import { useAcpSessionModel } from './composables/useAcpSessionModel'
 import { useChatMode, type ChatMode } from './composables/useChatMode'
 import { useAgentWorkspace } from './composables/useAgentWorkspace'
 import { useWorkspaceMention } from './composables/useWorkspaceMention'
@@ -585,6 +689,7 @@ const { t } = useI18n()
 // === Local State ===
 const fileInput = ref<HTMLInputElement>()
 const modelSelectOpen = ref(false)
+const acpModeSelectOpen = ref(false)
 const editorContainer = ref<HTMLElement | null>(null)
 const caretPosition = ref({ x: 0, y: 0, height: 18 })
 const caretVisible = ref(false)
@@ -603,6 +708,7 @@ const { settings, setWebSearch, toggleWebSearch } = useInputSettings()
 const chatMode = useChatMode()
 const modeSelectOpen = ref(false)
 const canUseWebSearch = computed(() => chatMode.currentMode.value === 'chat')
+const isAcpChatMode = computed(() => chatMode.currentMode.value === 'acp agent')
 
 // Initialize history composable first (needed for editor placeholder)
 const history = useInputHistory(null as any, t)
@@ -831,6 +937,47 @@ const acpMode = useAcpMode({
   isStreaming,
   workdir: acpWorkdir.workdir
 })
+
+const acpSessionModel = useAcpSessionModel({
+  activeModel: activeModelSource,
+  conversationId,
+  isStreaming,
+  workdir: acpWorkdir.workdir
+})
+
+const showAcpSessionModelSelector = computed(
+  () => isAcpChatMode.value && acpSessionModel.isAcpModel.value
+)
+
+const modelSelectorLabel = computed(() => {
+  if (!showAcpSessionModelSelector.value) {
+    return config.modelDisplayName.value
+  }
+  if (acpSessionModel.currentModelName.value) {
+    return acpSessionModel.currentModelName.value
+  }
+  return acpSessionModel.hasModels.value
+    ? t('settings.model.acpSession.model.placeholder')
+    : t('settings.model.acpSession.model.empty')
+})
+
+const handleAcpSessionModelSelect = async (modelId: string) => {
+  if (acpSessionModel.loading.value) return
+  await acpSessionModel.setModel(modelId)
+  modelSelectOpen.value = false
+}
+
+const handleAcpSessionModeSelect = async (modeId: string) => {
+  if (acpMode.loading.value) return
+  await acpMode.setMode(modeId)
+  modelSelectOpen.value = false
+}
+
+const handleAcpModeSelect = async (modeId: string) => {
+  if (acpMode.loading.value) return
+  await acpMode.setMode(modeId)
+  acpModeSelectOpen.value = false
+}
 
 // === Computed ===
 // Use composable values

@@ -38,21 +38,92 @@
                   :is-dark="themeStore.isDark"
                 ></ModelIcon>
                 <span class="text-xs font-semibold truncate max-w-[140px] text-foreground">{{
-                  name
+                  modelSelectorLabel
                 }}</span>
-                <Badge
-                  v-for="tag in activeModel.tags"
-                  :key="tag"
-                  variant="outline"
-                  class="py-0 px-1 rounded-lg text-[10px]"
-                >
-                  {{ t(`model.tags.${tag}`) }}</Badge
-                >
+                <template v-if="!isAcpMode">
+                  <Badge
+                    v-for="tag in activeModel.tags"
+                    :key="tag"
+                    variant="outline"
+                    class="py-0 px-1 rounded-lg text-[10px]"
+                  >
+                    {{ t(`model.tags.${tag}`) }}
+                  </Badge>
+                </template>
                 <Icon icon="lucide:chevron-right" class="w-4 h-4 text-muted-foreground" />
               </Button>
             </PopoverTrigger>
             <PopoverContent align="end" class="w-80 p-0">
+              <div
+                v-if="isAcpMode"
+                class="rounded-lg border bg-card p-1 shadow-md max-h-72 overflow-y-auto"
+              >
+                <div
+                  class="px-2 py-1 text-[10px] uppercase tracking-[0.18em] text-muted-foreground"
+                >
+                  {{ t('settings.model.acpSession.model.label') }}
+                </div>
+                <div
+                  v-if="!acpSessionModel.hasModels.value"
+                  class="px-2 py-2 text-xs text-muted-foreground"
+                >
+                  {{ t('settings.model.acpSession.model.empty') }}
+                </div>
+                <div
+                  v-for="model in acpSessionModel.availableModels.value"
+                  :key="model.id"
+                  :class="[
+                    'flex items-center gap-2 rounded-md px-2 py-1.5 text-sm cursor-pointer transition-colors',
+                    acpSessionModel.currentModelId.value === model.id
+                      ? 'bg-primary text-primary-foreground'
+                      : 'hover:bg-muted',
+                    acpSessionModel.loading.value ? 'opacity-60 cursor-not-allowed' : ''
+                  ]"
+                  @click="handleAcpSessionModelSelect(model.id)"
+                >
+                  <Icon icon="lucide:cpu" class="w-4 h-4" />
+                  <span class="flex-1">{{ model.name || model.id }}</span>
+                  <Icon
+                    v-if="acpSessionModel.currentModelId.value === model.id"
+                    icon="lucide:check"
+                    class="w-4 h-4"
+                  />
+                </div>
+
+                <div
+                  class="mt-1 px-2 py-1 text-[10px] uppercase tracking-[0.18em] text-muted-foreground"
+                >
+                  {{ t('settings.model.acpSession.mode.label') }}
+                </div>
+                <div
+                  v-if="!acpMode.hasAgentModes.value"
+                  class="px-2 py-2 text-xs text-muted-foreground"
+                >
+                  {{ t('settings.model.acpSession.mode.empty') }}
+                </div>
+                <div
+                  v-for="mode in acpMode.availableModes.value"
+                  :key="mode.id"
+                  :class="[
+                    'flex items-center gap-2 rounded-md px-2 py-1.5 text-sm cursor-pointer transition-colors',
+                    acpMode.currentMode.value === mode.id
+                      ? 'bg-primary text-primary-foreground'
+                      : 'hover:bg-muted',
+                    acpMode.loading.value ? 'opacity-60 cursor-not-allowed' : ''
+                  ]"
+                  @click="handleAcpSessionModeSelect(mode.id)"
+                >
+                  <Icon icon="lucide:shield" class="w-4 h-4" />
+                  <span class="flex-1">{{ mode.name || mode.id }}</span>
+                  <Icon
+                    v-if="acpMode.currentMode.value === mode.id"
+                    icon="lucide:check"
+                    class="w-4 h-4"
+                  />
+                </div>
+              </div>
               <ModelSelect
+                v-else
                 :type="[ModelType.Chat, ModelType.ImageGeneration]"
                 @update:model="handleModelUpdate"
               />
@@ -60,6 +131,7 @@
           </Popover>
 
           <ScrollablePopover
+            v-if="!isAcpMode"
             v-model:open="settingsPopoverOpen"
             align="end"
             content-class="w-80"
@@ -124,6 +196,8 @@ import { CONFIG_EVENTS } from '@/events'
 import { useModelStore } from '@/stores/modelStore'
 import { useUiSettingsStore } from '@/stores/uiSettingsStore'
 import { useChatMode, type ChatMode } from '@/components/chat-input/composables/useChatMode'
+import { useAcpMode } from '@/components/chat-input/composables/useAcpMode'
+import { useAcpSessionModel } from '@/components/chat-input/composables/useAcpSessionModel'
 import { calculateSafeDefaultMaxTokens, GLOBAL_OUTPUT_TOKEN_MAX } from '@/utils/maxOutputTokens'
 
 const configPresenter = usePresenter('configPresenter')
@@ -187,10 +261,40 @@ const name = computed(() => {
 })
 
 const acpWorkdirMap = computed(() => chatStore.chatConfig.acpWorkdirMap ?? {})
+const conversationId = computed(() => chatStore.activeThread?.id ?? null)
+const isAcpMode = computed(() => chatMode.currentMode.value === 'acp agent')
+const acpSessionTargetModel = computed(() => ({
+  id: activeModel.value.id,
+  providerId: activeModel.value.providerId
+}))
 
 const pendingAcpWorkdir = computed(() => {
   if (activeModel.value.providerId !== 'acp') return null
   return acpWorkdirMap.value?.[activeModel.value.id] ?? null
+})
+
+const acpSessionModel = useAcpSessionModel({
+  activeModel: acpSessionTargetModel,
+  conversationId,
+  workdir: pendingAcpWorkdir
+})
+
+const acpMode = useAcpMode({
+  activeModel: acpSessionTargetModel,
+  conversationId,
+  workdir: pendingAcpWorkdir
+})
+
+const modelSelectorLabel = computed(() => {
+  if (!isAcpMode.value || activeModel.value.providerId !== 'acp') {
+    return name.value
+  }
+  if (acpSessionModel.currentModelName.value) {
+    return acpSessionModel.currentModelName.value
+  }
+  return acpSessionModel.hasModels.value
+    ? t('settings.model.acpSession.model.placeholder')
+    : t('settings.model.acpSession.model.empty')
 })
 
 watch(
@@ -439,6 +543,18 @@ const handleModelUpdate = (model: MODEL_META, providerId: string) => {
     providerId: providerId
   })
 
+  modelSelectOpen.value = false
+}
+
+const handleAcpSessionModelSelect = async (modelId: string) => {
+  if (acpSessionModel.loading.value) return
+  await acpSessionModel.setModel(modelId)
+  modelSelectOpen.value = false
+}
+
+const handleAcpSessionModeSelect = async (modeId: string) => {
+  if (acpMode.loading.value) return
+  await acpMode.setMode(modeId)
   modelSelectOpen.value = false
 }
 

@@ -31,6 +31,7 @@ export function useAcpSessionModel(options: UseAcpSessionModelOptions) {
   const isAcpModel = computed(
     () => options.activeModel.value?.providerId === 'acp' && !!options.activeModel.value?.id
   )
+  const agentId = computed(() => options.activeModel.value?.id ?? '')
 
   const hasConversation = computed(() => Boolean(options.conversationId.value))
   const selectedWorkdir = computed(() => options.workdir?.value ?? null)
@@ -53,6 +54,9 @@ export function useAcpSessionModel(options: UseAcpSessionModelOptions) {
         console.info(
           `[useAcpSessionModel] Loaded models: current="${result.current}", available=[${result.available.map((m) => m.id).join(', ')}]`
         )
+      } else {
+        currentModelId.value = ''
+        availableModels.value = []
       }
     } catch (error) {
       console.warn('[useAcpSessionModel] Failed to load models', error)
@@ -63,17 +67,16 @@ export function useAcpSessionModel(options: UseAcpSessionModelOptions) {
 
   const loadWarmupModels = async () => {
     if (!isAcpModel.value || hasConversation.value) return
-    const agentId = options.activeModel.value?.id
     const workdir = selectedWorkdir.value
-    if (!agentId || !workdir) return
+    if (!agentId.value || !workdir) return
     if (availableModels.value.length > 0) return
 
-    const warmupKey = `${agentId}::${workdir}`
+    const warmupKey = `${agentId.value}::${workdir}`
     if (lastWarmupModelsKey.value === warmupKey) return
     lastWarmupModelsKey.value = warmupKey
 
     try {
-      const result = await sessionPresenter.getAcpProcessModels(agentId, workdir)
+      const result = await sessionPresenter.getAcpProcessModels(agentId.value, workdir)
       if (result?.availableModels && result.availableModels.length > 0) {
         currentModelId.value =
           result.currentModelId ?? result.availableModels[0]?.id ?? currentModelId.value
@@ -88,7 +91,7 @@ export function useAcpSessionModel(options: UseAcpSessionModelOptions) {
   }
 
   watch(
-    [isAcpModel, options.conversationId],
+    [isAcpModel, options.conversationId, agentId],
     () => {
       void loadModels()
     },
@@ -96,7 +99,7 @@ export function useAcpSessionModel(options: UseAcpSessionModelOptions) {
   )
 
   watch(
-    [isAcpModel, selectedWorkdir, options.conversationId],
+    [isAcpModel, selectedWorkdir, options.conversationId, agentId],
     () => {
       if (!hasConversation.value) {
         void loadWarmupModels()
@@ -113,6 +116,14 @@ export function useAcpSessionModel(options: UseAcpSessionModelOptions) {
       }
     })
   }
+
+  watch(agentId, (newId, oldId) => {
+    if (!newId || newId === oldId) return
+    currentModelId.value = ''
+    availableModels.value = []
+    pendingPreferredModel.value = null
+    lastWarmupModelsKey.value = null
+  })
 
   const handleModelsReady = (
     _: unknown,

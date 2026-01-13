@@ -31,6 +31,7 @@ export function useAcpMode(options: UseAcpModeOptions) {
   const isAcpModel = computed(
     () => options.activeModel.value?.providerId === 'acp' && !!options.activeModel.value?.id
   )
+  const agentId = computed(() => options.activeModel.value?.id ?? '')
 
   const hasConversation = computed(() => Boolean(options.conversationId.value))
   const selectedWorkdir = computed(() => options.workdir?.value ?? null)
@@ -62,6 +63,9 @@ export function useAcpMode(options: UseAcpModeOptions) {
         console.info(
           `[useAcpMode] Loaded modes: current="${result.current}", available=[${result.available.map((m) => m.id).join(', ')}]`
         )
+      } else {
+        currentMode.value = 'default'
+        availableModes.value = []
       }
     } catch (error) {
       console.warn('[useAcpMode] Failed to load modes', error)
@@ -72,17 +76,16 @@ export function useAcpMode(options: UseAcpModeOptions) {
 
   const loadWarmupModes = async () => {
     if (!isAcpModel.value || hasConversation.value) return
-    const agentId = options.activeModel.value?.id
     const workdir = selectedWorkdir.value
-    if (!agentId || !workdir) return
+    if (!agentId.value || !workdir) return
     if (availableModes.value.length > 0) return
 
-    const warmupKey = `${agentId}::${workdir}`
+    const warmupKey = `${agentId.value}::${workdir}`
     if (lastWarmupModesKey.value === warmupKey) return
     lastWarmupModesKey.value = warmupKey
 
     try {
-      const result = await sessionPresenter.getAcpProcessModes(agentId, workdir)
+      const result = await sessionPresenter.getAcpProcessModes(agentId.value, workdir)
       if (result?.availableModes && result.availableModes.length > 0) {
         currentMode.value =
           result.currentModeId ?? result.availableModes[0]?.id ?? currentMode.value
@@ -98,7 +101,7 @@ export function useAcpMode(options: UseAcpModeOptions) {
 
   // Watch for conversation and model changes
   watch(
-    [isAcpModel, options.conversationId],
+    [isAcpModel, options.conversationId, agentId],
     () => {
       void loadModes()
     },
@@ -107,7 +110,7 @@ export function useAcpMode(options: UseAcpModeOptions) {
 
   // Load warmup modes when a workdir is selected but no conversation exists yet
   watch(
-    [isAcpModel, selectedWorkdir, options.conversationId],
+    [isAcpModel, selectedWorkdir, options.conversationId, agentId],
     () => {
       if (!hasConversation.value) {
         void loadWarmupModes()
@@ -127,6 +130,14 @@ export function useAcpMode(options: UseAcpModeOptions) {
       }
     })
   }
+
+  watch(agentId, (newId, oldId) => {
+    if (!newId || newId === oldId) return
+    currentMode.value = 'default'
+    availableModes.value = []
+    pendingPreferredMode.value = null
+    lastWarmupModesKey.value = null
+  })
 
   // Listen for session modes ready event from main process
   const handleModesReady = (

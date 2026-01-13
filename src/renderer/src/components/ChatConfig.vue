@@ -245,6 +245,8 @@ const modelTypeIcon = computed(() => {
   }
   return icons[props.modelType || 'chat']
 })
+
+const isAcpProvider = computed(() => props.providerId === 'acp')
 </script>
 
 <template>
@@ -257,7 +259,10 @@ const modelTypeIcon = computed(() => {
 
     <div class="space-y-6">
       <!-- System Prompt (hidden for image generation models) -->
-      <div v-if="!modelTypeDetection.isImageGenerationModel.value" class="space-y-2 px-2">
+      <div
+        v-if="!isAcpProvider && !modelTypeDetection.isImageGenerationModel.value"
+        class="space-y-2 px-2"
+      >
         <div class="flex items-center space-x-2 py-1.5">
           <Icon icon="lucide:terminal" class="w-4 h-4 text-muted-foreground" />
           <Label class="text-xs font-medium">{{ t('settings.model.systemPrompt.label') }}</Label>
@@ -279,40 +284,42 @@ const modelTypeIcon = computed(() => {
       </div>
 
       <!-- Slider Fields (Temperature, Context Length, Response Length) -->
-      <ConfigSliderField
-        v-for="field in sliderFields"
-        :key="field.key"
-        :model-value="field.getValue()"
-        :icon="field.icon"
-        :label="field.label"
-        :description="field.description || ''"
-        :min="field.min"
-        :max="field.max"
-        :step="field.step"
-        :formatter="field.formatter"
-        @update:model-value="field.setValue"
-      />
+      <template v-if="!isAcpProvider">
+        <ConfigSliderField
+          v-for="field in sliderFields"
+          :key="field.key"
+          :model-value="field.getValue()"
+          :icon="field.icon"
+          :label="field.label"
+          :description="field.description || ''"
+          :min="field.min"
+          :max="field.max"
+          :step="field.step"
+          :formatter="field.formatter"
+          @update:model-value="field.setValue"
+        />
 
-      <!-- Input Fields (Thinking Budget) -->
-      <ConfigInputField
-        v-for="field in inputFields"
-        :key="field.key"
-        :model-value="field.getValue()"
-        :icon="field.icon"
-        :label="field.label"
-        :description="field.description"
-        :type="field.inputType"
-        :min="field.min"
-        :max="field.max"
-        :step="field.step"
-        :placeholder="field.placeholder"
-        :error="field.error?.()"
-        :hint="field.hint?.()"
-        @update:model-value="field.setValue"
-      />
+        <!-- Input Fields (Thinking Budget) -->
+        <ConfigInputField
+          v-for="field in inputFields"
+          :key="field.key"
+          :model-value="field.getValue()"
+          :icon="field.icon"
+          :label="field.label"
+          :description="field.description"
+          :type="field.inputType"
+          :min="field.min"
+          :max="field.max"
+          :step="field.step"
+          :placeholder="field.placeholder"
+          :error="field.error?.()"
+          :hint="field.hint?.()"
+          @update:model-value="field.setValue"
+        />
+      </template>
 
       <!-- Search Configuration (nested switches and select) -->
-      <div v-if="searchConfig.showSearchConfig.value" class="space-y-4 px-2">
+      <div v-if="!isAcpProvider && searchConfig.showSearchConfig.value" class="space-y-4 px-2">
         <ConfigFieldHeader
           icon="lucide:search"
           :label="t('settings.model.modelConfig.enableSearch.label')"
@@ -389,18 +396,20 @@ const modelTypeIcon = computed(() => {
       </div>
 
       <!-- Select Fields (Reasoning Effort, Verbosity) -->
-      <ConfigSelectField
-        v-for="field in selectFields.filter((f) => f.key !== 'searchStrategy')"
-        :key="field.key"
-        :model-value="field.getValue()"
-        :icon="field.icon"
-        :label="field.label"
-        :description="field.description"
-        :options="typeof field.options === 'function' ? field.options() : field.options"
-        :placeholder="field.placeholder"
-        :hint="field.hint"
-        @update:model-value="field.setValue"
-      />
+      <template v-if="!isAcpProvider">
+        <ConfigSelectField
+          v-for="field in selectFields.filter((f) => f.key !== 'searchStrategy')"
+          :key="field.key"
+          :model-value="field.getValue()"
+          :icon="field.icon"
+          :label="field.label"
+          :description="field.description"
+          :options="typeof field.options === 'function' ? field.options() : field.options"
+          :placeholder="field.placeholder"
+          :hint="field.hint"
+          @update:model-value="field.setValue"
+        />
+      </template>
     </div>
   </div>
 </template>
