@@ -19,6 +19,7 @@ defineProps<{
   options: SelectOption[]
   placeholder?: string
   hint?: string
+  disabled?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -31,9 +32,10 @@ const emit = defineEmits<{
     <ConfigFieldHeader :icon="icon" :label="label" :description="description" />
     <Select
       :model-value="modelValue"
+      :disabled="disabled"
       @update:model-value="(val) => val && emit('update:modelValue', String(val))"
     >
-      <SelectTrigger class="text-xs">
+      <SelectTrigger class="text-xs" :disabled="disabled">
         <SelectValue :placeholder="placeholder" />
       </SelectTrigger>
       <SelectContent>

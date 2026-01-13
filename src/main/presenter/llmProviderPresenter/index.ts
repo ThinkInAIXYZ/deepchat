@@ -519,11 +519,35 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
     return provider.getProcessModes(agentId, workdir)
   }
 
+  async getAcpProcessModels(
+    agentId: string,
+    workdir: string
+  ): Promise<
+    | {
+        availableModels?: Array<{ id: string; name: string; description?: string }>
+        currentModelId?: string
+      }
+    | undefined
+  > {
+    const provider = this.getAcpProviderInstance()
+    if (!provider) {
+      return undefined
+    }
+    return provider.getProcessModels(agentId, workdir)
+  }
+
   async setAcpPreferredProcessMode(agentId: string, workdir: string, modeId: string) {
     const provider = this.getAcpProviderInstance()
     if (!provider) return
 
     await provider.setPreferredProcessMode(agentId, workdir, modeId)
+  }
+
+  async setAcpPreferredProcessModel(agentId: string, workdir: string, modelId: string) {
+    const provider = this.getAcpProviderInstance()
+    if (!provider) return
+
+    await provider.setPreferredProcessModel(agentId, workdir, modelId)
   }
 
   async setAcpSessionMode(conversationId: string, modeId: string): Promise<void> {
@@ -532,6 +556,14 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
       throw new Error('[ACP] ACP provider not found')
     }
     await provider.setSessionMode(conversationId, modeId)
+  }
+
+  async setAcpSessionModel(conversationId: string, modelId: string): Promise<void> {
+    const provider = this.getAcpProviderInstance()
+    if (!provider) {
+      throw new Error('[ACP] ACP provider not found')
+    }
+    await provider.setSessionModel(conversationId, modelId)
   }
 
   async getAcpSessionModes(conversationId: string): Promise<{
@@ -543,6 +575,17 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
       return null
     }
     return await provider.getSessionModes(conversationId)
+  }
+
+  async getAcpSessionModels(conversationId: string): Promise<{
+    current: string
+    available: Array<{ id: string; name: string; description?: string }>
+  } | null> {
+    const provider = this.getAcpProviderInstance()
+    if (!provider) {
+      return null
+    }
+    return await provider.getSessionModels(conversationId)
   }
 
   async runAcpDebugAction(request: AcpDebugRequest): Promise<AcpDebugRunResult> {

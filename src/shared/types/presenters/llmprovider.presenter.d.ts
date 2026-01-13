@@ -2,7 +2,12 @@ import { ShowResponse } from 'ollama'
 import type { ChatMessage } from '../core/chat-message'
 import type { LLMAgentEvent } from '../core/agent-events'
 import { ModelType } from '../core/model'
-import type { AcpDebugRequest, AcpDebugRunResult, AcpWorkdirInfo } from './legacy.presenters'
+import type {
+  AcpDebugRequest,
+  AcpDebugRunResult,
+  AcpSessionModelInfo,
+  AcpWorkdirInfo
+} from './legacy.presenters'
 
 /**
  * LLM Provider Presenter Interface
@@ -274,11 +279,27 @@ export interface ILlmProviderPresenter {
       }
     | undefined
   >
+  getAcpProcessModels(
+    agentId: string,
+    workdir: string
+  ): Promise<
+    | {
+        availableModels?: AcpSessionModelInfo[]
+        currentModelId?: string
+      }
+    | undefined
+  >
   setAcpPreferredProcessMode(agentId: string, workdir: string, modeId: string): Promise<void>
+  setAcpPreferredProcessModel(agentId: string, workdir: string, modelId: string): Promise<void>
   setAcpSessionMode(conversationId: string, modeId: string): Promise<void>
+  setAcpSessionModel(conversationId: string, modelId: string): Promise<void>
   getAcpSessionModes(conversationId: string): Promise<{
     current: string
     available: Array<{ id: string; name: string; description: string }>
+  } | null>
+  getAcpSessionModels(conversationId: string): Promise<{
+    current: string
+    available: AcpSessionModelInfo[]
   } | null>
   runAcpDebugAction(request: AcpDebugRequest): Promise<AcpDebugRunResult>
   resolveAgentPermission(requestId: string, granted: boolean): Promise<void>

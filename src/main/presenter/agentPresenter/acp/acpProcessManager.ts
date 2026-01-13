@@ -30,6 +30,8 @@ export interface AcpProcessHandle extends AgentProcessHandle {
   boundConversationId?: string
   /** The working directory this process was spawned with */
   workdir: string
+  availableModels?: Array<{ id: string; name: string; description?: string }>
+  currentModelId?: string
   availableModes?: Array<{ id: string; name: string; description: string }>
   currentModeId?: string
   mcpCapabilities?: schema.McpCapabilities
@@ -83,6 +85,7 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
   private readonly fsHandlers = new Map<string, AcpFsHandler>()
   private readonly agentLocks = new Map<string, Promise<void>>()
   private readonly preferredModes = new Map<string, string>()
+  private readonly preferredModels = new Map<string, string>()
   private shuttingDown = false
 
   constructor(options: AcpProcessManagerOptions) {
@@ -183,6 +186,7 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
     const resolvedWorkdir = this.resolveWorkdir(workdir)
     const warmupKey = this.getWarmupKey(agent.id, resolvedWorkdir)
     const preferredModeId = this.preferredModes.get(warmupKey)
+    const preferredModelId = this.preferredModels.get(warmupKey)
     const releaseLock = await this.acquireAgentLock(agent.id)
 
     try {
@@ -198,6 +202,7 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
           `[ACP] Reusing warmup process for agent ${agent.id} (pid=${reusable.pid}, workdir=${resolvedWorkdir})`
         )
         this.applyPreferredMode(reusable, preferredModeId)
+        this.applyPreferredModel(reusable, preferredModelId)
         return reusable
       }
 
@@ -213,6 +218,7 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
             `[ACP] Awaiting inflight warmup for agent ${agent.id} (pid=${inflightHandle.pid}, workdir=${resolvedWorkdir})`
           )
           this.applyPreferredMode(inflightHandle, preferredModeId)
+          this.applyPreferredModel(inflightHandle, preferredModelId)
           return inflightHandle
         }
         if (inflightHandle.state === 'warmup') {
@@ -240,6 +246,7 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
           console.warn(`[ACP] Failed to fetch modes during warmup for agent ${agent.id}:`, error)
         })
         this.applyPreferredMode(handle, preferredModeId)
+        this.applyPreferredModel(handle, preferredModelId)
         console.info(
           `[ACP] Warmup process ready for agent ${agent.id} (pid=${handle.pid}, workdir=${resolvedWorkdir})`
         )
@@ -266,6 +273,23 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
     if (existingWarmup && this.isHandleAlive(existingWarmup)) {
       existingWarmup.currentModeId = modeId
       this.notifyModesReady(existingWarmup)
+    }
+  }
+
+  /**
+   * Update preferred model for future warmup processes and sessions.
+   * The model will be applied when a warmup process is created or when a session is created.
+   */
+  async setPreferredModel(agent: AcpAgentConfig, workdir: string, modelId: string): Promise<void> {
+    const resolvedWorkdir = this.resolveWorkdir(workdir)
+    const warmupKey = this.getWarmupKey(agent.id, resolvedWorkdir)
+    this.preferredModels.set(warmupKey, modelId)
+
+    // Apply to existing warmup handle if available
+    const existingWarmup = this.findReusableHandle(agent.id, resolvedWorkdir)
+    if (existingWarmup && this.isHandleAlive(existingWarmup)) {
+      existingWarmup.currentModelId = modelId
+      this.notifyModelsReady(existingWarmup)
     }
   }
 
@@ -382,6 +406,7 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
 
     // Immediately notify renderer if modes are already known
     this.notifyModesReady(handle, conversationId)
+    this.notifyModelsReady(handle, conversationId)
     console.info(
       `[ACP] Bound process for agent ${agentId} to conversation ${conversationId} (pid=${handle.pid}, workdir=${handle.workdir})`
     )
@@ -418,6 +443,28 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
     return {
       availableModes: handle.availableModes,
       currentModeId: handle.currentModeId
+    }
+  }
+
+  getProcessModels(
+    agentId: string,
+    workdir?: string
+  ):
+    | {
+        availableModels?: Array<{ id: string; name: string; description?: string }>
+        currentModelId?: string
+      }
+    | undefined {
+    const resolvedWorkdir = this.resolveWorkdir(workdir)
+    const candidates = this.getHandlesByAgent(agentId).filter(
+      (handle) => handle.workdir === resolvedWorkdir && this.isHandleAlive(handle)
+    )
+    const handle = candidates[0]
+    if (!handle) return undefined
+
+    return {
+      availableModels: handle.availableModels,
+      currentModelId: handle.currentModelId
     }
   }
 
@@ -518,7 +565,7 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
       const resultData = initResult as unknown as {
         sessionId?: string
         models?: {
-          availableModels?: Array<{ modelId: string }>
+          availableModels?: Array<{ modelId: string; name?: string; description?: string }>
           currentModelId?: string
         }
         modes?: {
@@ -542,6 +589,18 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
         console.info(`[ACP] Available models: ${resultData.models.availableModels?.length ?? 0}`)
         console.info(`[ACP] Current model: ${resultData.models.currentModelId}`)
       }
+      const initAvailableModels = resultData.models?.availableModels?.map(
+        (m: { modelId: string; name?: string; description?: string }) => ({
+          id: m.modelId,
+          name: m.name ?? m.modelId,
+          description: m.description ?? ''
+        })
+      )
+      if (initAvailableModels) {
+        console.info(
+          `[ACP] Available models: ${JSON.stringify(initAvailableModels.map((m) => m.id) ?? [])}`
+        )
+      }
       const initAvailableModes = resultData.modes?.availableModes?.map(
         (m: { id: string; name?: string; description?: string }) => ({
           id: m.id,
@@ -555,6 +614,8 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
         )
         console.info(`[ACP] Current mode: ${resultData.modes?.currentModeId}`)
       }
+      handleSeed.availableModels = initAvailableModels
+      handleSeed.currentModelId = resultData.models?.currentModelId
       handleSeed.availableModes = initAvailableModes
       handleSeed.currentModeId = resultData.modes?.currentModeId
     } catch (error) {
@@ -588,6 +649,8 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
       state: 'warmup',
       boundConversationId: undefined,
       workdir,
+      availableModels: handleSeed.availableModels,
+      currentModelId: handleSeed.currentModelId,
       availableModes: handleSeed.availableModes,
       currentModeId: handleSeed.currentModeId,
       mcpCapabilities: handleSeed.mcpCapabilities
@@ -940,6 +1003,26 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
         this.registerSessionWorkdir(response.sessionId, handle.workdir)
       }
 
+      const models = response.models
+      if (models?.availableModels?.length) {
+        handle.availableModels = models.availableModels.map((model) => ({
+          id: model.modelId,
+          name: model.name ?? model.modelId,
+          description: model.description ?? ''
+        }))
+        if (
+          handle.currentModelId &&
+          handle.availableModels.some((m) => m.id === handle.currentModelId)
+        ) {
+          // keep preferred
+        } else if (models.currentModelId) {
+          handle.currentModelId = models.currentModelId
+        } else {
+          handle.currentModelId = handle.availableModels[0]?.id ?? handle.currentModelId
+        }
+        this.notifyModelsReady(handle)
+      }
+
       const modes = response.modes
       if (modes?.availableModes?.length) {
         handle.availableModes = modes.availableModes.map((mode) => ({
@@ -986,6 +1069,18 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
       workdir: handle.workdir,
       current: handle.currentModeId ?? 'default',
       available: handle.availableModes
+    })
+  }
+
+  private notifyModelsReady(handle: AcpProcessHandle, conversationId?: string): void {
+    if (!handle.availableModels || handle.availableModels.length === 0) return
+
+    eventBus.sendToRenderer(ACP_WORKSPACE_EVENTS.SESSION_MODELS_READY, SendTarget.ALL_WINDOWS, {
+      conversationId: conversationId ?? handle.boundConversationId,
+      agentId: handle.agentId,
+      workdir: handle.workdir,
+      current: handle.currentModelId ?? '',
+      available: handle.availableModels
     })
   }
 
@@ -1042,6 +1137,12 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
     if (!preferredModeId) return
     handle.currentModeId = preferredModeId
     this.notifyModesReady(handle)
+  }
+
+  private applyPreferredModel(handle: AcpProcessHandle, preferredModelId?: string): void {
+    if (!preferredModelId) return
+    handle.currentModelId = preferredModelId
+    this.notifyModelsReady(handle)
   }
 
   private clearSessionsForAgent(agentId: string): void {

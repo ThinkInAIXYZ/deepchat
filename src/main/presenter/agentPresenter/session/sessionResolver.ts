@@ -9,7 +9,7 @@ export type SessionResolveInput = {
 
 export function resolveSessionContext(input: SessionResolveInput): SessionContextResolved {
   const { settings, modelConfig } = input
-  const chatMode = settings.chatMode || input.fallbackChatMode || 'chat'
+  const chatMode = settings.chatMode || input.fallbackChatMode || 'agent'
 
   return {
     chatMode,

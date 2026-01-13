@@ -26,9 +26,13 @@ import { useThinkingBudget } from '@/composables/useThinkingBudget'
 import { useSearchConfig } from '@/composables/useSearchConfig'
 import { useModelTypeDetection } from '@/composables/useModelTypeDetection'
 import { useChatConfigFields } from '@/composables/useChatConfigFields'
+import { useAcpMode } from '@/components/chat-input/composables/useAcpMode'
+import { useAcpSessionModel } from '@/components/chat-input/composables/useAcpSessionModel'
+import { useAcpWorkdir } from '@/components/chat-input/composables/useAcpWorkdir'
 
 // === Stores ===
 import { useLanguageStore } from '@/stores/language'
+import { useChatStore } from '@/stores/chat'
 
 // === Props & Emits ===
 const props = defineProps<{
@@ -66,6 +70,7 @@ const emit = defineEmits<{
 // === Stores ===
 const { t } = useI18n()
 const langStore = useLanguageStore()
+const chatStore = useChatStore()
 const configPresenter = usePresenter('configPresenter')
 
 // === Composable Integrations ===
@@ -147,6 +152,78 @@ const { sliderFields, inputFields, selectFields } = useChatConfigFields({
 })
 
 // === Local State & Computed ===
+const acpSessionEligibleAgents = new Set(['claude-code-acp', 'codex-acp'])
+
+const acpSessionTargetModel = computed(() => {
+  if (!props.providerId) return null
+  return { id: props.modelId, providerId: props.providerId }
+})
+
+const conversationId = computed(() => chatStore.activeThread?.id ?? null)
+
+const acpWorkdir = useAcpWorkdir({
+  activeModel: acpSessionTargetModel,
+  conversationId
+})
+
+const acpSessionModel = useAcpSessionModel({
+  activeModel: acpSessionTargetModel,
+  conversationId,
+  workdir: acpWorkdir.workdir
+})
+
+const acpMode = useAcpMode({
+  activeModel: acpSessionTargetModel,
+  conversationId,
+  workdir: acpWorkdir.workdir
+})
+
+const showAcpSessionConfig = computed(() => {
+  const modelId = props.modelId ?? ''
+  return props.providerId === 'acp' && acpSessionEligibleAgents.has(modelId)
+})
+
+const acpSessionModelOptions = computed(() =>
+  acpSessionModel.availableModels.value.map((model) => ({
+    value: model.id,
+    label: model.name || model.id
+  }))
+)
+
+const acpSessionModeOptions = computed(() =>
+  acpMode.availableModes.value.map((mode) => ({
+    value: mode.id,
+    label: mode.name || mode.id
+  }))
+)
+
+const acpSessionModelValue = computed(() =>
+  acpSessionModel.hasModels.value ? acpSessionModel.currentModelId.value || undefined : undefined
+)
+
+const acpSessionModeValue = computed(() =>
+  acpMode.hasAgentModes.value ? acpMode.currentMode.value || undefined : undefined
+)
+
+const acpSessionModelPlaceholder = computed(() =>
+  acpSessionModel.hasModels.value
+    ? t('settings.model.acpSession.model.placeholder')
+    : t('settings.model.acpSession.model.empty')
+)
+
+const acpSessionModePlaceholder = computed(() =>
+  acpMode.hasAgentModes.value
+    ? t('settings.model.acpSession.mode.placeholder')
+    : t('settings.model.acpSession.mode.empty')
+)
+
+const acpSessionModelHint = computed(() => acpSessionModel.currentModelInfo.value?.description)
+const acpSessionModeHint = computed(() => acpMode.currentModeInfo.value?.description)
+
+const acpSessionModelDisabled = computed(
+  () => acpSessionModel.loading.value || !acpSessionModel.hasModels.value
+)
+const acpSessionModeDisabled = computed(() => acpMode.loading.value || !acpMode.hasAgentModes.value)
 
 // Clear system prompt when switching to image generation model
 watch(
@@ -273,6 +350,41 @@ const modelTypeIcon = computed(() => {
               @update:model-value="field.setValue"
             />
           </template>
+        </div>
+      </div>
+
+      <!-- ACP Session Configuration (Claude Code / Codex) -->
+      <div v-if="showAcpSessionConfig" class="space-y-4 px-2">
+        <ConfigFieldHeader
+          icon="lucide:bot"
+          :label="t('settings.model.acpSession.title')"
+          :description="t('settings.model.acpSession.description')"
+        />
+
+        <div class="space-y-3 pl-4 border-l-2 border-muted">
+          <ConfigSelectField
+            :model-value="acpSessionModelValue"
+            icon="lucide:cpu"
+            :label="t('settings.model.acpSession.model.label')"
+            :description="t('settings.model.acpSession.model.description')"
+            :options="acpSessionModelOptions"
+            :placeholder="acpSessionModelPlaceholder"
+            :hint="acpSessionModelHint"
+            :disabled="acpSessionModelDisabled"
+            @update:model-value="acpSessionModel.setModel"
+          />
+
+          <ConfigSelectField
+            :model-value="acpSessionModeValue"
+            icon="lucide:shield"
+            :label="t('settings.model.acpSession.mode.label')"
+            :description="t('settings.model.acpSession.mode.description')"
+            :options="acpSessionModeOptions"
+            :placeholder="acpSessionModePlaceholder"
+            :hint="acpSessionModeHint"
+            :disabled="acpSessionModeDisabled"
+            @update:model-value="acpMode.setMode"
+          />
         </div>
       </div>
 

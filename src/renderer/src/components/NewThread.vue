@@ -15,6 +15,7 @@
         :context-length="contextLength"
         :model-info="{ id: activeModel.id, providerId: activeModel.providerId }"
         @send="handleSend"
+        @model-update="handleModelUpdate"
       >
         <template #addon-actions>
           <Popover v-model:open="modelSelectOpen">

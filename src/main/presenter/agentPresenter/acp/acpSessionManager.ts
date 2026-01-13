@@ -29,6 +29,8 @@ export interface AcpSessionRecord extends AgentSessionState {
   connection: ClientSideConnectionType
   detachHandlers: Array<() => void>
   workdir: string
+  availableModels?: Array<{ id: string; name: string; description?: string }>
+  currentModelId?: string
   availableModes?: Array<{ id: string; name: string; description: string }>
   currentModeId?: string
   availableCommands?: Array<{ name: string; description: string }>
@@ -197,6 +199,18 @@ export class AcpSessionManager {
         console.warn('[ACP] Failed to persist session metadata:', error)
       })
 
+    const availableModels = session.availableModels ?? handle.availableModels
+    // Prefer handle.currentModelId (which may contain preferredModel from warmup) over session default
+    let currentModelId = handle.currentModelId ?? session.currentModelId
+    if (
+      !currentModelId ||
+      (availableModels && !availableModels.some((model) => model.id === currentModelId))
+    ) {
+      currentModelId = session.currentModelId ?? currentModelId ?? availableModels?.[0]?.id
+    }
+    handle.availableModels = availableModels
+    handle.currentModelId = currentModelId
+
     const availableModes = session.availableModes ?? handle.availableModes
     // Prefer handle.currentModeId (which may contain preferredMode from warmup) over session default
     let currentModeId = handle.currentModeId ?? session.currentModeId
@@ -228,6 +242,31 @@ export class AcpSessionManager {
       }
     }
 
+    // Apply preferred model to session if it differs from session default and is valid
+    if (
+      availableModels?.length &&
+      currentModelId &&
+      currentModelId !== session.currentModelId &&
+      availableModels.some((model) => model.id === currentModelId)
+    ) {
+      try {
+        await handle.connection.setSessionModel({
+          sessionId: session.sessionId,
+          modelId: currentModelId
+        })
+        console.info(
+          `[ACP] Applied preferred model "${currentModelId}" to session ${session.sessionId} for conversation ${conversationId}`
+        )
+      } catch (error) {
+        console.warn(
+          `[ACP] Failed to apply preferred model "${currentModelId}" for conversation ${conversationId}:`,
+          error
+        )
+        // Fallback to session default model if preferred model application fails
+        currentModelId = session.currentModelId ?? currentModelId
+      }
+    }
+
     return {
       ...session,
       providerId: this.providerId,
@@ -240,6 +279,8 @@ export class AcpSessionManager {
       connection: handle.connection,
       detachHandlers: detachListeners,
       workdir,
+      availableModels,
+      currentModelId,
       availableModes,
       currentModeId
     }
@@ -269,6 +310,8 @@ export class AcpSessionManager {
     workdir: string
   ): Promise<{
     sessionId: string
+    availableModels?: Array<{ id: string; name: string; description?: string }>
+    currentModelId?: string
     availableModes?: Array<{ id: string; name: string; description: string }>
     currentModeId?: string
   }> {
@@ -322,6 +365,24 @@ export class AcpSessionManager {
         mcpServers
       })
 
+      const models = response.models
+      const availableModels =
+        models?.availableModels?.map((m) => ({
+          id: m.modelId,
+          name: m.name ?? m.modelId,
+          description: m.description ?? ''
+        })) ?? handle.availableModels
+
+      const preferredModelId = handle.currentModelId
+      const responseModelId = models?.currentModelId
+      let currentModelId = preferredModelId
+      if (
+        !currentModelId ||
+        (availableModels && !availableModels.some((m) => m.id === currentModelId))
+      ) {
+        currentModelId = responseModelId ?? currentModelId ?? availableModels?.[0]?.id
+      }
+
       // Extract modes from response if available
       const modes = response.modes
       const availableModes =
@@ -343,6 +404,8 @@ export class AcpSessionManager {
 
       handle.availableModes = availableModes
       handle.currentModeId = currentModeId
+      handle.availableModels = availableModels
+      handle.currentModelId = currentModelId
 
       // Log available modes for the agent
       if (availableModes && availableModes.length > 0) {
@@ -358,6 +421,8 @@ export class AcpSessionManager {
 
       return {
         sessionId: response.sessionId,
+        availableModels,
+        currentModelId,
         availableModes,
         currentModeId
       }

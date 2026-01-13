@@ -98,13 +98,14 @@ export async function preparePromptContent({
   promptTokens: number
 }> {
   const { systemPrompt, contextLength, artifacts, enabledMcpTools } = conversation.settings
+  const storedChatMode = (await presenter.configPresenter.getSetting('input_chatMode')) as
+    | 'chat'
+    | 'agent'
+    | 'acp agent'
+    | undefined
+  const normalizedChatMode = storedChatMode === 'chat' ? 'agent' : storedChatMode
   const chatMode: 'chat' | 'agent' | 'acp agent' =
-    conversation.settings.chatMode ??
-    ((await presenter.configPresenter.getSetting('input_chatMode')) as
-      | 'chat'
-      | 'agent'
-      | 'acp agent') ??
-    'chat'
+    conversation.settings.chatMode ?? normalizedChatMode ?? 'agent'
   const isAgentMode = chatMode === 'agent'
 
   const isImageGeneration = modelType === ModelType.ImageGeneration

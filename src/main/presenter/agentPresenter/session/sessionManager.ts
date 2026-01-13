@@ -62,11 +62,12 @@ export class SessionManager {
 
   async resolveSession(agentId: string): Promise<SessionContextResolved> {
     const conversation = await this.options.sessionPresenter.getConversation(agentId)
-    const fallbackChatMode = this.options.configPresenter.getSetting('input_chatMode') as
+    const rawFallbackChatMode = this.options.configPresenter.getSetting('input_chatMode') as
       | 'chat'
       | 'agent'
       | 'acp agent'
       | undefined
+    const fallbackChatMode = rawFallbackChatMode === 'chat' ? 'agent' : rawFallbackChatMode
     const modelConfig = this.options.configPresenter.getModelDefaultConfig(
       conversation.settings.modelId,
       conversation.settings.providerId
@@ -102,12 +103,13 @@ export class SessionManager {
     modelId?: string
   ): Promise<WorkspaceContext> {
     if (!conversationId) {
+      const rawFallbackChatMode = this.options.configPresenter.getSetting('input_chatMode') as
+        | 'chat'
+        | 'agent'
+        | 'acp agent'
+        | undefined
       const fallbackChatMode =
-        (this.options.configPresenter.getSetting('input_chatMode') as
-          | 'chat'
-          | 'agent'
-          | 'acp agent'
-          | undefined) ?? 'chat'
+        (rawFallbackChatMode === 'chat' ? 'agent' : rawFallbackChatMode) ?? 'agent'
       return { chatMode: fallbackChatMode, agentWorkspacePath: null }
     }
 
@@ -127,12 +129,13 @@ export class SessionManager {
       }
     } catch (error) {
       console.warn('[SessionManager] Failed to resolve workspace context:', error)
+      const rawFallbackChatMode = this.options.configPresenter.getSetting('input_chatMode') as
+        | 'chat'
+        | 'agent'
+        | 'acp agent'
+        | undefined
       const fallbackChatMode =
-        (this.options.configPresenter.getSetting('input_chatMode') as
-          | 'chat'
-          | 'agent'
-          | 'acp agent'
-          | undefined) ?? 'chat'
+        (rawFallbackChatMode === 'chat' ? 'agent' : rawFallbackChatMode) ?? 'agent'
       return { chatMode: fallbackChatMode, agentWorkspacePath: null }
     }
   }

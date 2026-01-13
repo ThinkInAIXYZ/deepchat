@@ -365,6 +365,20 @@ export class AcpProvider extends BaseAgentProvider<
             )
           }
 
+          if (session.availableModels && session.availableModels.length > 0) {
+            eventBus.sendToRenderer(
+              ACP_WORKSPACE_EVENTS.SESSION_MODELS_READY,
+              SendTarget.ALL_WINDOWS,
+              {
+                conversationId: conversationKey,
+                agentId: agent.id,
+                workdir: session.workdir,
+                current: session.currentModelId ?? '',
+                available: session.availableModels
+              }
+            )
+          }
+
           const promptBlocks = this.messageFormatter.format(messages, modelConfig)
           void this.runPrompt(session, promptBlocks, queue)
         }
@@ -441,6 +455,18 @@ export class AcpProvider extends BaseAgentProvider<
     return this.processManager.getProcessModes(agentId, workdir) ?? undefined
   }
 
+  public getProcessModels(
+    agentId: string,
+    workdir: string
+  ):
+    | {
+        availableModels?: Array<{ id: string; name: string; description?: string }>
+        currentModelId?: string
+      }
+    | undefined {
+    return this.processManager.getProcessModels(agentId, workdir) ?? undefined
+  }
+
   public async setPreferredProcessMode(agentId: string, workdir: string, modeId: string) {
     const agent = await this.getAgentById(agentId)
     if (!agent) return
@@ -450,6 +476,20 @@ export class AcpProvider extends BaseAgentProvider<
     } catch (error) {
       console.warn(
         `[ACP] Failed to set preferred mode "${modeId}" for agent ${agentId} in workdir "${workdir}":`,
+        error
+      )
+    }
+  }
+
+  public async setPreferredProcessModel(agentId: string, workdir: string, modelId: string) {
+    const agent = await this.getAgentById(agentId)
+    if (!agent) return
+
+    try {
+      await this.processManager.setPreferredModel(agent, workdir, modelId)
+    } catch (error) {
+      console.warn(
+        `[ACP] Failed to set preferred model "${modelId}" for agent ${agentId} in workdir "${workdir}":`,
         error
       )
     }
@@ -1115,6 +1155,56 @@ export class AcpProvider extends BaseAgentProvider<
   }
 
   /**
+   * Set the session model for an ACP conversation
+   */
+  async setSessionModel(conversationId: string, modelId: string): Promise<void> {
+    const session = this.sessionManager.getSession(conversationId)
+    if (!session) {
+      throw new Error(`[ACP] No session found for conversation ${conversationId}`)
+    }
+
+    const previousModel = session.currentModelId ?? ''
+    const availableModels = session.availableModels ?? []
+    const availableModelIds = availableModels.map((m) => m.id)
+
+    if (availableModelIds.length > 0 && !availableModelIds.includes(modelId)) {
+      console.warn(
+        `[ACP] Model "${modelId}" is not in agent's available models [${availableModelIds.join(', ')}]. ` +
+          `The agent may not support this model.`
+      )
+    }
+
+    try {
+      console.info(
+        `[ACP] Changing session model: "${previousModel}" -> "${modelId}" ` +
+          `(conversation: ${conversationId}, agent: ${session.agentId})`
+      )
+      await session.connection.setSessionModel({ sessionId: session.sessionId, modelId })
+      session.currentModelId = modelId
+      const handle = this.processManager.getProcess(session.agentId)
+      if (handle && handle.boundConversationId === conversationId) {
+        handle.currentModelId = modelId
+      }
+      eventBus.sendToRenderer(ACP_WORKSPACE_EVENTS.SESSION_MODELS_READY, SendTarget.ALL_WINDOWS, {
+        conversationId,
+        agentId: session.agentId,
+        workdir: session.workdir,
+        current: modelId,
+        available: session.availableModels ?? []
+      })
+      console.info(
+        `[ACP] Session model successfully changed to "${modelId}" for conversation ${conversationId}`
+      )
+    } catch (error) {
+      console.error(
+        `[ACP] Failed to set session model "${modelId}" for agent "${session.agentId}":`,
+        error
+      )
+      throw error
+    }
+  }
+
+  /**
    * Get available session modes and current mode for a conversation
    */
   async getSessionModes(conversationId: string): Promise<{
@@ -1134,6 +1224,32 @@ export class AcpProvider extends BaseAgentProvider<
 
     console.info(
       `[ACP] getSessionModes for agent "${session.agentId}": ` +
+        `current="${result.current}", available=[${result.available.map((m) => m.id).join(', ')}]`
+    )
+
+    return result
+  }
+
+  /**
+   * Get available session models and current model for a conversation
+   */
+  async getSessionModels(conversationId: string): Promise<{
+    current: string
+    available: Array<{ id: string; name: string; description?: string }>
+  } | null> {
+    const session = this.sessionManager.getSession(conversationId)
+    if (!session) {
+      console.warn(`[ACP] getSessionModels: No session found for conversation ${conversationId}`)
+      return null
+    }
+
+    const result = {
+      current: session.currentModelId ?? '',
+      available: session.availableModels ?? []
+    }
+
+    console.info(
+      `[ACP] getSessionModels for agent "${session.agentId}": ` +
         `current="${result.current}", available=[${result.available.map((m) => m.id).join(', ')}]`
     )
 

@@ -55,7 +55,7 @@ export class ToolPresenter implements IToolPresenter {
     const defs: MCPToolDefinition[] = []
     this.mapper.clear()
 
-    const chatMode = context.chatMode || 'chat'
+    const chatMode = context.chatMode || 'agent'
     const supportsVision = context.supportsVision || false
     const agentWorkspacePath = context.agentWorkspacePath || null
 

@@ -283,6 +283,22 @@
         "temperatureMin": "温度必须大于等于0",
         "temperatureMax": "温度必须小于等于2"
       }
+    },
+    "acpSession": {
+      "title": "ACP 会话设置",
+      "description": "配置 ACP Agent 上报的会话级选项。",
+      "model": {
+        "label": "Agent 模型",
+        "description": "选择该 ACP Agent 暴露的底层模型。",
+        "placeholder": "选择模型",
+        "empty": "Agent 未上报可用模型"
+      },
+      "mode": {
+        "label": "权限模式",
+        "description": "选择 Agent 的权限策略（若支持）。",
+        "placeholder": "选择模式",
+        "empty": "Agent 未上报权限模式"
+      }
     }
   },
   "provider": {

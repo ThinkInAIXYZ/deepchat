@@ -136,9 +136,25 @@ export interface ISessionPresenter extends IThreadPresenter {
     agentId: string,
     workdir: string
   ): Promise<{ availableModes?: any; currentModeId?: string } | undefined>
+  getAcpProcessModels(
+    agentId: string,
+    workdir: string
+  ): Promise<
+    | {
+        availableModels?: Array<{ id: string; name: string; description?: string }>
+        currentModelId?: string
+      }
+    | undefined
+  >
   setAcpPreferredProcessMode(agentId: string, workdir: string, modeId: string): Promise<void>
+  setAcpPreferredProcessModel(agentId: string, workdir: string, modelId: string): Promise<void>
   setAcpSessionMode(conversationId: string, modeId: string): Promise<void>
+  setAcpSessionModel(conversationId: string, modelId: string): Promise<void>
   getAcpSessionModes(conversationId: string): Promise<{ current: string; available: any[] } | null>
+  getAcpSessionModels(conversationId: string): Promise<{
+    current: string
+    available: Array<{ id: string; name: string; description?: string }>
+  } | null>
 
   exportConversation(
     conversationId: string,

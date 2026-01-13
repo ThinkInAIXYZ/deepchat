@@ -177,6 +177,9 @@ export class ConversationManager {
       let defaultSettings = DEFAULT_SETTINGS
       if (latestConversation?.settings) {
         defaultSettings = { ...latestConversation.settings }
+        if (defaultSettings.chatMode === 'chat') {
+          defaultSettings.chatMode = 'agent'
+        }
         defaultSettings.systemPrompt = ''
         defaultSettings.reasoningEffort = undefined
         defaultSettings.enableSearch = undefined

@@ -903,6 +903,12 @@ export interface AcpWorkdirInfo {
   isCustom: boolean
 }
 
+export interface AcpSessionModelInfo {
+  id: string
+  name: string
+  description?: string
+}
+
 // Simplified ModelScope MCP sync options
 export interface ModelScopeMcpSyncOptions {
   page_number?: number
@@ -1041,11 +1047,27 @@ export interface ILlmProviderPresenter {
       }
     | undefined
   >
+  getAcpProcessModels(
+    agentId: string,
+    workdir: string
+  ): Promise<
+    | {
+        availableModels?: AcpSessionModelInfo[]
+        currentModelId?: string
+      }
+    | undefined
+  >
   setAcpPreferredProcessMode(agentId: string, workdir: string, modeId: string): Promise<void>
+  setAcpPreferredProcessModel(agentId: string, workdir: string, modelId: string): Promise<void>
   setAcpSessionMode(conversationId: string, modeId: string): Promise<void>
+  setAcpSessionModel(conversationId: string, modelId: string): Promise<void>
   getAcpSessionModes(conversationId: string): Promise<{
     current: string
     available: Array<{ id: string; name: string; description: string }>
+  } | null>
+  getAcpSessionModels(conversationId: string): Promise<{
+    current: string
+    available: AcpSessionModelInfo[]
   } | null>
   resolveAgentPermission(requestId: string, granted: boolean): Promise<void>
   runAcpDebugAction(request: AcpDebugRequest): Promise<AcpDebugRunResult>

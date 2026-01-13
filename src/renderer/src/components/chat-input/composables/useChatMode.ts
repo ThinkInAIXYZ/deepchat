@@ -15,7 +15,7 @@ const MODE_ICONS = {
 } as const
 
 // Shared state so all callers observe the same mode.
-const currentMode = ref<ChatMode>('chat')
+const currentMode = ref<ChatMode>('agent')
 const hasAcpAgents = ref<boolean>(false)
 let hasLoaded = false
 let loadPromise: Promise<void> | null = null
@@ -44,7 +44,6 @@ export function useChatMode() {
 
   const modes = computed(() => {
     const allModes = [
-      { value: 'chat' as ChatMode, label: t('chat.mode.chat'), icon: MODE_ICONS.chat },
       { value: 'agent' as ChatMode, label: t('chat.mode.agent'), icon: MODE_ICONS.agent },
       {
         value: 'acp agent' as ChatMode,
@@ -106,12 +105,15 @@ export function useChatMode() {
 
       const saved = await configPresenter.getSetting<string>('input_chatMode')
       if (modeUpdateVersion === loadVersion) {
-        const savedMode = (saved as ChatMode) || 'chat'
-        // If saved mode is 'acp agent' but no agents are configured, fall back to 'chat'
-        if (savedMode === 'acp agent' && !hasAcpAgents.value) {
-          currentMode.value = 'chat'
-          // Save the fallback mode
-          await configPresenter.setSetting('input_chatMode', 'chat')
+        const savedMode = (saved as ChatMode) || 'agent'
+        // Normalize legacy chat mode to agent
+        if (savedMode === 'chat') {
+          currentMode.value = 'agent'
+          await configPresenter.setSetting('input_chatMode', 'agent')
+        } else if (savedMode === 'acp agent' && !hasAcpAgents.value) {
+          // If saved mode is 'acp agent' but no agents are configured, fall back to 'agent'
+          currentMode.value = 'agent'
+          await configPresenter.setSetting('input_chatMode', 'agent')
         } else {
           currentMode.value = savedMode
         }
@@ -119,7 +121,7 @@ export function useChatMode() {
     } catch (error) {
       // Fall back to safe defaults on error
       if (modeUpdateVersion === loadVersion) {
-        currentMode.value = 'chat'
+        currentMode.value = 'agent'
       }
       console.error('Failed to load chat mode, using default:', error)
     } finally {
@@ -152,9 +154,9 @@ export function useChatMode() {
   watch(
     () => hasAcpAgents.value,
     (hasAgents) => {
-      // If current mode is 'acp agent' but agents are removed, switch to 'chat'
+      // If current mode is 'acp agent' but agents are removed, switch to 'agent'
       if (!hasAgents && currentMode.value === 'acp agent') {
-        setMode('chat')
+        setMode('agent')
       }
     }
   )

@@ -1243,9 +1243,16 @@ export const useChatStore = defineStore('chat', () => {
         Object.assign(threadToUpdate, conversation)
       }
       if (conversation) {
+        const normalizedSettings = { ...conversation.settings }
+        if (normalizedSettings.chatMode === 'chat') {
+          normalizedSettings.chatMode = 'agent'
+          await threadP.updateConversationSettings(activeThread, {
+            chatMode: 'agent'
+          })
+        }
         chatConfig.value = {
-          ...conversation.settings,
-          acpWorkdirMap: conversation.settings.acpWorkdirMap ?? {}
+          ...normalizedSettings,
+          acpWorkdirMap: normalizedSettings.acpWorkdirMap ?? {}
         }
         // Populate the in-memory map from the loaded settings
         if (conversation.settings.selectedVariantsMap) {

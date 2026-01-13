@@ -35,7 +35,7 @@ export const useMcpStore = defineStore('mcp', () => {
   const config = ref<MCPConfig>({
     mcpServers: {},
     defaultServers: [],
-    mcpEnabled: false, // 添加MCP启用状态
+    mcpEnabled: true, // 添加MCP启用状态
     ready: false // if init finished, the ready will be true
   })
 

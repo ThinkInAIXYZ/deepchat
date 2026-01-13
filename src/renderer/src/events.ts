@@ -206,7 +206,8 @@ export const WORKSPACE_EVENTS = {
 
 // ACP-specific workspace events
 export const ACP_WORKSPACE_EVENTS = {
-  SESSION_MODES_READY: 'acp-workspace:session-modes-ready' // Session modes available
+  SESSION_MODES_READY: 'acp-workspace:session-modes-ready', // Session modes available
+  SESSION_MODELS_READY: 'acp-workspace:session-models-ready' // Session models available
 }
 
 export const ACP_DEBUG_EVENTS = {

@@ -100,20 +100,41 @@
                     >
                       <div class="rounded-lg border bg-card p-1 shadow-md">
                         <div
-                          v-for="mode in chatMode.modes.value"
-                          :key="mode.value"
                           :class="[
                             'flex items-center gap-2 rounded-md px-2 py-1.5 text-sm cursor-pointer transition-colors',
-                            chatMode.currentMode.value === mode.value
+                            isAgentModeSelected
                               ? 'bg-primary text-primary-foreground'
                               : 'hover:bg-muted'
                           ]"
-                          @click="handleModeSelect(mode.value)"
+                          @click="handleModeSelect('agent')"
                         >
-                          <Icon :icon="mode.icon" class="w-4 h-4" />
-                          <span class="flex-1">{{ mode.label }}</span>
+                          <Icon icon="lucide:bot" class="w-4 h-4" />
+                          <span class="flex-1">{{ t('chat.mode.agent') }}</span>
+                          <Icon v-if="isAgentModeSelected" icon="lucide:check" class="w-4 h-4" />
+                        </div>
+
+                        <div
+                          v-if="acpAgentOptions.length"
+                          class="px-2 py-1 text-[10px] uppercase tracking-[0.18em] text-muted-foreground"
+                        >
+                          {{ t('chat.mode.acpAgent') }}
+                        </div>
+
+                        <div
+                          v-for="agent in acpAgentOptions"
+                          :key="agent.id"
+                          :class="[
+                            'flex items-center gap-2 rounded-md px-2 py-1.5 text-sm cursor-pointer transition-colors',
+                            selectedAcpAgentId === agent.id
+                              ? 'bg-primary text-primary-foreground'
+                              : 'hover:bg-muted'
+                          ]"
+                          @click="handleAcpAgentSelect(agent)"
+                        >
+                          <Icon icon="lucide:bot-message-square" class="w-4 h-4" />
+                          <span class="flex-1">{{ agent.name }}</span>
                           <Icon
-                            v-if="chatMode.currentMode.value === mode.value"
+                            v-if="selectedAcpAgentId === agent.id"
                             icon="lucide:check"
                             class="w-4 h-4"
                           />
@@ -475,6 +496,7 @@ import { useWorkspaceMention } from './composables/useWorkspaceMention'
 // === Stores ===
 import { useChatStore } from '@/stores/chat'
 import { useLanguageStore } from '@/stores/language'
+import { useModelStore } from '@/stores/modelStore'
 import { useThemeStore } from '@/stores/theme'
 
 // === Mention System ===
@@ -507,7 +529,7 @@ const props = withDefaults(
   }
 )
 
-const emit = defineEmits(['send', 'file-upload'])
+const emit = defineEmits(['send', 'file-upload', 'model-update'])
 
 // === Resize Logic ===
 const inputContainer = ref<HTMLElement | null>(null)
@@ -551,6 +573,7 @@ const stopResize = () => {
 // === Stores ===
 const chatStore = useChatStore()
 const langStore = useLanguageStore()
+const modelStore = useModelStore()
 const themeStore = useThemeStore()
 
 // === Presenters ===
@@ -753,6 +776,26 @@ const activeModelSource = computed(() => {
   return config.activeModel.value
 })
 
+const acpAgentOptions = computed(() => {
+  const providerEntry = modelStore.enabledModels.find((entry) => entry.providerId === 'acp')
+  const models = providerEntry?.models ?? []
+  return models
+    .filter((model) => model.type === ModelType.Chat || model.type === ModelType.ImageGeneration)
+    .map((model) => ({
+      id: model.id,
+      name: model.name,
+      providerId: 'acp',
+      type: model.type ?? ModelType.Chat
+    }))
+})
+
+const selectedAcpAgentId = computed(() => {
+  const active = activeModelSource.value
+  return active?.providerId === 'acp' ? (active.id ?? null) : null
+})
+
+const isAgentModeSelected = computed(() => chatMode.currentMode.value !== 'acp agent')
+
 const acpWorkdir = useAcpWorkdir({
   activeModel: activeModelSource,
   conversationId
@@ -844,11 +887,90 @@ const onWebSearchClick = async () => {
   await toggleWebSearch()
 }
 
+const applyModelSelection = (model: {
+  id: string
+  name: string
+  providerId: string
+  type?: ModelType
+}) => {
+  if (!model?.id || !model.providerId) return
+  const payload = {
+    id: model.id,
+    name: model.name,
+    providerId: model.providerId,
+    type: model.type ?? ModelType.Chat
+  }
+  if (props.variant === 'chat') {
+    config.handleModelUpdate(payload as any)
+  } else {
+    emit('model-update', payload as any, model.providerId)
+  }
+}
+
+const pickFirstAcpModel = () => acpAgentOptions.value[0] ?? null
+
+const pickFirstNonAcpModel = () => {
+  for (const provider of modelStore.enabledModels) {
+    if (provider.providerId === 'acp') continue
+    const match = provider.models.find(
+      (model) => model.type === ModelType.Chat || model.type === ModelType.ImageGeneration
+    )
+    if (match) {
+      return {
+        id: match.id,
+        name: match.name,
+        providerId: provider.providerId,
+        type: match.type ?? ModelType.Chat
+      }
+    }
+  }
+  return null
+}
+
 const handleModeSelect = async (mode: ChatMode) => {
   await chatMode.setMode(mode)
-  if (conversationId.value && chatMode.currentMode.value === mode) {
+  if (chatMode.currentMode.value !== mode) {
+    modeSelectOpen.value = false
+    return
+  }
+
+  if (mode !== 'acp agent' && activeModelSource.value?.providerId === 'acp') {
+    const fallback = pickFirstNonAcpModel()
+    if (fallback) {
+      applyModelSelection(fallback)
+    }
+  } else if (mode === 'acp agent' && activeModelSource.value?.providerId !== 'acp') {
+    const fallback = pickFirstAcpModel()
+    if (fallback) {
+      applyModelSelection(fallback)
+    }
+  }
+
+  if (conversationId.value) {
     try {
       await chatStore.updateChatConfig({ chatMode: mode })
+    } catch (error) {
+      console.warn('Failed to update chat mode in conversation settings:', error)
+    }
+  }
+  modeSelectOpen.value = false
+}
+
+const handleAcpAgentSelect = async (agent: {
+  id: string
+  name: string
+  providerId: string
+  type?: ModelType
+}) => {
+  await chatMode.setMode('acp agent')
+  if (chatMode.currentMode.value !== 'acp agent') {
+    modeSelectOpen.value = false
+    return
+  }
+  applyModelSelection(agent)
+  if (conversationId.value) {
+    try {
+      await chatStore.updateChatConfig({ chatMode: 'acp agent' })
     } catch (error) {
       console.warn('Failed to update chat mode in conversation settings:', error)
     }

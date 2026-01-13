@@ -307,7 +307,7 @@ const DEFAULT_MCP_SERVERS = {
     // Add platform-specific services enabled by default based on platform
     ...(isMacOS() ? ['deepchat/apple-server'] : [])
   ],
-  mcpEnabled: false // MCP functionality is disabled by default
+  mcpEnabled: true // MCP functionality is enabled by default
 }
 const BUILT_IN_SERVER_NAMES = new Set<string>(Object.keys(DEFAULT_MCP_SERVERS.mcpServers))
 // This part of MCP has system logic to determine whether to enable, not controlled by user configuration, but by software environment

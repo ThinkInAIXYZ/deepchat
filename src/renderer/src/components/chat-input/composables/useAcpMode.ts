@@ -174,6 +174,36 @@ export function useAcpMode(options: UseAcpModeOptions) {
    * Cycle to the next mode in the agent's available modes.
    * Only works when agent has declared modes.
    */
+  const setMode = async (modeId: string) => {
+    if (loading.value || !isAcpModel.value || !modeId) {
+      return
+    }
+    if (modeId === currentMode.value) {
+      return
+    }
+
+    loading.value = true
+    try {
+      if (options.conversationId.value) {
+        await sessionPresenter.setAcpSessionMode(options.conversationId.value, modeId)
+        currentMode.value = modeId
+        pendingPreferredMode.value = null
+      } else if (selectedWorkdir.value) {
+        await sessionPresenter.setAcpPreferredProcessMode(
+          options.activeModel.value!.id!,
+          selectedWorkdir.value,
+          modeId
+        )
+        currentMode.value = modeId
+        pendingPreferredMode.value = modeId
+      }
+    } catch (error) {
+      console.error('[useAcpMode] Failed to set mode', error)
+    } finally {
+      loading.value = false
+    }
+  }
+
   const cycleMode = async () => {
     if (loading.value || !isAcpModel.value || !hasAgentModes.value) {
       return
@@ -185,29 +215,10 @@ export function useAcpMode(options: UseAcpModeOptions) {
     const nextIndex = currentIndex >= 0 ? (currentIndex + 1) % cycleOrder.length : 0
     const nextModeId = cycleOrder[nextIndex]
 
-    loading.value = true
-    try {
-      console.info(
-        `[useAcpMode] Cycling mode: "${currentMode.value}" -> "${nextModeId}" (cycle: [${cycleOrder.join(', ')}])`
-      )
-      if (options.conversationId.value) {
-        await sessionPresenter.setAcpSessionMode(options.conversationId.value, nextModeId)
-        currentMode.value = nextModeId
-        pendingPreferredMode.value = null
-      } else if (selectedWorkdir.value) {
-        await sessionPresenter.setAcpPreferredProcessMode(
-          options.activeModel.value!.id!,
-          selectedWorkdir.value,
-          nextModeId
-        )
-        currentMode.value = nextModeId
-        pendingPreferredMode.value = nextModeId
-      }
-    } catch (error) {
-      console.error('[useAcpMode] Failed to cycle mode', error)
-    } finally {
-      loading.value = false
-    }
+    console.info(
+      `[useAcpMode] Cycling mode: "${currentMode.value}" -> "${nextModeId}" (cycle: [${cycleOrder.join(', ')}])`
+    )
+    await setMode(nextModeId)
   }
 
   const currentModeInfo = computed(() => {
@@ -232,6 +243,7 @@ export function useAcpMode(options: UseAcpModeOptions) {
     availableModes,
     hasAgentModes,
     cycleMode,
+    setMode,
     loading
   }
 }

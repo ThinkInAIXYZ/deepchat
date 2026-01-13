@@ -802,12 +802,33 @@ export class SessionPresenter implements ISessionPresenter {
     return await this.llmProviderPresenter.getAcpProcessModes(agentId, workdir)
   }
 
+  async getAcpProcessModels(
+    agentId: string,
+    workdir: string
+  ): Promise<
+    | {
+        availableModels?: Array<{ id: string; name: string; description?: string }>
+        currentModelId?: string
+      }
+    | undefined
+  > {
+    return await this.llmProviderPresenter.getAcpProcessModels(agentId, workdir)
+  }
+
   async setAcpPreferredProcessMode(agentId: string, workdir: string, modeId: string) {
     await this.llmProviderPresenter.setAcpPreferredProcessMode(agentId, workdir, modeId)
   }
 
+  async setAcpPreferredProcessModel(agentId: string, workdir: string, modelId: string) {
+    await this.llmProviderPresenter.setAcpPreferredProcessModel(agentId, workdir, modelId)
+  }
+
   async setAcpSessionMode(conversationId: string, modeId: string): Promise<void> {
     await this.llmProviderPresenter.setAcpSessionMode(conversationId, modeId)
+  }
+
+  async setAcpSessionModel(conversationId: string, modelId: string): Promise<void> {
+    await this.llmProviderPresenter.setAcpSessionModel(conversationId, modelId)
   }
 
   async getAcpSessionModes(conversationId: string): Promise<{
@@ -815,6 +836,13 @@ export class SessionPresenter implements ISessionPresenter {
     available: Array<{ id: string; name: string; description: string }>
   } | null> {
     return await this.llmProviderPresenter.getAcpSessionModes(conversationId)
+  }
+
+  async getAcpSessionModels(conversationId: string): Promise<{
+    current: string
+    available: Array<{ id: string; name: string; description?: string }>
+  } | null> {
+    return await this.llmProviderPresenter.getAcpSessionModels(conversationId)
   }
 
   /**
@@ -902,7 +930,7 @@ export class SessionPresenter implements ISessionPresenter {
       },
       context: {
         resolvedChatMode: (conversation.settings.chatMode ??
-          'chat') as Session['context']['resolvedChatMode'],
+          'agent') as Session['context']['resolvedChatMode'],
         agentWorkspacePath: conversation.settings.agentWorkspacePath ?? null,
         acpWorkdirMap: conversation.settings.acpWorkdirMap
       },
