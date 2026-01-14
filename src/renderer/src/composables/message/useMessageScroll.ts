@@ -5,8 +5,8 @@ import type { DynamicScroller } from 'vue-virtual-scroller'
 
 // === Constants ===
 const MESSAGE_HIGHLIGHT_CLASS = 'message-highlight'
-const MAX_SCROLL_RETRIES = 8
-const SCROLL_RETRY_DELAY = 50
+const MAX_SCROLL_RETRIES = 12
+const SCROLL_RETRY_DELAY = 80
 const HIGHLIGHT_DURATION = 2000
 const PLACEHOLDER_POSITION_THRESHOLD = 5000
 

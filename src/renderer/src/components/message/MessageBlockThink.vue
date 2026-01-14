@@ -22,6 +22,10 @@ const props = defineProps<{
     reasoning_end_time: number
   }
 }>()
+
+const emit = defineEmits<{
+  (e: 'toggle-collapse', isCollapsed: boolean): void
+}>()
 const { t } = useI18n()
 
 const configPresenter = usePresenter('configPresenter')
@@ -97,8 +101,9 @@ const headerText = computed(() => {
 
 watch(
   () => collapse.value,
-  () => {
-    configPresenter.setSetting('think_collapse', collapse.value)
+  (newValue) => {
+    configPresenter.setSetting('think_collapse', newValue)
+    emit('toggle-collapse', !newValue)
   }
 )
 

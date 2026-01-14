@@ -35,6 +35,7 @@
             v-else-if="block.type === 'reasoning_content' && block.content"
             :block="block"
             :usage="message.usage"
+            @toggle-collapse="handleCollapseToggle"
           />
           <MessageBlockPlan v-else-if="block.type === 'plan'" :block="block" />
           <MessageBlockSearch
@@ -293,6 +294,10 @@ type HandleActionType =
   | 'copyImageFromTop'
   | 'fork'
   | 'trace'
+
+const handleCollapseToggle = () => {
+  emit('variantChanged', props.message.id)
+}
 
 const handleAction = (action: HandleActionType) => {
   if (action === 'retry') {
