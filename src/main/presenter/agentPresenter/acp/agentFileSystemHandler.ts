@@ -12,8 +12,25 @@ import { spawn } from 'child_process'
 import { RuntimeHelper } from '../../../lib/runtimeHelper'
 import { glob } from 'glob'
 
+// Auto-truncate threshold for read_file to avoid triggering tool output offload
+const READ_FILE_AUTO_TRUNCATE_THRESHOLD = 4500
+
 const ReadFileArgsSchema = z.object({
-  paths: z.array(z.string()).min(1).describe('Array of file paths to read')
+  paths: z.array(z.string()).min(1).describe('Array of file paths to read'),
+  offset: z
+    .number()
+    .int()
+    .min(0)
+    .optional()
+    .describe('Starting character offset (0-based), applied to each file independently'),
+  limit: z
+    .number()
+    .int()
+    .positive()
+    .optional()
+    .describe(
+      'Maximum characters to read per file. Large files are auto-truncated if not specified'
+    )
 })
 
 const WriteFileArgsSchema = z.object({
@@ -831,6 +848,9 @@ export class AgentFileSystemHandler {
     if (!parsed.success) {
       throw new Error(`Invalid arguments: ${parsed.error}`)
     }
+
+    const { offset = 0, limit } = parsed.data
+
     const results = await Promise.all(
       parsed.data.paths.map(async (filePath: string) => {
         try {
@@ -838,7 +858,36 @@ export class AgentFileSystemHandler {
             enforceAllowed: false,
             accessType: 'read'
           })
-          const content = await fs.readFile(validPath, 'utf-8')
+          const fullContent = await fs.readFile(validPath, 'utf-8')
+          const totalLength = fullContent.length
+
+          // Determine effective limit
+          let effectiveLimit = limit
+          let autoTruncated = false
+
+          // Auto-truncate large files when no explicit limit specified
+          if (limit === undefined && totalLength - offset > READ_FILE_AUTO_TRUNCATE_THRESHOLD) {
+            effectiveLimit = READ_FILE_AUTO_TRUNCATE_THRESHOLD
+            autoTruncated = true
+          }
+
+          // Apply offset and limit
+          const content =
+            effectiveLimit !== undefined
+              ? fullContent.slice(offset, offset + effectiveLimit)
+              : fullContent.slice(offset)
+
+          const endOffset = offset + content.length
+
+          // Build result with metadata when pagination is active or auto-truncated
+          if (offset > 0 || limit !== undefined || autoTruncated) {
+            let header = `${filePath} [chars ${offset}-${endOffset} of ${totalLength}]`
+            if (autoTruncated) {
+              header += ` (auto-truncated, use offset/limit to read more)`
+            }
+            return `${header}:\n${content}\n`
+          }
+
           return `${filePath}:\n${content}\n`
         } catch (error) {
           const errorMessage = error instanceof Error ? error.message : String(error)

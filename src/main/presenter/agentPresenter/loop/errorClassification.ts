@@ -41,7 +41,7 @@ export function isNonRetryableError(error: Error | string): boolean {
     lowerMessage.includes('unexpected token') ||
     lowerMessage.includes('malformed json')
   ) {
-    return false
+    return true
   }
 
   // Schema validation failures - wrong parameter types, missing required fields

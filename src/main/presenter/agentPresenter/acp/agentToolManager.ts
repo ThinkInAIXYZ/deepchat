@@ -62,6 +62,20 @@ export class AgentToolManager {
   private readonly fileSystemSchemas = {
     read_file: z.object({
       paths: z.array(z.string()).min(1),
+      offset: z
+        .number()
+        .int()
+        .min(0)
+        .optional()
+        .describe('Starting character offset (0-based), applied to each file independently'),
+      limit: z
+        .number()
+        .int()
+        .positive()
+        .optional()
+        .describe(
+          'Maximum characters to read per file. Large files are auto-truncated if not specified'
+        ),
       base_directory: z
         .string()
         .optional()
@@ -349,7 +363,7 @@ export class AgentToolManager {
         function: {
           name: 'read_file',
           description:
-            "Read the contents of one or more files. When invoked from a skill context with relative paths, provide base_directory as the skill's root directory to ensure correct path resolution. Use absolute paths for files outside the skill or workspace.",
+            "Read the contents of one or more files. Supports pagination via offset/limit for large files (auto-truncated at 4500 chars if not specified). When invoked from a skill context with relative paths, provide base_directory as the skill's root directory.",
           parameters: zodToJsonSchema(schemas.read_file) as {
             type: string
             properties: Record<string, unknown>

@@ -40,8 +40,21 @@ interface ToolCallProcessResult {
   needContinueConversation: boolean
 }
 
-const TOOL_OUTPUT_OFFLOAD_THRESHOLD = 3000
+const TOOL_OUTPUT_OFFLOAD_THRESHOLD = 5000
 const TOOL_OUTPUT_PREVIEW_LENGTH = 1024
+
+// Tools that require offload when output exceeds threshold
+// Tools not in this list will never trigger offload (e.g., read_file has its own pagination)
+const TOOLS_REQUIRING_OFFLOAD = new Set([
+  'execute_command',
+  'directory_tree',
+  'list_directory',
+  'glob_search',
+  'grep_search',
+  'text_replace',
+  'browser_read_links',
+  'browser_get_clickable_elements'
+])
 
 export class ToolCallProcessor {
   constructor(private readonly options: ToolCallProcessorOptions) {}
@@ -187,7 +200,8 @@ export class ToolCallProcessor {
         const toolContentForModel = await this.offloadToolContentIfNeeded(
           toolContent,
           toolCall.id,
-          context.conversationId
+          context.conversationId,
+          toolCall.name
         )
 
         if (supportsFunctionCall) {
@@ -375,8 +389,14 @@ export class ToolCallProcessor {
   private async offloadToolContentIfNeeded(
     content: string,
     toolCallId: string,
-    conversationId?: string
+    conversationId?: string,
+    toolName?: string
   ): Promise<string> {
+    // Only offload tools in the whitelist
+    if (toolName && !TOOLS_REQUIRING_OFFLOAD.has(toolName)) {
+      return content
+    }
+
     if (content.length <= TOOL_OUTPUT_OFFLOAD_THRESHOLD) return content
     if (!conversationId) return content
 
