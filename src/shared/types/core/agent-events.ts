@@ -19,7 +19,16 @@ export interface LLMAgentEventData {
   tool_call_server_icons?: string
   tool_call_server_description?: string
   tool_call_response_raw?: unknown
-  tool_call?: 'start' | 'running' | 'end' | 'error' | 'update' | 'permission-required'
+  tool_call?:
+    | 'start'
+    | 'running'
+    | 'end'
+    | 'error'
+    | 'update'
+    | 'permission-required'
+    | 'permission-granted'
+    | 'permission-denied'
+    | 'continue'
   permission_request?: {
     toolName: string
     serverName: string

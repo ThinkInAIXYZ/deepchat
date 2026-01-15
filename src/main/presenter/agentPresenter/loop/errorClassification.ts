@@ -41,7 +41,7 @@ export function isNonRetryableError(error: Error | string): boolean {
     lowerMessage.includes('unexpected token') ||
     lowerMessage.includes('malformed json')
   ) {
-    return true
+    return false
   }
 
   // Schema validation failures - wrong parameter types, missing required fields
@@ -55,7 +55,7 @@ export function isNonRetryableError(error: Error | string): boolean {
     lowerMessage.includes('type error') ||
     lowerMessage.includes('type mismatch')
   ) {
-    return true
+    return false
   }
 
   // Explicit permission denied (user explicitly denied, not a transient error)

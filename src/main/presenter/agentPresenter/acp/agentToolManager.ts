@@ -167,6 +167,13 @@ export class AgentToolManager {
     }),
     directory_tree: z.object({
       path: z.string(),
+      depth: z
+        .number()
+        .int()
+        .min(0)
+        .max(3)
+        .default(1)
+        .describe('Directory depth (root=0). Maximum is 3.'),
       base_directory: z.string().optional().describe('Base directory for resolving relative paths.')
     }),
     get_file_info: z.object({
@@ -467,7 +474,7 @@ export class AgentToolManager {
         function: {
           name: 'directory_tree',
           description:
-            'Get a recursive directory tree as JSON. Provide base_directory for skill-relative paths.',
+            'Get a directory tree as JSON with optional depth (root=0, max=3). Provide base_directory for skill-relative paths.',
           parameters: zodToJsonSchema(schemas.directory_tree) as {
             type: string
             properties: Record<string, unknown>
@@ -613,7 +620,7 @@ export class AgentToolManager {
     const workspaceRoot =
       dynamicWorkdir ?? this.agentWorkspacePath ?? this.getDefaultAgentWorkspacePath()
     const allowedDirectories = this.buildAllowedDirectories(workspaceRoot, conversationId)
-    const fileSystemHandler = new AgentFileSystemHandler(allowedDirectories)
+    const fileSystemHandler = new AgentFileSystemHandler(allowedDirectories, { conversationId })
 
     try {
       switch (toolName) {

@@ -261,6 +261,9 @@ export class LLMEventHandler {
       delta.tool_call_server_icons = tool_call_server_icons
       delta.tool_call_server_description = tool_call_server_description
       delta.tool_call_response_raw = tool_call_response_raw
+      if (msg.permission_request !== undefined) {
+        delta.permission_request = msg.permission_request
+      }
     }
 
     this.streamUpdateScheduler.enqueueDelta(

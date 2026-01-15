@@ -17,6 +17,7 @@ interface PendingDelta {
   tool_call_server_icons?: string
   tool_call_server_description?: string
   tool_call_response_raw?: unknown
+  permission_request?: LLMAgentEventData['permission_request']
   maximum_tool_calls_reached?: boolean
   image_data?: { data: string; mimeType: string }
   rate_limit?: LLMAgentEventData['rate_limit']
@@ -167,6 +168,9 @@ export class StreamUpdateScheduler {
     if (delta.tool_call_response_raw !== undefined) {
       state.pendingDelta.tool_call_response_raw = delta.tool_call_response_raw
     }
+    if (delta.permission_request !== undefined) {
+      state.pendingDelta.permission_request = delta.permission_request
+    }
     if (delta.maximum_tool_calls_reached !== undefined) {
       state.pendingDelta.maximum_tool_calls_reached = delta.maximum_tool_calls_reached
     }
@@ -250,6 +254,7 @@ export class StreamUpdateScheduler {
         tool_call_server_icons: delta.tool_call_server_icons,
         tool_call_server_description: delta.tool_call_server_description,
         tool_call_response_raw: delta.tool_call_response_raw,
+        permission_request: delta.permission_request,
         maximum_tool_calls_reached: delta.maximum_tool_calls_reached,
         image_data: delta.image_data,
         rate_limit: delta.rate_limit,

@@ -6,6 +6,9 @@ import {
   MCPToolResponse,
   ModelConfig
 } from '@shared/presenter'
+import fs from 'fs/promises'
+import path from 'path'
+import { app } from 'electron'
 import { isNonRetryableError } from './errorClassification'
 
 interface ToolCallProcessorOptions {
@@ -36,6 +39,9 @@ interface ToolCallProcessResult {
   toolCallCount: number
   needContinueConversation: boolean
 }
+
+const TOOL_OUTPUT_OFFLOAD_THRESHOLD = 3000
+const TOOL_OUTPUT_PREVIEW_LENGTH = 1024
 
 export class ToolCallProcessor {
   constructor(private readonly options: ToolCallProcessorOptions) {}
@@ -177,12 +183,17 @@ export class ToolCallProcessor {
 
         const supportsFunctionCall = context.modelConfig?.functionCall || false
 
+        const toolContent = this.stringifyToolContent(toolResponse.content)
+        const toolContentForModel = await this.offloadToolContentIfNeeded(
+          toolContent,
+          toolCall.id,
+          context.conversationId
+        )
+
         if (supportsFunctionCall) {
-          this.appendNativeFunctionCallMessages(
-            context.conversationMessages,
-            toolCall,
-            toolResponse
-          )
+          this.appendNativeFunctionCallMessages(context.conversationMessages, toolCall, {
+            content: toolContentForModel
+          })
 
           yield {
             type: 'response',
@@ -190,7 +201,7 @@ export class ToolCallProcessor {
               eventId: context.eventId,
               tool_call: 'end',
               tool_call_id: toolCall.id,
-              tool_call_response: this.stringifyToolContent(toolResponse.content),
+              tool_call_response: toolContentForModel,
               tool_call_name: toolCall.name,
               tool_call_params: toolCall.arguments,
               tool_call_server_name: toolDef.server.name,
@@ -200,11 +211,9 @@ export class ToolCallProcessor {
             }
           }
         } else {
-          this.appendLegacyFunctionCallMessages(
-            context.conversationMessages,
-            toolCall,
-            toolResponse
-          )
+          this.appendLegacyFunctionCallMessages(context.conversationMessages, toolCall, {
+            content: toolContentForModel
+          })
 
           yield {
             type: 'response',
@@ -212,7 +221,7 @@ export class ToolCallProcessor {
               eventId: context.eventId,
               tool_call: 'end',
               tool_call_id: toolCall.id,
-              tool_call_response: toolResponse.content,
+              tool_call_response: toolContentForModel,
               tool_call_name: toolCall.name,
               tool_call_params: toolCall.arguments,
               tool_call_server_name: toolDef.server.name,
@@ -361,6 +370,55 @@ export class ToolCallProcessor {
       role: 'user',
       content: [{ type: 'text', text: userPromptText }]
     })
+  }
+
+  private async offloadToolContentIfNeeded(
+    content: string,
+    toolCallId: string,
+    conversationId?: string
+  ): Promise<string> {
+    if (content.length <= TOOL_OUTPUT_OFFLOAD_THRESHOLD) return content
+    if (!conversationId) return content
+
+    const sessionDir = this.resolveSessionDir(conversationId)
+    if (!sessionDir) return content
+
+    const safeToolCallId = toolCallId.replace(/[\\/]/g, '_')
+    const filePath = path.join(sessionDir, `tool_${safeToolCallId}.txt`)
+
+    try {
+      await fs.mkdir(sessionDir, { recursive: true })
+      await fs.writeFile(filePath, content, 'utf-8')
+    } catch (error) {
+      console.warn('[ToolCallProcessor] Failed to offload tool output:', error)
+      return content
+    }
+
+    const preview = content.slice(0, TOOL_OUTPUT_PREVIEW_LENGTH)
+    return this.buildToolOutputStub(content.length, preview, filePath)
+  }
+
+  private resolveSessionDir(conversationId: string): string | null {
+    if (!conversationId.trim()) return null
+    const sessionsRoot = path.resolve(app.getPath('home'), '.deepchat', 'sessions')
+    const resolvedSessionDir = path.resolve(sessionsRoot, conversationId)
+    const rootWithSeparator = sessionsRoot.endsWith(path.sep)
+      ? sessionsRoot
+      : `${sessionsRoot}${path.sep}`
+    if (resolvedSessionDir !== sessionsRoot && !resolvedSessionDir.startsWith(rootWithSeparator)) {
+      return null
+    }
+    return resolvedSessionDir
+  }
+
+  private buildToolOutputStub(totalLength: number, preview: string, filePath: string): string {
+    return [
+      '[Tool output offloaded]',
+      `Total characters: ${totalLength}`,
+      `Full output saved to: ${filePath}`,
+      `first ${preview.length} chars:`,
+      preview
+    ].join('\n')
   }
 
   private appendToolError(
