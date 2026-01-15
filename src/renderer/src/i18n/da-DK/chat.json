@@ -32,7 +32,11 @@
     "fileArea": "fil område",
     "agentWorkspaceCurrent": "Nuværende arbejdsmappe: {path}",
     "agentWorkspaceSelect": "Vælg arbejdsmappe",
-    "agentWorkspaceTooltip": "Indstil agentens arbejdsmappe"
+    "agentWorkspaceTooltip": "Indstil agentens arbejdsmappe",
+    "acpWorkdirChangeCancel": "Annullér",
+    "acpWorkdirChangeConfirm": "Bekræft skift",
+    "acpWorkdirChangeDescription": "Skift af arbejdsmappe vil nulstille den aktuelle session. Historiske beskeder vil stadig blive bevaret og vist, men nye samtaler vil starte fra den nye mappe.",
+    "acpWorkdirChangeTitle": "Skift arbejdsmappe"
   },
   "mcpUi": {
     "badge": "UI",

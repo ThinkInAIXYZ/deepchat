@@ -25,7 +25,11 @@
     "acpModeTooltip": "現在のモード：{mode}",
     "agentWorkspaceCurrent": "現在の作業ディレクトリ: {パス}",
     "agentWorkspaceSelect": "作業ディレクトリを選択",
-    "agentWorkspaceTooltip": "エージェントの作業ディレクトリを設定する"
+    "agentWorkspaceTooltip": "エージェントの作業ディレクトリを設定する",
+    "acpWorkdirChangeCancel": "キャンセル",
+    "acpWorkdirChangeConfirm": "切り替えを確認",
+    "acpWorkdirChangeDescription": "作業ディレクトリを切り替えると、現在のセッションがリセットされます。履歴メッセージは引き続き表示されますが、新しい会話は新しいディレクトリから開始されます。",
+    "acpWorkdirChangeTitle": "作業ディレクトリを切り替える"
   },
   "features": {
     "webSearch": "ウェブ検索",

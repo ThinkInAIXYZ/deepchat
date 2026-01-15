@@ -283,6 +283,22 @@
           "image": "Geração de Imagens"
         }
       }
+    },
+    "acpSession": {
+      "description": "Configurar as opções de nível de sessão reportadas pelo ACP Agent.",
+      "mode": {
+        "description": "Selecione a política de permissões do Agent (se suportado).",
+        "empty": "Agente não reportou o modo de permissões",
+        "label": "Modo de permissões",
+        "placeholder": "Selecionar modo"
+      },
+      "model": {
+        "description": "Selecione o modelo subjacente exposto por este ACP Agent.",
+        "empty": "Agente não reportou modelos disponíveis",
+        "label": "Modelo de Agente",
+        "placeholder": "Selecionar modelo"
+      },
+      "title": "Configurações de Sessão do ACP"
     }
   },
   "provider": {

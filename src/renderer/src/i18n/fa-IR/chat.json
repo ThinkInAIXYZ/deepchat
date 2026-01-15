@@ -25,7 +25,11 @@
     "acpModeTooltip": "حالت فعلی: {mode}",
     "agentWorkspaceCurrent": "فهرست کاری فعلی: {path}",
     "agentWorkspaceSelect": "پوشه کاری را انتخاب کنید",
-    "agentWorkspaceTooltip": "دایرکتوری کاری عامل را تنظیم کنید"
+    "agentWorkspaceTooltip": "دایرکتوری کاری عامل را تنظیم کنید",
+    "acpWorkdirChangeCancel": "لغو",
+    "acpWorkdirChangeConfirm": "تأیید تغییر",
+    "acpWorkdirChangeDescription": "تغییر دایرکتوری کاری، جلسهٔ فعلی را بازنشانی می‌کند. پیام‌های تاریخی همچنان حفظ و نمایش داده می‌شوند، اما گفتگوی جدید از دایرکتوری جدید آغاز می‌شود.",
+    "acpWorkdirChangeTitle": "تغییر دایرکتوری کاری"
   },
   "features": {
     "webSearch": "جستجوی وب",

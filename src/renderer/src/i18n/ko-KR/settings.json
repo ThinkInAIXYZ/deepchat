@@ -283,6 +283,22 @@
           "image": "이미지 생성"
         }
       }
+    },
+    "acpSession": {
+      "description": "ACP 에이전트가 보고하는 세션 수준 옵션을 구성합니다.",
+      "mode": {
+        "description": "Agent의 권한 정책 선택(지원 시).",
+        "empty": "Agent 권한 모드 미보고",
+        "label": "권한 모드",
+        "placeholder": "모드 선택"
+      },
+      "model": {
+        "description": "해당 ACP Agent가 노출하는 기반 모델을 선택하세요.",
+        "empty": "에이전트 사용 가능 모델 미보고",
+        "label": "에이전트 모델",
+        "placeholder": "모델 선택"
+      },
+      "title": "ACP 세션 설정"
     }
   },
   "provider": {

@@ -283,6 +283,22 @@
           "image": "画像生成"
         }
       }
+    },
+    "acpSession": {
+      "description": "ACP エージェントが報告するセッション レベルのオプションを設定します。",
+      "mode": {
+        "description": "Agent の権限ポリシーを選択（対応する場合）。",
+        "empty": "Agent 未報告権限モード",
+        "label": "権限モード",
+        "placeholder": "モード選択"
+      },
+      "model": {
+        "description": "この ACP Agent が公開している基底モデルを選択。",
+        "empty": "Agent が利用可能なモデルを報告していません",
+        "label": "エージェントモデル",
+        "placeholder": "モデルを選択"
+      },
+      "title": "ACP セッション設定"
     }
   },
   "provider": {

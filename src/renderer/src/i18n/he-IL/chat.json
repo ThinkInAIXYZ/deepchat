@@ -25,7 +25,11 @@
     "acpModeTooltip": "מצב נוכחי: {mode}",
     "agentWorkspaceCurrent": "ספריית עבודה נוכחית: {path}",
     "agentWorkspaceSelect": "בחר ספריית עבודה",
-    "agentWorkspaceTooltip": "הגדר את ספריית העבודה של הסוכן"
+    "agentWorkspaceTooltip": "הגדר את ספריית העבודה של הסוכן",
+    "acpWorkdirChangeCancel": "ביטול",
+    "acpWorkdirChangeConfirm": "אשר החלפה",
+    "acpWorkdirChangeDescription": "שינוי ספריית העבודה יאפס את המפגש הנוכחי. הודעות ההיסטוריה עדיין ישמרו ויוצגו, אך השיחה החדשה תתחיל מספריית העבודה החדשה.",
+    "acpWorkdirChangeTitle": "שנה ספריית עבודה"
   },
   "features": {
     "webSearch": "חיפוש אינטרנט",

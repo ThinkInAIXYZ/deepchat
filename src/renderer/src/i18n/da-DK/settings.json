@@ -283,6 +283,22 @@
           "image": "Billedgenerering"
         }
       }
+    },
+    "acpSession": {
+      "description": "Konfigurer ACP Agentens rapporterede session-niveauindstillinger.",
+      "mode": {
+        "description": "Vælg Agentens tilladelsespolitik (hvis understøttet).",
+        "empty": "Agent har ikke rapporteret tilladelsestilstand",
+        "label": "Tilladelstilstand",
+        "placeholder": "Vælg tilstand"
+      },
+      "model": {
+        "description": "Vælg det underliggende model, som denne ACP Agent eksponerer.",
+        "empty": "Agent har ikke rapporteret tilgængelige modeller",
+        "label": "Agent-model",
+        "placeholder": "Vælg model"
+      },
+      "title": "ACP øktindstillinger"
     }
   },
   "provider": {

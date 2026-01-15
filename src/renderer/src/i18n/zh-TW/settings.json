@@ -283,6 +283,22 @@
           "image": "圖片生成"
         }
       }
+    },
+    "acpSession": {
+      "description": "配置 ACP Agent 上報的會話級選項。",
+      "mode": {
+        "description": "選擇 Agent 的權限策略（若支援）。",
+        "empty": "Agent 未上報權限模式",
+        "label": "權限模式",
+        "placeholder": "選擇模式"
+      },
+      "model": {
+        "description": "選擇該 ACP Agent 暴露的底層模型。",
+        "empty": "Agent 未上報可用模型",
+        "label": "Agent 模型",
+        "placeholder": "選擇模型"
+      },
+      "title": "ACP 會話設定"
     }
   },
   "provider": {

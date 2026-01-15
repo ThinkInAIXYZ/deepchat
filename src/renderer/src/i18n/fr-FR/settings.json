@@ -283,6 +283,22 @@
           "image": "Génération d'images"
         }
       }
+    },
+    "acpSession": {
+      "description": "Configurer les options au niveau de la session remontées par l’agent ACP.",
+      "mode": {
+        "description": "Sélectionnez la politique de permissions de l’Agent (si pris en charge).",
+        "empty": "Agent n'a pas signalé le mode d'autorisation",
+        "label": "Mode des autorisations",
+        "placeholder": "Sélectionner le mode"
+      },
+      "model": {
+        "description": "Sélectionnez le modèle sous-jacent exposé par cet ACP Agent.",
+        "empty": "Agent n’a pas signalé les modèles disponibles",
+        "label": "Modèle d'agent",
+        "placeholder": "Sélectionner le modèle"
+      },
+      "title": "Paramètres de session ACP"
     }
   },
   "provider": {
