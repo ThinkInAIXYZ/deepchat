@@ -880,6 +880,7 @@ export const useChatStore = defineStore('chat', () => {
     seq?: number
     content?: string
     reasoning_content?: string
+    reasoning_time?: { start: number; end: number }
     tool_call_id?: string
     tool_call_name?: string
     tool_call_params?: string
@@ -1255,6 +1256,8 @@ export const useChatStore = defineStore('chat', () => {
       if (lastContentBlock?.type === 'content') {
         lastContentBlock.content += msg.content
       } else {
+        // Finalize previous blocks (e.g., reasoning_content) before adding new content block
+        finalizeAssistantMessageBlocks(assistantMsg.content)
         assistantMsg.content.push({
           type: 'content',
           content: msg.content,
@@ -1269,12 +1272,18 @@ export const useChatStore = defineStore('chat', () => {
       const lastReasoningBlock = assistantMsg.content[assistantMsg.content.length - 1]
       if (lastReasoningBlock?.type === 'reasoning_content') {
         lastReasoningBlock.content += msg.reasoning_content
+        // Update reasoning_time from stream data
+        if (msg.reasoning_time) {
+          lastReasoningBlock.reasoning_time = msg.reasoning_time
+        }
       } else {
+        const now = Date.now()
         assistantMsg.content.push({
           type: 'reasoning_content',
           content: msg.reasoning_content,
           status: 'loading',
-          timestamp: Date.now()
+          timestamp: now,
+          reasoning_time: msg.reasoning_time ?? { start: now, end: now }
         })
       }
     }

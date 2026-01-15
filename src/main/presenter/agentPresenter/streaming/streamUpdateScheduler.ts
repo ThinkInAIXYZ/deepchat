@@ -8,6 +8,7 @@ export const STREAM_DB_FLUSH_INTERVAL_MS = 600
 interface PendingDelta {
   content?: string
   reasoning_content?: string
+  reasoning_time?: { start: number; end: number }
   tool_call?: LLMAgentEventData['tool_call']
   tool_call_id?: string
   tool_call_name?: string
@@ -141,6 +142,10 @@ export class StreamUpdateScheduler {
       state.pendingDelta.reasoning_content =
         (state.pendingDelta.reasoning_content ?? '') + delta.reasoning_content
     }
+    if (delta.reasoning_time) {
+      // Always use the latest reasoning_time (contains updated end time)
+      state.pendingDelta.reasoning_time = delta.reasoning_time
+    }
     if (delta.tool_call !== undefined) {
       state.pendingDelta.tool_call = delta.tool_call
     }
@@ -245,6 +250,7 @@ export class StreamUpdateScheduler {
         seq: state.seq,
         content: delta.content,
         reasoning_content: delta.reasoning_content,
+        reasoning_time: delta.reasoning_time,
         tool_call: delta.tool_call,
         tool_call_id: delta.tool_call_id,
         tool_call_name: delta.tool_call_name,
@@ -372,6 +378,7 @@ export class StreamUpdateScheduler {
         seq: state.seq,
         content: delta.content,
         reasoning_content: delta.reasoning_content,
+        reasoning_time: delta.reasoning_time,
         tool_call: delta.tool_call,
         tool_call_id: delta.tool_call_id,
         tool_call_name: delta.tool_call_name,

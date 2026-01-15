@@ -135,9 +135,9 @@ watch(
 watch(
   () => reasoningDuration.value,
   () => {
-    if (props.block.status !== 'loading') {
-      updateDisplayedSeconds()
-    }
+    // Always update displayed seconds when reasoning duration changes
+    // This ensures real-time updates during streaming
+    updateDisplayedSeconds()
   }
 )
 

@@ -10,6 +10,7 @@ export interface LLMAgentEventData {
   seq?: number
   content?: string
   reasoning_content?: string
+  reasoning_time?: { start: number; end: number }
   tool_call_id?: string
   tool_call_name?: string
   tool_call_params?: string

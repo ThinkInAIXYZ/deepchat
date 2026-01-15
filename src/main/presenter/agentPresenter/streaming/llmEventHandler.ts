@@ -247,7 +247,14 @@ export class LLMEventHandler {
 
     const delta: Partial<LLMAgentEventData> = {}
     if (content) delta.content = content
-    if (reasoning_content) delta.reasoning_content = reasoning_content
+    if (reasoning_content) {
+      delta.reasoning_content = reasoning_content
+      // Get the current reasoning_time from the last reasoning_content block
+      const lastBlock = state.message.content[state.message.content.length - 1]
+      if (lastBlock?.type === 'reasoning_content' && lastBlock.reasoning_time) {
+        delta.reasoning_time = lastBlock.reasoning_time
+      }
+    }
     if (image_data) delta.image_data = image_data
     if (totalUsage) delta.totalUsage = totalUsage
 
