@@ -12,7 +12,10 @@
               <button
                 type="button"
                 class="w-full h-2.5 pl-2 pr-1.5 flex items-center justify-end gap-1 rounded-sm transition-[transform,opacity] duration-200 ease-out outline-none border-0 cursor-pointer focus-visible:outline-none"
-                :class="[isActiveBar(bar.id) ? 'opacity-100' : 'opacity-60']"
+                :class="[
+                  isActiveBar(bar.id) ? 'opacity-100' : 'opacity-60',
+                  bar.isStreamingPlaceholder ? 'pointer-events-none' : ''
+                ]"
                 :aria-label="bar.ariaLabel"
                 role="listitem"
                 @mouseenter="handleBarEnter(bar.id)"
@@ -31,7 +34,8 @@
                       : isActiveBar(bar.id)
                         ? 'bg-[rgba(37,37,37,0.55)] dark:bg-[rgba(255,255,255,0.8)]'
                         : 'bg-[rgba(37,37,37,0.2)] dark:bg-[rgba(255,255,255,0.35)]',
-                    isActiveBar(bar.id) ? 'scale-x-110 -translate-x-0.5' : ''
+                    isActiveBar(bar.id) ? 'scale-x-110 -translate-x-0.5' : '',
+                    bar.isStreamingPlaceholder ? 'animate-pulse' : ''
                   ]"
                   :style="{ width: `${bar.width}px` }"
                 />
@@ -140,16 +144,33 @@ const bars = computed(() => {
     return []
   }
 
-  const messageLengths = props.messages.map((message) => ({
-    id: message.id,
-    role: message.role,
-    length: getMessageContentLength(message),
-    contextUsage: message.usage?.context_usage ?? 0
-  }))
+  const messageLengths = props.messages.map((message) => {
+    const isStreamingPlaceholder =
+      'isStreamingPlaceholder' in message && message.isStreamingPlaceholder
+    return {
+      id: message.id,
+      role: message.role,
+      length: isStreamingPlaceholder ? 0 : getMessageContentLength(message),
+      contextUsage: message.usage?.context_usage ?? 0,
+      isStreamingPlaceholder
+    }
+  })
 
   const maxLength = Math.max(...messageLengths.map((item) => item.length), 1)
 
   return messageLengths.map((item, index) => {
+    if (item.isStreamingPlaceholder) {
+      // Streaming placeholder: use min width with pulsing animation
+      return {
+        id: item.id,
+        role: item.role,
+        width: MIN_WIDTH,
+        ariaLabel: `Streaming message ${index + 1}`,
+        contextUsage: item.contextUsage,
+        isStreamingPlaceholder: true
+      }
+    }
+
     const normalized = maxLength === 0 ? 0 : item.length / maxLength
     const width = MIN_WIDTH + normalized * (MAX_WIDTH - MIN_WIDTH)
     return {
@@ -157,7 +178,8 @@ const bars = computed(() => {
       role: item.role,
       width: Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, width)),
       ariaLabel: `Message ${index + 1}, ${item.role}`,
-      contextUsage: item.contextUsage
+      contextUsage: item.contextUsage,
+      isStreamingPlaceholder: false
     }
   })
 })
@@ -222,6 +244,12 @@ const getPreviewData = (messageId: string) => {
   const messageIndex = props.messages.findIndex((msg) => msg.id === messageId)
   if (messageIndex === -1) return null
   const message = props.messages[messageIndex]
+
+  // Don't show tooltip for streaming placeholders
+  if ('isStreamingPlaceholder' in message && message.isStreamingPlaceholder) {
+    return null
+  }
+
   const previewText = buildPreview(message)
   const roleLabel = message.role === 'assistant' ? 'assistant' : 'user'
   const truncated =
