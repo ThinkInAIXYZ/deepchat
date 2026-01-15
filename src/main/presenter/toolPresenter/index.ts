@@ -166,7 +166,7 @@ export class ToolPresenter implements IToolPresenter {
     const homeDir = app.getPath('home')
     const conversationId = context.conversationId || '<conversationId>'
     const sessionDir = path.join(homeDir, '.deepchat', 'sessions', conversationId)
-    const offloadPath = path.join(sessionDir, 'tool_<toolCallId>.txt')
+    const offloadPath = path.join(sessionDir, 'tool_<toolCallId>.offload')
 
     return [
       'Tool outputs may be offloaded when large.',

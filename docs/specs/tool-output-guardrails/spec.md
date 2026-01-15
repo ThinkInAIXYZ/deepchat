@@ -49,7 +49,7 @@
 
 - 当工具输出字符串长度 > 3000 字符时触发 offload.
 - 完整内容写入:
-  - `~/.deepchat/sessions/<conversationId>/tool_<toolCallId>.txt`
+  - `~/.deepchat/sessions/<conversationId>/tool_<toolCallId>.offload`
 - LLM 只收到 stub, 包含:
   - 总字符数
   - 预览片段

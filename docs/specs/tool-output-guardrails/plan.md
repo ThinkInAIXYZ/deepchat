@@ -66,7 +66,7 @@
 
 ## 数据/文件结构
 
-- `~/.deepchat/sessions/<conversationId>/tool_<toolCallId>.txt`
+- `~/.deepchat/sessions/<conversationId>/tool_<toolCallId>.offload`
   - 原始完整工具输出文本
 
 ## 测试策略

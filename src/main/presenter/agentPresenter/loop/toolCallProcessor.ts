@@ -384,7 +384,7 @@ export class ToolCallProcessor {
     if (!sessionDir) return content
 
     const safeToolCallId = toolCallId.replace(/[\\/]/g, '_')
-    const filePath = path.join(sessionDir, `tool_${safeToolCallId}.txt`)
+    const filePath = path.join(sessionDir, `tool_${safeToolCallId}.offload`)
 
     try {
       await fs.mkdir(sessionDir, { recursive: true })

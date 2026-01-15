@@ -80,7 +80,7 @@ describe('ToolCallProcessor tool output offload', () => {
       '.deepchat',
       'sessions',
       conversationId,
-      'tool_tool-1.txt'
+      'tool_tool-1.offload'
     )
     expect(stub).toContain('[Tool output offloaded]')
     expect(stub).toContain(`Total characters: ${longOutput.length}`)

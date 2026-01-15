@@ -3,7 +3,7 @@
 1. 更新 `directory_tree` schema 与描述, 增加 `depth`(默认 1, 最大 3).
 2. 在 `AgentFileSystemHandler.directoryTree` 实现 depth 控制(root=0)并补充测试.
 3. 在 `ToolCallProcessor` 增加工具输出长度检测:
-   - 超过 3000 字符 → 写入 `~/.deepchat/sessions/<conversationId>/tool_<toolCallId>.txt`
+   - 超过 3000 字符 → 写入 `~/.deepchat/sessions/<conversationId>/tool_<toolCallId>.offload`
    - 生成 stub 替换 `tool_call_response` 与上下文内容.
 4. 在文件工具读路径校验中放行 `~/.deepchat/sessions/<conversationId>`:
    - 仅限当前会话.
