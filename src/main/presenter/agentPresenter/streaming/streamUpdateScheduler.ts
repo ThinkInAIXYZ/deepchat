@@ -381,6 +381,7 @@ export class StreamUpdateScheduler {
         tool_call_server_icons: delta.tool_call_server_icons,
         tool_call_server_description: delta.tool_call_server_description,
         tool_call_response_raw: delta.tool_call_response_raw,
+        permission_request: delta.permission_request,
         maximum_tool_calls_reached: delta.maximum_tool_calls_reached,
         image_data: delta.image_data,
         rate_limit: delta.rate_limit,
