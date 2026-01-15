@@ -6,6 +6,7 @@ import type {
   MCPToolCall,
   MCPToolResponse
 } from '@shared/presenter'
+import { resolveToolOffloadTemplatePath } from '../sessionPresenter/sessionPaths'
 import { ToolMapper } from './toolMapper'
 import { AgentToolManager, type AgentToolCallResult } from '../agentPresenter/acp'
 import { jsonrepair } from 'jsonrepair'
@@ -19,6 +20,7 @@ export interface IToolPresenter {
     agentWorkspacePath?: string | null
   }): Promise<MCPToolDefinition[]>
   callTool(request: MCPToolCall): Promise<{ content: unknown; rawData: MCPToolResponse }>
+  buildToolSystemPrompt(context: { conversationId?: string }): string
 }
 
 interface ToolPresenterOptions {
@@ -157,5 +159,18 @@ export class ToolPresenter implements IToolPresenter {
       return { content: response }
     }
     return response
+  }
+
+  buildToolSystemPrompt(context: { conversationId?: string }): string {
+    const conversationId = context.conversationId || '<conversationId>'
+    const offloadPath =
+      resolveToolOffloadTemplatePath(conversationId) ??
+      '~/.deepchat/sessions/<conversationId>/tool_<toolCallId>.offload'
+
+    return [
+      'Tool outputs may be offloaded when large.',
+      `When you see an offload stub, read the full output from: ${offloadPath}`,
+      'Use file tools to read that path. Access is limited to the current conversation session.'
+    ].join('\n')
   }
 }

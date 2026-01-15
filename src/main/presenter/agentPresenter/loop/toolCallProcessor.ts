@@ -6,7 +6,10 @@ import {
   MCPToolResponse,
   ModelConfig
 } from '@shared/presenter'
+import fs from 'fs/promises'
+import path from 'path'
 import { isNonRetryableError } from './errorClassification'
+import { resolveToolOffloadPath } from '../../sessionPresenter/sessionPaths'
 
 interface ToolCallProcessorOptions {
   getAllToolDefinitions: (context: ToolCallExecutionContext) => Promise<MCPToolDefinition[]>
@@ -36,6 +39,22 @@ interface ToolCallProcessResult {
   toolCallCount: number
   needContinueConversation: boolean
 }
+
+const TOOL_OUTPUT_OFFLOAD_THRESHOLD = 5000
+const TOOL_OUTPUT_PREVIEW_LENGTH = 1024
+
+// Tools that require offload when output exceeds threshold
+// Tools not in this list will never trigger offload (e.g., read_file has its own pagination)
+const TOOLS_REQUIRING_OFFLOAD = new Set([
+  'execute_command',
+  'directory_tree',
+  'list_directory',
+  'glob_search',
+  'grep_search',
+  'text_replace',
+  'browser_read_links',
+  'browser_get_clickable_elements'
+])
 
 export class ToolCallProcessor {
   constructor(private readonly options: ToolCallProcessorOptions) {}
@@ -177,12 +196,18 @@ export class ToolCallProcessor {
 
         const supportsFunctionCall = context.modelConfig?.functionCall || false
 
+        const toolContent = this.stringifyToolContent(toolResponse.content)
+        const toolContentForModel = await this.offloadToolContentIfNeeded(
+          toolContent,
+          toolCall.id,
+          context.conversationId,
+          toolCall.name
+        )
+
         if (supportsFunctionCall) {
-          this.appendNativeFunctionCallMessages(
-            context.conversationMessages,
-            toolCall,
-            toolResponse
-          )
+          this.appendNativeFunctionCallMessages(context.conversationMessages, toolCall, {
+            content: toolContentForModel
+          })
 
           yield {
             type: 'response',
@@ -190,7 +215,7 @@ export class ToolCallProcessor {
               eventId: context.eventId,
               tool_call: 'end',
               tool_call_id: toolCall.id,
-              tool_call_response: this.stringifyToolContent(toolResponse.content),
+              tool_call_response: toolContentForModel,
               tool_call_name: toolCall.name,
               tool_call_params: toolCall.arguments,
               tool_call_server_name: toolDef.server.name,
@@ -200,11 +225,9 @@ export class ToolCallProcessor {
             }
           }
         } else {
-          this.appendLegacyFunctionCallMessages(
-            context.conversationMessages,
-            toolCall,
-            toolResponse
-          )
+          this.appendLegacyFunctionCallMessages(context.conversationMessages, toolCall, {
+            content: toolContentForModel
+          })
 
           yield {
             type: 'response',
@@ -212,7 +235,7 @@ export class ToolCallProcessor {
               eventId: context.eventId,
               tool_call: 'end',
               tool_call_id: toolCall.id,
-              tool_call_response: toolResponse.content,
+              tool_call_response: toolContentForModel,
               tool_call_name: toolCall.name,
               tool_call_params: toolCall.arguments,
               tool_call_server_name: toolDef.server.name,
@@ -361,6 +384,46 @@ export class ToolCallProcessor {
       role: 'user',
       content: [{ type: 'text', text: userPromptText }]
     })
+  }
+
+  private async offloadToolContentIfNeeded(
+    content: string,
+    toolCallId: string,
+    conversationId?: string,
+    toolName?: string
+  ): Promise<string> {
+    // Only offload tools in the whitelist
+    if (toolName && !TOOLS_REQUIRING_OFFLOAD.has(toolName)) {
+      return content
+    }
+
+    if (content.length <= TOOL_OUTPUT_OFFLOAD_THRESHOLD) return content
+    if (!conversationId) return content
+
+    const filePath = resolveToolOffloadPath(conversationId, toolCallId)
+    if (!filePath) return content
+    const sessionDir = path.dirname(filePath)
+
+    try {
+      await fs.mkdir(sessionDir, { recursive: true })
+      await fs.writeFile(filePath, content, 'utf-8')
+    } catch (error) {
+      console.warn('[ToolCallProcessor] Failed to offload tool output:', error)
+      return content
+    }
+
+    const preview = content.slice(0, TOOL_OUTPUT_PREVIEW_LENGTH)
+    return this.buildToolOutputStub(content.length, preview, filePath)
+  }
+
+  private buildToolOutputStub(totalLength: number, preview: string, filePath: string): string {
+    return [
+      '[Tool output offloaded]',
+      `Total characters: ${totalLength}`,
+      `Full output saved to: ${filePath}`,
+      `first ${preview.length} chars:`,
+      preview
+    ].join('\n')
   }
 
   private appendToolError(

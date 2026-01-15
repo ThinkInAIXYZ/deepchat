@@ -109,7 +109,8 @@ describe('PermissionHandler - ACP permissions', () => {
       getToolPresenter: () =>
         ({
           getAllToolDefinitions: vi.fn(),
-          callTool: vi.fn()
+          callTool: vi.fn(),
+          buildToolSystemPrompt: vi.fn()
         }) as unknown as IToolPresenter,
       streamGenerationHandler: {} as StreamGenerationHandler,
       llmEventHandler: {} as LLMEventHandler,
@@ -224,7 +225,8 @@ describe('PermissionHandler - permission block removal', () => {
       getToolPresenter: () =>
         ({
           getAllToolDefinitions: vi.fn(),
-          callTool: vi.fn()
+          callTool: vi.fn(),
+          buildToolSystemPrompt: vi.fn()
         }) as unknown as IToolPresenter,
       streamGenerationHandler: {} as StreamGenerationHandler,
       llmEventHandler: {} as LLMEventHandler,

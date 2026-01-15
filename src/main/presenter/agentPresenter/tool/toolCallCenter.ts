@@ -22,4 +22,8 @@ export class ToolCallCenter {
   async callTool(request: MCPToolCall): Promise<{ content: unknown; rawData: MCPToolResponse }> {
     return this.toolPresenter.callTool(request)
   }
+
+  buildToolSystemPrompt(context: { conversationId?: string }): string {
+    return this.toolPresenter.buildToolSystemPrompt(context)
+  }
 }

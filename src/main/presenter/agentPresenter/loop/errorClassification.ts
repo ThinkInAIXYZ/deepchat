@@ -55,7 +55,7 @@ export function isNonRetryableError(error: Error | string): boolean {
     lowerMessage.includes('type error') ||
     lowerMessage.includes('type mismatch')
   ) {
-    return true
+    return false
   }
 
   // Explicit permission denied (user explicitly denied, not a transient error)

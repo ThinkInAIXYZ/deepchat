@@ -910,6 +910,7 @@ export const useChatStore = defineStore('chat', () => {
     seq?: number
     content?: string
     reasoning_content?: string
+    reasoning_time?: { start: number; end: number }
     tool_call_id?: string
     tool_call_name?: string
     tool_call_params?: string
@@ -919,7 +920,43 @@ export const useChatStore = defineStore('chat', () => {
     tool_call_server_icons?: string
     tool_call_server_description?: string
     tool_call_response_raw?: unknown
-    tool_call?: 'start' | 'end' | 'error' | 'update' | 'running'
+    tool_call?:
+      | 'start'
+      | 'end'
+      | 'error'
+      | 'update'
+      | 'running'
+      | 'permission-required'
+      | 'permission-granted'
+      | 'permission-denied'
+      | 'continue'
+    permission_request?: {
+      toolName: string
+      serverName: string
+      permissionType: 'read' | 'write' | 'all' | 'command'
+      description: string
+      command?: string
+      commandSignature?: string
+      commandInfo?: {
+        command: string
+        riskLevel: 'low' | 'medium' | 'high' | 'critical'
+        suggestion: string
+        signature?: string
+        baseCommand?: string
+      }
+      providerId?: string
+      requestId?: string
+      sessionId?: string
+      agentId?: string
+      agentName?: string
+      conversationId?: string
+      options?: Array<{
+        id: string
+        label: string
+        description?: string
+      }>
+      rememberable?: boolean
+    }
     totalUsage?: {
       prompt_tokens: number
       completion_tokens: number
@@ -1025,7 +1062,98 @@ export const useChatStore = defineStore('chat', () => {
         }
       })
     } else if (msg.tool_call) {
-      if (msg.tool_call === 'start') {
+      if (msg.tool_call === 'permission-required') {
+        finalizeAssistantMessageBlocks(assistantMsg.content)
+        const permissionRequest = msg.permission_request
+        const permissionExtra: Record<string, string | boolean> = {
+          needsUserAction: true,
+          permissionType: permissionRequest?.permissionType ?? 'read'
+        }
+        if (permissionRequest) {
+          permissionExtra.permissionRequest = JSON.stringify(permissionRequest)
+          if (permissionRequest.commandInfo) {
+            permissionExtra.commandInfo = JSON.stringify(permissionRequest.commandInfo)
+          }
+          if (permissionRequest.toolName) {
+            permissionExtra.toolName = permissionRequest.toolName
+          }
+          if (permissionRequest.serverName) {
+            permissionExtra.serverName = permissionRequest.serverName
+          }
+          if (permissionRequest.providerId) {
+            permissionExtra.providerId = permissionRequest.providerId
+          }
+          if (permissionRequest.requestId) {
+            permissionExtra.permissionRequestId = permissionRequest.requestId
+          }
+          if (permissionRequest.rememberable === false) {
+            permissionExtra.rememberable = false
+          }
+          if (permissionRequest.agentId) {
+            permissionExtra.agentId = permissionRequest.agentId
+          }
+          if (permissionRequest.agentName) {
+            permissionExtra.agentName = permissionRequest.agentName
+          }
+          if (permissionRequest.sessionId) {
+            permissionExtra.sessionId = permissionRequest.sessionId
+          }
+        }
+        assistantMsg.content.push({
+          type: 'action',
+          content: msg.tool_call_response || '',
+          status: 'pending',
+          timestamp: Date.now(),
+          action_type: 'tool_call_permission',
+          tool_call: {
+            id: msg.tool_call_id,
+            name: msg.tool_call_name,
+            params: msg.tool_call_params || '',
+            server_name: msg.tool_call_server_name,
+            server_icons: msg.tool_call_server_icons,
+            server_description: msg.tool_call_server_description
+          },
+          extra: permissionExtra
+        })
+      } else if (
+        msg.tool_call === 'permission-granted' ||
+        msg.tool_call === 'permission-denied' ||
+        msg.tool_call === 'continue'
+      ) {
+        const permissionBlock = [...assistantMsg.content]
+          .reverse()
+          .find(
+            (block) =>
+              block.type === 'action' &&
+              block.action_type === 'tool_call_permission' &&
+              (msg.tool_call_id
+                ? block.tool_call?.id === msg.tool_call_id
+                : block.tool_call?.name === msg.tool_call_name)
+          )
+        if (permissionBlock?.type === 'action') {
+          if (msg.tool_call === 'permission-granted') {
+            permissionBlock.status = 'granted'
+            permissionBlock.content = msg.tool_call_response || ''
+            if (permissionBlock.extra) {
+              permissionBlock.extra.needsUserAction = false
+              if (
+                !permissionBlock.extra.grantedPermissions &&
+                typeof permissionBlock.extra.permissionType === 'string'
+              ) {
+                permissionBlock.extra.grantedPermissions = permissionBlock.extra.permissionType
+              }
+            }
+          } else if (msg.tool_call === 'permission-denied') {
+            permissionBlock.status = 'denied'
+            permissionBlock.content = msg.tool_call_response || ''
+            if (permissionBlock.extra) {
+              permissionBlock.extra.needsUserAction = false
+            }
+          } else {
+            permissionBlock.status = 'success'
+          }
+        }
+      } else if (msg.tool_call === 'start') {
         finalizeAssistantMessageBlocks(assistantMsg.content)
         playToolcallSound()
         assistantMsg.content.push({
@@ -1158,6 +1286,8 @@ export const useChatStore = defineStore('chat', () => {
       if (lastContentBlock?.type === 'content') {
         lastContentBlock.content += msg.content
       } else {
+        // Finalize previous blocks (e.g., reasoning_content) before adding new content block
+        finalizeAssistantMessageBlocks(assistantMsg.content)
         assistantMsg.content.push({
           type: 'content',
           content: msg.content,
@@ -1172,12 +1302,18 @@ export const useChatStore = defineStore('chat', () => {
       const lastReasoningBlock = assistantMsg.content[assistantMsg.content.length - 1]
       if (lastReasoningBlock?.type === 'reasoning_content') {
         lastReasoningBlock.content += msg.reasoning_content
+        // Update reasoning_time from stream data
+        if (msg.reasoning_time) {
+          lastReasoningBlock.reasoning_time = msg.reasoning_time
+        }
       } else {
+        const now = Date.now()
         assistantMsg.content.push({
           type: 'reasoning_content',
           content: msg.reasoning_content,
           status: 'loading',
-          timestamp: Date.now()
+          timestamp: now,
+          reasoning_time: msg.reasoning_time ?? { start: now, end: now }
         })
       }
     }
@@ -1593,56 +1729,43 @@ export const useChatStore = defineStore('chat', () => {
   const handleMessageEdited = async (msgId: string) => {
     // 首先检查是否在生成缓存中
     const cached = getGeneratingMessagesCache().get(msgId)
+    const activeThreadId = getActiveThreadId()
+    if (!cached && !activeThreadId) return
+
+    // 获取最新的消息
+    const updatedMessage = await threadP.getMessage(msgId)
+    // 处理 extra 信息
+    const enrichedMessage = await enrichMessageWithExtra(updatedMessage)
+
+    // 更新缓存
     if (cached) {
-      // 如果在缓存中，获取最新的消息
-      const updatedMessage = await threadP.getMessage(msgId)
-      // 处理 extra 信息
-      const enrichedMessage = await enrichMessageWithExtra(updatedMessage)
-
-      // 更新缓存
       cached.message = enrichedMessage as AssistantMessage | UserMessage
+    }
 
-      // 如果是当前会话的消息，也更新显示
-      if (cached.threadId === getActiveThreadId()) {
-        if (enrichedMessage.is_variant && enrichedMessage.parentId) {
-          const mainMessage = await threadP.getMainMessageByParentId(
-            cached.threadId,
-            enrichedMessage.parentId
-          )
-          if (mainMessage) {
-            const enrichedMainMessage = await enrichMessageWithExtra(mainMessage)
-            cacheMessageForView(enrichedMainMessage as AssistantMessage | UserMessage)
-            ensureMessageId(enrichedMainMessage.id)
-            return
-          }
-        }
+    if (!activeThreadId) return
 
-        cacheMessageForView(enrichedMessage as AssistantMessage | UserMessage)
-        if (!enrichedMessage.is_variant) {
-          ensureMessageId(enrichedMessage.id)
-        }
+    // 非当前会话的消息直接忽略，避免跨会话污染
+    if (enrichedMessage.conversationId !== activeThreadId) {
+      return
+    }
+
+    // 如果是当前会话的消息，也更新显示
+    if (enrichedMessage.is_variant && enrichedMessage.parentId) {
+      const mainMessage = await threadP.getMainMessageByParentId(
+        activeThreadId,
+        enrichedMessage.parentId
+      )
+      if (mainMessage) {
+        const enrichedMainMessage = await enrichMessageWithExtra(mainMessage)
+        cacheMessageForView(enrichedMainMessage as AssistantMessage | UserMessage)
+        ensureMessageId(enrichedMainMessage.id)
+        return
       }
-    } else if (getActiveThreadId()) {
-      const updatedMessage = await threadP.getMessage(msgId)
-      const enrichedMessage = await enrichMessageWithExtra(updatedMessage)
+    }
 
-      if (enrichedMessage.is_variant && enrichedMessage.parentId) {
-        const mainMessage = await threadP.getMainMessageByParentId(
-          getActiveThreadId()!,
-          enrichedMessage.parentId
-        )
-        if (mainMessage) {
-          const enrichedMainMessage = await enrichMessageWithExtra(mainMessage)
-          cacheMessageForView(enrichedMainMessage as AssistantMessage | UserMessage)
-          ensureMessageId(enrichedMainMessage.id)
-          return
-        }
-      }
-
-      cacheMessageForView(enrichedMessage as AssistantMessage | UserMessage)
-      if (!enrichedMessage.is_variant) {
-        ensureMessageId(enrichedMessage.id)
-      }
+    cacheMessageForView(enrichedMessage as AssistantMessage | UserMessage)
+    if (!enrichedMessage.is_variant) {
+      ensureMessageId(enrichedMessage.id)
     }
   }
 

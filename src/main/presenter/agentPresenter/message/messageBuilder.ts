@@ -106,6 +106,7 @@ export async function preparePromptContent({
       | 'acp agent') ??
     'chat'
   const isAgentMode = chatMode === 'agent'
+  const isToolPromptMode = chatMode !== 'chat'
 
   const isImageGeneration = modelType === ModelType.ImageGeneration
 
@@ -117,6 +118,7 @@ export async function preparePromptContent({
 
   const { providerId, modelId } = conversation.settings
   const supportsVision = modelCapabilities.supportsVision(providerId, modelId)
+  const toolCallCenter = new ToolCallCenter(presenter.toolPresenter)
   let toolDefinitions: MCPToolDefinition[] = []
   let effectiveEnabledMcpTools = enabledMcpTools
 
@@ -126,7 +128,6 @@ export async function preparePromptContent({
   }
 
   if (!isImageGeneration) {
-    const toolCallCenter = new ToolCallCenter(presenter.toolPresenter)
     try {
       toolDefinitions = await toolCallCenter.getAllToolDefinitions({
         enabledMcpTools: effectiveEnabledMcpTools,
@@ -156,6 +157,13 @@ export async function preparePromptContent({
     } catch (error) {
       console.warn('AgentPresenter: Failed to load Yo Browser context/tools', error)
     }
+  }
+
+  if (!isImageGeneration && isToolPromptMode && toolDefinitions.length > 0) {
+    const toolPrompt = toolCallCenter.buildToolSystemPrompt({
+      conversationId: conversation.id
+    })
+    finalSystemPromptWithExtras = appendPromptSection(finalSystemPromptWithExtras, toolPrompt)
   }
 
   if (!isImageGeneration && isAgentMode) {
