@@ -150,6 +150,59 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
   }
 
   /**
+   * Get the config-specific warmup directory for fetching modes/models
+   * before user selects a workdir. This directory is used only for
+   * configuration retrieval and should not be used for actual work.
+   */
+  getConfigWarmupDir(): string {
+    const userDataPath = app.getPath('userData')
+    const warmupDir = path.join(userDataPath, 'acp-config-warmup')
+
+    try {
+      if (!fs.existsSync(warmupDir)) {
+        fs.mkdirSync(warmupDir, { recursive: true })
+      }
+    } catch (error) {
+      console.warn('[ACP] Failed to create config warmup dir, using fallback:', error)
+      return this.getFallbackWorkdir()
+    }
+
+    return warmupDir
+  }
+
+  /**
+   * Clean up the config warmup directory.
+   * This removes all files in the warmup directory to free up disk space.
+   * Called during shutdown and can be called manually for maintenance.
+   */
+  cleanupConfigWarmupDir(): void {
+    const userDataPath = app.getPath('userData')
+    const warmupDir = path.join(userDataPath, 'acp-config-warmup')
+
+    try {
+      if (fs.existsSync(warmupDir)) {
+        const files = fs.readdirSync(warmupDir)
+        for (const file of files) {
+          const filePath = path.join(warmupDir, file)
+          try {
+            const stat = fs.statSync(filePath)
+            if (stat.isDirectory()) {
+              fs.rmSync(filePath, { recursive: true, force: true })
+            } else {
+              fs.unlinkSync(filePath)
+            }
+          } catch (error) {
+            console.warn(`[ACP] Failed to remove warmup file ${filePath}:`, error)
+          }
+        }
+        console.info(`[ACP] Cleaned up config warmup directory: ${warmupDir}`)
+      }
+    } catch (error) {
+      console.warn('[ACP] Failed to cleanup config warmup dir:', error)
+    }
+  }
+
+  /**
    * Get or create a connection for the given agent.
    * If workdir is provided and differs from the existing process's workdir,
    * the existing process will be released and a new one spawned with the new workdir.
@@ -363,6 +416,8 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
     this.sessionWorkdirs.clear()
     this.sessionConversations.clear()
     this.fsHandlers.clear()
+    // Clean up config warmup directory on shutdown
+    this.cleanupConfigWarmupDir()
   }
 
   bindProcess(agentId: string, conversationId: string, workdir?: string): void {

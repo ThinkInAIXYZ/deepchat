@@ -76,16 +76,37 @@ export function useAcpMode(options: UseAcpModeOptions) {
 
   const loadWarmupModes = async () => {
     if (!isAcpModel.value || hasConversation.value) return
-    const workdir = selectedWorkdir.value
-    if (!agentId.value || !workdir) return
+    if (!agentId.value) return
     if (availableModes.value.length > 0) return
 
-    const warmupKey = `${agentId.value}::${workdir}`
+    // Use selected workdir or null (will use config warmup dir on backend)
+    const workdir = selectedWorkdir.value
+
+    const warmupKey = `${agentId.value}::${workdir ?? 'config-warmup'}`
     if (lastWarmupModesKey.value === warmupKey) return
     lastWarmupModesKey.value = warmupKey
 
     try {
-      const result = await sessionPresenter.getAcpProcessModes(agentId.value, workdir)
+      // First try to get modes from existing process (only if workdir is specified)
+      let result = workdir
+        ? await sessionPresenter.getAcpProcessModes(agentId.value, workdir)
+        : undefined
+
+      // If no modes found, ensure warmup process exists and try again
+      if (!result?.availableModes) {
+        // ensureAcpWarmup will use config warmup dir when workdir is null
+        await sessionPresenter.ensureAcpWarmup(agentId.value, workdir)
+
+        // Wait a short time for the warmup process to fetch modes
+        await new Promise((resolve) => setTimeout(resolve, 500))
+
+        // Query again after warmup
+        // When workdir is null, backend uses config warmup dir internally
+        // We pass empty string to query the config warmup process
+        const queryWorkdir = workdir ?? ''
+        result = await sessionPresenter.getAcpProcessModes(agentId.value, queryWorkdir)
+      }
+
       if (result?.availableModes && result.availableModes.length > 0) {
         currentMode.value =
           result.currentModeId ?? result.availableModes[0]?.id ?? currentMode.value
@@ -186,7 +207,7 @@ export function useAcpMode(options: UseAcpModeOptions) {
    * Only works when agent has declared modes.
    */
   const setMode = async (modeId: string) => {
-    if (loading.value || !isAcpModel.value || !modeId) {
+    if (loading.value || !isAcpModel.value || !modeId || !agentId.value) {
       return
     }
     if (modeId === currentMode.value) {
@@ -201,7 +222,7 @@ export function useAcpMode(options: UseAcpModeOptions) {
         pendingPreferredMode.value = null
       } else if (selectedWorkdir.value) {
         await sessionPresenter.setAcpPreferredProcessMode(
-          options.activeModel.value!.id!,
+          agentId.value,
           selectedWorkdir.value,
           modeId
         )

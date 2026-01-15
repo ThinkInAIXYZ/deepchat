@@ -21,6 +21,10 @@ export function useAcpWorkdir(options: UseAcpWorkdirOptions) {
   const pendingWorkdir = ref<string | null>(null)
   const lastWarmupKey = ref<string | null>(null)
 
+  // Confirmation dialog state for workdir change
+  const showWorkdirChangeConfirm = ref(false)
+  const pendingWorkdirChange = ref<string | null>(null)
+
   const hasConversation = computed(() => Boolean(options.conversationId.value))
 
   const isAcpModel = computed(
@@ -144,14 +148,7 @@ export function useAcpWorkdir(options: UseAcpWorkdirOptions) {
     lastWarmupKey.value = null
   })
 
-  const selectWorkdir = async () => {
-    if (loading.value || !isAcpModel.value || !agentId.value) {
-      return
-    }
-    const result = await devicePresenter.selectDirectory()
-    if (result.canceled || !result.filePaths?.length) return
-
-    const selectedPath = result.filePaths[0]
+  const applyWorkdirChange = async (selectedPath: string) => {
     loading.value = true
     try {
       if (hasConversation.value && options.conversationId.value) {
@@ -176,6 +173,38 @@ export function useAcpWorkdir(options: UseAcpWorkdirOptions) {
     }
   }
 
+  const selectWorkdir = async () => {
+    if (loading.value || !isAcpModel.value || !agentId.value) {
+      return
+    }
+    const result = await devicePresenter.selectDirectory()
+    if (result.canceled || !result.filePaths?.length) return
+
+    const selectedPath = result.filePaths[0]
+
+    // If there's an existing conversation and workdir is different, show confirmation
+    if (hasConversation.value && workdir.value && workdir.value !== selectedPath) {
+      pendingWorkdirChange.value = selectedPath
+      showWorkdirChangeConfirm.value = true
+      return
+    }
+
+    await applyWorkdirChange(selectedPath)
+  }
+
+  const confirmWorkdirChange = async () => {
+    showWorkdirChangeConfirm.value = false
+    if (pendingWorkdirChange.value) {
+      await applyWorkdirChange(pendingWorkdirChange.value)
+      pendingWorkdirChange.value = null
+    }
+  }
+
+  const cancelWorkdirChange = () => {
+    showWorkdirChangeConfirm.value = false
+    pendingWorkdirChange.value = null
+  }
+
   const hasWorkdir = computed(() => isCustom.value || Boolean(pendingWorkdir.value))
 
   return {
@@ -183,6 +212,11 @@ export function useAcpWorkdir(options: UseAcpWorkdirOptions) {
     workdir,
     hasWorkdir,
     selectWorkdir,
-    loading
+    loading,
+    // Confirmation dialog state and methods
+    showWorkdirChangeConfirm,
+    pendingWorkdirChange,
+    confirmWorkdirChange,
+    cancelWorkdirChange
   }
 }

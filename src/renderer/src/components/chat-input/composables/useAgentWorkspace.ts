@@ -234,6 +234,11 @@ export function useAgentWorkspace(options: UseAgentWorkspaceOptions) {
     tooltipCurrent,
     tooltipSelect,
     selectWorkspace,
-    loadWorkspacePath
+    loadWorkspacePath,
+    // ACP workdir change confirmation dialog state and methods
+    showWorkdirChangeConfirm: acpWorkdir.showWorkdirChangeConfirm,
+    pendingWorkdirChange: acpWorkdir.pendingWorkdirChange,
+    confirmWorkdirChange: acpWorkdir.confirmWorkdirChange,
+    cancelWorkdirChange: acpWorkdir.cancelWorkdirChange
   }
 }

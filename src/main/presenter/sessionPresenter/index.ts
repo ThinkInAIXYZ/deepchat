@@ -789,6 +789,10 @@ export class SessionPresenter implements ISessionPresenter {
     await this.llmProviderPresenter.warmupAcpProcess(agentId, workdir)
   }
 
+  async ensureAcpWarmup(agentId: string, workdir: string | null): Promise<void> {
+    await this.llmProviderPresenter.ensureAcpWarmup(agentId, workdir)
+  }
+
   async getAcpProcessModes(
     agentId: string,
     workdir: string

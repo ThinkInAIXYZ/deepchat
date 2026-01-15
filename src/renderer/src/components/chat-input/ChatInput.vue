@@ -510,6 +510,29 @@
         </div>
       </div>
     </TooltipProvider>
+
+    <!-- ACP Workdir Change Confirmation Dialog -->
+    <AlertDialog
+      :open="workspace.showWorkdirChangeConfirm.value"
+      @update:open="(open) => !open && workspace.cancelWorkdirChange()"
+    >
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>{{ t('chat.input.acpWorkdirChangeTitle') }}</AlertDialogTitle>
+          <AlertDialogDescription>
+            {{ t('chat.input.acpWorkdirChangeDescription') }}
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel @click="workspace.cancelWorkdirChange">
+            {{ t('chat.input.acpWorkdirChangeCancel') }}
+          </AlertDialogCancel>
+          <AlertDialogAction @click="workspace.confirmWorkdirChange">
+            {{ t('chat.input.acpWorkdirChangeConfirm') }}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   </div>
 </template>
 
@@ -532,6 +555,16 @@ import {
   TooltipTrigger
 } from '@shadcn/components/ui/tooltip'
 import { Popover, PopoverContent, PopoverTrigger } from '@shadcn/components/ui/popover'
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogCancel,
+  AlertDialogAction
+} from '@shadcn/components/ui/alert-dialog'
 import { Icon } from '@iconify/vue'
 import { Editor, EditorContent } from '@tiptap/vue-3'
 import { TextSelection } from '@tiptap/pm/state'

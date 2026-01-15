@@ -132,6 +132,7 @@ export interface ISessionPresenter extends IThreadPresenter {
   getAcpWorkdir(conversationId: string, agentId: string): Promise<AcpWorkdirInfo>
   setAcpWorkdir(conversationId: string, agentId: string, workdir: string | null): Promise<void>
   warmupAcpProcess(agentId: string, workdir: string): Promise<void>
+  ensureAcpWarmup(agentId: string, workdir: string | null): Promise<void>
   getAcpProcessModes(
     agentId: string,
     workdir: string

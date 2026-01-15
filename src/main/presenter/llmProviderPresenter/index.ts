@@ -502,6 +502,28 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
     }
   }
 
+  /**
+   * Ensure a warmup process exists for the given agent.
+   * If workdir is null, uses the config-specific warmup directory.
+   * This allows fetching modes/models before user selects a workdir.
+   */
+  async ensureAcpWarmup(agentId: string, workdir: string | null): Promise<void> {
+    const provider = this.getAcpProviderInstance()
+    if (!provider) return
+    try {
+      await provider.ensureWarmup(agentId, workdir)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      if (message.includes('shutting down')) {
+        console.warn(
+          `[ACP] Cannot ensure warmup for agent ${agentId}: process manager is shutting down`
+        )
+        return
+      }
+      throw error
+    }
+  }
+
   async getAcpProcessModes(
     agentId: string,
     workdir: string

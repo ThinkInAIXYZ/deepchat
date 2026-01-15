@@ -8,6 +8,12 @@ export interface PlanEntry {
   status?: string | null
 }
 
+export interface AcpCommand {
+  name: string
+  description?: string
+  input?: { hint: string } | null
+}
+
 export interface MappedContent {
   events: LLMCoreStreamEvent[]
   blocks: AssistantMessageBlock[]
@@ -15,6 +21,8 @@ export interface MappedContent {
   planEntries?: PlanEntry[]
   /** Current mode ID from mode change notification (optional) */
   currentModeId?: string
+  /** Available commands from the agent (optional) */
+  availableCommands?: AcpCommand[]
 }
 
 interface ToolCallState {
@@ -60,6 +68,7 @@ export class AcpContentMapper {
           '[ACP] Available commands update:',
           JSON.stringify(update.availableCommands?.map((c) => c.name) ?? [])
         )
+        this.handleCommandsUpdate(update, payload)
         break
       case 'user_message_chunk':
         // ignore echo
@@ -234,6 +243,24 @@ export class AcpContentMapper {
         extra: { mode_change: modeId }
       })
     )
+  }
+
+  private handleCommandsUpdate(
+    update: Extract<
+      schema.SessionNotification['update'],
+      { sessionUpdate: 'available_commands_update' }
+    >,
+    payload: MappedContent
+  ) {
+    const commands = update.availableCommands
+    if (!commands?.length) return
+
+    // Store available commands
+    payload.availableCommands = commands.map((cmd) => ({
+      name: cmd.name,
+      description: cmd.description ?? undefined,
+      input: cmd.input ?? undefined
+    }))
   }
 
   private formatToolCallContent(

@@ -340,6 +340,19 @@ export class AcpProvider extends BaseAgentProvider<
                 // console.log('[ACP] onSessionUpdate: notification:', JSON.stringify(notification))
                 const mapped = this.contentMapper.map(notification)
                 mapped.events.forEach((event) => queue.push(event))
+
+                // Send COMMANDS_UPDATE event if available commands changed
+                if (mapped.availableCommands && mapped.availableCommands.length > 0) {
+                  eventBus.sendToRenderer(
+                    ACP_WORKSPACE_EVENTS.COMMANDS_UPDATE,
+                    SendTarget.ALL_WINDOWS,
+                    {
+                      conversationId: conversationKey,
+                      agentId: agent.id,
+                      commands: mapped.availableCommands
+                    }
+                  )
+                }
               },
               onPermission: (request) =>
                 this.handlePermissionRequest(queue, request, {
@@ -440,6 +453,24 @@ export class AcpProvider extends BaseAgentProvider<
       await this.processManager.warmupProcess(agent, workdir)
     } catch (error) {
       console.warn(`[ACP] Failed to warmup ACP process for agent ${agentId}:`, error)
+    }
+  }
+
+  /**
+   * Ensure a warmup process exists for the given agent.
+   * If workdir is null, uses the config-specific warmup directory.
+   * This allows fetching modes/models before user selects a workdir.
+   */
+  public async ensureWarmup(agentId: string, workdir: string | null): Promise<void> {
+    const agent = await this.getAgentById(agentId)
+    if (!agent) return
+
+    const resolvedWorkdir = workdir ?? this.processManager.getConfigWarmupDir()
+
+    try {
+      await this.processManager.warmupProcess(agent, resolvedWorkdir)
+    } catch (error) {
+      console.warn(`[ACP] Failed to ensure warmup for agent ${agentId}:`, error)
     }
   }
 
