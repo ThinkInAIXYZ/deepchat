@@ -827,7 +827,12 @@ export interface AcpDebugRunResult {
   events: AcpDebugEventEntry[]
 }
 
-export type AcpBuiltinAgentId = 'kimi-cli' | 'claude-code-acp' | 'codex-acp' | 'opencode'
+export type AcpBuiltinAgentId =
+  | 'kimi-cli'
+  | 'claude-code-acp'
+  | 'codex-acp'
+  | 'opencode'
+  | 'gemini-cli'
 
 export interface AcpAgentProfile {
   id: string
