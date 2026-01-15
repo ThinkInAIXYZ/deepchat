@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+- 新增 OpenCode 作为内置 ACP Agent，支持开源 AI 编码代理
+- Added OpenCode as builtin ACP agent, supporting open-source AI coding agent
+
 ## v0.5.6-beta.4 (2025-12-30)
 - 全面重构 Agent 与会话架构：拆分 agent/session/loop/tool/persistence，替换 Thread Presenter 为 Session Presenter，强化消息压缩、工具调用、持久化与导出
 - 增强搜索体验：新增 Search Presenter 与搜索提示模板，完善搜索助手与搜索引擎配置流程
