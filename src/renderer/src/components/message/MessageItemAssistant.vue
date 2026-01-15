@@ -35,6 +35,7 @@
             v-else-if="block.type === 'reasoning_content' && block.content"
             :block="block"
             :usage="message.usage"
+            @toggle-collapse="handleCollapseToggle"
           />
           <MessageBlockPlan v-else-if="block.type === 'plan'" :block="block" />
           <MessageBlockSearch
@@ -210,7 +211,12 @@ const allVariants = computed(() => {
 
   for (const [, cached] of chatStore.getGeneratingMessagesCache().entries()) {
     const msg = cached.message
-    if (msg.role === 'assistant' && msg.is_variant && msg.parentId === props.message.id) {
+    if (
+      props.message.parentId &&
+      msg.role === 'assistant' &&
+      msg.is_variant &&
+      msg.parentId === props.message.parentId
+    ) {
       variantsById.set(msg.id, msg as AssistantMessage)
     }
   }
@@ -288,6 +294,10 @@ type HandleActionType =
   | 'copyImageFromTop'
   | 'fork'
   | 'trace'
+
+const handleCollapseToggle = () => {
+  emit('variantChanged', props.message.id)
+}
 
 const handleAction = (action: HandleActionType) => {
   if (action === 'retry') {

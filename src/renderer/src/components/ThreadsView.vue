@@ -1,14 +1,14 @@
 <template>
   <div class="w-full h-full overflow-hidden p-2 space-y-3 shrink-0 border-r flex flex-col bg-card">
     <!-- 固定在顶部的"新会话"按钮 -->
-    <div class="flex-none flex flex-row gap-2">
+    <div class="flex-none flex flex-row gap-2 justify-end">
       <Button
         variant="outline"
         size="icon"
         class="shrink-0 text-xs justify-center h-7 w-7"
         @click="chatStore.isSidebarOpen = false"
       >
-        <Icon icon="lucide:chevron-left" class="h-4 w-4" />
+        <Icon icon="lucide:chevron-right" class="h-4 w-4" />
       </Button>
     </div>
 

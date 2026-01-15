@@ -17,7 +17,7 @@
       >
         <div class="flex items-center gap-2 grow w-0">
           <button class="p-2 hover:bg-accent/50 rounded-md" @click="artifactStore.dismissArtifact">
-            <Icon icon="lucide:arrow-left" class="w-4 h-4" />
+            <Icon icon="lucide:chevron-right" class="w-4 h-4" />
           </button>
           <h2 class="text-sm font-medium truncate">{{ artifactStore.currentArtifact?.title }}</h2>
         </div>

@@ -16,7 +16,11 @@
         <DynamicScrollerItem
           :item="item"
           :active="active"
-          :size-dependencies="[getMessageSizeKey(item), getVariantSizeKey(item)]"
+          :size-dependencies="[
+            getMessageSizeKey(item),
+            getVariantSizeKey(item),
+            getRenderingStateKey(item)
+          ]"
           :data-index="index"
           class="w-full break-all"
         >
@@ -129,6 +133,10 @@ const shouldAutoFollow = ref(true)
 const traceMessageId = ref<string | null>(null)
 let highlightRefreshTimer: number | null = null
 
+const previousHeights = new Map<string, number>()
+const messageResizeObservers = new Map<string, ResizeObserver>()
+const pendingHeightUpdate = ref(false)
+
 // === Composable Integrations ===
 // Scroll management
 const scroll = useMessageScroll({
@@ -184,6 +192,77 @@ const MAX_REASONABLE_HEIGHT = 2000
 const BUFFER_ZONE_MULTIPLIER = 2
 const EXTREME_POSITION_THRESHOLD = 100000
 
+const HEIGHT_CHANGE_THRESHOLD = 10
+const SCROLL_CHECK_DELAY = 150
+
+const trackMessageHeightChange = (messageId: string, newHeight: number) => {
+  const previousHeight = previousHeights.get(messageId) ?? 0
+  const heightDiff = Math.abs(newHeight - previousHeight)
+
+  if (heightDiff > HEIGHT_CHANGE_THRESHOLD && heightDiff < MAX_REASONABLE_HEIGHT) {
+    if (!pendingHeightUpdate.value) {
+      pendingHeightUpdate.value = true
+      nextTick(() => {
+        scrollerUpdate()
+        setTimeout(() => {
+          pendingHeightUpdate.value = false
+        }, SCROLL_CHECK_DELAY)
+      })
+    }
+  }
+
+  previousHeights.set(messageId, newHeight)
+}
+
+const scrollerUpdate = () => {
+  const scroller = dynamicScrollerRef.value
+  scroller?.updateVisibleItems?.(true)
+}
+
+const setupMessageResizeObserver = () => {
+  const container = messagesContainer.value
+  if (!container) return
+
+  const observerCallback = (entries: ResizeObserverEntry[]) => {
+    for (const entry of entries) {
+      const messageId = entry.target.getAttribute('data-message-id')
+      if (!messageId) continue
+
+      const newHeight = entry.contentRect.height
+      trackMessageHeightChange(messageId, newHeight)
+    }
+  }
+
+  const debouncedObserverCallback = useDebounceFn(observerCallback, 100)
+
+  const visibleMessages = container.querySelectorAll('[data-message-id]')
+
+  visibleMessages.forEach((element) => {
+    const el = element as HTMLElement
+    const messageId = el.getAttribute('data-message-id')
+    if (!messageId) return
+
+    const previousObserver = messageResizeObservers.get(messageId)
+    if (previousObserver) {
+      previousObserver.disconnect()
+    }
+
+    const observer = new ResizeObserver(debouncedObserverCallback)
+    observer.observe(el)
+    messageResizeObservers.set(messageId, observer)
+
+    previousHeights.set(messageId, el.getBoundingClientRect().height)
+  })
+}
+
+const cleanupMessageResizeObservers = () => {
+  messageResizeObservers.forEach((observer) => {
+    observer.disconnect()
+  })
+  messageResizeObservers.clear()
+  previousHeights.clear()
+}
+
 // === Helper Functions ===
 const getTextLength = (value?: string) => value?.length ?? 0
 
@@ -220,6 +299,30 @@ const getVariantSizeKey = (item: MessageListItem) => {
   const message = item.message
   if (!message || message.role !== 'assistant') return ''
   return chatStore.selectedVariantsMap[message.id] ?? ''
+}
+
+const getRenderingStateKey = (item: MessageListItem) => {
+  const message = item.message
+  if (!message) return `rendering:placeholder:${item.id}`
+
+  const loadingStates: string[] = []
+
+  if (message.role === 'assistant') {
+    const blocks = (message as AssistantMessage).content
+    if (Array.isArray(blocks)) {
+      blocks.forEach((block) => {
+        if (block.status === 'loading') {
+          loadingStates.push(`${block.type}`)
+        }
+      })
+    }
+  }
+
+  if (loadingStates.length > 0) {
+    return `rendering:loading:${loadingStates.sort().join(',')}`
+  }
+
+  return ''
 }
 
 // === Event Handlers ===
@@ -562,6 +665,9 @@ const refreshVirtualScroller = async (messageId?: string) => {
   }
 
   scroller?.updateVisibleItems?.(true)
+
+  await new Promise((resolve) => requestAnimationFrame(resolve))
+  scroller?.updateVisibleItems?.(true)
 }
 
 const wrapScrollToMessage = async (messageId: string) => {
@@ -583,6 +689,7 @@ const handleVirtualUpdate = (
   void chatStore.prefetchMessagesForRange(safeStart, safeEnd)
   recordVisibleDomInfo()
   handleVirtualScrollUpdate()
+  setupMessageResizeObserver()
 }
 
 watch(
@@ -595,13 +702,14 @@ watch(
 
 onMounted(() => {
   bindScrollContainer()
-  // Initialize scroll and visibility
+
   scrollToBottom(true)
   nextTick(() => {
     visible.value = true
     setupScrollObserver()
     updateScrollInfo()
     recordVisibleDomInfo()
+    setupMessageResizeObserver()
   })
 
   useResizeObserver(messagesContainer, () => {
@@ -634,10 +742,15 @@ onMounted(() => {
   watch(
     () => {
       const lastMessage = props.items[props.items.length - 1]
-      return lastMessage ? getMessageSizeKey(lastMessage) : ''
+      return lastMessage
+        ? `${getMessageSizeKey(lastMessage)}:${getRenderingStateKey(lastMessage)}`
+        : ''
     },
     () => {
       scrollToBottom()
+      nextTick(() => {
+        scrollerUpdate()
+      })
     },
     { flush: 'post' }
   )
@@ -650,6 +763,7 @@ onBeforeUnmount(() => {
   if (highlightRefreshTimer) clearTimeout(highlightRefreshTimer)
 
   highlightRefreshTimer = null
+  cleanupMessageResizeObservers()
 })
 
 // === Expose ===

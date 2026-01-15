@@ -8,8 +8,8 @@ import type {
   MCPResourceContent
 } from '@shared/presenter'
 import { nanoid } from 'nanoid'
-import type { MessageManager } from '../../sessionPresenter/managers/messageManager'
 import type { GeneratingMessageState } from '../streaming/types'
+import type { StreamUpdateScheduler } from '../streaming/streamUpdateScheduler'
 import type { CommandPermissionService } from '../../permission/commandPermissionService'
 
 interface PermissionRequestPayload {
@@ -42,21 +42,21 @@ export class ToolCallHandler {
     'application/vnd.mcp-ui.remote-dom'
   ])
 
-  private readonly messageManager: MessageManager
   private readonly sqlitePresenter: ISQLitePresenter
   private readonly searchingMessages: Set<string>
   private readonly commandPermissionHandler?: CommandPermissionService
+  private readonly streamUpdateScheduler: StreamUpdateScheduler
 
   constructor(options: {
-    messageManager: MessageManager
     sqlitePresenter: ISQLitePresenter
     searchingMessages: Set<string>
     commandPermissionHandler?: CommandPermissionService
+    streamUpdateScheduler: StreamUpdateScheduler
   }) {
-    this.messageManager = options.messageManager
     this.sqlitePresenter = options.sqlitePresenter
     this.searchingMessages = options.searchingMessages
     this.commandPermissionHandler = options.commandPermissionHandler
+    this.streamUpdateScheduler = options.streamUpdateScheduler
   }
 
   async processToolCallStart(
@@ -288,7 +288,15 @@ export class ToolCallHandler {
 
       this.finalizeLastBlock(state)
       state.message.content.push(...uiBlocks)
-      await this.messageManager.editMessage(event.eventId, JSON.stringify(state.message.content))
+      this.streamUpdateScheduler.enqueueDelta(
+        event.eventId,
+        state.conversationId,
+        state.message.parentId,
+        Boolean(state.message.is_variant),
+        state.tabId,
+        {},
+        state.message.content
+      )
       return true
     } catch (error) {
       console.error('[ToolCallHandler] Error processing MCP UI resources from tool call:', error)
@@ -406,7 +414,15 @@ export class ToolCallHandler {
         )
       }
 
-      await this.messageManager.editMessage(event.eventId, JSON.stringify(state.message.content))
+      this.streamUpdateScheduler.enqueueDelta(
+        event.eventId,
+        state.conversationId,
+        state.message.parentId,
+        Boolean(state.message.is_variant),
+        state.tabId,
+        {},
+        state.message.content
+      )
       return true
     } catch (error) {
       console.error('[ToolCallHandler] Error processing search results from tool call:', error)

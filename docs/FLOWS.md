@@ -8,7 +8,9 @@
 sequenceDiagram
     autonumber
     participant User as 用户
-    participant UI as ChatInput.vue
+    participant UI as ChatInput/ChatView.vue
+    participant Store as chatStore.sendMessage()
+    participant IPC as presenter:call (IPC)
     participant AgentP as AgentPresenter.sendMessage()
     participant MsgMgr as MessageManager
     participant StreamGen as StreamGenerationHandler
@@ -19,7 +21,9 @@ sequenceDiagram
     participant EventBus as EventBus
 
     User->>UI: 输入内容并点击发送
-    UI->>AgentP: sendMessage(agentId, content)
+    UI->>Store: handleSend(message)
+    Store->>IPC: presenter:call(agentPresenter.sendMessage)
+    IPC->>AgentP: sendMessage(agentId, content)
 
     Note over AgentP,MsgMgr: 1. 创建用户消息
     AgentP->>MsgMgr: sendMessage(agentId, content, 'user')
@@ -76,7 +80,7 @@ sequenceDiagram
         else permission 事件
             AgentLoop->>EventBus: send { tool_call: 'permission-required' }
             AgentLoop->>AgentLoop: needContinue = false (等待用户响应)
-            break 退出循环等待用户批准
+            Note over AgentLoop: 退出循环等待用户批准
         end
 
         alt stop event
@@ -85,7 +89,7 @@ sequenceDiagram
                 Note over AgentLoop: 继续循环
             else end/max_tokens
                 Note over AgentLoop: 结束循环
-               需要 break
+                Note over AgentLoop: 需要 break
             end
         end
     end
@@ -119,7 +123,46 @@ sequenceDiagram
 - StreamGenerationHandler.startStreamCompletion: `src/main/presenter/agentPresenter/streaming/streamGenerationHandler.ts:54-179`
 - agentLoopHandler.startStreamCompletion: `src/main/presenter/agentPresenter/loop/agentLoopHandler.ts:145-668`
 
-## 2. Agent Loop 详细流程
+## 2. 渲染与流式更新流程（含 Minimap）
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant UI as ChatInput/ChatView (Renderer)
+    participant Store as chatStore (Renderer)
+    participant IPC as presenter:call (IPC)
+    participant AgentP as AgentPresenter (Main)
+    participant StreamGen as StreamGenerationHandler (Main)
+    participant LLM as LLMProviderPresenter (Main)
+    participant LLMH as LLMEventHandler (Main)
+    participant Sched as StreamUpdateScheduler (Main)
+    participant Cache as messageRuntimeCache (Renderer)
+    participant List as MessageList/Minimap (Renderer)
+
+    UI->>Store: send(message)
+    Store->>IPC: presenter:call(agentPresenter.sendMessage)
+    IPC->>AgentP: sendMessage(agentId, content)
+    AgentP->>StreamGen: generateAIResponse + startStreamCompletion
+    StreamGen->>LLM: startStreamCompletion()
+    LLM-->>LLMH: stream chunks
+    LLMH->>Sched: enqueueDelta(content/tool_call/usage)
+    Sched-->>Store: STREAM_EVENTS.RESPONSE (init/delta)
+    Store->>Cache: cacheMessage/ensureMessageId
+    Cache-->>List: messageItems/minimapMessages
+    LLMH-->>Sched: flushAll(final)
+    Sched-->>Store: STREAM_EVENTS.RESPONSE (final)
+    LLMH-->>Store: STREAM_EVENTS.END/ERROR
+```
+
+**关键文件位置**：
+- chatStore.sendMessage + stream handlers: `src/renderer/src/stores/chat.ts`
+- Presenter IPC: `src/renderer/src/composables/usePresenter.ts`, `src/main/presenter/index.ts`
+- AgentPresenter.sendMessage: `src/main/presenter/agentPresenter/index.ts`
+- StreamGenerationHandler.startStreamCompletion: `src/main/presenter/agentPresenter/streaming/streamGenerationHandler.ts`
+- LLMEventHandler + StreamUpdateScheduler: `src/main/presenter/agentPresenter/streaming/llmEventHandler.ts`, `src/main/presenter/agentPresenter/streaming/streamUpdateScheduler.ts`
+- MessageList/Minimap: `src/renderer/src/components/message/MessageList.vue`, `src/renderer/src/components/message/MessageMinimap.vue`
+
+## 3. Agent Loop 详细流程
 
 ```mermaid
 sequenceDiagram
