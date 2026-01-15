@@ -287,14 +287,25 @@ export class LLMEventHandler {
       }
 
       this.contentBufferHandler.cleanupContentBuffer(state)
+    }
 
-      await this.messageManager.handleMessageError(eventId, String(error))
+    // Flush stream buffers before persisting error to avoid stale snapshot overwrites.
+    await this.streamUpdateScheduler.flushAll(eventId, 'final')
+
+    await this.messageManager.handleMessageError(eventId, String(error))
+
+    if (state) {
       this.generatingMessages.delete(eventId)
       presenter.sessionManager.setStatus(state.conversationId, 'error')
       presenter.sessionManager.clearPendingPermission(state.conversationId)
+    } else {
+      const message = await this.messageManager.getMessage(eventId)
+      if (message) {
+        presenter.sessionManager.setStatus(message.conversationId, 'error')
+        presenter.sessionManager.clearPendingPermission(message.conversationId)
+      }
     }
 
-    await this.streamUpdateScheduler.flushAll(eventId, 'final')
     this.searchingMessages.delete(eventId)
     eventBus.sendToRenderer(STREAM_EVENTS.ERROR, SendTarget.ALL_WINDOWS, msg)
   }
