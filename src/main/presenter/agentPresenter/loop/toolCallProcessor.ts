@@ -8,8 +8,8 @@ import {
 } from '@shared/presenter'
 import fs from 'fs/promises'
 import path from 'path'
-import { app } from 'electron'
 import { isNonRetryableError } from './errorClassification'
+import { resolveToolOffloadPath } from '../../sessionPresenter/sessionPaths'
 
 interface ToolCallProcessorOptions {
   getAllToolDefinitions: (context: ToolCallExecutionContext) => Promise<MCPToolDefinition[]>
@@ -380,11 +380,9 @@ export class ToolCallProcessor {
     if (content.length <= TOOL_OUTPUT_OFFLOAD_THRESHOLD) return content
     if (!conversationId) return content
 
-    const sessionDir = this.resolveSessionDir(conversationId)
-    if (!sessionDir) return content
-
-    const safeToolCallId = toolCallId.replace(/[\\/]/g, '_')
-    const filePath = path.join(sessionDir, `tool_${safeToolCallId}.offload`)
+    const filePath = resolveToolOffloadPath(conversationId, toolCallId)
+    if (!filePath) return content
+    const sessionDir = path.dirname(filePath)
 
     try {
       await fs.mkdir(sessionDir, { recursive: true })
@@ -396,19 +394,6 @@ export class ToolCallProcessor {
 
     const preview = content.slice(0, TOOL_OUTPUT_PREVIEW_LENGTH)
     return this.buildToolOutputStub(content.length, preview, filePath)
-  }
-
-  private resolveSessionDir(conversationId: string): string | null {
-    if (!conversationId.trim()) return null
-    const sessionsRoot = path.resolve(app.getPath('home'), '.deepchat', 'sessions')
-    const resolvedSessionDir = path.resolve(sessionsRoot, conversationId)
-    const rootWithSeparator = sessionsRoot.endsWith(path.sep)
-      ? sessionsRoot
-      : `${sessionsRoot}${path.sep}`
-    if (resolvedSessionDir !== sessionsRoot && !resolvedSessionDir.startsWith(rootWithSeparator)) {
-      return null
-    }
-    return resolvedSessionDir
   }
 
   private buildToolOutputStub(totalLength: number, preview: string, filePath: string): string {

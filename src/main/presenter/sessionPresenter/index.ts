@@ -15,6 +15,7 @@ import type {
 } from '@shared/presenter'
 import type { AssistantMessageBlock, Message, UserMessageContent } from '@shared/chat'
 import type { NowledgeMemThread, NowledgeMemExportSummary } from '@shared/types/nowledgeMem'
+import { promises as fs } from 'fs'
 import { presenter } from '@/presenter'
 import { eventBus } from '@/eventbus'
 import { TAB_EVENTS, CONVERSATION_EVENTS } from '@/events'
@@ -24,6 +25,7 @@ import { buildUserMessageContext } from '../agentPresenter/message/messageFormat
 import { CommandPermissionService } from '../permission/commandPermissionService'
 import { ConversationManager, type CreateConversationOptions } from './managers/conversationManager'
 import type { ConversationExportFormat } from '../exporter/formats/conversationExporter'
+import { resolveSessionDir } from './sessionPaths'
 
 const DEFAULT_MESSAGE_LENGTH = 300
 
@@ -432,6 +434,7 @@ export class SessionPresenter implements ISessionPresenter {
   async deleteConversation(conversationId: string): Promise<void> {
     this.commandPermissionService.clearConversation(conversationId)
     presenter.filePermissionService?.clearConversation(conversationId)
+    await this.deleteSessionOffloadFiles(conversationId)
     await this.conversationManager.deleteConversation(conversationId)
   }
 
@@ -488,6 +491,20 @@ export class SessionPresenter implements ISessionPresenter {
       messageCount = 2
     }
     return this.messageManager.getContextMessages(conversationId, messageCount)
+  }
+
+  private async deleteSessionOffloadFiles(conversationId: string): Promise<void> {
+    const sessionDir = resolveSessionDir(conversationId)
+    if (!sessionDir) return
+
+    try {
+      await fs.rm(sessionDir, { recursive: true, force: true })
+    } catch (error) {
+      console.warn('[SessionPresenter] Failed to delete session offload files', {
+        conversationId,
+        error
+      })
+    }
   }
 
   async clearContext(conversationId: string): Promise<void> {

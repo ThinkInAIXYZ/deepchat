@@ -6,8 +6,7 @@ import type {
   MCPToolCall,
   MCPToolResponse
 } from '@shared/presenter'
-import path from 'path'
-import { app } from 'electron'
+import { resolveToolOffloadTemplatePath } from '../sessionPresenter/sessionPaths'
 import { ToolMapper } from './toolMapper'
 import { AgentToolManager, type AgentToolCallResult } from '../agentPresenter/acp'
 import { jsonrepair } from 'jsonrepair'
@@ -163,10 +162,10 @@ export class ToolPresenter implements IToolPresenter {
   }
 
   buildToolSystemPrompt(context: { conversationId?: string }): string {
-    const homeDir = app.getPath('home')
     const conversationId = context.conversationId || '<conversationId>'
-    const sessionDir = path.join(homeDir, '.deepchat', 'sessions', conversationId)
-    const offloadPath = path.join(sessionDir, 'tool_<toolCallId>.offload')
+    const offloadPath =
+      resolveToolOffloadTemplatePath(conversationId) ??
+      '~/.deepchat/sessions/<conversationId>/tool_<toolCallId>.offload'
 
     return [
       'Tool outputs may be offloaded when large.',

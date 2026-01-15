@@ -1,7 +1,7 @@
 import fs from 'fs/promises'
 import path from 'path'
 import os from 'os'
-import { app } from 'electron'
+import { getSessionsRoot } from '../../sessionPresenter/sessionPaths'
 import { z } from 'zod'
 import { minimatch } from 'minimatch'
 import { diffLines } from 'diff'
@@ -172,9 +172,7 @@ export class AgentFileSystemHandler {
       this.normalizePath(path.resolve(this.expandHome(dir)))
     )
     this.conversationId = options.conversationId
-    this.sessionsRoot = this.normalizePath(
-      path.resolve(app.getPath('home'), '.deepchat', 'sessions')
-    )
+    this.sessionsRoot = this.normalizePath(getSessionsRoot())
   }
 
   private normalizePath(p: string): string {
