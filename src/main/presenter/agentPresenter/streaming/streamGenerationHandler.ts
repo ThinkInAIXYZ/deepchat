@@ -8,7 +8,7 @@ import type {
   UserMessage,
   UserMessageContent
 } from '@shared/chat'
-import type { CONVERSATION, MCPToolResponse, SearchResult } from '@shared/presenter'
+import type { CONVERSATION, MCPToolResponse, SearchResult, LLMAgentEventData } from '@shared/presenter'
 import { buildUserMessageContext, formatUserMessageContent } from '../message/messageFormatter'
 import { preparePromptContent } from '../message/messageBuilder'
 import type { GeneratingMessageState } from './types'
@@ -273,7 +273,7 @@ export class StreamGenerationHandler extends BaseHandler {
       await this.updateGenerationState(state, promptTokens)
 
       if (toolCallResponse && toolCall) {
-        eventBus.sendToRenderer(STREAM_EVENTS.RESPONSE, SendTarget.ALL_WINDOWS, {
+        this.sendStreamEvent(state, {
           eventId: state.message.id,
           content: '',
           tool_call: 'start',
@@ -285,7 +285,7 @@ export class StreamGenerationHandler extends BaseHandler {
           tool_call_server_icons: toolCall.server_icons,
           tool_call_server_description: toolCall.server_description
         })
-        eventBus.sendToRenderer(STREAM_EVENTS.RESPONSE, SendTarget.ALL_WINDOWS, {
+        this.sendStreamEvent(state, {
           eventId: state.message.id,
           content: '',
           tool_call: 'running',
@@ -297,7 +297,7 @@ export class StreamGenerationHandler extends BaseHandler {
           tool_call_server_icons: toolCall.server_icons,
           tool_call_server_description: toolCall.server_description
         })
-        eventBus.sendToRenderer(STREAM_EVENTS.RESPONSE, SendTarget.ALL_WINDOWS, {
+        this.sendStreamEvent(state, {
           eventId: state.message.id,
           content: '',
           tool_call: 'end',
@@ -509,7 +509,8 @@ export class StreamGenerationHandler extends BaseHandler {
   async regenerateFromUserMessage(
     conversationId: string,
     userMessageId: string,
-    selectedVariantsMap?: Record<string, string>
+    selectedVariantsMap?: Record<string, string>,
+    tabId?: number
   ): Promise<AssistantMessage> {
     const userMessage = await this.ctx.messageManager.getMessage(userMessageId)
     if (!userMessage || userMessage.role !== 'user') {
@@ -546,7 +547,8 @@ export class StreamGenerationHandler extends BaseHandler {
       promptTokens: 0,
       reasoningStartTime: null,
       reasoningEndTime: null,
-      lastReasoningTime: null
+      lastReasoningTime: null,
+      tabId
     })
 
     this.startStreamCompletion(conversationId, userMessageId, selectedVariantsMap).catch(
@@ -626,6 +628,14 @@ export class StreamGenerationHandler extends BaseHandler {
     if (this.isMessageCancelled(messageId)) {
       throw new Error('common.error.userCanceledGeneration')
     }
+  }
+
+  private sendStreamEvent(state: GeneratingMessageState, eventData: LLMAgentEventData): void {
+    if (typeof state.tabId === 'number') {
+      eventBus.sendToTab(state.tabId, STREAM_EVENTS.RESPONSE, eventData)
+      return
+    }
+    eventBus.sendToRenderer(STREAM_EVENTS.RESPONSE, SendTarget.ALL_WINDOWS, eventData)
   }
 
   private isMessageCancelled(messageId: string): boolean {

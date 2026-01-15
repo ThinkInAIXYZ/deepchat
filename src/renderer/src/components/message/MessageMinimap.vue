@@ -98,33 +98,106 @@ const localHoveredId = ref<string | null>(null)
 const MIN_WIDTH = 8
 const MAX_WIDTH = 20
 
-const getMessageContentLength = (message: Message) => {
-  if (message.role === 'assistant') {
-    const assistantMessage = message as AssistantMessage
-    const blocks = assistantMessage.content ?? []
-    const combined = blocks
-      .filter((block) => block.type === 'content' || block.type === 'reasoning_content')
-      .map((block) => block.content ?? '')
-      .join(' ')
-    const usageTokens = assistantMessage.usage?.total_tokens ?? 0
-    return usageTokens > 0 ? usageTokens : combined.length
+type LengthCacheEntry = {
+  length: number
+  usageTokens: number
+  blockCount: number
+  lastCountedType: string
+  lastCountedLength: number
+  userSignature: string
+}
+
+const lengthCache = new Map<string, LengthCacheEntry>()
+
+const sumPartsLength = (parts: string[]) => {
+  if (parts.length === 0) return 0
+  return parts.reduce((sum, part, index) => sum + part.length + (index > 0 ? 1 : 0), 0)
+}
+
+const resolveUserBlockText = (block: {
+  type?: string
+  content?: string
+  category?: string
+  id?: string
+}) => {
+  if (block?.type === 'mention' && block?.category === 'context') {
+    const label = block.id?.trim() || 'context'
+    return `@${label}`
+  }
+  return typeof block?.content === 'string' ? block.content : ''
+}
+
+const getAssistantLength = (assistantMessage: AssistantMessage) => {
+  const blocks = assistantMessage.content ?? []
+  const usageTokens = assistantMessage.usage?.total_tokens ?? 0
+  const blockCount = blocks.length
+  let lastCountedType = ''
+  let lastCountedLength = 0
+  for (let i = blockCount - 1; i >= 0; i -= 1) {
+    const block = blocks[i]
+    if (block.type === 'content' || block.type === 'reasoning_content') {
+      lastCountedType = block.type
+      lastCountedLength = typeof block.content === 'string' ? block.content.length : 0
+      break
+    }
+  }
+  const cached = lengthCache.get(assistantMessage.id)
+
+  if (usageTokens > 0) {
+    if (cached?.usageTokens === usageTokens) {
+      return cached.length
+    }
+    const length = usageTokens
+    lengthCache.set(assistantMessage.id, {
+      length,
+      usageTokens,
+      blockCount,
+      lastCountedType,
+      lastCountedLength,
+      userSignature: ''
+    })
+    return length
   }
 
-  const userMessage = message as UserMessage
+  if (
+    cached &&
+    cached.usageTokens === 0 &&
+    cached.blockCount === blockCount &&
+    cached.lastCountedType === lastCountedType
+  ) {
+    if (cached.lastCountedLength === lastCountedLength) {
+      return cached.length
+    }
+    const nextLength = Math.max(
+      0,
+      cached.length + (lastCountedLength - cached.lastCountedLength)
+    )
+    lengthCache.set(assistantMessage.id, {
+      ...cached,
+      length: nextLength,
+      lastCountedLength
+    })
+    return nextLength
+  }
+
+  const parts = blocks
+    .filter((block) => block.type === 'content' || block.type === 'reasoning_content')
+    .map((block) => (typeof block.content === 'string' ? block.content : ''))
+  const length = sumPartsLength(parts)
+  lengthCache.set(assistantMessage.id, {
+    length,
+    usageTokens,
+    blockCount,
+    lastCountedType,
+    lastCountedLength,
+    userSignature: ''
+  })
+  return length
+}
+
+const getUserLength = (userMessage: UserMessage) => {
   const content = userMessage.content
   const textParts: string[] = []
-  const resolveUserBlockText = (block: {
-    type?: string
-    content?: string
-    category?: string
-    id?: string
-  }) => {
-    if (block?.type === 'mention' && block?.category === 'context') {
-      const label = block.id?.trim() || 'context'
-      return `@${label}`
-    }
-    return typeof block?.content === 'string' ? block.content : ''
-  }
 
   if (content?.text) {
     textParts.push(content.text)
@@ -134,9 +207,32 @@ const getMessageContentLength = (message: Message) => {
     })
   }
   if (content?.files?.length) {
-    textParts.push(content.files.map((file) => file.name ?? '').join(' '))
+    textParts.push(...content.files.map((file) => file.name ?? ''))
   }
-  return textParts.join(' ').length || (userMessage.usage?.input_tokens ?? 0)
+
+  const signature = `${textParts.length}:${textParts.reduce((sum, part) => sum + part.length, 0)}`
+  const cached = lengthCache.get(userMessage.id)
+  if (cached?.userSignature === signature) {
+    return cached.length
+  }
+
+  const length = sumPartsLength(textParts) || (userMessage.usage?.input_tokens ?? 0)
+  lengthCache.set(userMessage.id, {
+    length,
+    usageTokens: 0,
+    blockCount: 0,
+    lastCountedType: '',
+    lastCountedLength: 0,
+    userSignature: signature
+  })
+  return length
+}
+
+const getMessageContentLength = (message: Message) => {
+  if (message.role === 'assistant') {
+    return getAssistantLength(message as AssistantMessage)
+  }
+  return getUserLength(message as UserMessage)
 }
 
 const bars = computed(() => {
@@ -144,7 +240,9 @@ const bars = computed(() => {
     return []
   }
 
+  const activeIds = new Set<string>()
   const messageLengths = props.messages.map((message) => {
+    activeIds.add(message.id)
     const isStreamingPlaceholder =
       'isStreamingPlaceholder' in message && message.isStreamingPlaceholder
     return {
@@ -155,6 +253,11 @@ const bars = computed(() => {
       isStreamingPlaceholder
     }
   })
+  for (const cachedId of lengthCache.keys()) {
+    if (!activeIds.has(cachedId)) {
+      lengthCache.delete(cachedId)
+    }
+  }
 
   const maxLength = Math.max(...messageLengths.map((item) => item.length), 1)
 

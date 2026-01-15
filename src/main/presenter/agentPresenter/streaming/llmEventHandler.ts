@@ -293,7 +293,7 @@ export class LLMEventHandler {
 
     await this.streamUpdateScheduler.flushAll(eventId, 'final')
     this.searchingMessages.delete(eventId)
-    eventBus.sendToRenderer(STREAM_EVENTS.ERROR, SendTarget.ALL_WINDOWS, msg)
+    this.sendStreamEvent(STREAM_EVENTS.ERROR, msg, state)
   }
 
   async handleLLMAgentEnd(msg: LLMAgentEventData): Promise<void> {
@@ -346,7 +346,7 @@ export class LLMEventHandler {
 
     await this.streamUpdateScheduler.flushAll(eventId, 'final')
     this.searchingMessages.delete(eventId)
-    eventBus.sendToRenderer(STREAM_EVENTS.END, SendTarget.ALL_WINDOWS, msg)
+    this.sendStreamEvent(STREAM_EVENTS.END, msg, state)
   }
 
   async finalizeMessage(
@@ -437,5 +437,17 @@ export class LLMEventHandler {
 
   finalizeLastBlock(state: GeneratingMessageState): void {
     finalizeAssistantMessageBlocks(state.message.content)
+  }
+
+  private sendStreamEvent(
+    eventName: string,
+    msg: LLMAgentEventData,
+    state?: GeneratingMessageState | null
+  ): void {
+    if (state?.tabId !== undefined) {
+      eventBus.sendToTab(state.tabId, eventName, msg)
+      return
+    }
+    eventBus.sendToRenderer(eventName, SendTarget.ALL_WINDOWS, msg)
   }
 }

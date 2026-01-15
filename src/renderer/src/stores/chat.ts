@@ -79,7 +79,9 @@ export const useChatStore = defineStore('chat', () => {
     }[]
   >([])
   const messageIdsMap = ref<Map<number, string[]>>(new Map())
-  const messageCacheVersion = ref(0)
+  const messageListVersion = ref(0)
+  const messageItems = ref<MessageListItem[]>([])
+  const messageItemIndex = new Map<string, number>()
   const generatingThreadIds = ref(new Set<string>())
   const isSidebarOpen = ref(false)
   const isMessageNavigationOpen = ref(false)
@@ -137,19 +139,22 @@ export const useChatStore = defineStore('chat', () => {
   const setActiveThreadId = (threadId: string | null) => {
     activeThreadIdMap.value.set(getTabId(), threadId)
   }
-  const bumpMessageCacheVersion = () => {
-    messageCacheVersion.value += 1
+  const bumpMessageListVersion = () => {
+    messageListVersion.value += 1
   }
   const getMessageIds = () => messageIdsMap.value.get(getTabId()) ?? []
   const setMessageIds = (ids: string[]) => {
     messageIdsMap.value.set(getTabId(), ids)
-    bumpMessageCacheVersion()
+    bumpMessageListVersion()
+    resetMessageItems(ids)
   }
   const ensureMessageId = (messageId: string) => {
     if (!messageId) return
     const ids = getMessageIds()
     if (ids.includes(messageId)) return
-    setMessageIds([...ids, messageId])
+    messageIdsMap.value.set(getTabId(), [...ids, messageId])
+    bumpMessageListVersion()
+    appendMessageItem(messageId)
   }
   const getLoadedMessages = () => {
     const ids = getMessageIds()
@@ -164,12 +169,12 @@ export const useChatStore = defineStore('chat', () => {
   }
   const cacheMessageForView = (message: Message) => {
     cacheMessage(message)
-    bumpMessageCacheVersion()
+    updateMessageItem(message.id)
   }
   const cacheMessagesForView = (messages: Message[]) => {
     if (messages.length === 0) return
     cacheMessages(messages)
-    bumpMessageCacheVersion()
+    messages.forEach((message) => updateMessageItem(message.id))
   }
   const getCurrentThreadMessages = () => {
     const activeThreadId = getActiveThreadId()
@@ -282,23 +287,43 @@ export const useChatStore = defineStore('chat', () => {
     return message
   }
 
-  const messageItems = computed((): MessageListItem[] => {
-    const ids = getMessageIds()
-    const cacheVersion = messageCacheVersion.value
-    const currentSelectedVariants = selectedVariantsMap.value
-    if (cacheVersion < 0) return []
+  const buildMessageItem = (messageId: string): MessageListItem => {
+    const cached = getCachedMessage(messageId)
+    if (!cached) {
+      return { id: messageId, message: null }
+    }
+    return {
+      id: messageId,
+      message: resolveVariantMessage(cached, selectedVariantsMap.value)
+    }
+  }
 
-    return ids.map((messageId) => {
-      const cached = getCachedMessage(messageId)
-      if (!cached) {
-        return { id: messageId, message: null }
-      }
-      return {
-        id: messageId,
-        message: resolveVariantMessage(cached, currentSelectedVariants)
-      }
+  const resetMessageItems = (ids: string[]) => {
+    messageItemIndex.clear()
+    messageItems.value = ids.map((messageId, index) => {
+      messageItemIndex.set(messageId, index)
+      return buildMessageItem(messageId)
     })
-  })
+  }
+
+  const appendMessageItem = (messageId: string) => {
+    if (messageItemIndex.has(messageId)) return
+    const index = messageItems.value.length
+    messageItemIndex.set(messageId, index)
+    messageItems.value.push(buildMessageItem(messageId))
+  }
+
+  const updateMessageItem = (messageId: string) => {
+    const index = messageItemIndex.get(messageId)
+    if (index === undefined) return
+    messageItems.value.splice(index, 1, buildMessageItem(messageId))
+  }
+
+  const refreshMessageItemsForSelectedVariants = () => {
+    const ids = getMessageIds()
+    if (ids.length === 0) return
+    resetMessageItems(ids)
+  }
 
   const variantAwareMessages = computed((): Array<Message> => {
     return messageItems.value
@@ -307,8 +332,8 @@ export const useChatStore = defineStore('chat', () => {
   })
 
   const messageCount = computed(() => {
-    const cacheVersion = messageCacheVersion.value
-    if (cacheVersion < 0) return 0
+    const listVersion = messageListVersion.value
+    if (listVersion < 0) return 0
     return getMessageIds().length
   })
 
@@ -707,7 +732,11 @@ export const useChatStore = defineStore('chat', () => {
   const retryMessage = async (messageId: string) => {
     if (!getActiveThreadId()) return
     try {
-      const aiResponseMessage = await agentP.retryMessage(messageId, selectedVariantsMap.value)
+      const aiResponseMessage = await agentP.retryMessage(
+        messageId,
+        selectedVariantsMap.value,
+        getTabId()
+      )
       let didUpdateVariant = false
       // 将正在生成的变体消息缓存起来，但不插入消息列表，避免额外的消息行
       getGeneratingMessagesCache().set(aiResponseMessage.id, {
@@ -762,7 +791,8 @@ export const useChatStore = defineStore('chat', () => {
       const aiResponseMessage = await agentP.regenerateFromUserMessage(
         activeThread,
         userMessageId,
-        selectedVariantsMap.value
+        selectedVariantsMap.value,
+        getTabId()
       )
 
       getGeneratingMessagesCache().set(aiResponseMessage.id, {
@@ -1369,6 +1399,7 @@ export const useChatStore = defineStore('chat', () => {
         } else {
           selectedVariantsMap.value = {}
         }
+        refreshMessageItemsForSelectedVariants()
       }
     } catch (error) {
       console.error('Failed to load conversation config:', error)
@@ -1510,7 +1541,8 @@ export const useChatStore = defineStore('chat', () => {
       const aiResponseMessage = await agentP.continueLoop(
         conversationId,
         messageId,
-        selectedVariantsMap.value
+        selectedVariantsMap.value,
+        getTabId()
       )
 
       if (!aiResponseMessage) {
@@ -1633,6 +1665,7 @@ export const useChatStore = defineStore('chat', () => {
     if (chatConfig.value) {
       chatConfig.value.selectedVariantsMap = { ...selectedVariantsMap.value }
     }
+    updateMessageItem(mainMessageId)
 
     // 持久化到后端
     try {
@@ -1800,6 +1833,7 @@ export const useChatStore = defineStore('chat', () => {
           } else if (!isUpdatingVariant && activeThread.settings.selectedVariantsMap) {
             // 只在非变体更新期间，同步 selectedVariantsMap（防止其他窗口的更新被覆盖）
             selectedVariantsMap.value = { ...activeThread.settings.selectedVariantsMap }
+            refreshMessageItemsForSelectedVariants()
           }
         }
       }

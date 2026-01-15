@@ -174,9 +174,7 @@ export class AgentPresenter implements IAgentPresenter {
       .startStreamCompletion(agentId, assistantMessage.id, selectedVariantsMap)
       .catch((error) => {
         console.error('[AgentPresenter] Failed to start stream completion:', error)
-        eventBus.sendToRenderer(STREAM_EVENTS.ERROR, SendTarget.ALL_WINDOWS, {
-          eventId: assistantMessage.id
-        })
+        this.sendStreamError(assistantMessage.id, tabId)
       })
 
     return assistantMessage
@@ -185,7 +183,8 @@ export class AgentPresenter implements IAgentPresenter {
   async continueLoop(
     agentId: string,
     messageId: string,
-    selectedVariantsMap?: Record<string, string>
+    selectedVariantsMap?: Record<string, string>,
+    tabId?: number
   ): Promise<AssistantMessage | null> {
     await this.logResolvedIfEnabled(agentId)
 
@@ -194,7 +193,7 @@ export class AgentPresenter implements IAgentPresenter {
       return null
     }
 
-    this.trackGeneratingMessage(assistantMessage, agentId)
+    this.trackGeneratingMessage(assistantMessage, agentId, tabId)
     await this.updateConversationAfterUserMessage(agentId)
     await this.sessionManager.startLoop(agentId, assistantMessage.id)
 
@@ -202,9 +201,7 @@ export class AgentPresenter implements IAgentPresenter {
       .continueStreamCompletion(agentId, messageId, selectedVariantsMap)
       .catch((error) => {
         console.error('[AgentPresenter] Failed to continue stream completion:', error)
-        eventBus.sendToRenderer(STREAM_EVENTS.ERROR, SendTarget.ALL_WINDOWS, {
-          eventId: assistantMessage.id
-        })
+        this.sendStreamError(assistantMessage.id, tabId)
       })
 
     return assistantMessage
@@ -225,7 +222,8 @@ export class AgentPresenter implements IAgentPresenter {
 
   async retryMessage(
     messageId: string,
-    selectedVariantsMap?: Record<string, string>
+    selectedVariantsMap?: Record<string, string>,
+    tabId?: number
   ): Promise<AssistantMessage> {
     const message = await this.messageManager.getMessage(messageId)
     if (message.role !== 'assistant') {
@@ -243,16 +241,14 @@ export class AgentPresenter implements IAgentPresenter {
       this.buildMessageMetadata(conversation)
     )) as AssistantMessage
 
-    this.trackGeneratingMessage(assistantMessage, message.conversationId)
+    this.trackGeneratingMessage(assistantMessage, message.conversationId, tabId)
     await this.sessionManager.startLoop(message.conversationId, assistantMessage.id)
 
     void this.streamGenerationHandler
       .startStreamCompletion(message.conversationId, messageId, selectedVariantsMap)
       .catch((error) => {
         console.error('[AgentPresenter] Failed to retry stream completion:', error)
-        eventBus.sendToRenderer(STREAM_EVENTS.ERROR, SendTarget.ALL_WINDOWS, {
-          eventId: assistantMessage.id
-        })
+        this.sendStreamError(assistantMessage.id, tabId)
       })
 
     return assistantMessage
@@ -261,13 +257,15 @@ export class AgentPresenter implements IAgentPresenter {
   async regenerateFromUserMessage(
     agentId: string,
     userMessageId: string,
-    selectedVariantsMap?: Record<string, string>
+    selectedVariantsMap?: Record<string, string>,
+    tabId?: number
   ): Promise<AssistantMessage> {
     await this.logResolvedIfEnabled(agentId)
     return this.streamGenerationHandler.regenerateFromUserMessage(
       agentId,
       userMessageId,
-      selectedVariantsMap
+      selectedVariantsMap,
+      tabId
     )
   }
 
@@ -316,6 +314,14 @@ export class AgentPresenter implements IAgentPresenter {
       model: modelId,
       provider: providerId
     }
+  }
+
+  private sendStreamError(eventId: string, tabId?: number): void {
+    if (typeof tabId === 'number') {
+      eventBus.sendToTab(tabId, STREAM_EVENTS.ERROR, { eventId })
+      return
+    }
+    eventBus.sendToRenderer(STREAM_EVENTS.ERROR, SendTarget.ALL_WINDOWS, { eventId })
   }
 
   private trackGeneratingMessage(

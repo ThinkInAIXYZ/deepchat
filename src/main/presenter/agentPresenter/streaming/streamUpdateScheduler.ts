@@ -208,7 +208,7 @@ export class StreamUpdateScheduler {
       seq: state.seq
     }
 
-    eventBus.sendToRenderer(STREAM_EVENTS.RESPONSE, SendTarget.ALL_WINDOWS, eventData)
+    this.sendToTarget(state, eventData)
   }
 
   private scheduleRenderFlush(state: SchedulerState, delayMs: number): void {
@@ -256,7 +256,7 @@ export class StreamUpdateScheduler {
         totalUsage: delta.totalUsage
       }
 
-      eventBus.sendToRenderer(STREAM_EVENTS.RESPONSE, SendTarget.ALL_WINDOWS, eventData)
+      this.sendToTarget(state, eventData)
       state.pendingDelta = {}
     }
 
@@ -382,7 +382,7 @@ export class StreamUpdateScheduler {
         totalUsage: delta.totalUsage
       }
 
-      eventBus.sendToRenderer(STREAM_EVENTS.RESPONSE, SendTarget.ALL_WINDOWS, eventData)
+      this.sendToTarget(state, eventData)
     }
 
     await this.flushDb(state)
@@ -404,5 +404,13 @@ export class StreamUpdateScheduler {
     }
 
     this.states.delete(eventId)
+  }
+
+  private sendToTarget(state: SchedulerState, eventData: LLMAgentEventData): void {
+    if (typeof state.tabId === 'number') {
+      eventBus.sendToTab(state.tabId, STREAM_EVENTS.RESPONSE, eventData)
+      return
+    }
+    eventBus.sendToRenderer(STREAM_EVENTS.RESPONSE, SendTarget.ALL_WINDOWS, eventData)
   }
 }
