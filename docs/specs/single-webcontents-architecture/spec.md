@@ -15,14 +15,17 @@ DeepChat currently uses a **multi-window + multi-tab hybrid architecture**:
 ```
 BrowserWindow (Chat Window)
 ├─ Shell WebContents (src/renderer/shell/)
-│  └─ AppBar + Window Controls
+│  └─ AppBar (horizontal tabs for open conversations)
 └─ Multiple WebContentsViews (src/renderer/src/)
-   ├─ Tab 1: Chat Interface
-   ├─ Tab 2: Settings
-   ├─ Tab 3: Knowledge Base
-   └─ Tab N: Other Views
+   ├─ Tab 1: Conversation "Project Planning"
+   ├─ Tab 2: Conversation "Code Review"
+   ├─ Tab 3: Conversation "Bug Analysis"
+   └─ Tab N: Other Open Conversations
 
-BrowserWindow (Browser Window)
+BrowserWindow (Settings Window) - Independent
+└─ Single WebContents (Settings UI)
+
+BrowserWindow (Browser Window) - Independent
 ├─ Shell WebContents (src/renderer/shell/)
 │  └─ AppBar + BrowserToolbar
 └─ Multiple WebContentsViews (External URLs)
@@ -31,10 +34,13 @@ BrowserWindow (Browser Window)
 ```
 
 **Key Components**:
-- **Shell**: Thin UI layer (`src/renderer/shell/`) with AppBar for tab management
-- **Main**: Actual application content (`src/renderer/src/`) rendered via WebContentsView
+- **AppBar Horizontal Tabs**: Each tab represents an **open conversation** (not functional areas)
+- **Shell**: Thin UI layer (`src/renderer/shell/`) with AppBar for managing open conversation tabs
+- **Main**: Conversation content (`src/renderer/src/`) rendered via WebContentsView per tab
 - **TabPresenter**: Complex Electron main-process manager for WebContentsView lifecycle
 - **WindowPresenter**: BrowserWindow lifecycle manager coordinating with TabPresenter
+- **ThreadsView**: Floating sidebar showing **historical conversations archive** (different from open conversations)
+- **Settings/Browser**: Already independent windows, not tabs in chat window
 
 ### 1.2 Motivation for Change
 
@@ -49,10 +55,15 @@ BrowserWindow (Browser Window)
 **Benefits of Single WebContents**:
 
 1. **Simplified Architecture**: One unified Renderer codebase per window type
-2. **Better Performance**: Faster tab switching via component mounting/unmounting
-3. **Easier State Management**: Shared Pinia stores across tabs with better isolation control
+2. **Better Performance**: Faster conversation switching via component mounting/unmounting
+3. **Easier State Management**: Shared Pinia stores across conversations with better isolation control
 4. **Reduced IPC Overhead**: Direct presenter calls without complex tab routing
-5. **Modern Web UX**: Tab switching feels like SPA navigation
+5. **Modern Web UX**: Conversation switching feels like SPA navigation
+6. **Improved UI Design**:
+   - Vertical sidebar replaces unpopular horizontal tabs
+   - Better space utilization for conversation titles
+   - Clearer visual hierarchy with AppBar for window controls
+   - Settings/Browser entries integrated into sidebar for easier access
 
 ---
 
@@ -62,28 +73,39 @@ BrowserWindow (Browser Window)
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                    Chat Window (Single WebContents)             │
+│                Chat Window (Single WebContents)                 │
 │  ┌───────────────────────────────────────────────────────────┐  │
+│  │  AppBar: [Window Title]              [− □ ×]             │  │
+│  ├───────────────────────────────────────────────────────────┤  │
 │  │  ┌──┐  ┌──────────────────────────────────────────────┐  │  │
-│  │  │T1│  │                                              │  │  │
-│  │  ├──┤  │        Active Conversation Content          │  │  │
-│  │  │T2│  │        (ChatView with conversationId)       │  │  │
+│  │  │C1│  │                                              │  │  │
+│  │  ├──┤  │   Active Conversation Content                │  │  │
+│  │  │C2│  │   (ChatView with conversationId)             │  │  │
 │  │  ├──┤  │                                              │  │  │
-│  │  │T3│  │   User: How do I...                         │  │  │
+│  │  │C3│  │   User: How do I...                         │  │  │
 │  │  ├──┤  │   Assistant: To do that...                  │  │  │
-│  │  │+│  │   User: Thanks!                              │  │  │
-│  │  └──┘  │                                              │  │  │
-│  │        │   [Type your message...]          [Send]    │  │  │
-│  │        └──────────────────────────────────────────────┘  │  │
+│  │  │  │  │   User: Thanks!                              │  │  │
+│  │  │+│  │                                              │  │  │
+│  │  ├──┤  │   [Type your message...]          [Send]    │  │  │
+│  │  │⚙│  └──────────────────────────────────────────────┘  │  │
+│  │  ├──┤                                                    │  │
+│  │  │🌐│                                                    │  │
+│  │  └──┘                                                    │  │
 │  └───────────────────────────────────────────────────────────┘  │
 │    ↑                            ↑                               │
 │  Vertical                   Single ChatView                     │
-│  Tab Bar                    (conversation tabs)                 │
+│  Sidebar                    (active conversation)               │
+│  - C1,C2,C3: Open conversations                                 │
+│  - +: New conversation                                          │
+│  - ⚙: Settings window                                           │
+│  - 🌐: Browser window                                           │
 └─────────────────────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────────────┐
 │          Settings/Knowledge/History (Separate Windows)          │
 │  ┌───────────────────────────────────────────────────────────┐  │
+│  │  AppBar: [Settings]                      [− □ ×]         │  │
+│  ├───────────────────────────────────────────────────────────┤  │
 │  │  Dedicated window with specific content                  │  │
 │  │  - Settings: Single WebContents, SettingsView            │  │
 │  │  - Knowledge: Single WebContents, KnowledgeBaseView      │  │
@@ -104,15 +126,20 @@ BrowserWindow (Browser Window)
 **Key Principles**:
 
 1. **Window Type Differentiation**:
-   - **Chat Windows**: Single WebContents with vertical tab bar for conversation switching
+   - **Chat Windows**: Single WebContents with vertical sidebar for conversation switching
    - **Tool Windows** (Settings/Knowledge/History): Single WebContents, separate windows
    - **Browser Windows**: Keep existing Shell + WebContentsView architecture (security isolation)
 
-2. **Unified Renderer Codebase**: Merge `src/renderer/shell/` and `src/renderer/src/` into single app
+2. **UI Layout**:
+   - **AppBar**: Retained at top with window title and window controls (minimize/maximize/close)
+   - **Vertical Sidebar**: Replaces horizontal tabs, shows open conversations
+   - **Sidebar Bottom**: Settings and Browser window entry points
+   - **ThreadsView**: Separate floating sidebar for historical conversations archive
 
-3. **Tab Management**:
-   - Chat window tabs = conversation sessions (not routes)
-   - Tab switching = changing active conversation ID in ChatView
+3. **Conversation Management**:
+   - Sidebar tabs = open conversation sessions (work area)
+   - ThreadsView = historical conversations archive (different concept)
+   - Conversation switching = changing active conversation ID in ChatView
    - No Vue Router needed (single view, multiple conversations)
 
 4. **State Management**: Single Pinia chat store with active conversation ID
@@ -125,98 +152,44 @@ BrowserWindow (Browser Window)
 
 #### Chat Window
 
-```typescript
-// WindowPresenter.createChatWindow()
-async createChatWindow(options?: {
-  initialConversationId?: string
-  width?: number
-  height?: number
-}): Promise<number> {
-  const window = new BrowserWindow({
-    width: options?.width || 1200,
-    height: options?.height || 800,
-    webPreferences: {
-      preload: join(__dirname, '../preload/index.mjs'),
-      sandbox: false
-    }
-  })
+**Architecture**:
+- Create single BrowserWindow with unified renderer
+- Load main application entry point (index.html)
+- Window type marked as 'chat' for routing purposes
+- Optional: Pass initial conversation ID via IPC after load
 
-  const windowId = window.id
-  this.windows.set(windowId, window)
-  this.windowTypes.set(windowId, 'chat')
-
-  // Load unified renderer (chat view)
-  if (is.dev) {
-    await window.loadURL('http://localhost:5173/index.html')
-  } else {
-    await window.loadFile('../renderer/index.html')
-  }
-
-  // Optionally notify renderer to load specific conversation
-  if (options?.initialConversationId) {
-    window.webContents.on('did-finish-load', () => {
-      window.webContents.send('load-conversation', options.initialConversationId)
-    })
-  }
-
-  return windowId
-}
-```
+**Window Configuration**:
+- Default size: 1200x800
+- Preload script enabled for IPC bridge
+- Single WebContents (no WebContentsView children)
 
 #### Tool Windows (Settings, Knowledge, History)
 
-```typescript
-// WindowPresenter.createToolWindow()
-async createToolWindow(toolType: 'settings' | 'knowledge' | 'history'): Promise<number> {
-  const window = new BrowserWindow({
-    width: toolType === 'settings' ? 900 : 1200,
-    height: 700,
-    webPreferences: {
-      preload: join(__dirname, '../preload/index.mjs'),
-      sandbox: false
-    }
-  })
+**Architecture**:
+- Create separate BrowserWindow for each tool type
+- Each loads dedicated HTML entry point (settings.html, knowledge.html, history.html)
+- Window type marked as 'tool' for routing purposes
+- Independent lifecycle from chat windows
 
-  const windowId = window.id
-  this.windows.set(windowId, window)
-  this.windowTypes.set(windowId, 'tool')
-
-  // Load specific tool view
-  const viewPath = {
-    settings: 'settings.html',
-    knowledge: 'knowledge.html',
-    history: 'history.html'
-  }[toolType]
-
-  if (is.dev) {
-    await window.loadURL(`http://localhost:5173/${viewPath}`)
-  } else {
-    await window.loadFile(`../renderer/${viewPath}`)
-  }
-
-  return windowId
-}
-```
+**Window Configuration**:
+- Settings: 900x700
+- Knowledge/History: 1200x700
+- Preload script enabled for IPC bridge
+- Single WebContents per window
 
 #### Browser Window (Unchanged)
 
-```typescript
-// WindowPresenter.createBrowserWindow()
-async createBrowserWindow(options?: {
-  initialUrl?: string
-}): Promise<number> {
-  // Keep existing shell + WebContentsView architecture
-  return this.createShellWindow({
-    windowType: 'browser',
-    initialTab: { url: options?.initialUrl || 'about:blank' }
-  })
-}
-```
+**Architecture**:
+- Keep existing Shell + WebContentsView architecture
+- Shell WebContents for AppBar and controls
+- Multiple WebContentsView children for external web pages
+- Security isolation maintained (no preload in WebContentsView)
 
 ### 3.2 Renderer Architecture
 
 #### 3.2.1 Directory Structure
 
+**New Structure**:
 ```
 src/renderer/
 ├── index.html                 # Chat window entry
@@ -228,7 +201,7 @@ src/renderer/
 │   ├── settings-main.ts      # Settings window initialization
 │   ├── knowledge-main.ts     # Knowledge window initialization
 │   ├── history-main.ts       # History window initialization
-│   ├── App.vue               # Chat window root (Vertical Tab Bar + ChatView)
+│   ├── App.vue               # Chat window root (Vertical Sidebar + ChatView)
 │   ├── SettingsApp.vue       # Settings window root
 │   ├── KnowledgeApp.vue      # Knowledge window root
 │   ├── HistoryApp.vue        # History window root
@@ -238,8 +211,9 @@ src/renderer/
 │   │   ├── KnowledgeBaseView.vue
 │   │   └── HistoryView.vue
 │   ├── components/           # Shared components
-│   │   ├── VerticalTabBar.vue  # NEW: Vertical conversation tab list
-│   │   ├── ConversationTab.vue # NEW: Single conversation tab item
+│   │   ├── VerticalSidebar.vue    # NEW: Vertical conversation sidebar
+│   │   ├── ConversationTab.vue    # NEW: Single conversation tab item
+│   │   ├── ThreadsView.vue        # Historical conversations archive
 │   │   └── ...
 │   ├── stores/               # Pinia stores
 │   │   ├── app.ts           # App-level state
@@ -260,382 +234,155 @@ src/renderer/
 │       └── tab.ts           # WebContentsView tab management
 ```
 
-**Note**: No router/ directory needed - chat window manages conversations via state, not routing.
+**Key Changes**:
+- No router/ directory needed - chat window manages conversations via state
+- Shell directory kept only for browser windows
+- Multiple HTML entry points for different window types
 
-#### 3.2.2 Chat Window Layout (App.vue)
+#### 3.2.2 Chat Window Layout
 
-```vue
-<!-- src/renderer/src/App.vue - Chat Window -->
-<template>
-  <div class="app-container h-screen flex">
-    <!-- Vertical Tab Bar (conversation list) -->
-    <VerticalTabBar
-      :tabs="conversationTabs"
-      :active-tab-id="activeConversationId"
-      @tab-click="switchConversation"
-      @tab-close="closeConversation"
-      @new-tab="createNewConversation"
-    />
+**Component Structure**:
+- **App.vue**: Root component with AppBar + Vertical Sidebar + ChatView
+- **AppBar**: Window title and window controls (minimize/maximize/close)
+- **VerticalSidebar**:
+  - Top section: List of open conversation tabs
+  - Bottom section: New conversation button, Settings button, Browser button
+- **ChatView**: Main content area displaying active conversation
 
-    <!-- Main chat content area -->
-    <main class="flex-1 flex flex-col">
-      <ChatView
-        :conversation-id="activeConversationId"
-        :key="activeConversationId"
-      />
-    </main>
-  </div>
-</template>
+**State Management**:
+- Active conversation ID tracked in Pinia chat store
+- Conversation switching updates active ID
+- ChatView receives conversation ID as prop and loads appropriate data
 
-<script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
-import { useChatStore } from './stores/chat'
-import VerticalTabBar from './components/VerticalTabBar.vue'
-import ChatView from './views/ChatView.vue'
+**Data Flow**:
+1. User clicks conversation tab in sidebar
+2. Sidebar emits tab-click event with conversation ID
+3. App.vue updates active conversation ID in store
+4. ChatView re-renders with new conversation data
 
-const chatStore = useChatStore()
+#### 3.2.3 VerticalSidebar Component
 
-// Active conversation state
-const activeConversationId = ref<string | null>(null)
+**Component Responsibilities**:
+- Display list of open conversation tabs
+- Handle tab click events (switch conversation)
+- Handle tab close events (close conversation)
+- Provide new conversation button
+- Provide Settings and Browser window entry points
 
-// Open conversation tabs (similar to current AppBar tabs)
-const conversationTabs = computed(() => {
-  return chatStore.openConversations.map(conv => ({
-    id: conv.id,
-    title: conv.title || 'New Chat',
-    icon: conv.icon,
-    closable: true,
-    isDirty: conv.hasUnsavedChanges
-  }))
-})
+**Layout Structure**:
+- Top: Scrollable list of conversation tabs
+- Bottom: Fixed controls (New, Settings, Browser)
 
-function switchConversation(conversationId: string) {
-  activeConversationId.value = conversationId
-  chatStore.setActiveConversation(conversationId)
-}
-
-function closeConversation(conversationId: string) {
-  chatStore.closeConversation(conversationId)
-
-  // Switch to adjacent tab if current is closed
-  if (activeConversationId.value === conversationId) {
-    const index = chatStore.openConversations.findIndex(c => c.id === conversationId)
-    const nextConv = chatStore.openConversations[Math.max(0, index - 1)]
-    if (nextConv) {
-      activeConversationId.value = nextConv.id
-    }
-  }
-}
-
-async function createNewConversation() {
-  const newConv = await chatStore.createConversation()
-  activeConversationId.value = newConv.id
-}
-
-// Listen to IPC events from Main process
-onMounted(() => {
-  window.electron.ipcRenderer.on('load-conversation', (_, conversationId) => {
-    switchConversation(conversationId)
-  })
-})
-</script>
-```
-
-#### 3.2.3 VerticalTabBar Component
-
-```vue
-<!-- src/renderer/src/components/VerticalTabBar.vue -->
-<template>
-  <aside class="vertical-tab-bar w-16 flex flex-col bg-zinc-900 border-r border-zinc-800">
-    <!-- Conversation tabs -->
-    <nav class="flex-1 flex flex-col gap-1 p-2 overflow-y-auto">
-      <ConversationTab
-        v-for="tab in tabs"
-        :key="tab.id"
-        :tab="tab"
-        :active="tab.id === activeTabId"
-        @click="$emit('tab-click', tab.id)"
-        @close="$emit('tab-close', tab.id)"
-      />
-    </nav>
-
-    <!-- Bottom controls -->
-    <div class="controls flex flex-col gap-2 p-2 border-t border-zinc-800">
-      <button
-        class="control-btn"
-        title="New Conversation"
-        @click="$emit('new-tab')"
-      >
-        <Icon name="Plus" />
-      </button>
-      <button
-        class="control-btn"
-        title="Settings"
-        @click="openSettings"
-      >
-        <Icon name="Settings" />
-      </button>
-      <button
-        class="control-btn"
-        title="Browser"
-        @click="openBrowser"
-      >
-        <Icon name="Globe" />
-      </button>
-    </div>
-  </aside>
-</template>
-
-<script setup lang="ts">
-import { usePresenter } from '../composables/usePresenter'
-import ConversationTab from './ConversationTab.vue'
-
-defineProps<{
-  tabs: Array<{
-    id: string
-    title: string
-    icon?: string
-    closable: boolean
-    isDirty?: boolean
-  }>
-  activeTabId: string | null
-}>()
-
-defineEmits<{
-  'tab-click': [id: string]
-  'tab-close': [id: string]
-  'new-tab': []
-}>()
-
-const windowPresenter = usePresenter('windowPresenter')
-
-async function openSettings() {
-  await windowPresenter.createToolWindow('settings')
-}
-
-async function openBrowser() {
-  await windowPresenter.createBrowserWindow()
-}
-</script>
-```
+**Interaction with Main Process**:
+- Settings button: Calls WindowPresenter.createToolWindow('settings')
+- Browser button: Calls WindowPresenter.createBrowserWindow()
+- Uses usePresenter composable for IPC communication
 
 ### 3.3 State Management
 
 #### 3.3.1 Chat Store
 
-```typescript
-// src/renderer/src/stores/chat.ts
-import { defineStore } from 'pinia'
-import { ref, computed } from 'vue'
-import { usePresenter } from '../composables/usePresenter'
+**Store Responsibilities**:
+- Manage list of open conversations in current window
+- Track active conversation ID
+- Provide conversation lifecycle methods (create, load, close)
+- Coordinate with ConversationPresenter for persistence
 
-export const useChatStore = defineStore('chat', () => {
-  const conversationPresenter = usePresenter('conversationPresenter')
-
-  // Open conversations (tabs) in current window
-  const openConversations = ref<Conversation[]>([])
-
-  // Active conversation ID
-  const activeConversationId = ref<string | null>(null)
-
-  // Computed active conversation
-  const activeConversation = computed(() => {
-    return openConversations.value.find(c => c.id === activeConversationId.value)
-  })
-
-  // Actions
-  async function createConversation() {
-    const newConv = await conversationPresenter.create({
-      title: 'New Chat',
-      messages: []
-    })
-
-    openConversations.value.push(newConv)
-    activeConversationId.value = newConv.id
-
-    return newConv
-  }
-
-  function setActiveConversation(id: string) {
-    activeConversationId.value = id
-  }
-
-  function closeConversation(id: string) {
-    const index = openConversations.value.findIndex(c => c.id === id)
-    if (index > -1) {
-      openConversations.value.splice(index, 1)
-    }
-  }
-
-  async function loadConversation(id: string) {
-    // Check if already open
-    if (openConversations.value.some(c => c.id === id)) {
-      activeConversationId.value = id
-      return
-    }
-
-    // Load from database
-    const conversation = await conversationPresenter.get(id)
-    if (conversation) {
-      openConversations.value.push(conversation)
-      activeConversationId.value = id
-    }
-  }
-
-  return {
-    openConversations,
-    activeConversationId,
-    activeConversation,
-    createConversation,
-    setActiveConversation,
-    closeConversation,
-    loadConversation
-  }
-})
+**State Structure**:
+```
+ChatStore {
+  openConversations: Conversation[]     // List of open conversation tabs
+  activeConversationId: string | null   // Currently active conversation
+  activeConversation: Conversation      // Computed from above
+}
 ```
 
-**Key Difference from Current Architecture**:
+**Key Operations**:
+- **createConversation()**: Create new conversation, add to open list, set as active
+- **loadConversation(id)**: Load conversation from database, add to open list if not already open
+- **setActiveConversation(id)**: Switch active conversation
+- **closeConversation(id)**: Remove from open list, switch to adjacent if was active
+
+**Difference from Current Architecture**:
 - No need for tab-scoped state (no Vue Router, no multiple views)
-- Conversation switching = updating `activeConversationId`
-- ChatView component receives `conversationId` as prop and loads appropriate data
+- Conversation switching = updating activeConversationId
+- ChatView component receives conversationId as prop and loads appropriate data
+- All conversations share same Pinia store instance
 
 ### 3.4 Main Process Changes
 
 #### 3.4.1 Simplified TabPresenter
 
-```typescript
-// src/main/presenter/tabPresenter.ts
+**Scope Reduction**:
+- TabPresenter now only manages Browser window tabs
+- Chat window conversations are managed in Renderer via Pinia store
+- Removes complex WebContentsView lifecycle management for chat windows
 
-/**
- * TabPresenter now only manages Browser window tabs
- * Chat window conversations are managed in Renderer via Pinia store
- */
-class TabPresenter implements ITabPresenter {
-  // Keep only browser window related state
-  private browserTabs: Map<number, WebContentsView> = new Map()
-  private tabState: Map<number, TabData> = new Map()
-  private windowTabs: Map<number, number[]> = new Map()
+**Retained Responsibilities** (Browser windows only):
+- Create/destroy WebContentsView for browser tabs
+- Manage browser tab switching and visibility
+- Handle browser tab reordering
+- Coordinate browser tab state with WindowPresenter
 
-  /**
-   * Create WebContentsView tab (browser window only)
-   */
-  async createBrowserTab(windowId: number, url: string): Promise<number> {
-    const window = this.windowPresenter.getWindow(windowId)
-    const windowType = this.windowTypes.get(windowId)
+**Removed Responsibilities** (Chat windows):
+- No longer creates WebContentsView for chat conversations
+- No longer manages chat tab lifecycle
+- No longer maintains WebContentsId → TabId mapping for chat windows
+- No longer handles chat tab switching via IPC
 
-    if (windowType !== 'browser') {
-      throw new Error('createBrowserTab only supports browser windows')
-    }
-
-    // Existing WebContentsView creation logic (unchanged)
-    const view = new WebContentsView({
-      webPreferences: {
-        sandbox: false,
-        session: getYoBrowserSession()
-        // NO preload for security
-      }
-    })
-
-    await view.webContents.loadURL(url)
-
-    const tabId = view.webContents.id
-    this.browserTabs.set(tabId, view)
-
-    // ... rest of existing logic
-    return tabId
-  }
-
-  // Keep existing browser tab methods:
-  // - switchBrowserTab()
-  // - closeBrowserTab()
-  // - reorderBrowserTabs()
-  // - moveBrowserTab()
-
-  // REMOVED methods (chat windows no longer use these):
-  // - createTab() for chat windows
-  // - Complex WebContentsView management for chat windows
-  // - WebContentsId → TabId mapping for chat windows
-}
-```
+**Architecture Impact**:
+- Significant code reduction (~67% LOC reduction)
+- Simpler state management (browser tabs only)
+- Clearer separation of concerns
 
 #### 3.4.2 WindowPresenter Changes
 
-```typescript
-// src/main/presenter/windowPresenter/index.ts
+**New Methods**:
+- **createChatWindow(options)**: Create single WebContents chat window
+- **createToolWindow(toolType)**: Create Settings/Knowledge/History windows
 
-class WindowPresenter implements IWindowPresenter {
-  async createChatWindow(options?: {
-    initialRoute?: string
-    width?: number
-    height?: number
-  }): Promise<number> {
-    const window = new BrowserWindow({
-      width: options?.width || 1200,
-      height: options?.height || 800,
-      webPreferences: {
-        preload: join(__dirname, '../preload/index.mjs'),
-        sandbox: false
-      }
-    })
+**Modified Methods**:
+- **createShellWindow()**: Now only creates browser windows (windowType: 'browser')
 
-    const windowId = window.id
-    this.windows.set(windowId, window)
-    this.windowTypes.set(windowId, 'chat')
-
-    // Load unified renderer
-    const route = options?.initialRoute || '/chat'
-    if (is.dev) {
-      await window.loadURL(`http://localhost:5173/#${route}`)
-    } else {
-      await window.loadFile('../renderer/index.html', { hash: route })
-    }
-
-    return windowId
-  }
-
-  async createBrowserWindow(options?: {
-    initialUrl?: string
-  }): Promise<number> {
-    // Keep existing shell + WebContentsView architecture
-    return this.createShellWindow({
-      windowType: 'browser',
-      initialTab: { url: options?.initialUrl || 'about:blank' }
-    })
-  }
-}
-```
+**Window Type Management**:
+- Track window types: 'chat', 'tool', 'browser'
+- Route IPC events based on window type
+- Simplified context tracking (no WebContentsId mapping for chat windows)
 
 ### 3.5 IPC Simplification
 
-#### 3.5.1 Before (Current Architecture)
+#### 3.5.1 Current Architecture (Before)
 
-```typescript
-// Renderer needs to know which tab it is
-const presenter = usePresenter('chatPresenter')
-await presenter.sendMessage(message)  // Complex routing
+**Complexity**:
+- Renderer needs to identify which tab it is via WebContentsId
+- Main process maintains complex WebContentsId → TabId → WindowId mapping
+- IPC handler must resolve context for every call
+- Tab routing adds latency and complexity
 
-// Main process
-ipcMain.handle('presenter:call', (event, name, method, ...args) => {
-  const webContentsId = event.sender.id
-  const tabId = tabPresenter.getTabIdByWebContentsId(webContentsId)
-  const windowId = tabPresenter.getWindowIdByWebContentsId(webContentsId)
-  // Complex context tracking...
-})
-```
+**Context Resolution Flow**:
+1. Renderer calls presenter method
+2. IPC handler receives event with sender WebContentsId
+3. Look up TabId from WebContentsId
+4. Look up WindowId from TabId
+5. Execute method with resolved context
 
-#### 3.5.2 After (New Architecture)
+#### 3.5.2 New Architecture (After)
 
-```typescript
-// Renderer: Simple direct call (chat windows)
-const presenter = usePresenter('chatPresenter')
-await presenter.sendMessage(message)  // No tab routing needed
+**Simplification**:
+- Chat windows: Direct window-level IPC (no tab routing needed)
+- Main process only needs to identify BrowserWindow
+- Simpler context tracking (windowId only for chat windows)
+- Reduced IPC latency
 
-// Main process: Simpler handler
-ipcMain.handle('presenter:call', (event, name, method, ...args) => {
-  const windowId = BrowserWindow.fromWebContents(event.sender)?.id
-  // Simpler context - no tab mapping needed for chat windows
-})
-```
+**Context Resolution Flow** (Chat windows):
+1. Renderer calls presenter method
+2. IPC handler receives event with sender WebContents
+3. Get BrowserWindow from WebContents
+4. Execute method with window context
+
+**Browser Windows**:
+- Keep existing tab routing for WebContentsView tabs
+- No change to browser window IPC architecture
 
 ---
 
@@ -863,42 +610,30 @@ async createChatWindow(options) {
 
 ### A.1 Removed APIs
 
-```typescript
-// TabPresenter (for chat windows)
-- createTab(windowId, url, options)        // Replaced by Vue Router navigation
-- switchTab(tabId)                         // Replaced by router.push()
-- closeTab(tabId)                          // Replaced by router.back() or custom closeTab()
-- reorderTabs(windowId, tabIds)            // May add back if tab bar is implemented
-- moveTab(tabId, targetWindowId)           // Complex, deferred to Phase 2
-```
+**TabPresenter** (for chat windows):
+- `createTab()` - No longer needed, conversations managed in renderer
+- `switchTab()` - Replaced by conversation state management
+- `closeTab()` - Replaced by conversation store methods
+- `reorderTabs()` - May add back for conversation reordering
+- `moveTab()` - Complex, deferred to Phase 2
 
 ### A.2 New APIs
 
-```typescript
-// WindowPresenter
-+ createChatWindow(options: {
-    initialRoute?: string
-    width?: number
-    height?: number
-  }): Promise<number>
+**WindowPresenter**:
+- `createChatWindow(options)` - Create single WebContents chat window
+  - Options: initialConversationId, width, height
+- `createToolWindow(toolType)` - Create Settings/Knowledge/History windows
+  - toolType: 'settings' | 'knowledge' | 'history'
 
-// TabPresenter
-+ navigateChatWindow(windowId: number, route: string): Promise<void>
-
-// Renderer (usePresenter)
-+ windowPresenter.navigateToRoute(route: string): Promise<void>
-```
+**ConversationPresenter** (Renderer):
+- Conversation lifecycle methods exposed via Pinia store
+- No direct IPC routing needed for conversation switching
 
 ### A.3 Modified APIs
 
-```typescript
-// WindowPresenter.createShellWindow()
-// Now only creates browser windows
-createShellWindow(options: {
-  windowType: 'browser'  // 'chat' is removed, use createChatWindow instead
-  initialTab?: { url: string }
-})
-```
+**WindowPresenter.createShellWindow()**:
+- Now only creates browser windows (windowType: 'browser')
+- 'chat' window type removed, use createChatWindow() instead
 
 ---
 
@@ -908,14 +643,16 @@ createShellWindow(options: {
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
+│  AppBar: [DeepChat]                            [− □ ×]      │
+├─────────────────────────────────────────────────────────────┤
 │ ┌──┐ ┌─────────────────────────────────────────────────┐   │
-│ │T1│ │  Conversation: "Planning DeepChat Refactor"     │   │
+│ │C1│ │  Conversation: "Planning DeepChat Refactor"     │   │
 │ │  │ ├─────────────────────────────────────────────────┤   │
 │ ├──┤ │                                                 │   │
-│ │T2│ │  User: Let's refactor the window architecture   │   │
+│ │C2│ │  User: Let's refactor the window architecture   │   │
 │ │  │ │  Assistant: Great idea! Here's my analysis...   │   │
 │ ├──┤ │  User: Can you create a spec document?          │   │
-│ │T3│ │  Assistant: Of course! I'll write...            │   │
+│ │C3│ │  Assistant: Of course! I'll write...            │   │
 │ │  │ │                                                 │   │
 │ ├──┤ │                                                 │   │
 │ │+ │ │                                                 │   │
@@ -928,11 +665,12 @@ createShellWindow(options: {
 │ └──┘                                                       │
 └─────────────────────────────────────────────────────────────┘
   ↑                              ↑
-Vertical Tab Bar          Single ChatView
-(conversation tabs)       (active conversation content)
+Vertical Sidebar          Single ChatView
+(open conversations)      (active conversation content)
 
 Legend:
-- T1, T2, T3: Conversation tabs (like current AppBar tabs)
+- AppBar: Window title and controls (minimize/maximize/close)
+- C1, C2, C3: Open conversation tabs (work area)
 - +: New conversation button
 - ⚙: Open Settings window
 - 🌐: Open Browser window
