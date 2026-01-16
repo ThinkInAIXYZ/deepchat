@@ -833,6 +833,7 @@ export type AcpBuiltinAgentId =
   | 'codex-acp'
   | 'opencode'
   | 'gemini-cli'
+  | 'qwen-code'
 
 export interface AcpAgentProfile {
   id: string

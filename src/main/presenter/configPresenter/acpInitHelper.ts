@@ -75,6 +75,10 @@ const BUILTIN_INIT_COMMANDS: Record<AcpBuiltinAgentId, InitCommandConfig> = {
   'gemini-cli': {
     commands: ['npm install -g @google/gemini-cli', 'gemini'],
     description: 'Initialize Gemini CLI'
+  },
+  'qwen-code': {
+    commands: ['npm install -g @qwen-code/qwen-code', 'qwen --version'],
+    description: 'Initialize Qwen Code'
   }
 }
 

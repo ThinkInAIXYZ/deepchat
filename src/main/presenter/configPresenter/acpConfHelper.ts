@@ -18,7 +18,8 @@ const BUILTIN_ORDER: AcpBuiltinAgentId[] = [
   'claude-code-acp',
   'codex-acp',
   'opencode',
-  'gemini-cli'
+  'gemini-cli',
+  'qwen-code'
 ]
 
 interface BuiltinTemplate {
@@ -69,6 +70,15 @@ const BUILTIN_TEMPLATES: Record<AcpBuiltinAgentId, BuiltinTemplate> = {
       name: DEFAULT_PROFILE_NAME,
       command: 'gemini',
       args: ['--experimental-acp'],
+      env: {}
+    })
+  },
+  'qwen-code': {
+    name: 'Qwen Code',
+    defaultProfile: () => ({
+      name: DEFAULT_PROFILE_NAME,
+      command: 'qwen',
+      args: ['--acp'],
       env: {}
     })
   }

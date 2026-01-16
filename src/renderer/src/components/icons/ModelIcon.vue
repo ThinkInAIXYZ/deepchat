@@ -76,6 +76,8 @@ const icons = {
   'claude-code-acp': claudeColorIcon,
   'codex-acp': openaiColorIcon,
   opencode: opencodeIcon,
+  'gemini-cli': geminiColorIcon,
+  'qwen-code': qwenColorIcon,
   o3fan: o3fanColorIcon,
   cherryin: cherryinColorIcon,
   modelscope: modelscopeColorIcon,
