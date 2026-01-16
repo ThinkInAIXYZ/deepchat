@@ -323,21 +323,37 @@ export class OllamaProvider extends BaseLLMProvider {
   }
 
   private async attachModelInfo(model: OllamaModel): Promise<OllamaModel> {
-    const showResponse = await this.showModelInfo(model.name)
-    const info = showResponse.model_info
-    const family = model.details.family
-    const context_length = info?.[family + '.context_length'] ?? 4096
-    const embedding_length = info?.[family + '.embedding_length'] ?? 512
-    const capabilities = showResponse.capabilities ?? ['chat']
+    try {
+      const showResponse = await this.showModelInfo(model.name)
+      const info = showResponse.model_info
+      const family = model.details.family
+      const context_length = info?.[family + '.context_length'] ?? 4096
+      const embedding_length = info?.[family + '.embedding_length'] ?? 512
+      const capabilities = showResponse.capabilities ?? ['chat']
 
-    // Merge customConfig properties to model
-    return {
-      ...model,
-      model_info: {
-        context_length,
-        embedding_length
-      },
-      capabilities
+      // Merge customConfig properties to model
+      return {
+        ...model,
+        model_info: {
+          context_length,
+          embedding_length
+        },
+        capabilities
+      }
+    } catch (error) {
+      // If showModelInfo fails, return the model with default info
+      console.warn(
+        `Failed to get info for model ${model.name}, using defaults:`,
+        (error as Error).message
+      )
+      return {
+        ...model,
+        model_info: {
+          context_length: 4096,
+          embedding_length: 512
+        },
+        capabilities: ['chat']
+      }
     }
   }
 
