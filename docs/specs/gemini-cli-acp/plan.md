@@ -47,8 +47,8 @@ This plan outlines the step-by-step implementation approach for integrating Goog
 2. Add command template to `BUILTIN_TEMPLATES`:
    ```typescript
    'gemini-cli': {
-     command: 'npx',
-     args: ['-y', '@google/gemini-cli']
+     command: 'gemini',
+     args: ['--experimental-acp']
    }
    ```
 3. Update icon mapping function (if exists)

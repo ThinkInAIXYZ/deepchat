@@ -67,8 +67,8 @@ const BUILTIN_TEMPLATES: Record<AcpBuiltinAgentId, BuiltinTemplate> = {
     name: 'Gemini CLI',
     defaultProfile: () => ({
       name: DEFAULT_PROFILE_NAME,
-      command: 'npx',
-      args: ['-y', '@google/gemini-cli'],
+      command: 'gemini',
+      args: ['--experimental-acp'],
       env: {}
     })
   }

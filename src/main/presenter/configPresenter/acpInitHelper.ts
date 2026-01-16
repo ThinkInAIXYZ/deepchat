@@ -73,7 +73,7 @@ const BUILTIN_INIT_COMMANDS: Record<AcpBuiltinAgentId, InitCommandConfig> = {
     description: 'Initialize OpenCode'
   },
   'gemini-cli': {
-    commands: ['npx -y @google/gemini-cli --version'],
+    commands: ['npm install -g @google/gemini-cli', 'gemini'],
     description: 'Initialize Gemini CLI'
   }
 }

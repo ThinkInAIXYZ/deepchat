@@ -124,8 +124,8 @@ Add Gemini CLI as the fifth builtin agent with the following configuration:
 **Command Template:**
 ```typescript
 'gemini-cli': {
-  command: 'npx',
-  args: ['-y', '@google/gemini-cli']
+  command: 'gemini',
+  args: ['--experimental-acp']
 }
 ```
 
@@ -227,8 +227,8 @@ const BUILTIN_ORDER: AcpBuiltinAgentId[] = [
 const BUILTIN_TEMPLATES: Record<AcpBuiltinAgentId, AcpAgentCommandTemplate> = {
   // ... existing agents ...
   'gemini-cli': {
-    command: 'npx',
-    args: ['-y', '@google/gemini-cli']
+    command: 'gemini',
+    args: ['--experimental-acp']
   }
 }
 ```
@@ -308,7 +308,7 @@ User selects "Gemini CLI"
 ConfigPresenter.addBuiltinAgent('gemini-cli')
     ↓
 AcpConfHelper.addBuiltinAgent()
-    ├─ Load template: { command: 'npx', args: ['-y', '@google/gemini-cli'] }
+    ├─ Load template: { command: 'gemini', args: ['--experimental-acp'] }
     ├─ Create default profile
     ├─ Mark as not initialized
     └─ Save to ElectronStore
@@ -401,8 +401,8 @@ describe('AcpConfHelper - Gemini CLI', () => {
 
   it('should have correct command template for gemini-cli', () => {
     const template = getBuiltinTemplate('gemini-cli')
-    expect(template.command).toBe('npx')
-    expect(template.args).toEqual(['-y', '@google/gemini-cli'])
+    expect(template.command).toBe('gemini')
+    expect(template.args).toEqual(['--experimental-acp'])
   })
 
   it('should return correct display name for gemini-cli', () => {
