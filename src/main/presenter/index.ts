@@ -1,6 +1,6 @@
 import path from 'path'
 import { DialogPresenter } from './dialogPresenter/index'
-import { ipcMain, IpcMainInvokeEvent, app } from 'electron'
+import { ipcMain, IpcMainInvokeEvent, app, BrowserWindow } from 'electron'
 import { WindowPresenter } from './windowPresenter'
 import { ShortcutPresenter } from './shortcutPresenter'
 import {
@@ -353,8 +353,21 @@ ipcMain.handle(
     try {
       // 构建调用上下文
       const webContentsId = event.sender.id
-      const tabId = presenter.tabPresenter.getTabIdByWebContentsId(webContentsId)
-      const windowId = presenter.tabPresenter.getWindowIdByWebContentsId(webContentsId)
+
+      // Try TabPresenter mapping first (for browser window WebContentsView tabs)
+      let tabId = presenter.tabPresenter.getTabIdByWebContentsId(webContentsId)
+      let windowId = presenter.tabPresenter.getWindowIdByWebContentsId(webContentsId)
+
+      // Fallback: For chat windows with single WebContents architecture,
+      // get windowId directly from BrowserWindow (no tab routing needed)
+      if (windowId === undefined) {
+        const browserWindow = BrowserWindow.fromWebContents(event.sender)
+        if (browserWindow && !browserWindow.isDestroyed()) {
+          windowId = browserWindow.id
+          // For single WebContents windows, tabId is not applicable
+          tabId = undefined
+        }
+      }
 
       const context: IPCCallContext = {
         tabId,
@@ -397,11 +410,19 @@ ipcMain.handle(
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       e: any
     ) {
-      // 尝试获取调用上下文以改进错误日志
+      // Try to get context for improved error logging
       const webContentsId = event.sender.id
-      const tabId = presenter.tabPresenter.getTabIdByWebContentsId(webContentsId)
+      let windowId = presenter.tabPresenter.getWindowIdByWebContentsId(webContentsId)
 
-      console.error(`[IPC Error] Tab:${tabId || 'unknown'} ${name}.${method}:`, e)
+      // Fallback for single WebContents windows
+      if (windowId === undefined) {
+        const browserWindow = BrowserWindow.fromWebContents(event.sender)
+        if (browserWindow && !browserWindow.isDestroyed()) {
+          windowId = browserWindow.id
+        }
+      }
+
+      console.error(`[IPC Error] Window:${windowId || 'unknown'} ${name}.${method}:`, e)
       return { error: e.message || String(e) }
     }
   }

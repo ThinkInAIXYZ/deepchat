@@ -16,6 +16,25 @@ const router = createRouter({
         icon: 'lucide:message-square'
       }
     },
+    // New routes for single-webcontents architecture
+    {
+      path: '/new',
+      name: 'new-conversation',
+      component: () => import('@/views/ChatTabView.vue'),
+      meta: {
+        titleKey: 'routes.newConversation',
+        icon: 'lucide:message-square-plus'
+      }
+    },
+    {
+      path: '/conversation/:id',
+      name: 'conversation',
+      component: () => import('@/views/ChatTabView.vue'),
+      meta: {
+        titleKey: 'routes.conversation',
+        icon: 'lucide:message-square'
+      }
+    },
     {
       path: '/welcome',
       name: 'welcome',

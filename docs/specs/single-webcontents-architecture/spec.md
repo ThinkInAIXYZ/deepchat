@@ -102,18 +102,6 @@ BrowserWindow (Browser Window) - Independent
 └─────────────────────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────────────┐
-│          Settings/Knowledge/History (Separate Windows)          │
-│  ┌───────────────────────────────────────────────────────────┐  │
-│  │  AppBar: [Settings]                      [− □ ×]         │  │
-│  ├───────────────────────────────────────────────────────────┤  │
-│  │  Dedicated window with specific content                  │  │
-│  │  - Settings: Single WebContents, SettingsView            │  │
-│  │  - Knowledge: Single WebContents, KnowledgeBaseView      │  │
-│  │  - History: Single WebContents, HistoryView              │  │
-│  └───────────────────────────────────────────────────────────┘  │
-└─────────────────────────────────────────────────────────────────┘
-
-┌─────────────────────────────────────────────────────────────────┐
 │             Browser Window (Keeps Current Architecture)         │
 │  ┌───────────────────────────────────────────────────────────┐  │
 │  │  AppBar + BrowserToolbar (Shell WebContents)             │  │
@@ -127,22 +115,22 @@ BrowserWindow (Browser Window) - Independent
 
 1. **Window Type Differentiation**:
    - **Chat Windows**: Single WebContents with vertical sidebar for conversation switching
-   - **Tool Windows** (Settings/Knowledge/History): Single WebContents, separate windows
+   - **Settings Window**: Keeps current independent window architecture (no changes needed)
    - **Browser Windows**: Keep existing Shell + WebContentsView architecture (security isolation)
 
 2. **UI Layout**:
    - **AppBar**: Retained at top with window title and window controls (minimize/maximize/close)
    - **Vertical Sidebar**: Replaces horizontal tabs, shows open conversations
    - **Sidebar Bottom**: Settings and Browser window entry points
-   - **ThreadsView**: Separate floating sidebar for historical conversations archive
+   - **ThreadsView**: Floating sidebar for historical conversations archive (keeps current behavior)
 
 3. **Conversation Management**:
    - Sidebar tabs = open conversation sessions (work area)
    - ThreadsView = historical conversations archive (different concept)
-   - Conversation switching = changing active conversation ID in ChatView
-   - No Vue Router needed (single view, multiple conversations)
+   - Conversation switching = Vue Router navigation to `/conversation/:id`
+   - Vue Router manages active conversation state via route params
 
-4. **State Management**: Single Pinia chat store with active conversation ID
+4. **State Management**: Pinia chat store + Vue Router for conversation navigation
 
 ---
 
@@ -163,19 +151,11 @@ BrowserWindow (Browser Window) - Independent
 - Preload script enabled for IPC bridge
 - Single WebContents (no WebContentsView children)
 
-#### Tool Windows (Settings, Knowledge, History)
+#### Settings Window (Unchanged)
 
 **Architecture**:
-- Create separate BrowserWindow for each tool type
-- Each loads dedicated HTML entry point (settings.html, knowledge.html, history.html)
-- Window type marked as 'tool' for routing purposes
-- Independent lifecycle from chat windows
-
-**Window Configuration**:
-- Settings: 900x700
-- Knowledge/History: 1200x700
-- Preload script enabled for IPC bridge
-- Single WebContents per window
+- Keeps current independent window architecture
+- No changes needed for this migration
 
 #### Browser Window (Unchanged)
 
@@ -193,31 +173,22 @@ BrowserWindow (Browser Window) - Independent
 ```
 src/renderer/
 ├── index.html                 # Chat window entry
-├── settings.html              # Settings window entry
-├── knowledge.html             # Knowledge window entry
-├── history.html               # History window entry
 ├── src/
 │   ├── main.ts               # Chat window initialization
-│   ├── settings-main.ts      # Settings window initialization
-│   ├── knowledge-main.ts     # Knowledge window initialization
-│   ├── history-main.ts       # History window initialization
-│   ├── App.vue               # Chat window root (Vertical Sidebar + ChatView)
-│   ├── SettingsApp.vue       # Settings window root
-│   ├── KnowledgeApp.vue      # Knowledge window root
-│   ├── HistoryApp.vue        # History window root
+│   ├── App.vue               # Chat window root (Vertical Sidebar + RouterView)
+│   ├── router/               # Vue Router configuration
+│   │   └── index.ts          # Routes: /conversation/:id, /new, etc.
 │   ├── views/                # Main views
-│   │   ├── ChatView.vue
-│   │   ├── SettingsView.vue
-│   │   ├── KnowledgeBaseView.vue
-│   │   └── HistoryView.vue
+│   │   ├── ChatView.vue      # Conversation view (receives id from route)
+│   │   └── SettingsView.vue  # (unchanged, for Settings window)
 │   ├── components/           # Shared components
 │   │   ├── VerticalSidebar.vue    # NEW: Vertical conversation sidebar
 │   │   ├── ConversationTab.vue    # NEW: Single conversation tab item
-│   │   ├── ThreadsView.vue        # Historical conversations archive
+│   │   ├── ThreadsView.vue        # Historical conversations archive (unchanged)
 │   │   └── ...
 │   ├── stores/               # Pinia stores
 │   │   ├── app.ts           # App-level state
-│   │   ├── chat.ts          # Chat state (active conversation ID)
+│   │   ├── chat.ts          # Chat state (open conversations list)
 │   │   ├── settings.ts      # Settings state
 │   │   └── ...
 │   └── composables/          # Composables
@@ -235,30 +206,29 @@ src/renderer/
 ```
 
 **Key Changes**:
-- No router/ directory needed - chat window manages conversations via state
+- Vue Router added for conversation navigation (`/conversation/:id`)
 - Shell directory kept only for browser windows
-- Multiple HTML entry points for different window types
 
 #### 3.2.2 Chat Window Layout
 
 **Component Structure**:
-- **App.vue**: Root component with AppBar + Vertical Sidebar + ChatView
+- **App.vue**: Root component with AppBar + Vertical Sidebar + RouterView
 - **AppBar**: Window title and window controls (minimize/maximize/close)
 - **VerticalSidebar**:
   - Top section: List of open conversation tabs
   - Bottom section: New conversation button, Settings button, Browser button
-- **ChatView**: Main content area displaying active conversation
+- **RouterView**: Renders ChatView based on current route
 
 **State Management**:
-- Active conversation ID tracked in Pinia chat store
-- Conversation switching updates active ID
-- ChatView receives conversation ID as prop and loads appropriate data
+- Open conversations list tracked in Pinia chat store
+- Active conversation determined by Vue Router route params (`/conversation/:id`)
+- ChatView receives conversation ID from `useRoute().params.id`
 
 **Data Flow**:
 1. User clicks conversation tab in sidebar
-2. Sidebar emits tab-click event with conversation ID
-3. App.vue updates active conversation ID in store
-4. ChatView re-renders with new conversation data
+2. Sidebar calls `router.push('/conversation/:id')`
+3. Vue Router updates URL and renders ChatView
+4. ChatView loads conversation data based on route param
 
 #### 3.2.3 VerticalSidebar Component
 
@@ -274,39 +244,67 @@ src/renderer/
 - Bottom: Fixed controls (New, Settings, Browser)
 
 **Interaction with Main Process**:
-- Settings button: Calls WindowPresenter.createToolWindow('settings')
+- Settings button: Calls WindowPresenter.openSettingsWindow()
 - Browser button: Calls WindowPresenter.createBrowserWindow()
 - Uses usePresenter composable for IPC communication
 
 ### 3.3 State Management
 
-#### 3.3.1 Chat Store
+#### 3.3.1 Vue Router Configuration
+
+**Route Structure**:
+```typescript
+const routes = [
+  {
+    path: '/',
+    redirect: '/new'
+  },
+  {
+    path: '/new',
+    name: 'new-conversation',
+    component: ChatView  // Empty state, ready for new conversation
+  },
+  {
+    path: '/conversation/:id',
+    name: 'conversation',
+    component: ChatView  // Loads conversation by id
+  }
+]
+```
+
+**Router Mode**:
+- Use `createWebHashHistory()` for Electron compatibility
+- URLs will be like `index.html#/conversation/abc123`
+
+**Navigation Guards**:
+- Before each navigation, ensure conversation exists in open list
+- If navigating to closed conversation, add it to open list first
+
+#### 3.3.2 Chat Store
 
 **Store Responsibilities**:
 - Manage list of open conversations in current window
-- Track active conversation ID
 - Provide conversation lifecycle methods (create, load, close)
 - Coordinate with ConversationPresenter for persistence
+- Note: Active conversation is determined by Vue Router, not store
 
 **State Structure**:
 ```
 ChatStore {
   openConversations: Conversation[]     // List of open conversation tabs
-  activeConversationId: string | null   // Currently active conversation
-  activeConversation: Conversation      // Computed from above
+  // activeConversationId derived from router.currentRoute.params.id
 }
 ```
 
 **Key Operations**:
-- **createConversation()**: Create new conversation, add to open list, set as active
-- **loadConversation(id)**: Load conversation from database, add to open list if not already open
-- **setActiveConversation(id)**: Switch active conversation
-- **closeConversation(id)**: Remove from open list, switch to adjacent if was active
+- **createConversation()**: Create new conversation, add to open list, navigate to it
+- **openConversation(id)**: Add to open list if not already open, navigate to it
+- **closeConversation(id)**: Remove from open list, navigate to adjacent if was active
 
 **Difference from Current Architecture**:
-- No need for tab-scoped state (no Vue Router, no multiple views)
-- Conversation switching = updating activeConversationId
-- ChatView component receives conversationId as prop and loads appropriate data
+- Active conversation state moved from store to Vue Router
+- Conversation switching = `router.push('/conversation/:id')`
+- ChatView component receives conversationId from route params
 - All conversations share same Pinia store instance
 
 ### 3.4 Main Process Changes
@@ -339,13 +337,12 @@ ChatStore {
 
 **New Methods**:
 - **createChatWindow(options)**: Create single WebContents chat window
-- **createToolWindow(toolType)**: Create Settings/Knowledge/History windows
 
 **Modified Methods**:
 - **createShellWindow()**: Now only creates browser windows (windowType: 'browser')
 
 **Window Type Management**:
-- Track window types: 'chat', 'tool', 'browser'
+- Track window types: 'chat', 'settings', 'browser'
 - Route IPC events based on window type
 - Simplified context tracking (no WebContentsId mapping for chat windows)
 
@@ -392,10 +389,10 @@ ChatStore {
 
 #### Phase 1: Prepare Infrastructure (Week 1-2)
 
-- [ ] Create VerticalTabBar and ConversationTab components
-- [ ] Update chat store for conversation tab management
-- [ ] Create tool window entry points (settings.html, knowledge.html, history.html)
-- [ ] Update build configuration for multiple entry points
+- [ ] Create VerticalSidebar and ConversationTab components
+- [ ] Set up Vue Router with conversation routes (`/new`, `/conversation/:id`)
+- [ ] Update chat store for conversation tab management (open list only)
+- [ ] Update build configuration if needed
 
 #### Phase 2: Refactor Chat Window (Week 3-4)
 
@@ -404,29 +401,21 @@ ChatStore {
 - [ ] Update ChatView to work with conversationId prop
 - [ ] Test conversation switching and tab management
 
-#### Phase 3: Create Tool Windows (Week 5)
-
-- [ ] Migrate Settings to separate window
-- [ ] Migrate Knowledge Base to separate window
-- [ ] Migrate History to separate window
-- [ ] Test tool window creation and lifecycle
-
-#### Phase 4: Refactor Main Process (Week 6-7)
+#### Phase 3: Refactor Main Process (Week 5-6)
 
 - [ ] Simplify TabPresenter (remove chat window logic)
 - [ ] Add WindowPresenter.createChatWindow()
-- [ ] Add WindowPresenter.createToolWindow()
 - [ ] Remove unused WebContentsView code for chat windows
 - [ ] Update EventBus routing logic
 
-#### Phase 5: Update IPC Layer (Week 8)
+#### Phase 4: Update IPC Layer (Week 7)
 
 - [ ] Simplify IPC context tracking (no WebContentsId mapping for chat)
 - [ ] Update presenter call handlers
 - [ ] Test IPC communication across all window types
 - [ ] Remove obsolete IPC channels
 
-#### Phase 6: Testing & Polish (Week 9-10)
+#### Phase 5: Testing & Polish (Week 8-9)
 
 - [ ] End-to-end testing
 - [ ] Performance benchmarking
@@ -434,7 +423,7 @@ ChatStore {
 - [ ] Fix edge cases
 - [ ] Documentation updates
 
-#### Phase 7: Deploy (Week 11)
+#### Phase 6: Deploy (Week 10)
 
 - [ ] Beta release
 - [ ] User feedback collection
@@ -480,9 +469,8 @@ async createChatWindow(options) {
 | TabPresenter | ~1200 | ~400 (browser only) | **↓ 67%** |
 | WindowPresenter | ~1700 | ~1400 | **↓ 18%** |
 | Shell Renderer | ~800 | ~0 (merged) | **↓ 100%** |
-| Main Renderer | ~15000 | ~15500 (+ vertical tab bar) | **↑ 3%** |
-| Tool Windows | ~0 | ~500 (3 windows) | **↑ New** |
-| **Total** | ~18700 | ~17800 | **↓ 5%** |
+| Main Renderer | ~15000 | ~15500 (+ vertical sidebar) | **↑ 3%** |
+| **Total** | ~18700 | ~17300 | **↓ 7%** |
 
 **Note**: Complexity reduction is moderate because we're not adding Vue Router overhead, just simpler conversation state management.
 
@@ -490,12 +478,10 @@ async createChatWindow(options) {
 
 **Improvements**:
 - ✅ Faster conversation switching (imperceptible)
-- ✅ Simpler mental model (vertical tabs = conversations, not router pages)
-- ✅ Settings/Tools in separate windows (clearer separation of concerns)
+- ✅ Simpler mental model (vertical sidebar = conversations)
 - ✅ More responsive UI (less IPC overhead)
 
 **Potential Issues**:
-- ⚠️ Tool windows may feel disconnected (mitigated by familiar window pattern)
 - ⚠️ Conversation state management complexity (mitigated by Pinia store)
 
 ---
@@ -509,7 +495,6 @@ async createChatWindow(options) {
 | **Conversation state not properly cleaned up** | Medium | Medium | Implement proper cleanup in closeConversation(), memory profiling |
 | **IPC simplification breaks features** | Low | High | Incremental migration, feature flags, thorough testing |
 | **Performance regression** | Very Low | Medium | Performance benchmarking, profiling |
-| **Multi-entry build complexity** | Medium | Low | Well-tested Vite multi-entry configuration |
 
 ### 6.2 Migration Risks
 
@@ -524,41 +509,33 @@ async createChatWindow(options) {
 
 ## 7. Open Questions
 
-### 7.1 Design Decisions
+### 7.1 Design Decisions (Resolved)
 
-- [ ] **Q1**: Should conversation tabs support drag-and-drop reordering?
-  - **Consideration**: Current AppBar supports tab reordering
-  - **Recommendation**: Implement in Phase 2 (not MVP)
+- [x] **Q1**: Should conversation tabs support drag-and-drop reordering?
+  - **Decision**: Yes, support it but low priority (not MVP)
 
-- [ ] **Q2**: How to handle ACP workspace windows?
-  - **Consideration**: ACP workspace might need isolation similar to browser tabs
-  - **Options**:
-    - Option A: Keep as WebContentsView (current behavior)
-    - Option B: Create as separate tool window
-    - Option C: Embed in chat window (if security permits)
-  - **Recommendation**: [NEEDS CLARIFICATION]
+- [x] **Q2**: How to handle ACP workspace?
+  - **Decision**: Workspace belongs to conversation, each conversation can set workdir. No isolation needed.
 
-- [ ] **Q3**: Should we support tearing off conversation tabs into new windows?
-  - **Consideration**: Complex state serialization/deserialization
-  - **Recommendation**: Phase 2 feature, not MVP
+- [x] **Q3**: Should we support tearing off conversation tabs into new windows?
+  - **Decision**: Yes, support it but low priority. New window should be lightweight (not full-featured).
 
-- [ ] **Q4**: Should Settings/Knowledge/History windows be modal or independent?
-  - **Consideration**: Current behavior vs user convenience
-  - **Recommendation**: Independent windows (current behavior)
+- [x] **Q4**: Window types clarification
+  - **Decision**:
+    - Settings: Independent window (keeps current behavior, no changes needed)
+    - History: Floating panel triggered by AppBar (keeps current behavior, no changes needed)
+    - Knowledge: Does not exist (removed from spec)
 
-### 7.2 Technical Questions
+### 7.2 Technical Questions (Resolved)
 
-- [ ] **Q5**: How many conversation tabs should be kept in memory simultaneously?
-  - **Consideration**: Balance between memory usage and quick switching
-  - **Recommendation**: Keep all open conversations, implement lazy loading for messages
+- [x] **Q5**: How many conversation tabs should be kept in memory simultaneously?
+  - **Decision**: No limit. Keep all open conversations in memory.
 
-- [ ] **Q6**: Should tool windows share the same renderer code or have separate builds?
-  - **Consideration**: Code sharing vs bundle size
-  - **Recommendation**: Share components, separate entry points (cleaner build)
+- [x] **Q6**: Should tool windows share the same renderer code or have separate builds?
+  - **Decision**: Not applicable. Only Settings window exists and it keeps current architecture.
 
-- [ ] **Q7**: How to handle deep linking to specific conversations?
-  - **Consideration**: User may click link like `deepchat://conversation/abc123`
-  - **Recommendation**: IPC message to load and activate specific conversation
+- [x] **Q7**: How to handle deep linking to specific conversations?
+  - **Decision**: Not needed for now.
 
 ---
 
@@ -566,8 +543,9 @@ async createChatWindow(options) {
 
 ### 8.1 MVP Requirements
 
-- ✅ Chat windows use single WebContents with vertical tab bar for conversations
-- ✅ Settings/Knowledge/History use separate independent windows
+- ✅ Chat windows use single WebContents with vertical sidebar for conversations
+- ✅ Settings window keeps current independent architecture (no changes)
+- ✅ History panel keeps current floating behavior (no changes)
 - ✅ Browser windows still use shell + WebContentsView architecture
 - ✅ Conversation switching is ≥2x faster than current
 - ✅ Memory usage per conversation tab is reduced by ≥50%
@@ -622,8 +600,6 @@ async createChatWindow(options) {
 **WindowPresenter**:
 - `createChatWindow(options)` - Create single WebContents chat window
   - Options: initialConversationId, width, height
-- `createToolWindow(toolType)` - Create Settings/Knowledge/History windows
-  - toolType: 'settings' | 'knowledge' | 'history'
 
 **ConversationPresenter** (Renderer):
 - Conversation lifecycle methods exposed via Pinia store
@@ -676,27 +652,7 @@ Legend:
 - 🌐: Open Browser window
 ```
 
-### B.2 Tool Window (Settings Example)
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│  Settings                                          [× □ −]  │
-├─────────────────────────────────────────────────────────────┤
-│ ┌───────────┐ ┌───────────────────────────────────────────┐│
-│ │           │ │                                           ││
-│ │  General  │ │  Language: [English ▼]                   ││
-│ │  Models   │ │  Theme: [Auto ▼]                          ││
-│ │  Plugins  │ │  ...                                      ││
-│ │  Advanced │ │                                           ││
-│ │           │ │                                           ││
-│ └───────────┘ └───────────────────────────────────────────┘│
-│                                                             │
-└─────────────────────────────────────────────────────────────┘
-  ↑
-Separate independent window (not a tab in chat window)
-```
-
-### B.3 Browser Window (Unchanged Architecture)
+### B.2 Browser Window (Unchanged Architecture)
 
 ```
 ┌─────────────────────────────────────────────────────────────┐

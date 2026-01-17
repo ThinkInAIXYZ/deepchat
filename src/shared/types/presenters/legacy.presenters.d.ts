@@ -238,6 +238,13 @@ export interface IWindowPresenter {
     x?: number
     y?: number
   }): Promise<number | null>
+  createChatWindow(options?: {
+    initialConversationId?: string
+    x?: number
+    y?: number
+    width?: number
+    height?: number
+  }): Promise<number | null>
   mainWindow: BrowserWindow | undefined
   previewFile(filePath: string): void
   minimize(windowId: number): void

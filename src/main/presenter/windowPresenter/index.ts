@@ -131,8 +131,9 @@ export class WindowPresenter implements IWindowPresenter {
 
     // Listen for shortcut event: create new window
     eventBus.on(SHORTCUT_EVENTS.CREATE_NEW_WINDOW, () => {
-      console.log('Creating new shell window via shortcut.')
-      this.createShellWindow({ initialTab: { url: 'local://chat' } })
+      console.log('Creating new chat window via shortcut.')
+      // Use Single WebContents Architecture for chat windows
+      this.createChatWindow()
     })
 
     // Listen for shortcut event: create new tab
@@ -1626,6 +1627,258 @@ export class WindowPresenter implements IWindowPresenter {
    */
   public async openOrFocusSettingsWindow(): Promise<void> {
     await this.createSettingsWindow()
+  }
+
+  /**
+   * Create a new single-WebContents chat window (no Shell, no WebContentsView).
+   * This is part of the Single WebContents Architecture migration.
+   *
+   * @param options Configuration options for the chat window
+   * @returns The window ID, or null if creation failed
+   */
+  public async createChatWindow(options?: {
+    /** Initial conversation to load */
+    initialConversationId?: string
+    /** Window bounds override */
+    bounds?: { x: number; y: number; width: number; height: number }
+    /** Whether to restore previous sidebar state */
+    restoreState?: boolean
+  }): Promise<number | null> {
+    console.log('Creating new chat window (single-WebContents architecture).')
+
+    // Choose icon based on platform
+    const iconFile = nativeImage.createFromPath(process.platform === 'win32' ? iconWin : icon)
+
+    // Initialize window state manager for chat windows
+    const chatWindowState = windowStateManager({
+      file: 'chat-window-state.json',
+      defaultWidth: 1000,
+      defaultHeight: 700
+    })
+
+    // Calculate initial position
+    const initialX = options?.bounds?.x ?? chatWindowState.x
+    const initialY = options?.bounds?.y ?? chatWindowState.y
+    const initialWidth = options?.bounds?.width ?? chatWindowState.width
+    const initialHeight = options?.bounds?.height ?? chatWindowState.height
+
+    // Validate position is within screen bounds
+    const validatedPosition = this.validateWindowPosition(
+      initialX,
+      initialWidth,
+      initialY,
+      initialHeight
+    )
+
+    // Create BrowserWindow - key difference: loads main renderer directly, no Shell
+    const chatWindow = new BrowserWindow({
+      width: initialWidth,
+      height: initialHeight,
+      x: validatedPosition.x,
+      y: validatedPosition.y,
+      minWidth: 600,
+      minHeight: 400,
+      show: false,
+      autoHideMenuBar: true,
+      icon: iconFile,
+      title: 'DeepChat',
+      titleBarStyle: 'hiddenInset',
+      transparent: process.platform === 'darwin',
+      vibrancy: process.platform === 'darwin' ? 'hud' : undefined,
+      backgroundMaterial: process.platform === 'win32' ? 'mica' : undefined,
+      backgroundColor: '#00ffffff',
+      maximizable: true,
+      minimizable: true,
+      frame: process.platform === 'darwin',
+      hasShadow: true,
+      trafficLightPosition: process.platform === 'darwin' ? { x: 12, y: 10 } : undefined,
+      webPreferences: {
+        preload: join(__dirname, '../preload/index.mjs'),
+        sandbox: false,
+        devTools: is.dev
+      },
+      roundedCorners: true
+    })
+
+    if (!chatWindow) {
+      console.error('Failed to create chat window.')
+      return null
+    }
+
+    const windowId = chatWindow.id
+    this.windows.set(windowId, chatWindow)
+
+    // Initialize focus state
+    this.windowFocusStates.set(windowId, {
+      lastFocusTime: 0,
+      shouldFocus: true,
+      isNewWindow: true,
+      hasInitialFocus: false
+    })
+
+    // Manage window state for persistence
+    chatWindowState.manage(chatWindow)
+
+    // Apply content protection settings
+    const contentProtectionEnabled = this.configPresenter.getContentProtectionEnabled()
+    this.updateContentProtection(chatWindow, contentProtectionEnabled)
+
+    // --- Window Event Listeners ---
+    this.setupChatWindowEventListeners(chatWindow, chatWindowState)
+
+    // --- Load Main Renderer (NOT shell) ---
+    if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
+      console.log(
+        `Loading chat renderer URL in dev mode: ${process.env['ELECTRON_RENDERER_URL']}/index.html`
+      )
+      await chatWindow.loadURL(process.env['ELECTRON_RENDERER_URL'] + '/index.html')
+    } else {
+      console.log(
+        `Loading packaged chat renderer file: ${join(__dirname, '../renderer/index.html')}`
+      )
+      await chatWindow.loadFile(join(__dirname, '../renderer/index.html'))
+    }
+
+    // Send initial state after load
+    chatWindow.webContents.once('did-finish-load', () => {
+      if (chatWindow.isDestroyed()) return
+
+      const initState = {
+        conversationId: options?.initialConversationId,
+        restoreState: options?.restoreState ?? true
+      }
+      chatWindow.webContents.send('chat-window:init-state', initState)
+      console.log(`Sent init state to chat window ${windowId}:`, initState)
+    })
+
+    // Open DevTools in development mode
+    if (is.dev) {
+      chatWindow.webContents.openDevTools({ mode: 'detach' })
+    }
+
+    // Set as main window if this is the first window
+    if (this.mainWindowId === null) {
+      this.mainWindowId = windowId
+    }
+
+    console.log(`Chat window ${windowId} created successfully.`)
+    return windowId
+  }
+
+  /**
+   * Setup event listeners for chat windows (single-WebContents architecture)
+   */
+  private setupChatWindowEventListeners(
+    chatWindow: BrowserWindow,
+    chatWindowState: ReturnType<typeof windowStateManager>
+  ): void {
+    const windowId = chatWindow.id
+
+    // Window ready to show
+    chatWindow.on('ready-to-show', () => {
+      console.log(`Chat window ${windowId} is ready to show.`)
+      if (!chatWindow.isDestroyed()) {
+        chatWindow.show()
+        chatWindow.focus()
+        eventBus.sendToMain(WINDOW_EVENTS.WINDOW_CREATED, windowId)
+      }
+    })
+
+    // Window focus
+    chatWindow.on('focus', () => {
+      console.log(`Chat window ${windowId} gained focus.`)
+      this.focusedWindowId = windowId
+      eventBus.sendToMain(WINDOW_EVENTS.WINDOW_FOCUSED, windowId)
+      if (!chatWindow.isDestroyed()) {
+        chatWindow.webContents.send('window-focused', windowId)
+      }
+    })
+
+    // Window blur
+    chatWindow.on('blur', () => {
+      console.log(`Chat window ${windowId} lost focus.`)
+      if (this.focusedWindowId === windowId) {
+        this.focusedWindowId = null
+      }
+      eventBus.sendToMain(WINDOW_EVENTS.WINDOW_BLURRED, windowId)
+      if (!chatWindow.isDestroyed()) {
+        chatWindow.webContents.send('window-blurred', windowId)
+      }
+    })
+
+    // Window maximize/unmaximize
+    chatWindow.on('maximize', () => {
+      if (!chatWindow.isDestroyed()) {
+        chatWindow.webContents.send(WINDOW_EVENTS.WINDOW_MAXIMIZED)
+        eventBus.sendToMain(WINDOW_EVENTS.WINDOW_MAXIMIZED, windowId)
+      }
+    })
+
+    chatWindow.on('unmaximize', () => {
+      if (!chatWindow.isDestroyed()) {
+        chatWindow.webContents.send(WINDOW_EVENTS.WINDOW_UNMAXIMIZED)
+        eventBus.sendToMain(WINDOW_EVENTS.WINDOW_UNMAXIMIZED, windowId)
+      }
+    })
+
+    // Window fullscreen
+    chatWindow.on('enter-full-screen', () => {
+      if (!chatWindow.isDestroyed()) {
+        chatWindow.webContents.send(WINDOW_EVENTS.WINDOW_ENTER_FULL_SCREEN)
+        eventBus.sendToMain(WINDOW_EVENTS.WINDOW_ENTER_FULL_SCREEN, windowId)
+      }
+    })
+
+    chatWindow.on('leave-full-screen', () => {
+      if (!chatWindow.isDestroyed()) {
+        chatWindow.webContents.send(WINDOW_EVENTS.WINDOW_LEAVE_FULL_SCREEN)
+        eventBus.sendToMain(WINDOW_EVENTS.WINDOW_LEAVE_FULL_SCREEN, windowId)
+      }
+    })
+
+    // Window resize
+    chatWindow.on('resize', () => {
+      eventBus.sendToMain(WINDOW_EVENTS.WINDOW_RESIZE, windowId)
+    })
+
+    // Window close - implement hide-to-tray logic
+    chatWindow.on('close', (event) => {
+      console.log(`Chat window ${windowId} close event. isQuitting: ${this.isQuitting}`)
+
+      if (!this.isQuitting) {
+        const shouldQuitOnClose = this.configPresenter.getCloseToQuit()
+        const shouldPreventDefault = windowId === this.mainWindowId && !shouldQuitOnClose
+
+        if (shouldPreventDefault) {
+          console.log(`Chat window ${windowId}: Preventing close, hiding instead.`)
+          event.preventDefault()
+
+          if (chatWindow.isFullScreen()) {
+            chatWindow.once('leave-full-screen', () => {
+              if (!chatWindow.isDestroyed()) {
+                chatWindow.hide()
+              }
+            })
+            chatWindow.setFullScreen(false)
+          } else {
+            chatWindow.hide()
+          }
+        }
+      }
+    })
+
+    // Window closed - cleanup
+    chatWindow.on('closed', () => {
+      console.log(`Chat window ${windowId} closed.`)
+      this.windows.delete(windowId)
+      this.windowFocusStates.delete(windowId)
+      chatWindowState.unmanage()
+      eventBus.sendToMain(WINDOW_EVENTS.WINDOW_CLOSED, windowId)
+
+      if (this.mainWindowId === windowId) {
+        this.mainWindowId = null
+      }
+    })
   }
 
   public getSettingsWindowId(): number | null {

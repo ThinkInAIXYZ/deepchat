@@ -70,15 +70,15 @@ export const useChatStore = defineStore('chat', () => {
 
   const soundStore = useSoundStore()
 
-  // 状态
-  const activeThreadIdMap = ref<Map<number, string | null>>(new Map())
+  // 状态 - Single WebContents Architecture (simplified from Map<tabId, ...>)
+  const activeThreadId = ref<string | null>(null)
   const threads = ref<
     {
       dt: string
       dtThreads: CONVERSATION[]
     }[]
   >([])
-  const messageIdsMap = ref<Map<number, string[]>>(new Map())
+  const messageIds = ref<string[]>([])
   const messageCacheVersion = ref(0)
   const generatingThreadIds = ref(new Set<string>())
   const isSidebarOpen = ref(false)
@@ -87,13 +87,13 @@ export const useChatStore = defineStore('chat', () => {
   const pendingContextMentions = ref<Map<string, PendingContextMention>>(new Map())
   const pendingScrollTargetByConversation = ref<Map<string, PendingScrollTarget>>(new Map())
 
-  // 使用Map来存储会话工作状态
-  const threadsWorkingStatusMap = ref<Map<number, Map<string, WorkingStatus>>>(new Map())
+  // 使用Map来存储会话工作状态 - Single WebContents Architecture
+  const threadsWorkingStatus = ref<Map<string, WorkingStatus>>(new Map())
 
-  // 添加消息生成缓存
-  const generatingMessagesCacheMap = ref<
-    Map<number, Map<string, { message: Message; threadId: string }>>
-  >(new Map())
+  // 添加消息生成缓存 - Single WebContents Architecture
+  const generatingMessagesCache = ref<Map<string, { message: Message; threadId: string }>>(
+    new Map()
+  )
 
   // 对话配置状态
   const chatConfig = ref<CONVERSATION_SETTINGS>({
@@ -131,18 +131,19 @@ export const useChatStore = defineStore('chat', () => {
   // 标志：是否正在更新变体选择（用于防止 LIST_UPDATED 循环）
   let isUpdatingVariant = false
 
-  // Getters
+  // Getters - Single WebContents Architecture (simplified)
+  // Note: getTabId() is kept for IPC communication with main process
   const getTabId = () => window.api.getWebContentsId()
-  const getActiveThreadId = () => activeThreadIdMap.value.get(getTabId()) ?? null
+  const getActiveThreadId = () => activeThreadId.value
   const setActiveThreadId = (threadId: string | null) => {
-    activeThreadIdMap.value.set(getTabId(), threadId)
+    activeThreadId.value = threadId
   }
   const bumpMessageCacheVersion = () => {
     messageCacheVersion.value += 1
   }
-  const getMessageIds = () => messageIdsMap.value.get(getTabId()) ?? []
+  const getMessageIds = () => messageIds.value
   const setMessageIds = (ids: string[]) => {
-    messageIdsMap.value.set(getTabId(), ids)
+    messageIds.value = ids
     bumpMessageCacheVersion()
   }
   const ensureMessageId = (messageId: string) => {
@@ -177,16 +178,10 @@ export const useChatStore = defineStore('chat', () => {
     return getLoadedMessages()
   }
   const getThreadsWorkingStatus = () => {
-    if (!threadsWorkingStatusMap.value.has(getTabId())) {
-      threadsWorkingStatusMap.value.set(getTabId(), new Map())
-    }
-    return threadsWorkingStatusMap.value.get(getTabId())!
+    return threadsWorkingStatus.value
   }
   const getGeneratingMessagesCache = () => {
-    if (!generatingMessagesCacheMap.value.has(getTabId())) {
-      generatingMessagesCacheMap.value.set(getTabId(), new Map())
-    }
-    return generatingMessagesCacheMap.value.get(getTabId())!
+    return generatingMessagesCache.value
   }
   const findMainAssistantMessageByParentId = (parentId: string) => {
     if (!parentId) return null
@@ -1397,6 +1392,14 @@ export const useChatStore = defineStore('chat', () => {
   const updateChatConfig = async (newConfig: Partial<CONVERSATION_SETTINGS>) => {
     chatConfig.value = { ...chatConfig.value, ...newConfig }
     await saveChatConfig()
+
+    // Refresh sidebar icon if modelId or chatMode changed
+    const activeThread = getActiveThreadId()
+    if (activeThread && (newConfig.modelId !== undefined || newConfig.chatMode !== undefined)) {
+      const { useSidebarStore } = await import('./sidebarStore')
+      const sidebarStore = useSidebarStore()
+      await sidebarStore.refreshConversationMeta(activeThread)
+    }
     // Removed loadChatConfig() call to avoid triggering watch loops
     // loadChatConfig() should only be called when switching conversations, not after every config update
   }
@@ -1821,7 +1824,7 @@ export const useChatStore = defineStore('chat', () => {
 
       // 如果是当前tab或新激活的会话在当前窗口中，则正常处理
       const prevActiveThreadId = getActiveThreadId()
-      activeThreadIdMap.value.set(getTabId(), msg.conversationId)
+      setActiveThreadId(msg.conversationId)
       if (prevActiveThreadId && prevActiveThreadId !== msg.conversationId) {
         clearThreadCachesForTab(prevActiveThreadId)
       }
@@ -2021,13 +2024,13 @@ export const useChatStore = defineStore('chat', () => {
 
   return {
     renameThread,
-    // 状态
+    // 状态 - Single WebContents Architecture
     createNewEmptyThread,
     isSidebarOpen,
     isMessageNavigationOpen,
-    activeThreadIdMap,
+    activeThreadId,
     threads,
-    messageIdsMap,
+    messageIds,
     generatingThreadIds,
     selectedVariantsMap,
     childThreadsByMessageId,
@@ -2075,9 +2078,10 @@ export const useChatStore = defineStore('chat', () => {
     clearSelectedVariantForMessage,
     updateThreadWorkingStatus,
     getThreadWorkingStatus,
-    threadsWorkingStatusMap,
+    threadsWorkingStatus,
     toggleThreadPinned,
     getActiveThreadId,
+    setActiveThreadId,
     getGeneratingMessagesCache,
     getMessageIds,
     getCurrentThreadMessages,

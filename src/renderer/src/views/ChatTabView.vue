@@ -38,6 +38,21 @@ const chatStore = useChatStore()
 const title = useTitle()
 const chatViewRef = ref()
 
+// Single WebContents Architecture: Watch route changes to load conversations
+watch(
+  () => route.params.id,
+  async (newId) => {
+    if (route.name === 'conversation' && newId) {
+      // Load the conversation specified in the route
+      await chatStore.setActiveThread(newId as string)
+    } else if (route.name === 'new-conversation') {
+      // Clear active thread for new conversation view
+      chatStore.setActiveThreadId(null)
+    }
+  },
+  { immediate: true }
+)
+
 // Calculate chat view margin based on artifact and workspace state
 const chatViewMargin = computed(() => {
   if (route.name !== 'chat') return ''

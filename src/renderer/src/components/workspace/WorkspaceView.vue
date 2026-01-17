@@ -1,6 +1,6 @@
 <template>
   <aside
-    class="workspace box-border flex h-full min-h-[320px] w-[228px] flex-col rounded-br-2xl border-l border-black/5 bg-background shadow-sm transition-all dark:border-white/10"
+    class="workspace box-border flex h-full min-h-[320px] w-[228px] flex-col rounded-br-2xl border-l shadow-sm transition-all dark:border-white/10"
   >
     <!-- Header -->
     <header class="flex items-center justify-between px-4 py-3">

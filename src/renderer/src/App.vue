@@ -6,6 +6,7 @@ import { usePresenter } from './composables/usePresenter'
 import SelectedTextContextMenu from './components/message/SelectedTextContextMenu.vue'
 import { useArtifactStore } from './stores/artifact'
 import { useChatStore } from '@/stores/chat'
+import { useSidebarStore } from '@/stores/sidebarStore'
 import { NOTIFICATION_EVENTS, SHORTCUT_EVENTS, THREAD_VIEW_EVENTS } from './events'
 import { Toaster } from '@shadcn/components/ui/sonner'
 import { useToast } from '@/components/use-toast'
@@ -22,6 +23,8 @@ import McpSamplingDialog from '@/components/mcp/McpSamplingDialog.vue'
 import { initAppStores, useMcpInstallDeeplinkHandler } from '@/lib/storeInitializer'
 import 'vue-sonner/style.css' // vue-sonner v2 requires this import
 import { useFontManager } from './composables/useFontManager'
+import IconSidebar from '@/components/sidebar/IconSidebar.vue'
+import ChatAppBar from '@/components/ChatAppBar.vue'
 
 const route = useRoute()
 const configPresenter = usePresenter('configPresenter')
@@ -35,6 +38,7 @@ setupFontListener()
 const themeStore = useThemeStore()
 const langStore = useLanguageStore()
 const modelCheckStore = useModelCheckStore()
+const sidebarStore = useSidebarStore()
 const { t } = useI18n()
 const toasterTheme = computed(() =>
   themeStore.themeMode === 'system' ? (themeStore.isDark ? 'dark' : 'light') : themeStore.themeMode
@@ -185,6 +189,27 @@ const handleThreadViewToggle = () => {
   chatStore.isSidebarOpen = !chatStore.isSidebarOpen
 }
 
+// Sidebar event handlers for Single WebContents Architecture
+const handleSidebarConversationSelect = (conversationId: string) => {
+  sidebarStore.openConversation(conversationId)
+}
+
+const handleSidebarConversationClose = (conversationId: string) => {
+  sidebarStore.closeConversation(conversationId)
+}
+
+const handleSidebarNewConversation = () => {
+  sidebarStore.createConversation()
+}
+
+const handleSidebarReorder = (payload: {
+  conversationId: string
+  fromIndex: number
+  toIndex: number
+}) => {
+  sidebarStore.reorderConversations(payload.fromIndex, payload.toIndex)
+}
+
 // Removed GO_SETTINGS handler; now handled in main via tab logic
 
 // Handle ESC key - close floating chat window
@@ -209,6 +234,21 @@ onMounted(() => {
   // initialize store data
   void initAppStores()
   setupMcpDeeplink()
+
+  // Restore sidebar state for Single WebContents Architecture
+  void sidebarStore.restoreState()
+
+  // Listen for chat window init state (from main process)
+  window.electron.ipcRenderer.on(
+    'chat-window:init-state',
+    (_event, initState: { conversationId?: string; restoreState?: boolean }) => {
+      if (initState.conversationId) {
+        sidebarStore.openConversation(initState.conversationId)
+      } else if (initState.restoreState !== false) {
+        void sidebarStore.restoreState()
+      }
+    }
+  )
 
   // Listen for global error notification events
   window.electron.ipcRenderer.on(NOTIFICATION_EVENTS.SHOW_ERROR, (_event, error) => {
@@ -332,18 +372,29 @@ onBeforeUnmount(() => {
   window.electron.ipcRenderer.removeAllListeners(NOTIFICATION_EVENTS.SYS_NOTIFY_CLICKED)
   window.electron.ipcRenderer.removeAllListeners(NOTIFICATION_EVENTS.DATA_RESET_COMPLETE_DEV)
   window.electron.ipcRenderer.removeListener(THREAD_VIEW_EVENTS.TOGGLE, handleThreadViewToggle)
+  window.electron.ipcRenderer.removeAllListeners('chat-window:init-state')
   cleanupMcpDeeplink()
 })
 </script>
 
 <template>
-  <div class="flex flex-col h-screen bg-background">
+  <div class="flex flex-col h-screen">
+    <!-- App Bar for window controls -->
+    <ChatAppBar />
     <div
       class="border-x border-b border-window-inner-border rounded-b-[10px] fixed z-10 top-0 left-0 bottom-0 right-0 pointer-events-none"
     ></div>
     <div class="flex flex-row h-0 grow relative overflow-hidden px-px py-px" :dir="langStore.dir">
+      <!-- Icon Sidebar for Discord-Style UI -->
+      <IconSidebar
+        :conversations="sidebarStore.sortedConversations"
+        :active-conversation-id="(route.params.id as string) || undefined"
+        @conversation-select="handleSidebarConversationSelect"
+        @conversation-close="handleSidebarConversationClose"
+        @conversation-reorder="handleSidebarReorder"
+        @new-conversation="handleSidebarNewConversation"
+      />
       <!-- Main content area -->
-
       <RouterView />
     </div>
     <!-- Global update dialog -->
