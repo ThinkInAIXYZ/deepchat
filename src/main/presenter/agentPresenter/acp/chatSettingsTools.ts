@@ -4,7 +4,6 @@ import type {
   ApplyChatSettingResult,
   ChatSettingValue,
   ChatLanguage,
-  ChatModeSetting,
   OpenChatSettingsResult,
   OpenChatSettingsSection,
   MCPToolDefinition,
@@ -21,7 +20,6 @@ export const CHAT_SETTINGS_TOOL_NAMES = {
   setLanguage: 'deepchat_settings_set_language',
   setTheme: 'deepchat_settings_set_theme',
   setFontSize: 'deepchat_settings_set_font_size',
-  setChatMode: 'deepchat_settings_set_chat_mode',
   open: 'deepchat_settings_open'
 } as const
 
@@ -41,11 +39,6 @@ const SUPPORTED_LANGUAGES = [
   'he-IL'
 ] as const satisfies readonly ChatLanguage[]
 
-const SUPPORTED_CHAT_MODES = [
-  'chat',
-  'agent',
-  'acp agent'
-] as const satisfies readonly ChatModeSetting[]
 const SUPPORTED_THEMES = ['dark', 'light', 'system'] as const
 
 const FONT_SIZE_LEVELS = [0, 1, 2, 3, 4] as const
@@ -82,12 +75,6 @@ const fontSizeSchema = z
         ]
       )
       .describe('Font size level (0-4).')
-  })
-  .strict()
-
-const chatModeSchema = z
-  .object({
-    mode: z.enum(SUPPORTED_CHAT_MODES).describe('Chat input mode for DeepChat.')
   })
   .strict()
 
@@ -215,8 +202,6 @@ export class ChatSettingsToolHandler {
         return configPresenter.getSetting('appTheme')
       case 'fontSizeLevel':
         return configPresenter.getSetting('fontSizeLevel')
-      case 'chatMode':
-        return configPresenter.getSetting('input_chatMode')
       default:
         return undefined
     }
@@ -361,43 +346,6 @@ export class ChatSettingsToolHandler {
     }
   }
 
-  async setChatMode(raw: unknown, conversationId?: string): Promise<ApplyChatSettingResult> {
-    const guard = await this.ensureSkillActive(conversationId)
-    if (guard) {
-      return guard
-    }
-
-    const parsed = chatModeSchema.safeParse(raw)
-    if (!parsed.success) {
-      return buildError('invalid_request', 'Invalid chat mode request.', parsed.error.flatten())
-    }
-
-    const { mode } = parsed.data
-    const previousValue = this.getCurrentValue('chatMode')
-    try {
-      this.options.configPresenter.setSetting('input_chatMode', mode)
-      if (conversationId) {
-        await this.options.sessionPresenter.updateConversationSettings(conversationId, {
-          chatMode: mode
-        })
-      }
-    } catch (error) {
-      return buildError(
-        'apply_failed',
-        'Failed to apply DeepChat chat mode.',
-        error instanceof Error ? error.message : String(error)
-      )
-    }
-
-    return {
-      ok: true,
-      id: 'chatMode',
-      value: mode,
-      previousValue,
-      appliedAt: Date.now()
-    }
-  }
-
   async open(raw: unknown, conversationId?: string): Promise<OpenChatSettingsResult> {
     const guard = await this.ensureSkillActive(conversationId)
     if (guard && !guard.ok) {
@@ -454,7 +402,6 @@ export const buildChatSettingsToolDefinitions = (allowedTools: string[]): MCPToo
   const allowLanguage = allowedTools.includes(CHAT_SETTINGS_TOOL_NAMES.setLanguage)
   const allowTheme = allowedTools.includes(CHAT_SETTINGS_TOOL_NAMES.setTheme)
   const allowFontSize = allowedTools.includes(CHAT_SETTINGS_TOOL_NAMES.setFontSize)
-  const allowChatMode = allowedTools.includes(CHAT_SETTINGS_TOOL_NAMES.setChatMode)
   const allowOpen = allowedTools.includes(CHAT_SETTINGS_TOOL_NAMES.open)
 
   if (allowToggle) {
@@ -537,32 +484,13 @@ export const buildChatSettingsToolDefinitions = (allowedTools: string[]): MCPToo
     })
   }
 
-  if (allowChatMode) {
-    definitions.push({
-      type: 'function',
-      function: {
-        name: CHAT_SETTINGS_TOOL_NAMES.setChatMode,
-        description: 'Set DeepChat chat input mode.',
-        parameters: zodToJsonSchema(chatModeSchema) as {
-          type: string
-          properties: Record<string, unknown>
-          required?: string[]
-        }
-      },
-      server: {
-        name: 'deepchat-settings',
-        icons: 'settings',
-        description: 'DeepChat settings control'
-      }
-    })
-  }
-
   if (allowOpen) {
     definitions.push({
       type: 'function',
       function: {
         name: CHAT_SETTINGS_TOOL_NAMES.open,
-        description: 'Open the DeepChat settings window at the best matching section.',
+        description:
+          'Open DeepChat settings only when the request cannot be fulfilled via other settings tools; do not call after the change is already applied.',
         parameters: zodToJsonSchema(openSchema) as {
           type: string
           properties: Record<string, unknown>

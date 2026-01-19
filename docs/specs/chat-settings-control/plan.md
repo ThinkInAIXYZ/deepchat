@@ -19,7 +19,6 @@
   - `deepchat_settings_set_language`
   - `deepchat_settings_set_theme`
   - `deepchat_settings_set_font_size`
-  - `deepchat_settings_set_chat_mode`
   - `deepchat_settings_open`
 - **不**通过 MCP 服务器/工具列表 UI 暴露它们（避免被自动启用到 `enabledMcpTools`）。
 - 仅在以下条件满足时注入这些工具定义：
@@ -49,9 +48,6 @@
 
 - `soundEnabled` -> `ConfigPresenter.setSoundEnabled(boolean)`（广播：`CONFIG_EVENTS.SOUND_ENABLED_CHANGED`）
 - `copyWithCotEnabled` -> `ConfigPresenter.setCopyWithCotEnabled(boolean)`（广播：`CONFIG_EVENTS.COPY_WITH_COT_CHANGED`）
-- `chatMode`（含义待定）
-  - 如果这是指输入模式：`ConfigPresenter.setSetting('input_chatMode', 'chat'|'agent'|'acp agent')`。
-  - 如果这是指网络代理：暂时视为**不可直接设置**；改为打开设置。
 
 枚举设置：
 
@@ -84,7 +80,7 @@
 
 - 前置元数据 `description` 必须明确声明：
   - 这仅用于更改 DeepChat 应用设置。
-  - 仅当用户请求设置更改时激活（设置/偏好/主题/语言/字体/音效/复制COT/聊天模式/代理模式）。
+  - 仅当用户请求设置更改时激活（设置/偏好/主题/语言/字体/音效/复制COT）。
   - 不要为操作系统设置或编程/代码设置激活。
 - 主体必须定义：
   - 支持的设置（允许列表）和规范值。

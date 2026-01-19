@@ -88,17 +88,6 @@ describe('ChatSettingsToolHandler', () => {
     }
   })
 
-  it('applies chatMode to config and conversation', async () => {
-    const handler = buildHandler()
-    const result = await handler.setChatMode({ mode: 'agent' }, 'conv-1')
-
-    expect(configPresenter.setSetting).toHaveBeenCalledWith('input_chatMode', 'agent')
-    expect(sessionPresenter.updateConversationSettings).toHaveBeenCalledWith('conv-1', {
-      chatMode: 'agent'
-    })
-    expect(result.ok).toBe(true)
-  })
-
   it('opens settings and navigates to section', async () => {
     const handler = buildHandler()
     const result = await handler.open({ section: 'mcp' }, 'conv-1')

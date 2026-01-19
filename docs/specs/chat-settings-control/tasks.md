@@ -16,8 +16,7 @@
    - `language`
    - `theme`
    - `fontSizeLevel`
-   - `chatMode`（待澄清）
-4. 实现工具注入控制：仅当 `deepchat-settings` 活动并允许时，才在工具定义中包含 `deepchat_settings_toggle`/`deepchat_settings_set_language`/`deepchat_settings_set_theme`/`deepchat_settings_set_font_size`/`deepchat_settings_set_chat_mode`/`deepchat_settings_open`。
+4. 实现工具注入控制：仅当 `deepchat-settings` 活动并允许时，才在工具定义中包含 `deepchat_settings_toggle`/`deepchat_settings_set_language`/`deepchat_settings_set_theme`/`deepchat_settings_set_font_size`/`deepchat_settings_open`。
 5. 添加纵深防御控制：如果 `deepchat-settings` 技能对对话未活动，则拒绝应用。
 6. 添加"打开设置"辅助程序/工具，用于不支持的设置（MCP/提示词等），包括尽力导航。
 7. 添加主进程测试：

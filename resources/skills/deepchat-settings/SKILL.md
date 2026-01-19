@@ -1,12 +1,11 @@
 ---
 name: deepchat-settings
-description: DeepChat app settings modification (DeepChat 设置/偏好) skill. Activate ONLY when the user explicitly asks to change DeepChat's own settings/preferences (e.g., 主题/theme, 语言/language, 字体/font size, 音效/sound, 复制COT/copy COT, 聊天/代理模式 chat/agent mode). Do NOT activate for OS/system settings, network admin tasks, code/editor settings, or other apps.
+description: DeepChat app settings modification (DeepChat 设置/偏好) skill. Activate ONLY when the user explicitly asks to change DeepChat's own settings/preferences (e.g., theme, language, font size...). Do NOT activate for OS/system settings, editor settings, or other apps.
 allowedTools:
   - deepchat_settings_toggle
   - deepchat_settings_set_language
   - deepchat_settings_set_theme
   - deepchat_settings_set_font_size
-  - deepchat_settings_set_chat_mode
   - deepchat_settings_open
 ---
 
@@ -29,7 +28,6 @@ Toggles:
 
 - `soundEnabled`: enable/disable sound effects.
 - `copyWithCotEnabled`: enable/disable copying COT details.
-- `chatMode`: chat input mode only. Valid values: `chat | agent | acp agent`.
 
 Enums:
 
@@ -39,7 +37,7 @@ Enums:
 
 Settings navigation (open-only):
 
-- Use `deepchat_settings_open` when the request is not on the allowlist.
+- Use `deepchat_settings_open` only when the request cannot be fulfilled by the settings tools, and avoid calling it if the change is already applied.
 - `section` hints: `common`, `display`, `provider`, `mcp`, `prompt`, `acp`, `skills`, `knowledge-base`, `database`, `shortcut`, `about`.
 
 ## Workflow
@@ -51,9 +49,8 @@ Settings navigation (open-only):
    - language: `deepchat_settings_set_language`
    - theme: `deepchat_settings_set_theme`
    - font size: `deepchat_settings_set_font_size`
-   - chat mode: `deepchat_settings_set_chat_mode`
 4. Confirm back to the user what changed (include the final value).
-5. If the setting is unsupported, call `deepchat_settings_open` (with `section`) and provide a short pointer to the correct Settings section.
+5. If the setting is unsupported, call `deepchat_settings_open` (with `section`) and provide a short pointer to the correct Settings section. Do not call it if the requested change has already been applied.
 6. Deactivate this skill via `skill_control`.
 
 ## Examples (activate this skill)
@@ -62,7 +59,6 @@ Settings navigation (open-only):
 - "Turn off sound effects"
 - "语言改成英文"
 - "复制时不要带 COT"
-- "切换到代理模式"
 - "Open the MCP settings page"
 - "Edit my prompts"
 

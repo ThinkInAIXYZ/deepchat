@@ -46,6 +46,7 @@ export interface AgentToolCallResult {
         baseCommand?: string
       }
       conversationId?: string
+      rememberable?: boolean
     }
   }
 }
@@ -883,6 +884,14 @@ export class AgentToolManager {
     return this.configPresenter.getSkillsEnabled()
   }
 
+  private async isChatSettingsSkillActive(conversationId?: string): Promise<boolean> {
+    if (!conversationId || !this.isSkillsEnabled()) {
+      return false
+    }
+    const activeSkills = await presenter.skillPresenter.getActiveSkills(conversationId)
+    return activeSkills.includes(CHAT_SETTINGS_SKILL_NAME)
+  }
+
   private getSkillTools(): SkillTools {
     if (!this.skillTools) {
       this.skillTools = new SkillTools(presenter.skillPresenter)
@@ -954,7 +963,6 @@ export class AgentToolManager {
       toolName === CHAT_SETTINGS_TOOL_NAMES.setLanguage ||
       toolName === CHAT_SETTINGS_TOOL_NAMES.setTheme ||
       toolName === CHAT_SETTINGS_TOOL_NAMES.setFontSize ||
-      toolName === CHAT_SETTINGS_TOOL_NAMES.setChatMode ||
       toolName === CHAT_SETTINGS_TOOL_NAMES.open
     )
   }
@@ -1018,11 +1026,31 @@ export class AgentToolManager {
       const result = await handler.setFontSize(args, conversationId)
       return { content: JSON.stringify(result) }
     }
-    if (toolName === CHAT_SETTINGS_TOOL_NAMES.setChatMode) {
-      const result = await handler.setChatMode(args, conversationId)
-      return { content: JSON.stringify(result) }
-    }
     if (toolName === CHAT_SETTINGS_TOOL_NAMES.open) {
+      const shouldCheckPermission = await this.isChatSettingsSkillActive(conversationId)
+      if (shouldCheckPermission && conversationId) {
+        const approved =
+          presenter.settingsPermissionService?.consumeApproval(conversationId, toolName) ?? false
+        if (!approved) {
+          const responseContent = 'components.messageBlockPermissionRequest.description.write'
+          return {
+            content: responseContent,
+            rawData: {
+              content: responseContent,
+              isError: false,
+              requiresPermission: true,
+              permissionRequest: {
+                toolName,
+                serverName: CHAT_SETTINGS_SKILL_NAME,
+                permissionType: 'write',
+                description: 'Opening DeepChat settings requires approval.',
+                conversationId,
+                rememberable: false
+              }
+            }
+          }
+        }
+      }
       const result = await handler.open(args, conversationId)
       return { content: JSON.stringify(result) }
     }

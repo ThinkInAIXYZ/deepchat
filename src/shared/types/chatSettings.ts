@@ -1,5 +1,3 @@
-export type ChatModeSetting = 'chat' | 'agent' | 'acp agent'
-
 export type ChatLanguage =
   | 'system'
   | 'zh-CN'
@@ -23,9 +21,8 @@ export type ChatSettingId =
   | 'language'
   | 'theme'
   | 'fontSizeLevel'
-  | 'chatMode'
 
-export type ChatSettingValue = boolean | number | ChatLanguage | ChatTheme | ChatModeSetting
+export type ChatSettingValue = boolean | number | ChatLanguage | ChatTheme
 
 export type ToggleChatSettingRequest = {
   setting: 'soundEnabled' | 'copyWithCotEnabled'
@@ -44,16 +41,11 @@ export type SetFontSizeRequest = {
   level: number
 }
 
-export type SetChatModeRequest = {
-  mode: ChatModeSetting
-}
-
 export type ApplyChatSettingRequest =
   | ToggleChatSettingRequest
   | SetLanguageRequest
   | SetThemeRequest
   | SetFontSizeRequest
-  | SetChatModeRequest
 
 export type ApplyChatSettingSuccess = {
   ok: true
