@@ -128,15 +128,7 @@ const getLocalizedServerName = (serverName: string) => {
       <PopoverTrigger>
         <Tooltip>
           <TooltipTrigger as-child>
-            <Button
-              id="mcp-btn"
-              variant="outline"
-              :class="[
-                'flex text-accent-foreground rounded-lg shadow-sm items-center gap-1.5 h-7 text-xs px-1.5 w-auto',
-                mcpEnabled ? 'text-primary' : ''
-              ]"
-              size="icon"
-            >
+            <Button id="mcp-btn" variant="ghost" size="icon-sm" :class="['w-7 h-7']">
               <Icon v-if="isLoading" icon="lucide:loader" class="w-4 h-4 animate-spin" />
               <Icon
                 v-else-if="isError"
@@ -144,13 +136,6 @@ const getLocalizedServerName = (serverName: string) => {
                 class="w-4 h-4 text-destructive"
               />
               <Icon v-else icon="lucide:hammer" class="w-4 h-4" />
-
-              <span v-if="isReadOnly && selectedServerCount > 0" class="text-sm">{{
-                selectedServerCount
-              }}</span>
-              <span v-else-if="hasTools && !isLoading && !isError" class="text-sm">{{
-                getTotalEnabledToolCount()
-              }}</span>
             </Button>
           </TooltipTrigger>
           <TooltipContent>

@@ -82,7 +82,7 @@ const BUILTIN_INIT_COMMANDS: Record<AcpBuiltinAgentId, InitCommandConfig> = {
       'npm install -g @anthropic-ai/claude-code',
       'claude'
     ],
-    description: 'Initialize Claude Code ACP'
+    description: 'Initialize Claude Code'
   },
   'codex-acp': {
     commands: [
@@ -90,7 +90,7 @@ const BUILTIN_INIT_COMMANDS: Record<AcpBuiltinAgentId, InitCommandConfig> = {
       'npm install -g @openai/codex',
       'codex'
     ],
-    description: 'Initialize Codex CLI ACP'
+    description: 'Initialize Codex'
   }
 }
 ```

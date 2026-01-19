@@ -1105,7 +1105,7 @@ export type CONVERSATION_SETTINGS = {
   verbosity?: 'low' | 'medium' | 'high'
   selectedVariantsMap?: Record<string, string>
   acpWorkdirMap?: Record<string, string | null>
-  chatMode?: 'chat' | 'agent' | 'acp agent'
+  chatMode?: 'agent' | 'acp agent'
   agentWorkspacePath?: string | null
   activeSkills?: string[] // Activated skills for this conversation
 }

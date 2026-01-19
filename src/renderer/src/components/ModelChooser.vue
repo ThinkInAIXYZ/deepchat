@@ -1,12 +1,12 @@
 <template>
-  <Card class="w-full border-border bg-card shadow-sm" :dir="langStore.dir">
-    <CardContent class="flex flex-col gap-4 p-4">
+  <Card class="w-full border-border bg-card p-0 shadow-sm" :dir="langStore.dir">
+    <CardContent class="flex flex-col p-2">
       <Input
         v-model="keyword"
         :placeholder="t('model.search.placeholder')"
         class="h-9 w-full text-sm"
       />
-      <ScrollArea class="h-72 pr-2">
+      <ScrollArea class="h-72">
         <div class="flex flex-col gap-5">
           <div v-for="provider in filteredProviders" :key="provider.id" class="flex flex-col gap-2">
             <Badge

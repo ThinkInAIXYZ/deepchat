@@ -1,7 +1,5 @@
 <template>
-  <aside
-    class="workspace box-border flex h-full min-h-[320px] w-[228px] flex-col rounded-br-2xl border-l shadow-sm transition-all dark:border-white/10"
-  >
+  <aside class="workspace box-border flex h-full flex-col transition-all dark:border-white/10">
     <!-- Header -->
     <header class="flex items-center justify-between px-4 py-3">
       <div class="flex items-center gap-2">

@@ -100,7 +100,7 @@ OpenCode 是一个开源的 AI 编码代理，具有以下特点：
 
 ### 集成方式
 
-将 OpenCode 作为**内置 ACP Agent** 集成，与现有的 Kimi CLI、Claude Code ACP 保持一致。
+将 OpenCode 作为**内置 ACP Agent** 集成，与现有的 Kimi CLI、Claude Code 保持一致。
 
 ### 工作量估算
 

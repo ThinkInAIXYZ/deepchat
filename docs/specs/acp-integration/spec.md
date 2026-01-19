@@ -10,7 +10,7 @@
 
 ### 1.1 什么是 ACP
 
-ACP (Agent Client Protocol) 是一个用于客户端应用与本地 AI Agent 交互的协议。DeepChat 将 ACP 集成为一个功能完整的本地 Agent 执行系统，允许用户运行和管理本地 AI Agents（如 Kimi CLI、Claude Code ACP、Codex ACP）。
+ACP (Agent Client Protocol) 是一个用于客户端应用与本地 AI Agent 交互的协议。DeepChat 将 ACP 集成为一个功能完整的本地 Agent 执行系统，允许用户运行和管理本地 AI Agents（如 Kimi CLI、Claude Code、Codex）。
 
 ### 1.2 设计目标
 
@@ -268,8 +268,8 @@ interface AcpAgentProfile {
 | Agent ID | 名称 | 默认命令 |
 |----------|------|----------|
 | `kimi-cli` | Kimi CLI | `uv tool install --python 3.13 kimi-cli` |
-| `claude-code-acp` | Claude Code ACP | `npm i -g @zed-industries/claude-code-acp` |
-| `codex-acp` | Codex ACP | `npm i -g @zed-industries/codex-acp` |
+| `claude-code-acp` | Claude Code | `npm i -g @zed-industries/claude-code-acp` |
+| `codex-acp` | Codex | `npm i -g @zed-industries/codex-acp` |
 
 ### 3.2 AcpInitHelper
 

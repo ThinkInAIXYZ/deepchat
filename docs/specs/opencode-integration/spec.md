@@ -23,7 +23,7 @@ OpenCode 是一个开源的 AI 编码代理（AI Coding Agent），具有以下�
 将 OpenCode 作为内置 ACP Agent 集成到 DeepChat，使用户能够：
 
 1. **便捷使用**：在 DeepChat 中直接选择 OpenCode 作为对话模型
-2. **统一体验**：与其他 ACP Agents（Kimi CLI、Claude Code ACP）保持一致的使用体验
+2. **统一体验**：与其他 ACP Agents（Kimi CLI、Claude Code）保持一致的使用体验
 3. **完整功能**：支持 OpenCode 的所有核心功能（文件读写、终端执行、MCP 集成等）
 4. **灵活配置**：支持工作目录配置、环境变量设置等
 
@@ -104,7 +104,7 @@ DeepChat 的 ACP 架构支持两种 Agent 类型：
    - 预定义的知名 Agent
    - 支持多个配置 Profile
    - 在 `AcpConfHelper` 中硬编码
-   - 示例：Kimi CLI、Claude Code ACP、Codex ACP
+   - 示例：Kimi CLI、Claude Code、Codex
 
 2. **自定义 Agent (Custom Agent)**
    - 用户手动添加的 Agent
@@ -117,7 +117,7 @@ DeepChat 的 ACP 架构支持两种 Agent 类型：
 - OpenCode 是官方支持的 ACP Agent，在 agentclientprotocol.com 列表中
 - 作为内置 Agent 可以提供更好的开箱即用体验
 - 支持多 Profile 配置（例如不同的环境变量、参数配置）
-- 与现有的 Kimi CLI、Claude Code ACP 保持一致
+- 与现有的 Kimi CLI、Claude Code 保持一致
 
 ### 3.2 架构集成点
 
@@ -272,11 +272,11 @@ const BUILTIN_INIT_COMMANDS: Record<AcpBuiltinAgentId, InitCommandConfig> = {
       'npm install -g @anthropic-ai/claude-code',
       'claude'
     ],
-    description: 'Initialize Claude Code ACP'
+    description: 'Initialize Claude Code'
   },
   'codex-acp': {
     commands: ['npm i -g @zed-industries/codex-acp', 'npm install -g @openai/codex', 'codex'],
-    description: 'Initialize Codex CLI ACP'
+    description: 'Initialize Codex'
   },
   'opencode': {  // 新增
     commands: ['npm i -g opencode-ai', 'opencode --version'],
@@ -620,7 +620,7 @@ describe('AcpConfHelper - OpenCode', () => {
 
 ### 8.4 与其他 ACP Agents 的对比
 
-| 特性 | Kimi CLI | Claude Code ACP | Codex ACP | OpenCode |
+| 特性 | Kimi CLI | Claude Code | Codex | OpenCode |
 |------|----------|----------------|-----------|----------|
 | 开源 | ❌ | ❌ | ❌ | ✅ |
 | 多提供商支持 | ❌ | ❌ | ❌ | ✅ |

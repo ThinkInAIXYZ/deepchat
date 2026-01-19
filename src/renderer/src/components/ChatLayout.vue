@@ -1,36 +1,31 @@
 <template>
-  <div class="flex flex-col overflow-hidden h-0 flex-1">
-    <div class="flex flex-1 overflow-hidden">
-      <!-- 消息列表区域 -->
-      <div class="flex min-w-0 flex-1 overflow-hidden">
-        <MessageList
-          :key="chatStore.getActiveThreadId() ?? 'default'"
-          ref="messageList"
-          :items="chatStore.messageItems"
-        />
+  <div class="w-full h-full flex flex-row justify-center">
+    <div class="flex flex-col overflow-hidden h-full flex-shink-0 min-w-xl max-w-2xl">
+      <div class="flex flex-1 overflow-hidden">
+        <!-- 消息列表区域 -->
+        <div class="flex min-w-0 flex-1 overflow-hidden">
+          <MessageList
+            :key="chatStore.getActiveThreadId() ?? 'default'"
+            ref="messageList"
+            :items="chatStore.messageItems"
+          />
+        </div>
       </div>
 
-      <!-- Workspace 面板 (for agent and acp agent modes) -->
-      <Transition name="workspace-slide">
-        <WorkspaceView
-          v-if="showWorkspace"
-          class="h-full flex-shrink-0"
-          @append-file-path="handleAppendFilePath"
+      <!-- 输入框区域 -->
+      <div class="flex-none px-0 pb-0">
+        <ChatInput
+          ref="chatInput"
+          variant="agent"
+          :context-length="chatStore.chatConfig.contextLength"
+          :disabled="!chatStore.getActiveThreadId() || isGenerating"
+          @send="handleSend"
+          @file-upload="handleFileUpload"
         />
-      </Transition>
+      </div>
     </div>
-
-    <!-- 输入框区域 -->
-    <div class="flex-none px-0 pb-0">
-      <ChatInput
-        ref="chatInput"
-        variant="chat"
-        :context-length="chatStore.chatConfig.contextLength"
-        :disabled="!chatStore.getActiveThreadId() || isGenerating"
-        @send="handleSend"
-        @file-upload="handleFileUpload"
-      />
-    </div>
+    <!-- 统一的侧边面板 (workspace + artifact) -->
+    <SidePanel @append-file-path="handleAppendFilePath" />
   </div>
   <!-- Clean messages dialog -->
   <Dialog v-model:open="cleanDialog.isOpen.value">
@@ -55,7 +50,7 @@
 import { ref, onMounted, onUnmounted, watch, computed, nextTick } from 'vue'
 import MessageList from './message/MessageList.vue'
 import ChatInput from './chat-input/ChatInput.vue'
-import WorkspaceView from './workspace/WorkspaceView.vue'
+import SidePanel from './SidePanel.vue'
 import { useRoute } from 'vue-router'
 import { UserMessageContent } from '@shared/chat'
 import { STREAM_EVENTS, SHORTCUT_EVENTS } from '@/events'
@@ -82,19 +77,18 @@ const chatStore = useChatStore()
 const workspaceStore = useWorkspaceStore()
 const cleanDialog = useCleanDialog()
 
-// Show workspace only in agent mode and when open
-const showWorkspace = computed(() => workspaceStore.isAgentMode && workspaceStore.isOpen)
-
 const messageList = ref()
 const chatInput = ref()
 
 const scrollToBottom = (smooth = true) => {
   messageList.value?.scrollToBottom(smooth)
 }
+
 const isGenerating = computed(() => {
   if (!chatStore.getActiveThreadId()) return false
   return chatStore.generatingThreadIds.has(chatStore.getActiveThreadId()!)
 })
+
 const handleSend = async (msg: UserMessageContent) => {
   scrollToBottom()
   await chatStore.sendMessage(msg)
@@ -209,22 +203,3 @@ defineExpose({
   messageList
 })
 </script>
-
-<style scoped>
-.workspace-slide-enter-active,
-.workspace-slide-leave-active {
-  transition: all 0.2s ease;
-}
-
-.workspace-slide-enter-from,
-.workspace-slide-leave-to {
-  opacity: 0;
-  transform: translateX(100%);
-}
-
-.workspace-slide-enter-to,
-.workspace-slide-leave-from {
-  opacity: 1;
-  transform: translateX(0);
-}
-</style>

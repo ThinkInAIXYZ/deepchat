@@ -6,7 +6,7 @@ import type { SessionContext, SessionContextResolved, SessionStatus } from './se
 import { resolveSessionContext } from './sessionResolver'
 
 type WorkspaceContext = {
-  chatMode: 'chat' | 'agent' | 'acp agent'
+  chatMode: 'agent' | 'acp agent'
   agentWorkspacePath: string | null
 }
 
@@ -123,8 +123,9 @@ export class SessionManager {
         return { chatMode: resolved.chatMode, agentWorkspacePath }
       }
 
+      const normalizedChatMode = resolved.chatMode === 'chat' ? 'agent' : resolved.chatMode
       return {
-        chatMode: resolved.chatMode,
+        chatMode: normalizedChatMode,
         agentWorkspacePath: resolved.agentWorkspacePath ?? null
       }
     } catch (error) {

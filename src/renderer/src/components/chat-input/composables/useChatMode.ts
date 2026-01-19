@@ -6,7 +6,7 @@ import { useI18n } from 'vue-i18n'
 import { usePresenter } from '@/composables/usePresenter'
 import { CONFIG_EVENTS } from '@/events'
 
-export type ChatMode = 'chat' | 'agent' | 'acp agent'
+export type ChatMode = 'agent' | 'acp agent'
 
 const MODE_ICONS = {
   chat: 'lucide:message-circle-more',
@@ -34,7 +34,6 @@ export function useChatMode() {
   // === Computed ===
   const currentIcon = computed(() => MODE_ICONS[currentMode.value])
   const currentLabel = computed(() => {
-    if (currentMode.value === 'chat') return t('chat.mode.chat')
     if (currentMode.value === 'agent') return t('chat.mode.agent')
     return t('chat.mode.acpAgent')
   })
@@ -107,10 +106,7 @@ export function useChatMode() {
       if (modeUpdateVersion === loadVersion) {
         const savedMode = (saved as ChatMode) || 'agent'
         // Normalize legacy chat mode to agent
-        if (savedMode === 'chat') {
-          currentMode.value = 'agent'
-          await configPresenter.setSetting('input_chatMode', 'agent')
-        } else if (savedMode === 'acp agent' && !hasAcpAgents.value) {
+        if (savedMode === 'acp agent' && !hasAcpAgents.value) {
           // If saved mode is 'acp agent' but no agents are configured, fall back to 'agent'
           currentMode.value = 'agent'
           await configPresenter.setSetting('input_chatMode', 'agent')

@@ -63,7 +63,7 @@ Create a **pure icon sidebar** similar to Discord's server list. Each open conve
 | Chat Mode | Icon Source | Example |
 |-----------|-------------|---------|
 | **Agent** | Model/Provider icon | Claude icon, GPT icon, Gemini icon |
-| **ACP Agent** | ACP agent icon | Claude Code ACP icon, Kimi CLI icon, Codex icon |
+| **ACP Agent** | ACP agent icon | Claude Code icon, Kimi CLI icon, Codex icon |
 
 **Icon Resolution Logic**:
 ```typescript
@@ -221,7 +221,7 @@ function getModelIcon(modelId: string, providerId: string): string {
 ```
 ┌──────┐
 │      │
-│▌[◉] │  ← Active: Claude Code ACP
+│▌[◉] │  ← Active: Claude Code
 │      │
 │  ◎   │  ← Inactive: Kimi CLI
 │      │

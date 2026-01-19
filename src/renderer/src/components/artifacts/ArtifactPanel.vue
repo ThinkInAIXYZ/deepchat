@@ -1,120 +1,108 @@
 <template>
-  <Transition
-    enter-active-class="transition ease-out duration-200"
-    enter-from-class="translate-x-full"
-    enter-to-class="translate-x-0"
-    leave-active-class="transition ease-in duration-200"
-    leave-from-class="translate-x-0"
-    leave-to-class="translate-x-full"
-  >
+  <div class="flex flex-col h-full max-lg:bg-white max-lg:dark:bg-black">
+    <!-- 顶部导航栏 -->
     <div
-      v-if="artifactStore.isOpen"
-      class="absolute right-0 top-0 bottom-0 w-[calc(60%-104px)] border-l shadow-lg flex flex-col max-lg:w-3/4! max-lg:bg-white max-lg:dark:bg-black! z-60"
+      class="flex items-center justify-between bg-card px-4 h-11 border-b w-full overflow-hidden"
     >
-      <!-- 顶部导航栏 -->
-      <div
-        class="flex items-center justify-between bg-card px-4 h-11 border-b w-full overflow-hidden"
-      >
-        <div class="flex items-center gap-2 grow w-0">
-          <button class="p-2 hover:bg-accent/50 rounded-md" @click="artifactStore.dismissArtifact">
-            <Icon icon="lucide:chevron-right" class="w-4 h-4" />
-          </button>
-          <h2 class="text-sm font-medium truncate">{{ artifactStore.currentArtifact?.title }}</h2>
-        </div>
+      <div class="flex items-center gap-2 grow w-0">
+        <button class="p-2 hover:bg-accent/50 rounded-md" @click="artifactStore.dismissArtifact">
+          <Icon icon="lucide:chevron-right" class="w-4 h-4" />
+        </button>
+        <h2 class="text-sm font-medium truncate">{{ artifactStore.currentArtifact?.title }}</h2>
+      </div>
 
-        <div class="flex items-center gap-2">
-          <!-- 设备选择下拉菜单 (仅在HTML预览时显示) -->
-          <DropdownMenu v-if="shouldShowViewportControls">
-            <DropdownMenuTrigger as-child>
-              <Button
-                variant="outline"
-                size="sm"
-                class="h-7 gap-1 text-xs px-2"
-                :title="currentDevice.title"
-              >
-                <Icon :icon="currentDevice.icon" class="w-3.5 h-3.5" />
-                <Icon icon="lucide:chevron-down" class="w-3 h-3 opacity-50" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent class="w-56 z-[70]" align="start">
-              <DropdownMenuItem
-                v-for="device in deviceSizes"
-                :key="device.value"
-                class="flex items-center justify-between cursor-pointer"
-                @click="device.onClick"
-              >
-                <div class="flex items-center gap-2">
-                  <Icon :icon="device.icon" class="w-4 h-4" />
-                  <span>{{ device.title }}</span>
-                </div>
-                <span class="text-xs text-muted-foreground ml-2">{{ device.dimensions }}</span>
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-
-          <!-- 预览/代码切换按钮组 -->
-          <div class="bg-border p-0.5 rounded-lg flex items-center">
-            <button
-              v-for="mode in viewModes"
-              :key="mode.value"
-              class="px-2 py-1 text-xs rounded-md transition-colors"
-              :class="
-                mode.isActive()
-                  ? 'bg-background shadow-sm'
-                  : 'text-muted-foreground hover:bg-background/50'
-              "
-              @click="mode.onClick"
-            >
-              {{ mode.label }}
-            </button>
-          </div>
-
-          <!-- 导出按钮 -->
-          <div class="flex items-center gap-1">
+      <div class="flex items-center gap-2">
+        <!-- 设备选择下拉菜单 (仅在HTML预览时显示) -->
+        <DropdownMenu v-if="shouldShowViewportControls">
+          <DropdownMenuTrigger as-child>
             <Button
-              v-for="action in visibleActions"
-              :key="action.key"
               variant="outline"
               size="sm"
-              :title="action.title"
-              class="text-xs h-7"
-              @click="action.onClick"
+              class="h-7 gap-1 text-xs px-2"
+              :title="currentDevice.title"
             >
-              <Icon :icon="action.icon" class="w-4 h-4" />
+              <Icon :icon="currentDevice.icon" class="w-3.5 h-3.5" />
+              <Icon icon="lucide:chevron-down" class="w-3 h-3 opacity-50" />
             </Button>
-          </div>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent class="w-56 z-[70]" align="start">
+            <DropdownMenuItem
+              v-for="device in deviceSizes"
+              :key="device.value"
+              class="flex items-center justify-between cursor-pointer"
+              @click="device.onClick"
+            >
+              <div class="flex items-center gap-2">
+                <Icon :icon="device.icon" class="w-4 h-4" />
+                <span>{{ device.title }}</span>
+              </div>
+              <span class="text-xs text-muted-foreground ml-2">{{ device.dimensions }}</span>
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        <!-- 预览/代码切换按钮组 -->
+        <div class="bg-border p-0.5 rounded-lg flex items-center">
+          <button
+            v-for="mode in viewModes"
+            :key="mode.value"
+            class="px-2 py-1 text-xs rounded-md transition-colors"
+            :class="
+              mode.isActive()
+                ? 'bg-background shadow-sm'
+                : 'text-muted-foreground hover:bg-background/50'
+            "
+            @click="mode.onClick"
+          >
+            {{ mode.label }}
+          </button>
+        </div>
+
+        <!-- 导出按钮 -->
+        <div class="flex items-center gap-1">
+          <Button
+            v-for="action in visibleActions"
+            :key="action.key"
+            variant="outline"
+            size="sm"
+            :title="action.title"
+            class="text-xs h-7"
+            @click="action.onClick"
+          >
+            <Icon :icon="action.icon" class="w-4 h-4" />
+          </Button>
         </div>
       </div>
-
-      <!-- 内容区域 -->
-      <div class="flex-1 overflow-auto h-0 artifact-scroll-container">
-        <template v-if="isPreview">
-          <component
-            :is="artifactComponent"
-            v-if="artifactComponent && artifactStore.currentArtifact"
-            :key="context.componentKey.value"
-            :block="{
-              content: artifactStore.currentArtifact.content,
-              artifact: {
-                type: artifactStore.currentArtifact.type,
-                title: artifactStore.currentArtifact.title
-              }
-            }"
-            :is-preview="isPreview"
-            :viewport-size="viewportSize"
-            class="artifact-dialog-content"
-          />
-        </template>
-        <template v-else>
-          <div
-            ref="codeEditorRef"
-            class="min-h-[30px] h-full! text-xs overflow-auto bg-background font-mono leading-relaxed"
-            :data-language="codeEditor.codeLanguage.value"
-          ></div>
-        </template>
-      </div>
     </div>
-  </Transition>
+
+    <!-- 内容区域 -->
+    <div class="flex-1 overflow-auto h-0 artifact-scroll-container">
+      <template v-if="isPreview">
+        <component
+          :is="artifactComponent"
+          v-if="artifactComponent && artifactStore.currentArtifact"
+          :key="context.componentKey.value"
+          :block="{
+            content: artifactStore.currentArtifact.content,
+            artifact: {
+              type: artifactStore.currentArtifact.type,
+              title: artifactStore.currentArtifact.title
+            }
+          }"
+          :is-preview="isPreview"
+          :viewport-size="viewportSize"
+          class="artifact-dialog-content"
+        />
+      </template>
+      <template v-else>
+        <div
+          ref="codeEditorRef"
+          class="min-h-[30px] h-full! text-xs overflow-auto bg-background font-mono leading-relaxed"
+          :data-language="codeEditor.codeLanguage.value"
+        ></div>
+      </template>
+    </div>
+  </div>
 </template>
 
 <script setup lang="ts">

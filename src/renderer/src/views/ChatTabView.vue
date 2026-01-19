@@ -1,38 +1,20 @@
 <template>
-  <div class="w-full h-full flex-row flex">
-    <div :class="['flex-1 w-0 h-full transition-all duration-200 max-lg:mr-0!', chatViewMargin]">
-      <div class="flex h-full">
-        <!-- 主聊天区域 -->
-        <div class="flex-1 flex flex-col w-0">
-          <!-- 新会话 -->
-          <NewThread v-if="!chatStore.getActiveThreadId()" />
-          <template v-else>
-            <!-- 标题栏 -->
-            <!-- <TitleView @messageNavigationToggle="handleMessageNavigationToggle" /> -->
-
-            <!-- 聊天内容区域 -->
-            <ChatView ref="chatViewRef" />
-          </template>
-        </div>
-      </div>
-    </div>
-
-    <!-- Artifacts 预览区域 -->
-    <ArtifactDialog />
+  <div class="w-full h-full">
+    <!-- 新会话 -->
+    <NewThread v-if="!chatStore.getActiveThreadId()" />
+    <!-- 聊天内容区域 -->
+    <ChatLayout v-else ref="chatViewRef" />
   </div>
 </template>
 
 <script setup lang="ts">
 import { defineAsyncComponent } from 'vue'
 import { useChatStore } from '@/stores/chat'
-import { watch, ref, computed, nextTick } from 'vue'
+import { watch, ref, nextTick } from 'vue'
 import { useTitle, useMediaQuery } from '@vueuse/core'
-import { useArtifactStore } from '@/stores/artifact'
-import ArtifactDialog from '@/components/artifacts/ArtifactDialog.vue'
 import { useRoute } from 'vue-router'
-const ChatView = defineAsyncComponent(() => import('@/components/ChatView.vue'))
+const ChatLayout = defineAsyncComponent(() => import('@/components/ChatLayout.vue'))
 const NewThread = defineAsyncComponent(() => import('@/components/NewThread.vue'))
-const artifactStore = useArtifactStore()
 const route = useRoute()
 const chatStore = useChatStore()
 const title = useTitle()
@@ -45,25 +27,16 @@ watch(
     if (route.name === 'conversation' && newId) {
       // Load the conversation specified in the route
       await chatStore.setActiveThread(newId as string)
-    } else if (route.name === 'new-conversation') {
-      // Clear active thread for new conversation view
-      chatStore.setActiveThreadId(null)
+    } else if (route.name === 'home' || !newId) {
+      // Clear active thread for home view
+      if (chatStore.getActiveThreadId()) {
+        await chatStore.clearActiveThread()
+      }
     }
   },
   { immediate: true }
 )
 
-// Calculate chat view margin based on artifact and workspace state
-const chatViewMargin = computed(() => {
-  if (route.name !== 'chat') return ''
-
-  const artifactOpen = artifactStore.isOpen
-  if (artifactOpen) {
-    // Only artifact open
-    return 'mr-[calc(60%-104px)]'
-  }
-  return ''
-})
 // 添加标题更新逻辑
 const updateTitle = () => {
   const activeThread = chatStore.activeThread

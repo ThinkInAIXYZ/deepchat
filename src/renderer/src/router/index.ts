@@ -1,31 +1,8 @@
-import { createRouter, createWebHashHistory } from 'vue-router'
+import { createRouter, createWebHistory } from 'vue-router'
 
 const router = createRouter({
-  history: createWebHashHistory(import.meta.env.BASE_URL),
+  history: createWebHistory(import.meta.env.BASE_URL),
   routes: [
-    {
-      path: '/',
-      redirect: '/chat'
-    },
-    {
-      path: '/chat',
-      name: 'chat',
-      component: () => import('@/views/ChatTabView.vue'),
-      meta: {
-        titleKey: 'routes.chat',
-        icon: 'lucide:message-square'
-      }
-    },
-    // New routes for single-webcontents architecture
-    {
-      path: '/new',
-      name: 'new-conversation',
-      component: () => import('@/views/ChatTabView.vue'),
-      meta: {
-        titleKey: 'routes.newConversation',
-        icon: 'lucide:message-square-plus'
-      }
-    },
     {
       path: '/conversation/:id',
       name: 'conversation',
@@ -56,7 +33,16 @@ const router = createRouter({
             }
           }
         ]
-      : [])
+      : []),
+    {
+      path: '/',
+      redirect: '/home'
+    },
+    {
+      path: '/home',
+      name: 'home',
+      component: () => import('@/views/HomeTabView.vue')
+    }
   ]
 })
 

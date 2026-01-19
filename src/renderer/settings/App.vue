@@ -53,6 +53,7 @@
 import { Icon } from '@iconify/vue'
 import { useRouter, useRoute, RouterView } from 'vue-router'
 import { onMounted, onBeforeUnmount, Ref, ref, watch, computed } from 'vue'
+import { storeToRefs } from 'pinia'
 import { useI18n } from 'vue-i18n'
 import { useTitle } from '@vueuse/core'
 import { usePresenter } from '../src/composables/usePresenter'
@@ -60,9 +61,9 @@ import CloseIcon from './icons/CloseIcon.vue'
 import { useUiSettingsStore } from '../src/stores/uiSettingsStore'
 import { useLanguageStore } from '../src/stores/language'
 import { useModelCheckStore } from '../src/stores/modelCheck'
+import { useWindowStore } from '../src/stores/windowStore'
 import { Button } from '@shadcn/components/ui/button'
 import ModelCheckDialog from '@/components/settings/ModelCheckDialog.vue'
-import { useDeviceVersion } from '../src/composables/useDeviceVersion'
 import { Toaster } from '@shadcn/components/ui/sonner'
 import 'vue-sonner/style.css'
 import { NOTIFICATION_EVENTS } from '@/events'
@@ -77,7 +78,6 @@ import { useMcpStore } from '@/stores/mcp'
 import { useMcpInstallDeeplinkHandler } from '../src/lib/storeInitializer'
 import { useFontManager } from '../src/composables/useFontManager'
 
-const devicePresenter = usePresenter('devicePresenter')
 const windowPresenter = usePresenter('windowPresenter')
 const configPresenter = usePresenter('configPresenter')
 
@@ -88,6 +88,8 @@ setupFontListener()
 
 const languageStore = useLanguageStore()
 const modelCheckStore = useModelCheckStore()
+const windowStore = useWindowStore()
+const { isMacOS, isWinMacOS } = storeToRefs(windowStore)
 const { toast } = useToast()
 const themeStore = useThemeStore()
 const providerStore = useProviderStore()
@@ -106,9 +108,6 @@ const errorDisplayTimer = ref<number | null>(null)
 const toasterTheme = computed(() =>
   themeStore.themeMode === 'system' ? (themeStore.isDark ? 'dark' : 'light') : themeStore.themeMode
 )
-
-// Detect platform to apply proper styling
-const { isMacOS, isWinMacOS } = useDeviceVersion()
 const { t, locale } = useI18n()
 const router = useRouter()
 const route = useRoute()
@@ -264,11 +263,6 @@ const showErrorToast = (error: { id: string; title: string; message: string; typ
 }
 
 onMounted(async () => {
-  // Listen for window maximize/unmaximize events
-  devicePresenter.getDeviceInfo().then((deviceInfo: any) => {
-    isMacOS.value = deviceInfo.platform === 'darwin'
-  })
-
   window.electron.ipcRenderer.on(NOTIFICATION_EVENTS.SHOW_ERROR, (_event, error) => {
     showErrorToast(error)
   })

@@ -15,7 +15,7 @@ export type SessionConfig = {
   title: string
   providerId: string
   modelId: string
-  chatMode: 'chat' | 'agent' | 'acp agent'
+  chatMode: 'agent' | 'acp agent'
   systemPrompt: string
   maxTokens?: number
   temperature?: number

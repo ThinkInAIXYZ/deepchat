@@ -4,18 +4,9 @@
       <PopoverTrigger>
         <Tooltip>
           <TooltipTrigger as-child>
-            <Button
-              id="skills-btn"
-              variant="outline"
-              :class="[
-                'flex text-accent-foreground rounded-lg shadow-sm items-center gap-1.5 h-7 text-xs px-1.5 w-auto',
-                activeCount > 0 ? 'text-primary border-primary/50' : ''
-              ]"
-              size="icon"
-            >
+            <Button id="skills-btn" variant="ghost" :class="['h-7 text-xs w-7']" size="icon">
               <Icon v-if="loading" icon="lucide:loader" class="w-4 h-4 animate-spin" />
-              <Icon v-else icon="lucide:sparkles" class="w-4 h-4" />
-              <span v-if="activeCount > 0" class="text-sm">{{ activeCount }}</span>
+              <Icon v-else icon="lucide:wand-sparkles" class="w-4 h-4" />
             </Button>
           </TooltipTrigger>
           <TooltipContent>

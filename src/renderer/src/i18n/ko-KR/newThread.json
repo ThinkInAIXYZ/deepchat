@@ -1,4 +1,42 @@
 {
   "greeting": "안녕하세요",
-  "prompt": "오늘은 무엇을 물어보시겠습니까?"
+  "prompt": "오늘은 무엇을 물어보시겠습니까?",
+  "homepage": {
+    "inputPlaceholder": "여기에 메시지를 입력하세요...",
+    "selectModel": "모델 선택",
+    "acpAgents": {
+      "title": "AI 에이전트로 시작",
+      "description": "전문 코딩 세션을 시작할 에이전트를 선택하세요",
+      "empty": "사용 가능한 에이전트가 없습니다. 설정에서 에이전트를 활성화하세요.",
+      "builtin": "내장",
+      "mcpEnabled": "MCP 도구",
+      "defaultDescription": "전문 AI 코딩 어시스턴트",
+      "customAgentDescription": "사용자 정의 에이전트: {name}",
+      "descriptions": {
+        "claude-code": "Claude Code - 범용 코딩 어시스턴트",
+        "gemini-cli": "Gemini CLI - Google 코딩 어시스턴트",
+        "qwen-code": "Qwen Code - Alibaba Cloud 코딩 어시스턴트"
+      }
+    },
+    "acpConfig": {
+      "title": "{name} 구성",
+      "description": "이 에이전트의 작업 공간 및 환경 설정",
+      "workdir": {
+        "label": "작업 공간 디렉토리",
+        "placeholder": "디렉토리가 선택되지 않음",
+        "select": "선택",
+        "hint": "에이전트가 작업할 디렉토리를 선택하세요"
+      },
+      "model": {
+        "label": "모델",
+        "placeholder": "모델 선택"
+      },
+      "mode": {
+        "label": "모드",
+        "placeholder": "모드 선택"
+      },
+      "loading": "구성 로드 중...",
+      "start": "세션 시작"
+    }
+  }
 }

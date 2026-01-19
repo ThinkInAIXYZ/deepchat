@@ -1,4 +1,42 @@
 {
   "greeting": "Olá!",
-  "prompt": "Em que posso ajudar?"
+  "prompt": "Em que posso ajudar?",
+  "homepage": {
+    "inputPlaceholder": "Digite sua mensagem aqui...",
+    "selectModel": "Selecionar modelo",
+    "acpAgents": {
+      "title": "Começar com um agente de IA",
+      "description": "Selecione um agente para iniciar uma sessão de codificação especializada",
+      "empty": "Nenhum agente disponível. Ative os agentes nas configurações.",
+      "builtin": "Integrado",
+      "mcpEnabled": "Ferramentas MCP",
+      "defaultDescription": "Assistente de codificação IA profissional",
+      "customAgentDescription": "Agente personalizado: {name}",
+      "descriptions": {
+        "claude-code": "Claude Code - Assistente de codificação versátil",
+        "gemini-cli": "Gemini CLI - Assistente de codificação Google",
+        "qwen-code": "Qwen Code - Assistente de codificação Alibaba Cloud"
+      }
+    },
+    "acpConfig": {
+      "title": "Configurar {name}",
+      "description": "Configure o espaço de trabalho e as preferências para este agente",
+      "workdir": {
+        "label": "Diretório de trabalho",
+        "placeholder": "Nenhum diretório selecionado",
+        "select": "Selecionar",
+        "hint": "Escolha o diretório onde o agente trabalhará"
+      },
+      "model": {
+        "label": "Modelo",
+        "placeholder": "Selecionar um modelo"
+      },
+      "mode": {
+        "label": "Modo",
+        "placeholder": "Selecionar um modo"
+      },
+      "loading": "Carregando configuração...",
+      "start": "Iniciar sessão"
+    }
+  }
 }

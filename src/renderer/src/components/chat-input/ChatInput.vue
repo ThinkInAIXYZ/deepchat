@@ -1,6 +1,6 @@
 <template>
   <div
-    :class="['w-full', variant === 'newThread' ? 'max-w-4xl mx-auto' : '']"
+    :class="['w-full', variant === 'newThread' ? 'max-w-xl mx-auto' : '']"
     @dragenter.prevent="drag.handleDragEnter"
     @dragover.prevent="drag.handleDragOver"
     @drop.prevent="handleDrop"
@@ -12,29 +12,19 @@
         ref="inputContainer"
         :dir="langStore.dir"
         :style="
-          variant === 'chat'
+          variant === 'newThread'
             ? inputHeight
               ? { height: `${inputHeight}px` }
               : { maxHeight: '50vh' }
             : {}
         "
-        :class="[
-          'flex flex-col gap-2 relative',
-          variant === 'newThread'
-            ? 'bg-card rounded-lg border p-2 shadow-sm'
-            : 'border-t px-4 py-3 gap-3'
-        ]"
+        :class="['flex flex-col gap-2 relative px-3']"
       >
         <!-- Resize Handle -->
-        <div
-          v-if="variant === 'chat'"
-          class="absolute -top-1.5 left-0 right-0 h-3 cursor-ns-resize hover:bg-primary/10 z-20 flex justify-center items-center group opacity-0 hover:opacity-100 transition-opacity"
-          @mousedown="startResize"
-        >
-          <div
-            class="w-16 h-1 bg-muted-foreground/20 rounded-full group-hover:bg-primary/40 transition-colors"
-          ></div>
-        </div>
+        <ResizeHandle
+          v-if="variant === 'agent' || variant === 'acp'"
+          @resize="handleResizeHeight"
+        />
         <!-- File Area -->
         <div v-if="files.selectedFiles.value.length > 0">
           <TransitionGroup
@@ -62,453 +52,165 @@
           </TransitionGroup>
         </div>
 
-        <!-- Editor -->
-        <div ref="editorContainer" class="flex-1 min-h-0 overflow-y-auto relative">
-          <editor-content
+        <div
+          class="w-full flex flex-col border border-input outline-1 outline-black/10 p-3 bg-card rounded-lg"
+        >
+          <!-- Editor -->
+          <InputEditor
+            ref="editorContainer"
             :editor="editor"
-            :class="['text-sm h-full', variant === 'chat' ? 'dark:text-white/80' : 'p-2']"
+            :variant="variant"
+            :show-fake-caret="showFakeCaret"
+            :fake-caret-style="fakeCaretStyle"
             @keydown="onKeydown"
           />
-          <div v-if="showFakeCaret" class="fake-caret" :style="fakeCaretStyle" />
-        </div>
 
-        <!-- Footer -->
-        <div class="flex items-center justify-between">
-          <!-- Tools -->
-          <div class="flex gap-1.5">
-            <!-- Mode Switch -->
-            <Tooltip>
-              <TooltipTrigger as-child>
-                <span class="inline-flex">
-                  <Popover v-model:open="modeSelectOpen">
-                    <PopoverTrigger as-child>
-                      <Button
-                        variant="outline"
-                        :class="[
-                          'w-7 h-7 text-xs rounded-lg',
-                          variant === 'chat' ? 'text-accent-foreground' : ''
-                        ]"
-                        size="icon"
-                        :title="t('chat.mode.current', { mode: chatMode.currentLabel.value })"
-                      >
-                        <ModelIcon
-                          v-if="selectedAcpAgentId"
-                          :model-id="selectedAcpAgentId"
-                          custom-class="w-4 h-4"
-                        />
-                        <Icon v-else :icon="chatMode.currentIcon.value" class="w-4 h-4" />
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent
-                      align="start"
-                      class="w-64 border-none bg-transparent p-0 shadow-none"
-                    >
-                      <div class="rounded-lg border bg-card p-1 shadow-md">
-                        <div
-                          :class="[
-                            'flex items-center gap-2 rounded-md px-2 py-1.5 text-sm cursor-pointer transition-colors',
-                            isAgentModeSelected
-                              ? 'bg-primary text-primary-foreground'
-                              : 'hover:bg-muted'
-                          ]"
-                          @click="handleModeSelect('agent')"
-                        >
-                          <Icon icon="lucide:bot" class="w-4 h-4" />
-                          <span class="flex-1">{{ t('chat.mode.agent') }}</span>
-                          <Icon v-if="isAgentModeSelected" icon="lucide:check" class="w-4 h-4" />
-                        </div>
+          <!-- Footer -->
+          <div class="flex items-center justify-between">
+            <!-- Tools -->
+            <InputToolbar :conversation-id="conversationId" @file-select="files.openFilePicker" />
 
-                        <div
-                          v-if="acpAgentOptions.length"
-                          class="px-2 py-1 text-[10px] uppercase tracking-[0.18em] text-muted-foreground"
-                        >
-                          {{ t('chat.mode.acpAgent') }}
-                        </div>
+            <!-- Hidden file input -->
+            <input
+              ref="fileInput"
+              type="file"
+              class="hidden"
+              multiple
+              accept="application/json,application/javascript,text/plain,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.oasis.opendocument.spreadsheet,application/vnd.ms-excel.sheet.binary.macroEnabled.12,application/vnd.apple.numbers,text/markdown,application/x-yaml,application/xml,application/typescript,text/typescript,text/x-typescript,application/x-typescript,application/x-sh,text/*,application/pdf,image/jpeg,image/jpg,image/png,image/gif,image/webp,image/bmp,image/*,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation,text/html,text/css,application/xhtml+xml,.js,.jsx,.ts,.tsx,.py,.java,.c,.cpp,.cs,.go,.rb,.php,.rs,.swift,.kt,.scala,.pl,.lua,.sh,.json,.yaml,.yml,.xml,.html,.htm,.css,.md,audio/mp3,audio/wav,audio/mp4,audio/mpeg,.mp3,.wav,.m4a"
+              @change="files.handleFileSelect"
+            />
 
-                        <div
-                          v-for="agent in acpAgentOptions"
-                          :key="agent.id"
-                          :class="[
-                            'flex items-center gap-2 rounded-md px-2 py-1.5 text-sm cursor-pointer transition-colors',
-                            selectedAcpAgentId === agent.id
-                              ? 'bg-primary text-primary-foreground'
-                              : 'hover:bg-muted'
-                          ]"
-                          @click="handleAcpAgentSelect(agent)"
-                        >
-                          <ModelIcon :model-id="agent.id" custom-class="w-4 h-4" />
-                          <span class="flex-1">{{ agent.name }}</span>
-                          <Icon
-                            v-if="selectedAcpAgentId === agent.id"
-                            icon="lucide:check"
-                            class="w-4 h-4"
-                          />
-                        </div>
-                      </div>
-                    </PopoverContent>
-                  </Popover>
-                </span>
-              </TooltipTrigger>
-              <TooltipContent>
-                {{ t('chat.mode.current', { mode: chatMode.currentLabel.value }) }}
-              </TooltipContent>
-            </Tooltip>
-
-            <!-- Unified Workspace Path Selection (for agent and acp agent modes) -->
-            <Tooltip v-if="chatMode.isAgentMode.value">
-              <TooltipTrigger>
-                <Button
-                  :class="[
-                    'w-7 h-7 text-xs rounded-lg',
-                    variant === 'chat' ? 'text-accent-foreground' : '',
-                    workspace.hasWorkspace.value
-                      ? 'bg-primary text-primary-foreground hover:bg-primary/90'
-                      : ''
-                  ]"
-                  :variant="workspace.hasWorkspace.value ? 'default' : 'outline'"
-                  size="icon"
-                  :disabled="workspace.loading.value"
-                  @click="workspace.selectWorkspace"
-                >
-                  <Icon
-                    :icon="workspace.hasWorkspace.value ? 'lucide:folder-open' : 'lucide:folder'"
-                    class="w-4 h-4"
-                  />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent class="max-w-xs">
-                <p class="text-xs font-semibold">
-                  {{ workspace.tooltipTitle }}
-                </p>
-                <p v-if="workspace.hasWorkspace.value" class="text-xs text-muted-foreground mt-1">
-                  {{ workspace.tooltipCurrent }}
-                </p>
-                <p v-else class="text-xs text-muted-foreground mt-1">
-                  {{ workspace.tooltipSelect }}
-                </p>
-              </TooltipContent>
-            </Tooltip>
-
-            <Tooltip>
-              <TooltipTrigger>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  :class="[
-                    'w-7 h-7 text-xs rounded-lg',
-                    variant === 'chat' ? 'text-accent-foreground' : ''
-                  ]"
-                  @click="files.openFilePicker"
-                >
-                  <Icon icon="lucide:paperclip" class="w-4 h-4" />
-                  <input
-                    ref="fileInput"
-                    type="file"
-                    class="hidden"
-                    multiple
-                    accept="application/json,application/javascript,text/plain,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.oasis.opendocument.spreadsheet,application/vnd.ms-excel.sheet.binary.macroEnabled.12,application/vnd.apple.numbers,text/markdown,application/x-yaml,application/xml,application/typescript,text/typescript,text/x-typescript,application/x-typescript,application/x-sh,text/*,application/pdf,image/jpeg,image/jpg,image/png,image/gif,image/webp,image/bmp,image/*,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation,text/html,text/css,application/xhtml+xml,.js,.jsx,.ts,.tsx,.py,.java,.c,.cpp,.cs,.go,.rb,.php,.rs,.swift,.kt,.scala,.pl,.lua,.sh,.json,.yaml,.yml,.xml,.html,.htm,.css,.md,audio/mp3,audio/wav,audio/mp4,audio/mpeg,.mp3,.wav,.m4a"
-                    @change="files.handleFileSelect"
-                  />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>{{ t('chat.input.fileSelect') }}</TooltipContent>
-            </Tooltip>
-
-            <Tooltip v-if="canUseWebSearch">
-              <TooltipTrigger>
-                <Button
-                  variant="outline"
-                  :class="[
-                    'w-7 h-7 text-xs rounded-lg',
-                    variant === 'chat' ? 'text-accent-foreground' : '',
-                    settings.webSearch ? 'text-primary' : ''
-                  ]"
-                  :dir="langStore.dir"
-                  size="icon"
-                  @click="onWebSearchClick"
-                >
-                  <Icon icon="lucide:globe" class="w-4 h-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>{{ t('chat.features.webSearch') }}</TooltipContent>
-            </Tooltip>
-
-            <McpToolsList />
-            <SkillsIndicator :conversation-id="conversationId" />
-          </div>
-
-          <!-- Actions -->
-          <div class="flex items-center gap-2 flex-wrap">
-            <div
-              v-if="shouldShowContextLength"
-              :class="[
-                'text-xs',
-                variant === 'chat'
-                  ? 'text-muted-foreground dark:text-white/60'
-                  : 'text-muted-foreground',
-                contextLengthStatusClass
-              ]"
-            >
-              {{ currentContextLengthText }}
-            </div>
-
-            <div
-              v-if="rateLimit.rateLimitStatus.value?.config.enabled"
-              :class="[
-                'flex items-center gap-1 text-xs',
-                variant === 'chat' ? 'dark:text-white/60' : '',
-                rateLimit.getRateLimitStatusClass()
-              ]"
-              :title="rateLimit.getRateLimitStatusTooltip()"
-            >
-              <Icon
-                :icon="rateLimit.getRateLimitStatusIcon()"
-                class="w-3 h-3"
-                :class="{ 'animate-pulse': rateLimit.rateLimitStatus.value.queueLength > 0 }"
-              />
-              <span v-if="rateLimit.rateLimitStatus.value.queueLength > 0">
-                {{
-                  t('chat.input.rateLimitQueue', {
-                    count: rateLimit.rateLimitStatus.value.queueLength
-                  })
-                }}
-              </span>
-              <span v-else-if="!rateLimit.canSendImmediately.value">
-                {{ rateLimit.formatWaitTime() }}
-              </span>
-            </div>
-
-            <!-- Mode Switcher (ACPs only, chat mode, only when agent declares modes) -->
-            <Tooltip
-              v-if="
-                ['chat', 'newThread'].includes(variant) &&
-                acpMode.isAcpModel.value &&
-                acpMode.hasAgentModes.value
+            <!-- Actions -->
+            <InputActions
+              :variant="variant"
+              :should-show-context-length="!!shouldShowContextLength"
+              :current-context-length-text="currentContextLengthText"
+              :context-length-status-class="contextLengthStatusClass"
+              :rate-limit-status="rateLimit.rateLimitStatus.value"
+              :rate-limit-status-class="rateLimit.getRateLimitStatusClass()"
+              :rate-limit-tooltip="rateLimit.getRateLimitStatusTooltip()"
+              :rate-limit-icon="rateLimit.getRateLimitStatusIcon()"
+              :rate-limit-queue-text="
+                t('chat.input.rateLimitQueue', {
+                  count: rateLimit.rateLimitStatus.value?.queueLength ?? 0
+                })
               "
+              :can-send-immediately="rateLimit.canSendImmediately.value"
+              :rate-limit-wait-time="rateLimit.formatWaitTime()"
+              :is-streaming="isStreaming"
+              :disabled-send="disabledSend"
+              @send="emitSend"
+              @cancel="handleCancel"
             >
-              <TooltipTrigger as-child>
-                <span class="inline-flex">
-                  <Popover v-model:open="acpModeSelectOpen">
-                    <PopoverTrigger as-child>
-                      <Button
-                        variant="ghost"
-                        class="flex items-center gap-1 h-7 px-2 rounded-md text-xs font-semibold text-muted-foreground hover:bg-muted/60 hover:text-foreground dark:text-white/70 dark:hover:bg-white/10 dark:hover:text-white"
-                        :disabled="acpMode.loading.value"
-                      >
-                        <span
-                          class="truncate max-w-[120px] text-foreground"
-                          :title="acpMode.currentModeName.value"
-                        >
-                          {{ acpMode.currentModeName.value }}
-                        </span>
-                        <Icon icon="lucide:chevron-down" class="w-4 h-4 text-muted-foreground" />
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent
-                      align="start"
-                      class="w-64 border-none bg-transparent p-0 shadow-none"
-                    >
-                      <div class="rounded-lg border bg-card p-1 shadow-md max-h-56 overflow-y-auto">
-                        <div
-                          v-for="mode in acpMode.availableModes.value"
-                          :key="mode.id"
-                          :class="[
-                            'flex items-center gap-2 rounded-md px-2 py-1.5 text-sm cursor-pointer transition-colors',
-                            acpMode.currentMode.value === mode.id
-                              ? 'bg-primary text-primary-foreground'
-                              : 'hover:bg-muted',
-                            acpMode.loading.value ? 'opacity-60 cursor-not-allowed' : ''
-                          ]"
-                          @click="handleAcpModeSelect(mode.id)"
-                        >
-                          <Icon icon="lucide:shield" class="w-4 h-4" />
-                          <span class="flex-1">{{ mode.name || mode.id }}</span>
-                          <Icon
-                            v-if="acpMode.currentMode.value === mode.id"
-                            icon="lucide:check"
-                            class="w-4 h-4"
-                          />
-                        </div>
-                      </div>
-                    </PopoverContent>
-                  </Popover>
-                </span>
-              </TooltipTrigger>
-              <TooltipContent class="max-w-xs">
-                <p class="text-xs font-semibold">{{ t('chat.input.acpMode') }}</p>
-                <p class="text-xs text-muted-foreground mt-1">
-                  {{ t('chat.input.acpModeTooltip', { mode: acpMode.currentModeName.value }) }}
-                </p>
-                <p v-if="acpMode.currentModeInfo.value" class="text-xs text-muted-foreground mt-1">
-                  {{ acpMode.currentModeInfo.value.description }}
-                </p>
-              </TooltipContent>
-            </Tooltip>
-
-            <!-- NewThread model selector and settings (right-aligned) -->
-            <slot name="addon-actions"></slot>
-
-            <!-- Model Selector (only in chat mode) -->
-            <Popover v-if="variant === 'chat'" v-model:open="modelSelectOpen">
-              <PopoverTrigger as-child>
-                <Button
-                  variant="ghost"
-                  class="flex items-center gap-1.5 h-7 px-2 rounded-md text-xs font-semibold text-muted-foreground hover:bg-muted/60 hover:text-foreground dark:text-white/70 dark:hover:bg-white/10 dark:hover:text-white"
-                  size="sm"
-                >
-                  <ModelIcon
-                    v-if="config.activeModel.value.providerId === 'acp'"
-                    :model-id="config.activeModel.value.id"
-                    :is-dark="themeStore.isDark"
-                    custom-class="w-4 h-4"
-                  />
-                  <ModelIcon
-                    v-else
-                    :model-id="config.activeModel.value.providerId"
-                    :is-dark="themeStore.isDark"
-                    custom-class="w-4 h-4"
-                  />
-                  <span
-                    class="text-xs font-semibold truncate max-w-[140px] text-foreground"
-                    :title="modelSelectorLabel"
-                  >
-                    {{ modelSelectorLabel }}
-                  </span>
-                  <template v-if="!showAcpSessionModelSelector">
-                    <Badge
-                      v-for="tag in config.activeModel.value.tags"
-                      :key="tag"
-                      variant="outline"
-                      class="py-0 px-1 rounded-lg text-[10px]"
-                    >
-                      {{ t(`model.tags.${tag}`) }}
-                    </Badge>
-                  </template>
-                  <Icon icon="lucide:chevron-right" class="w-4 h-4 text-muted-foreground" />
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent align="end" class="w-80 border-none bg-transparent p-0 shadow-none">
-                <div
-                  v-if="showAcpSessionModelSelector"
-                  class="rounded-lg border bg-card p-1 shadow-md max-h-72 overflow-y-auto"
-                >
-                  <div
-                    class="px-2 py-1 text-[10px] uppercase tracking-[0.18em] text-muted-foreground"
-                  >
-                    {{ t('settings.model.acpSession.model.label') }}
-                  </div>
-                  <div
-                    v-if="!acpSessionModel.hasModels.value"
-                    class="px-2 py-2 text-xs text-muted-foreground"
-                  >
-                    {{ t('settings.model.acpSession.model.empty') }}
-                  </div>
-                  <div
-                    v-for="model in acpSessionModel.availableModels.value"
-                    :key="model.id"
-                    :class="[
-                      'flex items-center gap-2 rounded-md px-2 py-1.5 text-sm cursor-pointer transition-colors',
-                      acpSessionModel.currentModelId.value === model.id
-                        ? 'bg-primary text-primary-foreground'
-                        : 'hover:bg-muted',
-                      acpSessionModel.loading.value ? 'opacity-60 cursor-not-allowed' : ''
-                    ]"
-                    @click="handleAcpSessionModelSelect(model.id)"
-                  >
-                    <Icon icon="lucide:cpu" class="w-4 h-4" />
-                    <span class="flex-1">{{ model.name || model.id }}</span>
-                    <Icon
-                      v-if="acpSessionModel.currentModelId.value === model.id"
-                      icon="lucide:check"
-                      class="w-4 h-4"
-                    />
-                  </div>
-                </div>
-                <ModelChooser
-                  v-else
-                  :type="[ModelType.Chat, ModelType.ImageGeneration]"
-                  @update:model="config.handleModelUpdate"
-                />
-              </PopoverContent>
-            </Popover>
-
-            <!-- Config Button (only in chat mode) -->
-            <ScrollablePopover
-              v-if="variant === 'chat' && !isAcpChatMode"
-              align="end"
-              content-class="w-80"
-              :enable-scrollable="true"
-            >
-              <template #trigger>
-                <Button
-                  class="h-7 w-7 rounded-md border border-border/60 hover:border-border dark:border-white/10 dark:bg-white/[0.04] dark:text-white/70 dark:hover:border-white/25 dark:hover:bg-white/15 dark:hover:text-white"
-                  size="icon"
-                  variant="outline"
-                >
-                  <Icon icon="lucide:settings-2" class="w-4 h-4" />
-                </Button>
+              <template #addon-actions>
+                <slot name="addon-actions"></slot>
               </template>
-              <ChatConfig
-                v-model:system-prompt="config.configSystemPrompt.value"
-                v-model:temperature="config.configTemperature.value"
-                v-model:context-length="config.configContextLength.value"
-                v-model:max-tokens="config.configMaxTokens.value"
-                v-model:artifacts="config.configArtifacts.value"
-                v-model:thinking-budget="config.configThinkingBudget.value"
-                v-model:enable-search="config.configEnableSearch.value"
-                v-model:forced-search="config.configForcedSearch.value"
-                v-model:search-strategy="config.configSearchStrategy.value"
-                v-model:reasoning-effort="config.configReasoningEffort.value"
-                v-model:verbosity="config.configVerbosity.value"
-                :context-length-limit="config.configContextLengthLimit.value"
-                :max-tokens-limit="config.configMaxTokensLimit.value"
-                :model-id="chatStore.chatConfig.modelId"
-                :provider-id="chatStore.chatConfig.providerId"
-                :model-type="config.configModelType.value"
-              />
-            </ScrollablePopover>
-
-            <!-- Send/Stop Button -->
-            <Button
-              v-if="!isStreaming || variant === 'newThread'"
-              variant="default"
-              size="icon"
-              class="w-7 h-7 text-xs rounded-lg"
-              :disabled="disabledSend"
-              @click="emitSend"
-            >
-              <Icon icon="lucide:arrow-up" class="w-4 h-4" />
-            </Button>
-            <Button
-              v-else-if="isStreaming && variant === 'chat'"
-              key="cancel"
-              variant="outline"
-              size="icon"
-              class="w-7 h-7 text-xs rounded-lg bg-card backdrop-blur-lg"
-              @click="handleCancel"
-            >
-              <Icon
-                icon="lucide:square"
-                class="w-6 h-6 bg-red-500 p-1 text-primary-foreground rounded-full"
-              />
-            </Button>
+            </InputActions>
           </div>
-        </div>
 
-        <!-- Drag Overlay -->
-        <div v-if="drag.isDragging.value" class="absolute inset-0 bg-black/40 rounded-lg">
-          <div class="flex flex-col items-center justify-center h-full gap-2">
-            <div class="flex items-center gap-1">
-              <Icon icon="lucide:file-up" class="w-4 h-4 text-white" />
-              <span class="text-sm text-white">{{ t('chat.input.dropFiles') }}</span>
-            </div>
-            <div class="flex items-center gap-1">
-              <Icon icon="lucide:clipboard" class="w-3 h-3 text-white/80" />
-              <span class="text-xs text-white/80">{{ t('chat.input.pasteFiles') }}</span>
+          <!-- Drag Overlay -->
+          <div v-if="drag.isDragging.value" class="absolute inset-0 bg-black/40 rounded-lg">
+            <div class="flex flex-col items-center justify-center h-full gap-2">
+              <div class="flex items-center gap-1">
+                <Icon icon="lucide:file-up" class="w-4 h-4 text-white" />
+                <span class="text-sm text-white">{{ t('chat.input.dropFiles') }}</span>
+              </div>
+              <div class="flex items-center gap-1">
+                <Icon icon="lucide:clipboard" class="w-3 h-3 text-white/80" />
+                <span class="text-xs text-white/80">{{ t('chat.input.pasteFiles') }}</span>
+              </div>
             </div>
           </div>
         </div>
       </div>
+
+      <!-- Bottom Bar -->
+      <InputFooter>
+        <template #left-area>
+          <ModeSelector
+            v-if="variant === 'agent' || variant === 'acp'"
+            :current-mode="chatMode.currentMode.value"
+            :current-label="chatMode.currentLabel.value"
+            :current-icon="chatMode.currentIcon.value"
+            :acp-agent-options="acpAgentOptions"
+            :selected-acp-agent-id="selectedAcpAgentId"
+            @mode-select="handleModeSelect"
+            @acp-agent-select="handleAcpAgentSelect"
+          />
+          <AcpModeSelector
+            v-if="variant === 'acp' && acpMode.isAcpModel.value && acpMode.hasAgentModes.value"
+            :current-mode="acpMode.currentMode.value"
+            :current-mode-name="acpMode.currentModeName.value"
+            :current-mode-info="acpMode.currentModeInfo.value ?? null"
+            :available-modes="acpMode.availableModes.value"
+            :loading="acpMode.loading.value"
+            @mode-select="handleAcpModeSelect"
+          />
+        </template>
+
+        <template #right-area>
+          <AcpSessionModelSelector
+            v-if="showAcpSessionModelSelector"
+            :active-model="config.activeModel.value"
+            :acp-session-model="{
+              hasModels: acpSessionModel.hasModels.value,
+              availableModels: acpSessionModel.availableModels.value,
+              currentModelId: acpSessionModel.currentModelId.value,
+              currentModelName: acpSessionModel.currentModelName.value,
+              loading: acpSessionModel.loading.value
+            }"
+            :is-dark="themeStore.isDark"
+            @acp-session-model-select="handleAcpSessionModelSelect"
+          />
+          <ModelSelector
+            v-else-if="variant === 'agent' || variant === 'newThread'"
+            :active-model="config.activeModel.value"
+            :model-display-name="config.modelDisplayName.value"
+            :is-dark="themeStore.isDark"
+            @model-update="config.handleModelUpdate"
+          />
+        </template>
+
+        <!-- <template #config-button>
+          <ConfigButton
+            v-if="(variant === 'agent' || variant === 'newThread') && !isAcpChatMode"
+            :system-prompt="config.configSystemPrompt.value"
+            :temperature="config.configTemperature.value"
+            :context-length="config.configContextLength.value"
+            :max-tokens="config.configMaxTokens.value"
+            :artifacts="config.configArtifacts.value"
+            :thinking-budget="config.configThinkingBudget.value ?? undefined"
+            :enable-search="config.configEnableSearch.value"
+            :forced-search="config.configForcedSearch.value"
+            :search-strategy="config.configSearchStrategy.value as 'turbo' | 'max' | undefined"
+            :reasoning-effort="
+              config.configReasoningEffort.value as
+                | 'minimal'
+                | 'low'
+                | 'medium'
+                | 'high'
+                | undefined
+            "
+            :verbosity="config.configVerbosity.value as 'low' | 'medium' | 'high' | undefined"
+            :context-length-limit="config.configContextLengthLimit.value"
+            :max-tokens-limit="config.configMaxTokensLimit.value"
+            :model-id="chatStore.chatConfig.modelId"
+            :provider-id="chatStore.chatConfig.providerId"
+            :model-type="config.configModelType.value"
+            @update:system-prompt="config.configSystemPrompt.value = $event"
+            @update:temperature="config.configTemperature.value = $event"
+            @update:context-length="config.configContextLength.value = $event"
+            @update:max-tokens="config.configMaxTokens.value = $event"
+            @update:artifacts="config.configArtifacts.value = $event ? 1 : 0"
+            @update:thinking-budget="config.configThinkingBudget.value = $event"
+            @update:enable-search="config.configEnableSearch.value = $event"
+            @update:forced-search="config.configForcedSearch.value = $event"
+            @update:search-strategy="config.configSearchStrategy.value = $event"
+            @update:reasoning-effort="config.configReasoningEffort.value = $event"
+            @update:verbosity="config.configVerbosity.value = $event"
+          />
+        </template> -->
+      </InputFooter>
     </TooltipProvider>
 
     <!-- ACP Workdir Change Confirmation Dialog -->
@@ -546,15 +248,7 @@ import { UserMessageContent } from '@shared/chat'
 import { ModelType } from '@shared/model'
 
 // === Components ===
-import { Button } from '@shadcn/components/ui/button'
-import { Badge } from '@shadcn/components/ui/badge'
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger
-} from '@shadcn/components/ui/tooltip'
-import { Popover, PopoverContent, PopoverTrigger } from '@shadcn/components/ui/popover'
+import { TooltipProvider } from '@shadcn/components/ui/tooltip'
 import {
   AlertDialog,
   AlertDialogContent,
@@ -565,8 +259,7 @@ import {
   AlertDialogCancel,
   AlertDialogAction
 } from '@shadcn/components/ui/alert-dialog'
-import { Icon } from '@iconify/vue'
-import { Editor, EditorContent } from '@tiptap/vue-3'
+import { Editor } from '@tiptap/vue-3'
 import { TextSelection } from '@tiptap/pm/state'
 import Document from '@tiptap/extension-document'
 import Paragraph from '@tiptap/extension-paragraph'
@@ -575,12 +268,16 @@ import History from '@tiptap/extension-history'
 import Placeholder from '@tiptap/extension-placeholder'
 import HardBreak from '@tiptap/extension-hard-break'
 import FileItem from '../FileItem.vue'
-import ScrollablePopover from '../ScrollablePopover.vue'
-import ChatConfig from '../ChatConfig.vue'
-import ModelChooser from '../ModelChooser.vue'
-import ModelIcon from '../icons/ModelIcon.vue'
-import McpToolsList from '../McpToolsList.vue'
-import SkillsIndicator from './SkillsIndicator.vue'
+import ResizeHandle from './ResizeHandle.vue'
+import InputEditor from './InputEditor.vue'
+import InputToolbar from './InputToolbar.vue'
+import InputActions from './InputActions.vue'
+import InputFooter from './InputFooter.vue'
+import ModeSelector from './ModeSelector.vue'
+import AcpModeSelector from './AcpModeSelector.vue'
+import ModelSelector from './ModelSelector.vue'
+import AcpSessionModelSelector from './AcpSessionModelSelector.vue'
+import { Icon } from '@iconify/vue'
 
 // === Composables ===
 import { usePresenter } from '@/composables/usePresenter'
@@ -623,7 +320,7 @@ import { useEventListener } from '@vueuse/core'
 // === Props & Emits ===
 const props = withDefaults(
   defineProps<{
-    variant: 'chat' | 'newThread'
+    variant: 'agent' | 'newThread' | 'acp'
     contextLength?: number
     maxRows?: number
     rows?: number
@@ -631,7 +328,7 @@ const props = withDefaults(
     modelInfo?: { id: string; providerId: string } | null
   }>(),
   {
-    variant: 'chat',
+    variant: 'agent',
     maxRows: 10,
     rows: 1,
     disabled: false,
@@ -642,42 +339,10 @@ const props = withDefaults(
 const emit = defineEmits(['send', 'file-upload', 'model-update'])
 
 // === Resize Logic ===
-const inputContainer = ref<HTMLElement | null>(null)
 const inputHeight = ref<number | null>(null)
-const isResizing = ref(false)
-const startY = ref(0)
-const startHeight = ref(0)
 
-const startResize = (e: MouseEvent) => {
-  if (props.variant !== 'chat') return
-  isResizing.value = true
-  startY.value = e.clientY
-  if (inputContainer.value) {
-    startHeight.value = inputContainer.value.getBoundingClientRect().height
-  }
-  document.addEventListener('mousemove', handleResize)
-  document.addEventListener('mouseup', stopResize)
-  document.body.style.cursor = 'ns-resize'
-  document.body.style.userSelect = 'none'
-}
-
-const handleResize = (e: MouseEvent) => {
-  if (!isResizing.value) return
-  const deltaY = startY.value - e.clientY
-  const newHeight = startHeight.value + deltaY
-  // Min height 100px, Max height 50% of window height
-  const maxHeight = window.innerHeight * 0.5
-  if (newHeight > 100 && newHeight < maxHeight) {
-    inputHeight.value = newHeight
-  }
-}
-
-const stopResize = () => {
-  isResizing.value = false
-  document.removeEventListener('mousemove', handleResize)
-  document.removeEventListener('mouseup', stopResize)
-  document.body.style.cursor = ''
-  document.body.style.userSelect = ''
+const handleResizeHeight = (newHeight: number) => {
+  inputHeight.value = newHeight
 }
 
 // === Stores ===
@@ -694,9 +359,7 @@ const { t } = useI18n()
 
 // === Local State ===
 const fileInput = ref<HTMLInputElement>()
-const modelSelectOpen = ref(false)
-const acpModeSelectOpen = ref(false)
-const editorContainer = ref<HTMLElement | null>(null)
+const editorContainer = ref<InstanceType<typeof InputEditor> | null>(null)
 const caretPosition = ref({ x: 0, y: 0, height: 18 })
 const caretVisible = ref(false)
 const fakeCaretStyle = computed(() => ({
@@ -708,12 +371,10 @@ const showFakeCaret = computed(() => caretVisible.value && !props.disabled)
 // === Composable Integrations ===
 
 // Initialize settings management
-const { settings, setWebSearch, toggleWebSearch } = useInputSettings()
+const { settings } = useInputSettings()
 
 // Initialize chat mode management
 const chatMode = useChatMode()
-const modeSelectOpen = ref(false)
-const canUseWebSearch = computed(() => chatMode.currentMode.value === 'chat')
 const isAcpChatMode = computed(() => chatMode.currentMode.value === 'acp agent')
 
 // Initialize history composable first (needed for editor placeholder)
@@ -776,14 +437,15 @@ const editor = new Editor({
 let caretAnimationFrame: number | null = null
 
 const updateFakeCaretPosition = () => {
-  if (!editorContainer.value) return
+  const container = editorContainer.value?.editorContainer
+  if (!container) return
 
   if (caretAnimationFrame) {
     cancelAnimationFrame(caretAnimationFrame)
   }
 
   caretAnimationFrame = requestAnimationFrame(() => {
-    if (!editorContainer.value) return
+    if (!container) return
 
     const view = editor.view
     const position = view.state.selection.$anchor.pos
@@ -795,7 +457,7 @@ const updateFakeCaretPosition = () => {
       return
     }
 
-    const containerRect = editorContainer.value.getBoundingClientRect()
+    const containerRect = container.getBoundingClientRect()
     const caretHeight = Math.max(coords.bottom - coords.top, 18)
 
     caretPosition.value = {
@@ -857,7 +519,7 @@ const sendButtonState = useSendButtonState({
 
 // Only initialize config for chat variant
 const config =
-  props.variant === 'chat'
+  props.variant === 'agent' || props.variant === 'newThread'
     ? usePromptInputConfig()
     : ({
         activeModel: ref({ providerId: '', tags: [] }),
@@ -906,8 +568,6 @@ const selectedAcpAgentId = computed(() => {
   return active?.providerId === 'acp' ? (active.id ?? null) : null
 })
 
-const isAgentModeSelected = computed(() => chatMode.currentMode.value !== 'acp agent')
-
 const acpWorkdir = useAcpWorkdir({
   activeModel: activeModelSource,
   conversationId
@@ -955,28 +615,14 @@ const showAcpSessionModelSelector = computed(
   () => isAcpChatMode.value && acpSessionModel.isAcpModel.value
 )
 
-const modelSelectorLabel = computed(() => {
-  if (!showAcpSessionModelSelector.value) {
-    return config.modelDisplayName.value
-  }
-  if (acpSessionModel.currentModelName.value) {
-    return acpSessionModel.currentModelName.value
-  }
-  return acpSessionModel.hasModels.value
-    ? t('settings.model.acpSession.model.placeholder')
-    : t('settings.model.acpSession.model.empty')
-})
-
 const handleAcpSessionModelSelect = async (modelId: string) => {
   if (acpSessionModel.loading.value) return
   await acpSessionModel.setModel(modelId)
-  modelSelectOpen.value = false
 }
 
 const handleAcpModeSelect = async (modeId: string) => {
   if (acpMode.loading.value) return
   await acpMode.setMode(modeId)
-  acpModeSelectOpen.value = false
 }
 
 // === Computed ===
@@ -1011,7 +657,7 @@ const emitSend = async () => {
       text: editorComposable.inputText.value.trim(),
       files: files.selectedFiles.value,
       links: [],
-      search: canUseWebSearch.value ? settings.value.webSearch : false,
+      search: false,
       think: settings.value.deepThinking,
       content: blocks
     }
@@ -1029,11 +675,6 @@ const emitSend = async () => {
   }
 }
 
-const onWebSearchClick = async () => {
-  if (!canUseWebSearch.value) return
-  await toggleWebSearch()
-}
-
 const applyModelSelection = (model: {
   id: string
   name: string
@@ -1047,7 +688,7 @@ const applyModelSelection = (model: {
     providerId: model.providerId,
     type: model.type ?? ModelType.Chat
   }
-  if (props.variant === 'chat') {
+  if (props.variant === 'agent' || props.variant === 'newThread') {
     config.handleModelUpdate(payload as any)
   } else {
     emit('model-update', payload as any, model.providerId)
@@ -1077,7 +718,6 @@ const pickFirstNonAcpModel = () => {
 const handleModeSelect = async (mode: ChatMode) => {
   await chatMode.setMode(mode)
   if (chatMode.currentMode.value !== mode) {
-    modeSelectOpen.value = false
     return
   }
 
@@ -1100,7 +740,6 @@ const handleModeSelect = async (mode: ChatMode) => {
       console.warn('Failed to update chat mode in conversation settings:', error)
     }
   }
-  modeSelectOpen.value = false
 }
 
 const handleAcpAgentSelect = async (agent: {
@@ -1111,7 +750,6 @@ const handleAcpAgentSelect = async (agent: {
 }) => {
   await chatMode.setMode('acp agent')
   if (chatMode.currentMode.value !== 'acp agent') {
-    modeSelectOpen.value = false
     return
   }
   applyModelSelection(agent)
@@ -1122,7 +760,6 @@ const handleAcpAgentSelect = async (agent: {
       console.warn('Failed to update chat mode in conversation settings:', error)
     }
   }
-  modeSelectOpen.value = false
 }
 
 const onKeydown = (e: KeyboardEvent) => {
@@ -1226,7 +863,6 @@ const appendCustomMention = (mention: CategorizedData) => {
 }
 
 useEventListener(window, 'resize', updateFakeCaretPosition)
-useEventListener(editorContainer, 'scroll', updateFakeCaretPosition)
 
 // === Lifecycle Hooks ===
 onMounted(async () => {
@@ -1238,13 +874,26 @@ onMounted(async () => {
   // Setup prompt files handler
   setPromptFilesHandler(files.handlePromptFiles)
 
+  // For newThread variant, ensure agent mode is set
+  if (props.variant === 'newThread') {
+    if (chatMode.currentMode.value !== 'agent') {
+      await chatMode.setMode('agent')
+    }
+  }
+
   // Load model config (only for chat variant)
-  if (props.variant === 'chat') {
+  if (props.variant === 'agent' || props.variant === 'newThread') {
     await config.loadModelConfig()
   }
 
   // Setup editor paste handler
   editorComposable.setupEditorPasteHandler(files.handlePaste)
+
+  // Setup scroll listener for fake caret
+  const container = editorContainer.value?.editorContainer
+  if (container) {
+    useEventListener(container, 'scroll', updateFakeCaretPosition)
+  }
 
   nextTick(updateFakeCaretPosition)
 })
@@ -1294,16 +943,6 @@ watch(
   () => {
     rateLimit.loadRateLimitStatus()
   }
-)
-
-watch(
-  () => [chatMode.currentMode.value, settings.value.webSearch] as const,
-  ([mode, webSearch]) => {
-    if (mode !== 'chat' && webSearch) {
-      void setWebSearch(false)
-    }
-  },
-  { immediate: true }
 )
 
 watch(

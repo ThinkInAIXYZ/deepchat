@@ -1,8 +1,5 @@
 <template>
-  <div
-    class="flex flex-col h-full border-r backdrop-blur-sm"
-    :style="{ width: '64px', minWidth: '64px' }"
-  >
+  <div class="flex flex-col h-full w-full">
     <!-- Conversation icon list -->
     <div
       ref="listContainer"
@@ -10,8 +7,30 @@
       @dragover="onContainerDragOver"
       @drop="onContainerDrop"
     >
-      <div class="flex flex-col items-center gap-3 py-3 px-2 relative">
+      <div class="flex flex-col items-center gap-3 py-2 px-2 relative">
         <TooltipProvider :delay-duration="300">
+          <!-- Add button (always at end, scrolls with items) -->
+          <Tooltip>
+            <TooltipTrigger as-child>
+              <div
+                class="flex items-center justify-center w-10 h-10 cursor-pointer transition-all duration-200 group"
+                @click="$emit('home')"
+              >
+                <div
+                  class="flex items-center justify-center w-10 h-10 rounded-2xl transition-all duration-200 ease-out text-foreground group-hover:bg-muted border group-hover:scale-105 group-hover:rounded-xl group-hover:shadow-lg"
+                >
+                  <Icon icon="lucide:house" class="w-4 h-4 transition-transform" />
+                </div>
+              </div>
+            </TooltipTrigger>
+            <TooltipContent side="right" :side-offset="12" class="font-medium">
+              <p>{{ t('sidebar.newConversation') }}</p>
+            </TooltipContent>
+          </Tooltip>
+
+          <!-- Separator line before add button -->
+          <div v-if="conversations.length > 0" class="w-8 h-px bg-border my-1" />
+
           <Tooltip v-for="(conv, idx) in conversations" :key="conv.id">
             <TooltipTrigger as-child>
               <div
@@ -31,31 +50,6 @@
             </TooltipTrigger>
             <TooltipContent side="right" :side-offset="12" class="font-medium">
               <p>{{ conv.title || t('sidebar.newConversation') }}</p>
-            </TooltipContent>
-          </Tooltip>
-
-          <!-- Separator line before add button -->
-          <div v-if="conversations.length > 0" class="w-8 h-px bg-border/50 my-1 rounded-full" />
-
-          <!-- Add button (always at end, scrolls with items) -->
-          <Tooltip>
-            <TooltipTrigger as-child>
-              <div
-                class="flex items-center justify-center w-12 h-12 cursor-pointer transition-all duration-200 group"
-                @click="$emit('new-conversation')"
-              >
-                <div
-                  class="flex items-center justify-center w-12 h-12 rounded-2xl transition-all duration-200 ease-out bg-muted/30 text-muted-foreground group-hover:bg-primary group-hover:text-primary-foreground group-hover:scale-105 group-hover:rounded-xl group-hover:shadow-lg"
-                >
-                  <Icon
-                    icon="lucide:plus"
-                    class="w-6 h-6 transition-transform group-hover:rotate-90"
-                  />
-                </div>
-              </div>
-            </TooltipTrigger>
-            <TooltipContent side="right" :side-offset="12" class="font-medium">
-              <p>{{ t('sidebar.newConversation') }}</p>
             </TooltipContent>
           </Tooltip>
         </TooltipProvider>
@@ -109,7 +103,7 @@ const emit = defineEmits<{
   'conversation-select': [conversationId: string]
   'conversation-close': [conversationId: string]
   'conversation-reorder': [payload: { conversationId: string; fromIndex: number; toIndex: number }]
-  'new-conversation': []
+  home: []
 }>()
 
 // Drag and drop state

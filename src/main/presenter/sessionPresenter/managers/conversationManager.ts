@@ -177,7 +177,8 @@ export class ConversationManager {
       let defaultSettings = DEFAULT_SETTINGS
       if (latestConversation?.settings) {
         defaultSettings = { ...latestConversation.settings }
-        if (defaultSettings.chatMode === 'chat') {
+        // Normalize legacy 'chat' mode to 'agent' for backward compatibility
+        if ((defaultSettings.chatMode as any) === 'chat') {
           defaultSettings.chatMode = 'agent'
         }
         defaultSettings.systemPrompt = ''

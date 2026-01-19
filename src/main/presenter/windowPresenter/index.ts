@@ -1691,7 +1691,7 @@ export class WindowPresenter implements IWindowPresenter {
       minimizable: true,
       frame: process.platform === 'darwin',
       hasShadow: true,
-      trafficLightPosition: process.platform === 'darwin' ? { x: 12, y: 10 } : undefined,
+      trafficLightPosition: process.platform === 'darwin' ? { x: 8, y: 10 } : undefined,
       webPreferences: {
         preload: join(__dirname, '../preload/index.mjs'),
         sandbox: false,
@@ -1731,25 +1731,13 @@ export class WindowPresenter implements IWindowPresenter {
       console.log(
         `Loading chat renderer URL in dev mode: ${process.env['ELECTRON_RENDERER_URL']}/index.html`
       )
-      await chatWindow.loadURL(process.env['ELECTRON_RENDERER_URL'] + '/index.html')
+      await chatWindow.loadURL(process.env['ELECTRON_RENDERER_URL'] + '/')
     } else {
       console.log(
         `Loading packaged chat renderer file: ${join(__dirname, '../renderer/index.html')}`
       )
-      await chatWindow.loadFile(join(__dirname, '../renderer/index.html'))
+      await chatWindow.loadFile(join(__dirname, '../renderer/'))
     }
-
-    // Send initial state after load
-    chatWindow.webContents.once('did-finish-load', () => {
-      if (chatWindow.isDestroyed()) return
-
-      const initState = {
-        conversationId: options?.initialConversationId,
-        restoreState: options?.restoreState ?? true
-      }
-      chatWindow.webContents.send('chat-window:init-state', initState)
-      console.log(`Sent init state to chat window ${windowId}:`, initState)
-    })
 
     // Open DevTools in development mode
     if (is.dev) {

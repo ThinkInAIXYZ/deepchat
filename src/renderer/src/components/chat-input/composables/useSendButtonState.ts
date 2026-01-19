@@ -6,7 +6,7 @@ import type { MaybeRef } from 'vue'
 import { useChatStore } from '@/stores/chat'
 
 interface SendButtonStateOptions {
-  variant: 'chat' | 'newThread'
+  variant: 'agent' | 'newThread' | 'acp'
   inputText: Ref<string>
   currentContextLength: Ref<number>
   contextLength?: MaybeRef<number | undefined>

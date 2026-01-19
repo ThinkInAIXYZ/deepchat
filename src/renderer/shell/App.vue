@@ -15,11 +15,12 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
+import { storeToRefs } from 'pinia'
 import { useRouter } from 'vue-router'
 import AppBar from './components/AppBar.vue'
 import BrowserToolbar from './components/BrowserToolbar.vue'
 import BrowserPlaceholder from './components/BrowserPlaceholder.vue'
-import { useDeviceVersion } from '@/composables/useDeviceVersion'
+import { useWindowStore } from '@/stores/windowStore'
 import { useMcpStore } from '@/stores/mcp'
 import { useTabStore } from '@shell/stores/tab'
 import { useElementSize } from '@vueuse/core'
@@ -28,8 +29,8 @@ import { useFontManager } from '@/composables/useFontManager'
 const { setupFontListener } = useFontManager()
 setupFontListener()
 
-// Detect platform to apply proper styling
-const { isWinMacOS } = useDeviceVersion()
+const windowStore = useWindowStore()
+const { isWinMacOS } = storeToRefs(windowStore)
 const router = useRouter()
 const mcpStore = useMcpStore()
 const tabStore = useTabStore()

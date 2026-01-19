@@ -7,35 +7,27 @@ import type {
   UserMessage,
   Message
 } from '@shared/chat'
-import { finalizeAssistantMessageBlocks } from '@shared/chat/messageBlocks'
-import type { CONVERSATION, CONVERSATION_SETTINGS, ParentSelection } from '@shared/presenter'
+import type { CONVERSATION } from '@shared/presenter'
 import { usePresenter } from '@/composables/usePresenter'
-import {
-  CONVERSATION_EVENTS,
-  CONFIG_EVENTS,
-  DEEPLINK_EVENTS,
-  MEETING_EVENTS,
-  STREAM_EVENTS
-} from '@/events'
-import router from '@/router'
-import { useI18n } from 'vue-i18n'
-import { useSoundStore } from './sound'
 import { useWorkspaceStore } from './workspace'
-import sfxfcMp3 from '/sounds/sfx-fc.mp3?url'
-import sfxtyMp3 from '/sounds/sfx-typing.mp3?url'
-import { downloadBlob } from '@/lib/download'
 import { useChatMode } from '@/components/chat-input/composables/useChatMode'
 import {
-  cacheMessage,
-  cacheMessages,
   clearCachedMessagesForThread,
   clearMessageDomInfo,
   deleteCachedMessage,
-  getCachedMessage,
-  getMessageDomInfo,
-  hasCachedMessage,
-  setMessageDomInfo
+  getCachedMessage
 } from '@/lib/messageRuntimeCache'
+import { getMessageTextForContext } from '@/lib/utils'
+// Composables
+import { useChatAudio } from '@/composables/chat/useChatAudio'
+import { useThreadExport } from '@/composables/chat/useThreadExport'
+import { useDeeplink } from '@/composables/chat/useDeeplink'
+import { useChatConfig } from '@/composables/chat/useChatConfig'
+import { useThreadManagement } from '@/composables/chat/useThreadManagement'
+import { useMessageCache } from '@/composables/chat/useMessageCache'
+import { useVariantManagement } from '@/composables/chat/useVariantManagement'
+import { useMessageStreaming } from '@/composables/chat/useMessageStreaming'
+import { useChatEvents } from '@/composables/chat/useChatEvents'
 
 // 定义会话工作状态类型
 export type WorkingStatus = 'working' | 'error' | 'completed' | 'none'
@@ -60,15 +52,8 @@ export type MessageListItem = {
 export const useChatStore = defineStore('chat', () => {
   const threadP = usePresenter('sessionPresenter')
   const agentP = usePresenter('agentPresenter')
-  const exporterP = usePresenter('exporter')
-  const windowP = usePresenter('windowPresenter')
-  const notificationP = usePresenter('notificationPresenter')
-  const tabP = usePresenter('tabPresenter')
   const configP = usePresenter('configPresenter')
-  const { t } = useI18n()
   const { currentMode } = useChatMode()
-
-  const soundStore = useSoundStore()
 
   // 状态 - Single WebContents Architecture (simplified from Map<tabId, ...>)
   const activeThreadId = ref<string | null>(null)
@@ -95,130 +80,46 @@ export const useChatStore = defineStore('chat', () => {
     new Map()
   )
 
-  // 对话配置状态
-  const chatConfig = ref<CONVERSATION_SETTINGS>({
-    systemPrompt: '',
-    temperature: 0.7,
-    contextLength: 32000,
-    maxTokens: 8000,
-    providerId: '',
-    modelId: '',
-    artifacts: 0,
-    enabledMcpTools: [],
-    thinkingBudget: undefined,
-    enableSearch: undefined,
-    forcedSearch: undefined,
-    searchStrategy: undefined,
-    reasoningEffort: undefined,
-    verbosity: undefined,
-    selectedVariantsMap: {},
-    acpWorkdirMap: {},
-    agentWorkspacePath: null
-  })
-
-  // Deeplink 消息缓存
-  const deeplinkCache = ref<{
-    msg?: string
-    modelId?: string
-    systemPrompt?: string
-    autoSend?: boolean
-    mentions?: string[]
-  } | null>(null)
-
   // 用于管理当前激活会话的 selectedVariantsMap
   const selectedVariantsMap = ref<Record<string, string>>({})
 
-  // 标志：是否正在更新变体选择（用于防止 LIST_UPDATED 循环）
-  let isUpdatingVariant = false
+  // Initialize composables
+  const audioComposable = useChatAudio()
+  const exportComposable = useThreadExport()
+  const deeplinkComposable = useDeeplink(activeThreadId)
+  const configComposable = useChatConfig(activeThreadId, threads, selectedVariantsMap)
+
+  // Thread management composable (initialized after helper functions are defined)
+  let threadManagementComposable: ReturnType<typeof useThreadManagement>
 
   // Getters - Single WebContents Architecture (simplified)
   // Note: getTabId() is kept for IPC communication with main process
   const getTabId = () => window.api.getWebContentsId()
+
+  // Simple getters for external compatibility (internal code uses .value directly)
   const getActiveThreadId = () => activeThreadId.value
+  const getMessageIds = () => messageIds.value
+  const getGeneratingMessagesCache = () => generatingMessagesCache.value
+
   const setActiveThreadId = (threadId: string | null) => {
     activeThreadId.value = threadId
   }
-  const bumpMessageCacheVersion = () => {
-    messageCacheVersion.value += 1
-  }
-  const getMessageIds = () => messageIds.value
   const setMessageIds = (ids: string[]) => {
     messageIds.value = ids
-    bumpMessageCacheVersion()
-  }
-  const ensureMessageId = (messageId: string) => {
-    if (!messageId) return
-    const ids = getMessageIds()
-    if (ids.includes(messageId)) return
-    setMessageIds([...ids, messageId])
-  }
-  const getLoadedMessages = () => {
-    const ids = getMessageIds()
-    const messages: Message[] = []
-    for (const messageId of ids) {
-      const message = getCachedMessage(messageId)
-      if (message) {
-        messages.push(message)
-      }
-    }
-    return messages
-  }
-  const cacheMessageForView = (message: Message) => {
-    cacheMessage(message)
-    bumpMessageCacheVersion()
-  }
-  const cacheMessagesForView = (messages: Message[]) => {
-    if (messages.length === 0) return
-    cacheMessages(messages)
-    bumpMessageCacheVersion()
+    messageCacheVersion.value += 1
   }
   const getCurrentThreadMessages = () => {
-    const activeThreadId = getActiveThreadId()
-    if (!activeThreadId) return []
-    return getLoadedMessages()
-  }
-  const getThreadsWorkingStatus = () => {
-    return threadsWorkingStatus.value
-  }
-  const getGeneratingMessagesCache = () => {
-    return generatingMessagesCache.value
-  }
-  const findMainAssistantMessageByParentId = (parentId: string) => {
-    if (!parentId) return null
-    const ids = getMessageIds()
-    for (const messageId of ids) {
-      const message = getCachedMessage(messageId)
-      if (
-        message &&
-        message.role === 'assistant' &&
-        !message.is_variant &&
-        message.parentId === parentId
-      ) {
-        return message as AssistantMessage
-      }
-    }
-    return null
+    if (!activeThreadId.value) return []
+    return messageCacheComposable.getLoadedMessages()
   }
 
   const activeThread = computed(() => {
-    return threads.value.flatMap((t) => t.dtThreads).find((t) => t.id === getActiveThreadId())
-  })
-
-  const activeContextMention = computed(() => {
-    const activeThreadId = getActiveThreadId()
-    if (!activeThreadId) return null
-    return pendingContextMentions.value.get(activeThreadId) ?? null
-  })
-
-  const activePendingScrollTarget = computed(() => {
-    const activeThreadId = getActiveThreadId()
-    if (!activeThreadId) return null
-    return pendingScrollTargetByConversation.value.get(activeThreadId) ?? null
+    return threads.value.flatMap((t) => t.dtThreads).find((t) => t.id === activeThreadId.value)
   })
 
   const isAcpMode = computed(() => currentMode.value === 'acp agent')
   const activeAcpAgentId = computed(() =>
-    isAcpMode.value ? chatConfig.value.modelId?.trim() || null : null
+    isAcpMode.value ? configComposable.chatConfig.value.modelId?.trim() || null : null
   )
 
   const activeAgentMcpSelectionsState = ref<string[] | null>(null)
@@ -278,7 +179,7 @@ export const useChatStore = defineStore('chat', () => {
   }
 
   const messageItems = computed((): MessageListItem[] => {
-    const ids = getMessageIds()
+    const ids = messageIds.value
     const cacheVersion = messageCacheVersion.value
     const currentSelectedVariants = selectedVariantsMap.value
     if (cacheVersion < 0) return []
@@ -304,186 +205,20 @@ export const useChatStore = defineStore('chat', () => {
   const messageCount = computed(() => {
     const cacheVersion = messageCacheVersion.value
     if (cacheVersion < 0) return 0
-    return getMessageIds().length
+    return messageIds.value.length
   })
 
-  const formatContextLabel = (value: string) => {
-    const normalized = value.trim().replace(/\s+/g, ' ')
-    if (!normalized) return 'context'
-    const maxLength = 48
-    if (normalized.length <= maxLength) return normalized
-    return `${normalized.slice(0, maxLength)}...`
-  }
-
-  const setPendingContextMention = (threadId: string, content: string, label?: string) => {
-    if (!threadId || !content.trim()) {
-      return
-    }
-    const displayLabel = formatContextLabel(label ?? '')
-    const next = new Map(pendingContextMentions.value)
-    next.set(threadId, {
-      id: displayLabel,
-      label: displayLabel,
-      category: 'context',
-      content
-    })
-    pendingContextMentions.value = next
-  }
-
-  const consumeContextMention = (threadId: string) => {
-    if (!threadId) return
-    const next = new Map(pendingContextMentions.value)
-    next.delete(threadId)
-    pendingContextMentions.value = next
-  }
-
-  const queueScrollTarget = (conversationId: string, target: PendingScrollTarget) => {
-    if (!conversationId || (!target.messageId && !target.childConversationId)) return
-    const next = new Map(pendingScrollTargetByConversation.value)
-    next.set(conversationId, target)
-    pendingScrollTargetByConversation.value = next
-  }
-
-  const consumePendingScrollMessage = (conversationId: string) => {
-    if (!conversationId) return
-    const next = new Map(pendingScrollTargetByConversation.value)
-    next.delete(conversationId)
-    pendingScrollTargetByConversation.value = next
-  }
-
   // Actions
-  const createNewEmptyThread = async () => {
-    try {
-      await clearActiveThread()
-    } catch (error) {
-      console.error('Failed to clear active thread and load first page:', error)
-      throw error
-    }
-  }
-
-  const createThread = async (title: string, settings: Partial<CONVERSATION_SETTINGS>) => {
-    try {
-      const normalizedSettings: Partial<CONVERSATION_SETTINGS> = { ...settings }
-      const shouldAttachAcpWorkdir =
-        (!normalizedSettings.acpWorkdirMap ||
-          Object.keys(normalizedSettings.acpWorkdirMap).length === 0) &&
-        normalizedSettings.providerId === 'acp' &&
-        typeof normalizedSettings.modelId === 'string'
-
-      if (shouldAttachAcpWorkdir && normalizedSettings.modelId) {
-        const currentMap = chatConfig.value.acpWorkdirMap || {}
-        const pendingWorkdir = currentMap[normalizedSettings.modelId]
-        if (pendingWorkdir) {
-          normalizedSettings.acpWorkdirMap = {
-            [normalizedSettings.modelId]: pendingWorkdir
-          }
-        }
-      }
-
-      if (normalizedSettings.agentWorkspacePath === undefined) {
-        const pendingWorkspacePath = chatConfig.value.agentWorkspacePath ?? null
-        if (pendingWorkspacePath) {
-          normalizedSettings.agentWorkspacePath = pendingWorkspacePath
-        }
-      }
-      const threadId = await threadP.createConversation(title, normalizedSettings, getTabId())
-      // 因为 createConversation 内部已经调用了 setActiveConversation
-      // 并且可以确定是为当前tab激活，所以在这里可以直接、安全地更新本地状态
-      // 以确保后续的 sendMessage 能正确获取 activeThreadId。
-      setActiveThreadId(threadId)
-      return threadId
-    } catch (error) {
-      console.error('Failed to create thread:', error)
-      throw error
-    }
-  }
-
-  const setActiveThread = async (threadId: string) => {
-    // 不在渲染进程进行逻辑判定（查重）和决策，只向主进程发送意图。
-    // 主进程会处理“防重”逻辑，并通过 'ACTIVATED' 事件来通知UI更新。
-    // 如果主进程决定切换到其他tab，当前tab不会收到此事件，状态也就不会被错误地更新。
-    const tabId = getTabId()
-    await threadP.setActiveConversation(threadId, tabId)
-  }
-
-  const openThreadInNewTab = async (
-    threadId: string,
-    options?: { messageId?: string; childConversationId?: string }
-  ) => {
-    if (!threadId) return
-    try {
-      const tabId = getTabId()
-      await threadP.openConversationInNewTab({
-        conversationId: threadId,
-        tabId,
-        messageId: options?.messageId,
-        childConversationId: options?.childConversationId
-      })
-    } catch (error) {
-      console.error('Failed to open thread in new tab:', error)
-    }
-  }
-
-  const clearActiveThread = async () => {
-    const activeThreadId = getActiveThreadId()
-    if (!activeThreadId) return
-    const tabId = getTabId()
-    await threadP.clearActiveThread(tabId)
-    setActiveThreadId(null)
-    setMessageIds([])
-    clearCachedMessagesForThread(activeThreadId)
-    clearMessageDomInfo()
-    selectedVariantsMap.value = {}
-    childThreadsByMessageId.value = new Map()
-    pendingContextMentions.value = new Map()
-    pendingScrollTargetByConversation.value = new Map()
-    chatConfig.value = {
-      ...chatConfig.value,
-      acpWorkdirMap: {},
-      agentWorkspacePath: null
-    }
-  }
-
-  const clearThreadCachesForTab = (threadId: string | null) => {
-    if (threadId) {
-      clearCachedMessagesForThread(threadId)
-      if (!generatingThreadIds.value.has(threadId)) {
-        const cache = getGeneratingMessagesCache()
-        for (const [messageId, cached] of cache.entries()) {
-          if (cached.threadId === threadId) {
-            cache.delete(messageId)
-          }
-        }
-      }
-    }
-    setMessageIds([])
-    clearMessageDomInfo()
-    selectedVariantsMap.value = {}
-    childThreadsByMessageId.value = new Map()
-    pendingContextMentions.value = new Map()
-    pendingScrollTargetByConversation.value = new Map()
-    chatConfig.value = {
-      ...chatConfig.value,
-      acpWorkdirMap: {},
-      agentWorkspacePath: null
-    }
-  }
-
   const setAcpWorkdirPreference = (agentId: string, workdir: string | null) => {
-    if (!agentId) return
-    const currentMap = chatConfig.value.acpWorkdirMap ?? {}
-    const nextMap = { ...currentMap }
-    if (workdir && workdir.trim().length > 0) {
-      nextMap[agentId] = workdir
-    } else {
-      delete nextMap[agentId]
-    }
-    chatConfig.value = { ...chatConfig.value, acpWorkdirMap: nextMap }
+    configComposable.setAcpWorkdirPreference(agentId, workdir)
   }
 
   const setAgentWorkspacePreference = (workspacePath: string | null) => {
-    const nextPath = workspacePath?.trim() ? workspacePath : null
-    chatConfig.value = { ...chatConfig.value, agentWorkspacePath: nextPath }
+    configComposable.setAgentWorkspacePreference(workspacePath)
+  }
+
+  const queueScrollTarget = (conversationId: string, target: PendingScrollTarget) => {
+    deeplinkComposable.queueScrollTarget(conversationId, target)
   }
 
   // 处理消息的 extra 信息
@@ -526,56 +261,36 @@ export const useChatStore = defineStore('chat', () => {
     return message
   }
 
-  const getMessageTextForContext = (message: Message | null): string => {
-    if (!message) return ''
-    if (typeof message.content === 'string') {
-      return message.content
-    }
-    if (Array.isArray(message.content)) {
-      return message.content
-        .map((block) => (typeof block.content === 'string' ? block.content : ''))
-        .join('')
-    }
-    const userContent = message.content as UserMessageContent
-    if (userContent.text) {
-      return userContent.text
-    }
-    if (userContent.content && Array.isArray(userContent.content)) {
-      return userContent.content.map((block) => block.content || '').join('')
-    }
-    return ''
-  }
+  // Initialize thread management composable after helper functions are defined
+  threadManagementComposable = useThreadManagement(
+    activeThreadId,
+    threads,
+    messageIds,
+    selectedVariantsMap,
+    childThreadsByMessageId,
+    pendingContextMentions,
+    pendingScrollTargetByConversation,
+    generatingThreadIds,
+    generatingMessagesCache,
+    configComposable,
+    setActiveThreadId,
+    setMessageIds,
+    getTabId
+  )
 
-  const refreshChildThreadsForActiveThread = async () => {
-    const activeThreadId = getActiveThreadId()
-    if (!activeThreadId) {
-      childThreadsByMessageId.value = new Map()
-      return
-    }
-
-    const messageIds = getMessageIds()
-    if (messageIds.length === 0) {
-      childThreadsByMessageId.value = new Map()
-      return
-    }
-
-    const childThreads = (await threadP.listChildConversationsByMessageIds(messageIds)) || []
-    const nextMap = new Map<string, CONVERSATION[]>()
-    for (const child of childThreads) {
-      if (!child.parentMessageId) continue
-      if (child.parentConversationId && child.parentConversationId !== activeThreadId) continue
-      const existing = nextMap.get(child.parentMessageId) ?? []
-      existing.push(child)
-      nextMap.set(child.parentMessageId, existing)
-    }
-    childThreadsByMessageId.value = nextMap
-  }
+  // Initialize message cache composable
+  const messageCacheComposable = useMessageCache(
+    messageIds,
+    messageCacheVersion,
+    setMessageIds,
+    enrichMessageWithExtra
+  )
 
   const maybeQueueContextMention = async () => {
-    const activeThreadId = getActiveThreadId()
-    if (!activeThreadId) return
-    if (pendingContextMentions.value.has(activeThreadId)) return
-    if (getMessageIds().length > 0) return
+    const threadId = activeThreadId.value
+    if (!threadId) return
+    if (pendingContextMentions.value.has(threadId)) return
+    if (messageIds.value.length > 0) return
 
     const active = activeThread.value
     if (!active?.parentMessageId) return
@@ -585,72 +300,28 @@ export const useChatStore = defineStore('chat', () => {
     if (!parentText.trim()) return
 
     const selectionLabel = active.parentSelection?.selectedText ?? ''
-    setPendingContextMention(activeThreadId, parentText, selectionLabel)
-  }
-
-  const PREFETCH_BUFFER = 24
-  const PREFETCH_BATCH_SIZE = 80
-
-  const fetchMessagesByIds = async (messageIds: string[]) => {
-    if (!messageIds.length) return
-    for (let i = 0; i < messageIds.length; i += PREFETCH_BATCH_SIZE) {
-      const chunk = messageIds.slice(i, i + PREFETCH_BATCH_SIZE)
-      const messages = await threadP.getMessagesByIds(chunk)
-      const enriched = (await Promise.all(messages.map((msg) => enrichMessageWithExtra(msg)))) as
-        | AssistantMessage[]
-        | UserMessage[]
-      cacheMessagesForView(enriched as Message[])
-    }
-  }
-
-  const ensureMessagesLoadedByIds = async (messageIds: string[]) => {
-    const missing = messageIds.filter((messageId) => !hasCachedMessage(messageId))
-    if (!missing.length) return
-    await fetchMessagesByIds(missing)
-  }
-
-  const prefetchMessagesForRange = async (startIndex: number, endIndex: number) => {
-    const ids = getMessageIds()
-    if (!ids.length) return
-    const safeStart = Math.max(0, startIndex - PREFETCH_BUFFER)
-    const safeEnd = Math.min(ids.length, endIndex + PREFETCH_BUFFER + 1)
-    const targetIds = ids.slice(safeStart, safeEnd)
-    await ensureMessagesLoadedByIds(targetIds)
-  }
-
-  const prefetchAllMessages = async () => {
-    const ids = getMessageIds()
-    if (!ids.length) return
-    await ensureMessagesLoadedByIds(ids)
-  }
-
-  const recordMessageDomInfo = (entries: Array<{ id: string; top: number; height: number }>) => {
-    setMessageDomInfo(entries)
-  }
-
-  const hasMessageDomInfo = (messageId: string) => {
-    return Boolean(getMessageDomInfo(messageId))
+    deeplinkComposable.setPendingContextMention(threadId, parentText, selectionLabel)
   }
 
   const loadMessages = async () => {
-    if (!getActiveThreadId()) return
+    if (!activeThreadId.value) return
 
     try {
       childThreadsByMessageId.value = new Map()
-      const messageIds = (await threadP.getMessageIds(getActiveThreadId()!)) || []
+      const messageIds = (await threadP.getMessageIds(activeThreadId.value!)) || []
       setMessageIds(Array.isArray(messageIds) ? messageIds : [])
-      const activeThread = getActiveThreadId()
-      for (const [, cached] of getGeneratingMessagesCache()) {
+      const activeThread = activeThreadId.value
+      for (const [, cached] of generatingMessagesCache.value) {
         if (cached.threadId === activeThread) {
           const enriched = await enrichMessageWithExtra(cached.message)
           if (!enriched.is_variant) {
-            cacheMessageForView(enriched)
-            ensureMessageId(enriched.id)
+            messageCacheComposable.cacheMessageForView(enriched)
+            messageCacheComposable.ensureMessageId(enriched.id)
           }
         }
       }
-      await prefetchMessagesForRange(0, Math.min(messageIds.length - 1, 50))
-      await refreshChildThreadsForActiveThread()
+      await messageCacheComposable.prefetchMessagesForRange(0, Math.min(messageIds.length - 1, 50))
+      await threadManagementComposable.refreshChildThreadsForActiveThread()
       await maybeQueueContextMention()
     } catch (error) {
       console.error('Failed to load messages:', error)
@@ -659,7 +330,7 @@ export const useChatStore = defineStore('chat', () => {
   }
 
   const sendMessage = async (content: UserMessageContent | AssistantMessageBlock[]) => {
-    const threadId = getActiveThreadId()
+    const threadId = activeThreadId.value
     if (!threadId || !content) return
 
     try {
@@ -678,12 +349,12 @@ export const useChatStore = defineStore('chat', () => {
       }
 
       // 将消息添加到缓存
-      getGeneratingMessagesCache().set(aiResponseMessage.id, {
+      generatingMessagesCache.value.set(aiResponseMessage.id, {
         message: aiResponseMessage,
         threadId
       })
-      cacheMessageForView(aiResponseMessage)
-      ensureMessageId(aiResponseMessage.id)
+      messageCacheComposable.cacheMessageForView(aiResponseMessage)
+      messageCacheComposable.ensureMessageId(aiResponseMessage.id)
 
       await loadMessages()
     } catch (error) {
@@ -700,18 +371,20 @@ export const useChatStore = defineStore('chat', () => {
   }
 
   const retryMessage = async (messageId: string) => {
-    if (!getActiveThreadId()) return
+    if (!activeThreadId.value) return
     try {
       const aiResponseMessage = await agentP.retryMessage(messageId, selectedVariantsMap.value)
       let didUpdateVariant = false
       // 将正在生成的变体消息缓存起来，但不插入消息列表，避免额外的消息行
-      getGeneratingMessagesCache().set(aiResponseMessage.id, {
+      generatingMessagesCache.value.set(aiResponseMessage.id, {
         message: aiResponseMessage,
-        threadId: getActiveThreadId()!
+        threadId: activeThreadId.value!
       })
       // 将新变体挂到主消息，确保流式更新能渲染到当前消息上
       if (aiResponseMessage.parentId) {
-        const mainMessage = findMainAssistantMessageByParentId(aiResponseMessage.parentId)
+        const mainMessage = messageCacheComposable.findMainAssistantMessageByParentId(
+          aiResponseMessage.parentId
+        )
         if (mainMessage) {
           if (!mainMessage.variants) {
             mainMessage.variants = []
@@ -722,701 +395,54 @@ export const useChatStore = defineStore('chat', () => {
           } else {
             mainMessage.variants.push(aiResponseMessage)
           }
-          cacheMessageForView({ ...mainMessage })
-          ensureMessageId(mainMessage.id)
-          await updateSelectedVariant(mainMessage.id, aiResponseMessage.id)
+          messageCacheComposable.cacheMessageForView({ ...mainMessage })
+          messageCacheComposable.ensureMessageId(mainMessage.id)
+          await variantManagementComposable.updateSelectedVariant(
+            mainMessage.id,
+            aiResponseMessage.id
+          )
           didUpdateVariant = true
         }
       }
       await loadMessages()
       if (aiResponseMessage.parentId && !didUpdateVariant) {
         const mainMessage = await threadP.getMainMessageByParentId(
-          getActiveThreadId()!,
+          activeThreadId.value!,
           aiResponseMessage.parentId
         )
         if (mainMessage) {
-          await updateSelectedVariant(mainMessage.id, aiResponseMessage.id)
+          await variantManagementComposable.updateSelectedVariant(
+            mainMessage.id,
+            aiResponseMessage.id
+          )
         }
       }
-      generatingThreadIds.value.add(getActiveThreadId()!)
+      generatingThreadIds.value.add(activeThreadId.value!)
       // 设置当前会话的workingStatus为working
-      updateThreadWorkingStatus(getActiveThreadId()!, 'working')
+      updateThreadWorkingStatus(activeThreadId.value!, 'working')
     } catch (error) {
       console.error('Failed to retry message:', error)
       throw error
     }
   }
 
-  const regenerateFromUserMessage = async (userMessageId: string) => {
-    const activeThread = getActiveThreadId()
-    if (!activeThread) return
-    try {
-      generatingThreadIds.value.add(activeThread)
-      updateThreadWorkingStatus(activeThread, 'working')
-
-      const aiResponseMessage = await agentP.regenerateFromUserMessage(
-        activeThread,
-        userMessageId,
-        selectedVariantsMap.value
-      )
-
-      getGeneratingMessagesCache().set(aiResponseMessage.id, {
-        message: aiResponseMessage,
-        threadId: getActiveThreadId()!
-      })
-      cacheMessageForView(aiResponseMessage)
-      ensureMessageId(aiResponseMessage.id)
-
-      await loadMessages()
-    } catch (error) {
-      console.error('Failed to regenerate from user message:', error)
-      throw error
-    }
-  }
-
   const retryFromUserMessage = async (userMessageId: string) => {
-    const activeThread = getActiveThreadId()
-    if (!activeThread) return false
-
-    try {
-      const mainMessage = await threadP.getMainMessageByParentId(activeThread, userMessageId)
-      if (mainMessage) {
-        await retryMessage(mainMessage.id)
-        return true
-      }
-
-      await regenerateFromUserMessage(userMessageId)
-      return true
-    } catch (error) {
-      console.error('Failed to retry from user message:', error)
-      throw error
-    }
-  }
-
-  // 创建会话分支（从指定消息开始fork一个新会话）
-  const forkThread = async (messageId: string, forkTag: string = '(fork)') => {
-    const activeThread = getActiveThreadId()
-    if (!activeThread) return
-
-    try {
-      // 获取当前会话信息
-      const currentThread = await threadP.getConversation(activeThread)
-
-      // 创建分支会话标题
-      const newThreadTitle = `${currentThread.title} ${forkTag}`
-
-      // 调用main层的forkConversation方法
-      const newThreadId = await threadP.forkConversation(
-        activeThread,
-        messageId,
-        newThreadTitle,
-        currentThread.settings,
-        selectedVariantsMap.value
-      )
-
-      // 切换到新会话
-      await setActiveThread(newThreadId)
-
-      return newThreadId
-    } catch (error) {
-      console.error('Failed to create thread branch:', error)
-      throw error
-    }
-  }
-
-  const createChildThreadFromSelection = async (payload: {
-    parentMessageId: string
-    parentSelection: ParentSelection
-  }) => {
-    const activeThread = getActiveThreadId()
-    if (!activeThread) return
-
-    try {
-      const parentThreadId = activeThread
-      const parentConversation = await threadP.getConversation(activeThread)
-      const selectionSnippet = payload.parentSelection.selectedText
-        .trim()
-        .replace(/\s+/g, ' ')
-        .slice(0, 48)
-      const title = selectionSnippet
-        ? `${parentConversation.title} - ${selectionSnippet}`
-        : parentConversation.title
-
-      const newThreadId = await threadP.createChildConversationFromSelection({
-        parentConversationId: activeThread,
-        parentMessageId: payload.parentMessageId,
-        parentSelection: payload.parentSelection,
-        title,
-        settings: parentConversation.settings,
-        tabId: getTabId(),
-        openInNewTab: true
-      })
-
-      if (!newThreadId) {
-        return
-      }
-
-      if (getActiveThreadId() === parentThreadId) {
-        await refreshChildThreadsForActiveThread()
-      }
-      return newThreadId
-    } catch (error) {
-      console.error('Failed to create child thread from selection:', error)
-      throw error
-    }
-  }
-
-  const handleStreamResponse = (msg: {
-    eventId: string
-    conversationId?: string
-    parentId?: string
-    is_variant?: boolean
-    stream_kind?: 'init' | 'delta' | 'final'
-    seq?: number
-    content?: string
-    reasoning_content?: string
-    tool_call_id?: string
-    tool_call_name?: string
-    tool_call_params?: string
-    tool_call_response?: string
-    maximum_tool_calls_reached?: boolean
-    tool_call_server_name?: string
-    tool_call_server_icons?: string
-    tool_call_server_description?: string
-    tool_call_response_raw?: unknown
-    tool_call?: 'start' | 'end' | 'error' | 'update' | 'running'
-    totalUsage?: {
-      prompt_tokens: number
-      completion_tokens: number
-      total_tokens: number
-    }
-    image_data?: {
-      data: string
-      mimeType: string
-    }
-    rate_limit?: {
-      providerId: string
-      qpsLimit: number
-      currentQps: number
-      queueLength: number
-      estimatedWaitTime?: number
-    }
-  }) => {
-    const { eventId, conversationId, parentId, is_variant, stream_kind } = msg
-
-    // 非当前会话的消息直接忽略（性能优化）
-    if (conversationId && conversationId !== getActiveThreadId()) {
-      return
-    }
-
-    // 处理 init 事件：创建骨架消息行
-    if (stream_kind === 'init') {
-      if (hasCachedMessage(eventId)) {
-        return
-      }
-
-      const skeleton: AssistantMessage = {
-        id: eventId,
-        conversationId: conversationId ?? getActiveThreadId() ?? '',
-        parentId: parentId ?? '',
-        role: 'assistant',
-        content: [],
-        timestamp: Date.now(),
-        status: 'pending',
-        usage: {
-          context_usage: 0,
-          tokens_per_second: 0,
-          total_tokens: 0,
-          generation_time: 0,
-          first_token_time: 0,
-          reasoning_start_time: 0,
-          reasoning_end_time: 0,
-          input_tokens: 0,
-          output_tokens: 0
-        },
-        avatar: '',
-        name: '',
-        model_name: '',
-        model_id: '',
-        model_provider: '',
-        error: '',
-        is_variant: Number(is_variant),
-        variants: []
-      }
-
-      cacheMessageForView(skeleton)
-      if (!skeleton.is_variant) {
-        ensureMessageId(eventId)
-      }
-
-      return
-    }
-
-    // 从缓存中查找消息
-    const cached = getGeneratingMessagesCache().get(eventId)
-    const fallbackCached = cached ? null : (getCachedMessage(eventId) as Message | null)
-    const message = cached?.message ?? fallbackCached
-    const activeThreadId = cached?.threadId ?? getActiveThreadId()
-
-    if (!message || message.role !== 'assistant') {
-      return
-    }
-
-    const assistantMsg = message as AssistantMessage
-
-    if (!Array.isArray(assistantMsg.content)) {
-      return
-    }
-
-    // 处理工具调用达到最大次数的情况
-    if (msg.maximum_tool_calls_reached) {
-      finalizeAssistantMessageBlocks(assistantMsg.content)
-      assistantMsg.content.push({
-        type: 'action',
-        content: 'common.error.maximumToolCallsReached',
-        status: 'success',
-        timestamp: Date.now(),
-        action_type: 'maximum_tool_calls_reached',
-        tool_call: {
-          id: msg.tool_call_id,
-          name: msg.tool_call_name,
-          params: msg.tool_call_params,
-          server_name: msg.tool_call_server_name,
-          server_icons: msg.tool_call_server_icons,
-          server_description: msg.tool_call_server_description
-        },
-        extra: {
-          needContinue: true
-        }
-      })
-    } else if (msg.tool_call) {
-      if (msg.tool_call === 'start') {
-        finalizeAssistantMessageBlocks(assistantMsg.content)
-        playToolcallSound()
-        assistantMsg.content.push({
-          type: 'tool_call',
-          content: '',
-          status: 'loading',
-          timestamp: Date.now(),
-          tool_call: {
-            id: msg.tool_call_id,
-            name: msg.tool_call_name,
-            params: msg.tool_call_params || '',
-            server_name: msg.tool_call_server_name,
-            server_icons: msg.tool_call_server_icons,
-            server_description: msg.tool_call_server_description
-          }
-        })
-      } else if (msg.tool_call === 'update') {
-        const existingToolCallBlock = assistantMsg.content.find(
-          (block) =>
-            block.type === 'tool_call' &&
-            ((msg.tool_call_id && block.tool_call?.id === msg.tool_call_id) ||
-              block.tool_call?.name === msg.tool_call_name) &&
-            block.status === 'loading'
-        )
-        if (existingToolCallBlock?.type === 'tool_call' && existingToolCallBlock.tool_call) {
-          existingToolCallBlock.tool_call.params = msg.tool_call_params || ''
-          if (msg.tool_call_server_name) {
-            existingToolCallBlock.tool_call.server_name = msg.tool_call_server_name
-          }
-          if (msg.tool_call_server_icons) {
-            existingToolCallBlock.tool_call.server_icons = msg.tool_call_server_icons
-          }
-          if (msg.tool_call_server_description) {
-            existingToolCallBlock.tool_call.server_description = msg.tool_call_server_description
-          }
-        }
-      } else if (msg.tool_call === 'running') {
-        const existingToolCallBlock = assistantMsg.content.find(
-          (block) =>
-            block.type === 'tool_call' &&
-            ((msg.tool_call_id && block.tool_call?.id === msg.tool_call_id) ||
-              block.tool_call?.name === msg.tool_call_name) &&
-            block.status === 'loading'
-        )
-        if (existingToolCallBlock?.type === 'tool_call') {
-          existingToolCallBlock.status = 'loading'
-          if (existingToolCallBlock.tool_call) {
-            existingToolCallBlock.tool_call.params =
-              msg.tool_call_params || existingToolCallBlock.tool_call.params
-            if (msg.tool_call_server_name) {
-              existingToolCallBlock.tool_call.server_name = msg.tool_call_server_name
-            }
-            if (msg.tool_call_server_icons) {
-              existingToolCallBlock.tool_call.server_icons = msg.tool_call_server_icons
-            }
-            if (msg.tool_call_server_description) {
-              existingToolCallBlock.tool_call.server_description = msg.tool_call_server_description
-            }
-          }
-        } else {
-          finalizeAssistantMessageBlocks(assistantMsg.content)
-          assistantMsg.content.push({
-            type: 'tool_call',
-            content: '',
-            status: 'loading',
-            timestamp: Date.now(),
-            tool_call: {
-              id: msg.tool_call_id,
-              name: msg.tool_call_name,
-              params: msg.tool_call_params || '',
-              server_name: msg.tool_call_server_name,
-              server_icons: msg.tool_call_server_icons,
-              server_description: msg.tool_call_server_description
-            }
-          })
-        }
-      } else if (msg.tool_call === 'end' || msg.tool_call === 'error') {
-        const existingToolCallBlock = assistantMsg.content.find(
-          (block) =>
-            block.type === 'tool_call' &&
-            ((msg.tool_call_id && block.tool_call?.id === msg.tool_call_id) ||
-              block.tool_call?.name === msg.tool_call_name) &&
-            block.status === 'loading'
-        )
-        if (existingToolCallBlock?.type === 'tool_call') {
-          if (msg.tool_call === 'error') {
-            existingToolCallBlock.status = 'error'
-            if (existingToolCallBlock.tool_call) {
-              existingToolCallBlock.tool_call.response =
-                msg.tool_call_response || 'tool call failed'
-            }
-          } else {
-            existingToolCallBlock.status = 'success'
-            if (msg.tool_call_response && existingToolCallBlock.tool_call) {
-              existingToolCallBlock.tool_call.response = msg.tool_call_response
-            }
-          }
-        }
-      }
-    } else if (msg.image_data) {
-      finalizeAssistantMessageBlocks(assistantMsg.content)
-      assistantMsg.content.push({
-        type: 'image',
-        content: 'image',
-        status: 'success',
-        timestamp: Date.now(),
-        image_data: {
-          data: msg.image_data.data,
-          mimeType: msg.image_data.mimeType
-        }
-      })
-    } else if (msg.rate_limit) {
-      finalizeAssistantMessageBlocks(assistantMsg.content)
-      assistantMsg.content.push({
-        type: 'action',
-        content: 'chat.messages.rateLimitWaiting',
-        status: 'loading',
-        timestamp: Date.now(),
-        action_type: 'rate_limit',
-        extra: {
-          providerId: msg.rate_limit.providerId,
-          qpsLimit: msg.rate_limit.qpsLimit,
-          currentQps: msg.rate_limit.currentQps,
-          queueLength: msg.rate_limit.queueLength,
-          estimatedWaitTime: msg.rate_limit.estimatedWaitTime ?? 0
-        }
-      })
-    } else if (msg.content) {
-      const lastContentBlock = assistantMsg.content[assistantMsg.content.length - 1]
-      if (lastContentBlock?.type === 'content') {
-        lastContentBlock.content += msg.content
-      } else {
-        assistantMsg.content.push({
-          type: 'content',
-          content: msg.content,
-          status: 'loading',
-          timestamp: Date.now()
-        })
-      }
-      playTypewriterSound()
-    }
-
-    if (msg.reasoning_content) {
-      const lastReasoningBlock = assistantMsg.content[assistantMsg.content.length - 1]
-      if (lastReasoningBlock?.type === 'reasoning_content') {
-        lastReasoningBlock.content += msg.reasoning_content
-      } else {
-        assistantMsg.content.push({
-          type: 'reasoning_content',
-          content: msg.reasoning_content,
-          status: 'loading',
-          timestamp: Date.now()
-        })
-      }
-    }
-
-    if (msg.totalUsage) {
-      assistantMsg.usage = {
-        ...assistantMsg.usage,
-        total_tokens: msg.totalUsage.total_tokens,
-        input_tokens: msg.totalUsage.prompt_tokens,
-        output_tokens: msg.totalUsage.completion_tokens
-      }
-    }
-
-    if (activeThreadId === getActiveThreadId()) {
-      cacheMessageForView(assistantMsg)
-      if (!assistantMsg.is_variant) {
-        ensureMessageId(assistantMsg.id)
-      }
-
-      if (assistantMsg.is_variant && assistantMsg.parentId) {
-        const mainMessage = findMainAssistantMessageByParentId(assistantMsg.parentId)
-        if (mainMessage) {
-          if (!mainMessage.variants) {
-            mainMessage.variants = []
-          }
-          const variantIndex = mainMessage.variants.findIndex((v) => v.id === assistantMsg.id)
-          if (variantIndex !== -1) {
-            mainMessage.variants[variantIndex] = assistantMsg
-          } else {
-            mainMessage.variants.push(assistantMsg)
-          }
-          cacheMessageForView(mainMessage)
-          ensureMessageId(mainMessage.id)
-        }
-      }
-    }
-  }
-
-  const handleStreamEnd = async (msg: { eventId: string }) => {
-    // 从缓存中移除消息
-    const cached = getGeneratingMessagesCache().get(msg.eventId)
-    if (cached) {
-      // 获取最新的消息并处理 extra 信息
-      const updatedMessage = await threadP.getMessage(msg.eventId)
-      const enrichedMessage = await enrichMessageWithExtra(updatedMessage)
-
-      getGeneratingMessagesCache().delete(msg.eventId)
-      generatingThreadIds.value.delete(cached.threadId)
-      generatingThreadIds.value = new Set(generatingThreadIds.value)
-      // 设置会话的workingStatus为completed
-      // 如果是当前活跃的会话，则直接从Map中移除
-      if (getActiveThreadId() === cached.threadId) {
-        getThreadsWorkingStatus().delete(cached.threadId)
-      } else {
-        updateThreadWorkingStatus(cached.threadId, 'completed')
-      }
-
-      // 检查窗口是否聚焦，如果未聚焦则发送通知
-      // const isFocused = await windowP.isMainWindowFocused(windowP.mainWindow?.id)
-      // if (!isFocused) {
-      //   // 获取生成内容的前20个字符作为通知内容
-      //   let notificationContent = ''
-      //   if (enrichedMessage && (enrichedMessage as AssistantMessage).content) {
-      //     const assistantMsg = enrichedMessage as AssistantMessage
-      //     // 从content中提取文本内容
-      //     for (const block of assistantMsg.content) {
-      //       if (block.type === 'content' && block.content) {
-      //         notificationContent = block.content.substring(0, 20)
-      //         if (block.content.length > 20) notificationContent += '...'
-      //         break
-      //       }
-      //     }
-      //   }
-
-      //   // 发送通知
-      //   await notificationP.showNotification({
-      //     id: `chat/${cached.threadId}/${msg.eventId}`,
-      //     title: t('chat.notify.generationComplete'),
-      //     body: notificationContent || t('chat.notify.generationComplete')
-      //   })
-      // }
-
-      // 如果是变体消息，需要更新主消息
-      if (enrichedMessage.is_variant && enrichedMessage.parentId) {
-        // 获取主消息
-        const mainMessage = await threadP.getMainMessageByParentId(
-          cached.threadId,
-          enrichedMessage.parentId
-        )
-
-        if (mainMessage) {
-          const enrichedMainMessage = await enrichMessageWithExtra(mainMessage)
-          // 如果是当前激活的会话，更新显示
-          if (getActiveThreadId() === cached.threadId) {
-            cacheMessageForView(enrichedMainMessage as AssistantMessage | UserMessage)
-            ensureMessageId(enrichedMainMessage.id)
-          }
-        }
-      } else {
-        // 如果是当前激活的会话，更新显示
-        if (getActiveThreadId() === cached.threadId) {
-          cacheMessageForView(enrichedMessage as AssistantMessage | UserMessage)
-          ensureMessageId(enrichedMessage.id)
-        }
-      }
-    }
-  }
-
-  const handleStreamError = async (msg: { eventId: string }) => {
-    // 从缓存中获取消息
-    let cached = getGeneratingMessagesCache().get(msg.eventId)
-    let threadId = cached?.threadId
-
-    // 如果缓存中没有，尝试从当前消息列表中查找对应的会话ID
-    if (!threadId) {
-      try {
-        const foundMessage = await threadP.getMessage(msg.eventId)
-        threadId = foundMessage.conversationId
-      } catch (error) {
-        console.warn('Failed to locate message thread for stream error:', error)
-      }
-    }
-
-    if (threadId) {
-      try {
-        const updatedMessage = await threadP.getMessage(msg.eventId)
-        const enrichedMessage = await enrichMessageWithExtra(updatedMessage)
-
-        if (enrichedMessage.is_variant && enrichedMessage.parentId) {
-          // 处理变体消息的错误状态
-          const mainMessage = findMainAssistantMessageByParentId(enrichedMessage.parentId)
-          if (mainMessage) {
-            if (!mainMessage.variants) {
-              mainMessage.variants = []
-            }
-            const variantIndex = mainMessage.variants.findIndex((v) => v.id === enrichedMessage.id)
-            if (variantIndex !== -1) {
-              mainMessage.variants[variantIndex] = enrichedMessage
-            } else {
-              mainMessage.variants.push(enrichedMessage)
-            }
-            cacheMessageForView({ ...mainMessage })
-            ensureMessageId(mainMessage.id)
-          }
-        } else {
-          // 非变体消息的原有错误处理逻辑
-          cacheMessageForView(enrichedMessage as AssistantMessage | UserMessage)
-          ensureMessageId(enrichedMessage.id)
-        }
-        const wid = window.api.getWindowId() || 0
-        // 检查窗口是否聚焦，如果未聚焦则发送错误通知
-        const isFocused = await windowP.isMainWindowFocused(wid)
-        if (!isFocused) {
-          // 获取错误信息
-          let errorMessage = t('chat.notify.generationError')
-          if (enrichedMessage && (enrichedMessage as AssistantMessage).content) {
-            const assistantMsg = enrichedMessage as AssistantMessage
-            // 查找错误信息块
-            for (const block of assistantMsg.content) {
-              if (block.status === 'error' && block.content) {
-                errorMessage = block.content.substring(0, 20)
-                if (block.content.length > 20) errorMessage += '...'
-                break
-              }
-            }
-          }
-
-          // 发送错误通知
-          await notificationP.showNotification({
-            id: `error-${msg.eventId}`,
-            title: t('chat.notify.generationError'),
-            body: errorMessage
-          })
-        }
-      } catch (error) {
-        console.error('Failed to load error message:', error)
-      }
-
-      getGeneratingMessagesCache().delete(msg.eventId)
-      generatingThreadIds.value.delete(threadId)
-      // 设置会话的workingStatus为error
-      // 如果是当前活跃的会话，则直接从Map中移除
-      if (getActiveThreadId() === threadId) {
-        getThreadsWorkingStatus().delete(threadId)
-      } else {
-        updateThreadWorkingStatus(threadId, 'error')
-      }
-    }
-  }
-
-  const renameThread = async (threadId: string, title: string) => {
-    await threadP.renameConversation(threadId, title)
-  }
-
-  const toggleThreadPinned = async (threadId: string, isPinned: boolean) => {
-    await threadP.toggleConversationPinned(threadId, isPinned)
-  }
-
-  // 配置相关的方法
-  const loadChatConfig = async () => {
-    const activeThread = getActiveThreadId()
-    if (!activeThread) return
-    try {
-      const conversation = await threadP.getConversation(activeThread)
-      const threadToUpdate = threads.value
-        .flatMap((thread) => thread.dtThreads)
-        .find((t) => t.id === activeThread)
-      if (threadToUpdate) {
-        Object.assign(threadToUpdate, conversation)
-      }
-      if (conversation) {
-        const normalizedSettings = { ...conversation.settings }
-        if (normalizedSettings.chatMode === 'chat') {
-          normalizedSettings.chatMode = 'agent'
-          await threadP.updateConversationSettings(activeThread, {
-            chatMode: 'agent'
-          })
-        }
-        chatConfig.value = {
-          ...normalizedSettings,
-          acpWorkdirMap: normalizedSettings.acpWorkdirMap ?? {}
-        }
-        // Populate the in-memory map from the loaded settings
-        if (conversation.settings.selectedVariantsMap) {
-          selectedVariantsMap.value = { ...conversation.settings.selectedVariantsMap }
-        } else {
-          selectedVariantsMap.value = {}
-        }
-      }
-    } catch (error) {
-      console.error('Failed to load conversation config:', error)
-      throw error
-    }
-  }
-
-  const saveChatConfig = async () => {
-    const activeThread = getActiveThreadId()
-    if (!activeThread) return
-    try {
-      await threadP.updateConversationSettings(activeThread, chatConfig.value)
-    } catch (error) {
-      console.error('Failed to save conversation config:', error)
-      throw error
-    }
-  }
-
-  const updateChatConfig = async (newConfig: Partial<CONVERSATION_SETTINGS>) => {
-    chatConfig.value = { ...chatConfig.value, ...newConfig }
-    await saveChatConfig()
-
-    // Refresh sidebar icon if modelId or chatMode changed
-    const activeThread = getActiveThreadId()
-    if (activeThread && (newConfig.modelId !== undefined || newConfig.chatMode !== undefined)) {
-      const { useSidebarStore } = await import('./sidebarStore')
-      const sidebarStore = useSidebarStore()
-      await sidebarStore.refreshConversationMeta(activeThread)
-    }
-    // Removed loadChatConfig() call to avoid triggering watch loops
-    // loadChatConfig() should only be called when switching conversations, not after every config update
+    return variantManagementComposable.retryFromUserMessage(userMessageId, retryMessage)
   }
 
   const deleteMessage = async (messageId: string) => {
-    const activeThreadId = getActiveThreadId()
-    if (!activeThreadId) return
+    const threadId = activeThreadId.value
+    if (!threadId) return
 
     try {
-      const messages = getLoadedMessages()
+      const messages = messageCacheComposable.getLoadedMessages()
       let parentMessage: AssistantMessage | undefined
       let parentIndex = -1
       const mainMsgIndex = messages.findIndex((m) => m.id === messageId)
       if (mainMsgIndex !== -1 && (messages[mainMsgIndex] as AssistantMessage).is_variant === 0) {
         if (selectedVariantsMap.value[messageId]) {
           delete selectedVariantsMap.value[messageId]
-          await updateSelectedVariant(messageId, null)
+          await variantManagementComposable.updateSelectedVariant(messageId, null)
         }
       } else {
         for (let i = 0; i < messages.length; i++) {
@@ -1434,7 +460,10 @@ export const useChatStore = defineStore('chat', () => {
           messages[parentIndex] = { ...parentMessage }
           const newSelectedVariantId =
             remainingVariants.length > 0 ? remainingVariants[remainingVariants.length - 1].id : null
-          await updateSelectedVariant(parentMessage.id, newSelectedVariantId)
+          await variantManagementComposable.updateSelectedVariant(
+            parentMessage.id,
+            newSelectedVariantId
+          )
         }
       }
 
@@ -1453,12 +482,12 @@ export const useChatStore = defineStore('chat', () => {
       await threadP.clearAllMessages(threadId)
       clearCachedMessagesForThread(threadId)
       // 清空本地消息列表
-      if (threadId === getActiveThreadId()) {
+      if (threadId === activeThreadId.value) {
         setMessageIds([])
         clearMessageDomInfo()
       }
       // 清空生成缓存中的相关消息
-      const cache = getGeneratingMessagesCache()
+      const cache = generatingMessagesCache.value
       for (const [messageId, cached] of cache.entries()) {
         if (cached.threadId === threadId) {
           cache.delete(messageId)
@@ -1467,7 +496,7 @@ export const useChatStore = defineStore('chat', () => {
       generatingThreadIds.value.delete(threadId)
       generatingThreadIds.value = new Set(generatingThreadIds.value)
       // 从状态Map中移除会话状态
-      getThreadsWorkingStatus().delete(threadId)
+      threadsWorkingStatus.value.delete(threadId)
     } catch (error) {
       console.error('Failed to clear messages:', error)
       throw error
@@ -1481,7 +510,7 @@ export const useChatStore = defineStore('chat', () => {
       await workspaceStore.terminateAllRunningCommands()
 
       // 找到当前正在生成的消息
-      const cache = getGeneratingMessagesCache()
+      const cache = generatingMessagesCache.value
       const generatingMessage = Array.from(cache.entries()).find(
         ([, cached]) => cached.threadId === threadId
       ) as string[]
@@ -1492,17 +521,17 @@ export const useChatStore = defineStore('chat', () => {
         cache.delete(messageId)
         generatingThreadIds.value.delete(threadId)
         // 设置会话的workingStatus为completed
-        if (getActiveThreadId() === threadId) {
-          getThreadsWorkingStatus().delete(threadId)
+        if (activeThreadId.value === threadId) {
+          threadsWorkingStatus.value.delete(threadId)
         } else {
           updateThreadWorkingStatus(threadId, 'completed')
         }
         // 获取更新后的消息
         const updatedMessage = await threadP.getMessage(messageId)
         const enrichedMessage = await enrichMessageWithExtra(updatedMessage)
-        cacheMessageForView(enrichedMessage)
+        messageCacheComposable.cacheMessageForView(enrichedMessage)
         if (!enrichedMessage.is_variant) {
-          ensureMessageId(enrichedMessage.id)
+          messageCacheComposable.ensureMessageId(enrichedMessage.id)
         }
       }
     } catch (error) {
@@ -1529,12 +558,12 @@ export const useChatStore = defineStore('chat', () => {
       }
 
       // 将消息添加到缓存
-      getGeneratingMessagesCache().set(aiResponseMessage.id, {
+      generatingMessagesCache.value.set(aiResponseMessage.id, {
         message: aiResponseMessage,
         threadId: conversationId
       })
-      cacheMessageForView(aiResponseMessage)
-      ensureMessageId(aiResponseMessage.id)
+      messageCacheComposable.cacheMessageForView(aiResponseMessage)
+      messageCacheComposable.ensureMessageId(aiResponseMessage.id)
 
       await loadMessages()
     } catch (error) {
@@ -1543,34 +572,9 @@ export const useChatStore = defineStore('chat', () => {
     }
   }
 
-  // 新增：监听来自主进程的初始化并发送消息的指令
-  window.electron.ipcRenderer.on(
-    'command:send-initial-message',
-    async (_, data: { userInput: string }) => {
-      // 确保当前有活动的会话
-      if (!getActiveThreadId()) {
-        console.error('Received send-initial-message command but no active thread is set.')
-        return
-      }
-
-      try {
-        // 调用已有的 sendMessage 方法，这将复用所有现有逻辑
-        await sendMessage({
-          text: data.userInput,
-          files: [],
-          links: [],
-          think: false,
-          search: false
-        })
-      } catch (error) {
-        console.error('Failed to handle send-initial-message command:', error)
-      }
-    }
-  )
-
   const handleMessageEdited = async (msgId: string) => {
     // 首先检查是否在生成缓存中
-    const cached = getGeneratingMessagesCache().get(msgId)
+    const cached = generatingMessagesCache.value.get(msgId)
     if (cached) {
       // 如果在缓存中，获取最新的消息
       const updatedMessage = await threadP.getMessage(msgId)
@@ -1581,7 +585,7 @@ export const useChatStore = defineStore('chat', () => {
       cached.message = enrichedMessage as AssistantMessage | UserMessage
 
       // 如果是当前会话的消息，也更新显示
-      if (cached.threadId === getActiveThreadId()) {
+      if (cached.threadId === activeThreadId.value) {
         if (enrichedMessage.is_variant && enrichedMessage.parentId) {
           const mainMessage = await threadP.getMainMessageByParentId(
             cached.threadId,
@@ -1589,170 +593,67 @@ export const useChatStore = defineStore('chat', () => {
           )
           if (mainMessage) {
             const enrichedMainMessage = await enrichMessageWithExtra(mainMessage)
-            cacheMessageForView(enrichedMainMessage as AssistantMessage | UserMessage)
-            ensureMessageId(enrichedMainMessage.id)
+            messageCacheComposable.cacheMessageForView(
+              enrichedMainMessage as AssistantMessage | UserMessage
+            )
+            messageCacheComposable.ensureMessageId(enrichedMainMessage.id)
             return
           }
         }
 
-        cacheMessageForView(enrichedMessage as AssistantMessage | UserMessage)
+        messageCacheComposable.cacheMessageForView(
+          enrichedMessage as AssistantMessage | UserMessage
+        )
         if (!enrichedMessage.is_variant) {
-          ensureMessageId(enrichedMessage.id)
+          messageCacheComposable.ensureMessageId(enrichedMessage.id)
         }
       }
-    } else if (getActiveThreadId()) {
+    } else if (activeThreadId.value) {
       const updatedMessage = await threadP.getMessage(msgId)
       const enrichedMessage = await enrichMessageWithExtra(updatedMessage)
 
       if (enrichedMessage.is_variant && enrichedMessage.parentId) {
         const mainMessage = await threadP.getMainMessageByParentId(
-          getActiveThreadId()!,
+          activeThreadId.value!,
           enrichedMessage.parentId
         )
         if (mainMessage) {
           const enrichedMainMessage = await enrichMessageWithExtra(mainMessage)
-          cacheMessageForView(enrichedMainMessage as AssistantMessage | UserMessage)
-          ensureMessageId(enrichedMainMessage.id)
+          messageCacheComposable.cacheMessageForView(
+            enrichedMainMessage as AssistantMessage | UserMessage
+          )
+          messageCacheComposable.ensureMessageId(enrichedMainMessage.id)
           return
         }
       }
 
-      cacheMessageForView(enrichedMessage as AssistantMessage | UserMessage)
+      messageCacheComposable.cacheMessageForView(enrichedMessage as AssistantMessage | UserMessage)
       if (!enrichedMessage.is_variant) {
-        ensureMessageId(enrichedMessage.id)
+        messageCacheComposable.ensureMessageId(enrichedMessage.id)
       }
     }
-  }
-
-  /////////////////////////////////////////////////////////////////////////////////////////////////////////
-  // 更新和持久化变体选择
-  const updateSelectedVariant = async (mainMessageId: string, selectedVariantId: string | null) => {
-    const activeThreadId = getActiveThreadId()
-    if (!activeThreadId) return
-
-    isUpdatingVariant = true
-
-    // 更新内存中的映射
-    if (selectedVariantId && selectedVariantId !== mainMessageId) {
-      selectedVariantsMap.value[mainMessageId] = selectedVariantId
-    } else {
-      delete selectedVariantsMap.value[mainMessageId]
-    }
-
-    // 同步更新 chatConfig
-    if (chatConfig.value) {
-      chatConfig.value.selectedVariantsMap = { ...selectedVariantsMap.value }
-    }
-
-    // 持久化到后端
-    try {
-      await threadP.updateConversationSettings(activeThreadId, {
-        selectedVariantsMap: selectedVariantsMap.value
-      })
-    } catch (error) {
-      console.error('Failed to update selected variant:', error)
-    } finally {
-      setTimeout(() => {
-        isUpdatingVariant = false
-      }, 100)
-    }
-  }
-
-  const clearSelectedVariantForMessage = (mainMessageId: string): boolean => {
-    if (!mainMessageId) return false
-    if (!selectedVariantsMap.value[mainMessageId]) return false
-    void updateSelectedVariant(mainMessageId, null)
-    return true
-  }
-
-  /////////////////////////////////////////////////////////////////////////////////////////////////////////
-  let typewriterAudio: HTMLAudioElement | null = null
-  let toolcallAudio: HTMLAudioElement | null = null
-
-  let lastSoundTime = 0
-  const soundInterval = 120
-
-  const initAudio = () => {
-    if (!typewriterAudio) {
-      typewriterAudio = new Audio(sfxtyMp3)
-      typewriterAudio.volume = 0.6
-      typewriterAudio.load()
-    }
-    if (!toolcallAudio) {
-      toolcallAudio = new Audio(sfxfcMp3)
-      toolcallAudio.volume = 1
-      toolcallAudio.load()
-    }
-  }
-
-  initAudio()
-
-  const playTypewriterSound = () => {
-    const now = Date.now()
-    if (!soundStore.soundEnabled || !typewriterAudio) return
-    if (now - lastSoundTime > soundInterval) {
-      typewriterAudio.currentTime = 0
-      typewriterAudio.play().catch(console.error)
-      lastSoundTime = now
-    }
-  }
-
-  const playToolcallSound = () => {
-    if (!soundStore.soundEnabled || !toolcallAudio) return
-    toolcallAudio.currentTime = 0
-    toolcallAudio.play().catch(console.error)
-  }
-
-  /////////////////////////////////////////////////////////////////////////////////////////////////////////
-  // 注册 deeplink 事件处理
-  window.electron.ipcRenderer.on(DEEPLINK_EVENTS.START, async (_, data) => {
-    console.log(`[Renderer] Tab ${getTabId()} received DEEPLINK_EVENTS.START:`, data)
-    // 确保路由正确
-    const currentRoute = router.currentRoute.value
-    if (currentRoute.name !== 'chat') {
-      await router.push({ name: 'chat' })
-    }
-    // 如果存在活动会话，创建新会话
-    if (getActiveThreadId()) {
-      await clearActiveThread()
-    }
-    // 存储 deeplink 数据到缓存
-    if (data) {
-      deeplinkCache.value = {
-        msg: data.msg,
-        modelId: data.modelId,
-        systemPrompt: data.systemPrompt,
-        autoSend: data.autoSend,
-        mentions: data.mentions
-      }
-    }
-  })
-
-  // 清理 Deeplink 缓存
-  const clearDeeplinkCache = () => {
-    deeplinkCache.value = null
   }
 
   // 新增更新会话workingStatus的方法
   const updateThreadWorkingStatus = (threadId: string, status: WorkingStatus) => {
     // 如果是活跃会话，且状态为completed或error，直接从Map中移除
-    if (getActiveThreadId() === threadId && (status === 'completed' || status === 'error')) {
+    if (activeThreadId.value === threadId && (status === 'completed' || status === 'error')) {
       // console.log(`活跃会话状态移除: ${threadId}`)
-      getThreadsWorkingStatus().delete(threadId)
+      threadsWorkingStatus.value.delete(threadId)
       return
     }
 
     // 记录状态变更
-    const oldStatus = getThreadsWorkingStatus().get(threadId)
+    const oldStatus = threadsWorkingStatus.value.get(threadId)
     if (oldStatus !== status) {
       // console.log(`会话状态变更: ${threadId} ${oldStatus || 'none'} -> ${status}`)
-      getThreadsWorkingStatus().set(threadId, status)
+      threadsWorkingStatus.value.set(threadId, status)
     }
   }
 
   // 获取会话工作状态的方法
   const getThreadWorkingStatus = (threadId: string): WorkingStatus | null => {
-    return getThreadsWorkingStatus().get(threadId) || null
+    return threadsWorkingStatus.value.get(threadId) || null
   }
 
   /**
@@ -1761,7 +662,7 @@ export const useChatStore = defineStore('chat', () => {
    */
   const handleMeetingInstruction = async (data: { prompt: string }) => {
     // 确保当前有活动的会话，否则指令无法执行
-    if (!getActiveThreadId()) {
+    if (!activeThreadId.value) {
       console.warn('Received meeting command, but no active session. Command ignored.')
       return
     }
@@ -1781,217 +682,60 @@ export const useChatStore = defineStore('chat', () => {
     }
   }
 
-  const setupEventListeners = () => {
-    // 新增：监听来自主进程的会议指令
-    window.electron.ipcRenderer.on(MEETING_EVENTS.INSTRUCTION, (_, data) => {
-      handleMeetingInstruction(data)
-    })
+  // Initialize variant management composable
+  const variantManagementComposable = useVariantManagement(
+    activeThreadId,
+    selectedVariantsMap,
+    generatingThreadIds,
+    generatingMessagesCache,
+    configComposable,
+    updateThreadWorkingStatus,
+    loadMessages,
+    messageCacheComposable.cacheMessageForView,
+    messageCacheComposable.ensureMessageId
+  )
 
-    // 监听：主进程推送的完整会话列表
-    window.electron.ipcRenderer.on(
-      CONVERSATION_EVENTS.LIST_UPDATED,
-      (_, updatedGroupedList: { dt: string; dtThreads: CONVERSATION[] }[]) => {
-        console.log('Received full thread list update from main process.')
+  // Initialize message streaming composable
+  const messageStreamingComposable = useMessageStreaming(
+    activeThreadId,
+    generatingThreadIds,
+    generatingMessagesCache,
+    threadsWorkingStatus,
+    updateThreadWorkingStatus,
+    enrichMessageWithExtra,
+    audioComposable,
+    messageCacheComposable
+  )
 
-        // 1. 获取当前活动会话ID，在列表更新前
-        const currentActiveId = getActiveThreadId()
+  // Stream event handlers from messageStreamingComposable
+  const handleStreamResponse = messageStreamingComposable.handleStreamResponse
+  const handleStreamEnd = messageStreamingComposable.handleStreamEnd
+  const handleStreamError = messageStreamingComposable.handleStreamError
 
-        // 2. 用主进程推送的最新、完整的、已格式化好的列表直接替换本地状态
-        threads.value = updatedGroupedList
-
-        // 3. 检查活动会话是否还存在
-        if (currentActiveId) {
-          const flatList = updatedGroupedList.flatMap((g) => g.dtThreads)
-          const activeThread = flatList.find((thread) => thread.id === currentActiveId)
-
-          if (!activeThread) {
-            // 如果活动会话不存在了（如在其他窗口被删除），清空当前tab的活动状态
-            clearActiveThread()
-          } else if (!isUpdatingVariant && activeThread.settings.selectedVariantsMap) {
-            // 只在非变体更新期间，同步 selectedVariantsMap（防止其他窗口的更新被覆盖）
-            selectedVariantsMap.value = { ...activeThread.settings.selectedVariantsMap }
-          }
-        }
-      }
-    )
-
-    // 监听：定向的会话激活事件
-    window.electron.ipcRenderer.on(CONVERSATION_EVENTS.ACTIVATED, async (_, msg) => {
-      // 确保是发给当前Tab的事件
-      if (msg.tabId !== getTabId()) {
-        return
-      }
-
-      // 如果是当前tab或新激活的会话在当前窗口中，则正常处理
-      const prevActiveThreadId = getActiveThreadId()
-      setActiveThreadId(msg.conversationId)
-      if (prevActiveThreadId && prevActiveThreadId !== msg.conversationId) {
-        clearThreadCachesForTab(prevActiveThreadId)
-      }
-
-      // 如果存在状态为completed或error的会话，从Map中移除
-      if (msg.conversationId) {
-        const status = getThreadsWorkingStatus().get(msg.conversationId)
-        if (status === 'completed' || status === 'error') {
-          getThreadsWorkingStatus().delete(msg.conversationId)
-        }
-      }
-
-      await loadChatConfig() // 加载对话配置
-      await loadMessages()
-
-      // 新增：在会话激活处理完成后，通过usePresenter发送确认信号
-      tabP.onRendererTabActivated(msg.conversationId)
-    })
-
-    window.electron.ipcRenderer.on(CONVERSATION_EVENTS.MESSAGE_EDITED, (_, msgId: string) => {
-      handleMessageEdited(msgId)
-    })
-
-    window.electron.ipcRenderer.on(CONVERSATION_EVENTS.DEACTIVATED, (_, msg) => {
-      if (msg.tabId !== getTabId()) {
-        return
-      }
-      const prevActiveThreadId = getActiveThreadId()
-      setActiveThreadId(null)
-      clearThreadCachesForTab(prevActiveThreadId)
-    })
-
-    window.electron.ipcRenderer.on(CONVERSATION_EVENTS.SCROLL_TO_MESSAGE, (_, payload) => {
-      if (!payload?.conversationId) {
-        return
-      }
-      queueScrollTarget(payload.conversationId, {
-        messageId: payload.messageId,
-        childConversationId: payload.childConversationId
-      })
-    })
-
-    window.electron.ipcRenderer.on(CONFIG_EVENTS.MODEL_LIST_CHANGED, (_, providerId?: string) => {
-      if (providerId === 'acp') {
-        void refreshActiveAgentMcpSelections()
-      }
-    })
-  }
+  // Initialize chat events composable
+  const chatEventsComposable = useChatEvents(
+    activeThreadId,
+    threads,
+    selectedVariantsMap,
+    threadsWorkingStatus,
+    getTabId,
+    setActiveThreadId,
+    loadMessages,
+    handleMessageEdited,
+    handleMeetingInstruction,
+    sendMessage,
+    queueScrollTarget,
+    refreshActiveAgentMcpSelections,
+    threadManagementComposable,
+    configComposable,
+    deeplinkComposable,
+    variantManagementComposable,
+    messageStreamingComposable
+  )
 
   onMounted(() => {
-    console.log(`[Chat Store] Tab ${getTabId()} is mounted. Setting up event listeners.`)
-
-    // store现在是被动的，等待主进程推送数据
-    setupEventListeners()
-
-    // 在 store 初始化完成后，通过usePresenter发送就绪信号
-    console.log(`[Chat Store] Tab ${getTabId()} sending ready signal`)
-    tabP.onRendererTabReady(getTabId())
+    chatEventsComposable.initializeEventListeners()
   })
-
-  /**
-   * 导出会话内容
-   * @param threadId 会话ID
-   * @param format 导出格式
-   */
-  const exportThread = async (
-    threadId: string,
-    format: 'markdown' | 'html' | 'txt' | 'nowledge-mem' = 'markdown'
-  ) => {
-    try {
-      // 直接使用主线程导出
-      if (format === 'nowledge-mem') {
-        await submitToNowledgeMem(threadId)
-        return { filename: '', content: '' }
-      }
-      return await exportWithMainThread(threadId, format)
-    } catch (error) {
-      console.error('Failed to export thread:', error)
-      throw error
-    }
-  }
-
-  /**
-   * 主线程导出
-   */
-  const exportWithMainThread = async (threadId: string, format: 'markdown' | 'html' | 'txt') => {
-    let result: { filename: string; content: string }
-
-    result = await exporterP.exportConversation(threadId, format)
-    // 触发下载
-    const blob = new Blob([result.content], {
-      type: getContentType(format)
-    })
-    downloadBlob(blob, result.filename)
-
-    return result
-  }
-
-  /**
-   * Submit thread to nowledge-mem API
-   */
-  const submitToNowledgeMem = async (threadId: string) => {
-    const result = await exporterP.submitToNowledgeMem(threadId)
-
-    if (!result.success) {
-      throw new Error(result.errors?.join(', ') || 'Submission failed')
-    }
-  }
-
-  /**
-   * Test nowledge-mem connection
-   */
-  const testNowledgeMemConnection = async () => {
-    try {
-      const result = await exporterP.testNowledgeMemConnection()
-
-      if (!result.success) {
-        throw new Error(result.error || 'Connection test failed')
-      }
-
-      return result
-    } catch (error) {
-      console.error('Failed to test nowledge-mem connection:', error)
-      throw error
-    }
-  }
-
-  /**
-   * Update nowledge-mem configuration
-   */
-  const updateNowledgeMemConfig = async (config: {
-    baseUrl?: string
-    apiKey?: string
-    timeout?: number
-  }) => {
-    try {
-      await exporterP.updateNowledgeMemConfig(config)
-    } catch (error) {
-      console.error('Failed to update nowledge-mem config:', error)
-      throw error
-    }
-  }
-
-  /**
-   * Get nowledge-mem configuration
-   */
-  const getNowledgeMemConfig = () => {
-    return exporterP.getNowledgeMemConfig()
-  }
-
-  /**
-   * 获取内容类型
-   */
-  const getContentType = (format: string): string => {
-    switch (format) {
-      case 'markdown':
-        return 'text/markdown;charset=utf-8'
-      case 'html':
-        return 'text/html;charset=utf-8'
-      case 'txt':
-        return 'text/plain;charset=utf-8'
-      case 'nowledge-mem':
-        return 'application/json;charset=utf-8'
-      default:
-        return 'text/plain;charset=utf-8'
-    }
-  }
 
   /**
    * 显示 provider 选择器（触发事件让界面显示选择器）
@@ -2001,31 +745,8 @@ export const useChatStore = defineStore('chat', () => {
     window.dispatchEvent(new CustomEvent('show-provider-selector'))
   }
 
-  // 初始化全局流事件监听
-  // 确保只在客户端环境中执行
-  if (window.electron && window.electron.ipcRenderer) {
-    // 移除旧的监听器以防止重复（虽然 store 通常只初始化一次）
-    window.electron.ipcRenderer.removeAllListeners(STREAM_EVENTS.RESPONSE)
-    window.electron.ipcRenderer.removeAllListeners(STREAM_EVENTS.END)
-    window.electron.ipcRenderer.removeAllListeners(STREAM_EVENTS.ERROR)
-
-    window.electron.ipcRenderer.on(STREAM_EVENTS.RESPONSE, (_, msg) => {
-      handleStreamResponse(msg)
-    })
-
-    window.electron.ipcRenderer.on(STREAM_EVENTS.END, (_, msg) => {
-      handleStreamEnd(msg)
-    })
-
-    window.electron.ipcRenderer.on(STREAM_EVENTS.ERROR, (_, msg) => {
-      handleStreamError(msg)
-    })
-  }
-
   return {
-    renameThread,
     // 状态 - Single WebContents Architecture
-    createNewEmptyThread,
     isSidebarOpen,
     isMessageNavigationOpen,
     activeThreadId,
@@ -2039,60 +760,72 @@ export const useChatStore = defineStore('chat', () => {
     messageItems,
     variantAwareMessages,
     messageCount,
-    activeContextMention,
-    activePendingScrollTarget,
+    activeContextMention: deeplinkComposable.activeContextMention,
+    activePendingScrollTarget: deeplinkComposable.activePendingScrollTarget,
     isAcpMode,
     activeAgentMcpSelections,
     // Actions
-    createThread,
-    setActiveThread,
     loadMessages,
     sendMessage,
     handleStreamResponse,
     handleStreamEnd,
     handleStreamError,
     handleMessageEdited,
-    prefetchMessagesForRange,
-    ensureMessagesLoadedByIds,
-    prefetchAllMessages,
-    recordMessageDomInfo,
-    hasMessageDomInfo,
-    // 导出配置相关的状态和方法
-    chatConfig,
-    updateChatConfig,
+    // Message cache composable
+    prefetchMessagesForRange: messageCacheComposable.prefetchMessagesForRange,
+    ensureMessagesLoadedByIds: messageCacheComposable.ensureMessagesLoadedByIds,
+    prefetchAllMessages: messageCacheComposable.prefetchAllMessages,
+    recordMessageDomInfo: messageCacheComposable.recordMessageDomInfo,
+    hasMessageDomInfo: messageCacheComposable.hasMessageDomInfo,
+    // Config composable
+    chatConfig: configComposable.chatConfig,
+    updateChatConfig: configComposable.updateChatConfig,
+    loadChatConfig: configComposable.loadChatConfig,
     setAcpWorkdirPreference,
     setAgentWorkspacePreference,
+    // Message actions
     retryMessage,
     deleteMessage,
-    clearActiveThread,
     cancelGenerating,
     clearAllMessages,
     continueStream,
-    deeplinkCache,
-    clearDeeplinkCache,
-    forkThread,
-    createChildThreadFromSelection,
-    openThreadInNewTab,
-    consumeContextMention,
-    consumePendingScrollMessage,
-    clearSelectedVariantForMessage,
+    // Deeplink composable
+    deeplinkCache: deeplinkComposable.deeplinkCache,
+    clearDeeplinkCache: deeplinkComposable.clearDeeplinkCache,
+    consumeContextMention: deeplinkComposable.consumeContextMention,
+    consumePendingScrollMessage: deeplinkComposable.consumePendingScrollMessage,
+    // Thread management composable
+    createNewEmptyThread: threadManagementComposable.createNewEmptyThread,
+    createThread: threadManagementComposable.createThread,
+    setActiveThread: threadManagementComposable.setActiveThread,
+    openThreadInNewTab: threadManagementComposable.openThreadInNewTab,
+    clearActiveThread: threadManagementComposable.clearActiveThread,
+    renameThread: threadManagementComposable.renameThread,
+    toggleThreadPinned: threadManagementComposable.toggleThreadPinned,
+    forkThread: threadManagementComposable.forkThread,
+    createChildThreadFromSelection: threadManagementComposable.createChildThreadFromSelection,
+    // Variant management composable
+    clearSelectedVariantForMessage: variantManagementComposable.clearSelectedVariantForMessage,
+    updateSelectedVariant: variantManagementComposable.updateSelectedVariant,
+    regenerateFromUserMessage: variantManagementComposable.regenerateFromUserMessage,
+    retryFromUserMessage,
+    // Working status
     updateThreadWorkingStatus,
     getThreadWorkingStatus,
     threadsWorkingStatus,
-    toggleThreadPinned,
+    // Legacy getters
     getActiveThreadId,
     setActiveThreadId,
-    getGeneratingMessagesCache,
     getMessageIds,
+    getGeneratingMessagesCache,
     getCurrentThreadMessages,
-    exportThread,
-    submitToNowledgeMem,
-    testNowledgeMemConnection,
-    updateNowledgeMemConfig,
-    getNowledgeMemConfig,
-    showProviderSelector,
-    regenerateFromUserMessage,
-    retryFromUserMessage,
-    updateSelectedVariant
+    // Export composable
+    exportThread: exportComposable.exportThread,
+    submitToNowledgeMem: exportComposable.submitToNowledgeMem,
+    testNowledgeMemConnection: exportComposable.testNowledgeMemConnection,
+    updateNowledgeMemConfig: exportComposable.updateNowledgeMemConfig,
+    getNowledgeMemConfig: exportComposable.getNowledgeMemConfig,
+    // Other
+    showProviderSelector
   }
 })

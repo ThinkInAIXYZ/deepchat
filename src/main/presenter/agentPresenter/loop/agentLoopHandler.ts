@@ -114,7 +114,7 @@ export class AgentLoopHandler {
   private async resolveWorkspaceContext(
     conversationId?: string,
     modelId?: string
-  ): Promise<{ chatMode: 'chat' | 'agent' | 'acp agent'; agentWorkspacePath: string | null }> {
+  ): Promise<{ chatMode: 'agent' | 'acp agent'; agentWorkspacePath: string | null }> {
     return presenter.sessionManager.resolveWorkspaceContext(conversationId, modelId)
   }
 

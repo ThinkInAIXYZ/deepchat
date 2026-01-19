@@ -1,4 +1,42 @@
 {
   "greeting": "שלום!",
-  "prompt": "על מה תרצה לדבר?"
+  "prompt": "על מה תרצה לדבר?",
+  "homepage": {
+    "inputPlaceholder": "הקלד את ההודעה שלך כאן...",
+    "selectModel": "בחר מודל",
+    "acpAgents": {
+      "title": "התחל עם סוכן AI",
+      "description": "בחר סוכן כדי להתחיל סשן קידוד מיוחד",
+      "empty": "אין סוכנים זמינים. הפעל סוכנים בהגדרות.",
+      "builtin": "מובנה",
+      "mcpEnabled": "כלי MCP",
+      "defaultDescription": "עוזר קידוד AI מקצועי",
+      "customAgentDescription": "סוכן מותאם אישית: {name}",
+      "descriptions": {
+        "claude-code": "Claude Code - עוזר קידוד רב-תכליתי",
+        "gemini-cli": "Gemini CLI - עוזר קידוד Google",
+        "qwen-code": "Qwen Code - עוזר קידוד Alibaba Cloud"
+      }
+    },
+    "acpConfig": {
+      "title": "הגדר {name}",
+      "description": "הגדר את סביבת העבודה וההעדפות עבור סוכן זה",
+      "workdir": {
+        "label": "תיקיית עבודה",
+        "placeholder": "לא נבחרה תיקייה",
+        "select": "בחר",
+        "hint": "בחר את התיקייה שבה הסוכן יעבוד"
+      },
+      "model": {
+        "label": "מודל",
+        "placeholder": "בחר מודל"
+      },
+      "mode": {
+        "label": "מצב",
+        "placeholder": "בחר מצב"
+      },
+      "loading": "טוען תצורה...",
+      "start": "התחל סשן"
+    }
+  }
 }

@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import { onMounted, ref, watch, onBeforeUnmount, computed } from 'vue'
+import { storeToRefs } from 'pinia'
 import { RouterView, useRoute, useRouter } from 'vue-router'
 import UpdateDialog from './components/ui/UpdateDialog.vue'
 import { usePresenter } from './composables/usePresenter'
 import SelectedTextContextMenu from './components/message/SelectedTextContextMenu.vue'
-import { useArtifactStore } from './stores/artifact'
 import { useChatStore } from '@/stores/chat'
 import { useSidebarStore } from '@/stores/sidebarStore'
+import { useWindowStore } from '@/stores/windowStore'
 import { NOTIFICATION_EVENTS, SHORTCUT_EVENTS, THREAD_VIEW_EVENTS } from './events'
 import { Toaster } from '@shadcn/components/ui/sonner'
 import { useToast } from '@/components/use-toast'
@@ -25,10 +26,17 @@ import 'vue-sonner/style.css' // vue-sonner v2 requires this import
 import { useFontManager } from './composables/useFontManager'
 import IconSidebar from '@/components/sidebar/IconSidebar.vue'
 import ChatAppBar from '@/components/ChatAppBar.vue'
+import { useConversationNavigation } from '@/composables/useConversationNavigation'
+
+// Sidebar width management
+const MIN_SIDEBAR_WIDTH = 8 * 9 // Minimum width to accommodate macOS traffic lights
+const MAX_SIDEBAR_WIDTH = 300
+const DEFAULT_SIDEBAR_WIDTH = 8 * 9
+const sidebarWidth = ref(DEFAULT_SIDEBAR_WIDTH)
+const isResizing = ref(false)
 
 const route = useRoute()
 const configPresenter = usePresenter('configPresenter')
-const artifactStore = useArtifactStore()
 const chatStore = useChatStore()
 const { toast } = useToast()
 const uiSettingsStore = useUiSettingsStore()
@@ -39,7 +47,10 @@ const themeStore = useThemeStore()
 const langStore = useLanguageStore()
 const modelCheckStore = useModelCheckStore()
 const sidebarStore = useSidebarStore()
+const windowStore = useWindowStore()
+const { isMacOS } = storeToRefs(windowStore)
 const { t } = useI18n()
+const { navigateToConversation, navigateToHome } = useConversationNavigation()
 const toasterTheme = computed(() =>
   themeStore.themeMode === 'system' ? (themeStore.isDark ? 'dark' : 'light') : themeStore.themeMode
 )
@@ -47,9 +58,6 @@ const toasterTheme = computed(() =>
 const errorQueue = ref<Array<{ id: string; title: string; message: string; type: string }>>([])
 const currentErrorId = ref<string | null>(null)
 const errorDisplayTimer = ref<number | null>(null)
-
-const isMacOS = ref(false)
-const devicePresenter = usePresenter('devicePresenter')
 const { setup: setupMcpDeeplink, cleanup: cleanupMcpDeeplink } = useMcpInstallDeeplinkHandler()
 // Watch theme and font size changes, update body class directly
 watch(
@@ -143,7 +151,6 @@ const handleErrorClosed = () => {
 }
 
 const router = useRouter()
-const activeTab = ref('chat')
 
 const getInitComplete = async () => {
   const initComplete = await configPresenter.getSetting('init_complete')
@@ -191,15 +198,15 @@ const handleThreadViewToggle = () => {
 
 // Sidebar event handlers for Single WebContents Architecture
 const handleSidebarConversationSelect = (conversationId: string) => {
-  sidebarStore.openConversation(conversationId)
+  navigateToConversation(conversationId)
 }
 
 const handleSidebarConversationClose = (conversationId: string) => {
   sidebarStore.closeConversation(conversationId)
 }
 
-const handleSidebarNewConversation = () => {
-  sidebarStore.createConversation()
+const handleSidebarHome = () => {
+  navigateToHome()
 }
 
 const handleSidebarReorder = (payload: {
@@ -219,36 +226,42 @@ const handleEscKey = (event: KeyboardEvent) => {
   }
 }
 
+// Sidebar resize handlers
+const startResize = (e: MouseEvent) => {
+  isResizing.value = true
+  e.preventDefault()
+}
+
+const handleMouseMove = (e: MouseEvent) => {
+  if (!isResizing.value) return
+
+  const newWidth = e.clientX
+  if (newWidth >= MIN_SIDEBAR_WIDTH && newWidth <= MAX_SIDEBAR_WIDTH) {
+    sidebarWidth.value = newWidth
+  }
+}
+
+const stopResize = () => {
+  isResizing.value = false
+}
+
 getInitComplete()
 
 onMounted(() => {
-  devicePresenter.getDeviceInfo().then((deviceInfo) => {
-    isMacOS.value = deviceInfo.platform === 'darwin'
-  })
   // Set initial body class
   document.body.classList.add(themeStore.themeMode)
   document.body.classList.add(uiSettingsStore.fontSizeClass)
 
   window.addEventListener('keydown', handleEscKey)
+  window.addEventListener('mousemove', handleMouseMove)
+  window.addEventListener('mouseup', stopResize)
 
   // initialize store data
-  void initAppStores()
+  initAppStores()
   setupMcpDeeplink()
 
   // Restore sidebar state for Single WebContents Architecture
-  void sidebarStore.restoreState()
-
-  // Listen for chat window init state (from main process)
-  window.electron.ipcRenderer.on(
-    'chat-window:init-state',
-    (_event, initState: { conversationId?: string; restoreState?: boolean }) => {
-      if (initState.conversationId) {
-        sidebarStore.openConversation(initState.conversationId)
-      } else if (initState.restoreState !== false) {
-        void sidebarStore.restoreState()
-      }
-    }
-  )
+  sidebarStore.restoreState()
 
   // Listen for global error notification events
   window.electron.ipcRenderer.on(NOTIFICATION_EVENTS.SHOW_ERROR, (_event, error) => {
@@ -310,48 +323,6 @@ onMounted(() => {
       chatStore.setActiveThread(threadId)
     }
   })
-
-  watch(
-    () => activeTab.value,
-    (newVal) => {
-      router.push({ name: newVal })
-    }
-  )
-
-  watch(
-    () => route.fullPath,
-    (newVal) => {
-      const pathWithoutQuery = newVal.split('?')[0]
-      const newTab =
-        pathWithoutQuery === '/'
-          ? (route.name as string)
-          : pathWithoutQuery.split('/').filter(Boolean)[0] || ''
-      if (newTab !== activeTab.value) {
-        activeTab.value = newTab
-      }
-      // Close artifacts page when route changes
-      artifactStore.hideArtifact()
-      if (route.name !== 'chat') {
-        chatStore.isSidebarOpen = false
-      }
-    }
-  )
-
-  // Listen for changes to current conversation
-  watch(
-    () => chatStore.getActiveThreadId(),
-    () => {
-      // Close artifacts page when switching conversations
-      artifactStore.hideArtifact()
-    }
-  )
-
-  watch(
-    () => artifactStore.isOpen,
-    () => {
-      chatStore.isSidebarOpen = false
-    }
-  )
 })
 
 // Clear timers and event listeners before component unmounts
@@ -362,6 +333,8 @@ onBeforeUnmount(() => {
   }
 
   window.removeEventListener('keydown', handleEscKey)
+  window.removeEventListener('mousemove', handleMouseMove)
+  window.removeEventListener('mouseup', stopResize)
 
   // Remove shortcut key event listeners
   window.electron.ipcRenderer.removeAllListeners(SHORTCUT_EVENTS.ZOOM_IN)
@@ -372,31 +345,48 @@ onBeforeUnmount(() => {
   window.electron.ipcRenderer.removeAllListeners(NOTIFICATION_EVENTS.SYS_NOTIFY_CLICKED)
   window.electron.ipcRenderer.removeAllListeners(NOTIFICATION_EVENTS.DATA_RESET_COMPLETE_DEV)
   window.electron.ipcRenderer.removeListener(THREAD_VIEW_EVENTS.TOGGLE, handleThreadViewToggle)
-  window.electron.ipcRenderer.removeAllListeners('chat-window:init-state')
   cleanupMcpDeeplink()
 })
 </script>
 
 <template>
-  <div class="flex flex-col h-screen">
-    <!-- App Bar for window controls -->
-    <ChatAppBar />
-    <div
-      class="border-x border-b border-window-inner-border rounded-b-[10px] fixed z-10 top-0 left-0 bottom-0 right-0 pointer-events-none"
-    ></div>
-    <div class="flex flex-row h-0 grow relative overflow-hidden px-px py-px" :dir="langStore.dir">
-      <!-- Icon Sidebar for Discord-Style UI -->
+  <div
+    class="flex flex-row h-screen"
+    :class="[isMacOS ? 'bg-background/80' : 'bg-window-background/10']"
+  >
+    <!-- Left: Resizable IconSidebar -->
+    <div class="relative h-full pt-8 border-r bg-black/10" :style="{ width: sidebarWidth + 'px' }">
       <IconSidebar
         :conversations="sidebarStore.sortedConversations"
         :active-conversation-id="(route.params.id as string) || undefined"
         @conversation-select="handleSidebarConversationSelect"
         @conversation-close="handleSidebarConversationClose"
         @conversation-reorder="handleSidebarReorder"
-        @new-conversation="handleSidebarNewConversation"
+        @home="handleSidebarHome"
       />
-      <!-- Main content area -->
-      <RouterView />
+      <!-- Resize handle -->
+      <div
+        class="absolute top-0 right-0 bottom-0 w-0.5 cursor-col-resize hover:bg-primary/20 transition-colors"
+        :class="{ 'bg-primary/40': isResizing }"
+        @mousedown="startResize"
+      ></div>
     </div>
+
+    <!-- Right: Main content with ChatAppBar on top -->
+    <div class="flex flex-col flex-1 overflow-hidden bg-background" :dir="langStore.dir">
+      <!-- App Bar for window controls -->
+      <ChatAppBar />
+      <div class="flex-1 overflow-hidden">
+        <!-- Main content area -->
+        <RouterView />
+      </div>
+    </div>
+
+    <!-- Window border overlay -->
+    <div
+      class="border border-window-inner-border rounded-[10px] fixed z-10 top-0 left-0 bottom-0 right-0 pointer-events-none"
+    ></div>
+
     <!-- Global update dialog -->
     <UpdateDialog />
     <!-- Global message dialog -->

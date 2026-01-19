@@ -1,13 +1,5 @@
 <template>
-  <div
-    class="flex flex-row h-9 min-h-9 border border-b-0 border-window-inner-border box-border rounded-t-[10px] relative overflow-hidden"
-    :class="[
-      !isFullscreened && isMacOS ? '' : ' rounded-t-none',
-      isMacOS ? 'bg-window-background' : 'bg-window-background/10'
-    ]"
-    :dir="langStore.dir"
-  >
-    <div class="absolute bottom-0 left-0 w-full h-[1px] bg-border z-10"></div>
+  <div class="flex flex-row h-9 min-h-9 relative overflow-hidden" :dir="langStore.dir">
     <div
       class="h-full shrink-0 w-0 flex-1 flex select-none text-center text-sm font-medium flex-row items-center justify-start window-drag-region"
     >
@@ -19,7 +11,7 @@
       <!-- Browser button -->
       <Button
         size="icon"
-        class="window-no-drag-region shrink-0 w-10 bg-transparent shadow-none rounded-none hover:bg-card/80 text-xs font-medium text-foreground flex items-center justify-center transition-all duration-200 group border-l"
+        class="window-no-drag-region shrink-0 w-10 bg-transparent shadow-none rounded-none hover:bg-card/80 text-xs font-medium text-foreground flex items-center justify-center transition-all duration-200 group"
         @click="onBrowserClick"
         @mouseenter="onOverlayMouseEnter('browser', t('common.browser.name'), $event)"
         @mouseleave="onOverlayMouseLeave('browser')"
@@ -30,7 +22,7 @@
       <!-- History button -->
       <Button
         size="icon"
-        class="window-no-drag-region shrink-0 w-10 bg-transparent shadow-none rounded-none hover:bg-card/80 text-xs font-medium text-foreground flex items-center justify-center transition-all duration-200 group border-l"
+        class="window-no-drag-region shrink-0 w-10 bg-transparent shadow-none rounded-none hover:bg-card/80 text-xs font-medium text-foreground flex items-center justify-center transition-all duration-200 group"
         @click="onHistoryClick"
         @mouseenter="onOverlayMouseEnter('history', t('common.history'), $event)"
         @mouseleave="onOverlayMouseLeave('history')"
@@ -41,7 +33,7 @@
       <!-- Settings button -->
       <Button
         size="icon"
-        class="window-no-drag-region shrink-0 w-10 bg-transparent shadow-none rounded-none hover:bg-card/80 text-xs font-medium text-foreground flex items-center justify-center transition-all duration-200 group border-l"
+        class="window-no-drag-region shrink-0 w-10 bg-transparent shadow-none rounded-none hover:bg-card/80 text-xs font-medium text-foreground flex items-center justify-center transition-all duration-200 group"
         @click="openSettings"
         @mouseenter="onOverlayMouseEnter('settings', t('routes.settings'), $event)"
         @mouseleave="onOverlayMouseLeave('settings')"
@@ -52,7 +44,7 @@
       <!-- Window controls (non-macOS only) -->
       <Button
         v-if="!isMacOS"
-        class="window-no-drag-region shrink-0 w-12 bg-transparent shadow-none rounded-none hover:bg-card/80 text-xs font-medium text-foreground flex items-center justify-center transition-all duration-200 group border-l"
+        class="window-no-drag-region shrink-0 w-12 bg-transparent shadow-none rounded-none hover:bg-card/80 text-xs font-medium text-foreground flex items-center justify-center transition-all duration-200 group"
         @click="minimizeWindow"
         @mouseenter="onOverlayMouseEnter('minimize', t('common.minimize'), $event)"
         @mouseleave="onOverlayMouseLeave('minimize')"
@@ -90,6 +82,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onBeforeUnmount } from 'vue'
+import { storeToRefs } from 'pinia'
 import MaximizeIcon from './icons/MaximizeIcon.vue'
 import RestoreIcon from './icons/RestoreIcon.vue'
 import CloseIcon from './icons/CloseIcon.vue'
@@ -98,23 +91,20 @@ import { usePresenter } from '@/composables/usePresenter'
 import { Button } from '@shadcn/components/ui/button'
 import { Icon } from '@iconify/vue'
 import { useLanguageStore } from '@/stores/language'
+import { useWindowStore } from '@/stores/windowStore'
 import { useI18n } from 'vue-i18n'
-import { WINDOW_EVENTS } from '@/events'
 import { useChatStore } from '@/stores/chat'
 import { useRouter } from 'vue-router'
 
 const langStore = useLanguageStore()
 const windowPresenter = usePresenter('windowPresenter')
-const devicePresenter = usePresenter('devicePresenter')
 const yoBrowserPresenter = usePresenter('yoBrowserPresenter')
 const chatStore = useChatStore()
 const router = useRouter()
+const windowStore = useWindowStore()
+const { isMacOS, isMaximized, isFullscreened } = storeToRefs(windowStore)
 
 const { t } = useI18n()
-
-const isMacOS = ref(false)
-const isMaximized = ref(false)
-const isFullscreened = ref(false)
 
 const { ipcRenderer } = window.electron
 
@@ -183,33 +173,12 @@ const onHistoryClick = () => {
 }
 
 onMounted(() => {
-  // Listen for window maximize/unmaximize events
-  devicePresenter.getDeviceInfo().then((deviceInfo) => {
-    isMacOS.value = deviceInfo.platform === 'darwin'
-  })
-  ipcRenderer?.on(WINDOW_EVENTS.WINDOW_MAXIMIZED, () => {
-    isMaximized.value = true
-  })
-  ipcRenderer?.on(WINDOW_EVENTS.WINDOW_ENTER_FULL_SCREEN, () => {
-    isFullscreened.value = true
-  })
-  ipcRenderer?.on(WINDOW_EVENTS.WINDOW_UNMAXIMIZED, () => {
-    isMaximized.value = false
-  })
-  ipcRenderer?.on(WINDOW_EVENTS.WINDOW_LEAVE_FULL_SCREEN, () => {
-    isFullscreened.value = false
-  })
-
   window.addEventListener('resize', updateTooltipPosition)
 })
 
 onBeforeUnmount(() => {
   window.removeEventListener('resize', updateTooltipPosition)
   hideTooltip()
-  ipcRenderer?.removeAllListeners(WINDOW_EVENTS.WINDOW_MAXIMIZED)
-  ipcRenderer?.removeAllListeners(WINDOW_EVENTS.WINDOW_UNMAXIMIZED)
-  ipcRenderer?.removeAllListeners(WINDOW_EVENTS.WINDOW_ENTER_FULL_SCREEN)
-  ipcRenderer?.removeAllListeners(WINDOW_EVENTS.WINDOW_LEAVE_FULL_SCREEN)
 })
 
 const minimizeWindow = () => {

@@ -38,7 +38,7 @@ const BUILTIN_TEMPLATES: Record<AcpBuiltinAgentId, BuiltinTemplate> = {
     })
   },
   'claude-code-acp': {
-    name: 'Claude Code ACP',
+    name: 'Claude Code',
     defaultProfile: () => ({
       name: DEFAULT_PROFILE_NAME,
       command: 'npx',
@@ -47,7 +47,7 @@ const BUILTIN_TEMPLATES: Record<AcpBuiltinAgentId, BuiltinTemplate> = {
     })
   },
   'codex-acp': {
-    name: 'Codex CLI ACP',
+    name: 'Codex',
     defaultProfile: () => ({
       name: DEFAULT_PROFILE_NAME,
       command: 'npx',

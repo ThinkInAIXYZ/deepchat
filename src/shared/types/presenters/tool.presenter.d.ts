@@ -16,7 +16,7 @@ export interface IToolPresenter {
    */
   getAllToolDefinitions(context: {
     enabledMcpTools?: string[]
-    chatMode?: 'chat' | 'agent' | 'acp agent'
+    chatMode?: 'agent' | 'acp agent'
     supportsVision?: boolean
     agentWorkspacePath?: string | null
   }): Promise<MCPToolDefinition[]>

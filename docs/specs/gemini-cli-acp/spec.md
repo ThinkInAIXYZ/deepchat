@@ -56,8 +56,8 @@ DeepChat has a mature ACP implementation with the following components:
 ```typescript
 const BUILTIN_ORDER: AcpBuiltinAgentId[] = [
   'kimi-cli',           // Kimi CLI agent
-  'claude-code-acp',    // Claude Code ACP (Zed Industries)
-  'codex-acp',          // Codex CLI ACP (OpenAI)
+  'claude-code-acp',    // Claude Code (Zed Industries)
+  'codex-acp',          // Codex (OpenAI)
   'opencode'            // OpenCode agent
 ]
 ```
@@ -298,8 +298,8 @@ User selects "Add ACP Agent"
     ↓
 UI displays builtin agents list
     ├─ Kimi CLI
-    ├─ Claude Code ACP
-    ├─ Codex ACP
+    ├─ Claude Code
+    ├─ Codex
     ├─ OpenCode
     └─ Gemini CLI ← NEW
     ↓

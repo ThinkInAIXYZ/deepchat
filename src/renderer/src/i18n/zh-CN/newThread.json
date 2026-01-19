@@ -1,4 +1,42 @@
 {
   "greeting": "你好呀",
-  "prompt": "今天你想问点什么？"
+  "prompt": "今天你想问点什么？",
+  "homepage": {
+    "inputPlaceholder": "在这里输入你的消息...",
+    "selectModel": "选择模型",
+    "acpAgents": {
+      "title": "使用 AI Agent 开始",
+      "description": "选择一个 agent 开始专业的编码会话",
+      "empty": "没有可用的 agents。请在设置中启用 agents。",
+      "builtin": "内置",
+      "mcpEnabled": "MCP 工具",
+      "defaultDescription": "专业的 AI 编码助手",
+      "customAgentDescription": "自定义 agent: {name}",
+      "descriptions": {
+        "claude-code": "Claude Code - 全能编码助手",
+        "gemini-cli": "Gemini CLI - Google 编码助手",
+        "qwen-code": "通义千问 - 阿里云编码助手"
+      }
+    },
+    "acpConfig": {
+      "title": "配置 {name}",
+      "description": "为此 agent 设置工作空间和偏好设置",
+      "workdir": {
+        "label": "工作目录",
+        "placeholder": "未选择目录",
+        "select": "选择",
+        "hint": "选择 agent 将要工作的目录"
+      },
+      "model": {
+        "label": "模型",
+        "placeholder": "选择模型"
+      },
+      "mode": {
+        "label": "模式",
+        "placeholder": "选择模式"
+      },
+      "loading": "正在加载配置...",
+      "start": "开始会话"
+    }
+  }
 }
