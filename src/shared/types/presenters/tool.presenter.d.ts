@@ -19,6 +19,7 @@ export interface IToolPresenter {
     chatMode?: 'chat' | 'agent' | 'acp agent'
     supportsVision?: boolean
     agentWorkspacePath?: string | null
+    conversationId?: string
   }): Promise<MCPToolDefinition[]>
 
   /**

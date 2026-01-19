@@ -133,7 +133,8 @@ export async function preparePromptContent({
         enabledMcpTools: effectiveEnabledMcpTools,
         chatMode,
         supportsVision,
-        agentWorkspacePath: conversation.settings.agentWorkspacePath?.trim() || null
+        agentWorkspacePath: conversation.settings.agentWorkspacePath?.trim() || null,
+        conversationId: conversation.id
       })
     } catch (error) {
       console.warn('AgentPresenter: Failed to load tool definitions', error)

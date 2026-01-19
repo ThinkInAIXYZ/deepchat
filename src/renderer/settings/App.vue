@@ -65,7 +65,7 @@ import ModelCheckDialog from '@/components/settings/ModelCheckDialog.vue'
 import { useDeviceVersion } from '../src/composables/useDeviceVersion'
 import { Toaster } from '@shadcn/components/ui/sonner'
 import 'vue-sonner/style.css'
-import { NOTIFICATION_EVENTS } from '@/events'
+import { NOTIFICATION_EVENTS, SETTINGS_EVENTS } from '@/events'
 import { useToast } from '@/components/use-toast'
 import { useThemeStore } from '@/stores/theme'
 import { useProviderStore } from '@/stores/providerStore'
@@ -113,6 +113,21 @@ const { t, locale } = useI18n()
 const router = useRouter()
 const route = useRoute()
 const title = useTitle()
+const handleSettingsNavigate = async (
+  _event: unknown,
+  payload?: { routeName?: string; section?: string }
+) => {
+  const routeName = payload?.routeName
+  if (!routeName || !router.hasRoute(routeName)) return
+  await router.isReady()
+  if (router.currentRoute.value.name !== routeName) {
+    await router.push({ name: routeName })
+  }
+}
+
+if (window?.electron?.ipcRenderer) {
+  window.electron.ipcRenderer.on(SETTINGS_EVENTS.NAVIGATE, handleSettingsNavigate)
+}
 const settings: Ref<
   {
     title: string
@@ -333,6 +348,7 @@ onBeforeUnmount(() => {
   }
 
   window.electron.ipcRenderer.removeAllListeners(NOTIFICATION_EVENTS.SHOW_ERROR)
+  window.electron.ipcRenderer.removeListener(SETTINGS_EVENTS.NAVIGATE, handleSettingsNavigate)
   cleanupMcpDeeplink()
 })
 </script>
