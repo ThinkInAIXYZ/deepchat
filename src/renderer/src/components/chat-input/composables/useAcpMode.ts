@@ -1,5 +1,5 @@
 import { computed, ref, watch, onMounted, onUnmounted } from 'vue'
-import { usePresenter } from '@/composables/usePresenter'
+import { useAcpRuntimeAdapter } from '@/composables/chat/useAcpRuntimeAdapter'
 import { ACP_WORKSPACE_EVENTS } from '@/events'
 import type { Ref } from 'vue'
 
@@ -20,7 +20,7 @@ interface ModeInfo {
 }
 
 export function useAcpMode(options: UseAcpModeOptions) {
-  const sessionPresenter = usePresenter('sessionPresenter')
+  const acpRuntimeAdapter = useAcpRuntimeAdapter()
 
   const currentMode = ref<string>('default')
   const availableModes = ref<ModeInfo[]>([])
@@ -56,7 +56,7 @@ export function useAcpMode(options: UseAcpModeOptions) {
 
     loading.value = true
     try {
-      const result = await sessionPresenter.getAcpSessionModes(options.conversationId.value)
+      const result = await acpRuntimeAdapter.getAcpSessionModes(options.conversationId.value)
       if (result && result.available.length > 0) {
         currentMode.value = result.current
         availableModes.value = result.available
@@ -89,13 +89,13 @@ export function useAcpMode(options: UseAcpModeOptions) {
     try {
       // First try to get modes from existing process (only if workdir is specified)
       let result = workdir
-        ? await sessionPresenter.getAcpProcessModes(agentId.value, workdir)
+        ? await acpRuntimeAdapter.getAcpProcessModes(agentId.value, workdir)
         : undefined
 
       // If no modes found, ensure warmup process exists and try again
       if (!result?.availableModes) {
         // ensureAcpWarmup will use config warmup dir when workdir is null
-        await sessionPresenter.ensureAcpWarmup(agentId.value, workdir)
+        await acpRuntimeAdapter.ensureAcpWarmup(agentId.value, workdir)
 
         // Wait a short time for the warmup process to fetch modes
         await new Promise((resolve) => setTimeout(resolve, 500))
@@ -104,7 +104,7 @@ export function useAcpMode(options: UseAcpModeOptions) {
         // When workdir is null, backend uses config warmup dir internally
         // We pass empty string to query the config warmup process
         const queryWorkdir = workdir ?? ''
-        result = await sessionPresenter.getAcpProcessModes(agentId.value, queryWorkdir)
+        result = await acpRuntimeAdapter.getAcpProcessModes(agentId.value, queryWorkdir)
       }
 
       if (result?.availableModes && result.availableModes.length > 0) {
@@ -217,11 +217,11 @@ export function useAcpMode(options: UseAcpModeOptions) {
     loading.value = true
     try {
       if (options.conversationId.value) {
-        await sessionPresenter.setAcpSessionMode(options.conversationId.value, modeId)
+        await acpRuntimeAdapter.setAcpSessionMode(options.conversationId.value, modeId)
         currentMode.value = modeId
         pendingPreferredMode.value = null
       } else if (selectedWorkdir.value) {
-        await sessionPresenter.setAcpPreferredProcessMode(
+        await acpRuntimeAdapter.setAcpPreferredProcessMode(
           agentId.value,
           selectedWorkdir.value,
           modeId

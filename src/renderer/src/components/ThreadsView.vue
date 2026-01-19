@@ -106,7 +106,7 @@ import { Button } from '@shadcn/components/ui/button'
 import { Icon } from '@iconify/vue'
 import ThreadItem from './ThreadItem.vue'
 import { ref, onMounted, onBeforeUnmount, computed } from 'vue'
-import { usePresenter } from '@/composables/usePresenter'
+import { useConversationCore } from '@/composables/chat/useConversationCore'
 import { Input } from '@shadcn/components/ui/input'
 import { useChatStore } from '@/stores/chat'
 import { CONVERSATION } from '@shared/presenter'
@@ -125,7 +125,7 @@ import { DynamicScroller, DynamicScrollerItem } from 'vue-virtual-scroller'
 
 const { t } = useI18n()
 const chatStore = useChatStore()
-const sessionP = usePresenter('sessionPresenter')
+const conversationCore = useConversationCore()
 const dynamicScrollerRef = ref<InstanceType<typeof DynamicScroller> | null>(null)
 const deleteDialog = ref(false)
 const deleteThread = ref<CONVERSATION | null>(null)
@@ -226,7 +226,7 @@ const handleThreadDelete = async () => {
     }
     // 只需调用presenter方法，后续的UI更新（tab关闭/重置、列表刷新）
     // 将由主进程编排并通过事件广播回来。
-    await sessionP.deleteConversation(deleteThread.value.id)
+    await conversationCore.deleteConversation(deleteThread.value.id)
   } catch (error) {
     console.error(t('common.error.deleteChatFailed'), error)
   }
@@ -278,7 +278,7 @@ const handleScrollEnd = async () => {
     isLoadingMore = true
 
     // 调用loadMoreThreads方法
-    const result = await sessionP.loadMoreThreads()
+    const result = await conversationCore.loadMoreThreads()
 
     // 更新是否还有更多会话的状态
     hasMoreThreads.value = result.hasMore

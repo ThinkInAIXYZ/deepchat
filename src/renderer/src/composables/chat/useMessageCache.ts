@@ -1,6 +1,6 @@
 import { type Ref } from 'vue'
 import type { AssistantMessage, UserMessage, Message } from '@shared/chat'
-import { usePresenter } from '@/composables/usePresenter'
+import { useConversationCore } from '@/composables/chat/useConversationCore'
 import {
   cacheMessage,
   cacheMessages,
@@ -20,7 +20,7 @@ export function useMessageCache(
   setMessageIds: (ids: string[]) => void,
   enrichMessageWithExtra: (message: Message) => Promise<Message>
 ) {
-  const threadP = usePresenter('sessionPresenter')
+  const conversationCore = useConversationCore()
 
   const PREFETCH_BUFFER = 24
   const PREFETCH_BATCH_SIZE = 80
@@ -108,7 +108,7 @@ export function useMessageCache(
     if (!messageIds.length) return
     for (let i = 0; i < messageIds.length; i += PREFETCH_BATCH_SIZE) {
       const chunk = messageIds.slice(i, i + PREFETCH_BATCH_SIZE)
-      const messages = await threadP.getMessagesByIds(chunk)
+      const messages = await conversationCore.getMessagesByIds(chunk)
       const enriched = (await Promise.all(messages.map((msg) => enrichMessageWithExtra(msg)))) as
         | AssistantMessage[]
         | UserMessage[]

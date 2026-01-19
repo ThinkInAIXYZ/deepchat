@@ -9,7 +9,7 @@ import type {
 } from '@shared/chat'
 import type { CONVERSATION } from '@shared/presenter'
 import { usePresenter } from '@/composables/usePresenter'
-import { useWorkspaceStore } from './workspace'
+import { useConversationCore } from '@/composables/chat/useConversationCore'
 import { useChatMode } from '@/components/chat-input/composables/useChatMode'
 import {
   clearCachedMessagesForThread,
@@ -26,7 +26,7 @@ import { useChatConfig } from '@/composables/chat/useChatConfig'
 import { useThreadManagement } from '@/composables/chat/useThreadManagement'
 import { useMessageCache } from '@/composables/chat/useMessageCache'
 import { useVariantManagement } from '@/composables/chat/useVariantManagement'
-import { useMessageStreaming } from '@/composables/chat/useMessageStreaming'
+import { useExecutionAdapter } from '@/composables/chat/useExecutionAdapter'
 import { useChatEvents } from '@/composables/chat/useChatEvents'
 
 // 定义会话工作状态类型
@@ -50,8 +50,7 @@ export type MessageListItem = {
 }
 
 export const useChatStore = defineStore('chat', () => {
-  const threadP = usePresenter('sessionPresenter')
-  const agentP = usePresenter('agentPresenter')
+  const conversationCore = useConversationCore()
   const configP = usePresenter('configPresenter')
   const { currentMode } = useChatMode()
 
@@ -88,7 +87,6 @@ export const useChatStore = defineStore('chat', () => {
   const exportComposable = useThreadExport()
   const deeplinkComposable = useDeeplink(activeThreadId)
   const configComposable = useChatConfig(activeThreadId, threads, selectedVariantsMap)
-
   // Thread management composable (initialized after helper functions are defined)
   let threadManagementComposable: ReturnType<typeof useThreadManagement>
 
@@ -227,7 +225,7 @@ export const useChatStore = defineStore('chat', () => {
       Array.isArray((message as AssistantMessage).content) &&
       (message as AssistantMessage).content.some((block) => block.extra)
     ) {
-      const attachments = await threadP.getMessageExtraInfo(message.id, 'search_result')
+      const attachments = await conversationCore.getMessageExtraInfo(message.id, 'search_result')
       // 更新消息中的 extra 信息
       ;(message as AssistantMessage).content = (message as AssistantMessage).content.map(
         (block) => {
@@ -295,7 +293,7 @@ export const useChatStore = defineStore('chat', () => {
     const active = activeThread.value
     if (!active?.parentMessageId) return
 
-    const parentMessage = await threadP.getMessage(active.parentMessageId)
+    const parentMessage = await conversationCore.getMessage(active.parentMessageId)
     const parentText = getMessageTextForContext(parentMessage)
     if (!parentText.trim()) return
 
@@ -303,12 +301,28 @@ export const useChatStore = defineStore('chat', () => {
     deeplinkComposable.setPendingContextMention(threadId, parentText, selectionLabel)
   }
 
+  const updateThreadWorkingStatus = (threadId: string, status: WorkingStatus) => {
+    if (activeThreadId.value === threadId && (status === 'completed' || status === 'error')) {
+      threadsWorkingStatus.value.delete(threadId)
+      return
+    }
+
+    const oldStatus = threadsWorkingStatus.value.get(threadId)
+    if (oldStatus !== status) {
+      threadsWorkingStatus.value.set(threadId, status)
+    }
+  }
+
+  const getThreadWorkingStatus = (threadId: string): WorkingStatus | null => {
+    return threadsWorkingStatus.value.get(threadId) || null
+  }
+
   const loadMessages = async () => {
     if (!activeThreadId.value) return
 
     try {
       childThreadsByMessageId.value = new Map()
-      const messageIds = (await threadP.getMessageIds(activeThreadId.value!)) || []
+      const messageIds = (await conversationCore.getMessageIds(activeThreadId.value!)) || []
       setMessageIds(Array.isArray(messageIds) ? messageIds : [])
       const activeThread = activeThreadId.value
       for (const [, cached] of generatingMessagesCache.value) {
@@ -329,51 +343,29 @@ export const useChatStore = defineStore('chat', () => {
     }
   }
 
+  const executionAdapter = useExecutionAdapter({
+    activeThreadId,
+    selectedVariantsMap,
+    generatingThreadIds,
+    generatingMessagesCache,
+    threadsWorkingStatus,
+    updateThreadWorkingStatus,
+    loadMessages,
+    enrichMessageWithExtra,
+    audioComposable,
+    messageCacheComposable,
+    getTabId
+  })
+  const runtimeAdapter = executionAdapter
+
   const sendMessage = async (content: UserMessageContent | AssistantMessageBlock[]) => {
-    const threadId = activeThreadId.value
-    if (!threadId || !content) return
-
-    try {
-      generatingThreadIds.value.add(threadId)
-      // 设置当前会话的workingStatus为working
-      updateThreadWorkingStatus(threadId, 'working')
-      const aiResponseMessage = await agentP.sendMessage(
-        threadId,
-        JSON.stringify(content),
-        getTabId(),
-        selectedVariantsMap.value
-      )
-
-      if (!aiResponseMessage) {
-        throw new Error('Failed to create assistant message')
-      }
-
-      // 将消息添加到缓存
-      generatingMessagesCache.value.set(aiResponseMessage.id, {
-        message: aiResponseMessage,
-        threadId
-      })
-      messageCacheComposable.cacheMessageForView(aiResponseMessage)
-      messageCacheComposable.ensureMessageId(aiResponseMessage.id)
-
-      await loadMessages()
-    } catch (error) {
-      console.error('Failed to send message:', error)
-      // 发生错误时，务必清理 loading 状态
-      if (threadId) {
-        generatingThreadIds.value.delete(threadId)
-        // 强制触发响应式更新
-        generatingThreadIds.value = new Set(generatingThreadIds.value)
-        updateThreadWorkingStatus(threadId, 'error')
-      }
-      throw error
-    }
+    return executionAdapter.sendMessage(content)
   }
 
   const retryMessage = async (messageId: string) => {
     if (!activeThreadId.value) return
     try {
-      const aiResponseMessage = await agentP.retryMessage(messageId, selectedVariantsMap.value)
+      const aiResponseMessage = await executionAdapter.requestRetryMessage(messageId)
       let didUpdateVariant = false
       // 将正在生成的变体消息缓存起来，但不插入消息列表，避免额外的消息行
       generatingMessagesCache.value.set(aiResponseMessage.id, {
@@ -406,7 +398,7 @@ export const useChatStore = defineStore('chat', () => {
       }
       await loadMessages()
       if (aiResponseMessage.parentId && !didUpdateVariant) {
-        const mainMessage = await threadP.getMainMessageByParentId(
+        const mainMessage = await conversationCore.getMainMessageByParentId(
           activeThreadId.value!,
           aiResponseMessage.parentId
         )
@@ -467,7 +459,7 @@ export const useChatStore = defineStore('chat', () => {
         }
       }
 
-      await threadP.deleteMessage(messageId)
+      await conversationCore.deleteMessage(messageId)
       deleteCachedMessage(messageId)
       await loadMessages()
     } catch (error) {
@@ -479,7 +471,7 @@ export const useChatStore = defineStore('chat', () => {
   const clearAllMessages = async (threadId: string) => {
     if (!threadId) return
     try {
-      await threadP.clearAllMessages(threadId)
+      await conversationCore.clearAllMessages(threadId)
       clearCachedMessagesForThread(threadId)
       // 清空本地消息列表
       if (threadId === activeThreadId.value) {
@@ -504,72 +496,10 @@ export const useChatStore = defineStore('chat', () => {
   }
 
   const cancelGenerating = async (threadId: string) => {
-    if (!threadId) return
-    try {
-      const workspaceStore = useWorkspaceStore()
-      await workspaceStore.terminateAllRunningCommands()
-
-      // 找到当前正在生成的消息
-      const cache = generatingMessagesCache.value
-      const generatingMessage = Array.from(cache.entries()).find(
-        ([, cached]) => cached.threadId === threadId
-      ) as string[]
-      if (generatingMessage) {
-        const [messageId] = generatingMessage
-        await agentP.cancelLoop(messageId)
-        // 从缓存中移除消息
-        cache.delete(messageId)
-        generatingThreadIds.value.delete(threadId)
-        // 设置会话的workingStatus为completed
-        if (activeThreadId.value === threadId) {
-          threadsWorkingStatus.value.delete(threadId)
-        } else {
-          updateThreadWorkingStatus(threadId, 'completed')
-        }
-        // 获取更新后的消息
-        const updatedMessage = await threadP.getMessage(messageId)
-        const enrichedMessage = await enrichMessageWithExtra(updatedMessage)
-        messageCacheComposable.cacheMessageForView(enrichedMessage)
-        if (!enrichedMessage.is_variant) {
-          messageCacheComposable.ensureMessageId(enrichedMessage.id)
-        }
-      }
-    } catch (error) {
-      console.error('Failed to cancel generation:', error)
-    }
+    return executionAdapter.cancelGenerating(threadId)
   }
   const continueStream = async (conversationId: string, messageId: string) => {
-    if (!conversationId || !messageId) return
-    try {
-      generatingThreadIds.value.add(conversationId)
-      generatingThreadIds.value = new Set(generatingThreadIds.value)
-      // 设置会话的workingStatus为working
-      updateThreadWorkingStatus(conversationId, 'working')
-
-      const aiResponseMessage = await agentP.continueLoop(
-        conversationId,
-        messageId,
-        selectedVariantsMap.value
-      )
-
-      if (!aiResponseMessage) {
-        console.error('Failed to create assistant message')
-        return
-      }
-
-      // 将消息添加到缓存
-      generatingMessagesCache.value.set(aiResponseMessage.id, {
-        message: aiResponseMessage,
-        threadId: conversationId
-      })
-      messageCacheComposable.cacheMessageForView(aiResponseMessage)
-      messageCacheComposable.ensureMessageId(aiResponseMessage.id)
-
-      await loadMessages()
-    } catch (error) {
-      console.error('Failed to continue generation:', error)
-      throw error
-    }
+    return executionAdapter.continueStream(conversationId, messageId)
   }
 
   const handleMessageEdited = async (msgId: string) => {
@@ -577,7 +507,7 @@ export const useChatStore = defineStore('chat', () => {
     const cached = generatingMessagesCache.value.get(msgId)
     if (cached) {
       // 如果在缓存中，获取最新的消息
-      const updatedMessage = await threadP.getMessage(msgId)
+      const updatedMessage = await conversationCore.getMessage(msgId)
       // 处理 extra 信息
       const enrichedMessage = await enrichMessageWithExtra(updatedMessage)
 
@@ -587,7 +517,7 @@ export const useChatStore = defineStore('chat', () => {
       // 如果是当前会话的消息，也更新显示
       if (cached.threadId === activeThreadId.value) {
         if (enrichedMessage.is_variant && enrichedMessage.parentId) {
-          const mainMessage = await threadP.getMainMessageByParentId(
+          const mainMessage = await conversationCore.getMainMessageByParentId(
             cached.threadId,
             enrichedMessage.parentId
           )
@@ -609,11 +539,11 @@ export const useChatStore = defineStore('chat', () => {
         }
       }
     } else if (activeThreadId.value) {
-      const updatedMessage = await threadP.getMessage(msgId)
+      const updatedMessage = await conversationCore.getMessage(msgId)
       const enrichedMessage = await enrichMessageWithExtra(updatedMessage)
 
       if (enrichedMessage.is_variant && enrichedMessage.parentId) {
-        const mainMessage = await threadP.getMainMessageByParentId(
+        const mainMessage = await conversationCore.getMainMessageByParentId(
           activeThreadId.value!,
           enrichedMessage.parentId
         )
@@ -632,28 +562,6 @@ export const useChatStore = defineStore('chat', () => {
         messageCacheComposable.ensureMessageId(enrichedMessage.id)
       }
     }
-  }
-
-  // 新增更新会话workingStatus的方法
-  const updateThreadWorkingStatus = (threadId: string, status: WorkingStatus) => {
-    // 如果是活跃会话，且状态为completed或error，直接从Map中移除
-    if (activeThreadId.value === threadId && (status === 'completed' || status === 'error')) {
-      // console.log(`活跃会话状态移除: ${threadId}`)
-      threadsWorkingStatus.value.delete(threadId)
-      return
-    }
-
-    // 记录状态变更
-    const oldStatus = threadsWorkingStatus.value.get(threadId)
-    if (oldStatus !== status) {
-      // console.log(`会话状态变更: ${threadId} ${oldStatus || 'none'} -> ${status}`)
-      threadsWorkingStatus.value.set(threadId, status)
-    }
-  }
-
-  // 获取会话工作状态的方法
-  const getThreadWorkingStatus = (threadId: string): WorkingStatus | null => {
-    return threadsWorkingStatus.value.get(threadId) || null
   }
 
   /**
@@ -689,28 +597,16 @@ export const useChatStore = defineStore('chat', () => {
     generatingThreadIds,
     generatingMessagesCache,
     configComposable,
+    executionAdapter.requestRegenerateFromUserMessage,
     updateThreadWorkingStatus,
     loadMessages,
     messageCacheComposable.cacheMessageForView,
     messageCacheComposable.ensureMessageId
   )
 
-  // Initialize message streaming composable
-  const messageStreamingComposable = useMessageStreaming(
-    activeThreadId,
-    generatingThreadIds,
-    generatingMessagesCache,
-    threadsWorkingStatus,
-    updateThreadWorkingStatus,
-    enrichMessageWithExtra,
-    audioComposable,
-    messageCacheComposable
-  )
-
-  // Stream event handlers from messageStreamingComposable
-  const handleStreamResponse = messageStreamingComposable.handleStreamResponse
-  const handleStreamEnd = messageStreamingComposable.handleStreamEnd
-  const handleStreamError = messageStreamingComposable.handleStreamError
+  const handleStreamResponse = runtimeAdapter.handleStreamResponse
+  const handleStreamEnd = runtimeAdapter.handleStreamEnd
+  const handleStreamError = runtimeAdapter.handleStreamError
 
   // Initialize chat events composable
   const chatEventsComposable = useChatEvents(
@@ -730,7 +626,7 @@ export const useChatStore = defineStore('chat', () => {
     configComposable,
     deeplinkComposable,
     variantManagementComposable,
-    messageStreamingComposable
+    runtimeAdapter
   )
 
   onMounted(() => {

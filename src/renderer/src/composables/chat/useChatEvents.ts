@@ -32,7 +32,7 @@ export function useChatEvents(
   configComposable: any,
   deeplinkComposable: any,
   variantManagementComposable: any,
-  messageStreamingComposable: any
+  executionAdapter: any
 ) {
   const tabP = usePresenter('tabPresenter')
 
@@ -183,15 +183,15 @@ export function useChatEvents(
       window.electron.ipcRenderer.removeAllListeners(STREAM_EVENTS.ERROR)
 
       window.electron.ipcRenderer.on(STREAM_EVENTS.RESPONSE, (_, msg) => {
-        messageStreamingComposable.handleStreamResponse(msg)
+        executionAdapter.handleStreamResponse(msg)
       })
 
       window.electron.ipcRenderer.on(STREAM_EVENTS.END, (_, msg) => {
-        messageStreamingComposable.handleStreamEnd(msg)
+        executionAdapter.handleStreamEnd(msg)
       })
 
       window.electron.ipcRenderer.on(STREAM_EVENTS.ERROR, (_, msg) => {
-        messageStreamingComposable.handleStreamError(msg)
+        executionAdapter.handleStreamError(msg)
       })
     }
   }

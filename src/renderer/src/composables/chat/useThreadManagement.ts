@@ -1,6 +1,6 @@
 import { type Ref } from 'vue'
 import type { CONVERSATION, CONVERSATION_SETTINGS, ParentSelection } from '@shared/presenter'
-import { usePresenter } from '@/composables/usePresenter'
+import { useConversationCore } from '@/composables/chat/useConversationCore'
 import { clearCachedMessagesForThread, clearMessageDomInfo } from '@/lib/messageRuntimeCache'
 
 /**
@@ -22,7 +22,7 @@ export function useThreadManagement(
   setMessageIds: (ids: string[]) => void,
   getTabId: () => number
 ) {
-  const threadP = usePresenter('sessionPresenter')
+  const conversationCore = useConversationCore()
 
   /**
    * Create a new empty thread by clearing the active thread
@@ -66,7 +66,11 @@ export function useThreadManagement(
           normalizedSettings.agentWorkspacePath = pendingWorkspacePath
         }
       }
-      const threadId = await threadP.createConversation(title, normalizedSettings, getTabId())
+      const threadId = await conversationCore.createConversation(
+        title,
+        normalizedSettings,
+        getTabId()
+      )
       // 因为 createConversation 内部已经调用了 setActiveConversation
       // 并且可以确定是为当前tab激活，所以在这里可以直接、安全地更新本地状态
       // 以确保后续的 sendMessage 能正确获取 activeThreadId。
@@ -87,7 +91,7 @@ export function useThreadManagement(
     // 主进程会处理"防重"逻辑，并通过 'ACTIVATED' 事件来通知UI更新。
     // 如果主进程决定切换到其他tab，当前tab不会收到此事件，状态也就不会被错误地更新。
     const tabId = getTabId()
-    await threadP.setActiveConversation(threadId, tabId)
+    await conversationCore.setActiveConversation(threadId, tabId)
   }
 
   /**
@@ -102,12 +106,12 @@ export function useThreadManagement(
     if (!threadId) return
     try {
       const tabId = getTabId()
-      await threadP.openConversationInNewTab({
-        conversationId: threadId,
-        tabId,
-        messageId: options?.messageId,
-        childConversationId: options?.childConversationId
-      })
+      const openOptions = options?.messageId
+        ? { messageId: options.messageId }
+        : options?.childConversationId
+          ? { childConversationId: options.childConversationId }
+          : undefined
+      await conversationCore.openConversationInNewTab(threadId, tabId, openOptions)
     } catch (error) {
       console.error('Failed to open thread in new tab:', error)
     }
@@ -120,7 +124,7 @@ export function useThreadManagement(
     const threadId = activeThreadId.value
     if (!threadId) return
     const tabId = getTabId()
-    await threadP.clearActiveThread(tabId)
+    await conversationCore.clearActiveThread(tabId)
     setActiveThreadId(null)
     setMessageIds([])
     clearCachedMessagesForThread(threadId)
@@ -168,13 +172,13 @@ export function useThreadManagement(
 
     try {
       // 获取当前会话信息
-      const currentThread = await threadP.getConversation(activeThread)
+      const currentThread = await conversationCore.getConversation(activeThread)
 
       // 创建分支会话标题
       const newThreadTitle = `${currentThread.title} ${forkTag}`
 
       // 调用main层的forkConversation方法
-      const newThreadId = await threadP.forkConversation(
+      const newThreadId = await conversationCore.forkConversation(
         activeThread,
         messageId,
         newThreadTitle,
@@ -205,7 +209,7 @@ export function useThreadManagement(
 
     try {
       const parentThreadId = activeThread
-      const parentConversation = await threadP.getConversation(activeThread)
+      const parentConversation = await conversationCore.getConversation(activeThread)
       const selectionSnippet = payload.parentSelection.selectedText
         .trim()
         .replace(/\s+/g, ' ')
@@ -214,7 +218,7 @@ export function useThreadManagement(
         ? `${parentConversation.title} - ${selectionSnippet}`
         : parentConversation.title
 
-      const newThreadId = await threadP.createChildConversationFromSelection({
+      const newThreadId = await conversationCore.createChildConversationFromSelection({
         parentConversationId: activeThread,
         parentMessageId: payload.parentMessageId,
         parentSelection: payload.parentSelection,
@@ -254,7 +258,7 @@ export function useThreadManagement(
       return
     }
 
-    const childThreads = (await threadP.listChildConversationsByMessageIds(msgIds)) || []
+    const childThreads = (await conversationCore.listChildConversationsByMessageIds(msgIds)) || []
     const nextMap = new Map<string, CONVERSATION[]>()
     for (const child of childThreads) {
       if (!child.parentMessageId) continue
@@ -272,7 +276,7 @@ export function useThreadManagement(
    * @param title New title
    */
   const renameThread = async (threadId: string, title: string) => {
-    await threadP.renameConversation(threadId, title)
+    await conversationCore.renameConversation(threadId, title)
   }
 
   /**
@@ -281,7 +285,7 @@ export function useThreadManagement(
    * @param isPinned New pinned status
    */
   const toggleThreadPinned = async (threadId: string, isPinned: boolean) => {
-    await threadP.toggleConversationPinned(threadId, isPinned)
+    await conversationCore.toggleConversationPinned(threadId, isPinned)
   }
 
   return {

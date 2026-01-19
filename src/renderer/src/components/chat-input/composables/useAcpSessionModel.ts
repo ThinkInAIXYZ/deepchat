@@ -1,5 +1,5 @@
 import { computed, ref, watch, onMounted, onUnmounted } from 'vue'
-import { usePresenter } from '@/composables/usePresenter'
+import { useAcpRuntimeAdapter } from '@/composables/chat/useAcpRuntimeAdapter'
 import { ACP_WORKSPACE_EVENTS } from '@/events'
 import type { Ref } from 'vue'
 
@@ -20,7 +20,7 @@ interface ModelInfo {
 }
 
 export function useAcpSessionModel(options: UseAcpSessionModelOptions) {
-  const sessionPresenter = usePresenter('sessionPresenter')
+  const acpRuntimeAdapter = useAcpRuntimeAdapter()
 
   const currentModelId = ref<string>('')
   const availableModels = ref<ModelInfo[]>([])
@@ -47,7 +47,7 @@ export function useAcpSessionModel(options: UseAcpSessionModelOptions) {
 
     loading.value = true
     try {
-      const result = await sessionPresenter.getAcpSessionModels(options.conversationId.value)
+      const result = await acpRuntimeAdapter.getAcpSessionModels(options.conversationId.value)
       if (result && result.available.length > 0) {
         currentModelId.value = result.current
         availableModels.value = result.available
@@ -76,7 +76,7 @@ export function useAcpSessionModel(options: UseAcpSessionModelOptions) {
     lastWarmupModelsKey.value = warmupKey
 
     try {
-      const result = await sessionPresenter.getAcpProcessModels(agentId.value, workdir)
+      const result = await acpRuntimeAdapter.getAcpProcessModels(agentId.value, workdir)
       if (result?.availableModels && result.availableModels.length > 0) {
         currentModelId.value =
           result.currentModelId ?? result.availableModels[0]?.id ?? currentModelId.value
@@ -177,11 +177,11 @@ export function useAcpSessionModel(options: UseAcpSessionModelOptions) {
     loading.value = true
     try {
       if (options.conversationId.value) {
-        await sessionPresenter.setAcpSessionModel(options.conversationId.value, modelId)
+        await acpRuntimeAdapter.setAcpSessionModel(options.conversationId.value, modelId)
         currentModelId.value = modelId
         pendingPreferredModel.value = null
       } else if (selectedWorkdir.value) {
-        await sessionPresenter.setAcpPreferredProcessModel(
+        await acpRuntimeAdapter.setAcpPreferredProcessModel(
           options.activeModel.value!.id!,
           selectedWorkdir.value,
           modelId

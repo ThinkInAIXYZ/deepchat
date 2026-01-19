@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed, onMounted } from 'vue'
 import { usePresenter } from '@/composables/usePresenter'
+import { useConversationCore } from '@/composables/chat/useConversationCore'
 import { useRouter } from 'vue-router'
 import { useChatStore } from './chat'
 import { CONVERSATION_EVENTS } from '@/events'
@@ -24,7 +25,7 @@ interface PersistedSidebarState {
 }
 
 export const useSidebarStore = defineStore('sidebar', () => {
-  const sessionP = usePresenter('sessionPresenter')
+  const conversationCore = useConversationCore()
   const configP = usePresenter('configPresenter')
   const router = useRouter()
   const chatStore = useChatStore()
@@ -85,7 +86,7 @@ export const useSidebarStore = defineStore('sidebar', () => {
     if (!existing) return
 
     try {
-      const conversation = await sessionP.getConversation(threadId)
+      const conversation = await conversationCore.getConversation(threadId)
       if (conversation) {
         conversations.value.set(threadId, {
           id: threadId,

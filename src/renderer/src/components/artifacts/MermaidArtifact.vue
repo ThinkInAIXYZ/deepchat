@@ -47,22 +47,22 @@ const sanitizeMermaidContent = (content: string): string => {
   // 移除危险的 HTML 标签及其内容
   const dangerousTags = [
     // Script 标签 - 允许执行 JavaScript
-    /<script[^>]*>[\s\S]*?<\/script>/gi,
+    /<script\b(?:"[^"]*"|'[^']*'|[^'">])*?>[\s\S]*?<\/script>/gi,
     // Iframe 标签 - 可以嵌入恶意内容
-    /<iframe[^>]*>[\s\S]*?<\/iframe>/gi,
+    /<iframe\b(?:"[^"]*"|'[^']*'|[^'">])*?>[\s\S]*?<\/iframe>/gi,
     // Object 和 Embed 标签 - 可以执行代码
-    /<object[^>]*>[\s\S]*?<\/object>/gi,
-    /<embed[^>]*[^>]*>/gi,
+    /<object\b(?:"[^"]*"|'[^']*'|[^'">])*?>[\s\S]*?<\/object>/gi,
+    /<embed\b(?:"[^"]*"|'[^']*'|[^'">])*?>/gi,
     // Form 标签 - 可能用于 CSRF
-    /<form[^>]*>[\s\S]*?<\/form>/gi,
+    /<form\b(?:"[^"]*"|'[^']*'|[^'">])*?>[\s\S]*?<\/form>/gi,
     // Link 标签 - 可能加载恶意样式或脚本
-    /<link[^>]*>/gi,
+    /<link\b(?:"[^"]*"|'[^']*'|[^'">])*?>/gi,
     // Style 标签 - 可能包含恶意 CSS
-    /<style[^>]*>[\s\S]*?<\/style>/gi,
+    /<style\b(?:"[^"]*"|'[^']*'|[^'">])*?>[\s\S]*?<\/style>/gi,
     // Meta 标签 - 可能用于重定向或执行
-    /<meta[^>]*>/gi,
+    /<meta\b(?:"[^"]*"|'[^']*'|[^'">])*?>/gi,
     // Img 标签 - PoC 中使用的攻击向量，带事件处理器特别危险
-    /<img[^>]*>/gi
+    /<img\b(?:"[^"]*"|'[^']*'|[^'">])*?>/gi
   ]
 
   // 移除危险标签
@@ -72,7 +72,7 @@ const sanitizeMermaidContent = (content: string): string => {
 
   // 移除所有事件处理器属性 (on* 属性)
   // 这包括 onerror, onclick, onload, onmouseover 等
-  sanitized = sanitized.replace(/on\w+\s*=\s*["'][^"']*["']/gi, '')
+  sanitized = sanitized.replace(/on\w+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, '')
 
   // 移除危险的协议
   const dangerousProtocols = [/javascript\s*:/gi, /vbscript\s*:/gi, /data\s*:\s*text\/html/gi]

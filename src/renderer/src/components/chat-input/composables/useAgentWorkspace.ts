@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n'
 
 // === Composables ===
 import { usePresenter } from '@/composables/usePresenter'
+import { useConversationCore } from '@/composables/chat/useConversationCore'
 import { useChatMode } from './useChatMode'
 import { useAcpWorkdir } from './useAcpWorkdir'
 import { useChatStore } from '@/stores/chat'
@@ -23,7 +24,7 @@ export interface UseAgentWorkspaceOptions {
  */
 export function useAgentWorkspace(options: UseAgentWorkspaceOptions) {
   const { t } = useI18n()
-  const sessionPresenter = usePresenter('sessionPresenter')
+  const conversationCore = useConversationCore()
   const chatMode = options.chatMode ?? useChatMode()
   const chatStore = useChatStore()
 
@@ -121,7 +122,7 @@ export function useAgentWorkspace(options: UseAgentWorkspaceOptions) {
 
         // Save to conversation settings when available
         if (options.conversationId.value) {
-          await sessionPresenter.updateConversationSettings(options.conversationId.value, {
+          await conversationCore.updateConversationSettings(options.conversationId.value, {
             agentWorkspacePath: selectedPath
           })
           pendingWorkspacePath.value = null
@@ -154,7 +155,7 @@ export function useAgentWorkspace(options: UseAgentWorkspaceOptions) {
 
     try {
       // Load agent workspace path from conversation settings
-      const conversation = await sessionPresenter.getConversation(options.conversationId.value)
+      const conversation = await conversationCore.getConversation(options.conversationId.value)
       const savedPath = conversation?.settings?.agentWorkspacePath ?? null
       if (savedPath) {
         agentWorkspacePath.value = savedPath
@@ -178,7 +179,7 @@ export function useAgentWorkspace(options: UseAgentWorkspaceOptions) {
 
     loading.value = true
     try {
-      await sessionPresenter.updateConversationSettings(options.conversationId.value, {
+      await conversationCore.updateConversationSettings(options.conversationId.value, {
         agentWorkspacePath: selectedPath
       })
       agentWorkspacePath.value = selectedPath

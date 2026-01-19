@@ -1,9 +1,10 @@
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, watch, onScopeDispose } from 'vue'
 import { defineStore } from 'pinia'
 import { usePresenter } from '@/composables/usePresenter'
 import { useIpcQuery } from '@/composables/useIpcQuery'
 import { useIpcMutation } from '@/composables/useIpcMutation'
 import { MCP_EVENTS } from '@/events'
+import { useMcpToolingAdapter } from '@/composables/mcp/useMcpToolingAdapter'
 import { useI18n } from 'vue-i18n'
 import { useChatStore } from './chat'
 import { useQuery, type UseMutationReturn, type UseQueryReturn } from '@pinia/colada'
@@ -15,12 +16,15 @@ import type {
   PromptListEntry,
   Resource,
   ResourceListEntry,
-  Prompt
+  Prompt,
+  MCPContentItem
 } from '@shared/presenter'
 
-interface MCPToolCallEventResult {
+type MCPToolCallEventResult = {
+  toolCallId?: string
   function_name?: string
-  content: string | { type: string; text: string }[]
+  content: string | MCPContentItem[]
+  isError?: boolean
 }
 export const useMcpStore = defineStore('mcp', () => {
   const chatStore = useChatStore()
@@ -29,6 +33,8 @@ export const useMcpStore = defineStore('mcp', () => {
   const mcpPresenter = usePresenter('mcpPresenter')
   // 获取配置相关的presenter
   const configPresenter = usePresenter('configPresenter')
+  const toolingAdapter = useMcpToolingAdapter()
+  let unsubscribeToolResults: (() => void) | null = null
 
   // ==================== 状态定义 ====================
   // MCP配置
@@ -53,7 +59,7 @@ export const useMcpStore = defineStore('mcp', () => {
   // 工具相关状态
   const toolLoadingStates = ref<Record<string, boolean>>({})
   const toolInputs = ref<Record<string, Record<string, string>>>({})
-  const toolResults = ref<Record<string, string | { type: string; text: string }[]>>({})
+  const toolResults = ref<Record<string, string | MCPContentItem[]>>({})
 
   type QueryExecuteOptions = { force?: boolean }
 
@@ -942,13 +948,15 @@ export const useMcpStore = defineStore('mcp', () => {
       }
     )
 
-    window.electron.ipcRenderer.on(
-      MCP_EVENTS.TOOL_CALL_RESULT,
-      (_event, result: MCPToolCallEventResult) => {
-        console.log(`MCP tool call result:`, result.function_name)
-        if (result && result.function_name) {
-          toolResults.value[result.function_name] = result.content
+    unsubscribeToolResults?.()
+    unsubscribeToolResults = toolingAdapter.subscribeToolResults(
+      (result: MCPToolCallEventResult) => {
+        const toolKey = result.toolCallId || result.function_name
+        if (!toolKey) {
+          console.warn('MCP tool result missing toolCallId and function_name', result)
+          return
         }
+        toolResults.value[toolKey] = result.content
       }
     )
 
@@ -958,6 +966,11 @@ export const useMcpStore = defineStore('mcp', () => {
       loadPrompts()
     })
   }
+
+  onScopeDispose(() => {
+    unsubscribeToolResults?.()
+    unsubscribeToolResults = null
+  })
 
   // 初始化
   const init = async () => {

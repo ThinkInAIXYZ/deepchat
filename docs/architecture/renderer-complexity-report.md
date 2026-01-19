@@ -70,6 +70,60 @@
 - `App.vue` 与顶层入口文件的依赖数量。
 - feature module 内外的依赖流向（是否出现反向依赖）。
 
+## Phase 0 治理项（落地清单）
+- **依赖方向规则**：UI/App 层不得直接依赖 Infra；禁止 UI 层出现 `window.electron`。
+- **IPC 入口约束**：所有 `ipcRenderer.on` 与 `ipcRenderer.invoke` 只允许出现在 adapter 或 presenter 入口层。
+- **Presenter 访问约束**：`usePresenter` 仅允许在 adapter 层；UI/composables 只能调用 adapter。
+- **事件订阅清单**：为每个事件命名空间建立订阅清单，新增订阅必须更新清单。
+- **规模阈值**：store 文件超过 500 行或 10+ 跨模块依赖时必须拆分或降耦。
+- **基线更新**：每个阶段结束时更新一次统计基线，避免回退。
+
+## 基线统计（2026-01-19）
+- `window.electron`：总计 137 处，分布 28 个文件。
+  - `src/renderer/src/composables/chat/useChatEvents.ts` (17)
+  - `src/renderer/src/stores/uiSettingsStore.ts` (16)
+  - `src/renderer/src/stores/yoBrowser.ts` (14)
+  - `src/renderer/src/stores/windowStore.ts` (12)
+  - `src/renderer/src/stores/modelStore.ts` (8)
+  - `src/renderer/src/stores/sync.ts` (7)
+  - `src/renderer/src/components/chat-input/composables/useRateLimitStatus.ts` (6)
+  - `src/renderer/src/components/chat-input/composables/useSkillsData.ts` (6)
+  - `src/renderer/src/stores/mcpSampling.ts` (6)
+  - `src/renderer/src/stores/mcp.ts` (5)
+- `ipcRenderer.on`：总计 80 处，分布 25 个文件。
+  - `src/renderer/src/composables/chat/useChatEvents.ts` (12)
+  - `src/renderer/src/stores/uiSettingsStore.ts` (8)
+  - `src/renderer/src/stores/sync.ts` (7)
+  - `src/renderer/src/stores/yoBrowser.ts` (7)
+  - `src/renderer/src/stores/windowStore.ts` (6)
+  - `src/renderer/src/stores/mcp.ts` (5)
+  - `src/renderer/src/stores/providerStore.ts` (5)
+  - `src/renderer/src/stores/upgrade.ts` (4)
+  - `src/renderer/src/components/chat-input/composables/useRateLimitStatus.ts` (3)
+  - `src/renderer/src/stores/mcpSampling.ts` (3)
+- `usePresenter`：总计 153 处，分布 47 个文件。
+  - `src/renderer/src/components/chat-input/composables/useAgentWorkspace.ts` (6)
+  - `src/renderer/src/stores/sync.ts` (5)
+  - `src/renderer/src/composables/chat/useMessageStreaming.ts` (4)
+  - `src/renderer/src/stores/mcp.ts` (4)
+  - `src/renderer/src/stores/modelStore.ts` (4)
+  - `src/renderer/src/stores/ollamaStore.ts` (4)
+  - `src/renderer/src/stores/providerStore.ts` (4)
+  - `src/renderer/src/stores/searchAssistantStore.ts` (4)
+  - `src/renderer/src/stores/searchEngineStore.ts` (4)
+  - `src/renderer/src/stores/shortcutKey.ts` (4)
+- Store 行数 Top 10：
+  - `src/renderer/src/stores/mcp.ts` (1117)
+  - `src/renderer/src/stores/modelStore.ts` (806)
+  - `src/renderer/src/stores/chat.ts` (727)
+  - `src/renderer/src/stores/providerStore.ts` (421)
+  - `src/renderer/src/stores/mcpSampling.ts` (377)
+  - `src/renderer/src/stores/workspace.ts` (375)
+  - `src/renderer/src/stores/ollamaStore.ts` (305)
+  - `src/renderer/src/stores/upgrade.ts` (271)
+  - `src/renderer/src/stores/sidebarStore.ts` (213)
+  - `src/renderer/src/stores/sync.ts` (209)
+
 ## 域清单（Renderer 视角）
 以下域划分用于整理与迁移的主线，命名以业务语义为主，而非目录名：
 

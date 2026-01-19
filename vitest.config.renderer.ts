@@ -9,6 +9,7 @@ export default defineConfig({
       '@': resolve('src/renderer/src'),
       '@shell': resolve('src/renderer/shell'),
       '@shared': resolve('src/shared'),
+      '@shadcn': resolve('src/shadcn'),
       vue: 'vue/dist/vue.esm-bundler.js'
     }
   },

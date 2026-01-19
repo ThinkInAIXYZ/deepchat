@@ -1,6 +1,6 @@
 import { ref, type Ref } from 'vue'
 import type { CONVERSATION_SETTINGS, CONVERSATION } from '@shared/presenter'
-import { usePresenter } from '@/composables/usePresenter'
+import { useConversationCore } from '@/composables/chat/useConversationCore'
 
 /**
  * Chat configuration composable
@@ -11,7 +11,7 @@ export function useChatConfig(
   threads: Ref<{ dt: string; dtThreads: CONVERSATION[] }[]>,
   selectedVariantsMap: Ref<Record<string, string>>
 ) {
-  const threadP = usePresenter('sessionPresenter')
+  const conversationCore = useConversationCore()
 
   // Chat configuration state
   const chatConfig = ref<CONVERSATION_SETTINGS>({
@@ -42,7 +42,7 @@ export function useChatConfig(
     if (!activeThread) return
 
     try {
-      const conversation = await threadP.getConversation(activeThread)
+      const conversation = await conversationCore.getConversation(activeThread)
       const threadToUpdate = threads.value
         .flatMap((thread) => thread.dtThreads)
         .find((t) => t.id === activeThread)
@@ -79,7 +79,7 @@ export function useChatConfig(
     if (!activeThread) return
 
     try {
-      await threadP.updateConversationSettings(activeThread, chatConfig.value)
+      await conversationCore.updateConversationSettings(activeThread, chatConfig.value)
     } catch (error) {
       console.error('Failed to save conversation config:', error)
       throw error

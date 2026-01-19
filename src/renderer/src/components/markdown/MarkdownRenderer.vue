@@ -10,7 +10,7 @@
 </template>
 
 <script setup lang="ts">
-import { usePresenter } from '@/composables/usePresenter'
+import { useConversationCore } from '@/composables/chat/useConversationCore'
 import { useArtifactStore } from '@/stores/artifact'
 import { useReferenceStore } from '@/stores/reference'
 import { nanoid } from 'nanoid'
@@ -37,7 +37,7 @@ const artifactStore = useArtifactStore()
 const messageId = `artifact-msg-${nanoid()}`
 const threadId = `artifact-thread-${nanoid()}`
 const referenceStore = useReferenceStore()
-const sessionPresenter = usePresenter('sessionPresenter')
+const conversationCore = useConversationCore()
 const referenceNode = ref<HTMLElement | null>(null)
 const debouncedContent = ref(props.content)
 const codeBlockMonacoOption = computed(() => ({
@@ -66,7 +66,7 @@ setCustomComponents({
       messageId,
       threadId,
       onClick() {
-        sessionPresenter.getSearchResults(_props.messageId ?? '').then((results) => {
+        conversationCore.getSearchResults(_props.messageId ?? '').then((results) => {
           const index = parseInt(_props.node.id)
           if (index < results.length) {
             window.open(results[index - 1].url, '_blank', 'noopener,noreferrer')
@@ -76,7 +76,7 @@ setCustomComponents({
       onMouseEnter() {
         console.log('Mouse entered')
         referenceStore.hideReference()
-        sessionPresenter.getSearchResults(_props.messageId ?? '').then((results) => {
+        conversationCore.getSearchResults(_props.messageId ?? '').then((results) => {
           const index = parseInt(_props.node.id)
           if (index - 1 < results.length && referenceNode.value) {
             referenceStore.showReference(

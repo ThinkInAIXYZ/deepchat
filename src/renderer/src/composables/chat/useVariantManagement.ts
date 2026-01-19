@@ -1,5 +1,5 @@
 import { type Ref } from 'vue'
-import { usePresenter } from '@/composables/usePresenter'
+import { useConversationCore } from '@/composables/chat/useConversationCore'
 import type { WorkingStatus } from '@/stores/chat'
 
 /**
@@ -12,13 +12,13 @@ export function useVariantManagement(
   generatingThreadIds: Ref<Set<string>>,
   generatingMessagesCache: Ref<Map<string, { message: any; threadId: string }>>,
   configComposable: any,
+  requestRegenerateFromUserMessage: (conversationId: string, userMessageId: string) => Promise<any>,
   updateThreadWorkingStatus: (threadId: string, status: WorkingStatus) => void,
   loadMessages: () => Promise<void>,
   cacheMessageForView: (message: any) => void,
   ensureMessageId: (messageId: string) => void
 ) {
-  const threadP = usePresenter('sessionPresenter')
-  const agentP = usePresenter('agentPresenter')
+  const conversationCore = useConversationCore()
 
   // 标志：是否正在更新变体选择（用于防止 LIST_UPDATED 循环）
   let isUpdatingVariant = false
@@ -39,11 +39,7 @@ export function useVariantManagement(
       generatingThreadIds.value.add(activeThread)
       updateThreadWorkingStatus(activeThread, 'working')
 
-      const aiResponseMessage = await agentP.regenerateFromUserMessage(
-        activeThread,
-        userMessageId,
-        selectedVariantsMap.value
-      )
+      const aiResponseMessage = await requestRegenerateFromUserMessage(activeThread, userMessageId)
 
       generatingMessagesCache.value.set(aiResponseMessage.id, {
         message: aiResponseMessage,
@@ -72,7 +68,10 @@ export function useVariantManagement(
     if (!activeThread) return false
 
     try {
-      const mainMessage = await threadP.getMainMessageByParentId(activeThread, userMessageId)
+      const mainMessage = await conversationCore.getMainMessageByParentId(
+        activeThread,
+        userMessageId
+      )
       if (mainMessage) {
         await retryMessage(mainMessage.id)
         return true
@@ -111,7 +110,7 @@ export function useVariantManagement(
 
     // 持久化到后端
     try {
-      await threadP.updateConversationSettings(threadId, {
+      await conversationCore.updateConversationSettings(threadId, {
         selectedVariantsMap: selectedVariantsMap.value
       })
     } catch (error) {

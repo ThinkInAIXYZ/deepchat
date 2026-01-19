@@ -1,6 +1,7 @@
 import { type Ref } from 'vue'
 import type { AssistantMessage, UserMessage, Message } from '@shared/chat'
 import { usePresenter } from '@/composables/usePresenter'
+import { useConversationCore } from '@/composables/chat/useConversationCore'
 import { getCachedMessage, hasCachedMessage } from '@/lib/messageRuntimeCache'
 import { useI18n } from 'vue-i18n'
 import type { WorkingStatus } from '@/stores/chat'
@@ -70,7 +71,7 @@ export function useMessageStreaming(
   audioComposable: any,
   messageCacheComposable: any
 ) {
-  const threadP = usePresenter('sessionPresenter')
+  const conversationCore = useConversationCore()
   const windowP = usePresenter('windowPresenter')
   const notificationP = usePresenter('notificationPresenter')
   const { t } = useI18n()
@@ -371,7 +372,7 @@ export function useMessageStreaming(
     const cached = generatingMessagesCache.value.get(msg.eventId)
     if (cached) {
       // 获取最新的消息并处理 extra 信息
-      const updatedMessage = await threadP.getMessage(msg.eventId)
+      const updatedMessage = await conversationCore.getMessage(msg.eventId)
       const enrichedMessage = await enrichMessageWithExtra(updatedMessage)
 
       generatingMessagesCache.value.delete(msg.eventId)
@@ -389,7 +390,7 @@ export function useMessageStreaming(
       // 如果是变体消息，需要更新主消息
       if (enrichedMessage.is_variant && enrichedMessage.parentId) {
         // 获取主消息
-        const mainMessage = await threadP.getMainMessageByParentId(
+        const mainMessage = await conversationCore.getMainMessageByParentId(
           cached.threadId,
           enrichedMessage.parentId
         )
@@ -428,7 +429,7 @@ export function useMessageStreaming(
     // 如果缓存中没有，尝试从当前消息列表中查找对应的会话ID
     if (!threadId) {
       try {
-        const foundMessage = await threadP.getMessage(msg.eventId)
+        const foundMessage = await conversationCore.getMessage(msg.eventId)
         threadId = foundMessage.conversationId
       } catch (error) {
         console.warn('Failed to locate message thread for stream error:', error)
@@ -437,7 +438,7 @@ export function useMessageStreaming(
 
     if (threadId) {
       try {
-        const updatedMessage = await threadP.getMessage(msg.eventId)
+        const updatedMessage = await conversationCore.getMessage(msg.eventId)
         const enrichedMessage = await enrichMessageWithExtra(updatedMessage)
 
         if (enrichedMessage.is_variant && enrichedMessage.parentId) {

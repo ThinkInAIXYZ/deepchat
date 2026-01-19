@@ -1,4 +1,4 @@
-import { usePresenter } from '@/composables/usePresenter'
+import { useExportAdapter } from '@/composables/chat/useExportAdapter'
 import { downloadBlob } from '@/lib/download'
 
 /**
@@ -6,7 +6,7 @@ import { downloadBlob } from '@/lib/download'
  * Handles exporting conversations to various formats and nowledge-mem integration
  */
 export function useThreadExport() {
-  const exporterP = usePresenter('exporter')
+  const exportAdapter = useExportAdapter()
 
   /**
    * Get content type for export format
@@ -30,7 +30,7 @@ export function useThreadExport() {
    * Export thread using main process
    */
   const exportWithMainThread = async (threadId: string, format: 'markdown' | 'html' | 'txt') => {
-    const result = await exporterP.exportConversation(threadId, format)
+    const result = await exportAdapter.exportConversation(threadId, format)
 
     // Trigger download
     const blob = new Blob([result.content], {
@@ -45,7 +45,7 @@ export function useThreadExport() {
    * Submit thread to nowledge-mem API
    */
   const submitToNowledgeMem = async (threadId: string) => {
-    const result = await exporterP.submitToNowledgeMem(threadId)
+    const result = await exportAdapter.submitToNowledgeMem(threadId)
 
     if (!result.success) {
       throw new Error(result.errors?.join(', ') || 'Submission failed')
@@ -79,7 +79,7 @@ export function useThreadExport() {
    */
   const testNowledgeMemConnection = async () => {
     try {
-      const result = await exporterP.testNowledgeMemConnection()
+      const result = await exportAdapter.testNowledgeMemConnection()
 
       if (!result.success) {
         throw new Error(result.error || 'Connection test failed')
@@ -101,7 +101,7 @@ export function useThreadExport() {
     timeout?: number
   }) => {
     try {
-      await exporterP.updateNowledgeMemConfig(config)
+      await exportAdapter.updateNowledgeMemConfig(config)
     } catch (error) {
       console.error('Failed to update nowledge-mem config:', error)
       throw error
@@ -112,7 +112,7 @@ export function useThreadExport() {
    * Get nowledge-mem configuration
    */
   const getNowledgeMemConfig = () => {
-    return exporterP.getNowledgeMemConfig()
+    return exportAdapter.getNowledgeMemConfig()
   }
 
   return {

@@ -1,5 +1,6 @@
 import { computed, ref, watch } from 'vue'
 import { usePresenter } from '@/composables/usePresenter'
+import { useAcpRuntimeAdapter } from '@/composables/chat/useAcpRuntimeAdapter'
 import type { Ref } from 'vue'
 import { useChatStore } from '@/stores/chat'
 
@@ -11,7 +12,7 @@ interface UseAcpWorkdirOptions {
 }
 
 export function useAcpWorkdir(options: UseAcpWorkdirOptions) {
-  const sessionPresenter = usePresenter('sessionPresenter')
+  const acpRuntimeAdapter = useAcpRuntimeAdapter()
   const devicePresenter = usePresenter('devicePresenter')
   const chatStore = useChatStore()
 
@@ -67,7 +68,7 @@ export function useAcpWorkdir(options: UseAcpWorkdirOptions) {
     lastWarmupKey.value = warmupKey
 
     try {
-      await sessionPresenter.warmupAcpProcess(agentId.value, trimmed)
+      await acpRuntimeAdapter.warmupAcpProcess(agentId.value, trimmed)
     } catch (error) {
       console.warn('[useAcpWorkdir] Failed to warmup ACP process', error)
     }
@@ -89,7 +90,7 @@ export function useAcpWorkdir(options: UseAcpWorkdirOptions) {
 
     loading.value = true
     try {
-      const result = await sessionPresenter.getAcpWorkdir(
+      const result = await acpRuntimeAdapter.getAcpWorkdir(
         options.conversationId.value,
         agentId.value
       )
@@ -118,7 +119,7 @@ export function useAcpWorkdir(options: UseAcpWorkdirOptions) {
     if (!pendingWorkdir.value || !options.conversationId.value || !agentId.value) return
     loading.value = true
     try {
-      await sessionPresenter.setAcpWorkdir(
+      await acpRuntimeAdapter.setAcpWorkdir(
         options.conversationId.value,
         agentId.value,
         pendingWorkdir.value
@@ -152,7 +153,7 @@ export function useAcpWorkdir(options: UseAcpWorkdirOptions) {
     loading.value = true
     try {
       if (hasConversation.value && options.conversationId.value) {
-        await sessionPresenter.setAcpWorkdir(
+        await acpRuntimeAdapter.setAcpWorkdir(
           options.conversationId.value,
           agentId.value,
           selectedPath
