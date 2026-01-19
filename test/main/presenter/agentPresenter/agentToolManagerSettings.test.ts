@@ -18,6 +18,11 @@ vi.mock('@/presenter', () => ({
       getActiveSkills: vi.fn(),
       getActiveSkillsAllowedTools: vi.fn()
     },
+    yoBrowserPresenter: {
+      toolHandler: {
+        getToolDefinitions: vi.fn().mockReturnValue([])
+      }
+    },
     sessionPresenter: {},
     windowPresenter: {}
   }
@@ -26,9 +31,6 @@ vi.mock('@/presenter', () => ({
 describe('AgentToolManager DeepChat settings tool gating', () => {
   const configPresenter = {
     getSkillsEnabled: () => true
-  } as any
-  const yoBrowserPresenter = {
-    getToolDefinitions: vi.fn().mockResolvedValue([])
   } as any
 
   beforeEach(() => {
@@ -40,7 +42,6 @@ describe('AgentToolManager DeepChat settings tool gating', () => {
     ;(presenter.skillPresenter.getActiveSkillsAllowedTools as any).mockResolvedValue([])
 
     const manager = new AgentToolManager({
-      yoBrowserPresenter,
       agentWorkspacePath: null,
       configPresenter
     })
@@ -64,7 +65,6 @@ describe('AgentToolManager DeepChat settings tool gating', () => {
     ])
 
     const manager = new AgentToolManager({
-      yoBrowserPresenter,
       agentWorkspacePath: null,
       configPresenter
     })
