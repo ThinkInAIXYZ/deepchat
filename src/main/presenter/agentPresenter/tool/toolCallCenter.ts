@@ -10,6 +10,7 @@ export type ToolCallContext = {
   chatMode?: 'chat' | 'agent' | 'acp agent'
   supportsVision?: boolean
   agentWorkspacePath?: string | null
+  conversationId?: string
 }
 
 export class ToolCallCenter {

@@ -1,122 +1,126 @@
-# Plan: Chat-Driven Settings Control
+# 计划：通过对话控制设置
 
-## Key Decision: Skill-gated context
+## 关键决策：基于技能的上下文控制
 
-This capability must be described and delivered as a DeepChat Skill so the additional instructions/context are only injected when the user is actually asking to change DeepChat settings.
+此功能必须描述并交付为 DeepChat 技能，以便仅在用户实际请求更改 DeepChat 设置时才注入额外的指令/上下文。
 
-- Skill name (proposed): `deepchat-settings`
-- Activation: via `skill_control` **only when** user request is about DeepChat settings/preferences.
-- Deactivation: call `skill_control` after completing the setting change(s), to keep context small.
+- 技能名称（建议）：`deepchat-settings`
+- 激活：通过 `skill_control` **仅当**用户请求涉及 DeepChat 设置/偏好时激活。
+- 停用：完成设置更改后调用 `skill_control`，以保持上下文精简。
 
-## Tool injection gating (no skill, no tools)
+## 工具注入控制（无技能，无工具）
 
-The config-related tools must NOT appear in the LLM tool list (and must NOT be mentioned in system prompt) unless the `deepchat-settings` skill is active.
+配置相关工具不得出现在 LLM 工具列表中（且不得在系统提示中提及），除非 `deepchat-settings` 技能处于活动状态。
 
-Implementation intent:
+实现意图：
 
-- Define two dedicated tools (MCP-format function defs):
-  - `deepchat_settings_apply`
+- 定义专用工具（MCP 格式的函数定义）：
+  - `deepchat_settings_toggle`
+  - `deepchat_settings_set_language`
+  - `deepchat_settings_set_theme`
+  - `deepchat_settings_set_font_size`
+  - `deepchat_settings_set_chat_mode`
   - `deepchat_settings_open`
-- Do **not** expose them via MCP servers/tool list UI (avoid being auto-enabled into `enabledMcpTools`).
-- Inject these tool definitions only when:
-  - the current conversation has `deepchat-settings` active, and
-  - the skill’s frontmatter `allowedTools` includes the tool name(s).
+- **不**通过 MCP 服务器/工具列表 UI 暴露它们（避免被自动启用到 `enabledMcpTools`）。
+- 仅在以下条件满足时注入这些工具定义：
+  - 当前对话启用了 `deepchat-settings`，并且
+  - 技能的前置元数据 `allowedTools` 包含工具名称。
 
-This requires conversation-scoped tool-definition building:
+这需要对话范围的工具定义构建：
 
-- Extend tool definition building context to include `conversationId`.
-- Fetch `skillsAllowedTools` for that conversation (via `SkillPresenter.getActiveSkillsAllowedTools`).
-- Conditionally append `deepchat_settings_*` tool definitions only when allowed.
+- 扩展工具定义构建上下文以包含 `conversationId`。
+- 获取该对话的 `skillsAllowedTools`（通过 `SkillPresenter.getActiveSkillsAllowedTools`）。
+- 仅在允许时条件性地追加 `deepchat_settings_*` 工具定义。
 
-## Step 1: Safe Settings Apply API (main)
+## 步骤 1：安全设置应用 API（主进程）
 
-### Entry point
+### 入口点
 
-Implement a narrow, validated apply surface in the main process (presenter method or agent tool handler) that:
+在主进程中实现一个狭窄的、经过验证的应用表面（presenter 方法或代理工具处理器），用于：
 
-- Accepts `unknown` input and validates it (Zod-style, similar to `AgentFileSystemHandler`).
-- Uses an allowlist of setting IDs.
-- Applies changes by calling existing `ConfigPresenter` methods so existing event broadcasts remain correct.
-- Returns structured results for rendering a confirmation/error message.
+- 接受 `unknown` 输入并进行验证（Zod 风格，类似于 `AgentFileSystemHandler`）。
+- 使用设置 ID 的允许列表。
+- 通过调用现有的 `ConfigPresenter` 方法应用更改，以便现有的事件广播保持正确。
+- 返回结构化结果以渲染确认/错误消息。
 
-### Allowlisted settings and mappings
+### 允许列表的设置和映射
 
-Toggle settings:
+开关设置：
 
-- `soundEnabled` -> `ConfigPresenter.setSoundEnabled(boolean)` (broadcast: `CONFIG_EVENTS.SOUND_ENABLED_CHANGED`)
-- `copyWithCotEnabled` -> `ConfigPresenter.setCopyWithCotEnabled(boolean)` (broadcast: `CONFIG_EVENTS.COPY_WITH_COT_CHANGED`)
-- `chatMode` (meaning TBD)
-  - If this means input mode: `ConfigPresenter.setSetting('input_chatMode', 'chat'|'agent'|'acp agent')`.
-  - If this means network proxy: treat as **not directly settable** for now; open Settings instead.
+- `soundEnabled` -> `ConfigPresenter.setSoundEnabled(boolean)`（广播：`CONFIG_EVENTS.SOUND_ENABLED_CHANGED`）
+- `copyWithCotEnabled` -> `ConfigPresenter.setCopyWithCotEnabled(boolean)`（广播：`CONFIG_EVENTS.COPY_WITH_COT_CHANGED`）
+- `chatMode`（含义待定）
+  - 如果这是指输入模式：`ConfigPresenter.setSetting('input_chatMode', 'chat'|'agent'|'acp agent')`。
+  - 如果这是指网络代理：暂时视为**不可直接设置**；改为打开设置。
 
-Enum settings:
+枚举设置：
 
-- `language` -> `ConfigPresenter.setLanguage(locale)` (broadcast: `CONFIG_EVENTS.LANGUAGE_CHANGED`)
-- `theme` -> `ConfigPresenter.setTheme('dark' | 'light' | 'system')` (broadcast: `CONFIG_EVENTS.THEME_CHANGED`)
-- `fontSizeLevel` -> `ConfigPresenter.setSetting('fontSizeLevel', level)` (broadcast: `CONFIG_EVENTS.FONT_SIZE_CHANGED` via special-case)
+- `language` -> `ConfigPresenter.setLanguage(locale)`（广播：`CONFIG_EVENTS.LANGUAGE_CHANGED`）
+- `theme` -> `ConfigPresenter.setTheme('dark' | 'light' | 'system')`（广播：`CONFIG_EVENTS.THEME_CHANGED`）
+- `fontSizeLevel` -> `ConfigPresenter.setSetting('fontSizeLevel', level)`（通过特殊情况广播 `CONFIG_EVENTS.FONT_SIZE_CHANGED`）
 
-### Validation rules
+### 验证规则
 
-- Strict allowlist; reject unknown IDs.
-- No implicit coercion in Step 1.
-- Per-setting validation:
-  - booleans: must be boolean
-  - enums: must match allowed set
-  - `fontSizeLevel`: must be integer within supported range (source of truth TBD; likely align with `uiSettingsStore` constants)
-  - `language`: must be one of supported locales (reuse the supported list from config)
+- 严格的允许列表；拒绝未知 ID。
+- 步骤 1 中不进行隐式类型转换。
+- 每个设置的验证：
+  - 布尔值：必须是布尔类型
+  - 枚举值：必须匹配允许的集合
+  - `fontSizeLevel`：必须是支持范围内的整数（真实来源待定；可能与 `uiSettingsStore` 常量对齐）
+  - `language`：必须是支持的语言环境之一（重用配置中的支持列表）
 
-### Defense-in-depth: require Skill active
+### 纵深防御：要求技能活动
 
-Even with gated tool injection, keep a runtime check:
+即使有控制的工具注入，也要保持运行时检查：
 
-- If the conversation does **not** have `deepchat-settings` active, refuse to apply and return an error telling the model/user to activate it.
-- This ensures settings cannot be changed accidentally by unrelated agent behavior.
+- 如果对话**未**启用 `deepchat-settings`，拒绝应用并返回错误，告知模型/用户激活它。
+- 这确保设置不会因无关的代理行为而意外更改。
 
-## Step 2: Skill definition (natural language behavior)
+## 步骤 2：技能定义（自然语言行为）
 
-### Built-in Skill artifact
+### 内置技能工件
 
-Add `resources/skills/deepchat-settings/SKILL.md`:
+添加 `resources/skills/deepchat-settings/SKILL.md`：
 
-- Frontmatter `description` must clearly state:
-  - This is for changing DeepChat app settings only.
-  - Activate only when user requests settings changes (设置/偏好/主题/语言/字体/音效/复制COT/聊天模式/代理模式).
-  - Do not activate for OS settings or programming/code settings.
-- Body must define:
-  - Supported settings (allowlist) and canonical values.
-  - How to ask clarifying questions when ambiguous.
-  - When to refuse and instead open Settings.
-  - Always deactivate after completing the settings task.
+- 前置元数据 `description` 必须明确声明：
+  - 这仅用于更改 DeepChat 应用设置。
+  - 仅当用户请求设置更改时激活（设置/偏好/主题/语言/字体/音效/复制COT/聊天模式/代理模式）。
+  - 不要为操作系统设置或编程/代码设置激活。
+- 主体必须定义：
+  - 支持的设置（允许列表）和规范值。
+  - 在有歧义时如何提出澄清问题。
+  - 何时拒绝并改为打开设置。
+  - 完成设置任务后始终停用。
 
-### Disallowed settings -> open Settings
+### 不允许的设置 -> 打开设置
 
-For requests involving MCP config, prompts, providers, API keys, etc:
+对于涉及 MCP 配置、提示词、提供者、API 密钥等的请求：
 
-- Do not apply via tool.
-- Provide precise instructions where to change it.
-- Open Settings window and navigate as close as possible.
+- 不通过工具应用。
+- 提供精确的说明告诉用户在哪里更改。
+- 打开设置窗口并尽可能导航到相应位置。
 
-Implementation options for opening/navigating Settings:
+打开/导航设置的实现选项：
 
-- Use `presenter.windowPresenter.createSettingsWindow()`.
-- Optionally `executeJavaScript` to set a localStorage navigation hint that settings UI can read.
-- Or add a dedicated IPC channel from main -> settings renderer to navigate to tab/section.
+- 使用 `presenter.windowPresenter.createSettingsWindow()`。
+- 可选择 `executeJavaScript` 设置 localStorage 导航提示，设置 UI 可以读取。
+- 或添加专用的 IPC 通道从主进程 -> 设置渲染器导航到选项卡/部分。
 
-## Data model
+## 数据模型
 
-Introduce shared request/response types (for Step 1 entrypoint + tool):
+引入共享的请求/响应类型（用于步骤 1 入口点 + 工具）：
 
-- `ChatSettingId` (union of allowlisted IDs)
-- `ApplyChatSettingRequest` (discriminated union `{ id, value }`)
+- `ChatSettingId`（允许列表 ID 的联合）
+- `ApplyChatSettingRequest`（可区分联合 `{ id, value }`）
 - `ApplyChatSettingResult`
   - `{ ok: true; id; value; previousValue?; appliedAt }`
   - `{ ok: false; errorCode; message; details? }`
 
-## Test Strategy
+## 测试策略
 
-- Main (Vitest):
-  - allowlist + validation (reject invalid values, no writes)
-  - each supported setting maps to correct `ConfigPresenter` method
-  - Skill-required gate works (tool refuses when skill inactive)
-- Renderer/UI (if any navigation hints are added):
-  - Settings page navigation handler tests (optional)
+- 主进程（Vitest）：
+  - 允许列表 + 验证（拒绝无效值，无写入）
+  - 每个支持的设置映射到正确的 `ConfigPresenter` 方法
+  - 技能要求控制工作（技能非活动时工具拒绝）
+- 渲染器/UI（如果添加了任何导航提示）：
+  - 设置页面导航处理器测试（可选）

@@ -9,6 +9,12 @@ import { presenter } from '@/presenter'
 import { AgentFileSystemHandler } from './agentFileSystemHandler'
 import { AgentBashHandler } from './agentBashHandler'
 import { SkillTools } from '../../skillPresenter/skillTools'
+import {
+  ChatSettingsToolHandler,
+  buildChatSettingsToolDefinitions,
+  CHAT_SETTINGS_SKILL_NAME,
+  CHAT_SETTINGS_TOOL_NAMES
+} from './chatSettingsTools'
 
 // Consider moving to a shared handlers location in future refactoring
 import {
@@ -59,6 +65,7 @@ export class AgentToolManager {
   private readonly commandPermissionHandler?: CommandPermissionService
   private readonly configPresenter: IConfigPresenter
   private skillTools: SkillTools | null = null
+  private chatSettingsHandler: ChatSettingsToolHandler | null = null
   private readonly fileSystemSchemas = {
     read_file: z.object({
       paths: z.array(z.string()).min(1),
@@ -244,6 +251,7 @@ export class AgentToolManager {
     chatMode: 'chat' | 'agent' | 'acp agent'
     supportsVision: boolean
     agentWorkspacePath: string | null
+    conversationId?: string
   }): Promise<MCPToolDefinition[]> {
     const defs: MCPToolDefinition[] = []
     const isAgentMode = context.chatMode === 'agent'
@@ -288,6 +296,33 @@ export class AgentToolManager {
       defs.push(...skillDefs)
     }
 
+    // 4. DeepChat settings tools (agent mode only, skill gated)
+    if (isAgentMode && this.isSkillsEnabled() && context.conversationId) {
+      try {
+        const activeSkills = await presenter.skillPresenter.getActiveSkills(context.conversationId)
+        if (activeSkills.includes(CHAT_SETTINGS_SKILL_NAME)) {
+          const allowedTools = await presenter.skillPresenter.getActiveSkillsAllowedTools(
+            context.conversationId
+          )
+          const requiredSettingsTools = Object.values(CHAT_SETTINGS_TOOL_NAMES)
+          const nonOpenSettingsTools = requiredSettingsTools.filter(
+            (tool) => tool !== CHAT_SETTINGS_TOOL_NAMES.open
+          )
+          const hasNonOpenSettingsTool = nonOpenSettingsTools.some((tool) =>
+            allowedTools.includes(tool)
+          )
+          const effectiveAllowedTools = hasNonOpenSettingsTool
+            ? allowedTools
+            : Array.from(new Set([...allowedTools, ...requiredSettingsTools]))
+
+          const settingsDefs = buildChatSettingsToolDefinitions(effectiveAllowedTools)
+          defs.push(...settingsDefs)
+        }
+      } catch (error) {
+        logger.warn('[AgentToolManager] Failed to load DeepChat settings tools', { error })
+      }
+    }
+
     return defs
   }
 
@@ -321,6 +356,11 @@ export class AgentToolManager {
     // Route to Skill tools
     if (this.isSkillTool(toolName)) {
       return await this.callSkillTool(toolName, args, conversationId)
+    }
+
+    // Route to DeepChat settings tools
+    if (this.isChatSettingsTool(toolName)) {
+      return await this.callChatSettingsTool(toolName, args, conversationId)
     }
 
     throw new Error(`Unknown Agent tool: ${toolName}`)
@@ -850,6 +890,18 @@ export class AgentToolManager {
     return this.skillTools
   }
 
+  private getChatSettingsHandler(): ChatSettingsToolHandler {
+    if (!this.chatSettingsHandler) {
+      this.chatSettingsHandler = new ChatSettingsToolHandler({
+        configPresenter: this.configPresenter,
+        skillPresenter: presenter.skillPresenter,
+        sessionPresenter: presenter.sessionPresenter,
+        windowPresenter: presenter.windowPresenter
+      })
+    }
+    return this.chatSettingsHandler
+  }
+
   private getSkillToolDefinitions(): MCPToolDefinition[] {
     const schemas = this.skillSchemas
     return [
@@ -896,6 +948,17 @@ export class AgentToolManager {
     return toolName === 'skill_list' || toolName === 'skill_control'
   }
 
+  private isChatSettingsTool(toolName: string): boolean {
+    return (
+      toolName === CHAT_SETTINGS_TOOL_NAMES.toggle ||
+      toolName === CHAT_SETTINGS_TOOL_NAMES.setLanguage ||
+      toolName === CHAT_SETTINGS_TOOL_NAMES.setTheme ||
+      toolName === CHAT_SETTINGS_TOOL_NAMES.setFontSize ||
+      toolName === CHAT_SETTINGS_TOOL_NAMES.setChatMode ||
+      toolName === CHAT_SETTINGS_TOOL_NAMES.open
+    )
+  }
+
   private async callSkillTool(
     toolName: string,
     args: Record<string, unknown>,
@@ -931,5 +994,38 @@ export class AgentToolManager {
     }
 
     throw new Error(`Unknown skill tool: ${toolName}`)
+  }
+
+  private async callChatSettingsTool(
+    toolName: string,
+    args: Record<string, unknown>,
+    conversationId?: string
+  ): Promise<AgentToolCallResult> {
+    const handler = this.getChatSettingsHandler()
+    if (toolName === CHAT_SETTINGS_TOOL_NAMES.toggle) {
+      const result = await handler.toggle(args, conversationId)
+      return { content: JSON.stringify(result) }
+    }
+    if (toolName === CHAT_SETTINGS_TOOL_NAMES.setLanguage) {
+      const result = await handler.setLanguage(args, conversationId)
+      return { content: JSON.stringify(result) }
+    }
+    if (toolName === CHAT_SETTINGS_TOOL_NAMES.setTheme) {
+      const result = await handler.setTheme(args, conversationId)
+      return { content: JSON.stringify(result) }
+    }
+    if (toolName === CHAT_SETTINGS_TOOL_NAMES.setFontSize) {
+      const result = await handler.setFontSize(args, conversationId)
+      return { content: JSON.stringify(result) }
+    }
+    if (toolName === CHAT_SETTINGS_TOOL_NAMES.setChatMode) {
+      const result = await handler.setChatMode(args, conversationId)
+      return { content: JSON.stringify(result) }
+    }
+    if (toolName === CHAT_SETTINGS_TOOL_NAMES.open) {
+      const result = await handler.open(args, conversationId)
+      return { content: JSON.stringify(result) }
+    }
+    throw new Error(`Unknown DeepChat settings tool: ${toolName}`)
   }
 }

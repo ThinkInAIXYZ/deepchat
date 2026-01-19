@@ -562,7 +562,8 @@ export class PermissionHandler extends BaseHandler {
           enabledMcpTools,
           chatMode,
           supportsVision: false,
-          agentWorkspacePath
+          agentWorkspacePath,
+          conversationId
         })
         toolDef = toolDefinitions.find((definition) => {
           if (definition.function.name !== pendingToolCall.name) {
