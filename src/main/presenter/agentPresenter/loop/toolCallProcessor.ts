@@ -52,8 +52,7 @@ const TOOLS_REQUIRING_OFFLOAD = new Set([
   'glob_search',
   'grep_search',
   'text_replace',
-  'browser_read_links',
-  'browser_get_clickable_elements'
+  'yo_browser_cdp_send'
 ])
 
 export class ToolCallProcessor {
