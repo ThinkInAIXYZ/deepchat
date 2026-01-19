@@ -1,85 +1,85 @@
-# 通过对话控制设置
+# Control Settings via Chat
 
-## 概述
+## Overview
 
-允许用户在对话中使用自然语言更新 DeepChat 设置中一小部分安全的子集。更改必须经过验证、持久化，并立即生效。对于复杂/高风险设置（例如 MCP 配置、提示词），助手不得直接应用更改；相反，它应该说明在哪里编辑它们并自动打开设置（理想情况下深度链接到相关部分）。
+Allow users to update a small, safe subset of DeepChat settings via natural language within conversations. Changes MUST be validated, persisted, and take effect immediately. For complex/high-risk settings (e.g., MCP configuration, prompts), the assistant MUST NOT apply changes directly; instead, it should explain where to edit them and automatically open settings (ideally deep-linked to the relevant section).
 
-此规范有意分为两个增量：
+This specification is intentionally split into two increments:
 
-- **步骤 1**：提供一个安全的、经过验证的设置应用 API（主进程），可以从受控的入口点（渲染器 UI 和/或代理工具）调用以更改设置并触发实时更新。
-- **步骤 2**：以**DeepChat 技能**的形式交付自然语言行为，以便仅在相关时注入额外的上下文。
+- **Step 1**: Provide a safe, validated settings application API (main process) that can be called from controlled entry points (renderer UI and/or agent tools) to change settings and trigger live updates.
+- **Step 2**: Deliver natural language behavior as a **DeepChat skill** so that additional context is injected only when relevant.
 
-## 目标
+## Goals
 
-- 允许在对话内更新：
-  - 开关设置：音效、复制 COT 详情。
-  - 枚举设置：语言、主题、字体大小。
-- 立即应用更改（当前窗口 + 相关的其他窗口）。
-- 将更改持久化到现有配置存储。
-- 保持表面积安全：不暴露任意配置键。
-- 使用技能控制上下文：
-  - 设置修改指导**必须仅在**用户实际请求更改 DeepChat 设置时注入。
+- Allow in-conversation updates to:
+  - Toggle settings: Sound, Copy COT details.
+  - Enum settings: Language, Theme, Font size.
+- Apply changes immediately (current window + relevant other windows).
+- Persist changes to existing configuration store.
+- Keep surface area safe: do not expose arbitrary configuration keys.
+- Use skills to control context:
+  - Settings modification guidance MUST be injected ONLY when user actually requests to change DeepChat settings.
 
-## 非目标
+## Non-Goals
 
-- 不允许用户通过聊天直接设置任意的 `ConfigPresenter.setSetting(key, value)` 键。
-- 不允许通过聊天设置敏感值（API 密钥、令牌、环境变量、文件路径、命令参数）。
-- 不实现通过自然语言编辑 MCP 服务器、提示词、提供者或其他复杂嵌套配置。
-- 不更改设置在磁盘上的存储方式（此功能中无迁移）。
+- Do NOT allow users to set arbitrary `ConfigPresenter.setSetting(key, value)` keys via chat.
+- Do NOT allow setting sensitive values via chat (API keys, tokens, environment variables, file paths, command arguments).
+- Do NOT implement editing of MCP servers, prompts, providers, or other complex nested config via natural language.
+- Do NOT change how settings are stored on disk (no migrations in this feature).
 
-## 用户故事
+## User Stories
 
-- 作为用户，我可以说"开启音效"，它立即启用音效。
-- 作为用户，我可以说"复制时复制 COT 详情"，它启用/禁用该开关。
-- 作为用户，我可以说"将语言设置为英语"，UI 语言立即切换。
-- 作为用户，我可以说"使用深色主题"或"跟随系统主题"，主题立即更新。
-- 作为用户，我可以说"使文本更大"，字体大小立即更改。
-- 作为用户，如果我询问"添加 MCP 服务器"或"编辑提示词"，助手会告诉我在设置中的哪里操作，并在该位置打开设置。
+- As a user, I can say "turn on sound" and it enables sound immediately.
+- As a user, I can say "copy COT details when copying" and it enables/disables the toggle.
+- As a user, I can say "set language to English" and UI language switches immediately.
+- As a user, I can say "use dark theme" or "follow system theme" and theme updates immediately.
+- As a user, I can say "make text larger" and font size changes immediately.
+- As a user, if I ask "add MCP server" or "edit prompts", the assistant tells me where in settings and opens settings there.
 
-## 验收标准
+## Acceptance Criteria
 
-### 步骤 1：安全设置应用 API（无 NLP）
+### Step 1: Safe Settings Application API (No NLP)
 
-- 存在一个主进程 API，接受受限的、经过验证的请求以更改一个支持的设置。
-- 只有此规范中允许列表的设置可以通过此 API 更改。
-- 当 `deepchat-settings` 技能**未**活动时，设置工具**不会**注入到 LLM 工具列表中。
-- 成功时：
-  - 设置值被持久化（现有底层存储）。
-  - 更改在当前渲染器中立即生效。
-  - 在现有事件流支持的地方进行跨窗口/选项卡更新（例如主题/语言/字体大小/音效）。
-- 失败时：
-  - 无效输入被拒绝，返回结构化的、用户可呈现的错误（无部分写入）。
-- API 可以安全地使用不受信任的输入调用（严格验证 + 允许列表）。
+- A main process API exists that accepts restricted, validated requests to change one supported setting.
+- Only allowlisted settings from this specification can be changed via this API.
+- Setting tools are NOT injected into LLM tool list when `deepchat-settings` skill is **NOT** active.
+- On success:
+  - Setting value is persisted (existing underlying storage).
+  - Changes take effect immediately in current renderer.
+  - Cross-window/tab updates happen where existing event flow supports (e.g., theme/language/font size/sound).
+- On failure:
+  - Invalid inputs are rejected with structured, user-presentable errors (no partial writes).
+- API is safe to call with untrusted input (strict validation + allowlist).
 
-### 步骤 2：通过技能的自然语言（上下文控制）
+### Step 2: Natural Language via Skill (Context Control)
 
-- 存在内置技能（建议：`deepchat-settings`）描述此功能。
-- 该技能**不**旨在默认保持活动：
-  - 它应仅在用户请求更改 DeepChat 自身设置时激活。
-  - 它应在设置更改完成后停用。
-- 活动时，助手：
-  - 解释用户意图，规范化为规范值，并调用步骤 1 API。
-  - 对于不允许/复杂的设置（MCP、提示词等），提供指导并打开设置到最佳匹配位置。
+- A built-in skill exists (suggested: `deepchat-settings`) describing this functionality.
+- This skill is NOT intended to remain active by default:
+  - It should activate only when user requests to change DeepChat's own settings.
+  - It should deactivate after setting change is complete.
+- When active, assistant:
+  - Explains user intent, normalizes to canonical values, and calls Step 1 API.
+  - For disallowed/complex settings (MCP, prompts, etc.), provides guidance and opens settings to best-match section.
 
-## 开放问题 [需要澄清]
+## Open Questions [NEEDS CLARIFICATION]
 
-1. 技能的模式可用性
-   - 技能提示注入当前似乎与 `chatMode === 'agent'` 绑定。我们希望此功能在以下情况下工作：
-     - 仅代理模式（建议的第一个增量），或
-     - 亦在聊天/ACP 代理模式下（需要额外工作）？
-2. 字体大小表示
-   - 聊天应使用语义标签（`small/medium/large`）映射到 `fontSizeLevel`，还是接受明确的数字级别？
-3. 设置深度链接目标
-   - 我们希望支持深度链接的规范设置选项卡/部分 ID 是什么（例如 `mcp`、`prompts`、`appearance`、`language`）？
-4. UX：确认 vs 静默应用
-   - 助手应始终在应用更改前确认，还是立即应用并附带"撤销"功能？
+1. Skill Mode Availability
+   - Skill prompt injection currently seems tied to `chatMode === 'agent'`. Do we want this feature to work in:
+     - Agent mode only (suggested first increment), OR
+     - Also in chat/ACP agent modes (requires additional work)?
+2. Font Size Representation
+   - Should chat use semantic labels (`small/medium/large`) mapping to `fontSizeLevel`, or accept explicit numeric levels?
+3. Settings Deep Link Targets
+   - What are the canonical settings tab/section IDs we want to support deep-linking to (e.g., `mcp`, `prompts`, `appearance`, `language`)?
+4. UX: Confirm vs Silent Apply
+   - Should assistant always confirm before applying changes, or apply immediately with "undo" capability?
 
-## 安全与隐私说明
+## Security & Privacy Notes
 
-- 步骤 1 API 必须：
-  - 使用设置 ID 的允许列表。
-  - 验证输入类型和枚举范围。
-  - 避免任何通用的"设置任意键"功能。
-- 纵深防御（推荐）：设置工具/入口点应在应用前验证相关技能对对话是否活动。
-- 步骤 2 不得允许间接权限升级：
-  - 不得通过自然语言更改文件系统路径、命令参数、环境变量或承载机密的设置。
+- Step 1 API MUST:
+  - Use an allowlist of setting IDs.
+  - Validate input types and enum ranges.
+  - Avoid any generic "set arbitrary key" functionality.
+- Defense in depth (recommended): Setting tools/entry points should verify the relevant skill is active for the conversation before applying.
+- Step 2 MUST NOT allow indirect privilege escalation:
+  - MUST NOT change file system paths, command arguments, environment variables, or settings that hold secrets via natural language.
